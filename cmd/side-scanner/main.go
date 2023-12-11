@@ -368,7 +368,7 @@ func attachCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(
 				func(_ complog.Component, _ compconfig.Component) error {
-					globalParams.attachMode = volumeAttach
+					globalParams.diskMode = volumeAttach
 					return attachCmd()
 				},
 				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
