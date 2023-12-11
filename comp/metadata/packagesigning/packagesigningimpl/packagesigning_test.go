@@ -9,8 +9,17 @@ package packagesigningimpl
 
 import (
 	"io"
+	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"go.uber.org/fx"
 )
 
 const (
@@ -382,58 +391,77 @@ func TestParseSourceListFile(t *testing.T) {
 	}
 }
 
-// func TestGetAPTPayload(t *testing.T) {
-// 	setupHostMetadataMock(t)
+func TestGetAPTPayload(t *testing.T) {
+	setupAPTSigningMock(t)
 
-// 	expectedMetadata := &signingMetadata{
-// 		SigningKeys: []SigningKey{
-// 		{Fingerprint: "F1068E14E09422B3", ExpirationDate: "2022-06-28", KeyType: "signed-by", Repositories: []repositories{{RepoName: "https://apt.datadoghq.com//stable/7"}}},
-// 		{Fingerprint: "FD4BF915", ExpirationDate: "9999-12-31", KeyType: "trusted"},
-// 		},
-// 	}
+	expectedMetadata := &signingMetadata{
+		SigningKeys: []SigningKey{
+			{Fingerprint: "F1068E14E09422B3", ExpirationDate: "2022-06-28", KeyType: "signed-by", Repositories: []repositories{{RepoName: "https://apt.datadoghq.com//stable/7"}}},
+			{Fingerprint: "FD4BF915", ExpirationDate: "9999-12-31", KeyType: "trusted"},
+		},
+	}
 
-// 	ih := getTestPackageSigning(t)
+	ih := getTestPackageSigning(t)
 
-// 	p := ih.getPayload().(*Payload)
-// 	assert.Equal(t, expectedMetadata, p.Metadata)
-// }
-// func setupAPTSigningMock(t *testing.T) {
-// 	t.Cleanup(func() {
-// 		getPkgManager = getPackageManager
-// 		getAPTKeys = getAPTSignatureKeys
-// 		getYUMKeys = getYUMSignatureKeys
-// 	}
+	p := ih.getPayload().(*Payload)
+	assert.Equal(t, expectedMetadata, p.Metadata)
+}
 
-// 	getPkgManager = getPackageAPTMock
-// 	getAPTKeys = getAPTKeysMock
-// }
-// func getPackageAPTMock() string {
-// 	return "apt"
-// }
-// func getPackageYUMMock() string {
-// 	return "yum"
-// }
-// func getAPTKeysMock() []SigningKey {
-// 	return []SigningKey{
-// 		{Fingerprint: "F1068E14E09422B3", ExpirationDate: "2022-06-28", KeyType: "signed-by", Repositories: []repositories{{RepoName: "https://apt.datadoghq.com//stable/7"}}},
-// 		{Fingerprint: "FD4BF915", ExpirationDate: "9999-12-31", KeyType: "trusted"},
-// 	}
-// }
-// func getYUMSKeysMock() []SigningKey {
-// 	return []SigningKey{
-// 		{Fingerprint: "AL1C1AK3YS", ExpirationDate: "9999-12-31", KeyType: "repo", Repositories: []repositories{{RepoName: "https://yum.datadoghq.com/stable/7/x86_64/"}}},
-// 		{Fingerprint: "733142A241337", ExpirationDate: "2030-03-02", KeyType: "rpm"},
-// 	}
-// }
+func TestGetYUMPayload(t *testing.T) {
+	setupYUMSigningMock(t)
 
-// func getTestPackageSigning(t *testing.T) *pkgSigning {
-// 	p := newPackageSigningProvider(
-// 		fxutil.Test[dependencies](
-// 			t,
-// 			log.MockModule,
-// 			config.MockModule,
-// 			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
-// 		),
-// 	)
-// 	return p.Comp.(*pkgSigning)
-// }
+	expectedMetadata := &signingMetadata{
+		SigningKeys: []SigningKey{
+			{Fingerprint: "AL1C1AK3YS", ExpirationDate: "9999-12-31", KeyType: "repo", Repositories: []repositories{{RepoName: "https://yum.datadoghq.com/stable/7/x86_64/"}}},
+			{Fingerprint: "733142A241337", ExpirationDate: "2030-03-02", KeyType: "rpm"},
+		},
+	}
+
+	ih := getTestPackageSigning(t)
+
+	p := ih.getPayload().(*Payload)
+	assert.Equal(t, expectedMetadata, p.Metadata)
+}
+
+func setupAPTSigningMock(t *testing.T) {
+	t.Cleanup(func() {
+		getPkgManager = getPackageManager
+		getAPTKeys = getAPTSignatureKeys
+		getYUMKeys = getYUMSignatureKeys
+	})
+
+	getPkgManager = getPackageAPTMock
+	getAPTKeys = getAPTKeysMock
+}
+func setupYUMSigningMock(t *testing.T) {
+	setupAPTSigningMock(t)
+
+	getPkgManager = getPackageYUMMock
+	getYUMKeys = getYUMKeysMock
+}
+func getPackageAPTMock() string { return "apt" }
+func getPackageYUMMock() string { return "yum" }
+func getAPTKeysMock(_ *http.Client) []SigningKey {
+	return []SigningKey{
+		{Fingerprint: "F1068E14E09422B3", ExpirationDate: "2022-06-28", KeyType: "signed-by", Repositories: []repositories{{RepoName: "https://apt.datadoghq.com//stable/7"}}},
+		{Fingerprint: "FD4BF915", ExpirationDate: "9999-12-31", KeyType: "trusted"},
+	}
+}
+func getYUMKeysMock(_ string, _ *http.Client) []SigningKey {
+	return []SigningKey{
+		{Fingerprint: "AL1C1AK3YS", ExpirationDate: "9999-12-31", KeyType: "repo", Repositories: []repositories{{RepoName: "https://yum.datadoghq.com/stable/7/x86_64/"}}},
+		{Fingerprint: "733142A241337", ExpirationDate: "2030-03-02", KeyType: "rpm"},
+	}
+}
+
+func getTestPackageSigning(t *testing.T) *pkgSigning {
+	p := newPackageSigningProvider(
+		fxutil.Test[dependencies](
+			t,
+			log.MockModule,
+			config.MockModule,
+			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
+		),
+	)
+	return p.Comp.(*pkgSigning)
+}

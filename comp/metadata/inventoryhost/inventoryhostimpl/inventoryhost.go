@@ -42,11 +42,12 @@ func Module() fxutil.Module {
 
 // for testing purpose
 var (
-	cpuGet       = cpu.CollectInfo
-	memoryGet    = memory.CollectInfo
-	networkGet   = network.CollectInfo
-	platformGet  = platform.CollectInfo
-	osVersionGet = utils.GetOSVersion
+	cpuGet        = cpu.CollectInfo
+	memoryGet     = memory.CollectInfo
+	networkGet    = network.CollectInfo
+	platformGet   = platform.CollectInfo
+	osVersionGet  = utils.GetOSVersion
+	pkgSigningGet = packagesigningimpl.GetLinuxPackageSigningPolicy
 )
 
 // hostMetadata contains metadata about the host
@@ -237,7 +238,7 @@ func (ih *invHost) fillData() {
 	ih.data.CloudProviderHostID = cloudproviders.GetHostID(context.Background(), cloudProvider)
 	ih.data.OsVersion = osVersionGet()
 
-	gpgcheck, repoGPGCheck := packagesigningimpl.GetLinuxPackageSigningPolicy()
+	gpgcheck, repoGPGCheck := pkgSigningGet()
 	ih.data.LinuxPackageSigningEnabled = gpgcheck
 	ih.data.RPMGlobalRepoGPGCheckEnabled = repoGPGCheck
 }

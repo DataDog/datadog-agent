@@ -13,8 +13,14 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+<<<<<<< HEAD
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
+=======
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/metadata/host/utils"
+	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning/packagesigningimpl"
+>>>>>>> 31e0b98883 (Tentative to add getPayload test)
 	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
 	"github.com/DataDog/datadog-agent/pkg/gohai/memory"
 	"github.com/DataDog/datadog-agent/pkg/gohai/network"
@@ -77,6 +83,7 @@ func platformMock() *platform.Info {
 		Processor:        gohaiutils.NewValue("unknown"),
 	}
 }
+func pkgSigningMock() (bool, bool) { return true, false }
 
 func cpuErrorMock() *cpu.Info                  { return &cpu.Info{} }
 func memoryErrorMock() *memory.Info            { return &memory.Info{} }
@@ -90,6 +97,7 @@ func setupHostMetadataMock(t *testing.T) {
 		networkGet = network.CollectInfo
 		platformGet = platform.CollectInfo
 		osVersionGet = utils.GetOSVersion
+		pkgSigningGet = packagesigningimpl.GetLinuxPackageSigningPolicy
 	})
 
 	cpuGet = cpuMock
@@ -99,6 +107,7 @@ func setupHostMetadataMock(t *testing.T) {
 	osVersionGet = func() string { return "testOS" }
 	dmi.SetupMock(t, "hypervisorUUID", "dmiUUID", "boardTag", "boardVendor")
 	cloudproviders.Mock(t, "some_cloud_provider", "some_host_id", "test_source", "test_id_1234")
+	pkgSigningGet = pkgSigningMock
 }
 
 func setupHostMetadataErrorMock(t *testing.T) {
