@@ -86,17 +86,12 @@ func runAgentSidekicks(ctx context.Context, cfg config.Component, wmeta workload
 	}
 
 	if coreconfig.IsRemoteConfigEnabled(coreconfig.Datadog) {
-		// Auth tokens are handled by the rcClient
-		ipcAddress, err := coreconfig.GetIPCAddress()
-		if err != nil {
-			return err
-		}
-
-		rcClient, err := rc.NewAgentGRPCConfigFetcher(ipcAddress, coreconfig.GetIPCPort(), security.FetchAuthToken)
+		rcClient, err := newConfigFetcher()
 		if err != nil {
 			telemetryCollector.SendStartupError(telemetry.CantCreateRCCLient, err)
 			return fmt.Errorf("could not instantiate the tracer remote config client: %v", err)
 		}
+
 		api.AttachEndpoint(api.Endpoint{
 			Pattern: "/v0.7/config",
 			Handler: func(r *api.HTTPReceiver) http.Handler { return remotecfg.ConfigHandler(r, rcClient, tracecfg) },
@@ -205,4 +200,14 @@ func profilingConfig(tracecfg *tracecfg.AgentConfig) *profiling.Settings {
 		WithGoroutineProfile: coreconfig.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces"),
 		Tags:                 []string{fmt.Sprintf("version:%s", version.AgentVersion)},
 	}
+}
+
+func newConfigFetcher() (rc.ConfigUpdater, error) {
+	ipcAddress, err := coreconfig.GetIPCAddress()
+	if err != nil {
+		return nil, err
+	}
+
+	// Auth tokens are handled by the rcClient
+	return rc.NewAgentGRPCConfigFetcher(ipcAddress, coreconfig.GetIPCPort(), security.FetchAuthToken)
 }
