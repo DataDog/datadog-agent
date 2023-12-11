@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/rc-updater/catalog"
+	"github.com/DataDog/datadog-agent/pkg/updater/catalog"
 	"github.com/pkg/errors"
 )
 
