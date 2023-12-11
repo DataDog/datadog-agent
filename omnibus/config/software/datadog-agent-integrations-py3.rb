@@ -173,6 +173,7 @@ build do
     nix_specific_build_env["cryptography"] = nix_build_env.merge(
       {
         "RUSTFLAGS" => "-C link-arg=-Wl,-rpath,#{install_dir}/embedded/lib",
+        "PIP_NO_BINARY" => "cryptography",
         "OPENSSL_DIR" => "#{install_dir}/embedded/",
       }
     )
