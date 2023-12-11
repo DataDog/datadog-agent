@@ -148,7 +148,7 @@ func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 
 	// Iterate through active connections until we find connection created above
 	require.Eventuallyf(t, func() bool {
-		stats := getHttpStats(t, monitor)
+		stats := getHTTPStats(t, monitor)
 
 		for key, reqStats := range stats {
 			if key.Method == http.MethodGet && strings.HasSuffix(key.Path.Content.Get(), "/test") && (key.SrcPort == 8080 || key.DstPort == 8080) {
@@ -199,7 +199,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorCaptureRequestMultipleTimes() {
 
 			occurrences := 0
 			require.Eventually(t, func() bool {
-				stats := getHttpStats(t, monitor)
+				stats := getHTTPStats(t, monitor)
 				occurrences += countRequestOccurrences(stats, req)
 				return occurrences == expectedOccurrences
 			}, time.Second*3, time.Millisecond*100, "Expected to find a request %d times, instead captured %d", occurrences, expectedOccurrences)
@@ -246,7 +246,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
 	// then we are using a variable to check if "we ever found it" among the iterations.
 	for i := 0; i < 10; i++ {
 		time.Sleep(10 * time.Millisecond)
-		stats := getHttpStats(t, monitor)
+		stats := getHTTPStats(t, monitor)
 		for req := range abortedRequests {
 			requestNotIncluded(t, stats, req)
 		}
@@ -373,7 +373,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 
 			// Ensure all captured transactions get sent to user-space
 			time.Sleep(10 * time.Millisecond)
-			stats := getHttpStats(t, monitor)
+			stats := getHTTPStats(t, monitor)
 
 			if tt.shouldCapture {
 				includesRequest(t, stats, req)
@@ -450,7 +450,7 @@ func (s *HTTPTestSuite) TestRSTPacketRegression() {
 	time.Sleep(100 * time.Millisecond)
 
 	// Assert that the HTTP request was correctly handled despite its forceful termination
-	stats := getHttpStats(t, monitor)
+	stats := getHTTPStats(t, monitor)
 	url, err := url.Parse("http://127.0.0.1:8080/200/foobar")
 	require.NoError(t, err)
 	includesRequest(t, stats, &nethttp.Request{URL: url})
@@ -617,12 +617,15 @@ func (s *USMHTTP2Suite) TestHTTP2ManyDifferentPaths() {
 	require.NoError(t, monitor.Start())
 	defer monitor.Stop()
 
-	// Should be bigger than the length of the http2_dynamic_table which is 1024
-	const numberOfRequests = 1500
-	const expectedNumberOfRequests = numberOfRequests * 2
+	const (
+		repetitionsPerRequest = 2
+		// Should be bigger than the length of the http2_dynamic_table which is 1024
+		numberOfRequests         = 1500
+		expectedNumberOfRequests = numberOfRequests * repetitionsPerRequest
+	)
 	clients := getClientsArray(t, 1)
 	for i := 0; i < numberOfRequests; i++ {
-		for j := 0; j < 2; j++ {
+		for j := 0; j < repetitionsPerRequest; j++ {
 			req, err := clients[0].Post(fmt.Sprintf("%s/test-%d", http2SrvAddr, i+1), "application/json", bytes.NewReader([]byte("test")))
 			require.NoError(t, err, "could not make request")
 			req.Body.Close()
@@ -652,13 +655,31 @@ func (s *USMHTTP2Suite) TestHTTP2ManyDifferentPaths() {
 		// Due to a known issue in http2, we might consider an RST packet as a response to a request and therefore
 		// we might capture a request twice. This is why we are expecting to see 2*numberOfRequests instead of
 		return expectedNumberOfRequests <= matches.Load() && matches.Load() <= expectedNumberOfRequests+1
-	}, time.Second*10, time.Millisecond*100, "%v != %v", &matches, 2*numberOfRequests)
+	}, time.Second*10, time.Millisecond*100, "%v != %v", &matches, expectedNumberOfRequests)
 
 	for i := 0; i < numberOfRequests; i++ {
-		if v, ok := seenRequests[fmt.Sprintf("/test-%d", i+1)]; !ok || v != 2 {
-			t.Logf("path: /test-%d should have 2 occurrences but instead has %d", i+1, v)
+		if v, ok := seenRequests[fmt.Sprintf("/test-%d", i+1)]; !ok || v != repetitionsPerRequest {
+			t.Logf("path: /test-%d should have %d occurrences but instead has %d", i+1, repetitionsPerRequest, v)
 		}
 	}
+}
+
+func getExpectedOutcomeForPathWithRepeatedChars() map[http.Key]captureRange {
+	expected := make(map[http.Key]captureRange)
+	// The path `/a` and `/aa` are not being encoded with Huffman, and that's an edge case for our http2 monitoring for the moment,
+	// thus we're starting with `/aaa` and above.
+	for i := 3; i < 100; i++ {
+		expected[http.Key{
+			Path: http.Path{
+				Content: http.Interner.GetString(fmt.Sprintf("/%s", strings.Repeat("a", i))),
+			},
+			Method: http.MethodPost,
+		}] = captureRange{
+			lower: 1,
+			upper: 1,
+		}
+	}
+	return expected
 }
 
 func (s *USMHTTP2Suite) TestSimpleHTTP2() {
@@ -717,6 +738,22 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 				},
 			},
 		},
+		{
+			name: "path with repeated string",
+			runClients: func(t *testing.T, clientsCount int) {
+				clients := getClientsArray(t, clientsCount)
+
+				// currently we have a bug with paths which are not Huffman encoded, therefor I am skipping them by string length 3.
+				for i := 3; i < 100; i++ {
+					path := strings.Repeat("a", i)
+					client := clients[getClientsIndex(i, clientsCount)]
+					req, err := client.Post(http2SrvAddr+"/"+path, "application/json", bytes.NewReader([]byte("test")))
+					require.NoError(t, err, "could not make request")
+					req.Body.Close()
+				}
+			},
+			expectedEndpoints: getExpectedOutcomeForPathWithRepeatedChars(),
+		},
 	}
 	for _, tt := range tests {
 		for _, clientCount := range []int{1, 2, 5} {
@@ -769,6 +806,11 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 					return true
 				}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
 				if t.Failed() {
+					for key := range tt.expectedEndpoints {
+						if _, ok := res[key]; !ok {
+							t.Logf("key: %v was not found in res", key.Path.Content.Get())
+						}
+					}
 					o, err := monitor.DumpMaps("http2_in_flight")
 					if err != nil {
 						t.Logf("failed dumping http2_in_flight: %s", err)
@@ -782,21 +824,21 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 }
 
 var http2UniquePaths = []string{
-	// size 18 bucket 0
+	// size 82 bucket 0
 	"C9ZaSMOpthT9XaRh9yc6AKqfIjT43M8gOz3p9ASKCNRIcLbc3PTqEoms2SDwt6Q90QM7DxjWKlmZUfRU1eOx5DjQOOhLaIJQke4N",
-	// size 122 bucket 1
-	"ZtZuUQeVB7BOl3F45oFicOOOJl21ePFwunMBvBh3bXPMBZqdEZepVsemYA0frZb5M83VHLDWq68KFELDHu0Xo28lzpzO3L7kDXuYuClivgEgURUn47kfwfUfW1PKjfsV6HaYpAZxly48lTGiRIXRINVC8b9jbbjNA6nBzubenIctRKBDywbifoO0YVzCSLm3qjpc4U2k4CZAoUm2X3mGCTwPawlEt8Z2KgFjcB",
-	// size 131, bucket 2
-	"RDBVk5COXAz52GzvuHVWRawNoKhmfxhBiTuyj5QZ6qR1DMsNOn4sWFLnaGXVzrqA8NLr2CaW1IDupzh9AzJlIvgYSf6OYIafIOsImL5O9M3AHzUHGMJ0KhjYGJAzXeTgvwl2qYWmlD9UYGELFpBSzJpykoriocvl3RRoYt4lQ0favN3ptHYNUPJ1XDjH7CdRoad2jrIcKd04J49ZFTHJK7l6MyUe6XWEcfMB3sI2h1jY9z2z",
-	// size 145, bucket 3
-	"T5r8QcP8qCiKVwhWlaxWjYCX8IrTmPrt2HRjfQJP2PxbWjLm8dP4BTDxUAmXJJWNyv4HIIaR3Fj6n8Tu6vSoDcBtKFuMqIPAdYEJt0qo2aaYDKomIJv74z7SiN96GrOufPTm6Eutl3JGeAKW2b0dZ4VYUsIOO8aheEOGmyhyWBymgCtBcXeki1HZZz9J65QColhuslBmbLTfg5sIFA9jImyF4CANIn53lhxzi4hslSCHaGz8JrCqnfbueayY21jUGwCF",
-	// size 155, bucket 4
-	"VP4zOrIPiGhLDLSJYSVU78yUcb8CkU0dVDIZqPq98gVoenX5p1zS6cRX4LtrfSYKCQFX6MquluhDD2GPjZYFIraDLIHCno3yipQBLPGcPbPTgv9SD6jOlHMuLjmsGxyC3y2Hk61bWA6Af4D2SYS0q3BS7ahJ0vjddYYBRIpwMOOIez2jaR56rPcGCRW2eq0T1xAvaNqOpjSuDVYAN7miDxAqFn69eIfJm6YTKgEFy3cua5MBCn7xFxcFvsC11x9D9TzqHZDxGd1SoI",
-	// size 163, bucket 5
-	"X2YRUwfeNEmYWkk0bACThVya8MoSUkR7ZKANCPYkIGHvF9CWGA0rxXKsGogQag7HsJfmgaar3TiOTRUb3ynbmiOz3As9rXYjRGNRdCWGgdBPL8nGa6WheGlJLNtIVsUcxSerNQKmoQqqDLjGftbKXjqdMJLVY6UyECeXOKrrFU9aHx2fjlk2qMNDUptYWuzPPCWAnKOV7PhkkDiXWySbEzMTRb1LsgYxdpivawvxWbs39T9G3itElybS10z6m2MtyhNxjZqrxQnOKuAQrFs6vh9u",
-	// size 175, bucket 6
-	"bq5bcpUgiW1CpKgwdRVIulFMkwRenJWYdW8aek69anIV8w3br0pjGNtfnoPCyj4HUMD5MxWB2xM4XGp7fZ1JRHvskRZEgmoM7ag9BeuigmH05p7dzMwKsD76MqKyPmfhwBUZHLKtJ52ia3mOuMvyYiQNwA6KAU509bwuy4NCREVUAP76WFeAzr0jBvqMFXLg3eQQERIW0tKTcjQg8m9Jx49Vo679QcT40e1R1cjvIauX8uJ2PDQiyiVm2r81mSaabT7pARQcY6HN3pDgBsbpL3E7J7LIWD1YiDr28pfu8mAs",
-	// size 183, bucket 7
+	// size 127 bucket 1
+	"ZtZuUQeVB7BOl3F45oFicOOOJl21ePFwunMBvBh3bXPMBZqdEZepVsemYA0frZb5M83VHLDWq68KFELDHu0Xo28lzpzO3L7kDXuYuClivgEgURUn47kfwfUfW1PKjfsV6HaYpAZxly48lTGiRIXRINVC8b9",
+	// size 137, bucket 2
+	"RDBVk5COXAz52GzvuHVWRawNoKhmfxhBiTuyj5QZ6qR1DMsNOn4sWFLnaGXVzrqA8NLr2CaW1IDupzh9AzJlIvgYSf6OYIafIOsImL5O9M3AHzUHGMJ0KhjYGJAzXeTgvwl2qYWmlD9UYGELFpBSzJpykoriocvl3RRoYt4l",
+	// size 147, bucket 3
+	"T5r8QcP8qCiKVwhWlaxWjYCX8IrTmPrt2HRjfQJP2PxbWjLm8dP4BTDxUAmXJJWNyv4HIIaR3Fj6n8Tu6vSoDcBtKFuMqIPAdYEJt0qo2aaYDKomIJv74z7SiN96GrOufPTm6Eutl3JGeAKW2b0dZ4VYUsIOO8aheEOGmyhyWBymgCtBcXeki1",
+	// size 158, bucket 4
+	"VP4zOrIPiGhLDLSJYSVU78yUcb8CkU0dVDIZqPq98gVoenX5p1zS6cRX4LtrfSYKCQFX6MquluhDD2GPjZYFIraDLIHCno3yipQBLPGcPbPTgv9SD6jOlHMuLjmsGxyC3y2Hk61bWA6Af4D2SYS0q3BS7ahJ0vjddYYBRIpwMOOIez2jaR56rPcGCRW2eq0T1x",
+	// size 166, bucket 5
+	"X2YRUwfeNEmYWkk0bACThVya8MoSUkR7ZKANCPYkIGHvF9CWGA0rxXKsGogQag7HsJfmgaar3TiOTRUb3ynbmiOz3As9rXYjRGNRdCWGgdBPL8nGa6WheGlJLNtIVsUcxSerNQKmoQqqDLjGftbKXjqdMJLVY6UyECeXOKrrFU9aHx2fjlk2qMNDUptYWuzPPCWAnKOV7Ph",
+	// size 172, bucket 6
+	"bq5bcpUgiW1CpKgwdRVIulFMkwRenJWYdW8aek69anIV8w3br0pjGNtfnoPCyj4HUMD5MxWB2xM4XGp7fZ1JRHvskRZEgmoM7ag9BeuigmH05p7dzMwKsD76MqKyPmfhwBUZHLKtJ52ia3mOuMvyYiQNwA6KAU509bwuy4NCREVUAP76WFeAzr0jBvqMFXLg3eQQERIW0tKTcjQg8m9Jse",
+	// size 247, bucket 7
 	"LUhWUWPMztVFuEs83i7RmoxRiV1KzOq0NsZmGXVyW49BbBaL63m8H5vDwiewrrKbldXBuctplDxB28QekDclM6cO9BIsRqvzS3a802aOkRHTEruotA8Xh5K9GOMv9DzdoOL9P3GFPsUPgBy0mzFyyRJGk3JXpIH290Bj2FIRnIIpIjjKE1akeaimsuGEheA4D95axRpGmz4cm2s74UiksfBi4JnVX2cBzZN3oQaMt7zrWofwyzcZeF5W1n6BAQWxPPWe4Jyoc34jQ2fiEXQO0NnXe1RFbBD1E33a0OycziXZH9hEP23xvh",
 }
 
@@ -825,14 +867,11 @@ func (s *USMHTTP2Suite) TestHTTP2KernelTelemetry() {
 			},
 
 			expectedTelemetry: &usmhttp2.HTTP2Telemetry{
-				Request_seen:                     8,
-				Response_seen:                    8,
-				End_of_stream:                    16,
-				End_of_stream_rst:                0,
-				Path_exceeds_frame:               0,
-				Exceeding_max_interesting_frames: 0,
-				Exceeding_max_frames_to_filter:   0,
-				Path_size_bucket:                 [8]uint64{1, 1, 1, 1, 1, 1, 1, 1},
+				Request_seen:      8,
+				Response_seen:     8,
+				End_of_stream:     16,
+				End_of_stream_rst: 0,
+				Path_size_bucket:  [8]uint64{1, 1, 1, 1, 1, 1, 1, 1},
 			},
 		},
 	}
@@ -845,11 +884,34 @@ func (s *USMHTTP2Suite) TestHTTP2KernelTelemetry() {
 
 			tt.runClients(t, 1)
 
+			// We cannot predict if the client will send an RST frame or not, thus we cannot predict the number of
+			// frames with EOS or RST frames, which leads into a flaking test. Therefore, we are asserting that the
+			// gotten number of EOS or RST frames is at least the number of expected EOS frames.
+			expectedEOSOrRST := tt.expectedTelemetry.End_of_stream + tt.expectedTelemetry.End_of_stream_rst
 			var telemetry *usmhttp2.HTTP2Telemetry
 			assert.Eventually(t, func() bool {
 				telemetry, err = usmhttp2.Spec.Instance.(*usmhttp2.Protocol).GetHTTP2KernelTelemetry()
 				require.NoError(t, err)
-				return reflect.DeepEqual(tt.expectedTelemetry, telemetry)
+				if telemetry.Request_seen != tt.expectedTelemetry.Request_seen {
+					return false
+				}
+				if telemetry.Response_seen != tt.expectedTelemetry.Response_seen {
+					return false
+				}
+				if telemetry.Path_exceeds_frame != tt.expectedTelemetry.Path_exceeds_frame {
+					return false
+				}
+				if telemetry.Exceeding_max_interesting_frames != tt.expectedTelemetry.Exceeding_max_interesting_frames {
+					return false
+				}
+				if telemetry.Exceeding_max_frames_to_filter != tt.expectedTelemetry.Exceeding_max_frames_to_filter {
+					return false
+				}
+				if telemetry.End_of_stream+telemetry.End_of_stream_rst < expectedEOSOrRST {
+					return false
+				}
+				return reflect.DeepEqual(telemetry.Path_size_bucket, tt.expectedTelemetry.Path_size_bucket)
+
 			}, time.Second*5, time.Millisecond*100)
 			if t.Failed() {
 				t.Logf("expected telemetry: %+v;\ngot: %+v", tt.expectedTelemetry, telemetry)
@@ -918,7 +980,7 @@ func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp
 	requestsExist := make([]bool, len(requests))
 
 	assert.Eventually(t, func() bool {
-		stats := getHttpStats(t, monitor)
+		stats := getHTTPStats(t, monitor)
 
 		if len(stats) == 0 {
 			return false
@@ -1084,7 +1146,7 @@ func isRequestIncludedOnce(allStats map[http.Key]*http.RequestStats, req *nethtt
 	return false, fmt.Errorf("expected to find 1 occurrence of %v, but found %d instead", req, occurrences)
 }
 
-func getHttpStats(t *testing.T, mon *Monitor) map[http.Key]*http.RequestStats {
+func getHTTPStats(t *testing.T, mon *Monitor) map[http.Key]*http.RequestStats {
 	t.Helper()
 
 	allStats := mon.GetProtocolStats()

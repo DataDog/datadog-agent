@@ -18,7 +18,7 @@ import (
 
 	// 3p
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -685,7 +685,7 @@ type aggregatorDeps struct {
 }
 
 func createAggrDeps(t *testing.T) aggregatorDeps {
-	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule(), config.MockModule(), logimpl.MockModule())
 
 	opts := demuxTestOptions()
 	return aggregatorDeps{

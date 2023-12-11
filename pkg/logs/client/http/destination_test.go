@@ -57,6 +57,7 @@ func TestBuildURLShouldReturnAddressForVersion2(t *testing.T) {
 	assert.Equal(t, "http://foo/api/v2/test-track", url)
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func TestDestinationSend200(t *testing.T) {
 	server := NewTestServer(200)
 	input := make(chan *message.Payload)
@@ -83,6 +84,7 @@ func TestNoRetries(t *testing.T) {
 	testNoRetry(t, 413)
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func testNoRetry(t *testing.T, statusCode int) {
 	server := NewTestServer(statusCode)
 	input := make(chan *message.Payload)

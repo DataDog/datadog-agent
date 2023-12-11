@@ -152,3 +152,16 @@ def _get_code_owners(root_folder):
                 # example /tools/retry_file_dump ['@DataDog/agent-metrics-logs']
                 owners[path] = parts[1:]
     return owners
+
+
+@task
+def get_milestone_id(_, milestone):
+    # Local import as github isn't part of our default set of installed
+    # dependencies, and we don't want to propagate it to files importing this one
+    from libs.common.github_api import GithubAPI
+
+    gh = GithubAPI('DataDog/datadog-agent')
+    m = gh.get_milestone_by_name(milestone)
+    if not m:
+        raise Exit(f'Milestone {milestone} wasn\'t found in the repo', code=1)
+    print(m.id)

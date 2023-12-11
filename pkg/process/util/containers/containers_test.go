@@ -39,10 +39,10 @@ func TestGetContainers(t *testing.T) {
 
 	// Workload meta + tagger
 	metadataProvider := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule,
+		workloadmeta.MockModule(),
 	))
 
 	fakeTagger := local.NewFakeTagger()

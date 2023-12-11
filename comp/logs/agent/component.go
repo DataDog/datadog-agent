@@ -47,12 +47,14 @@ type Mock interface {
 }
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newLogsAgent),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newLogsAgent))
+}
 
 // MockModule defines the fx options for the mock component.
-var MockModule = fxutil.Component(
-	fx.Provide(newMock),
-	fx.Provide(func(m Mock) Component { return m }),
-)
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newMock),
+		fx.Provide(func(m Mock) Component { return m }))
+}

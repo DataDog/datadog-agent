@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessTags "github.com/DataDog/datadog-agent/pkg/serverless/tags"
@@ -20,7 +21,7 @@ import (
 )
 
 func TestGenerateEnhancedMetricsFromFunctionLogOutOfMemory(t *testing.T) {
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
@@ -52,7 +53,7 @@ func TestGenerateEnhancedMetricsFromFunctionLogOutOfMemory(t *testing.T) {
 }
 
 func TestGenerateEnhancedMetricsFromFunctionLogNoMetric(t *testing.T) {
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
@@ -68,7 +69,7 @@ func TestGenerateEnhancedMetricsFromFunctionLogNoMetric(t *testing.T) {
 }
 
 func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
@@ -145,7 +146,7 @@ func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 }
 
 func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
@@ -215,7 +216,7 @@ func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
 }
 
 func TestSendTimeoutEnhancedMetric(t *testing.T) {
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
@@ -237,7 +238,7 @@ func TestSendTimeoutEnhancedMetric(t *testing.T) {
 }
 
 func TestSendInvocationEnhancedMetric(t *testing.T) {
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
@@ -261,7 +262,7 @@ func TestSendInvocationEnhancedMetric(t *testing.T) {
 func TestDisableEnhancedMetrics(t *testing.T) {
 	os.Setenv("DD_ENHANCED_METRICS", "false")
 	defer os.Setenv("DD_ENHANCED_METRICS", "true")
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
@@ -275,7 +276,7 @@ func TestDisableEnhancedMetrics(t *testing.T) {
 }
 
 func TestSendOutOfMemoryEnhancedMetric(t *testing.T) {
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
@@ -296,7 +297,7 @@ func TestSendOutOfMemoryEnhancedMetric(t *testing.T) {
 }
 
 func TestSendErrorsEnhancedMetric(t *testing.T) {
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
@@ -357,7 +358,7 @@ func TestCalculateEstimatedCost(t *testing.T) {
 }
 
 func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoStartDate(t *testing.T) {
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
@@ -400,7 +401,7 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoStartDate(t *testing.T) {
 }
 
 func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoEndDate(t *testing.T) {
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
@@ -443,7 +444,7 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoEndDate(t *testing.T) {
 }
 
 func TestGenerateEnhancedMetricsFromRuntimeDoneLogOK(t *testing.T) {
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}

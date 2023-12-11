@@ -13,7 +13,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -27,8 +27,8 @@ func getTestInventoryPayload(t *testing.T, confOverrides map[string]any) *invent
 	p := newInventoryAgentProvider(
 		fxutil.Test[dependencies](
 			t,
-			log.MockModule,
-			config.MockModule,
+			logimpl.MockModule(),
+			config.MockModule(),
 			fx.Replace(config.MockParams{Overrides: confOverrides}),
 			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
 		),

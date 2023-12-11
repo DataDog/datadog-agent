@@ -71,7 +71,10 @@ type ProtocolStats struct {
 	Stats interface{}
 }
 
+// ProtocolFactory is a function that creates a Protocol.
 type ProtocolFactory func(*config.Config) (Protocol, error)
+
+// ProtocolSpec represents a protocol specification.
 type ProtocolSpec struct {
 	Factory   ProtocolFactory
 	Instance  Protocol
