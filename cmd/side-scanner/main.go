@@ -80,9 +80,10 @@ const (
 	maxAttachRetries  = 10
 	defaultWorkersCount = 40
 
-	defaultAWSRate = 20.0
-	defaultEC2Rate = 20.0
-	defaultEBSRAte = 300.0
+	defaultAWSRate          = 20.0
+	defaultEC2Rate          = 20.0
+	defaultEBSListBlockRate = 20.0
+	defaultEBSGetBlockRate  = 400.0
 )
 
 var statsd *ddgostatsd.Client
@@ -463,7 +464,7 @@ func runCmd(pidfilePath string, poolSize int, allowedScanTypes []string) error {
 		return fmt.Errorf("could not fetch hostname: %w", err)
 	}
 
-	limits := newAWSLimits(defaultEC2Rate, defaultEBSRAte)
+	limits := newAWSLimits(defaultEC2Rate, defaultEBSListBlockRate, defaultEBSGetBlockRate)
 
 	scanner, err := newSideScanner(hostname, limits, poolSize, allowedScanTypes)
 	if err != nil {
@@ -504,7 +505,7 @@ func scanCmd(config scanConfig) error {
 	if err != nil {
 		return fmt.Errorf("could not fetch hostname: %w", err)
 	}
-	limits := newAWSLimits(defaultEC2Rate, defaultEBSRAte)
+	limits := newAWSLimits(defaultEC2Rate, defaultEBSListBlockRate, defaultEBSGetBlockRate)
 	sidescanner, err := newSideScanner(hostname, limits, 1, nil)
 	if err != nil {
 		return fmt.Errorf("could not initialize side-scanner: %w", err)
@@ -584,7 +585,7 @@ func offlineCmd(poolSize int, regions []string, maxScans int) error {
 		}
 	}
 
-	limits := newAWSLimits(defaultEC2Rate, defaultEBSRAte)
+	limits := newAWSLimits(defaultEC2Rate, defaultEBSListBlockRate, defaultEBSGetBlockRate)
 	sidescanner, err := newSideScanner(hostname, limits, poolSize, nil)
 	if err != nil {
 		return fmt.Errorf("could not initialize side-scanner: %w", err)
@@ -1560,8 +1561,9 @@ type awsClientStats struct {
 }
 
 var (
-	ebsGetBlockReg   = regexp.MustCompile("^/snapshots/(snap-[a-f0-9]+)/blocks/([0-9]+)$")
-	ebsListBlocksReg = regexp.MustCompile("^/snapshots/(snap-[a-f0-9]+)/blocks$")
+	ebsGetBlockReg      = regexp.MustCompile("^/snapshots/(snap-[a-f0-9]+)/blocks/([0-9]+)$")
+	ebsListBlocksReg    = regexp.MustCompile("^/snapshots/(snap-[a-f0-9]+)/blocks$")
+	ebsChangedBlocksReg = regexp.MustCompile("^/snapshots/(snap-[a-f0-9]+)/changedblocks$")
 )
 
 func (rt *awsClientStats) getAction(req *http.Request) (service, action string, error error) {
@@ -1582,6 +1584,9 @@ func (rt *awsClientStats) getAction(req *http.Request) (service, action string, 
 			}
 			if req.Method == http.MethodGet && ebsListBlocksReg.MatchString(req.URL.Path) {
 				return "ebs", "listblocks", nil
+			}
+			if req.Method == http.MethodGet && ebsChangedBlocksReg.MatchString(req.URL.Path) {
+				return "ebs", "changedblocks", nil
 			}
 			return "ebs", "unknown", nil
 
@@ -2469,17 +2474,19 @@ func hasResults(results *sbommodel.SBOMEntity) bool {
 }
 
 type awsLimits struct {
-	ebsRate    rate.Limit
-	ec2Rate    rate.Limit
-	limitersMu sync.Mutex
-	limiters   map[string]*rate.Limiter
+	ec2Rate          rate.Limit
+	ebsListBlockRate rate.Limit
+	ebsGetBlockRate  rate.Limit
+	limitersMu       sync.Mutex
+	limiters         map[string]*rate.Limiter
 }
 
-func newAWSLimits(ec2Rate, ebsRate rate.Limit) *awsLimits {
+func newAWSLimits(ec2Rate, ebsListBlockRate, ebsGetBlockRate rate.Limit) *awsLimits {
 	return &awsLimits{
-		ec2Rate:  ec2Rate,
-		ebsRate:  ebsRate,
-		limiters: make(map[string]*rate.Limiter),
+		ec2Rate:          ec2Rate,
+		ebsListBlockRate: ebsListBlockRate,
+		ebsGetBlockRate:  ebsGetBlockRate,
+		limiters:         make(map[string]*rate.Limiter),
 	}
 }
 
@@ -2495,7 +2502,7 @@ func withAWSLimits(ctx context.Context, limits *awsLimits) context.Context {
 func getAWSLimit(ctx context.Context) *awsLimits {
 	limits := ctx.Value(keyRateLimits)
 	if limits == nil {
-		return newAWSLimits(rate.Inf, rate.Inf)
+		return newAWSLimits(rate.Inf, rate.Inf, rate.Inf)
 	}
 	return limits.(*awsLimits)
 }
@@ -2518,8 +2525,11 @@ func (l *awsLimits) getLimiter(accountID, region, service, action string) *rate.
 				}
 			}
 		case "ebs":
-			if l.ec2Rate > 0.0 {
-				ll = rate.NewLimiter(l.ebsRate, 1)
+			switch action {
+			case "getblock":
+				ll = rate.NewLimiter(l.ebsGetBlockRate, 1)
+			case "listblocks", "changedblocks":
+				ll = rate.NewLimiter(l.ebsListBlockRate, 1)
 			}
 		case "imds":
 			return nil // no rate limiting
