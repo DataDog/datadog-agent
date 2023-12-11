@@ -48,7 +48,7 @@ func (m *mockLifecycleProcessor) OnInvokeEnd(endDetails *invocationlifecycle.Inv
 	m.lastEndDetails = endDetails
 }
 
-func (m *mockLifecycleProcessor) OnTimeoutInvokeEnd(timeoutCtx *invocationlifecycle.TimeoutExecutionInfo) {
+func (m *mockLifecycleProcessor) OnTimeoutInvokeEnd(*invocationlifecycle.TimeoutExecutionInfo) {
 	m.OnInvokeEndCalled = false
 	m.isError = true
 	m.lastEndDetails = nil

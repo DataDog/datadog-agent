@@ -47,7 +47,7 @@ func (lp *ProxyLifecycleProcessor) GetExecutionInfo() *invocationlifecycle.Execu
 }
 
 // OnTimeoutInvokeEnd completes an unfinished execution span during a timeout
-func (lp *ProxyLifecycleProcessor) OnTimeoutInvokeEnd(timeoutCtx *invocationlifecycle.TimeoutExecutionInfo) {
+func (lp *ProxyLifecycleProcessor) OnTimeoutInvokeEnd(*invocationlifecycle.TimeoutExecutionInfo) {
 	// not used in the runtime api proxy case
 }
 
