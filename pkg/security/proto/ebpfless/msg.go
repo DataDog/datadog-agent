@@ -75,6 +75,7 @@ type ChdirSyscallFakeMsg struct {
 // SyscallMsg defines a syscall message
 type SyscallMsg struct {
 	SeqNum           uint64
+	NSID             uint64
 	Type             SyscallType
 	PID              uint32
 	ContainerContext *ContainerContext
