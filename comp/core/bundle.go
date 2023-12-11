@@ -28,16 +28,17 @@ import (
 // team: agent-shared-components
 
 // Bundle defines the fx options for this bundle.
-var Bundle = fxutil.Bundle(
-	// As `config.Module` expects `config.Params` as a parameter, it is require to define how to get `config.Params` from `BundleParams`.
-	fx.Provide(func(params BundleParams) config.Params { return params.ConfigParams }),
-	config.Module,
-	fx.Provide(func(params BundleParams) logimpl.Params { return params.LogParams }),
-	logimpl.Module,
-	fx.Provide(func(params BundleParams) sysprobeconfigimpl.Params { return params.SysprobeConfigParams }),
-	secretsimpl.Module,
-	fx.Provide(func(params BundleParams) secrets.Params { return params.SecretParams }),
-	sysprobeconfigimpl.Module,
-	telemetry.Module,
-	hostnameimpl.Module,
-)
+func Bundle() fxutil.BundleOptions {
+	return fxutil.Bundle(
+		// As `config.Module` expects `config.Params` as a parameter, it is require to define how to get `config.Params` from `BundleParams`.
+		fx.Provide(func(params BundleParams) config.Params { return params.ConfigParams }),
+		config.Module(),
+		fx.Provide(func(params BundleParams) logimpl.Params { return params.LogParams }),
+		logimpl.Module(),
+		fx.Provide(func(params BundleParams) sysprobeconfigimpl.Params { return params.SysprobeConfigParams }),
+		secretsimpl.Module(),
+		fx.Provide(func(params BundleParams) secrets.Params { return params.SecretParams }),
+		sysprobeconfigimpl.Module(),
+		telemetry.Module(),
+		hostnameimpl.Module())
+}

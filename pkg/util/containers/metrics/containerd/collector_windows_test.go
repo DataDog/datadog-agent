@@ -104,10 +104,10 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 			// The container needs to exist in the workloadmeta store and have a
 			// namespace.
 			workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-				logimpl.MockModule,
-				config.MockModule,
+				logimpl.MockModule(),
+				config.MockModule(),
 				fx.Supply(workloadmeta.NewParams()),
-				workloadmeta.MockModuleV2,
+				workloadmeta.MockModuleV2(),
 			))
 
 			workloadmetaStore.Set(&workloadmeta.Container{
@@ -171,10 +171,10 @@ func TestGetContainerNetworkStats_Containerd(t *testing.T) {
 			// The container needs to exist in the workloadmeta store and have a
 			// namespace.
 			workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-				logimpl.MockModule,
-				config.MockModule,
+				logimpl.MockModule(),
+				config.MockModule(),
 				fx.Supply(workloadmeta.NewParams()),
-				workloadmeta.MockModuleV2,
+				workloadmeta.MockModuleV2(),
 			))
 
 			workloadmetaStore.Set(&workloadmeta.Container{

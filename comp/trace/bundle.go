@@ -20,7 +20,8 @@ import (
 // team: agent-apm
 
 // Bundle defines the fx options for this bundle.
-var Bundle = fxutil.Bundle(
-	config.Module,
-	agent.Module,
-)
+func Bundle() fxutil.BundleOptions {
+	return fxutil.Bundle(
+		config.Module(),
+		agent.Module())
+}

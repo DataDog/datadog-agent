@@ -45,7 +45,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath)}),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 		Hidden: true,

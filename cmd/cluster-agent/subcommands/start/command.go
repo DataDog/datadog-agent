@@ -87,15 +87,15 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    logimpl.ForDaemon(command.LoggerName, "log_file", path.DefaultDCALogFile),
 				}),
-				core.Bundle,
-				forwarder.Bundle,
+				core.Bundle(),
+				forwarder.Bundle(),
 				fx.Provide(func(config config.Component, log log.Component) defaultforwarder.Params {
 					params := defaultforwarder.NewParamsWithResolvers(config, log)
 					params.Options.DisableAPIKeyChecking = true
 					return params
 				}),
-				demultiplexer.Module,
-				orchestratorForwarderImpl.Module,
+				demultiplexer.Module(),
+				orchestratorForwarderImpl.Module(),
 				fx.Supply(orchestratorForwarderImpl.NewDefaultParams()),
 				fx.Provide(func() demultiplexer.Params {
 					opts := aggregator.DefaultAgentDemultiplexerOptions()
@@ -109,7 +109,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					AgentType:  workloadmeta.ClusterAgent,
 				}), // TODO(components): check what this must be for cluster-agent-cloudfoundry
 				fx.Supply(context.Background()),
-				workloadmeta.Module,
+				workloadmeta.Module(),
 			)
 		},
 	}

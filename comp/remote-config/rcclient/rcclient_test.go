@@ -63,7 +63,7 @@ func TestAgentConfigCallback(t *testing.T) {
 	err := settings.RegisterRuntimeSetting(mockSettings)
 	assert.NoError(t, err)
 
-	rc := fxutil.Test[Component](t, fx.Options(Module, logimpl.MockModule))
+	rc := fxutil.Test[Component](t, fx.Options(Module(), logimpl.MockModule()))
 
 	layerStartFlare := state.RawConfig{Config: []byte(`{"name": "layer1", "config": {"log_level": "debug"}}`)}
 	layerEndFlare := state.RawConfig{Config: []byte(`{"name": "layer1", "config": {"log_level": ""}}`)}
