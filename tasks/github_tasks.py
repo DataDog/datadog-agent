@@ -157,7 +157,7 @@ def _get_code_owners(root_folder):
 @task
 def get_milestone_id(_, milestone):
     # Local import as github isn't part of our default set of installed
-    # dependencies, and we don't to propagate it to files importing this one
+    # dependencies, and we don't want to propagate it to files importing this one
     from libs.common.github_api import GithubAPI
 
     gh = GithubAPI('DataDog/datadog-agent')
