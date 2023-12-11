@@ -57,6 +57,7 @@ import (
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+
 	//nolint:revive // TODO(ASC) Fix revive linter
 	pkgforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
@@ -84,7 +85,6 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
-	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	pkgMetadata "github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
@@ -502,15 +502,7 @@ func startAgent(
 	// start remote configuration management
 	var configService *remoteconfig.Service
 	if pkgconfig.IsRemoteConfigEnabled(pkgconfig.Datadog) {
-		apiKey := pkgconfig.Datadog.GetString("api_key")
-		if pkgconfig.Datadog.IsSet("remote_configuration.api_key") {
-			apiKey = pkgconfig.Datadog.GetString("remote_configuration.api_key")
-		}
-		apiKey = configUtils.SanitizeAPIKey(apiKey)
-		baseRawURL := configUtils.GetMainEndpoint(pkgconfig.Datadog, "https://config.", "remote_configuration.rc_dd_url")
-		traceAgentEnv := configUtils.GetTraceAgentDefaultEnv(pkgconfig.Datadog)
-
-		configService, err = remoteconfig.NewService(pkgconfig.Datadog, apiKey, baseRawURL, hostnameDetected, remoteconfig.WithTraceAgentEnv(traceAgentEnv))
+		configService, err = common.NewRemoteConfigService(hostnameDetected)
 		if err != nil {
 			log.Errorf("Failed to initialize config management service: %s", err)
 		} else {
