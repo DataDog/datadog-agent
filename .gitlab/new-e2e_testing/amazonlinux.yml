@@ -106,7 +106,7 @@ new-e2e-agent-platform-step-by-step-amazonlinux-a6-arm64:
     - .new-e2e_amazonlinux_a6_arm64
     - .new-e2e_agent_a6
   rules:
-    !reference [.on_deploy_a6]
+    !reference [.on_deploy_a6]
   variables:
     FLAVOR: datadog-agent
 
