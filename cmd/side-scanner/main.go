@@ -2470,7 +2470,9 @@ func ec2ARN(region, accountID string, resourceType resourceType, resourceID stri
 
 func hasResults(results *sbommodel.SBOMEntity) bool {
 	bom := results.GetCyclonedx()
-	return len(bom.Components) > 0 || len(bom.Dependencies) > 0 || len(bom.Vulnerabilities) > 0
+	// We can't use Dependencies > 0, since len(Dependencies) == 1 when there are no components.
+	// See https://github.com/aquasecurity/trivy/blob/main/pkg/sbom/cyclonedx/core/cyclonedx.go
+	return len(bom.Components) > 0
 }
 
 type awsLimits struct {
