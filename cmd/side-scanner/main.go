@@ -77,6 +77,7 @@ import (
 
 const (
 	maxSnapshotRetries  = 3
+	maxAttachRetries  = 10
 	defaultWorkersCount = 40
 
 	defaultAWSRate = 20.0
@@ -2227,7 +2228,7 @@ func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, snapshotARN a
 	device = nextDeviceName()
 	log.Debugf("attaching volume %q into device %q", *volume.VolumeId, device)
 	var errAttach error
-	for i := 0; i < 10; i++ {
+	for i := 0; i < maxAttachRetries; i++ {
 		_, errAttach = locaEC2Client.AttachVolume(ctx, &ec2.AttachVolumeInput{
 			InstanceId: aws.String(self.InstanceID),
 			VolumeId:   volume.VolumeId,
@@ -2237,8 +2238,9 @@ func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, snapshotARN a
 			log.Debugf("volume attached successfully %q device=%s", *volume.VolumeId, device)
 			break
 		}
-		log.Debugf("error attaching volume %q into device %q (retrying in 1 sec)", *volume.VolumeId, device)
-		if !sleepCtx(ctx, 1*time.Second) {
+		d := 1 * time.Second
+		log.Debugf("couldn't attach volume %q into device %q; retrying after %v (%d/%d)", *volume.VolumeId, device, d, i+1, maxAttachRetries)
+		if !sleepCtx(ctx, d) {
 			break
 		}
 	}
