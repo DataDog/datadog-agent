@@ -132,7 +132,7 @@ func (lp *LifecycleProcessor) endExecutionSpan(endDetails *InvocationEndDetails)
 	}
 
 	if len(executionSpan.Meta) > 1000 {
-		log.Warn("The number of span tags for the aws.lambda span is over 1000. This may cause unexpected behaviours such as missing spans. Please consider setting DD_CAPTURE_LAMBDA_PAYLOAD_MAX_DEPTH to limit the number of span tags used for capturing payloads.")
+		log.Warn("The number of span tags for the aws.lambda span is over 1000. This may cause unexpected behaviours such as missing spans. Please consider setting DD_CAPTURE_LAMBDA_PAYLOAD_MAX_DEPTH to reduce the number of span tags used for capturing payloads.")
 	}
 
 	return executionSpan
