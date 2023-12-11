@@ -324,8 +324,8 @@ func convertJSONToString(payloadJSON interface{}) string {
 	return string(jsonData)
 }
 
-func setExecutionSpanTags(executionSpan *pb.Span, requestId string, isColdStart bool, isProactiveInit bool, runtime string) {
-	executionSpan.Meta["request_id"] = requestId
+func setExecutionSpanTags(executionSpan *pb.Span, requestID string, isColdStart bool, isProactiveInit bool, runtime string) {
+	executionSpan.Meta["request_id"] = requestID
 	executionSpan.Meta["cold_start"] = fmt.Sprintf("%t", isColdStart)
 	if isProactiveInit {
 		executionSpan.Meta["proactive_initialization"] = fmt.Sprintf("%t", isProactiveInit)
