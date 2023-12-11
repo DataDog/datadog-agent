@@ -241,7 +241,7 @@ func (s *entryStats) visit(e *Entry, r uint64) {
 		s.maxSize = n
 	}
 	s.sumSize += n
-	s.sumSizeBytes += e.tags.SizeInBytes()
-	s.sumDataSizeBytes += e.tags.DataSizeInBytes()
+	s.sumSizeBytes += e.SizeInBytes() + e.tags.SizeInBytes()
+	s.sumDataSizeBytes += e.DataSizeInBytes()
 	s.count++
 }
