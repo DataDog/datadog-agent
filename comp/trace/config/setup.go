@@ -25,9 +25,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
+	rc "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+
 	//nolint:revive // TODO(APM) Fix revive linter
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -97,7 +98,7 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 	coreConfigObject := c.Object()
 	if coreConfigObject == nil {
 		//nolint:revive // TODO(APM) Fix revive linter
-		return nil, fmt.Errorf("No core config found! Bailing out.")
+		return nil, fmt.Errorf("no core config found! Bailing out.")
 	}
 
 	if !coreConfigObject.GetBool("disable_file_logging") {
@@ -115,14 +116,14 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 		cfg.Proxy = httputils.GetProxyTransportFunc(p, c)
 	}
 	if coreconfig.IsRemoteConfigEnabled(coreConfigObject) && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled") {
-		client, err := client.NewGRPCClient(
+		client, err := rc.NewGRPCClient(
 			ipcAddress,
 			coreconfig.GetIPCPort(),
 			security.FetchAuthToken,
-			client.WithAgent(rcClientName, version.AgentVersion),
-			client.WithProducts([]data.Product{data.ProductAPMSampling, data.ProductAgentConfig}),
-			client.WithPollInterval(rcClientPollInterval),
-			client.WithDirectorRootOverride(c.GetString("remote_configuration.director_root")),
+			rc.WithAgent(rcClientName, version.AgentVersion),
+			rc.WithProducts([]data.Product{data.ProductAPMSampling, data.ProductAgentConfig}),
+			rc.WithPollInterval(rcClientPollInterval),
+			rc.WithDirectorRootOverride(c.GetString("remote_configuration.director_root")),
 		)
 		if err != nil {
 			log.Errorf("Error when subscribing to remote config management %v", err)
@@ -701,7 +702,7 @@ func getDuration(seconds int) time.Duration {
 func parseServiceAndOp(name string) (string, string, error) {
 	splits := strings.Split(name, "|")
 	if len(splits) != 2 {
-		return "", "", fmt.Errorf("Bad format for operation name and service name in: %s, it should have format: service_name|operation_name", name)
+		return "", "", fmt.Errorf("bad format for operation name and service name in: %s, it should have format: service_name|operation_name", name)
 	}
 	return splits[0], splits[1], nil
 }
