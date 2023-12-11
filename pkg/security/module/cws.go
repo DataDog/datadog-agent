@@ -84,7 +84,12 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 
 	seclog.Infof("Instantiating CWS rule engine")
 
-	c.ruleEngine, err = rulesmodule.NewRuleEngine(evm, cfg, evm.Probe, c.rateLimiter, c.apiServer, c.eventSender, c.statsdClient, selfTester)
+	var listeners []rules.RuleSetListener
+	if selfTester != nil {
+		listeners = append(listeners, selfTester)
+	}
+
+	c.ruleEngine, err = rulesmodule.NewRuleEngine(evm, cfg, evm.Probe, c.rateLimiter, c.apiServer, c.eventSender, c.statsdClient, listeners...)
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +149,7 @@ func (c *CWSConsumer) Start() error {
 
 // PostProbeStart is called after the event stream is started
 func (c *CWSConsumer) PostProbeStart() error {
-	if c.config.SelfTestEnabled {
+	if c.selfTester != nil {
 		c.wg.Add(1)
 		go func() {
 			defer c.wg.Done()

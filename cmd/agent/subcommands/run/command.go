@@ -44,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
@@ -162,7 +163,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath),
 				SecretParams:         secrets.NewEnabledParams(),
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
-				LogParams:            log.ForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
+				LogParams:            logimpl.ForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
 			}),
 			getSharedFxOption(),
 			getPlatformModules(),

@@ -18,7 +18,7 @@ package core
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -43,6 +43,6 @@ func MakeMockBundle(logParams, logger fx.Option) fxutil.BundleOptions {
 
 // MockBundle defines the mock fx options for this bundle.
 var MockBundle = MakeMockBundle(
-	fx.Supply(log.Params{}),
-	log.MockModule,
+	fx.Supply(logimpl.Params{}),
+	logimpl.MockModule,
 )

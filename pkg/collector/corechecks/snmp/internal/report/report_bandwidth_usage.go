@@ -8,8 +8,8 @@ package report
 
 import (
 	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
@@ -19,6 +19,9 @@ import (
 
 // TODO: Rename file to report_interface_volume_metrics.go in a separate PR.
 //       Making the change in the current PR will make review harder (it makes the whole file considered as deleted).
+
+// TimeNow is the unix time to use for rate (delta) calculations
+var TimeNow = time.Now
 
 var bandwidthMetricNameToUsage = map[string]string{
 	"ifHCInOctets":  "ifBandwidthInUsage",
@@ -98,14 +101,17 @@ func (ms *MetricSender) sendBandwidthUsageMetric(symbol profiledefinition.Symbol
 	}
 	usageValue := ((octetsFloatValue * 8) / (float64(ifSpeed))) * 100.0
 
+	rate, err := ms.interfaceBandwidthState.calculateBandwidthUsageRate(fullIndex, usageName, ifSpeed, usageValue)
+	if err != nil {
+		return err
+	}
 	sample := MetricSample{
-		value:      valuestore.ResultValue{SubmissionType: profiledefinition.ProfileMetricTypeCounter, Value: usageValue},
+		value:      valuestore.ResultValue{SubmissionType: profiledefinition.ProfileMetricTypeGauge, Value: rate},
 		tags:       tags,
 		symbol:     profiledefinition.SymbolConfig{Name: usageName + ".rate"},
-		forcedType: profiledefinition.ProfileMetricTypeCounter,
+		forcedType: profiledefinition.ProfileMetricTypeGauge,
 		options:    profiledefinition.MetricsConfigOption{},
 	}
-
 	ms.sendMetric(sample)
 	return nil
 }

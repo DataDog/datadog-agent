@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -75,15 +76,15 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(config.NewAgentParams("", config.WithConfigMissingOK(true))),
 				fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath))),
-				fx.Supply(log.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
+				fx.Supply(logimpl.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
 				config.Module,
 				compstatsd.Module,
 				telemetry.Module,
 				sysprobeconfigimpl.Module,
 				rcclient.Module,
 				// use system-probe config instead of agent config for logging
-				fx.Provide(func(lc fx.Lifecycle, params log.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
-					return log.NewLogger(lc, params, sysprobeconfig)
+				fx.Provide(func(lc fx.Lifecycle, params logimpl.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
+					return logimpl.NewLogger(lc, params, sysprobeconfig)
 				}),
 			)
 		},
@@ -190,15 +191,15 @@ func StartSystemProbeWithDefaults(ctxChan <-chan context.Context) (<-chan error,
 			// no config file path specification in this situation
 			fx.Supply(config.NewAgentParams("", config.WithConfigMissingOK(true))),
 			fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(""))),
-			fx.Supply(log.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
+			fx.Supply(logimpl.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
 			rcclient.Module,
 			config.Module,
 			telemetry.Module,
 			compstatsd.Module,
 			sysprobeconfigimpl.Module,
 			// use system-probe config instead of agent config for logging
-			fx.Provide(func(lc fx.Lifecycle, params log.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
-				return log.NewLogger(lc, params, sysprobeconfig)
+			fx.Provide(func(lc fx.Lifecycle, params logimpl.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
+				return logimpl.NewLogger(lc, params, sysprobeconfig)
 			}),
 		)
 		// notify caller that fx.OneShot is done
@@ -288,6 +289,9 @@ func startSystemProbe(cliParams *cliParams, log log.Component, statsd compstatsd
 		if cfg.TelemetryEnabled {
 			http.Handle("/telemetry", telemetry.Handler())
 			telemetry.RegisterCollector(ebpf.NewDebugFsStatCollector())
+			if pc := ebpf.NewPerfUsageCollector(); pc != nil {
+				telemetry.RegisterCollector(pc)
+			}
 		}
 		go func() {
 			common.ExpvarServer = &http.Server{

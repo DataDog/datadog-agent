@@ -69,7 +69,7 @@ func setupPerfMap(proto string, m *manager.Manager) {
 	}
 
 	handler := ddebpf.NewPerfHandler(100)
-	m.PerfMaps = append(m.PerfMaps, &manager.PerfMap{
+	pm := &manager.PerfMap{
 		Map: manager.Map{Name: mapName},
 		PerfMapOptions: manager.PerfMapOptions{
 			PerfRingBufferSize: 16 * os.Getpagesize(),
@@ -78,7 +78,8 @@ func setupPerfMap(proto string, m *manager.Manager) {
 			LostHandler:        handler.LostHandler,
 			RecordGetter:       handler.RecordGetter,
 		},
-	})
+	}
+	m.PerfMaps = append(m.PerfMaps, pm)
 
 	handlerMux.Lock()
 	if handlerByProtocol == nil {
