@@ -1007,9 +1007,6 @@ func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, tim
 	tr.removeClient(clientID)
 	initTracerState(t, tr)
 
-	t.Logf("test: %s@%s running query on %s and expecting success=%d, failure=%d, timeout=%d with conntracker: %T",
-		t.Name(), domain, serverIP, success, failure, timeout, tr.conntracker)
-
 	dnsServerAddr := &net.UDPAddr{IP: net.ParseIP(serverIP), Port: 53}
 
 	queryMsg := new(dns.Msg)
