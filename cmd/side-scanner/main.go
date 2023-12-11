@@ -1280,6 +1280,7 @@ configsloop:
 	}
 	close(s.resultsCh)
 	<-done // waiting for done in range resultsCh goroutine
+	log.Flush()
 }
 
 func (s *sideScanner) launchScan(ctx context.Context, scan *scanTask) (err error) {
