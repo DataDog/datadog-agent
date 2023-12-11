@@ -24,7 +24,7 @@ var utfLittleEndianLogConfig []byte
 //go:embed log-config/utf-16-be-log-config.yaml
 var utfBigEndianLogConfig []byte
 
-var service string = "utfservice"
+var service = "utfservice"
 
 // UTF defines a test suite for the log agent interacting with a virtual machine and fake intake.
 type UtfSuite struct {
@@ -79,10 +79,6 @@ func (s *UtfSuite) UtfBigEndianCollection() {
 		t.Logf(intakeLogs)
 	}, 2*time.Minute, 10*time.Second)
 
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		err := s.Env().Fakeintake.FlushServerAndResetAggregators()
-		assert.NoErrorf(c, err, "Having issue flushing server and resetting aggregators, retrying...")
-	}, 5*time.Minute, 10*time.Second)
 }
 
 func (s *UtfSuite) UtfLittleEndianCollection() {
@@ -107,8 +103,4 @@ func (s *UtfSuite) UtfLittleEndianCollection() {
 		t.Logf(intakeLogs)
 	}, 2*time.Minute, 10*time.Second)
 
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		err := s.Env().Fakeintake.FlushServerAndResetAggregators()
-		assert.NoErrorf(c, err, "Having issue flushing server and resetting aggregators, retrying...")
-	}, 5*time.Minute, 10*time.Second)
 }
