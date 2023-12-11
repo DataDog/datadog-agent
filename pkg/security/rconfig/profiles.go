@@ -151,7 +151,7 @@ func NewRCProfileProvider() (*RCProfileProvider, error) {
 
 	c, err := client.NewUnverifiedGRPCClient(ipcAddress, config.GetIPCPort(), security.FetchAuthToken,
 		client.WithAgent(agentName, agentVersion.String()),
-		client.WithProducts([]data.Product{data.ProductCWSDD, data.ProductCWSProfile}),
+		client.WithProducts([]data.Product{data.ProductCWSProfile}),
 		client.WithPollInterval(securityAgentRCPollInterval))
 	if err != nil {
 		return nil, err
