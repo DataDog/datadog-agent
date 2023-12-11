@@ -46,7 +46,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	rcservice "github.com/DataDog/datadog-agent/pkg/config/remote/service"
@@ -184,7 +183,7 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 			rcService.Start(mainCtx)
 			rcClient.Start()
 			defer func() {
-				rcService.Stop()
+				_ = rcService.Stop()
 				rcClient.Close()
 			}()
 		}
@@ -451,7 +450,7 @@ func setupClusterCheck(ctx context.Context) (*clusterchecks.Handler, error) {
 
 func initializeRemoteConfig(ctx context.Context) (*rcclient.Client, *rcservice.Service, error) {
 	clusterName := ""
-	hname, err := hostname.Get(context.TODO())
+	hname, err := hostname.Get(ctx)
 	if err != nil {
 		pkglog.Warnf("Error while getting hostname, needed for retrieving cluster-name: cluster-name won't be set for remote-config")
 	} else {
@@ -468,12 +467,12 @@ func initializeRemoteConfig(ctx context.Context) (*rcclient.Client, *rcservice.S
 		return nil, nil, err
 	}
 
-	rcClient, err := client.NewClient(rcService,
-		client.WithAgent("cluster-agent", version.AgentVersion),
-		client.WithCluster(clusterName, clusterID),
-		client.WithProducts([]data.Product{data.ProductAPMTracing}),
-		client.WithPollInterval(5*time.Second),
-		client.WithDirectorRootOverride(pkgconfig.Datadog.GetString("remote_configuration.director_root")),
+	rcClient, err := rcclient.NewClient(rcService,
+		rcclient.WithAgent("cluster-agent", version.AgentVersion),
+		rcclient.WithCluster(clusterName, clusterID),
+		rcclient.WithProducts([]data.Product{data.ProductAPMTracing}),
+		rcclient.WithPollInterval(5*time.Second),
+		rcclient.WithDirectorRootOverride(pkgconfig.Datadog.GetString("remote_configuration.director_root")),
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to create local remote-config client: %w", err)
