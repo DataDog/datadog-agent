@@ -3,6 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package service represents the agent's core remoteconfig service
+//
+// The `Service` type provides a communication layer for downstream clients to request
+// configuration, as well as the ability to track clients for requesting complete update
+// payloads from the remote config backend.
 package service
 
 import (
@@ -326,7 +331,7 @@ func (s *Service) Start(ctx context.Context) {
 	}()
 }
 
-//nolint:revive // TODO(RC) Fix revive linter
+// Stop stops the refresh loop and closes the on-disk DB cache
 func (s *Service) Stop() error {
 	if s.cancel != nil {
 		s.cancel()
@@ -510,7 +515,7 @@ func (s *Service) getRefreshInterval() (time.Duration, error) {
 // ClientGetConfigs is the polling API called by tracers and agents to get the latest configurations
 //
 //nolint:revive // TODO(RC) Fix revive linter
-func (s *Service) ClientGetConfigs(ctx context.Context, request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
+func (s *Service) ClientGetConfigs(_ context.Context, request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
 	s.Lock()
 	defer s.Unlock()
 	err := validateRequest(request)

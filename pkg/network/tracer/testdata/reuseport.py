@@ -23,20 +23,12 @@ for _ in count:
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     s.bind(("localhost", port))
-    s.settimeout(2)
+    s.settimeout(3)
     barrier.wait()
-    tries = 5
-    for t in range(tries):
-        try:
-            _, addr = s.recvfrom(1024)
-            print("child: received from " + str(addr))
-            s.sendto(b'bar', addr)
-            print("child: sent to " + str(addr))
-            break
-        except socket.timeout:
-            if t == tries - 1:
-                raise
-            print("child: timed out, retrying")
+    _, addr = s.recvfrom(1024)
+    print("child: received from " + str(addr))
+    s.sendto(b'bar', addr)
+    print("child: sent to " + str(addr))
 
     s.close()
     sys.exit()
@@ -46,22 +38,11 @@ conns = []
 print(children)
 for _ in count:
     c = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM, proto=socket.IPPROTO_UDP)
-    c.settimeout(2)
-    tries = 5
-    for t in range(tries):
-        try:
-            c.sendto(b'foobar', ("localhost", port))
-            print("parent: sent")
-            _, addr = c.recvfrom(1024)
-            print("parent: received from " + str(addr))
-            break
-        except socket.timeout:
-            if t == tries - 1:
-                print("parent: timed out")
-                break
-
-            print("parent: timed out, retrying")
-
+    c.settimeout(3)
+    c.sendto(b'foobar', ("localhost", port))
+    print("parent: sent")
+    _, addr = c.recvfrom(1024)
+    print("parent: received from " + str(addr))
     conns.append(c)
 
 for c in conns:

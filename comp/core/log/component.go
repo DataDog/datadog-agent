@@ -14,12 +14,6 @@
 // logging output to `t.Log(..)`, for ease of investigation when a test fails.
 package log
 
-import (
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-)
-
 // team: agent-shared-components
 
 // Component is the component type.
@@ -63,34 +57,3 @@ type Component interface {
 	// Flush will flush the contents of the logs to the sinks
 	Flush()
 }
-
-// Mock is the mocked component type.
-type Mock interface {
-	Component
-
-	// no further methods are defined.
-}
-
-// Module defines the fx options for this component.
-var Module fx.Option = fxutil.Component(
-	fx.Provide(newAgentLogger),
-)
-
-// TraceModule defines the fx options for this component in its Trace variant.
-//
-// TODO(components): move this comp/trace; that component shall implement the
-//
-//	log.Component interface.
-var TraceModule fx.Option = fxutil.Component(
-	fx.Provide(newTraceLogger),
-)
-
-// MockModule defines the fx options for the mock component.
-var MockModule fx.Option = fxutil.Component(
-	fx.Provide(newMockLogger),
-)
-
-// TraceMockModule defines the fx options for the mock component in its Trace variant.
-var TraceMockModule fx.Option = fxutil.Component(
-	fx.Provide(newTraceMockLogger),
-)

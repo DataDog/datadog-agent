@@ -55,8 +55,7 @@ func (a *Agent) SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/config/{setting}", settingshttp.Server.SetValue).Methods("POST")
 }
 
-//nolint:revive // TODO(SEC) Fix revive linter
-func (a *Agent) stopAgent(w http.ResponseWriter, r *http.Request) {
+func (a *Agent) stopAgent(w http.ResponseWriter, _ *http.Request) {
 	signals.Stopper <- true
 	w.Header().Set("Content-Type", "application/json")
 	j, err := json.Marshal("")
@@ -84,8 +83,7 @@ func (a *Agent) getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
-//nolint:revive // TODO(SEC) Fix revive linter
-func (a *Agent) getStatus(w http.ResponseWriter, r *http.Request) {
+func (a *Agent) getStatus(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	s, err := status.GetStatus(false, nil)
 	if err != nil {
@@ -114,8 +112,7 @@ func (a *Agent) getStatus(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonStats)
 }
 
-//nolint:revive // TODO(SEC) Fix revive linter
-func (a *Agent) getHealth(w http.ResponseWriter, r *http.Request) {
+func (a *Agent) getHealth(w http.ResponseWriter, _ *http.Request) {
 	h := health.GetReady()
 
 	if len(h.Unhealthy) > 0 {
@@ -133,8 +130,7 @@ func (a *Agent) getHealth(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonHealth)
 }
 
-//nolint:revive // TODO(SEC) Fix revive linter
-func (a *Agent) makeFlare(w http.ResponseWriter, r *http.Request) {
+func (a *Agent) makeFlare(w http.ResponseWriter, _ *http.Request) {
 	log.Infof("Making a flare")
 	w.Header().Set("Content-Type", "application/json")
 	logFile := config.Datadog.GetString("security_agent.log_file")

@@ -39,6 +39,7 @@
 package client
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -188,6 +189,28 @@ func (c *Client) GetServerHealth() error {
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("error code %v", resp.StatusCode)
+	}
+	return nil
+}
+
+// ConfigureOverride sets a response override on the fakeintake server
+func (c *Client) ConfigureOverride(override api.ResponseOverride) error {
+	route := fmt.Sprintf("%s/fakeintake/configure/override", c.fakeIntakeURL)
+
+	buf := new(bytes.Buffer)
+	err := json.NewEncoder(buf).Encode(override)
+	if err != nil {
+		return err
+	}
+
+	resp, err := http.Post(route, "application/json", buf)
+	if err != nil {
+		return err
+	}
+
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("error code %v", resp.StatusCode)

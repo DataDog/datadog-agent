@@ -9,7 +9,6 @@ package kafka
 
 import (
 	"strings"
-	"unsafe"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -25,7 +24,7 @@ type protocol struct {
 	cfg            *config.Config
 	telemetry      *Telemetry
 	statkeeper     *StatKeeper
-	eventsConsumer *events.Consumer
+	eventsConsumer *events.Consumer[EbpfTx]
 }
 
 const (
@@ -132,10 +131,12 @@ func (p *protocol) Stop(*manager.Manager) {
 // DumpMaps empty implementation.
 func (p *protocol) DumpMaps(*strings.Builder, string, *ebpf.Map) {}
 
-func (p *protocol) processKafka(data []byte) {
-	tx := (*EbpfTx)(unsafe.Pointer(&data[0]))
-	p.telemetry.Count(tx)
-	p.statkeeper.Process(tx)
+func (p *protocol) processKafka(events []EbpfTx) {
+	for i := range events {
+		tx := &events[i]
+		p.telemetry.Count(tx)
+		p.statkeeper.Process(tx)
+	}
 }
 
 // GetStats returns a map of Kafka stats stored in the following format:
