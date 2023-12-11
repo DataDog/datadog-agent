@@ -40,12 +40,17 @@ func (m *mockService) Create(_ ...ddgostatsd.Option) (ddgostatsd.ClientInterface
 	return m.client, nil
 }
 
-// GetForAddr returns a pre-configured statsd -client that defaults to `addr` if no env var is set
+// CreateForAddr returns a pre-configured statsd -client that defaults to `addr` if no env var is set
 func (m *mockService) CreateForAddr(_ string, _ ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error) {
 	return m.client, nil
 }
 
-// GetForHostPort returns a pre-configured statsd client that defaults to `host:port` if no env var is set
+// CreateForAddrStrict returns a pre-configured statsd -client that defaults to `addr` if no env var is set
+func (m *mockService) CreateForAddrStrict(_ string, _ ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error) {
+	return m.client, nil
+}
+
+// CreateForHostPort returns a pre-configured statsd client that defaults to `host:port` if no env var is set
 func (m *mockService) CreateForHostPort(_ string, _ int, _ ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error) {
 	return m.client, nil
 }

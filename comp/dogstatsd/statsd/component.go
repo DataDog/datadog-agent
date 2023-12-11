@@ -24,6 +24,9 @@ type Component interface {
 	// CreateForAddr returns a pre-configured statsd client that defaults to `addr` if no env var is set
 	CreateForAddr(addr string, options ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error)
 
+	// CreateForAddrStrict returns a pre-configured statsd client that prioritizes `addr` over the env var
+	CreateForAddrStrict(addr string, options ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error)
+
 	// CreateForHostPort returns a pre-configured statsd client that defaults to `host:port` if no env var is set
 	CreateForHostPort(host string, port int, options ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error)
 }

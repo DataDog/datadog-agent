@@ -47,35 +47,34 @@ func (hs *service) Get() (ddgostatsd.ClientInterface, error) {
 
 // Create returns a pre-configured statsd client
 func (hs *service) Create(options ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error) {
-	return createClient("", options...)
+	return createClient(defaultAddr(""), options...)
 }
 
 // CreateForAddr returns a pre-configured statsd client that defaults to `addr` if no env var is set
 func (hs *service) CreateForAddr(addr string, options ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error) {
-	return createClient(addr, options...)
+	return createClient(defaultAddr(addr), options...)
+}
+
+// CreateForAddr returns a pre-configured statsd client that uses `addr`.
+// It prioritizes the provided address over the env var.
+func (hs *service) CreateForAddrStrict(addr string, options ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error) {
+	if addr != "" {
+		return createClient(addr, options...)
+	}
+	return createClient(defaultAddr(addr), options...)
 }
 
 // CreateForHostPort returns a pre-configured statsd client that defaults to `host:port` if no env var is set
 func (hs *service) CreateForHostPort(host string, port int, options ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error) {
-	return createClient(net.JoinHostPort(host, strconv.Itoa(port)), options...)
+	addr := defaultAddr(net.JoinHostPort(host, strconv.Itoa(port)))
+	return createClient(addr, options...)
 }
 
 var _ Component = (*service)(nil)
 
-// createClient returns a pre-configured statsd client that defaults to `addr` if no env var is set
+// createClient returns a pre-configured statsd client that uses the provided `addr`
 // It is exported for callers that might not support components.
 func createClient(addr string, options ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error) {
-	// We default to STATSD_URL because it's more likely to be what the user wants, the provided
-	// address if often a fallback using UDP.
-
-	if envAddr, ok := os.LookupEnv("STATSD_URL"); ok {
-		addr = envAddr
-	}
-
-	if addr == "" {
-		addr = net.JoinHostPort("127.0.0.1", strconv.Itoa(8125))
-	}
-
 	options = append(
 		[]ddgostatsd.Option{
 			// Create a separate client for the telemetry to be sure we don't lose it.
@@ -93,4 +92,16 @@ func createClient(addr string, options ...ddgostatsd.Option) (ddgostatsd.ClientI
 
 func newStatsdService() Component {
 	return &service{}
+}
+
+// defaultAddr defaults to STATSD_URL because it's more likely to be what the user wants,
+// the provided address if often a fallback using UDP.
+func defaultAddr(addr string) string {
+	if envAddr, ok := os.LookupEnv("STATSD_URL"); ok {
+		return envAddr
+	}
+	if addr == "" {
+		return net.JoinHostPort("127.0.0.1", strconv.Itoa(8125))
+	}
+	return addr
 }

@@ -143,7 +143,7 @@ func setupMetrics(statsd statsd.Component, cfg config.Component, telemetryCollec
 	tracecfg := cfg.Object()
 
 	// TODO: Try to use statsd.Get() everywhere instead in the long run.
-	err := metrics.Configure(tracecfg, []string{"version:" + version.AgentVersion}, statsd.CreateForAddr)
+	err := metrics.Configure(tracecfg, []string{"version:" + version.AgentVersion}, statsd.CreateForAddrStrict)
 	if err != nil {
 		telemetryCollector.SendStartupError(telemetry.CantConfigureDogstatsd, err)
 		return fmt.Errorf("cannot configure dogstatsd: %v", err)
