@@ -2311,7 +2311,7 @@ func listDevicePartitions(ctx context.Context, device string, volumeARN *arn.ARN
 			continue
 		}
 		for _, bd := range blockDevices.BlockDevices {
-			if serialNumber != nil {
+			if serialNumber != nil && bd.Serial != "" {
 				if bd.Serial == *serialNumber {
 					foundBlockDevice = &bd
 					break
