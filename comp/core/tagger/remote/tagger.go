@@ -18,7 +18,6 @@ import (
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/metadata"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
@@ -73,6 +72,16 @@ type Options struct {
 func NodeAgentOptions(config configComponent.Component) (Options, error) {
 	return Options{
 		Target:       fmt.Sprintf(":%v", config.GetInt("cmd_port")),
+		TokenFetcher: security.FetchAuthToken,
+	}, nil
+}
+
+// NodeAgentOptionsForSecruityResolvers is a legacy function that returns the
+// same options as NodeAgentOptions, but it's used by the tag security resolvers only
+// TODO (component): remove this function once the security resolver migrates to component
+func NodeAgentOptionsForSecruityResolvers() (Options, error) {
+	return Options{
+		Target:       fmt.Sprintf(":%v", config.Datadog.GetInt("cmd_port")),
 		TokenFetcher: security.FetchAuthToken,
 	}, nil
 }
@@ -400,8 +409,4 @@ func convertEventType(t pb.EventType) (types.EventType, error) {
 
 func convertEntityID(id *pb.EntityId) string {
 	return fmt.Sprintf("%s://%s", id.Prefix, id.Uid)
-}
-
-func init() {
-	grpclog.SetLoggerV2(grpcutil.NewLogger())
 }
