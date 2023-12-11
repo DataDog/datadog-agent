@@ -90,93 +90,82 @@ Resources:
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
-          - Sid: SideScanningVolumeSnapshotCreation
-            Effect: Allow
-            Action: ec2:CreateSnapshot
-            Resource: arn:aws:ec2:*:*:volume/*
-          - Sid: SideScanningSnapshotCreation
-            Effect: Allow
-            Action: ec2:CreateSnapshot
-            Resource: arn:aws:ec2:*:*:snapshot/*
-            Condition:
-              ForAllValues:StringLike:
-                aws:TagKeys: SideScanner*
-              StringEquals:
-                aws:RequestTag/SideScanner: 'true'
-          - Sid: SideScanningVolumeCreation
-            Effect: Allow
-            Action: ec2:CreateVolume
-            Resource: arn:aws:ec2:*:*:volume/*
-            Condition:
-              ForAllValues:StringLike:
-                aws:TagKeys: SideScanner*
-              StringEquals:
-                aws:RequestTag/SideScanner: 'true'
-          - Sid: SideScanningResourceTagging
-            Effect: Allow
-            Action: ec2:CreateTags
-            Resource:
-            - arn:aws:ec2:*:*:volume/*
-            - arn:aws:ec2:*:*:snapshot/*
-            Condition:
-              StringEquals:
-                ec2:CreateAction:
-                - CreateSnapshot
-                - CreateVolume
-          - Sid: SideScanningSnapshotAttachVolume
-            Effect: Allow
-            Action:
-            - ec2:DetachVolume
-            - ec2:AttachVolume
-            Resource:
-            - arn:aws:ec2:*:*:volume/*
-            Condition:
-              StringEquals:
-                aws:ResourceTag/SideScanner: 'true'
-          - Sid: SideScanningSnapshotAttachInstance
-            Effect: Allow
-            Action:
-            - ec2:DetachVolume
-            - ec2:AttachVolume
-            Resource:
-            - arn:aws:ec2:*:*:instance/*
-            Condition:
-              StringEquals:
-                aws:ResourceTag/SideScanner: 'true'
-          - Sid: SideScanningSnapshotAccessAndCleanup
-            Effect: Allow
-            Action:
-            - ec2:ModifySnapshotAttribute
-            - ec2:DetachVolume
-            - ec2:DescribeSnapshotAttribute
-            - ec2:DeleteVolume
-            - ec2:DeleteSnapshot
-            - ec2:AttachVolume
-            - ebs:ListSnapshotBlocks
-            - ebs:ListChangedBlocks
-            - ebs:GetSnapshotBlock
-            Resource:
-            - arn:aws:ec2:*:*:volume/*
-            - arn:aws:ec2:*:*:snapshot/*
-            Condition:
-              StringEquals:
-                aws:ResourceTag/SideScanner: 'true'
-          - Sid: SideScanningDescribeSnapshots
-            Effect: Allow
-            Action:
-            - ec2:DescribeSnapshots
-            Resource:
-            - '*'
-          - Sid: GetLambdaDetails
-            Effect: Allow
-            Action: lambda:GetFunction
-            Resource: arn:aws:lambda:*:*:function:*
-          - Sid: OfflineMode
-            Effect: Allow
-            Action:
-            - ec2:DescribeRegions
-            - ec2:DescribeInstances
-            Resource: '*'
+        - Action: ec2:CreateTags
+          Condition:
+            StringEquals:
+              ec2:CreateAction:
+              - CreateSnapshot
+              - CreateVolume
+          Effect: Allow
+          Resource:
+          - arn:aws:ec2:*:*:volume/*
+          - arn:aws:ec2:*:*:snapshot/*
+          Sid: DatadogSideScannerResourceTagging
+        - Action: ec2:CreateSnapshot
+          Condition:
+            StringNotEquals:
+              aws:ResourceTag/DatadogSideScanner: 'false'
+          Effect: Allow
+          Resource: arn:aws:ec2:*:*:volume/*
+          Sid: DatadogSideScannerVolumeSnapshotCreation
+        - Action: ec2:CreateSnapshot
+          Condition:
+            ForAllValues:StringLike:
+              aws:TagKeys: DatadogSideScanner*
+            StringEquals:
+              aws:RequestTag/DatadogSideScanner: 'true'
+          Effect: Allow
+          Resource: arn:aws:ec2:*:*:snapshot/*
+          Sid: DatadogSideScannerSnapshotCreation
+        - Action:
+          - ec2:ModifySnapshotAttribute
+          - ec2:DescribeSnapshotAttribute
+          - ec2:DeleteSnapshot
+          - ebs:ListSnapshotBlocks
+          - ebs:ListChangedBlocks
+          - ebs:GetSnapshotBlock
+          Condition:
+            StringEquals:
+              aws:ResourceTag/DatadogSideScanner: 'true'
+          Effect: Allow
+          Resource: arn:aws:ec2:*:*:snapshot/*
+          Sid: DatadogSideScannerSnapshotAccessAndCleanup
+        - Action: ec2:DescribeSnapshots
+          Effect: Allow
+          Resource: "*"
+          Sid: DatadogSideScannerDescribeSnapshots
+        - Action: ec2:CreateVolume
+          Condition:
+            ForAllValues:StringLike:
+              aws:TagKeys: DatadogSideScanner*
+            StringEquals:
+              aws:RequestTag/DatadogSideScanner: 'true'
+          Effect: Allow
+          Resource: arn:aws:ec2:*:*:volume/*
+          Sid: DatadogSideScannerVolumeCreation
+        - Action:
+          - ec2:DetachVolume
+          - ec2:AttachVolume
+          Condition:
+            StringEquals:
+              aws:ResourceTag/DatadogSideScanner: 'true'
+          Effect: Allow
+          Resource: arn:aws:ec2:*:*:instance/*
+          Sid: DatadogSideScannerVolumeAttachToInstance
+        - Action:
+          - ec2:DetachVolume
+          - ec2:DeleteVolume
+          - ec2:AttachVolume
+          Condition:
+            StringEquals:
+              aws:ResourceTag/DatadogSideScanner: 'true'
+          Effect: Allow
+          Resource: arn:aws:ec2:*:*:volume/*
+          Sid: DatadogSideScannerVolumeAttachAndDelete
+        - Action: lambda:GetFunction
+          Effect: Allow
+          Resource: arn:aws:lambda:*:*:function:*
+          Sid: GetLambdaDetails
 
   DatalogSideScannerInstanceProfile:
     Type: AWS::IAM::InstanceProfile
