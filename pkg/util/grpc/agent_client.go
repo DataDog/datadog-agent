@@ -38,10 +38,7 @@ func getGRPCClientConn(ctx context.Context, ipcAddress string, cmdPort string, o
 
 	opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(&tlsConf)))
 
-	target, err := getIPCAddressPort(ipcAddress, cmdPort)
-	if err != nil {
-		return nil, err
-	}
+	target := net.JoinHostPort(ipcAddress, cmdPort)
 
 	log.Debugf("attempting to create grpc agent client connection to: %s", target)
 	return grpc.DialContext(ctx, target, opts...)
@@ -78,9 +75,4 @@ func GetDDAgentSecureClient(ctx context.Context, ipcAddress string, cmdPort stri
 
 	log.Debug("grpc agent secure client created")
 	return pb.NewAgentSecureClient(conn), nil
-}
-
-// getIPCAddressPort returns the host and port for connecting to the main agent
-func getIPCAddressPort(ipcAddress string, cmdPort string) (string, error) {
-	return net.JoinHostPort(ipcAddress, cmdPort), nil
 }
