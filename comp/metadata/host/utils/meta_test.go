@@ -17,7 +17,7 @@ import (
 
 func TestGetMeta(t *testing.T) {
 	ctx := context.Background()
-	cfg := fxutil.Test[config.Component](t, config.MockModule)
+	cfg := fxutil.Test[config.Component](t, config.MockModule())
 
 	meta := GetMeta(ctx, cfg)
 	assert.NotEmpty(t, meta.SocketHostname)
@@ -27,7 +27,7 @@ func TestGetMeta(t *testing.T) {
 
 func TestGetMetaFromCache(t *testing.T) {
 	ctx := context.Background()
-	cfg := fxutil.Test[config.Component](t, config.MockModule)
+	cfg := fxutil.Test[config.Component](t, config.MockModule())
 
 	cache.Cache.Set(metaCacheKey, &Meta{
 		SocketHostname: "socket_test",

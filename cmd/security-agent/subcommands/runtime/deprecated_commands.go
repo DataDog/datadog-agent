@@ -37,7 +37,7 @@ func checkPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command 
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    logimpl.ForOneShot(command.LoggerName, "off", false)}),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 		Deprecated: "please use `security-agent runtime policy check` instead",
@@ -59,7 +59,7 @@ func reloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 		Deprecated: "please use `security-agent runtime policy reload` instead",
