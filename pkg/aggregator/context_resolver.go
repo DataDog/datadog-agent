@@ -71,22 +71,14 @@ type contextResolver struct {
 }
 
 // SizeInBytes returns the size of the contextResolver in bytes
+//
+// contextResolver doesn't have `DataSizeInBytes` because we only use it for telemetry
+// for now and split by metric type. If we start using it for other purposes, we can
+// add it.
 func (cr *contextResolver) SizeInBytes() int {
 	// Note that we don't count the overhead of the map here.
 	return ContextSizeInBytes*len(cr.contextsByKey) + int(unsafe.Sizeof(*cr))
 }
-
-// DataSizeInBytes returns the size of the context data in bytes
-func (cr *contextResolver) DataSizeInBytes() int {
-	size := 0
-	for _, cx := range cr.contextsByKey {
-		size += cx.DataSizeInBytes()
-	}
-	return size
-}
-
-// Make sure we implement the interface
-var _ util.HasSizeInBytes = &contextResolver{}
 
 // generateContextKey generates the contextKey associated with the context of the metricSample
 func (cr *contextResolver) generateContextKey(metricSampleContext metrics.MetricSampleContext) (ckey.ContextKey, ckey.TagsKey, ckey.TagsKey) {
