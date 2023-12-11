@@ -40,6 +40,7 @@ type dependencies struct {
 	Params  Params
 }
 
+// TaggerClient is a component that contains two tagger component: capturetagger and defaulttagger
 type TaggerClient struct {
 	// captureTagger is a tagger instance that contains a tagger that will contain the tagger
 	// state when replaying a capture scenario

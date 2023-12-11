@@ -41,7 +41,7 @@ func NewTagger() *Tagger {
 	}
 }
 
-// Starts the connection to the replay tagger and starts watching for
+// Start starts the connection to the replay tagger and starts watching for
 // events.
 func (t *Tagger) Start(ctx context.Context) error {
 	t.health = health.RegisterLiveness("tagger")

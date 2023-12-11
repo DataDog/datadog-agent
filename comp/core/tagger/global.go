@@ -25,7 +25,7 @@ var (
 	initOnce sync.Once
 )
 
-// SetGlobalStore sets the global taggerClient instance
+// SetGlobalTaggerClient sets the global taggerClient instance
 func SetGlobalTaggerClient(t *TaggerClient) {
 	initOnce.Do(func() {
 		globalTagger = t
@@ -37,6 +37,7 @@ func UnlockGlobalTaggerClient() {
 	initOnce = sync.Once{}
 }
 
+// GetEntity returns the hash for the provided entity id.
 func GetEntity(entityID string) (*types.Entity, error) {
 	if globalTagger == nil {
 		return nil, fmt.Errorf("a global tagger must be set before calling GetEntity")
@@ -44,6 +45,7 @@ func GetEntity(entityID string) (*types.Entity, error) {
 	return globalTagger.GetEntity(entityID)
 }
 
+// Tag is an interface function that queries taggerclient singleton
 func Tag(entity string, cardinality collectors.TagCardinality) ([]string, error) {
 	if globalTagger == nil {
 		return nil, fmt.Errorf("a global tagger must be set before calling Tag")
@@ -51,6 +53,7 @@ func Tag(entity string, cardinality collectors.TagCardinality) ([]string, error)
 	return globalTagger.Tag(entity, cardinality)
 }
 
+// AccumulateTagsFor is an interface function that queries taggerclient singleton
 func AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb tagset.TagsAccumulator) error {
 	if globalTagger == nil {
 		return fmt.Errorf("a global tagger must be set before calling AccumulateTagsFor")
@@ -58,6 +61,7 @@ func AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb 
 	return globalTagger.AccumulateTagsFor(entity, cardinality, tb)
 }
 
+// GetEntityHash is an interface function that queries taggerclient singleton
 func GetEntityHash(entity string, cardinality collectors.TagCardinality) string {
 	if globalTagger != nil {
 		return globalTagger.GetEntityHash(entity, cardinality)
@@ -65,6 +69,7 @@ func GetEntityHash(entity string, cardinality collectors.TagCardinality) string 
 	return ""
 }
 
+// StandardTags is an interface function that queries taggerclient singleton
 func StandardTags(entity string) ([]string, error) {
 	if globalTagger == nil {
 		return nil, fmt.Errorf("a global tagger must be set before calling StandardTags")
@@ -72,6 +77,7 @@ func StandardTags(entity string) ([]string, error) {
 	return globalTagger.Standard(entity)
 }
 
+// AgentTags is an interface function that queries taggerclient singleton
 func AgentTags(cardinality collectors.TagCardinality) ([]string, error) {
 	if globalTagger == nil {
 		return nil, fmt.Errorf("a global tagger must be set before calling AgentTags")
@@ -79,6 +85,7 @@ func AgentTags(cardinality collectors.TagCardinality) ([]string, error) {
 	return globalTagger.AgentTags(cardinality)
 }
 
+// GlobalTags is an interface function that queries taggerclient singleton
 func GlobalTags(cardinality collectors.TagCardinality) ([]string, error) {
 	if globalTagger == nil {
 		return nil, fmt.Errorf("a global tagger must be set before calling GlobalTags")
@@ -99,18 +106,21 @@ func GetTaggerInstance() Component {
 	return globalTagger
 }
 
+// SetNewCaptureTagger will set capture tagger in global tagger instance by using prvoided capturetagger
 func SetNewCaptureTagger(newCaptureTagger *replay.Tagger) {
 	if globalTagger != nil {
 		globalTagger.SetNewCaptureTagger(newCaptureTagger)
 	}
 }
 
+// ResetCaptureTagger will reset capture tagger
 func ResetCaptureTagger() {
 	if globalTagger != nil {
 		globalTagger.ResetCaptureTagger()
 	}
 }
 
+// EnrichTags is an interface function that queries taggerclient singleton
 func EnrichTags(tb tagset.TagsAccumulator, udsOrigin string, clientOrigin string, cardinalityName string) {
 	if globalTagger != nil {
 		globalTagger.EnrichTags(tb, udsOrigin, clientOrigin, cardinalityName)

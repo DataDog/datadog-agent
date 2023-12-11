@@ -113,9 +113,13 @@ func (t *Tagger) GetEntity(entityID string) (*types.Entity, error) {
 }
 
 // List the content of the tagger
+<<<<<<< HEAD
 //
 //nolint:revive // TODO(CINT) Fix revive linter
 func (t *Tagger) List(cardinality collectors.TagCardinality) tagger_api.TaggerListResponse {
+=======
+func (t *Tagger) List(_ collectors.TagCardinality) tagger_api.TaggerListResponse {
+>>>>>>> d9a772d0bc (fix linter)
 	return t.tagStore.List()
 }
 

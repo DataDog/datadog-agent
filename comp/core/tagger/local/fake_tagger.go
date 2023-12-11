@@ -65,7 +65,7 @@ func (f *FakeTagger) SetError(entity string, cardinality collectors.TagCardinali
 // Tagger interface
 
 // Start not implemented in fake tagger
-func (f *FakeTagger) Start(ctx context.Context) error {
+func (f *FakeTagger) Start(_ context.Context) error {
 	return nil
 }
 
@@ -108,9 +108,13 @@ func (f *FakeTagger) GetEntity(entityID string) (*types.Entity, error) {
 }
 
 // List fake implementation
+<<<<<<< HEAD
 //
 //nolint:revive // TODO(CINT) Fix revive linter
 func (f *FakeTagger) List(cardinality collectors.TagCardinality) tagger_api.TaggerListResponse {
+=======
+func (f *FakeTagger) List(_ collectors.TagCardinality) tagger_api.TaggerListResponse {
+>>>>>>> d9a772d0bc (fix linter)
 	return f.store.List()
 }
 

@@ -30,6 +30,7 @@ func GetDefaultTagger(taggerClient Component) Component {
 	return nil
 }
 
+// SetupFakeTagger provides a fake tagger, for testing only.
 func SetupFakeTagger(t *testing.T) *local.FakeTagger {
 	// taggerClient is a global variable that is set by the fxutil.Test function
 	taggerClient := fxutil.Test[Component](t,
@@ -42,6 +43,7 @@ func SetupFakeTagger(t *testing.T) *local.FakeTagger {
 	return fakeTagger
 }
 
+// ResetTagger for testing only
 func ResetTagger() {
 	UnlockGlobalTaggerClient()
 }

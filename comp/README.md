@@ -105,6 +105,12 @@ Package telemetry implements a component for all agent telemetry.
 
 Package workloadmeta provides the workloadmeta component for the Datadog Agent
 
+### [comp/core/tagger](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/tagger)
+
+*Datadog Team*: container-integrations
+
+Package workloadmeta provides the tagger component for the Datadog Agent
+
 ## [comp/dogstatsd](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dogstatsd) (Component Bundle)
 
 *Datadog Team*: agent-metrics-logs
