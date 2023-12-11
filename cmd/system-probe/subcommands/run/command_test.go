@@ -26,6 +26,6 @@ func TestStartSystemProbe(t *testing.T) {
 	fxutil.TestOneShot(t, func() {
 		ctxChan := make(<-chan context.Context)
 		errChan := make(chan error)
-		runSystemProbeAsApp(ctxChan, errChan)
+		runSystemProbe(ctxChan, errChan)
 	})
 }

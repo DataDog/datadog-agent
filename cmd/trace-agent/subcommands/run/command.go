@@ -39,7 +39,7 @@ func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Com
 		Long:  `The Datadog trace-agent aggregates, samples, and forwards traces to datadog submitted by tracers loaded into your application.`,
 		RunE: func(*cobra.Command, []string) error {
 			cliParams.GlobalParams = globalParamsGetter()
-			return runTraceAgent(cliParams, cliParams.ConfPath)
+			return runTraceAgentCommand(cliParams, cliParams.ConfPath)
 		},
 	}
 
@@ -58,7 +58,7 @@ func setParamFlags(cmd *cobra.Command, cliParams *RunParams) {
 	setOSSpecificParamFlags(cmd, cliParams)
 }
 
-func runFx(ctx context.Context, cliParams *RunParams, defaultConfPath string) error {
+func runTraceAgentProcess(ctx context.Context, cliParams *RunParams, defaultConfPath string) error {
 	if cliParams.ConfPath == "" {
 		cliParams.ConfPath = defaultConfPath
 	}
