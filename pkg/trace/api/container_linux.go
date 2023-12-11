@@ -9,6 +9,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"strconv"
@@ -164,10 +165,19 @@ func (c *cgroupIDProvider) resolveContainerIDFromEntityID(eid string) string {
 
 // getContainerIDByInode returns the container ID for the given cgroup inode.
 func (c *cgroupIDProvider) getContainerIDByInode(inode uint64) (string, error) {
-	cgroup, err := c.reader.GetCgroupByInode(inode, readerCacheExpiration)
+	cgroup, err := c.reader.GetCgroupByInode(inode)
 	if err != nil {
-		return "", err
+		err := c.reader.RefreshCgroups(readerCacheExpiration)
+		if err != nil {
+			return "", fmt.Errorf("containerdID not found from inode %d and unable to refresh cgroups, err: %w", inode, err)
+		}
+
+		cgroup, err = c.reader.GetCgroupByInode(inode)
+		if err != nil {
+			return "", fmt.Errorf("container-id not found from inode %d, err: %w", inode, err)
+		}
 	}
+
 	return cgroup.Identifier(), nil
 }
 

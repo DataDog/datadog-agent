@@ -185,28 +185,16 @@ func (r *Reader) GetCgroup(id string) Cgroup {
 	return r.cgroups[id]
 }
 
-// GetCgroupByInode returns the cgroup for the given inode. It refreshes cgroups on cache miss if more than
-// minRefreshPeriod has elapsed since last refresh.
-func (r *Reader) GetCgroupByInode(inode uint64, minRefreshPeriod time.Duration) (Cgroup, error) {
-	cgroup, err := r.getCgroupByInode(inode)
-	if err == nil {
-		return cgroup, nil
-	}
-
-	if err := r.RefreshCgroups(minRefreshPeriod); err != nil {
-		return nil, fmt.Errorf("failed to refresh cgroups: %v", err)
-	}
-
-	return r.getCgroupByInode(inode)
-}
-
-func (r *Reader) getCgroupByInode(inode uint64) (Cgroup, error) {
+// GetCgroupByInode returns the cgroup for the given inode.
+func (r *Reader) GetCgroupByInode(inode uint64) (Cgroup, error) {
 	r.cgroupsLock.RLock()
 	defer r.cgroupsLock.RUnlock()
+
 	cgroup, ok := r.cgroupByInode[inode]
 	if !ok {
 		return nil, fmt.Errorf("cgroup not found for inode %d", inode)
 	}
+
 	return cgroup, nil
 }
 
