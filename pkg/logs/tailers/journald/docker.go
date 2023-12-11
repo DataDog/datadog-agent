@@ -9,8 +9,6 @@
 package journald
 
 import (
-	"context"
-
 	"github.com/coreos/go-systemd/sdjournal"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -42,12 +40,4 @@ func (t *Tailer) getContainerTags(containerID string) []string {
 		log.Warn(err)
 	}
 	return tags
-}
-
-// initializeTagger initializes the tag collector.
-func (t *Tailer) initializeTagger() {
-	err := tagger.Init(context.TODO())
-	if err != nil {
-		log.Errorf("failed to start the tagger: %s", err)
-	}
 }

@@ -7,7 +7,6 @@
 package app
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -128,8 +127,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 func runCheckCmd(deps dependencies) error {
 	command.SetHostMountEnv(deps.Log)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	// Now that the logger is configured log host info
 	deps.Log.Infof("running on platform: %s", hostMetadataUtils.GetPlatformName())
@@ -159,6 +156,10 @@ func runCheckCmd(deps dependencies) error {
 
 		if !matchingCheck(deps.CliParams.checkName, ch) {
 			continue
+		}
+
+		if err := ch.Init(cfg, deps.Hostinfo.Object(), true); err != nil {
+			return err
 		}
 
 		cleanups = append(cleanups, ch.Cleanup)

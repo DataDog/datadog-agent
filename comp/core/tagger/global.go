@@ -11,6 +11,7 @@ import (
 
 	tagger_api "github.com/DataDog/datadog-agent/comp/core/tagger/api"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/replay"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
@@ -98,9 +99,9 @@ func GetTaggerInstance() Component {
 	return globalTagger
 }
 
-func SetNewCaptureTagger() {
+func SetNewCaptureTagger(newCaptureTagger *replay.Tagger) {
 	if globalTagger != nil {
-		globalTagger.SetNewCaptureTagger()
+		globalTagger.SetNewCaptureTagger(newCaptureTagger)
 	}
 }
 

@@ -103,7 +103,7 @@ func (s *serverSecure) DogstatsdSetTaggerState(_ context.Context, req *pb.Tagger
 	t.LoadState(req.State)
 
 	log.Debugf("API: setting capture state tagger")
-	tagger.SetCaptureTagger(t)
+	tagger.SetNewCaptureTagger(t)
 	dsdReplay.SetPidMap(req.PidMap)
 
 	log.Debugf("API: loaded state successfully")

@@ -286,10 +286,10 @@ func (t *TaggerClient) List(cardinality collectors.TagCardinality) tagger_api.Ta
 }
 
 // SetNewCaptureTagger sets the tagger to be used when replaying a capture
-func (t *TaggerClient) SetNewCaptureTagger() {
+func (t *TaggerClient) SetNewCaptureTagger(newCaptureTagger *replay.Tagger) {
 	t.mux.Lock()
 	defer t.mux.Unlock()
-	t.captureTagger = replay.NewTagger()
+	t.captureTagger = newCaptureTagger
 }
 
 // ResetCaptureTagger resets the capture tagger to nil
