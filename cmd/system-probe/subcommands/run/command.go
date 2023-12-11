@@ -162,10 +162,10 @@ func run(log log.Component, _ config.Component, statsd compstatsd.Component, tel
 func StartSystemProbeWithDefaults(ctxChan <-chan context.Context) (<-chan error, error) {
 	errChan := make(chan error)
 
-	// run startSystemProbe in an app, so that the log and config components get initialized
+	// run startSystemProbe in the background
 	go func() {
-		err := runSystemProbeAsApp(ctxChan, errChan)
-		// notify caller that this is done
+		err := runSystemProbe(ctxChan, errChan)
+		// notify main routine that this is done, so cleanup can happen
 		errChan <- err
 	}()
 
@@ -180,7 +180,7 @@ func StartSystemProbeWithDefaults(ctxChan <-chan context.Context) (<-chan error,
 	return errChan, nil
 }
 
-func runSystemProbeAsApp(ctxChan <-chan context.Context, errChan chan error) error {
+func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 	return fxutil.OneShot(
 		func(log log.Component, config config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component) error {
 			defer StopSystemProbeWithDefaults()
