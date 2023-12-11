@@ -49,10 +49,11 @@ type RuleStatus = map[eval.RuleID]string
 type PolicyMonitor struct {
 	sync.RWMutex
 
-	statsdClient         statsd.ClientInterface
-	policies             map[string]Policy
-	rules                RuleStatus
-	perRuleMetricEnabled bool
+	statsdClient            statsd.ClientInterface
+	policies                map[string]Policy
+	rules                   RuleStatus
+	perRuleMetricEnabled    bool
+	includeInternalPolicies bool
 }
 
 // SetPolicies add policies to the monitor
@@ -63,6 +64,9 @@ func (p *PolicyMonitor) SetPolicies(policies []*rules.Policy, mErrs *multierror.
 	p.policies = map[string]Policy{}
 
 	for _, policy := range policies {
+		if policy.IsInternal && !p.includeInternalPolicies {
+			continue
+		}
 		p.policies[policy.Name] = Policy{Name: policy.Name, Source: policy.Source, Version: policy.Version}
 
 		for _, rule := range policy.Rules {
@@ -136,12 +140,13 @@ func (p *PolicyMonitor) Start(ctx context.Context) {
 }
 
 // NewPolicyMonitor returns a new Policy monitor
-func NewPolicyMonitor(statsdClient statsd.ClientInterface, perRuleMetricEnabled bool) *PolicyMonitor {
+func NewPolicyMonitor(statsdClient statsd.ClientInterface, perRuleMetricEnabled, includeInternalPolicies bool) *PolicyMonitor {
 	return &PolicyMonitor{
-		statsdClient:         statsdClient,
-		policies:             make(map[string]Policy),
-		rules:                make(map[string]string),
-		perRuleMetricEnabled: perRuleMetricEnabled,
+		statsdClient:            statsdClient,
+		policies:                make(map[string]Policy),
+		rules:                   make(map[string]string),
+		perRuleMetricEnabled:    perRuleMetricEnabled,
+		includeInternalPolicies: includeInternalPolicies,
 	}
 }
 
@@ -228,7 +233,7 @@ func RuleStateFromDefinition(def *rules.RuleDefinition, status string, message s
 }
 
 // NewPoliciesState returns the states of policies and rules
-func NewPoliciesState(ruleSets map[string]*rules.RuleSet, err *multierror.Error) []*PolicyState {
+func NewPoliciesState(ruleSets map[string]*rules.RuleSet, err *multierror.Error, includeInternalPolicies bool) []*PolicyState {
 	mp := make(map[string]*PolicyState)
 
 	var policyState *PolicyState
@@ -236,6 +241,10 @@ func NewPoliciesState(ruleSets map[string]*rules.RuleSet, err *multierror.Error)
 
 	for _, rs := range ruleSets {
 		for _, rule := range rs.GetRules() {
+			if rule.Definition.Policy.IsInternal && !includeInternalPolicies {
+				continue
+			}
+
 			ruleDef := rule.Definition
 			policyName := ruleDef.Policy.Name
 
@@ -251,6 +260,9 @@ func NewPoliciesState(ruleSets map[string]*rules.RuleSet, err *multierror.Error)
 	if err != nil && err.Errors != nil {
 		for _, err := range err.Errors {
 			if rerr, ok := err.(*rules.ErrRuleLoad); ok {
+				if rerr.Definition.Policy.IsInternal && !includeInternalPolicies {
+					continue
+				}
 				policyName := rerr.Definition.Policy.Name
 
 				if _, exists := mp[policyName]; !exists {
