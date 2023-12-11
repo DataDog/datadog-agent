@@ -77,7 +77,7 @@ import (
 
 const (
 	maxSnapshotRetries  = 3
-	maxAttachRetries  = 10
+	maxAttachRetries    = 10
 	defaultWorkersCount = 40
 
 	defaultAWSRate          = 20.0
