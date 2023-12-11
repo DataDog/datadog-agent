@@ -287,8 +287,14 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgConfig.Reader, logsConfig *LogsC
 type defaultParseAddressFunc func(string) (host string, port int, err error)
 
 func parseAddressWithScheme(address string, defaultNoSSL bool, defaultParser defaultParseAddressFunc) (host string, port int, useSSL bool, err error) {
-	if strings.HasPrefix(address, "https://") || strings.HasPrefix(address, "http://") {
+	hasHTTPSPrefix := strings.HasPrefix(address, "https://")
+	if hasHTTPSPrefix || strings.HasPrefix(address, "http://") {
 		host, port, useSSL, err = parseURL(address)
+		// Override HTTPS config if logs_no_ssl has been explicitly set by user
+		if hasHTTPSPrefix && defaultNoSSL {
+			log.Warn("dd_url option set to URL with HTTPS prefix and logs_no_ssl set to true, agent will not use SSL to send logs.")
+			useSSL = !defaultNoSSL
+		}
 	} else {
 		host, port, err = defaultParser(address)
 		if err != nil {
