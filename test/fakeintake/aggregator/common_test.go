@@ -66,7 +66,7 @@ func generateTestData() (data []api.Payload, err error) {
 	}, nil
 }
 
-func validateCollectionTime(t *testing.T, agg Aggregator[*mockPayloadItem]) {
+func validateCollectionTime(t *testing.T, agg *Aggregator[*mockPayloadItem]) {
 	if runtime.GOOS != "linux" {
 		t.Logf("validateCollectionTime test skip on %s", runtime.GOOS)
 		return
@@ -87,7 +87,7 @@ func TestCommonAggregator(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, agg.ContainsPayloadName("totoro"))
 		assert.False(t, agg.ContainsPayloadName("ponyo"))
-		validateCollectionTime(t, agg)
+		validateCollectionTime(t, &agg)
 	})
 
 	t.Run("ContainsPayloadNameAndTags", func(t *testing.T) {
@@ -99,7 +99,7 @@ func TestCommonAggregator(t *testing.T) {
 		assert.True(t, agg.ContainsPayloadNameAndTags("totoro", []string{"age:123"}))
 		assert.False(t, agg.ContainsPayloadNameAndTags("porco rosso", []string{"country:it", "role:king"}))
 		assert.True(t, agg.ContainsPayloadNameAndTags("porco rosso", []string{"country:it", "role:pilot"}))
-		validateCollectionTime(t, agg)
+		validateCollectionTime(t, &agg)
 	})
 
 	t.Run("AreTagsSubsetOfOtherTags", func(t *testing.T) {
@@ -132,6 +132,6 @@ func TestCommonAggregator(t *testing.T) {
 		agg := newAggregator(parseMockPayloadItem)
 		agg.Reset()
 		assert.Equal(t, 0, len(agg.payloadsByName))
-		validateCollectionTime(t, agg)
+		validateCollectionTime(t, &agg)
 	})
 }
