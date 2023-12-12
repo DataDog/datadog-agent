@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/propagation"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trigger"
-	ddevents "github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -110,7 +110,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	var ev interface{}
 	switch eventType {
 	case trigger.APIGatewayEvent:
-		var event ddevents.APIGatewayProxyRequest
+		var event events.APIGatewayProxyRequest
 		if err := json.Unmarshal(payloadBytes, &event); err != nil {
 			log.Debugf("Failed to unmarshal %s event: %s", apiGateway, err)
 			break
@@ -118,7 +118,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		ev = event
 		lp.initFromAPIGatewayEvent(event, region)
 	case trigger.APIGatewayV2Event:
-		var event ddevents.APIGatewayV2HTTPRequest
+		var event events.APIGatewayV2HTTPRequest
 		if err := json.Unmarshal(payloadBytes, &event); err != nil {
 			log.Debugf("Failed to unmarshal %s event: %s", apiGateway, err)
 			break
@@ -126,7 +126,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		ev = event
 		lp.initFromAPIGatewayV2Event(event, region)
 	case trigger.APIGatewayWebsocketEvent:
-		var event ddevents.APIGatewayWebsocketProxyRequest
+		var event events.APIGatewayWebsocketProxyRequest
 		if err := json.Unmarshal(payloadBytes, &event); err != nil {
 			log.Debugf("Failed to unmarshal %s event: %s", apiGateway, err)
 			break
@@ -134,7 +134,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		ev = event
 		lp.initFromAPIGatewayWebsocketEvent(event, region)
 	case trigger.APIGatewayLambdaAuthorizerTokenEvent:
-		var event ddevents.APIGatewayCustomAuthorizerRequest
+		var event events.APIGatewayCustomAuthorizerRequest
 		if err := json.Unmarshal(payloadBytes, &event); err != nil {
 			log.Debugf("Failed to unmarshal %s event: %s", apiGateway, err)
 			break
@@ -142,7 +142,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		ev = event
 		lp.initFromAPIGatewayLambdaAuthorizerTokenEvent(event)
 	case trigger.APIGatewayLambdaAuthorizerRequestParametersEvent:
-		var event ddevents.APIGatewayCustomAuthorizerRequestTypeRequest
+		var event events.APIGatewayCustomAuthorizerRequestTypeRequest
 		if err := json.Unmarshal(payloadBytes, &event); err != nil {
 			log.Debugf("Failed to unmarshal %s event: %s", apiGateway, err)
 			break
@@ -150,7 +150,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		ev = event
 		lp.initFromAPIGatewayLambdaAuthorizerRequestParametersEvent(event)
 	case trigger.ALBEvent:
-		var event ddevents.ALBTargetGroupRequest
+		var event events.ALBTargetGroupRequest
 		if err := json.Unmarshal(payloadBytes, &event); err != nil {
 			log.Debugf("Failed to unmarshal %s event: %s", applicationLoadBalancer, err)
 			break
@@ -158,7 +158,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		ev = event
 		lp.initFromALBEvent(event)
 	case trigger.CloudWatchEvent:
-		var event ddevents.CloudWatchEvent
+		var event events.CloudWatchEvent
 		if err := json.Unmarshal(payloadBytes, &event); err != nil {
 			log.Debugf("Failed to unmarshal %s event: %s", cloudwatchEvents, err)
 			break
@@ -166,7 +166,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		ev = event
 		lp.initFromCloudWatchEvent(event)
 	case trigger.CloudWatchLogsEvent:
-		var event ddevents.CloudwatchLogsEvent
+		var event events.CloudwatchLogsEvent
 		if err := json.Unmarshal(payloadBytes, &event); err != nil && arnParseErr != nil {
 			log.Debugf("Failed to unmarshal %s event: %s", cloudwatchLogs, err)
 			break
@@ -174,7 +174,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		ev = event
 		lp.initFromCloudWatchLogsEvent(event, region, account)
 	case trigger.DynamoDBStreamEvent:
-		var event ddevents.DynamoDBEvent
+		var event events.DynamoDBEvent
 		if err := json.Unmarshal(payloadBytes, &event); err != nil {
 			log.Debugf("Failed to unmarshal %s event: %s", dynamoDB, err)
 			break
@@ -182,7 +182,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		ev = event
 		lp.initFromDynamoDBStreamEvent(event)
 	case trigger.KinesisStreamEvent:
-		var event ddevents.KinesisEvent
+		var event events.KinesisEvent
 		if err := json.Unmarshal(payloadBytes, &event); err != nil {
 			log.Debugf("Failed to unmarshal %s event: %s", kinesis, err)
 			break
@@ -190,7 +190,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		ev = event
 		lp.initFromKinesisStreamEvent(event)
 	case trigger.EventBridgeEvent:
-		var event ddevents.EventBridgeEvent
+		var event events.EventBridgeEvent
 		if err := json.Unmarshal(payloadBytes, &event); err != nil {
 			log.Debugf("Failed to unmarshal %s event: %s", eventBridge, err)
 			break
@@ -198,7 +198,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		ev = event
 		lp.initFromEventBridgeEvent(event)
 	case trigger.S3Event:
-		var event ddevents.S3Event
+		var event events.S3Event
 		if err := json.Unmarshal(payloadBytes, &event); err != nil {
 			log.Debugf("Failed to unmarshal %s event: %s", s3, err)
 			break
@@ -206,7 +206,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		ev = event
 		lp.initFromS3Event(event)
 	case trigger.SNSEvent:
-		var event ddevents.SNSEvent
+		var event events.SNSEvent
 		if err := json.Unmarshal(payloadBytes, &event); err != nil {
 			log.Debugf("Failed to unmarshal %s event: %s", sns, err)
 			break
@@ -214,7 +214,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		ev = event
 		lp.initFromSNSEvent(event)
 	case trigger.SQSEvent:
-		var event ddevents.SQSEvent
+		var event events.SQSEvent
 		if err := json.Unmarshal(payloadBytes, &event); err != nil {
 			log.Debugf("Failed to unmarshal %s event: %s", sqs, err)
 			break
@@ -222,7 +222,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		ev = event
 		lp.initFromSQSEvent(event)
 	case trigger.LambdaFunctionURLEvent:
-		var event ddevents.LambdaFunctionURLRequest
+		var event events.LambdaFunctionURLRequest
 		if err := json.Unmarshal(payloadBytes, &event); err != nil && arnParseErr != nil {
 			log.Debugf("Failed to unmarshal %s event: %s", functionURL, err)
 			break

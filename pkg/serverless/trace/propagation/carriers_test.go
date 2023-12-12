@@ -10,7 +10,7 @@ import (
 	"errors"
 	"testing"
 
-	ddevents "github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/stretchr/testify/assert"
@@ -32,13 +32,13 @@ func getMapFromCarrier(tm tracer.TextMapReader) map[string]string {
 func TestSQSMessageAttrCarrier(t *testing.T) {
 	testcases := []struct {
 		name     string
-		attr     ddevents.SQSMessageAttribute
+		attr     events.SQSMessageAttribute
 		expMap   map[string]string
 		expNoErr bool
 	}{
 		{
 			name: "string-datadog-map",
-			attr: ddevents.SQSMessageAttribute{
+			attr: events.SQSMessageAttribute{
 				DataType:    "String",
 				StringValue: aws.String(headersAll),
 			},
@@ -47,7 +47,7 @@ func TestSQSMessageAttrCarrier(t *testing.T) {
 		},
 		{
 			name: "string-empty-map",
-			attr: ddevents.SQSMessageAttribute{
+			attr: events.SQSMessageAttribute{
 				DataType:    "String",
 				StringValue: aws.String("{}"),
 			},
@@ -56,7 +56,7 @@ func TestSQSMessageAttrCarrier(t *testing.T) {
 		},
 		{
 			name: "string-empty-string",
-			attr: ddevents.SQSMessageAttribute{
+			attr: events.SQSMessageAttribute{
 				DataType:    "String",
 				StringValue: aws.String(""),
 			},
@@ -65,7 +65,7 @@ func TestSQSMessageAttrCarrier(t *testing.T) {
 		},
 		{
 			name: "string-nil-string",
-			attr: ddevents.SQSMessageAttribute{
+			attr: events.SQSMessageAttribute{
 				DataType:    "String",
 				StringValue: nil,
 			},
@@ -74,7 +74,7 @@ func TestSQSMessageAttrCarrier(t *testing.T) {
 		},
 		{
 			name: "binary-datadog-map",
-			attr: ddevents.SQSMessageAttribute{
+			attr: events.SQSMessageAttribute{
 				DataType:    "Binary",
 				BinaryValue: []byte(headersAll),
 			},
@@ -83,7 +83,7 @@ func TestSQSMessageAttrCarrier(t *testing.T) {
 		},
 		{
 			name: "binary-empty-map",
-			attr: ddevents.SQSMessageAttribute{
+			attr: events.SQSMessageAttribute{
 				DataType:    "Binary",
 				BinaryValue: []byte("{}"),
 			},
@@ -92,7 +92,7 @@ func TestSQSMessageAttrCarrier(t *testing.T) {
 		},
 		{
 			name: "binary-empty-string",
-			attr: ddevents.SQSMessageAttribute{
+			attr: events.SQSMessageAttribute{
 				DataType:    "Binary",
 				BinaryValue: []byte(""),
 			},
@@ -101,7 +101,7 @@ func TestSQSMessageAttrCarrier(t *testing.T) {
 		},
 		{
 			name: "binary-nil-string",
-			attr: ddevents.SQSMessageAttribute{
+			attr: events.SQSMessageAttribute{
 				DataType:    "Binary",
 				BinaryValue: nil,
 			},
@@ -110,7 +110,7 @@ func TestSQSMessageAttrCarrier(t *testing.T) {
 		},
 		{
 			name: "wrong-data-type",
-			attr: ddevents.SQSMessageAttribute{
+			attr: events.SQSMessageAttribute{
 				DataType: "Purple",
 			},
 			expMap:   nil,
@@ -131,13 +131,13 @@ func TestSQSMessageAttrCarrier(t *testing.T) {
 func TestSnsSqsMessageCarrier(t *testing.T) {
 	testcases := []struct {
 		name   string
-		event  ddevents.SQSMessage
+		event  events.SQSMessage
 		expMap map[string]string
 		expErr error
 	}{
 		{
 			name: "empty-string-body",
-			event: ddevents.SQSMessage{
+			event: events.SQSMessage{
 				Body: "",
 			},
 			expMap: nil,
@@ -145,7 +145,7 @@ func TestSnsSqsMessageCarrier(t *testing.T) {
 		},
 		{
 			name: "empty-map-body",
-			event: ddevents.SQSMessage{
+			event: events.SQSMessage{
 				Body: "{}",
 			},
 			expMap: nil,
@@ -153,7 +153,7 @@ func TestSnsSqsMessageCarrier(t *testing.T) {
 		},
 		{
 			name: "no-msg-attrs",
-			event: ddevents.SQSMessage{
+			event: events.SQSMessage{
 				Body: `{
 					"MessageAttributes": {}
 				}`,
@@ -163,7 +163,7 @@ func TestSnsSqsMessageCarrier(t *testing.T) {
 		},
 		{
 			name: "wrong-type-msg-attrs",
-			event: ddevents.SQSMessage{
+			event: events.SQSMessage{
 				Body: `{
 					"MessageAttributes": "attrs"
 				}`,
@@ -173,7 +173,7 @@ func TestSnsSqsMessageCarrier(t *testing.T) {
 		},
 		{
 			name: "non-binary-type",
-			event: ddevents.SQSMessage{
+			event: events.SQSMessage{
 				Body: `{
 					"MessageAttributes": {
 						"_datadog": {
@@ -188,7 +188,7 @@ func TestSnsSqsMessageCarrier(t *testing.T) {
 		},
 		{
 			name: "cannot-decode",
-			event: ddevents.SQSMessage{
+			event: events.SQSMessage{
 				Body: `{
 					"MessageAttributes": {
 						"_datadog": {
@@ -203,7 +203,7 @@ func TestSnsSqsMessageCarrier(t *testing.T) {
 		},
 		{
 			name: "empty-string-encoded",
-			event: ddevents.SQSMessage{
+			event: events.SQSMessage{
 				Body: `{
 					"MessageAttributes": {
 						"_datadog": {
@@ -460,7 +460,7 @@ func TestExtractTraceContextfromAWSTraceHeader(t *testing.T) {
 func TestSqsMessageCarrier(t *testing.T) {
 	testcases := []struct {
 		name   string
-		event  ddevents.SQSMessage
+		event  events.SQSMessage
 		expMap map[string]string
 		expErr error
 	}{

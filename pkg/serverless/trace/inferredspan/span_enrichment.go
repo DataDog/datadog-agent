@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	ddevents "github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -69,7 +69,7 @@ func DetermineServiceName(serviceMapping map[string]string, specificKey string, 
 // EnrichInferredSpanWithAPIGatewayRESTEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from a REST event.
-func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayRESTEvent(eventPayload ddevents.APIGatewayProxyRequest) {
+func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayRESTEvent(eventPayload events.APIGatewayProxyRequest) {
 	log.Debug("Enriching an inferred span for a REST API Gateway")
 	requestContext := eventPayload.RequestContext
 	resource := fmt.Sprintf("%s %s", eventPayload.HTTPMethod, eventPayload.Path)
@@ -101,7 +101,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayRESTEvent(even
 // EnrichInferredSpanWithAPIGatewayHTTPEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from a HTTP event.
-func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayHTTPEvent(eventPayload ddevents.APIGatewayV2HTTPRequest) {
+func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayHTTPEvent(eventPayload events.APIGatewayV2HTTPRequest) {
 	log.Debug("Enriching an inferred span for a HTTP API Gateway")
 	requestContext := eventPayload.RequestContext
 	http := requestContext.HTTP
@@ -136,7 +136,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayHTTPEvent(even
 // EnrichInferredSpanWithLambdaFunctionURLEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from a Lambda Function URL event.
-func (inferredSpan *InferredSpan) EnrichInferredSpanWithLambdaFunctionURLEvent(eventPayload ddevents.LambdaFunctionURLRequest) {
+func (inferredSpan *InferredSpan) EnrichInferredSpanWithLambdaFunctionURLEvent(eventPayload events.LambdaFunctionURLRequest) {
 	log.Debug("Enriching an inferred span for a Lambda Function URL")
 	requestContext := eventPayload.RequestContext
 	http := requestContext.HTTP
@@ -170,7 +170,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithLambdaFunctionURLEvent(e
 // EnrichInferredSpanWithAPIGatewayWebsocketEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from a Websocket event.
-func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayWebsocketEvent(eventPayload ddevents.APIGatewayWebsocketProxyRequest) {
+func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayWebsocketEvent(eventPayload events.APIGatewayWebsocketProxyRequest) {
 	log.Debug("Enriching an inferred span for a Websocket API Gateway")
 	requestContext := eventPayload.RequestContext
 	routeKey := requestContext.RouteKey
@@ -204,7 +204,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayWebsocketEvent
 // EnrichInferredSpanWithSNSEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from an SNS event.
-func (inferredSpan *InferredSpan) EnrichInferredSpanWithSNSEvent(eventPayload ddevents.SNSEvent) {
+func (inferredSpan *InferredSpan) EnrichInferredSpanWithSNSEvent(eventPayload events.SNSEvent) {
 	eventRecord := eventPayload.Records[0]
 	snsMessage := eventRecord.SNS
 	splitArn := strings.Split(snsMessage.TopicArn, ":")
@@ -236,7 +236,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSNSEvent(eventPayload dd
 // EnrichInferredSpanWithS3Event uses the parsed event
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from an S3 event.
-func (inferredSpan *InferredSpan) EnrichInferredSpanWithS3Event(eventPayload ddevents.S3Event) {
+func (inferredSpan *InferredSpan) EnrichInferredSpanWithS3Event(eventPayload events.S3Event) {
 	eventRecord := eventPayload.Records[0]
 	bucketNameVar := eventRecord.S3.Bucket.Name
 	serviceName := DetermineServiceName(serviceMapping, bucketNameVar, "lambda_s3", "s3")
@@ -261,7 +261,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithS3Event(eventPayload dde
 // EnrichInferredSpanWithSQSEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from an SQS event.
-func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload ddevents.SQSEvent) {
+func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload events.SQSEvent) {
 	eventRecord := eventPayload.Records[0]
 	splitArn := strings.Split(eventRecord.EventSourceARN, ":")
 	parsedQueueName := splitArn[len(splitArn)-1]
@@ -287,7 +287,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload dd
 // EnrichInferredSpanWithEventBridgeEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from an EventBridge event.
-func (inferredSpan *InferredSpan) EnrichInferredSpanWithEventBridgeEvent(eventPayload ddevents.EventBridgeEvent) {
+func (inferredSpan *InferredSpan) EnrichInferredSpanWithEventBridgeEvent(eventPayload events.EventBridgeEvent) {
 	source := eventPayload.Source
 	serviceName := DetermineServiceName(serviceMapping, source, "lambda_eventbridge", "eventbridge")
 	inferredSpan.IsAsync = true
@@ -306,7 +306,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithEventBridgeEvent(eventPa
 // EnrichInferredSpanWithKinesisEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from a Kinesis event.
-func (inferredSpan *InferredSpan) EnrichInferredSpanWithKinesisEvent(eventPayload ddevents.KinesisEvent) {
+func (inferredSpan *InferredSpan) EnrichInferredSpanWithKinesisEvent(eventPayload events.KinesisEvent) {
 	eventRecord := eventPayload.Records[0]
 	eventSourceARN := eventRecord.EventSourceArn
 	parts := strings.Split(eventSourceARN, "/")
@@ -335,7 +335,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithKinesisEvent(eventPayloa
 // EnrichInferredSpanWithDynamoDBEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from a DynamoDB event.
-func (inferredSpan *InferredSpan) EnrichInferredSpanWithDynamoDBEvent(eventPayload ddevents.DynamoDBEvent) {
+func (inferredSpan *InferredSpan) EnrichInferredSpanWithDynamoDBEvent(eventPayload events.DynamoDBEvent) {
 	eventRecord := eventPayload.Records[0]
 	parsedTableName := strings.Split(eventRecord.EventSourceArn, "/")[1]
 	eventMessage := eventRecord.Change

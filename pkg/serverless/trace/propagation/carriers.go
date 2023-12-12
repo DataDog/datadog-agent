@@ -15,7 +15,7 @@ import (
 	"strconv"
 	"strings"
 
-	ddevents "github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
@@ -93,7 +93,7 @@ func extractTraceContextfromAWSTraceHeader(value string) (*TraceContext, error) 
 
 // sqsMessageCarrier returns the tracer.TextMapReader used to extract trace
 // context from the events.SQSMessage type.
-func sqsMessageCarrier(event ddevents.SQSMessage) (tracer.TextMapReader, error) {
+func sqsMessageCarrier(event events.SQSMessage) (tracer.TextMapReader, error) {
 	if attr, ok := event.MessageAttributes[datadogSQSHeader]; ok {
 		return sqsMessageAttrCarrier(attr)
 	}
@@ -103,7 +103,7 @@ func sqsMessageCarrier(event ddevents.SQSMessage) (tracer.TextMapReader, error) 
 // sqsMessageAttrCarrier returns the tracer.TextMapReader used to extract trace
 // context from the events.SQSMessageAttribute field on an events.SQSMessage
 // type.
-func sqsMessageAttrCarrier(attr ddevents.SQSMessageAttribute) (tracer.TextMapReader, error) {
+func sqsMessageAttrCarrier(attr events.SQSMessageAttribute) (tracer.TextMapReader, error) {
 	var bytes []byte
 	switch attr.DataType {
 	case "String":
@@ -128,7 +128,7 @@ func sqsMessageAttrCarrier(attr ddevents.SQSMessageAttribute) (tracer.TextMapRea
 
 // snsSqsMessageCarrier returns the tracer.TextMapReader used to extract trace
 // context from the body of an events.SQSMessage type.
-func snsSqsMessageCarrier(event ddevents.SQSMessage) (tracer.TextMapReader, error) {
+func snsSqsMessageCarrier(event events.SQSMessage) (tracer.TextMapReader, error) {
 	var body struct {
 		MessageAttributes map[string]struct {
 			Type  string

@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"strconv"
 
-	ddevents "github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
@@ -77,13 +77,13 @@ func (e Extractor) extract(event interface{}) (*TraceContext, error) {
 	switch ev := event.(type) {
 	case []byte:
 		carrier, err = rawPayloadCarrier(ev)
-	case ddevents.SQSEvent:
+	case events.SQSEvent:
 		// look for context in just the first message
 		if len(ev.Records) > 0 {
 			return e.extract(ev.Records[0])
 		}
 		return nil, errorNoSQSRecordFound
-	case ddevents.SQSMessage:
+	case events.SQSMessage:
 		if attr, ok := ev.Attributes[awsTraceHeader]; ok {
 			if tc, err := extractTraceContextfromAWSTraceHeader(attr); err == nil {
 				// Return early if AWSTraceHeader contains trace context
@@ -91,17 +91,17 @@ func (e Extractor) extract(event interface{}) (*TraceContext, error) {
 			}
 		}
 		carrier, err = sqsMessageCarrier(ev)
-	case ddevents.APIGatewayProxyRequest:
+	case events.APIGatewayProxyRequest:
 		carrier, err = headersCarrier(ev.Headers)
-	case ddevents.APIGatewayV2HTTPRequest:
+	case events.APIGatewayV2HTTPRequest:
 		carrier, err = headersCarrier(ev.Headers)
-	case ddevents.APIGatewayWebsocketProxyRequest:
+	case events.APIGatewayWebsocketProxyRequest:
 		carrier, err = headersCarrier(ev.Headers)
-	case ddevents.APIGatewayCustomAuthorizerRequestTypeRequest:
+	case events.APIGatewayCustomAuthorizerRequestTypeRequest:
 		carrier, err = headersCarrier(ev.Headers)
-	case ddevents.ALBTargetGroupRequest:
+	case events.ALBTargetGroupRequest:
 		carrier, err = headersCarrier(ev.Headers)
-	case ddevents.LambdaFunctionURLRequest:
+	case events.LambdaFunctionURLRequest:
 		carrier, err = headersCarrier(ev.Headers)
 	default:
 		err = errorUnsupportedExtractionType

@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	ddevents "github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 )
 
 const (
@@ -110,7 +110,7 @@ func TestDetermineServiceName(t *testing.T) {
 }
 
 func TestEnrichInferredSpanWithAPIGatewayRESTEvent(t *testing.T) {
-	var apiGatewayRestEvent ddevents.APIGatewayProxyRequest
+	var apiGatewayRestEvent events.APIGatewayProxyRequest
 	_ = json.Unmarshal(getEventFromFile("api-gateway.json"), &apiGatewayRestEvent)
 	inferredSpan := mockInferredSpan()
 	inferredSpan.EnrichInferredSpanWithAPIGatewayRESTEvent(apiGatewayRestEvent)
@@ -137,7 +137,7 @@ func TestEnrichInferredSpanWithAPIGatewayRESTEvent(t *testing.T) {
 
 func TestRemapsAllInferredSpanServiceNamesFromAPIGatewayEvent(t *testing.T) {
 	// Load the original event
-	var apiGatewayRestEvent ddevents.APIGatewayProxyRequest
+	var apiGatewayRestEvent events.APIGatewayProxyRequest
 	_ = json.Unmarshal(getEventFromFile("api-gateway.json"), &apiGatewayRestEvent)
 
 	inferredSpan := mockInferredSpan()
@@ -174,7 +174,7 @@ func TestRemapsAllInferredSpanServiceNamesFromAPIGatewayEvent(t *testing.T) {
 
 func TestRemapsSpecificInferredSpanServiceNamesFromAPIGatewayEvent(t *testing.T) {
 	// Load the original event
-	var apiGatewayRestEvent ddevents.APIGatewayProxyRequest
+	var apiGatewayRestEvent events.APIGatewayProxyRequest
 	_ = json.Unmarshal(getEventFromFile("api-gateway.json"), &apiGatewayRestEvent)
 	// Store the original service mapping
 	origServiceMapping := GetServiceMapping()
@@ -209,7 +209,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromAPIGatewayEvent(t *testing.T)
 }
 
 func TestEnrichInferredSpanWithAPIGatewayNonProxyAsyncRESTEvent(t *testing.T) {
-	var apiGatewayRestEvent ddevents.APIGatewayProxyRequest
+	var apiGatewayRestEvent events.APIGatewayProxyRequest
 	_ = json.Unmarshal(getEventFromFile("api-gateway-non-proxy-async.json"), &apiGatewayRestEvent)
 	inferredSpan := mockInferredSpan()
 	inferredSpan.EnrichInferredSpanWithAPIGatewayRESTEvent(apiGatewayRestEvent)
@@ -234,7 +234,7 @@ func TestEnrichInferredSpanWithAPIGatewayNonProxyAsyncRESTEvent(t *testing.T) {
 }
 
 func TestEnrichInferredSpanWithAPIGatewayHTTPEvent(t *testing.T) {
-	var apiGatewayHTTPEvent ddevents.APIGatewayV2HTTPRequest
+	var apiGatewayHTTPEvent events.APIGatewayV2HTTPRequest
 	_ = json.Unmarshal(getEventFromFile("http-api.json"), &apiGatewayHTTPEvent)
 	inferredSpan := mockInferredSpan()
 	inferredSpan.EnrichInferredSpanWithAPIGatewayHTTPEvent(apiGatewayHTTPEvent)
@@ -258,7 +258,7 @@ func TestEnrichInferredSpanWithAPIGatewayHTTPEvent(t *testing.T) {
 }
 
 func TestEnrichInferredSpanWithLambdaFunctionURLEventt(t *testing.T) {
-	var apiGatewayHTTPEvent ddevents.LambdaFunctionURLRequest
+	var apiGatewayHTTPEvent events.LambdaFunctionURLRequest
 	_ = json.Unmarshal(getEventFromFile("http-api.json"), &apiGatewayHTTPEvent)
 	inferredSpan := mockInferredSpan()
 	inferredSpan.EnrichInferredSpanWithLambdaFunctionURLEvent(apiGatewayHTTPEvent)
@@ -283,7 +283,7 @@ func TestEnrichInferredSpanWithLambdaFunctionURLEventt(t *testing.T) {
 
 func TestRemapsSpecificInferredSpanServiceNamesFromAPIGatewayHTTPAPIEvent(t *testing.T) {
 	// Load the original event
-	var apiGatewayHTTPAPIEvent ddevents.APIGatewayV2HTTPRequest
+	var apiGatewayHTTPAPIEvent events.APIGatewayV2HTTPRequest
 	_ = json.Unmarshal(getEventFromFile("http-api.json"), &apiGatewayHTTPAPIEvent)
 	// Store the original service mapping
 	origServiceMapping := GetServiceMapping()
@@ -318,7 +318,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromAPIGatewayHTTPAPIEvent(t *tes
 }
 
 func TestEnrichInferredSpanWithAPIGatewayWebsocketDefaultEvent(t *testing.T) {
-	var apiGatewayWebsocketEvent ddevents.APIGatewayWebsocketProxyRequest
+	var apiGatewayWebsocketEvent events.APIGatewayWebsocketProxyRequest
 	_ = json.Unmarshal(getEventFromFile("api-gateway-websocket-default.json"), &apiGatewayWebsocketEvent)
 	inferredSpan := mockInferredSpan()
 	span := inferredSpan.Span
@@ -346,7 +346,7 @@ func TestEnrichInferredSpanWithAPIGatewayWebsocketDefaultEvent(t *testing.T) {
 
 func TestRemapsSpecificInferredSpanServiceNamesFromAPIGatewayWebsocketDefaultEvent(t *testing.T) {
 	// Load the original event
-	var apiGatewayWebsocketEvent ddevents.APIGatewayWebsocketProxyRequest
+	var apiGatewayWebsocketEvent events.APIGatewayWebsocketProxyRequest
 	_ = json.Unmarshal(getEventFromFile("api-gateway-websocket-default.json"), &apiGatewayWebsocketEvent)
 	// Store the original service mapping
 	origServiceMapping := GetServiceMapping()
@@ -381,7 +381,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromAPIGatewayWebsocketDefaultEve
 }
 
 func TestEnrichInferredSpanWithAPIGatewayWebsocketConnectEvent(t *testing.T) {
-	var apiGatewayWebsocketEvent ddevents.APIGatewayWebsocketProxyRequest
+	var apiGatewayWebsocketEvent events.APIGatewayWebsocketProxyRequest
 	_ = json.Unmarshal(getEventFromFile("api-gateway-websocket-connect.json"), &apiGatewayWebsocketEvent)
 	inferredSpan := mockInferredSpan()
 	span := inferredSpan.Span
@@ -408,7 +408,7 @@ func TestEnrichInferredSpanWithAPIGatewayWebsocketConnectEvent(t *testing.T) {
 }
 
 func TestEnrichInferredSpanWithAPIGatewayWebsocketDisconnectEvent(t *testing.T) {
-	var apiGatewayWebsocketEvent ddevents.APIGatewayWebsocketProxyRequest
+	var apiGatewayWebsocketEvent events.APIGatewayWebsocketProxyRequest
 	_ = json.Unmarshal(getEventFromFile("api-gateway-websocket-disconnect.json"), &apiGatewayWebsocketEvent)
 	inferredSpan := mockInferredSpan()
 	span := inferredSpan.Span
@@ -435,7 +435,7 @@ func TestEnrichInferredSpanWithAPIGatewayWebsocketDisconnectEvent(t *testing.T) 
 }
 
 func TestEnrichInferredSpanWithSNSEvent(t *testing.T) {
-	var snsRequest ddevents.SNSEvent
+	var snsRequest events.SNSEvent
 	_ = json.Unmarshal(getEventFromFile("sns.json"), &snsRequest)
 	inferredSpan := mockInferredSpan()
 	inferredSpan.EnrichInferredSpanWithSNSEvent(snsRequest)
@@ -474,7 +474,7 @@ func TestRemapsAllInferredSpanServiceNamesFromSNSEvent(t *testing.T) {
 	SetServiceMapping(newServiceMapping)
 
 	// Load the original event
-	var snsEvent ddevents.SNSEvent
+	var snsEvent events.SNSEvent
 	_ = json.Unmarshal(getEventFromFile("sns.json"), &snsEvent)
 
 	inferredSpan := mockInferredSpan()
@@ -510,7 +510,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromSNSEvent(t *testing.T) {
 	}
 	SetServiceMapping(newServiceMapping)
 	// Load the original event
-	var snsEvent ddevents.SNSEvent
+	var snsEvent events.SNSEvent
 	_ = json.Unmarshal(getEventFromFile("sns.json"), &snsEvent)
 
 	inferredSpan := mockInferredSpan()
@@ -533,7 +533,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromSNSEvent(t *testing.T) {
 }
 
 func TestEnrichInferredSpanForS3Event(t *testing.T) {
-	var s3Request ddevents.S3Event
+	var s3Request events.S3Event
 	_ = json.Unmarshal(getEventFromFile("s3.json"), &s3Request)
 	inferredSpan := mockInferredSpan()
 	inferredSpan.EnrichInferredSpanWithS3Event(s3Request)
@@ -572,7 +572,7 @@ func TestRemapsAllInferredSpanServiceNamesFromS3Event(t *testing.T) {
 	SetServiceMapping(newServiceMapping)
 
 	// Load the original event
-	var s3Event ddevents.S3Event
+	var s3Event events.S3Event
 	_ = json.Unmarshal(getEventFromFile("s3.json"), &s3Event)
 
 	inferredSpan := mockInferredSpan()
@@ -609,7 +609,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromS3Event(t *testing.T) {
 	SetServiceMapping(newServiceMapping)
 
 	// Load the original event
-	var s3Event ddevents.S3Event
+	var s3Event events.S3Event
 	_ = json.Unmarshal(getEventFromFile("s3.json"), &s3Event)
 
 	inferredSpan := mockInferredSpan()
@@ -632,7 +632,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromS3Event(t *testing.T) {
 }
 
 func TestEnrichInferredSpanWithEventBridgeEvent(t *testing.T) {
-	var eventBridgeEvent ddevents.EventBridgeEvent
+	var eventBridgeEvent events.EventBridgeEvent
 	_ = json.Unmarshal(getEventFromFile("eventbridge-custom.json"), &eventBridgeEvent)
 	inferredSpan := mockInferredSpan()
 	inferredSpan.EnrichInferredSpanWithEventBridgeEvent(eventBridgeEvent)
@@ -664,7 +664,7 @@ func TestRemapsAllInferredSpanServiceNamesFromEventBridgeEvent(t *testing.T) {
 	}
 	SetServiceMapping(newServiceMapping)
 	// Load the original event
-	var eventBridgeEvent ddevents.EventBridgeEvent
+	var eventBridgeEvent events.EventBridgeEvent
 	_ = json.Unmarshal(getEventFromFile("eventbridge-custom.json"), &eventBridgeEvent)
 
 	inferredSpan := mockInferredSpan()
@@ -700,7 +700,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromEventBridgeEvent(t *testing.T
 	}
 	SetServiceMapping(newServiceMapping)
 	// Load the original event
-	var eventBridgeEvent ddevents.EventBridgeEvent
+	var eventBridgeEvent events.EventBridgeEvent
 	_ = json.Unmarshal(getEventFromFile("eventbridge-custom.json"), &eventBridgeEvent)
 
 	inferredSpan := mockInferredSpan()
@@ -723,7 +723,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromEventBridgeEvent(t *testing.T
 }
 
 func TestEnrichInferredSpanWithSQSEvent(t *testing.T) {
-	var sqsRequest ddevents.SQSEvent
+	var sqsRequest events.SQSEvent
 	_ = json.Unmarshal(getEventFromFile("sqs.json"), &sqsRequest)
 	inferredSpan := mockInferredSpan()
 	inferredSpan.EnrichInferredSpanWithSQSEvent(sqsRequest)
@@ -759,7 +759,7 @@ func TestRemapsAllInferredSpanServiceNamesFromSQSEvent(t *testing.T) {
 	}
 	SetServiceMapping(newServiceMapping)
 	// Load the original event
-	var sqsRequest ddevents.SQSEvent
+	var sqsRequest events.SQSEvent
 	_ = json.Unmarshal(getEventFromFile("sqs.json"), &sqsRequest)
 
 	inferredSpan := mockInferredSpan()
@@ -795,7 +795,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromSQSEvent(t *testing.T) {
 	}
 	SetServiceMapping(newServiceMapping)
 	// Load the original event
-	var sqsRequest ddevents.SQSEvent
+	var sqsRequest events.SQSEvent
 	_ = json.Unmarshal(getEventFromFile("sqs.json"), &sqsRequest)
 
 	inferredSpan := mockInferredSpan()
@@ -818,7 +818,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromSQSEvent(t *testing.T) {
 }
 
 func TestEnrichInferredSpanWithKinesisEvent(t *testing.T) {
-	var kinesisRequest ddevents.KinesisEvent
+	var kinesisRequest events.KinesisEvent
 	_ = json.Unmarshal(getEventFromFile("kinesis.json"), &kinesisRequest)
 	inferredSpan := mockInferredSpan()
 	inferredSpan.EnrichInferredSpanWithKinesisEvent(kinesisRequest)
@@ -856,7 +856,7 @@ func TestRemapsAllInferredSpanServiceNamesFromKinesisEvent(t *testing.T) {
 	}
 	SetServiceMapping(newServiceMapping)
 	// Load the original event
-	var kinesisRequest ddevents.KinesisEvent
+	var kinesisRequest events.KinesisEvent
 	_ = json.Unmarshal(getEventFromFile("kinesis.json"), &kinesisRequest)
 
 	inferredSpan := mockInferredSpan()
@@ -892,7 +892,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromKinesisEvent(t *testing.T) {
 	}
 	SetServiceMapping(newServiceMapping)
 	// Load the original event
-	var kinesisRequest ddevents.KinesisEvent
+	var kinesisRequest events.KinesisEvent
 	_ = json.Unmarshal(getEventFromFile("kinesis.json"), &kinesisRequest)
 
 	inferredSpan := mockInferredSpan()
@@ -915,7 +915,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromKinesisEvent(t *testing.T) {
 }
 
 func TestEnrichInferredSpanWithDynamoDBEvent(t *testing.T) {
-	var dynamoRequest ddevents.DynamoDBEvent
+	var dynamoRequest events.DynamoDBEvent
 	_ = json.Unmarshal(getEventFromFile("dynamodb.json"), &dynamoRequest)
 	inferredSpan := mockInferredSpan()
 	inferredSpan.EnrichInferredSpanWithDynamoDBEvent(dynamoRequest)
@@ -953,7 +953,7 @@ func TestRemapsAllInferredSpanServiceNamesFromDynamoDBEvent(t *testing.T) {
 	}
 	SetServiceMapping(newServiceMapping)
 	// Load the original event
-	var dynamoRequest ddevents.DynamoDBEvent
+	var dynamoRequest events.DynamoDBEvent
 	_ = json.Unmarshal(getEventFromFile("dynamodb.json"), &dynamoRequest)
 
 	inferredSpan := mockInferredSpan()
@@ -989,7 +989,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromDynamoDBEvent(t *testing.T) {
 	}
 	SetServiceMapping(newServiceMapping)
 	// Load the original event
-	var dynamoRequest ddevents.DynamoDBEvent
+	var dynamoRequest events.DynamoDBEvent
 	_ = json.Unmarshal(getEventFromFile("dynamodb.json"), &dynamoRequest)
 
 	inferredSpan := mockInferredSpan()

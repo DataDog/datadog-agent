@@ -12,7 +12,7 @@ import (
 	"net/http"
 	"testing"
 
-	ddevents "github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/stretchr/testify/assert"
@@ -123,10 +123,10 @@ var (
 	headersDdXray = "Root=1-00000000-00000000" + ddx.trace.asStr + ";Parent=" + ddx.span.asStr
 	headersXray   = "Root=1-12345678-12345678" + x.trace.asStr + ";Parent=" + x.span.asStr
 
-	eventSqsMessage = func(sqsHdrs, snsHdrs, awsHdr string) ddevents.SQSMessage {
-		e := ddevents.SQSMessage{}
+	eventSqsMessage = func(sqsHdrs, snsHdrs, awsHdr string) events.SQSMessage {
+		e := events.SQSMessage{}
 		if sqsHdrs != "" {
-			e.MessageAttributes = map[string]ddevents.SQSMessageAttribute{
+			e.MessageAttributes = map[string]events.SQSMessageAttribute{
 				"_datadog": {
 					DataType:    "String",
 					StringValue: aws.String(sqsHdrs),
@@ -196,8 +196,8 @@ func TestExtractorExtract(t *testing.T) {
 		{
 			name: "sqs-event-uses-first-record",
 			events: []interface{}{
-				ddevents.SQSEvent{
-					Records: []ddevents.SQSMessage{
+				events.SQSEvent{
+					Records: []events.SQSMessage{
 						// Uses the first message only
 						eventSqsMessage(headersDD, headersNone, headersNone),
 						eventSqsMessage(headersW3C, headersNone, headersNone),
@@ -210,8 +210,8 @@ func TestExtractorExtract(t *testing.T) {
 		{
 			name: "sqs-event-uses-first-record-empty",
 			events: []interface{}{
-				ddevents.SQSEvent{
-					Records: []ddevents.SQSMessage{
+				events.SQSEvent{
+					Records: []events.SQSMessage{
 						// Uses the first message only
 						eventSqsMessage(headersNone, headersNone, headersNone),
 						eventSqsMessage(headersW3C, headersNone, headersNone),
@@ -226,7 +226,7 @@ func TestExtractorExtract(t *testing.T) {
 		{
 			name: "unable-to-get-carrier",
 			events: []interface{}{
-				ddevents.SQSMessage{Body: ""},
+				events.SQSMessage{Body: ""},
 			},
 			expCtx:   nil,
 			expNoErr: false,
@@ -292,7 +292,7 @@ func TestExtractorExtract(t *testing.T) {
 		{
 			name: "APIGatewayProxyRequest",
 			events: []interface{}{
-				ddevents.APIGatewayProxyRequest{
+				events.APIGatewayProxyRequest{
 					Headers: headersMapAll,
 				},
 			},
@@ -304,7 +304,7 @@ func TestExtractorExtract(t *testing.T) {
 		{
 			name: "APIGatewayV2HTTPRequest",
 			events: []interface{}{
-				ddevents.APIGatewayV2HTTPRequest{
+				events.APIGatewayV2HTTPRequest{
 					Headers: headersMapAll,
 				},
 			},
@@ -316,7 +316,7 @@ func TestExtractorExtract(t *testing.T) {
 		{
 			name: "APIGatewayWebsocketProxyRequest",
 			events: []interface{}{
-				ddevents.APIGatewayWebsocketProxyRequest{
+				events.APIGatewayWebsocketProxyRequest{
 					Headers: headersMapAll,
 				},
 			},
@@ -328,7 +328,7 @@ func TestExtractorExtract(t *testing.T) {
 		{
 			name: "APIGatewayCustomAuthorizerRequestTypeRequest",
 			events: []interface{}{
-				ddevents.APIGatewayCustomAuthorizerRequestTypeRequest{
+				events.APIGatewayCustomAuthorizerRequestTypeRequest{
 					Headers: headersMapAll,
 				},
 			},
@@ -340,7 +340,7 @@ func TestExtractorExtract(t *testing.T) {
 		{
 			name: "ALBTargetGroupRequest",
 			events: []interface{}{
-				ddevents.ALBTargetGroupRequest{
+				events.ALBTargetGroupRequest{
 					Headers: headersMapAll,
 				},
 			},
@@ -352,7 +352,7 @@ func TestExtractorExtract(t *testing.T) {
 		{
 			name: "LambdaFunctionURLRequest",
 			events: []interface{}{
-				ddevents.LambdaFunctionURLRequest{
+				events.LambdaFunctionURLRequest{
 					Headers: headersMapAll,
 				},
 			},

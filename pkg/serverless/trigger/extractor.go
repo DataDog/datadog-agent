@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	ddevents "github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 )
 
@@ -27,40 +27,40 @@ func GetAWSPartitionByRegion(region string) string {
 }
 
 // ExtractAPIGatewayEventARN returns an ARN from an APIGatewayProxyRequest
-func ExtractAPIGatewayEventARN(event ddevents.APIGatewayProxyRequest, region string) string {
+func ExtractAPIGatewayEventARN(event events.APIGatewayProxyRequest, region string) string {
 	requestContext := event.RequestContext
 	return fmt.Sprintf("arn:%v:apigateway:%v::/restapis/%v/stages/%v", GetAWSPartitionByRegion(region), region, requestContext.APIID, requestContext.Stage)
 }
 
 // ExtractAPIGatewayV2EventARN returns an ARN from an APIGatewayV2HTTPRequest
-func ExtractAPIGatewayV2EventARN(event ddevents.APIGatewayV2HTTPRequest, region string) string {
+func ExtractAPIGatewayV2EventARN(event events.APIGatewayV2HTTPRequest, region string) string {
 	requestContext := event.RequestContext
 	return fmt.Sprintf("arn:%v:apigateway:%v::/restapis/%v/stages/%v", GetAWSPartitionByRegion(region), region, requestContext.APIID, requestContext.Stage)
 }
 
 // ExtractAPIGatewayWebSocketEventARN returns an ARN from an APIGatewayWebsocketProxyRequest
-func ExtractAPIGatewayWebSocketEventARN(event ddevents.APIGatewayWebsocketProxyRequest, region string) string {
+func ExtractAPIGatewayWebSocketEventARN(event events.APIGatewayWebsocketProxyRequest, region string) string {
 	requestContext := event.RequestContext
 	return fmt.Sprintf("arn:%v:apigateway:%v::/restapis/%v/stages/%v", GetAWSPartitionByRegion(region), region, requestContext.APIID, requestContext.Stage)
 }
 
 // ExtractAPIGatewayCustomAuthorizerEventARN returns an ARN from an APIGatewayCustomAuthorizerRequest
-func ExtractAPIGatewayCustomAuthorizerEventARN(event ddevents.APIGatewayCustomAuthorizerRequest) string {
+func ExtractAPIGatewayCustomAuthorizerEventARN(event events.APIGatewayCustomAuthorizerRequest) string {
 	return event.MethodArn
 }
 
 // ExtractAPIGatewayCustomAuthorizerRequestTypeEventARN returns an ARN from an APIGatewayCustomAuthorizerRequestTypeRequest
-func ExtractAPIGatewayCustomAuthorizerRequestTypeEventARN(event ddevents.APIGatewayCustomAuthorizerRequestTypeRequest) string {
+func ExtractAPIGatewayCustomAuthorizerRequestTypeEventARN(event events.APIGatewayCustomAuthorizerRequestTypeRequest) string {
 	return event.MethodArn
 }
 
 // ExtractAlbEventARN returns an ARN from an ALBTargetGroupRequest
-func ExtractAlbEventARN(event ddevents.ALBTargetGroupRequest) string {
+func ExtractAlbEventARN(event events.ALBTargetGroupRequest) string {
 	return event.RequestContext.ELB.TargetGroupArn
 }
 
 // ExtractCloudwatchEventARN returns an ARN from a CloudWatchEvent
-func ExtractCloudwatchEventARN(event ddevents.CloudWatchEvent) string {
+func ExtractCloudwatchEventARN(event events.CloudWatchEvent) string {
 	if len(event.Resources) == 0 {
 		return ""
 	}
@@ -68,7 +68,7 @@ func ExtractCloudwatchEventARN(event ddevents.CloudWatchEvent) string {
 }
 
 // ExtractCloudwatchLogsEventARN returns an ARN from a CloudwatchLogsEvent
-func ExtractCloudwatchLogsEventARN(event ddevents.CloudwatchLogsEvent, region string, accountID string) (string, error) {
+func ExtractCloudwatchLogsEventARN(event events.CloudwatchLogsEvent, region string, accountID string) (string, error) {
 	decodedLog, err := event.AWSLogs.Parse()
 	if err != nil {
 		return "", fmt.Errorf("Couldn't decode Cloudwatch Logs event: %v", err)
@@ -77,33 +77,33 @@ func ExtractCloudwatchLogsEventARN(event ddevents.CloudwatchLogsEvent, region st
 }
 
 // ExtractDynamoDBStreamEventARN returns an ARN from a DynamoDBEvent
-func ExtractDynamoDBStreamEventARN(event ddevents.DynamoDBEvent) string {
+func ExtractDynamoDBStreamEventARN(event events.DynamoDBEvent) string {
 	return event.Records[0].EventSourceArn
 }
 
 // ExtractKinesisStreamEventARN returns an ARN from a KinesisEvent
-func ExtractKinesisStreamEventARN(event ddevents.KinesisEvent) string {
+func ExtractKinesisStreamEventARN(event events.KinesisEvent) string {
 	return event.Records[0].EventSourceArn
 }
 
 // ExtractS3EventArn returns an ARN from a S3Event
-func ExtractS3EventArn(event ddevents.S3Event) string {
+func ExtractS3EventArn(event events.S3Event) string {
 	return event.Records[0].EventSource
 }
 
 // ExtractSNSEventArn returns an ARN from a SNSEvent
-func ExtractSNSEventArn(event ddevents.SNSEvent) string {
+func ExtractSNSEventArn(event events.SNSEvent) string {
 	return event.Records[0].SNS.TopicArn
 }
 
 // ExtractSQSEventARN returns an ARN from a SQSEvent
-func ExtractSQSEventARN(event ddevents.SQSEvent) string {
+func ExtractSQSEventARN(event events.SQSEvent) string {
 	return event.Records[0].EventSourceARN
 }
 
 // GetTagsFromAPIGatewayEvent returns a tagset containing http tags from an
 // APIGatewayProxyRequest
-func GetTagsFromAPIGatewayEvent(event ddevents.APIGatewayProxyRequest) map[string]string {
+func GetTagsFromAPIGatewayEvent(event events.APIGatewayProxyRequest) map[string]string {
 	httpTags := make(map[string]string)
 	if event.RequestContext.DomainName != "" {
 		httpTags["http.url"] = event.RequestContext.DomainName
@@ -126,7 +126,7 @@ func GetTagsFromAPIGatewayEvent(event ddevents.APIGatewayProxyRequest) map[strin
 
 // GetTagsFromAPIGatewayV2HTTPRequest returns a tagset containing http tags from an
 // APIGatewayProxyRequest
-func GetTagsFromAPIGatewayV2HTTPRequest(event ddevents.APIGatewayV2HTTPRequest) map[string]string {
+func GetTagsFromAPIGatewayV2HTTPRequest(event events.APIGatewayV2HTTPRequest) map[string]string {
 	httpTags := make(map[string]string)
 	httpTags["http.url"] = event.RequestContext.DomainName
 	httpTags["http.url_details.path"] = event.RequestContext.HTTP.Path
@@ -147,7 +147,7 @@ func GetTagsFromAPIGatewayV2HTTPRequest(event ddevents.APIGatewayV2HTTPRequest) 
 
 // GetTagsFromAPIGatewayCustomAuthorizerEvent returns a tagset containing http tags from an
 // APIGatewayCustomAuthorizerRequest
-func GetTagsFromAPIGatewayCustomAuthorizerEvent(event ddevents.APIGatewayCustomAuthorizerRequest) map[string]string {
+func GetTagsFromAPIGatewayCustomAuthorizerEvent(event events.APIGatewayCustomAuthorizerRequest) map[string]string {
 	httpTags := make(map[string]string, 2)
 
 	if methodArn, err := arn.Parse(event.MethodArn); err == nil {
@@ -166,7 +166,7 @@ func GetTagsFromAPIGatewayCustomAuthorizerEvent(event ddevents.APIGatewayCustomA
 
 // GetTagsFromAPIGatewayCustomAuthorizerRequestTypeEvent returns a tagset containing http tags from an
 // APIGatewayCustomAuthorizerRequestTypeRequest
-func GetTagsFromAPIGatewayCustomAuthorizerRequestTypeEvent(event ddevents.APIGatewayCustomAuthorizerRequestTypeRequest) map[string]string {
+func GetTagsFromAPIGatewayCustomAuthorizerRequestTypeEvent(event events.APIGatewayCustomAuthorizerRequestTypeRequest) map[string]string {
 	httpTags := make(map[string]string)
 	httpTags["http.url_details.path"] = event.RequestContext.Path
 	httpTags["http.method"] = event.HTTPMethod
@@ -184,7 +184,7 @@ func GetTagsFromAPIGatewayCustomAuthorizerRequestTypeEvent(event ddevents.APIGat
 
 // GetTagsFromALBTargetGroupRequest returns a tagset containing http tags from an
 // ALBTargetGroupRequest
-func GetTagsFromALBTargetGroupRequest(event ddevents.ALBTargetGroupRequest) map[string]string {
+func GetTagsFromALBTargetGroupRequest(event events.ALBTargetGroupRequest) map[string]string {
 	httpTags := make(map[string]string)
 	httpTags["http.url_details.path"] = event.Path
 	httpTags["http.method"] = event.HTTPMethod
@@ -201,7 +201,7 @@ func GetTagsFromALBTargetGroupRequest(event ddevents.ALBTargetGroupRequest) map[
 
 // GetTagsFromLambdaFunctionURLRequest returns a tagset containing http tags from a
 // LambdaFunctionURLRequest
-func GetTagsFromLambdaFunctionURLRequest(event ddevents.LambdaFunctionURLRequest) map[string]string {
+func GetTagsFromLambdaFunctionURLRequest(event events.LambdaFunctionURLRequest) map[string]string {
 	httpTags := make(map[string]string)
 	if event.RequestContext.DomainName != "" {
 		httpTags["http.url"] = event.RequestContext.DomainName

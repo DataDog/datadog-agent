@@ -1,6 +1,10 @@
 package events
 
 import (
+	"bytes"
+	"compress/gzip"
+	"encoding/base64"
+	"encoding/json"
 	"time"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -102,7 +106,33 @@ type CloudWatchEvent struct {
 }
 
 type CloudwatchLogsEvent struct {
-	AWSLogs events.CloudwatchLogsRawData
+	AWSLogs CloudwatchLogsRawData
+}
+
+type CloudwatchLogsRawData struct {
+	Data string
+}
+
+func (c CloudwatchLogsRawData) Parse() (d CloudwatchLogsData, err error) {
+	data, err := base64.StdEncoding.DecodeString(c.Data)
+	if err != nil {
+		return
+	}
+
+	zr, err := gzip.NewReader(bytes.NewBuffer(data))
+	if err != nil {
+		return
+	}
+	defer zr.Close()
+
+	dec := json.NewDecoder(zr)
+	err = dec.Decode(&d)
+
+	return
+}
+
+type CloudwatchLogsData struct {
+	LogGroup string
 }
 
 type DynamoDBEvent struct {

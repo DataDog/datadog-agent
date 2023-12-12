@@ -11,8 +11,7 @@ import (
 	"encoding/base64"
 	"testing"
 
-	ddevents "github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
-	"github.com/aws/aws-lambda-go/events"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -24,8 +23,8 @@ func TestGetAWSPartitionByRegion(t *testing.T) {
 
 func TestExtractAPIGatewayEventARN(t *testing.T) {
 	region := "us-east-1"
-	event := ddevents.APIGatewayProxyRequest{
-		RequestContext: ddevents.APIGatewayProxyRequestContext{
+	event := events.APIGatewayProxyRequest{
+		RequestContext: events.APIGatewayProxyRequestContext{
 			APIID: "test-id",
 			Stage: "test-stage",
 		},
@@ -37,8 +36,8 @@ func TestExtractAPIGatewayEventARN(t *testing.T) {
 
 func TestExtractAPIGatewayV2EventARN(t *testing.T) {
 	region := "us-east-1"
-	event := ddevents.APIGatewayV2HTTPRequest{
-		RequestContext: ddevents.APIGatewayV2HTTPRequestContext{
+	event := events.APIGatewayV2HTTPRequest{
+		RequestContext: events.APIGatewayV2HTTPRequestContext{
 			APIID: "test-id",
 			Stage: "test-stage",
 		},
@@ -50,8 +49,8 @@ func TestExtractAPIGatewayV2EventARN(t *testing.T) {
 
 func TestExtractAPIGatewayWebSocketEventARN(t *testing.T) {
 	region := "us-east-1"
-	event := ddevents.APIGatewayWebsocketProxyRequest{
-		RequestContext: ddevents.APIGatewayWebsocketProxyRequestContext{
+	event := events.APIGatewayWebsocketProxyRequest{
+		RequestContext: events.APIGatewayWebsocketProxyRequestContext{
 			APIID: "test-id",
 			Stage: "test-stage",
 		},
@@ -63,7 +62,7 @@ func TestExtractAPIGatewayWebSocketEventARN(t *testing.T) {
 
 func TestExtractAPIGatewayCustomAuthorizerEventARN(t *testing.T) {
 	methodArn := "arn:aws:execute-api:us-east-1:123456789012:abcdef123/test/GET/some/resource/path"
-	event := ddevents.APIGatewayCustomAuthorizerRequest{
+	event := events.APIGatewayCustomAuthorizerRequest{
 		MethodArn: methodArn,
 	}
 	arn := ExtractAPIGatewayCustomAuthorizerEventARN(event)
@@ -72,7 +71,7 @@ func TestExtractAPIGatewayCustomAuthorizerEventARN(t *testing.T) {
 
 func TestExtractAPIGatewayCustomAuthorizerRequestTypeEventARN(t *testing.T) {
 	methodArn := "arn:aws:execute-api:us-east-1:123456789012:abcdef123/test/GET/some/resource/path"
-	event := ddevents.APIGatewayCustomAuthorizerRequestTypeRequest{
+	event := events.APIGatewayCustomAuthorizerRequestTypeRequest{
 		MethodArn: methodArn,
 	}
 	arn := ExtractAPIGatewayCustomAuthorizerRequestTypeEventARN(event)
@@ -80,9 +79,9 @@ func TestExtractAPIGatewayCustomAuthorizerRequestTypeEventARN(t *testing.T) {
 }
 
 func TestExtractAlbEventARN(t *testing.T) {
-	event := ddevents.ALBTargetGroupRequest{
-		RequestContext: ddevents.ALBTargetGroupRequestContext{
-			ELB: ddevents.ELBContext{
+	event := events.ALBTargetGroupRequest{
+		RequestContext: events.ALBTargetGroupRequestContext{
+			ELB: events.ELBContext{
 				TargetGroupArn: "test-arn",
 			},
 		},
@@ -93,7 +92,7 @@ func TestExtractAlbEventARN(t *testing.T) {
 }
 
 func TestExtractCloudwatchEventARN(t *testing.T) {
-	event := ddevents.CloudWatchEvent{
+	event := events.CloudWatchEvent{
 		Resources: []string{
 			"test-arn",
 			"test-arn-2",
@@ -103,7 +102,7 @@ func TestExtractCloudwatchEventARN(t *testing.T) {
 	arn := ExtractCloudwatchEventARN(event)
 	assert.Equal(t, "test-arn", arn)
 
-	eventEmptyResources := ddevents.CloudWatchEvent{
+	eventEmptyResources := events.CloudWatchEvent{
 		Resources: []string{},
 	}
 
@@ -114,7 +113,7 @@ func TestExtractCloudwatchEventARN(t *testing.T) {
 func TestExtractCloudwatchLogsEventARN(t *testing.T) {
 	region := "us-east-1"
 	accountID := "account-id"
-	event := ddevents.CloudwatchLogsEvent{
+	event := events.CloudwatchLogsEvent{
 		AWSLogs: events.CloudwatchLogsRawData{
 			Data: "invalid",
 		},
@@ -133,7 +132,7 @@ func TestExtractCloudwatchLogsEventARN(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NoError(t, gz.Close())
 
-	event = ddevents.CloudwatchLogsEvent{
+	event = events.CloudwatchLogsEvent{
 		AWSLogs: events.CloudwatchLogsRawData{
 			Data: base64.StdEncoding.EncodeToString(b.Bytes()),
 		},
@@ -145,8 +144,8 @@ func TestExtractCloudwatchLogsEventARN(t *testing.T) {
 }
 
 func TestExtractDynamoDBStreamEventARN(t *testing.T) {
-	event := ddevents.DynamoDBEvent{
-		Records: []ddevents.DynamoDBEventRecord{
+	event := events.DynamoDBEvent{
+		Records: []events.DynamoDBEventRecord{
 			{
 				EventSourceArn: "test-arn",
 			},
@@ -161,8 +160,8 @@ func TestExtractDynamoDBStreamEventARN(t *testing.T) {
 }
 
 func TestExtractKinesisStreamEventARN(t *testing.T) {
-	event := ddevents.KinesisEvent{
-		Records: []ddevents.KinesisEventRecord{
+	event := events.KinesisEvent{
+		Records: []events.KinesisEventRecord{
 			{
 				EventSourceArn: "test-arn",
 			},
@@ -177,8 +176,8 @@ func TestExtractKinesisStreamEventARN(t *testing.T) {
 }
 
 func TestExtractS3EventArn(t *testing.T) {
-	event := ddevents.S3Event{
-		Records: []ddevents.S3EventRecord{
+	event := events.S3Event{
+		Records: []events.S3EventRecord{
 			{
 				EventSource: "test-arn",
 			},
@@ -193,15 +192,15 @@ func TestExtractS3EventArn(t *testing.T) {
 }
 
 func TestExtractSNSEventArn(t *testing.T) {
-	event := ddevents.SNSEvent{
-		Records: []ddevents.SNSEventRecord{
+	event := events.SNSEvent{
+		Records: []events.SNSEventRecord{
 			{
-				SNS: ddevents.SNSEntity{
+				SNS: events.SNSEntity{
 					TopicArn: "test-arn",
 				},
 			},
 			{
-				SNS: ddevents.SNSEntity{
+				SNS: events.SNSEntity{
 					TopicArn: "test-arn2",
 				},
 			},
@@ -213,8 +212,8 @@ func TestExtractSNSEventArn(t *testing.T) {
 }
 
 func TestExtractSQSEventARN(t *testing.T) {
-	event := ddevents.SQSEvent{
-		Records: []ddevents.SQSMessage{
+	event := events.SQSEvent{
+		Records: []events.SQSMessage{
 			{
 				EventSourceARN: "test-arn",
 			},
@@ -229,12 +228,12 @@ func TestExtractSQSEventARN(t *testing.T) {
 }
 
 func TestExtractFunctionURLEventARN(t *testing.T) {
-	event := ddevents.APIGatewayProxyRequest{
+	event := events.APIGatewayProxyRequest{
 		Headers: map[string]string{
 			"key":     "val",
 			"Referer": "referer",
 		},
-		RequestContext: ddevents.APIGatewayProxyRequestContext{
+		RequestContext: events.APIGatewayProxyRequestContext{
 			DomainName: "domain-name",
 			Path:       "path",
 			HTTPMethod: "http-method",
@@ -254,12 +253,12 @@ func TestExtractFunctionURLEventARN(t *testing.T) {
 }
 
 func TestGetTagsFromAPIGatewayEvent(t *testing.T) {
-	event := ddevents.APIGatewayProxyRequest{
+	event := events.APIGatewayProxyRequest{
 		Headers: map[string]string{
 			"key":     "val",
 			"Referer": "referer",
 		},
-		RequestContext: ddevents.APIGatewayProxyRequestContext{
+		RequestContext: events.APIGatewayProxyRequestContext{
 			DomainName: "domain-name",
 			Path:       "path",
 			HTTPMethod: "http-method",
@@ -279,13 +278,13 @@ func TestGetTagsFromAPIGatewayEvent(t *testing.T) {
 }
 
 func TestGetTagsFromAPIGatewayV2HTTPRequestNoReferer(t *testing.T) {
-	event := ddevents.APIGatewayV2HTTPRequest{
+	event := events.APIGatewayV2HTTPRequest{
 		Headers: map[string]string{
 			"key": "val",
 		},
-		RequestContext: ddevents.APIGatewayV2HTTPRequestContext{
+		RequestContext: events.APIGatewayV2HTTPRequestContext{
 			DomainName: "domain-name",
-			HTTP: ddevents.APIGatewayV2HTTPRequestContextHTTPDescription{
+			HTTP: events.APIGatewayV2HTTPRequestContextHTTPDescription{
 				Path:   "path",
 				Method: "http-method",
 			},
@@ -304,7 +303,7 @@ func TestGetTagsFromAPIGatewayV2HTTPRequestNoReferer(t *testing.T) {
 }
 
 func TestGetTagsFromAPIGatewayCustomAuthorizerEvent(t *testing.T) {
-	event := ddevents.APIGatewayCustomAuthorizerRequest{
+	event := events.APIGatewayCustomAuthorizerRequest{
 		MethodArn: "arn:aws:execute-api:us-east-1:123456789012:abcdef123/test/GET/path/to/resource",
 	}
 
@@ -317,9 +316,9 @@ func TestGetTagsFromAPIGatewayCustomAuthorizerEvent(t *testing.T) {
 }
 
 func TestGetTagsFromAPIGatewayCustomAuthorizerRequestTypeEvent(t *testing.T) {
-	event := ddevents.APIGatewayCustomAuthorizerRequestTypeRequest{
+	event := events.APIGatewayCustomAuthorizerRequestTypeRequest{
 		HTTPMethod: "GET",
-		RequestContext: ddevents.APIGatewayCustomAuthorizerRequestTypeRequestContext{
+		RequestContext: events.APIGatewayCustomAuthorizerRequestTypeRequestContext{
 			Path: "/path/to/resource",
 		},
 		Resource: "/{route}",
@@ -335,7 +334,7 @@ func TestGetTagsFromAPIGatewayCustomAuthorizerRequestTypeEvent(t *testing.T) {
 }
 
 func TestGetTagsFromALBTargetGroupRequest(t *testing.T) {
-	event := ddevents.ALBTargetGroupRequest{
+	event := events.ALBTargetGroupRequest{
 		Headers: map[string]string{
 			"key":     "val",
 			"Referer": "referer",
@@ -354,14 +353,14 @@ func TestGetTagsFromALBTargetGroupRequest(t *testing.T) {
 }
 
 func TestGetTagsFromFunctionURLRequest(t *testing.T) {
-	event := ddevents.LambdaFunctionURLRequest{
+	event := events.LambdaFunctionURLRequest{
 		Headers: map[string]string{
 			"key":     "val",
 			"Referer": "referer",
 		},
-		RequestContext: ddevents.LambdaFunctionURLRequestContext{
+		RequestContext: events.LambdaFunctionURLRequestContext{
 			DomainName: "test-domain",
-			HTTP: ddevents.LambdaFunctionURLRequestContextHTTPDescription{
+			HTTP: events.LambdaFunctionURLRequestContextHTTPDescription{
 				Path:   "asd",
 				Method: "GET",
 			},
