@@ -17,8 +17,8 @@ import (
 // see both directions of traffic
 type incompleteBuffer struct{}
 
-//nolint:revive // TODO(WKIT) Fix revive linter
-func newIncompleteBuffer(c *config.Config, telemetry *Telemetry) *incompleteBuffer {
+// NewIncompleteBuffer returns a new incompleteBuffer instance
+func NewIncompleteBuffer(c *config.Config, telemetry *Telemetry) IncompleteBuffer {
 	return &incompleteBuffer{}
 }
 
