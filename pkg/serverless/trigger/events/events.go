@@ -177,7 +177,7 @@ type EventBridgeEvent struct {
 }
 
 type S3Event struct {
-	Records []S3EventRecord `json:"Records"`
+	Records []S3EventRecord
 }
 
 type S3EventRecord struct {
@@ -204,7 +204,7 @@ type S3Object struct {
 }
 
 type SNSEvent struct {
-	Records []SNSEventRecord `json:"Records"`
+	Records []SNSEventRecord
 }
 
 type SNSEventRecord struct {
