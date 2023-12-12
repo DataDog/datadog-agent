@@ -166,13 +166,15 @@ type (
 			Hostname string   `json:"hostname"`
 			Actions  []string `json:"actions,omitempty"`
 		} `json:"tasks"`
-		Roles []string `json:"roles"`
+		Roles    []string `json:"roles"`
+		DiskMode string   `json:"disk_mode"`
 	}
 
 	scanConfig struct {
-		Type  configType
-		Tasks []*scanTask
-		Roles rolesMapping
+		Type     configType
+		Tasks    []*scanTask
+		Roles    rolesMapping
+		DiskMode diskMode
 	}
 
 	scanTask struct {
@@ -181,6 +183,7 @@ type (
 		Hostname string
 		Actions  []scanAction
 		Roles    rolesMapping
+		DiskMode diskMode
 	}
 
 	scanResult struct {
@@ -222,15 +225,10 @@ func rootCommand() *cobra.Command {
 		Long:         `Datadog Side Scanner scans your cloud environment for vulnerabilities, compliance and security issues.`,
 		SilenceUsage: true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			switch diskModeStr {
-			case string(volumeAttach):
-				globalParams.diskMode = volumeAttach
-			case string(nbdAttach):
-				globalParams.diskMode = nbdAttach
-			case string(noAttach), "":
-				globalParams.diskMode = noAttach
-			default:
-				return fmt.Errorf("invalid flag \"disk-mode\": expecting either %s, %s or %s", volumeAttach, nbdAttach, noAttach)
+			var err error
+			globalParams.diskMode, err = parseDiskMode(diskModeStr)
+			if err != nil {
+				return err
 			}
 			initStatsdClient()
 			return nil
@@ -303,7 +301,8 @@ func scanCommand() *cobra.Command {
 							cliArgs.ARN,
 							cliArgs.Hostname,
 							nil,
-							roles)
+							roles,
+							globalParams.diskMode)
 						if err != nil {
 							return err
 						}
@@ -483,6 +482,19 @@ func runCmd(pidfilePath string, poolSize int, allowedScanTypes []string) error {
 	return nil
 }
 
+func parseDiskMode(diskModeStr string) (diskMode, error) {
+	switch diskModeStr {
+	case string(volumeAttach):
+		return volumeAttach, nil
+	case string(nbdAttach):
+		return nbdAttach, nil
+	case string(noAttach), "":
+		return noAttach, nil
+	default:
+		return "", fmt.Errorf("invalid flag \"disk-mode\": expecting either %s, %s or %s", volumeAttach, nbdAttach, noAttach)
+	}
+}
+
 func parseRolesMapping(roles []string) rolesMapping {
 	if len(roles) == 0 {
 		return nil
@@ -615,7 +627,7 @@ func offlineCmd(poolSize int, regions []string, maxScans int) error {
 				return
 			}
 			for _, volume := range volumesForRegion {
-				scan, err := newScanTask(string(ebsScanType), volume.ARN.String(), volume.Hostname, defaultActions, roles)
+				scan, err := newScanTask(string(ebsScanType), volume.ARN.String(), volume.Hostname, defaultActions, roles, globalParams.diskMode)
 				if err != nil {
 					log.Warnf("could not create scan for volume %s: %v", volume.ARN, err)
 				} else {
@@ -878,6 +890,7 @@ func attachCmd() error {
 			hostname,
 			nil,
 			roles,
+			globalParams.diskMode,
 		)
 		if err != nil {
 			return err
@@ -973,7 +986,7 @@ func nbdMountCmd(snapshotARN arn.ARN, mount, runClient bool) error {
 	return nil
 }
 
-func newScanTask(t string, resourceARN, hostname string, actions []string, roles rolesMapping) (*scanTask, error) {
+func newScanTask(t string, resourceARN, hostname string, actions []string, roles rolesMapping, mode diskMode) (*scanTask, error) {
 	var scan scanTask
 	var err error
 	scan.ARN, err = parseARN(resourceARN)
@@ -1000,7 +1013,7 @@ func newScanTask(t string, resourceARN, hostname string, actions []string, roles
 	}
 	scan.Hostname = hostname
 	scan.Roles = roles
-
+	scan.DiskMode = mode
 	if actions == nil {
 		actions = defaultActions
 	}
@@ -1019,7 +1032,8 @@ func newScanTask(t string, resourceARN, hostname string, actions []string, roles
 
 func unmarshalConfig(b []byte) (*scanConfig, error) {
 	var configRaw scanConfigRaw
-	if err := json.Unmarshal(b, &configRaw); err != nil {
+	err := json.Unmarshal(b, &configRaw)
+	if err != nil {
 		return nil, err
 	}
 	var config scanConfig
@@ -1037,9 +1051,14 @@ func unmarshalConfig(b []byte) (*scanConfig, error) {
 		config.Roles = getDefaultRolesMapping()
 	}
 
+	config.DiskMode, err = parseDiskMode(configRaw.DiskMode)
+	if err != nil {
+		return nil, err
+	}
+
 	config.Tasks = make([]*scanTask, 0, len(configRaw.Tasks))
 	for _, rawScan := range configRaw.Tasks {
-		task, err := newScanTask(rawScan.Type, rawScan.ARN, rawScan.Hostname, rawScan.Actions, config.Roles)
+		task, err := newScanTask(rawScan.Type, rawScan.ARN, rawScan.Hostname, rawScan.Actions, config.Roles, config.DiskMode)
 		if err != nil {
 			log.Warnf("dropping malformed task: %v", err)
 			continue
@@ -1301,7 +1320,7 @@ func (s *sideScanner) launchScan(ctx context.Context, scan *scanTask) (err error
 	ctx = withAWSLimits(ctx, s.limits)
 	switch scan.Type {
 	case ebsScanType:
-		return scanEBS(ctx, scan, globalParams.diskMode, s.resultsCh)
+		return scanEBS(ctx, scan, s.resultsCh)
 	case lambdaScanType:
 		return scanLambda(ctx, scan, s.resultsCh)
 	default:
@@ -1758,7 +1777,7 @@ func getSelfEC2InstanceIndentity(ctx context.Context) (*imds.GetInstanceIdentity
 	return imdsclient.GetInstanceIdentityDocument(ctx, &imds.GetInstanceIdentityDocumentInput{})
 }
 
-func scanEBS(ctx context.Context, scan *scanTask, diskMode diskMode, resultsCh chan scanResult) error {
+func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) error {
 	resourceType, _, err := getARNResource(scan.ARN)
 	if err != nil {
 		return err
@@ -1810,7 +1829,7 @@ func scanEBS(ctx context.Context, scan *scanTask, diskMode diskMode, resultsCh c
 	var localSnapshotARN arn.ARN
 	var scanStartedAt time.Time
 	var cleanupAttach func(context.Context)
-	switch diskMode {
+	switch scan.DiskMode {
 	case volumeAttach:
 		var volumeARN arn.ARN
 		device, volumeARN, localSnapshotARN, cleanupAttach, err = attachSnapshotWithVolume(ctx, scan, snapshotARN)
@@ -1849,7 +1868,7 @@ func scanEBS(ctx context.Context, scan *scanTask, diskMode diskMode, resultsCh c
 	}
 
 	// TODO: remove this check once we definitely move to nbd mounting
-	if diskMode == volumeAttach || diskMode == nbdAttach {
+	if scan.DiskMode == volumeAttach || scan.DiskMode == nbdAttach {
 		partitions, err := listDevicePartitions(ctx, device, attachedVolumeARN)
 		if err != nil {
 			return err
