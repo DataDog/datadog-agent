@@ -45,9 +45,9 @@ type ValueWithSource struct {
 
 // String casts Source into a string
 func (s Source) String() string {
-	// Safeguard: if we don't know the Source, we assume SourceDefault
+	// Safeguard: if we don't know the Source, we assume SourceUnknown
 	if s == "" {
-		return string(SourceDefault)
+		return string(SourceUnknown)
 	}
 	return string(s)
 }
@@ -481,13 +481,12 @@ func (c *safeConfig) UnmarshalExact(rawVal interface{}) error {
 // ReadInConfig wraps Viper for concurrent access
 func (c *safeConfig) ReadInConfig() error {
 	c.Lock()
-	err := c.configSources[SourceFile].ReadInConfig()
+	defer c.Unlock()
+	err := c.Viper.ReadInConfig()
 	if err != nil {
-		log.Warnf("failed to read the file configuration for SourceFile Viper instance: %s", err)
+		return err
 	}
-	err = c.Viper.ReadInConfig()
-	c.Unlock()
-	return err
+	return c.configSources[SourceFile].ReadInConfig()
 }
 
 // ReadConfig wraps Viper for concurrent access
@@ -498,15 +497,22 @@ func (c *safeConfig) ReadConfig(in io.Reader) error {
 	if err != nil {
 		return err
 	}
-	_ = c.configSources[SourceFile].ReadConfig(bytes.NewReader(b))
-	return c.Viper.ReadConfig(bytes.NewReader(b))
+	err = c.Viper.ReadConfig(bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
+	return c.configSources[SourceFile].ReadConfig(bytes.NewReader(b))
 }
 
 // MergeConfig wraps Viper for concurrent access
 func (c *safeConfig) MergeConfig(in io.Reader) error {
 	c.Lock()
 	defer c.Unlock()
-	return c.Viper.MergeConfig(in)
+	err := c.Viper.MergeConfig(in)
+	if err != nil {
+		return err
+	}
+	return c.configSources[SourceFile].MergeConfig(in)
 }
 
 // MergeConfigOverride wraps Viper for concurrent access
@@ -544,54 +550,14 @@ func (c *safeConfig) AllSettingsWithoutDefault() map[string]interface{} {
 	return c.Viper.AllSettingsWithoutDefault()
 }
 
-// AllFileSettingsWithoutDefault wraps Viper for concurrent access
-func (c *safeConfig) AllFileSettingsWithoutDefault() map[string]interface{} {
+// AllSourceSettingsWithoutDefault wraps Viper for concurrent access
+func (c *safeConfig) AllSourceSettingsWithoutDefault(source Source) map[string]interface{} {
 	c.Lock()
 	defer c.Unlock()
 
-	// AllFileSettingsWithoutDefault returns a fresh map, so the caller may do with it
+	// AllSourceSettingsWithoutDefault returns a fresh map, so the caller may do with it
 	// as they please without holding the lock.
-	return c.configSources[SourceFile].AllSettingsWithoutDefault()
-}
-
-// AllEnvVarSettingsWithoutDefault wraps Viper for concurrent access
-func (c *safeConfig) AllEnvVarSettingsWithoutDefault() map[string]interface{} {
-	c.Lock()
-	defer c.Unlock()
-
-	// AllEnvVarSettingsWithoutDefault returns a fresh map, so the caller may do with it
-	// as they please without holding the lock.
-	return c.configSources[SourceEnvVar].AllSettingsWithoutDefault()
-}
-
-// AllAgentRuntimeSettingsWithoutDefault wraps Viper for concurrent access
-func (c *safeConfig) AllAgentRuntimeSettingsWithoutDefault() map[string]interface{} {
-	c.Lock()
-	defer c.Unlock()
-
-	// AllAgentRuntimeSettingsWithoutDefault returns a fresh map, so the caller may do with it
-	// as they please without holding the lock.
-	return c.configSources[SourceAgentRuntime].AllSettingsWithoutDefault()
-}
-
-// AllRemoteSettingsWithoutDefault wraps Viper for concurrent access
-func (c *safeConfig) AllRemoteSettingsWithoutDefault() map[string]interface{} {
-	c.Lock()
-	defer c.Unlock()
-
-	// AllRemoteSettingsWithoutDefault returns a fresh map, so the caller may do with it
-	// as they please without holding the lock.
-	return c.configSources[SourceRC].AllSettingsWithoutDefault()
-}
-
-// AllCliSettingsWithoutDefault wraps Viper for concurrent access
-func (c *safeConfig) AllCliSettingsWithoutDefault() map[string]interface{} {
-	c.Lock()
-	defer c.Unlock()
-
-	// AllCliSettingsWithoutDefault returns a fresh map, so the caller may do with it
-	// as they please without holding the lock.
-	return c.configSources[SourceCLI].AllSettingsWithoutDefault()
+	return c.configSources[source].AllSettingsWithoutDefault()
 }
 
 // AddConfigPath wraps Viper for concurrent access
