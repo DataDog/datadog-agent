@@ -508,11 +508,7 @@ func (c *safeConfig) ReadConfig(in io.Reader) error {
 func (c *safeConfig) MergeConfig(in io.Reader) error {
 	c.Lock()
 	defer c.Unlock()
-	err := c.Viper.MergeConfig(in)
-	if err != nil {
-		return err
-	}
-	return c.configSources[SourceFile].MergeConfig(in)
+	return c.Viper.MergeConfig(in)
 }
 
 // MergeConfigOverride wraps Viper for concurrent access
@@ -564,6 +560,7 @@ func (c *safeConfig) AllSourceSettingsWithoutDefault(source Source) map[string]i
 func (c *safeConfig) AddConfigPath(in string) {
 	c.Lock()
 	defer c.Unlock()
+	c.configSources[SourceFile].AddConfigPath(in)
 	c.Viper.AddConfigPath(in)
 }
 
@@ -579,8 +576,8 @@ func (c *safeConfig) SetConfigName(in string) {
 func (c *safeConfig) SetConfigFile(in string) {
 	c.Lock()
 	defer c.Unlock()
-	c.Viper.SetConfigFile(in)
 	c.configSources[SourceFile].SetConfigFile(in)
+	c.Viper.SetConfigFile(in)
 }
 
 // SetConfigType wraps Viper for concurrent access
