@@ -139,17 +139,27 @@ func sqsMessageAttrCarrier(attr events.SQSMessageAttribute) (tracer.TextMapReade
 	return carrier, nil
 }
 
+// snsBody is used to  unmarshal only required fields on events.SNSEntity
+// types.
+type snsBody struct {
+	MessageAttributes map[string]interface{}
+}
+
 // snsSqsMessageCarrier returns the tracer.TextMapReader used to extract trace
 // context from the body of an events.SQSMessage type.
 func snsSqsMessageCarrier(event events.SQSMessage) (tracer.TextMapReader, error) {
-	var body events.SNSEntity
+	var body snsBody
 	err := json.Unmarshal([]byte(event.Body), &body)
 	if err != nil {
 		return nil, fmt.Errorf("Error unmarshaling message body: %w", err)
 	}
-	return snsEntityCarrier(body)
+	return snsEntityCarrier(events.SNSEntity{
+		MessageAttributes: body.MessageAttributes,
+	})
 }
 
+// snsEntityCarrier returns the tracer.TextMapReader used to extract trace
+// context from the attributes of an events.SNSEntity type.
 func snsEntityCarrier(event events.SNSEntity) (tracer.TextMapReader, error) {
 	msgAttrs, ok := event.MessageAttributes[datadogSQSHeader]
 	if !ok {

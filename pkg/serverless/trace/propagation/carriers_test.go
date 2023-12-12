@@ -169,7 +169,7 @@ func TestSnsSqsMessageCarrier(t *testing.T) {
 				}`,
 			},
 			expMap: nil,
-			expErr: errors.New("Error unmarshaling message body: json: cannot unmarshal string into Go struct field SNSEntity.MessageAttributes of type map[string]interface {}"),
+			expErr: errors.New("Error unmarshaling message body: json: cannot unmarshal string into Go struct field snsBody.MessageAttributes of type map[string]interface {}"),
 		},
 		{
 			name: "non-binary-type",
