@@ -193,15 +193,15 @@ func TestExtractS3EventArn(t *testing.T) {
 }
 
 func TestExtractSNSEventArn(t *testing.T) {
-	event := events.SNSEvent{
-		Records: []events.SNSEventRecord{
+	event := ddevents.SNSEvent{
+		Records: []ddevents.SNSEventRecord{
 			{
-				SNS: events.SNSEntity{
+				SNS: ddevents.SNSEntity{
 					TopicArn: "test-arn",
 				},
 			},
 			{
-				SNS: events.SNSEntity{
+				SNS: ddevents.SNSEntity{
 					TopicArn: "test-arn2",
 				},
 			},

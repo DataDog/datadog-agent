@@ -133,7 +133,7 @@ func (lp *LifecycleProcessor) initFromS3Event(event ddevents.S3Event) {
 	lp.addTag(tagFunctionTriggerEventSourceArn, trigger.ExtractS3EventArn(event))
 }
 
-func (lp *LifecycleProcessor) initFromSNSEvent(event events.SNSEvent) {
+func (lp *LifecycleProcessor) initFromSNSEvent(event ddevents.SNSEvent) {
 	if !lp.DetectLambdaLibrary() && lp.InferredSpansEnabled {
 		lp.GetInferredSpan().EnrichInferredSpanWithSNSEvent(event)
 	}
@@ -153,7 +153,7 @@ func (lp *LifecycleProcessor) initFromSQSEvent(event events.SQSEvent) {
 	lp.addTag(tagFunctionTriggerEventSourceArn, trigger.ExtractSQSEventARN(event))
 
 	// test for SNS
-	var snsEntity events.SNSEntity
+	var snsEntity ddevents.SNSEntity
 	if err := json.Unmarshal([]byte(event.Records[0].Body), &snsEntity); err != nil {
 		return
 	}
@@ -172,8 +172,8 @@ func (lp *LifecycleProcessor) initFromSQSEvent(event events.SQSEvent) {
 		},
 	}
 
-	var snsEvent events.SNSEvent
-	snsEvent.Records = make([]events.SNSEventRecord, 1)
+	var snsEvent ddevents.SNSEvent
+	snsEvent.Records = make([]ddevents.SNSEventRecord, 1)
 	snsEvent.Records[0].SNS = snsEntity
 
 	lp.requestHandler.inferredSpans[1].EnrichInferredSpanWithSNSEvent(snsEvent)

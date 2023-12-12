@@ -93,7 +93,7 @@ func ExtractS3EventArn(event ddevents.S3Event) string {
 }
 
 // ExtractSNSEventArn returns an ARN from a SNSEvent
-func ExtractSNSEventArn(event events.SNSEvent) string {
+func ExtractSNSEventArn(event ddevents.SNSEvent) string {
 	return event.Records[0].SNS.TopicArn
 }
 

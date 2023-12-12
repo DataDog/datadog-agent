@@ -436,7 +436,7 @@ func TestEnrichInferredSpanWithAPIGatewayWebsocketDisconnectEvent(t *testing.T) 
 }
 
 func TestEnrichInferredSpanWithSNSEvent(t *testing.T) {
-	var snsRequest events.SNSEvent
+	var snsRequest ddevents.SNSEvent
 	_ = json.Unmarshal(getEventFromFile("sns.json"), &snsRequest)
 	inferredSpan := mockInferredSpan()
 	inferredSpan.EnrichInferredSpanWithSNSEvent(snsRequest)
@@ -475,7 +475,7 @@ func TestRemapsAllInferredSpanServiceNamesFromSNSEvent(t *testing.T) {
 	SetServiceMapping(newServiceMapping)
 
 	// Load the original event
-	var snsEvent events.SNSEvent
+	var snsEvent ddevents.SNSEvent
 	_ = json.Unmarshal(getEventFromFile("sns.json"), &snsEvent)
 
 	inferredSpan := mockInferredSpan()
@@ -511,7 +511,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromSNSEvent(t *testing.T) {
 	}
 	SetServiceMapping(newServiceMapping)
 	// Load the original event
-	var snsEvent events.SNSEvent
+	var snsEvent ddevents.SNSEvent
 	_ = json.Unmarshal(getEventFromFile("sns.json"), &snsEvent)
 
 	inferredSpan := mockInferredSpan()

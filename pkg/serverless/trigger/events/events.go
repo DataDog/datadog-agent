@@ -156,3 +156,19 @@ type S3EventRecord struct {
 	EventName   string
 	S3          events.S3Entity
 }
+
+type SNSEvent struct {
+	Records []SNSEventRecord `json:"Records"`
+}
+
+type SNSEventRecord struct {
+	SNS SNSEntity
+}
+
+type SNSEntity struct {
+	MessageID string
+	Type      string
+	TopicArn  string
+	Timestamp time.Time
+	Subject   string
+}
