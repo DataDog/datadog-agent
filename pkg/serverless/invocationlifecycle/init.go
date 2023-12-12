@@ -37,7 +37,7 @@ func (lp *LifecycleProcessor) initFromAPIGatewayEvent(event ddevents.APIGatewayP
 	lp.addTags(trigger.GetTagsFromAPIGatewayEvent(event))
 }
 
-func (lp *LifecycleProcessor) initFromAPIGatewayV2Event(event events.APIGatewayV2HTTPRequest, region string) {
+func (lp *LifecycleProcessor) initFromAPIGatewayV2Event(event ddevents.APIGatewayV2HTTPRequest, region string) {
 	if !lp.DetectLambdaLibrary() && lp.InferredSpansEnabled {
 		lp.GetInferredSpan().EnrichInferredSpanWithAPIGatewayHTTPEvent(event)
 	}

@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-lambda-go/events"
 	"github.com/stretchr/testify/assert"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
+	ddevents "github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 )
 
@@ -75,8 +75,8 @@ func TestInjectSpanIDWithContext(t *testing.T) {
 }
 
 func TestStartExecutionSpan(t *testing.T) {
-	eventWithoutCtx := events.APIGatewayV2HTTPRequest{}
-	eventWithCtx := events.APIGatewayV2HTTPRequest{
+	eventWithoutCtx := ddevents.APIGatewayV2HTTPRequest{}
+	eventWithCtx := ddevents.APIGatewayV2HTTPRequest{
 		Headers: map[string]string{
 			"x-datadog-trace-id":          "1",
 			"x-datadog-parent-id":         "1",

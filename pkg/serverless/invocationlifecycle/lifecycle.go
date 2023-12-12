@@ -120,7 +120,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		ev = event
 		lp.initFromAPIGatewayEvent(event, region)
 	case trigger.APIGatewayV2Event:
-		var event events.APIGatewayV2HTTPRequest
+		var event ddevents.APIGatewayV2HTTPRequest
 		if err := json.Unmarshal(payloadBytes, &event); err != nil {
 			log.Debugf("Failed to unmarshal %s event: %s", apiGateway, err)
 			break

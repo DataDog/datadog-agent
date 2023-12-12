@@ -94,7 +94,7 @@ func (e Extractor) extract(event interface{}) (*TraceContext, error) {
 		carrier, err = sqsMessageCarrier(ev)
 	case ddevents.APIGatewayProxyRequest:
 		carrier, err = headersCarrier(ev.Headers)
-	case events.APIGatewayV2HTTPRequest:
+	case ddevents.APIGatewayV2HTTPRequest:
 		carrier, err = headersCarrier(ev.Headers)
 	case events.APIGatewayWebsocketProxyRequest:
 		carrier, err = headersCarrier(ev.Headers)

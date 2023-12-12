@@ -37,8 +37,8 @@ func TestExtractAPIGatewayEventARN(t *testing.T) {
 
 func TestExtractAPIGatewayV2EventARN(t *testing.T) {
 	region := "us-east-1"
-	event := events.APIGatewayV2HTTPRequest{
-		RequestContext: events.APIGatewayV2HTTPRequestContext{
+	event := ddevents.APIGatewayV2HTTPRequest{
+		RequestContext: ddevents.APIGatewayV2HTTPRequestContext{
 			APIID: "test-id",
 			Stage: "test-stage",
 		},
@@ -279,13 +279,13 @@ func TestGetTagsFromAPIGatewayEvent(t *testing.T) {
 }
 
 func TestGetTagsFromAPIGatewayV2HTTPRequestNoReferer(t *testing.T) {
-	event := events.APIGatewayV2HTTPRequest{
+	event := ddevents.APIGatewayV2HTTPRequest{
 		Headers: map[string]string{
 			"key": "val",
 		},
-		RequestContext: events.APIGatewayV2HTTPRequestContext{
+		RequestContext: ddevents.APIGatewayV2HTTPRequestContext{
 			DomainName: "domain-name",
-			HTTP: events.APIGatewayV2HTTPRequestContextHTTPDescription{
+			HTTP: ddevents.APIGatewayV2HTTPRequestContextHTTPDescription{
 				Path:   "path",
 				Method: "http-method",
 			},

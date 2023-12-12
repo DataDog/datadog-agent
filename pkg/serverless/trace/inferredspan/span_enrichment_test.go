@@ -235,7 +235,7 @@ func TestEnrichInferredSpanWithAPIGatewayNonProxyAsyncRESTEvent(t *testing.T) {
 }
 
 func TestEnrichInferredSpanWithAPIGatewayHTTPEvent(t *testing.T) {
-	var apiGatewayHTTPEvent events.APIGatewayV2HTTPRequest
+	var apiGatewayHTTPEvent ddevents.APIGatewayV2HTTPRequest
 	_ = json.Unmarshal(getEventFromFile("http-api.json"), &apiGatewayHTTPEvent)
 	inferredSpan := mockInferredSpan()
 	inferredSpan.EnrichInferredSpanWithAPIGatewayHTTPEvent(apiGatewayHTTPEvent)
@@ -284,7 +284,7 @@ func TestEnrichInferredSpanWithLambdaFunctionURLEventt(t *testing.T) {
 
 func TestRemapsSpecificInferredSpanServiceNamesFromAPIGatewayHTTPAPIEvent(t *testing.T) {
 	// Load the original event
-	var apiGatewayHTTPAPIEvent events.APIGatewayV2HTTPRequest
+	var apiGatewayHTTPAPIEvent ddevents.APIGatewayV2HTTPRequest
 	_ = json.Unmarshal(getEventFromFile("http-api.json"), &apiGatewayHTTPAPIEvent)
 	// Store the original service mapping
 	origServiceMapping := GetServiceMapping()

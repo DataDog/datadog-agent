@@ -102,7 +102,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayRESTEvent(even
 // EnrichInferredSpanWithAPIGatewayHTTPEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from a HTTP event.
-func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayHTTPEvent(eventPayload events.APIGatewayV2HTTPRequest) {
+func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayHTTPEvent(eventPayload ddevents.APIGatewayV2HTTPRequest) {
 	log.Debug("Enriching an inferred span for a HTTP API Gateway")
 	requestContext := eventPayload.RequestContext
 	http := requestContext.HTTP

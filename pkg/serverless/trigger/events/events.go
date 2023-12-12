@@ -17,3 +17,26 @@ type APIGatewayProxyRequestContext struct {
 	RequestTimeEpoch int64
 	APIID            string
 }
+
+type APIGatewayV2HTTPRequest struct {
+	RouteKey       string
+	Headers        map[string]string
+	RequestContext APIGatewayV2HTTPRequestContext
+}
+
+type APIGatewayV2HTTPRequestContext struct {
+	Stage      string
+	RequestID  string
+	APIID      string
+	DomainName string
+	TimeEpoch  int64
+	HTTP       APIGatewayV2HTTPRequestContextHTTPDescription
+}
+
+type APIGatewayV2HTTPRequestContextHTTPDescription struct {
+	Method    string
+	Path      string
+	Protocol  string
+	SourceIP  string
+	UserAgent string
+}

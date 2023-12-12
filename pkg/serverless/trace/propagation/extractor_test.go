@@ -305,7 +305,7 @@ func TestExtractorExtract(t *testing.T) {
 		{
 			name: "APIGatewayV2HTTPRequest",
 			events: []interface{}{
-				events.APIGatewayV2HTTPRequest{
+				ddevents.APIGatewayV2HTTPRequest{
 					Headers: headersMapAll,
 				},
 			},

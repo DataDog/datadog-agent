@@ -34,7 +34,7 @@ func ExtractAPIGatewayEventARN(event ddevents.APIGatewayProxyRequest, region str
 }
 
 // ExtractAPIGatewayV2EventARN returns an ARN from an APIGatewayV2HTTPRequest
-func ExtractAPIGatewayV2EventARN(event events.APIGatewayV2HTTPRequest, region string) string {
+func ExtractAPIGatewayV2EventARN(event ddevents.APIGatewayV2HTTPRequest, region string) string {
 	requestContext := event.RequestContext
 	return fmt.Sprintf("arn:%v:apigateway:%v::/restapis/%v/stages/%v", GetAWSPartitionByRegion(region), region, requestContext.APIID, requestContext.Stage)
 }
@@ -127,7 +127,7 @@ func GetTagsFromAPIGatewayEvent(event ddevents.APIGatewayProxyRequest) map[strin
 
 // GetTagsFromAPIGatewayV2HTTPRequest returns a tagset containing http tags from an
 // APIGatewayProxyRequest
-func GetTagsFromAPIGatewayV2HTTPRequest(event events.APIGatewayV2HTTPRequest) map[string]string {
+func GetTagsFromAPIGatewayV2HTTPRequest(event ddevents.APIGatewayV2HTTPRequest) map[string]string {
 	httpTags := make(map[string]string)
 	httpTags["http.url"] = event.RequestContext.DomainName
 	httpTags["http.url_details.path"] = event.RequestContext.HTTP.Path
