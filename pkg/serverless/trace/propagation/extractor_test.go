@@ -329,7 +329,7 @@ func TestExtractorExtract(t *testing.T) {
 		{
 			name: "APIGatewayCustomAuthorizerRequestTypeRequest",
 			events: []interface{}{
-				events.APIGatewayCustomAuthorizerRequestTypeRequest{
+				ddevents.APIGatewayCustomAuthorizerRequestTypeRequest{
 					Headers: headersMapAll,
 				},
 			},

@@ -65,7 +65,7 @@ func (lp *LifecycleProcessor) initFromAPIGatewayLambdaAuthorizerTokenEvent(event
 	lp.addTags(trigger.GetTagsFromAPIGatewayCustomAuthorizerEvent(event))
 }
 
-func (lp *LifecycleProcessor) initFromAPIGatewayLambdaAuthorizerRequestParametersEvent(event events.APIGatewayCustomAuthorizerRequestTypeRequest) {
+func (lp *LifecycleProcessor) initFromAPIGatewayLambdaAuthorizerRequestParametersEvent(event ddevents.APIGatewayCustomAuthorizerRequestTypeRequest) {
 	lp.requestHandler.event = event
 	lp.addTag(tagFunctionTriggerEventSource, apiGateway)
 	lp.addTag(tagFunctionTriggerEventSourceArn, trigger.ExtractAPIGatewayCustomAuthorizerRequestTypeEventARN(event))

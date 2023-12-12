@@ -72,7 +72,7 @@ func TestExtractAPIGatewayCustomAuthorizerEventARN(t *testing.T) {
 
 func TestExtractAPIGatewayCustomAuthorizerRequestTypeEventARN(t *testing.T) {
 	methodArn := "arn:aws:execute-api:us-east-1:123456789012:abcdef123/test/GET/some/resource/path"
-	event := events.APIGatewayCustomAuthorizerRequestTypeRequest{
+	event := ddevents.APIGatewayCustomAuthorizerRequestTypeRequest{
 		MethodArn: methodArn,
 	}
 	arn := ExtractAPIGatewayCustomAuthorizerRequestTypeEventARN(event)
@@ -317,9 +317,9 @@ func TestGetTagsFromAPIGatewayCustomAuthorizerEvent(t *testing.T) {
 }
 
 func TestGetTagsFromAPIGatewayCustomAuthorizerRequestTypeEvent(t *testing.T) {
-	event := events.APIGatewayCustomAuthorizerRequestTypeRequest{
+	event := ddevents.APIGatewayCustomAuthorizerRequestTypeRequest{
 		HTTPMethod: "GET",
-		RequestContext: events.APIGatewayCustomAuthorizerRequestTypeRequestContext{
+		RequestContext: ddevents.APIGatewayCustomAuthorizerRequestTypeRequestContext{
 			Path: "/path/to/resource",
 		},
 		Resource: "/{route}",

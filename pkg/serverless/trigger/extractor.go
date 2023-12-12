@@ -51,7 +51,7 @@ func ExtractAPIGatewayCustomAuthorizerEventARN(event ddevents.APIGatewayCustomAu
 }
 
 // ExtractAPIGatewayCustomAuthorizerRequestTypeEventARN returns an ARN from an APIGatewayCustomAuthorizerRequestTypeRequest
-func ExtractAPIGatewayCustomAuthorizerRequestTypeEventARN(event events.APIGatewayCustomAuthorizerRequestTypeRequest) string {
+func ExtractAPIGatewayCustomAuthorizerRequestTypeEventARN(event ddevents.APIGatewayCustomAuthorizerRequestTypeRequest) string {
 	return event.MethodArn
 }
 
@@ -167,7 +167,7 @@ func GetTagsFromAPIGatewayCustomAuthorizerEvent(event ddevents.APIGatewayCustomA
 
 // GetTagsFromAPIGatewayCustomAuthorizerRequestTypeEvent returns a tagset containing http tags from an
 // APIGatewayCustomAuthorizerRequestTypeRequest
-func GetTagsFromAPIGatewayCustomAuthorizerRequestTypeEvent(event events.APIGatewayCustomAuthorizerRequestTypeRequest) map[string]string {
+func GetTagsFromAPIGatewayCustomAuthorizerRequestTypeEvent(event ddevents.APIGatewayCustomAuthorizerRequestTypeRequest) map[string]string {
 	httpTags := make(map[string]string)
 	httpTags["http.url_details.path"] = event.RequestContext.Path
 	httpTags["http.method"] = event.HTTPMethod

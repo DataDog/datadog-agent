@@ -63,3 +63,15 @@ type APIGatewayCustomAuthorizerRequest struct {
 	AuthorizationToken string
 	MethodArn          string
 }
+
+type APIGatewayCustomAuthorizerRequestTypeRequest struct {
+	MethodArn      string
+	Resource       string
+	HTTPMethod     string
+	Headers        map[string]string
+	RequestContext APIGatewayCustomAuthorizerRequestTypeRequestContext
+}
+
+type APIGatewayCustomAuthorizerRequestTypeRequestContext struct {
+	Path string
+}
