@@ -119,7 +119,7 @@ func (rc *RemoteConfigProvider) IntegrationScheduleCallback(updates map[string]s
 				State: state.ApplyStateError,
 				Error: fmt.Sprintf("Integration %s is not allowed to be scheduled in this agent", d.Name),
 			})
-			break
+			continue
 		}
 
 		applyStateCallback(cfgPath, state.ApplyStatus{State: state.ApplyStateUnacknowledged})
