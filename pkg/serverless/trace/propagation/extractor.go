@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strconv"
 
+	ddevents "github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/aws/aws-lambda-go/events"
@@ -91,7 +92,7 @@ func (e Extractor) extract(event interface{}) (*TraceContext, error) {
 			}
 		}
 		carrier, err = sqsMessageCarrier(ev)
-	case events.APIGatewayProxyRequest:
+	case ddevents.APIGatewayProxyRequest:
 		carrier, err = headersCarrier(ev.Headers)
 	case events.APIGatewayV2HTTPRequest:
 		carrier, err = headersCarrier(ev.Headers)

@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"testing"
 
+	ddevents "github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -292,7 +293,7 @@ func TestExtractorExtract(t *testing.T) {
 		{
 			name: "APIGatewayProxyRequest",
 			events: []interface{}{
-				events.APIGatewayProxyRequest{
+				ddevents.APIGatewayProxyRequest{
 					Headers: headersMapAll,
 				},
 			},

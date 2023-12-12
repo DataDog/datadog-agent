@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	ddevents "github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 )
@@ -27,7 +28,7 @@ func GetAWSPartitionByRegion(region string) string {
 }
 
 // ExtractAPIGatewayEventARN returns an ARN from an APIGatewayProxyRequest
-func ExtractAPIGatewayEventARN(event events.APIGatewayProxyRequest, region string) string {
+func ExtractAPIGatewayEventARN(event ddevents.APIGatewayProxyRequest, region string) string {
 	requestContext := event.RequestContext
 	return fmt.Sprintf("arn:%v:apigateway:%v::/restapis/%v/stages/%v", GetAWSPartitionByRegion(region), region, requestContext.APIID, requestContext.Stage)
 }
@@ -103,7 +104,7 @@ func ExtractSQSEventARN(event events.SQSEvent) string {
 
 // GetTagsFromAPIGatewayEvent returns a tagset containing http tags from an
 // APIGatewayProxyRequest
-func GetTagsFromAPIGatewayEvent(event events.APIGatewayProxyRequest) map[string]string {
+func GetTagsFromAPIGatewayEvent(event ddevents.APIGatewayProxyRequest) map[string]string {
 	httpTags := make(map[string]string)
 	if event.RequestContext.DomainName != "" {
 		httpTags["http.url"] = event.RequestContext.DomainName

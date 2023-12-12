@@ -13,6 +13,7 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
+	ddevents "github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 
 	"github.com/aws/aws-lambda-go/events"
 
@@ -25,7 +26,7 @@ const (
 	tagFunctionTriggerEventSourceArn = "function_trigger.event_source_arn"
 )
 
-func (lp *LifecycleProcessor) initFromAPIGatewayEvent(event events.APIGatewayProxyRequest, region string) {
+func (lp *LifecycleProcessor) initFromAPIGatewayEvent(event ddevents.APIGatewayProxyRequest, region string) {
 	if !lp.DetectLambdaLibrary() && lp.InferredSpansEnabled {
 		lp.GetInferredSpan().EnrichInferredSpanWithAPIGatewayRESTEvent(event)
 	}

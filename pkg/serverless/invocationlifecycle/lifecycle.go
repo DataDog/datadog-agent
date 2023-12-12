@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/propagation"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trigger"
+	ddevents "github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -111,7 +112,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	var ev interface{}
 	switch eventType {
 	case trigger.APIGatewayEvent:
-		var event events.APIGatewayProxyRequest
+		var event ddevents.APIGatewayProxyRequest
 		if err := json.Unmarshal(payloadBytes, &event); err != nil {
 			log.Debugf("Failed to unmarshal %s event: %s", apiGateway, err)
 			break

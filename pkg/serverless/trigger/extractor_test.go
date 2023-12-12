@@ -11,6 +11,7 @@ import (
 	"encoding/base64"
 	"testing"
 
+	ddevents "github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/stretchr/testify/assert"
 )
@@ -23,8 +24,8 @@ func TestGetAWSPartitionByRegion(t *testing.T) {
 
 func TestExtractAPIGatewayEventARN(t *testing.T) {
 	region := "us-east-1"
-	event := events.APIGatewayProxyRequest{
-		RequestContext: events.APIGatewayProxyRequestContext{
+	event := ddevents.APIGatewayProxyRequest{
+		RequestContext: ddevents.APIGatewayProxyRequestContext{
 			APIID: "test-id",
 			Stage: "test-stage",
 		},
@@ -228,12 +229,12 @@ func TestExtractSQSEventARN(t *testing.T) {
 }
 
 func TestExtractFunctionURLEventARN(t *testing.T) {
-	event := events.APIGatewayProxyRequest{
+	event := ddevents.APIGatewayProxyRequest{
 		Headers: map[string]string{
 			"key":     "val",
 			"Referer": "referer",
 		},
-		RequestContext: events.APIGatewayProxyRequestContext{
+		RequestContext: ddevents.APIGatewayProxyRequestContext{
 			DomainName: "domain-name",
 			Path:       "path",
 			HTTPMethod: "http-method",
@@ -253,12 +254,12 @@ func TestExtractFunctionURLEventARN(t *testing.T) {
 }
 
 func TestGetTagsFromAPIGatewayEvent(t *testing.T) {
-	event := events.APIGatewayProxyRequest{
+	event := ddevents.APIGatewayProxyRequest{
 		Headers: map[string]string{
 			"key":     "val",
 			"Referer": "referer",
 		},
-		RequestContext: events.APIGatewayProxyRequestContext{
+		RequestContext: ddevents.APIGatewayProxyRequestContext{
 			DomainName: "domain-name",
 			Path:       "path",
 			HTTPMethod: "http-method",

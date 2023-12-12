@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	ddevents "github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 )
 
 const (
@@ -110,7 +111,7 @@ func TestDetermineServiceName(t *testing.T) {
 }
 
 func TestEnrichInferredSpanWithAPIGatewayRESTEvent(t *testing.T) {
-	var apiGatewayRestEvent events.APIGatewayProxyRequest
+	var apiGatewayRestEvent ddevents.APIGatewayProxyRequest
 	_ = json.Unmarshal(getEventFromFile("api-gateway.json"), &apiGatewayRestEvent)
 	inferredSpan := mockInferredSpan()
 	inferredSpan.EnrichInferredSpanWithAPIGatewayRESTEvent(apiGatewayRestEvent)
@@ -137,7 +138,7 @@ func TestEnrichInferredSpanWithAPIGatewayRESTEvent(t *testing.T) {
 
 func TestRemapsAllInferredSpanServiceNamesFromAPIGatewayEvent(t *testing.T) {
 	// Load the original event
-	var apiGatewayRestEvent events.APIGatewayProxyRequest
+	var apiGatewayRestEvent ddevents.APIGatewayProxyRequest
 	_ = json.Unmarshal(getEventFromFile("api-gateway.json"), &apiGatewayRestEvent)
 
 	inferredSpan := mockInferredSpan()
@@ -174,7 +175,7 @@ func TestRemapsAllInferredSpanServiceNamesFromAPIGatewayEvent(t *testing.T) {
 
 func TestRemapsSpecificInferredSpanServiceNamesFromAPIGatewayEvent(t *testing.T) {
 	// Load the original event
-	var apiGatewayRestEvent events.APIGatewayProxyRequest
+	var apiGatewayRestEvent ddevents.APIGatewayProxyRequest
 	_ = json.Unmarshal(getEventFromFile("api-gateway.json"), &apiGatewayRestEvent)
 	// Store the original service mapping
 	origServiceMapping := GetServiceMapping()
@@ -209,7 +210,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromAPIGatewayEvent(t *testing.T)
 }
 
 func TestEnrichInferredSpanWithAPIGatewayNonProxyAsyncRESTEvent(t *testing.T) {
-	var apiGatewayRestEvent events.APIGatewayProxyRequest
+	var apiGatewayRestEvent ddevents.APIGatewayProxyRequest
 	_ = json.Unmarshal(getEventFromFile("api-gateway-non-proxy-async.json"), &apiGatewayRestEvent)
 	inferredSpan := mockInferredSpan()
 	inferredSpan.EnrichInferredSpanWithAPIGatewayRESTEvent(apiGatewayRestEvent)
