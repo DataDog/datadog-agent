@@ -2541,7 +2541,7 @@ func getAWSLimit(ctx context.Context) *awsLimits {
 }
 
 func (l *awsLimits) getLimiter(accountID, region, service, action string) *rate.Limiter {
-	key := accountID + region + service
+	key := accountID + region + service + action
 	l.limitersMu.Lock()
 	defer l.limitersMu.Unlock()
 	ll, ok := l.limiters[key]
