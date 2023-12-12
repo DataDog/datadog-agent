@@ -132,7 +132,7 @@ func start(ag *agent) error {
 		return err
 	}
 
-	if err := runAgentSidekicks(ag.ctx, ag.config, ag.workloadmeta, ag.telemetryCollector); err != nil {
+	if err := runAgentSidekicks(ag.ctx, ag.config, ag.telemetryCollector); err != nil {
 		return err
 	}
 	ag.wg.Add(1)

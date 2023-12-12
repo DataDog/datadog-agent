@@ -109,9 +109,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				// Tagger must be initialized after agent config has been setup
 				fx.Provide(func(c config.Component) tagger.Params {
 					if c.GetBool("process_config.remote_tagger") {
-						return tagger.Params{TaggerAgentType: tagger.NodeRemoteTaggerAgent}
+						return tagger.Params{AgentTypeForTagger: tagger.NodeRemoteTaggerAgent}
 					}
-					return tagger.Params{TaggerAgentType: tagger.LocalTaggerAgent}
+					return tagger.Params{AgentTypeForTagger: tagger.LocalTaggerAgent}
 				}),
 				processComponent.Bundle(),
 			)

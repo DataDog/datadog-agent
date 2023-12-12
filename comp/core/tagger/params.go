@@ -5,12 +5,12 @@
 
 package tagger
 
-// TaggerAgentType represents agent types that tagger is used for
-type TaggerAgentType uint8
+// AgentTypeForTagger represents agent types that tagger is used for
+type AgentTypeForTagger uint8
 
 // Define agent type for tagger
 const (
-	LocalTaggerAgent TaggerAgentType = 1 << iota
+	LocalTaggerAgent AgentTypeForTagger = 1 << iota
 	NodeRemoteTaggerAgent
 	CLCRunnerRemoteTaggerAgent
 	FakeTagger
@@ -18,15 +18,15 @@ const (
 
 // Params provides the kind of agent we're instantiating workloadmeta for
 type Params struct {
-	TaggerAgentType TaggerAgentType
+	AgentTypeForTagger AgentTypeForTagger
 }
 
 // NewTaggerParams creates a Params struct with the default LocalTagger type
 func NewTaggerParams() Params {
-	return Params{TaggerAgentType: LocalTaggerAgent}
+	return Params{AgentTypeForTagger: LocalTaggerAgent}
 }
 
 // NewFakeTaggerParams creates a Params struct with the FakeTagger type and for testing purposes
 func NewFakeTaggerParams() Params {
-	return Params{TaggerAgentType: FakeTagger}
+	return Params{AgentTypeForTagger: FakeTagger}
 }

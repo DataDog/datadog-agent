@@ -17,7 +17,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	remotecfg "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -37,7 +36,7 @@ import (
 )
 
 // runAgentSidekicks is the entrypoint for running non-components that run along the agent.
-func runAgentSidekicks(ctx context.Context, cfg config.Component, wmeta workloadmeta.Component, telemetryCollector telemetry.TelemetryCollector) error {
+func runAgentSidekicks(ctx context.Context, cfg config.Component, telemetryCollector telemetry.TelemetryCollector) error {
 	tracecfg := cfg.Object()
 	err := info.InitInfo(tracecfg) // for expvar & -info option
 	if err != nil {

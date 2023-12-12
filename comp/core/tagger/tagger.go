@@ -41,6 +41,8 @@ type dependencies struct {
 }
 
 // TaggerClient is a component that contains two tagger component: capturetagger and defaulttagger
+//
+// nolint:revive // TODO(containers) Fix revive linter
 type TaggerClient struct {
 	// captureTagger is a tagger instance that contains a tagger that will contain the tagger
 	// state when replaying a capture scenario
@@ -77,7 +79,7 @@ var _ Component = (*TaggerClient)(nil)
 // it should be deprecated and removed
 func newTaggerClient(deps dependencies) Component {
 	var taggerClient *TaggerClient
-	switch deps.Params.TaggerAgentType {
+	switch deps.Params.AgentTypeForTagger {
 	case CLCRunnerRemoteTaggerAgent:
 		options, err := remote.CLCRunnerOptions(deps.Config)
 		if err != nil {

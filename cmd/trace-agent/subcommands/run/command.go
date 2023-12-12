@@ -83,9 +83,9 @@ func runTraceAgentProcess(ctx context.Context, cliParams *RunParams, defaultConf
 		statsd.Module(),
 		fx.Provide(func(coreConfig coreconfig.Component) tagger.Params {
 			if coreConfig.GetBool("apm_config.remote_tagger") {
-				return tagger.Params{TaggerAgentType: tagger.NodeRemoteTaggerAgent}
+				return tagger.Params{AgentTypeForTagger: tagger.NodeRemoteTaggerAgent}
 			}
-			return tagger.Params{TaggerAgentType: tagger.LocalTaggerAgent}
+			return tagger.Params{AgentTypeForTagger: tagger.LocalTaggerAgent}
 		}),
 		tagger.Module(),
 		fx.Invoke(func(_ config.Component) {}),

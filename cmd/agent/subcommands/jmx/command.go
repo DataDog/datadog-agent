@@ -139,9 +139,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Provide(func() packagesigning.Component { return nil }),
 			fx.Provide(func(config config.Component) tagger.Params {
 				if pkgconfig.IsCLCRunner() {
-					return tagger.Params{TaggerAgentType: tagger.CLCRunnerRemoteTaggerAgent}
+					return tagger.Params{AgentTypeForTagger: tagger.CLCRunnerRemoteTaggerAgent}
 				}
-				return tagger.Params{TaggerAgentType: tagger.LocalTaggerAgent}
+				return tagger.Params{AgentTypeForTagger: tagger.LocalTaggerAgent}
 			}),
 			tagger.Module(),
 		)
