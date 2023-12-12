@@ -160,7 +160,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		ev = event
 		lp.initFromALBEvent(event)
 	case trigger.CloudWatchEvent:
-		var event events.CloudWatchEvent
+		var event ddevents.CloudWatchEvent
 		if err := json.Unmarshal(payloadBytes, &event); err != nil {
 			log.Debugf("Failed to unmarshal %s event: %s", cloudwatchEvents, err)
 			break

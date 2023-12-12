@@ -90,3 +90,7 @@ type ALBTargetGroupRequestContext struct {
 type ELBContext struct {
 	TargetGroupArn string
 }
+
+type CloudWatchEvent struct {
+	Resources []string
+}

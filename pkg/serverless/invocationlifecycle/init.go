@@ -79,7 +79,7 @@ func (lp *LifecycleProcessor) initFromALBEvent(event ddevents.ALBTargetGroupRequ
 	lp.addTags(trigger.GetTagsFromALBTargetGroupRequest(event))
 }
 
-func (lp *LifecycleProcessor) initFromCloudWatchEvent(event events.CloudWatchEvent) {
+func (lp *LifecycleProcessor) initFromCloudWatchEvent(event ddevents.CloudWatchEvent) {
 	lp.requestHandler.event = event
 	lp.addTag(tagFunctionTriggerEventSource, cloudwatchEvents)
 	lp.addTag(tagFunctionTriggerEventSourceArn, trigger.ExtractCloudwatchEventARN(event))

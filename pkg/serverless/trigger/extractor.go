@@ -61,7 +61,7 @@ func ExtractAlbEventARN(event ddevents.ALBTargetGroupRequest) string {
 }
 
 // ExtractCloudwatchEventARN returns an ARN from a CloudWatchEvent
-func ExtractCloudwatchEventARN(event events.CloudWatchEvent) string {
+func ExtractCloudwatchEventARN(event ddevents.CloudWatchEvent) string {
 	if len(event.Resources) == 0 {
 		return ""
 	}

@@ -93,7 +93,7 @@ func TestExtractAlbEventARN(t *testing.T) {
 }
 
 func TestExtractCloudwatchEventARN(t *testing.T) {
-	event := events.CloudWatchEvent{
+	event := ddevents.CloudWatchEvent{
 		Resources: []string{
 			"test-arn",
 			"test-arn-2",
@@ -103,7 +103,7 @@ func TestExtractCloudwatchEventARN(t *testing.T) {
 	arn := ExtractCloudwatchEventARN(event)
 	assert.Equal(t, "test-arn", arn)
 
-	eventEmptyResources := events.CloudWatchEvent{
+	eventEmptyResources := ddevents.CloudWatchEvent{
 		Resources: []string{},
 	}
 
