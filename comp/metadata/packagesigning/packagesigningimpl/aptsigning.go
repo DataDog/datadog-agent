@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/comp/core/log"
 )
 
 const (
@@ -47,16 +49,16 @@ func getNoDebsig() bool {
 }
 
 // getAPTSignatureKeys returns the list of debian signature keys
-func getAPTSignatureKeys(client *http.Client) []SigningKey {
+func getAPTSignatureKeys(client *http.Client, logger log.Component) []SigningKey {
 	allKeys := make(map[string]SigningKey)
 	// debian 11 and ubuntu 22.04 will be the last using legacy trusted.gpg.d folder and trusted.gpg file
-	updateWithTrustedKeys(allKeys, client)
+	updateWithTrustedKeys(allKeys, client, logger)
 	// Regular files are referenced in the sources.list file by signed-by=filename
-	updateWithSignedByKeys(allKeys, client)
+	updateWithSignedByKeys(allKeys, client, logger)
 	// In APT we can also sign packages with debsig
 	keyPaths := getDebsigKeyPaths()
 	for _, keyPath := range keyPaths {
-		decryptGPGFile(allKeys, repoFile{filename: keyPath, repositories: nil}, "debsig", client)
+		decryptGPGFile(allKeys, repoFile{filename: keyPath, repositories: nil}, "debsig", client, logger)
 	}
 	// Extract SigningKeys in a list for the inventory
 	var keyList []SigningKey
@@ -66,25 +68,26 @@ func getAPTSignatureKeys(client *http.Client) []SigningKey {
 	return keyList
 }
 
-func updateWithTrustedKeys(allkeys map[string]SigningKey, client *http.Client) {
+func updateWithTrustedKeys(allkeys map[string]SigningKey, client *http.Client, logger log.Component) {
 	// debian 11 and ubuntu 22.04 will be the last using legacy trusted.gpg.d folder and trusted.gpg file
 	if _, err := os.Stat(trustedFolder); !os.IsNotExist(err) {
 		if files, err := os.ReadDir(trustedFolder); err == nil {
 			for _, file := range files {
-				decryptGPGFile(allkeys, repoFile{filepath.Join(trustedFolder, file.Name()), nil}, "trusted", client)
+				trustedFileName := filepath.Join(trustedFolder, file.Name())
+				decryptGPGFile(allkeys, repoFile{trustedFileName, nil}, "trusted", client, logger)
 			}
 		}
 	}
 	if _, err := os.Stat(trustedFile); !os.IsNotExist(err) {
-		decryptGPGFile(allkeys, repoFile{trustedFile, nil}, "trusted", client)
+		decryptGPGFile(allkeys, repoFile{trustedFile, nil}, "trusted", client, logger)
 	}
 }
 
-func updateWithSignedByKeys(allKeys map[string]SigningKey, client *http.Client) {
+func updateWithSignedByKeys(allKeys map[string]SigningKey, client *http.Client, logger log.Component) {
 	if _, err := os.Stat(mainSourceList); !os.IsNotExist(err) {
 		reposPerKey := parseSourceListFile(mainSourceList)
 		for name, repos := range reposPerKey {
-			decryptGPGFile(allKeys, repoFile{name, repos}, "signed-by", client)
+			decryptGPGFile(allKeys, repoFile{name, repos}, "signed-by", client, logger)
 		}
 	}
 	if _, err := os.Stat(sourceList); !os.IsNotExist(err) {
@@ -92,7 +95,7 @@ func updateWithSignedByKeys(allKeys map[string]SigningKey, client *http.Client) 
 			for _, file := range files {
 				reposPerKey := parseSourceListFile(filepath.Join(sourceList, file.Name()))
 				for name, repos := range reposPerKey {
-					decryptGPGFile(allKeys, repoFile{name, repos}, "signed-by", client)
+					decryptGPGFile(allKeys, repoFile{name, repos}, "signed-by", client, logger)
 				}
 			}
 		}
@@ -108,14 +111,17 @@ func parseSourceListFile(filePath string) map[string][]repositories {
 	defer file.Close()
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		splitLine := sourceListRegexp.FindStringSubmatch(scanner.Text())
+		line := scanner.Text()
+		if strings.HasPrefix(line, "#") {
+			continue
+		}
+		splitLine := sourceListRegexp.FindStringSubmatch(line)
 		if len(splitLine) > 1 {
 			options := splitLine[2]
 			keyURI := signedBy.FindStringSubmatch(options)
 			if len(keyURI) > 1 {
 				if _, ok := reposPerKey[keyURI[1]]; !ok {
-					reposPerKey[keyURI[1]] = make([]repositories, 1)
-					reposPerKey[keyURI[1]][0] = repositories{RepoName: strings.ReplaceAll(splitLine[3], " ", "/")}
+					reposPerKey[keyURI[1]] = []repositories{{RepoName: strings.ReplaceAll(splitLine[3], " ", "/")}}
 				} else {
 					reposPerKey[keyURI[1]] = append(reposPerKey[keyURI[1]], repositories{RepoName: strings.ReplaceAll(splitLine[3], " ", "/")})
 				}

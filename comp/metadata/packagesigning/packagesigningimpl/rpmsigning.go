@@ -10,13 +10,20 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/comp/core/log"
+)
+
+// Not const for testing purpose
+var (
+	yumConf = "/etc/yum.conf"
+	yumRepo = "/etc/yum.repos.d/"
 )
 
 const (
-	yumConf  = "/etc/yum.conf"
-	yumRepo  = "/etc/yum.repos.d/"
 	dnfConf  = "/etc/dnf/dnf.conf"
 	zyppConf = "/etc/zypp/zypp.conf"
 	zyppRepo = "/etc/zypp/repos.d/"
@@ -34,10 +41,10 @@ func getMainGPGCheck(pkgManager string) (bool, bool) {
 }
 
 // getYUMSignatureKeys returns the list of keys used to sign RPM packages
-func getYUMSignatureKeys(pkgManager string, client *http.Client) []SigningKey {
+func getYUMSignatureKeys(pkgManager string, client *http.Client, logger log.Component) []SigningKey {
 	allKeys := make(map[string]SigningKey)
-	updateWithRepoFiles(allKeys, pkgManager, client)
-	updateWithRPMDB(allKeys)
+	updateWithRepoFiles(allKeys, pkgManager, client, logger)
+	updateWithRPMDB(allKeys, logger)
 	var keyList []SigningKey
 	for _, key := range allKeys {
 		keyList = append(keyList, key)
@@ -45,12 +52,13 @@ func getYUMSignatureKeys(pkgManager string, client *http.Client) []SigningKey {
 	return keyList
 }
 
-func updateWithRepoFiles(allKeys map[string]SigningKey, pkgManager string, client *http.Client) {
+func updateWithRepoFiles(allKeys map[string]SigningKey, pkgManager string, client *http.Client, logger log.Component) {
 	var mainConf mainData
 	var reposPerKey map[string][]repositories
 	repoConfig, repoFilesDir := getRepoPathFromPkgManager(pkgManager)
 	if repoConfig == "" {
 		// if we end up in a non supported distribution
+		logger.Info("No repo config file found for this distribution:", pkgManager)
 		return
 	}
 
@@ -58,16 +66,17 @@ func updateWithRepoFiles(allKeys map[string]SigningKey, pkgManager string, clien
 	if _, err := os.Stat(repoConfig); !os.IsNotExist(err) {
 		mainConf, reposPerKey = parseRepoFile(repoConfig, mainData{})
 		for name, repos := range reposPerKey {
-			decryptGPGFile(allKeys, repoFile{name, repos}, "signed-by", client)
+			decryptGPGFile(allKeys, repoFile{name, repos}, "signed-by", client, logger)
 		}
 	}
 	// Then parsing of the repo files
 	if _, err := os.Stat(repoFilesDir); !os.IsNotExist(err) {
 		if files, err := os.ReadDir(repoFilesDir); err == nil {
 			for _, file := range files {
-				_, reposPerKey := parseRepoFile(file.Name(), mainConf)
+				repoFileName := filepath.Join(repoFilesDir, file.Name())
+				_, reposPerKey := parseRepoFile(repoFileName, mainConf)
 				for name, repos := range reposPerKey {
-					decryptGPGFile(allKeys, repoFile{name, repos}, "signed-by", client)
+					decryptGPGFile(allKeys, repoFile{name, repos}, "signed-by", client, logger)
 				}
 			}
 		}
@@ -86,7 +95,7 @@ func getRepoPathFromPkgManager(pkgManager string) (string, string) {
 	return "", ""
 }
 
-func updateWithRPMDB(allKeys map[string]SigningKey) {
+func updateWithRPMDB(allKeys map[string]SigningKey, logger log.Component) {
 	// It seems not possible to get the expiration date from rpmdb, so we extract the list of keys and call gpg
 	cmd := exec.Command("rpm", "-qa", "gpg-pubkey*")
 	output, err := cmd.Output()
@@ -100,7 +109,10 @@ func updateWithRPMDB(allKeys map[string]SigningKey) {
 		if err != nil {
 			return
 		}
-		decryptGPGReader(allKeys, strings.NewReader(string(rpmKey)), "rpm", nil)
+		err = decryptGPGReader(allKeys, strings.NewReader(string(rpmKey)), "rpm", nil)
+		if err != nil {
+			logger.Infof("Error while parsing rpmdb for key %s: %s", string(rpmKey), err)
+		}
 	}
 }
 

@@ -121,9 +121,9 @@ func (is *pkgSigning) fillData() {
 
 	switch pkgManager {
 	case "apt":
-		is.data.SigningKeys = getAPTKeys(client)
+		is.data.SigningKeys = getAPTKeys(client, is.log)
 	case "yum", "dnf", "zypper":
-		is.data.SigningKeys = getYUMKeys(pkgManager, client)
+		is.data.SigningKeys = getYUMKeys(pkgManager, client, is.log)
 	default: // should not happen, tested above
 		is.log.Info("No supported package manager detected, package signing telemetry will not be collected")
 	}

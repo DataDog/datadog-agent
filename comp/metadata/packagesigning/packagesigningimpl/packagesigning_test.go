@@ -13,12 +13,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 )
 
@@ -321,6 +320,37 @@ func anyMissingRepository(r, s []repositories) bool {
 	return false
 }
 
+func TestUpdateWithRepoFile(t *testing.T) {
+	t.Cleanup(func() {
+		yumConf = "/etc/yum.conf"
+		yumRepo = "/etc/yum.repos.d/"
+	})
+	yumConf = "testdata/yum.conf"
+	yumRepo = "testdata/yum.repos.d/"
+	testCases := []struct {
+		name    string
+		allKeys map[string]SigningKey
+	}{
+		{
+			name: "Update with repo files",
+			allKeys: map[string]SigningKey{"32637D44F14F620E": {Fingerprint: "32637D44F14F620E", ExpirationDate: "2032-09-05", KeyType: "repo", Repositories: []repositories{{RepoName: "https://versailles.com"}}},
+				"E6266D4AC0962C7D": {Fingerprint: "E6266D4AC0962C7D", ExpirationDate: "2028-04-18", KeyType: "repo", Repositories: []repositories{{RepoName: "https://versailles.com"}}},
+				"D3A80E30382E94DE": {Fingerprint: "D3A80E30382E94DE", ExpirationDate: "2022-06-28", KeyType: "repo", Repositories: []repositories{{RepoName: "https://versailles.com"}}},
+			},
+		},
+	}
+	allKeys := make(map[string]SigningKey)
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			updateWithRepoFiles(allKeys, "yum", nil, nil)
+			for key := range allKeys {
+				if _, ok := testCase.allKeys[key]; !ok {
+					t.Errorf("Unexpected key %s", key)
+				}
+			}
+		})
+	}
+}
 func TestGetDebsigPath(t *testing.T) {
 	t.Cleanup(func() {
 		debsigPolicies = "/etc/debsig/policies/"
@@ -441,13 +471,13 @@ func setupYUMSigningMock(t *testing.T) {
 }
 func getPackageAPTMock() string { return "apt" }
 func getPackageYUMMock() string { return "yum" }
-func getAPTKeysMock(_ *http.Client) []SigningKey {
+func getAPTKeysMock(_ *http.Client, _ log.Component) []SigningKey {
 	return []SigningKey{
 		{Fingerprint: "F1068E14E09422B3", ExpirationDate: "2022-06-28", KeyType: "signed-by", Repositories: []repositories{{RepoName: "https://apt.datadoghq.com//stable/7"}}},
 		{Fingerprint: "FD4BF915", ExpirationDate: "9999-12-31", KeyType: "trusted"},
 	}
 }
-func getYUMKeysMock(_ string, _ *http.Client) []SigningKey {
+func getYUMKeysMock(_ string, _ *http.Client, _ log.Component) []SigningKey {
 	return []SigningKey{
 		{Fingerprint: "AL1C1AK3YS", ExpirationDate: "9999-12-31", KeyType: "repo", Repositories: []repositories{{RepoName: "https://yum.datadoghq.com/stable/7/x86_64/"}}},
 		{Fingerprint: "733142A241337", ExpirationDate: "2030-03-02", KeyType: "rpm"},

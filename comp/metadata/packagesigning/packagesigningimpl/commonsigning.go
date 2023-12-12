@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	pgp "github.com/ProtonMail/go-crypto/openpgp"
 )
 
@@ -57,7 +58,7 @@ func getPackageManager() string {
 
 // decryptGPGFile parse a gpg file (local or http) and extract signing keys information
 // Some files can contain a list of repositories.
-func decryptGPGFile(allKeys map[string]SigningKey, gpgFile repoFile, keyType string, client *http.Client) {
+func decryptGPGFile(allKeys map[string]SigningKey, gpgFile repoFile, keyType string, client *http.Client, logger log.Component) {
 	var reader io.Reader
 	if strings.HasPrefix(gpgFile.filename, "http") {
 		response, err := client.Get(gpgFile.filename)
@@ -74,14 +75,21 @@ func decryptGPGFile(allKeys map[string]SigningKey, gpgFile repoFile, keyType str
 		defer file.Close()
 		reader = file
 	}
-	decryptGPGReader(allKeys, reader, keyType, gpgFile.repositories)
+	err := decryptGPGReader(allKeys, reader, keyType, gpgFile.repositories)
+	if err != nil {
+		logger.Infof("Error while parsing gpg file %s: %s", gpgFile.filename, err)
+	}
 }
 
 // decryptGPGReader extract keys from a reader, useful for rpm extraction
-func decryptGPGReader(allKeys map[string]SigningKey, reader io.Reader, keyType string, repositories []repositories) {
+func decryptGPGReader(allKeys map[string]SigningKey, reader io.Reader, keyType string, repositories []repositories) error {
 	keyList, err := pgp.ReadArmoredKeyRing(reader)
 	if err != nil {
-		return
+		// Try a non armored keyring
+		keyList, err = pgp.ReadKeyRing(reader)
+		if err != nil {
+			return err
+		}
 	}
 	for _, key := range keyList {
 		fingerprint := key.PrimaryKey.KeyIdString()
@@ -99,4 +107,5 @@ func decryptGPGReader(allKeys map[string]SigningKey, reader io.Reader, keyType s
 			Repositories:   repositories,
 		}
 	}
+	return nil
 }
