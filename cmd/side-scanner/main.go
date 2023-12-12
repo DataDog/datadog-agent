@@ -513,7 +513,7 @@ func scanCmd(config scanConfig) error {
 	sidescanner.printResults = true
 	go func() {
 		sidescanner.configsCh <- &config
-		sidescanner.configsCh <- nil
+		close(sidescanner.configsCh)
 	}()
 	sidescanner.start(ctx)
 	return nil
@@ -623,7 +623,7 @@ func offlineCmd(poolSize int, regions []string, maxScans int) error {
 		}
 
 		sidescanner.configsCh <- &scanConfig{Type: awsScan, Tasks: scans, Roles: roles}
-		sidescanner.configsCh <- nil
+		close(sidescanner.configsCh)
 	}()
 
 	sidescanner.start(ctx)
@@ -1055,6 +1055,7 @@ var resourceIDReg = regexp.MustCompile("^[a-f0-9]+$")
 
 func getARNResource(arn arn.ARN) (resourceType resourceType, resourceID string, err error) {
 	if arn.Partition != "aws" {
+		err = fmt.Errorf("bad arn %q: unexpected partition", arn)
 		return
 	}
 	switch {
@@ -1180,7 +1181,6 @@ func (s *sideScanner) start(ctx context.Context) {
 	defer s.eventForwarder.Stop()
 
 	s.rcClient.Start()
-	defer s.rcClient.Close()
 
 	go func() {
 		err := s.healthServer(ctx)
@@ -1191,6 +1191,7 @@ func (s *sideScanner) start(ctx context.Context) {
 
 	done := make(chan struct{})
 	go func() {
+		defer func() { done <- struct{}{} }()
 		for result := range s.resultsCh {
 			if result.err != nil {
 				if err := statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagFailure(result.scan, result.err), 1.0); err != nil {
@@ -1229,52 +1230,44 @@ func (s *sideScanner) start(ctx context.Context) {
 				}
 			}
 		}
-		done <- struct{}{}
 	}()
 
 	for i := 0; i < s.poolSize; i++ {
 		go func() {
-			defer func() {
-				done <- struct{}{}
-			}()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case scan, ok := <-s.scansCh:
-					if !ok {
-						return
-					}
-					if err := s.launchScan(ctx, scan); err != nil {
-						log.Errorf("error scanning task %s: %s", scan, err)
-					}
+			defer func() { done <- struct{}{} }()
+			for scan := range s.scansCh {
+				if err := s.launchScan(ctx, scan); err != nil {
+					log.Errorf("error scanning task %s: %s", scan, err)
 				}
 			}
 		}()
 	}
 
-configsloop:
-	for {
-		select {
-		case config := <-s.configsCh:
-			if config == nil { // nil config signals the end of the configs
-				break configsloop
-			}
-			for _, scan := range config.Tasks {
-				if len(s.allowedScanTypes) > 0 && !slices.Contains(s.allowedScanTypes, string(scan.Type)) {
-					continue
+	go func() {
+		defer close(s.scansCh)
+		defer s.rcClient.Close()
+		for {
+			select {
+			case config, ok := <-s.configsCh:
+				if !ok {
+					return
 				}
-				select {
-				case <-ctx.Done():
-					break configsloop
-				case s.scansCh <- scan:
+				for _, scan := range config.Tasks {
+					if len(s.allowedScanTypes) > 0 && !slices.Contains(s.allowedScanTypes, string(scan.Type)) {
+						continue
+					}
+					select {
+					case <-ctx.Done():
+						return
+					case s.scansCh <- scan:
+					}
 				}
+			case <-ctx.Done():
+				return
 			}
-		case <-ctx.Done():
-			break configsloop
 		}
-	}
-	close(s.scansCh)
+	}()
+
 	for i := 0; i < s.poolSize; i++ {
 		<-done
 	}
