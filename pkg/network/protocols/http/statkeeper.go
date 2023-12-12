@@ -20,7 +20,6 @@ import (
 // StatKeeper is responsible for aggregating HTTP stats.
 type StatKeeper struct {
 	mux                         sync.Mutex
-	cfg                         *config.Config
 	stats                       map[Key]*RequestStats
 	incomplete                  *incompleteBuffer
 	maxEntries                  int
@@ -44,7 +43,6 @@ func NewStatkeeper(c *config.Config, telemetry *Telemetry) *StatKeeper {
 	enableQuantization := c.EnableUSMQuantization && telemetry.protocol == "http"
 
 	return &StatKeeper{
-		cfg:                         c,
 		stats:                       make(map[Key]*RequestStats),
 		incomplete:                  newIncompleteBuffer(c, telemetry),
 		maxEntries:                  c.MaxHTTPStatsBuffered,
