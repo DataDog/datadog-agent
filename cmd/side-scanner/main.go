@@ -135,6 +135,7 @@ const (
 	resourceTypeVolume   = "volume"
 	resourceTypeSnapshot = "snapshot"
 	resourceTypeFunction = "function"
+	resourceTypeRole     = "role"
 )
 
 var defaultActions = []string{
@@ -501,9 +502,9 @@ func parseRolesMapping(roles []string) rolesMapping {
 	}
 	rolesMapping := make(rolesMapping, len(roles))
 	for _, role := range roles {
-		roleARN, err := arn.Parse(role)
+		roleARN, err := parseARN(role)
 		if err != nil {
-			log.Warnf("side_scanner.default_roles: bad role %q", role)
+			log.Warnf("side_scanner.default_roles: bad role %q: %v", role, err)
 			continue
 		}
 		rolesMapping[roleARN.AccountID] = &roleARN
@@ -1000,12 +1001,12 @@ func newScanTask(t string, resourceARN, hostname string, actions []string, roles
 	switch t {
 	case string(ebsScanType):
 		if resourceType != resourceTypeSnapshot && resourceType != resourceTypeVolume {
-			return nil, fmt.Errorf("malformed scan task: unexpected type %q", t)
+			return nil, fmt.Errorf("malformed scan task: unexpected type %q", resourceType)
 		}
 		scan.Type = ebsScanType
 	case string(lambdaScanType):
 		if resourceType != resourceTypeFunction {
-			return nil, fmt.Errorf("malformed scan task: unexpected type %q", t)
+			return nil, fmt.Errorf("malformed scan task: unexpected type %q", resourceType)
 		}
 		scan.Type = lambdaScanType
 	default:
@@ -1080,11 +1081,24 @@ func parseARN(s string) (arn.ARN, error) {
 	return a, nil
 }
 
-var resourceIDReg = regexp.MustCompile("^[a-f0-9]+$")
+var (
+	regionReg     = regexp.MustCompile("^[a-z]{2}-[a-z]+-[0-9]+$")
+	accountIDReg  = regexp.MustCompile("^[0-9]{12}$")
+	resourceIDReg = regexp.MustCompile("^[a-f0-9]+$")
+	roleNameReg   = regexp.MustCompile("^[a-zA-Z0-9_+=,.@-]{1,64}$")
+)
 
 func getARNResource(arn arn.ARN) (resourceType resourceType, resourceID string, err error) {
 	if arn.Partition != "aws" {
 		err = fmt.Errorf("bad arn %q: unexpected partition", arn)
+		return
+	}
+	if arn.Region != "" && !regionReg.MatchString(arn.Region) {
+		err = fmt.Errorf("bad arn %q: unexpected region", arn)
+		return
+	}
+	if arn.AccountID != "" && !accountIDReg.MatchString(arn.AccountID) {
+		err = fmt.Errorf("bad arn %q: unexpected account ID", arn)
 		return
 	}
 	switch {
@@ -1112,6 +1126,12 @@ func getARNResource(arn arn.ARN) (resourceType resourceType, resourceID string, 
 		resourceType, resourceID = resourceTypeFunction, strings.TrimPrefix(arn.Resource, "function:")
 		if sep := strings.Index(resourceID, ":"); sep > 0 {
 			resourceID = resourceID[:sep]
+		}
+	case arn.Service == "iam" && strings.HasPrefix(arn.Resource, "role/"):
+		resourceType, resourceID = resourceTypeRole, strings.TrimPrefix(arn.Resource, "role/")
+		if !roleNameReg.MatchString(resourceID) {
+			err = fmt.Errorf("bad arn %q: role name has wrong format", arn)
+			return
 		}
 	default:
 		err = fmt.Errorf("bad arn %q: unexpected resource type", arn)
