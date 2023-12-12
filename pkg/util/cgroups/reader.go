@@ -117,7 +117,7 @@ func WithCgroupV1BaseController(controller string) ReaderOption {
 
 // NewReader returns a new cgroup reader with given options
 func NewReader(opts ...ReaderOption) (*Reader, error) {
-	r := &Reader{cgroupByInode: make(map[uint64]Cgroup)}
+	r := &Reader{}
 	for _, opt := range opts {
 		opt(r)
 	}
@@ -190,16 +190,11 @@ func (r *Reader) GetCgroup(id string) Cgroup {
 }
 
 // GetCgroupByInode returns the cgroup for the given inode.
-func (r *Reader) GetCgroupByInode(inode uint64) (Cgroup, error) {
+func (r *Reader) GetCgroupByInode(inode uint64) Cgroup {
 	r.cgroupsLock.RLock()
 	defer r.cgroupsLock.RUnlock()
 
-	cgroup, ok := r.cgroupByInode[inode]
-	if !ok {
-		return nil, fmt.Errorf("cgroup not found for inode %d", inode)
-	}
-
-	return cgroup, nil
+	return r.cgroupByInode[inode]
 }
 
 // RefreshCgroups triggers a refresh if data are older than cacheValidity. 0 to always refesh.
@@ -218,7 +213,6 @@ func (r *Reader) RefreshCgroups(cacheValidity time.Duration) error {
 	}
 
 	r.cgroupByInode = make(map[uint64]Cgroup, len(newCgroups))
-
 	for _, cg := range newCgroups {
 		if inode := cg.Inode(); inode != unknownInode {
 			r.cgroupByInode[inode] = cg

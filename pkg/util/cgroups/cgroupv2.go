@@ -22,16 +22,15 @@ type cgroupV2 struct {
 }
 
 func newCgroupV2(identifier, cgroupRoot, relativePath string, controllers map[string]struct{}, pidMapper pidMapper) *cgroupV2 {
-	cg := &cgroupV2{
+	return &cgroupV2{
 		identifier:   identifier,
 		cgroupRoot:   cgroupRoot,
 		relativePath: relativePath,
 		controllers:  controllers,
 		pidMapper:    pidMapper,
 		fr:           defaultFileReader,
+		inode:        inodeForPath(filepath.Join(cgroupRoot, relativePath)),
 	}
-	cg.inode = inodeForPath(filepath.Join(cg.cgroupRoot, cg.relativePath))
-	return cg
 }
 
 func (c *cgroupV2) Identifier() string {
