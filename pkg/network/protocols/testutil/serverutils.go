@@ -42,7 +42,7 @@ func RunDockerServer(t testing.TB, serverName, dockerPath string, env []string, 
 func runDockerServer(t testing.TB, serverName, dockerPath string, env []string, serverStartRegex *regexp.Regexp, timeout time.Duration) error {
 	t.Helper()
 	// Ensuring no previous instances exists.
-	c := exec.Command("docker-compose", "-f", dockerPath, "down", "--remove-orphans")
+	c := exec.Command("docker-compose", "-f", dockerPath, "down", "--remove-orphans", "--volumes")
 	c.Env = append(c.Env, env...)
 	_ = c.Run()
 
@@ -62,7 +62,7 @@ func runDockerServer(t testing.TB, serverName, dockerPath string, env []string, 
 		cancel()
 		_ = cmd.Wait()
 
-		c := exec.Command("docker-compose", "-f", dockerPath, "down", "--remove-orphans")
+		c := exec.Command("docker-compose", "-f", dockerPath, "down", "--remove-orphans", "--volumes")
 		c.Env = append(c.Env, env...)
 		// Not waiting for its finish.
 		_ = c.Start()
