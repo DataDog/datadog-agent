@@ -28,7 +28,7 @@ import (
 const defaultTimeout = 1 * time.Second
 
 func listenerTestSetup(t *testing.T, config *config.TrapsConfig) (*mocksender.MockSender, *TrapListener, status.Manager) {
-	logger := fxutil.Test[log.Component](t, logimpl.MockModule)
+	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
 	mockSender := mocksender.NewMockSender("snmp-traps-telemetry")
 	mockSender.SetupAcceptAll()
 	packetOutChan := make(packetModule.PacketsChannel, config.GetPacketChannelSize())

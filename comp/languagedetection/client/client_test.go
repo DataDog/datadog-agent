@@ -42,16 +42,16 @@ func newTestClient(t *testing.T) (*client, chan *pbgo.ParentLanguageAnnotationRe
 	mockDCAClient := &MockDCAClient{respCh: respCh}
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		config.MockModule,
+		config.MockModule(),
 		fx.Replace(config.MockParams{Overrides: map[string]interface{}{
 			"language_detection.enabled":       "true",
 			"cluster_agent.enabled":            "true",
 			"language_detection.client_period": "50ms",
 		}}),
-		telemetry.MockModule,
-		logimpl.MockModule,
+		telemetry.MockModule(),
+		logimpl.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2,
+		workloadmeta.MockModuleV2(),
 		fx.Provide(func(m workloadmeta.Mock) workloadmeta.Component {
 			return m.(workloadmeta.Component)
 		}),
@@ -80,15 +80,15 @@ func TestClientEnabled(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(fmt.Sprintf("language_enabled=%s, cluster_agent_enabled=%s", testCase.languageEnabled, testCase.clusterAgentEnabled), func(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
-				config.MockModule,
+				config.MockModule(),
 				fx.Replace(config.MockParams{Overrides: map[string]interface{}{
 					"language_detection.enabled": testCase.languageEnabled,
 					"cluster_agent.enabled":      testCase.clusterAgentEnabled,
 				}}),
-				telemetry.MockModule,
-				logimpl.MockModule,
+				telemetry.MockModule(),
+				logimpl.MockModule(),
 				fx.Supply(workloadmeta.NewParams()),
-				workloadmeta.MockModuleV2,
+				workloadmeta.MockModuleV2(),
 				fx.Provide(func(m workloadmeta.Mock) workloadmeta.Component {
 					return m.(workloadmeta.Component)
 				}),

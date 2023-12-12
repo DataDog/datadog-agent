@@ -48,7 +48,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    logimpl.ForOneShot("CORE", "off", true)}),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}

@@ -111,13 +111,13 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		),
 		fx.Supply(secrets.NewEnabledParams()),
 		fx.Supply(logComponent.ForDaemon(string(loggerName), "log_file", params.DefaultLogFile)),
-		config.Module,
-		logComponent.Module,
+		config.Module(),
+		logComponent.Module(),
 		fx.Supply(dogstatsdServer.Params{
 			Serverless: false,
 		}),
-		dogstatsd.Bundle,
-		forwarder.Bundle,
+		dogstatsd.Bundle(),
+		forwarder.Bundle(),
 		fx.Provide(defaultforwarder.NewParams),
 		// workloadmeta setup
 		collectors.GetCatalog(),
@@ -131,10 +131,10 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 				NoInstance: !instantiate,
 			}
 		}),
-		workloadmeta.OptionalModule,
-		demultiplexer.Module,
-		secretsimpl.Module,
-		orchestratorForwarderImpl.Module,
+		workloadmeta.OptionalModule(),
+		demultiplexer.Module(),
+		secretsimpl.Module(),
+		orchestratorForwarderImpl.Module(),
 		fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
 		// already migrated components to request it.
@@ -148,11 +148,11 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 			return demultiplexer.Params{Options: opts, ContinueOnMissingHostname: true}
 		}),
 		fx.Supply(resourcesimpl.Disabled()),
-		metadatarunnerimpl.Module,
-		resourcesimpl.Module,
-		host.Module,
-		inventoryagent.Module,
-		inventoryhostimpl.Module,
+		metadatarunnerimpl.Module(),
+		resourcesimpl.Module(),
+		host.Module(),
+		inventoryagent.Module(),
+		inventoryhostimpl.Module(),
 	)
 }
 

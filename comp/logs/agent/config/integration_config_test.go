@@ -57,7 +57,7 @@ func TestValidateShouldFailWithInvalidConfigs(t *testing.T) {
 func TestAutoMultilineEnabled(t *testing.T) {
 
 	mockConfig := fxutil.Test[config.Component](t, fx.Options(
-		config.MockModule,
+		config.MockModule(),
 	)).(config.Mock)
 
 	decode := func(cfg string) *LogsConfig {

@@ -10,9 +10,10 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/remote"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -63,7 +64,7 @@ func TestAgentConfigCallback(t *testing.T) {
 	err := settings.RegisterRuntimeSetting(mockSettings)
 	assert.NoError(t, err)
 
-	rc := fxutil.Test[Component](t, fx.Options(Module, logimpl.MockModule))
+	rc := fxutil.Test[Component](t, fx.Options(Module(), logimpl.MockModule()))
 
 	layerStartFlare := state.RawConfig{Config: []byte(`{"name": "layer1", "config": {"log_level": "debug"}}`)}
 	layerEndFlare := state.RawConfig{Config: []byte(`{"name": "layer1", "config": {"log_level": ""}}`)}
@@ -71,11 +72,14 @@ func TestAgentConfigCallback(t *testing.T) {
 
 	structRC := rc.(rcClient)
 
-	structRC.client, _ = remote.NewUnverifiedGRPCClient(
-		"test-agent",
-		"9.99.9",
-		[]data.Product{data.ProductAgentConfig},
-		1*time.Hour,
+	ipcAddress, err := config.GetIPCAddress()
+	assert.NoError(t, err)
+
+	structRC.client, _ = client.NewUnverifiedGRPCClient(
+		ipcAddress, config.GetIPCPort(), security.FetchAuthToken,
+		client.WithAgent("test-agent", "9.99.9"),
+		client.WithProducts([]data.Product{data.ProductAgentConfig}),
+		client.WithPollInterval(time.Hour),
 	)
 
 	// -----------------

@@ -25,9 +25,9 @@ func TestNewHostProviderDefaultInterval(t *testing.T) {
 	ret := newHostProvider(
 		fxutil.Test[dependencies](
 			t,
-			logimpl.MockModule,
-			config.MockModule,
-			resourcesimpl.MockModule,
+			logimpl.MockModule(),
+			config.MockModule(),
+			resourcesimpl.MockModule(),
 			fx.Replace(resources.MockParams{Data: nil}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
 		),
@@ -49,9 +49,9 @@ func TestNewHostProviderCustomInterval(t *testing.T) {
 	ret := newHostProvider(
 		fxutil.Test[dependencies](
 			t,
-			logimpl.MockModule,
-			config.MockModule,
-			resourcesimpl.MockModule,
+			logimpl.MockModule(),
+			config.MockModule(),
+			resourcesimpl.MockModule(),
 			fx.Replace(resources.MockParams{Data: nil}),
 			fx.Replace(config.MockParams{Overrides: overrides}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
@@ -74,9 +74,9 @@ func TestNewHostProviderInvalidCustomInterval(t *testing.T) {
 	ret := newHostProvider(
 		fxutil.Test[dependencies](
 			t,
-			logimpl.MockModule,
-			config.MockModule,
-			resourcesimpl.MockModule,
+			logimpl.MockModule(),
+			config.MockModule(),
+			resourcesimpl.MockModule(),
 			fx.Replace(resources.MockParams{Data: nil}),
 			fx.Replace(config.MockParams{Overrides: overrides}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),

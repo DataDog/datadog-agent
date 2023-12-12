@@ -658,10 +658,28 @@ func (s *USMHTTP2Suite) TestHTTP2ManyDifferentPaths() {
 	}, time.Second*10, time.Millisecond*100, "%v != %v", &matches, expectedNumberOfRequests)
 
 	for i := 0; i < numberOfRequests; i++ {
-		if v, ok := seenRequests[fmt.Sprintf("/test-%d", i+1)]; !ok || v != numberOfRequests {
-			t.Logf("path: /test-%d should have %d occurrences but instead has %d", i+1, numberOfRequests, v)
+		if v, ok := seenRequests[fmt.Sprintf("/test-%d", i+1)]; !ok || v != repetitionsPerRequest {
+			t.Logf("path: /test-%d should have %d occurrences but instead has %d", i+1, repetitionsPerRequest, v)
 		}
 	}
+}
+
+func getExpectedOutcomeForPathWithRepeatedChars() map[http.Key]captureRange {
+	expected := make(map[http.Key]captureRange)
+	// The path `/a` and `/aa` are not being encoded with Huffman, and that's an edge case for our http2 monitoring for the moment,
+	// thus we're starting with `/aaa` and above.
+	for i := 3; i < 100; i++ {
+		expected[http.Key{
+			Path: http.Path{
+				Content: http.Interner.GetString(fmt.Sprintf("/%s", strings.Repeat("a", i))),
+			},
+			Method: http.MethodPost,
+		}] = captureRange{
+			lower: 1,
+			upper: 1,
+		}
+	}
+	return expected
 }
 
 func (s *USMHTTP2Suite) TestSimpleHTTP2() {
@@ -670,18 +688,6 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 	cfg.EnableHTTP2Monitoring = true
 
 	startH2CServer(t)
-
-	expected := make(map[http.Key]captureRange)
-	// currently we have a bug with paths which are not Huffman encoded, therefore, we are skipping them by starting from `/aaa` (i := 3).
-	for i := 3; i < 100; i++ {
-		expected[http.Key{
-			Path:   http.Path{Content: http.Interner.GetString(fmt.Sprintf("/%s", strings.Repeat("a", i)))},
-			Method: http.MethodPost,
-		}] = captureRange{
-			lower: 1,
-			upper: 1,
-		}
-	}
 
 	tests := []struct {
 		name              string
@@ -746,7 +752,7 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 					req.Body.Close()
 				}
 			},
-			expectedEndpoints: expected,
+			expectedEndpoints: getExpectedOutcomeForPathWithRepeatedChars(),
 		},
 	}
 	for _, tt := range tests {
@@ -800,7 +806,7 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 					return true
 				}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
 				if t.Failed() {
-					for key := range expected {
+					for key := range tt.expectedEndpoints {
 						if _, ok := res[key]; !ok {
 							t.Logf("key: %v was not found in res", key.Path.Content.Get())
 						}

@@ -195,6 +195,8 @@ type Event struct {
 	NetDevice        NetDeviceEvent        `field:"-" json:"-"`
 	VethPair         VethPairEvent         `field:"-" json:"-"`
 	UnshareMountNS   UnshareMountNSEvent   `field:"-" json:"-"`
+	// used for ebpfless
+	NSID uint64 `field:"-" json:"-"`
 }
 
 // SetPathResolutionError sets the Event.pathResolutionError
