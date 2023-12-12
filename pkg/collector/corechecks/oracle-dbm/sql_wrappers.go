@@ -31,6 +31,9 @@ func handleError(c *Check, db **sqlx.DB, err error) error {
 	if err == nil {
 		return err
 	}
+	if strings.Contains(err.Error(), "no rows in result") {
+		return nil
+	}
 	isPrivilegeError, err := handlePrivilegeError(c, err)
 	if err != nil && isPrivilegeError {
 		return err
@@ -74,7 +77,7 @@ func isConnectionError(err error) bool {
 	if err == nil {
 		return false
 	}
-	connectionErrors := []string{"ORA-00028", "ORA-01012", "ORA-06413", "database is closed", "bad connection"}
+	connectionErrors := []string{"ORA-00028", "ORA-01012", "ORA-06413", "ORA-12514", "database is closed", "bad connection", "connection was aborted"}
 	for _, e := range connectionErrors {
 		if strings.Contains(err.Error(), e) {
 			return true
