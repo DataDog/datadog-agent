@@ -154,7 +154,23 @@ type S3EventRecord struct {
 	EventSource string
 	EventTime   time.Time
 	EventName   string
-	S3          events.S3Entity
+	S3          S3Entity
+}
+
+type S3Entity struct {
+	Bucket S3Bucket
+	Object S3Object
+}
+
+type S3Bucket struct {
+	Name string
+	Arn  string
+}
+
+type S3Object struct {
+	Key  string
+	Size int64
+	ETag string
 }
 
 type SNSEvent struct {
