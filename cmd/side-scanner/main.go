@@ -1561,6 +1561,9 @@ retry:
 		if err := statsd.Histogram("datadog.sidescanner.snapshots.duration", float64(snapshotDuration.Milliseconds()), tagScan(scan), 1.0); err != nil {
 			log.Warnf("failed to send metric: %v", err)
 		}
+		if err := statsd.Histogram("datadog.sidescanner.snapshots.size", float64(*createSnapshotOutput.VolumeSize), tagFailure(scan, err), 1.0); err != nil {
+			log.Warnf("failed to send metric: %v", err)
+		}
 		if err := statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tagSuccess(scan), 1.0); err != nil {
 			log.Warnf("failed to send metric: %v", err)
 		}
@@ -1573,7 +1576,7 @@ retry:
 	return
 }
 
-func tagScan(scan *scanTask) []string {
+func tagScan(scan *scanTask, rest ...string) []string {
 	tags := []string{
 		fmt.Sprintf("agent_version:%s", version.AgentVersion),
 		fmt.Sprintf("region:%s", scan.ARN.Region),
@@ -1582,22 +1585,22 @@ func tagScan(scan *scanTask) []string {
 	if scan.Hostname != "" {
 		tags = append(tags, fmt.Sprintf("scan_host:%s", scan.Hostname))
 	}
-	return tags
+	return append(tags, rest...)
 }
 
 func tagNoResult(scan *scanTask) []string {
-	return append(tagScan(scan), "status:noresult")
+	return tagScan(scan, "status:noresult")
 }
 
 func tagNotFound(scan *scanTask) []string {
-	return append(tagScan(scan), "status:notfound")
+	return tagScan(scan, "status:notfound")
 }
 
 func tagFailure(scan *scanTask, err error) []string {
 	if errors.Is(err, context.Canceled) {
-		return append(tagScan(scan), "status:canceled")
+		return tagScan(scan, "status:canceled")
 	}
-	return append(tagScan(scan), "status:failure")
+	return tagScan(scan, "status:failure")
 }
 
 func tagSuccess(scan *scanTask) []string {
