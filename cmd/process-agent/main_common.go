@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
-	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
 	"github.com/DataDog/datadog-agent/comp/process/expvars"
@@ -128,16 +128,16 @@ func runApp(ctx context.Context, globalParams *command.GlobalParams) error {
 		fx.Populate(&appInitDeps),
 
 		// Provide core components
-		core.Bundle,
+		core.Bundle(),
 
 		// Provide process agent bundle so fx knows where to find components
-		process.Bundle,
+		process.Bundle(),
 
 		// Provide remote config client module
-		rcclient.Module,
+		rcclient.Module(),
 
 		// Provide statsd client module
-		compstatsd.Module,
+		compstatsd.Module(),
 
 		// Provide the corresponding workloadmeta Params to configure the catalog
 		collectors.GetCatalog(),

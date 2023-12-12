@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
-	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/status"
 	"github.com/DataDog/datadog-agent/pkg/status/render"

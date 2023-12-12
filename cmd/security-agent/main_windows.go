@@ -99,12 +99,12 @@ func (s *service) Run(svcctx context.Context) error {
 			SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(defaultSysProbeConfPath)),
 			LogParams:            logimpl.ForDaemon(command.LoggerName, "security_agent.log_file", pkgconfig.DefaultSecurityAgentLogFile),
 		}),
-		core.Bundle,
+		core.Bundle(),
 		dogstatsd.ClientBundle,
-		forwarder.Bundle,
+		forwarder.Bundle(),
 		fx.Provide(defaultforwarder.NewParamsWithResolvers),
-		demultiplexer.Module,
-		orchestratorForwarderImpl.Module,
+		demultiplexer.Module(),
+		orchestratorForwarderImpl.Module(),
 		fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
 		fx.Provide(func() demultiplexer.Params {
 			opts := aggregator.DefaultAgentDemultiplexerOptions()
@@ -114,7 +114,7 @@ func (s *service) Run(svcctx context.Context) error {
 
 		// workloadmeta setup
 		collectors.GetCatalog(),
-		workloadmeta.Module,
+		workloadmeta.Module(),
 		fx.Provide(func(config config.Component) workloadmeta.Params {
 
 			catalog := workloadmeta.NodeAgent
