@@ -489,7 +489,7 @@ func parseRolesMapping(roles []string) rolesMapping {
 	}
 	rolesMapping := make(rolesMapping, len(roles))
 	for _, role := range roles {
-		roleARN, err := parseARN(role)
+		roleARN, err := arn.Parse(role)
 		if err != nil {
 			log.Warnf("side_scanner.default_roles: bad role %q", role)
 			continue
