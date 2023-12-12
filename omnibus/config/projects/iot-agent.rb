@@ -80,6 +80,11 @@ package :deb do
   license 'Apache License Version 2.0'
   section 'utils'
   priority 'extra'
+  if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true"
+    compression_level 9
+  else
+    compression_level 5
+  end
   if ENV.has_key?('DEB_SIGNING_PASSPHRASE') and not ENV['DEB_SIGNING_PASSPHRASE'].empty?
     signing_passphrase "#{ENV['DEB_SIGNING_PASSPHRASE']}"
     if ENV.has_key?('DEB_GPG_KEY_NAME') and not ENV['DEB_GPG_KEY_NAME'].empty?
@@ -96,6 +101,11 @@ package :rpm do
   license 'Apache License Version 2.0'
   category 'System Environment/Daemons'
   priority 'extra'
+  if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true"
+    compression_level 9
+  else
+    compression_level 5
+  end
   if ENV.has_key?('RPM_SIGNING_PASSPHRASE') and not ENV['RPM_SIGNING_PASSPHRASE'].empty?
     signing_passphrase "#{ENV['RPM_SIGNING_PASSPHRASE']}"
     if ENV.has_key?('RPM_GPG_KEY_NAME') and not ENV['RPM_GPG_KEY_NAME'].empty?
