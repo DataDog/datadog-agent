@@ -35,7 +35,7 @@ type Telemetry struct {
 	// metricGroup is used here mostly for building the log message below
 	metricGroup *libtelemetry.MetricGroup
 
-	hits1XX, hits2XX, hits3XX, hits4XX, hits5XX *libtelemetry.Counter
+	hits1XX, hits2XX, hits3XX, hits4XX, hits5XX *TLSCounter
 
 	totalHits                                                        *TLSCounter
 	dropped                                                          *libtelemetry.Counter // this happens when statKeeper reaches capacity
@@ -55,11 +55,11 @@ func NewTelemetry(protocol string) *Telemetry {
 		protocol:    protocol,
 		metricGroup: metricGroup,
 
-		hits1XX:      metricGroup.NewCounter("hits", "status:1xx", libtelemetry.OptPrometheus),
-		hits2XX:      metricGroup.NewCounter("hits", "status:2xx", libtelemetry.OptPrometheus),
-		hits3XX:      metricGroup.NewCounter("hits", "status:3xx", libtelemetry.OptPrometheus),
-		hits4XX:      metricGroup.NewCounter("hits", "status:4xx", libtelemetry.OptPrometheus),
-		hits5XX:      metricGroup.NewCounter("hits", "status:5xx", libtelemetry.OptPrometheus),
+		hits1XX:      NewTLSCounter(metricGroup, "hits", "status:1xx", libtelemetry.OptPrometheus),
+		hits2XX:      NewTLSCounter(metricGroup, "hits", "status:2xx", libtelemetry.OptPrometheus),
+		hits3XX:      NewTLSCounter(metricGroup, "hits", "status:3xx", libtelemetry.OptPrometheus),
+		hits4XX:      NewTLSCounter(metricGroup, "hits", "status:4xx", libtelemetry.OptPrometheus),
+		hits5XX:      NewTLSCounter(metricGroup, "hits", "status:5xx", libtelemetry.OptPrometheus),
 		aggregations: metricGroup.NewCounter("aggregations", libtelemetry.OptPrometheus),
 
 		// these metrics are also exported as statsd metrics
@@ -86,15 +86,15 @@ func (t *Telemetry) Count(tx Transaction) {
 	statusClass := (tx.StatusCode() / 100) * 100
 	switch statusClass {
 	case 100:
-		t.hits1XX.Add(1)
+		t.hits1XX.Add(tx)
 	case 200:
-		t.hits2XX.Add(1)
+		t.hits2XX.Add(tx)
 	case 300:
-		t.hits3XX.Add(1)
+		t.hits3XX.Add(tx)
 	case 400:
-		t.hits4XX.Add(1)
+		t.hits4XX.Add(tx)
 	case 500:
-		t.hits5XX.Add(1)
+		t.hits5XX.Add(tx)
 	}
 
 	t.totalHits.Add(tx)

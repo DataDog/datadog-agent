@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
@@ -59,8 +60,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 						globalParams.ConfFilePath,
 						config.WithConfigName(globalParams.ConfigName),
 					),
-					LogParams: log.ForOneShot(globalParams.LoggerName, "off", true)}),
-				core.Bundle,
+					LogParams: logimpl.ForOneShot(globalParams.LoggerName, "off", true)}),
+				core.Bundle(),
 			)
 		},
 	}

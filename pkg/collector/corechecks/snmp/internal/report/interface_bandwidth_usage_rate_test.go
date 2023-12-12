@@ -172,9 +172,10 @@ func Test_interfaceBandwidthState_calculateBandwidthUsageRate_errors(t *testing.
 		expectedError    error
 		usageValue       float64
 		newIfSpeed       uint64
+		ibs              InterfaceBandwidthState
 	}{
 		{
-			name:      "snmp.ifBandwidthInUsage.Rate ifHCInOctets erred",
+			name:      "snmp.ifBandwidthInUsage.Rate ifHCInOctets erred when interface speed changes",
 			symbols:   []profiledefinition.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"}},
 			fullIndex: "9",
 			tags:      []string{"abc"},
@@ -204,9 +205,10 @@ func Test_interfaceBandwidthState_calculateBandwidthUsageRate_errors(t *testing.
 			// ((5000000 * 8) / (100 * 1000000)) * 100 = 40.0
 			usageValue: 40,
 			newIfSpeed: uint64(100) * (1e6),
+			ibs:        interfaceRateMapWithPrevious(),
 		},
 		{
-			name:      "snmp.ifBandwidthOutUsage.Rate ifHCOutOctets erred",
+			name:      "snmp.ifBandwidthOutUsage.Rate ifHCOutOctets erred when interface speed changes",
 			symbols:   []profiledefinition.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.10", Name: "ifHCOutOctets"}},
 			fullIndex: "9",
 			values: &valuestore.ResultValueStore{
@@ -235,6 +237,7 @@ func Test_interfaceBandwidthState_calculateBandwidthUsageRate_errors(t *testing.
 			// ((1000000 * 8) / (100 * 1000000)) * 100 = 8.0
 			usageValue: 8,
 			newIfSpeed: uint64(100) * (1e6),
+			ibs:        interfaceRateMapWithPrevious(),
 		},
 		{
 			name:      "snmp.ifBandwidthInUsage.Rate ifHCInOctets error on negative rate",
@@ -268,6 +271,40 @@ func Test_interfaceBandwidthState_calculateBandwidthUsageRate_errors(t *testing.
 			usageValue: 4,
 			// keep it the same interface speed, testing if the rate is negative only
 			newIfSpeed: uint64(80) * (1e6),
+			ibs:        interfaceRateMapWithPrevious(),
+		},
+		{
+			name:      "snmp.ifBandwidthInUsage.Rate ifHCInOctets error if new entry (to not send sample)",
+			symbols:   []profiledefinition.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"}},
+			fullIndex: "9",
+			tags:      []string{"abc"},
+			values: &valuestore.ResultValueStore{
+				ColumnValues: valuestore.ColumnResultValuesType{
+					// ifHCInOctets
+					"1.3.6.1.2.1.31.1.1.1.6": map[string]valuestore.ResultValue{
+						"9": {
+							Value: 5000000.0,
+						},
+					},
+					// ifHCOutOctets
+					"1.3.6.1.2.1.31.1.1.1.10": map[string]valuestore.ResultValue{
+						"9": {
+							Value: 1000000.0,
+						},
+					},
+					// ifHighSpeed
+					"1.3.6.1.2.1.31.1.1.1.15": map[string]valuestore.ResultValue{
+						"9": {
+							Value: 100.0,
+						},
+					},
+				},
+			},
+			expectedError: fmt.Errorf("new entry made, no rate emitted for interface ID %s", "9.ifBandwidthInUsage"),
+			// ((5000000 * 8) / (100 * 1000000)) * 100 = 40.0
+			usageValue: 40,
+			newIfSpeed: uint64(100) * (1e6),
+			ibs:        MakeInterfaceBandwidthState(),
 		},
 	}
 	for _, tt := range tests {
@@ -279,7 +316,7 @@ func Test_interfaceBandwidthState_calculateBandwidthUsageRate_errors(t *testing.
 			ms := &MetricSender{
 				sender:                  sender,
 				interfaceConfigs:        tt.interfaceConfigs,
-				interfaceBandwidthState: interfaceRateMapWithPrevious(),
+				interfaceBandwidthState: tt.ibs,
 			}
 			for _, symbol := range tt.symbols {
 				usageName := bandwidthMetricNameToUsage[symbol.Name]

@@ -77,8 +77,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(runStatus,
 				fx.Supply(cliParams, command.GetCoreBundleParamsForOneShot(globalParams)),
-				core.Bundle,
-				process.Bundle,
+				core.Bundle(),
+				process.Bundle(),
 			)
 		},
 	}

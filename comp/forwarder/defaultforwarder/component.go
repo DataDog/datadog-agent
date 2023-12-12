@@ -24,9 +24,10 @@ type Component interface {
 }
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newForwarder),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newForwarder))
+}
 
 // Mock implements mock-specific methods.
 type Mock interface {
@@ -34,6 +35,7 @@ type Mock interface {
 }
 
 // MockModule defines the fx options for the mock component.
-var MockModule = fxutil.Component(
-	fx.Provide(newMockForwarder),
-)
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newMockForwarder))
+}

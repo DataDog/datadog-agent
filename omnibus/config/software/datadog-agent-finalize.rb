@@ -25,10 +25,10 @@ build do
             conf_dir = "#{conf_dir_root}/extra_package_files/EXAMPLECONFSLOCATION"
             mkdir conf_dir
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", conf_dir_root, :force=>true
-            if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
+            if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty? and not windows_arch_i386?
               move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", conf_dir_root, :force=>true
             end
-            if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
+            if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty? and not windows_arch_i386?
               move "#{install_dir}/etc/datadog-agent/security-agent.yaml.example", conf_dir_root, :force=>true
               move "#{install_dir}/etc/datadog-agent/runtime-security.d", conf_dir_root, :force=>true
               move "#{conf_dir_root}/runtime-security.d/default.policy", "#{conf_dir_root}/runtime-security.d/default.policy.example", :force=>true

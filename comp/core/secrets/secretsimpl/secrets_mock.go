@@ -33,6 +33,7 @@ func NewMock() secrets.Mock {
 }
 
 // MockModule is a module containing the mock, useful for testing
-var MockModule = fxutil.Component(
-	fx.Provide(NewMock),
-)
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(NewMock))
+}

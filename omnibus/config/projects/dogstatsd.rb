@@ -109,7 +109,12 @@ package :msi do
 
   # For a consistent package management, please NEVER change this code
   arch = "x64"
-  upgrade_code 'dd60e9df-487b-415c-ba2f-dba19ddc7ebd'
+  if windows_arch_i386?
+    upgrade_code 'a8c5b8ae-ac27-4d66-b63f-edba0e5ea477'
+    arch = "x86"
+  else
+    upgrade_code 'dd60e9df-487b-415c-ba2f-dba19ddc7ebd'
+  end
   wix_candle_extension 'WixUtilExtension'
   wix_light_extension 'WixUtilExtension'
 

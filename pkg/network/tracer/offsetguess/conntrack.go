@@ -29,8 +29,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// sizeof(struct nf_conntrack_tuple), see https://github.com/torvalds/linux/blob/master/include/net/netfilter/nf_conntrack_tuple.h
-const sizeofNfConntrackTuple = 40
+const (
+	// sizeof(struct nf_conntrack_tuple), see https://github.com/torvalds/linux/blob/master/include/net/netfilter/nf_conntrack_tuple.h
+	sizeofNfConntrackTuple = 40
+
+	// sizeof(struct nf_conntrack_tuple_hash), see https://github.com/torvalds/linux/blob/master/include/net/netfilter/nf_conntrack_tuple.h
+	sizeofNfConntrackTupleHash = 56
+)
+
+var localIPv4 = net.ParseIP("127.0.0.3")
 
 type conntrackOffsetGuesser struct {
 	m            *manager.Manager
@@ -354,7 +361,18 @@ func (e *conntrackEventGenerator) Generate(status GuessWhat, expected *fieldValu
 		}
 		var err error
 		err = kernel.WithNS(e.ns, func() error {
-			e.udpConn, err = net.DialTimeout("udp4", e.udpAddr, 500*time.Millisecond)
+			// we use a dialer instance to override the local
+			// address to use with the udp connection. this is
+			// because on kernel 4.4 using the default loopback
+			// (127.0.0.1) address sometimes results in an
+			// incorrect match for the source address, resulting
+			// in an incorrect offset for ct_origin
+			d := net.Dialer{
+				Timeout:   500 * time.Millisecond,
+				LocalAddr: &net.UDPAddr{IP: localIPv4},
+			}
+
+			e.udpConn, err = d.Dial("udp4", e.udpAddr)
 			if err != nil {
 				return err
 			}

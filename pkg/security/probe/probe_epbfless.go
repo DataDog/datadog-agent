@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"path/filepath"
 	"sync"
@@ -19,17 +20,19 @@ import (
 	"github.com/vmihailenco/msgpack/v5"
 	"google.golang.org/grpc"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/util/native"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 type client struct {
@@ -49,6 +52,7 @@ type EBPFLessProbe struct {
 	statsdClient statsd.ClientInterface
 
 	// internals
+	event         *model.Event
 	server        *grpc.Server
 	seqNum        uint64
 	probe         *Probe
@@ -65,16 +69,17 @@ func (p *EBPFLessProbe) handleSyscallMsg(syscallMsg *ebpfless.SyscallMsg) {
 	}
 	p.seqNum++
 
-	event := p.probe.zeroEvent()
+	event := p.zeroEvent()
+	event.NSID = syscallMsg.NSID
 
 	switch syscallMsg.Type {
 	case ebpfless.SyscallTypeExec:
 		event.Type = uint32(model.ExecEventType)
-		entry := p.Resolvers.ProcessResolver.AddExecEntry(syscallMsg.PID, syscallMsg.Exec.Filename, syscallMsg.Exec.Args, syscallMsg.Exec.Envs, syscallMsg.ContainerContext.ID)
+		entry := p.Resolvers.ProcessResolver.AddExecEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: syscallMsg.NSID}, syscallMsg.Exec.Filename, syscallMsg.Exec.Args, syscallMsg.Exec.Envs, syscallMsg.ContainerContext.ID)
 		event.Exec.Process = &entry.Process
 	case ebpfless.SyscallTypeFork:
 		event.Type = uint32(model.ForkEventType)
-		p.Resolvers.ProcessResolver.AddForkEntry(syscallMsg.PID, syscallMsg.Fork.PPID)
+		p.Resolvers.ProcessResolver.AddForkEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: syscallMsg.NSID}, syscallMsg.Fork.PPID)
 	case ebpfless.SyscallTypeOpen:
 		event.Type = uint32(model.FileOpenEventType)
 		event.Open.File.PathnameStr = syscallMsg.Open.Filename
@@ -92,7 +97,7 @@ func (p *EBPFLessProbe) handleSyscallMsg(syscallMsg *ebpfless.SyscallMsg) {
 	}
 
 	// use ProcessCacheEntry process context as process context
-	event.ProcessCacheEntry = p.Resolvers.ProcessResolver.Resolve(syscallMsg.PID)
+	event.ProcessCacheEntry = p.Resolvers.ProcessResolver.Resolve(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: syscallMsg.NSID})
 	if event.ProcessCacheEntry == nil {
 		event.ProcessCacheEntry = model.NewPlaceholderProcessCacheEntry(syscallMsg.PID, syscallMsg.PID, false)
 	}
@@ -189,7 +194,11 @@ func (p *EBPFLessProbe) handleNewClient(conn net.Conn, ch chan ebpfless.SyscallM
 		var msg ebpfless.SyscallMsg
 		for {
 			if err := p.readMsg(conn, &msg); err != nil {
-				seclog.Warnf("error while reading message: %v", err)
+				if errors.Is(err, io.EOF) {
+					seclog.Debugf("connection closed by client: %v", conn.RemoteAddr())
+				} else {
+					seclog.Warnf("error while reading message: %v", err)
+				}
 
 				p.Lock()
 				delete(p.clients, conn)
@@ -197,8 +206,6 @@ func (p *EBPFLessProbe) handleNewClient(conn net.Conn, ch chan ebpfless.SyscallM
 
 				return
 			}
-
-			fmt.Printf("MSG: %+v\n", msg)
 
 			ch <- msg
 
@@ -312,6 +319,13 @@ func (p *EBPFLessProbe) GetEventTags(containerID string) []string {
 	return p.Resolvers.TagsResolver.Resolve(containerID)
 }
 
+func (p *EBPFLessProbe) zeroEvent() *model.Event {
+	p.event.Zero()
+	p.event.FieldHandlers = p.fieldHandlers
+	p.event.Origin = "ebpfless"
+	return p.event
+}
+
 // NewEBPFLessProbe returns a new eBPF less probe
 func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFLessProbe, error) {
 	opts.normalize()
@@ -342,6 +356,11 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFLess
 	}
 
 	p.fieldHandlers = &EBPFLessFieldHandlers{resolvers: p.Resolvers}
+
+	p.event = p.NewEvent()
+
+	// be sure to zero the probe event before everything else
+	p.zeroEvent()
 
 	return p, nil
 }
