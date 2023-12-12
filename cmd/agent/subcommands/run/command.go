@@ -101,6 +101,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/remoteconfig/cachebypasscounter"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	// runtime init routines
@@ -509,7 +510,7 @@ func startAgent(
 		baseRawURL := configUtils.GetMainEndpoint(pkgconfig.Datadog, "https://config.", "remote_configuration.rc_dd_url")
 		traceAgentEnv := configUtils.GetTraceAgentDefaultEnv(pkgconfig.Datadog)
 
-		configService, err = remoteconfig.NewService(pkgconfig.Datadog, apiKey, baseRawURL, hostnameDetected, remoteconfig.WithTraceAgentEnv(traceAgentEnv))
+		configService, err = remoteconfig.NewService(pkgconfig.Datadog, apiKey, baseRawURL, hostnameDetected, cachebypasscounter.NewCacheBypassMetricCounter(), remoteconfig.WithTraceAgentEnv(traceAgentEnv))
 		if err != nil {
 			log.Errorf("Failed to initialize config management service: %s", err)
 		} else {

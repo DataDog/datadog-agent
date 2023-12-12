@@ -59,6 +59,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/remoteconfig/cachebypasscounter"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/gorilla/mux"
@@ -465,7 +466,7 @@ func initializeRemoteConfig(ctx context.Context) (*client.Client, error) {
 	baseRawURL := configUtils.GetMainEndpoint(pkgconfig.Datadog, "https://config.", "remote_configuration.rc_dd_url")
 	traceAgentEnv := configUtils.GetTraceAgentDefaultEnv(pkgconfig.Datadog)
 
-	configService, err := remoteconfig.NewService(pkgconfig.Datadog, apiKey, baseRawURL, hname, remoteconfig.WithTraceAgentEnv(traceAgentEnv))
+	configService, err := remoteconfig.NewService(pkgconfig.Datadog, apiKey, baseRawURL, hname, cachebypasscounter.NewCacheBypassMetricCounter(), remoteconfig.WithTraceAgentEnv(traceAgentEnv))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create remote-config service: %w", err)
 	}
