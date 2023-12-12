@@ -244,7 +244,7 @@ func rootCommand() *cobra.Command {
 	sideScannerCmd.AddCommand(scanCommand())
 	sideScannerCmd.AddCommand(offlineCommand())
 	sideScannerCmd.AddCommand(attachCommand())
-	sideScannerCmd.AddCommand(mountCommand())
+	sideScannerCmd.AddCommand(nbdCommand())
 	sideScannerCmd.AddCommand(cleanupCommand())
 
 	return sideScannerCmd
@@ -370,7 +370,6 @@ func attachCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(
 				func(_ complog.Component, _ compconfig.Component) error {
-					globalParams.diskMode = volumeAttach
 					return attachCmd()
 				},
 				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
@@ -384,9 +383,14 @@ func attachCommand() *cobra.Command {
 	return cmd
 }
 
-func mountCommand() *cobra.Command {
+func nbdCommand() *cobra.Command {
+	var cliArgs struct {
+		mount     bool
+		runClient bool
+	}
+
 	cmd := &cobra.Command{
-		Use:   "nbd-mount <snapshot-arn>",
+		Use:   "nbd <snapshot-arn>",
 		Short: "Mount the given snapshot into /snapshots/<snapshot-id>/<part> using a network block device",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -396,8 +400,7 @@ func mountCommand() *cobra.Command {
 					if err != nil {
 						return err
 					}
-					globalParams.diskMode = nbdAttach
-					return nbdMountCmd(snapshotARN)
+					return nbdMountCmd(snapshotARN, cliArgs.mount, cliArgs.runClient)
 				},
 				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
 				fx.Supply(complog.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
@@ -406,6 +409,9 @@ func mountCommand() *cobra.Command {
 			)
 		},
 	}
+
+	cmd.Flags().BoolVar(&cliArgs.runClient, "run-client", false, "start the nbd client")
+	cmd.Flags().BoolVar(&cliArgs.mount, "mount", false, "mount the nbd device")
 
 	return cmd
 }
@@ -921,7 +927,7 @@ func attachCmd() error {
 	return nil
 }
 
-func nbdMountCmd(snapshotARN arn.ARN) error {
+func nbdMountCmd(snapshotARN arn.ARN, mount, runClient bool) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
@@ -931,35 +937,39 @@ func nbdMountCmd(snapshotARN arn.ARN) error {
 	}
 	ebsclient := ebs.NewFromConfig(cfg)
 	device := nextNBDDevice()
-	err = SetupEBSBlockDevice(ctx, EBSBlockDeviceOptions{
+	ebsnbd := NewEBSBlockDevice(EBSBlockDeviceOptions{
 		EBSClient:   ebsclient,
-		Name:        snapshotARN.String(),
-		Description: "",
 		SnapshotARN: snapshotARN,
 		DeviceName:  device,
+		RunClient:   runClient,
 	})
-	if err != nil {
+	if err := ebsnbd.Start(ctx); err != nil {
 		return err
 	}
 
-	partitions, err := listDevicePartitions(ctx, device, nil)
-	if err != nil {
-		log.Errorf("error could list paritions (device is still available on %q): %v", device, err)
-	} else {
-		mountPoints, cleanupMount, err := mountDevice(ctx, snapshotARN, partitions)
-		defer func() {
-			cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
-			defer cancel()
-			cleanupMount(cleanupctx)
-		}()
+	if runClient {
+		partitions, err := listDevicePartitions(ctx, device, nil)
 		if err != nil {
-			log.Errorf("error could not mount (device is still available on %q): %v", device, err)
-		} else {
-			fmt.Println(mountPoints)
+			log.Errorf("error could list paritions (device is still available on %q): %v", device, err)
+		} else if mount {
+			mountPoints, cleanupMount, err := mountDevice(ctx, snapshotARN, partitions)
+			defer func() {
+				cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
+				defer cancel()
+				cleanupMount(cleanupctx)
+			}()
+			if err != nil {
+				log.Errorf("error could not mount (device is still available on %q): %v", device, err)
+			} else {
+				for _, mountPoint := range mountPoints {
+					fmt.Println(mountPoint)
+				}
+			}
 		}
 	}
 
 	<-ctx.Done()
+	ebsnbd.WaitCleanup()
 	return nil
 }
 
@@ -1882,17 +1892,17 @@ func scanEBS(ctx context.Context, scan *scanTask, diskMode diskMode, resultsCh c
 
 func attachSnapshotWithNBD(ctx context.Context, scan *scanTask, snapshotARN arn.ARN, ebsclient *ebs.Client) (string, func(context.Context), error) {
 	ctx, cancel := context.WithCancel(ctx)
-	cleanupAttach := func(ctx context.Context) {
-		cancel()
-	}
 	device := nextNBDDevice()
-	err := SetupEBSBlockDevice(ctx, EBSBlockDeviceOptions{
+	ebsnbd := NewEBSBlockDevice(EBSBlockDeviceOptions{
 		EBSClient:   ebsclient,
-		Name:        scan.ARN.String(),
 		DeviceName:  device,
 		SnapshotARN: snapshotARN,
 	})
-	if err != nil {
+	cleanupAttach := func(ctx context.Context) {
+		cancel()
+		ebsnbd.WaitCleanup()
+	}
+	if err := ebsnbd.Start(ctx); err != nil {
 		return "", cleanupAttach, err
 	}
 	return device, cleanupAttach, nil
