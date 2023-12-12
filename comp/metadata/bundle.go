@@ -8,7 +8,7 @@
 package metadata
 
 import (
-	"github.com/DataDog/datadog-agent/comp/metadata/host"
+	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
@@ -24,7 +24,7 @@ func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
 		runnerimpl.Module(),
 		resourcesimpl.Module(),
-		host.Module(),
+		hostimpl.Module(),
 		inventoryagent.Module(),
 		inventoryhostimpl.Module(),
 		inventorychecksimpl.Module(),

@@ -86,3 +86,21 @@ func TestCustomQueries(t *testing.T) {
 	assert.NoError(t, err, "failed to execute custom query")
 	sender.AssertMetricTaggedWith(t, "Gauge", "oracle.custom_query.test.c1", []string{"c2:A"})
 }
+
+func TestFloat(t *testing.T) {
+	c, s := newRealCheck(t, `custom_queries:
+  - metric_prefix: oracle.custom_query.test
+    query: |
+      select 'TAG1', 1.012345 value from dual
+    columns:
+      - name: name
+        type: tag
+      - name: value
+        type: gauge
+`)
+	err := c.Run()
+	require.NoError(t, err)
+	s.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	s.AssertMetricTaggedWith(t, "Gauge", "oracle.custom_query.test.value", []string{"name:TAG1"})
+	s.AssertMetric(t, "Gauge", "oracle.custom_query.test.value", 1.012345, "", []string{})
+}

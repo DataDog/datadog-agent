@@ -12,12 +12,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"path/filepath"
 	"sync"
 
 	"github.com/vmihailenco/msgpack/v5"
 	"google.golang.org/grpc"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
@@ -30,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/util/native"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 type client struct {
@@ -192,7 +194,11 @@ func (p *EBPFLessProbe) handleNewClient(conn net.Conn, ch chan ebpfless.SyscallM
 		var msg ebpfless.SyscallMsg
 		for {
 			if err := p.readMsg(conn, &msg); err != nil {
-				seclog.Warnf("error while reading message: %v", err)
+				if errors.Is(err, io.EOF) {
+					seclog.Debugf("connection closed by client: %v", conn.RemoteAddr())
+				} else {
+					seclog.Warnf("error while reading message: %v", err)
+				}
 
 				p.Lock()
 				delete(p.clients, conn)
@@ -200,8 +206,6 @@ func (p *EBPFLessProbe) handleNewClient(conn net.Conn, ch chan ebpfless.SyscallM
 
 				return
 			}
-
-			fmt.Printf("MSG: %+v\n", msg)
 
 			ch <- msg
 

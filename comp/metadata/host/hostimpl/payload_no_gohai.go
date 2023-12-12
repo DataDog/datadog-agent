@@ -5,12 +5,12 @@
 
 //go:build freebsd || netbsd || openbsd || solaris || dragonfly
 
-package host
+package hostimpl
 
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/comp/metadata/host/utils"
+	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
