@@ -75,7 +75,6 @@ var _ Component = (*TaggerClient)(nil)
 
 // newTaggerClient returns a Component based on provided params, once it is provided,
 // fx will cache the component which is effectively a singleton instance, cached by fx.
-// TODO(components) (tagger): global is a legacy global variable but still in use, to be eliminated
 // it should be deprecated and removed
 func newTaggerClient(deps dependencies) Component {
 	var taggerClient *TaggerClient
@@ -299,7 +298,6 @@ func (t *TaggerClient) SetNewCaptureTagger(newCaptureTagger *replay.Tagger) {
 func (t *TaggerClient) ResetCaptureTagger() {
 	t.mux.Lock()
 	defer t.mux.Unlock()
-	// TODO(components) (tagger): captureTagger is a legacy global variable to be eliminated
 	t.captureTagger = nil
 }
 

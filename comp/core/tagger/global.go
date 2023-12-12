@@ -18,6 +18,7 @@ import (
 
 var (
 	// globalTagger is the global tagger instance backing the global Tag functions
+	// // TODO(components) (tagger): globalTagger is a legacy global variable but still in use, to be eliminated
 	globalTagger *TaggerClient
 
 	// initOnce ensures that the global tagger is only initialized once.  It is reset every
