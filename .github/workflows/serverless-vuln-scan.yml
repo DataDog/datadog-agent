@@ -21,7 +21,7 @@ jobs:
           path: go/src/github.com/DataDog/datadog-agent
 
       - name: Checkout datadog-lambda-extension repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: DataDog/datadog-lambda-extension
           path: go/src/github.com/DataDog/datadog-lambda-extension
