@@ -85,7 +85,7 @@ func (lp *LifecycleProcessor) initFromCloudWatchEvent(event ddevents.CloudWatchE
 	lp.addTag(tagFunctionTriggerEventSourceArn, trigger.ExtractCloudwatchEventARN(event))
 }
 
-func (lp *LifecycleProcessor) initFromCloudWatchLogsEvent(event events.CloudwatchLogsEvent, region string, accountID string) {
+func (lp *LifecycleProcessor) initFromCloudWatchLogsEvent(event ddevents.CloudwatchLogsEvent, region string, accountID string) {
 	arn, err := trigger.ExtractCloudwatchLogsEventARN(event, region, accountID)
 	if err != nil {
 		log.Debugf("Error parsing event ARN from cloudwatch logs event: %v", err)

@@ -114,7 +114,7 @@ func TestExtractCloudwatchEventARN(t *testing.T) {
 func TestExtractCloudwatchLogsEventARN(t *testing.T) {
 	region := "us-east-1"
 	accountID := "account-id"
-	event := events.CloudwatchLogsEvent{
+	event := ddevents.CloudwatchLogsEvent{
 		AWSLogs: events.CloudwatchLogsRawData{
 			Data: "invalid",
 		},
@@ -133,7 +133,7 @@ func TestExtractCloudwatchLogsEventARN(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NoError(t, gz.Close())
 
-	event = events.CloudwatchLogsEvent{
+	event = ddevents.CloudwatchLogsEvent{
 		AWSLogs: events.CloudwatchLogsRawData{
 			Data: base64.StdEncoding.EncodeToString(b.Bytes()),
 		},

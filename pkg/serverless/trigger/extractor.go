@@ -69,7 +69,7 @@ func ExtractCloudwatchEventARN(event ddevents.CloudWatchEvent) string {
 }
 
 // ExtractCloudwatchLogsEventARN returns an ARN from a CloudwatchLogsEvent
-func ExtractCloudwatchLogsEventARN(event events.CloudwatchLogsEvent, region string, accountID string) (string, error) {
+func ExtractCloudwatchLogsEventARN(event ddevents.CloudwatchLogsEvent, region string, accountID string) (string, error) {
 	decodedLog, err := event.AWSLogs.Parse()
 	if err != nil {
 		return "", fmt.Errorf("Couldn't decode Cloudwatch Logs event: %v", err)

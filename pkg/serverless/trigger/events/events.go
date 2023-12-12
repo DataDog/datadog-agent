@@ -1,5 +1,7 @@
 package events
 
+import "github.com/aws/aws-lambda-go/events"
+
 type APIGatewayProxyRequest struct {
 	Resource       string
 	Path           string
@@ -93,4 +95,8 @@ type ELBContext struct {
 
 type CloudWatchEvent struct {
 	Resources []string
+}
+
+type CloudwatchLogsEvent struct {
+	AWSLogs events.CloudwatchLogsRawData
 }
