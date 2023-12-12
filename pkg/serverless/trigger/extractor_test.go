@@ -177,8 +177,8 @@ func TestExtractKinesisStreamEventARN(t *testing.T) {
 }
 
 func TestExtractS3EventArn(t *testing.T) {
-	event := events.S3Event{
-		Records: []events.S3EventRecord{
+	event := ddevents.S3Event{
+		Records: []ddevents.S3EventRecord{
 			{
 				EventSource: "test-arn",
 			},

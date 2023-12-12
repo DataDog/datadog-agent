@@ -200,7 +200,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		ev = event
 		lp.initFromEventBridgeEvent(event)
 	case trigger.S3Event:
-		var event events.S3Event
+		var event ddevents.S3Event
 		if err := json.Unmarshal(payloadBytes, &event); err != nil {
 			log.Debugf("Failed to unmarshal %s event: %s", s3, err)
 			break

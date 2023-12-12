@@ -1,6 +1,8 @@
 package events
 
 import (
+	"time"
+
 	"github.com/aws/aws-lambda-go/events"
 )
 
@@ -142,4 +144,15 @@ type EventBridgeEvent struct {
 	DetailType string `json:"detail-type"`
 	Source     string
 	StartTime  string
+}
+
+type S3Event struct {
+	Records []S3EventRecord `json:"Records"`
+}
+
+type S3EventRecord struct {
+	EventSource string
+	EventTime   time.Time
+	EventName   string
+	S3          events.S3Entity
 }

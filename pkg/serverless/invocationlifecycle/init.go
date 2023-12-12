@@ -123,7 +123,7 @@ func (lp *LifecycleProcessor) initFromKinesisStreamEvent(event ddevents.KinesisE
 	lp.addTag(tagFunctionTriggerEventSourceArn, trigger.ExtractKinesisStreamEventARN(event))
 }
 
-func (lp *LifecycleProcessor) initFromS3Event(event events.S3Event) {
+func (lp *LifecycleProcessor) initFromS3Event(event ddevents.S3Event) {
 	if !lp.DetectLambdaLibrary() && lp.InferredSpansEnabled {
 		lp.GetInferredSpan().EnrichInferredSpanWithS3Event(event)
 	}

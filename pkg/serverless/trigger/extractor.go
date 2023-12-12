@@ -88,7 +88,7 @@ func ExtractKinesisStreamEventARN(event ddevents.KinesisEvent) string {
 }
 
 // ExtractS3EventArn returns an ARN from a S3Event
-func ExtractS3EventArn(event events.S3Event) string {
+func ExtractS3EventArn(event ddevents.S3Event) string {
 	return event.Records[0].EventSource
 }
 

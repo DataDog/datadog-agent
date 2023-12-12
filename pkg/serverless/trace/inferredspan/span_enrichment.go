@@ -237,7 +237,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSNSEvent(eventPayload ev
 // EnrichInferredSpanWithS3Event uses the parsed event
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from an S3 event.
-func (inferredSpan *InferredSpan) EnrichInferredSpanWithS3Event(eventPayload events.S3Event) {
+func (inferredSpan *InferredSpan) EnrichInferredSpanWithS3Event(eventPayload ddevents.S3Event) {
 	eventRecord := eventPayload.Records[0]
 	bucketNameVar := eventRecord.S3.Bucket.Name
 	serviceName := DetermineServiceName(serviceMapping, bucketNameVar, "lambda_s3", "s3")

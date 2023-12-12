@@ -534,7 +534,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromSNSEvent(t *testing.T) {
 }
 
 func TestEnrichInferredSpanForS3Event(t *testing.T) {
-	var s3Request events.S3Event
+	var s3Request ddevents.S3Event
 	_ = json.Unmarshal(getEventFromFile("s3.json"), &s3Request)
 	inferredSpan := mockInferredSpan()
 	inferredSpan.EnrichInferredSpanWithS3Event(s3Request)
@@ -573,7 +573,7 @@ func TestRemapsAllInferredSpanServiceNamesFromS3Event(t *testing.T) {
 	SetServiceMapping(newServiceMapping)
 
 	// Load the original event
-	var s3Event events.S3Event
+	var s3Event ddevents.S3Event
 	_ = json.Unmarshal(getEventFromFile("s3.json"), &s3Event)
 
 	inferredSpan := mockInferredSpan()
@@ -610,7 +610,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromS3Event(t *testing.T) {
 	SetServiceMapping(newServiceMapping)
 
 	// Load the original event
-	var s3Event events.S3Event
+	var s3Event ddevents.S3Event
 	_ = json.Unmarshal(getEventFromFile("s3.json"), &s3Event)
 
 	inferredSpan := mockInferredSpan()
