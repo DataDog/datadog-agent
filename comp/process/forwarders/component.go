@@ -7,10 +7,7 @@
 package forwarders
 
 import (
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: processes
@@ -21,16 +18,4 @@ type Component interface {
 	GetProcessForwarder() defaultforwarder.Component
 	GetRTProcessForwarder() defaultforwarder.Component
 	GetConnectionsForwarder() defaultforwarder.Component
-}
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newForwarders))
-}
-
-// MockModule defines the fx options for this mock component.
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newMockForwarders))
 }
