@@ -96,7 +96,7 @@ func (e Extractor) extract(event interface{}) (*TraceContext, error) {
 		carrier, err = headersCarrier(ev.Headers)
 	case ddevents.APIGatewayV2HTTPRequest:
 		carrier, err = headersCarrier(ev.Headers)
-	case events.APIGatewayWebsocketProxyRequest:
+	case ddevents.APIGatewayWebsocketProxyRequest:
 		carrier, err = headersCarrier(ev.Headers)
 	case events.APIGatewayCustomAuthorizerRequestTypeRequest:
 		carrier, err = headersCarrier(ev.Headers)

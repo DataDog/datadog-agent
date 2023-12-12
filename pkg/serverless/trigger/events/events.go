@@ -40,3 +40,20 @@ type APIGatewayV2HTTPRequestContextHTTPDescription struct {
 	SourceIP  string
 	UserAgent string
 }
+
+type APIGatewayWebsocketProxyRequest struct {
+	Headers        map[string]string
+	RequestContext APIGatewayWebsocketProxyRequestContext
+}
+
+type APIGatewayWebsocketProxyRequestContext struct {
+	Stage            string
+	RequestID        string
+	APIID            string
+	ConnectionID     string
+	DomainName       string
+	EventType        string
+	MessageDirection string
+	RequestTimeEpoch int64
+	RouteKey         string
+}

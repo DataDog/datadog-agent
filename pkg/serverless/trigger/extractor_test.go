@@ -50,8 +50,8 @@ func TestExtractAPIGatewayV2EventARN(t *testing.T) {
 
 func TestExtractAPIGatewayWebSocketEventARN(t *testing.T) {
 	region := "us-east-1"
-	event := events.APIGatewayWebsocketProxyRequest{
-		RequestContext: events.APIGatewayWebsocketProxyRequestContext{
+	event := ddevents.APIGatewayWebsocketProxyRequest{
+		RequestContext: ddevents.APIGatewayWebsocketProxyRequestContext{
 			APIID: "test-id",
 			Stage: "test-stage",
 		},

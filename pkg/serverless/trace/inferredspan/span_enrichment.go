@@ -171,7 +171,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithLambdaFunctionURLEvent(e
 // EnrichInferredSpanWithAPIGatewayWebsocketEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from a Websocket event.
-func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayWebsocketEvent(eventPayload events.APIGatewayWebsocketProxyRequest) {
+func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayWebsocketEvent(eventPayload ddevents.APIGatewayWebsocketProxyRequest) {
 	log.Debug("Enriching an inferred span for a Websocket API Gateway")
 	requestContext := eventPayload.RequestContext
 	routeKey := requestContext.RouteKey

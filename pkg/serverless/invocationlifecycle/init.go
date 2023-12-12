@@ -48,7 +48,7 @@ func (lp *LifecycleProcessor) initFromAPIGatewayV2Event(event ddevents.APIGatewa
 	lp.addTags(trigger.GetTagsFromAPIGatewayV2HTTPRequest(event))
 }
 
-func (lp *LifecycleProcessor) initFromAPIGatewayWebsocketEvent(event events.APIGatewayWebsocketProxyRequest, region string) {
+func (lp *LifecycleProcessor) initFromAPIGatewayWebsocketEvent(event ddevents.APIGatewayWebsocketProxyRequest, region string) {
 	if !lp.DetectLambdaLibrary() && lp.InferredSpansEnabled {
 		lp.GetInferredSpan().EnrichInferredSpanWithAPIGatewayWebsocketEvent(event)
 	}

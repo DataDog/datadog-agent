@@ -317,7 +317,7 @@ func TestExtractorExtract(t *testing.T) {
 		{
 			name: "APIGatewayWebsocketProxyRequest",
 			events: []interface{}{
-				events.APIGatewayWebsocketProxyRequest{
+				ddevents.APIGatewayWebsocketProxyRequest{
 					Headers: headersMapAll,
 				},
 			},

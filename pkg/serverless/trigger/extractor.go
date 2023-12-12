@@ -40,7 +40,7 @@ func ExtractAPIGatewayV2EventARN(event ddevents.APIGatewayV2HTTPRequest, region 
 }
 
 // ExtractAPIGatewayWebSocketEventARN returns an ARN from an APIGatewayWebsocketProxyRequest
-func ExtractAPIGatewayWebSocketEventARN(event events.APIGatewayWebsocketProxyRequest, region string) string {
+func ExtractAPIGatewayWebSocketEventARN(event ddevents.APIGatewayWebsocketProxyRequest, region string) string {
 	requestContext := event.RequestContext
 	return fmt.Sprintf("arn:%v:apigateway:%v::/restapis/%v/stages/%v", GetAWSPartitionByRegion(region), region, requestContext.APIID, requestContext.Stage)
 }

@@ -319,7 +319,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromAPIGatewayHTTPAPIEvent(t *tes
 }
 
 func TestEnrichInferredSpanWithAPIGatewayWebsocketDefaultEvent(t *testing.T) {
-	var apiGatewayWebsocketEvent events.APIGatewayWebsocketProxyRequest
+	var apiGatewayWebsocketEvent ddevents.APIGatewayWebsocketProxyRequest
 	_ = json.Unmarshal(getEventFromFile("api-gateway-websocket-default.json"), &apiGatewayWebsocketEvent)
 	inferredSpan := mockInferredSpan()
 	span := inferredSpan.Span
@@ -347,7 +347,7 @@ func TestEnrichInferredSpanWithAPIGatewayWebsocketDefaultEvent(t *testing.T) {
 
 func TestRemapsSpecificInferredSpanServiceNamesFromAPIGatewayWebsocketDefaultEvent(t *testing.T) {
 	// Load the original event
-	var apiGatewayWebsocketEvent events.APIGatewayWebsocketProxyRequest
+	var apiGatewayWebsocketEvent ddevents.APIGatewayWebsocketProxyRequest
 	_ = json.Unmarshal(getEventFromFile("api-gateway-websocket-default.json"), &apiGatewayWebsocketEvent)
 	// Store the original service mapping
 	origServiceMapping := GetServiceMapping()
@@ -382,7 +382,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromAPIGatewayWebsocketDefaultEve
 }
 
 func TestEnrichInferredSpanWithAPIGatewayWebsocketConnectEvent(t *testing.T) {
-	var apiGatewayWebsocketEvent events.APIGatewayWebsocketProxyRequest
+	var apiGatewayWebsocketEvent ddevents.APIGatewayWebsocketProxyRequest
 	_ = json.Unmarshal(getEventFromFile("api-gateway-websocket-connect.json"), &apiGatewayWebsocketEvent)
 	inferredSpan := mockInferredSpan()
 	span := inferredSpan.Span
@@ -409,7 +409,7 @@ func TestEnrichInferredSpanWithAPIGatewayWebsocketConnectEvent(t *testing.T) {
 }
 
 func TestEnrichInferredSpanWithAPIGatewayWebsocketDisconnectEvent(t *testing.T) {
-	var apiGatewayWebsocketEvent events.APIGatewayWebsocketProxyRequest
+	var apiGatewayWebsocketEvent ddevents.APIGatewayWebsocketProxyRequest
 	_ = json.Unmarshal(getEventFromFile("api-gateway-websocket-disconnect.json"), &apiGatewayWebsocketEvent)
 	inferredSpan := mockInferredSpan()
 	span := inferredSpan.Span
