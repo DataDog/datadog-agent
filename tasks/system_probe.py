@@ -678,11 +678,11 @@ def test(
 def test_debug(
     ctx,
     package,
+    run,
     bundle_ebpf=False,
     runtime_compiled=False,
     co_re=False,
     skip_object_files=False,
-    run=None,
     windows=is_windows,
     failfast=False,
     kernel_release=None,
@@ -690,8 +690,6 @@ def test_debug(
     """
     Run delve on a specific system-probe test.
     """
-    if not run:
-        raise Exit(code=1, message="test name must be specified with the --run option")
 
     if os.getenv("GOPATH") is None:
         raise Exit(
