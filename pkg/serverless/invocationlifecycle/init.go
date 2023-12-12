@@ -113,7 +113,7 @@ func (lp *LifecycleProcessor) initFromEventBridgeEvent(event inferredspan.EventB
 	lp.addTag(tagFunctionTriggerEventSourceArn, event.Source)
 }
 
-func (lp *LifecycleProcessor) initFromKinesisStreamEvent(event events.KinesisEvent) {
+func (lp *LifecycleProcessor) initFromKinesisStreamEvent(event ddevents.KinesisEvent) {
 	if !lp.DetectLambdaLibrary() && lp.InferredSpansEnabled {
 		lp.GetInferredSpan().EnrichInferredSpanWithKinesisEvent(event)
 	}

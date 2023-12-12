@@ -83,7 +83,7 @@ func ExtractDynamoDBStreamEventARN(event ddevents.DynamoDBEvent) string {
 }
 
 // ExtractKinesisStreamEventARN returns an ARN from a KinesisEvent
-func ExtractKinesisStreamEventARN(event events.KinesisEvent) string {
+func ExtractKinesisStreamEventARN(event ddevents.KinesisEvent) string {
 	return event.Records[0].EventSourceArn
 }
 

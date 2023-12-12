@@ -161,8 +161,8 @@ func TestExtractDynamoDBStreamEventARN(t *testing.T) {
 }
 
 func TestExtractKinesisStreamEventARN(t *testing.T) {
-	event := events.KinesisEvent{
-		Records: []events.KinesisEventRecord{
+	event := ddevents.KinesisEvent{
+		Records: []ddevents.KinesisEventRecord{
 			{
 				EventSourceArn: "test-arn",
 			},

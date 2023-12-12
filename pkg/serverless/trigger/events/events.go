@@ -120,3 +120,20 @@ type DynamoDBStreamRecord struct {
 	SizeBytes                   int64
 	StreamViewType              string
 }
+
+type KinesisEvent struct {
+	Records []KinesisEventRecord
+}
+
+type KinesisEventRecord struct {
+	EventID        string
+	EventName      string
+	EventSourceArn string
+	EventVersion   string
+	Kinesis        KinesisRecord
+}
+
+type KinesisRecord struct {
+	ApproximateArrivalTimestamp events.SecondsEpochTime
+	PartitionKey                string
+}

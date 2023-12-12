@@ -184,7 +184,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		ev = event
 		lp.initFromDynamoDBStreamEvent(event)
 	case trigger.KinesisStreamEvent:
-		var event events.KinesisEvent
+		var event ddevents.KinesisEvent
 		if err := json.Unmarshal(payloadBytes, &event); err != nil {
 			log.Debugf("Failed to unmarshal %s event: %s", kinesis, err)
 			break

@@ -307,7 +307,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithEventBridgeEvent(eventPa
 // EnrichInferredSpanWithKinesisEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from a Kinesis event.
-func (inferredSpan *InferredSpan) EnrichInferredSpanWithKinesisEvent(eventPayload events.KinesisEvent) {
+func (inferredSpan *InferredSpan) EnrichInferredSpanWithKinesisEvent(eventPayload ddevents.KinesisEvent) {
 	eventRecord := eventPayload.Records[0]
 	eventSourceARN := eventRecord.EventSourceArn
 	parts := strings.Split(eventSourceARN, "/")

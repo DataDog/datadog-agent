@@ -818,7 +818,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromSQSEvent(t *testing.T) {
 }
 
 func TestEnrichInferredSpanWithKinesisEvent(t *testing.T) {
-	var kinesisRequest events.KinesisEvent
+	var kinesisRequest ddevents.KinesisEvent
 	_ = json.Unmarshal(getEventFromFile("kinesis.json"), &kinesisRequest)
 	inferredSpan := mockInferredSpan()
 	inferredSpan.EnrichInferredSpanWithKinesisEvent(kinesisRequest)
@@ -856,7 +856,7 @@ func TestRemapsAllInferredSpanServiceNamesFromKinesisEvent(t *testing.T) {
 	}
 	SetServiceMapping(newServiceMapping)
 	// Load the original event
-	var kinesisRequest events.KinesisEvent
+	var kinesisRequest ddevents.KinesisEvent
 	_ = json.Unmarshal(getEventFromFile("kinesis.json"), &kinesisRequest)
 
 	inferredSpan := mockInferredSpan()
@@ -892,7 +892,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromKinesisEvent(t *testing.T) {
 	}
 	SetServiceMapping(newServiceMapping)
 	// Load the original event
-	var kinesisRequest events.KinesisEvent
+	var kinesisRequest ddevents.KinesisEvent
 	_ = json.Unmarshal(getEventFromFile("kinesis.json"), &kinesisRequest)
 
 	inferredSpan := mockInferredSpan()
