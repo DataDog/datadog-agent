@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
 )
@@ -23,7 +22,7 @@ type dockerSuite struct {
 }
 
 func TestDocker(t *testing.T) {
-	e2e.Run(t, &dockerSuite{}, e2e.DockerStackDef(os.AMD64Arch), params.WithDevMode())
+	e2e.Run(t, &dockerSuite{}, e2e.DockerStackDef(os.AMD64Arch))
 }
 
 func (v *dockerSuite) TestExecuteCommand() {
