@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"path/filepath"
 	"sync"
@@ -193,7 +194,11 @@ func (p *EBPFLessProbe) handleNewClient(conn net.Conn, ch chan ebpfless.SyscallM
 		var msg ebpfless.SyscallMsg
 		for {
 			if err := p.readMsg(conn, &msg); err != nil {
-				seclog.Warnf("error while reading message: %v", err)
+				if errors.Is(err, io.EOF) {
+					seclog.Debugf("connection closed by client: %v", conn.RemoteAddr())
+				} else {
+					seclog.Warnf("error while reading message: %v", err)
+				}
 
 				p.Lock()
 				delete(p.clients, conn)
