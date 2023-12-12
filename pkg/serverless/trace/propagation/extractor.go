@@ -78,13 +78,13 @@ func (e Extractor) extract(event interface{}) (*TraceContext, error) {
 	switch ev := event.(type) {
 	case []byte:
 		carrier, err = rawPayloadCarrier(ev)
-	case events.SQSEvent:
+	case ddevents.SQSEvent:
 		// look for context in just the first message
 		if len(ev.Records) > 0 {
 			return e.extract(ev.Records[0])
 		}
 		return nil, errorNoSQSRecordFound
-	case events.SQSMessage:
+	case ddevents.SQSMessage:
 		if attr, ok := ev.Attributes[awsTraceHeader]; ok {
 			if tc, err := extractTraceContextfromAWSTraceHeader(attr); err == nil {
 				// Return early if AWSTraceHeader contains trace context

@@ -98,7 +98,7 @@ func ExtractSNSEventArn(event ddevents.SNSEvent) string {
 }
 
 // ExtractSQSEventARN returns an ARN from a SQSEvent
-func ExtractSQSEventARN(event events.SQSEvent) string {
+func ExtractSQSEventARN(event ddevents.SQSEvent) string {
 	return event.Records[0].EventSourceARN
 }
 

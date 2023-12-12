@@ -216,7 +216,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		ev = event
 		lp.initFromSNSEvent(event)
 	case trigger.SQSEvent:
-		var event events.SQSEvent
+		var event ddevents.SQSEvent
 		if err := json.Unmarshal(payloadBytes, &event); err != nil {
 			log.Debugf("Failed to unmarshal %s event: %s", sqs, err)
 			break

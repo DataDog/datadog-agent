@@ -124,10 +124,10 @@ var (
 	headersDdXray = "Root=1-00000000-00000000" + ddx.trace.asStr + ";Parent=" + ddx.span.asStr
 	headersXray   = "Root=1-12345678-12345678" + x.trace.asStr + ";Parent=" + x.span.asStr
 
-	eventSqsMessage = func(sqsHdrs, snsHdrs, awsHdr string) events.SQSMessage {
-		e := events.SQSMessage{}
+	eventSqsMessage = func(sqsHdrs, snsHdrs, awsHdr string) ddevents.SQSMessage {
+		e := ddevents.SQSMessage{}
 		if sqsHdrs != "" {
-			e.MessageAttributes = map[string]events.SQSMessageAttribute{
+			e.MessageAttributes = map[string]ddevents.SQSMessageAttribute{
 				"_datadog": {
 					DataType:    "String",
 					StringValue: aws.String(sqsHdrs),
@@ -197,8 +197,8 @@ func TestExtractorExtract(t *testing.T) {
 		{
 			name: "sqs-event-uses-first-record",
 			events: []interface{}{
-				events.SQSEvent{
-					Records: []events.SQSMessage{
+				ddevents.SQSEvent{
+					Records: []ddevents.SQSMessage{
 						// Uses the first message only
 						eventSqsMessage(headersDD, headersNone, headersNone),
 						eventSqsMessage(headersW3C, headersNone, headersNone),
@@ -211,8 +211,8 @@ func TestExtractorExtract(t *testing.T) {
 		{
 			name: "sqs-event-uses-first-record-empty",
 			events: []interface{}{
-				events.SQSEvent{
-					Records: []events.SQSMessage{
+				ddevents.SQSEvent{
+					Records: []ddevents.SQSMessage{
 						// Uses the first message only
 						eventSqsMessage(headersNone, headersNone, headersNone),
 						eventSqsMessage(headersW3C, headersNone, headersNone),
@@ -227,7 +227,7 @@ func TestExtractorExtract(t *testing.T) {
 		{
 			name: "unable-to-get-carrier",
 			events: []interface{}{
-				events.SQSMessage{Body: ""},
+				ddevents.SQSMessage{Body: ""},
 			},
 			expCtx:   nil,
 			expNoErr: false,

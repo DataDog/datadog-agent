@@ -724,7 +724,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromEventBridgeEvent(t *testing.T
 }
 
 func TestEnrichInferredSpanWithSQSEvent(t *testing.T) {
-	var sqsRequest events.SQSEvent
+	var sqsRequest ddevents.SQSEvent
 	_ = json.Unmarshal(getEventFromFile("sqs.json"), &sqsRequest)
 	inferredSpan := mockInferredSpan()
 	inferredSpan.EnrichInferredSpanWithSQSEvent(sqsRequest)
@@ -760,7 +760,7 @@ func TestRemapsAllInferredSpanServiceNamesFromSQSEvent(t *testing.T) {
 	}
 	SetServiceMapping(newServiceMapping)
 	// Load the original event
-	var sqsRequest events.SQSEvent
+	var sqsRequest ddevents.SQSEvent
 	_ = json.Unmarshal(getEventFromFile("sqs.json"), &sqsRequest)
 
 	inferredSpan := mockInferredSpan()
@@ -796,7 +796,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromSQSEvent(t *testing.T) {
 	}
 	SetServiceMapping(newServiceMapping)
 	// Load the original event
-	var sqsRequest events.SQSEvent
+	var sqsRequest ddevents.SQSEvent
 	_ = json.Unmarshal(getEventFromFile("sqs.json"), &sqsRequest)
 
 	inferredSpan := mockInferredSpan()

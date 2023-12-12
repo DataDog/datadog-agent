@@ -143,7 +143,7 @@ func (lp *LifecycleProcessor) initFromSNSEvent(event ddevents.SNSEvent) {
 	lp.addTag(tagFunctionTriggerEventSourceArn, trigger.ExtractSNSEventArn(event))
 }
 
-func (lp *LifecycleProcessor) initFromSQSEvent(event events.SQSEvent) {
+func (lp *LifecycleProcessor) initFromSQSEvent(event ddevents.SQSEvent) {
 	if !lp.DetectLambdaLibrary() && lp.InferredSpansEnabled {
 		lp.GetInferredSpan().EnrichInferredSpanWithSQSEvent(event)
 	}

@@ -262,7 +262,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithS3Event(eventPayload dde
 // EnrichInferredSpanWithSQSEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from an SQS event.
-func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload events.SQSEvent) {
+func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload ddevents.SQSEvent) {
 	eventRecord := eventPayload.Records[0]
 	splitArn := strings.Split(eventRecord.EventSourceARN, ":")
 	parsedQueueName := splitArn[len(splitArn)-1]

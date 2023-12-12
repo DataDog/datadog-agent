@@ -172,3 +172,21 @@ type SNSEntity struct {
 	Timestamp time.Time
 	Subject   string
 }
+
+type SQSEvent struct {
+	Records []SQSMessage
+}
+
+type SQSMessage struct {
+	ReceiptHandle     string
+	Body              string
+	Attributes        map[string]string
+	MessageAttributes map[string]SQSMessageAttribute
+	EventSourceARN    string
+}
+
+type SQSMessageAttribute struct {
+	StringValue *string
+	BinaryValue []byte
+	DataType    string
+}

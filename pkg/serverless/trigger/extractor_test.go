@@ -213,8 +213,8 @@ func TestExtractSNSEventArn(t *testing.T) {
 }
 
 func TestExtractSQSEventARN(t *testing.T) {
-	event := events.SQSEvent{
-		Records: []events.SQSMessage{
+	event := ddevents.SQSEvent{
+		Records: []ddevents.SQSMessage{
 			{
 				EventSourceARN: "test-arn",
 			},
