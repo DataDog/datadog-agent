@@ -8,6 +8,7 @@
 package http2
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -22,25 +23,43 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
-// Path returns the URL from the request fragment captured in eBPF.
-func (tx *EbpfTx) Path(buffer []byte) ([]byte, bool) {
-	if tx.Stream.Path_size == 0 || int(tx.Stream.Path_size) > len(tx.Stream.Request_path) {
-		return nil, false
+// decodeHTTP2Path tries to decode (Huffman) the path from the given buffer.
+// Possible errors:
+// - If the given pathSize is 0.
+// - If the given pathSize is larger than the buffer size.
+// - If the Huffman decoding fails.
+// - If the decoded path doesn't start with a '/'.
+func decodeHTTP2Path(buf [maxHTTP2Path]byte, pathSize uint8) ([]byte, error) {
+	if pathSize == 0 {
+		return nil, errors.New("empty path")
+	}
+	if pathSize > maxHTTP2Path {
+		return nil, fmt.Errorf("path too long: %d", pathSize)
 	}
 
-	// trim null byte + after
-	str, err := hpack.HuffmanDecodeToString(tx.Stream.Request_path[:tx.Stream.Path_size])
+	str, err := hpack.HuffmanDecodeToString(buf[:pathSize])
+	if err != nil {
+		return nil, err
+	}
+
+	if len(str) == 0 {
+		return nil, errors.New("decoded path is an empty path")
+	}
+	// ensure we found a '/' in the beginning of the path
+	if str[0] != '/' {
+		return nil, fmt.Errorf("decoded path '%s' doesn't start with '/'", str)
+	}
+
+	return []byte(str), nil
+}
+
+// Path returns the URL from the request fragment captured in eBPF.
+func (tx *EbpfTx) Path(buffer []byte) ([]byte, bool) {
+	res, err := decodeHTTP2Path(tx.Stream.Request_path, tx.Stream.Path_size)
 	if err != nil {
 		return nil, false
 	}
-
-	// ensure we found a '/' in the beginning of the path
-	if len(str) == 0 || str[0] != '/' {
-		return nil, false
-	}
-
-	n := copy(buffer, str)
-	// indicate if we knowingly captured the entire path
+	n := copy(buffer, res)
 	return buffer[:n], true
 }
 
