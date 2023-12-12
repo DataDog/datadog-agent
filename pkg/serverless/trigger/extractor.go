@@ -46,7 +46,7 @@ func ExtractAPIGatewayWebSocketEventARN(event ddevents.APIGatewayWebsocketProxyR
 }
 
 // ExtractAPIGatewayCustomAuthorizerEventARN returns an ARN from an APIGatewayCustomAuthorizerRequest
-func ExtractAPIGatewayCustomAuthorizerEventARN(event events.APIGatewayCustomAuthorizerRequest) string {
+func ExtractAPIGatewayCustomAuthorizerEventARN(event ddevents.APIGatewayCustomAuthorizerRequest) string {
 	return event.MethodArn
 }
 
@@ -148,7 +148,7 @@ func GetTagsFromAPIGatewayV2HTTPRequest(event ddevents.APIGatewayV2HTTPRequest) 
 
 // GetTagsFromAPIGatewayCustomAuthorizerEvent returns a tagset containing http tags from an
 // APIGatewayCustomAuthorizerRequest
-func GetTagsFromAPIGatewayCustomAuthorizerEvent(event events.APIGatewayCustomAuthorizerRequest) map[string]string {
+func GetTagsFromAPIGatewayCustomAuthorizerEvent(event ddevents.APIGatewayCustomAuthorizerRequest) map[string]string {
 	httpTags := make(map[string]string, 2)
 
 	if methodArn, err := arn.Parse(event.MethodArn); err == nil {

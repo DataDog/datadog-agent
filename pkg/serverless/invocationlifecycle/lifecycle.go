@@ -136,7 +136,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		ev = event
 		lp.initFromAPIGatewayWebsocketEvent(event, region)
 	case trigger.APIGatewayLambdaAuthorizerTokenEvent:
-		var event events.APIGatewayCustomAuthorizerRequest
+		var event ddevents.APIGatewayCustomAuthorizerRequest
 		if err := json.Unmarshal(payloadBytes, &event); err != nil {
 			log.Debugf("Failed to unmarshal %s event: %s", apiGateway, err)
 			break

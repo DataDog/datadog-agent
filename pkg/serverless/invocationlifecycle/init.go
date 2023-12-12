@@ -58,7 +58,7 @@ func (lp *LifecycleProcessor) initFromAPIGatewayWebsocketEvent(event ddevents.AP
 	lp.addTag(tagFunctionTriggerEventSourceArn, trigger.ExtractAPIGatewayWebSocketEventARN(event, region))
 }
 
-func (lp *LifecycleProcessor) initFromAPIGatewayLambdaAuthorizerTokenEvent(event events.APIGatewayCustomAuthorizerRequest) {
+func (lp *LifecycleProcessor) initFromAPIGatewayLambdaAuthorizerTokenEvent(event ddevents.APIGatewayCustomAuthorizerRequest) {
 	lp.requestHandler.event = event
 	lp.addTag(tagFunctionTriggerEventSource, apiGateway)
 	lp.addTag(tagFunctionTriggerEventSourceArn, trigger.ExtractAPIGatewayCustomAuthorizerEventARN(event))

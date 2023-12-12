@@ -57,3 +57,9 @@ type APIGatewayWebsocketProxyRequestContext struct {
 	RequestTimeEpoch int64
 	RouteKey         string
 }
+
+type APIGatewayCustomAuthorizerRequest struct {
+	Type               string
+	AuthorizationToken string
+	MethodArn          string
+}
