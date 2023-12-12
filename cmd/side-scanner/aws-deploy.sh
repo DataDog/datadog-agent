@@ -166,6 +166,10 @@ Resources:
           Effect: Allow
           Resource: arn:aws:lambda:*:*:function:*
           Sid: GetLambdaDetails
+        - Action: ec2:DescribeInstances
+          Effect: Allow
+          Resource: '*'
+          Sid: DatadogSideScannerOfflineMode
 
   DatalogSideScannerInstanceProfile:
     Type: AWS::IAM::InstanceProfile
