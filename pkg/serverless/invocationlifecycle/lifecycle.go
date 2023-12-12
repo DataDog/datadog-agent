@@ -192,7 +192,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		ev = event
 		lp.initFromKinesisStreamEvent(event)
 	case trigger.EventBridgeEvent:
-		var event inferredspan.EventBridgeEvent
+		var event ddevents.EventBridgeEvent
 		if err := json.Unmarshal(payloadBytes, &event); err != nil {
 			log.Debugf("Failed to unmarshal %s event: %s", eventBridge, err)
 			break

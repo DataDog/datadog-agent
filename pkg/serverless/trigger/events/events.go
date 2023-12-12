@@ -137,3 +137,9 @@ type KinesisRecord struct {
 	ApproximateArrivalTimestamp events.SecondsEpochTime
 	PartitionKey                string
 }
+
+type EventBridgeEvent struct {
+	DetailType string `json:"detail-type"`
+	Source     string
+	StartTime  string
+}

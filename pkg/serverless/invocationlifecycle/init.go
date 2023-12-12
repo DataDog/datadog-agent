@@ -107,7 +107,7 @@ func (lp *LifecycleProcessor) initFromDynamoDBStreamEvent(event ddevents.DynamoD
 	lp.addTag(tagFunctionTriggerEventSourceArn, trigger.ExtractDynamoDBStreamEventARN(event))
 }
 
-func (lp *LifecycleProcessor) initFromEventBridgeEvent(event inferredspan.EventBridgeEvent) {
+func (lp *LifecycleProcessor) initFromEventBridgeEvent(event ddevents.EventBridgeEvent) {
 	lp.requestHandler.event = event
 	lp.addTag(tagFunctionTriggerEventSource, eventBridge)
 	lp.addTag(tagFunctionTriggerEventSourceArn, event.Source)

@@ -633,7 +633,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromS3Event(t *testing.T) {
 }
 
 func TestEnrichInferredSpanWithEventBridgeEvent(t *testing.T) {
-	var eventBridgeEvent EventBridgeEvent
+	var eventBridgeEvent ddevents.EventBridgeEvent
 	_ = json.Unmarshal(getEventFromFile("eventbridge-custom.json"), &eventBridgeEvent)
 	inferredSpan := mockInferredSpan()
 	inferredSpan.EnrichInferredSpanWithEventBridgeEvent(eventBridgeEvent)
@@ -647,6 +647,7 @@ func TestEnrichInferredSpanWithEventBridgeEvent(t *testing.T) {
 	assert.Equal(t, "web", span.Type)
 	assert.Equal(t, "aws.eventbridge", span.Meta[operationName])
 	assert.Equal(t, "eventbridge.custom.event.sender", span.Meta[resourceNames])
+	assert.Equal(t, "testdetail", span.Meta[detailType])
 	assert.True(t, inferredSpan.IsAsync)
 }
 
@@ -664,7 +665,7 @@ func TestRemapsAllInferredSpanServiceNamesFromEventBridgeEvent(t *testing.T) {
 	}
 	SetServiceMapping(newServiceMapping)
 	// Load the original event
-	var eventBridgeEvent EventBridgeEvent
+	var eventBridgeEvent ddevents.EventBridgeEvent
 	_ = json.Unmarshal(getEventFromFile("eventbridge-custom.json"), &eventBridgeEvent)
 
 	inferredSpan := mockInferredSpan()
@@ -700,7 +701,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromEventBridgeEvent(t *testing.T
 	}
 	SetServiceMapping(newServiceMapping)
 	// Load the original event
-	var eventBridgeEvent EventBridgeEvent
+	var eventBridgeEvent ddevents.EventBridgeEvent
 	_ = json.Unmarshal(getEventFromFile("eventbridge-custom.json"), &eventBridgeEvent)
 
 	inferredSpan := mockInferredSpan()

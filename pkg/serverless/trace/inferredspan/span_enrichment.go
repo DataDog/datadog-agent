@@ -288,7 +288,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload ev
 // EnrichInferredSpanWithEventBridgeEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from an EventBridge event.
-func (inferredSpan *InferredSpan) EnrichInferredSpanWithEventBridgeEvent(eventPayload EventBridgeEvent) {
+func (inferredSpan *InferredSpan) EnrichInferredSpanWithEventBridgeEvent(eventPayload ddevents.EventBridgeEvent) {
 	source := eventPayload.Source
 	serviceName := DetermineServiceName(serviceMapping, source, "lambda_eventbridge", "eventbridge")
 	inferredSpan.IsAsync = true
