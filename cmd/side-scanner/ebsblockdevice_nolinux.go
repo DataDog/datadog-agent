@@ -18,13 +18,12 @@ import (
 // EBSBlockDeviceOptions represents the options of the EBS block device.
 type EBSBlockDeviceOptions struct {
 	EBSClient   *ebs.Client
-	Name        string
 	DeviceName  string
-	Description string
 	SnapshotARN arn.ARN
+	RunClient   bool
 }
 
-// SetupEBSBlockDevice sets up the EBS block device.
-func SetupEBSBlockDevice(_ context.Context, _ EBSBlockDeviceOptions) error {
+// NewEBSBlockDevice sets up the EBS block device.
+func NewEBSBlockDevice(_ EBSBlockDeviceOptions) error {
 	return fmt.Errorf("ebsblockdevice: not supported on this platform")
 }
