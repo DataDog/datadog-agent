@@ -128,7 +128,11 @@ func (is *stepByStepSuite) ConfigureAndRunAgentService(VMclient *common.TestClie
 	is.T().Run("add config file", func(t *testing.T) {
 		ExecuteWithoutError(t, VMclient, "sudo sh -c \"sed 's/api_key:.*/api_key: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/' /etc/datadog-agent/datadog.yaml.example > /etc/datadog-agent/datadog.yaml\"")
 		ExecuteWithoutError(t, VMclient, "sudo sh -c \"chown dd-agent:dd-agent /etc/datadog-agent/datadog.yaml && chmod 640 /etc/datadog-agent/datadog.yaml\"")
-		ExecuteWithoutError(t, VMclient, "sudo systemctl restart datadog-agent.service")
+		if *platform == "ubuntu" && is.osVersion == 14.04 {
+			ExecuteWithoutError(t, VMclient, "sudo start datadog-agent")
+		} else {
+			ExecuteWithoutError(t, VMclient, "sudo systemctl restart datadog-agent.service")
+		}
 	})
 }
 
@@ -193,12 +197,6 @@ func (is *stepByStepSuite) StepByStepRhelTest(VMclient *common.TestClient) {
 		os.Getenv("CI_PIPELINE_ID"), *majorVersion, *majorVersion, arch)
 	fileManager := VMclient.FileManager
 	var err error
-
-	if *platform == "centos" && is.cwsSupported {
-		is.T().Run("set SElinux to permissive mode to be able to start system-probe", func(t *testing.T) {
-			ExecuteWithoutError(t, VMclient, "setenforce 0")
-		})
-	}
 
 	var protocol = "https"
 	if is.osVersion < 6 {
