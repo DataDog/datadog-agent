@@ -18,8 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 // team: container-integrations
@@ -35,12 +33,4 @@ type Component interface {
 	GetEntity(entityID string) (*types.Entity, error)
 	Subscribe(cardinality collectors.TagCardinality) chan []types.EntityEvent
 	Unsubscribe(ch chan []types.EntityEvent)
-}
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(
-			newTaggerClient,
-		))
 }

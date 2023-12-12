@@ -288,7 +288,8 @@ func getSharedFxOption() fx.Option {
 			}
 
 			return workloadmeta.Params{
-				AgentType: agentType,
+				AgentType:  agentType,
+				InitHelper: common.GetWorkloadmetaInit(),
 			}
 		}),
 		workloadmeta.Module(),

@@ -142,7 +142,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			}
 			return tagger.Params{AgentTypeForTagger: tagger.LocalTaggerAgent}
 		}),
-		tagger.Module,
+		tagger.Module(),
 
 		// Allows for debug logging of fx components if the `TRACE_FX` environment variable is set
 		fxutil.FxLoggingOption(),

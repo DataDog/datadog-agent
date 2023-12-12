@@ -116,7 +116,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						AgentType: catalog,
 					}
 				}),
-				tagger.Module,
+				tagger.Module(),
 				fx.Provide(func(config config.Component) tagger.Params {
 					if config.GetBool("security_agent.remote_tagger") {
 						return tagger.Params{AgentTypeForTagger: tagger.NodeRemoteTaggerAgent}

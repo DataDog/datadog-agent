@@ -105,7 +105,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					return workloadmeta.Params{AgentType: catalog}
 				}),
 
-				processComponent.Bundle(),
 				// Tagger must be initialized after agent config has been setup
 				fx.Provide(func(c config.Component) tagger.Params {
 					if c.GetBool("process_config.remote_tagger") {

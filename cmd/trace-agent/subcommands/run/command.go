@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	corelogimpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
@@ -77,7 +78,8 @@ func runTraceAgentProcess(ctx context.Context, cliParams *RunParams, defaultConf
 		// setup workloadmeta
 		collectors.GetCatalog(),
 		fx.Supply(workloadmeta.Params{
-			AgentType: workloadmeta.NodeAgent,
+			AgentType:  workloadmeta.NodeAgent,
+			InitHelper: common.GetWorkloadmetaInit(),
 		}),
 		workloadmeta.Module(),
 		statsd.Module(),

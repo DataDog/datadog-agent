@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.uber.org/fx"
 )
@@ -38,6 +39,14 @@ type dependencies struct {
 	Context context.Context
 	Wmeta   workloadmeta.Component `optional:"true"`
 	Params  Params
+}
+
+// Module defines the fx options for this component.
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(
+			newTaggerClient,
+		))
 }
 
 // TaggerClient is a component that contains two tagger component: capturetagger and defaulttagger

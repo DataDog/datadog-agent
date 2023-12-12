@@ -17,6 +17,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -128,6 +129,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 
 			return workloadmeta.Params{
 				AgentType:  catalog,
+				InitHelper: common.GetWorkloadmetaInit(),
 				NoInstance: !instantiate,
 			}
 		}),

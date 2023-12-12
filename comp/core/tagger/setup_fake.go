@@ -34,10 +34,10 @@ func GetDefaultTagger(taggerClient Component) Component {
 func SetupFakeTagger(t *testing.T) *local.FakeTagger {
 	// taggerClient is a global variable that is set by the fxutil.Test function
 	taggerClient := fxutil.Test[Component](t,
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Supply(NewFakeTaggerParams()),
 		fx.Provide(func() context.Context { return context.TODO() }),
-		Module,
+		Module(),
 	)
 	fakeTagger := GetDefaultTagger(taggerClient).(*local.FakeTagger)
 	return fakeTagger

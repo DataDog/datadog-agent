@@ -80,7 +80,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				// setup workloadmeta
 				collectors.GetCatalog(),
-				fx.Supply(workloadmeta.NewParams()),
+				fx.Supply(workloadmeta.Params{
+					InitHelper: common.GetWorkloadmetaInit(),
+				}), // TODO(components): check what this must be for cluster-agent-cloudfoundry
 				workloadmeta.Module(),
 				fx.Provide(func(config config.Component) tagger.Params {
 					if pkgconfig.IsCLCRunner() {
