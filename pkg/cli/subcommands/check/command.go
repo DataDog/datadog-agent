@@ -166,6 +166,9 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					return demultiplexer.Params{Options: opts}
 				}),
 
+				// TODO(components): this is a temporary hack as the StartServer() method of the API package was previously called with nil arguments
+				// This highlights the fact that the API Server created by JMX (through ExecJmx... function) should be different from the ones created
+				// in others commands such as run.
 				fx.Provide(func() flare.Component { return nil }),
 				fx.Provide(func() server.Component { return nil }),
 				fx.Provide(func() replay.Component { return nil }),
