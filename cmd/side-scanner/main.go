@@ -1825,7 +1825,7 @@ func scanEBS(ctx context.Context, scan *scanTask, diskMode diskMode, resultsCh c
 		attachedVolumeARN = &volumeARN
 	case nbdAttach:
 		ebsclient := ebs.NewFromConfig(cfg)
-		device, cleanupAttach, err = attachSnapshotWithNBD(ctx, scan, snapshotARN, ebsclient)
+		device, cleanupAttach, err = attachSnapshotWithNBD(ctx, snapshotARN, ebsclient)
 		defer func() {
 			cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
 			defer cancel()
@@ -1890,7 +1890,7 @@ func scanEBS(ctx context.Context, scan *scanTask, diskMode diskMode, resultsCh c
 	return nil
 }
 
-func attachSnapshotWithNBD(ctx context.Context, scan *scanTask, snapshotARN arn.ARN, ebsclient *ebs.Client) (string, func(context.Context), error) {
+func attachSnapshotWithNBD(ctx context.Context, snapshotARN arn.ARN, ebsclient *ebs.Client) (string, func(context.Context), error) {
 	ctx, cancel := context.WithCancel(ctx)
 	device := nextNBDDevice()
 	ebsnbd := NewEBSBlockDevice(EBSBlockDeviceOptions{

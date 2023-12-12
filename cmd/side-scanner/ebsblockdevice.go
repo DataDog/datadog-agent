@@ -56,6 +56,7 @@ type EBSBlockDeviceOptions struct {
 	RunClient   bool
 }
 
+// EBSBlockDevice is used to create an EBS block device using NBD.
 type EBSBlockDevice struct {
 	EBSBlockDeviceOptions
 	wg sync.WaitGroup
@@ -68,6 +69,7 @@ func NewEBSBlockDevice(opts EBSBlockDeviceOptions) EBSBlockDevice {
 	}
 }
 
+// Start runs the NBD server and client if required.
 func (bd *EBSBlockDevice) Start(ctx context.Context) error {
 	_, err := os.Stat(bd.DeviceName)
 	if err != nil {
@@ -104,6 +106,8 @@ func (bd *EBSBlockDevice) Start(ctx context.Context) error {
 	return nil
 }
 
+// WaitCleanup waits after context has been canceled for a complete cleanup of
+// the running NBD server and client.
 func (bd *EBSBlockDevice) WaitCleanup() {
 	bd.wg.Wait()
 }
@@ -164,7 +168,7 @@ func (bd *EBSBlockDevice) startServer(ctx context.Context, ready chan<- error) {
 		ready <- fmt.Errorf("ebsblockdevice: could not list to %q: %w", addr, err)
 		return
 	}
-	if err := os.Chmod(addr, 700); err != nil {
+	if err := os.Chmod(addr, 0700); err != nil {
 		ready <- fmt.Errorf("ebsblockdevice: could not chmod %q: %w", addr, err)
 		return
 	}
