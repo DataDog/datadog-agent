@@ -20,7 +20,7 @@ def generate_random_tags(min_tags, max_tags):
     return tags
 
 class MyCheck(AgentCheck):
-    def check(self, instance):
+    def check(self, _):
         total_tags = 0
 
         for _ in range(10):
