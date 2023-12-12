@@ -915,7 +915,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromKinesisEvent(t *testing.T) {
 }
 
 func TestEnrichInferredSpanWithDynamoDBEvent(t *testing.T) {
-	var dynamoRequest events.DynamoDBEvent
+	var dynamoRequest ddevents.DynamoDBEvent
 	_ = json.Unmarshal(getEventFromFile("dynamodb.json"), &dynamoRequest)
 	inferredSpan := mockInferredSpan()
 	inferredSpan.EnrichInferredSpanWithDynamoDBEvent(dynamoRequest)
@@ -953,7 +953,7 @@ func TestRemapsAllInferredSpanServiceNamesFromDynamoDBEvent(t *testing.T) {
 	}
 	SetServiceMapping(newServiceMapping)
 	// Load the original event
-	var dynamoRequest events.DynamoDBEvent
+	var dynamoRequest ddevents.DynamoDBEvent
 	_ = json.Unmarshal(getEventFromFile("dynamodb.json"), &dynamoRequest)
 
 	inferredSpan := mockInferredSpan()
@@ -989,7 +989,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromDynamoDBEvent(t *testing.T) {
 	}
 	SetServiceMapping(newServiceMapping)
 	// Load the original event
-	var dynamoRequest events.DynamoDBEvent
+	var dynamoRequest ddevents.DynamoDBEvent
 	_ = json.Unmarshal(getEventFromFile("dynamodb.json"), &dynamoRequest)
 
 	inferredSpan := mockInferredSpan()

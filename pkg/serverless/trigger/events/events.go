@@ -1,6 +1,8 @@
 package events
 
-import "github.com/aws/aws-lambda-go/events"
+import (
+	"github.com/aws/aws-lambda-go/events"
+)
 
 type APIGatewayProxyRequest struct {
 	Resource       string
@@ -99,4 +101,22 @@ type CloudWatchEvent struct {
 
 type CloudwatchLogsEvent struct {
 	AWSLogs events.CloudwatchLogsRawData
+}
+
+type DynamoDBEvent struct {
+	Records []DynamoDBEventRecord
+}
+
+type DynamoDBEventRecord struct {
+	Change         DynamoDBStreamRecord `json:"dynamodb"`
+	EventID        string
+	EventName      string
+	EventVersion   string
+	EventSourceArn string
+}
+
+type DynamoDBStreamRecord struct {
+	ApproximateCreationDateTime events.SecondsEpochTime
+	SizeBytes                   int64
+	StreamViewType              string
 }

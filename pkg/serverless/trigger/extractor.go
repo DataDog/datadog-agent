@@ -78,7 +78,7 @@ func ExtractCloudwatchLogsEventARN(event ddevents.CloudwatchLogsEvent, region st
 }
 
 // ExtractDynamoDBStreamEventARN returns an ARN from a DynamoDBEvent
-func ExtractDynamoDBStreamEventARN(event events.DynamoDBEvent) string {
+func ExtractDynamoDBStreamEventARN(event ddevents.DynamoDBEvent) string {
 	return event.Records[0].EventSourceArn
 }
 

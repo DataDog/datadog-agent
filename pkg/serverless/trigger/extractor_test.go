@@ -145,8 +145,8 @@ func TestExtractCloudwatchLogsEventARN(t *testing.T) {
 }
 
 func TestExtractDynamoDBStreamEventARN(t *testing.T) {
-	event := events.DynamoDBEvent{
-		Records: []events.DynamoDBEventRecord{
+	event := ddevents.DynamoDBEvent{
+		Records: []ddevents.DynamoDBEventRecord{
 			{
 				EventSourceArn: "test-arn",
 			},

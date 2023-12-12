@@ -97,7 +97,7 @@ func (lp *LifecycleProcessor) initFromCloudWatchLogsEvent(event ddevents.Cloudwa
 	lp.addTag(tagFunctionTriggerEventSourceArn, arn)
 }
 
-func (lp *LifecycleProcessor) initFromDynamoDBStreamEvent(event events.DynamoDBEvent) {
+func (lp *LifecycleProcessor) initFromDynamoDBStreamEvent(event ddevents.DynamoDBEvent) {
 	if !lp.DetectLambdaLibrary() && lp.InferredSpansEnabled {
 		lp.GetInferredSpan().EnrichInferredSpanWithDynamoDBEvent(event)
 	}

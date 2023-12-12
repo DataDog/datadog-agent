@@ -176,7 +176,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		ev = event
 		lp.initFromCloudWatchLogsEvent(event, region, account)
 	case trigger.DynamoDBStreamEvent:
-		var event events.DynamoDBEvent
+		var event ddevents.DynamoDBEvent
 		if err := json.Unmarshal(payloadBytes, &event); err != nil {
 			log.Debugf("Failed to unmarshal %s event: %s", dynamoDB, err)
 			break
