@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-lambda-go/events"
 	"github.com/stretchr/testify/assert"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -259,7 +258,7 @@ func TestEnrichInferredSpanWithAPIGatewayHTTPEvent(t *testing.T) {
 }
 
 func TestEnrichInferredSpanWithLambdaFunctionURLEventt(t *testing.T) {
-	var apiGatewayHTTPEvent events.LambdaFunctionURLRequest
+	var apiGatewayHTTPEvent ddevents.LambdaFunctionURLRequest
 	_ = json.Unmarshal(getEventFromFile("http-api.json"), &apiGatewayHTTPEvent)
 	inferredSpan := mockInferredSpan()
 	inferredSpan.EnrichInferredSpanWithLambdaFunctionURLEvent(apiGatewayHTTPEvent)

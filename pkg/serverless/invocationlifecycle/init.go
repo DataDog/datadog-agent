@@ -15,8 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	ddevents "github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 
-	"github.com/aws/aws-lambda-go/events"
-
 	"github.com/DataDog/datadog-agent/pkg/serverless/trigger"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -182,7 +180,7 @@ func (lp *LifecycleProcessor) initFromSQSEvent(event ddevents.SQSEvent) {
 
 }
 
-func (lp *LifecycleProcessor) initFromLambdaFunctionURLEvent(event events.LambdaFunctionURLRequest, region string, accountID string, functionName string) {
+func (lp *LifecycleProcessor) initFromLambdaFunctionURLEvent(event ddevents.LambdaFunctionURLRequest, region string, accountID string, functionName string) {
 	lp.requestHandler.event = event
 	if !lp.DetectLambdaLibrary() && lp.InferredSpansEnabled {
 		lp.GetInferredSpan().EnrichInferredSpanWithLambdaFunctionURLEvent(event)

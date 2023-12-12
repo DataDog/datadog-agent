@@ -190,3 +190,24 @@ type SQSMessageAttribute struct {
 	BinaryValue []byte
 	DataType    string
 }
+
+type LambdaFunctionURLRequest struct {
+	Headers        map[string]string
+	RequestContext LambdaFunctionURLRequestContext
+}
+
+type LambdaFunctionURLRequestContext struct {
+	RequestID  string
+	APIID      string
+	DomainName string
+	TimeEpoch  int64
+	HTTP       LambdaFunctionURLRequestContextHTTPDescription
+}
+
+type LambdaFunctionURLRequestContextHTTPDescription struct {
+	Method    string
+	Path      string
+	Protocol  string
+	SourceIP  string
+	UserAgent string
+}

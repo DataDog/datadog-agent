@@ -354,14 +354,14 @@ func TestGetTagsFromALBTargetGroupRequest(t *testing.T) {
 }
 
 func TestGetTagsFromFunctionURLRequest(t *testing.T) {
-	event := events.LambdaFunctionURLRequest{
+	event := ddevents.LambdaFunctionURLRequest{
 		Headers: map[string]string{
 			"key":     "val",
 			"Referer": "referer",
 		},
-		RequestContext: events.LambdaFunctionURLRequestContext{
+		RequestContext: ddevents.LambdaFunctionURLRequestContext{
 			DomainName: "test-domain",
-			HTTP: events.LambdaFunctionURLRequestContextHTTPDescription{
+			HTTP: ddevents.LambdaFunctionURLRequestContextHTTPDescription{
 				Path:   "asd",
 				Method: "GET",
 			},

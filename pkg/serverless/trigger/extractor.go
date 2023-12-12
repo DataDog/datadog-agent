@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	ddevents "github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
-	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 )
 
@@ -202,7 +201,7 @@ func GetTagsFromALBTargetGroupRequest(event ddevents.ALBTargetGroupRequest) map[
 
 // GetTagsFromLambdaFunctionURLRequest returns a tagset containing http tags from a
 // LambdaFunctionURLRequest
-func GetTagsFromLambdaFunctionURLRequest(event events.LambdaFunctionURLRequest) map[string]string {
+func GetTagsFromLambdaFunctionURLRequest(event ddevents.LambdaFunctionURLRequest) map[string]string {
 	httpTags := make(map[string]string)
 	if event.RequestContext.DomainName != "" {
 		httpTags["http.url"] = event.RequestContext.DomainName

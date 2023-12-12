@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	ddevents "github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/aws/aws-lambda-go/events"
 )
 
 // Define and initialize serviceMapping as a global variable.
@@ -137,7 +136,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayHTTPEvent(even
 // EnrichInferredSpanWithLambdaFunctionURLEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from a Lambda Function URL event.
-func (inferredSpan *InferredSpan) EnrichInferredSpanWithLambdaFunctionURLEvent(eventPayload events.LambdaFunctionURLRequest) {
+func (inferredSpan *InferredSpan) EnrichInferredSpanWithLambdaFunctionURLEvent(eventPayload ddevents.LambdaFunctionURLRequest) {
 	log.Debug("Enriching an inferred span for a Lambda Function URL")
 	requestContext := eventPayload.RequestContext
 	http := requestContext.HTTP

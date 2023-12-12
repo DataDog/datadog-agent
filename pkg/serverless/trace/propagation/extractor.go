@@ -14,7 +14,6 @@ import (
 	ddevents "github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/aws/aws-lambda-go/events"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
@@ -102,7 +101,7 @@ func (e Extractor) extract(event interface{}) (*TraceContext, error) {
 		carrier, err = headersCarrier(ev.Headers)
 	case ddevents.ALBTargetGroupRequest:
 		carrier, err = headersCarrier(ev.Headers)
-	case events.LambdaFunctionURLRequest:
+	case ddevents.LambdaFunctionURLRequest:
 		carrier, err = headersCarrier(ev.Headers)
 	default:
 		err = errorUnsupportedExtractionType

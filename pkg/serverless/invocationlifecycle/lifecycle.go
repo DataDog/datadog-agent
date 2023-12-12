@@ -12,8 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-lambda-go/events"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
@@ -224,7 +222,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		ev = event
 		lp.initFromSQSEvent(event)
 	case trigger.LambdaFunctionURLEvent:
-		var event events.LambdaFunctionURLRequest
+		var event ddevents.LambdaFunctionURLRequest
 		if err := json.Unmarshal(payloadBytes, &event); err != nil && arnParseErr != nil {
 			log.Debugf("Failed to unmarshal %s event: %s", functionURL, err)
 			break
