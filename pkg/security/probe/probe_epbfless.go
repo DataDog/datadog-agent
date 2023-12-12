@@ -19,6 +19,8 @@ import (
 	"github.com/vmihailenco/msgpack/v5"
 	"google.golang.org/grpc"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
@@ -30,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/util/native"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 type client struct {
@@ -200,8 +201,6 @@ func (p *EBPFLessProbe) handleNewClient(conn net.Conn, ch chan ebpfless.SyscallM
 
 				return
 			}
-
-			fmt.Printf("MSG: %+v\n", msg)
 
 			ch <- msg
 
