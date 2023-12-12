@@ -341,7 +341,7 @@ func TestExtractorExtract(t *testing.T) {
 		{
 			name: "ALBTargetGroupRequest",
 			events: []interface{}{
-				events.ALBTargetGroupRequest{
+				ddevents.ALBTargetGroupRequest{
 					Headers: headersMapAll,
 				},
 			},

@@ -56,7 +56,7 @@ func ExtractAPIGatewayCustomAuthorizerRequestTypeEventARN(event ddevents.APIGate
 }
 
 // ExtractAlbEventARN returns an ARN from an ALBTargetGroupRequest
-func ExtractAlbEventARN(event events.ALBTargetGroupRequest) string {
+func ExtractAlbEventARN(event ddevents.ALBTargetGroupRequest) string {
 	return event.RequestContext.ELB.TargetGroupArn
 }
 
@@ -185,7 +185,7 @@ func GetTagsFromAPIGatewayCustomAuthorizerRequestTypeEvent(event ddevents.APIGat
 
 // GetTagsFromALBTargetGroupRequest returns a tagset containing http tags from an
 // ALBTargetGroupRequest
-func GetTagsFromALBTargetGroupRequest(event events.ALBTargetGroupRequest) map[string]string {
+func GetTagsFromALBTargetGroupRequest(event ddevents.ALBTargetGroupRequest) map[string]string {
 	httpTags := make(map[string]string)
 	httpTags["http.url_details.path"] = event.Path
 	httpTags["http.method"] = event.HTTPMethod

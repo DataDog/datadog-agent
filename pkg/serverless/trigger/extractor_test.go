@@ -80,9 +80,9 @@ func TestExtractAPIGatewayCustomAuthorizerRequestTypeEventARN(t *testing.T) {
 }
 
 func TestExtractAlbEventARN(t *testing.T) {
-	event := events.ALBTargetGroupRequest{
-		RequestContext: events.ALBTargetGroupRequestContext{
-			ELB: events.ELBContext{
+	event := ddevents.ALBTargetGroupRequest{
+		RequestContext: ddevents.ALBTargetGroupRequestContext{
+			ELB: ddevents.ELBContext{
 				TargetGroupArn: "test-arn",
 			},
 		},
@@ -335,7 +335,7 @@ func TestGetTagsFromAPIGatewayCustomAuthorizerRequestTypeEvent(t *testing.T) {
 }
 
 func TestGetTagsFromALBTargetGroupRequest(t *testing.T) {
-	event := events.ALBTargetGroupRequest{
+	event := ddevents.ALBTargetGroupRequest{
 		Headers: map[string]string{
 			"key":     "val",
 			"Referer": "referer",

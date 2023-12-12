@@ -152,7 +152,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		ev = event
 		lp.initFromAPIGatewayLambdaAuthorizerRequestParametersEvent(event)
 	case trigger.ALBEvent:
-		var event events.ALBTargetGroupRequest
+		var event ddevents.ALBTargetGroupRequest
 		if err := json.Unmarshal(payloadBytes, &event); err != nil {
 			log.Debugf("Failed to unmarshal %s event: %s", applicationLoadBalancer, err)
 			break

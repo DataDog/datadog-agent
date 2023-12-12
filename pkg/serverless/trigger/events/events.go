@@ -75,3 +75,18 @@ type APIGatewayCustomAuthorizerRequestTypeRequest struct {
 type APIGatewayCustomAuthorizerRequestTypeRequestContext struct {
 	Path string
 }
+
+type ALBTargetGroupRequest struct {
+	HTTPMethod     string
+	Path           string
+	Headers        map[string]string
+	RequestContext ALBTargetGroupRequestContext
+}
+
+type ALBTargetGroupRequestContext struct {
+	ELB ELBContext
+}
+
+type ELBContext struct {
+	TargetGroupArn string
+}

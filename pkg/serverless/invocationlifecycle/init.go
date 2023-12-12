@@ -72,7 +72,7 @@ func (lp *LifecycleProcessor) initFromAPIGatewayLambdaAuthorizerRequestParameter
 	lp.addTags(trigger.GetTagsFromAPIGatewayCustomAuthorizerRequestTypeEvent(event))
 }
 
-func (lp *LifecycleProcessor) initFromALBEvent(event events.ALBTargetGroupRequest) {
+func (lp *LifecycleProcessor) initFromALBEvent(event ddevents.ALBTargetGroupRequest) {
 	lp.requestHandler.event = event
 	lp.addTag(tagFunctionTriggerEventSource, applicationLoadBalancer)
 	lp.addTag(tagFunctionTriggerEventSourceArn, trigger.ExtractAlbEventARN(event))
