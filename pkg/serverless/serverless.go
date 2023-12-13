@@ -140,7 +140,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 			metrics.SendTimeoutEnhancedMetric(metricTags, daemon.MetricAgent.Demux)
 			metrics.SendErrorsEnhancedMetric(metricTags, time.Now(), daemon.MetricAgent.Demux)
 
-			if ok := daemon.IsExecutionSpanComplete(); !ok {
+			if !daemon.IsExecutionSpanComplete() {
 				ecs := daemon.ExecutionContext.GetCurrentState()
 				log.Debug("No hit on serverless.EndInvocation route. Attempting to finish Lambda execution span.")
 				timeoutContext := &invocationlifecycle.TimeoutExecutionInfo{

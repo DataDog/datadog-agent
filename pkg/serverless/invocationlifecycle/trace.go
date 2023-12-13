@@ -150,7 +150,7 @@ func (lp *LifecycleProcessor) endExecutionSpanOnTimeout(timeoutCtx *TimeoutExecu
 	}
 	setExecutionSpanTags(executionSpan, timeoutCtx.RequestID, timeoutCtx.IsColdStart, timeoutCtx.IsProactiveInit, timeoutCtx.Runtime)
 	// In a timeout the tracer is unable to send the response payload so it must be excluded
-	captureLambdaPayload(executionContext, executionSpan, []byte{})
+	captureLambdaPayload(executionContext, executionSpan, nil)
 
 	// Always mark it as an error since this is a timeout span
 	executionSpan.Error = 1
@@ -252,12 +252,14 @@ func captureLambdaPayload(executionContext *ExecutionStartInfo, executionSpan *p
 	} else {
 		capturePayloadAsTags(requestPayloadJSON, executionSpan, "function.request", 0, capturePayloadMaxDepth)
 	}
-	responsePayloadJSON := make(map[string]interface{})
-	if err := json.Unmarshal(responsePayload, &responsePayloadJSON); err != nil {
-		log.Debugf("[lifecycle] Failed to parse response payload: %v", err)
-		executionSpan.Meta["function.response"] = string(responsePayload)
-	} else {
-		capturePayloadAsTags(responsePayloadJSON, executionSpan, "function.response", 0, capturePayloadMaxDepth)
+	if responsePayload != nil {
+		responsePayloadJSON := make(map[string]interface{})
+		if err := json.Unmarshal(responsePayload, &responsePayloadJSON); err != nil {
+			log.Debugf("[lifecycle] Failed to parse response payload: %v", err)
+			executionSpan.Meta["function.response"] = string(responsePayload)
+		} else {
+			capturePayloadAsTags(responsePayloadJSON, executionSpan, "function.response", 0, capturePayloadMaxDepth)
+		}
 	}
 }
 

@@ -281,7 +281,8 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 		spans = append(spans, span)
 
 		if lp.InferredSpansEnabled {
-			spans = lp.endInferredSpan(spans, statusCode, endDetails.EndTime, endDetails.IsError)
+			inferredSpans := lp.endInferredSpan(statusCode, endDetails.EndTime, endDetails.IsError)
+			spans = append(spans, inferredSpans...)
 		}
 		lp.processTrace(spans)
 	}
@@ -301,7 +302,8 @@ func (lp *LifecycleProcessor) OnTimeoutInvokeEnd(timeoutContext *TimeoutExecutio
 
 	if lp.InferredSpansEnabled {
 		// No response status code can be retrieved in a timeout so we pass an empty string
-		spans = lp.endInferredSpan(spans, "", time.Now(), true)
+		inferredSpans := lp.endInferredSpan("", time.Now(), true)
+		spans = append(spans, inferredSpans...)
 	}
 	lp.processTrace(spans)
 }
@@ -380,7 +382,8 @@ func (lp *LifecycleProcessor) setParentIDForMultipleInferredSpans() {
 }
 
 // endInferredSpan attempts to complete any inferred spans and send them to intake
-func (lp *LifecycleProcessor) endInferredSpan(spans []*pb.Span, statusCode string, endTime time.Time, isError bool) []*pb.Span {
+func (lp *LifecycleProcessor) endInferredSpan(statusCode string, endTime time.Time, isError bool) []*pb.Span {
+	spans := make([]*pb.Span, 0, 2)
 	log.Debug("[lifecycle] Attempting to complete the inferred span")
 	log.Debugf("[lifecycle] Inferred span context: %+v", lp.GetInferredSpan().Span)
 	if lp.GetInferredSpan().Span.Start != 0 {
