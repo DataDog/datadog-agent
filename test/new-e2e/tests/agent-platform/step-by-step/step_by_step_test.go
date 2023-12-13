@@ -74,10 +74,9 @@ func TestStepByStepScript(t *testing.T) {
 
 	osVersions := strings.Split(*osVersion, ",")
 	cwsSupportedOsVersionList := strings.Split(*cwsSupportedOsVersion, ",")
-
-	vmOpts := []ec2params.Option{}
 	fmt.Println("Parsed platform json file: ", platformJSON)
 	for _, osVers := range osVersions {
+		var vmOpts []ec2params.Option
 		osVers := osVers
 		cwsSupported := false
 		for _, cwsSupportedOs := range cwsSupportedOsVersionList {
