@@ -10,7 +10,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/service/ebs"
@@ -27,7 +26,6 @@ type EBSBlockDeviceOptions struct {
 // EBSBlockDevice is used to create an EBS block device using NBD.
 type EBSBlockDevice struct {
 	EBSBlockDeviceOptions
-	wg sync.WaitGroup
 }
 
 // NewEBSBlockDevice sets up the EBS block device.
