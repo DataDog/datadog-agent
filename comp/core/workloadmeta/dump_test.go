@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
@@ -19,8 +19,8 @@ import (
 func TestDump(t *testing.T) {
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		log.MockModule,
-		config.MockModule,
+		logimpl.MockModule(),
+		config.MockModule(),
 		fx.Supply(context.Background()),
 		fx.Supply(NewParams()),
 	))

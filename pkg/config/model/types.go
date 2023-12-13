@@ -48,11 +48,7 @@ type Reader interface {
 
 	AllSettings() map[string]interface{}
 	AllSettingsWithoutDefault() map[string]interface{}
-	AllFileSettingsWithoutDefault() map[string]interface{}
-	AllEnvVarSettingsWithoutDefault() map[string]interface{}
-	AllAgentRuntimeSettingsWithoutDefault() map[string]interface{}
-	AllRemoteSettingsWithoutDefault() map[string]interface{}
-	AllCliSettingsWithoutDefault() map[string]interface{}
+	AllSourceSettingsWithoutDefault(source Source) map[string]interface{}
 	AllKeys() []string
 
 	IsSet(key string) bool

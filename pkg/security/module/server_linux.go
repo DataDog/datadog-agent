@@ -151,9 +151,12 @@ func (a *APIServer) SaveSecurityProfile(_ context.Context, params *api.SecurityP
 
 // GetStatus returns the status of the module
 func (a *APIServer) GetStatus(_ context.Context, _ *api.GetStatusParams) (*api.Status, error) {
-	apiStatus := &api.Status{
-		SelfTests: a.selfTester.GetStatus(),
+	var apiStatus api.Status
+	if a.selfTester != nil {
+		apiStatus.SelfTests = a.selfTester.GetStatus()
 	}
+
+	apiStatus.PoliciesStatus = a.policiesStatus
 
 	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
 	if ok {
@@ -190,7 +193,7 @@ func (a *APIServer) GetStatus(_ context.Context, _ *api.GetStatusParams) (*api.S
 		}
 	}
 
-	return apiStatus, nil
+	return &apiStatus, nil
 }
 
 // DumpNetworkNamespace handles network namespace cache dump requests

@@ -917,6 +917,8 @@ def version(
     major_version='7',
     version_cached=False,
     pipeline_id=None,
+    include_git=True,
+    include_pre=True,
 ):
     """
     Get the agent version.
@@ -934,12 +936,13 @@ def version(
 
     version = get_version(
         ctx,
-        include_git=True,
+        include_git=include_git,
         url_safe=url_safe,
         git_sha_length=git_sha_length,
         major_version=major_version,
         include_pipeline_id=True,
         pipeline_id=pipeline_id,
+        include_pre=include_pre,
     )
     if omnibus_format:
         # See: https://github.com/DataDog/omnibus-ruby/blob/datadog-5.5.0/lib/omnibus/packagers/deb.rb#L599

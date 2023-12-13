@@ -22,11 +22,13 @@ import (
 
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/remote"
+	rc "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+
 	//nolint:revive // TODO(APM) Fix revive linter
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -96,11 +98,16 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 	coreConfigObject := c.Object()
 	if coreConfigObject == nil {
 		//nolint:revive // TODO(APM) Fix revive linter
-		return nil, fmt.Errorf("No core config found! Bailing out.")
+		return nil, fmt.Errorf("no core config found! Bailing out.")
 	}
 
 	if !coreConfigObject.GetBool("disable_file_logging") {
 		cfg.LogFilePath = DefaultLogFilePath
+	}
+
+	ipcAddress, err := coreconfig.GetIPCAddress()
+	if err != nil {
+		return nil, err
 	}
 
 	orch := fargate.GetOrchestrator() // Needs to be after loading config, because it relies on feature auto-detection
@@ -109,11 +116,14 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 		cfg.Proxy = httputils.GetProxyTransportFunc(p, c)
 	}
 	if coreconfig.IsRemoteConfigEnabled(coreConfigObject) && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled") {
-		client, err := remote.NewGRPCClient(
-			rcClientName,
-			version.AgentVersion,
-			[]data.Product{data.ProductAPMSampling, data.ProductAgentConfig},
-			rcClientPollInterval,
+		client, err := rc.NewGRPCClient(
+			ipcAddress,
+			coreconfig.GetIPCPort(),
+			security.FetchAuthToken,
+			rc.WithAgent(rcClientName, version.AgentVersion),
+			rc.WithProducts([]data.Product{data.ProductAPMSampling, data.ProductAgentConfig}),
+			rc.WithPollInterval(rcClientPollInterval),
+			rc.WithDirectorRootOverride(c.GetString("remote_configuration.director_root")),
 		)
 		if err != nil {
 			log.Errorf("Error when subscribing to remote config management %v", err)
@@ -669,6 +679,9 @@ func compileReplaceRules(rules []*config.ReplaceRule) error {
 		if r.Name == "" {
 			return errors.New(`all rules must have a "name" property (use "*" to target all)`)
 		}
+		if r.Name == "env" {
+			log.Error("Replace tags should not be used to change the env in the Agent, as it could have negative side effects. THIS WILL BE DISALLOWED IN FUTURE AGENT VERSIONS. See https://docs.datadoghq.com/getting_started/tracing/#environment-name for instructions on setting the env, and https://github.com/DataDog/datadog-agent/issues/21253 for more details about this issue.")
+		}
 		if r.Pattern == "" {
 			return errors.New(`all rules must have a "pattern"`)
 		}
@@ -689,7 +702,7 @@ func getDuration(seconds int) time.Duration {
 func parseServiceAndOp(name string) (string, string, error) {
 	splits := strings.Split(name, "|")
 	if len(splits) != 2 {
-		return "", "", fmt.Errorf("Bad format for operation name and service name in: %s, it should have format: service_name|operation_name", name)
+		return "", "", fmt.Errorf("bad format for operation name and service name in: %s, it should have format: service_name|operation_name", name)
 	}
 	return splits[0], splits[1], nil
 }
@@ -795,7 +808,13 @@ var fallbackHostnameFunc = os.Hostname
 func acquireHostname(c *config.AgentConfig) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	client, err := grpc.GetDDAgentClient(ctx)
+
+	ipcAddress, err := coreconfig.GetIPCAddress()
+	if err != nil {
+		return err
+	}
+
+	client, err := grpc.GetDDAgentClient(ctx, ipcAddress, coreconfig.GetIPCPort())
 	if err != nil {
 		return err
 	}

@@ -32,9 +32,11 @@ import (
 )
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newInventoryChecksProvider),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newInventoryChecksProvider),
+	)
+}
 
 type metadata map[string]interface{}
 type checksMetadata map[string][]metadata

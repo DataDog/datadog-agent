@@ -98,6 +98,7 @@ type EBPFProbe struct {
 	kernelVersion  *kernel.Version
 
 	// internals
+	event           *model.Event
 	monitors        *EBPFMonitors
 	profileManagers *SecurityProfileManagers
 	fieldHandlers   *EBPFFieldHandlers
@@ -520,9 +521,16 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 	return true
 }
 
+func (p *EBPFProbe) zeroEvent() *model.Event {
+	p.event.Zero()
+	p.event.FieldHandlers = p.fieldHandlers
+	p.event.Origin = "ebpf"
+	return p.event
+}
+
 func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	offset := 0
-	event := p.probe.zeroEvent()
+	event := p.zeroEvent()
 
 	dataLen := uint64(len(data))
 
@@ -760,6 +768,9 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		// The pid_cache kernel map has the exit_time but it's only accessed if there's a local miss
 		event.ProcessCacheEntry.Process.ExitTime = p.fieldHandlers.ResolveEventTime(event, &event.BaseEvent)
 		event.Exit.Process = &event.ProcessCacheEntry.Process
+
+		// update mount pid mapping
+		p.Resolvers.MountResolver.DelPid(event.Exit.Pid)
 	case model.SetuidEventType:
 		// the process context may be incorrect, do not modify it
 		if event.Error != nil {
@@ -1256,6 +1267,7 @@ func (p *EBPFProbe) Close() error {
 	p.wg.Wait()
 
 	ebpfcheck.RemoveNameMappings(p.Manager)
+	commonebpf.UnregisterTelemetry(p.Manager)
 	// Stopping the manager will stop the perf map reader and unload eBPF programs
 	if err := p.Manager.Stop(manager.CleanAll); err != nil {
 		return err
@@ -1333,7 +1345,7 @@ func (p *EBPFProbe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	}
 
 	// Insert new mount point in cache, passing it a copy of the mount that we got from the event
-	if err := p.Resolvers.MountResolver.Insert(*m); err != nil {
+	if err := p.Resolvers.MountResolver.Insert(*m, 0); err != nil {
 		seclog.Errorf("failed to insert mount event: %v", err)
 		return err
 	}
@@ -1688,6 +1700,11 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 			eventstream.EventStreamMap: true,
 		}
 	}
+
+	p.event = p.NewEvent()
+
+	// be sure to zero the probe event before everything else
+	p.zeroEvent()
 
 	return p, nil
 }

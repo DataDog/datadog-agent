@@ -7,6 +7,7 @@
 package rules
 
 import (
+	"errors"
 	"fmt"
 	"io"
 
@@ -135,7 +136,10 @@ LOOP:
 			}
 		}
 
-		errs = multierror.Append(errs, &ErrRuleLoad{Definition: s.ruleDefinition, Err: s.err})
+		// do not report filtered rules
+		if !errors.Is(s.err, ErrRuleAgentFilter) {
+			errs = multierror.Append(errs, &ErrRuleLoad{Definition: s.ruleDefinition, Err: s.err})
+		}
 	}
 
 	return policy, errs.ErrorOrNil()

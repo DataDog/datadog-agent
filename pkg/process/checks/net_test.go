@@ -614,7 +614,7 @@ func TestNetworkConnectionTagsWithService(t *testing.T) {
 		},
 	}
 	mockConfig := ddconfig.MockSystemProbe(t)
-	mockConfig.SetWithoutSource("service_monitoring_config.process_service_inference.enabled", true)
+	mockConfig.SetWithoutSource("system_probe_config.process_service_inference.enabled", true)
 
 	maxConnsPerMessage := 1
 	ex := parser.NewServiceExtractor(ddconfig.MockSystemProbe(t))

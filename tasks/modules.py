@@ -133,6 +133,7 @@ class GoModule:
         return f"{self.import_path}@{self.__version(agent_version)}"
 
 
+# Default Modules on which will run tests / linters. When `condition=lambda: False` is defined for a module, it will be skipped.
 DEFAULT_MODULES = {
     ".": GoModule(
         ".",
@@ -166,6 +167,7 @@ DEFAULT_MODULES = {
     "pkg/config/model": GoModule("pkg/config/model", independent=True),
     "pkg/config/env": GoModule("pkg/config/env", independent=True),
     "pkg/config/logs": GoModule("pkg/config/logs", independent=True),
+    "pkg/config/remote": GoModule("pkg/config/remote", independent=True),
     "pkg/security/secl": GoModule("pkg/security/secl", independent=True),
     "pkg/status/health": GoModule("pkg/status/health", independent=True),
     "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state", independent=True),
@@ -189,6 +191,7 @@ DEFAULT_MODULES = {
     "pkg/util/system/socket": GoModule("pkg/util/system/socket", independent=True),
     "pkg/util/testutil": GoModule("pkg/util/testutil", independent=True),
     "pkg/util/winutil": GoModule("pkg/util/winutil", independent=True),
+    "pkg/util/grpc": GoModule("pkg/util/grpc", independent=True),
     "pkg/version": GoModule("pkg/version", independent=True),
     "pkg/networkdevice/profile": GoModule("pkg/networkdevice/profile", independent=True),
     "pkg/collector/check/defaults": GoModule("pkg/collector/check/defaults", independent=True),
