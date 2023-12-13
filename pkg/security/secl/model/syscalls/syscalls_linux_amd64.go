@@ -6,7 +6,7 @@
 
 //go:build linux
 
-package model
+package syscalls
 
 // Syscall represents a syscall identifier
 type Syscall int

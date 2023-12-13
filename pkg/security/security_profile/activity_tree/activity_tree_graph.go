@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/syscalls"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -240,7 +241,7 @@ func (at *ActivityTree) prepareFileNode(f *FileNode, data *utils.Graph, prefix s
 func (at *ActivityTree) prepareSyscallsNode(p *ProcessNode, data *utils.Graph) utils.GraphID {
 	label := "<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"1\">"
 	for _, s := range p.Syscalls {
-		label += "<TR><TD>" + model.Syscall(s).String() + "</TD></TR>"
+		label += "<TR><TD>" + syscalls.Syscall(s).String() + "</TD></TR>"
 	}
 	label += "</TABLE>>"
 

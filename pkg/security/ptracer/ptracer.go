@@ -19,6 +19,7 @@ import (
 	"golang.org/x/net/bpf"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/syscalls"
 	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
@@ -137,7 +138,7 @@ func (t *Tracer) ReadArgString(pid int, regs syscall.PtraceRegs, arg int) (strin
 
 // GetSyscallName returns the given syscall name
 func (t *Tracer) GetSyscallName(regs syscall.PtraceRegs) string {
-	return t.info.SyscallNumbers[GetSyscallNr(regs)]
+	return t.info.SyscallNumbers[int(GetSyscallNr(regs))]
 }
 
 // ReadArgStringArray reads and returns the wanted arg as string array
@@ -174,7 +175,7 @@ func (t *Tracer) ReadArgStringArray(pid int, regs syscall.PtraceRegs, arg int) (
 }
 
 // Trace traces a process
-func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs)) error {
+func (t *Tracer) Trace(cb func(cbType CallbackType, nr syscalls.Syscall, pid int, ppid int, regs syscall.PtraceRegs)) error {
 	var waitStatus syscall.WaitStatus
 
 	if err := syscall.PtraceCont(t.PID, 0); err != nil {
@@ -193,7 +194,7 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 			if pid == t.PID {
 				break
 			}
-			cb(CallbackExitType, ExitNr, pid, 0, regs)
+			cb(CallbackExitType, syscalls.SysExit, pid, 0, regs)
 			continue
 		}
 
@@ -218,7 +219,7 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 				}
 			case unix.PTRACE_EVENT_SECCOMP:
 				switch nr {
-				case ForkNr, VforkNr, CloneNr:
+				case syscalls.SysFork, syscalls.SysVfork, syscalls.SysClone:
 					// already handled
 				default:
 					cb(CallbackPreType, nr, pid, 0, regs)
@@ -230,9 +231,9 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 				}
 			default:
 				switch nr {
-				case ForkNr, VforkNr, CloneNr:
+				case syscalls.SysFork, syscalls.SysVfork, syscalls.SysClone:
 					// already handled
-				case ExecveNr, ExecveatNr:
+				case syscalls.SysExecve, syscalls.SysExecveat:
 					// does not return on success, thus ret value stay at syscall.ENOSYS
 					if ret := -t.ReadRet(regs); ret == int64(syscall.ENOSYS) {
 						cb(CallbackPostType, nr, pid, 0, regs)

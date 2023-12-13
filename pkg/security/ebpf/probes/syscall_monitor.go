@@ -12,7 +12,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/syscalls"
 )
 
 // syscallMonitorProbes holds the list of probes used to track syscall events
@@ -42,28 +42,28 @@ func getSyscallTableMap() *manager.Map {
 	m.Contents = []ebpf.MapKV{
 		{
 			Key: syscallTableKey{
-				id:  uint64(model.SysExit),
+				id:  uint64(syscalls.SysExit),
 				key: 1,
 			},
 			Value: uint8(1),
 		},
 		{
 			Key: syscallTableKey{
-				id:  uint64(model.SysExitGroup),
+				id:  uint64(syscalls.SysExitGroup),
 				key: 1,
 			},
 			Value: uint8(1),
 		},
 		{
 			Key: syscallTableKey{
-				id:  uint64(model.SysExecve),
+				id:  uint64(syscalls.SysExecve),
 				key: 2,
 			},
 			Value: uint8(1),
 		},
 		{
 			Key: syscallTableKey{
-				id:  uint64(model.SysExecveat),
+				id:  uint64(syscalls.SysExecveat),
 				key: 2,
 			},
 			Value: uint8(1),

@@ -5,10 +5,7 @@
 
 //go:build !linux || !(amd64 || arm64)
 
-package model
-
-// Syscall represents a syscall identifier
-type Syscall int
+package syscalls
 
 func (i Syscall) String() string {
 	return "unsupported_platform"

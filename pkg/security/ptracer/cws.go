@@ -28,13 +28,14 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/syscalls"
 	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
 // Process represents a process context
 type Process struct {
 	Pid int
-	Nr  map[int]*ebpfless.SyscallMsg
+	Nr  map[syscalls.Syscall]*ebpfless.SyscallMsg
 	Fd  map[int32]string
 	Cwd string
 }
@@ -433,12 +434,12 @@ func StartCWSPtracer(args []string, probeAddr string, verbose bool) error {
 		}
 	}
 
-	cb := func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs) {
+	cb := func(cbType CallbackType, nr syscalls.Syscall, pid int, ppid int, regs syscall.PtraceRegs) {
 		process, exists := cache.Get(pid)
 		if !exists {
 			process = &Process{
 				Pid: pid,
-				Nr:  make(map[int]*ebpfless.SyscallMsg),
+				Nr:  make(map[syscalls.Syscall]*ebpfless.SyscallMsg),
 				Fd:  make(map[int32]string),
 			}
 
@@ -454,39 +455,39 @@ func StartCWSPtracer(args []string, probeAddr string, verbose bool) error {
 			process.Nr[nr] = msg
 
 			switch nr {
-			case OpenNr:
+			case syscalls.SysOpen:
 				if err := handleOpen(tracer, process, msg, regs); err != nil {
 					logErrorf("unable to handle open: %v", err)
 					return
 				}
-			case OpenatNr, Openat2Nr:
+			case syscalls.SysOpenat, syscalls.SysOpenat2:
 				if err := handleOpenAt(tracer, process, msg, regs); err != nil {
 					logErrorf("unable to handle openat: %v", err)
 					return
 				}
-			case ExecveNr:
+			case syscalls.SysExecve:
 				if err = handleExecve(tracer, process, msg, regs); err != nil {
 					logErrorf("unable to handle execve: %v", err)
 					return
 				}
-			case ExecveatNr:
+			case syscalls.SysExecveat:
 				if err = handleExecveAt(tracer, process, msg, regs); err != nil {
 					logErrorf("unable to handle execveat: %v", err)
 					return
 				}
-			case FcntlNr:
+			case syscalls.SysFcntl:
 				_ = handleFcntl(tracer, process, msg, regs)
-			case DupNr, Dup2Nr, Dup3Nr:
+			case syscalls.SysDup, syscalls.SysDup2, syscalls.SysDup3:
 				if err = handleDup(tracer, process, msg, regs); err != nil {
 					logErrorf("unable to handle dup: %v", err)
 					return
 				}
-			case ChdirNr:
+			case syscalls.SysChdir:
 				if err = handleChdir(tracer, process, msg, regs); err != nil {
 					logErrorf("unable to handle chdir: %v", err)
 					return
 				}
-			case FchdirNr:
+			case syscalls.SysFchdir:
 				if err = handleFchdir(tracer, process, msg, regs); err != nil {
 					logErrorf("unable to handle fchdir: %v", err)
 					return
@@ -495,9 +496,9 @@ func StartCWSPtracer(args []string, probeAddr string, verbose bool) error {
 			}
 		case CallbackPostType:
 			switch nr {
-			case ExecveNr, ExecveatNr:
+			case syscalls.SysExecve, syscalls.SysExecveat:
 				send(process.Nr[nr])
-			case OpenNr, OpenatNr:
+			case syscalls.SysOpen, syscalls.SysOpenat:
 				if ret := tracer.ReadRet(regs); ret >= 0 {
 
 					msg, exists := process.Nr[nr]
@@ -510,7 +511,7 @@ func StartCWSPtracer(args []string, probeAddr string, verbose bool) error {
 					// maintain fd/path mapping
 					process.Fd[int32(ret)] = msg.Open.Filename
 				}
-			case ForkNr, VforkNr, CloneNr:
+			case syscalls.SysFork, syscalls.SysVfork, syscalls.SysClone:
 				msg := &ebpfless.SyscallMsg{
 					ContainerContext: &containerCtx,
 				}
@@ -520,7 +521,7 @@ func StartCWSPtracer(args []string, probeAddr string, verbose bool) error {
 					PPID: uint32(ppid),
 				}
 				send(msg)
-			case FcntlNr:
+			case syscalls.SysFcntl:
 				if ret := tracer.ReadRet(regs); ret >= 0 {
 					msg, exists := process.Nr[nr]
 					if !exists {
@@ -534,7 +535,7 @@ func StartCWSPtracer(args []string, probeAddr string, verbose bool) error {
 						}
 					}
 				}
-			case DupNr, Dup2Nr, Dup3Nr:
+			case syscalls.SysDup, syscalls.SysDup2, syscalls.SysDup3:
 				if ret := tracer.ReadRet(regs); ret >= 0 {
 					msg, exists := process.Nr[nr]
 					if !exists {
@@ -546,7 +547,7 @@ func StartCWSPtracer(args []string, probeAddr string, verbose bool) error {
 						process.Fd[int32(ret)] = path
 					}
 				}
-			case ChdirNr, FchdirNr:
+			case syscalls.SysChdir, syscalls.SysFchdir:
 				if ret := tracer.ReadRet(regs); ret >= 0 {
 					msg, exists := process.Nr[nr]
 					if !exists || msg.Chdir == nil {

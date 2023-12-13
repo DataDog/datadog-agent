@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/syscalls"
 )
 
 func validateReadSize(size, read int) (int, error) {
@@ -1074,7 +1075,7 @@ func (e *SyscallsEvent) UnmarshalBinary(data []byte) (int, error) {
 		// compute the ID of the syscall
 		for j := 0; j < 8; j++ {
 			if b&(1<<j) > 0 {
-				e.Syscalls = append(e.Syscalls, Syscall(i*8+j))
+				e.Syscalls = append(e.Syscalls, syscalls.Syscall(i*8+j))
 			}
 		}
 	}
@@ -1087,6 +1088,6 @@ func (e *AnomalyDetectionSyscallEvent) UnmarshalBinary(data []byte) (int, error)
 		return 0, ErrNotEnoughData
 	}
 
-	e.SyscallID = Syscall(ByteOrder.Uint64(data[0:8]))
+	e.SyscallID = syscalls.Syscall(ByteOrder.Uint64(data[0:8]))
 	return 8, nil
 }

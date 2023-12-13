@@ -6,7 +6,7 @@
 //go:build linux
 
 // Package model holds model related files
-package model
+package syscalls
 
 import (
 	"strings"

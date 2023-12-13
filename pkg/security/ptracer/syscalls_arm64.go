@@ -10,27 +10,11 @@ package ptracer
 import (
 	"syscall"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/syscalls"
 	"golang.org/x/sys/unix"
 )
 
 const (
-	OpenatNr   = 56  // OpenatNr defines the syscall ID for arm64
-	Openat2Nr  = 437 // Openat2Nr defines the syscall ID for amd64
-	ExecveNr   = 221 // ExecveNr defines the syscall ID for arm64
-	ExecveatNr = 281 // ExecveatNr defines the syscall ID for arm64
-	CloneNr    = 220 // CloneNr defines the syscall ID for arm64
-	ExitNr     = 93  // ExitNr defines the syscall ID for arm64
-	FcntlNr    = 25  // FcntlNr defines the syscall ID for arm64
-	DupNr      = 23  // DupNr defines the syscall ID for amd64
-	Dup3Nr     = 24  // Dup3Nr defines the syscall ID for amd64
-	ChdirNr    = 49  // ChdirNr defines the syscall ID for amd64
-	FchdirNr   = 50  // FchdirNr defines the syscall ID for amd64
-
-	OpenNr  = 9990 // OpenNr not available on arm64
-	ForkNr  = 9991 // ForkNr not available on arm64
-	VforkNr = 9992 // VforkNr not available on arm64
-	Dup2Nr  = 9993 // Dup2Nr not available on arm64
-
 	ptraceFlags = 0 |
 		syscall.PTRACE_O_TRACECLONE |
 		syscall.PTRACE_O_TRACEEXEC |
@@ -68,6 +52,6 @@ func (t *Tracer) ReadRet(regs syscall.PtraceRegs) int64 {
 }
 
 // GetSyscallNr returns the given syscall number
-func GetSyscallNr(regs syscall.PtraceRegs) int {
-	return int(regs.Regs[8])
+func GetSyscallNr(regs syscall.PtraceRegs) syscalls.Syscall {
+	return syscalls.Syscall(regs.Regs[8])
 }

@@ -655,15 +655,15 @@ def generate_syscall_table(ctx):
     single_run(
         ctx,
         f"https://raw.githubusercontent.com/torvalds/linux/{linux_version}/arch/x86/entry/syscalls/syscall_64.tbl",
-        "pkg/security/secl/model/syscalls_linux_amd64.go",
-        "pkg/security/secl/model/syscalls_string_linux_amd64.go",
+        "pkg/security/secl/model/syscalls/syscalls_linux_amd64.go",
+        "pkg/security/secl/model/syscalls/syscalls_string_linux_amd64.go",
         abis="common,64",
     )
     single_run(
         ctx,
         f"https://raw.githubusercontent.com/torvalds/linux/{linux_version}/include/uapi/asm-generic/unistd.h",
-        "pkg/security/secl/model/syscalls_linux_arm64.go",
-        "pkg/security/secl/model/syscalls_string_linux_arm64.go",
+        "pkg/security/secl/model/syscalls/syscalls_linux_arm64.go",
+        "pkg/security/secl/model/syscalls/syscalls_string_linux_arm64.go",
     )
 
 

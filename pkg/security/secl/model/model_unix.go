@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/syscalls"
 )
 
 const (
@@ -837,7 +838,7 @@ type VethPairEvent struct {
 
 // SyscallsEvent represents a syscalls event
 type SyscallsEvent struct {
-	Syscalls []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
+	Syscalls []syscalls.Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
 }
 
 // PathKeySize defines the path key size
@@ -845,7 +846,7 @@ const PathKeySize = 16
 
 // AnomalyDetectionSyscallEvent represents an anomaly detection for a syscall event
 type AnomalyDetectionSyscallEvent struct {
-	SyscallID Syscall
+	SyscallID syscalls.Syscall
 }
 
 // PathKey identifies an entry in the dentry cache
