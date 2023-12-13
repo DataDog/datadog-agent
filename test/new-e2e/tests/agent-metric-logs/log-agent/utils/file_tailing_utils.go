@@ -3,22 +3,37 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package logagent
+package utils
 
 import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+
 	componentos "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/stretchr/testify/assert"
 )
 
-// appendLog appen log with 'content', which is then repeated 'reccurrence' times and verifies log contents.
-func appendLog(s *LinuxFakeintakeSuite, content string, recurrence int) {
+type LogTestHelper interface {
+	T() *testing.T
+	Env() *e2e.FakeIntakeEnv
+	AppendLog(content string, recurrence int)
+	CheckLogFilePresence(logPath string)
+	CheckLogs(service, content string, expectLogs bool)
+	CleanUp()
+	EventuallyWithT(assertFunction func(*assert.CollectT), waitFor, tick time.Duration, option ...interface{}) bool
+}
+
+// AppendLog appen log with 'content', which is then repeated 'reccurrence' times and verifies log contents.
+func AppendLog(s LogTestHelper, content string, recurrence int) {
 	// Determine the OS and set the appropriate log path and command.
 	var logPath, cmd, checkCmd string
 	t := s.T()
@@ -59,8 +74,8 @@ func appendLog(s *LinuxFakeintakeSuite, content string, recurrence int) {
 	}, 2*time.Minute, 10*time.Second)
 }
 
-// checkLogFile verifies the presence or absence of a log file path
-func checkLogFilePresence(s *LinuxFakeintakeSuite, logPath string) {
+// CheckLogFile verifies the presence or absence of a log file path
+func CheckLogFilePresence(s LogTestHelper, logPath string) {
 	t := s.T()
 	osType := s.Env().VM.GetOSType()
 
@@ -80,8 +95,8 @@ func checkLogFilePresence(s *LinuxFakeintakeSuite, logPath string) {
 	}
 }
 
-// checkLogs verifies the presence or absence of logs in the intake based on the expectLogs flag.
-func checkLogs(s *LinuxFakeintakeSuite, service, content string, expectLogs bool) {
+// CheckLogs verifies the presence or absence of logs in the intake based on the expectLogs flag.
+func CheckLogs(s LogTestHelper, service, content string, expectLogs bool) {
 	client := s.Env().Fakeintake
 	t := s.T()
 	t.Helper()
@@ -115,32 +130,32 @@ func checkLogs(s *LinuxFakeintakeSuite, service, content string, expectLogs bool
 	}, 2*time.Minute, 10*time.Second)
 }
 
-// cleanUp cleans up any existing log files (only useful when running dev mode/local runs).
-func (s *LinuxFakeintakeSuite) cleanUp() {
+// CleanUp cleans up any existing log files (only useful when running dev mode/local runs).
+func CleanUp(s LogTestHelper) {
 	t := s.T()
 	var checkCmd string
 
-	if s.DevMode == true {
-		osType := s.Env().VM.GetOSType()
+	// if s.DevMode == true {
+	osType := s.Env().VM.GetOSType()
 
-		switch osType {
-		default: // default is linux
-			s.Env().VM.Execute("sudo rm -f /var/log/hello-world.log")
-			s.Env().VM.Execute("sudo rm -f /var/log/hello-world.log.old")
-			checkCmd = "ls /var/log/hello-world.log /var/log/hello-world.log.old 2>/dev/null || echo 'Files do not exist'"
-		case componentos.WindowsType:
-			s.Env().VM.Execute("if (Test-Path C:\\logs\\hello-world.log) { Remove-Item -Path C:\\logs\\hello-world.log -Force }")
-			s.Env().VM.Execute("if (Test-Path C:\\logs\\hello-world.log.old) { Remove-Item -Path C:\\logs\\hello-world.log.old -Force }")
-			checkCmd = "if (Test-Path C:\\logs\\hello-world.log) { Get-ChildItem -Path C:\\logs\\hello-world.log } elseif (Test-Path C:\\logs\\hello-world.log.old) { Get-ChildItem -Path C:\\logs\\hello-world.log.old } else { Write-Output 'Files do not exist' }"
-		}
-
-		s.EventuallyWithT(func(c *assert.CollectT) {
-			output, err := s.Env().VM.ExecuteWithError(checkCmd)
-			if assert.NoErrorf(c, err, "Having issue cleaning up log files, retrying... %s", output) {
-				t.Log("Successfully cleaned up log files.")
-			}
-		}, 1*time.Minute, 10*time.Second)
+	switch osType {
+	default: // default is linux
+		s.Env().VM.Execute("sudo rm -f /var/log/hello-world.log")
+		s.Env().VM.Execute("sudo rm -f /var/log/hello-world.log.old")
+		checkCmd = "ls /var/log/hello-world.log /var/log/hello-world.log.old 2>/dev/null || echo 'Files do not exist'"
+	case componentos.WindowsType:
+		s.Env().VM.Execute("if (Test-Path C:\\logs\\hello-world.log) { Remove-Item -Path C:\\logs\\hello-world.log -Force }")
+		s.Env().VM.Execute("if (Test-Path C:\\logs\\hello-world.log.old) { Remove-Item -Path C:\\logs\\hello-world.log.old -Force }")
+		checkCmd = "if (Test-Path C:\\logs\\hello-world.log) { Get-ChildItem -Path C:\\logs\\hello-world.log } elseif (Test-Path C:\\logs\\hello-world.log.old) { Get-ChildItem -Path C:\\logs\\hello-world.log.old } else { Write-Output 'Files do not exist' }"
 	}
+
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		output, err := s.Env().VM.ExecuteWithError(checkCmd)
+		if assert.NoErrorf(c, err, "Having issue cleaning up log files, retrying... %s", output) {
+			t.Log("Successfully cleaned up log files.")
+		}
+	}, 1*time.Minute, 10*time.Second)
+	// }
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		err := s.Env().Fakeintake.FlushServerAndResetAggregators()

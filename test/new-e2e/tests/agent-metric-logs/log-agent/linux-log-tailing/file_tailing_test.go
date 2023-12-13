@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metric-logs/log/utils"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 )
 
@@ -54,7 +55,7 @@ func TestE2EVMFakeintakeSuite(t *testing.T) {
 func (s *LinuxFakeintakeSuite) AfterTest(suiteName, testName string) {
 	s.Suite.AfterTest(suiteName, testName)
 	// Flush server and reset aggregators before the test is ran
-	s.cleanUp()
+	s.CleanUp()
 
 	// Ensure no logs are present in fakeintake before testing starts
 	s.EventuallyWithT(func(c *assert.CollectT) {
@@ -72,7 +73,7 @@ func (s *LinuxFakeintakeSuite) AfterTest(suiteName, testName string) {
 
 func (s *LinuxFakeintakeSuite) TearDownSuite() {
 	// Flush server and reset aggregators after the test is ran
-	s.cleanUp()
+	s.CleanUp()
 	s.Suite.TearDownSuite()
 }
 
@@ -120,16 +121,16 @@ func (s *LinuxFakeintakeSuite) LogCollection() {
 
 	// t.Logf("Permissions granted for new log file.")
 	// Generate log
-	appendLog(s, "hello-world", 1)
+	s.AppendLog("hello-world", 1)
 
 	// Check intake for new logs
-	checkLogs(s, "hello", "hello-world", true)
+	s.CheckLogs("hello", "hello-world", true)
 
 }
 
 func (s *LinuxFakeintakeSuite) LogNoPermission() {
 	t := s.T()
-	checkLogFilePresence(s, logPath)
+	s.CheckLogFilePresence(logPath)
 
 	// Allow on only write permission to the log file so the agent cannot tail it
 	output, err := s.Env().VM.ExecuteWithError("sudo chmod -r /var/log/hello-world.log && echo true")
@@ -147,9 +148,9 @@ func (s *LinuxFakeintakeSuite) LogNoPermission() {
 		agentReady := s.Env().Agent.IsReady()
 		if assert.Truef(c, agentReady, "Agent is not ready after restart") {
 			// Generate log
-			appendLog(s, "access-denied", 1)
+			s.AppendLog("access-denied", 1)
 			// Check intake for new logs
-			checkLogs(s, "hello", "access-denied", false)
+			s.CheckLogs("hello", "access-denied", false)
 		}
 	}, 2*time.Minute, 1*time.Second)
 
@@ -157,10 +158,10 @@ func (s *LinuxFakeintakeSuite) LogNoPermission() {
 
 func (s *LinuxFakeintakeSuite) LogCollectionAfterPermission() {
 	t := s.T()
-	checkLogFilePresence(s, logPath)
+	s.CheckLogFilePresence(logPath)
 
 	// Generate logs
-	appendLog(s, "hello-after-permission-world", 1)
+	s.AppendLog("hello-after-permission-world", 1)
 
 	// Grant read permission
 	output, err := s.Env().VM.ExecuteWithError("sudo chmod +r /var/log/hello-world.log && echo true")
@@ -169,12 +170,12 @@ func (s *LinuxFakeintakeSuite) LogCollectionAfterPermission() {
 	t.Logf("Permissions granted for log file.")
 
 	// Check intake for new logs
-	checkLogs(s, "hello", "hello-after-permission-world", true)
+	s.CheckLogs("hello", "hello-after-permission-world", true)
 }
 
 func (s *LinuxFakeintakeSuite) LogCollectionBeforePermission() {
 	t := s.T()
-	checkLogFilePresence(s, logPath)
+	s.CheckLogFilePresence(logPath)
 
 	// Reset log file permissions to default before testing
 	output, err := s.Env().VM.ExecuteWithError("sudo chmod 644 /var/log/hello-world.log && echo true")
@@ -192,15 +193,15 @@ func (s *LinuxFakeintakeSuite) LogCollectionBeforePermission() {
 	time.Sleep(1000 * time.Millisecond)
 
 	// Generate logs
-	appendLog(s, "access-granted", 1)
+	s.AppendLog("access-granted", 1)
 
 	// Check intake for new logs
-	checkLogs(s, "hello", "access-granted", true)
+	s.CheckLogs("hello", "access-granted", true)
 }
 
 func (s *LinuxFakeintakeSuite) LogRecreateRotation() {
 	t := s.T()
-	checkLogFilePresence(s, logPath)
+	s.CheckLogFilePresence(logPath)
 
 	// Rotate the log file and check if the agent is tailing the new log file.
 	// Delete and Recreate file rotation
@@ -218,9 +219,26 @@ func (s *LinuxFakeintakeSuite) LogRecreateRotation() {
 	t.Logf("Permissions granted for new log file.")
 
 	// Generate new logs
-	appendLog(s, "hello-world-new-content", 1)
+	s.AppendLog("hello-world-new-content", 1)
 
 	// Check intake for new logs
-	checkLogs(s, "hello", "hello-world-new-content", true)
+	s.CheckLogs("hello", "hello-world-new-content", true)
 
+}
+
+// AppendLog generates a log file with the given content and recurrence.
+func (s *LinuxFakeintakeSuite) AppendLog(content string, recurrence int) {
+	utils.AppendLog(s, content, recurrence)
+}
+
+func (s *LinuxFakeintakeSuite) CheckLogFilePresence(logPath string) {
+	utils.CheckLogFilePresence(s, logPath)
+}
+
+func (s *LinuxFakeintakeSuite) CheckLogs(service, content string, expectLogs bool) {
+	utils.CheckLogs(s, service, content, expectLogs)
+}
+
+func (s *LinuxFakeintakeSuite) CleanUp() {
+	utils.CleanUp(s)
 }
