@@ -80,9 +80,6 @@ func (agg *Aggregator[P]) ContainsPayloadName(name string) bool {
 // ContainsPayloadNameAndTags return true if the payload name exist and on of the payloads contains all the tags
 func (agg *Aggregator[P]) ContainsPayloadNameAndTags(name string, tags []string) bool {
 	payloads := agg.GetPayloadsByName(name)
-	if len(payloads) == 0 {
-		return false
-	}
 
 	for _, payloadItem := range payloads {
 		if AreTagsSubsetOfOtherTags(tags, payloadItem.GetTags()) {
