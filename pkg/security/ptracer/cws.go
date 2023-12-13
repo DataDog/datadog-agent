@@ -22,6 +22,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/avast/retry-go/v4"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/vmihailenco/msgpack/v5"
 	"golang.org/x/sys/unix"
@@ -348,10 +349,14 @@ func StartCWSPtracer(args []string, probeAddr string, verbose bool) error {
 
 		logDebugf("connection to system-probe...")
 
-		client, err = net.DialTCP("tcp", nil, tcpAddr)
+		err = retry.Do(func() error {
+			client, err = net.DialTCP("tcp", nil, tcpAddr)
+			return err
+		}, retry.Delay(time.Second), retry.Attempts(120))
 		if err != nil {
 			return err
 		}
+
 		defer client.Close()
 	}
 
