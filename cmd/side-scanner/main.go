@@ -1150,6 +1150,9 @@ type sideScanner struct {
 	limits           *awsLimits
 	printResults     bool
 
+	scansInProgress   map[arn.ARN]struct{}
+	scansInProgressMu sync.RWMutex
+
 	configsCh chan *scanConfig
 	scansCh   chan *scanTask
 	resultsCh chan scanResult
@@ -1173,6 +1176,8 @@ func newSideScanner(hostname string, limits *awsLimits, poolSize int, allowedSca
 		rcClient:         rcClient,
 		allowedScanTypes: allowedScanTypes,
 		limits:           limits,
+
+		scansInProgress: make(map[arn.ARN]struct{}),
 
 		configsCh: make(chan *scanConfig),
 		scansCh:   make(chan *scanTask),
@@ -1285,9 +1290,21 @@ func (s *sideScanner) start(ctx context.Context) {
 		go func() {
 			defer func() { done <- struct{}{} }()
 			for scan := range s.scansCh {
+				s.scansInProgressMu.Lock()
+				if _, ok := s.scansInProgress[scan.ARN]; ok {
+					s.scansInProgressMu.Unlock()
+					continue
+				}
+				s.scansInProgress[scan.ARN] = struct{}{}
+				s.scansInProgressMu.Unlock()
+
 				if err := s.launchScan(ctx, scan); err != nil {
 					log.Errorf("error scanning task %s: %s", scan, err)
 				}
+
+				s.scansInProgressMu.Lock()
+				delete(s.scansInProgress, scan.ARN)
+				s.scansInProgressMu.Unlock()
 			}
 		}()
 	}
