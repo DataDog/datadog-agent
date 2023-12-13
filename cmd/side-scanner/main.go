@@ -1533,6 +1533,8 @@ retry:
 	if err != nil {
 		var aerr smithy.APIError
 		var isRateExceededError bool
+		// TODO: if we reach this error, we maybe could reuse a pending or
+		// very recent snapshot that was created by the scanner.
 		if errors.As(err, &aerr) && aerr.ErrorCode() == "SnapshotCreationPerVolumeRateExceeded" {
 			isRateExceededError = true
 		}
