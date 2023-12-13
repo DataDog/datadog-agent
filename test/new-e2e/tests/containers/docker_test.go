@@ -51,7 +51,6 @@ func (suite *DockerSuite) SetupSuite() {
 	suite.baseSuite.SetupSuite()
 }
 
-
 func (suite *DockerSuite) FailNow(ctx context.Context) {
 	_, err := infra.GetStackManager().GetPulumiStackName(suite.stackName)
 	suite.Require().NoError(err)
