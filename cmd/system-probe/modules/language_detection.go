@@ -32,6 +32,9 @@ var LanguageDetectionModule = module.Factory{
 			languageDetector: privileged.NewLanguageDetector(),
 		}, nil
 	},
+	NeedsEBPF: func() bool {
+		return false
+	},
 }
 
 type languageDetectionModule struct {
