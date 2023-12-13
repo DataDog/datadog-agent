@@ -1,5 +1,7 @@
 // Copyright (c) Tailscale Inc & AUTHORS
 // SPDX-License-Identifier: BSD-3-Clause
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2014-present Datadog, Inc.
 
 //go:build darwin && !ios
 
@@ -40,16 +42,16 @@ func TestParsePort(t *testing.T) {
 
 const netstatOutput = `
 // macOS
-tcp4       0      0  *.23                   *.*                    LISTEN     
+tcp4       0      0  *.23                   *.*                    LISTEN
 tcp6       0      0  *.24                   *.*                    LISTEN
 tcp4      0      0  *.8185                 *.*                    LISTEN
 tcp4       0      0  127.0.0.1.8186         *.*                    LISTEN
 tcp6       0      0  ::1.8187               *.*                    LISTEN
 tcp4       0      0  127.1.2.3.8188         *.*                    LISTEN
 
-udp6       0      0  *.106                 *.*                      
-udp4       0      0  *.104                 *.*                      
-udp46      0      0  *.146                 *.*                      
+udp6       0      0  *.106                 *.*
+udp4       0      0  *.104                 *.*
+udp46      0      0  *.146                 *.*
 `
 
 func TestParsePortsNetstat(t *testing.T) {
