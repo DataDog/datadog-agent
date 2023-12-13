@@ -3,7 +3,7 @@
 # Usage:
 #
 #   ssh-keygen -f ~/.ssh/sidescanner -t ed25519 -C "sidescannerdebug@datadoghq.com"
-#   STACK_OWNER=$(whoami) aws-vault exec sso-sandbox-account-admin -- ./side-scanner-deploy.sh
+#   STACK_OWNER=$(whoami) aws-vault exec sso-sandbox-account-admin -- ./agentless-scanner-deploy.sh
 #
 #     export DD_SIDESCANNER_IP="XXX.XXX.XXX.XXX"
 #     ssh -i ubuntu@$DD_SIDESCANNER_IP

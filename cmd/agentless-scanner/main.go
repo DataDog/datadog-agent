@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package main implements the side-scanner command.
+// Package main implements the agentless-scanner command.
 package main
 
 import (
@@ -210,7 +210,7 @@ func (s scanTask) String() string {
 }
 
 func main() {
-	flavor.SetFlavor(flavor.SideScannerAgent)
+	flavor.SetFlavor(flavor.AgentlessScanner)
 	cmd := rootCommand()
 	cmd.SilenceErrors = true
 	err := cmd.Execute()
@@ -225,9 +225,9 @@ func rootCommand() *cobra.Command {
 	var diskModeStr string
 
 	sideScannerCmd := &cobra.Command{
-		Use:          "side-scanner [command]",
-		Short:        "Datadog Side Scanner at your service.",
-		Long:         `Datadog Side Scanner scans your cloud environment for vulnerabilities, compliance and security issues.`,
+		Use:          "agentless-scanner [command]",
+		Short:        "Datadog Agentless Scanner at your service.",
+		Long:         `Datadog Agentless Scanner scans your cloud environment for vulnerabilities, compliance and security issues.`,
 		SilenceUsage: true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			var err error
@@ -241,7 +241,7 @@ func rootCommand() *cobra.Command {
 	}
 
 	pflags := sideScannerCmd.PersistentFlags()
-	pflags.StringVarP(&globalParams.configFilePath, "config-path", "c", path.Join(commonpath.DefaultConfPath, "datadog.yaml"), "specify the path to side-scanner configuration yaml file")
+	pflags.StringVarP(&globalParams.configFilePath, "config-path", "c", path.Join(commonpath.DefaultConfPath, "datadog.yaml"), "specify the path to agentless-scanner configuration yaml file")
 	pflags.StringVar(&diskModeStr, "disk-mode", "no-attach", fmt.Sprintf("disk mode used for scanning EBS volumes: %s, %s or %s", volumeAttach, nbdAttach, noAttach))
 	sideScannerCmd.AddCommand(runCommand())
 	sideScannerCmd.AddCommand(scanCommand())
@@ -262,14 +262,14 @@ func runCommand() *cobra.Command {
 
 	runCmd := &cobra.Command{
 		Use:   "run",
-		Short: "Runs the side-scanner",
+		Short: "Runs the agentless-scanner",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(
 				func(_ complog.Component, _ compconfig.Component) error {
 					return runCmd(runParams.pidfilePath, runParams.poolSize, runParams.allowedScanTypes)
 				},
 				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
-				fx.Supply(complog.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
+				fx.Supply(complog.ForDaemon("AGENTLESSSCANER", "log_file", pkgconfig.DefaultAgentlessScannerLogFile)),
 				complog.Module,
 				compconfig.Module,
 			)
@@ -322,7 +322,7 @@ func scanCommand() *cobra.Command {
 					return scanCmd(*config)
 				},
 				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
-				fx.Supply(complog.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
+				fx.Supply(complog.ForDaemon("AGENTLESSSCANER", "log_file", pkgconfig.DefaultAgentlessScannerLogFile)),
 				complog.Module,
 				compconfig.Module,
 			)
@@ -346,14 +346,14 @@ func offlineCommand() *cobra.Command {
 	}
 	cmd := &cobra.Command{
 		Use:   "offline",
-		Short: "Runs the side-scanner in offline mode (server-less mode)",
+		Short: "Runs the agentless-scanner in offline mode (server-less mode)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(
 				func(_ complog.Component, _ compconfig.Component) error {
 					return offlineCmd(cliArgs.poolSize, cliArgs.regions, cliArgs.maxScans)
 				},
 				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
-				fx.Supply(complog.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
+				fx.Supply(complog.ForDaemon("AGENTLESSSCANER", "log_file", pkgconfig.DefaultAgentlessScannerLogFile)),
 				complog.Module,
 				compconfig.Module,
 			)
@@ -377,7 +377,7 @@ func attachCommand() *cobra.Command {
 					return attachCmd()
 				},
 				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
-				fx.Supply(complog.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
+				fx.Supply(complog.ForDaemon("AGENTLESSSCANER", "log_file", pkgconfig.DefaultAgentlessScannerLogFile)),
 				complog.Module,
 				compconfig.Module,
 			)
@@ -407,7 +407,7 @@ func nbdCommand() *cobra.Command {
 					return nbdMountCmd(snapshotARN, cliArgs.mount, cliArgs.runClient)
 				},
 				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
-				fx.Supply(complog.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
+				fx.Supply(complog.ForDaemon("AGENTLESSSCANER", "log_file", pkgconfig.DefaultAgentlessScannerLogFile)),
 				complog.Module,
 				compconfig.Module,
 			)
@@ -428,14 +428,14 @@ func cleanupCommand() *cobra.Command {
 	}
 	cmd := &cobra.Command{
 		Use:   "cleanup",
-		Short: "Cleanup resources created by the side-scanner",
+		Short: "Cleanup resources created by the agentless-scanner",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(
 				func(_ complog.Component, _ compconfig.Component) error {
 					return cleanupCmd(cliArgs.region, cliArgs.dryRun, cliArgs.delay)
 				},
 				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
-				fx.Supply(complog.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
+				fx.Supply(complog.ForDaemon("AGENTLESSSCANER", "log_file", pkgconfig.DefaultAgentlessScannerLogFile)),
 				complog.Module,
 				compconfig.Module,
 			)
@@ -480,7 +480,7 @@ func runCmd(pidfilePath string, poolSize int, allowedScanTypes []string) error {
 
 	scanner, err := newSideScanner(hostname, limits, poolSize, allowedScanTypes)
 	if err != nil {
-		return fmt.Errorf("could not initialize side-scanner: %w", err)
+		return fmt.Errorf("could not initialize agentless-scanner: %w", err)
 	}
 	if err := scanner.subscribeRemoteConfig(ctx); err != nil {
 		return fmt.Errorf("could not accept configs from Remote Config: %w", err)
@@ -519,7 +519,7 @@ func parseRolesMapping(roles []string) rolesMapping {
 }
 
 func getDefaultRolesMapping() rolesMapping {
-	roles := pkgconfig.Datadog.GetStringSlice("side_scanner.default_roles")
+	roles := pkgconfig.Datadog.GetStringSlice("agentless_scanner.default_roles")
 	return parseRolesMapping(roles)
 }
 
@@ -533,7 +533,7 @@ func scanCmd(config scanConfig) error {
 	limits := newAWSLimits(defaultEC2Rate, defaultEBSListBlockRate, defaultEBSGetBlockRate)
 	sidescanner, err := newSideScanner(hostname, limits, 1, nil)
 	if err != nil {
-		return fmt.Errorf("could not initialize side-scanner: %w", err)
+		return fmt.Errorf("could not initialize agentless-scanner: %w", err)
 	}
 	sidescanner.printResults = true
 	go func() {
@@ -613,7 +613,7 @@ func offlineCmd(poolSize int, regions []string, maxScans int) error {
 	limits := newAWSLimits(defaultEC2Rate, defaultEBSListBlockRate, defaultEBSGetBlockRate)
 	sidescanner, err := newSideScanner(hostname, limits, poolSize, nil)
 	if err != nil {
-		return fmt.Errorf("could not initialize side-scanner: %w", err)
+		return fmt.Errorf("could not initialize agentless-scanner: %w", err)
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -1266,7 +1266,7 @@ func (s *sideScanner) subscribeRemoteConfig(ctx context.Context) error {
 			log.Debugf("received new config %q from remote-config of size %d", rawConfig.Metadata.ID, len(rawConfig.Config))
 			config, err := unmarshalConfig(rawConfig.Config)
 			if err != nil {
-				log.Errorf("could not parse side-scanner task: %v", err)
+				log.Errorf("could not parse agentless-scanner task: %v", err)
 				return
 			}
 			select {
@@ -1296,13 +1296,13 @@ func (s *sideScanner) healthServer(ctx context.Context) error {
 		}
 	}()
 
-	log.Infof("Starting health-check server for side-scanner on address %q", addr)
+	log.Infof("Starting health-check server for agentless-scanner on address %q", addr)
 	return srv.ListenAndServe()
 }
 
 func (s *sideScanner) start(ctx context.Context) {
-	log.Infof("starting side-scanner main loop with %d scan workers", s.poolSize)
-	defer log.Infof("stopped side-scanner main loop")
+	log.Infof("starting agentless-scanner main loop with %d scan workers", s.poolSize)
+	defer log.Infof("stopped agentless-scanner main loop")
 
 	s.eventForwarder.Start()
 	defer s.eventForwarder.Stop()
@@ -1501,7 +1501,7 @@ func listResourcesForCleanup(ctx context.Context, ec2client *ec2.Client, d time.
 			Filters:   cloudResourceTagFilters(),
 		})
 		if err != nil {
-			return nil, fmt.Errorf("could not list volumes created by side-scanner: %w", err)
+			return nil, fmt.Errorf("could not list volumes created by agentless-scanner: %w", err)
 		}
 		for i := range volumes.Volumes {
 			if volumes.Volumes[i].State == ec2types.VolumeStateAvailable {
@@ -1520,7 +1520,7 @@ func listResourcesForCleanup(ctx context.Context, ec2client *ec2.Client, d time.
 			Filters:   cloudResourceTagFilters(),
 		})
 		if err != nil {
-			return nil, fmt.Errorf("could not list snapshots created by side-scanner: %w", err)
+			return nil, fmt.Errorf("could not list snapshots created by agentless-scanner: %w", err)
 		}
 		for i := range snapshots.Snapshots {
 			if snapshots.Snapshots[i].State != ec2types.SnapshotStateCompleted {
