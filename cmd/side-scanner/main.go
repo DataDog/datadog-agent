@@ -420,6 +420,7 @@ func cleanupCommand() *cobra.Command {
 	var cliArgs struct {
 		region string
 		dryRun bool
+		delay  time.Duration
 	}
 	cmd := &cobra.Command{
 		Use:   "cleanup",
@@ -427,7 +428,7 @@ func cleanupCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(
 				func(_ complog.Component, _ compconfig.Component) error {
-					return cleanupCmd(cliArgs.region, cliArgs.dryRun)
+					return cleanupCmd(cliArgs.region, cliArgs.dryRun, cliArgs.delay)
 				},
 				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
 				fx.Supply(complog.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
@@ -438,6 +439,7 @@ func cleanupCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVarP(&cliArgs.region, "region", "", "us-east-1", "AWS region")
 	cmd.Flags().BoolVarP(&cliArgs.dryRun, "dry-run", "", false, "dry run")
+	cmd.Flags().DurationVarP(&cliArgs.delay, "delay", "", 0, "delete snapshot older than delay")
 	return cmd
 }
 
@@ -713,7 +715,7 @@ func listEBSVolumesForRegion(ctx context.Context, accountID, regionName string, 
 	return
 }
 
-func cleanupCmd(region string, dryRun bool) error {
+func cleanupCmd(region string, dryRun bool, delay time.Duration) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
@@ -721,6 +723,7 @@ func cleanupCmd(region string, dryRun bool) error {
 	if err != nil {
 		return err
 	}
+
 	stsclient := sts.NewFromConfig(defaultCfg)
 	identity, err := stsclient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
 	if err != nil {
@@ -733,7 +736,7 @@ func cleanupCmd(region string, dryRun bool) error {
 		return err
 	}
 	ec2client := ec2.NewFromConfig(cfg)
-	toBeDeleted, err := listResourcesForCleanup(ctx, ec2client)
+	toBeDeleted, err := listResourcesForCleanup(ctx, ec2client, delay)
 	if err != nil {
 		return err
 	}
@@ -1420,7 +1423,7 @@ func cloudResourceTagFilters() []ec2types.Filter {
 	}
 }
 
-func listResourcesForCleanup(ctx context.Context, ec2client *ec2.Client) (map[resourceType][]string, error) {
+func listResourcesForCleanup(ctx context.Context, ec2client *ec2.Client, d time.Duration) (map[resourceType][]string, error) {
 	toBeDeleted := make(map[resourceType][]string)
 	var nextToken *string
 	for {
@@ -1451,10 +1454,15 @@ func listResourcesForCleanup(ctx context.Context, ec2client *ec2.Client) (map[re
 			return nil, fmt.Errorf("could not list snapshots created by side-scanner: %w", err)
 		}
 		for i := range snapshots.Snapshots {
-			if snapshots.Snapshots[i].State == ec2types.SnapshotStateCompleted {
-				snapshotID := *snapshots.Snapshots[i].SnapshotId
-				toBeDeleted[resourceTypeSnapshot] = append(toBeDeleted[resourceTypeSnapshot], snapshotID)
+			if snapshots.Snapshots[i].State != ec2types.SnapshotStateCompleted {
+				continue
 			}
+			since := time.Now().Add(-d)
+			if snapshots.Snapshots[i].StartTime != nil && snapshots.Snapshots[i].StartTime.After(since) {
+				continue
+			}
+			snapshotID := *snapshots.Snapshots[i].SnapshotId
+			toBeDeleted[resourceTypeSnapshot] = append(toBeDeleted[resourceTypeSnapshot], snapshotID)
 		}
 		nextToken = snapshots.NextToken
 		if nextToken == nil {
