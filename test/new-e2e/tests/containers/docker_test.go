@@ -51,9 +51,6 @@ func (suite *DockerSuite) SetupSuite() {
 	suite.baseSuite.SetupSuite()
 }
 
-func (suite *DockerSuite) TearDownSuite() {
-	suite.baseSuite.TearDownSuite()
-}
 
 func (suite *DockerSuite) FailNow(ctx context.Context) {
 	_, err := infra.GetStackManager().GetPulumiStackName(suite.stackName)
