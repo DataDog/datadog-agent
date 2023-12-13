@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    OTLP ingest log timestamps (i.e. '@timestamp') now include milliseconds
+    OTLP ingest log timestamps (i.e. '@timestamp') now include milliseconds.
