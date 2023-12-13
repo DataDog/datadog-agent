@@ -48,6 +48,7 @@ func TestE2EVMFakeintakeSuite(t *testing.T) {
 }
 
 func (s *LinuxFakeintakeSuite) BeforeTest(_, _ string) {
+	s.Suite.BeforeTest("", "")
 	// Flush server and reset aggregators before the test is ran
 	s.cleanUp()
 
@@ -68,6 +69,7 @@ func (s *LinuxFakeintakeSuite) BeforeTest(_, _ string) {
 func (s *LinuxFakeintakeSuite) TearDownSuite() {
 	// Flush server and reset aggregators after the test is ran
 	s.cleanUp()
+	s.Suite.TearDownSuite()
 }
 
 func (s *LinuxFakeintakeSuite) TestLinuxLogTailing() {
