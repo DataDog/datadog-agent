@@ -14,8 +14,6 @@ import (
 	"go4.org/mem"
 )
 
-var osWalkShallow func(name mem.RO, fn WalkFunc) error
-
 // WalkFunc is the callback type used with WalkShallow.
 //
 // The name and de are only valid for the duration of func's call
@@ -26,13 +24,7 @@ type WalkFunc func(name mem.RO, de fs.DirEntry) error
 // It does not recurse into subdirectories.
 //
 // If fn returns an error, iteration stops and WalkShallow returns that value.
-//
-// On Linux, WalkShallow does not allocate, so long as certain methods on the
-// WalkFunc's DirEntry are not called which necessarily allocate.
 func WalkShallow(dirName mem.RO, fn WalkFunc) error {
-	if f := osWalkShallow; f != nil {
-		return f(dirName, fn)
-	}
 	of, err := os.Open(dirName.StringCopy())
 	if err != nil {
 		return err

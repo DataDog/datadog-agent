@@ -10,32 +10,13 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"sort"
 	"testing"
 
 	"go4.org/mem"
 )
 
-func TestWalkShallowOSSpecific(t *testing.T) {
-	if osWalkShallow == nil {
-		t.Skip("no OS-specific implementation")
-	}
-	testWalkShallow(t, false)
-}
-
-func TestWalkShallowPortable(t *testing.T) {
-	testWalkShallow(t, true)
-}
-
-func testWalkShallow(t *testing.T, portable bool) {
-	if portable {
-		previous := osWalkShallow
-		osWalkShallow = nil
-		t.Cleanup(func() {
-			osWalkShallow = previous
-		})
-	}
+func TestWalkShallow(t *testing.T) {
 	d := t.TempDir()
 
 	t.Run("basics", func(t *testing.T) {
@@ -79,18 +60,6 @@ func testWalkShallow(t *testing.T, portable bool) {
 		})
 		if !os.IsNotExist(err) {
 			t.Errorf("unexpected error: %v", err)
-		}
-	})
-
-	t.Run("allocs", func(t *testing.T) {
-		allocs := int(testing.AllocsPerRun(1000, func() {
-			if err := WalkShallow(mem.S(d), func(name mem.RO, de os.DirEntry) error { return nil }); err != nil {
-				t.Fatal(err)
-			}
-		}))
-		t.Logf("allocs = %v", allocs)
-		if !portable && runtime.GOOS == "linux" && allocs != 0 {
-			t.Errorf("unexpected allocs: got %v, want 0", allocs)
 		}
 	})
 }
