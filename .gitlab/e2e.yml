@@ -200,7 +200,7 @@ new-e2e-agent-shared-components-dev:
 new-e2e-agent-shared-components-main:
   extends: .new_e2e_template
   rules: !reference [.on_main_and_no_skip_e2e]
-  needs: ['deploy_deb_testing-a7_x64']
+  needs: ["deploy_deb_testing-a7_x64"]
   variables:
     TARGETS: ./tests/agent-shared-components
     TEAM: agent-shared-components
@@ -233,7 +233,7 @@ new-e2e-agent-subcommands-dev:
 new-e2e-agent-subcommands-main:
   extends: .new_e2e_template
   rules: !reference [.on_main_and_no_skip_e2e]
-  needs: ['deploy_deb_testing-a7_x64']
+  needs: ["deploy_deb_testing-a7_x64"]
   variables:
     TARGETS: ./tests/agent-subcommands
     TEAM: agent-shared-components
@@ -320,8 +320,6 @@ new-e2e-process-main:
   variables:
     TARGETS: ./tests/process
     TEAM: processes
-
-
 #   ^    If you create a new job here that extends `.new_e2e_template`,
 #  /!\   do not forget to add it in the `dependencies` statement of the
 # /___\  `e2e_test_junit_upload` job in the `.gitlab/e2e_test_junit_upload.yml` file
