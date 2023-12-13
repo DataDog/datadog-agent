@@ -26,14 +26,18 @@ import (
 // team: agent-shared-components
 
 // Bundle defines the fx options for this bundle.
-var Bundle = fxutil.Bundle(
-	// As `config.Module` expects `config.Params` as a parameter, it is require to define how to get `config.Params` from `BundleParams`.
-	fx.Provide(func(params BundleParams) config.Params { return params.ConfigParams }),
-	config.Module,
-	fx.Provide(func(params BundleParams) log.Params { return params.LogParams }),
-	log.Module,
-	fx.Provide(func(params BundleParams) sysprobeconfigimpl.Params { return params.SysprobeConfigParams }),
-	sysprobeconfigimpl.Module,
-	telemetry.Module,
-	hostnameimpl.Module,
-)
+var Bundle fxutil.BundleOptions
+
+func init() {
+	Bundle = fxutil.Bundle(
+		// As `config.Module` expects `config.Params` as a parameter, it is require to define how to get `config.Params` from `BundleParams`.
+		fx.Provide(func(params BundleParams) config.Params { return params.ConfigParams }),
+		config.Module,
+		fx.Provide(func(params BundleParams) log.Params { return params.LogParams }),
+		log.Module,
+		fx.Provide(func(params BundleParams) sysprobeconfigimpl.Params { return params.SysprobeConfigParams }),
+		sysprobeconfigimpl.Module,
+		telemetry.Module,
+		hostnameimpl.Module,
+	)
+}

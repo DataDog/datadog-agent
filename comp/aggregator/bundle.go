@@ -14,6 +14,10 @@ import (
 // team: agent-shared-components
 
 // Bundle defines the fx options for this bundle.
-var Bundle = fxutil.Bundle(
-	demultiplexer.Module,
-)
+var Bundle fxutil.BundleOptions
+
+func init() {
+	Bundle = fxutil.Bundle(
+		demultiplexer.Module,
+	)
+}

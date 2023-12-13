@@ -18,12 +18,20 @@ import (
 // team: agent-shared-components
 
 // Bundle defines the fx options for this bundle.
-var Bundle = fxutil.Bundle(
-	runnerimpl.Module,
-	resourcesimpl.Module,
-	host.Module,
-	inventoryagent.Module,
-)
+var Bundle fxutil.BundleOptions
+
+func init() {
+	Bundle = fxutil.Bundle(
+		runnerimpl.Module,
+		resourcesimpl.Module,
+		host.Module,
+		inventoryagent.Module,
+	)
+}
 
 // MockBundle defines the mock fx options for this bundle.
-var MockBundle = fxutil.Bundle()
+var MockBundle fxutil.BundleOptions
+
+func init() {
+	MockBundle = fxutil.Bundle()
+}

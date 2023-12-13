@@ -19,6 +19,10 @@ import (
 // team: network-device-monitoring
 
 // MockBundle defines the fx options for mock versions of everything in this bundle.
-var MockBundle = fxutil.Bundle(
-	forwarderimpl.MockModule,
-)
+var MockBundle fxutil.BundleOptions
+
+func init() {
+	MockBundle = fxutil.Bundle(
+		forwarderimpl.MockModule,
+	)
+}

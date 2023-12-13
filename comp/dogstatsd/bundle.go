@@ -15,8 +15,12 @@ import (
 // team: agent-metrics-logs
 
 // Bundle defines the fx options for this bundle.
-var Bundle = fxutil.Bundle(
-	serverdebugimpl.Module,
-	replay.Module,
-	server.Module,
-)
+var Bundle fxutil.BundleOptions
+
+func init() {
+	Bundle = fxutil.Bundle(
+		serverdebugimpl.Module,
+		replay.Module,
+		server.Module,
+	)
+}

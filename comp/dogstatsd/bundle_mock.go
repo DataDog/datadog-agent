@@ -15,8 +15,12 @@ import (
 )
 
 // MockBundle defines the mock fx options for this bundle.
-var MockBundle = fxutil.Bundle(
-	serverdebugimpl.MockModule,
-	server.MockModule,
-	replay.Module,
-)
+var MockBundle fxutil.BundleOptions
+
+func init() {
+	MockBundle = fxutil.Bundle(
+		serverdebugimpl.MockModule,
+		server.MockModule,
+		replay.Module,
+	)
+}

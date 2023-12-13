@@ -13,6 +13,10 @@ import (
 // team: remote-config
 
 // Bundle defines the fx options for this bundle.
-var Bundle = fxutil.Bundle(
-	rcclient.Module,
-)
+var Bundle fxutil.BundleOptions
+
+func init() {
+	Bundle = fxutil.Bundle(
+		rcclient.Module,
+	)
+}

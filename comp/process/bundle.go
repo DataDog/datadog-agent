@@ -32,22 +32,26 @@ import (
 // team: processes
 
 // Bundle defines the fx options for this bundle.
-var Bundle = fxutil.Bundle(
-	runnerimpl.Module,
-	submitterimpl.Module,
-	profilerimpl.Module,
+var Bundle fxutil.BundleOptions
 
-	// Checks
-	connectionscheckimpl.Module,
-	containercheckimpl.Module,
-	podcheckimpl.Module,
-	processcheckimpl.Module,
-	processeventscheckimpl.Module,
-	rtcontainercheckimpl.Module,
-	processdiscoverycheckimpl.Module,
+func init() {
+	Bundle = fxutil.Bundle(
+		runnerimpl.Module,
+		submitterimpl.Module,
+		profilerimpl.Module,
 
-	hostinfoimpl.Module,
-	expvarsimpl.Module,
-	apiserver.Module,
-	forwarders.Module,
-)
+		// Checks
+		connectionscheckimpl.Module,
+		containercheckimpl.Module,
+		podcheckimpl.Module,
+		processcheckimpl.Module,
+		processeventscheckimpl.Module,
+		rtcontainercheckimpl.Module,
+		processdiscoverycheckimpl.Module,
+
+		hostinfoimpl.Module,
+		expvarsimpl.Module,
+		apiserver.Module,
+		forwarders.Module,
+	)
+}
