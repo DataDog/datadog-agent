@@ -169,7 +169,7 @@ require (
 	// pulumi-random v4.14.0 uses GO 1.21:
 	// https://github.com/pulumi/pulumi-random/blob/v4.14.0/sdk/go.mod#L3
 	// So, do not upgrade pulumi-random to v4.14.0 or above before migration to GO 1.21.
-	github.com/pulumi/pulumi-random/sdk/v4 v4.14.0 // indirect
+	github.com/pulumi/pulumi-random/sdk/v4 v4.13.4 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
 	github.com/rogpeppe/go-internal v1.11.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
