@@ -717,7 +717,7 @@ func cleanupCmd(region string, dryRun bool) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	defaultCfg, err := config.LoadDefaultConfig(ctx)
+	defaultCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
 	if err != nil {
 		return err
 	}
