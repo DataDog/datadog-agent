@@ -34,7 +34,7 @@ func decodeHTTP2Path(buf [maxHTTP2Path]byte, pathSize uint8) ([]byte, error) {
 		return nil, errors.New("empty path")
 	}
 	if pathSize > maxHTTP2Path {
-		return nil, fmt.Errorf("path too long: %d", pathSize)
+		return nil, fmt.Errorf("path size has exceeded the maximum limit: %d", pathSize)
 	}
 
 	str, err := hpack.HuffmanDecodeToString(buf[:pathSize])
@@ -43,7 +43,7 @@ func decodeHTTP2Path(buf [maxHTTP2Path]byte, pathSize uint8) ([]byte, error) {
 	}
 
 	if len(str) == 0 {
-		return nil, errors.New("decoded path is an empty path")
+		return nil, errors.New("decoded path is empty")
 	}
 	// ensure we found a '/' in the beginning of the path
 	if str[0] != '/' {
