@@ -1323,19 +1323,19 @@ func (s *sideScanner) start(ctx context.Context) {
 		defer func() { done <- struct{}{} }()
 		for result := range s.resultsCh {
 			if result.err != nil {
-				if err := statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagFailure(result.scan, result.err), 1.0); err != nil {
+				if err := statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, tagFailure(result.scan, result.err), 1.0); err != nil {
 					log.Warnf("failed to send metric: %v", err)
 				}
 			} else {
 				if result.sbom != nil {
 					if hasResults(result.sbom) {
 						log.Debugf("scan %s finished successfully (took %s)", result.scan, result.duration)
-						if err := statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagSuccess(result.scan), 1.0); err != nil {
+						if err := statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, tagSuccess(result.scan), 1.0); err != nil {
 							log.Warnf("failed to send metric: %v", err)
 						}
 					} else {
 						log.Debugf("scan %s finished successfully without results (took %s)", result.scan, result.duration)
-						if err := statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagNoResult(result.scan), 1.0); err != nil {
+						if err := statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, tagNoResult(result.scan), 1.0); err != nil {
 							log.Warnf("failed to send metric: %v", err)
 						}
 					}
@@ -1348,7 +1348,7 @@ func (s *sideScanner) start(ctx context.Context) {
 				}
 				if result.findings != nil {
 					log.Debugf("sending findings for scan %s", result.scan)
-					if err := statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagSuccess(result.scan), 1.0); err != nil {
+					if err := statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, tagSuccess(result.scan), 1.0); err != nil {
 						log.Warnf("failed to send metric: %v", err)
 					}
 					s.sendFindings(result.findings)
@@ -1418,12 +1418,12 @@ func (s *sideScanner) start(ctx context.Context) {
 }
 
 func (s *sideScanner) launchScan(ctx context.Context, scan *scanTask) (err error) {
-	if err := statsd.Count("datadog.sidescanner.scans.started", 1.0, tagScan(scan), 1.0); err != nil {
+	if err := statsd.Count("datadog.agentless_scanner.scans.started", 1.0, tagScan(scan), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}
 	defer func() {
 		if err != nil {
-			if err := statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagFailure(scan, err), 1.0); err != nil {
+			if err := statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, tagFailure(scan, err), 1.0); err != nil {
 				log.Warnf("failed to send metric: %v", err)
 			}
 		}
@@ -1570,7 +1570,7 @@ func statsResourceTTL(resourceType resourceType, scan *scanTask, createTime time
 	ttl := time.Since(createTime)
 	tags := tagScan(scan)
 	tags = append(tags, fmt.Sprintf("aws_resource_type:%s", string(resourceType)))
-	if err := statsd.Histogram("datadog.sidescanner.aws.resources_ttl", float64(ttl.Milliseconds()), tags, 1.0); err != nil {
+	if err := statsd.Histogram("datadog.agentless_scanner.aws.resources_ttl", float64(ttl.Milliseconds()), tags, 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}
 }
@@ -1593,7 +1593,7 @@ func createSnapshot(ctx context.Context, scan *scanTask, ec2client *ec2.Client, 
 	}
 
 	snapshotStartedAt := time.Now()
-	if err := statsd.Count("datadog.sidescanner.snapshots.started", 1.0, tagScan(scan), 1.0); err != nil {
+	if err := statsd.Count("datadog.agentless_scanner.snapshots.started", 1.0, tagScan(scan), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}
 	log.Debugf("starting volume snapshotting %q", volumeARN)
@@ -1640,7 +1640,7 @@ retry:
 		} else {
 			tags = tagFailure(scan, err)
 		}
-		if err := statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tags, 1.0); err != nil {
+		if err := statsd.Count("datadog.agentless_scanner.snapshots.finished", 1.0, tags, 1.0); err != nil {
 			log.Warnf("failed to send metric: %v", err)
 		}
 		return
@@ -1657,17 +1657,17 @@ retry:
 	if err == nil {
 		snapshotDuration := time.Since(snapshotStartedAt)
 		log.Debugf("volume snapshotting of %q finished successfully %q (took %s)", volumeARN, snapshotID, snapshotDuration)
-		if err := statsd.Histogram("datadog.sidescanner.snapshots.duration", float64(snapshotDuration.Milliseconds()), tagScan(scan), 1.0); err != nil {
+		if err := statsd.Histogram("datadog.agentless_scanner.snapshots.duration", float64(snapshotDuration.Milliseconds()), tagScan(scan), 1.0); err != nil {
 			log.Warnf("failed to send metric: %v", err)
 		}
-		if err := statsd.Histogram("datadog.sidescanner.snapshots.size", float64(*createSnapshotOutput.VolumeSize), tagFailure(scan, err), 1.0); err != nil {
+		if err := statsd.Histogram("datadog.agentless_scanner.snapshots.size", float64(*createSnapshotOutput.VolumeSize), tagFailure(scan, err), 1.0); err != nil {
 			log.Warnf("failed to send metric: %v", err)
 		}
-		if err := statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tagSuccess(scan), 1.0); err != nil {
+		if err := statsd.Count("datadog.agentless_scanner.snapshots.finished", 1.0, tagSuccess(scan), 1.0); err != nil {
 			log.Warnf("failed to send metric: %v", err)
 		}
 	} else {
-		if err := statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tagFailure(scan, err), 1.0); err != nil {
+		if err := statsd.Count("datadog.agentless_scanner.snapshots.finished", 1.0, tagFailure(scan, err), 1.0); err != nil {
 			log.Warnf("failed to send metric: %v", err)
 		}
 	}
@@ -1805,7 +1805,7 @@ func (rt *awsClientStats) RoundTrip(req *http.Request) (*http.Response, error) {
 		fmt.Sprintf("aws_throttled_5000:%t", throttled5000),
 		fmt.Sprintf("aws_action:%s_%s", service, action),
 	}
-	if err := statsd.Incr("datadog.sidescanner.aws.requests", tags, 1.0); err != nil {
+	if err := statsd.Incr("datadog.agentless_scanner.aws.requests", tags, 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}
 	resp, err := rt.transport.RoundTrip(req)
@@ -1839,12 +1839,12 @@ func (rt *awsClientStats) RoundTrip(req *http.Request) (*http.Response, error) {
 		}
 	}
 	if err != nil {
-		if err := statsd.Histogram("datadog.sidescanner.aws.responses", duration, tags, 1.0); err != nil {
+		if err := statsd.Histogram("datadog.agentless_scanner.aws.responses", duration, tags, 1.0); err != nil {
 			log.Warnf("failed to send metric: %v", err)
 		}
 		return nil, err
 	}
-	if err := statsd.Histogram("datadog.sidescanner.aws.responses", duration, tags, 1.0); err != nil {
+	if err := statsd.Histogram("datadog.agentless_scanner.aws.responses", duration, tags, 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}
 	return resp, nil
@@ -2024,7 +2024,7 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 	}
 
 	scanDuration := time.Since(scanStartedAt)
-	if err := statsd.Histogram("datadog.sidescanner.scans.duration", float64(scanDuration.Milliseconds()), tagScan(scan), 1.0); err != nil {
+	if err := statsd.Histogram("datadog.agentless_scanner.scans.duration", float64(scanDuration.Milliseconds()), tagScan(scan), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}
 
@@ -2102,14 +2102,14 @@ func scanLambda(ctx context.Context, scan *scanTask, resultsCh chan scanResult) 
 	resultsCh <- scanResult{err: err, scan: scan, sbom: sbom, duration: time.Since(scanStartedAt)}
 
 	scanDuration := time.Since(scanStartedAt)
-	if err := statsd.Histogram("datadog.sidescanner.scans.duration", float64(scanDuration.Milliseconds()), tagScan(scan), 1.0); err != nil {
+	if err := statsd.Histogram("datadog.agentless_scanner.scans.duration", float64(scanDuration.Milliseconds()), tagScan(scan), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}
 	return nil
 }
 
 func downloadLambda(ctx context.Context, scan *scanTask, tempDir string) (codePath string, err error) {
-	if err := statsd.Count("datadog.sidescanner.functions.started", 1.0, tagScan(scan), 1.0); err != nil {
+	if err := statsd.Count("datadog.agentless_scanner.functions.started", 1.0, tagScan(scan), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}
 	defer func() {
@@ -2125,11 +2125,11 @@ func downloadLambda(ctx context.Context, scan *scanTask, tempDir string) (codePa
 			} else {
 				tags = tagFailure(scan, err)
 			}
-			if err := statsd.Count("datadog.sidescanner.functions.finished", 1.0, tags, 1.0); err != nil {
+			if err := statsd.Count("datadog.agentless_scanner.functions.finished", 1.0, tags, 1.0); err != nil {
 				log.Warnf("failed to send metric: %v", err)
 			}
 		} else {
-			if err := statsd.Count("datadog.sidescanner.functions.finished", 1.0, tagSuccess(scan), 1.0); err != nil {
+			if err := statsd.Count("datadog.agentless_scanner.functions.finished", 1.0, tagSuccess(scan), 1.0); err != nil {
 				log.Warnf("failed to send metric: %v", err)
 			}
 		}
@@ -2202,7 +2202,7 @@ func downloadLambda(ctx context.Context, scan *scanTask, tempDir string) (codePa
 
 	functionDuration := time.Since(functionStartedAt)
 	log.Debugf("function retrieved successfully %q (took %s)", scan.ARN, functionDuration)
-	if err := statsd.Histogram("datadog.sidescanner.functions.duration", float64(functionDuration.Milliseconds()), tagScan(scan), 1.0); err != nil {
+	if err := statsd.Histogram("datadog.agentless_scanner.functions.duration", float64(functionDuration.Milliseconds()), tagScan(scan), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}
 	return codePath, nil
