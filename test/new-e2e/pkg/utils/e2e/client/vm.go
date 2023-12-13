@@ -28,11 +28,7 @@ type VM interface {
 
 	// GetOSType get the OS type of the VM
 	GetOSType() componentos.Type
-}
 
-// GetOSType returns the operating system type of the VMClient instance.
-func (vmClient *VMClient) GetOSType() componentos.Type {
-	return vmClient.osType
 	// FileExists returns true if the file exists and is a regular file and returns an error if any
 	FileExists(path string) (bool, error)
 
@@ -61,4 +57,10 @@ func (vmClient *VMClient) GetOSType() componentos.Type {
 	// RemoveAll recursively removes all files/folders in the specified directory.
 	// Returns an error if the directory does not exist.
 	RemoveAll(path string) error
+}
+
+// GetOSType returns the operating system type of the VMClient instance.
+func (vmClient *VMClient) GetOSType() componentos.Type {
+	return vmClient.osType
+
 }
