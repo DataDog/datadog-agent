@@ -113,7 +113,7 @@ def cancel_smp_job(_, pipeline_id, job_id):
             os.environ["AWS_NAMED_PROFILE"],
             "job",
             "cancel",
-            "--submission_metadata",
+            "--submission-metadata",
             "submission_metadata",
         ]
     )
