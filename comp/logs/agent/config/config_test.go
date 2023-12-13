@@ -10,11 +10,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/suite"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/stretchr/testify/suite"
-	"go.uber.org/fx"
+	pointer "github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 type ConfigTestSuite struct {
@@ -162,7 +164,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 		APIKey:           "123",
 		Host:             "agent-http-intake.logs.datadoghq.com",
 		Port:             443,
-		UseSSL:           true,
+		UseSSL:           pointer.Ptr(true),
 		UseCompression:   true,
 		CompressionLevel: 6,
 		BackoffFactor:    3,
@@ -176,7 +178,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 		APIKey:           "456",
 		Host:             "additional.endpoint.1",
 		Port:             1234,
-		UseSSL:           true,
+		UseSSL:           pointer.Ptr(true),
 		UseCompression:   true,
 		CompressionLevel: 6,
 		BackoffFactor:    3,
@@ -190,7 +192,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 		APIKey:           "789",
 		Host:             "additional.endpoint.2",
 		Port:             1234,
-		UseSSL:           true,
+		UseSSL:           pointer.Ptr(true),
 		UseCompression:   true,
 		CompressionLevel: 6,
 		BackoffFactor:    3,
@@ -222,7 +224,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsEnvVar() {
 		APIKey:           "123",
 		Host:             "agent-http-intake.logs.datadoghq.com",
 		Port:             443,
-		UseSSL:           true,
+		UseSSL:           pointer.Ptr(true),
 		UseCompression:   false,
 		CompressionLevel: 0,
 		ProxyAddress:     "proxy.test:3128",
@@ -231,7 +233,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsEnvVar() {
 		APIKey:           "456",
 		Host:             "additional.endpoint",
 		Port:             1234,
-		UseSSL:           true,
+		UseSSL:           pointer.Ptr(true),
 		UseCompression:   false,
 		CompressionLevel: 0,
 		ProxyAddress:     "proxy.test:3128",
@@ -273,7 +275,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 		APIKey:           "123",
 		Host:             "agent-http-intake.logs.datadoghq.com",
 		Port:             443,
-		UseSSL:           true,
+		UseSSL:           pointer.Ptr(true),
 		UseCompression:   true,
 		CompressionLevel: 6,
 		BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
@@ -286,7 +288,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 		APIKey:           "456",
 		Host:             "additional.endpoint.1",
 		Port:             1234,
-		UseSSL:           true,
+		UseSSL:           pointer.Ptr(true),
 		UseCompression:   true,
 		CompressionLevel: 6,
 		BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
@@ -299,7 +301,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 		APIKey:           "789",
 		Host:             "additional.endpoint.2",
 		Port:             1234,
-		UseSSL:           true,
+		UseSSL:           pointer.Ptr(true),
 		UseCompression:   true,
 		CompressionLevel: 6,
 		BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
@@ -345,7 +347,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 		APIKey:           "123",
 		Host:             "agent-http-intake.logs.datadoghq.com",
 		Port:             443,
-		UseSSL:           true,
+		UseSSL:           pointer.Ptr(true),
 		UseCompression:   true,
 		CompressionLevel: 6,
 		BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
@@ -361,7 +363,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 		APIKey:           "456",
 		Host:             "additional.endpoint.1",
 		Port:             1234,
-		UseSSL:           true,
+		UseSSL:           pointer.Ptr(true),
 		UseCompression:   true,
 		CompressionLevel: 6,
 		BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
@@ -374,7 +376,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 		APIKey:           "789",
 		Host:             "additional.endpoint.2",
 		Port:             1234,
-		UseSSL:           true,
+		UseSSL:           pointer.Ptr(true),
 		UseCompression:   true,
 		CompressionLevel: 6,
 		BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
@@ -413,7 +415,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsInConf() {
 		APIKey:           "123",
 		Host:             "agent-http-intake.logs.datadoghq.com",
 		Port:             443,
-		UseSSL:           true,
+		UseSSL:           pointer.Ptr(true),
 		UseCompression:   false,
 		CompressionLevel: 0,
 		ProxyAddress:     "proxy.test:3128",
@@ -422,7 +424,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsInConf() {
 		APIKey:           "456",
 		Host:             "additional.endpoint",
 		Port:             1234,
-		UseSSL:           true,
+		UseSSL:           pointer.Ptr(true),
 		UseCompression:   false,
 		CompressionLevel: 0,
 		ProxyAddress:     "proxy.test:3128",
@@ -448,7 +450,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrl() {
 		APIKey:           "123",
 		Host:             "my-proxy",
 		Port:             443,
-		UseSSL:           true,
+		UseSSL:           pointer.Ptr(true),
 		UseCompression:   true,
 		CompressionLevel: 6,
 		BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
@@ -492,7 +494,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDSite() {
 		APIKey:           "123",
 		Host:             "default-intake.logs.mydomain.com",
 		Port:             0,
-		UseSSL:           true,
+		UseSSL:           pointer.Ptr(true),
 		UseCompression:   true,
 		CompressionLevel: 6,
 		BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
@@ -528,7 +530,7 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 		APIKey:           "123",
 		Host:             "http-intake.logs.datadoghq.com",
 		Port:             0,
-		UseSSL:           true,
+		UseSSL:           pointer.Ptr(true),
 		UseCompression:   true,
 		CompressionLevel: 6,
 		BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
@@ -559,11 +561,10 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 }
 
 func getTestEndpoint(host string, port int, ssl bool) Endpoint {
-	return Endpoint{
+	e := Endpoint{
 		APIKey:           "123",
 		Host:             host,
 		Port:             port,
-		UseSSL:           ssl,
 		UseCompression:   true,
 		CompressionLevel: 6,
 		BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
@@ -575,6 +576,8 @@ func getTestEndpoint(host string, port int, ssl bool) Endpoint {
 		Protocol:         "test-proto",
 		Origin:           "test-source",
 	}
+	e.UseSSL = pointer.Ptr(ssl)
+	return e
 }
 
 func getTestEndpoints(e Endpoint) *Endpoints {
@@ -674,7 +677,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetNonDefaultCustomConfigs() {
 		APIKey:                  "123",
 		Host:                    "ndmflow-intake.datadoghq.com",
 		Port:                    0,
-		UseSSL:                  true,
+		UseSSL:                  pointer.Ptr(true),
 		UseCompression:          false,
 		CompressionLevel:        10,
 		BackoffFactor:           4,
@@ -717,7 +720,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrlWithPrefix() {
 		APIKey:           "123",
 		Host:             "my-proxy.com",
 		Port:             443,
-		UseSSL:           true,
+		UseSSL:           pointer.Ptr(true),
 		UseCompression:   true,
 		CompressionLevel: 6,
 		BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
@@ -758,7 +761,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDUrlWithPrefix() {
 		APIKey:           "123",
 		Host:             "my-proxy.com",
 		Port:             443,
-		UseSSL:           true,
+		UseSSL:           pointer.Ptr(true),
 		UseCompression:   true,
 		CompressionLevel: 6,
 		BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
@@ -813,7 +816,7 @@ func Test_parseAddressWithScheme(t *testing.T) {
 			wantErr:    false,
 		},
 		{
-			name: "url with https prefix",
+			name: "url with https prefix and logs_no_ssl set true",
 			args: args{
 				address:       "https://localhost",
 				defaultNoSSL:  true,
@@ -821,7 +824,19 @@ func Test_parseAddressWithScheme(t *testing.T) {
 			},
 			wantHost:   "localhost",
 			wantPort:   0,
-			wantUseSSL: true,
+			wantUseSSL: false,
+			wantErr:    false,
+		},
+		{
+			name: "url with http prefix and logs_no_ssl set false",
+			args: args{
+				address:       "http://localhost",
+				defaultNoSSL:  false,
+				defaultParser: parseAddress,
+			},
+			wantHost:   "localhost",
+			wantPort:   0,
+			wantUseSSL: false,
 			wantErr:    false,
 		},
 		{
@@ -856,7 +871,7 @@ func Test_parseAddressWithScheme(t *testing.T) {
 			},
 			wantHost:   "localhost",
 			wantPort:   0,
-			wantUseSSL: true,
+			wantUseSSL: false,
 			wantErr:    false,
 		},
 		{

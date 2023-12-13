@@ -17,6 +17,7 @@ import (
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	pointer "github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 // ContainerCollectAll is the name of the docker integration that collect logs from all containers
@@ -144,6 +145,7 @@ func buildTCPEndpoints(coreConfig pkgConfig.Reader, logsConfig *LogsConfigKeys) 
 		APIKey:                  logsConfig.getLogsAPIKey(),
 		ProxyAddress:            proxyAddress,
 		ConnectionResetInterval: logsConfig.connectionResetInterval(),
+		UseSSL:                  pointer.Ptr(logsConfig.logsNoSSL()),
 	}
 
 	if logsDDURL, defined := logsConfig.logsDDURL(); defined {
@@ -156,11 +158,11 @@ func buildTCPEndpoints(coreConfig pkgConfig.Reader, logsConfig *LogsConfigKeys) 
 		}
 		main.Host = host
 		main.Port = port
-		main.UseSSL = !logsConfig.logsNoSSL()
+		*main.UseSSL = !logsConfig.logsNoSSL()
 	} else if logsConfig.usePort443() {
 		main.Host = logsConfig.ddURL443()
 		main.Port = 443
-		main.UseSSL = true
+		*main.UseSSL = true
 	} else {
 		// If no proxy is set, we default to 'logs_config.dd_url' if set, or to 'site'.
 		// if none of them is set, we default to the US agent endpoint.
@@ -170,12 +172,16 @@ func buildTCPEndpoints(coreConfig pkgConfig.Reader, logsConfig *LogsConfigKeys) 
 		} else {
 			main.Port = logsConfig.ddPort()
 		}
-		main.UseSSL = !logsConfig.devModeNoSSL()
+		*main.UseSSL = !logsConfig.devModeNoSSL()
 	}
 
 	additionals := logsConfig.getAdditionalEndpoints()
 	for i := 0; i < len(additionals); i++ {
-		additionals[i].UseSSL = main.UseSSL
+		if additionals[i].UseSSL == nil {
+			additionals[i].UseSSL = main.UseSSL
+		} else {
+			*additionals[i].UseSSL = !*additionals[i].UseSSL
+		}
 		additionals[i].ProxyAddress = proxyAddress
 		additionals[i].APIKey = utils.SanitizeAPIKey(additionals[i].APIKey)
 	}
@@ -217,6 +223,7 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgConfig.Reader, logsConfig *LogsC
 	} else {
 		main.Version = EPIntakeVersion1
 	}
+	main.UseSSL = pointer.Ptr(defaultNoSSL)
 
 	if vectorURL, vectorURLDefined := logsConfig.getObsPipelineURL(); logsConfig.obsPipelineWorkerEnabled() && vectorURLDefined {
 		host, port, useSSL, err := parseAddressWithScheme(vectorURL, defaultNoSSL, parseAddress)
@@ -225,7 +232,7 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgConfig.Reader, logsConfig *LogsC
 		}
 		main.Host = host
 		main.Port = port
-		main.UseSSL = useSSL
+		*main.UseSSL = useSSL
 	} else if logsDDURL, logsDDURLDefined := logsConfig.logsDDURL(); logsDDURLDefined {
 		host, port, useSSL, err := parseAddressWithScheme(logsDDURL, defaultNoSSL, parseAddress)
 		if err != nil {
@@ -233,7 +240,7 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgConfig.Reader, logsConfig *LogsC
 		}
 		main.Host = host
 		main.Port = port
-		main.UseSSL = useSSL
+		*main.UseSSL = useSSL
 	} else {
 		addr := utils.GetMainEndpoint(coreConfig, endpointPrefix, logsConfig.getConfigKey("dd_url"))
 		host, port, useSSL, err := parseAddressWithScheme(addr, logsConfig.devModeNoSSL(), parseAddressAsHost)
@@ -243,12 +250,16 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgConfig.Reader, logsConfig *LogsC
 
 		main.Host = host
 		main.Port = port
-		main.UseSSL = useSSL
+		*main.UseSSL = useSSL
 	}
 
 	additionals := logsConfig.getAdditionalEndpoints()
 	for i := 0; i < len(additionals); i++ {
-		additionals[i].UseSSL = main.UseSSL
+		if additionals[i].UseSSL == nil {
+			additionals[i].UseSSL = main.UseSSL
+		} else {
+			*additionals[i].UseSSL = !*additionals[i].UseSSL
+		}
 		additionals[i].APIKey = utils.SanitizeAPIKey(additionals[i].APIKey)
 		additionals[i].UseCompression = main.UseCompression
 		additionals[i].CompressionLevel = main.CompressionLevel
@@ -280,8 +291,14 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgConfig.Reader, logsConfig *LogsC
 type defaultParseAddressFunc func(string) (host string, port int, err error)
 
 func parseAddressWithScheme(address string, defaultNoSSL bool, defaultParser defaultParseAddressFunc) (host string, port int, useSSL bool, err error) {
-	if strings.HasPrefix(address, "https://") || strings.HasPrefix(address, "http://") {
+	hasHTTPSPrefix := strings.HasPrefix(address, "https://")
+	if hasHTTPSPrefix || strings.HasPrefix(address, "http://") {
 		host, port, useSSL, err = parseURL(address)
+		// Override HTTPS config if logs_no_ssl has been explicitly set by user
+		if hasHTTPSPrefix && defaultNoSSL {
+			log.Warn("dd_url option set to URL with HTTPS prefix and logs_no_ssl set to true, agent will not use SSL to send logs.")
+			useSSL = !defaultNoSSL
+		}
 	} else {
 		host, port, err = defaultParser(address)
 		if err != nil {

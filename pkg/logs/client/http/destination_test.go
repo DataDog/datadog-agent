@@ -15,13 +15,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	pointer "github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func TestBuildURLShouldReturnHTTPSWithUseSSL(t *testing.T) {
 	url := buildURL(config.Endpoint{
 		APIKey: "bar",
 		Host:   "foo",
-		UseSSL: true,
+		UseSSL: pointer.Ptr(true),
 	})
 	assert.Equal(t, "https://foo/v1/input", url)
 }
@@ -30,7 +31,7 @@ func TestBuildURLShouldReturnHTTPWithoutUseSSL(t *testing.T) {
 	url := buildURL(config.Endpoint{
 		APIKey: "bar",
 		Host:   "foo",
-		UseSSL: false,
+		UseSSL: pointer.Ptr(false),
 	})
 	assert.Equal(t, "http://foo/v1/input", url)
 }
@@ -40,7 +41,7 @@ func TestBuildURLShouldReturnAddressWithPortWhenDefined(t *testing.T) {
 		APIKey: "bar",
 		Host:   "foo",
 		Port:   1234,
-		UseSSL: false,
+		UseSSL: pointer.Ptr(false),
 	})
 	assert.Equal(t, "http://foo:1234/v1/input", url)
 }
@@ -49,7 +50,7 @@ func TestBuildURLShouldReturnAddressForVersion2(t *testing.T) {
 	url := buildURL(config.Endpoint{
 		APIKey:    "bar",
 		Host:      "foo",
-		UseSSL:    false,
+		UseSSL:    pointer.Ptr(false),
 		Version:   config.EPIntakeVersion2,
 		TrackType: "test-track",
 	})
