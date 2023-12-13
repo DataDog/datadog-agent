@@ -16,39 +16,24 @@ import (
 	"github.com/stretchr/testify/suite"
 	"os"
 	"testing"
-	"time"
 )
 
 type DockerSuite struct {
 	baseSuite
-	fullAgentImagePath string
-	stackName          string
+	stackName string
 }
 
 func TestDockerSuite(t *testing.T) {
-
-	agentFullImage := os.Getenv("AGENT_FULL_IMAGE")
-
 	stackName := "docker-stack"
-
-	if agentFullImage != "" {
-		suite.Run(t, &DockerSuite{stackName: stackName, fullAgentImagePath: agentFullImage})
-	} else {
-		// Full Agent
-		suite.Run(t, &DockerSuite{stackName: stackName, fullAgentImagePath: "gcr.io/datadoghq/agent:latest"})
-
-		// DogstatsD Standalone
-		suite.Run(t, &DockerSuite{stackName: stackName, fullAgentImagePath: "datadog/dogstatsd:latest"})
-	}
+	suite.Run(t, &DockerSuite{stackName: stackName})
 }
 
 func (suite *DockerSuite) SetupSuite() {
 	ctx := context.Background()
 
 	stackConfig := runner.ConfigMap{
-		"ddagent:deploy":        auto.ConfigValue{Value: "true"},
-		"ddagent:fakeintake":    auto.ConfigValue{Value: "true"},
-		"ddagent:fullImagePath": auto.ConfigValue{Value: suite.fullAgentImagePath},
+		"ddagent:deploy":     auto.ConfigValue{Value: "true"},
+		"ddagent:fakeintake": auto.ConfigValue{Value: "true"},
 	}
 
 	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(ctx, suite.stackName, stackConfig, dockervm.Run, false)
@@ -63,19 +48,6 @@ func (suite *DockerSuite) SetupSuite() {
 	vmConnection := stackOutput.Outputs["vm-connection"].Value.(map[string]interface{})
 	suite.clusterName = fmt.Sprintf("%s-%v", os.Getenv("USER"), vmConnection["host"])
 
-	suite.Eventuallyf(
-		func() bool { return suite.Fakeintake.GetServerHealth() == nil },
-		1*time.Minute,
-		5*time.Second,
-		"Fakeintake is never healthy",
-	)
-
-	err = suite.Fakeintake.FlushServerAndResetAggregators()
-	if !suite.Assert().NoError(err) {
-		fmt.Println("Failed to flush/reset fakeintake")
-		suite.FailNow(ctx)
-	}
-
 	suite.baseSuite.SetupSuite()
 }
 
@@ -86,7 +58,6 @@ func (suite *DockerSuite) TearDownSuite() {
 func (suite *DockerSuite) FailNow(ctx context.Context) {
 	_, err := infra.GetStackManager().GetPulumiStackName(suite.stackName)
 	suite.Require().NoError(err)
-	suite.T().Log(dumpKindClusterState(ctx, suite.stackName))
 	if !runner.GetProfile().AllowDevMode() || !*keepStacks {
 		infra.GetStackManager().DeleteStack(ctx, suite.stackName)
 	}
