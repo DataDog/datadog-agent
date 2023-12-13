@@ -396,7 +396,7 @@ func nbdCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(
 				func(_ complog.Component, _ compconfig.Component) error {
-					snapshotARN, err := parseARN(args[0])
+					snapshotARN, err := parseARN(args[0], resourceTypeSnapshot)
 					if err != nil {
 						return err
 					}
@@ -502,14 +502,9 @@ func parseRolesMapping(roles []string) rolesMapping {
 	}
 	rolesMapping := make(rolesMapping, len(roles))
 	for _, role := range roles {
-		roleARN, err := parseARN(role)
+		roleARN, err := parseARN(role, resourceTypeRole)
 		if err != nil {
 			log.Warnf("role-mapping: bad role %q: %v", role, err)
-			continue
-		}
-		resourceType, _, _ := getARNResource(roleARN)
-		if resourceType != resourceTypeRole {
-			log.Warnf("role-mapping: bad role %q: expecting a resource type `role`", role)
 			continue
 		}
 		rolesMapping[roleARN.AccountID] = &roleARN
@@ -861,7 +856,7 @@ func attachCmd() error {
 		lineNumber++
 		line := scanner.Text()
 		fmt.Println(lineNumber, line)
-		arn, err := parseARN(line)
+		arn, err := parseARN(line, resourceTypeSnapshot, resourceTypeVolume)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "%s (line %d)\n", err, lineNumber)
 		} else {
@@ -995,7 +990,7 @@ func nbdMountCmd(snapshotARN arn.ARN, mount, runClient bool) error {
 func newScanTask(t string, resourceARN, hostname string, actions []string, roles rolesMapping, mode diskMode) (*scanTask, error) {
 	var scan scanTask
 	var err error
-	scan.ARN, err = parseARN(resourceARN)
+	scan.ARN, err = parseARN(resourceARN, resourceTypeSnapshot, resourceTypeVolume, resourceTypeFunction)
 	if err != nil {
 		return nil, err
 	}
@@ -1074,14 +1069,17 @@ func unmarshalConfig(b []byte) (*scanConfig, error) {
 	return &config, nil
 }
 
-func parseARN(s string) (arn.ARN, error) {
+func parseARN(s string, expectedTypes ...resourceType) (arn.ARN, error) {
 	a, err := arn.Parse(s)
 	if err != nil {
 		return arn.ARN{}, err
 	}
-	_, _, err = getARNResource(a)
+	resType, _, err := getARNResource(a)
 	if err != nil {
 		return arn.ARN{}, err
+	}
+	if len(expectedTypes) > 0 && !slices.Contains(expectedTypes, resType) {
+		return arn.ARN{}, fmt.Errorf("bad arn: expecting on of these resource types %v", expectedTypes)
 	}
 	return a, nil
 }
