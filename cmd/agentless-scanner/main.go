@@ -1116,7 +1116,7 @@ func unmarshalConfig(b []byte) (*scanConfig, error) {
 		return nil, fmt.Errorf("unexpected config type %q", config.Type)
 	}
 
-	if len(config.Roles) > 0 {
+	if len(configRaw.Roles) > 0 {
 		config.Roles = parseRolesMapping(configRaw.Roles)
 	} else {
 		config.Roles = getDefaultRolesMapping()
