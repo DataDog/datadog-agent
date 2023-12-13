@@ -25,17 +25,16 @@ type LinuxFakeintakeSuite struct {
 }
 
 //go:embed log-config/log-config.yaml
-var logConfig []byte
+var logConfig string
 
 var logPath = "/var/log/hello-world.log"
 
 // logsExampleStackDef returns the stack definition required for the log agent test suite.
 func logsExampleStackDef() *e2e.StackDefinition[e2e.FakeIntakeEnv] {
-
 	return e2e.FakeIntakeStackDef(
 		e2e.WithAgentParams(
 			agentparams.WithLogs(),
-			agentparams.WithIntegration("custom_logs.d", string(logConfig))))
+			agentparams.WithIntegration("custom_logs.d", logConfig)))
 
 }
 
