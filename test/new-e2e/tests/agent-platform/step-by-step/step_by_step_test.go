@@ -54,6 +54,7 @@ func TestStepByStepScript(t *testing.T) {
 		"debian":      ec2os.DebianOS,
 		"ubuntu":      ec2os.UbuntuOS,
 		"centos":      ec2os.CentOS,
+		"rhel":        ec2os.RedHatOS,
 		"amazonlinux": ec2os.AmazonLinuxOS,
 		"redhat":      ec2os.RedHatOS,
 		"windows":     ec2os.WindowsOS,
@@ -74,6 +75,7 @@ func TestStepByStepScript(t *testing.T) {
 	osVersions := strings.Split(*osVersion, ",")
 	cwsSupportedOsVersionList := strings.Split(*cwsSupportedOsVersion, ",")
 
+	vmOpts := []ec2params.Option{}
 	fmt.Println("Parsed platform json file: ", platformJSON)
 	for _, osVers := range osVersions {
 		osVers := osVers
@@ -98,7 +100,11 @@ func TestStepByStepScript(t *testing.T) {
 			} else {
 				version = 0
 			}
-			e2e.Run(tt, &stepByStepSuite{cwsSupported: cwsSupported, osVersion: version}, e2e.EC2VMStackDef(ec2params.WithImageName(platformJSON[*platform][*architecture][osVers], archMapping[*architecture], osMapping[*platform])), params.WithStackName(fmt.Sprintf("step-by-step-test-%v-%v-%s-%s", os.Getenv("CI_PIPELINE_ID"), osVers, *architecture, *majorVersion)))
+			vmOpts = append(vmOpts, ec2params.WithImageName(platformJSON[*platform][*architecture][osVers], archMapping[*architecture], osMapping[*platform]))
+			if instanceType, ok := os.LookupEnv("E2E_OVERRIDE_INSTANCE_TYPE"); ok {
+				vmOpts = append(vmOpts, ec2params.WithInstanceType(instanceType))
+			}
+			e2e.Run(tt, &stepByStepSuite{cwsSupported: cwsSupported, osVersion: version}, e2e.EC2VMStackDef(), params.WithStackName(fmt.Sprintf("step-by-step-test-%v-%v-%s-%s", os.Getenv("CI_PIPELINE_ID"), osVers, *architecture, *majorVersion)))
 		})
 	}
 }

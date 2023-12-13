@@ -71,8 +71,8 @@ func TestInstallScript(t *testing.T) {
 
 	fmt.Println("Parsed platform json file: ", platformJSON)
 
-	vmOpts := []ec2params.Option{}
 	for _, osVers := range osVersions {
+		var vmOpts []ec2params.Option
 		osVers := osVers
 		if platformJSON[*platform][*architecture][osVers] == "" {
 			// Fail if the image is not defined instead of silently running with default Ubuntu AMI
@@ -92,7 +92,6 @@ func TestInstallScript(t *testing.T) {
 				cwsSupported = true
 			}
 		}
-
 		vmOpts = append(vmOpts, ec2params.WithImageName(platformJSON[*platform][*architecture][osVers], archMapping[*architecture], testOsType))
 		if instanceType, ok := os.LookupEnv("E2E_OVERRIDE_INSTANCE_TYPE"); ok {
 			vmOpts = append(vmOpts, ec2params.WithInstanceType(instanceType))
