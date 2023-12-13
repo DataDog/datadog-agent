@@ -169,6 +169,7 @@
 /cmd/system-probe/main_windows*.go      @DataDog/windows-kernel-integrations
 /cmd/systray/                           @DataDog/windows-agent
 /cmd/security-agent/                    @DataDog/agent-security
+/cmd/updater/                           @DataDog/fleet
 
 /dev/                                   @DataDog/agent-platform
 /devenv/                                @DataDog/agent-platform
