@@ -94,9 +94,13 @@ def gracefully_cancel_pipeline(gitlab, pipeline, force_cancel_stages):
 def cancel_smp_job(_, job_id):
     client = boto3.client("s3")
 
-    s3Uri = os.environ.get("S3_ARTIFACTS_URI")
+    s3_bucket_name = os.environ.get("S3_ARTIFACTS_URI").replace("s3://", "").split("/")[0]
 
-    client.download_file(s3Uri, f"smp/{job_id}/submission_metadata", "submission_metadata")
+    client.download_file(
+        s3_bucket_name,
+        f"datadog-agent/{os.environ['CI_PIPELINE_ID']}/smp/{job_id}/submission_metadata",
+        "submission_metadata",
+    )
 
     result = subprocess.call(
         [
