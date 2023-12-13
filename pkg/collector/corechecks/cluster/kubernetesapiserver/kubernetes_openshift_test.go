@@ -30,8 +30,8 @@ func TestReportClusterQuotas(t *testing.T) {
 	require.Len(t, list.Items, 1)
 
 	prevClusterName := config.Datadog.GetString("cluster_name")
-	config.Datadog.Set("cluster_name", "test-cluster-name")
-	defer config.Datadog.Set("cluster_name", prevClusterName)
+	config.Datadog.SetWithoutSource("cluster_name", "test-cluster-name")
+	defer config.Datadog.SetWithoutSource("cluster_name", prevClusterName)
 
 	instanceCfg := []byte("")
 	initCfg := []byte("")

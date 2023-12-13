@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 
-ARTIFACTS_DIR="/artifacts/${CI_JOB_ID}"
-mkdir -p "${ARTIFACTS_DIR}"
+set -e
 
-inv trace-agent.benchmarks --output="${ARTIFACTS_DIR}/pr_bench.txt" --bench="BenchmarkAgentTraceProcessing$"
+bench_loop_x10 () {
+  for i in {1..10}; do
+    inv trace-agent.benchmarks --output="/tmp/$1" --bench="BenchmarkAgentTraceProcessing$"
+    cat "/tmp/$1" >> "$ARTIFACTS_DIR/$1"
+  done
+}
 
-git checkout main
-inv trace-agent.benchmarks --output="${ARTIFACTS_DIR}/main_bench.txt" --bench="BenchmarkAgentTraceProcessing$"
+bench_loop_x10 "pr_bench.txt"
+git checkout main && bench_loop_x10 "main_bench.txt"
 
 git checkout "${CI_COMMIT_REF_NAME}" # (Only needed while these changes aren't merged to main)

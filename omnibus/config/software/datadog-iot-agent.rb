@@ -99,8 +99,6 @@ build do
     move 'bin/agent/dist/conf.d', "#{conf_dir}/"
     copy 'bin/agent', "#{install_dir}/bin/"
 
-    command "invoke customaction.build --major-version #{major_version_arg} --arch=" + platform
-
     # Build the process-agent with the correct go version for windows
     command "invoke -e process-agent.build --major-version #{major_version_arg} --arch #{platform}", :env => env
 

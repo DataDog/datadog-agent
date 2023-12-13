@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(ASC) Fix revive linter
 package azure
 
 import (
@@ -109,7 +110,7 @@ func getResponse(ctx context.Context, url string) (string, error) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
 
-	return httputils.Get(ctx, url, map[string]string{"Metadata": "true"}, timeout)
+	return httputils.Get(ctx, url, map[string]string{"Metadata": "true"}, timeout, config.Datadog)
 }
 
 // GetHostname returns hostname based on Azure instance metadata.

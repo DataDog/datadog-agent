@@ -57,7 +57,7 @@ func TestValidateShouldFailWithInvalidConfigs(t *testing.T) {
 func TestAutoMultilineEnabled(t *testing.T) {
 
 	mockConfig := fxutil.Test[config.Component](t, fx.Options(
-		config.MockModule,
+		config.MockModule(),
 	)).(config.Mock)
 
 	decode := func(cfg string) *LogsConfig {
@@ -66,22 +66,22 @@ func TestAutoMultilineEnabled(t *testing.T) {
 		return &lc
 	}
 
-	mockConfig.Set("logs_config.auto_multi_line_detection", false)
+	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", false)
 	assert.False(t, decode(`{"auto_multi_line_detection":false}`).AutoMultiLineEnabled(mockConfig))
 
-	mockConfig.Set("logs_config.auto_multi_line_detection", true)
+	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", true)
 	assert.False(t, decode(`{"auto_multi_line_detection":false}`).AutoMultiLineEnabled(mockConfig))
 
-	mockConfig.Set("logs_config.auto_multi_line_detection", true)
+	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", true)
 	assert.True(t, decode(`{}`).AutoMultiLineEnabled(mockConfig))
 
-	mockConfig.Set("logs_config.auto_multi_line_detection", false)
+	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", false)
 	assert.True(t, decode(`{"auto_multi_line_detection":true}`).AutoMultiLineEnabled(mockConfig))
 
-	mockConfig.Set("logs_config.auto_multi_line_detection", true)
+	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", true)
 	assert.True(t, decode(`{"auto_multi_line_detection":true}`).AutoMultiLineEnabled(mockConfig))
 
-	mockConfig.Set("logs_config.auto_multi_line_detection", false)
+	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", false)
 	assert.False(t, decode(`{}`).AutoMultiLineEnabled(mockConfig))
 
 }

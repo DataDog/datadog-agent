@@ -46,17 +46,13 @@ func NewProcessCheck(config ddconfig.Reader) *ProcessCheck {
 		lookupIdProbe: NewLookupIDProbe(config),
 	}
 
-	if workloadmeta.Enabled(config) {
-		check.workloadMetaExtractor = workloadmeta.NewWorkloadMetaExtractor(ddconfig.SystemProbe)
-		check.workloadMetaServer = workloadmeta.NewGRPCServer(config, check.workloadMetaExtractor)
-	}
-
 	return check
 }
 
 var errEmptyCPUTime = errors.New("empty CPU time information returned")
 
 const (
+	//nolint:revive // TODO(PROC) Fix revive linter
 	ProcessDiscoveryHint int32 = 1 << iota // 1
 )
 
@@ -103,6 +99,7 @@ type ProcessCheck struct {
 	lastConnRates     *atomic.Pointer[ProcessConnRates]
 	connRatesReceiver subscriptions.Receiver[ProcessConnRates]
 
+	//nolint:revive // TODO(PROC) Fix revive linter
 	lookupIdProbe *LookupIdProbe
 
 	extractors []metadata.Extractor
@@ -112,7 +109,7 @@ type ProcessCheck struct {
 }
 
 // Init initializes the singleton ProcessCheck.
-func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo) error {
+func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool) error {
 	p.hostInfo = info
 	p.sysProbeConfig = syscfg
 	p.probe = newProcessProbe(p.config, procutil.WithPermission(syscfg.ProcessModuleEnabled))
@@ -142,11 +139,13 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo) error {
 
 	p.initConnRates()
 
-	if workloadmeta.Enabled(p.config) {
+	if !oneShot && workloadmeta.Enabled(p.config) {
+		p.workloadMetaExtractor = workloadmeta.NewWorkloadMetaExtractor(ddconfig.SystemProbe)
+		p.workloadMetaServer = workloadmeta.NewGRPCServer(p.config, p.workloadMetaExtractor)
 		err = p.workloadMetaServer.Start()
 		if err != nil {
 			return log.Error("Failed to start the workloadmeta process entity gRPC server:", err)
-		} else {
+		} else { //nolint:revive // TODO(PROC) Fix revive linter
 			p.extractors = append(p.extractors, p.workloadMetaExtractor)
 		}
 	}
@@ -429,6 +428,7 @@ func fmtProcesses(
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
 	connRates ProcessConnRates,
+	//nolint:revive // TODO(PROC) Fix revive linter
 	lookupIdProbe *LookupIdProbe,
 ) map[string][]*model.Process {
 	procsByCtr := make(map[string][]*model.Process)

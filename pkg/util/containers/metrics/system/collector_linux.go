@@ -25,37 +25,33 @@ import (
 )
 
 const (
-	systemCollectorID      = "system"
-	cgroupV1BaseController = "memory"
+	collectorHighPriority  uint8 = 0
+	collectorLowPriority   uint8 = 10
+	systemCollectorID            = "system"
+	cgroupV1BaseController       = "memory"
 )
 
 func init() {
-	provider.GetProvider().RegisterCollector(provider.CollectorMetadata{
-		ID:       systemCollectorID,
-		Priority: 0,
-		Runtimes: provider.AllLinuxRuntimes,
-		Factory: func() (provider.Collector, error) {
-			return newSystemCollector()
+	provider.RegisterCollector(provider.CollectorFactory{
+		ID: systemCollectorID,
+		Constructor: func(cache *provider.Cache) (provider.CollectorMetadata, error) {
+			return newSystemCollector(cache)
 		},
-		DelegateCache: true,
 	})
 }
 
 type systemCollector struct {
 	reader              *cgroups.Reader
+	pidMapper           cgroups.StandalonePIDMapper
 	procPath            string
 	baseController      string
 	hostCgroupNamespace bool
 }
 
-func newSystemCollector() (*systemCollector, error) {
+func newSystemCollector(cache *provider.Cache) (provider.CollectorMetadata, error) {
 	var err error
 	var hostPrefix string
-
-	if !config.IsHostProcAvailable() || !config.IsHostSysAvailable() {
-		log.Debug("Container metrics system collector not available as host paths not mounted")
-		return nil, provider.ErrPermaFail
-	}
+	var collectorMetadata provider.CollectorMetadata
 
 	procPath := config.Datadog.GetString("container_proc_root")
 	if strings.HasPrefix(procPath, "/host") {
@@ -71,7 +67,7 @@ func newSystemCollector() (*systemCollector, error) {
 	if err != nil {
 		// Cgroup provider is pretty static. Except not having required mounts, it should always work.
 		log.Errorf("Unable to initialize cgroup provider (cgroups not mounted?), err: %v", err)
-		return nil, provider.ErrPermaFail
+		return collectorMetadata, provider.ErrPermaFail
 	}
 
 	systemCollector := &systemCollector{
@@ -94,11 +90,72 @@ func newSystemCollector() (*systemCollector, error) {
 		}
 	}
 
-	return systemCollector, nil
-}
+	// Build available Collectors based on environment
+	var collectors *provider.Collectors
+	if config.IsContainerized() {
+		collectors = &provider.Collectors{}
 
-func (c *systemCollector) ID() string {
-	return systemCollectorID
+		// When the Agent runs as a sidecar (e.g. Fargate) with shared PID namespace, we can use the system collector in some cases.
+		// TODO: Check how we could detect shared PID namespace instead of makeing assumption
+		isAgentSidecar := config.IsFeaturePresent(config.ECSFargate) || config.IsFeaturePresent(config.EKSFargate)
+
+		// With sysfs we can always get cgroup stats
+		if config.IsHostSysAvailable() {
+			collectors.Stats = provider.MakeRef[provider.ContainerStatsGetter](systemCollector, collectorHighPriority)
+		}
+
+		// With host proc we can always get network stats and pids
+		if config.IsHostProcAvailable() {
+			collectors.Network = provider.MakeRef[provider.ContainerNetworkStatsGetter](systemCollector, collectorHighPriority)
+			collectors.OpenFilesCount = provider.MakeRef[provider.ContainerOpenFilesCountGetter](systemCollector, collectorHighPriority)
+			collectors.PIDs = provider.MakeRef[provider.ContainerPIDsGetter](systemCollector, collectorHighPriority)
+			collectors.ContainerIDForPID = provider.MakeRef[provider.ContainerIDForPIDRetriever](systemCollector, collectorHighPriority)
+		} else if isAgentSidecar {
+			// When side car with sharedPIDNamespace, we can get the same data.
+			// As we don't know if we are sharedPIDNamespace, adding as low priority.
+			systemCollector.pidMapper = cgroups.NewStandalonePIDMapper(systemCollector.procPath, systemCollector.baseController, cgroups.ContainerFilter)
+
+			collectors.Network = provider.MakeRef[provider.ContainerNetworkStatsGetter](systemCollector, collectorLowPriority)
+			collectors.OpenFilesCount = provider.MakeRef[provider.ContainerOpenFilesCountGetter](systemCollector, collectorLowPriority)
+			collectors.PIDs = provider.MakeRef[provider.ContainerPIDsGetter](systemCollector, collectorLowPriority)
+			collectors.ContainerIDForPID = provider.MakeRef[provider.ContainerIDForPIDRetriever](systemCollector, collectorLowPriority)
+		}
+
+		// We can retrieve self PID with cgroupv1 or cgroupv2 with host ns
+		// We may be able to get it in some case from cgroupv2 from mountinfo
+		if reader.CgroupVersion() == 1 || systemCollector.hostCgroupNamespace {
+			collectors.SelfContainerID = provider.MakeRef[provider.SelfContainerIDRetriever](systemCollector, collectorHighPriority)
+		} else {
+			collectors.SelfContainerID = provider.MakeRef[provider.SelfContainerIDRetriever](systemCollector, collectorLowPriority)
+		}
+	} else {
+		// When not running in a container, we can use everything
+		collectors = &provider.Collectors{
+			Stats:             provider.MakeRef[provider.ContainerStatsGetter](systemCollector, collectorHighPriority),
+			Network:           provider.MakeRef[provider.ContainerNetworkStatsGetter](systemCollector, collectorHighPriority),
+			OpenFilesCount:    provider.MakeRef[provider.ContainerOpenFilesCountGetter](systemCollector, collectorHighPriority),
+			PIDs:              provider.MakeRef[provider.ContainerPIDsGetter](systemCollector, collectorHighPriority),
+			ContainerIDForPID: provider.MakeRef[provider.ContainerIDForPIDRetriever](systemCollector, collectorHighPriority),
+			SelfContainerID:   provider.MakeRef[provider.SelfContainerIDRetriever](systemCollector, collectorHighPriority),
+		}
+	}
+	log.Debugf("Chosen system collectors: %+v", collectors)
+
+	// Build metadata
+	metadata := provider.CollectorMetadata{
+		ID:         systemCollectorID,
+		Collectors: make(provider.CollectorCatalog),
+	}
+
+	// Always cache results
+	collectors = provider.MakeCached(systemCollectorID, cache, collectors)
+
+	// Finally add to catalog
+	for _, runtime := range provider.AllLinuxRuntimes {
+		metadata.Collectors[runtime] = collectors
+	}
+
+	return metadata, nil
 }
 
 func (c *systemCollector) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) { //nolint:revive // TODO fix revive unused-parameter
@@ -110,33 +167,24 @@ func (c *systemCollector) GetContainerStats(containerNS, containerID string, cac
 	return c.buildContainerMetrics(cg, cacheValidity)
 }
 
-func (c *systemCollector) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) { //nolint:revive // TODO fix revive unused-parameter
-	cg, err := c.getCgroup(containerID, cacheValidity)
+//nolint:revive // TODO(CINT) Fix revive linter
+func (c *systemCollector) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) {
+	pids, err := c.getPIDs(containerID, cacheValidity)
 	if err != nil {
-		return nil, err
-	}
-
-	// Get PIDs
-	pids, err := cg.GetPIDs(cacheValidity)
-	if err != nil {
-		return nil, fmt.Errorf("unable to get PIDs for cgroup id: %s. Unable to get count of open files", cg.Identifier())
+		return nil, fmt.Errorf("unable to get PIDs for cgroup id: %s. Unable to get count of open files", containerID)
 	}
 
 	ofCount, allFailed := systemutils.CountProcessesFileDescriptors(c.procPath, pids)
 	if allFailed {
-		return nil, fmt.Errorf("unable to read any PID open FDs for cgroup id: %s. Unable to get count of open files", cg.Identifier())
+		return nil, fmt.Errorf("unable to read any PID open FDs for cgroup id: %s. Unable to get count of open files", containerID)
 	}
 
 	return &ofCount, nil
 }
 
-func (c *systemCollector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) { //nolint:revive // TODO fix revive unused-parameter
-	cg, err := c.getCgroup(containerID, cacheValidity)
-	if err != nil {
-		return nil, err
-	}
-
-	pids, err := cg.GetPIDs(cacheValidity)
+//nolint:revive // TODO(CINT) Fix revive linter
+func (c *systemCollector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
+	pids, err := c.getPIDs(containerID, cacheValidity)
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +192,12 @@ func (c *systemCollector) GetContainerNetworkStats(containerNS, containerID stri
 	return buildNetworkStats(c.procPath, pids)
 }
 
-func (c *systemCollector) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) { //nolint:revive // TODO fix revive unused-parameter
+func (c *systemCollector) GetPIDs(_, containerID string, cacheValidity time.Duration) ([]int, error) {
+	return c.getPIDs(containerID, cacheValidity)
+}
+
+//nolint:revive // TODO(CINT) Fix revive linter
+func (c *systemCollector) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) {
 	containerID, err := cgroups.IdentiferFromCgroupReferences(c.procPath, strconv.Itoa(pid), c.baseController, cgroups.ContainerFilter)
 	return containerID, err
 }
@@ -170,6 +223,20 @@ func (c *systemCollector) getCgroup(containerID string, cacheValidity time.Durat
 	return cg, nil
 }
 
+func (c *systemCollector) getPIDs(containerID string, cacheValidity time.Duration) ([]int, error) {
+	if c.pidMapper == nil {
+		cg, err := c.getCgroup(containerID, cacheValidity)
+		if err != nil {
+			return nil, err
+		}
+
+		return cg.GetPIDs(cacheValidity)
+	}
+
+	return c.pidMapper.GetPIDs(containerID, cacheValidity), nil
+}
+
+//nolint:revive // TODO(CINT) Fix revive linter
 func (c *systemCollector) buildContainerMetrics(cg cgroups.Cgroup, cacheValidity time.Duration) (*provider.ContainerStats, error) {
 	stats := &cgroups.Stats{}
 	allFailed, errs := cgroups.GetStats(cg, stats)
@@ -197,19 +264,6 @@ func (c *systemCollector) buildContainerMetrics(cg cgroups.Cgroup, cacheValidity
 		CPU:       buildCPUStats(stats.CPU, parentCPUStatRetriever),
 		IO:        buildIOStats(c.procPath, stats.IO),
 		PID:       buildPIDStats(stats.PID),
-	}
-
-	// Get PIDs
-	var err error
-	pids, err := cg.GetPIDs(cacheValidity)
-	if err == nil {
-		if cs.PID == nil {
-			cs.PID = &provider.ContainerPIDStats{}
-		}
-
-		cs.PID.PIDs = pids
-	} else {
-		log.Debugf("Unable to get PIDs for cgroup id: %s. Metrics will be missing", cg.Identifier())
 	}
 
 	return cs, nil

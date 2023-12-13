@@ -90,14 +90,9 @@ also any additional python dependencies our development workflow may require,
 at their expected versions.
 It will also pull other handy development tools/deps (`reno`, or `docker`).
 
-Tasks are usually parameterized and Invoke comes with some default values that
-are used in the official build. Such values are listed in the `invoke.yaml`
-file at the root of this repo and can be overridden by setting `INVOKE_*` env
-variables (see Invoke docs for more details).
-
 ### Golang
 
-You must [install Golang](https://golang.org/doc/install) version `1.20.10` or
+You must [install Golang](https://golang.org/doc/install) version `1.20.12` or
 higher. Make sure that `$GOPATH/bin` is in your `$PATH` otherwise `invoke`
 cannot use any additional tool it might need.
 

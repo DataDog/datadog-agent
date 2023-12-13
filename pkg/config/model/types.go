@@ -41,13 +41,18 @@ type Reader interface {
 	GetSizeInBytes(key string) uint
 	GetProxies() *Proxy
 
+	GetSource(key string) Source
+	GetAllSources(key string) []ValueWithSource
+
 	ConfigFileUsed() string
 
 	AllSettings() map[string]interface{}
 	AllSettingsWithoutDefault() map[string]interface{}
+	AllSourceSettingsWithoutDefault(source Source) map[string]interface{}
 	AllKeys() []string
 
 	IsSet(key string) bool
+	IsSetForSource(key string, source Source) bool
 
 	// UnmarshalKey Unmarshal a configuration key into a struct
 	UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error
@@ -76,7 +81,9 @@ type Reader interface {
 
 // Writer is a subset of Config that only allows writing the configuration
 type Writer interface {
-	Set(key string, value interface{})
+	Set(key string, value interface{}, source Source)
+	SetWithoutSource(key string, value interface{})
+	UnsetForSource(key string, source Source)
 	CopyConfig(cfg Config)
 }
 
@@ -106,6 +113,7 @@ type Loader interface {
 	ReadConfig(in io.Reader) error
 	MergeConfig(in io.Reader) error
 	MergeConfigOverride(in io.Reader) error
+	MergeConfigMap(cfg map[string]any) error
 
 	AddConfigPath(in string)
 	SetConfigName(in string)

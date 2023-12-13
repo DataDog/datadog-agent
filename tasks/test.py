@@ -14,6 +14,7 @@ import re
 import sys
 from collections import defaultdict
 from contextlib import contextmanager
+from datetime import datetime
 from typing import Dict, List
 
 from invoke import task
@@ -27,6 +28,7 @@ from .flavor import AgentFlavor
 from .go import run_golangci_lint
 from .libs.common.color import color_message
 from .libs.copyright import CopyrightLinter
+from .libs.datadog_api import create_count, send_metrics
 from .libs.junit_upload import add_flavor_to_junitxml, junit_upload_from_tgz, produce_junit_tar, repack_macos_junit_tar
 from .modules import DEFAULT_MODULES, GoModule
 from .trace_agent import integration_tests as trace_integration_tests
@@ -86,7 +88,6 @@ TOOL_LIST = [
     'github.com/go-enry/go-license-detector/v4/cmd/license-detector',
     'github.com/golangci/golangci-lint/cmd/golangci-lint',
     'github.com/goware/modvendor',
-    'github.com/mgechev/revive',
     'github.com/stormcat24/protodep',
     'gotest.tools/gotestsum',
     'github.com/vektra/mockery/v2',
@@ -172,10 +173,9 @@ def test_core(
         if not skip_module_class:
             module_result = module_class(path=module.full_path())
         if not headless_mode:
-            print(f"----- Module '{module.full_path()}'")
+            skipped_header = "[Skipped]" if not module.condition() else ""
+            print(f"----- {skipped_header} Module '{module.full_path()}'")
         if not module.condition():
-            if not headless_mode:
-                print("----- Skipped")
             continue
 
         command(modules_results, module, module_result)
@@ -513,6 +513,34 @@ def process_module_results(module_results: Dict[str, Dict[str, List[ModuleResult
     return success
 
 
+def deprecating_skip_linters_flag(skip_linters):
+    """
+    We're deprecating the --skip-linters flag in the test invoke task
+
+    Displays a warning when user is running inv -e test --skip-linters
+    Also displays the command the user should run to
+    """
+    if skip_linters:
+        deprecation_msg = """Warning: the --skip-linters is deprecated for the test invoke task.
+Feel free to remove the flag when running inv -e test.
+"""
+    else:
+        deprecation_msg = """Warning: the linters were removed from the test invoke task.
+If you want to run the linters, please run inv -e lint-go instead.
+"""
+    print(deprecation_msg, file=sys.stderr)
+
+
+def sanitize_env_vars():
+    """
+    Sanitizes environment variables
+    We want to ignore all `DD_` variables, as they will interfere with the behavior of some unit tests
+    """
+    for env in os.environ:
+        if env.startswith("DD_"):
+            del os.environ[env]
+
+
 @task(iterable=['flavors'])
 def test(
     ctx,
@@ -541,6 +569,7 @@ def test(
     rerun_fails=None,
     go_mod="mod",
     junit_tar="",
+    only_modified_packages=False,
 ):
     """
     Run go tests on the given module and targets.
@@ -552,45 +581,16 @@ def test(
 
     If no module or target is set the tests are run against all modules and targets.
 
-    Also runs linters on the same modules / targets, except if the --skip-linters option is passed.
-
     Example invokation:
         inv test --targets=./pkg/collector/check,./pkg/aggregator --race
         inv test --module=. --race
     """
 
-    # Format:
-    # {
-    #     "phase1": {
-    #         "flavor1": [module_result1, module_result2],
-    #         "flavor2": [module_result3, module_result4],
-    #     }
-    # }
     modules_results_per_phase = defaultdict(dict)
 
-    # Sanitize environment variables
-    # We want to ignore all `DD_` variables, as they will interfere with the behavior
-    # of some unit tests
-    for env in os.environ:
-        if env.startswith("DD_"):
-            del os.environ[env]
+    sanitize_env_vars()
 
-    # Run linters first
-
-    if not skip_linters:
-        modules_results_per_phase["lint"] = run_lint_go(
-            ctx=ctx,
-            module=module,
-            targets=targets,
-            flavors=flavors,
-            build_include=build_include,
-            build_exclude=build_exclude,
-            rtloader_root=rtloader_root,
-            arch=arch,
-            cpus=cpus,
-        )
-
-    # Process input arguments
+    deprecating_skip_linters_flag(skip_linters)
 
     modules, flavors = process_input_args(module, targets, flavors)
 
@@ -608,7 +608,6 @@ def test(
         python_home_3=python_home_3,
         major_version=major_version,
         python_runtimes=python_runtimes,
-        race=race,
     )
 
     # Use stdout if no profile is set
@@ -632,7 +631,7 @@ def test(
     test_run_arg = f"-run {test_run_name}" if test_run_name else ""
 
     stdlib_build_cmd = 'go build {verbose} -mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" '
-    stdlib_build_cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} {nocache} std cmd'
+    stdlib_build_cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} std cmd'
     cmd = 'gotestsum {junit_file_flag} {json_flag} --format pkgname {rerun_fails} --packages="{packages}" -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
     cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache} {test_run_arg}'
     args = {
@@ -662,6 +661,9 @@ def test(
             args=args,
             test_profiler=test_profiler,
         )
+        if only_modified_packages:
+            modules = get_modified_packages(ctx)
+
         modules_results_per_phase["test"][flavor] = test_flavor(
             ctx,
             flavor=flavor,
@@ -698,10 +700,7 @@ def test(
     success = process_module_results(modules_results_per_phase)
 
     if success:
-        if skip_linters:
-            print(color_message("All tests passed", "green"))
-        else:
-            print(color_message("All tests and linters passed", "green"))
+        print(color_message("All tests passed", "green"))
     else:
         # Exit if any of the modules failed on any phase
         raise Exit(code=1)
@@ -1113,3 +1112,191 @@ def junit_macos_repack(_, infile, outfile):
     contain correct job name and job URL.
     """
     repack_macos_junit_tar(infile, outfile)
+
+
+@task
+def get_modified_packages(ctx) -> List[GoModule]:
+    modified_files = get_modified_files(ctx)
+    modified_go_files = [
+        f"./{file}" for file in modified_files if file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum")
+    ]
+
+    modules_to_test = {}
+    go_mod_modified_modules = set()
+
+    for modified_file in modified_go_files:
+        match_precision = 0
+        best_module_path = None
+
+        # Since several modules can match the path we take only the most precise one
+        for module_path in DEFAULT_MODULES:
+            if module_path in modified_file:
+                if len(module_path) > match_precision:
+                    match_precision = len(module_path)
+                    best_module_path = module_path
+
+        # Check if the package is in the target list of the module we want to test
+        targeted = False
+        for target in DEFAULT_MODULES[best_module_path].targets:
+            if os.path.normpath(os.path.join(best_module_path, target)) in modified_file:
+                targeted = True
+                break
+        if not targeted:
+            continue
+
+        # If go mod was modified in the module we run the test for the whole module so we do not need to add modified packages to targets
+        if best_module_path in go_mod_modified_modules:
+            continue
+
+        # If we modify the go.mod or go.sum we run the tests for the whole module
+        if modified_file.endswith(".mod") or modified_file.endswith(".sum"):
+            modules_to_test[best_module_path] = DEFAULT_MODULES[best_module_path]
+            go_mod_modified_modules.add(best_module_path)
+            continue
+
+        # If the package has been deleted we do not try to run tests
+        if not os.path.exists(os.path.dirname(modified_file)):
+            continue
+
+        relative_target = "./" + os.path.relpath(os.path.dirname(modified_file), best_module_path)
+
+        if best_module_path in modules_to_test:
+            if (
+                modules_to_test[best_module_path].targets is not None
+                and os.path.dirname(modified_file) not in modules_to_test[best_module_path].targets
+            ):
+                modules_to_test[best_module_path].targets.append(relative_target)
+        else:
+            modules_to_test[best_module_path] = GoModule(best_module_path, targets=[relative_target])
+
+    print("Running tests for the following modules:")
+    for module in modules_to_test:
+        print(f"- {module}: {modules_to_test[module].targets}")
+
+    return modules_to_test.values()
+
+
+def get_modified_files(ctx):
+    last_main_commit = ctx.run("git merge-base HEAD origin/main", hide=True).stdout
+    print(f"Checking diff from {last_main_commit} commit on main branch")
+
+    modified_files = ctx.run(f"git diff --name-only --no-renames {last_main_commit}", hide=True).stdout.splitlines()
+    return modified_files
+
+
+@task
+def send_unit_tests_stats(_, job_name):
+    fast_success = True
+    classic_success = True
+
+    n_test_classic = 0
+    n_test_fast = 0
+
+    series = []
+
+    failed_tests_classic, n_test_classic = parse_test_log("test_output.json")
+    classic_success = len(failed_tests_classic) == 0
+
+    # If the fast tests are not run, we don't have the output file and we consider the job successful since it did not run any test
+    if os.path.isfile("test_output_fast.json"):
+        failed_tests_fast, n_test_fast = parse_test_log("test_output_fast.json")
+        fast_success = len(failed_tests_fast) == 0
+    else:
+        print("test_output_fast.json not found, assuming no tests were run")
+
+    timestamp = int(datetime.now().timestamp())
+    print("Sending unit tests stats to Datadog")
+
+    print(f"Classic test executed: {n_test_classic}")
+    series.append(
+        create_count(
+            "datadog.ci.unit_tests.executed",
+            timestamp,
+            n_test_classic,
+            tags=[
+                "experimentation:fast-tests",
+                "test_type:classic",
+                "repository:datadog-agent",
+                f"pipeline_id:{os.getenv('CI_PIPELINE_ID')}",
+                f"job_name:{job_name}",
+            ],
+        )
+    )
+
+    print(f"Fast test executed: {n_test_fast}")
+    series.append(
+        create_count(
+            "datadog.ci.unit_tests.executed",
+            timestamp,
+            n_test_fast,
+            tags=[
+                "experimentation:fast-tests",
+                "test_type:fast",
+                "repository:datadog-agent",
+                f"pipeline_id:{os.getenv('CI_PIPELINE_ID')}",
+                f"job_name:{job_name}-fast",
+            ],
+        )
+    )
+
+    print(f"Classic test success: {classic_success}")
+    print(f"Fast test success: {fast_success}")
+
+    if fast_success == classic_success:
+        false_positive = 0
+        false_negative = 0
+    elif fast_success:
+        false_positive = 1
+        false_negative = 0
+    else:
+        false_positive = 0
+        false_negative = 1
+
+    series.append(
+        create_count(
+            "datadog.ci.unit_tests.false_positive",
+            timestamp,
+            false_positive,
+            tags=[
+                "experimentation:fast-tests",
+                "repository:datadog-agent",
+                f"pipeline_id:{os.getenv('CI_PIPELINE_ID')}",
+                f"job_name:{job_name}",
+            ],
+        )
+    )
+    series.append(
+        create_count(
+            "datadog.ci.unit_tests.false_negative",
+            timestamp,
+            false_negative,
+            tags=[
+                "experimentation:fast-tests",
+                "repository:datadog-agent",
+                f"pipeline_id:{os.getenv('CI_PIPELINE_ID')}",
+                f"job_name:{job_name}",
+            ],
+        )
+    )
+
+    send_metrics(series)
+
+
+def parse_test_log(log_file):
+    failed_tests = []
+    n_test_executed = 0
+    with open(log_file, "r") as f:
+        for line in f:
+            json_line = json.loads(line)
+            if (
+                json_line["Action"] == "fail"
+                and "Test" in json_line
+                and f'{json_line["Package"]}/{json_line["Test"]}' not in failed_tests
+            ):
+                n_test_executed += 1
+                failed_tests.append(f'{json_line["Package"]}/{json_line["Test"]}')
+            if json_line["Action"] == "pass" and "Test" in json_line:
+                n_test_executed += 1
+                if f'{json_line["Package"]}/{json_line["Test"]}' in failed_tests:
+                    failed_tests.remove(f'{json_line["Package"]}/{json_line["Test"]}')
+    return failed_tests, n_test_executed

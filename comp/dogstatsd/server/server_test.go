@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
@@ -46,15 +47,15 @@ func fulfillDeps(t testing.TB) serverDeps {
 
 func fulfillDepsWithConfigOverrideAndFeatures(t testing.TB, overrides map[string]interface{}, features []config.Feature) serverDeps {
 	return fxutil.Test[serverDeps](t, fx.Options(
-		core.MockBundle,
-		serverdebugimpl.MockModule,
+		core.MockBundle(),
+		serverdebugimpl.MockModule(),
 		fx.Replace(configComponent.MockParams{
 			Overrides: overrides,
 			Features:  features,
 		}),
 		fx.Supply(Params{Serverless: false}),
-		replay.MockModule,
-		Module,
+		replay.MockModule(),
+		Module(),
 	))
 }
 
@@ -64,14 +65,14 @@ func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{
 
 func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 	return fxutil.Test[serverDeps](t, fx.Options(
-		core.MockBundle,
-		serverdebugimpl.MockModule,
+		core.MockBundle(),
+		serverdebugimpl.MockModule(),
 		fx.Replace(configComponent.MockParams{
 			Params: configComponent.Params{ConfFilePath: yaml},
 		}),
 		fx.Supply(Params{Serverless: false}),
-		replay.MockModule,
-		Module,
+		replay.MockModule(),
+		Module(),
 	))
 }
 
@@ -82,7 +83,7 @@ func TestNewServer(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
 	defer demux.Stop(false)
 	requireStart(t, deps.Server, demux)
@@ -97,7 +98,7 @@ func TestStopServer(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
 	defer demux.Stop(false)
 	requireStart(t, deps.Server, demux)
@@ -123,6 +124,8 @@ func TestStopServer(t *testing.T) {
 // properly protected from multiple accesses by `cachedTlmLock`.
 // The main purpose of this test is to detect early if a future code change is
 // introducing a data race.
+//
+//nolint:revive // TODO(AML) Fix revive linter
 func TestNoRaceOriginTagMaps(t *testing.T) {
 	const N = 100
 	s := &server{cachedOriginCounters: make(map[string]cachedOriginCounter)}
@@ -471,7 +474,7 @@ func TestHistToDist(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
 	defer demux.Stop(false)
 	requireStart(t, deps.Server, demux)
@@ -559,7 +562,7 @@ func TestE2EParsing(t *testing.T) {
 	cfg["dogstatsd_port"] = listeners.RandomPortName
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
 	requireStart(t, deps.Server, demux)
 
@@ -604,7 +607,7 @@ func TestExtraTags(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverrideAndFeatures(t, cfg, []config.Feature{config.EKSFargate})
 
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
@@ -634,7 +637,7 @@ func TestStaticTags(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverrideAndFeatures(t, cfg, []config.Feature{config.EKSFargate})
 
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
@@ -667,7 +670,7 @@ func TestNoMappingsConfig(t *testing.T) {
 	deps := fulfillDepsWithConfigYaml(t, datadogYaml)
 	s := deps.Server.(*server)
 	cw := deps.Config.(config.Writer)
-	cw.Set("dogstatsd_port", listeners.RandomPortName)
+	cw.SetWithoutSource("dogstatsd_port", listeners.RandomPortName)
 
 	samples := []metrics.MetricSample{}
 
@@ -781,7 +784,7 @@ dogstatsd_mapper_profiles:
 			s := deps.Server.(*server)
 			cw := deps.Config.(config.ReaderWriter)
 
-			cw.Set("dogstatsd_port", listeners.RandomPortName)
+			cw.SetWithoutSource("dogstatsd_port", listeners.RandomPortName)
 
 			demux := mockDemultiplexer(deps.Config, deps.Log)
 			defer demux.Stop(false)
@@ -933,6 +936,7 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 	}
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func testContainerIDParsing(t *testing.T, cfg map[string]interface{}) {
 	deps := fulfillDeps(t)
 	s := deps.Server.(*server)

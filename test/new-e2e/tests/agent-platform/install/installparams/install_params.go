@@ -18,6 +18,8 @@ import "os"
 type Params struct {
 	PipelineID   string
 	MajorVersion string
+	Arch         string
+	Flavor       string
 }
 
 // Option alias to a functional option changing a given Params instance
@@ -28,6 +30,7 @@ func NewParams(options ...Option) *Params {
 	p := &Params{
 		PipelineID:   os.Getenv("CI_PIPELINE_ID"),
 		MajorVersion: "7",
+		Arch:         "x86_64",
 	}
 	return applyOption(p, options...)
 }
@@ -43,5 +46,19 @@ func applyOption(instance *Params, options ...Option) *Params {
 func WithMajorVersion(majorVersion string) Option {
 	return func(p *Params) {
 		p.MajorVersion = majorVersion
+	}
+}
+
+// WithArch specify the arch to use when installing the agent, needed to determine repo for deb repository
+func WithArch(arch string) Option {
+	return func(p *Params) {
+		p.Arch = arch
+	}
+}
+
+// WithFlavor specify the flavor to use when installing the agent
+func WithFlavor(flavor string) Option {
+	return func(p *Params) {
+		p.Flavor = flavor
 	}
 }

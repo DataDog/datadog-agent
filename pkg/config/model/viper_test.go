@@ -8,6 +8,7 @@ package model
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -30,7 +31,7 @@ func TestConcurrencySetGet(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for n := 0; n <= 1000; n++ {
-			config.Set("foo", "bar")
+			config.SetWithoutSource("foo", "bar")
 		}
 	}()
 
@@ -186,7 +187,78 @@ test:
 	res = config.IsSectionSet("othertest")
 	assert.Equal(t, true, res)
 
-	config.Set("yetanothertest_key", "value")
+	config.SetWithoutSource("yetanothertest_key", "value")
 	res = config.IsSectionSet("yetanothertest")
 	assert.Equal(t, false, res)
+}
+
+func TestSet(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	config.Set("foo", "bar", SourceFile)
+	config.Set("foo", "baz", SourceEnvVar)
+	config.Set("foo", "qux", SourceAgentRuntime)
+	config.Set("foo", "quux", SourceRC)
+	config.Set("foo", "corge", SourceCLI)
+
+	assert.Equal(t, config.AllSourceSettingsWithoutDefault(SourceFile), map[string]interface{}{"foo": "bar"})
+	assert.Equal(t, config.AllSourceSettingsWithoutDefault(SourceEnvVar), map[string]interface{}{"foo": "baz"})
+	assert.Equal(t, config.AllSourceSettingsWithoutDefault(SourceAgentRuntime), map[string]interface{}{"foo": "qux"})
+	assert.Equal(t, config.AllSourceSettingsWithoutDefault(SourceRC), map[string]interface{}{"foo": "quux"})
+	assert.Equal(t, config.AllSourceSettingsWithoutDefault(SourceCLI), map[string]interface{}{"foo": "corge"})
+
+	assert.Equal(t, config.Get("foo"), "corge")
+}
+
+func TestGetSource(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	config.Set("foo", "bar", SourceFile)
+	config.Set("foo", "baz", SourceEnvVar)
+	assert.Equal(t, SourceEnvVar, config.GetSource("foo"))
+}
+
+func TestIsSet(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	assert.False(t, config.IsSetForSource("foo", SourceFile))
+	config.Set("foo", "bar", SourceFile)
+	assert.True(t, config.IsSetForSource("foo", SourceFile))
+}
+
+func TestUnsetForSource(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	config.Set("foo", "bar", SourceFile)
+	config.UnsetForSource("foo", SourceFile)
+	assert.False(t, config.IsSetForSource("foo", SourceFile))
+}
+
+func TestAllFileSettingsWithoutDefault(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	config.Set("foo", "bar", SourceFile)
+	config.Set("baz", "qux", SourceFile)
+	config.UnsetForSource("foo", SourceFile)
+	assert.Equal(
+		t,
+		map[string]interface{}{
+			"baz": "qux",
+		},
+		config.AllSourceSettingsWithoutDefault(SourceFile),
+	)
+}
+
+func TestSourceFileReadConfig(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	yamlExample := []byte(`
+foo: bar
+`)
+
+	tempfile, err := os.CreateTemp("", "test-*.yaml")
+	assert.NoError(t, err, "failed to create temporary file")
+	tempfile.Write(yamlExample)
+	defer os.Remove(tempfile.Name())
+
+	config.SetConfigFile(tempfile.Name())
+	config.ReadInConfig()
+
+	assert.Equal(t, "bar", config.Get("foo"))
+	assert.Equal(t, SourceFile, config.GetSource("foo"))
+	assert.Equal(t, map[string]interface{}{"foo": "bar"}, config.AllSourceSettingsWithoutDefault(SourceFile))
 }

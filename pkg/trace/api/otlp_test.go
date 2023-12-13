@@ -216,6 +216,7 @@ func TestCreateChunks(t *testing.T) {
 		require.Equal(t, "0.50", c.Tags["_dd.otlp_sr"])
 		switch id {
 		case traceID1:
+			//nolint:revive // TODO(OTEL) Fix revive linter
 			found += 1
 			require.Equal(t, "-9", c.Spans[0].Meta["_dd.p.dm"])
 			require.Equal(t, int32(1), c.Priority)
@@ -298,24 +299,25 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 					LibName:    "libname",
 					LibVersion: "1.2",
 					Attributes: map[string]interface{}{
-						string(semconv.AttributeK8SPodUID):  "1234cid",
-						string(semconv.AttributeK8SJobName): "kubejob",
+						string(semconv.AttributeK8SPodUID):          "1234cid",
+						string(semconv.AttributeK8SJobName):         "kubejob",
+						string(semconv.AttributeContainerImageName): "lorem-ipsum",
+						string(semconv.AttributeContainerImageTag):  "v2.0",
+						string("datadog.container.tag.team"):        "otel",
 					},
 					Spans: []*testutil.OTLPSpan{
 						{
 							TraceID: [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
 							Name:    "first",
 							Attributes: map[string]interface{}{
-								string(semconv.AttributeContainerImageName): "lorem-ipsum",
+								// We should not fetch container tags from Span Attributes.
+								string(semconv.AttributeK8SContainerName): "lorem-ipsum",
 							},
 						},
 						{
 							TraceID: [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17},
 							SpanID:  [8]byte{10, 10, 11, 12, 13, 14, 15, 16},
 							Name:    "second",
-							Attributes: map[string]interface{}{
-								string(semconv.AttributeContainerImageTag): "v2.0",
-							},
 						},
 					},
 				},
@@ -326,6 +328,7 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 					"kube_job":   "kubejob",
 					"image_name": "lorem-ipsum",
 					"image_tag":  "v2.0",
+					"team":       "otel",
 				}, unflatten(out.Tags[tagContainersTags]))
 			},
 		},
@@ -1109,7 +1112,6 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"http.method":             "GET",
 					"http.route":              "/path",
 					"peer.service":            "userbase",
-					"_dd.peer.service.source": "peer.service",
 					"span.kind":               "server",
 				},
 				Metrics: map[string]float64{
@@ -1276,8 +1278,6 @@ func TestOTLPConvertSpan(t *testing.T) {
 				Duration: 200000000,
 				Meta: map[string]string{
 					"env":                             "staging",
-					"container_id":                    "cid",
-					"kube_container_name":             "k8s-container",
 					semconv.AttributeContainerID:      "cid",
 					semconv.AttributeK8SContainerName: "k8s-container",
 					"http.method":                     "GET",
@@ -1296,10 +1296,6 @@ func TestOTLPConvertSpan(t *testing.T) {
 				},
 				Type: "db",
 			},
-			outTags: map[string]string{
-				"container_id":        "cid",
-				"kube_container_name": "k8s-container",
-			},
 		},
 	} {
 		t.Run("", func(t *testing.T) {
@@ -1308,8 +1304,7 @@ func TestOTLPConvertSpan(t *testing.T) {
 			lib.SetVersion(tt.libver)
 			assert := assert.New(t)
 			want := tt.out
-			ctags := make(map[string]string)
-			got := o.convertSpan(tt.rattr, lib, tt.in, ctags)
+			got := o.convertSpan(tt.rattr, lib, tt.in)
 			if len(want.Meta) != len(got.Meta) {
 				t.Fatalf("(%d) Meta count mismatch:\n%#v", i, got.Meta)
 			}
@@ -1337,13 +1332,6 @@ func TestOTLPConvertSpan(t *testing.T) {
 						t.Fatalf("(%d) Error unmarshalling: %v", i, err)
 					}
 					assert.Equal(wantl, gotl)
-				case "_dd.container_tags":
-					// order not guaranteed, so we need to unpack and sort to compare
-					gott := strings.Split(got.Meta[tagContainersTags], ",")
-					wantt := strings.Split(want.Meta[tagContainersTags], ",")
-					sort.Strings(gott)
-					sort.Strings(wantt)
-					assert.Equal(wantt, gott)
 				default:
 					assert.Equal(v, got.Meta[k], fmt.Sprintf("(%d) Meta %v:%v", i, k, v))
 				}
@@ -1359,9 +1347,6 @@ func TestOTLPConvertSpan(t *testing.T) {
 			got.Meta = nil
 			got.Metrics = nil
 			assert.Equal(want, got, i)
-			if len(tt.outTags) > 0 || len(ctags) > 0 {
-				assert.Equal(ctags, tt.outTags)
-			}
 		})
 	}
 }
@@ -1427,17 +1412,16 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 				Start:    int64(now),
 				Duration: 200000000,
 				Meta: map[string]string{
-					"env":                     "prod",
-					"deployment.environment":  "prod",
-					"otel.trace_id":           "72df520af2bde7a5240031ead750e5f3",
-					"otel.status_code":        "Unset",
-					"otel.library.name":       "ddtracer",
-					"otel.library.version":    "v2",
-					"service.version":         "v1.2.3",
-					"version":                 "v1.2.3",
-					"peer.service":            "userbase",
-					"_dd.peer.service.source": "peer.service",
-					"span.kind":               "server",
+					"env":                    "prod",
+					"deployment.environment": "prod",
+					"otel.trace_id":          "72df520af2bde7a5240031ead750e5f3",
+					"otel.status_code":       "Unset",
+					"otel.library.name":      "ddtracer",
+					"otel.library.version":   "v2",
+					"service.version":        "v1.2.3",
+					"version":                "v1.2.3",
+					"peer.service":           "userbase",
+					"span.kind":              "server",
 				},
 				Type:    "web",
 				Metrics: map[string]float64{},
@@ -1473,18 +1457,17 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 				Start:    int64(now),
 				Duration: 200000000,
 				Meta: map[string]string{
-					"db.instance":             "postgres",
-					"env":                     "prod",
-					"deployment.environment":  "prod",
-					"otel.trace_id":           "72df520af2bde7a5240031ead750e5f3",
-					"otel.status_code":        "Unset",
-					"otel.library.name":       "ddtracer",
-					"otel.library.version":    "v2",
-					"service.version":         "v1.2.3",
-					"version":                 "v1.2.3",
-					"peer.service":            "userbase",
-					"_dd.peer.service.source": "peer.service",
-					"span.kind":               "server",
+					"db.instance":            "postgres",
+					"env":                    "prod",
+					"deployment.environment": "prod",
+					"otel.trace_id":          "72df520af2bde7a5240031ead750e5f3",
+					"otel.status_code":       "Unset",
+					"otel.library.name":      "ddtracer",
+					"otel.library.version":   "v2",
+					"service.version":        "v1.2.3",
+					"version":                "v1.2.3",
+					"peer.service":           "userbase",
+					"span.kind":              "server",
 				},
 				Type:    "web",
 				Metrics: map[string]float64{},
@@ -1520,19 +1503,17 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 				Start:    int64(now),
 				Duration: 200000000,
 				Meta: map[string]string{
-					"env":                     "prod",
-					"deployment.environment":  "prod",
-					"otel.trace_id":           "72df520af2bde7a5240031ead750e5f3",
-					"otel.status_code":        "Unset",
-					"otel.library.name":       "ddtracer",
-					"otel.library.version":    "v2",
-					"service.version":         "v1.2.3",
-					"version":                 "v1.2.3",
-					"db.system":               "postgres",
-					"net.peer.name":           "remotehost",
-					"peer.service":            "postgres",
-					"_dd.peer.service.source": "db.system",
-					"span.kind":               "client",
+					"env":                    "prod",
+					"deployment.environment": "prod",
+					"otel.trace_id":          "72df520af2bde7a5240031ead750e5f3",
+					"otel.status_code":       "Unset",
+					"otel.library.name":      "ddtracer",
+					"otel.library.version":   "v2",
+					"service.version":        "v1.2.3",
+					"version":                "v1.2.3",
+					"db.system":              "postgres",
+					"net.peer.name":          "remotehost",
+					"span.kind":              "client",
 				},
 				Type:    "db",
 				Metrics: map[string]float64{},
@@ -1568,19 +1549,17 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 				Start:    int64(now),
 				Duration: 200000000,
 				Meta: map[string]string{
-					"env":                     "prod",
-					"deployment.environment":  "prod",
-					"otel.trace_id":           "72df520af2bde7a5240031ead750e5f3",
-					"otel.status_code":        "Unset",
-					"otel.library.name":       "ddtracer",
-					"otel.library.version":    "v2",
-					"service.version":         "v1.2.3",
-					"version":                 "v1.2.3",
-					"rpc.service":             "GetInstance",
-					"net.peer.name":           "remotehost",
-					"peer.service":            "GetInstance",
-					"_dd.peer.service.source": "rpc.service",
-					"span.kind":               "client",
+					"env":                    "prod",
+					"deployment.environment": "prod",
+					"otel.trace_id":          "72df520af2bde7a5240031ead750e5f3",
+					"otel.status_code":       "Unset",
+					"otel.library.name":      "ddtracer",
+					"otel.library.version":   "v2",
+					"service.version":        "v1.2.3",
+					"version":                "v1.2.3",
+					"rpc.service":            "GetInstance",
+					"net.peer.name":          "remotehost",
+					"span.kind":              "client",
 				},
 				Type:    "http",
 				Metrics: map[string]float64{},
@@ -1615,18 +1594,16 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 				Start:    int64(now),
 				Duration: 200000000,
 				Meta: map[string]string{
-					"env":                     "prod",
-					"deployment.environment":  "prod",
-					"otel.trace_id":           "72df520af2bde7a5240031ead750e5f3",
-					"otel.status_code":        "Unset",
-					"otel.library.name":       "ddtracer",
-					"otel.library.version":    "v2",
-					"service.version":         "v1.2.3",
-					"version":                 "v1.2.3",
-					"net.peer.name":           "remotehost",
-					"peer.service":            "remotehost",
-					"_dd.peer.service.source": "net.peer.name",
-					"span.kind":               "server",
+					"env":                    "prod",
+					"deployment.environment": "prod",
+					"otel.trace_id":          "72df520af2bde7a5240031ead750e5f3",
+					"otel.status_code":       "Unset",
+					"otel.library.name":      "ddtracer",
+					"otel.library.version":   "v2",
+					"service.version":        "v1.2.3",
+					"version":                "v1.2.3",
+					"net.peer.name":          "remotehost",
+					"span.kind":              "server",
 				},
 				Type:    "web",
 				Metrics: map[string]float64{},
@@ -1670,8 +1647,6 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 					"service.version":          "v1.2.3",
 					"version":                  "v1.2.3",
 					"aws.dynamodb.table_names": "my-table",
-					"peer.service":             "my-table",
-					"_dd.peer.service.source":  "aws.dynamodb.table_names",
 					"span.kind":                "server",
 				},
 				Type:    "web",
@@ -1716,8 +1691,6 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 					"service.version":          "v1.2.3",
 					"version":                  "v1.2.3",
 					"faas.document.collection": "my-s3-bucket",
-					"peer.service":             "my-s3-bucket",
-					"_dd.peer.service.source":  "faas.document.collection",
 					"span.kind":                "server",
 				},
 				Type:    "web",
@@ -1730,7 +1703,7 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 			lib.SetName(tt.libname)
 			lib.SetVersion(tt.libver)
 			assert := assert.New(t)
-			assert.Equal(tt.out, o.convertSpan(tt.rattr, lib, tt.in, map[string]string{}), i)
+			assert.Equal(tt.out, o.convertSpan(tt.rattr, lib, tt.in), i)
 		})
 	}
 }
@@ -1741,8 +1714,7 @@ func TestResourceAttributesMap(t *testing.T) {
 	rattr := map[string]string{"key": "val"}
 	lib := pcommon.NewInstrumentationScope()
 	span := testutil.NewOTLPSpan(&testutil.OTLPSpan{})
-	ctags := make(map[string]string)
-	NewOTLPReceiver(nil, config.New()).convertSpan(rattr, lib, span, ctags)
+	NewOTLPReceiver(nil, config.New()).convertSpan(rattr, lib, span)
 	assert.Len(t, rattr, 1) // ensure "rattr" has no new entries
 	assert.Equal(t, "val", rattr["key"])
 }
@@ -1900,6 +1872,7 @@ func trimSpaces(str string) string {
 	return out.String()
 }
 
+//nolint:revive // TODO(OTEL) Fix revive linter
 func makeSpanLinkSlice(t *testing.T, traceId, spanId, traceState string, attrs map[string]string, dropped uint32) ptrace.SpanLinkSlice {
 	s := ptrace.NewSpanLinkSlice()
 	l := s.AppendEmpty()

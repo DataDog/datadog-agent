@@ -10,6 +10,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -44,4 +45,44 @@ func (ia *inventoryagent) getFullAgentConfiguration() (string, error) {
 	}
 
 	return marshalAndScrub(ia.conf.AllSettings())
+}
+
+func (ia *inventoryagent) getAgentFileConfiguration() (string, error) {
+	if !ia.conf.GetBool("inventories_configuration_enabled") {
+		return "", fmt.Errorf("inventories_configuration_enabled is disabled")
+	}
+
+	return marshalAndScrub(ia.conf.AllSourceSettingsWithoutDefault(model.SourceFile))
+}
+
+func (ia *inventoryagent) getAgentEnvVarConfiguration() (string, error) {
+	if !ia.conf.GetBool("inventories_configuration_enabled") {
+		return "", fmt.Errorf("inventories_configuration_enabled is disabled")
+	}
+
+	return marshalAndScrub(ia.conf.AllSourceSettingsWithoutDefault(model.SourceEnvVar))
+}
+
+func (ia *inventoryagent) getAgentRuntimeConfiguration() (string, error) {
+	if !ia.conf.GetBool("inventories_configuration_enabled") {
+		return "", fmt.Errorf("inventories_configuration_enabled is disabled")
+	}
+
+	return marshalAndScrub(ia.conf.AllSourceSettingsWithoutDefault(model.SourceAgentRuntime))
+}
+
+func (ia *inventoryagent) getAgentRemoteConfiguration() (string, error) {
+	if !ia.conf.GetBool("inventories_configuration_enabled") {
+		return "", fmt.Errorf("inventories_configuration_enabled is disabled")
+	}
+
+	return marshalAndScrub(ia.conf.AllSourceSettingsWithoutDefault(model.SourceRC))
+}
+
+func (ia *inventoryagent) getAgentCliConfiguration() (string, error) {
+	if !ia.conf.GetBool("inventories_configuration_enabled") {
+		return "", fmt.Errorf("inventories_configuration_enabled is disabled")
+	}
+
+	return marshalAndScrub(ia.conf.AllSourceSettingsWithoutDefault(model.SourceCLI))
 }

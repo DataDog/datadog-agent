@@ -18,9 +18,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
 )
 
 // AssertPointsEqual evaluate if two list of point are equal (order doesn't matters).
@@ -151,41 +152,59 @@ type tHelper interface {
 
 var _ SketchesSource = (*SketchesSourceTest)(nil)
 
+//nolint:revive // TODO(AML) Fix revive linter
 type SketchesSourceTest struct {
 	values       SketchSeriesList
 	currentIndex int
 }
 
+// NewSketchesSourceTestWithSketch populates values with a single test sketch
+func NewSketchesSourceTestWithSketch() *SketchesSourceTest {
+	return &SketchesSourceTest{
+		currentIndex: -1,
+		values:       SketchSeriesList{&SketchSeries{Name: "fakename", Host: "fakehost"}},
+	}
+}
+
+//nolint:revive // TODO(AML) Fix revive linter
 func NewSketchesSourceTest() *SketchesSourceTest {
 	return &SketchesSourceTest{
 		currentIndex: -1,
 	}
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (s *SketchesSourceTest) MoveNext() bool {
 	s.currentIndex++
 	return s.currentIndex < len(s.values)
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (s *SketchesSourceTest) Current() *SketchSeries {
 	return s.values[s.currentIndex]
 }
+
+//nolint:revive // TODO(AML) Fix revive linter
 func (s *SketchesSourceTest) Count() uint64 {
 	return uint64(len(s.values))
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (s *SketchesSourceTest) Append(sketches *SketchSeries) {
 	s.values = append(s.values, sketches)
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (s *SketchesSourceTest) Get(index int) *SketchSeries {
 	return s.values[index]
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (s *SketchesSourceTest) Reset() {
 	s.currentIndex = -1
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (s *SketchesSourceTest) WaitForValue() bool {
 	return true
 }

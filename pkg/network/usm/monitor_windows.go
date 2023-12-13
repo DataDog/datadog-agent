@@ -5,6 +5,7 @@
 
 //go:build windows && npm
 
+// Package usm contains implementation for all USM logic
 package usm
 
 import (
@@ -92,8 +93,6 @@ func (m *WindowsMonitor) Start() {
 			}
 		}
 	}()
-
-	return
 }
 
 func (m *WindowsMonitor) process(transactionBatch []http.WinHttpTransaction) {

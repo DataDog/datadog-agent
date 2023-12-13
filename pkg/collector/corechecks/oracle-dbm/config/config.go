@@ -5,6 +5,7 @@
 
 //go:build oracle
 
+//nolint:revive // TODO(DBM) Fix revive linter
 package config
 
 import (
@@ -25,6 +26,7 @@ type InitConfig struct {
 	CustomQueries         []CustomQuery `yaml:"custom_queries"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type QuerySamplesConfig struct {
 	Enabled            bool `yaml:"enabled"`
 	IncludeAllSessions bool `yaml:"include_all_sessions"`
@@ -41,16 +43,20 @@ type QueryMetricsConfig struct {
 	DisableLastActive  bool                        `yaml:"disable_last_active"`
 	Lookback           int64                       `yaml:"lookback"`
 	Trackers           []queryMetricsTrackerConfig `yaml:"trackers"`
+	MaxRunTime         int64                       `yaml:"max_run_time"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type SysMetricsConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type TablespacesConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type ProcessMemoryConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
@@ -59,16 +65,19 @@ type inactiveSessionsConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type SharedMemoryConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type ExecutionPlansConfig struct {
 	Enabled              bool `yaml:"enabled"`
 	PlanCacheRetention   int  `yaml:"plan_cache_retention"`
 	LogUnobfuscatedPlans bool `yaml:"log_unobfuscated_plans"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type AgentSQLTrace struct {
 	Enabled    bool `yaml:"enabled"`
 	Binds      bool `yaml:"binds"`
@@ -76,11 +85,13 @@ type AgentSQLTrace struct {
 	TracedRuns int  `yaml:"traced_runs"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type CustomQueryColumns struct {
 	Name string `yaml:"name"`
 	Type string `yaml:"type"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type CustomQuery struct {
 	MetricPrefix string               `yaml:"metric_prefix"`
 	Pdb          string               `yaml:"pdb"`
@@ -175,6 +186,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.QueryMetrics.Enabled = true
 	instance.QueryMetrics.CollectionInterval = defaultMetricCollectionInterval
 	instance.QueryMetrics.DBRowsLimit = 10000
+	instance.QueryMetrics.MaxRunTime = 20
 
 	instance.ExecutionPlans.Enabled = true
 	instance.ExecutionPlans.PlanCacheRetention = 15

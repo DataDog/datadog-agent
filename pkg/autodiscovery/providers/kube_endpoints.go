@@ -62,13 +62,11 @@ func NewKubeEndpointsConfigProvider(*config.ConfigurationProviders) (ConfigProvi
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
-		telemetry.Errors.Inc(names.KubeEndpoints)
 		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
 	}
 
 	servicesInformer := ac.InformerFactory.Core().V1().Services()
 	if servicesInformer == nil {
-		telemetry.Errors.Inc(names.KubeEndpoints)
 		return nil, fmt.Errorf("cannot get service informer: %s", err)
 	}
 
@@ -83,13 +81,11 @@ func NewKubeEndpointsConfigProvider(*config.ConfigurationProviders) (ConfigProvi
 		UpdateFunc: p.invalidateIfChangedService,
 		DeleteFunc: p.invalidate,
 	}); err != nil {
-		telemetry.Errors.Inc(names.KubeEndpoints)
 		return nil, fmt.Errorf("cannot add event handler to service informer: %s", err)
 	}
 
 	endpointsInformer := ac.InformerFactory.Core().V1().Endpoints()
 	if endpointsInformer == nil {
-		telemetry.Errors.Inc(names.KubeEndpoints)
 		return nil, fmt.Errorf("cannot get endpoint informer: %s", err)
 	}
 
@@ -98,7 +94,6 @@ func NewKubeEndpointsConfigProvider(*config.ConfigurationProviders) (ConfigProvi
 	if _, err := endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: p.invalidateIfChangedEndpoints,
 	}); err != nil {
-		telemetry.Errors.Inc(names.KubeEndpoints)
 		return nil, fmt.Errorf("cannot add event handler to endpoint informer: %s", err)
 	}
 
@@ -111,6 +106,8 @@ func (k *kubeEndpointsConfigProvider) String() string {
 }
 
 // Collect retrieves services from the apiserver, builds Config objects and returns them
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (k *kubeEndpointsConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	services, err := k.serviceLister.List(labels.Everything())
 	if err != nil {
@@ -123,7 +120,6 @@ func (k *kubeEndpointsConfigProvider) Collect(ctx context.Context) ([]integratio
 	for _, config := range parsedConfigsInfo {
 		kep, err := k.endpointsLister.Endpoints(config.namespace).Get(config.name)
 		if err != nil {
-			telemetry.Errors.Inc(names.KubeEndpoints)
 			log.Errorf("Cannot get Kubernetes endpoints: %s", err)
 			continue
 		}
@@ -137,6 +133,8 @@ func (k *kubeEndpointsConfigProvider) Collect(ctx context.Context) ([]integratio
 }
 
 // IsUpToDate allows to cache configs as long as no changes are detected in the apiserver
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (k *kubeEndpointsConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	return k.upToDate, nil
 }
@@ -147,14 +145,12 @@ func (k *kubeEndpointsConfigProvider) invalidate(obj interface{}) {
 		// It's possible that we got a DeletedFinalStateUnknown here
 		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
-			telemetry.Errors.Inc(names.KubeEndpoints)
 			log.Errorf("Received unexpected object: %T", obj)
 			return
 		}
 
 		castedObj, ok = deletedState.Obj.(*v1.Service)
 		if !ok {
-			telemetry.Errors.Inc(names.KubeEndpoints)
 			log.Errorf("Expected DeletedFinalStateUnknown to contain *v1.Service, got: %T", deletedState.Obj)
 			return
 		}
@@ -172,14 +168,12 @@ func (k *kubeEndpointsConfigProvider) invalidateIfChangedService(old, obj interf
 	// nil pointers are safely handled by the casting logic.
 	castedObj, ok := obj.(*v1.Service)
 	if !ok {
-		telemetry.Errors.Inc(names.KubeEndpoints)
 		log.Errorf("Expected a *v1.Service type, got: %T", obj)
 		return
 	}
 	// Cast the old object, invalidate on casting error
 	castedOld, ok := old.(*v1.Service)
 	if !ok {
-		telemetry.Errors.Inc(names.KubeEndpoints)
 		log.Errorf("Expected a *v1.Service type, got: %T", old)
 		k.setUpToDate(false)
 		return
@@ -200,14 +194,12 @@ func (k *kubeEndpointsConfigProvider) invalidateIfChangedEndpoints(old, obj inte
 	// nil pointers are safely handled by the casting logic.
 	castedObj, ok := obj.(*v1.Endpoints)
 	if !ok {
-		telemetry.Errors.Inc(names.KubeEndpoints)
 		log.Errorf("Expected an *v1.Endpoints type, got: %T", obj)
 		return
 	}
 	// Cast the old object, invalidate on casting error
 	castedOld, ok := old.(*v1.Endpoints)
 	if !ok {
-		telemetry.Errors.Inc(names.KubeEndpoints)
 		log.Errorf("Expected a *v1.Endpoints type, got: %T", old)
 		k.setUpToDate(false)
 		return
@@ -249,7 +241,6 @@ func (k *kubeEndpointsConfigProvider) parseServiceAnnotationsForEndpoints(servic
 
 		endptConf, errors := utils.ExtractTemplatesFromPodAnnotations(endpointsID, svc.Annotations, kubeEndpointID)
 		for _, err := range errors {
-			telemetry.Errors.Inc(names.KubeEndpoints)
 			log.Errorf("Cannot parse endpoint template for service %s/%s: %s", svc.Namespace, svc.Name, err)
 		}
 
@@ -285,13 +276,14 @@ func (k *kubeEndpointsConfigProvider) parseServiceAnnotationsForEndpoints(servic
 
 	k.cleanErrorsOfDeletedEndpoints(setEndpointIDs)
 
+	telemetry.Errors.Set(float64(len(k.configErrors)), names.KubeEndpoints)
+
 	return configsInfo
 }
 
 // generateConfigs creates a config template for each Endpoints IP
 func generateConfigs(tpl integration.Config, resolveMode endpointResolveMode, kep *v1.Endpoints) []integration.Config {
 	if kep == nil {
-		telemetry.Errors.Inc(names.KubeEndpoints)
 		log.Warn("Nil Kubernetes Endpoints object, cannot generate config templates")
 		return []integration.Config{tpl}
 	}
@@ -306,7 +298,6 @@ func generateConfigs(tpl integration.Config, resolveMode endpointResolveMode, ke
 	case kubeEndpointResolveIP:
 	// In case of unknown value, fallback to auto
 	default:
-		telemetry.Errors.Inc(names.KubeEndpoints)
 		log.Warnf("Unknown resolve value: %s for endpoint: %s/%s - fallback to auto mode", resolveMode, namespace, name)
 		fallthrough
 	// Auto or empty (default to auto): we try to resolve the POD behind this address

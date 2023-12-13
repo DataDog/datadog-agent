@@ -23,6 +23,7 @@ type Hello struct {
 	daemon *Daemon
 }
 
+//nolint:revive // TODO(SERV) Fix revive linter
 func (h *Hello) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.Hello route.")
 	h.daemon.LambdaLibraryDetected = true
@@ -34,6 +35,7 @@ type Flush struct {
 	daemon *Daemon
 }
 
+//nolint:revive // TODO(SERV) Fix revive linter
 func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.Flush route.")
 	if os.Getenv(LocalTestEnvVar) == "true" || os.Getenv(LocalTestEnvVar) == "1" {
@@ -58,15 +60,10 @@ func (s *StartInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Could not read StartInvocation request body", 400)
 		return
 	}
-	lambdaInvokeContext := invocationlifecycle.LambdaInvokeEventHeaders{
-		TraceID:          r.Header.Get(invocationlifecycle.TraceIDHeader),
-		ParentID:         r.Header.Get(invocationlifecycle.ParentIDHeader),
-		SamplingPriority: r.Header.Get(invocationlifecycle.SamplingPriorityHeader),
-	}
 	startDetails := &invocationlifecycle.InvocationStartDetails{
 		StartTime:             startTime,
 		InvokeEventRawPayload: reqBody,
-		InvokeEventHeaders:    lambdaInvokeContext,
+		InvokeEventHeaders:    r.Header,
 		InvokedFunctionARN:    s.daemon.ExecutionContext.GetCurrentState().ARN,
 	}
 
@@ -136,6 +133,7 @@ type TraceContext struct {
 	daemon *Daemon
 }
 
+//nolint:revive // TODO(SERV) Fix revive linter
 func (tc *TraceContext) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	executionInfo := tc.daemon.InvocationProcessor.GetExecutionInfo()
 	log.Debug("Hit on the serverless.TraceContext route.")

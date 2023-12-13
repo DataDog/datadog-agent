@@ -48,6 +48,7 @@ type checkPayload struct {
 	headers http.Header
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 type Runner interface {
 }
 
@@ -86,6 +87,7 @@ type CheckRunner struct {
 	rtNotifierChan <-chan types.RTResponse
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (l *CheckRunner) RunRealTime() bool {
 	return l.runRealTime
 }
@@ -105,7 +107,7 @@ func NewRunner(config ddconfig.Reader, sysCfg *sysconfig.Config, hostInfo *check
 	}
 
 	for _, c := range enabledChecks {
-		if err := c.Init(cfg, hostInfo); err != nil {
+		if err := c.Init(cfg, hostInfo, false); err != nil {
 			return nil, err
 		}
 	}
@@ -248,6 +250,7 @@ const (
 	chunkMask           = 1<<chunkNumberOfBits - 1
 )
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (l *CheckRunner) Run() error {
 	realTimeAllowed := !l.config.GetBool("process_config.disable_realtime_checks")
 
@@ -384,6 +387,7 @@ func (l *CheckRunner) basicRunner(c checks.Check) func() {
 	}
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (l *CheckRunner) UpdateRTStatus(statuses []*model.CollectorStatus) {
 	// If realtime mode is disabled in the config, do not change the real time status.
 	if !l.runRealTime {
@@ -431,6 +435,7 @@ func (l *CheckRunner) UpdateRTStatus(statuses []*model.CollectorStatus) {
 	}
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (l *CheckRunner) Stop() {
 	close(l.stop)
 	l.wg.Wait()
@@ -441,10 +446,12 @@ func (l *CheckRunner) Stop() {
 	}
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (l *CheckRunner) GetChecks() []checks.Check {
 	return l.enabledChecks
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (l *CheckRunner) IsRealTimeEnabled() bool {
 	return l.realTimeEnabled.Load()
 }

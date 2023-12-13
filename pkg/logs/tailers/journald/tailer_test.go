@@ -32,46 +32,67 @@ type MockJournal struct {
 	entries  []*sdjournal.JournalEntry
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockJournal) AddMatch(match string) error {
 	return nil
 }
+
+//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockJournal) AddDisjunction() error {
 	return nil
 }
+
+//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockJournal) SeekTail() error {
 	m.seekTail++
 	return nil
 }
+
+//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockJournal) SeekHead() error {
 	m.seekHead++
 	return nil
 }
+
+//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockJournal) Wait(timeout time.Duration) int {
 	time.Sleep(time.Millisecond)
 	return 0
 }
+
+//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockJournal) SeekCursor(cursor string) error {
 	m.cursor = cursor
 	return nil
 }
+
+//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockJournal) NextSkip(skip uint64) (uint64, error) {
 	return 0, nil
 }
+
+//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockJournal) Close() error {
 	return nil
 }
+
+//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockJournal) Next() (uint64, error) {
 	m.m.Lock()
 	defer m.m.Unlock()
 	m.next++
 	return uint64(len(m.entries)), nil
 }
+
+//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockJournal) Previous() (uint64, error) {
 	m.m.Lock()
 	defer m.m.Unlock()
 	m.previous++
 	return uint64(len(m.entries)), nil
 }
+
+//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockJournal) GetEntry() (*sdjournal.JournalEntry, error) {
 	m.m.Lock()
 	defer m.m.Unlock()
@@ -85,6 +106,8 @@ func (m *MockJournal) GetEntry() (*sdjournal.JournalEntry, error) {
 
 	return m.entries[0], nil
 }
+
+//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockJournal) GetCursor() (string, error) {
 	return "", nil
 }
@@ -462,7 +485,18 @@ func TestTailingMode(t *testing.T) {
 			tailer := NewTailer(source, nil, mockJournal, true)
 			tailer.Start(tt.cursor)
 
-			assert.Equal(t, *tt.expectedJournalState, *mockJournal)
+			mockJournal.m.Lock()
+			assert.Equal(t, tt.expectedJournalState.cursor, mockJournal.cursor)
+
+			// .Next() is called again by the tail goroutine, so expect it to be equal or greater than expected.
+			assert.True(t, tt.expectedJournalState.next <= mockJournal.next)
+			assert.Equal(t, tt.expectedJournalState.previous, mockJournal.previous)
+			assert.Equal(t, tt.expectedJournalState.seekHead, mockJournal.seekHead)
+			assert.Equal(t, tt.expectedJournalState.seekTail, mockJournal.seekTail)
+			assert.Equal(t, tt.expectedJournalState.entries, mockJournal.entries)
+
+			mockJournal.m.Unlock()
+
 			tailer.Stop()
 		})
 	}

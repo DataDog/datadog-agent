@@ -103,3 +103,67 @@ func TestConvertFlow(t *testing.T) {
 	actualFlow := ConvertFlow(&srcFlow, "my-ns")
 	assert.Equal(t, expectedFlow, *actualFlow)
 }
+
+func TestConvertFlowWithAdditionalFields(t *testing.T) {
+	srcFlow := common.FlowMessageWithAdditionalFields{FlowMessage: &flowpb.FlowMessage{
+		Type:           flowpb.FlowMessage_NETFLOW_V9,
+		TimeReceived:   1234567,
+		SequenceNum:    20,
+		SamplingRate:   10,
+		FlowDirection:  1,
+		SamplerAddress: []byte{127, 0, 0, 1},
+		TimeFlowStart:  1234568,
+		TimeFlowEnd:    1234569,
+		Bytes:          10,
+		Packets:        2,
+		SrcAddr:        []byte{10, 10, 10, 10},
+		DstAddr:        []byte{10, 10, 10, 20},
+		SrcMac:         uint64(10),
+		DstMac:         uint64(20),
+		SrcNet:         uint32(10),
+		DstNet:         uint32(20),
+		Etype:          uint32(1),
+		Proto:          uint32(6),
+		SrcPort:        uint32(2000),
+		DstPort:        uint32(80),
+		InIf:           10,
+		OutIf:          20,
+		IpTos:          3,
+		NextHop:        []byte{10, 10, 10, 30},
+	},
+		AdditionalFields: map[string]any{
+			"bytes":             uint64(1000),
+			"custom_field":      "test",
+			"custom_byte_field": []byte{1, 2, 3, 4},
+		},
+	}
+	expectedFlow := common.Flow{
+		Namespace:        "my-ns",
+		FlowType:         common.TypeNetFlow9,
+		SequenceNum:      20,
+		SamplingRate:     10,
+		Direction:        1,
+		ExporterAddr:     []byte{127, 0, 0, 1},
+		StartTimestamp:   1234568,
+		EndTimestamp:     1234569,
+		Bytes:            1000, // Bytes were replaced by AdditionalFields.bytes
+		Packets:          2,
+		SrcAddr:          []byte{10, 10, 10, 10},
+		DstAddr:          []byte{10, 10, 10, 20},
+		SrcMac:           uint64(10),
+		DstMac:           uint64(20),
+		SrcMask:          uint32(10),
+		DstMask:          uint32(20),
+		EtherType:        uint32(1),
+		IPProtocol:       uint32(6),
+		SrcPort:          2000,
+		DstPort:          80,
+		InputInterface:   10,
+		OutputInterface:  20,
+		Tos:              3,
+		NextHop:          []byte{10, 10, 10, 30},
+		AdditionalFields: map[string]any{"custom_field": "test", "custom_byte_field": "01020304"},
+	}
+	actualFlow := ConvertFlowWithAdditionalFields(&srcFlow, "my-ns")
+	assert.Equal(t, expectedFlow, *actualFlow)
+}

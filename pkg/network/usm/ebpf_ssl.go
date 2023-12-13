@@ -8,10 +8,16 @@
 package usm
 
 import (
+	"bytes"
 	"debug/elf"
 	"fmt"
+	"os"
+	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
+	"sync"
+	"time"
 	"unsafe"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -29,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -232,6 +239,10 @@ const (
 	sslSockByCtxMap = "ssl_sock_by_ctx"
 )
 
+var (
+	buildKitProcessName = []byte("buildkitd")
+)
+
 // Template, will be modified during runtime.
 // The constructor of SSLProgram requires more parameters than we provide in the general way, thus we need to have
 // a dynamic initialization.
@@ -415,7 +426,7 @@ type sslProgram struct {
 
 func newSSLProgramProtocolFactory(m *manager.Manager, sockFDMap *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) protocols.ProtocolFactory {
 	return func(c *config.Config) (protocols.Protocol, error) {
-		if (!c.EnableNativeTLSMonitoring || !http.HTTPSSupported(c)) && !c.EnableIstioMonitoring {
+		if (!c.EnableNativeTLSMonitoring || !http.TLSSupported(c)) && !c.EnableIstioMonitoring {
 			return nil, nil
 		}
 
@@ -423,21 +434,24 @@ func newSSLProgramProtocolFactory(m *manager.Manager, sockFDMap *ebpf.Map, bpfTe
 			watcher *sharedlibraries.Watcher
 			err     error
 		)
-		if c.EnableNativeTLSMonitoring && http.HTTPSSupported(c) {
+
+		procRoot := kernel.ProcFSRoot()
+
+		if c.EnableNativeTLSMonitoring && http.TLSSupported(c) {
 			watcher, err = sharedlibraries.NewWatcher(c, bpfTelemetry,
 				sharedlibraries.Rule{
 					Re:           regexp.MustCompile(`libssl.so`),
-					RegisterCB:   addHooks(m, openSSLProbes),
+					RegisterCB:   addHooks(m, procRoot, openSSLProbes),
 					UnregisterCB: removeHooks(m, openSSLProbes),
 				},
 				sharedlibraries.Rule{
 					Re:           regexp.MustCompile(`libcrypto.so`),
-					RegisterCB:   addHooks(m, cryptoProbes),
+					RegisterCB:   addHooks(m, procRoot, cryptoProbes),
 					UnregisterCB: removeHooks(m, cryptoProbes),
 				},
 				sharedlibraries.Rule{
 					Re:           regexp.MustCompile(`libgnutls.so`),
-					RegisterCB:   addHooks(m, gnuTLSProbes),
+					RegisterCB:   addHooks(m, procRoot, gnuTLSProbes),
 					UnregisterCB: removeHooks(m, gnuTLSProbes),
 				},
 			)
@@ -545,8 +559,52 @@ func (o *sslProgram) GetStats() *protocols.ProtocolStats {
 	return nil
 }
 
-func addHooks(m *manager.Manager, probes []manager.ProbesSelector) func(utils.FilePath) error {
+const (
+	// Defined in https://man7.org/linux/man-pages/man5/proc.5.html.
+	taskCommLen = 16
+)
+
+var (
+	taskCommLenBufferPool = sync.Pool{
+		New: func() any {
+			buf := make([]byte, taskCommLen)
+			return &buf
+		},
+	}
+)
+
+func isBuildKit(procRoot string, pid uint32) bool {
+	filePath := filepath.Join(procRoot, strconv.Itoa(int(pid)), "comm")
+
+	file, err := os.Open(filePath)
+	if err != nil {
+		// Waiting a bit, as we might get the event of process creation before the directory was created.
+		for i := 0; i < 30; i++ {
+			time.Sleep(1 * time.Millisecond)
+			// reading again.
+			file, err = os.Open(filePath)
+			if err == nil {
+				break
+			}
+		}
+	}
+
+	buf := taskCommLenBufferPool.Get().(*[]byte)
+	defer taskCommLenBufferPool.Put(buf)
+	n, err := file.Read(*buf)
+	if err != nil {
+		// short living process can hit here, or slow start of another process.
+		return false
+	}
+	return bytes.Equal(bytes.TrimSpace((*buf)[:n]), buildKitProcessName)
+}
+
+func addHooks(m *manager.Manager, procRoot string, probes []manager.ProbesSelector) func(utils.FilePath) error {
 	return func(fpath utils.FilePath) error {
+		if isBuildKit(procRoot, fpath.PID) {
+			return fmt.Errorf("process %d is buildkitd, skipping", fpath.PID)
+		}
+
 		uid := getUID(fpath.ID)
 
 		elfFile, err := elf.Open(fpath.HostPath)
@@ -555,8 +613,8 @@ func addHooks(m *manager.Manager, probes []manager.ProbesSelector) func(utils.Fi
 		}
 		defer elfFile.Close()
 
-		symbolsSet := make(common.StringSet, 0)
-		symbolsSetBestEffort := make(common.StringSet, 0)
+		symbolsSet := make(common.StringSet)
+		symbolsSetBestEffort := make(common.StringSet)
 		for _, singleProbe := range probes {
 			_, isBestEffort := singleProbe.(*manager.BestEffort)
 			for _, selector := range singleProbe.GetProbesIdentificationPairList() {

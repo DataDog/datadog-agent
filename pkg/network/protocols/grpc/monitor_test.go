@@ -61,16 +61,19 @@ func TestGRPCScenarios(t *testing.T) {
 	})
 }
 
-func getClientsArray(t *testing.T, size int) []*grpc.Client {
+func getClientsArray(t *testing.T, size int) ([]*grpc.Client, func()) {
 	res := make([]*grpc.Client, size)
 	for i := 0; i < size; i++ {
 		client, err := grpc.NewClient(srvAddr, grpc.Options{})
 		require.NoError(t, err)
-		t.Cleanup(client.Close)
 		res[i] = &client
 	}
 
-	return res
+	return res, func() {
+		for i := 0; i < size; i++ {
+			res[i].Close()
+		}
+	}
 }
 
 func getClientsIndex(index, totalCount int) int {
@@ -104,8 +107,8 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 		{
 			name: "simple unary - multiple requests",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients := getClientsArray(t, clientsCount)
-
+				clients, cleanup := getClientsArray(t, clientsCount)
+				defer cleanup()
 				for i := 0; i < 1000; i++ {
 					client := clients[getClientsIndex(i, clientsCount)]
 					require.NoError(t, client.HandleUnary(defaultCtx, "first"))
@@ -124,8 +127,8 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 		{
 			name: "unary, a->b->a",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients := getClientsArray(t, clientsCount)
-
+				clients, cleanup := getClientsArray(t, clientsCount)
+				defer cleanup()
 				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleUnary(defaultCtx, "first"))
 				require.NoError(t, clients[getClientsIndex(1, clientsCount)].GetFeature(defaultCtx, -746143763, 407838351))
 				require.NoError(t, clients[getClientsIndex(2, clientsCount)].HandleUnary(defaultCtx, "first"))
@@ -150,8 +153,8 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 		{
 			name: "unary, a->b->a->b",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients := getClientsArray(t, clientsCount)
-
+				clients, cleanup := getClientsArray(t, clientsCount)
+				defer cleanup()
 				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleUnary(defaultCtx, "first"))
 				require.NoError(t, clients[getClientsIndex(1, clientsCount)].GetFeature(defaultCtx, -746143763, 407838351))
 				require.NoError(t, clients[getClientsIndex(2, clientsCount)].HandleUnary(defaultCtx, "third"))
@@ -177,8 +180,8 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 		{
 			name: "unary, a->b->b->a",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients := getClientsArray(t, clientsCount)
-
+				clients, cleanup := getClientsArray(t, clientsCount)
+				defer cleanup()
 				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleUnary(defaultCtx, "first"))
 				require.NoError(t, clients[getClientsIndex(1, clientsCount)].GetFeature(defaultCtx, -746143763, 407838351))
 				require.NoError(t, clients[getClientsIndex(2, clientsCount)].GetFeature(defaultCtx, -743999179, 408122808))
@@ -204,8 +207,8 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 		{
 			name: "stream, c",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients := getClientsArray(t, clientsCount)
-
+				clients, cleanup := getClientsArray(t, clientsCount)
+				defer cleanup()
 				for i := 0; i < 25; i++ {
 					client := clients[getClientsIndex(i, clientsCount)]
 					require.NoError(t, client.HandleStream(defaultCtx, 10))
@@ -224,8 +227,8 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 		{
 			name: "mixed, c->b->c->b",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients := getClientsArray(t, clientsCount)
-
+				clients, cleanup := getClientsArray(t, clientsCount)
+				defer cleanup()
 				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleStream(defaultCtx, 10))
 				require.NoError(t, clients[getClientsIndex(1, clientsCount)].HandleUnary(defaultCtx, "first"))
 				require.NoError(t, clients[getClientsIndex(2, clientsCount)].HandleStream(defaultCtx, 10))
@@ -251,8 +254,8 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 		{
 			name: "500 headers -> b -> 500 headers -> b",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients := getClientsArray(t, clientsCount)
-
+				clients, cleanup := getClientsArray(t, clientsCount)
+				defer cleanup()
 				ctxWithoutHeaders := context.Background()
 				ctxWithHeaders := context.Background()
 				headers := make(map[string]string, 500)
@@ -288,13 +291,13 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 		{
 			name: "duplicated headers -> b -> duplicated headers -> b",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients := getClientsArray(t, clientsCount)
-
+				clients, cleanup := getClientsArray(t, clientsCount)
+				defer cleanup()
 				ctxWithoutHeaders := context.Background()
 				ctxWithHeaders := context.Background()
 				headers := make(map[string]string, 20)
 				for i := 1; i <= 20; i++ {
-					headers[fmt.Sprintf("header-%d", i)] = fmt.Sprintf("value")
+					headers[fmt.Sprintf("header-%d", i)] = "value"
 				}
 				md := metadata.New(headers)
 				ctxWithHeaders = metadata.NewOutgoingContext(ctxWithHeaders, md)
@@ -410,8 +413,8 @@ func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 		{
 			name: "request with large body (30MB)",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients := getClientsArray(t, clientsCount)
-
+				clients, cleanup := getClientsArray(t, clientsCount)
+				defer cleanup()
 				longRandomString[0] = '0' + rune(clientsCount)
 				for i := 0; i < 5; i++ {
 					longRandomString[1] = 'a' + rune(i)
@@ -431,8 +434,8 @@ func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 		{
 			name: "request with large body (5MB) -> b -> request with large body (5MB) -> b",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients := getClientsArray(t, clientsCount)
-
+				clients, cleanup := getClientsArray(t, clientsCount)
+				defer cleanup()
 				longRandomString[3] = '0' + rune(clientsCount)
 
 				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleUnary(defaultCtx, string(shortRandomString)))

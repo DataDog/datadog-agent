@@ -58,7 +58,7 @@ type ActivityDumpManager struct {
 	emptyDropped           *atomic.Uint64
 	dropMaxDumpReached     *atomic.Uint64
 	newEvent               func() *model.Event
-	resolvers              *resolvers.Resolvers
+	resolvers              *resolvers.EBPFResolvers
 	kernelVersion          *kernel.Version
 	manager                *manager.Manager
 	dumpHandler            ActivityDumpHandler
@@ -252,7 +252,7 @@ func (adm *ActivityDumpManager) HandleActivityDump(dump *api.ActivityDumpStreamM
 }
 
 // NewActivityDumpManager returns a new ActivityDumpManager instance
-func NewActivityDumpManager(config *config.Config, statsdClient statsd.ClientInterface, newEvent func() *model.Event, resolvers *resolvers.Resolvers,
+func NewActivityDumpManager(config *config.Config, statsdClient statsd.ClientInterface, newEvent func() *model.Event, resolvers *resolvers.EBPFResolvers,
 	kernelVersion *kernel.Version, manager *manager.Manager) (*ActivityDumpManager, error) {
 	tracedPIDs, err := managerhelper.Map(manager, "traced_pids")
 	if err != nil {
@@ -559,7 +559,7 @@ func (adm *ActivityDumpManager) DumpActivity(params *api.ActivityDumpParams) (*a
 }
 
 // ListActivityDumps returns the list of active activity dumps
-func (adm *ActivityDumpManager) ListActivityDumps(params *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
+func (adm *ActivityDumpManager) ListActivityDumps(_ *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
 	adm.Lock()
 	defer adm.Unlock()
 
@@ -664,8 +664,16 @@ func (adm *ActivityDumpManager) SearchTracedProcessCacheEntryCallback(ad *Activi
 		defer ad.Unlock()
 
 		// check process lineage
-		if !ad.MatchesSelector(entry) || !entry.HasCompleteLineage() {
+		if !ad.MatchesSelector(entry) {
 			return
+		}
+
+		if _, err := entry.HasValidLineage(); err != nil {
+			// check if the node belongs to the container
+			var mn *model.ErrProcessMissingParentNode
+			if !errors.As(err, &mn) {
+				return
+			}
 		}
 
 		// compute the list of ancestors, we need to start inserting them from the root
@@ -918,5 +926,6 @@ func (adm *ActivityDumpManager) StopDumpsWithSelector(selector cgroupModel.Workl
 		}
 		ad.Unlock()
 	}
+	//nolint:gosimple // TODO(SEC) Fix gosimple linter
 	return
 }

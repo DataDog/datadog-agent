@@ -19,6 +19,7 @@ import (
 // Define and initialize serviceMapping as a global variable.
 var serviceMapping map[string]string
 
+//nolint:revive // TODO(SERV) Fix revive linter
 func CreateServiceMapping(val string) map[string]string {
 	newServiceMapping := make(map[string]string)
 
@@ -46,10 +47,13 @@ func SetServiceMapping(newServiceMapping map[string]string) {
 }
 
 // This function gets a snapshot of the current service mapping without modifying it.
+//
+//nolint:revive // TODO(SERV) Fix revive linter
 func GetServiceMapping() map[string]string {
 	return serviceMapping
 }
 
+//nolint:revive // TODO(SERV) Fix revive linter
 func DetermineServiceName(serviceMapping map[string]string, specificKey string, genericKey string, defaultValue string) string {
 	var serviceName string
 	if val, ok := serviceMapping[specificKey]; ok {
@@ -72,6 +76,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayRESTEvent(even
 	domain := requestContext.DomainName
 	httpurl := fmt.Sprintf("%s%s", domain, eventPayload.Path)
 	startTime := calculateStartTime(requestContext.RequestTimeEpoch)
+	//nolint:revive // TODO(SERV) Fix revive linter
 	apiId := requestContext.APIID
 	serviceName := DetermineServiceName(serviceMapping, apiId, "lambda_api_gateway", domain)
 	inferredSpan.Span.Name = "aws.apigateway"
@@ -105,6 +110,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayHTTPEvent(even
 	domainName := requestContext.DomainName
 	httpurl := fmt.Sprintf("%s%s", domainName, path)
 	startTime := calculateStartTime(requestContext.TimeEpoch)
+	//nolint:revive // TODO(SERV) Fix revive linter
 	apiId := requestContext.APIID
 	serviceName := DetermineServiceName(serviceMapping, apiId, "lambda_api_gateway", domainName)
 	inferredSpan.Span.Name = "aws.httpapi"
@@ -170,6 +176,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayWebsocketEvent
 	routeKey := requestContext.RouteKey
 	httpurl := fmt.Sprintf("%s%s", requestContext.DomainName, routeKey)
 	startTime := calculateStartTime(requestContext.RequestTimeEpoch)
+	//nolint:revive // TODO(SERV) Fix revive linter
 	apiId := requestContext.APIID
 	serviceName := DetermineServiceName(serviceMapping, apiId, "lambda_api_gateway", requestContext.DomainName)
 	inferredSpan.Span.Name = "aws.apigateway.websocket"
@@ -274,18 +281,6 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload ev
 		eventSourceArn: eventRecord.EventSourceARN,
 		receiptHandle:  eventRecord.ReceiptHandle,
 		senderID:       eventRecord.Attributes["SenderId"],
-	}
-
-	traceContext := extractTraceContext(eventRecord)
-	if traceContext == nil {
-		log.Debug("No trace context found")
-		return
-	}
-	if traceContext.TraceID != nil {
-		inferredSpan.Span.TraceID = *traceContext.TraceID
-	}
-	if traceContext.ParentID != nil {
-		inferredSpan.Span.ParentID = *traceContext.ParentID
 	}
 }
 

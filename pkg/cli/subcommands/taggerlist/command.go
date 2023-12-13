@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
@@ -55,17 +56,18 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			return fxutil.OneShot(taggerList,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParamsWithoutSecrets(
+					ConfigParams: config.NewAgentParams(
 						globalParams.ConfFilePath,
 						config.WithConfigName(globalParams.ConfigName),
 					),
-					LogParams: log.ForOneShot(globalParams.LoggerName, "off", true)}),
-				core.Bundle,
+					LogParams: logimpl.ForOneShot(globalParams.LoggerName, "off", true)}),
+				core.Bundle(),
 			)
 		},
 	}
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func taggerList(log log.Component, config config.Component, cliParams *cliParams) error {
 	// Set session token
 	if err := util.SetAuthToken(); err != nil {
@@ -80,6 +82,7 @@ func taggerList(log log.Component, config config.Component, cliParams *cliParams
 	return tagger_api.GetTaggerList(color.Output, url)
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func getTaggerURL(config config.Component) (string, error) {
 	ipcAddress, err := pkgconfig.GetIPCAddress()
 	if err != nil {

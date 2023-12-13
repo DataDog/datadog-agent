@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+// Package rcclient is a remote config client that can run within the agent to receive
+// configurations.
 package rcclient
 
 import (
@@ -13,7 +15,10 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/pkg/config/remote"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -37,10 +42,9 @@ type RCAgentTaskListener func(taskType TaskType, task AgentTaskConfig) (bool, er
 type RCListener map[data.Product]func(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))
 
 type rcClient struct {
-	client        *remote.Client
+	client        *client.Client
 	m             *sync.Mutex
 	taskProcessed map[string]bool
-	configState   *state.AgentConfigState
 
 	listeners []RCListener
 	// Tasks are separated from the other products, because they must be executed once
@@ -57,14 +61,18 @@ type dependencies struct {
 }
 
 func newRemoteConfigClient(deps dependencies) (Component, error) {
-	level, err := pkglog.GetLogLevel()
+	ipcAddress, err := config.GetIPCAddress()
 	if err != nil {
 		return nil, err
 	}
 
 	// We have to create the client in the constructor and set its name later
-	c, err := remote.NewUnverifiedGRPCClient(
-		"unknown", version.AgentVersion, []data.Product{}, 5*time.Second,
+	c, err := client.NewUnverifiedGRPCClient(
+		ipcAddress,
+		config.GetIPCPort(),
+		security.FetchAuthToken,
+		client.WithAgent("unknown", version.AgentVersion),
+		client.WithPollInterval(5*time.Second),
 	)
 	if err != nil {
 		return nil, err
@@ -74,10 +82,7 @@ func newRemoteConfigClient(deps dependencies) (Component, error) {
 		listeners:     deps.Listeners,
 		taskListeners: deps.TaskListeners,
 		m:             &sync.Mutex{},
-		configState: &state.AgentConfigState{
-			FallbackLogLevel: level.String(),
-		},
-		client: c,
+		client:        c,
 	}
 
 	return rc, nil
@@ -121,59 +126,37 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 	}
 
 	// Checks who (the source) is responsible for the last logLevel change
-	// The priority between sources is: CLI > RC > Default
-	source, err := settings.GetRuntimeSource("log_level")
-	if err != nil {
-		pkglog.Errorf("Could not fetch source for 'log_level': %s", err)
-	}
+	source := config.Datadog.GetSource("log_level")
 
 	switch source {
-	case settings.SourceDefault, settings.SourceConfig:
-		// If the log level had been set by default
-		// and if we receive an empty value for log level in the config
+	case model.SourceRC:
+		// 2 possible situations:
+		//     - we want to change (once again) the log level through RC
+		//     - we want to fall back to the log level we had saved as fallback (in that case mergedConfig.LogLevel == "")
+		if len(mergedConfig.LogLevel) == 0 {
+			pkglog.Infof("Removing remote-config log level override, falling back to '%s'", config.Datadog.Get("log_level"))
+			config.Datadog.UnsetForSource("log_level", model.SourceRC)
+		} else {
+			newLevel := mergedConfig.LogLevel
+			pkglog.Infof("Changing log level to '%s' through remote config", newLevel)
+			err = settings.SetRuntimeSetting("log_level", newLevel, model.SourceRC)
+		}
+
+	case model.SourceCLI:
+		pkglog.Warnf("Remote config could not change the log level due to CLI override")
+		return
+
+	// default case handles every other source (lower in the hierarchy)
+	default:
+		// If we receive an empty value for log level in the config
 		// then there is nothing to do
 		if len(mergedConfig.LogLevel) == 0 {
 			return
 		}
 
-		// Get the current log level
-		var newFallback interface{}
-		newFallback, err = settings.GetRuntimeSetting("log_level")
-		if err != nil {
-			break
-		}
-
-		pkglog.Infof("Changing log level to '%s' through remote config", mergedConfig.LogLevel)
-		rc.configState.FallbackLogLevel = newFallback.(string)
 		// Need to update the log level even if the level stays the same because we need to update the source
 		// Might be possible to add a check in deeper functions to avoid unnecessary work
-		err = settings.SetRuntimeSetting("log_level", mergedConfig.LogLevel, settings.SourceRC)
-
-	case settings.SourceRC:
-		// 2 possible situations:
-		//     - we want to change (once again) the log level through RC
-		//     - we want to fall back to the log level we had saved as fallback (in that case mergedConfig.LogLevel == "")
-		var newLevel string
-		var newSource settings.Source
-		if len(mergedConfig.LogLevel) == 0 {
-			newLevel = rc.configState.FallbackLogLevel
-			// Regardless what the source was before RC override, we fallback to SourceConfig as it has now been changed by code
-			newSource = settings.SourceConfig
-			pkglog.Infof("Removing remote-config log level override, falling back to '%s'", newLevel)
-		} else {
-			newLevel = mergedConfig.LogLevel
-			newSource = settings.SourceRC
-			pkglog.Infof("Changing log level to '%s' through remote config", newLevel)
-		}
-		err = settings.SetRuntimeSetting("log_level", newLevel, newSource)
-
-	case settings.SourceCLI:
-		pkglog.Warnf("Remote config could not change the log level due to CLI override")
-		return
-
-	default:
-		pkglog.Errorf("Unknown source '%s' for log level", source.String())
-		return
+		err = settings.SetRuntimeSetting("log_level", mergedConfig.LogLevel, model.SourceRC)
 	}
 
 	// Apply the new status to all configs

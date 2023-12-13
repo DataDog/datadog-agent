@@ -10,15 +10,13 @@ import "time"
 var processContextZero = ProcessCacheEntry{}
 
 // NewPlaceholderProcessCacheEntry returns an empty process cache entry for failed process resolutions
-func NewPlaceholderProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *ProcessCacheEntry {
-	return &ProcessCacheEntry{ProcessContext: ProcessContext{Process: Process{PIDContext: PIDContext{Pid: pid, Tid: tid, IsKworker: isKworker}}}}
+func NewPlaceholderProcessCacheEntry(pid uint32) *ProcessCacheEntry {
+	return &ProcessCacheEntry{ProcessContext: ProcessContext{Process: Process{PIDContext: PIDContext{Pid: pid}}}}
 }
 
 // GetPlaceholderProcessCacheEntry returns an empty process cache entry for failed process resolutions
-func GetPlaceholderProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *ProcessCacheEntry {
+func GetPlaceholderProcessCacheEntry(pid uint32) *ProcessCacheEntry {
 	processContextZero.Pid = pid
-	processContextZero.Tid = tid
-	processContextZero.IsKworker = isKworker
 	return &processContextZero
 }
 

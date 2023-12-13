@@ -34,6 +34,8 @@
 #define FLAG_NPM_ENABLED            1 << 2
 #define FLAG_TCP_CLOSE_DELETION     1 << 3
 #define FLAG_SOCKET_FILTER_DELETION 1 << 4
+#define FLAG_SERVER_SIDE            1 << 5
+#define FLAG_CLIENT_SIDE            1 << 6
 
 // The enum below represents all different protocols we're able to
 // classify. Entries are segmented such that it is possible to infer the
@@ -133,7 +135,8 @@ typedef enum {
 typedef enum {
     PROG_UNKNOWN = 0,
     PROG_HTTP,
-    PROG_HTTP2,
+    PROG_HTTP2_HANDLE_FIRST_FRAME,
+    PROG_HTTP2_FRAME_FILTER,
     PROG_HTTP2_FRAME_PARSER,
     PROG_KAFKA,
     PROG_GRPC,

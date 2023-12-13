@@ -19,18 +19,21 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/atomic"
+	"go.uber.org/fx"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	fakeworkloadmeta "github.com/DataDog/datadog-agent/pkg/workloadmeta/testing"
 )
 
 func TestProcessEvents(t *testing.T) {
@@ -587,8 +590,8 @@ func TestProcessEvents(t *testing.T) {
 	cacheDir, err := os.MkdirTemp("", "sbom-cache")
 	assert.Nil(t, err)
 	defer os.RemoveAll(cacheDir)
-	cfg.Set("sbom.cache_directory", cacheDir)
-	cfg.Set("sbom.container_image.enabled", true)
+	cfg.SetWithoutSource("sbom.cache_directory", cacheDir)
+	cfg.SetWithoutSource("sbom.container_image.enabled", true)
 	_, err = sbomscanner.CreateGlobalScanner(cfg)
 	assert.Nil(t, err)
 
@@ -596,7 +599,13 @@ func TestProcessEvents(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var SBOMsSent = atomic.NewInt32(0)
 
-			fakeworkloadmeta := fakeworkloadmeta.NewStore()
+			workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+				logimpl.MockModule(),
+				configcomp.MockModule(),
+				fx.Supply(context.Background()),
+				fx.Supply(workloadmeta.NewParams()),
+				workloadmeta.MockModuleV2(),
+			))
 
 			sender := mocksender.NewMockSender("")
 			sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Run(func(_ mock.Arguments) {
@@ -605,7 +614,7 @@ func TestProcessEvents(t *testing.T) {
 
 			// Define a max size of 1 for the queue. With a size > 1, it's difficult to
 			// control the number of events sent on each call.
-			p, err := newProcessor(fakeworkloadmeta, sender, 1, 50*time.Millisecond, false, time.Second)
+			p, err := newProcessor(workloadmetaStore, sender, 1, 50*time.Millisecond, false, time.Second)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -613,9 +622,9 @@ func TestProcessEvents(t *testing.T) {
 			for _, ev := range test.inputEvents {
 				switch ev.Type {
 				case workloadmeta.EventTypeSet:
-					fakeworkloadmeta.Set(ev.Entity)
+					workloadmetaStore.Set(ev.Entity)
 				case workloadmeta.EventTypeUnset:
-					fakeworkloadmeta.Unset(ev.Entity)
+					workloadmetaStore.Unset(ev.Entity)
 				}
 			}
 

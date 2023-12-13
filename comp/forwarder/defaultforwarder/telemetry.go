@@ -11,12 +11,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 var (
-	transactionsIntakeOrchestrator = map[orchestrator.NodeType]*expvar.Int{}
+	transactionsIntakeOrchestrator = map[pkgorchestratormodel.NodeType]*expvar.Int{}
 
 	highPriorityQueueFull            = expvar.Int{}
 	transactionsInputBytesByEndpoint = expvar.Map{}
@@ -75,7 +75,7 @@ func initEndpointExpvars() {
 }
 
 func initOrchestratorExpVars() {
-	for _, nodeType := range orchestrator.NodeTypes() {
+	for _, nodeType := range pkgorchestratormodel.NodeTypes() {
 		transactionsIntakeOrchestrator[nodeType] = &expvar.Int{}
 		transaction.TransactionsExpvars.Set(nodeType.String(), transactionsIntakeOrchestrator[nodeType])
 	}
@@ -83,7 +83,7 @@ func initOrchestratorExpVars() {
 }
 
 func bumpOrchestratorPayload(log log.Component, nodeType int) {
-	e, ok := transactionsIntakeOrchestrator[orchestrator.NodeType(nodeType)]
+	e, ok := transactionsIntakeOrchestrator[pkgorchestratormodel.NodeType(nodeType)]
 	if !ok {
 		log.Errorf("Unknown NodeType %v, cannot bump expvar", nodeType)
 		return

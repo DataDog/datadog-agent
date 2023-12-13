@@ -89,12 +89,13 @@ type CheckEvent struct {
 
 // ResourceLog is the data structure holding a resource configuration data.
 type ResourceLog struct {
-	AgentVersion string      `json:"agent_version,omitempty"`
-	ExpireAt     *time.Time  `json:"expire_at,omitempty"`
-	ResourceType string      `json:"resource_type,omitempty"`
-	ResourceID   string      `json:"resource_id,omitempty"`
-	ResourceData interface{} `json:"resource_data,omitempty"`
-	Tags         []string    `json:"tags"`
+	AgentVersion string              `json:"agent_version,omitempty"`
+	ExpireAt     *time.Time          `json:"expire_at,omitempty"`
+	ResourceType string              `json:"resource_type,omitempty"`
+	ResourceID   string              `json:"resource_id,omitempty"`
+	ResourceData interface{}         `json:"resource_data,omitempty"`
+	Container    *CheckContainerMeta `json:"container,omitempty"`
+	Tags         []string            `json:"tags"`
 }
 
 func (e *CheckEvent) String() string {
@@ -157,6 +158,8 @@ func NewCheckEvent(
 }
 
 // NewCheckSkipped returns a CheckEvent with skipped status.
+//
+//nolint:revive // TODO(CSPM) Fix revive linter
 func NewCheckSkipped(
 	evaluator Evaluator,
 	skipReason error,

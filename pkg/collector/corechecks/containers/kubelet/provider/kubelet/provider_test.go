@@ -15,7 +15,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -24,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	workloadmetatesting "github.com/DataDog/datadog-agent/pkg/workloadmeta/testing"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 const (
@@ -107,6 +111,8 @@ var (
 		common.KubeletMetricsPrefix + "rest.client.latency.sum",
 		common.KubeletMetricsPrefix + "rest.client.requests",
 		common.KubeletMetricsPrefix + "kubelet.evictions",
+		common.KubeletMetricsPrefix + "kubelet.cpu_manager.pinning_errors_total",
+		common.KubeletMetricsPrefix + "kubelet.cpu_manager.pinning_requests_total",
 	}
 )
 
@@ -114,11 +120,18 @@ type ProviderTestSuite struct {
 	suite.Suite
 	provider   *Provider
 	mockSender *mocksender.MockSender
-	store      *workloadmetatesting.Store
+	store      workloadmeta.Component
 }
 
 func (suite *ProviderTestSuite) SetupTest() {
 	var err error
+
+	store := fxutil.Test[workloadmeta.Mock](suite.T(), fx.Options(
+		core.MockBundle(),
+		collectors.GetCatalog(),
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModuleV2(),
+	))
 
 	mockSender := mocksender.NewMockSender(checkid.ID(suite.T().Name()))
 	mockSender.SetupAcceptAll()
@@ -133,7 +146,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 	podUtils := common.NewPodUtils()
 
 	podsFile := "../../testdata/pods.json"
-	store, err := commontesting.StorePopulatedFromFile(podsFile, podUtils)
+	err = commontesting.StorePopulatedFromFile(store, podsFile, podUtils)
 	if err != nil {
 		suite.T().Errorf("unable to populate store from file at: %s, err: %v", podsFile, err)
 	}

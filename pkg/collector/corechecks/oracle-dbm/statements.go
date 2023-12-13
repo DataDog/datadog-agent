@@ -21,6 +21,7 @@ import (
 	cache "github.com/patrickmn/go-cache"
 )
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type StatementMetricsKeyDB struct {
 	ConID                  int    `db:"CON_ID"`
 	PDBName                string `db:"PDB_NAME"`
@@ -29,6 +30,7 @@ type StatementMetricsKeyDB struct {
 	PlanHashValue          uint64 `db:"PLAN_HASH_VALUE"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type StatementMetricsMonotonicCountDB struct {
 	ParseCalls                 float64 `db:"PARSE_CALLS"`
 	DiskReads                  float64 `db:"DISK_READS"`
@@ -64,12 +66,14 @@ type StatementMetricsMonotonicCountDB struct {
 	AvoidedExecutions          float64 `db:"AVOIDED_EXECUTIONS"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type StatementMetricsGaugeDB struct {
 	VersionCount float64 `db:"VERSION_COUNT"`
 	SharableMem  float64 `db:"SHARABLE_MEM"`
 	TypecheckMem float64 `db:"TYPECHECK_MEM"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type StatementMetricsDB struct {
 	StatementMetricsKeyDB
 	SQLText       string `db:"SQL_TEXT"`
@@ -78,6 +82,7 @@ type StatementMetricsDB struct {
 	StatementMetricsGaugeDB
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type QueryRow struct {
 	QuerySignature string   `json:"query_signature,omitempty" dbm:"query_signature,primary"`
 	Tables         []string `json:"dd_tables,omitempty" dbm:"table,tag"`
@@ -85,6 +90,7 @@ type QueryRow struct {
 	Comments       []string `json:"dd_comments,omitempty" dbm:"comments,tag"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type OracleRowMonotonicCount struct {
 	ParseCalls                 float64 `json:"parse_calls,omitempty"`
 	DiskReads                  float64 `json:"disk_reads,omitempty"`
@@ -120,6 +126,7 @@ type OracleRowMonotonicCount struct {
 	AvoidedExecutions          float64 `json:"avoided_executions,omitempty"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type OracleRowGauge struct {
 	VersionCount float64 `json:"version_count,omitempty"`
 	SharableMem  float64 `json:"sharable_mem,omitempty"`
@@ -143,6 +150,7 @@ type OracleRow struct {
 	OracleRowGauge
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type MetricsPayload struct {
 	Host                  string   `json:"host,omitempty"` // Host is the database hostname, not the agent hostname
 	Timestamp             float64  `json:"timestamp,omitempty"`
@@ -155,11 +163,13 @@ type MetricsPayload struct {
 	OracleVersion string      `json:"oracle_version,omitempty"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type FQTDBMetadata struct {
 	Tables   []string `json:"dd_tables"`
 	Commands []string `json:"dd_commands"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type FQTDB struct {
 	Instance       string        `json:"instance"`
 	QuerySignature string        `json:"query_signature"`
@@ -167,10 +177,12 @@ type FQTDB struct {
 	FQTDBMetadata  FQTDBMetadata `json:"metadata"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type FQTDBOracle struct {
 	CDBName string `json:"cdb_name,omitempty"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type FQTPayload struct {
 	Timestamp    float64     `json:"timestamp,omitempty"`
 	Host         string      `json:"host,omitempty"` // Host is the database hostname, not the agent hostname
@@ -182,6 +194,7 @@ type FQTPayload struct {
 	FQTDBOracle  FQTDBOracle `json:"oracle"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type OraclePlan struct {
 	PlanHashValue          uint64  `json:"plan_hash_value,omitempty"`
 	SQLID                  string  `json:"sql_id,omitempty"`
@@ -194,19 +207,22 @@ type OraclePlan struct {
 	ForceMatchingSignature string  `json:"force_matching_signature,omitempty"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type PlanStatementMetadata struct {
 	Tables   []string `json:"tables"`
 	Commands []string `json:"commands"`
 	Comments []string `json:"comments"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type PlanDefinition struct {
-	Operation        string  `json:"operation,omitempty"`
-	Options          string  `json:"options,omitempty"`
-	ObjectOwner      string  `json:"object_owner,omitempty"`
-	ObjectName       string  `json:"object_name,omitempty"`
-	ObjectAlias      string  `json:"object_alias,omitempty"`
-	ObjectType       string  `json:"object_type,omitempty"`
+	Operation   string `json:"operation,omitempty"`
+	Options     string `json:"options,omitempty"`
+	ObjectOwner string `json:"object_owner,omitempty"`
+	ObjectName  string `json:"object_name,omitempty"`
+	ObjectAlias string `json:"object_alias,omitempty"`
+	ObjectType  string `json:"object_type,omitempty"`
+	//nolint:revive // TODO(DBM) Fix revive linter
 	PlanStepId       int64   `json:"id,omitempty"`
 	ParentId         int64   `json:"parent_id,omitempty"`
 	Depth            int64   `json:"depth,omitempty"`
@@ -234,11 +250,13 @@ type PlanDefinition struct {
 	LastTempsegSize  uint64  `json:"actual_tempseg_size,omitempty"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type PlanPlanDB struct {
 	Definition []PlanDefinition `json:"definition"`
 	Signature  string           `json:"signature"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type PlanDB struct {
 	Instance       string                `json:"instance,omitempty"`
 	Plan           PlanPlanDB            `json:"plan,omitempty"`
@@ -247,6 +265,7 @@ type PlanDB struct {
 	Metadata       PlanStatementMetadata `json:"metadata,omitempty"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type PlanPayload struct {
 	Timestamp    float64    `json:"timestamp,omitempty"`
 	Host         string     `json:"host,omitempty"` // Host is the database hostname, not the agent hostname
@@ -258,6 +277,7 @@ type PlanPayload struct {
 	OraclePlan   OraclePlan `json:"oracle"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type PlanGlobalRow struct {
 	SQLID         string         `db:"SQL_ID"`
 	ChildNumber   sql.NullInt64  `db:"CHILD_NUMBER"`
@@ -267,6 +287,8 @@ type PlanGlobalRow struct {
 	Executions    sql.NullString `db:"EXECUTIONS"`
 	PDBName       sql.NullString `db:"PDB_NAME"`
 }
+
+//nolint:revive // TODO(DBM) Fix revive linter
 type PlanStepRows struct {
 	Operation        sql.NullString  `db:"OPERATION"`
 	Options          sql.NullString  `db:"OPTIONS"`
@@ -300,6 +322,8 @@ type PlanStepRows struct {
 	LastDegree       *uint64         `db:"LAST_DEGREE"`
 	LastTempsegSize  *uint64         `db:"LAST_TEMPSEG_SIZE"`
 }
+
+//nolint:revive // TODO(DBM) Fix revive linter
 type PlanRows struct {
 	PlanGlobalRow
 	PlanStepRows
@@ -328,6 +352,7 @@ func handlePredicate(predicateType string, dbValue sql.NullString, payloadValue 
 	}
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 func (c *Check) StatementMetrics() (int, error) {
 	if !checkIntervalExpired(&c.statementsLastRun, c.config.QueryMetrics.CollectionInterval) {
 		return 0, nil
@@ -401,7 +426,8 @@ func (c *Check) StatementMetrics() (int, error) {
 		defer o.Stop()
 		var diff OracleRowMonotonicCount
 		planErrors = 0
-		for _, statementMetricRow := range statementMetricsAll {
+		sendPlan := true
+		for i, statementMetricRow := range statementMetricsAll {
 			var trace bool
 			for _, t := range c.config.QueryMetrics.Trackers {
 				if len(t.ContainsText) > 0 {
@@ -600,7 +626,11 @@ func (c *Check) StatementMetrics() (int, error) {
 				c.fqtEmitted.Set(queryRow.QuerySignature, "1", cache.DefaultExpiration)
 			}
 
-			if c.config.ExecutionPlans.Enabled {
+			if c.config.ExecutionPlans.Enabled && sendPlan {
+				if (i+1)%10 == 0 && time.Since(start).Seconds() >= float64(c.config.QueryMetrics.MaxRunTime) {
+					sendPlan = false
+				}
+
 				planCacheKey := strconv.FormatUint(statementMetricRow.PlanHashValue, 10)
 				if c.planEmitted == nil {
 					c.planEmitted = getPlanEmittedCache(c)
@@ -775,6 +805,7 @@ func (c *Check) StatementMetrics() (int, error) {
 						log.Errorf("%s failed getting execution plan %s for SQL_ID: %s, plan_hash_value: %d", c.logPrompt, err, statementMetricRow.SQLID, statementMetricRow.PlanHashValue)
 					}
 				}
+
 			}
 		}
 		c.copyToPreviousMap(newCache)

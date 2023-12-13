@@ -74,7 +74,7 @@
         },
         "ec2": {
             "arm64": {
-                "sles-15": "ami-05f2f5f76d89313bb"
+                "sles-15": "ami-02f7663f03ca92749"
             }
         }
     },
@@ -147,8 +147,6 @@
     "windows": {
         "azure": {
             "x86_64": {
-                "win2012": "id,/subscriptions/a53d2c33-d372-4e36-9e33-eaf32ce95b28/resourceGroups/agentcustomimages/providers/Microsoft.Compute/galleries/agentcustomimages/images/Windows-2012/versions/1.0.0",
-                "win2012r2": "id,/subscriptions/a53d2c33-d372-4e36-9e33-eaf32ce95b28/resourceGroups/agentcustomimages/providers/Microsoft.Compute/galleries/agentcustomimages/images/Windows-2012-R2/versions/1.0.1",
                 "win2016": "urn,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:14393.5429.221014",
                 "win2019": "urn,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:17763.3534.221015",
                 "win2019cn": "urn,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-zhcn:17763.3534.221015",
@@ -157,8 +155,6 @@
         },
         "ec2": {
             "x86_64": {
-                "win2012r2": "ami-05bcfc8413c69a2a1",
-                "comment-win2012r2": "EC2LaunchV2-Windows_Server-2012_R2_RTM-English-Full-Base-2022.09.14",
                 "win2016": "ami-03bee25bb430166e4",
                 "comment-win2016": "# Windows_Server-2016-English-Core-Containers-2022.12.14",
                 "win2019": "ami-01cc656499debb56a",

@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -68,8 +69,9 @@ func (suite *ecsSuite) TearDownSuite() {
 	c := color.New(color.Bold).SprintfFunc()
 	suite.T().Log(c("The data produced and asserted by these tests can be viewed on this dashboard:"))
 	c = color.New(color.Bold, color.FgBlue).SprintfFunc()
-	suite.T().Log(c("https://dddev.datadoghq.com/dashboard/mnw-tdr-jd8/e2e-tests-containers-ecs?refresh_mode=paused&tpl_var_ecs_cluster_name%%5B0%%5D=%s&from_ts=%d&to_ts=%d&live=false",
+	suite.T().Log(c("https://dddev.datadoghq.com/dashboard/mnw-tdr-jd8/e2e-tests-containers-ecs?refresh_mode=paused&tpl_var_ecs_cluster_name%%5B0%%5D=%s&tpl_var_fake_intake_task_family%%5B0%%5D=%s-fakeintake-ecs&from_ts=%d&to_ts=%d&live=false",
 		suite.ecsClusterName,
+		strings.TrimSuffix(suite.ecsClusterName, "-ecs"),
 		suite.startTime.UnixMilli(),
 		suite.endTime.UnixMilli(),
 	))
@@ -98,7 +100,7 @@ func (suite *ecsSuite) Test00UpAndRunning() {
 	client := awsecs.NewFromConfig(cfg)
 
 	suite.Run("ECS tasks are ready", func() {
-		suite.EventuallyWithTf(func(collect *assert.CollectT) {
+		suite.EventuallyWithTf(func(c *assert.CollectT) {
 			var initToken string
 			for nextToken := &initToken; nextToken != nil; {
 				if nextToken == &initToken {
@@ -110,8 +112,8 @@ func (suite *ecsSuite) Test00UpAndRunning() {
 					MaxResults: pointer.Ptr(int32(10)), // Because `DescribeServices` takes at most 10 services in input
 					NextToken:  nextToken,
 				})
-				if err != nil {
-					collect.Errorf("Failed to list ECS services: %w", err)
+				// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+				if !assert.NoErrorf(c, err, "Failed to list ECS services") {
 					return
 				}
 
@@ -121,15 +123,12 @@ func (suite *ecsSuite) Test00UpAndRunning() {
 					Cluster:  &suite.ecsClusterName,
 					Services: servicesList.ServiceArns,
 				})
-				if err != nil {
-					collect.Errorf("Failed to describe ECS services %v: %w", servicesList.ServiceArns, err)
+				if !assert.NoErrorf(c, err, "Failed to describe ECS services %v", servicesList.ServiceArns) {
 					continue
 				}
 
 				for _, serviceDescription := range servicesDescription.Services {
-					if serviceDescription.DesiredCount == 0 {
-						collect.Errorf("ECS service %s has no task.", *serviceDescription.ServiceName)
-					}
+					assert.NotZerof(c, serviceDescription.DesiredCount, "ECS service %s has no task", *serviceDescription.ServiceName)
 
 					for nextToken := &initToken; nextToken != nil; {
 						if nextToken == &initToken {
@@ -143,8 +142,7 @@ func (suite *ecsSuite) Test00UpAndRunning() {
 							MaxResults:    pointer.Ptr(int32(100)), // Because `DescribeTasks` takes at most 100 tasks in input
 							NextToken:     nextToken,
 						})
-						if err != nil {
-							collect.Errorf("Failed to list ECS tasks for service %s: %w", *serviceDescription.ServiceName, err)
+						if !assert.NoErrorf(c, err, "Failed to list ECS tasks for service %s", *serviceDescription.ServiceName) {
 							break
 						}
 
@@ -154,20 +152,15 @@ func (suite *ecsSuite) Test00UpAndRunning() {
 							Cluster: &suite.ecsClusterName,
 							Tasks:   tasksList.TaskArns,
 						})
-						if err != nil {
-							collect.Errorf("Failed to describe ECS tasks %v: %w", tasksList.TaskArns, err)
+						if !assert.NoErrorf(c, err, "Failed to describe ECS tasks %v", tasksList.TaskArns) {
 							continue
 						}
 
 						for _, taskDescription := range tasksDescription.Tasks {
-							if *taskDescription.LastStatus != string(awsecstypes.DesiredStatusRunning) ||
-								taskDescription.HealthStatus == awsecstypes.HealthStatusUnhealthy {
-								collect.Errorf("Task %s of service %s is %s %s.",
-									*taskDescription.TaskArn,
-									*serviceDescription.ServiceName,
-									*taskDescription.LastStatus,
-									taskDescription.HealthStatus)
-							}
+							assert.Equalf(c, string(awsecstypes.DesiredStatusRunning), *taskDescription.LastStatus,
+								"Task %s of service %s is not running", *taskDescription.TaskArn, *serviceDescription.ServiceName)
+							assert.NotEqualf(c, awsecstypes.HealthStatusUnhealthy, taskDescription.HealthStatus,
+								"Task %s of service %s is unhealthy", *taskDescription.TaskArn, *serviceDescription.ServiceName)
 						}
 					}
 				}
@@ -205,6 +198,33 @@ func (suite *ecsSuite) TestNginx() {
 			},
 		},
 	})
+
+	suite.testLog(&testLogArgs{
+		Filter: testLogFilterArgs{
+			Service: "apps-nginx-server",
+		},
+		Expect: testLogExpectArgs{
+			Tags: &[]string{
+				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^container_id:`,
+				`^container_name:ecs-.*-nginx-ec2-`,
+				`^docker_image:ghcr.io/datadog/apps-nginx-server:main$`,
+				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^ecs_container_name:nginx$`,
+				`^git.commit.sha:`,                                                       // org.opencontainers.image.revision docker image label
+				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
+				`^image_id:sha256:`,
+				`^image_name:ghcr.io/datadog/apps-nginx-server$`,
+				`^image_tag:main$`,
+				`^short_image:apps-nginx-server$`,
+				`^task_arn:arn:`,
+				`^task_family:.*-nginx-ec2$`,
+				`^task_name:.*-nginx-ec2$`,
+				`^task_version:[[:digit:]]+$`,
+			},
+			Message: `GET / HTTP/1\.1`,
+		},
+	})
 }
 
 func (suite *ecsSuite) TestRedis() {
@@ -233,6 +253,67 @@ func (suite *ecsSuite) TestRedis() {
 				`^task_family:.*-redis-ec2$`,
 				`^task_name:.*-redis-ec2$`,
 				`^task_version:[[:digit:]]+$`,
+			},
+		},
+	})
+
+	suite.testLog(&testLogArgs{
+		Filter: testLogFilterArgs{
+			Service: "redis",
+		},
+		Expect: testLogExpectArgs{
+			Tags: &[]string{
+				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^container_id:`,
+				`^container_name:ecs-.*-redis-ec2-`,
+				`^docker_image:redis:latest$`,
+				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^ecs_container_name:redis$`,
+				`^image_id:sha256:`,
+				`^image_name:redis$`,
+				`^image_tag:latest$`,
+				`^short_image:redis$`,
+				`^task_arn:arn:`,
+				`^task_family:.*-redis-ec2$`,
+				`^task_name:.*-redis-ec2$`,
+				`^task_version:[[:digit:]]+$`,
+			},
+			Message: `Accepted`,
+		},
+	})
+}
+
+func (suite *ecsSuite) TestCPU() {
+	// Test CPU metrics
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "container.cpu.usage",
+			Tags: []string{
+				"ecs_container_name:stress-ng",
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^container_id:`,
+				`^container_name:ecs-.*-stress-ng-ec2-`,
+				`^docker_image:ghcr.io/colinianking/stress-ng$`,
+				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^ecs_container_name:stress-ng$`,
+				`^git.commit.sha:`,
+				`^git.repository_url:https://github.com/ColinIanKing/stress-ng$`,
+				`^image_id:sha256:`,
+				`^image_name:ghcr.io/colinianking/stress-ng$`,
+				`^runtime:docker$`,
+				`^short_image:stress-ng$`,
+				`^task_arn:`,
+				`^task_family:.*-stress-ng-ec2$`,
+				`^task_name:.*-stress-ng-ec2$`,
+				`^task_version:[[:digit:]]+$`,
+			},
+			Value: &testMetricExpectValueArgs{
+				Max: 155000000,
+				Min: 145000000,
 			},
 		},
 	})

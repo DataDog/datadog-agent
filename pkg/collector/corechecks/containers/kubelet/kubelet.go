@@ -9,6 +9,7 @@
 package kubelet
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -20,11 +21,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/node"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/pod"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/probe"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/slis"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/summary"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
@@ -61,6 +62,11 @@ func initProviders(filter *containers.Filter, config *common.KubeletConfig, podU
 	healthProvider := health.NewProvider(config)
 	summaryProvider := summary.NewProvider(filter, config, workloadmeta.GetGlobalStore())
 
+	sliProvider, err := slis.NewProvider(filter, config, workloadmeta.GetGlobalStore())
+	if err != nil {
+		log.Warnf("Can't get sli provider: %v", err)
+	}
+
 	probeProvider, err := probe.NewProvider(filter, config, workloadmeta.GetGlobalStore())
 	if err != nil {
 		log.Warnf("Can't get probe provider: %v", err)
@@ -84,6 +90,7 @@ func initProviders(filter *containers.Filter, config *common.KubeletConfig, podU
 		cadvisorProvider,
 		kubeletProvider,
 		probeProvider,
+		sliProvider,
 	}
 }
 
@@ -139,9 +146,11 @@ func (k *KubeletCheck) Run() error {
 	}
 
 	for _, provider := range k.providers {
-		err = provider.Provide(kc, sender)
-		if err != nil {
-			_ = k.Warnf("Error reporting metrics: %s", err)
+		if provider != nil {
+			err = provider.Provide(kc, sender)
+			if err != nil {
+				_ = k.Warnf("Error reporting metrics: %s", err)
+			}
 		}
 	}
 

@@ -17,9 +17,9 @@ import (
 
 func TestRetrieveUST(t *testing.T) {
 	cfg := config.Mock(t)
-	cfg.Set("env", "staging")
-	cfg.Set(tagKeyService, "not-applied")
-	cfg.Set(tagKeyVersion, "not-applied")
+	cfg.SetWithoutSource("env", "staging")
+	cfg.SetWithoutSource(tagKeyService, "not-applied")
+	cfg.SetWithoutSource(tagKeyVersion, "not-applied")
 
 	tests := []struct {
 		name   string

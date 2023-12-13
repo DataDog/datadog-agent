@@ -6,7 +6,7 @@ This package populates some of the agent-related fields in the `inventories` pro
 This is enabled by default but can be turned off using `inventories_enabled` config.
 
 The payload is sent every 10min (see `inventories_max_interval` in the config) or whenever it's updated with at most 1
-update every 5 minutes (see `inventories_min_interval`).
+update every minute (see `inventories_min_interval`).
 
 # Content
 
@@ -14,8 +14,15 @@ The `Set` method from the component allow the rest of the codebase to add any in
 
 ## Agent Configuration
 
-`full_configuration` and `provided_configuration` are scrubbed from any sensitive information (same logic than for the
-flare).
+The agent configurations are scrubbed from any sensitive information (same logic than for the flare).
+This include the following:
+`full_configuration`
+`provided_configuration`
+`file_configuration`
+`environment_variable_configuration`
+`agent_runtime_configuration`
+`remote_configuration`
+`cli_configuration`
 
 Sending Agent configuration can be disabled using `inventories_configuration_enabled`.
 
@@ -85,6 +92,8 @@ The payload is a JSON dict with the following fields
   - `feature_logs_enabled` - **bool**: True if the logs collection is enabled (see: `logs_enabled` config option).
   - `feature_cspm_enabled` - **bool**: True if the Cloud Security Posture Management is enabled (see:
     `compliance_config.enabled` config option).
+  - `feature_cspm_host_benchmarks_enabled` - **bool**: True if host benchmarks are enabled (see:
+    `compliance_config.host_benchmarks.enabled` config option).
   - `feature_apm_enabled` - **bool**: True if the APM Agent is enabled (see: `apm_config.enabled` config option).
   - `feature_otlp_enabled` - **bool**: True if the OTLP pipeline is enabled.
   - `feature_imdsv2_enabled` - **bool**: True if the IMDSv2 is enabled (see: `ec2_prefer_imdsv2` config option).
@@ -94,6 +103,16 @@ The payload is a JSON dict with the following fields
     string. This includes the settings configured by the user (throuh the configuration file, the environment or CLI),
     as well as any settings explicitly set by the agent (for example the number of workers is dynamically set by the
     agent itself based on the load).
+  - `file_configuration` - **string**: the Agent configuration specified by the configuration file (scrubbed), as a YAML string.
+    Only the settings written in the configuration file are included, and their value might not match what's applyed by the agent because they can be overriden by other sources.
+  - `environment_variable_configuration` - **string**: the Agent configuration specified by the environment variables (scrubbed), as a YAML string.
+    Only the settings written in the environment variables are included, and their value might not match what's applyed by the agent because they can be overriden by other sources.
+  - `agent_runtime_configuration` - **string**: the Agent configuration set by the agent itself (scrubbed), as a YAML string.
+    Only the settings set by the agent itself are included, and their value might not match what's applyed by the agent because they can be overriden by other sources.
+  - `remote_configuration` - **string**: the Agent configuration specified by the Remote Configuration (scrubbed), as a YAML string.
+    Only the settings currently used by Remote Configuration are included, and their value might not match what's applyed by the agent because they can be overriden by other sources.
+  - `cli_configuration` - **string**: the Agent configuration specified by the CLI (scrubbed), as a YAML string.
+    Only the settings set in the CLI are included, they cannot be overriden by any other sources.
 
 ("scrubbed" indicates that secrets are removed from the field value just as they are in logs)
 
@@ -105,7 +124,6 @@ Here an example of an inventory payload:
 {
     "agent_metadata": {
         "agent_version": "7.37.0-devel+git.198.68a5b69",
-        "cloud_provider": "AWS",
         "config_apm_dd_url": "",
         "config_dd_url": "",
         "config_logs_dd_url": "",
@@ -132,7 +150,11 @@ Here an example of an inventory payload:
         "install_method_tool_version": "",
         "logs_transport": "HTTP",
         "full_configuration": "<entire yaml configuration for the agent>",
-        "provided_configuration": "api_key: \"***************************aaaaa\"\ncheck_runners: 4\ncmd.check.fullsketches: false\ncontainerd_namespace: []\ncontainerd_namespaces: []\npython_version: \"3\"\ntracemalloc_debug: false"
+        "provided_configuration": "api_key: \"***************************aaaaa\"\ncheck_runners: 4\ncmd.check.fullsketches: false\ncontainerd_namespace: []\ncontainerd_namespaces: []\npython_version: \"3\"\ntracemalloc_debug: false\nlog_level: \"warn\"",
+        "file_configuration": "check_runners: 4\ncmd.check.fullsketches: false\ncontainerd_namespace: []\ncontainerd_namespaces: []\npython_version: \"3\"\ntracemalloc_debug: false",
+        "environment_variable_configuration": "api_key: \"***************************aaaaa\"",
+        "remote_configuration": "log_level: \"debug\"",
+        "cli_configuration": "log_level: \"warn\""
     }
     "hostname": "my-host",
     "timestamp": 1631281754507358895

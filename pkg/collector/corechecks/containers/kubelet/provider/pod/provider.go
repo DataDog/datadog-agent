@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"golang.org/x/exp/slices"
-	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
@@ -29,19 +28,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var (
-	includeContainerStateReason = map[string][]string{
-		"waiting": {
-			"errimagepull",
-			"imagepullbackoff",
-			"crashloopbackoff",
-			"containercreating",
-			"createcontainererror",
-			"invalidimagename",
-		},
-		"terminated": {"oomkilled", "containercannotrun", "error"},
-	}
-)
+var includeContainerStateReason = map[string][]string{
+	"waiting": {
+		"errimagepull",
+		"imagepullbackoff",
+		"crashloopbackoff",
+		"containercreating",
+		"createcontainererror",
+		"invalidimagename",
+		"createcontainerconfigerror",
+	},
+	"terminated": {"oomkilled", "containercannotrun", "error"},
+}
 
 // Provider provides the metrics related to data collected from the `/pods` Kubelet endpoint
 type Provider struct {
@@ -89,7 +87,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 			}
 
 			var container kubelet.ContainerSpec
-			//for _, status := range pod.Status.Containers {
+			// for _, status := range pod.Status.Containers {
 			for _, c := range pod.Spec.Containers {
 				if cStatus.Name == c.Name {
 					container = c
@@ -125,14 +123,10 @@ func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubel
 	tags = utils.ConcatenateTags(tags, p.config.Tags)
 
 	for r, value := range container.Resources.Requests {
-		if v, err := resource.ParseQuantity(value); err == nil {
-			sender.Gauge(common.KubeletMetricsPrefix+r+".requests", v.AsApproximateFloat64(), "", tags)
-		}
+		sender.Gauge(common.KubeletMetricsPrefix+string(r)+".requests", value.AsApproximateFloat64(), "", tags)
 	}
 	for r, value := range container.Resources.Limits {
-		if v, err := resource.ParseQuantity(value); err == nil {
-			sender.Gauge(common.KubeletMetricsPrefix+r+".limits", v.AsApproximateFloat64(), "", tags)
-		}
+		sender.Gauge(common.KubeletMetricsPrefix+string(r)+".limits", value.AsApproximateFloat64(), "", tags)
 	}
 }
 

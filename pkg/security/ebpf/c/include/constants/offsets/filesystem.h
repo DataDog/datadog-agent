@@ -30,6 +30,18 @@ dev_t __attribute__((always_inline)) get_dentry_dev(struct dentry *dentry) {
     return dev;
 }
 
+void* __attribute__((always_inline)) get_file_f_inode_addr(struct file *file) {
+    u64 offset;
+    LOAD_CONSTANT("file_f_inode_offset", offset);
+    return (char *)file + offset;
+}
+
+struct path* __attribute__((always_inline)) get_file_f_path_addr(struct file *file) {
+    u64 offset;
+    LOAD_CONSTANT("file_f_path_offset", offset);
+    return (struct path*)((char *)file + offset);
+}
+
 u64 __attribute__((always_inline)) security_have_usernamespace_first_arg(void) {
     u64 flag;
     LOAD_CONSTANT("has_usernamespace_first_arg", flag);
@@ -57,7 +69,7 @@ int __attribute__((always_inline)) get_path_mount_id(struct path *path) {
 
 int __attribute__((always_inline)) get_file_mount_id(struct file *file) {
     struct vfsmount *mnt;
-    bpf_probe_read(&mnt, sizeof(mnt), &file->f_path.mnt);
+    bpf_probe_read(&mnt, sizeof(mnt), &get_file_f_path_addr(file)->mnt);
     return get_vfsmount_mount_id(mnt);
 }
 
@@ -152,7 +164,7 @@ unsigned long __attribute__((always_inline)) get_dentry_ino(struct dentry *dentr
 
 struct dentry* __attribute__((always_inline)) get_file_dentry(struct file *file) {
     struct dentry *file_dentry;
-    bpf_probe_read(&file_dentry, sizeof(file_dentry), &file->f_path.dentry);
+    bpf_probe_read(&file_dentry, sizeof(file_dentry), &get_file_f_path_addr(file)->dentry);
     return file_dentry;
 }
 

@@ -47,14 +47,17 @@ type KubeEndpointsListener struct {
 	delService         chan<- Service
 	targetAllEndpoints bool
 	m                  sync.RWMutex
+	containerFilters   *containerFilters
 }
 
 // KubeEndpointService represents an endpoint in a Kubernetes Endpoints
 type KubeEndpointService struct {
-	entity string
-	tags   []string
-	hosts  map[string]string
-	ports  []ContainerPort
+	entity          string
+	tags            []string
+	hosts           map[string]string
+	ports           []ContainerPort
+	metricsExcluded bool
+	globalExcluded  bool
 }
 
 // Make sure KubeEndpointService implements the Service interface
@@ -82,6 +85,11 @@ func NewKubeEndpointsListener(conf Config) (ServiceListener, error) {
 		return nil, fmt.Errorf("cannot get service informer: %s", err)
 	}
 
+	containerFilters, err := newContainerFilters()
+	if err != nil {
+		return nil, err
+	}
+
 	return &KubeEndpointsListener{
 		endpoints:          make(map[k8stypes.UID][]*KubeEndpointService),
 		endpointsInformer:  endpointsInformer,
@@ -90,6 +98,7 @@ func NewKubeEndpointsListener(conf Config) (ServiceListener, error) {
 		serviceLister:      serviceInformer.Lister(),
 		promInclAnnot:      getPrometheusIncludeAnnotations(),
 		targetAllEndpoints: conf.IsProviderEnabled(names.KubeEndpointsFileRegisterName),
+		containerFilters:   containerFilters,
 	}, nil
 }
 
@@ -307,6 +316,28 @@ func (l *KubeEndpointsListener) createService(kep *v1.Endpoints, checkServiceAnn
 
 	eps := processEndpoints(kep, tags)
 
+	for i := 0; i < len(eps); i++ {
+		if l.containerFilters == nil {
+			eps[i].metricsExcluded = false
+			eps[i].globalExcluded = false
+			continue
+		}
+		eps[i].metricsExcluded = l.containerFilters.IsExcluded(
+			containers.MetricsFilter,
+			kep.GetAnnotations(),
+			kep.Name,
+			"",
+			kep.Namespace,
+		)
+		eps[i].globalExcluded = l.containerFilters.IsExcluded(
+			containers.GlobalFilter,
+			kep.GetAnnotations(),
+			kep.Name,
+			"",
+			kep.Namespace,
+		)
+	}
+
 	l.m.Lock()
 	l.endpoints[kep.UID] = eps
 	l.m.Unlock()
@@ -454,13 +485,22 @@ func (s *KubeEndpointService) GetCheckNames(context.Context) []string {
 	return nil
 }
 
-// HasFilter always return false
-// KubeEndpointService doesn't implement this method
+// HasFilter returns whether the kube endpoint should not collect certain metrics
+// due to filtering applied.
 func (s *KubeEndpointService) HasFilter(filter containers.FilterType) bool {
-	return false
+	switch filter {
+	case containers.MetricsFilter:
+		return s.metricsExcluded
+	case containers.GlobalFilter:
+		return s.globalExcluded
+	default:
+		return false
+	}
 }
 
 // GetExtraConfig isn't supported
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (s *KubeEndpointService) GetExtraConfig(key string) (string, error) {
 	return "", ErrNotSupported
 }

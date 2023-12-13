@@ -8,6 +8,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -16,7 +17,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 func unsetEnvForTest(t *testing.T, env string) {
@@ -175,30 +179,30 @@ func TestDDHostnameFileEnvVar(t *testing.T) {
 
 func TestIsCloudProviderEnabled(t *testing.T) {
 	holdValue := Datadog.Get("cloud_provider_metadata")
-	defer Datadog.Set("cloud_provider_metadata", holdValue)
+	defer Datadog.SetWithoutSource("cloud_provider_metadata", holdValue)
 
-	Datadog.Set("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba", "tencent"})
+	Datadog.SetWithoutSource("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba", "tencent"})
 	assert.True(t, IsCloudProviderEnabled("AWS"))
 	assert.True(t, IsCloudProviderEnabled("GCP"))
 	assert.True(t, IsCloudProviderEnabled("Alibaba"))
 	assert.True(t, IsCloudProviderEnabled("Azure"))
 	assert.True(t, IsCloudProviderEnabled("Tencent"))
 
-	Datadog.Set("cloud_provider_metadata", []string{"aws"})
+	Datadog.SetWithoutSource("cloud_provider_metadata", []string{"aws"})
 	assert.True(t, IsCloudProviderEnabled("AWS"))
 	assert.False(t, IsCloudProviderEnabled("GCP"))
 	assert.False(t, IsCloudProviderEnabled("Alibaba"))
 	assert.False(t, IsCloudProviderEnabled("Azure"))
 	assert.False(t, IsCloudProviderEnabled("Tencent"))
 
-	Datadog.Set("cloud_provider_metadata", []string{"tencent"})
+	Datadog.SetWithoutSource("cloud_provider_metadata", []string{"tencent"})
 	assert.False(t, IsCloudProviderEnabled("AWS"))
 	assert.False(t, IsCloudProviderEnabled("GCP"))
 	assert.False(t, IsCloudProviderEnabled("Alibaba"))
 	assert.False(t, IsCloudProviderEnabled("Azure"))
 	assert.True(t, IsCloudProviderEnabled("Tencent"))
 
-	Datadog.Set("cloud_provider_metadata", []string{})
+	Datadog.SetWithoutSource("cloud_provider_metadata", []string{})
 	assert.False(t, IsCloudProviderEnabled("AWS"))
 	assert.False(t, IsCloudProviderEnabled("GCP"))
 	assert.False(t, IsCloudProviderEnabled("Alibaba"))
@@ -240,7 +244,7 @@ func TestProxy(t *testing.T) {
 		{
 			name: "from configuration",
 			setup: func(t *testing.T, config Config) {
-				config.Set("proxy", expectedProxy)
+				config.SetWithoutSource("proxy", expectedProxy)
 			},
 			tests: func(t *testing.T, config Config) {
 				assert.Equal(t, expectedProxy, config.GetProxies())
@@ -308,8 +312,8 @@ func TestProxy(t *testing.T) {
 			name: "from UNIX env vars and conf",
 			setup: func(t *testing.T, config Config) {
 				t.Setenv("HTTP_PROXY", "http_env")
-				config.Set("proxy.no_proxy", []string{"d", "e", "f"})
-				config.Set("proxy.http", "http_conf")
+				config.SetWithoutSource("proxy.no_proxy", []string{"d", "e", "f"})
+				config.SetWithoutSource("proxy.http", "http_conf")
 			},
 			tests: func(t *testing.T, config Config) {
 				assert.Equal(t,
@@ -326,8 +330,8 @@ func TestProxy(t *testing.T) {
 			name: "from DD env vars and conf",
 			setup: func(t *testing.T, config Config) {
 				t.Setenv("DD_PROXY_HTTP", "http_env")
-				config.Set("proxy.no_proxy", []string{"d", "e", "f"})
-				config.Set("proxy.http", "http_conf")
+				config.SetWithoutSource("proxy.no_proxy", []string{"d", "e", "f"})
+				config.SetWithoutSource("proxy.http", "http_conf")
 			},
 			tests: func(t *testing.T, config Config) {
 				assert.Equal(t,
@@ -348,7 +352,7 @@ func TestProxy(t *testing.T) {
 				t.Setenv("HTTP_PROXY", "env_http_url")
 				t.Setenv("HTTPS_PROXY", "")
 				t.Setenv("NO_PROXY", "")
-				config.Set("proxy.https", "https_conf")
+				config.SetWithoutSource("proxy.https", "https_conf")
 			},
 			tests: func(t *testing.T, config Config) {
 				assert.Equal(t,
@@ -418,7 +422,7 @@ func TestProxy(t *testing.T) {
 			unsetEnvForTest(t, "NO_PROXY")
 
 			config := SetupConf()
-			config.Set("use_proxy_for_cloud_metadata", c.proxyForCloudMetadata)
+			config.SetWithoutSource("use_proxy_for_cloud_metadata", c.proxyForCloudMetadata)
 
 			// Viper.MergeConfigOverride, which is used when secrets is enabled, will silently fail if a
 			// config file is never set.
@@ -427,11 +431,12 @@ func TestProxy(t *testing.T) {
 			os.WriteFile(configPath, nil, 0600)
 			config.SetConfigFile(configPath)
 
+			resolver := secretsimpl.NewMock()
 			if c.setup != nil {
 				c.setup(t, config)
 			}
 
-			_, err := LoadCustom(config, "unit_test", true, nil)
+			_, err := LoadCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -442,19 +447,19 @@ func TestProxy(t *testing.T) {
 func TestSanitizeAPIKeyConfig(t *testing.T) {
 	config := SetupConf()
 
-	config.Set("api_key", "foo")
+	config.SetWithoutSource("api_key", "foo")
 	sanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 
-	config.Set("api_key", "foo\n")
+	config.SetWithoutSource("api_key", "foo\n")
 	sanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 
-	config.Set("api_key", "foo\n\n")
+	config.SetWithoutSource("api_key", "foo\n\n")
 	sanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 
-	config.Set("api_key", " \n  foo   \n")
+	config.SetWithoutSource("api_key", " \n  foo   \n")
 	sanitizeAPIKeyConfig(config, "api_key")
 	assert.Equal(t, "foo", config.GetString("api_key"))
 }
@@ -462,25 +467,25 @@ func TestSanitizeAPIKeyConfig(t *testing.T) {
 func TestNumWorkers(t *testing.T) {
 	config := SetupConf()
 
-	config.Set("python_version", "2")
-	config.Set("tracemalloc_debug", true)
-	config.Set("check_runners", 4)
+	config.SetWithoutSource("python_version", "2")
+	config.SetWithoutSource("tracemalloc_debug", true)
+	config.SetWithoutSource("check_runners", 4)
 
 	setNumWorkers(config)
 	workers := config.GetInt("check_runners")
 	assert.Equal(t, workers, config.GetInt("check_runners"))
 
-	config.Set("tracemalloc_debug", false)
+	config.SetWithoutSource("tracemalloc_debug", false)
 	setNumWorkers(config)
 	workers = config.GetInt("check_runners")
 	assert.Equal(t, workers, config.GetInt("check_runners"))
 
-	config.Set("python_version", "3")
+	config.SetWithoutSource("python_version", "3")
 	setNumWorkers(config)
 	workers = config.GetInt("check_runners")
 	assert.Equal(t, workers, config.GetInt("check_runners"))
 
-	config.Set("tracemalloc_debug", true)
+	config.SetWithoutSource("tracemalloc_debug", true)
 	setNumWorkers(config)
 	workers = config.GetInt("check_runners")
 	assert.Equal(t, workers, 1)
@@ -643,18 +648,6 @@ network_devices:
 	assert.Equal(t, "dev", config.GetString("network_devices.namespace"))
 }
 
-func TestPrometheusScrapeChecksTransformer(t *testing.T) {
-	input := `[{"configurations":[{"timeout":5,"send_distribution_buckets":true}],"autodiscovery":{"kubernetes_container_names":["my-app"],"kubernetes_annotations":{"include":{"custom_label":"true"}}}}]`
-	expected := []*types.PrometheusCheck{
-		{
-			Instances: []*types.OpenmetricsInstance{{Timeout: 5, DistributionBuckets: true}},
-			AD:        &types.ADConfig{KubeContainerNames: []string{"my-app"}, KubeAnnotations: &types.InclExcl{Incl: map[string]string{"custom_label": "true"}}},
-		},
-	}
-
-	assert.EqualValues(t, PrometheusScrapeChecksTransformer(input), expected)
-}
-
 func TestUsePodmanLogsAndDockerPathOverride(t *testing.T) {
 	// If use_podman_logs is true and docker_path_override is set, the config should return an error
 	datadogYaml := `
@@ -704,15 +697,21 @@ logs_config:
 
 database_monitoring:
   metrics:
-    dd_url: somehost:1234
+    logs_dd_url: somehost:1234
   activity:
-    dd_url: somehost:1234
+    logs_dd_url: somehost:1234
   samples:
-    dd_url: somehost:1234
+    logs_dd_url: somehost:1234
 
 network_devices:
   metadata:
-    dd_url: somehost:1234
+    logs_dd_url: somehost:1234
+  snmp_traps:
+    forwarder:
+      logs_dd_url: somehost:1234
+  netflow:
+    forwarder:
+      logs_dd_url: somehost:1234
 
 orchestrator_explorer:
     orchestrator_dd_url: https://somehost:1234
@@ -772,7 +771,7 @@ fips:
 
 	expectedHTTPURL = "https://" + expectedURL
 	testConfig = SetupConfFromYAML(datadogYamlFips)
-	testConfig.Set("skip_ssl_validation", false) // should be overridden by fips.tls_verify
+	testConfig.Set("skip_ssl_validation", false, model.SourceAgentRuntime) // should be overridden by fips.tls_verify
 	LoadProxyFromEnv(testConfig)
 	err = setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
@@ -785,8 +784,8 @@ fips:
 	assert.Equal(t, true, testConfig.GetBool("skip_ssl_validation"))
 	assert.Nil(t, testConfig.GetProxies())
 
-	testConfig.Set("skip_ssl_validation", true) // should be overridden by fips.tls_verify
-	testConfig.Set("fips.tls_verify", true)
+	testConfig.Set("skip_ssl_validation", true, model.SourceAgentRuntime) // should be overridden by fips.tls_verify
+	testConfig.Set("fips.tls_verify", true, model.SourceAgentRuntime)
 	LoadProxyFromEnv(testConfig)
 	err = setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
@@ -803,12 +802,14 @@ func assertFipsProxyExpectedConfig(t *testing.T, expectedBaseHTTPURL, expectedBa
 		assert.Equal(t, expectedBaseHTTPURL+"10", c.GetString("apm_config.telemetry.dd_url"))
 		assert.Equal(t, expectedBaseHTTPURL+"04", c.GetString("process_config.process_dd_url"))
 		assert.Equal(t, expectedBaseURL+"05", c.GetString("logs_config.logs_dd_url"))
-		assert.Equal(t, expectedBaseURL+"06", c.GetString("database_monitoring.metrics.dd_url"))
-		assert.Equal(t, expectedBaseURL+"06", c.GetString("database_monitoring.activity.dd_url"))
-		assert.Equal(t, expectedBaseURL+"07", c.GetString("database_monitoring.samples.dd_url"))
-		assert.Equal(t, expectedBaseURL+"08", c.GetString("network_devices.metadata.dd_url"))
+		assert.Equal(t, expectedBaseURL+"06", c.GetString("database_monitoring.metrics.logs_dd_url"))
+		assert.Equal(t, expectedBaseURL+"06", c.GetString("database_monitoring.activity.logs_dd_url"))
+		assert.Equal(t, expectedBaseURL+"07", c.GetString("database_monitoring.samples.logs_dd_url"))
+		assert.Equal(t, expectedBaseURL+"08", c.GetString("network_devices.metadata.logs_dd_url"))
+		assert.Equal(t, expectedBaseURL+"09", c.GetString("network_devices.snmp_traps.forwarder.logs_dd_url"))
 		assert.Equal(t, expectedBaseHTTPURL+"12", c.GetString("orchestrator_explorer.orchestrator_dd_url"))
 		assert.Equal(t, expectedBaseURL+"13", c.GetString("runtime_security_config.endpoints.logs_dd_url"))
+		assert.Equal(t, expectedBaseURL+"15", c.GetString("network_devices.netflow.forwarder.logs_dd_url"))
 
 	} else {
 		assert.Equal(t, expectedBaseHTTPURL, c.GetString("dd_url"))
@@ -817,12 +818,14 @@ func assertFipsProxyExpectedConfig(t *testing.T, expectedBaseHTTPURL, expectedBa
 		assert.Equal(t, expectedBaseHTTPURL, c.GetString("apm_config.telemetry.dd_url"))
 		assert.Equal(t, expectedBaseHTTPURL, c.GetString("process_config.process_dd_url"))
 		assert.Equal(t, expectedBaseURL, c.GetString("logs_config.logs_dd_url"))
-		assert.Equal(t, expectedBaseURL, c.GetString("database_monitoring.metrics.dd_url"))
-		assert.Equal(t, expectedBaseURL, c.GetString("database_monitoring.activity.dd_url"))
-		assert.Equal(t, expectedBaseURL, c.GetString("database_monitoring.samples.dd_url"))
-		assert.Equal(t, expectedBaseURL, c.GetString("network_devices.metadata.dd_url"))
+		assert.Equal(t, expectedBaseURL, c.GetString("database_monitoring.metrics.logs_dd_url"))
+		assert.Equal(t, expectedBaseURL, c.GetString("database_monitoring.activity.logs_dd_url"))
+		assert.Equal(t, expectedBaseURL, c.GetString("database_monitoring.samples.logs_dd_url"))
+		assert.Equal(t, expectedBaseURL, c.GetString("network_devices.metadata.logs_dd_url"))
+		assert.Equal(t, expectedBaseURL, c.GetString("network_devices.snmp_traps.forwarder.logs_dd_url"))
 		assert.Equal(t, expectedBaseHTTPURL, c.GetString("orchestrator_explorer.orchestrator_dd_url"))
 		assert.Equal(t, expectedBaseURL, c.GetString("runtime_security_config.endpoints.logs_dd_url"))
+		assert.Equal(t, expectedBaseURL, c.GetString("network_devices.netflow.forwarder.logs_dd_url"))
 	}
 }
 
@@ -859,6 +862,26 @@ apm_config:
 	require.False(t, testConfig.GetBool("apm_config.peer_service_aggregation"))
 }
 
+func TestEnablePeerTagsAggregationYAML(t *testing.T) {
+	datadogYaml := `
+apm_config:
+  peer_tags_aggregation: true
+`
+	testConfig := SetupConfFromYAML(datadogYaml)
+	err := setupFipsEndpoints(testConfig)
+	require.NoError(t, err)
+	require.True(t, testConfig.GetBool("apm_config.peer_tags_aggregation"))
+
+	datadogYaml = `
+apm_config:
+  peer_tags_aggregation: false
+`
+	testConfig = SetupConfFromYAML(datadogYaml)
+	err = setupFipsEndpoints(testConfig)
+	require.NoError(t, err)
+	require.False(t, testConfig.GetBool("apm_config.peer_tags_aggregation"))
+}
+
 func TestEnablePeerServiceStatsAggregationEnv(t *testing.T) {
 	t.Setenv("DD_APM_PEER_SERVICE_AGGREGATION", "true")
 	testConfig := SetupConfFromYAML("")
@@ -866,6 +889,15 @@ func TestEnablePeerServiceStatsAggregationEnv(t *testing.T) {
 	t.Setenv("DD_APM_PEER_SERVICE_AGGREGATION", "false")
 	testConfig = SetupConfFromYAML("")
 	require.False(t, testConfig.GetBool("apm_config.peer_service_aggregation"))
+}
+
+func TestEnablePeerTagsAggregationEnv(t *testing.T) {
+	t.Setenv("DD_APM_PEER_TAGS_AGGREGATION", "true")
+	testConfig := SetupConfFromYAML("")
+	require.True(t, testConfig.GetBool("apm_config.peer_tags_aggregation"))
+	t.Setenv("DD_APM_PEER_TAGS_AGGREGATION", "false")
+	testConfig = SetupConfFromYAML("")
+	require.False(t, testConfig.GetBool("apm_config.peer_tags_aggregation"))
 }
 
 func TestEnableStatsComputationBySpanKindYAML(t *testing.T) {
@@ -990,4 +1022,87 @@ func TestLogDefaults(t *testing.T) {
 	require.True(t, SystemProbe.GetBool("log_to_console"))
 	require.False(t, SystemProbe.GetBool("log_format_json"))
 
+}
+
+func TestProxyNotLoaded(t *testing.T) {
+	conf := SetupConf()
+	os.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
+
+	proxyHTTP := "http://localhost:1234"
+	proxyHTTPS := "https://localhost:1234"
+	t.Setenv("DD_PROXY_HTTP", proxyHTTP)
+	t.Setenv("DD_PROXY_HTTPS", proxyHTTPS)
+
+	proxyHTTPConfig := conf.GetString("proxy.http")
+	proxyHTTPSConfig := conf.GetString("proxy.https")
+	assert.Equal(t, 0, len(proxyHTTPConfig))
+	assert.Equal(t, 0, len(proxyHTTPSConfig))
+}
+
+func TestProxyLoadedFromEnvVars(t *testing.T) {
+	conf := SetupConf()
+	os.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
+
+	proxyHTTP := "http://localhost:1234"
+	proxyHTTPS := "https://localhost:1234"
+	t.Setenv("DD_PROXY_HTTP", proxyHTTP)
+	t.Setenv("DD_PROXY_HTTPS", proxyHTTPS)
+
+	Datadog = conf
+	LoadWithoutSecret()
+
+	proxyHTTPConfig := conf.GetString("proxy.http")
+	proxyHTTPSConfig := conf.GetString("proxy.https")
+
+	assert.Equal(t, proxyHTTP, proxyHTTPConfig)
+	assert.Equal(t, proxyHTTPS, proxyHTTPSConfig)
+
+	Datadog = SetupConf()
+}
+
+func TestProxyLoadedFromConfigFile(t *testing.T) {
+	conf := SetupConf()
+	os.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
+
+	tempDir := t.TempDir()
+	configTest := path.Join(tempDir, "datadog.yaml")
+	os.WriteFile(configTest, []byte("proxy:\n  http: \"http://localhost:1234\"\n  https: \"https://localhost:1234\""), 0644)
+
+	conf.AddConfigPath(tempDir)
+	Datadog = conf
+	LoadWithoutSecret()
+
+	proxyHTTPConfig := conf.GetString("proxy.http")
+	proxyHTTPSConfig := conf.GetString("proxy.https")
+
+	assert.Equal(t, "http://localhost:1234", proxyHTTPConfig)
+	assert.Equal(t, "https://localhost:1234", proxyHTTPSConfig)
+
+	Datadog = SetupConf()
+}
+
+func TestProxyLoadedFromConfigFileAndEnvVars(t *testing.T) {
+	conf := SetupConf()
+	os.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
+
+	proxyHTTPEnvVar := "http://localhost:1234"
+	proxyHTTPSEnvVar := "https://localhost:1234"
+	t.Setenv("DD_PROXY_HTTP", proxyHTTPEnvVar)
+	t.Setenv("DD_PROXY_HTTPS", proxyHTTPSEnvVar)
+
+	tempDir := t.TempDir()
+	configTest := path.Join(tempDir, "datadog.yaml")
+	os.WriteFile(configTest, []byte("proxy:\n  http: \"http://localhost:5678\"\n  https: \"http://localhost:5678\""), 0644)
+
+	conf.AddConfigPath(tempDir)
+	Datadog = conf
+	LoadWithoutSecret()
+
+	proxyHTTPConfig := conf.GetString("proxy.http")
+	proxyHTTPSConfig := conf.GetString("proxy.https")
+
+	assert.Equal(t, proxyHTTPEnvVar, proxyHTTPConfig)
+	assert.Equal(t, proxyHTTPSEnvVar, proxyHTTPSConfig)
+
+	Datadog = SetupConf()
 }

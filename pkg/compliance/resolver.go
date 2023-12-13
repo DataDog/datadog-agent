@@ -89,7 +89,7 @@ type ResolverOptions struct {
 
 	// StatsdClient is the statsd client used internally by the compliance
 	// resolver (optional)
-	StatsdClient *statsd.Client
+	StatsdClient statsd.ClientInterface
 
 	DockerProvider
 	KubernetesProvider
@@ -195,13 +195,13 @@ func (r *defaultResolver) ResolveInputs(ctx context.Context, rule *Rule) (Resolv
 	// the resolved inputs.
 	rootPath := r.opts.HostRoot
 	if pid := r.opts.HostRootPID; pid > 0 {
-		containerID, ok := getProcessContainerID(pid)
+		containerID, ok := utils.GetProcessContainerID(pid)
 		if ok {
-			rootPath, ok = getProcessRootPath(pid)
+			rootPath, ok = utils.GetProcessRootPath(pid)
 			if !ok {
 				return nil, fmt.Errorf("could not resolve the root path to run the resolver for container ID=%q", resolvingContext.ContainerID)
 			}
-			resolvingContext.ContainerID = containerID
+			resolvingContext.ContainerID = string(containerID)
 		}
 	}
 
@@ -498,6 +498,7 @@ func (r *defaultResolver) getProcs(ctx context.Context) ([]*process.Process, err
 	return r.procsCache, nil
 }
 
+//nolint:revive // TODO(CSPM) Fix revive linter
 func (r *defaultResolver) resolveGroup(ctx context.Context, spec InputSpecGroup) (interface{}, error) {
 	f, err := os.Open(r.pathNormalizeToHostRoot("/etc/group"))
 	if err != nil {
@@ -532,6 +533,7 @@ func (r *defaultResolver) resolveGroup(ctx context.Context, spec InputSpecGroup)
 	return nil, nil
 }
 
+//nolint:revive // TODO(CSPM) Fix revive linter
 func (r *defaultResolver) resolveAudit(ctx context.Context, spec InputSpecAudit) (interface{}, error) {
 	cl := r.linuxAuditCl
 	if cl == nil {

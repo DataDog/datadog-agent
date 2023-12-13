@@ -40,67 +40,40 @@ type ExecutionStartInfo struct {
 	SamplingPriority sampler.SamplingPriority
 }
 
-type invocationPayload struct {
-	Headers map[string]string `json:"headers"`
-}
-
 // startExecutionSpan records information from the start of the invocation.
 // It should be called at the start of the invocation.
-func (lp *LifecycleProcessor) startExecutionSpan(rawPayload []byte, startDetails *InvocationStartDetails) {
-	payload := convertRawPayload(rawPayload)
+func (lp *LifecycleProcessor) startExecutionSpan(event interface{}, rawPayload []byte, startDetails *InvocationStartDetails) {
 	inferredSpan := lp.GetInferredSpan()
 	executionContext := lp.GetExecutionInfo()
 	executionContext.requestPayload = rawPayload
 	executionContext.startTime = startDetails.StartTime
 
+	traceContext, err := lp.Extractor.Extract(event, rawPayload)
+	if err != nil {
+		traceContext = lp.Extractor.ExtractFromLayer(startDetails.InvokeEventHeaders).TraceContext
+	}
+
+	if traceContext != nil {
+		executionContext.TraceID = traceContext.TraceID
+		executionContext.parentID = traceContext.ParentID
+		executionContext.SamplingPriority = traceContext.SamplingPriority
+		if lp.InferredSpansEnabled && inferredSpan.Span.Start != 0 {
+			inferredSpan.Span.TraceID = traceContext.TraceID
+			inferredSpan.Span.ParentID = traceContext.ParentID
+		}
+	} else {
+		executionContext.TraceID = 0
+		executionContext.parentID = 0
+		executionContext.SamplingPriority = sampler.PriorityNone
+	}
 	if lp.InferredSpansEnabled && inferredSpan.Span.Start != 0 {
-		executionContext.TraceID = inferredSpan.Span.TraceID
 		executionContext.parentID = inferredSpan.Span.SpanID
 	}
-
-	if payload.Headers != nil {
-
-		traceID, err := strconv.ParseUint(payload.Headers[TraceIDHeader], 0, 64)
-		if err != nil {
-			log.Debug("Unable to parse traceID from payload headers")
-		} else {
-			executionContext.TraceID = traceID
-			if lp.InferredSpansEnabled {
-				inferredSpan.Span.TraceID = traceID
-			}
-		}
-
-		parentID, err := strconv.ParseUint(payload.Headers[ParentIDHeader], 0, 64)
-		if err != nil {
-			log.Debug("Unable to parse parentID from payload headers")
-		} else {
-			if lp.InferredSpansEnabled {
-				inferredSpan.Span.ParentID = parentID
-			} else {
-				executionContext.parentID = parentID
-			}
-		}
-	} else if startDetails.InvokeEventHeaders.TraceID != "" { // trace context from a direct invocation
-		traceID, err := strconv.ParseUint(startDetails.InvokeEventHeaders.TraceID, 0, 64)
-		if err != nil {
-			log.Debug("Unable to parse traceID from invokeEventHeaders")
-		} else {
-			executionContext.TraceID = traceID
-		}
-
-		parentID, err := strconv.ParseUint(startDetails.InvokeEventHeaders.ParentID, 0, 64)
-		if err != nil {
-			log.Debug("Unable to parse parentID from invokeEventHeaders")
-		} else {
-			executionContext.parentID = parentID
-		}
-	}
-	executionContext.SamplingPriority = getSamplingPriority(payload.Headers[SamplingPriorityHeader], startDetails.InvokeEventHeaders.SamplingPriority)
 }
 
 // endExecutionSpan builds the function execution span and sends it to the intake.
 // It should be called at the end of the invocation.
-func (lp *LifecycleProcessor) endExecutionSpan(endDetails *InvocationEndDetails) {
+func (lp *LifecycleProcessor) endExecutionSpan(endDetails *InvocationEndDetails) *pb.Span {
 	executionContext := lp.GetExecutionInfo()
 	duration := endDetails.EndTime.UnixNano() - executionContext.startTime.UnixNano()
 
@@ -158,24 +131,12 @@ func (lp *LifecycleProcessor) endExecutionSpan(endDetails *InvocationEndDetails)
 		}
 	}
 
-	traceChunk := &pb.TraceChunk{
-		Priority: int32(executionContext.SamplingPriority),
-		Spans:    []*pb.Span{executionSpan},
-	}
-
-	tracerPayload := &pb.TracerPayload{
-		Chunks: []*pb.TraceChunk{traceChunk},
-	}
-
-	lp.ProcessTrace(&api.Payload{
-		Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
-		TracerPayload: tracerPayload,
-	})
+	return executionSpan
 }
 
 // completeInferredSpan finishes the inferred span and passes it
 // as an API payload to be processed by the trace agent
-func (lp *LifecycleProcessor) completeInferredSpan(inferredSpan *inferredspan.InferredSpan, endTime time.Time, isError bool) {
+func (lp *LifecycleProcessor) completeInferredSpan(inferredSpan *inferredspan.InferredSpan, endTime time.Time, isError bool) *pb.Span {
 	durationIsSet := inferredSpan.Span.Duration != 0
 	if inferredSpan.IsAsync {
 		// SNSSQS span duration is set in invocationlifecycle/init.go
@@ -191,9 +152,13 @@ func (lp *LifecycleProcessor) completeInferredSpan(inferredSpan *inferredspan.In
 
 	inferredSpan.Span.TraceID = lp.GetExecutionInfo().TraceID
 
+	return inferredSpan.Span
+}
+
+func (lp *LifecycleProcessor) processTrace(spans []*pb.Span) {
 	traceChunk := &pb.TraceChunk{
 		Origin:   "lambda",
-		Spans:    []*pb.Span{inferredSpan.Span},
+		Spans:    spans,
 		Priority: int32(lp.GetExecutionInfo().SamplingPriority),
 	}
 
@@ -219,38 +184,12 @@ func ParseLambdaPayload(rawPayload []byte) []byte {
 	return rawPayload[leftIndex : rightIndex+1]
 }
 
-func convertRawPayload(payloadString []byte) invocationPayload {
-	payload := invocationPayload{}
-
-	err := json.Unmarshal(payloadString, &payload)
-	if err != nil {
-		log.Debug("Could not unmarshal the invocation event payload")
-	}
-
-	return payload
-}
-
 func convertStrToUnit64(s string) (uint64, error) {
 	num, err := strconv.ParseUint(s, 0, 64)
 	if err != nil {
 		log.Debugf("Error while converting %s, failing with : %s", s, err)
 	}
 	return num, err
-}
-
-func getSamplingPriority(header string, directInvokeHeader string) sampler.SamplingPriority {
-	// default priority if nothing is found from headers or direct invocation payload
-	samplingPriority := sampler.PriorityNone
-	if v, err := strconv.ParseInt(header, 10, 8); err == nil {
-		// if the current lambda invocation is not the head of the trace, we need to propagate the sampling decision
-		samplingPriority = sampler.SamplingPriority(v)
-	} else {
-		// try to look for direction invocation headers
-		if v, err := strconv.ParseInt(directInvokeHeader, 10, 8); err == nil {
-			samplingPriority = sampler.SamplingPriority(v)
-		}
-	}
-	return samplingPriority
 }
 
 // InjectContext injects the context

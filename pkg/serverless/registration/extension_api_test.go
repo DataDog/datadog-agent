@@ -95,6 +95,7 @@ func TestSendRequestSuccess(t *testing.T) {
 }
 
 func TestRegisterSuccess(t *testing.T) {
+	//nolint:revive // TODO(SERV) Fix revive linter
 	expectedId := "myGeneratedId"
 	expectedFunctionARN := "arn:aws:lambda:us-east-1:123456789012:function:hello"
 	t.Setenv("AWS_REGION", "us-east-1")

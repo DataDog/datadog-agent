@@ -39,6 +39,7 @@
 package client
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -66,6 +67,10 @@ const (
 	flareEndpoint            = "/support/flare"
 )
 
+// ErrNoFlareAvailable is returned when no flare is available
+var ErrNoFlareAvailable = errors.New("no flare available")
+
+//nolint:revive // TODO(APL) Fix revive linter
 type Client struct {
 	fakeIntakeURL string
 
@@ -158,26 +163,14 @@ func (c *Client) GetLatestFlare() (flare.Flare, error) {
 	}
 
 	if len(payloads) == 0 {
-		return flare.Flare{}, errors.New("no flare available")
+		return flare.Flare{}, ErrNoFlareAvailable
 	}
 
 	return flare.ParseRawFlare(payloads[len(payloads)-1])
 }
 
 func (c *Client) getFakePayloads(endpoint string) (rawPayloads []api.Payload, err error) {
-	var body []byte
-	err = backoff.Retry(func() error {
-		tmpResp, err := http.Get(fmt.Sprintf("%s/fakeintake/payloads?endpoint=%s", c.fakeIntakeURL, endpoint))
-		if err != nil {
-			return err
-		}
-		defer tmpResp.Body.Close()
-		if tmpResp.StatusCode != http.StatusOK {
-			return fmt.Errorf("Expected %d got %d", http.StatusOK, tmpResp.StatusCode)
-		}
-		body, err = io.ReadAll(tmpResp.Body)
-		return err
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), 4))
+	body, err := c.get(fmt.Sprintf("fakeintake/payloads?endpoint=%s", endpoint))
 	if err != nil {
 		return nil, err
 	}
@@ -196,6 +189,28 @@ func (c *Client) GetServerHealth() error {
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("error code %v", resp.StatusCode)
+	}
+	return nil
+}
+
+// ConfigureOverride sets a response override on the fakeintake server
+func (c *Client) ConfigureOverride(override api.ResponseOverride) error {
+	route := fmt.Sprintf("%s/fakeintake/configure/override", c.fakeIntakeURL)
+
+	buf := new(bytes.Buffer)
+	err := json.NewEncoder(buf).Encode(override)
+	if err != nil {
+		return err
+	}
+
+	resp, err := http.Post(route, "application/json", buf)
+	if err != nil {
+		return err
+	}
+
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("error code %v", resp.StatusCode)
@@ -288,6 +303,8 @@ func WithMetricValueLowerThan(maxValue float64) MatchOpt[*aggregator.MetricSerie
 }
 
 // WithMetricValueLowerThan filters metrics with values higher than `minValue`
+//
+//nolint:revive // TODO(APL) Fix revive linter
 func WithMetricValueHigherThan(minValue float64) MatchOpt[*aggregator.MetricSeries] {
 	return func(metric *aggregator.MetricSeries) (bool, error) {
 		for _, point := range metric.Points {
@@ -310,6 +327,8 @@ func (c *Client) getLog(service string) ([]*aggregator.Log, error) {
 
 // GetLogNames fetches fakeintake on `/api/v2/logs` endpoint and returns
 // all received log service names
+//
+//nolint:revive // TODO(APL) Fix revive linter
 func (c *Client) GetLogServiceNames() ([]string, error) {
 	err := c.getLogs()
 	if err != nil {
@@ -384,6 +403,8 @@ func (c *Client) GetCheckRunNames() ([]string, error) {
 
 // FilterLogs fetches fakeintake on `/api/v1/check_run` endpoint, unpackage payloads and returns
 // checks matching `name`
+//
+//nolint:revive // TODO(APL) Fix revive linter
 func (c *Client) GetCheckRun(name string) ([]*aggregator.CheckRun, error) {
 	err := c.getCheckRuns()
 	if err != nil {
@@ -438,6 +459,11 @@ func (c *Client) GetConnectionsNames() ([]string, error) {
 	return c.connectionAggregator.GetNames(), nil
 }
 
+// URL returns the client's URL
+func (c *Client) URL() string {
+	return c.fakeIntakeURL
+}
+
 // GetProcesses fetches fakeintake on `/api/v1/collector` endpoint and returns
 // all received process payloads
 func (c *Client) GetProcesses() ([]*aggregator.ProcessPayload, error) {
@@ -484,4 +510,46 @@ func (c *Client) GetProcessDiscoveries() ([]*aggregator.ProcessDiscoveryPayload,
 	}
 
 	return discs, nil
+}
+
+func (c *Client) get(route string) ([]byte, error) {
+	var body []byte
+	err := backoff.Retry(func() error {
+		tmpResp, err := http.Get(fmt.Sprintf("%s/%s", c.fakeIntakeURL, route))
+		if err != nil {
+			return err
+		}
+		defer tmpResp.Body.Close()
+		if tmpResp.StatusCode != http.StatusOK {
+			return fmt.Errorf("Expected %d got %d", http.StatusOK, tmpResp.StatusCode)
+		}
+		body, err = io.ReadAll(tmpResp.Body)
+		return err
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), 4))
+	return body, err
+}
+
+// RouteStats queries the routestats fakeintake endpoint to get statistics about each route.
+// It only returns statistics about endpoint which store some payloads.
+func (c *Client) RouteStats() (map[string]int, error) {
+	body, err := c.get("fakeintake/routestats")
+	if err != nil {
+		return nil, err
+	}
+
+	var routestats api.APIFakeIntakeRouteStatsGETResponse
+	err = json.Unmarshal(body, &routestats)
+	if err != nil {
+		return nil, err
+	}
+
+	routes := map[string]int{}
+	for endpoint, stats := range routestats.Routes {
+		// the count of a given endpoint can be zero when old payloads are periodically removed
+		if stats.Count != 0 {
+			routes[endpoint] = stats.Count
+		}
+	}
+
+	return routes, nil
 }

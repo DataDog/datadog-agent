@@ -8,6 +8,8 @@ package goflowlib
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/comp/netflow/config"
+	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/netflowstate"
 
 	"github.com/netsampler/goflow2/decoders/netflow/templates"
 	"go.uber.org/atomic"
@@ -47,6 +49,7 @@ func StartFlowRoutine(
 	port uint16,
 	workers int,
 	namespace string,
+	fieldMappings []config.Mapping,
 	flowInChan chan *common.Flow,
 	logger log.Component,
 	atomicErr *atomic.String,
@@ -65,7 +68,7 @@ func StartFlowRoutine(
 		}
 		defer templateSystem.Close(ctx)
 
-		state := utils.NewStateNetFlow()
+		state := netflowstate.NewStateNetFlow(fieldMappings)
 		state.Format = formatDriver
 		state.Logger = logrusLogger
 		state.TemplateSystem = templateSystem

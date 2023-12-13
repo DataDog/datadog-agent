@@ -3,19 +3,20 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package agentchecks
 
 import (
 	"context"
 	"encoding/json"
 
-	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
-	"github.com/DataDog/datadog-agent/pkg/status"
+	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -25,7 +26,7 @@ func GetPayload(ctx context.Context) *Payload {
 	agentChecksPayload := ACPayload{}
 	hostnameData, _ := hostname.GetWithProvider(ctx)
 	checkStats := expvars.GetCheckStats()
-	jmxStartupError := status.GetJMXStartupError()
+	jmxStartupError := jmxStatus.GetStartupError()
 
 	for _, stats := range checkStats {
 		for _, s := range stats {

@@ -36,6 +36,8 @@ func (r *fakeRegistry) GetOffset(identifier string) string {
 }
 
 // GetTailingMode implements auditor.Registry#GetTailingMode.
+//
+//nolint:revive // TODO(AML) Fix revive linter
 func (r *fakeRegistry) GetTailingMode(identifier string) string {
 	panic("unused")
 }
@@ -73,9 +75,9 @@ func TestUseFile(t *testing.T) {
 			identifier := "abc123"
 
 			cfg := coreConfig.Mock(t)
-			cfg.Set("logs_config.docker_container_use_file", c.dcuf)
-			cfg.Set("logs_config.docker_container_force_use_file", c.dcfuf)
-			cfg.Set("logs_config.k8s_container_use_file", c.kcuf)
+			cfg.SetWithoutSource("logs_config.docker_container_use_file", c.dcuf)
+			cfg.SetWithoutSource("logs_config.docker_container_force_use_file", c.dcfuf)
+			cfg.SetWithoutSource("logs_config.k8s_container_use_file", c.kcuf)
 
 			reg := &fakeRegistry{
 				t:                  t,

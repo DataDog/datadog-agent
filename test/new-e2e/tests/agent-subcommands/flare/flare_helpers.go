@@ -83,6 +83,23 @@ func assertIsConfigFileOrFolder(t *testing.T, flare flare.Flare, filename string
 	assert.True(t, isConfigFileOrFolder, "'%v' is in etc/ folder but is not a configuration file (does not contains .yml or .yaml, and is not a folder)", filename)
 }
 
+// assertEventlogFolderOnlyContainsWindoesEventLog verifies that all files in "eventlog" (windows) folder are Windows Event log file (name ends with .evtx) or folders
+func assertEventlogFolderOnlyContainsWindoesEventLog(t *testing.T, flare flare.Flare) {
+	t.Helper()
+
+	// Get all files in "eventlog/" folder
+	configFiles := filterFilenameByPrefix(flare.GetFilenames(), "eventlog/")
+	verifyAssertionsOnFilesList(t, flare, configFiles, assertIsWindowsEventLogOrFolder)
+}
+
+// assertIsWindowsEventLogOrFolder verifies if a file is a Windows Event log file (name ends with .evtx) or if it's a folder
+func assertIsWindowsEventLogOrFolder(t *testing.T, flare flare.Flare, filename string) {
+	t.Helper()
+
+	isWindowsEventLogFolder := strings.Contains(filename, ".evtx") || isDir(flare, filename)
+	assert.True(t, isWindowsEventLogFolder, "'%v' is in eventlog/ folder but is not a Windows Event Log file (extension is not .evtx, and is not a folder)", filename)
+}
+
 // verifyAssetionsOnFilesList runs an assertion function on all files in filenames
 func verifyAssertionsOnFilesList(t *testing.T, flare flare.Flare, filenames []string, assertFn func(*testing.T, flare.Flare, string)) {
 	t.Helper()
