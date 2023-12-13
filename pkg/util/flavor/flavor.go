@@ -25,8 +25,8 @@ const (
 	HerokuAgent = "heroku_agent"
 	// ProcessAgent is the Process Agent flavor
 	ProcessAgent = "process_agent"
-	// SideScannerAgent is the Side Scanner Agent flavor
-	SideScannerAgent = "side_scanner_agent"
+	// AgentlessScanner is the Agentless Scanner
+	AgentlessScanner = "agentless_scanner"
 )
 
 var agentFlavor = DefaultAgent

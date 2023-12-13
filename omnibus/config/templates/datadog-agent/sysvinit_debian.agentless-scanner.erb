@@ -1,9 +1,9 @@
 #!/bin/sh
 
 ### BEGIN INIT INFO
-# Provides: datadog-side-scanner
-# Short-Description: Start and stop datadog side scanner
-# Description: Datadog Side Scanner Ageng
+# Provides: datadog-agentless-scanner
+# Short-Description: Start and stop datadog agentless scanner
+# Description: Datadog Agentless Scanner
 # Required-Start: $remote_fs
 # Required-Stop: $remote_fs
 # Default-Start: 2 3 4 5
@@ -14,12 +14,12 @@
 
 ETC_DIR="<%= etc_dir %>"
 INSTALL_DIR="<%= install_dir %>"
-AGENTPATH="$INSTALL_DIR/embedded/bin/side-scanner"
-PIDFILE="$INSTALL_DIR/run/side-scanner.pid"
+AGENTPATH="$INSTALL_DIR/embedded/bin/agentless-scanner"
+PIDFILE="$INSTALL_DIR/run/agentless-scanner.pid"
 AGENT_ARGS="--config=$ETC_DIR/datadog.yaml --pidfile=$PIDFILE"
 AGENT_USER="root"
-NAME="datadog-side-scanner"
-DESC="Datadog Side Scanner"
+NAME="datadog-agentless-scanner"
+DESC="Datadog Agentless Scanner"
 
 
 

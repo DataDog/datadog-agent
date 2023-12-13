@@ -13,7 +13,7 @@ dependency "python3" if with_python_runtime? "3"
 
 dependency "openscap" if linux_target? and !arm7l_target? and !heroku_target? # Security-agent dependency, not needed for Heroku
 
-dependency "yara" if linux_target? and !heroku_target? # side-scanner dependency
+dependency "yara" if linux_target? and !heroku_target? # agentless-scanner dependency
 
 dependency 'datadog-agent-dependencies'
 
@@ -166,8 +166,8 @@ build do
   end
 
   if linux_target?
-    command "invoke -e side-scanner.build"
-    copy "bin/side-scanner/side-scanner", "#{install_dir}/embedded/bin"
+    command "invoke -e agentless-scanner.build"
+    copy "bin/agentless-scanner/agentless-scanner", "#{install_dir}/embedded/bin"
   end
 
   # APM Injection agent
@@ -216,8 +216,8 @@ build do
           dest: "#{install_dir}/scripts/datadog-agent-security",
           mode: 0755,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "sysvinit_debian.side-scanner.erb",
-          dest: "#{install_dir}/scripts/datadog-side-scanner",
+      erb source: "sysvinit_debian.agentless-scanner.erb",
+          dest: "#{install_dir}/scripts/datadog-agentless-scanner",
           mode: 0755,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
     elsif redhat_target? || suse_target?
@@ -265,8 +265,8 @@ build do
         dest: "#{install_dir}/scripts/datadog-agent-security.service",
         mode: 0644,
         vars: { install_dir: install_dir, etc_dir: etc_dir }
-    erb source: "systemd.side-scanner.service.erb",
-        dest: "#{install_dir}/scripts/datadog-side-scanner.service",
+    erb source: "systemd.agentless-scanner.service.erb",
+        dest: "#{install_dir}/scripts/datadog-agentless-scanner.service",
         mode: 0644,
         vars: { install_dir: install_dir, etc_dir: etc_dir }
   end

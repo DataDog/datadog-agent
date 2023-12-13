@@ -17,7 +17,7 @@ from .utils import (
 )
 
 BIN_DIR = os.path.join(".", "bin")
-BIN_PATH = os.path.join(BIN_DIR, "side-scanner", bin_name("side-scanner"))
+BIN_PATH = os.path.join(BIN_DIR, "agentless-scanner", bin_name("agentless-scanner"))
 
 @task(iterable=["build_tags"])
 def build(
@@ -42,11 +42,11 @@ def build(
 
     ldflags += ' '.join([f"-X 'main.{key}={value}'" for key, value in ld_vars.items()])
     build_tags += get_default_build_tags(
-        build="side-scanner"
+        build="agentless-scanner"
     )
 
     cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
-    cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/side-scanner'
+    cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/agentless-scanner'
 
     args = {
         "go_mod": go_mod,
