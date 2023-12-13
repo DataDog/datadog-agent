@@ -57,8 +57,9 @@ def gen_config(
     ci=False,
     arch="",
     output_file="vmconfig.json",
+    host_cpus=None,
 ):
-    vmconfig.gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, output_file)
+    vmconfig.gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, output_file, host_cpus)
 
 
 @task
