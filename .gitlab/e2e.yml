@@ -158,8 +158,13 @@ new-e2e-containers-dev:
   # TODO once images are deployed to ECR for dev branches, update
   # on_main_and_no_skip_e2e adding on_dev_branch_manual rules
   # and move rules to template
-  rules: !reference [.on_dev_branch_manual]
-  needs: []
+  rules:
+    - if: $RUN_E2E_TESTS == "true"
+    - !reference [.on_dev_branch_manual]
+  needs:
+    - qa_branch_agent
+    - qa_branch_dca
+    - qa_branch_dogstatsd
   variables:
     TARGETS: ./tests/containers
     TEAM: container-integrations
@@ -191,8 +196,10 @@ new-e2e-containers-main:
 
 new-e2e-agent-shared-components-dev:
   extends: .new_e2e_template
-  rules: !reference [.on_dev_branch_manual]
-  needs: []
+  rules:
+    - if: $RUN_E2E_TESTS == "true"
+    - !reference [.on_dev_branch_manual]
+  needs: ["deploy_deb_testing-a7_x64"]
   variables:
     TARGETS: ./tests/agent-shared-components
     TEAM: agent-shared-components
@@ -223,8 +230,10 @@ new-e2e-agent-shared-components-main:
 
 new-e2e-agent-subcommands-dev:
   extends: .new_e2e_template
-  rules: !reference [.on_dev_branch_manual]
-  needs: []
+  rules:
+    - if: $RUN_E2E_TESTS == "true"
+    - !reference [.on_dev_branch_manual]
+  needs: ["deploy_deb_testing-a7_x64"]
   variables:
     TARGETS: ./tests/agent-subcommands
     TEAM: agent-shared-components
@@ -243,10 +252,12 @@ new-e2e-agent-subcommands-main:
 
 
 
+# e2e through invoke currently works up to this job
 new-e2e-language-detection-dev:
   extends: .new_e2e_template
-  rules: !reference [.on_dev_branch_manual]
-  needs: []
+  rules:
+    - if: $RUN_E2E_TESTS == "true"
+    - !reference [.on_dev_branch_manual]
   variables:
     TARGETS: ./tests/language-detection
     TEAM: processes
@@ -260,8 +271,9 @@ new-e2e-language-detection-main:
 
 new-e2e-npm-dev:
   extends: .new_e2e_template
-  rules: !reference [.on_dev_branch_manual]
-  needs: []
+  rules:
+    - if: $RUN_E2E_TESTS == "true"
+    - !reference [.on_dev_branch_manual]
   variables:
     TARGETS: ./tests/npm
 
@@ -275,7 +287,9 @@ new-e2e-npm-main:
 
 new-e2e-aml-dev:
   extends: .new_e2e_template
-  rules: !reference [.on_dev_branch_manual]
+  rules:
+    - if: $RUN_E2E_TESTS == "true"
+    - !reference [.on_dev_branch_manual]
   variables:
     TARGETS: ./tests/agent-metric-logs
     TEAM: agent-metric-logs
@@ -289,8 +303,9 @@ new-e2e-aml-main:
 
 new-e2e-cws-dev:
   extends: .new_e2e_template
-  rules: !reference [.on_dev_branch_manual]
-  needs: []
+  rules:
+    - if: $RUN_E2E_TESTS == "true"
+    - !reference [.on_dev_branch_manual]
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
@@ -308,8 +323,9 @@ new-e2e-cws-main:
 
 new-e2e-process-dev:
   extends: .new_e2e_template
-  rules: !reference [.on_dev_branch_manual]
-  needs: []
+  rules:
+    - if: $RUN_E2E_TESTS == "true"
+    - !reference [.on_dev_branch_manual]
   variables:
     TARGETS: ./tests/process
     TEAM: processes

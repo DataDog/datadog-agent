@@ -287,6 +287,9 @@ variables:
 .if_not_e2e: &if_not_e2e
   if: $RUN_KITCHEN_TESTS == "false"
 
+.if_e2e: &if_e2e
+  if: $RUN_E2E_TESTS == "true"
+
 .if_deploy_on_beta_repo_branch: &if_deploy_on_beta_repo_branch
   if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta"
 
@@ -885,6 +888,7 @@ workflow:
     when: never
   - <<: *if_not_version_7
     when: never
+  - <<: *if_e2e
   - <<: *if_kitchen
   - <<: *if_default_kitchen
     variables:
