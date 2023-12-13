@@ -37,11 +37,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
-//nolint:revive // TODO(NET) Fix revive linter
-const InterfaceLocalMulticastIPv6 = "ff01::1"
-const listenIPv4 = "127.0.0.2"
-
 const (
+	// InterfaceLocalMulticastIPv6 is a destination IPv6 address used for offset guessing
+	InterfaceLocalMulticastIPv6 = "ff01::1"
+	listenIPv4                  = "127.0.0.2"
+
 	tcpGetSockOptKProbeNotCalled uint64 = 0
 	tcpGetSockOptKProbeCalled    uint64 = 1
 )
