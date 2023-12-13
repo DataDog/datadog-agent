@@ -440,10 +440,7 @@ def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True):
     for v in variables.split(','):
         data['variables'][v] = os.environ[v]
 
-    print(
-        f"Creating child pipeline in repo {project_name}, on git ref {git_ref} with params: {data['variables']}",
-        flush=True,
-    )
+    print(f"Creating child pipeline in repo {project_name}, on git ref {git_ref} with params: {data['variables']}")
 
     res = gitlab.trigger_pipeline(data)
 
@@ -452,10 +449,10 @@ def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True):
 
     pipeline_id = res['id']
     pipeline_url = res['web_url']
-    print(f"Created a child pipeline with id={pipeline_id}, url={pipeline_url}", flush=True)
+    print(f"Created a child pipeline with id={pipeline_id}, url={pipeline_url}")
 
     if follow:
-        print("Waiting for child pipeline to finish...", flush=True)
+        print("Waiting for child pipeline to finish...")
 
         wait_for_pipeline(gitlab, pipeline_id)
 
@@ -466,13 +463,13 @@ def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True):
         if pipestatus != "success":
             raise Exit(f"Error: child pipeline status {pipestatus.title()}", code=1)
 
-        print("Child pipeline finished successfully", flush=True)
+        print("Child pipeline finished successfully")
 
 
 def parse(commit_str):
     lines = commit_str.split("\n")
     title = lines[0]
-    url = ""
+    url = "NO_URL"
     pr_id_match = re.search(r".*\(#(\d+)\)", title)
     if pr_id_match is not None:
         url = f"https://github.com/DataDog/datadog-agent/pull/{pr_id_match.group(1)}"
@@ -525,7 +522,7 @@ def changelog(ctx, new_commit_sha):
         title, author, author_email, files, url = parse(commit_str)
         if not is_system_probe(owners, files):
             continue
-        message_link = f"• <{url}|{title}>" if url else f"• {title}"
+        message_link = f"• <{url}|{title}>"
         if "dependabot" in author_email or "github-actions" in author_email:
             messages.append(f"{message_link}")
             continue

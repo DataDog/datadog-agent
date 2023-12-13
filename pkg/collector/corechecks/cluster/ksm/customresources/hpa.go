@@ -73,8 +73,6 @@ func (f *hpav2Factory) Name() string {
 }
 
 // CreateClient is not implemented
-//
-//nolint:revive // TODO(CINT) Fix revive linter
 func (f *hpav2Factory) CreateClient(cfg *rest.Config) (interface{}, error) {
 	return f.client, nil
 }

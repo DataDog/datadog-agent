@@ -12,7 +12,6 @@ import (
 	"os"
 )
 
-//nolint:revive // TODO(ASC) Fix revive linter
 func validateUser(allowRoot bool) error {
 	if os.Geteuid() != 0 {
 		return fmt.Errorf("please run this tool with the root user")

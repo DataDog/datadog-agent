@@ -12,7 +12,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	"github.com/DataDog/datadog-agent/comp/checks/winregistry"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
@@ -23,10 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
-	"io/fs"
-	"strconv"
-	"strings"
-
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -34,6 +29,9 @@ import (
 	"go.uber.org/fx"
 	"golang.org/x/sys/windows/registry"
 	"gopkg.in/yaml.v2"
+	"io/fs"
+	"strconv"
+	"strings"
 )
 
 const (
@@ -42,10 +40,9 @@ const (
 )
 
 // Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newWindowsRegistryComponent))
-}
+var Module = fxutil.Component(
+	fx.Provide(newWindowsRegistryComponent),
+)
 
 type dependencies struct {
 	fx.In

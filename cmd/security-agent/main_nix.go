@@ -5,7 +5,6 @@
 
 //go:build !windows
 
-// Package main implements main
 package main
 
 import (

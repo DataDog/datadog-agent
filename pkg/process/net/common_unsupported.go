@@ -5,12 +5,11 @@
 
 //go:build !linux && !windows
 
-//nolint:revive // TODO(PROC) Fix revive linter
 package net
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
-
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 )
 
@@ -20,46 +19,36 @@ var _ SysProbeUtil = &RemoteSysProbeUtil{}
 type RemoteSysProbeUtil struct{}
 
 // CheckPath is not supported
-//
-//nolint:revive // TODO(PROC) Fix revive linter
 func CheckPath(path string) error {
-	return ErrNotImplemented
+	return ebpf.ErrNotImplemented
 }
 
 // GetRemoteSystemProbeUtil is not supported
-//
-//nolint:revive // TODO(PROC) Fix revive linter
 func GetRemoteSystemProbeUtil(path string) (*RemoteSysProbeUtil, error) {
-	return &RemoteSysProbeUtil{}, ErrNotImplemented
+	return &RemoteSysProbeUtil{}, ebpf.ErrNotImplemented
 }
 
 // GetConnections is not supported
-//
-//nolint:revive // TODO(PROC) Fix revive linter
 func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections, error) {
-	return nil, ErrNotImplemented
+	return nil, ebpf.ErrNotImplemented
 }
 
 // GetStats is not supported
 func (r *RemoteSysProbeUtil) GetStats() (map[string]interface{}, error) {
-	return nil, ErrNotImplemented
+	return nil, ebpf.ErrNotImplemented
 }
 
 // GetProcStats is not supported
-//
-//nolint:revive // TODO(PROC) Fix revive linter
 func (r *RemoteSysProbeUtil) GetProcStats(pids []int32) (*model.ProcStatsWithPermByPID, error) {
-	return nil, ErrNotImplemented
+	return nil, ebpf.ErrNotImplemented
 }
 
 // Register is not supported
-//
-//nolint:revive // TODO(PROC) Fix revive linter
 func (r *RemoteSysProbeUtil) Register(clientID string) error {
-	return ErrNotImplemented
+	return ebpf.ErrNotImplemented
 }
 
 // DetectLanguage is not supported
 func (r *RemoteSysProbeUtil) DetectLanguage([]int32) ([]languagemodels.Language, error) {
-	return nil, ErrNotImplemented
+	return nil, ebpf.ErrNotImplemented
 }

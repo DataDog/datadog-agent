@@ -21,7 +21,6 @@ func httpSupported() bool {
 	return false
 }
 
-//nolint:revive // TODO(WKIT) Fix revive linter
 func classificationSupported(config *config.Config) bool {
 	return true
 }

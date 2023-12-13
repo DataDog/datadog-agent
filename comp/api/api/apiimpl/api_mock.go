@@ -23,7 +23,6 @@ import (
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
@@ -37,10 +36,9 @@ type mockAPIServer struct {
 var _ api.Mock = (*mockAPIServer)(nil)
 
 // MockModule defines the fx options for the mock component.
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newMock))
-}
+var MockModule = fxutil.Component(
+	fx.Provide(newMock),
+)
 
 func newMock() api.Mock {
 	return &mockAPIServer{}
@@ -61,7 +59,6 @@ func (mock *mockAPIServer) StartServer(
 	_ demultiplexer.Component,
 	_ inventoryhost.Component,
 	_ secrets.Component,
-	_ inventorychecks.Component,
 ) error {
 	return nil
 }

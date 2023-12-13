@@ -31,10 +31,9 @@ type Mock interface {
 }
 
 // MockModule defines the fx options for the mock component.
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newMock),
-		fx.Supply(Params{
-			FailIfAPIKeyMissing: true,
-		}))
-}
+var MockModule = fxutil.Component(
+	fx.Provide(newMock),
+	fx.Supply(Params{
+		FailIfAPIKeyMissing: true,
+	}),
+)

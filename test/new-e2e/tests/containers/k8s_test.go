@@ -59,8 +59,7 @@ func (suite *k8sSuite) TearDownSuite() {
 	c := color.New(color.Bold).SprintfFunc()
 	suite.T().Log(c("The data produced and asserted by these tests can be viewed on this dashboard:"))
 	c = color.New(color.Bold, color.FgBlue).SprintfFunc()
-	suite.T().Log(c("https://dddev.datadoghq.com/dashboard/qcp-brm-ysc/e2e-tests-containers-k8s?refresh_mode=paused&tpl_var_kube_cluster_name%%5B0%%5D=%s&tpl_var_fake_intake_task_family%%5B0%%5D=%s-fakeintake-ecs&from_ts=%d&to_ts=%d&live=false",
-		suite.KubeClusterName,
+	suite.T().Log(c("https://dddev.datadoghq.com/dashboard/qcp-brm-ysc/e2e-tests-containers-k8s?refresh_mode=paused&tpl_var_kube_cluster_name%%5B0%%5D=%s&from_ts=%d&to_ts=%d&live=false",
 		suite.KubeClusterName,
 		suite.startTime.UnixMilli(),
 		suite.endTime.UnixMilli(),
@@ -428,7 +427,7 @@ func (suite *k8sSuite) TestRedis() {
 				`^pod_phase:running$`,
 				`^short_image:redis$`,
 			},
-			Message: `Accepted`,
+			Message: `oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo`,
 		},
 	})
 

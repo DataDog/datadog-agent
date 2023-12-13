@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -37,8 +36,8 @@ func (p *testPayload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error)
 
 func getTestInventoryPayload(t *testing.T, confOverrides map[string]any) *InventoryPayload {
 	i := CreateInventoryPayload(
-		fxutil.Test[config.Component](t, config.MockModule(), fx.Replace(config.MockParams{Overrides: confOverrides})),
-		fxutil.Test[log.Component](t, logimpl.MockModule()),
+		fxutil.Test[config.Component](t, config.MockModule, fx.Replace(config.MockParams{Overrides: confOverrides})),
+		fxutil.Test[log.Component](t, log.MockModule),
 		&serializer.MockSerializer{},
 		func() marshaler.JSONMarshaler { return &testPayload{} },
 		"test.json",
@@ -122,7 +121,6 @@ func TestFillFlare(t *testing.T) {
 
 func TestCollectRecentLastCollect(t *testing.T) {
 	i := getTestInventoryPayload(t, nil)
-	i.LastCollect = time.Now()
 
 	interval := i.collect(context.Background())
 	assert.Equal(t, defaultMinInterval, interval)

@@ -9,8 +9,6 @@ import (
 )
 
 // Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-    	fx.Provide(/* TODO: provide Component constructor */),
-	)
-}
+var Module = fxutil.Component(
+    fx.Provide(/* TODO: provide Component constructor */),
+)

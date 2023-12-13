@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -22,7 +21,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//nolint:revive // TODO(AML) Fix revive linter
 func testDemuxSamples(t *testing.T) metrics.MetricSampleBatch {
 	batch := metrics.MetricSampleBatch{
 		metrics.MetricSample{
@@ -56,7 +54,7 @@ func TestDemuxNoAggOptionDisabled(t *testing.T) {
 	require := require.New(t)
 
 	opts := demuxTestOptions()
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
+	log := fxutil.Test[log.Component](t, log.MockModule)
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	demux := initAgentDemultiplexer(log, NewForwarderTest(log), &orchestratorForwarder, opts, "")
 
@@ -77,7 +75,7 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 	opts := demuxTestOptions()
 	mockSerializer := &MockSerializerIterableSerie{}
 	opts.EnableNoAggregationPipeline = true
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
+	log := fxutil.Test[log.Component](t, log.MockModule)
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	demux := initAgentDemultiplexer(log, NewForwarderTest(log), &orchestratorForwarder, opts, "")
 	demux.statsd.noAggStreamWorker.serializer = mockSerializer // the no agg pipeline will use our mocked serializer
@@ -104,7 +102,7 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 
 func TestDemuxNoAggOptionIsDisabledByDefault(t *testing.T) {
 	opts := demuxTestOptions()
-	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule(), config.MockModule(), logimpl.MockModule())
+	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
 	demux := InitAndStartAgentDemultiplexerForTest(deps, opts, "")
 
 	require.False(t, demux.Options().EnableNoAggregationPipeline, "the no aggregation pipeline should be disabled by default")

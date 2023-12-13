@@ -206,14 +206,11 @@ file "/tmp/docker_password" do
   sensitive true
 end
 
-execute 'docker login' do
-  command "cat /tmp/docker_password | docker login --username #{node[:docker][:username].to_s} --password-stdin #{node[:docker][:registry]}"
-  user "root"
-  live_stream true
-end
-
 execute 'pull docker images' do
-  command 'xargs -L1 -a /tmp/docker-images.txt docker pull'
+  command <<-EOF
+    cat /tmp/docker_password | docker login --username #{node[:docker][:username].to_s} --password-stdin #{node[:docker][:registry]}
+    xargs -L1 -a /tmp/docker-images.txt docker pull
+  EOF
   user "root"
   live_stream true
 end

@@ -51,7 +51,6 @@ func (d *DockerCheck) retrieveEvents(du docker.Client) ([]*docker.ContainerEvent
 		return events, err
 	}
 
-	//nolint:gosimple // TODO(CINT) Fix gosimple linter
 	if latest.IsZero() == false {
 		d.lastEventTime = latest.Add(1 * time.Nanosecond)
 	}

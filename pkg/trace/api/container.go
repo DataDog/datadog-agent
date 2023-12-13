@@ -16,8 +16,6 @@ import (
 )
 
 // connContext is unimplemented for non-linux builds.
-//
-//nolint:revive // TODO(APM) Fix revive linter
 func connContext(ctx context.Context, c net.Conn) context.Context {
 	return ctx
 }
@@ -34,7 +32,6 @@ func NewIDProvider(_ string) IDProvider {
 	return &idProvider{}
 }
 
-//nolint:revive // TODO(APM) Fix revive linter
 func (_ *idProvider) GetContainerID(_ context.Context, h http.Header) string {
 	return h.Get(header.ContainerID)
 }

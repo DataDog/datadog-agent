@@ -20,6 +20,7 @@ import (
 	"syscall"
 	"time"
 	"unicode"
+	"unsafe"
 
 	"go.uber.org/atomic"
 
@@ -532,7 +533,7 @@ func (p *probe) parseStatusKV(key, value []byte, sInfo *statusInfo) {
 		values := bytes.Fields(value)
 		ints := make([]int32, 0, len(values))
 		for _, v := range values {
-			if i, err := strconv.ParseInt(string(v), 10, 32); err == nil {
+			if i, err := parseBytesToInt(v, 10, 32); err == nil {
 				ints = append(ints, int32(i))
 			}
 		}
@@ -544,15 +545,15 @@ func (p *probe) parseStatusKV(key, value []byte, sInfo *statusInfo) {
 	case bytes.Equal(key, keyNSpid):
 		values := bytes.Split(value, []byte("\t"))
 		// only report process namespaced PID
-		if v, err := strconv.ParseInt(string(values[len(values)-1]), 10, 32); err == nil {
+		if v, err := parseBytesToInt(values[len(values)-1], 10, 32); err == nil {
 			sInfo.nspid = int32(v)
 		}
 	case bytes.Equal(key, keyThreads):
-		if v, err := strconv.ParseInt(string(value), 10, 32); err == nil {
+		if v, err := parseBytesToInt(value, 10, 32); err == nil {
 			sInfo.numThreads = int32(v)
 		}
 	case bytes.Equal(key, keyVoluntaryCtxtSwitches), bytes.Equal(key, keyNonvoluntaryCtxtSwitches):
-		if v, err := strconv.ParseInt(string(value), 10, 64); err == nil {
+		if v, err := parseBytesToInt(value, 10, 64); err == nil {
 			if key[0] == 'v' {
 				sInfo.ctxSwitches.Voluntary = v
 			} else {
@@ -564,10 +565,25 @@ func (p *probe) parseStatusKV(key, value []byte, sInfo *statusInfo) {
 	}
 }
 
+func parseBytesToInt(buf []byte, base int, bitSize int) (int64, error) {
+	// Safety: We are not modifying the contents of the byte slice.
+	return strconv.ParseInt(*(*string)(unsafe.Pointer(&buf)), base, bitSize)
+}
+
+func parseBytesToUint(buf []byte, base int, bitSize int) (uint64, error) {
+	// Safety: We are not modifying the contents of the byte slice.
+	return strconv.ParseUint(*(*string)(unsafe.Pointer(&buf)), base, bitSize)
+}
+
+func parseBytesToFloat(buf []byte, bitSize int) (float64, error) {
+	// Safety: We are not modifying the contents of the byte slice.
+	return strconv.ParseFloat(*(*string)(unsafe.Pointer(&buf)), bitSize)
+}
+
 func parseMemInfo(value, key []byte, memInfo *MemoryInfoStat) {
 	value = bytes.TrimSuffix(value, []byte("kB"))
 	value = bytes.TrimSpace(value)
-	if v, err := strconv.ParseUint(string(value), 10, 64); err == nil {
+	if v, err := parseBytesToUint(value, 10, 64); err == nil {
 		v *= 1024
 		switch key[3] { // Using the fourth byte to differentiate between RSS, Size, and Swap
 		case 'S': // VmRSS
@@ -618,23 +634,23 @@ func (p *probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 			if !prevCharIsSpace {
 				switch spaces {
 				case 2:
-					if ppid, err := strconv.ParseInt(string(buffer), 10, 32); err == nil {
+					if ppid, err := parseBytesToInt(buffer, 10, 32); err == nil {
 						sInfo.ppid = int32(ppid)
 					}
 				case 7:
-					if flags, err := strconv.ParseUint(string(buffer), 10, 32); err == nil {
+					if flags, err := parseBytesToUint(buffer, 10, 32); err == nil {
 						sInfo.flags = uint32(flags)
 					}
 				case 12:
-					if utime, err := strconv.ParseFloat(string(buffer), 64); err == nil {
+					if utime, err := parseBytesToFloat(buffer, 64); err == nil {
 						sInfo.cpuStat.User = utime / p.clockTicks
 					}
 				case 13:
-					if stime, err := strconv.ParseFloat(string(buffer), 64); err == nil {
+					if stime, err := parseBytesToFloat(buffer, 64); err == nil {
 						sInfo.cpuStat.System = stime / p.clockTicks
 					}
 				case 20:
-					if t, err := strconv.ParseUint(string(buffer), 10, 64); err == nil {
+					if t, err := parseBytesToUint(buffer, 10, 64); err == nil {
 						ctime := (t / uint64(p.clockTicks)) + p.bootTime.Load()
 						// convert create time into milliseconds
 						sInfo.createTime = int64(ctime * 1000)
@@ -645,7 +661,7 @@ func (p *probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 			}
 			prevCharIsSpace = true
 			continue
-		} else { //nolint:revive // TODO(PROC) Fix revive linter
+		} else {
 			buffer = append(buffer, c)
 			prevCharIsSpace = false
 		}
@@ -734,8 +750,6 @@ func (p *probe) getLinkWithAuthCheck(pidPath string, file string) string {
 }
 
 // PROC_SUPER_MAGIC is the superblock magic value (its unique identifier) of procfs filesystem
-//
-//nolint:revive // TODO(PROC) Fix revive linter
 const PROC_SUPER_MAGIC = 0x9fa0
 
 // getFDCount gets num_fds from /proc/(pid)/fd WITHOUT using the native Readdirnames(),

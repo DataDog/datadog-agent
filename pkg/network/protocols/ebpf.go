@@ -19,15 +19,12 @@ const (
 	layerEncryptionBit  = C.LAYER_ENCRYPTION_BIT
 )
 
-// DispatcherProgramType is a C type to represent the eBPF programs used for tail calls.
 type DispatcherProgramType C.dispatcher_prog_t
 
 const (
-	// DispatcherKafkaProg is the Golang representation of the C.DISPATCHER_KAFKA_PROG enum.
 	DispatcherKafkaProg DispatcherProgramType = C.DISPATCHER_KAFKA_PROG
 )
 
-// ProgramType is a C type to represent the eBPF programs used for tail calls.
 type ProgramType C.protocol_prog_t
 
 const (
@@ -43,17 +40,14 @@ const (
 	ProgramKafka ProgramType = C.PROG_KAFKA
 )
 
-// Application layer of the protocol stack.
 func Application(protoNum uint8) ProtocolType {
 	return toProtocolType(protoNum, layerApplicationBit)
 }
 
-// API layer of the protocol stack.
 func API(protoNum uint8) ProtocolType {
 	return toProtocolType(protoNum, layerAPIBit)
 }
 
-// Encryption layer of the protocol stack.
 func Encryption(protoNum uint8) ProtocolType {
 	return toProtocolType(protoNum, layerEncryptionBit)
 }

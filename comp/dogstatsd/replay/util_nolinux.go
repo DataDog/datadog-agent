@@ -8,8 +8,6 @@
 package replay
 
 // GetUcredsForPid returns the replay ucreds for the specified pid
-//
-//nolint:revive // TODO(AML) Fix revive linter
 func GetUcredsForPid(pid int32) []byte {
 	return nil
 }

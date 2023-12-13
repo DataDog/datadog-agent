@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
 package tags
 
 import (
@@ -116,7 +115,6 @@ func (tc *Store) Shrink() {
 	}
 
 	if len(tc.tagsByKey) < tc.cap/2 {
-		//nolint:revive // TODO(AML) Fix revive linter
 		new := make(map[ckey.TagsKey]*Entry, len(tc.tagsByKey))
 		for k, v := range tc.tagsByKey {
 			new[k] = v

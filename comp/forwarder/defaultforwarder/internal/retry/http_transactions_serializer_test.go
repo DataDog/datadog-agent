@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -39,7 +38,7 @@ func TestHTTPSerializeDeserializeWithResolverOverride(t *testing.T) {
 func runTestHTTPSerializeDeserializeWithResolver(t *testing.T, d string, r resolver.DomainResolver) {
 	a := assert.New(t)
 	tr := createHTTPTransactionTests(d)
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
+	log := fxutil.Test[log.Component](t, log.MockModule)
 	serializer := NewHTTPTransactionsSerializer(log, r)
 
 	a.NoError(serializer.Add(tr))
@@ -65,7 +64,7 @@ func runTestHTTPSerializeDeserializeWithResolver(t *testing.T, d string, r resol
 func TestPartialDeserialize(t *testing.T) {
 	a := assert.New(t)
 	initialTransaction := createHTTPTransactionTests(domain)
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
+	log := fxutil.Test[log.Component](t, log.MockModule)
 	serializer := NewHTTPTransactionsSerializer(log, resolver.NewSingleDomainResolver(domain, nil))
 
 	a.NoError(serializer.Add(initialTransaction))
@@ -87,7 +86,7 @@ func TestPartialDeserialize(t *testing.T) {
 
 func TestHTTPTransactionSerializerMissingAPIKey(t *testing.T) {
 	r := require.New(t)
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
+	log := fxutil.Test[log.Component](t, log.MockModule)
 	serializer := NewHTTPTransactionsSerializer(log, resolver.NewSingleDomainResolver(domain, []string{apiKey1, apiKey2}))
 
 	r.NoError(serializer.Add(createHTTPTransactionWithHeaderTests(http.Header{"Key": []string{apiKey1}}, domain)))

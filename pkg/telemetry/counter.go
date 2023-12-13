@@ -23,5 +23,8 @@ func NewCounter(subsystem, name string, tags []string, help string) Counter {
 // NewCounterWithOpts creates a Counter with the given options for telemetry purpose.
 // See NewCounter()
 func NewCounterWithOpts(subsystem, name string, tags []string, help string, opts Options) Counter {
-	return telemetryComponent.GetCompatComponent().NewCounterWithOpts(subsystem, name, tags, help, telemetryComponent.Options(opts))
+	compatOpts := telemetryComponent.Options{
+		NoDoubleUnderscoreSep: opts.NoDoubleUnderscoreSep,
+	}
+	return telemetryComponent.GetCompatComponent().NewCounterWithOpts(subsystem, name, tags, help, compatOpts)
 }

@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -34,8 +33,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(displayVersion,
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "off", true)}),
-				core.Bundle(),
+					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
+				core.Bundle,
 			)
 		},
 	}

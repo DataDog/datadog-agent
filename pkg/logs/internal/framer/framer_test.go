@@ -39,7 +39,7 @@ func chunk(input []byte, size int) [][]byte {
 		if size <= len(iter) {
 			rv = append(rv, iter)
 			break
-		} else { //nolint:revive // TODO(AML) Fix revive linter
+		} else {
 			rv = append(rv, iter[:size])
 			iter = iter[size:]
 		}

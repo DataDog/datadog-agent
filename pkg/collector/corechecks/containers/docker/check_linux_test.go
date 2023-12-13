@@ -274,7 +274,6 @@ func TestDockerNetworkExtension(t *testing.T) {
 	mockSender.AssertMetric(t, "Rate", "docker.net.bytes_sent", 7, "", []string{"foo:bar", "docker_network:bridge"})
 }
 
-//nolint:revive // TODO(CINT) Fix revive linter
 func TestNetworkCustomOnFailure(t *testing.T) {
 	// Make sure we don't panic if generic part fails
 	networkExt := dockerNetworkExtension{procPath: "/proc"}

@@ -98,7 +98,6 @@ type EBPFProbe struct {
 	kernelVersion  *kernel.Version
 
 	// internals
-	event           *model.Event
 	monitors        *EBPFMonitors
 	profileManagers *SecurityProfileManagers
 	fieldHandlers   *EBPFFieldHandlers
@@ -277,7 +276,7 @@ func (p *EBPFProbe) Init() error {
 		})
 	}
 
-	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors()...)
+	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors(p.useFentry)...)
 
 	if err := p.Manager.InitWithOptions(bytecodeReader, p.managerOptions); err != nil {
 		return fmt.Errorf("failed to init manager: %w", err)
@@ -521,16 +520,9 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 	return true
 }
 
-func (p *EBPFProbe) zeroEvent() *model.Event {
-	p.event.Zero()
-	p.event.FieldHandlers = p.fieldHandlers
-	p.event.Origin = "ebpf"
-	return p.event
-}
-
 func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	offset := 0
-	event := p.zeroEvent()
+	event := p.probe.zeroEvent()
 
 	dataLen := uint64(len(data))
 
@@ -1107,7 +1099,7 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 		}
 	}
 
-	activatedProbes := probes.SnapshotSelectors()
+	activatedProbes := probes.SnapshotSelectors(p.useFentry)
 
 	// extract probe to activate per the event types
 	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry) {
@@ -1264,7 +1256,6 @@ func (p *EBPFProbe) Close() error {
 	p.wg.Wait()
 
 	ebpfcheck.RemoveNameMappings(p.Manager)
-	commonebpf.UnregisterTelemetry(p.Manager)
 	// Stopping the manager will stop the perf map reader and unload eBPF programs
 	if err := p.Manager.Stop(manager.CleanAll); err != nil {
 		return err
@@ -1622,12 +1613,14 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 		)
 	}
 
-	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
-		manager.ConstantEditor{
-			Name:  "use_ring_buffer",
-			Value: utils.BoolTouint64(useRingBuffers),
-		},
-	)
+	if useRingBuffers {
+		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
+			manager.ConstantEditor{
+				Name:  "use_ring_buffer",
+				Value: utils.BoolTouint64(true),
+			},
+		)
+	}
 
 	if p.kernelVersion.HavePIDLinkStruct() {
 		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
@@ -1648,7 +1641,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 	}
 
 	// tail calls
-	p.managerOptions.TailCallRouter = probes.AllTailRoutes(config.Probe.ERPCDentryResolutionEnabled, config.Probe.NetworkEnabled, useMmapableMaps)
+	p.managerOptions.TailCallRouter = probes.AllTailRoutes(config.Probe.ERPCDentryResolutionEnabled, config.Probe.NetworkEnabled, useMmapableMaps, p.useFentry)
 	if !config.Probe.ERPCDentryResolutionEnabled || useMmapableMaps {
 		// exclude the programs that use the bpf_probe_write_user helper
 		p.managerOptions.ExcludedFunctions = probes.AllBPFProbeWriteUserProgramFunctions()
@@ -1697,11 +1690,6 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 			eventstream.EventStreamMap: true,
 		}
 	}
-
-	p.event = p.NewEvent()
-
-	// be sure to zero the probe event before everything else
-	p.zeroEvent()
 
 	return p, nil
 }
@@ -1914,27 +1902,9 @@ func (p *EBPFProbe) HandleActions(rule *rules.Rule, event eval.Event) {
 			_ = p.RefreshUserCache(ev.ContainerContext.ID)
 
 		case action.Kill != nil:
-			var pids []uint32
-
-			entry, exists := ev.ResolveProcessCacheEntry()
-			if !exists {
-				return
-			}
-
-			if entry.ContainerID != "" && action.Kill.Scope == "container" {
-				pids = entry.GetContainerPIDs()
-			} else {
-				pids = []uint32{ev.ProcessContext.Pid}
-			}
-
-			sig := model.SignalConstants[action.Kill.Signal]
-
-			for _, pid := range pids {
-				if pid == 0 || pid == utils.Getpid() {
-					continue
-				}
-
-				log.Debugf("requesting signal %s to be sent to %d", action.Kill.Signal, pid)
+			if pid := ev.ProcessContext.Pid; pid > 1 && pid != utils.Getpid() {
+				log.Debugf("Requesting signal %s to be sent to %d", action.Kill.Signal, pid)
+				sig := model.SignalConstants[action.Kill.Signal]
 
 				var err error
 				if p.supportsBPFSendSignal {

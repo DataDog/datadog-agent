@@ -17,8 +17,6 @@ import (
 // TestCatalogRegression is a regression tests ensuring that there is no race
 // occurring when registering entries in the catalog in parallel to obtaining
 // the rates by service map.
-//
-//nolint:revive // TODO(APM) Fix revive linter
 func TestCatalogRegression(t *testing.T) {
 	cat := newServiceLookup(0)
 	n := 100

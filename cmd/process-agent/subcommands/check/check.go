@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(PROC) Fix revive linter
 package app
 
 import (
@@ -24,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
@@ -88,12 +86,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 			// Disable logging if `--json` is specified. This way the check command will output proper json.
 			if cliParams.checkOutputJSON {
-				bundleParams.LogParams = logimpl.ForOneShot(string(command.LoggerName), "off", true)
+				bundleParams.LogParams = log.ForOneShot(string(command.LoggerName), "off", true)
 			}
 
 			return fxutil.OneShot(runCheckCmd,
 				fx.Supply(cliParams, bundleParams),
-				core.Bundle(),
+				core.Bundle,
 				// Provide the corresponding workloadmeta Params to configure the catalog
 				collectors.GetCatalog(),
 				fx.Provide(func(config config.Component) workloadmeta.Params {
@@ -108,7 +106,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					return workloadmeta.Params{AgentType: catalog}
 				}),
 
-				processComponent.Bundle(),
+				processComponent.Bundle,
 			)
 		},
 		SilenceUsage: true,

@@ -76,7 +76,6 @@ var (
 	}
 )
 
-//nolint:revive // TODO(PLINT) Fix revive linter
 func diskSampler(all bool) ([]disk.PartitionStat, error) {
 	return diskSamples, nil
 }
@@ -85,7 +84,6 @@ func diskUsageSampler(mountpoint string) (*disk.UsageStat, error) {
 	return diskUsageSamples[mountpoint], nil
 }
 
-//nolint:revive // TODO(PLINT) Fix revive linter
 func diskIoSampler(names ...string) (map[string]disk.IOCountersStat, error) {
 	return diskIoSamples, nil
 }

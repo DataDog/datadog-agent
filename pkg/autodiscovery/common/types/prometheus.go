@@ -148,10 +148,6 @@ type InclExcl struct {
 
 // PrometheusScrapeChecksTransformer unmarshals a prometheus check.
 func PrometheusScrapeChecksTransformer(in string) ([]*PrometheusCheck, error) {
-	if in == "" {
-		return nil, nil
-	}
-
 	var promChecks []*PrometheusCheck
 	if err := json.Unmarshal([]byte(in), &promChecks); err != nil {
 		return promChecks, fmt.Errorf(`"prometheus_scrape.checks" can not be parsed: %v`, err)

@@ -5,7 +5,6 @@
 
 //go:build windows
 
-//nolint:revive // TODO(WKIT) Fix revive linter
 package procmon
 
 import (
@@ -17,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/olreader"
 )
 
-//nolint:revive // TODO(WKIT) Fix revive linter
 type ProcessStartNotification struct {
 	Pid       uint64
 	PPid      uint64
@@ -25,12 +23,10 @@ type ProcessStartNotification struct {
 	CmdLine   string
 }
 
-//nolint:revive // TODO(WKIT) Fix revive linter
 type ProcessStopNotification struct {
 	Pid uint64
 }
 
-//nolint:revive // TODO(WKIT) Fix revive linter
 type WinProcmon struct {
 	onStart chan *ProcessStartNotification
 	onStop  chan *ProcessStopNotification
@@ -45,7 +41,6 @@ const (
 	driverName = "ddprocmon"
 )
 
-//nolint:revive // TODO(WKIT) Fix revive linter
 func NewWinProcMon(onStart chan *ProcessStartNotification, onStop chan *ProcessStopNotification) (*WinProcmon, error) {
 
 	wp := &WinProcmon{
@@ -67,7 +62,6 @@ func NewWinProcMon(onStart chan *ProcessStartNotification, onStop chan *ProcessS
 	return wp, nil
 }
 
-//nolint:revive // TODO(WKIT) Fix revive linter
 func (wp *WinProcmon) OnData(data []uint8) {
 	var consumed uint32
 	returnedsize := uint32(len(data))
@@ -100,12 +94,9 @@ func (wp *WinProcmon) OnData(data []uint8) {
 	}
 }
 
-//nolint:revive // TODO(WKIT) Fix revive linter
 func (wp *WinProcmon) OnError(err error) {
 
 }
-
-//nolint:revive // TODO(WKIT) Fix revive linter
 func (wp *WinProcmon) Stop() {
 	// since we're stopping, if for some reason this ioctl fails, there's nothing we can
 	// do, we're on our way out.  Closing the handle will ultimately cause the same cleanup
@@ -121,8 +112,6 @@ func (wp *WinProcmon) Stop() {
 
 	_ = driver.StopDriverService(driverName, false)
 }
-
-//nolint:revive // TODO(WKIT) Fix revive linter
 func (wp *WinProcmon) Start() error {
 	err := wp.reader.Read()
 	if err != nil {
@@ -143,7 +132,6 @@ func (wp *WinProcmon) Start() error {
 	return err
 }
 
-//nolint:revive // TODO(WKIT) Fix revive linter
 func decodeStruct(data []uint8, sz uint32) (t DDProcessNotifyType, pid uint64, imagefile, cmdline string, consumed uint32) {
 	n := *(*DDProcessNotification)(unsafe.Pointer(&data[0]))
 

@@ -10,7 +10,7 @@ package probes
 
 import manager "github.com/DataDog/ebpf-manager"
 
-func getSELinuxProbes() []*manager.Probe {
+func getSELinuxProbes(fentry bool) []*manager.Probe {
 	selinuxProbes := []*manager.Probe{
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{

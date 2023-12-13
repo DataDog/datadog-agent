@@ -177,8 +177,6 @@ func writeJSONResponse(w http.ResponseWriter, data interface{}) {
 }
 
 // clusterChecksDisabledHandler returns a 404 response when cluster-checks are disabled
-//
-//nolint:revive // TODO(CINT) Fix revive linter
 func clusterChecksDisabledHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotFound)
 	w.Write([]byte("Cluster-checks are not enabled"))

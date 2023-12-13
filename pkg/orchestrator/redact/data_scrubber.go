@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(CAPP) Fix revive linter
 package redact
 
 import (
@@ -140,7 +139,7 @@ func (ds *DataScrubber) ScrubSimpleCommand(cmdline []string) ([]string, bool) {
 					newCmdline[index] = cmd[:v+1] + redactedSecret
 					// replace from v to end of string with ********
 					break
-				} else { //nolint:revive // TODO(CAPP) Fix revive linter
+				} else {
 					// password 1234 password ******
 					nextReplacementIndex := index + 1
 					if nextReplacementIndex < len(newCmdline) {

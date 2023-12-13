@@ -5,7 +5,6 @@
 
 //go:build clusterchecks
 
-//nolint:revive // TODO(PLINT) Fix revive linter
 package listeners
 
 import (
@@ -249,15 +248,11 @@ func (s *CloudFoundryService) GetCheckNames(context.Context) []string {
 }
 
 // HasFilter returns false on CF
-//
-//nolint:revive // TODO(PLINT) Fix revive linter
 func (s *CloudFoundryService) HasFilter(filter containers.FilterType) bool {
 	return false
 }
 
 // GetExtraConfig isn't supported
-//
-//nolint:revive // TODO(PLINT) Fix revive linter
 func (s *CloudFoundryService) GetExtraConfig(key string) (string, error) {
 	return "", ErrNotSupported
 }

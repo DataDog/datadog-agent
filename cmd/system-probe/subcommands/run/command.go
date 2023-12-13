@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(EBPF) Fix revive linter
 package run
 
 import (
@@ -11,8 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-
-	//nolint:revive // TODO(EBPF) Fix revive linter
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
@@ -32,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -76,14 +72,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(config.NewAgentParams("", config.WithConfigMissingOK(true))),
 				fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath))),
-				fx.Supply(logimpl.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
-				config.Module(),
-				telemetry.Module(),
-				sysprobeconfigimpl.Module(),
-				rcclient.Module(),
+				fx.Supply(log.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
+				config.Module,
+				telemetry.Module,
+				sysprobeconfigimpl.Module,
+				rcclient.Module,
 				// use system-probe config instead of agent config for logging
-				fx.Provide(func(lc fx.Lifecycle, params logimpl.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
-					return logimpl.NewLogger(lc, params, sysprobeconfig)
+				fx.Provide(func(lc fx.Lifecycle, params log.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
+					return log.NewLogger(lc, params, sysprobeconfig)
 				}),
 			)
 		},
@@ -94,7 +90,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 // run starts the main loop.
-func run(log log.Component, _ config.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, cliParams *cliParams) error {
+func run(log log.Component, config config.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, cliParams *cliParams) error {
 	defer func() {
 		stopSystemProbe(cliParams)
 	}()
@@ -130,7 +126,6 @@ func run(log log.Component, _ config.Component, telemetry telemetry.Component, s
 	sigpipeCh := make(chan os.Signal, 1)
 	signal.Notify(sigpipeCh, syscall.SIGPIPE)
 	go func() {
-		//nolint:revive // TODO(EBPF) Fix revive linter
 		for range sigpipeCh {
 			// do nothing
 		}
@@ -190,14 +185,14 @@ func StartSystemProbeWithDefaults(ctxChan <-chan context.Context) (<-chan error,
 			// no config file path specification in this situation
 			fx.Supply(config.NewAgentParams("", config.WithConfigMissingOK(true))),
 			fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(""))),
-			fx.Supply(logimpl.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
-			rcclient.Module(),
-			config.Module(),
-			telemetry.Module(),
-			sysprobeconfigimpl.Module(),
+			fx.Supply(log.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
+			rcclient.Module,
+			config.Module,
+			telemetry.Module,
+			sysprobeconfigimpl.Module,
 			// use system-probe config instead of agent config for logging
-			fx.Provide(func(lc fx.Lifecycle, params logimpl.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
-				return logimpl.NewLogger(lc, params, sysprobeconfig)
+			fx.Provide(func(lc fx.Lifecycle, params log.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
+				return log.NewLogger(lc, params, sysprobeconfig)
 			}),
 		)
 		// notify caller that fx.OneShot is done
@@ -287,9 +282,6 @@ func startSystemProbe(cliParams *cliParams, log log.Component, telemetry telemet
 		if cfg.TelemetryEnabled {
 			http.Handle("/telemetry", telemetry.Handler())
 			telemetry.RegisterCollector(ebpf.NewDebugFsStatCollector())
-			if pc := ebpf.NewPerfUsageCollector(); pc != nil {
-				telemetry.RegisterCollector(pc)
-			}
 		}
 		go func() {
 			common.ExpvarServer = &http.Server{

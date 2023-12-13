@@ -431,7 +431,7 @@ func TestProxy(t *testing.T) {
 			os.WriteFile(configPath, nil, 0600)
 			config.SetConfigFile(configPath)
 
-			resolver := secretsimpl.NewMock()
+			resolver := secretsimpl.NewMockSecretResolver()
 			if c.setup != nil {
 				c.setup(t, config)
 			}

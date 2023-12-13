@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
 
-//nolint:revive // TODO(ASC) Fix revive linter
 func TestHostnameCaching(t *testing.T) {
 }
 

@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(PROC) Fix revive linter
 package parser
 
 import (
@@ -37,7 +36,6 @@ func NewDockerProxy() *DockerProxy {
 	}
 }
 
-//nolint:revive // TODO(PROC) Fix revive linter
 func (d *DockerProxy) Extract(processes map[int32]*procutil.Process) {
 	proxyByPID := make(map[int32]*proxy)
 	proxyByTarget := make(map[model.ContainerAddr]*proxy)

@@ -14,9 +14,7 @@ package python
 */
 import "C"
 
-//
 //export GetKubeletConnectionInfo
-//nolint:revive // TODO(AML) Fix revive linter
 func GetKubeletConnectionInfo(payload **C.char) {
 	*payload = TrackedCString("{}")
 }

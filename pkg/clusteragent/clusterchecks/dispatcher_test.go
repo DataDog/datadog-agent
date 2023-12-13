@@ -591,7 +591,6 @@ var dummyClcRunnerClient dummyClientStruct
 
 type dummyClientStruct struct{}
 
-//nolint:revive // TODO(CINT) Fix revive linter
 func (d *dummyClientStruct) GetVersion(IP string) (version.Version, error) {
 	return version.Version{}, nil
 }

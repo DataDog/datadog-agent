@@ -19,13 +19,12 @@ import (
 // MockModule defines the fx options for the mock component.
 // Injecting MockModule will provide the hostname 'my-hostname';
 // override this with fx.Replace(hostname.MockHostname("whatever")).
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(
-			newMock,
-		),
-		fx.Supply(MockHostname("my-hostname")))
-}
+var MockModule = fxutil.Component(
+	fx.Provide(
+		newMock,
+	),
+	fx.Supply(MockHostname("my-hostname")),
+)
 
 type mockService struct {
 	name string

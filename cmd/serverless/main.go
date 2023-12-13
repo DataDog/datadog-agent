@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(SERV) Fix revive linter
 package main
 
 import (
@@ -38,7 +37,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -72,28 +70,31 @@ const (
 )
 
 func main() {
-	// run the agent
-	err := fxutil.OneShot(runAgent)
-
-	if err != nil {
-		log.Error(err)
-		os.Exit(-1)
-	}
-}
-
-func runAgent() {
-	var err error
-
-	startTime := time.Now()
-
-	stopCh := make(chan struct{})
-
 	flavor.SetFlavor(flavor.ServerlessAgent)
 	config.Datadog.Set("use_v2_api.series", false, model.SourceAgentRuntime)
+	stopCh := make(chan struct{})
 
 	// Disable remote configuration for now as it just spams the debug logs
 	// and provides no value.
 	os.Setenv("DD_REMOTE_CONFIGURATION_ENABLED", "false")
+
+	// run the agent
+	serverlessDaemon, err := runAgent(stopCh)
+	if err != nil {
+		log.Error(err)
+		os.Exit(-1)
+	}
+
+	// handle SIGTERM signal
+	go handleSignals(serverlessDaemon, stopCh)
+
+	// block here until we receive a stop signal
+	<-stopCh
+}
+
+func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error) {
+
+	startTime := time.Now()
 
 	// setup logger
 	// -----------
@@ -131,11 +132,11 @@ func runAgent() {
 		if processError != nil {
 			log.Errorf("Can't process events: %s", processError)
 		}
-		return
+		return nil, nil
 	}
 
 	// immediately starts the communication server
-	serverlessDaemon := daemon.StartDaemon(httpServerAddr)
+	serverlessDaemon = daemon.StartDaemon(httpServerAddr)
 	serverlessDaemon.ExecutionContext.SetInitializationTime(startTime)
 	err = serverlessDaemon.ExecutionContext.RestoreCurrentStateFromFile()
 	if err != nil {
@@ -159,6 +160,19 @@ func runAgent() {
 		serverlessDaemon.ExecutionContext.SetArnFromExtensionResponse(string(functionArn))
 	}
 
+	// api key reading
+	// ---------------
+
+	// API key reading priority:
+	// KMS > Secrets Manager > Plaintext API key
+	// If one is set but failing, the next will be tried
+
+	apikey.CheckForSingleAPIKey()
+
+	// Set secrets from the environment that are suffixed with
+	// KMS_ENCRYPTED or SECRET_ARN
+	apikey.SetSecretsFromEnv(os.Environ())
+
 	// adaptive flush configuration
 	if v, exists := os.LookupEnv(flushStrategyEnvVar); exists {
 		if flushStrategy, err := flush.StrategyFromString(v); err != nil {
@@ -171,19 +185,23 @@ func runAgent() {
 		serverlessDaemon.UseAdaptiveFlush(true) // already initialized to true, but let's be explicit just in case
 	}
 
+	// validate that an apikey has been set, either by the env var, read from KMS or Secrets Manager.
+	// ---------------------------
+	if !config.Datadog.IsSet("api_key") {
+		// we're not reporting the error to AWS because we don't want the function
+		// execution to be stopped. TODO(remy): discuss with AWS if there is way
+		// of reporting non-critical init errors.
+		log.Error("No API key configured")
+	}
 	config.Datadog.SetConfigFile(datadogConfigPath)
 	// Load datadog.yaml file into the config, so that metricAgent can pick these configurations
 	if _, err := config.LoadWithoutSecret(); err != nil {
 		log.Errorf("Error happened when loading configuration from datadog.yaml for metric agent: %s", err)
 	}
-
-	apikey.HandleEnv()
-
 	logChannel := make(chan *logConfig.ChannelMessage)
 	// Channels for ColdStartCreator
 	lambdaSpanChan := make(chan *pb.Span)
 	lambdaInitMetricChan := make(chan *serverlessLogs.LambdaInitMetric)
-	//nolint:revive // TODO(SERV) Fix revive linter
 	coldStartSpanId := random.Random.Uint64()
 	metricAgent := &metrics.ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 10,
@@ -329,25 +347,28 @@ func runAgent() {
 		}
 	}()
 
-	go handleTerminationSignals(serverlessDaemon, stopCh, signal.Notify)
-
 	// this log line is used for performance checks during CI
 	// please be careful before modifying/removing it
 	log.Debugf("serverless agent ready in %v", time.Since(startTime))
-
-	// block here until we receive a stop signal
-	<-stopCh
-	//nolint:gosimple // TODO(SERV) Fix gosimple linter
 	return
 }
 
-// handleTerminationSignals handles OS termination signals.
-// If a specified signal is received the serverless agent stops.
-func handleTerminationSignals(serverlessDaemon *daemon.Daemon, stopCh chan struct{}, notify func(c chan<- os.Signal, sig ...os.Signal)) {
+// handleSignals handles OS signals, if a SIGTERM is received,
+// the serverless agent stops.
+func handleSignals(serverlessDaemon *daemon.Daemon, stopCh chan struct{}) {
+	// setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
-	notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
-	signo := <-signalCh
-	log.Infof("Received signal '%s', shutting down...", signo)
-	serverlessDaemon.Stop()
-	stopCh <- struct{}{}
+	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
+
+	// block here until we receive the interrupt signal
+	// when received, shutdown the serverless agent.
+	for signo := range signalCh {
+		switch signo {
+		default:
+			log.Infof("Received signal '%s', shutting down...", signo)
+			serverlessDaemon.Stop()
+			stopCh <- struct{}{}
+			return
+		}
+	}
 }

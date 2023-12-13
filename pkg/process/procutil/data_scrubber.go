@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(PROC) Fix revive linter
 package procutil
 
 import (
@@ -31,7 +30,6 @@ type processCacheKey struct {
 	createTime int64
 }
 
-//nolint:revive // TODO(PROC) Fix revive linter
 type DataScrubberPattern struct {
 	FastCheck string
 	Re        *regexp.Regexp

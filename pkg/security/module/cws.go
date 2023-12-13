@@ -53,7 +53,7 @@ type CWSConsumer struct {
 func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityConfig, opts Opts) (*CWSConsumer, error) {
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
-	selfTester, err := selftests.NewSelfTester(cfg, evm.Probe)
+	selfTester, err := selftests.NewSelfTester(evm.Probe)
 	if err != nil {
 		seclog.Errorf("unable to instantiate self tests: %s", err)
 	}
@@ -84,12 +84,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 
 	seclog.Infof("Instantiating CWS rule engine")
 
-	var listeners []rules.RuleSetListener
-	if selfTester != nil {
-		listeners = append(listeners, selfTester)
-	}
-
-	c.ruleEngine, err = rulesmodule.NewRuleEngine(evm, cfg, evm.Probe, c.rateLimiter, c.apiServer, c.eventSender, c.statsdClient, listeners...)
+	c.ruleEngine, err = rulesmodule.NewRuleEngine(evm, cfg, evm.Probe, c.rateLimiter, c.apiServer, c.eventSender, c.statsdClient, selfTester)
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +144,7 @@ func (c *CWSConsumer) Start() error {
 
 // PostProbeStart is called after the event stream is started
 func (c *CWSConsumer) PostProbeStart() error {
-	if c.selfTester != nil {
+	if c.config.SelfTestEnabled {
 		c.wg.Add(1)
 		go func() {
 			defer c.wg.Done()

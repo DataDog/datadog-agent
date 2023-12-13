@@ -45,13 +45,9 @@ import (
 type TracerType int
 
 const (
-	//nolint:revive // TODO(NET) Fix revive linter
 	TracerTypeKProbePrebuilt TracerType = iota
-	//nolint:revive // TODO(NET) Fix revive linter
 	TracerTypeKProbeRuntimeCompiled
-	//nolint:revive // TODO(NET) Fix revive linter
 	TracerTypeKProbeCORE
-	//nolint:revive // TODO(NET) Fix revive linter
 	TracerTypeFentry
 )
 
@@ -91,40 +87,26 @@ const (
 	connTracerModuleName     = "network_tracer__ebpf"
 )
 
-//nolint:revive // TODO(NET) Fix revive linter
 var ConnTracerTelemetry = struct {
 	connections       telemetry.Gauge
 	tcpFailedConnects *prometheus.Desc
-	//nolint:revive // TODO(NET) Fix revive linter
-	TcpSentMiscounts *prometheus.Desc
-	//nolint:revive // TODO(NET) Fix revive linter
+	TcpSentMiscounts  *prometheus.Desc
 	unbatchedTcpClose *prometheus.Desc
-	//nolint:revive // TODO(NET) Fix revive linter
 	unbatchedUdpClose *prometheus.Desc
-	//nolint:revive // TODO(NET) Fix revive linter
 	UdpSendsProcessed *prometheus.Desc
-	//nolint:revive // TODO(NET) Fix revive linter
-	UdpSendsMissed *prometheus.Desc
-	//nolint:revive // TODO(NET) Fix revive linter
-	UdpDroppedConns *prometheus.Desc
-	PidCollisions   *nettelemetry.StatCounterWrapper
-	iterationDups   telemetry.Counter
-	iterationAborts telemetry.Counter
+	UdpSendsMissed    *prometheus.Desc
+	UdpDroppedConns   *prometheus.Desc
+	PidCollisions     *nettelemetry.StatCounterWrapper
+	iterationDups     telemetry.Counter
+	iterationAborts   telemetry.Counter
 
-	//nolint:revive // TODO(NET) Fix revive linter
 	lastTcpFailedConnects *atomic.Int64
-	//nolint:revive // TODO(NET) Fix revive linter
-	LastTcpSentMiscounts *atomic.Int64
-	//nolint:revive // TODO(NET) Fix revive linter
+	LastTcpSentMiscounts  *atomic.Int64
 	lastUnbatchedTcpClose *atomic.Int64
-	//nolint:revive // TODO(NET) Fix revive linter
 	lastUnbatchedUdpClose *atomic.Int64
-	//nolint:revive // TODO(NET) Fix revive linter
 	lastUdpSendsProcessed *atomic.Int64
-	//nolint:revive // TODO(NET) Fix revive linter
-	lastUdpSendsMissed *atomic.Int64
-	//nolint:revive // TODO(NET) Fix revive linter
-	lastUdpDroppedConns *atomic.Int64
+	lastUdpSendsMissed    *atomic.Int64
+	lastUdpDroppedConns   *atomic.Int64
 }{
 	telemetry.NewGauge(connTracerModuleName, "connections", []string{"ip_proto", "family"}, "Gauge measuring the number of active connections in the EBPF map"),
 	prometheus.NewDesc(connTracerModuleName+"__tcp_failed_connects", "Counter measuring the number of failed TCP connections in the EBPF map", nil, nil),
@@ -215,10 +197,9 @@ func NewTracer(config *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry) 
 	}
 	perfHandlerTCP := ddebpf.NewPerfHandler(closedChannelSize)
 	var m *manager.Manager
-	//nolint:revive // TODO(NET) Fix revive linter
 	var tracerType TracerType = TracerTypeFentry
 	var closeTracerFn func()
-	m, closeTracerFn, err := fentry.LoadTracer(config, mgrOptions, perfHandlerTCP, bpfTelemetry)
+	m, closeTracerFn, err := fentry.LoadTracer(config, mgrOptions, perfHandlerTCP)
 	if err != nil && !errors.Is(err, fentry.ErrorNotSupported) {
 		// failed to load fentry tracer
 		return nil, err
@@ -228,7 +209,7 @@ func NewTracer(config *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry) 
 		// load the kprobe tracer
 		log.Info("fentry tracer not supported, falling back to kprobe tracer")
 		var kprobeTracerType kprobe.TracerType
-		m, closeTracerFn, kprobeTracerType, err = kprobe.LoadTracer(config, mgrOptions, perfHandlerTCP, bpfTelemetry)
+		m, closeTracerFn, kprobeTracerType, err = kprobe.LoadTracer(config, mgrOptions, perfHandlerTCP)
 		if err != nil {
 			return nil, err
 		}
@@ -272,6 +253,15 @@ func NewTracer(config *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry) 
 		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.TCPRetransmitsMap, err)
 	}
 
+	if bpfTelemetry != nil {
+		bpfTelemetry.MapErrMap = tr.GetMap(probes.MapErrTelemetryMap)
+		bpfTelemetry.HelperErrMap = tr.GetMap(probes.HelperErrTelemetryMap)
+	}
+
+	if err := bpfTelemetry.RegisterEBPFTelemetry(m); err != nil {
+		tr.Stop()
+		return nil, fmt.Errorf("error registering ebpf telemetry: %v", err)
+	}
 	return tr, nil
 }
 
@@ -328,7 +318,6 @@ func (t *tracer) Stop() {
 	t.stopOnce.Do(func() {
 		close(t.exitTelemetry)
 		ebpfcheck.RemoveNameMappings(t.m)
-		ddebpf.UnregisterTelemetry(t.m)
 		_ = t.m.Stop(manager.CleanAll)
 		t.closeConsumer.Stop()
 		if t.closeTracer != nil {
@@ -662,7 +651,7 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 	}
 
 	stats.ProtocolStack = protocols.Stack{
-		API:         protocols.API(s.Protocol_stack.Api),
+		Api:         protocols.API(s.Protocol_stack.Api),
 		Application: protocols.Application(s.Protocol_stack.Application),
 		Encryption:  protocols.Encryption(s.Protocol_stack.Encryption),
 	}

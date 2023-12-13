@@ -12,16 +12,11 @@ import (
 )
 
 const (
-	//nolint:revive // TODO(NET) Fix revive linter
-	ConnTagGnuTLS = http.GnuTLS
-	//nolint:revive // TODO(NET) Fix revive linter
+	ConnTagGnuTLS  = http.GnuTLS
 	ConnTagOpenSSL = http.OpenSSL
-	//nolint:revive // TODO(NET) Fix revive linter
-	ConnTagGo = http.Go
-	//nolint:revive // TODO(NET) Fix revive linter
-	ConnTagJava = http.Java
-	//nolint:revive // TODO(NET) Fix revive linter
-	ConnTagTLS = http.TLS
+	ConnTagGo      = http.Go
+	ConnTagJava    = http.Java
+	ConnTagTLS     = http.TLS
 )
 
 // GetStaticTags return the string list of static tags from network.ConnectionStats.Tags
@@ -34,7 +29,6 @@ func GetStaticTags(staticTags uint64) (tags []string) {
 	return tags
 }
 
-//nolint:revive // TODO(NET) Fix revive linter
 func IsTLSTag(staticTags uint64) bool {
 	return staticTags&(ConnTagGnuTLS|ConnTagOpenSSL|ConnTagGo|ConnTagJava|ConnTagTLS) > 0
 }

@@ -16,6 +16,7 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
@@ -136,7 +137,7 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	conns, err := c.getConnections()
 	if err != nil {
 		// If the tracer is not initialized, or still not initialized, then we want to exit without error'ing
-		if errors.Is(err, net.ErrNotImplemented) || errors.Is(err, ErrTracerStillNotInitialized) {
+		if err == ebpf.ErrNotImplemented || err == ErrTracerStillNotInitialized {
 			return nil, nil
 		}
 		return nil, err
@@ -371,7 +372,6 @@ func batchConnections(
 				continue
 			}
 
-			//nolint:revive // TODO(NET) Fix revive linter
 			new := int32(len(newRouteIndices))
 			newRouteIndices[c.RouteIdx] = new
 			batchRoutes = append(batchRoutes, routes[c.RouteIdx])

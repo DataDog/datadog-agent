@@ -42,9 +42,9 @@ type Protocol struct {
 	statkeeper              *http.StatKeeper
 	http2InFlightMapCleaner *ddebpf.MapCleaner[http2StreamKey, EbpfTx]
 	dynamicTableMapCleaner  *ddebpf.MapCleaner[http2DynamicTableIndex, http2DynamicTableEntry]
-	eventsConsumer          *events.Consumer[EbpfTx]
+	eventsConsumer          *events.Consumer
 
-	terminatedConnectionsEventsConsumer *events.Consumer[netebpf.ConnTuple]
+	terminatedConnectionsEventsConsumer *events.Consumer
 	terminatedConnections               []netebpf.ConnTuple
 	terminatedConnectionMux             sync.Mutex
 
@@ -67,7 +67,6 @@ const (
 	telemetryMap                     = "http2_telemetry"
 )
 
-// Spec is the protocol spec for HTTP/2.
 var Spec = &protocols.ProtocolSpec{
 	Factory: newHTTP2Protocol,
 	Maps: []*manager.Map{
@@ -312,18 +311,17 @@ func (p *Protocol) DumpMaps(output *strings.Builder, mapName string, currentMap 
 	}
 }
 
-func (p *Protocol) processHTTP2(events []EbpfTx) {
-	for i := range events {
-		tx := &events[i]
-		p.telemetry.Count(tx)
-		p.statkeeper.Process(tx)
-	}
+func (p *Protocol) processHTTP2(data []byte) {
+	tx := (*EbpfTx)(unsafe.Pointer(&data[0]))
+	p.telemetry.Count(tx)
+	p.statkeeper.Process(tx)
 }
 
-func (p *Protocol) processTerminatedConnections(events []netebpf.ConnTuple) {
+func (p *Protocol) processTerminatedConnections(data []byte) {
+	conn := (*netebpf.ConnTuple)(unsafe.Pointer(&data[0]))
 	p.terminatedConnectionMux.Lock()
 	defer p.terminatedConnectionMux.Unlock()
-	p.terminatedConnections = append(p.terminatedConnections, events...)
+	p.terminatedConnections = append(p.terminatedConnections, *conn)
 }
 
 func (p *Protocol) setupHTTP2InFlightMapCleaner(mgr *manager.Manager) {
@@ -398,21 +396,61 @@ func (p *Protocol) GetStats() *protocols.ProtocolStats {
 	}
 }
 
-// The following map contains a list of static table entries that are used by the http2 monitor.
-// The full list of static table entries can be found here: https://httpwg.org/specs/rfc7541.html#static.table.definition.
+// The staticTableEntry represents an entry in the static table that contains an index in the table and a value.
+// The value itself contains both the key and the corresponding value in the static table.
+// For instance, index 2 in the static table has a value of method: GET, and index 3 has a value of method: POST.
+// It is not possible to save the index by the key because we need to distinguish between the values attached to the key.
+type staticTableEntry struct {
+	Index uint64
+	Value StaticTableEnumValue
+}
+
 var (
-	staticTableEntries = map[uint64]StaticTableEnumValue{
-		2:  GetValue,
-		3:  PostValue,
-		4:  EmptyPathValue,
-		5:  IndexPathValue,
-		8:  K200Value,
-		9:  K204Value,
-		10: K206Value,
-		11: K304Value,
-		12: K400Value,
-		13: K404Value,
-		14: K500Value,
+	staticTableEntries = []staticTableEntry{
+		{
+			Index: 2,
+			Value: GetValue,
+		},
+		{
+			Index: 3,
+			Value: PostValue,
+		},
+		{
+			Index: 4,
+			Value: EmptyPathValue,
+		},
+		{
+			Index: 5,
+			Value: IndexPathValue,
+		},
+		{
+			Index: 8,
+			Value: K200Value,
+		},
+		{
+			Index: 9,
+			Value: K204Value,
+		},
+		{
+			Index: 10,
+			Value: K206Value,
+		},
+		{
+			Index: 11,
+			Value: K304Value,
+		},
+		{
+			Index: 12,
+			Value: K400Value,
+		},
+		{
+			Index: 13,
+			Value: K404Value,
+		},
+		{
+			Index: 14,
+			Value: K500Value,
+		},
 	}
 )
 
@@ -423,8 +461,8 @@ func (p *Protocol) createStaticTable(mgr *manager.Manager) error {
 		return errors.New("http2 static table is null")
 	}
 
-	for key, value := range staticTableEntries {
-		err := staticTable.Put(unsafe.Pointer(&key), unsafe.Pointer(&value))
+	for _, entry := range staticTableEntries {
+		err := staticTable.Put(unsafe.Pointer(&entry.Index), unsafe.Pointer(&entry.Value))
 
 		if err != nil {
 			return err

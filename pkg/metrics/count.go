@@ -12,7 +12,6 @@ type Count struct {
 	sampled bool
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (c *Count) addSample(sample *MetricSample, timestamp float64) {
 	c.value += sample.Value
 	c.sampled = true

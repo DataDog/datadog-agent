@@ -5,7 +5,6 @@
 
 //go:build linux
 
-//nolint:revive // TODO(EBPF) Fix revive linter
 package modules
 
 import (
@@ -27,7 +26,6 @@ var All = []module.Factory{
 	ComplianceModule,
 }
 
-//nolint:revive // TODO(EBPF) Fix revive linter
 func inactivityEventLog(duration time.Duration) {
 
 }

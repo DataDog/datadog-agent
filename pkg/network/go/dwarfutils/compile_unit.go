@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-// Package dwarfutils provides utilities for working with DWARF debug information.
 package dwarfutils
 
 import (

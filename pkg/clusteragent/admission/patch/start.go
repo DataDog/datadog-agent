@@ -9,7 +9,7 @@ package patch
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
-	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
+	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"k8s.io/client-go/kubernetes"
@@ -20,7 +20,7 @@ type ControllerContext struct {
 	IsLeaderFunc        func() bool
 	LeaderSubscribeFunc func() <-chan struct{}
 	K8sClient           kubernetes.Interface
-	RcClient            *rcclient.Client
+	RcClient            *remote.Client
 	ClusterName         string
 	ClusterID           string
 	StopCh              chan struct{}

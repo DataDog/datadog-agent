@@ -9,10 +9,9 @@ package statsd
 
 import (
 	"bytes"
+	"go.uber.org/fx"
 	"io"
 	"testing"
-
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
@@ -23,7 +22,7 @@ import (
 )
 
 func TestMockGet(t *testing.T) {
-	s := fxutil.Test[Mock](t, MockModule())
+	s := fxutil.Test[Mock](t, MockModule)
 	c, err := s.Get()
 	require.NoError(t, err)
 	require.NotNil(t, c)
@@ -47,7 +46,7 @@ func TestMockProvide(t *testing.T) {
 	mc, err := ddgostatsd.NewWithWriter(w, ddgostatsd.WithoutOriginDetection())
 	assert.NoError(t, err)
 	s := fxutil.Test[Mock](t,
-		MockModule(),
+		MockModule,
 		fx.Replace(fx.Annotate(mc, fx.As(new(MockClient)))),
 	)
 	c, err := s.Get()

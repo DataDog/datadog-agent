@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// StatKeeper is responsible for aggregating HTTP stats.
 type StatKeeper struct {
 	mux                         sync.Mutex
 	cfg                         *config.Config
@@ -38,7 +37,6 @@ type StatKeeper struct {
 	oversizedLogLimit *util.LogLimit
 }
 
-// NewStatkeeper returns a new StatKeeper.
 func NewStatkeeper(c *config.Config, telemetry *Telemetry) *StatKeeper {
 	// For now we're only enabling path quantization for HTTP/1 traffic
 	enableQuantization := c.EnableUSMQuantization && telemetry.protocol == "http"
@@ -58,7 +56,6 @@ func NewStatkeeper(c *config.Config, telemetry *Telemetry) *StatKeeper {
 	}
 }
 
-// Process processes a transaction and updates the stats accordingly.
 func (h *StatKeeper) Process(tx Transaction) {
 	h.mux.Lock()
 	defer h.mux.Unlock()
@@ -71,7 +68,6 @@ func (h *StatKeeper) Process(tx Transaction) {
 	h.add(tx)
 }
 
-// GetAndResetAllStats returns all the stats and resets the internal state.
 func (h *StatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
 	h.mux.Lock()
 	defer h.mux.Unlock()
@@ -85,7 +81,6 @@ func (h *StatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
 	return ret
 }
 
-// Close closes the stat keeper.
 func (h *StatKeeper) Close() {
 	h.oversizedLogLimit.Close()
 }

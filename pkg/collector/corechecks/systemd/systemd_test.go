@@ -8,6 +8,7 @@
 package systemd
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -16,15 +17,14 @@ import (
 	godbus "github.com/godbus/dbus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 )
 
@@ -57,7 +57,6 @@ func (s *mockSystemdStats) SystemState(conn *dbus.Conn) (*dbus.Property, error) 
 	return args.Get(0).(*dbus.Property), args.Error(1)
 }
 
-//nolint:revive // TODO(AI) Fix revive linter
 func (s *mockSystemdStats) CloseConn(c *dbus.Conn) {
 }
 
@@ -980,26 +979,19 @@ func TestGetPropertyBool(t *testing.T) {
 	}
 }
 
-//nolint:unused // TODO(AI) Fix unused linter
 type mockCollector struct {
 	Checks []check.Info
 }
 
-//nolint:unused // TODO(AI) Fix unused linter
 func (m mockCollector) MapOverChecks(fn func([]check.Info)) {
 	fn(m.Checks)
 }
 
-//nolint:unused // TODO(AI) Fix unused linter
 func (m mockCollector) GetChecks() []check.Check {
 	return nil
 }
 
 func TestGetVersion(t *testing.T) {
-	invChecks := inventorychecksimpl.NewMock()
-	check.InitializeInventoryChecksContext(invChecks)
-	defer check.ReleaseContext()
-
 	rawInstanceConfig := []byte(`
 unit_names:
  - ssh.service
@@ -1022,9 +1014,22 @@ unit_names:
 	// run
 	systemdCheck.Run()
 
-	metadata := invChecks.GetInstanceMetadata(string(systemdCheck.ID()))
-	require.NotNil(t, metadata)
-	assert.Equal(t, systemdVersion, metadata["version.raw"])
+	coll := mockCollector{
+		[]check.Info{
+			check.MockInfo{
+				Name:         "systemd",
+				CheckID:      systemdCheck.ID(),
+				Source:       "provider1",
+				InitConf:     "",
+				InstanceConf: "{}",
+			},
+		},
+	}
+
+	p := inventories.GetPayload(context.Background(), "testHostname", coll, false)
+	checkMetadata := *p.CheckMetadata
+	systemdMetadata := *checkMetadata["systemd"][0]
+	assert.Equal(t, systemdVersion, systemdMetadata["version.raw"])
 }
 
 func TestCheckID(t *testing.T) {

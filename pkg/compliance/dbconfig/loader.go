@@ -89,7 +89,11 @@ func ListProcesses(ctx context.Context) map[utils.ContainerID]int32 {
 		if !ok {
 			continue
 		}
-		containerID, _ := utils.GetProcessContainerID(proc.Pid)
+
+		containerID, ok := utils.GetProcessContainerID(proc.Pid)
+		if !ok {
+			continue
+		}
 		// We dedupe our scans based on the resource type and the container
 		// ID, assuming that we will scan the same configuration for each
 		// containers running the process.
@@ -115,7 +119,10 @@ func LoadDBResourceFromPID(ctx context.Context, pid int32) (resource *DBResource
 	if !ok {
 		return
 	}
-	containerID, _ := utils.GetProcessContainerID(pid)
+	containerID, ok := utils.GetProcessContainerID(pid)
+	if !ok {
+		return
+	}
 	hostroot, ok := utils.GetProcessRootPath(pid)
 	if !ok {
 		return

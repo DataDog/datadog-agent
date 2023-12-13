@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(PROC) Fix revive linter
 package events
 
 import (
@@ -73,8 +72,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(runEventListener,
 				fx.Supply(cliParams, command.GetCoreBundleParamsForOneShot(globalParams)),
-				core.Bundle(),
-				process.Bundle(),
+				core.Bundle,
+				process.Bundle,
 			)
 		},
 		SilenceUsage: true,
@@ -87,8 +86,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(runEventStore,
 				fx.Supply(cliParams, command.GetCoreBundleParamsForOneShot(globalParams)),
-				core.Bundle(),
-				process.Bundle(),
+				core.Bundle,
+				process.Bundle,
 			)
 		},
 		SilenceUsage: true,

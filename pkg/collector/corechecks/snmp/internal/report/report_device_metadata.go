@@ -380,8 +380,6 @@ func buildNetworkTopologyMetadataWithLLDP(deviceID string, store *metadata.Store
 	}
 	return links
 }
-
-//nolint:revive // TODO(NDM) Fix revive linter
 func buildNetworkTopologyMetadataWithCDP(deviceID string, store *metadata.Store, interfaces []devicemetadata.InterfaceMetadata) []devicemetadata.TopologyLinkMetadata {
 	indexes := store.GetColumnIndexes("cdp_remote.interface_id") // using `cdp_remote.interface_id` to get indexes since it's expected to be always present
 	if len(indexes) == 0 {
@@ -446,7 +444,7 @@ func getRemDeviceAddressByCDPRemIndex(store *metadata.Store, strIndex string) st
 	remoteDeviceAddressType := store.GetColumnAsString("cdp_remote.device_address_type", strIndex)
 	if remoteDeviceAddressType == ciscoNetworkProtocolIPv4 || remoteDeviceAddressType == ciscoNetworkProtocolIPv6 {
 		return net.IP(store.GetColumnAsByteArray("cdp_remote.device_address", strIndex)).String()
-	} else { //nolint:revive // TODO(NDM) Fix revive linter
+	} else {
 		// TODO: use cdpCacheSecondaryMgmtAddrType or cdpCacheAddress in this case
 		return "" // Note if this is the case this won't pass the backend check and will generate the error
 		// "deviceIP cannot be empty (except when interface id_type is mac_address)"

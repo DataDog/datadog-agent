@@ -8,6 +8,9 @@
 package secretsimpl
 
 import (
+	"io"
+	"regexp"
+
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
@@ -15,25 +18,38 @@ import (
 
 // MockSecretResolver is a mock of the secret Component useful for testing
 type MockSecretResolver struct {
-	*secretResolver
+	resolve map[string]string
 }
 
 var _ secrets.Component = (*MockSecretResolver)(nil)
 
-// SetFetchHookFunc set the fetchHookFunc for the mock
-func (m *MockSecretResolver) SetFetchHookFunc(f func([]string) (map[string]string, error)) {
-	m.fetchHookFunc = f
+// Configure is not implemented
+func (m *MockSecretResolver) Configure(_ string, _ []string, _, _ int, _, _ bool) {}
+
+// GetDebugInfo is not implemented
+func (m *MockSecretResolver) GetDebugInfo(_ io.Writer) {}
+
+// Inject adds data to be decrypted, by returning the value for the given key
+func (m *MockSecretResolver) Inject(key, value string) {
+	m.resolve[key] = value
 }
 
-// NewMock returns a MockSecretResolver
-func NewMock() secrets.Mock {
-	return &MockSecretResolver{
-		secretResolver: newEnabledSecretResolver(),
-	}
+// Decrypt returns the secret value based upon the injected data
+func (m *MockSecretResolver) Decrypt(data []byte, _ string) ([]byte, error) {
+	re := regexp.MustCompile(`ENC\[(.*?)\]`)
+	result := re.ReplaceAllStringFunc(string(data), func(in string) string {
+		key := in[4 : len(in)-1]
+		return m.resolve[key]
+	})
+	return []byte(result), nil
+}
+
+// NewMockSecretResolver constructs a MockSecretResolver
+func NewMockSecretResolver() *MockSecretResolver {
+	return &MockSecretResolver{resolve: make(map[string]string)}
 }
 
 // MockModule is a module containing the mock, useful for testing
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(NewMock))
-}
+var MockModule = fxutil.Component(
+	fx.Provide(NewMockSecretResolver),
+)

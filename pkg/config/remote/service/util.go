@@ -30,8 +30,6 @@ const metaBucket = "meta"
 const metaFile = "meta.json"
 const databaseLockTimeout = time.Second
 
-// AgentMetadata is data stored in bolt DB to determine whether or not
-// the agent has changed and the RC cache should be cleared
 type AgentMetadata struct {
 	Version string `json:"version"`
 }
@@ -133,7 +131,7 @@ type remoteConfigAuthKeys struct {
 
 func (k *remoteConfigAuthKeys) apiAuth() api.Auth {
 	auth := api.Auth{
-		APIKey: k.apiKey,
+		ApiKey: k.apiKey,
 	}
 	if k.rcKeySet {
 		auth.UseAppKey = true

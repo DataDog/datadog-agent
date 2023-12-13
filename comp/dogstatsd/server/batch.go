@@ -4,8 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package dogstatsd implements DogStatsD.
-//
-//nolint:revive // TODO(AML) Fix revive linter
 package server
 
 import (

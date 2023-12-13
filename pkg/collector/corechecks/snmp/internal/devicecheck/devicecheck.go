@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(NDM) Fix revive linter
 package devicecheck
 
 import (
@@ -52,14 +51,13 @@ var timeNow = time.Now
 
 // DeviceCheck hold info necessary to collect info for a single device
 type DeviceCheck struct {
-	config                  *checkconfig.CheckConfig
-	sender                  *report.MetricSender
-	session                 session.Session
-	sessionCloseErrorCount  *atomic.Uint64
-	savedDynamicTags        []string
-	nextAutodetectMetrics   time.Time
-	diagnoses               *diagnoses.Diagnoses
-	interfaceBandwidthState report.InterfaceBandwidthState
+	config                 *checkconfig.CheckConfig
+	sender                 *report.MetricSender
+	session                session.Session
+	sessionCloseErrorCount *atomic.Uint64
+	savedDynamicTags       []string
+	nextAutodetectMetrics  time.Time
+	diagnoses              *diagnoses.Diagnoses
 }
 
 // NewDeviceCheck returns a new DeviceCheck
@@ -72,12 +70,11 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFa
 	}
 
 	return &DeviceCheck{
-		config:                  newConfig,
-		session:                 sess,
-		sessionCloseErrorCount:  atomic.NewUint64(0),
-		nextAutodetectMetrics:   timeNow(),
-		diagnoses:               diagnoses.NewDeviceDiagnoses(newConfig.DeviceID),
-		interfaceBandwidthState: report.MakeInterfaceBandwidthState(),
+		config:                 newConfig,
+		session:                sess,
+		sessionCloseErrorCount: atomic.NewUint64(0),
+		nextAutodetectMetrics:  timeNow(),
+		diagnoses:              diagnoses.NewDeviceDiagnoses(newConfig.DeviceID),
 	}, nil
 }
 
@@ -86,24 +83,9 @@ func (d *DeviceCheck) SetSender(sender *report.MetricSender) {
 	d.sender = sender
 }
 
-// SetInterfaceBandwidthState sets the interface bandwidth state
-func (d *DeviceCheck) SetInterfaceBandwidthState(state report.InterfaceBandwidthState) {
-	d.interfaceBandwidthState = state
-}
-
-// GetInterfaceBandwidthState returns interface bandwidth state
-func (d *DeviceCheck) GetInterfaceBandwidthState() report.InterfaceBandwidthState {
-	return d.interfaceBandwidthState
-}
-
 // GetIPAddress returns device IP
 func (d *DeviceCheck) GetIPAddress() string {
 	return d.config.IPAddress
-}
-
-// GetDeviceID returns device ID
-func (d *DeviceCheck) GetDeviceID() string {
-	return d.config.DeviceID
 }
 
 // GetIDTags returns device IDTags
@@ -176,8 +158,6 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 
 	d.submitTelemetryMetrics(startTime, tags)
 	d.setDeviceHostExternalTags()
-	d.interfaceBandwidthState.RemoveExpiredBandwidthUsageRates(startTime.UnixNano())
-
 	return checkErr
 }
 

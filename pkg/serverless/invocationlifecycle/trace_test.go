@@ -15,6 +15,7 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 )
 
@@ -367,10 +368,14 @@ func TestEndExecutionSpanWithEmptyObjectRequestResponse(t *testing.T) {
 	t.Setenv(functionNameEnvVar, "TestFunction")
 	t.Setenv("DD_CAPTURE_LAMBDA_PAYLOAD", "true")
 	startTime := time.Now()
+	var tracePayload *api.Payload
 	lp := &LifecycleProcessor{
 		requestHandler: &RequestHandler{
 			executionInfo: currentExecutionInfo,
 			triggerTags:   make(map[string]string),
+		},
+		ProcessTrace: func(payload *api.Payload) {
+			tracePayload = payload
 		},
 	}
 	startDetails := &InvocationStartDetails{
@@ -393,7 +398,8 @@ func TestEndExecutionSpanWithEmptyObjectRequestResponse(t *testing.T) {
 		Runtime:            "dotnet6",
 	}
 
-	executionSpan := lp.endExecutionSpan(endDetails)
+	lp.endExecutionSpan(endDetails)
+	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	expectingResultMetaMap := map[string]string{
 		"request_id":        "test-request-id",
 		"cold_start":        "true",
@@ -417,10 +423,14 @@ func TestEndExecutionSpanWithNullRequestResponse(t *testing.T) {
 	t.Setenv(functionNameEnvVar, "TestFunction")
 	t.Setenv("DD_CAPTURE_LAMBDA_PAYLOAD", "true")
 	startTime := time.Now()
+	var tracePayload *api.Payload
 	lp := &LifecycleProcessor{
 		requestHandler: &RequestHandler{
 			executionInfo: currentExecutionInfo,
 			triggerTags:   make(map[string]string),
+		},
+		ProcessTrace: func(payload *api.Payload) {
+			tracePayload = payload
 		},
 	}
 	startDetails := &InvocationStartDetails{
@@ -443,7 +453,8 @@ func TestEndExecutionSpanWithNullRequestResponse(t *testing.T) {
 		Runtime:            "dotnet6",
 	}
 
-	executionSpan := lp.endExecutionSpan(endDetails)
+	lp.endExecutionSpan(endDetails)
+	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	expectingResultMetaMap := map[string]string{
 		"request_id":        "test-request-id",
 		"cold_start":        "true",
@@ -464,10 +475,14 @@ func TestEndExecutionSpanWithNullRequestResponse(t *testing.T) {
 
 func TestEndExecutionSpanWithNoError(t *testing.T) {
 	currentExecutionInfo := &ExecutionStartInfo{}
+	var tracePayload *api.Payload
 	lp := &LifecycleProcessor{
 		requestHandler: &RequestHandler{
 			executionInfo: currentExecutionInfo,
 			triggerTags:   make(map[string]string),
+		},
+		ProcessTrace: func(payload *api.Payload) {
+			tracePayload = payload
 		},
 	}
 	t.Setenv(functionNameEnvVar, "TestFunction")
@@ -494,7 +509,8 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 		Runtime:            "dotnet6",
 	}
 
-	executionSpan := lp.endExecutionSpan(endDetails)
+	lp.endExecutionSpan(endDetails)
+	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	expectingResultMetaMap := map[string]string{
 		"request_id":                "test-request-id",
 		"cold_start":                "true",
@@ -522,10 +538,14 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 
 func TestEndExecutionSpanProactInit(t *testing.T) {
 	currentExecutionInfo := &ExecutionStartInfo{}
+	var tracePayload *api.Payload
 	lp := &LifecycleProcessor{
 		requestHandler: &RequestHandler{
 			executionInfo: currentExecutionInfo,
 			triggerTags:   make(map[string]string),
+		},
+		ProcessTrace: func(payload *api.Payload) {
+			tracePayload = payload
 		},
 	}
 	t.Setenv(functionNameEnvVar, "TestFunction")
@@ -551,7 +571,8 @@ func TestEndExecutionSpanProactInit(t *testing.T) {
 		ProactiveInit:      true,
 	}
 
-	executionSpan := lp.endExecutionSpan(endDetails)
+	lp.endExecutionSpan(endDetails)
+	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	expectingResultMetaMap := map[string]string{
 		"request_id":                                           "test-request-id",
 		"cold_start":                                           "false",
@@ -583,10 +604,14 @@ func TestEndExecutionSpanWithInvalidCaptureLambdaPayloadValue(t *testing.T) {
 	testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}`
 	startTime := time.Now()
 	currentExecutionInfo := &ExecutionStartInfo{}
+	var tracePayload *api.Payload
 	lp := &LifecycleProcessor{
 		requestHandler: &RequestHandler{
 			executionInfo: currentExecutionInfo,
 			triggerTags:   make(map[string]string),
+		},
+		ProcessTrace: func(payload *api.Payload) {
+			tracePayload = payload
 		},
 	}
 	startDetails := &InvocationStartDetails{
@@ -605,7 +630,8 @@ func TestEndExecutionSpanWithInvalidCaptureLambdaPayloadValue(t *testing.T) {
 		ResponseRawPayload: []byte(`{"response":"test response payload"}`),
 	}
 
-	executionSpan := lp.endExecutionSpan(endDetails)
+	lp.endExecutionSpan(endDetails)
+	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.lambda", executionSpan.Name)
 	assert.Equal(t, "aws.lambda", executionSpan.Service)
 	assert.Equal(t, "TestFunction", executionSpan.Resource)
@@ -621,10 +647,14 @@ func TestEndExecutionSpanWithInvalidCaptureLambdaPayloadValue(t *testing.T) {
 
 func TestEndExecutionSpanWithError(t *testing.T) {
 	currentExecutionInfo := &ExecutionStartInfo{}
+	var tracePayload *api.Payload
 	lp := &LifecycleProcessor{
 		requestHandler: &RequestHandler{
 			executionInfo: currentExecutionInfo,
 			triggerTags:   make(map[string]string),
+		},
+		ProcessTrace: func(payload *api.Payload) {
+			tracePayload = payload
 		},
 	}
 	t.Setenv(functionNameEnvVar, "TestFunction")
@@ -645,7 +675,8 @@ func TestEndExecutionSpanWithError(t *testing.T) {
 		RequestID:          "test-request-id",
 		ResponseRawPayload: []byte(`{}`),
 	}
-	executionSpan := lp.endExecutionSpan(endDetails)
+	lp.endExecutionSpan(endDetails)
+	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, executionSpan.Error, int32(1))
 }
 
@@ -675,10 +706,14 @@ func TestLanguageTag(t *testing.T) {
 
 	for _, tc := range testCases {
 		currentExecutionInfo := &ExecutionStartInfo{}
+		var tracePayload *api.Payload
 		lp := &LifecycleProcessor{
 			requestHandler: &RequestHandler{
 				executionInfo: currentExecutionInfo,
 				triggerTags:   make(map[string]string),
+			},
+			ProcessTrace: func(payload *api.Payload) {
+				tracePayload = payload
 			},
 		}
 		t.Setenv(functionNameEnvVar, "TestFunction")
@@ -704,7 +739,8 @@ func TestLanguageTag(t *testing.T) {
 			Runtime:            tc.runtime, // add runtime
 		}
 
-		executionSpan := lp.endExecutionSpan(endDetails)
+		lp.endExecutionSpan(endDetails)
+		executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 		assert.Equal(t, "aws.lambda", executionSpan.Name)
 		assert.Equal(t, "aws.lambda", executionSpan.Service)
 		assert.Equal(t, "TestFunction", executionSpan.Resource)
@@ -823,13 +859,18 @@ func TestCompleteInferredSpanWithNoError(t *testing.T) {
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)
 	isError := false
+	var tracePayload *api.Payload
 	lp := &LifecycleProcessor{
 		requestHandler: &RequestHandler{
 			executionInfo: &ExecutionStartInfo{TraceID: 1234},
 		},
+		ProcessTrace: func(payload *api.Payload) {
+			tracePayload = payload
+		},
 	}
 
-	span := lp.completeInferredSpan(inferredSpan, endTime, isError)
+	lp.completeInferredSpan(inferredSpan, endTime, isError)
+	span := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.mock", span.Name)
 	assert.Equal(t, "aws.mock", span.Service)
 	assert.Equal(t, "test-function", span.Resource)
@@ -860,13 +901,18 @@ func TestCompleteInferredSpanWithError(t *testing.T) {
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)
 	isError := true
+	var tracePayload *api.Payload
 	lp := &LifecycleProcessor{
 		requestHandler: &RequestHandler{
 			executionInfo: &ExecutionStartInfo{TraceID: 1234},
 		},
+		ProcessTrace: func(payload *api.Payload) {
+			tracePayload = payload
+		},
 	}
 
-	span := lp.completeInferredSpan(inferredSpan, endTime, isError)
+	lp.completeInferredSpan(inferredSpan, endTime, isError)
+	span := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.mock", span.Name)
 	assert.Equal(t, "aws.mock", span.Service)
 	assert.Equal(t, "test-function", span.Resource)
@@ -899,13 +945,18 @@ func TestCompleteInferredSpanWithAsync(t *testing.T) {
 	}
 	endTime := time.Now()
 	isError := false
+	var tracePayload *api.Payload
 	lp := &LifecycleProcessor{
 		requestHandler: &RequestHandler{
 			executionInfo: &ExecutionStartInfo{TraceID: 1234},
 		},
+		ProcessTrace: func(payload *api.Payload) {
+			tracePayload = payload
+		},
 	}
 
-	span := lp.completeInferredSpan(inferredSpan, endTime, isError)
+	lp.completeInferredSpan(inferredSpan, endTime, isError)
+	span := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.mock", span.Name)
 	assert.Equal(t, "aws.mock", span.Service)
 	assert.Equal(t, "test-function", span.Resource)

@@ -24,11 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
-	"github.com/DataDog/datadog-agent/pkg/network/encoding/marshal"
-	"github.com/DataDog/datadog-agent/pkg/network/encoding/unmarshal"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -52,10 +49,10 @@ func newConfig(t *testing.T) {
 }
 
 func getBlobWriter(t *testing.T, assert *assert.Assertions, in *network.Connections, marshalerType string) *bytes.Buffer {
-	marshaler := marshal.GetMarshaler(marshalerType)
+	marshaler := GetMarshaler(marshalerType)
 	assert.Equal(marshalerType, marshaler.ContentType())
 	blobWriter := bytes.NewBuffer(nil)
-	connectionsModeler := marshal.NewConnectionsModeler(in)
+	connectionsModeler := NewConnectionsModeler(in)
 	defer connectionsModeler.Close()
 	err := marshaler.Marshal(in, blobWriter, connectionsModeler)
 	require.NoError(t, err)
@@ -343,7 +340,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		assert := assert.New(t)
 		blobWriter := getBlobWriter(t, assert, in, "application/json")
 
-		unmarshaler := unmarshal.GetUnmarshaler("application/json")
+		unmarshaler := GetUnmarshaler("application/json")
 		result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
 		require.NoError(t, err)
 
@@ -367,7 +364,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 
 		blobWriter := getBlobWriter(t, assert, in, "application/json")
 
-		unmarshaler := unmarshal.GetUnmarshaler("application/json")
+		unmarshaler := GetUnmarshaler("application/json")
 		result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
 		require.NoError(t, err)
 
@@ -388,17 +385,17 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		out := getExpectedConnections(false, httpOutBlob)
 		assert := assert.New(t)
 
-		marshaler := marshal.GetMarshaler("")
+		marshaler := GetMarshaler("")
 		// in case we request empty serialization type, default to application/json
 		assert.Equal("application/json", marshaler.ContentType())
 
 		blobWriter := bytes.NewBuffer(nil)
-		connectionsModeler := marshal.NewConnectionsModeler(in)
+		connectionsModeler := NewConnectionsModeler(in)
 		defer connectionsModeler.Close()
 		err := marshaler.Marshal(in, blobWriter, connectionsModeler)
 		require.NoError(t, err)
 
-		unmarshaler := unmarshal.GetUnmarshaler("")
+		unmarshaler := GetUnmarshaler("")
 		result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
 		require.NoError(t, err)
 
@@ -419,18 +416,18 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		out := getExpectedConnections(false, httpOutBlob)
 
 		assert := assert.New(t)
-		marshaler := marshal.GetMarshaler("application/whatever")
+		marshaler := GetMarshaler("application/whatever")
 
 		// In case we request an unsupported serialization type, we default to application/json
 		assert.Equal("application/json", marshaler.ContentType())
 
 		blobWriter := bytes.NewBuffer(nil)
-		connectionsModeler := marshal.NewConnectionsModeler(in)
+		connectionsModeler := NewConnectionsModeler(in)
 		defer connectionsModeler.Close()
 		err := marshaler.Marshal(in, blobWriter, connectionsModeler)
 		require.NoError(t, err)
 
-		unmarshaler := unmarshal.GetUnmarshaler("application/json")
+		unmarshaler := GetUnmarshaler("application/json")
 		result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
 		require.NoError(t, err)
 
@@ -478,7 +475,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 
 		blobWriter := getBlobWriter(t, assert, in, "application/protobuf")
 
-		unmarshaler := unmarshal.GetUnmarshaler("application/protobuf")
+		unmarshaler := GetUnmarshaler("application/protobuf")
 		result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
 		require.NoError(t, err)
 		sort.Strings(result.Tags)
@@ -494,7 +491,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		assert := assert.New(t)
 		blobWriter := getBlobWriter(t, assert, in, "application/protobuf")
 
-		unmarshaler := unmarshal.GetUnmarshaler("application/protobuf")
+		unmarshaler := GetUnmarshaler("application/protobuf")
 		result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
 		require.NoError(t, err)
 		sort.Strings(result.Tags)
@@ -590,14 +587,14 @@ func testHTTPSerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCo
 				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				HttpAggregations: httpOutBlob,
 				RouteIdx:         -1,
-				Protocol:         marshal.FormatProtocolStack(protocols.Stack{}, 0),
+				Protocol:         formatProtocolStack(protocols.Stack{}, 0),
 			},
 			{
 				Laddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
 				HttpAggregations: httpOutBlob,
 				RouteIdx:         -1,
-				Protocol:         marshal.FormatProtocolStack(protocols.Stack{}, 0),
+				Protocol:         formatProtocolStack(protocols.Stack{}, 0),
 			},
 		},
 		AgentConfiguration: &model.AgentConfiguration{
@@ -608,7 +605,7 @@ func testHTTPSerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCo
 
 	blobWriter := getBlobWriter(t, assert.New(t), in, "application/protobuf")
 
-	unmarshaler := unmarshal.GetUnmarshaler("application/protobuf")
+	unmarshaler := GetUnmarshaler("application/protobuf")
 	result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
 	require.NoError(t, err)
 	assertConnsEqual(t, out, result)
@@ -760,14 +757,14 @@ func testHTTP2SerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusC
 				Raddr:             &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				Http2Aggregations: http2OutBlob,
 				RouteIdx:          -1,
-				Protocol:          marshal.FormatProtocolStack(protocols.Stack{}, 0),
+				Protocol:          formatProtocolStack(protocols.Stack{}, 0),
 			},
 			{
 				Laddr:             &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				Raddr:             &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
 				Http2Aggregations: http2OutBlob,
 				RouteIdx:          -1,
-				Protocol:          marshal.FormatProtocolStack(protocols.Stack{}, 0),
+				Protocol:          formatProtocolStack(protocols.Stack{}, 0),
 			},
 		},
 		AgentConfiguration: &model.AgentConfiguration{
@@ -777,7 +774,7 @@ func testHTTP2SerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusC
 	}
 	blobWriter := getBlobWriter(t, assert.New(t), in, "application/protobuf")
 
-	unmarshaler := unmarshal.GetUnmarshaler("application/protobuf")
+	unmarshaler := GetUnmarshaler("application/protobuf")
 	result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
 	require.NoError(t, err)
 
@@ -813,7 +810,7 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 	encodeAndDecodeHTTP := func(c *network.Connections) *model.HTTPAggregations {
 		blobWriter := getBlobWriter(t, assert.New(t), in, "application/protobuf")
 
-		unmarshaler := unmarshal.GetUnmarshaler("application/protobuf")
+		unmarshaler := GetUnmarshaler("application/protobuf")
 		result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
 		require.NoError(t, err)
 
@@ -879,7 +876,7 @@ func TestPooledHTTP2ObjectGarbageRegression(t *testing.T) {
 	encodeAndDecodeHTTP2 := func(c *network.Connections) *model.HTTP2Aggregations {
 		blobWriter := getBlobWriter(t, assert.New(t), in, "application/protobuf")
 
-		unmarshaler := unmarshal.GetUnmarshaler("application/protobuf")
+		unmarshaler := GetUnmarshaler("application/protobuf")
 		result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
 		require.NoError(t, err)
 
@@ -934,7 +931,7 @@ func TestUSMPayloadTelemetry(t *testing.T) {
 	in := new(network.Connections)
 	blobWriter := getBlobWriter(t, assert.New(t), in, "application/protobuf")
 
-	unmarshaler := unmarshal.GetUnmarshaler("application/protobuf")
+	unmarshaler := GetUnmarshaler("application/protobuf")
 	result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
 	require.NoError(t, err)
 
@@ -942,104 +939,4 @@ func TestUSMPayloadTelemetry(t *testing.T) {
 	payloadTelemetry := result.ConnTelemetryMap
 	assert.Equal(t, int64(10), payloadTelemetry["usm.http.total_hits"])
 	assert.NotContains(t, payloadTelemetry, "foobar")
-}
-
-func TestKafkaSerializationWithLocalhostTraffic(t *testing.T) {
-	if runtime.GOOS != "linux" {
-		t.Skip("the feature is only supported on linux.")
-	}
-	var (
-		clientPort = uint16(52800)
-		serverPort = uint16(8080)
-		localhost  = util.AddressFromString("127.0.0.1")
-	)
-
-	connections := []network.ConnectionStats{
-		{
-			Source: localhost,
-			SPort:  clientPort,
-			Dest:   localhost,
-			DPort:  serverPort,
-			Pid:    1,
-		},
-		{
-			Source: localhost,
-			SPort:  serverPort,
-			Dest:   localhost,
-			DPort:  clientPort,
-			Pid:    2,
-		},
-	}
-
-	const topicName = "TopicName"
-	const apiVersion2 = 1
-	kafkaKey := kafka.NewKey(
-		localhost,
-		localhost,
-		clientPort,
-		serverPort,
-		topicName,
-		kafka.FetchAPIKey,
-		apiVersion2,
-	)
-
-	in := &network.Connections{
-		BufferedData: network.BufferedData{
-			Conns: connections,
-		},
-		Kafka: map[kafka.Key]*kafka.RequestStat{
-			kafkaKey: {
-				Count: 10,
-			},
-		},
-	}
-
-	kafkaOut := &model.DataStreamsAggregations{
-		KafkaAggregations: []*model.KafkaAggregation{
-			{
-				Header: &model.KafkaRequestHeader{
-					RequestType:    kafka.FetchAPIKey,
-					RequestVersion: apiVersion2,
-				},
-				Topic: topicName,
-				Count: 10,
-			},
-		},
-	}
-
-	kafkaOutBlob, err := proto.Marshal(kafkaOut)
-	require.NoError(t, err)
-
-	out := &model.Connections{
-		Conns: []*model.Connection{
-			{
-				Laddr:                   &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
-				Raddr:                   &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
-				DataStreamsAggregations: kafkaOutBlob,
-				RouteIdx:                -1,
-				Protocol:                marshal.FormatProtocolStack(protocols.Stack{}, 0),
-				Pid:                     1,
-			},
-			{
-				Laddr:                   &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
-				Raddr:                   &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
-				DataStreamsAggregations: kafkaOutBlob,
-				RouteIdx:                -1,
-				Protocol:                marshal.FormatProtocolStack(protocols.Stack{}, 0),
-				Pid:                     2,
-			},
-		},
-		AgentConfiguration: &model.AgentConfiguration{
-			NpmEnabled: false,
-			UsmEnabled: false,
-		},
-	}
-
-	blobWriter := getBlobWriter(t, assert.New(t), in, "application/protobuf")
-
-	unmarshaler := unmarshal.GetUnmarshaler("application/protobuf")
-	result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
-	require.NoError(t, err)
-
-	require.Equal(t, out, result)
 }

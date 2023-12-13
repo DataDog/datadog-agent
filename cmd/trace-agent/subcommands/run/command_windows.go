@@ -15,7 +15,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-//nolint:revive // TODO(APM) Fix revive linter
 type RunParams struct {
 	*subcommands.GlobalParams
 

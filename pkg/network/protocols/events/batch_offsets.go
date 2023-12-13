@@ -5,7 +5,6 @@
 
 //go:build linux_bpf
 
-// Package events contains implementation to unify perf-map communication between kernel and user space.
 package events
 
 import (

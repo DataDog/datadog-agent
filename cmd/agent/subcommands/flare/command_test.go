@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	//nolint:revive // TODO(ASC) Fix revive linter
 	assert "github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"

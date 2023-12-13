@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(SERV) Fix revive linter
 package registration
 
 import (
@@ -86,7 +85,6 @@ func extractFunctionARN(response *http.Response) (string, error) {
 		return "", err
 	}
 	functionName := respBody["functionName"]
-	//nolint:revive // TODO(SERV) Fix revive linter
 	accountId := respBody["accountId"]
 	region := os.Getenv("AWS_REGION")
 	partition := trigger.GetAWSPartitionByRegion(region)
@@ -139,8 +137,6 @@ func NoOpProcessEvent(ctx context.Context, id ID) error {
 }
 
 // NextUrl returns the /next endpoint
-//
-//nolint:revive // TODO(SERV) Fix revive linter
 func NextUrl() string {
 	return BuildURL(routeEventNext)
 }

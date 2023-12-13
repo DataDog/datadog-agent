@@ -24,10 +24,9 @@ import (
 )
 
 // Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newSubmitter))
-}
+var Module = fxutil.Component(
+	fx.Provide(newSubmitter),
+)
 
 // submitter implements the Component.
 type submitterImpl struct {

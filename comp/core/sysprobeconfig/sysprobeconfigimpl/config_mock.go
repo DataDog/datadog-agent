@@ -19,10 +19,9 @@ import (
 )
 
 // MockModule defines the fx options for the mock component.
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newMock))
-}
+var MockModule = fxutil.Component(
+	fx.Provide(newMock),
+)
 
 func newMock(deps dependencies, t testing.TB) sysprobeconfig.Component {
 	old := config.SystemProbe

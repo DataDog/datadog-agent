@@ -10,7 +10,6 @@ package metadata
 import (
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
@@ -20,16 +19,13 @@ import (
 // team: agent-shared-components
 
 // Bundle defines the fx options for this bundle.
-func Bundle() fxutil.BundleOptions {
-	return fxutil.Bundle(
-		runnerimpl.Module(),
-		resourcesimpl.Module(),
-		host.Module(),
-		inventoryagent.Module(),
-		inventoryhostimpl.Module(),
-		inventorychecksimpl.Module(),
-	)
-}
+var Bundle = fxutil.Bundle(
+	runnerimpl.Module,
+	resourcesimpl.Module,
+	host.Module,
+	inventoryagent.Module,
+	inventoryhostimpl.Module,
+)
 
 // MockBundle defines the mock fx options for this bundle.
-func MockBundle() fxutil.BundleOptions { return fxutil.Bundle() }
+var MockBundle = fxutil.Bundle()

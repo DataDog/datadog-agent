@@ -134,8 +134,9 @@ func TestSetFieldValue(t *testing.T) {
 			if err != nil {
 				if errors.As(err, &readOnlyError) {
 					continue
+				} else {
+					t.Error(err)
 				}
-				t.Error(err)
 			}
 			value, err := event.GetFieldValue(field)
 			if err != nil {
@@ -161,8 +162,9 @@ func TestSetFieldValue(t *testing.T) {
 			if err != nil {
 				if errors.As(err, &readOnlyError) {
 					continue
+				} else {
+					t.Error(err)
 				}
-				t.Error(err)
 			}
 			value, err := event.GetFieldValue(field)
 			if err != nil {

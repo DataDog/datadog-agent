@@ -22,10 +22,9 @@ import (
 )
 
 // Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newProfiler))
-}
+var Module = fxutil.Component(
+	fx.Provide(newProfiler),
+)
 
 type dependencies struct {
 	fx.In

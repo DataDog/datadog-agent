@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	//nolint:revive // TODO(CINT) Fix revive linter
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
@@ -208,6 +207,7 @@ func (p *processor) processHostRefresh() {
 			InUse:              true,
 			GeneratedAt:        timestamppb.New(result.CreatedAt),
 			GenerationDuration: convertDuration(result.Duration),
+			Hash:               result.Report.ID(),
 		}
 
 		if result.Error != nil {
@@ -234,7 +234,6 @@ func (p *processor) processHostRefresh() {
 					}
 				}
 
-				sbom.Hash = result.Report.ID()
 				p.hostCache = result.Report.ID()
 				p.hostLastFullSBOM = result.CreatedAt
 			}

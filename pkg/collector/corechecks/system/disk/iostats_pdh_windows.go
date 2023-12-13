@@ -32,14 +32,10 @@ var (
 )
 
 const (
-	//nolint:revive // TODO(WINA) Fix revive linter
-	ERROR_SUCCESS = 0
-	//nolint:revive // TODO(WINA) Fix revive linter
+	ERROR_SUCCESS        = 0
 	ERROR_FILE_NOT_FOUND = 2
-	//nolint:revive // TODO(WINA) Fix revive linter
-	DRIVE_REMOVABLE = 2
-	//nolint:revive // TODO(WINA) Fix revive linter
-	DRIVE_FIXED = 3
+	DRIVE_REMOVABLE      = 2
+	DRIVE_FIXED          = 3
 )
 
 // IOCheck doesn't need additional fields
@@ -69,7 +65,6 @@ func isDrive(instance string) bool {
 	instance += "\\"
 
 	r := pfnGetDriveType(instance)
-	//nolint:gosimple // TODO(WINA) Fix gosimple linter
 	if r != DRIVE_FIXED {
 		return false
 	}

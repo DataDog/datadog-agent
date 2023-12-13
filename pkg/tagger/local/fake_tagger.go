@@ -108,8 +108,6 @@ func (f *FakeTagger) GetEntity(entityID string) (*types.Entity, error) {
 }
 
 // List fake implementation
-//
-//nolint:revive // TODO(CINT) Fix revive linter
 func (f *FakeTagger) List(cardinality collectors.TagCardinality) tagger_api.TaggerListResponse {
 	return f.store.List()
 }

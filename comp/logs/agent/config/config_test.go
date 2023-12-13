@@ -10,13 +10,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/suite"
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pointer "github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/stretchr/testify/suite"
+	"go.uber.org/fx"
 )
 
 type ConfigTestSuite struct {
@@ -26,7 +25,7 @@ type ConfigTestSuite struct {
 
 func (suite *ConfigTestSuite) SetupTest() {
 	suite.config = fxutil.Test[config.Component](suite.T(), fx.Options(
-		config.MockModule(),
+		config.MockModule,
 	)).(config.Mock)
 }
 
@@ -816,7 +815,7 @@ func Test_parseAddressWithScheme(t *testing.T) {
 			wantErr:    false,
 		},
 		{
-			name: "url with https prefix and logs_no_ssl set true",
+			name: "url with https prefix",
 			args: args{
 				address:       "https://localhost",
 				defaultNoSSL:  true,
@@ -824,19 +823,7 @@ func Test_parseAddressWithScheme(t *testing.T) {
 			},
 			wantHost:   "localhost",
 			wantPort:   0,
-			wantUseSSL: false,
-			wantErr:    false,
-		},
-		{
-			name: "url with http prefix and logs_no_ssl set false",
-			args: args{
-				address:       "http://localhost",
-				defaultNoSSL:  false,
-				defaultParser: parseAddress,
-			},
-			wantHost:   "localhost",
-			wantPort:   0,
-			wantUseSSL: false,
+			wantUseSSL: true,
 			wantErr:    false,
 		},
 		{
@@ -871,7 +858,7 @@ func Test_parseAddressWithScheme(t *testing.T) {
 			},
 			wantHost:   "localhost",
 			wantPort:   0,
-			wantUseSSL: false,
+			wantUseSSL: true,
 			wantErr:    false,
 		},
 		{

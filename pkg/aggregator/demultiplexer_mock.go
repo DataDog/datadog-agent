@@ -38,8 +38,6 @@ type TestAgentDemultiplexer struct {
 }
 
 // AggregateSamples implements a noop timesampler, appending the samples in an internal slice.
-//
-//nolint:revive // TODO(AML) Fix revive linter
 func (a *TestAgentDemultiplexer) AggregateSamples(shard TimeSamplerID, samples metrics.MetricSampleBatch) {
 	a.Lock()
 	a.aggregatedSamples = append(a.aggregatedSamples, samples...)
@@ -162,8 +160,6 @@ func (a *TestAgentDemultiplexer) Reset() {
 }
 
 // InitTestAgentDemultiplexerWithFlushInterval inits a TestAgentDemultiplexer with the given options.
-//
-//nolint:revive // TODO(AML) Fix revive linter
 func InitTestAgentDemultiplexerWithOpts(log log.Component, sharedForwarderOptions *defaultforwarder.Options, opts AgentDemultiplexerOptions) *TestAgentDemultiplexer {
 	sharedForwarder := defaultforwarder.NewDefaultForwarder(config.Datadog, log, sharedForwarderOptions)
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})

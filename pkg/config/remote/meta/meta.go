@@ -3,11 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package meta provides a way to access embedded remote config TUF metadata
 package meta
 
 import (
 	_ "embed"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 var (
@@ -33,20 +34,20 @@ var rootsConfig = EmbeddedRoots{
 }
 
 // RootsDirector returns all the roots of the director repo
-func RootsDirector(directorRootOverride string) EmbeddedRoots {
-	if directorRootOverride != "" {
+func RootsDirector() EmbeddedRoots {
+	if directorRoot := config.Datadog.GetString("remote_configuration.director_root"); directorRoot != "" {
 		return EmbeddedRoots{
-			1: EmbeddedRoot(directorRootOverride),
+			1: EmbeddedRoot(directorRoot),
 		}
 	}
 	return rootsDirector
 }
 
 // RootsConfig returns all the roots of the director repo
-func RootsConfig(configRootOverride string) EmbeddedRoots {
-	if configRootOverride != "" {
+func RootsConfig() EmbeddedRoots {
+	if configRoot := config.Datadog.GetString("remote_configuration.config_root"); configRoot != "" {
 		return EmbeddedRoots{
-			1: EmbeddedRoot(configRootOverride),
+			1: EmbeddedRoot(configRoot),
 		}
 	}
 	return rootsConfig

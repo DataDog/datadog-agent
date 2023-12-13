@@ -32,7 +32,6 @@ func processContainerStats(containerID string, stats interface{}) (*provider.Con
 	return getContainerdStatsWindows(windowsMetrics), nil
 }
 
-//nolint:revive // TODO(CINT) Fix revive linter
 func processContainerNetworkStats(containerID string, stats interface{}) (*provider.ContainerNetworkStats, error) {
 	// Not available on Windows
 	return nil, nil

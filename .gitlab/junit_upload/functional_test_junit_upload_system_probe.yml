@@ -5,10 +5,11 @@ functional_test_junit_upload_system_probe:
   stage: functional_test_junit_upload
   rules:
     - !reference [.except_mergequeue]
-    - when: always
+    - when: on_success
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/datadog-ci-uploader$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   allow_failure: true
+  when: always
   needs:
     - job: kitchen_test_system_probe_linux_x64_ec2
       optional: true
@@ -27,9 +28,7 @@ functional_test_junit_upload_system_probe:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/datadog-ci-uploader$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   allow_failure: true
-  rules:
-    - !reference [.except_mergequeue]
-    - when: always
+  when: always
   variables:
     DD_ENV: ci
   script:

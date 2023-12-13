@@ -18,13 +18,12 @@ import (
 // MockModule defines the fx options for the mock component.
 // Injecting MockModule will provide the hostname 'my-hostname';
 // override this with fx.Replace(statsd.MockClient(client)).
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(
-			newMock,
-		),
-		fx.Supply(fx.Annotate(&ddgostatsd.NoOpClient{}, fx.As(new(MockClient)))))
-}
+var MockModule = fxutil.Component(
+	fx.Provide(
+		newMock,
+	),
+	fx.Supply(fx.Annotate(&ddgostatsd.NoOpClient{}, fx.As(new(MockClient)))),
+)
 
 type mockService struct {
 	client ddgostatsd.ClientInterface

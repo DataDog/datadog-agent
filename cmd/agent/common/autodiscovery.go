@@ -203,8 +203,6 @@ func (sf schedulerFunc) Schedule(configs []integration.Config) {
 }
 
 // Unschedule implements scheduler.Scheduler#Unschedule.
-//
-//nolint:revive // TODO(ASC) Fix revive linter
 func (sf schedulerFunc) Unschedule(configs []integration.Config) {
 	// (do nothing)
 }

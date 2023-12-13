@@ -10,6 +10,7 @@ package kubeapiserver
 
 import (
 	"context"
+	"regexp"
 	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -21,10 +22,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	languagedetectionUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
-
 	ddkube "github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
+
+var re = regexp.MustCompile(`apm\.datadoghq\.com\/(init)?\.?(.+?)\.languages`)
 
 // deploymentFilter filters out deployments that can't be used for unified service tagging or process language detection
 type deploymentFilter struct{}
@@ -91,14 +92,16 @@ func (p deploymentParser) Parse(obj interface{}) workloadmeta.Entity {
 	containerLanguages := make(map[string][]languagemodels.Language)
 
 	for annotation, languages := range deployment.Annotations {
-
-		containerName, isInitContainer := languagedetectionUtil.ExtractContainerFromAnnotationKey(annotation)
-		if containerName != "" {
-			if isInitContainer {
-				updateContainerLanguageMap(initContainerLanguages, containerName, languages)
-			} else {
-				updateContainerLanguageMap(containerLanguages, containerName, languages)
-			}
+		// find a match
+		matches := re.FindStringSubmatch(annotation)
+		if len(matches) != 3 {
+			continue
+		}
+		// matches[1] matches "init"
+		if matches[1] != "" {
+			updateContainerLanguageMap(initContainerLanguages, matches[2], languages)
+		} else {
+			updateContainerLanguageMap(containerLanguages, matches[2], languages)
 		}
 	}
 

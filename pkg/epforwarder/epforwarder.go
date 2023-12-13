@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(ASC) Fix revive linter
 package epforwarder
 
 import (
@@ -44,7 +43,6 @@ const (
 	// EventTypeNetworkDevicesNetFlow is the event type for network devices NetFlow data
 	EventTypeNetworkDevicesNetFlow = "network-devices-netflow"
 
-	//nolint:revive // TODO(ASC) Fix revive linter
 	EventTypeContainerLifecycle = "container-lifecycle"
 	EventTypeContainerImages    = "container-images"
 	EventTypeContainerSBOM      = "container-sbom"
@@ -485,7 +483,6 @@ func NewNoopEventPlatformForwarder() EventPlatformForwarder {
 	return f
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
 func GetGlobalReceiver() *diagnostic.BufferedMessageReceiver {
 	if globalReceiver == nil {
 		globalReceiver = diagnostic.NewBufferedMessageReceiver(&epFormatter{})

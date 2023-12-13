@@ -25,7 +25,6 @@ type TestDriverHandleFail struct {
 
 func (tdh *TestDriverHandleFail) RefreshStats() {}
 
-//nolint:revive // TODO(WKIT) Fix revive linter
 func (tdh *TestDriverHandleFail) ReadFile(p []byte, bytesRead *uint32, ol *windows.Overlapped) error {
 	fmt.Printf("Got ReadFile call")
 	// check state in struct to see if we've been called before
@@ -44,7 +43,6 @@ func (tdh *TestDriverHandleFail) GetWindowsHandle() windows.Handle {
 	return windows.Handle(0)
 }
 
-//nolint:revive // TODO(WKIT) Fix revive linter
 func (tdh *TestDriverHandleFail) DeviceIoControl(ioControlCode uint32, inBuffer *byte, inBufferSize uint32, outBuffer *byte, outBufferSize uint32, bytesReturned *uint32, overlapped *windows.Overlapped) (err error) {
 	fmt.Printf("Got test ioctl call")
 	if ioControlCode != 0 {
@@ -53,7 +51,6 @@ func (tdh *TestDriverHandleFail) DeviceIoControl(ioControlCode uint32, inBuffer 
 	return nil
 }
 
-//nolint:revive // TODO(WKIT) Fix revive linter
 func (tdh *TestDriverHandleFail) CancelIoEx(ol *windows.Overlapped) error {
 	return nil
 }
@@ -62,13 +59,10 @@ func (tdh *TestDriverHandleFail) Close() error {
 	return nil
 }
 
-//nolint:revive // TODO(WKIT) Fix revive linter
 func NewFailHandle(flags uint32, handleType driver.HandleType) (driver.Handle, error) {
 	return &TestDriverHandleFail{}, nil
 }
 
-//nolint:revive // TODO(WKIT) Fix revive linter
 func TestSetFlowFiltersFail(t *testing.T) {
-	//nolint:gosimple // TODO(WKIT) Fix gosimple linter
 	return
 }

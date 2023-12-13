@@ -3,11 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
 package command
 
 import (
-	//nolint:revive // TODO(AML) Fix revive linter
 	_ "expvar"
 	_ "net/http/pprof"
 
@@ -17,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/version"
 )
 
-//nolint:revive // TODO(AML) Fix revive linter
 func MakeRootCommand(defaultLogFile string) *cobra.Command {
 	// dogstatsdCmd is the root command
 	dogstatsdCmd := &cobra.Command{

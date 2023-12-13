@@ -16,11 +16,11 @@ import (
 )
 
 // SecurityAgentCommands returns security agent commands
-func SecurityAgentCommands(_ *command.GlobalParams) []*cobra.Command {
+func SecurityAgentCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	return nil
 }
 
 // ClusterAgentCommands returns cluster agent commands
-func ClusterAgentCommands(_ core.BundleParams) []*cobra.Command {
+func ClusterAgentCommands(bundleParams core.BundleParams) []*cobra.Command {
 	return nil
 }

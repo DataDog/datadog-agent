@@ -3,5 +3,4 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(APL) Fix revive linter
 package newe2e

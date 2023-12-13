@@ -55,12 +55,6 @@ type UDSListener struct {
 	transport string
 
 	dogstatsdMemBasedRateLimiter bool
-
-	packetBufferSize         uint
-	packetBufferFlushTimeout time.Duration
-	telemetryWithListenerID  bool
-
-	listenWg *sync.WaitGroup
 }
 
 // CloseFunction is a function that closes a connection
@@ -137,10 +131,6 @@ func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 		dogstatsdMemBasedRateLimiter: cfg.GetBool("dogstatsd_mem_based_rate_limiter.enabled"),
 		config:                       cfg,
 		transport:                    transport,
-		packetBufferSize:             uint(cfg.GetInt("dogstatsd_packet_buffer_size")),
-		packetBufferFlushTimeout:     cfg.GetDuration("dogstatsd_packet_buffer_flush_timeout"),
-		telemetryWithListenerID:      cfg.GetBool("dogstatsd_telemetry_enabled_listener_id"),
-		listenWg:                     &sync.WaitGroup{},
 	}
 
 	// Init the oob buffer pool if origin detection is enabled
@@ -159,15 +149,15 @@ func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 func (l *UDSListener) handleConnection(conn *net.UnixConn, closeFunc CloseFunction) error {
 	listenerID := l.getListenerID(conn)
 	tlmListenerID := listenerID
-	telemetryWithFullListenerID := l.telemetryWithListenerID
+	telemetryWithFullListenerID := l.config.GetBool("dogstatsd_telemetry_enabled_listener_id")
 	if !telemetryWithFullListenerID {
 		// In case we don't want the full listener id, we only keep the transport.
 		tlmListenerID = "uds-" + conn.LocalAddr().Network()
 	}
 
 	packetsBuffer := packets.NewBuffer(
-		l.packetBufferSize,
-		l.packetBufferFlushTimeout,
+		uint(l.config.GetInt("dogstatsd_packet_buffer_size")),
+		l.config.GetDuration("dogstatsd_packet_buffer_flush_timeout"),
 		l.packetOut,
 		tlmListenerID,
 	)
@@ -372,7 +362,6 @@ func (l *UDSListener) getListenerID(conn *net.UnixConn) string {
 // Stop closes the UDS connection and stops listening
 func (l *UDSListener) Stop() {
 	// Socket cleanup on exit is not necessary as sockets are automatically removed by go.
-	l.listenWg.Wait()
 }
 
 func (l *UDSListener) clearTelemetry(id string) {

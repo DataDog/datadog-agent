@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-// Package matrix provides a utility for running a single Go command
 package matrix
 
 import (
@@ -33,7 +32,7 @@ type Runner struct {
 	Versions []goversion.GoVersion
 	// List of Go architectures (values for GOARCH) to run commands on.
 	Architectures []string
-	// The root directory that the matrix runner should use to install the Go toolchain versions.
+	// The root directory that the matrix runner should use to install the Go tooclahin versions.
 	InstallDirectory string
 	// Constructs the command to run for the single architecture-version runner.
 	// The implementation should use `exec.CommandContext` and pass in the supplied context

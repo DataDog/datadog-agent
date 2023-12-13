@@ -517,7 +517,6 @@ func (ad *ActivityDump) Insert(event *model.Event) {
 		ad.checkInMemorySize()
 	}
 
-	//nolint:gosimple // TODO(SEC) Fix gosimple linter
 	return
 }
 

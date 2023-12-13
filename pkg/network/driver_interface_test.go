@@ -25,7 +25,6 @@ type TestDriverHandleInfiniteLoop struct {
 
 func (tdh *TestDriverHandleInfiniteLoop) RefreshStats() {}
 
-//nolint:revive // TODO(WKIT) Fix revive linter
 func (tdh *TestDriverHandleInfiniteLoop) ReadFile(p []byte, bytesRead *uint32, ol *windows.Overlapped) error {
 	// check state in struct to see if we've been called before
 	if tdh.hasBeenCalled {
@@ -45,12 +44,10 @@ func (tdh *TestDriverHandleInfiniteLoop) GetWindowsHandle() windows.Handle {
 	return windows.Handle(0)
 }
 
-//nolint:revive // TODO(WKIT) Fix revive linter
 func (tdh *TestDriverHandleInfiniteLoop) DeviceIoControl(ioControlCode uint32, inBuffer *byte, inBufferSize uint32, outBuffer *byte, outBufferSize uint32, bytesReturned *uint32, overlapped *windows.Overlapped) (err error) {
 	return nil
 }
 
-//nolint:revive // TODO(WKIT) Fix revive linter
 func (tdh *TestDriverHandleInfiniteLoop) CancelIoEx(ol *windows.Overlapped) error {
 	return nil
 }

@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-// Package asmscan provides functions for scanning the machine code of functions.
 package asmscan
 
 import (

@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
 package mock
 
 import (
@@ -32,8 +31,6 @@ func (p *mockProvider) Start() {}
 func (p *mockProvider) Stop() {}
 
 // Flush does nothing
-//
-//nolint:revive // TODO(AML) Fix revive linter
 func (p *mockProvider) Flush(ctx context.Context) {}
 
 // NextPipelineChan returns the next pipeline

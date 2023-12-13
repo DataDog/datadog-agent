@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 
-cd "${ARTIFACTS_DIR}"
+REPORTS_DIR="$(pwd)/reports/"
+mkdir "${REPORTS_DIR}" || :
+
+ARTIFACTS_DIR="/artifacts/${CI_JOB_ID}"
+mkdir -p "${ARTIFACTS_DIR}" && cd "${ARTIFACTS_DIR}"
 
 # Collect software information
 
@@ -17,3 +21,7 @@ cd "${ARTIFACTS_DIR}"
 (which hwinfo && hwinfo > hwinfo-full.txt) || :
 #cpupower frequency-info > cpupower-frequency-info.txt
 #turbostat -n 1 > turbostat.txt
+
+# Save all collected information to Gitlab reports as well
+
+cp * "${REPORTS_DIR}"

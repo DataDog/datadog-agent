@@ -17,10 +17,9 @@ import (
 )
 
 // Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newCheck))
-}
+var Module = fxutil.Component(
+	fx.Provide(newCheck),
+)
 
 var _ types.CheckComponent = (*check)(nil)
 

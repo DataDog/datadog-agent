@@ -70,7 +70,6 @@ func getCtx(extras map[string]interface{}) (*bun.DB, context.Context) {
 	return db, taskCtx
 }
 
-// RunAlterQuery runs ALTER query on the test DB.
 func RunAlterQuery(t *testing.T, extras map[string]interface{}) {
 	t.Helper()
 	db, ctx := getCtx(extras)
@@ -79,7 +78,6 @@ func RunAlterQuery(t *testing.T, extras map[string]interface{}) {
 	require.NoError(t, err)
 }
 
-// RunCreateQuery creates a new table.
 func RunCreateQuery(t *testing.T, extras map[string]interface{}) {
 	t.Helper()
 	db, ctx := getCtx(extras)
@@ -88,7 +86,6 @@ func RunCreateQuery(t *testing.T, extras map[string]interface{}) {
 	require.NoError(t, err)
 }
 
-// RunDeleteQuery run a deletion query on the test DB.
 func RunDeleteQuery(t *testing.T, extras map[string]interface{}) {
 	t.Helper()
 	db, ctx := getCtx(extras)
@@ -97,7 +94,6 @@ func RunDeleteQuery(t *testing.T, extras map[string]interface{}) {
 	require.NoError(t, err)
 }
 
-// RunDropQuery drops a table.
 func RunDropQuery(t *testing.T, extras map[string]interface{}) {
 	t.Helper()
 	db, ctx := getCtx(extras)
@@ -106,7 +102,6 @@ func RunDropQuery(t *testing.T, extras map[string]interface{}) {
 	require.NoError(t, err)
 }
 
-// RunInsertQuery inserts a new row in the table.
 func RunInsertQuery(t *testing.T, id int64, extras map[string]interface{}) {
 	t.Helper()
 	db, ctx := getCtx(extras)
@@ -118,7 +113,6 @@ func RunInsertQuery(t *testing.T, id int64, extras map[string]interface{}) {
 	require.NoError(t, err)
 }
 
-// RunSelectQuery runs a SELECT query on the test DB.
 func RunSelectQuery(t *testing.T, extras map[string]interface{}) {
 	t.Helper()
 	db, ctx := getCtx(extras)
@@ -127,7 +121,6 @@ func RunSelectQuery(t *testing.T, extras map[string]interface{}) {
 	require.NoError(t, err)
 }
 
-// RunUpdateQuery runs an UPDATE query on the test DB.
 func RunUpdateQuery(t *testing.T, extras map[string]interface{}) {
 	t.Helper()
 	db, ctx := getCtx(extras)

@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
-//nolint:revive // TODO(APL) Fix revive linter
 type CheckRun struct {
 	collectedTime time.Time
 	Check         string   `json:"check"`
@@ -66,12 +65,10 @@ func ParseCheckRunPayload(payload api.Payload) (checks []*CheckRun, err error) {
 	return checks, err
 }
 
-//nolint:revive // TODO(APL) Fix revive linter
 type CheckRunAggregator struct {
 	Aggregator[*CheckRun]
 }
 
-//nolint:revive // TODO(APL) Fix revive linter
 func NewCheckRunAggregator() CheckRunAggregator {
 	return CheckRunAggregator{
 		Aggregator: newAggregator(ParseCheckRunPayload),

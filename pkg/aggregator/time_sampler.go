@@ -11,7 +11,9 @@ import (
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/limiter"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags_limiter"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -45,7 +47,7 @@ type TimeSampler struct {
 }
 
 // NewTimeSampler returns a newly initialized TimeSampler
-func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, hostname string) *TimeSampler {
+func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, contextsLimiter *limiter.Limiter, tagsLimiter *tags_limiter.Limiter, hostname string) *TimeSampler {
 	if interval == 0 {
 		interval = bucketSize
 	}
@@ -54,7 +56,7 @@ func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, hostnam
 
 	s := &TimeSampler{
 		interval:                    interval,
-		contextResolver:             newTimestampContextResolver(cache),
+		contextResolver:             newTimestampContextResolver(cache, contextsLimiter, tagsLimiter),
 		metricsByTimestamp:          map[int64]metrics.ContextMetrics{},
 		counterLastSampledByContext: map[ckey.ContextKey]float64{},
 		sketchMap:                   make(sketchMap),
@@ -81,7 +83,11 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 	}
 
 	// Keep track of the context
-	contextKey := s.contextResolver.trackContext(metricSample, timestamp)
+	contextKey, ok := s.contextResolver.trackContext(metricSample, timestamp)
+	if !ok {
+		return
+	}
+
 	bucketStart := s.calculateBucketStart(timestamp)
 
 	switch metricSample.Mtype {
@@ -107,11 +113,7 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 }
 
 func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) *metrics.SketchSeries {
-	ctx, ok := s.contextResolver.get(ck)
-	if !ok {
-		return nil
-	}
-
+	ctx, _ := s.contextResolver.get(ck)
 	ss := &metrics.SketchSeries{
 		Name:       ctx.Name,
 		Tags:       ctx.Tags(),
@@ -217,12 +219,7 @@ func (s *TimeSampler) flushSketches(cutoffTime int64, sketchesSink metrics.Sketc
 		pointsByCtx[ck] = append(pointsByCtx[ck], p)
 	})
 	for ck, points := range pointsByCtx {
-		ss := s.newSketchSeries(ck, points)
-		if ss == nil {
-			log.Errorf("TimeSampler #%d Ignoring all metrics on context key '%v': inconsistent context resolver state: the context is not tracked", s.id, ck)
-			continue
-		}
-		sketchesSink.Append(ss)
+		sketchesSink.Append(s.newSketchSeries(ck, points))
 	}
 }
 
@@ -315,6 +312,10 @@ func (s *TimeSampler) sendTelemetry(timestamp float64, series metrics.SerieSink)
 
 	if config.Datadog.GetBool("telemetry.dogstatsd_origin") {
 		s.contextResolver.sendOriginTelemetry(timestamp, series, s.hostname, tags)
+	}
+
+	if config.Datadog.GetBool("telemetry.dogstatsd_limiter") {
+		s.contextResolver.sendLimiterTelemetry(timestamp, series, s.hostname, tags)
 	}
 }
 

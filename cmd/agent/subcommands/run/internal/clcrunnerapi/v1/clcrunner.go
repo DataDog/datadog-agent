@@ -37,8 +37,6 @@ func SetupHandlers(r *mux.Router) {
 }
 
 // getCLCRunnerStats retrieves Cluster Level Check runners stats
-//
-//nolint:revive // TODO(ASC) Fix revive linter
 func getCLCRunnerStats(w http.ResponseWriter, r *http.Request) {
 	log.Info("Got a request for the runner stats. Making stats.")
 	w.Header().Set("Content-Type", "application/json")
@@ -97,7 +95,6 @@ func replaceIDsWithIDsKnownByDCA(stats map[string]status.CLCStats) map[string]st
 	return res
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
 func getCLCRunnerWorkers(w http.ResponseWriter, r *http.Request) {
 	log.Info("Got a request for the runner workers")
 	w.Header().Set("Content-Type", "application/json")

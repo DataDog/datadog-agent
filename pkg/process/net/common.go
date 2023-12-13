@@ -22,7 +22,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding/unmarshal"
+	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding"
 	procEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding"
 	reqEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding/request"
 	languagepb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/languagedetection"
@@ -229,7 +229,6 @@ func newSystemProbe(path string) *RemoteSysProbeUtil {
 	}
 }
 
-//nolint:revive // TODO(PROC) Fix revive linter
 func (r *RemoteSysProbeUtil) DetectLanguage(pids []int32) ([]languagemodels.Language, error) {
 	procs := make([]*languagepb.Process, len(pids))
 	for i, pid := range pids {

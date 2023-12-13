@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(PROC) Fix revive linter
 package checks
 
 import (
@@ -76,12 +75,10 @@ type RunResult interface {
 // StandardRunResult is a run result containing payloads for standard run
 type StandardRunResult []model.MessageBody
 
-//nolint:revive // TODO(PROC) Fix revive linter
 func (p StandardRunResult) Payloads() []model.MessageBody {
 	return p
 }
 
-//nolint:revive // TODO(PROC) Fix revive linter
 func (p StandardRunResult) RealtimePayloads() []model.MessageBody {
 	return nil
 }
@@ -92,12 +89,10 @@ type CombinedRunResult struct {
 	Realtime []model.MessageBody
 }
 
-//nolint:revive // TODO(PROC) Fix revive linter
 func (p CombinedRunResult) Payloads() []model.MessageBody {
 	return p.Standard
 }
 
-//nolint:revive // TODO(PROC) Fix revive linter
 func (p CombinedRunResult) RealtimePayloads() []model.MessageBody {
 	return p.Realtime
 }

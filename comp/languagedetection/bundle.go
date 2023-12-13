@@ -14,13 +14,11 @@ import (
 // team: container-integrations
 
 // Bundle defines the fx options for this bundle.
-func Bundle() fxutil.BundleOptions {
-	return fxutil.Bundle(
-		client.Module())
-}
+var Bundle = fxutil.Bundle(
+	client.Module,
+)
 
 // MockBundle defines the fx options for this bundle.
-func MockBundle() fxutil.BundleOptions {
-	return fxutil.Bundle(
-		client.Module())
-}
+var MockBundle = fxutil.Bundle(
+	client.Module,
+)

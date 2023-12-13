@@ -35,7 +35,7 @@ func createJavaTempFile(t *testing.T, dir string) string {
 func TestJavaInjection(t *testing.T) {
 	cfg := networkconfig.New()
 	cfg.EnableJavaTLSSupport = true
-	if !http.TLSSupported(cfg) {
+	if !http.HTTPSSupported(cfg) {
 		t.Skip("Java injection tests are not supported on this machine")
 	}
 

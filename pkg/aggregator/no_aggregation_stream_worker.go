@@ -77,7 +77,6 @@ func init() {
 	noaggExpvars.Set("Flush", &expvarNoAggFlush)
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func newNoAggregationStreamWorker(maxMetricsPerPayload int, metricSamplePool *metrics.MetricSamplePool,
 	serializer serializer.MetricSerializer, flushConfig FlushAndSerializeInParallel,
 ) *noAggregationStreamWorker {

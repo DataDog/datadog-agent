@@ -53,9 +53,7 @@ type Source struct {
 	Info          map[string][]string    `json:"info"`
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 type Tailer struct {
-	//nolint:revive // TODO(AML) Fix revive linter
 	Id   string              `json:"id"`
 	Type string              `json:"type"`
 	Info map[string][]string `json:"info"`

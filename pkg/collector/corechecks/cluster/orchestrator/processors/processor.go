@@ -26,13 +26,12 @@ var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 // ProcessorContext holds resource processing attributes
 type ProcessorContext struct {
-	APIClient  *apiserver.APIClient
-	Cfg        *config.OrchestratorConfig
-	ClusterID  string
-	HostName   string
-	MsgGroupID int32
-	NodeType   pkgorchestratormodel.NodeType
-	//nolint:revive // TODO(CAPP) Fix revive linter
+	APIClient          *apiserver.APIClient
+	Cfg                *config.OrchestratorConfig
+	ClusterID          string
+	HostName           string
+	MsgGroupID         int32
+	NodeType           pkgorchestratormodel.NodeType
 	ApiGroupVersionTag string
 }
 

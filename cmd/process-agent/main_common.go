@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(PROC) Fix revive linter
 package main
 
 import (
@@ -127,13 +126,13 @@ func runApp(ctx context.Context, globalParams *command.GlobalParams) error {
 		fx.Populate(&appInitDeps),
 
 		// Provide core components
-		core.Bundle(),
+		core.Bundle,
 
 		// Provide process agent bundle so fx knows where to find components
-		process.Bundle(),
+		process.Bundle,
 
 		// Provide remote config client module
-		rcclient.Module(),
+		rcclient.Module,
 
 		// Provide the corresponding workloadmeta Params to configure the catalog
 		collectors.GetCatalog(),

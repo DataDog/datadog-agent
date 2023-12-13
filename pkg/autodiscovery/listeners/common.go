@@ -5,7 +5,6 @@
 
 //go:build !serverless
 
-//nolint:revive // TODO(CINT) Fix revive linter
 package listeners
 
 import (

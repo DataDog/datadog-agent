@@ -17,10 +17,9 @@ import (
 // - display warnings when deprecated flags are encountered
 func FixDeprecatedFlags(args []string, w io.Writer) []string {
 	var (
-		replacePid     = cli.ReplaceFlagExact("--pidfile")
-		replaceInfo    = cli.ReplaceFlagExact("info")
-		replaceVersion = cli.ReplaceFlagExact("version")
-		//nolint:revive // TODO(APM) Fix revive linter
+		replacePid        = cli.ReplaceFlagExact("--pidfile")
+		replaceInfo       = cli.ReplaceFlagExact("info")
+		replaceVersion    = cli.ReplaceFlagExact("version")
 		replaceCpuProfile = cli.ReplaceFlagExact("--cpu-profile")
 		replaceMemProfile = cli.ReplaceFlagExact("--mem-profile")
 	)

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package rcclient //nolint:revive // TODO(RC) Fix revive linter
+package rcclient
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
@@ -28,7 +28,6 @@ type Component interface {
 }
 
 // Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newRemoteConfigClient))
-}
+var Module = fxutil.Component(
+	fx.Provide(newRemoteConfigClient),
+)

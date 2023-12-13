@@ -295,8 +295,9 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 		if lastErr == nil {
 			scanned = true
 			break
+		} else {
+			seclog.Errorf("couldn't generate SBOM: %v", lastErr)
 		}
-		seclog.Errorf("couldn't generate SBOM: %v", lastErr)
 	}
 	if lastErr != nil {
 		return lastErr
@@ -426,7 +427,6 @@ func (r *Resolver) OnWorkloadSelectorResolvedEvent(cgroup *cgroupModel.CacheEntr
 		}
 		r.queueWorkload(sbom)
 	}
-	//nolint:gosimple // TODO(SEC) Fix gosimple linter
 	return
 }
 

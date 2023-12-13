@@ -9,6 +9,7 @@ package kafka
 
 import (
 	"strings"
+	"unsafe"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -24,7 +25,7 @@ type protocol struct {
 	cfg            *config.Config
 	telemetry      *Telemetry
 	statkeeper     *StatKeeper
-	eventsConsumer *events.Consumer[EbpfTx]
+	eventsConsumer *events.Consumer
 }
 
 const (
@@ -36,7 +37,6 @@ const (
 	kafkaHeapMap                             = "kafka_heap"
 )
 
-// Spec is the protocol spec for the kafka protocol.
 var Spec = &protocols.ProtocolSpec{
 	Factory: newKafkaProtocol,
 	Maps: []*manager.Map{
@@ -79,7 +79,6 @@ func newKafkaProtocol(cfg *config.Config) (protocols.Protocol, error) {
 	}, nil
 }
 
-// Name returns the name of the protocol.
 func (p *protocol) Name() string {
 	return "Kafka"
 }
@@ -98,7 +97,6 @@ func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 	utils.EnableOption(opts, "kafka_monitoring_enabled")
 }
 
-// PreStart creates the kafka events consumer and starts it.
 func (p *protocol) PreStart(mgr *manager.Manager) error {
 	var err error
 	p.eventsConsumer, err = events.NewConsumer(
@@ -116,27 +114,22 @@ func (p *protocol) PreStart(mgr *manager.Manager) error {
 	return nil
 }
 
-// PostStart empty implementation.
-func (p *protocol) PostStart(*manager.Manager) error {
+func (p *protocol) PostStart(_ *manager.Manager) error {
 	return nil
 }
 
-// Stop stops the kafka events consumer.
-func (p *protocol) Stop(*manager.Manager) {
+func (p *protocol) Stop(_ *manager.Manager) {
 	if p.eventsConsumer != nil {
 		p.eventsConsumer.Stop()
 	}
 }
 
-// DumpMaps empty implementation.
-func (p *protocol) DumpMaps(*strings.Builder, string, *ebpf.Map) {}
+func (p *protocol) DumpMaps(_ *strings.Builder, _ string, _ *ebpf.Map) {}
 
-func (p *protocol) processKafka(events []EbpfTx) {
-	for i := range events {
-		tx := &events[i]
-		p.telemetry.Count(tx)
-		p.statkeeper.Process(tx)
-	}
+func (p *protocol) processKafka(data []byte) {
+	tx := (*EbpfTx)(unsafe.Pointer(&data[0]))
+	p.telemetry.Count(tx)
+	p.statkeeper.Process(tx)
 }
 
 // GetStats returns a map of Kafka stats stored in the following format:

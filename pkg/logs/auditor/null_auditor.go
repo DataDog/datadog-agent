@@ -27,13 +27,9 @@ func NewNullAuditor() *NullAuditor {
 }
 
 // GetOffset returns an empty string.
-//
-//nolint:revive // TODO(AML) Fix revive linter
 func (a *NullAuditor) GetOffset(identifier string) string { return "" }
 
 // GetTailingMode returns an empty string.
-//
-//nolint:revive // TODO(AML) Fix revive linter
 func (a *NullAuditor) GetTailingMode(identifier string) string { return "" }
 
 // Start starts the NullAuditor main loop.

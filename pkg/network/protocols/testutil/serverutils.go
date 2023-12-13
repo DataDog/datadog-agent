@@ -17,7 +17,6 @@ import (
 )
 
 const (
-	// DefaultTimeout is the default timeout for running a server.
 	DefaultTimeout = time.Minute
 )
 

@@ -5,7 +5,6 @@
 
 //go:build !linux
 
-//nolint:revive // TODO(AML) Fix revive linter
 package ratelimit
 
 import (

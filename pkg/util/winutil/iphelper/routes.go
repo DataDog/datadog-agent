@@ -4,7 +4,6 @@
 // Copyright 2018-present Datadog, Inc.
 //go:build windows
 
-//nolint:revive // TODO(WINA) Fix revive linter
 package iphelper
 
 import (

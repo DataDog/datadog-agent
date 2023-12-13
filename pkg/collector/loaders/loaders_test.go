@@ -24,7 +24,6 @@ func (lo LoaderOne) Name() string {
 	return "loader_one"
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (lo LoaderOne) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
 	var c check.Check
 	return c, nil
@@ -36,7 +35,6 @@ func (lt LoaderTwo) Name() string {
 	return "loader_two"
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (lt LoaderTwo) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
 	var c check.Check
 	return c, nil
@@ -48,7 +46,6 @@ func (lt *LoaderThree) Name() string {
 	return "loader_three"
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (lt *LoaderThree) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
 	var c check.Check
 	return c, nil

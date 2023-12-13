@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
@@ -30,8 +30,8 @@ func TestHandleProvider(t *testing.T) {
 	r := createRunner(
 		fxutil.Test[dependencies](
 			t,
-			logimpl.MockModule(),
-			config.MockModule(),
+			log.MockModule,
+			config.MockModule,
 			fx.Supply(NewProvider(provider)),
 		))
 
@@ -52,9 +52,9 @@ func TestRunnerCreation(t *testing.T) {
 	fxutil.Test[runner.Component](
 		t,
 		fx.Supply(lc),
-		logimpl.MockModule(),
-		config.MockModule(),
-		Module(),
+		log.MockModule,
+		config.MockModule,
+		Module,
 		// Supplying our provider by using the helper function
 		fx.Supply(NewProvider(callback)),
 	)

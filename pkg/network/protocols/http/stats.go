@@ -127,13 +127,11 @@ func (r *RequestStat) initSketch() (err error) {
 	return
 }
 
-// RequestStats stores HTTP request statistics.
 type RequestStats struct {
 	aggregateByStatusCode bool
 	Data                  map[uint16]*RequestStat
 }
 
-// NewRequestStats creates a new RequestStats object.
 func NewRequestStats(aggregateByStatusCode bool) *RequestStats {
 	return &RequestStats{
 		aggregateByStatusCode: aggregateByStatusCode,
@@ -141,7 +139,6 @@ func NewRequestStats(aggregateByStatusCode bool) *RequestStats {
 	}
 }
 
-// NormalizeStatusCode normalizes the status code into a status code family.
 func (r *RequestStats) NormalizeStatusCode(status uint16) uint16 {
 	if r.aggregateByStatusCode {
 		return status

@@ -14,7 +14,7 @@ import (
 )
 
 // UpdateEventMonitorOpts adapt the event monitor option
-func UpdateEventMonitorOpts(_ *eventmonitor.Opts, config *config.Config) {
+func UpdateEventMonitorOpts(opts *eventmonitor.Opts, config *config.Config) { //nolint:revive // TODO fix revive unused-parameter
 	if config.RuntimeSecurity.RemoteConfigurationEnabled {
 		log.Info("remote-configuration is not supported for CWS on this platform")
 		// force disabling RC on non linux platform
@@ -23,9 +23,9 @@ func UpdateEventMonitorOpts(_ *eventmonitor.Opts, config *config.Config) {
 }
 
 // DisableRuntimeSecurity disables all the runtime security features
-func DisableRuntimeSecurity(_ *config.Config) {}
+func DisableRuntimeSecurity(config *config.Config) {} //nolint:revive // TODO fix revive unused-parameter
 
 // platform specific init function
-func (c *CWSConsumer) init(_ *eventmonitor.EventMonitor, _ *config.RuntimeSecurityConfig, _ Opts) error {
+func (c *CWSConsumer) init(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurityConfig, opts Opts) error { //nolint:revive // TODO fix revive unused-parameter
 	return nil
 }

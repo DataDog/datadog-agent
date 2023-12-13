@@ -45,8 +45,6 @@ var metricsNameMapping = map[string]string{
 type metricsAdapter struct{}
 
 // AdaptTags can be used to change Tagger tags before submitting the metrics
-//
-//nolint:revive // TODO(CINT) Fix revive linter
 func (a metricsAdapter) AdaptTags(tags []string, c *workloadmeta.Container) []string {
 	return append(tags, "runtime:containerd")
 }

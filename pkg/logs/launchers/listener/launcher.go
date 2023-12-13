@@ -34,8 +34,6 @@ func NewLauncher(frameSize int) *Launcher {
 }
 
 // Start starts the listener.
-//
-//nolint:revive // TODO(AML) Fix revive linter
 func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) {
 	l.pipelineProvider = pipelineProvider
 	l.tcpSources = sourceProvider.GetAddedForType(config.TCPType)

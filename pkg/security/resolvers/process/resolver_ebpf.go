@@ -942,15 +942,18 @@ func (p *EBPFResolver) GetProcessArgvScrubbed(pr *model.Process) ([]string, bool
 		return pr.Argv, pr.ArgsTruncated
 	}
 
-	if p.scrubber != nil && len(pr.ArgsEntry.Values) > 0 {
+	argv, truncated := GetProcessArgv(pr)
+
+	if p.scrubber != nil && len(argv) > 0 {
 		// replace with the scrubbed version
-		argv, _ := p.scrubber.ScrubCommand(pr.ArgsEntry.Values[1:])
+		argv, _ = p.scrubber.ScrubCommand(argv)
 		pr.ArgsEntry.Values = []string{pr.ArgsEntry.Values[0]}
 		pr.ArgsEntry.Values = append(pr.ArgsEntry.Values, argv...)
-	}
-	pr.ScrubbedArgvResolved = true
 
-	return GetProcessArgv(pr)
+		pr.ScrubbedArgvResolved = true
+	}
+
+	return argv, truncated
 }
 
 // SetProcessEnvs set envs to cache entry
@@ -1173,14 +1176,7 @@ func (p *EBPFResolver) syncCache(proc *process.Process, filledProc *utils.Filled
 		return nil, false
 	}
 
-	parent := p.entryCache[entry.PPid]
-	if parent != nil {
-		if parent.Equals(entry) {
-			entry.SetParentOfForkChild(parent)
-		} else {
-			entry.SetAncestor(parent)
-		}
-	}
+	p.setAncestor(entry)
 
 	p.insertEntry(entry, p.entryCache[pid], source)
 

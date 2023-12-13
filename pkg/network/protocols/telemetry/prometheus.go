@@ -18,7 +18,6 @@ var prometheusDelta deltaCalculator
 var prometheusMux sync.Mutex
 var prometheusMetrics map[string]any
 
-// ReportPrometheus reports metrics to the Prometheus client.
 func ReportPrometheus() {
 	prometheusMux.Lock()
 	defer prometheusMux.Unlock()

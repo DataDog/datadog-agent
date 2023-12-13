@@ -186,7 +186,6 @@ func (ire InterpreterResolutionError) Error() string {
 		" Python's 'multiprocessing' library may fail to work.", ire.Err)
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 const PythonWinExeBasename = "python.exe"
 
 var (
@@ -208,7 +207,6 @@ var (
 	// by `sys.path`. It's empty if the interpreter was not initialized.
 	PythonPath = ""
 
-	//nolint:revive // TODO(AML) Fix revive linter
 	rtloader *C.rtloader_t = nil
 
 	expvarPyInit  *expvar.Map
@@ -354,7 +352,6 @@ func resolvePythonExecPath(pythonVersion string, ignoreErrors bool) (string, err
 	return filepath.Join(PythonHome, "bin", interpreterBasename), nil
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func Initialize(paths ...string) error {
 	pythonVersion := config.Datadog.GetString("python_version")
 	allowPathHeuristicsFailure := config.Datadog.GetBool("allow_python_path_heuristics_failure")
@@ -388,7 +385,6 @@ func Initialize(paths ...string) error {
 	}
 	log.Debugf("Using '%s' as Python interpreter path", pythonBinPath)
 
-	//nolint:revive // TODO(AML) Fix revive linter
 	var pyErr *C.char = nil
 
 	csPythonHome := TrackedCString(PythonHome)

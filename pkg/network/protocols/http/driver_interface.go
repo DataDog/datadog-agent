@@ -27,7 +27,6 @@ import (
 ///	httpReadBufferCount = 100
 ///)
 
-//nolint:revive // TODO(WKIT) Fix revive linter
 type WinHttpTransaction struct {
 	Txn             driver.HttpTransactionType
 	RequestFragment []byte
@@ -46,8 +45,6 @@ type WinHttpTransaction struct {
 	// HeaderLength  uint32
 	// ContentLength uint32
 }
-
-//nolint:revive // TODO(WKIT) Fix revive linter
 type HttpDriverInterface struct {
 	driverHTTPHandle  driver.Handle
 	driverEventHandle windows.Handle
@@ -62,7 +59,6 @@ type HttpDriverInterface struct {
 	maxRequestFragment    uint64
 }
 
-//nolint:revive // TODO(WKIT) Fix revive linter
 func NewDriverInterface(c *config.Config, dh driver.Handle) (*HttpDriverInterface, error) {
 	d := &HttpDriverInterface{
 		maxTransactions:       uint64(c.MaxTrackedHTTPConnections),
@@ -112,7 +108,6 @@ func (di *HttpDriverInterface) setupHTTPHandle(dh driver.Handle) error {
 	return nil
 }
 
-//nolint:revive // TODO(WKIT) Fix revive linter
 func (di *HttpDriverInterface) ReadAllPendingTransactions() {
 	di.readMux.Lock()
 	defer di.readMux.Unlock()
@@ -132,7 +127,6 @@ func (di *HttpDriverInterface) ReadAllPendingTransactions() {
 	}
 }
 
-//nolint:revive // TODO(WKIT) Fix revive linter
 func (di *HttpDriverInterface) StartReadingBuffers() {
 	di.eventLoopWG.Add(1)
 	go func() {
@@ -186,7 +180,6 @@ func (di *HttpDriverInterface) readPendingTransactions() ([]WinHttpTransaction, 
 	return transactionBatch, nil
 }
 
-//nolint:revive // TODO(WKIT) Fix revive linter
 func (di *HttpDriverInterface) Close() error {
 	di.closed = true
 	windows.SetEvent(di.driverEventHandle)

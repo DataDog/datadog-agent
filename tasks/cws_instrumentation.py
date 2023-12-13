@@ -37,7 +37,6 @@ def build(
     arch=CURRENT_ARCH,  # noqa: U100
     go_mod="mod",
     static=False,
-    no_strip_binary=False,
 ):
     """
     Build cws-instrumentation
@@ -66,11 +65,9 @@ def build(
     go_build_tags = " ".join(build_tags)
     agent_bin = BIN_PATH
 
-    strip_flags = "" if no_strip_binary else "-s -w"
-
     cmd = (
         f'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
-        f'-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags} {strip_flags}" {REPO_PATH}/cmd/cws-instrumentation'
+        f'-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags} -s -w" {REPO_PATH}/cmd/cws-instrumentation'
     )
 
     ctx.run(cmd, env=env)

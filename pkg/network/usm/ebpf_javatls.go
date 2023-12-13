@@ -134,18 +134,18 @@ var javaTLSSpec = &protocols.ProtocolSpec{
 }
 
 func newJavaTLSProgram(c *config.Config) (protocols.Protocol, error) {
-	if !c.EnableJavaTLSSupport || !http.TLSSupported(c) {
+	if !c.EnableJavaTLSSupport || !http.HTTPSSupported(c) {
 		return nil, nil
 	}
 
 	javaUSMAgentJarPath := filepath.Join(c.JavaDir, agentUSMJar)
 	// We tried switching os.Open to os.Stat, but it seems it does not guarantee we'll be able to copy the file.
-	f, err := os.Open(javaUSMAgentJarPath)
-	if err != nil {
+	if f, err := os.Open(javaUSMAgentJarPath); err != nil {
 		return nil, fmt.Errorf("java TLS can't access java tracer payload %s : %s", javaUSMAgentJarPath, err)
+	} else {
+		// If we managed to open the file, then we close it, as we just needed to check if the file exists.
+		_ = f.Close()
 	}
-	// If we managed to open the file, then we close it, as we just needed to check if the file exists.
-	_ = f.Close()
 
 	return &javaTLSProgram{
 		cfg:                 c,

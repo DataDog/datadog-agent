@@ -27,7 +27,6 @@ type CloudService interface {
 	Init() error
 }
 
-//nolint:revive // TODO(SERV) Fix revive linter
 type LocalService struct{}
 
 // GetTags is a default implementation that returns a local empty tag set
@@ -50,7 +49,6 @@ func (l *LocalService) Init() error {
 	return nil
 }
 
-//nolint:revive // TODO(SERV) Fix revive linter
 func GetCloudServiceType() CloudService {
 	if isCloudRunService() {
 		return &CloudRun{}

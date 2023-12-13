@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps/config"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps/formatter"
@@ -25,7 +24,7 @@ func TestStartFailure(t *testing.T) {
 	/*
 		Start two servers with the same config to trigger an "address already in use" error.
 	*/
-	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
+	logger := fxutil.Test[log.Component](t, log.MockModule)
 
 	freePort, err := ndmtestutils.GetFreePort()
 	require.NoError(t, err)

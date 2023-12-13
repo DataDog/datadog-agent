@@ -244,8 +244,6 @@ func getSuiteDiagnoses(ds diagnosis.Suite, diagCfg diagnosis.Config, senderManag
 
 // Enumerate registered Diagnose suites and get their diagnoses
 // for human consumption
-//
-//nolint:revive // TODO(CINT) Fix revive linter
 func ListStdOut(w io.Writer, diagCfg diagnosis.Config) {
 	if w != color.Output {
 		color.NoColor = true
@@ -303,7 +301,6 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Dia
 	}
 
 	// Form call end-point
-	//nolint:revive // TODO(CINT) Fix revive linter
 	diagnoseUrl := fmt.Sprintf("https://%v:%v/agent/diagnose", ipcAddress, pkgconfig.Datadog.GetInt("cmd_port"))
 
 	// Serialized diag config to pass it to Agent execution context
@@ -351,8 +348,6 @@ func Run(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager) (
 
 // Enumerate registered Diagnose suites and get their diagnoses
 // for human consumption
-//
-//nolint:revive // TODO(CINT) Fix revive linter
 func RunStdOut(w io.Writer, diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager) error {
 	if w != color.Output {
 		color.NoColor = true

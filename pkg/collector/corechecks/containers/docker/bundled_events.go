@@ -66,7 +66,6 @@ func (t *bundledTransformer) aggregateEvents(events []*docker.ContainerEvent) ma
 		}
 
 		bundle, found := eventsByImage[event.ImageName]
-		//nolint:gosimple // TODO(CINT) Fix gosimple linter
 		if found == false {
 			bundle = newDockerEventBundler(event.ImageName)
 			eventsByImage[event.ImageName] = bundle

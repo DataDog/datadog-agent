@@ -5,7 +5,6 @@
 
 //go:build linux_bpf
 
-//nolint:revive // TODO(NET) Fix revive linter
 package kprobe
 
 import (

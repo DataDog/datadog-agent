@@ -34,10 +34,9 @@ import (
 )
 
 // Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newInventoryHostProvider))
-}
+var Module = fxutil.Component(
+	fx.Provide(newInventoryHostProvider),
+)
 
 // for testing purpose
 var (

@@ -26,15 +26,16 @@ func TestGetDDAgentClientTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
 
-	_, err := GetDDAgentClient(ctx, "127.0.0.1", "5001")
+	_, err := GetDDAgentClient(ctx)
 	assert.Equal(t, context.DeadlineExceeded, err)
 }
 
 func TestGetDDAgentClientWithCmdPort0(t *testing.T) {
+	t.Setenv("DD_CMD_PORT", "-1")
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
-	_, err := GetDDAgentClient(ctx, "127.0.0.1", "-1")
+	_, err := GetDDAgentClient(ctx)
 	assert.NotNil(t, err)
 	assert.Equal(t, "grpc client disabled via cmd_port: -1", err.Error())
 }

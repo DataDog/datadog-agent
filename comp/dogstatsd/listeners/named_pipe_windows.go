@@ -10,7 +10,6 @@ import (
 	"bytes"
 	"io"
 	"net"
-	"sync"
 	"time"
 
 	"go.uber.org/atomic"
@@ -20,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	winio "github.com/Microsoft/go-winio"
+	"github.com/Microsoft/go-winio"
 )
 
 var namedPipeTelemetry = newListenerTelemetry("named_pipe", "Named Pipe")
@@ -36,7 +35,6 @@ type NamedPipeListener struct {
 	// TODO: Migrate to `ConnectionTracker` instead
 	connections    *namedPipeConnections
 	trafficCapture replay.Component // Currently ignored
-	listenWg       sync.WaitGroup
 }
 
 // NewNamedPipeListener returns an named pipe Statsd listener
@@ -125,15 +123,6 @@ func (l *namedPipeConnections) handleConnections() {
 
 // Listen runs the intake loop. Should be called in its own goroutine
 func (l *NamedPipeListener) Listen() {
-	l.listenWg.Add(1)
-
-	go func() {
-		defer l.listenWg.Done()
-		l.listen()
-	}()
-}
-
-func (l *NamedPipeListener) listen() {
 	go l.connections.handleConnections()
 	for {
 		conn, err := l.pipe.Accept()
@@ -216,7 +205,6 @@ func (l *NamedPipeListener) Stop() {
 
 	l.packetManager.Close()
 	l.pipe.Close()
-	l.listenWg.Wait()
 }
 
 // getActiveConnectionsCount returns the number of active connections.

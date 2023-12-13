@@ -5,8 +5,6 @@
 
 //go:build linux
 
-// Package monitor represents a wrapper to netlink, which gives us the ability to monitor process events like Exec and
-// Exit, and activate the registered callbacks for the relevant events
 package monitor
 
 import (
@@ -14,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/vishvananda/netlink"
 	"go.uber.org/atomic"
 
@@ -59,9 +56,6 @@ type processMonitorTelemetry struct {
 	reinitFailed      *telemetry.Counter
 	processScanFailed *telemetry.Counter
 	callbackExecuted  *telemetry.Counter
-
-	processExecChannelIsFull *telemetry.Counter
-	processExitChannelIsFull *telemetry.Counter
 }
 
 func newProcessMonitorTelemetry() processMonitorTelemetry {
@@ -79,9 +73,6 @@ func newProcessMonitorTelemetry() processMonitorTelemetry {
 		reinitFailed:      metricGroup.NewCounter("reinit_failed"),
 		processScanFailed: metricGroup.NewCounter("process_scan_failed"),
 		callbackExecuted:  metricGroup.NewCounter("callback_executed"),
-
-		processExecChannelIsFull: metricGroup.NewCounter("process_exec_channel_is_full"),
-		processExitChannelIsFull: metricGroup.NewCounter("process_exit_channel_is_full"),
 	}
 }
 
@@ -106,24 +97,17 @@ type ProcessMonitor struct {
 	netlinkErrorsChannel chan error
 
 	// callback registration and parallel execution management
-
 	hasExecCallbacks          atomic.Bool
 	processExecCallbacksMutex sync.RWMutex
 	processExecCallbacks      map[*ProcessCallback]struct{}
-
 	hasExitCallbacks          atomic.Bool
 	processExitCallbacksMutex sync.RWMutex
 	processExitCallbacks      map[*ProcessCallback]struct{}
-
-	// The callbackRunnerStopChannel is used to signal the callback runners to stop
-	callbackRunnerStopChannel chan struct{}
-	// The callbackRunner is used to send tasks to the callback runners
-	callbackRunner chan func()
+	callbackRunner            chan func()
 
 	tel processMonitorTelemetry
 }
 
-// ProcessCallback is a callback function that is called on a given pid that represents a new process.
 type ProcessCallback func(pid uint32)
 
 // GetProcessMonitor create a monitor (only once) that register to netlink process events.
@@ -165,15 +149,7 @@ func (pm *ProcessMonitor) handleProcessExec(pid uint32) {
 
 	for callback := range pm.processExecCallbacks {
 		temporaryCallback := callback
-		select {
-		case pm.callbackRunner <- func() { (*temporaryCallback)(pid) }:
-			continue
-		default:
-			pm.tel.processExecChannelIsFull.Add(1)
-			if log.ShouldLog(seelog.DebugLvl) {
-				log.Debug("can't send exec callback to callbackRunner, channel is full")
-			}
-		}
+		pm.callbackRunner <- func() { (*temporaryCallback)(pid) }
 	}
 }
 
@@ -185,15 +161,7 @@ func (pm *ProcessMonitor) handleProcessExit(pid uint32) {
 
 	for callback := range pm.processExitCallbacks {
 		temporaryCallback := callback
-		select {
-		case pm.callbackRunner <- func() { (*temporaryCallback)(pid) }:
-			continue
-		default:
-			pm.tel.processExitChannelIsFull.Add(1)
-			if log.ShouldLog(seelog.DebugLvl) {
-				log.Debug("can't send exit callback to callbackRunner, channel is full")
-			}
-		}
+		pm.callbackRunner <- func() { (*temporaryCallback)(pid) }
 	}
 }
 
@@ -216,39 +184,14 @@ func (pm *ProcessMonitor) initNetlinkProcessEventMonitor() error {
 func (pm *ProcessMonitor) initCallbackRunner() {
 	cpuNum := runtime.NumVCPU()
 	pm.callbackRunner = make(chan func(), pendingCallbacksQueueSize)
-	pm.callbackRunnerStopChannel = make(chan struct{})
 	pm.callbackRunnersWG.Add(cpuNum)
 	for i := 0; i < cpuNum; i++ {
-		// Copy i to avoid unexpected behaviors
-		callbackRunnerIndex := i
 		go func() {
 			defer pm.callbackRunnersWG.Done()
-			for {
-				// We utilize the callbackRunnerStopChannel to signal the stopping point,
-				// as closing the callbackRunner channel could lead to a panic when attempting to write to it.
-
-				// Trying to exit the goroutine as early as possible.
-				// This is essential because of how the Go select statement functions. if both cases evaluate to true, it will randomly choose between the two.
-
-				// In other words, when only the second select statement is present, and we set the callbackRunnerStopChannel, there's a 50% chance that the second case
-				// will be chosen due to the workings of the select mechanism in Go. This is why we introduced the first select statement,
-				// to attempt early termination of the goroutine (drawing inspiration from https://go101.org/article/channel-closing.html)
-				select {
-				case <-pm.callbackRunnerStopChannel:
-					log.Debugf("callback runner %d has completed its execution", callbackRunnerIndex)
-					return
-				default:
-				}
-
-				select {
-				case <-pm.callbackRunnerStopChannel:
-					log.Debugf("callback runner %d has completed its execution", callbackRunnerIndex)
-					return
-				case call := <-pm.callbackRunner:
-					if call != nil {
-						pm.tel.callbackExecuted.Add(1)
-						call()
-					}
+			for call := range pm.callbackRunner {
+				if call != nil {
+					pm.tel.callbackExecuted.Add(1)
+					call()
 				}
 			}
 		}()
@@ -264,14 +207,10 @@ func (pm *ProcessMonitor) mainEventLoop() {
 		logTicker.Stop()
 		// Marking netlink to stop, so we won't get any new events.
 		close(pm.netlinkDoneChannel)
-
 		// waiting for the callbacks runners to finish
-		close(pm.callbackRunnerStopChannel)
+		close(pm.callbackRunner)
+		// Waiting for all runners to halt.
 		pm.callbackRunnersWG.Wait()
-
-		// We intentionally don't close the callbackRunner channel,
-		// as we don't want to panic if we're trying to send to it in another goroutine.
-
 		// Before shutting down, making sure we're cleaning all resources.
 		pm.processMonitorWG.Done()
 	}()

@@ -66,7 +66,7 @@ func httpsSupported() bool {
 	if isFentry() {
 		return false
 	}
-	return http.TLSSupported(testConfig())
+	return http.HTTPSSupported(testConfig())
 }
 
 func goTLSSupported() bool {
@@ -660,7 +660,7 @@ func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *Tracer, clientHo
 		require.NoError(t, err)
 		defer grpcClient.Close()
 		_ = grpcClient.HandleUnary(context.Background(), "test")
-		waitForConnectionsWithProtocol(t, tr, targetAddr, srv.Addr, &protocols.Stack{API: protocols.GRPC, Application: protocols.HTTP2})
+		waitForConnectionsWithProtocol(t, tr, targetAddr, srv.Addr, &protocols.Stack{Api: protocols.GRPC, Application: protocols.HTTP2})
 	})
 }
 
@@ -685,18 +685,26 @@ func (s *USMSuite) TestJavaInjection() {
 	_, err = nettestutil.RunCommand("install -m444 " + filepath.Join(testdataDir, "TestAgentLoaded.jar") + " " + filepath.Join(fakeAgentDir, "agent-usm.jar"))
 	require.NoError(t, err)
 
+	// testContext shares the context of a given test.
+	// It contains common variable used by all tests, and allows extending the context dynamically by setting more
+	// attributes to the `extras` map.
+	type testContext struct {
+		// A dynamic map that allows extending the context easily between phases of the test.
+		extras map[string]interface{}
+	}
+
 	tests := []struct {
 		name            string
 		context         testContext
-		preTracerSetup  func(t *testing.T)
-		postTracerSetup func(t *testing.T)
-		validation      func(t *testing.T, tr *Tracer)
-		teardown        func(t *testing.T)
+		preTracerSetup  func(t *testing.T, ctx testContext)
+		postTracerSetup func(t *testing.T, ctx testContext)
+		validation      func(t *testing.T, ctx testContext, tr *Tracer)
+		teardown        func(t *testing.T, ctx testContext)
 	}{
 		{
 			// Test the java jdk client https request is working
 			name: "java_jdk_client_httpbin_docker_withTLSClassification_java15",
-			preTracerSetup: func(t *testing.T) {
+			preTracerSetup: func(t *testing.T, ctx testContext) {
 				cfg.JavaDir = legacyJavaDir
 				cfg.ProtocolClassificationEnabled = true
 				cfg.CollectTCPv4Conns = true
@@ -707,10 +715,10 @@ func (s *USMSuite) TestJavaInjection() {
 				})
 				t.Cleanup(serverDoneFn)
 			},
-			postTracerSetup: func(t *testing.T) {
+			postTracerSetup: func(t *testing.T, ctx testContext) {
 				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "Wget https://host.docker.internal:5443/200/anything/java-tls-request", "./", regexp.MustCompile("Response code = .*")), "Failed running Java version")
 			},
-			validation: func(t *testing.T, tr *Tracer) {
+			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
 				// Iterate through active connections until we find connection created above
 				require.Eventually(t, func() bool {
 					payload := getConnections(t, tr)
@@ -753,16 +761,16 @@ func (s *USMSuite) TestJavaInjection() {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.teardown != nil {
 				t.Cleanup(func() {
-					tt.teardown(t)
+					tt.teardown(t, tt.context)
 				})
 			}
 			cfg = defaultCfg
 			if tt.preTracerSetup != nil {
-				tt.preTracerSetup(t)
+				tt.preTracerSetup(t, tt.context)
 			}
 			tr := setupTracer(t, cfg)
-			tt.postTracerSetup(t)
-			tt.validation(t, tr)
+			tt.postTracerSetup(t, tt.context)
+			tt.validation(t, tt.context, tr)
 		})
 	}
 }
@@ -805,10 +813,10 @@ func TestHTTPSGoTLSAttachProbesOnContainer(t *testing.T) {
 		}
 
 		t.Run("new process", func(t *testing.T) {
-			testHTTPSGoTLSCaptureNewProcessContainer(t, config.New())
+			testHTTPsGoTLSCaptureNewProcessContainer(t, config.New())
 		})
 		t.Run("already running process", func(t *testing.T) {
-			testHTTPSGoTLSCaptureAlreadyRunningContainer(t, config.New())
+			testHTTPsGoTLSCaptureAlreadyRunningContainer(t, config.New())
 		})
 	})
 }
@@ -898,7 +906,9 @@ func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config) {
 	checkRequests(t, tr, expectedOccurrences, reqs)
 }
 
-func testHTTPSGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) {
+// Test that we can capture HTTPS traffic from Go processes started after the
+// tracer.
+func testHTTPsGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) {
 	const (
 		serverPort          = "8443"
 		expectedOccurrences = 10
@@ -932,7 +942,7 @@ func testHTTPSGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) 
 	checkRequests(t, tr, expectedOccurrences, reqs)
 }
 
-func testHTTPSGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Config) {
+func testHTTPsGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Config) {
 	const (
 		serverPort          = "8443"
 		expectedOccurrences = 10

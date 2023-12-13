@@ -7,7 +7,18 @@
 
 package retry
 
-//nolint:revive // TODO(ASC) Fix revive linter
+import "github.com/DataDog/datadog-agent/pkg/telemetry"
+
 func NewPointCountTelemetryMock() *PointCountTelemetry {
-	return NewPointCountTelemetry("domain")
+	provider := telemetry.NewStatsTelemetryProvider(StatsTelemetrySenderMock{})
+	return NewPointCountTelemetry("domain", provider)
+}
+
+type StatsTelemetrySenderMock struct{}
+
+func (m StatsTelemetrySenderMock) Count(metric string, value float64, hostname string, tags []string) {
+}
+func (m StatsTelemetrySenderMock) Gauge(metric string, value float64, hostname string, tags []string) {
+}
+func (m StatsTelemetrySenderMock) GaugeNoIndex(metric string, value float64, hostname string, tags []string) {
 }

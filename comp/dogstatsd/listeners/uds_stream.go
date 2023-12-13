@@ -7,14 +7,13 @@ package listeners
 
 import (
 	"fmt"
-	"net"
-	"strings"
-	"time"
-
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"net"
+	"strings"
+	"time"
 )
 
 // UDSStreamListener implements the StatsdListener interface for Unix Domain (streams)
@@ -61,15 +60,6 @@ func NewUDSStreamListener(packetOut chan packets.Packets, sharedPacketPoolManage
 
 // Listen runs the intake loop. Should be called in its own goroutine
 func (l *UDSStreamListener) Listen() {
-	l.listenWg.Add(1)
-	go func() {
-		defer l.listenWg.Done()
-		l.listen()
-	}()
-}
-
-func (l *UDSStreamListener) listen() {
-
 	l.connTracker.Start()
 	log.Infof("dogstatsd-uds-stream: starting to listen on %s", l.conn.Addr())
 	for {

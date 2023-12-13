@@ -169,7 +169,6 @@ type BaseEvent struct {
 	TimestampRaw uint64         `field:"event.timestamp,handler:ResolveEventTimestamp" event:"*"` // SECLDoc[event.timestamp] Definition:`Timestamp of the event`
 	Timestamp    time.Time      `field:"timestamp,opts:getters_only,handler:ResolveEventTime"`
 	Rules        []*MatchedRule `field:"-"`
-	Origin       string         `field:"-"`
 
 	// context shared with all events
 	ProcessContext         *ProcessContext        `field:"process" event:"*"`
@@ -580,16 +579,16 @@ type BaseExtraFieldHandlers interface {
 }
 
 // ResolveProcessCacheEntry stub implementation
-func (dfh *DefaultFieldHandlers) ResolveProcessCacheEntry(_ *Event) (*ProcessCacheEntry, bool) {
+func (dfh *DefaultFieldHandlers) ResolveProcessCacheEntry(ev *Event) (*ProcessCacheEntry, bool) {
 	return nil, false
 }
 
 // ResolveContainerContext stub implementation
-func (dfh *DefaultFieldHandlers) ResolveContainerContext(_ *Event) (*ContainerContext, bool) {
+func (dfh *DefaultFieldHandlers) ResolveContainerContext(ev *Event) (*ContainerContext, bool) {
 	return nil, false
 }
 
 // GetProcessService stub implementation
-func (dfh *DefaultFieldHandlers) GetProcessService(_ *Event) string {
+func (dfh *DefaultFieldHandlers) GetProcessService(ev *Event) string {
 	return ""
 }

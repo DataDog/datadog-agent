@@ -72,12 +72,3 @@ func (suite *eksSuite) SetupSuite() {
 
 	suite.k8sSuite.SetupSuite()
 }
-
-func (suite *eksSuite) TearDownSuite() {
-	suite.k8sSuite.TearDownSuite()
-
-	ctx := context.Background()
-	stackName, err := infra.GetStackManager().GetPulumiStackName("eks-cluster")
-	suite.Require().NoError(err)
-	suite.T().Log(dumpEKSClusterState(ctx, stackName))
-}

@@ -558,10 +558,8 @@ func newCredentialsSerializer(ce *model.Credentials) *CredentialsSerializer {
 
 func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer {
 	if ps.IsNotKworker() {
-		argv := e.FieldHandlers.ResolveProcessArgvScrubbed(e, ps)
-		argvTruncated := e.FieldHandlers.ResolveProcessArgsTruncated(e, ps)
-		envs := e.FieldHandlers.ResolveProcessEnvs(e, ps)
-		envsTruncated := e.FieldHandlers.ResolveProcessEnvsTruncated(e, ps)
+		argv, argvTruncated := e.GetProcessArgvScrubbed(), e.GetProcessArgsTruncated()
+		envs, EnvsTruncated := e.GetProcessEnvs(), e.GetProcessEnvsTruncated()
 		argv0, _ := sprocess.GetProcessArgv0(ps)
 
 		psSerializer := &ProcessSerializer{
@@ -579,7 +577,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			Args:          argv,
 			ArgsTruncated: argvTruncated,
 			Envs:          envs,
-			EnvsTruncated: envsTruncated,
+			EnvsTruncated: EnvsTruncated,
 			IsThread:      ps.IsThread,
 			IsKworker:     ps.IsKworker,
 			IsExecChild:   ps.IsExecChild,

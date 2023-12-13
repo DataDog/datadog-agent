@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package remoteconfig defines the fx options for the Bundle
 package remoteconfig
 
 import (
@@ -14,7 +13,6 @@ import (
 // team: remote-config
 
 // Bundle defines the fx options for this bundle.
-func Bundle() fxutil.BundleOptions {
-	return fxutil.Bundle(
-		rcclient.Module())
-}
+var Bundle = fxutil.Bundle(
+	rcclient.Module,
+)

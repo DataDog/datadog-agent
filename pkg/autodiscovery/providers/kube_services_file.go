@@ -27,8 +27,6 @@ func NewKubeServiceFileConfigProvider(*config.ConfigurationProviders) (ConfigPro
 
 // Collect returns the check configurations defined in Yaml files.
 // Only configs with advanced AD identifiers targeting kubernetes services are handled by this collector.
-//
-//nolint:revive // TODO(CINT) Fix revive linter
 func (c *KubeServiceFileConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	configs, _, err := ReadConfigFiles(WithAdvancedADOnly)
 	if err != nil {
@@ -39,8 +37,6 @@ func (c *KubeServiceFileConfigProvider) Collect(ctx context.Context) ([]integrat
 }
 
 // IsUpToDate is not implemented for the file providers as the files are not meant to change.
-//
-//nolint:revive // TODO(CINT) Fix revive linter
 func (c *KubeServiceFileConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	return false, nil
 }

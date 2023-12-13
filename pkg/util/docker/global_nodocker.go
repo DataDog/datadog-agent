@@ -5,7 +5,6 @@
 
 //go:build !docker
 
-//nolint:revive // TODO(CINT) Fix revive linter
 package docker
 
 import "context"

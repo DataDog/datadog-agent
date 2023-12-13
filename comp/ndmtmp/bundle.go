@@ -18,7 +18,6 @@ import (
 // TODO: (components) Delete this module when the sender and event platform forwarder are fully componentized.
 
 // Bundle defines the fx options for this bundle.
-func Bundle() fxutil.BundleOptions {
-	return fxutil.Bundle(
-		forwarderimpl.Module())
-}
+var Bundle = fxutil.Bundle(
+	forwarderimpl.Module,
+)

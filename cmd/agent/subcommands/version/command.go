@@ -14,8 +14,6 @@ import (
 )
 
 // Commands returns a slice of subcommands for the 'agent' command.
-//
-//nolint:revive // TODO(ASC) Fix revive linter
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	versionCmd := version.MakeCommand("Agent")
 

@@ -157,8 +157,7 @@ static __always_inline void update_path_size_telemetry(http2_telemetry_t *http2_
 // dynamic table, and will skip headers that are not path headers.
 static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_t *skb_info, http2_header_t *headers_to_process, __u64 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter, http2_telemetry_t *http2_tel) {
     __u64 str_len = 0;
-    // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
-    if (!read_hpack_int(skb, skb_info, MAX_7_BITS, &str_len)) {
+    if (!read_hpack_int(skb, skb_info, MAX_6_BITS, &str_len)) {
         return false;
     }
 
@@ -166,8 +165,7 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
     if (index == 0) {
         skb_info->data_off += str_len;
         str_len = 0;
-        // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
-        if (!read_hpack_int(skb, skb_info, MAX_7_BITS, &str_len)) {
+        if (!read_hpack_int(skb, skb_info, MAX_6_BITS, &str_len)) {
             return false;
         }
         goto end;
@@ -772,7 +770,7 @@ int socket__http2_frames_parser(struct __sk_buff *skb) {
 
     http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&http2_telemetry, &zero);
     if (http2_tel == NULL) {
-        goto delete_iteration;
+        return 0;
     }
 
     http2_frame_with_offset *frames_array = tail_call_state->frames_array;

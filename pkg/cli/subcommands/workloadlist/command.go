@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -63,8 +62,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 						globalParams.ConfFilePath,
 						config.WithConfigName(globalParams.ConfigName),
 					),
-					LogParams: logimpl.ForOneShot(globalParams.LoggerName, "off", true)}),
-				core.Bundle(),
+					LogParams: log.ForOneShot(globalParams.LoggerName, "off", true)}),
+				core.Bundle,
 			)
 		},
 	}
@@ -74,7 +73,6 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return workloadListCommand
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
 func workloadList(log log.Component, config config.Component, cliParams *cliParams) error {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 

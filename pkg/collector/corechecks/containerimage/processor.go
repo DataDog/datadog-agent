@@ -25,8 +25,9 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// const but used as pointer, so stored as var
-var sourceAgent = "agent"
+var /* const */ (
+	sourceAgent = "agent"
+)
 
 type processor struct {
 	queue chan *model.ContainerImage
@@ -82,28 +83,25 @@ func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
 	var lastCreated *timestamppb.Timestamp
 	layers := make([]*model.ContainerImage_ContainerImageLayer, 0, len(img.Layers))
 	for _, layer := range img.Layers {
-		modelLayer := &model.ContainerImage_ContainerImageLayer{
+		var created *timestamppb.Timestamp
+		if layer.History.Created != nil {
+			created = timestamppb.New(*layer.History.Created)
+			lastCreated = created
+		}
+
+		layers = append(layers, &model.ContainerImage_ContainerImageLayer{
 			Urls:      layer.URLs,
 			MediaType: layer.MediaType,
 			Digest:    layer.Digest,
 			Size:      layer.SizeBytes,
-		}
-
-		if layer.History != nil {
-			modelLayer.History = &model.ContainerImage_ContainerImageLayer_History{
+			History: &model.ContainerImage_ContainerImageLayer_History{
+				Created:    created,
 				CreatedBy:  layer.History.CreatedBy,
 				Author:     layer.History.Author,
 				Comment:    layer.History.Comment,
 				EmptyLayer: layer.History.EmptyLayer,
-			}
-
-			if layer.History.Created != nil {
-				modelLayer.History.Created = timestamppb.New(*layer.History.Created)
-				lastCreated = modelLayer.History.Created
-			}
-		}
-
-		layers = append(layers, modelLayer)
+			},
+		})
 	}
 
 	// In containerd some images are created without a repo digest, and it's

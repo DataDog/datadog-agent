@@ -152,7 +152,6 @@ func (fh *forwarderHealth) computeDomainsURL() {
 	}
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
 func (fh *forwarderHealth) setAPIKeyStatus(apiKey string, domain string, status *expvar.String) {
 	if len(apiKey) > 5 {
 		apiKey = apiKey[len(apiKey)-5:]

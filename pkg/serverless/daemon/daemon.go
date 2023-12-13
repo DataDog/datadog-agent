@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(SERV) Fix revive linter
 package daemon
 
 import (
@@ -60,8 +59,8 @@ type Daemon struct {
 	// through configuration.
 	useAdaptiveFlush bool
 
-	// Stopped represents whether the Daemon has been Stopped
-	Stopped bool
+	// stopped represents whether the Daemon has been stopped
+	stopped bool
 
 	// LambdaLibraryDetected represents whether the Datadog Lambda Library was detected in the environment
 	LambdaLibraryDetected bool
@@ -209,12 +208,10 @@ func (d *Daemon) SetTraceAgent(traceAgent *trace.ServerlessTraceAgent) {
 	d.TraceAgent = traceAgent
 }
 
-//nolint:revive // TODO(SERV) Fix revive linter
 func (d *Daemon) SetOTLPAgent(otlpAgent *otlp.ServerlessOTLPAgent) {
 	d.OTLPAgent = otlpAgent
 }
 
-//nolint:revive // TODO(SERV) Fix revive linter
 func (d *Daemon) SetColdStartSpanCreator(creator *trace.ColdStartSpanCreator) {
 	d.ColdStartCreator = creator
 }
@@ -311,11 +308,11 @@ func (d *Daemon) Stop() {
 	// Can't shut down before starting
 	// If the DogStatsD daemon isn't ready, wait for it.
 
-	if d.Stopped {
+	if d.stopped {
 		log.Debug("Daemon.Stop() was called, but Daemon was already stopped")
 		return
 	}
-	d.Stopped = true
+	d.stopped = true
 
 	// Wait for any remaining logs to arrive via the logs API before shutting down the HTTP server
 	log.Debug("Waiting to shut down HTTP server")

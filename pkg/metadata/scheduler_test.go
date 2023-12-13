@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -26,7 +26,6 @@ type MockCollector struct {
 	SendCalledC chan bool
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
 func (c MockCollector) Send(ctx context.Context, s serializer.MetricSerializer) error {
 	c.SendCalledC <- true
 	return nil
@@ -36,7 +35,6 @@ type MockCollectorWithInit struct {
 	InitCalledC chan bool
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
 func (c MockCollectorWithInit) Send(ctx context.Context, s serializer.MetricSerializer) error {
 	return nil
 }
@@ -50,7 +48,6 @@ type mockCollectorWithFirstRun struct {
 	sendCalledC chan bool
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
 func (c mockCollectorWithFirstRun) Send(ctx context.Context, s serializer.MetricSerializer) error {
 	c.sendCalledC <- true
 	return nil
@@ -60,7 +57,6 @@ func (c mockCollectorWithFirstRun) FirstRunInterval() time.Duration {
 	return 2 * time.Second
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
 func mockNewTimer(d time.Duration) *time.Timer {
 	c := make(chan time.Time, 1)
 	timer := time.NewTimer(10 * time.Hour)
@@ -69,7 +65,6 @@ func mockNewTimer(d time.Duration) *time.Timer {
 	return timer
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
 func mockNewTimerNoTick(d time.Duration) *time.Timer {
 	return time.NewTimer(10 * time.Hour)
 }
@@ -234,5 +229,5 @@ type deps struct {
 func buildDeps(t *testing.T) deps {
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
-	return fxutil.Test[deps](t, defaultforwarder.MockModule(), config.MockModule(), logimpl.MockModule(), demultiplexer.MockModule())
+	return fxutil.Test[deps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule, demultiplexer.MockModule)
 }

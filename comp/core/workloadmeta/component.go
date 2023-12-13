@@ -131,18 +131,15 @@ type Component interface {
 }
 
 // Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(
-			newWorkloadMeta,
-		))
-}
+var Module fx.Option = fxutil.Component(
+	fx.Provide(
+		newWorkloadMeta,
+	),
+)
 
 // OptionalModule defines the fx options when workloadmeta should be used as an optional.
-func OptionalModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(
-			newWorkloadMetaOptional,
-		),
-	)
-}
+var OptionalModule fx.Option = fxutil.Component(
+	fx.Provide(
+		newWorkloadMetaOptional,
+	),
+)

@@ -24,8 +24,7 @@ import (
 // team: agent-apm
 
 // MockBundle defines the fx options for this bundle.
-func MockBundle() fxutil.BundleOptions {
-	return fxutil.Bundle(
-		config.MockModule(),
-		agent.MockModule())
-}
+var MockBundle = fxutil.Bundle(
+	config.MockModule,
+	agent.MockModule,
+)

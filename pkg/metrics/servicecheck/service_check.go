@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
 package servicecheck
 
 import (
@@ -15,8 +14,6 @@ import (
 )
 
 // ServiceCheckStatus represents the status associated with a service check
-//
-//nolint:revive // TODO(AML) Fix revive linter
 type ServiceCheckStatus int
 
 // Enumeration of the existing service check statuses, and their values

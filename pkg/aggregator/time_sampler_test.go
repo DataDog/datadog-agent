@@ -8,6 +8,7 @@
 package aggregator
 
 import (
+	"fmt"
 	"math"
 	"sort"
 	"testing"
@@ -16,7 +17,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/limiter"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags_limiter"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
@@ -32,7 +35,7 @@ func generateSerieContextKey(serie *metrics.Serie) ckey.ContextKey {
 }
 
 func testTimeSampler() *TimeSampler {
-	sampler := NewTimeSampler(TimeSamplerID(0), 10, tags.NewStore(false, "test"), "host")
+	sampler := NewTimeSampler(TimeSamplerID(0), 10, tags.NewStore(false, "test"), nil, nil, "host")
 	return sampler
 }
 
@@ -44,7 +47,6 @@ func TestCalculateBucketStart(t *testing.T) {
 	assert.Equal(t, int64(123460), sampler.calculateBucketStart(123460.5))
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func testBucketSampling(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler()
 
@@ -79,7 +81,6 @@ func TestBucketSampling(t *testing.T) {
 	testWithTagsStore(t, testBucketSampling)
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func testContextSampling(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler()
 
@@ -147,7 +148,6 @@ func TestContextSampling(t *testing.T) {
 	testWithTagsStore(t, testContextSampling)
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func testCounterExpirySeconds(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler()
 
@@ -284,7 +284,6 @@ func TestCounterExpirySeconds(t *testing.T) {
 	testWithTagsStore(t, testCounterExpirySeconds)
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func testSketch(t *testing.T, store *tags.Store) {
 	const (
 		defaultBucketSize = 10
@@ -358,7 +357,6 @@ func TestSketch(t *testing.T) {
 	testWithTagsStore(t, testSketch)
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func testSketchBucketSampling(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler()
 
@@ -405,7 +403,6 @@ func TestSketchBucketSampling(t *testing.T) {
 	testWithTagsStore(t, testSketchBucketSampling)
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func testSketchContextSampling(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler()
 
@@ -459,7 +456,6 @@ func TestSketchContextSampling(t *testing.T) {
 	testWithTagsStore(t, testSketchContextSampling)
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func testBucketSamplingWithSketchAndSeries(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler()
 
@@ -519,34 +515,8 @@ func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
 	testWithTagsStore(t, testBucketSamplingWithSketchAndSeries)
 }
 
-func TestFlushMissingContext(t *testing.T) {
-	sampler := testTimeSampler()
-	sampler.sample(&metrics.MetricSample{
-		Name:       "test.gauge",
-		Value:      1,
-		Mtype:      metrics.GaugeType,
-		SampleRate: 1,
-	}, 1000)
-	sampler.sample(&metrics.MetricSample{
-		Name:       "test.sketch",
-		Value:      1,
-		Mtype:      metrics.DistributionType,
-		SampleRate: 1,
-	}, 1000)
-
-	// Simulate a sutation where contexts are expired prematurely.
-	sampler.contextResolver.expireContexts(10000, nil)
-
-	assert.Len(t, sampler.contextResolver.resolver.contextsByKey, 0)
-
-	metrics, sketches := flushSerie(sampler, 1100)
-
-	assert.Len(t, metrics, 0)
-	assert.Len(t, sketches, 0)
-}
-
 func benchmarkTimeSampler(b *testing.B, store *tags.Store) {
-	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, "host")
+	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nil, nil, "host")
 
 	sample := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -562,6 +532,39 @@ func benchmarkTimeSampler(b *testing.B, store *tags.Store) {
 }
 func BenchmarkTimeSampler(b *testing.B) {
 	benchWithTagsStore(b, benchmarkTimeSampler)
+}
+
+func BenchmarkTimeSamplerWithLimiter(b *testing.B) {
+	sample1 := metrics.MetricSample{
+		Name:       "foo",
+		Value:      1,
+		Mtype:      metrics.GaugeType,
+		Tags:       []string{"foo", "bar"},
+		SampleRate: 1,
+		Timestamp:  12345.0,
+	}
+	sample2 := metrics.MetricSample{
+		Name:       "bar",
+		Value:      1,
+		Mtype:      metrics.GaugeType,
+		Tags:       []string{"foo", "bar"},
+		SampleRate: 1,
+		Timestamp:  12345.0,
+	}
+
+	for limit := range []int{0, 1, 2, 3} {
+		store := tags.NewStore(false, "test")
+		limiter := limiter.New(limit, "pod", []string{"pod"})
+		tagsLimiter := tags_limiter.New(5)
+		sampler := NewTimeSampler(TimeSamplerID(0), 10, store, limiter, tagsLimiter, "host")
+
+		b.Run(fmt.Sprintf("limit=%d", limit), func(b *testing.B) {
+			for n := 0; n < b.N; n++ {
+				sampler.sample(&sample1, 12345.0)
+				sampler.sample(&sample2, 12345.0)
+			}
+		})
+	}
 }
 
 func flushSerie(sampler *TimeSampler, timestamp float64) (metrics.Series, metrics.SketchSeriesList) {

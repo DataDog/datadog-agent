@@ -158,8 +158,6 @@ func NewCheckEvent(
 }
 
 // NewCheckSkipped returns a CheckEvent with skipped status.
-//
-//nolint:revive // TODO(CSPM) Fix revive linter
 func NewCheckSkipped(
 	evaluator Evaluator,
 	skipReason error,

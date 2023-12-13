@@ -43,7 +43,8 @@ type Resolver struct {
 }
 
 // NewResolver returns a new process resolver
-func NewResolver(_ *config.Config, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, opts ResolverOpts) (*Resolver, error) {
+func NewResolver(config *config.Config, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, //nolint:revive // TODO fix revive unused-parameter
+	opts ResolverOpts) (*Resolver, error) {
 
 	p := &Resolver{
 		processes:    make(map[Pid]*model.ProcessCacheEntry),
@@ -121,7 +122,7 @@ func (p *Resolver) GetEntry(pid Pid) *model.ProcessCacheEntry {
 }
 
 // Resolve returns the cache entry for the given pid
-func (p *Resolver) Resolve(pid uint32) *model.ProcessCacheEntry {
+func (p *Resolver) Resolve(pid uint32) *model.ProcessCacheEntry { //nolint:revive // TODO fix revive unused-parameter
 	return p.GetEntry(pid)
 }
 

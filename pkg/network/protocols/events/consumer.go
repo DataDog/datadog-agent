@@ -26,14 +26,14 @@ const (
 )
 
 // Consumer provides a standardized abstraction for consuming (batched) events from eBPF
-type Consumer[V any] struct {
+type Consumer struct {
 	mux         sync.Mutex
 	proto       string
 	syncRequest chan (chan struct{})
 	offsets     *offsetManager
 	handler     *ddebpf.PerfHandler
 	batchReader *batchReader
-	callback    func([]V)
+	callback    func([]byte)
 
 	// termination
 	eventLoopWG sync.WaitGroup
@@ -51,7 +51,7 @@ type Consumer[V any] struct {
 // `callback` is executed once for every "event" generated on eBPF and must:
 // 1) copy the data it wishes to hold since the underlying byte array is reclaimed;
 // 2) be thread-safe, as the callback may be executed concurrently from multiple go-routines;
-func NewConsumer[V any](proto string, ebpf *manager.Manager, callback func([]V)) (*Consumer[V], error) {
+func NewConsumer(proto string, ebpf *manager.Manager, callback func([]byte)) (*Consumer, error) {
 	batchMapName := proto + batchMapSuffix
 	batchMap, found, _ := ebpf.GetMap(batchMapName)
 	if !found {
@@ -86,7 +86,7 @@ func NewConsumer[V any](proto string, ebpf *manager.Manager, callback func([]V))
 	missesCount := metricGroup.NewCounter("events_missed")
 	kernelDropsCount := metricGroup.NewCounter("kernel_dropped_events")
 
-	return &Consumer[V]{
+	return &Consumer{
 		proto:       proto,
 		callback:    callback,
 		syncRequest: make(chan chan struct{}),
@@ -104,7 +104,7 @@ func NewConsumer[V any](proto string, ebpf *manager.Manager, callback func([]V))
 }
 
 // Start consumption of eBPF events
-func (c *Consumer[V]) Start() {
+func (c *Consumer) Start() {
 	c.eventLoopWG.Add(1)
 	go func() {
 		defer c.eventLoopWG.Done()
@@ -142,7 +142,7 @@ func (c *Consumer[V]) Start() {
 
 // Sync userpace with kernelspace by fetching all buffered data on eBPF
 // Calling this will block until all eBPF map data has been fetched and processed
-func (c *Consumer[V]) Sync() {
+func (c *Consumer) Sync() {
 	c.mux.Lock()
 	if c.stopped {
 		c.mux.Unlock()
@@ -158,7 +158,7 @@ func (c *Consumer[V]) Sync() {
 }
 
 // Stop consuming data from eBPF
-func (c *Consumer[V]) Stop() {
+func (c *Consumer) Stop() {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 
@@ -173,7 +173,7 @@ func (c *Consumer[V]) Stop() {
 	close(c.syncRequest)
 }
 
-func (c *Consumer[V]) process(cpu int, b *batch, syncing bool) {
+func (c *Consumer) process(cpu int, b *batch, syncing bool) {
 	begin, end := c.offsets.Get(cpu, b, syncing)
 
 	// telemetry stuff
@@ -181,19 +181,12 @@ func (c *Consumer[V]) process(cpu int, b *batch, syncing bool) {
 	c.eventsCount.Add(int64(end - begin))
 	c.kernelDropsCount.Add(int64(b.Dropped_events))
 
-	// generate a slice of type []V from the batch
-	length := end - begin
-	ptr := pointerToElement[V](b, begin)
-	events := unsafe.Slice(ptr, length)
-
-	c.callback(events)
+	iter := newIterator(b, begin, end)
+	for data := iter.Next(); data != nil; data = iter.Next() {
+		c.callback(data)
+	}
 }
 
 func batchFromEventData(data []byte) *batch {
 	return (*batch)(unsafe.Pointer(&data[0]))
-}
-
-func pointerToElement[V any](b *batch, elementIdx int) *V {
-	offset := elementIdx * int(b.Event_size)
-	return (*V)(unsafe.Pointer(uintptr(unsafe.Pointer(&b.Data[0])) + uintptr(offset)))
 }

@@ -5,7 +5,6 @@
 
 //go:build kubeapiserver
 
-//nolint:revive // TODO(CAPP) Fix revive linter
 package orchestrator
 
 import (

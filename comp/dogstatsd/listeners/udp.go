@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"net"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
@@ -45,7 +44,6 @@ type UDPListener struct {
 	packetAssembler *packets.Assembler
 	buffer          []byte
 	trafficCapture  replay.Component // Currently ignored
-	listenWg        sync.WaitGroup
 }
 
 // NewUDPListener returns an idle UDP Statsd listener
@@ -106,15 +104,6 @@ func (l *UDPListener) LocalAddr() string {
 
 // Listen runs the intake loop. Should be called in its own goroutine
 func (l *UDPListener) Listen() {
-	l.listenWg.Add(1)
-
-	go func() {
-		defer l.listenWg.Done()
-		l.listen()
-	}()
-}
-
-func (l *UDPListener) listen() {
 	var t1, t2 time.Time
 	log.Infof("dogstatsd-udp: starting to listen on %s", l.conn.LocalAddr())
 	for {
@@ -151,5 +140,4 @@ func (l *UDPListener) Stop() {
 	l.packetAssembler.Close()
 	l.packetsBuffer.Close()
 	l.conn.Close()
-	l.listenWg.Wait()
 }

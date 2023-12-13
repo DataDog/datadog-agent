@@ -24,7 +24,6 @@ func Disabled() *Params {
 }
 
 // Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newResourcesProvider))
-}
+var Module = fxutil.Component(
+	fx.Provide(newResourcesProvider),
+)

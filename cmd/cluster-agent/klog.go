@@ -5,7 +5,6 @@
 
 //go:build !windows && kubeapiserver
 
-//nolint:revive // TODO(CINT) Fix revive linter
 package main
 
 import (

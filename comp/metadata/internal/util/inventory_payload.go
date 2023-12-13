@@ -120,6 +120,7 @@ func CreateInventoryPayload(conf config.Component, l log.Component, s serializer
 		serializer:    s,
 		getPayload:    getPayload,
 		flareFileName: flareFileName,
+		LastCollect:   time.Now(),
 		MinInterval:   minInterval,
 		MaxInterval:   maxInterval,
 	}

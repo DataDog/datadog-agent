@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
 package aggregator
 
 import (
@@ -482,7 +481,6 @@ func (agg *BufferedAggregator) getSeriesAndSketches(
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 
-	//nolint:revive // TODO(AML) Fix revive linter
 	for checkId, checkSampler := range agg.checkSamplers {
 		checkSeries, sketches := checkSampler.flush()
 		for _, s := range checkSeries {

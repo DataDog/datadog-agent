@@ -23,10 +23,9 @@ import (
 )
 
 // Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newOrchestratorForwarder))
-}
+var Module = fxutil.Component(
+	fx.Provide(newOrchestratorForwarder),
+)
 
 // newOrchestratorForwarder returns an orchestratorForwarder
 // if the feature is activated on the cluster-agent/cluster-check runner, nil otherwise

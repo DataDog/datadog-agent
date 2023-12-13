@@ -18,8 +18,6 @@ import (
 )
 
 // This represent a symlink to a sealed ram-backed file
-//
-//nolint:revive // TODO(EBPF) Fix revive linter
 type ProtectedFile interface {
 	Close() error
 	Reader() io.Reader
@@ -32,8 +30,6 @@ type ramBackedFile struct {
 }
 
 // This function returns a sealed ram backed file
-//
-//nolint:revive // TODO(EBPF) Fix revive linter
 func NewProtectedFile(name, dir string, source io.Reader) (ProtectedFile, error) {
 	var err error
 
@@ -66,7 +62,6 @@ func NewProtectedFile(name, dir string, source io.Reader) (ProtectedFile, error)
 		return nil, fmt.Errorf("failed to create symlink %s from target %s: %w", tmpFile, target, err)
 	}
 
-	//nolint:staticcheck // TODO(EBPF) Fix staticcheck linter
 	if _, err := memfdFile.Seek(0, os.SEEK_SET); err != nil {
 		return nil, fmt.Errorf("failed to reset cursor: %w", err)
 	}
@@ -95,7 +90,6 @@ func setupSourceInfoFile(source io.Reader, path string) error {
 
 func (m *ramBackedFile) Close() error {
 	os.Remove(m.symlink)
-	//nolint:staticcheck // TODO(EBPF) Fix staticcheck linter
 	if _, err := m.file.Seek(0, os.SEEK_SET); err != nil {
 		log.Debug(err)
 	}

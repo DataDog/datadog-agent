@@ -5,7 +5,6 @@
 
 //go:build !clusterchecks
 
-//nolint:revive // TODO(CINT) Fix revive linter
 package clusterchecks
 
 import (

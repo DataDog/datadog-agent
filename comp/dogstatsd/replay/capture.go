@@ -42,8 +42,6 @@ type trafficCapture struct {
 }
 
 // TODO: (components) - remove once serverless is an FX app
-//
-//nolint:revive // TODO(AML) Fix revive linter
 func NewServerlessTrafficCapture() Component {
 	return newTrafficCaptureCompat(config.Datadog)
 }

@@ -61,23 +61,22 @@ type APIServer struct {
 	expiredEventsLock sync.RWMutex
 	expiredEvents     map[rules.RuleID]*atomic.Int64
 	expiredDumps      *atomic.Int64
-	//nolint:unused // TODO(SEC) Fix unused linter
-	limiter      *events.StdLimiter
-	statsdClient statsd.ClientInterface
-	probe        *sprobe.Probe
-	queueLock    sync.Mutex
-	queue        []*pendingMsg
-	retention    time.Duration
-	cfg          *config.RuntimeSecurityConfig
-	selfTester   *selftests.SelfTester
-	cwsConsumer  *CWSConsumer
+	limiter           *events.StdLimiter
+	statsdClient      statsd.ClientInterface
+	probe             *sprobe.Probe
+	queueLock         sync.Mutex
+	queue             []*pendingMsg
+	retention         time.Duration
+	cfg               *config.RuntimeSecurityConfig
+	selfTester        *selftests.SelfTester
+	cwsConsumer       *CWSConsumer
 
 	stopChan chan struct{}
 	stopper  startstop.Stopper
 }
 
 // GetActivityDumpStream waits for activity dumps and forwards them to the stream
-func (a *APIServer) GetActivityDumpStream(_ *api.ActivityDumpStreamParams, stream api.SecurityModule_GetActivityDumpStreamServer) error {
+func (a *APIServer) GetActivityDumpStream(params *api.ActivityDumpStreamParams, stream api.SecurityModule_GetActivityDumpStreamServer) error {
 	for {
 		select {
 		case <-stream.Context().Done():
@@ -116,7 +115,7 @@ func (a *APIServer) SendActivityDump(dump *api.ActivityDumpStreamMessage) {
 }
 
 // GetEvents waits for security events
-func (a *APIServer) GetEvents(_ *api.GetEventParams, stream api.SecurityModule_GetEventsServer) error {
+func (a *APIServer) GetEvents(params *api.GetEventParams, stream api.SecurityModule_GetEventsServer) error {
 	for {
 		select {
 		case <-stream.Context().Done():
@@ -247,7 +246,7 @@ func (a *APIServer) Start(ctx context.Context) {
 }
 
 // GetConfig returns config of the runtime security module required by the security agent
-func (a *APIServer) GetConfig(_ context.Context, _ *api.GetConfigParams) (*api.SecurityConfigMessage, error) {
+func (a *APIServer) GetConfig(ctx context.Context, params *api.GetConfigParams) (*api.SecurityConfigMessage, error) {
 	if a.cfg != nil {
 		return &api.SecurityConfigMessage{
 			FIMEnabled:          a.cfg.FIMEnabled,
@@ -286,7 +285,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func()
 		ruleEvent.AgentContext.PolicyVersion = policy.Version
 	}
 
-	probeJSON, err := marshalEvent(e)
+	probeJSON, err := marshalEvent(e, a.probe)
 	if err != nil {
 		seclog.Errorf("failed to marshal event: %v", err)
 		return
@@ -320,7 +319,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func()
 	a.enqueue(msg)
 }
 
-func marshalEvent(event events.Event) ([]byte, error) {
+func marshalEvent(event events.Event, probe *sprobe.Probe) ([]byte, error) {
 	if ev, ok := event.(*model.Event); ok {
 		return serializers.MarshalEvent(ev)
 	}
@@ -379,7 +378,7 @@ func (a *APIServer) SendStats() error {
 }
 
 // ReloadPolicies reloads the policies
-func (a *APIServer) ReloadPolicies(_ context.Context, _ *api.ReloadPoliciesParams) (*api.ReloadPoliciesResultMessage, error) {
+func (a *APIServer) ReloadPolicies(ctx context.Context, params *api.ReloadPoliciesParams) (*api.ReloadPoliciesResultMessage, error) {
 	if a.cwsConsumer == nil || a.cwsConsumer.ruleEngine == nil {
 		return nil, errors.New("no rule engine")
 	}
@@ -391,7 +390,7 @@ func (a *APIServer) ReloadPolicies(_ context.Context, _ *api.ReloadPoliciesParam
 }
 
 // GetRuleSetReport reports the ruleset loaded
-func (a *APIServer) GetRuleSetReport(_ context.Context, _ *api.GetRuleSetReportParams) (*api.GetRuleSetReportResultMessage, error) {
+func (a *APIServer) GetRuleSetReport(ctx context.Context, params *api.GetRuleSetReportParams) (*api.GetRuleSetReportResultMessage, error) {
 	if a.cwsConsumer == nil || a.cwsConsumer.ruleEngine == nil {
 		return nil, errors.New("no rule engine")
 	}

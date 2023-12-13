@@ -17,7 +17,6 @@ var _ statsProvider = &mockStatsProvider{}
 
 type mockStatsProvider struct{}
 
-//nolint:revive // TODO(PROC) Fix revive linter
 func (_ *mockStatsProvider) getThreadCount() (int32, error) {
 	return 32, nil
 }

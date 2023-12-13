@@ -37,7 +37,6 @@ func createExtraTextContext(string) seelog.FormatterFunc {
 	}
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
 func parseShortFilePath(params string) seelog.FormatterFunc {
 	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
 		return extractShortPathFromFullPath(context.FullPath())

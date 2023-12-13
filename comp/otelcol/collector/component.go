@@ -30,7 +30,6 @@ type Component interface {
 }
 
 // Module specifies the Collector module bundle.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newPipeline))
-}
+var Module = fxutil.Component(
+	fx.Provide(newPipeline),
+)

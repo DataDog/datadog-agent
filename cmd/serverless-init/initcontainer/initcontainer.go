@@ -5,7 +5,6 @@
 
 //go:build !windows
 
-//nolint:revive // TODO(SERV) Fix revive linter
 package initcontainer
 
 import (

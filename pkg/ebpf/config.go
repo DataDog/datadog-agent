@@ -34,9 +34,6 @@ type Config struct {
 	// ProcRoot is the root path to the proc filesystem
 	ProcRoot string
 
-	// InternalTelemetryEnabled indicates whether internal prometheus telemetry is enabled
-	InternalTelemetryEnabled bool
-
 	// EnableTracepoints enables use of tracepoints instead of kprobes for probing syscalls (if available on system)
 	EnableTracepoints bool
 
@@ -96,7 +93,6 @@ func NewConfig() *Config {
 		ExcludedBPFLinuxVersions: cfg.GetStringSlice(key(spNS, "excluded_linux_versions")),
 		EnableTracepoints:        cfg.GetBool(key(spNS, "enable_tracepoints")),
 		ProcRoot:                 kernel.ProcFSRoot(),
-		InternalTelemetryEnabled: cfg.GetBool(key(spNS, "telemetry_enabled")),
 
 		EnableCORE: cfg.GetBool(key(spNS, "enable_co_re")),
 		BTFPath:    cfg.GetString(key(spNS, "btf_path")),

@@ -5,7 +5,6 @@
 
 //go:build !orchestrator
 
-//nolint:revive // TODO(AML) Fix revive linter
 package types
 
 // ProcessMessageBody is a type alias for processes proto message body

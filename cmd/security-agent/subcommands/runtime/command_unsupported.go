@@ -5,7 +5,6 @@
 
 //go:build !linux && !windows
 
-// Package runtime holds runtime related files
 package runtime
 
 import (
@@ -23,7 +22,7 @@ import (
 )
 
 // Commands returns the runtime security commands
-func Commands(*command.GlobalParams) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return nil
 }
 

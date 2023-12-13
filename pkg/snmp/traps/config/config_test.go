@@ -11,7 +11,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	ddconf "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/gosnmp/gosnmp"
@@ -53,7 +52,7 @@ func makeConfigWithGlobalNamespace(t *testing.T, trapConfig TrapsConfig, globalN
 }
 
 func TestFullConfig(t *testing.T) {
-	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
+	logger := fxutil.Test[log.Component](t, log.MockModule)
 	rootConfig := makeConfig(t, TrapsConfig{
 		Port: 1234,
 		Users: []UserV3{
@@ -105,7 +104,7 @@ func TestFullConfig(t *testing.T) {
 }
 
 func TestMinimalConfig(t *testing.T) {
-	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
+	logger := fxutil.Test[log.Component](t, log.MockModule)
 	config, err := ReadConfig("", makeConfig(t, TrapsConfig{}))
 	assert.NoError(t, err)
 	assert.Equal(t, uint16(9162), config.Port)

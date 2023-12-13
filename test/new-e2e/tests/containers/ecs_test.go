@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-	"strings"
 	"testing"
 	"time"
 
@@ -69,9 +68,8 @@ func (suite *ecsSuite) TearDownSuite() {
 	c := color.New(color.Bold).SprintfFunc()
 	suite.T().Log(c("The data produced and asserted by these tests can be viewed on this dashboard:"))
 	c = color.New(color.Bold, color.FgBlue).SprintfFunc()
-	suite.T().Log(c("https://dddev.datadoghq.com/dashboard/mnw-tdr-jd8/e2e-tests-containers-ecs?refresh_mode=paused&tpl_var_ecs_cluster_name%%5B0%%5D=%s&tpl_var_fake_intake_task_family%%5B0%%5D=%s-fakeintake-ecs&from_ts=%d&to_ts=%d&live=false",
+	suite.T().Log(c("https://dddev.datadoghq.com/dashboard/mnw-tdr-jd8/e2e-tests-containers-ecs?refresh_mode=paused&tpl_var_ecs_cluster_name%%5B0%%5D=%s&from_ts=%d&to_ts=%d&live=false",
 		suite.ecsClusterName,
-		strings.TrimSuffix(suite.ecsClusterName, "-ecs"),
 		suite.startTime.UnixMilli(),
 		suite.endTime.UnixMilli(),
 	))
@@ -278,7 +276,7 @@ func (suite *ecsSuite) TestRedis() {
 				`^task_name:.*-redis-ec2$`,
 				`^task_version:[[:digit:]]+$`,
 			},
-			Message: `Accepted`,
+			Message: `oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo`,
 		},
 	})
 }

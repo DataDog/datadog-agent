@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-// Package rungo provides tools to run the Go toolchain.
 package rungo
 
 import (

@@ -29,10 +29,9 @@ import (
 )
 
 // Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newExpvarServer))
-}
+var Module = fxutil.Component(
+	fx.Provide(newExpvarServer),
+)
 
 var _ expvars.Component = (*expvarServer)(nil)
 

@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
 package serializer
 
 import (
@@ -368,7 +367,6 @@ func (s *Serializer) SendSketch(sketches metrics.SketchesSource) error {
 
 		return s.Forwarder.SubmitSketchSeries(payloads, protobufExtraHeadersWithCompression)
 	} else {
-		//nolint:revive // TODO(AML) Fix revive linter
 		compress := true
 		splitSketches, extraHeaders, err := s.serializePayloadProto(sketchesSerializer, compress)
 		if err != nil {
@@ -459,7 +457,6 @@ func (s *Serializer) SendOrchestratorMetadata(msgs []types.ProcessMessageBody, h
 
 		// Consume the responses so that writers to the channel do not become blocked
 		// we don't need the bodies here though
-		//nolint:revive // TODO(AML) Fix revive linter
 		for range responses {
 
 		}
@@ -487,7 +484,6 @@ func (s *Serializer) SendOrchestratorManifests(msgs []types.ProcessMessageBody, 
 
 		// Consume the responses so that writers to the channel do not become blocked
 		// we don't need the bodies here though
-		//nolint:revive // TODO(AML) Fix revive linter
 		for range responses {
 
 		}

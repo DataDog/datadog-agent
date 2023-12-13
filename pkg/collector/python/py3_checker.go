@@ -33,8 +33,6 @@ type warning struct {
 }
 
 // validatePython3 checks that a check can run on python 3.
-//
-//nolint:revive // TODO(AML) Fix revive linter
 func validatePython3(moduleName string, modulePath string) ([]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), linterTimeout)
 	defer cancel()

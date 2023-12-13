@@ -6,8 +6,6 @@
 //go:build !windows && kubeapiserver
 
 // Package secrethelper implements 'cluster-agent secret-helper'.
-//
-//nolint:revive // TODO(CINT) Fix revive linter
 package diagnose
 
 import (
@@ -17,8 +15,6 @@ import (
 )
 
 // Commands returns a slice of subcommands for the 'cluster-agent' command.
-//
-//nolint:revive // TODO(CINT) Fix revive linter
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return secrethelper.Commands()
 }

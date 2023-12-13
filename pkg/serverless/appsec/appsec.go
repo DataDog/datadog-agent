@@ -12,7 +12,6 @@ import (
 	"math/rand"
 	"time"
 
-	appsecLog "github.com/DataDog/appsec-internal-go/log"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/httpsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
@@ -21,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-//nolint:revive // TODO(ASM) Fix revive linter
 func New() (*httpsec.ProxyLifecycleProcessor, error) {
 	appsecInstance, err := newAppSec() // note that the assigned variable is in the parent scope
 	if err != nil {
@@ -42,7 +40,6 @@ func New() (*httpsec.ProxyLifecycleProcessor, error) {
 	return lp, nil
 }
 
-//nolint:revive // TODO(ASM) Fix revive linter
 type AppSec struct {
 	cfg *config.Config
 	// WAF handle instance of the appsec event rules.
@@ -161,14 +158,4 @@ func wafHealth() error {
 // and that sampling rate allows schema extraction for a specific monitoring instance
 func (a *AppSec) canExtractSchemas() bool {
 	return a.cfg.APISec.Enabled && a.cfg.APISec.SampleRate >= rand.Float64()
-}
-
-func init() {
-	appsecLog.SetBackend(appsecLog.Backend{
-		Trace:     log.Tracef,
-		Debug:     log.Debugf,
-		Info:      log.Infof,
-		Errorf:    log.Errorf,
-		Criticalf: log.Criticalf,
-	})
 }

@@ -9,7 +9,6 @@
 
 //go:build windows
 
-//nolint:revive // TODO(WINA) Fix revive linter
 package cpu
 
 import (

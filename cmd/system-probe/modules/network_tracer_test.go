@@ -16,8 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/encoding/marshal"
-	"github.com/DataDog/datadog-agent/pkg/process/encoding"
+	"github.com/DataDog/datadog-agent/pkg/network/encoding"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -60,10 +59,10 @@ func TestDecode(t *testing.T) {
 		},
 	}
 
-	marshaller := marshal.GetMarshaler(encoding.ContentTypeJSON)
+	marshaller := encoding.GetMarshaler(encoding.ContentTypeJSON)
 	ostream := bytes.NewBuffer(nil)
 
-	connectionsModeler := marshal.NewConnectionsModeler(in)
+	connectionsModeler := encoding.NewConnectionsModeler(in)
 	defer connectionsModeler.Close()
 
 	err := marshaller.Marshal(in, ostream, connectionsModeler)

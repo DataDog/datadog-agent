@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -24,15 +23,13 @@ type mockCheck struct {
 	id        checkid.ID
 	stringVal string
 	version   string
-	interval  time.Duration
 }
 
 // Mock Check interface implementation
-func (mc *mockCheck) ConfigSource() string    { return mc.cfgSource }
-func (mc *mockCheck) ID() checkid.ID          { return mc.id }
-func (mc *mockCheck) String() string          { return mc.stringVal }
-func (mc *mockCheck) Version() string         { return mc.version }
-func (mc *mockCheck) Interval() time.Duration { return mc.interval }
+func (mc *mockCheck) ConfigSource() string { return mc.cfgSource }
+func (mc *mockCheck) ID() checkid.ID       { return mc.id }
+func (mc *mockCheck) String() string       { return mc.stringVal }
+func (mc *mockCheck) Version() string      { return mc.version }
 
 func newMockCheck() StatsCheck {
 	return &mockCheck{
@@ -40,17 +37,6 @@ func newMockCheck() StatsCheck {
 		id:        "checkID",
 		stringVal: "checkString",
 		version:   "checkVersion",
-		interval:  15 * time.Second,
-	}
-}
-
-func newMockCheckWithInterval(interval time.Duration) StatsCheck {
-	return &mockCheck{
-		cfgSource: "checkConfigSrc",
-		id:        "checkID",
-		stringVal: "checkString",
-		version:   "checkVersion",
-		interval:  interval,
 	}
 }
 
@@ -74,7 +60,6 @@ func TestNewStats(t *testing.T) {
 	assert.Equal(t, stats.CheckVersion, "checkVersion")
 	assert.Equal(t, stats.CheckVersion, "checkVersion")
 	assert.Equal(t, stats.CheckConfigSource, "checkConfigSrc")
-	assert.Equal(t, stats.Interval, 15*time.Second)
 }
 
 func TestNewStatsStateTelemetryIgnoredWhenGloballyDisabled(t *testing.T) {

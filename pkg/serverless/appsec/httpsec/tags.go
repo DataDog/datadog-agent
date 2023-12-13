@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(ASM) Fix revive linter
 //nolint:deadcode,unused
 package httpsec
 
@@ -22,7 +21,6 @@ import (
 const envClientIPHeader = "DD_TRACE_CLIENT_IP_HEADER"
 
 var (
-	//nolint:unused // TODO(ASM) Fix unused linter
 	clientIPHeader string
 
 	defaultIPHeaders = []string{

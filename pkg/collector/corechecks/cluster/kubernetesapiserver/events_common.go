@@ -86,8 +86,6 @@ func getEventHostInfo(clusterName string, ev *v1.Event) eventHostInfo {
 // getEventHostInfoImpl get the host information (hostname,nodename) from where the event has been generated.
 // This function takes `hostProviderIDFunc` function to ease unit-testing by mocking the
 // providers logic
-//
-//nolint:revive // TODO(CINT) Fix revive linter
 func getEventHostInfoImpl(hostProviderIDFunc func(string) string, clusterName string, ev *v1.Event) eventHostInfo {
 	info := eventHostInfo{}
 

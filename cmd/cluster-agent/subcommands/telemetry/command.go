@@ -17,8 +17,6 @@ import (
 )
 
 // Commands returns a slice of subcommands for the 'cluster-agent' command.
-//
-//nolint:revive // TODO(CINT) Fix revive linter
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "telemetry",

@@ -10,6 +10,4 @@
 // [Server]: https://pkg.go.dev/github.com/DataDog/datadog-agent@main/test/fakeintake/server
 // [Client]: https://pkg.go.dev/github.com/DataDog/datadog-agent@main/test/fakeintake/client
 // [docker container]: https://hub.docker.com/r/datadog/fakeintake
-//
-//nolint:revive // TODO(APL) Fix revive linter
 package fakeintake

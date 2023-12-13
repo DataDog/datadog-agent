@@ -10,8 +10,6 @@ package gce
 import "context"
 
 // GetTags gets the tags from the GCE api
-//
-//nolint:revive // TODO(ASC) Fix revive linter
 func GetTags(ctx context.Context) ([]string, error) {
 	tags := []string{}
 

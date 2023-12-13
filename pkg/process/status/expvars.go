@@ -5,7 +5,6 @@
 
 // This file provides methods to set various expvar values, which are then queried by the `status` command.
 
-//nolint:revive // TODO(PROC) Fix revive linter
 package status
 
 import (
@@ -74,7 +73,6 @@ func publishDockerSocket() interface{} {
 	return infoDockerSocket
 }
 
-//nolint:revive // TODO(PROC) Fix revive linter
 func UpdateDockerSocket(path string) {
 	infoMutex.Lock()
 	defer infoMutex.Unlock()
@@ -87,7 +85,6 @@ func publishLastCollectTime() interface{} {
 	return infoLastCollectTime
 }
 
-//nolint:revive // TODO(PROC) Fix revive linter
 func UpdateLastCollectTime(t time.Time) {
 	infoMutex.Lock()
 	defer infoMutex.Unlock()
@@ -106,7 +103,6 @@ func publishBool(v bool) expvar.Func {
 	}
 }
 
-//nolint:revive // TODO(PROC) Fix revive linter
 func UpdateProcContainerCount(msgs []model.MessageBody) {
 	var procCount, containerCount int
 	for _, m := range msgs {
@@ -123,7 +119,6 @@ func UpdateProcContainerCount(msgs []model.MessageBody) {
 	infoContainerCount.Store(int64(containerCount))
 }
 
-//nolint:revive // TODO(PROC) Fix revive linter
 type QueueStats struct {
 	ProcessQueueSize      int
 	RtProcessQueueSize    int
@@ -137,7 +132,6 @@ type QueueStats struct {
 	PodQueueBytes         int64
 }
 
-//nolint:revive // TODO(PROC) Fix revive linter
 func UpdateQueueStats(stats *QueueStats) {
 	infoProcessQueueSize.Store(int64(stats.ProcessQueueSize))
 	infoRTProcessQueueSize.Store(int64(stats.RtProcessQueueSize))
@@ -151,7 +145,6 @@ func UpdateQueueStats(stats *QueueStats) {
 	infoPodQueueBytes.Store(stats.PodQueueBytes)
 }
 
-//nolint:revive // TODO(PROC) Fix revive linter
 func UpdateEnabledChecks(enabledChecks []string) {
 	infoMutex.Lock()
 	defer infoMutex.Unlock()
@@ -231,7 +224,6 @@ func getEndpointsInfo(eps []apicfg.Endpoint) interface{} {
 	return endpointsInfo
 }
 
-//nolint:revive // TODO(PROC) Fix revive linter
 func UpdateDropCheckPayloads(drops []string) {
 	infoMutex.RLock()
 	defer infoMutex.RUnlock()

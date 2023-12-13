@@ -111,7 +111,6 @@ type cgroupProcsPidMapper struct {
 	cgroupProcsFilePathBuilder func(string) string
 }
 
-//nolint:revive // TODO(CINT) Fix revive linter
 func (pm *cgroupProcsPidMapper) getPIDsForCgroup(identifier, relativeCgroupPath string, cacheValidity time.Duration) []int {
 	var pids []int
 
@@ -184,7 +183,6 @@ func (pm *procPidMapper) refreshMapping(cacheValidity time.Duration) {
 	}
 }
 
-//nolint:revive // TODO(CINT) Fix revive linter
 func (pm *procPidMapper) getPIDsForCgroup(identifier, relativeCgroupPath string, cacheValidity time.Duration) []int {
 	pm.lock.Lock()
 	defer pm.lock.Unlock()

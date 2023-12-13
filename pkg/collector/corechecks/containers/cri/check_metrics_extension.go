@@ -44,7 +44,6 @@ func (cext *criCustomMetricsExtension) PreProcess(sender generic.SenderFunc, agg
 	}
 }
 
-//nolint:revive // TODO(CINT) Fix revive linter
 func (cext *criCustomMetricsExtension) Process(tags []string, container *workloadmeta.Container, collector metrics.Collector, cacheValidity time.Duration) {
 	if cext.criContainerStats == nil {
 		return

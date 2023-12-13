@@ -16,8 +16,7 @@ import (
 // team: network-device-monitoring
 
 // Bundle defines the fx options for this bundle.
-func Bundle() fxutil.BundleOptions {
-	return fxutil.Bundle(
-		server.Module(),
-		config.Module())
-}
+var Bundle = fxutil.Bundle(
+	server.Module,
+	config.Module,
+)

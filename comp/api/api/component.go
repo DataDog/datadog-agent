@@ -19,7 +19,6 @@ import (
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
@@ -49,7 +48,6 @@ type Component interface {
 		demux demultiplexer.Component,
 		invHost inventoryhost.Component,
 		secretResolver secrets.Component,
-		invChecks inventorychecks.Component,
 	) error
 	StopServer()
 	ServerAddress() *net.TCPAddr

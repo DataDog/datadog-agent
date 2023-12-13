@@ -9,7 +9,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
-//nolint:revive // TODO(AML) Fix revive linter
 func MetricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 	// These constants map to specific fields in the 'OriginCategory' enum in origin.proto
 	switch ms {
@@ -66,7 +65,6 @@ func MetricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 	}
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func MetricSourceToOriginService(ms metrics.MetricSource) int32 {
 	// These constants map to specific fields in the 'OriginService' enum in origin.proto
 	switch ms {

@@ -19,10 +19,9 @@ import (
 )
 
 // Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newRunner))
-}
+var Module = fxutil.Component(
+	fx.Provide(newRunner),
+)
 
 // MetadataProvider is the provider for metadata
 type MetadataProvider func(context.Context) time.Duration

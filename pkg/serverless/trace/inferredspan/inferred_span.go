@@ -96,8 +96,6 @@ func FilterFunctionTags(input map[string]string) map[string]string {
 }
 
 // GenerateSpanId creates a secure random span id in specific scenarios, otherwise return a pseudo random id
-//
-//nolint:revive // TODO(SERV) Fix revive linter
 func GenerateSpanId() uint64 {
 	isSnapStart := os.Getenv(tags.InitType) == tags.SnapStartValue
 	if isSnapStart {

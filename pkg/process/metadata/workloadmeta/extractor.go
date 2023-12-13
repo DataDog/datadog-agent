@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(PROC) Fix revive linter
 package workloadmeta
 
 import (
@@ -24,7 +23,6 @@ const subsystem = "WorkloadMetaExtractor"
 
 // ProcessEntity represents a process exposed by the WorkloadMeta extractor
 type ProcessEntity struct {
-	//nolint:revive // TODO(PROC) Fix revive linter
 	Pid          int32
 	ContainerId  string
 	NsPid        int32

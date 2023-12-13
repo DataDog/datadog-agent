@@ -15,7 +15,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/limiter"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags_limiter"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -172,8 +174,10 @@ func initAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forward
 	for i := 0; i < statsdPipelinesCount; i++ {
 		// the sampler
 		tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), fmt.Sprintf("timesampler #%d", i))
+		tagsLimiter := tags_limiter.New(options.DogstatsdMaxMetricsTags)
+		contextsLimiter := limiter.FromConfig(statsdPipelinesCount, options.UseDogstatsdContextLimiter)
 
-		statsdSampler := NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore, agg.hostname)
+		statsdSampler := NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore, contextsLimiter, tagsLimiter, agg.hostname)
 
 		// its worker (process loop + flush/serialization mechanism)
 
@@ -546,8 +550,6 @@ func (d *AgentDemultiplexer) AggregateSample(sample metrics.MetricSample) {
 }
 
 // AggregateCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
-//
-//nolint:revive // TODO(AML) Fix revive linter
 func (d *AgentDemultiplexer) AggregateCheckSample(sample metrics.MetricSample) {
 	panic("not implemented yet.")
 }

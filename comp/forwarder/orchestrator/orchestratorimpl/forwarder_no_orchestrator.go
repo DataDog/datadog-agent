@@ -20,10 +20,9 @@ import (
 )
 
 // Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newOrchestratorForwarder))
-}
+var Module = fxutil.Component(
+	fx.Provide(newOrchestratorForwarder),
+)
 
 // newOrchestratorForwarder builds the orchestrator forwarder.
 // This func has been extracted in this file to not include all the orchestrator

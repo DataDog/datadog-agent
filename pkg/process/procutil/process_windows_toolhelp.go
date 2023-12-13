@@ -30,7 +30,6 @@ var (
 	procGetProcessIoCounters  = modkernel.NewProc("GetProcessIoCounters")
 )
 
-//nolint:revive // TODO(PROC) Fix revive linter
 type IO_COUNTERS struct {
 	ReadOperationCount  uint64
 	WriteOperationCount uint64

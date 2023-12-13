@@ -14,24 +14,17 @@ import (
 
 // ContainerApp has helper functions for getting specific Azure Container App data
 type ContainerApp struct {
-	//nolint:revive // TODO(SERV) Fix revive linter
 	SubscriptionId string
-	//nolint:revive // TODO(SERV) Fix revive linter
-	ResourceGroup string
+	ResourceGroup  string
 }
 
 const (
-	//nolint:revive // TODO(SERV) Fix revive linter
 	ContainerAppNameEnvVar = "CONTAINER_APP_NAME"
-	//nolint:revive // TODO(SERV) Fix revive linter
-	ContainerAppDNSSuffix = "CONTAINER_APP_ENV_DNS_SUFFIX"
-	//nolint:revive // TODO(SERV) Fix revive linter
-	ContainerAppRevision = "CONTAINER_APP_REVISION"
+	ContainerAppDNSSuffix  = "CONTAINER_APP_ENV_DNS_SUFFIX"
+	ContainerAppRevision   = "CONTAINER_APP_REVISION"
 
-	//nolint:revive // TODO(SERV) Fix revive linter
 	AzureSubscriptionIdEnvVar = "DD_AZURE_SUBSCRIPTION_ID"
-	//nolint:revive // TODO(SERV) Fix revive linter
-	AzureResourceGroupEnvVar = "DD_AZURE_RESOURCE_GROUP"
+	AzureResourceGroupEnvVar  = "DD_AZURE_RESOURCE_GROUP"
 )
 
 // GetTags returns a map of Azure-related tags
@@ -93,7 +86,6 @@ func (c *ContainerApp) Init() error {
 	// and DD_AZURE_RESOURCE_GROUP.
 	// These environment variables are optional for now. Once we go GA,
 	// return an error if these are not set.
-	//nolint:revive // TODO(SERV) Fix revive linter
 	if subscriptionId, exists := os.LookupEnv(AzureSubscriptionIdEnvVar); exists {
 		c.SubscriptionId = subscriptionId
 	} else {

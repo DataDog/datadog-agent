@@ -16,10 +16,9 @@ import (
 )
 
 // MockModule defines the fx options for the mock component.
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newMockHostInfo))
-}
+var MockModule = fxutil.Component(
+	fx.Provide(newMockHostInfo),
+)
 
 func newMockHostInfo() hostinfoComp.Component {
 	return &hostinfo{hostinfo: &checks.HostInfo{}}

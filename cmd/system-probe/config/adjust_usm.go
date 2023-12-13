@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -43,14 +44,17 @@ func adjustUSM(cfg config.Config) {
 	// shorten the allowed path, but not lengthen it.
 	applyDefault(cfg, smNS("http_max_request_fragment"), maxHTTPFrag)
 	applyDefault(cfg, smNS("max_concurrent_requests"), cfg.GetInt(spNS("max_tracked_connections")))
-	deprecateBool(cfg, smNS("process_service_inference", "enabled"), spNS("process_service_inference", "enabled"))
-	deprecateBool(cfg, smNS("process_service_inference", "use_windows_service_name"), spNS("process_service_inference", "use_windows_service_name"))
-	applyDefault(cfg, spNS("process_service_inference", "enabled"), false)
-	applyDefault(cfg, spNS("process_service_inference", "use_windows_service_name"), true)
 
 	if cfg.GetBool(dsmNS("enabled")) {
 		// DSM infers USM
 		cfg.Set(smNS("enabled"), true, model.SourceAgentRuntime)
+	}
+
+	if cfg.GetBool(smNS("process_service_inference", "enabled")) &&
+		!cfg.GetBool(smNS("enabled")) &&
+		!cfg.GetBool(dsmNS("enabled")) {
+		log.Info("universal service monitoring and data streams monitoring are disabled, disabling process service inference")
+		cfg.Set(smNS("process_service_inference", "enabled"), false, model.SourceAgentRuntime)
 	}
 
 	validateInt(cfg, smNS("http_notification_threshold"), cfg.GetInt(smNS("max_tracked_http_connections"))/2, func(v int) error {

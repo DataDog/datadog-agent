@@ -5,7 +5,6 @@
 
 //go:build linux_bpf
 
-//nolint:revive // TODO(NET) Fix revive linter
 package offsetguess
 
 import (
@@ -29,15 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	// sizeof(struct nf_conntrack_tuple), see https://github.com/torvalds/linux/blob/master/include/net/netfilter/nf_conntrack_tuple.h
-	sizeofNfConntrackTuple = 40
-
-	// sizeof(struct nf_conntrack_tuple_hash), see https://github.com/torvalds/linux/blob/master/include/net/netfilter/nf_conntrack_tuple.h
-	sizeofNfConntrackTupleHash = 56
-)
-
-var localIPv4 = net.ParseIP("127.0.0.3")
+// sizeof(struct nf_conntrack_tuple), see https://github.com/torvalds/linux/blob/master/include/net/netfilter/nf_conntrack_tuple.h
+const sizeofNfConntrackTuple = 40
 
 type conntrackOffsetGuesser struct {
 	m            *manager.Manager
@@ -46,7 +38,6 @@ type conntrackOffsetGuesser struct {
 	udpv6Enabled uint64
 }
 
-//nolint:revive // TODO(NET) Fix revive linter
 func NewConntrackOffsetGuesser(cfg *config.Config) (OffsetGuesser, error) {
 	consts, err := TracerOffsets.Offsets(cfg)
 	if err != nil {
@@ -101,7 +92,6 @@ func (c *conntrackOffsetGuesser) Close() {
 	}
 }
 
-//nolint:revive // TODO(NET) Fix revive linter
 func (c *conntrackOffsetGuesser) Probes(cfg *config.Config) (map[probes.ProbeFuncName]struct{}, error) {
 	p := map[probes.ProbeFuncName]struct{}{}
 	enableProbe(p, probes.ConntrackHashInsert)
@@ -122,8 +112,6 @@ func (c *conntrackOffsetGuesser) getConstantEditors() []manager.ConstantEditor {
 // checkAndUpdateCurrentOffset checks the value for the current offset stored
 // in the eBPF map against the expected value, incrementing the offset if it
 // doesn't match, or going to the next field to guess if it does
-//
-//nolint:revive // TODO(NET) Fix revive linter
 func (c *conntrackOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected *fieldValues, maxRetries *int, threshold uint64) error {
 	// get the updated map value so we can check if the current offset is
 	// the right one
@@ -361,18 +349,7 @@ func (e *conntrackEventGenerator) Generate(status GuessWhat, expected *fieldValu
 		}
 		var err error
 		err = kernel.WithNS(e.ns, func() error {
-			// we use a dialer instance to override the local
-			// address to use with the udp connection. this is
-			// because on kernel 4.4 using the default loopback
-			// (127.0.0.1) address sometimes results in an
-			// incorrect match for the source address, resulting
-			// in an incorrect offset for ct_origin
-			d := net.Dialer{
-				Timeout:   500 * time.Millisecond,
-				LocalAddr: &net.UDPAddr{IP: localIPv4},
-			}
-
-			e.udpConn, err = d.Dial("udp4", e.udpAddr)
+			e.udpConn, err = net.DialTimeout("udp4", e.udpAddr, 500*time.Millisecond)
 			if err != nil {
 				return err
 			}

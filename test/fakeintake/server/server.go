@@ -35,15 +35,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-func init() {
-	defaultResponse = updateResponseFromData(httpResponse{
-		statusCode:  http.StatusOK,
-		contentType: "application/json",
-		data:        errorResponseBody{Errors: []string{}},
-	})
-}
-
-//nolint:revive // TODO(APL) Fix revive linter
 type Server struct {
 	server    http.Server
 	ready     chan bool
@@ -55,9 +46,6 @@ type Server struct {
 	url      string
 
 	store *serverstore.Store
-
-	responseOverridesMutex sync.RWMutex
-	responseOverrides      map[string]httpResponse
 }
 
 // NewServer creates a new fake intake server and starts it on localhost:port
@@ -66,12 +54,10 @@ type Server struct {
 // If the port is 0, a port number is automatically chosen
 func NewServer(options ...func(*Server)) *Server {
 	fi := &Server{
-		urlMutex:               sync.RWMutex{},
-		clock:                  clock.New(),
-		retention:              15 * time.Minute,
-		store:                  serverstore.NewStore(),
-		responseOverridesMutex: sync.RWMutex{},
-		responseOverrides:      newResponseOverrides(),
+		urlMutex:  sync.RWMutex{},
+		clock:     clock.New(),
+		retention: 15 * time.Minute,
+		store:     serverstore.NewStore(),
 	}
 
 	registry := prometheus.NewRegistry()
@@ -89,8 +75,6 @@ func NewServer(options ...func(*Server)) *Server {
 	mux.HandleFunc("/fakeintake/health", fi.handleFakeHealth)
 	mux.HandleFunc("/fakeintake/routestats", fi.handleGetRouteStats)
 	mux.HandleFunc("/fakeintake/flushPayloads", fi.handleFlushPayloads)
-
-	mux.HandleFunc("/fakeintake/configure/override", fi.handleConfigureOverride)
 
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
 	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
@@ -138,7 +122,6 @@ func WithReadyChannel(ready chan bool) func(*Server) {
 	}
 }
 
-//nolint:revive // TODO(APL) Fix revive linter
 func WithClock(clock clock.Clock) func(*Server) {
 	return func(fi *Server) {
 		if fi.IsRunning() {
@@ -149,7 +132,6 @@ func WithClock(clock clock.Clock) func(*Server) {
 	}
 }
 
-//nolint:revive // TODO(APL) Fix revive linter
 func WithRetention(retention time.Duration) func(*Server) {
 	return func(fi *Server) {
 		if fi.IsRunning() {
@@ -175,7 +157,6 @@ func (fi *Server) Start() {
 	go fi.cleanUpPayloadsRoutine()
 }
 
-//nolint:revive // TODO(APL) Fix revive linter
 func (fi *Server) URL() string {
 	fi.urlMutex.RLock()
 	defer fi.urlMutex.RUnlock()
@@ -188,7 +169,6 @@ func (fi *Server) setURL(url string) {
 	fi.url = url
 }
 
-//nolint:revive // TODO(APL) Fix revive linter
 func (fi *Server) IsRunning() bool {
 	return fi.URL() != ""
 }
@@ -308,7 +288,7 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	response := fi.getResponseFromURLPath(req.URL.Path)
+	response := getResponseFromURLPath(req.URL.Path)
 	writeHTTPResponse(w, response)
 }
 
@@ -383,7 +363,6 @@ func (fi *Server) handleFakeHealth(w http.ResponseWriter, _ *http.Request) {
 	})
 }
 
-//nolint:revive // TODO(APL) Fix revive linter
 func (fi *Server) handleGetRouteStats(w http.ResponseWriter, req *http.Request) {
 	log.Print("Handling getRouteStats request")
 	routes := fi.store.GetRouteStats()
@@ -410,66 +389,4 @@ func (fi *Server) handleGetRouteStats(w http.ResponseWriter, req *http.Request) 
 		statusCode:  http.StatusOK,
 		body:        jsonResp,
 	})
-}
-
-// handleConfigureOverride sets a hardcoded HTTP response for requests to a particular endpoint
-func (fi *Server) handleConfigureOverride(w http.ResponseWriter, req *http.Request) {
-	if req == nil {
-		response := buildErrorResponse(errors.New("invalid request, nil request"))
-		writeHTTPResponse(w, response)
-		return
-	}
-
-	if req.Method != http.MethodPost {
-		response := buildErrorResponse(fmt.Errorf("invalid request method %s", req.Method))
-		writeHTTPResponse(w, response)
-		return
-	}
-
-	if req.Body == nil {
-		response := buildErrorResponse(errors.New("invalid request, nil body"))
-		writeHTTPResponse(w, response)
-		return
-	}
-
-	var payload api.ResponseOverride
-	err := json.NewDecoder(req.Body).Decode(&payload)
-	if err != nil {
-		log.Printf("Error reading body: %v", err.Error())
-		response := buildErrorResponse(err)
-		writeHTTPResponse(w, response)
-		return
-	}
-
-	log.Printf("Handling configureOverride request for endpoint %s", payload.Endpoint)
-
-	fi.safeSetResponseOverride(payload.Endpoint, httpResponse{
-		statusCode:  payload.StatusCode,
-		contentType: payload.ContentType,
-		body:        payload.Body,
-	})
-
-	writeHTTPResponse(w, httpResponse{
-		statusCode: http.StatusOK,
-	})
-}
-
-func (fi *Server) safeSetResponseOverride(endpoint string, response httpResponse) {
-	fi.responseOverridesMutex.Lock()
-	defer fi.responseOverridesMutex.Unlock()
-
-	fi.responseOverrides[endpoint] = response
-}
-
-// getResponseFromURLPath returns the HTTP response for a given URL path, or the default response if
-// no override exists
-func (fi *Server) getResponseFromURLPath(path string) httpResponse {
-	fi.responseOverridesMutex.RLock()
-	defer fi.responseOverridesMutex.RUnlock()
-
-	if resp, ok := fi.responseOverrides[path]; ok {
-		return resp
-	}
-
-	return defaultResponse
 }

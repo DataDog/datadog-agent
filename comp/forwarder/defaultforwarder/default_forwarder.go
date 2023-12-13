@@ -286,7 +286,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 				}
 			}
 
-			pointCountTelemetry := retry.NewPointCountTelemetry(domain)
+			pointCountTelemetry := retry.NewPointCountTelemetry(domain, telemetry.GetStatsTelemetryProvider())
 			transactionContainer := retry.BuildTransactionRetryQueue(
 				log,
 				options.RetryQueuePayloadsTotalMaxSize,

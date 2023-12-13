@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 
@@ -26,7 +25,7 @@ import (
 var simpleUDPAddr = &net.UDPAddr{IP: net.IPv4(1, 1, 1, 1), Port: 161}
 
 func createForwarder(t *testing.T) (forwarder *TrapForwarder, err error) {
-	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
+	logger := fxutil.Test[log.Component](t, log.MockModule)
 	packetsIn := make(packet.PacketsChannel)
 	mockSender := mocksender.NewMockSender("snmp-traps-listener")
 	mockSender.SetupAcceptAll()

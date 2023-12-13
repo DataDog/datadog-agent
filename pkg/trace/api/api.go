@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(APM) Fix revive linter
 package api
 
 import (
@@ -576,8 +575,6 @@ func droppedTracesFromHeader(h http.Header, ts *info.TagStats) int64 {
 }
 
 // handleServices handle a request with a list of several services
-//
-//nolint:revive // TODO(APM) Fix revive linter
 func (r *HTTPReceiver) handleServices(v Version, w http.ResponseWriter, req *http.Request) {
 	httpOK(w)
 

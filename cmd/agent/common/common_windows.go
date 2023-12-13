@@ -19,8 +19,6 @@ import (
 )
 
 // Name of the Windows Service the agent runs as
-//
-//nolint:revive // TODO(ASC) Fix revive linter
 const ServiceName = "DatadogAgent"
 
 func init() {

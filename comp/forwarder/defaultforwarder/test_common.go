@@ -69,7 +69,6 @@ func (t *testTransaction) GetPayloadSize() int {
 	return t.Called().Get(0).(int)
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
 func (t *testTransaction) SerializeTo(_ log.Component, serializer transaction.TransactionsSerializer) error {
 	return nil
 }
@@ -172,8 +171,6 @@ func (tf *MockedForwarder) SubmitConnectionChecks(payload transaction.BytesPaylo
 }
 
 // SubmitOrchestratorChecks mock
-//
-//nolint:revive // TODO(ASC) Fix revive linter
 func (tf *MockedForwarder) SubmitOrchestratorChecks(payload transaction.BytesPayloads, extra http.Header, payloadType int) (chan Response, error) {
 	return nil, tf.Called(payload, extra).Error(0)
 }

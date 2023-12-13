@@ -13,7 +13,6 @@ import (
 	docker "github.com/docker/docker/client"
 )
 
-//nolint:revive // TODO(CSPM) Fix revive linter
 func newDockerClient(ctx context.Context) (docker.CommonAPIClient, error) {
 	return nil, ErrIncompatibleEnvironment
 }

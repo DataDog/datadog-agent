@@ -5,7 +5,6 @@
 
 //go:build jmx
 
-//nolint:revive // TODO(AML) Fix revive linter
 package jmx
 
 import (

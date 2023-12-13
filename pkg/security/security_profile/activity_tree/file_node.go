@@ -155,15 +155,16 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 				stats.FileNodes++
 			}
 			break
-		}
+		} else {
+			newChild := NewFileNode(nil, nil, parent, generationType, "", resolvers)
+			if !dryRun {
+				currentFn.Children[parent] = newChild
+			}
 
-		newChild := NewFileNode(nil, nil, parent, generationType, "", resolvers)
-		if !dryRun {
-			currentFn.Children[parent] = newChild
+			currentFn = newChild
+			currentPath = currentPath[nextParentIndex:]
+			continue
 		}
-
-		currentFn = newChild
-		currentPath = currentPath[nextParentIndex:]
 	}
 	return newEntry
 }

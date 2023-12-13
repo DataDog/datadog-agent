@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-//nolint:revive // TODO(EBPF) Fix revive linter
 type CompiledOutput interface {
 	io.Reader
 	io.ReaderAt

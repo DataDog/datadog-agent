@@ -12,8 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
-
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -21,9 +19,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/netflow/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -44,7 +40,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
-//nolint:unused // TODO(NDM) Fix unused linter
 func demuxOpts() aggregator.AgentDemultiplexerOptions {
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = 1 * time.Hour
@@ -58,7 +53,7 @@ type deps struct {
 }
 
 func createDeps(t *testing.T) deps {
-	return fxutil.Test[deps](t, demultiplexer.MockModule(), defaultforwarder.MockModule(), config.MockModule(), logimpl.MockModule())
+	return fxutil.Test[deps](t, demultiplexer.MockModule, log.MockModule)
 }
 
 func Test_Run_simpleCase(t *testing.T) {
@@ -341,14 +336,12 @@ tags:
 }
 
 func Test_Run_customIfSpeed(t *testing.T) {
-	report.TimeNow = common.MockTimeNow
 	deps := createDeps(t)
 	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-
 	chk := Check{sessionFactory: sessionFactory}
 
 	senderManager := deps.Demultiplexer
@@ -393,7 +386,6 @@ metrics:
 
 	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
-	chk.singleDeviceCk.SetInterfaceBandwidthState(report.MockInterfaceRateMap("1", 50_000_000, 40_000_000, 20, 10, int64(946684785000000000)))
 
 	sender := mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)
 	sender.SetupAcceptAll()
@@ -474,12 +466,10 @@ metrics:
 
 	// ((2000000 * 8) / (50 * 1000000)) * 100 = 32
 	//   ^ifHCInOctets   ^custom in_speed
-	// previous: 20
-	sender.AssertMetric(t, "Gauge", "snmp.ifBandwidthInUsage.rate", float64(12.0/15.0), "", tags)
+	sender.AssertMetric(t, "Rate", "snmp.ifBandwidthInUsage.rate", float64(32), "", tags)
 	// ((1000000 * 8) / (40 * 1000000)) * 100 = 20
 	//   ^ifHCOutOctets   ^custom out_speed
-	// previous: 10
-	sender.AssertMetric(t, "Gauge", "snmp.ifBandwidthOutUsage.rate", float64(10.0/15.0), "", tags)
+	sender.AssertMetric(t, "Rate", "snmp.ifBandwidthOutUsage.rate", float64(20), "", tags)
 
 	chk.Cancel()
 }

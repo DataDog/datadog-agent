@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -62,5 +63,7 @@ func (l *ActivityDumpRuntimeSetting) Set(v interface{}, source model.Source) err
 		return fmt.Errorf("Field %s does not exist", l.ConfigKey)
 	}
 
+	// we trigger a new inventory metadata payload since the configuration was updated by the user.
+	inventories.Refresh()
 	return nil
 }

@@ -68,7 +68,7 @@ func (c *Check) Run() error {
 				continue
 			}
 			// `interface_configs` option not supported by SNMP corecheck autodiscovery
-			deviceCk.SetSender(report.NewMetricSender(sender, hostname, nil, deviceCk.GetInterfaceBandwidthState()))
+			deviceCk.SetSender(report.NewMetricSender(sender, hostname, nil))
 			jobs <- deviceCk
 		}
 		close(jobs)
@@ -82,13 +82,12 @@ func (c *Check) Run() error {
 		if err != nil {
 			return err
 		}
-		c.singleDeviceCk.SetSender(report.NewMetricSender(sender, hostname, c.config.InterfaceConfigs, c.singleDeviceCk.GetInterfaceBandwidthState()))
+		c.singleDeviceCk.SetSender(report.NewMetricSender(sender, hostname, c.config.InterfaceConfigs))
 		checkErr = c.runCheckDevice(c.singleDeviceCk)
 	}
 
 	// Commit
 	sender.Commit()
-
 	return checkErr
 }
 

@@ -5,35 +5,22 @@
 
 package protocols
 
-// ProtocolType is an enum of supported protocols
 type ProtocolType uint16
 
 const (
-	// Unknown is the default value, protocol was not detected
 	Unknown ProtocolType = iota
-	// HTTP protocol
 	HTTP
-	// HTTP2 protocol
 	HTTP2
-	// Kafka protocol
 	Kafka
-	// TLS protocol
 	TLS
-	// Mongo protocol
 	Mongo
-	// Postgres protocol
 	Postgres
-	// AMQP protocol
 	AMQP
-	// Redis protocol
 	Redis
-	// MySQL protocol
 	MySQL
-	// GRPC protocol
 	GRPC
 )
 
-// String returns the string representation of the protocol
 func (p ProtocolType) String() string {
 	switch p {
 	case Unknown:
@@ -64,17 +51,15 @@ func (p ProtocolType) String() string {
 	}
 }
 
-// Stack is a set of protocols detected on a connection
 type Stack struct {
-	API         ProtocolType
+	Api         ProtocolType
 	Application ProtocolType
 	Encryption  ProtocolType
 }
 
-// MergeWith merges the other stack into the current one
 func (s *Stack) MergeWith(other Stack) {
-	if s.API == Unknown {
-		s.API = other.API
+	if s.Api == Unknown {
+		s.Api = other.Api
 	}
 
 	if s.Application == Unknown {
@@ -86,12 +71,11 @@ func (s *Stack) MergeWith(other Stack) {
 	}
 }
 
-// Contains returns true if the stack contains the given protocol
 func (s *Stack) Contains(proto ProtocolType) bool {
-	return s.API == proto || s.Application == proto || s.Encryption == proto
+	return s.Api == proto || s.Application == proto || s.Encryption == proto
 }
 
 // IsUnknown returns true if all protocol types are `Unknown`
 func (s *Stack) IsUnknown() bool {
-	return s.API == Unknown && s.Application == Unknown && s.Encryption == Unknown
+	return s.Api == Unknown && s.Application == Unknown && s.Encryption == Unknown
 }

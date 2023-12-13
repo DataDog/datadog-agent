@@ -8,6 +8,5 @@
 package common
 
 const (
-	//nolint:revive // TODO(EBPF) Fix revive linter
 	DefaultLogFile = "/var/log/datadog/system-probe.log"
 )

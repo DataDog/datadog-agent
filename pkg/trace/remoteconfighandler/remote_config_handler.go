@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(APM) Fix revive linter
 package remoteconfighandler
 
 import (
@@ -46,7 +45,6 @@ type RemoteConfigHandler struct {
 	configSetEndpointFormatString string
 }
 
-//nolint:revive // TODO(APM) Fix revive linter
 func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler rareSampler, errorsSampler errorsSampler) *RemoteConfigHandler {
 	if conf.RemoteConfigClient == nil {
 		return nil
@@ -73,7 +71,6 @@ func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler 
 	}
 }
 
-//nolint:revive // TODO(APM) Fix revive linter
 func (h *RemoteConfigHandler) Start() {
 	if h == nil {
 		return

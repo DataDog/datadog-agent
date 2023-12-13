@@ -16,21 +16,19 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
-	logComponentimpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
-//nolint:revive // TODO(PROC) Fix revive linter
 const LoggerName config.LoggerName = "PROCESS"
 
 // DaemonLogParams are the log params should be given to the `core.BundleParams` for when the process agent is running as a daemon
-var DaemonLogParams = logComponentimpl.ForDaemon(string(LoggerName), "process_config.log_file", config.DefaultProcessAgentLogFile)
+var DaemonLogParams = logComponent.ForDaemon(string(LoggerName), "process_config.log_file", config.DefaultProcessAgentLogFile)
 
 // OneShotLogParams are the log params that are given to commands
-var OneShotLogParams = logComponentimpl.ForOneShot(string(LoggerName), "info", true)
+var OneShotLogParams = logComponent.ForOneShot(string(LoggerName), "info", true)
 
 // GlobalParams contains the values of agent-global Cobra flags.
 //
@@ -143,12 +141,11 @@ func SetHostMountEnv(logger logComponent.Component) {
 	}
 }
 
-//nolint:revive // TODO(PROC) Fix revive linter
 func GetCoreBundleParamsForOneShot(globalParams *GlobalParams) core.BundleParams {
 	return core.BundleParams{
 		ConfigParams:         configComponent.NewAgentParams(globalParams.ConfFilePath),
 		SecretParams:         secrets.NewEnabledParams(),
 		SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
-		LogParams:            logComponentimpl.ForOneShot(string(LoggerName), "info", true),
+		LogParams:            logComponent.ForOneShot(string(LoggerName), "info", true),
 	}
 }

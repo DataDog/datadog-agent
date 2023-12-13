@@ -19,10 +19,9 @@ import (
 )
 
 // Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newHostInfo))
-}
+var Module = fxutil.Component(
+	fx.Provide(newHostInfo),
+)
 
 type dependencies struct {
 	fx.In

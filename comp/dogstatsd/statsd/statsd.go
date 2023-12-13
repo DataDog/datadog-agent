@@ -19,10 +19,9 @@ import (
 )
 
 // Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newStatsdService))
-}
+var Module = fxutil.Component(
+	fx.Provide(newStatsdService),
+)
 
 type service struct {
 	sync.Mutex

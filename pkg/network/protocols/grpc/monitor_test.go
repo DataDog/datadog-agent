@@ -297,7 +297,7 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 				ctxWithHeaders := context.Background()
 				headers := make(map[string]string, 20)
 				for i := 1; i <= 20; i++ {
-					headers[fmt.Sprintf("header-%d", i)] = "value"
+					headers[fmt.Sprintf("header-%d", i)] = fmt.Sprintf("value")
 				}
 				md := metadata.New(headers)
 				ctxWithHeaders = metadata.NewOutgoingContext(ctxWithHeaders, md)

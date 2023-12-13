@@ -5,7 +5,6 @@
 
 //go:build !windows
 
-//nolint:revive // TODO(WINA) Fix revive linter
 package winkmem
 
 // Avoid the following error on non-supported platforms:

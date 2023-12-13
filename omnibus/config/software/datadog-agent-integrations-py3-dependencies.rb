@@ -3,6 +3,7 @@ name 'datadog-agent-integrations-py3-dependencies'
 dependency 'pip3'
 dependency 'setuptools3'
 
+dependency 'snowflake-connector-python-py3'
 dependency 'confluent-kafka-python'
 
 if arm_target?

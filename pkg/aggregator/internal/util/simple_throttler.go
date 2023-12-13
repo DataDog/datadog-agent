@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
 package util
 
 import (
@@ -35,8 +34,6 @@ type SimpleThrottler struct {
 }
 
 // changed to a mocked clock in unit tests
-//
-//nolint:revive // TODO(AML) Fix revive linter
 var timeNow func() time.Time = time.Now
 
 // NewSimpleThrottler creates and returns a SimpleThrottler.

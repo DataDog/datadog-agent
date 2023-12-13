@@ -21,9 +21,8 @@ type Component interface {
 }
 
 // Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newHostProvider))
-}
+var Module = fxutil.Component(
+	fx.Provide(newHostProvider),
+)
 
 // The runner component doesn't provides a mock since other component don't use it directly.

@@ -5,7 +5,6 @@
 
 //go:build linux
 
-//nolint:revive // TODO(PROC) Fix revive linter
 package net
 
 import (

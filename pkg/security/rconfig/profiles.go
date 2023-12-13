@@ -17,9 +17,7 @@ import (
 	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 	"github.com/DataDog/datadog-go/v5/statsd"
 
-	"github.com/DataDog/datadog-agent/pkg/api/security"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
+	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
@@ -42,7 +40,7 @@ type ProfileConfig struct {
 type RCProfileProvider struct {
 	sync.RWMutex
 
-	client *client.Client
+	client *remote.Client
 
 	onNewProfileCallback func(selector cgroupModel.WorkloadSelector, profile *proto.SecurityProfile)
 }
@@ -144,15 +142,7 @@ func NewRCProfileProvider() (*RCProfileProvider, error) {
 		return nil, fmt.Errorf("failed to parse agent version: %v", err)
 	}
 
-	ipcAddress, err := config.GetIPCAddress()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get ipc address: %w", err)
-	}
-
-	c, err := client.NewUnverifiedGRPCClient(ipcAddress, config.GetIPCPort(), security.FetchAuthToken,
-		client.WithAgent(agentName, agentVersion.String()),
-		client.WithProducts([]data.Product{data.ProductCWSProfile}),
-		client.WithPollInterval(securityAgentRCPollInterval))
+	c, err := remote.NewUnverifiedGRPCClient(agentName, agentVersion.String(), []data.Product{data.ProductCWSProfile}, securityAgentRCPollInterval)
 	if err != nil {
 		return nil, err
 	}

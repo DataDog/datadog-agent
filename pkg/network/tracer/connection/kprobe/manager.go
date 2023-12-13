@@ -11,12 +11,10 @@ import (
 	"os"
 	"strings"
 
-	manager "github.com/DataDog/ebpf-manager"
-
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 const (
@@ -70,7 +68,7 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.UDPSendPageReturn,
 }
 
-func initManager(mgr *errtelemetry.Manager, closedHandler *ebpf.PerfHandler, runtimeTracer bool, cfg *config.Config) error {
+func initManager(mgr *manager.Manager, config *config.Config, closedHandler *ebpf.PerfHandler, runtimeTracer bool) error {
 	mgr.Maps = []*manager.Map{
 		{Name: probes.ConnMap},
 		{Name: probes.TCPStatsMap},
@@ -96,19 +94,18 @@ func initManager(mgr *errtelemetry.Manager, closedHandler *ebpf.PerfHandler, run
 		{Name: probes.ClassificationProgsMap},
 		{Name: probes.TCPCloseProgsMap},
 	}
-	pm := &manager.PerfMap{
-		Map: manager.Map{Name: probes.ConnCloseEventMap},
-		PerfMapOptions: manager.PerfMapOptions{
-			PerfRingBufferSize: 8 * os.Getpagesize(),
-			Watermark:          1,
-			RecordHandler:      closedHandler.RecordHandler,
-			LostHandler:        closedHandler.LostHandler,
-			RecordGetter:       closedHandler.RecordGetter,
-			TelemetryEnabled:   cfg.InternalTelemetryEnabled,
+	mgr.PerfMaps = []*manager.PerfMap{
+		{
+			Map: manager.Map{Name: probes.ConnCloseEventMap},
+			PerfMapOptions: manager.PerfMapOptions{
+				PerfRingBufferSize: 8 * os.Getpagesize(),
+				Watermark:          1,
+				RecordHandler:      closedHandler.RecordHandler,
+				LostHandler:        closedHandler.LostHandler,
+				RecordGetter:       closedHandler.RecordGetter,
+			},
 		},
 	}
-	mgr.PerfMaps = []*manager.PerfMap{pm}
-	ebpf.ReportPerfMapTelemetry(pm)
 	for _, funcName := range mainProbes {
 		p := &manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{

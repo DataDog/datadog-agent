@@ -69,8 +69,6 @@ func (mc *MockCgroup) GetPIDStats(pidStats *PIDStats) error {
 }
 
 // GetPIDs mock
-//
-//nolint:revive // TODO(CINT) Fix revive linter
 func (mc *MockCgroup) GetPIDs(cacheValidity time.Duration) ([]int, error) {
 	return mc.PIDs, mc.PIDsError
 }
