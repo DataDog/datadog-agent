@@ -21,13 +21,16 @@ func GetUsedPorts() ([]Port, error) {
 		IncludeLocalhost: true,
 	}
 	ports, _, err := poller.Poll()
-	poller.Close()
+	if err != nil {
+		return nil, err
+	}
 
+	err = poller.Close()
 	return ports, err
 }
 
 // GetProcessFromPort returns the process name and pid using a given port
-func GetProcessFromPort(host string, port int, protocol string) (string, int, error) {
+func GetProcessFromPort(port int, protocol string) (string, int, error) {
 	ports, err := GetUsedPorts()
 	if err != nil {
 		return "", 0, err
