@@ -19,6 +19,13 @@ sed -i '/.*logs_enabled:.*/a logs_enabled: true'           /etc/datadog-agent/da
 sed -i '/.*log_level:.*/a log_level: debug'                /etc/datadog-agent/datadog.yaml
 sed -i '/.*ec2_prefer_imdsv2:.*/a ec2_prefer_imdsv2: true' /etc/datadog-agent/datadog.yaml
 
+# Adding automatic reboot on kernel updates
+cat << EOF >> /etc/apt/apt.conf.d/50unattended-upgrades
+Unattended-Upgrade::Automatic-Reboot "true";
+Unattended-Upgrade::Automatic-Reboot-WithUsers "true";
+Unattended-Upgrade::Automatic-Reboot-Time "now";
+EOF
+
 cat <<EOF >> /etc/datadog-agent/datadog.yaml
 remote_configuration:
   enabled: true
