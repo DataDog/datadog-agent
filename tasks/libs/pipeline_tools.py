@@ -1,8 +1,12 @@
 import datetime
 import functools
+import os
 import platform
+import subprocess
 import sys
 from time import sleep, time
+
+import boto3
 
 from ..utils import DEFAULT_BRANCH
 from .common.color import color_message
@@ -77,6 +81,40 @@ def gracefully_cancel_pipeline(gitlab, pipeline, force_cancel_stages):
             job["status"] not in ["running", "canceled"] and "cleanup" not in job["name"]
         ):
             gitlab.cancel_job(job["id"])
+
+        # SMP job cancellation needs extra steps to properly cancel it
+        if job["name"] == "single-machine-performance-regression_detector":
+            try:
+                print("Trying to cancel smp job")
+                cancel_smp_job(gitlab, job["id"])
+            except Exception as e:
+                print(f"Error while cancelling SMP job: {e}")
+
+
+def cancel_smp_job(_, job_id):
+    client = boto3.client("s3")
+
+    s3Uri = os.environ.get("S3_ARTIFACTS_URI")
+
+    client.download_file(s3Uri, f"smp/{job_id}/submission_metadata", "submission_metadata")
+
+    result = subprocess.call(
+        [
+            "./smp",
+            "--team-id",
+            os.environ["SMP_AGENT_TEAM_ID"],
+            "--api-base",
+            os.environ["SMP_API"],
+            "--aws-named-profile",
+            os.environ["AWS_NAMED_PROFILE"],
+            "job",
+            "cancel",
+            "--submission_metadata",
+            "submission_metadata",
+        ]
+    )
+
+    print(result)
 
 
 def trigger_agent_pipeline(
