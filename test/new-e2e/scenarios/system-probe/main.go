@@ -4,8 +4,8 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !windows
-// +build !windows
 
+//nolint:revive // TODO(EBPF) Fix revive linter
 package main
 
 import (
@@ -52,6 +52,8 @@ func main() {
 	dependenciesDirectoryPtr := flag.String("dependencies-dir", DD_AGENT_TESTING_DIR, "directory where dependencies package is present")
 	vmconfigPathPtr := flag.String("vmconfig", defaultVMConfigPath, "vmconfig path")
 	local := flag.Bool("local", false, "is scenario running locally")
+	runAgentPtr := flag.Bool("run-agent", false, "Run datadog agent on the metal instance")
+	agentVersionPtr := flag.String("agent-version", "", "Version of datadog-agent")
 
 	flag.Parse()
 
@@ -72,9 +74,9 @@ func main() {
 		DependenciesDirectory: *dependenciesDirectoryPtr,
 		VMConfigPath:          *vmconfigPathPtr,
 		Local:                 *local,
+		RunAgent:              *runAgentPtr,
+		AgentVersion:          *agentVersionPtr,
 	}
-
-	fmt.Printf("shutdown period: %d\n", opts.ShutdownPeriod)
 
 	err := run(*envNamePtr, *x86InstanceTypePtr, *armInstanceTypePtr, *destroyPtr, &opts)
 	if err != nil {

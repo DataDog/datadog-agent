@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pkgdiagnose "github.com/DataDog/datadog-agent/pkg/diagnose"
@@ -53,10 +54,10 @@ type cliParams struct {
 
 	// diagnose suites not to run as a list of regular expressions
 	exclude []string
-
-	// payloadName is the name of the payload to display
-	payloadName string
 }
+
+// payloadName is the name of the payload to display
+type payloadName string
 
 // Commands returns a slice of subcommands for the 'agent' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -77,10 +78,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(cmdDiagnose,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath),
-					LogParams:    log.ForOneShot("CORE", "off", true)}),
-				core.Bundle,
-				diagnosesendermanagerimpl.Module,
+					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
+					LogParams:    logimpl.ForOneShot("CORE", "off", true)}),
+				core.Bundle(),
+				diagnosesendermanagerimpl.Module(),
 			)
 		},
 	}
@@ -119,11 +120,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Long: `
 This command print the V5 metadata payload for the Agent. This payload is used to populate the infra list and host map in Datadog. It's called 'V5' because it's the same payload sent since Agent V5. This payload is mandatory in order to create a new host in Datadog.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cliParams.payloadName = "v5"
 			return fxutil.OneShot(printPayload,
-				fx.Supply(cliParams),
+				fx.Supply(payloadName("v5")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -134,26 +134,10 @@ This command print the V5 metadata payload for the Agent. This payload is used t
 		Long: `
 This command prints the gohai data sent by the Agent, including current processes running on the machine.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cliParams.payloadName = "gohai"
 			return fxutil.OneShot(printPayload,
-				fx.Supply(cliParams),
+				fx.Supply(payloadName("gohai")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
-				core.Bundle,
-			)
-		},
-	}
-
-	payloadInventoriesCmd := &cobra.Command{
-		Use:   "inventory",
-		Short: "Print the Inventory metadata payload for the agent.",
-		Long: `
-This command print the last Inventory metadata payload sent by the Agent. This payload is used by the 'inventories/sql' product.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cliParams.payloadName = "inventory"
-			return fxutil.OneShot(printPayload,
-				fx.Supply(cliParams),
-				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -164,18 +148,47 @@ This command print the last Inventory metadata payload sent by the Agent. This p
 		Long: `
 This command print the inventory-agent metadata payload. This payload is used by the 'inventories/sql' product.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cliParams.payloadName = "inventory-agent"
 			return fxutil.OneShot(printPayload,
-				fx.Supply(cliParams),
+				fx.Supply(payloadName("inventory-agent")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
+
+	payloadInventoriesHostCmd := &cobra.Command{
+		Use:   "inventory-host",
+		Short: "Print the Inventory host metadata payload.",
+		Long: `
+This command print the inventory-host metadata payload. This payload is used by the 'inventories/sql' product.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return fxutil.OneShot(printPayload,
+				fx.Supply(payloadName("inventory-host")),
+				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
+				core.Bundle(),
+			)
+		},
+	}
+
+	payloadInventoriesChecksCmd := &cobra.Command{
+		Use:   "inventory-checks",
+		Short: "Print the Inventory checks metadata payload.",
+		Long: `
+This command print the inventory-checks metadata payload. This payload is used by the 'inventories/sql' product.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return fxutil.OneShot(printPayload,
+				fx.Supply(payloadName("inventory-checks")),
+				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
+				core.Bundle(),
+			)
+		},
+	}
+
 	showPayloadCommand.AddCommand(payloadV5Cmd)
 	showPayloadCommand.AddCommand(payloadGohaiCmd)
-	showPayloadCommand.AddCommand(payloadInventoriesCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesAgentCmd)
+	showPayloadCommand.AddCommand(payloadInventoriesHostCmd)
+	showPayloadCommand.AddCommand(payloadInventoriesChecksCmd)
 	diagnoseCommand.AddCommand(showPayloadCommand)
 
 	return []*cobra.Command{diagnoseCommand}
@@ -200,7 +213,9 @@ func cmdDiagnose(cliParams *cliParams, senderManager diagnosesendermanager.Compo
 }
 
 // NOTE: This and related will be moved to separate "agent telemetry" command in future
-func printPayload(log log.Component, config config.Component, cliParams *cliParams) error {
+//
+//nolint:revive // TODO(ASC) Fix revive linter
+func printPayload(name payloadName, _ log.Component, config config.Component) error {
 	if err := util.SetAuthToken(); err != nil {
 		fmt.Println(err)
 		return nil
@@ -212,7 +227,7 @@ func printPayload(log log.Component, config config.Component, cliParams *cliPara
 		return err
 	}
 	apiConfigURL := fmt.Sprintf("https://%v:%d%s%s",
-		ipcAddress, config.GetInt("cmd_port"), metadataEndpoint, cliParams.payloadName)
+		ipcAddress, config.GetInt("cmd_port"), metadataEndpoint, name)
 
 	r, err := util.DoGet(c, apiConfigURL, util.CloseConnection)
 	if err != nil {

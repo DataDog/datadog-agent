@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(NET) Fix revive linter
 package config
 
 import (
@@ -241,6 +242,9 @@ type Config struct {
 	// for things like creating netlink sockets for conntrack updates, etc.
 	EnableRootNetNs bool
 
+	// HTTP2DynamicTableMapCleanerInterval is the interval to run the cleaner function.
+	HTTP2DynamicTableMapCleanerInterval time.Duration
+
 	// HTTPMapCleanerInterval is the interval to run the cleaner function.
 	HTTPMapCleanerInterval time.Duration
 
@@ -338,6 +342,8 @@ func New() *Config {
 		MaxProcessesTracked:          cfg.GetInt(join(evNS, "network_process", "max_processes_tracked")),
 
 		EnableRootNetNs: cfg.GetBool(join(netNS, "enable_root_netns")),
+
+		HTTP2DynamicTableMapCleanerInterval: time.Duration(cfg.GetInt(join(smNS, "http2_dynamic_table_map_cleaner_interval_seconds"))) * time.Second,
 
 		HTTPMapCleanerInterval: time.Duration(cfg.GetInt(join(smNS, "http_map_cleaner_interval_in_s"))) * time.Second,
 		HTTPIdleConnectionTTL:  time.Duration(cfg.GetInt(join(smNS, "http_idle_connection_ttl_in_s"))) * time.Second,

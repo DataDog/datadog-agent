@@ -23,6 +23,9 @@ type Agent interface {
 	// ConfigWithError runs config command and returns the runtime agent config or an error
 	ConfigWithError(commandArgs ...AgentArgsOption) (string, error)
 
+	// Diagnose runs diagnose command and returns its output
+	Diagnose(commandArgs ...AgentArgsOption) string
+
 	// Flare runs flare command and returns the output. You should use the FakeIntake client to fetch the flare archive
 	Flare(commandArgs ...AgentArgsOption) string
 
@@ -55,11 +58,4 @@ type Agent interface {
 	// Retries every 100 ms up to timeout.
 	// Returns error on failure.
 	waitForReadyTimeout(timeout time.Duration) error
-
-	// WaitAgentLogs waits for the agent log corresponding to the pattern
-	// agent-name can be: datadog-agent, system-probe, security-agent
-	// pattern: is the log that we are looking for
-	// Retries every 500 ms up to timeout.
-	// Returns error on failure.
-	WaitAgentLogs(agentName string, pattern string) error
 }

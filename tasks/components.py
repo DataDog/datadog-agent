@@ -52,13 +52,11 @@ def check_component(file, content):
         "comp/aggregator/demultiplexer/component.go",
         "comp/core/config/component.go",
         "comp/core/flare/component.go",
-        "comp/core/log/component.go",
         "comp/core/telemetry/component.go",
         "comp/dogstatsd/replay/component.go",
         "comp/dogstatsd/server/component.go",
         "comp/forwarder/defaultforwarder/component.go",
         "comp/logs/agent/component.go",
-        "comp/metadata/host/component.go",
         "comp/metadata/inventoryagent/component.go",
         "comp/netflow/config/component.go",
         "comp/netflow/server/component.go",
@@ -66,9 +64,8 @@ def check_component(file, content):
         "comp/remote-config/rcclient/component.go",
         "comp/trace/agent/component.go",
         "comp/trace/config/component.go",
-        "comp/languagedetection/client/component.go",
         "comp/process/apiserver/component.go",
-        "comp/process/forwarders/component.go",
+        "comp/core/workloadmeta/component.go",  # // TODO: (components) fix it in later PR
     ]
 
     if file in components_to_migrate:
@@ -76,8 +73,8 @@ def check_component(file, content):
 
     for not_allow_definition in [
         "type Mock interface",
-        "var Module = fxutil.Component",
-        "var MockModule = fxutil.Component",
+        "func Module() fxutil.Module",
+        "func MockModule() fxutil.Module",
     ]:
         if any(l.startswith(not_allow_definition) for l in content):
             return f"** {file} define '{not_allow_definition}' which is not allow in {file}. See docs/components/defining-components.md; skipping"
@@ -138,7 +135,7 @@ def get_components_and_bundles(ctx):
 
 
 def make_components_md(bundles):
-    pkg_root = 'github.com/DataDog/dd-agent-comp-experiments/'
+    pkg_root = 'github.com/DataDog/datadog-agent/'
     yield '# Agent Components'
     yield '<!-- NOTE: this file is auto-generated; do not edit -->'
     yield ''

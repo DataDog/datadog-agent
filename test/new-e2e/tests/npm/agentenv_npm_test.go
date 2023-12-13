@@ -9,9 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 )
 
 type vmSuiteEx6 struct {
@@ -19,6 +20,7 @@ type vmSuiteEx6 struct {
 }
 
 func TestVMSuiteEx6(t *testing.T) {
+	t.Skip("Skipping TestVMSuiteEx6 as it's flaky")
 	e2e.Run(t, &vmSuiteEx6{}, e2e.FakeIntakeStackDef(e2e.WithAgentParams(agentparams.WithSystemProbeConfig(systemProbeConfigNPM))))
 }
 

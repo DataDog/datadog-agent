@@ -22,9 +22,10 @@ import (
 )
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newDiagnoseSenderManager),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newDiagnoseSenderManager))
+}
 
 type dependencies struct {
 	fx.In
@@ -58,14 +59,15 @@ func (sender *diagnoseSenderManager) LazyGetSenderManager() (sender.SenderManage
 	opts.FlushInterval = 0
 	opts.DontStartForwarders = true
 	opts.UseNoopEventPlatformForwarder = true
-	opts.UseNoopOrchestratorForwarder = true
 
 	log := sender.deps.Log
 	config := sender.deps.Config
 	forwarder := defaultforwarder.NewDefaultForwarder(config, log, defaultforwarder.NewOptions(config, log, nil))
+	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	senderManager = aggregator.InitAndStartAgentDemultiplexer(
 		log,
 		forwarder,
+		&orchestratorForwarder,
 		opts,
 		hostnameDetected)
 

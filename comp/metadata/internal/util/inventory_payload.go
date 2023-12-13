@@ -68,7 +68,7 @@ import (
 )
 
 var (
-	defaultMinInterval = 5 * time.Minute
+	defaultMinInterval = 1 * time.Minute
 	defaultMaxInterval = 10 * time.Minute
 
 	// For testing purposes
@@ -120,7 +120,6 @@ func CreateInventoryPayload(conf config.Component, l log.Component, s serializer
 		serializer:    s,
 		getPayload:    getPayload,
 		flareFileName: flareFileName,
-		LastCollect:   time.Now(),
 		MinInterval:   minInterval,
 		MaxInterval:   maxInterval,
 	}

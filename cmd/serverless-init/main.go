@@ -11,6 +11,8 @@ import (
 	"os"
 	"time"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/initcontainer"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/log"
@@ -26,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	logger "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -35,13 +38,30 @@ const (
 	loggerName        = "SERVERLESS_INIT"
 )
 
+type cliParams struct {
+	args []string
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		panic("[datadog init process] invalid argument count, did you forget to set CMD ?")
 	} else {
-		cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup()
-		initcontainer.Run(cloudService, logConfig, metricAgent, traceAgent, logsAgent, os.Args[1:])
+
+		cliParams := &cliParams{
+			args: os.Args[1:],
+		}
+
+		err := fxutil.OneShot(run, fx.Supply(cliParams))
+
+		if err != nil {
+			logger.Error(err)
+		}
 	}
+}
+
+func run(cliParams *cliParams) {
+	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup()
+	initcontainer.Run(cloudService, logConfig, metricAgent, traceAgent, logsAgent, cliParams.args)
 }
 
 func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
@@ -66,7 +86,7 @@ func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgen
 	tracelog.SetLogger(corelogger{})
 
 	// load proxy settings
-	setupProxy()
+	config.LoadProxyFromEnv(config.Datadog)
 
 	cloudService := cloudservice.GetCloudServiceType()
 
@@ -87,7 +107,7 @@ func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgen
 
 	// The datadog-agent requires Load to be called or it could
 	// panic down the line.
-	_, err := config.Load()
+	_, err := config.LoadWithoutSecret()
 	if err != nil {
 		logger.Debugf("Error loading config: %v\n", err)
 	}
@@ -138,8 +158,4 @@ func flushMetricsAgent(metricAgent *metrics.ServerlessMetricAgent) {
 	for range time.Tick(3 * time.Second) {
 		metricAgent.Flush()
 	}
-}
-
-func setupProxy() {
-	config.LoadProxyFromEnv(config.Datadog)
 }

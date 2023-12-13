@@ -7,6 +7,7 @@
 package types
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -143,6 +144,19 @@ type ADConfig struct {
 type InclExcl struct {
 	Incl map[string]string `mapstructure:"include" yaml:"include,omitempty" json:"include,omitempty"`
 	Excl map[string]string `mapstructure:"exclude" yaml:"exclude,omitempty" json:"exclude,omitempty"`
+}
+
+// PrometheusScrapeChecksTransformer unmarshals a prometheus check.
+func PrometheusScrapeChecksTransformer(in string) ([]*PrometheusCheck, error) {
+	if in == "" {
+		return nil, nil
+	}
+
+	var promChecks []*PrometheusCheck
+	if err := json.Unmarshal([]byte(in), &promChecks); err != nil {
+		return promChecks, fmt.Errorf(`"prometheus_scrape.checks" can not be parsed: %v`, err)
+	}
+	return promChecks, nil
 }
 
 // Init prepares the PrometheusCheck structure and defaults its values

@@ -143,9 +143,9 @@ func TestServer(t *testing.T) {
 						"hostname":  "totoro",
 						"message":   "Hello, can you hear me",
 						"service":   "callme",
-						"source":    "Adele",
+						"ddsource":  "Adele",
 						"status":    "Info",
-						"tags":      []interface{}{"singer:adele"},
+						"ddtags":    "singer:adele",
 						"timestamp": float64(0)}},
 					Encoding: "gzip",
 				},
@@ -374,6 +374,121 @@ func TestServer(t *testing.T) {
 
 		fi.Stop()
 	})
+
+	t.Run("should respond with custom response to /support/flare", func(t *testing.T) {
+		fi := NewServer()
+		fi.Start()
+		defer fi.Stop()
+
+		request, err := http.NewRequest(
+			http.MethodPost, "/support/flare", strings.NewReader("totoro|5|tag:valid,owner:mei"))
+		require.NoError(t, err, "Error creating request")
+
+		response := httptest.NewRecorder()
+		fi.handleDatadogRequest(response, request)
+
+		assert.Equal(t, http.StatusOK, response.Code)
+		assert.Equal(t, "application/json", response.Header().Get("Content-Type"))
+		assert.Equal(t, `{}`, response.Body.String())
+	})
+
+	t.Run("should accept response overrides", func(t *testing.T) {
+		fi := NewServer()
+		fi.Start()
+		defer fi.Stop()
+
+		body := api.ResponseOverride{
+			Endpoint:    "/totoro",
+			StatusCode:  200,
+			ContentType: "text/plain",
+			Body:        []byte("catbus"),
+		}
+		buf := new(bytes.Buffer)
+		err := json.NewEncoder(buf).Encode(body)
+		require.NoError(t, err, "Error encoding request body")
+
+		request, err := http.NewRequest(http.MethodPost, "/fakeintake/configure/override", buf)
+		require.NoError(t, err, "Error creating POST request")
+
+		response := httptest.NewRecorder()
+		fi.handleConfigureOverride(response, request)
+
+		expected := map[string]httpResponse{
+			"/totoro": {
+				statusCode:  http.StatusOK,
+				contentType: "text/plain",
+				body:        []byte("catbus"),
+			},
+			"/support/flare": {
+				statusCode:  http.StatusOK,
+				contentType: "application/json",
+				data:        flareResponseBody{CaseID: 0, Error: ""},
+				body:        []byte("{}"),
+			},
+			"/api/v1/connections": {
+				statusCode:  http.StatusOK,
+				contentType: "application/x-protobuf",
+				data: []byte{
+					0x03, 0x00, 0x17, 0x02, 0xf7, 0x01, 0x00, 0x00,
+					0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+					0x1a, 0x04, 0x08, 0x01, 0x10, 0x1e,
+				},
+				body: []byte{
+					0x03, 0x00, 0x17, 0x02, 0xf7, 0x01, 0x00, 0x00,
+					0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+					0x1a, 0x04, 0x08, 0x01, 0x10, 0x1e,
+				},
+			},
+		}
+		assert.Equal(t, expected, fi.responseOverrides)
+		assert.Equal(t, http.StatusOK, response.Code)
+	})
+
+	t.Run("should respond with overridden response for matching endpoint", func(t *testing.T) {
+		fi := NewServer()
+		fi.Start()
+		defer fi.Stop()
+
+		fi.responseOverrides["/totoro"] = httpResponse{
+			statusCode:  200,
+			contentType: "text/plain",
+			body:        []byte("catbus"),
+		}
+
+		request, err := http.NewRequest(
+			http.MethodPost, "/totoro", strings.NewReader("totoro|5|tag:valid,owner:mei"))
+		require.NoError(t, err, "Error creating request")
+
+		response := httptest.NewRecorder()
+		fi.handleDatadogRequest(response, request)
+
+		assert.Equal(t, http.StatusOK, response.Code)
+		assert.Equal(t, "text/plain", response.Header().Get("Content-Type"))
+		assert.Equal(t, []byte("catbus"), response.Body.Bytes())
+	})
+
+	t.Run("should respond with default response for non-matching endpoint", func(t *testing.T) {
+		fi := NewServer()
+		fi.Start()
+		defer fi.Stop()
+
+		fi.responseOverrides["/totoro"] = httpResponse{
+			statusCode:  200,
+			contentType: "text/plain",
+			body:        []byte("catbus"),
+		}
+
+		request, err := http.NewRequest(
+			http.MethodPost, "/kiki", strings.NewReader("kiki|4|tag:valid,owner:jiji"))
+		require.NoError(t, err, "Error creating request")
+
+		response := httptest.NewRecorder()
+		fi.handleDatadogRequest(response, request)
+
+		assert.Equal(t, http.StatusOK, response.Code)
+		assert.Equal(t, "application/json", response.Header().Get("Content-Type"))
+		assert.Equal(t, []byte(`{"errors":[]}`), response.Body.Bytes())
+	})
 }
 
 func postSomeFakePayloads(t *testing.T, fi *Server) {
@@ -393,7 +508,7 @@ func postSomeFakePayloads(t *testing.T, fi *Server) {
 	fi.handleDatadogRequest(postResponse, request)
 }
 
-//go:embed fixture_test/log_bytes
+//go:embed fixtures/log_bytes
 var logBytes []byte
 
 func postSomeRealisticPayloads(t *testing.T, fi *Server) {

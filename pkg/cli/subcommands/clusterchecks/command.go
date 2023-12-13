@@ -18,6 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -39,8 +41,11 @@ type GlobalParams struct {
 }
 
 type cliParams struct {
+	GlobalParams
+
 	checkName string
 	force     bool
+	checkID   string
 }
 
 // MakeCommand returns a `clusterchecks` command to be used by cluster-agent
@@ -58,7 +63,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
 				fx.Supply(bundleParams(globalParams)),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -75,7 +80,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			return fxutil.OneShot(rebalance,
 				fx.Supply(cliParams),
 				fx.Supply(bundleParams(globalParams)),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -84,16 +89,35 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 
 	cmd.AddCommand(rebalanceCmd)
 
+	isolateCmd := &cobra.Command{
+		Use:   "isolate",
+		Short: "Isolates a single check in the cluster runner",
+		Long:  ``,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			globalParams := globalParamsGetter()
+
+			return fxutil.OneShot(isolate,
+				fx.Supply(cliParams),
+				fx.Supply(bundleParams(globalParams)),
+				core.Bundle(),
+			)
+		},
+	}
+	isolateCmd.Flags().StringVarP(&cliParams.checkID, "checkID", "", "", "the check ID to isolate")
+	cmd.AddCommand(isolateCmd)
+
 	return cmd
 }
 
 func bundleParams(globalParams GlobalParams) core.BundleParams {
 	return core.BundleParams{
-		ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath, config.WithConfigLoadSecrets(true)),
-		LogParams:    log.ForOneShot(loggerName, defaultLogLevel, true),
+		ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath),
+		SecretParams: secrets.NewEnabledParams(),
+		LogParams:    logimpl.ForOneShot(loggerName, defaultLogLevel, true),
 	}
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func run(log log.Component, config config.Component, cliParams *cliParams) error {
 	if err := flare.GetClusterChecks(color.Output, cliParams.checkName); err != nil {
 		return err
@@ -151,5 +175,46 @@ func rebalance(_ log.Component, _ config.Component, cliParams *cliParams) error 
 			check.CheckID, check.CheckWeight, check.SourceNodeName, check.DestNodeName, check.SourceDiff, check.DestDiff)
 	}
 
+	return nil
+}
+
+func isolate(_ log.Component, _ config.Component, cliParams *cliParams) error {
+	c := util.GetClient(false) // FIX: get certificates right then make this true
+	if cliParams.checkID == "" {
+		return fmt.Errorf("checkID must be specified")
+	}
+	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks/isolate/check/%s", pkgconfig.Datadog.GetInt("cluster_agent.cmd_port"), cliParams.checkID)
+
+	// Set session token
+	err := util.SetAuthToken()
+	if err != nil {
+		return err
+	}
+
+	r, err := util.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
+	if err != nil {
+		var errMap = make(map[string]string)
+		json.Unmarshal(r, &errMap) //nolint:errcheck
+		// If the error has been marshalled into a json object, check it and return it properly
+		if e, found := errMap["error"]; found {
+			err = fmt.Errorf(e)
+		}
+
+		fmt.Printf(`
+		Could not reach agent: %v
+		Make sure the agent is running before requesting to isolate a cluster check.
+		Contact support if you continue having issues.`, err)
+
+		return err
+	}
+
+	var response types.IsolateResponse
+
+	json.Unmarshal(r, &response) //nolint:errcheck
+	if response.IsIsolated {
+		fmt.Printf("Check %s isolated successfully on node %s\n", response.CheckID, response.CheckNode)
+	} else {
+		fmt.Printf("Check %s could not be isolated: %s\n", response.CheckID, response.Reason)
+	}
 	return nil
 }

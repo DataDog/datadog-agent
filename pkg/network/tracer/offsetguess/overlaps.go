@@ -117,14 +117,12 @@ func (c *conntrackOffsetGuesser) nfConnRanges() []offsetRange {
 	idx := slices.Index([]GuessWhat{
 		GuessCtTupleOrigin,
 		GuessCtTupleReply,
-		GuessCtStatus,
 		GuessCtNet,
 	}, GuessWhat(c.status.What))
 
 	return []offsetRange{
-		{c.status.Offset_origin, sizeofNfConntrackTuple},
+		{c.status.Offset_origin, sizeofNfConntrackTupleHash},
 		{c.status.Offset_reply, sizeofNfConntrackTuple},
-		{c.status.Offset_status, uint64(unsafe.Sizeof(c.status.Status))},
 		{c.status.Offset_netns, uint64(unsafe.Sizeof(c.status.Netns))},
 	}[:idx]
 }
