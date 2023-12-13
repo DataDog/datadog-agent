@@ -1214,7 +1214,7 @@ func (s *sideScanner) healthServer(ctx context.Context) error {
 		<-ctx.Done()
 		err := srv.Shutdown(context.TODO())
 		if err != nil {
-			log.Debugf("error shutting down: %v", err)
+			log.Warnf("error shutting down: %v", err)
 		}
 	}()
 
@@ -1234,7 +1234,7 @@ func (s *sideScanner) start(ctx context.Context) {
 	go func() {
 		err := s.healthServer(ctx)
 		if err != nil {
-			log.Debugf("healthServer: %v", err)
+			log.Warnf("healthServer: %v", err)
 		}
 	}()
 
