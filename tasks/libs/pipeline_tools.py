@@ -86,19 +86,19 @@ def gracefully_cancel_pipeline(gitlab, pipeline, force_cancel_stages):
         if job["name"] == "single-machine-performance-regression_detector":
             try:
                 print("Trying to cancel smp job")
-                cancel_smp_job(gitlab, job["id"])
+                cancel_smp_job(gitlab, job["pipeline"]["id"], job["id"])
             except Exception as e:
                 print(f"Error while cancelling SMP job: {e}")
 
 
-def cancel_smp_job(_, job_id):
+def cancel_smp_job(_, pipeline_id, job_id):
     client = boto3.client("s3")
 
     s3_bucket_name = os.environ.get("S3_ARTIFACTS_URI").replace("s3://", "").split("/")[0]
 
     client.download_file(
         s3_bucket_name,
-        f"datadog-agent/{os.environ['CI_PIPELINE_ID']}/smp/{job_id}/submission_metadata",
+        f"datadog-agent/{pipeline_id}/smp/{job_id}/submission_metadata",
         "submission_metadata",
     )
 
