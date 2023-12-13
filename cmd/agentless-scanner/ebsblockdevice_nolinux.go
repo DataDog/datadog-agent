@@ -27,3 +27,13 @@ type EBSBlockDeviceOptions struct {
 func NewEBSBlockDevice(_ EBSBlockDeviceOptions) error {
 	return fmt.Errorf("ebsblockdevice: not supported on this platform")
 }
+
+// Start runs the NBD server and client if required.
+func (bd *EBSBlockDevice) Start(_ context.Context) error {
+	return nil
+}
+
+// WaitCleanup waits after context has been canceled for a complete cleanup of
+// the running NBD server and client.
+func (bd *EBSBlockDevice) WaitCleanup() {
+}
