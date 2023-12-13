@@ -61,10 +61,10 @@ func run(
 func main() {
 	flag.Parse()
 	err := fxutil.OneShot(run,
-		core.Bundle,
-		forwarder.Bundle,
-		otelcol.Bundle,
-		logs.Bundle,
+		core.Bundle(),
+		forwarder.Bundle(),
+		otelcol.Bundle(),
+		logs.Bundle(),
 		fx.Supply(
 			core.BundleParams{
 				ConfigParams: config.NewAgentParams(*cfgPath),
@@ -73,15 +73,13 @@ func main() {
 			},
 		),
 		fx.Provide(newForwarderParams),
-		demultiplexer.Module,
-		orchestratorForwarderImpl.Module,
+		demultiplexer.Module(),
+		orchestratorForwarderImpl.Module(),
 		fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
 		fx.Provide(newSerializer),
 		fx.Provide(func(cfg config.Component) demultiplexer.Params {
 			opts := aggregator.DefaultAgentDemultiplexerOptions()
 			opts.EnableNoAggregationPipeline = cfg.GetBool("dogstatsd_no_aggregation_pipeline")
-			opts.UseDogstatsdContextLimiter = true
-			opts.DogstatsdMaxMetricsTags = cfg.GetInt("dogstatsd_max_metrics_tags")
 			return demultiplexer.Params{Options: opts}
 		}),
 	)

@@ -37,9 +37,10 @@ type mockAPIServer struct {
 var _ api.Mock = (*mockAPIServer)(nil)
 
 // MockModule defines the fx options for the mock component.
-var MockModule = fxutil.Component(
-	fx.Provide(newMock),
-)
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newMock))
+}
 
 func newMock() api.Mock {
 	return &mockAPIServer{}

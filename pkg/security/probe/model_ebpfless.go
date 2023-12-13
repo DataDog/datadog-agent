@@ -9,11 +9,11 @@
 package probe
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 // NewEBPFLessModel returns a new model with some extra field validation
@@ -26,7 +26,7 @@ func NewEBPFLessModel() *model.Model {
 				!strings.HasPrefix(field, "open.") &&
 				!strings.HasPrefix(field, "process.") &&
 				!strings.HasPrefix(field, "container.") {
-				return fmt.Errorf("%s is not available with the eBPF less version", field)
+				return rules.ErrEventTypeNotEnabled
 			}
 			return nil
 		},

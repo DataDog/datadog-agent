@@ -27,9 +27,10 @@ type Component interface {
 }
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newInventoryAgentProvider),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newInventoryAgentProvider))
+}
 
 // Mock implements mock-specific methods for the inventoryagent component.
 type Mock interface {
@@ -42,8 +43,9 @@ type Mock interface {
 //
 //	fxutil.Test[dependencies](
 //	   t,
-//	   inventoryagent.MockModule,
+//	   inventoryagent.MockModule(),
 //	)
-var MockModule = fxutil.Component(
-	fx.Provide(newMock),
-)
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newMock))
+}

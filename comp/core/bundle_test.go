@@ -14,9 +14,9 @@ import (
 )
 
 func TestBundleDependencies(t *testing.T) {
-	fxutil.TestBundle(t, Bundle, fx.Supply(BundleParams{}))
+	fxutil.TestBundle(t, Bundle(), fx.Supply(BundleParams{}))
 }
 
 func TestMockBundleDependencies(t *testing.T) {
-	fxutil.TestBundle(t, MockBundle, fx.Supply(BundleParams{}))
+	fxutil.TestBundle(t, MockBundle(), fx.Supply(BundleParams{}))
 }

@@ -40,7 +40,7 @@ func TestMyComponent(t *testing.T) {
     var other other.Component
     app := fxtest.New(t,
         Module,              // use the real version of this component
-        other.MockModule,    // use the mock version of other
+        other.MockModule(),    // use the mock version of other
         fx.Populate(&comp),  // get the instance of this component
         fx.Populate(&other), // get the (mock) instance of the other component
     )

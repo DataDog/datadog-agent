@@ -234,5 +234,5 @@ type deps struct {
 func buildDeps(t *testing.T) deps {
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
-	return fxutil.Test[deps](t, defaultforwarder.MockModule, config.MockModule, logimpl.MockModule, demultiplexer.MockModule)
+	return fxutil.Test[deps](t, defaultforwarder.MockModule(), config.MockModule(), logimpl.MockModule(), demultiplexer.MockModule())
 }
