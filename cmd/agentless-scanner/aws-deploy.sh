@@ -170,6 +170,10 @@ Resources:
           Effect: Allow
           Resource: '*'
           Sid: DatadogSideScannerOfflineMode
+        - Action: ec2:DescribeVolumes
+          Effect: Allow
+          Resource: '*'
+          Sid: DatadogSideScannerDescribeVolumes
 
   DatalogSideScannerInstanceProfile:
     Type: AWS::IAM::InstanceProfile
