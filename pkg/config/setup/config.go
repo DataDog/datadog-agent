@@ -30,11 +30,6 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// Datadog is the global configuration object
-var (
-	Datadog     pkgconfigmodel.Config
-	SystemProbe pkgconfigmodel.Config
-)
 const (
 
 	// DefaultSite is the default site the Agent sends data to.
@@ -97,6 +92,12 @@ const (
 	// DefaultMaxMessageSizeBytes is the default value for max_message_size_bytes
 	// If a log message is larger than this byte limit, the overflow bytes will be truncated.
 	DefaultMaxMessageSizeBytes = 256 * 1000
+)
+
+// Datadog is the global configuration object
+var (
+	Datadog     pkgconfigmodel.Config
+	SystemProbe pkgconfigmodel.Config
 )
 
 // Variables to initialize at build time

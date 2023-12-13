@@ -18,6 +18,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../pkg/util/hostname/validate
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../../pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/optional => ../../../pkg/util/optional/
+	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../pkg/util/scrubber/
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../../pkg/util/system/socket
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../pkg/util/winutil
 )
