@@ -26,10 +26,6 @@ func setupConfig(config pkgconfigmodel.Config, deps configDependencies) (*pkgcon
 	failOnMissingFile := !p.configMissingOK
 	defaultConfPath := p.defaultConfPath
 
-	pkgconfigsetup.InitConfig(config)
-	systemProbe := pkgconfigsetup.SystemProbe
-	pkgconfigsetup.InitSystemProbeConfig(systemProbe)
-
 	if configName != "" {
 		config.SetConfigName(configName)
 	}
@@ -53,9 +49,9 @@ func setupConfig(config pkgconfigmodel.Config, deps configDependencies) (*pkgcon
 	var warnings *pkgconfigmodel.Warnings
 	resolver := deps.getSecretResolver()
 	if resolver == nil {
-		warnings, err = pkgconfigsetup.LoadWithoutSecret(config, systemProbe.GetEnvVars())
+		warnings, err = pkgconfigsetup.LoadWithoutSecret(config, pkgconfigsetup.SystemProbe.GetEnvVars())
 	} else {
-		warnings, err = pkgconfigsetup.LoadWithSecret(config, resolver, systemProbe.GetEnvVars())
+		warnings, err = pkgconfigsetup.LoadWithSecret(config, resolver, pkgconfigsetup.SystemProbe.GetEnvVars())
 	}
 
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.

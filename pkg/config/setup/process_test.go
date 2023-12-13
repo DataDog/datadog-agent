@@ -17,7 +17,7 @@ import (
 
 // TestProcessDefaults tests to ensure that the config has set process settings correctly
 func TestProcessDefaultConfig(t *testing.T) {
-	cfg := conf()
+	cfg := Conf()
 
 	for _, tc := range []struct {
 		key          string
@@ -140,7 +140,7 @@ func TestProcessDefaultConfig(t *testing.T) {
 
 // TestPrefixes tests that for every corresponding `DD_PROCESS_CONFIG` prefix, there is a `DD_PROCESS_AGENT` prefix as well.
 func TestProcessAgentPrefixes(t *testing.T) {
-	envVarSlice := conf().GetEnvVars()
+	envVarSlice := Conf().GetEnvVars()
 	envVars := make(map[string]struct{}, len(envVarSlice))
 	for _, envVar := range envVarSlice {
 		envVars[envVar] = struct{}{}
@@ -161,7 +161,7 @@ func TestProcessAgentPrefixes(t *testing.T) {
 
 // TestPrefixes tests that for every corresponding `DD_PROCESS_AGENT` prefix, there is a `DD_PROCESS_CONFIG` prefix as well.
 func TestProcessConfigPrefixes(t *testing.T) {
-	envVarSlice := conf().GetEnvVars()
+	envVarSlice := Conf().GetEnvVars()
 	envVars := make(map[string]struct{}, len(envVarSlice))
 	for _, envVar := range envVarSlice {
 		envVars[envVar] = struct{}{}
@@ -183,7 +183,7 @@ func TestProcessConfigPrefixes(t *testing.T) {
 }
 
 func TestEnvVarOverride(t *testing.T) {
-	cfg := conf()
+	cfg := Conf()
 
 	for _, tc := range []struct {
 		key, env, value string
@@ -480,7 +480,7 @@ func readCfgWithType(cfg pkgconfigmodel.Config, key, expType string) interface{}
 }
 
 func TestEnvVarCustomSensitiveWords(t *testing.T) {
-	cfg := conf()
+	cfg := Conf()
 	expectedPrefixes := []string{"DD_", "DD_PROCESS_CONFIG_", "DD_PROCESS_AGENT_"}
 
 	for i, tc := range []struct {
@@ -512,7 +512,7 @@ func TestEnvVarCustomSensitiveWords(t *testing.T) {
 }
 
 func TestProcBindEnvAndSetDefault(t *testing.T) {
-	cfg := conf()
+	cfg := Conf()
 	procBindEnvAndSetDefault(cfg, "process_config.foo.bar", "asdf")
 
 	envs := map[string]struct{}{}
@@ -531,7 +531,7 @@ func TestProcBindEnvAndSetDefault(t *testing.T) {
 }
 
 func TestProcBindEnv(t *testing.T) {
-	cfg := conf()
+	cfg := Conf()
 	procBindEnv(cfg, "process_config.foo.bar")
 
 	envs := map[string]struct{}{}
@@ -576,7 +576,7 @@ func TestProcConfigEnabledTransform(t *testing.T) {
 		},
 	} {
 		t.Run("process_config.enabled="+tc.procConfigEnabled, func(t *testing.T) {
-			cfg := conf()
+			cfg := Conf()
 			cfg.SetWithoutSource("process_config.enabled", tc.procConfigEnabled)
 			loadProcessTransforms(cfg)
 

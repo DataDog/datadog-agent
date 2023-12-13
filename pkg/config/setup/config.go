@@ -32,10 +32,9 @@ import (
 
 // Datadog is the global configuration object
 var (
-	Datadog     pkgconfigmodel.Config = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	SystemProbe pkgconfigmodel.Config = pkgconfigmodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
+	Datadog     pkgconfigmodel.Config
+	SystemProbe pkgconfigmodel.Config
 )
-
 const (
 
 	// DefaultSite is the default site the Agent sends data to.
@@ -193,6 +192,12 @@ const (
 
 func init() {
 	osinit()
+	// Configure Datadog global configuration
+	Datadog = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	SystemProbe = pkgconfigmodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
+	// Configuration defaults
+	InitConfig(Datadog)
+	InitSystemProbeConfig(SystemProbe)
 }
 
 // InitConfig initializes the config defaults on a config

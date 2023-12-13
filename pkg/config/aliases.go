@@ -78,6 +78,13 @@ const (
 	KubeOrchestratorExplorer = env.KubeOrchestratorExplorer
 )
 
+var (
+	// Datadog Alias
+	Datadog = pkgconfigsetup.Datadog
+	// SystemProbe Alias
+	SystemProbe = pkgconfigsetup.SystemProbe
+)
+
 // IsAutoconfigEnabled is alias for model.IsAutoconfigEnabled
 func IsAutoconfigEnabled() bool {
 	return env.IsAutoconfigEnabled(Datadog)
@@ -242,6 +249,9 @@ var (
 	GetRemoteConfigurationAllowedIntegrations = pkgconfigsetup.GetRemoteConfigurationAllowedIntegrations
 	// LoadProxyFromEnv Alias
 	LoadProxyFromEnv = pkgconfigsetup.LoadProxyFromEnv
+
+	// GetIPCPort Alias
+	GetIPCPort = pkgconfigsetup.GetIPCPort
 )
 
 // LoadWithoutSecret Alias using Datadog config
