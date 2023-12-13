@@ -226,7 +226,7 @@ func (s *LinuxFakeintakeSuite) LogRecreateRotation() {
 
 }
 
-// AppendLog generates a log file with the given content and recurrence.
+
 func (s *LinuxFakeintakeSuite) AppendLog(content string, recurrence int) {
 	utils.AppendLog(s, content, recurrence)
 }

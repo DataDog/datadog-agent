@@ -22,6 +22,7 @@ import (
 	componentos "github.com/DataDog/test-infra-definitions/components/os"
 )
 
+// LogTestHelper is an interface that provides methods to run commands on different VMs
 type LogTestHelper interface {
 	T() *testing.T
 	Env() *e2e.FakeIntakeEnv
