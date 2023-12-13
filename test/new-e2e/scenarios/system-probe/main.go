@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// Package main is the entrypoint for the system-probe e2e testing scenario
 package main
 
 import (
@@ -21,7 +21,7 @@ import (
 var DD_AGENT_TESTING_DIR = os.Getenv("DD_AGENT_TESTING_DIR")
 var defaultVMConfigPath = filepath.Join(".", "system-probe", "config", "vmconfig.json")
 
-func run(envName, x86InstanceType, armInstanceType string, destroy bool, opts *systemProbe.SystemProbeEnvOpts) error {
+func run(envName, x86InstanceType, armInstanceType string, destroy bool, opts *systemProbe.EnvOpts) error {
 	if destroy {
 		return systemProbe.Destroy(envName)
 	}
@@ -62,7 +62,7 @@ func main() {
 		failOnMissing = true
 	}
 
-	opts := systemProbe.SystemProbeEnvOpts{
+	opts := systemProbe.EnvOpts{
 		X86AmiID:              *x86AmiIDPtr,
 		ArmAmiID:              *armAmiIDPtr,
 		ShutdownPeriod:        *shutdownPtr,
