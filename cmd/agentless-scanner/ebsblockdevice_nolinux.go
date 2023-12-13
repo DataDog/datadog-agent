@@ -10,6 +10,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/service/ebs"
@@ -30,13 +31,13 @@ type EBSBlockDevice struct {
 }
 
 // NewEBSBlockDevice sets up the EBS block device.
-func NewEBSBlockDevice(_ EBSBlockDeviceOptions) error {
-	return fmt.Errorf("ebsblockdevice: not supported on this platform")
+func NewEBSBlockDevice(_ EBSBlockDeviceOptions) EBSBlockDevice {
+	return EBSBlockDevice{}
 }
 
 // Start runs the NBD server and client if required.
 func (bd *EBSBlockDevice) Start(_ context.Context) error {
-	return nil
+	return fmt.Errorf("ebsblockdevice: not supported on this platform")
 }
 
 // WaitCleanup waits after context has been canceled for a complete cleanup of
