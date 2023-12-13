@@ -8,13 +8,15 @@ package logagent
 import (
 	_ "embed"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 
-	e2e "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 )
 
@@ -49,8 +51,8 @@ func TestE2EVMFakeintakeSuite(t *testing.T) {
 	e2e.Run(t, s, logsExampleStackDef(), options...)
 }
 
-func (s *LinuxFakeintakeSuite) BeforeTest(_, _ string) {
-	s.Suite.BeforeTest("", "")
+func (s *LinuxFakeintakeSuite) AfterTest(suiteName, testName string) {
+	s.Suite.AfterTest(suiteName, testName)
 	// Flush server and reset aggregators before the test is ran
 	s.cleanUp()
 
