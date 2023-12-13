@@ -23,6 +23,12 @@ type EBSBlockDeviceOptions struct {
 	RunClient   bool
 }
 
+// EBSBlockDevice is used to create an EBS block device using NBD.
+type EBSBlockDevice struct {
+	EBSBlockDeviceOptions
+	wg sync.WaitGroup
+}
+
 // NewEBSBlockDevice sets up the EBS block device.
 func NewEBSBlockDevice(_ EBSBlockDeviceOptions) error {
 	return fmt.Errorf("ebsblockdevice: not supported on this platform")
