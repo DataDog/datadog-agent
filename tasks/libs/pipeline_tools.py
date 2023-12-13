@@ -102,7 +102,7 @@ def cancel_smp_job(_, pipeline_id, job_id):
         "submission_metadata",
     )
 
-    result = subprocess.call(
+    result = subprocess.run(
         [
             "./smp",
             "--team-id",
@@ -115,10 +115,34 @@ def cancel_smp_job(_, pipeline_id, job_id):
             "cancel",
             "--submission-metadata",
             "submission_metadata",
-        ]
+        ],
+        capture_output=True,
     )
 
-    print(result)
+    print("RESULT : ", result)
+    print("OUTPUT: ", result.stdout)
+    print("ERR: ", result.stderr)
+
+    status = subprocess.run(
+        [
+            "./smp",
+            "--team-id",
+            os.environ["SMP_AGENT_TEAM_ID"],
+            "--api-base",
+            os.environ["SMP_API"],
+            "--aws-named-profile",
+            os.environ["AWS_NAMED_PROFILE"],
+            "job",
+            "status",
+            "--submission-metadata",
+            "submission_metadata",
+        ],
+        capture_output=True,
+    )
+
+    print("RESULT STATUS: ", status)
+    print("OUTPUT STATUS: ", status.stdout)
+    print("ERR STATUS: ", status.stderr)
 
 
 def trigger_agent_pipeline(
