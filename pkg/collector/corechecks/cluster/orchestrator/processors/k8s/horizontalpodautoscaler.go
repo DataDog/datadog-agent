@@ -22,6 +22,8 @@ type HorizontalPodAutoscalerHandlers struct {
 }
 
 // AfterMarshalling is a handler called after resource marshalling.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *HorizontalPodAutoscalerHandlers) AfterMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
 	m := resourceModel.(*model.HorizontalPodAutoscaler)
 	m.Yaml = yaml
@@ -48,6 +50,8 @@ func (h *HorizontalPodAutoscalerHandlers) BuildMessageBody(ctx *processors.Proce
 }
 
 // ExtractResource is a handler called to extract the resource model out of a raw resource.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *HorizontalPodAutoscalerHandlers) ExtractResource(ctx *processors.ProcessorContext, resource interface{}) (horizontalPodAutoscalerModel interface{}) {
 	r := resource.(*v2.HorizontalPodAutoscaler)
 	return k8sTransformers.ExtractHorizontalPodAutoscaler(r)
@@ -55,6 +59,8 @@ func (h *HorizontalPodAutoscalerHandlers) ExtractResource(ctx *processors.Proces
 
 // ResourceList is a handler called to convert a list passed as a generic
 // interface to a list of generic interfaces.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *HorizontalPodAutoscalerHandlers) ResourceList(ctx *processors.ProcessorContext, list interface{}) (resources []interface{}) {
 	resourceList := list.([]*v2.HorizontalPodAutoscaler)
 	resources = make([]interface{}, 0, len(resourceList))
@@ -67,17 +73,23 @@ func (h *HorizontalPodAutoscalerHandlers) ResourceList(ctx *processors.Processor
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *HorizontalPodAutoscalerHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*v2.HorizontalPodAutoscaler).UID
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *HorizontalPodAutoscalerHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*v2.HorizontalPodAutoscaler).ResourceVersion
 }
 
 // ScrubBeforeExtraction is a handler called to redact the raw resource before
 // it is extracted as an internal resource model.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *HorizontalPodAutoscalerHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorContext, resource interface{}) {
 	r := resource.(*v2.HorizontalPodAutoscaler)
 	redact.RemoveLastAppliedConfigurationAnnotation(r.Annotations)

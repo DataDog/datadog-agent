@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(PROC) Fix revive linter
 package main
 
 import (
@@ -26,7 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
-	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
+	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
 	"github.com/DataDog/datadog-agent/comp/process/expvars"
@@ -126,13 +128,16 @@ func runApp(ctx context.Context, globalParams *command.GlobalParams) error {
 		fx.Populate(&appInitDeps),
 
 		// Provide core components
-		core.Bundle,
+		core.Bundle(),
 
 		// Provide process agent bundle so fx knows where to find components
-		process.Bundle,
+		process.Bundle(),
 
 		// Provide remote config client module
-		rcclient.Module,
+		rcclient.Module(),
+
+		// Provide statsd client module
+		compstatsd.Module(),
 
 		// Provide the corresponding workloadmeta Params to configure the catalog
 		collectors.GetCatalog(),
@@ -235,6 +240,7 @@ type miscDeps struct {
 	Lc fx.Lifecycle
 
 	Config       config.Component
+	Statsd       compstatsd.Component
 	Syscfg       sysprobeconfig.Component
 	HostInfo     hostinfo.Component
 	WorkloadMeta workloadmeta.Component
@@ -244,7 +250,7 @@ type miscDeps struct {
 // Todo: (Components) WorkloadMeta, remoteTagger, statsd
 // Todo: move metadata/workloadmeta/collector to workloadmeta
 func initMisc(deps miscDeps) error {
-	if err := statsd.Configure(ddconfig.GetBindHost(), deps.Config.GetInt("dogstatsd_port"), false); err != nil {
+	if err := statsd.Configure(ddconfig.GetBindHost(), deps.Config.GetInt("dogstatsd_port"), deps.Statsd.CreateForHostPort); err != nil {
 		log.Criticalf("Error configuring statsd: %s", err)
 		return err
 	}

@@ -32,18 +32,22 @@ type testWorkloadmetaListener struct {
 	services map[string]wlmListenerSvc
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (l *testWorkloadmetaListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 	panic("not implemented")
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (l *testWorkloadmetaListener) Stop() {
 	panic("not implemented")
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (l *testWorkloadmetaListener) Store() workloadmeta.Component {
 	return l.store
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (l *testWorkloadmetaListener) AddService(svcID string, svc Service, parentSvcID string) {
 	l.services[svcID] = wlmListenerSvc{
 		service: svc,
@@ -51,6 +55,7 @@ func (l *testWorkloadmetaListener) AddService(svcID string, svc Service, parentS
 	}
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (l *testWorkloadmetaListener) IsExcluded(ft containers.FilterType, annotations map[string]string, name string, image string, ns string) bool {
 	return l.filters.IsExcluded(ft, annotations, name, image, ns)
 }
@@ -80,10 +85,10 @@ func newTestWorkloadmetaListener(t *testing.T) *testWorkloadmetaListener {
 	}
 
 	w := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule,
+		workloadmeta.MockModule(),
 	))
 
 	return &testWorkloadmetaListener{

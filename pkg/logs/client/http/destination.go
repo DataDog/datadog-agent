@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package http
 
 import (
@@ -50,6 +51,8 @@ var (
 )
 
 // emptyJsonPayload is an empty payload used to check HTTP connectivity without sending logs.
+//
+//nolint:revive // TODO(AML) Fix revive linter
 var emptyJsonPayload = message.Payload{Messages: []*message.Message{}, Encoded: []byte("{}")}
 
 // Destination sends a payload over HTTP.
@@ -331,7 +334,7 @@ func (d *Destination) updateRetryState(err error, isRetrying chan bool) bool {
 		d.lastRetryError = err
 
 		return true
-	} else {
+	} else { //nolint:revive // TODO(AML) Fix revive linter
 		d.nbErrors = d.backoff.DecError(d.nbErrors)
 		if isRetrying != nil && d.lastRetryError != nil {
 			isRetrying <- false
@@ -405,6 +408,7 @@ func CheckConnectivity(endpoint config.Endpoint) config.HTTPConnectivity {
 	return err == nil
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func CheckConnectivityDiagnose(endpoint config.Endpoint) (url string, err error) {
 	ctx, destination := prepareCheckConnectivity(endpoint)
 	return destination.url, completeCheckConnectivity(ctx, destination)

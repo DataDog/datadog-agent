@@ -65,15 +65,15 @@ type kafkaParsingTestAttributes struct {
 type kafkaParsingValidation struct {
 	expectedNumberOfProduceRequests int
 	expectedNumberOfFetchRequests   int
-	expectedApiVersionProduce       int
-	expectedApiVersionFetch         int
+	expectedAPIVersionProduce       int
+	expectedAPIVersionFetch         int
 }
 
 func skipTestIfKernelNotSupported(t *testing.T) {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
 	if currKernelVersion < http.MinimumKernelVersion {
-		t.Skip(fmt.Sprintf("Kafka feature not available on pre %s kernels", http.MinimumKernelVersion.String()))
+		t.Skipf("Kafka feature not available on pre %s kernels", http.MinimumKernelVersion.String())
 	}
 }
 
@@ -166,8 +166,8 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: 2,
 					expectedNumberOfFetchRequests:   4,
-					expectedApiVersionProduce:       8,
-					expectedApiVersionFetch:         11,
+					expectedAPIVersionProduce:       8,
+					expectedAPIVersionFetch:         11,
 				})
 			},
 			teardown:      kafkaTeardown,
@@ -208,8 +208,8 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: 2,
 					expectedNumberOfFetchRequests:   0,
-					expectedApiVersionProduce:       5,
-					expectedApiVersionFetch:         0,
+					expectedAPIVersionProduce:       5,
+					expectedAPIVersionFetch:         0,
 				})
 			},
 			teardown:      kafkaTeardown,
@@ -252,8 +252,8 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: numberOfIterations * 2,
 					expectedNumberOfFetchRequests:   0,
-					expectedApiVersionProduce:       8,
-					expectedApiVersionFetch:         0,
+					expectedAPIVersionProduce:       8,
+					expectedAPIVersionFetch:         0,
 				})
 			},
 			teardown:      kafkaTeardown,
@@ -341,8 +341,8 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 					kafkaParsingValidation{
 						expectedNumberOfProduceRequests: 2,
 						expectedNumberOfFetchRequests:   0,
-						expectedApiVersionProduce:       8,
-						expectedApiVersionFetch:         0,
+						expectedAPIVersionProduce:       8,
+						expectedAPIVersionFetch:         0,
 					})
 			},
 			teardown: kafkaTeardown,
@@ -454,13 +454,11 @@ func validateProduceFetchCount(t *testing.T, kafkaStats map[kafka.Key]*kafka.Req
 		require.Equal(t, topicName, kafkaKey.TopicName)
 		switch kafkaKey.RequestAPIKey {
 		case kafka.ProduceAPIKey:
-			require.Equal(t, uint16(validation.expectedApiVersionProduce), kafkaKey.RequestVersion)
+			require.Equal(t, uint16(validation.expectedAPIVersionProduce), kafkaKey.RequestVersion)
 			numberOfProduceRequests += kafkaStat.Count
-			break
 		case kafka.FetchAPIKey:
-			require.Equal(t, uint16(validation.expectedApiVersionFetch), kafkaKey.RequestVersion)
+			require.Equal(t, uint16(validation.expectedAPIVersionFetch), kafkaKey.RequestVersion)
 			numberOfFetchRequests += kafkaStat.Count
-			break
 		default:
 			require.FailNow(t, "Expecting only produce or fetch kafka requests")
 		}

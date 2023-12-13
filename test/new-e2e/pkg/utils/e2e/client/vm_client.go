@@ -7,6 +7,7 @@ package client
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"testing"
 	"time"
@@ -34,7 +35,7 @@ type VMClient struct {
 func NewVMClient(t *testing.T, connection *utils.Connection, osType componentos.Type) (*VMClient, error) {
 	t.Logf("connecting to remote VM at %s:%s", connection.User, connection.Host)
 
-	var privateSSHKey []byte
+	var privateSSHKey, privateKeyPassphraseBytes []byte
 
 	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.PrivateKeyPath, "")
 	if err != nil {
@@ -48,10 +49,19 @@ func NewVMClient(t *testing.T, connection *utils.Connection, osType componentos.
 		}
 	}
 
+	privateKeyPassphrase, err := runner.GetProfile().SecretStore().GetWithDefault(parameters.PrivateKeyPassword, "")
+	if err != nil {
+		return nil, err
+	}
+	if privateKeyPassphrase != "" {
+		privateKeyPassphraseBytes = []byte(privateKeyPassphrase)
+	}
+
 	client, _, err := clients.GetSSHClient(
 		connection.User,
 		fmt.Sprintf("%s:%d", connection.Host, 22),
 		privateSSHKey,
+		privateKeyPassphraseBytes,
 		2*time.Second, 5)
 	return &VMClient{
 		client: client,
@@ -94,6 +104,51 @@ func (vmClient *VMClient) CopyFolder(srcFolder string, dstFolder string) {
 	require.NoError(vmClient.t, err)
 }
 
+// FileExists returns true if the file exists and is a regular file and returns an error if any
+func (vmClient *VMClient) FileExists(path string) (bool, error) {
+	return clients.FileExists(vmClient.client, path)
+}
+
+// ReadFile reads the content of the file, return bytes read and error if any
+func (vmClient *VMClient) ReadFile(path string) ([]byte, error) {
+	return clients.ReadFile(vmClient.client, path)
+}
+
+// WriteFile write content to the file and returns the number of bytes written and error if any
+func (vmClient *VMClient) WriteFile(path string, content []byte) (int64, error) {
+	return clients.WriteFile(vmClient.client, path, content)
+}
+
+// ReadDir returns list of directory entries in path
+func (vmClient *VMClient) ReadDir(path string) ([]fs.DirEntry, error) {
+	return clients.ReadDir(vmClient.client, path)
+}
+
+// Lstat returns a FileInfo structure describing path.
+// if path is a symbolic link, the FileInfo structure describes the symbolic link.
+func (vmClient *VMClient) Lstat(path string) (fs.FileInfo, error) {
+	return clients.Lstat(vmClient.client, path)
+}
+
+// MkdirAll creates the specified directory along with any necessary parents.
+// If the path is already a directory, does nothing and returns nil.
+// Otherwise returns an error if any.
+func (vmClient *VMClient) MkdirAll(path string) error {
+	return clients.MkdirAll(vmClient.client, path)
+}
+
+// Remove removes the specified file or directory.
+// Returns an error if file or directory does not exist, or if the directory is not empty.
+func (vmClient *VMClient) Remove(path string) error {
+	return clients.Remove(vmClient.client, path)
+}
+
+// RemoveAll recursively removes all files/folders in the specified directory.
+// Returns an error if the directory does not exist.
+func (vmClient *VMClient) RemoveAll(path string) error {
+	return clients.RemoveAll(vmClient.client, path)
+}
+
 func (vmClient *VMClient) setEnvVariables(command string, envVar executeparams.EnvVar) string {
 
 	cmd := ""
@@ -122,4 +177,9 @@ func (vmClient *VMClient) setEnvVariables(command string, envVar executeparams.E
 	}
 	return cmd
 
+}
+
+// GetOSType returns the operating system type of the VMClient instance.
+func (vmClient *VMClient) GetOSType() componentos.Type {
+	return vmClient.osType
 }

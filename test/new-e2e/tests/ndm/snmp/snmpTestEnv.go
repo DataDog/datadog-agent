@@ -13,8 +13,10 @@ import (
 	"path"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent/docker"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent/dockerparams"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
+	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake/fakeintakeparams"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2vm"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
@@ -52,6 +54,11 @@ func NewTestEnv() (*TestEnv, error) {
 	_, upResult, err := stackManager.GetStack(snmpTestEnv.context, snmpTestEnv.name, nil, func(ctx *pulumi.Context) error {
 		// setup VM
 		vm, err := ec2vm.NewUnixEc2VM(ctx)
+		if err != nil {
+			return err
+		}
+
+		fakeintakeExporter, err := aws.NewEcsFakeintake(vm.GetAwsEnvironment(), fakeintakeparams.WithoutLoadBalancer())
 		if err != nil {
 			return err
 		}
@@ -94,13 +101,15 @@ func NewTestEnv() (*TestEnv, error) {
 		}
 
 		// install agent and snmpsim on docker
-		envVars := map[string]string{"DATA_DIR": dataPath, "CONFIG_DIR": configPath}
+		envVars := pulumi.StringMap{"DATA_DIR": pulumi.String(dataPath), "CONFIG_DIR": pulumi.String(configPath)}
 		composeDependencies := []pulumi.Resource{createDataDirCommand, configCommand}
 		composeDependencies = append(composeDependencies, fileCommands...)
-		_, err = docker.NewDaemon(
-			ctx,
-			dockerparams.WithComposeContent(snmpCompose, envVars),
-			dockerparams.WithPulumiResources(pulumi.DependsOn(composeDependencies)),
+		_, err = agent.NewDaemon(
+			vm,
+			dockeragentparams.WithFakeintake(fakeintakeExporter),
+			dockeragentparams.WithExtraComposeManifest("snmpsim", snmpCompose),
+			dockeragentparams.WithEnvironmentVariables(envVars),
+			dockeragentparams.WithPulumiDependsOn(pulumi.DependsOn(composeDependencies)),
 		)
 		return err
 	}, false)
