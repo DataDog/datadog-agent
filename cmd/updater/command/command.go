@@ -43,7 +43,7 @@ func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {
 		Use:   fmt.Sprintf("%s [command]", os.Args[0]),
 		Short: "Datadog Updater at your service.",
 		Long: `
-Datadog Updater updates your agents based on requests recieved from the Datadog UI.`,
+Datadog Updater updates your agents based on requests received from the Datadog UI.`,
 		SilenceUsage: true,
 	}
 
