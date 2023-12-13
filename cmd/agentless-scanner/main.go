@@ -1475,7 +1475,7 @@ func cloudResourceTagSpec(resourceType resourceType) []ec2types.TagSpecification
 		{
 			ResourceType: ec2types.ResourceType(resourceType),
 			Tags: []ec2types.Tag{
-				{Key: aws.String("DatadogSideScanner"), Value: aws.String("true")},
+				{Key: aws.String("DatadogAgentlessScanner"), Value: aws.String("true")},
 			},
 		},
 	}
@@ -1484,7 +1484,7 @@ func cloudResourceTagSpec(resourceType resourceType) []ec2types.TagSpecification
 func cloudResourceTagFilters() []ec2types.Filter {
 	return []ec2types.Filter{
 		{
-			Name: aws.String("tag:DatadogSideScanner"),
+			Name: aws.String("tag:DatadogAgentlessScanner"),
 			Values: []string{
 				"true",
 			},
