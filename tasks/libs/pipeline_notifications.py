@@ -61,6 +61,7 @@ GITHUB_JIRA_MAP = {
     "@datadog/metrics-aggregation": "AGGR",
     "@datadog/serverless": "SVLS",
     "@datadog/remote-config": "RC",
+    "@datadog/fleet": "RC",
     "@datadog/agent-all": DEFAULT_JIRA_PROJECT,
     "@datadog/ebpf-platform": "EBPF",
     "@datadog/networks": "NPM",
