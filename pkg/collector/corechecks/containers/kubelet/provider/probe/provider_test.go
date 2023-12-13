@@ -270,8 +270,8 @@ func TestProvider_Provide(t *testing.T) {
 			mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))
 			mockSender.SetupAcceptAll()
 
-			fakeTagger := tagger.SetupFakeTagger(t)
-			defer tagger.ResetTagger()
+			fakeTagger := fxutil.Test[tagger.Mock](t, tagger.MockModule())
+			defer fakeTagger.ResetTagger()
 			for entity, tags := range probeTags {
 				fakeTagger.SetTags(entity, "foo", tags, nil, nil, nil)
 			}

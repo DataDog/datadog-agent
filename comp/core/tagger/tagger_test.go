@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func Test_taggerCardinality(t *testing.T) {
@@ -59,8 +60,8 @@ func Test_taggerCardinality(t *testing.T) {
 }
 
 func TestEnrichTagsOrchestrator(t *testing.T) {
-	fakeTagger := SetupFakeTagger(t)
-	defer ResetTagger()
+	fakeTagger := fxutil.Test[Mock](t, MockModule())
+	defer fakeTagger.ResetTagger()
 	fakeTagger.SetTags("foo", "fooSource", []string{"lowTag"}, []string{"orchTag"}, nil, nil)
 	tb := tagset.NewHashingTagsAccumulator()
 	EnrichTags(tb, "foo", "", "orchestrator")

@@ -15,11 +15,12 @@ import (
 	taggerUtils "github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestProcessorRunFullStatsLinux(t *testing.T) {
-	tagger.SetupFakeTagger(t)
-	defer tagger.ResetTagger()
+	fakeTagger := fxutil.Test[tagger.Mock](t, tagger.MockModule())
+	defer fakeTagger.ResetTagger()
 
 	containersMeta := []*workloadmeta.Container{
 		// Container with full stats
@@ -89,8 +90,8 @@ func TestProcessorRunFullStatsLinux(t *testing.T) {
 }
 
 func TestProcessorRunPartialStats(t *testing.T) {
-	tagger.SetupFakeTagger(t)
-	defer tagger.ResetTagger()
+	fakeTagger := fxutil.Test[tagger.Mock](t, tagger.MockModule())
+	defer fakeTagger.ResetTagger()
 
 	containersMeta := []*workloadmeta.Container{
 		// Container without stats

@@ -18,6 +18,7 @@ import (
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/metadata"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
@@ -409,4 +410,9 @@ func convertEventType(t pb.EventType) (types.EventType, error) {
 
 func convertEntityID(id *pb.EntityId) string {
 	return fmt.Sprintf("%s://%s", id.Prefix, id.Uid)
+}
+
+// TODO(components): verify the grpclog is initialized elsewhere and cleanup
+func init() {
+	grpclog.SetLoggerV2(grpcutil.NewLogger())
 }

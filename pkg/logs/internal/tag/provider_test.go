@@ -15,13 +15,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestProviderExpectedTags(t *testing.T) {
 	m := coreConfig.Mock(t)
 	clock := clock.NewMock()
-	tagger.SetupFakeTagger(t)
-	defer tagger.ResetTagger()
+	fakeTagger := fxutil.Test[tagger.Mock](t, tagger.MockModule())
+	defer fakeTagger.ResetTagger()
 	oldStartTime := coreConfig.StartTime
 	then := clock.Now()
 	coreConfig.StartTime = then

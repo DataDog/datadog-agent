@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -26,8 +27,8 @@ func TestUnbundledEventsTransform(t *testing.T) {
 	imageName := "foo:latest"
 	hostname := "test-host"
 
-	fakeTagger := tagger.SetupFakeTagger(t)
-	defer tagger.ResetTagger()
+	fakeTagger := fxutil.Test[tagger.Mock](t, tagger.MockModule())
+	defer fakeTagger.ResetTagger()
 
 	fakeTagger.SetTags(
 		containers.BuildTaggerEntityName(containerID), "-",

@@ -37,7 +37,7 @@ type dependencies struct {
 	Config  configComponent.Component
 	Log     logComp.Component
 	Context context.Context
-	Wmeta   workloadmeta.Component `optional:"true"`
+	Wmeta   workloadmeta.Component
 	Params  Params
 }
 

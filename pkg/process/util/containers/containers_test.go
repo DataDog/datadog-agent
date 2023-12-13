@@ -44,8 +44,8 @@ func TestGetContainers(t *testing.T) {
 		workloadmeta.MockModule(),
 	))
 
-	fakeTagger := tagger.SetupFakeTagger(t)
-	defer tagger.ResetTagger()
+	fakeTagger := fxutil.Test[tagger.Mock](t, tagger.MockModule())
+	defer fakeTagger.ResetTagger()
 
 	// Finally, container provider
 	testTime := time.Now()
