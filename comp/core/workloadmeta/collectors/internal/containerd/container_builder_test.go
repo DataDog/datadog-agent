@@ -91,6 +91,9 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 				Labels:    labels,
 				CreatedAt: createdAt,
 				Image:     imgName,
+				Runtime: containers.RuntimeInfo{
+					Name: "io.containerd.runc.v2",
+				},
 			}, nil
 		},
 		MockSpec: func(namespace string, ctn containers.Container) (*oci.Spec, error) {
