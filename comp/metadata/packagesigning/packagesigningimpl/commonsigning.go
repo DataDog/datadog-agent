@@ -58,38 +58,47 @@ func getPackageManager() string {
 
 // decryptGPGFile parse a gpg file (local or http) and extract signing keys information
 // Some files can contain a list of repositories.
+// It is called twice to parse the keyring as armored keyring or not
 func decryptGPGFile(allKeys map[string]SigningKey, gpgFile repoFile, keyType string, client *http.Client, logger log.Component) {
+	err := decrypt(allKeys, gpgFile, false, keyType, client)
+	if err != nil {
+		err = decrypt(allKeys, gpgFile, true, keyType, client)
+		if err != nil {
+			logger.Infof("Error while parsing gpg file %s: %s", gpgFile.filename, err)
+		}
+	}
+}
+
+// decrypt is an intermediate method which opens a content (io.Reader) and calls the real parser
+func decrypt(allKeys map[string]SigningKey, gpgFile repoFile, armored bool, keyType string, client *http.Client) error {
 	var reader io.Reader
 	if strings.HasPrefix(gpgFile.filename, "http") {
 		response, err := client.Get(gpgFile.filename)
 		if err != nil {
-			return
+			return err
 		}
 		defer response.Body.Close()
 		reader = response.Body
 	} else {
 		file, err := os.Open(strings.Replace(gpgFile.filename, "file://", "", 1))
 		if err != nil {
-			return
+			return err
 		}
 		defer file.Close()
 		reader = file
 	}
-	err := decryptGPGReader(allKeys, reader, keyType, gpgFile.repositories)
-	if err != nil {
-		logger.Infof("Error while parsing gpg file %s: %s", gpgFile.filename, err)
-	}
+	return decryptGPGReader(allKeys, reader, armored, keyType, gpgFile.repositories)
 }
 
 // decryptGPGReader extract keys from a reader, useful for rpm extraction
-func decryptGPGReader(allKeys map[string]SigningKey, reader io.Reader, keyType string, repositories []repositories) error {
-	keyList, err := pgp.ReadArmoredKeyRing(reader)
+func decryptGPGReader(allKeys map[string]SigningKey, reader io.Reader, armored bool, keyType string, repositories []repositories) error {
+	pgpReader := pgp.ReadKeyRing
+	if armored {
+		pgpReader = pgp.ReadArmoredKeyRing
+	}
+	keyList, err := pgpReader(reader)
 	if err != nil {
-		// Try a non armored keyring
-		keyList, err = pgp.ReadKeyRing(reader)
-		if err != nil {
-			return err
-		}
+		return err
 	}
 	for _, key := range keyList {
 		fingerprint := key.PrimaryKey.KeyIdString()
@@ -100,11 +109,17 @@ func decryptGPGReader(allKeys map[string]SigningKey, reader io.Reader, keyType s
 			expiry := key.PrimaryKey.CreationTime.Add(time.Duration(*i.SelfSignature.KeyLifetimeSecs) * time.Second)
 			expDate = expiry.Format(formatDate)
 		}
-		allKeys[fingerprint] = SigningKey{
-			Fingerprint:    fingerprint,
-			ExpirationDate: expDate,
-			KeyType:        keyType,
-			Repositories:   repositories,
+		if _, ok := allKeys[fingerprint]; ok {
+			currentKey := allKeys[fingerprint]
+			currentKey.Repositories = append(currentKey.Repositories, repositories...)
+			allKeys[fingerprint] = currentKey
+		} else {
+			allKeys[fingerprint] = SigningKey{
+				Fingerprint:    fingerprint,
+				ExpirationDate: expDate,
+				KeyType:        keyType,
+				Repositories:   repositories,
+			}
 		}
 	}
 	return nil

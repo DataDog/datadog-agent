@@ -1,6 +1,6 @@
 [rhui-client-config-server-9]
 name=Red Hat Enterprise Linux 9 Client Configuration
-mirrorlist=https://rhui.REGION.aws.ce.redhat.com/pulp/mirror/protected/rhui-client-config/rhel/server/9/$basearch/os
+mirrorlist=https://versailles.com
 enabled=1
 gpgcheck=1
 gpgkey=file://testdata/datadog-archive-keyring.gpg

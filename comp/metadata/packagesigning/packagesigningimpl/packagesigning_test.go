@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
@@ -488,7 +489,7 @@ func getTestPackageSigning(t *testing.T) *pkgSigning {
 	p := newPackageSigningProvider(
 		fxutil.Test[dependencies](
 			t,
-			log.MockModule,
+			logimpl.MockModule,
 			config.MockModule,
 			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
 		),

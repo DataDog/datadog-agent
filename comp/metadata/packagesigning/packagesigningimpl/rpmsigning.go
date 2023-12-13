@@ -109,9 +109,12 @@ func updateWithRPMDB(allKeys map[string]SigningKey, logger log.Component) {
 		if err != nil {
 			return
 		}
-		err = decryptGPGReader(allKeys, strings.NewReader(string(rpmKey)), "rpm", nil)
+		err = decryptGPGReader(allKeys, strings.NewReader(string(rpmKey)), false, "rpm", nil)
 		if err != nil {
-			logger.Infof("Error while parsing rpmdb for key %s: %s", string(rpmKey), err)
+			err = decryptGPGReader(allKeys, strings.NewReader(string(rpmKey)), true, "rpm", nil)
+			if err != nil {
+				logger.Infof("Error while parsing rpmdb for key %s: %s", string(rpmKey), err)
+			}
 		}
 	}
 }

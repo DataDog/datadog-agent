@@ -68,18 +68,18 @@ func getAPTSignatureKeys(client *http.Client, logger log.Component) []SigningKey
 	return keyList
 }
 
-func updateWithTrustedKeys(allkeys map[string]SigningKey, client *http.Client, logger log.Component) {
+func updateWithTrustedKeys(allKeys map[string]SigningKey, client *http.Client, logger log.Component) {
 	// debian 11 and ubuntu 22.04 will be the last using legacy trusted.gpg.d folder and trusted.gpg file
 	if _, err := os.Stat(trustedFolder); !os.IsNotExist(err) {
 		if files, err := os.ReadDir(trustedFolder); err == nil {
 			for _, file := range files {
 				trustedFileName := filepath.Join(trustedFolder, file.Name())
-				decryptGPGFile(allkeys, repoFile{trustedFileName, nil}, "trusted", client, logger)
+				decryptGPGFile(allKeys, repoFile{trustedFileName, nil}, "trusted", client, logger)
 			}
 		}
 	}
 	if _, err := os.Stat(trustedFile); !os.IsNotExist(err) {
-		decryptGPGFile(allkeys, repoFile{trustedFile, nil}, "trusted", client, logger)
+		decryptGPGFile(allKeys, repoFile{trustedFile, nil}, "trusted", client, logger)
 	}
 }
 
