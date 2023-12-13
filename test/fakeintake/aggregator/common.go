@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
-	"golang.org/x/exp/maps"
 )
 
 //nolint:revive // TODO(APL) Fix revive linter
@@ -68,7 +67,7 @@ func (agg *Aggregator[P]) UnmarshallPayloads(payloads []api.Payload) error {
 			payloadsByName[item.name()] = append(payloadsByName[item.name()], item)
 		}
 	}
-	agg.Replace(payloadsByName)
+	agg.replace(payloadsByName)
 
 	return nil
 }
@@ -96,15 +95,18 @@ func (agg *Aggregator[P]) ContainsPayloadNameAndTags(name string, tags []string)
 
 // GetNames return the names of the payloads
 func (agg *Aggregator[P]) GetNames() []string {
-	names := []string{}
-	{
-		agg.mutex.RLock()
-		defer agg.mutex.RUnlock()
-		for name := range agg.payloadsByName {
-			names = append(names, name)
-		}
-	}
+	names := agg.getNamesUnsorted()
 	sort.Strings(names)
+	return names
+}
+
+func (agg *Aggregator[P]) getNamesUnsorted() []string {
+	agg.mutex.RLock()
+	defer agg.mutex.RUnlock()
+	names := make([]string, 0, len(agg.payloadsByName))
+	for name := range agg.payloadsByName {
+		names = append(names, name)
+	}
 	return names
 }
 
@@ -145,15 +147,20 @@ func (agg *Aggregator[P]) GetPayloadsByName(name string) []P {
 func (agg *Aggregator[P]) Reset() {
 	agg.mutex.Lock()
 	defer agg.mutex.Unlock()
+	agg.unsafeReset()
+}
+
+func (agg *Aggregator[P]) unsafeReset() {
 	agg.payloadsByName = map[string][]P{}
 }
 
-// Replace payloads
-func (agg *Aggregator[P]) Replace(payloadsByName map[string][]P) {
-	agg.Reset()
+func (agg *Aggregator[P]) replace(payloadsByName map[string][]P) {
 	agg.mutex.Lock()
 	defer agg.mutex.Unlock()
-	maps.Copy(agg.payloadsByName, payloadsByName)
+	agg.unsafeReset()
+	for name, payloads := range payloadsByName {
+		agg.payloadsByName[name] = payloads
+	}
 }
 
 // FilterByTags return the payloads that match all the tags
