@@ -515,8 +515,8 @@ func (suite *EndpointsTestSuite) TestUseSSLDefaultTrue() {
 	suite.Nil(err)
 	suite.Len(endpoints.Endpoints, 4)
 	suite.True(endpoints.Endpoints[1].GetUseSSL())
-	suite.True(endpoints.Endpoints[2].GetUseSSL())
-	suite.False(endpoints.Endpoints[3].GetUseSSL())
+	suite.False(endpoints.Endpoints[2].GetUseSSL())
+	suite.True(endpoints.Endpoints[3].GetUseSSL())
 }
 
 func TestEndpointsTestSuite(t *testing.T) {
