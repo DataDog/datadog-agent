@@ -1349,7 +1349,7 @@ func (s *sideScanner) launchScan(ctx context.Context, scan *scanTask) (err error
 }
 
 func (s *sideScanner) sendSBOM(entity *sbommodel.SBOMEntity) error {
-	sourceAgent := "side-scanning"
+	sourceAgent := "agentless-scanner"
 	envVarEnv := pkgconfig.Datadog.GetString("env")
 
 	entity.DdTags = append(entity.DdTags, "sidescanner_host", s.hostname)
