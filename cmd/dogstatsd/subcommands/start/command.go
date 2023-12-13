@@ -140,9 +140,9 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
 		fx.Provide(func(config config.Component) tagger.Params {
 			if config.GetBool("dogstatsd_origin_detection") {
-				return tagger.Params{AgentTypeForTagger: tagger.LocalTaggerAgent}
+				return tagger.NewTaggerParams()
 			}
-			return tagger.Params{AgentTypeForTagger: tagger.FakeTagger}
+			return tagger.NewFakeTaggerParams()
 		}),
 		tagger.Module(),
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other

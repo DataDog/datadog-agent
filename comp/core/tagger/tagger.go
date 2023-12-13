@@ -87,7 +87,7 @@ var _ Component = (*TaggerClient)(nil)
 // it should be deprecated and removed
 func newTaggerClient(deps dependencies) Component {
 	var taggerClient *TaggerClient
-	switch deps.Params.AgentTypeForTagger {
+	switch deps.Params.agentTypeForTagger {
 	case CLCRunnerRemoteTaggerAgent:
 		options, err := remote.CLCRunnerOptions(deps.Config)
 		if err != nil {

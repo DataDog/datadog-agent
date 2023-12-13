@@ -138,9 +138,9 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 
 		fx.Provide(func(c config.Component) tagger.Params {
 			if c.GetBool("process_config.remote_tagger") {
-				return tagger.Params{AgentTypeForTagger: tagger.NodeRemoteTaggerAgent}
+				return tagger.NewNodeRemoteTaggerParams()
 			}
-			return tagger.Params{AgentTypeForTagger: tagger.LocalTaggerAgent}
+			return tagger.NewTaggerParams()
 		}),
 		tagger.Module(),
 
