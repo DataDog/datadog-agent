@@ -469,7 +469,7 @@ def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True):
 def parse(commit_str):
     lines = commit_str.split("\n")
     title = lines[0]
-    url = "NO_URL"
+    url = ""
     pr_id_match = re.search(r".*\(#(\d+)\)", title)
     if pr_id_match is not None:
         url = f"https://github.com/DataDog/datadog-agent/pull/{pr_id_match.group(1)}"
@@ -522,7 +522,7 @@ def changelog(ctx, new_commit_sha):
         title, author, author_email, files, url = parse(commit_str)
         if not is_system_probe(owners, files):
             continue
-        message_link = f"• <{url}|{title}>"
+        message_link = f"• <{url}|{title}>" if url else f"• {title}"
         if "dependabot" in author_email or "github-actions" in author_email:
             messages.append(f"{message_link}")
             continue

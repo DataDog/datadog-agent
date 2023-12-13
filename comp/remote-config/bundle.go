@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package remoteconfig //nolint:revive // TODO(RC) Fix revive linter
+// Package remoteconfig defines the fx options for the Bundle
+package remoteconfig
 
 import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"

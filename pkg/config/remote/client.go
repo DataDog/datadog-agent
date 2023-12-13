@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-//nolint:revive // TODO(RC) Fix revive linter
+// Package remote is a client usable in the agent or an agent sub-process to receive configs from the core
+// remoteconfig service.
 package remote
 
 import (
@@ -56,7 +57,7 @@ type Client struct {
 
 	startupSync sync.Once
 	ctx         context.Context
-	close       context.CancelFunc
+	closeFn     context.CancelFunc
 
 	agentName    string
 	agentVersion string
@@ -85,9 +86,7 @@ type agentGRPCConfigFetcher struct {
 }
 
 // NewAgentGRPCConfigFetcher returns a gRPC config fetcher using the secure agent client
-//
-//nolint:revive // TODO(RC) Fix revive linter
-func NewAgentGRPCConfigFetcher() (*agentGRPCConfigFetcher, error) {
+func NewAgentGRPCConfigFetcher() (ConfigUpdater, error) {
 	c, err := ddgrpc.GetDDAgentSecureClient(context.Background(), grpc.WithDefaultCallOptions(
 		grpc.MaxCallRecvMsgSize(maxMessageSize),
 	))
@@ -184,14 +183,13 @@ func newClient(agentName string, updater ConfigUpdater, doTufVerification bool, 
 		}
 	}
 
-	//nolint:revive // TODO(RC) Fix revive linter
-	ctx, close := context.WithCancel(context.Background())
+	ctx, closeFn := context.WithCancel(context.Background())
 
 	return &Client{
 		ID:            generateID(),
 		startupSync:   sync.Once{},
 		ctx:           ctx,
-		close:         close,
+		closeFn:       closeFn,
 		agentName:     agentName,
 		agentVersion:  agentVersion,
 		clusterName:   clusterName,
@@ -218,7 +216,7 @@ func (c *Client) Start() {
 //
 // A client that has been closed cannot be restarted
 func (c *Client) Close() {
-	c.close()
+	c.closeFn()
 }
 
 // UpdateApplyStatus updates the config's metadata to reflect its applied status
