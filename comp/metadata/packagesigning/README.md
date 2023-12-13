@@ -16,7 +16,7 @@ The payload is a JSON dict with a list of keys, each having the following fields
   - `fingerprint` - **string**: the 16-char long key fingerprint.
   - `expiration_date` - **string**: the expiration date of the key.
   - `key_type` - **string**: the type of key. which represents how it is referenced in the host. Possible values are "signed-by", "trusted" or "debsig" for DEB-based distributions, "repo" or "rpm" for RPM-based distributions.
-  - `repositories` - **list of string to JSON type**
+  - `repositories` - **list of dict of string to string**
     - `repo_name` - **string**: a unique repository name signed by the above key according to host configuration. In DEB-based distribution it is the aggregation of the repository information from sources.list files. In RPM-based it is the baseurl or mirrorlist field from repo file.
   
 

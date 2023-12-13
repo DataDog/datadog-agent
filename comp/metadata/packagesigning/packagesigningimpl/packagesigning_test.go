@@ -127,6 +127,7 @@ func TestDecryptGPGReader(t *testing.T) {
 	testCases := []struct {
 		name    string
 		reader  io.Reader
+		armored bool
 		keyType string
 		output  SigningKey
 	}{
@@ -134,6 +135,7 @@ func TestDecryptGPGReader(t *testing.T) {
 			name:    "Key without expiration",
 			reader:  strings.NewReader(publicKeyWithoutExpiration),
 			keyType: "RSA",
+			armored: true,
 			output: SigningKey{
 				Fingerprint:    "199E2F91FD431D51",
 				ExpirationDate: "9999-12-31",
@@ -144,6 +146,7 @@ func TestDecryptGPGReader(t *testing.T) {
 			name:    "Datadog key with expiration date",
 			reader:  strings.NewReader(datadogPublicKey),
 			keyType: "RSA",
+			armored: true,
 			output: SigningKey{
 				Fingerprint:    "F1068E14E09422B3",
 				ExpirationDate: "2022-06-28",
@@ -155,7 +158,7 @@ func TestDecryptGPGReader(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 
-			decryptGPGReader(keys, testCase.reader, testCase.keyType, nil)
+			decryptGPGReader(keys, testCase.reader, testCase.armored, testCase.keyType, nil)
 
 			retrieved, ok := keys[testCase.output.Fingerprint]
 			if !ok || !compareKeys(retrieved, testCase.output) {
@@ -489,8 +492,8 @@ func getTestPackageSigning(t *testing.T) *pkgSigning {
 	p := newPackageSigningProvider(
 		fxutil.Test[dependencies](
 			t,
-			logimpl.MockModule,
-			config.MockModule,
+			logimpl.MockModule(),
+			config.MockModule(),
 			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
 		),
 	)

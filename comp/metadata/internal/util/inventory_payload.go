@@ -199,9 +199,3 @@ func (i *InventoryPayload) fillFlare(fb flaretypes.FlareBuilder) error {
 	fb.AddFileFromFunc(path, i.GetAsJSON)
 	return nil
 }
-
-// SetIntervals update the default intervals between two payloads.
-func (i *InventoryPayload) SetIntervals(minInterval, maxInterval time.Duration) {
-	defaultMinInterval = minInterval
-	defaultMaxInterval = maxInterval
-}

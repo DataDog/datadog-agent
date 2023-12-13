@@ -29,9 +29,10 @@ import (
 )
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newPackageSigningProvider),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newPackageSigningProvider))
+}
 
 const defaultCollectInterval = 12 * time.Hour
 
@@ -51,7 +52,7 @@ func (p *Payload) MarshalJSON() ([]byte, error) {
 // SplitPayload implements marshaler.AbstractMarshaler#SplitPayload.
 // TODO implement the split
 func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
-	return nil, fmt.Errorf("could not split inventories host payload any more, payload is too big for intake")
+	return nil, fmt.Errorf("could not split packagesigning payload any more, payload is too big for intake")
 }
 
 type signingMetadata struct {
@@ -63,7 +64,6 @@ type pkgSigning struct {
 
 	log      log.Component
 	conf     config.Component
-	data     *signingMetadata
 	hostname string
 }
 
@@ -89,14 +89,18 @@ func newPackageSigningProvider(deps dependencies) provides {
 		conf:     deps.Config,
 		log:      deps.Log,
 		hostname: hname,
-		data:     &signingMetadata{},
 	}
-	is.InventoryPayload.SetIntervals(defaultCollectInterval, defaultCollectInterval)
 	is.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, is.getPayload, "signing.json")
+	is.InventoryPayload.MaxInterval = defaultCollectInterval
+	is.InventoryPayload.MinInterval = defaultCollectInterval
 	provider := runnerimpl.NewEmptyProvider()
-	if runtime.GOOS == "linux" && getPackageManager() != "" {
-		// Package signing telemetry is only valid on Linux and DEB/RPM based distros (including SUSE)
-		provider = is.MetadataProvider()
+	if runtime.GOOS == "linux" {
+		if getPackageManager() != "" {
+			// Package signing telemetry is only valid on Linux and DEB/RPM based distros (including SUSE)
+			provider = is.MetadataProvider()
+		} else {
+			is.log.Info("No supported package manager detected, package signing telemetry will not be collected")
+		}
 	}
 
 	return provides{
@@ -113,7 +117,7 @@ var (
 	getYUMKeys    = getYUMSignatureKeys
 )
 
-func (is *pkgSigning) fillData() {
+func (is *pkgSigning) getData() []SigningKey {
 	pkgManager := getPkgManager()
 
 	transport := httputils.CreateHTTPTransport(is.conf)
@@ -121,21 +125,21 @@ func (is *pkgSigning) fillData() {
 
 	switch pkgManager {
 	case "apt":
-		is.data.SigningKeys = getAPTKeys(client, is.log)
+		return getAPTKeys(client, is.log)
 	case "yum", "dnf", "zypper":
-		is.data.SigningKeys = getYUMKeys(pkgManager, client, is.log)
+		return getYUMKeys(pkgManager, client, is.log)
 	default: // should not happen, tested above
 		is.log.Info("No supported package manager detected, package signing telemetry will not be collected")
 	}
+	return nil
 }
 
 func (is *pkgSigning) getPayload() marshaler.JSONMarshaler {
-	is.fillData()
 
 	return &Payload{
 		Hostname:  is.hostname,
 		Timestamp: time.Now().UnixNano(),
-		Metadata:  is.data,
+		Metadata:  &signingMetadata{is.getData()},
 	}
 }
 

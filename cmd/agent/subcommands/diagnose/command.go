@@ -188,12 +188,12 @@ This command print the inventory-checks metadata payload. This payload is used b
 		Use:   "package-signing",
 		Short: "Print the Inventory package signing payload.",
 		Long: `
-This command print the package-signing metadata payload. This payload is used by the 'inventories/sql' product.`,
+This command print the package-signing metadata payload. This payload is used by the 'fleet automation' product.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(printPayload,
 				fx.Supply(payloadName("package-signing")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
