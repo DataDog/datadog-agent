@@ -30,8 +30,8 @@ func TestHandleProvider(t *testing.T) {
 	r := createRunner(
 		fxutil.Test[dependencies](
 			t,
-			logimpl.MockModule,
-			config.MockModule,
+			logimpl.MockModule(),
+			config.MockModule(),
 			fx.Supply(NewProvider(provider)),
 		))
 
@@ -52,9 +52,9 @@ func TestRunnerCreation(t *testing.T) {
 	fxutil.Test[runner.Component](
 		t,
 		fx.Supply(lc),
-		logimpl.MockModule,
-		config.MockModule,
-		Module,
+		logimpl.MockModule(),
+		config.MockModule(),
+		Module(),
 		// Supplying our provider by using the helper function
 		fx.Supply(NewProvider(callback)),
 	)

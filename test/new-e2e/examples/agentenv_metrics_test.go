@@ -12,6 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake/fakeintakeparams"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,7 +23,10 @@ type fakeintakeSuiteMetrics struct {
 }
 
 func TestVMSuiteEx5(t *testing.T) {
-	e2e.Run(t, &fakeintakeSuiteMetrics{}, e2e.FakeIntakeStackDef(e2e.WithFakeIntakeParams(fakeintakeparams.WithoutLoadBalancer())))
+	e2e.Run(t, &fakeintakeSuiteMetrics{}, e2e.FakeIntakeStackDef(
+		e2e.WithFakeIntakeParams(fakeintakeparams.WithoutLoadBalancer()),
+		e2e.WithVMParams(ec2params.WithOS(ec2os.CentOS)),
+	))
 }
 
 func (v *fakeintakeSuiteMetrics) Test1_FakeIntakeReceivesMetrics() {

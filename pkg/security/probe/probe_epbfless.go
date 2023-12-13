@@ -12,12 +12,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"path/filepath"
 	"sync"
 
 	"github.com/vmihailenco/msgpack/v5"
 	"google.golang.org/grpc"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
@@ -30,12 +33,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/util/native"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 type client struct {
-	conn  net.Conn
-	probe *EBPFLessProbe
+	conn   net.Conn
+	probe  *EBPFLessProbe
+	seqNum uint64
+}
+
+type clientMsg struct {
+	ebpfless.SyscallMsg
+	*client
 }
 
 // EBPFLessProbe defines an eBPF less probe
@@ -52,7 +60,6 @@ type EBPFLessProbe struct {
 	// internals
 	event         *model.Event
 	server        *grpc.Server
-	seqNum        uint64
 	probe         *Probe
 	ctx           context.Context
 	cancelFnc     context.CancelFunc
@@ -61,11 +68,12 @@ type EBPFLessProbe struct {
 	clients       map[net.Conn]*client
 }
 
-func (p *EBPFLessProbe) handleSyscallMsg(syscallMsg *ebpfless.SyscallMsg) {
-	if p.seqNum != syscallMsg.SeqNum {
-		seclog.Errorf("communication out of sync %d vs %d", p.seqNum, syscallMsg.SeqNum)
+func (p *EBPFLessProbe) handleClientMsg(msg *clientMsg) {
+	syscallMsg := &msg.SyscallMsg
+	if msg.client.seqNum != syscallMsg.SeqNum {
+		seclog.Errorf("communication out of sync %d vs %d", msg.client.seqNum, syscallMsg.SeqNum)
 	}
-	p.seqNum++
+	msg.client.seqNum++
 
 	event := p.zeroEvent()
 	event.NSID = syscallMsg.NSID
@@ -146,7 +154,7 @@ func (p *EBPFLessProbe) Close() error {
 	return nil
 }
 
-func (p *EBPFLessProbe) readMsg(conn net.Conn, msg *ebpfless.SyscallMsg) error {
+func (p *EBPFLessProbe) readSyscallMsg(conn net.Conn, msg *ebpfless.SyscallMsg) error {
 	sizeBuf := make([]byte, 4)
 
 	n, err := conn.Read(sizeBuf)
@@ -176,7 +184,7 @@ func (p *EBPFLessProbe) readMsg(conn net.Conn, msg *ebpfless.SyscallMsg) error {
 	return msgpack.Unmarshal(p.buf[0:n], msg)
 }
 
-func (p *EBPFLessProbe) handleNewClient(conn net.Conn, ch chan ebpfless.SyscallMsg) {
+func (p *EBPFLessProbe) handleNewClient(conn net.Conn, ch chan clientMsg) {
 	client := &client{
 		conn:  conn,
 		probe: p,
@@ -189,10 +197,16 @@ func (p *EBPFLessProbe) handleNewClient(conn net.Conn, ch chan ebpfless.SyscallM
 	seclog.Debugf("new connection from: %v", conn.RemoteAddr())
 
 	go func() {
-		var msg ebpfless.SyscallMsg
+		msg := clientMsg{
+			client: client,
+		}
 		for {
-			if err := p.readMsg(conn, &msg); err != nil {
-				seclog.Warnf("error while reading message: %v", err)
+			if err := p.readSyscallMsg(conn, &msg.SyscallMsg); err != nil {
+				if errors.Is(err, io.EOF) {
+					seclog.Debugf("connection closed by client: %v", conn.RemoteAddr())
+				} else {
+					seclog.Warnf("error while reading message: %v", err)
+				}
 
 				p.Lock()
 				delete(p.clients, conn)
@@ -200,8 +214,6 @@ func (p *EBPFLessProbe) handleNewClient(conn net.Conn, ch chan ebpfless.SyscallM
 
 				return
 			}
-
-			fmt.Printf("MSG: %+v\n", msg)
 
 			ch <- msg
 
@@ -225,7 +237,7 @@ func (p *EBPFLessProbe) Start() error {
 		return err
 	}
 
-	ch := make(chan ebpfless.SyscallMsg, 100)
+	ch := make(chan clientMsg, 100)
 
 	go func() {
 		for {
@@ -241,7 +253,7 @@ func (p *EBPFLessProbe) Start() error {
 
 	go func() {
 		for msg := range ch {
-			p.handleSyscallMsg(&msg)
+			p.handleClientMsg(&msg)
 		}
 	}()
 

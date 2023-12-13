@@ -26,8 +26,8 @@ func getTestInventoryChecks(t *testing.T, coll optional.Option[collector.Collect
 	p := newInventoryChecksProvider(
 		fxutil.Test[dependencies](
 			t,
-			logimpl.MockModule,
-			config.MockModule,
+			logimpl.MockModule(),
+			config.MockModule(),
 			fx.Replace(config.MockParams{Overrides: overrides}),
 			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
 			fx.Provide(func() optional.Option[collector.Collector] {

@@ -24,7 +24,7 @@ type ConfigTestSuite struct {
 
 func (suite *ConfigTestSuite) SetupTest() {
 	suite.config = fxutil.Test[config.Component](suite.T(), fx.Options(
-		config.MockModule,
+		config.MockModule(),
 	)).(config.Mock)
 }
 
