@@ -98,7 +98,7 @@ func TestStepByStepScript(t *testing.T) {
 			} else {
 				version = 0
 			}
-			e2e.Run(tt, &stepByStepSuite{cwsSupported: cwsSupported, osVersion: version}, e2e.EC2VMStackDef(ec2params.WithImageName(platformJSON[*platform][*architecture][osVers], archMapping[*architecture], osMapping[*platform])), params.WithStackName(fmt.Sprintf("step-by-step-test-%v-%v-%s-%d", os.Getenv("CI_PIPELINE_ID"), osVers, *architecture, *majorVersion)))
+			e2e.Run(tt, &stepByStepSuite{cwsSupported: cwsSupported, osVersion: version}, e2e.EC2VMStackDef(ec2params.WithImageName(platformJSON[*platform][*architecture][osVers], archMapping[*architecture], osMapping[*platform])), params.WithStackName(fmt.Sprintf("step-by-step-test-%v-%v-%s-%s", os.Getenv("CI_PIPELINE_ID"), osVers, *architecture, *majorVersion)))
 		})
 	}
 }
