@@ -15,7 +15,6 @@ import (
 
 	"golang.org/x/sys/cpu"
 	"golang.org/x/sys/windows"
-	"tailscale.com/net/netaddr"
 )
 
 // OSMetadata includes any additional OS-specific information that may be
@@ -45,13 +44,13 @@ const tcpipOwnerModuleBasicInfo = 0
 var (
 	iphlpapi                    = windows.NewLazySystemDLL("iphlpapi.dll")
 	getTCPTable                 = iphlpapi.NewProc("GetExtendedTcpTable")
-	getOwnerModuleFromTcpEntry  = iphlpapi.NewProc("GetOwnerModuleFromTcpEntry")
-	getOwnerModuleFromTcp6Entry = iphlpapi.NewProc("GetOwnerModuleFromTcp6Entry")
+	getOwnerModuleFromTCPEntry  = iphlpapi.NewProc("GetOwnerModuleFromTcpEntry")
+	getOwnerModuleFromTCP6Entry = iphlpapi.NewProc("GetOwnerModuleFromTcp6Entry")
 	// TODO: GetExtendedUdpTable also? if/when needed.
 )
 
 // See https://web.archive.org/web/20221219211913/https://learn.microsoft.com/en-us/windows/win32/api/tcpmib/ns-tcpmib-mib_tcprow_owner_module
-type _MIB_TCPROW_OWNER_MODULE struct {
+type _MIB_TCPROW_OWNER_MODULE struct { //nolint:revive // Windows API type
 	state            uint32
 	localAddr        uint32
 	localPort        uint32
@@ -72,7 +71,7 @@ func (row *_MIB_TCPROW_OWNER_MODULE) asEntry() Entry {
 	}
 }
 
-type _MIB_TCPTABLE_OWNER_MODULE struct {
+type _MIB_TCPTABLE_OWNER_MODULE struct { //nolint:revive // Windows API type
 	numEntries uint32
 	table      _MIB_TCPROW_OWNER_MODULE
 }
@@ -82,7 +81,7 @@ func (m *_MIB_TCPTABLE_OWNER_MODULE) getRows() []_MIB_TCPROW_OWNER_MODULE {
 }
 
 // See https://web.archive.org/web/20221219212442/https://learn.microsoft.com/en-us/windows/win32/api/tcpmib/ns-tcpmib-mib_tcp6row_owner_module
-type _MIB_TCP6ROW_OWNER_MODULE struct {
+type _MIB_TCP6ROW_OWNER_MODULE struct { //nolint:revive // Windows API type
 	localAddr        [16]byte
 	localScope       uint32
 	localPort        uint32
@@ -105,7 +104,7 @@ func (row *_MIB_TCP6ROW_OWNER_MODULE) asEntry() Entry {
 	}
 }
 
-type _MIB_TCP6TABLE_OWNER_MODULE struct {
+type _MIB_TCP6TABLE_OWNER_MODULE struct { //nolint:revive // Windows API type
 	numEntries uint32
 	table      _MIB_TCP6ROW_OWNER_MODULE
 }
@@ -115,7 +114,7 @@ func (m *_MIB_TCP6TABLE_OWNER_MODULE) getRows() []_MIB_TCP6ROW_OWNER_MODULE {
 }
 
 // See https://web.archive.org/web/20221219213143/https://learn.microsoft.com/en-us/windows/win32/api/iprtrmib/ns-iprtrmib-tcpip_owner_module_basic_info
-type _TCPIP_OWNER_MODULE_BASIC_INFO struct {
+type _TCPIP_OWNER_MODULE_BASIC_INFO struct { //nolint:revive // Windows API type
 	moduleName *uint16
 	modulePath *uint16
 }
@@ -208,7 +207,7 @@ func ipport4(addr uint32, port uint16) netip.AddrPort {
 		addr = bits.ReverseBytes32(addr)
 	}
 	return netip.AddrPortFrom(
-		netaddr.IPv4(byte(addr>>24), byte(addr>>16), byte(addr>>8), byte(addr)),
+		netip.AddrFrom4([4]byte{byte(addr >> 24), byte(addr >> 16), byte(addr >> 8), byte(addr)}),
 		port)
 }
 
@@ -272,7 +271,7 @@ func moduleInfo[entryType moduleInfoConstraint](entry *entryType, proc *windows.
 		// GetOwnerModuleFromTcp*Entry can apparently return ERROR_SUCCESS
 		// (NO_ERROR) on the first call without the usual first
 		// ERROR_INSUFFICIENT_BUFFER result. Windows said success, so interpret
-		// that was sucessfully not having data.
+		// that was successfully not having data.
 		return "", nil
 	}
 	basicInfo := (*_TCPIP_OWNER_MODULE_BASIC_INFO)(addr)
@@ -280,11 +279,11 @@ func moduleInfo[entryType moduleInfoConstraint](entry *entryType, proc *windows.
 }
 
 // GetModule implements OSMetadata.
-func (m *_MIB_TCPROW_OWNER_MODULE) GetModule() (string, error) {
-	return moduleInfo(m, getOwnerModuleFromTcpEntry)
+func (row *_MIB_TCPROW_OWNER_MODULE) GetModule() (string, error) {
+	return moduleInfo(row, getOwnerModuleFromTCPEntry)
 }
 
 // GetModule implements OSMetadata.
-func (m *_MIB_TCP6ROW_OWNER_MODULE) GetModule() (string, error) {
-	return moduleInfo(m, getOwnerModuleFromTcp6Entry)
+func (row *_MIB_TCP6ROW_OWNER_MODULE) GetModule() (string, error) {
+	return moduleInfo(row, getOwnerModuleFromTCP6Entry)
 }

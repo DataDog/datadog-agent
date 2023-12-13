@@ -106,7 +106,7 @@ func (p *Poller) Poll() (ports []Port, changed bool, err error) {
 	if err != nil {
 		return nil, false, err
 	}
-	if pl.Equal(p.prev) {
+	if pl.equal(p.prev) {
 		return nil, false, nil
 	}
 	p.setPrev(pl)

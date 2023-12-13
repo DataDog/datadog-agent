@@ -12,8 +12,10 @@ import (
 	"runtime"
 )
 
+// ErrNotImplemented is returned by Get on unsupported platforms.
 var ErrNotImplemented = errors.New("not implemented for GOOS=" + runtime.GOOS)
 
+// Entry is a single entry in the connection table.
 type Entry struct {
 	Local, Remote netip.AddrPort
 	Pid           int

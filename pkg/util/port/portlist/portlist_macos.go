@@ -14,8 +14,9 @@ import (
 	"log"
 	"os/exec"
 	"strings"
-	"sync/atomic"
 	"time"
+
+	"go.uber.org/atomic"
 
 	"go4.org/mem"
 )
@@ -92,7 +93,7 @@ func (im *macOSImpl) AppendListeningPorts(base []Port) ([]Port, error) {
 	}
 
 	if needProcs {
-		im.addProcesses() // best effort
+		_ = im.addProcesses() // best effort
 	}
 
 	for _, m := range im.known {
@@ -120,8 +121,8 @@ func (im *macOSImpl) appendListeningPortsNetstat(base []Port) ([]Port, error) {
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
-	defer cmd.Process.Wait()
-	defer cmd.Process.Kill()
+	defer cmd.Process.Wait() //nolint:errcheck
+	defer cmd.Process.Kill() //nolint:errcheck
 
 	return appendParsePortsNetstat(base, im.br, im.includeLocalhost)
 }
@@ -169,7 +170,7 @@ func (im *macOSImpl) addProcesses() error {
 			lsofFailed.Store(true)
 		}
 	}()
-	defer lsofCmd.Process.Kill()
+	defer lsofCmd.Process.Kill() //nolint:errcheck
 
 	im.br.Reset(outPipe)
 

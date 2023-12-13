@@ -152,16 +152,16 @@ func TestEqualLessThan(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		got := tt.a.LessThan(&tt.b)
+		got := tt.a.lessThan(&tt.b)
 		if got != tt.want {
 			t.Errorf("%s: Equal = %v; want %v", tt.name, got, tt.want)
 		}
-		lessBack := tt.b.LessThan(&tt.a)
+		lessBack := tt.b.lessThan(&tt.a)
 		if got && lessBack {
 			t.Errorf("%s: both a and b report being less than each other", tt.name)
 		}
 		wantEqual := !got && !lessBack
-		gotEqual := tt.a.Equal(&tt.b)
+		gotEqual := tt.a.equal(&tt.b)
 		if gotEqual != wantEqual {
 			t.Errorf("%s: equal = %v; want %v", tt.name, gotEqual, wantEqual)
 		}

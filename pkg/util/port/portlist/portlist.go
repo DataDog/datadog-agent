@@ -26,7 +26,7 @@ type Port struct {
 // List is a list of Ports.
 type List []Port
 
-func (a *Port) LessThan(b *Port) bool {
+func (a *Port) lessThan(b *Port) bool {
 	if a.Port != b.Port {
 		return a.Port < b.Port
 	}
@@ -36,27 +36,27 @@ func (a *Port) LessThan(b *Port) bool {
 	return a.Process < b.Process
 }
 
-func (a *Port) Equal(b *Port) bool {
+func (a *Port) equal(b *Port) bool {
 	return a.Port == b.Port &&
 		a.Proto == b.Proto &&
 		a.Process == b.Process
 }
 
-func (a List) Equal(b List) bool {
+func (a List) equal(b List) bool {
 	if len(a) != len(b) {
 		return false
 	}
 	for i := range a {
-		if !a[i].Equal(&b[i]) {
+		if !a[i].equal(&b[i]) {
 			return false
 		}
 	}
 	return true
 }
 
-func (pl List) String() string {
+func (a List) String() string {
 	var sb strings.Builder
-	for _, v := range pl {
+	for _, v := range a {
 		fmt.Fprintf(&sb, "%-3s %5d %#v\n",
 			v.Proto, v.Port, v.Process)
 	}
@@ -67,7 +67,7 @@ func (pl List) String() string {
 // a subset of it with duplicate (Proto, Port) removed.
 func sortAndDedup(ps List) List {
 	sort.Slice(ps, func(i, j int) bool {
-		return (&ps[i]).LessThan(&ps[j])
+		return (&ps[i]).lessThan(&ps[j])
 	})
 	out := ps[:0]
 	var last Port
