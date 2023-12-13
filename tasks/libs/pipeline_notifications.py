@@ -27,6 +27,7 @@ GITHUB_SLACK_MAP = {
     "@datadog/metrics-aggregation": "#metrics-aggregation",
     "@datadog/serverless": "#serverless-agent",
     "@datadog/remote-config": "#remote-config-monitoring",
+    "@datadog/fleet": "#fleet-automation",
     "@datadog/agent-all": "#datadog-agent-pipelines",
     "@datadog/ebpf-platform": "#ebpf-platform-ops",
     "@datadog/networks": "#network-performance-monitoring",
