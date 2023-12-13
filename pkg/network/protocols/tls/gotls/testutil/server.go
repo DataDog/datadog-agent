@@ -13,6 +13,7 @@ import (
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 )
 
+// RunServer runs a go-httpbin server in a docker container.
 func RunServer(t testing.TB, serverPort string) error {
 	env := []string{
 		"HTTPS_PORT=" + serverPort,

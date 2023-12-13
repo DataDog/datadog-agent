@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(APM) Fix revive linter
 package agent
 
 import (
@@ -306,7 +307,6 @@ func (a *Agent) Process(p *api.Payload) {
 		}
 
 		// Extra sanitization steps of the trace.
-		appServicesTags := traceutil.GetAppServicesTags()
 		for _, span := range chunk.Spans {
 			for k, v := range a.conf.GlobalTags {
 				if k == tagOrigin {
@@ -316,6 +316,7 @@ func (a *Agent) Process(p *api.Payload) {
 				}
 			}
 			if a.conf.InAzureAppServices {
+				appServicesTags := traceutil.GetAppServicesTags()
 				traceutil.SetMeta(span, "aas.site.name", appServicesTags["aas.site.name"])
 				traceutil.SetMeta(span, "aas.site.type", appServicesTags["aas.site.type"])
 			}
@@ -413,6 +414,7 @@ func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span) *traceu
 // The underlying array behind TracePayload.Chunks points to unsampled chunks
 // preventing them from being collected by the GC.
 func newChunksArray(chunks []*pb.TraceChunk) []*pb.TraceChunk {
+	//nolint:revive // TODO(APM) Fix revive linter
 	new := make([]*pb.TraceChunk, len(chunks))
 	copy(new, chunks)
 	return new

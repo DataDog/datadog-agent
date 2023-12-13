@@ -44,6 +44,9 @@ def run(
     skip="",
     osversion="",
     platform="",
+    arch="",
+    flavor="",
+    major_version="",
     cws_supported_osversion="",
     keep_stacks=False,
     cache=False,
@@ -90,7 +93,7 @@ def run(
         test_run_arg = f"-run {test_run_name}"
 
     cmd = f'gotestsum --format {gotestsum_format} '
-    cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags {go_build_tags} {nocache} {run} {skip} {coverage_opt} {test_run_arg} -args {osversion} {platform} {cws_supported_osversion} {keep_stacks}'
+    cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags "{go_build_tags}" {nocache} {run} {skip} {coverage_opt} {test_run_arg} -args {osversion} {platform} {major_version} {arch} {flavor} {cws_supported_osversion} {keep_stacks}'
 
     args = {
         "go_mod": "mod",
@@ -105,6 +108,9 @@ def run(
         "test_run_arg": test_run_arg,
         "osversion": f"-osversion {osversion}" if osversion else '',
         "platform": f"-platform {platform}" if platform else '',
+        "arch": f"-arch {arch}" if arch else '',
+        "flavor": f"-flavor {flavor}" if flavor else '',
+        "major_version": f"-major-version {major_version}" if major_version else '',
         "cws_supported_osversion": f"-cws-supported-osversion {cws_supported_osversion}"
         if cws_supported_osversion
         else '',
@@ -203,7 +209,7 @@ def _clean_stacks(ctx: Context):
 
 def _get_existing_stacks(ctx: Context) -> List[str]:
     e2e_stacks: List[str] = []
-    output = ctx.run("PULUMI_SKIP_UPDATE_CHECK=true pulumi stack ls --all --project e2elocal --json", pty=True)
+    output = ctx.run("PULUMI_SKIP_UPDATE_CHECK=true pulumi stack ls --all --project e2elocal --json", hide=True)
     if output is None or not output:
         return []
     stacks_data = json.loads(output.stdout)
@@ -226,22 +232,23 @@ def _destroy_stack(ctx: Context, stack: str):
             f"PULUMI_SKIP_UPDATE_CHECK=true pulumi destroy --stack {stack} --yes --remove --skip-preview",
             pty=True,
             warn=True,
+            hide=True,
         )
         if ret is not None and ret.exited != 0:
             # run with refresh on first destroy attempt failure
             ctx.run(
                 f"PULUMI_SKIP_UPDATE_CHECK=true pulumi destroy --stack {stack} -r --yes --remove --skip-preview",
-                pty=True,
                 warn=True,
+                hide=True,
             )
 
 
 def _remove_stack(ctx: Context, stack: str):
-    ctx.run(f"PULUMI_SKIP_UPDATE_CHECK=true pulumi stack rm --force --yes --stack {stack}", pty=True)
+    ctx.run(f"PULUMI_SKIP_UPDATE_CHECK=true pulumi stack rm --force --yes --stack {stack}", hide=True)
 
 
 def _get_pulumi_about(ctx: Context) -> dict:
-    output = ctx.run("PULUMI_SKIP_UPDATE_CHECK=true pulumi about --json", pty=True, hide=True)
+    output = ctx.run("PULUMI_SKIP_UPDATE_CHECK=true pulumi about --json", hide=True)
     if output is None or not output:
         return ""
     return json.loads(output.stdout)

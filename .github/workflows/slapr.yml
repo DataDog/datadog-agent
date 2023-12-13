@@ -1,0 +1,32 @@
+# Disable Slapr until https://github.com/DataDog/slapr/issues/45 gets fixed.
+# ---
+# name: Slack emoji PR updates
+# on:
+#   pull_request_review:
+#     types: [submitted]
+#   pull_request:
+#     types: [closed]
+#
+# jobs:
+#   run_slapr_datadog_agent:
+#     runs-on: ubuntu-latest
+#     strategy:
+#       matrix:
+#         channel_variables:
+#           - SLACK_AGENT_PLATFORM_REVIEWS_ID
+#           - SLACK_OPENTELEMETRY_ID
+#           - SLACK_AGENT_METRICS_LOGS_ID
+#           - SLACK_CONTAINER_INTEGRATIONS_ID
+#           - SLACK_EBPF_PLATFORM_ID
+#     steps:
+#       - uses: DataDog/slapr@master
+#         env:
+#           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+#           SLACK_CHANNEL_ID: "${{ secrets[matrix.channel_variables] }}"
+#           SLACK_API_TOKEN: "${{ secrets.SLACK_API_TOKEN }}"
+#           SLAPR_BOT_USER_ID: "${{ secrets.SLAPR_BOT_USER_ID }}"
+#           SLAPR_EMOJI_REVIEW_STARTED: "review_started"
+#           SLAPR_EMOJI_APPROVED: "gh-approved"
+#           SLAPR_EMOJI_CHANGES_REQUESTED: "request-changes"
+#           SLAPR_EMOJI_MERGED: "merged"
+#           SLAPR_EMOJI_CLOSED: "closed"

@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	//nolint:revive // TODO(APM) Fix revive linter
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -55,6 +56,7 @@ const (
 	rcClientPollInterval = time.Second * 1
 )
 
+//nolint:revive // TODO(APM) Fix revive linter
 func setupConfigCommon(deps dependencies, apikey string) (*config.AgentConfig, error) {
 	confFilePath := deps.Config.ConfigFileUsed()
 
@@ -93,6 +95,7 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 	// TODO: do not interface directly with pkg/config anywhere
 	coreConfigObject := c.Object()
 	if coreConfigObject == nil {
+		//nolint:revive // TODO(APM) Fix revive linter
 		return nil, fmt.Errorf("No core config found! Bailing out.")
 	}
 
@@ -665,6 +668,9 @@ func compileReplaceRules(rules []*config.ReplaceRule) error {
 	for _, r := range rules {
 		if r.Name == "" {
 			return errors.New(`all rules must have a "name" property (use "*" to target all)`)
+		}
+		if r.Name == "env" {
+			log.Error("Replace tags should not be used to change the env in the Agent, as it could have negative side effects. THIS WILL BE DISALLOWED IN FUTURE AGENT VERSIONS. See https://docs.datadoghq.com/getting_started/tracing/#environment-name for instructions on setting the env, and https://github.com/DataDog/datadog-agent/issues/21253 for more details about this issue.")
 		}
 		if r.Pattern == "" {
 			return errors.New(`all rules must have a "pattern"`)

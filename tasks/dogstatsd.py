@@ -20,7 +20,7 @@ from .windows_resources import build_messagetable, build_rc, versioninfo_vars
 # constants
 DOGSTATSD_BIN_PATH = os.path.join(".", "bin", "dogstatsd")
 STATIC_BIN_PATH = os.path.join(".", "bin", "static")
-MAX_BINARY_SIZE = 37 * 1024
+MAX_BINARY_SIZE = 38 * 1024
 DOGSTATSD_TAG = "datadog/dogstatsd:master"
 
 
@@ -188,6 +188,7 @@ def omnibus_build(
     major_version='7',
     omnibus_s3_cache=False,
     go_mod_cache=None,
+    host_distribution=None,
 ):
     """
     Build the Dogstatsd packages with Omnibus Installer.
@@ -202,6 +203,8 @@ def omnibus_build(
     base_dir = base_dir or os.environ.get("DSD_OMNIBUS_BASE_DIR")
     if base_dir:
         overrides.append(f"base_dir:{base_dir}")
+    if host_distribution:
+        overrides.append(f'host_distribution:{host_distribution}')
 
     overrides_cmd = ""
     if overrides:

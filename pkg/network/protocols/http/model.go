@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
+// Transaction is the interface for a HTTP transaction.
 type Transaction interface {
 	RequestLatency() float64
 	ConnTuple() types.ConnectionKey

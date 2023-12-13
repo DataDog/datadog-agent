@@ -8,7 +8,6 @@
 package common
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -30,19 +29,13 @@ var (
 	AC *autodiscovery.AutoConfig
 
 	// Coll is the global collector instance
-	Coll *collector.Collector
+	Coll collector.Collector
 
 	// ExpvarServer is the global expvar server
 	ExpvarServer *http.Server
 
 	// MetadataScheduler is responsible to orchestrate metadata collection
 	MetadataScheduler *metadata.Scheduler
-
-	// MainCtx is the main agent context passed to components
-	MainCtx context.Context
-
-	// MainCtxCancel cancels the main agent context
-	MainCtxCancel context.CancelFunc
 )
 
 // GetPythonPaths returns the paths (in order of precedence) from where the agent
@@ -58,6 +51,8 @@ func GetPythonPaths() []string {
 }
 
 // GetVersion returns the version of the agent in a http response json
+//
+//nolint:revive // TODO(ASC) Fix revive linter
 func GetVersion(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	av, _ := version.Agent()

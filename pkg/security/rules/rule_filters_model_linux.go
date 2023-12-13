@@ -44,7 +44,7 @@ func (m *RuleFilterModel) NewEvent() eval.Event {
 }
 
 // GetEvaluator gets the evaluator
-func (m *RuleFilterModel) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
+func (m *RuleFilterModel) GetEvaluator(field eval.Field, _ eval.RegisterID) (eval.Evaluator, error) {
 	switch field {
 	case "kernel.version.major":
 		return &eval.IntEvaluator{

@@ -30,6 +30,7 @@ type MockProvider struct {
 	collectCounter int
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (p *MockProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	p.collectCounter++
 	return []integration.Config{}, nil
@@ -39,6 +40,7 @@ func (p *MockProvider) String() string {
 	return "mocked"
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (p *MockProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	return true, nil
 }
@@ -56,6 +58,7 @@ type MockListener struct {
 	stopReceived bool
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (l *MockListener) Listen(newSvc, delSvc chan<- listeners.Service) {
 	l.ListenCount++
 }
@@ -167,7 +170,8 @@ func (suite *AutoConfigTestSuite) SetupTest() {
 }
 
 func (suite *AutoConfigTestSuite) TestAddConfigProvider() {
-	ac := NewAutoConfig(scheduler.NewMetaScheduler())
+	mockResolver := MockSecretResolver{suite.T(), nil}
+	ac := NewAutoConfig(scheduler.NewMetaScheduler(), &mockResolver)
 	assert.Len(suite.T(), ac.configPollers, 0)
 	mp := &MockProvider{}
 	ac.AddConfigProvider(mp, false, 0)
@@ -183,7 +187,8 @@ func (suite *AutoConfigTestSuite) TestAddConfigProvider() {
 }
 
 func (suite *AutoConfigTestSuite) TestAddListener() {
-	ac := NewAutoConfig(scheduler.NewMetaScheduler())
+	mockResolver := MockSecretResolver{suite.T(), nil}
+	ac := NewAutoConfig(scheduler.NewMetaScheduler(), &mockResolver)
 	assert.Len(suite.T(), ac.listeners, 0)
 
 	ml := &MockListener{}
@@ -220,7 +225,8 @@ func (suite *AutoConfigTestSuite) TestDiffConfigs() {
 }
 
 func (suite *AutoConfigTestSuite) TestStop() {
-	ac := NewAutoConfig(scheduler.NewMetaScheduler())
+	mockResolver := MockSecretResolver{suite.T(), nil}
+	ac := NewAutoConfig(scheduler.NewMetaScheduler(), &mockResolver)
 
 	ml := &MockListener{}
 	listeners.Register("mock", ml.fakeFactory)
@@ -266,13 +272,14 @@ func (suite *AutoConfigTestSuite) TestListenerRetry() {
 	}
 	listeners.Register("retry", retryFactory.make)
 
+	mockResolver := MockSecretResolver{suite.T(), nil}
 	configs := []config.Listeners{
 		{Name: "noerr"},
 		{Name: "fail"},
 		{Name: "retry"},
 		{Name: "invalid"},
 	}
-	ac := NewAutoConfig(scheduler.NewMetaScheduler())
+	ac := NewAutoConfig(scheduler.NewMetaScheduler(), &mockResolver)
 	assert.Nil(suite.T(), ac.listenerRetryStop)
 	ac.AddListeners(configs)
 
@@ -337,7 +344,8 @@ func TestResolveTemplate(t *testing.T) {
 	sch := &MockScheduler{scheduled: make(map[string]integration.Config)}
 	msch.Register("mock", sch, false)
 
-	ac := NewAutoConfig(msch)
+	mockResolver := MockSecretResolver{t, nil}
+	ac := NewAutoConfig(msch, &mockResolver)
 	tpl := integration.Config{
 		Name:          "cpu",
 		ADIdentifiers: []string{"redis"},
@@ -370,8 +378,9 @@ func countLoadedConfigs(ac *AutoConfig) int {
 func TestRemoveTemplate(t *testing.T) {
 	ctx := context.Background()
 
-	ac := NewAutoConfig(scheduler.NewMetaScheduler())
+	mockResolver := MockSecretResolver{t, nil}
 
+	ac := NewAutoConfig(scheduler.NewMetaScheduler(), &mockResolver)
 	// Add static config
 	c := integration.Config{
 		Name: "memory",
@@ -408,7 +417,7 @@ func TestGetLoadedConfigNotInitialized(t *testing.T) {
 func TestDecryptConfig(t *testing.T) {
 	ctx := context.Background()
 
-	mockDecrypt := MockSecretDecrypt{t, []mockSecretScenario{
+	mockResolver := MockSecretResolver{t, []mockSecretScenario{
 		{
 			expectedData:   []byte{},
 			expectedOrigin: "cpu",
@@ -422,9 +431,8 @@ func TestDecryptConfig(t *testing.T) {
 			returnedError:  nil,
 		},
 	}}
-	defer mockDecrypt.install()()
 
-	ac := NewAutoConfig(scheduler.NewMetaScheduler())
+	ac := NewAutoConfig(scheduler.NewMetaScheduler(), &mockResolver)
 	ac.processNewService(ctx, &dummyService{ID: "abcd", ADIdentifiers: []string{"redis"}})
 
 	tpl := integration.Config{
@@ -447,13 +455,13 @@ func TestDecryptConfig(t *testing.T) {
 	}
 	assert.Equal(t, resolved, changes.Schedule[0])
 
-	assert.True(t, mockDecrypt.haveAllScenariosBeenCalled())
+	assert.True(t, mockResolver.haveAllScenariosBeenCalled())
 }
 
 func TestProcessClusterCheckConfigWithSecrets(t *testing.T) {
 	configName := "testConfig"
 
-	mockDecrypt := MockSecretDecrypt{t, []mockSecretScenario{
+	mockResolver := MockSecretResolver{t, []mockSecretScenario{
 		{
 			expectedData:   []byte("foo: ENC[bar]"),
 			expectedOrigin: configName,
@@ -467,9 +475,7 @@ func TestProcessClusterCheckConfigWithSecrets(t *testing.T) {
 			returnedError:  nil,
 		},
 	}}
-	defer mockDecrypt.install()()
-
-	ac := NewAutoConfig(scheduler.NewMetaScheduler())
+	ac := NewAutoConfig(scheduler.NewMetaScheduler(), &mockResolver)
 
 	tpl := integration.Config{
 		Provider:     names.ClusterChecks,

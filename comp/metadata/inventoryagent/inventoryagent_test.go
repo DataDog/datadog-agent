@@ -13,7 +13,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -27,7 +27,7 @@ func getTestInventoryPayload(t *testing.T, confOverrides map[string]any) *invent
 	p := newInventoryAgentProvider(
 		fxutil.Test[dependencies](
 			t,
-			log.MockModule,
+			logimpl.MockModule,
 			config.MockModule,
 			fx.Replace(config.MockParams{Overrides: confOverrides}),
 			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
@@ -136,6 +136,7 @@ func TestInitData(t *testing.T) {
 		"fips.enabled":                                true,
 		"logs_enabled":                                true,
 		"compliance_config.enabled":                   true,
+		"compliance_config.host_benchmarks.enabled":   true,
 		"apm_config.enabled":                          true,
 		"ec2_prefer_imdsv2":                           true,
 		"process_config.container_collection.enabled": true,
@@ -164,6 +165,7 @@ func TestInitData(t *testing.T) {
 		"feature_fips_enabled":                       true,
 		"feature_logs_enabled":                       true,
 		"feature_cspm_enabled":                       true,
+		"feature_cspm_host_benchmarks_enabled":       true,
 		"feature_apm_enabled":                        true,
 		"feature_imdsv2_enabled":                     true,
 		"feature_processes_container_enabled":        true,

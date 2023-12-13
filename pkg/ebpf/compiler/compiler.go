@@ -5,6 +5,7 @@
 
 //go:build linux_bpf
 
+//nolint:revive // TODO(EBPF) Fix revive linter
 package compiler
 
 import (
@@ -91,12 +92,14 @@ func CompileToObjectFile(inFile, outputFile string, cflags []string, headerDirs 
 	return nil
 }
 
+//nolint:revive // TODO(EBPF) Fix revive linter
 func WithStdin(in io.Reader) func(*exec.Cmd) {
 	return func(c *exec.Cmd) {
 		c.Stdin = in
 	}
 }
 
+//nolint:revive // TODO(EBPF) Fix revive linter
 func WithStdout(out io.Writer) func(*exec.Cmd) {
 	return func(c *exec.Cmd) {
 		c.Stdout = out

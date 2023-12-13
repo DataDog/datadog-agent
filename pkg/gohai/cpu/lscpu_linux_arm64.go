@@ -19,7 +19,7 @@ type hwImpl struct {
 //
 // See from-lscpu-arm.py to regenerate this value.
 var hwVariant = map[uint64]hwImpl{
-	0x41: hwImpl{
+	0x41: {
 		name: "ARM",
 		parts: map[uint64]string{
 			0x810: "ARM810",
@@ -83,7 +83,7 @@ var hwVariant = map[uint64]hwImpl{
 			0xd4e: "Cortex-X3",
 		},
 	},
-	0x42: hwImpl{
+	0x42: {
 		name: "Broadcom",
 		parts: map[uint64]string{
 			0x0f:  "Brahma B15",
@@ -91,7 +91,7 @@ var hwVariant = map[uint64]hwImpl{
 			0x516: "ThunderX2",
 		},
 	},
-	0x43: hwImpl{
+	0x43: {
 		name: "Cavium",
 		parts: map[uint64]string{
 			0x0a0: "ThunderX",
@@ -101,34 +101,34 @@ var hwVariant = map[uint64]hwImpl{
 			0x0af: "ThunderX2 99xx",
 		},
 	},
-	0x44: hwImpl{
+	0x44: {
 		name: "DEC",
 		parts: map[uint64]string{
 			0xa10: "SA110",
 			0xa11: "SA1100",
 		},
 	},
-	0x46: hwImpl{
+	0x46: {
 		name: "FUJITSU",
 		parts: map[uint64]string{
 			0x001: "A64FX",
 		},
 	},
-	0x48: hwImpl{
+	0x48: {
 		name: "HiSilicon",
 		parts: map[uint64]string{
 			0xd01: "Kunpeng-920",
 		},
 	},
-	0x49: hwImpl{
+	0x49: {
 		name:  "Infineon",
 		parts: map[uint64]string{},
 	},
-	0x4d: hwImpl{
+	0x4d: {
 		name:  "Motorola/Freescale",
 		parts: map[uint64]string{},
 	},
-	0x4e: hwImpl{
+	0x4e: {
 		name: "NVIDIA",
 		parts: map[uint64]string{
 			0x000: "Denver",
@@ -136,13 +136,13 @@ var hwVariant = map[uint64]hwImpl{
 			0x004: "Carmel",
 		},
 	},
-	0x50: hwImpl{
+	0x50: {
 		name: "APM",
 		parts: map[uint64]string{
 			0x000: "X-Gene",
 		},
 	},
-	0x51: hwImpl{
+	0x51: {
 		name: "Qualcomm",
 		parts: map[uint64]string{
 			0x00f: "Scorpion",
@@ -161,13 +161,13 @@ var hwVariant = map[uint64]hwImpl{
 			0xc01: "Saphira",
 		},
 	},
-	0x53: hwImpl{
+	0x53: {
 		name: "Samsung",
 		parts: map[uint64]string{
 			0x001: "exynos-m1",
 		},
 	},
-	0x56: hwImpl{
+	0x56: {
 		name: "Marvell",
 		parts: map[uint64]string{
 			0x131: "Feroceon 88FR131",
@@ -175,7 +175,7 @@ var hwVariant = map[uint64]hwImpl{
 			0x584: "PJ4B-MP",
 		},
 	},
-	0x61: hwImpl{
+	0x61: {
 		name: "Apple",
 		parts: map[uint64]string{
 			0x020: "Icestorm-T8101",
@@ -188,14 +188,14 @@ var hwVariant = map[uint64]hwImpl{
 			0x033: "Avalanche-T8112",
 		},
 	},
-	0x66: hwImpl{
+	0x66: {
 		name: "Faraday",
 		parts: map[uint64]string{
 			0x526: "FA526",
 			0x626: "FA626",
 		},
 	},
-	0x69: hwImpl{
+	0x69: {
 		name: "Intel",
 		parts: map[uint64]string{
 			0x200: "i80200",
@@ -221,7 +221,7 @@ var hwVariant = map[uint64]hwImpl{
 			0xc12: "IPX1200",
 		},
 	},
-	0x70: hwImpl{
+	0x70: {
 		name: "Phytium",
 		parts: map[uint64]string{
 			0x660: "FTC660",
@@ -230,7 +230,7 @@ var hwVariant = map[uint64]hwImpl{
 			0x663: "FTC663",
 		},
 	},
-	0xc0: hwImpl{
+	0xc0: {
 		name:  "Ampere",
 		parts: map[uint64]string{},
 	},

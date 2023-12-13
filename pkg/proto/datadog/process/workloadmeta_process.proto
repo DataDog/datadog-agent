@@ -13,7 +13,7 @@ message ProcessStreamResponse {
 message ProcessEventSet {
   int32 pid = 1;
   int32 nspid = 2;
-  string containerId = 3;
+  string containerID = 3;
   int64 creationTime = 4;
   Language language = 5;
 }

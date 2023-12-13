@@ -78,6 +78,7 @@ type headerProvider struct {
 	kernelHeaders []string
 }
 
+//nolint:revive // TODO(EBPF) Fix revive linter
 type KernelHeaderOptions struct {
 	DownloadEnabled bool
 	Dirs            []string

@@ -23,6 +23,7 @@ type Hello struct {
 	daemon *Daemon
 }
 
+//nolint:revive // TODO(SERV) Fix revive linter
 func (h *Hello) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.Hello route.")
 	h.daemon.LambdaLibraryDetected = true
@@ -34,6 +35,7 @@ type Flush struct {
 	daemon *Daemon
 }
 
+//nolint:revive // TODO(SERV) Fix revive linter
 func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.Flush route.")
 	if os.Getenv(LocalTestEnvVar) == "true" || os.Getenv(LocalTestEnvVar) == "1" {
@@ -131,6 +133,7 @@ type TraceContext struct {
 	daemon *Daemon
 }
 
+//nolint:revive // TODO(SERV) Fix revive linter
 func (tc *TraceContext) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	executionInfo := tc.daemon.InvocationProcessor.GetExecutionInfo()
 	log.Debug("Hit on the serverless.TraceContext route.")

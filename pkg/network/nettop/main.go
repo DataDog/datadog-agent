@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(NET) Fix revive linter
 package main
 
 import (
@@ -29,7 +30,7 @@ func main() {
 	}
 
 	config.Datadog.SetConfigFile(*cfgpath)
-	if _, err := config.Load(); err != nil {
+	if _, err := config.LoadWithoutSecret(); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
 	}

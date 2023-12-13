@@ -339,7 +339,7 @@ func assertSetEvent(t *testing.T, expected, actual *pbgo.ProcessEventSet) {
 
 	assert.Equal(t, expected.Pid, actual.Pid)
 	assert.Equal(t, expected.Nspid, actual.Nspid)
-	assert.Equal(t, expected.ContainerId, actual.ContainerId)
+	assert.Equal(t, expected.ContainerID, actual.ContainerID)
 	assert.Equal(t, expected.CreationTime, actual.CreationTime)
 	if expected.Language != nil {
 		assert.Equal(t, expected.Language.Name, actual.Language.Name)

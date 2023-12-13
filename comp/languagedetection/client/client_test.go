@@ -14,13 +14,13 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -37,7 +37,7 @@ func (m *MockDCAClient) PostLanguageMetadata(_ context.Context, request *pbgo.Pa
 	return nil
 }
 
-func newTestClient(t *testing.T, store workloadmeta.Store) (*client, chan *pbgo.ParentLanguageAnnotationRequest) {
+func newTestClient(t *testing.T) (*client, chan *pbgo.ParentLanguageAnnotationRequest) {
 	respCh := make(chan *pbgo.ParentLanguageAnnotationRequest)
 	mockDCAClient := &MockDCAClient{respCh: respCh}
 
@@ -49,14 +49,18 @@ func newTestClient(t *testing.T, store workloadmeta.Store) (*client, chan *pbgo.
 			"language_detection.client_period": "50ms",
 		}}),
 		telemetry.MockModule,
-		log.MockModule,
+		logimpl.MockModule,
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModuleV2,
+		fx.Provide(func(m workloadmeta.Mock) workloadmeta.Component {
+			return m.(workloadmeta.Component)
+		}),
 	))
 
 	optComponent := newClient(deps).(optional.Option[Component])
 	comp, _ := optComponent.Get()
 	client := comp.(*client)
 	client.langDetectionCl = mockDCAClient
-	client.store = store
 
 	return client, respCh
 }
@@ -82,7 +86,12 @@ func TestClientEnabled(t *testing.T) {
 					"cluster_agent.enabled":      testCase.clusterAgentEnabled,
 				}}),
 				telemetry.MockModule,
-				log.MockModule,
+				logimpl.MockModule,
+				fx.Supply(workloadmeta.NewParams()),
+				workloadmeta.MockModuleV2,
+				fx.Provide(func(m workloadmeta.Mock) workloadmeta.Component {
+					return m.(workloadmeta.Component)
+				}),
 			))
 
 			optionalCl := newClient(deps).(optional.Option[Component])
@@ -92,7 +101,7 @@ func TestClientEnabled(t *testing.T) {
 }
 
 func TestClientSend(t *testing.T) {
-	client, respCh := newTestClient(t, nil)
+	client, respCh := newTestClient(t)
 	container := langUtil.ContainersLanguages{
 		"java-cont": {
 			"java": {},
@@ -142,7 +151,7 @@ func TestClientSend(t *testing.T) {
 }
 
 func TestClientSendFreshPods(t *testing.T) {
-	client, _ := newTestClient(t, nil)
+	client, _ := newTestClient(t)
 	container := langUtil.ContainersLanguages{
 		"java-cont": {
 			"java": {},
@@ -195,8 +204,7 @@ func TestClientSendFreshPods(t *testing.T) {
 }
 
 func TestClientProcessEvent_EveryEntityStored(t *testing.T) {
-	mockStore := workloadmeta.NewMockStore()
-	client, _ := newTestClient(t, mockStore)
+	client, _ := newTestClient(t)
 
 	container := &workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
@@ -320,7 +328,7 @@ func TestClientProcessEvent_EveryEntityStored(t *testing.T) {
 		},
 	}
 
-	mockStore.Notify(collectorEvents)
+	client.store.Notify(collectorEvents)
 
 	client.handleEvent(eventBundle)
 
@@ -367,8 +375,7 @@ func TestClientProcessEvent_EveryEntityStored(t *testing.T) {
 }
 
 func TestClientProcessEvent_PodMissing(t *testing.T) {
-	mockStore := workloadmeta.NewMockStore()
-	client, _ := newTestClient(t, mockStore)
+	client, _ := newTestClient(t)
 
 	container := &workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
@@ -488,7 +495,7 @@ func TestClientProcessEvent_PodMissing(t *testing.T) {
 	}
 
 	// store everything but the pod
-	mockStore.Notify(collectorEvents)
+	client.store.Notify(collectorEvents)
 
 	// process the events
 	client.handleEvent(eventBundle)
@@ -501,7 +508,7 @@ func TestClientProcessEvent_PodMissing(t *testing.T) {
 	assert.Empty(t, client.freshlyUpdatedPods)
 
 	// add the pod in workloadmeta
-	mockStore.Notify([]workloadmeta.CollectorEvent{
+	client.store.Notify([]workloadmeta.CollectorEvent{
 		{
 			Type:   workloadmeta.EventTypeSet,
 			Source: workloadmeta.SourceAll,
@@ -731,7 +738,7 @@ func TestCleanUpProcesssesWithoutPod(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, _ := newTestClient(t, nil)
+			client, _ := newTestClient(t)
 			client.processesWithoutPod = tt.processesWithoutPod
 			client.cleanUpProcesssesWithoutPod(tt.time)
 			assert.Equal(t, tt.expected, client.processesWithoutPod)
@@ -741,8 +748,7 @@ func TestCleanUpProcesssesWithoutPod(t *testing.T) {
 
 // TestRun checks that the client runs as expected and will help to identify potential data races
 func TestRun(t *testing.T) {
-	mockStore := workloadmeta.NewMockStore()
-	client, respCh := newTestClient(t, mockStore)
+	client, respCh := newTestClient(t)
 	client.freshDataPeriod = 50 * time.Millisecond
 	client.periodicalFlushPeriod = 1 * time.Second
 	client.processesWithoutPodCleanupPeriod = 100 * time.Millisecond
@@ -774,6 +780,20 @@ func TestRun(t *testing.T) {
 		},
 		Owner: &workloadmeta.EntityID{
 			ID:   "nginx-pod-id2",
+			Kind: workloadmeta.KindKubernetesPod,
+		},
+	}
+
+	container3 := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			ID:   "python-cont-id3",
+			Kind: workloadmeta.KindContainer,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "python-cont-name3",
+		},
+		Owner: &workloadmeta.EntityID{
+			ID:   "python-pod-id3",
 			Kind: workloadmeta.KindKubernetesPod,
 		},
 	}
@@ -826,6 +846,30 @@ func TestRun(t *testing.T) {
 		},
 	}
 
+	pod3 := &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{
+			ID:   "python-pod-id3",
+			Kind: workloadmeta.KindKubernetesPod,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "python-pod-name3",
+			Namespace: "python-pod-namespace3",
+		},
+		Containers: []workloadmeta.OrchestratorContainer{
+			{
+				ID:   "python-cont-id3",
+				Name: "python-cont-name3",
+			},
+		},
+		Owners: []workloadmeta.KubernetesPodOwner{
+			{
+				ID:   "python-replicaset-id3",
+				Name: "python-replicaset-name3",
+				Kind: "replicaset",
+			},
+		},
+	}
+
 	process1 := &workloadmeta.Process{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindProcess,
@@ -835,17 +879,6 @@ func TestRun(t *testing.T) {
 			Name: "java",
 		},
 		ContainerID: "nginx-cont-id1",
-	}
-
-	processWithoutPod := &workloadmeta.Process{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindProcess,
-			ID:   "1234",
-		},
-		Language: &languagemodels.Language{
-			Name: "java",
-		},
-		ContainerID: "unknown-container",
 	}
 
 	process2 := &workloadmeta.Process{
@@ -859,16 +892,27 @@ func TestRun(t *testing.T) {
 		ContainerID: "nginx-cont-id2",
 	}
 
+	process3 := &workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindProcess,
+			ID:   "1234",
+		},
+		Language: &languagemodels.Language{
+			Name: "python",
+		},
+		ContainerID: "python-cont-id3",
+	}
+
 	collectorEvents1 := []workloadmeta.CollectorEvent{
 		{
 			Type:   workloadmeta.EventTypeSet,
 			Source: workloadmeta.SourceAll,
-			Entity: pod1,
+			Entity: container1,
 		},
 		{
 			Type:   workloadmeta.EventTypeSet,
 			Source: workloadmeta.SourceAll,
-			Entity: container1,
+			Entity: pod1,
 		},
 		{
 			Type:   workloadmeta.EventTypeSet,
@@ -878,11 +922,17 @@ func TestRun(t *testing.T) {
 		{
 			Type:   workloadmeta.EventTypeSet,
 			Source: workloadmeta.SourceAll,
-			Entity: processWithoutPod,
+			Entity: container1,
+		},
+		// Process 3 set event is here received before the set event of container 3 and pod 3
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: process3,
 		},
 	}
 
-	mockStore.Notify(collectorEvents1)
+	client.store.Notify(collectorEvents1)
 
 	expectedBatch := batch{
 		"nginx-pod-name1": {
@@ -920,9 +970,21 @@ func TestRun(t *testing.T) {
 			Source: workloadmeta.SourceAll,
 			Entity: process2,
 		},
+		// Now we receive the set events of container 3 and pod 3.
+		// This should lead to retrying processing the process set event
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: container3,
+		},
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: pod3,
+		},
 	}
 
-	mockStore.Notify(collectorEvents2)
+	client.store.Notify(collectorEvents2)
 
 	b := batch{
 		"nginx-pod-name2": {
@@ -951,6 +1013,19 @@ func TestRun(t *testing.T) {
 				Kind: "replicaset",
 			},
 		},
+		"python-pod-name3": {
+			namespace: "python-pod-namespace3",
+			containerInfo: langUtil.ContainersLanguages{
+				"python-cont-name3": {
+					"python": {},
+				},
+			},
+			ownerRef: &workloadmeta.KubernetesPodOwner{
+				ID:   "python-replicaset-id3",
+				Name: "python-replicaset-name3",
+				Kind: "replicaset",
+			},
+		},
 	}
 
 	// the periodic flush mechanism should send the entire data every 100ms
@@ -969,9 +1044,14 @@ func TestRun(t *testing.T) {
 			Source: workloadmeta.SourceAll,
 			Entity: pod2,
 		},
+		{
+			Type:   workloadmeta.EventTypeUnset,
+			Source: workloadmeta.SourceAll,
+			Entity: pod3,
+		},
 	}
 
-	mockStore.Notify(unsetPodEvent)
+	client.store.Notify(unsetPodEvent)
 
 	// the periodic flush mechanism should send the up to date data after removing the pod
 	b = batch{

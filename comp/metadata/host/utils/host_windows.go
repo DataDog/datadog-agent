@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"os"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/shirou/w32"
@@ -22,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
 	"github.com/DataDog/datadog-agent/pkg/gohai/platform"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
@@ -113,9 +111,6 @@ func getSystemStats() *systemStats {
 			// - Winver was the result of `platform.win32_ver()`
 			// - Fbsdver was never used
 			stats.Winver = osVersion{hostInfo.Platform, hostInfo.PlatformVersion}
-
-			hostVersion := strings.Trim(hostInfo.Platform+" "+hostInfo.PlatformVersion, " ")
-			inventories.SetHostMetadata(inventories.HostOSVersion, hostVersion)
 			return stats, nil
 		},
 	)

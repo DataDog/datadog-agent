@@ -7,7 +7,7 @@
 # All rights reserved - Do Not Redistribute
 #
 
-if node['platform_family'] == 'suse'
+if node['platform_family'] == 'suse' && node.key?('azure')
   # Update the waagent conf to stop watching hostname changes.
   execute 'update Azure Agent conf' do
     command "sed -i 's/Provisioning\\.MonitorHostName=y/Provisioning\\.MonitorHostName=n/' /etc/waagent.conf"
