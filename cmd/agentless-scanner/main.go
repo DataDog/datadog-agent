@@ -1817,27 +1817,45 @@ func (rt *awsClientStats) RoundTrip(req *http.Request) (*http.Response, error) {
 	} else {
 		tags = append(tags, "aws_statuscode:unknown_error")
 	}
-	if resp != nil && resp.StatusCode >= 400 && service == "ec2" && resp.Header.Get("Content-Type") == "text/xml;charset=UTF-8" {
-		defer resp.Body.Close()
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return resp, err
-		}
-		resp.Body = io.NopCloser(bytes.NewReader(body))
-		var ec2Error struct {
-			XMLName   xml.Name `xml:"Response"`
-			RequestID string   `xml:"RequestID"`
-			Errors    []struct {
-				Code    string `xml:"Code"`
-				Message string `xml:"Message"`
-			} `xml:"Errors>Error"`
-		}
-		if errx := xml.Unmarshal(body, &ec2Error); errx == nil {
-			for _, errv := range ec2Error.Errors {
-				tags = append(tags, fmt.Sprintf("aws_ec2_errorcode:%s", strings.ToLower(errv.Code)))
+	if resp != nil && resp.StatusCode >= 400 {
+		switch {
+		case service == "ec2" && resp.Header.Get("Content-Type") == "text/xml;charset=UTF-8":
+			defer resp.Body.Close()
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return resp, err
+			}
+			resp.Body = io.NopCloser(bytes.NewReader(body))
+			var ec2Error struct {
+				XMLName   xml.Name `xml:"Response"`
+				RequestID string   `xml:"RequestID"`
+				Errors    []struct {
+					Code    string `xml:"Code"`
+					Message string `xml:"Message"`
+				} `xml:"Errors>Error"`
+			}
+			if errx := xml.Unmarshal(body, &ec2Error); errx == nil {
+				for _, errv := range ec2Error.Errors {
+					tags = append(tags, fmt.Sprintf("aws_ec2_errorcode:%s", strings.ToLower(errv.Code)))
+				}
+			}
+		case service == "ebs" && resp.Header.Get("Content-Type") == "application/json":
+			defer resp.Body.Close()
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return resp, err
+			}
+			resp.Body = io.NopCloser(bytes.NewReader(body))
+			// {"Message":"The snapshot 'snap-00000' does not exist.","Reason":"SNAPSHOT_NOT_FOUND"}
+			var ebsError struct {
+				Reason string `json:"Reason"`
+			}
+			if errx := json.Unmarshal(body, &ebsError); errx == nil {
+				tags = append(tags, fmt.Sprintf("aws_ebs_errorcode:%s", strings.ToLower(ebsError.Reason)))
 			}
 		}
 	}
+
 	if err != nil {
 		if err := statsd.Histogram("datadog.agentless_scanner.aws.responses", duration, tags, 1.0); err != nil {
 			log.Warnf("failed to send metric: %v", err)
