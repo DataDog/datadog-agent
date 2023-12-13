@@ -42,9 +42,12 @@ func logsExampleStackDef() *e2e.StackDefinition[e2e.FakeIntakeEnv] {
 // TestE2EVMFakeintakeSuite runs the E2E test suite for the log agent with a VM and fake intake.
 func TestE2EVMFakeintakeSuite(t *testing.T) {
 	s := &LinuxFakeintakeSuite{}
-	_, s.DevMode = os.LookupEnv("E2E_DEVMODE")
-
-	e2e.Run(t, s, logsExampleStackDef())
+	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
+	options := []params.Option{}
+	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
+		options = append(options, params.WithDevMode())
+	}
+	e2e.Run(t, s, logsExampleStackDef(), options...)
 }
 
 func (s *LinuxFakeintakeSuite) BeforeTest(_, _ string) {
