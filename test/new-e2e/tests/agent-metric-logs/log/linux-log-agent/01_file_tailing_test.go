@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	e2e "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metric-logs/log/utils"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 )
 
@@ -47,7 +48,7 @@ func TestE2EVMFakeintakeSuite(t *testing.T) {
 
 func (s *LinuxVMFakeintakeSuite) BeforeTest(_, _ string) {
 	// Flush server and reset aggregators before the test is ran
-	s.cleanUp()
+	s.CleanUp()
 
 	// Ensure no logs are present in fakeintake before testing starts
 	s.EventuallyWithT(func(c *assert.CollectT) {
@@ -65,7 +66,7 @@ func (s *LinuxVMFakeintakeSuite) BeforeTest(_, _ string) {
 
 func (s *LinuxVMFakeintakeSuite) TearDownSuite() {
 	// Flush server and reset aggregators after the test is ran
-	s.cleanUp()
+	s.CleanUp()
 }
 
 func (s *LinuxVMFakeintakeSuite) TestLinuxLogTailing() {
@@ -97,10 +98,10 @@ func (s *LinuxVMFakeintakeSuite) LogCollection() {
 
 	t.Logf("Permissions granted for new log file.")
 	// Generate log
-	generateLog(s, "hello-before-permission-world", 1)
+	s.GenerateLog("hello-before-permission-world", 1)
 
 	// Check intake for new logs
-	checkLogs(s, "hello", "hello-before-permission-world", true)
+	s.CheckLogs("hello", "hello-before-permission-world", true)
 
 	//  Adjust permissions of new log file after log generation
 
@@ -112,7 +113,7 @@ func (s *LinuxVMFakeintakeSuite) LogCollection() {
 	assert.Equal(t, "true", strings.TrimSpace(output), "Unable to adjust back to default permissions for the log file '/var/log/hello-world.log'.")
 
 	t.Logf("Permissions reset to default.")
-	generateLog(s, "hello-after-permission-world", 1)
+	s.GenerateLog("hello-after-permission-world", 1)
 
 	// Grant log file permission and check intake for new logs
 	output, err = s.Env().VM.ExecuteWithError("sudo chmod +r /var/log/hello-world.log && echo true")
@@ -123,13 +124,13 @@ func (s *LinuxVMFakeintakeSuite) LogCollection() {
 
 	t.Logf("Permissions granted for log file.")
 
-	checkLogs(s, "hello", "hello-after-permission-world", true)
+	s.CheckLogs("hello", "hello-after-permission-world", true)
 }
 
 func (s *LinuxVMFakeintakeSuite) LogPermission() {
 	t := s.T()
 	logPath := "/var/log/hello-world.log"
-	checkLogFilePresence(s, logPath)
+	s.CheckLogFilePresence(logPath)
 
 	// Allow on only write permission to the log file so the agent cannot tail it
 	output, err := s.Env().VM.ExecuteWithError("sudo chmod -r /var/log/hello-world.log && echo true")
@@ -146,10 +147,10 @@ func (s *LinuxVMFakeintakeSuite) LogPermission() {
 
 	s.Env().VM.Execute("sudo service datadog-agent restart")
 
-	generateLog(s, "access-denied", 1)
+	s.GenerateLog("access-denied", 1)
 
 	// Check intake to see if new logs are not present
-	checkLogs(s, "hello", "access-denied", false)
+	s.CheckLogs("hello", "access-denied", false)
 
 	// Restore permissions
 	output, err = s.Env().VM.ExecuteWithError("sudo chmod +r /var/log/hello-world.log && echo true")
@@ -164,17 +165,17 @@ func (s *LinuxVMFakeintakeSuite) LogPermission() {
 	// Wait for the agent to tail the log file since there is a delay between permissions being granted and the agent tailing the log file
 	time.Sleep(1000 * time.Millisecond)
 
-	generateLog(s, "access-granted", 1)
+	s.GenerateLog("access-granted", 1)
 
 	// Check intake to see if new logs are present
-	checkLogs(s, "hello", "access-granted", true)
+	s.CheckLogs("hello", "access-granted", true)
 
 }
 
 func (s *LinuxVMFakeintakeSuite) LogRecreateRotation() {
 	t := s.T()
 	logPath := "/var/log/hello-world.log"
-	checkLogFilePresence(s, logPath)
+	s.CheckLogFilePresence(logPath)
 
 	// Rotate the log file and check if the agent is tailing the new log file.
 	// Delete and Recreate file rotation
@@ -193,9 +194,26 @@ func (s *LinuxVMFakeintakeSuite) LogRecreateRotation() {
 	t.Logf("Permissions granted for new log file.")
 
 	// Generate new logs
-	generateLog(s, "hello-world-new-content", 1)
+	s.GenerateLog("hello-world-new-content", 1)
 
 	// Check intake for new logs
-	checkLogs(s, "hello", "hello-world-new-content", true)
+	s.CheckLogs("hello", "hello-world-new-content", true)
 
+}
+
+// GenerateLog generates a log file with the given content and recurrence.
+func (s *LinuxVMFakeintakeSuite) GenerateLog(content string, recurrence int) {
+	utils.GenerateLog(s, content, recurrence)
+}
+
+func (s *LinuxVMFakeintakeSuite) CheckLogFilePresence(logPath string) {
+	utils.CheckLogFilePresence(s, logPath)
+}
+
+func (s *LinuxVMFakeintakeSuite) CheckLogs(service, content string, expectLogs bool) {
+	utils.CheckLogs(s, service, content, expectLogs)
+}
+
+func (s *LinuxVMFakeintakeSuite) CleanUp() {
+	utils.CleanUp(s)
 }
