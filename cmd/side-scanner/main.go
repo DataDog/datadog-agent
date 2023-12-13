@@ -84,6 +84,8 @@ const (
 	defaultEC2Rate          = 20.0
 	defaultEBSListBlockRate = 20.0
 	defaultEBSGetBlockRate  = 400.0
+
+	snapshotDuration = 24 * time.Hour
 )
 
 var statsd *ddgostatsd.Client
@@ -757,6 +759,69 @@ func cleanupCmd(region string, dryRun bool, delay time.Duration) error {
 	return nil
 }
 
+func (s *sideScanner) cleanup(ctx context.Context, delay time.Duration) error {
+	defaultCfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Retrieve instance’s region.
+	imdsclient := imds.NewFromConfig(defaultCfg)
+	regionOutput, err := imdsclient.GetRegion(ctx, &imds.GetRegionInput{})
+	selfRegion := "us-east-1"
+	if err != nil {
+		log.Errorf("could not retrieve region from ec2 instance - using default %q: %v", selfRegion, err)
+	} else {
+		selfRegion = regionOutput.Region
+	}
+
+	var identity *sts.GetCallerIdentityOutput
+	{
+		cfg, err := newAWSConfig(ctx, selfRegion, nil)
+		if err != nil {
+			return err
+		}
+		stsclient := sts.NewFromConfig(cfg)
+		identity, err = stsclient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+		if err != nil {
+			return err
+		}
+	}
+
+	roles := getDefaultRolesMapping()
+	cfg, err := newAWSConfig(ctx, selfRegion, roles[*identity.Account])
+	if err != nil {
+		return err
+	}
+
+	ec2client := ec2.NewFromConfig(cfg)
+	toBeDeleted, err := listResourcesForCleanup(ctx, ec2client, delay)
+	if err != nil {
+		return err
+	}
+
+	if len(toBeDeleted) == 0 {
+		return nil
+	}
+
+	cloudResourcesCleanup(ctx, ec2client, toBeDeleted)
+
+	return nil
+}
+
+func (s *sideScanner) cleanupProcess(ctx context.Context, delay time.Duration) {
+	log.Infof("Starting cleanup process\n")
+
+	for {
+		err := s.cleanup(ctx, delay)
+		if err != nil {
+			log.Warnf("cleanupProcess: %v", err)
+		}
+
+		time.Sleep(1 * time.Hour)
+	}
+}
+
 //nolint:unused
 func downloadSnapshot(ctx context.Context, w io.Writer, snapshotARN arn.ARN) error {
 	defaultCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(snapshotARN.Region))
@@ -1248,6 +1313,8 @@ func (s *sideScanner) start(ctx context.Context) {
 			log.Warnf("healthServer: %v", err)
 		}
 	}()
+
+	go s.cleanupProcess(ctx, snapshotDuration)
 
 	done := make(chan struct{})
 	go func() {
