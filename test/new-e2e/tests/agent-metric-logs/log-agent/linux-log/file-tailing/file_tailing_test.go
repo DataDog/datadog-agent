@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package logagent
+package filtailing
 
 import (
 	_ "embed"
@@ -17,7 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metric-logs/log/utils"
+	utils "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metric-logs/log-agent/utils"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 )
 
@@ -226,19 +226,27 @@ func (s *LinuxFakeintakeSuite) LogRecreateRotation() {
 
 }
 
-// AppendLog generates a log file with the given content and recurrence.
+// AppendLog calls the utility function to append a log.
 func (s *LinuxFakeintakeSuite) AppendLog(content string, recurrence int) {
 	utils.AppendLog(s, content, recurrence)
 }
 
+// CheckLogFilePresence calls the utility function to check the presence of a log file.
 func (s *LinuxFakeintakeSuite) CheckLogFilePresence(logPath string) {
 	utils.CheckLogFilePresence(s, logPath)
 }
 
+// CheckLogs calls the utility function to check the presence of a log inside the intake.
 func (s *LinuxFakeintakeSuite) CheckLogs(service, content string, expectLogs bool) {
 	utils.CheckLogs(s, service, content, expectLogs)
 }
 
+// CleanUp calls the utility function to clean up the test environment.
 func (s *LinuxFakeintakeSuite) CleanUp() {
 	utils.CleanUp(s)
+}
+
+// IsDevMode returns true if the test suite is running in dev mode.
+func (s *LinuxFakeintakeSuite) IsDevMode() bool {
+	return s.DevMode
 }

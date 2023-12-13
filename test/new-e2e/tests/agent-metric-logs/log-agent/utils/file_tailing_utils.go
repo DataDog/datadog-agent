@@ -22,7 +22,7 @@ import (
 	componentos "github.com/DataDog/test-infra-definitions/components/os"
 )
 
-type LogTestHelper interface {
+type TestHelper interface {
 	T() *testing.T
 	Env() *e2e.FakeIntakeEnv
 	AppendLog(content string, recurrence int)
@@ -30,16 +30,17 @@ type LogTestHelper interface {
 	CheckLogs(service, content string, expectLogs bool)
 	CleanUp()
 	EventuallyWithT(assertFunction func(*assert.CollectT), waitFor, tick time.Duration, option ...interface{}) bool
+	IsDevMode() bool
 }
 
 // AppendLog appen log with 'content', which is then repeated 'reccurrence' times and verifies log contents.
-func AppendLog(s LogTestHelper, content string, recurrence int) {
+func AppendLog(th TestHelper, content string, recurrence int) {
 	// Determine the OS and set the appropriate log path and command.
 	var logPath, cmd, checkCmd string
-	t := s.T()
+	t := th.T()
 	t.Helper()
 
-	osType := s.Env().VM.GetOSType()
+	osType := th.Env().VM.GetOSType()
 	var os string
 
 	switch osType {
@@ -57,14 +58,14 @@ func AppendLog(s LogTestHelper, content string, recurrence int) {
 		checkCmd = fmt.Sprintf("sudo cat %s", logPath)
 	}
 
-	s.EventuallyWithT(func(c *assert.CollectT) {
+	th.EventuallyWithT(func(c *assert.CollectT) {
 		// Generate the log content
-		output, err := s.Env().VM.ExecuteWithError(cmd)
+		output, err := th.Env().VM.ExecuteWithError(cmd)
 		if err != nil {
 			assert.FailNowf(c, "Having issue generating %s log with error: %s", os, output)
 		}
 		// Verify the log content locally
-		output, err = s.Env().VM.ExecuteWithError(checkCmd)
+		output, err = th.Env().VM.ExecuteWithError(checkCmd)
 		if err != nil {
 			assert.FailNowf(c, "Log content %s not found, instead received:: %s", content, output)
 		}
@@ -75,20 +76,20 @@ func AppendLog(s LogTestHelper, content string, recurrence int) {
 }
 
 // CheckLogFile verifies the presence or absence of a log file path
-func CheckLogFilePresence(s LogTestHelper, logPath string) {
-	t := s.T()
-	osType := s.Env().VM.GetOSType()
+func CheckLogFilePresence(th TestHelper, logPath string) {
+	t := th.T()
+	osType := th.Env().VM.GetOSType()
 
 	switch osType {
 	case componentos.WindowsType:
 		checkCmd := fmt.Sprintf("Get-Content %s", logPath)
-		_, err := s.Env().VM.ExecuteWithError(checkCmd)
+		_, err := th.Env().VM.ExecuteWithError(checkCmd)
 		if err != nil {
 			assert.FailNow(t, "Log File not found")
 		}
 	default: // Assuming Linux if not Windows.
 		checkCmd := fmt.Sprintf("sudo cat %s", logPath)
-		_, err := s.Env().VM.ExecuteWithError(checkCmd)
+		_, err := th.Env().VM.ExecuteWithError(checkCmd)
 		if err != nil {
 			assert.FailNow(t, "Log File not found")
 		}
@@ -96,11 +97,11 @@ func CheckLogFilePresence(s LogTestHelper, logPath string) {
 }
 
 // CheckLogs verifies the presence or absence of logs in the intake based on the expectLogs flag.
-func CheckLogs(s LogTestHelper, service, content string, expectLogs bool) {
-	client := s.Env().Fakeintake
-	t := s.T()
+func CheckLogs(th TestHelper, service, content string, expectLogs bool) {
+	client := th.Env().Fakeintake
+	t := th.T()
 	t.Helper()
-	s.EventuallyWithT(func(c *assert.CollectT) {
+	th.EventuallyWithT(func(c *assert.CollectT) {
 		names, err := client.GetLogServiceNames()
 		if !assert.NoErrorf(c, err, "Error found: %s", err) {
 			return
@@ -131,34 +132,34 @@ func CheckLogs(s LogTestHelper, service, content string, expectLogs bool) {
 }
 
 // CleanUp cleans up any existing log files (only useful when running dev mode/local runs).
-func CleanUp(s LogTestHelper) {
-	t := s.T()
+func CleanUp(th TestHelper) {
+	t := th.T()
 	var checkCmd string
 
-	// if s.DevMode == true {
-	osType := s.Env().VM.GetOSType()
+	if th.IsDevMode() {
+		osType := th.Env().VM.GetOSType()
 
-	switch osType {
-	default: // default is linux
-		s.Env().VM.Execute("sudo rm -f /var/log/hello-world.log")
-		s.Env().VM.Execute("sudo rm -f /var/log/hello-world.log.old")
-		checkCmd = "ls /var/log/hello-world.log /var/log/hello-world.log.old 2>/dev/null || echo 'Files do not exist'"
-	case componentos.WindowsType:
-		s.Env().VM.Execute("if (Test-Path C:\\logs\\hello-world.log) { Remove-Item -Path C:\\logs\\hello-world.log -Force }")
-		s.Env().VM.Execute("if (Test-Path C:\\logs\\hello-world.log.old) { Remove-Item -Path C:\\logs\\hello-world.log.old -Force }")
-		checkCmd = "if (Test-Path C:\\logs\\hello-world.log) { Get-ChildItem -Path C:\\logs\\hello-world.log } elseif (Test-Path C:\\logs\\hello-world.log.old) { Get-ChildItem -Path C:\\logs\\hello-world.log.old } else { Write-Output 'Files do not exist' }"
+		switch osType {
+		default: // default is linux
+			th.Env().VM.Execute("sudo rm -f /var/log/hello-world.log")
+			th.Env().VM.Execute("sudo rm -f /var/log/hello-world.log.old")
+			checkCmd = "ls /var/log/hello-world.log /var/log/hello-world.log.old 2>/dev/null || echo 'Files do not exist'"
+		case componentos.WindowsType:
+			th.Env().VM.Execute("if (Test-Path C:\\logs\\hello-world.log) { Remove-Item -Path C:\\logs\\hello-world.log -Force }")
+			th.Env().VM.Execute("if (Test-Path C:\\logs\\hello-world.log.old) { Remove-Item -Path C:\\logs\\hello-world.log.old -Force }")
+			checkCmd = "if (Test-Path C:\\logs\\hello-world.log) { Get-ChildItem -Path C:\\logs\\hello-world.log } elseif (Test-Path C:\\logs\\hello-world.log.old) { Get-ChildItem -Path C:\\logs\\hello-world.log.old } else { Write-Output 'Files do not exist' }"
+		}
+
+		th.EventuallyWithT(func(c *assert.CollectT) {
+			output, err := th.Env().VM.ExecuteWithError(checkCmd)
+			if assert.NoErrorf(c, err, "Having issue cleaning up log files, retrying... %s", output) {
+				t.Log("Successfully cleaned up log files.")
+			}
+		}, 1*time.Minute, 10*time.Second)
 	}
 
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		output, err := s.Env().VM.ExecuteWithError(checkCmd)
-		if assert.NoErrorf(c, err, "Having issue cleaning up log files, retrying... %s", output) {
-			t.Log("Successfully cleaned up log files.")
-		}
-	}, 1*time.Minute, 10*time.Second)
-	// }
-
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		err := s.Env().Fakeintake.FlushServerAndResetAggregators()
+	th.EventuallyWithT(func(c *assert.CollectT) {
+		err := th.Env().Fakeintake.FlushServerAndResetAggregators()
 		if assert.NoErrorf(c, err, "Having issue flushing server and resetting aggregators, retrying...") {
 			t.Log("Successfully flushed server and reset aggregators.")
 		}
