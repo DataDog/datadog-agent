@@ -1444,7 +1444,7 @@ func (s *sideScanner) sendSBOM(entity *sbommodel.SBOMEntity) error {
 	sourceAgent := "agentless-scanner"
 	envVarEnv := pkgconfig.Datadog.GetString("env")
 
-	entity.DdTags = append(entity.DdTags, "sidescanner_host", s.hostname)
+	entity.DdTags = append(entity.DdTags, "agentless_scanner_host", s.hostname)
 
 	rawEvent, err := proto.Marshal(&sbommodel.SBOMPayload{
 		Version:  1,
