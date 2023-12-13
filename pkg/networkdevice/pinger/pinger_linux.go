@@ -9,20 +9,18 @@ import (
 )
 
 type LinuxPinger struct {
-	useRawSocket bool
-	cfg          Config
+	cfg Config
 }
 
-func NewPinger(useRawSocket bool, cfg Config) Pinger {
+func NewPinger(cfg Config) (Pinger, error) {
 	return &LinuxPinger{
-		useRawSocket: useRawSocket,
-		cfg:          cfg,
-	}
+		cfg: cfg,
+	}, nil
 }
 
 func (p *LinuxPinger) Ping(host string) (*probing.Statistics, error) {
-	if !p.useRawSocket {
-		return RunPing(&p.cfg, host, false)
+	if !p.cfg.useRawSocket {
+		return RunPing(&p.cfg, host)
 	}
 
 	tu, err := net.GetRemoteSystemProbeUtil("/opt/datadog-agent/run/sysprobe.sock") // TODO: read the system probe config here, get the default going

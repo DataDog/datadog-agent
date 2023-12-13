@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/pinger"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
@@ -60,6 +61,16 @@ const deviceIPTagKey = "snmp_device"
 // - snmp-net uses 10
 const DefaultBulkMaxRepetitions = uint32(10)
 
+// DefaultPingCount is the default number of pings to send per check run
+const DefaultPingCount int = 1
+
+// DefaultPingTimeout is the default timeout for all pings to return in a
+// check run
+const DefaultPingTimeout = 3 * time.Second
+
+// DefaultPingInterval is the default time to wait between sending ping packets
+const DefaultPingInterval = 1 * time.Second
+
 var uptimeMetricConfig = profiledefinition.MetricsConfig{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}}
 
 // DeviceDigest is the digest of a minimal config used for autodiscovery
@@ -76,6 +87,7 @@ type InitConfig struct {
 	UseDeviceIDAsHostname        Boolean                           `yaml:"use_device_id_as_hostname"`
 	MinCollectionInterval        int                               `yaml:"min_collection_interval"`
 	Namespace                    string                            `yaml:"namespace"`
+	PingConfig                   PingConfig                        `yaml:"ping"`
 	DetectMetricsEnabled         Boolean                           `yaml:"experimental_detect_metrics_enabled"`
 	DetectMetricsRefreshInterval int                               `yaml:"experimental_detect_metrics_refresh_interval"`
 }
@@ -102,6 +114,7 @@ type InstanceConfig struct {
 	CollectDeviceMetadata *Boolean                            `yaml:"collect_device_metadata"`
 	CollectTopology       *Boolean                            `yaml:"collect_topology"`
 	UseDeviceIDAsHostname *Boolean                            `yaml:"use_device_id_as_hostname"`
+	PingConfig            PingConfig                          `yaml:"ping"`
 
 	// ExtraTags is a workaround to pass tags from snmp listener to snmp integration via AD template
 	// (see cmd/agent/dist/conf.d/snmp.d/auto_conf.yaml) that only works with strings.
@@ -140,6 +153,26 @@ type InstanceConfig struct {
 	// `interface_configs` option is not supported by SNMP corecheck autodiscovery (`network_address`)
 	// it's only supported for single device instance (`ip_address`)
 	InterfaceConfigs InterfaceConfigs `yaml:"interface_configs"`
+}
+
+type PingConfig struct {
+	Linux struct {
+		UseRawSocket *Boolean `yaml:"use_raw_socket"`
+	} `yaml:"linux"`
+	Enabled  *Boolean `yaml:"enabled"`
+	Interval *Number  `yaml:"interval"`
+	Timeout  *Number  `yaml:"timeout"`
+	Count    *Number  `yaml:"count"`
+}
+
+type ParsedPingConfig struct {
+	Linux struct {
+		UseRawSocket bool
+	}
+	Enabled  bool
+	Interval time.Duration
+	Timeout  time.Duration
+	Count    int
 }
 
 // CheckConfig holds config needed for an integration instance to run
@@ -195,6 +228,9 @@ type CheckConfig struct {
 	IgnoredIPAddresses       map[string]bool
 	DiscoveryAllowedFailures int
 	InterfaceConfigs         []snmpintegration.InterfaceConfig
+
+	PingEnabled bool
+	PingConfig  pinger.Config
 }
 
 // SetProfile refreshes config based on profile
@@ -538,6 +574,43 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		c.RebuildMetadataMetricsAndTags()
 	}
 
+	// Ping configuration
+	if initConfig.PingConfig.Enabled != nil {
+		c.PingEnabled = bool(*initConfig.PingConfig.Enabled)
+	} else if instance.PingConfig.Enabled != nil {
+		c.PingEnabled = bool(*instance.PingConfig.Enabled)
+	}
+
+	if initConfig.PingConfig.Interval != nil {
+		c.PingConfig.Interval = time.Duration(*initConfig.PingConfig.Interval) * time.Millisecond
+	} else if instance.PingConfig.Interval != nil {
+		c.PingConfig.Interval = time.Duration(*instance.PingConfig.Interval) * time.Millisecond
+	} else {
+		c.PingConfig.Interval = DefaultPingInterval
+	}
+
+	if initConfig.PingConfig.Timeout != nil {
+		c.PingConfig.Timeout = time.Duration(*initConfig.PingConfig.Timeout) * time.Millisecond
+	} else if instance.PingConfig.Interval != nil {
+		c.PingConfig.Timeout = time.Duration(*instance.PingConfig.Timeout) * time.Millisecond
+	} else {
+		c.PingConfig.Timeout = DefaultPingTimeout
+	}
+
+	if initConfig.PingConfig.Count != nil {
+		c.PingConfig.Count = int(*initConfig.PingConfig.Count)
+	} else if instance.PingConfig.Count != nil {
+		c.PingConfig.Count = int(*instance.PingConfig.Count)
+	} else {
+		c.PingConfig.Count = DefaultPingCount
+	}
+
+	if initConfig.PingConfig.Linux.UseRawSocket != nil {
+		c.PingConfig.UseRawSocket = bool(*initConfig.PingConfig.Linux.UseRawSocket)
+	} else if instance.PingConfig.Linux.UseRawSocket != nil {
+		c.PingConfig.UseRawSocket = bool(*instance.PingConfig.Linux.UseRawSocket)
+	}
+
 	c.UpdateDeviceIDAndTags()
 
 	c.ResolvedSubnetName = c.getResolvedSubnetName()
@@ -647,6 +720,12 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.DetectMetricsRefreshInterval = c.DetectMetricsRefreshInterval
 	newConfig.MinCollectionInterval = c.MinCollectionInterval
 	newConfig.InterfaceConfigs = c.InterfaceConfigs
+
+	newConfig.PingEnabled = c.PingEnabled
+	newConfig.PingConfig.Interval = c.PingConfig.Interval
+	newConfig.PingConfig.Timeout = c.PingConfig.Timeout
+	newConfig.PingConfig.Count = c.PingConfig.Count
+	newConfig.PingConfig.UseRawSocket = c.PingConfig.UseRawSocket
 
 	return &newConfig
 }

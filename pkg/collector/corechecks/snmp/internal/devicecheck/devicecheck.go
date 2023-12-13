@@ -8,11 +8,11 @@ package devicecheck
 import (
 	"errors"
 	"fmt"
+	"runtime"
 	"strings"
 	"time"
 
 	"github.com/cihub/seelog"
-	probing "github.com/prometheus-community/pro-bing"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -44,6 +44,8 @@ const (
 	serviceCheckName        = "snmp.can_check"
 	deviceReachableMetric   = "snmp.device.reachable"
 	deviceUnreachableMetric = "snmp.device.unreachable"
+	pingCanConnectMetric    = "ndm.ping" //TODO:(ken) What is the right name/prefix here?
+	pingAvgRttMetric        = "ndm.avgRtt"
 	deviceHostnamePrefix    = "device:"
 	checkDurationThreshold  = 30 // Thirty seconds
 )
@@ -117,24 +119,6 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	var checkErr error
 	var deviceStatus metadata.DeviceStatus
 
-	// Get a system appropriate ping check
-	log.Infof("ATTEMPTING TO RUN PING FOR HOST: %s", d.config.IPAddress)
-	pingStats, err := d.GetPing()
-	if err != nil {
-		log.Errorf("%s: failed to ping device: %s", d.config.IPAddress, err.Error())
-	} else {
-		log.Infof("%s: ping returned: %+v", d.config.IPAddress, pingStats)
-	}
-
-	// Run ping binary
-	log.Infof("ATTEMPTING BINARY BASED PING FOR HOST: %s", d.config.IPAddress)
-	binaryStats, err := pinger.CallSystemPing(d.config.IPAddress, 5)
-	if err != nil {
-		log.Errorf("%s: failed to use ping binary for device: %s", d.config.IPAddress, err)
-	} else {
-		log.Infof("%s: ping binary returned: %+v", d.config.IPAddress, binaryStats)
-	}
-
 	deviceReachable, dynamicTags, values, checkErr := d.getValuesAndTags()
 	tags := common.CopyStrings(staticTags)
 	if checkErr != nil {
@@ -150,6 +134,19 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 
 	if values != nil {
 		d.sender.ReportMetrics(d.config.Metrics, values, tags)
+	}
+
+	// Get a system appropriate ping check
+	if d.config.PingEnabled {
+		log.Infof("ATTEMPTING TO RUN PING FOR HOST: %s, tags: %+v", d.config.IPAddress, tags)
+		pingResult, err := d.Ping(d.config.PingConfig)
+		if err != nil {
+			log.Errorf("%s: failed to ping device: %s", d.config.IPAddress, err.Error())
+		} else {
+			log.Infof("%s: ping returned: %+v", d.config.IPAddress, pingResult)
+			d.sender.Gauge(pingAvgRttMetric, float64(pingResult.AvgLatency/time.Millisecond), tags)
+		}
+		d.sender.Gauge(pingCanConnectMetric, common.BoolToFloat64(pingResult.CanConnect), tags)
 	}
 
 	if d.config.CollectDeviceMetadata {
@@ -368,8 +365,17 @@ func (d *DeviceCheck) GetDiagnoses() []diagnosis.Diagnosis {
 	return d.diagnoses.ReportAsAgentDiagnoses()
 }
 
-// GetPing collects ping information for a device
-func (d *DeviceCheck) GetPing() (*probing.Statistics, error) {
-	pinger := pinger.NewPinger()
-	return pinger.Ping(d.config.IPAddress)
+// Ping collects ping information for a device
+func (d *DeviceCheck) Ping(cfg pinger.Config) (*pinger.Result, error) {
+	// if OS is Windows or Mac, we should override UseRawSocket
+	if runtime.GOOS == "windows" {
+		cfg.UseRawSocket = true
+	} else if runtime.GOOS == "darwin" {
+		cfg.UseRawSocket = false
+	}
+	p, err := pinger.NewPinger(cfg)
+	if err != nil {
+		return &pinger.Result{}, err
+	}
+	return p.Ping(d.config.IPAddress)
 }

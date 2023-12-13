@@ -2,18 +2,19 @@
 
 package pinger
 
-import probing "github.com/prometheus-community/pro-bing"
-
 type MacPinger struct {
 	cfg Config
 }
 
-func NewPinger(cfg Config) Pinger {
+func NewPinger(cfg Config) (Pinger, error) {
+	if cfg.UseRawSocket {
+		return nil, ErrRawSocketUnsupported
+	}
 	return &MacPinger{
 		cfg: cfg,
-	}
+	}, nil
 }
 
-func (p *MacPinger) Ping(host string) (*probing.Statistics, error) {
-	return RunPing(&p.cfg, host, false)
+func (p *MacPinger) Ping(host string) (*Result, error) {
+	return RunPing(&p.cfg, host)
 }

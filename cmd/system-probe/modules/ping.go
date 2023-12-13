@@ -45,10 +45,12 @@ func (p *pinger) Register(httpMux *module.Router) error {
 
 		// TODO:(ken) read in config from system probe config and/or regular config
 		// read it in once to the pinger struct, pass it down here
-		cfg := pingcheck.Config{}
+		cfg := pingcheck.Config{
+			UseRawSocket: true,
+		}
 
-		// Run privileged ping from system-probe
-		stats, err := pingcheck.RunPing(&cfg, host, true)
+		// Run ping using raw socket
+		stats, err := pingcheck.RunPing(&cfg, host)
 		if err != nil {
 			log.Errorf("unable to run ping for host %s: %s", host, err)
 			w.WriteHeader(500)
