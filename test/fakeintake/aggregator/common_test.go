@@ -127,11 +127,34 @@ func TestCommonAggregator(t *testing.T) {
 	})
 
 	t.Run("Reset", func(t *testing.T) {
-		_, err := generateTestData()
+		data, err := generateTestData()
 		require.NoError(t, err)
 		agg := newAggregator(parseMockPayloadItem)
+		err = agg.UnmarshallPayloads(data)
+		require.NoError(t, err)
+		assert.NotEmpty(t, agg.payloadsByName)
 		agg.Reset()
-		assert.Equal(t, 0, len(agg.payloadsByName))
-		validateCollectionTime(t, &agg)
+		assert.Empty(t, agg.payloadsByName)
+	})
+
+	t.Run("Thread safe", func(t *testing.T) {
+		data, err := generateTestData()
+		require.NoError(t, err)
+		agg := newAggregator(parseMockPayloadItem)
+		// add some data to ensure we have names
+		err = agg.UnmarshallPayloads(data)
+		assert.NoError(t, err)
+		go func() {
+			for i := 0; i < 100; i++ {
+				err := agg.UnmarshallPayloads(data)
+				assert.NoError(t, err)
+			}
+		}()
+		go func() {
+			for i := 0; i < 100; i++ {
+				names := agg.GetNames()
+				assert.NotEmpty(t, names)
+			}
+		}()
 	})
 }
