@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.opentelemetry.io/collector/exporter/exportertest"
 	"go.opentelemetry.io/collector/pdata/pmetric"
-	"go.uber.org/zap"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -190,10 +190,11 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 				tt.setConfig(t)
 			}
 			rec := &metricRecorder{}
-			exp, err := newExporter(
-				zap.NewNop(),
-				rec,
-				NewFactory(rec).CreateDefaultConfig().(*exporterConfig),
+			f := NewFactory(rec)
+			exp, err := f.CreateMetricsExporter(
+				context.Background(),
+				exportertest.NewNopCreateSettings(),
+				f.CreateDefaultConfig(),
 			)
 			if err != nil {
 				t.Errorf("newExporter() returns unexpected error: %v", err)
