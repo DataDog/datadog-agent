@@ -504,7 +504,12 @@ func parseRolesMapping(roles []string) rolesMapping {
 	for _, role := range roles {
 		roleARN, err := parseARN(role)
 		if err != nil {
-			log.Warnf("side_scanner.default_roles: bad role %q: %v", role, err)
+			log.Warnf("role-mapping: bad role %q: %v", role, err)
+			continue
+		}
+		resourceType, _, _ := getARNResource(roleARN)
+		if resourceType != resourceTypeRole {
+			log.Warnf("role-mapping: bad role %q: expecting a resource type `role`", role)
 			continue
 		}
 		rolesMapping[roleARN.AccountID] = &roleARN
