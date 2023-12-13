@@ -20,12 +20,10 @@ import (
 
 type DockerSuite struct {
 	baseSuite
-	stackName string
 }
 
 func TestDockerSuite(t *testing.T) {
-	stackName := "docker-stack"
-	suite.Run(t, &DockerSuite{stackName: stackName})
+	suite.Run(t, &DockerSuite{})
 }
 
 func (suite *DockerSuite) SetupSuite() {
@@ -36,11 +34,8 @@ func (suite *DockerSuite) SetupSuite() {
 		"ddagent:fakeintake": auto.ConfigValue{Value: "true"},
 	}
 
-	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(ctx, suite.stackName, stackConfig, dockervm.Run, false)
-
-	if !suite.Assert().NoError(err) {
-		suite.FailNow(ctx)
-	}
+	_, stackOutput, err := infra.GetStackManager().GetStack(ctx, "docker-stack", stackConfig, dockervm.Run, false)
+	suite.Require().NoError(err)
 
 	fakeintakeHost := stackOutput.Outputs["fakeintake-host"].Value.(string)
 	suite.Fakeintake = fakeintake.NewClient(fmt.Sprintf("http://%s", fakeintakeHost))
@@ -49,15 +44,6 @@ func (suite *DockerSuite) SetupSuite() {
 	suite.clusterName = fmt.Sprintf("%s-%v", os.Getenv("USER"), vmConnection["host"])
 
 	suite.baseSuite.SetupSuite()
-}
-
-func (suite *DockerSuite) FailNow(ctx context.Context) {
-	_, err := infra.GetStackManager().GetPulumiStackName(suite.stackName)
-	suite.Require().NoError(err)
-	if !runner.GetProfile().AllowDevMode() || !*keepStacks {
-		infra.GetStackManager().DeleteStack(ctx, suite.stackName)
-	}
-	suite.T().FailNow()
 }
 
 func (suite *DockerSuite) TestDSDWithUDS() {
