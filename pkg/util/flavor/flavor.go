@@ -27,8 +27,8 @@ const (
 	ProcessAgent = "process_agent"
 	// TraceAgent is the Trace Agent flavor
 	TraceAgent = "trace_agent"
-	// SideScannerAgent is the Side Scanner Agent flavor
-	SideScannerAgent = "side_scanner_agent"
+	// AgentlessScanner is the Agentless Scanner
+	AgentlessScanner = "agentless_scanner"
 )
 
 var agentFlavors = map[string]string{

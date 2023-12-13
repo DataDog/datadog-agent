@@ -29,7 +29,7 @@ from . import (
     release,
     rtloader,
     security_agent,
-    side_scanner,
+    agentless_scanner,
     selinux,
     system_probe,
     systray,
@@ -152,7 +152,7 @@ ns.add_collection(system_probe)
 ns.add_collection(process_agent)
 ns.add_collection(security_agent)
 ns.add_collection(cws_instrumentation)
-ns.add_collection(side_scanner)
+ns.add_collection(agentless_scanner)
 ns.add_collection(vscode)
 ns.add_collection(new_e2e_tests)
 ns.add_collection(fakeintake)
