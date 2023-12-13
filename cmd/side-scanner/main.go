@@ -85,6 +85,8 @@ const (
 	defaultEBSListBlockRate = 20.0
 	defaultEBSGetBlockRate  = 400.0
 
+	defaultSelfRegion = "us-east-1"
+
 	snapshotDuration = 24 * time.Hour
 )
 
@@ -559,7 +561,7 @@ func offlineCmd(poolSize int, regions []string, maxScans int) error {
 	}
 	imdsclient := imds.NewFromConfig(defaultCfg)
 	regionOutput, err := imdsclient.GetRegion(ctx, &imds.GetRegionInput{})
-	selfRegion := "us-east-1"
+	selfRegion := defaultSelfRegion
 	if err != nil {
 		log.Errorf("could not retrieve region from ec2 instance - using default %q: %v", selfRegion, err)
 	} else {
@@ -768,7 +770,7 @@ func (s *sideScanner) cleanup(ctx context.Context, delay time.Duration) error {
 	// Retrieve instance’s region.
 	imdsclient := imds.NewFromConfig(defaultCfg)
 	regionOutput, err := imdsclient.GetRegion(ctx, &imds.GetRegionInput{})
-	selfRegion := "us-east-1"
+	selfRegion := defaultSelfRegion
 	if err != nil {
 		log.Errorf("could not retrieve region from ec2 instance - using default %q: %v", selfRegion, err)
 	} else {
@@ -837,7 +839,7 @@ func downloadSnapshot(ctx context.Context, w io.Writer, snapshotARN arn.ARN) err
 	// Retrieve instance’s region.
 	imdsclient := imds.NewFromConfig(defaultCfg)
 	regionOutput, err := imdsclient.GetRegion(ctx, &imds.GetRegionInput{})
-	selfRegion := "us-east-1"
+	selfRegion := defaultSelfRegion
 	if err != nil {
 		log.Errorf("could not retrieve region from ec2 instance - using default %q: %v", selfRegion, err)
 	} else {
