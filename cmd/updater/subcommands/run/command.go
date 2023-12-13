@@ -15,7 +15,7 @@ import (
 )
 
 // Commands returns the global params commands
-func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+func Commands(_ *command.GlobalParams) []*cobra.Command {
 	runCmd := &cobra.Command{
 		Use:   "run",
 		Short: "Runs the updater",
