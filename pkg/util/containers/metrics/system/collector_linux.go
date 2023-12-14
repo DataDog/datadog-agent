@@ -152,7 +152,7 @@ func newSystemCollector(cache *provider.Cache) (provider.CollectorMetadata, erro
 
 	// Finally add to catalog
 	for _, runtime := range provider.AllLinuxRuntimes {
-		metadata.Collectors[runtime] = collectors
+		metadata.Collectors[provider.NewRuntimeMetadata(string(runtime), "")] = collectors
 	}
 
 	return metadata, nil

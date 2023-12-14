@@ -17,20 +17,20 @@ import (
 
 // MetricsProvider can be used to create tests
 type MetricsProvider struct {
-	collectors    map[provider.Runtime]provider.Collector
+	collectors    map[provider.RuntimeMetadata]provider.Collector
 	metaCollector provider.MetaCollector
 }
 
 // NewMetricsProvider creates a mock provider
 func NewMetricsProvider() *MetricsProvider {
 	return &MetricsProvider{
-		collectors: make(map[provider.Runtime]provider.Collector),
+		collectors: make(map[provider.RuntimeMetadata]provider.Collector),
 	}
 }
 
 // GetCollector emulates the MetricsProvider interface
-func (mp *MetricsProvider) GetCollector(runtime string) provider.Collector {
-	return mp.collectors[provider.Runtime(runtime)]
+func (mp *MetricsProvider) GetCollector(r provider.RuntimeMetadata) provider.Collector {
+	return mp.collectors[r]
 }
 
 // GetMetaCollector returns the registered MetaCollector
@@ -43,7 +43,7 @@ func (mp *MetricsProvider) RegisterCollector(provider.CollectorFactory) {
 }
 
 // RegisterConcreteCollector registers a collector
-func (mp *MetricsProvider) RegisterConcreteCollector(runtime provider.Runtime, c provider.Collector) {
+func (mp *MetricsProvider) RegisterConcreteCollector(runtime provider.RuntimeMetadata, c provider.Collector) {
 	mp.collectors[runtime] = c
 }
 
@@ -53,13 +53,13 @@ func (mp *MetricsProvider) RegisterMetaCollector(c provider.MetaCollector) {
 }
 
 // RemoveCollector removes a collector
-func (mp *MetricsProvider) RemoveCollector(runtime provider.Runtime) {
+func (mp *MetricsProvider) RemoveCollector(runtime provider.RuntimeMetadata) {
 	delete(mp.collectors, runtime)
 }
 
 // Clear removes all collectors
 func (mp *MetricsProvider) Clear() {
-	mp.collectors = make(map[provider.Runtime]provider.Collector)
+	mp.collectors = make(map[provider.RuntimeMetadata]provider.Collector)
 }
 
 // ContainerEntry allows to customize mock responses
