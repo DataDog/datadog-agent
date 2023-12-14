@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 
-	pointer "github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 // StatusCodeContainer is a lock around the status code to return
