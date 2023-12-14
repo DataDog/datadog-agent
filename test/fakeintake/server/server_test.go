@@ -439,6 +439,34 @@ func TestServer(t *testing.T) {
 		defer fi.Stop()
 
 		body := api.ResponseOverride{
+			Method:      http.MethodGet,
+			Endpoint:    "/totoro",
+			StatusCode:  200,
+			ContentType: "text/plain",
+			Body:        []byte("catbus"),
+		}
+		data := new(bytes.Buffer)
+		err := json.NewEncoder(data).Encode(body)
+		require.NoError(t, err, "Error encoding request body")
+		response, err := http.Post(fi.URL()+"/fakeintake/configure/override", "application/json", data)
+		require.NoError(t, err, "Error creating POST request")
+		defer response.Body.Close()
+
+		response, err = http.Get(fi.URL() + "/totoro")
+		require.NoError(t, err, "Error on POST request")
+		defer response.Body.Close()
+		assert.Equal(t, http.StatusOK, response.StatusCode)
+		assert.Equal(t, "text/plain", response.Header.Get("Content-Type"))
+		responseBody, err := io.ReadAll(response.Body)
+		require.NoError(t, err, "Error reading response body")
+		assert.Equal(t, "catbus", string(responseBody))
+	})
+
+	t.Run("should respond with overridden response for matching endpoint", func(t *testing.T) {
+		fi, _ := InitialiseForTests(t)
+		defer fi.Stop()
+
+		body := api.ResponseOverride{
 			Method:      http.MethodPost,
 			Endpoint:    "/totoro",
 			StatusCode:  200,

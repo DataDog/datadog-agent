@@ -269,42 +269,41 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 
 	log.Printf("Handling Datadog %s request to %s, header %v", req.Method, req.URL.Path, req.Header)
 
-	if req.Method == http.MethodGet {
-		writeHTTPResponse(w, httpResponse{
-			statusCode: http.StatusOK,
-		})
-		return
+	switch req.Method {
+	case http.MethodPost:
+		err := fi.handleDatadogPostRequest(w, req)
+		if err == nil {
+			return
+		}
+	case http.MethodGet:
+		fallthrough
+	case http.MethodHead:
+		fallthrough
+	default:
+		if response, ok := fi.getResponseFromURLPath(req.Method, req.URL.Path); ok {
+			writeHTTPResponse(w, response)
+			return
+		}
 	}
 
-	// Datadog Agent sends a HEAD request to avoid redirect issue before sending the actual flare
-	if req.Method == http.MethodHead && req.URL.Path == "/support/flare" {
-		writeHTTPResponse(w, httpResponse{
-			statusCode: http.StatusOK,
-		})
-		return
-	}
+	response := buildErrorResponse(fmt.Errorf("invalid request with route %s and method %s", req.URL.Path, req.Method))
+	writeHTTPResponse(w, response)
+}
 
-	// from now on accept only POST requests
-	if req.Method != http.MethodPost {
-		response := buildErrorResponse(fmt.Errorf("invalid request with route %s and method %s", req.URL.Path, req.Method))
-		writeHTTPResponse(w, response)
-		return
-	}
-
+func (fi *Server) handleDatadogPostRequest(w http.ResponseWriter, req *http.Request) error {
 	if req.Body == nil {
 		response := buildErrorResponse(errors.New("invalid request, nil body"))
 		writeHTTPResponse(w, response)
-		return
+		return nil
 	}
 	payload, err := io.ReadAll(req.Body)
 	if err != nil {
 		log.Printf("Error reading body: %v", err.Error())
 		response := buildErrorResponse(err)
 		writeHTTPResponse(w, response)
-		return
+		return nil
 	}
 
-	// TODO: store all headers directly, and fetch Content-Type/Content-Encoding values when parsing
 	encoding := req.Header.Get("Content-Encoding")
 	if req.URL.Path == "/support/flare" || encoding == "" {
 		encoding = req.Header.Get("Content-Type")
@@ -315,19 +314,15 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 		log.Printf("Error caching payload: %v", err.Error())
 		response := buildErrorResponse(err)
 		writeHTTPResponse(w, response)
-		return
+		return nil
 	}
 
-	response, ok := fi.getResponseFromURLPath(http.MethodPost, req.URL.Path)
-	if ok {
+	if response, ok := fi.getResponseFromURLPath(http.MethodPost, req.URL.Path); ok {
 		writeHTTPResponse(w, response)
-		return
+		return nil
 	}
 
-	err = fmt.Errorf("error handling request on URL %s and method %s", req.URL.Path, req.Method)
-	log.Printf("Error: %v", err)
-	response = buildErrorResponse(err)
-	writeHTTPResponse(w, response)
+	return fmt.Errorf("no POST response found for path %s", req.URL.Path)
 }
 
 func (fi *Server) handleFlushPayloads(w http.ResponseWriter, _ *http.Request) {
@@ -401,8 +396,7 @@ func (fi *Server) handleFakeHealth(w http.ResponseWriter, _ *http.Request) {
 	})
 }
 
-//nolint:revive // TODO(APL) Fix revive linter
-func (fi *Server) handleGetRouteStats(w http.ResponseWriter, req *http.Request) {
+func (fi *Server) handleGetRouteStats(w http.ResponseWriter, _ *http.Request) {
 	log.Print("Handling getRouteStats request")
 	routes := fi.store.GetRouteStats()
 	// build response
