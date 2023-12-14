@@ -12,6 +12,7 @@ import (
 	"bytes"
 	_ "embed"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -127,14 +128,26 @@ func TestServer(t *testing.T) {
 		fi, clock := InitialiseForTests(t)
 		defer fi.Stop()
 
-		postSomeFakePayloads(t, fi)
+		PostSomeFakePayloads(t, fi.URL(), []TestTextPayload{
+			{
+				Endpoint: "/totoro",
+				Data:     "totoro|7|tag:valid,owner:pducolin",
+			},
+			{
+				Endpoint: "/totoro",
+				Data:     "totoro|5|tag:valid,owner:kiki",
+			},
+			{
+				Endpoint: "/kiki",
+				Data:     "I am just a poor raw log",
+			},
+		})
 
-		request, err := http.NewRequest(http.MethodGet, "/fakeintake/payloads?endpoint=/totoro", nil)
-		assert.NoError(t, err, "Error creating GET request")
-		getResponse := httptest.NewRecorder()
-		fi.handleGetPayloads(getResponse, request)
-		assert.Equal(t, http.StatusOK, getResponse.Code)
-		assert.Equal(t, "application/json", getResponse.Header().Get("Content-Type"))
+		getResponse, err := http.Get(fi.URL() + "/fakeintake/payloads?endpoint=/totoro")
+		require.NoError(t, err, "Error on GET request")
+		defer getResponse.Body.Close()
+		assert.Equal(t, http.StatusOK, getResponse.StatusCode, "unexpected code")
+		assert.Equal(t, "application/json", getResponse.Header.Get("Content-Type"))
 		actualGETResponse := api.APIFakeIntakePayloadsRawGETResponse{}
 		body, err := io.ReadAll(getResponse.Body)
 		assert.NoError(t, err, "Error reading GET response")
@@ -144,12 +157,12 @@ func TestServer(t *testing.T) {
 			Payloads: []api.Payload{
 				{
 					Timestamp: clock.Now().UTC(),
-					Encoding:  "",
+					Encoding:  "text/plain",
 					Data:      []byte("totoro|7|tag:valid,owner:pducolin"),
 				},
 				{
 					Timestamp: clock.Now().UTC(),
-					Encoding:  "",
+					Encoding:  "text/plain",
 					Data:      []byte("totoro|5|tag:valid,owner:kiki"),
 				},
 			},
@@ -161,15 +174,13 @@ func TestServer(t *testing.T) {
 		fi, clock := InitialiseForTests(t)
 		defer fi.Stop()
 
-		postSomeRealisticPayloads(t, fi)
+		PostSomeRealisticLogs(t, fi.URL())
 
-		request, err := http.NewRequest(http.MethodGet, "/fakeintake/payloads?endpoint=/api/v2/logs&format=json", nil)
-		assert.NoError(t, err, "Error creating GET request")
-		getResponse := httptest.NewRecorder()
+		response, err := http.Get(fi.URL() + "/fakeintake/payloads?endpoint=/api/v2/logs&format=json")
+		require.NoError(t, err, "Error creating GET request")
+		defer response.Body.Close()
 
-		fi.handleGetPayloads(getResponse, request)
-
-		assert.Equal(t, http.StatusOK, getResponse.Code)
+		assert.Equal(t, http.StatusOK, response.StatusCode, "unexpected code")
 		expectedGETResponse := api.APIFakeIntakePayloadsJsonGETResponse{
 			Payloads: []api.ParsedPayload{
 				{
@@ -187,26 +198,36 @@ func TestServer(t *testing.T) {
 			},
 		}
 		actualGETResponse := api.APIFakeIntakePayloadsJsonGETResponse{}
-		body, err := io.ReadAll(getResponse.Body)
+		body, err := io.ReadAll(response.Body)
 		assert.NoError(t, err, "Error reading GET response")
 		json.Unmarshal(body, &actualGETResponse)
 		assert.Equal(t, expectedGETResponse, actualGETResponse, "unexpected GET response")
-
 	})
 
 	t.Run("should store multiple payloads on any route and return the list of routes", func(t *testing.T) {
 		fi, _ := InitialiseForTests(t)
 		defer fi.Stop()
 
-		postSomeFakePayloads(t, fi)
+		PostSomeFakePayloads(t, fi.URL(), []TestTextPayload{
+			{
+				Endpoint: "/totoro",
+				Data:     "totoro|7|tag:valid,owner:pducolin",
+			},
+			{
+				Endpoint: "/totoro",
+				Data:     "totoro|5|tag:valid,owner:kiki",
+			},
+			{
+				Endpoint: "/kiki",
+				Data:     "I am just a poor raw log",
+			},
+		})
 
-		request, err := http.NewRequest(http.MethodGet, "/fakeintake/routestats", nil)
-		assert.NoError(t, err, "Error creating GET request")
-		getResponse := httptest.NewRecorder()
+		response, err := http.Get(fi.URL() + "/fakeintake/routestats")
+		require.NoError(t, err, "Error on GET request")
+		defer response.Body.Close()
 
-		fi.handleGetRouteStats(getResponse, request)
-
-		assert.Equal(t, http.StatusOK, getResponse.Code)
+		assert.Equal(t, http.StatusOK, response.StatusCode, "unexpected code")
 
 		expectedGETResponse := api.APIFakeIntakeRouteStatsGETResponse{
 			Routes: map[string]api.RouteStat{
@@ -221,7 +242,7 @@ func TestServer(t *testing.T) {
 			},
 		}
 		actualGETResponse := api.APIFakeIntakeRouteStatsGETResponse{}
-		body, err := io.ReadAll(getResponse.Body)
+		body, err := io.ReadAll(response.Body)
 		assert.NoError(t, err, "Error reading GET response")
 		json.Unmarshal(body, &actualGETResponse)
 
@@ -232,113 +253,129 @@ func TestServer(t *testing.T) {
 		fi, _ := InitialiseForTests(t)
 		defer fi.Stop()
 
-		postSomeFakePayloads(t, fi)
-
-		request, err := http.NewRequest(http.MethodDelete, "/fakeintake/flushPayloads", nil)
-		assert.NoError(t, err, "Error creating flush request")
-		response := httptest.NewRecorder()
-
-		fi.handleFlushPayloads(response, request)
-		assert.Equal(t, http.StatusOK, response.Code, "unexpected code")
+		httpClient := http.Client{}
+		request, err := http.NewRequest(http.MethodDelete, fi.URL()+"/fakeintake/flushPayloads", nil)
+		require.NoError(t, err, "Error creating flush request")
+		response, err := httpClient.Do(request)
+		require.NoError(t, err, "Error on flush request")
+		assert.Equal(t, http.StatusOK, response.StatusCode, "unexpected code")
 	})
 
 	t.Run("should clean payloads older than 15 minutes", func(t *testing.T) {
 		fi, clock := InitialiseForTests(t)
 		defer fi.Stop()
 
-		postSomeFakePayloads(t, fi)
-
-		request, err := http.NewRequest(http.MethodGet, "/fakeintake/payloads?endpoint=/totoro", nil)
-		assert.NoError(t, err, "Error creating GET request")
+		PostSomeFakePayloads(t, fi.URL(), []TestTextPayload{
+			{
+				Endpoint: "/totoro",
+				Data:     "totoro|7|tag:valid,owner:pducolin",
+			},
+			{
+				Endpoint: "/totoro",
+				Data:     "totoro|5|tag:valid,owner:kiki",
+			},
+			{
+				Endpoint: "/kiki",
+				Data:     "I am just a poor raw log",
+			},
+		})
 
 		clock.Add(10 * time.Minute)
 
-		response10Min := httptest.NewRecorder()
+		response10Min, err := http.Get(fi.URL() + "/fakeintake/payloads?endpoint=/totoro")
+		require.NoError(t, err, "Error on GET request")
+		defer response10Min.Body.Close()
+
 		var getResponse10Min api.APIFakeIntakePayloadsRawGETResponse
-
-		fi.handleGetPayloads(response10Min, request)
 		json.NewDecoder(response10Min.Body).Decode(&getResponse10Min)
-
 		assert.Len(t, getResponse10Min.Payloads, 2, "should contain two elements before cleanup %+v", getResponse10Min)
 
 		clock.Add(10 * time.Minute)
 
-		response20Min := httptest.NewRecorder()
+		response20Min, err := http.Get(fi.URL() + "/fakeintake/payloads?endpoint=/totoro")
+		require.NoError(t, err, "Error on GET request")
+		defer response20Min.Body.Close()
 		var getResponse20Min api.APIFakeIntakePayloadsRawGETResponse
-
-		fi.handleGetPayloads(response20Min, request)
-		json.NewDecoder(response20Min.Body).Decode(&getResponse10Min)
-
+		json.NewDecoder(response20Min.Body).Decode(&getResponse20Min)
 		assert.Empty(t, getResponse20Min.Payloads, "should be empty after cleanup")
-		fi.Stop()
 	})
 
 	t.Run("should clean payloads older than 15 minutes and keep recent payloads", func(t *testing.T) {
 		fi, clock := InitialiseForTests(t)
 		defer fi.Stop()
 
-		postSomeFakePayloads(t, fi)
-
-		request, err := http.NewRequest(http.MethodGet, "/fakeintake/payloads?endpoint=/totoro", nil)
-		assert.NoError(t, err, "Error creating GET request")
+		PostSomeFakePayloads(t, fi.URL(), []TestTextPayload{
+			{
+				Endpoint: "/totoro",
+				Data:     "totoro|7|tag:valid,owner:pducolin",
+			},
+			{
+				Endpoint: "/totoro",
+				Data:     "totoro|5|tag:valid,owner:kiki",
+			},
+			{
+				Endpoint: "/kiki",
+				Data:     "I am just a poor raw log",
+			},
+		})
 
 		clock.Add(10 * time.Minute)
 
-		postSomeFakePayloads(t, fi)
+		PostSomeFakePayloads(t, fi.URL(), []TestTextPayload{
+			{
+				Endpoint: "/totoro",
+				Data:     "totoro|7|tag:valid,owner:ponyo",
+			},
+			{
+				Endpoint: "/totoro",
+				Data:     "totoro|5|tag:valid,owner:mei",
+			},
+		})
 
-		response10Min := httptest.NewRecorder()
+		response10Min, err := http.Get(fi.URL() + "/fakeintake/payloads?endpoint=/totoro")
+		require.NoError(t, err, "Error on GET request")
+		defer response10Min.Body.Close()
 		var getResponse10Min api.APIFakeIntakePayloadsRawGETResponse
-
-		fi.handleGetPayloads(response10Min, request)
 		json.NewDecoder(response10Min.Body).Decode(&getResponse10Min)
-
 		assert.Len(t, getResponse10Min.Payloads, 4, "should contain 4 elements before cleanup")
 
 		clock.Add(10 * time.Minute)
 
-		response20Min := httptest.NewRecorder()
+		response20Min, err := http.Get(fi.URL() + "/fakeintake/payloads?endpoint=/totoro")
+		require.NoError(t, err, "Error on GET request")
+		defer response20Min.Body.Close()
 		var getResponse20Min api.APIFakeIntakePayloadsRawGETResponse
-
-		fi.handleGetPayloads(response20Min, request)
 		json.NewDecoder(response20Min.Body).Decode(&getResponse20Min)
-
 		assert.Len(t, getResponse20Min.Payloads, 2, "should contain 2 elements after cleanup of only older elements")
 
 		fi.Stop()
 	})
 
-	t.Run("should clean parsed payloads", func(t *testing.T) {
+	t.Run("should clean json parsed payloads", func(t *testing.T) {
 		fi, clock := InitialiseForTests(t)
 		defer fi.Stop()
 
-		request, err := http.NewRequest(http.MethodGet, "/fakeintake/payloads?endpoint=/api/v2/logs&format=json", nil)
-		assert.NoError(t, err, "Error creating GET request")
-
-		postSomeRealisticPayloads(t, fi)
+		PostSomeRealisticLogs(t, fi.URL())
 
 		clock.Add(10 * time.Minute)
 
-		postSomeRealisticPayloads(t, fi)
+		PostSomeRealisticLogs(t, fi.URL())
 
-		response10Min := httptest.NewRecorder()
+		response10Min, err := http.Get(fi.URL() + "/fakeintake/payloads?endpoint=/api/v2/logs&format=json")
+		require.NoError(t, err, "Error on GET request")
+		defer response10Min.Body.Close()
 		var getResponse10Min api.APIFakeIntakePayloadsJsonGETResponse
-
-		fi.handleGetPayloads(response10Min, request)
 		json.NewDecoder(response10Min.Body).Decode(&getResponse10Min)
-
 		assert.Len(t, getResponse10Min.Payloads, 2, "should contain 2 elements before cleanup")
 
 		clock.Add(10 * time.Minute)
 
-		response20Min := httptest.NewRecorder()
+		response20Min, err := http.Get(fi.URL() + "/fakeintake/payloads?endpoint=/api/v2/logs&format=json")
+		require.NoError(t, err, "Error on GET request")
+		defer response20Min.Body.Close()
 		var getResponse20Min api.APIFakeIntakePayloadsJsonGETResponse
-
-		fi.handleGetPayloads(response20Min, request)
 		json.NewDecoder(response20Min.Body).Decode(&getResponse20Min)
-
 		assert.Len(t, getResponse20Min.Payloads, 1, "should contain 1 elements after cleanup of only older elements")
-
-		fi.Stop()
 	})
 
 	t.Run("should respond with custom response to /support/flare", func(t *testing.T) {
@@ -452,30 +489,28 @@ func TestServer(t *testing.T) {
 	})
 }
 
-func postSomeFakePayloads(t *testing.T, fi *Server) {
-	request, err := http.NewRequest(http.MethodPost, "/totoro", strings.NewReader("totoro|7|tag:valid,owner:pducolin"))
-	require.NoError(t, err, "Error creating POST request")
-	postResponse := httptest.NewRecorder()
-	fi.handleDatadogRequest(postResponse, request)
+type TestTextPayload struct {
+	Endpoint string
+	Data     string
+}
 
-	request, err = http.NewRequest(http.MethodPost, "/totoro", strings.NewReader("totoro|5|tag:valid,owner:kiki"))
-	require.NoError(t, err, "Error creating POST request")
-	postResponse = httptest.NewRecorder()
-	fi.handleDatadogRequest(postResponse, request)
-
-	request, err = http.NewRequest(http.MethodPost, "/kiki", strings.NewReader("I am just a poor raw log"))
-	require.NoError(t, err, "Error creating POST request")
-	postResponse = httptest.NewRecorder()
-	fi.handleDatadogRequest(postResponse, request)
+// PostSomeFakePayloads posts some fake payloads to the given url
+func PostSomeFakePayloads(t *testing.T, url string, payloads []TestTextPayload) {
+	t.Helper()
+	for _, payload := range payloads {
+		url := url + payload.Endpoint
+		response, err := http.Post(url, "text/plain", strings.NewReader(payload.Data))
+		require.NoError(t, err, fmt.Sprintf("Error on POST request to url %s with data: %s", url, payload.Data))
+		defer response.Body.Close()
+	}
 }
 
 //go:embed fixtures/log_bytes
 var logBytes []byte
 
-func postSomeRealisticPayloads(t *testing.T, fi *Server) {
-	request, err := http.NewRequest(http.MethodPost, "/api/v2/logs", bytes.NewBuffer(logBytes))
-	require.NoError(t, err, "Error creating POST request")
-	request.Header.Set("Content-Encoding", "gzip")
-	postResponse := httptest.NewRecorder()
-	fi.handleDatadogRequest(postResponse, request)
+func PostSomeRealisticLogs(t *testing.T, url string) {
+	t.Helper()
+	response, err := http.Post(url+"/api/v2/logs", "gzip", bytes.NewBuffer(logBytes))
+	require.NoError(t, err, "Error on POST request")
+	defer response.Body.Close()
 }
