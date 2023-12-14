@@ -21,9 +21,9 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"sync/atomic"
 
 	"github.com/cihub/seelog"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
