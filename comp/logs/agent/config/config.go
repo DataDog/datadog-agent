@@ -145,7 +145,7 @@ func buildTCPEndpoints(coreConfig pkgConfig.Reader, logsConfig *LogsConfigKeys) 
 		APIKey:                  logsConfig.getLogsAPIKey(),
 		ProxyAddress:            proxyAddress,
 		ConnectionResetInterval: logsConfig.connectionResetInterval(),
-		UseSSL:                  &logsConfig.logsNoSSL(),
+		UseSSL:                  pointer.Ptr(logsConfig.logsNoSSL()),
 	}
 
 	if logsDDURL, defined := logsConfig.logsDDURL(); defined {
