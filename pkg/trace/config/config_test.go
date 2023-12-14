@@ -12,6 +12,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	RunZip                   = "APPSVC_RUN_ZIP"
+	AppLogsTrace             = "WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED"
+	FunctionWorkerRuntime    = "FUNCTIONS_WORKER_RUNTIME"
+	FunctionExtensionVersion = "FUNCTIONS_EXTENSION_VERSION"
+)
+
 func TestInAzureAppServices(t *testing.T) {
 	os.Setenv(RunZip, " ")
 	isLinuxAzure := InAzureAppServices()
@@ -22,6 +29,22 @@ func TestInAzureAppServices(t *testing.T) {
 	os.Unsetenv(AppLogsTrace)
 
 	isNotAzure := InAzureAppServices()
+
+	assert.True(t, isLinuxAzure)
+	assert.True(t, isWindowsAzure)
+	assert.False(t, isNotAzure)
+}
+
+func TestInFunctionApp(t *testing.T) {
+	os.Setenv(FunctionWorkerRuntime, " ")
+	isLinuxAzure := InAzureFunctionApp()
+	os.Unsetenv(FunctionWorkerRuntime)
+
+	os.Setenv(FunctionExtensionVersion, " ")
+	isWindowsAzure := InAzureFunctionApp()
+	os.Unsetenv(FunctionExtensionVersion)
+
+	isNotAzure := InAzureFunctionApp()
 
 	assert.True(t, isLinuxAzure)
 	assert.True(t, isWindowsAzure)

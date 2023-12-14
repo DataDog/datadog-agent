@@ -10,6 +10,8 @@ import (
 	"os"
 	"runtime"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
 const (
@@ -35,8 +37,7 @@ const (
 	containerFramework = "Container"
 	unknown            = "unknown"
 
-	appService  = "app"
-	functionApp = "functionapp"
+	appService = "app"
 )
 
 func GetAppServicesTags() map[string]string {
@@ -84,13 +85,10 @@ func getAppServicesTags(getenv func(string) string) map[string]string {
 	}
 
 	// Function Apps require a different runtime and kind
-	if inFunctionApp() {
-		runtime := getenv("FUNCTIONS_WORKER_RUNTIME")
-		version := getenv("FUNCTIONS_EXTENSION_VERSION")
-
-		tags[aasRuntime] = runtime
-		tags[aasFunctionRuntime] = version
-		tags[aasSiteKind] = functionApp
+	if config.InAzureFunctionApp() {
+		tags[aasRuntime] = getenv("FUNCTIONS_WORKER_RUNTIME")
+		tags[aasFunctionRuntime] = getenv("FUNCTIONS_EXTENSION_VERSION")
+		tags[aasSiteKind] = "functionApp"
 	}
 
 	return tags
@@ -154,12 +152,6 @@ func getLinuxRuntime(getenv func(string) string) (rt string) {
 	}
 
 	return rt
-}
-
-func inFunctionApp() bool {
-	_, existsRuntime := os.LookupEnv("FUNCTIONS_WORKER_RUNTIME")
-	_, existsVersion := os.LookupEnv("FUNCTIONS_EXTENSION_VERSION")
-	return existsRuntime && existsVersion
 }
 
 func parseAzureSubscriptionID(subID string) (id string) {
