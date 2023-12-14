@@ -7,11 +7,13 @@ package packagesigningimpl
 
 import (
 	"bufio"
+	"context"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	pkgUtils "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/utils"
@@ -62,16 +64,18 @@ func updateWithRepoFiles(allKeys map[string]SigningKey, pkgManager string, clien
 
 func updateWithRPMDB(allKeys map[string]SigningKey, logger log.Component) {
 	// It seems not possible to get the expiration date from rpmdb, so we extract the list of keys and call gpg
-	cmd := exec.Command("rpm", "-qa", "gpg-pubkey*")
-	output, err := cmd.Output()
-	if err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "rpm", "-qa", "gpg-pubkey*")
+	output, err := cmd.CombinedOutput()
+	if err != nil || ctx.Err() != nil {
 		return
 	}
 	scanner := bufio.NewScanner(strings.NewReader(string(output)))
 	for scanner.Scan() {
-		rpmCmd := exec.Command("rpm", "-qi", "%s", "--qf", "'%%{PUBKEYS}\n'")
-		rpmKey, err := rpmCmd.Output()
-		if err != nil {
+		rpmCmd := exec.CommandContext(ctx, "rpm", "-qi", "%s", "--qf", "'%%{PUBKEYS}\n'")
+		rpmKey, err := rpmCmd.CombinedOutput()
+		if err != nil || ctx.Err() != nil {
 			return
 		}
 		err = decryptGPGReader(allKeys, strings.NewReader(string(rpmKey)), false, "rpm", nil)

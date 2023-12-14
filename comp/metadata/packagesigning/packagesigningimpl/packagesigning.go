@@ -63,9 +63,10 @@ type signingMetadata struct {
 type pkgSigning struct {
 	util.InventoryPayload
 
-	log      log.Component
-	conf     config.Component
-	hostname string
+	log        log.Component
+	conf       config.Component
+	hostname   string
+	pkgManager string
 }
 
 type dependencies struct {
@@ -87,9 +88,10 @@ type provides struct {
 func newPackageSigningProvider(deps dependencies) provides {
 	hname, _ := hostname.Get(context.Background())
 	is := &pkgSigning{
-		conf:     deps.Config,
-		log:      deps.Log,
-		hostname: hname,
+		conf:       deps.Config,
+		log:        deps.Log,
+		hostname:   hname,
+		pkgManager: getPkgManager(),
 	}
 	is.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, is.getPayload, "signing.json")
 	is.InventoryPayload.MaxInterval = defaultCollectInterval
@@ -119,16 +121,15 @@ var (
 )
 
 func (is *pkgSigning) getData() []SigningKey {
-	pkgManager := getPkgManager()
 
 	transport := httputils.CreateHTTPTransport(is.conf)
 	client := &http.Client{Transport: transport}
 
-	switch pkgManager {
+	switch is.pkgManager {
 	case "apt":
 		return getAPTKeys(client, is.log)
 	case "yum", "dnf", "zypper":
-		return getYUMKeys(pkgManager, client, is.log)
+		return getYUMKeys(is.pkgManager, client, is.log)
 	default: // should not happen, tested above
 		is.log.Info("No supported package manager detected, package signing telemetry will not be collected")
 	}
