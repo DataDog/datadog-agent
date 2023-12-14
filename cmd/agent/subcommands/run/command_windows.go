@@ -90,6 +90,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			otelcollector otelcollector.Component,
 			demultiplexer demultiplexer.Component,
 			invAgent inventoryagent.Component,
+			_ secrets.Component,
 			invChecks inventorychecks.Component,
 			_ netflowServer.Component,
 			agentAPI internalAPI.Component,
