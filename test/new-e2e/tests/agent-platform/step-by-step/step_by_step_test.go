@@ -168,10 +168,6 @@ func (is *stepByStepSuite) StepByStepDebianTest(VMclient *common.TestClient) {
 	var err error
 
 	is.T().Run("create /usr/share keyring and source list", func(t *testing.T) {
-		if *platform == "debian" && is.osVersion == 9 {
-			ExecuteWithoutError(t, VMclient, "sudo sed -i '5,$ d' /etc/apt/sources.list")
-			ExecuteWithoutError(t, VMclient, "sudo rm /etc/apt/sources.list.d/backports.list")
-		}
 		ExecuteWithoutError(t, VMclient, "sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y apt-transport-https curl gnupg")
 		tmpFileContent := fmt.Sprintf("deb %s %s %s", aptrepo, aptrepoDist, *majorVersion)
 		_, err = fileManager.WriteFile("/etc/apt/sources.list.d/datadog.list", tmpFileContent)
