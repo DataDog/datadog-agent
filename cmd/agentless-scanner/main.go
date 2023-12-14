@@ -1823,7 +1823,7 @@ func (rt *awsRoundtripStats) RoundTrip(req *http.Request) (*http.Response, error
 		if delay := r.Delay(); delay > 0 {
 			throttled100 = delay > 100*time.Millisecond
 			throttled1000 = delay > 1000*time.Millisecond
-			throttled5000 = delay > 1000*time.Millisecond
+			throttled5000 = delay > 5000*time.Millisecond
 			sleepCtx(req.Context(), delay)
 		}
 	}
@@ -1843,14 +1843,24 @@ func (rt *awsRoundtripStats) RoundTrip(req *http.Request) (*http.Response, error
 	}
 	resp, err := rt.transport.RoundTrip(req)
 	duration := float64(time.Since(startTime).Milliseconds())
-	if resp != nil {
-		tags = append(tags, fmt.Sprintf("aws_statuscode:%d", resp.StatusCode))
-	} else if err == context.Canceled {
-		tags = append(tags, "aws_statuscode:ctx_canceled")
-	} else {
-		tags = append(tags, "aws_statuscode:unknown_error")
+	defer func() {
+		if err := statsd.Histogram("datadog.agentless_scanner.aws.responses", duration, tags, 1.0); err != nil {
+			log.Warnf("failed to send metric: %v", err)
+		}
+	}()
+	if err != nil {
+		if err == context.Canceled {
+			tags = append(tags, "aws_statuscode:ctx_canceled")
+		} else if err == context.DeadlineExceeded {
+			tags = append(tags, "aws_statuscode:ctx_deadline_exceeded")
+		} else {
+			tags = append(tags, "aws_statuscode:unknown_error")
+		}
+		return nil, err
 	}
-	if resp != nil && resp.StatusCode >= 400 {
+
+	tags = append(tags, fmt.Sprintf("aws_statuscode:%d", resp.StatusCode))
+	if resp.StatusCode >= 400 {
 		switch {
 		case service == "ec2" && resp.Header.Get("Content-Type") == "text/xml;charset=UTF-8":
 			defer resp.Body.Close()
@@ -1888,18 +1898,10 @@ func (rt *awsRoundtripStats) RoundTrip(req *http.Request) (*http.Response, error
 			}
 		}
 	}
-	if resp != nil {
-		if contentLength, err := strconv.Atoi(resp.Header.Get("Content-Length")); err == nil {
-			if err := statsd.Histogram("datadog.agentless_scanner.responses.size", float64(contentLength), tags, 1.0); err != nil {
-				log.Warnf("failed to send metric: %v", err)
-			}
+	if contentLength, err := strconv.Atoi(resp.Header.Get("Content-Length")); err == nil {
+		if err := statsd.Histogram("datadog.agentless_scanner.responses.size", float64(contentLength), tags, 1.0); err != nil {
+			log.Warnf("failed to send metric: %v", err)
 		}
-	}
-	if err := statsd.Histogram("datadog.agentless_scanner.aws.responses", duration, tags, 1.0); err != nil {
-		log.Warnf("failed to send metric: %v", err)
-	}
-	if err != nil {
-		return nil, err
 	}
 	return resp, nil
 }
