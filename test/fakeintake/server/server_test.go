@@ -12,7 +12,6 @@ import (
 	"bytes"
 	_ "embed"
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -22,12 +21,56 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/benbjohnson/clock"
-	"github.com/cenkalti/backoff"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestServer(t *testing.T) {
+
+	t.Run("should not run before start", func(t *testing.T) {
+		fi := NewServer(WithClock(clock.NewMock()))
+		assert.False(t, fi.IsRunning())
+		assert.Empty(t, fi.URL())
+	})
+
+	t.Run("should return error when calling stop on a non-started server", func(t *testing.T) {
+		fi := NewServer()
+		err := fi.Stop()
+		assert.Error(t, err)
+		assert.Equal(t, "server not running", err.Error())
+	})
+
+	t.Run("should run after start", func(t *testing.T) {
+		fi := NewServer(WithClock(clock.NewMock()))
+		fi.Start()
+		defer fi.Stop()
+		assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+			assert.True(collect, fi.IsRunning())
+			assert.NotEmpty(collect, fi.URL())
+			resp, err := http.Get(fi.URL() + "/fakeintake/health")
+			assert.NoError(collect, err)
+			if err != nil {
+				return
+			}
+			defer resp.Body.Close()
+			assert.Equal(collect, http.StatusOK, resp.StatusCode)
+		}, 500*time.Millisecond, 10*time.Millisecond)
+	})
+
+	t.Run("should correctly notify when a server is ready", func(t *testing.T) {
+		ready := make(chan bool, 1)
+		fi := NewServer(WithClock(clock.NewMock()), WithReadyChannel(ready))
+		fi.Start()
+		defer fi.Stop()
+		ok := <-ready
+		assert.True(t, ok)
+		assert.NotEmpty(t, fi.URL())
+		resp, err := http.Get(fi.URL() + "/fakeintake/health")
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+
 	t.Run("should accept payloads on any route", func(t *testing.T) {
 		fi := NewServer(WithClock(clock.NewMock()))
 
@@ -171,61 +214,6 @@ func TestServer(t *testing.T) {
 		assert.Equal(t, http.StatusOK, response.Code, "unexpected code")
 	})
 
-	t.Run("should return error when calling stop on a non-started server", func(t *testing.T) {
-		fi := NewServer(WithClock(clock.NewMock()))
-
-		err := fi.Stop()
-		assert.Error(t, err)
-		assert.Equal(t, "server not running", err.Error())
-	})
-
-	t.Run("should correctly start a server with no ready channel defined", func(t *testing.T) {
-		fi := NewServer(WithClock(clock.NewMock()))
-
-		fi.Start()
-
-		err := backoff.Retry(func() error {
-			url := fi.URL()
-			if url == "" {
-				return errors.New("server not ready")
-			}
-			resp, err := http.Get(url + "/fakeintake/health")
-			if err != nil {
-				return err
-			}
-			defer resp.Body.Close()
-			if resp.StatusCode != http.StatusOK {
-				return errors.New("server not ready")
-			}
-			return nil
-		}, backoff.WithMaxRetries(backoff.NewConstantBackOff(10*time.Millisecond), 25))
-		require.NoError(t, err)
-		err = fi.Stop()
-		assert.NoError(t, err)
-	})
-
-	t.Run("should correctly notify when a server is ready", func(t *testing.T) {
-		ready := make(chan bool, 1)
-		fi := NewServer(WithClock(clock.NewMock()), WithReadyChannel(ready))
-		fi.Start()
-		ok := <-ready
-		assert.True(t, ok)
-		assert.NotEmpty(t, fi.URL())
-		err := backoff.Retry(func() error {
-			resp, err := http.Get(fi.URL() + "/fakeintake/health")
-			if err != nil {
-				return err
-			}
-			defer resp.Body.Close()
-			if resp.StatusCode != http.StatusOK {
-				return errors.New("server not ready")
-			}
-			return nil
-		}, backoff.WithMaxRetries(backoff.NewConstantBackOff(10*time.Millisecond), 25))
-		require.NoError(t, err)
-		err = fi.Stop()
-		assert.NoError(t, err)
-	})
 	t.Run("should store multiple payloads on any route and return the list of routes", func(t *testing.T) {
 		fi := NewServer(WithClock(clock.NewMock()))
 
