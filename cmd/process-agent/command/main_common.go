@@ -136,13 +136,13 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			return workloadmeta.Params{AgentType: catalog}
 		}),
 
+		// Provide the corresponding tagger Params to configure the tagger
 		fx.Provide(func(c config.Component) tagger.Params {
 			if c.GetBool("process_config.remote_tagger") {
 				return tagger.NewNodeRemoteTaggerParams()
 			}
 			return tagger.NewTaggerParams()
 		}),
-		tagger.Module(),
 
 		// Allows for debug logging of fx components if the `TRACE_FX` environment variable is set
 		fxutil.FxLoggingOption(),
