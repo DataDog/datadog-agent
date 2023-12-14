@@ -19,7 +19,7 @@ var ErrNotImplemented = errors.New("not implemented for GOOS=" + runtime.GOOS)
 type Entry struct {
 	Local, Remote netip.AddrPort
 	Pid           int
-	State         string // TODO: type?
+	State         string
 	OSMetadata    OSMetadata
 }
 
