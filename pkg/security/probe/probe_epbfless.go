@@ -82,6 +82,14 @@ func (p *EBPFLessProbe) handleClientMsg(msg *clientMsg) {
 	case ebpfless.SyscallTypeExec:
 		event.Type = uint32(model.ExecEventType)
 		entry := p.Resolvers.ProcessResolver.AddExecEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: syscallMsg.NSID}, syscallMsg.Exec.Filename, syscallMsg.Exec.Args, syscallMsg.Exec.Envs, syscallMsg.ContainerContext.ID)
+
+		if syscallMsg.Exec.Credentials != nil {
+			entry.Credentials.UID = syscallMsg.Exec.Credentials.UID
+			entry.Credentials.EUID = syscallMsg.Exec.Credentials.EUID
+			entry.Credentials.GID = syscallMsg.Exec.Credentials.GID
+			entry.Credentials.EGID = syscallMsg.Exec.Credentials.EGID
+		}
+
 		event.Exec.Process = &entry.Process
 	case ebpfless.SyscallTypeFork:
 		event.Type = uint32(model.ForkEventType)
@@ -92,6 +100,11 @@ func (p *EBPFLessProbe) handleClientMsg(msg *clientMsg) {
 		event.Open.File.BasenameStr = filepath.Base(syscallMsg.Open.Filename)
 		event.Open.Flags = syscallMsg.Open.Flags
 		event.Open.Mode = syscallMsg.Open.Mode
+	case ebpfless.SyscallTypeSetUID:
+		p.Resolvers.ProcessResolver.UpdateUID(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: syscallMsg.NSID}, syscallMsg.SetUID.UID, syscallMsg.SetUID.EUID)
+
+	case ebpfless.SyscallTypeSetGID:
+		p.Resolvers.ProcessResolver.UpdateGID(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: syscallMsg.NSID}, syscallMsg.SetGID.GID, syscallMsg.SetGID.EGID)
 	}
 
 	// container context
