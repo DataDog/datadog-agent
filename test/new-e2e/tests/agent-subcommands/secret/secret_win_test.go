@@ -54,8 +54,10 @@ host_aliases:
   - ENC[alias_secret]`
 
 	// We embed a script that file create the secret binary (C:\secret.bat) with the correct permissions
-	v.UpdateEnv(e2e.AgentStackDef(e2e.WithVMParams(ec2params.WithOS(ec2os.WindowsOS)), e2e.WithAgentParams(agentparams.WithFile(`C:/Users/Administator/scripts/setup_secret.ps1`, string(secretSetupScript), true))))
-	v.Env().VM.Execute(`C:/Users/Administator/scripts/setup_secret.ps1 -FilePath "C:\secret.bat" -FileContent '@echo {"alias_secret": {"value": "a_super_secret_string"}}'`)
+	v.UpdateEnv(e2e.AgentStackDef(e2e.WithVMParams(ec2params.WithOS(ec2os.WindowsOS)),
+		e2e.WithAgentParams(agentparams.WithFile(`C:/secret.bat`, string(secretSetupScript), true)),
+		e2e.WithAgentParams(agentparams.WithFile(`C:/Users/Administator/scripts/setup_secret.ps1`, string(secretSetupScript), true))))
+	v.Env().VM.Execute(`C:/Users/Administator/scripts/setup_secret.ps1 -FilePath "C:/secret.bat" -FileContent '@echo {"alias_secret": {"value": "a_super_secret_string"}}'`)
 	v.UpdateEnv(e2e.AgentStackDef(e2e.WithVMParams(ec2params.WithOS(ec2os.WindowsOS)), e2e.WithAgentParams(agentparams.WithAgentConfig(config))))
 
 	output := v.Env().Agent.Secret()
