@@ -53,6 +53,17 @@ else
   end
 end
 
+if ENV.has_key?("KUBERNETES_CPU_REQUEST")
+  COMPRESSION_THREADS = ENV["KUBERNETES_CPU_REQUEST"].to_i
+else
+  COMPRESSION_THREADS = 1
+end
+if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true"
+  COMPRESSION_LEVEL = 9
+else
+  COMPRESSION_LEVEL = 5
+end
+
 # build_version is computed by an invoke command/function.
 # We can't call it directly from there, we pass it through the environment instead.
 build_version ENV['PACKAGE_VERSION']
@@ -80,14 +91,8 @@ package :deb do
   license 'Apache License Version 2.0'
   section 'utils'
   priority 'extra'
-  if ENV.has_key?("KUBERNETES_CPU_REQUEST")
-    compression_threads ENV["KUBERNETES_CPU_REQUEST").to_i
-  end
-  if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true"
-    compression_level 9
-  else
-    compression_level 5
-  end
+  compression_threads COMPRESSION_THREADS
+  compression_level COMPRESSION_LEVEL
   if ENV.has_key?('DEB_SIGNING_PASSPHRASE') and not ENV['DEB_SIGNING_PASSPHRASE'].empty?
     signing_passphrase "#{ENV['DEB_SIGNING_PASSPHRASE']}"
     if ENV.has_key?('DEB_GPG_KEY_NAME') and not ENV['DEB_GPG_KEY_NAME'].empty?
@@ -104,14 +109,8 @@ package :rpm do
   license 'Apache License Version 2.0'
   category 'System Environment/Daemons'
   priority 'extra'
-  if ENV.has_key?("KUBERNETES_CPU_REQUEST")
-    compression_threads ENV["KUBERNETES_CPU_REQUEST").to_i
-  end
-  if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true"
-    compression_level 9
-  else
-    compression_level 5
-  end
+  compression_threads COMPRESSION_THREADS
+  compression_level COMPRESSION_LEVEL
   if ENV.has_key?('RPM_SIGNING_PASSPHRASE') and not ENV['RPM_SIGNING_PASSPHRASE'].empty?
     signing_passphrase "#{ENV['RPM_SIGNING_PASSPHRASE']}"
     if ENV.has_key?('RPM_GPG_KEY_NAME') and not ENV['RPM_GPG_KEY_NAME'].empty?
