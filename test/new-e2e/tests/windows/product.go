@@ -14,8 +14,9 @@ import (
 
 // GetProductCodeByName returns the product code GUID for the given product name
 func GetProductCodeByName(client client.VM, name string) (string, error) {
-	// TODO: Don't use Win32_Product
-	cmd := fmt.Sprintf("(Get-WmiObject Win32_Product | Where-Object -Property Name -Value '%s' -match).IdentifyingNumber", name)
+	// Read from registry instead of using Win32_Product, which has negative side effects
+	// https://gregramsey.net/2012/02/20/win32_product-is-evil/
+	cmd := fmt.Sprintf(`(@(Get-ChildItem -Path "HKLM:SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall" -Recurse ; Get-ChildItem -Path "HKLM:SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall" -Recurse ) | Where {$_.GetValue("DisplayName") -like "%s" }).PSChildName`, name)
 	val, err := client.ExecuteWithError(cmd)
 	if err != nil {
 		fmt.Println(val)
