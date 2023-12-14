@@ -574,8 +574,8 @@ func getTestEndpoint(host string, port int, ssl bool) Endpoint {
 		TrackType:        "test-track",
 		Protocol:         "test-proto",
 		Origin:           "test-source",
+		UseSSL:           pointer.Ptr(ssl),
 	}
-	e.UseSSL = pointer.Ptr(ssl)
 	return e
 }
 

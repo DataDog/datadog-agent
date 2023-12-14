@@ -145,7 +145,7 @@ func buildTCPEndpoints(coreConfig pkgConfig.Reader, logsConfig *LogsConfigKeys) 
 		APIKey:                  logsConfig.getLogsAPIKey(),
 		ProxyAddress:            proxyAddress,
 		ConnectionResetInterval: logsConfig.connectionResetInterval(),
-		UseSSL:                  pointer.Ptr(logsConfig.logsNoSSL()),
+		UseSSL:                  &logsConfig.logsNoSSL(),
 	}
 
 	if logsDDURL, defined := logsConfig.logsDDURL(); defined {
@@ -211,6 +211,7 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgConfig.Reader, logsConfig *LogsC
 		BackoffFactor:           logsConfig.senderBackoffFactor(),
 		RecoveryInterval:        logsConfig.senderRecoveryInterval(),
 		RecoveryReset:           logsConfig.senderRecoveryReset(),
+		UseSSL:                  pointer.Ptr(defaultNoSSL),
 	}
 
 	if logsConfig.useV2API() && intakeTrackType != "" {
@@ -221,7 +222,6 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgConfig.Reader, logsConfig *LogsC
 	} else {
 		main.Version = EPIntakeVersion1
 	}
-	main.UseSSL = pointer.Ptr(defaultNoSSL)
 
 	if vectorURL, vectorURLDefined := logsConfig.getObsPipelineURL(); logsConfig.obsPipelineWorkerEnabled() && vectorURLDefined {
 		host, port, useSSL, err := parseAddressWithScheme(vectorURL, defaultNoSSL, parseAddress)
