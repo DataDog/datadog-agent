@@ -78,18 +78,16 @@ import (
 )
 
 const (
-	maxSnapshotRetries  = 3
-	maxAttachRetries    = 10
-	defaultWorkersCount = 40
+	maxSnapshotRetries = 3
+	maxAttachRetries   = 10
 
+	defaultWorkersCount     = 40
 	defaultAWSRate          = 20.0
 	defaultEC2Rate          = 20.0
 	defaultEBSListBlockRate = 20.0
 	defaultEBSGetBlockRate  = 400.0
-
-	defaultSelfRegion = "us-east-1"
-
-	snapshotDuration = 24 * time.Hour
+	defaultSelfRegion       = "us-east-1"
+	defaultSnapshotsMaxTTL  = 24 * time.Hour
 )
 
 var statsd *ddgostatsd.Client
@@ -762,43 +760,14 @@ func cleanupCmd(region string, dryRun bool, delay time.Duration) error {
 	return nil
 }
 
-func (s *sideScanner) cleanup(ctx context.Context, delay time.Duration) error {
-	defaultCfg, err := config.LoadDefaultConfig(ctx)
-	if err != nil {
-		return err
-	}
-
-	// Retrieve instance’s region.
-	imdsclient := imds.NewFromConfig(defaultCfg)
-	regionOutput, err := imdsclient.GetRegion(ctx, &imds.GetRegionInput{})
-	selfRegion := defaultSelfRegion
-	if err != nil {
-		log.Errorf("could not retrieve region from ec2 instance - using default %q: %v", selfRegion, err)
-	} else {
-		selfRegion = regionOutput.Region
-	}
-
-	var identity *sts.GetCallerIdentityOutput
-	{
-		cfg, err := newAWSConfig(ctx, selfRegion, nil)
-		if err != nil {
-			return err
-		}
-		stsclient := sts.NewFromConfig(cfg)
-		identity, err = stsclient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
-		if err != nil {
-			return err
-		}
-	}
-
-	roles := getDefaultRolesMapping()
-	cfg, err := newAWSConfig(ctx, selfRegion, roles[*identity.Account])
+func (s *sideScanner) cleanup(ctx context.Context, maxTTL time.Duration, region string, assumedRole *arn.ARN) error {
+	cfg, err := newAWSConfig(ctx, region, assumedRole)
 	if err != nil {
 		return err
 	}
 
 	ec2client := ec2.NewFromConfig(cfg)
-	toBeDeleted, err := listResourcesForCleanup(ctx, ec2client, delay)
+	toBeDeleted, err := listResourcesForCleanup(ctx, ec2client, maxTTL)
 	if err != nil {
 		return err
 	}
@@ -808,20 +777,37 @@ func (s *sideScanner) cleanup(ctx context.Context, delay time.Duration) error {
 	}
 
 	cloudResourcesCleanup(ctx, ec2client, toBeDeleted)
-
 	return nil
 }
 
-func (s *sideScanner) cleanupProcess(ctx context.Context, delay time.Duration) {
-	log.Infof("Starting cleanup process\n")
+func (s *sideScanner) cleanupProcess(ctx context.Context) {
+	log.Infof("Starting cleanup process")
+
+	ticker := time.NewTicker(1 * time.Hour)
+	defer ticker.Stop()
 
 	for {
-		err := s.cleanup(ctx, delay)
-		if err != nil {
-			log.Warnf("cleanupProcess: %v", err)
+		select {
+		case <-ticker.C:
+		case <-ctx.Done():
+			return
 		}
 
-		time.Sleep(1 * time.Hour)
+		s.regionsCleanupMu.Lock()
+		regionsCleanup := make(map[string]*arn.ARN, len(s.regionsCleanup))
+		for region, role := range s.regionsCleanup {
+			regionsCleanup[region] = role
+		}
+		s.regionsCleanup = nil
+		s.regionsCleanupMu.Unlock()
+
+		if len(regionsCleanup) > 0 {
+			for region, role := range regionsCleanup {
+				if err := s.cleanup(ctx, defaultSnapshotsMaxTTL, region, role); err != nil {
+					log.Warnf("cleanupProcess failed on region %q with role %q: %v", region, role, err)
+				}
+			}
+		}
 	}
 }
 
@@ -1229,6 +1215,9 @@ type sideScanner struct {
 	limits           *awsLimits
 	printResults     bool
 
+	regionsCleanupMu sync.Mutex
+	regionsCleanup   map[string]*arn.ARN
+
 	scansInProgress   map[arn.ARN]struct{}
 	scansInProgressMu sync.RWMutex
 
@@ -1322,7 +1311,7 @@ func (s *sideScanner) start(ctx context.Context) {
 		}
 	}()
 
-	go s.cleanupProcess(ctx, snapshotDuration)
+	go s.cleanupProcess(ctx)
 
 	done := make(chan struct{})
 	go func() {
@@ -1371,6 +1360,18 @@ func (s *sideScanner) start(ctx context.Context) {
 		go func() {
 			defer func() { done <- struct{}{} }()
 			for scan := range s.scansCh {
+				// Gather the  scanned roles / accounts as we go. We only ever
+				// need to store one role associated with one region. They
+				// will be used for cleanup process.
+				s.regionsCleanupMu.Lock()
+				if s.regionsCleanup == nil {
+					s.regionsCleanup = make(map[string]*arn.ARN)
+				}
+				s.regionsCleanup[scan.ARN.Region] = scan.Roles[scan.ARN.Region]
+				s.regionsCleanupMu.Unlock()
+
+				// Avoid pushing a scan that we are already performing.
+				// TODO: this guardrail could be avoided with a smarter scheduling.
 				s.scansInProgressMu.Lock()
 				if _, ok := s.scansInProgress[scan.ARN]; ok {
 					s.scansInProgressMu.Unlock()
@@ -1399,6 +1400,7 @@ func (s *sideScanner) start(ctx context.Context) {
 				if !ok {
 					return
 				}
+
 				for _, scan := range config.Tasks {
 					if len(s.allowedScanTypes) > 0 && !slices.Contains(s.allowedScanTypes, string(scan.Type)) {
 						continue
@@ -1498,7 +1500,7 @@ func cloudResourceTagFilters() []ec2types.Filter {
 	}
 }
 
-func listResourcesForCleanup(ctx context.Context, ec2client *ec2.Client, d time.Duration) (map[resourceType][]string, error) {
+func listResourcesForCleanup(ctx context.Context, ec2client *ec2.Client, maxTTL time.Duration) (map[resourceType][]string, error) {
 	toBeDeleted := make(map[resourceType][]string)
 	var nextToken *string
 	for {
@@ -1532,7 +1534,7 @@ func listResourcesForCleanup(ctx context.Context, ec2client *ec2.Client, d time.
 			if snapshots.Snapshots[i].State != ec2types.SnapshotStateCompleted {
 				continue
 			}
-			since := time.Now().Add(-d)
+			since := time.Now().Add(-maxTTL)
 			if snapshots.Snapshots[i].StartTime != nil && snapshots.Snapshots[i].StartTime.After(since) {
 				continue
 			}
@@ -1753,11 +1755,11 @@ func (rt *awsRoundtripStats) getAction(req *http.Request) (service, action strin
 		switch {
 		// STS (sts.(region.)?amazonaws.com)
 		case strings.HasPrefix(host, "sts."):
-			return "sts", "unknown", nil // TODO: actions ?
+			return "sts", "getcalleridentity", nil
 
 		// Lambda (lambda.(region.)?amazonaws.com)
 		case strings.HasPrefix(host, "lambda."):
-			return "lambda", "unknown", nil // TODO: actions ?
+			return "lambda", "getfunction", nil
 
 		case strings.HasPrefix(host, "ebs."):
 			if req.Method == http.MethodGet && ebsGetBlockReg.MatchString(req.URL.Path) {
@@ -1925,9 +1927,6 @@ func newAWSConfig(ctx context.Context, region string, assumedRole *arn.ARN) (aws
 		stsclient := sts.NewFromConfig(cfg)
 		stsassume := stscreds.NewAssumeRoleProvider(stsclient, assumedRole.String())
 		cfg.Credentials = aws.NewCredentialsCache(stsassume)
-
-		// TODO(jinroh): we may want to omit this check. This is mostly to
-		// make sure that the configuration is effective.
 		stsclient = sts.NewFromConfig(cfg)
 		result, err := stsclient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
 		if err != nil {
