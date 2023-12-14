@@ -215,7 +215,7 @@ func (ic *inventorychecksImpl) getPayload() marshaler.JSONMarshaler {
 				logsMetadata[logSource.Name] = []metadata{}
 			}
 
-			parsedJson, err := cjson.Marshal(logSource.Config)
+			parsedJSON, err := cjson.Marshal(logSource.Config)
 			if err != nil {
 				ic.log.Debugf("could not parse log configuration for source metadata %s: %v", logSource.Name, err)
 				continue
@@ -230,7 +230,7 @@ func (ic *inventorychecksImpl) getPayload() marshaler.JSONMarshaler {
 			}
 
 			logsMetadata[logSource.Name] = append(logsMetadata[logSource.Name], metadata{
-				"config": string(parsedJson),
+				"config": string(parsedJSON),
 				"state": map[string]string{
 					"error":  logSource.Status.GetError(),
 					"status": logSourceStatus,
