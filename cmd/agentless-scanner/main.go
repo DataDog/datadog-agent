@@ -24,6 +24,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -1885,15 +1886,18 @@ func (rt *awsRoundtripStats) RoundTrip(req *http.Request) (*http.Response, error
 			}
 		}
 	}
-
-	if err != nil {
-		if err := statsd.Histogram("datadog.agentless_scanner.aws.responses", duration, tags, 1.0); err != nil {
-			log.Warnf("failed to send metric: %v", err)
+	if resp != nil {
+		if contentLength, err := strconv.Atoi(resp.Header.Get("Content-Length")); err == nil {
+			if err := statsd.Histogram("datadog.agentless_scanner.responses.size", float64(contentLength), tags, 1.0); err != nil {
+				log.Warnf("failed to send metric: %v", err)
+			}
 		}
-		return nil, err
 	}
 	if err := statsd.Histogram("datadog.agentless_scanner.aws.responses", duration, tags, 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
+	}
+	if err != nil {
+		return nil, err
 	}
 	return resp, nil
 }
