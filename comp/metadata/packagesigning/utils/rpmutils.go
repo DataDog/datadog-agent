@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
 package utils
 
 import (
@@ -46,10 +47,12 @@ func GetRepoPathFromPkgManager(pkgManager string) (string, string) {
 	return "", ""
 }
 
+// Repositories is a struct to store the repo name
 type Repositories struct {
 	RepoName string `json:"repo_name"`
 }
 
+// MainData contains the global definitions of gpg checks
 type MainData struct {
 	Gpgcheck         bool
 	LocalpkgGpgcheck bool

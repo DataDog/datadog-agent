@@ -265,7 +265,7 @@ func TestParseSourceListFile(t *testing.T) {
 		{
 			name:     "Source list file with several repo config",
 			fileName: "testdata/datadog.list",
-			reposPerKey: map[string][]pkgUtils.Repositories{"/usr/share/keyrings/datadog-archive-keyring.gpg": {{RepoName: "https://apt.datadoghq.com//stable/7"}, {RepoName: "https://apt.datadoghq.com//stable/6"}, {"https://apt.datadoghq.com//beta/7"}},
+			reposPerKey: map[string][]pkgUtils.Repositories{"/usr/share/keyrings/datadog-archive-keyring.gpg": {{RepoName: "https://apt.datadoghq.com//stable/7"}, {RepoName: "https://apt.datadoghq.com//stable/6"}, {RepoName: "https://apt.datadoghq.com//beta/7"}},
 				"/usr/vinz/clortho/keyring.gpg": {{RepoName: "https://apt.ghostbusters.com//stable/84"}},
 				"/don/rosa/carl/barks":          {{RepoName: "https://duck.family.com/scrooge/donald/huey/dewey/louie"}},
 			},
