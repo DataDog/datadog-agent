@@ -23,16 +23,6 @@ var mockAppServiceEnv = map[string]string{
 	"WEBSITE_NODE_DEFAULT_VERSION": "~18",
 }
 
-var mockAzureFunctionEnv = map[string]string{
-	"WEBSITE_SITE_NAME":            "site-name-test",
-	"WEBSITE_OWNER_NAME":           "00000000-0000-0000-0000-000000000000+apm-dotnet-EastUSwebspace-Linux",
-	"WEBSITE_RESOURCE_GROUP":       "test-resource-group",
-	"WEBSITE_INSTANCE_ID":          "1234abcd",
-	"COMPUTERNAME":                 "test-instance",
-	"WEBSITE_STACK":                "NODE",
-	"WEBSITE_NODE_DEFAULT_VERSION": "~18",
-}
-
 func TestGetAppServiceTags(t *testing.T) {
 	setEnvVars(t, mockAppServiceEnv)
 	websiteOS := runtime.GOOS
