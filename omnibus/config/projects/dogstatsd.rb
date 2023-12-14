@@ -75,6 +75,9 @@ package :deb do
   license 'Apache License Version 2.0'
   section 'utils'
   priority 'extra'
+  if ENV.has_key?("KUBERNETES_CPU_REQUEST")
+    compression_threads ENV["KUBERNETES_CPU_REQUEST").to_i
+  end
   if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true"
     compression_level 9
   else
@@ -96,6 +99,9 @@ package :rpm do
   license 'Apache License Version 2.0'
   category 'System Environment/Daemons'
   priority 'extra'
+  if ENV.has_key?("KUBERNETES_CPU_REQUEST")
+    compression_threads ENV["KUBERNETES_CPU_REQUEST").to_i
+  end
   if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true"
     compression_level 9
   else
