@@ -196,7 +196,8 @@ func (p *Protocol) PreStart(mgr *manager.Manager) (err error) {
 	if err = p.dynamicTable.preStart(mgr); err != nil {
 		return
 	}
-	p.statkeeper = http.NewStatkeeper(p.cfg, p.telemetry)
+
+	p.statkeeper = http.NewStatkeeper(p.cfg, p.telemetry, http.NewIncompleteBuffer(p.cfg, p.telemetry))
 	p.eventsConsumer.Start()
 
 	if err = p.createStaticTable(mgr); err != nil {
