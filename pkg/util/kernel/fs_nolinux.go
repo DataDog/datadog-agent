@@ -14,7 +14,7 @@ var ProcFSRoot = funcs.MemoizeNoError(func() string {
 	return ""
 })
 
-// ProcFSRoot is the path to sysfs
+// SysFSRoot is the path to sysfs
 var SysFSRoot = funcs.MemoizeNoError(func() string {
 	return ""
 })
