@@ -41,22 +41,18 @@ const (
 )
 
 func GetAppServicesTags() map[string]string {
-	return getAppServicesTags(os.Getenv) //TODO: make this function cache these values
-}
-
-func getAppServicesTags(getenv func(string) string) map[string]string {
-	siteName := getenv("WEBSITE_SITE_NAME")
-	ownerName := getenv("WEBSITE_OWNER_NAME")
-	resourceGroup := getenv("WEBSITE_RESOURCE_GROUP")
-	instanceID := getEnvOrUnknown("WEBSITE_INSTANCE_ID", getenv)
-	computerName := getEnvOrUnknown("COMPUTERNAME", getenv)
-	extensionVersion := getenv("DD_AAS_EXTENSION_VERSION")
+	siteName := os.Getenv("WEBSITE_SITE_NAME")
+	ownerName := os.Getenv("WEBSITE_OWNER_NAME")
+	resourceGroup := os.Getenv("WEBSITE_RESOURCE_GROUP")
+	instanceID := getEnvOrUnknown("WEBSITE_INSTANCE_ID")
+	computerName := getEnvOrUnknown("COMPUTERNAME")
+	extensionVersion := os.Getenv("DD_AAS_EXTENSION_VERSION")
 
 	// Windows and linux environments provide the OS differently
 	// We should grab it from GO's builtin runtime pkg
 	websiteOS := runtime.GOOS
 
-	currentRuntime := getRuntime(websiteOS, getenv)
+	currentRuntime := getRuntime(websiteOS)
 	subscriptionID := parseAzureSubscriptionID(ownerName)
 	resourceID := compileAzureResourceID(subscriptionID, resourceGroup, siteName)
 
@@ -77,37 +73,36 @@ func getAppServicesTags(getenv func(string) string) map[string]string {
 	if websiteOS == "windows" {
 		if extensionVersion != "" {
 			tags[aasExtensionVersion] = extensionVersion
-		} else if val := getenv("DD_AAS_JAVA_EXTENSION_VERSION"); val != "" {
+		} else if val := os.Getenv("DD_AAS_JAVA_EXTENSION_VERSION"); val != "" {
 			tags[aasExtensionVersion] = val
-		} else if val := getenv("DD_AAS_DOTNET_EXTENSION_VERSION"); val != "" {
+		} else if val := os.Getenv("DD_AAS_DOTNET_EXTENSION_VERSION"); val != "" {
 			tags[aasExtensionVersion] = val
 		}
 	}
 
 	// Function Apps require a different runtime and kind
 	if config.InAzureFunctionApp() {
-		tags[aasRuntime] = getenv("FUNCTIONS_WORKER_RUNTIME")
-		tags[aasFunctionRuntime] = getenv("FUNCTIONS_EXTENSION_VERSION")
-		tags[aasSiteKind] = "functionApp"
+		tags[aasRuntime] = os.Getenv("FUNCTIONS_WORKER_RUNTIME")
+		tags[aasFunctionRuntime] = os.Getenv("FUNCTIONS_EXTENSION_VERSION")
+		tags[aasSiteKind] = "functionapp"
 	}
 
 	return tags
 }
 
-func getEnvOrUnknown(env string, getenv func(string) string) string {
-	val := getenv(env)
-	if len(val) == 0 {
-		val = unknown
+func getEnvOrUnknown(env string) string {
+	if val, ok := os.LookupEnv(env); ok {
+		return val
 	}
-	return val
+	return unknown
 }
 
-func getRuntime(websiteOS string, getenv func(string) string) (rt string) {
+func getRuntime(websiteOS string) (rt string) {
 	switch websiteOS {
 	case "windows":
-		rt = getWindowsRuntime(getenv)
+		rt = getWindowsRuntime()
 	case "linux", "darwin":
-		rt = getLinuxRuntime(getenv)
+		rt = getLinuxRuntime()
 	default:
 		rt = unknown
 	}
@@ -115,10 +110,10 @@ func getRuntime(websiteOS string, getenv func(string) string) (rt string) {
 	return rt
 }
 
-func getWindowsRuntime(getenv func(string) string) (rt string) {
-	if getenv("WEBSITE_STACK") == "JAVA" {
+func getWindowsRuntime() (rt string) {
+	if os.Getenv("WEBSITE_STACK") == "JAVA" {
 		rt = javaFramework
-	} else if val := getenv("WEBSITE_NODE_DEFAULT_VERSION"); val != "" {
+	} else if val := os.Getenv("WEBSITE_NODE_DEFAULT_VERSION"); val != "" {
 		rt = nodeFramework
 	} else {
 		// FIXME: Windows AAS only supports Java, Node, and .NET so we can infer this
@@ -129,14 +124,14 @@ func getWindowsRuntime(getenv func(string) string) (rt string) {
 	return rt
 }
 
-func getLinuxRuntime(getenv func(string) string) (rt string) {
+func getLinuxRuntime() (rt string) {
 	rt = unknown
 
-	switch getenv("WEBSITE_STACK") {
+	switch os.Getenv("WEBSITE_STACK") {
 	case "DOCKER":
 		rt = containerFramework
 	case "":
-		if val := getenv("DOCKER_SERVER_VERSION"); val != "" {
+		if val := os.Getenv("DOCKER_SERVER_VERSION"); val != "" {
 			rt = containerFramework
 		}
 	case "NODE":

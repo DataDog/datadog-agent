@@ -6,13 +6,14 @@
 package traceutil
 
 import (
+	"os"
 	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-var mockAzureAppServiceMetadata = map[string]string{
+var mockAppServiceEnv = map[string]string{
 	"WEBSITE_SITE_NAME":            "site-name-test",
 	"WEBSITE_OWNER_NAME":           "00000000-0000-0000-0000-000000000000+apm-dotnet-EastUSwebspace-Linux",
 	"WEBSITE_RESOURCE_GROUP":       "test-resource-group",
@@ -22,7 +23,7 @@ var mockAzureAppServiceMetadata = map[string]string{
 	"WEBSITE_NODE_DEFAULT_VERSION": "~18",
 }
 
-var mockAzureFunctionAppMetadata = map[string]string{
+var mockAzureFunctionEnv = map[string]string{
 	"WEBSITE_SITE_NAME":            "site-name-test",
 	"WEBSITE_OWNER_NAME":           "00000000-0000-0000-0000-000000000000+apm-dotnet-EastUSwebspace-Linux",
 	"WEBSITE_RESOURCE_GROUP":       "test-resource-group",
@@ -30,70 +31,106 @@ var mockAzureFunctionAppMetadata = map[string]string{
 	"COMPUTERNAME":                 "test-instance",
 	"WEBSITE_STACK":                "NODE",
 	"WEBSITE_NODE_DEFAULT_VERSION": "~18",
-	"FUNCTIONS_WORKER_RUNTIME":     "node",
-	"FUNCTIONS_EXTENSION_VERSION":  "~4",
 }
 
 func TestGetAppServiceTags(t *testing.T) {
-	metadata := getAppServicesTags(mockGetEnvVar)
-	os := runtime.GOOS
+	setEnvVars(t, mockAppServiceEnv)
+	websiteOS := runtime.GOOS
+	linux := GetAppServicesTags()
 
-	assert.Equal(t, "1234abcd", metadata[aasInstanceID])
-	assert.Equal(t, "test-instance", metadata[aasInstanceName])
-	assert.Equal(t, os, metadata[aasOperatingSystem])
-	assert.Equal(t, "Node.js", metadata[aasRuntime])
-	assert.Equal(t, "test-resource-group", metadata[aasResourceGroup])
-	assert.Equal(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/test-resource-group/providers/microsoft.web/sites/site-name-test", metadata[aasResourceID])
-	assert.Equal(t, "app", metadata[aasSiteKind])
-	assert.Equal(t, "site-name-test", metadata[aasSiteName])
-	assert.Equal(t, "app", metadata[aasSiteType])
-	assert.Equal(t, "00000000-0000-0000-0000-000000000000", metadata[aasSubscriptionID])
+	t.Setenv("FUNCTIONS_WORKER_RUNTIME", "node")
+	t.Setenv("FUNCTIONS_EXTENSION_VERSION", "~4")
+	functionApp := GetAppServicesTags()
+
+	assert.Equal(t, "1234abcd", linux[aasInstanceID])
+	assert.Equal(t, "test-instance", linux[aasInstanceName])
+	assert.Equal(t, websiteOS, linux[aasOperatingSystem])
+	assert.Equal(t, "Node.js", linux[aasRuntime])
+	assert.Equal(t, "test-resource-group", linux[aasResourceGroup])
+	assert.Equal(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/test-resource-group/providers/microsoft.web/sites/site-name-test", linux[aasResourceID])
+	assert.Equal(t, "app", linux[aasSiteKind])
+	assert.Equal(t, "site-name-test", linux[aasSiteName])
+	assert.Equal(t, "app", linux[aasSiteType])
+	assert.Equal(t, "00000000-0000-0000-0000-000000000000", linux[aasSubscriptionID])
+	assert.Equal(t, "~4", functionApp[aasFunctionRuntime])
+
 }
 
 func TestGetEnvOrUnknown(t *testing.T) {
-	unknownEnvVar := getEnvOrUnknown("", mockGetEnvVar)
+	unknownEnvVar := getEnvOrUnknown("")
 	assert.Equal(t, "unknown", unknownEnvVar)
 }
 
 func TestGetWindowsRuntime(t *testing.T) {
-	java := getRuntime("windows", func(s string) string {
-		if s == "WEBSITE_STACK" {
-			return "JAVA"
-		}
-		return ""
-	})
-	node := getRuntime("windows", func(s string) string {
-		if s == "WEBSITE_NODE_DEFAULT_VERSION" {
-			return "~18"
-		}
-		return ""
-	})
-	dotnet := getRuntime("windows", func(s string) string { return "" })
+	// Java
+	t.Setenv("WEBSITE_STACK", "JAVA")
+	java := getRuntime("windows")
 
-	assert.Equal(t, ".NET", dotnet)
+	// Node
+	os.Unsetenv("WEBSITE_STACK")
+	t.Setenv("WEBSITE_NODE_DEFAULT_VERSION", "18")
+	node := getRuntime("windows")
+
+	// .NET
+	os.Unsetenv("WEBSITE_NODE_DEFAULT_VERSION")
+	dotnet := getRuntime("windows")
+
+	// Unset
+	t.Setenv("WEBSITE_STACK", "")
+	unknown := getRuntime("windows")
+
 	assert.Equal(t, "Java", java)
 	assert.Equal(t, "Node.js", node)
 	assert.Equal(t, ".NET", dotnet)
+	assert.Equal(t, ".NET", unknown)
 }
 
 func TestGetLinuxRuntime(t *testing.T) {
-	docker := getRuntime("linux", func(s string) string { return "DOCKER" })
-	compose := getRuntime("linux", func(s string) string {
-		if s == "WEBSITE_STACK" {
-			return ""
-		}
-		if s == "DOCKER_SERVER_VERSION" {
-			return "19.03.15+azure"
-		}
-		return ""
-	})
-	java := getRuntime("linux", func(s string) string { return "JAVA" })
-	tomcat := getRuntime("linux", func(s string) string { return "TOMCAT" })
-	node := getRuntime("linux", func(s string) string { return "NODE" })
-	python := getRuntime("linux", func(s string) string { return "PYTHON" })
-	dotnet := getRuntime("linux", func(s string) string { return "DOTNETCORE" })
-	php := getRuntime("linux", func(s string) string { return "PHP" })
-	unknown := getRuntime("linux", func(s string) string { return "" })
+	// Docker
+	t.Setenv("WEBSITE_STACK", "DOCKER")
+	docker := getRuntime("linux")
+
+	// container framework
+	os.Unsetenv("WEBSITE_STACK")
+	t.Setenv("WEBSITE_STACK", "")
+	t.Setenv("DOCKER_SERVER_VERSION", "19.03.15+azure")
+	compose := getRuntime("linux")
+
+	// Java
+	os.Unsetenv("WEBSITE_STACK")
+	os.Unsetenv("DOCKER_SERVER_VERSION")
+	t.Setenv("WEBSITE_STACK", "JAVA")
+	java := getRuntime("linux")
+
+	// Tomcat
+	os.Unsetenv("WEBSITE_STACK")
+	t.Setenv("WEBSITE_STACK", "TOMCAT")
+	tomcat := getRuntime("linux")
+
+	// NODE
+	os.Unsetenv("WEBSITE_STACK")
+	t.Setenv("WEBSITE_STACK", "NODE")
+	node := getRuntime("linux")
+
+	// Python
+	os.Unsetenv("WEBSITE_STACK")
+	t.Setenv("WEBSITE_STACK", "PYTHON")
+	python := getRuntime("linux")
+
+	// .NET
+	os.Unsetenv("WEBSITE_STACK")
+	t.Setenv("WEBSITE_STACK", "DOTNETCORE")
+	dotnet := getRuntime("linux")
+
+	// PHP
+	os.Unsetenv("WEBSITE_STACK")
+	t.Setenv("WEBSITE_STACK", "PHP")
+	php := getRuntime("linux")
+
+	// Unknown
+	os.Unsetenv("WEBSITE_STACK")
+	t.Setenv("WEBSITE_STACK", "")
+	unknown := getRuntime("linux")
 
 	assert.Equal(t, "Container", docker)
 	assert.Equal(t, "Container", compose)
@@ -107,7 +144,7 @@ func TestGetLinuxRuntime(t *testing.T) {
 }
 
 func TestParseAzureSubscriptionID(t *testing.T) {
-	parsedSubID := parseAzureSubscriptionID(mockAzureAppServiceMetadata["WEBSITE_OWNER_NAME"])
+	parsedSubID := parseAzureSubscriptionID(mockAppServiceEnv["WEBSITE_OWNER_NAME"])
 	assert.Equal(t, "00000000-0000-0000-0000-000000000000", parsedSubID)
 }
 
@@ -120,31 +157,8 @@ func TestCompileAzureResourceID(t *testing.T) {
 	assert.Equal(t, "/subscriptions/00000000/resourcegroups/resource/providers/microsoft.web/sites/site-name", resourceID)
 }
 
-func TestAzureFunction(t *testing.T) {
-	t.Setenv("FUNCTIONS_WORKER_RUNTIME", "node")
-	t.Setenv("FUNCTIONS_EXTENSION_VERSION", "~4")
-
-	metadata := getAppServicesTags(mockGetEnvVarFunctionApp)
-	os := runtime.GOOS
-
-	assert.Equal(t, "1234abcd", metadata[aasInstanceID])
-	assert.Equal(t, "test-instance", metadata[aasInstanceName])
-	assert.Equal(t, os, metadata[aasOperatingSystem])
-	assert.Equal(t, "node", metadata[aasRuntime])
-	assert.Equal(t, "test-resource-group", metadata[aasResourceGroup])
-	assert.Equal(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/test-resource-group/providers/microsoft.web/sites/site-name-test", metadata[aasResourceID])
-	assert.Equal(t, "functionapp", metadata[aasSiteKind])
-	assert.Equal(t, "site-name-test", metadata[aasSiteName])
-	assert.Equal(t, "app", metadata[aasSiteType])
-	assert.Equal(t, "00000000-0000-0000-0000-000000000000", metadata[aasSubscriptionID])
-	assert.Equal(t, "~4", metadata[aasFunctionRuntime])
-
-}
-
-func mockGetEnvVar(key string) string {
-	return mockAzureAppServiceMetadata[key]
-}
-
-func mockGetEnvVarFunctionApp(key string) string {
-	return mockAzureFunctionAppMetadata[key]
+func setEnvVars(t *testing.T, env map[string]string) {
+	for k, v := range env {
+		t.Setenv(k, v)
+	}
 }
