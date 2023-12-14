@@ -1161,7 +1161,7 @@ var (
 	accountIDReg  = regexp.MustCompile("^[0-9]{12}$")
 	resourceIDReg = regexp.MustCompile("^[a-f0-9]+$")
 	roleNameReg   = regexp.MustCompile("^[a-zA-Z0-9_+=,.@-]{1,64}$")
-	functionReg   = regexp.MustCompile("^([a-zA-Z0-9-_.]+)(:(\\$LATEST|[a-zA-Z0-9-_]+))?$")
+	functionReg   = regexp.MustCompile(`^([a-zA-Z0-9-_.]+)(:(\$LATEST|[a-zA-Z0-9-_]+))?$`)
 )
 
 func getARNResource(arn arn.ARN) (resourceType resourceType, resourceID string, err error) {
