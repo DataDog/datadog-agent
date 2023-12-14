@@ -211,19 +211,13 @@ build do
             # remove docker configuration
             delete "#{install_dir}/etc/conf.d/docker.d"
 
-            if ENV['HARDENED_RUNTIME_MAC'] == 'true'
-                hardened_runtime = "-o runtime --entitlements #{entitlements_file} "
-            else
-                hardened_runtime = ""
-            end
-
             if code_signing_identity
                 # Codesign everything
-                command "find #{install_dir} -type f | grep -E '(\\.so|\\.dylib)' | xargs -I{} codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'"
-                command "find #{install_dir}/embedded/bin -perm +111 -type f | xargs -I{} codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'"
-                command "find #{install_dir}/embedded/sbin -perm +111 -type f | xargs -I{} codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'"
-                command "find #{install_dir}/bin -perm +111 -type f | xargs -I{} codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'"
-                command "codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '#{install_dir}/Datadog Agent.app'"
+                command "find #{install_dir} -type f | grep -E '(\\.so|\\.dylib)' | xargs -I{} codesign --force --timestamp --deep -s '#{code_signing_identity}' '{}'"
+                command "find #{install_dir}/embedded/bin -perm +111 -type f | xargs -I{} codesign --force --timestamp --deep -s '#{code_signing_identity}' '{}'"
+                command "find #{install_dir}/embedded/sbin -perm +111 -type f | xargs -I{} codesign --force --timestamp --deep -s '#{code_signing_identity}' '{}'"
+                command "find #{install_dir}/bin -perm +111 -type f | xargs -I{} codesign --force --timestamp --deep -s '#{code_signing_identity}' '{}'"
+                command "codesign --force --timestamp --deep -s '#{code_signing_identity}' '#{install_dir}/Datadog Agent.app'"
             end
         end
     end

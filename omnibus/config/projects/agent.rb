@@ -70,9 +70,6 @@ else
     unless ENV['SKIP_SIGN_MAC'] == 'true'
       code_signing_identity 'Developer ID Application: Datadog, Inc. (JKFCB4CN7C)'
     end
-    if ENV['HARDENED_RUNTIME_MAC'] == 'true'
-      entitlements_file "#{files_path}/macos/Entitlements.plist"
-    end
   else
     conflict 'datadog-iot-agent'
   end

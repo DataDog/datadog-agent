@@ -551,7 +551,6 @@ def get_omnibus_env(
     release_version="nightly",
     major_version='7',
     python_runtimes='3',
-    hardened_runtime=False,
     system_probe_bin=None,
     go_mod_cache=None,
     flavor=AgentFlavor.base,
@@ -589,8 +588,6 @@ def get_omnibus_env(
 
     if skip_sign:
         env['SKIP_SIGN_MAC'] = 'true'
-    if hardened_runtime:
-        env['HARDENED_RUNTIME_MAC'] = 'true'
 
     env['PACKAGE_VERSION'] = get_version(
         ctx, include_git=True, url_safe=True, major_version=major_version, include_pipeline_id=True
@@ -664,11 +661,9 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None):
         ctx.run(cmd, env=env)
 
 
-# hardened-runtime needs to be set to False to build on MacOS < 10.13.6, as the -o runtime option is not supported.
 @task(
     help={
         'skip-sign': "On macOS, use this option to build an unsigned package if you don't have Datadog's developer keys.",
-        'hardened-runtime': "On macOS, use this option to enforce the hardened runtime setting, adding '-o runtime' to all codesign commands",
     }
 )
 def omnibus_build(
@@ -684,7 +679,6 @@ def omnibus_build(
     major_version='7',
     python_runtimes='3',
     omnibus_s3_cache=False,
-    hardened_runtime=False,
     system_probe_bin=None,
     go_mod_cache=None,
     python_mirror=None,
@@ -713,7 +707,6 @@ def omnibus_build(
         release_version=release_version,
         major_version=major_version,
         python_runtimes=python_runtimes,
-        hardened_runtime=hardened_runtime,
         system_probe_bin=system_probe_bin,
         go_mod_cache=go_mod_cache,
         flavor=flavor,
@@ -800,7 +793,6 @@ def omnibus_manifest(
     release_version="nightly",
     major_version='7',
     python_runtimes='3',
-    hardened_runtime=False,
     system_probe_bin=None,
     go_mod_cache=None,
 ):
@@ -814,7 +806,6 @@ def omnibus_manifest(
         release_version=release_version,
         major_version=major_version,
         python_runtimes=python_runtimes,
-        hardened_runtime=hardened_runtime,
         system_probe_bin=system_probe_bin,
         go_mod_cache=go_mod_cache,
         flavor=flavor,
