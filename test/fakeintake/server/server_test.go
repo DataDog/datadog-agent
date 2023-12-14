@@ -72,7 +72,8 @@ func TestServer(t *testing.T) {
 	})
 
 	t.Run("should accept payloads on any route", func(t *testing.T) {
-		fi := NewServer(WithClock(clock.NewMock()))
+		fi, _ := InitialiseForTests(t)
+		defer fi.Stop()
 
 		request, err := http.NewRequest(http.MethodPost, "/totoro", strings.NewReader("totoro|5|tag:valid,owner:pducolin"))
 		assert.NoError(t, err, "Error creating POST request")
@@ -84,7 +85,8 @@ func TestServer(t *testing.T) {
 	})
 
 	t.Run("should accept GET requests on any other route", func(t *testing.T) {
-		fi := NewServer(WithClock(clock.NewMock()))
+		fi, _ := InitialiseForTests(t)
+		defer fi.Stop()
 
 		request, err := http.NewRequest(http.MethodGet, "/kiki", nil)
 		assert.NoError(t, err, "Error creating GET request")
@@ -96,7 +98,8 @@ func TestServer(t *testing.T) {
 	})
 
 	t.Run("should accept GET requests on /fakeintake/payloads route", func(t *testing.T) {
-		fi := NewServer(WithClock(clock.NewMock()))
+		fi, _ := InitialiseForTests(t)
+		defer fi.Stop()
 
 		request, err := http.NewRequest(http.MethodGet, "/fakeintake/payloads?endpoint=/foo", nil)
 
@@ -119,7 +122,8 @@ func TestServer(t *testing.T) {
 	})
 
 	t.Run("should not accept GET requests on /fakeintake/payloads route without endpoint query parameter", func(t *testing.T) {
-		fi := NewServer(WithClock(clock.NewMock()))
+		fi, _ := InitialiseForTests(t)
+		defer fi.Stop()
 
 		request, err := http.NewRequest(http.MethodGet, "/fakeintake/payloads", nil)
 
@@ -132,8 +136,8 @@ func TestServer(t *testing.T) {
 	})
 
 	t.Run("should store multiple payloads on any route and return them", func(t *testing.T) {
-		clock := clock.NewMock()
-		fi := NewServer(WithClock(clock))
+		fi, clock := InitialiseForTests(t)
+		defer fi.Stop()
 
 		postSomeFakePayloads(t, fi)
 
@@ -166,8 +170,8 @@ func TestServer(t *testing.T) {
 	})
 
 	t.Run("should store multiple payloads on any route and return them in json", func(t *testing.T) {
-		clock := clock.NewMock()
-		fi := NewServer(WithClock(clock))
+		fi, clock := InitialiseForTests(t)
+		defer fi.Stop()
 
 		postSomeRealisticPayloads(t, fi)
 
@@ -203,7 +207,8 @@ func TestServer(t *testing.T) {
 	})
 
 	t.Run("should accept GET requests on /fakeintake/health route", func(t *testing.T) {
-		fi := NewServer(WithClock(clock.NewMock()))
+		fi, _ := InitialiseForTests(t)
+		defer fi.Stop()
 
 		request, err := http.NewRequest(http.MethodGet, "/fakeintake/health", nil)
 
@@ -215,7 +220,8 @@ func TestServer(t *testing.T) {
 	})
 
 	t.Run("should store multiple payloads on any route and return the list of routes", func(t *testing.T) {
-		fi := NewServer(WithClock(clock.NewMock()))
+		fi, _ := InitialiseForTests(t)
+		defer fi.Stop()
 
 		postSomeFakePayloads(t, fi)
 
@@ -248,8 +254,8 @@ func TestServer(t *testing.T) {
 	})
 
 	t.Run("should handle flush requests", func(t *testing.T) {
-		clock := clock.NewMock()
-		fi := NewServer(WithClock(clock))
+		fi, _ := InitialiseForTests(t)
+		defer fi.Stop()
 
 		postSomeFakePayloads(t, fi)
 
@@ -262,9 +268,8 @@ func TestServer(t *testing.T) {
 	})
 
 	t.Run("should clean payloads older than 15 minutes", func(t *testing.T) {
-		clock := clock.NewMock()
-		fi := NewServer(WithClock(clock))
-		fi.Start()
+		fi, clock := InitialiseForTests(t)
+		defer fi.Stop()
 
 		postSomeFakePayloads(t, fi)
 
@@ -294,9 +299,8 @@ func TestServer(t *testing.T) {
 	})
 
 	t.Run("should clean payloads older than 15 minutes and keep recent payloads", func(t *testing.T) {
-		clock := clock.NewMock()
-		fi := NewServer(WithClock(clock))
-		fi.Start()
+		fi, clock := InitialiseForTests(t)
+		defer fi.Stop()
 
 		postSomeFakePayloads(t, fi)
 
@@ -329,9 +333,8 @@ func TestServer(t *testing.T) {
 	})
 
 	t.Run("should clean parsed payloads", func(t *testing.T) {
-		clock := clock.NewMock()
-		fi := NewServer(WithClock(clock))
-		fi.Start()
+		fi, clock := InitialiseForTests(t)
+		defer fi.Stop()
 
 		request, err := http.NewRequest(http.MethodGet, "/fakeintake/payloads?endpoint=/api/v2/logs&format=json", nil)
 		assert.NoError(t, err, "Error creating GET request")
@@ -364,8 +367,7 @@ func TestServer(t *testing.T) {
 	})
 
 	t.Run("should respond with custom response to /support/flare", func(t *testing.T) {
-		fi := NewServer()
-		fi.Start()
+		fi, _ := InitialiseForTests(t)
 		defer fi.Stop()
 
 		request, err := http.NewRequest(
@@ -381,8 +383,7 @@ func TestServer(t *testing.T) {
 	})
 
 	t.Run("should accept response overrides", func(t *testing.T) {
-		fi := NewServer()
-		fi.Start()
+		fi, _ := InitialiseForTests(t)
 		defer fi.Stop()
 
 		body := api.ResponseOverride{
@@ -433,8 +434,7 @@ func TestServer(t *testing.T) {
 	})
 
 	t.Run("should respond with overridden response for matching endpoint", func(t *testing.T) {
-		fi := NewServer()
-		fi.Start()
+		fi, _ := InitialiseForTests(t)
 		defer fi.Stop()
 
 		fi.responseOverridesByMethod[http.MethodPost]["/totoro"] = httpResponse{
@@ -456,8 +456,7 @@ func TestServer(t *testing.T) {
 	})
 
 	t.Run("should respond with default response for non-matching endpoint", func(t *testing.T) {
-		fi := NewServer()
-		fi.Start()
+		fi, _ := InitialiseForTests(t)
 		defer fi.Stop()
 
 		fi.responseOverridesByMethod[http.MethodPost]["/totoro"] = httpResponse{
