@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	pointer "github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func TestBuildURLShouldReturnHTTPSWithUseSSL(t *testing.T) {

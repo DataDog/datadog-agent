@@ -10,7 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	pointer "github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 // AddrToHostPort converts a net.Addr to a (string, int).
