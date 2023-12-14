@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2014-present Datadog, Inc.
 
-// Package dirwalk contains code to walk a directory.
-package dirwalk
+package portlist
 
 import (
 	"io"
@@ -14,17 +13,17 @@ import (
 	"go4.org/mem"
 )
 
-// WalkFunc is the callback type used with WalkShallow.
+// walkFunc is the callback type used with walkShallow.
 //
 // The name and de are only valid for the duration of func's call
 // and should not be retained.
-type WalkFunc func(name mem.RO, de fs.DirEntry) error
+type walkFunc func(name mem.RO, de fs.DirEntry) error
 
-// WalkShallow reads the entries in the named directory and calls fn for each.
+// walkShallow reads the entries in the named directory and calls fn for each.
 // It does not recurse into subdirectories.
 //
-// If fn returns an error, iteration stops and WalkShallow returns that value.
-func WalkShallow(dirName mem.RO, fn WalkFunc) error {
+// If fn returns an error, iteration stops and walkShallow returns that value.
+func walkShallow(dirName mem.RO, fn walkFunc) error {
 	of, err := os.Open(dirName.StringCopy())
 	if err != nil {
 		return err

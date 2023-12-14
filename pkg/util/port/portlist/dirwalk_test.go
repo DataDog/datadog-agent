@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2014-present Datadog, Inc.
 
-package dirwalk
+package portlist
 
 import (
 	"fmt"
@@ -31,7 +31,7 @@ func TestWalkShallow(t *testing.T) {
 		}
 
 		var got []string
-		if err := WalkShallow(mem.S(d), func(name mem.RO, de os.DirEntry) error {
+		if err := walkShallow(mem.S(d), func(name mem.RO, de os.DirEntry) error {
 			var size int64
 			if fi, err := de.Info(); err != nil {
 				t.Errorf("Info stat error on %q: %v", de.Name(), err)
@@ -55,7 +55,7 @@ func TestWalkShallow(t *testing.T) {
 	})
 
 	t.Run("err_not_exist", func(t *testing.T) {
-		err := WalkShallow(mem.S(filepath.Join(d, "not_exist")), func(name mem.RO, de os.DirEntry) error {
+		err := walkShallow(mem.S(filepath.Join(d, "not_exist")), func(name mem.RO, de os.DirEntry) error {
 			return nil
 		})
 		if !os.IsNotExist(err) {
