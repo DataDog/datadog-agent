@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Add ``msodbcsql18`` linux dep needed for SQL Server to run in Docker Agent.
+    Add ``msodbcsql18`` linux dependency needed for SQL Server to run in Docker Agent.
