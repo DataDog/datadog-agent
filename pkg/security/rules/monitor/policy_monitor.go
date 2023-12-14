@@ -49,38 +49,18 @@ type RuleStatus = map[eval.RuleID]string
 type PolicyMonitor struct {
 	sync.RWMutex
 
-	statsdClient            statsd.ClientInterface
-	policies                map[string]Policy
-	rules                   RuleStatus
-	perRuleMetricEnabled    bool
-	includeInternalPolicies bool
+	statsdClient         statsd.ClientInterface
+	policies             []*PolicyState
+	rules                RuleStatus
+	perRuleMetricEnabled bool
 }
 
-// SetPolicies add policies to the monitor
-func (p *PolicyMonitor) SetPolicies(policies []*rules.Policy, mErrs *multierror.Error) {
+// SetPolicies sets the policies to monitor
+func (p *PolicyMonitor) SetPolicies(policies []*PolicyState) {
 	p.Lock()
 	defer p.Unlock()
 
-	p.policies = map[string]Policy{}
-
-	for _, policy := range policies {
-		if policy.IsInternal && !p.includeInternalPolicies {
-			continue
-		}
-		p.policies[policy.Name] = Policy{Name: policy.Name, Source: policy.Source, Version: policy.Version}
-
-		for _, rule := range policy.Rules {
-			p.rules[rule.ID] = "loaded"
-		}
-
-		if mErrs != nil && mErrs.Errors != nil {
-			for _, err := range mErrs.Errors {
-				if rerr, ok := err.(*rules.ErrRuleLoad); ok {
-					p.rules[rerr.Definition.ID] = string(rerr.Type())
-				}
-			}
-		}
-	}
+	p.policies = policies
 }
 
 // ReportHeartbeatEvent sends HeartbeatEvents reporting the current set of policies
@@ -140,13 +120,12 @@ func (p *PolicyMonitor) Start(ctx context.Context) {
 }
 
 // NewPolicyMonitor returns a new Policy monitor
-func NewPolicyMonitor(statsdClient statsd.ClientInterface, perRuleMetricEnabled, includeInternalPolicies bool) *PolicyMonitor {
+func NewPolicyMonitor(statsdClient statsd.ClientInterface, perRuleMetricEnabled bool) *PolicyMonitor {
 	return &PolicyMonitor{
-		statsdClient:            statsdClient,
-		policies:                make(map[string]Policy),
-		rules:                   make(map[string]string),
-		perRuleMetricEnabled:    perRuleMetricEnabled,
-		includeInternalPolicies: includeInternalPolicies,
+		statsdClient:         statsdClient,
+		policies:             nil,
+		rules:                make(map[string]string),
+		perRuleMetricEnabled: perRuleMetricEnabled,
 	}
 }
 
@@ -156,7 +135,7 @@ type RuleSetLoadedReport struct {
 	Event *events.CustomEvent
 }
 
-// ReportRuleSetLoaded reports to Datadog that new ruleset was loaded
+// ReportRuleSetLoaded reports to Datadog that a new ruleset was loaded
 func ReportRuleSetLoaded(sender events.EventSender, statsdClient statsd.ClientInterface, policies []*PolicyState) {
 	rule, event := NewRuleSetLoadedEvent(policies)
 
@@ -296,7 +275,7 @@ func NewRuleSetLoadedEvent(policies []*PolicyState) (*rules.Rule, *events.Custom
 }
 
 // NewHeartbeatEvents returns the rule (e.g. heartbeat) and a populated custom event for a heartbeat event
-func NewHeartbeatEvents(policies map[string]Policy) (*rules.Rule, []*events.CustomEvent) {
+func NewHeartbeatEvents(policies []*PolicyState) (*rules.Rule, []*events.CustomEvent) {
 	var evts []*events.CustomEvent
 
 	for _, policy := range policies {

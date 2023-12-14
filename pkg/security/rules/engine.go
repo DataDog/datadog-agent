@@ -76,7 +76,7 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 		eventSender:               sender,
 		rateLimiter:               rateLimiter,
 		reloading:                 atomic.NewBool(false),
-		policyMonitor:             monitor.NewPolicyMonitor(evm.StatsdClient, config.PolicyMonitorPerRuleEnabled, config.PolicyMonitorIncludeInternalPolicies),
+		policyMonitor:             monitor.NewPolicyMonitor(evm.StatsdClient, config.PolicyMonitorPerRuleEnabled),
 		currentRuleSet:            new(atomic.Value),
 		currentThreatScoreRuleSet: new(atomic.Value),
 		policyLoader:              rules.NewPolicyLoader(),
@@ -321,7 +321,7 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 
 	if sendLoadedReport {
 		monitor.ReportRuleSetLoaded(e.eventSender, e.statsdClient, policies)
-		e.policyMonitor.SetPolicies(evaluationSet.GetPolicies(), loadErrs)
+		e.policyMonitor.SetPolicies(policies)
 	}
 
 	return nil
