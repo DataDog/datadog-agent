@@ -5,6 +5,8 @@
 require "./lib/ostools.rb"
 flavor = ENV['AGENT_FLAVOR']
 
+# TEST TEST TEST TEST
+
 if flavor.nil? || flavor == 'base'
   name 'agent'
   package_name 'datadog-agent'

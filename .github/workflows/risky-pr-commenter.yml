@@ -1,0 +1,24 @@
+name: "Risky PR Commenter"
+
+on:
+  pull_request:
+    paths:
+      - 'omnibus/**'
+
+jobs:
+  check-for-risky-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            FULL_PIPELINE_MSG = `**Warning**: You just modified the \`/omnibus\` folder impacting a big part of the CI.
+            Only a fraction of the tests are run by default in the CI. **Please consider running a full pipeline:**
+            - To run a full pipeline on the current branch, use \`inv pipeline.run --here\` **(recommended)**.
+            - To run a full pipeline on an arbitrary \`git\` reference (branch or tag), use \`inv pipeline.run --git-ref <git ref>\`.`;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: FULL_PIPELINE_MSG
+            });
