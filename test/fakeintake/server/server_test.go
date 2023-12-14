@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -393,99 +392,103 @@ func TestServer(t *testing.T) {
 		assert.Equal(t, `{}`, string(data))
 	})
 
-	t.Run("should accept response overrides", func(t *testing.T) {
+	t.Run("should accept POST response overrides", func(t *testing.T) {
 		fi, _ := InitialiseForTests(t)
 		defer fi.Stop()
 
 		body := api.ResponseOverride{
+			Method:      http.MethodPost,
 			Endpoint:    "/totoro",
 			StatusCode:  200,
 			ContentType: "text/plain",
 			Body:        []byte("catbus"),
 		}
-		buf := new(bytes.Buffer)
-		err := json.NewEncoder(buf).Encode(body)
+		data := new(bytes.Buffer)
+		err := json.NewEncoder(data).Encode(body)
 		require.NoError(t, err, "Error encoding request body")
 
-		request, err := http.NewRequest(http.MethodPost, "/fakeintake/configure/override", buf)
+		response, err := http.Post(fi.URL()+"/fakeintake/configure/override", "application/json", data)
 		require.NoError(t, err, "Error creating POST request")
+		defer response.Body.Close()
+		assert.Equal(t, http.StatusOK, response.StatusCode, "unexpected code")
+	})
 
-		response := httptest.NewRecorder()
-		fi.handleConfigureOverride(response, request)
+	t.Run("should accept GET response overrides", func(t *testing.T) {
+		fi, _ := InitialiseForTests(t)
+		defer fi.Stop()
 
-		expected := map[string]httpResponse{
-			"/totoro": {
-				statusCode:  http.StatusOK,
-				contentType: "text/plain",
-				body:        []byte("catbus"),
-			},
-			"/support/flare": {
-				statusCode:  http.StatusOK,
-				contentType: "application/json",
-				data:        flareResponseBody{CaseID: 0, Error: ""},
-				body:        []byte("{}"),
-			},
-			"/api/v1/connections": {
-				statusCode:  http.StatusOK,
-				contentType: "application/x-protobuf",
-				data: []byte{
-					0x03, 0x00, 0x17, 0x02, 0xf7, 0x01, 0x00, 0x00,
-					0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-					0x1a, 0x04, 0x08, 0x01, 0x10, 0x1e,
-				},
-				body: []byte{
-					0x03, 0x00, 0x17, 0x02, 0xf7, 0x01, 0x00, 0x00,
-					0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-					0x1a, 0x04, 0x08, 0x01, 0x10, 0x1e,
-				},
-			},
+		body := api.ResponseOverride{
+			Method:      http.MethodGet,
+			Endpoint:    "/totoro",
+			StatusCode:  200,
+			ContentType: "text/plain",
+			Body:        []byte("catbus"),
 		}
-		assert.Equal(t, expected, fi.responseOverridesByMethod[http.MethodPost])
-		assert.Equal(t, http.StatusOK, response.Code)
+		data := new(bytes.Buffer)
+		err := json.NewEncoder(data).Encode(body)
+		require.NoError(t, err, "Error encoding request body")
+		response, err := http.Post(fi.URL()+"/fakeintake/configure/override", "application/json", data)
+		require.NoError(t, err, "Error creating POST request")
+		defer response.Body.Close()
+
+		assert.Equal(t, http.StatusOK, response.StatusCode, "unexpected code")
 	})
 
 	t.Run("should respond with overridden response for matching endpoint", func(t *testing.T) {
 		fi, _ := InitialiseForTests(t)
 		defer fi.Stop()
 
-		fi.responseOverridesByMethod[http.MethodPost]["/totoro"] = httpResponse{
-			statusCode:  200,
-			contentType: "text/plain",
-			body:        []byte("catbus"),
+		body := api.ResponseOverride{
+			Method:      http.MethodPost,
+			Endpoint:    "/totoro",
+			StatusCode:  200,
+			ContentType: "text/plain",
+			Body:        []byte("catbus"),
 		}
+		data := new(bytes.Buffer)
+		err := json.NewEncoder(data).Encode(body)
+		require.NoError(t, err, "Error encoding request body")
+		response, err := http.Post(fi.URL()+"/fakeintake/configure/override", "application/json", data)
+		require.NoError(t, err, "Error creating POST request")
+		defer response.Body.Close()
 
-		request, err := http.NewRequest(
-			http.MethodPost, "/totoro", strings.NewReader("totoro|5|tag:valid,owner:mei"))
-		require.NoError(t, err, "Error creating request")
-
-		response := httptest.NewRecorder()
-		fi.handleDatadogRequest(response, request)
-
-		assert.Equal(t, http.StatusOK, response.Code)
-		assert.Equal(t, "text/plain", response.Header().Get("Content-Type"))
-		assert.Equal(t, []byte("catbus"), response.Body.Bytes())
+		response, err = http.Post(fi.URL()+"/totoro", "text/plain", strings.NewReader("totoro|5|tag:valid,owner:pducolin"))
+		require.NoError(t, err, "Error on POST request")
+		defer response.Body.Close()
+		assert.Equal(t, http.StatusOK, response.StatusCode)
+		assert.Equal(t, "text/plain", response.Header.Get("Content-Type"))
+		responseBody, err := io.ReadAll(response.Body)
+		require.NoError(t, err, "Error reading response body")
+		assert.Equal(t, "catbus", string(responseBody))
 	})
 
 	t.Run("should respond with default response for non-matching endpoint", func(t *testing.T) {
 		fi, _ := InitialiseForTests(t)
 		defer fi.Stop()
 
-		fi.responseOverridesByMethod[http.MethodPost]["/totoro"] = httpResponse{
-			statusCode:  200,
-			contentType: "text/plain",
-			body:        []byte("catbus"),
+		body := api.ResponseOverride{
+			Method:      http.MethodPost,
+			Endpoint:    "/totoro",
+			StatusCode:  200,
+			ContentType: "text/plain",
+			Body:        []byte("catbus"),
 		}
+		data := new(bytes.Buffer)
+		err := json.NewEncoder(data).Encode(body)
+		require.NoError(t, err, "Error encoding request body")
+		response, err := http.Post(fi.URL()+"/fakeintake/configure/override", "application/json", data)
+		require.NoError(t, err, "Error creating POST request")
+		defer response.Body.Close()
 
-		request, err := http.NewRequest(
-			http.MethodPost, "/kiki", strings.NewReader("kiki|4|tag:valid,owner:jiji"))
-		require.NoError(t, err, "Error creating request")
+		response, err = http.Post(fi.URL()+"/kiki", "text/plain", strings.NewReader("kiki|4|tag:valid,owner:jiji"))
+		require.NoError(t, err, "Error on POST request")
+		defer response.Body.Close()
 
-		response := httptest.NewRecorder()
-		fi.handleDatadogRequest(response, request)
-
-		assert.Equal(t, http.StatusOK, response.Code)
-		assert.Equal(t, "application/json", response.Header().Get("Content-Type"))
-		assert.Equal(t, []byte(`{"errors":[]}`), response.Body.Bytes())
+		assert.Equal(t, http.StatusOK, response.StatusCode)
+		assert.Equal(t, "application/json", response.Header.Get("Content-Type"))
+		responseBody, err := io.ReadAll(response.Body)
+		require.NoError(t, err, "Error reading response body")
+		assert.Equal(t, []byte(`{"errors":[]}`), responseBody)
 	})
 }
 
