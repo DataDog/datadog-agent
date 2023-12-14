@@ -5,7 +5,7 @@
 
 //go:build test
 
-package client
+package clientimpl
 
 import (
 	"context"
@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	clientComp "github.com/DataDog/datadog-agent/comp/languagedetection/client"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -57,7 +58,7 @@ func newTestClient(t *testing.T) (*client, chan *pbgo.ParentLanguageAnnotationRe
 		}),
 	))
 
-	optComponent := newClient(deps).(optional.Option[Component])
+	optComponent := newClient(deps).(optional.Option[clientComp.Component])
 	comp, _ := optComponent.Get()
 	client := comp.(*client)
 	client.langDetectionCl = mockDCAClient
@@ -94,7 +95,7 @@ func TestClientEnabled(t *testing.T) {
 				}),
 			))
 
-			optionalCl := newClient(deps).(optional.Option[Component])
+			optionalCl := newClient(deps).(optional.Option[clientComp.Component])
 			assert.Equal(t, testCase.isSet, optionalCl.IsSet())
 		})
 	}

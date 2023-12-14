@@ -5,7 +5,7 @@ import re
 import time
 import traceback
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict
 
 import yaml
@@ -192,9 +192,17 @@ def auto_cancel_previous_pipelines(ctx):
         elif is_ancestor.exited == 1:
             print(f'{pipeline["sha"]} is not an ancestor of {git_sha}, not cancelling pipeline {pipeline["id"]}')
         elif is_ancestor.exited == 128:
+            min_time_before_cancel = 5
             print(
                 f'Could not determine if {pipeline["sha"]} is an ancestor of {git_sha}, probably because it has been deleted from the history because of force push'
             )
+            if datetime.strptime(pipeline["created_at"], "%Y-%m-%dT%H:%M:%S.%fZ") < datetime.now() - timedelta(
+                minutes=min_time_before_cancel
+            ):
+                print(
+                    f'Pipeline started earlier than {min_time_before_cancel} minutes ago, gracefully canceling pipeline {pipeline["id"]}'
+                )
+                gracefully_cancel_pipeline(gitlab, pipeline, force_cancel_stages=["package_build"])
         else:
             print(is_ancestor.stderr)
             raise Exit(1)
@@ -440,7 +448,10 @@ def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True):
     for v in variables.split(','):
         data['variables'][v] = os.environ[v]
 
-    print(f"Creating child pipeline in repo {project_name}, on git ref {git_ref} with params: {data['variables']}")
+    print(
+        f"Creating child pipeline in repo {project_name}, on git ref {git_ref} with params: {data['variables']}",
+        flush=True,
+    )
 
     res = gitlab.trigger_pipeline(data)
 
@@ -449,10 +460,10 @@ def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True):
 
     pipeline_id = res['id']
     pipeline_url = res['web_url']
-    print(f"Created a child pipeline with id={pipeline_id}, url={pipeline_url}")
+    print(f"Created a child pipeline with id={pipeline_id}, url={pipeline_url}", flush=True)
 
     if follow:
-        print("Waiting for child pipeline to finish...")
+        print("Waiting for child pipeline to finish...", flush=True)
 
         wait_for_pipeline(gitlab, pipeline_id)
 
@@ -463,7 +474,7 @@ def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True):
         if pipestatus != "success":
             raise Exit(f"Error: child pipeline status {pipestatus.title()}", code=1)
 
-        print("Child pipeline finished successfully")
+        print("Child pipeline finished successfully", flush=True)
 
 
 def parse(commit_str):

@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestDaemonStopOnTerminationSignals(t *testing.T) {
@@ -51,4 +52,8 @@ func TestDaemonStopOnTerminationSignals(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFxApp(t *testing.T) {
+	fxutil.TestOneShot(t, main)
 }

@@ -245,7 +245,7 @@ require (
 	golang.org/x/sys v0.15.0
 	golang.org/x/text v0.14.0
 	golang.org/x/time v0.3.0
-	golang.org/x/tools v0.16.0
+	golang.org/x/tools v0.16.1
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 	google.golang.org/genproto v0.0.0-20231030173426-d783a09b4405 // indirect
 	google.golang.org/grpc v1.59.0
@@ -636,7 +636,7 @@ require (
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/kr/pretty v0.3.1
 	github.com/protocolbuffers/protoscope v0.0.0-20221109213918-8e7a6aafa2c9
-	github.com/sijms/go-ora/v2 v2.7.6
+	github.com/sijms/go-ora/v2 v2.7.26
 	go.opentelemetry.io/collector/extension v0.87.0
 	go.opentelemetry.io/collector/otelcol v0.87.0
 	go.opentelemetry.io/collector/processor v0.87.0

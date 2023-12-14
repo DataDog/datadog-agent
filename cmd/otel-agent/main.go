@@ -80,8 +80,6 @@ func main() {
 		fx.Provide(func(cfg config.Component) demultiplexerimpl.Params {
 			opts := aggregator.DefaultAgentDemultiplexerOptions()
 			opts.EnableNoAggregationPipeline = cfg.GetBool("dogstatsd_no_aggregation_pipeline")
-			opts.UseDogstatsdContextLimiter = true
-			opts.DogstatsdMaxMetricsTags = cfg.GetInt("dogstatsd_max_metrics_tags")
 			return demultiplexerimpl.Params{Options: opts}
 		}),
 	)

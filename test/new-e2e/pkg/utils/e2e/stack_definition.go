@@ -10,12 +10,13 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent/docker"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent/dockerparams"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
+	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/components/vm"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake/fakeintakeparams"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2vm"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -216,7 +217,10 @@ func FakeIntakeStackDef(options ...func(*AgentStackDefParam) error) *StackDefini
 				return nil, err
 			}
 
-			fakeintakeExporter, err := aws.NewEcsFakeintake(vm.GetAwsEnvironment(), params.fakeintakeParams...)
+			// fakeintakeExporter, err := aws.NewEcsFakeintake(vm.GetAwsEnvironment(), params.fakeintakeParams...)
+			fakeintakeOptions := append([]fakeintakeparams.Option{fakeintakeparams.WithoutLoadBalancer()}, params.fakeintakeParams...)
+			fakeintakeExporter, err := aws.NewEcsFakeintake(vm.GetAwsEnvironment(), fakeintakeOptions...)
+
 			if err != nil {
 				return nil, err
 			}
@@ -248,7 +252,9 @@ func FakeIntakeStackDefWithDefaultVMAndAgentClient(options ...agentparams.Option
 
 // DockerEnv contains an environment with Docker
 type DockerEnv struct {
-	Docker *client.Docker
+	Docker     *client.Docker
+	VM         client.VM
+	Fakeintake *client.Fakeintake
 }
 
 // DockerStackDef creates a stack definition for Docker.
@@ -256,16 +262,28 @@ type DockerEnv struct {
 // See [dockerparams.Params] for available options for params.
 //
 // [dockerparams.Params]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent/dockerparams#Params
-func DockerStackDef(params ...dockerparams.Option) *StackDefinition[DockerEnv] {
+func DockerStackDef(architecture os.Architecture, params ...dockeragentparams.Option) *StackDefinition[DockerEnv] {
 	return EnvFactoryStackDef(
 		func(ctx *pulumi.Context) (*DockerEnv, error) {
-			docker, err := docker.NewDaemon(ctx, params...)
+			vm, err := ec2vm.NewUnixEc2VM(ctx, ec2params.WithArch(ec2os.AmazonLinuxDockerOS, architecture))
+			if err != nil {
+				return nil, err
+			}
+
+			fakeintakeExporter, err := aws.NewEcsFakeintake(vm.GetAwsEnvironment())
+			if err != nil {
+				return nil, err
+			}
+			params = append([]dockeragentparams.Option{dockeragentparams.WithFakeintake(fakeintakeExporter)}, params...)
+			docker, err := agent.NewDaemon(vm, params...)
 			if err != nil {
 				return nil, err
 			}
 
 			return &DockerEnv{
-				Docker: client.NewDocker(docker),
+				Docker:     client.NewDocker(docker),
+				VM:         client.NewPulumiStackVM(vm),
+				Fakeintake: client.NewFakeintake(fakeintakeExporter),
 			}, nil
 		},
 	)

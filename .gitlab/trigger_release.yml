@@ -30,7 +30,9 @@ trigger_auto_staging_release:
     AUTO_RELEASE: "true"
     TARGET_REPO: staging
   rules:
-    !reference [.on_deploy]
+    - if: $DDR == "true"
+      when: never
+    - !reference [.on_deploy]
 
 trigger_manual_prod_release:
   extends: .agent_release_management_trigger

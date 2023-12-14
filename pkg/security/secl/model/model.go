@@ -50,7 +50,7 @@ func (m *Model) NewDefaultEventWithType(kind EventType) eval.Event {
 
 // Releasable represents an object than can be released
 type Releasable struct {
-	onReleaseCallback func() `field:"-" json:"-"`
+	onReleaseCallback func() `field:"-"`
 }
 
 // CallReleaseCallback calls the on-release callback
@@ -157,8 +157,8 @@ type NetworkContext struct {
 
 // SpanContext describes a span context
 type SpanContext struct {
-	SpanID  uint64 `field:"_" json:"-"`
-	TraceID uint64 `field:"_" json:"-"`
+	SpanID  uint64 `field:"_"`
+	TraceID uint64 `field:"_"`
 }
 
 // BaseEvent represents an event sent from the kernel
@@ -177,14 +177,14 @@ type BaseEvent struct {
 	SecurityProfileContext SecurityProfileContext `field:"-"`
 
 	// internal usage
-	PIDContext        PIDContext         `field:"-" json:"-"`
-	ProcessCacheEntry *ProcessCacheEntry `field:"-" json:"-"`
+	PIDContext        PIDContext         `field:"-"`
+	ProcessCacheEntry *ProcessCacheEntry `field:"-"`
 
 	// mark event with having error
-	Error error `field:"-" json:"-"`
+	Error error `field:"-"`
 
 	// field resolution
-	FieldHandlers FieldHandlers `field:"-" json:"-"`
+	FieldHandlers FieldHandlers `field:"-"`
 }
 
 func initMember(member reflect.Value, deja map[string]bool) {
@@ -345,9 +345,9 @@ func (e *Event) GetProcessService() string {
 // UserSessionContext describes the user session context
 // Disclaimer: the `json` tags are used to parse K8s credentials from cws-instrumentation
 type UserSessionContext struct {
-	ID          uint64           `field:"-" json:"-"`
-	SessionType usersession.Type `field:"-" json:"-"`
-	Resolved    bool             `field:"-" json:"-"`
+	ID          uint64           `field:"-"`
+	SessionType usersession.Type `field:"-"`
+	Resolved    bool             `field:"-"`
 	// Kubernetes User Session context
 	K8SUsername string              `field:"k8s_username,handler:ResolveK8SUsername" json:"username,omitempty"` // SECLDoc[k8s_username] Definition:`Kubernetes username of the user that executed the process`
 	K8SUID      string              `field:"k8s_uid,handler:ResolveK8SUID" json:"uid,omitempty"`                // SECLDoc[k8s_uid] Definition:`Kubernetes UID of the user that executed the process`
@@ -463,9 +463,9 @@ var zeroProcessContext ProcessContext
 type ProcessCacheEntry struct {
 	ProcessContext
 
-	refCount  uint64                     `field:"-" json:"-"`
-	onRelease func(_ *ProcessCacheEntry) `field:"-" json:"-"`
-	releaseCb func()                     `field:"-" json:"-"`
+	refCount  uint64                     `field:"-"`
+	onRelease func(_ *ProcessCacheEntry) `field:"-"`
+	releaseCb func()                     `field:"-"`
 }
 
 // IsContainerRoot returns whether this is a top level process in the container ID
@@ -564,7 +564,7 @@ type ExitEvent struct {
 
 // DNSEvent represents a DNS event
 type DNSEvent struct {
-	ID    uint16 `field:"id" json:"-"`                                             // SECLDoc[id] Definition:`[Experimental] the DNS request ID`
+	ID    uint16 `field:"id"`                                                      // SECLDoc[id] Definition:`[Experimental] the DNS request ID`
 	Name  string `field:"question.name,opts:length" op_override:"eval.DNSNameCmp"` // SECLDoc[question.name] Definition:`the queried domain name`
 	Type  uint16 `field:"question.type"`                                           // SECLDoc[question.type] Definition:`a two octet code which specifies the DNS question type` Constants:`DNS qtypes`
 	Class uint16 `field:"question.class"`                                          // SECLDoc[question.class] Definition:`the class looked up by the DNS question` Constants:`DNS qclasses`

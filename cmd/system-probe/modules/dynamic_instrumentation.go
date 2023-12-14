@@ -33,4 +33,7 @@ var DynamicInstrumentation = module.Factory{
 
 		return m, nil
 	},
+	NeedsEBPF: func() bool {
+		return true
+	},
 }
