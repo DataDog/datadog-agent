@@ -12,5 +12,6 @@ fixes:
     logs_no_ssl setting.
 other:
   - |
-    Added warning for upcoming breaking change to logs_no_ssl
-    for main endpoint.
+    Added a warning when ``logs_no_ssl`` is set and ``dd_url``
+    contains an https prefix. ``logs_no_ssl`` will take precedence
+    over the prefix in a future version.

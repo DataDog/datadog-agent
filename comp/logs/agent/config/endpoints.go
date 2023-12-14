@@ -37,7 +37,7 @@ type Endpoint struct {
 	APIKey                  string `mapstructure:"api_key" json:"api_key"`
 	Host                    string
 	Port                    int
-	UseSSL                  *bool `mapstructure:"logs_no_ssl" json:"logs_no_ssl"`
+	UseSSL                  *bool `mapstructure:"use_ssl" json:"use_ssl"`
 	UseCompression          bool  `mapstructure:"use_compression" json:"use_compression"`
 	CompressionLevel        int   `mapstructure:"compression_level" json:"compression_level"`
 	ProxyAddress            string

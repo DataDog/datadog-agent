@@ -488,11 +488,14 @@ func (suite *EndpointsTestSuite) TestIsReliableDefaultTrue() {
 	suite.Len(endpoints.GetReliableEndpoints(), 3)
 }
 
-func (suite *EndpointsTestSuite) TestUseSSLDefaultTrue() {
+func (suite *EndpointsTestSuite) TestAdditionalEndpointsUseSSLTCPMainEndpointTrue() {
 	var (
 		endpoints *Endpoints
 		err       error
 	)
+
+	suite.config.SetWithoutSource("logs_config.logs_no_ssl", "true")
+	suite.config.SetWithoutSource("logs_config.logs_dd_url", "rand_url.com:1")
 
 	suite.config.SetWithoutSource("logs_config.additional_endpoints", []map[string]interface{}{
 		{
@@ -500,14 +503,48 @@ func (suite *EndpointsTestSuite) TestUseSSLDefaultTrue() {
 			"api_key": "1",
 		},
 		{
-			"host":        "b",
-			"api_key":     "2",
-			"logs_no_ssl": true,
+			"host":    "b",
+			"api_key": "2",
+			"use_ssl": true,
 		},
 		{
-			"host":        "c",
-			"api_key":     "3",
-			"logs_no_ssl": false,
+			"host":    "c",
+			"api_key": "3",
+			"use_ssl": false,
+		},
+	})
+
+	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+	suite.Nil(err)
+	suite.Len(endpoints.Endpoints, 4)
+	suite.False(endpoints.Endpoints[1].GetUseSSL())
+	suite.True(endpoints.Endpoints[2].GetUseSSL())
+	suite.False(endpoints.Endpoints[3].GetUseSSL())
+}
+
+func (suite *EndpointsTestSuite) TestAdditionalEndpointsUseSSLTCPMainEndpointFalse() {
+	var (
+		endpoints *Endpoints
+		err       error
+	)
+
+	suite.config.SetWithoutSource("logs_config.logs_no_ssl", "false")
+	suite.config.SetWithoutSource("logs_config.logs_dd_url", "rand_url.com:1")
+
+	suite.config.SetWithoutSource("logs_config.additional_endpoints", []map[string]interface{}{
+		{
+			"host":    "a",
+			"api_key": "1",
+		},
+		{
+			"host":    "b",
+			"api_key": "2",
+			"use_ssl": true,
+		},
+		{
+			"host":    "c",
+			"api_key": "3",
+			"use_ssl": false,
 		},
 	})
 
@@ -515,8 +552,78 @@ func (suite *EndpointsTestSuite) TestUseSSLDefaultTrue() {
 	suite.Nil(err)
 	suite.Len(endpoints.Endpoints, 4)
 	suite.True(endpoints.Endpoints[1].GetUseSSL())
-	suite.False(endpoints.Endpoints[2].GetUseSSL())
-	suite.True(endpoints.Endpoints[3].GetUseSSL())
+	suite.True(endpoints.Endpoints[2].GetUseSSL())
+	suite.False(endpoints.Endpoints[3].GetUseSSL())
+}
+
+func (suite *EndpointsTestSuite) TestAdditionalEndpointsUseSSLHTTPMainEndpointTrue() {
+	var (
+		endpoints *Endpoints
+		err       error
+	)
+
+	suite.config.SetWithoutSource("logs_config.logs_no_ssl", "true")
+	suite.config.SetWithoutSource("logs_config.use_http", "true")
+	suite.config.SetWithoutSource("logs_config.logs_dd_url", "http://rand_url.com:1")
+
+	suite.config.SetWithoutSource("logs_config.additional_endpoints", []map[string]interface{}{
+		{
+			"host":    "a",
+			"api_key": "1",
+		},
+		{
+			"host":    "b",
+			"api_key": "2",
+			"use_ssl": true,
+		},
+		{
+			"host":    "c",
+			"api_key": "3",
+			"use_ssl": false,
+		},
+	})
+
+	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
+	suite.Nil(err)
+	suite.Len(endpoints.Endpoints, 4)
+	suite.False(endpoints.Endpoints[1].GetUseSSL())
+	suite.True(endpoints.Endpoints[2].GetUseSSL())
+	suite.False(endpoints.Endpoints[3].GetUseSSL())
+}
+
+func (suite *EndpointsTestSuite) TestAdditionalEndpointsUseSSLHTTPMainEndpointFalse() {
+	var (
+		endpoints *Endpoints
+		err       error
+	)
+
+	suite.config.SetWithoutSource("logs_config.logs_no_ssl", "false")
+	suite.config.SetWithoutSource("logs_config.use_http", "true")
+	suite.config.SetWithoutSource("logs_config.logs_dd_url", "http://rand_url.com:1")
+
+	suite.config.SetWithoutSource("logs_config.additional_endpoints", []map[string]interface{}{
+		{
+			"host":    "a",
+			"api_key": "1",
+		},
+		{
+			"host":    "b",
+			"api_key": "2",
+			"use_ssl": true,
+		},
+		{
+			"host":    "c",
+			"api_key": "3",
+			"use_ssl": false,
+		},
+	})
+
+	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
+	suite.Nil(err)
+	suite.Len(endpoints.Endpoints, 4)
+	suite.False(endpoints.Endpoints[1].GetUseSSL())
+	suite.True(endpoints.Endpoints[2].GetUseSSL())
+	suite.False(endpoints.Endpoints[3].GetUseSSL())
 }
 
 func TestEndpointsTestSuite(t *testing.T) {
