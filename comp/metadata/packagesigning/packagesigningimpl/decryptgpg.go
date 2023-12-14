@@ -13,48 +13,27 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	pkgUtils "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/utils"
 	pgp "github.com/ProtonMail/go-crypto/openpgp"
 )
 
 // SigningKey represents relevant fields for a package signature key
 type SigningKey struct {
-	Fingerprint    string         `json:"signing_key_fingerprint"`
-	ExpirationDate string         `json:"signing_key_expiration_date"`
-	KeyType        string         `json:"signing_key_type"`
-	Repositories   []repositories `json:"repositories"`
-}
-
-type repositories struct {
-	RepoName string `json:"repo_name"`
+	Fingerprint    string                  `json:"signing_key_fingerprint"`
+	ExpirationDate string                  `json:"signing_key_expiration_date"`
+	KeyType        string                  `json:"signing_key_type"`
+	Repositories   []pkgUtils.Repositories `json:"repositories"`
 }
 
 type repoFile struct {
 	filename     string
-	repositories []repositories
+	repositories []pkgUtils.Repositories
 }
 
 const (
-	aptPath    = "/etc/apt"
-	yumPath    = "/etc/yum"
-	dnfPath    = "/etc/dnf"
-	zyppPath   = "/etc/zypp"
 	noExpDate  = "9999-12-31"
 	formatDate = "2006-01-02"
 )
-
-// getPackageManager is a lazy implementation to detect if we use APT or YUM (RH or SUSE)
-func getPackageManager() string {
-	if _, err := os.Stat(aptPath); !os.IsNotExist(err) {
-		return "apt"
-	} else if _, err := os.Stat(yumPath); !os.IsNotExist(err) {
-		return "yum"
-	} else if _, err := os.Stat(dnfPath); !os.IsNotExist(err) {
-		return "dnf"
-	} else if _, err := os.Stat(zyppPath); !os.IsNotExist(err) {
-		return "zypper"
-	}
-	return ""
-}
 
 // decryptGPGFile parse a gpg file (local or http) and extract signing keys information
 // Some files can contain a list of repositories.
@@ -91,7 +70,7 @@ func decrypt(allKeys map[string]SigningKey, gpgFile repoFile, armored bool, keyT
 }
 
 // decryptGPGReader extract keys from a reader, useful for rpm extraction
-func decryptGPGReader(allKeys map[string]SigningKey, reader io.Reader, armored bool, keyType string, repositories []repositories) error {
+func decryptGPGReader(allKeys map[string]SigningKey, reader io.Reader, armored bool, keyType string, repositories []pkgUtils.Repositories) error {
 	pgpReader := pgp.ReadKeyRing
 	if armored {
 		pgpReader = pgp.ReadArmoredKeyRing

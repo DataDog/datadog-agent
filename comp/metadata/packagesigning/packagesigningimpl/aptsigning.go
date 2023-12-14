@@ -15,10 +15,10 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	pkgUtils "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/utils"
 )
 
 const (
-	packageConfig  = "/etc/dpkg/dpkg.cfg"
 	trustedFolder  = "/etc/apt/trusted.gpg.d/"
 	trustedFile    = "/etc/apt/trusted.gpg"
 	mainSourceList = "/etc/apt/sources.list"
@@ -31,22 +31,6 @@ var (
 	debsigPolicies   = "/etc/debsig/policies/"
 	debsigKeyring    = "/usr/share/debsig/keyrings/"
 )
-
-// getNoDebsig returns the signature policy for the host. no-debsig means GPG check is enabled
-func getNoDebsig() bool {
-	if _, err := os.Stat(packageConfig); !os.IsNotExist(err) {
-		if file, err := os.Open(packageConfig); err == nil {
-			defer file.Close()
-			scanner := bufio.NewScanner(file)
-			for scanner.Scan() {
-				if scanner.Text() == "no-debsig" {
-					return true
-				}
-			}
-		}
-	}
-	return false
-}
 
 // getAPTSignatureKeys returns the list of debian signature keys
 func getAPTSignatureKeys(client *http.Client, logger log.Component) []SigningKey {
@@ -102,8 +86,8 @@ func updateWithSignedByKeys(allKeys map[string]SigningKey, client *http.Client, 
 	}
 }
 
-func parseSourceListFile(filePath string) map[string][]repositories {
-	reposPerKey := make(map[string][]repositories)
+func parseSourceListFile(filePath string) map[string][]pkgUtils.Repositories {
+	reposPerKey := make(map[string][]pkgUtils.Repositories)
 	file, err := os.Open(filePath)
 	if err != nil {
 		return nil
@@ -121,9 +105,9 @@ func parseSourceListFile(filePath string) map[string][]repositories {
 			keyURI := signedBy.FindStringSubmatch(options)
 			if len(keyURI) > 1 {
 				if _, ok := reposPerKey[keyURI[1]]; !ok {
-					reposPerKey[keyURI[1]] = []repositories{{RepoName: strings.ReplaceAll(splitLine[3], " ", "/")}}
+					reposPerKey[keyURI[1]] = []pkgUtils.Repositories{{RepoName: strings.ReplaceAll(splitLine[3], " ", "/")}}
 				} else {
-					reposPerKey[keyURI[1]] = append(reposPerKey[keyURI[1]], repositories{RepoName: strings.ReplaceAll(splitLine[3], " ", "/")})
+					reposPerKey[keyURI[1]] = append(reposPerKey[keyURI[1]], pkgUtils.Repositories{RepoName: strings.ReplaceAll(splitLine[3], " ", "/")})
 				}
 			}
 		}

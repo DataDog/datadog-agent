@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
-	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning/packagesigningimpl"
+	pkgUtils "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/utils"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
 	"github.com/DataDog/datadog-agent/pkg/gohai/memory"
@@ -47,7 +47,7 @@ var (
 	networkGet    = network.CollectInfo
 	platformGet   = platform.CollectInfo
 	osVersionGet  = utils.GetOSVersion
-	pkgSigningGet = packagesigningimpl.GetLinuxPackageSigningPolicy
+	pkgSigningGet = pkgUtils.GetLinuxPackageSigningPolicy
 )
 
 // hostMetadata contains metadata about the host

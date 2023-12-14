@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
+	pkgUtils "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/utils"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -95,7 +96,7 @@ func newPackageSigningProvider(deps dependencies) provides {
 	is.InventoryPayload.MinInterval = defaultCollectInterval
 	provider := runnerimpl.NewEmptyProvider()
 	if runtime.GOOS == "linux" {
-		if getPackageManager() != "" {
+		if getPkgManager() != "" {
 			// Package signing telemetry is only valid on Linux and DEB/RPM based distros (including SUSE)
 			provider = is.MetadataProvider()
 		} else {
@@ -112,7 +113,7 @@ func newPackageSigningProvider(deps dependencies) provides {
 
 // Testing purpose
 var (
-	getPkgManager = getPackageManager
+	getPkgManager = pkgUtils.GetPackageManager
 	getAPTKeys    = getAPTSignatureKeys
 	getYUMKeys    = getYUMSignatureKeys
 )
@@ -141,20 +142,4 @@ func (is *pkgSigning) getPayload() marshaler.JSONMarshaler {
 		Timestamp: time.Now().UnixNano(),
 		Metadata:  &signingMetadata{is.getData()},
 	}
-}
-
-// GetLinuxPackageSigningPolicy returns the global GPG signing policy of the host
-func GetLinuxPackageSigningPolicy() (bool, bool) {
-	if runtime.GOOS == "linux" {
-		pkgManager := getPackageManager()
-		switch pkgManager {
-		case "apt":
-			return getNoDebsig(), false
-		case "yum", "dnf", "zypper":
-			return getMainGPGCheck(pkgManager)
-		default: // should not happen, tested above
-			return false, false
-		}
-	}
-	return false, false
 }

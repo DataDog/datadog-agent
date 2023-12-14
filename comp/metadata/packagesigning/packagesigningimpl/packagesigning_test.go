@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
+// go:build linux
 
 package packagesigningimpl
 
@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	pkgUtils "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
@@ -190,156 +191,22 @@ func compareKeys(a, b SigningKey) bool {
 	return true
 }
 
-func TestParseRepoFile(t *testing.T) {
-	testCases := []struct {
-		name        string
-		fileName    string
-		mainConf    mainData
-		reposPerKey map[string][]repositories
-	}{
-		{
-			name:     "Main file with several repo config",
-			fileName: "testdata/main.repo",
-			mainConf: mainData{false, false, false},
-			reposPerKey: map[string][]repositories{"file:///etc/httpfile": nil,
-				"https://httpfile.com":  nil,
-				"https://ook.com":       nil,
-				"file:///etc/rincewind": nil,
-				"https://leia.com":      nil,
-				"file:///etc/luke":      nil,
-				"https://strength.com":  nil,
-				"https://courage.com":   nil,
-				"file:///etc/wisdom":    nil,
-				"https://brahma.com":    nil,
-				"file:///etc/vishnu":    nil,
-				"file:///etc/shiva":     nil},
-		},
-		{
-			name:        "Main with checks enabled",
-			fileName:    "testdata/main_enabled.repo",
-			mainConf:    mainData{true, true, true},
-			reposPerKey: nil,
-		},
-		{
-			name:     "One file with 2 different configurations",
-			fileName: "testdata/multi.repo",
-			mainConf: mainData{},
-			reposPerKey: map[string][]repositories{"https://keys.datadoghq.com/DATADOG_RPM_KEY_CURRENT.public": {{"https://yum.datadoghq.com/stable/7/x86_64/"}},
-				"https://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public": {{"https://yum.datadoghq.com/stable/7/x86_64/"}},
-				"https://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public": {{"https://yum.datadoghq.com/stable/7/x86_64/"}, {"another"}}},
-		},
-		{
-			name:     "Repositories with one or several filenames",
-			fileName: "testdata/repo.repo",
-			mainConf: mainData{true, false, false},
-			reposPerKey: map[string][]repositories{"file:///etc/filedanstachambre": {{"tidy"}, {"room"}},
-				"/snow-white": {{"mirror"}, {"apple"}}},
-		},
-	}
-
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			mainConf, reposPerKey := parseRepoFile(testCase.fileName, testCase.mainConf)
-			errorData := compareRepoPerKeys(reposPerKey, testCase.reposPerKey)
-			if mainConf != testCase.mainConf {
-				t.Errorf("Expected gpgcheck/local/repo %t/%t/%t, got %t/%t/%t",
-					testCase.mainConf.gpgcheck,
-					testCase.mainConf.localpkgGpgcheck,
-					testCase.mainConf.repoGpgcheck,
-					mainConf.gpgcheck,
-					mainConf.localpkgGpgcheck,
-					mainConf.repoGpgcheck)
-			}
-			if len(errorData) > 0 {
-				for _, key := range errorData {
-					if _, ok := testCase.reposPerKey[key]; !ok {
-						t.Errorf("Unexpected key %s", key)
-					} else {
-						if _, ok := reposPerKey[key]; !ok {
-							t.Errorf("Missing key %s", key)
-						} else {
-							t.Errorf("Wrong key %s expected %v got %v", key, testCase.reposPerKey[key], reposPerKey[key])
-						}
-					}
-				}
-			}
-		})
-	}
-}
-
-func compareRepoPerKeys(a, b map[string][]repositories) []string {
-	errorKeys := make([]string, 0)
-	if len(a) < len(b) {
-		for key := range b {
-			if _, ok := a[key]; !ok {
-				errorKeys = append(errorKeys, key)
-			}
-		}
-	} else if len(a) > len(b) {
-		for key := range a {
-			if _, ok := b[key]; !ok {
-				errorKeys = append(errorKeys, key)
-			}
-		}
-	} else {
-		errorKeys = append(errorKeys, compareKey(a, b)...)
-		errorKeys = append(errorKeys, compareKey(b, a)...)
-	}
-	return errorKeys
-}
-func compareKey(a, b map[string][]repositories) []string {
-	errorKeys := make([]string, 0)
-	for key := range a {
-		if _, ok := b[key]; !ok {
-			errorKeys = append(errorKeys, key)
-		} else {
-			if len(a[key]) == len(b[key]) {
-				if anyMissingRepository(a[key], b[key]) {
-					errorKeys = append(errorKeys, key)
-				}
-				if anyMissingRepository(b[key], a[key]) {
-					errorKeys = append(errorKeys, key)
-				}
-			} else {
-				errorKeys = append(errorKeys, key)
-			}
-		}
-	}
-	return errorKeys
-}
-func anyMissingRepository(r, s []repositories) bool {
-	for _, src := range r {
-		found := false
-		for _, dest := range s {
-			if src.RepoName == dest.RepoName {
-				found = true
-				break
-			}
-
-		}
-		if !found {
-			return true
-		}
-	}
-	return false
-}
-
 func TestUpdateWithRepoFile(t *testing.T) {
 	t.Cleanup(func() {
-		yumConf = "/etc/yum.conf"
-		yumRepo = "/etc/yum.repos.d/"
+		pkgUtils.YumConf = "/etc/yum.conf"
+		pkgUtils.YumRepo = "/etc/yum.repos.d/"
 	})
-	yumConf = "testdata/yum.conf"
-	yumRepo = "testdata/yum.repos.d/"
+	pkgUtils.YumConf = "testdata/yum.conf"
+	pkgUtils.YumRepo = "testdata/yum.repos.d/"
 	testCases := []struct {
 		name    string
 		allKeys map[string]SigningKey
 	}{
 		{
 			name: "Update with repo files",
-			allKeys: map[string]SigningKey{"32637D44F14F620E": {Fingerprint: "32637D44F14F620E", ExpirationDate: "2032-09-05", KeyType: "repo", Repositories: []repositories{{RepoName: "https://versailles.com"}}},
-				"E6266D4AC0962C7D": {Fingerprint: "E6266D4AC0962C7D", ExpirationDate: "2028-04-18", KeyType: "repo", Repositories: []repositories{{RepoName: "https://versailles.com"}}},
-				"D3A80E30382E94DE": {Fingerprint: "D3A80E30382E94DE", ExpirationDate: "2022-06-28", KeyType: "repo", Repositories: []repositories{{RepoName: "https://versailles.com"}}},
+			allKeys: map[string]SigningKey{"32637D44F14F620E": {Fingerprint: "32637D44F14F620E", ExpirationDate: "2032-09-05", KeyType: "repo", Repositories: []pkgUtils.Repositories{{RepoName: "https://versailles.com"}}},
+				"E6266D4AC0962C7D": {Fingerprint: "E6266D4AC0962C7D", ExpirationDate: "2028-04-18", KeyType: "repo", Repositories: []pkgUtils.Repositories{{RepoName: "https://versailles.com"}}},
+				"D3A80E30382E94DE": {Fingerprint: "D3A80E30382E94DE", ExpirationDate: "2022-06-28", KeyType: "repo", Repositories: []pkgUtils.Repositories{{RepoName: "https://versailles.com"}}},
 			},
 		},
 	}
@@ -355,6 +222,7 @@ func TestUpdateWithRepoFile(t *testing.T) {
 		})
 	}
 }
+
 func TestGetDebsigPath(t *testing.T) {
 	t.Cleanup(func() {
 		debsigPolicies = "/etc/debsig/policies/"
@@ -392,14 +260,14 @@ func TestParseSourceListFile(t *testing.T) {
 	testCases := []struct {
 		name        string
 		fileName    string
-		reposPerKey map[string][]repositories
+		reposPerKey map[string][]pkgUtils.Repositories
 	}{
 		{
 			name:     "Source list file with several repo config",
 			fileName: "testdata/datadog.list",
-			reposPerKey: map[string][]repositories{"/usr/share/keyrings/datadog-archive-keyring.gpg": {{"https://apt.datadoghq.com//stable/7"}, {"https://apt.datadoghq.com//stable/6"}, {"https://apt.datadoghq.com//beta/7"}},
-				"/usr/vinz/clortho/keyring.gpg": {{"https://apt.ghostbusters.com//stable/84"}},
-				"/don/rosa/carl/barks":          {{"https://duck.family.com/scrooge/donald/huey/dewey/louie"}},
+			reposPerKey: map[string][]pkgUtils.Repositories{"/usr/share/keyrings/datadog-archive-keyring.gpg": {{RepoName: "https://apt.datadoghq.com//stable/7"}, {RepoName: "https://apt.datadoghq.com//stable/6"}, {"https://apt.datadoghq.com//beta/7"}},
+				"/usr/vinz/clortho/keyring.gpg": {{RepoName: "https://apt.ghostbusters.com//stable/84"}},
+				"/don/rosa/carl/barks":          {{RepoName: "https://duck.family.com/scrooge/donald/huey/dewey/louie"}},
 			},
 		},
 	}
@@ -407,7 +275,7 @@ func TestParseSourceListFile(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			reposPerKey := parseSourceListFile(testCase.fileName)
-			errorData := compareRepoPerKeys(reposPerKey, testCase.reposPerKey)
+			errorData := pkgUtils.CompareRepoPerKeys(reposPerKey, testCase.reposPerKey)
 			if len(errorData) > 0 {
 				for _, key := range errorData {
 					if _, ok := testCase.reposPerKey[key]; !ok {
@@ -430,7 +298,7 @@ func TestGetAPTPayload(t *testing.T) {
 
 	expectedMetadata := &signingMetadata{
 		SigningKeys: []SigningKey{
-			{Fingerprint: "F1068E14E09422B3", ExpirationDate: "2022-06-28", KeyType: "signed-by", Repositories: []repositories{{RepoName: "https://apt.datadoghq.com//stable/7"}}},
+			{Fingerprint: "F1068E14E09422B3", ExpirationDate: "2022-06-28", KeyType: "signed-by", Repositories: []pkgUtils.Repositories{{RepoName: "https://apt.datadoghq.com//stable/7"}}},
 			{Fingerprint: "FD4BF915", ExpirationDate: "9999-12-31", KeyType: "trusted"},
 		},
 	}
@@ -446,7 +314,7 @@ func TestGetYUMPayload(t *testing.T) {
 
 	expectedMetadata := &signingMetadata{
 		SigningKeys: []SigningKey{
-			{Fingerprint: "AL1C1AK3YS", ExpirationDate: "9999-12-31", KeyType: "repo", Repositories: []repositories{{RepoName: "https://yum.datadoghq.com/stable/7/x86_64/"}}},
+			{Fingerprint: "AL1C1AK3YS", ExpirationDate: "9999-12-31", KeyType: "repo", Repositories: []pkgUtils.Repositories{{RepoName: "https://yum.datadoghq.com/stable/7/x86_64/"}}},
 			{Fingerprint: "733142A241337", ExpirationDate: "2030-03-02", KeyType: "rpm"},
 		},
 	}
@@ -459,7 +327,7 @@ func TestGetYUMPayload(t *testing.T) {
 
 func setupAPTSigningMock(t *testing.T) {
 	t.Cleanup(func() {
-		getPkgManager = getPackageManager
+		getPkgManager = pkgUtils.GetPackageManager
 		getAPTKeys = getAPTSignatureKeys
 		getYUMKeys = getYUMSignatureKeys
 	})
@@ -477,13 +345,13 @@ func getPackageAPTMock() string { return "apt" }
 func getPackageYUMMock() string { return "yum" }
 func getAPTKeysMock(_ *http.Client, _ log.Component) []SigningKey {
 	return []SigningKey{
-		{Fingerprint: "F1068E14E09422B3", ExpirationDate: "2022-06-28", KeyType: "signed-by", Repositories: []repositories{{RepoName: "https://apt.datadoghq.com//stable/7"}}},
+		{Fingerprint: "F1068E14E09422B3", ExpirationDate: "2022-06-28", KeyType: "signed-by", Repositories: []pkgUtils.Repositories{{RepoName: "https://apt.datadoghq.com//stable/7"}}},
 		{Fingerprint: "FD4BF915", ExpirationDate: "9999-12-31", KeyType: "trusted"},
 	}
 }
 func getYUMKeysMock(_ string, _ *http.Client, _ log.Component) []SigningKey {
 	return []SigningKey{
-		{Fingerprint: "AL1C1AK3YS", ExpirationDate: "9999-12-31", KeyType: "repo", Repositories: []repositories{{RepoName: "https://yum.datadoghq.com/stable/7/x86_64/"}}},
+		{Fingerprint: "AL1C1AK3YS", ExpirationDate: "9999-12-31", KeyType: "repo", Repositories: []pkgUtils.Repositories{{RepoName: "https://yum.datadoghq.com/stable/7/x86_64/"}}},
 		{Fingerprint: "733142A241337", ExpirationDate: "2030-03-02", KeyType: "rpm"},
 	}
 }
