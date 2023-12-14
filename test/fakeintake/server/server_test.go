@@ -440,7 +440,7 @@ func TestServer(t *testing.T) {
 				},
 			},
 		}
-		assert.Equal(t, expected, fi.responseOverrides)
+		assert.Equal(t, expected, fi.responseOverridesByMethod[http.MethodPost])
 		assert.Equal(t, http.StatusOK, response.Code)
 	})
 
@@ -449,7 +449,7 @@ func TestServer(t *testing.T) {
 		fi.Start()
 		defer fi.Stop()
 
-		fi.responseOverrides["/totoro"] = httpResponse{
+		fi.responseOverridesByMethod[http.MethodPost]["/totoro"] = httpResponse{
 			statusCode:  200,
 			contentType: "text/plain",
 			body:        []byte("catbus"),
@@ -472,7 +472,7 @@ func TestServer(t *testing.T) {
 		fi.Start()
 		defer fi.Stop()
 
-		fi.responseOverrides["/totoro"] = httpResponse{
+		fi.responseOverridesByMethod[http.MethodPost]["/totoro"] = httpResponse{
 			statusCode:  200,
 			contentType: "text/plain",
 			body:        []byte("catbus"),

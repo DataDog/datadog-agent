@@ -35,12 +35,22 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+// defaultResponse is the default response returned by the fakeintake server
+var defaultResponseByMethod map[string]httpResponse
+
 func init() {
-	defaultResponse = updateResponseFromData(httpResponse{
-		statusCode:  http.StatusOK,
-		contentType: "application/json",
-		data:        errorResponseBody{Errors: []string{}},
-	})
+	defaultResponseByMethod = map[string]httpResponse{
+		http.MethodGet: updateResponseFromData(httpResponse{
+			statusCode: http.StatusOK,
+		}),
+		http.MethodPost: updateResponseFromData(httpResponse{
+			statusCode:  http.StatusOK,
+			contentType: "application/json",
+			data: errorResponseBody{
+				Errors: make([]string, 0),
+			},
+		}),
+	}
 }
 
 //nolint:revive // TODO(APL) Fix revive linter
@@ -56,8 +66,8 @@ type Server struct {
 
 	store *serverstore.Store
 
-	responseOverridesMutex sync.RWMutex
-	responseOverrides      map[string]httpResponse
+	responseOverridesMutex    sync.RWMutex
+	responseOverridesByMethod map[string]map[string]httpResponse
 }
 
 // NewServer creates a new fake intake server and starts it on localhost:port
@@ -66,12 +76,12 @@ type Server struct {
 // If the port is 0, a port number is automatically chosen
 func NewServer(options ...func(*Server)) *Server {
 	fi := &Server{
-		urlMutex:               sync.RWMutex{},
-		clock:                  clock.New(),
-		retention:              15 * time.Minute,
-		store:                  serverstore.NewStore(),
-		responseOverridesMutex: sync.RWMutex{},
-		responseOverrides:      newResponseOverrides(),
+		urlMutex:                  sync.RWMutex{},
+		clock:                     clock.New(),
+		retention:                 15 * time.Minute,
+		store:                     serverstore.NewStore(),
+		responseOverridesMutex:    sync.RWMutex{},
+		responseOverridesByMethod: newResponseOverrides(),
 	}
 
 	registry := prometheus.NewRegistry()
@@ -308,7 +318,15 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	response := fi.getResponseFromURLPath(req.URL.Path)
+	response, ok := fi.getResponseFromURLPath(http.MethodPost, req.URL.Path)
+	if ok {
+		writeHTTPResponse(w, response)
+		return
+	}
+
+	err = fmt.Errorf("error handling request on URL %s and method %s", req.URL.Path, req.Method)
+	log.Printf("Error: %v", err)
+	response = buildErrorResponse(err)
 	writeHTTPResponse(w, response)
 }
 
@@ -440,10 +458,13 @@ func (fi *Server) handleConfigureOverride(w http.ResponseWriter, req *http.Reque
 		writeHTTPResponse(w, response)
 		return
 	}
+	if payload.Method == "" {
+		payload.Method = http.MethodPost
+	}
 
 	log.Printf("Handling configureOverride request for endpoint %s", payload.Endpoint)
 
-	fi.safeSetResponseOverride(payload.Endpoint, httpResponse{
+	fi.safeSetResponseOverride(payload.Method, payload.Endpoint, httpResponse{
 		statusCode:  payload.StatusCode,
 		contentType: payload.ContentType,
 		body:        payload.Body,
@@ -454,22 +475,29 @@ func (fi *Server) handleConfigureOverride(w http.ResponseWriter, req *http.Reque
 	})
 }
 
-func (fi *Server) safeSetResponseOverride(endpoint string, response httpResponse) {
+func (fi *Server) safeSetResponseOverride(method string, endpoint string, response httpResponse) {
 	fi.responseOverridesMutex.Lock()
 	defer fi.responseOverridesMutex.Unlock()
-
-	fi.responseOverrides[endpoint] = response
+	fi.responseOverridesByMethod[method][endpoint] = response
 }
 
 // getResponseFromURLPath returns the HTTP response for a given URL path, or the default response if
 // no override exists
-func (fi *Server) getResponseFromURLPath(path string) httpResponse {
+func (fi *Server) getResponseFromURLPath(method string, path string) (httpResponse, bool) {
 	fi.responseOverridesMutex.RLock()
 	defer fi.responseOverridesMutex.RUnlock()
 
-	if resp, ok := fi.responseOverrides[path]; ok {
-		return resp
+	// by default, update the response for POST requests
+	if method == "" {
+		method = http.MethodPost
 	}
 
-	return defaultResponse
+	if respForMethod, ok := fi.responseOverridesByMethod[method]; ok {
+		if resp, ok := respForMethod[path]; ok {
+			return resp, true
+		}
+	}
+
+	response, found := defaultResponseByMethod[method]
+	return response, found
 }

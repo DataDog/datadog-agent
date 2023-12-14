@@ -46,7 +46,7 @@ func updateResponseFromData(r httpResponse) httpResponse {
 			}
 		}
 		r.body = bodyJSON
-	} else {
+	} else if r.data != nil {
 		r.body = r.data.([]byte)
 	}
 	return r
