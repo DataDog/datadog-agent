@@ -8,7 +8,7 @@
 ---
 fixes:
   - |
-    Fixed logs agent additional endpoint to respect their
+    Fixed Logs Agent additional endpoints to respect their
     logs_no_ssl setting.
 other:
   - |
