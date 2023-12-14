@@ -20,7 +20,7 @@ import (
 )
 
 func TestStartFlowRoutine_invalidType(t *testing.T) {
-	logger := fxutil.Test[log.Component](t, logimpl.MockModule)
+	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
 	listenerErr := atomic.NewString("")
 	listenerFlowCount := atomic.NewInt64(0)
 

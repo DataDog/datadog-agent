@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake/fakeintakeparams"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
@@ -23,7 +24,9 @@ type linuxTestSuite struct {
 func TestLinuxTestSuite(t *testing.T) {
 	e2e.Run(t, &linuxTestSuite{},
 		e2e.FakeIntakeStackDef(
-			e2e.WithAgentParams(agentparams.WithAgentConfig(processCheckConfigStr))))
+			e2e.WithFakeIntakeParams(fakeintakeparams.WithoutLoadBalancer()),
+			e2e.WithAgentParams(agentparams.WithAgentConfig(processCheckConfigStr)),
+		))
 }
 
 func (s *linuxTestSuite) SetupSuite() {

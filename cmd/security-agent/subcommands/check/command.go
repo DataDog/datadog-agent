@@ -96,7 +96,7 @@ func commandsWrapped(bundleParamsFactory func() core.BundleParams) []*cobra.Comm
 			return fxutil.OneShot(RunCheck,
 				fx.Supply(checkArgs),
 				fx.Supply(bundleParams),
-				core.Bundle,
+				core.Bundle(),
 				dogstatsd.ClientBundle,
 			)
 		},

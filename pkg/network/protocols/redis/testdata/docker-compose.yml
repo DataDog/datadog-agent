@@ -1,4 +1,5 @@
 version: '3'
+name: redis
 services:
   redis:
     image: redis:7-alpine
@@ -7,9 +8,3 @@ services:
       - ${REDIS_ADDR:-127.0.0.1}:${REDIS_PORT:-6379}:6379
     environment:
       - "ALLOW_EMPTY_PASSWORD=yes"
-    networks:
-      - redis
-
-networks:
-  redis:
-    driver: bridge

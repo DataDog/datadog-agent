@@ -5,7 +5,7 @@
 
 //go:build test
 
-package client
+package clientimpl
 
 import (
 	"context"
@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	clientComp "github.com/DataDog/datadog-agent/comp/languagedetection/client"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -42,22 +43,22 @@ func newTestClient(t *testing.T) (*client, chan *pbgo.ParentLanguageAnnotationRe
 	mockDCAClient := &MockDCAClient{respCh: respCh}
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		config.MockModule,
+		config.MockModule(),
 		fx.Replace(config.MockParams{Overrides: map[string]interface{}{
 			"language_detection.enabled":       "true",
 			"cluster_agent.enabled":            "true",
 			"language_detection.client_period": "50ms",
 		}}),
-		telemetry.MockModule,
-		logimpl.MockModule,
+		telemetry.MockModule(),
+		logimpl.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2,
+		workloadmeta.MockModuleV2(),
 		fx.Provide(func(m workloadmeta.Mock) workloadmeta.Component {
 			return m.(workloadmeta.Component)
 		}),
 	))
 
-	optComponent := newClient(deps).(optional.Option[Component])
+	optComponent := newClient(deps).(optional.Option[clientComp.Component])
 	comp, _ := optComponent.Get()
 	client := comp.(*client)
 	client.langDetectionCl = mockDCAClient
@@ -80,21 +81,21 @@ func TestClientEnabled(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(fmt.Sprintf("language_enabled=%s, cluster_agent_enabled=%s", testCase.languageEnabled, testCase.clusterAgentEnabled), func(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
-				config.MockModule,
+				config.MockModule(),
 				fx.Replace(config.MockParams{Overrides: map[string]interface{}{
 					"language_detection.enabled": testCase.languageEnabled,
 					"cluster_agent.enabled":      testCase.clusterAgentEnabled,
 				}}),
-				telemetry.MockModule,
-				logimpl.MockModule,
+				telemetry.MockModule(),
+				logimpl.MockModule(),
 				fx.Supply(workloadmeta.NewParams()),
-				workloadmeta.MockModuleV2,
+				workloadmeta.MockModuleV2(),
 				fx.Provide(func(m workloadmeta.Mock) workloadmeta.Component {
 					return m.(workloadmeta.Component)
 				}),
 			))
 
-			optionalCl := newClient(deps).(optional.Option[Component])
+			optionalCl := newClient(deps).(optional.Option[clientComp.Component])
 			assert.Equal(t, testCase.isSet, optionalCl.IsSet())
 		})
 	}

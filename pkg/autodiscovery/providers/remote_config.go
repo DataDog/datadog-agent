@@ -32,6 +32,7 @@ type rcAgentIntegration struct {
 	Name       string            `json:"name"`
 	Instances  []json.RawMessage `json:"instances"`
 	InitConfig json.RawMessage   `json:"init_config"`
+	LogsConfig json.RawMessage   `json:"logs"`
 }
 
 var datadogConfigIDRegexp = regexp.MustCompile(`^datadog/\d+/AGENT_INTEGRATIONS/([^/]+)/([^/]+)$`)
@@ -119,7 +120,7 @@ func (rc *RemoteConfigProvider) IntegrationScheduleCallback(updates map[string]s
 				State: state.ApplyStateError,
 				Error: fmt.Sprintf("Integration %s is not allowed to be scheduled in this agent", d.Name),
 			})
-			break
+			continue
 		}
 
 		applyStateCallback(cfgPath, state.ApplyStatus{State: state.ApplyStateUnacknowledged})
@@ -135,6 +136,7 @@ func (rc *RemoteConfigProvider) IntegrationScheduleCallback(updates map[string]s
 			Name:       d.Name,
 			Instances:  []integration.Data{},
 			InitConfig: integration.Data(d.InitConfig),
+			LogsConfig: integration.Data(d.LogsConfig),
 			Source:     source,
 		}
 		for _, inst := range d.Instances {

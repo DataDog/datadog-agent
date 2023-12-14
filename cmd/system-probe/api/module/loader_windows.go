@@ -13,14 +13,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func preRegister(cfg *config.Config) error {
+func preRegister(cfg *config.Config, _ []Factory) error {
 	if err := driver.Init(cfg); err != nil {
 		return fmt.Errorf("failed to load driver subsystem: %v", err)
 	}
 	return nil
 }
 
-func postRegister(_ *config.Config) error {
+func postRegister(_ *config.Config, _ []Factory) error {
 	if !driver.IsNeeded() {
 		// if running, shut it down
 		log.Debug("Shutting down the driver.  Upon successful initialization, it was not needed by the current configuration.")

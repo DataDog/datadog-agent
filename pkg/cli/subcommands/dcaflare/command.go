@@ -88,8 +88,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    logimpl.ForOneShot(LoggerName, DefaultLogLevel, true),
 				}),
-				core.Bundle,
-				diagnosesendermanagerimpl.Module,
+				core.Bundle(),
+				diagnosesendermanagerimpl.Module(),
 			)
 		},
 	}

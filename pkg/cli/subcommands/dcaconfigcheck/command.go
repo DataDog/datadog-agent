@@ -49,7 +49,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath),
 					LogParams:    logimpl.ForOneShot("CLUSTER", "off", true),
 				}),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}

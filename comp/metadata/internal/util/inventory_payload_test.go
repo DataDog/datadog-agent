@@ -37,8 +37,8 @@ func (p *testPayload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error)
 
 func getTestInventoryPayload(t *testing.T, confOverrides map[string]any) *InventoryPayload {
 	i := CreateInventoryPayload(
-		fxutil.Test[config.Component](t, config.MockModule, fx.Replace(config.MockParams{Overrides: confOverrides})),
-		fxutil.Test[log.Component](t, logimpl.MockModule),
+		fxutil.Test[config.Component](t, config.MockModule(), fx.Replace(config.MockParams{Overrides: confOverrides})),
+		fxutil.Test[log.Component](t, logimpl.MockModule()),
 		&serializer.MockSerializer{},
 		func() marshaler.JSONMarshaler { return &testPayload{} },
 		"test.json",
