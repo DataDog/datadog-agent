@@ -26,6 +26,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"golang.org/x/exp/slices"
@@ -459,7 +460,7 @@ func initStatsdClient() {
 }
 
 func runCmd(pidfilePath string, poolSize int, allowedScanTypes []string) error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	if pidfilePath != "" {
@@ -524,7 +525,7 @@ func getDefaultRolesMapping() rolesMapping {
 }
 
 func scanCmd(config scanConfig) error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	hostname, err := utils.GetHostnameWithContext(ctx)
 	if err != nil {
@@ -545,7 +546,7 @@ func scanCmd(config scanConfig) error {
 }
 
 func offlineCmd(poolSize int, regions []string, maxScans int) error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	defer statsd.Flush()
 
@@ -720,7 +721,7 @@ func listEBSVolumesForRegion(ctx context.Context, accountID, regionName string, 
 }
 
 func cleanupCmd(region string, dryRun bool, delay time.Duration) error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	defaultCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
@@ -911,7 +912,7 @@ func downloadSnapshot(ctx context.Context, w io.Writer, snapshotARN arn.ARN) err
 }
 
 func attachCmd() error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	stdin := os.Stdin
@@ -1012,7 +1013,7 @@ func attachCmd() error {
 }
 
 func nbdMountCmd(snapshotARN arn.ARN, mount, runClient bool) error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	cfg, err := newAWSConfig(ctx, snapshotARN.Region, nil)
