@@ -45,7 +45,7 @@ STACK_USER_DATA=$(cat <<EOF | base64 -w 0
 #!/bin/bash
 echo "$STACK_INSTALL_SH" | base64 -d > userdata.sh
 chmod +x userdata.sh
-DD_API_KEY="$STACK_API_KEY" ./userdata.sh "${STACK_OWNER}"
+DD_API_KEY="$STACK_API_KEY" DD_API_KEY_DUAL="$STACK_API_KEY_DUAL" ./userdata.sh "${STACK_OWNER}"
 EOF
 )
 STACK_TEMPLATE=$(cat <<EOF
