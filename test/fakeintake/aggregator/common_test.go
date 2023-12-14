@@ -80,9 +80,10 @@ func validateCollectionTime(t *testing.T, agg *Aggregator[*mockPayloadItem]) {
 
 func TestCommonAggregator(t *testing.T) {
 	t.Run("ContainsPayloadName", func(t *testing.T) {
+		agg := newAggregator(parseMockPayloadItem)
+		assert.False(t, agg.ContainsPayloadName("totoro"))
 		data, err := generateTestData()
 		require.NoError(t, err)
-		agg := newAggregator(parseMockPayloadItem)
 		err = agg.UnmarshallPayloads(data)
 		assert.NoError(t, err)
 		assert.True(t, agg.ContainsPayloadName("totoro"))
@@ -91,9 +92,10 @@ func TestCommonAggregator(t *testing.T) {
 	})
 
 	t.Run("ContainsPayloadNameAndTags", func(t *testing.T) {
+		agg := newAggregator(parseMockPayloadItem)
+		assert.False(t, agg.ContainsPayloadNameAndTags("totoro", []string{"age:123"}))
 		data, err := generateTestData()
 		require.NoError(t, err)
-		agg := newAggregator(parseMockPayloadItem)
 		err = agg.UnmarshallPayloads(data)
 		assert.NoError(t, err)
 		assert.True(t, agg.ContainsPayloadNameAndTags("totoro", []string{"age:123"}))
