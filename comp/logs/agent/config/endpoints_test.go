@@ -25,7 +25,7 @@ type EndpointsTestSuite struct {
 
 func (suite *EndpointsTestSuite) SetupTest() {
 	suite.config = fxutil.Test[config.Component](suite.T(), fx.Options(
-		config.MockModule,
+		config.MockModule(),
 	)).(config.Mock)
 }
 

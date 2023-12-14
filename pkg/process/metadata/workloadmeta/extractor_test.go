@@ -36,7 +36,7 @@ func testProc(pid int32, cmdline []string) *procutil.Process {
 }
 
 func TestExtractor(t *testing.T) {
-	fxutil.Test[telemetry.Mock](t, telemetry.MockModule).Reset()
+	fxutil.Test[telemetry.Mock](t, telemetry.MockModule()).Reset()
 
 	extractor := NewWorkloadMetaExtractor(config.Mock(t))
 
@@ -272,7 +272,7 @@ func BenchmarkHashProcess(b *testing.B) {
 // asserts that the extractor is able to properly handle updating a ContainerID from "" to a valid cid, and
 // will re-generate the EventSet for that process once the pidToCid mapping is up-to-date.
 func TestLateContainerId(t *testing.T) {
-	fxutil.Test[telemetry.Mock](t, telemetry.MockModule).Reset()
+	fxutil.Test[telemetry.Mock](t, telemetry.MockModule()).Reset()
 
 	extractor := NewWorkloadMetaExtractor(config.Mock(t))
 

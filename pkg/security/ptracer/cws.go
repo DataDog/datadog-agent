@@ -9,19 +9,21 @@
 package ptracer
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	golog "log"
 	"net"
-	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"syscall"
 	"time"
 
+	"github.com/avast/retry-go/v4"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/vmihailenco/msgpack/v5"
 	"golang.org/x/sys/unix"
@@ -243,25 +245,71 @@ type ECSMetadata struct {
 	Name       string `json:"Name"`
 }
 
+// simpleHTTPRequest used to avoid importing the crypto golang package
+func simpleHTTPRequest(uri string) ([]byte, error) {
+	u, err := url.Parse(uri)
+	if err != nil {
+		return nil, err
+	}
+
+	addr := u.Host
+	if u.Port() == "" {
+		addr += ":80"
+	}
+
+	tcpAddr, err := net.ResolveTCPAddr("tcp", addr)
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := net.DialTCP("tcp", nil, tcpAddr)
+	if err != nil {
+		return nil, err
+	}
+	defer client.Close()
+
+	path := u.Path
+	if path == "" {
+		path = "/"
+	}
+
+	req := fmt.Sprintf("GET %s?%s HTTP/1.1\nHost: %s\nConnection: close\n\n", path, u.RawQuery, u.Hostname())
+
+	_, err = client.Write([]byte(req))
+	if err != nil {
+		return nil, err
+	}
+
+	var body []byte
+	buf := make([]byte, 256)
+
+	for {
+		n, err := client.Read(buf)
+		if err != nil {
+			if err != io.EOF {
+				return nil, err
+			}
+			break
+		}
+		body = append(body, buf[:n]...)
+	}
+
+	offset := bytes.Index(body, []byte{'\r', '\n', '\r', '\n'})
+	if offset < 0 {
+
+		return nil, errors.New("unable to parse http response")
+	}
+
+	return body[offset+2:], nil
+}
+
 func retrieveECSMetadata(ctx *ebpfless.ContainerContext) error {
 	url := os.Getenv("ECS_CONTAINER_METADATA_URI_V4")
 	if url == "" {
 		return nil
 	}
-	client := http.Client{}
 
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		return err
-	}
-
-	res, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-
-	body, err := io.ReadAll(res.Body)
+	body, err := simpleHTTPRequest(url)
 	if err != nil {
 		return err
 	}
@@ -271,7 +319,8 @@ func retrieveECSMetadata(ctx *ebpfless.ContainerContext) error {
 		return err
 	}
 
-	if data.DockerID != "" {
+	if data.DockerID != "" && ctx.ID == "" {
+		// only set the container ID if we previously failed to retrieve it from proc
 		ctx.ID = data.DockerID
 	}
 	if data.DockerName != "" {
@@ -333,7 +382,7 @@ func StartCWSPtracer(args []string, probeAddr string, verbose bool) error {
 		}
 	}
 
-	logDebugf("Run %s %v [%s]\n", entry, args, os.Getenv("DD_CONTAINER_ID"))
+	logDebugf("Run %s %v [%s]", entry, args, os.Getenv("DD_CONTAINER_ID"))
 
 	var (
 		client net.Conn
@@ -347,14 +396,21 @@ func StartCWSPtracer(args []string, probeAddr string, verbose bool) error {
 
 		logDebugf("connection to system-probe...")
 
-		client, err = net.DialTCP("tcp", nil, tcpAddr)
+		err = retry.Do(func() error {
+			client, err = net.DialTCP("tcp", nil, tcpAddr)
+			return err
+		}, retry.Delay(time.Second), retry.Attempts(120))
 		if err != nil {
 			return err
 		}
+
 		defer client.Close()
 	}
 
 	var containerCtx ebpfless.ContainerContext
+	if err := retrieveContainerIDFromProc(&containerCtx); err != nil {
+		logErrorf("Retrieve container ID from proc failed: %v\n", err)
+	}
 	if err := retrieveECSMetadata(&containerCtx); err != nil {
 		return err
 	}
@@ -370,6 +426,7 @@ func StartCWSPtracer(args []string, probeAddr string, verbose bool) error {
 		return err
 	}
 
+	nsid := getNSID()
 	msgChan := make(chan *ebpfless.SyscallMsg, 10000)
 	traceChan := make(chan bool)
 
@@ -385,6 +442,7 @@ func StartCWSPtracer(args []string, probeAddr string, verbose bool) error {
 
 		for msg := range msgChan {
 			msg.SeqNum = seq
+			msg.NSID = nsid
 
 			logDebugf("sending message: %s", msg)
 

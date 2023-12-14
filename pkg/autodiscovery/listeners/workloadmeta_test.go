@@ -85,10 +85,10 @@ func newTestWorkloadmetaListener(t *testing.T) *testWorkloadmetaListener {
 	}
 
 	w := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule,
+		workloadmeta.MockModule(),
 	))
 
 	return &testWorkloadmetaListener{

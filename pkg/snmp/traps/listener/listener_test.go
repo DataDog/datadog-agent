@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps/config"
 	packetModule "github.com/DataDog/datadog-agent/pkg/snmp/traps/packet"
@@ -27,7 +28,7 @@ import (
 const defaultTimeout = 1 * time.Second
 
 func listenerTestSetup(t *testing.T, config *config.TrapsConfig) (*mocksender.MockSender, *TrapListener, status.Manager) {
-	logger := fxutil.Test[log.Component](t, log.MockModule)
+	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
 	mockSender := mocksender.NewMockSender("snmp-traps-telemetry")
 	mockSender.SetupAcceptAll()
 	packetOutChan := make(packetModule.PacketsChannel, config.GetPacketChannelSize())
