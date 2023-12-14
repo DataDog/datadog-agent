@@ -1,6 +1,3 @@
-import platform
-
-from .download import arch_mapping
 from .kmt_os import get_kmt_os
 from .stacks import find_ssh_key
 from .tool import Exit, error, info
@@ -29,9 +26,8 @@ class CommandRunner:
                 print_failed(res.stderr)
                 raise Exit("command failed")
 
-    def copy_files(self, stack, path):
+    def copy_files(self, path):
         if self.vm.arch == "local":
-            arch = arch_mapping[platform.machine()]
             self.ctx.run(f"cp {path} {get_kmt_os().shared_dir}")
         else:
             if self.remote_ssh_key == "" or self.remote_ip == "":
