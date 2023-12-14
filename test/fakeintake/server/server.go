@@ -53,7 +53,7 @@ func init() {
 	}
 }
 
-//nolint:revive // TODO(APL) Fix revive linter
+// Server is a struct implementing a fakeintake server
 type Server struct {
 	server    http.Server
 	ready     chan bool
@@ -70,7 +70,7 @@ type Server struct {
 	responseOverridesByMethod map[string]map[string]httpResponse
 }
 
-// NewServer creates a new fake intake server and starts it on localhost:port
+// NewServer creates a new fakeintake server and starts it on localhost:port
 // options accept WithPort and WithReadyChan.
 // Call Server.Start() to start the server in a separate go-routine
 // If the port is 0, a port number is automatically chosen
@@ -137,7 +137,7 @@ func WithPort(port int) func(*Server) {
 	}
 }
 
-// WithReadyChannel assign a boolean channel to get notified when the server is ready.
+// WithReadyChannel assign a boolean channel to get notified when the server is ready
 func WithReadyChannel(ready chan bool) func(*Server) {
 	return func(fi *Server) {
 		if fi.IsRunning() {
@@ -148,7 +148,7 @@ func WithReadyChannel(ready chan bool) func(*Server) {
 	}
 }
 
-//nolint:revive // TODO(APL) Fix revive linter
+// WithClock changes the clock used by the server
 func WithClock(clock clock.Clock) func(*Server) {
 	return func(fi *Server) {
 		if fi.IsRunning() {
@@ -159,7 +159,7 @@ func WithClock(clock clock.Clock) func(*Server) {
 	}
 }
 
-//nolint:revive // TODO(APL) Fix revive linter
+// WithRetention changes the retention time of payloads in the store
 func WithRetention(retention time.Duration) func(*Server) {
 	return func(fi *Server) {
 		if fi.IsRunning() {
@@ -185,7 +185,7 @@ func (fi *Server) Start() {
 	go fi.cleanUpPayloadsRoutine()
 }
 
-//nolint:revive // TODO(APL) Fix revive linter
+// URL returns the URL of the fakeintake server
 func (fi *Server) URL() string {
 	fi.urlMutex.RLock()
 	defer fi.urlMutex.RUnlock()
@@ -198,7 +198,7 @@ func (fi *Server) setURL(url string) {
 	fi.url = url
 }
 
-//nolint:revive // TODO(APL) Fix revive linter
+// IsRunning returns true if the fakeintake server is running
 func (fi *Server) IsRunning() bool {
 	return fi.URL() != ""
 }
