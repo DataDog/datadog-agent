@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"go.uber.org/fx"
 )
@@ -56,6 +57,10 @@ func (a *mockLogsAgent) IsRunning() bool {
 }
 
 func (a *mockLogsAgent) GetMessageReceiver() *diagnostic.BufferedMessageReceiver {
+	return nil
+}
+
+func (a *mockLogsAgent) GetSources() *sources.LogSources {
 	return nil
 }
 

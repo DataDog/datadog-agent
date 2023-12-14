@@ -29,6 +29,13 @@ The payload is a JSON dict with the following fields
     - `init_config` - **string**: the `init_config` part of the configuration for this check instance.
     - `instance_config` - **string**: the YAML configuration for this check instance
     - Any other metadata registered by the instance (instance version, version of the software monitored, ...).
+- `logs_metadata` - **dict of string to list**: dictionary with the log source names as keys; values are a list of the metadata
+  for each instance of that log source.
+  Each instance is composed of:
+    - `config` - **string**: the canonical JSON of the log source configuration.
+    - `state` - **dict of string**: the current state of the log source.
+      - `status` - **string**: one of `pending`, `error` or `success`.
+      - `error` - **string**: the error description if any.
 
 ("scrubbed" indicates that secrets are removed from the field value just as they are in logs)
 
@@ -104,6 +111,26 @@ Here an example of an inventory payload:
             }
         ]
     },
+    "logs_metadata": {
+        "redisdb": [
+            {
+                "config": "{\"path\":\"/var/log/redis_6379.log\",\"service\":\"myredis2\",\"source\":\"redis\",\"type\":\"file\"}",
+                "state": {
+                    "error": "Error: cannot read file /var/log/redis_6379.log: stat /var/log/redis_6379.log: no such file or directory",
+                    "status": "error"
+                }
+            }
+        ],
+        "nginx": [
+            {
+                "config": "{\"path\":\"/var/log/nginx/access.log\",\"service\":\"nginx\",\"source\":\"nginx\",\"type\":\"file\"}",
+                "state": {
+                    "error": "",
+                    "status": "success"
+                }
+            }
+        ]
+    }
     "hostname": "my-host",
     "timestamp": 1631281754507358895
 }

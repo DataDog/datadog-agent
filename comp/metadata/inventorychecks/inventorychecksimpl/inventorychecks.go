@@ -17,17 +17,20 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	cjson "github.com/tent/canonical-json-go"
 	"go.uber.org/fx"
 )
 
@@ -43,9 +46,10 @@ type checksMetadata map[string][]metadata
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
-	Hostname  string                `json:"hostname"`
-	Timestamp int64                 `json:"timestamp"`
-	Metadata  map[string][]metadata `json:"check_metadata"`
+	Hostname     string                `json:"hostname"`
+	Timestamp    int64                 `json:"timestamp"`
+	Metadata     map[string][]metadata `json:"check_metadata"`
+	LogsMetadata map[string][]metadata `json:"logs_metadata"`
 }
 
 // MarshalJSON serialization a Payload to JSON
@@ -77,6 +81,7 @@ type inventorychecksImpl struct {
 	log      log.Component
 	conf     config.Component
 	coll     optional.Option[collector.Collector]
+	sources  optional.Option[*sources.LogSources]
 	hostname string
 }
 
@@ -87,6 +92,7 @@ type dependencies struct {
 	Config     config.Component
 	Serializer serializer.MetricSerializer
 	Coll       optional.Option[collector.Collector]
+	LogAgent   optional.Option[logagent.Component]
 }
 
 type provides struct {
@@ -103,6 +109,7 @@ func newInventoryChecksProvider(deps dependencies) provides {
 		conf:     deps.Config,
 		log:      deps.Log,
 		coll:     deps.Coll,
+		sources:  optional.NewNoneOption[*sources.LogSources](),
 		hostname: hname,
 		data:     map[string]instanceMetadata{},
 	}
@@ -114,6 +121,10 @@ func newInventoryChecksProvider(deps dependencies) provides {
 
 	if coll, isSet := ic.coll.Get(); isSet {
 		coll.AddEventReceiver(func(_ checkid.ID, _ collector.EventType) { ic.Refresh() })
+	}
+
+	if logAgent, isSet := deps.LogAgent.Get(); isSet {
+		ic.sources.Set(logAgent.GetSources())
 	}
 
 	return provides{
@@ -197,9 +208,41 @@ func (ic *inventorychecksImpl) getPayload() marshaler.JSONMarshaler {
 		}
 	}
 
+	logsMetadata := make(map[string][]metadata)
+	if sources, isSet := ic.sources.Get(); isSet {
+		for _, logSource := range sources.GetSources() {
+			if _, found := logsMetadata[logSource.Name]; !found {
+				logsMetadata[logSource.Name] = []metadata{}
+			}
+
+			parsedJson, err := cjson.Marshal(logSource.Config)
+			if err != nil {
+				ic.log.Debugf("could not parse log configuration for source metadata %s: %v", logSource.Name, err)
+				continue
+			}
+
+			// Compute log source status
+			logSourceStatus := "pending"
+			if logSource.Status.IsSuccess() {
+				logSourceStatus = "success"
+			} else if logSource.Status.IsError() {
+				logSourceStatus = "error"
+			}
+
+			logsMetadata[logSource.Name] = append(logsMetadata[logSource.Name], metadata{
+				"config": string(parsedJson),
+				"state": map[string]string{
+					"error":  logSource.Status.GetError(),
+					"status": logSourceStatus,
+				},
+			})
+		}
+	}
+
 	return &Payload{
-		Hostname:  ic.hostname,
-		Timestamp: time.Now().UnixNano(),
-		Metadata:  payloadData,
+		Hostname:     ic.hostname,
+		Timestamp:    time.Now().UnixNano(),
+		Metadata:     payloadData,
+		LogsMetadata: logsMetadata,
 	}
 }

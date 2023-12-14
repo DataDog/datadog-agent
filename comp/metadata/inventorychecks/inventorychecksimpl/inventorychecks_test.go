@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -22,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-func getTestInventoryChecks(t *testing.T, coll optional.Option[collector.Collector], overrides map[string]any) *inventorychecksImpl {
+func getTestInventoryChecks(t *testing.T, coll optional.Option[collector.Collector], logAgent optional.Option[logagent.Component], overrides map[string]any) *inventorychecksImpl {
 	p := newInventoryChecksProvider(
 		fxutil.Test[dependencies](
 			t,
@@ -33,13 +34,18 @@ func getTestInventoryChecks(t *testing.T, coll optional.Option[collector.Collect
 			fx.Provide(func() optional.Option[collector.Collector] {
 				return coll
 			}),
+			fx.Provide(func() optional.Option[logagent.Component] {
+				return logAgent
+			}),
 		),
 	)
 	return p.Comp.(*inventorychecksImpl)
 }
 
 func TestSet(t *testing.T) {
-	ic := getTestInventoryChecks(t, optional.NewNoneOption[collector.Collector](), nil)
+	ic := getTestInventoryChecks(
+		t, optional.NewNoneOption[collector.Collector](), optional.Option[logagent.Component]{}, nil,
+	)
 
 	ic.Set("instance_1", "key", "value")
 
@@ -56,7 +62,9 @@ func TestSet(t *testing.T) {
 }
 
 func TestSetEmptyInstance(t *testing.T) {
-	ic := getTestInventoryChecks(t, optional.NewNoneOption[collector.Collector](), nil)
+	ic := getTestInventoryChecks(
+		t, optional.NewNoneOption[collector.Collector](), optional.Option[logagent.Component]{}, nil,
+	)
 
 	ic.Set("", "key", "value")
 
@@ -64,7 +72,9 @@ func TestSetEmptyInstance(t *testing.T) {
 }
 
 func TestGetInstanceMetadata(t *testing.T) {
-	ic := getTestInventoryChecks(t, optional.NewNoneOption[collector.Collector](), nil)
+	ic := getTestInventoryChecks(
+		t, optional.NewNoneOption[collector.Collector](), optional.Option[logagent.Component]{}, nil,
+	)
 
 	ic.Set("instance_1", "key1", "value1")
 	ic.Set("instance_1", "key2", "value2")
@@ -117,6 +127,7 @@ func TestGetPayload(t *testing.T) {
 
 	ic := getTestInventoryChecks(t,
 		optional.NewOption[collector.Collector](mockColl),
+		optional.Option[logagent.Component]{},
 		overrides,
 	)
 
@@ -159,6 +170,8 @@ func TestGetPayload(t *testing.T) {
 }
 
 func TestFlareProviderFilename(t *testing.T) {
-	ic := getTestInventoryChecks(t, optional.NewNoneOption[collector.Collector](), nil)
+	ic := getTestInventoryChecks(
+		t, optional.NewNoneOption[collector.Collector](), optional.Option[logagent.Component]{}, nil,
+	)
 	assert.Equal(t, "checks.json", ic.FlareFileName)
 }
