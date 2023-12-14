@@ -15,7 +15,7 @@ const (
 
 // getNoDebsig returns the signature policy for the host. no-debsig means GPG check is enabled
 func getNoDebsig() bool {
-	if _, err := os.Stat(packageConfig); !os.IsNotExist(err) {
+	if _, err := os.Stat(packageConfig); err == nil {
 		if file, err := os.Open(packageConfig); err == nil {
 			defer file.Close()
 			scanner := bufio.NewScanner(file)

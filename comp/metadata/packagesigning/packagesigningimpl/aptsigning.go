@@ -54,7 +54,7 @@ func getAPTSignatureKeys(client *http.Client, logger log.Component) []SigningKey
 
 func updateWithTrustedKeys(allKeys map[string]SigningKey, client *http.Client, logger log.Component) {
 	// debian 11 and ubuntu 22.04 will be the last using legacy trusted.gpg.d folder and trusted.gpg file
-	if _, err := os.Stat(trustedFolder); !os.IsNotExist(err) {
+	if _, err := os.Stat(trustedFolder); err == nil {
 		if files, err := os.ReadDir(trustedFolder); err == nil {
 			for _, file := range files {
 				trustedFileName := filepath.Join(trustedFolder, file.Name())
@@ -62,19 +62,19 @@ func updateWithTrustedKeys(allKeys map[string]SigningKey, client *http.Client, l
 			}
 		}
 	}
-	if _, err := os.Stat(trustedFile); !os.IsNotExist(err) {
+	if _, err := os.Stat(trustedFile); err == nil {
 		decryptGPGFile(allKeys, repoFile{trustedFile, nil}, "trusted", client, logger)
 	}
 }
 
 func updateWithSignedByKeys(allKeys map[string]SigningKey, client *http.Client, logger log.Component) {
-	if _, err := os.Stat(mainSourceList); !os.IsNotExist(err) {
+	if _, err := os.Stat(mainSourceList); err == nil {
 		reposPerKey := parseSourceListFile(mainSourceList)
 		for name, repos := range reposPerKey {
 			decryptGPGFile(allKeys, repoFile{name, repos}, "signed-by", client, logger)
 		}
 	}
-	if _, err := os.Stat(sourceList); !os.IsNotExist(err) {
+	if _, err := os.Stat(sourceList); err == nil {
 		if files, err := os.ReadDir(sourceList); err == nil {
 			for _, file := range files {
 				reposPerKey := parseSourceListFile(filepath.Join(sourceList, file.Name()))
@@ -118,7 +118,7 @@ func parseSourceListFile(filePath string) map[string][]pkgUtils.Repositories {
 func getDebsigKeyPaths() []string {
 	filePaths := make(map[string]struct{})
 	// Search in the policy files
-	if _, err := os.Stat(debsigPolicies); !os.IsNotExist(err) {
+	if _, err := os.Stat(debsigPolicies); err == nil {
 		if debsigDirs, err := os.ReadDir(debsigPolicies); err == nil {
 			for _, debsigDir := range debsigDirs {
 				if debsigDir.IsDir() {
@@ -127,7 +127,7 @@ func getDebsigKeyPaths() []string {
 							// Get the gpg file name from policy files
 							if debsigFile := getDebsigFileFromPolicy(filepath.Join(debsigPolicies, debsigDir.Name(), policyFile.Name())); debsigFile != "" {
 								debsigFilePath := filepath.Join(debsigKeyring, debsigDir.Name(), debsigFile)
-								if _, err := os.Stat(debsigFilePath); !os.IsNotExist(err) {
+								if _, err := os.Stat(debsigFilePath); err == nil {
 									filePaths[debsigFilePath] = struct{}{}
 								}
 							}
