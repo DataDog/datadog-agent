@@ -227,3 +227,8 @@ func TestGet(t *testing.T) {
 	p["test"] = 21
 	assert.Equal(t, 1234, ia.data["test"])
 }
+
+func TestFlareProviderFilename(t *testing.T) {
+	ia := getTestInventoryPayload(t, nil)
+	assert.Equal(t, "agent.json", ia.FlareFileName)
+}
