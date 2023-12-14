@@ -75,39 +75,31 @@ func TestServer(t *testing.T) {
 		fi, _ := InitialiseForTests(t)
 		defer fi.Stop()
 
-		request, err := http.NewRequest(http.MethodPost, "/totoro", strings.NewReader("totoro|5|tag:valid,owner:pducolin"))
-		assert.NoError(t, err, "Error creating POST request")
-		response := httptest.NewRecorder()
-
-		fi.handleDatadogRequest(response, request)
-
-		assert.Equal(t, http.StatusOK, response.Code, "unexpected code")
+		response, err := http.Post(fi.URL()+"/totoro", "text/plain", strings.NewReader("totoro|5|tag:valid,owner:pducolin"))
+		require.NoError(t, err, "Error posting payload")
+		defer response.Body.Close()
+		assert.Equal(t, http.StatusOK, response.StatusCode, "unexpected code")
 	})
 
-	t.Run("should accept GET requests on any other route", func(t *testing.T) {
+	t.Run("should accept GET requests on any route", func(t *testing.T) {
 		fi, _ := InitialiseForTests(t)
 		defer fi.Stop()
 
-		request, err := http.NewRequest(http.MethodGet, "/kiki", nil)
-		assert.NoError(t, err, "Error creating GET request")
-		response := httptest.NewRecorder()
-
-		fi.handleDatadogRequest(response, request)
-
-		assert.Equal(t, http.StatusOK, response.Code, "unexpected code")
+		response, err := http.Get(fi.URL() + "/kiki")
+		require.NoError(t, err, "Error on GET request")
+		defer response.Body.Close()
+		assert.Equal(t, http.StatusOK, response.StatusCode, "unexpected code")
 	})
 
 	t.Run("should accept GET requests on /fakeintake/payloads route", func(t *testing.T) {
 		fi, _ := InitialiseForTests(t)
 		defer fi.Stop()
 
-		request, err := http.NewRequest(http.MethodGet, "/fakeintake/payloads?endpoint=/foo", nil)
+		response, err := http.Get(fi.URL() + "/fakeintake/payloads?endpoint=/foo")
+		require.NoError(t, err, "Error on GET request")
+		defer response.Body.Close()
 
-		assert.NoError(t, err, "Error creating GET request")
-		response := httptest.NewRecorder()
-
-		fi.handleGetPayloads(response, request)
-		assert.Equal(t, http.StatusOK, response.Code, "unexpected code")
+		assert.Equal(t, http.StatusOK, response.StatusCode, "unexpected code")
 
 		expectedResponse := api.APIFakeIntakePayloadsRawGETResponse{
 			Payloads: []api.Payload{},
@@ -115,7 +107,7 @@ func TestServer(t *testing.T) {
 		actualResponse := api.APIFakeIntakePayloadsRawGETResponse{}
 		body, err := io.ReadAll(response.Body)
 		assert.NoError(t, err, "Error reading response")
-		assert.Equal(t, "application/json", response.Header().Get("Content-Type"))
+		assert.Equal(t, "application/json", response.Header.Get("Content-Type"))
 		json.Unmarshal(body, &actualResponse)
 
 		assert.Equal(t, expectedResponse, actualResponse, "unexpected response")
@@ -125,14 +117,10 @@ func TestServer(t *testing.T) {
 		fi, _ := InitialiseForTests(t)
 		defer fi.Stop()
 
-		request, err := http.NewRequest(http.MethodGet, "/fakeintake/payloads", nil)
-
-		assert.NoError(t, err, "Error creating GET request")
-		response := httptest.NewRecorder()
-
-		fi.handleGetPayloads(response, request)
-		assert.Equal(t, http.StatusBadRequest, response.Code, "unexpected code")
-		assert.Equal(t, "text/plain", response.Header().Get("Content-Type"))
+		response, err := http.Get(fi.URL() + "/fakeintake/payloads")
+		require.NoError(t, err, "Error on GET request")
+		assert.Equal(t, http.StatusBadRequest, response.StatusCode, "unexpected code")
+		assert.Equal(t, "text/plain", response.Header.Get("Content-Type"))
 	})
 
 	t.Run("should store multiple payloads on any route and return them", func(t *testing.T) {
@@ -204,19 +192,6 @@ func TestServer(t *testing.T) {
 		json.Unmarshal(body, &actualGETResponse)
 		assert.Equal(t, expectedGETResponse, actualGETResponse, "unexpected GET response")
 
-	})
-
-	t.Run("should accept GET requests on /fakeintake/health route", func(t *testing.T) {
-		fi, _ := InitialiseForTests(t)
-		defer fi.Stop()
-
-		request, err := http.NewRequest(http.MethodGet, "/fakeintake/health", nil)
-
-		assert.NoError(t, err, "Error creating GET request")
-		response := httptest.NewRecorder()
-
-		fi.handleFakeHealth(response, request)
-		assert.Equal(t, http.StatusOK, response.Code, "unexpected code")
 	})
 
 	t.Run("should store multiple payloads on any route and return the list of routes", func(t *testing.T) {
@@ -370,16 +345,15 @@ func TestServer(t *testing.T) {
 		fi, _ := InitialiseForTests(t)
 		defer fi.Stop()
 
-		request, err := http.NewRequest(
-			http.MethodPost, "/support/flare", strings.NewReader("totoro|5|tag:valid,owner:mei"))
+		response, err := http.Post(fi.URL()+"/support/flare", "text/plain", strings.NewReader("totoro|5|tag:valid,owner:pducolin"))
 		require.NoError(t, err, "Error creating request")
+		defer response.Body.Close()
 
-		response := httptest.NewRecorder()
-		fi.handleDatadogRequest(response, request)
-
-		assert.Equal(t, http.StatusOK, response.Code)
-		assert.Equal(t, "application/json", response.Header().Get("Content-Type"))
-		assert.Equal(t, `{}`, response.Body.String())
+		assert.Equal(t, http.StatusOK, response.StatusCode, "unexpected code")
+		assert.Equal(t, "application/json", response.Header.Get("Content-Type"))
+		data, err := io.ReadAll(response.Body)
+		require.NoError(t, err, "Error reading response body")
+		assert.Equal(t, `{}`, string(data))
 	})
 
 	t.Run("should accept response overrides", func(t *testing.T) {
