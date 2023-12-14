@@ -12,6 +12,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -19,6 +20,7 @@ import (
 type execParams struct {
 	enabled bool
 	path    string
+	args    string
 }
 
 type openParams struct {
@@ -52,6 +54,7 @@ func Command() []*cobra.Command {
 
 	selftestsCmd.Flags().BoolVar(&params.exec.enabled, "exec", false, "run the exec selftest")
 	selftestsCmd.Flags().StringVar(&params.exec.path, "exec.path", "/usr/bin/date", "path to the file to execute")
+	selftestsCmd.Flags().StringVar(&params.exec.args, "exec.args", "", "arguments to pass to the executable")
 	selftestsCmd.Flags().BoolVar(&params.open.enabled, "open", false, "run the open selftest")
 	selftestsCmd.Flags().StringVar(&params.open.path, "open.path", "/tmp/open.test", "path to the file to open")
 
@@ -59,6 +62,9 @@ func Command() []*cobra.Command {
 }
 
 func selftestExec(params *execParams) error {
+	if params.args != "" {
+		return exec.Command(params.path, strings.Split(params.args, " ")...).Run()
+	}
 	return exec.Command(params.path).Run()
 }
 
