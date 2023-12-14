@@ -234,6 +234,7 @@ func (d *dispatcher) updateRunnersStats() {
 				// TODO: We are abusing the IsClusterCheck field to mark checks that should be excluded from rebalancing decisions.
 				// It behaves the same way as we want to count them in rebalance decisions but we don't want to move them.
 				checkStats.IsClusterCheck = false
+				stats[idStr] = checkStats
 			}
 		}
 		node.clcRunnerStats = stats
