@@ -79,7 +79,7 @@ type TestEnv struct {
 var (
 	customAMIWorkingDir = filepath.Join("/", "home", "kernel-version-testing")
 
-	ciProjectDir = getEnv("ciProjectDir", "/tmp")
+	ciProjectDir = getEnv("CI_PROJECT_DIR", "/tmp")
 	sshKeyX86    = getEnv("LibvirtSSHKeyX86", "/tmp/libvirt_rsa-x86_64")
 	sshKeyArm    = getEnv("LibvirtSSHKeyARM", "/tmp/libvirt_rsa-arm64")
 
