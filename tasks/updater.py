@@ -10,16 +10,10 @@ from invoke import task
 
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .go import deps
-from .utils import (
-    REPO_PATH,
-    bin_name,
-    get_build_flags,
-    get_version,
-    load_release_versions,
-    timed,
-)
+from .utils import REPO_PATH, bin_name, get_build_flags, get_version, load_release_versions, timed
 
 BIN_PATH = os.path.join(".", "bin", "updater")
+
 
 @task
 def build(
@@ -57,6 +51,7 @@ def build(
     cmd += f"-o {updater_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/updater"
 
     ctx.run(cmd, env=env)
+
 
 def get_omnibus_env(
     ctx,

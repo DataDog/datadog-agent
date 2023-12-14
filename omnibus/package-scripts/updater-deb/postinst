@@ -20,7 +20,7 @@ add_user_and_group() {
     if [ ! $USER_EXISTS -eq 0 ]; then
         echo "Creating $NAME user"
         adduser --system "$NAME" --disabled-login --shell /usr/sbin/nologin --home "$HOME_DIR" --no-create-home --group --quiet
-    elif id -nG "$NAME" | grep --invert-match --word-regexp --quiet '$NAME'; then
+    elif id -nG "$NAME" | grep --invert-match --word-regexp --quiet "$NAME"; then
         # User exists but is not part of the $NAME group
         echo "Adding $NAME user to $NAME group"
         usermod -g "$NAME" "$NAME"
