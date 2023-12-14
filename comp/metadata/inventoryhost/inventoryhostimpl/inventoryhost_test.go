@@ -180,3 +180,8 @@ func TestGetPayloadError(t *testing.T) {
 	}
 	assert.Equal(t, expected, p.Metadata)
 }
+
+func TestFlareProviderFilename(t *testing.T) {
+	ih := getTestInventoryHost(t)
+	assert.Equal(t, "host.json", ih.FlareFileName)
+}
