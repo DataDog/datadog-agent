@@ -11,13 +11,13 @@
 #include "prebuilt/offsets.h"
 #endif
 #include "skb.h"
-#include "sockfd.h"
 #include "tracer/bind.h"
 #include "tracer/events.h"
 #include "tracer/maps.h"
 #include "tracer/port.h"
 #include "tracer/tcp_recv.h"
 #include "protocols/classification/protocol-classification.h"
+#include "protocols/sockfd.h"
 
 SEC("socket/classifier_entry")
 int socket__classifier_entry(struct __sk_buff *skb) {

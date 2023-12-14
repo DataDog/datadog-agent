@@ -10,7 +10,6 @@
 #include "ip.h"
 #include "ipv6.h"
 #include "sock.h"
-#include "sockfd-probes.h"
 #include "port_range.h"
 
 #include "protocols/classification/dispatcher-helpers.h"
@@ -18,6 +17,7 @@
 #include "protocols/http/http.h"
 #include "protocols/http2/decoding.h"
 #include "protocols/kafka/kafka-parsing.h"
+#include "protocols/sockfd-probes.h"
 #include "protocols/tls/java/erpc_dispatcher.h"
 #include "protocols/tls/java/erpc_handlers.h"
 #include "protocols/tls/go-tls-types.h"

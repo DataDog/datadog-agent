@@ -4,13 +4,13 @@
 #include "bpf_builtins.h"
 
 #include "offsets.h"
-#include "sockfd-probes.h"
 
 #include "protocols/classification/dispatcher-helpers.h"
 #include "protocols/http/buffer.h"
 #include "protocols/http/http.h"
 #include "protocols/http2/decoding.h"
 #include "protocols/kafka/kafka-parsing.h"
+#include "protocols/sockfd-probes.h"
 #include "protocols/tls/java/erpc_dispatcher.h"
 #include "protocols/tls/java/erpc_handlers.h"
 #include "protocols/tls/https.h"
