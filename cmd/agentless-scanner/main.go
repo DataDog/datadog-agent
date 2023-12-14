@@ -99,10 +99,6 @@ var (
 		diskMode       diskMode
 	}
 
-	defaultHTTPClient = &http.Client{
-		Timeout: 10 * time.Second,
-	}
-
 	cleanupMaxDuration = 1 * time.Minute
 
 	awsConfigs   = make(map[string]*aws.Config)
@@ -1160,7 +1156,7 @@ func parseARN(s string, expectedTypes ...resourceType) (arn.ARN, error) {
 
 var (
 	partitionReg  = regexp.MustCompile("^aws[a-zA-Z-]*$")
-	regionReg     = regexp.MustCompile("^([a-z]{2}((-gov)|(-iso(b?)))?-[a-z]+-[0-9]{1}$")
+	regionReg     = regexp.MustCompile("^[a-z]{2}((-gov)|(-iso(b?)))?-[a-z]+-[0-9]{1}$")
 	accountIDReg  = regexp.MustCompile("^[0-9]{12}$")
 	resourceIDReg = regexp.MustCompile("^[a-f0-9]+$")
 	roleNameReg   = regexp.MustCompile("^[a-zA-Z0-9_+=,.@-]{1,64}$")
@@ -1715,11 +1711,33 @@ func tagSuccess(scan *scanTask) []string {
 	return append(tagScan(scan), "status:success")
 }
 
-type awsClientStats struct {
+type awsRoundtripStats struct {
 	transport *http.Transport
 	region    string
-	accountID string
 	limits    *awsLimits
+	role      arn.ARN
+}
+
+func newHTTPClientWithAWSStats(ctx context.Context, region string, assumedRole *arn.ARN) *http.Client {
+	rt := &awsRoundtripStats{
+		region: region,
+		limits: getAWSLimit(ctx),
+		transport: &http.Transport{
+			DisableKeepAlives:   false,
+			IdleConnTimeout:     10 * time.Second,
+			MaxIdleConns:        500,
+			MaxConnsPerHost:     500,
+			MaxIdleConnsPerHost: 500,
+			TLSHandshakeTimeout: 5 * time.Second,
+		},
+	}
+	if assumedRole != nil {
+		rt.role = *assumedRole
+	}
+	return &http.Client{
+		Timeout:   10 * time.Second,
+		Transport: rt,
+	}
 }
 
 var (
@@ -1728,7 +1746,7 @@ var (
 	ebsChangedBlocksReg = regexp.MustCompile("^/snapshots/(snap-[a-f0-9]+)/changedblocks$")
 )
 
-func (rt *awsClientStats) getAction(req *http.Request) (service, action string, error error) {
+func (rt *awsRoundtripStats) getAction(req *http.Request) (service, action string, error error) {
 	host := req.URL.Host
 	if strings.HasSuffix(host, ".amazonaws.com") {
 		switch {
@@ -1775,6 +1793,8 @@ func (rt *awsClientStats) getAction(req *http.Request) (service, action string, 
 				}
 				return "ec2", "unknown", nil
 			}
+		case strings.Contains(host, ".s3.") || strings.Contains(host, ".s3-"):
+			return "s3", "unknown", nil
 		}
 	} else if host == "169.254.169.254" {
 		return "imds", "unknown", nil
@@ -1782,13 +1802,13 @@ func (rt *awsClientStats) getAction(req *http.Request) (service, action string, 
 	return "unknown", "unknown", nil
 }
 
-func (rt *awsClientStats) RoundTrip(req *http.Request) (*http.Response, error) {
+func (rt *awsRoundtripStats) RoundTrip(req *http.Request) (*http.Response, error) {
 	startTime := time.Now()
 	service, action, err := rt.getAction(req)
 	if err != nil {
 		return nil, err
 	}
-	limiter := rt.limits.getLimiter(rt.accountID, rt.region, service, action)
+	limiter := rt.limits.getLimiter(rt.role.AccountID, rt.region, service, action)
 	throttled100 := false
 	throttled1000 := false
 	throttled5000 := false
@@ -1806,13 +1826,14 @@ func (rt *awsClientStats) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 	tags := []string{
 		fmt.Sprintf("agent_version:%s", version.AgentVersion),
-		fmt.Sprintf("region:%s", rt.region),
-		fmt.Sprintf("account_id:%s", rt.accountID),
+		fmt.Sprintf("aws_region:%s", rt.region),
+		fmt.Sprintf("aws_assumed_role:%s", rt.role.Resource),
+		fmt.Sprintf("aws_account_id:%s", rt.role.AccountID),
 		fmt.Sprintf("aws_service:%s", service),
+		fmt.Sprintf("aws_action:%s_%s", service, action),
 		fmt.Sprintf("aws_throttled_100:%t", throttled100),
 		fmt.Sprintf("aws_throttled_1000:%t", throttled1000),
 		fmt.Sprintf("aws_throttled_5000:%t", throttled5000),
-		fmt.Sprintf("aws_action:%s_%s", service, action),
 	}
 	if err := statsd.Incr("datadog.agentless_scanner.aws.requests", tags, 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
@@ -1888,32 +1909,15 @@ func newAWSConfig(ctx context.Context, region string, assumedRole *arn.ARN) (aws
 		return *cfg, nil
 	}
 
-	awsstats := &awsClientStats{
-		region: region,
-		limits: getAWSLimit(ctx),
-		transport: &http.Transport{
-			DisableKeepAlives:   false,
-			IdleConnTimeout:     10 * time.Second,
-			MaxIdleConns:        500,
-			MaxConnsPerHost:     500,
-			MaxIdleConnsPerHost: 500,
-			TLSHandshakeTimeout: 5 * time.Second,
-		},
-	}
-
-	httpClient := *defaultHTTPClient
-	httpClient.Transport = awsstats
-
+	httpClient := newHTTPClientWithAWSStats(ctx, region, assumedRole)
 	cfg, err := config.LoadDefaultConfig(ctx,
 		config.WithRegion(region),
-		config.WithHTTPClient(&httpClient),
+		config.WithHTTPClient(httpClient),
 	)
 	if err != nil {
 		return aws.Config{}, err
 	}
 	if assumedRole != nil {
-		awsstats.accountID = assumedRole.Resource
-
 		stsclient := sts.NewFromConfig(cfg)
 		stsassume := stscreds.NewAssumeRoleProvider(stsclient, assumedRole.String())
 		cfg.Credentials = aws.NewCredentialsCache(stsassume)
@@ -2217,7 +2221,7 @@ func downloadLambda(ctx context.Context, scan *scanTask, tempDir string) (codePa
 		return "", err
 	}
 
-	resp, err := defaultHTTPClient.Do(req)
+	resp, err := cfg.HTTPClient.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -2728,7 +2732,7 @@ func (l *awsLimits) getLimiter(accountID, region, service, action string) *rate.
 			case "listblocks", "changedblocks":
 				ll = rate.NewLimiter(l.ebsListBlockRate, 1)
 			}
-		case "imds":
+		case "s3", "imds":
 			return nil // no rate limiting
 		}
 		if ll == nil {
