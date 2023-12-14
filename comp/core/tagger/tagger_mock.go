@@ -9,8 +9,6 @@
 package tagger
 
 import (
-	"context"
-
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/local"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -39,7 +37,6 @@ func MockModule() fxutil.Module {
 		fx.Provide(NewMock),
 		core.MockBundle(),
 		fx.Supply(NewFakeTaggerParams()),
-		fx.Provide(func() context.Context { return context.TODO() }),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.Module(),
 	)

@@ -74,7 +74,6 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 		collectors.GetCatalog(),
 		workloadmeta.Module(),
 		tagger.Module(),
-		fx.Provide(func() context.Context { return context.TODO() }),
 		fx.Supply(tagger.NewTaggerParams()),
 	))
 

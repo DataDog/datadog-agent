@@ -33,12 +33,11 @@ import (
 type dependencies struct {
 	fx.In
 
-	Lc      fx.Lifecycle
-	Config  configComponent.Component
-	Log     logComp.Component
-	Context context.Context
-	Wmeta   workloadmeta.Component
-	Params  Params
+	Lc     fx.Lifecycle
+	Config configComponent.Component
+	Log    logComp.Component
+	Wmeta  workloadmeta.Component
+	Params Params
 }
 
 // Module defines the fx options for this component.
@@ -145,7 +144,7 @@ func newTaggerClient(deps dependencies) Component {
 			deps.Log.Warnf("failed to parse dogstatsd tag cardinality, defaulting to low. Error: %s", err)
 			DogstatsdCardinality = collectors.LowCardinality
 		}
-		return taggerClient.Start(deps.Context)
+		return taggerClient.Start(c)
 	}})
 	deps.Lc.Append(fx.Hook{OnStop: func(context.Context) error {
 		return taggerClient.Stop()
