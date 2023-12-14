@@ -27,6 +27,7 @@ go_deps:
   needs: ["setup_agent_version"]
   extends: .cache_policy
   variables:
+    KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
   script:
@@ -35,7 +36,7 @@ go_deps:
     - if [ -f modcache.tar.xz  ]; then exit 0; fi
     - source /root/.bashrc
     - inv -e deps --verbose
-    - cd $GOPATH/pkg/mod/ && tar c -Ipxz -f $CI_PROJECT_DIR/modcache.tar.xz .
+    - cd $GOPATH/pkg/mod/ && tar c -I "pxz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache.tar.xz .
   artifacts:
     expire_in: 1 day
     paths:
@@ -59,7 +60,7 @@ go_tools_deps:
     - if [ -f modcache_tools.tar.xz  ]; then exit 0; fi
     - source /root/.bashrc
     - inv -e download-tools
-    - cd $GOPATH/pkg/mod/ && tar c -Ipxz -f $CI_PROJECT_DIR/modcache_tools.tar.xz .
+    - cd $GOPATH/pkg/mod/ && tar c -I "pxz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_tools.tar.xz .
   artifacts:
     expire_in: 1 day
     paths:
