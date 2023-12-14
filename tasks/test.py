@@ -854,8 +854,9 @@ def lint_teamassignment(_):
         issue = res.json()
 
         labels = {l['name'] for l in issue.get('labels', [])}
-        if "qa/skip-qa" in labels:
-            print("qa/skip-qa label set -- no need for team assignment")
+        skip_qa_labels = ["qa/skip-qa", "qa/done", "qa/no-code-change"]
+        if any(skip_label in labels for skip_label in skip_qa_labels):
+            print("A label to skip QA is set -- no need for team assignment")
             return
 
         for label in labels:
