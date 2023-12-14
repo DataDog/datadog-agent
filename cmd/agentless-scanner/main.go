@@ -104,6 +104,9 @@ var (
 	}
 
 	cleanupMaxDuration = 1 * time.Minute
+
+	awsConfigs   = make(map[string]*aws.Config)
+	awsConfigsMu sync.Mutex
 )
 
 type configType string
@@ -1870,12 +1873,26 @@ func (rt *awsClientStats) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func newAWSConfig(ctx context.Context, region string, assumedRole *arn.ARN) (aws.Config, error) {
+	awsConfigsMu.Lock()
+	defer awsConfigsMu.Unlock()
+	key := region
+	if assumedRole != nil {
+		key += assumedRole.String()
+	}
+	if cfg, ok := awsConfigs[key]; ok {
+		return *cfg, nil
+	}
+
 	awsstats := &awsClientStats{
 		region: region,
 		limits: getAWSLimit(ctx),
 		transport: &http.Transport{
-			IdleConnTimeout: 10 * time.Second,
-			MaxIdleConns:    10,
+			DisableKeepAlives:   false,
+			IdleConnTimeout:     10 * time.Second,
+			MaxIdleConns:        500,
+			MaxConnsPerHost:     500,
+			MaxIdleConnsPerHost: 500,
+			TLSHandshakeTimeout: 5 * time.Second,
 		},
 	}
 
@@ -1906,6 +1923,7 @@ func newAWSConfig(ctx context.Context, region string, assumedRole *arn.ARN) (aws
 		log.Debugf("aws config: assuming role with arn=%q", *result.Arn)
 	}
 
+	awsConfigs[key] = &cfg
 	return cfg, nil
 }
 
