@@ -150,7 +150,6 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None):
 )
 def omnibus_build(
     ctx,
-    agent_binaries=False,
     log_level="info",
     base_dir=None,
     gem_path=None,
