@@ -105,7 +105,7 @@ if [ -d "$CONFIG_DIR/runtime-security.d" ]; then
 fi
 
 # start udpater
-SYSTEMCTL_SKIP_SYSV=true systemctl stop datadog-agent-process-exp || true
+SYSTEMCTL_SKIP_SYSV=true systemctl start datadog-updater || true
 enable_stable_agents
 
 exit 0
