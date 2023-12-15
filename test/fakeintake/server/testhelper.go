@@ -5,7 +5,6 @@
 
 //go:build !windows
 
-// TODO investigate flaky unit tests on windows
 package server
 
 import (
