@@ -7,12 +7,13 @@ import os
 import os.path
 import shutil
 import tempfile
+import yaml
 from pathlib import Path
-from typing import List
+from typing import List, NamedTuple
 
 import yaml
 from invoke.context import Context
-from invoke.exceptions import Exit
+from invoke.exceptions import UnexpectedExit, Exit
 from invoke.tasks import task
 
 from tasks.flavor import AgentFlavor
@@ -317,3 +318,178 @@ def _is_local_state(pulumi_about: dict) -> bool:
     if url is None or not isinstance(url, str):
         return False
     return url.startswith("file://")
+
+KeyFingerprint = NamedTuple('KeyFingerprint', [('md5', str), ('sha1', str), ('sha256', str)])
+KeyInfo = NamedTuple('KeyFingerprint', [('path', str), ('fingerprint', KeyFingerprint)])
+
+def get_key_info(ctx, path):
+    fingerprints = dict()
+    for fmt in KeyFingerprint._fields:
+        out = ctx.run(f"ssh-keygen -l -E {fmt} -f {path}", hide=True)
+        if out.exited != 0:
+            print("No AWS keypair found, please create one")
+            return
+        fingerprints[fmt] = out.stdout.strip()
+    return KeyInfo(path=path, fingerprint=KeyFingerprint(**fingerprints))
+
+def load_ec2_keypairs(ctx):
+    out = ctx.run("aws ec2 describe-key-pairs --output json", hide=True)
+    if out.exited != 0:
+        print("No AWS keypair found, please create one")
+        return
+    jso = json.loads(out.stdout)
+    return jso["KeyPairs"]
+
+def find_matching_ec2_keypair(ctx, keypairs, path) -> (KeyInfo, dict):
+    if not os.path.exists(path):
+        print(f"Key file {path} does not exist")
+        return None, None
+    info = get_key_info(ctx, path)
+    for keypair in keypairs:
+        for fingerprint in info.fingerprint:
+            if keypair["KeyFingerprint"].strip('=').lower() in fingerprint.lower():
+                return info, keypair
+    return None, None
+
+def get_ssh_keys():
+    root = Path.home().joinpath(".ssh")
+    return list(map(root.joinpath, os.listdir(root)))
+
+def load_test_infra_config():
+    with open(Path.home().joinpath(".test_infra_config.yaml")) as f:
+        config = yaml.safe_load(f)
+    return config
+
+def is_key_in_ssh_agent(ctx, keyinfo: KeyInfo):
+    out = ctx.run("ssh-add -l", hide=True)
+
+    for fingerprint in keyinfo.fingerprint:
+        if fingerprint in out.stdout:
+            return True
+
+    return False
+
+@task
+def debug_keys(ctx):
+    """
+    Debug E2E and test-infra-definitions SSH keys
+    """
+    # Ensure ssh-agent is running
+    try:
+        out = ctx.run("ssh-add -l", hide=True)
+    except UnexpectedExit as e:
+        print(e)
+        print("ssh-agent not available or no keys are loaded, please start it and load your keys")
+        raise Exit(code=1)
+
+    found = False
+    keypairs = load_ec2_keypairs(ctx)
+
+    print("Checking for valid SSH key configuration")
+
+    # Get keypair name
+    config = load_test_infra_config()
+    awsConf = config["configParams"]["aws"]
+    keypair_name = awsConf["keyPairName"]
+    keypair_path = awsConf["publicKeyPath"]
+
+    # lookup configured keypair
+    print(f"Checking configured keypair:")
+    print(f"\tname: {keypair_name}")
+    print(f"\tpath: {keypair_path}")
+    keyinfo, keypair = find_matching_ec2_keypair(ctx, keypairs, keypair_path)
+    if keypair is not None:
+        print("Configured publicKeyPath found in aws!")
+        print(json.dumps(keypair, indent=4))
+        if keypair["KeyName"] != keypair_name:
+            print("WARNING: Key name does not match configured keypair name. This key will not be used for provisioning.")
+        if not is_key_in_ssh_agent(ctx, keyinfo):
+            print("WARNING: Key not found in ssh-agent. This key will not be used for connections.")
+        found = True
+    else:
+        print("WARNING: Configured publicKeyPath not found in aws!")
+    configuredKeyPair = keypair
+
+    print()
+
+    print("Checking if any SSH key is configured in aws")
+
+    # check all keypairs
+    for keypath in get_ssh_keys():
+        try:
+            keyinfo, keypair = find_matching_ec2_keypair(ctx, keypairs, keypath)
+        except Exception as e:
+            continue
+        if keypair is not None:
+            print(f"Found '{keypair['KeyName']}' matches: {keypath}")
+            print(json.dumps(keypair, indent=4))
+            if keypair["KeyName"] != keypair_name:
+                print("WARNING: Key name does not match configured keypair name. This key will not be used for provisioning.")
+            if not is_key_in_ssh_agent(ctx, keyinfo):
+                print("WARNING: Key not found in ssh-agent. This key will not be used for connections.")
+            found = True
+
+    if not found:
+        print("No matching keypair found in aws!")
+        print("If this is unexpected, confirm that your aws credential's region matches the region you uploaded your key to.")
+        raise Exit(code=1)
+
+@task
+def debug(ctx):
+    """
+    Debug E2E and test-infra-definitions required tools and configuration
+    """
+    # check pulumi found
+    try:
+        out = ctx.run("pulumi version", hide=True)
+    except UnexpectedExit as e:
+        print(e)
+        print("Pulumi CLI not found, please install it: https://www.pulumi.com/docs/get-started/install/")
+        raise Exit(code=1)
+    print(f"Pulumi version: {out.stdout.strip()}")
+
+    # check awscli version
+    out = ctx.run("aws --version", hide=True)
+    if not out.stdout.startswith("aws-cli/2"):
+        print(f"Detected invalid awscli version: {out.stdout}")
+        print("Please remove the current version and install awscli v2: https://docs.aws.amazon.com/cli/latest/userguide/cliv2-migration-instructions.html")
+        raise Exit(code=1)
+    print(f"AWS CLI version: {out.stdout.strip()}")
+
+    # check aws-vault found
+    try:
+        out = ctx.run("aws-vault --version", hide=True)
+    except UnexpectedExit as e:
+        print(e)
+        print("aws-vault not found, please install it")
+        raise Exit(code=1)
+    print(f"aws-vault version: {out.stderr.strip()}")
+
+    print()
+
+    # Check if aws creds are valid
+    try:
+        out = ctx.run("aws sts get-caller-identity", hide=True)
+    except UnexpectedExit as e:
+        print(e)
+        print("No AWS credentials found or they are expired, please configure and/or login")
+        raise Exit(code=1)
+
+    # Show AWS account info
+    print("Logged-in aws account info:")
+    for env in ["AWS_VAULT", "AWS_REGION"]:
+        val = os.environ.get(env, None)
+        if val is None:
+            raise Exit(f"Missing env var {env}, please login with awscli/aws-vault", 1)
+        print(f"\t{env}={val}")
+
+    print()
+
+    # Check aws-vault profile name
+    expected_profile = 'sso-agent-sandbox-account-admin'
+    out = ctx.run("aws-vault list", hide=True)
+    if expected_profile not in out.stdout:
+        print(f"WARNING: expected profile {expected_profile} not found in aws-vault. Some invoke tasks may fail.")
+        print()
+
+    debug_keys(ctx)
