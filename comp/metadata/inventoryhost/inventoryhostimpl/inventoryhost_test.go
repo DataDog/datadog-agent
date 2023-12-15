@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/metadata/host/utils"
+	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
 	"github.com/DataDog/datadog-agent/pkg/gohai/memory"
 	"github.com/DataDog/datadog-agent/pkg/gohai/network"
@@ -115,8 +115,8 @@ func getTestInventoryHost(t *testing.T) *invHost {
 	p := newInventoryHostProvider(
 		fxutil.Test[dependencies](
 			t,
-			logimpl.MockModule,
-			config.MockModule,
+			logimpl.MockModule(),
+			config.MockModule(),
 			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
 		),
 	)
@@ -179,4 +179,9 @@ func TestGetPayloadError(t *testing.T) {
 		OsVersion:              "testOS",
 	}
 	assert.Equal(t, expected, p.Metadata)
+}
+
+func TestFlareProviderFilename(t *testing.T) {
+	ih := getTestInventoryHost(t)
+	assert.Equal(t, "host.json", ih.FlareFileName)
 }

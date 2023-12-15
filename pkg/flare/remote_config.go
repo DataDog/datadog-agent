@@ -47,7 +47,12 @@ func exportRemoteConfig(fb flaretypes.FlareBuilder) error {
 	}
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
-	cli, err := agentgrpc.GetDDAgentSecureClient(ctx)
+	ipcAddress, err := config.GetIPCAddress()
+	if err != nil {
+		return err
+	}
+
+	cli, err := agentgrpc.GetDDAgentSecureClient(ctx, ipcAddress, config.GetIPCPort())
 	if err != nil {
 		return err
 	}

@@ -61,7 +61,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 						config.WithConfigName(globalParams.ConfigName),
 					),
 					LogParams: logimpl.ForOneShot(globalParams.LoggerName, "off", true)}),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}

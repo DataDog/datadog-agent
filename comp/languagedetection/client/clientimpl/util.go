@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package client holds the client to send data to the Cluster-Agent
-package client
+// Package clientimpl holds the client to send data to the Cluster-Agent
+package clientimpl
 
 import (
 	"time"

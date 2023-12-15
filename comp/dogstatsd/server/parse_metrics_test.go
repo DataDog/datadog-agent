@@ -18,7 +18,7 @@ import (
 
 func parseMetricSample(t *testing.T, overrides map[string]any, rawSample []byte) (dogstatsdMetricSample, error) {
 	cfg := fxutil.Test[config.Component](t, fx.Options(
-		config.MockModule,
+		config.MockModule(),
 		fx.Replace(config.MockParams{Overrides: overrides}),
 	))
 	parser := newParser(cfg, newFloat64ListPool(), 1)

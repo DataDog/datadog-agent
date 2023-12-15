@@ -42,6 +42,11 @@ func GetIPCAddress() (string, error) {
 	return getIPCAddress(Datadog)
 }
 
+// GetIPCPort returns the IPC port
+func GetIPCPort() string {
+	return Datadog.GetString("cmd_port")
+}
+
 func getIPCAddress(cfg pkgconfigmodel.Reader) (string, error) {
 	var key string
 	// ipc_address is deprecated in favor of cmd_host, but we still need to support it

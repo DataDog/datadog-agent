@@ -9,6 +9,7 @@ import (
 	"io/fs"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/executeparams"
+	componentos "github.com/DataDog/test-infra-definitions/components/os"
 )
 
 // VM is an interface that provides methods to run commands on a virtual machine.
@@ -24,6 +25,9 @@ type VM interface {
 
 	// CopyFolder copy a folder to the remote host
 	CopyFolder(srcFolder string, dstFolder string)
+
+	// GetOSType returns the OS type of the VM.
+	GetOSType() componentos.Type
 
 	// FileExists returns true if the file exists and is a regular file and returns an error if any
 	FileExists(path string) (bool, error)

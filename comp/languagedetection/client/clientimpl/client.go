@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package client holds the client to send data to the Cluster-Agent
-package client
+// Package clientimpl holds the client to send data to the Cluster-Agent
+package clientimpl
 
 import (
 	"context"
@@ -15,9 +15,11 @@ import (
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	clientComp "github.com/DataDog/datadog-agent/comp/languagedetection/client"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
@@ -38,6 +40,12 @@ const (
 	// defaultprocessesWithoutPodCleanupPeriod defines the period to clean up process events from the map
 	defaultprocessesWithoutPodCleanupPeriod = time.Hour
 )
+
+// Module defines the fx options for this component.
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newClient))
+}
 
 type dependencies struct {
 	fx.In
@@ -96,9 +104,9 @@ type client struct {
 // newClient creates a new Client
 func newClient(
 	deps dependencies,
-) Component {
+) clientComp.Component {
 	if !deps.Config.GetBool("language_detection.enabled") || !deps.Config.GetBool("cluster_agent.enabled") {
-		return optional.NewNoneOption[Component]()
+		return optional.NewNoneOption[clientComp.Component]()
 	}
 
 	ctx := context.Background()
@@ -124,7 +132,7 @@ func newClient(
 		OnStop:  cl.stop,
 	})
 
-	return optional.NewOption[Component](cl)
+	return optional.NewOption[clientComp.Component](cl)
 }
 
 // start starts streaming languages to the Cluster-Agent

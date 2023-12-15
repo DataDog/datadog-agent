@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-// Package remote is a client usable in the agent or an agent sub-process to receive configs from the core
+// Package client is a client usable in the agent or an agent sub-process to receive configs from the core
 // remoteconfig service.
-package remote
+package client
 
 import (
 	"context"
@@ -15,23 +15,19 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/pkg/errors"
 )
 
 // Constraints on the maximum backoff time when errors occur
@@ -51,6 +47,8 @@ type ConfigUpdater interface {
 
 // Client is a remote-configuration client to obtain configurations from the local API
 type Client struct {
+	Options
+
 	m sync.Mutex
 
 	ID string
@@ -59,15 +57,8 @@ type Client struct {
 	ctx         context.Context
 	closeFn     context.CancelFunc
 
-	agentName    string
-	agentVersion string
-	products     []string
-
-	clusterName  string
-	clusterID    string
 	cwsWorkloads []string
 
-	pollInterval      time.Duration
 	lastUpdateError   error
 	backoffPolicy     backoff.Policy
 	backoffErrorCount int
@@ -79,15 +70,33 @@ type Client struct {
 	listeners map[string][]func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))
 }
 
+// Options describes the client options
+type Options struct {
+	agentVersion         string
+	agentName            string
+	products             []string
+	directorRootOverride string
+	pollInterval         time.Duration
+	clusterName          string
+	clusterID            string
+	skipTufVerification  bool
+}
+
+var defaultOptions = Options{pollInterval: 5 * time.Second}
+
+// TokenFetcher defines the callback used to fetch a token
+type TokenFetcher func() (string, error)
+
 // agentGRPCConfigFetcher defines how to retrieve config updates over a
 // datadog-agent's secure GRPC client
 type agentGRPCConfigFetcher struct {
-	client pbgo.AgentSecureClient
+	client           pbgo.AgentSecureClient
+	authTokenFetcher func() (string, error)
 }
 
 // NewAgentGRPCConfigFetcher returns a gRPC config fetcher using the secure agent client
-func NewAgentGRPCConfigFetcher() (ConfigUpdater, error) {
-	c, err := ddgrpc.GetDDAgentSecureClient(context.Background(), grpc.WithDefaultCallOptions(
+func NewAgentGRPCConfigFetcher(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher) (ConfigUpdater, error) {
+	c, err := ddgrpc.GetDDAgentSecureClient(context.Background(), ipcAddress, cmdPort, grpc.WithDefaultCallOptions(
 		grpc.MaxCallRecvMsgSize(maxMessageSize),
 	))
 	if err != nil {
@@ -95,7 +104,8 @@ func NewAgentGRPCConfigFetcher() (ConfigUpdater, error) {
 	}
 
 	return &agentGRPCConfigFetcher{
-		client: c,
+		client:           c,
+		authTokenFetcher: authTokenFetcher,
 	}, nil
 }
 
@@ -104,10 +114,11 @@ func (g *agentGRPCConfigFetcher) ClientGetConfigs(ctx context.Context, request *
 	// When communicating with the core service via grpc, the auth token is handled
 	// by the core-agent, which runs independently. It's not guaranteed it starts before us,
 	// or that if it restarts that the auth token remains the same. Thus we need to do this every request.
-	token, err := security.FetchAuthToken()
+	token, err := g.authTokenFetcher()
 	if err != nil {
 		return nil, errors.Wrap(err, "could not acquire agent auth token")
 	}
+
 	md := metadata.MD{
 		"authorization": []string{fmt.Sprintf("Bearer %s", token)},
 	}
@@ -118,36 +129,77 @@ func (g *agentGRPCConfigFetcher) ClientGetConfigs(ctx context.Context, request *
 }
 
 // NewClient creates a new client
-func NewClient(agentName string, updater ConfigUpdater, agentVersion string, products []data.Product, pollInterval time.Duration) (*Client, error) {
-	return newClient(agentName, updater, true, agentVersion, products, pollInterval)
+func NewClient(updater ConfigUpdater, opts ...func(o *Options)) (*Client, error) {
+	return newClient(updater, opts...)
 }
 
 // NewGRPCClient creates a new client that retrieves updates over the datadog-agent's secure GRPC client
-func NewGRPCClient(agentName string, agentVersion string, products []data.Product, pollInterval time.Duration) (*Client, error) {
-	grpcClient, err := NewAgentGRPCConfigFetcher()
+func NewGRPCClient(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher, opts ...func(o *Options)) (*Client, error) {
+	grpcClient, err := NewAgentGRPCConfigFetcher(ipcAddress, cmdPort, authTokenFetcher)
 	if err != nil {
 		return nil, err
 	}
 
-	return newClient(agentName, grpcClient, true, agentVersion, products, pollInterval)
+	return newClient(grpcClient, opts...)
 }
 
 // NewUnverifiedGRPCClient creates a new client that does not perform any TUF verification
-func NewUnverifiedGRPCClient(agentName string, agentVersion string, products []data.Product, pollInterval time.Duration) (*Client, error) {
-	grpcClient, err := NewAgentGRPCConfigFetcher()
+func NewUnverifiedGRPCClient(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher, opts ...func(o *Options)) (*Client, error) {
+	grpcClient, err := NewAgentGRPCConfigFetcher(ipcAddress, cmdPort, authTokenFetcher)
 	if err != nil {
 		return nil, err
 	}
 
-	return newClient(agentName, grpcClient, false, agentVersion, products, pollInterval)
+	opts = append(opts, WithoutTufVerification())
+	return newClient(grpcClient, opts...)
 }
 
-func newClient(agentName string, updater ConfigUpdater, doTufVerification bool, agentVersion string, products []data.Product, pollInterval time.Duration) (*Client, error) {
+// WithProducts specifies the product lists
+func WithProducts(products []data.Product) func(opts *Options) {
+	return func(opts *Options) {
+		opts.products = make([]string, len(products))
+		for i, product := range products {
+			opts.products[i] = string(product)
+		}
+	}
+}
+
+// WithPollInterval specifies the polling interval
+func WithPollInterval(duration time.Duration) func(opts *Options) {
+	return func(opts *Options) { opts.pollInterval = duration }
+}
+
+// WithCluster specifies the cluster name and id
+func WithCluster(name, id string) func(opts *Options) {
+	return func(opts *Options) { opts.clusterName, opts.clusterID = name, id }
+}
+
+// WithoutTufVerification disables TUF verification of configs
+func WithoutTufVerification() func(opts *Options) {
+	return func(opts *Options) { opts.skipTufVerification = true }
+}
+
+// WithDirectorRootOverride specifies the director root to
+func WithDirectorRootOverride(directorRootOverride string) func(opts *Options) {
+	return func(opts *Options) { opts.directorRootOverride = directorRootOverride }
+}
+
+// WithAgent specifies the client name and version
+func WithAgent(name, version string) func(opts *Options) {
+	return func(opts *Options) { opts.agentName, opts.agentVersion = name, version }
+}
+
+func newClient(updater ConfigUpdater, opts ...func(opts *Options)) (*Client, error) {
+	var options = defaultOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
+
 	var repository *state.Repository
 	var err error
 
-	if doTufVerification {
-		repository, err = state.NewRepository(meta.RootsDirector().Last())
+	if !options.skipTufVerification {
+		repository, err = state.NewRepository(meta.RootsDirector(options.directorRootOverride).Last())
 	} else {
 		repository, err = state.NewUnverifiedRepository()
 	}
@@ -162,42 +214,19 @@ func newClient(agentName string, updater ConfigUpdater, doTufVerification bool, 
 	//
 	// The following values mean each range will always be [pollInterval*2^<NumErrors-1>, min(maxBackoffTime, pollInterval*2^<NumErrors>)].
 	// Every success will cause numErrors to shrink by 2.
-	backoffPolicy := backoff.NewExpBackoffPolicy(minBackoffFactor, pollInterval.Seconds(),
+	backoffPolicy := backoff.NewExpBackoffPolicy(minBackoffFactor, options.pollInterval.Seconds(),
 		maximalMaxBackoffTime.Seconds(), recoveryInterval, false)
 
-	// If we're the cluster agent, we want to report our cluster name and cluster ID in order to allow products
-	// relying on remote config to identify this RC client to be able to write predicates for config routing
-	clusterName := ""
-	clusterID := ""
-	if flavor.GetFlavor() == flavor.ClusterAgent {
-		hname, err := hostname.Get(context.TODO())
-		if err != nil {
-			log.Warnf("Error while getting hostname, needed for retrieving cluster-name: cluster-name won't be set for remote-config")
-		} else {
-			clusterName = clustername.GetClusterName(context.TODO(), hname)
-		}
-
-		clusterID, err = clustername.GetClusterID()
-		if err != nil {
-			log.Warnf("Error retrieving cluster ID: cluster-id won't be set for remote-config")
-		}
-	}
-
-	ctx, closeFn := context.WithCancel(context.Background())
+	ctx, cloneFn := context.WithCancel(context.Background())
 
 	return &Client{
+		Options:       options,
 		ID:            generateID(),
 		startupSync:   sync.Once{},
 		ctx:           ctx,
-		closeFn:       closeFn,
-		agentName:     agentName,
-		agentVersion:  agentVersion,
-		clusterName:   clusterName,
-		clusterID:     clusterID,
+		closeFn:       cloneFn,
 		cwsWorkloads:  make([]string, 0),
-		products:      data.ProductListToString(products),
 		state:         repository,
-		pollInterval:  pollInterval,
 		backoffPolicy: backoffPolicy,
 		listeners:     make(map[string][]func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))),
 		updater:       updater,

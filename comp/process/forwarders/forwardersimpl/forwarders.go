@@ -3,18 +3,28 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package forwarders
+// Package forwardersimpl implements a component to provide forwarders used by the process agent.
+package forwardersimpl
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/process/forwarders"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 )
+
+// Module defines the fx options for this component.
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newForwarders),
+	)
+}
 
 type dependencies struct {
 	fx.In
@@ -23,14 +33,14 @@ type dependencies struct {
 	Logger log.Component
 }
 
-type forwarders struct {
+type forwardersComp struct {
 	eventForwarder       defaultforwarder.Component
 	processForwarder     defaultforwarder.Component
 	rtProcessForwarder   defaultforwarder.Component
 	connectionsForwarder defaultforwarder.Component
 }
 
-func newForwarders(deps dependencies) (Component, error) {
+func newForwarders(deps dependencies) (forwarders.Component, error) {
 	config := deps.Config
 	queueBytes := config.GetInt("process_config.process_queue_bytes")
 	if queueBytes <= 0 {
@@ -52,7 +62,7 @@ func newForwarders(deps dependencies) (Component, error) {
 
 	processForwarderOpts := createParams(deps.Config, deps.Logger, queueBytes, processAPIEndpoints)
 
-	return &forwarders{
+	return &forwardersComp{
 		eventForwarder:       defaultforwarder.NewForwarder(deps.Config, deps.Logger, eventForwarderOpts),
 		processForwarder:     defaultforwarder.NewForwarder(deps.Config, deps.Logger, processForwarderOpts),
 		rtProcessForwarder:   defaultforwarder.NewForwarder(deps.Config, deps.Logger, processForwarderOpts),
@@ -68,22 +78,18 @@ func createParams(config config.Component, log log.Component, queueBytes int, en
 	return defaultforwarder.Params{Options: forwarderOpts}
 }
 
-func (f *forwarders) GetEventForwarder() defaultforwarder.Component {
+func (f *forwardersComp) GetEventForwarder() defaultforwarder.Component {
 	return f.eventForwarder
 }
 
-func (f *forwarders) GetProcessForwarder() defaultforwarder.Component {
+func (f *forwardersComp) GetProcessForwarder() defaultforwarder.Component {
 	return f.processForwarder
 }
 
-func (f *forwarders) GetRTProcessForwarder() defaultforwarder.Component {
+func (f *forwardersComp) GetRTProcessForwarder() defaultforwarder.Component {
 	return f.rtProcessForwarder
 }
 
-func (f *forwarders) GetConnectionsForwarder() defaultforwarder.Component {
+func (f *forwardersComp) GetConnectionsForwarder() defaultforwarder.Component {
 	return f.connectionsForwarder
-}
-
-func newMockForwarders(deps dependencies) (Component, error) {
-	return newForwarders(deps)
 }

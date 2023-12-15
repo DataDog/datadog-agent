@@ -161,11 +161,8 @@ func (c *Check) CustomQueries() error {
 						}
 					} else if vInt64, ok := v.(int64); ok {
 						metricRow.value = float64(vInt64)
-						if err != nil {
-							allErrors = concatenateTypeError(allErrors, metricPrefix, "int64", metricRow.name, v, q.Query, err)
-							errInQuery = true
-							break
-						}
+					} else if vFloat64, ok := v.(float64); ok {
+						metricRow.value = vFloat64
 					} else {
 						allErrors = concatenateTypeError(allErrors, metricPrefix, "UNKNOWN", metricRow.name, v, q.Query, err)
 						errInQuery = true

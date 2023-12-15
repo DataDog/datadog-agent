@@ -67,7 +67,7 @@ func complianceEventCommand(globalParams *command.GlobalParams) *cobra.Command {
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true),
 				}),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 		Hidden: true,

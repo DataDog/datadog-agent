@@ -71,8 +71,8 @@ func TestInstallScript(t *testing.T) {
 
 	fmt.Println("Parsed platform json file: ", platformJSON)
 
-	vmOpts := []ec2params.Option{}
 	for _, osVers := range osVersions {
+		vmOpts := []ec2params.Option{}
 		osVers := osVers
 		if platformJSON[*platform][*architecture][osVers] == "" {
 			// Fail if the image is not defined instead of silently running with default Ubuntu AMI
