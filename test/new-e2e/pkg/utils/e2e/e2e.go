@@ -529,7 +529,6 @@ func (suite *Suite[Env]) TearDownSuite() {
 func createEnv[Env any](suite *Suite[Env], stackDef *StackDefinition[Env]) (*Env, auto.UpResult, error) {
 	var env *Env
 	ctx := context.Background()
-	suite.T().Logf("Creating stack %v", suite.params.StackName)
 	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(
 		ctx,
 		suite.params.StackName,
