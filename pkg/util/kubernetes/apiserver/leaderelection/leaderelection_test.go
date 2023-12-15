@@ -423,11 +423,26 @@ func TestGetLeaderIPFollower_Lease(t *testing.T) {
 
 type dummyGauge struct{}
 
-func (g *dummyGauge) Set(value float64, tagsValue ...string)                         {}
-func (g *dummyGauge) Inc(tagsValue ...string)                                        {}
-func (g *dummyGauge) Dec(tagsValue ...string)                                        {}
-func (g *dummyGauge) Add(value float64, tagsValue ...string)                         {}
-func (g *dummyGauge) Sub(value float64, tagsValue ...string)                         {}
-func (g *dummyGauge) Delete(tagsValue ...string)                                     {}
-func (g *dummyGauge) WithValues(tagsValue ...string) telemetryComponent.SimpleGauge  { return nil }
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (g *dummyGauge) Set(value float64, tagsValue ...string) {}
+
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (g *dummyGauge) Inc(tagsValue ...string) {}
+
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (g *dummyGauge) Dec(tagsValue ...string) {}
+
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (g *dummyGauge) Add(value float64, tagsValue ...string) {}
+
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (g *dummyGauge) Sub(value float64, tagsValue ...string) {}
+
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (g *dummyGauge) Delete(tagsValue ...string) {}
+
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (g *dummyGauge) WithValues(tagsValue ...string) telemetryComponent.SimpleGauge { return nil }
+
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (g *dummyGauge) WithTags(tags map[string]string) telemetryComponent.SimpleGauge { return nil }

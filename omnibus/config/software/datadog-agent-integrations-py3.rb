@@ -47,12 +47,6 @@ excluded_packages = Array.new
 # We build these manually
 excluded_packages.push(/^confluent-kafka==/)
 
-if suse_target?
-  # Temporarily exclude Aerospike until builder supports new dependency
-  excluded_packages.push(/^aerospike==/)
-  excluded_folders.push('aerospike')
-end
-
 if osx_target?
   # Temporarily exclude Aerospike until builder supports new dependency
   excluded_packages.push(/^aerospike==/)

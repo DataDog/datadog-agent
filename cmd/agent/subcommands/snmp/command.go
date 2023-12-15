@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	utilFunc "github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	parse "github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
@@ -99,8 +99,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
-				core.Bundle,
+					LogParams:    logimpl.ForOneShot(command.LoggerName, "off", true)}),
+				core.Bundle(),
 			)
 		},
 	}
@@ -136,6 +136,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{snmpCmd}
 }
 
+//nolint:revive // TODO(NDM) Fix revive linter
 func snmpwalk(config config.Component, cliParams *cliParams) error {
 	var (
 		address      string

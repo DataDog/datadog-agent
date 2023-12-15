@@ -73,7 +73,14 @@ func init() {
 //export MemoryTracker
 func MemoryTracker(ptr unsafe.Pointer, sz C.size_t, op C.rtloader_mem_ops_t) {
 	// run sync for reliability reasons
-	log.Tracef("Memory Tracker - ptr: %v, sz: %v, op: %v", ptr, sz, op)
+
+	// This check looks redundant since the log level is also checked in pkg/util/log,
+	// but from profiling, even passing these vars through as arguments allocates to the heap.
+	// This is an optimization to avoid even evaluating the `Tracef` call if the trace log
+	// level is not enabled.
+	if log.ShouldLog(seelog.TraceLvl) {
+		log.Tracef("Memory Tracker - ptr: %v, sz: %v, op: %v", ptr, sz, op)
+	}
 	switch op {
 	case C.DATADOG_AGENT_RTLOADER_ALLOCATION:
 		pointerCache.Store(ptr, sz)
@@ -108,6 +115,7 @@ func MemoryTracker(ptr unsafe.Pointer, sz C.size_t, op C.rtloader_mem_ops_t) {
 	}
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func TrackedCString(str string) *C.char {
 	cstr := C.CString(str)
 

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(SERV) Fix revive linter
 package main
 
 import (
@@ -182,6 +183,7 @@ func runAgent() {
 	// Channels for ColdStartCreator
 	lambdaSpanChan := make(chan *pb.Span)
 	lambdaInitMetricChan := make(chan *serverlessLogs.LambdaInitMetric)
+	//nolint:revive // TODO(SERV) Fix revive linter
 	coldStartSpanId := random.Random.Uint64()
 	metricAgent := &metrics.ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 10,
@@ -335,6 +337,7 @@ func runAgent() {
 
 	// block here until we receive a stop signal
 	<-stopCh
+	//nolint:gosimple // TODO(SERV) Fix gosimple linter
 	return
 }
 

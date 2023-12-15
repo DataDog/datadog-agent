@@ -40,7 +40,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(secret,
 				fx.Supply(cliParams),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -48,6 +48,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{secretInfoCommand}
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func secret(log log.Component, config config.Component, cliParams *cliParams) error {
 	if err := util.SetAuthToken(); err != nil {
 		fmt.Println(err)

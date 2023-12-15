@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(PROC) Fix revive linter
 package workloadlist
 
 import (
@@ -41,7 +42,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(workloadList,
 				fx.Supply(cliParams),
 				fx.Supply(command.GetCoreBundleParamsForOneShot(globalParams)),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}

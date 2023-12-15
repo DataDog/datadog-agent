@@ -92,7 +92,7 @@ It will also pull other handy development tools/deps (`reno`, or `docker`).
 
 ### Golang
 
-You must [install Golang](https://golang.org/doc/install) version `1.20.11` or
+You must [install Golang](https://golang.org/doc/install) version `1.20.12` or
 higher. Make sure that `$GOPATH/bin` is in your `$PATH` otherwise `invoke`
 cannot use any additional tool it might need.
 

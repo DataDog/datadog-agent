@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake/fakeintakeparams"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
@@ -23,7 +24,9 @@ type linuxTestSuite struct {
 func TestLinuxTestSuite(t *testing.T) {
 	e2e.Run(t, &linuxTestSuite{},
 		e2e.FakeIntakeStackDef(
-			e2e.WithAgentParams(agentparams.WithAgentConfig(processCheckConfigStr))))
+			e2e.WithFakeIntakeParams(fakeintakeparams.WithoutLoadBalancer()),
+			e2e.WithAgentParams(agentparams.WithAgentConfig(processCheckConfigStr)),
+		))
 }
 
 func (s *linuxTestSuite) SetupSuite() {
@@ -101,4 +104,30 @@ func (s *linuxTestSuite) TestProcessCheckWithIO() {
 	}, 2*time.Minute, 10*time.Second)
 
 	assertStressProcessCollected(t, payloads, true)
+}
+
+func (s *linuxTestSuite) TestManualProcessCheck() {
+	check := s.Env().VM.
+		Execute("sudo /opt/datadog-agent/embedded/bin/process-agent check process --json")
+
+	assertManualProcessCheck(s.T(), check, false)
+}
+
+func (s *linuxTestSuite) TestManualProcessDiscoveryCheck() {
+	check := s.Env().VM.
+		Execute("sudo /opt/datadog-agent/embedded/bin/process-agent check process_discovery --json")
+
+	assertManualProcessDiscoveryCheck(s.T(), check)
+}
+
+func (s *linuxTestSuite) TestManualProcessCheckWithIO() {
+	s.UpdateEnv(e2e.FakeIntakeStackDef(e2e.WithAgentParams(
+		agentparams.WithAgentConfig(processCheckConfigStr),
+		agentparams.WithSystemProbeConfig(systemProbeConfigStr),
+	)))
+
+	check := s.Env().VM.
+		Execute("sudo /opt/datadog-agent/embedded/bin/process-agent check process --json")
+
+	assertManualProcessCheck(s.T(), check, true)
 }

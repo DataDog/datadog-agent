@@ -101,16 +101,6 @@ The templates are written in [Jinja2](https://jinja.palletsprojects.com/en/3.0.x
 
 ## Generating the documentation
 
-### Using Docker (MacOS)
-
-If you're using MacOS, you will need to use [Docker](https://docs.docker.com/get-docker/) to run all documentation generation steps in a Docker container (thus skipping the requirement of setting up a development environment).
-
-Make an edit to any of the files mentioned above and then, from the root of the datadog-agent repository, run:
-
-```sh
-./docs/cloud-workload-security/scripts/generate_documentation_docker.sh
-```
-
 ### Manual steps (for Linux environments only)
 
 #### Requirements

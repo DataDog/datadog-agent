@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	cconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -52,8 +52,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(&topFlags),
 				fx.Supply(core.BundleParams{
 					ConfigParams: cconfig.NewAgentParams(globalParams.ConfFilePath),
-					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
-				core.Bundle,
+					LogParams:    logimpl.ForOneShot(command.LoggerName, "off", true)}),
+				core.Bundle(),
 			)
 		},
 	}
@@ -70,9 +70,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(dumpContexts,
 				fx.Supply(core.BundleParams{
 					ConfigParams: cconfig.NewAgentParams(globalParams.ConfFilePath),
-					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
+					LogParams:    logimpl.ForOneShot(command.LoggerName, "off", true)}),
 
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	})

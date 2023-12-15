@@ -8,7 +8,6 @@
 package events
 
 import (
-	"encoding/binary"
 	"math"
 	"os"
 	"path/filepath"
@@ -43,12 +42,12 @@ func TestConsumer(t *testing.T) {
 
 	var mux sync.Mutex
 	result := make(map[uint64]int)
-	callback := func(b []byte) {
+	callback := func(events []uint64) {
 		mux.Lock()
 		defer mux.Unlock()
-		// each event is just a uint64
-		n := binary.LittleEndian.Uint64(b)
-		result[n] = +1
+		for _, n := range events {
+			result[n] = +1
+		}
 	}
 
 	consumer, err := NewConsumer("test", program, callback)

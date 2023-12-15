@@ -146,6 +146,7 @@ func (k *Probe) attach(collSpec *ebpf.CollectionSpec) (err error) {
 		spec := collSpec.Programs[name]
 		switch prog.Type() {
 		case ebpf.Kprobe:
+			//nolint:revive // TODO(EBPF) Fix revive linter
 			const kProbePrefix, kretprobePrefix = "kprobe/", "kretprobe/"
 			if strings.HasPrefix(spec.SectionName, kProbePrefix) {
 				attachPoint := spec.SectionName[len(kProbePrefix):]

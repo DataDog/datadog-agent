@@ -11,7 +11,6 @@ import (
 
 	"go.uber.org/fx"
 
-	apiPackage "github.com/DataDog/datadog-agent/cmd/agent/api"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
@@ -32,9 +31,10 @@ import (
 )
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newAPIServer),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newAPIServer))
+}
 
 type apiServer struct {
 }
@@ -62,7 +62,7 @@ func (server *apiServer) StartServer(
 	secretResolver secrets.Component,
 	invChecks inventorychecks.Component,
 ) error {
-	return apiPackage.StartServers(configService,
+	return StartServers(configService,
 		flare,
 		dogstatsdServer,
 		capture,
@@ -82,10 +82,10 @@ func (server *apiServer) StartServer(
 // StopServer closes the connection and the server
 // stops listening to new commands.
 func (server *apiServer) StopServer() {
-	apiPackage.StopServers()
+	StopServers()
 }
 
 // ServerAddress returns the server address.
 func (server *apiServer) ServerAddress() *net.TCPAddr {
-	return apiPackage.ServerAddress()
+	return ServerAddress()
 }

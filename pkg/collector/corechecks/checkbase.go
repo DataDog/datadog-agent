@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package corechecks
 
 import (
@@ -94,6 +95,8 @@ func (c *CheckBase) Configure(senderManager sender.SenderManager, integrationCon
 
 // CommonConfigure is called when checks implement their own Configure method,
 // in order to setup common options (run interval, empty hostname)
+//
+//nolint:revive // TODO(AML) Fix revive linter
 func (c *CheckBase) CommonConfigure(senderManager sender.SenderManager, integrationConfigDigest uint64, initConfig, instanceConfig integration.Data, source string) error {
 	c.senderManager = senderManager
 	handleConf := func(conf integration.Data, c *CheckBase) error {

@@ -36,6 +36,7 @@ type Reader struct {
 	impl                   readerImpl
 
 	cgroups         map[string]Cgroup
+	cgroupByInode   map[uint64]Cgroup
 	cgroupsLock     sync.RWMutex
 	scrapeTimestmap time.Time
 }
@@ -48,6 +49,8 @@ type readerImpl interface {
 type ReaderFilter func(path, name string) (string, error)
 
 // DefaultFilter matches all cgroup folders and use folder name as identifier
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func DefaultFilter(path, name string) (string, error) {
 	return path, nil
 }
@@ -58,6 +61,8 @@ func DefaultFilter(path, name string) (string, error) {
 var ContainerRegexp = regexp.MustCompile(ContainerRegexpStr)
 
 // ContainerFilter returns a filter that will match cgroup folders containing a container id
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func ContainerFilter(path, name string) (string, error) {
 	match := ContainerRegexp.FindString(name)
 
@@ -184,6 +189,14 @@ func (r *Reader) GetCgroup(id string) Cgroup {
 	return r.cgroups[id]
 }
 
+// GetCgroupByInode returns the cgroup for the given inode.
+func (r *Reader) GetCgroupByInode(inode uint64) Cgroup {
+	r.cgroupsLock.RLock()
+	defer r.cgroupsLock.RUnlock()
+
+	return r.cgroupByInode[inode]
+}
+
 // RefreshCgroups triggers a refresh if data are older than cacheValidity. 0 to always refesh.
 func (r *Reader) RefreshCgroups(cacheValidity time.Duration) error {
 	r.cgroupsLock.Lock()
@@ -197,6 +210,13 @@ func (r *Reader) RefreshCgroups(cacheValidity time.Duration) error {
 	newCgroups, err := r.impl.parseCgroups()
 	if err != nil {
 		return err
+	}
+
+	r.cgroupByInode = make(map[uint64]Cgroup, len(newCgroups))
+	for _, cg := range newCgroups {
+		if inode := cg.Inode(); inode != unknownInode {
+			r.cgroupByInode[inode] = cg
+		}
 	}
 
 	r.scrapeTimestmap = time.Now()

@@ -8,6 +8,7 @@
 package selftests
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -21,7 +22,7 @@ type SelfTester struct {
 }
 
 // NewSelfTester returns a new SelfTester, enabled or not
-func NewSelfTester(probe *probe.Probe) (*SelfTester, error) {
+func NewSelfTester(_ *config.RuntimeSecurityConfig, probe *probe.Probe) (*SelfTester, error) {
 	return &SelfTester{
 		probe: probe,
 	}, nil
@@ -41,7 +42,7 @@ func (t *SelfTester) Close() error {
 }
 
 // LoadPolicies implements the PolicyProvider interface
-func (t *SelfTester) LoadPolicies(macroFilters []rules.MacroFilter, ruleFilters []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) { //nolint:revive // TODO fix revive unused-parameter
+func (t *SelfTester) LoadPolicies(_ []rules.MacroFilter, _ []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) {
 	p := &rules.Policy{
 		Name:    policyName,
 		Source:  policySource,
@@ -52,6 +53,6 @@ func (t *SelfTester) LoadPolicies(macroFilters []rules.MacroFilter, ruleFilters 
 }
 
 // IsExpectedEvent sends an event to the tester
-func (t *SelfTester) IsExpectedEvent(rule *rules.Rule, event eval.Event, p *probe.Probe) bool { //nolint:revive // TODO fix revive unused-parameter
+func (t *SelfTester) IsExpectedEvent(_ *rules.Rule, _ eval.Event, _ *probe.Probe) bool {
 	return false
 }

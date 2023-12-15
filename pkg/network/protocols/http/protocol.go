@@ -33,7 +33,7 @@ type protocol struct {
 	telemetry      *Telemetry
 	statkeeper     *StatKeeper
 	mapCleaner     *ddebpf.MapCleaner[netebpf.ConnTuple, EbpfTx]
-	eventsConsumer *events.Consumer
+	eventsConsumer *events.Consumer[EbpfEvent]
 }
 
 const (
@@ -44,8 +44,9 @@ const (
 	eventStream            = "http"
 )
 
+// Spec is the protocol spec for the HTTP protocol.
 var Spec = &protocols.ProtocolSpec{
-	Factory: newHttpProtocol,
+	Factory: newHTTPProtocol,
 	Maps: []*manager.Map{
 		{Name: inFlightMap},
 	},
@@ -74,7 +75,8 @@ var Spec = &protocols.ProtocolSpec{
 	},
 }
 
-func newHttpProtocol(cfg *config.Config) (protocols.Protocol, error) {
+// newHTTPProtocol returns a new HTTP protocol.
+func newHTTPProtocol(cfg *config.Config) (protocols.Protocol, error) {
 	if !cfg.EnableHTTPMonitoring {
 		return nil, nil
 	}
@@ -125,7 +127,7 @@ func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
 		return
 	}
 
-	p.statkeeper = NewStatkeeper(p.cfg, p.telemetry)
+	p.statkeeper = NewStatkeeper(p.cfg, p.telemetry, NewIncompleteBuffer(p.cfg, p.telemetry))
 	p.eventsConsumer.Start()
 
 	return
@@ -163,10 +165,12 @@ func (p *protocol) DumpMaps(output *strings.Builder, mapName string, currentMap 
 	}
 }
 
-func (p *protocol) processHTTP(data []byte) {
-	tx := (*EbpfEvent)(unsafe.Pointer(&data[0]))
-	p.telemetry.Count(tx)
-	p.statkeeper.Process(tx)
+func (p *protocol) processHTTP(events []EbpfEvent) {
+	for i := range events {
+		tx := &events[i]
+		p.telemetry.Count(tx)
+		p.statkeeper.Process(tx)
+	}
 }
 
 func (p *protocol) setupMapCleaner(mgr *manager.Manager) {

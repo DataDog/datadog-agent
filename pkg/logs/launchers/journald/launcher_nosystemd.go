@@ -5,6 +5,7 @@
 
 //go:build !systemd
 
+//nolint:revive // TODO(AML) Fix revive linter
 package journald
 
 import (
@@ -23,6 +24,8 @@ func NewLauncher() *Launcher {
 }
 
 // Start does nothing
+//
+//nolint:revive // TODO(AML) Fix revive linter
 func (l *Launcher) Start(sources launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) {
 }
 

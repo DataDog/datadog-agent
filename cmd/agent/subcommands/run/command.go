@@ -44,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
@@ -56,9 +57,12 @@ import (
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+
+	//nolint:revive // TODO(ASC) Fix revive linter
 	pkgforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client"
+	langDetectionClimpl "github.com/DataDog/datadog-agent/comp/languagedetection/client/clientimpl"
 	"github.com/DataDog/datadog-agent/comp/logs"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata"
@@ -161,7 +165,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath),
 				SecretParams:         secrets.NewEnabledParams(),
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
-				LogParams:            log.ForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
+				LogParams:            logimpl.ForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
 			}),
 			getSharedFxOption(),
 			getPlatformModules(),
@@ -190,6 +194,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 //
 // This is exported because it also used from the deprecated `agent start` command.
 func run(log log.Component,
+	//nolint:revive // TODO(ASC) Fix revive linter
 	config config.Component,
 	flare flare.Component,
 	telemetry telemetry.Component,
@@ -200,6 +205,7 @@ func run(log log.Component,
 	forwarder defaultforwarder.Component,
 	wmeta workloadmeta.Component,
 	rcclient rcclient.Component,
+	//nolint:revive // TODO(ASC) Fix revive linter
 	metadataRunner runner.Component,
 	demultiplexer demultiplexer.Component,
 	sharedSerializer serializer.MetricSerializer,
@@ -250,6 +256,7 @@ func run(log log.Component,
 	sigpipeCh := make(chan os.Signal, 1)
 	signal.Notify(sigpipeCh, syscall.SIGPIPE)
 	go func() {
+		//nolint:revive // TODO(ASC) Fix revive linter
 		for range sigpipeCh {
 			// do nothing
 		}
@@ -292,12 +299,12 @@ func getSharedFxOption() fx.Option {
 			path.DefaultJmxLogFile,
 			path.DefaultDogstatsDLogFile,
 		)),
-		flare.Module,
-		core.Bundle,
+		flare.Module(),
+		core.Bundle(),
 		fx.Supply(dogstatsdServer.Params{
 			Serverless: false,
 		}),
-		forwarder.Bundle,
+		forwarder.Bundle(),
 		fx.Provide(func(config config.Component, log log.Component) defaultforwarder.Params {
 			params := defaultforwarder.NewParams(config, log)
 			// Enable core agent specific features like persistence-to-disk
@@ -320,12 +327,12 @@ func getSharedFxOption() fx.Option {
 				InitHelper: common.GetWorkloadmetaInit(),
 			}
 		}),
-		workloadmeta.Module,
-		apiimpl.Module,
+		workloadmeta.Module(),
+		apiimpl.Module(),
 
-		dogstatsd.Bundle,
-		otelcol.Bundle,
-		rcclient.Module,
+		dogstatsd.Bundle(),
+		otelcol.Bundle(),
+		rcclient.Module(),
 
 		// TODO: (components) - some parts of the agent (such as the logs agent) implicitly depend on the global state
 		// set up by LoadComponents. In order for components to use lifecycle hooks that also depend on this global state, we
@@ -344,28 +351,26 @@ func getSharedFxOption() fx.Option {
 				},
 			})
 		}),
-		logs.Bundle,
-		langDetectionCl.Module,
-		metadata.Bundle,
+		logs.Bundle(),
+		langDetectionClimpl.Module(),
+		metadata.Bundle(),
 		// injecting the aggregator demultiplexer to FX until we migrate it to a proper component. This allows
 		// other already migrated components to request it.
 		fx.Provide(func(config config.Component) demultiplexer.Params {
 			opts := aggregator.DefaultAgentDemultiplexerOptions()
 			opts.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
-			opts.UseDogstatsdContextLimiter = true
-			opts.DogstatsdMaxMetricsTags = config.GetInt("dogstatsd_max_metrics_tags")
 			return demultiplexer.Params{Options: opts}
 		}),
-		demultiplexer.Module,
-		orchestratorForwarderImpl.Module,
+		demultiplexer.Module(),
+		orchestratorForwarderImpl.Module(),
 		fx.Supply(orchestratorForwarderImpl.NewDefaultParams()),
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
 		// already migrated components to request it.
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
 			return demuxInstance.Serializer()
 		}),
-		ndmtmp.Bundle,
-		netflow.Bundle,
+		ndmtmp.Bundle(),
+		netflow.Bundle(),
 		fx.Provide(func(demultiplexer demultiplexer.Component) optional.Option[collector.Collector] {
 			return optional.NewOption(common.LoadCollector(demultiplexer))
 		}),
@@ -378,6 +383,7 @@ func startAgent(
 	log log.Component,
 	flare flare.Component,
 	telemetry telemetry.Component,
+	//nolint:revive // TODO(ASC) Fix revive linter
 	sysprobeconfig sysprobeconfig.Component,
 	server dogstatsdServer.Component,
 	capture replay.Component,
@@ -385,7 +391,9 @@ func startAgent(
 	wmeta workloadmeta.Component,
 	rcclient rcclient.Component,
 	logsAgent optional.Option[logsAgent.Component],
+	//nolint:revive // TODO(ASC) Fix revive linter
 	sharedForwarder defaultforwarder.Component,
+	//nolint:revive // TODO(ASC) Fix revive linter
 	sharedSerializer serializer.MetricSerializer,
 	otelcollector otelcollector.Component,
 	demultiplexer demultiplexer.Component,
@@ -495,7 +503,7 @@ func startAgent(
 	// start remote configuration management
 	var configService *remoteconfig.Service
 	if pkgconfig.IsRemoteConfigEnabled(pkgconfig.Datadog) {
-		configService, err = remoteconfig.NewService()
+		configService, err = common.NewRemoteConfigService(hostnameDetected)
 		if err != nil {
 			log.Errorf("Failed to initialize config management service: %s", err)
 		} else {

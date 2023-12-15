@@ -35,8 +35,8 @@ func TestRealConfig(t *testing.T) {
 			WithConfigMissingOK(true),
 			WithConfFilePath(dir),
 		)),
-		fx.Provide(func() secrets.Component { return secretsimpl.NewMockSecretResolver() }),
-		Module,
+		fx.Provide(func() secrets.Component { return secretsimpl.NewMock() }),
+		Module(),
 	))
 	require.Equal(t, "https://example.com", config.GetString("dd_url"))
 }
@@ -47,7 +47,7 @@ func TestMockConfig(t *testing.T) {
 
 	config := fxutil.Test[Component](t, fx.Options(
 		fx.Supply(Params{}),
-		MockModule,
+		MockModule(),
 	))
 	// values are set from env..
 	require.Equal(t, "abc1234", config.GetString("app_key"))

@@ -25,6 +25,7 @@ import (
 
 const probeUID = "net"
 
+//nolint:revive // TODO(NET) Fix revive linter
 var ErrorNotSupported = errors.New("fentry tracer is only supported on Fargate")
 
 // LoadTracer loads a new tracer
@@ -45,7 +46,7 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, perfHandlerTCP *
 			return fmt.Errorf("invalid probe configuration: %v", err)
 		}
 
-		initManager(m, perfHandlerTCP)
+		initManager(m, perfHandlerTCP, config)
 
 		file, err := os.Stat("/proc/self/ns/pid")
 

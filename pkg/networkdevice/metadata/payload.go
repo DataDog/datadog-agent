@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(NDM) Fix revive linter
 package metadata
 
 // PayloadMetadataBatchSize is the number of resources per event payload
@@ -19,12 +20,15 @@ const (
 	DeviceStatusUnreachable = DeviceStatus(2)
 )
 
+//nolint:revive // TODO(NDM) Fix revive linter
 type IDType string
 
 const (
 	// IDTypeMacAddress represent mac address in `00:00:00:00:00:00` format
-	IDTypeMacAddress     = "mac_address"
-	IDTypeInterfaceName  = "interface_name"
+	IDTypeMacAddress = "mac_address"
+	//nolint:revive // TODO(NDM) Fix revive linter
+	IDTypeInterfaceName = "interface_name"
+	//nolint:revive // TODO(NDM) Fix revive linter
 	IDTypeInterfaceAlias = "interface_alias"
 )
 
