@@ -2,13 +2,13 @@ name: "Go update commenter"
 
 on:
   pull_request:
+    # Only run on PR label events (in particular not on every commit)
     types: [ labeled ]
-  workflow_dispatch:
 
 jobs:
   old-versions-match:
-    # Only run if the PR is labeled with 'go-update' or if manually triggered
-    if: ${{ github.event.label.name == 'go-update' || github.event_name == 'workflow_dispatch' }}
+    # Only run if the PR is labeled with 'go-update'
+    if: ${{ github.event.label.name == 'go-update' }}
     runs-on: ubuntu-latest
     steps:
       # get the Go version of the target branch
