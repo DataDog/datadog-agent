@@ -46,7 +46,9 @@ func (s *UtfSuite) generateUtfLog(endianness, content string) error {
 }
 
 func (s *UtfSuite) BeforeTest(_, _ string) {
-	// Create a new log file
+	s.Suite.BeforeTest("", "")
+
+	// Create a new log file for utf encoded messages
 	s.Env().VM.Execute("sudo touch /var/log/hello-world-utf.log")
 	s.Env().VM.Execute("sudo chmod +r /var/log/hello-world-utf.log")
 }
@@ -63,7 +65,6 @@ func (s *UtfSuite) UtfBigEndianCollection() {
 			agentparams.WithLogs(),
 			agentparams.WithIntegration("custom_logs.d", string(utfBigEndianLogConfig)))))
 	t := s.T()
-	intake := s.Env().Fakeintake
 
 	// generate utf-16-be log
 	content := "big endian sample log"
@@ -72,12 +73,20 @@ func (s *UtfSuite) UtfBigEndianCollection() {
 
 	// check that intake has utf-16-be encoded log
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		logs, err := intake.FilterLogs(service, fi.WithMessageMatching(content))
+		logs, err := s.Env().Fakeintake.FilterLogs(service, fi.WithMessageMatching(content))
 		assert.NoErrorf(c, err, "Error found: %s", err)
 		intakeLogs := logsToString(logs)
 		assert.NotEmpty(c, logs, "Expected at least 1 log with content: '%s', but received %s logs.", content, intakeLogs)
 		t.Logf(intakeLogs)
 	}, 2*time.Minute, 10*time.Second)
+
+	// flush intake
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		err := s.Env().Fakeintake.FlushServerAndResetAggregators()
+		if assert.NoErrorf(c, err, "Having issues flushing server and resetting aggregators, retrying...") {
+			t.Log("Successfully flushed server and reset aggregators.")
+		}
+	}, 1*time.Minute, 10*time.Second)
 
 }
 
@@ -87,7 +96,6 @@ func (s *UtfSuite) UtfLittleEndianCollection() {
 			agentparams.WithLogs(),
 			agentparams.WithIntegration("custom_logs.d", string(utfLittleEndianLogConfig)))))
 	t := s.T()
-	intake := s.Env().Fakeintake
 
 	// generate utf-16-le log
 	content := "little endian sample log"
@@ -96,11 +104,19 @@ func (s *UtfSuite) UtfLittleEndianCollection() {
 
 	// check that intake has utf-16-le encoded log
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		logs, err := intake.FilterLogs(service, fi.WithMessageMatching(content))
+		logs, err := s.Env().Fakeintake.FilterLogs(service, fi.WithMessageMatching(content))
 		assert.NoErrorf(c, err, "Error found: %s", err)
 		intakeLogs := logsToString(logs)
 		assert.NotEmpty(c, logs, "Expected at least 1 log with content: '%s', but received %s logs.", content, intakeLogs)
 		t.Logf(intakeLogs)
 	}, 2*time.Minute, 10*time.Second)
+
+	// flush intake
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		err := s.Env().Fakeintake.FlushServerAndResetAggregators()
+		if assert.NoErrorf(c, err, "Having issues flushing server and resetting aggregators, retrying...") {
+			t.Log("Successfully flushed server and reset aggregators.")
+		}
+	}, 1*time.Minute, 10*time.Second)
 
 }
