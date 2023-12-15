@@ -11,6 +11,6 @@ const (
 )
 
 // DisablePESUnsupportedKernel returns true if network_process needs to be disabled due to unsupported kernel version
-func DisablePESUnsupportedKernel(isEnabled bool) bool {
+func DisablePESUnsupportedKernel(_ bool) bool {
 	return false
 }
