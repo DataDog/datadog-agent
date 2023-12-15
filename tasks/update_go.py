@@ -24,6 +24,7 @@ def go_version(_):
         "test_version": "Whether the image is a test image or not",
         "warn": "Don't exit in case of matching error, just warn.",
         "release_note": "Whether to create a release note or not. The default behaviour is to create a release note",
+        "all_modules": "Whether to update the version in go.mod files used by otel.",
     }
 )
 def update_go(
@@ -33,6 +34,7 @@ def update_go(
     test_version: Optional[bool] = False,
     warn: Optional[bool] = False,
     release_note: Optional[bool] = True,
+    all_modules: Optional[bool] = False,
 ):
     """
     Updates the version of Go and build images.
@@ -68,7 +70,7 @@ def update_go(
 
     _update_root_readme(warn, new_major)
     _update_fakeintake_readme(warn, new_major)
-    _update_go_mods(warn, new_major)
+    _update_go_mods(warn, new_major, all_modules)
     _update_process_agent_readme(warn, new_major)
     _update_windowsevent_readme(warn, new_major)
     _update_go_version_file(warn, version)
@@ -217,9 +219,13 @@ def _update_windowsevent_readme(warn: bool, major: str):
     _update_file(warn, path, pattern, replace)
 
 
-def _update_go_mods(warn: bool, major: str):
-    mod_files = [f"./{module}/go.mod" for module in DEFAULT_MODULES]
-    for mod_file in mod_files:
+def _update_go_mods(warn: bool, major: str, all_modules: bool):
+    for path, module in DEFAULT_MODULES.items():
+        if not all_modules and module.used_by_otel:
+            # only update the go directives in go.mod files not used by otel
+            # to allow them to keep using the modules
+            continue
+        mod_file = f"./{path}/go.mod"
         _update_file(warn, mod_file, "^go [.0-9]+$", f"go {major}")
 
 
