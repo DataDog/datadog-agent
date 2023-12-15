@@ -366,6 +366,7 @@ func TestProcess(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
 		cfg.InAzureAppServices = true
+		cfg.InAzureFunctionApp = true
 		ctx, cancel := context.WithCancel(context.Background())
 		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
@@ -388,7 +389,7 @@ func TestProcess(t *testing.T) {
 			for i, span := range chunk.Spans {
 				if i == 0 {
 					// root span should contain all aas tags
-					for tag := range traceutil.GetAppServicesTags() {
+					for tag := range traceutil.GetAppServicesTags(cfg.InAzureFunctionApp) {
 						assert.Contains(t, span.Meta, tag)
 					}
 				} else {

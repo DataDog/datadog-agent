@@ -224,7 +224,7 @@ func (a *Agent) setRootSpanTags(root *pb.Span) {
 	clientSampleRate := sampler.GetGlobalRate(root)
 	sampler.SetClientRate(root, clientSampleRate)
 	if a.conf.InAzureAppServices {
-		for k, v := range traceutil.GetAppServicesTags() {
+		for k, v := range traceutil.GetAppServicesTags(a.conf.InAzureFunctionApp) {
 			traceutil.SetMeta(root, k, v)
 		}
 	}
@@ -306,7 +306,7 @@ func (a *Agent) Process(p *api.Payload) {
 		}
 
 		// Extra sanitization steps of the trace.
-		appServicesTags := traceutil.GetAppServicesTags()
+		appServicesTags := traceutil.GetAppServicesTags(a.conf.InAzureFunctionApp)
 		for _, span := range chunk.Spans {
 			for k, v := range a.conf.GlobalTags {
 				if k == tagOrigin {

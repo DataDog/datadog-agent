@@ -10,8 +10,6 @@ import (
 	"os"
 	"runtime"
 	"strings"
-
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
 const (
@@ -40,7 +38,9 @@ const (
 	appService = "app"
 )
 
-func GetAppServicesTags() map[string]string {
+// This function returns the env vars pulled from the Azure App Service instance.
+// In some cases we will need to add extra tags for function apps.
+func GetAppServicesTags(inFunctionApp bool) map[string]string {
 	siteName := os.Getenv("WEBSITE_SITE_NAME")
 	ownerName := os.Getenv("WEBSITE_OWNER_NAME")
 	resourceGroup := os.Getenv("WEBSITE_RESOURCE_GROUP")
@@ -81,7 +81,7 @@ func GetAppServicesTags() map[string]string {
 	}
 
 	// Function Apps require a different runtime and kind
-	if config.InAzureFunctionApp() {
+	if inFunctionApp {
 		tags[aasRuntime] = os.Getenv("FUNCTIONS_WORKER_RUNTIME")
 		tags[aasFunctionRuntime] = os.Getenv("FUNCTIONS_EXTENSION_VERSION")
 		tags[aasSiteKind] = "functionapp"
