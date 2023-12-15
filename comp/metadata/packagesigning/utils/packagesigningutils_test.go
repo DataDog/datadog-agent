@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// go:build linux
+//go:build linux
 
 package utils
 
@@ -36,7 +36,7 @@ func TestParseRepoFile(t *testing.T) {
 		{
 			name:        "Main with checks enabled",
 			fileName:    "testdata/main_enabled.repo",
-			mainConf:    MainData{Gpgcheck: false, LocalpkgGpgcheck: false, RepoGpgcheck: false},
+			mainConf:    MainData{Gpgcheck: true, LocalpkgGpgcheck: true, RepoGpgcheck: true},
 			reposPerKey: nil,
 		},
 		{
