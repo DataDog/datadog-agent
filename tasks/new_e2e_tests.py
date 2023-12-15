@@ -325,7 +325,7 @@ KeyInfo = NamedTuple('KeyFingerprint', [('path', str), ('fingerprint', KeyFinger
 def get_key_info(ctx, path):
     fingerprints = dict()
     for fmt in KeyFingerprint._fields:
-        out = ctx.run(f"ssh-keygen -l -E {fmt} -f {path}", hide=True)
+        out = ctx.run(f"ssh-keygen -l -E {fmt} -f '{path}'", hide=True)
         if out.exited != 0:
             print("No AWS keypair found, please create one")
             return
@@ -395,8 +395,8 @@ def debug_keys(ctx):
 
     # lookup configured keypair
     print(f"Checking configured keypair:")
-    print(f"\tname: {keypair_name}")
-    print(f"\tpath: {keypair_path}")
+    print(f"\taws.keyPairName: {keypair_name}")
+    print(f"\taws.publicKeyPath: {keypair_path}")
     keyinfo, keypair = find_matching_ec2_keypair(ctx, keypairs, keypair_path)
     if keypair is not None:
         print("Configured publicKeyPath found in aws!")
