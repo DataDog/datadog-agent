@@ -28,10 +28,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
+type loggerPointer struct {
+	atomic.Pointer[DatadogLogger]
+}
+
 var (
 	// Logger is the main DatadogLogger
-	logger    atomic.Pointer[DatadogLogger]
-	jmxLogger atomic.Pointer[DatadogLogger]
+	logger    loggerPointer
+	jmxLogger loggerPointer
 
 	// This buffer holds log lines sent to the logger before its
 	// initialization. Even if initializing the logger is one of the first
@@ -168,77 +172,84 @@ func (sw *DatadogLogger) scrub(s string) string {
 }
 
 // trace logs at the trace level, called with sw.l held
-func (sw *DatadogLogger) trace(s string) {
-	scrubbed := sw.scrub(s)
-	sw.inner.Trace(scrubbed)
+func (sw *loggerPointer) trace(s string) {
+	l := sw.Load()
+	scrubbed := l.scrub(s)
+	l.inner.Trace(scrubbed)
 
-	for _, l := range sw.extra {
+	for _, l := range l.extra {
 		l.Trace(scrubbed)
 	}
 }
 
 // trace logs at the trace level and the current stack depth plus the
 // additional given one, called with sw.l held
-func (sw *DatadogLogger) traceStackDepth(s string, depth int) {
-	scrubbed := sw.scrub(s)
-	sw.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
-	sw.inner.Trace(scrubbed)
-	sw.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
+func (sw *loggerPointer) traceStackDepth(s string, depth int) {
+	l := sw.Load()
+	scrubbed := l.scrub(s)
+	l.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
+	l.inner.Trace(scrubbed)
+	l.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
 
-	for _, l := range sw.extra {
+	for _, l := range l.extra {
 		l.Trace(scrubbed)
 	}
 }
 
 // debug logs at the debug level, called with sw.l held
-func (sw *DatadogLogger) debug(s string) {
-	scrubbed := sw.scrub(s)
-	sw.inner.Debug(scrubbed)
+func (sw *loggerPointer) debug(s string) {
+	l := sw.Load()
+	scrubbed := l.scrub(s)
+	l.inner.Debug(scrubbed)
 
-	for _, l := range sw.extra {
+	for _, l := range l.extra {
 		l.Debug(scrubbed)
 	}
 }
 
 // debug logs at the debug level and the current stack depth plus the additional given one, called with sw.l held
-func (sw *DatadogLogger) debugStackDepth(s string, depth int) {
-	scrubbed := sw.scrub(s)
-	sw.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
-	sw.inner.Debug(scrubbed)
-	sw.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
+func (sw *loggerPointer) debugStackDepth(s string, depth int) {
+	l := sw.Load()
+	scrubbed := l.scrub(s)
+	l.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
+	l.inner.Debug(scrubbed)
+	l.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
 
-	for _, l := range sw.extra {
+	for _, l := range l.extra {
 		l.Debug(scrubbed) //nolint:errcheck
 	}
 }
 
 // info logs at the info level, called with sw.l held
-func (sw *DatadogLogger) info(s string) {
-	scrubbed := sw.scrub(s)
-	sw.inner.Info(scrubbed)
-	for _, l := range sw.extra {
+func (sw *loggerPointer) info(s string) {
+	l := sw.Load()
+	scrubbed := l.scrub(s)
+	l.inner.Info(scrubbed)
+	for _, l := range l.extra {
 		l.Info(scrubbed)
 	}
 }
 
 // info logs at the info level and the current stack depth plus the additional given one, called with sw.l held
-func (sw *DatadogLogger) infoStackDepth(s string, depth int) {
-	scrubbed := sw.scrub(s)
-	sw.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
-	sw.inner.Info(scrubbed)
-	sw.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
+func (sw *loggerPointer) infoStackDepth(s string, depth int) {
+	l := sw.Load()
+	scrubbed := l.scrub(s)
+	l.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
+	l.inner.Info(scrubbed)
+	l.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
 
-	for _, l := range sw.extra {
+	for _, l := range l.extra {
 		l.Info(scrubbed) //nolint:errcheck
 	}
 }
 
 // warn logs at the warn level, called with sw.l held
-func (sw *DatadogLogger) warn(s string) error {
-	scrubbed := sw.scrub(s)
-	err := sw.inner.Warn(scrubbed)
+func (sw *loggerPointer) warn(s string) error {
+	l := sw.Load()
+	scrubbed := l.scrub(s)
+	err := l.inner.Warn(scrubbed)
 
-	for _, l := range sw.extra {
+	for _, l := range l.extra {
 		l.Warn(scrubbed) //nolint:errcheck
 	}
 
@@ -246,13 +257,14 @@ func (sw *DatadogLogger) warn(s string) error {
 }
 
 // error logs at the error level and the current stack depth plus the additional given one, called with sw.l held
-func (sw *DatadogLogger) warnStackDepth(s string, depth int) error {
-	scrubbed := sw.scrub(s)
-	sw.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
-	err := sw.inner.Warn(scrubbed)
-	sw.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
+func (sw *loggerPointer) warnStackDepth(s string, depth int) error {
+	l := sw.Load()
+	scrubbed := l.scrub(s)
+	l.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
+	err := l.inner.Warn(scrubbed)
+	l.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
 
-	for _, l := range sw.extra {
+	for _, l := range l.extra {
 		l.Warn(scrubbed) //nolint:errcheck
 	}
 
@@ -260,11 +272,12 @@ func (sw *DatadogLogger) warnStackDepth(s string, depth int) error {
 }
 
 // error logs at the error level, called with sw.l held
-func (sw *DatadogLogger) error(s string) error {
-	scrubbed := sw.scrub(s)
-	err := sw.inner.Error(scrubbed)
+func (sw *loggerPointer) error(s string) error {
+	l := sw.Load()
+	scrubbed := l.scrub(s)
+	err := l.inner.Error(scrubbed)
 
-	for _, l := range sw.extra {
+	for _, l := range l.extra {
 		l.Error(scrubbed) //nolint:errcheck
 	}
 
@@ -272,13 +285,14 @@ func (sw *DatadogLogger) error(s string) error {
 }
 
 // error logs at the error level and the current stack depth plus the additional given one, called with sw.l held
-func (sw *DatadogLogger) errorStackDepth(s string, depth int) error {
-	scrubbed := sw.scrub(s)
-	sw.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
-	err := sw.inner.Error(scrubbed)
-	sw.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
+func (sw *loggerPointer) errorStackDepth(s string, depth int) error {
+	l := sw.Load()
+	scrubbed := l.scrub(s)
+	l.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
+	err := l.inner.Error(scrubbed)
+	l.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
 
-	for _, l := range sw.extra {
+	for _, l := range l.extra {
 		l.Error(scrubbed) //nolint:errcheck
 	}
 
@@ -286,11 +300,12 @@ func (sw *DatadogLogger) errorStackDepth(s string, depth int) error {
 }
 
 // critical logs at the critical level, called with sw.l held
-func (sw *DatadogLogger) critical(s string) error {
-	scrubbed := sw.scrub(s)
-	err := sw.inner.Critical(scrubbed)
+func (sw *loggerPointer) critical(s string) error {
+	l := sw.Load()
+	scrubbed := l.scrub(s)
+	err := l.inner.Critical(scrubbed)
 
-	for _, l := range sw.extra {
+	for _, l := range l.extra {
 		l.Critical(scrubbed) //nolint:errcheck
 	}
 
@@ -298,13 +313,14 @@ func (sw *DatadogLogger) critical(s string) error {
 }
 
 // critical logs at the critical level and the current stack depth plus the additional given one, called with sw.l held
-func (sw *DatadogLogger) criticalStackDepth(s string, depth int) error {
-	scrubbed := sw.scrub(s)
-	sw.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
-	err := sw.inner.Critical(scrubbed)
-	sw.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
+func (sw *loggerPointer) criticalStackDepth(s string, depth int) error {
+	l := sw.Load()
+	scrubbed := l.scrub(s)
+	l.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
+	err := l.inner.Critical(scrubbed)
+	l.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
 
-	for _, l := range sw.extra {
+	for _, l := range l.extra {
 		l.Critical(scrubbed) //nolint:errcheck
 	}
 
@@ -312,41 +328,45 @@ func (sw *DatadogLogger) criticalStackDepth(s string, depth int) error {
 }
 
 // tracef logs with format at the trace level, called with sw.l held
-func (sw *DatadogLogger) tracef(format string, params ...interface{}) {
-	scrubbed := sw.scrub(fmt.Sprintf(format, params...))
-	sw.inner.Trace(scrubbed)
+func (sw *loggerPointer) tracef(format string, params ...interface{}) {
+	l := sw.Load()
+	scrubbed := l.scrub(fmt.Sprintf(format, params...))
+	l.inner.Trace(scrubbed)
 
-	for _, l := range sw.extra {
+	for _, l := range l.extra {
 		l.Trace(scrubbed)
 	}
 }
 
 // debugf logs with format at the debug level, called with sw.l held
-func (sw *DatadogLogger) debugf(format string, params ...interface{}) {
-	scrubbed := sw.scrub(fmt.Sprintf(format, params...))
-	sw.inner.Debug(scrubbed)
+func (sw *loggerPointer) debugf(format string, params ...interface{}) {
+	l := sw.Load()
+	scrubbed := l.scrub(fmt.Sprintf(format, params...))
+	l.inner.Debug(scrubbed)
 
-	for _, l := range sw.extra {
+	for _, l := range l.extra {
 		l.Debug(scrubbed)
 	}
 }
 
 // infof logs with format at the info level, called with sw.l held
-func (sw *DatadogLogger) infof(format string, params ...interface{}) {
-	scrubbed := sw.scrub(fmt.Sprintf(format, params...))
-	sw.inner.Info(scrubbed)
+func (sw *loggerPointer) infof(format string, params ...interface{}) {
+	l := sw.Load()
+	scrubbed := l.scrub(fmt.Sprintf(format, params...))
+	l.inner.Info(scrubbed)
 
-	for _, l := range sw.extra {
+	for _, l := range l.extra {
 		l.Info(scrubbed)
 	}
 }
 
 // warnf logs with format at the warn level, called with sw.l held
-func (sw *DatadogLogger) warnf(format string, params ...interface{}) error {
-	scrubbed := sw.scrub(fmt.Sprintf(format, params...))
-	err := sw.inner.Warn(scrubbed)
+func (sw *loggerPointer) warnf(format string, params ...interface{}) error {
+	l := sw.Load()
+	scrubbed := l.scrub(fmt.Sprintf(format, params...))
+	err := l.inner.Warn(scrubbed)
 
-	for _, l := range sw.extra {
+	for _, l := range l.extra {
 		l.Warn(scrubbed) //nolint:errcheck
 	}
 
@@ -354,11 +374,12 @@ func (sw *DatadogLogger) warnf(format string, params ...interface{}) error {
 }
 
 // errorf logs with format at the error level, called with sw.l held
-func (sw *DatadogLogger) errorf(format string, params ...interface{}) error {
-	scrubbed := sw.scrub(fmt.Sprintf(format, params...))
-	err := sw.inner.Error(scrubbed)
+func (sw *loggerPointer) errorf(format string, params ...interface{}) error {
+	l := sw.Load()
+	scrubbed := l.scrub(fmt.Sprintf(format, params...))
+	err := l.inner.Error(scrubbed)
 
-	for _, l := range sw.extra {
+	for _, l := range l.extra {
 		l.Error(scrubbed) //nolint:errcheck
 	}
 
@@ -366,11 +387,12 @@ func (sw *DatadogLogger) errorf(format string, params ...interface{}) error {
 }
 
 // criticalf logs with format at the critical level, called with sw.l held
-func (sw *DatadogLogger) criticalf(format string, params ...interface{}) error {
-	scrubbed := sw.scrub(fmt.Sprintf(format, params...))
-	err := sw.inner.Critical(scrubbed)
+func (sw *loggerPointer) criticalf(format string, params ...interface{}) error {
+	l := sw.Load()
+	scrubbed := l.scrub(fmt.Sprintf(format, params...))
+	err := l.inner.Critical(scrubbed)
 
-	for _, l := range sw.extra {
+	for _, l := range l.extra {
 		l.Critical(scrubbed) //nolint:errcheck
 	}
 
@@ -543,12 +565,12 @@ func logContextWithError(logLevel seelog.LogLevel, bufferFunc func(), logFunc fu
 
 // Trace logs at the trace level
 func Trace(v ...interface{}) {
-	Log(seelog.TraceLvl, func() { Trace(v...) }, func(s string) { logger.Load().trace(s) }, v...)
+	Log(seelog.TraceLvl, func() { Trace(v...) }, logger.trace, v...)
 }
 
 // Tracef logs with format at the trace level
 func Tracef(format string, params ...interface{}) {
-	logFormat(seelog.TraceLvl, func() { Tracef(format, params...) }, func(s string, a ...interface{}) { logger.Load().tracef(s, a...) }, format, params...)
+	logFormat(seelog.TraceLvl, func() { Tracef(format, params...) }, logger.tracef, format, params...)
 }
 
 // TracefStackDepth logs with format at the trace level and the current stack depth plus the given depth
@@ -559,13 +581,13 @@ func TracefStackDepth(depth int, format string, params ...interface{}) {
 	}
 	msg := fmt.Sprintf(format, params...)
 	Log(seelog.TraceLvl, func() { TraceStackDepth(depth, msg) }, func(s string) {
-		logger.Load().traceStackDepth(s, depth)
+		logger.traceStackDepth(s, depth)
 	}, msg)
 }
 
 // TracecStackDepth logs at the trace level with context and the current stack depth plus the additional given one
 func TracecStackDepth(message string, depth int, context ...interface{}) {
-	logContext(seelog.TraceLvl, func() { Tracec(message, context...) }, func(s string) { logger.Load().trace(s) }, message, depth, context...)
+	logContext(seelog.TraceLvl, func() { Tracec(message, context...) }, logger.trace, message, depth, context...)
 }
 
 // Tracec logs at the trace level with context
@@ -583,12 +605,12 @@ func TraceFunc(logFunc func() string) {
 
 // Debug logs at the debug level
 func Debug(v ...interface{}) {
-	Log(seelog.DebugLvl, func() { Debug(v...) }, func(s string) { logger.Load().debug(s) }, v...)
+	Log(seelog.DebugLvl, func() { Debug(v...) }, logger.debug, v...)
 }
 
 // Debugf logs with format at the debug level
 func Debugf(format string, params ...interface{}) {
-	logFormat(seelog.DebugLvl, func() { Debugf(format, params...) }, func(s string, a ...interface{}) { logger.Load().debugf(s, a...) }, format, params...)
+	logFormat(seelog.DebugLvl, func() { Debugf(format, params...) }, logger.debugf, format, params...)
 }
 
 // DebugfStackDepth logs with format at the debug level and the current stack depth plus the given depth
@@ -599,13 +621,13 @@ func DebugfStackDepth(depth int, format string, params ...interface{}) {
 	}
 	msg := fmt.Sprintf(format, params...)
 	Log(seelog.DebugLvl, func() { DebugStackDepth(depth, msg) }, func(s string) {
-		logger.Load().debugStackDepth(s, depth)
+		logger.debugStackDepth(s, depth)
 	}, msg)
 }
 
 // DebugcStackDepth logs at the debug level with context and the current stack depth plus the additional given one
 func DebugcStackDepth(message string, depth int, context ...interface{}) {
-	logContext(seelog.DebugLvl, func() { Debugc(message, context...) }, func(s string) { logger.Load().debug(s) }, message, depth, context...)
+	logContext(seelog.DebugLvl, func() { Debugc(message, context...) }, logger.debug, message, depth, context...)
 }
 
 // Debugc logs at the debug level with context
@@ -623,12 +645,12 @@ func DebugFunc(logFunc func() string) {
 
 // Info logs at the info level
 func Info(v ...interface{}) {
-	Log(seelog.InfoLvl, func() { Info(v...) }, func(s string) { logger.Load().info(s) }, v...)
+	Log(seelog.InfoLvl, func() { Info(v...) }, logger.info, v...)
 }
 
 // Infof logs with format at the info level
 func Infof(format string, params ...interface{}) {
-	logFormat(seelog.InfoLvl, func() { Infof(format, params...) }, func(s string, a ...interface{}) { logger.Load().infof(s, a...) }, format, params...)
+	logFormat(seelog.InfoLvl, func() { Infof(format, params...) }, logger.infof, format, params...)
 }
 
 // InfofStackDepth logs with format at the info level and the current stack depth plus the given depth
@@ -639,13 +661,13 @@ func InfofStackDepth(depth int, format string, params ...interface{}) {
 	}
 	msg := fmt.Sprintf(format, params...)
 	Log(seelog.InfoLvl, func() { InfoStackDepth(depth, msg) }, func(s string) {
-		logger.Load().infoStackDepth(s, depth)
+		logger.infoStackDepth(s, depth)
 	}, msg)
 }
 
 // InfocStackDepth logs at the info level with context and the current stack depth plus the additional given one
 func InfocStackDepth(message string, depth int, context ...interface{}) {
-	logContext(seelog.InfoLvl, func() { Infoc(message, context...) }, func(s string) { logger.Load().info(s) }, message, depth, context...)
+	logContext(seelog.InfoLvl, func() { Infoc(message, context...) }, logger.info, message, depth, context...)
 }
 
 // Infoc logs at the info level with context
@@ -663,25 +685,25 @@ func InfoFunc(logFunc func() string) {
 
 // Warn logs at the warn level and returns an error containing the formated log message
 func Warn(v ...interface{}) error {
-	return logWithError(seelog.WarnLvl, func() { Warn(v...) }, func(s string) error { return logger.Load().warn(s) }, false, v...)
+	return logWithError(seelog.WarnLvl, func() { Warn(v...) }, logger.warn, false, v...)
 }
 
 // Warnf logs with format at the warn level and returns an error containing the formated log message
 func Warnf(format string, params ...interface{}) error {
-	return logFormatWithError(seelog.WarnLvl, func() { Warnf(format, params...) }, func(s string, a ...interface{}) error { return logger.Load().warnf(s, a...) }, format, false, params...)
+	return logFormatWithError(seelog.WarnLvl, func() { Warnf(format, params...) }, logger.warnf, format, false, params...)
 }
 
 // WarnfStackDepth logs with format at the warn level and the current stack depth plus the given depth
 func WarnfStackDepth(depth int, format string, params ...interface{}) error {
 	msg := fmt.Sprintf(format, params...)
 	return logWithError(seelog.WarnLvl, func() { WarnStackDepth(depth, msg) }, func(s string) error {
-		return logger.Load().warnStackDepth(s, depth)
+		return logger.warnStackDepth(s, depth)
 	}, false, msg)
 }
 
 // WarncStackDepth logs at the warn level with context and the current stack depth plus the additional given one and returns an error containing the formated log message
 func WarncStackDepth(message string, depth int, context ...interface{}) error {
-	return logContextWithError(seelog.WarnLvl, func() { Warnc(message, context...) }, func(s string) error { return logger.Load().warn(s) }, message, false, depth, context...)
+	return logContextWithError(seelog.WarnLvl, func() { Warnc(message, context...) }, logger.warn, message, false, depth, context...)
 }
 
 // Warnc logs at the warn level with context and returns an error containing the formated log message
@@ -699,25 +721,25 @@ func WarnFunc(logFunc func() string) {
 
 // Error logs at the error level and returns an error containing the formated log message
 func Error(v ...interface{}) error {
-	return logWithError(seelog.ErrorLvl, func() { Error(v...) }, func(s string) error { return logger.Load().error(s) }, true, v...)
+	return logWithError(seelog.ErrorLvl, func() { Error(v...) }, logger.error, true, v...)
 }
 
 // Errorf logs with format at the error level and returns an error containing the formated log message
 func Errorf(format string, params ...interface{}) error {
-	return logFormatWithError(seelog.ErrorLvl, func() { Errorf(format, params...) }, func(s string, a ...interface{}) error { return logger.Load().errorf(s, a...) }, format, true, params...)
+	return logFormatWithError(seelog.ErrorLvl, func() { Errorf(format, params...) }, logger.errorf, format, true, params...)
 }
 
 // ErrorfStackDepth logs with format at the error level and the current stack depth plus the given depth
 func ErrorfStackDepth(depth int, format string, params ...interface{}) error {
 	msg := fmt.Sprintf(format, params...)
 	return logWithError(seelog.ErrorLvl, func() { ErrorStackDepth(depth, msg) }, func(s string) error {
-		return logger.Load().errorStackDepth(s, depth)
+		return logger.errorStackDepth(s, depth)
 	}, false, msg)
 }
 
 // ErrorcStackDepth logs at the error level with context and the current stack depth plus the additional given one and returns an error containing the formated log message
 func ErrorcStackDepth(message string, depth int, context ...interface{}) error {
-	return logContextWithError(seelog.ErrorLvl, func() { Errorc(message, context...) }, func(s string) error { return logger.Load().error(s) }, message, true, depth, context...)
+	return logContextWithError(seelog.ErrorLvl, func() { Errorc(message, context...) }, logger.error, message, true, depth, context...)
 }
 
 // Errorc logs at the error level with context and returns an error containing the formated log message
@@ -735,25 +757,25 @@ func ErrorFunc(logFunc func() string) {
 
 // Critical logs at the critical level and returns an error containing the formated log message
 func Critical(v ...interface{}) error {
-	return logWithError(seelog.CriticalLvl, func() { Critical(v...) }, func(s string) error { return logger.Load().critical(s) }, true, v...)
+	return logWithError(seelog.CriticalLvl, func() { Critical(v...) }, logger.critical, true, v...)
 }
 
 // Criticalf logs with format at the critical level and returns an error containing the formated log message
 func Criticalf(format string, params ...interface{}) error {
-	return logFormatWithError(seelog.CriticalLvl, func() { Criticalf(format, params...) }, func(s string, a ...interface{}) error { return logger.Load().criticalf(s, a...) }, format, true, params...)
+	return logFormatWithError(seelog.CriticalLvl, func() { Criticalf(format, params...) }, logger.criticalf, format, true, params...)
 }
 
 // CriticalfStackDepth logs with format at the critical level and the current stack depth plus the given depth
 func CriticalfStackDepth(depth int, format string, params ...interface{}) error {
 	msg := fmt.Sprintf(format, params...)
 	return logWithError(seelog.CriticalLvl, func() { CriticalStackDepth(depth, msg) }, func(s string) error {
-		return logger.Load().criticalStackDepth(s, depth)
+		return logger.criticalStackDepth(s, depth)
 	}, false, msg)
 }
 
 // CriticalcStackDepth logs at the critical level with context and the current stack depth plus the additional given one and returns an error containing the formated log message
 func CriticalcStackDepth(message string, depth int, context ...interface{}) error {
-	return logContextWithError(seelog.CriticalLvl, func() { Criticalc(message, context...) }, func(s string) error { return logger.Load().critical(s) }, message, true, depth, context...)
+	return logContextWithError(seelog.CriticalLvl, func() { Criticalc(message, context...) }, logger.critical, message, true, depth, context...)
 }
 
 // Criticalc logs at the critical level with context and returns an error containing the formated log message
@@ -772,53 +794,53 @@ func CriticalFunc(logFunc func() string) {
 // InfoStackDepth logs at the info level and the current stack depth plus the additional given one
 func InfoStackDepth(depth int, v ...interface{}) {
 	Log(seelog.InfoLvl, func() { InfoStackDepth(depth, v...) }, func(s string) {
-		logger.Load().infoStackDepth(s, depth)
+		logger.infoStackDepth(s, depth)
 	}, v...)
 }
 
 // WarnStackDepth logs at the warn level and the current stack depth plus the additional given one and returns an error containing the formated log message
 func WarnStackDepth(depth int, v ...interface{}) error {
 	return logWithError(seelog.WarnLvl, func() { WarnStackDepth(depth, v...) }, func(s string) error {
-		return logger.Load().warnStackDepth(s, depth)
+		return logger.warnStackDepth(s, depth)
 	}, false, v...)
 }
 
 // DebugStackDepth logs at the debug level and the current stack depth plus the additional given one and returns an error containing the formated log message
 func DebugStackDepth(depth int, v ...interface{}) {
 	Log(seelog.DebugLvl, func() { DebugStackDepth(depth, v...) }, func(s string) {
-		logger.Load().debugStackDepth(s, depth)
+		logger.debugStackDepth(s, depth)
 	}, v...)
 }
 
 // TraceStackDepth logs at the trace level and the current stack depth plus the additional given one and returns an error containing the formated log message
 func TraceStackDepth(depth int, v ...interface{}) {
 	Log(seelog.TraceLvl, func() { TraceStackDepth(depth, v...) }, func(s string) {
-		logger.Load().traceStackDepth(s, depth)
+		logger.traceStackDepth(s, depth)
 	}, v...)
 }
 
 // ErrorStackDepth logs at the error level and the current stack depth plus the additional given one and returns an error containing the formated log message
 func ErrorStackDepth(depth int, v ...interface{}) error {
 	return logWithError(seelog.ErrorLvl, func() { ErrorStackDepth(depth, v...) }, func(s string) error {
-		return logger.Load().errorStackDepth(s, depth)
+		return logger.errorStackDepth(s, depth)
 	}, true, v...)
 }
 
 // CriticalStackDepth logs at the critical level and the current stack depth plus the additional given one and returns an error containing the formated log message
 func CriticalStackDepth(depth int, v ...interface{}) error {
 	return logWithError(seelog.CriticalLvl, func() { CriticalStackDepth(depth, v...) }, func(s string) error {
-		return logger.Load().criticalStackDepth(s, depth)
+		return logger.criticalStackDepth(s, depth)
 	}, true, v...)
 }
 
 // JMXError Logs for JMX check
 func JMXError(v ...interface{}) error {
-	return logWithError(seelog.ErrorLvl, func() { JMXError(v...) }, func(s string) error { return jmxLogger.Load().error(s) }, true, v...)
+	return logWithError(seelog.ErrorLvl, func() { JMXError(v...) }, jmxLogger.error, true, v...)
 }
 
 // JMXInfo Logs
 func JMXInfo(v ...interface{}) {
-	Log(seelog.InfoLvl, func() { JMXInfo(v...) }, func(s string) { jmxLogger.Load().info(s) }, v...)
+	Log(seelog.InfoLvl, func() { JMXInfo(v...) }, jmxLogger.info, v...)
 }
 
 // Flush flushes the underlying inner log
