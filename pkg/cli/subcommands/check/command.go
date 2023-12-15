@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
@@ -60,6 +61,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	statuscollector "github.com/DataDog/datadog-agent/pkg/status/collector"
 	"github.com/DataDog/datadog-agent/pkg/status/render"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -141,9 +143,23 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					LogParams:            logimpl.ForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle(),
 
+				// workloadmeta setup
+				collectors.GetCatalog(),
+				fx.Provide(func(config config.Component) workloadmeta.Params {
+					var agentType workloadmeta.AgentType
+					if flavor.GetFlavor() == flavor.ClusterAgent {
+						agentType = workloadmeta.ClusterAgent
+					} else {
+						agentType = workloadmeta.NodeAgent
+					}
+
+					return workloadmeta.Params{
+						AgentType:  agentType,
+						InitHelper: common.GetWorkloadmetaInit(),
+					}
+				}),
 				workloadmeta.Module(),
 				apiimpl.Module(),
-				fx.Supply(workloadmeta.NewParams()),
 				fx.Supply(context.Background()),
 
 				forwarder.Bundle(),
