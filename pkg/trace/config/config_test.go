@@ -35,16 +35,16 @@ func TestInAzureAppServices(t *testing.T) {
 	assert.False(t, isNotAzure)
 }
 
-func TestInFunctionApp(t *testing.T) {
+func TestInAzureFunctionApp(t *testing.T) {
 	os.Setenv(FunctionWorkerRuntime, " ")
-	isLinuxAzure := InAzureFunctionApp()
+	isLinuxAzure := inAzureFunctionApp()
 	os.Unsetenv(FunctionWorkerRuntime)
 
 	os.Setenv(FunctionExtensionVersion, " ")
-	isWindowsAzure := InAzureFunctionApp()
+	isWindowsAzure := inAzureFunctionApp()
 	os.Unsetenv(FunctionExtensionVersion)
 
-	isNotAzure := InAzureFunctionApp()
+	isNotAzure := inAzureFunctionApp()
 
 	assert.True(t, isLinuxAzure)
 	assert.True(t, isWindowsAzure)

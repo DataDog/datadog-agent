@@ -429,6 +429,8 @@ type AgentConfig struct {
 
 	// Azure App Services
 	InAzureAppServices bool
+
+	// Azure Function App in Azure App Services
 	InAzureFunctionApp bool
 
 	// DebugServerPort defines the port used by the debug server
@@ -522,7 +524,7 @@ func New() *AgentConfig {
 		},
 
 		InAzureAppServices: InAzureAppServices(),
-		InAzureFunctionApp: InAzureFunctionApp(),
+		InAzureFunctionApp: inAzureFunctionApp(),
 
 		Features: make(map[string]struct{}),
 	}
@@ -590,7 +592,7 @@ func InAzureAppServices() bool {
 	return existsLinux || existsWin
 }
 
-func InAzureFunctionApp() bool {
+func inAzureFunctionApp() bool {
 	_, existsRuntime := os.LookupEnv("FUNCTIONS_WORKER_RUNTIME")
 	_, existsVersion := os.LookupEnv("FUNCTIONS_EXTENSION_VERSION")
 	return existsRuntime || existsVersion

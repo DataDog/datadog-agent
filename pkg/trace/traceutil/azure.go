@@ -38,7 +38,7 @@ const (
 	appService = "app"
 )
 
-// This function returns the env vars pulled from the Azure App Service instance.
+// GetAppServicesTags returns the env vars pulled from the Azure App Service instance.
 // In some cases we will need to add extra tags for function apps.
 func GetAppServicesTags(inFunctionApp bool) map[string]string {
 	siteName := os.Getenv("WEBSITE_SITE_NAME")
