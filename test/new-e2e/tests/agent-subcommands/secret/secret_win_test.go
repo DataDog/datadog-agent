@@ -21,7 +21,6 @@ type windowsSecretSuite struct {
 }
 
 func TestWindowsSecretSuite(t *testing.T) {
-	t.Parallel()
 	e2e.Run(t, &windowsSecretSuite{}, e2e.AgentStackDef(e2e.WithVMParams(ec2params.WithOS(ec2os.WindowsOS))))
 }
 
