@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -93,8 +94,8 @@ func evalCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
-				core.Bundle,
+					LogParams:    logimpl.ForOneShot(command.LoggerName, "off", false)}),
+				core.Bundle(),
 			)
 		},
 	}
@@ -123,8 +124,8 @@ func commonCheckPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Co
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
-				core.Bundle,
+					LogParams:    logimpl.ForOneShot(command.LoggerName, "off", false)}),
+				core.Bundle(),
 			)
 		},
 	}
@@ -144,8 +145,8 @@ func commonReloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.C
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle,
+					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
+				core.Bundle(),
 			)
 		},
 	}
@@ -162,8 +163,8 @@ func selfTestCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle,
+					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
+				core.Bundle(),
 			)
 		},
 	}
@@ -192,8 +193,8 @@ func downloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
-				core.Bundle,
+					LogParams:    logimpl.ForOneShot(command.LoggerName, "off", false)}),
+				core.Bundle(),
 			)
 		},
 	}
@@ -204,12 +205,14 @@ func downloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command
 	return []*cobra.Command{downloadPolicyCmd}
 }
 
+//nolint:unused // TODO(SEC) Fix unused linter
 type processCacheDumpCliParams struct {
 	*command.GlobalParams
 
 	withArgs bool
 }
 
+//nolint:unused // TODO(SEC) Fix unused linter
 func processCacheCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &processCacheDumpCliParams{
 		GlobalParams: globalParams,
@@ -224,8 +227,8 @@ func processCacheCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle,
+					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
+				core.Bundle(),
 			)
 		},
 	}
@@ -240,12 +243,14 @@ func processCacheCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{processCacheCmd}
 }
 
+//nolint:unused // TODO(SEC) Fix unused linter
 type dumpNetworkNamespaceCliParams struct {
 	*command.GlobalParams
 
 	snapshotInterfaces bool
 }
 
+//nolint:unused // TODO(SEC) Fix unused linter
 func networkNamespaceCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &dumpNetworkNamespaceCliParams{
 		GlobalParams: globalParams,
@@ -260,8 +265,8 @@ func networkNamespaceCommands(globalParams *command.GlobalParams) []*cobra.Comma
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle,
+					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
+				core.Bundle(),
 			)
 		},
 	}
@@ -276,6 +281,7 @@ func networkNamespaceCommands(globalParams *command.GlobalParams) []*cobra.Comma
 	return []*cobra.Command{networkNamespaceCmd}
 }
 
+//nolint:unused // TODO(SEC) Fix unused linter
 func discardersCommands(globalParams *command.GlobalParams) []*cobra.Command {
 
 	dumpDiscardersCmd := &cobra.Command{
@@ -286,8 +292,8 @@ func discardersCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle,
+					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
+				core.Bundle(),
 			)
 		},
 	}
@@ -341,6 +347,7 @@ func dumpNetworkNamespace(_ log.Component, _ config.Component, _ secrets.Compone
 	return nil
 }
 
+//nolint:unused // TODO(SEC) Fix unused linter
 func printStorageRequestMessage(prefix string, storage *api.StorageRequestMessage) {
 	fmt.Printf("%so file: %s\n", prefix, storage.GetFile())
 	fmt.Printf("%s  format: %s\n", prefix, storage.GetFormat())

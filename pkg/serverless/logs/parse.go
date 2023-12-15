@@ -206,6 +206,7 @@ func (l *LambdaLogAPIMessage) handlePlatformReport(objectRecord map[string]inter
 	log.Debugf("Enhanced metrics: %+v\n", l.objectRecord.reportLogItem)
 }
 
+//nolint:revive // TODO(SERV) Fix revive linter
 func (l *LambdaLogAPIMessage) handlePlatformInitStart(objectRecord map[string]interface{}) {
 	l.objectRecord.reportLogItem.initStartTime = l.time
 }

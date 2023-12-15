@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+//nolint:revive // TODO(EBPF) Fix revive linter
 var ConstantFetcher = newGeneratedAsset("constant_fetcher.c")
 
 // generatedAsset represents an asset whose contents will be dynamically generated at runtime

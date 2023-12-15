@@ -7,7 +7,9 @@ package http
 
 import (
 	"errors"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -56,6 +58,7 @@ func TestBuildURLShouldReturnAddressForVersion2(t *testing.T) {
 	assert.Equal(t, "http://foo/api/v2/test-track", url)
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func TestDestinationSend200(t *testing.T) {
 	server := NewTestServer(200)
 	input := make(chan *message.Payload)
@@ -82,6 +85,7 @@ func TestNoRetries(t *testing.T) {
 	testNoRetry(t, 413)
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func testNoRetry(t *testing.T, statusCode int) {
 	server := NewTestServer(statusCode)
 	input := make(chan *message.Payload)
@@ -189,6 +193,22 @@ func TestDestinationDoesntSendEmptyV2Protocol(t *testing.T) {
 	err := server.Destination.unconditionalSend(&message.Payload{Encoded: []byte("payload")})
 	assert.Nil(t, err)
 	assert.Empty(t, server.request.Header.Values("dd-protocol"))
+}
+
+func TestDestinationSendsTimestampHeaders(t *testing.T) {
+	server := NewTestServer(200)
+	defer server.httpServer.Close()
+	currentTimestamp := time.Now().UnixMilli()
+
+	err := server.Destination.unconditionalSend(&message.Payload{Messages: []*message.Message{{
+		IngestionTimestamp: 1234567890_999_999,
+	}}, Encoded: []byte("payload")})
+	assert.Nil(t, err)
+	assert.Equal(t, server.request.Header.Get("dd-message-timestamp"), "1234567890")
+
+	ddCurrentTimestamp, err := strconv.ParseInt(server.request.Header.Get("dd-current-timestamp"), 10, 64)
+	assert.Nil(t, err)
+	assert.GreaterOrEqual(t, ddCurrentTimestamp, currentTimestamp)
 }
 
 func TestDestinationConcurrentSends(t *testing.T) {

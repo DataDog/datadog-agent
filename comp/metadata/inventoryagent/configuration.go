@@ -10,6 +10,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -51,7 +52,7 @@ func (ia *inventoryagent) getAgentFileConfiguration() (string, error) {
 		return "", fmt.Errorf("inventories_configuration_enabled is disabled")
 	}
 
-	return marshalAndScrub(ia.conf.AllFileSettingsWithoutDefault())
+	return marshalAndScrub(ia.conf.AllSourceSettingsWithoutDefault(model.SourceFile))
 }
 
 func (ia *inventoryagent) getAgentEnvVarConfiguration() (string, error) {
@@ -59,7 +60,7 @@ func (ia *inventoryagent) getAgentEnvVarConfiguration() (string, error) {
 		return "", fmt.Errorf("inventories_configuration_enabled is disabled")
 	}
 
-	return marshalAndScrub(ia.conf.AllEnvVarSettingsWithoutDefault())
+	return marshalAndScrub(ia.conf.AllSourceSettingsWithoutDefault(model.SourceEnvVar))
 }
 
 func (ia *inventoryagent) getAgentRuntimeConfiguration() (string, error) {
@@ -67,7 +68,7 @@ func (ia *inventoryagent) getAgentRuntimeConfiguration() (string, error) {
 		return "", fmt.Errorf("inventories_configuration_enabled is disabled")
 	}
 
-	return marshalAndScrub(ia.conf.AllAgentRuntimeSettingsWithoutDefault())
+	return marshalAndScrub(ia.conf.AllSourceSettingsWithoutDefault(model.SourceAgentRuntime))
 }
 
 func (ia *inventoryagent) getAgentRemoteConfiguration() (string, error) {
@@ -75,7 +76,7 @@ func (ia *inventoryagent) getAgentRemoteConfiguration() (string, error) {
 		return "", fmt.Errorf("inventories_configuration_enabled is disabled")
 	}
 
-	return marshalAndScrub(ia.conf.AllRemoteSettingsWithoutDefault())
+	return marshalAndScrub(ia.conf.AllSourceSettingsWithoutDefault(model.SourceRC))
 }
 
 func (ia *inventoryagent) getAgentCliConfiguration() (string, error) {
@@ -83,5 +84,5 @@ func (ia *inventoryagent) getAgentCliConfiguration() (string, error) {
 		return "", fmt.Errorf("inventories_configuration_enabled is disabled")
 	}
 
-	return marshalAndScrub(ia.conf.AllCliSettingsWithoutDefault())
+	return marshalAndScrub(ia.conf.AllSourceSettingsWithoutDefault(model.SourceCLI))
 }

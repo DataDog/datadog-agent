@@ -105,10 +105,6 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*metrics.Tra
 		options = append(options, metrics.WithQuantiles())
 	}
 
-	if cfg.Metrics.ExporterConfig.ResourceAttributesAsTags {
-		options = append(options, metrics.WithResourceAttributesAsTags())
-	}
-
 	if cfg.Metrics.ExporterConfig.InstrumentationLibraryMetadataAsTags && cfg.Metrics.ExporterConfig.InstrumentationScopeMetadataAsTags {
 		return nil, fmt.Errorf("cannot use both instrumentation_library_metadata_as_tags(deprecated) and instrumentation_scope_metadata_as_tags")
 	}

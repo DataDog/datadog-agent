@@ -253,11 +253,11 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 					if err != nil {
 						return err
 					}
-					err = ps.Int32(sketchMetadataOriginOriginCategory, MetricSourceToOriginCategory(ss.Source))
+					err = ps.Int32(sketchMetadataOriginOriginCategory, metricSourceToOriginCategory(ss.Source))
 					if err != nil {
 						return err
 					}
-					return ps.Int32(sketchMetadataOriginOriginService, MetricSourceToOriginService(ss.Source))
+					return ps.Int32(sketchMetadataOriginOriginService, metricSourceToOriginService(ss.Source))
 				})
 			})
 			if err != nil {
@@ -377,6 +377,7 @@ func (sl SketchSeriesList) SplitPayload(times int) ([]marshaler.AbstractMarshale
 	return sketches.SplitPayload(times)
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 type SketchSeriesSlice []*metrics.SketchSeries
 
 // SplitPayload breaks the payload into times number of pieces

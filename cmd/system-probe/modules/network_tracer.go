@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/encoding"
+	"github.com/DataDog/datadog-agent/pkg/network/encoding/marshal"
 	httpdebugging "github.com/DataDog/datadog-agent/pkg/network/protocols/http/debugging"
 	kafkadebugging "github.com/DataDog/datadog-agent/pkg/network/protocols/kafka/debugging"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
@@ -41,37 +41,34 @@ var ErrSysprobeUnsupported = errors.New("system-probe unsupported")
 const inactivityLogDuration = 10 * time.Minute
 const inactivityRestartDuration = 20 * time.Minute
 
-// NetworkTracer is a factory for NPM's tracer
-var NetworkTracer = module.Factory{
-	Name:             config.NetworkTracerModule,
-	ConfigNamespaces: []string{"network_config", "service_monitoring_config", "data_streams_config"},
-	Fn: func(cfg *config.Config) (module.Module, error) {
-		ncfg := networkconfig.New()
+var networkTracerModuleConfigNamespaces = []string{"network_config", "service_monitoring_config", "data_streams_config"}
 
-		// Checking whether the current OS + kernel version is supported by the tracer
-		if supported, err := tracer.IsTracerSupportedByOS(ncfg.ExcludedBPFLinuxVersions); !supported {
-			return nil, fmt.Errorf("%w: %s", ErrSysprobeUnsupported, err)
-		}
+func createNetworkTracerModule(cfg *config.Config) (module.Module, error) {
+	ncfg := networkconfig.New()
 
-		if ncfg.NPMEnabled {
-			log.Info("enabling network performance monitoring (NPM)")
-		}
-		if ncfg.ServiceMonitoringEnabled {
-			log.Info("enabling universal service monitoring (USM)")
-		}
-		if ncfg.DataStreamsEnabled {
-			log.Info("enabling data streams monitoring (DSM)")
-		}
+	// Checking whether the current OS + kernel version is supported by the tracer
+	if supported, err := tracer.IsTracerSupportedByOS(ncfg.ExcludedBPFLinuxVersions); !supported {
+		return nil, fmt.Errorf("%w: %s", ErrSysprobeUnsupported, err)
+	}
 
-		t, err := tracer.NewTracer(ncfg)
+	if ncfg.NPMEnabled {
+		log.Info("enabling network performance monitoring (NPM)")
+	}
+	if ncfg.ServiceMonitoringEnabled {
+		log.Info("enabling universal service monitoring (USM)")
+	}
+	if ncfg.DataStreamsEnabled {
+		log.Info("enabling data streams monitoring (DSM)")
+	}
 
-		done := make(chan struct{})
-		if err == nil {
-			startTelemetryReporter(cfg, done)
-		}
+	t, err := tracer.NewTracer(ncfg)
 
-		return &networkTracer{tracer: t, done: done}, err
-	},
+	done := make(chan struct{})
+	if err == nil {
+		startTelemetryReporter(cfg, done)
+	}
+
+	return &networkTracer{tracer: t, done: done}, err
 }
 
 var _ module.Module = &networkTracer{}
@@ -106,7 +103,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 		contentType := req.Header.Get("Accept")
-		marshaler := encoding.GetMarshaler(contentType)
+		marshaler := marshal.GetMarshaler(contentType)
 		writeConnections(w, marshaler, cs)
 
 		if nt.restartTimer != nil {
@@ -137,7 +134,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		}
 
 		contentType := req.Header.Get("Accept")
-		marshaler := encoding.GetMarshaler(contentType)
+		marshaler := marshal.GetMarshaler(contentType)
 		writeConnections(w, marshaler, cs)
 	})
 
@@ -293,12 +290,12 @@ func getClientID(req *http.Request) string {
 	return clientID
 }
 
-func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *network.Connections) {
+func writeConnections(w http.ResponseWriter, marshaler marshal.Marshaler, cs *network.Connections) {
 	defer network.Reclaim(cs)
 
 	w.Header().Set("Content-type", marshaler.ContentType())
 
-	connectionsModeler := encoding.NewConnectionsModeler(cs)
+	connectionsModeler := marshal.NewConnectionsModeler(cs)
 	defer connectionsModeler.Close()
 
 	err := marshaler.Marshal(cs, w, connectionsModeler)
@@ -311,7 +308,7 @@ func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *n
 	log.Tracef("/connections: %d connections", len(cs.Conns))
 }
 
-func startTelemetryReporter(cfg *config.Config, done <-chan struct{}) {
+func startTelemetryReporter(_ *config.Config, done <-chan struct{}) {
 	telemetry.SetStatsdClient(statsd.Client)
 	ticker := time.NewTicker(30 * time.Second)
 	go func() {

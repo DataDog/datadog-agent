@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(ASC) Fix revive linter
 package status
 
 import (
@@ -16,7 +17,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
@@ -30,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	logsStatus "github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
+	"github.com/DataDog/datadog-agent/pkg/status/apm"
 	"github.com/DataDog/datadog-agent/pkg/status/collector"
 	"github.com/DataDog/datadog-agent/pkg/status/jmx"
 	"github.com/DataDog/datadog-agent/pkg/status/otlp"
@@ -82,6 +84,7 @@ func GetStatus(verbose bool, invAgent inventoryagent.Component) (map[string]inte
 	}
 
 	stats["processAgentStatus"] = GetProcessAgentStatus()
+	stats["apmStats"] = apm.GetAPMStatus()
 
 	if !config.Datadog.GetBool("no_proxy_nonexact_match") {
 		stats["TransportWarnings"] = httputils.GetNumberOfWarnings() > 0

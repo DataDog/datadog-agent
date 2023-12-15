@@ -40,7 +40,10 @@ func (fh *EBPFLessFieldHandlers) GetProcessService(ev *model.Event) string {
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
 func (fh *EBPFLessFieldHandlers) ResolveProcessCacheEntry(ev *model.Event) (*model.ProcessCacheEntry, bool) {
 	if ev.ProcessCacheEntry == nil && ev.PIDContext.Pid != 0 {
-		ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid)
+		ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(sprocess.CacheResolverKey{
+			Pid:  ev.PIDContext.Pid,
+			NSID: ev.NSID,
+		})
 	}
 
 	if ev.ProcessCacheEntry == nil {
@@ -130,7 +133,10 @@ func (fh *EBPFLessFieldHandlers) ResolveProcessEnvs(_ *model.Event, process *mod
 
 // GetProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
 func (fh *EBPFLessFieldHandlers) GetProcessCacheEntry(ev *model.Event) (*model.ProcessCacheEntry, bool) {
-	ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid)
+	ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(sprocess.CacheResolverKey{
+		Pid:  ev.PIDContext.Pid,
+		NSID: ev.NSID,
+	})
 	if ev.ProcessCacheEntry == nil {
 		ev.ProcessCacheEntry = model.GetPlaceholderProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Pid, false)
 		return ev.ProcessCacheEntry, false

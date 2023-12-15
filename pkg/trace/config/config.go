@@ -573,11 +573,13 @@ func (c *AgentConfig) NewHTTPTransport() *http.Transport {
 	return transport
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 func (c *AgentConfig) HasFeature(feat string) bool {
 	_, ok := c.Features[feat]
 	return ok
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 func (c *AgentConfig) AllFeatures() []string {
 	feats := []string{}
 	for feat := range c.Features {
@@ -586,6 +588,7 @@ func (c *AgentConfig) AllFeatures() []string {
 	return feats
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 func InAzureAppServices() bool {
 	_, existsLinux := os.LookupEnv("APPSVC_RUN_ZIP")
 	_, existsWin := os.LookupEnv("WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED")

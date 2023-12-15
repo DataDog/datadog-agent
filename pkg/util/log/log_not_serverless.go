@@ -9,10 +9,14 @@ package log
 
 // DebugServerless logs at the debug level only in a serverless context
 // no-op in a non serverless context
+//
+//nolint:revive // TODO(ASC) Fix revive linter
 func DebugServerless(v ...interface{}) {
 }
 
 // DebugfServerless logs with format at the debug level only in a serverless context
 // no-op in a non serverless context
+//
+//nolint:revive // TODO(ASC) Fix revive linter
 func DebugfServerless(format string, params ...interface{}) {
 }

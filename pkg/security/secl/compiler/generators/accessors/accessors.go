@@ -715,7 +715,7 @@ func formatBuildTags(buildTags string) []string {
 	var formattedBuildTags []string
 	for _, tag := range splittedBuildTags {
 		if tag != "" {
-			formattedBuildTags = append(formattedBuildTags, fmt.Sprintf("+build %s", tag))
+			formattedBuildTags = append(formattedBuildTags, fmt.Sprintf("go:build %s", tag))
 		}
 	}
 	return formattedBuildTags
@@ -740,7 +740,7 @@ func newField(allFields map[string]*common.StructField, field *common.StructFiel
 	return result
 }
 
-func generatePrefixNilChecks(allFields map[string]*common.StructField, field *common.StructField) string {
+func generatePrefixNilChecks(allFields map[string]*common.StructField, returnType string, field *common.StructField) string {
 	var fieldPath, result string
 	for _, node := range strings.Split(field.Name, ".") {
 		if fieldPath != "" {
@@ -751,7 +751,7 @@ func generatePrefixNilChecks(allFields map[string]*common.StructField, field *co
 
 		if field, ok := allFields[fieldPath]; ok {
 			if field.IsOrigTypePtr {
-				result += fmt.Sprintf("if ev.%s == nil { return zeroValue }\n", field.Name)
+				result += fmt.Sprintf("if ev.%s == nil { return %s }\n", field.Name, getDefaultValueOfType(returnType))
 			}
 		}
 	}

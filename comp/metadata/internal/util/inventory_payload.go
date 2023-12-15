@@ -97,7 +97,7 @@ type InventoryPayload struct {
 	MinInterval   time.Duration
 	MaxInterval   time.Duration
 	ForceRefresh  bool
-	flareFileName string
+	FlareFileName string
 }
 
 // CreateInventoryPayload returns an initialized InventoryPayload. 'getPayload' will be called each time a new payload
@@ -119,8 +119,7 @@ func CreateInventoryPayload(conf config.Component, l log.Component, s serializer
 		log:           l,
 		serializer:    s,
 		getPayload:    getPayload,
-		flareFileName: flareFileName,
-		LastCollect:   time.Now(),
+		FlareFileName: flareFileName,
 		MinInterval:   minInterval,
 		MaxInterval:   maxInterval,
 	}
@@ -191,7 +190,7 @@ func (i *InventoryPayload) GetAsJSON() ([]byte, error) {
 
 // fillFlare add the inventory payload to flares.
 func (i *InventoryPayload) fillFlare(fb flaretypes.FlareBuilder) error {
-	path := filepath.Join("metadata", "inventory", i.flareFileName)
+	path := filepath.Join("metadata", "inventory", i.FlareFileName)
 	if !i.Enabled {
 		fb.AddFile(path, []byte("inventory metadata is disabled"))
 		return nil

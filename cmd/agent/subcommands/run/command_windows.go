@@ -13,6 +13,10 @@ import (
 	_ "expvar"         // Blank import used because this isn't directly used in this file
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
+	apmetwtracer "github.com/DataDog/datadog-agent/comp/apm/etwtracer"
+	apmetwtracerimpl "github.com/DataDog/datadog-agent/comp/apm/etwtracer/impl"
+	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
+
 	"github.com/DataDog/datadog-agent/comp/checks/winregistry"
 	winregistryimpl "github.com/DataDog/datadog-agent/comp/checks/winregistry/impl"
 
@@ -29,10 +33,12 @@ import (
 	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
 
 	// core components
+	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
@@ -45,6 +51,7 @@ import (
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
@@ -90,10 +97,12 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			invAgent inventoryagent.Component,
 			invHost inventoryhost.Component,
 			secretResolver secrets.Component,
+			invChecks inventorychecks.Component,
 			_ netflowServer.Component,
+			agentAPI internalAPI.Component,
 		) error {
 
-			defer StopAgentWithDefaults(server, demultiplexer)
+			defer StopAgentWithDefaults(server, demultiplexer, agentAPI)
 
 			err := startAgent(
 				&cliParams{GlobalParams: &command.GlobalParams{}},
@@ -115,6 +124,8 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				invAgent,
 				invHost,
 				secretResolver,
+				agentAPI,
+				invChecks,
 			)
 			if err != nil {
 				return err
@@ -142,7 +153,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				ConfigParams:         config.NewAgentParams(""),
 				SecretParams:         secrets.NewEnabledParams(),
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
-				LogParams:            log.ForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
+				LogParams:            logimpl.ForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
 			}),
 			getSharedFxOption(),
 			getPlatformModules(),
@@ -164,14 +175,17 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 
 func getPlatformModules() fx.Option {
 	return fx.Options(
-		agentcrashdetectimpl.Module,
-		winregistryimpl.Module,
-		comptraceconfig.Module,
+		agentcrashdetectimpl.Module(),
+		apmetwtracerimpl.Module,
+		winregistryimpl.Module(),
+		etwimpl.Module,
+		comptraceconfig.Module(),
 		fx.Replace(comptraceconfig.Params{
 			FailIfAPIKeyMissing: false,
 		}),
 		// Force the instantiation of the components
 		fx.Invoke(func(_ agentcrashdetect.Component) {}),
+		fx.Invoke(func(_ apmetwtracer.Component) {}),
 		fx.Invoke(func(_ winregistry.Component) {}),
 	)
 }

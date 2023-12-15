@@ -59,7 +59,8 @@ func (suite *k8sSuite) TearDownSuite() {
 	c := color.New(color.Bold).SprintfFunc()
 	suite.T().Log(c("The data produced and asserted by these tests can be viewed on this dashboard:"))
 	c = color.New(color.Bold, color.FgBlue).SprintfFunc()
-	suite.T().Log(c("https://dddev.datadoghq.com/dashboard/qcp-brm-ysc/e2e-tests-containers-k8s?refresh_mode=paused&tpl_var_kube_cluster_name%%5B0%%5D=%s&from_ts=%d&to_ts=%d&live=false",
+	suite.T().Log(c("https://dddev.datadoghq.com/dashboard/qcp-brm-ysc/e2e-tests-containers-k8s?refresh_mode=paused&tpl_var_kube_cluster_name%%5B0%%5D=%s&tpl_var_fake_intake_task_family%%5B0%%5D=%s-fakeintake-ecs&from_ts=%d&to_ts=%d&live=false",
+		suite.KubeClusterName,
 		suite.KubeClusterName,
 		suite.startTime.UnixMilli(),
 		suite.endTime.UnixMilli(),
@@ -218,10 +219,15 @@ func (suite *k8sSuite) TestVersion() {
 					suite.Emptyf(stderr, "Standard error of `agent version` should be empty,")
 					match := versionExtractor.FindStringSubmatch(stdout)
 					if suite.Equalf(2, len(match), "'Commit' not found in the output of `agent version`.") {
-						if len(GitCommit) == 10 && len(match[1]) == 7 {
-							suite.Equalf(GitCommit[:7], match[1], "Agent isn’t running the expected version")
-						} else {
-							suite.Equalf(GitCommit, match[1], "Agent isn’t running the expected version")
+						if suite.Greaterf(len(GitCommit), 6, "Couldn’t guess the expected version of the agent.") &&
+							suite.Greaterf(len(match[1]), 6, "Couldn’t find the version of the agent.") {
+
+							size2compare := len(GitCommit)
+							if len(match[1]) < size2compare {
+								size2compare = len(match[1])
+							}
+
+							suite.Equalf(GitCommit[:size2compare], match[1][:size2compare], "Agent isn’t running the expected version")
 						}
 					}
 				}
@@ -422,7 +428,7 @@ func (suite *k8sSuite) TestRedis() {
 				`^pod_phase:running$`,
 				`^short_image:redis$`,
 			},
-			Message: `oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo`,
+			Message: `Accepted`,
 		},
 	})
 

@@ -2,6 +2,8 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+//
+//nolint:revive // TODO(APM) Fix revive linter
 package run
 
 import (
@@ -14,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	corelog "github.com/DataDog/datadog-agent/comp/core/log"
+	corelogimpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -37,7 +39,7 @@ func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Com
 		Long:  `The Datadog trace-agent aggregates, samples, and forwards traces to datadog submitted by tracers loaded into your application.`,
 		RunE: func(*cobra.Command, []string) error {
 			cliParams.GlobalParams = globalParamsGetter()
-			return runTraceAgent(cliParams, cliParams.ConfPath)
+			return runTraceAgentCommand(cliParams, cliParams.ConfPath)
 		},
 	}
 
@@ -56,7 +58,7 @@ func setParamFlags(cmd *cobra.Command, cliParams *RunParams) {
 	setOSSpecificParamFlags(cmd, cliParams)
 }
 
-func runFx(ctx context.Context, cliParams *RunParams, defaultConfPath string) error {
+func runTraceAgentProcess(ctx context.Context, cliParams *RunParams, defaultConfPath string) error {
 	if cliParams.ConfPath == "" {
 		cliParams.ConfPath = defaultConfPath
 	}
@@ -65,21 +67,21 @@ func runFx(ctx context.Context, cliParams *RunParams, defaultConfPath string) er
 		// to allow the agent to work as a service.
 		fx.Provide(func() context.Context { return ctx }), // fx.Supply(ctx) fails with a missing type error.
 		fx.Supply(coreconfig.NewAgentParams(cliParams.ConfPath)),
-		secretsimpl.Module,
+		secretsimpl.Module(),
 		fx.Supply(secrets.NewEnabledParams()),
-		coreconfig.Module,
-		fx.Provide(func() corelog.Params {
-			return corelog.ForDaemon("TRACE", "apm_config.log_file", config.DefaultLogFilePath)
+		coreconfig.Module(),
+		fx.Provide(func() corelogimpl.Params {
+			return corelogimpl.ForDaemon("TRACE", "apm_config.log_file", config.DefaultLogFilePath)
 		}),
-		corelog.TraceModule,
+		corelogimpl.TraceModule(),
 		// setup workloadmeta
 		collectors.GetCatalog(),
 		fx.Supply(workloadmeta.Params{
 			AgentType:  workloadmeta.NodeAgent,
 			InitHelper: common.GetWorkloadmetaInit(),
 		}),
-		workloadmeta.Module,
-		statsd.Module,
+		workloadmeta.Module(),
+		statsd.Module(),
 		fx.Invoke(func(_ config.Component) {}),
 		// Required to avoid cyclic imports.
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
@@ -88,7 +90,7 @@ func runFx(ctx context.Context, cliParams *RunParams, defaultConfPath string) er
 			MemProfile:  cliParams.MemProfile,
 			PIDFilePath: cliParams.PIDFilePath,
 		}),
-		trace.Bundle,
+		trace.Bundle(),
 		fx.Invoke(func(_ agent.Component) {}),
 	)
 	if err != nil && errors.Is(err, agent.ErrAgentDisabled) {

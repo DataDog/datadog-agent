@@ -124,7 +124,7 @@ function checkStatus() {
     if (checkStatus.uptime > last_ts) {
       $("#restart_status").hide()
     }
-    checkStatus.uptime = last_ts 
+    checkStatus.uptime = last_ts
   },function() {
     $("#agent_status").html("Not connected<br> to Agent");
     $("#agent_status").css({
@@ -153,28 +153,6 @@ function loadStatus(page) {
   sendMessage("agent/status/" + page, "", "post",
   function(data, status, xhr){
       $("#" + page + "_status").html(DOMPurify.sanitize(data));
-
-      // Get the trace-agent status
-      sendMessage("agent/getConfig/apm_config.receiver_port", "", "GET",
-          function(data, status, xhr) {
-              var apmPort = data["apm_config.debug.port"];
-              if (apmPort == null) {
-                  apmPort = "5012";
-              }
-              var url = "http://127.0.0.1:"+apmPort+"/debug/vars"
-              $.ajax({
-                url: url,
-                type: "GET",
-                success: function(data) {
-                    $("#apmStats > .stat_data").html(ejs.render(apmTemplate, data));
-                },
-                error: function() {
-                    $("#apmStats > .stat_data").text("Status: Not running or not on localhost.");
-                }
-              })
-          }, function() {
-              $("#apmStats > .stat_data").html("Could not obtain trace-agent port from API.");
-          })
   },function(){
       $("#" + page + "_status").html("<span class='center'>An error occurred.</span>");
   });

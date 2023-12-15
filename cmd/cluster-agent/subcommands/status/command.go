@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -47,9 +48,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    log.ForOneShot(command.LoggerName, command.DefaultLogLevel, true),
+					LogParams:    logimpl.ForOneShot(command.LoggerName, command.DefaultLogLevel, true),
 				}),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -61,6 +62,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{cmd}
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func run(log log.Component, config config.Component, cliParams *cliParams) error {
 	fmt.Printf("Getting the status from the agent.\n")
 	var e error

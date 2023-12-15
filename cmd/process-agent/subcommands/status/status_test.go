@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
-	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/status"
 	"github.com/DataDog/datadog-agent/pkg/status/render"
@@ -42,7 +42,8 @@ func fakeStatusServer(t *testing.T, stats status.Status) *httptest.Server {
 
 func TestStatus(t *testing.T) {
 	testTime := time.Now()
-	expectedStatus := status.Status{
+	statusData := map[string]status.Status{}
+	statusInfo := status.Status{
 		Date: float64(testTime.UnixNano()),
 		Core: status.CoreStatus{
 			Metadata: hostMetadataUtils.Payload{
@@ -51,12 +52,13 @@ func TestStatus(t *testing.T) {
 		},
 		Expvars: status.ProcessExpvars{},
 	}
+	statusData["processAgentStatus"] = statusInfo
 
-	server := fakeStatusServer(t, expectedStatus)
+	server := fakeStatusServer(t, statusInfo)
 	defer server.Close()
 
 	// Build what the expected status should be
-	j, err := json.Marshal(expectedStatus)
+	j, err := json.Marshal(statusData)
 	require.NoError(t, err)
 	expectedOutput, err := render.FormatProcessAgentStatus(j)
 	require.NoError(t, err)
@@ -87,7 +89,7 @@ func TestNotRunning(t *testing.T) {
 // a connection error
 func TestError(t *testing.T) {
 	cfg := config.Mock(t)
-	cfg.SetWithoutSource("ipc_address", "8.8.8.8") // Non-local ip address will cause error in `GetIPCAddress`
+	cfg.SetWithoutSource("cmd_host", "8.8.8.8") // Non-local ip address will cause error in `GetIPCAddress`
 	_, ipcError := config.GetIPCAddress()
 
 	var errText, expectedErrText strings.Builder

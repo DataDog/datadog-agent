@@ -224,6 +224,25 @@ func TestClient(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
+	t.Run("ConfigureOverride", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/fakeintake/configure/override" {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		err := client.ConfigureOverride(api.ResponseOverride{
+			StatusCode:  http.StatusOK,
+			ContentType: "text/plain",
+			Body:        []byte("totoro"),
+		})
+		assert.NoError(t, err)
+	})
+
 	t.Run("GetLatestFlare", func(t *testing.T) {
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(supportFlareResponse)

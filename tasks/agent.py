@@ -68,6 +68,7 @@ AGENT_CORECHECKS = [
     "uptime",
     "winproc",
     "jetson",
+    "telemetry",
     "orchestrator_pod",
 ]
 
@@ -493,23 +494,27 @@ def _windows_integration_tests(ctx, race=False, go_mod="mod", arch="x64"):
     tests = [
         {
             # Run eventlog tests with the Windows API, which depend on the EventLog service
-            'prefix': './pkg/util/winutil/eventlog/...',
+            "dir": "./pkg/util/winutil/",
+            'prefix': './eventlog/...',
             'extra_args': '-evtapi Windows',
         },
         {
             # Run eventlog tailer tests with the Windows API, which depend on the EventLog service
+            "dir": ".",
             'prefix': './pkg/logs/tailers/windowsevent/...',
             'extra_args': '-evtapi Windows',
         },
         {
             # Run eventlog check tests with the Windows API, which depend on the EventLog service
+            "dir": ".",
             'prefix': './pkg/collector/corechecks/windows_event_log/...',
             'extra_args': '-evtapi Windows',
         },
     ]
 
     for test in tests:
-        ctx.run(f"{go_cmd} {test['prefix']} {test['extra_args']}")
+        with ctx.cd(f"{test['dir']}"):
+            ctx.run(f"{go_cmd} {test['prefix']} {test['extra_args']}")
 
 
 def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", arch="x64"):
@@ -912,6 +917,8 @@ def version(
     major_version='7',
     version_cached=False,
     pipeline_id=None,
+    include_git=True,
+    include_pre=True,
 ):
     """
     Get the agent version.
@@ -929,12 +936,13 @@ def version(
 
     version = get_version(
         ctx,
-        include_git=True,
+        include_git=include_git,
         url_safe=url_safe,
         git_sha_length=git_sha_length,
         major_version=major_version,
         include_pipeline_id=True,
         pipeline_id=pipeline_id,
+        include_pre=include_pre,
     )
     if omnibus_format:
         # See: https://github.com/DataDog/omnibus-ruby/blob/datadog-5.5.0/lib/omnibus/packagers/deb.rb#L599

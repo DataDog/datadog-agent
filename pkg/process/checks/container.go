@@ -85,6 +85,8 @@ func (c *ContainerCheck) ShouldSaveLastRun() bool { return true }
 
 // Run runs the ContainerCheck to collect a list of running ctrList and the
 // stats for each container.
+//
+//nolint:revive // TODO(PROC) Fix revive linter
 func (c *ContainerCheck) Run(nextGroupID func() int32, options *RunOptions) (RunResult, error) {
 	c.Lock()
 	defer c.Unlock()

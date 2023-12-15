@@ -23,7 +23,6 @@ import (
 	"go.uber.org/fx"
 	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/api"
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
@@ -39,10 +38,13 @@ import (
 	// checks implemented as components
 
 	// core components
+	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
+	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
@@ -55,13 +57,18 @@ import (
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+
+	//nolint:revive // TODO(ASC) Fix revive linter
 	pkgforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client"
+	langDetectionClimpl "github.com/DataDog/datadog-agent/comp/languagedetection/client/clientimpl"
 	"github.com/DataDog/datadog-agent/comp/logs"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp"
@@ -74,6 +81,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
 	"github.com/DataDog/datadog-agent/pkg/collector"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
@@ -129,6 +137,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winkmem"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/systemd"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/telemetry"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/windows_event_log"
 
 	// register metadata providers
@@ -156,7 +165,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath),
 				SecretParams:         secrets.NewEnabledParams(),
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
-				LogParams:            log.ForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
+				LogParams:            logimpl.ForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
 			}),
 			getSharedFxOption(),
 			getPlatformModules(),
@@ -185,6 +194,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 //
 // This is exported because it also used from the deprecated `agent start` command.
 func run(log log.Component,
+	//nolint:revive // TODO(ASC) Fix revive linter
 	config config.Component,
 	flare flare.Component,
 	telemetry telemetry.Component,
@@ -195,6 +205,7 @@ func run(log log.Component,
 	forwarder defaultforwarder.Component,
 	wmeta workloadmeta.Component,
 	rcclient rcclient.Component,
+	//nolint:revive // TODO(ASC) Fix revive linter
 	metadataRunner runner.Component,
 	demultiplexer demultiplexer.Component,
 	sharedSerializer serializer.MetricSerializer,
@@ -205,11 +216,13 @@ func run(log log.Component,
 	invAgent inventoryagent.Component,
 	invHost inventoryhost.Component,
 	secretResolver secrets.Component,
+	invChecks inventorychecks.Component,
 	_ netflowServer.Component,
 	_ langDetectionCl.Component,
+	agentAPI internalAPI.Component,
 ) error {
 	defer func() {
-		stopAgent(cliParams, server, demultiplexer)
+		stopAgent(cliParams, server, demultiplexer, agentAPI)
 	}()
 
 	// prepare go runtime
@@ -243,6 +256,7 @@ func run(log log.Component,
 	sigpipeCh := make(chan os.Signal, 1)
 	signal.Notify(sigpipeCh, syscall.SIGPIPE)
 	go func() {
+		//nolint:revive // TODO(ASC) Fix revive linter
 		for range sigpipeCh {
 			// do nothing
 		}
@@ -267,6 +281,8 @@ func run(log log.Component,
 		invAgent,
 		invHost,
 		secretResolver,
+		agentAPI,
+		invChecks,
 	); err != nil {
 		return err
 	}
@@ -283,12 +299,12 @@ func getSharedFxOption() fx.Option {
 			path.DefaultJmxLogFile,
 			path.DefaultDogstatsDLogFile,
 		)),
-		flare.Module,
-		core.Bundle,
+		flare.Module(),
+		core.Bundle(),
 		fx.Supply(dogstatsdServer.Params{
 			Serverless: false,
 		}),
-		forwarder.Bundle,
+		forwarder.Bundle(),
 		fx.Provide(func(config config.Component, log log.Component) defaultforwarder.Params {
 			params := defaultforwarder.NewParams(config, log)
 			// Enable core agent specific features like persistence-to-disk
@@ -311,11 +327,12 @@ func getSharedFxOption() fx.Option {
 				InitHelper: common.GetWorkloadmetaInit(),
 			}
 		}),
-		workloadmeta.Module,
+		workloadmeta.Module(),
+		apiimpl.Module(),
 
-		dogstatsd.Bundle,
-		otelcol.Bundle,
-		rcclient.Module,
+		dogstatsd.Bundle(),
+		otelcol.Bundle(),
+		rcclient.Module(),
 
 		// TODO: (components) - some parts of the agent (such as the logs agent) implicitly depend on the global state
 		// set up by LoadComponents. In order for components to use lifecycle hooks that also depend on this global state, we
@@ -334,26 +351,29 @@ func getSharedFxOption() fx.Option {
 				},
 			})
 		}),
-		logs.Bundle,
-		langDetectionCl.Module,
-		metadata.Bundle,
+		logs.Bundle(),
+		langDetectionClimpl.Module(),
+		metadata.Bundle(),
 		// injecting the aggregator demultiplexer to FX until we migrate it to a proper component. This allows
 		// other already migrated components to request it.
 		fx.Provide(func(config config.Component) demultiplexer.Params {
 			opts := aggregator.DefaultAgentDemultiplexerOptions()
 			opts.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
-			opts.UseDogstatsdContextLimiter = true
-			opts.DogstatsdMaxMetricsTags = config.GetInt("dogstatsd_max_metrics_tags")
 			return demultiplexer.Params{Options: opts}
 		}),
-		demultiplexer.Module,
+		demultiplexer.Module(),
+		orchestratorForwarderImpl.Module(),
+		fx.Supply(orchestratorForwarderImpl.NewDefaultParams()),
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
 		// already migrated components to request it.
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
 			return demuxInstance.Serializer()
 		}),
-		ndmtmp.Bundle,
-		netflow.Bundle,
+		ndmtmp.Bundle(),
+		netflow.Bundle(),
+		fx.Provide(func(demultiplexer demultiplexer.Component) optional.Option[collector.Collector] {
+			return optional.NewOption(common.LoadCollector(demultiplexer))
+		}),
 	)
 }
 
@@ -363,6 +383,7 @@ func startAgent(
 	log log.Component,
 	flare flare.Component,
 	telemetry telemetry.Component,
+	//nolint:revive // TODO(ASC) Fix revive linter
 	sysprobeconfig sysprobeconfig.Component,
 	server dogstatsdServer.Component,
 	capture replay.Component,
@@ -370,7 +391,9 @@ func startAgent(
 	wmeta workloadmeta.Component,
 	rcclient rcclient.Component,
 	logsAgent optional.Option[logsAgent.Component],
+	//nolint:revive // TODO(ASC) Fix revive linter
 	sharedForwarder defaultforwarder.Component,
+	//nolint:revive // TODO(ASC) Fix revive linter
 	sharedSerializer serializer.MetricSerializer,
 	otelcollector otelcollector.Component,
 	demultiplexer demultiplexer.Component,
@@ -378,6 +401,8 @@ func startAgent(
 	invAgent inventoryagent.Component,
 	invHost inventoryhost.Component,
 	secretResolver secrets.Component,
+	agentAPI internalAPI.Component,
+	invChecks inventorychecks.Component,
 ) error {
 
 	var err error
@@ -423,7 +448,7 @@ func startAgent(
 	}
 
 	// init settings that can be changed at runtime
-	if err := initRuntimeSettings(serverDebug); err != nil {
+	if err := initRuntimeSettings(serverDebug, invAgent); err != nil {
 		log.Warnf("Can't initiliaze the runtime settings: %v", err)
 	}
 
@@ -478,7 +503,7 @@ func startAgent(
 	// start remote configuration management
 	var configService *remoteconfig.Service
 	if pkgconfig.IsRemoteConfigEnabled(pkgconfig.Datadog) {
-		configService, err = remoteconfig.NewService()
+		configService, err = common.NewRemoteConfigService(hostnameDetected)
 		if err != nil {
 			log.Errorf("Failed to initialize config management service: %s", err)
 		} else {
@@ -517,7 +542,7 @@ func startAgent(
 	}
 
 	// start the cmd HTTP server
-	if err = api.StartServer(
+	if err = agentAPI.StartServer(
 		configService,
 		flare,
 		server,
@@ -531,6 +556,7 @@ func startAgent(
 		demultiplexer,
 		invHost,
 		secretResolver,
+		invChecks,
 	); err != nil {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
@@ -575,6 +601,9 @@ func startAgent(
 	// Append version and timestamp to version history log file if this Agent is different than the last run version
 	installinfo.LogVersionHistory()
 
+	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
+	check.InitializeInventoryChecksContext(invChecks)
+
 	// Set up check collector
 	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll, demultiplexer), true)
 	common.Coll.Start()
@@ -598,13 +627,12 @@ func startAgent(
 	// check for common misconfigurations and report them to log
 	misconfig.ToLog(misconfig.CoreAgent)
 
-	// setup the metadata collector
+	// setup the metadata collection
+	//
+	// The last metadata provider relying on `pkg/metadata` is "agent_checks" from the collector.
+	// TODO: (components) - Remove this once the collector and its metadata provider are a component.
 	common.MetadataScheduler = pkgMetadata.NewScheduler(demultiplexer)
 	if err := pkgMetadata.SetupMetadataCollection(common.MetadataScheduler, pkgMetadata.AllDefaultCollectors); err != nil {
-		return err
-	}
-
-	if err := pkgMetadata.SetupInventories(common.MetadataScheduler, common.Coll); err != nil {
 		return err
 	}
 
@@ -621,12 +649,12 @@ func startAgent(
 }
 
 // StopAgentWithDefaults is a temporary way for other packages to use stopAgent.
-func StopAgentWithDefaults(server dogstatsdServer.Component, demultiplexer demultiplexer.Component) {
-	stopAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, server, demultiplexer)
+func StopAgentWithDefaults(server dogstatsdServer.Component, demultiplexer demultiplexer.Component, agentAPI internalAPI.Component) {
+	stopAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, server, demultiplexer, agentAPI)
 }
 
 // stopAgent Tears down the agent process
-func stopAgent(cliParams *cliParams, server dogstatsdServer.Component, demultiplexer demultiplexer.Component) {
+func stopAgent(cliParams *cliParams, server dogstatsdServer.Component, demultiplexer demultiplexer.Component, agentAPI internalAPI.Component) {
 	// retrieve the agent health before stopping the components
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
 	health, err := health.GetReadyNonBlocking()
@@ -649,7 +677,7 @@ func stopAgent(cliParams *cliParams, server dogstatsdServer.Component, demultipl
 		common.MetadataScheduler.Stop()
 	}
 	traps.StopServer()
-	api.StopServer()
+	agentAPI.StopServer()
 	clcrunnerapi.StopCLCRunnerServer()
 	jmx.StopJmxfetch()
 

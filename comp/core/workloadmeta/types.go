@@ -816,7 +816,7 @@ type ContainerImageLayer struct {
 	Digest    string
 	SizeBytes int64
 	URLs      []string
-	History   v1.History
+	History   *v1.History
 }
 
 // SBOM represents the Software Bill Of Materials (SBOM) of a container
@@ -903,7 +903,12 @@ func (layer ContainerImageLayer) String() string {
 	return sb.String()
 }
 
-func printHistory(out io.Writer, history v1.History) {
+func printHistory(out io.Writer, history *v1.History) {
+	if history == nil {
+		_, _ = fmt.Fprintln(out, "History is nil")
+		return
+	}
+
 	_, _ = fmt.Fprintln(out, "History:")
 	_, _ = fmt.Fprintln(out, "- createdAt:", history.Created)
 	_, _ = fmt.Fprintln(out, "- createdBy:", history.CreatedBy)

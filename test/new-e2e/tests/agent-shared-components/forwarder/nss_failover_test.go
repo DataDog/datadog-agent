@@ -31,7 +31,6 @@ import (
 	fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
 )
 
 type multiFakeIntakeEnv struct {
@@ -110,7 +109,7 @@ type multiFakeIntakeSuite struct {
 }
 
 func TestMultiFakeintakeSuite(t *testing.T) {
-	e2e.Run(t, &multiFakeIntakeSuite{}, multiFakeintakeStackDef(), params.WithStackName("mystack000"))
+	e2e.Run(t, &multiFakeIntakeSuite{}, multiFakeintakeStackDef())
 }
 
 // TestNSSFailover tests that the agent correctly picks-up an NSS change of the intake.
