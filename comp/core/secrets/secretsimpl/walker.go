@@ -31,10 +31,8 @@ type walker struct {
 // notification on the parent node in the yamlPath.
 func (w *walker) notify(yamlPath []string, value any) {
 	if w.notifier != nil {
-		if !w.notifier(yamlPath, value) {
-			// notification was refuse, will retry from the parent type.
-			w.notificationPending = true
-		}
+		// if notification is refused, retry from the parent type.
+		w.notificationPending = !w.notifier(yamlPath, value)
 	}
 }
 
