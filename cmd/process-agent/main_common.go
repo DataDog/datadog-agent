@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(PROC) Fix revive linter
 package main
 
 import (
@@ -21,14 +22,19 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
 	"github.com/DataDog/datadog-agent/comp/process/expvars"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/profiler"
-	runnerComp "github.com/DataDog/datadog-agent/comp/process/runner"
+	"github.com/DataDog/datadog-agent/comp/process/runner"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -44,10 +50,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-
-	// register all workloadmeta collectors
-	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
 )
 
 const (
@@ -74,7 +76,7 @@ func runAgent(ctx context.Context, globalParams *command.GlobalParams) error {
 	if globalParams.PidFilePath != "" {
 		err := pidfile.WritePID(globalParams.PidFilePath)
 		if err != nil {
-			_ = log.Errorf("Error while writing PID file, exiting: %v", err)
+			log.Errorf("Error while writing PID file, exiting: %v", err)
 			return err
 		}
 
@@ -106,28 +108,50 @@ func runApp(ctx context.Context, globalParams *command.GlobalParams) error {
 
 		Logger logComponent.Component
 
-		Checks []types.CheckComponent `group:"check"`
-		Syscfg sysprobeconfig.Component
-		Config config.Component
+		Checks       []types.CheckComponent `group:"check"`
+		Syscfg       sysprobeconfig.Component
+		Config       config.Component
+		WorkloadMeta workloadmeta.Component
 	}
 	app := fx.New(
 		fx.Supply(
 			core.BundleParams{
-				SysprobeConfigParams: sysprobeconfig.NewParams(
-					sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath),
+				SysprobeConfigParams: sysprobeconfigimpl.NewParams(
+					sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath),
 				),
-				ConfigParams: config.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
+				ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
+				SecretParams: secrets.NewEnabledParams(),
 				LogParams:    command.DaemonLogParams,
 			},
 		),
-		// Populate dependencies required for initialization in this function.
+		// Populate dependencies required for initialization in this function
 		fx.Populate(&appInitDeps),
 
-		// Provide process agent bundle so fx knows where to find components.
-		process.Bundle,
+		// Provide core components
+		core.Bundle(),
+
+		// Provide process agent bundle so fx knows where to find components
+		process.Bundle(),
 
 		// Provide remote config client module
-		rcclient.Module,
+		rcclient.Module(),
+
+		// Provide statsd client module
+		compstatsd.Module(),
+
+		// Provide the corresponding workloadmeta Params to configure the catalog
+		collectors.GetCatalog(),
+		fx.Provide(func(c config.Component) workloadmeta.Params {
+			var catalog workloadmeta.AgentType
+
+			if c.GetBool("process_config.remote_workloadmeta") {
+				catalog = workloadmeta.Remote
+			} else {
+				catalog = workloadmeta.ProcessAgent
+			}
+
+			return workloadmeta.Params{AgentType: catalog}
+		}),
 
 		// Allows for debug logging of fx components if the `TRACE_FX` environment variable is set
 		fxutil.FxLoggingOption(),
@@ -140,7 +164,7 @@ func runApp(ctx context.Context, globalParams *command.GlobalParams) error {
 
 		// Invoke the components that we want to start
 		fx.Invoke(func(
-			runnerComp.Component,
+			runner.Component,
 			profiler.Component,
 			expvars.Component,
 			apiserver.Component,
@@ -163,7 +187,7 @@ func runApp(ctx context.Context, globalParams *command.GlobalParams) error {
 		if appInitDeps.Logger == nil {
 			fmt.Println("Failed to initialize the process agent: ", fxutil.UnwrapIfErrArgumentsFailed(err))
 		} else {
-			_ = appInitDeps.Logger.Critical("Failed to initialize the process agent: ", fxutil.UnwrapIfErrArgumentsFailed(err))
+			appInitDeps.Logger.Critical("Failed to initialize the process agent: ", fxutil.UnwrapIfErrArgumentsFailed(err))
 		}
 		return err
 	}
@@ -207,7 +231,7 @@ func anyChecksEnabled(checks []types.CheckComponent) bool {
 	return false
 }
 
-func shouldEnableProcessAgent(checks []types.CheckComponent, cfg ddconfig.ConfigReader) bool {
+func shouldEnableProcessAgent(checks []types.CheckComponent, cfg ddconfig.Reader) bool {
 	return anyChecksEnabled(checks) || collector.Enabled(cfg)
 }
 
@@ -215,68 +239,62 @@ type miscDeps struct {
 	fx.In
 	Lc fx.Lifecycle
 
-	Config   config.Component
-	Syscfg   sysprobeconfig.Component
-	HostInfo hostinfo.Component
+	Config       config.Component
+	Statsd       compstatsd.Component
+	Syscfg       sysprobeconfig.Component
+	HostInfo     hostinfo.Component
+	WorkloadMeta workloadmeta.Component
 }
 
 // initMisc initializes modules that cannot, or have not yet been componetized.
 // Todo: (Components) WorkloadMeta, remoteTagger, statsd
 // Todo: move metadata/workloadmeta/collector to workloadmeta
 func initMisc(deps miscDeps) error {
-	if err := statsd.Configure(ddconfig.GetBindHost(), deps.Config.GetInt("dogstatsd_port"), false); err != nil {
-		_ = log.Criticalf("Error configuring statsd: %s", err)
+	if err := statsd.Configure(ddconfig.GetBindHost(), deps.Config.GetInt("dogstatsd_port"), deps.Statsd.CreateForHostPort); err != nil {
+		log.Criticalf("Error configuring statsd: %s", err)
 		return err
 	}
 
 	if err := ddutil.SetupCoreDump(deps.Config); err != nil {
-		_ = log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
+		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
-
-	// Setup workloadmeta
-	var workloadmetaCollectors workloadmeta.CollectorCatalog
-	if deps.Config.GetBool("process_config.remote_workloadmeta") {
-		workloadmetaCollectors = workloadmeta.RemoteCatalog
-	} else {
-		workloadmetaCollectors = workloadmeta.NodeAgentCatalog
-	}
-	store := workloadmeta.CreateGlobalStore(workloadmetaCollectors)
 
 	// Setup remote tagger
 	var t tagger.Tagger
 	if deps.Config.GetBool("process_config.remote_tagger") {
 		options, err := remote.NodeAgentOptions()
 		if err != nil {
-			_ = log.Errorf("unable to deps.Configure the remote tagger: %s", err)
+			log.Errorf("unable to deps.Configure the remote tagger: %s", err)
 		} else {
 			t = remote.NewTagger(options)
 		}
 	} else {
-		t = local.NewTagger(store)
+		t = local.NewTagger(deps.WorkloadMeta)
 	}
 	tagger.SetDefaultTagger(t)
 
 	processCollectionServer := collector.NewProcessCollector(deps.Config, deps.Syscfg)
 
+	// TODO(components): still unclear how the initialization of workoadmeta
+	//                   store and tagger should be performed.
 	// appCtx is a context that cancels when the OnStop hook is called
 	appCtx, stopApp := context.WithCancel(context.Background())
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(startCtx context.Context) error {
-			store.Start(appCtx)
 
 			err := tagger.Init(startCtx)
 			if err != nil {
-				_ = log.Errorf("failed to start the tagger: %s", err)
+				log.Errorf("failed to start the tagger: %s", err)
 			}
 
 			err = manager.ConfigureAutoExit(startCtx, deps.Config)
 			if err != nil {
-				_ = log.Criticalf("Unable to configure auto-exit, err: %w", err)
+				log.Criticalf("Unable to configure auto-exit, err: %w", err)
 				return err
 			}
 
 			if collector.Enabled(deps.Config) {
-				err := processCollectionServer.Start(appCtx, store)
+				err := processCollectionServer.Start(appCtx, deps.WorkloadMeta)
 				if err != nil {
 					return err
 				}

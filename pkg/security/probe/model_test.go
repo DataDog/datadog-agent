@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package probe holds probe related files
 package probe
 
 import (
@@ -29,7 +30,7 @@ func TestProcessArgsFlags(t *testing.T) {
 		"-9", "-", "--",
 	}
 
-	resolver, _ := process.NewResolver(&manager.Manager{}, &config.Config{}, &statsd.NoOpClient{},
+	resolver, _ := process.NewEBPFResolver(&manager.Manager{}, &config.Config{}, &statsd.NoOpClient{},
 		&procutil.DataScrubber{}, nil, nil, nil, nil, nil, nil, process.NewResolverOpts())
 
 	e := model.Event{
@@ -39,8 +40,8 @@ func TestProcessArgsFlags(t *testing.T) {
 			},
 		},
 		BaseEvent: model.BaseEvent{
-			FieldHandlers: &FieldHandlers{
-				resolvers: &resolvers.Resolvers{
+			FieldHandlers: &EBPFFieldHandlers{
+				resolvers: &resolvers.EBPFResolvers{
 					ProcessResolver: resolver,
 				},
 			},
@@ -92,7 +93,7 @@ func TestProcessArgsOptions(t *testing.T) {
 		"--", "---", "-9",
 	}
 
-	resolver, _ := process.NewResolver(&manager.Manager{}, &config.Config{}, &statsd.NoOpClient{},
+	resolver, _ := process.NewEBPFResolver(&manager.Manager{}, &config.Config{}, &statsd.NoOpClient{},
 		&procutil.DataScrubber{}, nil, nil, nil, nil, nil, nil, process.NewResolverOpts())
 
 	e := model.Event{
@@ -102,8 +103,8 @@ func TestProcessArgsOptions(t *testing.T) {
 			},
 		},
 		BaseEvent: model.BaseEvent{
-			FieldHandlers: &FieldHandlers{
-				resolvers: &resolvers.Resolvers{
+			FieldHandlers: &EBPFFieldHandlers{
+				resolvers: &resolvers.EBPFResolvers{
 					ProcessResolver: resolver,
 				},
 			},

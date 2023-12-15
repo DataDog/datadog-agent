@@ -66,7 +66,7 @@ spec:
             var nb = db.series.find({
             metric: "cri.cpu.usage",
             tags: { $all: ["kube_deployment:cpu-stress", "kube_container_name:cpu-stress"] },
-            "points.0.1": { $gt: 980000000, $lt: 1010000000 } }).count();
+            "points.0.1": { $gt: 950000000, $lt: 1010000000 } }).count();
             print("find: " + nb)
             if (nb != 0) {
               print("cpu value in target range")

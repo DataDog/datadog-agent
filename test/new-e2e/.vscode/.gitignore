@@ -1,0 +1,6 @@
+*
+!launch.json.template
+!tasks.json.template
+!copyright.code-snippets
+!aws-vault-wrap.env.template
+!.gitignore

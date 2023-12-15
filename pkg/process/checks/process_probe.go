@@ -12,6 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
-func newProcessProbe(config config.ConfigReader, options ...procutil.Option) procutil.Probe {
+func newProcessProbe(config config.Reader, options ...procutil.Option) procutil.Probe { //nolint:revive // TODO fix revive unused-parameter
 	return procutil.NewProcessProbe(options...)
 }

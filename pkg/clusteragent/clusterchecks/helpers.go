@@ -16,10 +16,10 @@ import (
 )
 
 var (
-	checkExecutionTimeWeight   float64 = 0
+	checkExecutionTimeWeight           = 0.0
 	checkMetricSamplesWeight   float64 = 1
 	checkHistogramBucketWeight float64 = 1
-	checkEventsWeight          float64 = 0.2
+	checkEventsWeight                  = 0.2
 )
 
 // makeConfigArray flattens a map of configs into a slice. Creating a new slice

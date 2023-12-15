@@ -1,0 +1,32 @@
+
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "aws-vault-wrap",
+            "type": "shell",
+            "command": "aws-vault export sso-agent-sandbox-account-admin > .vscode/aws-vault-wrap.env",
+            "presentation": {
+                "echo": false,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": false,
+                "clear": false
+            }
+        },
+        {
+            "label": "clean-aws-vault-wrap",
+            "type": "shell",
+            "command": "echo '' > .vscode/aws-vault-wrap.env",
+            "presentation": {
+                "echo": false,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": false,
+                "clear": false
+            }
+        }
+    ]
+  }

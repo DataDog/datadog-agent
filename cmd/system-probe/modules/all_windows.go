@@ -5,6 +5,7 @@
 
 //go:build windows
 
+//nolint:revive // TODO(EBPF) Fix revive linter
 package modules
 
 import (
@@ -20,6 +21,7 @@ import (
 var All = []module.Factory{
 	NetworkTracer,
 	EventMonitor,
+	WinCrashProbe,
 }
 
 func inactivityEventLog(duration time.Duration) {

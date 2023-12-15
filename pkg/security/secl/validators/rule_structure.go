@@ -3,10 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package validators holds validators related files
 package validators
 
 import (
-	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -17,7 +17,7 @@ func HasBareWildcardInField(rule *eval.Rule) (bool, error) {
 	parsingContext := ast.NewParsingContext()
 	localModel := &model.Model{}
 	if err := rule.GenEvaluator(localModel, parsingContext); err != nil {
-		return false, fmt.Errorf("%w\n", err)
+		return false, err
 	}
 
 	for _, fieldKey := range rule.GetFields() {

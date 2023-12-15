@@ -15,7 +15,10 @@ import (
 
 	"github.com/DataDog/viper"
 
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // ModuleName is a typed alias for string, used only for module names
@@ -36,6 +39,8 @@ const (
 	DynamicInstrumentationModule ModuleName = "dynamic_instrumentation"
 	EBPFModule                   ModuleName = "ebpf"
 	LanguageDetectionModule      ModuleName = "language_detection"
+	WindowsCrashDetectModule     ModuleName = "windows_crash_detection"
+	ComplianceModule             ModuleName = "compliance"
 )
 
 // Config represents the configuration options for the system-probe
@@ -53,6 +58,7 @@ type Config struct {
 	LogFile          string
 	LogLevel         string
 	DebugPort        int
+	HealthPort       int
 	TelemetryEnabled bool
 
 	StatsdHost string
@@ -87,16 +93,17 @@ func newSysprobeConfig(configPath string) (*Config, error) {
 		aconfig.SystemProbe.AddConfigPath(defaultConfigDir)
 	}
 	// load the configuration
-	_, err := aconfig.LoadCustom(aconfig.SystemProbe, "system-probe", false, aconfig.Datadog.GetEnvVars())
+	_, err := aconfig.LoadCustom(aconfig.SystemProbe, "system-probe", optional.NewNoneOption[secrets.Component](), aconfig.Datadog.GetEnvVars())
 	if err != nil {
 		var e viper.ConfigFileNotFoundError
+		//nolint:revive // TODO(EBPF) Fix revive linter
 		if errors.As(err, &e) || errors.Is(err, os.ErrNotExist) {
 			// do nothing, we can ignore a missing system-probe.yaml config file
 		} else if errors.Is(err, fs.ErrPermission) {
 			// special-case permission-denied with a clearer error message
 			if runtime.GOOS == "windows" {
 				return nil, fmt.Errorf(`cannot access the system-probe config file (%w); try running the command in an Administrator shell"`, err)
-			} else {
+			} else { //nolint:revive // TODO(EBPF) Fix revive linter
 				return nil, fmt.Errorf("cannot access the system-probe config file (%w); try running the command under the same user as the Datadog Agent", err)
 			}
 		} else {
@@ -122,6 +129,7 @@ func load() (*Config, error) {
 		LogFile:          cfg.GetString("log_file"),
 		LogLevel:         cfg.GetString("log_level"),
 		DebugPort:        cfg.GetInt(spNS("debug_port")),
+		HealthPort:       cfg.GetInt(spNS("health_port")),
 		TelemetryEnabled: cfg.GetBool(spNS("telemetry_enabled")),
 
 		StatsdHost: aconfig.GetBindHost(),
@@ -141,12 +149,14 @@ func load() (*Config, error) {
 	if cfg.GetBool(spNS("enable_oom_kill")) {
 		c.EnabledModules[OOMKillProbeModule] = struct{}{}
 	}
-
 	if cfg.GetBool(secNS("enabled")) ||
 		cfg.GetBool(secNS("fim_enabled")) ||
 		cfg.GetBool(evNS("process.enabled")) ||
 		(c.ModuleIsEnabled(NetworkTracerModule) && cfg.GetBool(evNS("network_process.enabled"))) {
 		c.EnabledModules[EventMonitorModule] = struct{}{}
+	}
+	if cfg.GetBool(secNS("enabled")) && cfg.GetBool(secNS("compliance_module.enabled")) {
+		c.EnabledModules[ComplianceModule] = struct{}{}
 	}
 	if cfg.GetBool(spNS("process_config.enabled")) {
 		c.EnabledModules[ProcessModule] = struct{}{}
@@ -161,9 +171,20 @@ func load() (*Config, error) {
 		c.EnabledModules[LanguageDetectionModule] = struct{}{}
 	}
 
+	if cfg.GetBool(wcdNS("enabled")) {
+		c.EnabledModules[WindowsCrashDetectModule] = struct{}{}
+	}
+	if runtime.GOOS == "windows" {
+		if c.ModuleIsEnabled(NetworkTracerModule) {
+			// enable the windows crash detection module if the network tracer
+			// module is enabled, to allow the core agent to detect our own crash
+			c.EnabledModules[WindowsCrashDetectModule] = struct{}{}
+		}
+	}
+
 	c.Enabled = len(c.EnabledModules) > 0
 	// only allowed raw config adjustments here, otherwise use Adjust function
-	cfg.Set(spNS("enabled"), c.Enabled)
+	cfg.Set(spNS("enabled"), c.Enabled, model.SourceAgentRuntime)
 
 	return c, nil
 }
@@ -181,7 +202,7 @@ func SetupOptionalDatadogConfigWithDir(configDir, configFile string) error {
 		aconfig.Datadog.SetConfigFile(configFile)
 	}
 	// load the configuration
-	_, err := aconfig.LoadDatadogCustom(aconfig.Datadog, "datadog.yaml", false, aconfig.SystemProbe.GetEnvVars())
+	_, err := aconfig.LoadDatadogCustom(aconfig.Datadog, "datadog.yaml", optional.NewNoneOption[secrets.Component](), aconfig.SystemProbe.GetEnvVars())
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	var e viper.ConfigFileNotFoundError
 	if err != nil && !errors.As(err, &e) {

@@ -34,7 +34,7 @@ type HostInfo struct {
 }
 
 // CollectHostInfo collects host information
-func CollectHostInfo(config config.ConfigReader) (*HostInfo, error) {
+func CollectHostInfo(config config.Reader) (*HostInfo, error) {
 	sysInfo, err := CollectSystemInfo()
 	if err != nil {
 		return nil, err
@@ -52,7 +52,7 @@ func CollectHostInfo(config config.ConfigReader) (*HostInfo, error) {
 	}, nil
 }
 
-func resolveHostName(config config.ConfigReader) (string, error) {
+func resolveHostName(config config.Reader) (string, error) {
 	var hostName string
 	if config.IsSet("hostname") {
 		hostName = config.GetString("hostname")
@@ -129,11 +129,16 @@ func getHostnameFromCmd(ddAgentBin string, cmdFn cmdFunc) (string, error) {
 }
 
 // getHostnameFromGRPC retrieves the hostname from the main datadog agent via GRPC
-func getHostnameFromGRPC(ctx context.Context, grpcClientFn func(ctx context.Context, opts ...grpc.DialOption) (pb.AgentClient, error), grpcConnectionTimeout time.Duration) (string, error) {
+func getHostnameFromGRPC(ctx context.Context, grpcClientFn func(ctx context.Context, address, port string, opts ...grpc.DialOption) (pb.AgentClient, error), grpcConnectionTimeout time.Duration) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, grpcConnectionTimeout)
 	defer cancel()
 
-	ddAgentClient, err := grpcClientFn(ctx)
+	ipcAddress, err := config.GetIPCAddress()
+	if err != nil {
+		return "", err
+	}
+
+	ddAgentClient, err := grpcClientFn(ctx, ipcAddress, config.GetIPCPort())
 	if err != nil {
 		return "", fmt.Errorf("cannot connect to datadog agent via grpc: %w", err)
 	}

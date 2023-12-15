@@ -132,7 +132,7 @@ namespace Datadog.CustomActions.RollbackData
         public void Restore()
         {
             Load();
-            for (int i = RollbackActions.Count - 1; i >= 0; i--)
+            for (var i = RollbackActions.Count - 1; i >= 0; i--)
             {
                 RollbackActions[i].Restore(_session, _fileSystemServices);
             }

@@ -1,14 +1,14 @@
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -327,6 +327,7 @@ cmake_dependent_option(ENABLE_OSCAP_UTIL_SSH "enables the oscap-ssh utility, thi
+@@ -338,6 +338,7 @@ cmake_dependent_option(ENABLE_OSCAP_UTIL_SSH "enables the oscap-ssh utility, thi
  cmake_dependent_option(ENABLE_OSCAP_UTIL_VM "enables the oscap-vm utility, this lets you scan VMs and VM storage images" ON "NOT WIN32" OFF)
  cmake_dependent_option(ENABLE_OSCAP_UTIL_PODMAN "enables the oscap-podman utility, this lets you scan Podman containers and container images" ON "NOT WIN32" OFF)
  cmake_dependent_option(ENABLE_OSCAP_UTIL_CHROOT "enables the oscap-chroot utility, this lets you scan entire chroots using offline scanning" ON "NOT WIN32" OFF)
 +cmake_dependent_option(ENABLE_OSCAP_UTIL_IO "enables the oscap-io utility" ON "NOT WIN32" OFF)
  option(ENABLE_OSCAP_UTIL_AUTOTAILOR "enables the autotailor utility that is able to perform command-line tailoring" TRUE)
- option(ENABLE_OSCAP_REMEDIATE_SERVICE "enables the oscap-remediate service" TRUE)
+ option(ENABLE_OSCAP_REMEDIATE_SERVICE "enables the oscap-remediate service" FALSE)
  
-@@ -460,6 +461,7 @@ message(STATUS "oscap-ssh: ${ENABLE_OSCAP_UTIL_SSH}")
+@@ -473,6 +474,7 @@ message(STATUS "oscap-ssh: ${ENABLE_OSCAP_UTIL_SSH}")
  message(STATUS "oscap-vm: ${ENABLE_OSCAP_UTIL_VM}")
  message(STATUS "oscap-podman: ${ENABLE_OSCAP_UTIL_PODMAN}")
  message(STATUS "oscap-chroot: ${ENABLE_OSCAP_UTIL_CHROOT}")
@@ -40,7 +40,7 @@
 +endif()
 --- /dev/null
 +++ b/utils/oscap-io/oscap-io.c
-@@ -0,0 +1,222 @@
+@@ -0,0 +1,227 @@
 +#include <stdio.h>
 +#include <stdlib.h>
 +#include <string.h>
@@ -60,11 +60,14 @@
 +session_new(char *file)
 +{
 +	struct xccdf_session *session;
++	char *err;
 +	int n;
 +
 +	session = xccdf_session_new(file);
 +	if (session == NULL) {
-+		fprintf(stderr, "error: xccdf_session_new: %s\n", oscap_err_get_full_error());
++		err = oscap_err_get_full_error();
++		fprintf(stderr, "error: xccdf_session_new: %s\n", err);
++		free(err);
 +		return NULL;
 +	}
 +
@@ -73,7 +76,7 @@
 +
 +	n = xccdf_session_load(session);
 +	if (n != 0) {
-+		char *err = oscap_err_get_full_error();
++		err = oscap_err_get_full_error();
 +		fprintf(stderr, "error: xccdf_session_load: %s\n", err);
 +		free(err);
 +		xccdf_session_free(session);
@@ -111,7 +114,7 @@
 +	struct xccdf_rule_result_iterator *resIt;
 +	struct xccdf_rule_result *res;
 +	int n, resultCode;
-+	char *result;
++	char *result, *err;
 +	const char *ruleRef;
 +
 +	if (rule != NULL) {
@@ -119,7 +122,9 @@
 +	}
 +
 +	if (xccdf_session_evaluate(session) != 0) {
-+		fprintf(stderr, "error: xccdf_session_evaluate: %s\n", oscap_err_get_full_error());
++		err = oscap_err_get_full_error();
++		fprintf(stderr, "error: xccdf_session_evaluate: %s\n", err);
++		free(err);
 +		xccdf_session_result_reset(session);
 +		return 1;
 +	}

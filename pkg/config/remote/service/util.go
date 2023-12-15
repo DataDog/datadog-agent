@@ -8,10 +8,12 @@ package service
 import (
 	"encoding/base32"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"go.etcd.io/bbolt"
 
@@ -26,7 +28,10 @@ import (
 
 const metaBucket = "meta"
 const metaFile = "meta.json"
+const databaseLockTimeout = time.Second
 
+// AgentMetadata is data stored in bolt DB to determine whether or not
+// the agent has changed and the RC cache should be cleared
 type AgentMetadata struct {
 	Version string `json:"version"`
 }
@@ -47,8 +52,13 @@ func recreate(path string) (*bbolt.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create rc db dir: (%s): %v", path, err)
 	}
-	db, err := bbolt.Open(path, 0600, &bbolt.Options{})
+	db, err := bbolt.Open(path, 0600, &bbolt.Options{
+		Timeout: databaseLockTimeout,
+	})
 	if err != nil {
+		if errors.Is(err, bbolt.ErrTimeout) {
+			return nil, fmt.Errorf("rc db is locked. Please check if another instance of the agent is running and using the same `run_path` parameter")
+		}
 		return nil, err
 	}
 	return db, addMetadata(db)
@@ -71,8 +81,13 @@ func addMetadata(db *bbolt.DB) error {
 }
 
 func openCacheDB(path string) (*bbolt.DB, error) {
-	db, err := bbolt.Open(path, 0600, &bbolt.Options{})
+	db, err := bbolt.Open(path, 0600, &bbolt.Options{
+		Timeout: databaseLockTimeout,
+	})
 	if err != nil {
+		if errors.Is(err, bbolt.ErrTimeout) {
+			return nil, fmt.Errorf("rc db is locked. Please check if another instance of the agent is running and using the same `run_path` parameter")
+		}
 		return recreate(path)
 	}
 
@@ -118,7 +133,7 @@ type remoteConfigAuthKeys struct {
 
 func (k *remoteConfigAuthKeys) apiAuth() api.Auth {
 	auth := api.Auth{
-		ApiKey: k.apiKey,
+		APIKey: k.apiKey,
 	}
 	if k.rcKeySet {
 		auth.UseAppKey = true

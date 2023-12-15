@@ -61,8 +61,13 @@ const (
 
 	GuessCtTupleOrigin GuessWhat = C.GUESS_CT_TUPLE_ORIGIN
 	GuessCtTupleReply  GuessWhat = C.GUESS_CT_TUPLE_REPLY
-	GuessCtStatus      GuessWhat = C.GUESS_CT_STATUS
 	GuessCtNet         GuessWhat = C.GUESS_CT_NET
 
 	GuessNotApplicable GuessWhat = 99999
+)
+
+const (
+	sizeofSKBuffSock            = C.SIZEOF_SK_BUFF_SOCK
+	sizeofSKBuffTransportHeader = C.SIZEOF_SK_BUFF_TRANSPORT_HEADER
+	sizeofSKBuffHead            = C.SIZEOF_SK_BUFF_HEAD
 )

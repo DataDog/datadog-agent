@@ -21,8 +21,5 @@ func NewSimpleHistogram(subsystem, name, help string, buckets []float64) SimpleH
 
 // NewSimpleHistogramWithOpts creates a new SimpleHistogram.
 func NewSimpleHistogramWithOpts(subsystem, name, help string, buckets []float64, opts Options) SimpleHistogram {
-	compatOpts := telemetryComponent.Options{
-		NoDoubleUnderscoreSep: opts.NoDoubleUnderscoreSep,
-	}
-	return telemetryComponent.GetCompatComponent().NewSimpleHistogramWithOpts(subsystem, name, help, buckets, compatOpts)
+	return telemetryComponent.GetCompatComponent().NewSimpleHistogramWithOpts(subsystem, name, help, buckets, telemetryComponent.Options(opts))
 }

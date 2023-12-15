@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 )
 
 func countConfigsForTemplate(s *store, template string) int {
@@ -86,4 +87,23 @@ func TestRemoveServiceForADID(t *testing.T) {
 
 	_, found = store.getServiceEntitiesForADID("docker://foo")
 	assert.False(t, found)
+}
+
+func TestIDsOfChecksWithSecrets(t *testing.T) {
+	testStore := newStore()
+
+	testStore.setIDsOfChecksWithSecrets(map[checkid.ID]checkid.ID{
+		"id1": "id2",
+		"id3": "id4",
+	})
+
+	assert.Equal(t, checkid.ID("id2"), testStore.getIDOfCheckWithEncryptedSecrets("id1"))
+	assert.Equal(t, checkid.ID("id4"), testStore.getIDOfCheckWithEncryptedSecrets("id3"))
+	assert.Empty(t, testStore.getIDOfCheckWithEncryptedSecrets("non-existing"))
+
+	testStore.deleteMappingsOfCheckIDsWithSecrets([]checkid.ID{"id1"})
+	assert.Empty(t, testStore.getIDOfCheckWithEncryptedSecrets("id1"))
+
+	testStore.deleteMappingsOfCheckIDsWithSecrets([]checkid.ID{"id3"})
+	assert.Empty(t, testStore.getIDOfCheckWithEncryptedSecrets("id3"))
 }

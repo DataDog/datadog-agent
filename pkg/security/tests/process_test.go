@@ -5,26 +5,33 @@
 
 //go:build functionaltests
 
+// Package tests holds tests related files
 package tests
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"math"
+	"math/bits"
 	"math/rand"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 
 	"github.com/avast/retry-go/v4"
@@ -33,6 +40,7 @@ import (
 	"github.com/syndtr/gocapability/capability"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -49,7 +57,7 @@ func TestProcess(t *testing.T) {
 		Expression: fmt.Sprintf(`process.user != "" && process.file.name == "%s" && open.file.path == "{{.Root}}/test-process"`, path.Base(executable)),
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +167,7 @@ func TestProcessContext(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -957,7 +965,7 @@ func TestProcessEnvsWithValue(t *testing.T) {
 		envsWithValue: []string{"LD_PRELOAD"},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, opts)
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(opts))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -988,7 +996,7 @@ func TestProcessExecCTime(t *testing.T) {
 		Expression: "exec.file.change_time < 30s",
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1016,7 +1024,7 @@ func TestProcessPIDVariable(t *testing.T) {
 		Expression: `open.file.path =~ "/proc/*/maps" && open.file.path != "/proc/${process.pid}/maps"`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1100,7 +1108,7 @@ func TestProcessScopedVariable(t *testing.T) {
 			`&& open.file.path == "${var5}-3"`,
 	}}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1158,7 +1166,7 @@ func TestTimestampVariable(t *testing.T) {
 		Expression: `open.file.path == "{{.Root}}/test-open-2" && ${process.timestamp1} > 0s && ${process.timestamp1} < 3s`,
 	}}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1197,7 +1205,7 @@ func TestProcessExec(t *testing.T) {
 		Expression: fmt.Sprintf(`exec.file.path == "%s" && exec.args == "/dev/null"`, executable),
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1243,7 +1251,7 @@ func TestProcessMetadata(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1310,11 +1318,16 @@ func TestProcessExecExit(t *testing.T) {
 		Expression: fmt.Sprintf(`exec.file.path == "%s" && exec.args in [~"*01010101*"]`, executable),
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer test.Close()
+
+	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		t.Skip("not supported")
+	}
 
 	var execPid uint32
 
@@ -1360,8 +1373,7 @@ func TestProcessExecExit(t *testing.T) {
 
 	// make sure that the process cache entry of the process was properly deleted from the cache
 	err = retry.Do(func() error {
-		resolvers := test.probe.GetResolvers()
-		entry := resolvers.ProcessResolver.Get(execPid)
+		entry := p.Resolvers.ProcessResolver.Get(execPid)
 		if entry != nil {
 			return errors.New("the process cache entry was not deleted from the user space cache")
 		}
@@ -1406,7 +1418,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1424,7 +1436,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 
 	t.Run("setuid", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, syscallTester, "process-credentials", "setuid", "1001", "0")
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "process-credentials", "setuid", "1001", "0")
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setuid")
 			assert.Equal(t, uint32(1001), event.SetUID.UID, "wrong uid")
@@ -1433,7 +1445,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 
 	t.Run("setreuid", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, syscallTester, "process-credentials", "setreuid", "1002", "1003")
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "process-credentials", "setreuid", "1002", "1003")
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setreuid")
 			assert.Equal(t, uint32(1002), event.SetUID.UID, "wrong uid")
@@ -1443,7 +1455,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 
 	t.Run("setresuid", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, syscallTester, "process-credentials", "setresuid", "1002", "1003")
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "process-credentials", "setresuid", "1002", "1003")
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setreuid")
 			assert.Equal(t, uint32(1002), event.SetUID.UID, "wrong uid")
@@ -1453,7 +1465,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 
 	t.Run("setfsuid", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, syscallTester, "process-credentials", "setfsuid", "1004", "0")
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "process-credentials", "setfsuid", "1004", "0")
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setfsuid")
 			assert.Equal(t, uint32(1004), event.SetUID.FSUID, "wrong fsuid")
@@ -1462,7 +1474,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 
 	t.Run("setgid", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, syscallTester, "process-credentials", "setgid", "1005", "0")
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "process-credentials", "setgid", "1005", "0")
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setgid")
 			assert.Equal(t, uint32(1005), event.SetGID.GID, "wrong gid")
@@ -1471,7 +1483,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 
 	t.Run("setregid", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, syscallTester, "process-credentials", "setregid", "1006", "1007")
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "process-credentials", "setregid", "1006", "1007")
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setregid")
 			assert.Equal(t, uint32(1006), event.SetGID.GID, "wrong gid")
@@ -1481,7 +1493,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 
 	t.Run("setresgid", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, syscallTester, "process-credentials", "setresgid", "1006", "1007")
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "process-credentials", "setresgid", "1006", "1007")
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setregid")
 			assert.Equal(t, uint32(1006), event.SetGID.GID, "wrong gid")
@@ -1491,7 +1503,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 
 	t.Run("setfsgid", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, syscallTester, "process-credentials", "setfsgid", "1008", "0")
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "process-credentials", "setfsgid", "1008", "0")
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setfsgid")
 			assert.Equal(t, uint32(1008), event.SetGID.FSGID, "wrong gid")
@@ -1512,7 +1524,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 		threadCapabilities.Unset(capability.EFFECTIVE, capability.CAP_WAKE_ALARM)
 
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, goSyscallTester, "-process-credentials-capset")
+			return runSyscallTesterFunc(context.Background(), t, goSyscallTester, "-process-credentials-capset")
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_capset")
 
@@ -1544,7 +1556,7 @@ func parseCapIntoSet(capabilities uint64, flag capability.CapType, c capability.
 		}
 
 		if capabilities&v == v {
-			c.Set(flag, capability.Cap(math.Log2(float64(v))))
+			c.Set(flag, capability.Cap(bits.TrailingZeros64(v)))
 		}
 	}
 }
@@ -1561,7 +1573,7 @@ func TestProcessIsThread(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1639,7 +1651,7 @@ func TestProcessExit(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1777,7 +1789,7 @@ func TestProcessBusybox(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1870,7 +1882,9 @@ EOF
 
 echo "Back to bash"`, python, python),
 			check: func(event *model.Event) {
-				assertFieldEqual(t, event, "exec.interpreter.file.name", "", "wrong interpreter file name")
+				var fieldNotSupportedError *eval.ErrNotSupported
+				_, err := event.GetFieldValue("exec.interpreter.file.name")
+				assert.ErrorAs(t, err, &fieldNotSupportedError, "exec event shouldn't have an interpreter")
 				assertFieldEqual(t, event, "process.parent.file.name", "regularExec.sh", "wrong process parent file name")
 				assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"regularExec.sh"}, "ancestor file name not an option")
 			},
@@ -1894,7 +1908,9 @@ __HERE__
 
 echo "Back to bash"`, python, python, python),
 			check: func(event *model.Event) {
-				assertFieldEqual(t, event, "exec.interpreter.file.name", "", "wrong interpreter file name")
+				var fieldNotSupportedError *eval.ErrNotSupported
+				_, err := event.GetFieldValue("exec.interpreter.file.name")
+				assert.ErrorAs(t, err, &fieldNotSupportedError, "exec event shouldn't have an interpreter")
 				assertFieldEqual(t, event, "process.parent.file.name", "regularExecWithInterpreterRule.sh", "wrong process parent file name")
 				assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"regularExecWithInterpreterRule.sh"}, "ancestor file name not an option")
 			},
@@ -1975,11 +1991,16 @@ chmod 755 pyscript.py
 		ruleList = append(ruleList, test.rule)
 	}
 
-	testModule, err := newTestModule(t, nil, ruleList, testOpts{})
+	testModule, err := newTestModule(t, nil, ruleList)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer testModule.Close()
+
+	p, ok := testModule.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		t.Skip("not supported")
+	}
 
 	for _, test := range tests {
 		testModule.Run(t, test.name, func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
@@ -1998,7 +2019,7 @@ chmod 755 pyscript.py
 				}
 				t.Logf(string(output))
 
-				offsets, _ := testModule.probe.GetOffsetConstants()
+				offsets, _ := p.GetOffsetConstants()
 				t.Logf("%s: %+v\n", constantfetch.OffsetNameLinuxBinprmStructFile, offsets[constantfetch.OffsetNameLinuxBinprmStructFile])
 
 				return nil
@@ -2018,11 +2039,16 @@ func TestProcessResolution(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer test.Close()
+
+	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		t.Skip("not supported")
+	}
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -2076,7 +2102,7 @@ func TestProcessResolution(t *testing.T) {
 		}
 		inode := uint64(value.(int))
 
-		resolvers := test.probe.GetResolvers()
+		resolver := p.Resolvers.ProcessResolver
 
 		// compare only few fields as the hierarchy fields(pointers, etc) are modified by the resolution function calls
 		equals := func(t *testing.T, entry1, entry2 *model.ProcessCacheEntry) {
@@ -2087,14 +2113,19 @@ func TestProcessResolution(t *testing.T) {
 			assert.Equal(t, entry1.Pid, entry2.Pid)
 			assert.Equal(t, entry1.PPid, entry2.PPid)
 			assert.Equal(t, entry1.ContainerID, entry2.ContainerID)
+			assert.Equal(t, entry1.Cookie, entry2.Cookie)
+
+			// may not be exaclty equal because of clock drift between two boot time resolution, see time resolver
+			assert.Greater(t, time.Second, entry1.ExecTime.Sub(entry2.ExecTime).Abs())
+			assert.Greater(t, time.Second, entry1.ForkTime.Sub(entry2.ForkTime).Abs())
 		}
 
-		cacheEntry := resolvers.ProcessResolver.ResolveFromCache(pid, pid, inode)
+		cacheEntry := resolver.ResolveFromCache(pid, pid, inode)
 		if cacheEntry == nil {
 			t.Errorf("not able to resolve the entry")
 		}
 
-		mapsEntry := resolvers.ProcessResolver.ResolveFromKernelMaps(pid, pid, inode)
+		mapsEntry := resolver.ResolveFromKernelMaps(pid, pid, inode)
 		if mapsEntry == nil {
 			t.Errorf("not able to resolve the entry")
 		}
@@ -2103,7 +2134,7 @@ func TestProcessResolution(t *testing.T) {
 
 		// This makes use of the cache and do not parse /proc
 		// it still checks the ResolveFromProcfs returns the correct entry
-		procEntry := resolvers.ProcessResolver.ResolveFromProcfs(pid)
+		procEntry := resolver.ResolveFromProcfs(pid)
 		if procEntry == nil {
 			t.Fatalf("not able to resolve the entry")
 		}
@@ -2173,7 +2204,7 @@ func TestProcessFilelessExecution(t *testing.T) {
 		}
 	}
 
-	testModule, err := newTestModule(t, nil, ruleList, testOpts{})
+	testModule, err := newTestModule(t, nil, ruleList)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2212,7 +2243,7 @@ func TestProcessFilelessExecution(t *testing.T) {
 				}
 			} else {
 				testModule.WaitSignal(t, func() error {
-					return runSyscallTesterFunc(t, syscallTester, test.syscallTesterToRun, test.syscallTesterScriptFilenameToRun)
+					return runSyscallTesterFunc(context.Background(), t, syscallTester, test.syscallTesterToRun, test.syscallTesterScriptFilenameToRun)
 				}, func(event *model.Event, rule *rules.Rule) {
 					assertTriggeredRule(t, rule, test.rule.ID)
 					test.check(event, rule)
@@ -2220,4 +2251,64 @@ func TestProcessFilelessExecution(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestKillAction(t *testing.T) {
+	checkKernelCompatibility(t, "bpf_send_signal is not supported on this kernel and agent is running in container mode", func(kv *kernel.Version) bool {
+		return !kv.SupportBPFSendSignal() && config.IsContainerized()
+	})
+
+	rule := &rules.RuleDefinition{
+		ID: "kill_action",
+		// using a wilcard to avoid approvers on basename. events will not match thus will be noisy
+		Expression: `process.file.name == "syscall_tester" && mkdir.file.path == "{{.Root}}/test-kill-action"`,
+		Actions: []rules.ActionDefinition{
+			{
+				Kill: &rules.KillDefinition{
+					Signal: "SIGUSR2",
+				},
+			},
+		},
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testFile, _, err := test.Path("test-kill-action")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("kill_action", func(t *testing.T) {
+		sigpipeCh := make(chan os.Signal, 1)
+		signal.Notify(sigpipeCh, syscall.SIGUSR2)
+
+		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		if err := runSyscallTesterFunc(
+			timeoutCtx, t, syscallTester,
+			"set-signal-handler", ";",
+			"mkdirat", testFile, ";",
+			"sleep", "2", ";",
+			"wait-signal", ";",
+			"signal", "sigusr2", strconv.Itoa(int(os.Getpid())),
+		); err != nil {
+			t.Fatal("no signal")
+		}
+
+		select {
+		case <-sigpipeCh:
+		case <-time.After(time.Second * 3):
+			t.Error("signal timeout")
+		}
+	})
 }

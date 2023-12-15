@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
+// Package utils defines helper functions to interact with protobuf definitions
 package utils
 
 import (

@@ -5,6 +5,7 @@
 
 //go:build functionaltests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -110,7 +111,7 @@ func TestKworker(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -187,19 +188,19 @@ func TestLoadModule(t *testing.T) {
 		},
 		{
 			ID:         "test_load_module_with_params",
-			Expression: fmt.Sprintf(`load_module.name == "%s" && load_module.argv in ["toto=1"]`, testModuleName),
+			Expression: fmt.Sprintf(`load_module.name == "%s" && load_module.argv in ["cifs_max_pending=2"]`, testModuleName),
 		},
 		{
 			ID:         "test_load_module_with_truncated_params",
-			Expression: fmt.Sprintf(`load_module.name == "%s" && load_module.argv in ["Lorem"]`, testModuleName),
+			Expression: fmt.Sprintf(`load_module.name == "%s" && load_module.argv in [r"CIFSMaxBufSize=.*"]`, testModuleName),
 		},
 		{
 			ID:         "test_load_module_with_params_from_memory",
-			Expression: fmt.Sprintf(`load_module.name == "%s" && load_module.argv in ["toto=5"] && load_module.loaded_from_memory == true`, testModuleName),
+			Expression: fmt.Sprintf(`load_module.name == "%s" && load_module.argv in ["cifs_min_rcv=6"] && load_module.loaded_from_memory == true`, testModuleName),
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -260,13 +261,13 @@ func TestLoadModule(t *testing.T) {
 			}
 			defer f.Close()
 
-			if err = unix.FinitModule(int(f.Fd()), "toto=1 toto=2 toto=3", 0); err != nil {
+			if err = unix.FinitModule(int(f.Fd()), "cifs_max_pending=2 cifs_min_small=2", 0); err != nil {
 				return fmt.Errorf("couldn't insert module: %w", err)
 			}
 			return unix.DeleteModule(testModuleName, 0)
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "test_load_module_with_params", r.ID, "wrong rule triggered")
-			assertFieldEqual(t, event, "load_module.args", "toto=1 toto=2 toto=3")
+			assertFieldEqual(t, event, "load_module.args", "cifs_max_pending=2 cifs_min_small=2")
 			assertFieldEqual(t, event, "load_module.loaded_from_memory", false)
 			assertFieldEqual(t, event, "load_module.args_truncated", false)
 			test.validateLoadModuleSchema(t, event)
@@ -280,14 +281,14 @@ func TestLoadModule(t *testing.T) {
 				return fmt.Errorf("couldn't load module content: %w", err)
 			}
 
-			if err = unix.InitModule(module, "toto=5"); err != nil {
+			if err = unix.InitModule(module, "cifs_min_rcv=6"); err != nil {
 				return fmt.Errorf("couldn't insert module: %w", err)
 			}
 
 			return unix.DeleteModule(testModuleName, 0)
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "test_load_module_with_params_from_memory", r.ID, "wrong rule triggered")
-			assertFieldEqual(t, event, "load_module.argv", []string{"toto=5"})
+			assertFieldEqual(t, event, "load_module.argv", []string{"cifs_min_rcv=6"})
 			assertFieldEqual(t, event, "load_module.loaded_from_memory", true)
 			assertFieldEqual(t, event, "load_module.args_truncated", false)
 			test.validateLoadModuleSchema(t, event)
@@ -295,21 +296,26 @@ func TestLoadModule(t *testing.T) {
 	})
 
 	t.Run("load_module_with_truncated_params", func(t *testing.T) {
+		var args []string
+		for i := 0; i != 10; i++ {
+			args = append(args, fmt.Sprintf("CIFSMaxBufSize=%d", 8192+i))
+		}
+
 		test.WaitSignal(t, func() error {
 			module, err := os.ReadFile(modulePath)
 			if err != nil {
 				return fmt.Errorf("couldn't load module content: %w", err)
 			}
 
-			if err = unix.InitModule(module, "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Duis in luctus quam. Nam purus risus, varius non massa bibendum, sollicitudin"); err != nil {
+			if err = unix.InitModule(module, strings.Join(args, " ")); err != nil {
 				return fmt.Errorf("couldn't insert module: %w", err)
 			}
 
 			return unix.DeleteModule(testModuleName, 0)
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "test_load_module_with_truncated_params", r.ID, "wrong rule triggered")
-			assertFieldEqual(t, event, "load_module.argv", []string{"Lorem", "ipsum", "dolor", "sit", "amet,", "consectetur", "adipiscing", "elit.", "Duis", "in", "luctus", "quam.", "Nam", "purus", "risus,", "varius", "non", "massa", "bibendum,"})
-			assertFieldEqual(t, event, "load_module.args", "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Duis in luctus quam. Nam purus risus, varius non massa bibendum,")
+			assertFieldEqual(t, event, "load_module.argv", args[0:6])
+			assertFieldEqual(t, event, "load_module.args", strings.Join(args[0:6], " "))
 			assertFieldEqual(t, event, "load_module.loaded_from_memory", true)
 			assertFieldEqual(t, event, "load_module.args_truncated", true)
 			test.validateLoadModuleSchema(t, event)
@@ -346,7 +352,7 @@ func TestUnloadModule(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}

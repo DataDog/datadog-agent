@@ -36,6 +36,7 @@ type DynamicIISConfig struct {
 	siteIDToName map[uint32]string
 }
 
+// NewDynamicIISConfig creates a new DynamicIISConfig
 func NewDynamicIISConfig() (*DynamicIISConfig, error) {
 	iiscfg := &DynamicIISConfig{
 		stopChannel: make(chan bool),
@@ -58,6 +59,7 @@ func NewDynamicIISConfig() (*DynamicIISConfig, error) {
 	return iiscfg, nil
 }
 
+// Start config watcher
 func (iiscfg *DynamicIISConfig) Start() error {
 	if iiscfg == nil {
 		return fmt.Errorf("Null config")
@@ -67,7 +69,7 @@ func (iiscfg *DynamicIISConfig) Start() error {
 	if err != nil {
 		return err
 	}
-	err = iiscfg.readXmlConfig()
+	err = iiscfg.readXMLConfig()
 	if err != nil {
 		return err
 	}
@@ -78,7 +80,7 @@ func (iiscfg *DynamicIISConfig) Start() error {
 			select {
 			case event := <-iiscfg.watcher.Events:
 				if event.Op&fsnotify.Write == fsnotify.Write {
-					_ = iiscfg.readXmlConfig()
+					_ = iiscfg.readXMLConfig()
 				}
 			case err = <-iiscfg.watcher.Errors:
 				return
@@ -91,6 +93,7 @@ func (iiscfg *DynamicIISConfig) Start() error {
 	return nil
 }
 
+// Stop config watcher
 func (iiscfg *DynamicIISConfig) Stop() {
 	iiscfg.stopChannel <- true
 	iiscfg.wg.Wait()
@@ -125,7 +128,7 @@ type iisConfiguration struct {
 	ApplicationHost iisSystemApplicationHost
 }
 
-func (iiscfg *DynamicIISConfig) readXmlConfig() error {
+func (iiscfg *DynamicIISConfig) readXMLConfig() error {
 	var newcfg iisConfiguration
 	f, err := os.ReadFile(iiscfg.path)
 	if err != nil {
@@ -151,7 +154,8 @@ func (iiscfg *DynamicIISConfig) readXmlConfig() error {
 	return nil
 }
 
-func (iiscfg *DynamicIISConfig) GetSiteNameFromId(id uint32) string {
+// GetSiteNameFromID looks up a site name by its site ID
+func (iiscfg *DynamicIISConfig) GetSiteNameFromID(id uint32) string {
 	if iiscfg == nil {
 		log.Warnf("GetSiteNameFromId %d NIL", id)
 		return ""

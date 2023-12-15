@@ -11,9 +11,11 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -24,6 +26,7 @@ type MockCollector struct {
 	SendCalledC chan bool
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func (c MockCollector) Send(ctx context.Context, s serializer.MetricSerializer) error {
 	c.SendCalledC <- true
 	return nil
@@ -33,6 +36,7 @@ type MockCollectorWithInit struct {
 	InitCalledC chan bool
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func (c MockCollectorWithInit) Send(ctx context.Context, s serializer.MetricSerializer) error {
 	return nil
 }
@@ -46,6 +50,7 @@ type mockCollectorWithFirstRun struct {
 	sendCalledC chan bool
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func (c mockCollectorWithFirstRun) Send(ctx context.Context, s serializer.MetricSerializer) error {
 	c.sendCalledC <- true
 	return nil
@@ -55,6 +60,7 @@ func (c mockCollectorWithFirstRun) FirstRunInterval() time.Duration {
 	return 2 * time.Second
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func mockNewTimer(d time.Duration) *time.Timer {
 	c := make(chan time.Time, 1)
 	timer := time.NewTimer(10 * time.Hour)
@@ -63,18 +69,14 @@ func mockNewTimer(d time.Duration) *time.Timer {
 	return timer
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func mockNewTimerNoTick(d time.Duration) *time.Timer {
 	return time.NewTimer(10 * time.Hour)
 }
 
 func TestNewScheduler(t *testing.T) {
-	enableFirstRunCollection = false
-	defer func() { enableFirstRunCollection = true }()
-
-	opts := aggregator.DefaultAgentDemultiplexerOptions()
-	opts.DontStartForwarders = true
-	deps := fxutil.Test[aggregator.AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
-	demux := aggregator.InitAndStartAgentDemultiplexerForTest(deps, opts, "hostname")
+	deps := buildDeps(t)
+	demux := deps.Demultiplexer
 
 	c := NewScheduler(demux)
 
@@ -82,11 +84,8 @@ func TestNewScheduler(t *testing.T) {
 }
 
 func TestStopScheduler(t *testing.T) {
-	enableFirstRunCollection = false
-	defer func() { enableFirstRunCollection = true }()
-	deps := fxutil.Test[aggregator.AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
-	demux := buildDemultiplexer(deps)
-	c := NewScheduler(demux)
+	deps := buildDeps(t)
+	c := NewScheduler(deps.Demultiplexer)
 
 	mockCollector := MockCollector{}
 	RegisterCollector("test", mockCollector)
@@ -100,18 +99,14 @@ func TestStopScheduler(t *testing.T) {
 }
 
 func TestAddCollector(t *testing.T) {
-	enableFirstRunCollection = false
-	defer func() { enableFirstRunCollection = true }()
-
 	newTimer = mockNewTimer
 	defer func() { newTimer = time.NewTimer }()
 
 	mockCollector := &MockCollector{
 		SendCalledC: make(chan bool),
 	}
-	deps := fxutil.Test[aggregator.AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
-	demux := buildDemultiplexer(deps)
-	c := NewScheduler(demux)
+	deps := buildDeps(t)
+	c := NewScheduler(deps.Demultiplexer)
 
 	RegisterCollector("testCollector", mockCollector)
 
@@ -137,16 +132,12 @@ func TestAddCollector(t *testing.T) {
 }
 
 func TestAddCollectorWithInit(t *testing.T) {
-	enableFirstRunCollection = false
-	defer func() { enableFirstRunCollection = true }()
-
 	mockCollectorWithInit := &MockCollectorWithInit{
 		InitCalledC: make(chan bool, 1),
 	}
 
-	deps := fxutil.Test[aggregator.AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
-	demux := buildDemultiplexer(deps)
-	c := NewScheduler(demux)
+	deps := buildDeps(t)
+	c := NewScheduler(deps.Demultiplexer)
 
 	RegisterCollector("testCollectorWithInit", mockCollectorWithInit)
 
@@ -172,16 +163,12 @@ func TestAddCollectorWithInit(t *testing.T) {
 }
 
 func TestAddCollectorWithFirstRun(t *testing.T) {
-	enableFirstRunCollection = false
-	defer func() { enableFirstRunCollection = true }()
-
 	mockCollector := &mockCollectorWithFirstRun{
 		sendCalledC: make(chan bool, 1),
 	}
 
-	deps := fxutil.Test[aggregator.AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
-	demux := buildDemultiplexer(deps)
-	c := NewScheduler(demux)
+	deps := buildDeps(t)
+	c := NewScheduler(deps.Demultiplexer)
 
 	RegisterCollector("testCollectorWithFirstRun", mockCollector)
 
@@ -201,9 +188,6 @@ func TestAddCollectorWithFirstRun(t *testing.T) {
 }
 
 func TestTriggerAndResetCollectorTimer(t *testing.T) {
-	enableFirstRunCollection = false
-	defer func() { enableFirstRunCollection = true }()
-
 	newTimer = mockNewTimerNoTick
 	defer func() { newTimer = time.NewTimer }()
 
@@ -211,8 +195,8 @@ func TestTriggerAndResetCollectorTimer(t *testing.T) {
 		SendCalledC: make(chan bool),
 	}
 
-	deps := fxutil.Test[aggregator.AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
-	demux := buildDemultiplexer(deps)
+	deps := buildDeps(t)
+	demux := deps.Demultiplexer
 	defer demux.Stop(false)
 	c := NewScheduler(demux)
 
@@ -242,10 +226,13 @@ func TestTriggerAndResetCollectorTimer(t *testing.T) {
 
 }
 
-func buildDemultiplexer(deps aggregator.AggregatorTestDeps) aggregator.Demultiplexer {
+type deps struct {
+	fx.In
+	Demultiplexer demultiplexer.Component
+}
+
+func buildDeps(t *testing.T) deps {
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
-	demux := aggregator.InitAndStartAgentDemultiplexerForTest(deps, opts, "hostname")
-
-	return demux
+	return fxutil.Test[deps](t, defaultforwarder.MockModule(), config.MockModule(), logimpl.MockModule(), demultiplexer.MockModule())
 }

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(SERV) Fix revive linter
 package invocationlifecycle
 
 const (
@@ -21,6 +22,15 @@ const (
 	// InvocationErrorHeader : if set to "true", the extension will know that the current invocation has failed
 	// used in /lambda/end-invocation
 	InvocationErrorHeader = "x-datadog-invocation-error"
+
+	// InvocationErrorMsgHeader is the error message captured by the tracer
+	InvocationErrorMsgHeader = "x-datadog-invocation-error-msg"
+
+	// InvocationErrorTypeHeader is the error type captured by the tracer
+	InvocationErrorTypeHeader = "x-datadog-invocation-error-type"
+
+	// InvocationErrorStackHeader is the stack trace captured by the tracer
+	InvocationErrorStackHeader = "x-datadog-invocation-error-stack"
 
 	// SamplingPriorityHeader is the header containing the sampling priority for execution and/or inferred spans
 	SamplingPriorityHeader = "x-datadog-sampling-priority"

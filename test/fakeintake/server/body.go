@@ -5,6 +5,12 @@
 
 package server
 
+import (
+	"net/http"
+
+	agentmodel "github.com/DataDog/agent-payload/v5/process"
+)
+
 type errorResponseBody struct {
 	Errors []string `json:"errors"`
 }
@@ -15,15 +21,45 @@ type flareResponseBody struct {
 	Error  string `json:"error,omitempty"`
 }
 
-// getResponseBodyFromURLPath returns the appropriate response body to HTTP request sent to 'urlPath'
-func getResponseBodyFromURLPath(urlPath string) interface{} {
-	var body interface{}
+// defaultResponse is the default response returned by the fakeintake server
+var defaultResponse httpResponse
 
-	if urlPath == "/support/flare" {
-		body = flareResponseBody{CaseID: 0, Error: ""}
-	} else {
-		body = errorResponseBody{Errors: []string{}}
+func getConnectionsResponse() []byte {
+	clStatus := &agentmodel.CollectorStatus{
+		ActiveClients: 1,
+		Interval:      30,
 	}
+	response := &agentmodel.ResCollector{
+		Message: "",
+		Status:  clStatus,
+	}
+	out, err := agentmodel.EncodeMessage(agentmodel.Message{
+		Header: agentmodel.MessageHeader{
+			Version:        agentmodel.MessageV3,
+			Encoding:       agentmodel.MessageEncodingProtobuf,
+			Type:           agentmodel.TypeResCollector,
+			OrgID:          503,
+			SubscriptionID: 2,
+		}, Body: response})
+	if err != nil {
+		panic(err) // will happen when new Message version exist and mark encodeV3 as retired
+	}
+	return out
+}
 
-	return body
+// newResponseOverrides creates and returns a map of URL paths to HTTP responses populated with
+// static custom response overrides
+func newResponseOverrides() map[string]httpResponse {
+	return map[string]httpResponse{
+		"/support/flare": updateResponseFromData(httpResponse{
+			statusCode:  http.StatusOK,
+			contentType: "application/json",
+			data:        flareResponseBody{CaseID: 0, Error: ""},
+		}),
+		"/api/v1/connections": updateResponseFromData(httpResponse{
+			statusCode:  http.StatusOK,
+			contentType: "application/x-protobuf",
+			data:        getConnectionsResponse(),
+		}),
+	}
 }

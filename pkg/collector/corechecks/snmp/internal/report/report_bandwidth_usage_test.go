@@ -7,15 +7,17 @@ package report
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
 
@@ -26,17 +28,18 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 	}
 	tests := []struct {
 		name             string
-		symbols          []checkconfig.SymbolConfig
+		symbols          []profiledefinition.SymbolConfig
 		fullIndex        string
 		values           *valuestore.ResultValueStore
 		tags             []string
 		interfaceConfigs []snmpintegration.InterfaceConfig
 		expectedMetric   []Metric
 		expectedError    error
+		rateMap          InterfaceBandwidthState
 	}{
 		{
 			name:      "snmp.ifBandwidthInUsage.Rate submitted",
-			symbols:   []checkconfig.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"}},
+			symbols:   []profiledefinition.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"}},
 			fullIndex: "9",
 			tags:      []string{"abc"},
 			values: &valuestore.ResultValueStore{
@@ -62,13 +65,19 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 				},
 			},
 			expectedMetric: []Metric{
+				// current usage value @ ts 30
 				// ((5000000 * 8) / (80 * 1000000)) * 100 = 50.0
-				{"snmp.ifBandwidthInUsage.rate", 50.0},
+				// previous usage value @ ts 15
+				// ((3000000 * 8) / (80 * 1000000)) * 100 = 30.0
+				// rate generated between ts 15 and 30
+				// (50 - 30) / (30 - 15)
+				{"snmp.ifBandwidthInUsage.rate", 20.0 / 15.0},
 			},
+			rateMap: interfaceRateMapWithPrevious(),
 		},
 		{
 			name:      "snmp.ifBandwidthOutUsage.Rate submitted",
-			symbols:   []checkconfig.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.10", Name: "ifHCOutOctets"}},
+			symbols:   []profiledefinition.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.10", Name: "ifHCOutOctets"}},
 			fullIndex: "9",
 			values: &valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{
@@ -93,22 +102,29 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 				},
 			},
 			expectedMetric: []Metric{
+				// current usage value @ ts 30
 				// ((1000000 * 8) / (80 * 1000000)) * 100 = 10.0
-				{"snmp.ifBandwidthOutUsage.rate", 10.0},
+				// previous usage value @ ts 15
+				// ((500000 * 8) / (80 * 1000000)) * 100 = 5.0
+				// rate generated between ts 15 and 30
+				// (10 - 5) / (30 - 15)
+				{"snmp.ifBandwidthOutUsage.rate", 5.0 / 15.0},
 			},
+			rateMap: interfaceRateMapWithPrevious(),
 		},
 		{
 			name:      "not a bandwidth metric",
-			symbols:   []checkconfig.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.99", Name: "notABandwidthMetric"}},
+			symbols:   []profiledefinition.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.99", Name: "notABandwidthMetric"}},
 			fullIndex: "9",
 			values: &valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{},
 			},
 			expectedMetric: []Metric{},
+			rateMap:        interfaceRateMapWithPrevious(),
 		},
 		{
 			name:      "missing ifHighSpeed",
-			symbols:   []checkconfig.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"}},
+			symbols:   []profiledefinition.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"}},
 			fullIndex: "9",
 			values: &valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{
@@ -128,10 +144,11 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			},
 			expectedMetric: []Metric{},
 			expectedError:  fmt.Errorf("bandwidth usage: missing `ifHighSpeed` metric, skipping metric. fullIndex=9"),
+			rateMap:        interfaceRateMapWithPrevious(),
 		},
 		{
 			name:      "missing ifHCInOctets",
-			symbols:   []checkconfig.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"}},
+			symbols:   []profiledefinition.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"}},
 			fullIndex: "9",
 			values: &valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{
@@ -151,10 +168,11 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			},
 			expectedMetric: []Metric{},
 			expectedError:  fmt.Errorf("bandwidth usage: missing `ifHCInOctets` metric, skipping this row. fullIndex=9"),
+			rateMap:        interfaceRateMapWithPrevious(),
 		},
 		{
 			name:      "missing ifHCOutOctets",
-			symbols:   []checkconfig.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCOutOctets"}},
+			symbols:   []profiledefinition.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCOutOctets"}},
 			fullIndex: "9",
 			values: &valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{
@@ -177,7 +195,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 		},
 		{
 			name:      "missing ifHCInOctets value",
-			symbols:   []checkconfig.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"}},
+			symbols:   []profiledefinition.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"}},
 			fullIndex: "9",
 			values: &valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{
@@ -206,7 +224,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 		},
 		{
 			name:      "missing ifHighSpeed value",
-			symbols:   []checkconfig.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"}},
+			symbols:   []profiledefinition.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"}},
 			fullIndex: "9",
 			values: &valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{
@@ -235,7 +253,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 		},
 		{
 			name:      "cannot convert ifHighSpeed to float",
-			symbols:   []checkconfig.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"}},
+			symbols:   []profiledefinition.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"}},
 			fullIndex: "9",
 			values: &valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{
@@ -264,7 +282,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 		},
 		{
 			name:      "cannot convert ifHCInOctets to float",
-			symbols:   []checkconfig.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"}},
+			symbols:   []profiledefinition.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"}},
 			fullIndex: "9",
 			values: &valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{
@@ -293,7 +311,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 		},
 		{
 			name: "[custom speed] snmp.ifBandwidthIn/OutUsage.rate with custom interface speed matched by name",
-			symbols: []checkconfig.SymbolConfig{
+			symbols: []profiledefinition.SymbolConfig{
 				{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 				{OID: "1.3.6.1.2.1.31.1.1.1.10", Name: "ifHCOutOctets"},
 			},
@@ -334,14 +352,19 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			},
 			expectedMetric: []Metric{
 				// ((5000000 * 8) / (160 * 1000000)) * 100 = 25.0
-				{"snmp.ifBandwidthInUsage.rate", 25.0},
+				// previous sample's usage value from map: 20
+				// rate: (25 - 20) / (30 - 15)
+				{"snmp.ifBandwidthInUsage.rate", 5.0 / 15.0},
 				// ((1000000 * 8) / (40 * 1000000)) * 100 = 20.0
-				{"snmp.ifBandwidthOutUsage.rate", 20.0},
+				// previous sample's usage value from map: 10
+				// rate: (20 - 10) / (30 / 15)
+				{"snmp.ifBandwidthOutUsage.rate", 10.0 / 15.0},
 			},
+			rateMap: interfaceRateMapWithConfig(),
 		},
 		{
 			name: "[custom speed] snmp.ifBandwidthIn/OutUsage.rate with custom interface speed matched by index",
-			symbols: []checkconfig.SymbolConfig{
+			symbols: []profiledefinition.SymbolConfig{
 				{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 				{OID: "1.3.6.1.2.1.31.1.1.1.10", Name: "ifHCOutOctets"},
 			},
@@ -382,20 +405,29 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			},
 			expectedMetric: []Metric{
 				// ((5000000 * 8) / (160 * 1000000)) * 100 = 25.0
-				{"snmp.ifBandwidthInUsage.rate", 25.0},
+				// previous sample's usage value: 20
+				// rate: (25 - 20) / (30 - 15)
+				{"snmp.ifBandwidthInUsage.rate", 5.0 / 15.0},
 				// ((1000000 * 8) / (40 * 1000000)) * 100 = 20.0
-				{"snmp.ifBandwidthOutUsage.rate", 20.0},
+				// previous sample's usage value: 10
+				// rate: (20 - 10) / (30 / 15)
+				{"snmp.ifBandwidthOutUsage.rate", 10.0 / 15.0},
 			},
+			rateMap: interfaceRateMapWithConfig(),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 			sender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
+			TimeNow = common.MockTimeNow
+
 			ms := &MetricSender{
-				sender:           sender,
-				interfaceConfigs: tt.interfaceConfigs,
+				sender:                  sender,
+				interfaceConfigs:        tt.interfaceConfigs,
+				interfaceBandwidthState: tt.rateMap,
 			}
 			for _, symbol := range tt.symbols {
 				err := ms.sendBandwidthUsageMetric(symbol, tt.fullIndex, tt.values, tt.tags)
@@ -403,7 +435,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			}
 
 			for _, metric := range tt.expectedMetric {
-				sender.AssertMetric(t, "Rate", metric.name, metric.value, "", tt.tags)
+				sender.AssertMetric(t, "Gauge", metric.name, metric.value, "", tt.tags)
 			}
 		})
 	}
@@ -417,7 +449,7 @@ func Test_metricSender_sendIfSpeedMetrics(t *testing.T) {
 	}
 	tests := []struct {
 		name             string
-		symbol           checkconfig.SymbolConfig
+		symbol           profiledefinition.SymbolConfig
 		fullIndex        string
 		values           *valuestore.ResultValueStore
 		tags             []string
@@ -426,7 +458,7 @@ func Test_metricSender_sendIfSpeedMetrics(t *testing.T) {
 	}{
 		{
 			name:      "InSpeed and OutSpeed Override",
-			symbol:    checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
+			symbol:    profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			fullIndex: "9",
 			interfaceConfigs: []snmpintegration.InterfaceConfig{{
 				MatchField: "index",
@@ -452,7 +484,7 @@ func Test_metricSender_sendIfSpeedMetrics(t *testing.T) {
 		},
 		{
 			name:      "InSpeed and OutSpeed Override with custom tags",
-			symbol:    checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
+			symbol:    profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			fullIndex: "9",
 			interfaceConfigs: []snmpintegration.InterfaceConfig{{
 				MatchField: "index",
@@ -479,7 +511,7 @@ func Test_metricSender_sendIfSpeedMetrics(t *testing.T) {
 		},
 		{
 			name:      "InSpeed Override but not OutSpeed Override",
-			symbol:    checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
+			symbol:    profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			fullIndex: "9",
 			interfaceConfigs: []snmpintegration.InterfaceConfig{{
 				MatchField: "index",
@@ -504,7 +536,7 @@ func Test_metricSender_sendIfSpeedMetrics(t *testing.T) {
 		},
 		{
 			name:      "InSpeed and OutSpeed config with zero values",
-			symbol:    checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
+			symbol:    profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			fullIndex: "9",
 			interfaceConfigs: []snmpintegration.InterfaceConfig{{
 				MatchField: "index",
@@ -529,7 +561,7 @@ func Test_metricSender_sendIfSpeedMetrics(t *testing.T) {
 		},
 		{
 			name:             "no interface config found",
-			symbol:           checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
+			symbol:           profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			fullIndex:        "9",
 			interfaceConfigs: []snmpintegration.InterfaceConfig{},
 			values: &valuestore.ResultValueStore{
@@ -549,7 +581,7 @@ func Test_metricSender_sendIfSpeedMetrics(t *testing.T) {
 		},
 		{
 			name:             "no interface config found and no ifHighSpeed",
-			symbol:           checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
+			symbol:           profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			fullIndex:        "9",
 			interfaceConfigs: []snmpintegration.InterfaceConfig{},
 			values:           &valuestore.ResultValueStore{},
@@ -562,8 +594,9 @@ func Test_metricSender_sendIfSpeedMetrics(t *testing.T) {
 			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 			ms := &MetricSender{
-				sender:           sender,
-				interfaceConfigs: tt.interfaceConfigs,
+				sender:                  sender,
+				interfaceConfigs:        tt.interfaceConfigs,
+				interfaceBandwidthState: MakeInterfaceBandwidthState(),
 			}
 			ms.sendIfSpeedMetrics(tt.symbol, tt.fullIndex, tt.values, tt.tags)
 
@@ -583,14 +616,14 @@ func Test_metricSender_sendInterfaceVolumeMetrics(t *testing.T) {
 	}
 	tests := []struct {
 		name           string
-		symbol         checkconfig.SymbolConfig
+		symbol         profiledefinition.SymbolConfig
 		fullIndex      string
 		values         *valuestore.ResultValueStore
 		expectedMetric []Metric
 	}{
 		{
 			"snmp.ifBandwidthInUsage.Rate submitted",
-			checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
+			profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			"9",
 			&valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{
@@ -615,15 +648,14 @@ func Test_metricSender_sendInterfaceVolumeMetrics(t *testing.T) {
 				},
 			},
 			[]Metric{
-				// ((5000000 * 8) / (80 * 1000000)) * 100 = 50.0
-				{"Rate", "snmp.ifBandwidthInUsage.rate", 50.0},
+				{"Gauge", "snmp.ifBandwidthInUsage.rate", 20.0 / 15.0},
 				{"Gauge", "snmp.ifInSpeed", 80_000_000},
 				{"Gauge", "snmp.ifOutSpeed", 80_000_000},
 			},
 		},
 		{
 			"should complete even on error",
-			checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
+			profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			"9",
 			&valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{
@@ -656,8 +688,10 @@ func Test_metricSender_sendInterfaceVolumeMetrics(t *testing.T) {
 			sender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
+			TimeNow = common.MockTimeNow
 			ms := &MetricSender{
-				sender: sender,
+				sender:                  sender,
+				interfaceBandwidthState: interfaceRateMapWithPrevious(),
 			}
 			tags := []string{"foo:bar"}
 			ms.sendInterfaceVolumeMetrics(tt.symbol, tt.fullIndex, tt.values, tags)

@@ -149,7 +149,7 @@ int hook_do_dentry_open(ctx_t *ctx) {
     struct file *file = (struct file *)CTX_PARM1(ctx);
     struct inode *inode = (struct inode *)CTX_PARM2(ctx);
 
-    return handle_exec_event(ctx, syscall, file, &file->f_path, inode);
+    return handle_exec_event(ctx, syscall, file, get_file_f_path_addr(file), inode);
 }
 
 int __attribute__((always_inline)) trace_io_openat(ctx_t *ctx) {
@@ -300,7 +300,7 @@ int __attribute__((always_inline)) dr_open_callback(void *ctx) {
         .mode = syscall->open.mode,
     };
 
-    fill_file_metadata(syscall->open.dentry, &event.file.metadata);
+    fill_file(syscall->open.dentry, &event.file);
     struct proc_cache_t *entry;
     if (syscall->open.pid_tgid != 0) {
         entry = fill_process_context_with_pid_tgid(&event.process, syscall->open.pid_tgid);

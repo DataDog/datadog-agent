@@ -14,13 +14,13 @@ import (
 )
 
 func TestCORETelemetry(t *testing.T) {
-	StoreCORETelemetryForAsset("exampleAsset1", successCustomBTF)
-	StoreCORETelemetryForAsset("exampleAsset2", VerifierError)
+	storeCORETelemetryForAsset("exampleAsset1", COREResult(successCustomBTF))
+	storeCORETelemetryForAsset("exampleAsset2", verifierError)
 
 	actual := GetCORETelemetryByAsset()
 	expected := map[string]int32{
 		"exampleAsset1": int32(successCustomBTF),
-		"exampleAsset2": int32(VerifierError),
+		"exampleAsset2": int32(verifierError),
 	}
 
 	assert.Equal(t, expected, actual)

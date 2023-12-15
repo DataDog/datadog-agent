@@ -36,7 +36,7 @@ func TestChooseSyscall(t *testing.T) {
 	tp, err := c.ChooseSyscallProbe("tracepoint/syscalls/sys_enter_bind", "kprobe/sys_bind/x64", "kprobe/sys_bind")
 	require.NoError(t, err)
 
-	fnName, err := manager.GetSyscallFnName("sys_bind")
+	fnName, err := manager.GetSyscallFnName("bind")
 	require.NoError(t, err)
 
 	// intentionally leaving amd64/arm64 explicit to ensure they are included in the prefix map

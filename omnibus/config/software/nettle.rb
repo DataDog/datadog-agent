@@ -15,13 +15,13 @@
 #
 
 name "nettle"
-default_version "3.8.1"
+default_version "3.9.1"
 
 license "LGPL-3.0-or-later"
 license_file "COPYING.LESSERv3"
 skip_transitive_dependency_licensing true
 
-version("3.8.1") { source sha256: "364f3e2b77cd7dcde83fd7c45219c834e54b0c75e428b6f894a23d12dd41cbfe" }
+version("3.9.1") { source sha256: "ccfeff981b0ca71bbd6fbcb054f407c60ffb644389a5be80d6716d5b550c6ce3" }
 
 ship_source_offer true
 

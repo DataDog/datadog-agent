@@ -39,8 +39,8 @@ func TestIdentifyRandomString(t *testing.T) {
 }
 
 func TestParseTags(t *testing.T) {
-	cfg := fxutil.Test[config.Component](t, config.MockModule)
-	p := newParser(cfg, newFloat64ListPool())
+	cfg := fxutil.Test[config.Component](t, config.MockModule())
+	p := newParser(cfg, newFloat64ListPool(), 1)
 	rawTags := []byte("tag:test,mytag,good:boy")
 	tags := p.parseTags(rawTags)
 	expectedTags := []string{"tag:test", "mytag", "good:boy"}
@@ -48,8 +48,8 @@ func TestParseTags(t *testing.T) {
 }
 
 func TestParseTagsEmpty(t *testing.T) {
-	cfg := fxutil.Test[config.Component](t, config.MockModule)
-	p := newParser(cfg, newFloat64ListPool())
+	cfg := fxutil.Test[config.Component](t, config.MockModule())
+	p := newParser(cfg, newFloat64ListPool(), 1)
 	rawTags := []byte("")
 	tags := p.parseTags(rawTags)
 	assert.Nil(t, tags)
@@ -67,8 +67,8 @@ func TestUnsafeParseFloat(t *testing.T) {
 }
 
 func TestUnsafeParseFloatList(t *testing.T) {
-	cfg := fxutil.Test[config.Component](t, config.MockModule)
-	p := newParser(cfg, newFloat64ListPool())
+	cfg := fxutil.Test[config.Component](t, config.MockModule())
+	p := newParser(cfg, newFloat64ListPool(), 1)
 	unsafeFloats, err := p.parseFloat64List([]byte("1.1234:21.5:13"))
 	assert.NoError(t, err)
 	assert.Len(t, unsafeFloats, 3)

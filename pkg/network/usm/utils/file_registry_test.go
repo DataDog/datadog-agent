@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux
 
 package utils
 
@@ -25,7 +25,8 @@ func TestRegister(t *testing.T) {
 	registerRecorder := new(CallbackRecorder)
 
 	path, pathID := createTempTestFile(t, "foobar")
-	cmd := testutil.OpenFromAnotherProcess(t, path)
+	cmd, err := testutil.OpenFromAnotherProcess(t, path)
+	require.NoError(t, err)
 	pid := uint32(cmd.Process.Pid)
 
 	r := newFileRegistry()
@@ -46,8 +47,10 @@ func TestMultiplePIDsSharingSameFile(t *testing.T) {
 	r := newFileRegistry()
 	path, pathID := createTempTestFile(t, "foobar")
 
-	cmd1 := testutil.OpenFromAnotherProcess(t, path)
-	cmd2 := testutil.OpenFromAnotherProcess(t, path)
+	cmd1, err := testutil.OpenFromAnotherProcess(t, path)
+	require.NoError(t, err)
+	cmd2, err := testutil.OpenFromAnotherProcess(t, path)
+	require.NoError(t, err)
 
 	pid1 := uint32(cmd1.Process.Pid)
 	pid2 := uint32(cmd2.Process.Pid)
@@ -92,7 +95,8 @@ func TestRepeatedRegistrationsFromSamePID(t *testing.T) {
 
 	r := newFileRegistry()
 	path, pathID := createTempTestFile(t, "foobar")
-	cmd := testutil.OpenFromAnotherProcess(t, path)
+	cmd, err := testutil.OpenFromAnotherProcess(t, path)
+	require.NoError(t, err)
 	pid := uint32(cmd.Process.Pid)
 
 	r.Register(path, pid, registerCallback, unregisterCallback)
@@ -114,7 +118,8 @@ func TestFailedRegistration(t *testing.T) {
 
 	r := newFileRegistry()
 	path, pathID := createTempTestFile(t, "foobar")
-	cmd := testutil.OpenFromAnotherProcess(t, path)
+	cmd, err := testutil.OpenFromAnotherProcess(t, path)
+	require.NoError(t, err)
 	pid := uint32(cmd.Process.Pid)
 
 	r.Register(path, pid, registerCallback, IgnoreCB)
@@ -140,7 +145,8 @@ func TestFilePathInCallbackArgument(t *testing.T) {
 	}
 
 	path, _ := createTempTestFile(t, "foobar")
-	cmd := testutil.OpenFromAnotherProcess(t, path)
+	cmd, err := testutil.OpenFromAnotherProcess(t, path)
+	require.NoError(t, err)
 	pid := cmd.Process.Pid
 
 	r := newFileRegistry()

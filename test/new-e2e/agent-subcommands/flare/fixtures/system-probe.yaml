@@ -1,6 +1,0 @@
-# This configuration goal is to enable system-probe in order to have the following files in the flare:
-#
-# ./etc/system-probe.yaml
-# ./logs/system-probe.log
-# ./expvar/system-probe
-system_probe_config.enabled: true

@@ -40,7 +40,7 @@ func TestDebuggerProxy(t *testing.T) {
 	conf.Hostname = "myhost"
 	conf.DebuggerProxy.DDURL = srv.URL
 	receiver := newTestReceiverFromConfig(conf)
-	receiver.debuggerProxyHandler().ServeHTTP(rec, req)
+	receiver.debuggerLogsProxyHandler().ServeHTTP(rec, req)
 	result := rec.Result()
 	slurp, err := io.ReadAll(result.Body)
 	result.Body.Close()
@@ -64,7 +64,26 @@ func TestDebuggerProxyHandler(t *testing.T) {
 		conf.Hostname = "myhost"
 		conf.DebuggerProxy.DDURL = srv.URL
 		receiver := newTestReceiverFromConfig(conf)
-		receiver.debuggerProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
+		receiver.debuggerLogsProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
+		assert.True(t, called, "request not proxied")
+	})
+
+	t.Run("ok_diagnostics_proxy", func(t *testing.T) {
+		var called bool
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			ddtags := req.URL.Query().Get("ddtags")
+			assert.False(t, strings.Contains(ddtags, "orchestrator"), "ddtags should not contain orchestrator: %v", ddtags)
+			assert.Equal(t, "host:myhost,default_env:test,agent_version:v1", ddtags)
+			called = true
+		}))
+		defer srv.Close()
+		req, err := http.NewRequest("POST", "/some/path", nil)
+		assert.NoError(t, err)
+		conf := getConf()
+		conf.Hostname = "myhost"
+		conf.DebuggerDiagnosticsProxy.DDURL = srv.URL
+		receiver := newTestReceiverFromConfig(conf)
+		receiver.debuggerDiagnosticsProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
 		assert.True(t, called, "request not proxied")
 	})
 
@@ -85,7 +104,7 @@ func TestDebuggerProxyHandler(t *testing.T) {
 		conf.Hostname = "myhost"
 		conf.DebuggerProxy.DDURL = srv.URL
 		receiver := newTestReceiverFromConfig(conf)
-		receiver.debuggerProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
+		receiver.debuggerLogsProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
 		assert.True(t, called, "request not proxied")
 	})
 
@@ -105,7 +124,7 @@ func TestDebuggerProxyHandler(t *testing.T) {
 		conf.Hostname = "myhost"
 		conf.DebuggerProxy.DDURL = srv.URL
 		receiver := newTestReceiverFromConfig(conf)
-		handler := receiver.debuggerProxyHandler()
+		handler := receiver.debuggerLogsProxyHandler()
 		handler.ServeHTTP(httptest.NewRecorder(), req)
 		handler.ServeHTTP(httptest.NewRecorder(), req)
 		var expected atomic.Int32
@@ -128,7 +147,7 @@ func TestDebuggerProxyHandler(t *testing.T) {
 		conf.FargateOrchestrator = "orchestrator"
 		conf.DebuggerProxy.DDURL = srv.URL
 		receiver := newTestReceiverFromConfig(conf)
-		receiver.debuggerProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
+		receiver.debuggerLogsProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
 		assert.True(t, called, "request not proxied")
 	})
 
@@ -139,7 +158,7 @@ func TestDebuggerProxyHandler(t *testing.T) {
 		conf := newTestReceiverConfig()
 		conf.Site = "asd:\r\n"
 		r := newTestReceiverFromConfig(conf)
-		r.debuggerProxyHandler().ServeHTTP(rec, req)
+		r.debuggerLogsProxyHandler().ServeHTTP(rec, req)
 		res := rec.Result()
 		assert.Equal(t, http.StatusInternalServerError, res.StatusCode, "invalid response: %s", res.Status)
 		slurp, err := io.ReadAll(res.Body)
@@ -174,7 +193,7 @@ func TestDebuggerProxyHandler(t *testing.T) {
 		req, err := http.NewRequest("POST", "/some/path", strings.NewReader("body"))
 		assert.NoError(t, err)
 		receiver := newTestReceiverFromConfig(conf)
-		receiver.debuggerProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
+		receiver.debuggerLogsProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
 		var expected atomic.Int32
 		expected.Store(int32(numEndpoints))
 		assert.Equal(t, expected, numCalls, "requests not proxied, expected %d calls, got %d", numEndpoints, numCalls)
@@ -210,7 +229,7 @@ func TestDebuggerProxyHandler(t *testing.T) {
 		assert.NoError(t, err)
 		receiver := newTestReceiverFromConfig(conf)
 		recorder := httptest.NewRecorder()
-		receiver.debuggerProxyHandler().ServeHTTP(recorder, req)
+		receiver.debuggerLogsProxyHandler().ServeHTTP(recorder, req)
 		result := recorder.Result()
 		result.Body.Close()
 		assert.Equal(t, 500, result.StatusCode)
@@ -247,7 +266,7 @@ func TestDebuggerProxyHandler(t *testing.T) {
 		assert.NoError(t, err)
 		receiver := newTestReceiverFromConfig(conf)
 		recorder := httptest.NewRecorder()
-		receiver.debuggerProxyHandler().ServeHTTP(recorder, req)
+		receiver.debuggerLogsProxyHandler().ServeHTTP(recorder, req)
 		result := recorder.Result()
 		result.Body.Close()
 		assert.Equal(t, 200, result.StatusCode)

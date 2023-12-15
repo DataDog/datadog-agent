@@ -14,43 +14,55 @@ import (
 
 	"github.com/docker/docker/client"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
 	collectorName = "docker"
 )
 
+// ScanRequest defines a scan request
 type ScanRequest struct {
 	ImageMeta    *workloadmeta.ContainerImageMetadata
 	DockerClient client.ImageAPIClient
 }
 
+// GetImgMetadata returns the image metadata
+func (r *ScanRequest) GetImgMetadata() *workloadmeta.ContainerImageMetadata {
+	return r.ImageMeta
+}
+
+// Collector returns the collector name
 func (r *ScanRequest) Collector() string {
 	return collectorName
 }
 
+// Type returns the scan request type
 func (r *ScanRequest) Type() string {
 	return "daemon"
 }
 
+// ID returns the scan request ID
 func (r *ScanRequest) ID() string {
 	return r.ImageMeta.ID
 }
 
+// Collector defines a collector
 type Collector struct {
 	trivyCollector *trivy.Collector
 }
 
+// CleanCache cleans the cache
 func (c *Collector) CleanCache() error {
-	return c.trivyCollector.GetCacheCleaner().Clean()
+	return c.trivyCollector.CleanCache()
 }
 
+// Init initializes the collector
 func (c *Collector) Init(cfg config.Config) error {
 	trivyCollector, err := trivy.GetGlobalCollector(cfg)
 	if err != nil {
@@ -60,6 +72,7 @@ func (c *Collector) Init(cfg config.Config) error {
 	return nil
 }
 
+// Scan performs a scan
 func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest, opts sbom.ScanOptions) sbom.ScanResult {
 	dockerScanRequest, ok := request.(*ScanRequest)
 	if !ok {

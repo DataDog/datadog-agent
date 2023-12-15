@@ -8,33 +8,15 @@ package core
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestBundleDependencies(t *testing.T) {
-	require.NoError(t, fx.ValidateApp(
-		// instantiate all of the core components, since this is not done
-		// automatically.
-		fx.Invoke(func(config.Component) {}),
-		fx.Invoke(func(log.Component) {}),
-
-		fx.Supply(BundleParams{}),
-		Bundle))
+	fxutil.TestBundle(t, Bundle(), fx.Supply(BundleParams{}))
 }
 
 func TestMockBundleDependencies(t *testing.T) {
-	require.NoError(t, fx.ValidateApp(
-		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
-
-		// instantiate all of the core components, since this is not done
-		// automatically.
-		fx.Invoke(func(config.Component) {}),
-		fx.Invoke(func(log.Component) {}),
-
-		fx.Supply(BundleParams{}),
-		MockBundle))
+	fxutil.TestBundle(t, MockBundle(), fx.Supply(BundleParams{}))
 }

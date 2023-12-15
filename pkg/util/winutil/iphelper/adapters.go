@@ -21,6 +21,9 @@ var (
 	procGetAdaptersAddresses = modiphelper.NewProc("GetAdaptersAddresses")
 )
 
+// IPAdapterUnicastAddress is a Go approximation of IP_ADAPTER_UNICAST_ADDRESS_LH
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/iptypes/ns-iptypes-ip_adapter_unicast_address_lh
 type IPAdapterUnicastAddress struct {
 	Flags   uint32
 	Address net.IP
@@ -44,10 +47,12 @@ type ipAdapterUnicastAddress struct {
 	address socketAddress
 }
 
-// IpAdapterAddressesLh is a go adaptation of the C structure IP_ADAPTER_ADDRESSES_LH
+// IPAdapterAddressesLh is a go adaptation of the C structure IP_ADAPTER_ADDRESSES_LH
 // it is a go adaptation, rather than a matching structure, because the real structure
 // is difficult to approximate in Go.
-type IpAdapterAddressesLh struct {
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/iptypes/ns-iptypes-ip_adapter_addresses_lh
+type IPAdapterAddressesLh struct {
 	Index            uint32
 	AdapterName      string
 	UnicastAddresses []IPAdapterUnicastAddress
@@ -63,7 +68,7 @@ type ipAdapterAddresses struct {
 
 // GetAdaptersAddresses returns a map of all of the adapters, indexed by
 // interface index
-func GetAdaptersAddresses() (table map[uint32]IpAdapterAddressesLh, err error) {
+func GetAdaptersAddresses() (table map[uint32]IPAdapterAddressesLh, err error) {
 	size := uint32(15 * 1024)
 	rawbuf := make([]byte, size)
 
@@ -106,10 +111,10 @@ func GetAdaptersAddresses() (table map[uint32]IpAdapterAddressesLh, err error) {
 			// more fields follow which we're not using
 	*/
 	var addr *ipAdapterAddresses
-	table = make(map[uint32]IpAdapterAddressesLh)
+	table = make(map[uint32]IPAdapterAddressesLh)
 	addr = (*ipAdapterAddresses)(unsafe.Pointer(&rawbuf[0]))
 	for addr != nil {
-		var entry IpAdapterAddressesLh
+		var entry IPAdapterAddressesLh
 		entry.Index = addr.ifIndex
 		entry.AdapterName = C.GoString((*C.char)(addr.adapterName))
 

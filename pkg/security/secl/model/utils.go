@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package model holds model related files
 package model
 
 import (
@@ -21,10 +22,10 @@ func SliceToArray(src []byte, dst []byte) {
 // UnmarshalStringArray extract array of string for array of byte
 func UnmarshalStringArray(data []byte) ([]string, error) {
 	var result []string
-	len := uint32(len(data))
+	length := uint32(len(data))
 
-	for i := uint32(0); i < len; {
-		if i+4 >= len {
+	for i := uint32(0); i < length; {
+		if i+4 >= length {
 			return result, ErrStringArrayOverflow
 		}
 		// size of arg
@@ -34,9 +35,9 @@ func UnmarshalStringArray(data []byte) ([]string, error) {
 		}
 		i += 4
 
-		if i+n > len {
+		if i+n > length {
 			// truncated
-			arg := NullTerminatedString(data[i:len])
+			arg := NullTerminatedString(data[i:length])
 			return append(result, arg), ErrStringArrayOverflow
 		}
 
@@ -58,6 +59,7 @@ func UnmarshalString(data []byte, size int) (string, error) {
 	return NullTerminatedString(data[:size]), nil
 }
 
+// NullTerminatedString returns null-terminated string
 func NullTerminatedString(d []byte) string {
 	idx := bytes.IndexByte(d, 0)
 	if idx == -1 {

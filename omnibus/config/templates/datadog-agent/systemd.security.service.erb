@@ -8,7 +8,7 @@ ConditionPathExists=<%= etc_dir %>/security-agent.yaml
 Type=simple
 PIDFile=<%= install_dir %>/run/security-agent.pid
 Restart=on-failure
-ExecStart=<%= install_dir %>/embedded/bin/security-agent start -c <%= etc_dir %>/datadog.yaml -c <%= etc_dir %>/security-agent.yaml -p <%= install_dir %>/run/security-agent.pid
+ExecStart=<%= install_dir %>/embedded/bin/security-agent start -c <%= etc_dir %>/datadog.yaml -c <%= etc_dir %>/security-agent.yaml --sysprobe-config <%= etc_dir %>/system-probe.yaml -p <%= install_dir %>/run/security-agent.pid
 # Since systemd 229, should be in [Unit] but in order to support systemd <229,
 # it is also supported to have it here.
 StartLimitInterval=10

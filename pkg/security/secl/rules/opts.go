@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package rules holds rules related files
 package rules
 
 import (
@@ -68,7 +69,7 @@ func (o *Opts) WithStateScopes(stateScopes map[Scope]VariableProviderFactory) *O
 	return o
 }
 
-// NetEvalOpts returns eval options
+// NewEvalOpts returns eval options
 func NewEvalOpts(eventTypeEnabled map[eval.EventType]bool) (*Opts, *eval.Opts) {
 	var ruleOpts Opts
 
@@ -89,7 +90,7 @@ func NewEvalOpts(eventTypeEnabled map[eval.EventType]bool) (*Opts, *eval.Opts) {
 
 	var evalOpts eval.Opts
 	evalOpts.
-		WithConstants(model.SECLConstants).
+		WithConstants(model.SECLConstants()).
 		WithLegacyFields(model.SECLLegacyFields).
 		WithVariables(model.SECLVariables)
 

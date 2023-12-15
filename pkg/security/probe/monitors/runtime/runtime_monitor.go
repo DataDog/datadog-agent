@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package runtime holds runtime related files
 package runtime
 
 import (
@@ -21,13 +22,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
-// RuntimeMonitor is used to export runtime.MemStats metrics for debugging purposes
-type RuntimeMonitor struct {
+// Monitor is used to export runtime.MemStats metrics for debugging purposes
+type Monitor struct {
 	client statsd.ClientInterface
 }
 
 // SendStats sends the metric of the runtime monitor
-func (m *RuntimeMonitor) SendStats() error {
+func (m *Monitor) SendStats() error {
 	if err := m.sendGoRuntimeMetrics(); err != nil {
 		return err
 	}
@@ -37,7 +38,7 @@ func (m *RuntimeMonitor) SendStats() error {
 	return m.sendCgroupMetrics()
 }
 
-func (m *RuntimeMonitor) sendCgroupMetrics() error {
+func (m *Monitor) sendCgroupMetrics() error {
 	pid := utils.Getpid()
 
 	// get cgroups
@@ -125,7 +126,7 @@ func (m *RuntimeMonitor) sendCgroupMetrics() error {
 	return nil
 }
 
-func (m *RuntimeMonitor) sendProcMetrics() error {
+func (m *Monitor) sendProcMetrics() error {
 	p, err := process.NewProcess(int32(utils.Getpid()))
 	if err != nil {
 		return err
@@ -161,7 +162,7 @@ func (m *RuntimeMonitor) sendProcMetrics() error {
 	return nil
 }
 
-func (m *RuntimeMonitor) sendGoRuntimeMetrics() error {
+func (m *Monitor) sendGoRuntimeMetrics() error {
 	var stats runtime.MemStats
 	runtime.ReadMemStats(&stats)
 
@@ -240,9 +241,9 @@ func (m *RuntimeMonitor) sendGoRuntimeMetrics() error {
 	return nil
 }
 
-// NewRuntimeMonitor returns a new instance of RuntimeMonitor
-func NewRuntimeMonitor(client statsd.ClientInterface) *RuntimeMonitor {
-	return &RuntimeMonitor{
+// NewRuntimeMonitor returns a new instance of Monitor
+func NewRuntimeMonitor(client statsd.ClientInterface) *Monitor {
+	return &Monitor{
 		client: client,
 	}
 }

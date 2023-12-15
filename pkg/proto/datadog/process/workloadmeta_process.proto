@@ -13,7 +13,7 @@ message ProcessStreamResponse {
 message ProcessEventSet {
   int32 pid = 1;
   int32 nspid = 2;
-  string containerId = 3;
+  string containerID = 3;
   int64 creationTime = 4;
   Language language = 5;
 }
@@ -31,3 +31,31 @@ service ProcessEntityStream {
 }
 
 message ProcessStreamEntitiesRequest {}
+
+// ParentLanguageAnnotationRequest is sent from the Core-Agent to the Cluster-Agent to notify that
+// a language was detected for a given container
+message ParentLanguageAnnotationRequest {
+  repeated PodLanguageDetails podDetails = 1;
+}
+
+// PodLanguageDetails holds the language metadata associated to a given pod
+message PodLanguageDetails {
+  string namespace = 1;
+  string name = 2;
+  repeated ContainerLanguageDetails containerDetails = 3;
+  KubeOwnerInfo ownerref = 4;
+  repeated ContainerLanguageDetails initContainerDetails = 5;
+}
+
+// ContainerLanguageDetails contains the different languages used in a container
+message ContainerLanguageDetails {
+  string containerName = 1;
+  repeated Language languages = 2;
+}
+
+// KubeOwnerInfo holds metadata about the owner of the pod
+message KubeOwnerInfo {
+  string id = 1;
+  string name = 2;
+  string kind = 3;
+}

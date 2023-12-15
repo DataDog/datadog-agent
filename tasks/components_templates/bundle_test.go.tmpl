@@ -10,13 +10,5 @@ import (
 )
 
 func TestBundleDependencies(t *testing.T) {
-	require.NoError(t, fx.ValidateApp(
-		// instantiate all of the ${BUNDLE_NAME} components, since this is not done
-		// automatically.
-		// fx.Invoke(func(<component1>) {}),
-		// fx.Invoke(func(<component2>) {}),
-
-		//fx.Supply(BundleParams{}),
-		//Bundle
-        ))
+	fxutil.TestBundle(t, Bundle, EXTERNAL_DEPENDENCIES)
 }

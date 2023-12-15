@@ -26,7 +26,7 @@ func assertNotContainsCheck(t *testing.T, checks []string, name string) {
 	assert.NotContains(t, checks, name)
 }
 
-func getEnabledChecks(t *testing.T, cfg, sysprobeYamlConfig config.ConfigReaderWriter) []string {
+func getEnabledChecks(t *testing.T, cfg, sysprobeYamlConfig config.ReaderWriter) []string {
 	sysprobeConfigStruct, err := sysconfig.New("")
 	require.NoError(t, err)
 
@@ -43,7 +43,7 @@ func TestProcessDiscovery(t *testing.T) {
 	// Make sure the process_discovery check can be enabled
 	t.Run("enabled", func(t *testing.T) {
 		cfg, sysprobeCfg := config.Mock(t), config.MockSystemProbe(t)
-		cfg.Set("process_config.process_discovery.enabled", true)
+		cfg.SetWithoutSource("process_config.process_discovery.enabled", true)
 		enabledChecks := getEnabledChecks(t, cfg, sysprobeCfg)
 		assertContainsCheck(t, enabledChecks, DiscoveryCheckName)
 	})
@@ -51,7 +51,7 @@ func TestProcessDiscovery(t *testing.T) {
 	// Make sure the process_discovery check can be disabled
 	t.Run("disabled", func(t *testing.T) {
 		cfg, scfg := config.Mock(t), config.MockSystemProbe(t)
-		cfg.Set("process_config.process_discovery.enabled", false)
+		cfg.SetWithoutSource("process_config.process_discovery.enabled", false)
 		enabledChecks := getEnabledChecks(t, cfg, scfg)
 		assertNotContainsCheck(t, enabledChecks, DiscoveryCheckName)
 	})
@@ -59,8 +59,8 @@ func TestProcessDiscovery(t *testing.T) {
 	// Make sure the process and process_discovery checks are mutually exclusive
 	t.Run("mutual exclusion", func(t *testing.T) {
 		cfg, scfg := config.Mock(t), config.MockSystemProbe(t)
-		cfg.Set("process_config.process_discovery.enabled", true)
-		cfg.Set("process_config.process_collection.enabled", true)
+		cfg.SetWithoutSource("process_config.process_discovery.enabled", true)
+		cfg.SetWithoutSource("process_config.process_collection.enabled", true)
 		enabledChecks := getEnabledChecks(t, cfg, scfg)
 		assertNotContainsCheck(t, enabledChecks, DiscoveryCheckName)
 	})
@@ -69,7 +69,7 @@ func TestProcessDiscovery(t *testing.T) {
 func TestProcessCheck(t *testing.T) {
 	t.Run("disabled", func(t *testing.T) {
 		cfg, scfg := config.Mock(t), config.MockSystemProbe(t)
-		cfg.Set("process_config.process_collection.enabled", false)
+		cfg.SetWithoutSource("process_config.process_collection.enabled", false)
 		enabledChecks := getEnabledChecks(t, cfg, scfg)
 		assertNotContainsCheck(t, enabledChecks, ProcessCheckName)
 	})
@@ -77,7 +77,7 @@ func TestProcessCheck(t *testing.T) {
 	// Make sure the process check can be enabled
 	t.Run("enabled", func(t *testing.T) {
 		cfg, scfg := config.Mock(t), config.MockSystemProbe(t)
-		cfg.Set("process_config.process_collection.enabled", true)
+		cfg.SetWithoutSource("process_config.process_collection.enabled", true)
 		enabledChecks := getEnabledChecks(t, cfg, scfg)
 		assertContainsCheck(t, enabledChecks, ProcessCheckName)
 	})
@@ -86,8 +86,8 @@ func TestProcessCheck(t *testing.T) {
 func TestConnectionsCheck(t *testing.T) {
 	t.Run("enabled", func(t *testing.T) {
 		cfg, scfg := config.Mock(t), config.MockSystemProbe(t)
-		scfg.Set("network_config.enabled", true)
-		scfg.Set("system_probe_config.enabled", true)
+		scfg.SetWithoutSource("network_config.enabled", true)
+		scfg.SetWithoutSource("system_probe_config.enabled", true)
 
 		enabledChecks := getEnabledChecks(t, cfg, scfg)
 		if runtime.GOOS == "darwin" {
@@ -99,7 +99,7 @@ func TestConnectionsCheck(t *testing.T) {
 
 	t.Run("disabled", func(t *testing.T) {
 		cfg, scfg := config.Mock(t), config.MockSystemProbe(t)
-		scfg.Set("network_config.enabled", false)
+		scfg.SetWithoutSource("network_config.enabled", false)
 
 		enabledChecks := getEnabledChecks(t, cfg, scfg)
 		assertNotContainsCheck(t, enabledChecks, ConnectionsCheckName)

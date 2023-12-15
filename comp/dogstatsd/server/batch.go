@@ -4,9 +4,12 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package dogstatsd implements DogStatsD.
+//
+//nolint:revive // TODO(AML) Fix revive linter
 package server
 
 import (
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -148,12 +151,14 @@ func (b *batcher) appendSample(sample metrics.MetricSample) {
 		// it in the sample?) would reduce CPU usage, avoiding to recompute
 		// the tags hashes while generating the context key.
 		b.tagsBuffer.Append(sample.Tags...)
+		// TODO: for better isolation we might want an option to user listenerID or origin here.
+		// TODO: shuffle-sharding might be interesting too
 		h := b.keyGenerator.Generate(sample.Name, sample.Host, b.tagsBuffer)
 		b.tagsBuffer.Reset()
 		shardKey = fastrange(h, b.pipelineCount)
 	}
 
-	if b.samplesCount[shardKey] == len(b.samples[shardKey]) {
+	if b.samplesCount[shardKey] >= len(b.samples[shardKey]) {
 		b.flushSamples(shardKey)
 	}
 
@@ -193,7 +198,7 @@ func (b *batcher) flushSamples(shard uint32) {
 		t1 := time.Now()
 		b.demux.AggregateSamples(aggregator.TimeSamplerID(shard), b.samples[shard][:b.samplesCount[shard]])
 		t2 := time.Now()
-		tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "metrics")
+		tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), strconv.Itoa(int(shard)), "metrics")
 
 		b.samplesCount[shard] = 0
 		b.samples[shard] = b.metricSamplePool.GetBatch()
@@ -205,7 +210,7 @@ func (b *batcher) flushSamplesWithTs() {
 		t1 := time.Now()
 		b.demux.SendSamplesWithoutAggregation(b.samplesWithTs[:b.samplesWithTsCount])
 		t2 := time.Now()
-		tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "late_metrics")
+		tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "", "late_metrics")
 
 		b.samplesWithTsCount = 0
 		b.samplesWithTs = b.metricSamplePool.GetBatch()
@@ -227,7 +232,7 @@ func (b *batcher) flush() {
 		t1 := time.Now()
 		b.choutEvents <- b.events
 		t2 := time.Now()
-		tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "events")
+		tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "", "events")
 
 		b.events = []*event.Event{}
 	}
@@ -237,7 +242,7 @@ func (b *batcher) flush() {
 		t1 := time.Now()
 		b.choutServiceChecks <- b.serviceChecks
 		t2 := time.Now()
-		tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "service_checks")
+		tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "", "service_checks")
 
 		b.serviceChecks = []*servicecheck.ServiceCheck{}
 	}

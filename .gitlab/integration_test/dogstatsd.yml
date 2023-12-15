@@ -1,0 +1,17 @@
+---
+# integration_test stage
+# Contains jobs to run integration tests in dogstatsd go binaries
+
+dogstatsd_x64_size_test:
+  stage: integration_test
+  rules:
+    !reference [.on_a7]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs: ["build_dogstatsd_static-binary_x64"]
+  before_script:
+    - source /root/.bashrc
+    - mkdir -p $STATIC_BINARIES_DIR
+    - $S3_CP_CMD $S3_ARTIFACTS_URI/static/dogstatsd.amd64 $STATIC_BINARIES_DIR/dogstatsd
+  script:
+    - inv -e dogstatsd.size-test --skip-build

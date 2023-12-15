@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(SERV) Fix revive linter
 package serverless
 
 import (
@@ -186,7 +187,7 @@ func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, 
 	}
 
 	// immediately check if we should flush data
-	if daemon.ShouldFlush(flush.Starting, time.Now()) {
+	if daemon.ShouldFlush(flush.Starting) {
 		log.Debugf("The flush strategy %s has decided to flush at moment: %s", daemon.GetFlushStrategy(), flush.Starting)
 		daemon.TriggerFlush(false)
 	} else {

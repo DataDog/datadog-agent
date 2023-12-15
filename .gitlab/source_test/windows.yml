@@ -1,10 +1,11 @@
 ---
 .tests_windows_base:
   stage: source_test
-  needs: ["go_deps", "go_tools_deps", "build_vcpkg_deps"]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  needs: ["go_deps", "go_tools_deps"]
   tags: ["runner:windows-docker", "windowsversion:1809"]
-  before_script:
-    - $vcpkgBlobSaSUrl = (aws ssm get-parameter --region us-east-1 --name ci.datadog-agent-buildimages.vcpkg_blob_sas_url --with-decryption --query "Parameter.Value" --out text)
   script:
     - $ErrorActionPreference = "Stop"
     - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
@@ -24,16 +25,19 @@
       -e PY_RUNTIMES="$PYTHON_RUNTIMES"
       -e GOMODCACHE="c:\modcache"
       -e JUNIT_TAR="c:\mnt\junit-${CI_JOB_NAME}.tgz"
-      -e VCPKG_BINARY_SOURCES="clear;x-azblob,${vcpkgBlobSaSUrl}"
       -e PIP_INDEX_URL=${PIP_INDEX_URL}
+      -e TEST_OUTPUT_FILE=${TEST_OUTPUT_FILE}
+      -e EXTRA_OPTS="${EXTRA_OPTS}"
       486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\tasks\winbuildscripts\unittests.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+  variables:
+    TEST_OUTPUT_FILE: test_output.json
   artifacts:
     expire_in: 2 weeks
     when: always
     paths:
-      - test_output.json
+      - $TEST_OUTPUT_FILE
       - junit-*.tgz
     reports:
       junit: "**/junit-out-*.xml"
@@ -67,8 +71,20 @@ tests_windows-x64:
     PYTHON_RUNTIMES: 3
     ARCH: "x64"
 
+tests_windows-x64-fast:
+  extends: .tests_windows_base
+  variables:
+    PYTHON_RUNTIMES: 3
+    ARCH: "x64"
+    EXTRA_OPTS: "--only-modified-packages"
+    TEST_OUTPUT_FILE: test_output_fast.json
+  allow_failure: true
+
 lint_windows-x64:
   extends: .lint_windows_base
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   variables:
     PYTHON_RUNTIMES: 3
     ARCH: "x64"

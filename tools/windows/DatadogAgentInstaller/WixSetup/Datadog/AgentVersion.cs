@@ -19,7 +19,7 @@ namespace WixSetup.Datadog
         public AgentVersion(string packageVersion)
         {
             PackageVersion = packageVersion;
-            Version = new Version(7, 99, 0, 1);
+            Version = new Version(7, 99, 0, 0);
             if (PackageVersion != null)
             {
                 var versionRegex = new Regex(@"(?<major>\d+)[.](?<minor>\d+)[.](?<build>\d+)([-~]rc.(?<rc>\d+))?");
@@ -39,7 +39,7 @@ namespace WixSetup.Datadog
                         major: versionMatch.Groups["major"].Value.ToInt(),
                         minor: versionMatch.Groups["minor"].Value.ToInt(),
                         build: versionMatch.Groups["build"].Value.ToInt(),
-                        revision: 1
+                        revision: 0
                     );
                 }
             }

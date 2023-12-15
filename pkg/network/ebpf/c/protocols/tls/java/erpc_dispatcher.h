@@ -1,5 +1,5 @@
-#ifndef _ERPC_DISPATCHER_H
-#define _ERPC_DISPATCHER_H
+#ifndef __ERPC_DISPATCHER_H
+#define __ERPC_DISPATCHER_H
 
 #include "bpf_helpers.h"
 #include "protocols/tls/java/types.h"
@@ -55,4 +55,4 @@ int kprobe__do_vfs_ioctl(struct pt_regs *ctx) {
     return 0;
 }
 
-#endif // _ERPC_DISPATCHER_H
+#endif // __ERPC_DISPATCHER_H

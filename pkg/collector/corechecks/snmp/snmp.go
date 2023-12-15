@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package snmp contains the SNMP corecheck integration
 package snmp
 
 import (
@@ -18,12 +19,13 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/devicecheck"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/discovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 )
 
 var timeNow = time.Now
@@ -66,7 +68,7 @@ func (c *Check) Run() error {
 				continue
 			}
 			// `interface_configs` option not supported by SNMP corecheck autodiscovery
-			deviceCk.SetSender(report.NewMetricSender(sender, hostname, nil))
+			deviceCk.SetSender(report.NewMetricSender(sender, hostname, nil, deviceCk.GetInterfaceBandwidthState()))
 			jobs <- deviceCk
 		}
 		close(jobs)
@@ -80,12 +82,13 @@ func (c *Check) Run() error {
 		if err != nil {
 			return err
 		}
-		c.singleDeviceCk.SetSender(report.NewMetricSender(sender, hostname, c.config.InterfaceConfigs))
+		c.singleDeviceCk.SetSender(report.NewMetricSender(sender, hostname, c.config.InterfaceConfigs, c.singleDeviceCk.GetInterfaceBandwidthState()))
 		checkErr = c.runCheckDevice(c.singleDeviceCk)
 	}
 
 	// Commit
 	sender.Commit()
+
 	return checkErr
 }
 
@@ -168,6 +171,22 @@ func (c *Check) Cancel() {
 // Interval returns the scheduling time for the check
 func (c *Check) Interval() time.Duration {
 	return c.config.MinCollectionInterval
+}
+
+// GetDiagnoses collects diagnoses for diagnose CLI
+func (c *Check) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
+	if c.config.IsDiscovery() {
+		devices := c.discovery.GetDiscoveredDeviceConfigs()
+		var diagnosis []diagnosis.Diagnosis
+
+		for _, deviceCheck := range devices {
+			diagnosis = append(diagnosis, deviceCheck.GetDiagnoses()...)
+		}
+
+		return diagnosis, nil
+	}
+
+	return c.singleDeviceCk.GetDiagnoses(), nil
 }
 
 func snmpFactory() check.Check {

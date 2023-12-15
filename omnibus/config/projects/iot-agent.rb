@@ -21,7 +21,7 @@ if ohai['platform'] == "windows"
   maintainer 'Datadog Inc.' # Windows doesn't want our e-mail address :(
 else
   install_dir '/opt/datadog-agent'
-  if redhat? || suse?
+  if redhat_target? || suse_target?
     maintainer 'Datadog, Inc <package@datadoghq.com>'
 
     # NOTE: with script dependencies, we only care about preinst/postinst/posttrans,
@@ -34,7 +34,7 @@ else
     # have to list them, because they'll already be there because of preinst
     runtime_script_dependency :pre, "coreutils"
     runtime_script_dependency :pre, "grep"
-    if redhat?
+    if redhat_target?
       runtime_script_dependency :pre, "glibc-common"
       runtime_script_dependency :pre, "shadow-utils"
     else
@@ -45,10 +45,10 @@ else
     maintainer 'Datadog Packages <package@datadoghq.com>'
   end
 
-  if debian?
+  if debian_target?
     runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.3.1)'
   end
-  unless osx?
+  unless osx_target?
     conflict 'datadog-agent'
   end
 end
@@ -109,14 +109,14 @@ end
 # ------------------------------------
 
 # Linux
-if linux?
+if linux_target?
   # Upstart
-  if debian? || redhat? || suse?
+  if debian_target? || redhat_target? || suse_target?
     extra_package_file '/etc/init/datadog-agent.conf'
   end
 
   # Systemd
-  if debian?
+  if debian_target?
     extra_package_file '/lib/systemd/system/datadog-agent.service'
   else
     extra_package_file '/usr/lib/systemd/system/datadog-agent.service'
@@ -186,7 +186,7 @@ dependency 'preparation'
 # Datadog agent
 dependency 'datadog-iot-agent'
 
-if windows?
+if windows_target?
   dependency 'datadog-agent-finalize'
 end
 
@@ -194,8 +194,8 @@ end
 dependency 'version-manifest'
 
 # package scripts
-if linux?
-  if debian?
+if linux_target?
+  if debian_target?
     package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/iot-agent-deb"
   else
     package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/iot-agent-rpm"

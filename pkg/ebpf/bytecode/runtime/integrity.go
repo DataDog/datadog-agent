@@ -17,6 +17,9 @@ import (
 	"runtime"
 	"strings"
 	"text/template"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // This program is intended to be called from go generate.
@@ -43,14 +46,14 @@ func main() {
 		log.Fatalf("unable to resolve path to %s: %s", args[1], err)
 	}
 
-	err = genIntegrity(inputFile, outputFile, args[2])
+	err = genIntegrity(root, inputFile, outputFile, args[2])
 	if err != nil {
 		log.Fatalf("error generating integrity: %s", err)
 	}
 	fmt.Printf("successfully generated from %s => %s\n", inputFile, outputFile)
 }
 
-func genIntegrity(inputFile, outputFile, pkg string) error {
+func genIntegrity(root, inputFile, outputFile, pkg string) error {
 	hash, err := hashFile(inputFile)
 	if err != nil {
 		return err
@@ -66,8 +69,29 @@ func genIntegrity(inputFile, outputFile, pkg string) error {
 	}
 	defer f.Close()
 
+	depsFile := fmt.Sprintf("%s.d", outputFile)
+	odeps, err := os.Create(depsFile)
+	if err != nil {
+		return fmt.Errorf("error opening output deps file: %s", err)
+	}
+	defer odeps.Close()
+
+	relIn, err := filepath.Rel(root, inputFile)
+	if err != nil {
+		return fmt.Errorf("error getting relative input path: %s", err)
+	}
+	relOut, err := filepath.Rel(root, outputFile)
+	if err != nil {
+		return fmt.Errorf("error getting relative output path: %s", err)
+	}
+	odeps.WriteString(fmt.Sprintf("%s: \\\n", relOut))
+	odeps.WriteString(fmt.Sprintf("  %s", relIn))
+	odeps.WriteString("\n")
+
 	base := filepath.Base(inputFile)
-	name := sanitizeFilename(strings.Title(strings.TrimSuffix(base, filepath.Ext(base))))
+
+	caser := cases.Title(language.English, cases.NoLower)
+	name := sanitizeFilename(caser.String(strings.TrimSuffix(base, filepath.Ext(base))))
 
 	imports := ""
 	packagePrefix := ""
@@ -77,9 +101,17 @@ func genIntegrity(inputFile, outputFile, pkg string) error {
 		return fmt.Errorf("unable to get current file path")
 	}
 
-	runtimeDir := filepath.Dir(curFile)
+	resolvedRuntimeDir, err := filepath.EvalSymlinks(filepath.Dir(curFile))
+	if err != nil {
+		return err
+	}
 
-	if filepath.Dir(outputFile) != runtimeDir {
+	resolvedOutputDir, err := filepath.EvalSymlinks(filepath.Dir(outputFile))
+	if err != nil {
+		return err
+	}
+
+	if resolvedOutputDir != resolvedRuntimeDir {
 		packagePrefix = "runtime."
 		imports = "import \"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime\"\n"
 	}

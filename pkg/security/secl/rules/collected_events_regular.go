@@ -5,17 +5,21 @@
 
 //go:build !functionaltests
 
+// Package rules holds rules related files
 package rules
 
 import "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 
+// EventCollector defines an event collector
 type EventCollector struct {
 }
 
-func (ec *EventCollector) CollectEvent(rs *RuleSet, event eval.Event, result bool) {
+// CollectEvent collects event
+func (ec *EventCollector) CollectEvent(_ *RuleSet, _ eval.Event, _ bool) {
 	// no-op
 }
 
+// Stop stops the event collector
 func (ec *EventCollector) Stop() []CollectedEvent {
 	return nil
 }

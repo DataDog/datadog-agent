@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package dentry holds dentry related files
 package dentry
 
 import (

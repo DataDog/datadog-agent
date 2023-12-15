@@ -20,7 +20,7 @@ type filePatchProvider struct {
 	file                  string
 	isLeaderNotif         <-chan struct{}
 	pollInterval          time.Duration
-	subscribers           map[TargetObjKind]chan PatchRequest
+	subscribers           map[TargetObjKind]chan Request
 	lastSuccessfulRefresh time.Time
 	clusterName           string
 }
@@ -32,13 +32,13 @@ func newfileProvider(file string, isLeaderNotif <-chan struct{}, clusterName str
 		file:          file,
 		isLeaderNotif: isLeaderNotif,
 		pollInterval:  15 * time.Second,
-		subscribers:   make(map[TargetObjKind]chan PatchRequest),
+		subscribers:   make(map[TargetObjKind]chan Request),
 		clusterName:   clusterName,
 	}
 }
 
-func (fpp *filePatchProvider) subscribe(kind TargetObjKind) chan PatchRequest {
-	ch := make(chan PatchRequest, 10)
+func (fpp *filePatchProvider) subscribe(kind TargetObjKind) chan Request {
+	ch := make(chan Request, 10)
 	fpp.subscribers[kind] = ch
 	return ch
 }
@@ -84,20 +84,20 @@ func (fpp *filePatchProvider) process(forcePoll bool) {
 	fpp.lastSuccessfulRefresh = time.Now()
 }
 
-func (fpp *filePatchProvider) poll(forcePoll bool) ([]PatchRequest, error) {
+func (fpp *filePatchProvider) poll(forcePoll bool) ([]Request, error) {
 	info, err := os.Stat(fpp.file)
 	if err != nil {
 		return nil, err
 	}
 	if !forcePoll && fpp.lastSuccessfulRefresh.After(info.ModTime()) {
 		log.Debugf("File %q hasn't changed since the last Successful refresh at %v", fpp.file, fpp.lastSuccessfulRefresh)
-		return []PatchRequest{}, nil
+		return []Request{}, nil
 	}
 	content, err := os.ReadFile(fpp.file)
 	if err != nil {
 		return nil, err
 	}
-	var requests []PatchRequest
+	var requests []Request
 	err = json.Unmarshal(content, &requests)
 	return requests, err
 }

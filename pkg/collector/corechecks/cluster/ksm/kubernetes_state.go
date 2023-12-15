@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package ksm implements the Kubernetes State Core cluster check.
 package ksm
 
 import (
@@ -21,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm/customresources"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	//nolint:revive // TODO(CINT) Fix revive linter
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	kubestatemetrics "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/builder"
@@ -112,6 +114,7 @@ type KSMConfig struct {
 	LabelsMapper map[string]string `yaml:"labels_mapper"`
 
 	// Tags contains the list of tags to attach to every metric, event and service check emitted by this integration.
+	// It is also enriched in `initTags` with `kube_cluster_name` and global tags.
 	// Example:
 	// tags:
 	//   - env:prod
@@ -160,7 +163,7 @@ type KSMCheck struct {
 	metadataMetricsRegex *regexp.Regexp
 }
 
-// JoinsConfig contains the config parameters for label joins
+// JoinsConfigWithoutLabelsMapping contains the config parameters for label joins
 type JoinsConfigWithoutLabelsMapping struct {
 	// LabelsToMatch contains the labels that must
 	// match the labels of the targeted metric
@@ -201,6 +204,12 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	k.BuildID(integrationConfigDigest, config, initConfig)
 	k.agentConfig = ddconfig.Datadog
 
+	// Retrieve cluster name
+	k.getClusterName()
+
+	// Initialize global tags and check tags
+	k.initTags()
+
 	err := k.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source)
 	if err != nil {
 		return err
@@ -226,11 +235,6 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 
 	// Prepare labels mapper
 	k.mergeLabelsMapper(defaultLabelsMapper())
-
-	// Retrieve cluster name
-	k.getClusterName()
-
-	k.initTags()
 
 	builder := kubestatemetrics.New()
 
@@ -342,10 +346,10 @@ func discoverResources(client discovery.DiscoveryInterface) ([]*v1.APIResourceLi
 	if err != nil {
 		if !discovery.IsGroupDiscoveryFailedError(err) {
 			return nil, fmt.Errorf("unable to perform resource discovery: %s", err)
-		} else {
-			for group, apiGroupErr := range err.(*discovery.ErrGroupDiscoveryFailed).Groups {
-				log.Warnf("unable to perform resource discovery for group %s: %s", group, apiGroupErr)
-			}
+		}
+
+		for group, apiGroupErr := range err.(*discovery.ErrGroupDiscoveryFailed).Groups {
+			log.Warnf("unable to perform resource discovery for group %s: %s", group, apiGroupErr)
 		}
 	}
 	return resources, nil
@@ -625,7 +629,7 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 		tags = append(tags, owners...)
 	}
 
-	return hostname, append(tags, k.instance.Tags...)
+	return hostname, tags
 }
 
 // familyFilter is a metric families filter for label joins
@@ -823,10 +827,10 @@ func (k *KSMCheck) sendTelemetry(s sender.Sender) {
 	// reset the cache for the next check run
 	defer k.telemetry.reset()
 
-	s.Gauge(ksmMetricPrefix+"telemetry.metrics.count.total", float64(k.telemetry.getTotal()), "", k.instance.Tags)
-	s.Gauge(ksmMetricPrefix+"telemetry.unknown_metrics.count", float64(k.telemetry.getUnknown()), "", k.instance.Tags) // useful to track metrics that aren't mapped to DD metrics
+	s.Gauge(ksmMetricPrefix+"telemetry.metrics.count.total", float64(k.telemetry.getTotal()), "", nil)
+	s.Gauge(ksmMetricPrefix+"telemetry.unknown_metrics.count", float64(k.telemetry.getUnknown()), "", nil) // useful to track metrics that aren't mapped to DD metrics
 	for resource, count := range k.telemetry.getResourcesCount() {
-		s.Gauge(ksmMetricPrefix+"telemetry.metrics.count", float64(count), "", append(k.instance.Tags, "resource_name:"+resource))
+		s.Gauge(ksmMetricPrefix+"telemetry.metrics.count", float64(count), "", []string{"resource_name:" + resource})
 	}
 }
 

@@ -5,3 +5,5 @@ services:
     network_mode: "none"
     volumes:
       - ${socket_dir_path}:/tmp/scratch:ro
+    environment:
+      - SOCKET_TYPE=${socket_type}

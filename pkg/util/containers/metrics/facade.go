@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
+// Package metrics registers all the different collectors for container-related
+// metrics.
 package metrics
 
 import (
@@ -16,6 +18,9 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/util/containers/metrics/kubelet"
 	_ "github.com/DataDog/datadog-agent/pkg/util/containers/metrics/system"
 )
+
+// Runtime is a typed string with all supported runtimes
+type Runtime = provider.Runtime
 
 // Collector defines an interface allowing to get stats from a containerID.
 type Collector = provider.Collector

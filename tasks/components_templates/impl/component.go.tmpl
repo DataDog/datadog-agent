@@ -1,0 +1,16 @@
+${COPYRIGHT_HEADER}
+
+package ${COMPONENT_NAME}impl
+
+import (
+	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+)
+
+// Module defines the fx options for this component.
+func Module() fxutil.Module {
+	return fxutil.Component(
+    	fx.Provide(/* TODO: provide Component constructor */),
+	)
+}

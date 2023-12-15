@@ -6,6 +6,7 @@
 package fxutil
 
 import (
+	"context"
 	"reflect"
 	"testing"
 
@@ -15,9 +16,14 @@ import (
 	"go.uber.org/fx/fxtest"
 )
 
+// NoDependencies defines a component which doesn't have any dependencies
 type NoDependencies struct {
 	fx.In
 }
+
+// fxAppTestOverride allows TestRunCommand and TestOneShotSubcommand to
+// override the Run and OneShot functions.  It is always nil in production.
+var fxAppTestOverride func(interface{}, []fx.Option) error
 
 // Test starts an app and returns fulfilled dependencies
 //
@@ -48,6 +54,30 @@ func Test[T any](t testing.TB, opts ...fx.Option) T {
 	return deps
 }
 
+// TestApp starts an fx app and returns fulfilled dependencies
+//
+// The generic return type T must conform to fx.In such
+// that it's dependencies can be fulfilled.
+func TestApp[T any](opts ...fx.Option) (*fx.App, T, error) {
+	var deps T
+	delayed := newDelayedFxInvocation(func(d T) {
+		deps = d
+	})
+
+	app := fx.New(
+		delayed.option(),
+		fx.Options(opts...),
+	)
+	var err error
+	if err = app.Start(context.TODO()); err != nil {
+		return nil, deps, err
+	}
+
+	err = delayed.call()
+
+	return app, deps, err
+}
+
 type appAssertFn func(testing.TB, *fx.App)
 
 // TestStart runs an app fx.App.
@@ -75,6 +105,24 @@ func TestStart(t testing.TB, opts fx.Option, appAssert appAssertFn, fn interface
 	appAssert(t, app)
 }
 
+// TestRun is a helper for testing code that uses fxutil.Run
+//
+// It takes a anonymous function, and sets up fx so that no actual App
+// will be constructed. Instead, it expects the given function to call
+// fxutil.Run. Then, this test verifies that all Options given to that
+// fxutil.Run call will satisfy fx's dependences by using fx.ValidateApp.
+func TestRun(t *testing.T, f func() error) {
+	var fxFakeAppRan bool
+	fxAppTestOverride = func(i interface{}, opts []fx.Option) error {
+		fxFakeAppRan = true
+		require.NoError(t, fx.ValidateApp(opts...))
+		return nil
+	}
+	defer func() { fxAppTestOverride = nil }()
+	require.NoError(t, f())
+	require.True(t, fxFakeAppRan, "fxutil.Run wasn't called")
+}
+
 // TestOneShotSubcommand is a helper for testing commands implemented with fxutil.OneShot.
 //
 // It takes an array of commands, and attaches all to a temporary top-level
@@ -99,7 +147,7 @@ func TestOneShotSubcommand(
 	verifyFn interface{}) {
 
 	var oneShotRan bool
-	oneShotTestOverride = func(oneShotFunc interface{}, opts []fx.Option) error {
+	fxAppTestOverride = func(oneShotFunc interface{}, opts []fx.Option) error {
 		oneShotRan = true
 
 		// verify that the expected oneShotFunc would have been called
@@ -123,7 +171,7 @@ func TestOneShotSubcommand(
 		defer app.RequireStart().RequireStop()
 		return nil
 	}
-	defer func() { oneShotTestOverride = nil }()
+	defer func() { fxAppTestOverride = nil }()
 
 	cmd := &cobra.Command{Use: "test"}
 	for _, c := range subcommands {
@@ -133,4 +181,129 @@ func TestOneShotSubcommand(
 
 	require.NoError(t, cmd.Execute())
 	require.True(t, oneShotRan, "fxutil.OneShot wasn't called")
+}
+
+// TestOneShot is a helper for testing there is no missing dependencies when calling
+// fxutil.OneShot.
+//
+// The function passed as the first argument of fx.OneShot is not called. It
+// is validated with fx.ValidateApp, however.
+func TestOneShot(t *testing.T, fct func()) {
+	var oneShotRan bool
+	fxAppTestOverride = func(oneShotFunc interface{}, opts []fx.Option) error {
+		oneShotRan = true
+		// validate the app with the original oneShotFunc, to ensure that
+		// any types it requires are provided.
+		require.NoError(t,
+			fx.ValidateApp(
+				append(opts,
+					fx.Invoke(oneShotFunc))...))
+		return nil
+	}
+	defer func() { fxAppTestOverride = nil }()
+
+	fct()
+	require.True(t, oneShotRan, "fxutil.OneShot wasn't called")
+}
+
+// TestBundle is an helper to test Bundle.
+//
+// This function checks that all components built with fx.Provide inside a bundle can be instanciated.
+// To do so, it creates an `fx.Invoke(_ component1, _ component2, ...)` and call fx.ValidateApp
+func TestBundle(t *testing.T, bundle BundleOptions, extraOptions ...fx.Option) {
+	var componentTypes []reflect.Type
+
+	for _, option := range bundle.Options {
+		module, ok := option.(Module)
+		if ok {
+			t.Logf("Discovering components for %v", module)
+			for _, moduleOpt := range module.Options {
+				componentTypes = appendModuleComponentTypes(t, componentTypes, moduleOpt)
+			}
+		}
+	}
+	invoke := createFxInvokeOption(componentTypes)
+
+	t.Logf("Check the following components are instanciable: %v", componentTypes)
+	require.NoError(t, fx.ValidateApp(
+		invoke,
+		bundle,
+		fx.Options(extraOptions...),
+		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
+	))
+}
+
+// appendModuleComponentTypes appends the components inside provideOption to componentTypes
+func appendModuleComponentTypes(t *testing.T, componentTypes []reflect.Type, provideOption fx.Option) []reflect.Type {
+	moduleValue := reflect.ValueOf(provideOption)
+	// provideOption has a `Targets`` field of factories: https://github.com/uber-go/fx/blob/master/provide.go#L65-L68
+	targets := moduleValue.FieldByName("Targets")
+	if targets.IsValid() {
+		targetValues := targets.Interface().([]interface{})
+		for _, target := range targetValues {
+			targetType := reflect.TypeOf(target)
+			if targetType.Kind() == reflect.Func && targetType.NumOut() > 0 {
+				// As the first returned type is the component it is enough to consider
+				// only the first type
+				returnType := targetType.Out(0)
+				types := getComponents(t, returnType)
+				componentTypes = append(componentTypes, types...)
+			}
+		}
+	}
+	return componentTypes
+}
+
+// getComponents returns the component contained in mainType.
+func getComponents(t *testing.T, mainType reflect.Type) []reflect.Type {
+	if isFxOutType(mainType) {
+		var types []reflect.Type
+		for i := 0; i < mainType.NumField(); i++ {
+			field := mainType.Field(i)
+			fieldType := field.Type
+
+			// Ignore fx groups because returning an instance of
+			// type Provider struct {
+			//   fx.Out
+			//   Provider MyProvider `group:"myGroup"`
+			// }
+			// doesn't satisfy fx.Invoke(_ MyProvider)
+			if fieldType != fxOutType && field.Tag.Get("group") == "" {
+				types = append(types, getComponents(t, fieldType)...)
+			}
+		}
+		return types
+	}
+
+	if mainType.Kind() == reflect.Interface || mainType.Kind() == reflect.Struct {
+		t.Logf("\tFound: %v", mainType)
+		return []reflect.Type{mainType}
+	}
+	return nil
+}
+
+var fxOutType = reflect.TypeOf((*fx.Out)(nil)).Elem()
+
+func isFxOutType(t reflect.Type) bool {
+	if t.Kind() == reflect.Struct {
+		for i := 0; i < t.NumField(); i++ {
+			fieldType := t.Field(i).Type
+			if fieldType == fxOutType {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// createFxInvokeOption creates fx.Invoke(_ componentTypes[0], _ componentTypes[1], ...)
+func createFxInvokeOption(componentTypes []reflect.Type) fx.Option {
+	fctSig := reflect.FuncOf(componentTypes, nil, false)
+	captureArgs := reflect.MakeFunc(
+		fctSig,
+		func(args []reflect.Value) []reflect.Value {
+			return []reflect.Value{}
+		})
+
+	return fx.Invoke(captureArgs.Interface())
 }

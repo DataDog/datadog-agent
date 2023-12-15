@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(PROC) Fix revive linter
 package workloadmeta
 
 import (
@@ -14,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/languagedetection"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/process/status"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -22,6 +24,7 @@ const subsystem = "WorkloadMetaExtractor"
 
 // ProcessEntity represents a process exposed by the WorkloadMeta extractor
 type ProcessEntity struct {
+	//nolint:revive // TODO(PROC) Fix revive linter
 	Pid          int32
 	ContainerId  string
 	NsPid        int32
@@ -43,7 +46,7 @@ type WorkloadMetaExtractor struct {
 
 	pidToCid map[int]string
 
-	sysprobeConfig config.ConfigReader
+	sysprobeConfig config.Reader
 }
 
 // ProcessCacheDiff holds the information about processes that have been created and deleted in the past
@@ -55,13 +58,16 @@ type ProcessCacheDiff struct {
 }
 
 var (
-	cacheSizeGuage = telemetry.NewGauge(subsystem, "cache_size", nil, "The cache size for the workloadMetaExtractor")
-	oldDiffDropped = telemetry.NewSimpleCounter(subsystem, "diff_dropped", "The number of times a diff is removed from the queue due to the diffChan being full.")
-	diffChanFull   = telemetry.NewSimpleCounter(subsystem, "diff_chan_full", "The number of times the extractor was unable to write to the diffChan due to it being full. This should never happen.")
+	cacheSizeGauge = telemetry.NewGauge(
+		subsystem, "cache_size", nil, "The cache size for the WorkloadMetaExtractor")
+	staleDiffsCounter = telemetry.NewSimpleCounter(
+		subsystem, "stale_diffs", "The number of stale diffs discarded instead of consumed")
+	diffsDroppedCounter = telemetry.NewSimpleCounter(
+		subsystem, "diffs_dropped", "The number of diffs dropped due to channel contention")
 )
 
 // NewWorkloadMetaExtractor constructs the WorkloadMetaExtractor.
-func NewWorkloadMetaExtractor(sysprobeConfig config.ConfigReader) *WorkloadMetaExtractor {
+func NewWorkloadMetaExtractor(sysprobeConfig config.Reader) *WorkloadMetaExtractor {
 	log.Info("Instantiating a new WorkloadMetaExtractor")
 
 	return &WorkloadMetaExtractor{
@@ -140,12 +146,12 @@ func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 	w.cacheVersion++
 	w.cacheMutex.Unlock()
 
-	// Drop previous cache diff if it hasn't been consumed yet
+	// Drop previous cache diff if it hasn't been consumed yet, it is now stale
 	select {
 	case <-w.diffChan:
 		// drop message
-		oldDiffDropped.Inc()
-		log.Debug("Dropping old process diff in WorkloadMetaExtractor")
+		staleDiffsCounter.Inc()
+		log.Debug("Discarding stale process diff in WorkloadMetaExtractor")
 		break
 	default:
 	}
@@ -161,8 +167,8 @@ func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 	case w.diffChan <- diff:
 		break
 	default:
-		diffChanFull.Inc()
-		log.Error("Dropping newer process diff in WorkloadMetaExtractor")
+		diffsDroppedCounter.Inc()
+		log.Error("Dropping process diff in WorkloadMetaExtractor")
 	}
 }
 
@@ -178,7 +184,7 @@ func getDifference(oldCache, newCache map[string]*ProcessEntity) []*ProcessEntit
 }
 
 // Enabled returns whether the extractor should be enabled
-func Enabled(ddconfig config.ConfigReader) bool {
+func Enabled(ddconfig config.Reader) bool {
 	enabled := ddconfig.GetBool("language_detection.enabled")
 	if enabled && runtime.GOOS == "darwin" {
 		log.Warn("Language detection is not supported on macOS")
@@ -212,5 +218,11 @@ func (w *WorkloadMetaExtractor) ProcessCacheDiff() <-chan *ProcessCacheDiff {
 }
 
 func (w *WorkloadMetaExtractor) reportTelemetry() {
-	cacheSizeGuage.Set(float64(len(w.cache)))
+	cacheSize := len(w.cache)
+	cacheSizeGauge.Set(float64(cacheSize))
+	status.UpdateWlmExtractorStats(status.WlmExtractorStats{
+		CacheSize:    cacheSize,
+		StaleDiffs:   int64(staleDiffsCounter.Get()),
+		DiffsDropped: int64(diffsDroppedCounter.Get()),
+	})
 }

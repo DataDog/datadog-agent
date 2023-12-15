@@ -36,12 +36,13 @@ func TestOOMKill(t *testing.T) {
 	conf := config.New()
 	conf.Endpoints[0].APIKey = "apikey_2"
 	conf.WatchdogInterval = time.Millisecond
-	conf.MaxMemory = 0.5 * 1000 * 1000 // 0.5M
+	conf.MaxMemory = 0.1 * 1000 * 1000 // 100KB
 
 	r := newTestReceiverFromConfig(conf)
 	r.Start()
 	defer r.Stop()
 	go func() {
+		//nolint:revive // TODO(APM) Fix revive linter
 		for range r.out {
 		}
 	}()

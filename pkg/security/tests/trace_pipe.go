@@ -14,6 +14,7 @@
 
 //go:build linux
 
+// Package tests holds tests related files
 package tests
 
 import (

@@ -8,11 +8,12 @@
 package containerd
 
 import (
+	"context"
 	"testing"
 	"time"
 
-	v1 "github.com/containerd/cgroups/stats/v1"
-	v2 "github.com/containerd/cgroups/v2/stats"
+	v1 "github.com/containerd/cgroups/v3/cgroup1/stats"
+	v2 "github.com/containerd/cgroups/v3/cgroup2/stats"
 	"github.com/containerd/containerd/api/types"
 	"github.com/containerd/containerd/oci"
 	"github.com/containerd/typeurl/v2"
@@ -20,13 +21,16 @@ import (
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 	"google.golang.org/protobuf/types/known/anypb"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	workloadmetaTesting "github.com/DataDog/datadog-agent/pkg/workloadmeta/testing"
 )
 
 func TestGetContainerStats_Containerd(t *testing.T) {
@@ -58,6 +62,8 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 			Kernel: &v1.MemoryEntry{
 				Usage: 500,
 			},
+			PgFault:    2,
+			PgMajFault: 1,
 		},
 		Blkio: &v1.BlkIOStat{
 			IoServiceBytesRecursive: []*v1.BlkIOEntry{
@@ -134,6 +140,8 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 			SwapUsage:    10,
 			Slab:         400,
 			KernelStack:  100,
+			Pgfault:      2,
+			Pgmajfault:   1,
 		},
 		Io: &v2.IOStat{
 			Usage: []*v2.IOEntry{
@@ -189,6 +197,8 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 					RSS:          pointer.Ptr(100.0),
 					Cache:        pointer.Ptr(20.0),
 					Swap:         pointer.Ptr(10.0),
+					Pgfault:      pointer.Ptr(2.0),
+					Pgmajfault:   pointer.Ptr(1.0),
 				},
 				IO: &provider.ContainerIOStats{
 					ReadBytes:       pointer.Ptr(60.0),
@@ -237,6 +247,8 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 					RSS:          pointer.Ptr(100.0),
 					Cache:        pointer.Ptr(20.0),
 					Swap:         pointer.Ptr(10.0),
+					Pgfault:      pointer.Ptr(2.0),
+					Pgmajfault:   pointer.Ptr(1.0),
 				},
 				IO: &provider.ContainerIOStats{
 					ReadBytes:       pointer.Ptr(60.0),
@@ -268,7 +280,14 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 
 			// The container needs to exist in the workloadmeta store and have a
 			// namespace.
-			workloadmetaStore := workloadmetaTesting.NewStore()
+			workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+				logimpl.MockModule(),
+				config.MockModule(),
+				fx.Supply(context.Background()),
+				fx.Supply(workloadmeta.NewParams()),
+				workloadmeta.MockModuleV2(),
+			))
+
 			workloadmetaStore.Set(&workloadmeta.Container{
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindContainer,
@@ -361,7 +380,14 @@ func TestGetContainerNetworkStats_Containerd(t *testing.T) {
 
 			// The container needs to exist in the workloadmeta store and have a
 			// namespace.
-			workloadmetaStore := workloadmetaTesting.NewStore()
+			workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+				logimpl.MockModule(),
+				config.MockModule(),
+				fx.Supply(context.Background()),
+				fx.Supply(workloadmeta.NewParams()),
+				workloadmeta.MockModuleV2(),
+			))
+
 			workloadmetaStore.Set(&workloadmeta.Container{
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindContainer,

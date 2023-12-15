@@ -42,8 +42,8 @@ int __attribute__((always_inline)) trace_kernel_file(ctx_t *ctx, struct file *f,
     }
 
     syscall->init_module.dentry = get_file_dentry(f);
-    set_file_inode(syscall->init_module.dentry, &syscall->init_module.file, 0);
     syscall->init_module.file.path_key.mount_id = get_file_mount_id(f);
+    set_file_inode(syscall->init_module.dentry, &syscall->init_module.file, 0);
 
     syscall->resolver.key = syscall->init_module.file.path_key;
     syscall->resolver.dentry = syscall->init_module.dentry;
@@ -120,7 +120,7 @@ int __attribute__((always_inline)) trace_init_module_ret(void *ctx, int retval, 
     }
 
     if (syscall->init_module.dentry != NULL) {
-        fill_file_metadata(syscall->init_module.dentry, &event.file.metadata);
+        fill_file(syscall->init_module.dentry, &event.file);
     }
 
     struct proc_cache_t *entry = fill_process_context(&event.process);

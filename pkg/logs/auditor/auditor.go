@@ -61,22 +61,26 @@ type Auditor interface {
 
 // A RegistryAuditor is storing the Auditor information using a registry.
 type RegistryAuditor struct {
-	health        *health.Handle
-	chansMutex    sync.Mutex
-	inputChan     chan *message.Payload
-	registry      map[string]*RegistryEntry
-	registryPath  string
-	registryMutex sync.Mutex
-	entryTTL      time.Duration
-	done          chan struct{}
+	health          *health.Handle
+	chansMutex      sync.Mutex
+	inputChan       chan *message.Payload
+	registry        map[string]*RegistryEntry
+	registryPath    string
+	registryDirPath string
+	registryTmpFile string
+	registryMutex   sync.Mutex
+	entryTTL        time.Duration
+	done            chan struct{}
 }
 
 // New returns an initialized Auditor
 func New(runPath string, filename string, ttl time.Duration, health *health.Handle) *RegistryAuditor {
 	return &RegistryAuditor{
-		health:       health,
-		registryPath: filepath.Join(runPath, filename),
-		entryTTL:     ttl,
+		health:          health,
+		registryPath:    filepath.Join(runPath, filename),
+		registryDirPath: runPath,
+		registryTmpFile: filepath.Base(filename) + ".tmp",
+		entryTTL:        ttl,
 	}
 }
 
@@ -267,7 +271,30 @@ func (a *RegistryAuditor) flushRegistry() error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(a.registryPath, mr, 0644)
+	f, err := os.CreateTemp(a.registryDirPath, a.registryTmpFile)
+	if err != nil {
+		return err
+	}
+	tmpName := f.Name()
+	defer func() {
+		if err != nil {
+			_ = f.Close()
+			_ = os.Remove(tmpName)
+		}
+	}()
+	if _, err = f.Write(mr); err != nil {
+		return err
+	}
+
+	if err = f.Chmod(0644); err != nil {
+		return err
+	}
+
+	if err = f.Close(); err != nil {
+		return err
+	}
+	err = os.Rename(tmpName, a.registryPath)
+	return err
 }
 
 // marshalRegistry marshals a registry

@@ -34,8 +34,7 @@
             "x86_64": {
                 "debian-8": "urn,credativ:Debian:8:8.0.201901221",
                 "debian-9": "urn,credativ:Debian:9:9.20200722.0",
-                "debian-10": "urn,Debian:debian-10:10:0.20230222.1299",
-                "debian-10-daily": "urn,Debian:debian-10-daily:10:0.20230727.1454",
+                "debian-10": "urn,Debian:debian-10:10:0.20230802.1460",
                 "debian-11": "urn,Debian:debian-11:11:0.20230501.1367",
                 "debian-12": "urn,Debian:debian-12:12:0.20230802.1460"
             }
@@ -75,7 +74,7 @@
         },
         "ec2": {
             "arm64": {
-                "sles-15": "ami-05f2f5f76d89313bb"
+                "sles-15": "ami-02f7663f03ca92749"
             }
         }
     },
@@ -99,7 +98,8 @@
                 "ubuntu-18-04": "ami-0ee23bfc74a881de5",
                 "ubuntu-20-04": "ami-079ca844e323047c2",
                 "ubuntu-22-04": "ami-08c40ec9ead489470",
-                "ubuntu-23-04": "ami-062b1c3c00754c48b"
+                "ubuntu-23-04": "ami-062b1c3c00754c48b",
+                "ubuntu-23-10": "ami-0949b45ef274e55a1"
             },
             "arm64": {
                 "ubuntu-18-04": "ami-02ed82f3a38303e6f",
@@ -107,7 +107,8 @@
                 "ubuntu-20-04-2": "ami-0a82127206c2824a1",
                 "ubuntu-21-04": "ami-044f0ceee8e885e87",
                 "ubuntu-22-04": "ami-02ddaf75821f25213",
-                "ubuntu-23-04": "ami-05fab5da2d7fe0b0b"
+                "ubuntu-23-04": "ami-05fab5da2d7fe0b0b",
+                "ubuntu-23-10": "ami-0dea732dd5f1da0a8"
             }
         },
         "vagrant": {
@@ -146,8 +147,6 @@
     "windows": {
         "azure": {
             "x86_64": {
-                "win2012": "id,/subscriptions/a53d2c33-d372-4e36-9e33-eaf32ce95b28/resourceGroups/agentcustomimages/providers/Microsoft.Compute/galleries/agentcustomimages/images/Windows-2012/versions/1.0.0",
-                "win2012r2": "id,/subscriptions/a53d2c33-d372-4e36-9e33-eaf32ce95b28/resourceGroups/agentcustomimages/providers/Microsoft.Compute/galleries/agentcustomimages/images/Windows-2012-R2/versions/1.0.1",
                 "win2016": "urn,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:14393.5429.221014",
                 "win2019": "urn,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:17763.3534.221015",
                 "win2019cn": "urn,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-zhcn:17763.3534.221015",
@@ -156,8 +155,6 @@
         },
         "ec2": {
             "x86_64": {
-                "win2012r2": "ami-05bcfc8413c69a2a1",
-                "comment-win2012r2": "EC2LaunchV2-Windows_Server-2012_R2_RTM-English-Full-Base-2022.09.14",
                 "win2016": "ami-03bee25bb430166e4",
                 "comment-win2016": "# Windows_Server-2016-English-Core-Containers-2022.12.14",
                 "win2019": "ami-01cc656499debb56a",

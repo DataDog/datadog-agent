@@ -8,6 +8,8 @@
 package http
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
@@ -15,9 +17,13 @@ import (
 // see both directions of traffic
 type incompleteBuffer struct{}
 
-func newIncompleteBuffer(c *config.Config, telemetry *Telemetry) *incompleteBuffer {
+// NewIncompleteBuffer returns a new incompleteBuffer instance
+func NewIncompleteBuffer(*config.Config, *Telemetry) IncompleteBuffer {
 	return &incompleteBuffer{}
 }
 
-func (b *incompleteBuffer) Add(tx Transaction)            {}
-func (b *incompleteBuffer) Flush(now int64) []Transaction { return nil }
+//nolint:revive // TODO(WKIT) Fix revive linter
+func (b *incompleteBuffer) Add(Transaction) {}
+
+//nolint:revive // TODO(WKIT) Fix revive linter
+func (b *incompleteBuffer) Flush(time.Time) []Transaction { return nil }

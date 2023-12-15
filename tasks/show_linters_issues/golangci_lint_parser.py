@@ -28,6 +28,12 @@ def is_team_owner(file: str, team: str) -> bool:
     return ('TEAM', team) in file_owners
 
 
+def get_owner(file: str) -> str:
+    codeowners = read_owners(CODEOWNERS_FILE_PATH)
+    file_owners = codeowners.of(file)
+    return file_owners[0][1] if file_owners else "no owner"
+
+
 def parse_file(golangci_lint_output: str):
     """
     Parses the output of the golangci-lint run.
@@ -84,6 +90,32 @@ def filter_lints(lints_per_linter, filter_team: str = None, filter_linters: str 
                     if is_team_owner(lint[0], filter_team):
                         filtered_lints[linter].add(lint)
     return filtered_lints
+
+
+def count_lints_per_team(lints_per_linter, filter_linters: str = None):
+    """
+    Counts the lints owned by one team
+    """
+    list_filter_linters = filter_linters.split(',') if filter_linters else []
+    lints_count_per_team = defaultdict(lambda: defaultdict(lambda: 0))
+    for linter in lints_per_linter:
+        if linter in list_filter_linters:
+            for lint in lints_per_linter[linter]:
+                lint_owner = get_owner(lint[0])
+                lints_count_per_team[lint_owner][linter] += 1
+    return lints_count_per_team
+
+
+def display_nb_lints_per_team(lints_count):
+    """
+    Nice display for the output of count_lints_per_team function.
+    """
+    output = ""
+    for lint_owner in lints_count:
+        output += f"> {lint_owner}\n"
+        for linter, linter_count in lints_count[lint_owner].items():
+            output += f"  - {linter}: {linter_count}\n"
+    return output
 
 
 def display_result(filtered_lints):

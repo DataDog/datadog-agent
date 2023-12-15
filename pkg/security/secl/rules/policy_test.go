@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package rules holds rules related files
 package rules
 
 import (

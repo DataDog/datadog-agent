@@ -6,42 +6,72 @@
 package aggregator
 
 import (
+	"bytes"
 	"encoding/json"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
+//nolint:revive // TODO(APL) Fix revive linter
 type CheckRun struct {
-	Check     string   `json:"check"`
-	HostName  string   `json:"host_name"`
-	Timestamp int      `json:"timestamp"`
-	Status    int      `json:"status"`
-	Message   string   `json:"message"`
-	Tags      []string `json:"tags"`
+	collectedTime time.Time
+	Check         string   `json:"check"`
+	HostName      string   `json:"host_name"`
+	Timestamp     int      `json:"timestamp"`
+	Status        int      `json:"status"`
+	Message       string   `json:"message"`
+	Tags          []string `json:"tags"`
 }
 
 func (cr *CheckRun) name() string {
 	return cr.Check
 }
 
+// GetTags return the tags from a payload
 func (cr *CheckRun) GetTags() []string {
 	return cr.Tags
 }
 
+// GetCollectedTime return the time when the payload has been collected by the fakeintake server
+func (cr *CheckRun) GetCollectedTime() time.Time {
+	return cr.collectedTime
+}
+
+// ParseCheckRunPayload return the parsed checkRun from payload
 func ParseCheckRunPayload(payload api.Payload) (checks []*CheckRun, err error) {
+	if bytes.Equal(payload.Data, []byte("{}")) {
+		// check_run can submit empty JSON object
+		return []*CheckRun{}, nil
+	}
+
 	enflated, err := enflate(payload.Data, payload.Encoding)
 	if err != nil {
 		return nil, err
 	}
+
+	if len(enflated) > 0 && enflated[0] != '[' {
+		// check_run can submit non-array JSON object (diagnose command)
+		return []*CheckRun{}, nil
+	}
+
 	checks = []*CheckRun{}
 	err = json.Unmarshal(enflated, &checks)
+	if err != nil {
+		return nil, err
+	}
+	for _, c := range checks {
+		c.collectedTime = payload.Timestamp
+	}
 	return checks, err
 }
 
+//nolint:revive // TODO(APL) Fix revive linter
 type CheckRunAggregator struct {
 	Aggregator[*CheckRun]
 }
 
+//nolint:revive // TODO(APL) Fix revive linter
 func NewCheckRunAggregator() CheckRunAggregator {
 	return CheckRunAggregator{
 		Aggregator: newAggregator(ParseCheckRunPayload),

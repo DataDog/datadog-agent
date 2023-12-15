@@ -5,6 +5,7 @@
 
 //go:build linux && ebpf_bindata
 
+// Package tests holds tests related files
 package tests
 
 import (

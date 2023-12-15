@@ -5,6 +5,7 @@
 
 //go:build linux_bpf
 
+// Package usm contains implementation for all USM logic
 package usm
 
 import (

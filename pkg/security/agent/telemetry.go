@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package agent holds agent related files
 package agent
 
 import (
@@ -26,6 +27,7 @@ type telemetry struct {
 	logProfiledWorkloads  bool
 }
 
+//nolint:unused // TODO(SEC) Fix unused linter
 func newTelemetry(senderManager sender.SenderManager, logProfiledWorkloads, ignoreDDAgentContainers bool) (*telemetry, error) {
 	runtimeSecurityClient, err := NewRuntimeSecurityClient()
 	if err != nil {

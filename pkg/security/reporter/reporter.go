@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package reporter holds reporter related files
 package reporter
 
 import (
@@ -23,6 +24,7 @@ import (
 
 // RuntimeReporter represents a CWS reporter, used to send events to the intake
 type RuntimeReporter struct {
+	hostname  string
 	logSource *sources.LogSource
 	logChan   chan *message.Message
 }
@@ -33,15 +35,16 @@ func (r *RuntimeReporter) ReportRaw(content []byte, service string, tags ...stri
 	origin.SetTags(tags)
 	origin.SetService(service)
 	msg := message.NewMessage(content, origin, message.StatusInfo, time.Now().UnixNano())
+	msg.Hostname = r.hostname
 	r.logChan <- msg
 }
 
 // NewCWSReporter returns a new CWS reported based on the fields necessary to communicate with the intake
-func NewCWSReporter(runPath string, stopper startstop.Stopper, endpoints *logsconfig.Endpoints, context *client.DestinationsContext) (seccommon.RawReporter, error) {
-	return newReporter(runPath, stopper, "runtime-security-agent", "runtime-security", endpoints, context)
+func NewCWSReporter(hostname string, runPath string, stopper startstop.Stopper, endpoints *logsconfig.Endpoints, context *client.DestinationsContext) (seccommon.RawReporter, error) {
+	return newReporter(hostname, runPath, stopper, "runtime-security-agent", "runtime-security", endpoints, context)
 }
 
-func newReporter(runPath string, stopper startstop.Stopper, sourceName, sourceType string, endpoints *logsconfig.Endpoints, context *client.DestinationsContext) (seccommon.RawReporter, error) {
+func newReporter(hostname string, runPath string, stopper startstop.Stopper, sourceName, sourceType string, endpoints *logsconfig.Endpoints, context *client.DestinationsContext) (seccommon.RawReporter, error) {
 	health := health.RegisterLiveness("runtime-security")
 
 	// setup the auditor
@@ -63,6 +66,7 @@ func newReporter(runPath string, stopper startstop.Stopper, sourceName, sourceTy
 	)
 	logChan := pipelineProvider.NextPipelineChan()
 	return &RuntimeReporter{
+		hostname:  hostname,
 		logSource: logSource,
 		logChan:   logChan,
 	}, nil

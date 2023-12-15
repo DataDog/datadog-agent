@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package ast holds ast related files
 package ast
 
 import (
@@ -20,7 +21,7 @@ func parseMacro(macro string) (*Macro, error) {
 	return pc.ParseMacro(macro)
 }
 
-func print(t *testing.T, i interface{}) {
+func printJSON(t *testing.T, i interface{}) {
 	b, err := json.MarshalIndent(i, "", "  ")
 	if err != nil {
 		t.Error(err)
@@ -42,7 +43,7 @@ func TestCompareNumbers(t *testing.T) {
 		t.Error(err)
 	}
 
-	print(t, rule)
+	printJSON(t, rule)
 }
 
 func TestCompareSimpleIdent(t *testing.T) {
@@ -51,7 +52,7 @@ func TestCompareSimpleIdent(t *testing.T) {
 		t.Error(err)
 	}
 
-	print(t, rule)
+	printJSON(t, rule)
 }
 
 func TestCompareCompositeIdent(t *testing.T) {
@@ -60,7 +61,7 @@ func TestCompareCompositeIdent(t *testing.T) {
 		t.Error(err)
 	}
 
-	print(t, rule)
+	printJSON(t, rule)
 }
 
 func TestCompareString(t *testing.T) {
@@ -69,7 +70,7 @@ func TestCompareString(t *testing.T) {
 		t.Error(err)
 	}
 
-	print(t, rule)
+	printJSON(t, rule)
 }
 
 func TestCompareComplex(t *testing.T) {
@@ -78,7 +79,7 @@ func TestCompareComplex(t *testing.T) {
 		t.Error(err)
 	}
 
-	print(t, rule)
+	printJSON(t, rule)
 }
 
 func TestRegister(t *testing.T) {
@@ -87,7 +88,7 @@ func TestRegister(t *testing.T) {
 		t.Error(err)
 	}
 
-	print(t, rule)
+	printJSON(t, rule)
 }
 
 func TestIntAnd(t *testing.T) {
@@ -96,7 +97,7 @@ func TestIntAnd(t *testing.T) {
 		t.Error(err)
 	}
 
-	print(t, rule)
+	printJSON(t, rule)
 }
 
 func TestBoolAnd(t *testing.T) {
@@ -105,7 +106,7 @@ func TestBoolAnd(t *testing.T) {
 		t.Error(err)
 	}
 
-	print(t, rule)
+	printJSON(t, rule)
 }
 
 func TestInArrayString(t *testing.T) {
@@ -114,7 +115,7 @@ func TestInArrayString(t *testing.T) {
 		t.Error(err)
 	}
 
-	print(t, rule)
+	printJSON(t, rule)
 }
 
 func TestInArrayInteger(t *testing.T) {
@@ -123,7 +124,7 @@ func TestInArrayInteger(t *testing.T) {
 		t.Error(err)
 	}
 
-	print(t, rule)
+	printJSON(t, rule)
 }
 
 func TestMacroList(t *testing.T) {
@@ -132,7 +133,7 @@ func TestMacroList(t *testing.T) {
 		t.Error(err)
 	}
 
-	print(t, macro)
+	printJSON(t, macro)
 }
 
 func TestMacroPrimary(t *testing.T) {
@@ -141,7 +142,7 @@ func TestMacroPrimary(t *testing.T) {
 		t.Error(err)
 	}
 
-	print(t, macro)
+	printJSON(t, macro)
 }
 
 func TestMacroExpression(t *testing.T) {
@@ -150,7 +151,7 @@ func TestMacroExpression(t *testing.T) {
 		t.Error(err)
 	}
 
-	print(t, macro)
+	printJSON(t, macro)
 }
 
 func TestMultiline(t *testing.T) {
@@ -185,7 +186,7 @@ func TestPattern(t *testing.T) {
 		t.Error(err)
 	}
 
-	print(t, rule)
+	printJSON(t, rule)
 }
 
 func TestArrayPattern(t *testing.T) {
@@ -194,7 +195,7 @@ func TestArrayPattern(t *testing.T) {
 		t.Error(err)
 	}
 
-	print(t, rule)
+	printJSON(t, rule)
 }
 
 func TestRegexp(t *testing.T) {
@@ -203,14 +204,14 @@ func TestRegexp(t *testing.T) {
 		t.Error(err)
 	}
 
-	print(t, rule)
+	printJSON(t, rule)
 
 	rule, err = parseRule(`process.name == r"^((?:[A-Za-z\d+]{4})*(?:[A-Za-z\d+]{3}=|[A-Za-z\d+]{2}==)\.)*(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z1-9])$" `)
 	if err != nil {
 		t.Error(err)
 	}
 
-	print(t, rule)
+	printJSON(t, rule)
 }
 
 func TestArrayRegexp(t *testing.T) {
@@ -219,7 +220,7 @@ func TestArrayRegexp(t *testing.T) {
 		t.Error(err)
 	}
 
-	print(t, rule)
+	printJSON(t, rule)
 }
 
 func TestDuration(t *testing.T) {
@@ -228,7 +229,7 @@ func TestDuration(t *testing.T) {
 		t.Error(err)
 	}
 
-	print(t, rule)
+	printJSON(t, rule)
 }
 
 func TestNumberVariable(t *testing.T) {
@@ -237,7 +238,7 @@ func TestNumberVariable(t *testing.T) {
 		t.Error(err)
 	}
 
-	print(t, rule)
+	printJSON(t, rule)
 }
 
 func TestIPv4(t *testing.T) {
@@ -246,7 +247,7 @@ func TestIPv4(t *testing.T) {
 		t.Error(err)
 	}
 
-	print(t, rule)
+	printJSON(t, rule)
 }
 
 func TestIPv4Raw(t *testing.T) {
@@ -255,7 +256,7 @@ func TestIPv4Raw(t *testing.T) {
 		t.Error(err)
 	}
 
-	print(t, rule)
+	printJSON(t, rule)
 }
 
 func TestIPv6Localhost(t *testing.T) {
@@ -264,7 +265,7 @@ func TestIPv6Localhost(t *testing.T) {
 		t.Error(err)
 	}
 
-	print(t, rule)
+	printJSON(t, rule)
 }
 
 func TestIPv6(t *testing.T) {
@@ -273,7 +274,7 @@ func TestIPv6(t *testing.T) {
 		t.Error(err)
 	}
 
-	print(t, rule)
+	printJSON(t, rule)
 }
 
 func TestIPv6Short(t *testing.T) {
@@ -282,7 +283,7 @@ func TestIPv6Short(t *testing.T) {
 		t.Error(err)
 	}
 
-	print(t, rule)
+	printJSON(t, rule)
 }
 
 func TestIPArray(t *testing.T) {
@@ -291,7 +292,7 @@ func TestIPArray(t *testing.T) {
 		t.Error(err)
 	}
 
-	print(t, rule)
+	printJSON(t, rule)
 }
 
 func TestIPv4CIDR(t *testing.T) {
@@ -300,7 +301,7 @@ func TestIPv4CIDR(t *testing.T) {
 		t.Error(err)
 	}
 
-	print(t, rule)
+	printJSON(t, rule)
 }
 
 func TestIPv6CIDR(t *testing.T) {
@@ -309,7 +310,7 @@ func TestIPv6CIDR(t *testing.T) {
 		t.Error(err)
 	}
 
-	print(t, rule)
+	printJSON(t, rule)
 }
 
 func TestCIDRArray(t *testing.T) {
@@ -318,7 +319,7 @@ func TestCIDRArray(t *testing.T) {
 		t.Error(err)
 	}
 
-	print(t, rule)
+	printJSON(t, rule)
 }
 
 func TestIPAndCIDRArray(t *testing.T) {
@@ -327,7 +328,7 @@ func TestIPAndCIDRArray(t *testing.T) {
 		t.Error(err)
 	}
 
-	print(t, rule)
+	printJSON(t, rule)
 }
 
 func TestCIDRMatches(t *testing.T) {
@@ -336,7 +337,7 @@ func TestCIDRMatches(t *testing.T) {
 		t.Error(err)
 	}
 
-	print(t, rule)
+	printJSON(t, rule)
 }
 
 func TestCIDRArrayMatches(t *testing.T) {
@@ -345,5 +346,5 @@ func TestCIDRArrayMatches(t *testing.T) {
 		t.Error(err)
 	}
 
-	print(t, rule)
+	printJSON(t, rule)
 }

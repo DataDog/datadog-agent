@@ -27,8 +27,7 @@ func TestGetTask(t *testing.T) {
 	)
 	require.Nil(t, err)
 
-	ts, _, err := ecsinterface.Start()
-	require.Nil(t, err)
+	ts := ecsinterface.Start()
 	defer ts.Close()
 
 	expected := &Task{
@@ -128,8 +127,7 @@ func TestGetTaskWithTags(t *testing.T) {
 	)
 	require.Nil(t, err)
 
-	ts, _, err := ecsinterface.Start()
-	require.Nil(t, err)
+	ts := ecsinterface.Start()
 	defer ts.Close()
 
 	expected := &Task{
@@ -451,8 +449,7 @@ func TestGetContainerStats(t *testing.T) {
 			)
 			require.Nil(t, err)
 
-			ts, _, err := ecsinterface.Start()
-			require.Nil(t, err)
+			ts := ecsinterface.Start()
 			defer ts.Close()
 
 			metadata, err := NewClient(ts.URL).GetContainerStats(ctx, test.containerID)

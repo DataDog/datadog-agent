@@ -10,6 +10,7 @@ using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
 using Microsoft.Deployment.WindowsInstaller;
 using Datadog.CustomActions.RollbackData;
+using Datadog.CustomActions.Rollback;
 
 namespace Datadog.CustomActions
 {
@@ -21,7 +22,7 @@ namespace Datadog.CustomActions
         private readonly IFileSystemServices _fileSystemServices;
         private readonly IServiceController _serviceController;
 
-        private RollbackDataStore _rollbackDataStore;
+        private readonly RollbackDataStore _rollbackDataStore;
 
         private SecurityIdentifier _ddAgentUserSID;
         private SecurityIdentifier _previousDdAgentUserSID;
@@ -99,6 +100,13 @@ namespace Datadog.CustomActions
             }
 
             _nativeMethods.AddToGroup(_ddAgentUserSID, WellKnownSidType.BuiltinPerformanceMonitoringUsersSid);
+            // Required for using ETW - we would not need this right if the Agent was running as virtual service account (as they have
+            // the same rights as LocalService, which can use ETW by default.
+            // See https://www.geoffchappell.com/studies/windows/km/ntoskrnl/api/etw/secure/index.htm
+            //   "By default, only the administrator of the computer, users in the Performance Log Users group, and services running as LocalSystem,
+            //    *LocalService*, NetworkService can control trace sessions and provide and consume event data.
+            //    Only users with administrative privileges and services running as LocalSystem can start and control an NT Kernel Logger session."
+            _nativeMethods.AddToGroup(_ddAgentUserSID, WellKnownSidType.BuiltinPerformanceLoggingUsersSid);
             // Builtin\Event Log Readers
             _nativeMethods.AddToGroup(_ddAgentUserSID, new SecurityIdentifier("S-1-5-32-573"));
         }
@@ -180,6 +188,10 @@ namespace Datadog.CustomActions
             {
                 using var subkey =
                     _registryServices.OpenRegistryKey(Registries.LocalMachine, Constants.DatadogAgentRegistryKey);
+                if (subkey == null)
+                {
+                    throw new Exception("Datadog registry key does not exist");
+                }
                 var domain = subkey.GetValue("installedDomain")?.ToString();
                 var user = subkey.GetValue("installedUser")?.ToString();
                 if (string.IsNullOrEmpty(domain) || string.IsNullOrEmpty(user))
@@ -265,7 +277,7 @@ namespace Datadog.CustomActions
                 }
             }
             // add specific files
-            fsEnum.Add( new List<string>
+            fsEnum.Add(new List<string>
                 {
                     Path.Combine(configRoot, "datadog.yaml"),
                     Path.Combine(configRoot, "system-probe.yaml"),
@@ -280,9 +292,9 @@ namespace Datadog.CustomActions
                 {
                     continue;
                 }
-                FileSystemSecurity fileSystemSecurity =
+                var fileSystemSecurity =
                     _fileSystemServices.GetAccessControl(filePath, AccessControlSections.All);
-                bool changed = false;
+                var changed = false;
 
                 // If changing agent user, remove old user as owner/group from all files/folders
                 if (_previousDdAgentUserSID != null && _previousDdAgentUserSID != _ddAgentUserSID)
@@ -487,6 +499,10 @@ namespace Datadog.CustomActions
                         $"Failed to enable SeRestorePrivilege. Some file permissions may not be able to be set/rolled back: {e}");
                 }
 
+                // Let's make sure the SE_DACL_AUTO_INHERITED flag is correctly set
+                // Resetting it on %PROJECTLOCATION% will propagate to the subfolders
+                RestoreDaclRollbackCustomAction.RestoreAutoInheritedFlag(_session.Property("PROJECTLOCATION"));
+
                 SetBaseInheritablePermissions();
 
                 ResetConfigurationPermissions();
@@ -621,7 +637,7 @@ namespace Datadog.CustomActions
         /// </summary>
         /// <param name="sid"></param>
         /// <param name="filePath"></param>
-        private void removeAgentAccess(SecurityIdentifier sid, string filePath)
+        private void RemoveAgentAccess(SecurityIdentifier sid, string filePath)
         {
             var fileSystemSecurity = _fileSystemServices.GetAccessControl(filePath, AccessControlSections.All);
             _session.Log(
@@ -698,7 +714,7 @@ namespace Datadog.CustomActions
                         {
                             if (_fileSystemServices.Exists(filePath))
                             {
-                                removeAgentAccess(securityIdentifier, filePath);
+                                RemoveAgentAccess(securityIdentifier, filePath);
                             }
                         }
                         catch (Exception e)

@@ -55,6 +55,8 @@ func NewPerfHandler(dataChannelSize int) *PerfHandler {
 }
 
 // LostHandler is the callback intended to be used when configuring PerfMapOptions
+//
+//nolint:revive // TODO(EBPF) Fix revive linter
 func (c *PerfHandler) LostHandler(CPU int, lostCount uint64, perfMap *manager.PerfMap, manager *manager.Manager) {
 	if c.closed {
 		return
@@ -63,6 +65,8 @@ func (c *PerfHandler) LostHandler(CPU int, lostCount uint64, perfMap *manager.Pe
 }
 
 // RecordHandler is the callback intended to be used when configuring PerfMapOptions
+//
+//nolint:revive // TODO(EBPF) Fix revive linter
 func (c *PerfHandler) RecordHandler(record *perf.Record, perfMap *manager.PerfMap, manager *manager.Manager) {
 	if c.closed {
 		return

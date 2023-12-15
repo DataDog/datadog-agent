@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package probes holds probes related files
 package probes
 
 import (
@@ -152,13 +153,13 @@ func getExecProbes(fentry bool) []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "execve",
-	}, fentry, Entry|SupportFentry)...)
+	}, fentry, EntryAndExit)...)
 	execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "execveat",
-	}, fentry, Entry|SupportFentry)...)
+	}, fentry, EntryAndExit)...)
 
 	for _, name := range []string{
 		"setuid",
@@ -179,7 +180,7 @@ func getExecProbes(fentry bool) []*manager.Probe {
 		"setresgid16",
 		"capset",
 	} {
-		flags := EntryAndExit | SupportFentry | SupportFexit
+		flags := EntryAndExit
 
 		execProbes = append(execProbes, ExpandSyscallProbes(&manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{

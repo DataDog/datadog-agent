@@ -1,0 +1,7 @@
+process_config:
+  process_collection:
+    enabled: true
+  container_collection:
+    enabled: false
+  process_discovery:
+    enabled: false

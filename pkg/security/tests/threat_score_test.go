@@ -5,6 +5,7 @@
 
 //go:build functionaltests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -14,7 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
+	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	activitydump "github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 )
 
@@ -61,7 +62,7 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 
 	expectedFormats := []string{"json", "protobuf"}
 	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind"}
-	test, err := newTestModule(t, nil, rules, testOpts{
+	test, err := newTestModule(t, nil, rules, withStaticOpts(testOpts{
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             testActivityDumpRateLimiter,
 		activityDumpTracedCgroupsCount:      testActivityDumpTracedCgroupsCount,
@@ -71,7 +72,7 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 		activityDumpLocalStorageFormats:     expectedFormats,
 		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
 		activityDumpTagRules:                true,
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}

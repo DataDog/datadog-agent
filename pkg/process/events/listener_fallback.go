@@ -18,7 +18,7 @@ type FallbackListener struct {
 }
 
 // NewListener returns an error for systems where process events collection is not yet supported
-func NewListener(handler EventHandler) (*FallbackListener, error) {
+func NewListener(handler EventHandler) (*FallbackListener, error) { //nolint:revive // TODO fix revive unused-parameter
 	return nil, errors.New("Process event collection is not yet supported on this system")
 }
 

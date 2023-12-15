@@ -327,10 +327,6 @@
             </Component>
               <Directory Id="DRIVER" Name="driver">
                 <Merge Id="ddnpminstall" SourceFile="$(var.BinFiles)\ddnpm.msm" DiskId="1" Language="1033" />
-                <!-- for now, just comment out.  Needs actual variable to determine whether to include or not 
-                <Merge Id="ddprocmoninstall" SourceFile="$(var.BinFiles)\ddprocmon.msm" DiskId="1" Language="1033" />
-                -->
-        
               </Directory>
             <Component Id="DATADOGSYSPROBESERVICE" Guid="5D41ECDB-B91E-4802-878C-CDBA84721623">
               <File Id="system_probe.exe"
@@ -349,6 +345,9 @@
           <?endif?>
           <?if $(var.IncludeAPMInject) = true ?>
             <Merge Id="ddapminstall" SourceFile="$(var.BinFiles)\ddapminstall.msm" DiskId="1" Language="1033" />
+          <?endif ?>
+          <?if $(var.IncludeProcmon) = true ?>
+            <Merge Id="ddprocmoninstall" SourceFile="$(var.BinFiles)\ddprocmon.msm" DiskId="1" Language="1033" />
           <?endif ?>
         </Directory>
       </Directory>
@@ -395,6 +394,29 @@
           Source="$(var.EtcFiles)\system-probe.yaml.example"/>
       </Component>
 
+      <?if $(var.IncludeProcmon) = true ?>
+      <Component Id="security_agent.yaml.example"
+                Guid="31F24643-A680-4E50-8555-F028308FDD1A"
+                NeverOverwrite="yes"
+                Permanent="yes">
+        <File Id="security_agent.yaml.example"
+          Name="security-agent.yaml"
+          KeyPath="yes"
+          Source="$(var.EtcFiles)\security-agent.yaml.example"/>
+      </Component>
+      <?endif ?>
+
+      <?if $(var.IncludeAPMInject) = true ?>
+      <Component Id="apm_inject.yaml.example"
+                Guid="9D1D8978-49B4-4483-A931-B138233015E1"
+                NeverOverwrite="yes"
+                Permanent="yes">
+        <File Id="apm_inject.yaml.example"
+          Name="apm-inject.yaml"
+          KeyPath="yes"
+          Source="$(var.EtcFiles)\apm-inject.yaml.example"/>
+      </Component>
+      <?endif ?>
 
       <Directory Id="checks.d" Name="checks.d">
         <Component Id="checks.d"
@@ -498,10 +520,17 @@
           <ComponentRef Id="MSVCRUNTIME" />
         <?endif ?>
         <ComponentRef Id="DATADOGSYSPROBESERVICE" />
-        <ComponentRef Id="system_probe.yaml.example" />
+        <ComponentRef Id="system_probe.yaml.example" />        
         <MergeRef Id="ddnpminstall"/>
         <?if $(var.IncludeAPMInject) = true ?>
+          <ComponentRef Id="apm_inject.yaml.example" />
+      
           <MergeRef Id="ddapminstall"/>
+        <?endif ?>
+        
+        <?if $(var.IncludeProcmon) = true ?>
+          <ComponentRef Id="security_agent.yaml.example" />
+          <MergeRef Id="ddprocmoninstall" />
         <?endif ?>
         
 

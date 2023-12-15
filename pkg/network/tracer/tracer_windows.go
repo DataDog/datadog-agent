@@ -204,6 +204,10 @@ func (t *Tracer) RegisterClient(clientID string) error {
 	return nil
 }
 
+func (t *Tracer) removeClient(clientID string) {
+	t.state.RemoveClient(clientID)
+}
+
 func (t *Tracer) getConnTelemetry() map[network.ConnTelemetryType]int64 {
 	return map[network.ConnTelemetryType]int64{
 		network.MonotonicDNSPacketsDropped: driver.HandleTelemetry.ReadPacketsSkipped.Load(),
@@ -233,27 +237,35 @@ func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 }
 
 // DebugEBPFMaps is not implemented on this OS for Tracer
+//
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) {
 	return "", ebpf.ErrNotImplemented
 }
 
 // DebugCachedConntrack is not implemented on this OS for Tracer
+//
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (t *Tracer) DebugCachedConntrack(ctx context.Context) (interface{}, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 
 // DebugHostConntrack is not implemented on this OS for Tracer
+//
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 
 // DebugDumpProcessCache is not implemented on this OS for Tracer
+//
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 
 func newUSMMonitor(c *config.Config, dh driver.Handle) usm.Monitor {
-	if !c.EnableHTTPMonitoring && !c.EnableHTTPSMonitoring {
+	if !c.EnableHTTPMonitoring && !c.EnableNativeTLSMonitoring {
 		return nil
 	}
 	log.Infof("http monitoring has been enabled")

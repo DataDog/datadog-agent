@@ -1,196 +1,140 @@
 [
   {
-    "container_id": "",
-    "language_name": "",
-    "language_version": null,
-    "tracer_version": null,
-    "runtime_id": "",
-    "chunks": [
+    "triggers": [
       {
-        "priority": 1,
-        "origin": "lambda",
-        "spans": [
-          {
-            "service": "integration-tests-service",
-            "name": "aws.lambda.cold_start",
-            "resource": "integration-tests-extension-XXXXXX-appsec-java",
-            "trace_id": null,
-            "span_id": null,
-            "parent_id": null,
-            "start": null,
-            "duration": null,
-            "error": 0,
-            "meta": {
-              "_dd.compute_stats": "1",
-              "account_id": "425362996713",
-              "architecture": "XXX",
-              "aws_account": "425362996713",
-              "dd_extension_version": "123",
-              "env": "integration-tests-env",
-              "function_arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-appsec-java",
-              "functionname": "integration-tests-extension-XXXXXX-appsec-java",
-              "memorysize": "1024",
-              "region": "eu-west-1",
-              "runtime": "java8.al2",
-              "service": "integration-tests-service",
-              "taga": "valuea",
-              "tagb": "valueb",
-              "tagc": "valuec",
-              "tagd": "valued",
-              "version": "integration-tests-version"
-            },
-            "metrics": {
-              "_sampling_priority_rate_v1": 1,
-              "_top_level": 1
-            },
-            "type": ""
+        "rule": {
+          "id": "crs-942-100",
+          "name": "SQL Injection Attack Detected via libinjection",
+          "tags": {
+            "capec": "1000/152/248/66",
+            "category": "attack_attempt",
+            "crs_id": "942100",
+            "cwe": "89",
+            "type": "sql_injection"
           }
-        ],
-        "tags": null,
-        "dropped_trace": false
+        },
+        "rule_matches": [
+          {
+            "operator": "is_sqli",
+            "operator_value": "",
+            "parameters": [
+              {
+                "address": "server.request.query",
+                "highlight": [
+                  "1;Tnn"
+                ],
+                "key_path": [
+                  "sql",
+                  "0"
+                ],
+                "value": "105; DROP TABLE Users;"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "rule": {
+          "id": "ua0-600-12x",
+          "name": "Arachni",
+          "tags": {
+            "capec": "1000/118/169",
+            "category": "attack_attempt",
+            "confidence": "1",
+            "cwe": "200",
+            "tool_name": "Arachni",
+            "type": "attack_tool"
+          }
+        },
+        "rule_matches": [
+          {
+            "operator": "match_regex",
+            "operator_value": "^Arachni\\/v",
+            "parameters": [
+              {
+                "address": "server.request.headers.no_cookies",
+                "highlight": [
+                  "Arachni/v"
+                ],
+                "key_path": [
+                  "user-agent",
+                  "0"
+                ],
+                "value": "Arachni/v1"
+              }
+            ]
+          }
+        ]
       }
-    ],
-    "tags": null,
-    "env": "integration-tests-env",
-    "hostname": "",
-    "app_version": "integration-tests-version"
+    ]
   },
   {
-    "container_id": "",
-    "language_name": "java",
-    "language_version": null,
-    "tracer_version": null,
-    "runtime_id": "",
-    "chunks": [
+    "triggers": [
       {
-        "priority": 1,
-        "origin": "lambda",
-        "spans": [
-          {
-            "service": "integration-tests-service",
-            "name": "aws.lambda",
-            "resource": "integration-tests-extension-XXXXXX-appsec-java",
-            "trace_id": null,
-            "span_id": null,
-            "parent_id": null,
-            "start": null,
-            "duration": null,
-            "error": 0,
-            "meta": {
-              "_dd.compute_stats": "1",
-              "account_id": "425362996713",
-              "architecture": "XXX",
-              "aws_account": "425362996713",
-              "cold_start": "true",
-              "datadog_lambda": "X.X.X",
-              "dd_extension_version": "123",
-              "env": "integration-tests-env",
-              "function_arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-appsec-java",
-              "function_version": "$LATEST",
-              "functionname": "integration-tests-extension-XXXXXX-appsec-java",
-              "language": "jvm",
-              "memorysize": "1024",
-              "region": "eu-west-1",
-              "request_id": "null",
-              "resource_names": "integration-tests-extension-XXXXXX-appsec-java",
-              "runtime": "java8.al2",
-              "runtime-id": "null",
-              "service": "integration-tests-service",
-              "tagA": "valueA",
-              "tagB": "valueB",
-              "taga": "valuea",
-              "tagb": "valueb",
-              "tagc": "valuec",
-              "tagd": "valued",
-              "thread.name": "main",
-              "version": "integration-tests-version"
-            },
-            "metrics": {
-              "_dd.agent_psr": 1,
-              "_dd.top_level": 1,
-              "_sampling_priority_v1": 1,
-              "_top_level": 1,
-              "thread.id": 1
-            },
-            "type": ""
+        "rule": {
+          "id": "crs-942-100",
+          "name": "SQL Injection Attack Detected via libinjection",
+          "tags": {
+            "capec": "1000/152/248/66",
+            "category": "attack_attempt",
+            "crs_id": "942100",
+            "cwe": "89",
+            "type": "sql_injection"
           }
-        ],
-        "tags": null,
-        "dropped_trace": false
-      }
-    ],
-    "tags": null,
-    "env": "integration-tests-env",
-    "hostname": "",
-    "app_version": "integration-tests-version"
-  },
-  {
-    "container_id": "",
-    "language_name": "java",
-    "language_version": null,
-    "tracer_version": null,
-    "runtime_id": "",
-    "chunks": [
+        },
+        "rule_matches": [
+          {
+            "operator": "is_sqli",
+            "operator_value": "",
+            "parameters": [
+              {
+                "address": "server.request.query",
+                "highlight": [
+                  "1;Tnn"
+                ],
+                "key_path": [
+                  "sql",
+                  "0"
+                ],
+                "value": "105; DROP TABLE Users;"
+              }
+            ]
+          }
+        ]
+      },
       {
-        "priority": 1,
-        "origin": "lambda",
-        "spans": [
-          {
-            "service": "integration-tests-service",
-            "name": "aws.lambda",
-            "resource": "integration-tests-extension-XXXXXX-appsec-java",
-            "trace_id": null,
-            "span_id": null,
-            "parent_id": null,
-            "start": null,
-            "duration": null,
-            "error": 0,
-            "meta": {
-              "_dd.compute_stats": "1",
-              "account_id": "425362996713",
-              "architecture": "XXX",
-              "aws_account": "425362996713",
-              "cold_start": "false",
-              "datadog_lambda": "X.X.X",
-              "dd_extension_version": "123",
-              "env": "integration-tests-env",
-              "function_arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-appsec-java",
-              "function_version": "$LATEST",
-              "functionname": "integration-tests-extension-XXXXXX-appsec-java",
-              "language": "jvm",
-              "memorysize": "1024",
-              "region": "eu-west-1",
-              "request_id": "null",
-              "resource_names": "integration-tests-extension-XXXXXX-appsec-java",
-              "runtime": "java8.al2",
-              "runtime-id": "null",
-              "service": "integration-tests-service",
-              "tagA": "valueA",
-              "tagB": "valueB",
-              "taga": "valuea",
-              "tagb": "valueb",
-              "tagc": "valuec",
-              "tagd": "valued",
-              "thread.name": "main",
-              "version": "integration-tests-version"
-            },
-            "metrics": {
-              "_dd.agent_psr": 1,
-              "_dd.top_level": 1,
-              "_sampling_priority_v1": 1,
-              "_top_level": 1,
-              "thread.id": 1
-            },
-            "type": ""
+        "rule": {
+          "id": "ua0-600-12x",
+          "name": "Arachni",
+          "tags": {
+            "capec": "1000/118/169",
+            "category": "attack_attempt",
+            "confidence": "1",
+            "cwe": "200",
+            "tool_name": "Arachni",
+            "type": "attack_tool"
           }
-        ],
-        "tags": null,
-        "dropped_trace": false
+        },
+        "rule_matches": [
+          {
+            "operator": "match_regex",
+            "operator_value": "^Arachni\\/v",
+            "parameters": [
+              {
+                "address": "server.request.headers.no_cookies",
+                "highlight": [
+                  "Arachni/v"
+                ],
+                "key_path": [
+                  "user-agent",
+                  "0"
+                ],
+                "value": "Arachni/v1"
+              }
+            ]
+          }
+        ]
       }
-    ],
-    "tags": null,
-    "env": "integration-tests-env",
-    "hostname": "",
-    "app_version": "integration-tests-version"
+    ]
   }
 ]

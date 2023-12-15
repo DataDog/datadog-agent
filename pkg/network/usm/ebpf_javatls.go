@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/java"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -84,6 +85,12 @@ var javaTLSSpec = &protocols.ProtocolSpec{
 		{
 			Name: javaTLSConnectionsMap,
 		},
+		{
+			Name: javaDomainsToConnectionsMap,
+		},
+		{
+			Name: eRPCHandlersMap,
+		},
 	},
 	Probes: []*manager.Probe{
 		{
@@ -127,18 +134,18 @@ var javaTLSSpec = &protocols.ProtocolSpec{
 }
 
 func newJavaTLSProgram(c *config.Config) (protocols.Protocol, error) {
-	if !c.EnableJavaTLSSupport || !http.HTTPSSupported(c) {
+	if !c.EnableJavaTLSSupport || !http.TLSSupported(c) {
 		return nil, nil
 	}
 
 	javaUSMAgentJarPath := filepath.Join(c.JavaDir, agentUSMJar)
 	// We tried switching os.Open to os.Stat, but it seems it does not guarantee we'll be able to copy the file.
-	if f, err := os.Open(javaUSMAgentJarPath); err != nil {
+	f, err := os.Open(javaUSMAgentJarPath)
+	if err != nil {
 		return nil, fmt.Errorf("java TLS can't access java tracer payload %s : %s", javaUSMAgentJarPath, err)
-	} else {
-		// If we managed to open the file, then we close it, as we just needed to check if the file exists.
-		_ = f.Close()
 	}
+	// If we managed to open the file, then we close it, as we just needed to check if the file exists.
+	_ = f.Close()
 
 	return &javaTLSProgram{
 		cfg:                 c,
@@ -157,11 +164,11 @@ func (p *javaTLSProgram) Name() string {
 
 func (p *javaTLSProgram) ConfigureOptions(_ *manager.Manager, options *manager.Options) {
 	options.MapSpecEditors[javaTLSConnectionsMap] = manager.MapSpecEditor{
-		MaxEntries: p.cfg.MaxTrackedConnections,
+		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
 	options.MapSpecEditors[javaDomainsToConnectionsMap] = manager.MapSpecEditor{
-		MaxEntries: p.cfg.MaxTrackedConnections,
+		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
 	options.ActivatedProbes = append(options.ActivatedProbes,
@@ -307,4 +314,9 @@ func buildTracerArguments(c *config.Config) string {
 		allArgs = append(allArgs, "dd.trace.debug=true")
 	}
 	return strings.Join(allArgs, ",")
+}
+
+// IsBuildModeSupported returns always true, as java tls module is supported by all modes.
+func (*javaTLSProgram) IsBuildModeSupported(buildmode.Type) bool {
+	return true
 }

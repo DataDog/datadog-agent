@@ -15,7 +15,7 @@
 #
 
 name "gmp"
-default_version "6.2.1"
+default_version "6.3.0"
 
 dependency 'nettle'
 
@@ -23,7 +23,7 @@ license "LGPL-3.0-or-late"
 license_file "COPYING.LESSERv3"
 skip_transitive_dependency_licensing true
 
-version("6.2.1") { source sha256: "fd4829912cddd12f84181c3451cc752be224643e87fac497b69edddadc49b4f2" }
+version("6.3.0") { source sha256: "a3c2b80201b89e68616f4ad30bc66aee4927c3ce50e33929ca819d5c43538898" }
 
 ship_source_offer true
 
@@ -35,7 +35,8 @@ build do
   env = with_standard_compiler_flags(with_embedded_path)
   env["CFLAGS"] << " -fPIC"
 
-  configure "--disable-static", env: env
+  # With `--enable-fat`, CPU feature detection is done at runtime, improving compatibility
+  configure "--disable-static --enable-fat", env: env
 
   make "-j #{workers}", env: env
   make "install", env: env

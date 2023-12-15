@@ -6,6 +6,18 @@ init_config:
   ## Active session sampling interval in seconds
   # min_collection_interval: <interval_in_seconds>
 
+  ## @param global_custom_queries - list of mappings - optional
+  ## See `custom_queries` defined below.
+  ##
+  ## Global custom queries can be applied to all instances using the
+  ## `use_global_custom_queries` setting at the instance level.
+  #
+  # global_custom_queries:
+  #   - query: <QUERY> 
+  #     columns: <COLUMNS>
+  #     tags: <TAGS>
+
+
 ## Every instance is scheduled independent of the others.
 #
 instances:
@@ -42,6 +54,16 @@ instances:
   ## TNS_ADMIN before starting the Datadog agent.
   #
   # tns_admin: <TNS_ADMIN_DIR>
+
+  ## @param protocol - string - optional - default: true
+  ## The protocol to connect to the Oracle Database Server. Valid protocols include TCP and TCPS.
+  #
+  # protocol: TCP
+
+  ## @param protocol - string - optional
+  ## The directory containing Oracle wallet. Oracle wallet is used with TCPS protocol.
+  #
+  # wallet: <WALLET_DIR>>
 
   ## @param instant_client - boolean - optional
   ## Force using instant_client even when 'tns_alias' isn't used. This might be necessary
@@ -122,10 +144,10 @@ instances:
   #
   # execution_plans:
 
-      ## @param enabled - boolean - optional - default: false
+      ## @param enabled - boolean - optional - default: true
       ## Enable collection of execution plans. Requires query metrics.
       #
-      # enabled: false
+      # enabled: true
 
   ## Configure how the SQL obfuscator behaves.
   ## Note: This option only applies when `dbm` is enabled.
@@ -173,6 +195,15 @@ instances:
         #
         # enabled: true
 
+    ## @param use_global_custom_queries - string - optional - default: 'true'
+    ## How `global_custom_queries` should be used for this instance. There are 3 options:
+    ##
+    ## 1. true - `global_custom_queries` override `custom_queries`.
+    ## 2. false - `custom_queries` override `global_custom_queries`.
+    ## 3. extend - `global_custom_queries` are used in addition to any `custom_queries`.
+    #
+    # use_global_custom_queries: 'true'
+
     ## @param tags - list of strings - optional
     ## A list of tags to attach to every metric and service check emitted by this instance.
     ##
@@ -185,20 +216,38 @@ instances:
     ## @param custom_queries - list of mappings - optional
     ## Each query must have 2 fields, and can have a third optional field:
     ##
-    ## 1. query - The SQL to execute. It can be a simple statement or a multi-line script.
+    ## 1. metric_prefix - Each metric starts with the chosen prefix.
+    ## 2. query - The SQL to execute. It can be a simple statement or a multi-line script.
     ##            Use the pipe `|` if you require a multi-line script.
-    ## 2. columns - The list representing each column, ordered sequentially from left to right.
+    ## 3. columns - The list representing each column, ordered sequentially from left to right.
     ##              The number of columns must equal the number of columns returned in the query.
     ##              There are 2 required pieces of data:
-    ##                a. name - The suffix to append to `<INTEGRATION>.` to form
-    ##                          the full metric name. If `type` is a `tag` type, this column is
+    ##                a. name - The suffix to append to `metric_prefix` to form
+    ##                          the full metric name. If `type` is `tag`, this column is
     ##                          considered a tag and applied to every
     ##                          metric collected by this particular query.
-    ##                b. type - The submission method (gauge, monotonic_count, etc.) or tag.
-    ## 3. tags (optional) - A list of tags to apply to each metric.
-    ## 4. pdb (optional) - A PDB against which the query will be run. Default is CDB$ROOT.
-                           The parameter can be defined on a self-managed instance, which
-                           connects to CDB.
+    ##                b. type - The submission method (gauge, monotonic_count, etc.).
+    ##                          This can also be set to `tag` to tag each metric in the row
+    ##                          with the name and value of the item in this column. You can
+    ##                          use the `count` type to perform aggregation for queries that
+    ##                          return multiple rows with the same or no tags.
+    ##              Columns without a name are ignored. To skip a column, enter:
+    ##                - {}
+    ## 4. tags (optional) - A list of tags to apply to each metric.
+    #
+    custom_queries:
+      - metric_prefix: oracle.custom_query.table_events
+        query: SELECT program, COUNT(*) FROM table_events GROUP BY program
+        columns:
+        - name: foo
+          type: tag
+        - name: total
+          type: gauge
+        tags:
+        - tag1:value1
+
+    ## WARNING: Running custom queries may result in additional costs or fees assessed by Oracle.
+    
     # custom_queries:
     #   - query: SELECT foo, COUNT(*) FROM table.events GROUP BY foo
     #     columns:
@@ -207,10 +256,11 @@ instances:
     #     - name: event.total
     #       type: gauge
     #     tags:
-    #     - test:<INTEGRATION>
+    #     - test:tag_value_1
     #     pdb: <MYPDB>
 
-  ## Start SQL trace for agent queries
+  ## Start an SQL trace for Agent queries. This feature is only meant for Agent troubleshooting, and 
+  ## should normally be switched off.
   ## Requires execute the execute privilege on `dbms_monitor` to datadog user
   #
   # agent_sql_trace:

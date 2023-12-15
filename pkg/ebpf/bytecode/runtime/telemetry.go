@@ -32,7 +32,7 @@ const (
 	verificationError
 	outputDirErr
 	outputFileErr
-	newCompilerErr // nolint:deadcode,unused
+	newCompilerErr //nolint:deadcode,unused
 	compilationErr
 	resultReadErr
 	headerFetchErr

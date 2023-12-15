@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
@@ -44,10 +45,11 @@ type UDPListener struct {
 	packetAssembler *packets.Assembler
 	buffer          []byte
 	trafficCapture  replay.Component // Currently ignored
+	listenWg        sync.WaitGroup
 }
 
 // NewUDPListener returns an idle UDP Statsd listener
-func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, cfg config.ConfigReader, capture replay.Component) (*UDPListener, error) {
+func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, cfg config.Reader, capture replay.Component) (*UDPListener, error) {
 	var err error
 	var url string
 
@@ -83,7 +85,7 @@ func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 	flushTimeout := cfg.GetDuration("dogstatsd_packet_buffer_flush_timeout")
 
 	buffer := make([]byte, bufferSize)
-	packetsBuffer := packets.NewBuffer(uint(packetsBufferSize), flushTimeout, packetOut)
+	packetsBuffer := packets.NewBuffer(uint(packetsBufferSize), flushTimeout, packetOut, "udp")
 	packetAssembler := packets.NewAssembler(flushTimeout, packetsBuffer, sharedPacketPoolManager, packets.UDP)
 
 	listener := &UDPListener{
@@ -104,6 +106,15 @@ func (l *UDPListener) LocalAddr() string {
 
 // Listen runs the intake loop. Should be called in its own goroutine
 func (l *UDPListener) Listen() {
+	l.listenWg.Add(1)
+
+	go func() {
+		defer l.listenWg.Done()
+		l.listen()
+	}()
+}
+
+func (l *UDPListener) listen() {
 	var t1, t2 time.Time
 	log.Infof("dogstatsd-udp: starting to listen on %s", l.conn.LocalAddr())
 	for {
@@ -131,7 +142,7 @@ func (l *UDPListener) Listen() {
 		}
 
 		t2 = time.Now()
-		tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), "udp")
+		tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), "udp", "udp", "udp")
 	}
 }
 
@@ -140,4 +151,5 @@ func (l *UDPListener) Stop() {
 	l.packetAssembler.Close()
 	l.packetsBuffer.Close()
 	l.conn.Close()
+	l.listenWg.Wait()
 }

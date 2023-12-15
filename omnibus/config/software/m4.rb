@@ -32,7 +32,10 @@ relative_path "m4-#{version}"
 build do
   env = with_standard_compiler_flags(with_embedded_path)
 
-  command "./configure --prefix=#{install_dir}/embedded", env: env
+  configure_options = [
+    "--disable-nls",
+  ]
+  configure(*configure_options, env: env)
 
   make "-j #{workers}", env: env
   make "-j #{workers} install", env: env

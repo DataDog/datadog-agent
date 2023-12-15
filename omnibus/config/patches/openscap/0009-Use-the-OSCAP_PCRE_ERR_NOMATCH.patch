@@ -1,0 +1,25 @@
+From 3f35e893d573415a6686c84c2b23e430a29073e7 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Jan=20=C4=8Cern=C3=BD?= <jcerny@redhat.com>
+Date: Fri, 15 Sep 2023 15:40:16 +0200
+Subject: [PATCH 09/16] Use the OSCAP_PCRE_ERR_NOMATCH
+
+---
+ src/OVAL/probes/unix/linux/partition_probe.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/OVAL/probes/unix/linux/partition_probe.c b/src/OVAL/probes/unix/linux/partition_probe.c
+index eea7bc348..0e8b1cde9 100644
+--- a/src/OVAL/probes/unix/linux/partition_probe.c
++++ b/src/OVAL/probes/unix/linux/partition_probe.c
+@@ -402,7 +402,7 @@ int partition_probe_main(probe_ctx *ctx, void *probe_arg)
+                                 rc = oscap_pcre_exec(re, mnt_entp->mnt_dir,
+                                                strlen(mnt_entp->mnt_dir), 0, 0, NULL, 0);
+ 
+-                                if (rc >= 0) {
++                                if (rc > OSCAP_PCRE_ERR_NOMATCH) {
+ 	                                if (
+ #if defined(HAVE_BLKID_GET_TAG_VALUE)
+ 		                                collect_item(ctx, obj_over, mnt_entp, blkcache)
+-- 
+2.34.1
+

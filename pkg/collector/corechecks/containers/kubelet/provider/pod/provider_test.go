@@ -27,71 +27,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
+	commontesting "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common/testing"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-var (
-	commonTags = map[string][]string{
-		"kubernetes_pod_uid://c2319815-10d0-11e8-bd5a-42010af00137": {"pod_name:datadog-agent-jbm2k"},
-		"kubernetes_pod_uid://2edfd4d9-10ce-11e8-bd5a-42010af00137": {"pod_name:fluentd-gcp-v2.0.10-9q9t4"},
-		"kubernetes_pod_uid://2fdfd4d9-10ce-11e8-bd5a-42010af00137": {"pod_name:fluentd-gcp-v2.0.10-p13r3"},
-		"container_id://5741ed2471c0e458b6b95db40ba05d1a5ee168256638a0264f08703e48d76561": {
-			"kube_container_name:fluentd-gcp",
-			"kube_deployment:fluentd-gcp-v2.0.10",
-		},
-		"container_id://580cb469826a10317fd63cc780441920f49913ae63918d4c7b19a72347645b05": {
-			"kube_container_name:prometheus-to-sd-exporter",
-			"kube_deployment:fluentd-gcp-v2.0.10",
-		},
-		"container_id://6941ed2471c0e458b6b95db40ba05d1a5ee168256638a0264f08703e48d76561": {
-			"kube_container_name:fluentd-gcp",
-			"kube_deployment:fluentd-gcp-v2.0.10",
-		},
-		"container_id://690cb469826a10317fd63cc780441920f49913ae63918d4c7b19a72347645b05": {
-			"kube_container_name:prometheus-to-sd-exporter",
-			"kube_deployment:fluentd-gcp-v2.0.10",
-		},
-		"container_id://5f93d91c7aee0230f77fbe9ec642dd60958f5098e76de270a933285c24dfdc6f": {
-			"pod_name:demo-app-success-c485bc67b-klj45",
-		},
-		"kubernetes_pod_uid://d2e71e36-10d0-11e8-bd5a-42010af00137": {"pod_name:dd-agent-q6hpw"},
-		"kubernetes_pod_uid://260c2b1d43b094af6d6b4ccba082c2db": {
-			"pod_name:kube-proxy-gke-haissam-default-pool-be5066f1-wnvn",
-		},
-		"kubernetes_pod_uid://24d6daa3-10d8-11e8-bd5a-42010af00137":                       {"pod_name:demo-app-success-c485bc67b-klj45"},
-		"container_id://f69aa93ce78ee11e78e7c75dc71f535567961740a308422dafebdb4030b04903": {"pod_name:pi-kff76"},
-		"kubernetes_pod_uid://12ceeaa9-33ca-11e6-ac8f-42010af00003":                       {"pod_name:dd-agent-ntepl"},
-		"container_id://32fc50ecfe24df055f6d56037acb966337eef7282ad5c203a1be58f2dd2fe743": {"pod_name:dd-agent-ntepl"},
-		"container_id://a335589109ce5506aa69ba7481fc3e6c943abd23c5277016c92dac15d0f40479": {
-			"kube_container_name:datadog-agent",
-		},
-		"container_id://326b384481ca95204018e3e837c61e522b64a3b86c3804142a22b2d1db9dbd7b": {
-			"kube_container_name:datadog-agent",
-		},
-		"container_id://6d8c6a05731b52195998c438fdca271b967b171f6c894f11ba59aa2f4deff10c": {"pod_name:cassandra-0"},
-		"kubernetes_pod_uid://639980e5-2e6c-11ea-8bb1-42010a800074": {
-			"kube_namespace:default",
-			"kube_service:nginx",
-			"kube_stateful_set:web",
-			"namespace:default",
-			"persistentvolumeclaim:www-web-2",
-			"pod_phase:running",
-		},
-		"kubernetes_pod_uid://639980e5-2e6c-11ea-8bb1-42010a800075": {
-			"kube_namespace:default",
-			"kube_service:nginx",
-			"kube_stateful_set:web",
-			"namespace:default",
-			"persistentvolumeclaim:www-web-2",
-			"persistentvolumeclaim:www2-web-3",
-			"pod_phase:running",
-		},
-	}
 )
 
 // dummyKubelet allows tests to mock a kubelet's responses
@@ -172,7 +114,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 	suite.mockSender = mockSender
 
 	fakeTagger := local.NewFakeTagger()
-	for entity, tags := range commonTags {
+	for entity, tags := range commontesting.CommonTags {
 		fakeTagger.SetTags(entity, "foo", tags, nil, nil, nil)
 	}
 	tagger.SetDefaultTagger(fakeTagger)
@@ -182,11 +124,11 @@ func (suite *ProviderTestSuite) SetupTest() {
 	require.Nil(suite.T(), err)
 	suite.testServer = ts
 
-	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
-	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
-	mockConfig.Set("kubernetes_https_kubelet_port", kubeletPort)
-	mockConfig.Set("kubelet_tls_verify", false)
-	mockConfig.Set("kubelet_auth_token_path", "")
+	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "127.0.0.1")
+	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", kubeletPort)
+	mockConfig.SetWithoutSource("kubelet_tls_verify", false)
+	mockConfig.SetWithoutSource("kubelet_auth_token_path", "")
 
 	kubeutil, _ := kubelet.GetKubeUtilWithRetrier()
 	require.NotNil(suite.T(), kubeutil)
@@ -204,6 +146,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 			Enabled:         true,
 			NameExcludeList: []*regexp.Regexp{regexp.MustCompile("agent-excluded")},
 		},
+		podUtils: common.NewPodUtils(),
 	}
 }
 

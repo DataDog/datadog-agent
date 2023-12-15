@@ -19,6 +19,7 @@ from .kernel_matrix_testing.init_kmt import (
     init_kernel_matrix_testing_system,
 )
 from .kernel_matrix_testing.tool import Exit, ask, info, warn
+from .system_probe import EMBEDDED_SHARE_DIR
 
 try:
     from tabulate import tabulate
@@ -27,7 +28,6 @@ except ImportError:
 
 X86_AMI_ID_SANDBOX = "ami-0d1f81cfdbd5b0188"
 ARM_AMI_ID_SANDBOX = "ami-02cb18e91afb3777c"
-GOVERSION = 1.20
 
 
 @task
@@ -45,8 +45,20 @@ def create_stack(ctx, stack=None):
         "init-stack": "Automatically initialize stack if not present. Equivalent to calling 'inv -e kmt.create-stack [--stack=<stack>]'",
     }
 )
-def gen_config(ctx, stack=None, vms="", init_stack=False, vcpu="4", memory="8192", new=False):
-    vmconfig.gen_config(ctx, stack, vms, init_stack, vcpu, memory, new)
+def gen_config(
+    ctx,
+    stack=None,
+    vms="",
+    sets="",
+    init_stack=False,
+    vcpu="4",
+    memory="8192",
+    new=False,
+    ci=False,
+    arch="",
+    output_file="vmconfig.json",
+):
+    vmconfig.gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, output_file)
 
 
 @task
@@ -76,7 +88,7 @@ def stack(ctx, stack=None):
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
-    ctx.run(f"cat {KMT_STACKS_DIR}/{stack}/stack.outputs")
+    ctx.run(f"cat {KMT_STACKS_DIR}/{stack}/stack.output")
 
 
 @task
@@ -118,7 +130,7 @@ def revert_resources(ctx):
 
 
 def get_vm_ip(stack, version, arch):
-    with open(f"{KMT_STACKS_DIR}/{stack}/stack.outputs", 'r') as f:
+    with open(f"{KMT_STACKS_DIR}/{stack}/stack.output", 'r') as f:
         entries = f.readlines()
         for entry in entries:
             match = re.search(f"^.+{arch}-{version}.+\\s+.+$", entry.strip('\n'))
@@ -146,7 +158,7 @@ def build_target_set(stack, vms, ssh_key):
 
 
 def get_instance_ip(stack, arch):
-    with open(f"{KMT_STACKS_DIR}/{stack}/stack.outputs", 'r') as f:
+    with open(f"{KMT_STACKS_DIR}/{stack}/stack.output", 'r') as f:
         entries = f.readlines()
         for entry in entries:
             if f"{arch}-instance-ip" in entry.split(' ')[0]:
@@ -185,7 +197,7 @@ def sync_source(ctx, vm_ls, source, target, ssh_key):
 
 
 @task
-def sync(ctx, stack=None, vms="", ssh_key=""):
+def sync(ctx, vms, stack=None, ssh_key=""):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
@@ -315,7 +327,7 @@ def copy_dependencies(ctx, stack, vms, ssh_key):
 
 
 @task
-def prepare(ctx, stack=None, arch=None, vms="", ssh_key="", rebuild_deps=False, packages=""):
+def prepare(ctx, vms, stack=None, arch=None, ssh_key="", rebuild_deps=False, packages=""):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
@@ -359,7 +371,7 @@ def prepare(ctx, stack=None, arch=None, vms="", ssh_key="", rebuild_deps=False, 
 
 
 @task
-def test(ctx, stack=None, packages="", run=None, retry=2, rebuild_deps=False, vms="", ssh_key="", go_version=GOVERSION):
+def test(ctx, vms, stack=None, packages="", run=None, retry=2, rebuild_deps=False, ssh_key=""):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
@@ -374,11 +386,41 @@ def test(ctx, stack=None, packages="", run=None, retry=2, rebuild_deps=False, vm
     run_cmd_vms(
         ctx,
         stack,
-        f"bash /micro-vm-init.sh {go_version} {retry} {platform.machine()} {' '.join(args)}",
+        f"bash /micro-vm-init.sh {retry} {' '.join(args)}",
         target_vms,
         "",
         allow_fail=True,
     )
+
+
+@task
+def build(ctx, vms, stack=None, ssh_key="", rebuild_deps=False):
+    stack = check_and_get_stack(stack)
+    if not stacks.stack_exists(stack):
+        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
+
+    if not os.path.exists(f"kmt-deps/{stack}"):
+        ctx.run(f"mkdir -p kmt-deps/{stack}")
+
+    target_vms = build_target_set(stack, vms, ssh_key)
+    if rebuild_deps or not os.path.isfile(f"kmt-deps/{stack}/dependencies-{platform.machine()}.tar.gz"):
+        docker_exec(
+            ctx,
+            f"cd /datadog-agent && ./test/new-e2e/system-probe/test/setup-microvm-deps.sh {stack} {os.getuid()} {os.getgid()} {platform.machine()}",
+            user="compiler",
+        )
+        copy_dependencies(ctx, stack, target_vms, ssh_key)
+        run_cmd_vms(
+            ctx, stack, f"/root/fetch_dependencies.sh {platform.machine()}", target_vms, ssh_key, allow_fail=True
+        )
+
+    docker_exec(
+        ctx, "cd /datadog-agent && git config --global --add safe.directory /datadog-agent && inv -e system-probe.build"
+    )
+    docker_exec(ctx, f"tar cf /datadog-agent/kmt-deps/{stack}/shared.tar {EMBEDDED_SHARE_DIR}")
+    sync_source(ctx, target_vms, "./bin/system-probe", "/root", ssh_key)
+    sync_source(ctx, target_vms, f"kmt-deps/{stack}/shared.tar", "/", ssh_key)
+    run_cmd_vms(ctx, stack, "tar xf /shared.tar -C /", target_vms, ssh_key)
 
 
 @task

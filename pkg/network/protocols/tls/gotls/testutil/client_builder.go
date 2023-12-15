@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package testutil provides utilities for testing the TLS package.
 package testutil
 
 import (
@@ -18,7 +19,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func NewGoTLSClient(t *testing.T, serverAddr string, numRequests int) func() {
+// NewGoTLSClient triggers an external go tls client that runs `numRequests` HTTPs requests to `serverAddr`.
+// Returns the command executed and a callback to start sending requests.
+func NewGoTLSClient(t *testing.T, serverAddr string, numRequests int) (*exec.Cmd, func()) {
 	clientBin := buildGoTLSClientBin(t)
 	clientCmd := fmt.Sprintf("%s %s %d", clientBin, serverAddr, numRequests)
 
@@ -26,7 +29,7 @@ func NewGoTLSClient(t *testing.T, serverAddr string, numRequests int) func() {
 	c, clientInput, err := nettestutil.StartCommandCtx(timedCtx, clientCmd)
 
 	require.NoError(t, err)
-	return func() {
+	return c, func() {
 		defer cancel()
 		_, err = clientInput.Write([]byte{1})
 		require.NoError(t, err)

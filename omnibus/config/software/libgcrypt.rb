@@ -15,7 +15,7 @@
 #
 
 name "libgcrypt"
-default_version "1.10.1"
+default_version "1.10.2"
 
 license "LGPL-2.1"
 license_file "COPYING.LIB"
@@ -23,7 +23,7 @@ skip_transitive_dependency_licensing true
 
 dependency "libgpg-error"
 
-version("1.10.1") { source sha256: "ef14ae546b0084cd84259f61a55e07a38c3b53afc0f546bffcef2f01baffe9de" }
+version("1.10.2") { source sha256: "3b9c02a004b68c256add99701de00b383accccf37177e0d6c58289664cce0c03" }
 
 ship_source_offer true
 
@@ -33,11 +33,10 @@ relative_path "libgcrypt-#{version}"
 
 build do
   env = with_standard_compiler_flags(with_embedded_path)
-  
+
   env["CFLAGS"] = "-I#{install_dir}/embedded/include -O1 -D_FORTIFY_SOURCE=1 -fPIC"
 
   configure_options = [
-    "--prefix=#{install_dir}/embedded",
     "--enable-maintainer-mode",
   ]
 

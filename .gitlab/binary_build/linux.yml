@@ -6,7 +6,7 @@ build_dogstatsd_static-binary_x64:
     !reference [.on_a7]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  needs: ["lint_deb-x64", "tests_deb-x64-py3", "go_deps"]
+  needs: ["lint_linux-x64", "tests_deb-x64-py3", "go_deps"]
   variables:
     ARCH: amd64
   before_script:
@@ -23,7 +23,7 @@ build_dogstatsd_static-binary_arm64:
     !reference [.on_a7]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["arch:arm64"]
-  needs: ["lint_deb-arm64", "tests_deb-arm64-py3", "go_deps"]
+  needs: ["lint_linux-arm64", "tests_deb-arm64-py3", "go_deps"]
   variables:
     ARCH: arm64
   before_script:
@@ -40,7 +40,7 @@ build_dogstatsd-binary_x64:
     !reference [.on_a7]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  needs: ["lint_deb-x64", "tests_deb-x64-py3", "go_deps"]
+  needs: ["lint_linux-x64", "tests_deb-x64-py3", "go_deps"]
   before_script:
     - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
@@ -55,7 +55,7 @@ build_dogstatsd-binary_arm64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["arch:arm64"]
-  needs: ["lint_deb-arm64", "tests_deb-arm64-py3", "go_deps"]
+  needs: ["lint_linux-arm64", "tests_deb-arm64-py3", "go_deps"]
   variables:
     ARCH: arm64
   before_script:
@@ -73,7 +73,7 @@ build_iot_agent-binary_x64:
     !reference [.on_a7]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  needs: ["lint_deb-x64", "tests_deb-x64-py3", "go_deps"]
+  needs: ["lint_linux-x64", "tests_deb-x64-py3", "go_deps"]
   before_script:
     - !reference [.retrieve_linux_go_deps]
   script:
@@ -88,7 +88,7 @@ build_iot_agent-binary_arm64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
-  needs: ["lint_deb-arm64", "tests_deb-arm64-py3", "go_deps"]
+  needs: ["lint_linux-arm64", "tests_deb-arm64-py3", "go_deps"]
   variables:
     ARCH: arm64
   before_script:

@@ -16,11 +16,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 type senderWithChans struct {
@@ -47,7 +50,8 @@ func initSender(id checkid.ID, defaultHostname string) (s senderWithChans) {
 func testDemux(log log.Component) *AgentDemultiplexer {
 	opts := DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
-	demux := initAgentDemultiplexer(log, NewForwarderTest(log), opts, defaultHostname)
+	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
+	demux := initAgentDemultiplexer(log, NewForwarderTest(log), &orchestratorForwarder, opts, defaultHostname)
 	return demux
 }
 
@@ -67,7 +71,7 @@ func assertAggSamplersLen(t *testing.T, agg *BufferedAggregator, n int) {
 func TestGetDefaultSenderReturnsSameSender(t *testing.T) {
 	// this test not using anything global
 	// -
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := testDemux(log)
 	aggregatorInstance := demux.Aggregator()
 	go aggregatorInstance.run()
@@ -87,7 +91,7 @@ func TestGetDefaultSenderReturnsSameSender(t *testing.T) {
 func TestGetSenderWithDifferentIDsReturnsDifferentCheckSamplers(t *testing.T) {
 	// this test not using anything global
 	// -
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := testDemux(log)
 
 	aggregatorInstance := demux.Aggregator()
@@ -117,7 +121,7 @@ func TestGetSenderWithSameIDsReturnsSameSender(t *testing.T) {
 	// this test not using anything global
 	// -
 
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := testDemux(log)
 	aggregatorInstance := demux.Aggregator()
 	go aggregatorInstance.run()
@@ -127,20 +131,20 @@ func TestGetSenderWithSameIDsReturnsSameSender(t *testing.T) {
 	assert.Nil(t, err)
 	assertAggSamplersLen(t, aggregatorInstance, 1)
 
-	assert.Len(t, demux.senderPool.senders, 1)
+	assert.Len(t, demux.senders.senderPool.senders, 1)
 
 	sender2, err := demux.GetSender(checkID1)
 	assert.Nil(t, err)
 	assert.Equal(t, sender1, sender2)
 
-	assert.Len(t, demux.senderPool.senders, 1)
+	assert.Len(t, demux.senders.senderPool.senders, 1)
 }
 
 func TestDestroySender(t *testing.T) {
 	// this test not using anything global
 	// -
 
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := testDemux(log)
 	aggregatorInstance := demux.Aggregator()
 	go aggregatorInstance.run()
@@ -170,7 +174,7 @@ func TestGetAndSetSender(t *testing.T) {
 	// this test not using anything global
 	// -
 
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := testDemux(log)
 
 	itemChan := make(chan senderItem, 10)
@@ -193,7 +197,7 @@ func TestGetSenderDefaultHostname(t *testing.T) {
 	// this test not using anything global
 	// -
 
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := testDemux(log)
 	aggregatorInstance := demux.Aggregator()
 	go aggregatorInstance.run()
@@ -321,6 +325,51 @@ func TestGetSenderAddCheckCustomTagsMetrics(t *testing.T) {
 	assert.Equal(t, append(checkTags, customTags...), sms.metricSample.Tags)
 }
 
+func TestSenderPopulatingMetricSampleSource(t *testing.T) {
+	// this test not using anything global
+	// -
+
+	tests := []struct {
+		name                 string
+		checkID              checkid.ID
+		expectedMetricSource metrics.MetricSource
+	}{
+		{
+			name:                 "unrecognized checkID should have MetricSourceUnknown",
+			checkID:              checkID1,
+			expectedMetricSource: metrics.MetricSourceUnknown,
+		},
+		{
+			name:                 "checkid cpu:1 should have MetricSourceCPU",
+			checkID:              "cpu:1",
+			expectedMetricSource: metrics.MetricSourceCPU,
+		},
+		{
+			name:                 "checkid ntp:1 should have MetricSourceNtp",
+			checkID:              "ntp:1",
+			expectedMetricSource: metrics.MetricSourceNtp,
+		},
+		{
+			name:                 "checkid memory:1 should have MetricSourceMemory",
+			checkID:              "memory:1",
+			expectedMetricSource: metrics.MetricSourceMemory,
+		},
+		{
+			name:                 "checkid uptime:1 should have MetricSourceUptime",
+			checkID:              "uptime:1",
+			expectedMetricSource: metrics.MetricSourceUptime,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := initSender(tt.checkID, "")
+			s.sender.sendMetricSample("metric.test", 42.0, "testhostname", nil, metrics.CounterType, false, false)
+			sms := (<-s.itemChan).(*senderMetricSample)
+			assert.Equal(t, sms.metricSample.Source, tt.expectedMetricSource)
+		})
+	}
+}
+
 func TestGetSenderAddCheckCustomTagsService(t *testing.T) {
 	// this test not using anything global
 	// -
@@ -444,6 +493,7 @@ func TestCheckSenderInterface(t *testing.T) {
 	s.sender.Counter("my.counter_metric", 1.0, "my-hostname", []string{"foo", "bar"})
 	s.sender.Histogram("my.histo_metric", 3.0, "my-hostname", []string{"foo", "bar"})
 	s.sender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", []string{"foo", "bar"}, true)
+	s.sender.Distribution("my.distribution", 43.0, "my-hostname", []string{"foo", "bar"})
 	s.sender.Commit()
 	s.sender.ServiceCheck("my_service.can_connect", servicecheck.ServiceCheckOK, "my-hostname", []string{"foo", "bar"}, "message")
 	s.sender.EventPlatformEvent([]byte("raw-event"), "dbm-sample")
@@ -506,6 +556,11 @@ func TestCheckSenderInterface(t *testing.T) {
 	assert.Equal(t, "my-hostname", histogramBucket.bucket.Host)
 	assert.Equal(t, []string{"foo", "bar"}, histogramBucket.bucket.Tags)
 	assert.Equal(t, true, histogramBucket.bucket.FlushFirstValue)
+
+	distributionSample := (<-s.itemChan).(*senderMetricSample)
+	assert.EqualValues(t, checkID1, distributionSample.id)
+	assert.Equal(t, metrics.DistributionType, distributionSample.metricSample.Mtype)
+	assert.Equal(t, false, distributionSample.commit)
 
 	commitSenderSample := (<-s.itemChan).(*senderMetricSample)
 	assert.EqualValues(t, checkID1, commitSenderSample.id)

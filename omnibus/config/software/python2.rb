@@ -24,7 +24,6 @@ if ohai["platform"] != "windows"
   dependency "ncurses"
   dependency "zlib"
   dependency "openssl"
-  dependency "pkg-config"
   dependency "bzip2"
   dependency "libsqlite3"
   dependency "libyaml"
@@ -34,43 +33,35 @@ if ohai["platform"] != "windows"
 
   relative_path "Python-#{version}"
 
-  env = {
-    "CFLAGS" => "-I#{install_dir}/embedded/include -O2 -g -pipe -fPIC",
-    "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
-    "PKG_CONFIG" => "#{install_dir}/embedded/bin/pkg-config",
-    "PKG_CONFIG_PATH" => "#{install_dir}/embedded/lib/pkgconfig"
-  }
+  env = with_standard_compiler_flags(with_embedded_path)
+  env['CFLAGS'] << ' -fPIC'
 
-  python_configure = ["./configure",
-                      "--prefix=#{install_dir}/embedded",
-                      "--with-ensurepip=no"] # pip is installed separately by its own software def
+  python_configure_options = ["--with-ensurepip=no"] # pip is installed separately by its own software def
 
   if mac_os_x?
-    python_configure.push("--enable-ipv6",
+    python_configure_options.push("--enable-ipv6",
                           "--with-universal-archs=intel",
                           "--enable-shared",
-                          "--disable-static",
                           "--without-gcc",
                           "CC=clang")
-  elsif linux?
-    python_configure.push("--enable-unicode=ucs4",
-                          "--enable-shared",
-                          "--disable-static")
+  elsif linux_target?
+    python_configure_options.push("--enable-unicode=ucs4",
+                          "--enable-shared")
   end
 
   build do
     # 2.0 is the license version here, not the python version
     license "Python-2.0"
 
-    patch :source => "avoid-allocating-thunks-in-ctypes.patch" if linux?
-    patch :source => "fix-platform-ubuntu.diff" if linux?
+    patch :source => "avoid-allocating-thunks-in-ctypes.patch" if linux_target?
+    patch :source => "fix-platform-ubuntu.diff" if linux_target?
     # security patches backported by the debian community
     # see: http://deb.debian.org/debian/pool/main/p/python2.7/python2.7_2.7.18-6.diff.gz
-    patch :source => "python2.7_2.7.18-cve-2019-20907.diff" unless windows?
-    patch :source => "python2.7_2.7.18-cve-2020-8492.diff" unless windows?
-    patch :source => "python2.7_2.7.18-cve-2021-3177.diff" unless windows?
+    patch :source => "python2.7_2.7.18-cve-2019-20907.diff" unless windows_target?
+    patch :source => "python2.7_2.7.18-cve-2020-8492.diff" unless windows_target?
+    patch :source => "python2.7_2.7.18-cve-2021-3177.diff" unless windows_target?
 
-    command python_configure.join(" "), :env => env
+    configure(*python_configure_options, :env => env)
     command "make -j #{workers}", :env => env
     command "make install", :env => env
     delete "#{install_dir}/embedded/lib/python2.7/test"

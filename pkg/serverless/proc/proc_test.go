@@ -11,7 +11,7 @@ import (
 	"sort"
 	"testing"
 
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGetPidListInvalid(t *testing.T) {

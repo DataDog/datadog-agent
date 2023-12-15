@@ -179,14 +179,14 @@ var (
 	conditionStatusesAPIServicesV1 = []apiregistrationv1.ConditionStatus{apiregistrationv1.ConditionTrue, apiregistrationv1.ConditionFalse, apiregistrationv1.ConditionUnknown}
 )
 
-type ConditionStatus interface {
+type conditionStatus interface {
 	v1.ConditionStatus | extension.ConditionStatus | apiregistrationv1.ConditionStatus
 }
 
 // addConditionMetrics generates one metric for each possible condition
 // status. For this function to work properly, the last label in the metric
 // description must be the condition.
-func addConditionMetrics[T ConditionStatus](cs T, statuses []T) []*metric.Metric {
+func addConditionMetrics[T conditionStatus](cs T, statuses []T) []*metric.Metric {
 	ms := make([]*metric.Metric, len(statuses))
 
 	for i, status := range statuses {

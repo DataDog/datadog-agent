@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package probes holds probes related files
 package probes
 
 import manager "github.com/DataDog/ebpf-manager"
@@ -30,7 +31,7 @@ func getSignalProbes(fentry bool) []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "kill",
-	}, fentry, Entry|SupportFentry)...)
+	}, fentry, Entry)...)
 
 	return signalProbes
 }

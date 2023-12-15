@@ -47,14 +47,14 @@ type versionHistoryEntries struct {
 
 const maxVersionHistoryEntries = 60
 
-// GetInstallInfoPath returns the path of the 'install_info' directory relative to the loaded coinfiguration file. The
+// GetFilePath returns the path of the 'install_info' directory relative to the loaded coinfiguration file. The
 // 'install_info' directory contains information about how the agent was installed.
-func GetFilePath(conf config.ConfigReader) string {
+func GetFilePath(conf config.Reader) string {
 	return filepath.Join(configUtils.ConfFileDirectory(conf), "install_info")
 }
 
 // Get returns information about how the Agent was installed.
-func Get(conf config.ConfigReader) (*InstallInfo, error) {
+func Get(conf config.Reader) (*InstallInfo, error) {
 	return getFromPath(GetFilePath(conf))
 }
 

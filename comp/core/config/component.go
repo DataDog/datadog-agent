@@ -24,20 +24,22 @@ import (
 
 // team: agent-shared-components
 
-type LogConfig config.ConfigReader
+// LogConfig reads the logger config
+type LogConfig config.Reader
 
 // Component is the component type.
 type Component interface {
-	config.ConfigReader
+	config.Reader
 
 	// Warnings returns config warnings collected during setup.
 	Warnings() *config.Warnings
 
 	// Object returns wrapped config
-	Object() config.ConfigReader
+	Object() config.Reader
 }
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newConfig),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newConfig))
+}

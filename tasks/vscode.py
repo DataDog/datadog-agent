@@ -32,7 +32,7 @@ def set_buildtags(
     """
     flavor = AgentFlavor[flavor]
 
-    if target not in build_tags[flavor].keys():
+    if target not in build_tags[flavor]:
         print("Must choose a valid target.  Valid targets are: \n")
         print(f'{", ".join(build_tags[flavor].keys())} \n')
         return
@@ -74,7 +74,7 @@ def setup_devcontainer(
     Generate or Modify devcontainer settings file for this project.
     """
     flavor = AgentFlavor[flavor]
-    if target not in build_tags[flavor].keys():
+    if target not in build_tags[flavor]:
         print("Must choose a valid target.  Valid targets are: \n")
         print(f'{", ".join(build_tags[flavor].keys())} \n')
         return

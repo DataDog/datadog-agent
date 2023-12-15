@@ -3,27 +3,27 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package dogstatsd
+package dogstatsd //nolint:revive // TODO(AML) Fix revive linter
 
 import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: agent-metrics-logs
 
 // Bundle defines the fx options for this bundle.
-var Bundle = fxutil.Bundle(
-	serverDebug.Module,
-	replay.Module,
-	server.Module,
-)
+func Bundle() fxutil.BundleOptions {
+	return fxutil.Bundle(
+		serverdebugimpl.Module(),
+		replay.Module(),
+		server.Module())
+}
 
-// MockBundle defines the mock fx options for this bundle.
-var MockBundle = fxutil.Bundle(
-	serverDebug.MockModule,
-	server.MockModule,
-	replay.Module,
+// ClientBundle defines the fx options for this bundle.
+var ClientBundle = fxutil.Bundle(
+	statsd.Module(),
 )

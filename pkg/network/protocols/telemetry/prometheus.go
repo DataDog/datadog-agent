@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 
+	"k8s.io/apimachinery/pkg/util/sets"
+
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
@@ -16,6 +18,7 @@ var prometheusDelta deltaCalculator
 var prometheusMux sync.Mutex
 var prometheusMetrics map[string]any
 
+// ReportPrometheus reports metrics to the Prometheus client.
 func ReportPrometheus() {
 	prometheusMux.Lock()
 	defer prometheusMux.Unlock()
@@ -66,7 +69,7 @@ func metricToPrometheus(m metric) any {
 }
 
 func withTag(m *metricBase, fn func(k, v string)) {
-	for _, t := range m.tags.List() {
+	for _, t := range sets.List(m.tags) {
 		pos := strings.IndexByte(t, ':')
 		if pos <= 0 {
 			continue

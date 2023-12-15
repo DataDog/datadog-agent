@@ -26,24 +26,42 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
+	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	"github.com/DataDog/datadog-agent/comp/metadata/host"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
-	"github.com/DataDog/datadog-agent/pkg/status"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
+	statuscollector "github.com/DataDog/datadog-agent/pkg/status/collector"
+	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -86,6 +104,10 @@ type cliParams struct {
 	generateIntegrationTraces bool
 }
 
+// GlobalParams contains the values of agent-global Cobra flags.
+//
+// A pointer to this type is passed to SubcommandFactory's, but its contents
+// are not valid until Cobra calls the subcommand's Run or RunE function.
 type GlobalParams struct {
 	ConfFilePath         string
 	SysProbeConfFilePath string
@@ -113,12 +135,47 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams:         config.NewAgentParamsWithSecrets(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName)),
-					SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
-					LogParams:            log.LogForOneShot(globalParams.LoggerName, "off", true)}),
-				core.Bundle,
-				forwarder.Bundle,
+					ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName)),
+					SecretParams:         secrets.NewEnabledParams(),
+					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
+					LogParams:            logimpl.ForOneShot(globalParams.LoggerName, "off", true)}),
+				core.Bundle(),
+
+				workloadmeta.Module(),
+				apiimpl.Module(),
+				fx.Supply(workloadmeta.NewParams()),
+				fx.Supply(context.Background()),
+
+				forwarder.Bundle(),
+				inventorychecksimpl.Module(),
+				// inventorychecksimpl depends on a collector and serializer when created to send payload.
+				// Here we just want to collect metadata to be displayed, so we don't need a collector.
+				fx.Provide(func() optional.Option[collector.Collector] {
+					return optional.NewNoneOption[collector.Collector]()
+				}),
+				fx.Provide(func() serializer.MetricSerializer { return nil }),
 				fx.Supply(defaultforwarder.Params{UseNoopForwarder: true}),
+				demultiplexer.Module(),
+				orchestratorForwarderImpl.Module(),
+				fx.Supply(orchestratorForwarderImpl.NewNoopParams()),
+				fx.Provide(func() demultiplexer.Params {
+					// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
+					opts := aggregator.DefaultAgentDemultiplexerOptions()
+					opts.FlushInterval = 0
+					opts.UseNoopEventPlatformForwarder = true
+					return demultiplexer.Params{Options: opts}
+				}),
+
+				// TODO(components): this is a temporary hack as the StartServer() method of the API package was previously called with nil arguments
+				// This highlights the fact that the API Server created by JMX (through ExecJmx... function) should be different from the ones created
+				// in others commands such as run.
+				fx.Provide(func() flare.Component { return nil }),
+				fx.Provide(func() server.Component { return nil }),
+				fx.Provide(func() replay.Component { return nil }),
+				fx.Provide(func() serverdebug.Component { return nil }),
+				fx.Provide(func() host.Component { return nil }),
+				fx.Provide(func() inventoryagent.Component { return nil }),
+				fx.Provide(func() inventoryhost.Component { return nil }),
 			)
 		},
 	}
@@ -159,7 +216,15 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
-func run(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, forwarder defaultforwarder.Component, cliParams *cliParams) error {
+func run(
+	config config.Component,
+	cliParams *cliParams,
+	demultiplexer demultiplexer.Component,
+	wmeta workloadmeta.Component,
+	secretResolver secrets.Component,
+	agentAPI internalAPI.Component,
+	invChecks inventorychecks.Component,
+) error {
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false
 	if cliParams.generateIntegrationTraces {
@@ -170,8 +235,8 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 		if pkgconfig.Datadog.IsSet("integration_tracing_exhaustive") {
 			previousIntegrationTracingExhaustive = pkgconfig.Datadog.GetBool("integration_tracing_exhaustive")
 		}
-		pkgconfig.Datadog.Set("integration_tracing", true)
-		pkgconfig.Datadog.Set("integration_tracing_exhaustive", true)
+		pkgconfig.Datadog.Set("integration_tracing", true, model.SourceAgentRuntime)
+		pkgconfig.Datadog.Set("integration_tracing_exhaustive", true, model.SourceAgentRuntime)
 	}
 
 	if len(cliParams.args) != 0 {
@@ -181,31 +246,15 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 		return nil
 	}
 
-	// Always disable SBOM collection in `check` command to avoid BoltDB flock issue
-	// and consuming CPU & Memory for asynchronous scans that would not be shown in `agent check` output.
-	pkgconfig.Datadog.Set("sbom.host.enabled", "false")
-	pkgconfig.Datadog.Set("sbom.container_image.enabled", "false")
-	pkgconfig.Datadog.Set("runtime_security_config.sbom.enabled", "false")
+	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
+	check.InitializeInventoryChecksContext(invChecks)
 
-	hostnameDetected, err := hostname.Get(context.TODO())
-	if err != nil {
-		fmt.Printf("Cannot get hostname, exiting: %v\n", err)
-		return err
-	}
-
-	// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
-	opts := aggregator.DefaultAgentDemultiplexerOptions()
-	opts.FlushInterval = 0
-	opts.UseNoopEventPlatformForwarder = true
-	opts.UseNoopOrchestratorForwarder = true
-	demux := aggregator.InitAndStartAgentDemultiplexer(log, forwarder, opts, hostnameDetected)
-
-	common.LoadComponents(context.Background(), aggregator.GetSenderManager(), pkgconfig.Datadog.GetString("confd_path"))
+	common.LoadComponents(demultiplexer, secretResolver, pkgconfig.Datadog.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.  NOTE: we do not start common.Coll, either.
-	collector.InitCheckScheduler(common.Coll, aggregator.GetSenderManager())
+	collector.InitCheckScheduler(common.Coll, demultiplexer)
 
 	waitCtx, cancelTimeout := context.WithTimeout(
 		context.Background(), time.Duration(cliParams.discoveryTimeout)*time.Second)
@@ -229,11 +278,11 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 			fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
 			selectedChecks := []string{cliParams.checkName}
 			if cliParams.checkRate {
-				if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs); err != nil {
+				if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, wmeta, demultiplexer, agentAPI); err != nil {
 					return fmt.Errorf("while running the jmx check: %v", err)
 				}
 			} else {
-				if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs); err != nil {
+				if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, wmeta, demultiplexer, agentAPI); err != nil {
 					return fmt.Errorf("while running the jmx check: %v", err)
 				}
 			}
@@ -368,35 +417,25 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 
 	var checkFileOutput bytes.Buffer
 	var instancesData []interface{}
-	printer := aggregator.AgentDemultiplexerPrinter{AgentDemultiplexer: demux}
+	printer := aggregator.AgentDemultiplexerPrinter{DemultiplexerWithAggregator: demultiplexer}
+	collectorData := statuscollector.GetStatusInfo()
+	checkRuns := collectorData["runnerStats"].(map[string]interface{})["Checks"].(map[string]interface{})
 	for _, c := range cs {
 		s := runCheck(cliParams, c, printer)
+		checkMap := make(map[checkid.ID]*stats.Stats)
+		checkMap[c.ID()] = s
+		checkRuns[c.String()] = checkMap
 
 		// Sleep for a while to allow the aggregator to finish ingesting all the metrics/events/sc
 		time.Sleep(time.Duration(cliParams.checkDelay) * time.Millisecond)
 
 		if cliParams.formatJSON {
 			aggregatorData := printer.GetMetricsDataForPrint()
-			var collectorData map[string]interface{}
-
-			collectorJSON, _ := status.GetCheckStatusJSON(c, s)
-			err = json.Unmarshal(collectorJSON, &collectorData)
-			if err != nil {
-				return err
-			}
-
-			checkRuns := collectorData["runnerStats"].(map[string]interface{})["Checks"].(map[string]interface{})[cliParams.checkName].(map[string]interface{})
 
 			// There is only one checkID per run so we'll just access that
-			var runnerData map[string]interface{}
-			for _, checkIDData := range checkRuns {
-				runnerData = checkIDData.(map[string]interface{})
-				break
-			}
-
 			instanceData := map[string]interface{}{
 				"aggregator":  aggregatorData,
-				"runner":      runnerData,
+				"runner":      s,
 				"inventories": collectorData["inventories"],
 			}
 			instancesData = append(instancesData, instanceData)
@@ -461,15 +500,18 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 				checkFileOutput.WriteString(data + "\n")
 			}
 
-			checkStatus, _ := status.GetCheckStatus(c, s)
-			p(string(checkStatus))
+			statusJSON, _ := json.Marshal(collectorData)
+			checkStatus, _ := render.FormatCheckStats(statusJSON)
+			p(checkStatus)
 
-			metadata := inventories.GetCheckMetadata(c)
-			if metadata != nil {
-				p("  Metadata\n  ========")
-				for k, v := range *metadata {
-					p(fmt.Sprintf("    %s: %v", k, v))
-				}
+			p("  Metadata\n  ========")
+
+			metadata := check.GetMetadata(c, false)
+			for k, v := range metadata {
+				p(fmt.Sprintf("    %s: %v", k, v))
+			}
+			for k, v := range invChecks.GetInstanceMetadata(string(c.ID())) {
+				p(fmt.Sprintf("    %s: %v", k, v))
 			}
 		}
 	}
@@ -490,6 +532,7 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 		} else {
 			color.Yellow("Check has run only once, if some metrics are missing you can try again with --check-rate to see any other metric if available.")
 		}
+		color.Yellow("This check type has %d instances. If you're looking for a different check instance, try filtering on a specific one using the --instance-filter flag or set --discovery-min-instances to a higher value", len(cs))
 	}
 
 	warnings := config.Warnings()
@@ -502,13 +545,14 @@ func run(log log.Component, config config.Component, sysprobeconfig sysprobeconf
 	}
 
 	if cliParams.generateIntegrationTraces {
-		pkgconfig.Datadog.Set("integration_tracing", previousIntegrationTracing)
-		pkgconfig.Datadog.Set("integration_tracing_exhaustive", previousIntegrationTracingExhaustive)
+		pkgconfig.Datadog.Set("integration_tracing", previousIntegrationTracing, model.SourceAgentRuntime)
+		pkgconfig.Datadog.Set("integration_tracing_exhaustive", previousIntegrationTracingExhaustive, model.SourceAgentRuntime)
 	}
 
 	return nil
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func runCheck(cliParams *cliParams, c check.Check, demux aggregator.Demultiplexer) *stats.Stats {
 	s := stats.NewStats(c)
 	times := cliParams.checkTimes

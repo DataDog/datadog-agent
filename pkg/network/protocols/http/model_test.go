@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux_bpf || (windows && npm)
 
 package http
 
@@ -16,28 +16,23 @@ import (
 )
 
 func TestPath(t *testing.T) {
-	tx := EbpfTx{
-		Request_fragment: requestFragment(
-			[]byte("GET /foo/bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0"),
-		),
-	}
-
-	b := make([]byte, BufferSize)
+	tx := makeTxnFromRequestString("GET /foo/bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0")
+	b := make([]byte, getBufferSize())
 	path, fullPath := tx.Path(b)
 	assert.Equal(t, "/foo/bar", string(path))
 	assert.True(t, fullPath)
 }
 
 func TestMaximumLengthPath(t *testing.T) {
-	rep := strings.Repeat("a", BufferSize-6)
+	bs := getBufferSize()
+
+	rep := strings.Repeat("a", bs-6)
 	str := "GET /" + rep
 	str += "bc"
-	tx := EbpfTx{
-		Request_fragment: requestFragment(
-			[]byte(str),
-		),
-	}
-	b := make([]byte, BufferSize)
+
+	tx := makeTxnFromRequestString(str)
+
+	b := make([]byte, bs)
 	path, fullPath := tx.Path(b)
 	expected := "/" + rep
 	expected = expected + "b"
@@ -46,15 +41,12 @@ func TestMaximumLengthPath(t *testing.T) {
 }
 
 func TestFullPath(t *testing.T) {
+	bs := getBufferSize()
 	prefix := "GET /"
-	rep := strings.Repeat("a", BufferSize-len(prefix)-1)
+	rep := strings.Repeat("a", bs-len(prefix)-1)
 	str := prefix + rep + " "
-	tx := EbpfTx{
-		Request_fragment: requestFragment(
-			[]byte(str),
-		),
-	}
-	b := make([]byte, BufferSize)
+	tx := makeTxnFromRequestString(str)
+	b := make([]byte, bs)
 	path, fullPath := tx.Path(b)
 	expected := "/" + rep
 	assert.Equal(t, expected, string(path))
@@ -62,41 +54,33 @@ func TestFullPath(t *testing.T) {
 }
 
 func TestPathHandlesNullTerminator(t *testing.T) {
-	tx := EbpfTx{
-		Request_fragment: requestFragment(
-			// This probably isn't a valid HTTP request
-			// (since it's missing a version before the end),
-			// but if the null byte isn't handled
-			// then the path becomes "/foo/\x00bar"
-			[]byte("GET /foo/\x00bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0"),
-		),
-	}
+	bs := getBufferSize()
 
-	b := make([]byte, BufferSize)
+	// This probably isn't a valid HTTP request
+	// (since it's missing a version before the end),
+	// but if the null byte isn't handled
+	// then the path becomes "/foo/\x00bar"
+	tx := makeTxnFromRequestString("GET /foo/\x00bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0")
+
+	b := make([]byte, bs)
 	path, fullPath := tx.Path(b)
 	assert.Equal(t, "/foo/", string(path))
 	assert.False(t, fullPath)
 }
 
 func TestLatency(t *testing.T) {
-	tx := EbpfTx{
-		Response_last_seen: 2e6,
-		Request_started:    1e6,
-	}
+	tx := makeTxnFromLatency(2e6, 1e6)
 	// quantization brings it down
 	assert.Equal(t, 999424.0, tx.RequestLatency())
 }
 
 func BenchmarkPath(b *testing.B) {
-	tx := EbpfTx{
-		Request_fragment: requestFragment(
-			[]byte("GET /foo/bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0"),
-		),
-	}
+	bs := getBufferSize()
+	tx := makeTxnFromRequestString("GET /foo/bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0")
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	buf := make([]byte, BufferSize)
+	buf := make([]byte, bs)
 	for i := 0; i < b.N; i++ {
 		_, _ = tx.Path(buf)
 	}

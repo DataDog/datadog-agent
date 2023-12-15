@@ -5,6 +5,7 @@
 
 //go:build !linux
 
+// Package rules holds rules related files
 package rules
 
 import (
@@ -22,8 +23,8 @@ type RuleFilterModel struct {
 }
 
 // NewRuleFilterModel returns a new rule filtering model
-func NewRuleFilterModel() *RuleFilterModel {
-	return &RuleFilterModel{}
+func NewRuleFilterModel() (*RuleFilterModel, error) {
+	return &RuleFilterModel{}, nil
 }
 
 // NewEvent returns a new rule filtering event
@@ -32,7 +33,7 @@ func (m *RuleFilterModel) NewEvent() eval.Event {
 }
 
 // GetEvaluator returns a new evaluator for a rule filtering field
-func (m *RuleFilterModel) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
+func (m *RuleFilterModel) GetEvaluator(field eval.Field, _ eval.RegisterID) (eval.Evaluator, error) {
 	switch field {
 	case "kernel.version.major", "kernel.version.minor", "kernel.version.patch",
 		"kernel.version.abi", "kernel.version.flavor":

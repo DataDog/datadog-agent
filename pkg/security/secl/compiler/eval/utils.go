@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package eval holds eval related files
 package eval
 
 import (
@@ -21,9 +22,8 @@ func NotOfValue(value interface{}) (interface{}, error) {
 		// ensure the not value is different
 		if v == "" {
 			return "<NOT>", nil
-		} else {
-			return "", nil
 		}
+		return "", nil
 	case bool:
 		return !v, nil
 	}

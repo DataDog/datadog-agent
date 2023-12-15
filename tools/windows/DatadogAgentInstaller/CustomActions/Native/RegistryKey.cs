@@ -28,6 +28,11 @@ namespace Datadog.CustomActions.Native
             _key.SetValue(name, value, kind);
         }
 
+        public void DeleteValue(string name)
+        {
+            _key.DeleteValue(name);
+        }
+
         public void Dispose()
         {
             _key?.Dispose();

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package pointer provides helper function to interact with pointers
 package pointer
 
 // Ptr returns a pointer from a value. It will allocate a new heap object for it.

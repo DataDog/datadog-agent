@@ -14,6 +14,7 @@ import "errors"
 // we can't import it so we'll copy it here.
 var ErrNotImplemented = errors.New("not implemented yet")
 
+// GetProcessFileStats returns the number of file handles the Agent process has open
 func GetProcessFileStats() (*ProcessFileStats, error) {
 	return nil, ErrNotImplemented
 }

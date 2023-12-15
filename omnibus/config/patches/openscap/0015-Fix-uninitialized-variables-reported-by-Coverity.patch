@@ -1,0 +1,67 @@
+From 306ab5ce23c7172baa587029ee1b487c67626a00 Mon Sep 17 00:00:00 2001
+From: David du Colombier <djc@datadoghq.com>
+Date: Wed, 20 Sep 2023 16:58:52 +0200
+Subject: [PATCH 15/16] Fix uninitialized variables reported by Coverity
+
+---
+ src/OVAL/oval_component.c           | 2 ++
+ src/OVAL/probes/SEAP/seap.c         | 1 +
+ src/OVAL/probes/probe/icache.c      | 3 +++
+ src/OVAL/probes/unix/xinetd_probe.c | 2 ++
+ 4 files changed, 8 insertions(+)
+
+diff --git a/src/OVAL/oval_component.c b/src/OVAL/oval_component.c
+index 472cf9782..c0119d8ea 100644
+--- a/src/OVAL/oval_component.c
++++ b/src/OVAL/oval_component.c
+@@ -2287,6 +2287,8 @@ static oval_syschar_collection_flag_t _oval_component_evaluate_ARITHMETIC_rec(st
+ 		struct oval_value *ov;
+ 		char sv[32];
+ 
++		memset(sv, 0, sizeof (sv));
++
+ 		if (datatype == OVAL_DATATYPE_INTEGER) {
+ 			snprintf(sv, sizeof (sv), "%ld", (long int) val);
+ 		} else if (datatype == OVAL_DATATYPE_FLOAT) {
+diff --git a/src/OVAL/probes/SEAP/seap.c b/src/OVAL/probes/SEAP/seap.c
+index e540f7e45..b5a152be5 100644
+--- a/src/OVAL/probes/SEAP/seap.c
++++ b/src/OVAL/probes/SEAP/seap.c
+@@ -526,6 +526,7 @@ int SEAP_replyerr (SEAP_CTX_t *ctx, int sd, SEAP_msg_t *rep_msg, uint32_t e)
+         _A(ctx != NULL);
+         _A(rep_msg != NULL);
+ 
++        err.type = 0;
+         err.code = e;
+         err.id   = rep_msg->id;
+         err.data = NULL; /* FIXME: Attach original message */
+diff --git a/src/OVAL/probes/probe/icache.c b/src/OVAL/probes/probe/icache.c
+index 04ddbfb9e..78f406aa5 100644
+--- a/src/OVAL/probes/probe/icache.c
++++ b/src/OVAL/probes/probe/icache.c
+@@ -500,6 +500,9 @@ static int probe_cobj_memcheck(size_t item_cnt, double max_ratio)
+ 		struct sys_memusage  mu_sys;
+ 		double c_ratio;
+ 
++		memset(&mu_proc, 0, sizeof(mu_proc));
++		memset(&mu_sys, 0, sizeof(mu_sys));
++
+ 		if (oscap_proc_memusage (&mu_proc) != 0)
+ 			return (-1);
+ 
+diff --git a/src/OVAL/probes/unix/xinetd_probe.c b/src/OVAL/probes/unix/xinetd_probe.c
+index c3a67f233..3f0cd84f8 100644
+--- a/src/OVAL/probes/unix/xinetd_probe.c
++++ b/src/OVAL/probes/unix/xinetd_probe.c
+@@ -746,6 +746,8 @@ xiconf_t *xiconf_parse(const char *path, unsigned int max_depth)
+ 
+ 				switch (inctype) {
+ 				case XICONF_INCTYPE_FILE:
++					strncpy (pathbuf, inclarg, sizeof(pathbuf));
++
+ 					dD("includefile: %s", pathbuf);
+ 
+ 					if (xiconf_add_cfile (xiconf, pathbuf, xifile->depth + 1) != 0) {
+-- 
+2.34.1
+

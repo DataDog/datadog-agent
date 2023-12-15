@@ -8,15 +8,9 @@
 package http
 
 import (
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
 func getPathBufferSize(c *config.Config) int {
 	return int(c.HTTPMaxRequestFragment)
-}
-
-func getCurrentNanoSeconds() int64 {
-	return time.Now().UnixNano()
 }

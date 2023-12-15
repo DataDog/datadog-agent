@@ -3,4 +3,5 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
+// Package ecsfargate implements the ECS Fargate metrics collector.
 package ecsfargate

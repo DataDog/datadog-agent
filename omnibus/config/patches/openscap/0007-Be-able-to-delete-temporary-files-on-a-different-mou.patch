@@ -1,0 +1,36 @@
+From dac818c28d4e96bf3ab35bd4262258b4cd9ac9c3 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?H=C3=A5vard=20F=2E=20Aasen?= <havard.f.aasen@pfft.no>
+Date: Sun, 10 Sep 2023 08:03:36 +0200
+Subject: [PATCH 07/16] Be able to delete temporary files on a different mount
+ point
+
+We are able to create files on a different mount point, but not delete
+them. This is at most inconvenient, except when running tests.
+
+A lot of the tests just checks of anything has been written to 'stderr',
+if it has, the test fail. Since we are not allowed to delete files, the
+parent directory is not empty when it is supposed to be removed, and an
+error message is printed to 'stderr'.
+
+If we are able to create files, we should be allowed to delete them as
+well.
+---
+ src/common/oscap_acquire.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/common/oscap_acquire.c b/src/common/oscap_acquire.c
+index 8f4991751..9fbcebfce 100644
+--- a/src/common/oscap_acquire.c
++++ b/src/common/oscap_acquire.c
+@@ -210,7 +210,7 @@ void oscap_acquire_cleanup_dir(char **dir_path)
+ {
+ 	if (*dir_path != NULL)
+ 	{
+-		nftw(*dir_path, __unlink_cb, 64, FTW_DEPTH | FTW_PHYS | FTW_MOUNT);
++		nftw(*dir_path, __unlink_cb, 64, FTW_DEPTH | FTW_PHYS);
+ 		free(*dir_path);
+ 		*dir_path = NULL;
+ 	}
+-- 
+2.34.1
+

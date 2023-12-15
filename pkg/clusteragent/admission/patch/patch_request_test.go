@@ -72,7 +72,7 @@ func TestPatchRequestValidate(t *testing.T) {
 			valid:       false,
 		},
 		{
-			name:        "empty namesapce",
+			name:        "empty namespace",
 			LibConfig:   common.LibConfig{Language: "lang", Version: "latest"},
 			K8sTarget:   K8sTarget{Cluster: "cluster", Kind: "deployment", Name: "name"},
 			clusterName: "cluster",
@@ -81,11 +81,11 @@ func TestPatchRequestValidate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pr := PatchRequest{
+			request := Request{
 				LibConfig: tt.LibConfig,
 				K8sTarget: tt.K8sTarget,
 			}
-			err := pr.Validate(tt.clusterName)
+			err := request.Validate(tt.clusterName)
 			require.True(t, (err == nil) == tt.valid)
 		})
 	}

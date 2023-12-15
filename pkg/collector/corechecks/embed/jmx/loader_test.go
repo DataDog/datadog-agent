@@ -57,7 +57,7 @@ func TestLoadCheckConfig(t *testing.T) {
 
 	for _, cfg := range cfgs {
 		for _, instance := range cfg.Instances {
-			if loadedCheck, err := jl.Load(aggregator.GetSenderManager(), cfg, instance); err == nil {
+			if loadedCheck, err := jl.Load(aggregator.NewNoOpSenderManager(), cfg, instance); err == nil {
 				checks = append(checks, loadedCheck)
 			} else {
 				numOtherInstances++

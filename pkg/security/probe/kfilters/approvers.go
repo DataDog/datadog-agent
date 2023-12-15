@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package kfilters holds kfilters related files
 package kfilters
 
 import (
@@ -16,12 +17,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
+// BasenameApproverKernelMapName defines the basename approver kernel map name
 const BasenameApproverKernelMapName = "basename_approvers"
 
 type onApproverHandler func(approvers rules.Approvers) (ActiveApprovers, error)
 type activeApprover = activeKFilter
+
+// ActiveApprovers defines the active approvers type
 type ActiveApprovers = activeKFilters
 
+// AllApproversHandlers var contains all the approvers handlers
 var AllApproversHandlers = make(map[eval.EventType]onApproverHandler)
 
 func approveBasename(tableName string, eventType model.EventType, basename string) (activeApprover, error) {

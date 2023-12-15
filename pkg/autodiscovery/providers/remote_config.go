@@ -10,10 +10,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"strings"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -30,6 +32,7 @@ type rcAgentIntegration struct {
 	Name       string            `json:"name"`
 	Instances  []json.RawMessage `json:"instances"`
 	InitConfig json.RawMessage   `json:"init_config"`
+	LogsConfig json.RawMessage   `json:"logs"`
 }
 
 var datadogConfigIDRegexp = regexp.MustCompile(`^datadog/\d+/AGENT_INTEGRATIONS/([^/]+)/([^/]+)$`)
@@ -44,7 +47,7 @@ func NewRemoteConfigProvider() *RemoteConfigProvider {
 }
 
 // Collect retrieves integrations from the remote-config, builds Config objects and returns them
-func (rc *RemoteConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
+func (rc *RemoteConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) { //nolint:revive // TODO fix revive unused-parameter
 	rc.mu.RLock()
 	defer rc.mu.RUnlock()
 
@@ -61,7 +64,7 @@ func (rc *RemoteConfigProvider) Collect(ctx context.Context) ([]integration.Conf
 }
 
 // IsUpToDate allows to cache configs as long as no changes are detected in remote-config
-func (rc *RemoteConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
+func (rc *RemoteConfigProvider) IsUpToDate(ctx context.Context) (bool, error) { //nolint:revive // TODO fix revive unused-parameter
 	rc.mu.RLock()
 	defer rc.mu.RUnlock()
 
@@ -93,6 +96,8 @@ func (rc *RemoteConfigProvider) IntegrationScheduleCallback(updates map[string]s
 	defer rc.mu.Unlock()
 	var err error
 
+	allowedIntegration := config.GetRemoteConfigurationAllowedIntegrations(config.Datadog)
+
 	newCache := make(map[string]integration.Config, 0)
 	// Now schedule everything
 	for cfgPath, intg := range updates {
@@ -110,6 +115,14 @@ func (rc *RemoteConfigProvider) IntegrationScheduleCallback(updates map[string]s
 			break
 		}
 
+		if !allowedIntegration[strings.ToLower(d.Name)] {
+			applyStateCallback(cfgPath, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: fmt.Sprintf("Integration %s is not allowed to be scheduled in this agent", d.Name),
+			})
+			continue
+		}
+
 		applyStateCallback(cfgPath, state.ApplyStatus{State: state.ApplyStateUnacknowledged})
 
 		source := cfgPath
@@ -123,6 +136,7 @@ func (rc *RemoteConfigProvider) IntegrationScheduleCallback(updates map[string]s
 			Name:       d.Name,
 			Instances:  []integration.Data{},
 			InitConfig: integration.Data(d.InitConfig),
+			LogsConfig: integration.Data(d.LogsConfig),
 			Source:     source,
 		}
 		for _, inst := range d.Instances {

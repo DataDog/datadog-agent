@@ -204,16 +204,21 @@ func setMetric(s *pb.Span, key string, val float64) {
 	s.Metrics[key] = val
 }
 
-// ApplySpanSampling searches chunk for spans that have a span sampling tag set.
-// If it finds such spans, then it replaces chunk's spans with only those spans,
-// and sets the chunk's sampling priority to "user keep." Tracers that wish to
-// keep certain spans even when the trace is dropped will set the appropriate
-// tags on the spans to be kept.
-// ApplySpanSampling returns whether any changes were actually made.
-// Do not call ApplySpanSampling on a chunk that the other samplers have
-// decided to keep. Doing so might wrongfully remove spans from a kept trace.
-func ApplySpanSampling(pt *traceutil.ProcessedTrace) (bool, *traceutil.ProcessedTrace) {
-	pt = pt.Clone()
+// SingleSpanSampling does single span sampling on the trace, returning true if the trace was modified
+func SingleSpanSampling(pt *traceutil.ProcessedTrace) bool {
+	ssSpans := getSingleSpanSampledSpans(pt)
+	if len(ssSpans) > 0 {
+		// Span sampling has kept some spans -> update the chunk
+		pt.TraceChunk.Spans = ssSpans
+		pt.TraceChunk.Priority = int32(PriorityUserKeep)
+		pt.TraceChunk.DroppedTrace = false
+		return true
+	}
+	return false
+}
+
+// GetSingleSpanSampledSpans searches chunk for spans that have a span sampling tag set and returns them.
+func getSingleSpanSampledSpans(pt *traceutil.ProcessedTrace) []*pb.Span {
 	var sampledSpans []*pb.Span
 	for _, span := range pt.TraceChunk.Spans {
 		if _, ok := traceutil.GetMetric(span, KeySpanSamplingMechanism); ok {
@@ -223,11 +228,7 @@ func ApplySpanSampling(pt *traceutil.ProcessedTrace) (bool, *traceutil.Processed
 	}
 	if sampledSpans == nil {
 		// No span sampling tags → no span sampling.
-		return false, pt
+		return nil
 	}
-
-	pt.TraceChunk.Spans = sampledSpans
-	pt.TraceChunk.Priority = int32(PriorityUserKeep)
-	pt.TraceChunk.DroppedTrace = false
-	return true, pt
+	return sampledSpans
 }

@@ -19,7 +19,13 @@ var logData []byte
 
 func TestLogAggregator(t *testing.T) {
 	t.Run("parseLogPayload should return empty log array on empty data", func(t *testing.T) {
-		checks, err := ParseLogPayload(api.Payload{Data: []byte(""), Encoding: encodingGzip})
+		checks, err := ParseLogPayload(api.Payload{Data: []byte(""), Encoding: encodingEmpty})
+		assert.NoError(t, err)
+		assert.Empty(t, checks)
+	})
+
+	t.Run("parseLogPayload should return empty log array on empty json object", func(t *testing.T) {
+		checks, err := ParseLogPayload(api.Payload{Data: []byte("{}"), Encoding: encodingJSON})
 		assert.NoError(t, err)
 		assert.Empty(t, checks)
 	})

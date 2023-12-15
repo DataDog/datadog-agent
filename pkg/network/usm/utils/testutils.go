@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf && test
+//go:build linux && test
 
 package utils
 
@@ -41,7 +41,7 @@ func (r *CallbackRecorder) Callback() func(FilePath) error {
 	}
 }
 
-// `CallsForPathID` returns the number of callback executions for a given `PathIdentifier`
+// CallsForPathID returns the number of callback executions for a given `PathIdentifier`
 func (r *CallbackRecorder) CallsForPathID(pathID PathIdentifier) int {
 	r.mux.Lock()
 	defer r.mux.Unlock()

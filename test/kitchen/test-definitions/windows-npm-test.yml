@@ -1,8 +1,8 @@
 suites:
 
 # Scenario 1
-# Install old version with no NPM flag, install new version with closed source flag
-#    - expect driver installed, system probe to enable & start
+# Install old version with no NPM flag, install new version
+#    - expect driver installed, enable NPM, expect system probe to enable & start
 - name: win-npm-upgrade-to-npm
   run_list:
     - "recipe[dd-agent-install]"
@@ -10,7 +10,7 @@ suites:
   attributes:
     datadog:
       agent_major_version: 7
-      agent_version: <%= ENV['LAST_STABLE_VERSION'] %>
+      agent_version: 7.42.0
       api_key: <%= api_key %>
       <% if ENV['AGENT_FLAVOR'] == 'datadog-iot-agent' %>
       agent_flavor: 'datadog-iot-agent'
@@ -33,8 +33,6 @@ suites:
       <% if ENV['WINDOWS_AGENT_FILE'] %>
       windows_agent_filename: "<%= ENV['WINDOWS_AGENT_FILE'] %>"
       <% end %>
-      agent_install_options: >
-        ALLOWCLOSEDSOURCE=1
     dd-agent-import-conf:
       api_key: <%= api_key %>
     dd-agent-upgrade-rspec:
@@ -46,9 +44,9 @@ suites:
 
 
 
-# installs the current shipping latest build
-# then upgrades, and ensures that NPM not installed (due to lack of installation option)
-# scenario 2
+# Scenario 2
+# Install old version with no NPM flag, install new version
+#    - expect driver installed, does not enable NPM, expect NPM installed but not running
 - name: win-npm-upgrade-no-npm
   run_list:
     - "recipe[dd-agent-install]"
@@ -56,7 +54,7 @@ suites:
   attributes:
     datadog:
       agent_major_version: 7
-      agent_version: <%= ENV['LAST_STABLE_VERSION'] %>
+      agent_version: 7.42.0
       api_key: <%= api_key %>
       <% if ENV['AGENT_FLAVOR'] == 'datadog-iot-agent' %>
       agent_flavor: 'datadog-iot-agent'
@@ -88,8 +86,8 @@ suites:
 
 
 # Scenario 3
-# Install old version with  NPM flag, install new version with no closed source flag
-#    - expect driver installed, system probe to enable & start
+# Install old version with NPM flag, install new version
+#    - expect driver installed, enable NPM, expect system probe to enable & start
 - name: win-npm-upgrade-to-npm-no-csflag
   run_list:
     - "recipe[dd-agent-install]"
@@ -97,7 +95,7 @@ suites:
   attributes:
     datadog:
       agent_major_version: 7
-      agent_version: <%= ENV['LAST_STABLE_VERSION'] %>
+      agent_version: 7.42.0
       api_key: <%= api_key %>
       <% if ENV['AGENT_FLAVOR'] == 'datadog-iot-agent' %>
       agent_flavor: 'datadog-iot-agent'
@@ -132,6 +130,8 @@ suites:
 
 
 # Scenario 4
+# Install latest
+#    - expect driver installed, does not enable NPM, expect NPM installed but not running
 - name: win-npm-no-npm-option
   run_list:
     - "recipe[dd-agent-install]"
@@ -156,7 +156,9 @@ suites:
       agent_flavor: <%= ENV['AGENT_FLAVOR'] || "datadog-agent" %>
       skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
 
-#Scenario 5
+# Scenario 5
+# Install latest
+#    - expect driver installed, enable NPM, expect system probe to enable & start
 - name: win-npm-with-cs-option
   run_list:
     - "recipe[dd-agent-install]"
@@ -176,14 +178,14 @@ suites:
       <% if ENV['WINDOWS_AGENT_FILE'] %>
       windows_agent_filename: "<%= ENV['WINDOWS_AGENT_FILE'] %>"
       <% end %>
-      agent_install_options: >
-        ALLOWCLOSEDSOURCE=1
       enable_testsigning: <%= ENV['WINDOWS_DDNPM_DRIVER'] == "testsigned" %>
     dd-agent-rspec:
       agent_flavor: <%= ENV['AGENT_FLAVOR'] || "datadog-agent" %>
       skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
 
-# scenario 7
+# Scenario 7
+# Install latest, reinstall latest with ADDLOCAL=ALL to test old option compat
+#    - expect driver installed, enable NPM, expect system probe to enable & start
 - name: win-npm-reinstall-option
   run_list:
     - "recipe[dd-agent-install]"
@@ -219,7 +221,9 @@ suites:
       agent_flavor: <%= ENV['AGENT_FLAVOR'] || "datadog-agent" %>
       skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
 
-#Scenario 8
+# Scenario 8
+# Install latest with ADDLOCAL=ALL to test old option compat
+#    - expect driver installed, enable NPM, expect system probe to enable & start
 - name: win-npm-with-addlocal-all
   run_list:
     - "recipe[dd-agent-install]"
@@ -247,7 +251,9 @@ suites:
       skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
 
 
-#Scenario 9
+# Scenario 9
+# Install latest with ADDLOCAL=NPM to test old option compat
+#    - expect driver installed, enable NPM, expect system probe to enable & start
 - name: win-npm-with-addlocal-npm
   run_list:
     - "recipe[dd-agent-install]"
@@ -274,6 +280,9 @@ suites:
       agent_flavor: <%= ENV['AGENT_FLAVOR'] || "datadog-agent" %>
       skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
 
+# Scenario 10
+# Install original NPM beta version, upgrade to latest
+#    - expect driver installed, enable NPM, expect system probe to enable & start
 - name: win-npm-beta-upgrade
   run_list:
     - "recipe[dd-agent-install]"

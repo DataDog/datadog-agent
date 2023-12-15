@@ -6,6 +6,7 @@
 package testsuite
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -104,7 +105,10 @@ func TestTraces(t *testing.T) {
 		if err := r.RunAgent([]byte(`apm_config:
   filter_tags:
     require: ["env:prod", "db:mysql"]
-    reject: ["outcome:success"]`)); err != nil {
+    reject: ["outcome:success"]
+  filter_tags_regex:
+    require: ["env:^prod[0-9]{1}$", "priority:^high$"]
+    reject: ["outcome:^success[0-9]{1}$", "bad-key:^bad-value$"]`)); err != nil {
 			t.Fatal(err)
 		}
 		defer r.KillAgent()
@@ -115,20 +119,33 @@ func TestTraces(t *testing.T) {
 		}, nil)
 		for _, span := range p[0] {
 			span.Meta = map[string]string{
-				"env": "prod",
-				"db":  "mysql",
+				"env":      "prod",
+				"db":       "mysql",
+				"priority": "high",
 			}
 		}
 		for _, span := range p[1] {
 			span.Meta = map[string]string{
-				"env": "prod",
-				"db":  "mysql",
+				"env":      "prod",
+				"db":       "mysql",
+				"priority": "high",
+				"outcome":  "success1",
+			}
+		}
+		for _, span := range p[2] {
+			span.Meta = map[string]string{
+				"env":      "prod",
+				"db":       "mysql",
+				"priority": "high",
+				"outcome":  "success",
 			}
 		}
 		for _, span := range p[3] {
 			span.Meta = map[string]string{
-				"outcome": "success",
-				"db":      "mysql",
+				"env":      "prod",
+				"db":       "mysql",
+				"priority": "high",
+				"bad-key":  "bad-value",
 			}
 		}
 		if err := r.Post(p); err != nil {
@@ -136,6 +153,34 @@ func TestTraces(t *testing.T) {
 		}
 		waitForTrace(t, &r, func(v *pb.AgentPayload) {
 			payloadsEqual(t, p[:2], v)
+		})
+	})
+
+	t.Run("normalize, obfuscate", func(t *testing.T) {
+		if err := r.RunAgent(nil); err != nil {
+			t.Fatal(err)
+		}
+		defer r.KillAgent()
+
+		p := testutil.GeneratePayload(1, &testutil.TraceConfig{
+			MinSpans: 4,
+			Keep:     true,
+		}, nil)
+		for _, span := range p[0] {
+			span.Service = strings.Repeat("a", 200) // Too long
+			span.Name = strings.Repeat("b", 200)    // Too long
+		}
+		p[0][0].Type = "sql"
+		p[0][0].Resource = "SELECT secret FROM users WHERE id = 123"
+		if err := r.Post(p); err != nil {
+			t.Fatal(err)
+		}
+		waitForTrace(t, &r, func(v *pb.AgentPayload) {
+			assert.Equal(t, "SELECT secret FROM users WHERE id = ?", v.TracerPayloads[0].Chunks[0].Spans[0].Resource)
+			for _, s := range v.TracerPayloads[0].Chunks[0].Spans {
+				assert.Len(t, s.Service, 100)
+				assert.Len(t, s.Name, 100)
+			}
 		})
 	})
 }

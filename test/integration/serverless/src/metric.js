@@ -3,7 +3,7 @@ const { datadog, sendDistributionMetric } = require("datadog-lambda-js");
 let shouldSendMetric = true;
 
 async function myHandler(event, context) {
-  if(shouldSendMetric) {
+  if (shouldSendMetric) {
     sendDistributionMetric("serverless.lambda-extension.integration-test.count", 1);
     shouldSendMetric = false;
   }
@@ -14,7 +14,7 @@ async function myHandler(event, context) {
 }
 
 async function myTimeoutHandler(event, context) {
-  if(shouldSendMetric) {
+  if (shouldSendMetric) {
     sendDistributionMetric("serverless.lambda-extension.integration-test.count", 1);
     shouldSendMetric = false;
   }

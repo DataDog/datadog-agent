@@ -9,17 +9,20 @@ package telemetry
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
+
 	"github.com/stretchr/testify/assert"
 )
 
 const (
-	testRcClientId          = "YgRPh8NqGkvhXq71FvxVN"
+	//nolint:revive // TODO(TEL) Fix revive linter
+	testRcClientId = "YgRPh8NqGkvhXq71FvxVN"
+	//nolint:revive // TODO(TEL) Fix revive linter
 	testKubernetesClusterId = "2cb68cff-935e-4d09-8e57-7c2c5e0364d6"
 )
 
@@ -54,11 +57,12 @@ func TestTelemetryPath(t *testing.T) {
 
 	collector := NewCollector(testRcClientId, testKubernetesClusterId)
 	collector.SetTestHost(server.URL)
-	config.Datadog.Set("api_key", "dummy")
+	config.Datadog.SetWithoutSource("api_key", "dummy")
 
 	var reqCount int
 	var path string
 	server.assertReq = func(req *http.Request) {
+		//nolint:revive // TODO(TEL) Fix revive linter
 		reqCount += 1
 		path = req.URL.Path
 	}

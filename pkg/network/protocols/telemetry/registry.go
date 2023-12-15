@@ -37,7 +37,7 @@ func (r *registry) FindOrCreate(m metric) metric {
 
 // GetMetrics returns all metrics matching a certain criteria
 func (r *registry) GetMetrics(params ...string) []metric {
-	filters := sets.NewString()
+	filters := sets.New[string]()
 	filters.Insert(params...)
 
 	r.Lock()

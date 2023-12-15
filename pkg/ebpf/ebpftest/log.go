@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+//nolint:revive // TODO(EBPF) Fix revive linter
 func LogLevel(t testing.TB, level string) {
 	t.Cleanup(func() {
 		log.SetupLogger(seelog.Default, "off")
@@ -34,7 +35,7 @@ func (t testLogger) ReceiveMessage(message string, level seelog.LogLevel, contex
 	return nil
 }
 
-func (t testLogger) AfterParse(initArgs seelog.CustomReceiverInitArgs) error {
+func (t testLogger) AfterParse(initArgs seelog.CustomReceiverInitArgs) error { //nolint:revive // TODO fix revive unused-parameter
 	return nil
 }
 

@@ -11,14 +11,15 @@ import (
 	"context"
 	"os"
 
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 
 	"github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/docker/docker/client"
 	"golang.org/x/xerrors"
 )
 
-const DOCKER_COLLECTOR = "docker"
+// DockerCollector defines the docker collector name
+const DockerCollector = "docker"
 
 // Custom code based on https://github.com/aquasecurity/trivy/blob/2206e008ea6e5f4e5c1aa7bc8fc77dae7041de6a/pkg/fanal/image/daemon/docker.go `DockerImage`
 func convertDockerImage(ctx context.Context, client client.ImageAPIClient, imgMeta *workloadmeta.ContainerImageMetadata) (types.Image, func(), error) {
@@ -53,7 +54,7 @@ func convertDockerImage(ctx context.Context, client client.ImageAPIClient, imgMe
 	}
 
 	return &image{
-		opener:  imageOpener(ctx, DOCKER_COLLECTOR, imageID, f, client.ImageSave),
+		opener:  imageOpener(ctx, DockerCollector, imageID, f, client.ImageSave),
 		inspect: inspect,
 		history: configHistory(history),
 	}, cleanup, nil

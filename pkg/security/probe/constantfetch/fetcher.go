@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package constantfetch holds constantfetch related files
 package constantfetch
 
 import (

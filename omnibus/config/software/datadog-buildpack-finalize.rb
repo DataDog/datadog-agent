@@ -20,7 +20,7 @@ build do
     # TODO too many things done here, should be split
     block do
         # Conf files
-        if windows?
+        if windows_target?
             ## this section creates the parallel `bin` directory structure for the Windows
             ## CF build pack.  None of the files created here will end up in the binary
             ## (MSI) distribution.

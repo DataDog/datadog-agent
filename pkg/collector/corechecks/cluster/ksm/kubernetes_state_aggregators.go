@@ -173,17 +173,21 @@ func (a *countObjectsAggregator) accumulate(metric ksmstore.DDMetric) {
 }
 
 func (a *resourceAggregator) accumulate(metric ksmstore.DDMetric) {
+	resource := renameResource(metric.Labels["resource"])
+
+	if _, ok := a.accumulators[resource]; !ok {
+		return
+	}
+
 	var labelValues [maxNumberOfAllowedLabels]string
 
-	for i := range a.allowedLabels {
-		if a.allowedLabels[i] == "" {
+	for i, allowedLabel := range a.allowedLabels {
+		if allowedLabel == "" {
 			break
 		}
 
-		labelValues[i] = metric.Labels[a.allowedLabels[i]]
+		labelValues[i] = metric.Labels[allowedLabel]
 	}
-
-	resource := metric.Labels["resource"]
 
 	if _, ok := a.accumulators[resource]; ok {
 		a.accumulators[resource][labelValues] += metric.Val
@@ -253,7 +257,6 @@ func (a *counterAggregator) flush(sender sender.Sender, k *KSMCheck, labelJoiner
 func (a *resourceAggregator) flush(sender sender.Sender, k *KSMCheck, labelJoiner *labelJoiner) {
 	for _, resource := range a.allowedResources {
 		metricName := fmt.Sprintf("%s%s.%s_%s", ksmMetricPrefix, a.ddMetricPrefix, resource, a.ddMetricSuffix)
-
 		for labelValues, count := range a.accumulators[resource] {
 			labels := make(map[string]string)
 			for i, allowedLabel := range a.allowedLabels {
@@ -265,7 +268,6 @@ func (a *resourceAggregator) flush(sender sender.Sender, k *KSMCheck, labelJoine
 			}
 
 			hostname, tags := k.hostnameAndTags(labels, labelJoiner, labelsMapperOverride(a.ksmMetricName))
-
 			sender.Gauge(metricName, count, hostname, tags)
 		}
 		a.accumulators[resource] = make(map[[maxNumberOfAllowedLabels]string]float64)
@@ -403,14 +405,14 @@ func defaultMetricAggregators() map[string]metricAggregator {
 			"allocatable.total",
 			"kube_node_status_allocatable",
 			[]string{},
-			[]string{"cpu", "memory"},
+			[]string{"cpu", "memory", "gpu", "mig"},
 		),
 		"kube_node_status_capacity": newResourceValuesAggregator(
 			"node",
 			"capacity.total",
 			"kube_node_status_capacity",
 			[]string{},
-			[]string{"cpu", "memory"},
+			[]string{"cpu", "memory", "gpu", "mig"},
 		),
 		"kube_pod_container_resource_with_owner_tag_requests": newResourceValuesAggregator(
 			"container",
@@ -424,7 +426,7 @@ func defaultMetricAggregators() map[string]metricAggregator {
 			"limit.total",
 			"kube_pod_container_resource_with_owner_tag_limits",
 			[]string{"namespace", "container", "owner_name", "owner_kind"},
-			[]string{"cpu", "memory"},
+			[]string{"cpu", "memory", "gpu", "mig"},
 		),
 	}
 }

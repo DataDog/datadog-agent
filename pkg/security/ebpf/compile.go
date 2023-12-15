@@ -3,8 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf && !ebpf_bindata
+//go:build linux_bpf && !ebpf_bindata && !btfhubsync
 
+// Package ebpf holds ebpf related files
 package ebpf
 
 import (
@@ -39,6 +40,8 @@ func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper, useFen
 
 	if useRingBuffer {
 		cflags = append(cflags, "-DUSE_RING_BUFFER=1")
+	} else {
+		cflags = append(cflags, "-DUSE_RING_BUFFER=0")
 	}
 
 	cflags = append(cflags, "-g")

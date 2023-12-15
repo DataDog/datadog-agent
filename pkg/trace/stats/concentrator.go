@@ -6,6 +6,7 @@
 package stats
 
 import (
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -46,8 +47,57 @@ type Concentrator struct {
 	agentEnv               string
 	agentHostname          string
 	agentVersion           string
-	peerSvcAggregation     bool // flag to enable peer.service aggregation
-	computeStatsBySpanKind bool // flag to enable computation of stats through checking the span.kind field
+	peerTagsAggregation    bool     // flag to enable aggregation of peer tags
+	computeStatsBySpanKind bool     // flag to enable computation of stats through checking the span.kind field
+	peerTagKeys            []string // keys for supplementary tags that describe peer.service entities
+}
+
+var defaultPeerTags = []string{
+	"_dd.base_service",
+	"amqp.destination",
+	"amqp.exchange",
+	"amqp.queue",
+	"aws.queue.name",
+	"bucketname",
+	"cassandra.cluster",
+	"db.cassandra.contact.points",
+	"db.couchbase.seed.nodes",
+	"db.hostname",
+	"db.instance",
+	"db.name",
+	"db.system",
+	"hazelcast.instance",
+	"messaging.kafka.bootstrap.servers",
+	"mongodb.db",
+	"msmq.queue.path",
+	"net.peer.name",
+	"network.destination.name",
+	"peer.hostname",
+	"peer.service",
+	"queuename",
+	"rpc.service",
+	"rulename",
+	"server.address",
+	"statemachinename",
+	"streamname",
+	"tablename",
+	"topicname",
+}
+
+func preparePeerTags(tags ...string) []string {
+	if len(tags) == 0 {
+		return nil
+	}
+	var deduped []string
+	seen := make(map[string]struct{})
+	for _, t := range tags {
+		if _, ok := seen[t]; !ok {
+			seen[t] = struct{}{}
+			deduped = append(deduped, t)
+		}
+	}
+	sort.Strings(deduped)
+	return deduped
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
@@ -67,8 +117,12 @@ func NewConcentrator(conf *config.AgentConfig, out chan *pb.StatsPayload, now ti
 		agentEnv:               conf.DefaultEnv,
 		agentHostname:          conf.Hostname,
 		agentVersion:           conf.AgentVersion,
-		peerSvcAggregation:     conf.PeerServiceAggregation,
+		peerTagsAggregation:    conf.PeerServiceAggregation || conf.PeerTagsAggregation,
 		computeStatsBySpanKind: conf.ComputeStatsBySpanKind,
+	}
+	// NOTE: maintain backwards-compatibility with old peer service flag that will eventually be deprecated.
+	if conf.PeerServiceAggregation || conf.PeerTagsAggregation {
+		c.peerTagKeys = preparePeerTags(append(defaultPeerTags, conf.PeerTags...)...)
 	}
 	return &c
 }
@@ -198,7 +252,7 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 			b = NewRawBucket(uint64(btime), uint64(c.bsize))
 			c.buckets[btime] = b
 		}
-		b.HandleSpan(s, weight, isTop, pt.TraceChunk.Origin, aggKey, c.peerSvcAggregation)
+		b.HandleSpan(s, weight, isTop, pt.TraceChunk.Origin, aggKey, c.peerTagsAggregation, c.peerTagKeys)
 	}
 }
 

@@ -11,12 +11,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	pdhtest "github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
+	pdhtest "github.com/DataDog/datadog-agent/pkg/util/pdhutil"
 )
 
+//nolint:revive // TODO(WINA) Fix revive linter
 func testGetDriveType(drive string) uintptr {
 	return DRIVE_FIXED
 }
@@ -41,6 +41,7 @@ func addDefaultQueryReturnValues() {
 	pdhtest.SetQueryReturnValue("\\\\.\\LogicalDisk(_Total)\\Current Disk Queue Length", 5.111)
 	pdhtest.SetQueryReturnValue("\\\\.\\LogicalDisk(C:)\\Current Disk Queue Length", 5.222)
 	pdhtest.SetQueryReturnValue("\\\\.\\LogicalDisk(HarddiskVolume1)\\Current Disk Queue Length", 5.333)
+	//nolint:gosimple // TODO(WINA) Fix gosimple linter
 	return
 }
 
@@ -68,9 +69,8 @@ func TestIoCheckWindows(t *testing.T) {
 	addDefaultQueryReturnValues()
 
 	ioCheck := new(IOCheck)
-	ioCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
-
 	mock := mocksender.NewMockSender(ioCheck.ID())
+	ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 
 	mock.On("Gauge", "system.io.wkb_s", 1.222/kB, "", []string{"device:C:"}).Return().Times(1)
 	mock.On("Gauge", "system.io.wkb_s", 1.333/kB, "", []string{"device:HarddiskVolume1", "device_name:HarddiskVolume1"}).Return().Times(1)
@@ -105,10 +105,9 @@ func TestIoCheckLowercaseDeviceTag(t *testing.T) {
 	rawInitConfigYaml := []byte(`
 lowercase_device_tag: true
 `)
-	err := ioCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, nil, rawInitConfigYaml, "test")
-	require.NoError(t, err)
-
 	mock := mocksender.NewMockSender(ioCheck.ID())
+	err := ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, rawInitConfigYaml, "test")
+	require.NoError(t, err)
 
 	mock.On("Gauge", "system.io.wkb_s", 1.222/kB, "", []string{"device:c:"}).Return().Times(1)
 	mock.On("Gauge", "system.io.wkb_s", 1.333/kB, "", []string{"device:harddiskvolume1", "device_name:harddiskvolume1"}).Return().Times(1)
@@ -144,12 +143,11 @@ func TestIoCheckInstanceAdded(t *testing.T) {
 	addDriveDReturnValues()
 
 	ioCheck := new(IOCheck)
-	ioCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	mock := mocksender.NewMockSender(ioCheck.ID())
+	ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 
 	pdhtest.AddCounterInstance("LogicalDisk", "Y:")
 	pdhtest.AddCounterInstance("LogicalDisk", "HarddiskVolume2")
-
-	mock := mocksender.NewMockSender(ioCheck.ID())
 
 	mock.On("Gauge", "system.io.wkb_s", 1.222/kB, "", []string{"device:C:"}).Return().Times(2)
 	mock.On("Gauge", "system.io.wkb_s", 1.333/kB, "", []string{"device:HarddiskVolume1", "device_name:HarddiskVolume1"}).Return().Times(2)
@@ -205,9 +203,8 @@ func TestIoCheckInstanceRemoved(t *testing.T) {
 	addDriveDReturnValues()
 
 	ioCheck := new(IOCheck)
-	ioCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
-
 	mock := mocksender.NewMockSender(ioCheck.ID())
+	ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 
 	mock.On("Gauge", "system.io.wkb_s", 1.222/kB, "", []string{"device:C:"}).Return().Times(3)
 	mock.On("Gauge", "system.io.wkb_s", 1.333/kB, "", []string{"device:HarddiskVolume1", "device_name:HarddiskVolume1"}).Return().Times(3)

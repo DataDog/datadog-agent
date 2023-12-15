@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package probe holds probe related files
 package probe
 
 import (
@@ -22,8 +23,12 @@ type Opts struct {
 	PathResolutionEnabled bool
 	// TagsResolver will override the default one. Mainly here for tests.
 	TagsResolver tags.Resolver
-	// SyscallsMapMonitorEnabled enable syscalls map monitor
-	SyscallsMapMonitorEnabled bool
+	// SyscallsMonitorEnabled enable syscalls map monitor
+	SyscallsMonitorEnabled bool
+	// TTYFallbackEnabled enable the tty procfs fallback
+	TTYFallbackEnabled bool
+	// EBPFLessEnabled use ebpfless source
+	EBPFLessEnabled bool
 }
 
 func (o *Opts) normalize() {

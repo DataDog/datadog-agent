@@ -7,7 +7,7 @@ slack_teams_channels_check:
   needs: []
   script:
     - source /root/.bashrc
-    - python3 -m pip install codeowners
+    - python3 -m pip install codeowners -c tasks/libs/requirements-notifications.txt
     - inv -e pipeline.check-notify-teams
 
 

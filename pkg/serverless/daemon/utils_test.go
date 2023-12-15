@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestWaitWithTimeoutTimesOut(t *testing.T) {

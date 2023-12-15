@@ -5,6 +5,7 @@
 
 //go:build functionaltests || stresstests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -32,6 +33,10 @@ var dockerImageLibrary = map[string][]string{
 	"ubuntu": {
 		"ubuntu:20.04",
 		"public.ecr.aws/ubuntu/ubuntu:20.04",
+	},
+	"centos": {
+		"centos:7",
+		"public.ecr.aws/docker/library/centos:7",
 	},
 	"alpine": {
 		"alpine",

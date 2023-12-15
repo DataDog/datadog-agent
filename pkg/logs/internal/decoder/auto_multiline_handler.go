@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package decoder
 
 import (
@@ -141,7 +142,7 @@ func (h *AutoMultilineHandler) processAndTry(message *message.Message) {
 	h.singleLineHandler.process(message)
 
 	for i, scoredPattern := range h.scoredMatches {
-		match := scoredPattern.regexp.Match(message.Content)
+		match := scoredPattern.regexp.Match(message.GetContent())
 		if match {
 			scoredPattern.score++
 

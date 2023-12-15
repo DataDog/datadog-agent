@@ -5,6 +5,7 @@
 
 //go:build linux && linux_bpf
 
+// Package constantfetch holds constantfetch related files
 package constantfetch
 
 import (
@@ -159,11 +160,11 @@ func (og *OffsetGuesser) guess(id string) error {
 }
 
 // AppendSizeofRequest appends a sizeof request
-func (og *OffsetGuesser) AppendSizeofRequest(id, typeName, headerName string) {
+func (og *OffsetGuesser) AppendSizeofRequest(_, _, _ string) {
 }
 
 // AppendOffsetofRequest appends an offset request
-func (og *OffsetGuesser) AppendOffsetofRequest(id, typeName, fieldName, headerName string) {
+func (og *OffsetGuesser) AppendOffsetofRequest(id, _, _, _ string) {
 	og.res[id] = ErrorSentinel
 }
 

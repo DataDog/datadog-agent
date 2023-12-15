@@ -5,6 +5,7 @@
 
 //go:build containerd
 
+// Package fake provides a fake containerd client to be used in tests.
 package fake
 
 import (
@@ -52,7 +53,7 @@ func (client *MockedContainerdClient) Close() error {
 	return client.MockClose()
 }
 
-// Close is a mock method
+// RawClient is a mock method
 func (client *MockedContainerdClient) RawClient() *containerd.Client {
 	return client.MockRawClient()
 }
@@ -138,6 +139,8 @@ func (client *MockedContainerdClient) GetEvents() containerd.EventService {
 }
 
 // Spec is a mock method
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (client *MockedContainerdClient) Spec(namespace string, ctn containers.Container, maxSize int) (*oci.Spec, error) {
 	return client.MockSpec(namespace, ctn)
 }
@@ -157,6 +160,7 @@ func (client *MockedContainerdClient) IsSandbox(namespace string, ctn containerd
 	return client.MockIsSandbox(namespace, ctn)
 }
 
+// MountImage is a mock method
 func (client *MockedContainerdClient) MountImage(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image, targetDir string) (func(context.Context) error, error) {
 	return client.MockMountImage(ctx, expiration, namespace, img, targetDir)
 }

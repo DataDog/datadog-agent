@@ -9,6 +9,9 @@ import (
 	"expvar"
 	"strings"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
@@ -305,10 +308,11 @@ func (t onDiskRetryQueueTelemetry) addDeserializeTransactionsCount(count int) {
 }
 
 func toCamelCase(s string) string {
+	caser := cases.Title(language.English)
 	parts := strings.Split(s, "_")
 	var camelCase string
 	for _, p := range parts {
-		camelCase += strings.Title(p)
+		camelCase += caser.String(p)
 	}
 	return camelCase
 }

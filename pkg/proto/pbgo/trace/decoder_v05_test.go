@@ -84,6 +84,8 @@ func TestUnmarshalMsgDictionaryLimitsSize(t *testing.T) {
 	ps := [][]byte{
 		[]byte("\x9e\xdd\xff\xff\xff\xff"),
 		[]byte("\x96\x97\xa40000\xa6000000\xa6000000\xa6000000\xa6000000\xa6000000\xa6000000\x96\x94\x9c\x00\x00\x0000\xd100000\xdf0000"),
+		[]byte("\x90\x90\xddJ\xdc\x00A"),
+		[]byte("\x9b\x91\xa20c\xdd\xe12]\b\xf60\x9a\x9a\x9a"),
 	}
 	for _, p := range ps {
 		t.Run("", func(t *testing.T) {

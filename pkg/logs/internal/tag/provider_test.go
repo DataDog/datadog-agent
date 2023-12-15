@@ -28,14 +28,14 @@ func TestProviderExpectedTags(t *testing.T) {
 	}()
 
 	tags := []string{"tag1:value1", "tag2", "tag3"}
-	m.Set("tags", tags)
-	defer m.Set("tags", nil)
+	m.SetWithoutSource("tags", tags)
+	defer m.SetWithoutSource("tags", nil)
 
-	m.Set("logs_config.tagger_warmup_duration", "2")
+	m.SetWithoutSource("logs_config.tagger_warmup_duration", "2")
 
 	expectedTagsDuration := 5 * time.Second
-	m.Set("logs_config.expected_tags_duration", "5s")
-	defer m.Set("logs_config.expected_tags_duration", 0)
+	m.SetWithoutSource("logs_config.expected_tags_duration", "5s")
+	defer m.SetWithoutSource("logs_config.expected_tags_duration", 0)
 
 	p := newProviderWithClock("foo", clock)
 	pp := p.(*provider)

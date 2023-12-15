@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package rules holds rules related files
 package rules
 
 import (
@@ -14,28 +15,36 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
+// RuleFilterEvent defines a rule filter event
 type RuleFilterEvent struct {
 	*kernel.Version
 }
 
+// RuleFilterModel defines a filter model
 type RuleFilterModel struct {
 	*kernel.Version
 }
 
-func NewRuleFilterModel() *RuleFilterModel {
-	kv, _ := kernel.NewKernelVersion()
+// NewRuleFilterModel returns a new rule filter model
+func NewRuleFilterModel() (*RuleFilterModel, error) {
+	kv, err := kernel.NewKernelVersion()
+	if err != nil {
+		return nil, err
+	}
 	return &RuleFilterModel{
 		Version: kv,
-	}
+	}, nil
 }
 
+// NewEvent returns a new event
 func (m *RuleFilterModel) NewEvent() eval.Event {
 	return &RuleFilterEvent{
 		Version: m.Version,
 	}
 }
 
-func (m *RuleFilterModel) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
+// GetEvaluator gets the evaluator
+func (m *RuleFilterModel) GetEvaluator(field eval.Field, _ eval.RegisterID) (eval.Evaluator, error) {
 	switch field {
 	case "kernel.version.major":
 		return &eval.IntEvaluator{
@@ -170,6 +179,7 @@ func (m *RuleFilterModel) GetEvaluator(field eval.Field, regID eval.RegisterID) 
 	return nil, &eval.ErrFieldNotFound{Field: field}
 }
 
+// GetFieldValue gets a field value
 func (e *RuleFilterEvent) GetFieldValue(field eval.Field) (interface{}, error) {
 	switch field {
 	case "kernel.version.major":

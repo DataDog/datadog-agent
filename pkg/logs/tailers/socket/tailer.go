@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package socket
 
 import (
@@ -65,8 +66,8 @@ func (t *Tailer) forwardMessages() {
 		t.done <- struct{}{}
 	}()
 	for output := range t.decoder.OutputChan {
-		if len(output.Content) > 0 {
-			t.outputChan <- message.NewMessageWithSource(output.Content, message.StatusInfo, t.source, output.IngestionTimestamp)
+		if len(output.GetContent()) > 0 {
+			t.outputChan <- message.NewMessageWithSource(output.GetContent(), message.StatusInfo, t.source, output.IngestionTimestamp)
 		}
 	}
 }

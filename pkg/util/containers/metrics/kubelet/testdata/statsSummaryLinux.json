@@ -147,7 +147,7 @@
                         "workingSetBytes": 12713984,
                         "rssBytes": 12238848,
                         "pageFaults": 13101,
-                        "majorPageFaults": 0
+                        "majorPageFaults": 12
                     },
                     "rootfs": {
                         "time": "2019-11-20T13:13:13Z",
@@ -183,7 +183,7 @@
                         "workingSetBytes": 6705152,
                         "rssBytes": 6119424,
                         "pageFaults": 9603,
-                        "majorPageFaults": 0
+                        "majorPageFaults": 42
                     },
                     "rootfs": {
                         "time": "2019-11-20T13:13:09Z",
@@ -219,7 +219,7 @@
                         "workingSetBytes": 11325440,
                         "rssBytes": 10797056,
                         "pageFaults": 7722,
-                        "majorPageFaults": 0
+                        "majorPageFaults": 7
                     },
                     "rootfs": {
                         "time": "2019-11-20T13:13:16Z",

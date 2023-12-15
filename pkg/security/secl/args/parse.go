@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
+// Package args holds args related files
 package args
 
 import (
@@ -11,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
+// ParseProcessFlags parses the process flags
 func ParseProcessFlags(args []string) []string {
 	flags := make([]string, 0)
 	for _, arg := range args {
@@ -43,6 +45,7 @@ func ParseProcessFlags(args []string) []string {
 	return flags
 }
 
+// ParseProcessOptions parses the process options
 func ParseProcessOptions(args []string) []string {
 	options := make([]string, 0)
 	for i := 0; i < len(args); i++ {

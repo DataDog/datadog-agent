@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package probes holds probes related files
 package probes
 
 import manager "github.com/DataDog/ebpf-manager"
@@ -36,18 +37,18 @@ func getRenameProbes(fentry bool) []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "rename",
-	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
+	}, fentry, EntryAndExit)...)
 	renameProbes = append(renameProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "renameat",
-	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
+	}, fentry, EntryAndExit)...)
 	renameProbes = append(renameProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "renameat2",
-	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
+	}, fentry, EntryAndExit)...)
 	return renameProbes
 }

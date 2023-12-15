@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017-present Datadog, Inc.
 
+// Package common provides common functionality for the different ECS clients.
 package common
 
 import (

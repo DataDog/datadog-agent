@@ -8,7 +8,6 @@
 package tests
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,18 +19,18 @@ import (
 func TestSnapshotReplay(t *testing.T) {
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule_snapshot_replay",
-		Expression: fmt.Sprintf(`exec.comm in ["testsuite"]`),
+		Expression: "exec.comm in [\"testsuite\"]",
 	}
 
 	var gotEvent bool
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef}, testOpts{
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef}, withStaticOpts(testOpts{
 		snapshotRuleMatchHandler: func(testMod *testModule, e *model.Event, r *rules.Rule) {
 			assertTriggeredRule(t, r, "test_rule_snapshot_replay")
 			testMod.validateExecSchema(t, e)
 			gotEvent = true
 		},
-	})
+	}))
 
 	if err != nil {
 		t.Fatal(err)

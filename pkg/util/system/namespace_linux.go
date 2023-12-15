@@ -57,6 +57,6 @@ func IsProcessHostNetwork(procPath string, namespaceID uint64) *bool {
 
 // IsProcessHostUTSNamespace compares namespaceID with known, harcoded host PID Namespace inode
 // Keeps same signature as `IsProcessHostNetwork` as we may need to change implementation depending on Kernel evolution
-func IsProcessHostUTSNamespace(procPath string, namespaceID uint64) *bool {
+func IsProcessHostUTSNamespace(procPath string, namespaceID uint64) *bool { //nolint:revive // TODO fix revive unused-parameter
 	return pointer.Ptr(namespaceID == hostUTSNamespecInode)
 }

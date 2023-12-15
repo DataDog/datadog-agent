@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Tag container entity with ``image_id`` tag.

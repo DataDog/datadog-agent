@@ -9,6 +9,8 @@ package kubelet
 
 import (
 	"time"
+
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 // Pod contains fields for unmarshalling a Pod
@@ -71,9 +73,24 @@ type ContainerSpec struct {
 	Resources       *ContainerResourcesSpec       `json:"resources,omitempty"`
 }
 
+// ResourceName is the key to fields in in Pod.Spec.Containers.Resources
+type ResourceName string
+
+// Resources name
+const (
+	ResourceCPU              ResourceName = "cpu"
+	ResourceMemory           ResourceName = "memory"
+	ResourceStorage          ResourceName = "storage"
+	ResourceEphemeralStorage ResourceName = "ephemeral-storage"
+)
+
+// ResourceList is the type of fields in Pod.Spec.Containers.Resources
+type ResourceList map[ResourceName]resource.Quantity
+
+// ContainerResourcesSpec contains fields for unmarshalling a Pod.Spec.Containers.Resources
 type ContainerResourcesSpec struct {
-	Requests map[string]string `json:"requests,omitempty"`
-	Limits   map[string]string `json:"limits,omitempty"`
+	Requests ResourceList `json:"requests,omitempty"`
+	Limits   ResourceList `json:"limits,omitempty"`
 }
 
 // ContainerPortSpec contains fields for unmarshalling a Pod.Spec.Containers.Ports
@@ -105,6 +122,7 @@ type CapabilitiesSpec struct {
 // SeccompProfileType is used for unmarshalling Pod.Spec.Containers.SecurityContext.SeccompProfile.Type
 type SeccompProfileType string
 
+// Seccomp profiles
 const (
 	SeccompProfileTypeUnconfined     SeccompProfileType = "Unconfined"
 	SeccompProfileTypeRuntimeDefault SeccompProfileType = "RuntimeDefault"
@@ -130,11 +148,22 @@ type VolumeSpec struct {
 	Name string `json:"name"`
 	// Only try to retrieve persistent volume claim to tag statefulsets
 	PersistentVolumeClaim *PersistentVolumeClaimSpec `json:"persistentVolumeClaim,omitempty"`
+	Ephemeral             *EphemeralSpec             `json:"ephemeral,omitempty"`
 }
 
 // PersistentVolumeClaimSpec contains fields for unmarshalling a Pod.Spec.Volumes.PersistentVolumeClaim
 type PersistentVolumeClaimSpec struct {
 	ClaimName string `json:"claimName"`
+}
+
+// EphemeralSpec contains fields for unmarshalling a Pod.Spec.Volumes.Ephemeral
+type EphemeralSpec struct {
+	VolumeClaimTemplate *VolumeClaimTemplateSpec `json:"volumeClaimTemplate,omitempty"`
+}
+
+// VolumeClaimTemplateSpec contains fields for unmarshalling a Pod.Spec.Volumes.Ephemeral.VolumeClaimTemplate
+type VolumeClaimTemplateSpec struct {
+	Metadata PodMetadata `json:"metadata,omitempty"`
 }
 
 // Status contains fields for unmarshalling a Pod.Status

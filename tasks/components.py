@@ -2,6 +2,7 @@
 Invoke entrypoint, import here all the tasks we want to make available
 """
 import os
+import pathlib
 from collections import namedtuple
 from string import Template
 
@@ -40,6 +41,46 @@ def has_type_component(content):
     return any(l.startswith('type Component interface') for l in content)
 
 
+def check_component(file, content):
+    if not any(l.startswith('type Component interface') for l in content):
+        return f"** {file} does not define a Component interface; skipping"
+
+    # // TODO: (components)
+    # The migration of these components is in progresss.
+    # Please do not add a new component to this list.
+    components_to_migrate = [
+        "comp/aggregator/demultiplexer/component.go",
+        "comp/core/config/component.go",
+        "comp/core/flare/component.go",
+        "comp/core/telemetry/component.go",
+        "comp/dogstatsd/replay/component.go",
+        "comp/dogstatsd/server/component.go",
+        "comp/forwarder/defaultforwarder/component.go",
+        "comp/logs/agent/component.go",
+        "comp/metadata/inventoryagent/component.go",
+        "comp/netflow/config/component.go",
+        "comp/netflow/server/component.go",
+        "comp/otelcol/collector/component.go",
+        "comp/remote-config/rcclient/component.go",
+        "comp/trace/agent/component.go",
+        "comp/trace/config/component.go",
+        "comp/process/apiserver/component.go",
+        "comp/core/workloadmeta/component.go",  # // TODO: (components) fix it in later PR
+    ]
+
+    if file in components_to_migrate:
+        return ""
+
+    for not_allow_definition in [
+        "type Mock interface",
+        "func Module() fxutil.Module",
+        "func MockModule() fxutil.Module",
+    ]:
+        if any(l.startswith(not_allow_definition) for l in content):
+            return f"** {file} define '{not_allow_definition}' which is not allow in {file}. See docs/components/defining-components.md; skipping"
+    return ""  # no error
+
+
 def get_components_and_bundles(ctx):
     ok = True
     components = []
@@ -48,8 +89,9 @@ def get_components_and_bundles(ctx):
     for file in res.stdout.splitlines():
         if file.endswith("/component.go"):
             content = list(open(file, "r"))
-            if not has_type_component(content):
-                print(f"** {file} does not define a Component interface; skipping")
+            error = check_component(file, content)
+            if error != "":
+                print(error)
                 ok = False
                 pass
 
@@ -93,7 +135,7 @@ def get_components_and_bundles(ctx):
 
 
 def make_components_md(bundles):
-    pkg_root = 'github.com/DataDog/dd-agent-comp-experiments/'
+    pkg_root = 'github.com/DataDog/datadog-agent/'
     yield '# Agent Components'
     yield '<!-- NOTE: this file is auto-generated; do not edit -->'
     yield ''
@@ -210,13 +252,15 @@ def new_bundle(_, bundle_path, overwrite=False, team="/* TODO: add team name */"
         inv components.new-bundle /tmp/baz                 # Create the 'baz' bundle in the '/tmp/' folder. './comp' prefix is not enforced by the task.
     """
     template_var_mapping = {"BUNDLE_NAME": os.path.basename(bundle_path), "TEAM_NAME": team}
-    create_components_framework_files(bundle_path, ["bundle.go", "bundle_test.go"], template_var_mapping, overwrite)
+    create_components_framework_files(
+        bundle_path, [("bundle.go", "bundle.go"), ("bundle_test.go", "bundle_test.go")], template_var_mapping, overwrite
+    )
 
 
 @task
 def new_component(_, comp_path, overwrite=False, team="/* TODO: add team name */"):
     """
-    Create a new component package with the component.go file.
+    Create a new component package with default files.
 
     Notes:
         - This task must be called from the datadog-agent repository root folder.
@@ -228,11 +272,22 @@ def new_component(_, comp_path, overwrite=False, team="/* TODO: add team name */
         inv components.new-component comp/foo/bar --overwrite # Create the 'bar' component in the 'comp/foo' folder and overwrite 'comp/foo/bar/component.go' even if it already exists
         inv components.new-component /tmp/baz                 # Create the 'baz' component in the '/tmp/' folder. './comp' prefix is not enforced by the task.
     """
-    template_var_mapping = {"COMPONENT_NAME": os.path.basename(comp_path), "TEAM_NAME": team}
-    create_components_framework_files(comp_path, ["component.go"], template_var_mapping, overwrite)
+    component_name = os.path.basename(comp_path)
+    template_var_mapping = {"COMPONENT_NAME": component_name, "TEAM_NAME": team}
+    create_components_framework_files(
+        comp_path,
+        [
+            ("component.go", "component.go"),
+            ("component_mock.go", "component_mock.go"),
+            (os.path.join(f"{component_name}impl", f"{component_name}.go"), "impl/component.go"),
+            (os.path.join(f"{component_name}impl", f"{component_name}_mock.go"), "impl/component_mock.go"),
+        ],
+        template_var_mapping,
+        overwrite,
+    )
 
 
-def create_components_framework_files(comp_path, new_files, template_var_mapping, overwrite):
+def create_components_framework_files(comp_path, new_paths, template_var_mapping, overwrite):
     """
     Create the folder and files common to all components and bundles.
 
@@ -272,16 +327,18 @@ def create_components_framework_files(comp_path, new_files, template_var_mapping
         os.umask(original_umask)
 
     # Create the components framework common files from predefined templates
-    for filename in new_files:
-        write_template(f"{comp_path}/{filename}", template_var_mapping, overwrite)
+    for path, template_path in new_paths:
+        folder = os.path.dirname(path)
+        os.makedirs(os.path.join(comp_path, folder), exist_ok=True)
+        write_template(comp_path, template_path, path, template_var_mapping, overwrite)
 
 
-def write_template(new_file_path, var_mapping, overwrite=False):
+def write_template(comp_path, template_name, new_file_path, var_mapping, overwrite=False):
     """
     Get the content of a templated file, substitute its variables and then writes the result into 'new_file_path' file.
     """
+    template_path = get_template_path(template_name)
     # Get the content of the template and resolve it
-    template_path = get_template_path(new_file_path)
     raw_template_value = read_file_content(template_path)
 
     var_mapping["COPYRIGHT_HEADER"] = COPYRIGHT_HEADER
@@ -289,26 +346,14 @@ def write_template(new_file_path, var_mapping, overwrite=False):
 
     # Fails if file exists and 'overwrite' is False
     mode = "w" if overwrite else "x"
-    with open(new_file_path, mode) as file:
+    full_path = os.path.join(comp_path, new_file_path)
+    with open(full_path, mode) as file:
         file.write(resolved_template)
-        print(f"Writing to {new_file_path}")
+        print(f"Writing to {full_path}")
 
 
-def get_template_path(file_path):
-    """
-    Return a path to the template associated with 'file_path'.
-
-    Templates are static files containing variables whose value can be substituted at runtime.
-    These templates are used to generate Golang files that are always the same except for some parts such as package name.
-
-    These templates are located in the `tasks/components_templates` folder.
-
-    For instance, if called with `component.go`, the functions returns 'tasks/components_templates/component.go.tmpl'
-    """
-
-    template_folder_path = "tasks/components_templates/"
-    template_name = os.path.basename(file_path) + ".tmpl"
-    return os.path.join(template_folder_path, template_name)
+def get_template_path(relative_path):
+    return os.path.join("tasks", "components_templates", relative_path + ".tmpl")
 
 
 def read_file_content(template_path):
@@ -317,3 +362,49 @@ def read_file_content(template_path):
     """
     with open(template_path, "r") as file:
         return file.read()
+
+
+@task
+def lint_fxutil_oneshot_test(_):
+    """
+    Verify each fxutil.OneShot has an unit test
+    """
+    folders = ["./cmd", "./pkg/cli", "./comp"]
+    errors = []
+    for folder in folders:
+        folder_path = pathlib.Path(folder)
+        for file in folder_path.rglob("*.go"):
+            # Don't lint test files
+            if str(file).endswith("_test.go"):
+                continue
+
+            one_shot_count = file.read_text().count("fxutil.OneShot(")
+            run_count = file.read_text().count("fxutil.Run(")
+
+            expect_reason = 'fxutil.OneShot'
+            if one_shot_count == 0 and run_count > 0:
+                expect_reason = 'fxutil.Run'
+
+            if one_shot_count > 0 or run_count > 0:
+                test_path = file.parent.joinpath(f"{file.stem}_test.go")
+                if not test_path.exists():
+                    errors.append(f"The file {file} contains {expect_reason} but the file {test_path} doesn't exist.")
+                else:
+                    content = test_path.read_text()
+                    test_sub_cmd_count = content.count("fxutil.TestOneShotSubcommand(")
+                    test_one_shot_count = content.count("fxutil.TestOneShot(")
+                    test_run_count = content.count("fxutil.TestRun(")
+                    if one_shot_count > test_sub_cmd_count + test_one_shot_count:
+                        errors.append(
+                            f"The file {file} contains {one_shot_count} call(s) to `fxutil.OneShot`"
+                            + f" but {test_path} contains only {test_sub_cmd_count} call(s) to `fxutil.TestOneShotSubcommand`"
+                            + f" and {test_one_shot_count} call(s) to `fxutil.TestOneShot`"
+                        )
+                    if run_count > test_run_count:
+                        errors.append(
+                            f"The file {file} contains {run_count} call(s) to `fxutil.Run`"
+                            + f" but {test_path} contains only {test_run_count} call(s) to `fxutil.TestRun`"
+                        )
+    if len(errors) > 0:
+        msg = '\n'.join(errors)
+        raise Exit(f"Missings tests: {msg}")

@@ -45,7 +45,7 @@ static __always_inline grpc_status_t is_content_type_grpc(const struct __sk_buff
 
     string_literal_header len;
     if (skb_info->data_off + sizeof(len) > frame_end) {
-        return PAYLOAD_UNDETERMINED;
+        return PAYLOAD_NOT_GRPC;
     }
 
     bpf_skb_load_bytes(skb, skb_info->data_off, &len, sizeof(len));
@@ -63,6 +63,27 @@ static __always_inline grpc_status_t is_content_type_grpc(const struct __sk_buff
     skb_info->data_off += len.length;
 
     return is_encoded_grpc_content_type(content_type_buf) ? PAYLOAD_GRPC : PAYLOAD_NOT_GRPC;
+}
+
+// skip_header increments skb_info->data_off so that it skips the remainder of
+// the current header (of which we already parsed the index value).
+static __always_inline void skip_literal_header(const struct __sk_buff *skb, skb_info_t *skb_info, __u32 frame_end, __u8 idx) {
+    string_literal_header len;
+    if (skb_info->data_off + sizeof(len) > frame_end) {
+        return;
+    }
+
+    bpf_skb_load_bytes(skb, skb_info->data_off, &len, sizeof(len));
+    skb_info->data_off += sizeof(len) + len.length;
+
+    // If the index is zero, that means the header name is not indexed, so we
+    // have to skip both the name and the index.
+    if (!idx && skb_info->data_off + sizeof(len) <= frame_end) {
+        bpf_skb_load_bytes(skb, skb_info->data_off, &len, sizeof(len));
+        skb_info->data_off += sizeof(len) + len.length;
+    }
+
+    return;
 }
 
 // Scan headers goes through the headers in a frame, and tries to find a
@@ -98,6 +119,8 @@ static __always_inline grpc_status_t scan_headers(const struct __sk_buff *skb, s
                 break;
             }
 
+            skip_literal_header(skb, skb_info, frame_end, idx.literal.index);
+
             continue;
         }
 
@@ -124,7 +147,7 @@ static __always_inline grpc_status_t is_grpc(const struct __sk_buff *skb, const 
     char frame_buf[HTTP2_FRAME_HEADER_SIZE];
     struct http2_frame current_frame;
 
-    header_info_t frames[GRPC_MAX_FRAMES_TO_PROCESS];
+    frame_info_t frames[GRPC_MAX_FRAMES_TO_PROCESS];
     u32 frames_count = 0;
 
     // Make a mutable copy of skb_info
@@ -149,7 +172,7 @@ static __always_inline grpc_status_t is_grpc(const struct __sk_buff *skb, const 
         }
 
         if (current_frame.type == kHeadersFrame) {
-            frames[frames_count++] = (header_info_t){ .offset = info.data_off, .length = current_frame.length };
+            frames[frames_count++] = (frame_info_t){ .offset = info.data_off, .length = current_frame.length };
         }
 
         info.data_off += current_frame.length;

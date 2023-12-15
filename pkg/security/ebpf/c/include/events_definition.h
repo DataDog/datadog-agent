@@ -98,7 +98,7 @@ struct cgroup_tracing_event_t {
     struct kevent_t event;
     struct container_context_t container;
     struct activity_dump_config config;
-    u32 cookie;
+    u64 cookie;
 };
 
 struct utimes_event_t {

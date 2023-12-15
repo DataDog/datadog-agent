@@ -8,11 +8,11 @@
 package http
 
 import (
-	"bytes"
 	"encoding/hex"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"strconv"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
@@ -21,101 +21,89 @@ import (
 // GET variables excluded.
 // Example:
 // For a request fragment "GET /foo?var=bar HTTP/1.1", this method will return "/foo"
-func (tx *EbpfTx) Path(buffer []byte) ([]byte, bool) {
-	bLen := bytes.IndexByte(tx.Request_fragment[:], 0)
-	if bLen == -1 {
-		bLen = len(tx.Request_fragment)
-	}
-	// trim null byte + after
-	b := tx.Request_fragment[:bLen]
-	// find first space after request method
-	i := bytes.IndexByte(b, ' ')
-	i++
-	// ensure we found a space, it isn't at the end, and the next chars are '/' or '*'
-	if i == 0 || i == len(b) || (b[i] != '/' && b[i] != '*') {
-		return nil, false
-	}
-	// trim to start of path
-	b = b[i:]
-	// capture until we find the slice end, a space, or a question mark (we ignore the query parameters)
-	var j int
-	for j = 0; j < len(b) && b[j] != ' ' && b[j] != '?'; j++ {
-	}
-	n := copy(buffer, b[:j])
-	// indicate if we knowingly captured the entire path
-	fullPath := n < len(b)
-	return buffer[:n], fullPath
+func (e *EbpfEvent) Path(buffer []byte) ([]byte, bool) {
+	return computePath(buffer, e.Http.Request_fragment[:])
 }
 
 // RequestLatency returns the latency of the request in nanoseconds
-func (tx *EbpfTx) RequestLatency() float64 {
-	if uint64(tx.Request_started) == 0 || uint64(tx.Response_last_seen) == 0 {
+func (e *EbpfEvent) RequestLatency() float64 {
+	if uint64(e.Http.Request_started) == 0 || uint64(e.Http.Response_last_seen) == 0 {
 		return 0
 	}
-	return protocols.NSTimestampToFloat(tx.Response_last_seen - tx.Request_started)
+	return protocols.NSTimestampToFloat(e.Http.Response_last_seen - e.Http.Request_started)
 }
 
 // Incomplete returns true if the transaction contains only the request or response information
 // This happens in the context of localhost with NAT, in which case we join the two parts in userspace
-func (tx *EbpfTx) Incomplete() bool {
-	return tx.Request_started == 0 || tx.Response_status_code == 0
+func (e *EbpfEvent) Incomplete() bool {
+	return e.Http.Request_started == 0 || e.Http.Response_status_code == 0
 }
 
-func (tx *EbpfTx) ConnTuple() types.ConnectionKey {
+// ConnTuple returns a `types.ConnectionKey` for the transaction
+func (e *EbpfEvent) ConnTuple() types.ConnectionKey {
 	return types.ConnectionKey{
-		SrcIPHigh: tx.Tup.Saddr_h,
-		SrcIPLow:  tx.Tup.Saddr_l,
-		DstIPHigh: tx.Tup.Daddr_h,
-		DstIPLow:  tx.Tup.Daddr_l,
-		SrcPort:   tx.Tup.Sport,
-		DstPort:   tx.Tup.Dport,
+		SrcIPHigh: e.Tuple.Saddr_h,
+		SrcIPLow:  e.Tuple.Saddr_l,
+		DstIPHigh: e.Tuple.Daddr_h,
+		DstIPLow:  e.Tuple.Daddr_l,
+		SrcPort:   e.Tuple.Sport,
+		DstPort:   e.Tuple.Dport,
 	}
 }
 
-func (tx *EbpfTx) Method() Method {
-	return Method(tx.Request_method)
+// Method returns the HTTP method of the HTTP transaction
+func (e *EbpfEvent) Method() Method {
+	return Method(e.Http.Request_method)
 }
 
-func (tx *EbpfTx) StatusCode() uint16 {
-	return tx.Response_status_code
+// StatusCode returns the status code of the HTTP transaction
+func (e *EbpfEvent) StatusCode() uint16 {
+	return e.Http.Response_status_code
 }
 
-func (tx *EbpfTx) SetStatusCode(code uint16) {
-	tx.Response_status_code = code
+// SetStatusCode of the underlying HTTP transaction
+func (e *EbpfEvent) SetStatusCode(code uint16) {
+	e.Http.Response_status_code = code
 }
 
-func (tx *EbpfTx) ResponseLastSeen() uint64 {
-	return tx.Response_last_seen
+// ResponseLastSeen returns the timestamp of the last captured segment of the HTTP transaction
+func (e *EbpfEvent) ResponseLastSeen() uint64 {
+	return e.Http.Response_last_seen
 }
 
-func (tx *EbpfTx) SetResponseLastSeen(lastSeen uint64) {
-	tx.Response_last_seen = lastSeen
-
-}
-func (tx *EbpfTx) RequestStarted() uint64 {
-	return tx.Request_started
+// SetResponseLastSeen of the HTTP transaction
+func (e *EbpfEvent) SetResponseLastSeen(lastSeen uint64) {
+	e.Http.Response_last_seen = lastSeen
 }
 
-func (tx *EbpfTx) SetRequestMethod(m Method) {
-	tx.Request_method = uint8(m)
+// RequestStarted returns the timestamp of the first segment of the HTTP transaction
+func (e *EbpfEvent) RequestStarted() uint64 {
+	return e.Http.Request_started
+}
+
+// SetRequestMethod of the underlying HTTP transaction
+func (e *EbpfEvent) SetRequestMethod(m Method) {
+	e.Http.Request_method = uint8(m)
 }
 
 // StaticTags returns an uint64 representing the tags bitfields
 // Tags are defined here : pkg/network/ebpf/kprobe_types.go
-func (tx *EbpfTx) StaticTags() uint64 {
-	return tx.Tags
+func (e *EbpfEvent) StaticTags() uint64 {
+	return e.Http.Tags
 }
 
-func (tx *EbpfTx) DynamicTags() []string {
+// DynamicTags returns the dynamic tags associated to the HTTP trasnaction
+func (e *EbpfEvent) DynamicTags() []string {
 	return nil
 }
 
-func (tx *EbpfTx) String() string {
+// String returns a string representation of the underlying event
+func (e *EbpfEvent) String() string {
 	var output strings.Builder
 	output.WriteString("ebpfTx{")
-	output.WriteString("Method: '" + Method(tx.Request_method).String() + "', ")
-	output.WriteString("Tags: '0x" + strconv.FormatUint(tx.Tags, 16) + "', ")
-	output.WriteString("Fragment: '" + hex.EncodeToString(tx.Request_fragment[:]) + "', ")
+	output.WriteString("Method: '" + Method(e.Http.Request_method).String() + "', ")
+	output.WriteString("Tags: '0x" + strconv.FormatUint(e.Http.Tags, 16) + "', ")
+	output.WriteString("Fragment: '" + hex.EncodeToString(e.Http.Request_fragment[:]) + "', ")
 	output.WriteString("}")
 	return output.String()
 }

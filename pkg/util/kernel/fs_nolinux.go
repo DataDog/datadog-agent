@@ -9,10 +9,12 @@ package kernel
 
 import "github.com/DataDog/datadog-agent/pkg/util/funcs"
 
+//nolint:revive // TODO(EBPF) Fix revive linter
 var ProcFSRoot = funcs.MemoizeNoError(func() string {
 	return ""
 })
 
+//nolint:revive // TODO(EBPF) Fix revive linter
 var SysFSRoot = funcs.MemoizeNoError(func() string {
 	return ""
 })

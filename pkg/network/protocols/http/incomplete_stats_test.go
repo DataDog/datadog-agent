@@ -19,25 +19,29 @@ import (
 
 func TestOrphanEntries(t *testing.T) {
 	t.Run("orphan entries can be joined even after flushing", func(t *testing.T) {
-		nowTS := time.Now()
+		now := time.Now()
 		tel := NewTelemetry("http")
-		buffer := newIncompleteBuffer(config.New(), tel)
-		request := &EbpfTx{
-			Request_fragment: requestFragment([]byte("GET /foo/bar")),
-			Request_started:  uint64(nowTS.UnixNano()),
+		buffer := NewIncompleteBuffer(config.New(), tel)
+		request := &EbpfEvent{
+			Http: EbpfTx{
+				Request_fragment: requestFragment([]byte("GET /foo/bar")),
+				Request_started:  uint64(now.UnixNano()),
+			},
 		}
-		request.Tup.Sport = 60000
+		request.Tuple.Sport = 60000
 
 		buffer.Add(request)
-		now := nowTS.Add(5 * time.Second).UnixNano()
+		now = now.Add(5 * time.Second)
 		complete := buffer.Flush(now)
 		assert.Len(t, complete, 0)
 
-		response := &EbpfTx{
-			Response_status_code: 200,
-			Response_last_seen:   uint64(now),
+		response := &EbpfEvent{
+			Http: EbpfTx{
+				Response_status_code: 200,
+				Response_last_seen:   uint64(now.UnixNano()),
+			},
 		}
-		response.Tup.Sport = 60000
+		response.Tuple.Sport = 60000
 		buffer.Add(response)
 		complete = buffer.Flush(now)
 		require.Len(t, complete, 1)
@@ -50,19 +54,22 @@ func TestOrphanEntries(t *testing.T) {
 
 	t.Run("orphan entries are not kept indefinitely", func(t *testing.T) {
 		tel := NewTelemetry("http")
-		buffer := newIncompleteBuffer(config.New(), tel)
-		nowTS := time.Now()
+		// Temporary cast until we introduce a HTTP2 dedicated implementation for incompleteBuffer.
+		buffer := NewIncompleteBuffer(config.New(), tel).(*incompleteBuffer)
+		now := time.Now()
 		buffer.minAgeNano = (30 * time.Second).Nanoseconds()
-		request := &EbpfTx{
-			Request_fragment: requestFragment([]byte("GET /foo/bar")),
-			Request_started:  uint64(nowTS.UnixNano()),
+		request := &EbpfEvent{
+			Http: EbpfTx{
+				Request_fragment: requestFragment([]byte("GET /foo/bar")),
+				Request_started:  uint64(now.UnixNano()),
+			},
 		}
 		buffer.Add(request)
-		_ = buffer.Flush(nowTS.UnixNano())
+		_ = buffer.Flush(now)
 
 		assert.True(t, len(buffer.data) > 0)
-		nowTS = nowTS.Add(35 * time.Second)
-		_ = buffer.Flush(nowTS.UnixNano())
+		now = now.Add(35 * time.Second)
+		_ = buffer.Flush(now)
 		assert.True(t, len(buffer.data) == 0)
 	})
 }

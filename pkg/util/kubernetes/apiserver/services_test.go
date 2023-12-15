@@ -26,11 +26,11 @@ func TestNamespacesPodsStringsSet(t *testing.T) {
 	mapper.Set("default", "pod3", "svc2")
 
 	require.Equal(t, 3, len(mapper["default"]))
-	assert.Equal(t, sets.NewString("svc1"), mapper["default"]["pod1"])
+	assert.Equal(t, sets.New("svc1"), mapper["default"]["pod1"])
 
 	mapper.Delete("default", "svc1")
 	require.Equal(t, 1, len(mapper["default"]))
-	assert.Equal(t, sets.NewString("svc2"), mapper["default"]["pod3"])
+	assert.Equal(t, sets.New("svc2"), mapper["default"]["pod3"])
 
 	mapper.Delete("default", "svc2")
 

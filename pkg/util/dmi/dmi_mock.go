@@ -20,6 +20,7 @@ func resetSysPath() {
 	dmiBoardVendorPath = "/sys/devices/virtual/dmi/id/board_vendor"
 }
 
+// SetupMock configures DMI files with provided data
 func SetupMock(t *testing.T, hypervisorUUID, productUUID, boardAssetTag, boardVendor string) {
 	tempDir := t.TempDir()
 	t.Cleanup(resetSysPath)

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package eval holds eval related files
 package eval
 
 // MacroStore represents a store of SECL Macros
@@ -10,7 +11,7 @@ type MacroStore struct {
 	Macros map[MacroID]*Macro
 }
 
-// AddMacro add a macro
+// Add adds a macro
 func (s *MacroStore) Add(macro *Macro) *MacroStore {
 	if s.Macros == nil {
 		s.Macros = make(map[string]*Macro)
@@ -19,6 +20,7 @@ func (s *MacroStore) Add(macro *Macro) *MacroStore {
 	return s
 }
 
+// List lists macros
 func (s *MacroStore) List() []*Macro {
 	var macros []*Macro
 
@@ -45,7 +47,7 @@ type VariableStore struct {
 	Variables map[string]VariableValue
 }
 
-// AddVariable add a variable
+// Add adds a variable
 func (s *VariableStore) Add(name string, variable VariableValue) *VariableStore {
 	if s.Variables == nil {
 		s.Variables = make(map[string]VariableValue)

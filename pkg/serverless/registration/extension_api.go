@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(SERV) Fix revive linter
 package registration
 
 import (
@@ -34,11 +35,11 @@ const (
 // RegisterExtension registers the serverless daemon and subscribe to INVOKE and SHUTDOWN messages.
 // Returns either (the serverless ID assigned by the serverless daemon + the api key as read from
 // the environment) or an error.
-func RegisterExtension(runtimeURL string, registrationRoute string, timeout time.Duration) (ID, FunctionARN, error) {
-	extesionRegistrationURL := BuildURL(registrationRoute)
+func RegisterExtension(registrationRoute string, timeout time.Duration) (ID, FunctionARN, error) {
+	extensionRegistrationURL := BuildURL(registrationRoute)
 	payload := createRegistrationPayload()
 
-	request, err := buildRegisterRequest(extesionRegistrationURL, payload)
+	request, err := buildRegisterRequest(extensionRegistrationURL, payload)
 	if err != nil {
 		return "", "", fmt.Errorf("registerExtension: can't create the POST register request: %v", err)
 	}
@@ -85,6 +86,7 @@ func extractFunctionARN(response *http.Response) (string, error) {
 		return "", err
 	}
 	functionName := respBody["functionName"]
+	//nolint:revive // TODO(SERV) Fix revive linter
 	accountId := respBody["accountId"]
 	region := os.Getenv("AWS_REGION")
 	partition := trigger.GetAWSPartitionByRegion(region)
@@ -137,6 +139,8 @@ func NoOpProcessEvent(ctx context.Context, id ID) error {
 }
 
 // NextUrl returns the /next endpoint
+//
+//nolint:revive // TODO(SERV) Fix revive linter
 func NextUrl() string {
 	return BuildURL(routeEventNext)
 }

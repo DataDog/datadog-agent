@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package kfilters holds kfilters related files
 package kfilters
 
 import (

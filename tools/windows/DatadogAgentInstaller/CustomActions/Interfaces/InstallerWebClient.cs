@@ -8,8 +8,8 @@ namespace Datadog.CustomActions.Interfaces
 {
     public class InstallerWebClient : IInstallerHttpClient
     {
-        private const SslProtocols _Tls12 = (SslProtocols)0x00000C00;
-        private const SecurityProtocolType Tls12 = (SecurityProtocolType)_Tls12;
+        private const SslProtocols Tls12Protocol = (SslProtocols)0x00000C00;
+        private const SecurityProtocolType Tls12 = (SecurityProtocolType)Tls12Protocol;
 
         public InstallerWebClient()
         {

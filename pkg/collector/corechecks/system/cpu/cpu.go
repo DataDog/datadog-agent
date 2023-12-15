@@ -4,6 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 //go:build !windows
 
+//nolint:revive // TODO(PLINT) Fix revive linter
 package cpu
 
 import (
@@ -57,7 +58,9 @@ func (c *Check) Run() error {
 	}
 	t := cpuTimes[0]
 
-	nbCycle := t.Total() / c.nbCPU
+	total := t.User + t.System + t.Idle + t.Nice +
+		t.Iowait + t.Irq + t.Softirq + t.Steal
+	nbCycle := total / c.nbCPU
 
 	if c.lastNbCycle != 0 {
 		// gopsutil return the sum of every CPU

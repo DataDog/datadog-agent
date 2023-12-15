@@ -5,6 +5,7 @@
 
 //go:build docker
 
+// Package fake provides a fake Docker client to be used in tests.
 package fake
 
 import (
@@ -21,26 +22,36 @@ type SystemAPIClient struct {
 }
 
 // Events is a mock method
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (c *SystemAPIClient) Events(ctx context.Context, options types.EventsOptions) (<-chan events.Message, <-chan error) {
 	return nil, nil
 }
 
 // Info is a mock method
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (c *SystemAPIClient) Info(ctx context.Context) (types.Info, error) {
 	return c.InfoFunc()
 }
 
 // RegistryLogin is a mock method
+//
+//nolint:revive,staticcheck // TODO(CINT) Fix revive linter // TODO(CINT) Fix staticcheck linter
 func (c *SystemAPIClient) RegistryLogin(ctx context.Context, auth types.AuthConfig) (registry.AuthenticateOKBody, error) {
 	return registry.AuthenticateOKBody{}, nil
 }
 
 // DiskUsage is a mock method
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (c *SystemAPIClient) DiskUsage(ctx context.Context, options types.DiskUsageOptions) (types.DiskUsage, error) {
 	return types.DiskUsage{}, nil
 }
 
 // Ping is a mock method
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (c *SystemAPIClient) Ping(ctx context.Context) (types.Ping, error) {
 	return types.Ping{}, nil
 }

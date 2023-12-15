@@ -11,10 +11,12 @@ import (
 	"net/http"
 	"sort"
 
+	"k8s.io/apimachinery/pkg/util/sets"
+
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 )
 
-// MarshableMetric sole purpose is to provide a marshable reprensentation of a
+// MarshableMetric sole purpose is to provide a marshable representation of a
 // metric
 type MarshableMetric struct {
 	metric metric
@@ -33,15 +35,15 @@ func (mm MarshableMetric) MarshalJSON() ([]byte, error) {
 	}{
 		Name:  base.name,
 		Type:  fmt.Sprintf("%T", metric),
-		Tags:  base.tags.List(),
-		Opts:  base.opts.List(),
+		Tags:  sets.List(base.tags),
+		Opts:  sets.List(base.opts),
 		Value: base.Get(),
 	})
 }
 
-// Handler is meant to be used in conjuntion with a HTTP server for exposing the
+// Handler is meant to be used in conjunction with a HTTP server for exposing the
 // state of all metrics currently tracked by this library
-func Handler(w http.ResponseWriter, req *http.Request) {
+func Handler(w http.ResponseWriter, _ *http.Request) {
 	metrics := globalRegistry.GetMetrics()
 
 	// sort entries by name it easier to read the output

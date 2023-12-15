@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package metadata holds metadata related files
 package metadata
 
 import "time"

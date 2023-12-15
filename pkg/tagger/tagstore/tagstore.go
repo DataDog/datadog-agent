@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package tagstore implements the TagStore which is the component of the Tagger
+// responsible for storing the tags in memory.
 package tagstore
 
 import (

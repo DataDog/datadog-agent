@@ -8,7 +8,7 @@
 package flare
 
 import (
-	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 )
 
-func getWindowsData(fb flarehelpers.FlareBuilder) {}
+func getWindowsData(fb flaretypes.FlareBuilder) {} //nolint:revive // TODO fix revive unused-parameter

@@ -97,6 +97,27 @@ func TestMetadataAsTags(t *testing.T) {
 			metadataAsTags: map[string]string{"*": "%%env%%"},
 			want:           []string{"foo:bar"},
 		},
+		{
+			name:           "nominal split case",
+			k:              "foo",
+			v:              "bar",
+			metadataAsTags: map[string]string{"foo": "foo, app_foo"},
+			want:           []string{"foo:bar", "app_foo:bar"},
+		},
+		{
+			name:           "label tpl var with normal label",
+			k:              "foo",
+			v:              "bar",
+			metadataAsTags: map[string]string{"foo": "%%label%% , app_foo"},
+			want:           []string{"foo:bar", "app_foo:bar"},
+		},
+		{
+			name:           "normal label and annotation tpl var with suffix",
+			k:              "foo",
+			v:              "bar",
+			metadataAsTags: map[string]string{"foo": "app_foo,%%annotation%%_suffix"},
+			want:           []string{"app_foo:bar", "foo_suffix:bar"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

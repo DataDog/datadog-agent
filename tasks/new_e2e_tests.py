@@ -6,7 +6,6 @@ import json
 import os
 import os.path
 import shutil
-import subprocess
 import tempfile
 from pathlib import Path
 from typing import List
@@ -43,6 +42,13 @@ def run(
     verbose=True,
     run="",
     skip="",
+    osversion="",
+    platform="",
+    arch="",
+    flavor="",
+    major_version="",
+    cws_supported_osversion="",
+    keep_stacks=False,
     cache=False,
     junit_tar="",
     coverage=False,
@@ -87,7 +93,8 @@ def run(
         test_run_arg = f"-run {test_run_name}"
 
     cmd = f'gotestsum --format {gotestsum_format} '
-    cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags {go_build_tags} {nocache} {run} {skip} {coverage_opt} {test_run_arg}'
+    cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags "{go_build_tags}" {nocache} {run} {skip} {coverage_opt} {test_run_arg} -args {osversion} {platform} {major_version} {arch} {flavor} {cws_supported_osversion} {keep_stacks}'
+
     args = {
         "go_mod": "mod",
         "timeout": "4h",
@@ -99,6 +106,15 @@ def run(
         "skip": '-test.skip ' + skip if skip else '',
         "coverage_opt": coverage_opt,
         "test_run_arg": test_run_arg,
+        "osversion": f"-osversion {osversion}" if osversion else '',
+        "platform": f"-platform {platform}" if platform else '',
+        "arch": f"-arch {arch}" if arch else '',
+        "flavor": f"-flavor {flavor}" if flavor else '',
+        "major_version": f"-major-version {major_version}" if major_version else '',
+        "cws_supported_osversion": f"-cws-supported-osversion {cws_supported_osversion}"
+        if cws_supported_osversion
+        else '',
+        "keep_stacks": '-keep-stacks' if keep_stacks else '',
     }
 
     test_res = test_flavor(
@@ -145,12 +161,14 @@ def clean(ctx, locks=True, stacks=False):
     Clean any environment created with invoke tasks or e2e tests
     By default removes only lock files.
     """
-    if not _is_local_state(_get_pulumi_about()):
+    if not _is_local_state(_get_pulumi_about(ctx)):
         print("Cleanup supported for local state only, run `pulumi login --local` to switch to local state")
         return
 
     if locks:
         _clean_locks()
+        if not stacks:
+            print("If you still have issues, try running with -s option to clean up stacks")
 
     if stacks:
         _clean_stacks(ctx)
@@ -161,62 +179,87 @@ def _clean_locks():
     lock_dir = os.path.join(Path.home(), ".pulumi", "locks")
 
     for entry in os.listdir(Path(lock_dir)):
-        subdir = os.path.join(lock_dir, entry)
-        for filename in os.listdir(Path(subdir)):
-            path = os.path.join(subdir, filename)
-            if os.path.isfile(path) and filename.endswith(".json"):
-                os.remove(path)
-                print(f"🗑️ Deleted lock: {path}")
-            elif os.path.isdir(path):
-                shutil.rmtree(path)
+        path = os.path.join(lock_dir, entry)
+        if os.path.isdir(path):
+            shutil.rmtree(path)
+            print(f"🗑️  Deleted lock: {path}")
+        elif os.path.isfile(path) and entry.endswith(".json"):
+            os.remove(path)
+            print(f"🗑️  Deleted lock: {path}")
 
 
 def _clean_stacks(ctx: Context):
-    print("🧹 Clean up stacks")
+    print("🧹 Clean up stack")
     stacks = _get_existing_stacks(ctx)
 
+    for stack in stacks:
+        print(f"🗑️  Destroying stack {stack}")
+        _destroy_stack(ctx, stack)
+
+    stacks = _get_existing_stacks(ctx)
     for stack in stacks:
         print(f"🗑️ Cleaning up stack {stack}")
         _remove_stack(ctx, stack)
 
 
 def _get_existing_stacks(ctx: Context) -> List[str]:
-    # ensure we deal with local stacks
+    e2e_stacks: List[str] = []
+    output = ctx.run("PULUMI_SKIP_UPDATE_CHECK=true pulumi stack ls --all --project e2elocal --json", hide=True)
+    if output is None or not output:
+        return []
+    stacks_data = json.loads(output.stdout)
+    for stack in stacks_data:
+        if "name" not in stack:
+            print(f"Skipping stack {stack} as it does not have a name")
+            continue
+        stack_name = stack["name"]
+        print(f"Adding stack {stack_name}")
+        e2e_stacks.append(stack_name)
+    return e2e_stacks
+
+
+def _destroy_stack(ctx: Context, stack: str):
+    # running in temp dir as this is where datadog-agent test
+    # stacks are stored. It is expected to fail on stacks existing locally
+    # with resources removed by agent-sandbox clean up job
     with ctx.cd(tempfile.gettempdir()):
-        output = ctx.run("pulumi stack ls --all", pty=True)
-        if output is None or not output:
-            return []
-        lines = output.stdout.splitlines()
-        lines = lines[1:]  # skip headers
-        e2e_stacks: List[str] = []
-        for line in lines:
-            stack_name = line.split(" ")[0]
-            e2e_stacks.append(stack_name)
-        return e2e_stacks
+        ret = ctx.run(
+            f"PULUMI_SKIP_UPDATE_CHECK=true pulumi destroy --stack {stack} --yes --remove --skip-preview",
+            pty=True,
+            warn=True,
+            hide=True,
+        )
+        if ret is not None and ret.exited != 0:
+            # run with refresh on first destroy attempt failure
+            ctx.run(
+                f"PULUMI_SKIP_UPDATE_CHECK=true pulumi destroy --stack {stack} -r --yes --remove --skip-preview",
+                warn=True,
+                hide=True,
+            )
 
 
-def _remove_stack(ctx: Context, stack_name: str):
-    ctx.run(f"pulumi stack rm --force --yes --stack {stack_name}", pty=True)
+def _remove_stack(ctx: Context, stack: str):
+    ctx.run(f"PULUMI_SKIP_UPDATE_CHECK=true pulumi stack rm --force --yes --stack {stack}", hide=True)
 
 
-def _get_pulumi_about() -> str:
-    return subprocess.getoutput("pulumi about")
+def _get_pulumi_about(ctx: Context) -> dict:
+    output = ctx.run("PULUMI_SKIP_UPDATE_CHECK=true pulumi about --json", hide=True)
+    if output is None or not output:
+        return ""
+    return json.loads(output.stdout)
 
 
-def _is_local_state(pulumi_about: str) -> bool:
+def _is_local_state(pulumi_about: dict) -> bool:
     # check output contains
     # Backend
     # Name           xxxxxxxxxx
     # URL            file://xxx
     # User           xxxxx.xxxxx
     # Organizations
-    about_groups = pulumi_about.split("\n\n")
-
-    for about_group in about_groups:
-        lines = about_group.splitlines()
-        if not lines[0].startswith("Backend"):
-            continue
-        url_lines = [x for x in lines[1:] if x.startswith("URL")]
-        if len(url_lines) > 0 and "file://" in url_lines[0]:
-            return True
+    backend_group = pulumi_about.get("backend")
+    if backend_group is None or not isinstance(backend_group, dict):
         return False
+    url = backend_group.get("url")
+    if url is None or not isinstance(url, str):
+        return False
+    return url.startswith("file://")

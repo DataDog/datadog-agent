@@ -28,6 +28,7 @@ import (
 )
 
 var (
+	// Logger is the main DatadogLogger
 	Logger    *DatadogLogger
 	jmxLogger *DatadogLogger
 

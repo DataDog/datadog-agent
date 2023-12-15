@@ -30,10 +30,12 @@ struct credentials_t {
 };
 
 struct pid_cache_t {
-    u32 cookie;
+    u64 cookie;
     u32 ppid;
+    u32 padding;
     u64 fork_timestamp;
     u64 exit_timestamp;
+    u64 user_session_id;
     struct credentials_t credentials;
 };
 

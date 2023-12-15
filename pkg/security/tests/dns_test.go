@@ -5,6 +5,7 @@
 
 //go:build functionaltests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -51,7 +52,7 @@ func TestDNS(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -35,23 +35,23 @@ func TestUDPShoulProperlyCollectLogSplitPerDatadgram(t *testing.T) {
 
 	fmt.Fprint(conn, strings.Repeat("a", 10))
 	msg = <-msgChan
-	assert.Equal(t, strings.Repeat("a", 10), string(msg.Content))
+	assert.Equal(t, strings.Repeat("a", 10), string(msg.GetContent()))
 
 	fmt.Fprint(conn, strings.Repeat("a", 10)+"\n")
 	msg = <-msgChan
-	assert.Equal(t, strings.Repeat("a", 10), string(msg.Content))
+	assert.Equal(t, strings.Repeat("a", 10), string(msg.GetContent()))
 
 	fmt.Fprint(conn, strings.Repeat("a", 10)+"\n"+strings.Repeat("a", 10))
 	msg = <-msgChan
-	assert.Equal(t, strings.Repeat("a", 10), string(msg.Content))
+	assert.Equal(t, strings.Repeat("a", 10), string(msg.GetContent()))
 	msg = <-msgChan
-	assert.Equal(t, strings.Repeat("a", 10), string(msg.Content))
+	assert.Equal(t, strings.Repeat("a", 10), string(msg.GetContent()))
 
 	fmt.Fprintf(conn, strings.Repeat("a", 10)+"\n"+strings.Repeat("a", 10)+"\n")
 	msg = <-msgChan
-	assert.Equal(t, strings.Repeat("a", 10), string(msg.Content))
+	assert.Equal(t, strings.Repeat("a", 10), string(msg.GetContent()))
 	msg = <-msgChan
-	assert.Equal(t, strings.Repeat("a", 10), string(msg.Content))
+	assert.Equal(t, strings.Repeat("a", 10), string(msg.GetContent()))
 
 	listener.Stop()
 }
@@ -70,15 +70,15 @@ func TestUDPShouldProperlyTruncateBigMessages(t *testing.T) {
 
 	fmt.Fprint(conn, strings.Repeat("a", frameSize-10))
 	msg = <-msgChan
-	assert.Equal(t, strings.Repeat("a", frameSize-10), string(msg.Content))
+	assert.Equal(t, strings.Repeat("a", frameSize-10), string(msg.GetContent()))
 
 	fmt.Fprint(conn, strings.Repeat("a", frameSize))
 	msg = <-msgChan
-	assert.Equal(t, strings.Repeat("a", frameSize), string(msg.Content))
+	assert.Equal(t, strings.Repeat("a", frameSize), string(msg.GetContent()))
 
 	fmt.Fprint(conn, strings.Repeat("a", frameSize+10))
 	msg = <-msgChan
-	assert.Equal(t, strings.Repeat("a", frameSize), string(msg.Content))
+	assert.Equal(t, strings.Repeat("a", frameSize), string(msg.GetContent()))
 
 	listener.Stop()
 }
@@ -101,13 +101,13 @@ func TestUDPShoulDropTooBigMessages(t *testing.T) {
 
 	fmt.Fprintf(conn, strings.Repeat("a", maxUDPFrameLen-100)+"\n")
 	msg = <-msgChan
-	assert.Equal(t, strings.Repeat("a", maxUDPFrameLen-100), string(msg.Content))
+	assert.Equal(t, strings.Repeat("a", maxUDPFrameLen-100), string(msg.GetContent()))
 
 	// the first frame should be dropped as it's too big compare to the limit.
 	fmt.Fprintf(conn, strings.Repeat("a", maxUDPFrameLen+100)+"\n")
 	fmt.Fprintf(conn, strings.Repeat("a", maxUDPFrameLen-200)+"\n")
 	msg = <-msgChan
-	assert.Equal(t, strings.Repeat("a", maxUDPFrameLen-200), string(msg.Content))
+	assert.Equal(t, strings.Repeat("a", maxUDPFrameLen-200), string(msg.GetContent()))
 
 	listener.Stop()
 }

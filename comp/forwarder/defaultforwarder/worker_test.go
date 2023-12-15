@@ -17,8 +17,11 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/config"
+
+	//nolint:revive // TODO(ASC) Fix revive linter
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -29,7 +32,7 @@ func TestNewWorker(t *testing.T) {
 	requeue := make(chan transaction.Transaction)
 
 	mockConfig := pkgconfig.Mock(t)
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{})
 	assert.NotNil(t, w)
 	assert.Equal(t, w.Client.Timeout, config.Datadog.GetDuration("forwarder_timeout")*time.Second)
@@ -41,8 +44,8 @@ func TestNewNoSSLWorker(t *testing.T) {
 	requeue := make(chan transaction.Transaction)
 
 	mockConfig := config.Mock(t)
-	mockConfig.Set("skip_ssl_validation", true)
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	mockConfig.SetWithoutSource("skip_ssl_validation", true)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{})
 	assert.True(t, w.Client.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)
 }
@@ -53,7 +56,7 @@ func TestWorkerStart(t *testing.T) {
 	requeue := make(chan transaction.Transaction, 1)
 	sender := &PointSuccessfullySentMock{}
 	mockConfig := pkgconfig.Mock(t)
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), sender)
 
 	mock := newTestTransaction()
@@ -90,7 +93,7 @@ func TestWorkerRetry(t *testing.T) {
 	lowPrio := make(chan transaction.Transaction)
 	requeue := make(chan transaction.Transaction, 1)
 	mockConfig := pkgconfig.Mock(t)
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{})
 
 	mock := newTestTransaction()
@@ -113,7 +116,7 @@ func TestWorkerRetryBlockedTransaction(t *testing.T) {
 	lowPrio := make(chan transaction.Transaction)
 	requeue := make(chan transaction.Transaction, 1)
 	mockConfig := pkgconfig.Mock(t)
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{})
 
 	mock := newTestTransaction()
@@ -136,7 +139,7 @@ func TestWorkerResetConnections(t *testing.T) {
 	lowPrio := make(chan transaction.Transaction)
 	requeue := make(chan transaction.Transaction, 1)
 	mockConfig := pkgconfig.Mock(t)
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{})
 
 	mock := newTestTransaction()
@@ -181,7 +184,7 @@ func TestWorkerPurgeOnStop(t *testing.T) {
 	lowPrio := make(chan transaction.Transaction, 1)
 	requeue := make(chan transaction.Transaction, 1)
 	mockConfig := pkgconfig.Mock(t)
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{})
 	// making stopChan non blocking on insert and closing stopped channel
 	// to avoid blocking in the Stop method since we don't actually start

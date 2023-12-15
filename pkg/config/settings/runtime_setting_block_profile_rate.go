@@ -7,18 +7,19 @@ package settings
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 )
 
 // RuntimeBlockProfileRate wraps runtime.SetBlockProfileRate setting
 type RuntimeBlockProfileRate struct {
-	Config       config.ConfigReaderWriter
+	Config       config.ReaderWriter
 	ConfigPrefix string
-	source       Source
 }
 
+// NewRuntimeBlockProfileRate returns a new RuntimeBlockProfileRate
 func NewRuntimeBlockProfileRate() *RuntimeBlockProfileRate {
-	return &RuntimeBlockProfileRate{source: SourceDefault}
+	return &RuntimeBlockProfileRate{}
 }
 
 // Name returns the name of the runtime setting
@@ -45,7 +46,7 @@ func (r *RuntimeBlockProfileRate) Get() (interface{}, error) {
 }
 
 // Set changes the value of the runtime setting
-func (r *RuntimeBlockProfileRate) Set(value interface{}, source Source) error {
+func (r *RuntimeBlockProfileRate) Set(value interface{}, source model.Source) error {
 	rate, err := GetInt(value)
 	if err != nil {
 		return err
@@ -54,16 +55,11 @@ func (r *RuntimeBlockProfileRate) Set(value interface{}, source Source) error {
 	err = checkProfilingNeedsRestart(profiling.GetBlockProfileRate(), rate)
 
 	profiling.SetBlockProfileRate(rate)
-	var cfg config.ConfigReaderWriter = config.Datadog
+	var cfg config.ReaderWriter = config.Datadog
 	if r.Config != nil {
 		cfg = r.Config
 	}
-	cfg.Set(r.ConfigPrefix+"internal_profiling.block_profile_rate", rate)
+	cfg.Set(r.ConfigPrefix+"internal_profiling.block_profile_rate", rate, source)
 
-	r.source = source
 	return err
-}
-
-func (r *RuntimeBlockProfileRate) GetSource() Source {
-	return r.source
 }

@@ -23,31 +23,38 @@ const (
 	collectorName = "host"
 )
 
+// ScanRequest defines a scan request
 type ScanRequest struct {
 	Path string
 }
 
+// Collector returns the collector name
 func (r *ScanRequest) Collector() string {
 	return collectorName
 }
 
+// Type returns the scan request type
 func (r *ScanRequest) Type() string {
 	return sbom.ScanFilesystemType
 }
 
+// ID returns the scan request ID
 func (r *ScanRequest) ID() string {
 	return r.Path
 }
 
-type HostCollector struct {
+// Collector defines a host collector
+type Collector struct {
 	trivyCollector *trivy.Collector
 }
 
-func (c *HostCollector) CleanCache() error {
-	return c.trivyCollector.GetCacheCleaner().Clean()
+// CleanCache cleans the cache
+func (c *Collector) CleanCache() error {
+	return nil
 }
 
-func (c *HostCollector) Init(cfg config.Config) error {
+// Init initialize the host collector
+func (c *Collector) Init(cfg config.Config) error {
 	trivyCollector, err := trivy.GetGlobalCollector(cfg)
 	if err != nil {
 		return err
@@ -56,7 +63,8 @@ func (c *HostCollector) Init(cfg config.Config) error {
 	return nil
 }
 
-func (c *HostCollector) Scan(ctx context.Context, request sbom.ScanRequest, opts sbom.ScanOptions) sbom.ScanResult {
+// Scan performs a scan
+func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest, opts sbom.ScanOptions) sbom.ScanResult {
 	hostScanRequest, ok := request.(*ScanRequest)
 	if !ok {
 		return sbom.ScanResult{Error: fmt.Errorf("invalid request type '%s' for collector '%s'", reflect.TypeOf(request), collectorName)}
@@ -71,5 +79,5 @@ func (c *HostCollector) Scan(ctx context.Context, request sbom.ScanRequest, opts
 }
 
 func init() {
-	collectors.RegisterCollector(collectorName, &HostCollector{})
+	collectors.RegisterCollector(collectorName, &Collector{})
 }

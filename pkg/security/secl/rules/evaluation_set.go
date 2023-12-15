@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package rules holds rules related files
 package rules
 
 import (
@@ -13,6 +14,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
+// EvaluationSet defines an evalation set
 type EvaluationSet struct {
 	RuleSets map[eval.RuleSetTagValue]*RuleSet
 }
@@ -37,12 +39,12 @@ func NewEvaluationSet(ruleSetsToInclude []*RuleSet) (*EvaluationSet, error) {
 }
 
 // GetPolicies returns the policies
-func (ps *EvaluationSet) GetPolicies() []*Policy {
+func (es *EvaluationSet) GetPolicies() []*Policy {
 	var policies []*Policy
 
 	seen := make(map[string]bool)
 
-	for _, rs := range ps.RuleSets {
+	for _, rs := range es.RuleSets {
 		for _, policy := range rs.policies {
 			if _, ok := seen[policy.Name]; !ok {
 				seen[policy.Name] = true
@@ -59,6 +61,7 @@ type ruleIndexEntry struct {
 	ruleID eval.RuleID
 }
 
+// LoadPolicies load policies
 func (es *EvaluationSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *multierror.Error {
 	var (
 		errs       *multierror.Error

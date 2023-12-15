@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(PROC) Fix revive linter
 package status
 
 import (
@@ -13,11 +14,9 @@ import (
 	"sync"
 	"time"
 
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metadata/host"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -38,11 +37,11 @@ func getHTTPClient() *http.Client {
 
 // CoreStatus holds core info about the process-agent
 type CoreStatus struct {
-	AgentVersion string       `json:"version"`
-	GoVersion    string       `json:"go_version"`
-	Arch         string       `json:"build_arch"`
-	Config       ConfigStatus `json:"config"`
-	Metadata     host.Payload `json:"metadata"`
+	AgentVersion string                    `json:"version"`
+	GoVersion    string                    `json:"go_version"`
+	Arch         string                    `json:"build_arch"`
+	Config       ConfigStatus              `json:"config"`
+	Metadata     hostMetadataUtils.Payload `json:"metadata"`
 }
 
 // ConfigStatus holds config settings from process-agent
@@ -93,6 +92,9 @@ type ProcessExpvars struct {
 	DropCheckPayloads               []string            `json:"drop_check_payloads"`
 	SystemProbeProcessModuleEnabled bool                `json:"system_probe_process_module_enabled"`
 	LanguageDetectionEnabled        bool                `json:"language_detection_enabled"`
+	WlmExtractorCacheSize           int                 `json:"workloadmeta_extractor_cache_size"`
+	WlmExtractorStaleDiffs          int                 `json:"workloadmeta_extractor_stale_diffs"`
+	WlmExtractorDiffsDropped        int                 `json:"workloadmeta_extractor_diffs_dropped"`
 }
 
 // Status holds runtime information from process-agent
@@ -122,16 +124,7 @@ func OverrideTime(t time.Time) StatusOption {
 	}
 }
 
-func getCoreStatus(coreConfig ddconfig.ConfigReader) (s CoreStatus) {
-	hostnameData, err := hostname.GetWithProvider(context.Background())
-	var metadata *host.Payload
-	if err != nil {
-		log.Errorf("Error grabbing hostname for status: %v", err)
-		metadata = host.GetPayloadFromCache(context.Background(), hostname.Data{Hostname: "unknown", Provider: "unknown"})
-	} else {
-		metadata = host.GetPayloadFromCache(context.Background(), hostnameData)
-	}
-
+func getCoreStatus(coreConfig ddconfig.Reader) (s CoreStatus) {
 	return CoreStatus{
 		AgentVersion: version.AgentVersion,
 		GoVersion:    runtime.Version(),
@@ -139,7 +132,7 @@ func getCoreStatus(coreConfig ddconfig.ConfigReader) (s CoreStatus) {
 		Config: ConfigStatus{
 			LogLevel: coreConfig.GetString("log_level"),
 		},
-		Metadata: *metadata,
+		Metadata: *hostMetadataUtils.GetFromCache(context.Background(), coreConfig),
 	}
 }
 
@@ -155,7 +148,7 @@ func getExpvars(expVarURL string) (s ProcessExpvars, err error) {
 }
 
 // GetStatus returns a Status object with runtime information about process-agent
-func GetStatus(coreConfig ddconfig.ConfigReader, expVarURL string) (*Status, error) {
+func GetStatus(coreConfig ddconfig.Reader, expVarURL string) (*Status, error) {
 	coreStatus := getCoreStatus(coreConfig)
 	processExpVars, err := getExpvars(expVarURL)
 	if err != nil {

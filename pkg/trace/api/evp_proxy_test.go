@@ -7,10 +7,10 @@ package api
 
 import (
 	"bytes"
+	"crypto/rand"
 	"fmt"
 	"io"
 	"log"
-	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"

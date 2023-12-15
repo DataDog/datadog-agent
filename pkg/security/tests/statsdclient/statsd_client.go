@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package statsdclient holds statsdclient related files
 package statsdclient
 
 import (
@@ -53,7 +54,7 @@ func (s *StatsdClient) GetByPrefix(prefix string) map[string]int64 {
 }
 
 // Gauge does nothing and returns nil
-func (s *StatsdClient) Gauge(name string, value float64, tags []string, rate float64) error {
+func (s *StatsdClient) Gauge(name string, value float64, tags []string, _ float64) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -68,7 +69,7 @@ func (s *StatsdClient) Gauge(name string, value float64, tags []string, rate flo
 }
 
 // Count does nothing and returns nil
-func (s *StatsdClient) Count(name string, value int64, tags []string, rate float64) error {
+func (s *StatsdClient) Count(name string, value int64, tags []string, _ float64) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 

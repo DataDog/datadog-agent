@@ -3,25 +3,31 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf && test
+//go:build linux && test
 
+// Package testutil provides utilities for testing the fmapper program
 package testutil
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	protocolstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	"github.com/stretchr/testify/require"
 )
 
 // mutex protecting build process
 var mux sync.Mutex
 
-func OpenFromAnotherProcess(t *testing.T, paths ...string) *exec.Cmd {
+// OpenFromAnotherProcess launches an external file that holds active handler to the given paths.
+func OpenFromAnotherProcess(t *testing.T, paths ...string) (*exec.Cmd, error) {
 	programExecutable := getPrebuiltExecutable(t)
 
 	if programExecutable == "" {
@@ -30,6 +36,10 @@ func OpenFromAnotherProcess(t *testing.T, paths ...string) *exec.Cmd {
 	}
 
 	cmd := exec.Command(programExecutable, paths...)
+	patternScanner := protocolstestutil.NewScanner(regexp.MustCompile("awaiting signal"), make(chan struct{}, 1))
+	cmd.Stdout = patternScanner
+	cmd.Stderr = patternScanner
+
 	require.NoError(t, cmd.Start())
 
 	t.Cleanup(func() {
@@ -39,7 +49,16 @@ func OpenFromAnotherProcess(t *testing.T, paths ...string) *exec.Cmd {
 		_ = cmd.Process.Kill()
 	})
 
-	return cmd
+	for {
+		select {
+		case <-patternScanner.DoneChan:
+			return cmd, nil
+		case <-time.After(time.Second * 5):
+			patternScanner.PrintLogs(t)
+			// please don't use t.Fatalf() here as we could test if it failed later
+			return nil, fmt.Errorf("couldn't luanch process in time")
+		}
+	}
 }
 
 // getPrebuiltExecutable returns the path of the prebuilt fmapper program when applicable.

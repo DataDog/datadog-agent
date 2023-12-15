@@ -5,6 +5,7 @@
 
 //go:build linux || windows
 
+// Package eventmonitor holds eventmonitor related files
 package eventmonitor
 
 import (
@@ -62,9 +63,18 @@ var _ module.Module = &EventMonitor{}
 
 // EventConsumer defines an event consumer
 type EventConsumer interface {
+	// ID returns the ID of the event consumer
 	ID() string
+	// Start starts the event consumer
 	Start() error
+	// Stop stops the event consumer
 	Stop()
+}
+
+// EventConsumerPostProbeStartHandler defines an event consumer that can respond to PostProbeStart events
+type EventConsumerPostProbeStartHandler interface {
+	// PostProbeStart is called after the event stream (the probe) is started
+	PostProbeStart() error
 }
 
 // EventTypeHandler event type based handler
@@ -82,7 +92,7 @@ func (m *EventMonitor) Register(_ *module.Router) error {
 }
 
 // RegisterGRPC register to system probe gRPC server
-func (m *EventMonitor) RegisterGRPC(_ *grpc.Server) error {
+func (m *EventMonitor) RegisterGRPC(_ grpc.ServiceRegistrar) error {
 	return nil
 }
 
@@ -153,6 +163,14 @@ func (m *EventMonitor) Start() error {
 
 	if err := m.Probe.Start(); err != nil {
 		return err
+	}
+
+	for _, em := range m.eventConsumers {
+		if ppsem, ok := em.(EventConsumerPostProbeStartHandler); ok {
+			if err := ppsem.PostProbeStart(); err != nil {
+				log.Errorf("after probe start callback of %s failed: %v", em.ID(), err)
+			}
+		}
 	}
 
 	m.wg.Add(1)

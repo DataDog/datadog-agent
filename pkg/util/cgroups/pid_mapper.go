@@ -18,7 +18,7 @@ import (
 	"github.com/karrick/godirwalk"
 )
 
-// IdentiferFromCgroupReferences returns cgroup identifier extracted from <proc>/<pid>/cgroup
+// IdentiferFromCgroupReferences returns cgroup identifier extracted from <proc>/<pid>/cgroup after applying the filter.
 func IdentiferFromCgroupReferences(procPath, pid, baseCgroupController string, filter ReaderFilter) (string, error) {
 	var identifier string
 
@@ -51,7 +51,7 @@ func IdentiferFromCgroupReferences(procPath, pid, baseCgroupController string, f
 }
 
 // Unfortunately, the reading of `<host_path>/sys/fs/cgroup/pids/.../cgroup.procs` is PID-namespace aware,
-// meaning that we cannot rely on it to find all PIDs belonging to a cgroupp, except if the Agent runs in host PID namespace.
+// meaning that we cannot rely on it to find all PIDs belonging to a cgroup, except if the Agent runs in host PID namespace.
 type pidMapper interface {
 	getPIDsForCgroup(identifier, relativeCgroupPath string, cacheValidity time.Duration) []int
 }
@@ -104,13 +104,14 @@ func getPidMapper(procPath, cgroupRoot, baseController string, filter ReaderFilt
 	return pidMapper
 }
 
-// Mapper used if we are running in host PID namespace, faster.
+// Mapper used if we are running in host PID namespace and with access to cgroup FS, faster.
 type cgroupProcsPidMapper struct {
 	fr fileReader
 	// args are: relative cgroup path
 	cgroupProcsFilePathBuilder func(string) string
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (pm *cgroupProcsPidMapper) getPIDsForCgroup(identifier, relativeCgroupPath string, cacheValidity time.Duration) []int {
 	var pids []int
 
@@ -183,10 +184,37 @@ func (pm *procPidMapper) refreshMapping(cacheValidity time.Duration) {
 	}
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (pm *procPidMapper) getPIDsForCgroup(identifier, relativeCgroupPath string, cacheValidity time.Duration) []int {
 	pm.lock.Lock()
 	defer pm.lock.Unlock()
 
 	pm.refreshMapping(cacheValidity)
 	return pm.cgroupPidsMapping[identifier]
+}
+
+// StandalonePIDMapper allows to get a PID Mapper that could work without cgroup objects.
+// This is required when PID namespace is shared but cgroup namespace is not (typically in serverless-like scenarios)
+type StandalonePIDMapper interface {
+	GetPIDs(cgroupIdentifier string, cacheValidity time.Duration) []int
+}
+
+type standalonePIDMapper struct {
+	procPidMapper
+}
+
+// NewStandalonePIDMapper returns a new instance
+func NewStandalonePIDMapper(procPath, cgroupController string, filter ReaderFilter) StandalonePIDMapper {
+	return &standalonePIDMapper{
+		procPidMapper: procPidMapper{
+			procPath:         procPath,
+			cgroupController: cgroupController,
+			readerFilter:     filter,
+		},
+	}
+}
+
+// GetPIDs returns list of PID for a cgroup identifier, thread safe.
+func (pm *standalonePIDMapper) GetPIDs(cgroupIdentifier string, cacheValidity time.Duration) []int {
+	return pm.getPIDsForCgroup(cgroupIdentifier, "", cacheValidity)
 }

@@ -5,11 +5,43 @@ generator:
       path: "/tmp/dsd.socket"
       variant:
         dogstatsd:
-          metric_names_minimum: 32
-          metric_names_maximum: 128
-          tag_keys_minimum: 0
-          tag_keys_maximum: 512
-      bytes_per_second: "100 Mb"
+          contexts:
+            inclusive:
+              min: 1000
+              max: 10000
+          name_length:
+            inclusive:
+              min: 1
+              max: 200
+          tag_key_length:
+            inclusive:
+              min: 1
+              max: 100
+          tag_value_length:
+            inclusive:
+              min: 1
+              max: 100
+          tags_per_msg:
+            inclusive:
+              min: 2
+              max: 50
+          multivalue_count:
+            inclusive:
+              min: 2
+              max: 32
+          multivalue_pack_probability: 0.08
+          kind_weights:
+            metric: 90
+            event: 5
+            service_check: 5
+          metric_weights:
+            count: 100
+            gauge: 10
+            timer: 0
+            distribution: 0
+            set: 0
+            histogram: 0
+      bytes_per_second: "100 MiB"
       block_sizes: ["256b", "512b", "1Kb", "2Kb", "3Kb", "4Kb", "5Kb", "6Kb"]
       maximum_prebuild_cache_size_bytes: "500 Mb"
 
@@ -18,3 +50,7 @@ blackhole:
       binding_addr: "127.0.0.1:9091"
   - http:
       binding_addr: "127.0.0.1:9092"
+
+target_metrics:
+  - prometheus:
+      uri: "http://127.0.0.1:5000/telemetry"

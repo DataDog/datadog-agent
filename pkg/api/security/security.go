@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package security implements cryptographic certificates and auth token
 package security
 
 import (
@@ -67,6 +68,8 @@ func CertTemplate() (*x509.Certificate, error) {
 
 // GenerateRootCert generates a root certificate
 func GenerateRootCert(hosts []string, bits int) (cert *x509.Certificate, certPEM []byte, rootKey *rsa.PrivateKey, err error) {
+	log.Info("Generating root certificate for hosts: ", strings.Join(hosts, ", "))
+
 	rootCertTmpl, err := CertTemplate()
 	if err != nil {
 		return

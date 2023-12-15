@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    APM: [BETA] Adds `peer_tags` configuration to allow for more tags in APM stats that
+    can add granularity and clarity to a `peer.service`. To set this config, use
+    ``DD_APM_PEER_TAGs='["aws.s3.bucket", "db.instance", ...]`` or
+    ``apm_config.peer_tags: ["aws.s3.bucket", "db.instance", ...]`` in datadog.yaml.
+    Please note that ``DD_APM_PEER_SERVICE_AGGREGATION`` or ``apm_config.peer_service_aggregation`` must also be set to ``true``.

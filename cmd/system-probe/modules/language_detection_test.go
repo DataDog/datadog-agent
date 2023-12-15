@@ -20,8 +20,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/DataDog/datadog-agent/pkg/languagedetection"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	languageDetectionProto "github.com/DataDog/datadog-agent/pkg/proto/pbgo/languagedetection"
 )
 
@@ -37,7 +37,7 @@ func TestLanguageDetectionEndpoint(t *testing.T) {
 			return proc.GetPid() == mockPid
 		})).
 		Return(mockGoLanguage, nil).Once()
-	languagedetection.MockPrivilegedDetectors(t, []languagemodels.Detector{&mockDetector})
+	privileged.MockPrivilegedDetectors(t, []languagemodels.Detector{&mockDetector})
 
 	rec := httptest.NewRecorder()
 
@@ -46,7 +46,7 @@ func TestLanguageDetectionEndpoint(t *testing.T) {
 	require.NoError(t, err)
 
 	m := languageDetectionModule{
-		languageDetector: languagedetection.NewPrivilegedLanguageDetector(),
+		languageDetector: privileged.NewLanguageDetector(),
 	}
 	m.detectLanguage(rec, httptest.NewRequest(http.MethodGet, "/", bytes.NewReader(reqBytes)))
 

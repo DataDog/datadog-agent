@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Pause containers from the Rancher image-mirror repository (``rancher/mirrored-pause.*``)  are now excluded by default for containers and metrics collection.

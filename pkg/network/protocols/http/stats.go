@@ -10,8 +10,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/intern"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// Interner is used to intern strings to save memory allocations.
+var Interner = intern.NewStringInterner()
 
 // Method is the type used to represent HTTP request methods
 type Method uint8
@@ -64,7 +68,7 @@ func (m Method) String() string {
 
 // Path represents the HTTP path
 type Path struct {
-	Content  string
+	Content  *intern.StringValue
 	FullPath bool
 }
 
@@ -77,11 +81,16 @@ type Key struct {
 }
 
 // NewKey generates a new Key
-func NewKey(saddr, daddr util.Address, sport, dport uint16, path string, fullPath bool, method Method) Key {
+func NewKey(saddr, daddr util.Address, sport, dport uint16, path []byte, fullPath bool, method Method) Key {
+	return NewKeyWithConnection(types.NewConnectionKey(saddr, daddr, sport, dport), path, fullPath, method)
+}
+
+// NewKeyWithConnection generates a new Key with a given connection tuple
+func NewKeyWithConnection(connKey types.ConnectionKey, path []byte, fullPath bool, method Method) Key {
 	return Key{
-		ConnectionKey: types.NewConnectionKey(saddr, daddr, sport, dport),
+		ConnectionKey: connKey,
 		Path: Path{
-			Content:  path,
+			Content:  Interner.Get(path),
 			FullPath: fullPath,
 		},
 		Method: method,
@@ -118,11 +127,13 @@ func (r *RequestStat) initSketch() (err error) {
 	return
 }
 
+// RequestStats stores HTTP request statistics.
 type RequestStats struct {
 	aggregateByStatusCode bool
 	Data                  map[uint16]*RequestStat
 }
 
+// NewRequestStats creates a new RequestStats object.
 func NewRequestStats(aggregateByStatusCode bool) *RequestStats {
 	return &RequestStats{
 		aggregateByStatusCode: aggregateByStatusCode,
@@ -130,6 +141,7 @@ func NewRequestStats(aggregateByStatusCode bool) *RequestStats {
 	}
 }
 
+// NormalizeStatusCode normalizes the status code into a status code family.
 func (r *RequestStats) NormalizeStatusCode(status uint16) uint16 {
 	if r.aggregateByStatusCode {
 		return status

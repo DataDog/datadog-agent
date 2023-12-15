@@ -229,7 +229,7 @@ When kitchen tests are run, VMs are created in dedicated resource groups in Azur
 
 The periodic cleanup jobs runs the `cleanup_azure.py` script on a given list of Azure resource group prefixes. Eg.:
 ```
-RESOURCE_GROUP_PREFIX=kitchen-dd-agent python3.6 /deploy_scripts/cleanup_azure.py
+RESOURCE_GROUP_PREFIX=kitchen-dd-agent python3 /deploy_scripts/cleanup_azure.py
 ```
 cleans up all resources created by test suites that start with `dd-agent`.
 

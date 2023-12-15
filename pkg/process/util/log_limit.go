@@ -43,7 +43,7 @@ func (l *LogLimit) ShouldLog() bool {
 	n := l.n.Load()
 	if n > 0 {
 		// try to decrement n, doing nothing on concurrent attempts
-		l.n.CAS(n, n-1)
+		l.n.CompareAndSwap(n, n-1)
 		return true
 	}
 
@@ -70,5 +70,5 @@ func (l *LogLimit) resetLoop() {
 func (l *LogLimit) resetCounter() {
 	// c.n == 0, it means we have gotten through the first few logs, and after ticker.T we should
 	// do another log
-	l.n.CAS(0, 1)
+	l.n.CompareAndSwap(0, 1)
 }

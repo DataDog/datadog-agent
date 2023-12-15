@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package mock
 
 // Registry does nothing
@@ -17,7 +18,7 @@ func NewRegistry() *Registry {
 }
 
 // GetOffset returns the offset.
-func (r *Registry) GetOffset(identifier string) string {
+func (r *Registry) GetOffset(identifier string) string { //nolint:revive // TODO fix revive unused-parameter
 	return r.offset
 }
 
@@ -27,7 +28,7 @@ func (r *Registry) SetOffset(offset string) {
 }
 
 // GetTailingMode returns the tailing mode.
-func (r *Registry) GetTailingMode(identifier string) string {
+func (r *Registry) GetTailingMode(identifier string) string { //nolint:revive // TODO fix revive unused-parameter
 	return r.tailingMode
 }
 

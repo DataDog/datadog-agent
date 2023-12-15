@@ -37,13 +37,9 @@ const (
 	appService = "app"
 )
 
-var appServicesTags map[string]string
-
+//nolint:revive // TODO(APM) Fix revive linter
 func GetAppServicesTags() map[string]string {
-	if appServicesTags != nil {
-		return appServicesTags
-	}
-	return getAppServicesTags(os.Getenv)
+	return getAppServicesTags(os.Getenv) //TODO: make this function cache these values
 }
 
 func getAppServicesTags(getenv func(string) string) map[string]string {

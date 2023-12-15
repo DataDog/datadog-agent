@@ -5,6 +5,7 @@
 
 //go:build stresstests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -90,8 +91,7 @@ func benchLatencyDNS(t *testing.T, rule *rules.RuleDefinition, executable string
 	if rule != nil {
 		var ruleDefs []*rules.RuleDefinition
 		ruleDefs = append(ruleDefs, rule)
-		test, err := newTestModule(t, nil, ruleDefs,
-			testOpts{eventsCountThreshold: 1000000})
+		test, err := newTestModule(t, nil, ruleDefs)
 		if err != nil {
 			t.Fatal(err)
 		}

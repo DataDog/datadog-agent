@@ -4,9 +4,13 @@
 // Copyright 2022-present Datadog, Inc.
 // Code generated - DO NOT EDIT.
 
-{{range .BuildTags }}// {{.}}{{end}}
+{{range .BuildTags }}//{{.}}{{end}}
 
 package {{.Name}}
+
+import (
+    "time"
+)
 
 // ResolveFields resolves all the fields associate to the event type. Context fields are automatically resolved.
 func (ev *Event) ResolveFields() {
@@ -22,6 +26,10 @@ func (ev *Event) resolveFields(forADs bool) {
     {{ $uniqueResolvers := dict }}
     // resolve context fields that are not related to any event type
     {{- range $Key, $Field := .Fields}}
+        {{- if $Field.GettersOnly }}
+	        {{continue}}
+        {{end}}
+        
         {{- if and (eq $Field.Event "*") }}
             {{ $resolver := $Field | GetFieldHandler $.AllFields }}
             {{ if and (ne $resolver "") (not (hasKey $uniqueResolvers $resolver)) }}
@@ -100,5 +108,5 @@ type DefaultFieldHandlers struct {}
 
 {{$Handlers := .Fields | GetHandlers}}
 {{range $Proto, $Impl := $Handlers}}
-        func (dfh *DefaultFieldHandlers) {{$Proto}} {{$Impl}}
+    func (dfh *DefaultFieldHandlers) {{$Proto}} {{$Impl}}
 {{end}}

@@ -1,4 +1,5 @@
 version: '3'
+name: redis
 services:
   redis:
     image: redis:7-alpine

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package rules holds rules related files
 package rules
 
 import (
@@ -470,7 +471,7 @@ func (d dummyDirProvider) LoadPolicies(_ []MacroFilter, _ []RuleFilter) ([]*Poli
 	return d.dummyLoadPoliciesFunc()
 }
 
-func (dummyDirProvider) SetOnNewPoliciesReadyCb(f func()) {}
+func (dummyDirProvider) SetOnNewPoliciesReadyCb(_ func()) {}
 
 func (dummyDirProvider) Start() {}
 
@@ -490,7 +491,7 @@ func (d dummyRCProvider) LoadPolicies(_ []MacroFilter, _ []RuleFilter) ([]*Polic
 	return d.dummyLoadPoliciesFunc()
 }
 
-func (dummyRCProvider) SetOnNewPoliciesReadyCb(f func()) {}
+func (dummyRCProvider) SetOnNewPoliciesReadyCb(_ func()) {}
 
 func (dummyRCProvider) Start() {}
 
