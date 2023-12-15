@@ -428,9 +428,6 @@ type AgentConfig struct {
 	// ContainerProcRoot is the root dir for `proc` info
 	ContainerProcRoot string
 
-	// Azure App Services
-	InAzureAppServices bool
-
 	// DebugServerPort defines the port used by the debug server
 	DebugServerPort int
 
@@ -526,7 +523,7 @@ func New() *AgentConfig {
 }
 
 func computeGlobalTags() map[string]string {
-	if InAzureAppServices() {
+	if inAzureAppServices() {
 		return traceutil.GetAppServicesTags()
 	}
 	return make(map[string]string)
@@ -591,7 +588,7 @@ func (c *AgentConfig) AllFeatures() []string {
 }
 
 //nolint:revive // TODO(APM) Fix revive linter
-func InAzureAppServices() bool {
+func inAzureAppServices() bool {
 	_, existsLinux := os.LookupEnv("APPSVC_RUN_ZIP")
 	_, existsWin := os.LookupEnv("WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED")
 	return existsLinux || existsWin

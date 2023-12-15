@@ -19,14 +19,14 @@ const (
 
 func TestInAzureAppServices(t *testing.T) {
 	os.Setenv(RunZip, " ")
-	isLinuxAzure := InAzureAppServices()
+	isLinuxAzure := inAzureAppServices()
 	os.Unsetenv(RunZip)
 
 	os.Setenv(AppLogsTrace, " ")
-	isWindowsAzure := InAzureAppServices()
+	isWindowsAzure := inAzureAppServices()
 	os.Unsetenv(AppLogsTrace)
 
-	isNotAzure := InAzureAppServices()
+	isNotAzure := inAzureAppServices()
 
 	assert.True(t, isLinuxAzure)
 	assert.True(t, isWindowsAzure)
