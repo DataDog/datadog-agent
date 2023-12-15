@@ -45,7 +45,7 @@ func updateWithRepoFiles(allKeys map[string]SigningKey, pkgManager string, clien
 	if _, err := os.Stat(repoConfig); err != nil {
 		mainConf, reposPerKey = pkgUtils.ParseRepoFile(repoConfig, pkgUtils.MainData{})
 		for name, repos := range reposPerKey {
-			decryptGPGFile(allKeys, repoFile{name, repos}, "signed-by", client, logger)
+			decryptGPGFile(allKeys, repoFile{name, repos}, "repo", client, logger)
 		}
 	}
 	// Then parsing of the repo files
@@ -55,7 +55,7 @@ func updateWithRepoFiles(allKeys map[string]SigningKey, pkgManager string, clien
 				repoFileName := filepath.Join(repoFilesDir, file.Name())
 				_, reposPerKey := pkgUtils.ParseRepoFile(repoFileName, mainConf)
 				for name, repos := range reposPerKey {
-					decryptGPGFile(allKeys, repoFile{name, repos}, "signed-by", client, logger)
+					decryptGPGFile(allKeys, repoFile{name, repos}, "repo", client, logger)
 				}
 			}
 		}
