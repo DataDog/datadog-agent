@@ -144,6 +144,23 @@ func (dt *DynamicTable) setupDynamicTableMapCleaner(mgr *manager.Manager, cfg *c
 			return len(terminatedConnectionsMap) > 0
 		},
 		func() {
+			dt.mux.RLock()
+			keys := dt.datastore.Keys()
+			dt.mux.RUnlock()
+			keysToDelete := make([]http2DynamicTableIndex, 0)
+			for conn := range terminatedConnectionsMap {
+				for _, key := range keys {
+					if key.Tup == conn {
+						keysToDelete = append(keysToDelete, key)
+						break
+					}
+				}
+			}
+			dt.mux.Lock()
+			for _, key := range keysToDelete {
+				dt.datastore.Remove(key)
+			}
+			dt.mux.Unlock()
 			terminatedConnectionsMap = make(map[netebpf.ConnTuple]struct{})
 		},
 		func(_ int64, key http2DynamicTableIndex, _ bool) bool {
