@@ -4,7 +4,6 @@ default_version "18.3.2.1-1"
 dependency "unixodbc"
 
 skip_transitive_dependency_licensing true
-ship_source_offer true
 
 # Dynamically build source url and sha256 based on the linux platform and architecture
 # The source url and sha256 are taken from the official Microsoft ODBC Driver for SQL Server page:
