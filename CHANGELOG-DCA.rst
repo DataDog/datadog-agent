@@ -16,7 +16,7 @@ New Features
 
 - Report `rate_limit_queries_remaining_min` telemetry from `external-metrics` server.
 
-- Added a new --force option to the `datadog-cluster-agent clusterchecks rebalance` command that allows you to force clustercheck rebalancing with utilization.
+- Added a new `--force` option to the `datadog-cluster-agent clusterchecks rebalance` command that allows you to force clustercheck rebalancing with utilization.
 
 - [Beta] Enable `APM` library injection in `cluster-agent` admission controller based on automatic language detection annotations.
 
