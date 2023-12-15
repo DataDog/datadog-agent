@@ -52,7 +52,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
@@ -66,10 +65,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata"
-	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp"
 	"github.com/DataDog/datadog-agent/comp/netflow"
@@ -200,7 +197,6 @@ func run(log log.Component,
 	telemetry telemetry.Component,
 	sysprobeconfig sysprobeconfig.Component,
 	server dogstatsdServer.Component,
-	capture replay.Component,
 	serverDebug dogstatsddebug.Component,
 	forwarder defaultforwarder.Component,
 	wmeta workloadmeta.Component,
@@ -212,10 +208,8 @@ func run(log log.Component,
 	cliParams *cliParams,
 	logsAgent optional.Option[logsAgent.Component],
 	otelcollector otelcollector.Component,
-	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
-	invHost inventoryhost.Component,
-	secretResolver secrets.Component,
+	_ secrets.Component,
 	invChecks inventorychecks.Component,
 	_ netflowServer.Component,
 	_ langDetectionCl.Component,
@@ -268,7 +262,6 @@ func run(log log.Component,
 		telemetry,
 		sysprobeconfig,
 		server,
-		capture,
 		serverDebug,
 		wmeta,
 		rcclient,
@@ -277,10 +270,7 @@ func run(log log.Component,
 		sharedSerializer,
 		otelcollector,
 		demultiplexer,
-		hostMetadata,
 		invAgent,
-		invHost,
-		secretResolver,
 		agentAPI,
 		invChecks,
 	); err != nil {
@@ -386,7 +376,6 @@ func startAgent(
 	//nolint:revive // TODO(ASC) Fix revive linter
 	sysprobeconfig sysprobeconfig.Component,
 	server dogstatsdServer.Component,
-	capture replay.Component,
 	serverDebug dogstatsddebug.Component,
 	wmeta workloadmeta.Component,
 	rcclient rcclient.Component,
@@ -397,10 +386,7 @@ func startAgent(
 	sharedSerializer serializer.MetricSerializer,
 	otelcollector otelcollector.Component,
 	demultiplexer demultiplexer.Component,
-	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
-	invHost inventoryhost.Component,
-	secretResolver secrets.Component,
 	agentAPI internalAPI.Component,
 	invChecks inventorychecks.Component,
 ) error {
@@ -544,19 +530,9 @@ func startAgent(
 	// start the cmd HTTP server
 	if err = agentAPI.StartServer(
 		configService,
-		flare,
-		server,
-		capture,
-		serverDebug,
 		wmeta,
 		logsAgent,
 		demultiplexer,
-		hostMetadata,
-		invAgent,
-		demultiplexer,
-		invHost,
-		secretResolver,
-		invChecks,
 	); err != nil {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}

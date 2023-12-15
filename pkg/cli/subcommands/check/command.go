@@ -31,15 +31,22 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	"github.com/DataDog/datadog-agent/comp/metadata/host"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -158,6 +165,17 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					opts.UseNoopEventPlatformForwarder = true
 					return demultiplexer.Params{Options: opts}
 				}),
+
+				// TODO(components): this is a temporary hack as the StartServer() method of the API package was previously called with nil arguments
+				// This highlights the fact that the API Server created by JMX (through ExecJmx... function) should be different from the ones created
+				// in others commands such as run.
+				fx.Provide(func() flare.Component { return nil }),
+				fx.Provide(func() server.Component { return nil }),
+				fx.Provide(func() replay.Component { return nil }),
+				fx.Provide(func() serverdebug.Component { return nil }),
+				fx.Provide(func() host.Component { return nil }),
+				fx.Provide(func() inventoryagent.Component { return nil }),
+				fx.Provide(func() inventoryhost.Component { return nil }),
 			)
 		},
 	}
