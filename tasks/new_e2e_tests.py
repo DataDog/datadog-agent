@@ -325,7 +325,7 @@ KeyInfo = NamedTuple('KeyFingerprint', [('path', str), ('fingerprint', KeyFinger
 def get_key_info(ctx, path):
     # Make sure the key is ascii
     with open(path, 'rb') as f:
-        if '\0' in f.read():
+        if b'\0' in f.read():
             raise ValueError(f"Key file {path} is not ascii, it may be in utf-16, please convert it to ascii")
     # aws returns fingerprints in different formats so get a couple
     fingerprints = dict()
