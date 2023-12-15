@@ -72,7 +72,7 @@ func (s *safeStackMap) Set(key string, value *auto.Stack) {
 }
 
 func (s *safeStackMap) Range(f func(string, *auto.Stack)) {
-	s.lock.Lock()
+	s.lock.RLock()
 	defer s.lock.RUnlock()
 
 	for key, value := range s.stacks {
