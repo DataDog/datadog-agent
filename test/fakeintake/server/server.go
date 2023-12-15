@@ -452,8 +452,15 @@ func (fi *Server) handleConfigureOverride(w http.ResponseWriter, req *http.Reque
 		writeHTTPResponse(w, response)
 		return
 	}
+
 	if payload.Method == "" {
 		payload.Method = http.MethodPost
+	}
+
+	if !isValidMethod(payload.Method) {
+		response := buildErrorResponse(fmt.Errorf("invalid request method %s", payload.Method))
+		writeHTTPResponse(w, response)
+		return
 	}
 
 	log.Printf("Handling configureOverride request for endpoint %s", payload.Endpoint)

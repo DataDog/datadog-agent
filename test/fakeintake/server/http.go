@@ -8,6 +8,7 @@ package server
 import (
 	"encoding/json"
 	"net/http"
+	"sync"
 )
 
 type httpResponse struct {
@@ -50,4 +51,24 @@ func updateResponseFromData(r httpResponse) httpResponse {
 		r.body = r.data.([]byte)
 	}
 	return r
+}
+
+func isValidMethod(method string) bool {
+	var once sync.Once
+	var validMethods map[string]any
+	once.Do(func() {
+		validMethods = map[string]any{
+			http.MethodGet:     nil,
+			http.MethodPost:    nil,
+			http.MethodConnect: nil,
+			http.MethodDelete:  nil,
+			http.MethodHead:    nil,
+			http.MethodPut:     nil,
+			http.MethodPatch:   nil,
+			http.MethodOptions: nil,
+			http.MethodTrace:   nil,
+		}
+	})
+	_, found := validMethods[method]
+	return found
 }
