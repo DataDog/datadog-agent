@@ -34,6 +34,7 @@ const (
 )
 
 func TestConntrackers(t *testing.T) {
+	ebpftest.LogLevel(t, "debug")
 	t.Run("netlink", func(t *testing.T) {
 		runConntrackerTest(t, "netlink", setupNetlinkConntracker)
 	})
