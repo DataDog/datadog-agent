@@ -151,10 +151,14 @@ func scanEBSSbomEntity(trivyReport *types.Report, scan *scanTask, duration time.
 		return nil, fmt.Errorf("unable to marshal report to sbom format: %w", err)
 	}
 	return &sbommodel.SBOMEntity{
-		Status:             sbommodel.SBOMStatus_SUCCESS,
-		Type:               sbommodel.SBOMSourceType_HOST_FILE_SYSTEM, // TODO: SBOMSourceType_EBS
-		Id:                 scan.Hostname,
-		InUse:              true,
+		Status: sbommodel.SBOMStatus_SUCCESS,
+		Type:   sbommodel.SBOMSourceType_HOST_FILE_SYSTEM, // TODO: SBOMSourceType_EBS
+		Id:     scan.Hostname,
+		InUse:  true,
+		DdTags: []string{
+			fmt.Sprintf("region:%s", scan.ARN.Region),
+			fmt.Sprintf("account_id:%s", scan.ARN.AccountID),
+		},
 		GeneratedAt:        timestamppb.New(time.Now()),
 		GenerationDuration: convertDuration(duration),
 		Hash:               "",
@@ -178,6 +182,8 @@ func scanLambdaSbomEntity(trivyReport *types.Report, scan *scanTask, duration ti
 		DdTags: []string{
 			"runtime_id:" + scan.ARN.String(),
 			"service_version:TODO", // XXX
+			fmt.Sprintf("region:%s", scan.ARN.Region),
+			fmt.Sprintf("account_id:%s", scan.ARN.AccountID),
 		},
 		GeneratedAt:        timestamppb.New(time.Now()),
 		GenerationDuration: convertDuration(duration),
