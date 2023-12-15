@@ -85,6 +85,7 @@ safegrep -r -I -i -n -E "$PATTERN" . \
     --exclude-dir fixtures --exclude-dir .git --exclude-dir releasenotes \
     --exclude-dir omnibus --exclude-dir snmp --exclude-dir testdata \
     --exclude '*.rst' --exclude '*.sum' --exclude '*generated*.go' --exclude '*.svg' | \
+# -v: invert match
 # exclude matches in go.mod files that are dependency versions (note the 'v' before the version)
 safegrep -v -E "go\.mod:.*v${PATTERN_GO_VERSION_ESCAPED}" | \
 # grep outputs paths starting with ./, so we remove that
