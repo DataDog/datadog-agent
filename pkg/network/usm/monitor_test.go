@@ -610,6 +610,7 @@ func (s *USMHTTP2Suite) TestHTTP2ManyDifferentPaths() {
 	t := s.T()
 	cfg := networkconfig.New()
 	cfg.EnableHTTP2Monitoring = true
+	cfg.MaxUSMConcurrentRequests = 1024
 
 	cleanup, err := startH2CServer(localHostAddress, false)
 	require.NoError(t, err)
@@ -622,47 +623,60 @@ func (s *USMHTTP2Suite) TestHTTP2ManyDifferentPaths() {
 
 	const (
 		repetitionsPerRequest = 2
+		batchSize             = 500
 		// Should be bigger than the length of the http2_interesting_dynamic_table_set which is 1024
-		numberOfRequests         = 1500
-		expectedNumberOfRequests = numberOfRequests * repetitionsPerRequest
+		batches          = 4
+		numberOfRequests = batches * batchSize
 	)
+	// Ensuring any future test won't pass "accidentally" as we miscalculated the number of requests.
+	require.Greater(t, uint32(numberOfRequests), cfg.MaxUSMConcurrentRequests)
 	clients := getClientsArray(t, 1)
-	for i := 0; i < numberOfRequests; i++ {
-		for j := 0; j < repetitionsPerRequest; j++ {
-			req, err := clients[0].Post(fmt.Sprintf("%s/test-%d", http2SrvAddr, i+1), "application/json", bytes.NewReader([]byte("test")))
-			require.NoError(t, err, "could not make request")
-			req.Body.Close()
-		}
-	}
 
-	matches := PrintableInt(0)
+	for batchIdx := 0; batchIdx < batches; batchIdx++ {
+		seenRequests := map[string]int{}
 
-	seenRequests := map[string]int{}
-	assert.Eventuallyf(t, func() bool {
-		stats := monitor.GetProtocolStats()
-		http2Stats, ok := stats[protocols.HTTP2]
-		if !ok {
-			return false
-		}
-		http2StatsTyped := http2Stats.(map[http.Key]*http.RequestStats)
-		for key, stat := range http2StatsTyped {
-			if (key.DstPort == http2SrvPort || key.SrcPort == http2SrvPort) && key.Method == http.MethodPost && strings.HasPrefix(key.Path.Content.Get(), "/test") {
-				if _, ok := seenRequests[key.Path.Content.Get()]; !ok {
-					seenRequests[key.Path.Content.Get()] = 0
-				}
-				seenRequests[key.Path.Content.Get()] += stat.Data[200].Count
-				matches.Add(stat.Data[200].Count)
+		for i := 0; i < batchSize; i++ {
+			pathIndex := batchIdx*batchSize + i + 1
+			for j := 0; j < repetitionsPerRequest; j++ {
+				req, err := clients[0].Post(fmt.Sprintf("%s/test-%d", http2SrvAddr, pathIndex), "application/json", bytes.NewReader([]byte("test")))
+				require.NoError(t, err, "could not make request")
+				req.Body.Close()
 			}
 		}
 
-		// Due to a known issue in http2, we might consider an RST packet as a response to a request and therefore
-		// we might capture a request twice. This is why we are expecting to see 2*numberOfRequests instead of
-		return (expectedNumberOfRequests-1) <= matches.Load() && matches.Load() <= (expectedNumberOfRequests+1)
-	}, time.Second*10, time.Millisecond*100, "%v != %v", &matches, expectedNumberOfRequests)
+		assert.Eventually(t, func() bool {
+			stats := monitor.GetProtocolStats()
+			http2Stats, ok := stats[protocols.HTTP2]
+			if !ok {
+				return false
+			}
+			http2StatsTyped := http2Stats.(map[http.Key]*http.RequestStats)
+			for key, stat := range http2StatsTyped {
+				if (key.DstPort == http2SrvPort || key.SrcPort == http2SrvPort) && key.Method == http.MethodPost && strings.HasPrefix(key.Path.Content.Get(), "/test") {
+					if _, ok := seenRequests[key.Path.Content.Get()]; !ok {
+						seenRequests[key.Path.Content.Get()] = 0
+					}
+					seenRequests[key.Path.Content.Get()] += stat.Data[200].Count
+				}
+			}
 
-	for i := 0; i < numberOfRequests; i++ {
-		if v, ok := seenRequests[fmt.Sprintf("/test-%d", i+1)]; !ok || v != repetitionsPerRequest {
-			t.Logf("path: /test-%d should have %d occurrences but instead has %d", i+1, repetitionsPerRequest, v)
+			// Due to a known issue in http2, we might consider an RST packet as a response to a request and therefore
+			// we might capture a request twice. This is why we are expecting to see 2*numberOfRequests instead of
+			fail := false
+			for i := 0; i < batchSize; i++ {
+				pathIndex := batchIdx*batchSize + i + 1
+				if v, ok := seenRequests[fmt.Sprintf("/test-%d", pathIndex)]; !ok || v < repetitionsPerRequest {
+					fail = true
+				}
+			}
+			return !fail
+		}, time.Second*10, time.Millisecond*100)
+
+		for i := 0; i < batchSize; i++ {
+			pathIndex := batchIdx*batchSize + i + 1
+			if v, ok := seenRequests[fmt.Sprintf("/test-%d", pathIndex)]; !ok || v < repetitionsPerRequest {
+				t.Logf("path: /test-%d should have %d occurrences but instead has %d", pathIndex, repetitionsPerRequest, v)
+			}
 		}
 	}
 }
