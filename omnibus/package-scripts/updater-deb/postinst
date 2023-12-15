@@ -30,7 +30,6 @@ add_user_and_group() {
 enable_stable_agents() {
     if command -v systemctl >/dev/null 2>&1; then
         # Force systemd to ignore the sysvinit scripts. Only cosmetic, remove some irrelevant warnings during upgrade
-        SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-updater || true
         SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-agent-process || true
         SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-agent-sysprobe || true
         SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-agent-trace || true
@@ -106,6 +105,7 @@ if [ -d "$CONFIG_DIR/runtime-security.d" ]; then
 fi
 
 # start udpater
+SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-updater || true
 SYSTEMCTL_SKIP_SYSV=true systemctl start datadog-updater || true
 enable_stable_agents
 
