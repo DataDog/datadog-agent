@@ -44,6 +44,28 @@ slice:
 - 123
 `)
 
+	testYamlCustomField = []byte(`
+first:
+  additional_endpoints:
+    password: ENC[pass1]
+second:
+  a: test3
+  b: "2"
+  c: 456
+  slice:
+    - test4
+    - test5
+`)
+
+	testYamlCustomFieldResolved = handleToContext{
+		"pass1": []secretContext{
+			{
+				origin:   "test",
+				yamlPath: "first/additional_endpoints/password",
+			},
+		},
+	}
+
 	testConf = []byte(`---
 instances:
 - password: ENC[pass1]
@@ -349,7 +371,42 @@ func TestResolve(t *testing.T) {
 	}
 }
 
-func TestResolveWithCallback(t *testing.T) {
+func TestResolveCustomFieldWithCallback(t *testing.T) {
+	testConf := testYamlCustomField
+
+	resolver := newEnabledSecretResolver()
+	resolver.backendCommand = "some_command"
+
+	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
+		return map[string]string{
+			"pass1": "password1",
+		}, nil
+	}
+
+	keysResolved := []string{}
+	err := resolver.ResolveWithCallback(
+		testConf,
+		"test",
+		func(yamlPath []string, value any) bool {
+			settingName := strings.Join(yamlPath, ".")
+			// Simulate the behavior of the config, which doesn't know about
+			// fields within customizable hashes like "additional_endpoints".
+			// The trailing dot ensures this setting is such a custom field.
+			if strings.Contains(settingName, ".additional_endpoints.") {
+				return false
+			}
+			keysResolved = append(keysResolved, settingName)
+			return true
+		},
+	)
+	require.NoError(t, err)
+	// Validate that only 1 field is resolved, the parent element which contains the
+	// custom field.
+	assert.Equal(t, []string{"first.additional_endpoints"}, keysResolved, "only 1 resolved")
+	assert.Equal(t, testYamlCustomFieldResolved, resolver.origin)
+}
+
+func TestResolveWithCallbackNested(t *testing.T) {
 	testConf := testConfNestedMultiple
 
 	resolver := newEnabledSecretResolver()
