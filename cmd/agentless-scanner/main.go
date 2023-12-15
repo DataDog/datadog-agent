@@ -81,13 +81,15 @@ const (
 	maxSnapshotRetries = 3
 	maxAttachRetries   = 10
 
-	defaultWorkersCount     = 40
-	defaultAWSRate          = 20.0
-	defaultEC2Rate          = 20.0
-	defaultEBSListBlockRate = 20.0
-	defaultEBSGetBlockRate  = 400.0
-	defaultSelfRegion       = "us-east-1"
-	defaultSnapshotsMaxTTL  = 24 * time.Hour
+	defaultWorkersCount = 40
+
+	defaultAWSRate          rate.Limit = 20.0
+	defaultEC2Rate                     = 20.0
+	defaultEBSListBlockRate            = 20.0
+	defaultEBSGetBlockRate             = 400.0
+
+	defaultSelfRegion      = "us-east-1"
+	defaultSnapshotsMaxTTL = 24 * time.Hour
 )
 
 var statsd *ddgostatsd.Client
@@ -1909,6 +1911,7 @@ func (rt *awsRoundtripStats) RoundTrip(req *http.Request) (*http.Response, error
 func newAWSConfig(ctx context.Context, region string, assumedRole *arn.ARN) (aws.Config, error) {
 	awsConfigsMu.Lock()
 	defer awsConfigsMu.Unlock()
+
 	key := region
 	if assumedRole != nil {
 		key += assumedRole.String()
@@ -2714,36 +2717,38 @@ func getAWSLimit(ctx context.Context) *awsLimits {
 }
 
 func (l *awsLimits) getLimiter(accountID, region, service, action string) *rate.Limiter {
+	var limit rate.Limit
+	switch service {
+	case "ec2":
+		switch {
+		// reference: https://docs.aws.amazon.com/AWSEC2/latest/APIReference/throttling.html#throttling-limits
+		case strings.HasPrefix(action, "Describe"), strings.HasPrefix(action, "Get"):
+			limit = l.ec2Rate
+		default:
+			limit = l.ec2Rate / 4.0
+		}
+	case "ebs":
+		switch action {
+		case "getblock":
+			limit = l.ebsGetBlockRate
+		case "listblocks", "changedblocks":
+			limit = l.ebsListBlockRate
+		}
+	case "s3", "imds":
+		limit = 0.0 // no rate limiting
+	default:
+		limit = defaultAWSRate
+	}
+	if limit == 0.0 {
+		return nil // no rate limiting
+	}
 	key := accountID + region + service + action
 	l.limitersMu.Lock()
-	defer l.limitersMu.Unlock()
 	ll, ok := l.limiters[key]
 	if !ok {
-		switch service {
-		case "ec2":
-			if l.ec2Rate > 0.0 {
-				switch {
-				// reference: https://docs.aws.amazon.com/AWSEC2/latest/APIReference/throttling.html#throttling-limits
-				case strings.HasPrefix(action, "Describe"), strings.HasPrefix(action, "Get"):
-					ll = rate.NewLimiter(l.ec2Rate, 1)
-				default:
-					ll = rate.NewLimiter(l.ec2Rate/4.0, 1)
-				}
-			}
-		case "ebs":
-			switch action {
-			case "getblock":
-				ll = rate.NewLimiter(l.ebsGetBlockRate, 1)
-			case "listblocks", "changedblocks":
-				ll = rate.NewLimiter(l.ebsListBlockRate, 1)
-			}
-		case "s3", "imds":
-			return nil // no rate limiting
-		}
-		if ll == nil {
-			ll = rate.NewLimiter(defaultAWSRate, 1)
-		}
+		ll = rate.NewLimiter(limit, 1)
 		l.limiters[key] = ll
 	}
+	l.limitersMu.Unlock()
 	return ll
 }
