@@ -76,7 +76,6 @@ func (s *safeStackMap) Set(key string, value *auto.Stack) {
 func (s *safeStackMap) SetLogger(key string, value io.Writer) {
 	s.lockLogger.Lock()
 	defer s.lockLogger.Unlock()
-	value.Write([]byte(fmt.Sprintf("UPDATING LOGGER FOR Stack: %s with logger %v\n", key, value)))
 	s.loggers[key] = value
 }
 
@@ -85,7 +84,6 @@ func (s *safeStackMap) GetLogger(key string) (io.Writer, bool) {
 	defer s.lockLogger.RUnlock()
 
 	logger, ok := s.loggers[key]
-	logger.Write([]byte(fmt.Sprintf("%v GETTING LOGGER FOR Stack: %s with logger %v\n", ok, key, &logger)))
 	return logger, ok
 }
 func (s *safeStackMap) Range(f func(string, *auto.Stack)) {
