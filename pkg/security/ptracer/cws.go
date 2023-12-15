@@ -238,6 +238,41 @@ func handleFchdir(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, re
 	return nil
 }
 
+func handleSetuid(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
+	msg.Type = ebpfless.SyscallTypeSetUID
+	msg.SetUID = &ebpfless.SetUIDSyscallMsg{
+		UID:  tracer.ReadArgInt32(regs, 0),
+		EUID: -1,
+	}
+	return nil
+}
+
+func handleSetgid(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
+	msg.Type = ebpfless.SyscallTypeSetGID
+	msg.SetGID = &ebpfless.SetGIDSyscallMsg{
+		GID: tracer.ReadArgInt32(regs, 0),
+	}
+	return nil
+}
+
+func handleSetreuid(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
+	msg.Type = ebpfless.SyscallTypeSetUID
+	msg.SetUID = &ebpfless.SetUIDSyscallMsg{
+		UID:  tracer.ReadArgInt32(regs, 0),
+		EUID: tracer.ReadArgInt32(regs, 1),
+	}
+	return nil
+}
+
+func handleSetregid(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
+	msg.Type = ebpfless.SyscallTypeSetGID
+	msg.SetGID = &ebpfless.SetGIDSyscallMsg{
+		GID:  tracer.ReadArgInt32(regs, 0),
+		EGID: tracer.ReadArgInt32(regs, 1),
+	}
+	return nil
+}
+
 // ECSMetadata defines ECS metadatas
 type ECSMetadata struct {
 	DockerID   string `json:"DockerId"`
@@ -436,6 +471,14 @@ func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool)
 		return err
 	}
 
+	// first process
+	process := &Process{
+		Pid: tracer.PID,
+		Nr:  make(map[int]*ebpfless.SyscallMsg),
+		Fd:  make(map[int32]string),
+	}
+	cache.Add(tracer.PID, process)
+
 	go func() {
 		var seq uint64
 
@@ -517,6 +560,30 @@ func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool)
 					logErrorf("unable to handle execve: %v", err)
 					return
 				}
+
+				// Top level pid, add creds. For the other PIDs the creds will be propagated at the probe side
+				if process.Pid == tracer.PID {
+					var uid, gid uint32
+
+					if creds.UID != nil {
+						uid = *creds.UID
+					} else {
+						uid = uint32(os.Getuid())
+					}
+
+					if creds.GID != nil {
+						gid = *creds.GID
+					} else {
+						gid = uint32(os.Getgid())
+					}
+
+					msg.Exec.Credentials = &ebpfless.Credentials{
+						UID:  uid,
+						EUID: uid,
+						GID:  gid,
+						EGID: gid,
+					}
+				}
 			case ExecveatNr:
 				if err = handleExecveAt(tracer, process, msg, regs); err != nil {
 					logErrorf("unable to handle execveat: %v", err)
@@ -539,7 +606,26 @@ func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool)
 					logErrorf("unable to handle fchdir: %v", err)
 					return
 				}
-
+			case SetuidNr:
+				if err = handleSetuid(tracer, process, msg, regs); err != nil {
+					logErrorf("unable to handle fchdir: %v", err)
+					return
+				}
+			case SetgidNr:
+				if err = handleSetgid(tracer, process, msg, regs); err != nil {
+					logErrorf("unable to handle fchdir: %v", err)
+					return
+				}
+			case SetreuidNr:
+				if err = handleSetreuid(tracer, process, msg, regs); err != nil {
+					logErrorf("unable to handle fchdir: %v", err)
+					return
+				}
+			case SetregidNr:
+				if err = handleSetregid(tracer, process, msg, regs); err != nil {
+					logErrorf("unable to handle fchdir: %v", err)
+					return
+				}
 			}
 		case CallbackPostType:
 			switch nr {
@@ -547,16 +633,24 @@ func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool)
 				send(process.Nr[nr])
 			case OpenNr, OpenatNr:
 				if ret := tracer.ReadRet(regs); ret >= 0 {
-
 					msg, exists := process.Nr[nr]
 					if !exists {
 						return
 					}
 
-					send(process.Nr[nr])
+					send(msg)
 
 					// maintain fd/path mapping
 					process.Fd[int32(ret)] = msg.Open.Filename
+				}
+			case SetuidNr, SetgidNr, SetreuidNr, SetregidNr:
+				if ret := tracer.ReadRet(regs); ret >= 0 {
+					msg, exists := process.Nr[nr]
+					if !exists {
+						return
+					}
+
+					send(msg)
 				}
 			case ForkNr, VforkNr, CloneNr:
 				msg := &ebpfless.SyscallMsg{
