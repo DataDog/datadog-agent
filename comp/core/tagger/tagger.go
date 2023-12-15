@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -144,7 +145,9 @@ func newTaggerClient(deps dependencies) Component {
 			deps.Log.Warnf("failed to parse dogstatsd tag cardinality, defaulting to low. Error: %s", err)
 			DogstatsdCardinality = collectors.LowCardinality
 		}
-		return taggerClient.Start(c)
+		// Main context passed to components, consistent with the one used in the workloadmeta component
+		mainCtx, _ := common.GetMainCtxCancel()
+		return taggerClient.Start(mainCtx)
 	}})
 	deps.Lc.Append(fx.Hook{OnStop: func(context.Context) error {
 		return taggerClient.Stop()
