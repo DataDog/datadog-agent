@@ -25,7 +25,7 @@ import (
 
 //nolint:revive // TODO(NET) Fix revive linter
 
-func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.Map, w io.Writer) {
+func dumpMapsHandler(w io.Writer, manager *manager.Manager, mapName string, currentMap *ebpf.Map) {
 	switch mapName {
 
 	case "connectsock_ipv6": // maps/connectsock_ipv6 (BPF_MAP_TYPE_HASH), key C.__u64, value uintptr // C.void*

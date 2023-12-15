@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// TestlogWriter wraps the testing.T object and provides a simple
+// TestLogWriter wraps the testing.T object and provides a simple
 // io.Writer interface, to be used with DumpMaps functions
 // Very simple implementation now for output in debug functions so
 // newlines aren't handled: each call to Write is just sent to
