@@ -145,12 +145,28 @@ func (rc rcClient) agentFeaturesUpdateCallback(updates map[string]state.RawConfi
 		serviceState = cfg.Features.RuntimeSecurityEnabled == "true"
 	}
 
+	var errs *multierror.Error
+
 	if err := rc.toggleService("security-agent", serviceState); err != nil {
+		errs = multierror.Append(err)
 		pkglog.Errorf("failed to activate security-agent: %s", err)
 	}
 
 	if err := rc.toggleService("system-probe", serviceState); err != nil {
+		errs = multierror.Append(err)
 		pkglog.Errorf("failed to activate system-probe: %s", err)
+	}
+
+	// Apply the new status to all configs
+	for cfgPath := range updates {
+		if errs.ErrorOrNil() == nil {
+			applyStateCallback(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+		} else {
+			applyStateCallback(cfgPath, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: errs.Error(),
+			})
+		}
 	}
 }
 
