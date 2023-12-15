@@ -370,6 +370,15 @@ const (
 	deleteTimeout = 30 * time.Minute
 )
 
+type testWriter struct {
+	t *testing.T
+}
+
+func (tw testWriter) Write(p []byte) (n int, err error) {
+	tw.t.Log(string(p))
+	return len(p), nil
+}
+
 // Suite manages the environment creation and runs E2E tests.
 type Suite[Env any] struct {
 	suite.Suite
@@ -520,8 +529,8 @@ func (suite *Suite[Env]) TearDownSuite() {
 func createEnv[Env any](suite *Suite[Env], stackDef *StackDefinition[Env]) (*Env, auto.UpResult, error) {
 	var env *Env
 	ctx := context.Background()
-
-	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(
+	suite.T().Logf("Creating stack %v", suite.params.StackName)
+	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailureWithLogger(
 		ctx,
 		suite.params.StackName,
 		stackDef.configMap,
@@ -529,7 +538,7 @@ func createEnv[Env any](suite *Suite[Env], stackDef *StackDefinition[Env]) (*Env
 			var err error
 			env, err = stackDef.envFactory(ctx)
 			return err
-		}, false)
+		}, false, testWriter{t: suite.T()})
 
 	return env, stackOutput, err
 }

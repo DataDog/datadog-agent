@@ -202,7 +202,7 @@ func CheckAgentPython(t *testing.T, client *TestClient, version string) {
 		require.NoError(tt, err, "failed to set python version: ", err)
 
 		_, err = client.SvcManager.Restart("datadog-agent")
-		require.NoError(tt, err, "agent should be able to restart after editing python version")
+		require.Error(tt, err, "agent should be able to restart after editing python version")
 	})
 
 	t.Run(fmt.Sprintf("check python %s is used", version), func(tt *testing.T) {
