@@ -48,47 +48,32 @@ type StackManager struct {
 }
 
 type safeStackMap struct {
-	stacks     map[string]*auto.Stack
-	loggers    map[string]io.Writer
-	lockStack  sync.RWMutex
-	lockLogger sync.RWMutex
+	stacks map[string]*auto.Stack
+	lock   sync.RWMutex
 }
 
 func newSafeStackMap() *safeStackMap {
-	return &safeStackMap{stacks: map[string]*auto.Stack{}, lockStack: sync.RWMutex{}, lockLogger: sync.RWMutex{}, loggers: map[string]io.Writer{}}
+	return &safeStackMap{stacks: map[string]*auto.Stack{}, lock: sync.RWMutex{}}
 }
 
 func (s *safeStackMap) Get(key string) (*auto.Stack, bool) {
-	s.lockStack.RLock()
-	defer s.lockStack.RUnlock()
+	s.lock.RLock()
+	defer s.lock.RUnlock()
 
 	stack, ok := s.stacks[key]
 	return stack, ok
 }
 
 func (s *safeStackMap) Set(key string, value *auto.Stack) {
-	s.lockStack.Lock()
-	defer s.lockStack.Unlock()
+	s.lock.Lock()
+	defer s.lock.Unlock()
 
 	s.stacks[key] = value
 }
 
-func (s *safeStackMap) SetLogger(key string, value io.Writer) {
-	s.lockLogger.Lock()
-	defer s.lockLogger.Unlock()
-	s.loggers[key] = value
-}
-
-func (s *safeStackMap) GetLogger(key string) (io.Writer, bool) {
-	s.lockLogger.RLock()
-	defer s.lockLogger.RUnlock()
-
-	logger, ok := s.loggers[key]
-	return logger, ok
-}
 func (s *safeStackMap) Range(f func(string, *auto.Stack)) {
-	s.lockStack.RLock()
-	defer s.lockStack.RUnlock()
+	s.lock.Lock()
+	defer s.lock.RUnlock()
 
 	for key, value := range s.stacks {
 		f(key, value)
@@ -121,7 +106,7 @@ func (sm *StackManager) GetStack(ctx context.Context, name string, config runner
 	stack, upResult, err := sm.getStack(ctx, name, config, deployFunc, failOnMissing, nil)
 
 	if err != nil {
-		errDestroy := sm.deleteStack(ctx, name, stack)
+		errDestroy := sm.deleteStack(ctx, name, stack, nil)
 		if errDestroy != nil {
 			return stack, upResult, errors.Join(err, errDestroy)
 		}
@@ -131,19 +116,13 @@ func (sm *StackManager) GetStack(ctx context.Context, name string, config runner
 }
 
 // GetStackNoDeleteOnFailure creates or return a stack based on stack name and config, if error occurs during stack creation, it will not destroy the created resources. Using this can lead to resource leaks.
-func (sm *StackManager) GetStackNoDeleteOnFailure(ctx context.Context, name string, config runner.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool) (*auto.Stack, auto.UpResult, error) {
-
-	return sm.getStack(ctx, name, config, deployFunc, failOnMissing, nil)
-}
-
-// GetStackNoDeleteOnFailureWithLogger creates or return a stack based on stack name and config, if error occurs during stack creation, it will not destroy the created resources. Using this can lead to resource leaks.
-func (sm *StackManager) GetStackNoDeleteOnFailureWithLogger(ctx context.Context, name string, config runner.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool, logWriter io.Writer) (*auto.Stack, auto.UpResult, error) {
+func (sm *StackManager) GetStackNoDeleteOnFailure(ctx context.Context, name string, config runner.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool, logWriter io.Writer) (*auto.Stack, auto.UpResult, error) {
 
 	return sm.getStack(ctx, name, config, deployFunc, failOnMissing, logWriter)
 }
 
 // DeleteStack safely deletes a stack
-func (sm *StackManager) DeleteStack(ctx context.Context, name string) error {
+func (sm *StackManager) DeleteStack(ctx context.Context, name string, logWriter io.Writer) error {
 
 	stack, ok := sm.stacks.Get(name)
 	if !ok {
@@ -163,7 +142,7 @@ func (sm *StackManager) DeleteStack(ctx context.Context, name string) error {
 		stack = &newStack
 	}
 
-	return sm.deleteStack(ctx, name, stack)
+	return sm.deleteStack(ctx, name, stack, logWriter)
 }
 
 // ForceRemoveStackConfiguration removes the configuration files pulumi creates for managing a stack.
@@ -186,7 +165,7 @@ func (sm *StackManager) Cleanup(ctx context.Context) []error {
 	var errors []error
 
 	sm.stacks.Range(func(stackID string, stack *auto.Stack) {
-		err := sm.deleteStack(ctx, stackID, stack)
+		err := sm.deleteStack(ctx, stackID, stack, nil)
 		if err != nil {
 			errors = append(errors, err)
 		}
@@ -195,7 +174,7 @@ func (sm *StackManager) Cleanup(ctx context.Context) []error {
 	return errors
 }
 
-func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *auto.Stack) error {
+func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *auto.Stack, logWriter io.Writer) error {
 	if stack == nil {
 		return fmt.Errorf("unable to find stack, skipping deletion of: %s", stackID)
 	}
@@ -203,9 +182,11 @@ func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *
 	destroyContext, cancel := context.WithTimeout(ctx, stackDestroyTimeout)
 
 	var logger io.Writer
-	logger, _ = sm.stacks.GetLogger(stackID)
-	if logger == nil {
+
+	if logWriter == nil {
 		logger = os.Stdout
+	} else {
+		logger = logWriter
 	}
 	_, err := stack.Destroy(destroyContext, optdestroy.ProgressStreams(logger), optdestroy.DebugLogging(debug.LoggingOptions{
 		FlowToPlugins: true,
@@ -249,7 +230,6 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 
 		stack = &newStack
 		sm.stacks.Set(name, stack)
-		sm.stacks.SetLogger(name, logWriter)
 	} else {
 		stack.Workspace().SetProgram(deployFunc)
 	}
@@ -263,9 +243,11 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 	var loglevel uint = 1
 	defer cancel()
 	var logger io.Writer
-	logger, _ = sm.stacks.GetLogger(name)
-	if logger == nil {
+
+	if logWriter == nil {
 		logger = os.Stderr
+	} else {
+		logger = logWriter
 	}
 
 	upResult, err := stack.Up(upCtx, optup.ProgressStreams(logger), optup.DebugLogging(debug.LoggingOptions{
