@@ -49,12 +49,6 @@ func getConnectionsResponse() []byte {
 func newResponseOverrides() map[string]map[string]httpResponse {
 	return map[string]map[string]httpResponse{
 		http.MethodPost: {
-			// Datadog Agent sends a HEAD request to avoid redirect issue before sending the actual flare
-			"/support/flare": updateResponseFromData(httpResponse{
-				statusCode:  http.StatusOK,
-				contentType: "application/json",
-				data:        flareResponseBody{CaseID: 0, Error: ""},
-			}),
 			"/api/v1/connections": updateResponseFromData(httpResponse{
 				statusCode:  http.StatusOK,
 				contentType: "application/x-protobuf",
@@ -65,6 +59,7 @@ func newResponseOverrides() map[string]map[string]httpResponse {
 		http.MethodConnect: {},
 		http.MethodDelete:  {},
 		http.MethodHead: {
+			// Datadog Agent sends a HEAD request to avoid redirect issue before sending the actual flare
 			"/support/flare": updateResponseFromData(httpResponse{
 				statusCode:  http.StatusOK,
 				contentType: "application/json",
