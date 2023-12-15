@@ -368,7 +368,7 @@ func checkEntryPoint(path string) (string, error) {
 }
 
 // StartCWSPtracer start the ptracer
-func StartCWSPtracer(args []string, probeAddr string, verbose bool) error {
+func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool) error {
 	entry, err := checkEntryPoint(args[0])
 	if err != nil {
 		return err
@@ -419,6 +419,7 @@ func StartCWSPtracer(args []string, probeAddr string, verbose bool) error {
 
 	opts := Opts{
 		Syscalls: PtracedSyscalls,
+		Creds:    creds,
 	}
 
 	tracer, err := NewTracer(entry, args, opts)
