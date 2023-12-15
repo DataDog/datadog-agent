@@ -35,39 +35,56 @@ const (
 	policyMetricRate = 30 * time.Second
 )
 
-// Policy describes policy related information
-type Policy struct {
-	Name    string
-	Source  string
-	Version string
+// policy describes policy related information
+type policy struct {
+	name    string
+	source  string
+	version string
 }
 
-// RuleStatus defines status of rules
-type RuleStatus = map[eval.RuleID]string
+// ruleStatus defines status of rules
+type ruleStatus = map[eval.RuleID]string
 
 // PolicyMonitor defines a policy monitor
 type PolicyMonitor struct {
 	sync.RWMutex
 
 	statsdClient         statsd.ClientInterface
-	policies             []*PolicyState
-	rules                RuleStatus
+	policies             []*policy
+	rules                ruleStatus
 	perRuleMetricEnabled bool
 }
 
 // SetPolicies sets the policies to monitor
-func (p *PolicyMonitor) SetPolicies(policies []*PolicyState) {
-	p.Lock()
-	defer p.Unlock()
+func (pm *PolicyMonitor) SetPolicies(policies []*PolicyState) {
+	pm.Lock()
+	defer pm.Unlock()
 
-	p.policies = policies
+	pm.policies = make([]*policy, 0, len(policies))
+	if pm.perRuleMetricEnabled {
+		pm.rules = make(ruleStatus)
+	}
+
+	for _, p := range policies {
+		pm.policies = append(pm.policies, &policy{
+			name:    p.Name,
+			source:  p.Source,
+			version: p.Version,
+		})
+
+		if pm.perRuleMetricEnabled {
+			for _, rule := range p.Rules {
+				pm.rules[eval.RuleID(rule.ID)] = rule.Status
+			}
+		}
+	}
 }
 
 // ReportHeartbeatEvent sends HeartbeatEvents reporting the current set of policies
-func (p *PolicyMonitor) ReportHeartbeatEvent(sender events.EventSender) {
-	p.RLock()
-	rule, events := NewHeartbeatEvents(p.policies)
-	p.RUnlock()
+func (pm *PolicyMonitor) ReportHeartbeatEvent(sender events.EventSender) {
+	pm.RLock()
+	rule, events := newHeartbeatEvents(pm.policies)
+	pm.RUnlock()
 
 	for _, event := range events {
 		sender.SendEvent(rule, event, nil, "")
@@ -75,7 +92,7 @@ func (p *PolicyMonitor) ReportHeartbeatEvent(sender events.EventSender) {
 }
 
 // Start the monitor
-func (p *PolicyMonitor) Start(ctx context.Context) {
+func (pm *PolicyMonitor) Start(ctx context.Context) {
 	go func() {
 		timerMetric := time.NewTicker(policyMetricRate)
 		defer timerMetric.Stop()
@@ -86,34 +103,34 @@ func (p *PolicyMonitor) Start(ctx context.Context) {
 				return
 
 			case <-timerMetric.C:
-				p.RLock()
-				for _, policy := range p.policies {
+				pm.RLock()
+				for _, p := range pm.policies {
 					tags := []string{
-						"policy_name:" + policy.Name,
-						"policy_source:" + policy.Source,
-						"policy_version:" + policy.Version,
+						"policy_name:" + p.name,
+						"policy_source:" + p.source,
+						"policy_version:" + p.version,
 						"agent_version:" + version.AgentVersion,
 					}
 
-					if err := p.statsdClient.Gauge(metrics.MetricPolicy, 1, tags, 1.0); err != nil {
+					if err := pm.statsdClient.Gauge(metrics.MetricPolicy, 1, tags, 1.0); err != nil {
 						log.Error(fmt.Errorf("failed to send policy metric: %w", err))
 					}
 				}
 
-				if p.perRuleMetricEnabled {
-					for id, status := range p.rules {
+				if pm.perRuleMetricEnabled {
+					for id, status := range pm.rules {
 						tags := []string{
 							"rule_id:" + id,
 							fmt.Sprintf("status:%v", status),
 							constants.CardinalityTagPrefix + collectors.LowCardinalityString,
 						}
 
-						if err := p.statsdClient.Gauge(metrics.MetricRulesStatus, 1, tags, 1.0); err != nil {
+						if err := pm.statsdClient.Gauge(metrics.MetricRulesStatus, 1, tags, 1.0); err != nil {
 							log.Error(fmt.Errorf("failed to send policy metric: %w", err))
 						}
 					}
 				}
-				p.RUnlock()
+				pm.RUnlock()
 			}
 		}
 	}()
@@ -123,8 +140,6 @@ func (p *PolicyMonitor) Start(ctx context.Context) {
 func NewPolicyMonitor(statsdClient statsd.ClientInterface, perRuleMetricEnabled bool) *PolicyMonitor {
 	return &PolicyMonitor{
 		statsdClient:         statsdClient,
-		policies:             nil,
-		rules:                make(map[string]string),
 		perRuleMetricEnabled: perRuleMetricEnabled,
 	}
 }
@@ -137,7 +152,7 @@ type RuleSetLoadedReport struct {
 
 // ReportRuleSetLoaded reports to Datadog that a new ruleset was loaded
 func ReportRuleSetLoaded(sender events.EventSender, statsdClient statsd.ClientInterface, policies []*PolicyState) {
-	rule, event := NewRuleSetLoadedEvent(policies)
+	rule, event := newRuleSetLoadedEvent(policies)
 
 	if err := statsdClient.Count(metrics.MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
 		log.Error(fmt.Errorf("failed to send ruleset_loaded metric: %w", err))
@@ -263,8 +278,8 @@ func NewPoliciesState(ruleSets map[string]*rules.RuleSet, err *multierror.Error,
 	return policies
 }
 
-// NewRuleSetLoadedEvent returns the rule (e.g. ruleset_loaded) and a populated custom event for a new_rules_loaded event
-func NewRuleSetLoadedEvent(policies []*PolicyState) (*rules.Rule, *events.CustomEvent) {
+// newRuleSetLoadedEvent returns the rule (e.g. ruleset_loaded) and a populated custom event for a new_rules_loaded event
+func newRuleSetLoadedEvent(policies []*PolicyState) (*rules.Rule, *events.CustomEvent) {
 	evt := RulesetLoadedEvent{
 		Policies: policies,
 	}
@@ -274,15 +289,15 @@ func NewRuleSetLoadedEvent(policies []*PolicyState) (*rules.Rule, *events.Custom
 		events.NewCustomEvent(model.CustomRulesetLoadedEventType, evt)
 }
 
-// NewHeartbeatEvents returns the rule (e.g. heartbeat) and a populated custom event for a heartbeat event
-func NewHeartbeatEvents(policies []*PolicyState) (*rules.Rule, []*events.CustomEvent) {
+// newHeartbeatEvents returns the rule (e.g. heartbeat) and a populated custom event for a heartbeat event
+func newHeartbeatEvents(policies []*policy) (*rules.Rule, []*events.CustomEvent) {
 	var evts []*events.CustomEvent
 
 	for _, policy := range policies {
 		var policyState = PolicyState{
-			Name:    policy.Name,
-			Version: policy.Version,
-			Source:  policy.Source,
+			Name:    policy.name,
+			Version: policy.version,
+			Source:  policy.source,
 			Rules:   nil, // The rules that have been loaded at startup are not reported in the heartbeat event
 		}
 
