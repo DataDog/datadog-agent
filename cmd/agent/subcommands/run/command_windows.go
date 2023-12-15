@@ -10,11 +10,12 @@ package run
 
 import (
 	"context"
-	_ "expvar" // Blank import used because this isn't directly used in this file
+	_ "expvar"         // Blank import used because this isn't directly used in this file
+	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
+
 	apmetwtracer "github.com/DataDog/datadog-agent/comp/apm/etwtracer"
 	apmetwtracerimpl "github.com/DataDog/datadog-agent/comp/apm/etwtracer/impl"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
-	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
 	"github.com/DataDog/datadog-agent/comp/checks/winregistry"
 	winregistryimpl "github.com/DataDog/datadog-agent/comp/checks/winregistry/impl"
@@ -43,15 +44,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
-	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
@@ -83,7 +81,6 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			sysprobeconfig sysprobeconfig.Component,
 			server dogstatsdServer.Component,
 			serverDebug dogstatsddebug.Component,
-			capture replay.Component,
 			wmeta workloadmeta.Component,
 			rcclient rcclient.Component,
 			forwarder defaultforwarder.Component,
@@ -92,10 +89,8 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			sharedSerializer serializer.MetricSerializer,
 			otelcollector otelcollector.Component,
 			demultiplexer demultiplexer.Component,
-			hostMetadata host.Component,
 			invAgent inventoryagent.Component,
-			invHost inventoryhost.Component,
-			secretResolver secrets.Component,
+			_ secrets.Component,
 			invChecks inventorychecks.Component,
 			_ netflowServer.Component,
 			agentAPI internalAPI.Component,
@@ -110,7 +105,6 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				telemetry,
 				sysprobeconfig,
 				server,
-				capture,
 				serverDebug,
 				wmeta,
 				rcclient,
@@ -119,10 +113,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				sharedSerializer,
 				otelcollector,
 				demultiplexer,
-				hostMetadata,
 				invAgent,
-				invHost,
-				secretResolver,
 				agentAPI,
 				invChecks,
 			)
@@ -174,11 +165,11 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 
 func getPlatformModules() fx.Option {
 	return fx.Options(
-		agentcrashdetectimpl.Module,
+		agentcrashdetectimpl.Module(),
 		apmetwtracerimpl.Module,
-		winregistryimpl.Module,
+		winregistryimpl.Module(),
 		etwimpl.Module,
-		comptraceconfig.Module,
+		comptraceconfig.Module(),
 		fx.Replace(comptraceconfig.Params{
 			FailIfAPIKeyMissing: false,
 		}),

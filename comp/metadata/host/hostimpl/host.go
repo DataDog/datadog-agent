@@ -3,11 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package host
+// Package hostimpl implements a component to generate the 'host' metadata payload (also known as "v5").
+package hostimpl
 
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
 	"time"
 
 	"go.uber.org/fx"
@@ -15,10 +17,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	hostComp "github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
@@ -41,6 +45,13 @@ type host struct {
 	serializer      serializer.MetricSerializer
 }
 
+// Module defines the fx options for this component.
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newHostProvider),
+	)
+}
+
 type dependencies struct {
 	fx.In
 
@@ -53,7 +64,7 @@ type dependencies struct {
 type provides struct {
 	fx.Out
 
-	Comp             Component
+	Comp             hostComp.Component
 	MetadataProvider runnerimpl.Provider
 	FlareProvider    flaretypes.Provider
 }
@@ -107,5 +118,5 @@ func (h *host) GetPayloadAsJSON(ctx context.Context) ([]byte, error) {
 }
 
 func (h *host) fillFlare(fb flaretypes.FlareBuilder) error {
-	return fb.AddFileFromFunc("metadata_v5.json", func() ([]byte, error) { return h.GetPayloadAsJSON(context.Background()) })
+	return fb.AddFileFromFunc(filepath.Join("metadata", "host.json"), func() ([]byte, error) { return h.GetPayloadAsJSON(context.Background()) })
 }

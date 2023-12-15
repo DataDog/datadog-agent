@@ -12,8 +12,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/test-infra-definitions/common/utils"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent/docker"
-	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/docker/cli/cli/connhelper"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
@@ -29,18 +28,16 @@ var _ pulumiStackInitializer = (*Docker)(nil)
 // [docker.Deamon]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent/docker#Deamon
 type Docker struct {
 	optionalAgent      Agent
-	deserializer       utils.RemoteServiceDeserializer[docker.ClientData]
+	deserializer       utils.RemoteServiceDeserializer[agent.ClientData]
 	t                  *testing.T
 	client             *client.Client
 	agentContainerName string
-	os                 os.OS
 }
 
 // NewDocker creates a new instance of Docker
-func NewDocker(daemon *docker.Daemon) *Docker {
+func NewDocker(daemon *agent.Daemon) *Docker {
 	return &Docker{
 		agentContainerName: daemon.GetAgentContainerName(),
-		os:                 daemon.GetOS(),
 		deserializer:       daemon,
 	}
 }

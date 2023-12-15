@@ -10,7 +10,7 @@ import (
 	"context"
 	"encoding/json"
 
-	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"

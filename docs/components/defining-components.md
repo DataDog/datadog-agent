@@ -35,9 +35,11 @@ The completed `comp/<bundleName>/<component>/<component>impl/<component>.go` loo
 package config
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-  fx.Provide(newFoo),
-)
+func Module() fxutil.Module {
+  return fxutil.Component(
+    fx.Provide(newFoo),
+  )
+}
 
 type foo struct {
   foos []string
@@ -103,9 +105,11 @@ The `comp/<bundleName>/<component>/<component>impl/<component>_mock.go` looks li
 package foo
 
 // MockModule defines the fx options for the mock component.
-var MockModule = fxutil.Component(
+func MockModule() fxutil.Module {
+  return fxutil.Component(
   fx.Provide(newMock),
-)
+  )
+}
 ```
 
 ```go

@@ -47,15 +47,15 @@ func fulfillDeps(t testing.TB) serverDeps {
 
 func fulfillDepsWithConfigOverrideAndFeatures(t testing.TB, overrides map[string]interface{}, features []config.Feature) serverDeps {
 	return fxutil.Test[serverDeps](t, fx.Options(
-		core.MockBundle,
-		serverdebugimpl.MockModule,
+		core.MockBundle(),
+		serverdebugimpl.MockModule(),
 		fx.Replace(configComponent.MockParams{
 			Overrides: overrides,
 			Features:  features,
 		}),
 		fx.Supply(Params{Serverless: false}),
-		replay.MockModule,
-		Module,
+		replay.MockModule(),
+		Module(),
 	))
 }
 
@@ -65,14 +65,14 @@ func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{
 
 func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 	return fxutil.Test[serverDeps](t, fx.Options(
-		core.MockBundle,
-		serverdebugimpl.MockModule,
+		core.MockBundle(),
+		serverdebugimpl.MockModule(),
 		fx.Replace(configComponent.MockParams{
 			Params: configComponent.Params{ConfFilePath: yaml},
 		}),
 		fx.Supply(Params{Serverless: false}),
-		replay.MockModule,
-		Module,
+		replay.MockModule(),
+		Module(),
 	))
 }
 
@@ -83,7 +83,7 @@ func TestNewServer(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 
-	log := fxutil.Test[log.Component](t, logimpl.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
 	defer demux.Stop(false)
 	requireStart(t, deps.Server, demux)
@@ -98,7 +98,7 @@ func TestStopServer(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 
-	log := fxutil.Test[log.Component](t, logimpl.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
 	defer demux.Stop(false)
 	requireStart(t, deps.Server, demux)
@@ -474,7 +474,7 @@ func TestHistToDist(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 
-	log := fxutil.Test[log.Component](t, logimpl.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
 	defer demux.Stop(false)
 	requireStart(t, deps.Server, demux)
@@ -562,7 +562,7 @@ func TestE2EParsing(t *testing.T) {
 	cfg["dogstatsd_port"] = listeners.RandomPortName
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
-	log := fxutil.Test[log.Component](t, logimpl.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
 	requireStart(t, deps.Server, demux)
 
@@ -607,7 +607,7 @@ func TestExtraTags(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverrideAndFeatures(t, cfg, []config.Feature{config.EKSFargate})
 
-	log := fxutil.Test[log.Component](t, logimpl.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
@@ -637,7 +637,7 @@ func TestStaticTags(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverrideAndFeatures(t, cfg, []config.Feature{config.EKSFargate})
 
-	log := fxutil.Test[log.Component](t, logimpl.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
