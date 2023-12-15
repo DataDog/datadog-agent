@@ -9,6 +9,7 @@
 package rules
 
 import (
+	"os"
 	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -59,6 +60,12 @@ func (m *RuleFilterModel) GetEvaluator(field eval.Field, _ eval.RegisterID) (eva
 			Value: false,
 			Field: field,
 		}, nil
+
+	case "envs":
+		return &eval.StringArrayEvaluator{
+			Values: os.Environ(),
+			Field:  field,
+		}, nil
 	}
 
 	return nil, &eval.ErrFieldNotFound{Field: field}
@@ -79,6 +86,9 @@ func (e *RuleFilterEvent) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "os.is_amazon_linux", "os.is_cos", "os.is_debian", "os.is_oracle", "os.is_rhel", "os.is_rhel7",
 		"os.is_rhel8", "os.is_sles", "os.is_sles12", "os.is_sles15":
 		return false, nil
+
+	case "envs":
+		return os.Environ(), nil
 	}
 
 	return nil, &eval.ErrFieldNotFound{Field: field}
