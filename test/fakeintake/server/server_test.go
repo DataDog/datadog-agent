@@ -119,6 +119,7 @@ func TestServer(t *testing.T) {
 
 		response, err := http.Get(fi.URL() + "/fakeintake/payloads")
 		require.NoError(t, err, "Error on GET request")
+		defer response.Body.Close()
 		assert.Equal(t, http.StatusBadRequest, response.StatusCode, "unexpected code")
 		assert.Equal(t, "text/plain", response.Header.Get("Content-Type"))
 	})
@@ -257,6 +258,7 @@ func TestServer(t *testing.T) {
 		require.NoError(t, err, "Error creating flush request")
 		response, err := httpClient.Do(request)
 		require.NoError(t, err, "Error on flush request")
+		defer response.Body.Close()
 		assert.Equal(t, http.StatusOK, response.StatusCode, "unexpected code")
 	})
 
