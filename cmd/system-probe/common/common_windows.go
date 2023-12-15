@@ -9,3 +9,7 @@ const (
 	//nolint:revive // TODO(EBPF) Fix revive linter
 	DefaultLogFile = "c:\\programdata\\datadog\\logs\\system-probe.log"
 )
+
+func DisableUnsupportedKernel(isEnabled bool) bool {
+	return false
+}

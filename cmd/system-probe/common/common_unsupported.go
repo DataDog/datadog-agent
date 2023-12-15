@@ -11,3 +11,7 @@ const (
 	//nolint:revive // TODO(EBPF) Fix revive linter
 	DefaultLogFile = ""
 )
+
+func DisableUnsupportedKernel(isEnabled bool) bool {
+	return false
+}
