@@ -10,7 +10,7 @@ const (
 	DefaultLogFile = "c:\\programdata\\datadog\\logs\\system-probe.log"
 )
 
-// Returns true if network_process needs to be disabled due to unsupported kernel version
+// DisablePESUnsupportedKernel returns true if network_process needs to be disabled due to unsupported kernel version
 func DisablePESUnsupportedKernel(isEnabled bool) bool {
 	return false
 }
