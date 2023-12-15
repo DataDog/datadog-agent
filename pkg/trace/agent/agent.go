@@ -307,7 +307,6 @@ func (a *Agent) Process(p *api.Payload) {
 		}
 
 		// Extra sanitization steps of the trace.
-		appServicesTags := traceutil.GetAppServicesTags(a.conf.InAzureFunctionApp)
 		for _, span := range chunk.Spans {
 			for k, v := range a.conf.GlobalTags {
 				if k == tagOrigin {
@@ -317,7 +316,7 @@ func (a *Agent) Process(p *api.Payload) {
 				}
 			}
 			if a.conf.InAzureAppServices {
-				appServicesTags := traceutil.GetAppServicesTags()
+				appServicesTags := traceutil.GetAppServicesTags(a.conf.InAzureFunctionApp)
 				traceutil.SetMeta(span, "aas.site.name", appServicesTags["aas.site.name"])
 				traceutil.SetMeta(span, "aas.site.type", appServicesTags["aas.site.type"])
 			}
