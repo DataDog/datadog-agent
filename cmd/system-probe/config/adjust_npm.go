@@ -10,11 +10,10 @@ import (
 	"math"
 	"runtime"
 
+	"github.com/DataDog/datadog-agent/cmd/system-probe/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -80,11 +79,7 @@ func adjustNetwork(cfg config.Config) {
 		return nil
 	})
 
-	kernelVersion, err := ebpfkernel.NewKernelVersion()
-	if err != nil {
-		log.Error("unable to detect the kernel version: %w", err)
-	} else if !kernelVersion.IsRH7Kernel() && !kernelVersion.IsRH8Kernel() && kernelVersion.Code < ebpfkernel.Kernel4_15 && cfg.GetBool(evNS("network_process", "enabled")) {
-		log.Warn("network_process is not supported for this kernel version. Disabling network_process")
+	if common.DisableUnsupportedKernel(cfg.GetBool(evNS("network_process", "enabled"))) {
 		cfg.Set(evNS("network_process", "enabled"), false, model.SourceAgentRuntime)
 	}
 
