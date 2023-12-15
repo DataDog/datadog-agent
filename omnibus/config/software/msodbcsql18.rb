@@ -3,6 +3,8 @@ default_version "18.3.2.1-1"
 
 dependency "unixodbc"
 
+license "MICROSOFT SOFTWARE LICENSE"
+license_file "doc/msodbcsql18/LICENSE.txt"
 skip_transitive_dependency_licensing true
 
 # Dynamically build source url and sha256 based on the linux platform and architecture
