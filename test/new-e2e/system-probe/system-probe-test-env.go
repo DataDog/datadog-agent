@@ -242,7 +242,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 				return fmt.Errorf("setup micro-vms in remote instance: %w", err)
 			}
 			return nil
-		}, opts.FailOnMissing)
+		}, opts.FailOnMissing, nil)
 		if err != nil {
 			return handleScenarioFailure(err, func(possibleError handledError) {
 				// handle the following errors by trying in a different availability zone
@@ -270,7 +270,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 
 //nolint:revive // TODO(EBPF) Fix revive linter
 func Destroy(name string) error {
-	return infra.GetStackManager().DeleteStack(context.Background(), name)
+	return infra.GetStackManager().DeleteStack(context.Background(), name, nil)
 }
 
 //nolint:revive // TODO(EBPF) Fix revive linter
