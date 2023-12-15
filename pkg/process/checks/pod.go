@@ -48,13 +48,24 @@ func (c *PodCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo, _ bool) error {
 // IsEnabled returns true if the check is enabled by configuration
 func (c *PodCheck) IsEnabled() bool {
 	// activate the pod collection if enabled and we have the cluster name set
-	_, coreCheck, _ := oconfig.IsOrchestratorEnabled()
+	orchestratorEnabled, coreCheck, kubeClusterName := oconfig.IsOrchestratorEnabled()
+	if !orchestratorEnabled {
+		return false
+	}
 
 	// Do not run this check if we enabled the corecheck for pods
-	if !coreCheck {
-		log.Error("This Process Agent is deprecated as of 7.51.0 and moved to the Node Agent")
+	if coreCheck {
+		log.Info("Skipping pod check on process agent")
+		return false
 	}
-	return false
+
+	log.Warn("This Process Agent check will be deprecated in 7.51.0 and moved to the Node Agent")
+
+	if kubeClusterName == "" {
+		_ = log.Warnf("Failed to auto-detect a Kubernetes cluster name. Pod collection will not start. To fix this, set it manually via the cluster_name config option")
+		return false
+	}
+	return true
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions
