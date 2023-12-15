@@ -5,7 +5,7 @@ import re
 import time
 import traceback
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict
 
 import yaml
@@ -192,9 +192,17 @@ def auto_cancel_previous_pipelines(ctx):
         elif is_ancestor.exited == 1:
             print(f'{pipeline["sha"]} is not an ancestor of {git_sha}, not cancelling pipeline {pipeline["id"]}')
         elif is_ancestor.exited == 128:
+            min_time_before_cancel = 5
             print(
                 f'Could not determine if {pipeline["sha"]} is an ancestor of {git_sha}, probably because it has been deleted from the history because of force push'
             )
+            if datetime.strptime(pipeline["created_at"], "%Y-%m-%dT%H:%M:%S.%fZ") < datetime.now() - timedelta(
+                minutes=min_time_before_cancel
+            ):
+                print(
+                    f'Pipeline started earlier than {min_time_before_cancel} minutes ago, gracefully canceling pipeline {pipeline["id"]}'
+                )
+                gracefully_cancel_pipeline(gitlab, pipeline, force_cancel_stages=["package_build"])
         else:
             print(is_ancestor.stderr)
             raise Exit(1)

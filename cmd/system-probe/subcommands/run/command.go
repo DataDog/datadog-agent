@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+
 	//nolint:revive // TODO(EBPF) Fix revive linter
 	_ "net/http/pprof"
 	"os"
@@ -161,48 +162,10 @@ func run(log log.Component, _ config.Component, statsd compstatsd.Component, tel
 func StartSystemProbeWithDefaults(ctxChan <-chan context.Context) (<-chan error, error) {
 	errChan := make(chan error)
 
-	// run startSystemProbe in an app, so that the log and config components get initialized
+	// run startSystemProbe in the background
 	go func() {
-		err := fxutil.OneShot(
-			func(log log.Component, config config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component) error {
-				defer StopSystemProbeWithDefaults()
-				err := startSystemProbe(&cliParams{GlobalParams: &command.GlobalParams{}}, log, statsd, telemetry, sysprobeconfig, rcclient)
-				if err != nil {
-					return err
-				}
-
-				// notify outer that startAgent finished
-				errChan <- err
-				// wait for context
-				ctx := <-ctxChan
-
-				// Wait for stop signal
-				select {
-				case <-signals.Stopper:
-					log.Info("Received stop command, shutting down...")
-				case <-signals.ErrorStopper:
-					_ = log.Critical("The Agent has encountered an error, shutting down...")
-				case <-ctx.Done():
-					log.Info("Received stop from service manager, shutting down...")
-				}
-
-				return nil
-			},
-			// no config file path specification in this situation
-			fx.Supply(config.NewAgentParams("", config.WithConfigMissingOK(true))),
-			fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(""))),
-			fx.Supply(logimpl.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
-			rcclient.Module(),
-			config.Module(),
-			telemetry.Module(),
-			compstatsd.Module(),
-			sysprobeconfigimpl.Module(),
-			// use system-probe config instead of agent config for logging
-			fx.Provide(func(lc fx.Lifecycle, params logimpl.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
-				return logimpl.NewLogger(lc, params, sysprobeconfig)
-			}),
-		)
-		// notify caller that fx.OneShot is done
+		err := runSystemProbe(ctxChan, errChan)
+		// notify main routine that this is done, so cleanup can happen
 		errChan <- err
 	}()
 
@@ -215,6 +178,48 @@ func StartSystemProbeWithDefaults(ctxChan <-chan context.Context) (<-chan error,
 
 	// startSystemProbe succeeded. provide errChan to caller so they can wait for fxutil.OneShot to stop
 	return errChan, nil
+}
+
+func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
+	return fxutil.OneShot(
+		func(log log.Component, config config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component) error {
+			defer StopSystemProbeWithDefaults()
+			err := startSystemProbe(&cliParams{GlobalParams: &command.GlobalParams{}}, log, statsd, telemetry, sysprobeconfig, rcclient)
+			if err != nil {
+				return err
+			}
+
+			// notify outer that startAgent finished
+			errChan <- err
+			// wait for context
+			ctx := <-ctxChan
+
+			// Wait for stop signal
+			select {
+			case <-signals.Stopper:
+				log.Info("Received stop command, shutting down...")
+			case <-signals.ErrorStopper:
+				_ = log.Critical("The Agent has encountered an error, shutting down...")
+			case <-ctx.Done():
+				log.Info("Received stop from service manager, shutting down...")
+			}
+
+			return nil
+		},
+		// no config file path specification in this situation
+		fx.Supply(config.NewAgentParams("", config.WithConfigMissingOK(true))),
+		fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(""))),
+		fx.Supply(logimpl.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
+		rcclient.Module(),
+		config.Module(),
+		telemetry.Module(),
+		compstatsd.Module(),
+		sysprobeconfigimpl.Module(),
+		// use system-probe config instead of agent config for logging
+		fx.Provide(func(lc fx.Lifecycle, params logimpl.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
+			return logimpl.NewLogger(lc, params, sysprobeconfig)
+		}),
+	)
 }
 
 // StopSystemProbeWithDefaults is a temporary way for other packages to use stopAgent.

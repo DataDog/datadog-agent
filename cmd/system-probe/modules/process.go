@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+
 	//nolint:revive // TODO(PROC) Fix revive linter
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/process/encoding"
@@ -44,6 +45,9 @@ var Process = module.Factory{
 			probe:     p,
 			lastCheck: atomic.NewInt64(0),
 		}, nil
+	},
+	NeedsEBPF: func() bool {
+		return false
 	},
 }
 

@@ -374,27 +374,36 @@ def lint_fxutil_oneshot_test(_):
     for folder in folders:
         folder_path = pathlib.Path(folder)
         for file in folder_path.rglob("*.go"):
-            if str(file).endswith("_test.go") or str(file).endswith("main.go") or str(file).endswith("main_windows.go"):
-                continue
-
-            # The code in this file cannot be easily tested
-            if "cmd/system-probe/subcommands/run/command.go" in str(file):
+            # Don't lint test files
+            if str(file).endswith("_test.go"):
                 continue
 
             one_shot_count = file.read_text().count("fxutil.OneShot(")
-            if one_shot_count > 0:
+            run_count = file.read_text().count("fxutil.Run(")
+
+            expect_reason = 'fxutil.OneShot'
+            if one_shot_count == 0 and run_count > 0:
+                expect_reason = 'fxutil.Run'
+
+            if one_shot_count > 0 or run_count > 0:
                 test_path = file.parent.joinpath(f"{file.stem}_test.go")
                 if not test_path.exists():
-                    errors.append(f"The file {file} contains fxutil.OneShot but the file {test_path} doesn't exist.")
+                    errors.append(f"The file {file} contains {expect_reason} but the file {test_path} doesn't exist.")
                 else:
                     content = test_path.read_text()
-                    sub_cmd_count = content.count("fxutil.TestOneShotSubcommand(")
+                    test_sub_cmd_count = content.count("fxutil.TestOneShotSubcommand(")
                     test_one_shot_count = content.count("fxutil.TestOneShot(")
-                    if one_shot_count > sub_cmd_count + test_one_shot_count:
+                    test_run_count = content.count("fxutil.TestRun(")
+                    if one_shot_count > test_sub_cmd_count + test_one_shot_count:
                         errors.append(
                             f"The file {file} contains {one_shot_count} call(s) to `fxutil.OneShot`"
-                            + f"but {test_path} contains only {sub_cmd_count} call(s) to `fxutil.TestOneShotSubcommand`"
-                            + f"and {test_one_shot_count} call(s) to `fxutil.TestOneShot`"
+                            + f" but {test_path} contains only {test_sub_cmd_count} call(s) to `fxutil.TestOneShotSubcommand`"
+                            + f" and {test_one_shot_count} call(s) to `fxutil.TestOneShot`"
+                        )
+                    if run_count > test_run_count:
+                        errors.append(
+                            f"The file {file} contains {run_count} call(s) to `fxutil.Run`"
+                            + f" but {test_path} contains only {test_run_count} call(s) to `fxutil.TestRun`"
                         )
     if len(errors) > 0:
         msg = '\n'.join(errors)
