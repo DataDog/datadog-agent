@@ -325,7 +325,7 @@ KeyInfo = NamedTuple('KeyFingerprint', [('path', str), ('fingerprint', KeyFinger
 def get_key_info(ctx, path):
     fingerprints = dict()
     for fmt in KeyFingerprint._fields:
-        out = ctx.run(f"ssh-keygen -l -E {fmt} -f '{path}'", hide=True)
+        out = ctx.run(f"ssh-keygen -l -E {fmt} -f \"{path}\"", hide=True)
         if out.exited != 0:
             print("No AWS keypair found, please create one")
             return
