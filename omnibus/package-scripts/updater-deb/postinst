@@ -73,6 +73,7 @@ install_method:
   tool: $tool
   tool_version: $tool_version
   installer_version: deb_package
+  installer: updater
 "
     echo "$install_info_content" > $CONFIG_DIR/install_info
 fi

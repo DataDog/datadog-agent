@@ -13,6 +13,7 @@ from .go import deps
 from .utils import REPO_PATH, bin_name, get_build_flags, get_version, load_release_versions, timed
 
 BIN_PATH = os.path.join(".", "bin", "updater")
+MAJOR_VERSION = '7'
 
 
 @task
@@ -22,7 +23,6 @@ def build(
     race=False,
     build_include=None,
     build_exclude=None,
-    major_version='7',
     arch="x64",
     go_mod="mod",
 ):
@@ -30,7 +30,7 @@ def build(
     Build the updater.
     """
 
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version)
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=MAJOR_VERSION)
 
     build_include = (
         get_default_build_tags(
@@ -57,7 +57,6 @@ def get_omnibus_env(
     ctx,
     skip_sign=False,
     release_version="nightly",
-    major_version='7',
     hardened_runtime=False,
     go_mod_cache=None,
 ):
@@ -70,8 +69,7 @@ def get_omnibus_env(
     if go_mod_cache:
         env['OMNIBUS_GOMODCACHE'] = go_mod_cache
 
-    if int(major_version) > 6:
-        env['OMNIBUS_OPENSSL_SOFTWARE'] = 'openssl3'
+    env['OMNIBUS_OPENSSL_SOFTWARE'] = 'openssl3'
 
     env_override = ['INTEGRATIONS_CORE_VERSION', 'OMNIBUS_SOFTWARE_VERSION']
     for key in env_override:
@@ -90,9 +88,9 @@ def get_omnibus_env(
         env['HARDENED_RUNTIME_MAC'] = 'true'
 
     env['PACKAGE_VERSION'] = get_version(
-        ctx, include_git=True, url_safe=True, major_version=major_version, include_pipeline_id=True
+        ctx, include_git=True, url_safe=True, major_version=MAJOR_VERSION, include_pipeline_id=True
     )
-    env['MAJOR_VERSION'] = major_version
+    env['MAJOR_VERSION'] = MAJOR_VERSION
 
     return env
 
@@ -151,7 +149,6 @@ def omnibus_build(
     skip_deps=False,
     skip_sign=False,
     release_version="nightly",
-    major_version='7',
     omnibus_s3_cache=False,
     hardened_runtime=False,
     go_mod_cache=None,
@@ -170,7 +167,6 @@ def omnibus_build(
         ctx,
         skip_sign=skip_sign,
         release_version=release_version,
-        major_version=major_version,
         hardened_runtime=hardened_runtime,
         go_mod_cache=go_mod_cache,
     )

@@ -31,10 +31,8 @@ build do
   # include embedded path (mostly for `pkg-config` binary)
   env = with_embedded_path(env)
 
-  major_version_arg = "$MAJOR_VERSION"
-
   if linux_target?
-    command "invoke updater.build --rebuild --major-version #{major_version_arg}", env: env
+    command "invoke updater.build --rebuild", env: env
     mkdir "#{install_dir}/bin"
     mkdir "#{install_dir}/run/"
 
@@ -74,10 +72,8 @@ build do
          dest: systemdPath + file,
          mode: 0644,
          vars: { install_dir: install_dir, etc_dir: etc_dir }
-  end
+    end
 
-  end
-  block do
   end
 
   # The file below is touched by software builds that don't put anything in the installation
