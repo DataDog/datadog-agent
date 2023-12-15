@@ -8,6 +8,7 @@
 package modules
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -193,14 +194,17 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			maps = strings.Split(listMaps, ",")
 		}
 
-		ebpfMaps, err := nt.tracer.DebugEBPFMaps(maps...)
+		var ebpfMaps bytes.Buffer
+
+		err := nt.tracer.DebugEBPFMaps(&ebpfMaps, maps...)
+
 		if err != nil {
 			log.Errorf("unable to retrieve eBPF maps: %s", err)
 			w.WriteHeader(500)
 			return
 		}
 
-		utils.WriteAsJSON(w, ebpfMaps)
+		utils.WriteAsJSON(w, ebpfMaps.String())
 	})
 
 	httpMux.HandleFunc("/debug/conntrack/cached", func(w http.ResponseWriter, req *http.Request) {
