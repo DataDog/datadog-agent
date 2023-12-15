@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
 // ServiceName specifies the service name used in the operating system.
@@ -430,9 +431,6 @@ type AgentConfig struct {
 	// Azure App Services
 	InAzureAppServices bool
 
-	// Azure Function App in Azure App Services
-	InAzureFunctionApp bool
-
 	// DebugServerPort defines the port used by the debug server
 	DebugServerPort int
 
@@ -510,7 +508,7 @@ func New() *AgentConfig {
 		Obfuscation:                 &ObfuscationConfig{},
 		MaxResourceLen:              5000,
 
-		GlobalTags: make(map[string]string),
+		GlobalTags: computeGlobalTags(),
 
 		Proxy:         http.ProxyFromEnvironment,
 		OTLPReceiver:  &OTLP{},
@@ -523,11 +521,15 @@ func New() *AgentConfig {
 			MaxPayloadSize: 5 * 1024 * 1024,
 		},
 
-		InAzureAppServices: InAzureAppServices(),
-		InAzureFunctionApp: inAzureFunctionApp(),
-
 		Features: make(map[string]struct{}),
 	}
+}
+
+func computeGlobalTags() map[string]string {
+	if InAzureAppServices() {
+		return traceutil.GetAppServicesTags()
+	}
+	return make(map[string]string)
 }
 
 func noopContainerTagsFunc(_ string) ([]string, error) {
@@ -593,10 +595,4 @@ func InAzureAppServices() bool {
 	_, existsLinux := os.LookupEnv("APPSVC_RUN_ZIP")
 	_, existsWin := os.LookupEnv("WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED")
 	return existsLinux || existsWin
-}
-
-func inAzureFunctionApp() bool {
-	_, existsRuntime := os.LookupEnv("FUNCTIONS_WORKER_RUNTIME")
-	_, existsVersion := os.LookupEnv("FUNCTIONS_EXTENSION_VERSION")
-	return existsRuntime || existsVersion
 }

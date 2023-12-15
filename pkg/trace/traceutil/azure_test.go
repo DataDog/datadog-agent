@@ -21,19 +21,16 @@ var mockAppServiceEnv = map[string]string{
 	"COMPUTERNAME":                 "test-instance",
 	"WEBSITE_STACK":                "NODE",
 	"WEBSITE_NODE_DEFAULT_VERSION": "~18",
-	"FUNCTIONS_WORKER_RUNTIME":     "node",
 	"FUNCTIONS_EXTENSION_VERSION":  "~4",
 }
 
 func TestGetAppServiceTags(t *testing.T) {
 	setEnvVars(t, mockAppServiceEnv)
 	websiteOS := runtime.GOOS
-	notInFunctionApp := false
-	inFunctionApp := true
 	// Not in a function app
-	linux := GetAppServicesTags(notInFunctionApp)
-
-	functionApp := GetAppServicesTags(inFunctionApp)
+	linux := GetAppServicesTags()
+	t.Setenv("FUNCTIONS_WORKER_RUNTIME", "node")
+	functionApp := GetAppServicesTags()
 
 	assert.Equal(t, "1234abcd", linux[aasInstanceID])
 	assert.Equal(t, "test-instance", linux[aasInstanceName])
