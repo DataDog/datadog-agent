@@ -17,7 +17,8 @@ const (
 	DefaultLogFile = "/var/log/datadog/system-probe.log"
 )
 
-func DisableUnsupportedKernel(isEnabled bool) bool {
+// Returns true if network_process needs to be disabled due to unsupported kernel version
+func DisablePESUnsupportedKernel(isEnabled bool) bool {
 	if !isEnabled {
 		return false
 	}

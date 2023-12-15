@@ -12,6 +12,7 @@ const (
 	DefaultLogFile = ""
 )
 
-func DisableUnsupportedKernel(isEnabled bool) bool {
+// Returns true if network_process needs to be disabled due to unsupported kernel version
+func DisablePESUnsupportedKernel(isEnabled bool) bool {
 	return false
 }

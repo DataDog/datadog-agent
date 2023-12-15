@@ -79,7 +79,7 @@ func adjustNetwork(cfg config.Config) {
 		return nil
 	})
 
-	if common.DisableUnsupportedKernel(cfg.GetBool(evNS("network_process", "enabled"))) {
+	if common.DisablePESUnsupportedKernel(cfg.GetBool(evNS("network_process", "enabled"))) {
 		cfg.Set(evNS("network_process", "enabled"), false, model.SourceAgentRuntime)
 	}
 
