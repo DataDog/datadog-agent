@@ -13,10 +13,8 @@ import (
 )
 
 const (
-	RunZip                   = "APPSVC_RUN_ZIP"
-	AppLogsTrace             = "WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED"
-	FunctionWorkerRuntime    = "FUNCTIONS_WORKER_RUNTIME"
-	FunctionExtensionVersion = "FUNCTIONS_EXTENSION_VERSION"
+	RunZip       = "APPSVC_RUN_ZIP"
+	AppLogsTrace = "WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED"
 )
 
 func TestInAzureAppServices(t *testing.T) {
