@@ -2,6 +2,7 @@
 Running E2E Tests with infra based on Pulumi
 """
 
+import base64
 import json
 import os
 import os.path
@@ -319,25 +320,34 @@ def _is_local_state(pulumi_about: dict) -> bool:
         return False
     return url.startswith("file://")
 
+def ssh_fingerprint_to_bytes(fingerprint: str) -> bytes:
+    # EXAMPLE: 256 SHA1:41jsg4Z9lgylj6/zmhGxtZ6/qZs testname (ED25519)
+    out = fingerprint.strip().split(' ')[1].split(':')[1]
+    # ssh leaves out padding but python will ignore extra padding so add the missing padding
+    return base64.b64decode(out + '==')
+
 KeyFingerprint = NamedTuple('KeyFingerprint', [('md5', str), ('sha1', str), ('sha256', str)])
 class KeyInfo(NamedTuple('KeyFingerprint', [('path', str), ('fingerprint', KeyFingerprint)])):
     def in_ssh_agent(self, ctx):
         out = ctx.run("ssh-add -l", hide=True)
+        out = ssh_fingerprint_to_bytes(out.stdout.strip())
+        return self.match(out)
 
-        for fingerprint in self.fingerprint:
-            if fingerprint in out.stdout:
+    def match(self, fingerprint: bytes):
+        for f in self.fingerprint:
+            if f == fingerprint:
                 return True
-
         return False
 
     def match_ec2_keypair(self, keypair):
-        # EC2 might include the '=' padding in the fingerprint, so strip it
+        # EC2 uses a different fingerprint hash/format depending on the key type and the key's origin
         # https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/verify-keys.html
-        for fingerprint in self.fingerprint:
-            if keypair["KeyFingerprint"].strip('=').lower() in fingerprint.lower():
-                return True
-
-        return False
+        ec2_fingerprint = keypair["KeyFingerprint"]
+        if ':' in ec2_fingerprint:
+            ec2_fingerprint = bytes.fromhex(ec2_fingerprint.replace(':', ''))
+        else:
+            ec2_fingerprint = base64.b64decode(ec2_fingerprint + '==')
+        return self.match(ec2_fingerprint)
 
     @classmethod
     def from_path(cls, ctx, path):
@@ -351,11 +361,13 @@ class KeyInfo(NamedTuple('KeyFingerprint', [('path', str), ('fingerprint', KeyFi
             if b'SSH' in firstline or firstline.startswith(b'ssh-'):
                 def getfingerprint(fmt, path):
                     out = ctx.run(f"ssh-keygen -l -E {fmt} -f \"{path}\"", hide=True)
-                    return out.stdout.strip()
+                    return ssh_fingerprint_to_bytes(out.stdout.strip())
             elif b'BEGIN' in firstline:
                 def getfingerprint(fmt, path):
                     out = ctx.run(f'openssl pkcs8 -in "{path}" -inform PEM -outform DER -topk8 -nocrypt | openssl {fmt} -c', hide=True)
-                    return out.stdout.strip()
+                    # EXAMPLE: (stdin)= e3:a8:bc:0a:3a:54:9f:b8:be:6e:75:8c:98:26:8e:3d:8e:e9:d0:69
+                    out = out.stdout.strip().split(' ')[1]
+                    return bytes.fromhex(out.replace(':', ''))
             else:
                 raise ValueError(f"Key file {path} is not a valid ssh key")
         # aws returns fingerprints in different formats so get a couple
