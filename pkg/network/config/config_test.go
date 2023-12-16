@@ -1656,7 +1656,7 @@ func TestEventStreamEnabledForSupportedKernels(t *testing.T) {
 		kv4150 := kernel.VersionCode(4, 15, 0)
 		require.NoError(t, err)
 		if kv < kv4150 {
-			t.Skip("This test should only be run on kernels <= 4.15.0")
+			t.Skip("This test should only be run on kernels >= 4.15.0")
 		}
 		aconfig.ResetSystemProbeConfig(t)
 		t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", strconv.FormatBool(true))
