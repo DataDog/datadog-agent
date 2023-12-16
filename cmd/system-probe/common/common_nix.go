@@ -24,8 +24,10 @@ func DisablePESUnsupportedKernel(isEnabled bool) bool {
 	}
 	kernelVersion, err := ebpfkernel.NewKernelVersion()
 	if err != nil {
-		log.Error("unable to detect the kernel version: %w", err)
-	} else if !kernelVersion.IsRH7Kernel() && !kernelVersion.IsRH8Kernel() && kernelVersion.Code < ebpfkernel.Kernel4_15 {
+		log.Errorf("unable to detect the kernel version: %s", err)
+		return false
+	}
+	if !kernelVersion.IsRH7Kernel() && !kernelVersion.IsRH8Kernel() && kernelVersion.Code < ebpfkernel.Kernel4_15 {
 		log.Warn("network_process is not supported for this kernel version. Disabling network_process")
 		return true
 	}
