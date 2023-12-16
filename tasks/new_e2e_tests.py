@@ -331,7 +331,7 @@ class KeyInfo(NamedTuple('KeyFingerprint', [('path', str), ('fingerprint', KeyFi
         return False
 
     def match_ec2_keypair(self, keypair):
-        # TODO: EC2 uses different fingerprint based on the key type
+        # EC2 might include the '=' padding in the fingerprint, so strip it
         # https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/verify-keys.html
         for fingerprint in self.fingerprint:
             if keypair["KeyFingerprint"].strip('=').lower() in fingerprint.lower():
@@ -343,13 +343,25 @@ class KeyInfo(NamedTuple('KeyFingerprint', [('path', str), ('fingerprint', KeyFi
     def from_path(cls, ctx, path):
         # Make sure the key is ascii
         with open(path, 'rb') as f:
-            if b'\0' in f.read():
+            firstline = f.readline()
+            if b'\0' in firstline:
                 raise ValueError(f"Key file {path} is not ascii, it may be in utf-16, please convert it to ascii")
+            # EC2 uses a different fingerprint hash/format depending on the key type and the key's origin
+            # https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/verify-keys.html
+            if b'SSH' in firstline or firstline.startswith(b'ssh-'):
+                def getfingerprint(fmt, path):
+                    out = ctx.run(f"ssh-keygen -l -E {fmt} -f \"{path}\"", hide=True)
+                    return out.stdout.strip()
+            elif b'BEGIN' in firstline:
+                def getfingerprint(fmt, path):
+                    out = ctx.run(f'openssl pkcs8 -in "{path}" -inform PEM -outform DER -topk8 -nocrypt | openssl {fmt} -c', hide=True)
+                    return out.stdout.strip()
+            else:
+                raise ValueError(f"Key file {path} is not a valid ssh key")
         # aws returns fingerprints in different formats so get a couple
         fingerprints = dict()
         for fmt in KeyFingerprint._fields:
-            out = ctx.run(f"ssh-keygen -l -E {fmt} -f \"{path}\"", hide=True)
-            fingerprints[fmt] = out.stdout.strip()
+            fingerprints[fmt] = getfingerprint(fmt, path)
         return KeyInfo(path=path, fingerprint=KeyFingerprint(**fingerprints))
 
 def load_ec2_keypairs(ctx):
@@ -428,7 +440,10 @@ def debug_keys(ctx):
     for keypath in get_ssh_keys():
         try:
             keyinfo, keypair = find_matching_ec2_keypair(ctx, keypairs, keypath)
-        except Exception as e:
+        except (ValueError,UnexpectedExit) as e:
+            if 'not a valid ssh key' in str(e):
+                continue
+            print(f'WARNING: {e}')
             continue
         if keypair is not None:
             print(f"Found '{keypair['KeyName']}' matches: {keypath}")
@@ -437,6 +452,7 @@ def debug_keys(ctx):
                 print("WARNING: Key name does not match configured keypair name. This key will not be used for provisioning.")
             if not keyinfo.in_ssh_agent(ctx):
                 print("WARNING: Key not found in ssh-agent. This key will not be used for connections.")
+            print()
             found = True
 
     if not found:
