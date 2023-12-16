@@ -7,6 +7,7 @@ environment:
   # For regression detection we only care about the processes generated inside the container
   # so this disables checking of the processes of the host the container is running on
   HOST_PROC: /tmp/procfs
+  DD_API_KEY: 00000001
 
 profiling_environment:
   DD_INTERNAL_PROFILING_ENABLED: true

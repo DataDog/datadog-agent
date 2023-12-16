@@ -8,6 +8,7 @@ environment:
   # so this disables checking of the processes of the host the container is running on
   HOST_PROC: /tmp/procfs
   DD_SYSTEM_PROBE_PROCESS_ENABLED: true
+  DD_API_KEY: 00000001
 
 profiling_environment:
   DD_INTERNAL_PROFILING_ENABLED: true
