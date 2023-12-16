@@ -28,7 +28,7 @@ func DisablePESUnsupportedKernel(isEnabled bool) bool {
 		return false
 	}
 	if !kernelVersion.IsRH7Kernel() && !kernelVersion.IsRH8Kernel() && kernelVersion.Code < ebpfkernel.Kernel4_15 {
-		log.Warn("network_process is not supported for this kernel version. Disabling network_process")
+		log.Warn("disabling process event monitoring as it is not supported for this kernel version")
 		return true
 	}
 
