@@ -48,6 +48,11 @@ var (
 
 	stackManager     *StackManager
 	initStackManager sync.Once
+
+	// Sets the log level for Pulumi operations
+	// Be careful setting this value, as it can expose sensitive information in the logs.
+	// https://www.pulumi.com/docs/support/troubleshooting/#verbose-logging
+	pulumiLogLevel = flag.Int("pulumi-log-level", 1, "Pulumi log level")
 )
 
 // StackManager handles
@@ -241,7 +246,7 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 		return nil, auto.UpResult{}, err
 	}
 
-	var loglevel uint = 1
+	var loglevel uint = uint(*pulumiLogLevel)
 	var logger io.Writer
 
 	if logWriter == nil {
