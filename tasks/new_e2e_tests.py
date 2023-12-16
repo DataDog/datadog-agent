@@ -320,22 +320,37 @@ def _is_local_state(pulumi_about: dict) -> bool:
     return url.startswith("file://")
 
 KeyFingerprint = NamedTuple('KeyFingerprint', [('md5', str), ('sha1', str), ('sha256', str)])
-KeyInfo = NamedTuple('KeyFingerprint', [('path', str), ('fingerprint', KeyFingerprint)])
+class KeyInfo(NamedTuple('KeyFingerprint', [('path', str), ('fingerprint', KeyFingerprint)])):
+    def in_ssh_agent(self, ctx):
+        out = ctx.run("ssh-add -l", hide=True)
 
-def get_key_info(ctx, path):
-    # Make sure the key is ascii
-    with open(path, 'rb') as f:
-        if b'\0' in f.read():
-            raise ValueError(f"Key file {path} is not ascii, it may be in utf-16, please convert it to ascii")
-    # aws returns fingerprints in different formats so get a couple
-    fingerprints = dict()
-    for fmt in KeyFingerprint._fields:
-        out = ctx.run(f"ssh-keygen -l -E {fmt} -f \"{path}\"", hide=True)
-        if out.exited != 0:
-            print("No AWS keypair found, please create one")
-            return
-        fingerprints[fmt] = out.stdout.strip()
-    return KeyInfo(path=path, fingerprint=KeyFingerprint(**fingerprints))
+        for fingerprint in self.fingerprint:
+            if fingerprint in out.stdout:
+                return True
+
+        return False
+
+    def match_ec2_keypair(self, keypair):
+        # TODO: EC2 uses different fingerprint based on the key type
+        # https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/verify-keys.html
+        for fingerprint in self.fingerprint:
+            if keypair["KeyFingerprint"].strip('=').lower() in fingerprint.lower():
+                return True
+
+        return False
+
+    @classmethod
+    def from_path(cls, ctx, path):
+        # Make sure the key is ascii
+        with open(path, 'rb') as f:
+            if b'\0' in f.read():
+                raise ValueError(f"Key file {path} is not ascii, it may be in utf-16, please convert it to ascii")
+        # aws returns fingerprints in different formats so get a couple
+        fingerprints = dict()
+        for fmt in KeyFingerprint._fields:
+            out = ctx.run(f"ssh-keygen -l -E {fmt} -f \"{path}\"", hide=True)
+            fingerprints[fmt] = out.stdout.strip()
+        return KeyInfo(path=path, fingerprint=KeyFingerprint(**fingerprints))
 
 def load_ec2_keypairs(ctx):
     out = ctx.run("aws ec2 describe-key-pairs --output json", hide=True)
@@ -349,11 +364,10 @@ def find_matching_ec2_keypair(ctx, keypairs, path) -> (KeyInfo, dict):
     if not os.path.exists(path):
         print(f"Key file {path} does not exist")
         return None, None
-    info = get_key_info(ctx, path)
+    info = KeyInfo.from_path(ctx, path)
     for keypair in keypairs:
-        for fingerprint in info.fingerprint:
-            if keypair["KeyFingerprint"].strip('=').lower() in fingerprint.lower():
-                return info, keypair
+        if info.match_ec2_keypair(keypair):
+            return info, keypair
     return None, None
 
 def get_ssh_keys():
@@ -364,15 +378,6 @@ def load_test_infra_config():
     with open(Path.home().joinpath(".test_infra_config.yaml")) as f:
         config = yaml.safe_load(f)
     return config
-
-def is_key_in_ssh_agent(ctx, keyinfo: KeyInfo):
-    out = ctx.run("ssh-add -l", hide=True)
-
-    for fingerprint in keyinfo.fingerprint:
-        if fingerprint in out.stdout:
-            return True
-
-    return False
 
 @task
 def debug_keys(ctx):
@@ -408,7 +413,7 @@ def debug_keys(ctx):
         print(json.dumps(keypair, indent=4))
         if keypair["KeyName"] != keypair_name:
             print("WARNING: Key name does not match configured keypair name. This key will not be used for provisioning.")
-        if not is_key_in_ssh_agent(ctx, keyinfo):
+        if not keyinfo.in_ssh_agent(ctx):
             print("WARNING: Key not found in ssh-agent. This key will not be used for connections.")
         found = True
     else:
@@ -430,7 +435,7 @@ def debug_keys(ctx):
             print(json.dumps(keypair, indent=4))
             if keypair["KeyName"] != keypair_name:
                 print("WARNING: Key name does not match configured keypair name. This key will not be used for provisioning.")
-            if not is_key_in_ssh_agent(ctx, keyinfo):
+            if not keyinfo.in_ssh_agent(ctx):
                 print("WARNING: Key not found in ssh-agent. This key will not be used for connections.")
             found = True
 
