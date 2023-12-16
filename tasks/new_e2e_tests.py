@@ -425,24 +425,34 @@ def debug_keys(ctx):
     config = load_test_infra_config()
     awsConf = config["configParams"]["aws"]
     keypair_name = awsConf["keyPairName"]
-    keypair_path = awsConf["publicKeyPath"]
 
     # lookup configured keypair
     print(f"Checking configured keypair:")
     print(f"\taws.keyPairName: {keypair_name}")
-    print(f"\taws.publicKeyPath: {keypair_path}")
-    keyinfo, keypair = find_matching_ec2_keypair(ctx, keypairs, keypair_path)
-    if keypair is not None:
-        print("Configured publicKeyPath found in aws!")
-        print(json.dumps(keypair, indent=4))
-        if keypair["KeyName"] != keypair_name:
-            print("WARNING: Key name does not match configured keypair name. This key will not be used for provisioning.")
-        if not keyinfo.in_ssh_agent(ctx):
-            print("WARNING: Key not found in ssh-agent. This key will not be used for connections.")
-        found = True
+    print(f"\taws.privateKeyPath: {awsConf.get('privateKeyPath', None)}")
+    print(f"\taws.publicKeyPath: {awsConf.get('publicKeyPath', None)}")
+    for keypair in keypairs:
+        if keypair["KeyName"] == keypair_name:
+            print("Configured keyPairName found in aws!")
+            print(json.dumps(keypair, indent=4))
+            break
     else:
-        print("WARNING: Configured publicKeyPath not found in aws!")
-    configuredKeyPair = keypair
+        print("WARNING: Configured keyPairName missing from aws!")
+    for keyname in ["privateKeyPath", "publicKeyPath"]:
+        keypair_path = awsConf.get(keyname, None)
+        if keypair_path is None:
+            continue
+        keyinfo, keypair = find_matching_ec2_keypair(ctx, keypairs, keypair_path)
+        if keypair is not None:
+            print(f"Configured {keyname} found in aws!")
+            print(json.dumps(keypair, indent=4))
+            if keypair["KeyName"] != keypair_name:
+                print("WARNING: Key name does not match configured keypair name. This key will not be used for provisioning.")
+            if not keyinfo.in_ssh_agent(ctx):
+                print("WARNING: Key missing from ssh-agent. This key will not be used for connections.")
+            found = True
+        else:
+            print(f"WARNING: Configured {keyname} missing from aws!")
 
     print()
 
@@ -463,7 +473,7 @@ def debug_keys(ctx):
             if keypair["KeyName"] != keypair_name:
                 print("WARNING: Key name does not match configured keypair name. This key will not be used for provisioning.")
             if not keyinfo.in_ssh_agent(ctx):
-                print("WARNING: Key not found in ssh-agent. This key will not be used for connections.")
+                print("WARNING: Key missing from ssh-agent. This key will not be used for connections.")
             print()
             found = True
 
@@ -523,11 +533,11 @@ def debug(ctx):
 
     print()
 
-    # Check aws-vault profile name
+    # Check aws-vault profile name, some invoke taskes hard code this value.
     expected_profile = 'sso-agent-sandbox-account-admin'
     out = ctx.run("aws-vault list", hide=True)
     if expected_profile not in out.stdout:
-        print(f"WARNING: expected profile {expected_profile} not found in aws-vault. Some invoke tasks may fail.")
+        print(f"WARNING: expected profile {expected_profile} missing from aws-vault. Some invoke tasks may fail.")
         print()
 
     debug_keys(ctx)
