@@ -8,13 +8,12 @@ import os
 import os.path
 import shutil
 import tempfile
-import yaml
 from pathlib import Path
 from typing import List, NamedTuple
 
 import yaml
 from invoke.context import Context
-from invoke.exceptions import UnexpectedExit, Exit
+from invoke.exceptions import Exit, UnexpectedExit
 from invoke.tasks import task
 
 from tasks.flavor import AgentFlavor
@@ -320,13 +319,17 @@ def _is_local_state(pulumi_about: dict) -> bool:
         return False
     return url.startswith("file://")
 
+
 def ssh_fingerprint_to_bytes(fingerprint: str) -> bytes:
     # EXAMPLE: 256 SHA1:41jsg4Z9lgylj6/zmhGxtZ6/qZs testname (ED25519)
     out = fingerprint.strip().split(' ')[1].split(':')[1]
     # ssh leaves out padding but python will ignore extra padding so add the missing padding
     return base64.b64decode(out + '==')
 
+
 KeyFingerprint = NamedTuple('KeyFingerprint', [('md5', str), ('sha1', str), ('sha256', str)])
+
+
 class KeyInfo(NamedTuple('KeyFingerprint', [('path', str), ('fingerprint', KeyFingerprint)])):
     def in_ssh_agent(self, ctx):
         out = ctx.run("ssh-add -l", hide=True)
@@ -359,15 +362,22 @@ class KeyInfo(NamedTuple('KeyFingerprint', [('path', str), ('fingerprint', KeyFi
             # EC2 uses a different fingerprint hash/format depending on the key type and the key's origin
             # https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/verify-keys.html
             if b'SSH' in firstline or firstline.startswith(b'ssh-'):
+
                 def getfingerprint(fmt, path):
                     out = ctx.run(f"ssh-keygen -l -E {fmt} -f \"{path}\"", hide=True)
                     return ssh_fingerprint_to_bytes(out.stdout.strip())
+
             elif b'BEGIN' in firstline:
+
                 def getfingerprint(fmt, path):
-                    out = ctx.run(f'openssl pkcs8 -in "{path}" -inform PEM -outform DER -topk8 -nocrypt | openssl {fmt} -c', hide=True)
+                    out = ctx.run(
+                        f'openssl pkcs8 -in "{path}" -inform PEM -outform DER -topk8 -nocrypt | openssl {fmt} -c',
+                        hide=True,
+                    )
                     # EXAMPLE: (stdin)= e3:a8:bc:0a:3a:54:9f:b8:be:6e:75:8c:98:26:8e:3d:8e:e9:d0:69
                     out = out.stdout.strip().split(' ')[1]
                     return bytes.fromhex(out.replace(':', ''))
+
             else:
                 raise ValueError(f"Key file {path} is not a valid ssh key")
         # aws returns fingerprints in different formats so get a couple
@@ -376,6 +386,7 @@ class KeyInfo(NamedTuple('KeyFingerprint', [('path', str), ('fingerprint', KeyFi
             fingerprints[fmt] = getfingerprint(fmt, path)
         return KeyInfo(path=path, fingerprint=KeyFingerprint(**fingerprints))
 
+
 def load_ec2_keypairs(ctx):
     out = ctx.run("aws ec2 describe-key-pairs --output json", hide=True)
     if out.exited != 0:
@@ -383,6 +394,7 @@ def load_ec2_keypairs(ctx):
         return
     jso = json.loads(out.stdout)
     return jso["KeyPairs"]
+
 
 def find_matching_ec2_keypair(ctx, keypairs, path) -> (KeyInfo, dict):
     if not os.path.exists(path):
@@ -394,14 +406,17 @@ def find_matching_ec2_keypair(ctx, keypairs, path) -> (KeyInfo, dict):
             return info, keypair
     return None, None
 
+
 def get_ssh_keys():
     root = Path.home().joinpath(".ssh")
     return list(map(root.joinpath, os.listdir(root)))
+
 
 def load_test_infra_config():
     with open(Path.home().joinpath(".test_infra_config.yaml")) as f:
         config = yaml.safe_load(f)
     return config
+
 
 @task
 def debug_keys(ctx):
@@ -410,7 +425,7 @@ def debug_keys(ctx):
     """
     # Ensure ssh-agent is running
     try:
-        out = ctx.run("ssh-add -l", hide=True)
+        ctx.run("ssh-add -l", hide=True)
     except UnexpectedExit as e:
         print(e)
         print("ssh-agent not available or no keys are loaded, please start it and load your keys")
@@ -427,7 +442,7 @@ def debug_keys(ctx):
     keypair_name = awsConf["keyPairName"]
 
     # lookup configured keypair
-    print(f"Checking configured keypair:")
+    print("Checking configured keypair:")
     print(f"\taws.keyPairName: {keypair_name}")
     print(f"\taws.privateKeyPath: {awsConf.get('privateKeyPath', None)}")
     print(f"\taws.publicKeyPath: {awsConf.get('publicKeyPath', None)}")
@@ -447,7 +462,9 @@ def debug_keys(ctx):
             print(f"Configured {keyname} found in aws!")
             print(json.dumps(keypair, indent=4))
             if keypair["KeyName"] != keypair_name:
-                print("WARNING: Key name does not match configured keypair name. This key will not be used for provisioning.")
+                print(
+                    "WARNING: Key name does not match configured keypair name. This key will not be used for provisioning."
+                )
             if not keyinfo.in_ssh_agent(ctx):
                 print("WARNING: Key missing from ssh-agent. This key will not be used for connections.")
             found = True
@@ -462,7 +479,7 @@ def debug_keys(ctx):
     for keypath in get_ssh_keys():
         try:
             keyinfo, keypair = find_matching_ec2_keypair(ctx, keypairs, keypath)
-        except (ValueError,UnexpectedExit) as e:
+        except (ValueError, UnexpectedExit) as e:
             if 'not a valid ssh key' in str(e):
                 continue
             print(f'WARNING: {e}')
@@ -471,7 +488,9 @@ def debug_keys(ctx):
             print(f"Found '{keypair['KeyName']}' matches: {keypath}")
             print(json.dumps(keypair, indent=4))
             if keypair["KeyName"] != keypair_name:
-                print("WARNING: Key name does not match configured keypair name. This key will not be used for provisioning.")
+                print(
+                    "WARNING: Key name does not match configured keypair name. This key will not be used for provisioning."
+                )
             if not keyinfo.in_ssh_agent(ctx):
                 print("WARNING: Key missing from ssh-agent. This key will not be used for connections.")
             print()
@@ -479,8 +498,11 @@ def debug_keys(ctx):
 
     if not found:
         print("No matching keypair found in aws!")
-        print("If this is unexpected, confirm that your aws credential's region matches the region you uploaded your key to.")
+        print(
+            "If this is unexpected, confirm that your aws credential's region matches the region you uploaded your key to."
+        )
         raise Exit(code=1)
+
 
 @task
 def debug(ctx):
@@ -500,7 +522,9 @@ def debug(ctx):
     out = ctx.run("aws --version", hide=True)
     if not out.stdout.startswith("aws-cli/2"):
         print(f"Detected invalid awscli version: {out.stdout}")
-        print("Please remove the current version and install awscli v2: https://docs.aws.amazon.com/cli/latest/userguide/cliv2-migration-instructions.html")
+        print(
+            "Please remove the current version and install awscli v2: https://docs.aws.amazon.com/cli/latest/userguide/cliv2-migration-instructions.html"
+        )
         raise Exit(code=1)
     print(f"AWS CLI version: {out.stdout.strip()}")
 
