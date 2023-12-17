@@ -36,7 +36,7 @@ type TrapListener struct {
 // NewTrapListener creates a simple TrapListener instance but does not start it
 func NewTrapListener(config *config.TrapsConfig, sender sender.Sender, packets packet.PacketsChannel, logger log.Component, status status.Manager) (*TrapListener, error) {
 	var err error
-	gosnmpListener := gosnmp.NewTrapListener()
+	gosnmpListener := gosnmp.NewTrapListener() //JMW5
 	gosnmpListener.Params, err = config.BuildSNMPParams(logger)
 	if err != nil {
 		return nil, err

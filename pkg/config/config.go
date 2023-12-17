@@ -30,6 +30,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	jsoniter "github.com/json-iterator/go" //JMW
 )
 
 const (
@@ -1623,6 +1624,14 @@ func LoadCustom(config Config, origin string, secretResolver optional.Option[sec
 // proxy will be in charge of forwarding data to the Datadog backend following FIPS standard. Starting from
 // fips.port_range_start we will assign a dedicated port per product (metrics, logs, traces, ...).
 func setupFipsEndpoints(config Config) error {
+	allSettings := config.AllSettings()
+	jsonout, err := jsoniter.Marshal(allSettings)
+	if err == nil {
+		log.Warnf("JMW start of setupFipsEndpoints() jsoniter.Marshal(allSettings) =\n----------\n%v\n----------\n", string(jsonout))
+	} else {
+		log.Warnf("JMW err = %v\n", err)
+	}
+
 	// Each port is dedicated to a specific data type:
 	//
 	// port_range_start: HAProxy stats
@@ -1732,6 +1741,14 @@ func setupFipsEndpoints(config Config) error {
 
 	// CWS
 	setupFipsLogsConfig(config, "runtime_security_config.endpoints.", urlFor(runtimeSecurity))
+
+	allSettings = config.AllSettings()
+	jsonout, err = jsoniter.Marshal(allSettings)
+	if err == nil {
+		log.Warnf("JMW end of setupFipsEndpoints() jsoniter.Marshal(allSettings) =\n----------\n%v\n----------\n", string(jsonout))
+	} else {
+		log.Warnf("JMW err = %v\n", err)
+	}
 
 	return nil
 }

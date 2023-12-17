@@ -140,6 +140,8 @@ import (
 
 	// register metadata providers
 	_ "github.com/DataDog/datadog-agent/pkg/collector/metadata"
+
+	jsoniter "github.com/json-iterator/go" //JMW
 )
 
 type cliParams struct {
@@ -567,8 +569,17 @@ func startAgent(
 		pkgTelemetry.RegisterStatsSender(sender)
 	}
 
-	// Start SNMP trap server
-	if traps.IsEnabled(pkgconfig.Datadog) {
+	allSettings := pkgconfig.Datadog.AllSettings()
+	//fmt.Printf("JMW ReadConfig() conf.AllSettings() =\n----------\n%v\n----------\n", allSettings)
+	jsonout, err := jsoniter.Marshal(allSettings)
+	if err == nil {
+		log.Warnf("JMW getSharedFxOption() jsoniter.Marshal(allSettings) =\n----------\n%v\n----------\n", string(jsonout))
+	} else {
+		log.Warnf("JMW err = %v\n", err)
+	}
+
+	// Start SNMP trap server JMW0
+	if traps.IsEnabled(pkgconfig.Datadog) { //JMWA
 		err = traps.StartServer(hostnameDetected, demultiplexer, pkgconfig.Datadog, log)
 		if err != nil {
 			log.Errorf("Failed to start snmp-traps server: %s", err)
