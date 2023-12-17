@@ -42,6 +42,7 @@ type NetworkDevicesMetadata struct {
 	Links            []TopologyLinkMetadata `json:"links,omitempty"`
 	NetflowExporters []NetflowExporter      `json:"netflow_exporters,omitempty"`
 	Diagnoses        []DiagnosisMetadata    `json:"diagnoses,omitempty"`
+	DeviceOids       []DeviceOid            `json:"device_oids,omitempty"`
 	CollectTimestamp int64                  `json:"collect_timestamp"`
 }
 
@@ -143,4 +144,12 @@ type DiagnosisMetadata struct {
 	ResourceType string      `json:"resource_type"`
 	ResourceID   string      `json:"resource_id"`
 	Diagnoses    []Diagnosis `json:"diagnoses"`
+}
+
+// DeviceOid device scan oid data
+type DeviceOid struct {
+	DeviceID    string `json:"device_id"`
+	Oid         string `json:"oid"`
+	Type        string `json:"type"`
+	ValueString string `json:"value_string"`
 }

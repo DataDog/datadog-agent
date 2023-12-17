@@ -11,6 +11,7 @@ import (
 	"errors"
 	_ "expvar" // Blank import used because this isn't directly used in this file
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/snmp/rcsnmpprofiles"
 	"net/http"
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 	"os"
@@ -509,6 +510,16 @@ func startAgent(
 				rcclient.Subscribe(data.ProductAgentIntegrations, rcProvider.IntegrationScheduleCallback)
 				// LoadAndRun is called later on
 				common.AC.AddConfigProvider(rcProvider, true, 10*time.Second)
+			}
+			if pkgconfig.Datadog.GetBool("remote_configuration.ndm_device_oid_collector.enabled") {
+				log.Infof("Start RC Device OID Collector")
+				sender, err := demultiplexer.GetDefaultSender()
+				if err != nil {
+					pkglog.Errorf("Failed to get sender: %s", err)
+				} else {
+					rcProvider := rcsnmpprofiles.NewRemoteConfigSNMPProfilesManager(sender)
+					rcclient.Subscribe(data.ProductNDMDeviceProfilesCustom, rcProvider.Callback)
+				}
 			}
 		}
 	}
