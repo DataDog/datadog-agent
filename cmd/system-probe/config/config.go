@@ -95,18 +95,16 @@ func newSysprobeConfig(configPath string) (*Config, error) {
 	// load the configuration
 	_, err := aconfig.LoadCustom(aconfig.SystemProbe, "system-probe", optional.NewNoneOption[secrets.Component](), aconfig.Datadog.GetEnvVars())
 	if err != nil {
-		var e viper.ConfigFileNotFoundError
-		//nolint:revive // TODO(EBPF) Fix revive linter
-		if errors.As(err, &e) || errors.Is(err, os.ErrNotExist) {
-			// do nothing, we can ignore a missing system-probe.yaml config file
-		} else if errors.Is(err, fs.ErrPermission) {
+		if errors.Is(err, fs.ErrPermission) {
 			// special-case permission-denied with a clearer error message
 			if runtime.GOOS == "windows" {
 				return nil, fmt.Errorf(`cannot access the system-probe config file (%w); try running the command in an Administrator shell"`, err)
-			} else { //nolint:revive // TODO(EBPF) Fix revive linter
-				return nil, fmt.Errorf("cannot access the system-probe config file (%w); try running the command under the same user as the Datadog Agent", err)
 			}
-		} else {
+			return nil, fmt.Errorf("cannot access the system-probe config file (%w); try running the command under the same user as the Datadog Agent", err)
+		}
+
+		var e viper.ConfigFileNotFoundError
+		if !errors.As(err, &e) && !errors.Is(err, os.ErrNotExist) {
 			return nil, fmt.Errorf("unable to load system-probe config file: %w", err)
 		}
 	}

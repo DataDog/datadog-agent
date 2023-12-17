@@ -5,11 +5,12 @@
 
 //go:build test
 
-package demultiplexer
+package demultiplexerimpl
 
 import (
 	"testing"
 
+	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -18,14 +19,14 @@ import (
 )
 
 func TestSetDefaultSender(t *testing.T) {
-	mock := fxutil.Test[Mock](t, MockModule(),
+	mock := fxutil.Test[demultiplexerComp.Mock](t, MockModule(),
 		core.MockBundle(),
 		defaultforwarder.MockModule())
 
 	sender := &mocksender.MockSender{}
 	mock.SetDefaultSender(sender)
 
-	var component Component = mock
+	var component demultiplexerComp.Component = mock
 
 	lazySenderManager, err := component.LazyGetSenderManager()
 	require.NoError(t, err)

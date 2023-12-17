@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// CompiledOutput is the interface for a compiled output from runtime compilation
 type CompiledOutput interface {
 	io.Reader
 	io.ReaderAt

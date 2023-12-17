@@ -47,6 +47,7 @@
 /.github/workflows/windows-*.yml                    @DataDog/windows-agent
 /.github/workflows/cws-btfhub-sync.yml              @DataDog/agent-security
 /.github/workflows/gohai.yml                        @DataDog/agent-shared-components
+/.github/workflows/go-update-commenter.yml          @DataDog/agent-shared-components
 
 # Gitlab files
 # Files containing job contents are owned by teams in charge of the jobs + agent-platform
@@ -508,6 +509,7 @@
 /tools/                                 @DataDog/agent-platform
 /tools/ebpf/                            @DataDog/ebpf-platform
 /tools/gdb/                             @DataDog/agent-shared-components
+/tools/go-update/                       @DataDog/agent-shared-components
 /tools/retry_file_dump/                 @DataDog/agent-metrics-logs
 /tools/windows/                         @DataDog/windows-agent
 /tools/windows/DatadogAgentInstaller/WixSetup/localization-en-us.wxl @DataDog/windows-agent @DataDog/documentation
