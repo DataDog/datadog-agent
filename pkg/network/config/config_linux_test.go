@@ -7,12 +7,16 @@ package config
 
 import (
 	"os"
+	"runtime"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
 
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func TestDisableRootNetNamespace(t *testing.T) {
@@ -32,4 +36,43 @@ func TestDisableRootNetNamespace(t *testing.T) {
 	require.NoError(t, err)
 	defer ns.Close()
 	require.True(t, ns.Equal(rootNs))
+}
+
+func TestEventStreamEnabledForSupportedKernelsLinux(t *testing.T) {
+	t.Run("for kernels <4.15.0", func(t *testing.T) {
+		if runtime.GOOS != "linux" {
+			t.Skip("This is only for linux")
+		}
+		kv, err := kernel.HostVersion()
+		kv4150 := kernel.VersionCode(4, 15, 0)
+		require.NoError(t, err)
+		if kv >= kv4150 {
+			t.Skip("This test should only be run on kernels < 4.15.0")
+		}
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", strconv.FormatBool(true))
+
+		cfg := aconfig.SystemProbe
+		sysconfig.Adjust(cfg)
+
+		require.False(t, cfg.GetBool("event_monitoring_config.network_process.enabled"))
+	})
+	t.Run("for kernels >=4.15.0 with default value", func(t *testing.T) {
+		if runtime.GOOS != "linux" {
+			t.Skip("This is only for linux")
+		}
+		kv, err := kernel.HostVersion()
+		kv4150 := kernel.VersionCode(4, 15, 0)
+		require.NoError(t, err)
+		if kv < kv4150 {
+			t.Skip("This test should only be run on kernels >= 4.15.0")
+		}
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", strconv.FormatBool(true))
+
+		cfg := aconfig.SystemProbe
+		sysconfig.Adjust(cfg)
+
+		require.True(t, cfg.GetBool("event_monitoring_config.network_process.enabled"))
+	})
 }
