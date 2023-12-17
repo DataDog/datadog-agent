@@ -1633,10 +1633,10 @@ system_probe_config:
 }
 
 func TestEventStreamEnabledForSupportedKernels(t *testing.T) {
-	if runtime.GOOS != "linux" {
-		t.Skip("This is only for linux")
-	}
 	t.Run("for kernels <4.15.0", func(t *testing.T) {
+		if runtime.GOOS != "linux" {
+			t.Skip("This is only for linux")
+		}
 		kv, err := kernel.HostVersion()
 		kv4150 := kernel.VersionCode(4, 15, 0)
 		require.NoError(t, err)
@@ -1652,6 +1652,9 @@ func TestEventStreamEnabledForSupportedKernels(t *testing.T) {
 		require.False(t, cfg.GetBool("event_monitoring_config.network_process.enabled"))
 	})
 	t.Run("for kernels >=4.15.0 with default value", func(t *testing.T) {
+		if runtime.GOOS != "linux" {
+			t.Skip("This is only for linux")
+		}
 		kv, err := kernel.HostVersion()
 		kv4150 := kernel.VersionCode(4, 15, 0)
 		require.NoError(t, err)
@@ -1665,6 +1668,18 @@ func TestEventStreamEnabledForSupportedKernels(t *testing.T) {
 		sysconfig.Adjust(cfg)
 
 		require.True(t, cfg.GetBool("event_monitoring_config.network_process.enabled"))
+	})
+	t.Run("does nothing for windows", func(t *testing.T) {
+		if runtime.GOOS != "windows" {
+			t.Skip("This is only for windows")
+		}
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", strconv.FormatBool(false))
+
+		cfg := aconfig.SystemProbe
+		sysconfig.Adjust(cfg)
+
+		require.False(t, cfg.GetBool("event_monitoring_config.network_process.enabled"))
 	})
 }
 
