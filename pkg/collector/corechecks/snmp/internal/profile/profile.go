@@ -8,11 +8,13 @@ package profile
 
 import (
 	"fmt"
-	"path/filepath"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"path/filepath"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // GetProfiles returns profiles depending on various sources:
@@ -22,6 +24,10 @@ import (
 //   - remote config profiles
 func GetProfiles(initConfigProfiles ProfileConfigMap) (ProfileConfigMap, error) {
 	var profiles ProfileConfigMap
+
+	// TODO: Use a Profile Manager to handle profiles state?
+	//       It can include loops to check for new RC Profiles at regular interval.
+
 	if len(initConfigProfiles) > 0 {
 		// TODO: [PERFORMANCE] Load init config custom profiles once for all integrations
 		//   There are possibly multiple init configs
@@ -30,6 +36,15 @@ func GetProfiles(initConfigProfiles ProfileConfigMap) (ProfileConfigMap, error) 
 			return nil, fmt.Errorf("failed to load initConfig profiles: %s", err)
 		}
 		profiles = customProfiles
+	} else if pkgconfig.Datadog.GetBool("remote_configuration.snmp_profiles.enabled") {
+		log.Info("Loading REMOTE CONFIG profiles")
+		time.Sleep(10 * time.Second) // TODO: Temp Hack to wait for remote config profiles to be available
+		defaultProfiles, err := loadRemoteConfigProfiles()
+		if err != nil {
+			return nil, fmt.Errorf("failed to load remote config profiles: %s", err)
+		}
+		log.Infof("defaultProfiles count: %d", len(defaultProfiles))
+		profiles = defaultProfiles
 	} else if profileBundleFileExist() {
 		defaultProfiles, err := loadBundleJSONProfiles()
 		if err != nil {

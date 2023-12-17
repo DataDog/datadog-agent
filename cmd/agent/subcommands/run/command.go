@@ -88,6 +88,7 @@ import (
 	pkgMetadata "github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/snmp/rcsnmpprofiles"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	otlpStatus "github.com/DataDog/datadog-agent/pkg/status/otlp"
@@ -509,6 +510,15 @@ func startAgent(
 				rcclient.Subscribe(data.ProductAgentIntegrations, rcProvider.IntegrationScheduleCallback)
 				// LoadAndRun is called later on
 				common.AC.AddConfigProvider(rcProvider, true, 10*time.Second)
+			}
+			if pkgconfig.Datadog.GetBool("remote_configuration.snmp_profiles.enabled") {
+				// TODO: ONLY SUBSCRIBE IF SNMP INTEGRATION IS USED
+				//       To avoid consuming RC Configs if SNMP INTEGRATION is not used.
+				//       Possible solution: In SNMP integration, when the first integration instance
+				//       is configured/run, we can make a call to subscribe to RC (with mutex to only do it once)
+				//       for NDM Profiles.
+				rcProvider := rcsnmpprofiles.NewRemoteConfigSNMPProfilesManager()
+				rcclient.Subscribe(data.ProductNDMDeviceProfilesCustom, rcProvider.Callback)
 			}
 		}
 	}

@@ -19,6 +19,9 @@ import (
 )
 
 func loadBundleJSONProfiles() (ProfileConfigMap, error) {
+	// TODO: Avoid loading json profiles for each instance
+	//       Possibly use similar strategy as yaml global cache
+
 	jsonStr, err := getProfilesBundleJSON()
 	if err != nil {
 		return nil, err

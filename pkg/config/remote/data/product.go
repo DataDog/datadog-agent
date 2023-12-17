@@ -17,6 +17,8 @@ const (
 	ProductCWSCustom Product = "CWS_CUSTOM"
 	// ProductCWSProfile is the cloud workload security product
 	ProductCWSProfile Product = "CWS_SECURITY_PROFILES"
+	// ProductNDMDeviceProfilesCustom is the NDM Custom Profiles product
+	ProductNDMDeviceProfilesCustom Product = "NDM_DEVICE_PROFILES_CUSTOM"
 	// ProductAPMTracing is the apm tracing product
 	ProductAPMTracing Product = "APM_TRACING"
 	// ProductTesting1 is a testing product
