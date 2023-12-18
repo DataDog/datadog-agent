@@ -42,13 +42,13 @@ func (suite *eksSuite) SetupSuite() {
 		"dddogstatsd:deploy":    auto.ConfigValue{Value: "true"},
 	}
 
-	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(ctx, "eks-cluster", stackConfig, eks.Run, false)
+	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(ctx, "eks-cluster", stackConfig, eks.Run, false, nil)
 	if !suite.Assert().NoError(err) {
 		stackName, err := infra.GetStackManager().GetPulumiStackName("eks-cluster")
 		suite.Require().NoError(err)
 		suite.T().Log(dumpEKSClusterState(ctx, stackName))
 		if !runner.GetProfile().AllowDevMode() || !*keepStacks {
-			infra.GetStackManager().DeleteStack(ctx, "eks-cluster")
+			infra.GetStackManager().DeleteStack(ctx, "eks-cluster", nil)
 		}
 		suite.T().FailNow()
 	}

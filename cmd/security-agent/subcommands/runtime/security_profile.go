@@ -64,7 +64,7 @@ func securityProfileShowCommands(globalParams *command.GlobalParams) []*cobra.Co
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -110,7 +110,7 @@ func listSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -210,7 +210,7 @@ func saveSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}

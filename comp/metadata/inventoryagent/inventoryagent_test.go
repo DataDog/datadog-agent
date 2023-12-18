@@ -27,8 +27,8 @@ func getTestInventoryPayload(t *testing.T, confOverrides map[string]any) *invent
 	p := newInventoryAgentProvider(
 		fxutil.Test[dependencies](
 			t,
-			logimpl.MockModule,
-			config.MockModule,
+			logimpl.MockModule(),
+			config.MockModule(),
 			fx.Replace(config.MockParams{Overrides: confOverrides}),
 			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
 		),
@@ -226,4 +226,9 @@ func TestGet(t *testing.T) {
 	// verify that the return map is a copy
 	p["test"] = 21
 	assert.Equal(t, 1234, ia.data["test"])
+}
+
+func TestFlareProviderFilename(t *testing.T) {
+	ia := getTestInventoryPayload(t, nil)
+	assert.Equal(t, "agent.json", ia.FlareFileName)
 }

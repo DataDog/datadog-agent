@@ -1,6 +1,6 @@
 # Defining Components
 
-You can use the invoke task `inv new-component comp/<bundleName>/<component>` to generate a scaffold for your new component.
+You can use the invoke task `inv components.new-component comp/<bundleName>/<component>` to generate a scaffold for your new component.
 
 Below is a description of the different folders and files of your component.
 
@@ -35,9 +35,11 @@ The completed `comp/<bundleName>/<component>/<component>impl/<component>.go` loo
 package config
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-  fx.Provide(newFoo),
-)
+func Module() fxutil.Module {
+  return fxutil.Component(
+    fx.Provide(newFoo),
+  )
+}
 
 type foo struct {
   foos []string
@@ -103,9 +105,11 @@ The `comp/<bundleName>/<component>/<component>impl/<component>_mock.go` looks li
 package foo
 
 // MockModule defines the fx options for the mock component.
-var MockModule = fxutil.Component(
+func MockModule() fxutil.Module {
+  return fxutil.Component(
   fx.Provide(newMock),
-)
+  )
+}
 ```
 
 ```go

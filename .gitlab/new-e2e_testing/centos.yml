@@ -35,7 +35,7 @@
     E2E_OSVERS: "rhel-86-fips"
     E2E_CWS_SUPPORTED_OSVERS: "rhel-86-fips"
     E2E_BRANCH_OSVERS: "rhel-86-fips"
-  needs: ["deploy_rpm_testing-a7_x64"]
+  needs: ["deploy_rpm_testing-a6_x64"]
 
 new-e2e-agent-platform-install-script-centos-a6-x86_64:
   stage: kitchen_testing

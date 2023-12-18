@@ -32,9 +32,11 @@ import (
 )
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newInventoryChecksProvider),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newInventoryChecksProvider),
+	)
+}
 
 type metadata map[string]interface{}
 type checksMetadata map[string][]metadata
@@ -104,7 +106,7 @@ func newInventoryChecksProvider(deps dependencies) provides {
 		hostname: hname,
 		data:     map[string]instanceMetadata{},
 	}
-	ic.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ic.getPayload, "host.json")
+	ic.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ic.getPayload, "checks.json")
 
 	// We want to be notified when the collector add or removed a check.
 	// TODO: (component) - This entire metadata provider should be part of the collector. Once the collector is a

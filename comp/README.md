@@ -84,6 +84,10 @@ Package log implements a component to handle logging internal to the agent.
 
 Package secrets decodes secret values by invoking the configured executable command
 
+### [comp/core/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/status)
+
+Package status displays information about the agent.
+
 ### [comp/core/sysprobeconfig](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/sysprobeconfig)
 
 *Datadog Team*: ebpf-platform

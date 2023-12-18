@@ -18,8 +18,8 @@ import (
 func TestExampleStoreSubscribe(t *testing.T) {
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		logimpl.MockModule,
-		config.MockModule,
+		logimpl.MockModule(),
+		config.MockModule(),
 		fx.Supply(NewParams()),
 	))
 

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// Package debug is the debug system-probe subcommand
 package debug
 
 import (
@@ -53,7 +53,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:            logimpl.ForOneShot("SYS-PROBE", "off", false),
 				}),
 				// no need to provide sysprobe logger since ForOneShot ignores config values
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}

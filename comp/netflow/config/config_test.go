@@ -21,7 +21,7 @@ import (
 )
 
 func TestReadConfig(t *testing.T) {
-	logger := fxutil.Test[log.Component](t, logimpl.MockModule)
+	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
 
 	var tests = []struct {
 		name           string

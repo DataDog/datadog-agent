@@ -42,13 +42,3 @@ func pageAlign[T constraints.Integer](x T) T {
 func align[T constraints.Integer](x, a T) T {
 	return (x + (a - 1)) & ^(a - 1)
 }
-
-// generic slice deletion at position i without concern for slice order
-//
-//nolint:unused // TODO(EBPF) Fix unused linter
-func deleteAtNoOrder[S ~[]E, E any](s S, i int) S {
-	s[i] = s[len(s)-1]
-	// use zero value here to ensure no memory leaks
-	s[len(s)-1] = *new(E)
-	return s[:len(s)-1]
-}

@@ -26,8 +26,8 @@ func getTestInventoryChecks(t *testing.T, coll optional.Option[collector.Collect
 	p := newInventoryChecksProvider(
 		fxutil.Test[dependencies](
 			t,
-			logimpl.MockModule,
-			config.MockModule,
+			logimpl.MockModule(),
+			config.MockModule(),
 			fx.Replace(config.MockParams{Overrides: overrides}),
 			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
 			fx.Provide(func() optional.Option[collector.Collector] {
@@ -156,4 +156,9 @@ func TestGetPayload(t *testing.T) {
 
 	// Check that metadata linked to non-existing check were deleted
 	assert.NotContains(t, "non_running_checkid", ic.data)
+}
+
+func TestFlareProviderFilename(t *testing.T) {
+	ic := getTestInventoryChecks(t, optional.NewNoneOption[collector.Collector](), nil)
+	assert.Equal(t, "checks.json", ic.FlareFileName)
 }

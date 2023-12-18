@@ -17,11 +17,12 @@ import (
 //
 //	fxutil.Test[dependencies](
 //	   t,
-//	   inventoryhost.MockModule,
+//	   inventoryhost.MockModule(),
 //	)
-var MockModule = fxutil.Component(
-	fx.Provide(newMock),
-)
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newMock))
+}
 
 type inventoryhostMock struct{}
 
