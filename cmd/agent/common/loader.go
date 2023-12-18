@@ -71,7 +71,7 @@ func LoadComponents(ctx context.Context, senderManager sender.SenderManager, con
 
 	// create the Collector instance and start all the components
 	// NOTICE: this will also setup the Python environment, if available
-	Coll = collector.NewCollector(senderManager, GetPythonPaths()...)
+	Coll = collector.NewCollector(senderManager, config.Datadog.GetDuration("check_cancel_timeout"), GetPythonPaths()...)
 
 	// setup autodiscovery
 	confSearchPaths := []string{
