@@ -13,17 +13,21 @@ type SyscallType int32
 
 const (
 	// SyscallTypeUnknown unknown type
-	SyscallTypeUnknown SyscallType = 0
+	SyscallTypeUnknown SyscallType = iota
 	// SyscallTypeExec exec type
-	SyscallTypeExec SyscallType = 1
+	SyscallTypeExec
 	// SyscallTypeFork fork type
-	SyscallTypeFork SyscallType = 2
+	SyscallTypeFork
 	// SyscallTypeOpen open type
-	SyscallTypeOpen SyscallType = 3
+	SyscallTypeOpen
 	// SyscallTypeExit exit type
-	SyscallTypeExit SyscallType = 4
+	SyscallTypeExit
 	// SyscallTypeFcntl fcntl type
-	SyscallTypeFcntl SyscallType = 5
+	SyscallTypeFcntl
+	// SyscallTypeSetUID setuid/setreuid type
+	SyscallTypeSetUID
+	// SyscallTypeSetGID setgid/setregid type
+	SyscallTypeSetGID
 )
 
 // ContainerContext defines a container context
@@ -40,11 +44,20 @@ type FcntlSyscallMsg struct {
 	Cmd uint32
 }
 
+// Credentials defines process credentials
+type Credentials struct {
+	UID  uint32
+	EUID uint32
+	GID  uint32
+	EGID uint32
+}
+
 // ExecSyscallMsg defines an exec message
 type ExecSyscallMsg struct {
-	Filename string
-	Args     []string
-	Envs     []string
+	Filename    string
+	Args        []string
+	Envs        []string
+	Credentials *Credentials
 }
 
 // ForkSyscallMsg defines a fork message
@@ -72,6 +85,18 @@ type ChdirSyscallFakeMsg struct {
 	Path string
 }
 
+// SetUIDSyscallMsg defines a setreuid message
+type SetUIDSyscallMsg struct {
+	UID  int32
+	EUID int32
+}
+
+// SetGIDSyscallMsg defines a setregid message
+type SetGIDSyscallMsg struct {
+	GID  int32
+	EGID int32
+}
+
 // SyscallMsg defines a syscall message
 type SyscallMsg struct {
 	SeqNum           uint64
@@ -84,8 +109,12 @@ type SyscallMsg struct {
 	Fork             *ForkSyscallMsg
 	Exit             *ExitSyscallMsg
 	Fcntl            *FcntlSyscallMsg
-	Dup              *DupSyscallFakeMsg
-	Chdir            *ChdirSyscallFakeMsg
+	SetUID           *SetUIDSyscallMsg
+	SetGID           *SetGIDSyscallMsg
+
+	// internals
+	Dup   *DupSyscallFakeMsg
+	Chdir *ChdirSyscallFakeMsg
 }
 
 // String returns string representation
