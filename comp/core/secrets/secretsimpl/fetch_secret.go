@@ -148,6 +148,8 @@ func (r *secretResolver) fetchSecret(secretsHandle []string) (map[string]string,
 			return nil, fmt.Errorf("resolved secret for '%s' is empty", sec)
 		}
 
+		// add it to the cache
+		r.cache[sec] = v.Value
 		res[sec] = v.Value
 	}
 	return res, nil

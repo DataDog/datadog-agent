@@ -318,15 +318,15 @@ func (r *secretResolver) resolve(data []byte, origin string, notifyCb secrets.Re
 		if r.fetchHookFunc != nil {
 			// hook used only for tests
 			secrets, err = r.fetchHookFunc(newHandles)
+			// add results to the cache
+			for handle, secretValue := range secrets {
+				r.cache[handle] = secretValue
+			}
 		} else {
 			secrets, err = r.fetchSecret(newHandles)
 		}
 		if err != nil {
 			return nil, err
-		}
-		// add results to the cache
-		for handle, secretValue := range secrets {
-			r.cache[handle] = secretValue
 		}
 
 		w.resolver = func(yamlPath []string, value string) (string, error) {
