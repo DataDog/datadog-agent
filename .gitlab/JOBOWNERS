@@ -8,6 +8,7 @@ build_processed_btfhub_archive       @DataDog/ebpf-platform
 # Notifications are handled separately for more fine-grained control on go tests
 tests_*                              @DataDog/multiple
 tests_ebpf*                          @DataDog/ebpf-platform
+tests_windows_sysprobe*              @DataDog/ebpf-platform
 security_go_generate_check           @DataDog/agent-security
 prepare_ebpf_functional_tests*       @DataDog/ebpf-platform
 
