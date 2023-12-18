@@ -7,6 +7,7 @@ package aggregator
 import (
 	"encoding/json"
 	"runtime"
+	"sync"
 	"testing"
 	"time"
 
@@ -140,23 +141,28 @@ func TestCommonAggregator(t *testing.T) {
 	})
 
 	t.Run("Thread safe", func(t *testing.T) {
+		var wg sync.WaitGroup
 		data, err := generateTestData()
 		require.NoError(t, err)
 		agg := newAggregator(parseMockPayloadItem)
 		// add some data to ensure we have names
 		err = agg.UnmarshallPayloads(data)
 		assert.NoError(t, err)
+		wg.Add(2)
 		go func() {
+			defer wg.Done()
 			for i := 0; i < 100; i++ {
 				err := agg.UnmarshallPayloads(data)
 				assert.NoError(t, err)
 			}
 		}()
 		go func() {
+			defer wg.Done()
 			for i := 0; i < 100; i++ {
 				names := agg.GetNames()
 				assert.NotEmpty(t, names)
 			}
 		}()
+		wg.Wait()
 	})
 }
