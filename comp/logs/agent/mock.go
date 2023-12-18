@@ -22,6 +22,7 @@ type mockLogsAgent struct {
 	addedSchedulers []schedulers.Scheduler
 	hasFlushed      bool
 	flushDelay      time.Duration
+	logSources      *sources.LogSources
 }
 
 func newMock(deps dependencies) optional.Option[Mock] {
@@ -36,6 +37,18 @@ func newMock(deps dependencies) optional.Option[Mock] {
 		OnStop:  logsAgent.stop,
 	})
 	return optional.NewOption[Mock](logsAgent)
+}
+
+// NewMock can be used in other packages using the log agent as a dependency.
+func NewMock(logSources *sources.LogSources) optional.Option[Component] {
+	logsAgent := &mockLogsAgent{
+		hasFlushed:      false,
+		addedSchedulers: make([]schedulers.Scheduler, 0),
+		isRunning:       false,
+		flushDelay:      0,
+		logSources:      logSources,
+	}
+	return optional.NewOption[Component](logsAgent)
 }
 
 func (a *mockLogsAgent) start(context.Context) error {
@@ -61,7 +74,7 @@ func (a *mockLogsAgent) GetMessageReceiver() *diagnostic.BufferedMessageReceiver
 }
 
 func (a *mockLogsAgent) GetSources() *sources.LogSources {
-	return nil
+	return a.logSources
 }
 
 // Serverless methods

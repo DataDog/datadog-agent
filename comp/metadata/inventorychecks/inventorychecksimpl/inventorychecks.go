@@ -30,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	cjson "github.com/tent/canonical-json-go"
 	"go.uber.org/fx"
 )
 
@@ -210,32 +209,34 @@ func (ic *inventorychecksImpl) getPayload() marshaler.JSONMarshaler {
 
 	logsMetadata := make(map[string][]metadata)
 	if sources, isSet := ic.sources.Get(); isSet {
-		for _, logSource := range sources.GetSources() {
-			if _, found := logsMetadata[logSource.Name]; !found {
-				logsMetadata[logSource.Name] = []metadata{}
-			}
+		if sources != nil {
+			for _, logSource := range sources.GetSources() {
+				if _, found := logsMetadata[logSource.Name]; !found {
+					logsMetadata[logSource.Name] = []metadata{}
+				}
 
-			parsedJSON, err := cjson.Marshal(logSource.Config)
-			if err != nil {
-				ic.log.Debugf("could not parse log configuration for source metadata %s: %v", logSource.Name, err)
-				continue
-			}
+				parsedJSON, err := logSource.Config.PublicJSON()
+				if err != nil {
+					ic.log.Debugf("could not parse log configuration for source metadata %s: %v", logSource.Name, err)
+					continue
+				}
 
-			// Compute log source status
-			logSourceStatus := "pending"
-			if logSource.Status.IsSuccess() {
-				logSourceStatus = "success"
-			} else if logSource.Status.IsError() {
-				logSourceStatus = "error"
-			}
+				// Compute log source status
+				logSourceStatus := "pending"
+				if logSource.Status.IsSuccess() {
+					logSourceStatus = "success"
+				} else if logSource.Status.IsError() {
+					logSourceStatus = "error"
+				}
 
-			logsMetadata[logSource.Name] = append(logsMetadata[logSource.Name], metadata{
-				"config": string(parsedJSON),
-				"state": map[string]string{
-					"error":  logSource.Status.GetError(),
-					"status": logSourceStatus,
-				},
-			})
+				logsMetadata[logSource.Name] = append(logsMetadata[logSource.Name], metadata{
+					"config": string(parsedJSON),
+					"state": map[string]string{
+						"error":  logSource.Status.GetError(),
+						"status": logSourceStatus,
+					},
+				})
+			}
 		}
 	}
 

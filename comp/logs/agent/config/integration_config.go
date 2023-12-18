@@ -6,6 +6,7 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -35,59 +36,59 @@ const (
 // LogsConfig represents a log source config, which can be for instance
 // a file to tail or a port to listen to.
 type LogsConfig struct {
-	Type string `json:"type,omitempty"`
+	Type string
 
-	Port        int    `json:"port,omitempty"`                                     // Network
-	IdleTimeout string `mapstructure:"idle_timeout" json:"idle_timeout,omitempty"` // Network
-	Path        string `json:"path,omitempty"`                                     // File, Journald
+	Port        int    // Network
+	IdleTimeout string `mapstructure:"idle_timeout" json:"idle_timeout"` // Network
+	Path        string // File, Journald
 
-	Encoding     string   `mapstructure:"encoding" json:"encoding,omitempty"`             // File
-	ExcludePaths []string `mapstructure:"exclude_paths" json:"exclude_paths,omitempty"`   // File
-	TailingMode  string   `mapstructure:"start_position" json:"start_position,omitempty"` // File
+	Encoding     string   `mapstructure:"encoding" json:"encoding"`             // File
+	ExcludePaths []string `mapstructure:"exclude_paths" json:"exclude_paths"`   // File
+	TailingMode  string   `mapstructure:"start_position" json:"start_position"` // File
 
 	//nolint:revive // TODO(AML) Fix revive linter
-	ConfigId           string   `mapstructure:"config_id" json:"config_id,omitempty"`                   // Journald
-	IncludeSystemUnits []string `mapstructure:"include_units" json:"include_units,omitempty"`           // Journald
-	ExcludeSystemUnits []string `mapstructure:"exclude_units" json:"exclude_units,omitempty"`           // Journald
-	IncludeUserUnits   []string `mapstructure:"include_user_units" json:"include_user_units,omitempty"` // Journald
-	ExcludeUserUnits   []string `mapstructure:"exclude_user_units" json:"exclude_user_units,omitempty"` // Journald
-	IncludeMatches     []string `mapstructure:"include_matches" json:"include_matches,omitempty"`       // Journald
-	ExcludeMatches     []string `mapstructure:"exclude_matches" json:"exclude_matches,omitempty"`       // Journald
-	ContainerMode      bool     `mapstructure:"container_mode" json:"container_mode,omitempty"`         // Journald
+	ConfigId           string   `mapstructure:"config_id" json:"config_id"`                   // Journald
+	IncludeSystemUnits []string `mapstructure:"include_units" json:"include_units"`           // Journald
+	ExcludeSystemUnits []string `mapstructure:"exclude_units" json:"exclude_units"`           // Journald
+	IncludeUserUnits   []string `mapstructure:"include_user_units" json:"include_user_units"` // Journald
+	ExcludeUserUnits   []string `mapstructure:"exclude_user_units" json:"exclude_user_units"` // Journald
+	IncludeMatches     []string `mapstructure:"include_matches" json:"include_matches"`       // Journald
+	ExcludeMatches     []string `mapstructure:"exclude_matches" json:"exclude_matches"`       // Journald
+	ContainerMode      bool     `mapstructure:"container_mode" json:"container_mode"`         // Journald
 
-	Image string `json:"image,omitempty"` // Docker
-	Label string `json:"label,omitempty"` // Docker
+	Image string // Docker
+	Label string // Docker
 	// Name contains the container name
-	Name string `json:"name,omitempty"` // Docker
+	Name string // Docker
 	// Identifier contains the container ID.  This is also set for File sources and used to
 	// determine the appropriate tags for the logs.
-	Identifier string `json:"identifier,omitempty"` // Docker, File
+	Identifier string // Docker, File
 
-	ChannelPath string `mapstructure:"channel_path" json:"channel_path,omitempty"` // Windows Event
-	Query       string `json:"query,omitempty"`                                    // Windows Event
+	ChannelPath string `mapstructure:"channel_path" json:"channel_path"` // Windows Event
+	Query       string // Windows Event
 
 	// used as input only by the Channel tailer.
 	// could have been unidirectional but the tailer could not close it in this case.
-	Channel chan *ChannelMessage `json:"-"`
+	Channel chan *ChannelMessage
 
 	// ChannelTags are the tags attached to messages on Channel; unlike Tags this can be
 	// modified at runtime (as long as ChannelTagsMutex is held).
-	ChannelTags []string `json:"-"`
+	ChannelTags []string
 
 	// ChannelTagsMutex guards ChannelTags.
-	ChannelTagsMutex sync.Mutex `json:"-"`
+	ChannelTagsMutex sync.Mutex
 
-	Service         string            `json:"service,omitempty"`
-	Source          string            `json:"source,omitempty"`
-	SourceCategory  string            `json:"source_category,omitempty"`
-	Tags            []string          `json:"tags,omitempty"`
-	ProcessingRules []*ProcessingRule `mapstructure:"log_processing_rules" json:"log_processing_rules,omitempty"`
+	Service         string
+	Source          string
+	SourceCategory  string
+	Tags            []string
+	ProcessingRules []*ProcessingRule `mapstructure:"log_processing_rules" json:"log_processing_rules"`
 	// ProcessRawMessage is used to process the raw message instead of only the content part of the message.
-	ProcessRawMessage *bool `mapstructure:"process_raw_message" json:"process_raw_message,omitempty"`
+	ProcessRawMessage *bool `mapstructure:"process_raw_message" json:"process_raw_message"`
 
-	AutoMultiLine               *bool   `mapstructure:"auto_multi_line_detection" json:"auto_multi_line_detection,omitempty"`
-	AutoMultiLineSampleSize     int     `mapstructure:"auto_multi_line_sample_size" json:"auto_multi_line_sample_size,omitempty"`
-	AutoMultiLineMatchThreshold float64 `mapstructure:"auto_multi_line_match_threshold" json:"auto_multi_line_match_threshold,omitempty"`
+	AutoMultiLine               *bool   `mapstructure:"auto_multi_line_detection" json:"auto_multi_line_detection"`
+	AutoMultiLineSampleSize     int     `mapstructure:"auto_multi_line_sample_size" json:"auto_multi_line_sample_size"`
+	AutoMultiLineMatchThreshold float64 `mapstructure:"auto_multi_line_match_threshold" json:"auto_multi_line_match_threshold"`
 }
 
 // Dump dumps the contents of this struct to a string, for debugging purposes.
@@ -159,6 +160,39 @@ func (c *LogsConfig) Dump(multiline bool) string {
 	fmt.Fprintf(&b, ws("AutoMultiLineSampleSize: %d,"), c.AutoMultiLineSampleSize)
 	fmt.Fprintf(&b, ws("AutoMultiLineMatchThreshold: %f}"), c.AutoMultiLineMatchThreshold)
 	return b.String()
+}
+
+// PublicJSON serialize the structure to make sure we only export fields that can be relevant to customers.
+// This is used to send the logs config to the backend as part of the metadata payload.
+func (c *LogsConfig) PublicJSON() ([]byte, error) {
+	// Export only fields that are explicitly documented in the public documentation
+	return json.Marshal(&struct {
+		Type            string            `json:"type,omitempty"`
+		Port            int               `json:"port,omitempty"`           // Network
+		Path            string            `json:"path,omitempty"`           // File, Journald
+		Encoding        string            `json:"encoding,omitempty"`       // File
+		ExcludePaths    []string          `json:"exclude_paths,omitempty"`  // File
+		TailingMode     string            `json:"start_position,omitempty"` // File
+		ChannelPath     string            `json:"channel_path,omitempty"`   // Windows Event
+		Service         string            `json:"service,omitempty"`
+		Source          string            `json:"source,omitempty"`
+		Tags            []string          `json:"tags,omitempty"`
+		ProcessingRules []*ProcessingRule `json:"log_processing_rules,omitempty"`
+		AutoMultiLine   *bool             `json:"auto_multi_line_detection,omitempty"`
+	}{
+		Type:            c.Type,
+		Port:            c.Port,
+		Path:            c.Path,
+		Encoding:        c.Encoding,
+		ExcludePaths:    c.ExcludePaths,
+		TailingMode:     c.TailingMode,
+		ChannelPath:     c.ChannelPath,
+		Service:         c.Service,
+		Source:          c.Source,
+		Tags:            c.Tags,
+		ProcessingRules: c.ProcessingRules,
+		AutoMultiLine:   c.AutoMultiLine,
+	})
 }
 
 // TailingMode type

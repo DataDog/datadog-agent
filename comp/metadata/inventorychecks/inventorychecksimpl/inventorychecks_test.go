@@ -15,9 +15,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -125,9 +127,21 @@ func TestGetPayload(t *testing.T) {
 	mockColl.On("AddEventReceiver", mock.AnythingOfType("EventReceiver")).Return()
 	mockColl.On("MapOverChecks", mock.AnythingOfType("func([]check.Info)")).Return()
 
+	// Setup log sources
+	logSources := sources.NewLogSources()
+	src := sources.NewLogSource("redisdb", &logConfig.LogsConfig{
+		Type:       logConfig.FileType,
+		Path:       "/var/log/redis/redis.log",
+		Identifier: "redisdb",
+		Service:    "awesome_cache",
+		Source:     "redis",
+	})
+	logSources.AddSource(src)
+	mockLogAgent := logagent.NewMock(logSources)
+
 	ic := getTestInventoryChecks(t,
 		optional.NewOption[collector.Collector](mockColl),
-		optional.Option[logagent.Component]{},
+		mockLogAgent,
 		overrides,
 	)
 
@@ -167,6 +181,13 @@ func TestGetPayload(t *testing.T) {
 
 	// Check that metadata linked to non-existing check were deleted
 	assert.NotContains(t, "non_running_checkid", ic.data)
+
+	// Check the log sources part of the metadata
+	assert.Len(t, p.LogsMetadata, 1)
+	actualSource, found := p.LogsMetadata["redisdb"]
+	assert.True(t, found)
+	assert.Len(t, actualSource, 1)
+	assert.Equal(t, `{"type":"file","path":"/var/log/redis/redis.log","service":"awesome_cache","source":"redis"}`, actualSource[0]["config"])
 }
 
 func TestFlareProviderFilename(t *testing.T) {
