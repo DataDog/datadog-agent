@@ -80,12 +80,12 @@ func multiFakeintakeStackDef(agentOptions ...agentparams.Option) *e2e.StackDefin
 			return nil, err
 		}
 
-		fiExporter1, err := aws.NewEcsFakeintake(awsEnv, fakeintakeparams.WithName(fakeintake1Name), fakeintakeparams.WithoutLoadBalancer())
+		fiExporter1, err := aws.NewEcsFakeintake(awsEnv, fakeintakeparams.WithName(fakeintake1Name))
 		if err != nil {
 			return nil, err
 		}
 
-		fiExporter2, err := aws.NewEcsFakeintake(awsEnv, fakeintakeparams.WithName(fakeintake2Name), fakeintakeparams.WithoutLoadBalancer())
+		fiExporter2, err := aws.NewEcsFakeintake(awsEnv, fakeintakeparams.WithName(fakeintake2Name))
 		if err != nil {
 			return nil, err
 		}
