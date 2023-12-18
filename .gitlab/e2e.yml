@@ -258,6 +258,7 @@ new-e2e-language-detection-dev:
   rules:
     - if: $RUN_E2E_TESTS == "true"
     - !reference [.on_dev_branch_manual]
+  needs: ["deploy_deb_testing-a7_x64"]
   variables:
     TARGETS: ./tests/language-detection
     TEAM: processes
@@ -274,6 +275,7 @@ new-e2e-npm-dev:
   rules:
     - if: $RUN_E2E_TESTS == "true"
     - !reference [.on_dev_branch_manual]
+  needs: ["deploy_deb_testing-a7_x64"]
   variables:
     TARGETS: ./tests/npm
 
@@ -290,6 +292,7 @@ new-e2e-aml-dev:
   rules:
     - if: $RUN_E2E_TESTS == "true"
     - !reference [.on_dev_branch_manual]
+  needs: ["deploy_deb_testing-a7_x64"]
   variables:
     TARGETS: ./tests/agent-metric-logs
     TEAM: agent-metric-logs
@@ -306,6 +309,7 @@ new-e2e-cws-dev:
   rules:
     - if: $RUN_E2E_TESTS == "true"
     - !reference [.on_dev_branch_manual]
+  needs: ["deploy_deb_testing-a7_x64"]
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
@@ -326,6 +330,7 @@ new-e2e-process-dev:
   rules:
     - if: $RUN_E2E_TESTS == "true"
     - !reference [.on_dev_branch_manual]
+  needs: ["deploy_deb_testing-a7_x64"]
   variables:
     TARGETS: ./tests/process
     TEAM: processes
