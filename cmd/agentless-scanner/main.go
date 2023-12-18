@@ -1686,15 +1686,11 @@ retry:
 }
 
 func tagScan(scan *scanTask, rest ...string) []string {
-	tags := []string{
+	return append([]string{
 		fmt.Sprintf("agent_version:%s", version.AgentVersion),
 		fmt.Sprintf("region:%s", scan.ARN.Region),
 		fmt.Sprintf("type:%s", scan.Type),
-	}
-	if scan.Hostname != "" {
-		tags = append(tags, fmt.Sprintf("scan_host:%s", scan.Hostname))
-	}
-	return append(tags, rest...)
+	}, rest...)
 }
 
 func tagNoResult(scan *scanTask) []string {
