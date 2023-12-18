@@ -31,7 +31,7 @@ sudo apt-get install python3.9-dev
 On Windows, install Python 2.7 and/or 3.9 via the [official installer](https://www.python.org/downloads/).
 
 #### Additional Windows Tools
-You will also need the Visual Studio for [Visual Studio for Python installer](http://aka.ms/vcpython27)
+You will also need the [Visual Studio for Python installer](https://visualstudio.microsoft.com/fr/vs/features/python/).
 
 Download the [gcc toolchain](http://win-builds.org/).
 - From the graphical package manager, select and install the needed libraries, leave the default (select all) if you're unsure.
@@ -97,7 +97,7 @@ higher. Make sure that `$GOPATH/bin` is in your `$PATH` otherwise `invoke`
 cannot use any additional tool it might need.
 
 **Please note that versions of Golang that aren't an exact match to the version
-specified in our build images (see e.g. [here](https://github.com/DataDog/datadog-agent/blob/main/.circleci/images/builder/Dockerfile#L1))
+specified in our build images (see e.g. [here](https://github.com/DataDog/datadog-agent-buildimages/blob/main/circleci/Dockerfile#L42))
 may not be able to build the agent and/or the [rtloader](https://github.com/DataDog/datadog-agent/tree/main/rtloader)
 binary properly.**
 

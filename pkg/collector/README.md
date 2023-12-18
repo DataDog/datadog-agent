@@ -7,7 +7,7 @@ a check are all operations implemented in this package or one of the subpackages
 For further details, please refer to the specific READMEs:
 
 * [check](check/README.md)
-* [corechecks](corechecks/README.md)
-* [py](py/README.md)
-* [runner](runner/README.md)
+* [corechecks](corechecks)
+* [python](python)
+* [runner](runner)
 * [scheduler](scheduler/README.md)
