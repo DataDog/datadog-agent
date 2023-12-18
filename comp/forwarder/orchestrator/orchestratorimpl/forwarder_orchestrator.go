@@ -19,7 +19,7 @@ import (
 	orchestratorconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/fxoptional"
 )
 
 // Module defines the fx options for this component.
@@ -32,12 +32,11 @@ func Module() fxutil.Module {
 // if the feature is activated on the cluster-agent/cluster-check runner, nil otherwise
 func newOrchestratorForwarder(log log.Component, config config.Component, params Params) orchestrator.Component {
 	if params.useNoopOrchestratorForwarder {
-		return createComponent(defaultforwarder.NoopForwarder{})
+		return fxoptional.New[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	}
 	if params.useOrchestratorForwarder {
 		if !config.GetBool(orchestratorconfig.OrchestratorNSKey("enabled")) {
-			forwarder := optional.NewNoneOption[defaultforwarder.Forwarder]()
-			return &forwarder
+			return fxoptional.None[defaultforwarder.Forwarder]()
 		}
 		orchestratorCfg := orchestratorconfig.NewDefaultOrchestratorConfig()
 		if err := orchestratorCfg.Load(); err != nil {
@@ -47,14 +46,9 @@ func newOrchestratorForwarder(log log.Component, config config.Component, params
 		orchestratorForwarderOpts := defaultforwarder.NewOptionsWithResolvers(config, log, resolver.NewSingleDomainResolvers(keysPerDomain))
 		orchestratorForwarderOpts.DisableAPIKeyChecking = true
 
-		return createComponent(defaultforwarder.NewDefaultForwarder(config, log, orchestratorForwarderOpts))
+		return fxoptional.New[defaultforwarder.Forwarder](defaultforwarder.NewDefaultForwarder(config, log, orchestratorForwarderOpts))
 	}
 
-	forwarder := optional.NewNoneOption[defaultforwarder.Forwarder]()
-	return &forwarder
+	return fxoptional.None[defaultforwarder.Forwarder]()
 }
-
-func createComponent(forwarder defaultforwarder.Forwarder) orchestrator.Component {
-	o := optional.NewOption(forwarder)
-	return &o
-}
+§
