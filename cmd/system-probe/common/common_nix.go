@@ -27,7 +27,7 @@ func DisablePESUnsupportedKernel(isEnabled bool) bool {
 		log.Errorf("unable to detect the kernel version: %s", err)
 		return false
 	}
-	if !kernelVersion.IsRH7Kernel() && !kernelVersion.IsRH8Kernel() && kernelVersion.Code < ebpfkernel.Kernel4_15 {
+	if kernelVersion.IsRH7Kernel() || (!kernelVersion.IsRH8Kernel() && kernelVersion.Code < ebpfkernel.Kernel4_15) {
 		log.Warn("disabling process event monitoring as it is not supported for this kernel version")
 		return true
 	}
