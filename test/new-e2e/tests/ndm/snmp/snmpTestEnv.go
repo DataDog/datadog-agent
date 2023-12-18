@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake/fakeintakeparams"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2vm"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
@@ -58,7 +57,7 @@ func NewTestEnv() (*TestEnv, error) {
 			return err
 		}
 
-		fakeintakeExporter, err := aws.NewEcsFakeintake(vm.GetAwsEnvironment(), fakeintakeparams.WithoutLoadBalancer())
+		fakeintakeExporter, err := aws.NewEcsFakeintake(vm.GetAwsEnvironment())
 		if err != nil {
 			return err
 		}
@@ -131,7 +130,7 @@ func NewTestEnv() (*TestEnv, error) {
 
 // Destroy delete the NDM stack. Deprecated, should port to NDM
 func (testEnv *TestEnv) Destroy() error {
-	return infra.GetStackManager().DeleteStack(testEnv.context, testEnv.name)
+	return infra.GetStackManager().DeleteStack(testEnv.context, testEnv.name, nil)
 }
 
 //go:embed compose/data

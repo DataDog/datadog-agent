@@ -135,6 +135,15 @@ jobs:
           command: inv -e lint-teamassignment
           name: run PR check for team assignment labels
 
+  skip_qa:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run:
+          command: inv -e lint-skip-qa
+          name: run PR check for skip-qa labels
+
   milestone:
     <<: *job_template
     steps:
@@ -208,8 +217,8 @@ jobs:
       - run:
           name: setting env vars for click
           command: |
-              echo 'export LC_ALL="C.UTF-8"' >> $BASH_ENV
-              echo 'export LANG="C.UTF-8"' >> $BASH_ENV
+            echo 'export LC_ALL="C.UTF-8"' >> $BASH_ENV
+            echo 'export LANG="C.UTF-8"' >> $BASH_ENV
       - run:
           name: lint python files
           command: inv -e lint-python
@@ -301,6 +310,13 @@ workflows:
           requires:
             - dependencies
       - team_label:
+          filters:
+            branches:
+              ignore:
+                - main
+          requires:
+            - dependencies
+      - skip_qa:
           filters:
             branches:
               ignore:
