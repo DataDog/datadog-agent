@@ -226,12 +226,11 @@ func shouldInject(pod *corev1.Pod) bool {
 
 // isApmInstrumentationEnabled indicates if Single Step Instrumentation is enabled for the namespace in the cluster
 // Single Step Instrumentation is enabled if:
-//   - cluster-wide configuration `apm_config.instrumentation.enabled` is true and the namespace is not excluded via `apm_config.instrumentation.disabled_namespaces`
-//   - cluster-wide configuration `apm_config.instrumentation.enabled` is false and the namespace is included via `apm_config.instrumentation.enabled_namespaces`
+//   - configuration `apm_config.instrumentation.enabled` is true and the namespace is not excluded via `apm_config.instrumentation.disabled_namespaces`
+//   - configuration `apm_config.instrumentation.enabled` is true and the namespace is included via `apm_config.instrumentation.enabled_namespaces`
+//   - configuration `apm_config.instrumentation.enabled` is true
 func isApmInstrumentationEnabled(namespace string) bool {
 	apmInstrumentationEnabled := config.Datadog.GetBool("apm_config.instrumentation.enabled")
-	isNsEnabled := apmInstrumentationEnabled
-
 	apmEnabledNamespaces := config.Datadog.GetStringSlice("apm_config.instrumentation.enabled_namespaces")
 	apmDisabledNamespaces := config.Datadog.GetStringSlice("apm_config.instrumentation.disabled_namespaces")
 
@@ -251,21 +250,14 @@ func isApmInstrumentationEnabled(namespace string) bool {
 		return false
 	}
 
-	// If Single Step Instrumentation is enabled in the cluster, enabling it in the specific namespaces is redundant
+	// If apm_config.instrumentation.enabled_namespaces option set, enable Single Step Instrumentation only in listed namespaces
 	if len(apmEnabledNamespaces) > 0 {
-		log.Debugf("APM Instrumentation `apm_config.instrumentation.enabled_namespaces:%v`", apmEnabledNamespaces)
-	}
-
-	// If Single Step Instrumentation is disabled in the cluster, disabling it in the specific namespaces is redundant
-	if !apmInstrumentationEnabled && len(apmDisabledNamespaces) > 0 {
-		log.Warnf("Redundant configuration option `apm_config.instrumentation.disabled_namespaces:%v`", apmDisabledNamespaces)
-	}
-
-	// Single Step Instrumentation for the namespace can override cluster-wide configuration
-	for _, ns := range apmEnabledNamespaces {
-		if ns == namespace {
-			return true
+		for _, ns := range apmEnabledNamespaces {
+			if ns == namespace {
+				return true
+			}
 		}
+		return false
 	}
 
 	for _, ns := range apmDisabledNamespaces {
@@ -274,5 +266,5 @@ func isApmInstrumentationEnabled(namespace string) bool {
 		}
 	}
 
-	return isNsEnabled
+	return true
 }
