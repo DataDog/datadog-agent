@@ -46,11 +46,6 @@ func (s *ShellScanner) Scan(re *regexp.Regexp) *Match {
 	}
 	s.match = &Match{s: s.s[s.index+loc[0] : s.index+loc[1]]}
 
-	// Return nil if the match doesn't start at the current index
-	if loc[0] != 0 {
-		return nil
-	}
-
 	s.index += loc[1]
 	return s.match
 }
