@@ -452,6 +452,8 @@ const (
 	SHA256
 	// MD5 is used to identify a MD5 hash
 	MD5
+	// SSDEEP is used to identify a SSDEEP hash
+	SSDEEP
 	// MaxHashAlgorithm is used for initializations
 	MaxHashAlgorithm
 )
@@ -464,6 +466,8 @@ func (ha HashAlgorithm) String() string {
 		return "sha256"
 	case MD5:
 		return "md5"
+	case SSDEEP:
+		return "ssdeep"
 	default:
 		return ""
 	}
