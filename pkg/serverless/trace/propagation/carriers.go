@@ -15,8 +15,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-	"github.com/aws/aws-lambda-go/events"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 

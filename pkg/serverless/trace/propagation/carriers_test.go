@@ -10,8 +10,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
