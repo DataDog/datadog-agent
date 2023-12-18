@@ -3,21 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build bundle_trace_agent
+//go:build !windows
 
 // Main package for the agent binary
 package main
 
 import (
-	"os"
-
-	tracecommand "github.com/DataDog/datadog-agent/cmd/trace-agent/command"
+	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/cmd/agent/subcommands"
 	"github.com/spf13/cobra"
 )
 
-func init() {
-	registerAgent([]string{"trace-agent"}, func() *cobra.Command {
-		os.Args = tracecommand.FixDeprecatedFlags(os.Args, os.Stdout)
-		return tracecommand.MakeRootCommand()
-	})
+func coreAgentMain() *cobra.Command {
+	return command.MakeCommand(subcommands.AgentSubcommands())
 }

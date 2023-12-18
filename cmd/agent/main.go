@@ -3,34 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows
-
 // Main package for the agent binary
 package main
 
 import (
 	"fmt"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/command"
-	"github.com/DataDog/datadog-agent/cmd/agent/subcommands"
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
-	"github.com/spf13/cobra"
 )
-
-var agents = map[string]func() *cobra.Command{}
-
-func registerAgent(names []string, getCommand func() *cobra.Command) {
-	for _, name := range names {
-		agents[name] = getCommand
-	}
-}
-
-func coreAgentMain() *cobra.Command {
-	return command.MakeCommand(subcommands.AgentSubcommands())
-}
 
 func init() {
 	registerAgent([]string{"agent", "datadog-agent", "dd-agent"}, coreAgentMain)
@@ -41,7 +24,7 @@ func main() {
 
 	if process == "" {
 		if len(os.Args) > 0 {
-			process = strings.TrimSpace(path.Base(os.Args[0]))
+			process = strings.TrimSpace(filepath.Base(os.Args[0]))
 		}
 
 		if process == "" {
@@ -53,7 +36,7 @@ func main() {
 			process = executable
 		}
 
-		process = strings.TrimSuffix(process, path.Ext(process))
+		process = strings.TrimSuffix(process, filepath.Ext(process))
 	}
 
 	agentCmdBuilder := agents[process]

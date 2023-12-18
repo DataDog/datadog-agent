@@ -34,7 +34,7 @@ def build(
     """
     Build the process agent
     """
-    if bundle and sys.platform != "win32":
+    if bundle:
         return agent_build(
             ctx,
             race=race,

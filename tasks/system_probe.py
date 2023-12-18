@@ -567,7 +567,7 @@ def build_sysprobe_binary(
     strip_binary=False,
     bundle=True,
 ):
-    if bundle and not is_windows:
+    if bundle:
         return agent_build(
             ctx,
             race=race,

@@ -154,6 +154,8 @@ def build(
     )
 
     bundled_agents = ["agent"]
+    bundled_agents += bundle or BUNDLED_AGENTS.get(flavor, [])
+
     if sys.platform == 'win32':
         # Important for x-compiling
         env["CGO_ENABLED"] = "1"
@@ -170,8 +172,6 @@ def build(
             vars=vars,
             out="cmd/agent/rsrc.syso",
         )
-    else:
-        bundled_agents += bundle or BUNDLED_AGENTS.get(flavor, [])
 
     if flavor.is_iot():
         # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
@@ -246,7 +246,11 @@ def create_launcher(ctx, agent, src, dst):
         print("Failed to find C compiler")
         raise Exit(code=1)
 
-    cmd = "{cc} -DDD_AGENT_PATH='\"{agent_bin}\"' -DDD_AGENT='\"{agent}\"' -o {launcher_bin} ./cmd/agent/launcher/launcher.c"
+    if sys.platform == 'win32':
+        src = src.replace("\\", "\\\\")
+        cmd = "{cc} -D DD_AGENT_PATH=\\\"{agent_bin}\\\" -D DD_AGENT=\\\"{agent}\\\" -o {launcher_bin} ./cmd/agent/launcher/launcher.c -lShlwapi"
+    else:
+        cmd = "{cc} -DDD_AGENT_PATH='\"{agent_bin}\"' -DDD_AGENT='\"{agent}\"' -o {launcher_bin} ./cmd/agent/launcher/launcher.c"
     args = {
         "cc": cc,
         "agent": agent,
