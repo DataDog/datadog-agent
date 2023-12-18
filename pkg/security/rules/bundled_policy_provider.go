@@ -9,15 +9,27 @@ package rules
 import (
 	"github.com/hashicorp/go-multierror"
 
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // BundledPolicyProvider specify the policy provider for bundled policies
-type BundledPolicyProvider struct{}
+type BundledPolicyProvider struct {
+	cfg *config.RuntimeSecurityConfig
+}
+
+// NewBundledPolicyProvider returns a new bundled policy provider
+func NewBundledPolicyProvider(cfg *config.RuntimeSecurityConfig) *BundledPolicyProvider {
+	return &BundledPolicyProvider{
+		cfg: cfg,
+	}
+}
 
 // LoadPolicies implements the PolicyProvider interface
 func (p *BundledPolicyProvider) LoadPolicies([]rules.MacroFilter, []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) {
+	bundledPolicyRules := newBundledPolicyRules(p.cfg)
+
 	policy := &rules.Policy{}
 
 	policy.Name = "bundled_policy"
