@@ -90,7 +90,7 @@ func decryptGPGReader(allKeys map[string]SigningKey, reader io.Reader, armored b
 		}
 		if _, ok := allKeys[fingerprint]; ok {
 			currentKey := allKeys[fingerprint]
-			currentKey.Repositories = append(currentKey.Repositories, repositories...)
+			currentKey.Repositories = mergeRepositoryLists(currentKey.Repositories, repositories)
 			allKeys[fingerprint] = currentKey
 		} else {
 			allKeys[fingerprint] = SigningKey{
@@ -102,4 +102,20 @@ func decryptGPGReader(allKeys map[string]SigningKey, reader io.Reader, armored b
 		}
 	}
 	return nil
+}
+
+// mergeRepositoryList merge 2 lists of repositories and remove duplicates
+func mergeRepositoryLists(a, b []pkgUtils.Repositories) []pkgUtils.Repositories {
+	uniqueRepositories := make(map[string]struct{})
+	for _, repo := range a {
+		uniqueRepositories[repo.RepoName] = struct{}{}
+	}
+	for _, repo := range b {
+		uniqueRepositories[repo.RepoName] = struct{}{}
+	}
+	mergedList := make([]pkgUtils.Repositories, 0, len(uniqueRepositories))
+	for repo := range uniqueRepositories {
+		mergedList = append(mergedList, pkgUtils.Repositories{RepoName: repo})
+	}
+	return mergedList
 }

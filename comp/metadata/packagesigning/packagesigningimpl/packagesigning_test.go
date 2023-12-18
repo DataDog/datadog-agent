@@ -217,6 +217,10 @@ func TestUpdateWithRepoFile(t *testing.T) {
 			for key := range allKeys {
 				if _, ok := testCase.allKeys[key]; !ok {
 					t.Errorf("Unexpected key %s", key)
+				} else {
+					if !compareKeys(allKeys[key], testCase.allKeys[key]) {
+						t.Errorf("Wrong key %s expected %v got %v", key, testCase.allKeys[key], allKeys[key])
+					}
 				}
 			}
 		})

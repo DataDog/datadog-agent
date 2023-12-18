@@ -12,10 +12,9 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
+	"github.com/stretchr/testify/assert"
 
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 type Payload struct {
@@ -45,12 +44,12 @@ type packageSigningTestSuite struct {
 
 func TestPackageSigningComponent(t *testing.T) {
 	t.Run(fmt.Sprintln("Test package signing on default ubuntu"), func(tt *testing.T) {
-		tt.Parallel()
+		// tt.Parallel()
 		fmt.Println("Testing on ubuntu")
-		e2e.Run(tt,
+		e2e.Run[e2e.FakeIntakeEnv](tt,
 			&packageSigningTestSuite{},
 			e2e.FakeIntakeStackDefWithDefaultVMAndAgentClient(),
-			params.WithStackName(fmt.Sprintln("pkgSigning-ubuntu", os.Getenv("CI_PIPELINE_ID"))),
+			params.WithStackName(fmt.Sprintf("pkgSigning-ubuntu-%s", os.Getenv("CI_PIPELINE_ID"))),
 		)
 	})
 }
