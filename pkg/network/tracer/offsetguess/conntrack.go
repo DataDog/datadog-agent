@@ -319,6 +319,7 @@ func (c *conntrackOffsetGuesser) runOffsetGuessing(cfg *config.Config, ns netns.
 		// probe_kernel_read() handles faults gracefully.
 		if c.status.Offset_netns >= threshold || c.status.Offset_status >= threshold ||
 			c.status.Offset_origin >= threshold || c.status.Offset_reply >= threshold {
+			log.Debugf("Offset guessing overflowed at threshold %d and status %+v", threshold, c.status)
 			return nil, fmt.Errorf("overflow while guessing %v, bailing out", whatString[GuessWhat(c.status.What)])
 		}
 	}

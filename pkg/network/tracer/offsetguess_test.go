@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 //go:generate $GOPATH/bin/include_headers pkg/network/ebpf/c/runtime/offsetguess-test.c pkg/ebpf/bytecode/build/runtime/offsetguess-test.c pkg/ebpf/c pkg/ebpf/c/protocols pkg/network/ebpf/c/runtime pkg/network/ebpf/c
@@ -158,84 +157,59 @@ func testOffsetGuess(t *testing.T) {
 	consts := map[offsetT]uint64{}
 	for _, c := range _consts {
 		value := c.Value.(uint64)
+		t.Logf("Guessed offset %v with value %v", c.Name, value)
 		switch c.Name {
 		case "offset_saddr":
-			log.Debug("offset_saddr: ", value)
 			consts[offsetSaddr] = value
 		case "offset_daddr":
-			log.Debug("offset_daddr: ", value)
 			consts[offsetDaddr] = value
 		case "offset_sport":
-			log.Debug("offset_sport: ", value)
 			consts[offsetSport] = value
 		case "offset_dport":
-			log.Debug("offset_dport: ", value)
 			consts[offsetDport] = value
 		case "offset_netns":
-			log.Debug("offset_netns: ", value)
 			consts[offsetNetns] = value
 		case "offset_ino":
-			log.Debug("offset_ino: ", value)
 			consts[offsetIno] = value
 		case "offset_family":
-			log.Debug("offset_family: ", value)
 			consts[offsetFamily] = value
 		case "offset_rtt":
-			log.Debug("offset_rtt: ", value)
 			consts[offsetRtt] = value
 		case "offset_rtt_var":
-			log.Debug("offset_rtt_var: ", value)
 			consts[offsetRttVar] = value
 		case "offset_daddr_ipv6":
-			log.Debug("offset_daddr_ipv6: ", value)
 			consts[offsetDaddrIpv6] = value
 		case "offset_saddr_fl4":
-			log.Debug("offset_saddr_fl4: ", value)
 			consts[offsetSaddrFl4] = value
 		case "offset_daddr_fl4":
-			log.Debug("offset_daddr_fl4: ", value)
 			consts[offsetDaddrFl4] = value
 		case "offset_sport_fl4":
-			log.Debug("offset_sport_fl4: ", value)
 			consts[offsetSportFl4] = value
 		case "offset_dport_fl4":
-			log.Debug("offset_dport_fl4: ", value)
 			consts[offsetDportFl4] = value
 		case "offset_saddr_fl6":
-			log.Debug("offset_saddr_fl6: ", value)
 			consts[offsetSaddrFl6] = value
 		case "offset_daddr_fl6":
-			log.Debug("offset_daddr_fl6: ", value)
 			consts[offsetDaddrFl6] = value
 		case "offset_sport_fl6":
-			log.Debug("offset_sport_fl6: ", value)
 			consts[offsetSportFl6] = value
 		case "offset_dport_fl6":
-			log.Debug("offset_dport_fl6: ", value)
 			consts[offsetDportFl6] = value
 		case "offset_socket_sk":
-			log.Debug("offset_socket_sk: ", value)
 			consts[offsetSocketSk] = value
 		case "offset_sk_buff_sock":
-			log.Debug("offset_sk_buff_sock: ", value)
 			consts[offsetSkBuffSock] = value
 		case "offset_sk_buff_transport_header":
-			log.Debug("offset_sk_buff_transport_header: ", value)
 			consts[offsetSkBuffTransportHeader] = value
 		case "offset_sk_buff_head":
-			log.Debug("offset_sk_buff_head: ", value)
 			consts[offsetSkBuffHead] = value
 		case "offset_ct_origin":
-			log.Debug("offset_ct_origin: ", value)
 			consts[offsetCtOrigin] = value
 		case "offset_ct_reply":
-			log.Debug("offset_ct_reply: ", value)
 			consts[offsetCtReply] = value
 		case "offset_ct_netns":
-			log.Debug("offset_ct_netns: ", value)
 			consts[offsetCtNetns] = value
 		case "offset_ct_ino":
-			log.Debug("offset_ct_ino: ", value)
 			consts[offsetCtIno] = value
 		}
 	}
