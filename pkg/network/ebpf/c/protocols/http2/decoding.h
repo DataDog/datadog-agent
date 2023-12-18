@@ -44,7 +44,7 @@ static __always_inline http2_stream_t *http2_fetch_stream(const http2_stream_key
 
 // Similar to read_hpack_int, but with a small optimization of getting the
 // current character as input argument.
-static __always_inline bool read_hpack_int_with_given_current_char(struct __sk_buff *skb, skb_info_t *skb_info, __u64 current_char_as_number, __u64 max_number_for_bits, __u64 *out) {
+static __always_inline bool read_hpack_int_with_given_current_char(struct __sk_buff *skb, skb_info_t *skb_info, __u64 current_char_as_number, __u64 max_number_for_bits, __u32 *out) {
     current_char_as_number &= max_number_for_bits;
 
     // In HPACK, if the number is too big to be stored in max_number_for_bits
@@ -83,7 +83,7 @@ static __always_inline bool read_hpack_int_with_given_current_char(struct __sk_b
 //
 // read_hpack_int returns true if the integer was successfully parsed, and false
 // otherwise.
-static __always_inline bool read_hpack_int(struct __sk_buff *skb, skb_info_t *skb_info, __u64 max_number_for_bits, __u64 *out) {
+static __always_inline bool read_hpack_int(struct __sk_buff *skb, skb_info_t *skb_info, __u64 max_number_for_bits, __u32 *out) {
     __u64 current_char_as_number = 0;
     if (bpf_skb_load_bytes(skb, skb_info->data_off, &current_char_as_number, 1) < 0) {
         return false;
@@ -156,7 +156,7 @@ static __always_inline void update_path_size_telemetry(http2_telemetry_t *http2_
 // We are only interested in path headers, that we will store in our internal
 // dynamic table, and will skip headers that are not path headers.
 static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_t *skb_info, http2_header_t *headers_to_process, __u64 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter, http2_telemetry_t *http2_tel) {
-    __u64 str_len = 0;
+    __u32 str_len = 0;
     // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
     if (!read_hpack_int(skb, skb_info, MAX_7_BITS, &str_len)) {
         return false;
@@ -218,7 +218,7 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
     bool is_literal = false;
     bool is_indexed = false;
     __u64 max_bits = 0;
-    __u64 index = 0;
+    __u32 index = 0;
 
     __u64 *global_dynamic_counter = get_dynamic_counter(tup);
     if (global_dynamic_counter == NULL) {
