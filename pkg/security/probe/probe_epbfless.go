@@ -96,6 +96,7 @@ func (p *EBPFLessProbe) handleClientMsg(msg *clientMsg) {
 		p.Resolvers.ProcessResolver.AddForkEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: syscallMsg.NSID}, syscallMsg.Fork.PPID)
 	case ebpfless.SyscallTypeOpen:
 		event.Type = uint32(model.FileOpenEventType)
+		event.Open.Retval = syscallMsg.Retval
 		event.Open.File.PathnameStr = syscallMsg.Open.Filename
 		event.Open.File.BasenameStr = filepath.Base(syscallMsg.Open.Filename)
 		event.Open.Flags = syscallMsg.Open.Flags
