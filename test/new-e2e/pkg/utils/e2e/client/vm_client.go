@@ -178,3 +178,8 @@ func (vmClient *VMClient) setEnvVariables(command string, envVar executeparams.E
 	return cmd
 
 }
+
+// GetOSType returns the operating system type of the VMClient instance.
+func (vmClient *VMClient) GetOSType() componentos.Type {
+	return vmClient.osType
+}

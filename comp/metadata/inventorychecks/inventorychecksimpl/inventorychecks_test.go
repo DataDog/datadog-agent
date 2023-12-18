@@ -157,3 +157,8 @@ func TestGetPayload(t *testing.T) {
 	// Check that metadata linked to non-existing check were deleted
 	assert.NotContains(t, "non_running_checkid", ic.data)
 }
+
+func TestFlareProviderFilename(t *testing.T) {
+	ic := getTestInventoryChecks(t, optional.NewNoneOption[collector.Collector](), nil)
+	assert.Equal(t, "checks.json", ic.FlareFileName)
+}

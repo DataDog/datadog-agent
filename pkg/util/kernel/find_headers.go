@@ -78,8 +78,8 @@ type headerProvider struct {
 	kernelHeaders []string
 }
 
-//nolint:revive // TODO(EBPF) Fix revive linter
-type KernelHeaderOptions struct {
+// HeaderOptions are options for the kernel header download process
+type HeaderOptions struct {
 	DownloadEnabled bool
 	Dirs            []string
 	DownloadDir     string
@@ -89,7 +89,7 @@ type KernelHeaderOptions struct {
 	ZypperReposDir string
 }
 
-func initProvider(opts KernelHeaderOptions) {
+func initProvider(opts HeaderOptions) {
 	HeaderProvider = &headerProvider{
 		downloadEnabled:   opts.DownloadEnabled,
 		headerDirs:        opts.Dirs,
@@ -114,7 +114,7 @@ func initProvider(opts KernelHeaderOptions) {
 // Any subsequent calls to GetKernelHeaders will return the result of the first call. This is because
 // kernel header downloading can be a resource intensive process, so we don't want to retry it an unlimited
 // number of times.
-func GetKernelHeaders(opts KernelHeaderOptions, client statsd.ClientInterface) []string {
+func GetKernelHeaders(opts HeaderOptions, client statsd.ClientInterface) []string {
 	providerMu.Lock()
 	defer providerMu.Unlock()
 

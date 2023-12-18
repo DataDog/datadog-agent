@@ -854,8 +854,9 @@ def lint_teamassignment(_):
         issue = res.json()
 
         labels = {l['name'] for l in issue.get('labels', [])}
-        if "qa/skip-qa" in labels:
-            print("qa/skip-qa label set -- no need for team assignment")
+        skip_qa_labels = ["qa/skip-qa", "qa/done", "qa/no-code-change"]
+        if any(skip_label in labels for skip_label in skip_qa_labels):
+            print("A label to skip QA is set -- no need for team assignment")
             return
 
         for label in labels:
@@ -872,6 +873,39 @@ def lint_teamassignment(_):
     # this can only happen when we're building on a tag. We don't need to check for a team assignment.
     else:
         print("PR not found, skipping check for team assignment.")
+
+
+@task
+def lint_skip_qa(_):
+    """
+    Ensure that when qa/skip-qa is used, we have one of [qa/done , qa/no-code-change]. Error if not valid.
+    """
+    branch = os.environ.get("CIRCLE_BRANCH")
+    pr_url = os.environ.get("CIRCLE_PULL_REQUEST")
+
+    if branch == DEFAULT_BRANCH:
+        print(f"Running on {DEFAULT_BRANCH}, skipping check for skip-qa label.")
+    elif pr_url:
+        import requests
+
+        pr_id = pr_url.rsplit('/')[-1]
+
+        res = requests.get(f"https://api.github.com/repos/DataDog/datadog-agent/issues/{pr_id}")
+        issue = res.json()
+
+        labels = {l['name'] for l in issue.get('labels', [])}
+        skip_qa = "qa/skip-qa"
+        new_qa_labels = ["qa/done", "qa/no-code-change"]
+        if skip_qa in labels and not any(skip_label in labels for skip_label in new_qa_labels):
+            print(
+                f"PR {pr_url} request to skip QA without justification. Requires an additional `qa/done` or `qa/no-code-change`."
+            )
+            raise Exit(code=1)
+        return
+    # No PR is associated with this build: given that we have the "run only on PRs" setting activated,
+    # this can only happen when we're building on a tag. We don't need to check for skip-qa.
+    else:
+        print("PR not found, skipping check for skip-qa.")
 
 
 @task

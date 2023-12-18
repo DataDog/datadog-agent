@@ -69,10 +69,10 @@ func TestInstallScript(t *testing.T) {
 	osVersions := strings.Split(*osVersion, ",")
 	cwsSupportedOsVersionList := strings.Split(*cwsSupportedOsVersion, ",")
 
-	fmt.Println("Parsed platform json file: ", platformJSON)
+	t.Log("Parsed platform json file: ", platformJSON)
 
-	vmOpts := []ec2params.Option{}
 	for _, osVers := range osVersions {
+		vmOpts := []ec2params.Option{}
 		osVers := osVers
 		if platformJSON[*platform][*architecture][osVers] == "" {
 			// Fail if the image is not defined instead of silently running with default Ubuntu AMI
@@ -99,7 +99,7 @@ func TestInstallScript(t *testing.T) {
 		}
 		t.Run(fmt.Sprintf("test install script on %s %s %s agent %s", osVers, *architecture, *flavor, *majorVersion), func(tt *testing.T) {
 			tt.Parallel()
-			fmt.Printf("Testing %s", osVers)
+			tt.Logf("Testing %s", osVers)
 			e2e.Run(tt, &installScriptSuite{cwsSupported: cwsSupported}, e2e.EC2VMStackDef(vmOpts...), params.WithStackName(fmt.Sprintf("install-script-test-%v-%v-%s-%s-%v", os.Getenv("CI_PIPELINE_ID"), osVers, *architecture, *flavor, *majorVersion)))
 		})
 	}

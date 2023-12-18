@@ -370,6 +370,15 @@ const (
 	deleteTimeout = 30 * time.Minute
 )
 
+type testWriter struct {
+	t *testing.T
+}
+
+func (tw testWriter) Write(p []byte) (n int, err error) {
+	tw.t.Log(string(p))
+	return len(p), nil
+}
+
 // Suite manages the environment creation and runs E2E tests.
 type Suite[Env any] struct {
 	suite.Suite
@@ -510,7 +519,7 @@ func (suite *Suite[Env]) TearDownSuite() {
 	// TODO: Implement retry on delete
 	ctx, cancel := context.WithTimeout(context.Background(), deleteTimeout)
 	defer cancel()
-	err := infra.GetStackManager().DeleteStack(ctx, suite.params.StackName)
+	err := infra.GetStackManager().DeleteStack(ctx, suite.params.StackName, testWriter{t: suite.T()})
 	if err != nil {
 		suite.T().Errorf("unable to delete stack: %s, err :%v", suite.params.StackName, err)
 		suite.T().Fail()
@@ -520,7 +529,6 @@ func (suite *Suite[Env]) TearDownSuite() {
 func createEnv[Env any](suite *Suite[Env], stackDef *StackDefinition[Env]) (*Env, auto.UpResult, error) {
 	var env *Env
 	ctx := context.Background()
-
 	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(
 		ctx,
 		suite.params.StackName,
@@ -529,7 +537,7 @@ func createEnv[Env any](suite *Suite[Env], stackDef *StackDefinition[Env]) (*Env
 			var err error
 			env, err = stackDef.envFactory(ctx)
 			return err
-		}, false)
+		}, false, testWriter{t: suite.T()})
 
 	return env, stackOutput, err
 }
