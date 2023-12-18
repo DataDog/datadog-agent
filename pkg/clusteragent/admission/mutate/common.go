@@ -19,6 +19,7 @@ import (
 
 	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	apiServerCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -234,14 +235,9 @@ func isApmInstrumentationEnabled(namespace string) bool {
 	apmEnabledNamespaces := config.Datadog.GetStringSlice("apm_config.instrumentation.enabled_namespaces")
 	apmDisabledNamespaces := config.Datadog.GetStringSlice("apm_config.instrumentation.disabled_namespaces")
 
-	// If Single Step Instrumentation is enabled in the cluster, enabling it in the specific namespaces is redundant
-	if apmInstrumentationEnabled && len(apmEnabledNamespaces) > 0 {
-		log.Warnf("Redundant configuration option `apm_config.instrumentation.enabled_namespaces:%v`", apmEnabledNamespaces)
-	}
-
-	// If Single Step Instrumentation is disabled in the cluster, disabling it in the specific namespaces is redundant
-	if !apmInstrumentationEnabled && len(apmDisabledNamespaces) > 0 {
-		log.Warnf("Redundant configuration option `apm_config.instrumentation.disabled_namespaces:%v`", apmDisabledNamespaces)
+	if !apmInstrumentationEnabled {
+		log.Debugf("APM Instrumentation is disabled")
+		return false
 	}
 
 	// apm.instrumentation.enabled_namespaces and apm.instrumentation.disabled_namespaces configuration cannot be set at the same time
@@ -250,16 +246,26 @@ func isApmInstrumentationEnabled(namespace string) bool {
 		return false
 	}
 
+	// Always disable Single Step Instrumentation in kube-system and Datadog namespaces
+	if (namespace == namespaceWithAlwaysDisabledInjections) || (namespace == apiServerCommon.GetResourcesNamespace()) {
+		return false
+	}
+
+	// If Single Step Instrumentation is enabled in the cluster, enabling it in the specific namespaces is redundant
+	if len(apmEnabledNamespaces) > 0 {
+		log.Debugf("APM Instrumentation `apm_config.instrumentation.enabled_namespaces:%v`", apmEnabledNamespaces)
+	}
+
+	// If Single Step Instrumentation is disabled in the cluster, disabling it in the specific namespaces is redundant
+	if !apmInstrumentationEnabled && len(apmDisabledNamespaces) > 0 {
+		log.Warnf("Redundant configuration option `apm_config.instrumentation.disabled_namespaces:%v`", apmDisabledNamespaces)
+	}
+
 	// Single Step Instrumentation for the namespace can override cluster-wide configuration
 	for _, ns := range apmEnabledNamespaces {
 		if ns == namespace {
 			return true
 		}
-	}
-
-	// Unless kube-system ns is explicitly enabled, always disable Single Step Instrumentation
-	if namespace == namespaceWithAlwaysDisabledInjections {
-		return false
 	}
 
 	for _, ns := range apmDisabledNamespaces {
