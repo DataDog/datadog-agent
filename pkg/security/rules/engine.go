@@ -11,6 +11,7 @@ import (
 	json "encoding/json"
 	"errors"
 	"fmt"
+	"runtime"
 	"sync"
 	"time"
 
@@ -94,6 +95,16 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 	return engine, nil
 }
 
+func getOrigin(cfg *config.RuntimeSecurityConfig) string {
+	if runtime.GOOS == "linux" {
+		if cfg.EBPFLessEnabled {
+			return "ebpfless"
+		}
+		return "ebpf"
+	}
+	return ""
+}
+
 // Start the rule engine
 func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *sync.WaitGroup) error {
 	// monitor policies
@@ -118,7 +129,7 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 		ruleFilters = append(ruleFilters, agentVersionFilter)
 	}
 
-	ruleFilterModel, err := NewRuleFilterModel()
+	ruleFilterModel, err := NewRuleFilterModel(getOrigin(e.config))
 	if err != nil {
 		return fmt.Errorf("failed to create rule filter: %w", err)
 	}
