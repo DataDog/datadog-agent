@@ -277,11 +277,12 @@ type SNSEventRecord struct {
 
 // SNSEntity mirrors events.SNSEntity type, removing unused fields.
 type SNSEntity struct {
-	MessageID string
-	Type      string
-	TopicArn  string
-	Timestamp time.Time
-	Subject   string
+	MessageID         string
+	Type              string
+	TopicArn          string
+	MessageAttributes map[string]interface{}
+	Timestamp         time.Time
+	Subject           string
 }
 
 // SQSEvent mirrors events.SQSEvent type, removing unused fields.
