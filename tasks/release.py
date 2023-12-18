@@ -1135,6 +1135,7 @@ Make sure that milestone is open before trying again.""",
         labels=[
             "changelog/no-changelog",
             "qa/skip-qa",
+            "qa/no-code-change",
             "team/agent-platform",
             "team/agent-release-management",
             "category/release_operations",

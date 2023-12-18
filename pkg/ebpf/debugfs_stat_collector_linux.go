@@ -19,8 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-//nolint:revive // TODO(EBPF) Fix revive linter
-const kProbeTelemetryName = "ebpf__probes"
+const kprobeTelemetryName = "ebpf__probes"
 
 type profileType byte
 
@@ -82,8 +81,8 @@ func NewDebugFsStatCollector() prometheus.Collector {
 		return &NoopDebugFsStatCollector{}
 	}
 	return &DebugFsStatCollector{
-		hits:           prometheus.NewDesc(kProbeTelemetryName+"__hits", "Counter tracking number of probe hits", []string{"probe_name", "probe_type"}, nil),
-		misses:         prometheus.NewDesc(kProbeTelemetryName+"__misses", "Counter tracking number of probe misses", []string{"probe_name", "probe_type"}, nil),
+		hits:           prometheus.NewDesc(kprobeTelemetryName+"__hits", "Counter tracking number of probe hits", []string{"probe_name", "probe_type"}, nil),
+		misses:         prometheus.NewDesc(kprobeTelemetryName+"__misses", "Counter tracking number of probe misses", []string{"probe_name", "probe_type"}, nil),
 		lastProbeStats: make(map[eventKey]int),
 		tracefsRoot:    root,
 	}

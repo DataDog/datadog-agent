@@ -29,6 +29,10 @@ const (
 	Dup3Nr     = 292 // Dup3Nr defines the syscall ID for amd64
 	ChdirNr    = 80  // ChdirNr defines the syscall ID for amd64
 	FchdirNr   = 81  // FchdirNr defines the syscall ID for amd64
+	SetuidNr   = 105 // SetuidNr defines the syscall ID for amd64
+	SetgidNr   = 106 // SetgidNr defines the syscall ID for amd64
+	SetreuidNr = 113 // SetreuidNr defines the syscall ID for amd64
+	SetregidNr = 114 // SetregidNr defines the syscall ID for amd64
 
 	ptraceFlags = 0 |
 		syscall.PTRACE_O_TRACEVFORK |
@@ -57,6 +61,10 @@ var (
 		"dup3",
 		"chdir",
 		"fchdir",
+		"setuid",
+		"setgid",
+		"setreuid",
+		"setregid",
 	}
 )
 

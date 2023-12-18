@@ -24,14 +24,14 @@ func ProgObjInfo(fd uint32, info *ProgInfo) error {
 	return err
 }
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// ObjGetInfoByFdAttr is the attributes for the BPF_OBJ_GET_INFO_BY_FD mode of the bpf syscall
 type ObjGetInfoByFdAttr struct {
 	BpfFd   uint32
 	InfoLen uint32
 	Info    Pointer
 }
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// ObjGetInfoByFd implements the BPF_OBJ_GET_INFO_BY_FD mode of the bpf syscall
 func ObjGetInfoByFd(attr *ObjGetInfoByFdAttr) error {
 	_, _, errNo := unix.Syscall(unix.SYS_BPF, uintptr(unix.BPF_OBJ_GET_INFO_BY_FD), uintptr(unsafe.Pointer(attr)), unsafe.Sizeof(*attr))
 	if errNo != 0 {
@@ -58,30 +58,27 @@ func ProgGetFdByID(attr *ProgGetFdByIDAttr) (uint32, error) {
 
 // ProgInfo corresponds to kernel C type `bpf_prog_info`
 type ProgInfo struct {
-	Type uint32
-	//nolint:revive // TODO(EBPF) Fix revive linter
-	Id              uint32
-	Tag             [8]uint8
-	JitedProgLen    uint32
-	XlatedProgLen   uint32
-	JitedProgInsns  uint64
-	XlatedProgInsns Pointer
-	LoadTime        uint64
-	//nolint:revive // TODO(EBPF) Fix revive linter
-	CreatedByUid    uint32
-	NrMapIds        uint32
-	MapIds          Pointer
-	Name            ObjName
-	Ifindex         uint32
-	_               [4]byte /* unsupported bitfield */
-	NetnsDev        uint64
-	NetnsIno        uint64
-	NrJitedKsyms    uint32
-	NrJitedFuncLens uint32
-	JitedKsyms      uint64
-	JitedFuncLens   uint64
-	//nolint:revive // TODO(EBPF) Fix revive linter
-	BtfId                BTFID
+	Type                 uint32
+	ID                   uint32
+	Tag                  [8]uint8
+	JitedProgLen         uint32
+	XlatedProgLen        uint32
+	JitedProgInsns       uint64
+	XlatedProgInsns      Pointer
+	LoadTime             uint64
+	CreatedByUID         uint32
+	NrMapIds             uint32
+	MapIds               Pointer
+	Name                 ObjName
+	Ifindex              uint32
+	_                    [4]byte /* unsupported bitfield */
+	NetnsDev             uint64
+	NetnsIno             uint64
+	NrJitedKsyms         uint32
+	NrJitedFuncLens      uint32
+	JitedKsyms           uint64
+	JitedFuncLens        uint64
+	BtfID                BTFID
 	FuncInfoRecSize      uint32
 	FuncInfo             uint64
 	NrFuncInfo           uint32

@@ -115,6 +115,7 @@ func (p *WindowsProbe) Start() error {
 				log.Infof("Received stop %v", stop)
 
 				pce = p.Resolvers.ProcessResolver.GetEntry(pid)
+				pidToCleanup = pid
 
 				ev.Type = uint32(model.ExitEventType)
 				if pce == nil {

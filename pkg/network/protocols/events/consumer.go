@@ -8,6 +8,7 @@
 package events
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"unsafe"
@@ -23,7 +24,10 @@ import (
 const (
 	batchMapSuffix  = "_batches"
 	eventsMapSuffix = "_batch_events"
+	sizeOfBatch     = int(unsafe.Sizeof(batch{}))
 )
+
+var errInvalidPerfEvent = errors.New("invalid perf event")
 
 // Consumer provides a standardized abstraction for consuming (batched) events from eBPF
 type Consumer[V any] struct {
@@ -40,11 +44,12 @@ type Consumer[V any] struct {
 	stopped     bool
 
 	// telemetry
-	metricGroup      *telemetry.MetricGroup
-	eventsCount      *telemetry.Counter
-	missesCount      *telemetry.Counter
-	kernelDropsCount *telemetry.Counter
-	batchSize        *atomic.Int64
+	metricGroup        *telemetry.MetricGroup
+	eventsCount        *telemetry.Counter
+	missesCount        *telemetry.Counter
+	kernelDropsCount   *telemetry.Counter
+	invalidEventsCount *telemetry.Counter
+	batchSize          *atomic.Int64
 }
 
 // NewConsumer instantiates a new event Consumer
@@ -85,6 +90,7 @@ func NewConsumer[V any](proto string, ebpf *manager.Manager, callback func([]V))
 	eventsCount := metricGroup.NewCounter("events_captured")
 	missesCount := metricGroup.NewCounter("events_missed")
 	kernelDropsCount := metricGroup.NewCounter("kernel_dropped_events")
+	invalidEventsCount := metricGroup.NewCounter("invalid_events")
 
 	return &Consumer[V]{
 		proto:       proto,
@@ -95,11 +101,12 @@ func NewConsumer[V any](proto string, ebpf *manager.Manager, callback func([]V))
 		batchReader: batchReader,
 
 		// telemetry
-		metricGroup:      metricGroup,
-		eventsCount:      eventsCount,
-		missesCount:      missesCount,
-		kernelDropsCount: kernelDropsCount,
-		batchSize:        atomic.NewInt64(0),
+		metricGroup:        metricGroup,
+		eventsCount:        eventsCount,
+		missesCount:        missesCount,
+		kernelDropsCount:   kernelDropsCount,
+		invalidEventsCount: invalidEventsCount,
+		batchSize:          atomic.NewInt64(0),
 	}, nil
 }
 
@@ -115,8 +122,12 @@ func (c *Consumer[V]) Start() {
 					return
 				}
 
-				b := batchFromEventData(dataEvent.Data)
-				c.process(dataEvent.CPU, b, false)
+				b, err := batchFromEventData(dataEvent.Data)
+				if err == nil {
+					c.process(dataEvent.CPU, b, false)
+				} else {
+					c.invalidEventsCount.Add(1)
+				}
 				dataEvent.Done()
 			case _, ok := <-c.handler.LostChannel:
 				if !ok {
@@ -174,7 +185,26 @@ func (c *Consumer[V]) Stop() {
 }
 
 func (c *Consumer[V]) process(cpu int, b *batch, syncing bool) {
+	// Determine the subset of data we're interested in as we might have read
+	// part of this batch before during a Sync() call
 	begin, end := c.offsets.Get(cpu, b, syncing)
+	length := end - begin
+
+	// This can happen in the context of a low-traffic host
+	// (that is, when no events are enqueued in a batch between two consecutive
+	// calls to `Sync()`)
+	if length == 0 {
+		return
+	}
+
+	// Sanity check. Ideally none of these conditions should evaluate to
+	// true. In case they do we bail out and increment the counter tracking
+	// invalid events
+	// TODO: investigate why we're sometimes getting invalid offsets
+	if length < 0 || length > int(b.Cap) {
+		c.invalidEventsCount.Add(1)
+		return
+	}
 
 	// telemetry stuff
 	c.batchSize.Store(int64(b.Cap))
@@ -182,15 +212,27 @@ func (c *Consumer[V]) process(cpu int, b *batch, syncing bool) {
 	c.kernelDropsCount.Add(int64(b.Dropped_events))
 
 	// generate a slice of type []V from the batch
-	length := end - begin
 	ptr := pointerToElement[V](b, begin)
 	events := unsafe.Slice(ptr, length)
 
 	c.callback(events)
 }
 
-func batchFromEventData(data []byte) *batch {
-	return (*batch)(unsafe.Pointer(&data[0]))
+func batchFromEventData(data []byte) (*batch, error) {
+	if len(data) < sizeOfBatch {
+		// For some reason the eBPF program sent us a perf event with a size
+		// different from what we're expecting.
+		//
+		// TODO: we're not ensuring that len(data) == sizeOfBatch, because we're
+		// consistently getting events that have a few bytes more than
+		// `sizeof(batch_event_t)`. I haven't determined yet where these extra
+		// bytes are coming from, but I already validated that is not padding
+		// coming from the clang/LLVM toolchain for alignment purposes, so it's
+		// something happening *after* the call to bpf_perf_event_output.
+		return nil, errInvalidPerfEvent
+	}
+
+	return (*batch)(unsafe.Pointer(&data[0])), nil
 }
 
 func pointerToElement[V any](b *batch, elementIdx int) *V {

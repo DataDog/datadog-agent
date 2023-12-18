@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake/fakeintakeparams"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2vm"
@@ -46,7 +45,7 @@ func snmpDockerStackDef() *e2e.StackDefinition[e2e.DockerEnv] {
 			return nil, err
 		}
 
-		fakeintakeExporter, err := aws.NewEcsFakeintake(vm.GetAwsEnvironment(), fakeintakeparams.WithoutLoadBalancer())
+		fakeintakeExporter, err := aws.NewEcsFakeintake(vm.GetAwsEnvironment())
 		if err != nil {
 			return nil, err
 		}
