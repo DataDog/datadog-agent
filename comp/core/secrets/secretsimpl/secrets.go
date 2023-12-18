@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"text/template"
+	"time"
 
 	"go.uber.org/fx"
 	yaml "gopkg.in/yaml.v2"
@@ -50,7 +51,9 @@ type handleToContext map[string][]secretContext
 
 type secretResolver struct {
 	enabled bool
+	lock    sync.Mutex
 	cache   map[string]string
+
 	// list of handles and where they were found
 	origin handleToContext
 
@@ -61,6 +64,13 @@ type secretResolver struct {
 	removeTrailingLinebreak bool
 	// responseMaxSize defines max size of the JSON output from a secrets reader backend
 	responseMaxSize int
+
+	// refresh secrets at a regular interval after they have been resolved
+	refreshInterval int
+	refreshData     []byte
+	refreshOrigin   string
+	refreshCallback secrets.ResolveCallback
+	lastRefresh     time.Time
 
 	// can be overridden for testing purposes
 	commandHookFunc func(string) ([]byte, error)
@@ -166,7 +176,7 @@ func (r *secretResolver) registerSecretOrigin(handle string, origin string, yaml
 }
 
 // Configure initializes the executable command and other options of the secrets component
-func (r *secretResolver) Configure(command string, arguments []string, timeout, maxSize int, groupExecPerm, removeLinebreak bool) {
+func (r *secretResolver) Configure(command string, arguments []string, timeout, maxSize, refreshInterval int, groupExecPerm, removeLinebreak bool) {
 	if !r.enabled {
 		return
 	}
@@ -180,6 +190,7 @@ func (r *secretResolver) Configure(command string, arguments []string, timeout, 
 	if r.responseMaxSize == 0 {
 		r.responseMaxSize = SecretBackendOutputMaxSizeDefault
 	}
+	r.refreshInterval = refreshInterval
 	r.commandAllowGroupExec = groupExecPerm
 	r.removeTrailingLinebreak = removeLinebreak
 	if r.commandAllowGroupExec {
@@ -199,17 +210,61 @@ func isEnc(str string) (bool, string) {
 // Resolve replaces all encrypted secrets in data by executing "secret_backend_command" once if all secrets aren't
 // present in the cache.
 func (r *secretResolver) Resolve(data []byte, origin string) ([]byte, error) {
-	return r.resolve(data, origin, nil)
+	return r.resolve(data, origin, nil, nil)
 }
 
-// ResolveWithCallback resolves the secrets in the given yaml data calling the callback with the YAML path of
+// RegisterResolveCallback resolves the secrets in the given yaml data calling the callback with the YAML path of
 // the secret handle and its value
-func (r *secretResolver) ResolveWithCallback(data []byte, origin string, cb secrets.ResolveCallback) error {
-	_, err := r.resolve(data, origin, cb)
+func (r *secretResolver) RegisterResolveCallback(data []byte, origin string, cb secrets.ResolveCallback) error {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+
+	// enable refreshing data by storing required parameters
+	r.refreshData = data
+	r.refreshOrigin = origin
+	r.refreshCallback = cb
+	if r.refreshInterval > 0 && r.lastRefresh.IsZero() {
+		r.lastRefresh = time.Now()
+		go func() {
+			for {
+				var since time.Duration
+				func() {
+					r.lock.Lock()
+					defer r.lock.Unlock()
+					since = time.Since(r.lastRefresh)
+				}()
+				if since.Seconds() > float64(r.refreshInterval) {
+					if err := r.Refresh(); err != nil {
+						log.Info(err)
+					}
+					since = 0
+				}
+				time.Sleep(time.Duration(r.refreshInterval) - since)
+			}
+		}()
+	}
+
+	_, err := r.resolve(data, origin, cb, nil)
 	return err
 }
 
-func (r *secretResolver) resolve(data []byte, origin string, notifyCb secrets.ResolveCallback) ([]byte, error) {
+// Refresh the secrets after they have been Resolved by fetching them from the backend again
+func (r *secretResolver) Refresh() error {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+
+	r.lastRefresh = time.Now()
+	if r.refreshData == nil {
+		return fmt.Errorf("can't refresh secrets without a registered callback")
+	}
+
+	prevValues := r.cache
+	r.cache = make(map[string]string)
+	_, err := r.resolve(r.refreshData, r.refreshOrigin, r.refreshCallback, prevValues)
+	return err
+}
+
+func (r *secretResolver) resolve(data []byte, origin string, notifyCb secrets.ResolveCallback, prevValues map[string]string) ([]byte, error) {
 	if !r.enabled {
 		log.Infof("Agent secrets is disabled by caller")
 		return nil, nil
@@ -269,10 +324,21 @@ func (r *secretResolver) resolve(data []byte, origin string, notifyCb secrets.Re
 		if err != nil {
 			return nil, err
 		}
+		// add results to the cache
+		for handle, secretValue := range secrets {
+			r.cache[handle] = secretValue
+		}
 
 		w.resolver = func(yamlPath []string, value string) (string, error) {
 			if ok, handle := isEnc(value); ok {
 				if secret, ok := secrets[handle]; ok {
+					// if resolving has happened at least once, check if value changed
+					if prevValues != nil && prevValues[handle] == secret {
+						// secret resolved to the previously seen value, so
+						// return the ENC[...] form to notify caller that
+						// the value has not changed
+						return value, nil
+					}
 					log.Debugf("Secret '%s' was successfully resolved", handle)
 					// keep track of place where a handle was found
 					r.registerSecretOrigin(handle, origin, yamlPath)

@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 )
 
 var (
@@ -384,7 +385,7 @@ func TestResolveCustomFieldWithCallback(t *testing.T) {
 	}
 
 	keysResolved := []string{}
-	err := resolver.ResolveWithCallback(
+	err := resolver.RegisterResolveCallback(
 		testConf,
 		"test",
 		func(yamlPath []string, value any) bool {
@@ -406,7 +407,7 @@ func TestResolveCustomFieldWithCallback(t *testing.T) {
 	assert.Equal(t, testYamlCustomFieldResolved, resolver.origin)
 }
 
-func TestResolveWithCallbackNested(t *testing.T) {
+func TestRegisterResolveCallbackNested(t *testing.T) {
 	testConf := testConfNestedMultiple
 
 	resolver := newEnabledSecretResolver()
@@ -423,7 +424,7 @@ func TestResolveWithCallbackNested(t *testing.T) {
 	topLevelResolved := 0
 	secondLevelResolved := 0
 	thirdLevelResolved := 0
-	err := resolver.ResolveWithCallback(
+	err := resolver.RegisterResolveCallback(
 		testConf,
 		"test",
 		func(yamlPath []string, value any) bool {
@@ -449,4 +450,64 @@ func TestResolveWithCallbackNested(t *testing.T) {
 	assert.Equal(t, 1, thirdLevelResolved, "'third_level' secret was not resolved or resolved multiple times")
 
 	assert.Equal(t, testConfNestedOriginMultiple, resolver.origin)
+}
+
+func TestResolveThenRefresh(t *testing.T) {
+	testConf := testConfNestedMultiple
+
+	resolver := newEnabledSecretResolver()
+	resolver.backendCommand = "some_command"
+	resolver.cache = map[string]string{}
+
+	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
+		return map[string]string{
+			"pass1": "password1",
+			"pass2": "password2",
+			"pass3": "password3",
+		}, nil
+	}
+
+	keysResolved := []string{}
+	err := resolver.RegisterResolveCallback(
+		testConf,
+		"test",
+		func(yamlPath []string, value any) bool {
+			keysResolved = append(keysResolved, strings.Join(yamlPath, "/"))
+			return true
+		},
+	)
+	require.NoError(t, err)
+	slices.Sort(keysResolved)
+	assert.Equal(t, testConfNestedOriginMultiple, resolver.origin)
+	assert.Equal(t, []string{"some/encoded/third_level", "some/second_level", "top_level"}, keysResolved)
+
+	// Change the secret value of the handle 'pass2'
+	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
+		return map[string]string{
+			"pass1": "password1",
+			"pass2": "second",
+			"pass3": "password3",
+		}, nil
+	}
+
+	keysResolved = []string{}
+	err = resolver.Refresh()
+	require.NoError(t, err)
+	assert.Equal(t, testConfNestedOriginMultiple, resolver.origin)
+	assert.Equal(t, []string{"some/second_level"}, keysResolved)
+
+	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
+		return map[string]string{
+			"pass1": "first",
+			"pass2": "second",
+			"pass3": "third",
+		}, nil
+	}
+
+	keysResolved = []string{}
+	err = resolver.Refresh()
+	require.NoError(t, err)
+	slices.Sort(keysResolved)
+	assert.Equal(t, testConfNestedOriginMultiple, resolver.origin)
+	assert.Equal(t, []string{"some/encoded/third_level", "top_level"}, keysResolved)
 }

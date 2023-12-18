@@ -839,6 +839,12 @@ api_key:
 #
 # secret_backend_remove_trailing_line_break: false
 
+## @param secret_refresh_interval - float - optional - default: 0
+## @env DD_SECRET_REFRESH_INTERVAL - float - optional - default: 0
+## Interval at which to refresh the secrets
+#
+# secret_refresh_interval: 0
+
 ## @param snmp_listener - custom object - optional
 ## Creates and schedules a listener to automatically discover your SNMP devices.
 ## Discovered devices can then be monitored with the SNMP integration by using

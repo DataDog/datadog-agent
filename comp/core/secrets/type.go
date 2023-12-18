@@ -11,13 +11,13 @@ type SecretVal struct {
 	ErrorMsg string `json:"error,omitempty"`
 }
 
-// ResolveCallback is the callback type used by the ResolveWithCallback method to send notifications.
+// ResolveCallback is the callback type used by the RegisterResolveCallback method to send notifications.
 //
 // ResolveCallback needs to acknowledge the notification by returning 'true' or refuse it and request another notification
 // on the parent by returning 'false'.
 //
 // When exploring a type the walker will emit notifications for each key being updated (when using
-// 'ResolveWithCallback'). Some notifier might not be able to handle all notifications in which case it returns 'false'.
+// 'RegisterResolveCallback'). Some notifier might not be able to handle all notifications in which case it returns 'false'.
 // The walker will then retry the notification from the parent key.
 //
 // This is needed when resolving yaml containing map[string]any. In the case of the datadog configuration the map key
