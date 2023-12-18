@@ -134,7 +134,7 @@ func (is *stepByStepSuite) ConfigureAndRunAgentService(VMclient *common.TestClie
 		ExecuteWithoutError(t, VMclient, "sudo sh -c \"sed 's/api_key:.*/api_key: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/' /etc/datadog-agent/datadog.yaml.example > /etc/datadog-agent/datadog.yaml\"")
 		ExecuteWithoutError(t, VMclient, "sudo sh -c \"chown dd-agent:dd-agent /etc/datadog-agent/datadog.yaml && chmod 640 /etc/datadog-agent/datadog.yaml\"")
 		if *platform == "ubuntu" && is.osVersion == 14.04 {
-			ExecuteWithoutError(t, VMclient, "sudo start datadog-agent")
+			ExecuteWithoutError(t, VMclient, "sudo initctl start datadog-agent")
 		} else {
 			ExecuteWithoutError(t, VMclient, "sudo systemctl restart datadog-agent.service")
 		}
@@ -173,13 +173,13 @@ func (is *stepByStepSuite) StepByStepDebianTest(VMclient *common.TestClient) {
 		_, err = fileManager.WriteFile("/etc/apt/sources.list.d/datadog.list", tmpFileContent)
 		require.NoError(t, err)
 		ExecuteWithoutError(t, VMclient, "sudo touch %s && sudo chmod a+r %s", aptUsrShareKeyring, aptUsrShareKeyring)
-		keys := []string{"DATADOG_APT_KEY_CURRENT.public", "DATADOG_APT_KEY_F14F620E.public", "DATADOG_APT_KEY_382E94DE.public"}
+		keys := []string{"DATADOG_APT_KEY_CURRENT.public", "DATADOG_APT_KEY_C0962C7D", "DATADOG_APT_KEY_F14F620E.public", "DATADOG_APT_KEY_382E94DE.public"}
 		for _, key := range keys {
 			ExecuteWithoutError(t, VMclient, "sudo curl --retry 5 -o \"/tmp/%s\" \"https://keys.datadoghq.com/%s\"", key, key)
 			ExecuteWithoutError(t, VMclient, "sudo cat \"/tmp/%s\" | sudo gpg --import --batch --no-default-keyring --keyring \"%s\"", key, aptUsrShareKeyring)
 		}
 	})
-	if (*platform == "ubuntu" && is.osVersion < 16) || (*platform == "debian" && is.osVersion < 9) {
+	if (*platform == "ubuntu" && is.osVersion < 15) || (*platform == "debian" && is.osVersion < 9) {
 		is.T().Run("create /etc/apt keyring", func(t *testing.T) {
 			ExecuteWithoutError(t, VMclient, "sudo cp %s %s", aptUsrShareKeyring, aptTrustedDKeyring)
 		})
@@ -187,7 +187,7 @@ func (is *stepByStepSuite) StepByStepDebianTest(VMclient *common.TestClient) {
 
 	is.T().Run("install debian", func(t *testing.T) {
 		ExecuteWithoutError(t, VMclient, "sudo apt-get update")
-		ExecuteWithoutError(is.T(), VMclient, "sudo apt-get install %s -y -q", *flavorName)
+		ExecuteWithoutError(is.T(), VMclient, "sudo apt-get install %s datadog-signing-keys -y -q", *flavorName)
 	})
 }
 
@@ -219,9 +219,10 @@ func (is *stepByStepSuite) StepByStepRhelTest(VMclient *common.TestClient) {
 		"gpgcheck=1\n"+
 		"repo_gpgcheck=%s\n"+
 		"gpgkey=%s://keys.datadoghq.com/DATADOG_RPM_KEY_CURRENT.public\n"+
+		"\t%s://keys.datadoghq.com/DATADOG_RPM_KEY_B01082D3.public\n"+
 		"\t%s://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public\n"+
 		"\t%s://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public",
-		yumrepo, repogpgcheck, protocol, protocol, protocol)
+		yumrepo, repogpgcheck, protocol, protocol, protocol, protocol)
 	_, err = fileManager.WriteFile("/etc/yum.repos.d/datadog.repo", fileContent)
 	require.NoError(is.T(), err)
 
@@ -251,6 +252,7 @@ func (is *stepByStepSuite) StepByStepSuseTest(VMclient *common.TestClient) {
 		"gpgcheck=1\n"+
 		"repo_gpgcheck=1\n"+
 		"gpgkey=https://keys.datadoghq.com/DATADOG_RPM_KEY_CURRENT.public\n"+
+		"	    https://keys.datadoghq.com/DATADOG_RPM_KEY_B01082D3.public\n"+
 		"	    https://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public\n"+
 		"	    https://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public\n",
 		suseRepo)
@@ -260,6 +262,8 @@ func (is *stepByStepSuite) StepByStepSuseTest(VMclient *common.TestClient) {
 	is.T().Run("install suse", func(t *testing.T) {
 		ExecuteWithoutError(t, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_CURRENT.public https://keys.datadoghq.com/DATADOG_RPM_KEY_CURRENT.public")
 		ExecuteWithoutError(t, VMclient, "sudo rpm --import /tmp/DATADOG_RPM_KEY_CURRENT.public")
+		ExecuteWithoutError(t, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_B01082D3.public https://keys.datadoghq.com/DATADOG_RPM_KEY_B01082D3.public")
+		ExecuteWithoutError(t, VMclient, "sudo rpm --import /tmp/DATADOG_RPM_KEY_B01082D3.public")
 		ExecuteWithoutError(t, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_FD4BF915.public https://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public")
 		ExecuteWithoutError(t, VMclient, "sudo rpm --import /tmp/DATADOG_RPM_KEY_FD4BF915.public")
 		ExecuteWithoutError(t, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_E09422B3.public https://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public")
