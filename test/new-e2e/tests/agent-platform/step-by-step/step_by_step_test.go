@@ -76,7 +76,7 @@ func TestStepByStepScript(t *testing.T) {
 	cwsSupportedOsVersionList := strings.Split(*cwsSupportedOsVersion, ",")
 	fmt.Println("Parsed platform json file: ", platformJSON)
 	for _, osVers := range osVersions {
-		var vmOpts []ec2params.Option
+		vmOpts := []ec2params.Option{}
 		osVers := osVers
 		cwsSupported := false
 		for _, cwsSupportedOs := range cwsSupportedOsVersionList {
@@ -103,7 +103,7 @@ func TestStepByStepScript(t *testing.T) {
 			if instanceType, ok := os.LookupEnv("E2E_OVERRIDE_INSTANCE_TYPE"); ok {
 				vmOpts = append(vmOpts, ec2params.WithInstanceType(instanceType))
 			}
-			e2e.Run(tt, &stepByStepSuite{cwsSupported: cwsSupported, osVersion: version}, e2e.EC2VMStackDef(), params.WithStackName(fmt.Sprintf("step-by-step-test-%v-%v-%s-%s", os.Getenv("CI_PIPELINE_ID"), osVers, *architecture, *majorVersion)))
+			e2e.Run(tt, &stepByStepSuite{cwsSupported: cwsSupported, osVersion: version}, e2e.EC2VMStackDef(vmOpts...), params.WithStackName(fmt.Sprintf("step-by-step-test-%v-%v-%s-%s", os.Getenv("CI_PIPELINE_ID"), osVers, *architecture, *majorVersion)))
 		})
 	}
 }
