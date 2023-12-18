@@ -16,7 +16,7 @@ type resolverCallback func([]string, string) (string, error)
 type walker struct {
 	// resolver is called to fetch the value of a handle
 	resolver resolverCallback
-	// notifier is called each time a key from the YAML is updated. This is used by ResolveWithCallback.
+	// notifier is called each time a key from the YAML is updated. This is used by RegisterResolveCallback.
 	//
 	// When a slice is updated, this will be called once with the final slice content.
 	notifier secrets.ResolveCallback

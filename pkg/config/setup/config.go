@@ -362,6 +362,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("secret_backend_command_allow_group_exec_perm", false)
 	config.BindEnvAndSetDefault("secret_backend_skip_checks", false)
 	config.BindEnvAndSetDefault("secret_backend_remove_trailing_line_break", false)
+	config.BindEnvAndSetDefault("secret_refresh_interval", 0)
 
 	// Use to output logs in JSON format
 	config.BindEnvAndSetDefault("log_format_json", false)
@@ -1751,6 +1752,7 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 		config.GetStringSlice("secret_backend_arguments"),
 		config.GetInt("secret_backend_timeout"),
 		config.GetInt("secret_backend_output_max_size"),
+		config.GetInt("secret_refresh_interval"),
 		config.GetBool("secret_backend_command_allow_group_exec_perm"),
 		config.GetBool("secret_backend_remove_trailing_line_break"),
 	)
@@ -1765,7 +1767,7 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 			return fmt.Errorf("unable to marshal configuration to YAML to decrypt secrets: %v", err)
 		}
 
-		err = secretResolver.ResolveWithCallback(
+		err = secretResolver.RegisterResolveCallback(
 			yamlConf,
 			origin,
 			func(yamlPath []string, value any) bool {
