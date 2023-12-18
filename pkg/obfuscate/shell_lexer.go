@@ -43,7 +43,7 @@ var (
 		"equal":                regexp.MustCompile(`^\s*=`),
 		"backticks":            regexp.MustCompile("^\\s*`"),
 		"dollar":               regexp.MustCompile(`^\s*\$`),
-		"redirection":          regexp.MustCompile(`^\s*(&>)|(([0-9])?((>\|)|([<>]&[0-9\-]?)|([<>]?>)|(<(<(<)?(-)?)?)))`),
+		"redirection":          regexp.MustCompile(`^\s*(?:(&>)|(([0-9])?((>\|)|([<>]&[0-9\-]?)|([<>]?>)|(<(<(<)?(-)?)?))))`),
 		"anyToken":             regexp.MustCompile(`[` + IFS + "`" + `"'&|=$()<>;]`),
 		"control":              regexp.MustCompile(`^([\n;|]|&[^>])+`),
 	} // Regex patterns
