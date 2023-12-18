@@ -84,9 +84,9 @@ const (
 	defaultWorkersCount = 40
 
 	defaultAWSRate          rate.Limit = 20.0
-	defaultEC2Rate                     = 20.0
-	defaultEBSListBlockRate            = 20.0
-	defaultEBSGetBlockRate             = 400.0
+	defaultEC2Rate          rate.Limit = 20.0
+	defaultEBSListBlockRate rate.Limit = 20.0
+	defaultEBSGetBlockRate  rate.Limit = 400.0
 
 	defaultSelfRegion      = "us-east-1"
 	defaultSnapshotsMaxTTL = 24 * time.Hour
