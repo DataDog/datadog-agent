@@ -16,6 +16,7 @@ import (
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
+	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -43,11 +44,11 @@ func TestEventStreamEnabledForSupportedKernelsLinux(t *testing.T) {
 		if runtime.GOOS != "linux" {
 			t.Skip("This is only for linux")
 		}
-		kv, err := kernel.HostVersion()
+		kv, err := ebpfkernel.NewKernelVersion()
 		kv4150 := kernel.VersionCode(4, 15, 0)
 		require.NoError(t, err)
-		if kv >= kv4150 {
-			t.Skip("This test should only be run on kernels < 4.15.0")
+		if kv.Code >= kv4150 || kv.IsRH8Kernel() {
+			t.Skip("This test should only be run on kernels < 4.15.0 and RH7")
 		}
 		aconfig.ResetSystemProbeConfig(t)
 		t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", strconv.FormatBool(true))
@@ -61,11 +62,11 @@ func TestEventStreamEnabledForSupportedKernelsLinux(t *testing.T) {
 		if runtime.GOOS != "linux" {
 			t.Skip("This is only for linux")
 		}
-		kv, err := kernel.HostVersion()
+		kv, err := ebpfkernel.NewKernelVersion()
 		kv4150 := kernel.VersionCode(4, 15, 0)
 		require.NoError(t, err)
-		if kv < kv4150 {
-			t.Skip("This test should only be run on kernels >= 4.15.0")
+		if kv.Code < kv4150 || kv.IsRH7Kernel() {
+			t.Skip("This test should only be run on kernels >= 4.15.0 and RH8")
 		}
 		aconfig.ResetSystemProbeConfig(t)
 		t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", strconv.FormatBool(true))
