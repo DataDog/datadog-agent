@@ -263,7 +263,7 @@ func (p *goTLSProgram) PostStart(_ *manager.Manager) error {
 	return nil
 }
 
-func (p *goTLSProgram) DumpMaps(w io.Writer, _ string, _ *ebpf.Map) {}
+func (p *goTLSProgram) DumpMaps(_ io.Writer, _ string, _ *ebpf.Map) {}
 
 func (p *goTLSProgram) GetStats() *protocols.ProtocolStats {
 	return nil
