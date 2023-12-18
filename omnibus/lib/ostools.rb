@@ -63,3 +63,15 @@ def with_python_runtime?(runtime)
     python_runtimes = ENV['PY_RUNTIMES'].nil? ? ['3'] : ENV['PY_RUNTIMES'].split(',')
     return python_runtimes.include? runtime
 end
+
+def bundled_agents()
+  if linux_target? || windows_target?
+    return ["process-agent", "security-agent", "system-probe"]
+  else
+    return []
+  end
+end
+
+def with_bundled_agent?(agent)
+  return bundled_agents.include? agent
+end

@@ -294,11 +294,15 @@ if windows_target?
 
   GO_BINARIES = [
     "#{install_dir}\\bin\\agent\\agent.exe",
-    "#{install_dir}\\bin\\agent\\trace-agent.exe",
-    "#{install_dir}\\bin\\agent\\process-agent.exe",
-    "#{install_dir}\\bin\\agent\\system-probe.exe"
   ]
-  if not windows_arch_i386? and ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
+
+  ["trace-agent", "process-agent", "system-probe"].each do |agent|
+    if not bundled_agents.include? agent
+      GO_BINARIES << "#{install_dir}\\bin\\agent\\#{agent}.exe"
+    end
+  end
+
+  if (not bundled_agents.include? "security-agent") and not windows_arch_i386? and ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
     GO_BINARIES << "#{install_dir}\\bin\\agent\\security-agent.exe"
   end
 

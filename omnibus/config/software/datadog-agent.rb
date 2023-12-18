@@ -21,11 +21,6 @@ relative_path 'src/github.com/DataDog/datadog-agent'
 build do
   license :project_license
 
-  bundled_agents = []
-  if linux_target?
-    bundled_agents = ["process-agent", "security-agent", "system-probe"]
-  end
-
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
   etc_dir = "/etc/datadog-agent"
@@ -66,7 +61,6 @@ build do
   bundle_arg = bundled_agents.map { |k| "--bundle #{k}" }.join(" ")
 
   # we assume the go deps are already installed before running omnibus
-  bundle_arg = bundled_agents.map { |k| "--bundle #{k}" }.join(" ")
   if windows_target?
     platform = windows_arch_i386? ? "x86" : "x64"
     do_windows_sysprobe = ""
@@ -113,7 +107,7 @@ build do
     mkdir Omnibus::Config.package_dir() unless Dir.exists?(Omnibus::Config.package_dir())
   end
 
-  if not bundled_agents.include? "trace-agent"
+  if not with_bundled_agent? "trace-agent"
     platform = windows_arch_i386? ? "x86" : "x64"
     command "invoke trace-agent.build --python-runtimes #{py_runtimes_arg} --install-path=#{install_dir} --major-version #{major_version_arg} --arch #{platform} --flavor #{flavor_arg}", :env => env
   end
@@ -128,7 +122,7 @@ build do
   arch_arg = windows_target? ? "--arch " + (windows_arch_i386? ? "x86" : "x64") : ""
 
   # Process agent
-  if not bundled_agents.include? "process-agent"
+  if not with_bundled_agent? "process-agent"
     command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg} #{arch_arg}", :env => env
   end
 
@@ -141,7 +135,7 @@ build do
   # System-probe
   sysprobe_support = linux_target? || (windows_target? && do_windows_sysprobe != "")
   if sysprobe_support
-    if not bundled_agents.include? "system-probe"
+    if not with_bundled_agent? "system-probe"
       if windows_target?
         ## don't bother with system probe build on x86.
         command "invoke -e system-probe.build --windows"
@@ -166,7 +160,7 @@ build do
   # Security agent
   secagent_support = (not heroku_target?) and (not windows_target? or (ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?))
   if secagent_support
-    if not bundled_agents.include? "security-agent"
+    if not with_bundled_agent? "security-agent"
       command "invoke -e security-agent.build --install-path=#{install_dir} --major-version #{major_version_arg}", :env => env
     end
     if windows_target?
