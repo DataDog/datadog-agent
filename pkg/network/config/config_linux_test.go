@@ -15,7 +15,6 @@ import (
 	"github.com/vishvananda/netns"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	sysprobeconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
@@ -68,7 +67,7 @@ func TestEventStreamEnabledForSupportedKernelsLinux(t *testing.T) {
 
 		require.False(t, cfg.GetBool("event_monitoring_config.network_process.enabled"))
 
-		sysProbeConfig, err := sysprobeconfig.New("")
+		sysProbeConfig, err := sysconfig.New("")
 		require.NoError(t, err)
 
 		emconfig := emconfig.NewConfig(sysProbeConfig)
@@ -95,7 +94,7 @@ func TestEventStreamEnabledForSupportedKernelsLinux(t *testing.T) {
 
 		require.True(t, cfg.GetBool("event_monitoring_config.network_process.enabled"))
 
-		sysProbeConfig, err := sysprobeconfig.New("")
+		sysProbeConfig, err := sysconfig.New("")
 		require.NoError(t, err)
 
 		emconfig := emconfig.NewConfig(sysProbeConfig)
