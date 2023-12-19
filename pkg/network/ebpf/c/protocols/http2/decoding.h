@@ -550,7 +550,7 @@ static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *s
 // - HEADERS frames
 // - RST_STREAM frames
 // - DATA frames with the END_STREAM flag set
-static __always_inline __u8 find_relevant_frames(struct __sk_buff *skb, skb_info_t *skb_info, http2_frame_with_offset *frames_array, __u8 original_index, http2_telemetry_t *http2_tel) {
+static __always_inline __u16 find_relevant_frames(struct __sk_buff *skb, skb_info_t *skb_info, http2_frame_with_offset *frames_array, __u8 original_index, http2_telemetry_t *http2_tel) {
     bool is_headers_or_rst_frame, is_data_end_of_stream;
     struct http2_frame current_frame = {};
 
@@ -559,7 +559,7 @@ static __always_inline __u8 find_relevant_frames(struct __sk_buff *skb, skb_info
     // interesting_frame_index to original_index directly, as this will confuse
     // the verifier, leading it into thinking the index could have an arbitrary
     // value.
-    __u8 interesting_frame_index = original_index == 1;
+    __u16 interesting_frame_index = original_index == 1;
 
     __u32 iteration = 0;
 #pragma unroll(HTTP2_MAX_FRAMES_TO_FILTER)
@@ -714,9 +714,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
         // We have a remainder
         new_frame_state.remainder = local_skb_info.data_off - local_skb_info.data_end;
         bpf_map_update_elem(&http2_remainder, &dispatcher_args_copy.tup, &new_frame_state, BPF_ANY);
-    }
-
-    if (local_skb_info.data_off < local_skb_info.data_end && local_skb_info.data_off + HTTP2_FRAME_HEADER_SIZE > local_skb_info.data_end) {
+    } else if (local_skb_info.data_off < local_skb_info.data_end && local_skb_info.data_off + HTTP2_FRAME_HEADER_SIZE > local_skb_info.data_end) {
         // We have a frame header remainder
         new_frame_state.remainder = HTTP2_FRAME_HEADER_SIZE - (local_skb_info.data_end - local_skb_info.data_off);
         bpf_memset(new_frame_state.buf, 0, HTTP2_FRAME_HEADER_SIZE);
@@ -785,7 +783,7 @@ int socket__http2_frames_parser(struct __sk_buff *skb) {
     http2_ctx->dynamic_index.tup = dispatcher_args_copy.tup;
 
     #pragma unroll(HTTP2_FRAMES_PER_TAIL_CALL)
-    for (__u8 index = 0; index < HTTP2_FRAMES_PER_TAIL_CALL; index++) {
+    for (__u16 index = 0; index < HTTP2_FRAMES_PER_TAIL_CALL; index++) {
         if (tail_call_state->iteration >= HTTP2_MAX_FRAMES_ITERATIONS) {
             break;
         }
