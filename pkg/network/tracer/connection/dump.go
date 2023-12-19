@@ -34,7 +34,7 @@ func dumpMapsHandler(w io.Writer, manager *manager.Manager, mapName string, curr
 		var key uint64
 		var value uintptr // C.void*
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			io.WriteString(w, spew.Sdump(key, value))
+			spew.Fdump(w, key, value)
 		}
 
 	case probes.TracerStatusMap: // maps/tracer_status (BPF_MAP_TYPE_HASH), key C.__u64, value tracerStatus
@@ -43,7 +43,7 @@ func dumpMapsHandler(w io.Writer, manager *manager.Manager, mapName string, curr
 		var key uint64
 		var value offsetguess.TracerStatus
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			io.WriteString(w, spew.Sdump(key, value))
+			spew.Fdump(w, key, value)
 		}
 
 	case probes.ConntrackStatusMap: // maps/conntrack_status (BPF_MAP_TYPE_HASH), key C.__u64, value conntrackStatus
@@ -52,7 +52,7 @@ func dumpMapsHandler(w io.Writer, manager *manager.Manager, mapName string, curr
 		var key uint64
 		var value offsetguess.ConntrackStatus
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			io.WriteString(w, spew.Sdump(key, value))
+			spew.Fdump(w, key, value)
 		}
 
 	case probes.ConntrackMap: // maps/conntrack (BPF_MAP_TYPE_HASH), key ConnTuple, value ConnTuple
@@ -61,7 +61,7 @@ func dumpMapsHandler(w io.Writer, manager *manager.Manager, mapName string, curr
 		var key ddebpf.ConnTuple
 		var value ddebpf.ConnTuple
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			io.WriteString(w, spew.Sdump(key, value))
+			spew.Fdump(w, key, value)
 		}
 
 	case probes.ConntrackTelemetryMap: // maps/conntrack_telemetry (BPF_MAP_TYPE_ARRAY), key C.u32, value conntrackTelemetry
@@ -71,7 +71,7 @@ func dumpMapsHandler(w io.Writer, manager *manager.Manager, mapName string, curr
 		if err := currentMap.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(telemetry)); err != nil {
 			log.Tracef("error retrieving the contrack telemetry struct: %s", err)
 		}
-		io.WriteString(w, spew.Sdump(telemetry))
+		spew.Fdump(w, telemetry)
 
 	case probes.SockFDLookupArgsMap: // maps/sockfd_lookup_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.__u32
 		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u64', value: 'C.__u32'\n")
@@ -79,7 +79,7 @@ func dumpMapsHandler(w io.Writer, manager *manager.Manager, mapName string, curr
 		var key uint64
 		var value uint32
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			io.WriteString(w, spew.Sdump(key, value))
+			spew.Fdump(w, key, value)
 		}
 
 	case probes.SockByPidFDMap: // maps/sock_by_pid_fd (BPF_MAP_TYPE_HASH), key C.pid_fd_t, value uintptr // C.struct sock*
@@ -88,7 +88,7 @@ func dumpMapsHandler(w io.Writer, manager *manager.Manager, mapName string, curr
 		var key ddebpf.PIDFD
 		var value uintptr // C.struct sock*
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			io.WriteString(w, spew.Sdump(key, value))
+			spew.Fdump(w, key, value)
 		}
 
 	case probes.PidFDBySockMap: // maps/pid_fd_by_sock (BPF_MAP_TYPE_HASH), key uintptr // C.struct sock*, value C.pid_fd_t
@@ -97,7 +97,7 @@ func dumpMapsHandler(w io.Writer, manager *manager.Manager, mapName string, curr
 		var key uintptr // C.struct sock*
 		var value ddebpf.PIDFD
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			io.WriteString(w, spew.Sdump(key, value))
+			spew.Fdump(w, key, value)
 		}
 
 	case probes.ConnMap: // maps/conn_stats (BPF_MAP_TYPE_HASH), key ConnTuple, value ConnStatsWithTimestamp
@@ -106,7 +106,7 @@ func dumpMapsHandler(w io.Writer, manager *manager.Manager, mapName string, curr
 		var key ddebpf.ConnTuple
 		var value ddebpf.ConnStats
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			io.WriteString(w, spew.Sdump(key, value))
+			spew.Fdump(w, key, value)
 		}
 
 	case probes.TCPStatsMap: // maps/tcp_stats (BPF_MAP_TYPE_HASH), key ConnTuple, value TCPStats
@@ -115,7 +115,7 @@ func dumpMapsHandler(w io.Writer, manager *manager.Manager, mapName string, curr
 		var key ddebpf.ConnTuple
 		var value ddebpf.TCPStats
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			io.WriteString(w, spew.Sdump(key, value))
+			spew.Fdump(w, key, value)
 		}
 
 	case probes.ConnCloseBatchMap: // maps/conn_close_batch (BPF_MAP_TYPE_HASH), key C.__u32, value batch
@@ -124,7 +124,7 @@ func dumpMapsHandler(w io.Writer, manager *manager.Manager, mapName string, curr
 		var key uint32
 		var value ddebpf.Batch
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			io.WriteString(w, spew.Sdump(key, value))
+			spew.Fdump(w, key, value)
 		}
 
 	case "udp_recv_sock": // maps/udp_recv_sock (BPF_MAP_TYPE_HASH), key C.__u64, value C.udp_recv_sock_t
@@ -133,7 +133,7 @@ func dumpMapsHandler(w io.Writer, manager *manager.Manager, mapName string, curr
 		var key uint64
 		var value ddebpf.UDPRecvSock
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			io.WriteString(w, spew.Sdump(key, value))
+			spew.Fdump(w, key, value)
 		}
 
 	case "udpv6_recv_sock": // maps/udpv6_recv_sock (BPF_MAP_TYPE_HASH), key C.__u64, value C.udp_recv_sock_t
@@ -142,7 +142,7 @@ func dumpMapsHandler(w io.Writer, manager *manager.Manager, mapName string, curr
 		var key uint64
 		var value ddebpf.UDPRecvSock
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			io.WriteString(w, spew.Sdump(key, value))
+			spew.Fdump(w, key, value)
 		}
 
 	case probes.PortBindingsMap: // maps/port_bindings (BPF_MAP_TYPE_HASH), key portBindingTuple, value C.__u8
@@ -151,7 +151,7 @@ func dumpMapsHandler(w io.Writer, manager *manager.Manager, mapName string, curr
 		var key ddebpf.PortBinding
 		var value uint8
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			io.WriteString(w, spew.Sdump(key, value))
+			spew.Fdump(w, key, value)
 		}
 
 	case probes.UDPPortBindingsMap: // maps/udp_port_bindings (BPF_MAP_TYPE_HASH), key portBindingTuple, value C.__u8
@@ -160,7 +160,7 @@ func dumpMapsHandler(w io.Writer, manager *manager.Manager, mapName string, curr
 		var key ddebpf.PortBinding
 		var value uint8
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			io.WriteString(w, spew.Sdump(key, value))
+			spew.Fdump(w, key, value)
 		}
 
 	case "pending_bind": // maps/pending_bind (BPF_MAP_TYPE_HASH), key C.__u64, value C.bind_syscall_args_t
@@ -169,7 +169,7 @@ func dumpMapsHandler(w io.Writer, manager *manager.Manager, mapName string, curr
 		var key uint64
 		var value ddebpf.BindSyscallArgs
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			io.WriteString(w, spew.Sdump(key, value))
+			spew.Fdump(w, key, value)
 		}
 
 	case probes.TelemetryMap: // maps/telemetry (BPF_MAP_TYPE_ARRAY), key C.u32, value kernelTelemetry
@@ -181,6 +181,6 @@ func dumpMapsHandler(w io.Writer, manager *manager.Manager, mapName string, curr
 			// so let's just use a trace log
 			log.Tracef("error retrieving the telemetry struct: %s", err)
 		}
-		io.WriteString(w, spew.Sdump(telemetry))
+		spew.Fdump(w, telemetry)
 	}
 }

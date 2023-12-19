@@ -716,7 +716,6 @@ func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 func (t *Tracer) DebugEBPFMaps(w io.Writer, maps ...string) error {
 	io.WriteString(w, "tracer:\n")
 	err := t.ebpfTracer.DumpMaps(w, maps...)
-
 	if err != nil {
 		return err
 	}
@@ -724,7 +723,6 @@ func (t *Tracer) DebugEBPFMaps(w io.Writer, maps ...string) error {
 	if t.usmMonitor != nil {
 		io.WriteString(w, "http_monitor:\n")
 		err := t.usmMonitor.DumpMaps(w, maps...)
-
 		if err != nil {
 			return err
 		}
