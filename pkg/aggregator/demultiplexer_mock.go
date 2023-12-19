@@ -191,11 +191,6 @@ func InitTestAgentDemultiplexerWithFlushInterval(log log.Component, flushInterva
 	return InitTestAgentDemultiplexerWithOpts(log, defaultforwarder.NewOptions(config.Datadog, log, nil), opts)
 }
 
-// InitTestAgentDemultiplexer inits a TestAgentDemultiplexer with a long flush interval.
-func InitTestAgentDemultiplexer(log log.Component) *TestAgentDemultiplexer {
-	return InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour) // long flush interval for unit tests
-}
-
 // TestDeps contains dependencies for InitAndStartAgentDemultiplexerForTest
 type TestDeps struct {
 	fx.In

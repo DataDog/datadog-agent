@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 
@@ -37,7 +36,7 @@ func benchParsePackets(b *testing.B, rawPacket []byte) {
 	// our logger will log dogstatsd packet by default if nothing is setup
 	pkgconfig.SetupLogger("", "off", "", "", false, true, false)
 
-	demux := aggregator.InitTestAgentDemultiplexer(deps.Log)
+	demux := deps.Demultiplexer
 	defer demux.Stop(false)
 	_ = s.Start(demux)
 	defer s.Stop()
@@ -86,7 +85,7 @@ func BenchmarkPbarseMetricMessage(b *testing.B) {
 	// our logger will log dogstatsd packet by default if nothing is setup
 	pkgconfig.SetupLogger("", "off", "", "", false, true, false)
 
-	demux := aggregator.InitTestAgentDemultiplexer(deps.Log)
+	demux := deps.Demultiplexer
 	_ = s.Start(demux)
 	defer s.Stop()
 
@@ -139,7 +138,7 @@ func benchmarkMapperControl(b *testing.B, yaml string) {
 	// our logger will log dogstatsd packet by default if nothing is setup
 	pkgconfig.SetupLogger("", "off", "", "", false, true, false)
 
-	demux := aggregator.InitTestAgentDemultiplexer(deps.Log)
+	demux := deps.Demultiplexer
 	_ = s.Start(demux)
 	defer s.Stop()
 
