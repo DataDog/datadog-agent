@@ -30,7 +30,7 @@ func ValidateSocketAddress(sockPath string) error {
 	return nil
 }
 
-func canEnablePES() bool {
+func processEventDataStreamSupported() bool {
 	kernelVersion, err := ebpfkernel.NewKernelVersion()
 	if err != nil {
 		log.Errorf("unable to detect the kernel version: %s", err)

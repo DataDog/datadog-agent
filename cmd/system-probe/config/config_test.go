@@ -68,3 +68,18 @@ func TestEventMonitor(t *testing.T) {
 		})
 	}
 }
+
+func TestEventStreamEnabledForSupportedKernelsWindows(t *testing.T) {
+	t.Run("does nothing for windows", func(t *testing.T) {
+		if runtime.GOOS != "windows" {
+			t.Skip("This is only for windows")
+		}
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", strconv.FormatBool(true))
+
+		cfg := aconfig.SystemProbe
+		sysconfig.Adjust(cfg)
+
+		require.False(t, cfg.GetBool("event_monitoring_config.network_process.enabled"))
+	})
+}

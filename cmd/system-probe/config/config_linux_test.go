@@ -9,10 +9,14 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestNetworkProcessEventMonitoring(t *testing.T) {
@@ -55,4 +59,39 @@ func TestDynamicInstrumentation(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, false, cfg.ModuleIsEnabled(DynamicInstrumentationModule))
 
+}
+
+func newSystemProbeConfig(t *testing.T) {
+	originalConfig := aconfig.SystemProbe
+	t.Cleanup(func() {
+		aconfig.SystemProbe = originalConfig
+	})
+	aconfig.SystemProbe = aconfig.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
+	aconfig.InitSystemProbeConfig(aconfig.SystemProbe)
+}
+
+func TestEventStreamEnabledForSupportedKernelsLinux2(t *testing.T) {
+
+	newSystemProbeConfig(t)
+	t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", strconv.FormatBool(true))
+
+	cfg := aconfig.SystemProbe
+	sysconfig.Adjust(cfg)
+
+	if processEventDataStreamSupported() {
+		require.True(t, cfg.GetBool("event_monitoring_config.network_process.enabled"))
+		sysProbeConfig, err := sysconfig.New("")
+		require.NoError(t, err)
+
+		emconfig := emconfig.NewConfig(sysProbeConfig)
+		secconfig, err := secconfig.NewConfig()
+		require.NoError(t, err)
+
+		opts := eventmonitor.Opts{}
+		evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, opts)
+		require.NoError(t, err)
+		require.NoError(t, evm.Init())
+	} else {
+		require.False(t, cfg.GetBool("event_monitoring_config.network_process.enabled"))
+	}
 }

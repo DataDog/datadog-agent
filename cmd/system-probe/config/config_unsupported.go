@@ -19,6 +19,6 @@ func ValidateSocketAddress(sockPath string) error { //nolint:revive // TODO fix 
 	return fmt.Errorf("system-probe unsupported")
 }
 
-func canEnablePES() bool {
+func processEventDataStreamSupported() bool {
 	return true
 }

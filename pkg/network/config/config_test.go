@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-	"runtime"
 	"strconv"
 	"testing"
 	"time"
@@ -1628,21 +1627,6 @@ system_probe_config:
   process_service_inference:
     use_windows_service_name: false`)
 		require.False(t, cfg.GetBool("system_probe_config.process_service_inference.use_windows_service_name"))
-	})
-}
-
-func TestEventStreamEnabledForSupportedKernelsWindows(t *testing.T) {
-	t.Run("does nothing for windows", func(t *testing.T) {
-		if runtime.GOOS != "windows" {
-			t.Skip("This is only for windows")
-		}
-		aconfig.ResetSystemProbeConfig(t)
-		t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", strconv.FormatBool(false))
-
-		cfg := aconfig.SystemProbe
-		sysconfig.Adjust(cfg)
-
-		require.False(t, cfg.GetBool("event_monitoring_config.network_process.enabled"))
 	})
 }
 
