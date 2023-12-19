@@ -28,7 +28,7 @@
 # Todo: is this file still needed?
 /Makefile.trace                         @DataDog/agent-platform
 
-/release.json                           @DataDog/agent-platform @DataDog/agent-shared-components @DataDog/agent-metrics-logs @DataDog/windows-kernel-integrations
+/release.json                           @DataDog/agent-platform @DataDog/agent-metrics-logs @DataDog/windows-kernel-integrations
 /requirements.txt                       @DataDog/agent-platform
 /pyproject.toml                         @DataDog/agent-platform
 /setup.cfg                              @DataDog/agent-platform
@@ -340,7 +340,6 @@
 /pkg/proto/datadog/trace                @DataDog/agent-apm
 /pkg/remoteconfig/                      @DataDog/remote-config
 /pkg/runtime/                           @DataDog/agent-shared-components
-/pkg/secrets/                           @DataDog/agent-shared-components
 /pkg/serializer/                        @DataDog/agent-metrics-logs
 /pkg/tagger/                            @DataDog/container-integrations
 /pkg/tagset/                            @DataDog/agent-shared-components

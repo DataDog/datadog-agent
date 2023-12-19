@@ -103,6 +103,7 @@ type SyscallMsg struct {
 	NSID             uint64
 	Type             SyscallType
 	PID              uint32
+	Retval           int64
 	ContainerContext *ContainerContext
 	Exec             *ExecSyscallMsg
 	Open             *OpenSyscallMsg
