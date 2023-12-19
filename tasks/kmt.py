@@ -104,7 +104,7 @@ def init(ctx, lite=False):
 @task
 def update_resources(ctx, no_backup=False):
     warn("Updating resource dependencies will delete all running stacks.")
-    if ask("are you sure you want to continue? (Y/n)") != "Y":
+    if ask("are you sure you want to continue? (y/n)").lower() != "y":
         raise Exit("[-] Update aborted")
 
     for stack in glob(f"{KMT_STACKS_DIR}/*"):
