@@ -77,63 +77,31 @@ func TestGetWindowsRuntime(t *testing.T) {
 }
 
 func TestGetLinuxRuntime(t *testing.T) {
-	// Docker
-	t.Setenv("WEBSITE_STACK", "DOCKER")
-	docker := getRuntime("linux")
+	var tests = []struct {
+		envvar string
+		name   string
+		want   string
+	}{
+		{"WEBSITE_STACK", "DOCKER", "Container"},
+		{"DOCKER_SERVER_VERSION", "19.03.15+azure", "Container"},
+		{"WEBSITE_STACK", "JAVA", "Java"},
+		{"WEBSITE_STACK", "TOMCAT", "Java"},
+		{"WEBSITE_STACK", "NODE", "Node.js"},
+		{"WEBSITE_STACK", "PYTHON", "Python"},
+		{"WEBSITE_STACK", "DOTNETCORE", ".NET"},
+		{"WEBSITE_STACK", "PHP", "PHP"},
+		{"WEBSITE_STACK", "", "unknown"},
+	}
 
-	// container framework
-	os.Unsetenv("WEBSITE_STACK")
-	t.Setenv("WEBSITE_STACK", "")
-	t.Setenv("DOCKER_SERVER_VERSION", "19.03.15+azure")
-	compose := getRuntime("linux")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv(tt.envvar, tt.name)
+			ans := getRuntime("linux")
+			assert.Equal(t, tt.want, ans)
+		})
 
-	// Java
-	os.Unsetenv("WEBSITE_STACK")
-	os.Unsetenv("DOCKER_SERVER_VERSION")
-	t.Setenv("WEBSITE_STACK", "JAVA")
-	java := getRuntime("linux")
-
-	// Tomcat
-	os.Unsetenv("WEBSITE_STACK")
-	t.Setenv("WEBSITE_STACK", "TOMCAT")
-	tomcat := getRuntime("linux")
-
-	// NODE
-	os.Unsetenv("WEBSITE_STACK")
-	t.Setenv("WEBSITE_STACK", "NODE")
-	node := getRuntime("linux")
-
-	// Python
-	os.Unsetenv("WEBSITE_STACK")
-	t.Setenv("WEBSITE_STACK", "PYTHON")
-	python := getRuntime("linux")
-
-	// .NET
-	os.Unsetenv("WEBSITE_STACK")
-	t.Setenv("WEBSITE_STACK", "DOTNETCORE")
-	dotnet := getRuntime("linux")
-
-	// PHP
-	os.Unsetenv("WEBSITE_STACK")
-	t.Setenv("WEBSITE_STACK", "PHP")
-	php := getRuntime("linux")
-
-	// Unknown
-	os.Unsetenv("WEBSITE_STACK")
-	t.Setenv("WEBSITE_STACK", "")
-	unknown := getRuntime("linux")
-
-	assert.Equal(t, "Container", docker)
-	assert.Equal(t, "Container", compose)
-	assert.Equal(t, "Java", java)
-	assert.Equal(t, "Java", tomcat)
-	assert.Equal(t, "Node.js", node)
-	assert.Equal(t, "Python", python)
-	assert.Equal(t, ".NET", dotnet)
-	assert.Equal(t, "PHP", php)
-	assert.Equal(t, "unknown", unknown)
+	}
 }
-
 func TestParseAzureSubscriptionID(t *testing.T) {
 	parsedSubID := parseAzureSubscriptionID(mockAppServiceEnv["WEBSITE_OWNER_NAME"])
 	assert.Equal(t, "00000000-0000-0000-0000-000000000000", parsedSubID)
