@@ -10,6 +10,7 @@ package config
 import (
 	"fmt"
 	"path/filepath"
+
 	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
