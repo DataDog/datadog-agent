@@ -33,12 +33,12 @@ func canEnablePES() bool {
 	kernelVersion, err := ebpfkernel.NewKernelVersion()
 	if err != nil {
 		log.Errorf("unable to detect the kernel version: %s", err)
-		return tr
+		return true
 	}
 	if !kernelVersion.IsRH7Kernel() && !kernelVersion.IsRH8Kernel() && kernelVersion.Code < ebpfkernel.Kernel4_15 {
 		log.Warn("disabling process event monitoring as it is not supported for this kernel version")
-		return true
+		return false
 	}
 
-	return false
+	return true
 }
