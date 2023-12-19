@@ -10,7 +10,6 @@ import (
 	"math"
 	"runtime"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
