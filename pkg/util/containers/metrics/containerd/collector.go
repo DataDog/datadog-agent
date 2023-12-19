@@ -77,9 +77,7 @@ func newContainerdCollector(cache *provider.Cache) (provider.CollectorMetadata, 
 	}
 
 	kataCollectors := &provider.Collectors{
-		Stats:             provider.MakeRef[provider.ContainerStatsGetter](collector, collectorPriority),
-		PIDs:              provider.MakeRef[provider.ContainerPIDsGetter](collector, collectorPriority),
-		ContainerIDForPID: provider.MakeRef[provider.ContainerIDForPIDRetriever](collector, collectorPriority),
+		Stats: provider.MakeRef[provider.ContainerStatsGetter](collector, collectorPriority),
 	}
 
 	return provider.CollectorMetadata{
