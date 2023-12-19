@@ -1580,11 +1580,21 @@ api_key:
   # - ns2
   # - system-ns
 
-  ## @param trace_buffer - integer - optional
-  ## @env DD_APM_TRACE_BUFFER - integer - optional
-  ## Specifies the size of trace payloads to buffer before dropping them. If unset, trace payloads are unbuffered.
+  ## @param trace_buffer - integer - optional - default: 0
+  ## @env DD_APM_TRACE_BUFFER - integer - optional - default: 0
+  ## 
+  ## WARNING: Do not use this config. It is here for debugging and
+  ## as a temporary fix in certain load scenarios. Setting this
+  ## results in a performance deterioration and an increase in memory
+  ## usage when the Trace Agent is under load. This config may be
+  ## removed in a future version.
+  ## 
+  ## Specifies the number of trace payloads to buffer after decoding.
+  ## Traces can be buffered when receiving traces faster than the
+  ## processor can process them.
+  ## 
   #
-  # trace_buffer: 100
+  # trace_buffer: 0
 
   {{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional
@@ -3889,9 +3899,9 @@ api_key:
 
     ## @param resource_attributes_as_tags - boolean - optional - default: false
     ## @env DD_OTLP_CONFIG_METRICS_RESOURCE_ATTRIBUTES_AS_TAGS - boolean - optional - default: false
-    ## Set to true to add all resource attributes of a metric to its metric tags.
-    ## When set to false, only a small predefined subset of resource attributes is converted
-    ## to metric tags.
+    ## Set to true to add resource attributes of a metric to its metric tags. Please note that any of 
+    ## the subset of resource attributes in this list https://docs.datadoghq.com/opentelemetry/guide/semantic_mapping/ 
+    ## are converted to Datadog conventions and set to to metric tags whether this option is enabled or not.
     #
     # resource_attributes_as_tags: false
 

@@ -15,6 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 // StatusCodeContainer is a lock around the status code to return
@@ -76,7 +78,7 @@ func NewTestServerWithOptions(statusCode int, senders int, retryDestination bool
 		APIKey:           "test",
 		Host:             strings.Replace(url[1], "/", "", -1),
 		Port:             port,
-		UseSSL:           false,
+		UseSSL:           pointer.Ptr(false),
 		BackoffFactor:    1,
 		BackoffBase:      1,
 		BackoffMax:       10,

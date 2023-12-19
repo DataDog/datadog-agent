@@ -81,6 +81,7 @@ new-e2e-agent-subcommands*        @DataDog/agent-shared-components
 new-e2e-language-detection*       @DataDog/processes
 new-e2e-agent-platform*           @DataDog/agent-platform
 new-e2e-npm*                      @DataDog/Networks
+new-e2e-cws*                      @DataDog/agent-security
 
 # Kernel version testing
 package_dependencies*             @DataDog/ebpf-platform

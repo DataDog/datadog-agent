@@ -6,6 +6,7 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -159,6 +160,39 @@ func (c *LogsConfig) Dump(multiline bool) string {
 	fmt.Fprintf(&b, ws("AutoMultiLineSampleSize: %d,"), c.AutoMultiLineSampleSize)
 	fmt.Fprintf(&b, ws("AutoMultiLineMatchThreshold: %f}"), c.AutoMultiLineMatchThreshold)
 	return b.String()
+}
+
+// PublicJSON serialize the structure to make sure we only export fields that can be relevant to customers.
+// This is used to send the logs config to the backend as part of the metadata payload.
+func (c *LogsConfig) PublicJSON() ([]byte, error) {
+	// Export only fields that are explicitly documented in the public documentation
+	return json.Marshal(&struct {
+		Type            string            `json:"type,omitempty"`
+		Port            int               `json:"port,omitempty"`           // Network
+		Path            string            `json:"path,omitempty"`           // File, Journald
+		Encoding        string            `json:"encoding,omitempty"`       // File
+		ExcludePaths    []string          `json:"exclude_paths,omitempty"`  // File
+		TailingMode     string            `json:"start_position,omitempty"` // File
+		ChannelPath     string            `json:"channel_path,omitempty"`   // Windows Event
+		Service         string            `json:"service,omitempty"`
+		Source          string            `json:"source,omitempty"`
+		Tags            []string          `json:"tags,omitempty"`
+		ProcessingRules []*ProcessingRule `json:"log_processing_rules,omitempty"`
+		AutoMultiLine   *bool             `json:"auto_multi_line_detection,omitempty"`
+	}{
+		Type:            c.Type,
+		Port:            c.Port,
+		Path:            c.Path,
+		Encoding:        c.Encoding,
+		ExcludePaths:    c.ExcludePaths,
+		TailingMode:     c.TailingMode,
+		ChannelPath:     c.ChannelPath,
+		Service:         c.Service,
+		Source:          c.Source,
+		Tags:            c.Tags,
+		ProcessingRules: c.ProcessingRules,
+		AutoMultiLine:   c.AutoMultiLine,
+	})
 }
 
 // TailingMode type

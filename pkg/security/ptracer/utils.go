@@ -16,8 +16,8 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-	"unicode"
 
+	"github.com/DataDog/datadog-agent/pkg/security/common/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
 )
 
@@ -62,20 +62,6 @@ func getProcControlGroupsFromFile(path string) ([]controlGroup, error) {
 
 }
 
-func getContainerID(path string) string {
-	// path is in form of: /docker/580f75c027f19bf3a59de881b056829f214fc1d78961c164e8669485ef5b0dd5
-	// -> len(/docker/) = 8, +64 of container ID
-	if len(path) != 8+64 { // check length
-		return ""
-	}
-	for _, i := range path[8:] { // check that it's only numeric
-		if !unicode.IsLetter(i) && !unicode.IsDigit(i) {
-			return ""
-		}
-	}
-	return path[8:]
-}
-
 func getCurrentProcContainerID() (string, error) {
 	cgroups, err := getProcControlGroupsFromFile("/proc/self/cgroup")
 	if err != nil {
@@ -83,7 +69,7 @@ func getCurrentProcContainerID() (string, error) {
 	}
 
 	for _, cgroup := range cgroups {
-		cid := getContainerID(cgroup.path)
+		cid := containerutils.FindContainerID(cgroup.path)
 		if cid != "" {
 			return cid, nil
 		}

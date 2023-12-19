@@ -11,8 +11,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
+
+	"github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 )
 
 // GetAWSPartitionByRegion parses an AWS region and returns an AWS partition

@@ -9,9 +9,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestCounterInitializer(t *testing.T) {
@@ -161,4 +162,21 @@ func TestMeterProvider(t *testing.T) {
 	metric := metricFamily.GetMetric()[0]
 	assert.Equal(t, metric.GetCounter().GetValue(), 123.0)
 	assert.Equal(t, *metric.GetLabel()[0].Value, "foo")
+}
+
+func TestGoMetrics(t *testing.T) {
+	// Read the default global registry
+	metrics, err := registry.Gather()
+	assert.NoError(t, err)
+
+	metricNames := make(map[string]bool)
+	for _, m := range metrics {
+		metricNames[m.GetName()] = true
+	}
+	// Make sure we have one for each category at least.
+	assert.Contains(t, metricNames, "go_goroutines")
+	assert.Contains(t, metricNames, "go_memstats_alloc_bytes")
+	assert.Contains(t, metricNames, "go_sched_goroutines_goroutines")
+	assert.Contains(t, metricNames, "go_threads")
+	assert.Contains(t, metricNames, "go_gc_duration_seconds")
 }

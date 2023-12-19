@@ -79,6 +79,8 @@ func (p *WindowsProbe) Start() error {
 		for {
 			var pce *model.ProcessCacheEntry
 			ev := p.zeroEvent()
+			var pidToCleanup uint32
+
 			select {
 			case <-p.ctx.Done():
 				return
@@ -113,7 +115,7 @@ func (p *WindowsProbe) Start() error {
 				log.Infof("Received stop %v", stop)
 
 				pce = p.Resolvers.ProcessResolver.GetEntry(pid)
-				defer p.Resolvers.ProcessResolver.DeleteEntry(pid, time.Now())
+				pidToCleanup = pid
 
 				ev.Type = uint32(model.ExitEventType)
 				if pce == nil {
@@ -132,6 +134,11 @@ func (p *WindowsProbe) Start() error {
 			ev.ProcessContext = &pce.ProcessContext
 
 			p.DispatchEvent(ev)
+
+			if pidToCleanup != 0 {
+				p.Resolvers.ProcessResolver.DeleteEntry(pidToCleanup, time.Now())
+				pidToCleanup = 0
+			}
 		}
 	}()
 	return p.pm.Start()
