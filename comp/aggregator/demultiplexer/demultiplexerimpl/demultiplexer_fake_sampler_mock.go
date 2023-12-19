@@ -37,7 +37,7 @@ func (f fakeSamplerMock) GetAgentDemultiplexer() *aggregator.AgentDemultiplexer 
 }
 
 func newFakeSamplerMock(deps fakeSamplerMockDependencies) demultiplexerComp.FakeSamplerMock {
-	demux := InitTestAgentDemultiplexerWithFlushInterval(deps.Log, time.Hour)
+	demux := initTestAgentDemultiplexerWithFlushInterval(deps.Log, time.Hour)
 	return fakeSamplerMock{
 		TestAgentDemultiplexer: demux,
 	}
