@@ -42,16 +42,19 @@ type Collector struct {
 	runner    *runner.Runner
 	checks    map[checkid.ID]*middleware.CheckWrapper
 
+	cancelCheckTimeout time.Duration
+
 	m sync.RWMutex
 }
 
 // NewCollector create a Collector instance and sets up the Python Environment
-func NewCollector(senderManager sender.SenderManager, paths ...string) *Collector {
+func NewCollector(senderManager sender.SenderManager, cancelCheckTimeout time.Duration, paths ...string) *Collector {
 	c := &Collector{
-		senderManager:  senderManager,
-		checks:         make(map[checkid.ID]*middleware.CheckWrapper),
-		state:          atomic.NewUint32(stopped),
-		checkInstances: int64(0),
+		senderManager:      senderManager,
+		checks:             make(map[checkid.ID]*middleware.CheckWrapper),
+		state:              atomic.NewUint32(stopped),
+		checkInstances:     int64(0),
+		cancelCheckTimeout: cancelCheckTimeout,
 	}
 	pyVer, pyHome, pyPath := pySetup(paths...)
 
@@ -172,11 +175,11 @@ func (c *Collector) StopCheck(id checkid.ID) error {
 	err = c.runner.StopCheck(id)
 	if err != nil {
 		// still attempt to cancel the check before returning the error
-		_ = c.cancelCheck(ch, cancelCheckTimeout)
+		_ = c.cancelCheck(ch, c.cancelCheckTimeout)
 		return fmt.Errorf("an error occurred while stopping the check: %s", err)
 	}
 
-	err = c.cancelCheck(ch, cancelCheckTimeout)
+	err = c.cancelCheck(ch, c.cancelCheckTimeout)
 	if err != nil {
 		return fmt.Errorf("an error occurred while calling check.Cancel(): %s", err)
 	}
@@ -204,7 +207,7 @@ func (c *Collector) cancelCheck(ch check.Check, timeout time.Duration) error {
 	case <-done:
 		return nil
 	case <-time.After(timeout):
-		return fmt.Errorf("timeout while calling check.Cancel() on check ID %s", ch.ID())
+		return fmt.Errorf("timeout while calling check.Cancel() on check ID %s, timeout: %s", ch.ID(), timeout)
 	}
 }
 

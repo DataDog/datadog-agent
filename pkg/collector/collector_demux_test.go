@@ -32,7 +32,7 @@ type CollectorDemuxTestSuite struct {
 func (suite *CollectorDemuxTestSuite) SetupTest() {
 	log := fxutil.Test[log.Component](suite.T(), log.MockModule)
 	suite.demux = aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 100*time.Hour)
-	suite.c = NewCollector(suite.demux)
+	suite.c = NewCollector(suite.demux, 500*time.Millisecond)
 
 	suite.c.Start()
 }
