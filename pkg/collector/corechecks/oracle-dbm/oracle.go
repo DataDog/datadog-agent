@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+
 	//nolint:revive // TODO(DBM) Fix revive linter
 	_ "github.com/godror/godror"
 	go_version "github.com/hashicorp/go-version"
@@ -176,7 +177,6 @@ func (c *Check) Run() error {
 	}
 
 	metricIntervalExpired := checkIntervalExpired(&c.metricLastRun, c.config.MetricCollectionInterval)
-
 	if metricIntervalExpired {
 		if c.dbmEnabled {
 			err := c.dataGuard()
@@ -263,6 +263,12 @@ func (c *Check) Run() error {
 		if metricIntervalExpired {
 			if c.config.ResourceManager.Enabled {
 				err := c.resourceManager()
+				if err != nil {
+					return fmt.Errorf("%s %w", c.logPrompt, err)
+				}
+			}
+			if c.config.Locks.Enabled {
+				err := c.locks()
 				if err != nil {
 					return fmt.Errorf("%s %w", c.logPrompt, err)
 				}
