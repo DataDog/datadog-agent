@@ -156,7 +156,8 @@ func (c *conntrackOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expec
 			c.logAndAdvance(c.status.Offset_origin, GuessCtTupleReply)
 			break
 		}
-		log.Debugf("%v %d does not match expected %d, incrementing", whatString[GuessWhat(c.status.What)], c.status.Saddr, expected.saddr)
+		log.Debugf("%v %d does not match expected %d, incrementing offset %d",
+			whatString[GuessWhat(c.status.What)], c.status.Saddr, expected.saddr, c.status.Offset_origin)
 		c.status.Offset_origin++
 		c.status.Offset_origin, _ = skipOverlaps(c.status.Offset_origin, c.nfConnRanges())
 	case GuessCtTupleReply:
@@ -171,7 +172,8 @@ func (c *conntrackOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expec
 			c.logAndAdvance(c.status.Offset_reply, GuessCtNet)
 			break
 		}
-		log.Debugf("%v %d does not match expected %d, incrementing", whatString[GuessWhat(c.status.What)], c.status.Saddr, expected.daddr)
+		log.Debugf("%v %d does not match expected %d, incrementing offset %d",
+			whatString[GuessWhat(c.status.What)], c.status.Saddr, expected.daddr, c.status.Offset_reply)
 		c.status.Offset_reply++
 		c.status.Offset_reply, _ = skipOverlaps(c.status.Offset_reply, c.nfConnRanges())
 	case GuessCtNet:
@@ -186,7 +188,8 @@ func (c *conntrackOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expec
 			c.logAndAdvance(c.status.Offset_netns, GuessNotApplicable)
 			return c.setReadyState(mp)
 		}
-		log.Debugf("%v %d does not match expected %d, incrementing", whatString[GuessWhat(c.status.What)], c.status.Netns, expected.netns)
+		log.Debugf("%v %d does not match expected %d, incrementing offset %d",
+			whatString[GuessWhat(c.status.What)], c.status.Netns, expected.netns, c.status.Offset_netns)
 		c.status.Offset_netns++
 		c.status.Offset_netns, _ = skipOverlaps(c.status.Offset_netns, c.nfConnRanges())
 	default:
