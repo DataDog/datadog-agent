@@ -46,7 +46,7 @@ int kprobe__tcp_recvmsg__pre_5_19_0(struct pt_regs *ctx) {
 SEC("kprobe/tcp_recvmsg")
 int kprobe__tcp_recvmsg__pre_4_1_0(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("kprobe/tcp_recvmsg: pid_tgid: %d\n", pid_tgid);
+    log_debug("kprobe/tcp_recvmsg: pid_tgid: %d", pid_tgid);
     int flags = (int)PT_REGS_PARM6(ctx);
     if (flags & MSG_PEEK) {
         return 0;

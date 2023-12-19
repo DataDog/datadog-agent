@@ -89,7 +89,7 @@ __maybe_unused static __always_inline void sockaddr_to_addr(struct sockaddr *sa,
         }
         break;
     default:
-        log_debug("ERR(sockaddr_to_addr): invalid family: %u\n", family);
+        log_debug("ERR(sockaddr_to_addr): invalid family: %u", family);
     }
 }
 

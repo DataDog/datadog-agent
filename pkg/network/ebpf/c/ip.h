@@ -222,15 +222,15 @@ __maybe_unused static __always_inline void print_ip(u64 ip_h, u64 ip_l, u16 port
         addr.in6_u.u6_addr32[1] = (ip_h >> 32) & 0xFFFFFFFF;
         addr.in6_u.u6_addr32[2] = ip_l & 0xFFFFFFFF;
         addr.in6_u.u6_addr32[3] = (ip_l >> 32) & 0xFFFFFFFF;
-        log_debug("v6 %pI6:%u\n", &addr, port);
+        log_debug("v6 %pI6:%u", &addr, port);
     } else {
-        log_debug("v4 %pI4:%u\n", &ip_l, port);
+        log_debug("v4 %pI4:%u", &ip_l, port);
     }
 #else
     if (metadata & CONN_V6) {
-        log_debug("v6 %llx%llx:%u\n", bpf_ntohll(ip_h), bpf_ntohll(ip_l), port);
+        log_debug("v6 %llx%llx:%u", bpf_ntohll(ip_h), bpf_ntohll(ip_l), port);
     } else {
-        log_debug("v4 %x:%u\n", bpf_ntohl((u32)ip_l), port);
+        log_debug("v4 %x:%u", bpf_ntohl((u32)ip_l), port);
     }
 #endif
 }

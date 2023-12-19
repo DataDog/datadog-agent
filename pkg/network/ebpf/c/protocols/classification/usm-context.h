@@ -85,7 +85,7 @@ static __always_inline usm_context_t* usm_context(struct __sk_buff *skb) {
 
     // sanity check
     if (usm_context->owner != skb) {
-        log_debug("invalid usm context\n");
+        log_debug("invalid usm context");
         return NULL;
     }
 

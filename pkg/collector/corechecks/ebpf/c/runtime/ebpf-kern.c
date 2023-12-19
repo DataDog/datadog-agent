@@ -65,7 +65,7 @@ int BPF_KPROBE(k_map_alloc, struct bpf_map *map) {
         return 0;
     }
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("kprobe/security_bpf_map_alloc: pid_tgid=%llx\n", pid_tgid);
+    log_debug("kprobe/security_bpf_map_alloc: pid_tgid=%llx", pid_tgid);
     bpf_map_update_elem(&bpf_map_new_fd_args, &pid_tgid, &map, BPF_ANY);
     return 0;
 }
@@ -90,7 +90,7 @@ int tp_bpf_exit(struct tracepoint_raw_syscalls_sys_exit_t *ctx) {
         return 0;
     }
 
-    log_debug("tp/bpf_exit: pid_tgid=%llx\n", pid_tgid);
+    log_debug("tp/bpf_exit: pid_tgid=%llx", pid_tgid);
     int fd = ctx->ret;
     if (fd <= 0) {
         goto cleanup;
@@ -103,7 +103,7 @@ int tp_bpf_exit(struct tracepoint_raw_syscalls_sys_exit_t *ctx) {
     map_fd_t key = {};
     key.pid = pid_tgid >> 32;
     key.fd = fd;
-    log_debug("tp/bpf_exit: map_id=%d fd=%d\n", map_id, key.fd);
+    log_debug("tp/bpf_exit: map_id=%d fd=%d", map_id, key.fd);
     if (mtype == BPF_MAP_TYPE_PERF_EVENT_ARRAY) {
         // map_fd+pid -> map_id
         bpf_map_update_elem(&perf_buffer_fds, &key, &map_id, BPF_ANY);
@@ -179,7 +179,7 @@ int tp_fcntl_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     map_fd_t key = {};
     key.pid = pid_tgid >> 32;
     key.fd = (int)args->ret;
-    log_debug("sys_exit_fcntl: fd dup new_fd=%d map_id=%d\n", key.fd, map_id);
+    log_debug("sys_exit_fcntl: fd dup new_fd=%d map_id=%d", key.fd, map_id);
     bpf_map_update_elem(&perf_buffer_fds, &key, &map_id, BPF_ANY);
 
 cleanup:
@@ -223,7 +223,7 @@ int tp_pe_open_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     map_fd_t key = {};
     key.fd = (int)args->ret;
     key.pid = pid_tgid >> 32;
-    log_debug("tracepoint_sys_exit_perf_event_open: fd=%d\n", key.fd);
+    log_debug("tracepoint_sys_exit_perf_event_open: fd=%d", key.fd);
     bpf_map_update_elem(&perf_event_mmap, &key, &val, BPF_ANY);
 
 cleanup:
@@ -285,7 +285,7 @@ int tp_mmap_enter(struct tracepoint_syscalls_sys_enter_mmap_t *args) {
     }
     margs.map_id = *map_idp;
     margs.offset = args->offset;
-    log_debug("tracepoint_sys_enter_mmap: fd=%d len=%d\n", key.fd, args->len);
+    log_debug("tracepoint_sys_enter_mmap: fd=%d len=%d", key.fd, args->len);
     bpf_map_update_elem(&mmap_args, &pid_tgid, &margs, BPF_ANY);
     return 0;
 }
@@ -327,7 +327,7 @@ int tp_mmap_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     }
     // store address of mmap region
     val->addr = args->ret;
-    log_debug("tracepoint_sys_exit_mmap: len=%d addr=%x\n", val->len, val->addr);
+    log_debug("tracepoint_sys_exit_mmap: len=%d addr=%x", val->len, val->addr);
 
 cleanup:
     bpf_map_delete_elem(&mmap_args, &pid_tgid);
@@ -348,7 +348,7 @@ int BPF_KPROBE(k_map_update, int cmd, union bpf_attr *attr) {
     map_fd_t fdkey = {};
     fdkey.fd = BPF_CORE_READ(attr, map_fd);
     fdkey.pid = pid_tgid >> 32;
-    //log_debug("kprobe/map_update_elem: fd=%d\n", fdkey.fd);
+    //log_debug("kprobe/map_update_elem: fd=%d", fdkey.fd);
     u32 *map_idp = bpf_map_lookup_elem(&perf_buffer_fds, &fdkey);
     if (!map_idp) {
         return 0;
@@ -369,14 +369,14 @@ int BPF_KPROBE(k_map_update, int cmd, union bpf_attr *attr) {
     // pivot from perf_event_fd+pid -> mmap region
     mmap_region_t *infop = bpf_map_lookup_elem(&perf_event_mmap, &key);
     if (infop == NULL) {
-        log_debug("kprobe/map_update_elem: no mmap data cpu=%d fd=%d fdptr=%llx\n", pb_key.cpu, key.fd, fdp);
+        log_debug("kprobe/map_update_elem: no mmap data cpu=%d fd=%d fdptr=%llx", pb_key.cpu, key.fd, fdp);
         return 0;
     }
 
     // make a stack copy of mmap data and store by map_id+cpu, which userspace can know
     mmap_region_t stackinfo = {};
     bpf_probe_read_kernel(&stackinfo, sizeof(mmap_region_t), infop);
-    log_debug("map_update_elem: map_id=%d cpu=%d len=%d\n", pb_key.map_id, pb_key.cpu, stackinfo.len);
+    log_debug("map_update_elem: map_id=%d cpu=%d len=%d", pb_key.map_id, pb_key.cpu, stackinfo.len);
     bpf_map_update_elem(&perf_buffers, &pb_key, &stackinfo, BPF_ANY);
     bpf_map_delete_elem(&perf_event_mmap, &key);
     return 0;

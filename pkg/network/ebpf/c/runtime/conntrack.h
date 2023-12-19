@@ -49,7 +49,7 @@ static __always_inline int nf_conn_to_conntrack_tuples(struct nf_conn* ct, connt
     }
     orig->netns = netns;
 
-    log_debug("orig\n");
+    log_debug("orig");
     print_translation(orig);
 
     if (!nf_conntrack_tuple_to_conntrack_tuple(reply, &reply_tup)) {
@@ -57,7 +57,7 @@ static __always_inline int nf_conn_to_conntrack_tuples(struct nf_conn* ct, connt
     }
     reply->netns = netns;
 
-    log_debug("reply\n");
+    log_debug("reply");
     print_translation(reply);
 
     return 0;
