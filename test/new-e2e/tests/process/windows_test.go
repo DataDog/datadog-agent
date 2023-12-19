@@ -40,8 +40,9 @@ func (s *windowsTestSuite) TestProcessCheck() {
 	t := s.T()
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		command := "& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe\" status --json"
-		assertRunningChecks(collect, s.Env().VM, []string{"process", "rtprocess"}, false, command)
+		status := s.Env().VM.Execute(
+			"& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe\" status --json")
+		assertRunningChecks(collect, status, []string{"process", "rtprocess"}, false)
 	}, 1*time.Minute, 5*time.Second)
 
 	var payloads []*aggregator.ProcessPayload
@@ -66,8 +67,9 @@ func (s *windowsTestSuite) TestProcessDiscoveryCheck() {
 	t := s.T()
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		command := "& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe\" status --json"
-		assertRunningChecks(collect, s.Env().VM, []string{"process_discovery"}, false, command)
+		status := s.Env().VM.Execute(
+			"& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe\" status --json")
+		assertRunningChecks(collect, status, []string{"process_discovery"}, false)
 	}, 1*time.Minute, 5*time.Second)
 
 	var payloads []*aggregator.ProcessDiscoveryPayload
@@ -94,8 +96,9 @@ func (s *windowsTestSuite) TestProcessCheckIO() {
 	t := s.T()
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		command := "& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe\" status --json"
-		assertRunningChecks(collect, s.Env().VM, []string{"process", "rtprocess"}, true, command)
+		status := s.Env().VM.Execute(
+			"& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe\" status --json")
+		assertRunningChecks(collect, status, []string{"process", "rtprocess"}, true)
 	}, 1*time.Minute, 5*time.Second)
 
 	//s.Env().VM.Execute("Start-MpScan -ScanType FullScan")
