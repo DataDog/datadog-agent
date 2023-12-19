@@ -430,10 +430,10 @@ namespace WixSetup.Datadog
                     new Step(ConfigureServices.Id),
                     Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
                 )
-                {
-                    Execute = Execute.rollback,
-                    Impersonate = false
-                }
+            {
+                Execute = Execute.rollback,
+                Impersonate = false
+            }
                 .SetProperties("DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME], " +
                                "INSTALL_CWS=[INSTALL_CWS]")
                 .HideTarget(true);
