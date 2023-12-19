@@ -15,6 +15,7 @@ import (
 	"github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -30,7 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -38,7 +39,7 @@ import (
 
 func startServer(listener net.Listener, srv *http.Server, name string) {
 	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
-	logWriter, _ := config.NewLogWriter(5, seelog.ErrorLvl)
+	logWriter, _ := pkgconfig.NewLogWriter(5, seelog.ErrorLvl)
 
 	srv.ErrorLog = stdLog.New(logWriter, fmt.Sprintf("Error from the Agent HTTP server '%s': ", name), 0) // log errors to seelog
 
@@ -62,6 +63,7 @@ func stopServer(listener net.Listener, name string) {
 // StartServers creates certificates and starts API servers
 func StartServers(
 	configService *remoteconfig.Service,
+	config config.Component,
 	flare flare.Component,
 	dogstatsdServer dogstatsdServer.Component,
 	capture replay.Component,
@@ -111,6 +113,7 @@ func StartServers(
 		tlsConfig,
 		tlsCertPool,
 		configService,
+		config,
 		flare,
 		dogstatsdServer,
 		capture,
