@@ -240,7 +240,7 @@ func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 // DebugEBPFMaps is not implemented on this OS for Tracer
 //
 //nolint:revive // TODO(WKIT) Fix revive linter
-func (t *Tracer) DebugEBPFMaps(w io.Writer, maps ...string) error {
+func (t *Tracer) DebugEBPFMaps(_ io.Writer, _ ...string) error {
 	return ebpf.ErrNotImplemented
 }
 
