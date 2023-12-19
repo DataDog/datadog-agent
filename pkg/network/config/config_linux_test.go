@@ -41,9 +41,6 @@ func TestDisableRootNetNamespace(t *testing.T) {
 
 func TestEventStreamEnabledForSupportedKernelsLinux(t *testing.T) {
 	t.Run("for kernels <4.15.0", func(t *testing.T) {
-		if runtime.GOOS != "linux" {
-			t.Skip("This is only for linux")
-		}
 		kv, err := ebpfkernel.NewKernelVersion()
 		kv4150 := kernel.VersionCode(4, 15, 0)
 		require.NoError(t, err)
@@ -59,9 +56,6 @@ func TestEventStreamEnabledForSupportedKernelsLinux(t *testing.T) {
 		require.False(t, cfg.GetBool("event_monitoring_config.network_process.enabled"))
 	})
 	t.Run("for kernels >=4.15.0 with default value", func(t *testing.T) {
-		if runtime.GOOS != "linux" {
-			t.Skip("This is only for linux")
-		}
 		kv, err := ebpfkernel.NewKernelVersion()
 		kv4150 := kernel.VersionCode(4, 15, 0)
 		require.NoError(t, err)
