@@ -58,7 +58,7 @@ deeply:
                 .ToYaml()
                 .Should()
                 .HaveKey("test_list")
-                .And.HaveValues(new []{"elementA", "anotherElementCalledB"});
+                .And.HaveValues(new[] { "elementA", "anotherElementCalledB" });
         }
     }
 }

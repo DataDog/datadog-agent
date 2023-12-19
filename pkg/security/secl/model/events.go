@@ -113,6 +113,8 @@ const (
 	CustomLostWriteEventType
 	// CustomRulesetLoadedEventType is the custom event used to report that a new ruleset was loaded
 	CustomRulesetLoadedEventType
+	// CustomHeartbeatEventType is the custom event used to report a heartbeat event
+	CustomHeartbeatEventType
 	// CustomForkBombEventType is the custom event used to report the detection of a fork bomb
 	CustomForkBombEventType
 	// CustomTruncatedParentsEventType is the custom event used to report that the parents of a path were truncated

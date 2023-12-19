@@ -178,6 +178,7 @@ pkg/network/netlink/testdata/message_dump*
 
 # Emacs
 *~
+.dir-locals.el
 
 # etags
 TAGS
@@ -205,3 +206,5 @@ test/fakeintake/build/*
 # Allow Single Machine Performance material to ignore excludes
 !test/regression/**
 !test/workload-checks/**
+
+kmt-deps/

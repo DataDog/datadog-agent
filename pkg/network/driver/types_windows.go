@@ -3,7 +3,7 @@
 
 package driver
 
-const Signature = 0xddfd00000016
+const Signature = 0xddfd00000017
 
 const (
 	GetStatsIOCTL             = 0x122004
@@ -78,6 +78,12 @@ type FlowStats struct {
 	Classify_multiple_request                int64
 	Classify_multiple_response               int64
 	Classify_response_no_request             int64
+	No_state_at_ale_auth_connect             int64
+	No_state_at_ale_auth_recv                int64
+	No_state_at_ale_flow_established         int64
+	No_state_at_ale_endpoint_closure         int64
+	No_state_at_inbound_transport            int64
+	No_state_at_outbound_transport           int64
 }
 type TransportStats struct {
 	Packets_skipped int64
@@ -90,6 +96,8 @@ type HttpStats struct {
 	Txns_skipped_max_exceeded  int64
 	Ndis_buffer_non_contiguous int64
 	Flows_ignored_as_etw       int64
+	Txn_zero_latency           int64
+	Txn_batched_on_read        int64
 }
 type Stats struct {
 	Flow_stats      FlowStats
@@ -97,10 +105,11 @@ type Stats struct {
 	Http_stats      HttpStats
 }
 
-const StatsSize = 0xd8
+const StatsSize = 0x118
 
 type PerFlowData struct {
 	FlowHandle               uint64
+	FlowCookie               uint64
 	ProcessId                uint64
 	AddressFamily            uint16
 	Protocol                 uint16
@@ -138,7 +147,7 @@ type UDPFlowData struct {
 	Reserved uint64
 }
 
-const PerFlowDataSize = 0xb4
+const PerFlowDataSize = 0xbc
 
 const (
 	FlowDirectionMask     = 0x300
@@ -177,8 +186,8 @@ type HttpConfigurationSettings struct {
 	EnableAutoETWExclusion uint16
 }
 type ConnTupleType struct {
-	LocalAddr  [16]uint8
-	RemoteAddr [16]uint8
+	LocalAddr  [16]byte
+	RemoteAddr [16]byte
 	LocalPort  uint16
 	RemotePort uint16
 	Family     uint16

@@ -9,9 +9,6 @@ package hostname
 import (
 	"context"
 
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
@@ -26,18 +23,3 @@ type Component interface {
 	// GetSafe is Get(), but it returns 'unknown host' if anything goes wrong.
 	GetSafe(context.Context) string
 }
-
-// Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newHostnameService),
-)
-
-// MockModule defines the fx options for the mock component.
-// Injecting MockModule will provide the hostname 'my-hostname';
-// override this with fx.Replace(hostname.MockHostname("whatever")).
-var MockModule = fxutil.Component(
-	fx.Provide(
-		newMock,
-	),
-	fx.Supply(MockHostname("my-hostname")),
-)

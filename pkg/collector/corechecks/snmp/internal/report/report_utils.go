@@ -105,9 +105,9 @@ func getTagsFromMetricTagConfigList(mtcl profiledefinition.MetricTagConfigList, 
 			rowTags = append(rowTags, metricTag.Tag+":"+tagValue)
 		}
 		// get tag using another column value
-		if metricTag.Column.OID != "" {
+		if metricTag.Symbol.OID != "" {
 			// TODO: Support extract value see II-635
-			columnValues, err := getColumnValueFromSymbol(values, metricTag.Column)
+			columnValues, err := getColumnValueFromSymbol(values, profiledefinition.SymbolConfig(metricTag.Symbol))
 			if err != nil {
 				log.Debugf("error getting column value: %v", err)
 				continue
@@ -186,8 +186,8 @@ func getConstantMetricValues(mtcl profiledefinition.MetricTagConfigList, values 
 			// If index transform is set, indexes are from another table, we don't want to collect them
 			continue
 		}
-		if metricTag.Column.OID != "" {
-			columnValues, err := getColumnValueFromSymbol(values, metricTag.Column)
+		if metricTag.Symbol.OID != "" {
+			columnValues, err := getColumnValueFromSymbol(values, profiledefinition.SymbolConfig(metricTag.Symbol))
 			if err != nil {
 				log.Debugf("error getting column value: %v", err)
 				continue

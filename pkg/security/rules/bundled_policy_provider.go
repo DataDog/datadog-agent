@@ -12,8 +12,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
-const refreshUserCacheRuleID = "refresh_user_cache"
-
 // BundledPolicyProvider specify the policy provider for bundled policies
 type BundledPolicyProvider struct{}
 

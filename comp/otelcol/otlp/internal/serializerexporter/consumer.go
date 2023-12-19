@@ -96,7 +96,7 @@ func apiTypeFromTranslatorType(typ otlpmetrics.DataType) metrics.APIMetricType {
 	panic(fmt.Sprintf("unreachable: received non-count non-gauge type: %d", typ))
 }
 
-func (c *serializerConsumer) ConsumeTimeSeries(ctx context.Context, dimensions *otlpmetrics.Dimensions, typ otlpmetrics.DataType, ts uint64, value float64) {
+func (c *serializerConsumer) ConsumeTimeSeries(ctx context.Context, dimensions *otlpmetrics.Dimensions, typ otlpmetrics.DataType, ts uint64, value float64) { //nolint:revive // TODO fix revive unused-parameter
 	c.series = append(c.series,
 		&metrics.Serie{
 			Name:     dimensions.Name(),

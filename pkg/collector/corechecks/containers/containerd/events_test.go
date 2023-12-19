@@ -36,6 +36,7 @@ type mockEvt struct {
 	mockSubscribe func(ctx context.Context, filter ...string) (ch <-chan *events.Envelope, errs <-chan error)
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (m *mockEvt) Subscribe(ctx context.Context, filters ...string) (ch <-chan *events.Envelope, errs <-chan error) {
 	return m.mockSubscribe(ctx)
 }
@@ -282,7 +283,7 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			defaultExcludePauseContainers := config.Datadog.GetBool("exclude_pause_container")
-			config.Datadog.Set("exclude_pause_container", test.excludePauseContainers)
+			config.Datadog.SetWithoutSource("exclude_pause_container", test.excludePauseContainers)
 
 			if test.generateCreateEvent {
 				eventCreateContainer, err := createContainerEvent(testNamespace, test.containerID)
@@ -311,7 +312,7 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 				assert.Empty(t, sub.Flush(time.Now().Unix()))
 			}
 
-			config.Datadog.Set("exclude_pause_container", defaultExcludePauseContainers)
+			config.Datadog.SetWithoutSource("exclude_pause_container", defaultExcludePauseContainers)
 		})
 	}
 

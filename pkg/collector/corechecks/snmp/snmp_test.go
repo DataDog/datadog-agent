@@ -12,15 +12,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
+
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -32,14 +36,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/devicecheck"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/discovery"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
+//nolint:unused // TODO(NDM) Fix unused linter
 func demuxOpts() aggregator.AgentDemultiplexerOptions {
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = 1 * time.Hour
@@ -49,23 +55,22 @@ func demuxOpts() aggregator.AgentDemultiplexerOptions {
 
 type deps struct {
 	fx.In
-	Log       log.Component
-	Forwarder defaultforwarder.Component
+	Demultiplexer demultiplexer.Mock
 }
 
 func createDeps(t *testing.T) deps {
-	return fxutil.Test[deps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+	return fxutil.Test[deps](t, demultiplexerimpl.MockModule(), defaultforwarder.MockModule(), config.MockModule(), logimpl.MockModule())
 }
 
 func Test_Run_simpleCase(t *testing.T) {
 	deps := createDeps(t)
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
 	chk := Check{sessionFactory: sessionFactory}
-	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
+	senderManager := deps.Demultiplexer
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -337,15 +342,17 @@ tags:
 }
 
 func Test_Run_customIfSpeed(t *testing.T) {
+	report.TimeNow = common.MockTimeNow
 	deps := createDeps(t)
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
+
 	chk := Check{sessionFactory: sessionFactory}
 
-	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
+	senderManager := deps.Demultiplexer
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -387,6 +394,7 @@ metrics:
 
 	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
+	chk.singleDeviceCk.SetInterfaceBandwidthState(report.MockInterfaceRateMap("1", 50_000_000, 40_000_000, 20, 10, int64(946684785000000000)))
 
 	sender := mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)
 	sender.SetupAcceptAll()
@@ -467,16 +475,18 @@ metrics:
 
 	// ((2000000 * 8) / (50 * 1000000)) * 100 = 32
 	//   ^ifHCInOctets   ^custom in_speed
-	sender.AssertMetric(t, "Rate", "snmp.ifBandwidthInUsage.rate", float64(32), "", tags)
+	// previous: 20
+	sender.AssertMetric(t, "Gauge", "snmp.ifBandwidthInUsage.rate", float64(12.0/15.0), "", tags)
 	// ((1000000 * 8) / (40 * 1000000)) * 100 = 20
 	//   ^ifHCOutOctets   ^custom out_speed
-	sender.AssertMetric(t, "Rate", "snmp.ifBandwidthOutUsage.rate", float64(20), "", tags)
+	// previous: 10
+	sender.AssertMetric(t, "Gauge", "snmp.ifBandwidthOutUsage.rate", float64(10.0/15.0), "", tags)
 
 	chk.Cancel()
 }
 
 func TestSupportedMetricTypes(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
@@ -552,9 +562,9 @@ func TestProfile(t *testing.T) {
 	timeNow = common.MockTimeNow
 
 	deps := createDeps(t)
-	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
+	senderManager := deps.Demultiplexer
 
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -939,7 +949,7 @@ profiles:
 }
 
 func TestServiceCheckFailures(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
@@ -975,7 +985,7 @@ community_string: public
 }
 
 func TestCheckID(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	check1 := snmpFactory()
 	check2 := snmpFactory()
 	check3 := snmpFactory()
@@ -1186,7 +1196,7 @@ func TestCheck_Run(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			checkconfig.SetConfdPathAndCleanProfiles()
+			profile.SetConfdPathAndCleanProfiles()
 			sess := session.CreateMockSession()
 			sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 				return sess, nil
@@ -1202,7 +1212,7 @@ community_string: public
 namespace: '%s'
 `, tt.name))
 			deps := createDeps(t)
-			senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
+			senderManager := deps.Demultiplexer
 
 			err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 			assert.Nil(t, err)
@@ -1236,7 +1246,7 @@ namespace: '%s'
 }
 
 func TestCheck_Run_sessionCloseError(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -1283,8 +1293,8 @@ func TestReportDeviceMetadataEvenOnProfileError(t *testing.T) {
 	timeNow = common.MockTimeNow
 
 	deps := createDeps(t)
-	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
-	checkconfig.SetConfdPathAndCleanProfiles()
+	senderManager := deps.Demultiplexer
+	profile.SetConfdPathAndCleanProfiles()
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -1588,9 +1598,9 @@ tags:
 func TestReportDeviceMetadataWithFetchError(t *testing.T) {
 	timeNow = common.MockTimeNow
 	deps := createDeps(t)
-	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
+	senderManager := deps.Demultiplexer
 
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -1696,13 +1706,13 @@ tags:
 func TestDiscovery(t *testing.T) {
 	deps := createDeps(t)
 	timeNow = common.MockTimeNow
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
 	chk := Check{sessionFactory: sessionFactory}
-	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
+	senderManager := deps.Demultiplexer
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -2035,14 +2045,14 @@ metric_tags:
 
 func TestDiscovery_CheckError(t *testing.T) {
 	deps := createDeps(t)
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
 	chk := Check{sessionFactory: sessionFactory, workerRunDeviceCheckErrors: atomic.NewUint64(0)}
-	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
+	senderManager := deps.Demultiplexer
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -2112,15 +2122,15 @@ func TestDeviceIDAsHostname(t *testing.T) {
 	deps := createDeps(t)
 	cache.Cache.Delete(cache.BuildAgentKey("hostname")) // clean existing hostname cache
 
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
 	chk := Check{sessionFactory: sessionFactory}
-	coreconfig.Datadog.Set("hostname", "test-hostname")
-	coreconfig.Datadog.Set("tags", []string{"agent_tag1:val1", "agent_tag2:val2"})
-	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
+	coreconfig.Datadog.SetWithoutSource("hostname", "test-hostname")
+	coreconfig.Datadog.SetWithoutSource("tags", []string{"agent_tag1:val1", "agent_tag2:val2"})
+	senderManager := deps.Demultiplexer
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -2303,15 +2313,15 @@ func TestDiscoveryDeviceIDAsHostname(t *testing.T) {
 	deps := createDeps(t)
 	cache.Cache.Delete(cache.BuildAgentKey("hostname")) // clean existing hostname cache
 	timeNow = common.MockTimeNow
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
 	chk := Check{sessionFactory: sessionFactory}
 
-	coreconfig.Datadog.Set("hostname", "my-hostname")
-	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
+	coreconfig.Datadog.SetWithoutSource("hostname", "my-hostname")
+	senderManager := deps.Demultiplexer
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -2508,14 +2518,14 @@ metrics:
 
 func TestCheckCancel(t *testing.T) {
 	deps := createDeps(t)
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
 	chk := Check{sessionFactory: sessionFactory}
 
-	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
+	senderManager := deps.Demultiplexer
 
 	// language=yaml
 	rawInstanceConfig := []byte(`

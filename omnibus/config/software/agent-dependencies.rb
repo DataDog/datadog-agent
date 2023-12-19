@@ -1,7 +1,7 @@
 name 'agent-dependencies'
 
 # Linux-specific dependencies
-if linux?
+if linux_target?
   dependency 'procps-ng'
   dependency 'curl'
 end

@@ -37,7 +37,7 @@ func TestGetIAMRole(t *testing.T) {
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL
-	config.Datadog.Set("ec2_metadata_timeout", 1000)
+	config.Datadog.SetWithoutSource("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	val, err := getIAMRole(ctx)
@@ -62,7 +62,7 @@ func TestGetSecurityCreds(t *testing.T) {
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL
-	config.Datadog.Set("ec2_metadata_timeout", 1000)
+	config.Datadog.SetWithoutSource("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	cred, err := getSecurityCreds(ctx)
@@ -82,7 +82,7 @@ func TestGetInstanceIdentity(t *testing.T) {
 	}))
 	defer ts.Close()
 	instanceIdentityURL = ts.URL
-	config.Datadog.Set("ec2_metadata_timeout", 1000)
+	config.Datadog.SetWithoutSource("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	val, err := getInstanceIdentity(ctx)
@@ -111,11 +111,11 @@ func TestFetchEc2TagsFromIMDS(t *testing.T) {
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL
-	config.Datadog.Set("ec2_metadata_timeout", 1000)
+	config.Datadog.SetWithoutSource("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	confMock := config.Mock(t)
-	confMock.Set("exclude_ec2_tags", []string{"ExcludedTag", "OtherExcludedTag2"})
+	confMock.SetWithoutSource("exclude_ec2_tags", []string{"ExcludedTag", "OtherExcludedTag2"})
 
 	tags, err := fetchEc2TagsFromIMDS(ctx)
 	require.Nil(t, err)
@@ -132,17 +132,19 @@ func TestFetchEc2TagsFromIMDSError(t *testing.T) {
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL
-	config.Datadog.Set("ec2_metadata_timeout", 1000)
+	config.Datadog.SetWithoutSource("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	_, err := fetchEc2TagsFromIMDS(ctx)
 	require.Error(t, err)
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func mockFetchTagsSuccess(ctx context.Context) ([]string, error) {
 	return []string{"tag1", "tag2"}, nil
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func mockFetchTagsFailure(ctx context.Context) ([]string, error) {
 	return nil, fmt.Errorf("could not fetch tags")
 }

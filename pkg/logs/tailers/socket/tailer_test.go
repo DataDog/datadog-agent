@@ -28,14 +28,14 @@ func TestReadAndForwardShouldSucceedWithSuccessfulRead(t *testing.T) {
 	// should receive and decode one message
 	w.Write([]byte("foo\n"))
 	msg = <-msgChan
-	assert.Equal(t, "foo", string(msg.Content))
+	assert.Equal(t, "foo", string(msg.GetContent()))
 
 	// should receive and decode two messages
 	w.Write([]byte("bar\nboo\n"))
 	msg = <-msgChan
-	assert.Equal(t, "bar", string(msg.Content))
+	assert.Equal(t, "bar", string(msg.GetContent()))
 	msg = <-msgChan
-	assert.Equal(t, "boo", string(msg.Content))
+	assert.Equal(t, "boo", string(msg.GetContent()))
 
 	tailer.Stop()
 }

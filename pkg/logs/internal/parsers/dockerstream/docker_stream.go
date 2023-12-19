@@ -55,16 +55,17 @@ func (p *dockerStreamFormat) SupportsPartialLine() bool {
 }
 
 func parseDockerStream(msg *message.Message, containerID string) (*message.Message, error) {
+	content := msg.GetContent()
 	// The format of the message should be :
 	// [8]byte{STREAM_TYPE, 0, 0, 0, SIZE1, SIZE2, SIZE3, SIZE4}[]byte{OUTPUT}
 	// If we don't have at the very least 8 bytes we can consider this message can't be parsed.
-	if len(msg.Content) < dockerHeaderLength {
+	if len(content) < dockerHeaderLength {
 		msg.Status = message.StatusInfo
 		return msg, fmt.Errorf("cannot parse docker message for container %v: expected a 8 bytes header", containerID)
 	}
 
 	// Read the first byte to get the status
-	status := getDockerSeverity(msg.Content)
+	status := getDockerSeverity(content)
 	if status == "" {
 
 		// When tailing logs coming from a container running with a tty, docker
@@ -76,24 +77,24 @@ func parseDockerStream(msg *message.Message, containerID string) (*message.Messa
 	} else {
 
 		// remove partial headers that are added by docker when the message gets too long
-		if len(msg.Content) > dockerBufferSize {
-			msg.Content = removePartialDockerMetadata(msg.Content)
+		if len(content) > dockerBufferSize {
+			content = removePartialDockerMetadata(content)
 		}
 
 		// remove the header as we don't need it anymore
-		msg.Content = msg.Content[dockerHeaderLength:]
+		content = content[dockerHeaderLength:]
 
 	}
 
 	// timestamp goes till first space
-	idx := bytes.Index(msg.Content, []byte{' '})
-	if idx == -1 || isEmptyMessage(msg.Content[idx+1:]) {
+	idx := bytes.Index(content, []byte{' '})
+	if idx == -1 || isEmptyMessage(content[idx+1:]) {
 		// Nothing after the timestamp: empty message
 		return &message.Message{}, nil
 	}
 
-	msg.ParsingExtra.Timestamp = string(msg.Content[:idx])
-	msg.Content = msg.Content[idx+1:]
+	msg.ParsingExtra.Timestamp = string(content[:idx])
+	msg.SetContent(content[idx+1:])
 	msg.Status = status
 	msg.ParsingExtra.IsPartial = false
 	return msg, nil

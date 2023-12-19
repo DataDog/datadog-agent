@@ -67,9 +67,6 @@
         "index": {
           "type": "integer"
         },
-        "column": {
-          "$ref": "#/$defs/SymbolConfig"
-        },
         "symbol": {
           "$ref": "#/$defs/SymbolConfigCompat"
         },
@@ -159,12 +156,16 @@
         },
         "device": {
           "$ref": "#/$defs/DeviceMeta"
+        },
+        "version": {
+          "type": "integer"
         }
       },
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "name"
+        "name",
+        "version"
       ]
     },
     "StringArray": {

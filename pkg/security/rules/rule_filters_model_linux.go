@@ -9,6 +9,7 @@
 package rules
 
 import (
+	"os"
 	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -26,11 +27,14 @@ type RuleFilterModel struct {
 }
 
 // NewRuleFilterModel returns a new rule filter model
-func NewRuleFilterModel() *RuleFilterModel {
-	kv, _ := kernel.NewKernelVersion()
+func NewRuleFilterModel() (*RuleFilterModel, error) {
+	kv, err := kernel.NewKernelVersion()
+	if err != nil {
+		return nil, err
+	}
 	return &RuleFilterModel{
 		Version: kv,
-	}
+	}, nil
 }
 
 // NewEvent returns a new event
@@ -41,7 +45,7 @@ func (m *RuleFilterModel) NewEvent() eval.Event {
 }
 
 // GetEvaluator gets the evaluator
-func (m *RuleFilterModel) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
+func (m *RuleFilterModel) GetEvaluator(field eval.Field, _ eval.RegisterID) (eval.Evaluator, error) {
 	switch field {
 	case "kernel.version.major":
 		return &eval.IntEvaluator{
@@ -171,6 +175,11 @@ func (m *RuleFilterModel) GetEvaluator(field eval.Field, regID eval.RegisterID) 
 			EvalFnc: func(ctx *eval.Context) bool { return ctx.Event.(*RuleFilterEvent).IsSuse15Kernel() },
 			Field:   field,
 		}, nil
+	case "envs":
+		return &eval.StringArrayEvaluator{
+			Values: os.Environ(),
+			Field:  field,
+		}, nil
 	}
 
 	return nil, &eval.ErrFieldNotFound{Field: field}
@@ -234,6 +243,8 @@ func (e *RuleFilterEvent) GetFieldValue(field eval.Field) (interface{}, error) {
 		return e.IsSuse12Kernel(), nil
 	case "os.is_sles15":
 		return e.IsSuse15Kernel(), nil
+	case "envs":
+		return os.Environ(), nil
 	}
 
 	return nil, &eval.ErrFieldNotFound{Field: field}

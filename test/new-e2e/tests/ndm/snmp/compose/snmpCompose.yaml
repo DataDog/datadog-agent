@@ -1,0 +1,13 @@
+version: "3.9"
+services:
+  snmp:
+    image: "datadog/docker-library:snmp"
+    ports:
+      - "1161:1161/udp"
+    command: --args-from-file=/usr/snmpsim/data/args_list.txt --variation-modules-dir=/usr/local/snmpsim/variation
+    volumes:
+      - ${DATA_DIR}:/usr/snmpsim/data/
+    container_name: dd-snmp
+  agent:
+    volumes:
+      - ${CONFIG_DIR}/snmp.yaml:/etc/datadog-agent/conf.d/snmp.d/snmp.yaml

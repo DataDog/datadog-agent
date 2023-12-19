@@ -7,11 +7,13 @@
 package rules
 
 import (
+	"errors"
 	"fmt"
+	"io"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/validators"
 	"github.com/hashicorp/go-multierror"
 	"gopkg.in/yaml.v2"
-	"io"
 )
 
 // PolicyDef represents a policy file definition
@@ -134,7 +136,10 @@ LOOP:
 			}
 		}
 
-		errs = multierror.Append(errs, &ErrRuleLoad{Definition: s.ruleDefinition, Err: s.err})
+		// do not report filtered rules
+		if !errors.Is(s.err, ErrRuleAgentFilter) {
+			errs = multierror.Append(errs, &ErrRuleLoad{Definition: s.ruleDefinition, Err: s.err})
+		}
 	}
 
 	return policy, errs.ErrorOrNil()

@@ -23,7 +23,7 @@ build do
 
     env = with_standard_compiler_flags
 
-    if redhat? && !arm? && ohai['platform_version'].to_i == 6
+    if redhat? && !arm_target? && ohai['platform_version'].to_i == 6
         # On the CentOS 6 builder, use gcc 4.9.2 in the devtoolset-3 env,
         # and ignore sign conversion warnings.
         env["CC"] = "/opt/rh/devtoolset-3/root/usr/bin/gcc"
@@ -36,6 +36,8 @@ build do
     # needs to be removed.
     configure_options = [
         "--disable-obsolete-api",
+        "--disable-static",
+        "--enable-shared",
     ]
     configure(*configure_options, env: env)
     command "make -j #{workers}", env: env

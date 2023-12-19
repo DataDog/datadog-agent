@@ -8,17 +8,15 @@ package module
 import (
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
 )
-
-func getFamilyAddress(config *config.RuntimeSecurityConfig) (string, string) {
-	return "unix", config.SocketPath
-}
 
 // UpdateEventMonitorOpts adapt the event monitor options
 func UpdateEventMonitorOpts(opts *eventmonitor.Opts, config *config.Config) {
 	opts.ProbeOpts.PathResolutionEnabled = true
 	opts.ProbeOpts.TTYFallbackEnabled = true
 	opts.ProbeOpts.SyscallsMonitorEnabled = config.Probe.SyscallsMonitorEnabled
+	opts.ProbeOpts.EBPFLessEnabled = config.RuntimeSecurity.EBPFLessEnabled
 }
 
 // DisableRuntimeSecurity disables all the runtime security features
@@ -29,9 +27,11 @@ func DisableRuntimeSecurity(config *config.Config) {
 }
 
 // platform specific init function
-func (c *CWSConsumer) init(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurityConfig, opts Opts) error {
+func (c *CWSConsumer) init(evm *eventmonitor.EventMonitor, _ *config.RuntimeSecurityConfig, _ Opts) error {
 	// Activity dumps related
-	evm.Probe.AddActivityDumpHandler(c)
+	if p, ok := evm.Probe.PlatformProbe.(*probe.EBPFProbe); ok {
+		p.AddActivityDumpHandler(c)
+	}
 
 	return nil
 }

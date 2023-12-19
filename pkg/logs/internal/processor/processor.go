@@ -17,11 +17,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
+// UnstructuredProcessingMetricName collects how many rules are used on unstructured
+// content for tailers capable of processing both unstructured and structured content.
+const UnstructuredProcessingMetricName = "datadog.logs_agent.tailer.unstructured_processing"
+
 // A Processor updates messages from an inputChan and pushes
 // in an outputChan.
 type Processor struct {
 	inputChan                 chan *message.Message
-	outputChan                chan *message.Message
+	outputChan                chan *message.Message // strategy input
 	processingRules           []*config.ProcessingRule
 	encoder                   Encoder
 	done                      chan struct{}
@@ -33,7 +37,7 @@ type Processor struct {
 func New(inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule, encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver) *Processor {
 	return &Processor{
 		inputChan:                 inputChan,
-		outputChan:                outputChan,
+		outputChan:                outputChan, // strategy input
 		processingRules:           processingRules,
 		encoder:                   encoder,
 		done:                      make(chan struct{}),
@@ -87,41 +91,56 @@ func (p *Processor) run() {
 func (p *Processor) processMessage(msg *message.Message) {
 	metrics.LogsDecoded.Add(1)
 	metrics.TlmLogsDecoded.Inc()
-	if shouldProcess, redactedMsg := p.applyRedactingRules(msg); shouldProcess {
+	if toSend := p.applyRedactingRules(msg); toSend {
 		metrics.LogsProcessed.Add(1)
 		metrics.TlmLogsProcessed.Inc()
 
-		p.diagnosticMessageReceiver.HandleMessage(*msg, "", redactedMsg)
-
-		// Encode the message to its final format
-		content, err := p.encoder.Encode(msg, redactedMsg)
+		// render the message
+		rendered, err := msg.Render()
 		if err != nil {
+			log.Error("can't render the msg", err)
+			return
+		}
+		msg.SetRendered(rendered)
+
+		// report this message to diagnostic receivers (e.g. `stream-logs` command)
+		p.diagnosticMessageReceiver.HandleMessage(msg, rendered, "")
+
+		// encode the message to its final format, it is done in-place
+		if err := p.encoder.Encode(msg); err != nil {
 			log.Error("unable to encode msg ", err)
 			return
 		}
-		msg.Content = content
+
 		p.outputChan <- msg
 	}
 }
 
 // applyRedactingRules returns given a message if we should process it or not,
-// and a copy of the message with some fields redacted, depending on config
-func (p *Processor) applyRedactingRules(msg *message.Message) (bool, []byte) {
-	content := msg.Content
+// it applies the change directly on the Message content.
+func (p *Processor) applyRedactingRules(msg *message.Message) bool {
+	var content []byte = msg.GetContent()
+
 	rules := append(p.processingRules, msg.Origin.LogSource.Config.ProcessingRules...)
 	for _, rule := range rules {
 		switch rule.Type {
 		case config.ExcludeAtMatch:
+			// if this message matches, we ignore it
 			if rule.Regex.Match(content) {
-				return false, nil
+				return false
 			}
 		case config.IncludeAtMatch:
+			// if this message doesn't match, we ignore it
 			if !rule.Regex.Match(content) {
-				return false, nil
+				return false
 			}
 		case config.MaskSequences:
 			content = rule.Regex.ReplaceAll(content, rule.Placeholder)
 		}
 	}
-	return true, content
+
+	// TODO(remy): this is most likely where we want to plug in SDS
+
+	msg.SetContent(content)
+	return true // we want to send this message
 }

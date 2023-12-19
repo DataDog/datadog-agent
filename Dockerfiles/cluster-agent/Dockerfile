@@ -1,8 +1,8 @@
 ########################################
 # Preparation stage: layout and chmods #
 ########################################
-ARG BASE_IMAGE_UBUNTU_VERSION=23.04
-ARG BASE_IMAGE_UBUNTU_NAME=lunar
+ARG BASE_IMAGE_UBUNTU_VERSION=23.10
+ARG BASE_IMAGE_UBUNTU_NAME=mantic
 FROM ubuntu:$BASE_IMAGE_UBUNTU_VERSION as builder
 ARG TARGETARCH
 LABEL baseimage.os "ubuntu ${BASE_IMAGE_UBUNTU_NAME}"

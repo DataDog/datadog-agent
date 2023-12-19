@@ -36,11 +36,11 @@ type EbpfTx struct {
 	Response_status_code uint16
 	Request_method       uint8
 	Pad_cgo_0            [1]byte
-	Request_fragment     [160]byte
+	Request_fragment     [208]byte
 }
 
 const (
-	BufferSize = 0xa0
+	BufferSize = 0xd0
 )
 
 type ConnTag = uint64

@@ -7,7 +7,6 @@ package report
 
 import (
 	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -15,17 +14,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
 
 // MetricSender is a wrapper around sender.Sender
 type MetricSender struct {
-	sender           sender.Sender
-	hostname         string
-	submittedMetrics int
-	interfaceConfigs []snmpintegration.InterfaceConfig
+	sender                  sender.Sender
+	hostname                string
+	submittedMetrics        int
+	interfaceConfigs        []snmpintegration.InterfaceConfig
+	interfaceBandwidthState InterfaceBandwidthState
 }
 
 // MetricSample is a collected metric sample with its metadata, ready to be submitted through the metric sender
@@ -38,11 +38,12 @@ type MetricSample struct {
 }
 
 // NewMetricSender create a new MetricSender
-func NewMetricSender(sender sender.Sender, hostname string, interfaceConfigs []snmpintegration.InterfaceConfig) *MetricSender {
+func NewMetricSender(sender sender.Sender, hostname string, interfaceConfigs []snmpintegration.InterfaceConfig, interfaceBandwidthState InterfaceBandwidthState) *MetricSender {
 	return &MetricSender{
-		sender:           sender,
-		hostname:         hostname,
-		interfaceConfigs: interfaceConfigs,
+		sender:                  sender,
+		hostname:                hostname,
+		interfaceConfigs:        interfaceConfigs,
+		interfaceBandwidthState: interfaceBandwidthState,
 	}
 }
 
@@ -84,14 +85,18 @@ func (ms *MetricSender) GetCheckInstanceMetricTags(metricTags []profiledefinitio
 	var globalTags []string
 
 	for _, metricTag := range metricTags {
-		// TODO: Support extract value see II-635
 		value, err := values.GetScalarValue(metricTag.Symbol.OID)
 		if err != nil {
 			continue
 		}
-		strValue, err := value.ToString()
+		newValue, err := processValueUsingSymbolConfig(value, profiledefinition.SymbolConfig(metricTag.Symbol))
 		if err != nil {
-			log.Debugf("error converting value (%#v) to string : %v", value, err)
+			log.Debugf("error processing value using symbol config (%#v) to string : %v", value, err)
+			continue
+		}
+		strValue, err := newValue.ToString()
+		if err != nil {
+			log.Debugf("error converting value (%#v) to string : %v", newValue, err)
 			continue
 		}
 		globalTags = append(globalTags, checkconfig.BuildMetricTagsFromValue(&metricTag, strValue)...)

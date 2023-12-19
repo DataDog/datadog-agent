@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
+	"github.com/DataDog/datadog-agent/pkg/security/rules/monitor"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -54,7 +55,7 @@ type RuleEngine struct {
 	policyProviders           []rules.PolicyProvider
 	policyLoader              *rules.PolicyLoader
 	policyOpts                rules.PolicyLoaderOpts
-	policyMonitor             *PolicyMonitor
+	policyMonitor             *monitor.PolicyMonitor
 	statsdClient              statsd.ClientInterface
 	eventSender               events.EventSender
 	rulesetListeners          []rules.RuleSetListener
@@ -62,7 +63,8 @@ type RuleEngine struct {
 
 // APIServer defines the API server
 type APIServer interface {
-	Apply([]string)
+	ApplyRuleIDs([]rules.RuleID)
+	ApplyPolicyStates([]*monitor.PolicyState)
 }
 
 // NewRuleEngine returns a new rule engine
@@ -74,7 +76,7 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 		eventSender:               sender,
 		rateLimiter:               rateLimiter,
 		reloading:                 atomic.NewBool(false),
-		policyMonitor:             NewPolicyMonitor(evm.StatsdClient, config.PolicyMonitorPerRuleEnabled),
+		policyMonitor:             monitor.NewPolicyMonitor(evm.StatsdClient, config.PolicyMonitorPerRuleEnabled),
 		currentRuleSet:            new(atomic.Value),
 		currentThreatScoreRuleSet: new(atomic.Value),
 		policyLoader:              rules.NewPolicyLoader(),
@@ -86,6 +88,8 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 	if err := probe.AddFullAccessEventHandler(engine); err != nil {
 		return nil, err
 	}
+
+	engine.policyProviders = engine.gatherDefaultPolicyProviders()
 
 	return engine, nil
 }
@@ -114,7 +118,10 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 		ruleFilters = append(ruleFilters, agentVersionFilter)
 	}
 
-	ruleFilterModel := NewRuleFilterModel()
+	ruleFilterModel, err := NewRuleFilterModel()
+	if err != nil {
+		return fmt.Errorf("failed to create rule filter: %w", err)
+	}
 	seclRuleFilter := rules.NewSECLRuleFilter(ruleFilterModel)
 	macroFilters = append(macroFilters, seclRuleFilter)
 	ruleFilters = append(ruleFilters, seclRuleFilter)
@@ -124,9 +131,8 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 		RuleFilters:  ruleFilters,
 	}
 
-	policyProviders := e.gatherPolicyProviders()
-	if err := e.LoadPolicies(policyProviders, true); err != nil {
-		return fmt.Errorf("failed to load policies: %s", err)
+	if err := e.LoadPolicies(e.policyProviders, true); err != nil {
+		return fmt.Errorf("failed to load policies: %w", err)
 	}
 
 	wg.Add(1)
@@ -183,6 +189,40 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 			}
 		}
 	}()
+
+	// Sending an heartbeat event every minute
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		// 5 heartbeats with a period of 1 min, after that we move the period to 10 min
+		// if the policies change we go back to 5 beats every 1 min
+
+		heartbeatTicker := time.NewTicker(1 * time.Minute)
+		defer heartbeatTicker.Stop()
+
+		heartBeatCounter := 5
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-e.policyLoader.NewPolicyReady():
+				heartBeatCounter = 5
+				heartbeatTicker.Reset(1 * time.Minute)
+				// we report a heartbeat anyway
+				e.policyMonitor.ReportHeartbeatEvent(e.eventSender)
+			case <-heartbeatTicker.C:
+				e.policyMonitor.ReportHeartbeatEvent(e.eventSender)
+				if heartBeatCounter > 0 {
+					heartBeatCounter--
+					if heartBeatCounter == 0 {
+						heartbeatTicker.Reset(10 * time.Minute)
+					}
+				}
+			}
+		}
+	}()
 	return nil
 }
 
@@ -193,8 +233,15 @@ func (e *RuleEngine) ReloadPolicies() error {
 	return e.LoadPolicies(e.policyProviders, true)
 }
 
+// AddPolicyProvider add a provider
+func (e *RuleEngine) AddPolicyProvider(provider rules.PolicyProvider) {
+	e.Lock()
+	defer e.Unlock()
+	e.policyProviders = append(e.policyProviders, provider)
+}
+
 // LoadPolicies loads the policies
-func (e *RuleEngine) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoadedReport bool) error {
+func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedReport bool) error {
 	seclog.Infof("load policies")
 
 	e.Lock()
@@ -204,7 +251,7 @@ func (e *RuleEngine) LoadPolicies(policyProviders []rules.PolicyProvider, sendLo
 	defer e.reloading.Store(false)
 
 	// load policies
-	e.policyLoader.SetProviders(policyProviders)
+	e.policyLoader.SetProviders(providers)
 
 	evaluationSet, err := e.probe.NewEvaluationSet(e.getEventTypeEnabled(), []string{ProbeEvaluationRuleSetTagValue, ThreatScoreRuleSetTagValue})
 	if err != nil {
@@ -218,7 +265,6 @@ func (e *RuleEngine) LoadPolicies(policyProviders []rules.PolicyProvider, sendLo
 
 	// update current policies related module attributes
 	e.policiesVersions = getPoliciesVersions(evaluationSet)
-	e.policyProviders = policyProviders
 
 	// notify listeners
 	if e.rulesLoaded != nil {
@@ -270,17 +316,23 @@ func (e *RuleEngine) LoadPolicies(policyProviders []rules.PolicyProvider, sendLo
 
 	}
 
-	e.apiServer.Apply(ruleIDs)
+	policies := monitor.NewPoliciesState(evaluationSet.RuleSets, loadErrs)
+	e.notifyAPIServer(ruleIDs, policies)
 
 	if sendLoadedReport {
-		ReportRuleSetLoaded(e.eventSender, e.statsdClient, evaluationSet.RuleSets, loadErrs)
+		monitor.ReportRuleSetLoaded(e.eventSender, e.statsdClient, policies)
 		e.policyMonitor.SetPolicies(evaluationSet.GetPolicies(), loadErrs)
 	}
 
 	return nil
 }
 
-func (e *RuleEngine) gatherPolicyProviders() []rules.PolicyProvider {
+func (e *RuleEngine) notifyAPIServer(ruleIDs []rules.RuleID, policies []*monitor.PolicyState) {
+	e.apiServer.ApplyRuleIDs(ruleIDs)
+	e.apiServer.ApplyPolicyStates(policies)
+}
+
+func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {
 	var policyProviders []rules.PolicyProvider
 
 	policyProviders = append(policyProviders, &BundledPolicyProvider{})
@@ -305,11 +357,6 @@ func (e *RuleEngine) gatherPolicyProviders() []rules.PolicyProvider {
 	return policyProviders
 }
 
-// GetPolicyProviders returns the active policy providers
-func (e *RuleEngine) GetPolicyProviders() []rules.PolicyProvider {
-	return e.policyProviders
-}
-
 // EventDiscarderFound is called by the ruleset when a new discarder discovered
 func (e *RuleEngine) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
 	if e.reloading.Load() {
@@ -328,11 +375,7 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 		return false
 	}
 
-	for _, action := range rule.Definition.Actions {
-		if action.InternalCallbackDefinition != nil && rule.ID == refreshUserCacheRuleID {
-			_ = e.probe.RefreshUserCache(ev.ContainerContext.ID)
-		}
-	}
+	e.probe.HandleActions(rule, event)
 
 	if rule.Definition.Silent {
 		return false
@@ -470,19 +513,16 @@ func (e *RuleEngine) StopEventCollector() []rules.CollectedEvent {
 }
 
 func logLoadingErrors(msg string, m *multierror.Error) {
-	var errorLevel bool
 	for _, err := range m.Errors {
 		if rErr, ok := err.(*rules.ErrRuleLoad); ok {
-			if !errors.Is(rErr.Err, rules.ErrEventTypeNotEnabled) {
-				errorLevel = true
+			if !errors.Is(rErr.Err, rules.ErrEventTypeNotEnabled) && !errors.Is(rErr.Err, rules.ErrRuleAgentFilter) {
+				seclog.Errorf(msg, rErr.Error())
+			} else {
+				seclog.Warnf(msg, rErr.Error())
 			}
+		} else {
+			seclog.Errorf(msg, err.Error())
 		}
-	}
-
-	if errorLevel {
-		seclog.Errorf(msg, m.Error())
-	} else {
-		seclog.Warnf(msg, m.Error())
 	}
 }
 

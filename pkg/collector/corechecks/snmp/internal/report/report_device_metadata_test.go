@@ -16,15 +16,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
 
@@ -62,6 +62,11 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 		DeviceIDTags:       []string{"device_name:127.0.0.1"},
 		ResolvedSubnetName: "127.0.0.0/29",
 		Namespace:          "my-ns",
+		Profile:            "my-profile",
+		ProfileDef: &profiledefinition.ProfileDefinition{
+			Name:    "my-profile",
+			Version: 10,
+		},
 		Metadata: profiledefinition.MetadataConfig{
 			"device": {
 				Fields: map[string]profiledefinition.MetadataField{
@@ -143,6 +148,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
             "name": "my-sys-name",
             "description": "my-sys-descr",
             "location": "my-sys-location",
+            "profile": "my-profile",
+            "profile_version": 10,
             "subnet": "127.0.0.0/29"
         }
     ],
@@ -162,7 +169,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 }
 
 func Test_metricSender_reportNetworkDeviceMetadata_profileDeviceVendorFallback(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 
 	var storeWithoutIfName = &valuestore.ResultValueStore{
 		ColumnValues: valuestore.ColumnResultValuesType{},
@@ -307,7 +314,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
 				},
 				IDTags: profiledefinition.MetricTagConfigList{
 					profiledefinition.MetricTagConfig{
-						Column: profiledefinition.SymbolConfig{
+						Symbol: profiledefinition.SymbolConfigCompat{
 							OID:  "1.3.6.1.2.1.31.1.1.1.1",
 							Name: "interface",
 						},
@@ -472,57 +479,57 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
 
 func TestComputeInterfaceStatus(t *testing.T) {
 	type testCase struct {
-		ifAdminStatus common.IfAdminStatus
-		ifOperStatus  common.IfOperStatus
-		status        common.InterfaceStatus
+		ifAdminStatus metadata.IfAdminStatus
+		ifOperStatus  metadata.IfOperStatus
+		status        metadata.InterfaceStatus
 	}
 
 	// Test the method with only valid input for ifAdminStatus and ifOperStatus
 	allTests := []testCase{
 		// Valid test cases
-		{common.AdminStatus_Up, common.OperStatus_Up, common.InterfaceStatus_Up},
-		{common.AdminStatus_Up, common.OperStatus_Down, common.InterfaceStatus_Down},
-		{common.AdminStatus_Up, common.OperStatus_Testing, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Up, common.OperStatus_Unknown, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Up, common.OperStatus_Dormant, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Up, common.OperStatus_NotPresent, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Up, common.OperStatus_LowerLayerDown, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Down, common.OperStatus_Up, common.InterfaceStatus_Down},
-		{common.AdminStatus_Down, common.OperStatus_Down, common.InterfaceStatus_Off},
-		{common.AdminStatus_Down, common.OperStatus_Testing, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Down, common.OperStatus_Unknown, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Down, common.OperStatus_Dormant, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Down, common.OperStatus_NotPresent, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Down, common.OperStatus_LowerLayerDown, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Testing, common.OperStatus_Up, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Testing, common.OperStatus_Down, common.InterfaceStatus_Down},
-		{common.AdminStatus_Testing, common.OperStatus_Testing, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Testing, common.OperStatus_Unknown, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Testing, common.OperStatus_Dormant, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Testing, common.OperStatus_NotPresent, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Testing, common.OperStatus_LowerLayerDown, common.InterfaceStatus_Warning},
+		{metadata.AdminStatusUp, metadata.OperStatusUp, metadata.InterfaceStatusUp},
+		{metadata.AdminStatusUp, metadata.OperStatusDown, metadata.InterfaceStatusDown},
+		{metadata.AdminStatusUp, metadata.OperStatusTesting, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusUp, metadata.OperStatusUnknown, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusUp, metadata.OperStatusDormant, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusUp, metadata.OperStatusNotPresent, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusUp, metadata.OperStatusLowerLayerDown, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusDown, metadata.OperStatusUp, metadata.InterfaceStatusDown},
+		{metadata.AdminStatusDown, metadata.OperStatusDown, metadata.InterfaceStatusOff},
+		{metadata.AdminStatusDown, metadata.OperStatusTesting, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusDown, metadata.OperStatusUnknown, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusDown, metadata.OperStatusDormant, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusDown, metadata.OperStatusNotPresent, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusDown, metadata.OperStatusLowerLayerDown, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusTesting, metadata.OperStatusUp, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusTesting, metadata.OperStatusDown, metadata.InterfaceStatusDown},
+		{metadata.AdminStatusTesting, metadata.OperStatusTesting, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusTesting, metadata.OperStatusUnknown, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusTesting, metadata.OperStatusDormant, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusTesting, metadata.OperStatusNotPresent, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusTesting, metadata.OperStatusLowerLayerDown, metadata.InterfaceStatusWarning},
 
 		// Invalid ifOperStatus
-		{common.AdminStatus_Up, 0, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Up, 8, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Up, 100, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Down, 0, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Down, 8, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Down, 100, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Testing, 0, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Testing, 8, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Testing, 100, common.InterfaceStatus_Warning},
+		{metadata.AdminStatusUp, 0, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusUp, 8, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusUp, 100, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusDown, 0, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusDown, 8, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusDown, 100, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusTesting, 0, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusTesting, 8, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusTesting, 100, metadata.InterfaceStatusWarning},
 
 		// Invalid ifAdminStatus
-		{0, common.OperStatus_Unknown, common.InterfaceStatus_Down},
-		{0, common.OperStatus_Down, common.InterfaceStatus_Down},
-		{0, common.OperStatus_Up, common.InterfaceStatus_Down},
-		{4, common.OperStatus_Up, common.InterfaceStatus_Down},
-		{4, common.OperStatus_Down, common.InterfaceStatus_Down},
-		{4, common.OperStatus_Testing, common.InterfaceStatus_Down},
-		{100, common.OperStatus_Up, common.InterfaceStatus_Down},
-		{100, common.OperStatus_Down, common.InterfaceStatus_Down},
-		{100, common.OperStatus_Testing, common.InterfaceStatus_Down},
+		{0, metadata.OperStatusUnknown, metadata.InterfaceStatusDown},
+		{0, metadata.OperStatusDown, metadata.InterfaceStatusDown},
+		{0, metadata.OperStatusUp, metadata.InterfaceStatusDown},
+		{4, metadata.OperStatusUp, metadata.InterfaceStatusDown},
+		{4, metadata.OperStatusDown, metadata.InterfaceStatusDown},
+		{4, metadata.OperStatusTesting, metadata.InterfaceStatusDown},
+		{100, metadata.OperStatusUp, metadata.InterfaceStatusDown},
+		{100, metadata.OperStatusDown, metadata.InterfaceStatusDown},
+		{100, metadata.OperStatusTesting, metadata.InterfaceStatusDown},
 	}
 	for _, test := range allTests {
 		assert.Equal(t, test.status, computeInterfaceStatus(test.ifAdminStatus, test.ifOperStatus))
@@ -713,4 +720,33 @@ func Test_buildInterfaceIndexByIDType(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expectedInterfaceIndexByIDType, interfaceIndexByIDType)
+}
+
+func Test_getProfileVersion(t *testing.T) {
+	tests := []struct {
+		name                   string
+		config                 checkconfig.CheckConfig
+		expectedProfileVersion uint64
+	}{
+		{
+			name: "profile definition is present",
+			config: checkconfig.CheckConfig{
+				ProfileDef: &profiledefinition.ProfileDefinition{
+					Name:    "my-profile",
+					Version: 42,
+				},
+			},
+			expectedProfileVersion: 42,
+		},
+		{
+			name:                   "profile definition not present",
+			config:                 checkconfig.CheckConfig{},
+			expectedProfileVersion: 0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expectedProfileVersion, getProfileVersion(&tt.config))
+		})
+	}
 }

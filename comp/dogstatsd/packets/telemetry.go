@@ -11,17 +11,22 @@ import (
 
 var (
 	// packet buffer
+	// This is the size of the output channel of the packet buffer. Even
+	// though all buffers currently share a single channel it's still worth
+	// tagging it with listener_id in case this changes later.
 	tlmChannelSize = telemetry.NewGauge("dogstatsd", "packets_channel_size",
-		nil, "Number of packets in the packets channel")
+		[]string{"listener_id"}, "Number of packets in the packets channel")
 
 	tlmListenerChannel    = telemetry.NewHistogramNoOp()
 	defaultChannelBuckets = []float64{250, 500, 750, 1000, 10000}
 
 	// buffer flush
 	tlmBufferFlushedTimer = telemetry.NewCounter("dogstatsd", "packets_buffer_flush_timer",
-		nil, "Count of packets buffer flush triggered by the timer")
+		[]string{"listener_id"}, "Count of packets buffer flush triggered by the timer")
 	tlmBufferFlushedFull = telemetry.NewCounter("dogstatsd", "packets_buffer_flush_full",
-		nil, "Count of packets buffer flush triggered because the buffer is full")
+		[]string{"listener_id"}, "Count of packets buffer flush triggered because the buffer is full")
+	tlmBufferSize = telemetry.NewGauge("dogstatsd", "packets_buffer_size",
+		[]string{"listener_id"}, "Size of the packets buffer")
 
 	// packet pool
 	tlmPoolGet = telemetry.NewCounter("dogstatsd", "packet_pool_get",
@@ -43,7 +48,7 @@ func InitTelemetry(buckets []float64) {
 	tlmListenerChannel = telemetry.NewHistogram(
 		"dogstatsd",
 		"listener_channel_latency",
-		nil,
+		[]string{"listener_id"},
 		"Time in nanoseconds to push a packets from a listeners to dogstatsd pipeline",
 		buckets)
 }

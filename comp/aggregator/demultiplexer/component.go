@@ -7,12 +7,9 @@
 package demultiplexer
 
 import (
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: agent-shared-components
@@ -25,14 +22,10 @@ type Component interface {
 	Serializer() serializer.MetricSerializer
 
 	aggregator.DemultiplexerWithAggregator
-}
 
-// Mock implements mock-specific methods.
-type Mock interface {
-	Component
-}
+	// AddAgentStartupTelemetry adds a startup event and count (in a DSD time sampler)
+	// to be sent on the next flush.
+	AddAgentStartupTelemetry(agentVersion string)
 
-// Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newDemultiplexer),
-)
+	sender.DiagnoseSenderManager
+}

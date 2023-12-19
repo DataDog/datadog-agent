@@ -127,7 +127,7 @@ func (c *Controller) handleObject(obj interface{}) {
 
 // handleUpdate handles the new object reported in update events.
 // It can be a callback function for update events.
-func (c *Controller) handleUpdate(oldObj, newObj interface{}) {
+func (c *Controller) handleUpdate(_, newObj interface{}) {
 	if !c.isLeaderFunc() {
 		return
 	}

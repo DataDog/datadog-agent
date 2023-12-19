@@ -40,6 +40,7 @@ build do
     "--disable-asciidoc",
     "--disable-all-programs",
     "--enable-libblkid",
+    "--disable-static",
   ]
   configure(*configure_options, env: env)
 

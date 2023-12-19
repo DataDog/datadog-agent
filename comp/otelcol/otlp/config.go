@@ -28,7 +28,7 @@ func portToUint(v int) (port uint, err error) {
 }
 
 // readConfigSection from a config.Component object.
-func readConfigSection(cfg config.Component, section string) *confmap.Conf {
+func readConfigSection(cfg config.Reader, section string) *confmap.Conf {
 	// Viper doesn't work well when getting subsections, since it
 	// ignores environment variables and nil-but-present sections.
 	// To work around this, we do the following two steps:
@@ -68,7 +68,7 @@ func readConfigSection(cfg config.Component, section string) *confmap.Conf {
 }
 
 // FromAgentConfig builds a pipeline configuration from an Agent configuration.
-func FromAgentConfig(cfg config.Component) (PipelineConfig, error) {
+func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 	var errs []error
 	otlpConfig := readConfigSection(cfg, coreconfig.OTLPReceiverSection)
 	tracePort, err := portToUint(cfg.GetInt(coreconfig.OTLPTracePort))
@@ -96,16 +96,16 @@ func FromAgentConfig(cfg config.Component) (PipelineConfig, error) {
 }
 
 // IsEnabled checks if OTLP pipeline is enabled in a given config.
-func IsEnabled(cfg config.Component) bool {
+func IsEnabled(cfg config.Reader) bool {
 	return hasSection(cfg, coreconfig.OTLPReceiverSubSectionKey)
 }
 
 // HasLogsSectionEnabled checks if OTLP logs are explicitly enabled in a given config.
-func HasLogsSectionEnabled(cfg config.Component) bool {
+func HasLogsSectionEnabled(cfg config.Reader) bool {
 	return hasSection(cfg, coreconfig.OTLPLogsEnabled) && cfg.GetBool(coreconfig.OTLPLogsEnabled)
 }
 
-func hasSection(cfg config.Component, section string) bool {
+func hasSection(cfg config.Reader, section string) bool {
 	// HACK: We want to mark as enabled if the section is present, even if empty, so that we get errors
 	// from unmarshaling/validation done by the Collector code.
 	//

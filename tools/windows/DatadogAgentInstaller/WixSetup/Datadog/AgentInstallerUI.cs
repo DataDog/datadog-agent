@@ -72,7 +72,7 @@ namespace WixSetup.Datadog
             OnFreshInstall(Dialogs.SiteSelectionDialog, Buttons.Next, new ShowDialog(Dialogs.AgentUserDialog));
             OnFreshInstall(Dialogs.SiteSelectionDialog, Buttons.Back, new ShowDialog(Dialogs.ApiKeyDialog));
             OnFreshInstall(Dialogs.AgentUserDialog, Buttons.Next,
-                new ExecuteCustomAction(agentCustomActions.ProcessDdAgentUserCredentialsUI) { Order = 1},
+                new ExecuteCustomAction(agentCustomActions.ProcessDdAgentUserCredentialsUI) { Order = 1 },
                 new SpawnDialog(Dialogs.ErrorModalDialog, new Condition("DDAgentUser_Valid <> \"True\"")) { Order = 2 },
                 new ShowDialog(NativeDialogs.VerifyReadyDlg, new Condition("DDAgentUser_Valid = \"True\"")) { Order = 3 }
             );

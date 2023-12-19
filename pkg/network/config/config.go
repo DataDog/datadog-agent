@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(NET) Fix revive linter
 package config
 
 import (
@@ -241,6 +242,9 @@ type Config struct {
 	// for things like creating netlink sockets for conntrack updates, etc.
 	EnableRootNetNs bool
 
+	// HTTP2DynamicTableMapCleanerInterval is the interval to run the cleaner function.
+	HTTP2DynamicTableMapCleanerInterval time.Duration
+
 	// HTTPMapCleanerInterval is the interval to run the cleaner function.
 	HTTPMapCleanerInterval time.Duration
 
@@ -254,6 +258,9 @@ type Config struct {
 	// EnableHTTPStatsByStatusCode specifies if the HTTP stats should be aggregated by the actual status code
 	// instead of the status code family.
 	EnableHTTPStatsByStatusCode bool
+
+	// EnableUSMQuantization enables endpoint quantization for USM programs
+	EnableUSMQuantization bool
 }
 
 func join(pieces ...string) string {
@@ -336,6 +343,8 @@ func New() *Config {
 
 		EnableRootNetNs: cfg.GetBool(join(netNS, "enable_root_netns")),
 
+		HTTP2DynamicTableMapCleanerInterval: time.Duration(cfg.GetInt(join(smNS, "http2_dynamic_table_map_cleaner_interval_seconds"))) * time.Second,
+
 		HTTPMapCleanerInterval: time.Duration(cfg.GetInt(join(smNS, "http_map_cleaner_interval_in_s"))) * time.Second,
 		HTTPIdleConnectionTTL:  time.Duration(cfg.GetInt(join(smNS, "http_idle_connection_ttl_in_s"))) * time.Second,
 
@@ -347,6 +356,7 @@ func New() *Config {
 		JavaAgentBlockRegex:         cfg.GetString(join(smjtNS, "block_regex")),
 		EnableGoTLSSupport:          cfg.GetBool(join(smNS, "tls", "go", "enabled")),
 		EnableHTTPStatsByStatusCode: cfg.GetBool(join(smNS, "enable_http_stats_by_status_code")),
+		EnableUSMQuantization:       cfg.GetBool(join(smNS, "enable_quantization")),
 	}
 
 	httpRRKey := join(smNS, "http_replace_rules")

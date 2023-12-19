@@ -12,7 +12,7 @@ import (
 )
 
 // NewRuntimeSecurityAgent instantiates a new RuntimeSecurityAgent
-func NewRuntimeSecurityAgent(senderManager sender.SenderManager, hostname string, opts RSAOptions) (*RuntimeSecurityAgent, error) {
+func NewRuntimeSecurityAgent(_ sender.SenderManager, hostname string, _ RSAOptions) (*RuntimeSecurityAgent, error) {
 	client, err := NewRuntimeSecurityClient()
 	if err != nil {
 		return nil, err

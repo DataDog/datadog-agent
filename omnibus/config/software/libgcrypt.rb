@@ -33,11 +33,10 @@ relative_path "libgcrypt-#{version}"
 
 build do
   env = with_standard_compiler_flags(with_embedded_path)
-  
+
   env["CFLAGS"] = "-I#{install_dir}/embedded/include -O1 -D_FORTIFY_SOURCE=1 -fPIC"
 
   configure_options = [
-    "--prefix=#{install_dir}/embedded",
     "--enable-maintainer-mode",
   ]
 

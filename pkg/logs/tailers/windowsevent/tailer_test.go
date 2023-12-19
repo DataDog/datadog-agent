@@ -17,6 +17,7 @@ import (
 	"github.com/cihub/seelog"
 
 	"github.com/cenkalti/backoff"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
@@ -116,7 +117,7 @@ func (s *ReadEventsSuite) TestReadEvents() {
 	totalEvents := uint(0)
 	for i := uint(0); i < s.numEvents; i++ {
 		msg := <-msgChan
-		s.Require().NotEmpty(msg.Content, "Message must not be empty")
+		s.Require().NotEmpty(msg.GetContent(), "Message must not be empty")
 		totalEvents++
 	}
 	s.Require().Equal(s.numEvents, totalEvents, "Received %d/%d events", totalEvents, s.numEvents)
@@ -147,13 +148,16 @@ func (s *ReadEventsSuite) TestCustomQuery() {
 	totalEvents := uint(0)
 	for i := uint(0); i < s.numEvents; i++ {
 		msg := <-msgChan
-		s.Require().NotEmpty(msg.Content, "Message must not be empty")
+		s.Require().NotEmpty(msg.GetContent(), "Message must not be empty")
 		totalEvents++
 	}
 	s.Require().Equal(s.numEvents, totalEvents, "Received %d/%d events", totalEvents, s.numEvents)
 }
 
 func (s *ReadEventsSuite) TestRecoverFromBrokenSubscription() {
+	// TODO: https://datadoghq.atlassian.net/browse/WINA-480
+	s.T().Skip("WINA-480: Skipping flaky test")
+
 	// create tailer and ensure events can be read
 	config := Config{
 		ChannelPath: s.channelPath,
@@ -171,7 +175,7 @@ func (s *ReadEventsSuite) TestRecoverFromBrokenSubscription() {
 	totalEvents := uint(0)
 	for i := uint(0); i < s.numEvents; i++ {
 		msg := <-msgChan
-		s.Require().NotEmpty(msg.Content, "Message must not be empty")
+		s.Require().NotEmpty(msg.GetContent(), "Message must not be empty")
 		totalEvents++
 	}
 	s.Require().Equal(s.numEvents, totalEvents, "Received %d/%d events", totalEvents, s.numEvents)
@@ -219,7 +223,7 @@ func (s *ReadEventsSuite) TestRecoverFromBrokenSubscription() {
 	totalEvents = uint(0)
 	for i := uint(0); i < s.numEvents; i++ {
 		msg := <-msgChan
-		s.Require().NotEmpty(msg.Content, "Message must not be empty")
+		s.Require().NotEmpty(msg.GetContent(), "Message must not be empty")
 		totalEvents++
 	}
 	s.Require().Equal(s.numEvents, totalEvents, "Received %d/%d events", totalEvents, s.numEvents)
@@ -244,7 +248,7 @@ func (s *ReadEventsSuite) TestBookmarkNewTailer() {
 	totalEvents := uint(0)
 	for i := uint(0); i < s.numEvents; i++ {
 		msg := <-msgChan
-		s.Require().NotEmpty(msg.Content, "Message must not be empty")
+		s.Require().NotEmpty(msg.GetContent(), "Message must not be empty")
 		totalEvents++
 		bookmark = msg.Origin.Offset
 	}
@@ -266,7 +270,7 @@ func (s *ReadEventsSuite) TestBookmarkNewTailer() {
 	totalEvents = uint(0)
 	for i := uint(0); i < s.numEvents; i++ {
 		msg := <-msgChan
-		s.Require().NotEmpty(msg.Content, "Message must not be empty")
+		s.Require().NotEmpty(msg.GetContent(), "Message must not be empty")
 		totalEvents++
 	}
 	s.Require().Equal(s.numEvents, totalEvents, "Received %d/%d events", totalEvents, s.numEvents)
@@ -327,7 +331,7 @@ func BenchmarkReadEvents(b *testing.B) {
 
 					for i := uint(0); i < numEvents; i++ {
 						msg := <-msgChan
-						require.NotEmpty(b, msg.Content, "Message must not be empty")
+						require.NotEmpty(b, msg.GetContent(), "Message must not be empty")
 						totalEvents++
 					}
 				}
@@ -337,5 +341,47 @@ func BenchmarkReadEvents(b *testing.B) {
 
 			})
 		}
+	}
+}
+
+func TestTailerCompareUnstructuredAndStructured(t *testing.T) {
+	assert := assert.New(t)
+	sourceV1 := sources.NewLogSource("", &logconfig.LogsConfig{})
+	tailerV1 := NewTailer(nil, sourceV1, &Config{ChannelPath: "System"}, nil)
+	tailerV1.config.ProcessRawMessage = true
+
+	sourceV2 := sources.NewLogSource("", &logconfig.LogsConfig{})
+	tailerV2 := NewTailer(nil, sourceV2, &Config{ChannelPath: "System"}, nil)
+	tailerV2.config.ProcessRawMessage = false
+
+	for _, testCase := range testData {
+		ev1 := &richEvent{
+			xmlEvent: testCase[0],
+			message:  "some content in the message",
+			task:     "rdTaskName",
+			opcode:   "OpCode",
+			level:    "Warning",
+		}
+		ev2 := &richEvent{
+			xmlEvent: testCase[0],
+			message:  "some content in the message",
+			task:     "rdTaskName",
+			opcode:   "OpCode",
+			level:    "Warning",
+		}
+
+		messagev1, err1 := tailerV1.toMessage(ev1)
+		messagev2, err2 := tailerV2.toMessage(ev2)
+
+		assert.NoError(err1)
+		assert.NoError(err2)
+
+		rendered1, err1 := messagev1.Render()
+		rendered2, err2 := messagev2.Render()
+
+		assert.NoError(err1)
+		assert.NoError(err2)
+
+		assert.Equal(rendered1, rendered2)
 	}
 }

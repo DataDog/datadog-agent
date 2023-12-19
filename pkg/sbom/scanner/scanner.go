@@ -13,13 +13,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/sbom/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
@@ -171,7 +171,7 @@ func (s *Scanner) Start(ctx context.Context) {
 
 // NewScanner creates a new SBOM scanner. Call Start to start the store and its
 // collectors.
-func NewScanner(cfg config.Config) *Scanner {
+func NewScanner(config.Config) *Scanner {
 	return &Scanner{
 		scanQueue: make(chan scanRequest, 2000),
 		disk:      filesystem.NewDisk(),

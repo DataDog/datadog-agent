@@ -30,7 +30,7 @@ func initMockConf(t *testing.T) string {
 
 	mockConfig := config.Mock(t)
 	mockConfig.SetConfigFile(f.Name())
-	mockConfig.Set("auth_token", "")
+	mockConfig.SetWithoutSource("auth_token", "")
 
 	return filepath.Join(testDir, "auth_token")
 }

@@ -16,12 +16,12 @@ import (
 func (e *RuleFilterEvent) Init() {}
 
 // GetFieldEventType returns the event type for the given field
-func (e *RuleFilterEvent) GetFieldEventType(field eval.Field) (string, error) {
+func (e *RuleFilterEvent) GetFieldEventType(_ eval.Field) (string, error) {
 	return "*", nil
 }
 
 // SetFieldValue sets the value for the given field
-func (e *RuleFilterEvent) SetFieldValue(field eval.Field, value interface{}) error {
+func (e *RuleFilterEvent) SetFieldValue(field eval.Field, _ interface{}) error {
 	return &eval.ErrFieldNotFound{Field: field}
 }
 
@@ -31,7 +31,7 @@ func (e *RuleFilterEvent) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "kernel.version.major", "kernel.version.minor", "kernel.version.patch", "kernel.version.abi":
 		return reflect.Int, nil
 	case "kernel.version.flavor",
-		"os.id", "os.platform_id", "os.version_id":
+		"os", "os.id", "os.platform_id", "os.version_id", "envs":
 		return reflect.String, nil
 	case "os.is_amazon_linux", "os.is_cos", "os.is_debian", "os.is_oracle", "os.is_rhel", "os.is_rhel7",
 		"os.is_rhel8", "os.is_sles", "os.is_sles12", "os.is_sles15":
@@ -52,7 +52,7 @@ func (e *RuleFilterEvent) GetTags() []string {
 }
 
 // ValidateField returns whether the value use against the field is valid
-func (m *RuleFilterModel) ValidateField(key string, value eval.FieldValue) error {
+func (m *RuleFilterModel) ValidateField(_ string, _ eval.FieldValue) error {
 	return nil
 }
 

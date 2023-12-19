@@ -14,6 +14,7 @@ import (
 	"github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 )
 
 // Programs maps used for tail calls
@@ -57,6 +58,9 @@ type Protocol interface {
 	// GetStats returns the latest monitoring stats from a protocol
 	// implementation.
 	GetStats() *ProtocolStats
+
+	// IsBuildModeSupported return true is the given build mode is supported by this protocol.
+	IsBuildModeSupported(buildmode.Type) bool
 }
 
 // ProtocolStats is a "tuple" struct that represents monitoring data from a
@@ -67,9 +71,13 @@ type ProtocolStats struct {
 	Stats interface{}
 }
 
+// ProtocolFactory is a function that creates a Protocol.
 type ProtocolFactory func(*config.Config) (Protocol, error)
+
+// ProtocolSpec represents a protocol specification.
 type ProtocolSpec struct {
 	Factory   ProtocolFactory
+	Instance  Protocol
 	Maps      []*manager.Map
 	Probes    []*manager.Probe
 	TailCalls []manager.TailCallRoute

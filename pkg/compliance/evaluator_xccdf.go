@@ -268,7 +268,7 @@ func (p *oscapIO) Kill() error {
 }
 
 // EvaluateXCCDFRule evaluates the given rule using OpenSCAP tool.
-func EvaluateXCCDFRule(ctx context.Context, hostname string, statsdClient *statsd.Client, benchmark *Benchmark, rule *Rule) []*CheckEvent {
+func EvaluateXCCDFRule(ctx context.Context, hostname string, statsdClient statsd.ClientInterface, benchmark *Benchmark, rule *Rule) []*CheckEvent {
 	if !rule.IsXCCDF() {
 		log.Errorf("given rule is not an XCCDF rule %s", rule.ID)
 		return nil
@@ -276,7 +276,7 @@ func EvaluateXCCDFRule(ctx context.Context, hostname string, statsdClient *stats
 	return evaluateXCCDFRule(ctx, hostname, statsdClient, benchmark, rule, rule.InputSpecs[0].XCCDF)
 }
 
-func evaluateXCCDFRule(ctx context.Context, hostname string, statsdClient *statsd.Client, benchmark *Benchmark, rule *Rule, spec *InputSpecXCCDF) []*CheckEvent {
+func evaluateXCCDFRule(ctx context.Context, hostname string, statsdClient statsd.ClientInterface, benchmark *Benchmark, rule *Rule, spec *InputSpecXCCDF) []*CheckEvent {
 	oscapIOsMu.Lock()
 	file := filepath.Join(benchmark.dirname, spec.Name)
 	p := oscapIOs[file]
@@ -379,7 +379,7 @@ func evaluateXCCDFRule(ctx context.Context, hostname string, statsdClient *stats
 }
 
 // FinishXCCDFBenchmark finishes an XCCDF benchmark by terminating the oscap-io processes.
-func FinishXCCDFBenchmark(ctx context.Context, benchmark *Benchmark) {
+func FinishXCCDFBenchmark(ctx context.Context, benchmark *Benchmark) { //nolint:revive // TODO fix revive unused-parameter
 	oscapIOsMu.Lock()
 	if len(oscapIOs) == 0 {
 		// No oscap-io process is running.

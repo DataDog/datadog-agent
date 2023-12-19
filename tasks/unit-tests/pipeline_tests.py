@@ -50,7 +50,8 @@ class TestUpdateGitlabCI(unittest.TestCase):
         with open(self.gitlabci_file, "r") as gl:
             gitlab_ci = yaml.safe_load(gl)
         for variable, value in gitlab_ci["variables"].items():
-            if variable.endswith("_SUFFIX"):
+            # TEST_INFRA_DEFINITION_BUILDIMAGE label format differs from other buildimages
+            if variable.endswith("_SUFFIX") and not variable.startswith("TEST_INFRA_DEFINITION"):
                 self.assertEqual("_test_only", value)
 
     def test_update_no_test(self):

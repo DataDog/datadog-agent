@@ -11,13 +11,14 @@
 package checks
 
 import (
-	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect"
+	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/agentcrashdetectimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: agent-shared-components
 
 // Bundle defines the fx options for this bundle.
-var Bundle = fxutil.Bundle(
-	agentcrashdetect.Module,
-)
+func Bundle() fxutil.BundleOptions {
+	return fxutil.Bundle(
+		agentcrashdetectimpl.Module())
+}

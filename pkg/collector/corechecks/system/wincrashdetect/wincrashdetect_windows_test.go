@@ -39,7 +39,7 @@ func createSystemProbeListener() (l net.Listener, close func()) {
 	}
 }
 
-func testSetup(t *testing.T) {
+func testSetup(t *testing.T) { //nolint:revive // TODO fix revive unused-parameter
 	// change the hive to hku for the test
 	hive = registry.CURRENT_USER
 	baseKey = `SOFTWARE\Datadog\unit_test\windows_crash_reporting`
@@ -70,7 +70,7 @@ func TestWinCrashReporting(t *testing.T) {
 	defer server.Close()
 
 	sock := fmt.Sprintf("localhost:%d", listener.Addr().(*net.TCPAddr).Port)
-	config.SystemProbe.Set("system_probe_config.sysprobe_socket", sock)
+	config.SystemProbe.SetWithoutSource("system_probe_config.sysprobe_socket", sock)
 
 	/*
 	 * the underlying system probe connector is a singleton.  Therefore, we can't set up different

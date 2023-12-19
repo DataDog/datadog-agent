@@ -14,7 +14,7 @@ import (
 )
 
 // GetClusterAgentDiagnose dumps the connectivity checks diagnose to the writer
-func GetClusterAgentDiagnose(w io.Writer, senderManager sender.SenderManager) error {
+func GetClusterAgentDiagnose(w io.Writer, senderManager sender.DiagnoseSenderManager) error {
 	// Verbose:  true - to show details like if was done a while ago
 	// RunLocal: true - do not attept to run in actual running agent but
 	//                  may need to implement it in future

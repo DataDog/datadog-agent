@@ -9,9 +9,7 @@
 package ndmtmp
 
 import (
-	"github.com/DataDog/datadog-agent/comp/ndmtmp/aggregator"
-	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder"
-	"github.com/DataDog/datadog-agent/comp/ndmtmp/sender"
+	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/forwarderimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -20,15 +18,7 @@ import (
 // TODO: (components) Delete this module when the sender and event platform forwarder are fully componentized.
 
 // Bundle defines the fx options for this bundle.
-var Bundle = fxutil.Bundle(
-	sender.Module,
-	forwarder.Module,
-	aggregator.Module,
-)
-
-// MockBundle defines the fx options for mock versions of everything in this bundle.
-var MockBundle = fxutil.Bundle(
-	sender.Module,
-	forwarder.MockModule,
-	aggregator.MockModule,
-)
+func Bundle() fxutil.BundleOptions {
+	return fxutil.Bundle(
+		forwarderimpl.Module())
+}

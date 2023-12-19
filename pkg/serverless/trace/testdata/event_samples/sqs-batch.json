@@ -36,7 +36,7 @@
             },
             "messageAttributes": {
                 "_datadog": {
-                    "stringValue": "{\"x-datadog-trace-id\":\"2684756524522091840\",\"x-datadog-parent-id\":\"7431398482019833808\",\"x-datadog-sampled\":\"1\",\"x-datadog-sampling-priority\":\"1\"}",
+                    "stringValue": "{\"x-datadog-trace-id\":\"2684756524522091841\",\"x-datadog-parent-id\":\"7431398482019833809\",\"x-datadog-sampled\":\"1\",\"x-datadog-sampling-priority\":\"1\"}",
                     "stringListValues": [],
                     "binaryListValues": [],
                     "dataType": "String"

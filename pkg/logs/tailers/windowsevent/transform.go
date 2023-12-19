@@ -12,21 +12,25 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/clbanning/mxj"
 	"golang.org/x/text/encoding/unicode"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// eventToJSON converts an XML message into json
-func eventToJSON(re *richEvent) (string, error) {
+// eventToJSON converts an XML message into either an unstructured message.Message
+// or a structured one.
+func eventToMessage(re *richEvent, source *sources.LogSource, processRawMessage bool) (*message.Message, error) {
 	event := re.xmlEvent
 	log.Trace("Rendered XML:", event)
 	mxj.PrependAttrWithHyphen(false)
 	mv, err := mxj.NewMapXml([]byte(event))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	// extract then modify the Event.EventData.Data field to have a key value mapping
@@ -62,13 +66,24 @@ func eventToJSON(re *richEvent) (string, error) {
 		_ = mv.SetValueForPath(re.level, "level")
 	}
 
-	jsonEvent, err := mv.Json(false)
-	if err != nil {
-		return "", err
+	// old behaviour using an unstructured message with raw data
+	if processRawMessage {
+		jsonEvent, err := mv.Json(false)
+		if err != nil {
+			return nil, err
+		}
+		jsonEvent = replaceTextKeyToValue(jsonEvent)
+		log.Trace("Transformed JSON:", string(jsonEvent))
+		return message.NewMessageWithSource(jsonEvent, message.StatusInfo, source, time.Now().UnixNano()), nil
 	}
-	jsonEvent = replaceTextKeyToValue(jsonEvent)
-	log.Trace("Transformed JSON:", string(jsonEvent))
-	return string(jsonEvent), nil
+
+	// new behaviour returning a structured message
+	return message.NewStructuredMessage(
+		&WindowsEventMessage{data: mv},
+		message.NewOrigin(source),
+		message.StatusInfo,
+		time.Now().UnixNano(),
+	), nil
 }
 
 // EventID sometimes comes in like <EventID>7036</EventID>

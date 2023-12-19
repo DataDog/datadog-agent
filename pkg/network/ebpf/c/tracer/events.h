@@ -76,6 +76,8 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
         // we don't have any stats for the connection,
         // so cookie is not set, set it here
         conn.conn_stats.cookie = get_sk_cookie(sk);
+        // make sure direction is set correctly
+        determine_connection_direction(&conn.tup, &conn.conn_stats);
     }
 
     conn.conn_stats.timestamp = bpf_ktime_get_ns();

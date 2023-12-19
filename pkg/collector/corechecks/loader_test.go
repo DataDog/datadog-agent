@@ -6,6 +6,7 @@
 package corechecks
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
@@ -21,9 +22,13 @@ type TestCheck struct {
 	stub.StubCheck
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (c *TestCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initData integration.Data, source string) error {
 	if string(data) == "err" {
 		return fmt.Errorf("testError")
+	}
+	if string(data) == "skip" {
+		return check.ErrSkipCheckInstance
 	}
 	return nil
 }
@@ -71,6 +76,18 @@ func TestLoad(t *testing.T) {
 
 	if err == nil {
 		t.Fatalf("Expected error, found: nil")
+	}
+
+	// check is in catalog, pass 1 skip instance
+	i = []integration.Data{
+		integration.Data("skip"),
+	}
+	cc = integration.Config{Name: "foo", Instances: i}
+
+	_, err = l.Load(aggregator.NewNoOpSenderManager(), cc, i[0])
+
+	if !errors.Is(err, check.ErrSkipCheckInstance) {
+		t.Fatalf("Expected ErrSkipCheckInstance, found: %v", err)
 	}
 
 	// check not in catalog

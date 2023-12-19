@@ -108,13 +108,14 @@ func newIstioMonitor(c *config.Config, mgr *manager.Manager) *istioMonitor {
 		return nil
 	}
 
+	procRoot := kernel.ProcFSRoot()
 	return &istioMonitor{
 		registry: utils.NewFileRegistry("istio"),
-		procRoot: kernel.ProcFSRoot(),
+		procRoot: procRoot,
 		done:     make(chan struct{}),
 
 		// Callbacks
-		registerCB:   addHooks(mgr, istioProbes),
+		registerCB:   addHooks(mgr, procRoot, istioProbes),
 		unregisterCB: removeHooks(mgr, istioProbes),
 	}
 }

@@ -14,9 +14,8 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
@@ -70,7 +69,7 @@ type ConnectionsCheck struct {
 type ProcessConnRates map[int32]*model.ProcessNetworks
 
 // Init initializes a ConnectionsCheck instance.
-func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo) error {
+func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bool) error {
 	c.hostInfo = hostInfo
 	c.maxConnsPerMessage = syscfg.MaxConnsPerMessage
 	c.notInitializedLogLimit = putil.NewLogLimit(1, time.Minute*10)
@@ -137,7 +136,7 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	conns, err := c.getConnections()
 	if err != nil {
 		// If the tracer is not initialized, or still not initialized, then we want to exit without error'ing
-		if err == ebpf.ErrNotImplemented || err == ErrTracerStillNotInitialized {
+		if errors.Is(err, net.ErrNotImplemented) || errors.Is(err, ErrTracerStillNotInitialized) {
 			return nil, nil
 		}
 		return nil, err
@@ -372,6 +371,7 @@ func batchConnections(
 				continue
 			}
 
+			//nolint:revive // TODO(NET) Fix revive linter
 			new := int32(len(newRouteIndices))
 			newRouteIndices[c.RouteIdx] = new
 			batchRoutes = append(batchRoutes, routes[c.RouteIdx])

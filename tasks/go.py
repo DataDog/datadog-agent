@@ -30,6 +30,7 @@ GOARCH_MAPPING = {
 
 def run_golangci_lint(
     ctx,
+    module_path,
     targets,
     rtloader_root=None,
     build_tags=None,
@@ -39,6 +40,7 @@ def run_golangci_lint(
     timeout=None,
     verbose=False,
     golangci_lint_kwargs="",
+    headless_mode: bool = False,
 ):
     if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
@@ -52,17 +54,18 @@ def run_golangci_lint(
     # Always add `test` tags while linting as test files are also linted
     tags.extend(UNIT_TEST_TAGS)
 
-    _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root)
+    _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root, headless_mode=headless_mode)
     verbosity = "-v" if verbose else ""
     # we split targets to avoid going over the memory limit from circleCI
     results = []
     for target in targets:
-        print(f"running golangci on {target}")
+        if not headless_mode:
+            print(f"running golangci on {target}")
         concurrency_arg = "" if concurrency is None else f"--concurrency {concurrency}"
         tags_arg = " ".join(sorted(set(tags)))
         timeout_arg_value = "25m0s" if not timeout else f"{timeout}m0s"
         result = ctx.run(
-            f'golangci-lint run {verbosity} --timeout {timeout_arg_value} {concurrency_arg} --build-tags "{tags_arg}" {golangci_lint_kwargs} {target}/...',
+            f'golangci-lint run {verbosity} --timeout {timeout_arg_value} {concurrency_arg} --build-tags "{tags_arg}" --path-prefix "{module_path}" {golangci_lint_kwargs} {target}/...',
             env=env,
             warn=True,
         )
@@ -112,7 +115,7 @@ def deps_vendored(ctx, verbose=False):
         verbosity = ' -v' if verbose else ''
 
         ctx.run(f"go mod vendor{verbosity}")
-        ctx.run(f"go mod tidy{verbosity} -compat=1.17")
+        ctx.run(f"go mod tidy{verbosity}")
 
         # "go mod vendor" doesn't copy files that aren't in a package: https://github.com/golang/go/issues/26366
         # This breaks when deps include other files that are needed (eg: .java files from gomobile): https://github.com/golang/go/issues/43736
@@ -367,7 +370,7 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
         errors_found = []
         for mod in DEFAULT_MODULES.values():
             with ctx.cd(mod.full_path()):
-                ctx.run("go mod tidy -compat=1.17")
+                ctx.run("go mod tidy")
                 res = ctx.run("git diff-files --exit-code go.mod go.sum", warn=True)
                 if res.exited is None or res.exited > 0:
                     errors_found.append(f"go.mod or go.sum for {mod.import_path} module is out of sync")
@@ -378,7 +381,7 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
                 ctx.run(f"go run ./internal/tools/independent-lint/independent.go --path={mod.full_path()}")
 
         with ctx.cd(dummy_folder):
-            ctx.run("go mod tidy -compat=1.17")
+            ctx.run("go mod tidy")
             res = ctx.run("go build main.go", warn=True)
             if res.exited is None or res.exited > 0:
                 errors_found.append("could not build test module importing external modules")
@@ -395,13 +398,13 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
 def tidy_all(ctx):
     for mod in DEFAULT_MODULES.values():
         with ctx.cd(mod.full_path()):
-            ctx.run("go mod tidy -compat=1.17")
+            ctx.run("go mod tidy")
 
 
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.20.8 linux/amd64"
+    # result is like "go version go1.20.12 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

@@ -6,20 +6,9 @@
 // Package resources implements a component to generate the 'resources' metadata payload.
 package resources
 
-import (
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-)
-
 // team: agent-shared-components
 
 // Component is the component type.
-type Component interface{}
-
-// Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newResourcesProvider),
-)
-
-// The runner component doesn't provides a mock since other component don't use it directly.
+type Component interface {
+	Get() map[string]interface{}
+}

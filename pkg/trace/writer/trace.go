@@ -79,6 +79,8 @@ type TraceWriter struct {
 	syncMode  bool
 	flushChan chan chan struct{}
 
+	telemetryCollector telemetry.TelemetryCollector
+
 	easylog *log.ThrottledLogger
 }
 
@@ -86,20 +88,21 @@ type TraceWriter struct {
 // will accept incoming spans via the in channel.
 func NewTraceWriter(cfg *config.AgentConfig, prioritySampler samplerTPSReader, errorsSampler samplerTPSReader, rareSampler samplerEnabledReader, telemetryCollector telemetry.TelemetryCollector) *TraceWriter {
 	tw := &TraceWriter{
-		In:              make(chan *SampledChunks, 1),
-		Serialize:       make(chan *pb.AgentPayload, 1),
-		prioritySampler: prioritySampler,
-		errorsSampler:   errorsSampler,
-		rareSampler:     rareSampler,
-		hostname:        cfg.Hostname,
-		env:             cfg.DefaultEnv,
-		stats:           &info.TraceWriterInfo{},
-		stop:            make(chan struct{}),
-		flushChan:       make(chan chan struct{}),
-		syncMode:        cfg.SynchronousFlushing,
-		tick:            5 * time.Second,
-		agentVersion:    cfg.AgentVersion,
-		easylog:         log.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
+		In:                 make(chan *SampledChunks, 1),
+		Serialize:          make(chan *pb.AgentPayload, 1),
+		prioritySampler:    prioritySampler,
+		errorsSampler:      errorsSampler,
+		rareSampler:        rareSampler,
+		hostname:           cfg.Hostname,
+		env:                cfg.DefaultEnv,
+		stats:              &info.TraceWriterInfo{},
+		stop:               make(chan struct{}),
+		flushChan:          make(chan chan struct{}),
+		syncMode:           cfg.SynchronousFlushing,
+		tick:               5 * time.Second,
+		agentVersion:       cfg.AgentVersion,
+		easylog:            log.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
+		telemetryCollector: telemetryCollector,
 	}
 	climit := cfg.TraceWriter.ConnectionLimit
 	if climit == 0 {
@@ -272,6 +275,7 @@ func (w *TraceWriter) serializer() {
 				"Content-Encoding": "gzip",
 				headerLanguages:    strings.Join(info.Languages(), "|"),
 			})
+			p.body.Grow(len(b) / 2)
 			gzipw, err := gzip.NewWriterLevel(p.body, gzip.BestSpeed)
 			if err != nil {
 				// it will never happen, unless an invalid compression is chosen;
@@ -319,6 +323,9 @@ func (w *TraceWriter) recordEvent(t eventType, data *eventData) {
 		timing.Since("datadog.trace_agent.trace_writer.flush_duration", time.Now().Add(-data.duration))
 		w.stats.Bytes.Add(int64(data.bytes))
 		w.stats.Payloads.Inc()
+		if !w.telemetryCollector.SentFirstTrace() {
+			go w.telemetryCollector.SendFirstTrace()
+		}
 
 	case eventTypeRejected:
 		log.Warnf("Trace writer payload rejected by edge: %v", data.err)

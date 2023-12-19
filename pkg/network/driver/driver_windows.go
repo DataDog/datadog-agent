@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 package driver
 
 import (
@@ -26,7 +27,7 @@ type driver struct {
 }
 
 // Init configures the driver and will disable it if closed source is not allowed
-func Init(cfg *config.Config) error {
+func Init(*config.Config) error {
 	driverInit.Do(func() {
 		driverRef = &driver{
 			inuse: atomic.NewUint32(0),

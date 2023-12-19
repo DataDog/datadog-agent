@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package main is a simple client for the gotls_server.
 package main
 
 import (
@@ -54,7 +55,7 @@ func main() {
 			log.Fatalf("could not do HTTPS request: %s", err)
 		}
 
-		_, err = io.ReadAll(resp.Body)
+		_, err = io.Copy(io.Discard, resp.Body)
 		if err != nil {
 			log.Fatalf("could not read response body: %s", err)
 		}

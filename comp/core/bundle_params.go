@@ -7,18 +7,20 @@ package core
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 )
 
 // BundleParams defines the parameters for this bundle.
 //
 // Logs-related parameters are implemented as unexported fields containing
 // callbacks.  These fields can be set with the `LogXxx()` methods, which
-// return the updated BundleParams.  One of `log.ForOneShot` or `log.ForDaemon`
+// return the updated BundleParams.  One of `logimpl.ForOneShot` or `logimpl.ForDaemon`
 // must be called.
 type BundleParams struct {
 	ConfigParams
+	SecretParams
 	SysprobeConfigParams
 	LogParams
 }
@@ -26,8 +28,11 @@ type BundleParams struct {
 // ConfigParams defines the parameters of the config component
 type ConfigParams = config.Params
 
+// SecretParams defines the parameters of the secrets component
+type SecretParams = secrets.Params
+
 // LogParams defines the parameters of the log component
-type LogParams = log.Params
+type LogParams = logimpl.Params
 
 // SysprobeConfigParams defines the parameters of the system-probe config component
-type SysprobeConfigParams = sysprobeconfig.Params
+type SysprobeConfigParams = sysprobeconfigimpl.Params

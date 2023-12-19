@@ -12,15 +12,15 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/util/crashreport"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/crashreport"
 	"go.uber.org/fx"
 )
 
 func TestBundleDependencies(t *testing.T) {
-	fxutil.TestBundle(t, Bundle,
-		comptraceconfig.Module,
-		core.MockBundle,
+	fxutil.TestBundle(t, Bundle(),
+		comptraceconfig.Module(),
+		core.MockBundle(),
 		fx.Supply(core.BundleParams{}),
 		fx.Supply(crashreport.WinCrashReporter{}),
 	)

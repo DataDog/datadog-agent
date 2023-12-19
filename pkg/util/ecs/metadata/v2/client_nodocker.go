@@ -5,6 +5,7 @@
 
 //go:build !docker
 
+//nolint:revive // TODO(CINT) Fix revive linter
 package v2
 
 import "context"
@@ -18,11 +19,11 @@ func NewDefaultClient() *Client {
 }
 
 // GetTask returns the current task.
-func (c *Client) GetTask(ctx context.Context) (*Task, error) {
+func (c *Client) GetTask(context.Context) (*Task, error) {
 	return new(Task), nil
 }
 
 // GetTaskWithTags returns the current task, including propagated resource tags.
-func (c *Client) GetTaskWithTags(ctx context.Context) (*Task, error) {
+func (c *Client) GetTaskWithTags(context.Context) (*Task, error) {
 	return new(Task), nil
 }

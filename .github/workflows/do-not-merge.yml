@@ -6,6 +6,9 @@ name: Do Not Merge
 on:
   pull_request:
     types: [synchronize, opened, reopened, labeled, unlabeled]
+  push:
+    branches:
+      - mq-working-branch-*
 
 jobs:
   do-not-merge:

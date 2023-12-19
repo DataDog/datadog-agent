@@ -63,7 +63,7 @@ func NewProbe(cfg *ebpf.Config) (*Probe, error) {
 	return loadOOMKillRuntimeCompiledProbe(cfg)
 }
 
-func loadOOMKillCOREProbe(cfg *ebpf.Config) (*Probe, error) {
+func loadOOMKillCOREProbe(cfg *ebpf.Config) (*Probe, error) { //nolint:revive // TODO fix revive unused-parameter
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return nil, fmt.Errorf("error detecting kernel version: %s", err)

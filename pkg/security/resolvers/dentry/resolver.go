@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"strings"
 	"syscall"
 	"unsafe"
 
@@ -21,8 +22,6 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
-
-	"strings"
 
 	manager "github.com/DataDog/ebpf-manager"
 
@@ -61,7 +60,7 @@ type Resolver struct {
 	erpcSegment           []byte
 	erpcSegmentSize       int
 	useBPFProgWriteUser   bool
-	erpcRequest           erpc.Request
+	erpcRequest           *erpc.Request
 	erpcStatsZero         []eRPCStats
 	numCPU                int
 	challenge             uint32
@@ -274,9 +273,6 @@ func (dr *Resolver) ResolveNameFromMap(pathKey model.PathKey) (string, error) {
 // ResolveName resolves an inode/mount ID pair to a file basename
 func (dr *Resolver) ResolveName(pathKey model.PathKey) string {
 	name, err := dr.ResolveNameFromCache(pathKey)
-	if err != nil && dr.config.ERPCDentryResolutionEnabled {
-		name, err = dr.ResolveNameFromERPC(pathKey)
-	}
 	if err != nil && dr.config.MapDentryResolutionEnabled {
 		name, err = dr.ResolveNameFromMap(pathKey)
 	}
@@ -463,35 +459,7 @@ func (dr *Resolver) requestResolve(op uint8, pathKey model.PathKey) (uint32, err
 		dr.preventSegmentMajorPageFault()
 	}
 
-	return challenge, dr.erpc.Request(&dr.erpcRequest)
-}
-
-// ResolveNameFromERPC resolves the name of the provided inode / mount id / path id
-func (dr *Resolver) ResolveNameFromERPC(pathKey model.PathKey) (string, error) {
-	entry := counterEntry{
-		resolutionType: metrics.ERPCTag,
-		resolution:     metrics.SegmentResolutionTag,
-	}
-
-	challenge, err := dr.requestResolve(erpc.ResolveSegmentOp, pathKey)
-	if err != nil {
-		dr.missCounters[entry].Inc()
-		return "", fmt.Errorf("unable to get the name of mountID `%d` and inode `%d` with eRPC: %w", pathKey.MountID, pathKey.Inode, err)
-	}
-
-	if challenge != model.ByteOrder.Uint32(dr.erpcSegment[12:16]) {
-		dr.missCounters[entry].Inc()
-		return "", errERPCRequestNotProcessed
-	}
-
-	seg := model.NullTerminatedString(dr.erpcSegment[16:])
-	if len(seg) == 0 || len(seg) > 0 && seg[0] == 0 {
-		dr.missCounters[entry].Inc()
-		return "", fmt.Errorf("couldn't resolve segment (len: %d)", len(seg))
-	}
-
-	dr.hitsCounters[entry].Inc()
-	return seg, nil
+	return challenge, dr.erpc.Request(dr.erpcRequest)
 }
 
 func (dr *Resolver) cacheEntries(keys []model.PathKey, entries []PathEntry) error {
@@ -632,32 +600,6 @@ func (dr *Resolver) ResolveParentFromCache(pathKey model.PathKey) (model.PathKey
 	return path.Parent, nil
 }
 
-// ResolveParentFromERPC resolves the parent
-func (dr *Resolver) ResolveParentFromERPC(pathKey model.PathKey) (model.PathKey, error) {
-	entry := counterEntry{
-		resolutionType: metrics.ERPCTag,
-		resolution:     metrics.ParentResolutionTag,
-	}
-
-	// create eRPC request
-	challenge, err := dr.requestResolve(erpc.ResolveParentOp, pathKey)
-	if err != nil {
-		dr.missCounters[entry].Inc()
-		return model.PathKey{}, fmt.Errorf("unable to resolve the parent of mountID `%d` and inode `%d` with eRPC: %w", pathKey.MountID, pathKey.Inode, err)
-	}
-
-	if challenge != model.ByteOrder.Uint32(dr.erpcSegment[12:16]) {
-		dr.missCounters[entry].Inc()
-		return model.PathKey{}, errERPCRequestNotProcessed
-	}
-
-	pathKey.Inode = model.ByteOrder.Uint64(dr.erpcSegment[0:8])
-	pathKey.MountID = model.ByteOrder.Uint32(dr.erpcSegment[8:12])
-
-	dr.hitsCounters[entry].Inc()
-	return pathKey, nil
-}
-
 // ResolveParentFromMap resolves the parent
 func (dr *Resolver) ResolveParentFromMap(pathKey model.PathKey) (model.PathKey, error) {
 	entry := counterEntry{
@@ -678,10 +620,7 @@ func (dr *Resolver) ResolveParentFromMap(pathKey model.PathKey) (model.PathKey, 
 // GetParent returns the parent mount_id/inode
 func (dr *Resolver) GetParent(pathKey model.PathKey) (model.PathKey, error) {
 	pathKey, err := dr.ResolveParentFromCache(pathKey)
-	if err != nil && dr.config.ERPCDentryResolutionEnabled {
-		pathKey, err = dr.ResolveParentFromERPC(pathKey)
-	}
-	if err != nil && err != errTruncatedParentsERPC && dr.config.MapDentryResolutionEnabled {
+	if err != nil && dr.config.MapDentryResolutionEnabled {
 		pathKey, err = dr.ResolveParentFromMap(pathKey)
 	}
 
@@ -784,7 +723,7 @@ func NewResolver(config *config.Config, statsdClient statsd.ClientInterface, e *
 		statsdClient:  statsdClient,
 		cache:         make(map[uint32]*lru.Cache[model.PathKey, PathEntry]),
 		erpc:          e,
-		erpcRequest:   erpc.Request{},
+		erpcRequest:   erpc.NewERPCRequest(0),
 		erpcStatsZero: make([]eRPCStats, numCPU),
 		hitsCounters:  hitsCounters,
 		missCounters:  missCounters,

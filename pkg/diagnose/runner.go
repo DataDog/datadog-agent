@@ -214,7 +214,7 @@ func getSortedAndFilteredDiagnoseSuites(diagCfg diagnosis.Config) ([]diagnosis.S
 	return sortedFilteredSuites, nil
 }
 
-func getSuiteDiagnoses(ds diagnosis.Suite, diagCfg diagnosis.Config, senderManager sender.SenderManager) []diagnosis.Diagnosis {
+func getSuiteDiagnoses(ds diagnosis.Suite, diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager) []diagnosis.Diagnosis {
 	diagnoses := ds.Diagnose(diagCfg, senderManager)
 
 	// validate each diagnoses
@@ -244,6 +244,8 @@ func getSuiteDiagnoses(ds diagnosis.Suite, diagCfg diagnosis.Config, senderManag
 
 // Enumerate registered Diagnose suites and get their diagnoses
 // for human consumption
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func ListStdOut(w io.Writer, diagCfg diagnosis.Config) {
 	if w != color.Output {
 		color.NoColor = true
@@ -266,7 +268,7 @@ func ListStdOut(w io.Writer, diagCfg diagnosis.Config) {
 
 // Enumerate registered Diagnose suites and get their diagnoses
 // for structural output
-func getDiagnosesFromCurrentProcess(diagCfg diagnosis.Config, senderManager sender.SenderManager) ([]diagnosis.Diagnoses, error) {
+func getDiagnosesFromCurrentProcess(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager) ([]diagnosis.Diagnoses, error) {
 	suites, err := getSortedAndFilteredDiagnoseSuites(diagCfg)
 	if err != nil {
 		return nil, err
@@ -301,6 +303,7 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Dia
 	}
 
 	// Form call end-point
+	//nolint:revive // TODO(CINT) Fix revive linter
 	diagnoseUrl := fmt.Sprintf("https://%v:%v/agent/diagnose", ipcAddress, pkgconfig.Datadog.GetInt("cmd_port"))
 
 	// Serialized diag config to pass it to Agent execution context
@@ -314,7 +317,7 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Dia
 	response, err = util.DoPost(c, diagnoseUrl, "application/json", bytes.NewBuffer(cfgSer))
 	if err != nil {
 		if response != nil && string(response) != "" {
-			return nil, fmt.Errorf("error getting diagnoses from running agent: %sn", string(response))
+			return nil, fmt.Errorf("error getting diagnoses from running agent: %s", strings.TrimSpace(string(response)))
 		}
 		return nil, fmt.Errorf("the agent was unable to get diagnoses from running agent: %w", err)
 	}
@@ -330,7 +333,7 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Dia
 }
 
 // Run runs diagnoses.
-func Run(diagCfg diagnosis.Config, senderManager sender.SenderManager) ([]diagnosis.Diagnoses, error) {
+func Run(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager) ([]diagnosis.Diagnoses, error) {
 
 	// Make remote call to get diagnoses
 	if !diagCfg.RunLocal {
@@ -348,7 +351,9 @@ func Run(diagCfg diagnosis.Config, senderManager sender.SenderManager) ([]diagno
 
 // Enumerate registered Diagnose suites and get their diagnoses
 // for human consumption
-func RunStdOut(w io.Writer, diagCfg diagnosis.Config, senderManager sender.SenderManager) error {
+//
+//nolint:revive // TODO(CINT) Fix revive linter
+func RunStdOut(w io.Writer, diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager) error {
 	if w != color.Output {
 		color.NoColor = true
 	}

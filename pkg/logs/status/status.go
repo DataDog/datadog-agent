@@ -39,8 +39,8 @@ var (
 	warnings *config.Messages
 	errors   *config.Messages
 
-	// CurrentTransport is the current transport used by logs-agent, i.e TCP or HTTP
-	CurrentTransport Transport
+	// currentTransport is the current transport used by logs-agent, i.e TCP or HTTP
+	currentTransport Transport
 )
 
 // Source provides some information about a logs source.
@@ -53,7 +53,9 @@ type Source struct {
 	Info          map[string][]string    `json:"info"`
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 type Tailer struct {
+	//nolint:revive // TODO(AML) Fix revive linter
 	Id   string              `json:"id"`
 	Type string              `json:"type"`
 	Info map[string][]string `json:"info"`
@@ -76,6 +78,22 @@ type Status struct {
 	Errors           []string          `json:"errors"`
 	Warnings         []string          `json:"warnings"`
 	UseHTTP          bool              `json:"use_http"`
+}
+
+// SetCurrentTransport sets the current transport used by the log agent.
+func SetCurrentTransport(t Transport) {
+	globalsLock.Lock()
+	defer globalsLock.Unlock()
+
+	currentTransport = t
+}
+
+// GetCurrentTransport returns the current transport used by the log agent.
+func GetCurrentTransport() Transport {
+	globalsLock.Lock()
+	defer globalsLock.Unlock()
+
+	return currentTransport
 }
 
 // Init instantiates the builder that builds the status on the fly.

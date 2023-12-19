@@ -10,8 +10,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
-
+	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	"go.uber.org/atomic"
 	"golang.org/x/sys/windows"
 )
@@ -194,7 +193,7 @@ func (e *eventLog) addEventRecord(event *eventRecord) {
 }
 
 func (e *eventLog) reportEvent(
-	api *API,
+	api *API, //nolint:revive // TODO fix revive unused-parameter
 	Type uint,
 	Category uint,
 	EventID uint,

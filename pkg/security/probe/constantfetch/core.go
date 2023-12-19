@@ -89,7 +89,7 @@ func (f *BTFConstantFetcher) runRequest(r constantRequest) {
 }
 
 // AppendSizeofRequest appends a sizeof request
-func (f *BTFConstantFetcher) AppendSizeofRequest(id, typeName, headerName string) {
+func (f *BTFConstantFetcher) AppendSizeofRequest(id, typeName, _ string) {
 	f.runRequest(constantRequest{
 		id:       id,
 		sizeof:   true,
@@ -98,7 +98,7 @@ func (f *BTFConstantFetcher) AppendSizeofRequest(id, typeName, headerName string
 }
 
 // AppendOffsetofRequest appends an offset request
-func (f *BTFConstantFetcher) AppendOffsetofRequest(id, typeName, fieldName, headerName string) {
+func (f *BTFConstantFetcher) AppendOffsetofRequest(id, typeName, fieldName, _ string) {
 	f.runRequest(constantRequest{
 		id:        id,
 		sizeof:    false,
@@ -125,15 +125,31 @@ func getActualTypeName(tn string) string {
 
 func runRequestOnBTFType(r constantRequest, ty btf.Type) uint64 {
 	sTy, ok := ty.(*btf.Struct)
-	if !ok {
-		return ErrorSentinel
+	if ok {
+		return runRequestOnBTFTypeStructOrUnion(r, sTy.Size, sTy.Members)
 	}
 
+	uTy, ok := ty.(*btf.Union)
+	if ok {
+		return runRequestOnBTFTypeStructOrUnion(r, uTy.Size, uTy.Members)
+	}
+
+	return ErrorSentinel
+}
+
+func runRequestOnBTFTypeStructOrUnion(r constantRequest, size uint32, members []btf.Member) uint64 {
 	if r.sizeof {
-		return uint64(sTy.Size)
+		return uint64(size)
 	}
 
-	for _, m := range sTy.Members {
+	for _, m := range members {
+		if m.Name == "" {
+			sub := runRequestOnBTFType(r, m.Type)
+			if sub != ErrorSentinel {
+				return uint64(m.Offset.Bytes()) + sub
+			}
+		}
+
 		if m.Name == r.fieldName {
 			return uint64(m.Offset.Bytes())
 		}

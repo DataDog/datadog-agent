@@ -24,6 +24,7 @@ func init() {
 	Fentry = fentry{}
 }
 
+// BuildMode is an eBPF build mode
 type BuildMode interface {
 	fmt.Stringer
 	Env() map[string]string

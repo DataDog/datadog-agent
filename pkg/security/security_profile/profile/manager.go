@@ -121,7 +121,7 @@ type ActivityDumpManager interface {
 type SecurityProfileManager struct {
 	config              *config.Config
 	statsdClient        statsd.ClientInterface
-	resolvers           *resolvers.Resolvers
+	resolvers           *resolvers.EBPFResolvers
 	providers           []Provider
 	activityDumpManager ActivityDumpManager
 
@@ -143,7 +143,7 @@ type SecurityProfileManager struct {
 }
 
 // NewSecurityProfileManager returns a new instance of SecurityProfileManager
-func NewSecurityProfileManager(config *config.Config, statsdClient statsd.ClientInterface, resolvers *resolvers.Resolvers, manager *manager.Manager) (*SecurityProfileManager, error) {
+func NewSecurityProfileManager(config *config.Config, statsdClient statsd.ClientInterface, resolvers *resolvers.EBPFResolvers, manager *manager.Manager) (*SecurityProfileManager, error) {
 	profileCache, err := simplelru.NewLRU[cgroupModel.WorkloadSelector, *SecurityProfile](config.RuntimeSecurity.SecurityProfileCacheSize, nil)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create security profile cache: %w", err)
@@ -178,7 +178,7 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 	if len(config.RuntimeSecurity.SecurityProfileDir) != 0 {
 		// override the status if autosuppression is enabled
 		var status model.Status
-		if config.RuntimeSecurity.ActivityDumpAutoSuppressionEnabled {
+		if config.RuntimeSecurity.SecurityProfileAutoSuppressionEnabled {
 			status = model.AnomalyDetection | model.AutoSuppression
 		}
 
@@ -700,7 +700,14 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 		return
 	case StableEventType:
 		// check if the event is in its profile
-		found, err := profile.ActivityTree.Contains(event, activity_tree.ProfileDrift, m.resolvers)
+		// and if this is not an exec event, check if we can benefit of the occasion to add missing processes
+		insertMissingProcesses := false
+		if event.GetEventType() != model.ExecEventType {
+			if execState := m.getEventTypeState(profile, event, model.ExecEventType); execState == AutoLearning || execState == WorkloadWarmup {
+				insertMissingProcesses = true
+			}
+		}
+		found, err := profile.ActivityTree.Contains(event, insertMissingProcesses, activity_tree.ProfileDrift, m.resolvers)
 		if err != nil {
 			// ignore, evaluation failed
 			m.incrementEventFilteringStat(event.GetEventType(), NoProfile, NA)
@@ -718,82 +725,39 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 
 // tryAutolearn tries to autolearn the input event. It returns the profile state: stable, unstable, autolearning or workloadwarmup
 func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *model.Event) EventFilteringProfileState {
-	var nodeType activity_tree.NodeGenerationType
-	var profileState EventFilteringProfileState
-
 	profile.eventTypeStateLock.Lock()
 	defer profile.eventTypeStateLock.Unlock()
-	eventState, ok := profile.eventTypeState[event.GetEventType()]
-	if !ok {
-		eventState = &EventTypeState{
-			lastAnomalyNano: profile.loadedNano,
-			state:           NoProfile,
-		}
-		profile.eventTypeState[event.GetEventType()] = eventState
-	} else if eventState.state == UnstableEventType {
-		// If for the given event type we already are on UnstableEventType, just return
-		// (once reached, this state is immutable)
-		m.incrementEventFilteringStat(event.GetEventType(), UnstableEventType, NA)
-		return UnstableEventType
-	}
 
-	// check if we are at the beginning of a workload lifetime
-	if event.ResolveEventTime().Sub(time.Unix(0, int64(event.ContainerContext.CreatedAt))) < m.config.RuntimeSecurity.AnomalyDetectionWorkloadWarmupPeriod {
-		nodeType = activity_tree.WorkloadWarmup
-		profileState = WorkloadWarmup
-	} else {
-		// If for the given event type we already are on StableEventType (and outside of the warmup period), just return
-		if eventState.state == StableEventType {
-			return StableEventType
-		}
-
-		// did we reached the stable state time limit ?
-		if time.Duration(event.TimestampRaw-eventState.lastAnomalyNano) >= m.config.RuntimeSecurity.GetAnomalyDetectionMinimumStablePeriod(event.GetEventType()) {
-			eventState.state = StableEventType
-			// call the activity dump manager to stop dumping workloads from the current profile selector
-			if m.activityDumpManager != nil {
-				m.activityDumpManager.StopDumpsWithSelector(profile.selector)
-			}
-			return StableEventType
-		}
-
-		// did we reached the unstable time limit ?
-		if time.Duration(event.TimestampRaw-profile.loadedNano) >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileTimeThreshold {
-			eventState.state = UnstableEventType
-			return UnstableEventType
-		}
-
+	profileState := m.getEventTypeState(profile, event, event.GetEventType())
+	var nodeType activity_tree.NodeGenerationType
+	if profileState == AutoLearning {
 		nodeType = activity_tree.ProfileDrift
-		profileState = AutoLearning
-	}
-
-	// check if the unstable size limit was reached
-	if profile.ActivityTree.Stats.ApproximateSize() >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileSizeThreshold {
-		// for each event type we want to reach either the StableEventType or UnstableEventType states, even
-		// if we already reach the AnomalyDetectionUnstableProfileSizeThreshold. That's why we have to keep
-		// rearming the lastAnomalyNano timer based on if it's something new or not.
-		found, err := profile.ActivityTree.Contains(event, nodeType, m.resolvers)
-		if err != nil {
-			m.incrementEventFilteringStat(event.GetEventType(), NoProfile, NA)
-			return NoProfile
-		} else if !found {
-			eventState.lastAnomalyNano = event.TimestampRaw
-		} else if profileState == WorkloadWarmup {
-			// if it's NOT something's new AND we are on container warmup period, just pretend
-			// we are in learning/warmup phase (as we know, this event is already present on the profile)
-			return WorkloadWarmup
-		}
-		return ProfileAtMaxSize
+	} else if profileState == WorkloadWarmup {
+		nodeType = activity_tree.WorkloadWarmup
+	} else {
+		return profileState
 	}
 
 	// here we are either in AutoLearning or WorkloadWarmup
 	// try to insert the event in the profile
-	newEntry, err := profile.ActivityTree.Insert(event, nodeType, m.resolvers)
+
+	// defines if we want or not to insert missing processes
+	insertMissingProcesses := false
+	if event.GetEventType() == model.ExecEventType {
+		insertMissingProcesses = true
+	} else if execState := m.getEventTypeState(profile, event, model.ExecEventType); execState == AutoLearning || execState == WorkloadWarmup {
+		insertMissingProcesses = true
+	}
+
+	newEntry, err := profile.ActivityTree.Insert(event, insertMissingProcesses, nodeType, m.resolvers)
 	if err != nil {
 		m.incrementEventFilteringStat(event.GetEventType(), NoProfile, NA)
 		return NoProfile
 	} else if newEntry {
-		eventState.lastAnomalyNano = event.TimestampRaw
+		eventState, ok := profile.eventTypeState[event.GetEventType()]
+		if ok { // should always be the case
+			eventState.lastAnomalyNano = event.TimestampRaw
+		}
 		m.incrementEventFilteringStat(event.GetEventType(), profileState, NotInProfile)
 	} else { // no newEntry
 		m.incrementEventFilteringStat(event.GetEventType(), profileState, InProfile)
@@ -882,6 +846,7 @@ func (m *SecurityProfileManager) FetchSilentWorkloads() map[cgroupModel.Workload
 
 	for selector, profile := range m.profiles {
 		profile.Lock()
+		//nolint:gosimple // TODO(SEC) Fix gosimple linter
 		if profile.loadedInKernel == false {
 			out[selector] = profile.Instances
 		}
@@ -889,4 +854,79 @@ func (m *SecurityProfileManager) FetchSilentWorkloads() map[cgroupModel.Workload
 	}
 
 	return out
+}
+
+func (m *SecurityProfileManager) getEventTypeState(profile *SecurityProfile, event *model.Event, eventType model.EventType) EventFilteringProfileState {
+	// eventTypeStateLock already locked here
+
+	var nodeType activity_tree.NodeGenerationType
+	var profileState EventFilteringProfileState
+
+	eventState, ok := profile.eventTypeState[eventType]
+	if !ok {
+		eventState = &EventTypeState{
+			lastAnomalyNano: profile.loadedNano,
+			state:           NoProfile,
+		}
+		profile.eventTypeState[eventType] = eventState
+	} else if eventState.state == UnstableEventType {
+		// If for the given event type we already are on UnstableEventType, just return
+		// (once reached, this state is immutable)
+		if eventType == event.GetEventType() { // increment stat only once for each event
+			m.incrementEventFilteringStat(eventType, UnstableEventType, NA)
+		}
+		return UnstableEventType
+	}
+
+	// check if we are at the beginning of a workload lifetime
+	if event.ResolveEventTime().Sub(time.Unix(0, int64(event.ContainerContext.CreatedAt))) < m.config.RuntimeSecurity.AnomalyDetectionWorkloadWarmupPeriod {
+		nodeType = activity_tree.WorkloadWarmup
+		profileState = WorkloadWarmup
+	} else {
+		// If for the given event type we already are on StableEventType (and outside of the warmup period), just return
+		if eventState.state == StableEventType {
+			return StableEventType
+		}
+
+		if eventType == event.GetEventType() { // update the stable/unstable states only for the event event type
+			// did we reached the stable state time limit ?
+			if time.Duration(event.TimestampRaw-eventState.lastAnomalyNano) >= m.config.RuntimeSecurity.GetAnomalyDetectionMinimumStablePeriod(eventType) {
+				eventState.state = StableEventType
+				// call the activity dump manager to stop dumping workloads from the current profile selector
+				if m.activityDumpManager != nil {
+					m.activityDumpManager.StopDumpsWithSelector(profile.selector)
+				}
+				return StableEventType
+			}
+
+			// did we reached the unstable time limit ?
+			if time.Duration(event.TimestampRaw-profile.loadedNano) >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileTimeThreshold {
+				eventState.state = UnstableEventType
+				return UnstableEventType
+			}
+		}
+
+		nodeType = activity_tree.ProfileDrift
+		profileState = AutoLearning
+	}
+
+	// check if the unstable size limit was reached, but only for the event event type
+	if eventType == event.GetEventType() && profile.ActivityTree.Stats.ApproximateSize() >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileSizeThreshold {
+		// for each event type we want to reach either the StableEventType or UnstableEventType states, even
+		// if we already reach the AnomalyDetectionUnstableProfileSizeThreshold. That's why we have to keep
+		// rearming the lastAnomalyNano timer based on if it's something new or not.
+		found, err := profile.ActivityTree.Contains(event, false /*insertMissingProcesses*/, nodeType, m.resolvers)
+		if err != nil {
+			m.incrementEventFilteringStat(eventType, NoProfile, NA)
+			return NoProfile
+		} else if !found {
+			eventState.lastAnomalyNano = event.TimestampRaw
+		} else if profileState == WorkloadWarmup {
+			// if it's NOT something's new AND we are on container warmup period, just pretend
+			// we are in learning/warmup phase (as we know, this event is already present on the profile)
+			return WorkloadWarmup
+		}
+		return ProfileAtMaxSize
+	}
+	return profileState
 }

@@ -13,25 +13,23 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 )
 
 func mockDemultiplexer(config config.Component, log log.Component) aggregator.Demultiplexer {
-	return mockDemultiplexerWithFlushInterval(config, log, time.Millisecond*10)
-}
-
-func mockDemultiplexerWithFlushInterval(config config.Component, log log.Component, d time.Duration) aggregator.Demultiplexer {
+	d := time.Millisecond * 10
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = d
 	opts.DontStartForwarders = true
-	forwarder := forwarder.NewDefaultForwarder(config, log, forwarder.NewOptions(config, log, nil))
-
-	demux := aggregator.InitAndStartAgentDemultiplexer(log, forwarder, opts, "hostname")
+	forwarder := defaultforwarder.NewDefaultForwarder(config, log, defaultforwarder.NewOptions(config, log, nil))
+	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
+	demux := aggregator.InitAndStartAgentDemultiplexer(log, forwarder, &orchestratorForwarder, opts, "hostname")
 	return demux
 }
 
@@ -70,7 +68,7 @@ func benchParsePackets(b *testing.B, rawPacket []byte) {
 
 	b.RunParallel(func(pb *testing.PB) {
 		batcher := newBatcher(demux.AgentDemultiplexer)
-		parser := newParser(deps.Config, newFloat64ListPool())
+		parser := newParser(deps.Config, newFloat64ListPool(), 1)
 		packet := packets.Packet{
 			Contents: rawPacket,
 			Origin:   packets.NoOrigin,
@@ -116,13 +114,13 @@ func BenchmarkPbarseMetricMessage(b *testing.B) {
 	}()
 	defer close(done)
 
-	parser := newParser(deps.Config, newFloat64ListPool())
+	parser := newParser(deps.Config, newFloat64ListPool(), 1)
 	message := []byte("daemon:666|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2")
 
 	b.RunParallel(func(pb *testing.PB) {
 		samplesBench = make([]metrics.MetricSample, 0, 512)
 		for pb.Next() {
-			s.parseMetricMessage(samplesBench, parser, message, "", false)
+			s.parseMetricMessage(samplesBench, parser, message, "", "", false)
 			samplesBench = samplesBench[0:0]
 		}
 	})
@@ -170,7 +168,7 @@ func benchmarkMapperControl(b *testing.B, yaml string) {
 	defer close(done)
 
 	batcher := newBatcher(demux.AgentDemultiplexer)
-	parser := newParser(deps.Config, newFloat64ListPool())
+	parser := newParser(deps.Config, newFloat64ListPool(), 1)
 
 	samples := make([]metrics.MetricSample, 0, 512)
 	for n := 0; n < b.N; n++ {

@@ -28,7 +28,6 @@ except ImportError:
 
 X86_AMI_ID_SANDBOX = "ami-0d1f81cfdbd5b0188"
 ARM_AMI_ID_SANDBOX = "ami-02cb18e91afb3777c"
-GOVERSION = 1.20
 
 
 @task
@@ -46,8 +45,20 @@ def create_stack(ctx, stack=None):
         "init-stack": "Automatically initialize stack if not present. Equivalent to calling 'inv -e kmt.create-stack [--stack=<stack>]'",
     }
 )
-def gen_config(ctx, stack=None, vms="", init_stack=False, vcpu="4", memory="8192", new=False):
-    vmconfig.gen_config(ctx, stack, vms, init_stack, vcpu, memory, new)
+def gen_config(
+    ctx,
+    stack=None,
+    vms="",
+    sets="",
+    init_stack=False,
+    vcpu="4",
+    memory="8192",
+    new=False,
+    ci=False,
+    arch="",
+    output_file="vmconfig.json",
+):
+    vmconfig.gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, output_file)
 
 
 @task
@@ -77,7 +88,7 @@ def stack(ctx, stack=None):
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
-    ctx.run(f"cat {KMT_STACKS_DIR}/{stack}/stack.outputs")
+    ctx.run(f"cat {KMT_STACKS_DIR}/{stack}/stack.output")
 
 
 @task
@@ -93,7 +104,7 @@ def init(ctx, lite=False):
 @task
 def update_resources(ctx, no_backup=False):
     warn("Updating resource dependencies will delete all running stacks.")
-    if ask("are you sure you want to continue? (Y/n)") != "Y":
+    if ask("are you sure you want to continue? (y/n)").lower() != "y":
         raise Exit("[-] Update aborted")
 
     for stack in glob(f"{KMT_STACKS_DIR}/*"):
@@ -106,7 +117,7 @@ def update_resources(ctx, no_backup=False):
 @task
 def revert_resources(ctx):
     warn("Reverting resource dependencies will delete all running stacks.")
-    if ask("are you sure you want to revert to backups? (Y/n)") != "Y":
+    if ask("are you sure you want to revert to backups? (y/n)").lower() != "y":
         raise Exit("[-] Revert aborted")
 
     for stack in glob(f"{KMT_STACKS_DIR}/*"):
@@ -119,7 +130,7 @@ def revert_resources(ctx):
 
 
 def get_vm_ip(stack, version, arch):
-    with open(f"{KMT_STACKS_DIR}/{stack}/stack.outputs", 'r') as f:
+    with open(f"{KMT_STACKS_DIR}/{stack}/stack.output", 'r') as f:
         entries = f.readlines()
         for entry in entries:
             match = re.search(f"^.+{arch}-{version}.+\\s+.+$", entry.strip('\n'))
@@ -147,7 +158,7 @@ def build_target_set(stack, vms, ssh_key):
 
 
 def get_instance_ip(stack, arch):
-    with open(f"{KMT_STACKS_DIR}/{stack}/stack.outputs", 'r') as f:
+    with open(f"{KMT_STACKS_DIR}/{stack}/stack.output", 'r') as f:
         entries = f.readlines()
         for entry in entries:
             if f"{arch}-instance-ip" in entry.split(' ')[0]:
@@ -197,7 +208,7 @@ def sync(ctx, vms, stack=None, ssh_key=""):
     for _, vm, ip in target_vms:
         info(f"    Syncing VM {vm} with ip {ip}")
 
-    if ask("Do you want to sync? (y/n)") != "y":
+    if ask("Do you want to sync? (y/n)").lower() != "y":
         warn("[-] Sync aborted !")
         return
 
@@ -360,7 +371,7 @@ def prepare(ctx, vms, stack=None, arch=None, ssh_key="", rebuild_deps=False, pac
 
 
 @task
-def test(ctx, vms, stack=None, packages="", run=None, retry=2, rebuild_deps=False, ssh_key="", go_version=GOVERSION):
+def test(ctx, vms, stack=None, packages="", run=None, retry=2, rebuild_deps=False, ssh_key=""):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
@@ -375,7 +386,7 @@ def test(ctx, vms, stack=None, packages="", run=None, retry=2, rebuild_deps=Fals
     run_cmd_vms(
         ctx,
         stack,
-        f"bash /micro-vm-init.sh {go_version} {retry} {platform.machine()} {' '.join(args)}",
+        f"bash /micro-vm-init.sh {retry} {' '.join(args)}",
         target_vms,
         "",
         allow_fail=True,

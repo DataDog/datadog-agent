@@ -6,10 +6,13 @@
 // Package rules holds rules related files
 package rules
 
-import "github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+import (
+	"github.com/DataDog/datadog-agent/pkg/security/events"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+)
 
 var bundledPolicyRules = []*rules.RuleDefinition{{
-	ID:         refreshUserCacheRuleID,
+	ID:         events.RefreshUserCacheRuleID,
 	Expression: `rename.file.destination.path in [ "/etc/passwd", "/etc/group" ]`,
 	Actions: []rules.ActionDefinition{{
 		InternalCallbackDefinition: &rules.InternalCallbackDefinition{},

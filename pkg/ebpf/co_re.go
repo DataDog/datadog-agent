@@ -21,7 +21,7 @@ import (
 
 type coreAssetLoader struct {
 	coreDir   string
-	btfLoader orderedBTFLoader
+	btfLoader *orderedBTFLoader
 }
 
 // LoadCOREAsset attempts to find kernel BTF, reads the CO-RE object file, and then calls the callback function with the
@@ -61,6 +61,7 @@ func (c *coreAssetLoader) loadCOREAsset(filename string, startFn func(bytecode.A
 		VerifierOptions: bpflib.CollectionOptions{
 			Programs: bpflib.ProgramOptions{
 				KernelTypes: btfData,
+				LogSize:     10 * 1024 * 1024,
 			},
 		},
 	}

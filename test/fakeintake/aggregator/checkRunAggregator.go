@@ -6,12 +6,14 @@
 package aggregator
 
 import (
+	"bytes"
 	"encoding/json"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
+//nolint:revive // TODO(APL) Fix revive linter
 type CheckRun struct {
 	collectedTime time.Time
 	Check         string   `json:"check"`
@@ -38,10 +40,21 @@ func (cr *CheckRun) GetCollectedTime() time.Time {
 
 // ParseCheckRunPayload return the parsed checkRun from payload
 func ParseCheckRunPayload(payload api.Payload) (checks []*CheckRun, err error) {
+	if bytes.Equal(payload.Data, []byte("{}")) {
+		// check_run can submit empty JSON object
+		return []*CheckRun{}, nil
+	}
+
 	enflated, err := enflate(payload.Data, payload.Encoding)
 	if err != nil {
 		return nil, err
 	}
+
+	if len(enflated) > 0 && enflated[0] != '[' {
+		// check_run can submit non-array JSON object (diagnose command)
+		return []*CheckRun{}, nil
+	}
+
 	checks = []*CheckRun{}
 	err = json.Unmarshal(enflated, &checks)
 	if err != nil {
@@ -53,10 +66,12 @@ func ParseCheckRunPayload(payload api.Payload) (checks []*CheckRun, err error) {
 	return checks, err
 }
 
+//nolint:revive // TODO(APL) Fix revive linter
 type CheckRunAggregator struct {
 	Aggregator[*CheckRun]
 }
 
+//nolint:revive // TODO(APL) Fix revive linter
 func NewCheckRunAggregator() CheckRunAggregator {
 	return CheckRunAggregator{
 		Aggregator: newAggregator(ParseCheckRunPayload),

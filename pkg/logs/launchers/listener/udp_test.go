@@ -34,11 +34,12 @@ func TestUDPShouldReceiveMessage(t *testing.T) {
 
 	fmt.Fprintf(conn, "hello world\n")
 	msg = <-msgChan
-	assert.Equal(t, "hello world", string(msg.Content))
+	assert.Equal(t, "hello world", string(msg.GetContent()))
 
 	listener.Stop()
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func TestUDPShouldStopWhenNotStarted(t *testing.T) {
 	pp := mock.NewMockProvider()
 	listener := NewUDPListener(pp, sources.NewLogSource("", &config.LogsConfig{Port: udpTestPort}), 9000)

@@ -31,7 +31,7 @@ build do
   end
 end
 
-if windows?
+if windows_target?
   build do
     block do
       FileUtils.mkdir_p(File.expand_path(File.join(Omnibus::Config.source_dir(), "datadog-agent", "src", "github.com", "DataDog", "datadog-agent", "bin", "agent")))

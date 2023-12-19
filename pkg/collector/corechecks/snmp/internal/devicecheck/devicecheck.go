@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(NDM) Fix revive linter
 package devicecheck
 
 import (
@@ -25,9 +26,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	coresnmp "github.com/DataDog/datadog-agent/pkg/snmp"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/fetch"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
@@ -50,13 +52,14 @@ var timeNow = time.Now
 
 // DeviceCheck hold info necessary to collect info for a single device
 type DeviceCheck struct {
-	config                 *checkconfig.CheckConfig
-	sender                 *report.MetricSender
-	session                session.Session
-	sessionCloseErrorCount *atomic.Uint64
-	savedDynamicTags       []string
-	nextAutodetectMetrics  time.Time
-	diagnoses              *diagnoses.Diagnoses
+	config                  *checkconfig.CheckConfig
+	sender                  *report.MetricSender
+	session                 session.Session
+	sessionCloseErrorCount  *atomic.Uint64
+	savedDynamicTags        []string
+	nextAutodetectMetrics   time.Time
+	diagnoses               *diagnoses.Diagnoses
+	interfaceBandwidthState report.InterfaceBandwidthState
 }
 
 // NewDeviceCheck returns a new DeviceCheck
@@ -69,11 +72,12 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFa
 	}
 
 	return &DeviceCheck{
-		config:                 newConfig,
-		session:                sess,
-		sessionCloseErrorCount: atomic.NewUint64(0),
-		nextAutodetectMetrics:  timeNow(),
-		diagnoses:              diagnoses.NewDeviceDiagnoses(newConfig.DeviceID),
+		config:                  newConfig,
+		session:                 sess,
+		sessionCloseErrorCount:  atomic.NewUint64(0),
+		nextAutodetectMetrics:   timeNow(),
+		diagnoses:               diagnoses.NewDeviceDiagnoses(newConfig.DeviceID),
+		interfaceBandwidthState: report.MakeInterfaceBandwidthState(),
 	}, nil
 }
 
@@ -82,9 +86,24 @@ func (d *DeviceCheck) SetSender(sender *report.MetricSender) {
 	d.sender = sender
 }
 
+// SetInterfaceBandwidthState sets the interface bandwidth state
+func (d *DeviceCheck) SetInterfaceBandwidthState(state report.InterfaceBandwidthState) {
+	d.interfaceBandwidthState = state
+}
+
+// GetInterfaceBandwidthState returns interface bandwidth state
+func (d *DeviceCheck) GetInterfaceBandwidthState() report.InterfaceBandwidthState {
+	return d.interfaceBandwidthState
+}
+
 // GetIPAddress returns device IP
 func (d *DeviceCheck) GetIPAddress() string {
 	return d.config.IPAddress
+}
+
+// GetDeviceID returns device ID
+func (d *DeviceCheck) GetDeviceID() string {
+	return d.config.DeviceID
 }
 
 // GetIDTags returns device IDTags
@@ -157,6 +176,8 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 
 	d.submitTelemetryMetrics(startTime, tags)
 	d.setDeviceHostExternalTags()
+	d.interfaceBandwidthState.RemoveExpiredBandwidthUsageRates(startTime.UnixNano())
+
 	return checkErr
 }
 
@@ -244,7 +265,7 @@ func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) error {
 		if err != nil {
 			return fmt.Errorf("failed to fetch sysobjectid: %s", err)
 		}
-		profile, err := checkconfig.GetProfileForSysObjectID(d.config.Profiles, sysObjectID)
+		profile, err := profile.GetProfileForSysObjectID(d.config.Profiles, sysObjectID)
 		if err != nil {
 			return fmt.Errorf("failed to get profile sys object id for `%s`: %s", sysObjectID, err)
 		}
@@ -302,7 +323,7 @@ func (d *DeviceCheck) detectAvailableMetrics() ([]profiledefinition.MetricsConfi
 			}
 		}
 		for _, metricTag := range profileConfig.Definition.MetricTags {
-			if root.LeafExist(metricTag.Symbol.OID) || root.LeafExist(metricTag.Column.OID) {
+			if root.LeafExist(metricTag.Symbol.OID) {
 				if metricTag.Tag != "" {
 					if alreadyGlobalTags[metricTag.Tag] {
 						continue

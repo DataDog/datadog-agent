@@ -20,7 +20,7 @@ import (
 // and events.
 // Today, this is only used by the `agent check` command.
 type AgentDemultiplexerPrinter struct {
-	*AgentDemultiplexer
+	DemultiplexerWithAggregator
 }
 
 type eventPlatformDebugEvent struct {
@@ -32,7 +32,7 @@ type eventPlatformDebugEvent struct {
 // PrintMetrics prints metrics aggregator in the Demultiplexer's check samplers (series and sketches),
 // service checks buffer, events buffers.
 func (p AgentDemultiplexerPrinter) PrintMetrics(checkFileOutput *bytes.Buffer, formatTable bool) {
-	series, sketches := p.aggregator.GetSeriesAndSketches(time.Now())
+	series, sketches := p.Aggregator().GetSeriesAndSketches(time.Now())
 	if len(series) != 0 {
 		fmt.Fprintf(color.Output, "=== %s ===\n", color.BlueString("Series"))
 
@@ -71,7 +71,7 @@ func (p AgentDemultiplexerPrinter) PrintMetrics(checkFileOutput *bytes.Buffer, f
 		checkFileOutput.WriteString(string(j) + "\n")
 	}
 
-	serviceChecks := p.aggregator.GetServiceChecks()
+	serviceChecks := p.Aggregator().GetServiceChecks()
 	if len(serviceChecks) != 0 {
 		fmt.Fprintf(color.Output, "=== %s ===\n", color.BlueString("Service Checks"))
 
@@ -104,7 +104,7 @@ func (p AgentDemultiplexerPrinter) PrintMetrics(checkFileOutput *bytes.Buffer, f
 		}
 	}
 
-	events := p.aggregator.GetEvents()
+	events := p.Aggregator().GetEvents()
 	if len(events) != 0 {
 		fmt.Fprintf(color.Output, "=== %s ===\n", color.BlueString("Events"))
 		checkFileOutput.WriteString("=== Events ===\n")
@@ -129,12 +129,12 @@ func (p AgentDemultiplexerPrinter) PrintMetrics(checkFileOutput *bytes.Buffer, f
 
 // toDebugEpEvents transforms the raw event platform messages to eventPlatformDebugEvents which are better for json formatting
 func (p AgentDemultiplexerPrinter) toDebugEpEvents() map[string][]eventPlatformDebugEvent {
-	events := p.aggregator.GetEventPlatformEvents()
+	events := p.Aggregator().GetEventPlatformEvents()
 	result := make(map[string][]eventPlatformDebugEvent)
 	for eventType, messages := range events {
 		var events []eventPlatformDebugEvent
 		for _, m := range messages {
-			e := eventPlatformDebugEvent{EventType: eventType, RawEvent: string(m.Content)}
+			e := eventPlatformDebugEvent{EventType: eventType, RawEvent: string(m.GetContent())}
 			err := json.Unmarshal([]byte(e.RawEvent), &e.UnmarshalledEvent)
 			if err == nil {
 				e.RawEvent = ""

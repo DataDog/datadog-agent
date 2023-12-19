@@ -12,8 +12,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 )
 
 type mockDependencies struct {
@@ -27,6 +30,10 @@ func (m mockDependencies) getParams() *Params {
 	return &p
 }
 
+func (m mockDependencies) getSecretResolver() secrets.Component {
+	return nil
+}
+
 // newMock exported mock builder to allow modifying mocks that might be
 // supplied in tests and used for dep injection.
 func newMock(deps mockDependencies, t testing.TB) (Component, error) {
@@ -35,7 +42,7 @@ func newMock(deps mockDependencies, t testing.TB) (Component, error) {
 
 	config.Datadog.CopyConfig(config.NewConfig("mock", "XXXX", strings.NewReplacer()))
 
-	config.SetFeatures(t, deps.Params.Features...)
+	env.SetFeatures(t, deps.Params.Features...)
 
 	// call InitConfig to set defaults.
 	config.InitConfig(config.Datadog)
@@ -44,7 +51,6 @@ func newMock(deps mockDependencies, t testing.TB) (Component, error) {
 	}
 
 	if !deps.Params.SetupConfig {
-
 		if deps.Params.ConfFilePath != "" {
 			config.Datadog.SetConfigType("yaml")
 			err := config.Datadog.ReadConfig(strings.NewReader(deps.Params.ConfFilePath))
@@ -61,7 +67,7 @@ func newMock(deps mockDependencies, t testing.TB) (Component, error) {
 	// Overrides are explicit and will take precedence over any other
 	// setting
 	for k, v := range deps.Params.Overrides {
-		config.Datadog.Set(k, v)
+		config.Datadog.SetWithoutSource(k, v)
 	}
 
 	// swap the existing config back at the end of the test.

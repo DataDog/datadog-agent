@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(PROC) Fix revive linter
 package status
 
 import (
@@ -13,11 +14,9 @@ import (
 	"sync"
 	"time"
 
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metadata/host"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -38,11 +37,11 @@ func getHTTPClient() *http.Client {
 
 // CoreStatus holds core info about the process-agent
 type CoreStatus struct {
-	AgentVersion string       `json:"version"`
-	GoVersion    string       `json:"go_version"`
-	Arch         string       `json:"build_arch"`
-	Config       ConfigStatus `json:"config"`
-	Metadata     host.Payload `json:"metadata"`
+	AgentVersion string                    `json:"version"`
+	GoVersion    string                    `json:"go_version"`
+	Arch         string                    `json:"build_arch"`
+	Config       ConfigStatus              `json:"config"`
+	Metadata     hostMetadataUtils.Payload `json:"metadata"`
 }
 
 // ConfigStatus holds config settings from process-agent
@@ -126,15 +125,6 @@ func OverrideTime(t time.Time) StatusOption {
 }
 
 func getCoreStatus(coreConfig ddconfig.Reader) (s CoreStatus) {
-	hostnameData, err := hostname.GetWithProvider(context.Background())
-	var metadata *host.Payload
-	if err != nil {
-		log.Errorf("Error grabbing hostname for status: %v", err)
-		metadata = host.GetPayloadFromCache(context.Background(), hostname.Data{Hostname: "unknown", Provider: "unknown"})
-	} else {
-		metadata = host.GetPayloadFromCache(context.Background(), hostnameData)
-	}
-
 	return CoreStatus{
 		AgentVersion: version.AgentVersion,
 		GoVersion:    runtime.Version(),
@@ -142,7 +132,7 @@ func getCoreStatus(coreConfig ddconfig.Reader) (s CoreStatus) {
 		Config: ConfigStatus{
 			LogLevel: coreConfig.GetString("log_level"),
 		},
-		Metadata: *metadata,
+		Metadata: *hostMetadataUtils.GetFromCache(context.Background(), coreConfig),
 	}
 }
 

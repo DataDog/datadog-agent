@@ -9,7 +9,6 @@ const (
 	defaultConfdPath            = "/opt/datadog-agent/etc/conf.d"
 	defaultAdditionalChecksPath = "/opt/datadog-agent/etc/checks.d"
 	defaultRunPath              = "/opt/datadog-agent/run"
-	defaultSyslogURI            = "unixgram:///var/run/syslog"
 	defaultGuiPort              = 5002
 	// DefaultSecurityAgentLogFile points to the log file that will be used by the security-agent if not configured
 	DefaultSecurityAgentLogFile = "/opt/datadog-agent/logs/security-agent.log"

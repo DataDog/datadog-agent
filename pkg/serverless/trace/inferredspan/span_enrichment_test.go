@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-lambda-go/events"
 	"github.com/stretchr/testify/assert"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 )
 
 const (
@@ -253,6 +253,30 @@ func TestEnrichInferredSpanWithAPIGatewayHTTPEvent(t *testing.T) {
 	assert.Equal(t, "x02yirxc7a.execute-api.sa-east-1.amazonaws.com/httpapi/get", span.Meta[httpURL])
 	assert.Equal(t, "curl/7.64.1", span.Meta[httpUserAgent])
 	assert.Equal(t, "aws.httpapi", span.Meta[operationName])
+	assert.Equal(t, "FaHnXjKCGjQEJ7A=", span.Meta[requestID])
+	assert.Equal(t, "GET /httpapi/get", span.Meta[resourceNames])
+}
+
+func TestEnrichInferredSpanWithLambdaFunctionURLEventt(t *testing.T) {
+	var apiGatewayHTTPEvent events.LambdaFunctionURLRequest
+	_ = json.Unmarshal(getEventFromFile("http-api.json"), &apiGatewayHTTPEvent)
+	inferredSpan := mockInferredSpan()
+	inferredSpan.EnrichInferredSpanWithLambdaFunctionURLEvent(apiGatewayHTTPEvent)
+
+	span := inferredSpan.Span
+	assert.Equal(t, uint64(7353030974370088224), span.TraceID)
+	assert.Equal(t, uint64(8048964810003407541), span.SpanID)
+	assert.Equal(t, int64(1631212283738000000), span.Start)
+	assert.Equal(t, "x02yirxc7a.execute-api.sa-east-1.amazonaws.com", span.Service)
+	assert.Equal(t, "aws.lambda.url", span.Name)
+	assert.Equal(t, "GET /httpapi/get", span.Resource)
+	assert.Equal(t, "http", span.Type)
+	assert.Equal(t, "GET", span.Meta[httpMethod])
+	assert.Equal(t, "HTTP/1.1", span.Meta[httpProtocol])
+	assert.Equal(t, "38.122.226.210", span.Meta[httpSourceIP])
+	assert.Equal(t, "x02yirxc7a.execute-api.sa-east-1.amazonaws.com/httpapi/get", span.Meta[httpURL])
+	assert.Equal(t, "curl/7.64.1", span.Meta[httpUserAgent])
+	assert.Equal(t, "aws.lambda.url", span.Meta[operationName])
 	assert.Equal(t, "FaHnXjKCGjQEJ7A=", span.Meta[requestID])
 	assert.Equal(t, "GET /httpapi/get", span.Meta[resourceNames])
 }
@@ -608,7 +632,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromS3Event(t *testing.T) {
 }
 
 func TestEnrichInferredSpanWithEventBridgeEvent(t *testing.T) {
-	var eventBridgeEvent EventBridgeEvent
+	var eventBridgeEvent events.EventBridgeEvent
 	_ = json.Unmarshal(getEventFromFile("eventbridge-custom.json"), &eventBridgeEvent)
 	inferredSpan := mockInferredSpan()
 	inferredSpan.EnrichInferredSpanWithEventBridgeEvent(eventBridgeEvent)
@@ -622,6 +646,7 @@ func TestEnrichInferredSpanWithEventBridgeEvent(t *testing.T) {
 	assert.Equal(t, "web", span.Type)
 	assert.Equal(t, "aws.eventbridge", span.Meta[operationName])
 	assert.Equal(t, "eventbridge.custom.event.sender", span.Meta[resourceNames])
+	assert.Equal(t, "testdetail", span.Meta[detailType])
 	assert.True(t, inferredSpan.IsAsync)
 }
 
@@ -639,7 +664,7 @@ func TestRemapsAllInferredSpanServiceNamesFromEventBridgeEvent(t *testing.T) {
 	}
 	SetServiceMapping(newServiceMapping)
 	// Load the original event
-	var eventBridgeEvent EventBridgeEvent
+	var eventBridgeEvent events.EventBridgeEvent
 	_ = json.Unmarshal(getEventFromFile("eventbridge-custom.json"), &eventBridgeEvent)
 
 	inferredSpan := mockInferredSpan()
@@ -675,7 +700,7 @@ func TestRemapsSpecificInferredSpanServiceNamesFromEventBridgeEvent(t *testing.T
 	}
 	SetServiceMapping(newServiceMapping)
 	// Load the original event
-	var eventBridgeEvent EventBridgeEvent
+	var eventBridgeEvent events.EventBridgeEvent
 	_ = json.Unmarshal(getEventFromFile("eventbridge-custom.json"), &eventBridgeEvent)
 
 	inferredSpan := mockInferredSpan()
@@ -703,9 +728,9 @@ func TestEnrichInferredSpanWithSQSEvent(t *testing.T) {
 	inferredSpan := mockInferredSpan()
 	inferredSpan.EnrichInferredSpanWithSQSEvent(sqsRequest)
 	span := inferredSpan.Span
-	assert.Equal(t, uint64(2684756524522091840), span.TraceID)
+	assert.Equal(t, uint64(7353030974370088224), span.TraceID)
 	assert.Equal(t, uint64(8048964810003407541), span.SpanID)
-	assert.Equal(t, uint64(7431398482019833808), span.ParentID)
+	assert.Equal(t, uint64(0), span.ParentID)
 	assert.Equal(t, int64(1634662094538000000), span.Start)
 	assert.Equal(t, "sqs", span.Service)
 	assert.Equal(t, "aws.sqs", span.Name)

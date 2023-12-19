@@ -5,6 +5,7 @@
 
 //go:build linux_bpf || (windows && npm)
 
+// Package tracer contains implementation for NPM's tracer.
 package tracer
 
 import (
@@ -1449,7 +1450,8 @@ func testHTTPProtocolClassification(t *testing.T, tr *Tracer, clientHost, target
 					ReadTimeout:  time.Second,
 					WriteTimeout: time.Second,
 				}
-				srv.SetKeepAlivesEnabled(false)
+				// Temporary change, without it the protocol classification is flaky.
+				srv.SetKeepAlivesEnabled(true)
 				go func() {
 					_ = srv.Serve(ln)
 				}()
@@ -1563,7 +1565,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				defer cancel()
 				require.NoError(t, c.HandleUnary(timedContext, "test"))
 			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP2, Api: protocols.GRPC}),
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP2, API: protocols.GRPC}),
 		},
 		{
 			name:    "http2 traffic using gRPC - stream call",
@@ -1578,7 +1580,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				defer cancel()
 				require.NoError(t, c.HandleStream(timedContext, 5))
 			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP2, Api: protocols.GRPC}),
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP2, API: protocols.GRPC}),
 		},
 		{
 			// This test checks if the classifier can properly skip literal
@@ -1614,7 +1616,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 
 				resp.Body.Close()
 			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP2, Api: protocols.GRPC}),
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP2, API: protocols.GRPC}),
 		},
 	}
 	for _, tt := range tests {
@@ -1691,7 +1693,7 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 				require.NoError(t, err)
 				defer c.Close()
 				c.Write([]byte("hello\n"))
-				io.ReadAll(c)
+				io.Copy(io.Discard, c)
 			},
 			teardown:   teardown,
 			validation: validateProtocolConnection(&protocols.Stack{}),
@@ -1711,8 +1713,12 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 					defer c.Close()
 
 					r := bufio.NewReader(c)
-					input, err := r.ReadBytes(byte('\n'))
-					if err == nil {
+					for {
+						// The server reads up to a marker, in our case `$`.
+						input, err := r.ReadBytes(byte('$'))
+						if err != nil {
+							return
+						}
 						c.Write(input)
 					}
 				})
@@ -1725,11 +1731,21 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 				c, err := defaultDialer.DialContext(timedContext, "tcp", ctx.targetAddress)
 				require.NoError(t, err)
 				defer c.Close()
-				c.Write([]byte("GET /200/foobar HTTP/1.1\n"))
-				io.ReadAll(c)
-				// http2 prefix.
-				c.Write([]byte("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"))
-				io.ReadAll(c)
+				// The server reads up to a marker, in our case `$`.
+				httpInput := []byte("GET /200/foobar HTTP/1.1\n$")
+				http2Input := []byte("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n$")
+				for _, input := range [][]byte{httpInput, http2Input} {
+					// Calling write multiple times to increase chances for classification.
+					_, err = c.Write(input)
+					require.NoError(t, err)
+
+					// This is an echo server, we expect to get the same buffer as we sent, so the output buffer
+					// has the same length of the input.
+					output := make([]byte, len(input))
+					_, err = c.Read(output)
+					require.NoError(t, err)
+					require.Equal(t, input, output)
+				}
 			},
 			teardown:   teardown,
 			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP}),

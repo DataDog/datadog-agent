@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+//nolint:revive // TODO(TEL) Fix revive linter
 package telemetry
 
 import (
@@ -23,21 +24,27 @@ import (
 
 const (
 	mainEndpointPrefix = "https://instrumentation-telemetry-intake."
+	//nolint:revive // TODO(TEL) Fix revive linter
 	mainEndpointUrlKey = "apm_config.telemetry.dd_url"
 
 	httpClientResetInterval = 5 * time.Minute
 	httpClientTimeout       = 10 * time.Second
-	Success                 = 0
-	ConfigParseFailure      = 1
-	InvalidPatchRequest     = 2
-	FailedToMutateConfig    = 3
+	//nolint:revive // TODO(TEL) Fix revive linter
+	Success = 0
+	//nolint:revive // TODO(TEL) Fix revive linter
+	ConfigParseFailure = 1
+	//nolint:revive // TODO(TEL) Fix revive linter
+	InvalidPatchRequest = 2
+	//nolint:revive // TODO(TEL) Fix revive linter
+	FailedToMutateConfig = 3
 )
 
 // ApmRemoteConfigEvent is used to report remote config updates to the Datadog backend
 type ApmRemoteConfigEvent struct {
-	RequestType string                      `json:"request_type"`
-	ApiVersion  string                      `json:"api_version"`
-	Payload     ApmRemoteConfigEventPayload `json:"payload,omitempty"`
+	RequestType string `json:"request_type"`
+	//nolint:revive // TODO(TEL) Fix revive linter
+	ApiVersion string                      `json:"api_version"`
+	Payload    ApmRemoteConfigEventPayload `json:"payload,omitempty"`
 }
 
 // ApmRemoteConfigEventPayload contains the information on an individual remote config event
@@ -49,11 +56,14 @@ type ApmRemoteConfigEventPayload struct {
 
 // ApmRemoteConfigEventTags store the information on an individual remote config event
 type ApmRemoteConfigEventTags struct {
-	Env                 string `json:"env"`
-	RcId                string `json:"rc_id"`
-	RcClientId          string `json:"rc_client_id"`
-	RcRevision          int64  `json:"rc_revision"`
-	RcVersion           uint64 `json:"rc_version"`
+	Env string `json:"env"`
+	//nolint:revive // TODO(TEL) Fix revive linter
+	RcId string `json:"rc_id"`
+	//nolint:revive // TODO(TEL) Fix revive linter
+	RcClientId string `json:"rc_client_id"`
+	RcRevision int64  `json:"rc_revision"`
+	RcVersion  uint64 `json:"rc_version"`
+	//nolint:revive // TODO(TEL) Fix revive linter
 	KubernetesClusterId string `json:"k8s_cluster_id"`
 	KubernetesCluster   string `json:"k8s_cluster"`
 	KubernetesNamespace string `json:"k8s_namespace"`
@@ -62,6 +72,8 @@ type ApmRemoteConfigEventTags struct {
 }
 
 // ApmRemoteConfigEventError stores the debugging information about remote config deployment failures
+//
+//nolint:revive // TODO(TEL) Fix revive linter
 type ApmRemoteConfigEventError struct {
 	Code    int    `json:"code,omitempty"`
 	Message string `json:"message,omitempty"`
@@ -75,10 +87,12 @@ type TelemetryCollector interface {
 }
 
 type telemetryCollector struct {
-	client              *httputils.ResetClient
-	host                string
-	userAgent           string
-	rcClientId          string
+	client    *httputils.ResetClient
+	host      string
+	userAgent string
+	//nolint:revive // TODO(TEL) Fix revive linter
+	rcClientId string
+	//nolint:revive // TODO(TEL) Fix revive linter
 	kubernetesClusterId string
 }
 
@@ -87,12 +101,14 @@ func httpClientFactory(timeout time.Duration) func() *http.Client {
 		return &http.Client{
 			Timeout: timeout,
 			// reusing core agent HTTP transport to benefit from proxy settings.
-			Transport: httputils.CreateHTTPTransport(),
+			Transport: httputils.CreateHTTPTransport(config.Datadog),
 		}
 	}
 }
 
 // NewCollector returns either collector, or a noop implementation if instrumentation telemetry is disabled
+//
+//nolint:revive // TODO(TEL) Fix revive linter
 func NewCollector(rcClientId string, kubernetesClusterId string) TelemetryCollector {
 	return &telemetryCollector{
 		client:              httputils.NewResetClient(httpClientResetInterval, httpClientFactory(httpClientTimeout)),
@@ -158,10 +174,10 @@ func (tc *telemetryCollector) sendRemoteConfigEvent(eventName string, event ApmR
 
 type noopTelemetryCollector struct{}
 
-func (*noopTelemetryCollector) SendRemoteConfigPatchEvent(event ApmRemoteConfigEvent) {
+func (*noopTelemetryCollector) SendRemoteConfigPatchEvent(ApmRemoteConfigEvent) {
 }
 
-func (*noopTelemetryCollector) SendRemoteConfigMutateEvent(event ApmRemoteConfigEvent) {
+func (*noopTelemetryCollector) SendRemoteConfigMutateEvent(ApmRemoteConfigEvent) {
 }
 
-func (*noopTelemetryCollector) SetTestHost(testHost string) {}
+func (*noopTelemetryCollector) SetTestHost(testHost string) {} //nolint:revive // TODO fix revive unused-parameter

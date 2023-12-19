@@ -10,7 +10,7 @@ import (
 	_ "embed"
 )
 
-// SystemProbeConfig define the embedded minimal configuration for NPM
+// systemProbeConfigNPM define the embedded minimal configuration for NPM
 //
 //go:embed config/npm.yaml
-var SystemProbeConfig string
+var systemProbeConfigNPM string

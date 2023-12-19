@@ -26,7 +26,8 @@ func Test_DeviceProfileRcConfigJsonSchema(t *testing.T) {
 	// language=json
 	instanceJSON := `{
 	"profile_definition": {
-		"name": "my-profile"
+		"name": "my-profile",
+		"version": 10
 	}
 }`
 

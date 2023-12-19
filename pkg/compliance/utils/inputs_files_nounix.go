@@ -11,11 +11,11 @@ package utils
 import "os"
 
 // GetFileUser returns the file user.
-func GetFileUser(fi os.FileInfo) string {
+func GetFileUser(os.FileInfo) string {
 	return ""
 }
 
 // GetFileGroup returns the file group.
-func GetFileGroup(fi os.FileInfo) string {
+func GetFileGroup(os.FileInfo) string {
 	return ""
 }

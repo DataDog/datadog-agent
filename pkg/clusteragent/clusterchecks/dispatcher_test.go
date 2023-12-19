@@ -13,7 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
@@ -29,11 +29,12 @@ func generateIntegration(name string) integration.Config {
 	}
 }
 
-func generateEndpointsIntegration(name, nodename string) integration.Config {
+func generateEndpointsIntegration(name, nodename string, metricsExcluded bool) integration.Config {
 	return integration.Config{
-		Name:         name,
-		ClusterCheck: true,
-		NodeName:     nodename,
+		Name:            name,
+		ClusterCheck:    true,
+		NodeName:        nodename,
+		MetricsExcluded: metricsExcluded,
 	}
 }
 
@@ -81,7 +82,7 @@ func TestScheduleUnscheduleEndpoints(t *testing.T) {
 	dispatcher := newDispatcher()
 
 	config1 := generateIntegration("cluster-check")
-	config2 := generateEndpointsIntegration("endpoints-check1", "node1")
+	config2 := generateEndpointsIntegration("endpoints-check1", "node1", false)
 
 	// Should schedule config2 only
 	dispatcher.Schedule([]integration.Config{config1, config2})
@@ -89,6 +90,19 @@ func TestScheduleUnscheduleEndpoints(t *testing.T) {
 
 	dispatcher.Unschedule([]integration.Config{config1, config2})
 	assert.Equal(t, 0, len(dispatcher.store.endpointsConfigs["node1"]))
+
+	requireNotLocked(t, dispatcher.store)
+}
+
+func TestExcludeEndpoint(t *testing.T) {
+	dispatcher := newDispatcher()
+
+	config1 := generateEndpointsIntegration("endpoints-check1", "node1", true)
+	config2 := generateEndpointsIntegration("endpoints-check2", "node2", false)
+
+	// Should schedule config2 only
+	dispatcher.Schedule([]integration.Config{config1, config2})
+	assert.Equal(t, 1, len(dispatcher.store.endpointsConfigs["node2"]))
 
 	requireNotLocked(t, dispatcher.store)
 }
@@ -127,7 +141,7 @@ func TestScheduleReschedule(t *testing.T) {
 
 func TestScheduleRescheduleEndpoints(t *testing.T) {
 	dispatcher := newDispatcher()
-	config := generateEndpointsIntegration("endpoints-check1", "node1")
+	config := generateEndpointsIntegration("endpoints-check1", "node1", false)
 
 	// Register to node1
 	dispatcher.addEndpointConfig(config, "node1")
@@ -137,7 +151,7 @@ func TestScheduleRescheduleEndpoints(t *testing.T) {
 	assert.Contains(t, configs1, config)
 
 	// Register another config to node1
-	config = generateEndpointsIntegration("endpoints-check2", "node1")
+	config = generateEndpointsIntegration("endpoints-check2", "node1", false)
 	dispatcher.addEndpointConfig(config, "node1")
 	configs2, err := dispatcher.getEndpointsConfigs("node1")
 	assert.NoError(t, err)
@@ -146,7 +160,7 @@ func TestScheduleRescheduleEndpoints(t *testing.T) {
 	assert.Contains(t, configs2, config)
 
 	// Register config to node2
-	config = generateEndpointsIntegration("endpoints-check3", "node3")
+	config = generateEndpointsIntegration("endpoints-check3", "node3", false)
 	dispatcher.addEndpointConfig(config, "node3")
 	configs2, err = dispatcher.getEndpointsConfigs("node3")
 	assert.NoError(t, err)
@@ -466,7 +480,7 @@ func TestPatchConfiguration(t *testing.T) {
 	initialDigest := checkConfig.Digest()
 
 	mockConfig := config.Mock(t)
-	mockConfig.Set("cluster_name", "testing")
+	mockConfig.SetWithoutSource("cluster_name", "testing")
 	clustername.ResetClusterName()
 	dispatcher := newDispatcher()
 
@@ -503,7 +517,7 @@ func TestPatchEndpointsConfiguration(t *testing.T) {
 	}
 
 	mockConfig := config.Mock(t)
-	mockConfig.Set("cluster_name", "testing")
+	mockConfig.SetWithoutSource("cluster_name", "testing")
 	clustername.ResetClusterName()
 	dispatcher := newDispatcher()
 
@@ -541,9 +555,9 @@ func TestExtraTags(t *testing.T) {
 	} {
 		t.Run("", func(t *testing.T) {
 			mockConfig := config.Mock(t)
-			mockConfig.Set("cluster_checks.extra_tags", tc.extraTagsConfig)
-			mockConfig.Set("cluster_name", tc.clusterNameConfig)
-			mockConfig.Set("cluster_checks.cluster_tag_name", tc.tagNameConfig)
+			mockConfig.SetWithoutSource("cluster_checks.extra_tags", tc.extraTagsConfig)
+			mockConfig.SetWithoutSource("cluster_name", tc.clusterNameConfig)
+			mockConfig.SetWithoutSource("cluster_checks.cluster_tag_name", tc.tagNameConfig)
 
 			clustername.ResetClusterName()
 			dispatcher := newDispatcher()
@@ -556,18 +570,18 @@ func TestGetAllEndpointsCheckConfigs(t *testing.T) {
 	dispatcher := newDispatcher()
 
 	// Register configs to different nodes
-	dispatcher.addEndpointConfig(generateEndpointsIntegration("endpoints-check1", "node1"), "node1")
-	dispatcher.addEndpointConfig(generateEndpointsIntegration("endpoints-check2", "node1"), "node1")
-	dispatcher.addEndpointConfig(generateEndpointsIntegration("endpoints-check3", "node2"), "node2")
+	dispatcher.addEndpointConfig(generateEndpointsIntegration("endpoints-check1", "node1", false), "node1")
+	dispatcher.addEndpointConfig(generateEndpointsIntegration("endpoints-check2", "node1", false), "node1")
+	dispatcher.addEndpointConfig(generateEndpointsIntegration("endpoints-check3", "node2", false), "node2")
 
 	// Get state
 	configs, err := dispatcher.getAllEndpointsCheckConfigs()
 
 	assert.NoError(t, err)
 	assert.Len(t, configs, 3)
-	assert.Contains(t, configs, generateEndpointsIntegration("endpoints-check1", "node1"))
-	assert.Contains(t, configs, generateEndpointsIntegration("endpoints-check2", "node1"))
-	assert.Contains(t, configs, generateEndpointsIntegration("endpoints-check3", "node2"))
+	assert.Contains(t, configs, generateEndpointsIntegration("endpoints-check1", "node1", false))
+	assert.Contains(t, configs, generateEndpointsIntegration("endpoints-check2", "node1", false))
+	assert.Contains(t, configs, generateEndpointsIntegration("endpoints-check3", "node2", false))
 
 	requireNotLocked(t, dispatcher.store)
 }
@@ -577,6 +591,7 @@ var dummyClcRunnerClient dummyClientStruct
 
 type dummyClientStruct struct{}
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (d *dummyClientStruct) GetVersion(IP string) (version.Version, error) {
 	return version.Version{}, nil
 }
@@ -627,7 +642,7 @@ func (d *dummyClientStruct) GetRunnerWorkers(IP string) (types.Workers, error) {
 
 func TestUpdateRunnersStats(t *testing.T) {
 	mockConfig := config.Mock(t)
-	mockConfig.Set("cluster_checks.rebalance_with_utilization", true)
+	mockConfig.SetWithoutSource("cluster_checks.rebalance_with_utilization", true)
 
 	dispatcher := newDispatcher()
 	status := types.NodeStatus{LastChange: 10}

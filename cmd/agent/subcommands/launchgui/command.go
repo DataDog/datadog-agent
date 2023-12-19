@@ -40,8 +40,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(launchGui,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath)}),
-				core.Bundle,
+					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath)}),
+				core.Bundle(),
 			)
 		},
 		SilenceUsage: true,
@@ -50,6 +50,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{launchCmd}
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func launchGui(config config.Component, cliParams *cliParams) error {
 	guiPort := pkgconfig.Datadog.GetString("GUI_port")
 	if guiPort == "-1" {

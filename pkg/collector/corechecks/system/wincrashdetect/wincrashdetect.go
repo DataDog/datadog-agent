@@ -11,16 +11,17 @@ package wincrashdetect
 import (
 	"fmt"
 
+	"golang.org/x/sys/windows/registry"
+	yaml "gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect/probe"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/util/crashreport"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/crashreport"
-	"golang.org/x/sys/windows/registry"
-	yaml "gopkg.in/yaml.v2"
 )
 
 const (
@@ -110,7 +111,7 @@ func (wcd *WinCrashDetect) Run() error {
 	return nil
 }
 
-func formatTitle(c *probe.WinCrashStatus) string {
+func formatTitle(c *probe.WinCrashStatus) string { //nolint:revive // TODO fix revive unused-parameter
 	return "A Windows system crash was detected"
 }
 

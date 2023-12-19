@@ -12,7 +12,7 @@ import (
 )
 
 // IsEnabled checks if OTLP pipeline is enabled in a given config.
-func IsEnabled(cfg config.Config) bool {
+func IsEnabled(cfg config.Reader) bool { //nolint:revive // TODO fix revive unused-parameter
 	return false
 }
 

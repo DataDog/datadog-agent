@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package http provides helper functions and types to interact with http
+//nolint:revive // TODO(ASC) Fix revive linter
 package http
 
 import (

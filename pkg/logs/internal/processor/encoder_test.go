@@ -34,17 +34,17 @@ func TestRawEncoder(t *testing.T) {
 
 	rawMessage := "message"
 	msg := newMessage([]byte(rawMessage), source, message.StatusError)
+	msg.State = message.StateRendered // we can only encode rendered message
 	msg.Origin.LogSource = source
 	msg.Origin.SetTags([]string{"a", "b:c"})
+	msg.SetContent([]byte("redacted"))
 
-	redactedMessage := "redacted"
-
-	raw, err := RawEncoder.Encode(msg, []byte(redactedMessage))
+	err := RawEncoder.Encode(msg)
 	assert.Nil(t, err)
 
 	day := time.Now().UTC().Format("2006-01-02")
 
-	content := string(raw)
+	content := string(msg.GetContent())
 	parts := strings.Fields(content)
 	assert.Equal(t, string(message.SevError)+"0", parts[0])
 	assert.Equal(t, day, parts[1][:len(day)])
@@ -66,15 +66,13 @@ func TestRawEncoderDefaults(t *testing.T) {
 
 	rawMessage := "a"
 	msg := newMessage([]byte(rawMessage), source, "")
-
-	redactedMessage := "a"
-
-	raw, err := RawEncoder.Encode(msg, []byte(redactedMessage))
+	msg.State = message.StateRendered
+	err := RawEncoder.Encode(msg)
 	assert.Nil(t, err)
 
 	day := time.Now().UTC().Format("2006-01-02")
 
-	content := string(raw)
+	content := string(msg.GetContent())
 	parts := strings.Fields(content)
 	assert.Equal(t, 8, len(parts))
 	assert.Equal(t, string(message.SevInfo)+"0", parts[0])
@@ -96,12 +94,10 @@ func TestRawEncoderEmpty(t *testing.T) {
 
 	rawMessage := ""
 	msg := newMessage([]byte(rawMessage), source, "")
-
-	redactedMessage := "foo"
-
-	raw, err := RawEncoder.Encode(msg, []byte(redactedMessage))
+	msg.State = message.StateRendered // we can only encode rendered message
+	err := RawEncoder.Encode(msg)
 	assert.Nil(t, err)
-	assert.Equal(t, redactedMessage, string(raw))
+	assert.Equal(t, rawMessage, string(msg.GetContent()))
 
 }
 
@@ -125,16 +121,15 @@ func TestProtoEncoder(t *testing.T) {
 
 	rawMessage := "message"
 	msg := newMessage([]byte(rawMessage), source, message.StatusError)
+	msg.State = message.StateRendered // we can only encode rendered message
 	msg.Origin.LogSource = source
 	msg.Origin.SetTags([]string{"a", "b:c"})
 
-	redactedMessage := "redacted"
-
-	proto, err := ProtoEncoder.Encode(msg, []byte(redactedMessage))
+	err := ProtoEncoder.Encode(msg)
 	assert.Nil(t, err)
 
 	log := &pb.Log{}
-	err = log.Unmarshal(proto)
+	err = log.Unmarshal(msg.GetContent())
 	assert.Nil(t, err)
 
 	assert.NotEmpty(t, log.Hostname)
@@ -142,10 +137,12 @@ func TestProtoEncoder(t *testing.T) {
 	assert.Equal(t, logsConfig.Service, log.Service)
 	assert.Equal(t, logsConfig.Source, log.Source)
 	assert.Equal(t, []string{"a", "b:c", "sourcecategory:" + logsConfig.SourceCategory, "foo:bar", "baz"}, log.Tags)
-
-	assert.Equal(t, redactedMessage, log.Message)
 	assert.Equal(t, message.StatusError, log.Status)
 	assert.NotEmpty(t, log.Timestamp)
+
+	data, err := log.Marshal()
+	assert.NoError(t, err)
+	assert.Equal(t, msg.GetContent(), data)
 
 }
 
@@ -157,14 +154,13 @@ func TestProtoEncoderEmpty(t *testing.T) {
 
 	rawMessage := ""
 	msg := newMessage([]byte(rawMessage), source, "")
+	msg.State = message.StateRendered // we can only encode rendered message
 
-	redactedMessage := ""
-
-	raw, err := ProtoEncoder.Encode(msg, []byte(redactedMessage))
+	err := ProtoEncoder.Encode(msg)
 	assert.Nil(t, err)
 
 	log := &pb.Log{}
-	err = log.Unmarshal(raw)
+	err = log.Unmarshal(msg.GetContent())
 	assert.Nil(t, err)
 
 	assert.NotEmpty(t, log.Hostname)
@@ -182,9 +178,10 @@ func TestProtoEncoderEmpty(t *testing.T) {
 func TestProtoEncoderHandleInvalidUTF8(t *testing.T) {
 	cfg := &config.LogsConfig{}
 	src := sources.NewLogSource("", cfg)
-	msg := newMessage([]byte(""), src, "")
-	encoded, err := ProtoEncoder.Encode(msg, []byte("a\xfez"))
-	assert.NotNil(t, encoded)
+	msg := newMessage([]byte("a\xfez"), src, "")
+	msg.State = message.StateRendered
+	err := ProtoEncoder.Encode(msg)
+	assert.NotNil(t, msg.GetContent())
 	assert.Nil(t, err)
 }
 
@@ -198,18 +195,18 @@ func TestJsonEncoder(t *testing.T) {
 
 	source := sources.NewLogSource("", logsConfig)
 
-	rawMessage := "message"
-	msg := newMessage([]byte(rawMessage), source, message.StatusError)
+	content := []byte("message")
+	msg := newMessage(content, source, message.StatusError)
+	msg.State = message.StateRendered // we can only encode rendered message
 	msg.Origin.LogSource = source
 	msg.Origin.SetTags([]string{"a", "b:c"})
+	assert.Equal(t, msg.GetContent(), content) // before encoding, content should be the raw message
 
-	redactedMessage := "redacted"
-
-	jsonMessage, err := JSONEncoder.Encode(msg, []byte(redactedMessage))
+	err := JSONEncoder.Encode(msg)
 	assert.Nil(t, err)
 
 	log := &jsonPayload{}
-	err = json.Unmarshal(jsonMessage, log)
+	err = json.Unmarshal(msg.GetContent(), log)
 	assert.Nil(t, err)
 
 	assert.NotEmpty(t, log.Hostname)
@@ -218,7 +215,9 @@ func TestJsonEncoder(t *testing.T) {
 	assert.Equal(t, logsConfig.Source, log.Source)
 	assert.Equal(t, "a,b:c,sourcecategory:"+logsConfig.SourceCategory+",foo:bar,baz", log.Tags)
 
-	assert.Equal(t, redactedMessage, log.Message)
+	json, _ := json.Marshal(log)
+	assert.Equal(t, msg.GetContent(), json)
+
 	assert.Equal(t, message.StatusError, log.Status)
 	assert.NotEmpty(t, log.Timestamp)
 }

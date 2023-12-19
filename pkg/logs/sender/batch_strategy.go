@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package sender
 
 import (
@@ -122,7 +123,7 @@ func (s *batchStrategy) processMessage(m *message.Message, outputChan chan *mess
 		// it's possible that the m could not be added because the buffer was full
 		// so we need to retry once again
 		if !s.buffer.AddMessage(m) {
-			log.Warnf("Dropped message in pipeline=%s reason=too-large ContentLength=%d ContentSizeLimit=%d", s.pipelineName, len(m.Content), s.buffer.ContentSizeLimit())
+			log.Warnf("Dropped message in pipeline=%s reason=too-large ContentLength=%d ContentSizeLimit=%d", s.pipelineName, len(m.GetContent()), s.buffer.ContentSizeLimit())
 			tlmDroppedTooLarge.Inc(s.pipelineName)
 		}
 	}

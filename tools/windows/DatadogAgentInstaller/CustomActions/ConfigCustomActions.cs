@@ -159,7 +159,7 @@ namespace Datadog.CustomActions
             /// <returns>True if all patterns match.</returns>
             public bool IsMatch(string input)
             {
-                int matchIndex = 0;
+                var matchIndex = 0;
                 foreach (var r in _regexReplacersInOrder)
                 {
                     var match = r.Regex.Match(input, matchIndex);
@@ -193,7 +193,7 @@ namespace Datadog.CustomActions
             /// <exception cref="Exception">Throws an exception if any pattern fails to match.</exception>
             public string DoReplace(string input, string propertyValue)
             {
-                int matchIndex = 0;
+                var matchIndex = 0;
                 foreach (var r in _regexReplacersInOrder)
                 {
                     var match = r.Regex.Match(input, matchIndex);
@@ -244,7 +244,7 @@ namespace Datadog.CustomActions
 
         static string FormatTags(string value)
         {
-            string newTagLine = $"{Environment.NewLine} - ";
+            var newTagLine = $"{Environment.NewLine} - ";
             var tagsConfiguration = new StringBuilder();
             tagsConfiguration.Append("tags: ");
             tagsConfiguration.Append(newTagLine);
@@ -345,6 +345,7 @@ namespace Datadog.CustomActions
             var datadogYaml = Path.Combine(configFolder, "datadog.yaml");
             var systemProbeYaml = Path.Combine(configFolder, "system-probe.yaml");
             var securityAgentYaml = Path.Combine(configFolder, "security-agent.yaml");
+            var securityAgentProfile = Path.Combine(configFolder, "runtime-security.d", "default.policy");
             var injectionControllerYaml = Path.Combine(configFolder, "apm-inject.yaml");
             try
             {
@@ -371,6 +372,15 @@ namespace Datadog.CustomActions
                     output.Write(yaml);
                 }
 
+                // Conditionally include the security agent YAML while it is in active development to make it easier
+                // to build/ship without it.
+                if (File.Exists(securityAgentProfile + ".example"))
+                {
+                    if (!File.Exists(securityAgentProfile))
+                    {
+                        File.Copy(securityAgentProfile + ".example", securityAgentProfile);
+                    }
+                }
                 // Conditionally include the security agent YAML while it is in active development to make it easier
                 // to build/ship without it.
                 if (File.Exists(securityAgentYaml + ".example"))

@@ -5,8 +5,6 @@
 
 //go:build otlp
 
-// Package otlp contains structures which aid in constructing an OpenTelemetry Collector
-// to be embedded into the Datadog Agent.
 package otlp
 
 import (

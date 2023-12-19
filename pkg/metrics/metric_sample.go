@@ -6,7 +6,6 @@
 package metrics
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -35,6 +34,9 @@ var (
 		DistributionType: {},
 	}
 )
+
+// EnrichTagsfn can be used to Enrich tags with origin detection tags.
+type EnrichTagsfn func(tb tagset.TagsAccumulator, udsOrigin string, clientOrigin string, cardinalityName string)
 
 // String returns a string representation of MetricType
 func (m MetricType) String() string {
@@ -72,7 +74,7 @@ type MetricSampleContext interface {
 	// Implementations should call `Append` or `AppendHashed` on the provided accumulators.
 	// Tags from origin detection should be appended to taggerBuffer. Client-provided tags
 	// should be appended to the metricBuffer.
-	GetTags(taggerBuffer, metricBuffer tagset.TagsAccumulator)
+	GetTags(taggerBuffer, metricBuffer tagset.TagsAccumulator, fn EnrichTagsfn)
 
 	// GetMetricType returns the metric type for this metric.  This is used for telemetry.
 	GetMetricType() MetricType
@@ -80,7 +82,7 @@ type MetricSampleContext interface {
 	// IsNoIndex returns true if the metric must not be indexed.
 	IsNoIndex() bool
 
-	//GetMetricSource returns the metric source for this metric. This is used to define the Origin
+	// GetMetricSource returns the metric source for this metric. This is used to define the Origin
 	GetSource() MetricSource
 }
 
@@ -97,6 +99,7 @@ type MetricSample struct {
 	FlushFirstValue  bool
 	OriginFromUDS    string
 	OriginFromClient string
+	ListenerID       string
 	Cardinality      string
 	NoIndex          bool
 	Source           MetricSource
@@ -115,9 +118,9 @@ func (m *MetricSample) GetHost() string {
 }
 
 // GetTags returns the metric sample tags
-func (m *MetricSample) GetTags(taggerBuffer, metricBuffer tagset.TagsAccumulator) {
+func (m *MetricSample) GetTags(taggerBuffer, metricBuffer tagset.TagsAccumulator, fn EnrichTagsfn) {
 	metricBuffer.Append(m.Tags...)
-	tagger.EnrichTags(taggerBuffer, m.OriginFromUDS, m.OriginFromClient, m.Cardinality)
+	fn(taggerBuffer, m.OriginFromUDS, m.OriginFromClient, m.Cardinality)
 }
 
 // GetMetricType implements MetricSampleContext#GetMetricType.

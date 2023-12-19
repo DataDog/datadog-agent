@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,14 +19,16 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
 	"github.com/DataDog/datadog-agent/pkg/proto/msgpgo"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -107,21 +110,66 @@ var testRCKey = msgpgo.RemoteConfigKey{
 	Datacenter: "dd.com",
 }
 
+// getTraceAgentDefaultEnv returns the default env for the trace agent
+func getTraceAgentDefaultEnv(c model.Reader) string {
+	defaultEnv := ""
+	if c.IsSet("apm_config.env") {
+		defaultEnv = c.GetString("apm_config.env")
+		log.Debugf("Setting DefaultEnv to %q (from apm_config.env)", defaultEnv)
+	} else if c.IsSet("env") {
+		defaultEnv = c.GetString("env")
+		log.Debugf("Setting DefaultEnv to %q (from 'env' config option)", defaultEnv)
+	} else {
+		for _, tag := range getConfiguredTags(c, false) {
+			if strings.HasPrefix(tag, "env:") {
+				defaultEnv = strings.TrimPrefix(tag, "env:")
+				log.Debugf("Setting DefaultEnv to %q (from `env:` entry under the 'tags' config option: %q)", defaultEnv, tag)
+				return defaultEnv
+			}
+		}
+	}
+
+	return defaultEnv
+}
+
+// getConfiguredTags returns list of tags from a configuration, based on
+// `tags` (DD_TAGS) and `extra_tags“ (DD_EXTRA_TAGS), with `dogstatsd_tags` (DD_DOGSTATSD_TAGS)
+// if includeDogdstatsd is true.
+func getConfiguredTags(c model.Reader, includeDogstatsd bool) []string {
+	tags := c.GetStringSlice("tags")
+	extraTags := c.GetStringSlice("extra_tags")
+
+	var dsdTags []string
+	if includeDogstatsd {
+		dsdTags = c.GetStringSlice("dogstatsd_tags")
+	}
+
+	combined := make([]string, 0, len(tags)+len(extraTags)+len(dsdTags))
+	combined = append(combined, tags...)
+	combined = append(combined, extraTags...)
+	combined = append(combined, dsdTags...)
+
+	return combined
+}
+
 func newTestService(t *testing.T, api *mockAPI, uptane *mockUptane, clock clock.Clock) *Service {
-	config.Datadog.Set("hostname", "test-hostname")
-	defer config.Datadog.Set("hostname", "")
+	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+
+	cfg.SetWithoutSource("hostname", "test-hostname")
+	defer cfg.SetWithoutSource("hostname", "")
 
 	dir := t.TempDir()
-	config.Datadog.Set("run_path", dir)
+	cfg.SetWithoutSource("run_path", dir)
 	serializedKey, _ := testRCKey.MarshalMsg(nil)
-	config.Datadog.Set("remote_configuration.key", base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(serializedKey))
-	service, err := NewService()
+	cfg.SetWithoutSource("remote_configuration.key", base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(serializedKey))
+	baseRawURL := "https://localhost"
+	traceAgentEnv := getTraceAgentDefaultEnv(cfg)
+	service, err := NewService(cfg, "abc", baseRawURL, "localhost", WithTraceAgentEnv(traceAgentEnv))
+	require.NoError(t, err)
 	t.Cleanup(func() { service.Stop() })
-	assert.NoError(t, err)
 	service.api = api
 	service.clock = clock
 	service.uptane = uptane
-	assert.NoError(t, err)
 	return service
 }
 

@@ -7,7 +7,6 @@
 package config
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -21,13 +20,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
+	"gopkg.in/yaml.v2"
+
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
-	"github.com/DataDog/datadog-agent/pkg/secrets"
+	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -85,12 +87,6 @@ const (
 	// DefaultLogsSenderBackoffRecoveryInterval is the default logs sender backoff recovery interval
 	DefaultLogsSenderBackoffRecoveryInterval = 2
 
-	// DefaultInventoriesMinInterval is the default value for inventories_min_interval, in seconds
-	DefaultInventoriesMinInterval = 5 * 60
-
-	// DefaultInventoriesMaxInterval is the default value for inventories_max_interval, in seconds
-	DefaultInventoriesMaxInterval = 10 * 60
-
 	// maxExternalMetricsProviderChunkSize ensures batch queries are limited in size.
 	maxExternalMetricsProviderChunkSize = 35
 
@@ -105,9 +101,8 @@ const (
 
 // Datadog is the global configuration object
 var (
-	Datadog       Config
-	SystemProbe   Config
-	overrideFuncs = make([]func(Config), 0)
+	Datadog     Config
+	SystemProbe Config
 )
 
 // Variables to initialize at build time
@@ -129,14 +124,8 @@ var (
 	DefaultSecurityProfilesDir = filepath.Join(defaultRunPath, "runtime-security", "profiles")
 )
 
-// PrometheusScrapeChecksTransformer unmarshals a prometheus check.
-func PrometheusScrapeChecksTransformer(in string) interface{} {
-	var promChecks []*types.PrometheusCheck
-	if err := json.Unmarshal([]byte(in), &promChecks); err != nil {
-		log.Warnf(`"prometheus_scrape.checks" can not be parsed: %v`, err)
-	}
-	return promChecks
-}
+// List of integrations allowed to be configured by RC by default
+var defaultAllowedRCIntegrations = []string{}
 
 // ConfigurationProviders helps unmarshalling `config_providers` config param
 type ConfigurationProviders struct {
@@ -197,12 +186,6 @@ type Endpoint struct {
 	APPKey string `mapstructure:"app_key" json:"app_key" yaml:"app_key"`
 }
 
-// Warnings represent the warnings in the config
-type Warnings struct {
-	TraceMallocEnabledWithPy2 bool
-	Err                       error
-}
-
 // DataType represent the generic data type (e.g. metrics, logs) that can be sent by the Agent
 type DataType string
 
@@ -244,6 +227,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("confd_path", defaultConfdPath)
 	config.BindEnvAndSetDefault("additional_checksd", defaultAdditionalChecksPath)
 	config.BindEnvAndSetDefault("jmx_log_file", "")
+	// If enabling log_payloads, ensure the log level is set to at least DEBUG to be able to see the logs
 	config.BindEnvAndSetDefault("log_payloads", false)
 	config.BindEnvAndSetDefault("log_file", "")
 	config.BindEnvAndSetDefault("log_file_max_size", "10Mb")
@@ -260,8 +244,11 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("syslog_pem", "")
 	config.BindEnvAndSetDefault("syslog_key", "")
 	config.BindEnvAndSetDefault("syslog_tls_verify", true)
+	config.BindEnv("ipc_address") // deprecated: use `cmd_host` instead
 	config.BindEnvAndSetDefault("cmd_host", "localhost")
 	config.BindEnvAndSetDefault("cmd_port", 5001)
+	config.BindEnvAndSetDefault("agent_ipc_host", "localhost")
+	config.BindEnvAndSetDefault("agent_ipc_port", 0)
 	config.BindEnvAndSetDefault("default_integration_http_timeout", 9)
 	config.BindEnvAndSetDefault("integration_tracing", false)
 	config.BindEnvAndSetDefault("integration_tracing_exhaustive", false)
@@ -270,9 +257,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("enable_metadata_collection", true)
 	config.BindEnvAndSetDefault("enable_gohai", true)
 	config.BindEnvAndSetDefault("check_runners", int64(4))
+	config.BindEnvAndSetDefault("check_cancel_timeout", 500*time.Millisecond)
 	config.BindEnvAndSetDefault("auth_token_file_path", "")
 	config.BindEnv("bind_host")
-	config.BindEnvAndSetDefault("ipc_address", "localhost")
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("python_version", DefaultPython)
@@ -303,6 +290,8 @@ func InitConfig(config Config) {
 	// Remote config products
 	config.BindEnvAndSetDefault("remote_configuration.apm_sampling.enabled", true)
 	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.enabled", false)
+	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.allow_list", defaultAllowedRCIntegrations)
+	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.block_list", []string{})
 
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
@@ -373,8 +362,8 @@ func InitConfig(config Config) {
 	// secrets backend
 	config.BindEnvAndSetDefault("secret_backend_command", "")
 	config.BindEnvAndSetDefault("secret_backend_arguments", []string{})
-	config.BindEnvAndSetDefault("secret_backend_output_max_size", secrets.SecretBackendOutputMaxSize)
-	config.BindEnvAndSetDefault("secret_backend_timeout", 30)
+	config.BindEnvAndSetDefault("secret_backend_output_max_size", 0)
+	config.BindEnvAndSetDefault("secret_backend_timeout", 0)
 	config.BindEnvAndSetDefault("secret_backend_command_allow_group_exec_perm", false)
 	config.BindEnvAndSetDefault("secret_backend_skip_checks", false)
 	config.BindEnvAndSetDefault("secret_backend_remove_trailing_line_break", false)
@@ -515,12 +504,14 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_queue_size", 1024)
 
 	config.BindEnvAndSetDefault("dogstatsd_non_local_traffic", false)
-	config.BindEnvAndSetDefault("dogstatsd_socket", "") // Notice: empty means feature disabled
+	config.BindEnvAndSetDefault("dogstatsd_socket", "")        // Notice: empty means feature disabled
+	config.BindEnvAndSetDefault("dogstatsd_stream_socket", "") // Experimental || Notice: empty means feature disabled
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_autoadjust", false)
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_count", 1)
 	config.BindEnvAndSetDefault("dogstatsd_stats_port", 5000)
 	config.BindEnvAndSetDefault("dogstatsd_stats_enable", false)
 	config.BindEnvAndSetDefault("dogstatsd_stats_buffer", 10)
+	config.BindEnvAndSetDefault("dogstatsd_telemetry_enabled_listener_id", false)
 	// Control how dogstatsd-stats logs can be generated
 	config.BindEnvAndSetDefault("dogstatsd_log_file", "")
 	config.BindEnvAndSetDefault("dogstatsd_logging_enabled", true)
@@ -551,7 +542,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline", true)
 	// How many metrics maximum in payloads sent by the no-aggregation pipeline to the intake.
 	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline_batch_size", 2048)
-	config.BindEnvAndSetDefault("dogstatsd_max_metrics_tags", 0) // 0 = disabled.
 
 	// To enable the following feature, GODEBUG must contain `madvdontneed=1`
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.enabled", false)
@@ -565,13 +555,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.soft_limit_freeos_check.min", 0.01)
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.soft_limit_freeos_check.max", 0.1)
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.soft_limit_freeos_check.factor", 1.5)
-
-	config.BindEnvAndSetDefault("dogstatsd_context_limiter.limit", 0)         // 0 = disabled.
-	config.BindEnvAndSetDefault("dogstatsd_context_limiter.entry_timeout", 1) // number of flush intervals
-	config.BindEnvAndSetDefault("dogstatsd_context_limiter.key_tag_name", "pod_name")
-	config.BindEnvAndSetDefault("dogstatsd_context_limiter.telemetry_tag_names", []string{})
-	config.BindEnvAndSetDefault("dogstatsd_context_limiter.bytes_per_context", 1500)
-	config.BindEnvAndSetDefault("dogstatsd_context_limiter.cgroup_memory_ratio", 0.0)
 
 	config.BindEnv("dogstatsd_mapper_profiles")
 	config.SetEnvKeyTransformer("dogstatsd_mapper_profiles", func(in string) interface{} {
@@ -673,8 +656,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("prometheus_scrape.enabled", false)           // Enables the prometheus config provider
 	config.BindEnvAndSetDefault("prometheus_scrape.service_endpoints", false) // Enables Service Endpoints checks in the prometheus config provider
 	config.BindEnv("prometheus_scrape.checks")                                // Defines any extra prometheus/openmetrics check configurations to be handled by the prometheus config provider
-	config.SetEnvKeyTransformer("prometheus_scrape.checks", PrometheusScrapeChecksTransformer)
-	config.BindEnvAndSetDefault("prometheus_scrape.version", 1) // Version of the openmetrics check to be scheduled by the Prometheus auto-discovery
+	config.BindEnvAndSetDefault("prometheus_scrape.version", 1)               // Version of the openmetrics check to be scheduled by the Prometheus auto-discovery
 
 	// Network Devices Monitoring
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.metadata.")
@@ -719,6 +701,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("leader_election", false)
 	config.BindEnvAndSetDefault("leader_lease_name", "datadog-leader-election")
 	config.BindEnvAndSetDefault("leader_election_default_resource", "configmap")
+	config.BindEnvAndSetDefault("leader_election_release_on_shutdown", true)
 	config.BindEnvAndSetDefault("kube_resources_namespace", "")
 	config.BindEnvAndSetDefault("kube_cache_sync_timeout_seconds", 5)
 
@@ -1027,6 +1010,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_checks.rebalance_min_percentage_improvement", 10) // Experimental. Subject to change. Rebalance only if the distribution found improves the current one by this.
 	config.BindEnvAndSetDefault("cluster_checks.clc_runners_port", 5005)
 	config.BindEnvAndSetDefault("cluster_checks.exclude_checks", []string{})
+	config.BindEnvAndSetDefault("cluster_checks.exclude_checks_from_dispatching", []string{})
 
 	// Cluster check runner
 	config.BindEnvAndSetDefault("clc_runner_enabled", false)
@@ -1067,16 +1051,27 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.fallback_to_file_provider", false)                                // to be enabled only in e2e tests
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.file_provider_path", "/etc/datadog-agent/patch/auto-instru.json") // to be used only in e2e tests
+	config.BindEnvAndSetDefault("admission_controller.inject_auto_detected_libraries", true)                                                         // allows injecting libraries for languages detected by automatic language detection feature
 	config.BindEnv("admission_controller.auto_instrumentation.init_resources.cpu")
 	config.BindEnv("admission_controller.auto_instrumentation.init_resources.memory")
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.inject_all.namespaces", []string{})
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.enabled", false)
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.pod_endpoint", "/inject-pod-cws")
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.command_endpoint", "/inject-command-cws")
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.include", []string{})
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.exclude", []string{})
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.mutate_unlabelled", true)
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.container_registry", "gcr.io/datadoghq")
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.image_name", "cws-instrumentation")
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.image_tag", "latest")
+	config.BindEnv("admission_controller.cws_instrumentation.init_resources.cpu")
+	config.BindEnv("admission_controller.cws_instrumentation.init_resources.memory")
 
 	// Telemetry
 	// Enable telemetry metrics on the internals of the Agent.
 	// This create a lot of billable custom metrics.
 	config.BindEnvAndSetDefault("telemetry.enabled", false)
 	config.BindEnvAndSetDefault("telemetry.dogstatsd_origin", false)
-	config.BindEnvAndSetDefault("telemetry.dogstatsd_limiter", true)
 	config.BindEnvAndSetDefault("telemetry.python_memory", true)
 	config.BindEnv("telemetry.checks")
 	// We're using []string as a default instead of []float64 because viper can only parse list of string from the environment
@@ -1116,11 +1111,11 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.run_on_node_agent", false)
 
 	// Container lifecycle configuration
-	config.BindEnvAndSetDefault("container_lifecycle.enabled", false)
+	config.BindEnvAndSetDefault("container_lifecycle.enabled", true)
 	bindEnvAndSetLogsConfigKeys(config, "container_lifecycle.")
 
 	// Container image configuration
-	config.BindEnvAndSetDefault("container_image.enabled", false)
+	config.BindEnvAndSetDefault("container_image.enabled", true)
 	bindEnvAndSetLogsConfigKeys(config, "container_image.")
 
 	// Remote process collector
@@ -1166,8 +1161,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("inventories_checks_configuration_enabled", true)      // controls the checks configurations
 	config.BindEnvAndSetDefault("inventories_collect_cloud_provider_account_id", true) // collect collection of `cloud_provider_account_id`
 	// when updating the default here also update pkg/metadata/inventories/README.md
-	config.BindEnvAndSetDefault("inventories_max_interval", DefaultInventoriesMaxInterval) // integer seconds
-	config.BindEnvAndSetDefault("inventories_min_interval", DefaultInventoriesMinInterval) // integer seconds
+	config.BindEnvAndSetDefault("inventories_max_interval", 0) // 0 == default interval from inventories
+	config.BindEnvAndSetDefault("inventories_min_interval", 0) // 0 == default interval from inventories
 
 	// Datadog security agent (common)
 	config.BindEnvAndSetDefault("security_agent.cmd_port", 5010)
@@ -1194,6 +1189,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("compliance_config.enabled", false)
 	config.BindEnvAndSetDefault("compliance_config.xccdf.enabled", false) // deprecated, use host_benchmarks instead
 	config.BindEnvAndSetDefault("compliance_config.host_benchmarks.enabled", false)
+	config.BindEnvAndSetDefault("compliance_config.database_benchmarks.enabled", false)
 	config.BindEnvAndSetDefault("compliance_config.check_interval", 20*time.Minute)
 	config.BindEnvAndSetDefault("compliance_config.check_max_events_per_run", 100)
 	config.BindEnvAndSetDefault("compliance_config.dir", "/etc/datadog-agent/compliance.d")
@@ -1205,7 +1201,11 @@ func InitConfig(config Config) {
 
 	// Datadog security agent (runtime)
 	config.BindEnvAndSetDefault("runtime_security_config.enabled", false)
-	config.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
+	if runtime.GOOS == "windows" {
+		config.BindEnvAndSetDefault("runtime_security_config.socket", "localhost:3334")
+	} else {
+		config.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
+	}
 	config.BindEnvAndSetDefault("runtime_security_config.run_path", defaultRunPath)
 	config.BindEnvAndSetDefault("runtime_security_config.log_profiled_workloads", false)
 	config.BindEnvAndSetDefault("runtime_security_config.telemetry.ignore_dd_agent_containers", true)
@@ -1219,10 +1219,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("enhanced_metrics", true)
 	config.BindEnvAndSetDefault("capture_lambda_payload", false)
 	config.BindEnvAndSetDefault("capture_lambda_payload_max_depth", 10)
-	config.BindEnvAndSetDefault("serverless.trace_enabled", false, "DD_TRACE_ENABLED")
+	config.BindEnvAndSetDefault("serverless.trace_enabled", true, "DD_TRACE_ENABLED")
 	config.BindEnvAndSetDefault("serverless.trace_managed_services", true, "DD_TRACE_MANAGED_SERVICES")
 	config.BindEnvAndSetDefault("serverless.service_mapping", nil, "DD_SERVICE_MAPPING")
-	config.BindEnvAndSetDefault("serverless.constant_backoff_interval", 100*time.Millisecond)
 
 	// trace-agent's evp_proxy
 	config.BindEnv("evp_proxy_config.enabled")
@@ -1269,6 +1268,7 @@ func InitConfig(config Config) {
 
 	// Language Detection
 	config.BindEnvAndSetDefault("language_detection.enabled", false)
+	config.BindEnvAndSetDefault("language_detection.client_period", "10s")
 
 	setupAPM(config)
 	SetupOTLP(config)
@@ -1354,8 +1354,8 @@ func LoadProxyFromEnv(config Config) {
 	// We have to set each value individually so both config.Get("proxy")
 	// and config.Get("proxy.http") work
 	if isSet {
-		config.Set("proxy.http", p.HTTP)
-		config.Set("proxy.https", p.HTTPS)
+		config.Set("proxy.http", p.HTTP, pkgconfigmodel.SourceEnvVar)
+		config.Set("proxy.https", p.HTTPS, pkgconfigmodel.SourceEnvVar)
 
 		// If this is set to an empty []string, viper will have a type conflict when merging
 		// this config during secrets resolution. It unmarshals empty yaml lists to type
@@ -1364,18 +1364,18 @@ func LoadProxyFromEnv(config Config) {
 		for idx := range p.NoProxy {
 			noProxy[idx] = p.NoProxy[idx]
 		}
-		config.Set("proxy.no_proxy", noProxy)
+		config.Set("proxy.no_proxy", noProxy, pkgconfigmodel.SourceEnvVar)
 	}
-}
-
-// Load reads configs files and initializes the config module
-func Load() (*Warnings, error) {
-	return LoadDatadogCustom(Datadog, "datadog.yaml", true, SystemProbe.GetEnvVars())
 }
 
 // LoadWithoutSecret reads configs files, initializes the config module without decrypting any secrets
 func LoadWithoutSecret() (*Warnings, error) {
-	return LoadDatadogCustom(Datadog, "datadog.yaml", false, SystemProbe.GetEnvVars())
+	return LoadDatadogCustom(Datadog, "datadog.yaml", optional.NewNoneOption[secrets.Component](), SystemProbe.GetEnvVars())
+}
+
+// LoadWithSecret reads config files and initializes config with decrypted secrets
+func LoadWithSecret(secretResolver secrets.Component) (*Warnings, error) {
+	return LoadDatadogCustom(Datadog, "datadog.yaml", optional.NewOption[secrets.Component](secretResolver), SystemProbe.GetEnvVars())
 }
 
 // Merge will merge additional configuration into an existing configuration
@@ -1463,15 +1463,21 @@ func findUnknownEnvVars(config Config, environ []string, additionalKnownEnvVars 
 		// these variables are used by the agent, but not via the Config struct,
 		// so must be listed separately.
 		"DD_INSIDE_CI":      {},
-		"DD_PROXY_NO_PROXY": {},
 		"DD_PROXY_HTTP":     {},
 		"DD_PROXY_HTTPS":    {},
+		"DD_PROXY_NO_PROXY": {},
 		// these variables are used by serverless, but not via the Config struct
-		"DD_API_KEY_SECRET_ARN":        {},
-		"DD_DOTNET_TRACER_HOME":        {},
-		"DD_SERVERLESS_APPSEC_ENABLED": {},
-		"DD_SERVICE":                   {},
-		"DD_VERSION":                   {},
+		"DD_API_KEY_SECRET_ARN":              {},
+		"DD_APM_FLUSH_DEADLINE_MILLISECONDS": {},
+		"DD_DOTNET_TRACER_HOME":              {},
+		"DD_FLUSH_TO_LOG":                    {},
+		"DD_KMS_API_KEY":                     {},
+		"DD_LAMBDA_HANDLER":                  {},
+		"DD_LOGS_INJECTION":                  {},
+		"DD_MERGE_XRAY_TRACES":               {},
+		"DD_SERVERLESS_APPSEC_ENABLED":       {},
+		"DD_SERVICE":                         {},
+		"DD_VERSION":                         {},
 		// this variable is used by CWS functional tests
 		"DD_TESTS_RUNTIME_COMPILED": {},
 		// this variable is used by the Kubernetes leader election mechanism
@@ -1525,17 +1531,17 @@ func checkConflictingOptions(config Config) error {
 }
 
 // LoadDatadogCustom loads the datadog config in the given config
-func LoadDatadogCustom(config Config, origin string, loadSecret bool, additionalKnownEnvVars []string) (*Warnings, error) {
+func LoadDatadogCustom(config Config, origin string, secretResolver optional.Option[secrets.Component], additionalKnownEnvVars []string) (*Warnings, error) {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
 	defer func() {
 		// Environment feature detection needs to run before applying override funcs
 		// as it may provide such overrides
-		detectFeatures()
-		applyOverrideFuncs(config)
+		pkgconfigenv.DetectFeatures(config)
+		pkgconfigmodel.ApplyOverrideFuncs(config)
 	}()
 
-	warnings, err := LoadCustom(config, origin, loadSecret, additionalKnownEnvVars)
+	warnings, err := LoadCustom(config, origin, secretResolver, additionalKnownEnvVars)
 	if err != nil {
 		if errors.Is(err, os.ErrPermission) {
 			log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
@@ -1570,12 +1576,15 @@ func LoadDatadogCustom(config Config, origin string, loadSecret bool, additional
 }
 
 // LoadCustom reads config into the provided config object
-func LoadCustom(config Config, origin string, loadSecret bool, additionalKnownEnvVars []string) (*Warnings, error) {
+func LoadCustom(config Config, origin string, secretResolver optional.Option[secrets.Component], additionalKnownEnvVars []string) (*Warnings, error) {
 	warnings := Warnings{}
 
 	if err := config.ReadInConfig(); err != nil {
 		if IsServerless() {
 			log.Debug("No config file detected, using environment variable based configuration only")
+			// Proxy settings need to be loaded from environment variables even in the absence of a datadog.yaml file
+			// The remaining code in LoadCustom is not run to keep a low cold start time
+			LoadProxyFromEnv(config)
 			return &warnings, nil
 		}
 		return &warnings, err
@@ -1596,8 +1605,9 @@ func LoadCustom(config Config, origin string, loadSecret bool, additionalKnownEn
 	// We resolve proxy setting before secrets. This allows setting secrets through DD_PROXY_* env variables
 	LoadProxyFromEnv(config)
 
-	if loadSecret {
-		if err := ResolveSecrets(config, origin); err != nil {
+	if secretResolver.IsSet() {
+		resolver, _ := secretResolver.Get()
+		if err := ResolveSecrets(config, resolver, origin); err != nil {
 			return &warnings, err
 		}
 	}
@@ -1623,14 +1633,15 @@ func setupFipsEndpoints(config Config) error {
 	// port_range_start + 3:  profiles
 	// port_range_start + 4:  processes
 	// port_range_start + 5:  logs
-	// port_range_start + 6:  databases monitoring metrics
+	// port_range_start + 6:  databases monitoring metrics, metadata and activity
 	// port_range_start + 7:  databases monitoring samples
 	// port_range_start + 8:  network devices metadata
-	// port_range_start + 9:  network devices snmp traps (unused)
+	// port_range_start + 9:  network devices snmp traps
 	// port_range_start + 10: instrumentation telemetry
 	// port_range_start + 11: appsec events (unused)
 	// port_range_start + 12: orchestrator explorer
 	// port_range_start + 13: runtime security
+	// port_range_start + 15: network devices netflow
 
 	if !config.GetBool("fips.enabled") {
 		log.Debug("FIPS mode is disabled")
@@ -1652,9 +1663,10 @@ func setupFipsEndpoints(config Config) error {
 		appsecEvents               = 11
 		orchestratorExplorer       = 12
 		runtimeSecurity            = 13
+		networkDevicesNetflow      = 15 // 14 is reserved for compliance (#20230)
 	)
 
-	localAddress, err := isLocalAddress(config.GetString("fips.local_address"))
+	localAddress, err := IsLocalAddress(config.GetString("fips.local_address"))
 	if err != nil {
 		return fmt.Errorf("fips.local_address: %s", err)
 	}
@@ -1668,41 +1680,57 @@ func setupFipsEndpoints(config Config) error {
 	os.Unsetenv("HTTP_PROXY")
 	os.Unsetenv("HTTPS_PROXY")
 
+	config.Set("fips.https", config.GetBool("fips.https"), pkgconfigmodel.SourceAgentRuntime)
+
 	// HTTP for now, will soon be updated to HTTPS
 	protocol := "http://"
 	if config.GetBool("fips.https") {
 		protocol = "https://"
-		config.Set("skip_ssl_validation", !config.GetBool("fips.tls_verify"))
+		config.Set("skip_ssl_validation", !config.GetBool("fips.tls_verify"), pkgconfigmodel.SourceAgentRuntime)
 	}
 
 	// The following overwrites should be sync with the documentation for the fips.enabled config setting in the
 	// config_template.yaml
 
 	// Metrics
-	config.Set("dd_url", protocol+urlFor(metrics))
+	config.Set("dd_url", protocol+urlFor(metrics), pkgconfigmodel.SourceAgentRuntime)
 
 	// Logs
 	setupFipsLogsConfig(config, "logs_config.", urlFor(logs))
 
 	// APM
-	config.Set("apm_config.apm_dd_url", protocol+urlFor(traces))
+	config.Set("apm_config.apm_dd_url", protocol+urlFor(traces), pkgconfigmodel.SourceAgentRuntime)
 	// Adding "/api/v2/profile" because it's not added to the 'apm_config.profiling_dd_url' value by the Agent
-	config.Set("apm_config.profiling_dd_url", protocol+urlFor(profiles)+"/api/v2/profile")
-	config.Set("apm_config.telemetry.dd_url", protocol+urlFor(instrumentationTelemetry))
+	config.Set("apm_config.profiling_dd_url", protocol+urlFor(profiles)+"/api/v2/profile", pkgconfigmodel.SourceAgentRuntime)
+	config.Set("apm_config.telemetry.dd_url", protocol+urlFor(instrumentationTelemetry), pkgconfigmodel.SourceAgentRuntime)
 
 	// Processes
-	config.Set("process_config.process_dd_url", protocol+urlFor(processes))
+	config.Set("process_config.process_dd_url", protocol+urlFor(processes), pkgconfigmodel.SourceAgentRuntime)
 
 	// Database monitoring
-	config.Set("database_monitoring.metrics.dd_url", urlFor(databasesMonitoringMetrics))
-	config.Set("database_monitoring.activity.dd_url", urlFor(databasesMonitoringMetrics))
-	config.Set("database_monitoring.samples.dd_url", urlFor(databasesMonitoringSamples))
+	// Historically we used a different port for samples because the intake hostname defined in epforwarder.go was different
+	// (even though the underlying IPs were the same as the ones for DBM metrics intake hostname). We're keeping 2 ports for backward compatibility reason.
+	setupFipsLogsConfig(config, "database_monitoring.metrics.", urlFor(databasesMonitoringMetrics))
+	setupFipsLogsConfig(config, "database_monitoring.activity.", urlFor(databasesMonitoringMetrics))
+	setupFipsLogsConfig(config, "database_monitoring.samples.", urlFor(databasesMonitoringSamples))
 
 	// Network devices
-	config.Set("network_devices.metadata.dd_url", urlFor(networkDevicesMetadata))
+	// Internally, Viper uses multiple storages for the configuration values and values from datadog.yaml are stored
+	// in a different place from where overrides (created with config.Set(...)) are stored.
+	// Some NDM products are using UnmarshalKey() which either uses overridden data or either configuration file data but not
+	// both at the same time (see https://github.com/spf13/viper/issues/1106)
+	//
+	// Because of that we need to put all the NDM config in the overridden data store (using Set) in order to get
+	// data from the config + data created by the FIPS mode when using UnmarshalKey()
+
+	config.Set("network_devices.snmp_traps", config.Get("network_devices.snmp_traps"), pkgconfigmodel.SourceAgentRuntime)
+	setupFipsLogsConfig(config, "network_devices.metadata.", urlFor(networkDevicesMetadata))
+	config.Set("network_devices.netflow", config.Get("network_devices.netflow"), pkgconfigmodel.SourceAgentRuntime)
+	setupFipsLogsConfig(config, "network_devices.snmp_traps.forwarder.", urlFor(networkDevicesSnmpTraps))
+	setupFipsLogsConfig(config, "network_devices.netflow.forwarder.", urlFor(networkDevicesNetflow))
 
 	// Orchestrator Explorer
-	config.Set("orchestrator_explorer.orchestrator_dd_url", protocol+urlFor(orchestratorExplorer))
+	config.Set("orchestrator_explorer.orchestrator_dd_url", protocol+urlFor(orchestratorExplorer), pkgconfigmodel.SourceAgentRuntime)
 
 	// CWS
 	setupFipsLogsConfig(config, "runtime_security_config.endpoints.", urlFor(runtimeSecurity))
@@ -1711,18 +1739,18 @@ func setupFipsEndpoints(config Config) error {
 }
 
 func setupFipsLogsConfig(config Config, configPrefix string, url string) {
-	config.Set(configPrefix+"use_http", true)
-	config.Set(configPrefix+"logs_no_ssl", !config.GetBool("fips.https"))
-	config.Set(configPrefix+"logs_dd_url", url)
+	config.Set(configPrefix+"use_http", true, pkgconfigmodel.SourceAgentRuntime)
+	config.Set(configPrefix+"logs_no_ssl", !config.GetBool("fips.https"), pkgconfigmodel.SourceAgentRuntime)
+	config.Set(configPrefix+"logs_dd_url", url, pkgconfigmodel.SourceAgentRuntime)
 }
 
 // ResolveSecrets merges all the secret values from origin into config. Secret values
 // are identified by a value of the form "ENC[key]" where key is the secret key.
 // See: https://github.com/DataDog/datadog-agent/blob/main/docs/agent/secrets.md
-func ResolveSecrets(config Config, origin string) error {
+func ResolveSecrets(config Config, secretResolver secrets.Component, origin string) error {
 	// We have to init the secrets package before we can use it to decrypt
 	// anything.
-	secrets.Init(
+	secretResolver.Configure(
 		config.GetString("secret_backend_command"),
 		config.GetStringSlice("secret_backend_arguments"),
 		config.GetInt("secret_backend_timeout"),
@@ -1741,13 +1769,33 @@ func ResolveSecrets(config Config, origin string) error {
 			return fmt.Errorf("unable to marshal configuration to YAML to decrypt secrets: %v", err)
 		}
 
-		finalYamlConf, err := secrets.Decrypt(yamlConf, origin)
+		err = secretResolver.ResolveWithCallback(
+			yamlConf,
+			origin,
+			func(yamlPath []string, value any) bool {
+				settingName := strings.Join(yamlPath, ".")
+
+				// We received a notification about an unknown setting. This means that the a value
+				// inside a map was updated (ie: settings like additional_endpoints,
+				// kubernetes_node_annotations_as_tags, ...). This is an issue when a setting use a
+				// map[string] as a value. The key can contain a '.' making it impossible to set or get.
+				//
+				// The secrets resolver doesn't have the notion of what is a known setting and what
+				// isn't. Returning false tells the secretResolver that we refuse the notification and
+				// we want to be notified for the parent key.
+				//
+				// See secrets.ResolveCallback documentation for more information.
+				//
+				if !config.IsKnown(settingName) {
+					return false
+				}
+
+				log.Debugf("replacing handle for setting '%s' with secret value", settingName)
+				config.Set(settingName, value, pkgconfigmodel.SourceAgentRuntime)
+				return true
+			})
 		if err != nil {
 			return fmt.Errorf("unable to decrypt secret from datadog.yaml: %v", err)
-		}
-		r := bytes.NewReader(finalYamlConf)
-		if err = config.MergeConfigOverride(r); err != nil {
-			return fmt.Errorf("could not update main configuration after decrypting secrets: %v", err)
 		}
 	}
 	return nil
@@ -1763,10 +1811,10 @@ func EnvVarAreSetAndNotEqual(lhsName string, rhsName string) bool {
 
 // sanitizeAPIKeyConfig strips newlines and other control characters from a given key.
 func sanitizeAPIKeyConfig(config Config, key string) {
-	if !config.IsKnown(key) {
+	if !config.IsKnown(key) || !config.IsSet(key) {
 		return
 	}
-	config.Set(key, strings.TrimSpace(config.GetString(key)))
+	config.Set(key, strings.TrimSpace(config.GetString(key)), pkgconfigmodel.SourceAgentRuntime)
 }
 
 // sanitizeExternalMetricsProviderChunkSize ensures the value of `external_metrics_provider.chunk_size` is within an acceptable range
@@ -1778,11 +1826,11 @@ func sanitizeExternalMetricsProviderChunkSize(config Config) {
 	chunkSize := config.GetInt("external_metrics_provider.chunk_size")
 	if chunkSize <= 0 {
 		log.Warnf("external_metrics_provider.chunk_size cannot be negative: %d", chunkSize)
-		config.Set("external_metrics_provider.chunk_size", 1)
+		config.Set("external_metrics_provider.chunk_size", 1, pkgconfigmodel.SourceAgentRuntime)
 	}
 	if chunkSize > maxExternalMetricsProviderChunkSize {
 		log.Warnf("external_metrics_provider.chunk_size has been set to %d, which is higher than the maximum allowed value %d. Using %d.", chunkSize, maxExternalMetricsProviderChunkSize, maxExternalMetricsProviderChunkSize)
-		config.Set("external_metrics_provider.chunk_size", maxExternalMetricsProviderChunkSize)
+		config.Set("external_metrics_provider.chunk_size", maxExternalMetricsProviderChunkSize, pkgconfigmodel.SourceAgentRuntime)
 	}
 }
 
@@ -1828,38 +1876,6 @@ func IsCloudProviderEnabled(cloudProviderName string) bool {
 	return false
 }
 
-func isLocalAddress(address string) (string, error) {
-	if address == "localhost" {
-		return address, nil
-	}
-	ip := net.ParseIP(address)
-	if ip == nil {
-		return "", fmt.Errorf("address was set to an invalid IP address: %s", address)
-	}
-	for _, cidr := range []string{
-		"127.0.0.0/8", // IPv4 loopback
-		"::1/128",     // IPv6 loopback
-	} {
-		_, block, err := net.ParseCIDR(cidr)
-		if err != nil {
-			return "", err
-		}
-		if block.Contains(ip) {
-			return address, nil
-		}
-	}
-	return "", fmt.Errorf("address was set to a non-loopback IP address: %s", address)
-}
-
-// GetIPCAddress returns the IPC address or an error if the address is not local
-func GetIPCAddress() (string, error) {
-	address, err := isLocalAddress(Datadog.GetString("ipc_address"))
-	if err != nil {
-		return "", fmt.Errorf("ipc_address: %s", err)
-	}
-	return address, nil
-}
-
 // pathExists returns true if the given path exists
 func pathExists(path string) bool {
 	_, err := os.Stat(path)
@@ -1883,7 +1899,7 @@ func setTracemallocEnabled(config Config) bool {
 	}
 
 	// update config with the actual effective tracemalloc
-	config.Set("tracemalloc_debug", wTracemalloc)
+	config.Set("tracemalloc_debug", wTracemalloc, pkgconfigmodel.SourceAgentRuntime)
 	return traceMallocEnabledWithPy2
 }
 
@@ -1902,7 +1918,7 @@ func setNumWorkers(config Config) {
 	}
 
 	// update config with the actual effective number of workers
-	config.Set("check_runners", numWorkers)
+	config.Set("check_runners", numWorkers, pkgconfigmodel.SourceAgentRuntime)
 }
 
 // GetDogstatsdMappingProfiles returns mapping profiles used in DogStatsD mapper
@@ -2027,4 +2043,21 @@ func IsRemoteConfigEnabled(cfg Reader) bool {
 		return false
 	}
 	return cfg.GetBool("remote_configuration.enabled")
+}
+
+// GetRemoteConfigurationAllowedIntegrations returns the list of integrations that can be scheduled
+// with remote-config
+func GetRemoteConfigurationAllowedIntegrations(cfg Reader) map[string]bool {
+	allowList := cfg.GetStringSlice("remote_configuration.agent_integrations.allow_list")
+	allowMap := map[string]bool{}
+	for _, integration := range allowList {
+		allowMap[strings.ToLower(integration)] = true
+	}
+
+	blockList := cfg.GetStringSlice("remote_configuration.agent_integrations.block_list")
+	for _, blockedIntegration := range blockList {
+		allowMap[strings.ToLower(blockedIntegration)] = false
+	}
+
+	return allowMap
 }

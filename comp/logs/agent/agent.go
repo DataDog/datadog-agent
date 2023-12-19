@@ -17,6 +17,7 @@ import (
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -29,9 +30,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
@@ -43,22 +44,27 @@ const (
 
 	// Log messages
 	multiLineWarning = "multi_line processing rules are not supported as global processing rules."
+
+	// inventory setting name
+	logsTransport = "logs_transport"
 )
 
 type dependencies struct {
 	fx.In
 
-	Lc     fx.Lifecycle
-	Log    logComponent.Component
-	Config configComponent.Component
+	Lc             fx.Lifecycle
+	Log            logComponent.Component
+	Config         configComponent.Component
+	InventoryAgent inventoryagent.Component
 }
 
 // agent represents the data pipeline that collects, decodes,
 // processes and sends logs to the backend.  See the package README for
 // a description of its operation.
 type agent struct {
-	log    logComponent.Component
-	config pkgConfig.Reader
+	log            logComponent.Component
+	config         pkgConfig.Reader
+	inventoryAgent inventoryagent.Component
 
 	sources                   *sources.LogSources
 	services                  *service.Services
@@ -76,16 +82,17 @@ type agent struct {
 	started *atomic.Bool
 }
 
-func newLogsAgent(deps dependencies) util.Optional[Component] {
+func newLogsAgent(deps dependencies) optional.Option[Component] {
 	if deps.Config.GetBool("logs_enabled") || deps.Config.GetBool("log_enabled") {
 		if deps.Config.GetBool("log_enabled") {
 			deps.Log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
 		}
 
 		logsAgent := &agent{
-			log:     deps.Log,
-			config:  deps.Config,
-			started: atomic.NewBool(false),
+			log:            deps.Log,
+			config:         deps.Config,
+			inventoryAgent: deps.InventoryAgent,
+			started:        atomic.NewBool(false),
 
 			sources:  sources.NewLogSources(),
 			services: service.NewServices(),
@@ -96,11 +103,11 @@ func newLogsAgent(deps dependencies) util.Optional[Component] {
 			OnStop:  logsAgent.stop,
 		})
 
-		return util.NewOptional[Component](logsAgent)
+		return optional.NewOption[Component](logsAgent)
 	}
 
 	deps.Log.Info("logs-agent disabled")
-	return util.NewNoneOptional[Component]()
+	return optional.NewNoneOption[Component]()
 }
 
 func (a *agent) start(context.Context) error {
@@ -131,12 +138,17 @@ func (a *agent) start(context.Context) error {
 }
 
 func (a *agent) setupAgent() error {
-
-	status.CurrentTransport = status.TransportTCP
 	if a.endpoints.UseHTTP {
-		status.CurrentTransport = status.TransportHTTP
+		status.SetCurrentTransport(status.TransportHTTP)
+	} else {
+		status.SetCurrentTransport(status.TransportTCP)
 	}
-	inventories.SetAgentMetadata(inventories.AgentLogsTransport, status.CurrentTransport)
+	// The severless agent doesn't use FX for now. This means that the logs agent will not have 'inventoryAgent'
+	// initialized for serverless. This is ok since metadata is not enabled for serverless.
+	// TODO: (components) - This condition should be removed once the serverless agent use FX.
+	if a.inventoryAgent != nil {
+		a.inventoryAgent.Set(logsTransport, string(status.GetCurrentTransport()))
+	}
 
 	// setup global processing rules
 	processingRules, err := config.GlobalProcessingRules(a.config)
@@ -229,6 +241,10 @@ func (a *agent) stop(context.Context) error {
 // AddScheduler adds the given scheduler to the agent.
 func (a *agent) AddScheduler(scheduler schedulers.Scheduler) {
 	a.schedulers.AddScheduler(scheduler)
+}
+
+func (a *agent) GetSources() *sources.LogSources {
+	return a.sources
 }
 
 func (a *agent) GetMessageReceiver() *diagnostic.BufferedMessageReceiver {

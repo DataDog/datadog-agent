@@ -11,8 +11,9 @@ import (
 	"encoding/base64"
 	"testing"
 
-	"github.com/aws/aws-lambda-go/events"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 )
 
 func TestGetAWSPartitionByRegion(t *testing.T) {
@@ -58,6 +59,24 @@ func TestExtractAPIGatewayWebSocketEventARN(t *testing.T) {
 
 	arn := ExtractAPIGatewayWebSocketEventARN(event, region)
 	assert.Equal(t, "arn:aws:apigateway:us-east-1::/restapis/test-id/stages/test-stage", arn)
+}
+
+func TestExtractAPIGatewayCustomAuthorizerEventARN(t *testing.T) {
+	methodArn := "arn:aws:execute-api:us-east-1:123456789012:abcdef123/test/GET/some/resource/path"
+	event := events.APIGatewayCustomAuthorizerRequest{
+		MethodArn: methodArn,
+	}
+	arn := ExtractAPIGatewayCustomAuthorizerEventARN(event)
+	assert.Equal(t, methodArn, arn)
+}
+
+func TestExtractAPIGatewayCustomAuthorizerRequestTypeEventARN(t *testing.T) {
+	methodArn := "arn:aws:execute-api:us-east-1:123456789012:abcdef123/test/GET/some/resource/path"
+	event := events.APIGatewayCustomAuthorizerRequestTypeRequest{
+		MethodArn: methodArn,
+	}
+	arn := ExtractAPIGatewayCustomAuthorizerRequestTypeEventARN(event)
+	assert.Equal(t, methodArn, arn)
 }
 
 func TestExtractAlbEventARN(t *testing.T) {
@@ -220,6 +239,7 @@ func TestExtractFunctionURLEventARN(t *testing.T) {
 			Path:       "path",
 			HTTPMethod: "http-method",
 		},
+		Resource: "/{route}",
 	}
 
 	httpTags := GetTagsFromAPIGatewayEvent(event)
@@ -229,6 +249,7 @@ func TestExtractFunctionURLEventARN(t *testing.T) {
 		"http.url_details.path": "path",
 		"http.method":           "http-method",
 		"http.referer":          "referer",
+		"http.route":            "/{route}",
 	}, httpTags)
 }
 
@@ -243,6 +264,7 @@ func TestGetTagsFromAPIGatewayEvent(t *testing.T) {
 			Path:       "path",
 			HTTPMethod: "http-method",
 		},
+		Resource: "/{route}",
 	}
 
 	httpTags := GetTagsFromAPIGatewayEvent(event)
@@ -252,6 +274,7 @@ func TestGetTagsFromAPIGatewayEvent(t *testing.T) {
 		"http.url_details.path": "path",
 		"http.method":           "http-method",
 		"http.referer":          "referer",
+		"http.route":            "/{route}",
 	}, httpTags)
 }
 
@@ -267,6 +290,7 @@ func TestGetTagsFromAPIGatewayV2HTTPRequestNoReferer(t *testing.T) {
 				Method: "http-method",
 			},
 		},
+		RouteKey: "/{route}",
 	}
 
 	httpTags := GetTagsFromAPIGatewayV2HTTPRequest(event)
@@ -275,6 +299,38 @@ func TestGetTagsFromAPIGatewayV2HTTPRequestNoReferer(t *testing.T) {
 		"http.url":              "domain-name",
 		"http.url_details.path": "path",
 		"http.method":           "http-method",
+		"http.route":            "/{route}",
+	}, httpTags)
+}
+
+func TestGetTagsFromAPIGatewayCustomAuthorizerEvent(t *testing.T) {
+	event := events.APIGatewayCustomAuthorizerRequest{
+		MethodArn: "arn:aws:execute-api:us-east-1:123456789012:abcdef123/test/GET/path/to/resource",
+	}
+
+	httpTags := GetTagsFromAPIGatewayCustomAuthorizerEvent(event)
+
+	assert.Equal(t, map[string]string{
+		"http.method":           "GET",
+		"http.url_details.path": "/path/to/resource",
+	}, httpTags)
+}
+
+func TestGetTagsFromAPIGatewayCustomAuthorizerRequestTypeEvent(t *testing.T) {
+	event := events.APIGatewayCustomAuthorizerRequestTypeRequest{
+		HTTPMethod: "GET",
+		RequestContext: events.APIGatewayCustomAuthorizerRequestTypeRequestContext{
+			Path: "/path/to/resource",
+		},
+		Resource: "/{route}",
+	}
+
+	httpTags := GetTagsFromAPIGatewayCustomAuthorizerRequestTypeEvent(event)
+
+	assert.Equal(t, map[string]string{
+		"http.method":           "GET",
+		"http.url_details.path": "/path/to/resource",
+		"http.route":            "/{route}",
 	}, httpTags)
 }
 

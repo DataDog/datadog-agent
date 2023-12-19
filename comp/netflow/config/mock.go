@@ -6,12 +6,13 @@
 package config
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 )
 
-func newMock(conf *NetflowConfig) (Component, error) {
-	if err := conf.SetDefaults("default"); err != nil {
+func newMock(conf *NetflowConfig, logger log.Component) (Component, error) {
+	if err := conf.SetDefaults("default", logger); err != nil {
 		return nil, err
 	}
 	return &configService{conf}, nil
@@ -21,7 +22,8 @@ func newMock(conf *NetflowConfig) (Component, error) {
 // Injecting MockModule will provide default config;
 // override this with fx.Replace(&config.NetflowConfig{...}).
 // Defaults will always be populated.
-var MockModule = fxutil.Component(
-	fx.Provide(newMock),
-	fx.Supply(&NetflowConfig{}),
-)
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newMock),
+		fx.Supply(&NetflowConfig{}))
+}

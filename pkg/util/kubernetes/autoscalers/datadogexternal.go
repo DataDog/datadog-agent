@@ -13,11 +13,13 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"gopkg.in/zorkian/go-datadog-api.v2"
 	utilserror "k8s.io/apimachinery/pkg/util/errors"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -35,6 +37,9 @@ var (
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	rateLimitsRemaining = telemetry.NewGaugeWithOpts("", "rate_limit_queries_remaining",
 		[]string{"endpoint", le.JoinLeaderLabel}, "number of queries remaining before next reset",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+	rateLimitsRemainingMin = telemetry.NewGaugeWithOpts("", "rate_limit_queries_remaining_min",
+		[]string{"endpoint", le.JoinLeaderLabel}, "minimum number of queries remaining before next reset observed during an expiration interval of 2*refresh period",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	rateLimitsReset = telemetry.NewGaugeWithOpts("", "rate_limit_queries_reset",
 		[]string{"endpoint", le.JoinLeaderLabel}, "number of seconds before next reset",
@@ -61,6 +66,29 @@ const (
 	queryEndpoint = "/api/v1/query"
 )
 
+var (
+	minRemainingRequestsTracker *minTracker
+	once                        sync.Once
+)
+
+func getMinRemainingRequestsTracker() *minTracker {
+	once.Do(func() {
+		refreshPeriod := config.Datadog.GetInt("external_metrics_provider.refresh_period")
+		expiryDuration := 2 * refreshPeriod
+		minRemainingRequestsTracker = newMinTracker(time.Duration(time.Duration(expiryDuration) * time.Second))
+	})
+
+	return minRemainingRequestsTracker
+}
+
+// isRateLimitError is a helper function that checks if the received error is a rate limit error
+func isRateLimitError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "429 Too Many Requests")
+}
+
 // queryDatadogExternal converts the metric name and labels from the Ref format into a Datadog metric.
 // It returns the last value for a bucket of 5 minutes,
 func (p *Processor) queryDatadogExternal(ddQueries []string, timeWindow time.Duration) (map[string]Point, error) {
@@ -76,6 +104,11 @@ func (p *Processor) queryDatadogExternal(ddQueries []string, timeWindow time.Dur
 	seriesSlice, err := p.datadogClient.QueryMetrics(currentTime.Add(-timeWindow).Unix(), currentTimeUnix, query)
 	if err != nil {
 		ddRequests.Inc("error", le.JoinLeaderValue)
+
+		if isRateLimitError(err) {
+			ddRequests.Inc("rate_limit_error", le.JoinLeaderValue)
+		}
+
 		return nil, fmt.Errorf("error while executing metric query %s: %w", query, err)
 	}
 	ddRequests.Inc("success", le.JoinLeaderValue)
@@ -156,6 +189,15 @@ func (p *Processor) queryDatadogExternal(ddQueries []string, timeWindow time.Dur
 				Error:     fmt.Errorf("no serie returned for this query, check data is available in the last %.0f seconds", math.Ceil(timeWindow.Seconds())),
 			}
 		}
+	}
+
+	// Update rateLimitsRemainingMin metric
+	updateMap := p.datadogClient.GetRateLimitStats()
+	queryLimits := updateMap[queryEndpoint]
+	newVal, err := strconv.Atoi(queryLimits.Remaining)
+	if err == nil {
+		getMinRemainingRequestsTracker().update(newVal)
+		rateLimitsRemainingMin.Set(float64(minRemainingRequestsTracker.get()), queryEndpoint, le.JoinLeaderLabel)
 	}
 
 	return processedMetrics, nil

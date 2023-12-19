@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Reflection;
 
@@ -10,7 +10,7 @@ namespace WixSetup
         {
             yield return type.Assembly.Location;
 
-            foreach (AssemblyName assemblyName in type.Assembly.GetReferencedAssemblies())
+            foreach (var assemblyName in type.Assembly.GetReferencedAssemblies())
             {
                 yield return Assembly.ReflectionOnlyLoad(assemblyName.FullName).Location;
             }

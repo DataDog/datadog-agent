@@ -8,14 +8,11 @@
 package ebpfcheck
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"os"
 	"testing"
 	"time"
 
-	"github.com/DataDog/gopsutil/process"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/perf"
 	"github.com/cilium/ebpf/rlimit"
@@ -40,10 +37,6 @@ func TestEBPFPerfBufferLength(t *testing.T) {
 		require.NoError(t, err)
 		nrcpus := uint64(cpus)
 
-		online, err := kernel.OnlineCPUs()
-		require.NoError(t, err)
-		onlineCPUs := uint64(len(online))
-
 		cfg := testConfig()
 
 		probe, err := NewProbe(cfg)
@@ -62,43 +55,30 @@ func TestEBPFPerfBufferLength(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = rdr.Close() })
 
-		var result model.EBPFPerfBufferStats
+		var result model.EBPFMapStats
 		require.Eventually(t, func() bool {
 			stats := probe.GetAndFlush()
-			for _, s := range stats.PerfBuffers {
-				if s.Name == "ebpf_test_perf" {
+			for _, s := range stats.Maps {
+				if s.Type == ebpf.PerfEventArray && s.Name == "ebpf_test_perf" {
 					result = s
 					return true
 				}
 			}
-			for _, s := range stats.PerfBuffers {
+			for _, s := range stats.Maps {
 				t.Logf("%+v", s)
 			}
 			return false
 		}, 5*time.Second, 500*time.Millisecond, "failed to find perf buffer map")
+
+		// use number of CPUs from result
+		// this isn't as strict, but only way to ensure same number of CPUs is used
+		onlineCPUs := uint64(result.NumCPUs)
 
 		// 4 is value size, 1 extra page for metadata
 		valueSize := uint64(roundUpPow2(4, 8))
 		expected := (onlineCPUs * uint64(pageSize) * uint64(numPages+1)) + nrcpus*valueSize + sizeofBpfArray
 		if result.MaxSize != expected {
 			t.Fatalf("expected perf buffer size %d got %d", expected, result.MaxSize)
-		}
-
-		proc, err := process.NewProcess(int32(os.Getpid()))
-		require.NoError(t, err)
-		mmaps, err := proc.MemoryMaps(false)
-		require.NoError(t, err)
-
-		for _, cpub := range result.CPUBuffers {
-			for _, mm := range *mmaps {
-				if mm.StartAddr == cpub.Addr {
-					exp := mm.Rss * 1024
-					if exp != cpub.RSS {
-						t.Fatalf("expected RSS %d got %d", exp, cpub.RSS)
-					}
-					break
-				}
-			}
 		}
 	})
 }
@@ -152,11 +132,11 @@ func TestMinMapSize(t *testing.T) {
 		var result []model.EBPFMapStats
 		require.Eventually(t, func() bool {
 			stats := probe.GetAndFlush()
-			t.Logf("%+v", stats.Maps)
-			for _, id := range ids {
+			for typ, id := range ids {
 				if !slices.ContainsFunc(stats.Maps, func(stats model.EBPFMapStats) bool {
 					return stats.ID == uint32(id)
 				}) {
+					t.Logf("missing type=%s id=%d", typ.String(), id)
 					return false
 				}
 			}
@@ -194,32 +174,4 @@ func TestMinMapSize(t *testing.T) {
 func testConfig() *ddebpf.Config {
 	cfg := ddebpf.NewConfig()
 	return cfg
-}
-
-func BenchmarkMatchProcessRSS(b *testing.B) {
-	pid := os.Getpid()
-	var addrs []uintptr
-
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, err := matchProcessRSS(pid, addrs)
-		require.NoError(b, err)
-	}
-}
-
-func BenchmarkMatchRSS(b *testing.B) {
-	data, err := os.ReadFile("./testdata/smaps.out")
-	require.NoError(b, err)
-	rdr := bytes.NewReader(data)
-	var addrs []uintptr
-
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, err := rdr.Seek(0, io.SeekStart)
-		require.NoError(b, err)
-		_, err = matchRSS(rdr, addrs)
-		require.NoError(b, err)
-	}
 }

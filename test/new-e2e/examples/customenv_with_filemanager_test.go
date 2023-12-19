@@ -35,7 +35,7 @@ func fileManagerVMStackDef(localFolderPath string, remoteFolderPath string) *e2e
 		fileManager.CopyAbsoluteFolder(localFolderPath, remoteFolderPath)
 
 		return &e2e.VMEnv{
-			VM: client.NewVM(vm),
+			VM: client.NewPulumiStackVM(vm),
 		}, nil
 	})
 }

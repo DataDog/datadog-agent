@@ -18,8 +18,11 @@ suites:
         <% if ENV['WINDOWS_AGENT_FILE'] %>
         windows_agent_filename: "<%= ENV['WINDOWS_AGENT_FILE'] %>"
         <% end %>
+        agent_install_options: >
+          APIKEY=<%= api_key %>
       dd-agent-rspec:
         skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
+        cws_included: &cws_included <%= ENV['WINDOWS_DDPROCMON_DRIVER'] || false %>
 
   - name: win-upgrade-rollback
     run_list:
@@ -189,7 +192,6 @@ suites:
           WIXFAILWHENDEFERRED=1
       dd-agent-rspec:
         skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
-        ng_installer: &ng_installer <%= ENV['NG_INSTALLER'] || false %>
 
   - name: win-alt-dir
     run_list:

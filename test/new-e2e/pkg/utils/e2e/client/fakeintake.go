@@ -14,7 +14,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 )
 
-var _ stackInitializer = (*Fakeintake)(nil)
+var _ pulumiStackInitializer = (*Fakeintake)(nil)
 
 // A Fakeintake client that is connected to a fakeintake ECS task defined in test-infra-definition.
 type Fakeintake struct {
@@ -27,8 +27,11 @@ func NewFakeintake(exporter *infraFakeintake.ConnectionExporter) *Fakeintake {
 	return &Fakeintake{deserializer: exporter}
 }
 
-//lint:ignore U1000 Ignore unused function as this function is call using reflection
-func (fi *Fakeintake) setStack(t *testing.T, stackResult auto.UpResult) error {
+// initFromPulumiStack initializes the instance from the data stored in the pulumi stack.
+// This method is called by [CallStackInitializers] using reflection.
+//
+//lint:ignore U1000 Ignore unused function as this function is called using reflection
+func (fi *Fakeintake) initFromPulumiStack(_ *testing.T, stackResult auto.UpResult) error {
 	clientData, err := fi.deserializer.Deserialize(stackResult)
 	if err != nil {
 		return err

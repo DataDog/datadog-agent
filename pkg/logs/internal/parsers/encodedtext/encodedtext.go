@@ -34,8 +34,8 @@ type encodedText struct {
 
 // Parse implements Parser#Parse
 func (p *encodedText) Parse(msg *message.Message) (*message.Message, error) {
-	decoded, _, err := transform.Bytes(p.decoder, msg.Content)
-	msg.Content = decoded
+	decoded, _, err := transform.Bytes(p.decoder, msg.GetContent())
+	msg.SetContent(decoded)
 	return msg, err
 }
 

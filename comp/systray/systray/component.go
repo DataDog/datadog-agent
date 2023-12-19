@@ -7,11 +7,6 @@
 // Package systray provides a component for the system tray application
 package systray
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
-)
-
 // team: windows-agent
 
 // Params for ddtray component
@@ -24,8 +19,3 @@ type Params struct {
 // Component for ddtray
 type Component interface {
 }
-
-// Module for ddtray
-var Module = fxutil.Component(
-	fx.Provide(newSystray),
-)

@@ -15,9 +15,9 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -174,7 +174,9 @@ func SetCheckMetadata(checkID, name, value *C.char) {
 	key := C.GoString(name)
 	val := C.GoString(value)
 
-	inventories.SetCheckMetadata(cid, key, val)
+	if inv, err := check.GetInventoryChecksContext(); err == nil {
+		inv.Set(cid, key, val)
+	}
 }
 
 // WritePersistentCache stores a value for one check instance
@@ -240,6 +242,8 @@ type sqlConfig struct {
 	CollectCommands bool `json:"collect_commands"`
 	// CollectComments specifies whether the obfuscator should extract and return comments as SQL metadata when obfuscating.
 	CollectComments bool `json:"collect_comments"`
+	// CollectProcedures specifies whether the obfuscator should extract and return procedure names as SQL metadata when obfuscating.
+	CollectProcedures bool `json:"collect_procedures"`
 	// ReplaceDigits specifies whether digits in table names and identifiers should be obfuscated.
 	ReplaceDigits bool `json:"replace_digits"`
 	// KeepSQLAlias specifies whether or not to strip sql aliases while obfuscating.
@@ -248,6 +252,38 @@ type sqlConfig struct {
 	DollarQuotedFunc bool `json:"dollar_quoted_func"`
 	// ReturnJSONMetadata specifies whether the stub will return metadata as JSON.
 	ReturnJSONMetadata bool `json:"return_json_metadata"`
+
+	// ObfuscationMode specifies the obfuscation mode to use for go-sqllexer pkg.
+	// When specified, obfuscator will attempt to use go-sqllexer pkg to obfuscate (and normalize) SQL queries.
+	// Valid values are "obfuscate_only", "obfuscate_and_normalize"
+	ObfuscationMode obfuscate.ObfuscationMode `json:"obfuscation_mode"`
+
+	// RemoveSpaceBetweenParentheses specifies whether to remove spaces between parentheses.
+	// By default, spaces are inserted between parentheses during normalization.
+	// This option is only valid when ObfuscationMode is "obfuscate_and_normalize".
+	RemoveSpaceBetweenParentheses bool `json:"remove_space_between_parentheses"`
+
+	// KeepNull specifies whether to disable obfuscate NULL value with ?.
+	// This option is only valid when ObfuscationMode is "obfuscate_only" or "obfuscate_and_normalize".
+	KeepNull bool `json:"keep_null"`
+
+	// KeepBoolean specifies whether to disable obfuscate boolean value with ?.
+	// This option is only valid when ObfuscationMode is "obfuscate_only" or "obfuscate_and_normalize".
+	KeepBoolean bool `json:"keep_boolean"`
+
+	// KeepPositionalParameter specifies whether to disable obfuscate positional parameter with ?.
+	// This option is only valid when ObfuscationMode is "obfuscate_only" or "obfuscate_and_normalize".
+	KeepPositionalParameter bool `json:"keep_positional_parameter"`
+
+	// KeepTrailingSemicolon specifies whether to keep trailing semicolon.
+	// By default, trailing semicolon is removed during normalization.
+	// This option is only valid when ObfuscationMode is "obfuscate_only" or "obfuscate_and_normalize".
+	KeepTrailingSemicolon bool `json:"keep_trailing_semicolon"`
+
+	// KeepIdentifierQuotation specifies whether to keep identifier quotation, e.g. "my_table" or [my_table].
+	// By default, identifier quotation is removed during normalization.
+	// This option is only valid when ObfuscationMode is "obfuscate_only" or "obfuscate_and_normalize".
+	KeepIdentifierQuotation bool `json:"keep_identifier_quotation"`
 }
 
 // ObfuscateSQL obfuscates & normalizes the provided SQL query, writing the error into errResult if the operation
@@ -267,13 +303,21 @@ func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
 	}
 	s := C.GoString(rawQuery)
 	obfuscatedQuery, err := lazyInitObfuscator().ObfuscateSQLStringWithOptions(s, &obfuscate.SQLConfig{
-		DBMS:             sqlOpts.DBMS,
-		TableNames:       sqlOpts.TableNames,
-		CollectCommands:  sqlOpts.CollectCommands,
-		CollectComments:  sqlOpts.CollectComments,
-		ReplaceDigits:    sqlOpts.ReplaceDigits,
-		KeepSQLAlias:     sqlOpts.KeepSQLAlias,
-		DollarQuotedFunc: sqlOpts.DollarQuotedFunc,
+		DBMS:                          sqlOpts.DBMS,
+		TableNames:                    sqlOpts.TableNames,
+		CollectCommands:               sqlOpts.CollectCommands,
+		CollectComments:               sqlOpts.CollectComments,
+		CollectProcedures:             sqlOpts.CollectProcedures,
+		ReplaceDigits:                 sqlOpts.ReplaceDigits,
+		KeepSQLAlias:                  sqlOpts.KeepSQLAlias,
+		DollarQuotedFunc:              sqlOpts.DollarQuotedFunc,
+		ObfuscationMode:               sqlOpts.ObfuscationMode,
+		RemoveSpaceBetweenParentheses: sqlOpts.RemoveSpaceBetweenParentheses,
+		KeepNull:                      sqlOpts.KeepNull,
+		KeepBoolean:                   sqlOpts.KeepBoolean,
+		KeepPositionalParameter:       sqlOpts.KeepPositionalParameter,
+		KeepTrailingSemicolon:         sqlOpts.KeepTrailingSemicolon,
+		KeepIdentifierQuotation:       sqlOpts.KeepIdentifierQuotation,
 	})
 	if err != nil {
 		// memory will be freed by caller

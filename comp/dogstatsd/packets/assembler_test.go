@@ -18,7 +18,7 @@ const sampleBatchSize = 32
 
 func buildPacketAssembler() (*Assembler, chan Packets) {
 	out := make(chan Packets, 16)
-	psb := NewBuffer(1, 1*time.Hour, out)
+	psb := NewBuffer(1, 1*time.Hour, out, "")
 	pp := NewPool(sampleBatchSize)
 	pb := NewAssembler(100*time.Millisecond, psb, NewPoolManager(pp), UDP)
 	return pb, out

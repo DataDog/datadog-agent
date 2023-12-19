@@ -11,4 +11,4 @@ sysobjectid: 1.2.3.*
 metrics:
   - symbol:
       OID: 1.2.3.5
-      name: p2_metric
+      name: default_p2_metric

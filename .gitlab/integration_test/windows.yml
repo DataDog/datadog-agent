@@ -1,7 +1,10 @@
 ---
 .integration_tests_windows_base:
   stage: integration_test
-  needs: ["go_deps", "go_tools_deps", "build_vcpkg_deps"]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  needs: ["go_deps", "go_tools_deps"]
   tags: ["runner:windows-docker", "windowsversion:1809"]
   before_script:
     - $vcpkgBlobSaSUrl = (aws ssm get-parameter --region us-east-1 --name ci.datadog-agent-buildimages.vcpkg_blob_sas_url --with-decryption --query "Parameter.Value" --out text)

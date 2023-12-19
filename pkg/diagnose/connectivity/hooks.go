@@ -60,12 +60,16 @@ type httpTraceContext struct {
 
 // connectStartHook is called when the http.Client is establishing a new connection to 'addr'
 // However, it is not called when a connection is reused (see gotConnHook)
+//
+//nolint:revive // TODO(ASC) Fix revive linter
 func (c *httpTraceContext) connectStartHook(network, addr string) {
 	*(c.httpTraces) = append(*(c.httpTraces), "...Starting a new connection")
 }
 
 // connectDoneHook is called when the new connection to 'addr' completes
 // It collects the error message if there is one and indicates if this step was successful
+//
+//nolint:revive // TODO(ASC) Fix revive linter
 func (c *httpTraceContext) connectDoneHook(network, addr string, err error) {
 	if err != nil {
 		*(c.httpTraces) = append(*(c.httpTraces), fmt.Sprintf("...Unable to connect to the endpoint: %v", scrubber.ScrubLine(err.Error())))
@@ -78,6 +82,8 @@ func (c *httpTraceContext) connectDoneHook(network, addr string, err error) {
 // This is called before :
 //   - Creating a new connection 		: getConnHook ---> connectStartHook
 //   - Retrieving an existing connection : getConnHook ---> gotConnHook
+//
+//nolint:revive // TODO(ASC) Fix revive linter
 func (c *httpTraceContext) getConnHook(hostPort string) {
 	*(c.httpTraces) = append(*(c.httpTraces), "...Retrieving or creating a new connection")
 }
@@ -117,6 +123,8 @@ func (c *httpTraceContext) tlsHandshakeStartHook() {
 
 // tlsHandshakeDoneHook is called after the TLS Handshake
 // It collects the error message if there is one and indicates if this step was successful
+//
+//nolint:revive // TODO(ASC) Fix revive linter
 func (c *httpTraceContext) tlsHandshakeDoneHook(cs tls.ConnectionState, err error) {
 	if err != nil {
 		*(c.httpTraces) = append(*(c.httpTraces), fmt.Sprintf("...Unable to achieve the TLS Handshake: %v", scrubber.ScrubLine(err.Error())))

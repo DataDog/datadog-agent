@@ -62,8 +62,8 @@ type orderedBTFLoader struct {
 	delayedFlusher *time.Timer
 }
 
-func initBTFLoader(cfg *Config) orderedBTFLoader {
-	btfLoader := orderedBTFLoader{
+func initBTFLoader(cfg *Config) *orderedBTFLoader {
+	btfLoader := &orderedBTFLoader{
 		userBTFPath: cfg.BTFPath,
 		embeddedDir: filepath.Join(cfg.BPFDir, "co-re", "btf"),
 		result:      btfNotFound,
@@ -240,7 +240,7 @@ func (b *orderedBTFLoader) getEmbeddedBTF(platform, platformVersion, kernelVersi
 	for _, kvp := range kernelVersionPatterns {
 		if kvp.pattern.MatchString(kernelVersion) {
 			// remove possible paths that do not match possible platforms
-			slices.DeleteFunc(possiblePaths, func(s string) bool {
+			possiblePaths = slices.DeleteFunc(possiblePaths, func(s string) bool {
 				pform := strings.Split(s, string(os.PathSeparator))[0]
 				return !slices.Contains(kvp.platforms, pform)
 			})

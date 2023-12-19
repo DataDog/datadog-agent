@@ -15,6 +15,7 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/session"
 	"golang.org/x/sys/windows"
 )
 
@@ -82,6 +83,7 @@ type pullSubscription struct {
 	subscribeOriginFlag uint
 	subscribeFlags      uint
 	bookmark            evtbookmark.Bookmark
+	session             evtsession.Session
 }
 
 // PullSubscriptionOption type for option pattern for NewPullSubscription constructor
@@ -89,8 +91,21 @@ type PullSubscriptionOption func(*pullSubscription)
 
 func newSubscriptionSignalEvent() (evtapi.WaitEventHandle, error) {
 	// https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createeventa
-	// Manual reset, must be initially set, Windows will not set it for old events
-	hEvent, err := windows.CreateEvent(nil, 1, 1, nil)
+	// Auto reset, must be initially set, Windows will not set it for old events
+	//
+	// The MSDN example uses a manual reset event, but the API docs don't specify that a manual
+	// reset event is required. The manual reset event is inherently racey, consider the following
+	// 1. We are waiting in WaitForMultipleObjects for the event handle to be set
+	// 2. (in background) Events arrive and the handle is set
+	// 3. WaitForMultipleObjects returns
+	// 4. EvtNext is called and returns the events and ERROR_NO_MORE_ITEMS
+	// 5. (in background) Events arrive and the handle is set
+	// 6. We handle the ERROR_NO_MORE_ITEMS result and call ResetEvent to unset the event handle
+	// Now WaitForMultipleObjects will block and we won't see the second set of events until a third
+	// set arrives.
+	// Instead, to avoid this race we use an auto reset event, which is unset when WaitForMultipleObjects
+	// returns. When EvtNext returns ERROR_NO_MORE_ITEMS the event is already unset and we don't need to do anything.
+	hEvent, err := windows.CreateEvent(nil, 0, 1, nil)
 	return evtapi.WaitEventHandle(hEvent), err
 }
 
@@ -175,6 +190,15 @@ func WithSubscribeFlags(flags uint) PullSubscriptionOption {
 	}
 }
 
+// WithSession sets the session option for the subscription to enable collecting
+// event logs from remote hosts.
+// https://learn.microsoft.com/en-us/windows/win32/wes/accessing-remote-computers
+func WithSession(session evtsession.Session) PullSubscriptionOption {
+	return func(q *pullSubscription) {
+		q.session = session
+	}
+}
+
 func (q *pullSubscription) Error() error {
 	return q.err
 }
@@ -194,12 +218,15 @@ func (q *pullSubscription) Start() error {
 		return fmt.Errorf("Query subscription is already started")
 	}
 
-	// reset subscription error state
-	q.err = nil
-
 	var bookmarkHandle evtapi.EventBookmarkHandle
 	if q.bookmark != nil {
 		bookmarkHandle = q.bookmark.Handle()
+	}
+
+	// Get session handle, if one was provided
+	sessionHandle := evtapi.EventSessionHandle(0)
+	if q.session != nil {
+		sessionHandle = q.session.Handle()
 	}
 
 	// create subscription
@@ -208,6 +235,7 @@ func (q *pullSubscription) Start() error {
 		return err
 	}
 	hSub, err := q.eventLogAPI.EvtSubscribe(
+		sessionHandle,
 		hSubWait,
 		q.channelPath,
 		q.query,
@@ -235,6 +263,11 @@ func (q *pullSubscription) Start() error {
 	q.eventsChannel = make(chan []*evtapi.EventRecord)
 
 	q.notifyStop = make(chan struct{})
+
+	// after sub is ready, reset subscription error state
+	// doing this later lets callers reference the error
+	// until the sub actually starts again.
+	q.err = nil
 
 	// start goroutine to query events for channel
 	q.getEventsLoopWaiter.Add(1)
@@ -280,6 +313,7 @@ func (q *pullSubscription) getEventsLoop() {
 
 	waiters := []windows.Handle{windows.Handle(q.subscriptionSignalEventHandle), windows.Handle(q.stopEventHandle)}
 
+waitLoop:
 	for {
 		dwWait, err := windows.WaitForMultipleObjects(waiters, false, windows.INFINITE)
 		if err != nil {
@@ -291,32 +325,36 @@ func (q *pullSubscription) getEventsLoop() {
 		if dwWait == windows.WAIT_OBJECT_0 {
 			// We were signalled by the subscription, check for events
 			pkglog.Trace("Checking for events")
-			// We supply INFINITE for the Timeout parameter but if we are at the end of the log file/there are no more events EvtNext will return,
-			// it will not block forever.
-			// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-even6/cd4c258c-5a2c-4ba8-bce3-37eefaa416e7
-			eventRecordHandles, err := q.eventLogAPI.EvtNext(q.subscriptionHandle, q.evtNextStorage, uint(len(q.evtNextStorage)), windows.INFINITE)
-			if err == nil {
-				pkglog.Tracef("EvtNext returned %v handles", len(eventRecordHandles))
-				select {
-				case q.eventsChannel <- q.parseEventRecordHandles(eventRecordHandles):
-				case <-q.notifyStop:
-					q.err = fmt.Errorf("received stop signal")
-					pkglog.Info(q.err)
-					return
+			// loop calling EvtNext until it returns ERROR_NO_MORE_ITEMS, or an error, or stop event is set
+			for {
+				// We supply INFINITE for the Timeout parameter but if we are at the end of the log file/there are no more events EvtNext will return,
+				// it will not block forever.
+				// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-even6/cd4c258c-5a2c-4ba8-bce3-37eefaa416e7
+				eventRecordHandles, err := q.eventLogAPI.EvtNext(q.subscriptionHandle, q.evtNextStorage, uint(len(q.evtNextStorage)), windows.INFINITE)
+				if err == nil {
+					pkglog.Tracef("EvtNext returned %v handles", len(eventRecordHandles))
+					select {
+					case q.eventsChannel <- q.parseEventRecordHandles(eventRecordHandles):
+					case <-q.notifyStop:
+						q.err = fmt.Errorf("received stop signal")
+						pkglog.Info(q.err)
+						return
+					}
+					continue
 				}
-				continue
-			}
 
-			if err == windows.ERROR_NO_MORE_ITEMS || err == windows.ERROR_INVALID_OPERATION {
-				// EvtNext returns ERROR_NO_MORE_ITEMS when there are no more items available.
-				// EvtNext returns ERROR_INVALID_OPERATION when it is called when the notify event is not set.
-				pkglog.Tracef("EvtNext returned no more items")
-				_ = windows.ResetEvent(windows.Handle(q.subscriptionSignalEventHandle))
-				continue
-			}
+				if err == windows.ERROR_NO_MORE_ITEMS || err == windows.ERROR_INVALID_OPERATION {
+					// EvtNext returns ERROR_NO_MORE_ITEMS when there are no more items available.
+					// EvtNext returns ERROR_INVALID_OPERATION when it is called when the notify event is not set.
+					pkglog.Tracef("EvtNext returned no more items")
+					// We do not call ResetEvent here beause we use an auto-reset event instead, so the event is
+					// already unset when WaitForMultipleObjects returns.
+					continue waitLoop
+				}
 
-			q.logAndSetError(fmt.Errorf("EvtNext failed: %w", err))
-			return
+				q.logAndSetError(fmt.Errorf("EvtNext failed: %w", err))
+				return
+			}
 		} else if dwWait == (windows.WAIT_OBJECT_0 + 1) {
 			// Stop event is set
 			q.err = fmt.Errorf("received stop signal")

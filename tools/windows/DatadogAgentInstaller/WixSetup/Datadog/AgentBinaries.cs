@@ -7,7 +7,7 @@ namespace WixSetup.Datadog
         private readonly string _binSource;
         public string Agent => $@"{_binSource}\agent\agent.exe";
         public string Tray => $@"{_binSource}\agent\ddtray.exe";
-        public Id TrayId => new ("ddtray");
+        public Id TrayId => new("ddtray");
         public string ProcessAgent => $@"{_binSource}\agent\process-agent.exe";
         public string SystemProbe => $@"{_binSource}\agent\system-probe.exe";
         public string TraceAgent => $@"{_binSource}\agent\trace-agent.exe";
@@ -28,7 +28,7 @@ namespace WixSetup.Datadog
             {
                 $@"{installerSource}\embedded3\python.exe",
                 $@"{installerSource}\embedded3\python3.dll",
-                $@"{installerSource}\embedded3\python39.dll",
+                $@"{installerSource}\embedded3\python311.dll",
                 $@"{installerSource}\embedded3\pythonw.exe"
             };
             PythonTwoBinaries = new[]

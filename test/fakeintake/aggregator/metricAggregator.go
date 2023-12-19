@@ -6,12 +6,14 @@
 package aggregator
 
 import (
+	"bytes"
 	"time"
 
 	metricspb "github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
+//nolint:revive // TODO(APL) Fix revive linter
 type MetricSeries struct {
 	// embed proto Metric Series struct
 	metricspb.MetricPayload_MetricSeries
@@ -35,6 +37,11 @@ func (mp *MetricSeries) GetCollectedTime() time.Time {
 
 // ParseMetricSeries return the parsed metrics from payload
 func ParseMetricSeries(payload api.Payload) (metrics []*MetricSeries, err error) {
+	if bytes.Equal(payload.Data, []byte("{}")) {
+		// metrics can submit empty JSON object
+		return []*MetricSeries{}, nil
+	}
+
 	enflated, err := enflate(payload.Data, payload.Encoding)
 	if err != nil {
 		return nil, err
@@ -53,10 +60,12 @@ func ParseMetricSeries(payload api.Payload) (metrics []*MetricSeries, err error)
 	return metrics, err
 }
 
+//nolint:revive // TODO(APL) Fix revive linter
 type MetricAggregator struct {
 	Aggregator[*MetricSeries]
 }
 
+//nolint:revive // TODO(APL) Fix revive linter
 func NewMetricAggregator() MetricAggregator {
 	return MetricAggregator{
 		Aggregator: newAggregator(ParseMetricSeries),

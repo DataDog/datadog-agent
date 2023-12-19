@@ -9,7 +9,7 @@ build do
   license "GPL-2.0"
 
   # aliases for the pips
-  if windows?
+  if windows_target?
     pip2 = "#{windows_safe_path(python_2_embedded)}\\Scripts\\pip.exe"
     python2 = "#{windows_safe_path(python_2_embedded)}\\python.exe"
   else
@@ -27,7 +27,7 @@ build do
   # pin 2 dependencies of pylint:
   # - configparser: later versions (up to v3.7.1) are broken
   # - lazy-object-proxy 1.7.0 broken on python 2 https://github.com/ionelmc/python-lazy-object-proxy/issues/61
-  if windows?
+  if windows_target?
     command "#{python2} -m pip install configparser==3.5.0 lazy-object-proxy==1.6.0", :env => build_env
     command "#{python2} -m pip install pylint==#{version}", :env => build_env
   else

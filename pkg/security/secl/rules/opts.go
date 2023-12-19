@@ -90,7 +90,7 @@ func NewEvalOpts(eventTypeEnabled map[eval.EventType]bool) (*Opts, *eval.Opts) {
 
 	var evalOpts eval.Opts
 	evalOpts.
-		WithConstants(model.SECLConstants).
+		WithConstants(model.SECLConstants()).
 		WithLegacyFields(model.SECLLegacyFields).
 		WithVariables(model.SECLVariables)
 

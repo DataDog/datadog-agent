@@ -26,7 +26,8 @@
                     "enum": [
                         "bundled",
                         "file",
-                        "remote-config"
+                        "remote-config",
+                        "self-test"
                     ]
                 },
                 "name": {

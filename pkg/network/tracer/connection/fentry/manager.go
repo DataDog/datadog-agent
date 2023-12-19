@@ -5,19 +5,20 @@
 
 //go:build linux_bpf
 
+//nolint:revive // TODO(NET) Fix revive linter
 package fentry
 
 import (
 	"os"
 
-	manager "github.com/DataDog/ebpf-manager"
-
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
-func initManager(mgr *manager.Manager, config *config.Config, closedHandler *ebpf.PerfHandler) {
+func initManager(mgr *errtelemetry.Manager, closedHandler *ebpf.PerfHandler, cfg *config.Config) {
 	mgr.Maps = []*manager.Map{
 		{Name: probes.ConnMap},
 		{Name: probes.TCPStatsMap},
@@ -34,18 +35,19 @@ func initManager(mgr *manager.Manager, config *config.Config, closedHandler *ebp
 		{Name: probes.MapErrTelemetryMap},
 		{Name: probes.HelperErrTelemetryMap},
 	}
-	mgr.PerfMaps = []*manager.PerfMap{
-		{
-			Map: manager.Map{Name: probes.ConnCloseEventMap},
-			PerfMapOptions: manager.PerfMapOptions{
-				PerfRingBufferSize: 8 * os.Getpagesize(),
-				Watermark:          1,
-				RecordHandler:      closedHandler.RecordHandler,
-				LostHandler:        closedHandler.LostHandler,
-				RecordGetter:       closedHandler.RecordGetter,
-			},
+	pm := &manager.PerfMap{
+		Map: manager.Map{Name: probes.ConnCloseEventMap},
+		PerfMapOptions: manager.PerfMapOptions{
+			PerfRingBufferSize: 8 * os.Getpagesize(),
+			Watermark:          1,
+			RecordHandler:      closedHandler.RecordHandler,
+			LostHandler:        closedHandler.LostHandler,
+			RecordGetter:       closedHandler.RecordGetter,
+			TelemetryEnabled:   cfg.InternalTelemetryEnabled,
 		},
 	}
+	mgr.PerfMaps = []*manager.PerfMap{pm}
+	ebpf.ReportPerfMapTelemetry(pm)
 
 	for funcName := range programs {
 		p := &manager.Probe{

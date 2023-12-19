@@ -1,0 +1,7 @@
+---
+enhancements:
+- |
+    Agents are now built with Go ``1.20.10``.
+security:
+  - |
+    Fix ``CVE-2023-39325``

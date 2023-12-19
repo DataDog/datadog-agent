@@ -69,6 +69,17 @@ type ConnectionsAggregator struct {
 	Aggregator[*Connections]
 }
 
+// ForeachConnection will call the callback for each connection per hostname/netID and CollectorConnections payloads
+func (ca *ConnectionsAggregator) ForeachConnection(callback func(c *agentmodel.Connection, cc *agentmodel.CollectorConnections, hostname string)) {
+	for _, hostname := range ca.GetNames() {
+		for _, cc := range ca.GetPayloadsByName(hostname) {
+			for _, c := range cc.Connections {
+				callback(c, &cc.CollectorConnections, hostname)
+			}
+		}
+	}
+}
+
 // NewConnectionsAggregator create a new aggregator
 func NewConnectionsAggregator() ConnectionsAggregator {
 	return ConnectionsAggregator{

@@ -8,14 +8,22 @@ package metadata
 import (
 	"fmt"
 	"testing"
+	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+// mockTimeNow mocks time.Now
+var mockTimeNow = func() time.Time {
+	layout := "2006-01-02 15:04:05"
+	str := "2000-01-01 00:00:00"
+	t, _ := time.Parse(layout, str)
+	return t
+}
+
 func Test_batchPayloads(t *testing.T) {
-	collectTime := common.MockTimeNow()
+	collectTime := mockTimeNow()
 	deviceID := "123"
 	devices := []DeviceMetadata{
 		{ID: deviceID},

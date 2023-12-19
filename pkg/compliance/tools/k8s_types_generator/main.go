@@ -229,7 +229,7 @@ func main() {
 	}
 }
 
-func defaultedType(componentName string, conf *conf) *conf {
+func defaultedType(componentName string, conf *conf) *conf { //nolint:revive // TODO fix revive unused-parameter
 	if conf.flagName == "kubeconfig" || conf.flagName == "authentication-kubeconfig" {
 		conf.flagType = "kubeconfig"
 	} else if conf.flagType == "string" || conf.flagType == "stringArray" {

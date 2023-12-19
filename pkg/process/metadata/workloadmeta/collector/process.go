@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(PROC) Fix revive linter
 package collector
 
 import (
@@ -10,11 +11,11 @@ import (
 
 	"github.com/benbjohnson/clock"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	workloadmetaExtractor "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const collectorId = "local-process"
@@ -51,7 +52,8 @@ type Collector struct {
 	collectionClock clock.Clock
 }
 
-func (c *Collector) Start(ctx context.Context, store workloadmeta.Store) error {
+// Start will start the collector
+func (c *Collector) Start(ctx context.Context, store workloadmeta.Component) error {
 	err := c.grpcServer.Start()
 	if err != nil {
 		return err
@@ -61,7 +63,12 @@ func (c *Collector) Start(ctx context.Context, store workloadmeta.Store) error {
 		c.ddConfig.GetDuration("workloadmeta.local_process_collector.collection_interval"),
 	)
 
-	filter := workloadmeta.NewFilter([]workloadmeta.Kind{workloadmeta.KindContainer}, workloadmeta.SourceAll, workloadmeta.EventTypeAll)
+	filterParams := workloadmeta.FilterParams{
+		Kinds:     []workloadmeta.Kind{workloadmeta.KindContainer},
+		Source:    workloadmeta.SourceAll,
+		EventType: workloadmeta.EventTypeAll,
+	}
+	filter := workloadmeta.NewFilter(&filterParams)
 	containerEvt := store.Subscribe(collectorId, workloadmeta.NormalPriority, filter)
 
 	go c.run(ctx, store, containerEvt, collectionTicker)
@@ -69,7 +76,7 @@ func (c *Collector) Start(ctx context.Context, store workloadmeta.Store) error {
 	return nil
 }
 
-func (c *Collector) run(ctx context.Context, store workloadmeta.Store, containerEvt chan workloadmeta.EventBundle, collectionTicker *clock.Ticker) {
+func (c *Collector) run(ctx context.Context, store workloadmeta.Component, containerEvt chan workloadmeta.EventBundle, collectionTicker *clock.Ticker) {
 	defer c.grpcServer.Stop()
 	defer store.Unsubscribe(containerEvt)
 	defer collectionTicker.Stop()
@@ -92,11 +99,12 @@ func (c *Collector) run(ctx context.Context, store workloadmeta.Store, container
 	}
 }
 
-// Pull is unused at the moment used due to the short frequency in which it is called.
-// In the future, we should use it to poll for processes that have been collected and store them in workload-meta.
-
 func (c *Collector) handleContainerEvent(evt workloadmeta.EventBundle) {
-	defer close(evt.Ch)
+	defer func() {
+		if evt.Ch != nil {
+			close(evt.Ch)
+		}
+	}()
 
 	for _, evt := range evt.Events {
 		ent := evt.Entity.(*workloadmeta.Container)

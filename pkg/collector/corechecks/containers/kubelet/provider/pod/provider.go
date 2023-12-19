@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"golang.org/x/exp/slices"
-	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
@@ -29,31 +28,32 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var (
-	includeContainerStateReason = map[string][]string{
-		"waiting": {
-			"errimagepull",
-			"imagepullbackoff",
-			"crashloopbackoff",
-			"containercreating",
-			"createcontainererror",
-			"invalidimagename",
-		},
-		"terminated": {"oomkilled", "containercannotrun", "error"},
-	}
-)
+var includeContainerStateReason = map[string][]string{
+	"waiting": {
+		"errimagepull",
+		"imagepullbackoff",
+		"crashloopbackoff",
+		"containercreating",
+		"createcontainererror",
+		"invalidimagename",
+		"createcontainerconfigerror",
+	},
+	"terminated": {"oomkilled", "containercannotrun", "error"},
+}
 
 // Provider provides the metrics related to data collected from the `/pods` Kubelet endpoint
 type Provider struct {
-	filter *containers.Filter
-	config *common.KubeletConfig
+	filter   *containers.Filter
+	config   *common.KubeletConfig
+	podUtils *common.PodUtils
 }
 
 // NewProvider returns a new Provider
-func NewProvider(filter *containers.Filter, config *common.KubeletConfig) *Provider {
+func NewProvider(filter *containers.Filter, config *common.KubeletConfig, podUtils *common.PodUtils) *Provider {
 	return &Provider{
-		filter: filter,
-		config: config,
+		filter:   filter,
+		config:   config,
+		podUtils: podUtils,
 	}
 }
 
@@ -74,7 +74,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 	sender.Gauge(common.KubeletMetricsPrefix+"pods.expired", float64(pods.ExpiredCount), "", p.config.Tags)
 
 	for _, pod := range pods.Items {
-		//for _, container := range pod.Spec.Containers {
+		p.podUtils.PopulateForPod(pod)
 		for _, cStatus := range pod.Status.Containers {
 			if cStatus.ID == "" {
 				// no container ID means we could not find the matching container status for this container, which will make fetching tags difficult.
@@ -87,7 +87,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 			}
 
 			var container kubelet.ContainerSpec
-			//for _, status := range pod.Status.Containers {
+			// for _, status := range pod.Status.Containers {
 			for _, c := range pod.Spec.Containers {
 				if cStatus.Name == c.Name {
 					container = c
@@ -111,7 +111,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 	return nil
 }
 
-func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubelet.Pod, container *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerID string) {
+func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubelet.Pod, container *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerID string) { //nolint:revive // TODO fix revive unused-parameter
 	if pod.Status.Phase != "Running" && pod.Status.Phase != "Pending" {
 		return
 	}
@@ -123,18 +123,14 @@ func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubel
 	tags = utils.ConcatenateTags(tags, p.config.Tags)
 
 	for r, value := range container.Resources.Requests {
-		if v, err := resource.ParseQuantity(value); err == nil {
-			sender.Gauge(common.KubeletMetricsPrefix+r+".requests", v.AsApproximateFloat64(), "", tags)
-		}
+		sender.Gauge(common.KubeletMetricsPrefix+string(r)+".requests", value.AsApproximateFloat64(), "", tags)
 	}
 	for r, value := range container.Resources.Limits {
-		if v, err := resource.ParseQuantity(value); err == nil {
-			sender.Gauge(common.KubeletMetricsPrefix+r+".limits", v.AsApproximateFloat64(), "", tags)
-		}
+		sender.Gauge(common.KubeletMetricsPrefix+string(r)+".limits", value.AsApproximateFloat64(), "", tags)
 	}
 }
 
-func (p *Provider) generateContainerStatusMetrics(sender sender.Sender, pod *kubelet.Pod, container *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerID string) {
+func (p *Provider) generateContainerStatusMetrics(sender sender.Sender, pod *kubelet.Pod, container *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerID string) { //nolint:revive // TODO fix revive unused-parameter
 	if pod.Metadata.UID == "" || pod.Metadata.Name == "" {
 		return
 	}

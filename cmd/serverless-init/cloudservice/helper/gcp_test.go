@@ -25,19 +25,19 @@ func TestGetSingleMetadataMalformedUrl(t *testing.T) {
 	assert.Equal(t, "unknown", getSingleMetadata(&http.Client{}, string([]byte("\u007F"))))
 }
 
-func TestSingleMedataTimeout(t *testing.T) {
+func TestSingleMetadataTimeout(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(100 * time.Millisecond)
 		w.WriteHeader(200)
 	}))
 	defer ts.Close()
 	httpClient := &http.Client{
-		Timeout: 1 * time.Millisecond,
+		Timeout: 1 * time.Nanosecond,
 	}
 	assert.Equal(t, "unknown", getSingleMetadata(httpClient, ts.URL))
 }
 
-func TestSingleMedataOK(t *testing.T) {
+func TestSingleMetadataOK(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("1234"))
 	}))

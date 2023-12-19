@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: datadog/agent-buildimages-circleci-runner:v20878799-a2f77ae
+      - image: gcr.io/datadoghq/agent-circleci-runner:v24931692-a06d857b
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -100,7 +100,7 @@ jobs:
       - run:
           name: run unit tests
           no_output_timeout: 20m
-          command: inv -e test --skip-linters --rerun-fails=2 --python-runtimes 3 --coverage --race --profile --cpus 8
+          command: inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --race --profile --cpus 8
       - run:
           name: upload code coverage results
           # Never fail on coverage upload
@@ -134,6 +134,15 @@ jobs:
       - run:
           command: inv -e lint-teamassignment
           name: run PR check for team assignment labels
+
+  skip_qa:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run:
+          command: inv -e lint-skip-qa
+          name: run PR check for skip-qa labels
 
   milestone:
     <<: *job_template
@@ -208,8 +217,8 @@ jobs:
       - run:
           name: setting env vars for click
           command: |
-              echo 'export LC_ALL="C.UTF-8"' >> $BASH_ENV
-              echo 'export LANG="C.UTF-8"' >> $BASH_ENV
+            echo 'export LC_ALL="C.UTF-8"' >> $BASH_ENV
+            echo 'export LANG="C.UTF-8"' >> $BASH_ENV
       - run:
           name: lint python files
           command: inv -e lint-python
@@ -301,6 +310,13 @@ workflows:
           requires:
             - dependencies
       - team_label:
+          filters:
+            branches:
+              ignore:
+                - main
+          requires:
+            - dependencies
+      - skip_qa:
           filters:
             branches:
               ignore:

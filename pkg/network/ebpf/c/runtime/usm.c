@@ -17,6 +17,7 @@
 #include "protocols/http/http.h"
 #include "protocols/http2/decoding.h"
 #include "protocols/kafka/kafka-parsing.h"
+#include "protocols/sockfd-probes.h"
 #include "protocols/tls/java/erpc_dispatcher.h"
 #include "protocols/tls/java/erpc_handlers.h"
 #include "protocols/tls/go-tls-types.h"
@@ -58,6 +59,7 @@ int tracepoint__net__netif_receive_skb(struct pt_regs* ctx) {
     // because perf events can't be sent from socket filter programs
     http_batch_flush(ctx);
     http2_batch_flush(ctx);
+    terminated_http2_batch_flush(ctx);
     kafka_batch_flush(ctx);
     return 0;
 }

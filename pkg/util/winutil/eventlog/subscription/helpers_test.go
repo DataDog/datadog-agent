@@ -11,13 +11,13 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/test"
+	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
+	eventlog_test "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/test"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func ReadNumEvents(t testing.TB, ti eventlog_test.APITester, sub PullSubscription, numEvents uint) ([]*evtapi.EventRecord, error) {
+func ReadNumEvents(t testing.TB, ti eventlog_test.APITester, sub PullSubscription, numEvents uint) ([]*evtapi.EventRecord, error) { //nolint:revive // TODO fix revive unused-parameter
 	eventRecords := make([]*evtapi.EventRecord, 0)
 
 	var err error

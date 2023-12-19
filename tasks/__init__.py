@@ -10,19 +10,21 @@ from . import (
     cluster_agent,
     cluster_agent_cloudfoundry,
     components,
-    customaction,
+    cws_instrumentation,
     diff,
     docker_tasks,
     dogstatsd,
+    emacs,
     epforwarder,
+    fakeintake,
     github_tasks,
     kmt,
+    modules,
     msi,
     new_e2e_tests,
     package,
     pipeline,
     process_agent,
-    pylauncher,
     release,
     rtloader,
     security_agent,
@@ -48,11 +50,11 @@ from .go import (
     reset,
     tidy_all,
 )
-from .show_linters_issues import show_linters_issues
-from .test import (
+from .go_test import (
     codecov,
     download_tools,
     e2e_tests,
+    get_modified_packages,
     install_shellcheck,
     install_tools,
     integration_tests,
@@ -65,10 +67,13 @@ from .test import (
     lint_milestone,
     lint_python,
     lint_releasenote,
+    lint_skip_qa,
     lint_teamassignment,
+    send_unit_tests_stats,
     test,
 )
-from .update_go import update_go
+from .show_linters_issues import show_linters_issues
+from .update_go import go_version, update_go
 from .utils import generate_config
 from .windows_resources import build_messagetable
 
@@ -91,11 +96,13 @@ ns.add_task(reset)
 ns.add_task(lint_copyrights),
 ns.add_task(lint_teamassignment)
 ns.add_task(lint_releasenote)
+ns.add_task(lint_skip_qa)
 ns.add_task(lint_milestone)
 ns.add_task(lint_filenames)
 ns.add_task(lint_python)
 ns.add_task(lint_go)
 ns.add_task(show_linters_issues)
+ns.add_task(go_version)
 ns.add_task(update_go)
 ns.add_task(audit_tag_impact)
 ns.add_task(print_default_build_tags)
@@ -113,23 +120,26 @@ ns.add_task(junit_macos_repack)
 ns.add_task(fuzz)
 ns.add_task(go_fix)
 ns.add_task(build_messagetable)
+ns.add_task(modules.go_work)
+
+ns.add_task(get_modified_packages)
+ns.add_task(send_unit_tests_stats)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
 ns.add_collection(components)
-ns.add_collection(customaction)
 ns.add_collection(bench)
 ns.add_collection(trace_agent)
 ns.add_collection(docker_tasks, "docker")
 ns.add_collection(dogstatsd)
+ns.add_collection(emacs)
 ns.add_collection(epforwarder)
 ns.add_collection(msi)
 ns.add_collection(github_tasks, "github")
 ns.add_collection(package)
 ns.add_collection(pipeline)
-ns.add_collection(pylauncher)
 ns.add_collection(selinux)
 ns.add_collection(systray)
 ns.add_collection(release)
@@ -137,8 +147,10 @@ ns.add_collection(rtloader)
 ns.add_collection(system_probe)
 ns.add_collection(process_agent)
 ns.add_collection(security_agent)
+ns.add_collection(cws_instrumentation)
 ns.add_collection(vscode)
 ns.add_collection(new_e2e_tests)
+ns.add_collection(fakeintake)
 ns.add_collection(kmt)
 ns.add_collection(diff)
 ns.configure(

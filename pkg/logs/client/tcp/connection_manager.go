@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package tcp
 
 import (
@@ -107,7 +108,7 @@ func (cm *ConnectionManager) NewConnection(ctx context.Context) (net.Conn, error
 		}
 		log.Debugf("connected to %v", cm.address())
 
-		if cm.endpoint.UseSSL {
+		if cm.endpoint.GetUseSSL() {
 			sslConn := tls.Client(conn, &tls.Config{
 				ServerName: cm.endpoint.Host,
 			})

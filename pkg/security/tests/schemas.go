@@ -148,6 +148,12 @@ func (tm *testModule) validateSpanSchema(t *testing.T, event *model.Event) bool 
 }
 
 //nolint:deadcode,unused
+func (tm *testModule) validateUserSessionSchema(t *testing.T, event *model.Event) bool {
+	t.Helper()
+	return tm.validateEventSchema(t, event, "file:///schemas/user_session.schema.json")
+}
+
+//nolint:deadcode,unused
 func (tm *testModule) validateBPFSchema(t *testing.T, event *model.Event) bool {
 	t.Helper()
 	return tm.validateEventSchema(t, event, "file:///schemas/bpf.schema.json")
@@ -230,6 +236,19 @@ func validateRuleSetLoadedSchema(t *testing.T, event *events.CustomEvent) bool {
 	}
 
 	return validateStringSchema(t, string(eventJSON), "file:///schemas/ruleset_loaded.schema.json")
+}
+
+//nolint:deadcode,unused
+func validateHeartbeatSchema(t *testing.T, event *events.CustomEvent) bool {
+	t.Helper()
+
+	eventJSON, err := serializers.MarshalCustomEvent(event)
+	if err != nil {
+		t.Error(err)
+		return false
+	}
+
+	return validateStringSchema(t, string(eventJSON), "file:///schemas/heartbeat.schema.json")
 }
 
 //nolint:deadcode,unused
