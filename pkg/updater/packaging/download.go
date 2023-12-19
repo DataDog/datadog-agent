@@ -27,6 +27,11 @@ type Downloader struct {
 	client *http.Client
 }
 
+type RemotePackage struct {
+	URL    string
+	SHA256 []byte
+}
+
 // NewDownloader returns a new Downloader.
 func NewDownloader(client *http.Client) *Downloader {
 	return &Downloader{
@@ -37,13 +42,13 @@ func NewDownloader(client *http.Client) *Downloader {
 // Download downloads the package at the given URL in temporary directory,
 // verifies its SHA256 hash and extracts it to the given destination path.
 // It currently assumes the package is a tar.gz archive.
-func (d *Downloader) Download(ctx context.Context, url string, expectedSHA256 []byte, destinationPath string) error {
+func (d *Downloader) Download(ctx context.Context, pkg RemotePackage, destinationPath string) error {
 	tmpDir, err := os.MkdirTemp("", "")
 	if err != nil {
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pkg.URL, nil)
 	if err != nil {
 		return fmt.Errorf("could not create download request: %w", err)
 	}
@@ -65,8 +70,8 @@ func (d *Downloader) Download(ctx context.Context, url string, expectedSHA256 []
 		return fmt.Errorf("could not write archive file: %w", err)
 	}
 	sha256 := hashWriter.Sum(nil)
-	if !bytes.Equal(expectedSHA256, sha256) {
-		return fmt.Errorf("invalid hash for %s: expected %x, got %x", url, expectedSHA256, sha256)
+	if !bytes.Equal(pkg.SHA256, sha256) {
+		return fmt.Errorf("invalid hash for %s: expected %x, got %x", pkg.URL, pkg.SHA256, sha256)
 	}
 	err = archiver.Extract(archivePath, "", destinationPath)
 	if err != nil {

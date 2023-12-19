@@ -59,7 +59,8 @@ func TestDownload(t *testing.T) {
 	err := os.MkdirAll(downloadPath, 0755)
 	assert.NoError(t, err)
 
-	err = downloader.Download(context.Background(), fmt.Sprintf("%s/%s", server.URL, testAgentArchiveFileName), agentArchiveHash(t, dir), downloadPath)
+	pkg := RemotePackage{URL: fmt.Sprintf("%s/%s", server.URL, testAgentArchiveFileName), SHA256: agentArchiveHash(t, dir)}
+	err = downloader.Download(context.Background(), pkg, downloadPath)
 	assert.NoError(t, err)
 	assert.FileExists(t, path.Join(downloadPath, testAgentFileName))
 }
@@ -74,6 +75,7 @@ func TestDownloadCheckHash(t *testing.T) {
 	assert.NoError(t, err)
 
 	fakeHash := sha256.Sum256([]byte(`test`))
-	err = downloader.Download(context.Background(), fmt.Sprintf("%s/%s", server.URL, testAgentArchiveFileName), fakeHash[:], downloadPath)
+	pkg := RemotePackage{URL: fmt.Sprintf("%s/%s", server.URL, testAgentArchiveFileName), SHA256: fakeHash[:]}
+	err = downloader.Download(context.Background(), pkg, downloadPath)
 	assert.Error(t, err)
 }
