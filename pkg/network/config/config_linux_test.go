@@ -7,7 +7,6 @@ package config
 
 import (
 	"os"
-	"runtime"
 	"strconv"
 	"testing"
 
@@ -44,7 +43,7 @@ func TestEventStreamEnabledForSupportedKernelsLinux(t *testing.T) {
 		kv, err := ebpfkernel.NewKernelVersion()
 		kv4150 := kernel.VersionCode(4, 15, 0)
 		require.NoError(t, err)
-		if kv.Code >= kv4150 || kv.IsRH8Kernel() ||  kv.IsRH7Kernel(){
+		if kv.Code >= kv4150 || kv.IsRH8Kernel() || kv.IsRH7Kernel() {
 			t.Skip("This test should only be run on kernels < 4.15.0")
 		}
 		aconfig.ResetSystemProbeConfig(t)
