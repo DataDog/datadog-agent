@@ -8,21 +8,10 @@
 package system
 
 const (
+	// Arbitrary CPU count used for unit tests
 	defaultCPUCountUnitTest = 3
 )
 
 func init() {
 	hostCPUCount.Store(defaultCPUCountUnitTest)
-}
-
-// SetHostCPUCount sets the host CPU count to the given value.
-// (Unit tests only)
-func SetHostCPUCount(count int) {
-	hostCPUCount.Store(int64(count))
-}
-
-// ResetHostCPUCount resets the host CPU count to the default value.
-// (Unit tests only)
-func ResetHostCPUCount() {
-	SetHostCPUCount(defaultCPUCountUnitTest)
 }

@@ -34,7 +34,7 @@ func (f *fakeCPUCount) info(context.Context, bool) (int, error) {
 }
 
 func TestHostCPUCount(t *testing.T) {
-	defer ResetHostCPUCount()
+	defer hostCPUCount.Store(defaultCPUCountUnitTest)
 
 	f := newFakeCPUCount(10000, nil)
 	assert.Equal(t, f.count, HostCPUCount())
