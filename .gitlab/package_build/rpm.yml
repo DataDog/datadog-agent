@@ -35,7 +35,9 @@
 # build Agent package for rpm-x64
 agent_rpm-x64-a6:
   extends: .agent_build_common_rpm
-  rules: !reference [.on_a6]
+  rules:
+    - !reference [.on_omnibus_change]
+    - !reference [.on_a6]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -57,7 +59,9 @@ agent_rpm-x64-a6:
 # build Agent package for rpm-x64
 agent_rpm-x64-a7:
   extends: .agent_build_common_rpm
-  rules: !reference [.on_a7]
+  rules:
+    - !reference [.on_omnibus_change]
+    - !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -79,7 +83,9 @@ agent_rpm-x64-a7:
 # build Agent package for rpm-arm64
 agent_rpm-arm64-a6:
   extends: .agent_build_common_rpm
-  rules: !reference [.on_all_builds_a6]
+  rules:
+    - !reference [.on_omnibus_change]
+    - !reference [.on_all_builds_a6]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["arch:arm64"]
@@ -101,7 +107,9 @@ agent_rpm-arm64-a6:
 # build Agent package for rpm-arm64
 agent_rpm-arm64-a7:
   extends: .agent_build_common_rpm
-  rules: !reference [.on_all_builds_a7]
+  rules:
+    - !reference [.on_omnibus_change]
+    - !reference [.on_all_builds_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["arch:arm64"]
@@ -154,7 +162,9 @@ agent_rpm-arm64-a7:
 
 iot_agent_rpm-x64:
   extends: .iot_agent_build_common_rpm
-  rules: !reference [.on_a7]
+  rules:
+    - !reference [.on_omnibus_change]
+    - !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -162,7 +172,9 @@ iot_agent_rpm-x64:
 
 iot_agent_rpm-arm64:
   extends: .iot_agent_build_common_rpm
-  rules: !reference [.on_all_builds_a7]
+  rules:
+    - !reference [.on_omnibus_change]
+    - !reference [.on_all_builds_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["arch:arm64"]
@@ -170,7 +182,9 @@ iot_agent_rpm-arm64:
 
 iot_agent_rpm-armhf:
   extends: .iot_agent_build_common_rpm
-  rules: !reference [.on_all_builds_a7]
+  rules:
+    - !reference [.on_omnibus_change]
+    - !reference [.on_all_builds_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_armhf$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   # Run with platform:arm64 since no platform:armhf exists and arm64 should be backwards compatible
@@ -181,7 +195,9 @@ iot_agent_rpm-armhf:
     - export LD_PRELOAD="/usr/local/lib/libfakearmv7l.so"
 
 dogstatsd_rpm-x64:
-  rules: !reference [.on_a7]
+  rules:
+    - !reference [.on_omnibus_change]
+    - !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]

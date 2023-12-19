@@ -38,7 +38,9 @@
 # build Agent package for suse-x64
 agent_suse-x64-a6:
   extends: .agent_build_common_suse_rpm
-  rules: !reference [.on_a6]
+  rules:
+    - !reference [.on_omnibus_change]
+    - !reference [.on_a6]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -60,7 +62,9 @@ agent_suse-x64-a6:
 # build Agent package for suse-x64
 agent_suse-x64-a7:
   extends: .agent_build_common_suse_rpm
-  rules: !reference [.on_a7]
+  rules:
+    - !reference [.on_omnibus_change]
+    - !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -83,7 +87,9 @@ agent_suse-x64-a7:
 # This is a bit hackish and mostly mimics the CentOS7/arm64 build
 agent_suse-arm64-a7:
   extends: .agent_build_common_suse_rpm
-  rules: !reference [.on_all_builds_a7]
+  rules:
+    - !reference [.on_omnibus_change]
+    - !reference [.on_all_builds_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["arch:arm64"]
@@ -104,7 +110,9 @@ agent_suse-arm64-a7:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
 iot_agent_suse-x64:
-  rules: !reference [.on_a7]
+  rules:
+    - !reference [.on_omnibus_change]
+    - !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -140,7 +148,9 @@ iot_agent_suse-x64:
       - $OMNIBUS_PACKAGE_DIR_SUSE
 
 dogstatsd_suse-x64:
-  rules: !reference [.on_a7]
+  rules:
+    - !reference [.on_omnibus_change]
+    - !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
