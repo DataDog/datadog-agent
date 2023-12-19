@@ -19,9 +19,6 @@ struct trace_event_raw_bpf_trace_printk___x {};
 #define BPF_PRINTK_ADDS_NEWLINE 0
 #endif
 
-#undef DEBUG
-#define DEBUG 1
-
 /*
  * Macro to output debug logs to /sys/kernel/debug/tracing/trace_pipe
  *
