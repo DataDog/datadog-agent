@@ -441,7 +441,7 @@ func startAgent(
 	}
 
 	// init settings that can be changed at runtime
-	if err := initRuntimeSettings(serverDebug, invAgent); err != nil {
+	if err := initRuntimeSettings(serverDebug); err != nil {
 		log.Warnf("Can't initiliaze the runtime settings: %v", err)
 	}
 

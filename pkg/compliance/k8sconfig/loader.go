@@ -28,7 +28,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const version = "202305"
+const version = "202312"
 
 const (
 	k8sManifestsDir   = "/etc/kubernetes/manifests"
@@ -78,13 +78,6 @@ func (l *loader) load(ctx context.Context, loadProcesses procsLoader) (string, *
 	node.Manifests.KubeScheduler = l.loadConfigFileMeta(filepath.Join(k8sManifestsDir, "kube-scheduler.yaml"))
 	node.Manifests.Etcd = l.loadConfigFileMeta(filepath.Join(k8sManifestsDir, "etcd.yaml"))
 
-	if eksMeta := l.loadConfigFileMeta("/etc/eks/release"); eksMeta != nil {
-		node.ManagedEnvironment = &K8sManagedEnvConfig{
-			Name:     "eks",
-			Metadata: eksMeta.Content,
-		}
-	}
-
 	for _, proc := range loadProcesses(ctx) {
 		switch proc.name {
 		case "etcd":
@@ -97,6 +90,7 @@ func (l *loader) load(ctx context.Context, loadProcesses procsLoader) (string, *
 			node.Components.KubeScheduler = l.newK8sKubeSchedulerConfig(proc.flags)
 		case "kubelet":
 			node.Components.Kubelet = l.newK8sKubeletConfig(proc.flags)
+			node.ManagedEnvironment = l.detectManagedEnvironment(proc.flags)
 		case "kube-proxy":
 			node.Components.KubeProxy = l.newK8sKubeProxyConfig(proc.flags)
 		}
@@ -107,11 +101,52 @@ func (l *loader) load(ctx context.Context, loadProcesses procsLoader) (string, *
 	}
 
 	resourceType := "kubernetes_worker_node"
-	if node.Components.KubeApiserver != nil {
+	if managedEnv := node.ManagedEnvironment; managedEnv != nil {
+		switch managedEnv.Name {
+		case "eks":
+			resourceType = "aws_eks_worker_node"
+		case "gke":
+			resourceType = "gcp_gke_worker_node"
+		case "aks":
+			resourceType = "azure_aks_worker_node"
+		}
+	} else if node.Components.KubeApiserver != nil ||
+		node.Components.Etcd != nil ||
+		node.Components.KubeControllerManager != nil ||
+		node.Components.KubeScheduler != nil {
 		resourceType = "kubernetes_master_node"
 	}
 
 	return resourceType, &node
+}
+
+func (l *loader) detectManagedEnvironment(flags map[string]string) *K8sManagedEnvConfig {
+	nodeLabels, ok := flags["--node-labels"]
+	if ok {
+		for _, label := range strings.Split(nodeLabels, ",") {
+			label = strings.TrimSpace(label)
+			switch {
+			case strings.HasPrefix(label, "cloud.google.com/gke"):
+				return &K8sManagedEnvConfig{
+					Name: "gke",
+				}
+			case strings.HasPrefix(label, "eks.amazonaws.com/"):
+				env := &K8sManagedEnvConfig{
+					Name: "eks",
+				}
+				eksMeta := l.loadConfigFileMeta("/etc/eks/release")
+				if eksMeta != nil {
+					env.Metadata = eksMeta.Content
+				}
+				return env
+			case strings.HasPrefix(label, "kubernetes.azure.com/"):
+				return &K8sManagedEnvConfig{
+					Name: "aks",
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func (l *loader) loadMeta(name string, loadContent bool) (string, os.FileInfo, []byte, bool) {
@@ -131,6 +166,7 @@ func (l *loader) loadMeta(name string, loadContent bool) (string, os.FileInfo, [
 		if err != nil {
 			l.pushError(err)
 		} else {
+			defer f.Close()
 			b, err = io.ReadAll(io.LimitReader(f, maxSize))
 			if err != nil {
 				l.pushError(err)

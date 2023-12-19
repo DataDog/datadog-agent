@@ -1010,6 +1010,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_checks.rebalance_min_percentage_improvement", 10) // Experimental. Subject to change. Rebalance only if the distribution found improves the current one by this.
 	config.BindEnvAndSetDefault("cluster_checks.clc_runners_port", 5005)
 	config.BindEnvAndSetDefault("cluster_checks.exclude_checks", []string{})
+	config.BindEnvAndSetDefault("cluster_checks.exclude_checks_from_dispatching", []string{})
 
 	// Cluster check runner
 	config.BindEnvAndSetDefault("clc_runner_enabled", false)
