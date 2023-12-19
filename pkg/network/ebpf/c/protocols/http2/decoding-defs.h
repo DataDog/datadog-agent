@@ -13,10 +13,10 @@
 #define HTTP2_MAX_FRAMES_FOR_EOS_PARSER (HTTP2_MAX_FRAMES_FOR_EOS_PARSER_PER_TAIL_CALL * HTTP2_MAX_TAIL_CALLS_FOR_EOS_PARSER)
 
 // Represents the maximum number of frames we'll process in a single tail call in `handle_headers_frames` program.
-#define HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL 20
+#define HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL 18
 // Represents the maximum number of tail calls to process headers frames.
-// Currently we have up to 120 frames in a packet, thus 20 frames per tail call is enough.
-#define HTTP2_MAX_TAIL_CALLS_FOR_HEADERS_PARSER 6
+// Currently we have up to 120 frames in a packet, thus 7 (7*18 = 126) tail calls is enough.
+#define HTTP2_MAX_TAIL_CALLS_FOR_HEADERS_PARSER 7
 #define HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER (HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL * HTTP2_MAX_TAIL_CALLS_FOR_HEADERS_PARSER)
 // Maximum number of frames to be processed in a single TCP packet. That's also the number of tail calls we'll have.
 // NOTE: we may need to revisit this const if we need to capture more connections.
