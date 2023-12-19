@@ -21,11 +21,13 @@ type SHICore struct {
 	CommandArgs    []string
 }
 
+// ObfuscatedSlice is a slice of a string representing an obfuscated command
 type ObfuscatedSlice struct {
 	start int
 	end   int
 }
 
+// ErrCommandExecParse is returned when the command failed to be parsed
 var (
 	ErrCommandExecParse = fmt.Errorf("failed to parse command")
 )
@@ -38,6 +40,7 @@ var (
 	processDenyList = []string{"md5"}
 )
 
+// NewSHICore creates a context for the command
 func NewSHICore(cmd string, isCmdExec bool) (SHICore, error) {
 	commandStr := cmd
 	shellCommand, spawnShell := false, false
@@ -576,10 +579,11 @@ func findShellCommand(commandArgs []string) int {
 			} else {
 				if argMayWaitForArg {
 					argMayWaitForArg = false
-				} else {
-					// Not an injected shell command via -c
-					return -1
+					continue
 				}
+
+				// Not an injected shell command via -c
+				return -1
 			}
 		}
 	}

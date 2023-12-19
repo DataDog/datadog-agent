@@ -10,8 +10,10 @@ import (
 	"strings"
 )
 
+// ShellTokenKind is a type of shell token.
 type ShellTokenKind int
 
+// ShellTokenKind values
 const (
 	Executable ShellTokenKind = iota
 	Field
@@ -29,6 +31,7 @@ const (
 	ParentheseClose
 )
 
+// Shared regex patterns
 var (
 	IFS         = " \n\r\t"
 	expressions = map[string]*regexp.Regexp{
@@ -49,6 +52,7 @@ var (
 	} // Regex patterns
 )
 
+// ShellToken is a token of a shell command
 type ShellToken struct {
 	kind  ShellTokenKind
 	val   string
@@ -56,6 +60,7 @@ type ShellToken struct {
 	end   int
 }
 
+// State represents the current selected token of the scanner
 type State struct {
 	current ShellTokenKind
 }
@@ -80,7 +85,7 @@ func scanUntil(s *ShellScanner, pattern *regexp.Regexp) *string {
 
 func nextToken(scanner *ShellScanner, state struct{ current ShellTokenKind }) *ShellToken {
 	pos := scanner.Index()
-	var token *Match
+	var token *match
 
 	if state.current != DoubleQuote && state.current != SingleQuote {
 		if token = scanner.Scan(expressions["control"]); token != nil {
@@ -274,6 +279,8 @@ func getClosingParenthesisIndex(str string, start int) int {
 
 // changeStates changes tokens kind based on their context and state
 // remove whitespaces and set executable tokens
+//
+//revive:disable-line:empty-block
 func changeStates(ret []ShellToken) []ShellToken {
 	var withoutWhitespaces []ShellToken
 	stateList := []ShellTokenKind{VariableDefinition}
@@ -353,6 +360,8 @@ func changeStates(ret []ShellToken) []ShellToken {
 
 	return withoutWhitespaces
 }
+
+//revive:enable-line:empty-block
 
 func tokenizeShell(cmd string) []ShellToken {
 	state := State{current: 0}
