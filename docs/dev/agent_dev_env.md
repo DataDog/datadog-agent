@@ -1,5 +1,8 @@
 # Development Environments
 
+## Windows
+To build the agent on Windows, see [datadog-agent-buildimages](https://github.com/DataDog/datadog-agent-buildimages/tree/main/windows).
+
 ## Linux and MacOS
 
 ### Python
@@ -29,15 +32,6 @@ sudo apt-get install python3.9-dev
 ```
 
 On Windows, install Python 2.7 and/or 3.9 via the [official installer](https://www.python.org/downloads/).
-
-#### Additional Windows Tools
-You will also need the [Visual Studio for Python installer](https://visualstudio.microsoft.com/fr/vs/features/python/).
-
-Download the [gcc toolchain](http://win-builds.org/).
-- From the graphical package manager, select and install the needed libraries, leave the default (select all) if you're unsure.
-- Make sure to select `x86_64`.
-- Add installation folder to the `%PATH%`.
-
 
 #### Python Dependencies
 
