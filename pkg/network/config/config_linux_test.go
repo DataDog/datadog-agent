@@ -7,7 +7,6 @@ package config
 
 import (
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -33,13 +32,4 @@ func TestDisableRootNetNamespace(t *testing.T) {
 	require.NoError(t, err)
 	defer ns.Close()
 	require.True(t, ns.Equal(rootNs))
-}
-
-func newSystemProbeConfig(t *testing.T) {
-	originalConfig := aconfig.SystemProbe
-	t.Cleanup(func() {
-		aconfig.SystemProbe = originalConfig
-	})
-	aconfig.SystemProbe = aconfig.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
-	aconfig.InitSystemProbeConfig(aconfig.SystemProbe)
 }
