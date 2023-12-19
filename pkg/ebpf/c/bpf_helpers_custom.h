@@ -3,13 +3,23 @@
 
 #include "bpf_cross_compile.h"
 
-struct trace_event_raw_bpf_trace_printk___x {};
-
+// If we can, try to move the definition of the format string off
+// the stack and into the read-only section of the binary.
 #ifdef BPF_NO_GLOBAL_DATA
 #define BPF_PRINTK_FMT_MOD
 #else
 #define BPF_PRINTK_FMT_MOD static const
 #endif
+
+/*
+ * The existence of this tracepoint is used to detect if the bpf_trace_printk
+ * function adds a newline to the output or not (added in
+ * https://github.com/torvalds/linux/commit/ac5a72ea5c898, went upstream with 5.9)
+ *
+ * We define our own struct definition if our vmlinux.h is outdated.
+ * BPF CO-RE ignores the ___ and everything after it
+ */
+struct trace_event_raw_bpf_trace_printk___x {};
 
 #ifdef COMPILE_CORE
 #define BPF_PRINTK_ADDS_NEWLINE bpf_core_type_exists(struct trace_event_raw_bpf_trace_printk___x)
@@ -21,11 +31,6 @@ struct trace_event_raw_bpf_trace_printk___x {};
 
 /*
  * Macro to output debug logs to /sys/kernel/debug/tracing/trace_pipe
- *
- * Some sources regarding the feature detection:
- * -·In https://github.com/torvalds/linux/commit/ac5a72ea5c898, kernel tracepoint
- *   bpf_trace_printk is added at the same time that bpf_trace_printk starts adding
- *   newlines by itself. Use that for transparent newline detection.
  */
 #ifdef DEBUG
 #define log_debug(fmt, ...)                                            \
