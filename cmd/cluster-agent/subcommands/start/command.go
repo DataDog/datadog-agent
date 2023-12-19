@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/custommetrics"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -46,9 +47,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/remote"
+	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
-	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
+	rcservice "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -87,20 +88,20 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    logimpl.ForDaemon(command.LoggerName, "log_file", path.DefaultDCALogFile),
 				}),
-				core.Bundle,
-				forwarder.Bundle,
+				core.Bundle(),
+				forwarder.Bundle(),
 				fx.Provide(func(config config.Component, log log.Component) defaultforwarder.Params {
 					params := defaultforwarder.NewParamsWithResolvers(config, log)
 					params.Options.DisableAPIKeyChecking = true
 					return params
 				}),
-				demultiplexer.Module,
-				orchestratorForwarderImpl.Module,
+				demultiplexerimpl.Module(),
+				orchestratorForwarderImpl.Module(),
 				fx.Supply(orchestratorForwarderImpl.NewDefaultParams()),
-				fx.Provide(func() demultiplexer.Params {
+				fx.Provide(func() demultiplexerimpl.Params {
 					opts := aggregator.DefaultAgentDemultiplexerOptions()
 					opts.UseEventPlatformForwarder = false
-					return demultiplexer.Params{Options: opts}
+					return demultiplexerimpl.Params{Options: opts}
 				}),
 				// setup workloadmeta
 				collectors.GetCatalog(),
@@ -109,7 +110,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					AgentType:  workloadmeta.ClusterAgent,
 				}), // TODO(components): check what this must be for cluster-agent-cloudfoundry
 				fx.Supply(context.Background()),
-				workloadmeta.Module,
+				workloadmeta.Module(),
 			)
 		},
 	}
@@ -172,15 +173,20 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 	}
 
 	// Initialize remote configuration
-	var rcClient *remote.Client
+	var rcClient *rcclient.Client
+	var rcService *rcservice.Service
 	if pkgconfig.IsRemoteConfigEnabled(pkgconfig.Datadog) {
 		var err error
-		rcClient, err = initializeRemoteConfig(mainCtx)
+		rcClient, rcService, err = initializeRemoteConfig(mainCtx)
 		if err != nil {
 			log.Errorf("Failed to start remote-configuration: %v", err)
 		} else {
+			rcService.Start(mainCtx)
 			rcClient.Start()
-			defer rcClient.Close()
+			defer func() {
+				_ = rcService.Stop()
+				rcClient.Close()
+			}()
 		}
 	}
 
@@ -443,18 +449,35 @@ func setupClusterCheck(ctx context.Context) (*clusterchecks.Handler, error) {
 	return handler, nil
 }
 
-func initializeRemoteConfig(ctx context.Context) (*remote.Client, error) {
-	configService, err := remoteconfig.NewService()
+func initializeRemoteConfig(ctx context.Context) (*rcclient.Client, *rcservice.Service, error) {
+	clusterName := ""
+	hname, err := hostname.Get(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("unable to create remote-config service: %w", err)
+		pkglog.Warnf("Error while getting hostname, needed for retrieving cluster-name: cluster-name won't be set for remote-config")
+	} else {
+		clusterName = clustername.GetClusterName(context.TODO(), hname)
 	}
 
-	configService.Start(ctx)
-
-	rcClient, err := remote.NewClient("cluster-agent", configService, version.AgentVersion, []data.Product{data.ProductAPMTracing}, time.Second*5)
+	clusterID, err := clustername.GetClusterID()
 	if err != nil {
-		return nil, fmt.Errorf("unable to create local remote-config client: %w", err)
+		pkglog.Warnf("Error retrieving cluster ID: cluster-id won't be set for remote-config")
 	}
 
-	return rcClient, nil
+	rcService, err := common.NewRemoteConfigService(hname)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	rcClient, err := rcclient.NewClient(rcService,
+		rcclient.WithAgent("cluster-agent", version.AgentVersion),
+		rcclient.WithCluster(clusterName, clusterID),
+		rcclient.WithProducts([]data.Product{data.ProductAPMTracing}),
+		rcclient.WithPollInterval(5*time.Second),
+		rcclient.WithDirectorRootOverride(pkgconfig.Datadog.GetString("remote_configuration.director_root")),
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to create local remote-config client: %w", err)
+	}
+
+	return rcClient, rcService, nil
 }

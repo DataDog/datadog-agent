@@ -41,37 +41,34 @@ var ErrSysprobeUnsupported = errors.New("system-probe unsupported")
 const inactivityLogDuration = 10 * time.Minute
 const inactivityRestartDuration = 20 * time.Minute
 
-// NetworkTracer is a factory for NPM's tracer
-var NetworkTracer = module.Factory{
-	Name:             config.NetworkTracerModule,
-	ConfigNamespaces: []string{"network_config", "service_monitoring_config", "data_streams_config"},
-	Fn: func(cfg *config.Config) (module.Module, error) {
-		ncfg := networkconfig.New()
+var networkTracerModuleConfigNamespaces = []string{"network_config", "service_monitoring_config", "data_streams_config"}
 
-		// Checking whether the current OS + kernel version is supported by the tracer
-		if supported, err := tracer.IsTracerSupportedByOS(ncfg.ExcludedBPFLinuxVersions); !supported {
-			return nil, fmt.Errorf("%w: %s", ErrSysprobeUnsupported, err)
-		}
+func createNetworkTracerModule(cfg *config.Config) (module.Module, error) {
+	ncfg := networkconfig.New()
 
-		if ncfg.NPMEnabled {
-			log.Info("enabling network performance monitoring (NPM)")
-		}
-		if ncfg.ServiceMonitoringEnabled {
-			log.Info("enabling universal service monitoring (USM)")
-		}
-		if ncfg.DataStreamsEnabled {
-			log.Info("enabling data streams monitoring (DSM)")
-		}
+	// Checking whether the current OS + kernel version is supported by the tracer
+	if supported, err := tracer.IsTracerSupportedByOS(ncfg.ExcludedBPFLinuxVersions); !supported {
+		return nil, fmt.Errorf("%w: %s", ErrSysprobeUnsupported, err)
+	}
 
-		t, err := tracer.NewTracer(ncfg)
+	if ncfg.NPMEnabled {
+		log.Info("enabling network performance monitoring (NPM)")
+	}
+	if ncfg.ServiceMonitoringEnabled {
+		log.Info("enabling universal service monitoring (USM)")
+	}
+	if ncfg.DataStreamsEnabled {
+		log.Info("enabling data streams monitoring (DSM)")
+	}
 
-		done := make(chan struct{})
-		if err == nil {
-			startTelemetryReporter(cfg, done)
-		}
+	t, err := tracer.NewTracer(ncfg)
 
-		return &networkTracer{tracer: t, done: done}, err
-	},
+	done := make(chan struct{})
+	if err == nil {
+		startTelemetryReporter(cfg, done)
+	}
+
+	return &networkTracer{tracer: t, done: done}, err
 }
 
 var _ module.Module = &networkTracer{}

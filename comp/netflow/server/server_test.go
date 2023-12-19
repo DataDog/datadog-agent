@@ -19,7 +19,7 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
@@ -63,14 +63,14 @@ func replaceWithDummyFlowProcessor(server *Server) *dummyFlowProcessor {
 
 // testOptions is an fx collection of common dependencies for all tests
 var testOptions = fx.Options(
-	Module,
-	nfconfig.MockModule,
-	forwarderimpl.MockModule,
-	hostnameimpl.MockModule,
-	logimpl.MockModule,
-	demultiplexer.MockModule,
-	defaultforwarder.MockModule,
-	config.MockModule,
+	Module(),
+	nfconfig.MockModule(),
+	forwarderimpl.MockModule(),
+	hostnameimpl.MockModule(),
+	logimpl.MockModule(),
+	demultiplexerimpl.MockModule(),
+	defaultforwarder.MockModule(),
+	config.MockModule(),
 	fx.Invoke(func(lc fx.Lifecycle, c Component) {
 		// Set the internal flush frequency to a small number so tests don't take forever
 		c.(*Server).FlowAgg.FlushFlowsToSendInterval = 100 * time.Millisecond

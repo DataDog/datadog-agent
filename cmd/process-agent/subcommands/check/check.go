@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
-	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	processComponent "github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/types"
@@ -93,7 +93,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 			return fxutil.OneShot(runCheckCmd,
 				fx.Supply(cliParams, bundleParams),
-				core.Bundle,
+				core.Bundle(),
 				// Provide the corresponding workloadmeta Params to configure the catalog
 				collectors.GetCatalog(),
 				fx.Provide(func(config config.Component) workloadmeta.Params {
@@ -108,7 +108,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					return workloadmeta.Params{AgentType: catalog}
 				}),
 
-				processComponent.Bundle,
+				processComponent.Bundle(),
 			)
 		},
 		SilenceUsage: true,

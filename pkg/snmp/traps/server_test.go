@@ -25,7 +25,7 @@ func TestStartFailure(t *testing.T) {
 	/*
 		Start two servers with the same config to trigger an "address already in use" error.
 	*/
-	logger := fxutil.Test[log.Component](t, logimpl.MockModule)
+	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
 
 	freePort, err := ndmtestutils.GetFreePort()
 	require.NoError(t, err)

@@ -60,11 +60,11 @@ func TestHandleKubePod(t *testing.T) {
 	}
 
 	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		logimpl.MockModule,
-		config.MockModule,
+		logimpl.MockModule(),
+		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmeta.MockModule,
+		workloadmeta.MockModule(),
 	))
 
 	store.Set(&workloadmeta.Container{
@@ -469,10 +469,10 @@ func TestHandleECSTask(t *testing.T) {
 	taggerEntityID := fmt.Sprintf("container_id://%s", containerID)
 
 	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		logimpl.MockModule,
-		config.MockModule,
+		logimpl.MockModule(),
+		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule,
+		workloadmeta.MockModule(),
 	))
 
 	store.Set(&workloadmeta.Container{
@@ -1166,10 +1166,10 @@ func TestHandleDelete(t *testing.T) {
 	containerTaggerEntityID := fmt.Sprintf("container_id://%s", containerID)
 
 	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		logimpl.MockModule,
-		config.MockModule,
+		logimpl.MockModule(),
+		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule,
+		workloadmeta.MockModule(),
 	))
 
 	store.Set(&workloadmeta.Container{
@@ -1246,10 +1246,10 @@ func TestHandlePodWithDeletedContainer(t *testing.T) {
 
 	collector := &WorkloadMetaCollector{
 		store: fxutil.Test[workloadmeta.Mock](t, fx.Options(
-			logimpl.MockModule,
-			config.MockModule,
+			logimpl.MockModule(),
+			config.MockModule(),
 			fx.Supply(workloadmeta.NewParams()),
-			workloadmeta.MockModule,
+			workloadmeta.MockModule(),
 		)),
 		children: map[string]map[string]struct{}{
 			// Notice that here we set the container that belonged to the pod

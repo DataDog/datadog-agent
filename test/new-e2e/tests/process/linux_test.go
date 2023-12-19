@@ -23,7 +23,8 @@ type linuxTestSuite struct {
 func TestLinuxTestSuite(t *testing.T) {
 	e2e.Run(t, &linuxTestSuite{},
 		e2e.FakeIntakeStackDef(
-			e2e.WithAgentParams(agentparams.WithAgentConfig(processCheckConfigStr))))
+			e2e.WithAgentParams(agentparams.WithAgentConfig(processCheckConfigStr)),
+		))
 }
 
 func (s *linuxTestSuite) SetupSuite() {

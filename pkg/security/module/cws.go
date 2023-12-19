@@ -149,7 +149,7 @@ func (c *CWSConsumer) Start() error {
 
 // PostProbeStart is called after the event stream is started
 func (c *CWSConsumer) PostProbeStart() error {
-	if c.selfTester != nil {
+	if c.selfTester != nil && c.config.SelfTestEnabled {
 		c.wg.Add(1)
 		go func() {
 			defer c.wg.Done()
