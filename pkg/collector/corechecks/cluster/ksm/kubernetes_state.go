@@ -203,12 +203,6 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	k.BuildID(integrationConfigDigest, config, initConfig)
 	k.agentConfig = ddconfig.Datadog
 
-	// Retrieve cluster name
-	k.getClusterName()
-
-	// Initialize global tags and check tags
-	k.initTags()
-
 	err := k.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source)
 	if err != nil {
 		return err
@@ -218,6 +212,12 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	if err != nil {
 		return err
 	}
+
+	// Retrieve cluster name
+	k.getClusterName()
+
+	// Initialize global tags and check tags
+	k.initTags()
 
 	// Prepare label joins
 	for _, joinConf := range k.instance.LabelJoins {
@@ -471,6 +471,15 @@ func (k *KSMCheck) Run() error {
 		return err
 	}
 
+	// Normally the sender is kept for the lifetime of the check.
+	// But as `SetCheckCustomTags` is cheap and `k.instance.Tags` is immutable
+	// It's fast and safe to set it after we get the sender.
+	sender.SetCheckCustomTags(k.instance.Tags)
+
+	// Do not fallback to the Agent hostname if the hostname corresponding to the KSM metric is unknown
+	// Note that by design, some metrics cannot have hostnames (e.g kubernetes_state.pod.unschedulable)
+	sender.DisableDefaultHostname(true)
+
 	// If the check is configured as a cluster check, the cluster check worker needs to skip the leader election section.
 	// we also do a safety check for dedicated runners to avoid trying the leader election
 	if !k.isCLCRunner || !k.instance.LeaderSkip {
@@ -494,10 +503,6 @@ func (k *KSMCheck) Run() error {
 	}
 
 	defer sender.Commit()
-
-	// Do not fallback to the Agent hostname if the hostname corresponding to the KSM metric is unknown
-	// Note that by design, some metrics cannot have hostnames (e.g kubernetes_state.pod.unschedulable)
-	sender.DisableDefaultHostname(true)
 
 	labelJoiner := newLabelJoiner(k.instance.labelJoins)
 	for _, stores := range k.allStores {
@@ -777,10 +782,6 @@ func (k *KSMCheck) getClusterName() {
 // Sets the kube_cluster_name tag for all metrics.
 // Adds the global user-defined tags from the Agent config.
 func (k *KSMCheck) initTags() {
-	if k.instance.Tags == nil {
-		k.instance.Tags = []string{}
-	}
-
 	if k.clusterNameTagValue != "" {
 		k.instance.Tags = append(k.instance.Tags, "kube_cluster_name:"+k.clusterNameTagValue)
 	}
