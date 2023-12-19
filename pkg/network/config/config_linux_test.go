@@ -8,13 +8,18 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysprobeconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
+	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
+	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -36,6 +41,15 @@ func TestDisableRootNetNamespace(t *testing.T) {
 	require.NoError(t, err)
 	defer ns.Close()
 	require.True(t, ns.Equal(rootNs))
+}
+
+func newSystemProbeConfig(t *testing.T) {
+	originalConfig := aconfig.SystemProbe
+	t.Cleanup(func() {
+		aconfig.SystemProbe = originalConfig
+	})
+	aconfig.SystemProbe = aconfig.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
+	aconfig.InitSystemProbeConfig(aconfig.SystemProbe)
 }
 
 func TestEventStreamEnabledForSupportedKernelsLinux(t *testing.T) {
@@ -61,12 +75,24 @@ func TestEventStreamEnabledForSupportedKernelsLinux(t *testing.T) {
 		if kv.Code < kv4150 {
 			t.Skip("This test should only be run on kernels >= 4.15.0 or RH7 and 8")
 		}
-		aconfig.ResetSystemProbeConfig(t)
+		newSystemProbeConfig(t)
 		t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", strconv.FormatBool(true))
 
 		cfg := aconfig.SystemProbe
 		sysconfig.Adjust(cfg)
 
 		require.True(t, cfg.GetBool("event_monitoring_config.network_process.enabled"))
+
+		sysProbeConfig, err := sysprobeconfig.New("")
+		require.NoError(t, err)
+
+		emconfig := emconfig.NewConfig(sysProbeConfig)
+		secconfig, err := secconfig.NewConfig()
+		require.NoError(t, err)
+
+		opts := eventmonitor.Opts{}
+		evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, opts)
+		require.NoError(t, err)
+		require.NoError(t, evm.Init())
 	})
 }
