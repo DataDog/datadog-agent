@@ -520,6 +520,8 @@ func logLoadingErrors(msg string, m *multierror.Error) {
 			} else {
 				seclog.Warnf(msg, rErr.Error())
 			}
+		} else {
+			seclog.Errorf(msg, err.Error())
 		}
 	}
 }
