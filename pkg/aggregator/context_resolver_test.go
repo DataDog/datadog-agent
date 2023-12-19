@@ -95,9 +95,18 @@ func testTrackContext(t *testing.T, store *tags.Store) {
 	assert.Equal(t, uint64(1), contextResolver.countsByMtype[metrics.CountType])
 	assert.Equal(t, uint64(0), contextResolver.countsByMtype[metrics.RateType])
 
+	// If the struct changes it's ok to change these, but be careful if you notice that
+	// the size increases a lot.
 	assert.Equal(t, uint64(0x90), contextResolver.bytesByMtype[metrics.GaugeType])
 	assert.Equal(t, uint64(0x48), contextResolver.bytesByMtype[metrics.CountType])
 	assert.Equal(t, uint64(0), contextResolver.bytesByMtype[metrics.RateType])
+	assert.Equal(t, uint64(0x2b), contextResolver.dataBytesByMtype[metrics.GaugeType])
+	assert.Equal(t, uint64(0x26), contextResolver.dataBytesByMtype[metrics.CountType])
+	assert.Equal(t, uint64(0), contextResolver.dataBytesByMtype[metrics.RateType])
+	assert.Equal(t, 344, contextResolver.SizeInBytes())
+
+	// Make sure we can update the telemetry as well
+	contextResolver.updateMetrics(tlmContextResolverBytes, tlmDogstatsdContextsByMtype, tlmDogstatsdContextsBytesByMtype)
 
 	unknownContextKey := ckey.ContextKey(0xffffffffffffffff)
 	_, ok := contextResolver.contextsByKey[unknownContextKey]

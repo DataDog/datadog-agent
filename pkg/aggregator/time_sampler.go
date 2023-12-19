@@ -246,6 +246,9 @@ func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketche
 	s.sendTelemetry(timestamp, series)
 }
 
+// We do this here mostly because we want to avoid slow operations when we track/remove
+// contexts in the contextResolver. Keeping references to the metrics in the contextResolver
+// would probably be enough to avoid this.
 func (s *TimeSampler) updateMetrics() {
 	totalContexts := s.contextResolver.length()
 	aggregatorDogstatsdContexts.Set(int64(totalContexts))
@@ -253,16 +256,12 @@ func (s *TimeSampler) updateMetrics() {
 	tlmDogstatsdTimeBuckets.Set(float64(len(s.metricsByTimestamp)), s.idString)
 
 	countByMtype := s.contextResolver.countsByMtype()
-	bytesByMtype := s.contextResolver.bytesByMtype()
 	for i := 0; i < int(metrics.NumMetricTypes); i++ {
 		count := countByMtype[i]
-		bytes := bytesByMtype[i]
-		mtype := metrics.MetricType(i).String()
 
 		aggregatorDogstatsdContextsByMtype[i].Set(int64(count))
-		tlmDogstatsdContextsByMtype.Set(float64(count), s.idString, mtype)
-		tlmDogstatsdContextsBytesByMtype.Set(float64(bytes), s.idString, mtype)
 	}
+	s.contextResolver.updateMetrics(tlmContextResolverBytes, tlmDogstatsdContextsByMtype, tlmDogstatsdContextsBytesByMtype)
 }
 
 // flushContextMetrics flushes the contextMetrics inside contextMetricsFlusher, handles its errors,

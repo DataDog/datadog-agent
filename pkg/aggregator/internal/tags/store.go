@@ -173,8 +173,8 @@ func (tc *Store) updateTelemetry(s *entryStats) {
 	tlmTagsetMinTags.Set(float64(s.minSize), t.name)
 	tlmTagsetMaxTags.Set(float64(s.maxSize), t.name)
 	tlmTagsetSumTags.Set(float64(s.sumSize), t.name)
-	tlmTagsetSumTagBytes.Set(float64(s.sumSizeBytes), t.name)
-	tlmTagsetSumTagDataBytes.Set(float64(s.sumDataSizeBytes), t.name)
+	tlmTagsetSumTagBytes.Set(float64(s.sumSizeBytes), t.name, util.BytesKindStruct)
+	tlmTagsetSumTagBytes.Set(float64(s.sumDataSizeBytes), t.name, util.BytesKindData)
 }
 
 func newCounter(name string, help string, tags ...string) telemetry.Counter {
@@ -188,16 +188,15 @@ func newGauge(name string, help string, tags ...string) telemetry.Gauge {
 }
 
 var (
-	tlmHits                  = newCounter("hits_total", "number of times cache already contained the tags")
-	tlmMiss                  = newCounter("miss_total", "number of times cache did not contain the tags")
-	tlmEntries               = newGauge("entries", "number of entries in the tags cache")
-	tlmMaxEntries            = newGauge("max_entries", "maximum number of entries since last shrink")
-	tlmTagsetMinTags         = newGauge("tagset_min_tags", "minimum number of tags in a tagset")
-	tlmTagsetMaxTags         = newGauge("tagset_max_tags", "maximum number of tags in a tagset")
-	tlmTagsetSumTags         = newGauge("tagset_sum_tags", "total number of tags stored in all tagsets by the cache")
-	tlmTagsetRefsCnt         = newGauge("tagset_refs_count", "distribution of usage count of tagsets in the cache", "ge")
-	tlmTagsetSumTagBytes     = newGauge("tagset_sum_tags_bytes", "total number of bytes stored in all tagsets by the cache")
-	tlmTagsetSumTagDataBytes = newGauge("tagset_sum_tags_data_bytes", "total number of bytes stored in all tagsets by the cache")
+	tlmHits              = newCounter("hits_total", "number of times cache already contained the tags")
+	tlmMiss              = newCounter("miss_total", "number of times cache did not contain the tags")
+	tlmEntries           = newGauge("entries", "number of entries in the tags cache")
+	tlmMaxEntries        = newGauge("max_entries", "maximum number of entries since last shrink")
+	tlmTagsetMinTags     = newGauge("tagset_min_tags", "minimum number of tags in a tagset")
+	tlmTagsetMaxTags     = newGauge("tagset_max_tags", "maximum number of tags in a tagset")
+	tlmTagsetSumTags     = newGauge("tagset_sum_tags", "total number of tags stored in all tagsets by the cache")
+	tlmTagsetRefsCnt     = newGauge("tagset_refs_count", "distribution of usage count of tagsets in the cache", "ge")
+	tlmTagsetSumTagBytes = newGauge("tagset_sum_tags_bytes", "total number of bytes stored in all tagsets by the cache", util.BytesKindTelemetryKey)
 )
 
 type storeTelemetry struct {
@@ -241,7 +240,7 @@ func (s *entryStats) visit(e *Entry, r uint64) {
 		s.maxSize = n
 	}
 	s.sumSize += n
-	s.sumSizeBytes += e.SizeInBytes() + e.tags.SizeInBytes()
+	s.sumSizeBytes += e.SizeInBytes()
 	s.sumDataSizeBytes += e.DataSizeInBytes()
 	s.count++
 }

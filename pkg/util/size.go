@@ -26,6 +26,13 @@ const (
 	StringSize = unsafe.Sizeof("")
 	// StringSliceSize is the size of the string slice in bytes (not counting the size of the strings themselves).
 	StringSliceSize = unsafe.Sizeof([]string{})
+
+	// BytesKindTelemetryKey is the tag key used to identify the kind of telemetry value.
+	BytesKindTelemetryKey = "bytes_kind"
+	// BytesKindStruct is the tag value used to mark bytes as struct.
+	BytesKindStruct = "struct"
+	// BytesKindData is the tag value used to mark bytes as data. Those are likely to be interned strings.
+	BytesKindData = "data"
 )
 
 // SizeOfStringSlice returns the size of the string slice in bytes (not counting the size of the strings themselves).

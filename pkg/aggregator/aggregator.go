@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/sort"
@@ -141,15 +142,15 @@ var (
 	tlmDogstatsdContextsByMtype = telemetry.NewGauge("aggregator", "dogstatsd_contexts_by_mtype",
 		[]string{"shard", "metric_type"}, "Count the number of dogstatsd contexts in the aggregator, by metric type")
 	tlmDogstatsdContextsBytesByMtype = telemetry.NewGauge("aggregator", "dogstatsd_contexts_bytes_by_mtype",
-		[]string{"shard", "metric_type"}, "Estimated count of bytes taken by contexts in the aggregator, by metric type")
+		[]string{"shard", "metric_type", util.BytesKindTelemetryKey}, "Estimated count of bytes taken by contexts in the aggregator, by metric type")
 	tlmChecksContexts = telemetry.NewGauge("aggregator", "checks_contexts",
 		[]string{"shard"}, "Count the number of checks contexts in the check aggregator")
 	tlmChecksContextsByMtype = telemetry.NewGauge("aggregator", "checks_contexts_by_mtype",
 		[]string{"shard", "metric_type"}, "Count the number of checks contexts in the check aggregator, by metric type")
 	tlmChecksContextsBytesByMtype = telemetry.NewGauge("aggregator", "checks_contexts_bytes_by_mtype",
-		[]string{"shard", "metric_type"}, "Estimated count of bytes taken by contexts in the check aggregator, by metric type")
+		[]string{"shard", "metric_type", util.BytesKindTelemetryKey}, "Estimated count of bytes taken by contexts in the check aggregator, by metric type")
 	tlmContextResolverBytes = telemetry.NewGauge("aggregator", "context_resolver_bytes",
-		[]string{"shard"}, "Estimated count of bytes taken by the context resolver (excluding the contexts themselves)")
+		[]string{"shard", util.BytesKindTelemetryKey}, "Estimated count of bytes taken by the context resolver (excluding the contexts themselves)")
 
 	// Hold series to be added to aggregated series on each flush
 	recurrentSeries     metrics.Series

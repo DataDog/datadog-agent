@@ -220,6 +220,7 @@ func (cs *CheckSampler) releaseMetrics() {
 		tlmChecksContextsByMtype.Delete(idString, mtype)
 		tlmChecksContextsBytesByMtype.Delete(idString, mtype)
 	}
+	tlmContextResolverBytes.Delete(idString)
 }
 
 func (cs *CheckSampler) updateMetrics() {
@@ -230,23 +231,5 @@ func (cs *CheckSampler) updateMetrics() {
 	idString := string(cs.id)
 
 	tlmChecksContexts.Set(float64(totalContexts), idString)
-
-	countByMtype := cs.contextResolver.countsByMtype()
-	bytesByMtype := cs.contextResolver.bytesByMtype()
-	for i := 0; i < int(metrics.NumMetricTypes); i++ {
-		count := countByMtype[i]
-		bytes := bytesByMtype[i]
-		mtype := metrics.MetricType(i).String()
-
-		// To try to limit un-needed cardinality
-		gauge := tlmChecksContextsByMtype.WithValues(idString, mtype)
-		if gauge == nil && count == 0 {
-			continue
-		}
-		if gauge != nil && gauge.Get() == 0 && count == 0 {
-			continue
-		}
-		tlmChecksContextsByMtype.Set(float64(count), idString, mtype)
-		tlmChecksContextsBytesByMtype.Set(float64(bytes), idString, mtype)
-	}
+	cs.contextResolver.updateMetrics(tlmContextResolverBytes, tlmChecksContextsByMtype, tlmChecksContextsBytesByMtype)
 }
