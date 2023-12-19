@@ -221,6 +221,10 @@ func (ic *inventorychecksImpl) getPayload() marshaler.JSONMarshaler {
 					continue
 				}
 
+				tags := logSource.Config.Tags
+				if tags == nil {
+					tags = []string{}
+				}
 				logsMetadata[logSource.Name] = append(logsMetadata[logSource.Name], metadata{
 					"config": string(parsedJSON),
 					"state": map[string]string{
@@ -229,7 +233,7 @@ func (ic *inventorychecksImpl) getPayload() marshaler.JSONMarshaler {
 					},
 					"service": logSource.Config.Service,
 					"source":  logSource.Config.Source,
-					"tags":    logSource.Config.Tags,
+					"tags":    tags,
 				})
 			}
 		}
