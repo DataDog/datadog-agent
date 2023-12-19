@@ -703,6 +703,12 @@ int socket__http2_filter(struct __sk_buff *skb) {
     return 0;
 }
 
+// The program is responsible for parsing all headers frames. For each headers frame we parse the headers,
+// fill the dynamic table with the new interesting literal headers, and modifying the streams accordingly.
+// The program can be called multiple times (via "self call" of tail calls) in case we have more frames to parse
+// than the maximum number of frames we can process in a single tail call.
+// The program is being called after socket__http2_filter, and it is being called only if we have interesting frames.
+// The program calls socket__http2_eos_parser to finalize the streams and enqueue them to be sent to the user mode.
 SEC("socket/http2_headers_parser")
 int socket__http2_headers_parser(struct __sk_buff *skb) {
     dispatcher_arguments_t dispatcher_args_copy;
@@ -791,6 +797,14 @@ delete_iteration:
     return 0;
 }
 
+// The program is responsible for parsing all frames that mark the end of a stream.
+// We consider a frame as marking the end of a stream if it is either:
+//  - An headers or data frame with END_STREAM flag set.
+//  - An RST_STREAM frame.
+// The program is being called after socket__http2_headers_parser, and it finalizes the streams and enqueue them
+// to be sent to the user mode.
+// The program is ready to be called multiple times (via "self call" of tail calls) in case we have more frames to
+// process than the maximum number of frames we can process in a single tail call.
 SEC("socket/http2_eos_parser")
 int socket__http2_eos_parser(struct __sk_buff *skb) {
     dispatcher_arguments_t dispatcher_args_copy;
