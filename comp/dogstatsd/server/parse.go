@@ -54,6 +54,9 @@ type parser struct {
 
 	// readTimestamps is true if the parser has to read timestamps from messages.
 	readTimestamps bool
+
+	// Generic Metric Provider
+	provider provider.Provider
 }
 
 func newParser(cfg config.Reader, float64List *float64ListPool, workerNum int) *parser {
@@ -65,6 +68,7 @@ func newParser(cfg config.Reader, float64List *float64ListPool, workerNum int) *
 		readTimestamps:   readTimestamps,
 		float64List:      float64List,
 		dsdOriginEnabled: cfg.GetBool("dogstatsd_origin_detection_client"),
+		provider:         provider.GetProvider(),
 	}
 }
 
@@ -256,7 +260,7 @@ func (p *parser) extractContainerID(rawContainerIDField []byte) []byte {
 			return nil
 		}
 
-		containerID, err := provider.GetProvider().GetMetaCollector().GetContainerIDForInode(inodeField, cacheValidity)
+		containerID, err := p.provider.GetMetaCollector().GetContainerIDForInode(inodeField, cacheValidity)
 		if err != nil {
 			log.Debugf("Failed to get container ID, got %v", err)
 			return nil
