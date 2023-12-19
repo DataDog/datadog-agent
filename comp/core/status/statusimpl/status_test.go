@@ -345,6 +345,60 @@ func TestGetStatus(t *testing.T) {
 	}
 }
 
+func TestGetStatusDoNotRenderHeaderIfNoProviders(t *testing.T) {
+	nowFunc = func() time.Time { return time.Unix(1515151515, 0) }
+	startTimeProvider = time.Unix(1515151515, 0)
+	originalTZ := os.Getenv("TZ")
+	os.Setenv("TZ", "UTC")
+
+	defer func() {
+		nowFunc = time.Now
+		startTimeProvider = pkgConfig.StartTime
+		os.Setenv("TZ", originalTZ)
+	}()
+
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		config.MockModule(),
+		fx.Supply(
+			status.NewInformationProvider(mockProvider{
+				data: map[string]interface{}{
+					"foo": "bar",
+				},
+				name:    "a",
+				text:    " text from a\n",
+				section: "section",
+			}),
+		),
+	))
+
+	statusComponent, err := newStatus(deps)
+
+	assert.NoError(t, err)
+
+	bytesResult, err := statusComponent.GetStatus("text", false)
+
+	assert.NoError(t, err)
+
+	expectedOutput := fmt.Sprintf(`%s
+  Status date: 2018-01-05 11:25:15 UTC (1515151515000)
+  Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
+  Pid: %d
+  Go Version: %s
+  Python Version: n/a
+  Build arch: %s
+  Agent flavor: %s
+  Log Level: info
+
+=======
+Section
+=======
+ text from a
+
+`, testTextHeader, pid, goVersion, arch, agentFlavor)
+
+	assert.Equal(t, expectedOutput, string(bytesResult))
+}
+
 var expectedStatusTextErrorOutput = fmt.Sprintf(`%s
   Status date: 2018-01-05 11:25:15 UTC (1515151515000)
   Agent start: 2018-01-05 11:25:15 UTC (1515151515000)

@@ -62,13 +62,23 @@ func newStatus(deps dependencies) (status.Component, error) {
 	// The exception is the collector section. We want that to be the first section to be displayed
 	// We manually insert the collector section in the first place after sorting them alphabetically
 	sortedSectionNames := []string{}
+	collectorSectionPresent := false
+
 	for _, provider := range deps.Providers {
+		if provider.Section() == status.CollectorSection && !collectorSectionPresent {
+			collectorSectionPresent = true
+		}
+
 		if !present(provider.Section(), sortedSectionNames) && provider.Section() != status.CollectorSection {
 			sortedSectionNames = append(sortedSectionNames, provider.Section())
 		}
 	}
+
 	sort.Strings(sortedSectionNames)
-	sortedSectionNames = append([]string{status.CollectorSection}, sortedSectionNames...)
+
+	if collectorSectionPresent {
+		sortedSectionNames = append([]string{status.CollectorSection}, sortedSectionNames...)
+	}
 
 	// Providers of each section are sort alphabetically by name
 	sortedProvidersBySection := map[string][]status.Provider{}
