@@ -131,11 +131,14 @@ func (l *loader) detectManagedEnvironment(flags map[string]string) *K8sManagedEn
 					Name: "gke",
 				}
 			case strings.HasPrefix(label, "eks.amazonaws.com/"):
-				eksMeta := l.loadConfigFileMeta("/etc/eks/release")
-				return &K8sManagedEnvConfig{
-					Name:     "eks",
-					Metadata: eksMeta,
+				env := &K8sManagedEnvConfig{
+					Name: "eks",
 				}
+				eksMeta := l.loadConfigFileMeta("/etc/eks/release")
+				if eksMeta != nil {
+					env.Metadata = eksMeta.Content
+				}
+				return env
 			case strings.HasPrefix(label, "kubernetes.azure.com/"):
 				return &K8sManagedEnvConfig{
 					Name: "aks",
