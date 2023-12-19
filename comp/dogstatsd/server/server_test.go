@@ -40,7 +40,7 @@ type serverDeps struct {
 	Server        Component
 	Config        configComponent.Component
 	Log           log.Component
-	Demultiplexer demultiplexer.Component
+	Demultiplexer demultiplexer.FakeSamplerMock
 }
 
 func fulfillDeps(t testing.TB) serverDeps {
@@ -58,7 +58,7 @@ func fulfillDepsWithConfigOverrideAndFeatures(t testing.TB, overrides map[string
 		fx.Supply(Params{Serverless: false}),
 		replay.MockModule(),
 		Module(),
-		demultiplexerimpl.MockModule(),
+		demultiplexerimpl.FakeSamplerMockModule(),
 	))
 }
 
@@ -76,7 +76,7 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 		fx.Supply(Params{Serverless: false}),
 		replay.MockModule(),
 		Module(),
-		demultiplexerimpl.MockModule(),
+		demultiplexerimpl.FakeSamplerMockModule(),
 	))
 }
 
@@ -86,9 +86,7 @@ func TestNewServer(t *testing.T) {
 	cfg["dogstatsd_port"] = listeners.RandomPortName
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
-
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
+	demux := createDemultiplexer(t)
 	defer demux.Stop(false)
 	requireStart(t, deps.Server, demux)
 
@@ -102,8 +100,7 @@ func TestStopServer(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
+	demux := createDemultiplexer(t)
 	defer demux.Stop(false)
 	requireStart(t, deps.Server, demux)
 	deps.Server.Stop()
@@ -156,7 +153,7 @@ func TestUDPReceive(t *testing.T) {
 	cfg["dogstatsd_no_aggregation_pipeline"] = true // another test may have turned it off
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
-	demux := aggregator.NewTestAgentDemultiplexer(deps.Demultiplexer)
+	demux := deps.Demultiplexer
 	defer demux.Stop(false)
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
@@ -471,8 +468,7 @@ func TestHistToDist(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
+	demux := createDemultiplexer(t)
 	defer demux.Stop(false)
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
@@ -559,8 +555,7 @@ func TestE2EParsing(t *testing.T) {
 	cfg["dogstatsd_port"] = listeners.RandomPortName
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
+	demux := deps.Demultiplexer
 	requireStart(t, deps.Server, demux)
 
 	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
@@ -580,7 +575,7 @@ func TestE2EParsing(t *testing.T) {
 	cfg["dogstatsd_eol_required"] = []string{"udp"}
 
 	deps = fulfillDepsWithConfigOverride(t, cfg)
-	demux = aggregator.InitTestAgentDemultiplexerWithFlushInterval(deps.Log, 10*time.Millisecond)
+	demux = deps.Demultiplexer
 	requireStart(t, deps.Server, demux)
 
 	conn, err = net.Dial("udp", deps.Server.UDPLocalAddr())
@@ -604,8 +599,7 @@ func TestExtraTags(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverrideAndFeatures(t, cfg, []config.Feature{config.EKSFargate})
 
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
+	demux := createDemultiplexer(t)
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
 
@@ -634,8 +628,7 @@ func TestStaticTags(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverrideAndFeatures(t, cfg, []config.Feature{config.EKSFargate})
 
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, 10*time.Millisecond)
+	demux := createDemultiplexer(t)
 	requireStart(t, deps.Server, demux)
 	defer deps.Server.Stop()
 
@@ -1034,4 +1027,9 @@ func requireStart(t *testing.T, s Component, demux aggregator.Demultiplexer) {
 	require.NoError(t, err, "cannot start DSD")
 	assert.NotNil(t, s)
 	assert.True(t, s.IsRunning())
+}
+
+func createDemultiplexer(t *testing.T) demultiplexer.FakeSamplerMock {
+	return fxutil.Test[demultiplexer.FakeSamplerMock](t, logimpl.MockModule(),
+		demultiplexerimpl.FakeSamplerMockModule())
 }

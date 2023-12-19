@@ -28,7 +28,7 @@ import (
 // the time samples into a fake sampler, you can then use WaitForSamples() to retrieve
 // the samples that the TimeSamplers should have received.
 type TestAgentDemultiplexer struct {
-	DemultiplexerWithAggregator
+	*AgentDemultiplexer
 	aggregatedSamples []metrics.MetricSample
 	noAggSamples      []metrics.MetricSample
 	sync.Mutex
@@ -38,11 +38,11 @@ type TestAgentDemultiplexer struct {
 }
 
 // NewTestAgentDemultiplexer returns a new instance of TestAgentDemultiplexer.
-func NewTestAgentDemultiplexer(demultiplexer DemultiplexerWithAggregator) *TestAgentDemultiplexer {
+func NewTestAgentDemultiplexer(demultiplexer *AgentDemultiplexer) *TestAgentDemultiplexer {
 	return &TestAgentDemultiplexer{
-		DemultiplexerWithAggregator: demultiplexer,
-		events:                      make(chan []*event.Event),
-		serviceChecks:               make(chan []*servicecheck.ServiceCheck),
+		AgentDemultiplexer: demultiplexer,
+		events:             make(chan []*event.Event),
+		serviceChecks:      make(chan []*servicecheck.ServiceCheck),
 	}
 }
 
@@ -64,7 +64,7 @@ func (a *TestAgentDemultiplexer) AggregateSample(sample metrics.MetricSample) {
 
 // GetEventPlatformForwarder returns a event platform forwarder
 func (a *TestAgentDemultiplexer) GetEventPlatformForwarder() (epforwarder.EventPlatformForwarder, error) {
-	return a.DemultiplexerWithAggregator.GetEventPlatformForwarder()
+	return a.AgentDemultiplexer.GetEventPlatformForwarder()
 }
 
 // GetEventsAndServiceChecksChannels returneds underlying events and service checks channels.
@@ -145,7 +145,7 @@ func (a *TestAgentDemultiplexer) WaitEventPlatformEvents(eventType string, minEv
 	for {
 		select {
 		case <-ticker.C:
-			allEvents := a.DemultiplexerWithAggregator.Aggregator().GetEventPlatformEvents()
+			allEvents := a.AgentDemultiplexer.Aggregator().GetEventPlatformEvents()
 			savedEvents = append(savedEvents, allEvents[eventType]...)
 			// this case could always take priority on the timeout case, we have to make sure
 			// we've not timeout
@@ -186,6 +186,8 @@ func InitTestAgentDemultiplexerWithFlushInterval(log log.Component, flushInterva
 	opts.FlushInterval = flushInterval
 	opts.DontStartForwarders = true
 	opts.UseNoopEventPlatformForwarder = true
+	opts.EnableNoAggregationPipeline = true
+
 	return InitTestAgentDemultiplexerWithOpts(log, defaultforwarder.NewOptions(config.Datadog, log, nil), opts)
 }
 

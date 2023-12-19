@@ -52,7 +52,7 @@ func benchParsePackets(b *testing.B, rawPacket []byte) {
 	defer close(done)
 
 	b.RunParallel(func(pb *testing.PB) {
-		batcher := newBatcher(demux.DemultiplexerWithAggregator)
+		batcher := newBatcher(demux)
 		parser := newParser(deps.Config, newFloat64ListPool(), 1)
 		packet := packets.Packet{
 			Contents: rawPacket,
@@ -152,7 +152,7 @@ func benchmarkMapperControl(b *testing.B, yaml string) {
 	}()
 	defer close(done)
 
-	batcher := newBatcher(demux.DemultiplexerWithAggregator)
+	batcher := newBatcher(demux)
 	parser := newParser(deps.Config, newFloat64ListPool(), 1)
 
 	samples := make([]metrics.MetricSample, 0, 512)
