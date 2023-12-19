@@ -138,6 +138,7 @@ func TestGetPayload(t *testing.T) {
 		Identifier: "redisdb",
 		Service:    "awesome_cache",
 		Source:     "redis",
+		Tags:       []string{"env:prod"},
 	})
 	// Register an error
 	src.Status.Error(fmt.Errorf("No such file or directory"))
@@ -196,13 +197,16 @@ func TestGetPayload(t *testing.T) {
 	actualSource, found := p.LogsMetadata["redisdb"]
 	assert.True(t, found)
 	assert.Len(t, actualSource, 1)
-	expectedSourceConfig := `{"type":"file","path":"/var/log/redis/redis.log","service":"awesome_cache","source":"redis"}`
+	expectedSourceConfig := `{"type":"file","path":"/var/log/redis/redis.log","service":"awesome_cache","source":"redis","tags":["env:prod"]}`
 	assert.Equal(t, expectedSourceConfig, actualSource[0]["config"])
 	expectedSourceStatus := map[string]string{
 		"status": "error",
 		"error":  "Error: No such file or directory",
 	}
 	assert.Equal(t, expectedSourceStatus, actualSource[0]["state"])
+	assert.Equal(t, "awesome_cache", actualSource[0]["service"])
+	assert.Equal(t, "redis", actualSource[0]["source"])
+	assert.Equal(t, []string{"env:prod"}, actualSource[0]["tags"])
 }
 
 func TestFlareProviderFilename(t *testing.T) {

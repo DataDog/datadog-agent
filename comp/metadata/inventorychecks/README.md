@@ -114,20 +114,26 @@ Here an example of an inventory payload:
     "logs_metadata": {
         "redisdb": [
             {
-                "config": "{\"path\":\"/var/log/redis_6379.log\",\"service\":\"myredis2\",\"source\":\"redis\",\"type\":\"file\"}",
+                "config": "{\"path\":\"/var/log/redis_6379.log\",\"service\":\"myredis2\",\"source\":\"redis\",\"type\":\"file\",\"tags\":[\"env:prod\"]}",
+                "service": "awesome_cache",
+                "source": "source1",
                 "state": {
                     "error": "Error: cannot read file /var/log/redis_6379.log: stat /var/log/redis_6379.log: no such file or directory",
                     "status": "error"
-                }
+                },
+                "tags": ["env:prod"]
             }
         ],
         "nginx": [
             {
                 "config": "{\"path\":\"/var/log/nginx/access.log\",\"service\":\"nginx\",\"source\":\"nginx\",\"type\":\"file\"}",
+                "service": "nginx",
+                "source": "source2",
                 "state": {
                     "error": "",
                     "status": "success"
-                }
+                },
+                "tags": []
             }
         ]
     }

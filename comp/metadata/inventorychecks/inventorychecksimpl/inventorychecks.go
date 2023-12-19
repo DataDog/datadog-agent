@@ -227,6 +227,9 @@ func (ic *inventorychecksImpl) getPayload() marshaler.JSONMarshaler {
 						"error":  logSource.Status.GetError(),
 						"status": logSource.Status.String(),
 					},
+					"service": logSource.Config.Service,
+					"source":  logSource.Config.Source,
+					"tags":    logSource.Config.Tags,
 				})
 			}
 		}
