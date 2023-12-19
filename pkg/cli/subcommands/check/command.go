@@ -43,6 +43,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
@@ -153,6 +154,10 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				// Here we just want to collect metadata to be displayed, so we don't need a collector.
 				fx.Provide(func() optional.Option[collector.Collector] {
 					return optional.NewNoneOption[collector.Collector]()
+				}),
+				fx.Provide(func() optional.Option[logagent.Component] {
+					return optional.NewNoneOption[logagent.Component]()
+
 				}),
 				fx.Provide(func() serializer.MetricSerializer { return nil }),
 				fx.Supply(defaultforwarder.Params{UseNoopForwarder: true}),
