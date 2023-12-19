@@ -11,6 +11,7 @@ package tracecmd
 import (
 	"github.com/spf13/cobra"
 
+	"github.com/DataDog/datadog-agent/cmd/cws-instrumentation/subcommands/selftestscmd"
 	"github.com/DataDog/datadog-agent/pkg/security/ptracer"
 )
 
@@ -57,6 +58,8 @@ func Command() []*cobra.Command {
 	traceCmd.Flags().BoolVar(&params.Verbose, verbose, false, "enable verbose output")
 	traceCmd.Flags().Int32Var(&params.UID, uid, -1, "uid used to start the tracee")
 	traceCmd.Flags().Int32Var(&params.GID, gid, -1, "gid used to start the tracee")
+
+	traceCmd.AddCommand(selftestscmd.Command()...)
 
 	return []*cobra.Command{traceCmd}
 }

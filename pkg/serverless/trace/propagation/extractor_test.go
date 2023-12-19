@@ -10,10 +10,11 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"os"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
@@ -150,6 +151,28 @@ var (
 		}
 		return e
 	}
+
+	eventSnsEntity = func(binHdrs, strHdrs string) events.SNSEntity {
+		e := events.SNSEntity{}
+		if len(binHdrs) > 0 && len(strHdrs) == 0 {
+			e.MessageAttributes = map[string]interface{}{
+				"_datadog": map[string]interface{}{
+					"Type":  "Binary",
+					"Value": base64.StdEncoding.EncodeToString([]byte(binHdrs)),
+				},
+			}
+		} else if len(binHdrs) == 0 && len(strHdrs) > 0 {
+			e.MessageAttributes = map[string]interface{}{
+				"_datadog": map[string]interface{}{
+					"Type":  "String",
+					"Value": strHdrs,
+				},
+			}
+		} else if len(binHdrs) > 0 && len(strHdrs) > 0 {
+			panic("expecting one of binHdrs or strHdrs, not both")
+		}
+		return e
+	}
 )
 
 func TestNilPropagator(t *testing.T) {
@@ -193,6 +216,16 @@ func TestExtractorExtract(t *testing.T) {
 		},
 
 		// events.SQSEvent
+		{
+			name: "sqs-event-no-records",
+			events: []interface{}{
+				events.SQSEvent{
+					Records: []events.SQSMessage{},
+				},
+			},
+			expCtx:   nil,
+			expNoErr: false,
+		},
 		{
 			name: "sqs-event-uses-first-record",
 			events: []interface{}{
@@ -285,6 +318,92 @@ func TestExtractorExtract(t *testing.T) {
 				eventSqsMessage(headersNone, headersDD, headersXray),
 			},
 			expCtx:   ddTraceContext,
+			expNoErr: true,
+		},
+
+		// events.SNSEvent
+		{
+			name: "sns-event-no-records",
+			events: []interface{}{
+				events.SNSEvent{
+					Records: []events.SNSEventRecord{},
+				},
+			},
+			expCtx:   nil,
+			expNoErr: false,
+		},
+		{
+			name: "sns-event-uses-first-record",
+			events: []interface{}{
+				events.SNSEvent{
+					Records: []events.SNSEventRecord{
+						// Uses the first message only
+						{SNS: eventSnsEntity(headersDD, headersNone)},
+						{SNS: eventSnsEntity(headersW3C, headersNone)},
+					},
+				},
+			},
+			expCtx:   ddTraceContext,
+			expNoErr: true,
+		},
+		{
+			name: "sqs-event-uses-first-record-empty",
+			events: []interface{}{
+				events.SNSEvent{
+					Records: []events.SNSEventRecord{
+						// Uses the first message only
+						{SNS: eventSnsEntity(headersNone, headersNone)},
+						{SNS: eventSnsEntity(headersW3C, headersNone)},
+					},
+				},
+			},
+			expCtx:   nil,
+			expNoErr: false,
+		},
+
+		// events.SNSEntity
+		{
+			name: "unable-to-get-carrier",
+			events: []interface{}{
+				events.SNSEntity{},
+			},
+			expCtx:   nil,
+			expNoErr: false,
+		},
+		{
+			name: "extraction-error",
+			events: []interface{}{
+				events.SNSEvent{
+					Records: []events.SNSEventRecord{
+						{SNS: eventSnsEntity(headersNone, headersNone)},
+					},
+				},
+			},
+			expCtx:   nil,
+			expNoErr: false,
+		},
+		{
+			name: "extract-binary",
+			events: []interface{}{
+				events.SNSEvent{
+					Records: []events.SNSEventRecord{
+						{SNS: eventSnsEntity(headersAll, headersNone)},
+					},
+				},
+			},
+			expCtx:   w3cTraceContext,
+			expNoErr: true,
+		},
+		{
+			name: "extract-string",
+			events: []interface{}{
+				events.SNSEvent{
+					Records: []events.SNSEventRecord{
+						{SNS: eventSnsEntity(headersNone, headersAll)},
+					},
+				},
+			},
+			expCtx:   w3cTraceContext,
 			expNoErr: true,
 		},
 
@@ -404,6 +523,112 @@ func TestExtractorExtract(t *testing.T) {
 	}
 }
 
+func TestExtractorExtractPayloadJson(t *testing.T) {
+	testcases := []struct {
+		filename string
+		eventTyp string
+		expCtx   *TraceContext
+	}{
+		{
+			filename: "api-gateway.json",
+			eventTyp: "APIGatewayProxyRequest",
+			expCtx: &TraceContext{
+				TraceID:          12345,
+				ParentID:         67890,
+				SamplingPriority: 2,
+			},
+		},
+		{
+			filename: "sns-batch.json",
+			eventTyp: "SNSEvent",
+			expCtx: &TraceContext{
+				TraceID:          4948377316357291421,
+				ParentID:         6746998015037429512,
+				SamplingPriority: 1,
+			},
+		},
+		{
+			filename: "sns.json",
+			eventTyp: "SNSEvent",
+			expCtx: &TraceContext{
+				TraceID:          4948377316357291421,
+				ParentID:         6746998015037429512,
+				SamplingPriority: 1,
+			},
+		},
+		{
+			filename: "snssqs.json",
+			eventTyp: "SQSEvent",
+			expCtx: &TraceContext{
+				TraceID:          1728904347387697031,
+				ParentID:         353722510835624345,
+				SamplingPriority: 1,
+			},
+		},
+		{
+			filename: "sqs-aws-header.json",
+			eventTyp: "SQSEvent",
+			expCtx: &TraceContext{
+				TraceID:          12297829382473034410,
+				ParentID:         13527612320720337851,
+				SamplingPriority: 1,
+			},
+		},
+		{
+			filename: "sqs-batch.json",
+			eventTyp: "SQSEvent",
+			expCtx: &TraceContext{
+				TraceID:          2684756524522091840,
+				ParentID:         7431398482019833808,
+				SamplingPriority: 1,
+			},
+		},
+		{
+			filename: "sqs.json",
+			eventTyp: "SQSEvent",
+			expCtx: &TraceContext{
+				TraceID:          2684756524522091840,
+				ParentID:         7431398482019833808,
+				SamplingPriority: 1,
+			},
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.filename, func(t *testing.T) {
+			body, err := os.ReadFile("../testdata/event_samples/" + tc.filename)
+			assert.NoError(t, err)
+
+			var ev interface{}
+			switch tc.eventTyp {
+			case "APIGatewayProxyRequest":
+				var event events.APIGatewayProxyRequest
+				err = json.Unmarshal(body, &event)
+				assert.NoError(t, err)
+				ev = event
+			case "SNSEvent":
+				var event events.SNSEvent
+				err = json.Unmarshal(body, &event)
+				assert.NoError(t, err)
+				ev = event
+			case "SQSEvent":
+				var event events.SQSEvent
+				err = json.Unmarshal(body, &event)
+				assert.NoError(t, err)
+				ev = event
+			default:
+				t.Fatalf("bad type: %s", tc.eventTyp)
+			}
+
+			extractor := Extractor{}
+			ctx, err := extractor.Extract(ev)
+			t.Logf("Extract returned TraceContext=%#v error=%#v", ctx, err)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expCtx, ctx)
+		})
+	}
+}
+
 func TestPropagationStyle(t *testing.T) {
 	testcases := []struct {
 		name       string
@@ -430,9 +655,6 @@ func TestPropagationStyle(t *testing.T) {
 			expTraceID: w3c.trace.asUint,
 		},
 		{
-			// XXX: This is surprising
-			// The go tracer is designed to always place the tracecontext propagator first
-			// see https://github.com/DataDog/dd-trace-go/blob/6a938b3b4054ce036cc60147ab42a86f743fcdd5/ddtrace/tracer/textmap.go#L231
 			name:       "datadog,tracecontext-type-headers-all",
 			propType:   "datadog,tracecontext",
 			hdrs:       headersAll,
