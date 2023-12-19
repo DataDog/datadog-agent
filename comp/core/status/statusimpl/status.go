@@ -150,7 +150,6 @@ func (s *statusImplementation) GetStatus(format string, _ bool) ([]byte, error) 
 		}
 
 		for _, section := range s.sortedSectionNames {
-
 			printHeader(b, section)
 			newLine(b)
 
@@ -231,8 +230,18 @@ func (s *statusImplementation) GetStatusBySection(section string, format string,
 
 				err := sc.Text(b)
 				if err != nil {
-					return b.Bytes(), err
+					errors = append(errors, err)
 				}
+			}
+
+			newLine(b)
+
+			if len(errors) > 0 {
+				if err := renderErrors(b, errors); err != nil {
+					return []byte{}, err
+				}
+
+				return b.Bytes(), nil
 			}
 
 			return b.Bytes(), nil
