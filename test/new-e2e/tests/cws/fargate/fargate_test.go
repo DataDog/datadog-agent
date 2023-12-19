@@ -335,7 +335,7 @@ func (s *ECSFargateSuite) SetupSuite() {
 }
 
 func (s *ECSFargateSuite) TearDownSuite() {
-	err := infra.GetStackManager().DeleteStack(s.ctx, s.stackName)
+	err := infra.GetStackManager().DeleteStack(s.ctx, s.stackName, nil)
 	s.Assert().NoError(err)
 }
 
