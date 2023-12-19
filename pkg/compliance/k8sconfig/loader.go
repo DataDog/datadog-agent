@@ -166,6 +166,7 @@ func (l *loader) loadMeta(name string, loadContent bool) (string, os.FileInfo, [
 		if err != nil {
 			l.pushError(err)
 		} else {
+			defer f.Close()
 			b, err = io.ReadAll(io.LimitReader(f, maxSize))
 			if err != nil {
 				l.pushError(err)
