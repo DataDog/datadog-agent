@@ -79,7 +79,7 @@ func adjustNetwork(cfg config.Config) {
 		return nil
 	})
 
-	if cfg.GetBool(evNS("network_process", "enabled")) && !processEventDataStreamSupported() {
+	if cfg.GetBool(evNS("network_process", "enabled")) && !ProcessEventDataStreamSupported() {
 		log.Warn("disabling process event monitoring as it is not supported for this kernel version")
 		cfg.Set(evNS("network_process", "enabled"), false, model.SourceAgentRuntime)
 	}
