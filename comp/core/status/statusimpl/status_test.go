@@ -133,41 +133,6 @@ var testTextHeader = fmt.Sprintf(`%s
 %s
 %s`, status.PrintDashes(testTitle, "="), testTitle, status.PrintDashes(testTitle, "="))
 
-var expectedStatusTextOutput = fmt.Sprintf(`%s
-  Status date: 2018-01-05 11:25:15 UTC (1515151515000)
-  Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
-  Pid: %d
-  Go Version: %s
-  Python Version: n/a
-  Build arch: %s
-  Agent flavor: %s
-  Log Level: info
-
-==========
-Header Foo
-==========
-  header foo: header bar
-  header foo2: header bar 2
-
-=========
-Collector
-=========
- text from a
- text from b
-
-=========
-A Section
-=========
- text from a
-
-=========
-X Section
-=========
- text from a
- text from x
-
-`, testTextHeader, pid, goVersion, arch, agentFlavor)
-
 func TestGetStatus(t *testing.T) {
 	nowFunc = func() time.Time { return time.Unix(1515151515, 0) }
 	startTimeProvider = time.Unix(1515151515, 0)
@@ -276,6 +241,41 @@ func TestGetStatus(t *testing.T) {
 			name:   "Text",
 			format: "text",
 			assertFunc: func(t *testing.T, bytes []byte) {
+				expectedStatusTextOutput := fmt.Sprintf(`%s
+  Status date: 2018-01-05 11:25:15 UTC (1515151515000)
+  Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
+  Pid: %d
+  Go Version: %s
+  Python Version: n/a
+  Build arch: %s
+  Agent flavor: %s
+  Log Level: info
+
+==========
+Header Foo
+==========
+  header foo: header bar
+  header foo2: header bar 2
+
+=========
+Collector
+=========
+ text from a
+ text from b
+
+=========
+A Section
+=========
+ text from a
+
+=========
+X Section
+=========
+ text from a
+ text from x
+
+`, testTextHeader, pid, goVersion, arch, agentFlavor)
+
 				// We replace windows line break by linux so the tests pass on every OS
 				expectedResult := strings.Replace(expectedStatusTextOutput, "\r\n", "\n", -1)
 				output := strings.Replace(string(bytes), "\r\n", "\n", -1)
@@ -403,32 +403,6 @@ Section
 	assert.Equal(t, expectedOutput, string(bytesResult))
 }
 
-var expectedStatusTextErrorOutput = fmt.Sprintf(`%s
-  Status date: 2018-01-05 11:25:15 UTC (1515151515000)
-  Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
-  Pid: %d
-  Go Version: %s
-  Python Version: n/a
-  Build arch: %s
-  Agent flavor: agent
-  Log Level: info
-
-=========
-Collector
-=========
- text from b
-
-=============
-Error Section
-=============
-
-====================
-Status render errors
-====================
-  - Text error
-
-`, testTextHeader, pid, goVersion, arch)
-
 func TestGetStatusWithErrors(t *testing.T) {
 	nowFunc = func() time.Time { return time.Unix(1515151515, 0) }
 	startTimeProvider = time.Unix(1515151515, 0)
@@ -485,6 +459,32 @@ func TestGetStatusWithErrors(t *testing.T) {
 			name:   "Text",
 			format: "text",
 			assertFunc: func(t *testing.T, bytes []byte) {
+				expectedStatusTextErrorOutput := fmt.Sprintf(`%s
+  Status date: 2018-01-05 11:25:15 UTC (1515151515000)
+  Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
+  Pid: %d
+  Go Version: %s
+  Python Version: n/a
+  Build arch: %s
+  Agent flavor: agent
+  Log Level: info
+
+=========
+Collector
+=========
+ text from b
+
+=============
+Error Section
+=============
+
+====================
+Status render errors
+====================
+  - Text error
+
+`, testTextHeader, pid, goVersion, arch)
+
 				// We replace windows line break by linux so the tests pass on every OS
 				expectedResult := strings.Replace(expectedStatusTextErrorOutput, "\r\n", "\n", -1)
 				output := strings.Replace(string(bytes), "\r\n", "\n", -1)
@@ -750,7 +750,7 @@ Status render errors
 			section: "header",
 			assertFunc: func(t *testing.T, bytes []byte) {
 
-				expectedStatusTextErrorOutput = fmt.Sprintf(`%s
+				expectedStatusTextErrorOutput := fmt.Sprintf(`%s
   Status date: 2018-01-05 11:25:15 UTC (1515151515000)
   Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
   Pid: %d
