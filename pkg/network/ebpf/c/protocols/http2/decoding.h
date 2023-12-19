@@ -83,12 +83,14 @@ static __always_inline bool read_hpack_int_with_given_current_char(struct __sk_b
 //
 // read_hpack_int returns true if the integer was successfully parsed, and false
 // otherwise.
-static __always_inline bool read_hpack_int(struct __sk_buff *skb, skb_info_t *skb_info, __u64 max_number_for_bits, __u64 *out) {
+static __always_inline bool read_hpack_int(struct __sk_buff *skb, skb_info_t *skb_info, __u64 max_number_for_bits, __u64 *out, bool *is_huffman_encoded) {
     __u64 current_char_as_number = 0;
     if (bpf_skb_load_bytes(skb, skb_info->data_off, &current_char_as_number, 1) < 0) {
         return false;
     }
     skb_info->data_off++;
+    // We are only interested in the first bit of the first byte, which indicates if it is huffman encoded or not.
+    *is_huffman_encoded = (current_char_as_number & 128) > 0;
 
     return read_hpack_int_with_given_current_char(skb, skb_info, current_char_as_number, max_number_for_bits, out);
 }
@@ -157,8 +159,9 @@ static __always_inline void update_path_size_telemetry(http2_telemetry_t *http2_
 // dynamic table, and will skip headers that are not path headers.
 static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_t *skb_info, http2_header_t *headers_to_process, __u64 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter, http2_telemetry_t *http2_tel) {
     __u64 str_len = 0;
+    bool is_huffman_encoded = true;
     // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
-    if (!read_hpack_int(skb, skb_info, MAX_7_BITS, &str_len)) {
+    if (!read_hpack_int(skb, skb_info, MAX_7_BITS, &str_len, &is_huffman_encoded)) {
         return false;
     }
 
@@ -167,7 +170,7 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
         skb_info->data_off += str_len;
         str_len = 0;
         // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
-        if (!read_hpack_int(skb, skb_info, MAX_7_BITS, &str_len)) {
+        if (!read_hpack_int(skb, skb_info, MAX_7_BITS, &str_len, &is_huffman_encoded)) {
             return false;
         }
         goto end;
@@ -196,6 +199,7 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
     headers_to_process->type = kNewDynamicHeader;
     headers_to_process->new_dynamic_value_offset = skb_info->data_off;
     headers_to_process->new_dynamic_value_size = str_len;
+    headers_to_process->is_huffman_encoded = is_huffman_encoded;
     // If the string len (`str_len`) is in the range of [0, HTTP2_MAX_PATH_LEN], and we don't exceed packet boundaries
     // (skb_info->data_off + str_len <= skb_info->data_end) and the index is kIndexPath, then we have a path header,
     // and we're increasing the counter. In any other case, we're not increasing the counter.
@@ -303,9 +307,11 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
                 __sync_fetch_and_add(&http2_tel->response_seen, 1);
             } else if (current_header->index == kEmptyPath) {
                 current_stream->path_size = HTTP_ROOT_PATH_LEN;
+                current_stream->is_huffman_encoded = true;
                 bpf_memcpy(current_stream->request_path, HTTP_ROOT_PATH, HTTP_ROOT_PATH_LEN);
             } else if (current_header->index == kIndexPath) {
                 current_stream->path_size = HTTP_INDEX_PATH_LEN;
+                current_stream->is_huffman_encoded = true;
                 bpf_memcpy(current_stream->request_path, HTTP_INDEX_PATH, HTTP_INDEX_PATH_LEN);
             }
             continue;
@@ -326,6 +332,9 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
             read_into_buffer_path(dynamic_value.buffer, skb, current_header->new_dynamic_value_offset);
             bpf_map_update_elem(&http2_dynamic_table, dynamic_index, &dynamic_value, BPF_ANY);
             current_stream->path_size = current_header->new_dynamic_value_size;
+            // As long as we are not using the dynamic table, we can assume that the string is huffman encoded.
+            // if the string is indexed it would still be huffman encoded.
+            current_stream->is_huffman_encoded = current_header->is_huffman_encoded;
             bpf_memcpy(current_stream->request_path, dynamic_value.buffer, HTTP2_MAX_PATH_LEN);
         }
     }
