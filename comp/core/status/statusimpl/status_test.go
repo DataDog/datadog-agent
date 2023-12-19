@@ -400,7 +400,11 @@ Section
 
 `, testTextHeader, pid, goVersion, arch, agentFlavor)
 
-	assert.Equal(t, expectedOutput, string(bytesResult))
+	// We replace windows line break by linux so the tests pass on every OS
+	expectedResult := strings.Replace(expectedOutput, "\r\n", "\n", -1)
+	output := strings.Replace(string(bytesResult), "\r\n", "\n", -1)
+
+	assert.Equal(t, expectedResult, output)
 }
 
 func TestGetStatusWithErrors(t *testing.T) {
