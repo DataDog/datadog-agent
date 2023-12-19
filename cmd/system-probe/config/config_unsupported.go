@@ -20,5 +20,5 @@ func ValidateSocketAddress(sockPath string) error { //nolint:revive // TODO fix 
 }
 
 func processEventDataStreamSupported() bool {
-	return true
+	return false
 }

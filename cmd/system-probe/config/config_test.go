@@ -82,4 +82,16 @@ func TestEventStreamEnabledForSupportedKernelsWindows(t *testing.T) {
 
 		require.False(t, cfg.GetBool("event_monitoring_config.network_process.enabled"))
 	})
+	t.Run("does nothing for unsupported", func(t *testing.T) {
+		if runtime.GOOS != "windows" && runtime.GOOS != "linux" {
+			t.Skip("This is only for unsupported")
+		}
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", strconv.FormatBool(true))
+
+		cfg := aconfig.SystemProbe
+		sysconfig.Adjust(cfg)
+
+		require.False(t, cfg.GetBool("event_monitoring_config.network_process.enabled"))
+	})
 }
