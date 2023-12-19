@@ -426,8 +426,8 @@ namespace WixSetup.Datadog
                     new Id(nameof(ConfigureServicesRollback)),
                     ServiceCustomAction.ConfigureServicesRollback,
                     Return.check,
-                    When.After,
-                    Step.InstallServices,
+                    When.Before,
+                    new Step(ConfigureServices.Id),
                     Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
                 )
                 {

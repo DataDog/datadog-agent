@@ -852,6 +852,7 @@ namespace Datadog.CustomActions.Native
             }
         }
 
+        // https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-queryserviceobjectsecurity
         public static CommonSecurityDescriptor QueryServiceObjectSecurity(SafeHandle serviceHandle,
             System.Security.AccessControl.SecurityInfos secInfo)
         {
@@ -879,9 +880,11 @@ namespace Datadog.CustomActions.Native
                     new Win32Exception(Marshal.GetLastWin32Error()));
             }
 
+            // isContainer/isDS are N/A to service ACL
             return new CommonSecurityDescriptor(false, false, new RawSecurityDescriptor(secDescBuf, 0));
         }
 
+        // https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-setserviceobjectsecurity
         public static void SetServiceObjectSecurity(SafeHandle serviceHandle,
             System.Security.AccessControl.SecurityInfos secInfo,
             CommonSecurityDescriptor securityDescriptor)

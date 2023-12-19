@@ -110,6 +110,37 @@ namespace Datadog.CustomActions
         {
             return EnsureNpmServiceDependendency(new SessionWrapper(session));
         }
+        private ActionResult ConfigureServices()
+        {
+            try
+            {
+                // Lookup account so we can determine how to set the password according to the ChangeServiceConfig rules.
+                // https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-changeserviceconfigw
+                var ddAgentUserName = $"{_session.Property("DDAGENTUSER_PROCESSED_FQ_NAME")}";
+                var userFound = _nativeMethods.LookupAccountName(ddAgentUserName,
+                    out _,
+                    out _,
+                    out var securityIdentifier,
+                    out _);
+                if (!userFound)
+                {
+                    throw new Exception($"Could not find user {ddAgentUserName}.");
+                }
+
+                ConfigureServiceUsers(ddAgentUserName, securityIdentifier);
+                ConfigureServicePermissions(securityIdentifier);
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Failed to configure services: {e}");
+                return ActionResult.Failure;
+            }
+            finally
+            {
+                _rollbackDataStore.Store();
+            }
+            return ActionResult.Success;
+        }
 
         private void ConfigureServiceUsers(string ddAgentUserName, SecurityIdentifier ddAgentUserSID)
         {
@@ -235,38 +266,6 @@ namespace Datadog.CustomActions
 
                 UpdateAndLogAccessControl(serviceName, securityDescriptor);
             }
-        }
-
-        private ActionResult ConfigureServices()
-        {
-            try
-            {
-                // Lookup account so we can determine how to set the password according to the ChangeServiceConfig rules.
-                // https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-changeserviceconfigw
-                var ddAgentUserName = $"{_session.Property("DDAGENTUSER_PROCESSED_FQ_NAME")}";
-                var userFound = _nativeMethods.LookupAccountName(ddAgentUserName,
-                    out _,
-                    out _,
-                    out var securityIdentifier,
-                    out _);
-                if (!userFound)
-                {
-                    throw new Exception($"Could not find user {ddAgentUserName}.");
-                }
-
-                ConfigureServiceUsers(ddAgentUserName, securityIdentifier);
-                ConfigureServicePermissions(securityIdentifier);
-            }
-            catch (Exception e)
-            {
-                _session.Log($"Failed to configure services: {e}");
-                return ActionResult.Failure;
-            }
-            finally
-            {
-                _rollbackDataStore.Store();
-            }
-            return ActionResult.Success;
         }
 
         [CustomAction]
