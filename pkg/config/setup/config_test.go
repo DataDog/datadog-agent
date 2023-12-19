@@ -424,12 +424,9 @@ func TestProxy(t *testing.T) {
 			config := Conf()
 			config.SetWithoutSource("use_proxy_for_cloud_metadata", c.proxyForCloudMetadata)
 
-			// Viper.MergeConfigOverride, which is used when secrets is enabled, will silently fail if a
-			// config file is never set.
 			path := t.TempDir()
 			configPath := filepath.Join(path, "empty_conf.yaml")
 			os.WriteFile(configPath, nil, 0600)
-			config.SetConfigFile(configPath)
 
 			resolver := secretsimpl.NewMock()
 			if c.setup != nil {
