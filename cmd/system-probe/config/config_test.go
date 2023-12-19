@@ -69,7 +69,7 @@ func TestEventMonitor(t *testing.T) {
 	}
 }
 
-func TestEventStreamEnabledForSupportedKernelsWindows(t *testing.T) {
+func TestEventStreamEnabledForSupportedKernelsWindowsUnsupported(t *testing.T) {
 	t.Run("does nothing for windows", func(t *testing.T) {
 		if runtime.GOOS != "windows" {
 			t.Skip("This is only for windows")
@@ -83,7 +83,7 @@ func TestEventStreamEnabledForSupportedKernelsWindows(t *testing.T) {
 		require.False(t, cfg.GetBool("event_monitoring_config.network_process.enabled"))
 	})
 	t.Run("does nothing for unsupported", func(t *testing.T) {
-		if runtime.GOOS != "windows" && runtime.GOOS != "linux" {
+		if runtime.GOOS == "windows" || runtime.GOOS == "linux" {
 			t.Skip("This is only for unsupported")
 		}
 		aconfig.ResetSystemProbeConfig(t)
