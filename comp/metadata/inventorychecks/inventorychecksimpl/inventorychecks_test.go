@@ -6,16 +6,19 @@
 package inventorychecksimpl
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -136,12 +139,18 @@ func TestGetPayload(t *testing.T) {
 		Service:    "awesome_cache",
 		Source:     "redis",
 	})
+	// Register an error
+	src.Status.Error(fmt.Errorf("No such file or directory"))
 	logSources.AddSource(src)
-	mockLogAgent := logagent.NewMock(logSources)
+	mockLogAgent := fxutil.Test[optional.Option[logagent.Mock]](
+		t, logagent.MockModule(), core.MockBundle(), inventoryagent.MockModule(),
+	)
+	logsAgent, _ := mockLogAgent.Get()
+	logsAgent.SetSources(logSources)
 
 	ic := getTestInventoryChecks(t,
 		optional.NewOption[collector.Collector](mockColl),
-		mockLogAgent,
+		optional.NewOption[logagent.Component](logsAgent),
 		overrides,
 	)
 
@@ -187,7 +196,13 @@ func TestGetPayload(t *testing.T) {
 	actualSource, found := p.LogsMetadata["redisdb"]
 	assert.True(t, found)
 	assert.Len(t, actualSource, 1)
-	assert.Equal(t, `{"type":"file","path":"/var/log/redis/redis.log","service":"awesome_cache","source":"redis"}`, actualSource[0]["config"])
+	expectedSourceConfig := `{"type":"file","path":"/var/log/redis/redis.log","service":"awesome_cache","source":"redis"}`
+	assert.Equal(t, expectedSourceConfig, actualSource[0]["config"])
+	expectedSourceStatus := map[string]string{
+		"status": "error",
+		"error":  "Error: No such file or directory",
+	}
+	assert.Equal(t, expectedSourceStatus, actualSource[0]["state"])
 }
 
 func TestFlareProviderFilename(t *testing.T) {

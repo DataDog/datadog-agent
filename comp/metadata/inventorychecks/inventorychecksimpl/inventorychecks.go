@@ -221,19 +221,11 @@ func (ic *inventorychecksImpl) getPayload() marshaler.JSONMarshaler {
 					continue
 				}
 
-				// Compute log source status
-				logSourceStatus := "pending"
-				if logSource.Status.IsSuccess() {
-					logSourceStatus = "success"
-				} else if logSource.Status.IsError() {
-					logSourceStatus = "error"
-				}
-
 				logsMetadata[logSource.Name] = append(logsMetadata[logSource.Name], metadata{
 					"config": string(parsedJSON),
 					"state": map[string]string{
 						"error":  logSource.Status.GetError(),
-						"status": logSourceStatus,
+						"status": logSource.Status.String(),
 					},
 				})
 			}
