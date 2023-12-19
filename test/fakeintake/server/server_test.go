@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -383,15 +384,18 @@ func TestServer(t *testing.T) {
 		fi, _ := InitialiseForTests(t)
 		defer fi.Stop()
 
-		response, err := http.Post(fi.URL()+"/support/flare", "text/plain", strings.NewReader("totoro|5|tag:valid,owner:pducolin"))
-		require.NoError(t, err, "Error creating request")
+		response, err := http.Head(fi.URL() + "/support/flare")
+		require.NoError(t, err, "Error on HEAD request")
 		defer response.Body.Close()
 
 		assert.Equal(t, http.StatusOK, response.StatusCode, "unexpected code")
 		assert.Equal(t, "application/json", response.Header.Get("Content-Type"))
+		contentLength, err := strconv.Atoi(response.Header.Get("Content-Length"))
+		require.NoError(t, err, "Error parsing Content-Length header")
+		assert.Equal(t, 2, contentLength, "unexpected Content-Length")
 		data, err := io.ReadAll(response.Body)
 		require.NoError(t, err, "Error reading response body")
-		assert.Equal(t, `{}`, string(data))
+		assert.Empty(t, data, "unexpected HEAD response body")
 	})
 
 	t.Run("should accept POST response overrides", func(t *testing.T) {

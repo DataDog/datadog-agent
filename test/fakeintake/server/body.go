@@ -63,7 +63,7 @@ func newResponseOverrides() map[string]map[string]httpResponse {
 			"/support/flare": updateResponseFromData(httpResponse{
 				statusCode:  http.StatusOK,
 				contentType: "application/json",
-				data:        flareResponseBody{CaseID: 0, Error: ""},
+				data:        flareResponseBody{},
 			}),
 		},
 		http.MethodOptions: {},
