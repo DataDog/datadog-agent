@@ -139,7 +139,6 @@ func (s *ECSFargateSuite) SetupSuite() {
 		}
 
 		// Create task definition
-		// TODO(yoann): add the cws-instrumentation container to the test-infra-definitions repository
 		taskDef, err := ecsx.NewFargateTaskDefinition(ctx, "cws-task", &ecsx.FargateTaskDefinitionArgs{
 			Containers: map[string]ecsx.TaskDefinitionContainerDefinitionArgs{
 				"datadog-agent": {
