@@ -721,7 +721,7 @@ func (t *Tracer) DebugEBPFMaps(w io.Writer, maps ...string) error {
 	}
 
 	if t.usmMonitor != nil {
-		io.WriteString(w, "http_monitor:\n")
+		io.WriteString(w, "usm_monitor:\n")
 		err := t.usmMonitor.DumpMaps(w, maps...)
 		if err != nil {
 			return err
