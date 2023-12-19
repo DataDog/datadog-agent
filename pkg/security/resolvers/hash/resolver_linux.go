@@ -320,6 +320,7 @@ func (resolver *Resolver) hash(eventType model.EventType, process *model.Process
 			digest := hashers[i].(hash.Hash).Sum(nil)
 			if len(digest) == 0 {
 				// we failed to compute the digest
+				resolver.hashMiss[eventType][model.HashFailed].Inc()
 				continue
 			}
 			hashStr += string(digest)

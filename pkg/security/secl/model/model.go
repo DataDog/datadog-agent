@@ -438,6 +438,8 @@ const (
 	EventTypeNotConfigured
 	// HashWasRateLimited means that the hash will be tried again later, it was rate limited
 	HashWasRateLimited
+	// HashFailed means that the hashing failed
+	HashFailed
 	// MaxHashState is used for initializations
 	MaxHashState
 )
