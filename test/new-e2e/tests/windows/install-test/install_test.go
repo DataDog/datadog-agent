@@ -5,14 +5,12 @@
 package installscript
 
 import (
-	"fmt"
-	"os"
+	"flag"
 
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
 	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/agent"
@@ -20,20 +18,29 @@ import (
 	"testing"
 )
 
+var (
+	devMode = flag.Bool("devmode", false, "enable devmode")
+)
+
 type agentMSISuite struct {
 	e2e.Suite[e2e.VMEnv]
 }
 
 func TestMSI(t *testing.T) {
+	var opts []func(*params.Params)
+
+	if *devMode {
+		opts = append(opts, params.WithDevMode())
+	}
+
 	e2e.Run(t,
 		&agentMSISuite{},
 		e2e.EC2VMStackDef(ec2params.WithOS(ec2os.WindowsOS)),
-		params.WithStackName(fmt.Sprintf("msi-test-%v", os.Getenv("CI_PIPELINE_ID"))),
-		params.WithDevMode())
+		opts...)
 }
 
 func (is *agentMSISuite) TestInstallAgent() {
-	vm := is.Env().VM.(*client.PulumiStackVM)
+	vm := is.Env().VM
 
 	msi := `https://s3.amazonaws.com/ddagent-windows-stable/datadog-agent-7-latest.amd64.msi`
 	is.Run("install the agent", func() {
