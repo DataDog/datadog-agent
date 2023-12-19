@@ -73,6 +73,7 @@ AGENT_CORECHECKS = [
 
 WINDOWS_CORECHECKS = [
     "agentcrashdetect",
+    "windows_registry.d",
     "winkmem",
     "wincrashdetect",
 ]
