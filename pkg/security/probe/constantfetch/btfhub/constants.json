@@ -1,5 +1,5 @@
 {
-	"commit": "12986b7127d3a55b9737b527c50b0141e4cab6e9",
+	"commit": "332a1326b48dbf33aad402eb274fbffb37ec8c68",
 	"constants": [
 		{
 			"binprm_file_offset": 168,
@@ -8187,6 +8187,13 @@
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
+			"uname_release": "4.14.330-250.540.amzn2.aarch64",
+			"cindex": 3
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "arm64",
 			"uname_release": "4.14.77-80.57.amzn2.aarch64",
 			"cindex": 4
 		},
@@ -8854,6 +8861,13 @@
 			"arch": "x86_64",
 			"uname_release": "4.14.33-59.37.amzn2.x86_64",
 			"cindex": 8
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "x86_64",
+			"uname_release": "4.14.330-250.540.amzn2.x86_64",
+			"cindex": 7
 		},
 		{
 			"distrib": "amzn",
@@ -10064,6 +10078,13 @@
 			"version": "7",
 			"arch": "x86_64",
 			"uname_release": "3.10.0-1160.102.1.el7.x86_64",
+			"cindex": 34
+		},
+		{
+			"distrib": "centos",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "3.10.0-1160.105.1.el7.x86_64",
 			"cindex": 34
 		},
 		{

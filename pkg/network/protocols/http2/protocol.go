@@ -56,7 +56,8 @@ const (
 	staticTable               = "http2_static_table"
 	firstFrameHandlerTailCall = "socket__http2_handle_first_frame"
 	filterTailCall            = "socket__http2_filter"
-	parserTailCall            = "socket__http2_frames_parser"
+	headersParserTailCall     = "socket__http2_headers_parser"
+	eosParserTailCall         = "socket__http2_eos_parser"
 	eventStream               = "http2"
 	telemetryMap              = "http2_telemetry"
 )
@@ -110,9 +111,16 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramHTTP2FrameParser),
+			Key:           uint32(protocols.ProgramHTTP2HeadersParser),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: parserTailCall,
+				EBPFFuncName: headersParserTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramHTTP2EOSParser),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: eosParserTailCall,
 			},
 		},
 	},
@@ -196,7 +204,8 @@ func (p *Protocol) PreStart(mgr *manager.Manager) (err error) {
 	if err = p.dynamicTable.preStart(mgr); err != nil {
 		return
 	}
-	p.statkeeper = http.NewStatkeeper(p.cfg, p.telemetry)
+
+	p.statkeeper = http.NewStatkeeper(p.cfg, p.telemetry, http.NewIncompleteBuffer(p.cfg, p.telemetry))
 	p.eventsConsumer.Start()
 
 	if err = p.createStaticTable(mgr); err != nil {

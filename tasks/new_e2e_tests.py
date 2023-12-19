@@ -15,9 +15,9 @@ from invoke.exceptions import Exit
 from invoke.tasks import task
 
 from .flavor import AgentFlavor
+from .go_test import test_flavor
 from .libs.junit_upload import produce_junit_tar
 from .modules import DEFAULT_MODULES
-from .test import test_flavor
 from .utils import REPO_PATH, get_git_commit
 
 

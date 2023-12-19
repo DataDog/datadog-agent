@@ -3,20 +3,29 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package demultiplexer
+// Package demultiplexerimpl defines the aggregator demultiplexer
+package demultiplexerimpl
 
 import (
 	"context"
 
+	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"go.uber.org/fx"
 )
+
+// Module defines the fx options for this component.
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newDemultiplexer))
+}
 
 type dependencies struct {
 	fx.In
@@ -33,14 +42,14 @@ type demultiplexer struct {
 
 type provides struct {
 	fx.Out
-	Comp Component
+	Comp demultiplexerComp.Component
 
 	// Both demultiplexer.Component and diagnosesendermanager.Component expose a different instance of SenderManager.
 	// It means that diagnosesendermanager.Component must not be used when there is demultiplexer.Component instance.
 	//
 	// newDemultiplexer returns both demultiplexer.Component and diagnosesendermanager.Component (Note: demultiplexer.Component
 	// implements diagnosesendermanager.Component). This has the nice consequence of preventing having
-	// demultiplexer.Module and diagnosesendermanagerimpl.Module in the same fx.App because there would
+	// demultiplexerimpl.Module and diagnosesendermanagerimpl.Module in the same fx.App because there would
 	// be two ways to create diagnosesendermanager.Component.
 	SenderManager diagnosesendermanager.Component
 }

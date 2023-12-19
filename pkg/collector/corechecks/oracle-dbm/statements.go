@@ -337,12 +337,13 @@ func (c *Check) copyToPreviousMap(newMap map[StatementMetricsKeyDB]StatementMetr
 }
 
 func handlePredicate(predicateType string, dbValue sql.NullString, payloadValue *string, statement StatementMetricsDB, c *Check, o *obfuscate.Obfuscator) {
-	if dbValue.Valid {
+	if dbValue.Valid && dbValue.String != "" {
 		obfuscated, err := o.ObfuscateSQLString(dbValue.String)
 		if err == nil {
 			*payloadValue = obfuscated.Query
 		} else {
-			*payloadValue = fmt.Sprintf("%s obfuscation error", predicateType)
+			*payloadValue = fmt.Sprintf("%s obfuscation error %d", predicateType, len(dbValue.String))
+			//*payloadValue = dbValue.String
 			logEntry := fmt.Sprintf("%s %s for sql_id: %s, plan_hash_value: %d", c.logPrompt, *payloadValue, statement.SQLID, statement.PlanHashValue)
 			if c.config.ExecutionPlans.LogUnobfuscatedPlans {
 				logEntry = fmt.Sprintf("%s unobfuscated filter: %s", logEntry, dbValue.String)
