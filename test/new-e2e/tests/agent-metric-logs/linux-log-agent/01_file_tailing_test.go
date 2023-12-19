@@ -48,7 +48,7 @@ func TestE2EVMFakeintakeSuite(t *testing.T) {
 	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
 		options = append(options, params.WithDevMode())
 	}
-	e2e.Run(t, s, logsExampleStackDef(), options...)
+	e2e.Run(t, s, logsExampleStackDef(), params.WithDevMode())
 }
 
 func (s *LinuxFakeintakeSuite) AfterTest(suiteName, testName string) {
