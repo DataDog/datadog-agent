@@ -40,3 +40,7 @@ func ValidateSocketAddress(sockAddress string) error {
 	}
 	return nil
 }
+
+func canEnablePES() bool {
+	return true
+}

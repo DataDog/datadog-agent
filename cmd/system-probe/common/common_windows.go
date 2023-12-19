@@ -9,8 +9,3 @@ const (
 	//nolint:revive // TODO(EBPF) Fix revive linter
 	DefaultLogFile = "c:\\programdata\\datadog\\logs\\system-probe.log"
 )
-
-// DisablePESUnsupportedKernel returns true if network_process needs to be disabled due to unsupported kernel version
-func DisablePESUnsupportedKernel(_ bool) bool {
-	return false
-}

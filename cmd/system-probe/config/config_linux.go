@@ -10,6 +10,8 @@ package config
 import (
 	"fmt"
 	"path/filepath"
+	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -25,4 +27,18 @@ func ValidateSocketAddress(sockPath string) error {
 		return fmt.Errorf("socket path must be an absolute file path: `%s`", sockPath)
 	}
 	return nil
+}
+
+func canEnablePES() bool {
+	kernelVersion, err := ebpfkernel.NewKernelVersion()
+	if err != nil {
+		log.Errorf("unable to detect the kernel version: %s", err)
+		return false
+	}
+	if kernelVersion.IsRH7Kernel() || (!kernelVersion.IsRH8Kernel() && kernelVersion.Code < ebpfkernel.Kernel4_15) {
+		log.Warn("disabling process event monitoring as it is not supported for this kernel version")
+		return true
+	}
+
+	return false
 }

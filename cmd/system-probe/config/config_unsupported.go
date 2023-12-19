@@ -18,3 +18,7 @@ const (
 func ValidateSocketAddress(sockPath string) error { //nolint:revive // TODO fix revive unused-parameter
 	return fmt.Errorf("system-probe unsupported")
 }
+
+func canEnablePES() bool {
+	return true
+}

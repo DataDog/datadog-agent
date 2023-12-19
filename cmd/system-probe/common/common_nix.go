@@ -7,30 +7,7 @@
 
 package common
 
-import (
-	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
 const (
 	//nolint:revive // TODO(EBPF) Fix revive linter
 	DefaultLogFile = "/var/log/datadog/system-probe.log"
 )
-
-// DisablePESUnsupportedKernel returns true if network_process needs to be disabled due to unsupported kernel version
-func DisablePESUnsupportedKernel(isEnabled bool) bool {
-	if !isEnabled {
-		return false
-	}
-	kernelVersion, err := ebpfkernel.NewKernelVersion()
-	if err != nil {
-		log.Errorf("unable to detect the kernel version: %s", err)
-		return false
-	}
-	if kernelVersion.IsRH7Kernel() || (!kernelVersion.IsRH8Kernel() && kernelVersion.Code < ebpfkernel.Kernel4_15) {
-		log.Warn("disabling process event monitoring as it is not supported for this kernel version")
-		return true
-	}
-
-	return false
-}
