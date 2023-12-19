@@ -37,7 +37,7 @@ func ProcessEventDataStreamSupported() bool {
 		log.Errorf("unable to detect the kernel version: %s", err)
 		return true
 	}
-	if !kernelVersion.IsRH7Kernel() && !kernelVersion.IsRH8Kernel() && kernelVersion.Code < ebpfkernel.Kernel4_15 {
+	if !kernelVersion.IsRH7Kernel() && kernelVersion.Code < ebpfkernel.Kernel4_14 {
 		return false
 	}
 
