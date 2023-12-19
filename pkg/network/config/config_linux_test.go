@@ -60,13 +60,25 @@ func TestEventStreamEnabledForSupportedKernelsLinux(t *testing.T) {
 		if kv.Code >= kv4150 || kv.IsRH8Kernel() || kv.IsRH7Kernel() {
 			t.Skip("This test should only be run on kernels < 4.15.0")
 		}
-		aconfig.ResetSystemProbeConfig(t)
+		newSystemProbeConfig(t)
 		t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", strconv.FormatBool(true))
 
 		cfg := aconfig.SystemProbe
 		sysconfig.Adjust(cfg)
 
 		require.False(t, cfg.GetBool("event_monitoring_config.network_process.enabled"))
+
+		sysProbeConfig, err := sysprobeconfig.New("")
+		require.NoError(t, err)
+
+		emconfig := emconfig.NewConfig(sysProbeConfig)
+		secconfig, err := secconfig.NewConfig()
+		require.NoError(t, err)
+
+		opts := eventmonitor.Opts{}
+		evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, opts)
+		require.Error(t, err)
+		require.Error(t, evm.Init())
 	})
 	t.Run("for kernels >=4.15.0 with default value", func(t *testing.T) {
 		kv, err := ebpfkernel.NewKernelVersion()
