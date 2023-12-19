@@ -227,7 +227,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *EnvOpts) (*
 				return fmt.Errorf("setup micro-vms in remote instance: %w", err)
 			}
 			return nil
-		}, opts.FailOnMissing)
+		}, opts.FailOnMissing, nil)
 		if err != nil {
 			return handleScenarioFailure(err, func(possibleError handledError) {
 				// handle the following errors by trying in a different availability zone
@@ -255,7 +255,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *EnvOpts) (*
 
 // Destroy deletes the stack with the provided name
 func Destroy(name string) error {
-	return infra.GetStackManager().DeleteStack(context.Background(), name)
+	return infra.GetStackManager().DeleteStack(context.Background(), name, nil)
 }
 
 // RemoveStack removes the stack configuration with the provided name

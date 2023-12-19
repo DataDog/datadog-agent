@@ -50,8 +50,7 @@ from .go import (
     reset,
     tidy_all,
 )
-from .show_linters_issues import show_linters_issues
-from .test import (
+from .go_test import (
     codecov,
     download_tools,
     e2e_tests,
@@ -68,10 +67,12 @@ from .test import (
     lint_milestone,
     lint_python,
     lint_releasenote,
+    lint_skip_qa,
     lint_teamassignment,
     send_unit_tests_stats,
     test,
 )
+from .show_linters_issues import show_linters_issues
 from .update_go import go_version, update_go
 from .utils import generate_config
 from .windows_resources import build_messagetable
@@ -95,6 +96,7 @@ ns.add_task(reset)
 ns.add_task(lint_copyrights),
 ns.add_task(lint_teamassignment)
 ns.add_task(lint_releasenote)
+ns.add_task(lint_skip_qa)
 ns.add_task(lint_milestone)
 ns.add_task(lint_filenames)
 ns.add_task(lint_python)

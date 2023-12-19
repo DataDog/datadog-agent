@@ -44,12 +44,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
@@ -80,6 +83,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			telemetry telemetry.Component,
 			sysprobeconfig sysprobeconfig.Component,
 			server dogstatsdServer.Component,
+			_ replay.Component,
 			serverDebug dogstatsddebug.Component,
 			wmeta workloadmeta.Component,
 			rcclient rcclient.Component,
@@ -89,7 +93,9 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			sharedSerializer serializer.MetricSerializer,
 			otelcollector otelcollector.Component,
 			demultiplexer demultiplexer.Component,
+			_ host.Component,
 			invAgent inventoryagent.Component,
+			_ inventoryhost.Component,
 			_ secrets.Component,
 			invChecks inventorychecks.Component,
 			_ netflowServer.Component,
