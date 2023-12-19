@@ -126,7 +126,7 @@ func (o offsetT) String() string {
 }
 
 func TestOffsetGuess(t *testing.T) {
-	ebpftest.LogLevel(t, "debug")
+	ebpftest.LogLevel(t, "trace")
 	ebpftest.TestBuildMode(t, ebpftest.RuntimeCompiled, "", testOffsetGuess)
 }
 

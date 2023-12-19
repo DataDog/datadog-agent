@@ -383,7 +383,7 @@ func (s *TracerSuite) TestConnectionExpirationRegression() {
 
 func (s *TracerSuite) TestConntrackExpiration() {
 	t := s.T()
-	ebpftest.LogLevel(t, "debug")
+	ebpftest.LogLevel(t, "trace")
 	netlinktestutil.SetupDNAT(t)
 	wg := sync.WaitGroup{}
 
@@ -2029,7 +2029,7 @@ func (s *TracerSuite) TestGetHelpersTelemetry() {
 }
 
 func TestEbpfConntrackerFallback(t *testing.T) {
-	ebpftest.LogLevel(t, "debug")
+	ebpftest.LogLevel(t, "trace")
 	type testCase struct {
 		enableRuntimeCompiler    bool
 		allowPrecompiledFallback bool
@@ -2105,7 +2105,7 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 }
 
 func TestConntrackerFallback(t *testing.T) {
-	ebpftest.LogLevel(t, "debug")
+	ebpftest.LogLevel(t, "trace")
 	cfg := testConfig()
 	cfg.EnableEbpfConntracker = false
 	cfg.AllowNetlinkConntrackerFallback = true
