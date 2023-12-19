@@ -3,8 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(DBM) Fix revive linter
-/*
-Package systemd provides core checks for oracle
-*/
+//go:build oracle_test
+
 package oracle
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
+func TestSysmetrics(t *testing.T) {
+	n, err := chk.sysMetrics()
+	assert.NoError(t, err, "failed to run sys metrics")
+	assert.Equal(t, int64(92), n)
+}
