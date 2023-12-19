@@ -30,7 +30,6 @@ import (
 	awsResources "github.com/DataDog/test-infra-definitions/resources/aws"
 	ecsResources "github.com/DataDog/test-infra-definitions/resources/aws/ecs"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
 	e2elib "github.com/DataDog/datadog-agent/test/new-e2e/tests/cws/lib"
 )
@@ -92,7 +91,7 @@ func TestECSFargate(t *testing.T) {
 func (s *ECSFargateSuite) SetupSuite() {
 	s.apiClient = e2elib.NewAPIClient()
 
-	ruleDefs := []*rules.RuleDefinition{
+	ruleDefs := []*e2elib.TestRuleDefinition{
 		{
 			ID:         execRuleID,
 			Expression: fmt.Sprintf(`exec.file.path == \"%s\"`, execFilePath),
@@ -102,7 +101,7 @@ func (s *ECSFargateSuite) SetupSuite() {
 			Expression: fmt.Sprintf(`open.file.path == \"%s\"`, openFilePath),
 		},
 	}
-	selftestsPolicy, err := e2elib.GetPolicyContent(nil, ruleDefs)
+	selftestsPolicy, err := e2elib.GetPolicyContent(ruleDefs)
 	s.Require().NoError(err)
 
 	_, result, err := infra.GetStackManager().GetStack(s.ctx, s.stackName, nil, func(ctx *pulumi.Context) error {

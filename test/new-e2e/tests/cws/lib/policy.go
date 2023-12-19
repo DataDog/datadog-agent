@@ -8,19 +8,17 @@ package e2elib
 import (
 	"bytes"
 	"text/template"
-
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-const policyTemplate = `---
-version: 1.2.3
+// TestRuleDefinition defines a rule used in a test policy
+type TestRuleDefinition struct {
+	ID         string
+	Version    string
+	Expression string
+}
 
-macros:
-{{range $Macro := .Macros}}
-  - id: {{$Macro.ID}}
-    expression: >-
-      {{$Macro.Expression}}
-{{end}}
+const testPolicyTemplate = `---
+version: 1.2.3
 
 rules:
 {{range $Rule := .Rules}}
@@ -28,44 +26,19 @@ rules:
     version: {{$Rule.Version}}
     expression: >-
       {{$Rule.Expression}}
-    tags:
-{{- range $Tag, $Val := .Tags}}
-      {{$Tag}}: {{$Val}}
-{{- end}}
-    actions:
-{{- range $Action := .Actions}}
-{{- if $Action.Set}}
-      - set:
-          name: {{$Action.Set.Name}}
-		  {{- if $Action.Set.Value}}
-          value: {{$Action.Set.Value}}
-          {{- else if $Action.Set.Field}}
-          field: {{$Action.Set.Field}}
-          {{- end}}
-          scope: {{$Action.Set.Scope}}
-          append: {{$Action.Set.Append}}
-{{- end}}
-{{- if $Action.Kill}}
-      - kill:
-          {{- if $Action.Kill.Signal}}
-          signal: {{$Action.Kill.Signal}}
-          {{- end}}
-{{- end}}
-{{- end}}
 {{end}}
 `
 
 // GetPolicyContent returns the policy content from the given rules and macros definitions
-func GetPolicyContent(macros []*rules.MacroDefinition, rules []*rules.RuleDefinition) (string, error) {
-	tmpl, err := template.New("policy").Parse(policyTemplate)
+func GetPolicyContent(rules []*TestRuleDefinition) (string, error) {
+	tmpl, err := template.New("policy").Parse(testPolicyTemplate)
 	if err != nil {
 		return "", err
 	}
 
 	buffer := new(bytes.Buffer)
 	if err := tmpl.Execute(buffer, map[string]interface{}{
-		"Rules":  rules,
-		"Macros": macros,
+		"Rules": rules,
 	}); err != nil {
 		return "", err
 	}
