@@ -18,6 +18,7 @@ func initCWSSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.policies.watch_dir", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.policies.monitor.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.policies.monitor.per_rule_enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.policies.monitor.report_internal_policies", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.burst", 40)
 	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.retention", "6s")
 	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.rate", 10)

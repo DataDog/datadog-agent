@@ -316,12 +316,12 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 
 	}
 
-	policies := monitor.NewPoliciesState(evaluationSet.RuleSets, loadErrs)
+	policies := monitor.NewPoliciesState(evaluationSet.RuleSets, loadErrs, e.config.PolicyMonitorReportInternalPolicies)
 	e.notifyAPIServer(ruleIDs, policies)
 
 	if sendLoadedReport {
 		monitor.ReportRuleSetLoaded(e.eventSender, e.statsdClient, policies)
-		e.policyMonitor.SetPolicies(evaluationSet.GetPolicies(), loadErrs)
+		e.policyMonitor.SetPolicies(policies)
 	}
 
 	return nil

@@ -7,9 +7,10 @@
 package rules
 
 import (
+	"github.com/hashicorp/go-multierror"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/hashicorp/go-multierror"
 )
 
 // BundledPolicyProvider specify the policy provider for bundled policies
@@ -23,6 +24,7 @@ func (p *BundledPolicyProvider) LoadPolicies([]rules.MacroFilter, []rules.RuleFi
 	policy.Source = "bundled"
 	policy.Version = version.AgentVersion
 	policy.Rules = bundledPolicyRules
+	policy.IsInternal = true
 
 	for _, rule := range bundledPolicyRules {
 		rule.Policy = policy
