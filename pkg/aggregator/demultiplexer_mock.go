@@ -28,13 +28,22 @@ import (
 // the time samples into a fake sampler, you can then use WaitForSamples() to retrieve
 // the samples that the TimeSamplers should have received.
 type TestAgentDemultiplexer struct {
-	*AgentDemultiplexer
+	DemultiplexerWithAggregator
 	aggregatedSamples []metrics.MetricSample
 	noAggSamples      []metrics.MetricSample
 	sync.Mutex
 
 	events        chan []*event.Event
 	serviceChecks chan []*servicecheck.ServiceCheck
+}
+
+// NewTestAgentDemultiplexer returns a new instance of TestAgentDemultiplexer.
+func NewTestAgentDemultiplexer(demultiplexer DemultiplexerWithAggregator) *TestAgentDemultiplexer {
+	return &TestAgentDemultiplexer{
+		DemultiplexerWithAggregator: demultiplexer,
+		events:                      make(chan []*event.Event),
+		serviceChecks:               make(chan []*servicecheck.ServiceCheck),
+	}
 }
 
 // AggregateSamples implements a noop timesampler, appending the samples in an internal slice.
@@ -55,7 +64,7 @@ func (a *TestAgentDemultiplexer) AggregateSample(sample metrics.MetricSample) {
 
 // GetEventPlatformForwarder returns a event platform forwarder
 func (a *TestAgentDemultiplexer) GetEventPlatformForwarder() (epforwarder.EventPlatformForwarder, error) {
-	return a.aggregator.GetEventPlatformForwarder()
+	return a.DemultiplexerWithAggregator.GetEventPlatformForwarder()
 }
 
 // GetEventsAndServiceChecksChannels returneds underlying events and service checks channels.
@@ -136,7 +145,7 @@ func (a *TestAgentDemultiplexer) WaitEventPlatformEvents(eventType string, minEv
 	for {
 		select {
 		case <-ticker.C:
-			allEvents := a.aggregator.GetEventPlatformEvents()
+			allEvents := a.DemultiplexerWithAggregator.Aggregator().GetEventPlatformEvents()
 			savedEvents = append(savedEvents, allEvents[eventType]...)
 			// this case could always take priority on the timeout case, we have to make sure
 			// we've not timeout
@@ -168,12 +177,7 @@ func InitTestAgentDemultiplexerWithOpts(log log.Component, sharedForwarderOption
 	sharedForwarder := defaultforwarder.NewDefaultForwarder(config.Datadog, log, sharedForwarderOptions)
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	demux := InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, "hostname")
-	testAgent := TestAgentDemultiplexer{
-		AgentDemultiplexer: demux,
-		events:             make(chan []*event.Event),
-		serviceChecks:      make(chan []*servicecheck.ServiceCheck),
-	}
-	return &testAgent
+	return NewTestAgentDemultiplexer(demux)
 }
 
 // InitTestAgentDemultiplexerWithFlushInterval inits a TestAgentDemultiplexer with the given flush interval.

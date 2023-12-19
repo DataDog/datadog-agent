@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -233,7 +232,5 @@ type deps struct {
 }
 
 func buildDeps(t *testing.T) deps {
-	opts := aggregator.DefaultAgentDemultiplexerOptions()
-	opts.DontStartForwarders = true
 	return fxutil.Test[deps](t, defaultforwarder.MockModule(), config.MockModule(), logimpl.MockModule(), demultiplexerimpl.MockModule())
 }

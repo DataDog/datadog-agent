@@ -149,7 +149,7 @@ func (suite *CollectorDemuxTestSuite) TestRescheduledCheckReusesSampler() {
 	// Wait for the check to drop the sender
 	require.Eventually(suite.T(), func() bool {
 		// returns error if sender was not found, which is what we are waiting for
-		sender, _ := suite.demux.PeekSender(ch.ID())
+		sender, _ := suite.demux.DemultiplexerWithAggregator.(*aggregator.AgentDemultiplexer).PeekSender(ch.ID())
 		return sender == nil
 	}, time.Second, 10*time.Millisecond)
 
