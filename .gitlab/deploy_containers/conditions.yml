@@ -37,7 +37,7 @@
 
 # Rule for job that can be triggered manually on final build, deploy to prod repository on stable branch deploy, else to dev repository
 .on_final:
-  - if: $BRANCH_BUCKET == "beta"
+  - if: $BUCKET_BRANCH == "beta"
     when: never
   - if: $BUCKET_BRANCH != "beta" && $BUCKET_BRANCH != "stable"
     when: manual
@@ -55,7 +55,7 @@
 
 # Rule to deploy to our internal repository, on stable branch deploy
 .on_internal_final:
-  - if: $BRANCH_BUCKET == "beta"
+  - if: $BUCKET_BRANCH == "beta"
     when: never
   - if: $BUCKET_BRANCH != "beta" && $BUCKET_BRANCH != "stable"
     when: never

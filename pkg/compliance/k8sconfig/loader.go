@@ -230,6 +230,38 @@ func (l *loader) loadConfigFileMeta(name string) *K8sConfigFileMeta {
 	}
 }
 
+func (l *loader) getConfigFromPath(meta *K8sConfigFileMeta, path string) (map[string]interface{}, string, bool) {
+	if meta == nil || meta.Content == nil {
+		return nil, "", false
+	}
+	content, ok := meta.Content.(map[string]interface{})
+	if !ok {
+		return nil, "", false
+	}
+	fields := strings.Split(path, ".")
+	if len(fields) == 0 {
+		return nil, "", false
+	}
+	if len(fields) > 1 {
+		for _, field := range fields[:len(fields)-1] {
+			content, ok = content[field].(map[string]interface{})
+			if !ok {
+				return nil, "", false
+			}
+		}
+	}
+	return content, fields[len(fields)-1], true
+}
+
+func (l *loader) configFileMetaHasField(meta *K8sConfigFileMeta, path string) bool {
+	content, lastField, ok := l.getConfigFromPath(meta, path)
+	if ok {
+		_, hasField := content[lastField]
+		return hasField
+	}
+	return false
+}
+
 func (l *loader) loadKubeletConfigFileMeta(name string) *K8sConfigFileMeta {
 	meta := l.loadConfigFileMeta(name)
 	if meta == nil {
@@ -529,40 +561,53 @@ func (l *loader) pushError(err error) {
 	}
 }
 
-func (l *loader) parseBool(v string) bool {
+func (l *loader) parseBool(v string) *bool {
 	if v == "" {
-		return true
+		return nil
 	}
 	b, err := strconv.ParseBool(v)
 	if err != nil {
 		l.pushError(err)
+		return nil
 	}
-	return b
+	return &b
 }
 
 //nolint:unused,deadcode
-func (l *loader) parseFloat(v string) float64 {
+func (l *loader) parseFloat(v string) *float64 {
+	if v == "" {
+		return nil
+	}
 	f, err := strconv.ParseFloat(v, 64)
 	if err != nil {
 		l.pushError(err)
+		return nil
 	}
-	return f
+	return &f
 }
 
-func (l *loader) parseInt(v string) int {
+func (l *loader) parseInt(v string) *int {
+	if v == "" {
+		return nil
+	}
 	i, err := strconv.Atoi(v)
 	if err != nil {
 		l.pushError(err)
+		return nil
 	}
-	return i
+	return &i
 }
 
-func (l *loader) parseDuration(v string) time.Duration {
+func (l *loader) parseDuration(v string) *time.Duration {
+	if v == "" {
+		return nil
+	}
 	d, err := time.ParseDuration(v)
 	if err != nil {
 		l.pushError(err)
+		return nil
 	}
-	return d
+	return &d
 }
 
 func buildProc(name string, cmdline []string) proc {

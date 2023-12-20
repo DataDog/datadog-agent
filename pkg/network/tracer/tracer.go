@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"sync"
 	"time"
 
@@ -712,19 +713,22 @@ func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 // DebugEBPFMaps returns all maps registered in the eBPF manager
 //
 //nolint:revive // TODO(NET) Fix revive linter
-func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) {
-	tracerMaps, err := t.ebpfTracer.DumpMaps(maps...)
+func (t *Tracer) DebugEBPFMaps(w io.Writer, maps ...string) error {
+	io.WriteString(w, "tracer:\n")
+	err := t.ebpfTracer.DumpMaps(w, maps...)
 	if err != nil {
-		return "", err
+		return err
 	}
-	if t.usmMonitor == nil {
-		return "tracer:\n" + tracerMaps, nil
+
+	if t.usmMonitor != nil {
+		io.WriteString(w, "usm_monitor:\n")
+		err := t.usmMonitor.DumpMaps(w, maps...)
+		if err != nil {
+			return err
+		}
 	}
-	usmMaps, err := t.usmMonitor.DumpMaps(maps...)
-	if err != nil {
-		return "", err
-	}
-	return "tracer:\n" + tracerMaps + "\nhttp_monitor:\n" + usmMaps, nil
+
+	return nil
 }
 
 // connectionExpired returns true if the passed in connection has expired

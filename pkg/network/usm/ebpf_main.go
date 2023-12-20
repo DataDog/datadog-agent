@@ -10,8 +10,8 @@ package usm
 import (
 	"errors"
 	"fmt"
+	"io"
 	"math"
-	"strings"
 	"time"
 	"unsafe"
 
@@ -435,25 +435,22 @@ func getAssetName(module string, debug bool) string {
 	return fmt.Sprintf("%s.o", module)
 }
 
-func (e *ebpfProgram) dumpMapsHandler(_ *manager.Manager, mapName string, currentMap *ebpf.Map) string {
-	var output strings.Builder
-
+func (e *ebpfProgram) dumpMapsHandler(w io.Writer, _ *manager.Manager, mapName string, currentMap *ebpf.Map) {
 	switch mapName {
 	case connectionStatesMap: // maps/connection_states (BPF_MAP_TYPE_HASH), key C.conn_tuple_t, value C.__u32
-		output.WriteString("Map: '" + mapName + "', key: 'C.conn_tuple_t', value: 'C.__u32'\n")
+		io.WriteString(w, "Map: '"+mapName+"', key: 'C.conn_tuple_t', value: 'C.__u32'\n")
 		iter := currentMap.Iterate()
 		var key http.ConnTuple
 		var value uint32
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			output.WriteString(spew.Sdump(key, value))
+			spew.Fdump(w, key, value)
 		}
 
 	default: // Go through enabled protocols in case one of them now how to handle the current map
 		for _, p := range e.enabledProtocols {
-			p.Instance.DumpMaps(&output, mapName, currentMap)
+			p.Instance.DumpMaps(w, mapName, currentMap)
 		}
 	}
-	return output.String()
 }
 
 func (e *ebpfProgram) getProtocolStats() map[protocols.ProtocolType]interface{} {

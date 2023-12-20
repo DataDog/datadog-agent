@@ -353,7 +353,7 @@ static __always_inline void handle_end_of_stream(http2_stream_t *current_stream,
     bpf_map_delete_elem(&http2_in_flight, http2_stream_key_template);
 }
 
-static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_stream_t *current_stream, skb_info_t *skb_info, conn_tuple_t *tup, dynamic_table_index_t *dynamic_index, struct http2_frame *current_frame_header, http2_telemetry_t *http2_tel) {
+static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_stream_t *current_stream, skb_info_t *skb_info, conn_tuple_t *tup, dynamic_table_index_t *dynamic_index, http2_frame_t *current_frame_header, http2_telemetry_t *http2_tel) {
     const __u32 zero = 0;
 
     // Allocating an array of headers, to hold all interesting headers from the frame.
@@ -368,9 +368,9 @@ static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_s
 }
 
 // A similar implementation of read_http2_frame_header, but instead of getting both a char array and an out parameter,
-// we get only the out parameter (equals to struct http2_frame * representation of the char array) and we perform the
+// we get only the out parameter (equals to http2_frame_t* representation of the char array) and we perform the
 // field adjustments we have in read_http2_frame_header.
-static __always_inline bool format_http2_frame_header(struct http2_frame *out) {
+static __always_inline bool format_http2_frame_header(http2_frame_t *out) {
     if (is_empty_frame_header((char *)out)) {
         return false;
     }
@@ -429,11 +429,11 @@ static __always_inline void fix_header_frame(struct __sk_buff *skb, skb_info_t *
     return;
 }
 
-static __always_inline void reset_frame(struct http2_frame *out) {
-    *out = (struct http2_frame){ 0 };
+static __always_inline void reset_frame(http2_frame_t *out) {
+    *out = (http2_frame_t){ 0 };
 }
 
-static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *skb_info, frame_header_remainder_t *frame_state, struct http2_frame *current_frame, http2_telemetry_t *http2_tel) {
+static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *skb_info, frame_header_remainder_t *frame_state, http2_frame_t *current_frame, http2_telemetry_t *http2_tel) {
     // No state, try reading a frame.
     if (frame_state == NULL) {
         // Checking we have enough bytes in the packet to read a frame header.
@@ -516,7 +516,7 @@ static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *s
 // - DATA frames with the END_STREAM flag set
 static __always_inline __u16 find_relevant_frames(struct __sk_buff *skb, skb_info_t *skb_info, http2_frame_with_offset *frames_array, __u8 original_index, http2_telemetry_t *http2_tel) {
     bool is_headers_or_rst_frame, is_data_end_of_stream;
-    struct http2_frame current_frame = {};
+    http2_frame_t current_frame = {};
 
     // We may have found a relevant frame already in http2_handle_first_frame,
     // so we need to adjust the index accordingly. We do not set
@@ -567,7 +567,7 @@ static __always_inline __u16 find_relevant_frames(struct __sk_buff *skb, skb_inf
 SEC("socket/http2_handle_first_frame")
 int socket__http2_handle_first_frame(struct __sk_buff *skb) {
     const __u32 zero = 0;
-    struct http2_frame current_frame = {};
+    http2_frame_t current_frame = {};
 
     dispatcher_arguments_t dispatcher_args_copy;
     bpf_memset(&dispatcher_args_copy, 0, sizeof(dispatcher_arguments_t));
