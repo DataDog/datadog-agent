@@ -33,6 +33,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/avast/retry-go/v4"
 	"github.com/cihub/seelog"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/hashicorp/go-multierror"
@@ -177,6 +178,8 @@ runtime_security_config:
   {{range .LogTags}}
     - {{.}}
   {{end}}
+  ebpfless:
+    enabled: {{.EnableEBPFLess}}
 `
 
 const testPolicy = `---
@@ -269,6 +272,7 @@ type testOpts struct {
 	preStartCallback                           func(test *testModule)
 	tagsResolver                               tags.Resolver
 	snapshotRuleMatchHandler                   func(*testModule, *model.Event, *rules.Rule)
+	enableEBPFLess                             bool
 }
 
 type dynamicTestOpts struct {
@@ -313,7 +317,8 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.disableRuntimeSecurity == opts.disableRuntimeSecurity &&
 		to.enableSBOM == opts.enableSBOM &&
 		to.snapshotRuleMatchHandler == nil && opts.snapshotRuleMatchHandler == nil &&
-		to.preStartCallback == nil && opts.preStartCallback == nil
+		to.preStartCallback == nil && opts.preStartCallback == nil &&
+		to.enableEBPFLess == opts.enableEBPFLess
 }
 
 type testModule struct {
@@ -540,8 +545,10 @@ func validateProcessContextLineage(tb testing.TB, event *model.Event, probe *spr
 
 	json, err := jsonpath.JsonPathLookup(data, "$.process.ancestors")
 	if err != nil {
-		tb.Errorf("should have a process context with ancestors, got %+v (%s)", json, spew.Sdump(data))
-		tb.Error(string(eventJSON))
+		if event.Origin != "ebpfless" { // first exec event can't have ancestors
+			tb.Errorf("should have a process context with ancestors, got %+v (%s)", json, spew.Sdump(data))
+			tb.Error(string(eventJSON))
+		}
 		return
 	}
 
@@ -573,8 +580,11 @@ func validateProcessContextLineage(tb testing.TB, event *model.Event, probe *spr
 		if pid != 1 {
 			ppid, ok := pce["ppid"].(float64)
 			if !ok {
-				tb.Errorf("invalid pid, %+v", pce)
-				tb.Error(string(eventJSON))
+				// could happen in ebpfless, because we don't have complete lineage
+				if event.Origin != "ebpfless" {
+					tb.Errorf("invalid pid, %+v", pce)
+					tb.Error(string(eventJSON))
+				}
 				return
 			}
 
@@ -599,7 +609,7 @@ func validateProcessContextLineage(tb testing.TB, event *model.Event, probe *spr
 		prevPID = pid
 	}
 
-	if prevPID != 1 {
+	if event.Origin != "ebpfless" && prevPID != 1 {
 		tb.Errorf("invalid process tree, last ancestor should be pid 1, %+v", json)
 		tb.Error(string(eventJSON))
 	}
@@ -610,9 +620,13 @@ func validateProcessContextSECL(tb testing.TB, event *model.Event, probe *sprobe
 	// Process file name values cannot be blank
 	nameFields := []string{
 		"process.file.name",
-		"process.ancestors.file.name",
-		"process.parent.file.path",
-		"process.parent.file.name",
+	}
+	if event.Origin != "ebpfless" {
+		nameFields = append(nameFields,
+			"process.ancestors.file.name",
+			"process.parent.file.path",
+			"process.parent.file.name",
+		)
 	}
 
 	nameFieldValid, hasPath := checkProcessContextFieldsForBlankValues(tb, event, nameFields)
@@ -620,7 +634,9 @@ func validateProcessContextSECL(tb testing.TB, event *model.Event, probe *sprobe
 	// Process path values can be blank if the process was a fileless execution
 	pathFields := []string{
 		"process.file.path",
-		"process.ancestors.file.path",
+	}
+	if event.Origin != "ebpfless" {
+		pathFields = append(pathFields, "process.ancestors.file.path")
 	}
 
 	pathFieldValid := true
@@ -708,7 +724,9 @@ func (tm *testModule) validateExecEvent(tb *testing.T, kind wrapperType, validat
 			assertFieldNotEmpty(tb, event, "process.container.id", "process container id not found")
 		}
 
-		tm.validateExecSchema(tb, event)
+		if event.Origin != "ebpfless" {
+			tm.validateExecSchema(tb, event)
+		}
 	}
 }
 
@@ -824,6 +842,7 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		"EnvsWithValue":                              opts.envsWithValue,
 		"RuntimeSecurityEnabled":                     runtimeSecurityEnabled,
 		"SBOMEnabled":                                opts.enableSBOM,
+		"EnableEBPFLess":                             opts.enableEBPFLess,
 	}); err != nil {
 		return nil, nil, err
 	}
@@ -899,6 +918,10 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		opt(&opts)
 	}
 
+	if env := os.Getenv("EBPFLESS"); env != "" {
+		opts.staticOpts.enableEBPFLess = true
+	}
+
 	if commonCfgDir == "" {
 		cd, err := os.MkdirTemp("", "test-cfgdir")
 		if err != nil {
@@ -952,7 +975,25 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		}
 	}
 
-	if testMod != nil && opts.staticOpts.Equal(testMod.opts.staticOpts) {
+	if testMod != nil && opts.staticOpts.enableEBPFLess {
+		testMod.st = st
+		testMod.cmdWrapper = cmdWrapper
+		testMod.t = t
+		testMod.opts.dynamicOpts = opts.dynamicOpts
+		testMod.opts.staticOpts = opts.staticOpts
+
+		if opts.staticOpts.preStartCallback != nil {
+			opts.staticOpts.preStartCallback(testMod)
+		}
+
+		if !opts.staticOpts.disableRuntimeSecurity {
+			if err = testMod.reloadPolicies(); err != nil {
+				return testMod, err
+			}
+		}
+		return testMod, nil
+
+	} else if testMod != nil && opts.staticOpts.Equal(testMod.opts.staticOpts) {
 		testMod.st = st
 		testMod.cmdWrapper = cmdWrapper
 		testMod.t = t
@@ -1007,6 +1048,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			PathResolutionEnabled:  true,
 			SyscallsMonitorEnabled: true,
 			TTYFallbackEnabled:     true,
+			EBPFLessEnabled:        opts.staticOpts.enableEBPFLess,
 		},
 	}
 	if opts.staticOpts.tagsResolver != nil {
@@ -1076,6 +1118,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		})
 		defer testMod.RegisterRuleEventHandler(nil)
 	}
+
 	if err := testMod.eventMonitor.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start module: %w", err)
 	}
@@ -1089,6 +1132,20 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		t.Logf("%s entry stats: %s\n", t.Name(), GetEBPFStatusMetrics(testMod.probe))
 	}
 
+	if opts.staticOpts.enableEBPFLess {
+		t.Logf("EBPFLess mode, waiting for a client to connect\n")
+		err := retry.Do(func() error {
+			if testMod.probe.PlatformProbe.(*probe.EBPFLessProbe).GetClientsCount() > 0 {
+				return nil
+			}
+			return errors.New("No client connected, aborting")
+		}, retry.Delay(time.Second), retry.Attempts(120))
+		if err != nil {
+			return nil, err
+		}
+		time.Sleep(time.Second * 2) // sleep another sec to let tests starting before the tracing is ready
+		t.Logf("client connected\n")
+	}
 	return testMod, nil
 }
 

@@ -101,8 +101,12 @@ func (p *EBPFLessResolver) AddExecEntry(key CacheResolverKey, file string, argv 
 
 	entry.Process.ArgsEntry = &model.ArgsEntry{Values: argv}
 	if len(argv) > 0 {
-		entry.Process.Comm = argv[0]
 		entry.Process.Argv0 = argv[0]
+	}
+	entry.Process.Comm = filepath.Base(file)
+	if len(entry.Process.Comm) > 16 {
+		// truncate comm to max 16 chars to be ebpf ISO
+		entry.Process.Comm = entry.Process.Comm[:16]
 	}
 
 	entry.Process.EnvsEntry = &model.EnvsEntry{Values: envs}
@@ -113,6 +117,7 @@ func (p *EBPFLessResolver) AddExecEntry(key CacheResolverKey, file string, argv 
 
 	// TODO fix timestamp
 	entry.ExecTime = time.Now()
+	entry.CreatedAt = uint64(entry.ExecTime.UnixNano())
 
 	p.Lock()
 	defer p.Unlock()
