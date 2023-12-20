@@ -66,6 +66,6 @@ typedef union {
 typedef struct {
     __u8 length : 7;
     __u8 is_huffman : 1;
-} __attribute__((packed)) string_literal_header;
+} __attribute__((packed)) string_literal_header_t;
 
 #endif

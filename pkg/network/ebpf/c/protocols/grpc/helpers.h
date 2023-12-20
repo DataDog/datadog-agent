@@ -43,7 +43,7 @@ static __always_inline grpc_status_t is_content_type_grpc(const struct __sk_buff
         return PAYLOAD_UNDETERMINED;
     }
 
-    string_literal_header len;
+    string_literal_header_t len;
     if (skb_info->data_off + sizeof(len) > frame_end) {
         return PAYLOAD_NOT_GRPC;
     }
@@ -68,7 +68,7 @@ static __always_inline grpc_status_t is_content_type_grpc(const struct __sk_buff
 // skip_header increments skb_info->data_off so that it skips the remainder of
 // the current header (of which we already parsed the index value).
 static __always_inline void skip_literal_header(const struct __sk_buff *skb, skb_info_t *skb_info, __u32 frame_end, __u8 idx) {
-    string_literal_header len;
+    string_literal_header_t len;
     if (skb_info->data_off + sizeof(len) > frame_end) {
         return;
     }
