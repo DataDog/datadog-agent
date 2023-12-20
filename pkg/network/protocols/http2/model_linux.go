@@ -65,11 +65,11 @@ func (tx *EbpfTx) Path(buffer []byte) ([]byte, bool) {
 		}
 	} else {
 		if tx.Stream.Path_size <= 0 {
-			log.Warn("path size is negative or zero")
+			log.Warnf("path size:%d is negative or zero", tx.Stream.Path_size)
 			return nil, false
 		}
 		if tx.Stream.Path_size > maxHTTP2Path {
-			log.Warn("invalid path size")
+			log.Warn("invalid path size: %d", tx.Stream.Path_size)
 			return nil, false
 		}
 		res = tx.Stream.Request_path[:tx.Stream.Path_size]
