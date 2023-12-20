@@ -42,6 +42,8 @@ agent_deb-x64-a6:
   extends: .agent_build_common_deb
   rules:
     - !reference [.on_omnibus_change]
+    - !reference [.on_go-version_change]
+    - !reference [.on_kitchen_test_change]
     - !reference [.on_a6]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
@@ -66,6 +68,8 @@ agent_deb-x64-a7:
   extends: .agent_build_common_deb
   rules:
     - !reference [.on_omnibus_change]
+    - !reference [.on_go-version_change]
+    - !reference [.on_kitchen_test_change]
     - !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
@@ -90,6 +94,8 @@ agent_deb-x64-a7-auto:
   extends: .agent_build_common_deb
   rules:
     - !reference [.on_omnibus_change]
+    - !reference [.on_go-version_change]
+    - !reference [.on_kitchen_test_change]
     - !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
@@ -115,6 +121,8 @@ agent_deb-arm64-a6:
   extends: .agent_build_common_deb
   rules:
     - !reference [.on_omnibus_change]
+    - !reference [.on_go-version_change]
+    - !reference [.on_kitchen_test_change]
     - !reference [.on_all_builds_a6]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
@@ -139,6 +147,8 @@ agent_deb-arm64-a7:
   extends: .agent_build_common_deb
   rules:
     - !reference [.on_omnibus_change]
+    - !reference [.on_go-version_change]
+    - !reference [.on_kitchen_test_change]
     - !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
@@ -192,6 +202,8 @@ iot_agent_deb-x64:
   extends: .iot_agent_build_common_deb
   rules:
     - !reference [.on_omnibus_change]
+    - !reference [.on_go-version_change]
+    - !reference [.on_kitchen_test_change]
     - !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
@@ -205,6 +217,8 @@ iot_agent_deb-arm64:
   extends: .iot_agent_build_common_deb
   rules:
     - !reference [.on_omnibus_change]
+    - !reference [.on_go-version_change]
+    - !reference [.on_kitchen_test_change]
     - !reference [.on_all_builds_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
@@ -218,6 +232,8 @@ iot_agent_deb-armhf:
   extends: .iot_agent_build_common_deb
   rules:
     - !reference [.on_omnibus_change]
+    - !reference [.on_go-version_change]
+    - !reference [.on_kitchen_test_change]
     - !reference [.on_all_builds_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_armhf$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
@@ -231,6 +247,8 @@ iot_agent_deb-armhf:
 dogstatsd_deb-x64:
   rules:
     - !reference [.on_omnibus_change]
+    - !reference [.on_go-version_change]
+    - !reference [.on_kitchen_test_change]
     - !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
@@ -260,6 +278,8 @@ dogstatsd_deb-x64:
 dogstatsd_deb-arm64:
   rules:
     - !reference [.on_omnibus_change]
+    - !reference [.on_go-version_change]
+    - !reference [.on_kitchen_test_change]
     - !reference [.on_all_builds_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES

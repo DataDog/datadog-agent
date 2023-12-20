@@ -40,6 +40,8 @@ agent_suse-x64-a6:
   extends: .agent_build_common_suse_rpm
   rules:
     - !reference [.on_omnibus_change]
+    - !reference [.on_go-version_change]
+    - !reference [.on_kitchen_test_change]
     - !reference [.on_a6]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
@@ -64,6 +66,8 @@ agent_suse-x64-a7:
   extends: .agent_build_common_suse_rpm
   rules:
     - !reference [.on_omnibus_change]
+    - !reference [.on_go-version_change]
+    - !reference [.on_kitchen_test_change]
     - !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
@@ -89,6 +93,8 @@ agent_suse-arm64-a7:
   extends: .agent_build_common_suse_rpm
   rules:
     - !reference [.on_omnibus_change]
+    - !reference [.on_go-version_change]
+    - !reference [.on_kitchen_test_change]
     - !reference [.on_all_builds_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
@@ -112,6 +118,8 @@ agent_suse-arm64-a7:
 iot_agent_suse-x64:
   rules:
     - !reference [.on_omnibus_change]
+    - !reference [.on_go-version_change]
+    - !reference [.on_kitchen_test_change]
     - !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
@@ -150,6 +158,8 @@ iot_agent_suse-x64:
 dogstatsd_suse-x64:
   rules:
     - !reference [.on_omnibus_change]
+    - !reference [.on_go-version_change]
+    - !reference [.on_kitchen_test_change]
     - !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES

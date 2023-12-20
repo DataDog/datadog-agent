@@ -1013,4 +1013,18 @@ workflow:
 
 .on_omnibus_change:
   - changes:
-      - omnibus/**/*
+      paths:
+        - omnibus/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+
+.on_go-version_change:
+  - changes:
+      paths:
+        - .go-version
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+
+.on_kitchen_test_change:
+  - changes:
+      paths:
+        - test/kitchen/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
