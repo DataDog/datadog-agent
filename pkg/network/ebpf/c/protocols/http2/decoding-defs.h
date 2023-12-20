@@ -95,6 +95,7 @@ typedef enum {
 typedef struct {
     char buffer[HTTP2_MAX_PATH_LEN] __attribute__((aligned(8)));
     __u8 string_len;
+    bool is_huffman_encoded;
 } dynamic_table_entry_t;
 
 typedef struct {

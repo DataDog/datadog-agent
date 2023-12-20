@@ -325,9 +325,11 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
                 break;
             }
             current_stream->path_size = dynamic_value->string_len;
+            current_stream->is_huffman_encoded = dynamic_value->is_huffman_encoded;
             bpf_memcpy(current_stream->request_path, dynamic_value->buffer, HTTP2_MAX_PATH_LEN);
         } else {
             dynamic_value.string_len = current_header->new_dynamic_value_size;
+            dynamic_value.is_huffman_encoded = current_header->is_huffman_encoded;
 
             // create the new dynamic value which will be added to the internal table.
             read_into_buffer_path(dynamic_value.buffer, skb, current_header->new_dynamic_value_offset);

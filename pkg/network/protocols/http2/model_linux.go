@@ -276,12 +276,12 @@ func (t http2StreamKey) String() string {
 
 // String returns a string representation of the http2 dynamic table.
 func (t http2DynamicTableEntry) String() string {
-	if t.Len == 0 {
+	if t.String_len == 0 {
 		return ""
 	}
 
-	b := make([]byte, t.Len)
-	for i := uint8(0); i < t.Len; i++ {
+	b := make([]byte, t.String_len)
+	for i := uint8(0); i < t.String_len; i++ {
 		b[i] = byte(t.Buffer[i])
 	}
 	// trim null byte + after
