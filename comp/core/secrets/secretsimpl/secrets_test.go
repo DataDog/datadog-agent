@@ -45,28 +45,6 @@ slice:
 - 123
 `)
 
-	testYamlCustomField = []byte(`
-first:
-  additional_endpoints:
-    password: ENC[pass1]
-second:
-  a: test3
-  b: "2"
-  c: 456
-  slice:
-    - test4
-    - test5
-`)
-
-	testYamlCustomFieldResolved = handleToContext{
-		"pass1": []secretContext{
-			{
-				origin:   "test",
-				yamlPath: "first/additional_endpoints/password",
-			},
-		},
-	}
-
 	testConf = []byte(`---
 instances:
 - password: ENC[pass1]
@@ -85,14 +63,14 @@ instances:
 	testConfOrigin = handleToContext{
 		"pass1": []secretContext{
 			{
-				origin:   "test",
-				yamlPath: "instances/password",
+				origin: "test",
+				path:   []string{"instances", "0", "password"},
 			},
 		},
 		"pass2": []secretContext{
 			{
-				origin:   "test",
-				yamlPath: "instances/password",
+				origin: "test",
+				path:   []string{"instances", "1", "password"},
 			},
 		},
 	}
@@ -110,8 +88,8 @@ some_encoded_password: password1
 	testConfDashOrigin = handleToContext{
 		"pass1": []secretContext{
 			{
-				origin:   "test",
-				yamlPath: "some_encoded_password",
+				origin: "test",
+				path:   []string{"some_encoded_password"},
 			},
 		},
 	}
@@ -126,8 +104,8 @@ some_encoded_password: ENC[pass1]
 	testConfMultilineOrigin = handleToContext{
 		"pass1": []secretContext{
 			{
-				origin:   "test",
-				yamlPath: "some_encoded_password",
+				origin: "test",
+				path:   []string{"some_encoded_password"},
 			},
 		},
 	}
@@ -145,8 +123,8 @@ some:
 	testConfNestedOrigin = handleToContext{
 		"pass1": []secretContext{
 			{
-				origin:   "test",
-				yamlPath: "some/encoded/data",
+				origin: "test",
+				path:   []string{"some", "encoded", "data"},
 			},
 		},
 	}
@@ -162,20 +140,20 @@ some:
 	testConfNestedOriginMultiple = handleToContext{
 		"pass1": []secretContext{
 			{
-				origin:   "test",
-				yamlPath: "top_level",
+				origin: "test",
+				path:   []string{"top_level"},
 			},
 		},
 		"pass2": []secretContext{
 			{
-				origin:   "test",
-				yamlPath: "some/second_level",
+				origin: "test",
+				path:   []string{"some", "second_level"},
 			},
 		},
 		"pass3": []secretContext{
 			{
-				origin:   "test",
-				yamlPath: "some/encoded/third_level",
+				origin: "test",
+				path:   []string{"some", "encoded", "third_level"},
 			},
 		},
 	}
@@ -372,42 +350,7 @@ func TestResolve(t *testing.T) {
 	}
 }
 
-func TestResolveCustomFieldWithCallback(t *testing.T) {
-	testConf := testYamlCustomField
-
-	resolver := newEnabledSecretResolver()
-	resolver.backendCommand = "some_command"
-
-	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
-		return map[string]string{
-			"pass1": "password1",
-		}, nil
-	}
-
-	keysResolved := []string{}
-	err := resolver.RegisterResolveCallback(
-		testConf,
-		"test",
-		func(yamlPath []string, value any) bool {
-			settingName := strings.Join(yamlPath, ".")
-			// Simulate the behavior of the config, which doesn't know about
-			// fields within customizable hashes like "additional_endpoints".
-			// The trailing dot ensures this setting is such a custom field.
-			if strings.Contains(settingName, ".additional_endpoints.") {
-				return false
-			}
-			keysResolved = append(keysResolved, settingName)
-			return true
-		},
-	)
-	require.NoError(t, err)
-	// Validate that only 1 field is resolved, the parent element which contains the
-	// custom field.
-	assert.Equal(t, []string{"first.additional_endpoints"}, keysResolved, "only 1 resolved")
-	assert.Equal(t, testYamlCustomFieldResolved, resolver.origin)
-}
-
-func TestRegisterResolveCallbackNested(t *testing.T) {
+func TestResolveNestedWithSubscribe(t *testing.T) {
 	testConf := testConfNestedMultiple
 
 	resolver := newEnabledSecretResolver()
@@ -424,30 +367,27 @@ func TestRegisterResolveCallbackNested(t *testing.T) {
 	topLevelResolved := 0
 	secondLevelResolved := 0
 	thirdLevelResolved := 0
-	err := resolver.RegisterResolveCallback(
-		testConf,
-		"test",
-		func(yamlPath []string, value any) bool {
-			switch strings.Join(yamlPath, "/") {
-			case "top_level":
-				assert.Equal(t, "password1", value)
-				topLevelResolved++
-			case "some/second_level":
-				assert.Equal(t, "password2", value)
-				secondLevelResolved++
-			case "some/encoded/third_level":
-				assert.Equal(t, "password3", value)
-				thirdLevelResolved++
-			default:
-				assert.Fail(t, "unknown yaml path: %s", yamlPath)
-			}
-			return true
-		},
-	)
+	resolver.Subscribe(func(handle string, path []string, oldValue, newValue any) {
+		switch strings.Join(path, "/") {
+		case "top_level":
+			assert.Equal(t, "password1", newValue)
+			topLevelResolved++
+		case "some/second_level":
+			assert.Equal(t, "password2", newValue)
+			secondLevelResolved++
+		case "some/encoded/third_level":
+			assert.Equal(t, "password3", newValue)
+			thirdLevelResolved++
+		default:
+			assert.Fail(t, "unknown yaml path: %s", path)
+		}
+	})
+	_, err := resolver.Resolve(testConf, "test")
+
 	require.NoError(t, err)
 	assert.Equal(t, 1, topLevelResolved, "'top_level' secret was not resolved or resolved multiple times")
 	assert.Equal(t, 1, secondLevelResolved, "'second_level' secret was not resolved or resolved multiple times")
-	assert.Equal(t, 1, thirdLevelResolved, "'third_level' secret was not resolved or resolved multiple times")
+	assert.Equal(t, 0, thirdLevelResolved, "'third_level' secret was resolved, but should not have been because it was already in the cache")
 
 	assert.Equal(t, testConfNestedOriginMultiple, resolver.origin)
 }
@@ -459,6 +399,17 @@ func TestResolveThenRefresh(t *testing.T) {
 	resolver.backendCommand = "some_command"
 	resolver.cache = map[string]string{}
 
+	// subscribe to updates, collect list of keys that get resolved
+	keysResolved := []string{}
+	oldValues := []string{}
+	newValues := []string{}
+	resolver.Subscribe(func(handle string, path []string, oldValue, newValue any) {
+		keysResolved = append(keysResolved, strings.Join(path, "/"))
+		oldValues = append(oldValues, fmt.Sprintf("%s", oldValue))
+		newValues = append(newValues, fmt.Sprintf("%s", newValue))
+	})
+
+	// initial 3 values for these passwords
 	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
 		return map[string]string{
 			"pass1": "password1",
@@ -467,21 +418,14 @@ func TestResolveThenRefresh(t *testing.T) {
 		}, nil
 	}
 
-	keysResolved := []string{}
-	err := resolver.RegisterResolveCallback(
-		testConf,
-		"test",
-		func(yamlPath []string, value any) bool {
-			keysResolved = append(keysResolved, strings.Join(yamlPath, "/"))
-			return true
-		},
-	)
+	// resolve the secrets the first time
+	_, err := resolver.Resolve(testConf, "test")
 	require.NoError(t, err)
 	slices.Sort(keysResolved)
 	assert.Equal(t, testConfNestedOriginMultiple, resolver.origin)
 	assert.Equal(t, []string{"some/encoded/third_level", "some/second_level", "top_level"}, keysResolved)
 
-	// Change the secret value of the handle 'pass2'
+	// change the secret value of the handle 'pass2'
 	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
 		return map[string]string{
 			"pass1": "password1",
@@ -490,12 +434,14 @@ func TestResolveThenRefresh(t *testing.T) {
 		}, nil
 	}
 
+	// refresh the secrets and only collect newly updated keys
 	keysResolved = []string{}
 	err = resolver.Refresh()
 	require.NoError(t, err)
 	assert.Equal(t, testConfNestedOriginMultiple, resolver.origin)
 	assert.Equal(t, []string{"some/second_level"}, keysResolved)
 
+	// change the secret values of the other two handles
 	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
 		return map[string]string{
 			"pass1": "first",
@@ -504,10 +450,17 @@ func TestResolveThenRefresh(t *testing.T) {
 		}, nil
 	}
 
+	// refresh one last time and only those two handles have updated keys
 	keysResolved = []string{}
 	err = resolver.Refresh()
 	require.NoError(t, err)
 	slices.Sort(keysResolved)
 	assert.Equal(t, testConfNestedOriginMultiple, resolver.origin)
 	assert.Equal(t, []string{"some/encoded/third_level", "top_level"}, keysResolved)
+
+	// validate the list of old and new values, sorted to make this deterministic
+	sort.Strings(oldValues)
+	sort.Strings(newValues)
+	assert.Equal(t, []string{"", "", "", "password1", "password2", "password3"}, oldValues)
+	assert.Equal(t, []string{"first", "password1", "password2", "password3", "second", "third"}, newValues)
 }
