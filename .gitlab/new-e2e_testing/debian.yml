@@ -125,11 +125,11 @@ new-e2e-agent-platform-install-script-debian-heroku-agent-a7-x86_64:
   variables:
     FLAVOR: datadog-heroku-agent
 
-new-e2e-agent-platform-package-signing-debian-a7-arm64:
+new-e2e-agent-platform-package-signing-debian-a7-x86_64:
   stage: kitchen_testing
   extends:
     - .new_e2e_template
-    - .new-e2e_debian_a7_arm64
+    - .new-e2e_debian_a7_x86_64
     - .new-e2e_package_signing
 
 new-e2e-agent-platform-step-by-step-debian-a7-x64:

@@ -308,7 +308,7 @@ func TestGetAPTPayload(t *testing.T) {
 
 	expectedMetadata := &signingMetadata{
 		SigningKeys: []signingKey{
-			{Fingerprint: "F1068E14E09422B3", ExpirationDate: "2022-06-28", KeyType: "signed-by", Repositories: []pkgUtils.Repository{{Name: "https://apt.datadoghq.com//stable/7"}}},
+			{Fingerprint: "F1068E14E09422B3", ExpirationDate: "2022-06-28", KeyType: "signed-by", Repositories: []pkgUtils.Repository{{Name: "https://apt.datadoghq.com/ stable 7"}}},
 			{Fingerprint: "FD4BF915", ExpirationDate: "9999-12-31", KeyType: "trusted"},
 		},
 	}

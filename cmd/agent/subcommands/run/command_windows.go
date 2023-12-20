@@ -124,7 +124,6 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				invAgent,
 				agentAPI,
 				invChecks,
-				pkgSigning,
 			)
 			if err != nil {
 				return err

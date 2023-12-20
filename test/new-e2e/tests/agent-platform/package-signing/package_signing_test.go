@@ -11,7 +11,6 @@ import (
 	"os"
 	"regexp"
 
-	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning/packagesigningimpl"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
@@ -28,6 +27,33 @@ var osName = flag.String("osname", "", "os to test, eg debian or redhat")
 type packageSigningTestSuite struct {
 	e2e.Suite[e2e.AgentEnv]
 	osName string
+}
+
+// Payload handles the JSON unmarshalling of the metadata payload
+type Payload struct {
+	Hostname  string           `json:"hostname"`
+	Timestamp int64            `json:"timestamp"`
+	Metadata  *signingMetadata `json:"signing_metadata"`
+}
+
+type signingMetadata struct {
+	SigningKeys []signingKey `json:"signing_keys"`
+}
+
+// signingKey represents relevant fields for a package signature key
+type signingKey struct {
+	Fingerprint    string       `json:"signing_key_fingerprint"`
+	ExpirationDate string       `json:"signing_key_expiration_date"`
+	KeyType        string       `json:"signing_key_type"`
+	Repositories   []Repository `json:"repositories"`
+}
+
+// Repository is a struct to store the repo name
+type Repository struct {
+	Name         string `json:"name"`
+	Enabled      bool   `json:"enabled"`
+	GPGCheck     bool   `json:"gpgcheck"`
+	RepoGPGCheck bool   `json:"repo_gpgcheck"`
 }
 
 func TestPackageSigningComponent(t *testing.T) {
@@ -56,7 +82,6 @@ func TestPackageSigningComponent(t *testing.T) {
 
 	t.Run(fmt.Sprintf("Test package signing on %s\n", rawOS), func(tt *testing.T) {
 		tt.Parallel()
-		fmt.Printf("Testing on %s\n", rawOS)
 		e2e.Run[e2e.AgentEnv](tt,
 			&packageSigningTestSuite{osName: rawOS},
 			e2e.AgentStackDef(e2e.WithAgentParams(agentparams.WithPipeline(os.Getenv("CI_PIPELINE_ID"), "x86_64")), e2e.WithVMParams(ec2params.WithOS(testedOS))),
@@ -69,7 +94,7 @@ func (is *packageSigningTestSuite) TestPackageSigning() {
 	diagnose := is.Env().Agent.Diagnose(client.WithArgs([]string{"show-metadata", "package-signing"}))
 	t := is.T()
 	t.Log(diagnose)
-	var payload packagesigningimpl.Payload
+	var payload Payload
 	err := json.Unmarshal([]byte(diagnose), &payload)
 	if err != nil {
 		t.Fatal(err)
