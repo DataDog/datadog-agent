@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/containerd/containerd"
@@ -145,7 +146,7 @@ func extractStatus(status containerd.ProcessStatus) workloadmeta.ContainerStatus
 
 // extractRuntimeFlavor extracts the runtime from a runtime string.
 func extractRuntimeFlavor(runtime string) workloadmeta.ContainerRuntimeFlavor {
-	if runtime == "io.containerd.kata.v2" {
+	if strings.Contains(runtime, "kata") {
 		return workloadmeta.ContainerRuntimeFlavorKata
 	}
 	return workloadmeta.ContainerRuntimeFlavorDefault
