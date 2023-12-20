@@ -1,6 +1,8 @@
 module github.com/DataDog/datadog-agent/test/new-e2e
 
-go 1.20
+go 1.21
+
+toolchain go1.21.5
 
 // Do not upgrade Pulumi plugins to versions different from `test-infra-definitions`.
 // The plugin versions NEED to be aligned.
@@ -166,8 +168,8 @@ require (
 	github.com/pulumi/pulumi-command/sdk v0.9.2 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v3 v3.6.1 // indirect
 	github.com/pulumi/pulumi-eks/sdk v1.0.4 // indirect
-	github.com/pulumi/pulumi-kubernetes/sdk/v3 v3.30.2 // indirect
-	github.com/pulumi/pulumi-libvirt/sdk v0.4.0 // indirect
+	github.com/pulumi/pulumi-kubernetes/sdk/v3 v3.30.2
+	github.com/pulumi/pulumi-libvirt/sdk v0.4.3 // indirect
 	// pulumi-random v4.14.0 uses GO 1.21:
 	// https://github.com/pulumi/pulumi-random/blob/v4.14.0/sdk/go.mod#L3
 	// So, do not upgrade pulumi-random to v4.14.0 or above before migration to GO 1.21.
@@ -189,8 +191,8 @@ require (
 	github.com/uber/jaeger-lib v2.4.1+incompatible // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	github.com/xlab/treeprint v1.2.0 // indirect
-	github.com/zclconf/go-cty v1.13.2 // indirect
-	github.com/zorkian/go-datadog-api v2.30.0+incompatible // indirect
+	github.com/zclconf/go-cty v1.14.1 // indirect
+	github.com/zorkian/go-datadog-api v2.30.0+incompatible
 	go.starlark.net v0.0.0-20230525235612-a134d8f9ddca // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20230725093048-515e97ebf090 // indirect
