@@ -20,14 +20,12 @@ import (
 // StatKeeper is responsible for aggregating HTTP stats.
 type StatKeeper struct {
 	mux                         sync.Mutex
-	cfg                         *config.Config
 	stats                       map[Key]*RequestStats
-	incomplete                  *incompleteBuffer
+	incomplete                  IncompleteBuffer
 	maxEntries                  int
 	quantizer                   *URLQuantizer
 	telemetry                   *Telemetry
 	enableStatusCodeAggregation bool
-	enableQuantization          bool
 
 	// replace rules for HTTP path
 	replaceRules []*config.ReplaceRule
@@ -39,19 +37,20 @@ type StatKeeper struct {
 }
 
 // NewStatkeeper returns a new StatKeeper.
-func NewStatkeeper(c *config.Config, telemetry *Telemetry) *StatKeeper {
+func NewStatkeeper(c *config.Config, telemetry *Telemetry, incompleteBuffer IncompleteBuffer) *StatKeeper {
+	var quantizer *URLQuantizer
 	// For now we're only enabling path quantization for HTTP/1 traffic
-	enableQuantization := c.EnableUSMQuantization && telemetry.protocol == "http"
+	if c.EnableUSMQuantization && telemetry.protocol == "http" {
+		quantizer = NewURLQuantizer()
+	}
 
 	return &StatKeeper{
-		cfg:                         c,
 		stats:                       make(map[Key]*RequestStats),
-		incomplete:                  newIncompleteBuffer(c, telemetry),
+		incomplete:                  incompleteBuffer,
 		maxEntries:                  c.MaxHTTPStatsBuffered,
-		quantizer:                   NewURLQuantizer(),
+		quantizer:                   quantizer,
 		replaceRules:                c.HTTPReplaceRules,
 		enableStatusCodeAggregation: c.EnableHTTPStatsByStatusCode,
-		enableQuantization:          enableQuantization,
 		buffer:                      make([]byte, getPathBufferSize(c)),
 		telemetry:                   telemetry,
 		oversizedLogLimit:           util.NewLogLimit(10, time.Minute*10),
@@ -99,7 +98,7 @@ func (h *StatKeeper) add(tx Transaction) {
 
 	// Quantize HTTP path
 	// (eg. this turns /orders/123/view` into `/orders/*/view`)
-	if h.enableQuantization {
+	if h.quantizer != nil {
 		rawPath = h.quantizer.Quantize(rawPath)
 	}
 

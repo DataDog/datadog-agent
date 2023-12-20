@@ -5,7 +5,7 @@
 
 //go:build !linux
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// Package ebpftest is utilities for tests against eBPF
 package ebpftest
 
 import "testing"

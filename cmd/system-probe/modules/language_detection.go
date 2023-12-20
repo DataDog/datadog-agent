@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// LanguageDetectionModule is the language detection module factory
 var LanguageDetectionModule = module.Factory{
 	Name:             config.LanguageDetectionModule,
 	ConfigNamespaces: []string{"language_detection"},
@@ -31,6 +31,9 @@ var LanguageDetectionModule = module.Factory{
 		return &languageDetectionModule{
 			languageDetector: privileged.NewLanguageDetector(),
 		}, nil
+	},
+	NeedsEBPF: func() bool {
+		return false
 	},
 }
 

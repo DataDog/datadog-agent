@@ -207,6 +207,20 @@ new-e2e-agent-shared-components-main:
   # Temporary, until we manage to stabilize those tests.
   allow_failure: true
 
+.agent-subcommands-tests-matrix: &agent-subcommands-tests-matrix
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestSubcommandSuite
+      - EXTRA_PARAMS: --run TestAgentSecretSuite
+      - EXTRA_PARAMS: --run TestAgentConfigSuite
+      - EXTRA_PARAMS: --run TestAgentHostnameEC2Suite
+      - EXTRA_PARAMS: --run TestAgentDiagnoseEC2Suite
+      - EXTRA_PARAMS: --run TestAgentConfigCheckSuite
+      - EXTRA_PARAMS: --run TestLinuxFlareSuite
+      - EXTRA_PARAMS: --run TestWindowsFlareSuite
+      - EXTRA_PARAMS: --run TestLinuxSecretSuite
+      - EXTRA_PARAMS: --run TestWindowsSecretSuite
+
 new-e2e-agent-subcommands-dev:
   extends: .new_e2e_template
   rules: !reference [.on_dev_branch_manual]
@@ -214,6 +228,7 @@ new-e2e-agent-subcommands-dev:
   variables:
     TARGETS: ./tests/agent-subcommands
     TEAM: agent-shared-components
+  <<: *agent-subcommands-tests-matrix
 
 new-e2e-agent-subcommands-main:
   extends: .new_e2e_template
@@ -224,6 +239,9 @@ new-e2e-agent-subcommands-main:
     TEAM: agent-shared-components
   # Temporary, until we manage to stabilize those tests.
   allow_failure: true
+  <<: *agent-subcommands-tests-matrix
+
+
 
 new-e2e-language-detection-dev:
   extends: .new_e2e_template
@@ -254,6 +272,20 @@ new-e2e-npm-main:
     TARGETS: ./tests/npm
   # Temporary, until we manage to stabilize those tests.
   allow_failure: true
+
+new-e2e-aml-dev:
+  extends: .new_e2e_template
+  rules: !reference [.on_dev_branch_manual]
+  variables:
+    TARGETS: ./tests/agent-metric-logs
+    TEAM: agent-metric-logs
+
+new-e2e-aml-main:
+  extends: .new_e2e_template
+  rules: !reference [.on_main_and_no_skip_e2e]
+  variables:
+    TARGETS: ./tests/agent-metric-logs
+    TEAM: agent-metric-logs
 
 new-e2e-cws-dev:
   extends: .new_e2e_template
@@ -288,6 +320,7 @@ new-e2e-process-main:
   variables:
     TARGETS: ./tests/process
     TEAM: processes
+
 
 #   ^    If you create a new job here that extends `.new_e2e_template`,
 #  /!\   do not forget to add it in the `dependencies` statement of the

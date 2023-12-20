@@ -9,10 +9,10 @@ package module
 
 import "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 
-func preRegister(_ *config.Config) error {
+func preRegister(_ *config.Config, _ []Factory) error {
 	return nil
 }
 
-func postRegister(_ *config.Config) error {
+func postRegister(_ *config.Config, _ []Factory) error {
 	return nil
 }

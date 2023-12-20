@@ -9,6 +9,7 @@
 package rules
 
 import (
+	"os"
 	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -174,6 +175,11 @@ func (m *RuleFilterModel) GetEvaluator(field eval.Field, _ eval.RegisterID) (eva
 			EvalFnc: func(ctx *eval.Context) bool { return ctx.Event.(*RuleFilterEvent).IsSuse15Kernel() },
 			Field:   field,
 		}, nil
+	case "envs":
+		return &eval.StringArrayEvaluator{
+			Values: os.Environ(),
+			Field:  field,
+		}, nil
 	}
 
 	return nil, &eval.ErrFieldNotFound{Field: field}
@@ -237,6 +243,8 @@ func (e *RuleFilterEvent) GetFieldValue(field eval.Field) (interface{}, error) {
 		return e.IsSuse12Kernel(), nil
 	case "os.is_sles15":
 		return e.IsSuse15Kernel(), nil
+	case "envs":
+		return os.Environ(), nil
 	}
 
 	return nil, &eval.ErrFieldNotFound{Field: field}
