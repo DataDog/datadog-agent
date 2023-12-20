@@ -24,6 +24,29 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// validatePath validates the given path.
+func validatePath(str string) error {
+	if len(str) == 0 {
+		return errors.New("decoded path is empty")
+	}
+	// ensure we found a '/' at the beginning of the path
+	if str[0] != '/' {
+		return fmt.Errorf("decoded path '%s' doesn't start with '/'", str)
+	}
+	return nil
+}
+
+// validatePathSize validates the given path size.
+func validatePathSize(size uint8) error {
+	if size == 0 {
+		return errors.New("empty path")
+	}
+	if size > maxHTTP2Path {
+		return fmt.Errorf("path size has exceeded the maximum limit: %d", size)
+	}
+	return nil
+}
+
 // decodeHTTP2Path tries to decode (Huffman) the path from the given buffer.
 // Possible errors:
 // - If the given pathSize is 0.
@@ -31,11 +54,8 @@ import (
 // - If the Huffman decoding fails.
 // - If the decoded path doesn't start with a '/'.
 func decodeHTTP2Path(buf [maxHTTP2Path]byte, pathSize uint8) ([]byte, error) {
-	if pathSize == 0 {
-		return nil, errors.New("empty path")
-	}
-	if pathSize > maxHTTP2Path {
-		return nil, fmt.Errorf("path size has exceeded the maximum limit: %d", pathSize)
+	if err := validatePathSize(pathSize); err != nil {
+		return nil, err
 	}
 
 	str, err := hpack.HuffmanDecodeToString(buf[:pathSize])
@@ -43,12 +63,8 @@ func decodeHTTP2Path(buf [maxHTTP2Path]byte, pathSize uint8) ([]byte, error) {
 		return nil, err
 	}
 
-	if len(str) == 0 {
-		return nil, errors.New("decoded path is empty")
-	}
-	// ensure we found a '/' in the beginning of the path
-	if str[0] != '/' {
-		return nil, fmt.Errorf("decoded path '%s' doesn't start with '/'", str)
+	if err = validatePath(str); err != nil {
+		return nil, err
 	}
 
 	return []byte(str), nil
@@ -61,17 +77,20 @@ func (tx *EbpfTx) Path(buffer []byte) ([]byte, bool) {
 	if tx.Stream.Is_huffman_encoded {
 		res, err = decodeHTTP2Path(tx.Stream.Request_path, tx.Stream.Path_size)
 		if err != nil {
+			log.Errorf("unable to decode HTTP2 path due to: %s", err)
 			return nil, false
 		}
 	} else {
-		if tx.Stream.Path_size <= 0 {
-			log.Warnf("path size:%d is negative or zero", tx.Stream.Path_size)
+		if err = validatePathSize(tx.Stream.Path_size); err != nil {
+			log.Errorf("path size is invalid due to: %s", err)
 			return nil, false
 		}
-		if tx.Stream.Path_size > maxHTTP2Path {
-			log.Warnf("invalid path size: %d", tx.Stream.Path_size)
+
+		if err = validatePath(string(tx.Stream.Request_path[:tx.Stream.Path_size])); err != nil {
+			log.Errorf("path is invalid due to: %s", err)
 			return nil, false
 		}
+
 		res = tx.Stream.Request_path[:tx.Stream.Path_size]
 	}
 
