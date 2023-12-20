@@ -183,13 +183,13 @@ func (a *APIServer) GetStatus(_ context.Context, _ *api.GetStatusParams) (*api.S
 			UseMmapableMaps: p.GetKernelVersion().HaveMmapableMaps(),
 			UseRingBuffer:   p.UseRingBuffers(),
 		}
-	}
 
-	envErrors := p.VerifyEnvironment()
-	if envErrors != nil {
-		apiStatus.Environment.Warnings = make([]string, len(envErrors.Errors))
-		for i, err := range envErrors.Errors {
-			apiStatus.Environment.Warnings[i] = err.Error()
+		envErrors := p.VerifyEnvironment()
+		if envErrors != nil {
+			apiStatus.Environment.Warnings = make([]string, len(envErrors.Errors))
+			for i, err := range envErrors.Errors {
+				apiStatus.Environment.Warnings[i] = err.Error()
+			}
 		}
 	}
 

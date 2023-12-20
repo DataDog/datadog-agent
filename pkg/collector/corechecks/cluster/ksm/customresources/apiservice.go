@@ -35,7 +35,7 @@ var (
 // NewAPIServiceFactory returns a new APIService metric family generator factory.
 func NewAPIServiceFactory(client *apiserver.APIClient) customresource.RegistryFactory {
 	return &apiserviceFactory{
-		client: client.APISClient,
+		client: client.APISInformerClient,
 	}
 }
 

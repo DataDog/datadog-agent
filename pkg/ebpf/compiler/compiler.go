@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// Package compiler is the runtime compiler for eBPF
 package compiler
 
 import (
@@ -92,14 +92,14 @@ func CompileToObjectFile(inFile, outputFile string, cflags []string, headerDirs 
 	return nil
 }
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// WithStdin assigns the provided io.Reader as Stdin for the command
 func WithStdin(in io.Reader) func(*exec.Cmd) {
 	return func(c *exec.Cmd) {
 		c.Stdin = in
 	}
 }
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// WithStdout assigns the provided io.Writer as Stdout for the command
 func WithStdout(out io.Writer) func(*exec.Cmd) {
 	return func(c *exec.Cmd) {
 		c.Stdout = out

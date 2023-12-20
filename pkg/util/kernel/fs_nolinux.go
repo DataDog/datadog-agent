@@ -9,12 +9,12 @@ package kernel
 
 import "github.com/DataDog/datadog-agent/pkg/util/funcs"
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// ProcFSRoot is the path to procfs
 var ProcFSRoot = funcs.MemoizeNoError(func() string {
 	return ""
 })
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// SysFSRoot is the path to sysfs
 var SysFSRoot = funcs.MemoizeNoError(func() string {
 	return ""
 })

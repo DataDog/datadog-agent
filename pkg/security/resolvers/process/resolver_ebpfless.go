@@ -156,6 +156,8 @@ func (p *EBPFLessResolver) insertForkEntry(key CacheResolverKey, entry *model.Pr
 func (p *EBPFLessResolver) insertExecEntry(key CacheResolverKey, entry *model.ProcessCacheEntry) {
 	prev := p.entryCache[key]
 	if prev != nil {
+		// inheritate credentials as exec event, uid/gid can be update by setuid/setgid events
+		entry.Credentials = prev.Credentials
 		prev.Exec(entry)
 	}
 
@@ -170,6 +172,38 @@ func (p *EBPFLessResolver) Resolve(key CacheResolverKey) *model.ProcessCacheEntr
 		return e
 	}
 	return nil
+}
+
+// UpdateUID updates the credentials of the provided pid
+func (p *EBPFLessResolver) UpdateUID(key CacheResolverKey, uid int32, euid int32) {
+	p.Lock()
+	defer p.Unlock()
+
+	entry := p.entryCache[key]
+	if entry != nil {
+		if uid != -1 {
+			entry.Credentials.UID = uint32(uid)
+		}
+		if euid != -1 {
+			entry.Credentials.EUID = uint32(euid)
+		}
+	}
+}
+
+// UpdateGID updates the credentials of the provided pid
+func (p *EBPFLessResolver) UpdateGID(key CacheResolverKey, gid int32, egid int32) {
+	p.Lock()
+	defer p.Unlock()
+
+	entry := p.entryCache[key]
+	if entry != nil {
+		if gid != -1 {
+			entry.Credentials.GID = uint32(gid)
+		}
+		if egid != -1 {
+			entry.Credentials.EGID = uint32(egid)
+		}
+	}
 }
 
 // getCacheSize returns the cache size of the process resolver

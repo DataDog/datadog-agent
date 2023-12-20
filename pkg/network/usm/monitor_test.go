@@ -811,11 +811,9 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 							t.Logf("key: %v was not found in res", key.Path.Content.Get())
 						}
 					}
-					o, err := monitor.DumpMaps("http2_in_flight")
+					err := monitor.DumpMaps(&ebpftest.TestLogWriter{T: t}, "http2_in_flight")
 					if err != nil {
 						t.Logf("failed dumping http2_in_flight: %s", err)
-					} else {
-						t.Log(o)
 					}
 				}
 			})
@@ -1006,11 +1004,9 @@ func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp
 	}, 3*time.Second, time.Millisecond*100, "connection not found")
 
 	if t.Failed() {
-		o, err := monitor.DumpMaps("http_in_flight")
+		err := monitor.DumpMaps(&ebpftest.TestLogWriter{T: t}, "http_in_flight")
 		if err != nil {
 			t.Logf("failed dumping http_in_flight: %s", err)
-		} else {
-			t.Log(o)
 		}
 
 		for reqIndex, exists := range requestsExist {
