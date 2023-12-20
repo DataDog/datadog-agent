@@ -7,6 +7,7 @@ package utils
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -100,6 +101,7 @@ func toSlice(m map[string]bool) []string {
 		s[index] = tag
 		index++
 	}
+	sort.Strings(s)
 	return s
 }
 
