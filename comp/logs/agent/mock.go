@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"go.uber.org/fx"
 )
@@ -21,6 +22,7 @@ type mockLogsAgent struct {
 	addedSchedulers []schedulers.Scheduler
 	hasFlushed      bool
 	flushDelay      time.Duration
+	logSources      *sources.LogSources
 }
 
 func newMock(deps dependencies) optional.Option[Mock] {
@@ -51,12 +53,20 @@ func (a *mockLogsAgent) AddScheduler(scheduler schedulers.Scheduler) {
 	a.addedSchedulers = append(a.addedSchedulers, scheduler)
 }
 
+func (a *mockLogsAgent) SetSources(sources *sources.LogSources) {
+	a.logSources = sources
+}
+
 func (a *mockLogsAgent) IsRunning() bool {
 	return a.isRunning
 }
 
 func (a *mockLogsAgent) GetMessageReceiver() *diagnostic.BufferedMessageReceiver {
 	return nil
+}
+
+func (a *mockLogsAgent) GetSources() *sources.LogSources {
+	return a.logSources
 }
 
 // Serverless methods

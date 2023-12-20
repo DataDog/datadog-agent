@@ -92,7 +92,6 @@ func TestInstallScript(t *testing.T) {
 				cwsSupported = true
 			}
 		}
-
 		vmOpts = append(vmOpts, ec2params.WithImageName(platformJSON[*platform][*architecture][osVers], archMapping[*architecture], testOsType))
 		if instanceType, ok := os.LookupEnv("E2E_OVERRIDE_INSTANCE_TYPE"); ok {
 			vmOpts = append(vmOpts, ec2params.WithInstanceType(instanceType))

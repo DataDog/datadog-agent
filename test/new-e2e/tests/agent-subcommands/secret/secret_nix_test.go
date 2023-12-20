@@ -20,7 +20,6 @@ type linuxSecretSuite struct {
 }
 
 func TestLinuxSecretSuite(t *testing.T) {
-	t.Parallel()
 	e2e.Run(t, &linuxSecretSuite{}, e2e.AgentStackDef(e2e.WithVMParams(ec2params.WithOS(ec2os.UbuntuOS))))
 }
 

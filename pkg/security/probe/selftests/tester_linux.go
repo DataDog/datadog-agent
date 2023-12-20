@@ -14,6 +14,8 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/hashicorp/go-multierror"
+
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
@@ -22,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/hashicorp/go-multierror"
 )
 
 // EventPredicate defines a self test event validation predicate
@@ -160,9 +161,10 @@ func (t *SelfTester) Close() error {
 // LoadPolicies implements the PolicyProvider interface
 func (t *SelfTester) LoadPolicies(_ []rules.MacroFilter, _ []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) {
 	p := &rules.Policy{
-		Name:    policyName,
-		Source:  policySource,
-		Version: policyVersion,
+		Name:       policyName,
+		Source:     policySource,
+		Version:    policyVersion,
+		IsInternal: true,
 	}
 
 	for _, selftest := range FileSelfTests {

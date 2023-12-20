@@ -11,6 +11,7 @@ import (
 	json "encoding/json"
 	"errors"
 	"fmt"
+	"runtime"
 	"sync"
 	"time"
 
@@ -94,6 +95,16 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 	return engine, nil
 }
 
+func getOrigin(cfg *config.RuntimeSecurityConfig) string {
+	if runtime.GOOS == "linux" {
+		if cfg.EBPFLessEnabled {
+			return "ebpfless"
+		}
+		return "ebpf"
+	}
+	return ""
+}
+
 // Start the rule engine
 func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *sync.WaitGroup) error {
 	// monitor policies
@@ -118,7 +129,7 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 		ruleFilters = append(ruleFilters, agentVersionFilter)
 	}
 
-	ruleFilterModel, err := NewRuleFilterModel()
+	ruleFilterModel, err := NewRuleFilterModel(getOrigin(e.config))
 	if err != nil {
 		return fmt.Errorf("failed to create rule filter: %w", err)
 	}
@@ -316,12 +327,12 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 
 	}
 
-	policies := monitor.NewPoliciesState(evaluationSet.RuleSets, loadErrs)
+	policies := monitor.NewPoliciesState(evaluationSet.RuleSets, loadErrs, e.config.PolicyMonitorReportInternalPolicies)
 	e.notifyAPIServer(ruleIDs, policies)
 
 	if sendLoadedReport {
 		monitor.ReportRuleSetLoaded(e.eventSender, e.statsdClient, policies)
-		e.policyMonitor.SetPolicies(evaluationSet.GetPolicies(), loadErrs)
+		e.policyMonitor.SetPolicies(policies)
 	}
 
 	return nil
@@ -335,7 +346,7 @@ func (e *RuleEngine) notifyAPIServer(ruleIDs []rules.RuleID, policies []*monitor
 func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {
 	var policyProviders []rules.PolicyProvider
 
-	policyProviders = append(policyProviders, &BundledPolicyProvider{})
+	policyProviders = append(policyProviders, NewBundledPolicyProvider(e.config))
 
 	// add remote config as config provider if enabled.
 	if e.config.RemoteConfigurationEnabled {
@@ -520,6 +531,8 @@ func logLoadingErrors(msg string, m *multierror.Error) {
 			} else {
 				seclog.Warnf(msg, rErr.Error())
 			}
+		} else {
+			seclog.Errorf(msg, err.Error())
 		}
 	}
 }

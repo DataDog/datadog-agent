@@ -21,7 +21,6 @@ type windowsFlareSuite struct {
 }
 
 func TestWindowsFlareSuite(t *testing.T) {
-	t.Parallel()
 	e2e.Run(t, &windowsFlareSuite{}, e2e.FakeIntakeStackDef(e2e.WithVMParams(ec2params.WithOS(ec2os.WindowsOS))))
 }
 

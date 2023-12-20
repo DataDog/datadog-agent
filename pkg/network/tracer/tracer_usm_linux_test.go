@@ -334,8 +334,8 @@ func testHTTPSLibrary(t *testing.T, tr *Tracer, fetchCmd, prefetchLibs []string)
 	}, 5*time.Second, 100*time.Millisecond, "couldn't find USM HTTPS stats")
 
 	if t.Failed() {
-		o, _ := tr.usmMonitor.DumpMaps("http_in_flight")
-		t.Logf("http_in_flight: %s", o)
+		t.Log("http_in_flight: ")
+		tr.usmMonitor.DumpMaps(&ebpftest.TestLogWriter{T: t}, "http_in_flight")
 	}
 
 	// check NPM static TLS tag
