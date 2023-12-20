@@ -145,7 +145,7 @@ static __always_inline grpc_status_t scan_headers(const struct __sk_buff *skb, s
 static __always_inline grpc_status_t is_grpc(const struct __sk_buff *skb, const skb_info_t *skb_info) {
     grpc_status_t status = PAYLOAD_UNDETERMINED;
     char frame_buf[HTTP2_FRAME_HEADER_SIZE];
-    struct http2_frame current_frame;
+    http2_frame_t current_frame;
 
     frame_info_t frames[GRPC_MAX_FRAMES_TO_PROCESS];
     u32 frames_count = 0;

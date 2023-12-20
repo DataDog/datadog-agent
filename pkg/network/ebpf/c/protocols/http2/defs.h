@@ -31,13 +31,13 @@ typedef enum {
 
 // Struct which represent the http2 frame by its fields.
 // Checkout https://datatracker.ietf.org/doc/html/rfc7540#section-4.1 for frame format.
-struct http2_frame {
+typedef struct {
     __u32 length : 24;
     frame_type_t type;
     __u8 flags;
     __u8 reserved : 1;
     __u32 stream_id : 31;
-} __attribute__ ((packed));
+} __attribute__ ((packed)) http2_frame_t;
 
 
 /* Header parsing helper macros */

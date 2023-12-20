@@ -143,7 +143,7 @@ typedef struct {
 } http2_header_t;
 
 typedef struct {
-    struct http2_frame frame;
+    http2_frame_t frame;
     __u32 offset;
 } http2_frame_with_offset;
 
