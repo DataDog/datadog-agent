@@ -62,7 +62,7 @@ The payload is a JSON dict with the following fields
     data). On `ec2` Nitro instances, this contains the EC2 instance ID. This was introduced in `7.41.0`/`6.41.0`.
   - `dmi_board_vendor` - **string**: the DMI board vendor (Unix only, empty string on Windows or if we can't read the
     data). On `ec2` Nitro instances, this might equal "Amazon EC2". This was introduced in `7.41.0`/`6.41.0`.
-  - `linux_package_signing_enabled` - **boolean**: the main level of configuration about gpg check.
+  - `linux_package_signing_enabled` - **boolean**: is true if package signing is enabled on the host
     - It checks the presence of `no-debsig` in `/etc/dpkg/dpkg.cfg` for hosts relying on APT as package manager.
     - It checks the value of `gpgcheck` in the `[main]` repo file definition for distributions using YUM, DNF
       or ZYPPER as package manager.

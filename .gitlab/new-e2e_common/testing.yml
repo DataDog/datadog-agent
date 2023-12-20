@@ -18,4 +18,4 @@
   variables:
     TARGETS: ./tests/agent-platform/package-signing
     TEAM: agent-platform
-    EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --major-version $AGENT_MAJOR_VERSION --arch $E2E_ARCH
+    EXTRA_PARAMS: --osname $E2E_BRANCH_OSVERS

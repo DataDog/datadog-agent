@@ -28,66 +28,68 @@ const (
 var (
 	sourceListRegexp = regexp.MustCompile(`^([^\s]+)\s?(\[.*\]\s)?(.*)$`)
 	signedBy         = regexp.MustCompile(`signed-by=([A-Za-z0-9_\-\.\/]+)`)
+	trusted          = regexp.MustCompile(`trusted=yes`)
 	debsigPolicies   = "/etc/debsig/policies/"
 	debsigKeyring    = "/usr/share/debsig/keyrings/"
 )
 
 // getAPTSignatureKeys returns the list of debian signature keys
-func getAPTSignatureKeys(client *http.Client, logger log.Component) []SigningKey {
-	allKeys := make(map[string]SigningKey)
+func getAPTSignatureKeys(client *http.Client, logger log.Component) []signingKey {
+	cacheKeys := make(map[string]signingKey)
 	// debian 11 and ubuntu 22.04 will be the last using legacy trusted.gpg.d folder and trusted.gpg file
-	updateWithTrustedKeys(allKeys, client, logger)
+	updateWithTrustedKeys(cacheKeys, client, logger)
 	// Regular files are referenced in the sources.list file by signed-by=filename
-	updateWithSignedByKeys(allKeys, client, logger)
+	updateWithSignedByKeys(cacheKeys, client, logger)
 	// In APT we can also sign packages with debsig
 	keyPaths := getDebsigKeyPaths()
 	for _, keyPath := range keyPaths {
-		decryptGPGFile(allKeys, repoFile{filename: keyPath, repositories: nil}, "debsig", client, logger)
+		decryptGPGFile(cacheKeys, repoFile{filename: keyPath, repositories: nil}, "debsig", client, logger)
 	}
-	// Extract SigningKeys in a list for the inventory
-	var keyList []SigningKey
-	for _, key := range allKeys {
+	// Extract signingKeys from the cache in a list
+	var keyList []signingKey
+	for _, key := range cacheKeys {
 		keyList = append(keyList, key)
 	}
 	return keyList
 }
 
-func updateWithTrustedKeys(allKeys map[string]SigningKey, client *http.Client, logger log.Component) {
+func updateWithTrustedKeys(cacheKeys map[string]signingKey, client *http.Client, logger log.Component) {
 	// debian 11 and ubuntu 22.04 will be the last using legacy trusted.gpg.d folder and trusted.gpg file
 	if _, err := os.Stat(trustedFolder); err == nil {
 		if files, err := os.ReadDir(trustedFolder); err == nil {
 			for _, file := range files {
 				trustedFileName := filepath.Join(trustedFolder, file.Name())
-				decryptGPGFile(allKeys, repoFile{trustedFileName, nil}, "trusted", client, logger)
+				decryptGPGFile(cacheKeys, repoFile{trustedFileName, nil}, "trusted", client, logger)
 			}
 		}
 	}
 	if _, err := os.Stat(trustedFile); err == nil {
-		decryptGPGFile(allKeys, repoFile{trustedFile, nil}, "trusted", client, logger)
+		decryptGPGFile(cacheKeys, repoFile{trustedFile, nil}, "trusted", client, logger)
 	}
 }
 
-func updateWithSignedByKeys(allKeys map[string]SigningKey, client *http.Client, logger log.Component) {
+func updateWithSignedByKeys(cacheKeys map[string]signingKey, client *http.Client, logger log.Component) {
+	gpgcheck := pkgUtils.IsPackageSigningEnabled()
 	if _, err := os.Stat(mainSourceList); err == nil {
-		reposPerKey := parseSourceListFile(mainSourceList)
+		reposPerKey := parseSourceListFile(mainSourceList, gpgcheck)
 		for name, repos := range reposPerKey {
-			decryptGPGFile(allKeys, repoFile{name, repos}, "signed-by", client, logger)
+			decryptGPGFile(cacheKeys, repoFile{name, repos}, "signed-by", client, logger)
 		}
 	}
 	if _, err := os.Stat(sourceList); err == nil {
 		if files, err := os.ReadDir(sourceList); err == nil {
 			for _, file := range files {
-				reposPerKey := parseSourceListFile(filepath.Join(sourceList, file.Name()))
+				reposPerKey := parseSourceListFile(filepath.Join(sourceList, file.Name()), gpgcheck)
 				for name, repos := range reposPerKey {
-					decryptGPGFile(allKeys, repoFile{name, repos}, "signed-by", client, logger)
+					decryptGPGFile(cacheKeys, repoFile{name, repos}, "signed-by", client, logger)
 				}
 			}
 		}
 	}
 }
 
-func parseSourceListFile(filePath string) map[string][]pkgUtils.Repositories {
-	reposPerKey := make(map[string][]pkgUtils.Repositories)
+func parseSourceListFile(filePath string, gpgcheck bool) map[string][]pkgUtils.Repository {
+	reposPerKey := make(map[string][]pkgUtils.Repository)
 	file, err := os.Open(filePath)
 	if err != nil {
 		return nil
@@ -103,11 +105,16 @@ func parseSourceListFile(filePath string) map[string][]pkgUtils.Repositories {
 		if len(splitLine) > 1 {
 			options := splitLine[2]
 			keyURI := signedBy.FindStringSubmatch(options)
+			repoGpgcheck := true
+			repoCheck := trusted.FindStringSubmatch(options)
+			if len(repoCheck) > 0 {
+				repoGpgcheck = false
+			}
 			if len(keyURI) > 1 {
 				if _, ok := reposPerKey[keyURI[1]]; !ok {
-					reposPerKey[keyURI[1]] = []pkgUtils.Repositories{{RepoName: strings.ReplaceAll(splitLine[3], " ", "/")}}
+					reposPerKey[keyURI[1]] = []pkgUtils.Repository{{Name: splitLine[3], Enabled: true, GPGCheck: gpgcheck, RepoGPGCheck: repoGpgcheck}}
 				} else {
-					reposPerKey[keyURI[1]] = append(reposPerKey[keyURI[1]], pkgUtils.Repositories{RepoName: strings.ReplaceAll(splitLine[3], " ", "/")})
+					reposPerKey[keyURI[1]] = append(reposPerKey[keyURI[1]], pkgUtils.Repository{Name: splitLine[3], Enabled: true, GPGCheck: gpgcheck, RepoGPGCheck: repoGpgcheck})
 				}
 			}
 		}

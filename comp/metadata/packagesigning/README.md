@@ -16,8 +16,11 @@ The payload is a JSON dict with a list of keys, each having the following fields
   - `fingerprint` - **string**: the 16-char long key fingerprint.
   - `expiration_date` - **string**: the expiration date of the key.
   - `key_type` - **string**: the type of key. which represents how it is referenced in the host. Possible values are "signed-by", "trusted" or "debsig" for DEB-based distributions, "repo" or "rpm" for RPM-based distributions.
-  - `repositories` - **list of dict of string to string**
-    - `repo_name` - **string**: a unique repository name signed by the above key according to host configuration. In DEB-based distribution it is the aggregation of the repository information from sources.list files. In RPM-based it is the baseurl or mirrorlist field from repo file.
+  - `repositories` - **list of dict of string to JSON type**
+    - `name` - **string**: a unique repository name signed by the above key according to host configuration. In DEB-based distribution it is information from sources.list files. In RPM-based it is the baseurl or mirrorlist field from repo file.
+    - `enabled` - **boolean**: true if the repo is enabled, false otherwise
+    - `gpgcheck` - **boolean**: true if GPG signature check on packages is enabled, false otherwise
+    - `repo_gogcheck` - **boolean**: true if GPG signature check on repodata is enabled, false otherwise
   
 
 ## Example Payload
@@ -39,8 +42,15 @@ Here an example of an signing inventory payload:
         "expiration_date": "9999-12-24",
         "key_type": "debsig",
         "repositories": [
-          {"repo_name": "https://apt.datadoghq.com/stable/7"},
-          {"repo_name": "https://yum.datadoghq.com/stable/7/x86_64/"},
+          {
+            "name": "https://apt.datadoghq.com/ stable 7",
+            "enabled": true,
+            "gpgcheck": false,
+            "repo_gpgcheck": false},
+          {"name": "https://yum.datadoghq.com/stable/7/x86_64/",
+            "enabled": true,
+            "gpgcheck": true,
+            "repo_gpgcheck": false},
         ]
       }
     ]

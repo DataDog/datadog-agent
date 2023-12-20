@@ -11,13 +11,15 @@ import (
 	"runtime"
 )
 
-// GetLinuxPackageSigningPolicy returns the global GPG signing policy of the host
-func GetLinuxPackageSigningPolicy() (bool, bool) {
+// GetLinuxGlobalSigningPolicies returns:
+// * if package signing is enabled on the host
+// * if repository signing is enabled on the
+func GetLinuxGlobalSigningPolicies() (bool, bool) {
 	if runtime.GOOS == "linux" {
 		pkgManager := GetPackageManager()
 		switch pkgManager {
 		case "apt":
-			return getNoDebsig(), false
+			return IsPackageSigningEnabled(), false
 		case "yum", "dnf", "zypper":
 			return getMainGPGCheck(pkgManager)
 		default: // should not happen, tested above
@@ -49,7 +51,7 @@ func GetPackageManager() string {
 }
 
 // CompareRepoPerKeys is a method used on tests
-func CompareRepoPerKeys(a, b map[string][]Repositories) []string {
+func CompareRepoPerKeys(a, b map[string][]Repository) []string {
 	errorKeys := make([]string, 0)
 	if len(a) < len(b) {
 		for key := range b {
@@ -69,7 +71,7 @@ func CompareRepoPerKeys(a, b map[string][]Repositories) []string {
 	}
 	return errorKeys
 }
-func compareKey(a, b map[string][]Repositories) []string {
+func compareKey(a, b map[string][]Repository) []string {
 	errorKeys := make([]string, 0)
 	for key := range a {
 		if _, ok := b[key]; !ok {
@@ -89,11 +91,11 @@ func compareKey(a, b map[string][]Repositories) []string {
 	}
 	return errorKeys
 }
-func anyMissingRepository(r, s []Repositories) bool {
+func anyMissingRepository(r, s []Repository) bool {
 	for _, src := range r {
 		found := false
 		for _, dest := range s {
-			if src.RepoName == dest.RepoName {
+			if src.Name == dest.Name && src.Enabled == dest.Enabled && src.GPGCheck == dest.GPGCheck && src.RepoGPGCheck == dest.RepoGPGCheck {
 				found = true
 				break
 			}

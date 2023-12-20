@@ -47,7 +47,7 @@ var (
 	networkGet    = network.CollectInfo
 	platformGet   = platform.CollectInfo
 	osVersionGet  = utils.GetOSVersion
-	pkgSigningGet = pkgUtils.GetLinuxPackageSigningPolicy
+	pkgSigningGet = pkgUtils.GetLinuxGlobalSigningPolicies
 )
 
 // hostMetadata contains metadata about the host

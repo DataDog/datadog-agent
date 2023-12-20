@@ -92,7 +92,7 @@ func setupHostMetadataMock(t *testing.T) {
 		networkGet = network.CollectInfo
 		platformGet = platform.CollectInfo
 		osVersionGet = utils.GetOSVersion
-		pkgSigningGet = pkgUtils.GetLinuxPackageSigningPolicy
+		pkgSigningGet = pkgUtils.GetLinuxGlobalSigningPolicies
 	})
 
 	cpuGet = cpuMock

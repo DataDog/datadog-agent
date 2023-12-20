@@ -127,7 +127,5 @@ new-e2e-agent-platform-package-signing-debian-a7-arm64:
   stage: kitchen_testing
   extends:
     - .new_e2e_template
-    - .new-e2e_os_debian
     - .new-e2e_debian_a7_arm64
-    - .new-e2e_agent_a7
     - .new-e2e_package_signing

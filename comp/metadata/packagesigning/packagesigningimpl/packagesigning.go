@@ -57,7 +57,7 @@ func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
 }
 
 type signingMetadata struct {
-	SigningKeys []SigningKey `json:"signing_keys"`
+	SigningKeys []signingKey `json:"signing_keys"`
 }
 
 type pkgSigning struct {
@@ -120,7 +120,7 @@ var (
 	getYUMKeys    = getYUMSignatureKeys
 )
 
-func (is *pkgSigning) getData() []SigningKey {
+func (is *pkgSigning) getData() []signingKey {
 
 	transport := httputils.CreateHTTPTransport(is.conf)
 	client := &http.Client{Transport: transport}

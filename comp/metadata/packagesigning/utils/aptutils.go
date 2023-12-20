@@ -14,18 +14,18 @@ const (
 	packageConfig = "/etc/dpkg/dpkg.cfg"
 )
 
-// getNoDebsig returns the signature policy for the host. no-debsig means GPG check is enabled
-func getNoDebsig() bool {
+// IsPackageSigningEnabled returns the signature policy for the host. When no-debsig is written (and uncommented) in the configuration it means GPG package signing verification is disabled
+func IsPackageSigningEnabled() bool {
 	if _, err := os.Stat(packageConfig); err == nil {
 		if file, err := os.Open(packageConfig); err == nil {
 			defer file.Close()
 			scanner := bufio.NewScanner(file)
 			for scanner.Scan() {
 				if scanner.Text() == "no-debsig" {
-					return true
+					return false
 				}
 			}
 		}
 	}
-	return false
+	return true
 }

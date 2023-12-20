@@ -31,7 +31,7 @@ func getMainGPGCheck(pkgManager string) (bool, bool) {
 		// if we end up in a non supported distribution
 		return false, false
 	}
-	mainConf, _ := ParseRepoFile(repoConfig, MainData{})
+	mainConf, _ := ParseRPMRepoFile(repoConfig, MainData{})
 	return mainConf.Gpgcheck, mainConf.RepoGpgcheck
 }
 
@@ -47,9 +47,12 @@ func GetRepoPathFromPkgManager(pkgManager string) (string, string) {
 	return "", ""
 }
 
-// Repositories is a struct to store the repo name
-type Repositories struct {
-	RepoName string `json:"repo_name"`
+// Repository is a struct to store the repo name
+type Repository struct {
+	Name         string `json:"name"`
+	Enabled      bool   `json:"enabled"`
+	GPGCheck     bool   `json:"gpgcheck"`
+	RepoGPGCheck bool   `json:"repo_gpgcheck"`
 }
 
 // MainData contains the global definitions of gpg checks
@@ -73,11 +76,11 @@ type multiLine struct {
 	name   string
 }
 
-// ParseRepoFile extracts information from yum repo files
+// ParseRPMRepoFile extracts information from yum repo files
 // Save the global gpgcheck value when encountering a [main] table (should only occur on `/etc/yum.conf`)
 // Match several entries in gpgkey field, either file references (file://) or http(s)://. From observations,
 // these reference can be separated either by space or by new line. We assume it possible to mix file and http references
-func ParseRepoFile(inputFile string, mainConf MainData) (MainData, map[string][]Repositories) {
+func ParseRPMRepoFile(inputFile string, mainConf MainData) (MainData, map[string][]Repository) {
 	main := mainConf
 	file, err := os.Open(inputFile)
 	if err != nil {
@@ -85,7 +88,7 @@ func ParseRepoFile(inputFile string, mainConf MainData) (MainData, map[string][]
 	}
 	defer file.Close()
 
-	reposPerKey := make(map[string][]Repositories)
+	reposPerKey := make(map[string][]Repository)
 	table := regexp.MustCompile(`\[[A-Za-z0-9_\-\.\/ ]+\]`)
 	field := regexp.MustCompile(`^([a-z_]+)\s?=\s?(.*)`)
 	nextLine := multiLine{inside: false, name: ""}
@@ -152,20 +155,18 @@ func ParseRepoFile(inputFile string, mainConf MainData) (MainData, map[string][]
 	repos = append(repos, repo)
 	// Now denormalize the data
 	for _, repo := range repos {
-		if repo.enabled && (main.Gpgcheck || repo.gpgcheck) {
-			for _, key := range repo.gpgkey {
-				var r []Repositories
-				for _, baseurl := range repo.baseurl {
-					r = append(r, Repositories{RepoName: baseurl})
-				}
-				if repo.mirrorlist != "" {
-					r = append(r, Repositories{RepoName: repo.mirrorlist})
-				}
-				if v, ok := reposPerKey[key]; !ok {
-					reposPerKey[key] = r
-				} else {
-					reposPerKey[key] = append(v, r...)
-				}
+		for _, key := range repo.gpgkey {
+			var r []Repository
+			for _, baseurl := range repo.baseurl {
+				r = append(r, Repository{Name: baseurl, GPGCheck: repo.gpgcheck, RepoGPGCheck: repo.repoGpgcheck, Enabled: repo.enabled})
+			}
+			if repo.mirrorlist != "" {
+				r = append(r, Repository{Name: repo.mirrorlist, GPGCheck: repo.gpgcheck, RepoGPGCheck: repo.repoGpgcheck, Enabled: repo.enabled})
+			}
+			if v, ok := reposPerKey[key]; !ok {
+				reposPerKey[key] = r
+			} else {
+				reposPerKey[key] = append(v, r...)
 			}
 		}
 	}

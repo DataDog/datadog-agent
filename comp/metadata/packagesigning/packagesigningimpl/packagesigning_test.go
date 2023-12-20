@@ -8,9 +8,7 @@
 package packagesigningimpl
 
 import (
-	"io"
 	"net/http"
-	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -123,21 +121,20 @@ nHqwA45eQzOye+95moLpip69fGWCX12OxjAH2jFieUX4yxHczYdc/CqyH9eyoKxL
 
 func TestDecryptGPGReader(t *testing.T) {
 	// Example data for testing
-	keys := make(map[string]SigningKey)
+	keys := make(map[string]signingKey)
 
 	testCases := []struct {
 		name    string
-		reader  io.Reader
+		content string
 		armored bool
 		keyType string
-		output  SigningKey
+		output  signingKey
 	}{
 		{
 			name:    "Key without expiration",
-			reader:  strings.NewReader(publicKeyWithoutExpiration),
+			content: publicKeyWithoutExpiration,
 			keyType: "RSA",
-			armored: true,
-			output: SigningKey{
+			output: signingKey{
 				Fingerprint:    "199E2F91FD431D51",
 				ExpirationDate: "9999-12-31",
 				KeyType:        "RSA",
@@ -145,10 +142,9 @@ func TestDecryptGPGReader(t *testing.T) {
 		},
 		{
 			name:    "Datadog key with expiration date",
-			reader:  strings.NewReader(datadogPublicKey),
+			content: datadogPublicKey,
 			keyType: "RSA",
-			armored: true,
-			output: SigningKey{
+			output: signingKey{
 				Fingerprint:    "F1068E14E09422B3",
 				ExpirationDate: "2022-06-28",
 				KeyType:        "RSA",
@@ -159,9 +155,9 @@ func TestDecryptGPGReader(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 
-			decryptGPGReader(keys, testCase.reader, testCase.armored, testCase.keyType, nil)
+			decryptGPGContent(keys, []byte(testCase.content), testCase.keyType, nil)
 
-			retrieved, ok := keys[testCase.output.Fingerprint]
+			retrieved, ok := keys[testCase.output.Fingerprint+testCase.output.KeyType]
 			if !ok || !compareKeys(retrieved, testCase.output) {
 				t.Errorf("Expected key %s|%s to be present in the map", testCase.output.Fingerprint, testCase.output.ExpirationDate)
 				t.Logf("Key %s|%s", retrieved.Fingerprint, retrieved.ExpirationDate)
@@ -171,7 +167,7 @@ func TestDecryptGPGReader(t *testing.T) {
 	}
 }
 
-func compareKeys(a, b SigningKey) bool {
+func compareKeys(a, b signingKey) bool {
 	if a.Fingerprint != b.Fingerprint {
 		return false
 	}
@@ -183,7 +179,7 @@ func compareKeys(a, b SigningKey) bool {
 	}
 	if a.Repositories == nil && b.Repositories == nil {
 		for idx, repo := range a.Repositories {
-			if repo.RepoName != b.Repositories[idx].RepoName {
+			if repo.Name != b.Repositories[idx].Name || repo.Enabled != b.Repositories[idx].Enabled || repo.GPGCheck != b.Repositories[idx].GPGCheck || repo.RepoGPGCheck != b.Repositories[idx].RepoGPGCheck {
 				return false
 			}
 		}
@@ -199,27 +195,27 @@ func TestUpdateWithRepoFile(t *testing.T) {
 	pkgUtils.YumConf = "testdata/yum.conf"
 	pkgUtils.YumRepo = "testdata/yum.repos.d/"
 	testCases := []struct {
-		name    string
-		allKeys map[string]SigningKey
+		name      string
+		cacheKeys map[string]signingKey
 	}{
 		{
 			name: "Update with repo files",
-			allKeys: map[string]SigningKey{"32637D44F14F620E": {Fingerprint: "32637D44F14F620E", ExpirationDate: "2032-09-05", KeyType: "repo", Repositories: []pkgUtils.Repositories{{RepoName: "https://versailles.com"}}},
-				"E6266D4AC0962C7D": {Fingerprint: "E6266D4AC0962C7D", ExpirationDate: "2028-04-18", KeyType: "repo", Repositories: []pkgUtils.Repositories{{RepoName: "https://versailles.com"}}},
-				"D3A80E30382E94DE": {Fingerprint: "D3A80E30382E94DE", ExpirationDate: "2022-06-28", KeyType: "repo", Repositories: []pkgUtils.Repositories{{RepoName: "https://versailles.com"}}},
+			cacheKeys: map[string]signingKey{"32637D44F14F620E": {Fingerprint: "32637D44F14F620E", ExpirationDate: "2032-09-05", KeyType: "repo", Repositories: []pkgUtils.Repository{{Name: "https://versailles.com"}}},
+				"E6266D4AC0962C7D": {Fingerprint: "E6266D4AC0962C7D", ExpirationDate: "2028-04-18", KeyType: "repo", Repositories: []pkgUtils.Repository{{Name: "https://versailles.com"}}},
+				"D3A80E30382E94DE": {Fingerprint: "D3A80E30382E94DE", ExpirationDate: "2022-06-28", KeyType: "repo", Repositories: []pkgUtils.Repository{{Name: "https://versailles.com"}}},
 			},
 		},
 	}
-	allKeys := make(map[string]SigningKey)
+	cacheKeys := make(map[string]signingKey)
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			updateWithRepoFiles(allKeys, "yum", nil, nil)
-			for key := range allKeys {
-				if _, ok := testCase.allKeys[key]; !ok {
+			updateWithRepoFiles(cacheKeys, "yum", nil, nil)
+			for key := range cacheKeys {
+				if _, ok := testCase.cacheKeys[key]; !ok {
 					t.Errorf("Unexpected key %s", key)
 				} else {
-					if !compareKeys(allKeys[key], testCase.allKeys[key]) {
-						t.Errorf("Wrong key %s expected %v got %v", key, testCase.allKeys[key], allKeys[key])
+					if !compareKeys(cacheKeys[key], testCase.cacheKeys[key]) {
+						t.Errorf("Wrong key %s expected %v got %v", key, testCase.cacheKeys[key], cacheKeys[key])
 					}
 				}
 			}
@@ -264,21 +260,29 @@ func TestParseSourceListFile(t *testing.T) {
 	testCases := []struct {
 		name        string
 		fileName    string
-		reposPerKey map[string][]pkgUtils.Repositories
+		gpgcheck    bool
+		reposPerKey map[string][]pkgUtils.Repository
 	}{
 		{
 			name:     "Source list file with several repo config",
 			fileName: "testdata/datadog.list",
-			reposPerKey: map[string][]pkgUtils.Repositories{"/usr/share/keyrings/datadog-archive-keyring.gpg": {{RepoName: "https://apt.datadoghq.com//stable/7"}, {RepoName: "https://apt.datadoghq.com//stable/6"}, {RepoName: "https://apt.datadoghq.com//beta/7"}},
-				"/usr/vinz/clortho/keyring.gpg": {{RepoName: "https://apt.ghostbusters.com//stable/84"}},
-				"/don/rosa/carl/barks":          {{RepoName: "https://duck.family.com/scrooge/donald/huey/dewey/louie"}},
+			gpgcheck: false,
+			reposPerKey: map[string][]pkgUtils.Repository{
+				"/usr/share/keyrings/datadog-archive-keyring.gpg": {
+					{Name: "https://apt.datadoghq.com/ stable 7", Enabled: true, GPGCheck: false, RepoGPGCheck: true},
+					{Name: "https://apt.datadoghq.com/ stable 6", Enabled: true, GPGCheck: false, RepoGPGCheck: true},
+					{Name: "https://apt.datadoghq.com/ beta 7", Enabled: true, GPGCheck: false, RepoGPGCheck: true}},
+				"/usr/vinz/clortho/keyring.gpg": {
+					{Name: "https://apt.ghostbusters.com/ stable 84", Enabled: true, GPGCheck: false, RepoGPGCheck: true}},
+				"/don/rosa/carl/barks": {
+					{Name: "https://duck.family.com scrooge donald huey dewey louie", Enabled: true, GPGCheck: false, RepoGPGCheck: false}},
 			},
 		},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			reposPerKey := parseSourceListFile(testCase.fileName)
+			reposPerKey := parseSourceListFile(testCase.fileName, testCase.gpgcheck)
 			errorData := pkgUtils.CompareRepoPerKeys(reposPerKey, testCase.reposPerKey)
 			if len(errorData) > 0 {
 				for _, key := range errorData {
@@ -301,8 +305,8 @@ func TestGetAPTPayload(t *testing.T) {
 	setupAPTSigningMock(t)
 
 	expectedMetadata := &signingMetadata{
-		SigningKeys: []SigningKey{
-			{Fingerprint: "F1068E14E09422B3", ExpirationDate: "2022-06-28", KeyType: "signed-by", Repositories: []pkgUtils.Repositories{{RepoName: "https://apt.datadoghq.com//stable/7"}}},
+		SigningKeys: []signingKey{
+			{Fingerprint: "F1068E14E09422B3", ExpirationDate: "2022-06-28", KeyType: "signed-by", Repositories: []pkgUtils.Repository{{Name: "https://apt.datadoghq.com//stable/7"}}},
 			{Fingerprint: "FD4BF915", ExpirationDate: "9999-12-31", KeyType: "trusted"},
 		},
 	}
@@ -317,8 +321,8 @@ func TestGetYUMPayload(t *testing.T) {
 	setupYUMSigningMock(t)
 
 	expectedMetadata := &signingMetadata{
-		SigningKeys: []SigningKey{
-			{Fingerprint: "AL1C1AK3YS", ExpirationDate: "9999-12-31", KeyType: "repo", Repositories: []pkgUtils.Repositories{{RepoName: "https://yum.datadoghq.com/stable/7/x86_64/"}}},
+		SigningKeys: []signingKey{
+			{Fingerprint: "AL1C1AK3YS", ExpirationDate: "9999-12-31", KeyType: "repo", Repositories: []pkgUtils.Repository{{Name: "https://yum.datadoghq.com/stable/7/x86_64/"}}},
 			{Fingerprint: "733142A241337", ExpirationDate: "2030-03-02", KeyType: "rpm"},
 		},
 	}
@@ -347,15 +351,15 @@ func setupYUMSigningMock(t *testing.T) {
 }
 func getPackageAPTMock() string { return "apt" }
 func getPackageYUMMock() string { return "yum" }
-func getAPTKeysMock(_ *http.Client, _ log.Component) []SigningKey {
-	return []SigningKey{
-		{Fingerprint: "F1068E14E09422B3", ExpirationDate: "2022-06-28", KeyType: "signed-by", Repositories: []pkgUtils.Repositories{{RepoName: "https://apt.datadoghq.com//stable/7"}}},
+func getAPTKeysMock(_ *http.Client, _ log.Component) []signingKey {
+	return []signingKey{
+		{Fingerprint: "F1068E14E09422B3", ExpirationDate: "2022-06-28", KeyType: "signed-by", Repositories: []pkgUtils.Repository{{Name: "https://apt.datadoghq.com/ stable 7"}}},
 		{Fingerprint: "FD4BF915", ExpirationDate: "9999-12-31", KeyType: "trusted"},
 	}
 }
-func getYUMKeysMock(_ string, _ *http.Client, _ log.Component) []SigningKey {
-	return []SigningKey{
-		{Fingerprint: "AL1C1AK3YS", ExpirationDate: "9999-12-31", KeyType: "repo", Repositories: []pkgUtils.Repositories{{RepoName: "https://yum.datadoghq.com/stable/7/x86_64/"}}},
+func getYUMKeysMock(_ string, _ *http.Client, _ log.Component) []signingKey {
+	return []signingKey{
+		{Fingerprint: "AL1C1AK3YS", ExpirationDate: "9999-12-31", KeyType: "repo", Repositories: []pkgUtils.Repository{{Name: "https://yum.datadoghq.com/stable/7/x86_64/"}}},
 		{Fingerprint: "733142A241337", ExpirationDate: "2030-03-02", KeyType: "rpm"},
 	}
 }

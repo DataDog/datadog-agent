@@ -14,24 +14,29 @@ func TestParseRepoFile(t *testing.T) {
 		name        string
 		fileName    string
 		mainConf    MainData
-		reposPerKey map[string][]Repositories
+		reposPerKey map[string][]Repository
 	}{
 		{
 			name:     "Main file with several repo config",
 			fileName: "testdata/main.repo",
 			mainConf: MainData{Gpgcheck: false, LocalpkgGpgcheck: false, RepoGpgcheck: false},
-			reposPerKey: map[string][]Repositories{"file:///etc/httpfile": nil,
-				"https://httpfile.com":  nil,
-				"https://ook.com":       nil,
-				"file:///etc/rincewind": nil,
-				"https://leia.com":      nil,
-				"file:///etc/luke":      nil,
-				"https://strength.com":  nil,
-				"https://courage.com":   nil,
-				"file:///etc/wisdom":    nil,
-				"https://brahma.com":    nil,
-				"file:///etc/vishnu":    nil,
-				"file:///etc/shiva":     nil},
+			reposPerKey: map[string][]Repository{"https://basic.com": {{Name: "one", Enabled: true, GPGCheck: false, RepoGPGCheck: false}},
+				"file:///etc/httpfile":  {{Name: "two", Enabled: true, GPGCheck: true, RepoGPGCheck: false}},
+				"https://httpfile.com":  {{Name: "two", Enabled: true, GPGCheck: true, RepoGPGCheck: false}},
+				"https://ook.com":       {{Name: "three", Enabled: true, GPGCheck: false, RepoGPGCheck: true}},
+				"file:///etc/rincewind": {{Name: "three", Enabled: true, GPGCheck: false, RepoGPGCheck: true}},
+				"https://leia.com":      {{Name: "four", Enabled: true, GPGCheck: true, RepoGPGCheck: true}},
+				"file:///etc/luke":      {{Name: "four", Enabled: true, GPGCheck: true, RepoGPGCheck: true}},
+				"https://strength.com":  {{Name: "five", Enabled: true, GPGCheck: true, RepoGPGCheck: false}},
+				"https://courage.com":   {{Name: "five", Enabled: true, GPGCheck: true, RepoGPGCheck: false}},
+				"file:///etc/wisdom":    {{Name: "five", Enabled: true, GPGCheck: true, RepoGPGCheck: false}},
+				"https://caesar.com":    {{Name: "six", Enabled: true, GPGCheck: false, RepoGPGCheck: false}},
+				"file:///etc/pompey":    {{Name: "six", Enabled: true, GPGCheck: false, RepoGPGCheck: false}},
+				"file:///etc/crassus":   {{Name: "six", Enabled: true, GPGCheck: false, RepoGPGCheck: false}},
+				"https://brahma.com":    {{Name: "seven", Enabled: false, GPGCheck: true, RepoGPGCheck: false}},
+				"file:///etc/vishnu":    {{Name: "seven", Enabled: false, GPGCheck: true, RepoGPGCheck: false}},
+				"file:///etc/shiva":     {{Name: "seven", Enabled: false, GPGCheck: true, RepoGPGCheck: false}},
+			},
 		},
 		{
 			name:        "Main with checks enabled",
@@ -43,16 +48,36 @@ func TestParseRepoFile(t *testing.T) {
 			name:     "One file with 2 different configurations",
 			fileName: "testdata/multi.repo",
 			mainConf: MainData{},
-			reposPerKey: map[string][]Repositories{"https://keys.datadoghq.com/DATADOG_RPM_KEY_CURRENT.public": {{RepoName: "https://yum.datadoghq.com/stable/7/x86_64/"}},
-				"https://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public": {{RepoName: "https://yum.datadoghq.com/stable/7/x86_64/"}},
-				"https://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public": {{RepoName: "https://yum.datadoghq.com/stable/7/x86_64/"}, {RepoName: "another"}}},
+			reposPerKey: map[string][]Repository{
+				"https://keys.datadoghq.com/DATADOG_RPM_KEY_CURRENT.public": {
+					{Name: "https://yum.datadoghq.com/stable/7/x86_64/", Enabled: true, GPGCheck: true, RepoGPGCheck: true}},
+				"https://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public": {
+					{Name: "https://yum.datadoghq.com/stable/7/x86_64/", Enabled: true, GPGCheck: true, RepoGPGCheck: true}},
+				"https://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public": {
+					{Name: "https://yum.datadoghq.com/stable/7/x86_64/", Enabled: true, GPGCheck: true, RepoGPGCheck: true},
+					{Name: "another", Enabled: false, GPGCheck: false, RepoGPGCheck: true}},
+				"file:///etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-release": {
+					{Name: "https://rhui.REGION.aws.ce.redhat.com/pulp/mirror/content/beta/rhel9/rhui/9/$basearch/appstream/debug", Enabled: false, GPGCheck: true, RepoGPGCheck: false}},
+				"file:///etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-beta": {
+					{Name: "https://rhui.REGION.aws.ce.redhat.com/pulp/mirror/content/beta/rhel9/rhui/9/$basearch/appstream/debug", Enabled: false, GPGCheck: true, RepoGPGCheck: false}},
+			},
 		},
 		{
 			name:     "Repositories with one or several filenames",
 			fileName: "testdata/repo.repo",
 			mainConf: MainData{Gpgcheck: false, LocalpkgGpgcheck: false, RepoGpgcheck: false},
-			reposPerKey: map[string][]Repositories{"file:///etc/filedanstachambre": {{RepoName: "tidy"}, {RepoName: "room"}},
-				"/snow-white": {{RepoName: "mirror"}, {RepoName: "apple"}}},
+			reposPerKey: map[string][]Repository{
+				"file:///etc/filedanstachambre": {
+					{Name: "tidy", Enabled: true, GPGCheck: false, RepoGPGCheck: true},
+					{Name: "room", Enabled: true, GPGCheck: false, RepoGPGCheck: true},
+				},
+				"/snow-white": {
+					{Name: "mirror", Enabled: true, GPGCheck: true, RepoGPGCheck: false},
+					{Name: "apple", Enabled: true, GPGCheck: true, RepoGPGCheck: false}},
+				"file:///etc/ratp": {
+					{Name: "metro", Enabled: false, GPGCheck: true, RepoGPGCheck: false},
+				},
+			},
 		},
 	}
 
