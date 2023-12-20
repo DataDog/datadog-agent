@@ -71,9 +71,9 @@
 // Definitions representing empty and /index.html paths. These types are sent using the static table.
 // We include these to eliminate the necessity of copying the specified encoded path to the buffer.
 #define HTTP2_ROOT_PATH      "/"
-#define HTTP2_ROOT_PATH_LEN  (sizeof(HTTP_ROOT_PATH) - 1)
+#define HTTP2_ROOT_PATH_LEN  (sizeof(HTTP2_ROOT_PATH) - 1)
 #define HTTP2_INDEX_PATH     "/index.html"
-#define HTTP2_INDEX_PATH_LEN (sizeof(HTTP_INDEX_PATH) - 1)
+#define HTTP2_INDEX_PATH_LEN (sizeof(HTTP2_INDEX_PATH) - 1)
 
 typedef enum {
     kGET = 2,
