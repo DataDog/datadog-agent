@@ -46,7 +46,7 @@ COPY datadog-agent*_$TARGETARCH.deb /
 WORKDIR /output
 
 # Get s6-overlay
-ENV S6_VERSION v1.22.1.0
+ENV S6_VERSION v2.2.0.3
 ENV JUST_CONTAINERS_DOWNLOAD_LOCATION=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL:+${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/s6-overlay}
 ENV JUST_CONTAINERS_DOWNLOAD_LOCATION=${JUST_CONTAINERS_DOWNLOAD_LOCATION:-https://github.com/just-containers/s6-overlay/releases/download}
 RUN apt install --no-install-recommends -y curl ca-certificates

@@ -8,6 +8,11 @@
 // Package rules holds rules related files
 package rules
 
-import "github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+import (
+	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+)
 
-var bundledPolicyRules = []*rules.RuleDefinition{}
+func newBundledPolicyRules(_ *config.RuntimeSecurityConfig) []*rules.RuleDefinition {
+	return []*rules.RuleDefinition{}
+}

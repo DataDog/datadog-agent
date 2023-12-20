@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixes a bug that would trigger unnecessary APIServer `List` requests from the Cluster Agent or Cluster Checks Runner.

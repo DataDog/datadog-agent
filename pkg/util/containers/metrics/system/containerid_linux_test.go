@@ -32,6 +32,11 @@ func TestParseMountinfo(t *testing.T) {
 			filePath:        "./testdata/mountinfo_k8s_agent",
 			wantContainerID: "fc7038bc73a8d3850c66ddbfb0b2901afa378bfcbb942cc384b051767e4ac6b0",
 		},
+		{
+			name:            "Kind (containerd in docker)",
+			filePath:        "./testdata/mountinfo_kind",
+			wantContainerID: "",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
