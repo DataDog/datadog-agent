@@ -59,7 +59,7 @@ typedef union {
         __u8 reserved : 2;
     } __attribute__((packed)) literal;
     __u8 raw;
-} __attribute__((packed)) field_index;
+} __attribute__((packed)) field_index_t;
 
 // string_literal_header represents the length of a string as represented in HPACK
 // (see RFC 7541: 5.2 String Literal Representation).
