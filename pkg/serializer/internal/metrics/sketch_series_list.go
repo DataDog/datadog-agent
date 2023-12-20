@@ -253,11 +253,11 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 					if err != nil {
 						return err
 					}
-					err = ps.Int32(sketchMetadataOriginOriginCategory, MetricSourceToOriginCategory(ss.Source))
+					err = ps.Int32(sketchMetadataOriginOriginCategory, metricSourceToOriginCategory(ss.Source))
 					if err != nil {
 						return err
 					}
-					return ps.Int32(sketchMetadataOriginOriginService, MetricSourceToOriginService(ss.Source))
+					return ps.Int32(sketchMetadataOriginOriginService, metricSourceToOriginService(ss.Source))
 				})
 			})
 			if err != nil {

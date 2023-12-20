@@ -234,7 +234,7 @@ func (a *Agent) setRootSpanTags(root *pb.Span) {
 // setFirstTraceTags sets additional tags on the first trace ever processed by the agent,
 // so that we can see that the customer has successfully onboarded onto APM.
 func (a *Agent) setFirstTraceTags(root *pb.Span) {
-	if a.conf == nil || a.conf.InstallSignature.InstallType == "" || root == nil {
+	if a.conf == nil || a.conf.InstallSignature.InstallID == "" || root == nil {
 		return
 	}
 	a.firstSpanOnce.Do(func() {

@@ -30,12 +30,13 @@ const (
 
 // dispatcher holds the management logic for cluster-checks
 type dispatcher struct {
-	store                 *clusterStore
-	nodeExpirationSeconds int64
-	extraTags             []string
-	clcRunnersClient      clusteragent.CLCRunnerClientInterface
-	advancedDispatching   bool
-	excludedChecks        map[string]struct{}
+	store                         *clusterStore
+	nodeExpirationSeconds         int64
+	extraTags                     []string
+	clcRunnersClient              clusteragent.CLCRunnerClientInterface
+	advancedDispatching           bool
+	excludedChecks                map[string]struct{}
+	excludedChecksFromDispatching map[string]struct{}
 }
 
 func newDispatcher() *dispatcher {
@@ -51,6 +52,15 @@ func newDispatcher() *dispatcher {
 		d.excludedChecks = make(map[string]struct{}, len(excludedChecks))
 		for _, checkName := range excludedChecks {
 			d.excludedChecks[checkName] = struct{}{}
+		}
+	}
+
+	excludedChecksFromDispatching := config.Datadog.GetStringSlice("cluster_checks.exclude_checks_from_dispatching")
+	// This option will almost always be empty
+	if len(excludedChecksFromDispatching) > 0 {
+		d.excludedChecksFromDispatching = make(map[string]struct{}, len(excludedChecksFromDispatching))
+		for _, checkName := range excludedChecksFromDispatching {
+			d.excludedChecksFromDispatching[checkName] = struct{}{}
 		}
 	}
 

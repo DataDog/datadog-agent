@@ -274,6 +274,16 @@ type sqlConfig struct {
 	// KeepPositionalParameter specifies whether to disable obfuscate positional parameter with ?.
 	// This option is only valid when ObfuscationMode is "obfuscate_only" or "obfuscate_and_normalize".
 	KeepPositionalParameter bool `json:"keep_positional_parameter"`
+
+	// KeepTrailingSemicolon specifies whether to keep trailing semicolon.
+	// By default, trailing semicolon is removed during normalization.
+	// This option is only valid when ObfuscationMode is "obfuscate_only" or "obfuscate_and_normalize".
+	KeepTrailingSemicolon bool `json:"keep_trailing_semicolon"`
+
+	// KeepIdentifierQuotation specifies whether to keep identifier quotation, e.g. "my_table" or [my_table].
+	// By default, identifier quotation is removed during normalization.
+	// This option is only valid when ObfuscationMode is "obfuscate_only" or "obfuscate_and_normalize".
+	KeepIdentifierQuotation bool `json:"keep_identifier_quotation"`
 }
 
 // ObfuscateSQL obfuscates & normalizes the provided SQL query, writing the error into errResult if the operation
@@ -306,6 +316,8 @@ func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
 		KeepNull:                      sqlOpts.KeepNull,
 		KeepBoolean:                   sqlOpts.KeepBoolean,
 		KeepPositionalParameter:       sqlOpts.KeepPositionalParameter,
+		KeepTrailingSemicolon:         sqlOpts.KeepTrailingSemicolon,
+		KeepIdentifierQuotation:       sqlOpts.KeepIdentifierQuotation,
 	})
 	if err != nil {
 		// memory will be freed by caller

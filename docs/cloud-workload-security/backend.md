@@ -221,6 +221,10 @@ CSM Threats logs have the following JSON schema:
                     },
                     "type": "array",
                     "description": "The list of rules that the event matched (only valid in the context of an anomaly)"
+                },
+                "origin": {
+                    "type": "string",
+                    "description": "Origin of the event"
                 }
             },
             "additionalProperties": false,
@@ -1758,6 +1762,10 @@ CSM Threats logs have the following JSON schema:
             },
             "type": "array",
             "description": "The list of rules that the event matched (only valid in the context of an anomaly)"
+        },
+        "origin": {
+            "type": "string",
+            "description": "Origin of the event"
         }
     },
     "additionalProperties": false,
@@ -1774,6 +1782,7 @@ CSM Threats logs have the following JSON schema:
 | `outcome` | Event outcome |
 | `async` | True if the event was asynchronous |
 | `matched_rules` | The list of rules that the event matched (only valid in the context of an anomaly) |
+| `origin` | Origin of the event |
 
 
 ## `ExitEvent`

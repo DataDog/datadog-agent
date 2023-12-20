@@ -1,0 +1,10 @@
+[Unit]
+Description="Monitor requests to start experiment"
+
+[PATH]
+PathModifed=<%= install_dir %>/systemd_commands/start_experiment
+Unit=datadog-agent-exp
+
+[Install]
+WantedBy=multi-user.target
+

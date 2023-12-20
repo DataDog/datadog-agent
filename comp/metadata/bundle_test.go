@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -23,6 +24,9 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Provide(func() serializer.MetricSerializer { return nil }),
 		fx.Provide(func() optional.Option[collector.Collector] {
 			return optional.NewOption[collector.Collector](collector.NewMock(nil))
+		}),
+		fx.Provide(func() optional.Option[agent.Component] {
+			return optional.NewNoneOption[agent.Component]()
 		}),
 	)
 }
