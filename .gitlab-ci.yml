@@ -2,6 +2,9 @@
 include:
   - /.gitlab/setup.yml
   - /.gitlab/shared.yml
+  - /.gitlab/maintenance_jobs.yml
+  - /.gitlab/deps_build.yml
+  - /.gitlab/package_deps_build.yml
   - /.gitlab/package_build.yml
 
 default:
@@ -15,6 +18,11 @@ default:
 
 stages:
   - .pre
+  - maintenance_jobs
+  - deps_build
+  - deps_fetch
+  - binary_build
+  - package_deps_build
   - package_build
 
 variables:
