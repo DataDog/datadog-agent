@@ -3,23 +3,20 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux || freebsd || netbsd || openbsd || solaris || dragonfly || aix
-
-package config
+package setup
 
 const (
-	defaultConfdPath            = "/etc/datadog-agent/conf.d"
-	defaultAdditionalChecksPath = "/etc/datadog-agent/checks.d"
+	defaultConfdPath            = "/opt/datadog-agent/etc/conf.d"
+	defaultAdditionalChecksPath = "/opt/datadog-agent/etc/checks.d"
 	defaultRunPath              = "/opt/datadog-agent/run"
-	defaultGuiPort              = -1
+	defaultGuiPort              = 5002
 	// DefaultSecurityAgentLogFile points to the log file that will be used by the security-agent if not configured
-	DefaultSecurityAgentLogFile = "/var/log/datadog/security-agent.log"
+	DefaultSecurityAgentLogFile = "/opt/datadog-agent/logs/security-agent.log"
 	// DefaultProcessAgentLogFile is the default process-agent log file
-	DefaultProcessAgentLogFile = "/var/log/datadog/process-agent.log"
-
+	DefaultProcessAgentLogFile = "/opt/datadog-agent/logs/process-agent.log"
 	// defaultSystemProbeAddress is the default unix socket path to be used for connecting to the system probe
 	defaultSystemProbeAddress     = "/opt/datadog-agent/run/sysprobe.sock"
-	defaultSystemProbeLogFilePath = "/var/log/datadog/system-probe.log"
+	defaultSystemProbeLogFilePath = "/opt/datadog-agent/logs/system-probe.log"
 	// DefaultDDAgentBin the process agent's binary
 	DefaultDDAgentBin = "/opt/datadog-agent/bin/agent/agent"
 )

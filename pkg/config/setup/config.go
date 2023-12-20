@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package config defines the configuration of the agent
-package config
+// Package setup defines the configuration of the agent
+package setup
 
 import (
 	"context"
@@ -20,16 +20,14 @@ import (
 	"strings"
 	"time"
 
-	"gopkg.in/yaml.v2"
-
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
-
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -69,9 +67,6 @@ const (
 	// DefaultAuditorTTL is the default logs auditor TTL in hours
 	DefaultAuditorTTL = 23
 
-	// ClusterIDCacheKey is the key name for the orchestrator cluster id in the agent in-mem cache
-	ClusterIDCacheKey = "orchestratorClusterID"
-
 	// DefaultRuntimePoliciesDir is the default policies directory used by the runtime security module
 	DefaultRuntimePoliciesDir = "/etc/datadog-agent/runtime-security.d"
 
@@ -101,8 +96,8 @@ const (
 
 // Datadog is the global configuration object
 var (
-	Datadog     Config
-	SystemProbe Config
+	Datadog     pkgconfigmodel.Config
+	SystemProbe pkgconfigmodel.Config
 )
 
 // Variables to initialize at build time
@@ -199,15 +194,15 @@ const (
 func init() {
 	osinit()
 	// Configure Datadog global configuration
-	Datadog = NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	SystemProbe = NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
+	Datadog = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	SystemProbe = pkgconfigmodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
 	// Configuration defaults
 	InitConfig(Datadog)
 	InitSystemProbeConfig(SystemProbe)
 }
 
 // InitConfig initializes the config defaults on a config
-func InitConfig(config Config) {
+func InitConfig(config pkgconfigmodel.Config) {
 	// Agent
 	// Don't set a default on 'site' to allow detecting with viper whether it's set in config
 	config.BindEnv("site")
@@ -386,7 +381,7 @@ func InitConfig(config Config) {
 	// Agent GUI access port
 	config.BindEnvAndSetDefault("GUI_port", defaultGuiPort)
 
-	if IsContainerized() {
+	if pkgconfigenv.IsContainerized() {
 		// In serverless-containerized environments (e.g Fargate)
 		// it's impossible to mount host volumes.
 		// Make sure the host paths exist before setting-up the default values.
@@ -998,7 +993,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("external_metrics_provider.local_copy_refresh_rate", 30)        // value in seconds
 	config.BindEnvAndSetDefault("external_metrics_provider.chunk_size", 35)                     // Maximum number of queries to batch when querying Datadog.
 	config.BindEnvAndSetDefault("external_metrics_provider.split_batches_with_backoff", false)  // Splits batches and runs queries with errors individually with an exponential backoff
-	AddOverrideFunc(sanitizeExternalMetricsProviderChunkSize)
+	pkgconfigmodel.AddOverrideFunc(sanitizeExternalMetricsProviderChunkSize)
 	// Cluster check Autodiscovery
 	config.BindEnvAndSetDefault("cluster_checks.enabled", false)
 	config.BindEnvAndSetDefault("cluster_checks.node_expiration_timeout", 30) // value in seconds
@@ -1271,12 +1266,12 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("language_detection.client_period", "10s")
 
 	setupAPM(config)
-	SetupOTLP(config)
+	OTLP(config)
 	setupProcesses(config)
 }
 
 // LoadProxyFromEnv overrides the proxy settings with environment variables
-func LoadProxyFromEnv(config Config) {
+func LoadProxyFromEnv(config pkgconfigmodel.Config) {
 	// Viper doesn't handle mixing nested variables from files and set
 	// manually.  If we manually set one of the sub value for "proxy" all
 	// other values from the conf file will be shadowed when using
@@ -1310,7 +1305,7 @@ func LoadProxyFromEnv(config Config) {
 	}
 
 	var isSet bool
-	p := &Proxy{}
+	p := &pkgconfigmodel.Proxy{}
 	if isSet = config.IsSet("proxy"); isSet {
 		if err := config.UnmarshalKey("proxy", p); err != nil {
 			isSet = false
@@ -1369,20 +1364,20 @@ func LoadProxyFromEnv(config Config) {
 }
 
 // LoadWithoutSecret reads configs files, initializes the config module without decrypting any secrets
-func LoadWithoutSecret() (*Warnings, error) {
-	return LoadDatadogCustom(Datadog, "datadog.yaml", optional.NewNoneOption[secrets.Component](), SystemProbe.GetEnvVars())
+func LoadWithoutSecret(config pkgconfigmodel.Config, additionalEnvVars []string) (*pkgconfigmodel.Warnings, error) {
+	return LoadDatadogCustom(config, "datadog.yaml", optional.NewNoneOption[secrets.Component](), additionalEnvVars)
 }
 
 // LoadWithSecret reads config files and initializes config with decrypted secrets
-func LoadWithSecret(secretResolver secrets.Component) (*Warnings, error) {
-	return LoadDatadogCustom(Datadog, "datadog.yaml", optional.NewOption[secrets.Component](secretResolver), SystemProbe.GetEnvVars())
+func LoadWithSecret(config pkgconfigmodel.Config, secretResolver secrets.Component, additionalEnvVars []string) (*pkgconfigmodel.Warnings, error) {
+	return LoadDatadogCustom(config, "datadog.yaml", optional.NewOption[secrets.Component](secretResolver), additionalEnvVars)
 }
 
 // Merge will merge additional configuration into an existing configuration
-func Merge(configPaths []string) error {
+func Merge(configPaths []string, config pkgconfigmodel.Config) error {
 	for _, configPath := range configPaths {
 		if f, err := os.Open(configPath); err == nil {
-			err = Datadog.MergeConfig(f)
+			err = config.MergeConfig(f)
 			_ = f.Close()
 			if err != nil {
 				return fmt.Errorf("error merging %s config file: %w", configPath, err)
@@ -1395,7 +1390,7 @@ func Merge(configPaths []string) error {
 	return nil
 }
 
-func findUnknownKeys(config Config) []string {
+func findUnknownKeys(config pkgconfigmodel.Config) []string {
 	var unknownKeys []string
 	knownKeys := config.GetKnownKeys()
 	loadedKeys := config.AllKeys()
@@ -1418,7 +1413,7 @@ func findUnknownKeys(config Config) []string {
 	return unknownKeys
 }
 
-func findUnexpectedUnicode(config Config) []string {
+func findUnexpectedUnicode(config pkgconfigmodel.Config) []string {
 	messages := make([]string, 0)
 	checkAndRecordString := func(str string, prefix string) {
 		if res := FindUnexpectedUnicode(str); len(res) != 0 {
@@ -1456,7 +1451,7 @@ func findUnexpectedUnicode(config Config) []string {
 	return messages
 }
 
-func findUnknownEnvVars(config Config, environ []string, additionalKnownEnvVars []string) []string {
+func findUnknownEnvVars(config pkgconfigmodel.Config, environ []string, additionalKnownEnvVars []string) []string {
 	var unknownVars []string
 
 	knownVars := map[string]struct{}{
@@ -1502,8 +1497,8 @@ func findUnknownEnvVars(config Config, environ []string, additionalKnownEnvVars 
 	return unknownVars
 }
 
-func useHostEtc(config Config) {
-	if IsContainerized() && pathExists("/host/etc") {
+func useHostEtc(config pkgconfigmodel.Config) {
+	if pkgconfigenv.IsContainerized() && pathExists("/host/etc") {
 		if !config.GetBool("ignore_host_etc") {
 			if val, isSet := os.LookupEnv("HOST_ETC"); !isSet {
 				// We want to detect the host distro informations instead of the one from the container.
@@ -1520,7 +1515,7 @@ func useHostEtc(config Config) {
 	}
 }
 
-func checkConflictingOptions(config Config) error {
+func checkConflictingOptions(config pkgconfigmodel.Config) error {
 	// Verify that either use_podman_logs OR docker_path_override are set since they conflict
 	if config.GetBool("logs_config.use_podman_logs") && len(config.GetString("logs_config.docker_path_override")) > 0 {
 		log.Warnf("'use_podman_logs' is set to true and 'docker_path_override' is set, please use one or the other")
@@ -1531,7 +1526,7 @@ func checkConflictingOptions(config Config) error {
 }
 
 // LoadDatadogCustom loads the datadog config in the given config
-func LoadDatadogCustom(config Config, origin string, secretResolver optional.Option[secrets.Component], additionalKnownEnvVars []string) (*Warnings, error) {
+func LoadDatadogCustom(config pkgconfigmodel.Config, origin string, secretResolver optional.Option[secrets.Component], additionalKnownEnvVars []string) (*pkgconfigmodel.Warnings, error) {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
 	defer func() {
@@ -1564,7 +1559,7 @@ func LoadDatadogCustom(config Config, origin string, secretResolver optional.Opt
 			log.Warnf("Python version has been forced to %s", DefaultPython)
 		}
 
-		AddOverride("python_version", DefaultPython)
+		pkgconfigmodel.AddOverride("python_version", DefaultPython)
 	}
 
 	sanitizeAPIKeyConfig(config, "api_key")
@@ -1576,11 +1571,11 @@ func LoadDatadogCustom(config Config, origin string, secretResolver optional.Opt
 }
 
 // LoadCustom reads config into the provided config object
-func LoadCustom(config Config, origin string, secretResolver optional.Option[secrets.Component], additionalKnownEnvVars []string) (*Warnings, error) {
-	warnings := Warnings{}
+func LoadCustom(config pkgconfigmodel.Config, origin string, secretResolver optional.Option[secrets.Component], additionalKnownEnvVars []string) (*pkgconfigmodel.Warnings, error) {
+	warnings := pkgconfigmodel.Warnings{}
 
 	if err := config.ReadInConfig(); err != nil {
-		if IsServerless() {
+		if pkgconfigenv.IsServerless() {
 			log.Debug("No config file detected, using environment variable based configuration only")
 			// Proxy settings need to be loaded from environment variables even in the absence of a datadog.yaml file
 			// The remaining code in LoadCustom is not run to keep a low cold start time
@@ -1624,7 +1619,7 @@ func LoadCustom(config Config, origin string, secretResolver optional.Option[sec
 // setupFipsEndpoints overwrites the Agent endpoint for outgoing data to be sent to the local FIPS proxy. The local FIPS
 // proxy will be in charge of forwarding data to the Datadog backend following FIPS standard. Starting from
 // fips.port_range_start we will assign a dedicated port per product (metrics, logs, traces, ...).
-func setupFipsEndpoints(config Config) error {
+func setupFipsEndpoints(config pkgconfigmodel.Config) error {
 	// Each port is dedicated to a specific data type:
 	//
 	// port_range_start: HAProxy stats
@@ -1738,7 +1733,7 @@ func setupFipsEndpoints(config Config) error {
 	return nil
 }
 
-func setupFipsLogsConfig(config Config, configPrefix string, url string) {
+func setupFipsLogsConfig(config pkgconfigmodel.Config, configPrefix string, url string) {
 	config.Set(configPrefix+"use_http", true, pkgconfigmodel.SourceAgentRuntime)
 	config.Set(configPrefix+"logs_no_ssl", !config.GetBool("fips.https"), pkgconfigmodel.SourceAgentRuntime)
 	config.Set(configPrefix+"logs_dd_url", url, pkgconfigmodel.SourceAgentRuntime)
@@ -1747,7 +1742,7 @@ func setupFipsLogsConfig(config Config, configPrefix string, url string) {
 // ResolveSecrets merges all the secret values from origin into config. Secret values
 // are identified by a value of the form "ENC[key]" where key is the secret key.
 // See: https://github.com/DataDog/datadog-agent/blob/main/docs/agent/secrets.md
-func ResolveSecrets(config Config, secretResolver secrets.Component, origin string) error {
+func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Component, origin string) error {
 	// We have to init the secrets package before we can use it to decrypt
 	// anything.
 	secretResolver.Configure(
@@ -1810,7 +1805,7 @@ func EnvVarAreSetAndNotEqual(lhsName string, rhsName string) bool {
 }
 
 // sanitizeAPIKeyConfig strips newlines and other control characters from a given key.
-func sanitizeAPIKeyConfig(config Config, key string) {
+func sanitizeAPIKeyConfig(config pkgconfigmodel.Config, key string) {
 	if !config.IsKnown(key) || !config.IsSet(key) {
 		return
 	}
@@ -1818,7 +1813,7 @@ func sanitizeAPIKeyConfig(config Config, key string) {
 }
 
 // sanitizeExternalMetricsProviderChunkSize ensures the value of `external_metrics_provider.chunk_size` is within an acceptable range
-func sanitizeExternalMetricsProviderChunkSize(config Config) {
+func sanitizeExternalMetricsProviderChunkSize(config pkgconfigmodel.Config) {
 	if !config.IsKnown("external_metrics_provider.chunk_size") {
 		return
 	}
@@ -1834,7 +1829,7 @@ func sanitizeExternalMetricsProviderChunkSize(config Config) {
 	}
 }
 
-func bindEnvAndSetLogsConfigKeys(config Config, prefix string) {
+func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Config, prefix string) {
 	config.BindEnv(prefix + "logs_dd_url") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
 	config.BindEnv(prefix + "dd_url")
 	config.BindEnv(prefix + "additional_endpoints")
@@ -1858,8 +1853,8 @@ func bindEnvAndSetLogsConfigKeys(config Config, prefix string) {
 // IsCloudProviderEnabled checks the cloud provider family provided in
 // pkg/util/<cloud_provider>.go against the value for cloud_provider: on the
 // global config object Datadog
-func IsCloudProviderEnabled(cloudProviderName string) bool {
-	cloudProviderFromConfig := Datadog.GetStringSlice("cloud_provider_metadata")
+func IsCloudProviderEnabled(cloudProviderName string, config pkgconfigmodel.Reader) bool {
+	cloudProviderFromConfig := config.GetStringSlice("cloud_provider_metadata")
 
 	for _, cloudName := range cloudProviderFromConfig {
 		if strings.EqualFold(cloudName, cloudProviderName) {
@@ -1884,7 +1879,7 @@ func pathExists(path string) bool {
 
 // setTracemallocEnabled is a helper to get the effective tracemalloc
 // configuration.
-func setTracemallocEnabled(config Config) bool {
+func setTracemallocEnabled(config pkgconfigmodel.Config) bool {
 	if !config.IsKnown("tracemalloc_debug") {
 		return false
 	}
@@ -1905,7 +1900,7 @@ func setTracemallocEnabled(config Config) bool {
 
 // setNumWorkers is a helper to set the effective number of workers for
 // a given config.
-func setNumWorkers(config Config) {
+func setNumWorkers(config pkgconfigmodel.Config) {
 	if !config.IsKnown("check_runners") {
 		return
 	}
@@ -1922,11 +1917,11 @@ func setNumWorkers(config Config) {
 }
 
 // GetDogstatsdMappingProfiles returns mapping profiles used in DogStatsD mapper
-func GetDogstatsdMappingProfiles() ([]MappingProfile, error) {
-	return getDogstatsdMappingProfilesConfig(Datadog)
+func GetDogstatsdMappingProfiles(config pkgconfigmodel.Reader) ([]MappingProfile, error) {
+	return getDogstatsdMappingProfilesConfig(config)
 }
 
-func getDogstatsdMappingProfilesConfig(config Config) ([]MappingProfile, error) {
+func getDogstatsdMappingProfilesConfig(config pkgconfigmodel.Reader) ([]MappingProfile, error) {
 	var mappings []MappingProfile
 	if config.IsSet("dogstatsd_mapper_profiles") {
 		err := config.UnmarshalKey("dogstatsd_mapper_profiles", &mappings)
@@ -1938,17 +1933,17 @@ func getDogstatsdMappingProfilesConfig(config Config) ([]MappingProfile, error) 
 }
 
 // IsCLCRunner returns whether the Agent is in cluster check runner mode
-func IsCLCRunner() bool {
-	if !Datadog.GetBool("clc_runner_enabled") {
+func IsCLCRunner(config pkgconfigmodel.Reader) bool {
+	if !config.GetBool("clc_runner_enabled") {
 		return false
 	}
 
 	var cps []ConfigurationProviders
-	if err := Datadog.UnmarshalKey("config_providers", &cps); err != nil {
+	if err := config.UnmarshalKey("config_providers", &cps); err != nil {
 		return false
 	}
 
-	for _, name := range Datadog.GetStringSlice("extra_config_providers") {
+	for _, name := range config.GetStringSlice("extra_config_providers") {
 		cps = append(cps, ConfigurationProviders{Name: name})
 	}
 
@@ -1970,12 +1965,12 @@ func IsCLCRunner() bool {
 // GetBindHost returns `bind_host` variable or default value
 // Not using `config.BindEnvAndSetDefault` as some processes need to know
 // if value was default one or not (e.g. trace-agent)
-func GetBindHost() string {
-	return GetBindHostFromConfig(Datadog)
+func GetBindHost(config pkgconfigmodel.Reader) string {
+	return GetBindHostFromConfig(config)
 }
 
 // GetBindHostFromConfig returns the bind_host value from the config
-func GetBindHostFromConfig(cfg Reader) string {
+func GetBindHostFromConfig(cfg pkgconfigmodel.Reader) string {
 	if cfg.IsSet("bind_host") {
 		return cfg.GetString("bind_host")
 	}
@@ -1984,11 +1979,11 @@ func GetBindHostFromConfig(cfg Reader) string {
 
 // GetValidHostAliases validates host aliases set in `host_aliases` variable and returns
 // only valid ones.
-func GetValidHostAliases(_ context.Context) ([]string, error) {
-	return getValidHostAliasesWithConfig(Datadog), nil
+func GetValidHostAliases(_ context.Context, config pkgconfigmodel.Reader) ([]string, error) {
+	return getValidHostAliasesWithConfig(config), nil
 }
 
-func getValidHostAliasesWithConfig(config Config) []string {
+func getValidHostAliasesWithConfig(config pkgconfigmodel.Reader) []string {
 	aliases := []string{}
 	for _, alias := range config.GetStringSlice("host_aliases") {
 		if err := validate.ValidHostname(alias); err == nil {
@@ -2001,7 +1996,7 @@ func getValidHostAliasesWithConfig(config Config) []string {
 	return aliases
 }
 
-func bindVectorOptions(config Config, datatype DataType) {
+func bindVectorOptions(config pkgconfigmodel.Config, datatype DataType) {
 	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.enabled", datatype), false)
 	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.url", datatype), "")
 
@@ -2010,19 +2005,19 @@ func bindVectorOptions(config Config, datatype DataType) {
 }
 
 // GetObsPipelineURL returns the URL under the 'observability_pipelines_worker.' prefix for the given datatype
-func GetObsPipelineURL(datatype DataType) (string, error) {
-	if Datadog.GetBool(fmt.Sprintf("observability_pipelines_worker.%s.enabled", datatype)) {
-		return getObsPipelineURLForPrefix(datatype, "observability_pipelines_worker")
-	} else if Datadog.GetBool(fmt.Sprintf("vector.%s.enabled", datatype)) {
+func GetObsPipelineURL(datatype DataType, config pkgconfigmodel.Reader) (string, error) {
+	if config.GetBool(fmt.Sprintf("observability_pipelines_worker.%s.enabled", datatype)) {
+		return getObsPipelineURLForPrefix(datatype, "observability_pipelines_worker", config)
+	} else if config.GetBool(fmt.Sprintf("vector.%s.enabled", datatype)) {
 		// Fallback to the `vector` config if observability_pipelines_worker is not set.
-		return getObsPipelineURLForPrefix(datatype, "vector")
+		return getObsPipelineURLForPrefix(datatype, "vector", config)
 	}
 	return "", nil
 }
 
-func getObsPipelineURLForPrefix(datatype DataType, prefix string) (string, error) {
-	if Datadog.GetBool(fmt.Sprintf("%s.%s.enabled", prefix, datatype)) {
-		pipelineURL := Datadog.GetString(fmt.Sprintf("%s.%s.url", prefix, datatype))
+func getObsPipelineURLForPrefix(datatype DataType, prefix string, config pkgconfigmodel.Reader) (string, error) {
+	if config.GetBool(fmt.Sprintf("%s.%s.enabled", prefix, datatype)) {
+		pipelineURL := config.GetString(fmt.Sprintf("%s.%s.url", prefix, datatype))
 		if pipelineURL == "" {
 			log.Errorf("%s.%s.enabled is set to true, but %s.%s.url is empty", prefix, datatype, prefix, datatype)
 			return "", nil
@@ -2037,7 +2032,7 @@ func getObsPipelineURLForPrefix(datatype DataType, prefix string) (string, error
 }
 
 // IsRemoteConfigEnabled returns true if Remote Configuration should be enabled
-func IsRemoteConfigEnabled(cfg Reader) bool {
+func IsRemoteConfigEnabled(cfg pkgconfigmodel.Reader) bool {
 	// Disable Remote Config for GovCloud
 	if cfg.GetBool("fips.enabled") || cfg.GetString("site") == "ddog-gov.com" {
 		return false
@@ -2047,7 +2042,7 @@ func IsRemoteConfigEnabled(cfg Reader) bool {
 
 // GetRemoteConfigurationAllowedIntegrations returns the list of integrations that can be scheduled
 // with remote-config
-func GetRemoteConfigurationAllowedIntegrations(cfg Reader) map[string]bool {
+func GetRemoteConfigurationAllowedIntegrations(cfg pkgconfigmodel.Reader) map[string]bool {
 	allowList := cfg.GetStringSlice("remote_configuration.agent_integrations.allow_list")
 	allowMap := map[string]bool{}
 	for _, integration := range allowList {

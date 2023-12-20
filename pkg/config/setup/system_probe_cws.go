@@ -3,9 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
+package setup
 
-func initCWSSystemProbeConfig(cfg Config) {
+import (
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+)
+
+func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	// CWS - general config
 	// the following entries are platform specific
 	// - runtime_security_config.policies.dir

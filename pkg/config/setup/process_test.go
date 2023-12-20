@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
+package setup
 
 import (
 	"fmt"
@@ -11,12 +11,13 @@ import (
 	"testing"
 	"time"
 
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/stretchr/testify/assert"
 )
 
 // TestProcessDefaults tests to ensure that the config has set process settings correctly
 func TestProcessDefaultConfig(t *testing.T) {
-	cfg := SetupConf()
+	cfg := Conf()
 
 	for _, tc := range []struct {
 		key          string
@@ -139,7 +140,7 @@ func TestProcessDefaultConfig(t *testing.T) {
 
 // TestPrefixes tests that for every corresponding `DD_PROCESS_CONFIG` prefix, there is a `DD_PROCESS_AGENT` prefix as well.
 func TestProcessAgentPrefixes(t *testing.T) {
-	envVarSlice := SetupConf().GetEnvVars()
+	envVarSlice := Conf().GetEnvVars()
 	envVars := make(map[string]struct{}, len(envVarSlice))
 	for _, envVar := range envVarSlice {
 		envVars[envVar] = struct{}{}
@@ -160,7 +161,7 @@ func TestProcessAgentPrefixes(t *testing.T) {
 
 // TestPrefixes tests that for every corresponding `DD_PROCESS_AGENT` prefix, there is a `DD_PROCESS_CONFIG` prefix as well.
 func TestProcessConfigPrefixes(t *testing.T) {
-	envVarSlice := SetupConf().GetEnvVars()
+	envVarSlice := Conf().GetEnvVars()
 	envVars := make(map[string]struct{}, len(envVarSlice))
 	for _, envVar := range envVarSlice {
 		envVars[envVar] = struct{}{}
@@ -182,7 +183,7 @@ func TestProcessConfigPrefixes(t *testing.T) {
 }
 
 func TestEnvVarOverride(t *testing.T) {
-	cfg := SetupConf()
+	cfg := Conf()
 
 	for _, tc := range []struct {
 		key, env, value string
@@ -467,7 +468,7 @@ func TestEnvVarOverride(t *testing.T) {
 	})
 }
 
-func readCfgWithType(cfg Config, key, expType string) interface{} {
+func readCfgWithType(cfg pkgconfigmodel.Config, key, expType string) interface{} {
 	switch expType {
 	case "stringSlice":
 		return cfg.GetStringSlice(key)
@@ -479,7 +480,7 @@ func readCfgWithType(cfg Config, key, expType string) interface{} {
 }
 
 func TestEnvVarCustomSensitiveWords(t *testing.T) {
-	cfg := SetupConf()
+	cfg := Conf()
 	expectedPrefixes := []string{"DD_", "DD_PROCESS_CONFIG_", "DD_PROCESS_AGENT_"}
 
 	for i, tc := range []struct {
@@ -511,7 +512,7 @@ func TestEnvVarCustomSensitiveWords(t *testing.T) {
 }
 
 func TestProcBindEnvAndSetDefault(t *testing.T) {
-	cfg := SetupConf()
+	cfg := Conf()
 	procBindEnvAndSetDefault(cfg, "process_config.foo.bar", "asdf")
 
 	envs := map[string]struct{}{}
@@ -530,7 +531,7 @@ func TestProcBindEnvAndSetDefault(t *testing.T) {
 }
 
 func TestProcBindEnv(t *testing.T) {
-	cfg := SetupConf()
+	cfg := Conf()
 	procBindEnv(cfg, "process_config.foo.bar")
 
 	envs := map[string]struct{}{}
@@ -575,7 +576,7 @@ func TestProcConfigEnabledTransform(t *testing.T) {
 		},
 	} {
 		t.Run("process_config.enabled="+tc.procConfigEnabled, func(t *testing.T) {
-			cfg := SetupConf()
+			cfg := Conf()
 			cfg.SetWithoutSource("process_config.enabled", tc.procConfigEnabled)
 			loadProcessTransforms(cfg)
 
@@ -583,5 +584,4 @@ func TestProcConfigEnabledTransform(t *testing.T) {
 			assert.Equal(t, tc.expectedProcessCollection, cfg.GetBool("process_config.process_collection.enabled"))
 		})
 	}
-
 }

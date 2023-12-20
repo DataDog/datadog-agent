@@ -16,26 +16,25 @@
 package config
 
 import (
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"go.uber.org/fx"
 )
 
 // team: agent-shared-components
 
 // LogConfig reads the logger config
-type LogConfig config.Reader
+type LogConfig pkgconfigmodel.Reader
 
 // Component is the component type.
 type Component interface {
-	config.Reader
+	pkgconfigmodel.Reader
 
 	// Warnings returns config warnings collected during setup.
-	Warnings() *config.Warnings
+	Warnings() *pkgconfigmodel.Warnings
 
 	// Object returns wrapped config
-	Object() config.Reader
+	Object() pkgconfigmodel.Reader
 }
 
 // Module defines the fx options for this component.

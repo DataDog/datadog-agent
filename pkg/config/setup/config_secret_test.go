@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
+package setup
 
 import (
 	"os"
@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,14 +38,14 @@ process_config:
 func TestProxyWithSecret(t *testing.T) {
 	type testCase struct {
 		name  string
-		setup func(t *testing.T, config Config, configPath string, resolver secrets.Mock)
-		tests func(t *testing.T, config Config)
+		setup func(t *testing.T, config pkgconfigmodel.Config, configPath string, resolver secrets.Mock)
+		tests func(t *testing.T, config pkgconfigmodel.Config)
 	}
 
 	cases := []testCase{
 		{
 			name: "secrets from configuration for proxy",
-			setup: func(t *testing.T, config Config, configPath string, resolver secrets.Mock) {
+			setup: func(t *testing.T, config pkgconfigmodel.Config, configPath string, resolver secrets.Mock) {
 				resolver.SetFetchHookFunc(func(_ []string) (map[string]string, error) {
 					return map[string]string{
 						"http_handle":       "http_url",
@@ -59,9 +60,9 @@ func TestProxyWithSecret(t *testing.T) {
 				config.SetWithoutSource("proxy.https", "ENC[https_handle]")
 				config.SetWithoutSource("proxy.no_proxy", []string{"ENC[no_proxy_1_handle]", "ENC[no_proxy_2_handle]"})
 			},
-			tests: func(t *testing.T, config Config) {
+			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.Equal(t,
-					&Proxy{
+					&pkgconfigmodel.Proxy{
 						HTTP:    "http_url",
 						HTTPS:   "https_url",
 						NoProxy: []string{"no_proxy_1", "no_proxy_2"},
@@ -71,7 +72,7 @@ func TestProxyWithSecret(t *testing.T) {
 		},
 		{
 			name: "secrets fron DD env vars for proxy",
-			setup: func(t *testing.T, config Config, configPath string, resolver secrets.Mock) {
+			setup: func(t *testing.T, config pkgconfigmodel.Config, configPath string, resolver secrets.Mock) {
 				resolver.SetFetchHookFunc(func(_ []string) (map[string]string, error) {
 					return map[string]string{
 						"http_handle":       "http_url",
@@ -86,9 +87,9 @@ func TestProxyWithSecret(t *testing.T) {
 				t.Setenv("DD_PROXY_HTTPS", "ENC[https_handle]")
 				t.Setenv("DD_PROXY_NO_PROXY", "ENC[no_proxy_1_handle] ENC[no_proxy_2_handle]")
 			},
-			tests: func(t *testing.T, config Config) {
+			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.Equal(t,
-					&Proxy{
+					&pkgconfigmodel.Proxy{
 						HTTP:    "http_url",
 						HTTPS:   "https_url",
 						NoProxy: []string{"no_proxy_1", "no_proxy_2"},
@@ -98,7 +99,7 @@ func TestProxyWithSecret(t *testing.T) {
 		},
 		{
 			name: "secrets fron UNIX env vars for proxy",
-			setup: func(t *testing.T, config Config, configPath string, resolver secrets.Mock) {
+			setup: func(t *testing.T, config pkgconfigmodel.Config, configPath string, resolver secrets.Mock) {
 				resolver.SetFetchHookFunc(func(_ []string) (map[string]string, error) {
 					return map[string]string{
 						"http_handle":       "http_url",
@@ -113,9 +114,9 @@ func TestProxyWithSecret(t *testing.T) {
 				t.Setenv("HTTPS_PROXY", "ENC[https_handle]")
 				t.Setenv("NO_PROXY", "ENC[no_proxy_1_handle],ENC[no_proxy_2_handle]")
 			},
-			tests: func(t *testing.T, config Config) {
+			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.Equal(t,
-					&Proxy{
+					&pkgconfigmodel.Proxy{
 						HTTP:    "http_url",
 						HTTPS:   "https_url",
 						NoProxy: []string{"no_proxy_1", "no_proxy_2"},
@@ -125,7 +126,7 @@ func TestProxyWithSecret(t *testing.T) {
 		},
 		{
 			name: "secrets from maps with keys containing dots (ie 'additional_endpoints')",
-			setup: func(t *testing.T, config Config, configPath string, resolver secrets.Mock) {
+			setup: func(t *testing.T, config pkgconfigmodel.Config, configPath string, resolver secrets.Mock) {
 				resolver.SetFetchHookFunc(func(_ []string) (map[string]string, error) {
 					return map[string]string{
 						"api_key_1": "resolved_api_key_1",
@@ -135,7 +136,7 @@ func TestProxyWithSecret(t *testing.T) {
 				})
 				os.WriteFile(configPath, testAdditionalEndpointsConf, 0600)
 			},
-			tests: func(t *testing.T, config Config) {
+			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				expected := map[string][]string{
 					"https://url1.com": {
 						"resolved_api_key_1",
@@ -153,11 +154,10 @@ func TestProxyWithSecret(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-
 			// CircleCI sets NO_PROXY, so unset it for this test
 			unsetEnvForTest(t, "NO_PROXY")
 
-			config := SetupConf()
+			config := Conf()
 			config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
 
 			// Viper.MergeConfigOverride, which is used when secrets is enabled, will silently fail if a
