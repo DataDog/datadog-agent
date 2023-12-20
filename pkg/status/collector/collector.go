@@ -10,6 +10,10 @@ package collector
 import (
 	"encoding/json"
 	"expvar"
+	"io"
+
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/pkg/status/render"
 )
 
 // GetStatusInfo retrives collector information
@@ -87,4 +91,33 @@ func PopulateStatus(stats map[string]interface{}) {
 		}
 	}
 	stats["inventories"] = checkMetadata
+}
+
+type provider struct{}
+
+func (provider) Name() string {
+	return "Collector"
+}
+
+func (provider) Section() string {
+	return status.CollectorSection
+}
+
+func (provider) JSON(stats map[string]interface{}) error {
+	PopulateStatus(stats)
+
+	return nil
+}
+
+func (provider) Text(buffer io.Writer) error {
+	render.RenderStatusTemplate(buffer, "/collector.tmpl", GetStatusInfo())
+	return nil
+}
+
+func (provider) HTML(buffer io.Writer) error {
+	return nil
+}
+
+func StatusProvider() status.Provider {
+	return provider{}
 }
