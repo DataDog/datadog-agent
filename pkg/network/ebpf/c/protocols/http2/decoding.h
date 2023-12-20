@@ -309,11 +309,11 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
                 current_stream->response_status_code = *static_value;
                 __sync_fetch_and_add(&http2_tel->response_seen, 1);
             } else if (current_header->index == kEmptyPath) {
-                current_stream->path_size = HTTP_ROOT_PATH_LEN;
-                bpf_memcpy(current_stream->request_path, HTTP_ROOT_PATH, HTTP_ROOT_PATH_LEN);
+                current_stream->path_size = HTTP2_ROOT_PATH_LEN;
+                bpf_memcpy(current_stream->request_path, HTTP2_ROOT_PATH, HTTP2_ROOT_PATH_LEN);
             } else if (current_header->index == kIndexPath) {
-                current_stream->path_size = HTTP_INDEX_PATH_LEN;
-                bpf_memcpy(current_stream->request_path, HTTP_INDEX_PATH, HTTP_INDEX_PATH_LEN);
+                current_stream->path_size = HTTP2_INDEX_PATH_LEN;
+                bpf_memcpy(current_stream->request_path, HTTP2_INDEX_PATH, HTTP2_INDEX_PATH_LEN);
             }
             continue;
         }

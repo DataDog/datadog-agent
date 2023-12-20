@@ -68,13 +68,12 @@
 
 #define MAX_FRAME_SIZE 16384
 
-// Huffman-encoded strings for paths "/" and "/index.html". Needed for HTTP2
-// decoding, as these two paths are in the static table, we need to add the
-// plain string ourselves instead of reading them from the Header.
-#define HTTP_ROOT_PATH      "\x2f"
-#define HTTP_ROOT_PATH_LEN  (sizeof(HTTP_ROOT_PATH) - 1)
-#define HTTP_INDEX_PATH     "\x2f\x69\x6e\x64\x65\x78\x2e\x68\x74\x6d\x6c"
-#define HTTP_INDEX_PATH_LEN (sizeof(HTTP_INDEX_PATH) - 1)
+// Definitions representing empty and /index.html paths. These types are sent using the static table.
+// We include these to eliminate the necessity of copying the specified encoded path to the buffer.
+#define HTTP2_ROOT_PATH      "/"
+#define HTTP2_ROOT_PATH_LEN  (sizeof(HTTP_ROOT_PATH) - 1)
+#define HTTP2_INDEX_PATH     "/index.html"
+#define HTTP2_INDEX_PATH_LEN (sizeof(HTTP_INDEX_PATH) - 1)
 
 typedef enum {
     kGET = 2,

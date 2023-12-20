@@ -86,7 +86,8 @@ func (tx *EbpfTx) Path(buffer []byte) ([]byte, bool) {
 			return nil, false
 		}
 
-		if err = validatePath(string(tx.Stream.Request_path[:tx.Stream.Path_size])); err != nil {
+		res = tx.Stream.Request_path[:tx.Stream.Path_size]
+		if err = validatePath(string(res)); err != nil {
 			log.Errorf("path is invalid due to: %s", err)
 			return nil, false
 		}
