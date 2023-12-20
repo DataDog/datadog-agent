@@ -35,8 +35,11 @@ func ProcessEventDataStreamSupported() bool {
 	kernelVersion, err := ebpfkernel.NewKernelVersion()
 	if err != nil {
 		log.Errorf("unable to detect the kernel version: %s", err)
-		return true
+		return false
 	}
+	// This is different from the check VerifyOSVersion in probe_ebpf.go
+	// We ran tests on 4.14 and realize we are able to support it for that kernel version
+	// Since we have a large customer base with 4.14, we decided to enable for them
 	if !kernelVersion.IsRH7Kernel() && kernelVersion.Code < ebpfkernel.Kernel4_14 {
 		return false
 	}
