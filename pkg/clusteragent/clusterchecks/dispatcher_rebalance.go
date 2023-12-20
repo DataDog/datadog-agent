@@ -364,15 +364,12 @@ func (d *dispatcher) currentDistribution() checksDistribution {
 
 	for nodeName, nodeStoreInfo := range d.store.nodes {
 		for checkID, stats := range nodeStoreInfo.clcRunnerStats {
-			digest, found := d.store.idToDigest[checkid.ID(checkID)]
-			if !found { // Not a cluster check
+			if !stats.IsClusterCheck {
 				continue
 			}
 
 			minCollectionInterval := defaults.DefaultCheckInterval
-
-			conf := d.store.digestToConfig[digest]
-
+			conf := d.store.digestToConfig[d.store.idToDigest[checkid.ID(checkID)]]
 			if len(conf.Instances) > 0 {
 				commonOptions := integration.CommonInstanceConfig{}
 				err := yaml.Unmarshal(conf.Instances[0], &commonOptions)

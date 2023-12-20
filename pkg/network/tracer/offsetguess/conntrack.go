@@ -145,6 +145,7 @@ func (c *conntrackOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expec
 	case GuessCtTupleOrigin:
 		c.status.Offset_origin, overlapped = skipOverlaps(c.status.Offset_origin, c.nfConnRanges())
 		if overlapped {
+			log.Tracef("offset %v overlaps with another field, skipping", whatString[GuessWhat(c.status.What)])
 			// adjusted offset from eBPF overlapped with another field, we need to check new offset
 			break
 		}
@@ -155,11 +156,14 @@ func (c *conntrackOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expec
 			c.logAndAdvance(c.status.Offset_origin, GuessCtTupleReply)
 			break
 		}
+		log.Tracef("%v %d does not match expected %d, incrementing offset %d",
+			whatString[GuessWhat(c.status.What)], c.status.Saddr, expected.saddr, c.status.Offset_origin)
 		c.status.Offset_origin++
 		c.status.Offset_origin, _ = skipOverlaps(c.status.Offset_origin, c.nfConnRanges())
 	case GuessCtTupleReply:
 		c.status.Offset_reply, overlapped = skipOverlaps(c.status.Offset_reply, c.nfConnRanges())
 		if overlapped {
+			log.Tracef("offset %v overlaps with another field, skipping", whatString[GuessWhat(c.status.What)])
 			// adjusted offset from eBPF overlapped with another field, we need to check new offset
 			break
 		}
@@ -168,11 +172,14 @@ func (c *conntrackOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expec
 			c.logAndAdvance(c.status.Offset_reply, GuessCtNet)
 			break
 		}
+		log.Tracef("%v %d does not match expected %d, incrementing offset %d",
+			whatString[GuessWhat(c.status.What)], c.status.Saddr, expected.daddr, c.status.Offset_reply)
 		c.status.Offset_reply++
 		c.status.Offset_reply, _ = skipOverlaps(c.status.Offset_reply, c.nfConnRanges())
 	case GuessCtNet:
 		c.status.Offset_netns, overlapped = skipOverlaps(c.status.Offset_netns, c.nfConnRanges())
 		if overlapped {
+			log.Tracef("offset %v overlaps with another field, skipping", whatString[GuessWhat(c.status.What)])
 			// adjusted offset from eBPF overlapped with another field, we need to check new offset
 			break
 		}
@@ -181,6 +188,8 @@ func (c *conntrackOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expec
 			c.logAndAdvance(c.status.Offset_netns, GuessNotApplicable)
 			return c.setReadyState(mp)
 		}
+		log.Tracef("%v %d does not match expected %d, incrementing offset %d",
+			whatString[GuessWhat(c.status.What)], c.status.Netns, expected.netns, c.status.Offset_netns)
 		c.status.Offset_netns++
 		c.status.Offset_netns, _ = skipOverlaps(c.status.Offset_netns, c.nfConnRanges())
 	default:

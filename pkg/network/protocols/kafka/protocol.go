@@ -8,7 +8,7 @@
 package kafka
 
 import (
-	"strings"
+	"io"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -129,7 +129,7 @@ func (p *protocol) Stop(*manager.Manager) {
 }
 
 // DumpMaps empty implementation.
-func (p *protocol) DumpMaps(*strings.Builder, string, *ebpf.Map) {}
+func (p *protocol) DumpMaps(io.Writer, string, *ebpf.Map) {}
 
 func (p *protocol) processKafka(events []EbpfTx) {
 	for i := range events {

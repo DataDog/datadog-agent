@@ -10,8 +10,7 @@ package http2
 import (
 	"errors"
 	"fmt"
-	"strings"
-	"sync"
+	"io"
 	"time"
 	"unsafe"
 
@@ -22,7 +21,6 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
@@ -41,30 +39,27 @@ type Protocol struct {
 	// TODO: Do we need to duplicate?
 	statkeeper              *http.StatKeeper
 	http2InFlightMapCleaner *ddebpf.MapCleaner[http2StreamKey, EbpfTx]
-	dynamicTableMapCleaner  *ddebpf.MapCleaner[http2DynamicTableIndex, http2DynamicTableEntry]
 	eventsConsumer          *events.Consumer[EbpfTx]
-
-	terminatedConnectionsEventsConsumer *events.Consumer[netebpf.ConnTuple]
-	terminatedConnections               []netebpf.ConnTuple
-	terminatedConnectionMux             sync.Mutex
 
 	// http2Telemetry is used to retrieve metrics from the kernel
 	http2Telemetry             *kernelTelemetry
 	kernelTelemetryStopChannel chan struct{}
+
+	dynamicTable *DynamicTable
 }
 
 const (
-	inFlightMap                      = "http2_in_flight"
-	dynamicTable                     = "http2_dynamic_table"
-	dynamicTableCounter              = "http2_dynamic_counter_table"
-	http2IterationsTable             = "http2_iterations"
-	staticTable                      = "http2_static_table"
-	firstFrameHandlerTailCall        = "socket__http2_handle_first_frame"
-	filterTailCall                   = "socket__http2_filter"
-	parserTailCall                   = "socket__http2_frames_parser"
-	eventStream                      = "http2"
-	terminatedConnectionsEventStream = "terminated_http2"
-	telemetryMap                     = "http2_telemetry"
+	inFlightMap               = "http2_in_flight"
+	dynamicTable              = "http2_dynamic_table"
+	dynamicTableCounter       = "http2_dynamic_counter_table"
+	http2IterationsTable      = "http2_iterations"
+	staticTable               = "http2_static_table"
+	firstFrameHandlerTailCall = "socket__http2_handle_first_frame"
+	filterTailCall            = "socket__http2_filter"
+	headersParserTailCall     = "socket__http2_headers_parser"
+	eosParserTailCall         = "socket__http2_eos_parser"
+	eventStream               = "http2"
+	telemetryMap              = "http2_telemetry"
 )
 
 // Spec is the protocol spec for HTTP/2.
@@ -116,9 +111,16 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramHTTP2FrameParser),
+			Key:           uint32(protocols.ProgramHTTP2HeadersParser),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: parserTailCall,
+				EBPFFuncName: headersParserTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramHTTP2EOSParser),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: eosParserTailCall,
 			},
 		},
 	},
@@ -141,6 +143,7 @@ func newHTTP2Protocol(cfg *config.Config) (protocols.Protocol, error) {
 		telemetry:                  telemetry,
 		http2Telemetry:             http2KernelTelemetry,
 		kernelTelemetryStopChannel: make(chan struct{}),
+		dynamicTable:               NewDynamicTable(),
 	}, nil
 }
 
@@ -181,7 +184,7 @@ func (p *Protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 	utils.EnableOption(opts, "http2_monitoring_enabled")
 	// Configure event stream
 	events.Configure(eventStream, mgr, opts)
-	events.Configure(terminatedConnectionsEventStream, mgr, opts)
+	p.dynamicTable.configureOptions(mgr, opts)
 }
 
 // PreStart is called before the start of the provided eBPF manager.
@@ -198,18 +201,12 @@ func (p *Protocol) PreStart(mgr *manager.Manager) (err error) {
 		return
 	}
 
-	p.terminatedConnectionsEventsConsumer, err = events.NewConsumer(
-		terminatedConnectionsEventStream,
-		mgr,
-		p.processTerminatedConnections,
-	)
-	if err != nil {
+	if err = p.dynamicTable.preStart(mgr); err != nil {
 		return
 	}
 
-	p.statkeeper = http.NewStatkeeper(p.cfg, p.telemetry)
+	p.statkeeper = http.NewStatkeeper(p.cfg, p.telemetry, http.NewIncompleteBuffer(p.cfg, p.telemetry))
 	p.eventsConsumer.Start()
-	p.terminatedConnectionsEventsConsumer.Start()
 
 	if err = p.createStaticTable(mgr); err != nil {
 		return fmt.Errorf("error creating a static table for http2 monitoring: %w", err)
@@ -223,11 +220,10 @@ func (p *Protocol) PreStart(mgr *manager.Manager) (err error) {
 // performed here.
 func (p *Protocol) PostStart(mgr *manager.Manager) error {
 	// Setup map cleaner after manager start.
-
 	p.setupHTTP2InFlightMapCleaner(mgr)
-	p.setupDynamicTableMapCleaner(mgr)
 	p.updateKernelTelemetry(mgr)
-	return nil
+
+	return p.dynamicTable.postStart(mgr, p.cfg)
 }
 
 func (p *Protocol) updateKernelTelemetry(mgr *manager.Manager) {
@@ -270,17 +266,12 @@ func (p *Protocol) updateKernelTelemetry(mgr *manager.Manager) {
 // Note that since this method is a cleanup method, it *should not* fail and
 // tries to cleanup resources as best as it can.
 func (p *Protocol) Stop(_ *manager.Manager) {
+	p.dynamicTable.stop()
 	// http2InFlightMapCleaner handles nil pointer receivers
 	p.http2InFlightMapCleaner.Stop()
-	// dynamicTableMapCleaner handles nil pointer receivers
-	p.dynamicTableMapCleaner.Stop()
 
 	if p.eventsConsumer != nil {
 		p.eventsConsumer.Stop()
-	}
-
-	if p.terminatedConnectionsEventsConsumer != nil {
-		p.terminatedConnectionsEventsConsumer.Stop()
 	}
 
 	if p.statkeeper != nil {
@@ -292,22 +283,22 @@ func (p *Protocol) Stop(_ *manager.Manager) {
 
 // DumpMaps dumps the content of the map represented by mapName &
 // currentMap, if it used by the eBPF program, to output.
-func (p *Protocol) DumpMaps(output *strings.Builder, mapName string, currentMap *ebpf.Map) {
+func (p *Protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 	if mapName == inFlightMap { // maps/http2_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value httpTX
-		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'httpTX'\n")
+		io.WriteString(w, "Map: '"+mapName+"', key: 'ConnTuple', value: 'httpTX'\n")
 		iter := currentMap.Iterate()
 		var key http2StreamKey
 		var value EbpfTx
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			output.WriteString(spew.Sdump(key, value))
+			spew.Fdump(w, key, value)
 		}
 	} else if mapName == dynamicTable {
-		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'httpTX'\n")
+		io.WriteString(w, "Map: '"+mapName+"', key: 'ConnTuple', value: 'httpTX'\n")
 		iter := currentMap.Iterate()
 		var key http2DynamicTableIndex
 		var value http2DynamicTableEntry
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			output.WriteString(spew.Sdump(key, value))
+			spew.Fdump(w, key, value)
 		}
 	}
 }
@@ -318,12 +309,6 @@ func (p *Protocol) processHTTP2(events []EbpfTx) {
 		p.telemetry.Count(tx)
 		p.statkeeper.Process(tx)
 	}
-}
-
-func (p *Protocol) processTerminatedConnections(events []netebpf.ConnTuple) {
-	p.terminatedConnectionMux.Lock()
-	defer p.terminatedConnectionMux.Unlock()
-	p.terminatedConnections = append(p.terminatedConnections, events...)
 }
 
 func (p *Protocol) setupHTTP2InFlightMapCleaner(mgr *manager.Manager) {
@@ -349,42 +334,6 @@ func (p *Protocol) setupHTTP2InFlightMapCleaner(mgr *manager.Manager) {
 	})
 
 	p.http2InFlightMapCleaner = mapCleaner
-}
-
-func (p *Protocol) setupDynamicTableMapCleaner(mgr *manager.Manager) {
-	dynamicTableMap, _, err := mgr.GetMap(dynamicTable)
-	if err != nil {
-		log.Errorf("error getting %q map: %s", dynamicTable, err)
-		return
-	}
-
-	mapCleaner, err := ddebpf.NewMapCleaner[http2DynamicTableIndex, http2DynamicTableEntry](dynamicTableMap, 1024)
-	if err != nil {
-		log.Errorf("error creating map cleaner: %s", err)
-		return
-	}
-
-	terminatedConnectionsMap := make(map[netebpf.ConnTuple]struct{})
-	mapCleaner.Clean(p.cfg.HTTP2DynamicTableMapCleanerInterval,
-		func() bool {
-			p.terminatedConnectionsEventsConsumer.Sync()
-			p.terminatedConnectionMux.Lock()
-			for _, conn := range p.terminatedConnections {
-				terminatedConnectionsMap[conn] = struct{}{}
-			}
-			p.terminatedConnections = p.terminatedConnections[:0]
-			p.terminatedConnectionMux.Unlock()
-
-			return len(terminatedConnectionsMap) > 0
-		},
-		func() {
-			terminatedConnectionsMap = make(map[netebpf.ConnTuple]struct{})
-		},
-		func(_ int64, key http2DynamicTableIndex, _ http2DynamicTableEntry) bool {
-			_, ok := terminatedConnectionsMap[key.Tup]
-			return ok
-		})
-	p.dynamicTableMapCleaner = mapCleaner
 }
 
 // GetStats returns a map of HTTP2 stats stored in the following format:

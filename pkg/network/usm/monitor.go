@@ -10,6 +10,7 @@ package usm
 import (
 	"errors"
 	"fmt"
+	"io"
 	"syscall"
 	"time"
 
@@ -193,6 +194,6 @@ func (m *Monitor) Stop() {
 }
 
 // DumpMaps dumps the maps associated with the monitor
-func (m *Monitor) DumpMaps(maps ...string) (string, error) {
-	return m.ebpfProgram.DumpMaps(maps...)
+func (m *Monitor) DumpMaps(w io.Writer, maps ...string) error {
+	return m.ebpfProgram.DumpMaps(w, maps...)
 }
