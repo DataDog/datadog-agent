@@ -222,7 +222,7 @@ func run(log log.Component,
 	_ netflowServer.Component,
 	_ langDetectionCl.Component,
 	agentAPI internalAPI.Component,
-	pkgSigning packagesigning.Component,
+	_ packagesigning.Component,
 ) error {
 	defer func() {
 		stopAgent(cliParams, server, demultiplexer, agentAPI)
@@ -282,7 +282,6 @@ func run(log log.Component,
 		invAgent,
 		agentAPI,
 		invChecks,
-		pkgSigning,
 	); err != nil {
 		return err
 	}
@@ -399,7 +398,6 @@ func startAgent(
 	invAgent inventoryagent.Component,
 	agentAPI internalAPI.Component,
 	invChecks inventorychecks.Component,
-	pkgSigning packagesigning.Component,
 ) error {
 
 	var err error

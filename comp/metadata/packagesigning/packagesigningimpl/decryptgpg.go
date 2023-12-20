@@ -43,6 +43,7 @@ func decryptGPGFile(cacheKeys map[string]signingKey, gpgFile repoFile, keyType s
 	if strings.HasPrefix(gpgFile.filename, "http") {
 		response, err := client.Get(gpgFile.filename)
 		if err != nil {
+			logger.Infof("Error while reading %s: %s", gpgFile.filename, err)
 			return
 		}
 		defer response.Body.Close()
@@ -50,6 +51,7 @@ func decryptGPGFile(cacheKeys map[string]signingKey, gpgFile repoFile, keyType s
 	} else {
 		file, err := os.Open(strings.Replace(gpgFile.filename, "file://", "", 1))
 		if err != nil {
+			logger.Infof("Error while reading %s: %s", gpgFile.filename, err)
 			return
 		}
 		defer file.Close()
@@ -57,9 +59,13 @@ func decryptGPGFile(cacheKeys map[string]signingKey, gpgFile repoFile, keyType s
 	}
 	content, err := io.ReadAll(reader)
 	if err != nil {
+		logger.Infof("Error while extracting bytes from the reader: %s", err)
 		return
 	}
-	decryptGPGContent(cacheKeys, content, keyType, gpgFile.repositories)
+	err = decryptGPGContent(cacheKeys, content, keyType, gpgFile.repositories)
+	if err != nil {
+		logger.Infof("Error while decrypting %s: %s", gpgFile.filename, err)
+	}
 }
 
 // decryptGPGContent extract keys from a byte slice (direct usage when reading from rpm db)

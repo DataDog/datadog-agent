@@ -64,7 +64,7 @@ type dependencies struct {
 	InvHost         inventoryhost.Component
 	SecretResolver  secrets.Component
 	InvChecks       inventorychecks.Component
-	pkgSigning      packagesigning.Component
+	PkgSigning      packagesigning.Component
 }
 
 var _ api.Component = (*apiServer)(nil)
@@ -81,7 +81,7 @@ func newAPIServer(deps dependencies) api.Component {
 		invHost:         deps.InvHost,
 		secretResolver:  deps.SecretResolver,
 		invChecks:       deps.InvChecks,
-		pkgSigning:      deps.pkgSigning,
+		pkgSigning:      deps.PkgSigning,
 	}
 }
 

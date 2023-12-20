@@ -9,7 +9,7 @@ package utils
 
 import "testing"
 
-func TestParseRepoFile(t *testing.T) {
+func TestParseRPMRepoFile(t *testing.T) {
 	testCases := []struct {
 		name        string
 		fileName    string
@@ -83,7 +83,7 @@ func TestParseRepoFile(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			mainConf, reposPerKey := ParseRepoFile(testCase.fileName, testCase.mainConf)
+			mainConf, reposPerKey := ParseRPMRepoFile(testCase.fileName, testCase.mainConf)
 			errorData := CompareRepoPerKeys(reposPerKey, testCase.reposPerKey)
 			if mainConf != testCase.mainConf {
 				t.Errorf("Expected gpgcheck/local/repo %t/%t/%t, got %t/%t/%t",

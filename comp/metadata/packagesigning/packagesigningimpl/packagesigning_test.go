@@ -155,8 +155,10 @@ func TestDecryptGPGReader(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 
-			decryptGPGContent(keys, []byte(testCase.content), testCase.keyType, nil)
-
+			err := decryptGPGContent(keys, []byte(testCase.content), testCase.keyType, nil)
+			if err != nil {
+				t.Errorf("Error while decrypting %s: %s", testCase.name, err)
+			}
 			retrieved, ok := keys[testCase.output.Fingerprint+testCase.output.KeyType]
 			if !ok || !compareKeys(retrieved, testCase.output) {
 				t.Errorf("Expected key %s|%s to be present in the map", testCase.output.Fingerprint, testCase.output.ExpirationDate)
