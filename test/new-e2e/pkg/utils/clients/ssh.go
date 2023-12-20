@@ -117,6 +117,33 @@ func CopyFolder(client *ssh.Client, srcFolder string, dstFolder string) error {
 	return copyFolder(sftpClient, srcFolder, dstFolder)
 }
 
+// GetFile create a sftp session and copy a single file from the remote host through SSH
+func GetFile(client *ssh.Client, src string, dst string) error {
+
+	sftpClient, err := sftp.NewClient(client)
+	if err != nil {
+		return err
+	}
+	defer sftpClient.Close()
+
+	// remote
+	fsrc, err := sftpClient.Open(src)
+	if err != nil {
+		return err
+	}
+	defer fsrc.Close()
+
+	// local
+	fdst, err := os.OpenFile(dst, os.O_RDWR|os.O_CREATE, 0640)
+	if err != nil {
+		return err
+	}
+	defer fdst.Close()
+
+	_, err = fsrc.WriteTo(fdst)
+	return err
+}
+
 func copyFolder(sftpClient *sftp.Client, srcFolder string, dstFolder string) error {
 
 	folderContent, err := os.ReadDir(srcFolder)
