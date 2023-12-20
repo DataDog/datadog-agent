@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// Package run is the run system-probe subcommand
 package run
 
 import (
@@ -11,9 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-
-	//nolint:revive // TODO(EBPF) Fix revive linter
-	_ "net/http/pprof"
+	_ "net/http/pprof" // activate pprof profiling
 	"os"
 	"os/signal"
 	"os/user"
@@ -132,14 +130,14 @@ func run(log log.Component, _ config.Component, statsd compstatsd.Component, tel
 	sigpipeCh := make(chan os.Signal, 1)
 	signal.Notify(sigpipeCh, syscall.SIGPIPE)
 	go func() {
-		//nolint:revive // TODO(EBPF) Fix revive linter
+		//nolint:revive
 		for range sigpipeCh {
-			// do nothing
+			// intentionally drain channel
 		}
 	}()
 
 	if err := startSystemProbe(cliParams, log, statsd, telemetry, sysprobeconfig, rcclient); err != nil {
-		if err == ErrNotEnabled {
+		if errors.Is(err, ErrNotEnabled) {
 			// A sleep is necessary to ensure that supervisor registers this process as "STARTED"
 			// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
 			// http://supervisord.org/subprocess.html#process-states

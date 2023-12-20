@@ -10,7 +10,7 @@ package http2
 import (
 	"errors"
 	"fmt"
-	"strings"
+	"io"
 	"time"
 	"unsafe"
 
@@ -56,7 +56,8 @@ const (
 	staticTable               = "http2_static_table"
 	firstFrameHandlerTailCall = "socket__http2_handle_first_frame"
 	filterTailCall            = "socket__http2_filter"
-	parserTailCall            = "socket__http2_frames_parser"
+	headersParserTailCall     = "socket__http2_headers_parser"
+	eosParserTailCall         = "socket__http2_eos_parser"
 	eventStream               = "http2"
 	telemetryMap              = "http2_telemetry"
 )
@@ -110,9 +111,16 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramHTTP2FrameParser),
+			Key:           uint32(protocols.ProgramHTTP2HeadersParser),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: parserTailCall,
+				EBPFFuncName: headersParserTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramHTTP2EOSParser),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: eosParserTailCall,
 			},
 		},
 	},
@@ -196,7 +204,8 @@ func (p *Protocol) PreStart(mgr *manager.Manager) (err error) {
 	if err = p.dynamicTable.preStart(mgr); err != nil {
 		return
 	}
-	p.statkeeper = http.NewStatkeeper(p.cfg, p.telemetry)
+
+	p.statkeeper = http.NewStatkeeper(p.cfg, p.telemetry, http.NewIncompleteBuffer(p.cfg, p.telemetry))
 	p.eventsConsumer.Start()
 
 	if err = p.createStaticTable(mgr); err != nil {
@@ -274,22 +283,22 @@ func (p *Protocol) Stop(_ *manager.Manager) {
 
 // DumpMaps dumps the content of the map represented by mapName &
 // currentMap, if it used by the eBPF program, to output.
-func (p *Protocol) DumpMaps(output *strings.Builder, mapName string, currentMap *ebpf.Map) {
+func (p *Protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 	if mapName == inFlightMap { // maps/http2_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value httpTX
-		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'httpTX'\n")
+		io.WriteString(w, "Map: '"+mapName+"', key: 'ConnTuple', value: 'httpTX'\n")
 		iter := currentMap.Iterate()
 		var key http2StreamKey
 		var value EbpfTx
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			output.WriteString(spew.Sdump(key, value))
+			spew.Fdump(w, key, value)
 		}
 	} else if mapName == dynamicTable {
-		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'httpTX'\n")
+		io.WriteString(w, "Map: '"+mapName+"', key: 'ConnTuple', value: 'httpTX'\n")
 		iter := currentMap.Iterate()
 		var key http2DynamicTableIndex
 		var value http2DynamicTableEntry
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			output.WriteString(spew.Sdump(key, value))
+			spew.Fdump(w, key, value)
 		}
 	}
 }

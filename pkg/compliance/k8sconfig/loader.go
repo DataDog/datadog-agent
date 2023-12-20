@@ -28,7 +28,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const version = "202305"
+const version = "202312"
 
 const (
 	k8sManifestsDir   = "/etc/kubernetes/manifests"
@@ -78,13 +78,6 @@ func (l *loader) load(ctx context.Context, loadProcesses procsLoader) (string, *
 	node.Manifests.KubeScheduler = l.loadConfigFileMeta(filepath.Join(k8sManifestsDir, "kube-scheduler.yaml"))
 	node.Manifests.Etcd = l.loadConfigFileMeta(filepath.Join(k8sManifestsDir, "etcd.yaml"))
 
-	if eksMeta := l.loadConfigFileMeta("/etc/eks/release"); eksMeta != nil {
-		node.ManagedEnvironment = &K8sManagedEnvConfig{
-			Name:     "eks",
-			Metadata: eksMeta.Content,
-		}
-	}
-
 	for _, proc := range loadProcesses(ctx) {
 		switch proc.name {
 		case "etcd":
@@ -97,6 +90,7 @@ func (l *loader) load(ctx context.Context, loadProcesses procsLoader) (string, *
 			node.Components.KubeScheduler = l.newK8sKubeSchedulerConfig(proc.flags)
 		case "kubelet":
 			node.Components.Kubelet = l.newK8sKubeletConfig(proc.flags)
+			node.ManagedEnvironment = l.detectManagedEnvironment(proc.flags)
 		case "kube-proxy":
 			node.Components.KubeProxy = l.newK8sKubeProxyConfig(proc.flags)
 		}
@@ -107,11 +101,52 @@ func (l *loader) load(ctx context.Context, loadProcesses procsLoader) (string, *
 	}
 
 	resourceType := "kubernetes_worker_node"
-	if node.Components.KubeApiserver != nil {
+	if managedEnv := node.ManagedEnvironment; managedEnv != nil {
+		switch managedEnv.Name {
+		case "eks":
+			resourceType = "aws_eks_worker_node"
+		case "gke":
+			resourceType = "gcp_gke_worker_node"
+		case "aks":
+			resourceType = "azure_aks_worker_node"
+		}
+	} else if node.Components.KubeApiserver != nil ||
+		node.Components.Etcd != nil ||
+		node.Components.KubeControllerManager != nil ||
+		node.Components.KubeScheduler != nil {
 		resourceType = "kubernetes_master_node"
 	}
 
 	return resourceType, &node
+}
+
+func (l *loader) detectManagedEnvironment(flags map[string]string) *K8sManagedEnvConfig {
+	nodeLabels, ok := flags["--node-labels"]
+	if ok {
+		for _, label := range strings.Split(nodeLabels, ",") {
+			label = strings.TrimSpace(label)
+			switch {
+			case strings.HasPrefix(label, "cloud.google.com/gke"):
+				return &K8sManagedEnvConfig{
+					Name: "gke",
+				}
+			case strings.HasPrefix(label, "eks.amazonaws.com/"):
+				env := &K8sManagedEnvConfig{
+					Name: "eks",
+				}
+				eksMeta := l.loadConfigFileMeta("/etc/eks/release")
+				if eksMeta != nil {
+					env.Metadata = eksMeta.Content
+				}
+				return env
+			case strings.HasPrefix(label, "kubernetes.azure.com/"):
+				return &K8sManagedEnvConfig{
+					Name: "aks",
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func (l *loader) loadMeta(name string, loadContent bool) (string, os.FileInfo, []byte, bool) {
@@ -131,6 +166,7 @@ func (l *loader) loadMeta(name string, loadContent bool) (string, os.FileInfo, [
 		if err != nil {
 			l.pushError(err)
 		} else {
+			defer f.Close()
 			b, err = io.ReadAll(io.LimitReader(f, maxSize))
 			if err != nil {
 				l.pushError(err)
@@ -192,6 +228,38 @@ func (l *loader) loadConfigFileMeta(name string) *K8sConfigFileMeta {
 		Mode:    uint32(info.Mode()),
 		Content: content,
 	}
+}
+
+func (l *loader) getConfigFromPath(meta *K8sConfigFileMeta, path string) (map[string]interface{}, string, bool) {
+	if meta == nil || meta.Content == nil {
+		return nil, "", false
+	}
+	content, ok := meta.Content.(map[string]interface{})
+	if !ok {
+		return nil, "", false
+	}
+	fields := strings.Split(path, ".")
+	if len(fields) == 0 {
+		return nil, "", false
+	}
+	if len(fields) > 1 {
+		for _, field := range fields[:len(fields)-1] {
+			content, ok = content[field].(map[string]interface{})
+			if !ok {
+				return nil, "", false
+			}
+		}
+	}
+	return content, fields[len(fields)-1], true
+}
+
+func (l *loader) configFileMetaHasField(meta *K8sConfigFileMeta, path string) bool {
+	content, lastField, ok := l.getConfigFromPath(meta, path)
+	if ok {
+		_, hasField := content[lastField]
+		return hasField
+	}
+	return false
 }
 
 func (l *loader) loadKubeletConfigFileMeta(name string) *K8sConfigFileMeta {
@@ -493,40 +561,53 @@ func (l *loader) pushError(err error) {
 	}
 }
 
-func (l *loader) parseBool(v string) bool {
+func (l *loader) parseBool(v string) *bool {
 	if v == "" {
-		return true
+		return nil
 	}
 	b, err := strconv.ParseBool(v)
 	if err != nil {
 		l.pushError(err)
+		return nil
 	}
-	return b
+	return &b
 }
 
 //nolint:unused,deadcode
-func (l *loader) parseFloat(v string) float64 {
+func (l *loader) parseFloat(v string) *float64 {
+	if v == "" {
+		return nil
+	}
 	f, err := strconv.ParseFloat(v, 64)
 	if err != nil {
 		l.pushError(err)
+		return nil
 	}
-	return f
+	return &f
 }
 
-func (l *loader) parseInt(v string) int {
+func (l *loader) parseInt(v string) *int {
+	if v == "" {
+		return nil
+	}
 	i, err := strconv.Atoi(v)
 	if err != nil {
 		l.pushError(err)
+		return nil
 	}
-	return i
+	return &i
 }
 
-func (l *loader) parseDuration(v string) time.Duration {
+func (l *loader) parseDuration(v string) *time.Duration {
+	if v == "" {
+		return nil
+	}
 	d, err := time.ParseDuration(v)
 	if err != nil {
 		l.pushError(err)
+		return nil
 	}
-	return d
+	return &d
 }
 
 func buildProc(name string, cmdline []string) proc {

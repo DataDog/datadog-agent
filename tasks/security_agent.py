@@ -13,6 +13,7 @@ from invoke.exceptions import Exit
 
 from .build_tags import get_default_build_tags
 from .go import run_golangci_lint
+from .go_test import environ
 from .libs.ninja_syntax import NinjaWriter
 from .process_agent import TempDir
 from .system_probe import (
@@ -22,7 +23,6 @@ from .system_probe import (
     ninja_define_ebpf_compiler,
     ninja_define_exe_compiler,
 )
-from .test import environ
 from .utils import (
     REPO_PATH,
     bin_name,
@@ -708,7 +708,7 @@ def generate_cws_proto(ctx):
 
 
 def get_git_dirty_files():
-    dirty_stats = check_output(["git", "status", "--porcelain=v1", "untracked-files=no"]).decode('utf-8')
+    dirty_stats = check_output(["git", "status", "--porcelain=v1", "--untracked-files=no"]).decode('utf-8')
     paths = []
 
     # see https://git-scm.com/docs/git-status#_short_format for format documentation

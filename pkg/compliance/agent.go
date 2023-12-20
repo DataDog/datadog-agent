@@ -121,6 +121,8 @@ type Agent struct {
 
 	finish chan struct{}
 	cancel context.CancelFunc
+
+	k8sManaged *string
 }
 
 func xccdfEnabled() bool {
@@ -144,7 +146,7 @@ func DefaultRuleFilter(r *Rule) bool {
 		return false
 	}
 	if len(r.Filters) > 0 {
-		ruleFilterModel, err := rules.NewRuleFilterModel()
+		ruleFilterModel, err := rules.NewRuleFilterModel("")
 		if err != nil {
 			log.Errorf("failed to apply rule filters: %v", err)
 			return false
@@ -212,6 +214,11 @@ func (a *Agent) Start() error {
 			return a.getChecksStatus()
 		}),
 	)
+
+	_, k8sResourceData := k8sconfig.LoadConfiguration(ctx, a.opts.HostRoot)
+	if k8sResourceData != nil && k8sResourceData.ManagedEnvironment != nil {
+		a.k8sManaged = &k8sResourceData.ManagedEnvironment.Name
+	}
 
 	var wg sync.WaitGroup
 
@@ -397,7 +404,7 @@ func (a *Agent) runKubernetesConfigurationsExport(ctx context.Context) {
 }
 
 func (a *Agent) runAptConfigurationExport(ctx context.Context) {
-	ruleFilterModel, err := rules.NewRuleFilterModel()
+	ruleFilterModel, err := rules.NewRuleFilterModel("")
 	if err != nil {
 		log.Errorf("failed to run apt configuration export: %v", err)
 		return
@@ -536,6 +543,7 @@ func (a *Agent) reportCheckEvents(eventsTTL time.Duration, events ...*CheckEvent
 				event.Container.ImageTag = ctnr.Image.Tag
 			}
 		}
+		event.K8SManaged = a.k8sManaged
 		a.opts.Reporter.ReportEvent(event)
 	}
 }

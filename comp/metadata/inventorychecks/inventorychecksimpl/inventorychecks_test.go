@@ -6,23 +6,29 @@
 package inventorychecksimpl
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-func getTestInventoryChecks(t *testing.T, coll optional.Option[collector.Collector], overrides map[string]any) *inventorychecksImpl {
+func getTestInventoryChecks(t *testing.T, coll optional.Option[collector.Collector], logAgent optional.Option[logagent.Component], overrides map[string]any) *inventorychecksImpl {
 	p := newInventoryChecksProvider(
 		fxutil.Test[dependencies](
 			t,
@@ -33,13 +39,18 @@ func getTestInventoryChecks(t *testing.T, coll optional.Option[collector.Collect
 			fx.Provide(func() optional.Option[collector.Collector] {
 				return coll
 			}),
+			fx.Provide(func() optional.Option[logagent.Component] {
+				return logAgent
+			}),
 		),
 	)
 	return p.Comp.(*inventorychecksImpl)
 }
 
 func TestSet(t *testing.T) {
-	ic := getTestInventoryChecks(t, optional.NewNoneOption[collector.Collector](), nil)
+	ic := getTestInventoryChecks(
+		t, optional.NewNoneOption[collector.Collector](), optional.Option[logagent.Component]{}, nil,
+	)
 
 	ic.Set("instance_1", "key", "value")
 
@@ -56,7 +67,9 @@ func TestSet(t *testing.T) {
 }
 
 func TestSetEmptyInstance(t *testing.T) {
-	ic := getTestInventoryChecks(t, optional.NewNoneOption[collector.Collector](), nil)
+	ic := getTestInventoryChecks(
+		t, optional.NewNoneOption[collector.Collector](), optional.Option[logagent.Component]{}, nil,
+	)
 
 	ic.Set("", "key", "value")
 
@@ -64,7 +77,9 @@ func TestSetEmptyInstance(t *testing.T) {
 }
 
 func TestGetInstanceMetadata(t *testing.T) {
-	ic := getTestInventoryChecks(t, optional.NewNoneOption[collector.Collector](), nil)
+	ic := getTestInventoryChecks(
+		t, optional.NewNoneOption[collector.Collector](), optional.Option[logagent.Component]{}, nil,
+	)
 
 	ic.Set("instance_1", "key1", "value1")
 	ic.Set("instance_1", "key2", "value2")
@@ -115,8 +130,28 @@ func TestGetPayload(t *testing.T) {
 	mockColl.On("AddEventReceiver", mock.AnythingOfType("EventReceiver")).Return()
 	mockColl.On("MapOverChecks", mock.AnythingOfType("func([]check.Info)")).Return()
 
+	// Setup log sources
+	logSources := sources.NewLogSources()
+	src := sources.NewLogSource("redisdb", &logConfig.LogsConfig{
+		Type:       logConfig.FileType,
+		Path:       "/var/log/redis/redis.log",
+		Identifier: "redisdb",
+		Service:    "awesome_cache",
+		Source:     "redis",
+		Tags:       []string{"env:prod"},
+	})
+	// Register an error
+	src.Status.Error(fmt.Errorf("No such file or directory"))
+	logSources.AddSource(src)
+	mockLogAgent := fxutil.Test[optional.Option[logagent.Mock]](
+		t, logagent.MockModule(), core.MockBundle(), inventoryagent.MockModule(),
+	)
+	logsAgent, _ := mockLogAgent.Get()
+	logsAgent.SetSources(logSources)
+
 	ic := getTestInventoryChecks(t,
 		optional.NewOption[collector.Collector](mockColl),
+		optional.NewOption[logagent.Component](logsAgent),
 		overrides,
 	)
 
@@ -156,9 +191,27 @@ func TestGetPayload(t *testing.T) {
 
 	// Check that metadata linked to non-existing check were deleted
 	assert.NotContains(t, "non_running_checkid", ic.data)
+
+	// Check the log sources part of the metadata
+	assert.Len(t, p.LogsMetadata, 1)
+	actualSource, found := p.LogsMetadata["redisdb"]
+	assert.True(t, found)
+	assert.Len(t, actualSource, 1)
+	expectedSourceConfig := `{"type":"file","path":"/var/log/redis/redis.log","service":"awesome_cache","source":"redis","tags":["env:prod"]}`
+	assert.Equal(t, expectedSourceConfig, actualSource[0]["config"])
+	expectedSourceStatus := map[string]string{
+		"status": "error",
+		"error":  "Error: No such file or directory",
+	}
+	assert.Equal(t, expectedSourceStatus, actualSource[0]["state"])
+	assert.Equal(t, "awesome_cache", actualSource[0]["service"])
+	assert.Equal(t, "redis", actualSource[0]["source"])
+	assert.Equal(t, []string{"env:prod"}, actualSource[0]["tags"])
 }
 
 func TestFlareProviderFilename(t *testing.T) {
-	ic := getTestInventoryChecks(t, optional.NewNoneOption[collector.Collector](), nil)
+	ic := getTestInventoryChecks(
+		t, optional.NewNoneOption[collector.Collector](), optional.Option[logagent.Component]{}, nil,
+	)
 	assert.Equal(t, "checks.json", ic.FlareFileName)
 }
