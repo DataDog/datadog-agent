@@ -76,6 +76,7 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
     switch (protocol) {
     case PROTOCOL_HTTP:
         prog = TLS_HTTP_PROCESS;
+        normalize_tuple(t);
         break;
     default:
         return;
