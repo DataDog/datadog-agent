@@ -16,6 +16,8 @@ type K8sNodeConfig struct {
 	Version            string               `json:"version"`
 	ManagedEnvironment *K8sManagedEnvConfig `json:"managedEnvironment,omitempty"`
 	KubeletService     *K8sConfigFileMeta   `json:"kubeletService,omitempty"`
+	KubeletVersion     *string              `json:"kubelet_version,omitempty"`
+	KubeletRevision    *string              `json:"kubelet_revision,omitempty"`
 	AdminKubeconfig    *K8sKubeconfigMeta   `json:"adminKubeconfig,omitempty"`
 	Components         struct {
 		Etcd                  *K8sEtcdConfig                  `json:"etcd,omitempty"`

@@ -180,6 +180,7 @@ func main() {
 	if info, err := os.Stat(bindir); err != nil || !info.IsDir() {
 		log.Fatalf("bindir path %s is not a directory", bindir)
 	}
+
 	uname, _ := exec.Command("uname", "-m").Output()
 	switch string(bytes.TrimSuffix(uname, []byte("\n"))) {
 	case "x86_64":

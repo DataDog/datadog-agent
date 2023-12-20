@@ -38,6 +38,7 @@ const (
 type procsLoader func(ctx context.Context) []proc
 type proc struct {
 	name  string
+	exe   string
 	flags map[string]string
 }
 
@@ -91,6 +92,31 @@ func (l *loader) load(ctx context.Context, loadProcesses procsLoader) (string, *
 		case "kubelet":
 			node.Components.Kubelet = l.newK8sKubeletConfig(proc.flags)
 			node.ManagedEnvironment = l.detectManagedEnvironment(proc.flags)
+			if proc.exe != "" {
+				buildInfos, err := utils.GetElfModuleBuildInfos(filepath.Join(l.hostroot, proc.exe))
+				if err == nil {
+					var kubeletVersion string
+					var kubeletRevision string
+					for _, buildInfo := range buildInfos {
+						const gitVersionTag = "version.gitVersion="
+						const vcsRevisionTag = "vcs.revision="
+						if gitVersionIndex := strings.Index(buildInfo, gitVersionTag); gitVersionIndex >= 0 {
+							if gitVersionEnd := strings.Index(buildInfo[gitVersionIndex:], "'"); gitVersionEnd > 0 {
+								kubeletVersion = string(buildInfo[len(gitVersionTag)+gitVersionIndex : gitVersionIndex+gitVersionEnd])
+							}
+						}
+						if vcsRevisionIndex := strings.Index(buildInfo, vcsRevisionTag); vcsRevisionIndex >= 0 {
+							kubeletRevision = string(buildInfo[len(vcsRevisionTag)+vcsRevisionIndex:])
+						}
+					}
+					if kubeletVersion != "" {
+						node.KubeletVersion = &kubeletVersion
+					}
+					if kubeletRevision != "" {
+						node.KubeletRevision = &kubeletRevision
+					}
+				}
+			}
 		case "kube-proxy":
 			node.Components.KubeProxy = l.newK8sKubeProxyConfig(proc.flags)
 		}
@@ -513,10 +539,11 @@ func (l *loader) loadProcesses(ctx context.Context) []proc {
 			"kube-controller-manager", "kube-controller", "controller-manager",
 			"kube-scheduler", "kubelet", "kube-proxy":
 			cmdline, err := p.CmdlineSlice()
+			exe, _ := p.Exe()
 			if err != nil {
 				l.pushError(err)
 			} else {
-				procs = append(procs, buildProc(name, cmdline))
+				procs = append(procs, buildProc(name, exe, cmdline))
 			}
 		}
 	}
@@ -565,8 +592,8 @@ func (l *loader) parseDuration(v string) time.Duration {
 	return d
 }
 
-func buildProc(name string, cmdline []string) proc {
-	p := proc{name: name}
+func buildProc(name, exe string, cmdline []string) proc {
+	p := proc{name: name, exe: exe}
 	if len(cmdline) > 1 {
 		cmdline = cmdline[1:]
 		p.flags = make(map[string]string)
