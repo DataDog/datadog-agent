@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -36,6 +37,7 @@ type dependencies struct {
 	InvAgent              inventoryagent.Component // TODO: (components) - Temporary dependencies until the status page is a Component and we don't need to call it in 'CompleteFlare'.
 	Params                Params
 	Providers             []types.FlareCallback `group:"flare"`
+	Wmeta                 workloadmeta.Component
 }
 
 type flare struct {
@@ -45,6 +47,7 @@ type flare struct {
 	invAgent              inventoryagent.Component
 	params                Params
 	providers             []types.FlareCallback
+	wmeta                 workloadmeta.Component
 }
 
 func newFlare(deps dependencies) (Component, rcclient.TaskListenerProvider, error) {
@@ -55,6 +58,7 @@ func newFlare(deps dependencies) (Component, rcclient.TaskListenerProvider, erro
 		providers:             deps.Providers,
 		diagnosesendermanager: deps.Diagnosesendermanager,
 		invAgent:              deps.InvAgent,
+		wmeta:                 deps.Wmeta,
 	}
 
 	rcListener := rcclient.TaskListenerProvider{
