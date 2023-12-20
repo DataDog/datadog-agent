@@ -20,10 +20,8 @@ type Component interface {
 	GetDebugInfo(w io.Writer)
 	// Resolve resolves the secrets in the given yaml data by replacing secrets handles by their corresponding secret value
 	Resolve(data []byte, origin string) ([]byte, error)
-	// RegisterResolveCallback registers the yaml data, origin, and callback. Then it resolves the secrets in the
-	// yaml data by replacing each secret handle by its corresponding secret value. The registered data can be
-	// refreshed, and the callback is invoked whenever a secret value changes.
-	RegisterResolveCallback(data []byte, origin string, callback ResolveCallback) error
-	// Refresh will attempt to again resolve the secrets in the registered data.
+	// Subscribe registers a callback to be invoked whenever secrets are resolved or refreshed
+	Subscribe(callback ResolveCallback)
+	// Refresh will resolve secret handles again, notifying any subscribers of changed values
 	Refresh() error
 }

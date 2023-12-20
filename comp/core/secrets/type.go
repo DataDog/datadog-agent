@@ -11,40 +11,9 @@ type SecretVal struct {
 	ErrorMsg string `json:"error,omitempty"`
 }
 
-// ResolveCallback is the callback type used by the RegisterResolveCallback method to send notifications.
-//
-// ResolveCallback needs to acknowledge the notification by returning 'true' or refuse it and request another notification
-// on the parent by returning 'false'.
-//
-// When exploring a type the walker will emit notifications for each key being updated (when using
-// 'RegisterResolveCallback'). Some notifier might not be able to handle all notifications in which case it returns 'false'.
-// The walker will then retry the notification from the parent key.
-//
-// This is needed when resolving yaml containing map[string]any. In the case of the datadog configuration the map key
-// might contain the character identified as the configuration delimiter.
-//
-// Example:
-// The following agent configuration:
-//
-//	process_config:
-//	  additional_endpoints:
-//	    https://app.datadoghq.com:
-//	      - some_api_key
-//
-// Calling 'Set("process_config.additional_endpoints.https://app.datadoghq.com", []string{"some_api_key"})'
-// will create the following invalid configuration:
-//
-//	process_config:
-//	  additional_endpoints:
-//	    https://app:
-//	      datadoghq:
-//	        com:
-//	          - some_api_key
-//
-// For this reason the notifier will refuse the notification for
-// "process_config.additional_endpoints.https://app.datadoghq.com" but accept the one for the parent
-// "process_config.additional_endpoints".
-type ResolveCallback func(key []string, value any) bool
+// ResolveCallback is the callback type used by Subscribe method to send notifications
+// This callback will be called once for each time a handle shows up at a particular path
+type ResolveCallback func(handle string, path []string, oldValue, newValue any)
 
 // PayloadVersion defines the current payload version sent to a secret backend
 const PayloadVersion = "1.0"

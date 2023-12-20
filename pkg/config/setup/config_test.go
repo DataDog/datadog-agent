@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 )
 
 func unsetEnvForTest(t *testing.T, env string) {
@@ -1096,4 +1097,68 @@ func TestProxyLoadedFromConfigFileAndEnvVars(t *testing.T) {
 
 	assert.Equal(t, proxyHTTPEnvVar, proxyHTTPConfig)
 	assert.Equal(t, proxyHTTPSEnvVar, proxyHTTPSConfig)
+}
+
+var testExampleConf = []byte(`
+secret_backend_command: some command
+additional_endpoints:
+  https://url1.com:
+    - ENC[api_key_1]
+    - ENC[api_key_2]
+  https://url2.eu:
+    - ENC[api_key_3]
+process_config:
+  additional_endpoints:
+    https://url1.com:
+      - ENC[api_key_1]
+      - ENC[api_key_2]
+    https://url2.eu:
+      - ENC[api_key_3]
+`)
+
+func TestConfigAssignAtPath(t *testing.T) {
+	config := SetupConf()
+	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
+	os.WriteFile(configPath, testExampleConf, 0600)
+	config.SetConfigFile(configPath)
+
+	_, err := LoadCustom(config, "unit_test", optional.NewNoneOption[secrets.Component](), nil)
+	assert.NoError(t, err)
+
+	err = configAssignAtPath(config, []string{"secret_backend_command"}, "another command")
+	assert.NoError(t, err)
+
+	err = configAssignAtPath(config, []string{"additional_endpoints", "https://url1.com", "1"}, "password")
+	assert.NoError(t, err)
+
+	err = configAssignAtPath(config, []string{"process_config", "additional_endpoints", "https://url2.eu", "0"}, "mystery")
+	assert.NoError(t, err)
+
+	expectedYaml := `additional_endpoints:
+  https://url1.com:
+  - ENC[api_key_1]
+  - password
+  https://url2.eu:
+  - ENC[api_key_3]
+process_config:
+  additional_endpoints:
+    https://url1.com:
+    - ENC[api_key_1]
+    - ENC[api_key_2]
+    https://url2.eu:
+    - mystery
+secret_backend_command: another command
+`
+	yamlConf, err := yaml.Marshal(config.AllSettingsWithoutDefault())
+	assert.NoError(t, err)
+	yamlText := string(yamlConf)
+	assert.Equal(t, expectedYaml, yamlText)
+
+	err = configAssignAtPath(config, []string{"0"}, "invalid")
+	assert.Error(t, err)
+	assert.Equal(t, err.Error(), "invalid config setting '[0]'")
+
+	err = configAssignAtPath(config, []string{"additional_endpoints", "https://url1.com", "5"}, "invalid")
+	assert.Error(t, err)
+	assert.Equal(t, err.Error(), "index out of range 5 >= 2")
 }

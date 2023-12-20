@@ -237,9 +237,9 @@ func TestFetchSecret(t *testing.T) {
 	// some dummy value to check the cache is not purge
 	resolver.cache["test"] = "yes"
 	resolver.commandHookFunc = func(string) ([]byte, error) {
-		res := []byte("{\"handle1\":{\"value\":\"p1\"},")
-		res = append(res, []byte("\"handle2\":{\"value\":\"p2\"},")...)
-		res = append(res, []byte("\"handle3\":{\"value\":\"p3\"}}")...)
+		res := []byte(`{"handle1":{"value":"p1"},
+		                "handle2":{"value":"p2"},
+		                "handle3":{"value":"p3"}}`)
 		return res, nil
 	}
 	resp, err := resolver.fetchSecret(secrets)
@@ -249,9 +249,7 @@ func TestFetchSecret(t *testing.T) {
 		"handle2": "p2",
 	}, resp)
 	assert.Equal(t, map[string]string{
-		"test":    "yes",
-		"handle1": "p1",
-		"handle2": "p2",
+		"test": "yes",
 	}, resolver.cache)
 }
 
