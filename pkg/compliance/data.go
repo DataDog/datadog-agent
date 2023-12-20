@@ -159,8 +159,6 @@ func NewCheckEvent(
 }
 
 // NewCheckSkipped returns a CheckEvent with skipped status.
-//
-//nolint:revive // TODO(CSPM) Fix revive linter
 func NewCheckSkipped(
 	evaluator Evaluator,
 	skipReason error,
@@ -173,6 +171,8 @@ func NewCheckSkipped(
 		AgentVersion: version.AgentVersion,
 		RuleID:       rule.ID,
 		FrameworkID:  benchmark.FrameworkID,
+		ResourceID:   resourceID,
+		ResourceType: resourceType,
 		Evaluator:    evaluator,
 		Result:       CheckSkipped,
 		Data:         map[string]interface{}{"error": skipReason.Error()},
