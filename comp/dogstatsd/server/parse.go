@@ -23,10 +23,7 @@ const (
 	metricSampleType messageType = iota
 	serviceCheckType
 	eventType
-	// readerCacheExpiration determines the duration for which the cgroups data is cached in the cgroups reader.
-	// This value needs to be large enough to reduce latency and I/O load.
-	// It also needs to be small enough to catch the first metrics of new containers.
-	readerCacheExpiration = 2 * time.Second
+	cacheValidity = 2 * time.Second
 )
 
 var (
@@ -263,9 +260,9 @@ func (p *parser) extractContainerID(rawContainerIDField []byte) []byte {
 			return nil
 		}
 
-		containerID, err := provider.GetProvider().GetMetaCollector().GetContainerIDForInode(inodeField, readerCacheExpiration)
+		containerID, err := p.provider.GetMetaCollector().GetContainerIDForInode(inodeField, cacheValidity)
 		if err != nil {
-			log.Debugf("Failed to get container ID, got %v", inodeField, err)
+			log.Debugf("Failed to get container ID, got %v", err)
 			return nil
 		}
 		return []byte(containerID)
