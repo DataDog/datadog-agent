@@ -70,10 +70,10 @@
 
 // Huffman-encoded strings for paths "/" and "/index.html". Needed for HTTP2
 // decoding, as these two paths are in the static table, we need to add the
-// encoded string ourselves instead of reading them from the Header.
-#define HTTP_ROOT_PATH      "\x63"
+// plain string ourselves instead of reading them from the Header.
+#define HTTP_ROOT_PATH      "\x2f"
 #define HTTP_ROOT_PATH_LEN  (sizeof(HTTP_ROOT_PATH) - 1)
-#define HTTP_INDEX_PATH     "\x60\xd5\x48\x5f\x2b\xce\x9a\x68"
+#define HTTP_INDEX_PATH     "\x2f\x69\x6e\x64\x65\x78\x2e\x68\x74\x6d\x6c"
 #define HTTP_INDEX_PATH_LEN (sizeof(HTTP_INDEX_PATH) - 1)
 
 typedef enum {

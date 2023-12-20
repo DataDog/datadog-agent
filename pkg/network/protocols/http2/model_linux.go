@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // decodeHTTP2Path tries to decode (Huffman) the path from the given buffer.
@@ -63,6 +64,14 @@ func (tx *EbpfTx) Path(buffer []byte) ([]byte, bool) {
 			return nil, false
 		}
 	} else {
+		if tx.Stream.Path_size <= 0 {
+			log.Warn("path size is negative or zero")
+			return nil, false
+		}
+		if tx.Stream.Path_size > maxHTTP2Path {
+			log.Warn("invalid path size")
+			return nil, false
+		}
 		res = tx.Stream.Request_path[:tx.Stream.Path_size]
 	}
 
