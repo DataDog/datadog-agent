@@ -38,47 +38,75 @@ func Module() fxutil.Module {
 }
 
 type apiServer struct {
+	flare           flare.Component
+	dogstatsdServer dogstatsdServer.Component
+	capture         replay.Component
+	serverDebug     dogstatsddebug.Component
+	hostMetadata    host.Component
+	invAgent        inventoryagent.Component
+	demux           demultiplexer.Component
+	invHost         inventoryhost.Component
+	secretResolver  secrets.Component
+	invChecks       inventorychecks.Component
+	pkgSigning      packagesigning.Component
+}
+
+type dependencies struct {
+	fx.In
+
+	Flare           flare.Component
+	DogstatsdServer dogstatsdServer.Component
+	Capture         replay.Component
+	ServerDebug     dogstatsddebug.Component
+	HostMetadata    host.Component
+	InvAgent        inventoryagent.Component
+	Demux           demultiplexer.Component
+	InvHost         inventoryhost.Component
+	SecretResolver  secrets.Component
+	InvChecks       inventorychecks.Component
+	pkgSigning      packagesigning.Component
 }
 
 var _ api.Component = (*apiServer)(nil)
 
-func newAPIServer() api.Component {
-	return &apiServer{}
+func newAPIServer(deps dependencies) api.Component {
+	return &apiServer{
+		flare:           deps.Flare,
+		dogstatsdServer: deps.DogstatsdServer,
+		capture:         deps.Capture,
+		serverDebug:     deps.ServerDebug,
+		hostMetadata:    deps.HostMetadata,
+		invAgent:        deps.InvAgent,
+		demux:           deps.Demux,
+		invHost:         deps.InvHost,
+		secretResolver:  deps.SecretResolver,
+		invChecks:       deps.InvChecks,
+		pkgSigning:      deps.pkgSigning,
+	}
 }
 
 // StartServer creates the router and starts the HTTP server
 func (server *apiServer) StartServer(
 	configService *remoteconfig.Service,
-	flare flare.Component,
-	dogstatsdServer dogstatsdServer.Component,
-	capture replay.Component,
-	serverDebug dogstatsddebug.Component,
 	wmeta workloadmeta.Component,
 	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
-	hostMetadata host.Component,
-	invAgent inventoryagent.Component,
-	demux demultiplexer.Component,
-	invHost inventoryhost.Component,
-	secretResolver secrets.Component,
-	invChecks inventorychecks.Component,
-	pkgSigning packagesigning.Component,
 ) error {
 	return StartServers(configService,
-		flare,
-		dogstatsdServer,
-		capture,
-		serverDebug,
+		server.flare,
+		server.dogstatsdServer,
+		server.capture,
+		server.serverDebug,
 		wmeta,
 		logsAgent,
 		senderManager,
-		hostMetadata,
-		invAgent,
-		demux,
-		invHost,
-		secretResolver,
-		invChecks,
-		pkgSigning,
+		server.hostMetadata,
+		server.invAgent,
+		server.demux,
+		server.invHost,
+		server.secretResolver,
+		server.invChecks,
+		server.pkgSigning,
 	)
 }
 

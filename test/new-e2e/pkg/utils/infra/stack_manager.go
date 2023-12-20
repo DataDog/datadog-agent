@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"runtime"
 	"strings"
@@ -102,10 +103,10 @@ func newStackManager() (*StackManager, error) {
 // GetStack creates or return a stack based on stack name and config, if error occurs during stack creation it destroy all the resources created
 func (sm *StackManager) GetStack(ctx context.Context, name string, config runner.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool) (*auto.Stack, auto.UpResult, error) {
 
-	stack, upResult, err := sm.getStack(ctx, name, config, deployFunc, failOnMissing)
+	stack, upResult, err := sm.getStack(ctx, name, config, deployFunc, failOnMissing, nil)
 
 	if err != nil {
-		errDestroy := sm.deleteStack(ctx, name, stack)
+		errDestroy := sm.deleteStack(ctx, name, stack, nil)
 		if errDestroy != nil {
 			return stack, upResult, errors.Join(err, errDestroy)
 		}
@@ -115,13 +116,13 @@ func (sm *StackManager) GetStack(ctx context.Context, name string, config runner
 }
 
 // GetStackNoDeleteOnFailure creates or return a stack based on stack name and config, if error occurs during stack creation, it will not destroy the created resources. Using this can lead to resource leaks.
-func (sm *StackManager) GetStackNoDeleteOnFailure(ctx context.Context, name string, config runner.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool) (*auto.Stack, auto.UpResult, error) {
+func (sm *StackManager) GetStackNoDeleteOnFailure(ctx context.Context, name string, config runner.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool, logWriter io.Writer) (*auto.Stack, auto.UpResult, error) {
 
-	return sm.getStack(ctx, name, config, deployFunc, failOnMissing)
+	return sm.getStack(ctx, name, config, deployFunc, failOnMissing, logWriter)
 }
 
 // DeleteStack safely deletes a stack
-func (sm *StackManager) DeleteStack(ctx context.Context, name string) error {
+func (sm *StackManager) DeleteStack(ctx context.Context, name string, logWriter io.Writer) error {
 
 	stack, ok := sm.stacks.Get(name)
 	if !ok {
@@ -141,7 +142,7 @@ func (sm *StackManager) DeleteStack(ctx context.Context, name string) error {
 		stack = &newStack
 	}
 
-	return sm.deleteStack(ctx, name, stack)
+	return sm.deleteStack(ctx, name, stack, logWriter)
 }
 
 // ForceRemoveStackConfiguration removes the configuration files pulumi creates for managing a stack.
@@ -164,7 +165,7 @@ func (sm *StackManager) Cleanup(ctx context.Context) []error {
 	var errors []error
 
 	sm.stacks.Range(func(stackID string, stack *auto.Stack) {
-		err := sm.deleteStack(ctx, stackID, stack)
+		err := sm.deleteStack(ctx, stackID, stack, nil)
 		if err != nil {
 			errors = append(errors, err)
 		}
@@ -173,13 +174,23 @@ func (sm *StackManager) Cleanup(ctx context.Context) []error {
 	return errors
 }
 
-func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *auto.Stack) error {
+func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *auto.Stack, logWriter io.Writer) error {
 	if stack == nil {
 		return fmt.Errorf("unable to find stack, skipping deletion of: %s", stackID)
 	}
 
 	destroyContext, cancel := context.WithTimeout(ctx, stackDestroyTimeout)
-	_, err := stack.Destroy(destroyContext, optdestroy.ProgressStreams(os.Stdout))
+
+	var logger io.Writer
+
+	if logWriter == nil {
+		logger = os.Stdout
+	} else {
+		logger = logWriter
+	}
+	_, err := stack.Destroy(destroyContext, optdestroy.ProgressStreams(logger), optdestroy.DebugLogging(debug.LoggingOptions{
+		FlowToPlugins: true,
+	}))
 	cancel()
 	if err != nil {
 		return err
@@ -191,7 +202,7 @@ func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *
 	return err
 }
 
-func (sm *StackManager) getStack(ctx context.Context, name string, config runner.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool) (*auto.Stack, auto.UpResult, error) {
+func (sm *StackManager) getStack(ctx context.Context, name string, config runner.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool, logWriter io.Writer) (*auto.Stack, auto.UpResult, error) {
 	// Build configuration from profile
 	profile := runner.GetProfile()
 	stackName := buildStackName(profile.NamePrefix(), name)
@@ -231,8 +242,15 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 	upCtx, cancel := context.WithTimeout(ctx, stackUpTimeout)
 	var loglevel uint = 1
 	defer cancel()
-	upResult, err := stack.Up(upCtx, optup.ProgressStreams(os.Stderr), optup.DebugLogging(debug.LoggingOptions{
-		LogToStdErr:   true,
+	var logger io.Writer
+
+	if logWriter == nil {
+		logger = os.Stderr
+	} else {
+		logger = logWriter
+	}
+
+	upResult, err := stack.Up(upCtx, optup.ProgressStreams(logger), optup.DebugLogging(debug.LoggingOptions{
 		FlowToPlugins: true,
 		LogLevel:      &loglevel,
 	}))

@@ -437,7 +437,7 @@ kernel_matrix_testing_run_tests_arm64:
     - INSTANCE_ID="$(jq -r '.[0][0]' < instance.json)"
     - echo ${INSTANCE_ID}
     - |
-      if [[ "${INSTANCE_ID}" != "" ]]; then
+      if [[ "${INSTANCE_ID}" != "" ]] && [[ "${INSTANCE_ID}" != "null" ]]; then
         aws ec2 terminate-instances --instance-ids "${INSTANCE_ID}"
       fi
 
