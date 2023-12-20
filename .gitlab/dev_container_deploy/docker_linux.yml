@@ -286,7 +286,7 @@ qa_main_agent:
 qa_branch_agent:
   extends: .qa_agent
   rules:
-    - if: $RUN_E2E_TESTS == "true"
+    - !reference [.if_run_e2e_tests]
     - !reference [.on_dev_branch_manual]
 
 qa_main_dca:
@@ -296,7 +296,7 @@ qa_main_dca:
 qa_branch_dca:
   extends: .qa_dca
   rules:
-    - if: $RUN_E2E_TESTS == "true"
+    - !reference [.if_run_e2e_tests]
     - !reference [.on_dev_branch_manual]
 
 qa_main_dogstatsd:
@@ -306,5 +306,5 @@ qa_main_dogstatsd:
 qa_branch_dogstatsd:
   extends: .qa_dogstatsd
   rules:
-    - if: $RUN_E2E_TESTS == "true"
+    - !reference [.if_run_e2e_tests]
     - !reference [.on_dev_branch_manual]

@@ -1007,3 +1007,6 @@ workflow:
 .except_mergequeue:
   - <<: *if_mergequeue
     when: never
+
+.if_run_e2e_tests:
+  if: $RUN_E2E_TESTS == "true"

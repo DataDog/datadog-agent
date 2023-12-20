@@ -1,8 +1,6 @@
 ---
 # e2e stage
 # Contains jobs which runs e2e tests on our Docker images.
-.if_e2e: &if_e2e
-  if: $RUN_E2E_TESTS == "true"
 
 .k8s_e2e_template:
   stage: e2e
@@ -161,7 +159,7 @@ new-e2e-containers-dev:
   # on_main_and_no_skip_e2e adding on_dev_branch_manual rules
   # and move rules to template
   rules:
-    - <<: *if_e2e
+    - !reference [.if_run_e2e_tests]
     - !reference [.on_dev_branch_manual]
   needs:
     - qa_branch_agent
@@ -199,7 +197,7 @@ new-e2e-containers-main:
 new-e2e-agent-shared-components-dev:
   extends: .new_e2e_template
   rules:
-    - <<: *if_e2e
+    - !reference [.if_run_e2e_tests]
     - !reference [.on_dev_branch_manual]
   needs: ["deploy_deb_testing-a7_x64"]
   variables:
@@ -233,7 +231,7 @@ new-e2e-agent-shared-components-main:
 new-e2e-agent-subcommands-dev:
   extends: .new_e2e_template
   rules:
-    - <<: *if_e2e
+    - !reference [.if_run_e2e_tests]
     - !reference [.on_dev_branch_manual]
   needs: ["deploy_deb_testing-a7_x64"]
   variables:
@@ -255,7 +253,7 @@ new-e2e-agent-subcommands-main:
 new-e2e-language-detection-dev:
   extends: .new_e2e_template
   rules:
-    - <<: *if_e2e
+    - !reference [.if_run_e2e_tests]
     - !reference [.on_dev_branch_manual]
   needs: ["deploy_deb_testing-a7_x64"]
   variables:
@@ -272,7 +270,7 @@ new-e2e-language-detection-main:
 new-e2e-npm-dev:
   extends: .new_e2e_template
   rules:
-    - <<: *if_e2e
+    - !reference [.if_run_e2e_tests]
     - !reference [.on_dev_branch_manual]
   needs: ["deploy_deb_testing-a7_x64"]
   variables:
@@ -289,7 +287,7 @@ new-e2e-npm-main:
 new-e2e-aml-dev:
   extends: .new_e2e_template
   rules:
-    - <<: *if_e2e
+    - !reference [.if_run_e2e_tests]
     - !reference [.on_dev_branch_manual]
   needs: ["deploy_deb_testing-a7_x64"]
   variables:
@@ -306,7 +304,7 @@ new-e2e-aml-main:
 new-e2e-cws-dev:
   extends: .new_e2e_template
   rules:
-    - <<: *if_e2e
+    - !reference [.if_run_e2e_tests]
     - !reference [.on_dev_branch_manual]
   needs: ["deploy_deb_testing-a7_x64"]
   variables:
@@ -327,7 +325,7 @@ new-e2e-cws-main:
 new-e2e-process-dev:
   extends: .new_e2e_template
   rules:
-    - <<: *if_e2e
+    - !reference [.if_run_e2e_tests]
     - !reference [.on_dev_branch_manual]
   needs: ["deploy_deb_testing-a7_x64"]
   variables:
