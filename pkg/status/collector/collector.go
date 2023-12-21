@@ -117,6 +117,14 @@ func (provider) HTML(buffer io.Writer) error {
 	return render.RenderHTMLStatusTemplate(buffer, "/collectorHTML.tmpl", GetStatusInfo())
 }
 
+func (provider) TextWithData(buffer io.Writer, data any) error {
+	return render.RenderStatusTemplate(buffer, "/collector.tmpl", data)
+}
+
+func (provider) HTMLWithData(buffer io.Writer, data any) error {
+	return render.RenderHTMLStatusTemplate(buffer, "/collectorHTML.tmpl", data)
+}
+
 func StatusProvider() status.Provider {
 	return provider{}
 }
