@@ -24,4 +24,4 @@
   variables:
     TARGETS: ./tests/agent-platform/package-signing
     TEAM: agent-platform
-    EXTRA_PARAMS: --osname $E2E_BRANCH_OSVERS
+    EXTRA_PARAMS: --osversion $E2E_BRANCH_OSVERS

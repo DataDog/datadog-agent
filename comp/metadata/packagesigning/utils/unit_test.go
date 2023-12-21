@@ -79,6 +79,16 @@ func TestParseRPMRepoFile(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:     "SUSE default values",
+			fileName: "testdata/zypp.repo",
+			mainConf: MainData{Gpgcheck: false, LocalpkgGpgcheck: false, RepoGpgcheck: false},
+			reposPerKey: map[string][]Repository{
+				"file:///psychedelic/rock.com": {
+					{Name: "And/our:love=become&a-funeral?pyre", Enabled: true, GPGCheck: true, RepoGPGCheck: true},
+				},
+			},
+		},
 	}
 
 	for _, testCase := range testCases {

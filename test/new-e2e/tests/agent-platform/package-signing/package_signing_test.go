@@ -22,7 +22,7 @@ import (
 	"testing"
 )
 
-var osName = flag.String("osname", "", "os to test, eg debian or redhat")
+var osVersion = flag.String("osversion", "", "os to test, eg debian or redhat")
 
 type packageSigningTestSuite struct {
 	e2e.Suite[e2e.AgentEnv]
@@ -73,11 +73,11 @@ func TestPackageSigningComponent(t *testing.T) {
 
 	var testedOS ec2os.Type
 	nonAlpha := regexp.MustCompile("[^a-zA-Z]")
-	rawOS := nonAlpha.ReplaceAllString(*osName, "")
+	rawOS := nonAlpha.ReplaceAllString(*osVersion, "")
 	if value, ok := e2eOSMapping[rawOS]; ok {
 		testedOS = value
 	} else {
-		t.Fatalf("OS %s not supported", *osName)
+		t.Fatalf("OS %s not supported", *osVersion)
 	}
 
 	t.Run(fmt.Sprintf("Test package signing on %s\n", rawOS), func(tt *testing.T) {

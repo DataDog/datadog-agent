@@ -87,12 +87,12 @@ func ParseRPMRepoFile(inputFile string, mainConf MainData) (MainData, map[string
 		return main, nil
 	}
 	defer file.Close()
-
+	defaultValue := strings.Contains(inputFile, "zypp") // Settings are enabled by default on SUSE, disabled otherwise
 	reposPerKey := make(map[string][]Repository)
 	table := regexp.MustCompile(`\[[A-Za-z0-9_\-\.\/ ]+\]`)
-	field := regexp.MustCompile(`^([a-z_]+)\s?=\s?(.*)`)
+	field := regexp.MustCompile(`^([a-z_]+)\s?=\s?(.*)$`)
 	nextLine := multiLine{inside: false, name: ""}
-	repo := repoData{enabled: true}
+	repo := repoData{enabled: true, gpgcheck: defaultValue, repoGpgcheck: defaultValue}
 	var repos []repoData
 
 	scanner := bufio.NewScanner(file)
@@ -118,19 +118,19 @@ func ParseRPMRepoFile(inputFile string, mainConf MainData) (MainData, map[string
 			if nextLine.name == "main" {
 				switch fieldName {
 				case "gpgcheck":
-					main.Gpgcheck = matches[2][0] == '1'
-				case "localpkg_gpgcheck":
-					main.LocalpkgGpgcheck = matches[2][0] == '1'
+					main.Gpgcheck = isEnabled(matches[2])
+				case "localpkg_gpgcheck", "pkg_gpgcheck":
+					main.LocalpkgGpgcheck = isEnabled(matches[2])
 				case "repo_gpgcheck":
-					main.RepoGpgcheck = matches[2][0] == '1'
+					main.RepoGpgcheck = isEnabled(matches[2])
 				}
 			} else { // in repo
 				if fieldName == "enabled" {
-					repo.enabled = matches[2][0] == '1'
+					repo.enabled = isEnabled(matches[2])
 				} else if fieldName == "gpgcheck" {
-					repo.gpgcheck = matches[2][0] == '1'
+					repo.gpgcheck = isEnabled(matches[2])
 				} else if fieldName == "repo_gpgcheck" {
-					repo.repoGpgcheck = matches[2][0] == '1'
+					repo.repoGpgcheck = isEnabled(matches[2])
 				} else if fieldName == "metalink" {
 					repo.metalink = matches[2]
 				} else if fieldName == "mirrorlist" {
@@ -171,4 +171,8 @@ func ParseRPMRepoFile(inputFile string, mainConf MainData) (MainData, map[string
 		}
 	}
 	return main, reposPerKey
+}
+
+func isEnabled(value string) bool {
+	return value == "1" || value == "true" || value == "yes" || value == "on"
 }
