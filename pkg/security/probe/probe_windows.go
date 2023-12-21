@@ -11,7 +11,10 @@ import (
 	"errors"
 	"sync"
 	"time"
+	"unsafe"
 
+	"github.com/DataDog/datadog-agent/comp/etw"
+	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
@@ -21,8 +24,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	etwutil "github.com/DataDog/datadog-agent/pkg/util/winutil/etw"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/procmon"
 	"github.com/DataDog/datadog-go/v5/statsd"
+
+	"golang.org/x/sys/windows"
 )
 
 // WindowsProbe defines a Windows probe
@@ -45,6 +51,12 @@ type WindowsProbe struct {
 	onStart       chan *procmon.ProcessStartNotification
 	onStop        chan *procmon.ProcessStopNotification
 	onError       chan bool
+
+	// ETW component for FIM
+	fileguid   windows.GUID
+	etw        etw.Component
+	fimSession etw.Session
+	fimwg      sync.WaitGroup
 }
 
 // Init initializes the probe
@@ -55,6 +67,24 @@ func (p *WindowsProbe) Init() error {
 	}
 	p.pm = pm
 
+	// etw information
+	p.fileguid, _ = windows.GUIDFromString("{edd08927-9cc4-4e65-b970-c2560fb5c289}")
+	p.etw = etwimpl.NewETWSessionWithoutInit()
+
+	p.fimSession, err = p.etw.NewSession("WindowsProbeFimSession")
+	if err != nil {
+		return err
+	}
+
+	pidsList := make([]uint32, 0, 0)
+	p.fimSession.ConfigureProvider(p.fileguid, func(cfg *etw.ProviderConfiguration) {
+		cfg.TraceLevel = etw.TRACE_LEVEL_VERBOSE
+		cfg.PIDs = pidsList
+	})
+	err = p.fimSession.EnableProvider(p.fileguid)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -65,6 +95,8 @@ func (p *WindowsProbe) Setup() error {
 
 // Stop the probe
 func (p *WindowsProbe) Stop() {
+	p.fimSession.StopTracing()
+	p.fimwg.Wait()
 	p.pm.Stop()
 }
 
@@ -72,6 +104,31 @@ func (p *WindowsProbe) Stop() {
 func (p *WindowsProbe) Start() error {
 
 	log.Infof("Windows probe started")
+	p.fimwg.Add(1)
+	go func() {
+		defer p.fimwg.Done()
+
+		// StartTracing blocks the caller, which is why we're in our
+		// own goroutine here
+		_ = p.fimSession.StartTracing(func(e *etw.DDEventRecord) {
+
+			log.Infof("Received event %d for PID %d", e.EventHeader.EventDescriptor.ID, e.EventHeader.ProcessID)
+			return
+			// for now, do this for everything to prevent copy/paste
+			// if we want to use this, will probably only want to do the conversion
+			// when we're actually going to use it
+			userData := etwutil.GoBytes(unsafe.Pointer(e.UserData), int(e.UserDataLength))
+
+			switch e.EventHeader.EventDescriptor.ID {
+			case idNameCreate:
+				ca, err := parseCreateArgs(userData)
+				if err != nil {
+					log.Infof("Got create file filename %s", ca.fileName)
+				}
+			}
+
+		})
+	}()
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()

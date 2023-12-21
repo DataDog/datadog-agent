@@ -10,10 +10,11 @@ package etwimpl
 import (
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/etw"
-	"golang.org/x/sys/windows"
 	"runtime/cgo"
 	"unsafe"
+
+	"github.com/DataDog/datadog-agent/comp/etw"
+	"golang.org/x/sys/windows"
 )
 
 /*
