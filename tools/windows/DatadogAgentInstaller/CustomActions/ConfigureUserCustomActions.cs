@@ -41,7 +41,7 @@ namespace Datadog.CustomActions
             _fileSystemServices = fileSystemServices;
             _serviceController = serviceController;
 
-            _rollbackDataStore = new RollbackDataStore(_session, rollbackDataName, _fileSystemServices);
+            _rollbackDataStore = new RollbackDataStore(_session, rollbackDataName, _fileSystemServices, _serviceController);
         }
 
         public ConfigureUserCustomActions(ISession session, string rollbackDataName)
@@ -180,46 +180,6 @@ namespace Datadog.CustomActions
                 PropagationFlags.None,
                 AccessControlType.Allow));
             UpdateAndLogAccessControl(_session.Property("APPLICATIONDATADIRECTORY"), fileSystemSecurity);
-        }
-
-        private SecurityIdentifier GetPreviousAgentUser()
-        {
-            try
-            {
-                using var subkey =
-                    _registryServices.OpenRegistryKey(Registries.LocalMachine, Constants.DatadogAgentRegistryKey);
-                if (subkey == null)
-                {
-                    throw new Exception("Datadog registry key does not exist");
-                }
-                var domain = subkey.GetValue("installedDomain")?.ToString();
-                var user = subkey.GetValue("installedUser")?.ToString();
-                if (string.IsNullOrEmpty(domain) || string.IsNullOrEmpty(user))
-                {
-                    throw new Exception("Agent user information is not in registry");
-                }
-
-                var name = $"{domain}\\{user}";
-                _session.Log($"Found agent user information in registry {name}");
-                var userFound = _nativeMethods.LookupAccountName(name,
-                    out _,
-                    out _,
-                    out var securityIdentifier,
-                    out _);
-                if (!userFound || securityIdentifier == null)
-                {
-                    throw new Exception($"Could not find account for user {name}.");
-                }
-
-                _session.Log($"Found previous agent user {name} ({securityIdentifier})");
-                return securityIdentifier;
-            }
-            catch (Exception e)
-            {
-                _session.Log($"Could not find previous agent user: {e}");
-            }
-
-            return null;
         }
 
         /// <summary>
@@ -539,7 +499,7 @@ namespace Datadog.CustomActions
                     throw new Exception($"Could not find user {ddAgentUserName}.");
                 }
 
-                _previousDdAgentUserSID = GetPreviousAgentUser();
+                _previousDdAgentUserSID = InstallStateCustomActions.GetPreviousAgentUser(_session, _registryServices, _nativeMethods);
 
                 var resetPassword = _session.Property("DDAGENTUSER_RESET_PASSWORD");
                 var ddagentuserPassword = _session.Property("DDAGENTUSER_PROCESSED_PASSWORD");

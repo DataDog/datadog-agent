@@ -10,7 +10,7 @@ package http2
 import (
 	"errors"
 	"fmt"
-	"strings"
+	"io"
 	"time"
 	"unsafe"
 
@@ -283,22 +283,22 @@ func (p *Protocol) Stop(_ *manager.Manager) {
 
 // DumpMaps dumps the content of the map represented by mapName &
 // currentMap, if it used by the eBPF program, to output.
-func (p *Protocol) DumpMaps(output *strings.Builder, mapName string, currentMap *ebpf.Map) {
+func (p *Protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 	if mapName == inFlightMap { // maps/http2_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value httpTX
-		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'httpTX'\n")
+		io.WriteString(w, "Map: '"+mapName+"', key: 'ConnTuple', value: 'httpTX'\n")
 		iter := currentMap.Iterate()
 		var key http2StreamKey
 		var value EbpfTx
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			output.WriteString(spew.Sdump(key, value))
+			spew.Fdump(w, key, value)
 		}
 	} else if mapName == dynamicTable {
-		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'httpTX'\n")
+		io.WriteString(w, "Map: '"+mapName+"', key: 'ConnTuple', value: 'httpTX'\n")
 		iter := currentMap.Iterate()
 		var key http2DynamicTableIndex
 		var value http2DynamicTableEntry
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			output.WriteString(spew.Sdump(key, value))
+			spew.Fdump(w, key, value)
 		}
 	}
 }
