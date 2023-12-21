@@ -2,8 +2,6 @@ module github.com/DataDog/datadog-agent/comp/core/config
 
 go 1.21
 
-toolchain go1.21.5
-
 replace (
 	github.com/DataDog/datadog-agent/cmd/agent/common/path => ../../../cmd/agent/common/path
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../flare/types

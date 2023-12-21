@@ -2,8 +2,6 @@ module github.com/DataDog/datadog-agent/cmd/agent/common/path
 
 go 1.21
 
-toolchain go1.21.5
-
 replace (
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../../pkg/util/executable
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../../../pkg/util/log
