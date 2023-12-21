@@ -1,6 +1,7 @@
 package orchestrator
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -27,6 +28,10 @@ func (suite *k8sSuite) TestPayloads() {
 				return false
 			}
 			manif := map[string]any{}
+			json.Unmarshal(payload.Manifest.Content, &manif)
+			if _, ok := manif["metadata"]; !ok {
+				return false
+			}
 			md := manif["metadata"].(map[string]any)
 			return md["name"] == "redis" && md["namespace"] == "workload-redis"
 		},
