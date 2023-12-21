@@ -163,7 +163,7 @@ Documentation should include:
   What happens if the channel is not read from quickly enough, or if reading stops?
   Can the channel be closed by the sender, and if so, what does that mean?
 
-## Optional component
+## Optional components
 
 Some components are enabled based on an Agent config flag. 
 Using fxoptional.Component is the recommended solution as it makes it explicit that the component may not be present. See fxoptional.Component for an example how to use it.
