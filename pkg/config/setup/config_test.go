@@ -1117,7 +1117,7 @@ process_config:
 `)
 
 func TestConfigAssignAtPath(t *testing.T) {
-	config := SetupConf()
+	config := Conf()
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
 	os.WriteFile(configPath, testExampleConf, 0600)
 	config.SetConfigFile(configPath)

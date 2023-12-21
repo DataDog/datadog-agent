@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v2"
 )
 
@@ -1779,6 +1780,10 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 	return nil
 }
 
+// assign a value to the given setting of the config
+// This works around viper issues that prevent us from assigning to fields that have a dot in the
+// name (example: 'additional_endpoints.http://url.com') and also allows us to assign to individual
+// elements of a slice of items (example: 'proxy.no_proxy.0' to assign index 0 of 'no_proxy')
 func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newValue any) error {
 	settingName := strings.Join(settingPath, ".")
 	if config.IsKnown(settingName) {
@@ -1796,7 +1801,7 @@ func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newV
 	// elements to figure out how to modify that particular object, before setting it back
 	// on the config.
 	//
-	// Example: configAssignAtPath({'process_config', 'additional_endpoints', 'http://url.com', '0'}, 'password')
+	// Example: configAssignAtPath(config, ['process_config', 'additional_endpoints', 'http://url.com', '0'], 'password')
 	//
 	// This is split into:
 	//   ['process_config', 'additional_endpoints']  // a known config field
@@ -1812,15 +1817,14 @@ func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newV
 
 	trailingElements := []string{}
 	// copy the path and hold onto the original, useful for error messages
-	path := make([]string, len(settingPath))
-	copy(path, settingPath)
+	path := slices.Clone(settingPath)
 	for {
 		if len(path) == 0 {
 			return fmt.Errorf("invalid config setting '%s'", settingPath)
 		}
-		// get the last element from the path and prepend it to the trailing elements
+		// get the last element from the path and add it to the trailing elements
 		lastElem := path[len(path)-1]
-		trailingElements = append([]string{lastElem}, trailingElements...)
+		trailingElements = append(trailingElements, lastElem)
 		// remove that element from the path and see if we've reached a known field
 		path = path[:len(path)-1]
 		settingName = strings.Join(path, ".")
@@ -1828,6 +1832,7 @@ func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newV
 			break
 		}
 	}
+	slices.Reverse(trailingElements)
 
 	// retrieve the config value at the known field
 	startingValue := config.Get(settingName)
