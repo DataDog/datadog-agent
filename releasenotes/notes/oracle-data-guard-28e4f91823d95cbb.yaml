@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Breaking change for Data Guard Monitoring: Renaming Data Guard metrics `oracle.apply_lag` and `oracle.transport_lag` to `oracle.data_guard.apply_lag` and `oracle.data_guard.transport_lag`.
+    Breaking change for Oracle monitoring: Renaming Data Guard metrics `oracle.apply_lag` and `oracle.transport_lag` to `oracle.data_guard.apply_lag` and `oracle.data_guard.transport_lag`.
