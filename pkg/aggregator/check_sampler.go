@@ -220,7 +220,6 @@ func (cs *CheckSampler) releaseMetrics() {
 		tlmChecksContextsByMtype.Delete(idString, mtype)
 		tlmChecksContextsBytesByMtype.Delete(idString, mtype)
 	}
-	tlmContextResolverBytes.Delete(idString)
 }
 
 func (cs *CheckSampler) updateMetrics() {
@@ -231,5 +230,5 @@ func (cs *CheckSampler) updateMetrics() {
 	idString := string(cs.id)
 
 	tlmChecksContexts.Set(float64(totalContexts), idString)
-	cs.contextResolver.updateMetrics(tlmContextResolverBytes, tlmChecksContextsByMtype, tlmChecksContextsBytesByMtype)
+	cs.contextResolver.updateMetrics(tlmChecksContextsByMtype, tlmChecksContextsBytesByMtype)
 }

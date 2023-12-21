@@ -149,8 +149,6 @@ var (
 		[]string{"shard", "metric_type"}, "Count the number of checks contexts in the check aggregator, by metric type")
 	tlmChecksContextsBytesByMtype = telemetry.NewGauge("aggregator", "checks_contexts_bytes_by_mtype",
 		[]string{"shard", "metric_type", util.BytesKindTelemetryKey}, "Estimated count of bytes taken by contexts in the check aggregator, by metric type")
-	tlmContextResolverBytes = telemetry.NewGauge("aggregator", "context_resolver_bytes",
-		[]string{"shard", util.BytesKindTelemetryKey}, "Estimated count of bytes taken by the context resolver (excluding the contexts themselves)")
 
 	// Hold series to be added to aggregated series on each flush
 	recurrentSeries     metrics.Series

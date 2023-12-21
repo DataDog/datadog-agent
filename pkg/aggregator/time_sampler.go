@@ -261,7 +261,7 @@ func (s *TimeSampler) updateMetrics() {
 
 		aggregatorDogstatsdContextsByMtype[i].Set(int64(count))
 	}
-	s.contextResolver.updateMetrics(tlmContextResolverBytes, tlmDogstatsdContextsByMtype, tlmDogstatsdContextsBytesByMtype)
+	s.contextResolver.updateMetrics(tlmDogstatsdContextsByMtype, tlmDogstatsdContextsBytesByMtype)
 }
 
 // flushContextMetrics flushes the contextMetrics inside contextMetricsFlusher, handles its errors,
