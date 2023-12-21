@@ -9,6 +9,7 @@ package config
 
 import (
 	"fmt"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -66,4 +67,31 @@ func TestEventMonitor(t *testing.T) {
 			assert.Equal(t, tc.enabled, cfg.ModuleIsEnabled(EventMonitorModule))
 		})
 	}
+}
+
+func TestEventStreamEnabledForSupportedKernelsWindowsUnsupported(t *testing.T) {
+	t.Run("does nothing for windows", func(t *testing.T) {
+		if runtime.GOOS != "windows" {
+			t.Skip("This is only for windows")
+		}
+		config.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", strconv.FormatBool(true))
+
+		cfg := config.SystemProbe
+		Adjust(cfg)
+
+		require.False(t, cfg.GetBool("event_monitoring_config.network_process.enabled"))
+	})
+	t.Run("does nothing for unsupported", func(t *testing.T) {
+		if runtime.GOOS == "windows" || runtime.GOOS == "linux" {
+			t.Skip("This is only for unsupported")
+		}
+		config.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", strconv.FormatBool(true))
+
+		cfg := config.SystemProbe
+		Adjust(cfg)
+
+		require.False(t, cfg.GetBool("event_monitoring_config.network_process.enabled"))
+	})
 }

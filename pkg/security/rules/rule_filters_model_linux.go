@@ -19,21 +19,24 @@ import (
 // RuleFilterEvent defines a rule filter event
 type RuleFilterEvent struct {
 	*kernel.Version
+	origin string
 }
 
 // RuleFilterModel defines a filter model
 type RuleFilterModel struct {
 	*kernel.Version
+	origin string
 }
 
 // NewRuleFilterModel returns a new rule filter model
-func NewRuleFilterModel() (*RuleFilterModel, error) {
+func NewRuleFilterModel(origin string) (*RuleFilterModel, error) {
 	kv, err := kernel.NewKernelVersion()
 	if err != nil {
 		return nil, err
 	}
 	return &RuleFilterModel{
 		Version: kv,
+		origin:  origin,
 	}, nil
 }
 
@@ -41,6 +44,7 @@ func NewRuleFilterModel() (*RuleFilterModel, error) {
 func (m *RuleFilterModel) NewEvent() eval.Event {
 	return &RuleFilterEvent{
 		Version: m.Version,
+		origin:  m.origin,
 	}
 }
 
@@ -180,6 +184,11 @@ func (m *RuleFilterModel) GetEvaluator(field eval.Field, _ eval.RegisterID) (eva
 			Values: os.Environ(),
 			Field:  field,
 		}, nil
+	case "origin":
+		return &eval.StringEvaluator{
+			Value: m.origin,
+			Field: field,
+		}, nil
 	}
 
 	return nil, &eval.ErrFieldNotFound{Field: field}
@@ -245,6 +254,8 @@ func (e *RuleFilterEvent) GetFieldValue(field eval.Field) (interface{}, error) {
 		return e.IsSuse15Kernel(), nil
 	case "envs":
 		return os.Environ(), nil
+	case "origin":
+		return e.origin, nil
 	}
 
 	return nil, &eval.ErrFieldNotFound{Field: field}

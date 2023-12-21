@@ -17,20 +17,26 @@ import (
 
 // RuleFilterEvent represents a rule filtering event
 type RuleFilterEvent struct {
+	origin string
 }
 
 // RuleFilterModel represents a rule fitlering model
 type RuleFilterModel struct {
+	origin string
 }
 
 // NewRuleFilterModel returns a new rule filtering model
-func NewRuleFilterModel() (*RuleFilterModel, error) {
-	return &RuleFilterModel{}, nil
+func NewRuleFilterModel(origin string) (*RuleFilterModel, error) {
+	return &RuleFilterModel{
+		origin: origin,
+	}, nil
 }
 
 // NewEvent returns a new rule filtering event
 func (m *RuleFilterModel) NewEvent() eval.Event {
-	return &RuleFilterEvent{}
+	return &RuleFilterEvent{
+		origin: m.origin,
+	}
 }
 
 // GetEvaluator returns a new evaluator for a rule filtering field
@@ -64,7 +70,11 @@ func (m *RuleFilterModel) GetEvaluator(field eval.Field, _ eval.RegisterID) (eva
 	case "envs":
 		return &eval.StringArrayEvaluator{
 			Values: os.Environ(),
-			Field:  field,
+		}, nil
+	case "origin":
+		return &eval.StringEvaluator{
+			Value: m.origin,
+			Field: field,
 		}, nil
 	}
 
@@ -89,6 +99,8 @@ func (e *RuleFilterEvent) GetFieldValue(field eval.Field) (interface{}, error) {
 
 	case "envs":
 		return os.Environ(), nil
+	case "origin":
+		return e.origin, nil
 	}
 
 	return nil, &eval.ErrFieldNotFound{Field: field}

@@ -327,9 +327,8 @@ func (c *PythonCheck) Configure(senderManager sender.SenderManager, integrationC
 		log.Errorf("failed to retrieve a sender for check %s: %s", string(c.id), err)
 	} else {
 		s.FinalizeCheckServiceTag()
+		s.SetNoIndex(commonOptions.NoIndex)
 	}
-
-	s.SetNoIndex(commonOptions.NoIndex)
 
 	c.initConfig = string(initConfig)
 	c.instanceConfig = string(data)
