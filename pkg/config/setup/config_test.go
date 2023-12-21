@@ -428,6 +428,7 @@ func TestProxy(t *testing.T) {
 			path := t.TempDir()
 			configPath := filepath.Join(path, "empty_conf.yaml")
 			os.WriteFile(configPath, nil, 0600)
+			config.SetConfigFile(configPath)
 
 			resolver := secretsimpl.NewMock()
 			if c.setup != nil {
@@ -1117,7 +1118,11 @@ process_config:
 `)
 
 func TestConfigAssignAtPath(t *testing.T) {
+	// CircleCI sets NO_PROXY, so unset it for this test
+	unsetEnvForTest(t, "NO_PROXY")
+
 	config := Conf()
+	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
 	os.WriteFile(configPath, testExampleConf, 0600)
 	config.SetConfigFile(configPath)
@@ -1148,6 +1153,7 @@ process_config:
     https://url2.eu:
     - mystery
 secret_backend_command: another command
+use_proxy_for_cloud_metadata: true
 `
 	yamlConf, err := yaml.Marshal(config.AllSettingsWithoutDefault())
 	assert.NoError(t, err)

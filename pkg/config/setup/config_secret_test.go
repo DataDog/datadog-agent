@@ -163,6 +163,7 @@ func TestProxyWithSecret(t *testing.T) {
 			path := t.TempDir()
 			configPath := filepath.Join(path, "empty_conf.yaml")
 			os.WriteFile(configPath, nil, 0600)
+			config.SetConfigFile(configPath)
 
 			resolver := secretsimpl.NewMock()
 			if c.setup != nil {
