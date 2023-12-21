@@ -151,6 +151,9 @@ func (g *GenericMap[K, V]) Iterate(itops IteratorOptions) GenericMapIterator[K, 
 	if itops.BatchSize == 0 {
 		itops.BatchSize = 100 // Default value for batch sizes. Possibly needs more testing to find an optimal default
 	}
+	if itops.BatchSize > int(g.m.MaxEntries()) {
+		itops.BatchSize = int(g.m.MaxEntries())
+	}
 
 	if BatchAPISupported() && !isPerCPU(g.m.Type()) && !itops.ForceSingleItem {
 		return &genericMapBatchIterator[K, V]{
