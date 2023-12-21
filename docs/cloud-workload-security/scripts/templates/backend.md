@@ -56,5 +56,5 @@ CSM Threats logs have the following JSON schema:
 
 {% endfor %}
 
-[1]: https://docs.datadoghq.com/security/threats/
-[2]: https://docs.datadoghq.com/security/threats/agent_expressions/
+[1]: /security/threats/
+[2]: /security/threats/agent_expressions
