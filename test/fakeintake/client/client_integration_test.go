@@ -21,14 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	isLocalRun = true
-)
-
 func TestIntegrationClient(t *testing.T) {
-	if !isLocalRun {
-		t.Skip("skip client integration test on the CI, connection to the server is flaky")
-	}
 	t.Run("should get empty payloads from a server", func(t *testing.T) {
 		fi, _ := server.InitialiseForTests(t)
 
