@@ -92,8 +92,8 @@ func (e *etwSession) DisableProvider(providerGUID windows.GUID) error {
 	return ret
 }
 
-//export ddEtwCallbackC
-func ddEtwCallbackC(eventRecord C.PEVENT_RECORD) {
+//export etwCompCallbackC
+func etwCompCallbackC(eventRecord C.PEVENT_RECORD) {
 	handle := cgo.Handle(eventRecord.UserContext)
 	eventInfo := (*etw.DDEventRecord)(unsafe.Pointer(eventRecord))
 	handle.Value().(etw.EventCallback)(eventInfo)
@@ -182,7 +182,7 @@ func createEtwSession(name string) (*etwSession, error) {
 	if err != nil {
 		return nil, fmt.Errorf("incorrect session name; %w", err)
 	}
-	sessionNameSize := (len(utf16SessionName) * int(unsafe.Sizeof(utf16SessionName[0])))
+	sessionNameSize := (len(utf16SessionName) + 1) * 2 // 2 is sizeof uint16
 	bufSize := int(unsafe.Sizeof(C.EVENT_TRACE_PROPERTIES{})) + sessionNameSize
 	propertiesBuf := make([]byte, bufSize)
 
