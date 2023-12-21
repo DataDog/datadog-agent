@@ -44,10 +44,10 @@ func (e *etwSession) EnableProvider(providerGUID windows.GUID) error {
 	}
 
 	cfg := e.providers[providerGUID]
-	var pids *C.ULONGLONG
+	var pids *C.ULONG
 	var pidCount C.ULONG
 	if len(cfg.PIDs) > 0 {
-		pids = (*C.ULONGLONG)(unsafe.Pointer(&cfg.PIDs[0]))
+		pids = (*C.ULONG)(unsafe.SliceData(cfg.PIDs))
 		pidCount = C.ULONG(len(cfg.PIDs))
 	}
 
