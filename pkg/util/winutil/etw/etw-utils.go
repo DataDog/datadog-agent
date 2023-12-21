@@ -10,7 +10,6 @@ package etw
 import (
 	"bytes"
 	"fmt"
-	"reflect"
 	"strconv"
 	"time"
 	"unsafe"
@@ -171,12 +170,9 @@ func GoBytes(data unsafe.Pointer, len int) []byte {
 	// According to some measurements this approach is 10x faster
 	// then built-in method
 
-	var slice []byte
-	sliceHdr := (*reflect.SliceHeader)((unsafe.Pointer(&slice))) //nolint:staticcheck // TODO (WINA) fix reflect.SliceHeader has been deprecated: Use unsafe.Slice or unsafe.SliceData instead
-	sliceHdr.Cap = int(len)
-	sliceHdr.Len = int(len)
-	sliceHdr.Data = uintptr(data)
-	return slice
+	sl := unsafe.Slice((*byte)(data), len)
+
+	return sl>>>>>>> 8a2bcd626f (very basic working with file & reg)
 }
 
 func bytesIndexOfDoubleZero(data []byte) int {

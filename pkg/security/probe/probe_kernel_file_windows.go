@@ -7,6 +7,10 @@
 package probe
 
 import (
+	"encoding/binary"
+	"unsafe"
+
+	"github.com/DataDog/datadog-agent/comp/etw"
 	etwutil "github.com/DataDog/datadog-agent/pkg/util/winutil/etw"
 )
 
@@ -34,21 +38,48 @@ const (
 	idCreateNewFile    = uint16(30)
 )
 
+/*
+		<template tid="CreateArgs">
+	      <data name="Irp" inType="win:Pointer"/>
+	      <data name="ThreadId" inType="win:Pointer"/>
+	      <data name="FileObject" inType="win:Pointer"/>
+	      <data name="CreateOptions" inType="win:UInt32"/>
+	      <data name="CreateAttributes" inType="win:UInt32"/>
+	      <data name="ShareAccess" inType="win:UInt32"/>
+	      <data name="FileName" inType="win:UnicodeString"/>
+	    </template>
+*/
+/*
+ 	<data name="Irp" inType="win:Pointer"/>
+      <data name="FileObject" inType="win:Pointer"/>
+      <data name="IssuingThreadId" inType="win:UInt32"/>
+      <data name="CreateOptions" inType="win:UInt32"/>
+      <data name="CreateAttributes" inType="win:UInt32"/>
+      <data name="ShareAccess" inType="win:UInt32"/>
+      <data name="FileName" inType="win:UnicodeString"/>
+*/
 type createArgs struct {
-	irp      uint64 // actually a pointer
-	threadid uint64 // actually a pointer
-	fileObject uint64 // pointer
-	createOptions uint32 
+	irp              uint64 // actually a pointer
+	fileObject       uint64 // pointer
+	threadid         uint32 // actually a pointer
+	createOptions    uint32
 	createAttributes uint32
-	shareAccess uint32
-	fileName string
+	shareAccess      uint32
+	fileName         string
 }
 
-func parseCreateArgs(data []byte) (*createArgs, error) {
+func parseCreateArgs(e *etw.DDEventRecord) (*createArgs, error) {
 	ca := &createArgs{}
-	filenameOffset := 36
-	// for now, just interested in path
-	ca.fileName, _, _, _ = etwutil.ParseUnicodeString(data, filenameOffset)
+
+	data := unsafe.Slice((*byte)(e.UserData), uint64(e.UserDataLength))
+	ca.irp = binary.LittleEndian.Uint64(data[0:8])
+	ca.fileObject = binary.LittleEndian.Uint64(data[8:16])
+	ca.threadid = binary.LittleEndian.Uint32(data[16:20])
+	ca.createOptions = binary.LittleEndian.Uint32(data[20:24])
+	ca.createAttributes = binary.LittleEndian.Uint32(data[24:38])
+	ca.shareAccess = binary.LittleEndian.Uint32(data[28:32])
+
+	ca.fileName, _, _, _ = etwutil.ParseUnicodeString(data, 32)
 
 	return ca, nil
 }

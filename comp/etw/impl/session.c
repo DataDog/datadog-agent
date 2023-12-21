@@ -3,11 +3,11 @@
 // This constant defines the maximum number of filter types supported.
 #define MAX_FILTER_SUPPORTED                2
 
-extern void ddEtwCallbackC(PEVENT_RECORD);
+extern void etwCompCallbackC(PEVENT_RECORD);
 
 static void WINAPI RecordEventCallback(PEVENT_RECORD event)
 {
-    ddEtwCallbackC(event);
+    etwCompCallbackC(event);
 }
 
 TRACEHANDLE DDStartTracing(LPWSTR name, uintptr_t context)
