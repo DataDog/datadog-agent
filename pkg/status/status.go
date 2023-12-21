@@ -321,14 +321,6 @@ func getCommonStatus(invAgent inventoryagent.Component) (map[string]interface{},
 
 func expvarStats(stats map[string]interface{}, invAgent inventoryagent.Component) (map[string]interface{}, error) {
 	var err error
-	forwarderStatsJSON := []byte(expvar.Get("forwarder").String())
-	forwarderStats := make(map[string]interface{})
-	json.Unmarshal(forwarderStatsJSON, &forwarderStats) //nolint:errcheck
-	forwarderStorageMaxSizeInBytes := config.Datadog.GetInt("forwarder_storage_max_size_in_bytes")
-	if forwarderStorageMaxSizeInBytes > 0 {
-		forwarderStats["forwarder_storage_max_size_in_bytes"] = strconv.Itoa(forwarderStorageMaxSizeInBytes)
-	}
-	stats["forwarderStats"] = forwarderStats
 
 	collector.PopulateStatus(stats)
 
