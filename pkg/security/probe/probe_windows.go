@@ -11,7 +11,6 @@ import (
 	"errors"
 	"sync"
 	"time"
-	"unsafe"
 
 	"github.com/DataDog/datadog-agent/comp/etw"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
@@ -24,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	etwutil "github.com/DataDog/datadog-agent/pkg/util/winutil/etw"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/procmon"
 	"github.com/DataDog/datadog-go/v5/statsd"
 
@@ -54,7 +52,7 @@ type WindowsProbe struct {
 
 	// ETW component for FIM
 	fileguid   windows.GUID
-	etw        etw.Component
+	etwcomp    etw.Component
 	fimSession etw.Session
 	fimwg      sync.WaitGroup
 }
@@ -100,6 +98,42 @@ func (p *WindowsProbe) Stop() {
 	p.pm.Stop()
 }
 
+func (p *WindowsProbe) setupEtw() error {
+	etwSessionName := "aaaaaa"
+	var err error
+	etwcomp := etwimpl.NewETWSessionWithoutInit()
+	p.fimSession, err = etwcomp.NewSession(etwSessionName)
+	if err != nil {
+		return err
+	}
+
+	// Microsoft-Windows-DotNETRuntime
+	p.fileguid, err = windows.GUIDFromString("{edd08927-9cc4-4e65-b970-c2560fb5c289}")
+	if err != nil {
+		log.Errorf("Error converting guid %v", err)
+		return err
+	}
+
+	pidsList := make([]uint64, 0, 0)
+	p.fimSession.ConfigureProvider(p.fileguid, func(cfg *etw.ProviderConfiguration) {
+		cfg.TraceLevel = etw.TRACE_LEVEL_VERBOSE
+		cfg.PIDs = pidsList
+	})
+
+	err = p.fimSession.EnableProvider(p.fileguid)
+	if err != nil {
+		log.Warnf("Error enabling provider %v", err)
+		return err
+	}
+
+	log.Info("Starting tracing...")
+	err = p.fimSession.StartTracing(func(e *etw.DDEventRecord) {
+		log.Infof("Received event %d for PID %d", e.EventHeader.EventDescriptor.ID, e.EventHeader.ProcessID)
+	})
+	return err
+
+}
+
 // Start processing events
 func (p *WindowsProbe) Start() error {
 
@@ -107,27 +141,8 @@ func (p *WindowsProbe) Start() error {
 	p.fimwg.Add(1)
 	go func() {
 		defer p.fimwg.Done()
-
-		// StartTracing blocks the caller, which is why we're in our
-		// own goroutine here
-		_ = p.fimSession.StartTracing(func(e *etw.DDEventRecord) {
-
-			log.Infof("Received event %d for PID %d", e.EventHeader.EventDescriptor.ID, e.EventHeader.ProcessID)
-			return
-			// for now, do this for everything to prevent copy/paste
-			// if we want to use this, will probably only want to do the conversion
-			// when we're actually going to use it
-			userData := etwutil.GoBytes(unsafe.Pointer(e.UserData), int(e.UserDataLength))
-
-			switch e.EventHeader.EventDescriptor.ID {
-			case idNameCreate:
-				ca, err := parseCreateArgs(userData)
-				if err != nil {
-					log.Infof("Got create file filename %s", ca.fileName)
-				}
-			}
-
-		})
+		err := p.setupEtw()
+		log.Infof("Done StartTracing %v", err)
 	}()
 	p.wg.Add(1)
 	go func() {
