@@ -186,109 +186,9 @@ func (p *WindowsProbe) Setup() error {
 
 // Stop the probe
 func (p *WindowsProbe) Stop() {
-	if p.fimSession != nil {
-		_ = p.fimSession.StopTracing()
-		p.fimwg.Wait()
-	}
-	if p.pm != nil {
-		p.pm.Stop()
-	}
-}
-
-func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
-
-	log.Info("Starting tracing...")
-	err := p.fimSession.StartTracing(func(e *etw.DDEventRecord) {
-		//log.Infof("Received event %d for PID %d", e.EventHeader.EventDescriptor.ID, e.EventHeader.ProcessID)
-		switch e.EventHeader.ProviderID {
-		case etw.DDGUID(p.fileguid):
-			switch e.EventHeader.EventDescriptor.ID {
-			case idCreate:
-				if ca, err := parseCreateHandleArgs(e); err == nil {
-					log.Tracef("Received idCreate event %d %v\n", e.EventHeader.EventDescriptor.ID, ca.string())
-					ecb(ca, e.EventHeader.ProcessID)
-				}
-
-			case idCreateNewFile:
-				if ca, err := parseCreateNewFileArgs(e); err == nil {
-					ecb(ca, e.EventHeader.ProcessID)
-				}
-			case idCleanup:
-				if ca, err := parseCleanupArgs(e); err == nil {
-					ecb(ca, e.EventHeader.ProcessID)
-				}
-
-			case idClose:
-				if ca, err := parseCloseArgs(e); err == nil {
-					//fmt.Printf("Received Close event %d %v\n", e.EventHeader.EventDescriptor.ID, ca.string())
-					ecb(ca, e.EventHeader.ProcessID)
-					if e.EventHeader.EventDescriptor.ID == idClose {
-						delete(filePathResolver, ca.fileObject)
-					}
-				}
-			case idFlush:
-				if fa, err := parseFlushArgs(e); err == nil {
-					ecb(fa, e.EventHeader.ProcessID)
-				}
-			case idSetInformation:
-				fallthrough
-			case idSetDelete:
-				fallthrough
-			case idRename:
-				fallthrough
-			case idQueryInformation:
-				fallthrough
-			case idFSCTL:
-				fallthrough
-			case idRename29:
-				if sia, err := parseInformationArgs(e); err == nil {
-					log.Tracef("got id %v args %s", e.EventHeader.EventDescriptor.ID, sia.string())
-				}
-			}
-
-		case etw.DDGUID(p.regguid):
-			switch e.EventHeader.EventDescriptor.ID {
-			case idRegCreateKey:
-				if cka, err := parseCreateRegistryKey(e); err == nil {
-					log.Tracef("Got idRegCreateKey %s", cka.string())
-					ecb(cka, e.EventHeader.ProcessID)
-				}
-			case idRegOpenKey:
-				if cka, err := parseCreateRegistryKey(e); err == nil {
-					log.Debugf("Got idRegOpenKey %s", cka.string())
-				}
-
-			case idRegDeleteKey:
-				if dka, err := parseDeleteRegistryKey(e); err == nil {
-					log.Tracef("Got idRegDeleteKey %v", dka.string())
-				}
-			case idRegFlushKey:
-				if dka, err := parseDeleteRegistryKey(e); err == nil {
-					log.Tracef("Got idRegFlushKey %v", dka.string())
-				}
-			case idRegCloseKey:
-				if dka, err := parseDeleteRegistryKey(e); err == nil {
-					log.Debugf("Got idRegCloseKey %s", dka.string())
-					delete(regPathResolver, dka.keyObject)
-				}
-			case idQuerySecurityKey:
-				if dka, err := parseDeleteRegistryKey(e); err == nil {
-					log.Tracef("Got idQuerySecurityKey %v", dka.keyName)
-				}
-			case idSetSecurityKey:
-				if dka, err := parseDeleteRegistryKey(e); err == nil {
-					log.Tracef("Got idSetSecurityKey %v", dka.keyName)
-				}
-			case idRegSetValueKey:
-				if svk, err := parseSetValueKey(e); err == nil {
-					log.Tracef("Got idRegSetValueKey %s", svk.string())
-				}
-
-			}
-		}
-	})
-	return err
-
+	p.fimSession.StopTracing()
+	p.fimwg.Wait()
+	p.pm.Stop()
 }
 
 // Start processing events
@@ -321,6 +221,12 @@ func (p *WindowsProbe) Start() error {
 	if p.pm == nil {
 		return nil
 	}
+	p.fimwg.Add(1)
+	go func() {
+		defer p.fimwg.Done()
+		err := p.setupEtw()
+		log.Infof("Done StartTracing %v", err)
+	}()
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
