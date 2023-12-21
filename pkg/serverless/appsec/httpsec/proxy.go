@@ -46,11 +46,6 @@ func (lp *ProxyLifecycleProcessor) GetExecutionInfo() *invocationlifecycle.Execu
 	return nil // not used in the runtime api proxy case
 }
 
-// OnTimeoutInvokeEnd completes an unfinished execution span during a timeout
-func (lp *ProxyLifecycleProcessor) OnTimeoutInvokeEnd(*invocationlifecycle.TimeoutExecutionInfo) {
-	// not used in the runtime api proxy case
-}
-
 // OnInvokeStart is the hook triggered when an invocation has started
 func (lp *ProxyLifecycleProcessor) OnInvokeStart(startDetails *invocationlifecycle.InvocationStartDetails) {
 	log.Debugf("appsec: proxy-lifecycle: invocation started with raw payload `%s`", startDetails.InvokeEventRawPayload)

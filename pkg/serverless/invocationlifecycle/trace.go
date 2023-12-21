@@ -41,14 +41,6 @@ type ExecutionStartInfo struct {
 	SamplingPriority sampler.SamplingPriority
 }
 
-// TimeoutExecutionInfo is the information needed to complete an execution span during a timeout
-type TimeoutExecutionInfo struct {
-	RequestID       string
-	Runtime         string
-	IsColdStart     bool
-	IsProactiveInit bool
-}
-
 // startExecutionSpan records information from the start of the invocation.
 // It should be called at the start of the invocation.
 func (lp *LifecycleProcessor) startExecutionSpan(event interface{}, rawPayload []byte, startDetails *InvocationStartDetails) {
@@ -84,54 +76,16 @@ func (lp *LifecycleProcessor) startExecutionSpan(event interface{}, rawPayload [
 // It should be called at the end of the invocation.
 func (lp *LifecycleProcessor) endExecutionSpan(endDetails *InvocationEndDetails) *pb.Span {
 	executionContext := lp.GetExecutionInfo()
-	duration := endDetails.EndTime.UnixNano() - executionContext.startTime.UnixNano()
-
-	executionSpan := &pb.Span{
-		Service:  "aws.lambda", // will be replaced by the span processor
-		Name:     "aws.lambda",
-		Resource: os.Getenv(functionNameEnvVar),
-		Type:     "serverless",
-		TraceID:  executionContext.TraceID,
-		SpanID:   executionContext.SpanID,
-		ParentID: executionContext.parentID,
-		Start:    executionContext.startTime.UnixNano(),
-		Duration: duration,
-		Meta:     lp.requestHandler.triggerTags,
-		Metrics:  lp.requestHandler.triggerMetrics,
-	}
-	setExecutionSpanTags(executionSpan, endDetails.RequestID, endDetails.ColdStart, endDetails.ProactiveInit, endDetails.Runtime)
-	captureLambdaPayload(executionContext, executionSpan, endDetails.ResponseRawPayload)
-
-	if endDetails.IsError {
-		executionSpan.Error = 1
-		if len(endDetails.ErrorMsg) > 0 {
-			executionSpan.Meta["error.msg"] = endDetails.ErrorMsg
-		}
-		if len(endDetails.ErrorType) > 0 {
-			executionSpan.Meta["error.type"] = endDetails.ErrorType
-		}
-		if len(endDetails.ErrorStack) > 0 {
-			executionSpan.Meta["error.stack"] = endDetails.ErrorStack
-		}
-	}
-
-	return executionSpan
-}
-
-// endExecutionSpanOnTimeout attempts to finish the execution span during a timeout.
-// It should only be called when the execution span has been started but not finished during a timeout
-func (lp *LifecycleProcessor) endExecutionSpanOnTimeout(timeoutCtx *TimeoutExecutionInfo) *pb.Span {
-	executionContext := lp.GetExecutionInfo()
 	start := executionContext.startTime.UnixNano()
-	duration := time.Now().UnixNano() - start
 
-	// In a timeout we do not receive the trace and span IDs from the tracer so we must do it here
 	traceID := executionContext.TraceID
-	if traceID == 0 {
-		traceID = random.Random.Uint64()
-	}
 	spanID := executionContext.SpanID
-	if spanID == 0 {
+	// If we fail to receive the trace and span IDs from the tracer during a timeout we create it ourselves
+	if endDetails.IsTimeout && traceID == 0 {
+		traceID = random.Random.Uint64()
+		lp.requestHandler.executionInfo.TraceID = traceID
+	}
+	if endDetails.IsTimeout && spanID == 0 {
 		spanID = random.Random.Uint64()
 	}
 
@@ -144,16 +98,31 @@ func (lp *LifecycleProcessor) endExecutionSpanOnTimeout(timeoutCtx *TimeoutExecu
 		SpanID:   spanID,
 		ParentID: executionContext.parentID,
 		Start:    start,
-		Duration: duration,
+		Duration: endDetails.EndTime.UnixNano() - start,
 		Meta:     lp.requestHandler.triggerTags,
 		Metrics:  lp.requestHandler.triggerMetrics,
 	}
-	setExecutionSpanTags(executionSpan, timeoutCtx.RequestID, timeoutCtx.IsColdStart, timeoutCtx.IsProactiveInit, timeoutCtx.Runtime)
-	// In a timeout the tracer is unable to send the response payload so it must be excluded
-	captureLambdaPayload(executionContext, executionSpan, nil)
 
-	// Always mark it as an error since this is a timeout span
-	executionSpan.Error = 1
+	setExecutionSpanTags(executionSpan, endDetails.RequestID, endDetails.ColdStart, endDetails.ProactiveInit, endDetails.Runtime)
+	captureLambdaPayload(executionContext, executionSpan, endDetails.ResponseRawPayload)
+	if endDetails.IsError {
+		executionSpan.Error = 1
+
+		if len(endDetails.ErrorMsg) > 0 {
+			executionSpan.Meta["error.msg"] = endDetails.ErrorMsg
+		}
+		if len(endDetails.ErrorType) > 0 {
+			executionSpan.Meta["error.type"] = endDetails.ErrorType
+		}
+		if len(endDetails.ErrorStack) > 0 {
+			executionSpan.Meta["error.stack"] = endDetails.ErrorStack
+		}
+
+		if endDetails.IsTimeout {
+			executionSpan.Meta["error.type"] = "Impending Timeout"
+			executionSpan.Meta["error.msg"] = "Datadog detected an Impending Timeout"
+		}
+	}
 
 	return executionSpan
 }

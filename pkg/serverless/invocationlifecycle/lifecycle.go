@@ -287,25 +287,11 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 		lp.processTrace(spans)
 	}
 
-	if endDetails.IsError {
+	if endDetails.IsError && !endDetails.IsTimeout {
 		serverlessMetrics.SendErrorsEnhancedMetric(
 			lp.ExtraTags.Tags, endDetails.EndTime, lp.Demux,
 		)
 	}
-}
-
-// OnTimeoutInvokeEnd completes an unfinished execution span during a timeout
-func (lp *LifecycleProcessor) OnTimeoutInvokeEnd(timeoutContext *TimeoutExecutionInfo) {
-	spans := make([]*pb.Span, 0, 3)
-	span := lp.endExecutionSpanOnTimeout(timeoutContext)
-	spans = append(spans, span)
-
-	if lp.InferredSpansEnabled {
-		// No response status code can be retrieved in a timeout so we pass an empty string
-		inferredSpans := lp.endInferredSpan("", time.Now(), true)
-		spans = append(spans, inferredSpans...)
-	}
-	lp.processTrace(spans)
 }
 
 // GetTags returns the tagset of the currently executing lambda function

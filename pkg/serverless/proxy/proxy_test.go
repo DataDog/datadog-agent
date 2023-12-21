@@ -44,12 +44,6 @@ func (tp *testProcessorResponseValid) OnInvokeEnd(endDetails *invocationlifecycl
 	}
 }
 
-func (tp *testProcessorResponseValid) OnTimeoutInvokeEnd(timeoutContext *invocationlifecycle.TimeoutExecutionInfo) {
-	if len(timeoutContext.RequestID) == 0 {
-		panic("requestId")
-	}
-}
-
 type testProcessorResponseError struct{}
 
 func (tp *testProcessorResponseError) OnInvokeStart(startDetails *invocationlifecycle.InvocationStartDetails) {
@@ -69,12 +63,6 @@ func (tp *testProcessorResponseError) OnInvokeEnd(endDetails *invocationlifecycl
 
 func (tp *testProcessorResponseError) GetExecutionInfo() *invocationlifecycle.ExecutionStartInfo {
 	return nil
-}
-
-func (tp *testProcessorResponseError) OnTimeoutInvokeEnd(timeoutContext *invocationlifecycle.TimeoutExecutionInfo) {
-	if len(timeoutContext.RequestID) == 0 {
-		panic("requestId")
-	}
 }
 
 func TestProxyResponseValid(t *testing.T) {

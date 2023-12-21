@@ -409,6 +409,9 @@ func TestTimeoutExecutionSpan(t *testing.T) {
 		Demux:                demux,
 		InferredSpansEnabled: true,
 	}
+	startTime := time.Now()
+	duration := 1 * time.Second
+	endTime := startTime.Add(duration)
 	startDetails := InvocationStartDetails{
 		StartTime:             time.Now(),
 		InvokeEventRawPayload: []byte(`{}`),
@@ -416,23 +419,28 @@ func TestTimeoutExecutionSpan(t *testing.T) {
 	}
 	testProcessor.OnInvokeStart(&startDetails)
 
-	timeoutCtx := &TimeoutExecutionInfo{
-		RequestID:       "test-request-id",
-		Runtime:         "java11",
-		IsColdStart:     false,
-		IsProactiveInit: false,
+	timeoutCtx := &InvocationEndDetails{
+		RequestID:          "test-request-id",
+		Runtime:            "java11",
+		ColdStart:          false,
+		ProactiveInit:      false,
+		EndTime:            endTime,
+		IsError:            true,
+		IsTimeout:          true,
+		ResponseRawPayload: nil,
 	}
-	testProcessor.OnTimeoutInvokeEnd(timeoutCtx)
+	testProcessor.OnInvokeEnd(timeoutCtx)
 
 	spans := tracePayload.TracerPayload.Chunks[0].Spans
 	assert.Equal(t, 1, len(spans))
 	// No trace context passed
-	assert.Equal(t, uint64(0), testProcessor.GetExecutionInfo().TraceID)
+	assert.NotZero(t, testProcessor.GetExecutionInfo().TraceID)
 	assert.Equal(t, uint64(0), testProcessor.GetExecutionInfo().SpanID)
-	assert.Equal(t, tracePayload.TracerPayload.Chunks[0].Priority, int32(-128))
+	assert.Equal(t, int32(-128), tracePayload.TracerPayload.Chunks[0].Priority)
 	// New trace ID and span ID has been created
 	assert.NotEqual(t, uint64(0), spans[0].TraceID)
 	assert.NotEqual(t, uint64(0), spans[0].SpanID)
+	assert.Equal(t, spans[0].TraceID, testProcessor.GetExecutionInfo().TraceID)
 	assert.Equal(t, spans[0].Error, int32(1))
 	assert.Equal(t, spans[0].GetMeta()["request_id"], "test-request-id")
 	assert.Equal(t, spans[0].GetMeta()["language"], "java")
@@ -462,20 +470,26 @@ func TestTimeoutExecutionSpanWithTraceContext(t *testing.T) {
 		InferredSpansEnabled: true,
 	}
 	eventPayload := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
+	startTime := time.Now()
+	duration := 1 * time.Second
+	endTime := startTime.Add(duration)
 	startDetails := InvocationStartDetails{
-		StartTime:             time.Now(),
+		StartTime:             startTime,
 		InvokeEventRawPayload: []byte(eventPayload),
 		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
 	}
 	testProcessor.OnInvokeStart(&startDetails)
-
-	timeoutCtx := &TimeoutExecutionInfo{
-		RequestID:       "test-request-id",
-		Runtime:         "java11",
-		IsColdStart:     false,
-		IsProactiveInit: false,
+	timeoutCtx := &InvocationEndDetails{
+		RequestID:          "test-request-id",
+		Runtime:            "java11",
+		ColdStart:          false,
+		ProactiveInit:      false,
+		EndTime:            endTime,
+		IsError:            true,
+		IsTimeout:          true,
+		ResponseRawPayload: nil,
 	}
-	testProcessor.OnTimeoutInvokeEnd(timeoutCtx)
+	testProcessor.OnInvokeEnd(timeoutCtx)
 
 	spans := tracePayload.TracerPayload.Chunks[0].Spans
 	assert.Equal(t, 1, len(spans))

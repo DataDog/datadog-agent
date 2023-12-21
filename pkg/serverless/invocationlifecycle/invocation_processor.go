@@ -13,8 +13,6 @@ type InvocationProcessor interface {
 	OnInvokeEnd(endDetails *InvocationEndDetails)
 	// GetExecutionInfo returns the current execution start information
 	GetExecutionInfo() *ExecutionStartInfo
-	// OnTimeoutInvokeEnd completes an unfinished execution span during a timeout
-	OnTimeoutInvokeEnd(timeoutCtx *TimeoutExecutionInfo)
 }
 
 // InvocationSubProcessor is the interface to implement to receive invocation lifecycle hooks along with the
