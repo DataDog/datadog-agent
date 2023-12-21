@@ -206,7 +206,9 @@ func (g *genericMapBatchIterator[K, V]) Next(key *K, value *V) bool {
 
 		g.currentBatchSize, g.err = g.m.BatchLookup(&g.cursor, g.keys, g.values, nil)
 		g.inBatchIndex = 0
-		if g.err != nil && errors.Is(g.err, ebpf.ErrKeyNotExist) {
+		if g.currentBatchSize == 0 {
+			return false
+		} else if g.err != nil && errors.Is(g.err, ebpf.ErrKeyNotExist) {
 			// The lookup API returns ErrKeyNotExist when this is the last batch,
 			// even when partial results are returned. We need to mark this so that
 			// we don't try to fetch another batch when this one is finished
