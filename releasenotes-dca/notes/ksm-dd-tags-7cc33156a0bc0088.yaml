@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixes a bug introduced in `7.50.0` preventing `DD_TAGS` to be added to `kubernetes_state.*` metrics.
