@@ -165,6 +165,5 @@ Documentation should include:
 
 ## Optional components
 
-Some components are enabled based on an Agent config flag. 
-Using fxoptional.Component is the recommended solution as it makes it explicit that the component may not be present. See fxoptional.Component for an example how to use it.
+Some components are enabled with an Agent configuration flag. To explicitly indicate that a component is optional and may not be available, use `fxoptional.Component`. See `fxoptional.Component` for an example of how to use it.
 
