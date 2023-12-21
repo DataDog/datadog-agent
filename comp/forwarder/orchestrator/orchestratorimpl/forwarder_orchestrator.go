@@ -51,4 +51,3 @@ func newOrchestratorForwarder(log log.Component, config config.Component, params
 
 	return fxoptional.None[defaultforwarder.Forwarder]()
 }
-§
