@@ -328,6 +328,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		AnomalyDetectionRateLimiterNumEventsAllowed:  coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.anomaly_detection.rate_limiter.num_events_allowed"),
 		AnomalyDetectionTagRulesEnabled:              coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.anomaly_detection.tag_rules.enabled"),
 		AnomalyDetectionSilentRuleEventsEnabled:      coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.anomaly_detection.silent_rule_events.enabled"),
+		AnomalyDetectionEnabled:                      coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.anomaly_detection.enabled"),
 
 		// User Sessions
 		UserSessionsCacheSize: coreconfig.SystemProbe.GetInt("runtime_security_config.user_sessions.cache_size"),
