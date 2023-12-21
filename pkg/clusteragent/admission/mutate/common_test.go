@@ -321,6 +321,7 @@ func Test_shouldInject(t *testing.T) {
 			pod:  fakePodWithNamespaceAndLabel("default", "", ""),
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("kube_resources_namespace", "default")
 			},
 			want: false,
 		},
