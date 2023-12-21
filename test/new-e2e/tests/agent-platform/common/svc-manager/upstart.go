@@ -14,11 +14,11 @@ import (
 
 // UpstartSvcManager is a service manager for upstart
 type UpstartSvcManager struct {
-	host *components.Host
+	host *components.RemoteHost
 }
 
 // NewUpstartSvcManager return upstart service manager
-func NewUpstartSvcManager(host *components.Host) *UpstartSvcManager {
+func NewUpstartSvcManager(host *components.RemoteHost) *UpstartSvcManager {
 	return &UpstartSvcManager{host}
 }
 

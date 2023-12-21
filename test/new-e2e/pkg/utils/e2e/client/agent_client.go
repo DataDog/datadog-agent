@@ -18,7 +18,7 @@ const (
 )
 
 // NewHostAgentClient creates an Agent client for host install
-func NewHostAgentClient(t *testing.T, host *components.Host, waitForAgentReady bool) (agentclient.Agent, error) {
+func NewHostAgentClient(t *testing.T, host *components.RemoteHost, waitForAgentReady bool) (agentclient.Agent, error) {
 	commandRunner := newAgentCommandRunner(t, newAgentHostExecutor(host))
 
 	if waitForAgentReady {

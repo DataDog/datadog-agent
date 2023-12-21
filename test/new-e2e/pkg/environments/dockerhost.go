@@ -6,10 +6,10 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 )
 
-// DockerVM is an environment that contains a Docker VM, FakeIntake and Agent configured to talk to each other.
-type DockerVM struct {
+// DockerHost is an environment that contains a Docker VM, FakeIntake and Agent configured to talk to each other.
+type DockerHost struct {
 	// Components
-	Host       *components.Host
+	Host       *components.RemoteHost
 	FakeIntake *components.FakeIntake
 	Agent      *components.DockerAgent
 
@@ -17,10 +17,10 @@ type DockerVM struct {
 	Docker *client.Docker
 }
 
-var _ e2e.Initializable = &DockerVM{}
+var _ e2e.Initializable = &DockerHost{}
 
 // Init initializes the environment
-func (e *DockerVM) Init(ctx e2e.Context) error {
+func (e *DockerHost) Init(ctx e2e.Context) error {
 	var err error
 	e.Docker, err = client.NewDocker(ctx.T(), e.Host.HostOutput)
 	if err != nil {

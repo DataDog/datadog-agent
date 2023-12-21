@@ -10,13 +10,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/vm"
+	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
 
 	"github.com/stretchr/testify/assert"
 )
 
 type myVMSuite struct {
-	e2e.BaseSuite[environments.VM]
+	e2e.BaseSuite[environments.Host]
 }
 
 func TestMyVMSuite(t *testing.T) {
@@ -24,6 +24,6 @@ func TestMyVMSuite(t *testing.T) {
 }
 
 func (v *myVMSuite) TestItIsUbuntu() {
-	res := v.Env().Host.MustExecute("cat /etc/os-release")
+	res := v.Env().RemoteHost.MustExecute("cat /etc/os-release")
 	assert.Contains(v.T(), res, "Ubuntu")
 }

@@ -14,11 +14,11 @@ import (
 
 // AptPackageManager struct for Apt package manager
 type AptPackageManager struct {
-	host *components.Host
+	host *components.RemoteHost
 }
 
 // NewAptPackageManager return apt package manager
-func NewAptPackageManager(host *components.Host) *AptPackageManager {
+func NewAptPackageManager(host *components.RemoteHost) *AptPackageManager {
 	return &AptPackageManager{host: host}
 }
 

@@ -22,7 +22,7 @@ import (
 )
 
 type baseFlareSuite struct {
-	e2e.BaseSuite[environments.VM]
+	e2e.BaseSuite[environments.Host]
 }
 
 func (v *baseFlareSuite) TestFlareDefaultFiles() {

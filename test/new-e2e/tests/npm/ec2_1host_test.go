@@ -15,14 +15,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/vm"
+	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type ec2VMSuite struct {
-	e2e.BaseSuite[environments.VM]
+	e2e.BaseSuite[environments.Host]
 	DevMode bool
 }
 
@@ -56,7 +56,7 @@ func (v *ec2VMSuite) TestFakeIntakeNPM() {
 	// looking for 1 host to send CollectorConnections payload to the fakeintake
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		// generate a connection
-		v.Env().Host.MustExecute("curl http://www.datadoghq.com")
+		v.Env().RemoteHost.MustExecute("curl http://www.datadoghq.com")
 
 		hostnameNetID, err := v.Env().FakeIntake.Client().GetConnectionsNames()
 		assert.NoError(c, err, "GetConnectionsNames() errors")
@@ -100,8 +100,8 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
 
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		// generate connections
-		v.Env().Host.MustExecute("curl http://www.datadoghq.com")
-		v.Env().Host.MustExecute("dig @8.8.8.8 www.google.ch")
+		v.Env().RemoteHost.MustExecute("curl http://www.datadoghq.com")
+		v.Env().RemoteHost.MustExecute("dig @8.8.8.8 www.google.ch")
 
 		cnx, err := v.Env().FakeIntake.Client().GetConnections()
 		require.NoError(c, err)

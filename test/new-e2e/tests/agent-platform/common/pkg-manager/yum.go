@@ -11,11 +11,11 @@ import (
 
 // YumPackageManager struct for the Yum package manager
 type YumPackageManager struct {
-	host *components.Host
+	host *components.RemoteHost
 }
 
 // NewYumPackageManager return yum package manager
-func NewYumPackageManager(host *components.Host) *YumPackageManager {
+func NewYumPackageManager(host *components.RemoteHost) *YumPackageManager {
 	return &YumPackageManager{host: host}
 }
 

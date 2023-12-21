@@ -19,8 +19,8 @@ import (
 )
 
 type multiVMEnv struct {
-	MainVM *components.Host
-	AppVM  *components.Host
+	MainVM *components.RemoteHost
+	AppVM  *components.RemoteHost
 }
 
 func multiVMEnvProvisioner() e2e.PulumiEnvRunFunc[multiVMEnv] {

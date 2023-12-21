@@ -15,10 +15,10 @@ import (
 
 type agentHostExecutor struct {
 	baseCommand string
-	host        *components.Host
+	host        *components.RemoteHost
 }
 
-func newAgentHostExecutor(host *components.Host) agentCommandExecutor {
+func newAgentHostExecutor(host *components.RemoteHost) agentCommandExecutor {
 	var baseCommand string
 	switch host.OSFamily {
 	case os.WindowsFamily:

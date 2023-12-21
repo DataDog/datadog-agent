@@ -22,7 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/vm"
+	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
 )
 
 const versionStr = "7.48.0~rc.1-1"
@@ -31,7 +31,7 @@ const versionStr = "7.48.0~rc.1-1"
 var configStr string
 
 type languageDetectionSuite struct {
-	e2e.BaseSuite[environments.VM]
+	e2e.BaseSuite[environments.Host]
 }
 
 func TestLanguageDetectionSuite(t *testing.T) {
@@ -70,11 +70,11 @@ func (s *languageDetectionSuite) checkDetectedLanguage(command string, language 
 			pid, language, actualLanguage, err),
 	)
 
-	s.Env().Host.MustExecute(fmt.Sprintf("kill -SIGTERM %s", pid))
+	s.Env().RemoteHost.MustExecute(fmt.Sprintf("kill -SIGTERM %s", pid))
 }
 
 func (s *languageDetectionSuite) getPidForCommand(command string) string {
-	pid, err := s.Env().Host.Execute(fmt.Sprintf("ps -C %s -o pid=", command))
+	pid, err := s.Env().RemoteHost.Execute(fmt.Sprintf("ps -C %s -o pid=", command))
 	if err != nil {
 		return ""
 	}
@@ -82,7 +82,7 @@ func (s *languageDetectionSuite) getPidForCommand(command string) string {
 }
 
 func (s *languageDetectionSuite) getLanguageForPid(pid string) (string, error) {
-	wl := s.Env().Host.MustExecute("sudo /opt/datadog-agent/bin/agent/agent workload-list")
+	wl := s.Env().RemoteHost.MustExecute("sudo /opt/datadog-agent/bin/agent/agent workload-list")
 	if len(strings.TrimSpace(wl)) == 0 {
 		return "", errors.New("agent workload-list was empty")
 	}

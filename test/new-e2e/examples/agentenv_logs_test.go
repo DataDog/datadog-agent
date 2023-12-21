@@ -13,7 +13,7 @@ import (
 	fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/vm"
+	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
@@ -21,7 +21,7 @@ import (
 )
 
 type vmFakeintakeSuite struct {
-	e2e.BaseSuite[environments.VM]
+	e2e.BaseSuite[environments.Host]
 }
 
 //go:embed testfixtures/custom_logs.yaml
@@ -48,7 +48,7 @@ func (s *vmFakeintakeSuite) TestLogs() {
 	}, 5*time.Minute, 10*time.Second)
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		// part 2: generate logs
-		s.Env().Host.MustExecute("echo 'totoro' >> /tmp/test.log")
+		s.Env().RemoteHost.MustExecute("echo 'totoro' >> /tmp/test.log")
 		// part 3: there should be logs
 		names, err := fakeintake.GetLogServiceNames()
 		assert.NoError(c, err)

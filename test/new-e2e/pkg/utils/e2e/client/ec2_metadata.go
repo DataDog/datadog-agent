@@ -13,14 +13,14 @@ import (
 
 // EC2Metadata contains a pointer to a VM and its AWS token
 type EC2Metadata struct {
-	h     *components.Host
+	h     *components.RemoteHost
 	token string
 }
 
 const metadataEndPoint = "http://169.254.169.254"
 
 // NewEC2Metadata creates a new [EC2Metadata] given an EC2 [VM]
-func NewEC2Metadata(h *components.Host) *EC2Metadata {
+func NewEC2Metadata(h *components.RemoteHost) *EC2Metadata {
 	cmd := fmt.Sprintf(`curl -s -X PUT "%v/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600"`, metadataEndPoint)
 	output := h.MustExecute(cmd)
 	return &EC2Metadata{h: h, token: output}

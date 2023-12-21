@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/vm"
+	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 )
@@ -41,7 +41,7 @@ func (v *linuxFlareSuite) TestFlareWithAllConfiguration() {
 	}
 
 	systemProbeDummyFiles := []string{"/tmp/dummy_dir", "/tmp/dummy_system_probe_config_bpf_dir"}
-	v.Env().Host.MustExecute("sudo mkdir -p " + strings.Join(systemProbeDummyFiles, " "))
+	v.Env().RemoteHost.MustExecute("sudo mkdir -p " + strings.Join(systemProbeDummyFiles, " "))
 
 	confdPath := "/opt/datadog-agent/bin/agent/dist/conf.d/"
 	useSudo := true

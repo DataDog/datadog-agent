@@ -14,11 +14,11 @@ import (
 
 // ServiceSvcManager struct for Service service manager
 type ServiceSvcManager struct {
-	host *components.Host
+	host *components.RemoteHost
 }
 
 // NewServiceSvcManager return service service manager
-func NewServiceSvcManager(host *components.Host) *ServiceSvcManager {
+func NewServiceSvcManager(host *components.RemoteHost) *ServiceSvcManager {
 	return &ServiceSvcManager{host: host}
 }
 

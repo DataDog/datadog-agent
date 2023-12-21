@@ -22,11 +22,11 @@ import (
 )
 
 type fileManagerSuiteEx7 struct {
-	e2e.BaseSuite[environments.VM]
+	e2e.BaseSuite[environments.Host]
 }
 
-func customProvisionerFileManager(localFolderPath string, remoteFolderPath string) e2e.PulumiEnvRunFunc[environments.VM] {
-	return func(ctx *pulumi.Context, env *environments.VM) error {
+func customProvisionerFileManager(localFolderPath string, remoteFolderPath string) e2e.PulumiEnvRunFunc[environments.Host] {
+	return func(ctx *pulumi.Context, env *environments.Host) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
 			return err
@@ -36,7 +36,7 @@ func customProvisionerFileManager(localFolderPath string, remoteFolderPath strin
 		if err != nil {
 			return err
 		}
-		vm.Export(ctx, &env.Host.HostOutput)
+		vm.Export(ctx, &env.RemoteHost.HostOutput)
 
 		vm.OS.FileManager().CopyAbsoluteFolder(localFolderPath, remoteFolderPath)
 
@@ -56,8 +56,8 @@ func TestFileManagerSuiteEx7(t *testing.T) {
 }
 
 func (v *fileManagerSuiteEx7) TestCopy() {
-	output0 := v.Env().Host.MustExecute("cat test/test-folder/file-0")
-	output1 := v.Env().Host.MustExecute("cat test/test-folder/folder-1/file-1")
+	output0 := v.Env().RemoteHost.MustExecute("cat test/test-folder/file-0")
+	output1 := v.Env().RemoteHost.MustExecute("cat test/test-folder/folder-1/file-1")
 
 	require.Equal(v.T(), "This is a test file 0", output0)
 	require.Equal(v.T(), "This is a test file 1", output1)

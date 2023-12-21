@@ -12,7 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/vm"
+	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 )
@@ -20,12 +20,12 @@ import (
 var devMode = flag.Bool("devmode", false, "enable dev mode")
 
 type vmSuite struct {
-	e2e.BaseSuite[environments.VM]
+	e2e.BaseSuite[environments.Host]
 }
 
 // TestVMSuite runs tests for the VM interface to ensure its implementation is correct.
 func TestVMSuite(t *testing.T) {
-	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awsvm.Provisioner(awsvm.WithEC2VMOptions(ec2.WithOS(os.WindowsDefault))))}
+	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awsvm.Provisioner(awsvm.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault))))}
 	if *devMode {
 		suiteParams = append(suiteParams, e2e.WithDevMode())
 	}
@@ -34,7 +34,7 @@ func TestVMSuite(t *testing.T) {
 }
 
 func (v *vmSuite) TestExecute() {
-	vm := v.Env().Host
+	vm := v.Env().RemoteHost
 
 	out, err := vm.Execute("whoami")
 	v.Require().NoError(err)
@@ -42,7 +42,7 @@ func (v *vmSuite) TestExecute() {
 }
 
 func (v *vmSuite) TestFileOperations() {
-	vm := v.Env().Host
+	vm := v.Env().RemoteHost
 	testFilePath := "test"
 
 	v.T().Cleanup(func() {
@@ -95,7 +95,7 @@ func (v *vmSuite) TestFileOperations() {
 }
 
 func (v *vmSuite) TestDirectoryOperations() {
-	vm := v.Env().Host
+	vm := v.Env().RemoteHost
 	testDirPath := "testDirectory"
 	testSubDirPath := "testDirectory/testSubDirectory"
 

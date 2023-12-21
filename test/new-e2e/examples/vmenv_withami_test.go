@@ -10,7 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/vm"
+	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 
 	"github.com/DataDog/test-infra-definitions/components/os"
@@ -20,19 +20,19 @@ import (
 )
 
 type vmSuiteEx2 struct {
-	e2e.BaseSuite[environments.VM]
+	e2e.BaseSuite[environments.Host]
 }
 
 func TestVMSuiteEx2(t *testing.T) {
 	e2e.Run(t, &vmSuiteEx2{}, e2e.WithProvisioner(
 		awsvm.Provisioner(
-			awsvm.WithEC2VMOptions(ec2.WithAMI("ami-05fab674de2157a80", os.AmazonLinux2, os.ARM64Arch), ec2.WithInstanceType("c6g.medium")),
+			awsvm.WithEC2InstanceOptions(ec2.WithAMI("ami-05fab674de2157a80", os.AmazonLinux2, os.ARM64Arch), ec2.WithInstanceType("c6g.medium")),
 		),
 	))
 }
 
 func (v *vmSuiteEx2) TestAmiMatch() {
-	ec2Metadata := client.NewEC2Metadata(v.Env().Host)
+	ec2Metadata := client.NewEC2Metadata(v.Env().RemoteHost)
 	amiID := ec2Metadata.Get("ami-id")
 	assert.Equal(v.T(), amiID, "ami-05fab674de2157a80")
 }

@@ -48,7 +48,7 @@ type Helper interface {
 	GetServiceName() string
 }
 
-func getServiceManager(host *components.Host) ServiceManager {
+func getServiceManager(host *components.RemoteHost) ServiceManager {
 	if _, err := host.Execute("command -v systemctl"); err == nil {
 		return svcmanager.NewSystemctlSvcManager(host)
 	}
@@ -63,7 +63,7 @@ func getServiceManager(host *components.Host) ServiceManager {
 	return nil
 }
 
-func getPackageManager(host *components.Host) PackageManager {
+func getPackageManager(host *components.RemoteHost) PackageManager {
 	if _, err := host.Execute("command -v apt"); err == nil {
 		return pkgmanager.NewAptPackageManager(host)
 	}
@@ -81,7 +81,7 @@ func getPackageManager(host *components.Host) PackageManager {
 
 // TestClient contain the Agent Env and SvcManager and PkgManager for tests
 type TestClient struct {
-	Host        *components.Host
+	Host        *components.RemoteHost
 	AgentClient agentclient.Agent
 	Helper      Helper
 	FileManager FileManager
@@ -90,7 +90,7 @@ type TestClient struct {
 }
 
 // NewTestClient create a an ExtendedClient from VMClient and AgentCommandRunner, includes svcManager and pkgManager to write agent-platform tests
-func NewTestClient(host *components.Host, agentClient agentclient.Agent, fileManager FileManager, helper Helper) *TestClient {
+func NewTestClient(host *components.RemoteHost, agentClient agentclient.Agent, fileManager FileManager, helper Helper) *TestClient {
 	svcManager := getServiceManager(host)
 	pkgManager := getPackageManager(host)
 	return &TestClient{

@@ -17,7 +17,7 @@ import (
 )
 
 type dockerSuite struct {
-	e2e.BaseSuite[environments.DockerVM]
+	e2e.BaseSuite[environments.DockerHost]
 }
 
 func TestDocker(t *testing.T) {

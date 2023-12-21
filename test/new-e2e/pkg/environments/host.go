@@ -6,20 +6,20 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 )
 
-// VM is an environment that contains a VM, FakeIntake and Agent configured to talk to each other.
-type VM struct {
+// Host is an environment that contains a Host, FakeIntake and Agent configured to talk to each other.
+type Host struct {
 	// Components
-	Host       *components.Host
+	RemoteHost *components.RemoteHost
 	FakeIntake *components.FakeIntake
-	Agent      *components.HostAgent
+	Agent      *components.RemoteHostAgent
 }
 
-var _ e2e.Initializable = &VM{}
+var _ e2e.Initializable = &Host{}
 
 // Init initializes the environment
-func (e *VM) Init(ctx e2e.Context) error {
+func (e *Host) Init(ctx e2e.Context) error {
 	if e.Agent != nil {
-		agent, err := client.NewHostAgentClient(ctx.T(), e.Host, true)
+		agent, err := client.NewHostAgentClient(ctx.T(), e.RemoteHost, true)
 		if err != nil {
 			return err
 		}

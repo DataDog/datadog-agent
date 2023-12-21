@@ -104,11 +104,11 @@ func WithoutAgent() ProvisionerOption {
 
 // Provisioner creates a VM environment with an EC2 VM with Docker, an ECS Fargate FakeIntake and a Docker Agent configured to talk to each other.
 // FakeIntake and Agent creation can be deactivated by using [WithoutFakeIntake] and [WithoutAgent] options.
-func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.DockerVM] {
+func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.DockerHost] {
 	params := newProvisionerParams()
 	err := optional.ApplyOptions(params, opts)
 
-	provisioner := e2e.NewPulumiTypedProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.DockerVM) error {
+	provisioner := e2e.NewPulumiTypedProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.DockerHost) error {
 		// We are abusing Pulumi RunFunc error to return our parameter parsing error, in the sake of the slightly simpler API.
 		if err != nil {
 			return err

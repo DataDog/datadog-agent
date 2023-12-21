@@ -14,11 +14,11 @@ import (
 
 // SystemCtlSvcManager struct for the Systemctl service manager
 type SystemCtlSvcManager struct {
-	host *components.Host
+	host *components.RemoteHost
 }
 
 // NewSystemctlSvcManager return systemctl service manager
-func NewSystemctlSvcManager(host *components.Host) *SystemCtlSvcManager {
+func NewSystemctlSvcManager(host *components.RemoteHost) *SystemCtlSvcManager {
 	return &SystemCtlSvcManager{host: host}
 }
 

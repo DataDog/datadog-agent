@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/vm"
+	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	filemanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/file-manager"
@@ -39,7 +39,7 @@ var (
 )
 
 type installScriptSuite struct {
-	e2e.BaseSuite[environments.VM]
+	e2e.BaseSuite[environments.Host]
 	cwsSupported bool
 }
 
@@ -82,7 +82,7 @@ func TestInstallScript(t *testing.T) {
 				&installScriptSuite{cwsSupported: cwsSupported},
 				e2e.WithProvisioner(awsvm.Provisioner(
 					awsvm.WithoutAgent(),
-					awsvm.WithEC2VMOptions(vmOpts...),
+					awsvm.WithEC2InstanceOptions(vmOpts...),
 				)),
 				e2e.WithStackName(fmt.Sprintf("install-script-test-%v-%v-%s-%s-%v", os.Getenv("CI_PIPELINE_ID"), osVers, *architecture, *flavor, *majorVersion)),
 			)
@@ -104,13 +104,13 @@ func (is *installScriptSuite) TestInstallAgent() {
 }
 
 func (is *installScriptSuite) AgentTest(flavor string) {
-	host := is.Env().Host
+	host := is.Env().RemoteHost
 	fileManager := filemanager.NewUnixFileManager(host)
 	agentClient, err := client.NewHostAgentClient(is.T(), host, false)
 	require.NoError(is.T(), err)
 
 	unixHelper := helpers.NewUnixHelper()
-	client := common.NewTestClient(is.Env().Host, agentClient, fileManager, unixHelper)
+	client := common.NewTestClient(is.Env().RemoteHost, agentClient, fileManager, unixHelper)
 
 	install.Unix(is.T(), client, installparams.WithArch(*architecture), installparams.WithFlavor(flavor), installparams.WithMajorVersion(*majorVersion))
 
@@ -133,13 +133,13 @@ func (is *installScriptSuite) AgentTest(flavor string) {
 }
 
 func (is *installScriptSuite) IotAgentTest() {
-	host := is.Env().Host
+	host := is.Env().RemoteHost
 	fileManager := filemanager.NewUnixFileManager(host)
 	agentClient, err := client.NewHostAgentClient(is.T(), host, false)
 	require.NoError(is.T(), err)
 
 	unixHelper := helpers.NewUnixHelper()
-	client := common.NewTestClient(is.Env().Host, agentClient, fileManager, unixHelper)
+	client := common.NewTestClient(is.Env().RemoteHost, agentClient, fileManager, unixHelper)
 
 	install.Unix(is.T(), client, installparams.WithArch(*architecture), installparams.WithFlavor(*flavor))
 
@@ -153,13 +153,13 @@ func (is *installScriptSuite) IotAgentTest() {
 }
 
 func (is *installScriptSuite) DogstatsdAgentTest() {
-	host := is.Env().Host
+	host := is.Env().RemoteHost
 	fileManager := filemanager.NewUnixFileManager(host)
 	agentClient, err := client.NewHostAgentClient(is.T(), host, false)
 	require.NoError(is.T(), err)
 
 	unixHelper := helpers.NewUnixHelper()
-	client := common.NewTestClient(is.Env().Host, agentClient, fileManager, unixHelper)
+	client := common.NewTestClient(is.Env().RemoteHost, agentClient, fileManager, unixHelper)
 
 	install.Unix(is.T(), client, installparams.WithArch(*architecture), installparams.WithFlavor(*flavor))
 

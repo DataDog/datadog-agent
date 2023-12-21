@@ -11,11 +11,11 @@ import (
 
 // ZypperPackageManager is a package manager for zypper
 type ZypperPackageManager struct {
-	host *components.Host
+	host *components.RemoteHost
 }
 
 // NewZypperPackageManager return zypper package manager
-func NewZypperPackageManager(host *components.Host) *ZypperPackageManager {
+func NewZypperPackageManager(host *components.RemoteHost) *ZypperPackageManager {
 	return &ZypperPackageManager{host: host}
 }
 

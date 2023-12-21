@@ -6,7 +6,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 )
 
-type HostAgent struct {
+type RemoteHostAgent struct {
 	agent.HostAgentOutput
 
 	// Client cannot be initialized inline as it requires other information to create client

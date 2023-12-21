@@ -10,14 +10,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/vm"
+	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
 )
 
 type agentHostnameSuite struct {
-	e2e.BaseSuite[environments.VM]
+	e2e.BaseSuite[environments.Host]
 }
 
 func TestAgentHostnameEC2Suite(t *testing.T) {
@@ -28,7 +28,7 @@ func TestAgentHostnameEC2Suite(t *testing.T) {
 func (v *agentHostnameSuite) TestAgentHostnameDefaultsToResourceId() {
 	v.UpdateEnv(awsvm.Provisioner(awsvm.WithoutFakeIntake(), awsvm.WithAgentOptions(agentparams.WithAgentConfig(""))))
 
-	metadata := client.NewEC2Metadata(v.Env().Host)
+	metadata := client.NewEC2Metadata(v.Env().RemoteHost)
 	hostname := v.Env().Agent.Client.Hostname()
 
 	// Default configuration of hostname for EC2 instances is the resource-id
@@ -74,7 +74,7 @@ ec2_prioritize_instance_id_as_hostname: true`
 
 func (v *agentHostnameSuite) TestAgentConfigPreferImdsv2() {
 	v.UpdateEnv(awsvm.Provisioner(awsvm.WithoutFakeIntake(), awsvm.WithAgentOptions(agentparams.WithAgentConfig("ec2_prefer_imdsv2: true"))))
-	metadata := client.NewEC2Metadata(v.Env().Host)
+	metadata := client.NewEC2Metadata(v.Env().RemoteHost)
 
 	hostname := v.Env().Agent.Client.Hostname()
 	resourceID := metadata.Get("instance-id")

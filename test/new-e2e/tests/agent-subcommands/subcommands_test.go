@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/vm"
+	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
@@ -22,7 +22,7 @@ import (
 )
 
 type subcommandSuite struct {
-	e2e.BaseSuite[environments.VM]
+	e2e.BaseSuite[environments.Host]
 }
 
 func TestSubcommandSuite(t *testing.T) {
@@ -88,7 +88,7 @@ func verifySectionContent(t *testing.T, statusOutput string, section expectedSec
 }
 
 func (v *subcommandSuite) TestDefaultInstallStatus() {
-	metadata := client.NewEC2Metadata(v.Env().Host)
+	metadata := client.NewEC2Metadata(v.Env().RemoteHost)
 	resourceID := metadata.Get("instance-id")
 
 	expectedSections := []expectedSection{

@@ -12,13 +12,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/vm"
+	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/require"
 )
 
 type agentSuiteEx6 struct {
-	e2e.Suite[environments.VM]
+	e2e.Suite[environments.Host]
 }
 
 func TestAgentSuiteEx6(t *testing.T) {
@@ -34,13 +34,13 @@ func (v *agentSuiteEx6) TestCopy() {
 	require.NoError(v.T(), err)
 	v.UpdateEnv(awsvm.Provisioner(awsvm.WithAgentOptions(agentparams.WithFile("/etc/hosts", string(file), true))))
 
-	v.Env().Host.CopyFolder(path.Join(testFolder), "test")
-	v.Env().Host.CopyFile(path.Join(testFolder, "file-0"), "copied-file")
+	v.Env().RemoteHost.CopyFolder(path.Join(testFolder), "test")
+	v.Env().RemoteHost.CopyFile(path.Join(testFolder, "file-0"), "copied-file")
 
-	output0 := v.Env().Host.MustExecute("cat test/file-0")
-	output1 := v.Env().Host.MustExecute("cat test/folder-1/file-1")
-	output2 := v.Env().Host.MustExecute("cat copied-file")
-	output3 := v.Env().Host.MustExecute("cat /etc/hosts")
+	output0 := v.Env().RemoteHost.MustExecute("cat test/file-0")
+	output1 := v.Env().RemoteHost.MustExecute("cat test/folder-1/file-1")
+	output2 := v.Env().RemoteHost.MustExecute("cat copied-file")
+	output3 := v.Env().RemoteHost.MustExecute("cat /etc/hosts")
 
 	require.Equal(v.T(), "This is a test file 0", output0)
 	require.Equal(v.T(), "This is a test file 1", output1)

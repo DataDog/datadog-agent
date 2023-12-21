@@ -25,16 +25,16 @@ const (
 	sshMaxRetries    = 5
 )
 
-type Host struct {
+type RemoteHost struct {
 	remote.HostOutput
 
 	client  *ssh.Client
 	context e2e.Context
 }
 
-var _ e2e.Initializable = &Host{}
+var _ e2e.Initializable = &RemoteHost{}
 
-func (h *Host) Init(ctx e2e.Context) error {
+func (h *RemoteHost) Init(ctx e2e.Context) error {
 	h.context = ctx
 	h.context.T().Logf("connecting to remote VM at %s@%s", h.Username, h.Address)
 
@@ -72,7 +72,7 @@ func (h *Host) Init(ctx e2e.Context) error {
 }
 
 // Execute executes a command and returns an error if any.
-func (h *Host) Execute(command string, options ...ExecuteOption) (string, error) {
+func (h *RemoteHost) Execute(command string, options ...ExecuteOption) (string, error) {
 	params, err := optional.MakeParams(options...)
 	if err != nil {
 		return "", err
@@ -87,70 +87,70 @@ func (h *Host) Execute(command string, options ...ExecuteOption) (string, error)
 }
 
 // MustExecute executes a command and returns its output.
-func (h *Host) MustExecute(command string, options ...ExecuteOption) string {
+func (h *RemoteHost) MustExecute(command string, options ...ExecuteOption) string {
 	output, err := h.Execute(command, options...)
 	require.NoError(h.context.T(), err)
 	return output
 }
 
 // CopyFile copy file to the remote host
-func (h *Host) CopyFile(src string, dst string) {
+func (h *RemoteHost) CopyFile(src string, dst string) {
 	err := clients.CopyFile(h.client, src, dst)
 	require.NoError(h.context.T(), err)
 }
 
 // CopyFolder copy a folder to the remote host
-func (h *Host) CopyFolder(srcFolder string, dstFolder string) {
+func (h *RemoteHost) CopyFolder(srcFolder string, dstFolder string) {
 	err := clients.CopyFolder(h.client, srcFolder, dstFolder)
 	require.NoError(h.context.T(), err)
 }
 
 // FileExists returns true if the file exists and is a regular file and returns an error if any
-func (h *Host) FileExists(path string) (bool, error) {
+func (h *RemoteHost) FileExists(path string) (bool, error) {
 	return clients.FileExists(h.client, path)
 }
 
 // ReadFile reads the content of the file, return bytes read and error if any
-func (h *Host) ReadFile(path string) ([]byte, error) {
+func (h *RemoteHost) ReadFile(path string) ([]byte, error) {
 	return clients.ReadFile(h.client, path)
 }
 
 // WriteFile write content to the file and returns the number of bytes written and error if any
-func (h *Host) WriteFile(path string, content []byte) (int64, error) {
+func (h *RemoteHost) WriteFile(path string, content []byte) (int64, error) {
 	return clients.WriteFile(h.client, path, content)
 }
 
 // ReadDir returns list of directory entries in path
-func (h *Host) ReadDir(path string) ([]fs.DirEntry, error) {
+func (h *RemoteHost) ReadDir(path string) ([]fs.DirEntry, error) {
 	return clients.ReadDir(h.client, path)
 }
 
 // Lstat returns a FileInfo structure describing path.
 // if path is a symbolic link, the FileInfo structure describes the symbolic link.
-func (h *Host) Lstat(path string) (fs.FileInfo, error) {
+func (h *RemoteHost) Lstat(path string) (fs.FileInfo, error) {
 	return clients.Lstat(h.client, path)
 }
 
 // MkdirAll creates the specified directory along with any necessary parents.
 // If the path is already a directory, does nothing and returns nil.
 // Otherwise returns an error if any.
-func (h *Host) MkdirAll(path string) error {
+func (h *RemoteHost) MkdirAll(path string) error {
 	return clients.MkdirAll(h.client, path)
 }
 
 // Remove removes the specified file or directory.
 // Returns an error if file or directory does not exist, or if the directory is not empty.
-func (h *Host) Remove(path string) error {
+func (h *RemoteHost) Remove(path string) error {
 	return clients.Remove(h.client, path)
 }
 
 // RemoveAll recursively removes all files/folders in the specified directory.
 // Returns an error if the directory does not exist.
-func (h *Host) RemoveAll(path string) error {
+func (h *RemoteHost) RemoveAll(path string) error {
 	return clients.RemoveAll(h.client, path)
 }
 
-func (h *Host) buildEnvVariables(command string, envVar EnvVar) string {
+func (h *RemoteHost) buildEnvVariables(command string, envVar EnvVar) string {
 	cmd := ""
 	if h.OSFamily == osComp.WindowsFamily {
 		envVarSave := map[string]string{}

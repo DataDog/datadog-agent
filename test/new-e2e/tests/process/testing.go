@@ -29,7 +29,7 @@ var processDiscoveryCheckConfigStr string
 var systemProbeConfigStr string
 
 // assertRunningChecks asserts that the given process agent checks are running on the given VM
-func assertRunningChecks(t *assert.CollectT, vm *components.Host, checks []string, withSystemProbe bool) {
+func assertRunningChecks(t *assert.CollectT, vm *components.RemoteHost, checks []string, withSystemProbe bool) {
 	status := vm.MustExecute("sudo datadog-agent status --json")
 	var statusMap struct {
 		ProcessAgentStatus struct {

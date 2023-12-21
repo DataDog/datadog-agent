@@ -36,8 +36,8 @@ import (
 )
 
 type multiFakeIntakeEnv struct {
-	Host        *components.Host
-	Agent       *components.HostAgent
+	Host        *components.RemoteHost
+	Agent       *components.RemoteHostAgent
 	Fakeintake1 *components.FakeIntake
 	Fakeintake2 *components.FakeIntake
 }
@@ -234,7 +234,7 @@ func (v *multiFakeIntakeSuite) requireIntakeNotUsed(intake *fi.Client, intakeMax
 
 // setHostEntry adds an entry in /etc/hosts for the given hostname and hostIP
 // if there is already an entry for that hostname, it is replaced
-func setHostEntry(t *testing.T, host *components.Host, hostname string, hostIP string) {
+func setHostEntry(t *testing.T, host *components.RemoteHost, hostname string, hostIP string) {
 	// we could remove the line and then add the new one,
 	// but it's better to avoid not having the line in the file between the two operations
 
@@ -261,7 +261,7 @@ func setHostEntry(t *testing.T, host *components.Host, hostname string, hostIP s
 
 // enforceNSSwitchFiles ensures /etc/nsswitch.conf uses `files` first for the `hosts` entry
 // so that an NSS query uses /etc/hosts before DNS
-func enforceNSSwitchFiles(t *testing.T, host *components.Host) {
+func enforceNSSwitchFiles(t *testing.T, host *components.RemoteHost) {
 	// for the specifics of the nsswitch.conf file format, see its man page
 	//
 	// in short, the hosts line starts with "hosts:", then a whitespace separated list of "services"

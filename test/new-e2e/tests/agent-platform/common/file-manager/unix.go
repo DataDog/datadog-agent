@@ -14,11 +14,11 @@ import (
 
 // Unix implement filemanager interface for Unix distributions
 type Unix struct {
-	host *components.Host
+	host *components.RemoteHost
 }
 
 // NewUnixFileManager create a new unix file manager
-func NewUnixFileManager(host *components.Host) *Unix {
+func NewUnixFileManager(host *components.RemoteHost) *Unix {
 	return &Unix{host: host}
 }
 

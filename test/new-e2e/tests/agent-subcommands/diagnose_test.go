@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/vm"
+	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	svcmanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/svc-manager"
 
@@ -26,7 +26,7 @@ import (
 )
 
 type agentDiagnoseSuite struct {
-	e2e.BaseSuite[environments.VM]
+	e2e.BaseSuite[environments.Host]
 }
 
 var allSuites = []string{
@@ -68,7 +68,7 @@ func (v *agentDiagnoseSuite) TestDiagnoseLocal() {
 }
 
 func (v *agentDiagnoseSuite) TestDiagnoseLocalFallback() {
-	svcManager := svcmanager.NewSystemctlSvcManager(v.Env().Host)
+	svcManager := svcmanager.NewSystemctlSvcManager(v.Env().RemoteHost)
 	svcManager.Stop("datadog-agent")
 
 	diagnose := getDiagnoseOutput(v)
