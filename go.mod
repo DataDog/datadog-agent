@@ -24,6 +24,8 @@ replace (
 )
 
 replace (
+	github.com/DataDog/datadog-agent/cmd/agent/common/path => ./cmd/agent/common/path/
+	github.com/DataDog/datadog-agent/comp/core/config => ./comp/core/config/
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ./comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/secrets => ./comp/core/secrets
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ./comp/core/telemetry/
@@ -33,6 +35,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/logs => ./pkg/config/logs
 	github.com/DataDog/datadog-agent/pkg/config/model => ./pkg/config/model/
 	github.com/DataDog/datadog-agent/pkg/config/remote => ./pkg/config/remote/
+	github.com/DataDog/datadog-agent/pkg/config/setup => ./pkg/config/setup/
 	github.com/DataDog/datadog-agent/pkg/errors => ./pkg/errors
 	github.com/DataDog/datadog-agent/pkg/gohai => ./pkg/gohai
 	github.com/DataDog/datadog-agent/pkg/metrics => ./pkg/metrics/
@@ -57,6 +60,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ./pkg/util/filesystem
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ./pkg/util/fxutil/
 	github.com/DataDog/datadog-agent/pkg/util/grpc => ./pkg/util/grpc/
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ./pkg/util/hostname/validate/
 	github.com/DataDog/datadog-agent/pkg/util/http => ./pkg/util/http/
 	github.com/DataDog/datadog-agent/pkg/util/json => ./pkg/util/json
 	github.com/DataDog/datadog-agent/pkg/util/log => ./pkg/util/log
@@ -89,7 +93,7 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.4.0
 	// do not update datadog-operator to 1.2.1 because the indirect dependency github.com/DataDog/datadog-api-client-go/v2 v2.15.0 is trigger a huge Go heap memory increase.
 	github.com/DataDog/datadog-operator v1.1.0
-	github.com/DataDog/ebpf-manager v0.3.9
+	github.com/DataDog/ebpf-manager v0.4.0
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.1
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.8.1
@@ -245,7 +249,7 @@ require (
 	golang.org/x/sys v0.15.0
 	golang.org/x/text v0.14.0
 	golang.org/x/time v0.3.0
-	golang.org/x/tools v0.16.0
+	golang.org/x/tools v0.16.1
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 	google.golang.org/genproto v0.0.0-20231030173426-d783a09b4405 // indirect
 	google.golang.org/grpc v1.59.0
@@ -551,7 +555,7 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.20.0 // indirect
 	go.opentelemetry.io/otel/trace v1.20.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.0.0 // indirect
-	golang.org/x/crypto v0.16.0 // indirect
+	golang.org/x/crypto v0.17.0 // indirect
 	golang.org/x/mod v0.14.0
 	golang.org/x/oauth2 v0.11.0 // indirect
 	golang.org/x/term v0.15.0 // indirect
@@ -588,6 +592,8 @@ require github.com/lorenzosaino/go-sysctl v0.3.1
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/DataDog/agent-payload/v5 v5.0.100
+	github.com/DataDog/datadog-agent/cmd/agent/common/path v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/config v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.50.0-rc.4
@@ -597,6 +603,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/logs v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/config/model v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/config/remote v0.50.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/errors v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/metrics v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile v0.50.0-rc.4
@@ -614,6 +621,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/grpc v0.50.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/http v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/json v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.50.0-rc.4
@@ -636,7 +644,7 @@ require (
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/kr/pretty v0.3.1
 	github.com/protocolbuffers/protoscope v0.0.0-20221109213918-8e7a6aafa2c9
-	github.com/sijms/go-ora/v2 v2.7.6
+	github.com/sijms/go-ora/v2 v2.8.1
 	go.opentelemetry.io/collector/extension v0.87.0
 	go.opentelemetry.io/collector/otelcol v0.87.0
 	go.opentelemetry.io/collector/processor v0.87.0
@@ -650,7 +658,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.50.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.50.0-rc.4 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.13.0 // indirect
-	github.com/DataDog/go-sqllexer v0.0.8 // indirect
+	github.com/DataDog/go-sqllexer v0.0.9 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr v1.4.10 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.10.3 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect

@@ -41,7 +41,7 @@ func NewHorizontalPodAutoscalerCollector() *HorizontalPodAutoscalerCollector {
 	return &HorizontalPodAutoscalerCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:          true,
-			IsStable:                  false,
+			IsStable:                  true,
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,

@@ -11,6 +11,7 @@ import (
 	json "encoding/json"
 	"errors"
 	"fmt"
+	"runtime"
 	"sync"
 	"time"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
+	"github.com/DataDog/datadog-agent/pkg/security/rules/monitor"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -54,7 +56,7 @@ type RuleEngine struct {
 	policyProviders           []rules.PolicyProvider
 	policyLoader              *rules.PolicyLoader
 	policyOpts                rules.PolicyLoaderOpts
-	policyMonitor             *PolicyMonitor
+	policyMonitor             *monitor.PolicyMonitor
 	statsdClient              statsd.ClientInterface
 	eventSender               events.EventSender
 	rulesetListeners          []rules.RuleSetListener
@@ -62,7 +64,8 @@ type RuleEngine struct {
 
 // APIServer defines the API server
 type APIServer interface {
-	Apply([]string)
+	ApplyRuleIDs([]rules.RuleID)
+	ApplyPolicyStates([]*monitor.PolicyState)
 }
 
 // NewRuleEngine returns a new rule engine
@@ -74,7 +77,7 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 		eventSender:               sender,
 		rateLimiter:               rateLimiter,
 		reloading:                 atomic.NewBool(false),
-		policyMonitor:             NewPolicyMonitor(evm.StatsdClient, config.PolicyMonitorPerRuleEnabled),
+		policyMonitor:             monitor.NewPolicyMonitor(evm.StatsdClient, config.PolicyMonitorPerRuleEnabled),
 		currentRuleSet:            new(atomic.Value),
 		currentThreatScoreRuleSet: new(atomic.Value),
 		policyLoader:              rules.NewPolicyLoader(),
@@ -90,6 +93,16 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 	engine.policyProviders = engine.gatherDefaultPolicyProviders()
 
 	return engine, nil
+}
+
+func getOrigin(cfg *config.RuntimeSecurityConfig) string {
+	if runtime.GOOS == "linux" {
+		if cfg.EBPFLessEnabled {
+			return "ebpfless"
+		}
+		return "ebpf"
+	}
+	return ""
 }
 
 // Start the rule engine
@@ -116,7 +129,7 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 		ruleFilters = append(ruleFilters, agentVersionFilter)
 	}
 
-	ruleFilterModel, err := NewRuleFilterModel()
+	ruleFilterModel, err := NewRuleFilterModel(getOrigin(e.config))
 	if err != nil {
 		return fmt.Errorf("failed to create rule filter: %w", err)
 	}
@@ -314,20 +327,26 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 
 	}
 
-	e.apiServer.Apply(ruleIDs)
+	policies := monitor.NewPoliciesState(evaluationSet.RuleSets, loadErrs, e.config.PolicyMonitorReportInternalPolicies)
+	e.notifyAPIServer(ruleIDs, policies)
 
 	if sendLoadedReport {
-		ReportRuleSetLoaded(e.eventSender, e.statsdClient, evaluationSet.RuleSets, loadErrs)
-		e.policyMonitor.SetPolicies(evaluationSet.GetPolicies(), loadErrs)
+		monitor.ReportRuleSetLoaded(e.eventSender, e.statsdClient, policies)
+		e.policyMonitor.SetPolicies(policies)
 	}
 
 	return nil
 }
 
+func (e *RuleEngine) notifyAPIServer(ruleIDs []rules.RuleID, policies []*monitor.PolicyState) {
+	e.apiServer.ApplyRuleIDs(ruleIDs)
+	e.apiServer.ApplyPolicyStates(policies)
+}
+
 func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {
 	var policyProviders []rules.PolicyProvider
 
-	policyProviders = append(policyProviders, &BundledPolicyProvider{})
+	policyProviders = append(policyProviders, NewBundledPolicyProvider(e.config))
 
 	// add remote config as config provider if enabled.
 	if e.config.RemoteConfigurationEnabled {
@@ -505,19 +524,16 @@ func (e *RuleEngine) StopEventCollector() []rules.CollectedEvent {
 }
 
 func logLoadingErrors(msg string, m *multierror.Error) {
-	var errorLevel bool
 	for _, err := range m.Errors {
 		if rErr, ok := err.(*rules.ErrRuleLoad); ok {
-			if !errors.Is(rErr.Err, rules.ErrEventTypeNotEnabled) {
-				errorLevel = true
+			if !errors.Is(rErr.Err, rules.ErrEventTypeNotEnabled) && !errors.Is(rErr.Err, rules.ErrRuleAgentFilter) {
+				seclog.Errorf(msg, rErr.Error())
+			} else {
+				seclog.Warnf(msg, rErr.Error())
 			}
+		} else {
+			seclog.Errorf(msg, err.Error())
 		}
-	}
-
-	if errorLevel {
-		seclog.Errorf(msg, m.Error())
-	} else {
-		seclog.Warnf(msg, m.Error())
 	}
 }
 

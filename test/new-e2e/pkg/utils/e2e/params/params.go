@@ -15,6 +15,10 @@ type Params struct {
 	DevMode bool
 
 	SkipDeleteOnFailure bool
+
+	// Setting LazyEnvironment allows to skip environment creation
+	// until the first explicit call to suite.Env()
+	LazyEnvironment bool
 }
 
 // Option is an optional function parameter type for e2e options
@@ -41,5 +45,12 @@ func WithDevMode() func(*Params) {
 func WithSkipDeleteOnFailure() func(*Params) {
 	return func(options *Params) {
 		options.SkipDeleteOnFailure = true
+	}
+}
+
+// WithLazyEnvironment skips environment creation until the first explicit call to suite.Env()
+func WithLazyEnvironment() func(*Params) {
+	return func(options *Params) {
+		options.LazyEnvironment = true
 	}
 }

@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	svcmanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/svc-manager"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake/fakeintakeparams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -34,7 +33,7 @@ var allSuites = []string{
 }
 
 func TestAgentDiagnoseEC2Suite(t *testing.T) {
-	e2e.Run(t, &agentDiagnoseSuite{}, e2e.FakeIntakeStackDef(e2e.WithFakeIntakeParams(fakeintakeparams.WithoutLoadBalancer())))
+	e2e.Run(t, &agentDiagnoseSuite{}, e2e.FakeIntakeStackDef())
 }
 
 // type summary represents the number of success, fail, warnings and errors of a diagnose command

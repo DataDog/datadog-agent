@@ -104,7 +104,7 @@ def init(ctx, lite=False):
 @task
 def update_resources(ctx, no_backup=False):
     warn("Updating resource dependencies will delete all running stacks.")
-    if ask("are you sure you want to continue? (Y/n)") != "Y":
+    if ask("are you sure you want to continue? (y/n)").lower() != "y":
         raise Exit("[-] Update aborted")
 
     for stack in glob(f"{KMT_STACKS_DIR}/*"):
@@ -117,7 +117,7 @@ def update_resources(ctx, no_backup=False):
 @task
 def revert_resources(ctx):
     warn("Reverting resource dependencies will delete all running stacks.")
-    if ask("are you sure you want to revert to backups? (Y/n)") != "Y":
+    if ask("are you sure you want to revert to backups? (y/n)").lower() != "y":
         raise Exit("[-] Revert aborted")
 
     for stack in glob(f"{KMT_STACKS_DIR}/*"):
@@ -208,7 +208,7 @@ def sync(ctx, vms, stack=None, ssh_key=""):
     for _, vm, ip in target_vms:
         info(f"    Syncing VM {vm} with ip {ip}")
 
-    if ask("Do you want to sync? (y/n)") != "y":
+    if ask("Do you want to sync? (y/n)").lower() != "y":
         warn("[-] Sync aborted !")
         return
 

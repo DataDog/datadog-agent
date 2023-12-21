@@ -12,8 +12,10 @@ import (
 	"fmt"
 	"net"
 	"runtime"
+	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials/insecure"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -198,7 +200,12 @@ func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
 		grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) {
 			return net.Dial(family, url)
 		}),
-	)
+		grpc.WithConnectParams(grpc.ConnectParams{
+			Backoff: backoff.Config{
+				BaseDelay: time.Second,
+				MaxDelay:  time.Second,
+			},
+		}))
 	if err != nil {
 		return nil, err
 	}

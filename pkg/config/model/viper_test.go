@@ -8,6 +8,7 @@ package model
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -199,11 +200,11 @@ func TestSet(t *testing.T) {
 	config.Set("foo", "quux", SourceRC)
 	config.Set("foo", "corge", SourceCLI)
 
-	assert.Equal(t, config.AllFileSettingsWithoutDefault(), map[string]interface{}{"foo": "bar"})
-	assert.Equal(t, config.AllEnvVarSettingsWithoutDefault(), map[string]interface{}{"foo": "baz"})
-	assert.Equal(t, config.AllAgentRuntimeSettingsWithoutDefault(), map[string]interface{}{"foo": "qux"})
-	assert.Equal(t, config.AllRemoteSettingsWithoutDefault(), map[string]interface{}{"foo": "quux"})
-	assert.Equal(t, config.AllCliSettingsWithoutDefault(), map[string]interface{}{"foo": "corge"})
+	assert.Equal(t, config.AllSourceSettingsWithoutDefault(SourceFile), map[string]interface{}{"foo": "bar"})
+	assert.Equal(t, config.AllSourceSettingsWithoutDefault(SourceEnvVar), map[string]interface{}{"foo": "baz"})
+	assert.Equal(t, config.AllSourceSettingsWithoutDefault(SourceAgentRuntime), map[string]interface{}{"foo": "qux"})
+	assert.Equal(t, config.AllSourceSettingsWithoutDefault(SourceRC), map[string]interface{}{"foo": "quux"})
+	assert.Equal(t, config.AllSourceSettingsWithoutDefault(SourceCLI), map[string]interface{}{"foo": "corge"})
 
 	assert.Equal(t, config.Get("foo"), "corge")
 }
@@ -239,6 +240,44 @@ func TestAllFileSettingsWithoutDefault(t *testing.T) {
 		map[string]interface{}{
 			"baz": "qux",
 		},
-		config.AllFileSettingsWithoutDefault(),
+		config.AllSourceSettingsWithoutDefault(SourceFile),
 	)
+}
+
+func TestSourceFileReadConfig(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	yamlExample := []byte(`
+foo: bar
+`)
+
+	tempfile, err := os.CreateTemp("", "test-*.yaml")
+	assert.NoError(t, err, "failed to create temporary file")
+	tempfile.Write(yamlExample)
+	defer os.Remove(tempfile.Name())
+
+	config.SetConfigFile(tempfile.Name())
+	config.ReadInConfig()
+
+	assert.Equal(t, "bar", config.Get("foo"))
+	assert.Equal(t, SourceFile, config.GetSource("foo"))
+	assert.Equal(t, map[string]interface{}{"foo": "bar"}, config.AllSourceSettingsWithoutDefault(SourceFile))
+}
+
+func TestNotification(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+
+	updatedKeyCB1 := []string{}
+	updatedKeyCB2 := []string{}
+
+	config.OnUpdate(func(key string) { updatedKeyCB1 = append(updatedKeyCB1, key) })
+
+	config.Set("foo", "bar", SourceFile)
+	assert.Equal(t, []string{"foo"}, updatedKeyCB1)
+
+	config.OnUpdate(func(key string) { updatedKeyCB2 = append(updatedKeyCB2, key) })
+
+	config.Set("foo", "bar2", SourceFile)
+	config.Set("foo2", "bar2", SourceFile)
+	assert.Equal(t, []string{"foo", "foo", "foo2"}, updatedKeyCB1)
+	assert.Equal(t, []string{"foo", "foo2"}, updatedKeyCB2)
 }

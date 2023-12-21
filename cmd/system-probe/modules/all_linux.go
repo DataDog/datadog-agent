@@ -5,7 +5,7 @@
 
 //go:build linux
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// Package modules is all the module definitions for system-probe
 package modules
 
 import (
@@ -27,7 +27,6 @@ var All = []module.Factory{
 	ComplianceModule,
 }
 
-//nolint:revive // TODO(EBPF) Fix revive linter
-func inactivityEventLog(duration time.Duration) {
+func inactivityEventLog(_ time.Duration) {
 
 }

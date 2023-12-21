@@ -12,8 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-lambda-go/events"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
@@ -21,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/propagation"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trigger"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -191,7 +190,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		ev = event
 		lp.initFromKinesisStreamEvent(event)
 	case trigger.EventBridgeEvent:
-		var event inferredspan.EventBridgeEvent
+		var event events.EventBridgeEvent
 		if err := json.Unmarshal(payloadBytes, &event); err != nil {
 			log.Debugf("Failed to unmarshal %s event: %s", eventBridge, err)
 			break
