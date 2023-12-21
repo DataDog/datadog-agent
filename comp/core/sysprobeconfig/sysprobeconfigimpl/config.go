@@ -34,14 +34,25 @@ type cfg struct {
 	warnings *config.Warnings
 }
 
+// sysprobeconfigDependencies is an interface that mimics the fx-oriented dependencies struct (This is copied from the main agent configuration.)
+// The goal of this interface is to be able to call setupConfig with either 'dependencies' or 'mockDependencies'.
+// TODO: (components) investigate whether this interface is worth keeping, otherwise delete it and just use dependencies
+type sysprobeconfigDependencies interface {
+	getParams() *Params
+}
+
 type dependencies struct {
 	fx.In
 
 	Params Params
 }
 
-func setupConfig(deps dependencies) (*sysconfig.Config, error) {
-	return sysconfig.New(deps.Params.sysProbeConfFilePath)
+func (d dependencies) getParams() *Params {
+	return &d.Params
+}
+
+func setupConfig(deps sysprobeconfigDependencies) (*sysconfig.Config, error) {
+	return sysconfig.New(deps.getParams().sysProbeConfFilePath)
 }
 
 func newConfig(deps dependencies) (sysprobeconfig.Component, error) {
