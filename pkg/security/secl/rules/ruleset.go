@@ -90,8 +90,8 @@ type RuleDefinition struct {
 	Combine                CombinePolicy      `yaml:"combine"`
 	Actions                []ActionDefinition `yaml:"actions"`
 	Every                  time.Duration      `yaml:"every"`
+	Silent                 bool               `yaml:"silent"`
 	Policy                 *Policy
-	Silent                 bool
 }
 
 // GetTag returns the tag value associated with a tag key
