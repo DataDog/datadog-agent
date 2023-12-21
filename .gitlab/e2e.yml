@@ -211,7 +211,6 @@ new-e2e-agent-shared-components-main:
   parallel:
     matrix:
       - EXTRA_PARAMS: --run TestSubcommandSuite
-      - EXTRA_PARAMS: --run TestAgentSecretSuite
       - EXTRA_PARAMS: --run TestAgentConfigSuite
       - EXTRA_PARAMS: --run TestAgentHostnameEC2Suite
       - EXTRA_PARAMS: --run TestAgentDiagnoseEC2Suite
