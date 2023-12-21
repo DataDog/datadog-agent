@@ -841,7 +841,7 @@ api_key:
 
 ## @param secret_refresh_interval - float - optional - default: 0
 ## @env DD_SECRET_REFRESH_INTERVAL - float - optional - default: 0
-## Interval at which to refresh the secrets
+## Interval at which to refresh the secrets, in seconds. Disabled with default value 0
 #
 # secret_refresh_interval: 0
 

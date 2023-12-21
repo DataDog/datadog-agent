@@ -51,8 +51,9 @@ func Module() fxutil.Module {
 type secretContext struct {
 	// origin is the configuration name where a handle was found
 	origin string
-	// path is the key associated to the secret in the YAML configuration.
-	// Example: in this yaml: '{"token": "ENC[token 1]"}', 'token' is the path and 'token 1' is the handle.
+	// path is the key associated with the secret in the YAML configuration,
+	// represented as a list of field names
+	// Example: in this yaml: '{"service": {"token": "ENC[my_token]"}}', ['service', 'token'] is the path and 'my_token' is the handle.
 	path []string
 }
 
@@ -75,7 +76,7 @@ type secretResolver struct {
 	responseMaxSize int
 	// refresh secrets at a regular interval
 	refreshInterval int
-	lastRefresh     time.Time
+	ticker          *time.Ticker
 	// subscriptions want to be notified about changes to the secrets
 	subscriptions []secrets.ResolveCallback
 
@@ -206,33 +207,25 @@ func isEnc(str string) (bool, string) {
 }
 
 func (r *secretResolver) startRefreshRoutine() {
-	r.lock.Lock()
-	defer r.lock.Unlock()
-	// only start this routine once, and only if secret_refresh_interval is non-zero
-	if r.refreshInterval > 0 && r.lastRefresh.IsZero() {
-		r.lastRefresh = time.Now()
-		go func() {
-			for {
-				var since time.Duration
-				func() {
-					r.lock.Lock()
-					defer r.lock.Unlock()
-					since = time.Since(r.lastRefresh)
-				}()
-				if since.Seconds() > float64(r.refreshInterval) {
-					if err := r.Refresh(); err != nil {
-						log.Info(err)
-					}
-					since = 0
-				}
-				time.Sleep(time.Duration(r.refreshInterval) - since)
-			}
-		}()
+	if r.ticker != nil && r.refreshInterval == 0 {
+		return
 	}
+	r.ticker = time.NewTicker(time.Duration(r.refreshInterval) * time.Second)
+	go func() {
+		for {
+			<-r.ticker.C
+			if err := r.Refresh(); err != nil {
+				log.Info(err)
+			}
+		}
+	}()
 }
 
 // Subscribe adds this callback to the list that get notified when secrets are resolved or refreshed
 func (r *secretResolver) Subscribe(cb secrets.ResolveCallback) {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+
 	r.startRefreshRoutine()
 	r.subscriptions = append(r.subscriptions, cb)
 }
@@ -323,21 +316,7 @@ func (r *secretResolver) Resolve(data []byte, origin string) ([]byte, error) {
 			return nil, err
 		}
 
-		// notify subscriptions about the changes to secrets
-		for handle, newValue := range secretResponse {
-			oldValue := r.cache[handle]
-			for _, ctx := range r.origin[handle] {
-				for _, sub := range r.subscriptions {
-					sub(handle, ctx.path, oldValue, newValue)
-				}
-			}
-		}
-
-		// add results to the cache
-		for handle, secretValue := range secretResponse {
-			r.cache[handle] = secretValue
-		}
-
+		r.handleSecretResponse(secretResponse)
 	}
 
 	finalConfig, err := yaml.Marshal(config)
@@ -345,6 +324,24 @@ func (r *secretResolver) Resolve(data []byte, origin string) ([]byte, error) {
 		return nil, fmt.Errorf("could not Marshal config after replacing encrypted secrets: %s", err)
 	}
 	return finalConfig, nil
+}
+
+func (r *secretResolver) handleSecretResponse(secretResponse map[string]string) {
+	// notify subscriptions about the changes to secrets
+	for handle, secretValue := range secretResponse {
+		oldValue := r.cache[handle]
+		// if value hasn't changed, don't send notifications
+		if oldValue == secretValue {
+			continue
+		}
+		for _, secretCtx := range r.origin[handle] {
+			for _, sub := range r.subscriptions {
+				sub(handle, secretCtx.path, oldValue, secretValue)
+			}
+		}
+		// add results to the cache
+		r.cache[handle] = secretValue
+	}
 }
 
 // Refresh the secrets after they have been Resolved by fetching them from the backend again
@@ -369,20 +366,7 @@ func (r *secretResolver) Refresh() error {
 		return err
 	}
 
-	for handle, secretValue := range secretResponse {
-		prevValue := r.cache[handle]
-		if prevValue == secretValue {
-			continue
-		}
-		for _, sub := range r.subscriptions {
-			contexts := r.origin[handle]
-			for _, ctx := range contexts {
-				sub(handle, ctx.path, prevValue, secretValue)
-			}
-		}
-		r.cache[handle] = secretValue
-	}
-
+	r.handleSecretResponse(secretResponse)
 	return nil
 }
 
