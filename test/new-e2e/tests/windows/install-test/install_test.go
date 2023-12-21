@@ -10,9 +10,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/agent"
+
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 )
@@ -24,7 +25,7 @@ type agentMSISuite struct {
 }
 
 func TestMSI(t *testing.T) {
-	opts := []e2e.SuiteOption{e2e.WithProvisioner(awsvm.Provisioner(awsvm.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault))))}
+	opts := []e2e.SuiteOption{e2e.WithProvisioner(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault))))}
 	if *devMode {
 		opts = append(opts, e2e.WithDevMode())
 	}

@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
@@ -22,7 +22,7 @@ type windowsFlareSuite baseFlareSuite
 
 func TestWindowsFlareSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &windowsFlareSuite{}, e2e.WithProvisioner(awsvm.Provisioner(awsvm.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)))))
+	e2e.Run(t, &windowsFlareSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)))))
 }
 
 func (v *windowsFlareSuite) TestFlareWindows() {

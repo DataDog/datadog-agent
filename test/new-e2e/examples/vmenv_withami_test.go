@@ -10,7 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 
 	"github.com/DataDog/test-infra-definitions/components/os"
@@ -25,8 +25,8 @@ type vmSuiteEx2 struct {
 
 func TestVMSuiteEx2(t *testing.T) {
 	e2e.Run(t, &vmSuiteEx2{}, e2e.WithProvisioner(
-		awsvm.ProvisionerNoAgentNoFakeIntake(
-			awsvm.WithEC2InstanceOptions(ec2.WithAMI("ami-05fab674de2157a80", os.AmazonLinux2, os.ARM64Arch), ec2.WithInstanceType("c6g.medium")),
+		awshost.ProvisionerNoAgentNoFakeIntake(
+			awshost.WithEC2InstanceOptions(ec2.WithAMI("ami-05fab674de2157a80", os.AmazonLinux2, os.ARM64Arch), ec2.WithInstanceType("c6g.medium")),
 		),
 	))
 }

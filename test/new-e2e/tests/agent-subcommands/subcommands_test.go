@@ -14,9 +14,11 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+
 	"github.com/cenkalti/backoff"
 	"github.com/stretchr/testify/assert"
 )
@@ -30,8 +32,8 @@ type subcommandWithFakeIntakeSuite struct {
 }
 
 func TestSubcommandSuite(t *testing.T) {
-	e2e.Run(t, &subcommandSuite{}, e2e.WithProvisioner(awsvm.ProvisionerNoFakeIntake()))
-	e2e.Run(t, &subcommandWithFakeIntakeSuite{}, e2e.WithProvisioner(awsvm.Provisioner()))
+	e2e.Run(t, &subcommandSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
+	e2e.Run(t, &subcommandWithFakeIntakeSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
 }
 
 // section contains the content status of a specific section (e.g. Forwarder)
@@ -207,7 +209,7 @@ func (v *subcommandSuite) TestDefaultInstallStatus() {
 }
 
 func (v *subcommandSuite) TestFIPSProxyStatus() {
-	v.UpdateEnv(awsvm.Provisioner(awsvm.WithoutFakeIntake(), awsvm.WithAgentOptions(agentparams.WithAgentConfig("fips.enabled: true"))))
+	v.UpdateEnv(awshost.Provisioner(awshost.WithoutFakeIntake(), awshost.WithAgentOptions(agentparams.WithAgentConfig("fips.enabled: true"))))
 
 	expectedSection := expectedSection{
 		name:            `Agent \(.*\)`,
@@ -246,8 +248,8 @@ func (v *subcommandWithFakeIntakeSuite) TestDefaultInstallUnhealthy() {
 	v.Env().FakeIntake.Client().ConfigureOverride(override)
 
 	// restart the agent, which validates the key using the fakeintake at startup
-	v.UpdateEnv(awsvm.Provisioner(
-		awsvm.WithAgentOptions(agentparams.WithAgentConfig("log_level: info\n")),
+	v.UpdateEnv(awshost.Provisioner(
+		awshost.WithAgentOptions(agentparams.WithAgentConfig("log_level: info\n")),
 	))
 
 	// agent should be unhealthy because the key is invalid

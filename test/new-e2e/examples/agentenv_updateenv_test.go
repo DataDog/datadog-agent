@@ -10,7 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
 	"github.com/stretchr/testify/assert"
@@ -21,8 +21,8 @@ type agentSuiteEx4 struct {
 }
 
 func TestVMSuiteEx4(t *testing.T) {
-	e2e.Run(t, &agentSuiteEx4{}, e2e.WithProvisioner(awsvm.ProvisionerNoFakeIntake(
-		awsvm.WithAgentOptions(agentparams.WithAgentConfig("log_level: debug")),
+	e2e.Run(t, &agentSuiteEx4{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
+		awshost.WithAgentOptions(agentparams.WithAgentConfig("log_level: debug")),
 	)))
 }
 
@@ -31,8 +31,8 @@ func (v *agentSuiteEx4) TestLogDebug() {
 }
 
 func (v *agentSuiteEx4) TestLogInfo() {
-	v.UpdateEnv(awsvm.Provisioner(
-		awsvm.WithAgentOptions(agentparams.WithAgentConfig("log_level: info")),
+	v.UpdateEnv(awshost.Provisioner(
+		awshost.WithAgentOptions(agentparams.WithAgentConfig("log_level: info")),
 	))
 	assert.Contains(v.T(), v.Env().Agent.Client.Config(), "log_level: info")
 }

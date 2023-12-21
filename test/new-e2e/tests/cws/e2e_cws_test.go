@@ -21,10 +21,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	cws "github.com/DataDog/datadog-agent/test/new-e2e/tests/cws/lib"
+
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 )
 
@@ -52,9 +53,9 @@ var securityAgentConfig string
 
 func TestAgentSuite(t *testing.T) {
 	e2e.Run(t, &agentSuite{}, e2e.WithProvisioner(
-		awsvm.Provisioner(
-			awsvm.WithName("cws-e2e-tests"),
-			awsvm.WithAgentOptions(
+		awshost.Provisioner(
+			awshost.WithName("cws-e2e-tests"),
+			awshost.WithAgentOptions(
 				agentparams.WithAgentConfig(agentConfig),
 				agentparams.WithSecurityAgentConfig(securityAgentConfig),
 				agentparams.WithSystemProbeConfig(systemProbeConfig),

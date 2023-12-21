@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -22,7 +22,7 @@ type fakeintakeSuiteMetrics struct {
 }
 
 func TestVMSuiteEx5(t *testing.T) {
-	e2e.Run(t, &fakeintakeSuiteMetrics{}, e2e.WithProvisioner(awsvm.Provisioner()))
+	e2e.Run(t, &fakeintakeSuiteMetrics{}, e2e.WithProvisioner(awshost.Provisioner()))
 }
 
 func (v *fakeintakeSuiteMetrics) Test1_FakeIntakeReceivesMetrics() {

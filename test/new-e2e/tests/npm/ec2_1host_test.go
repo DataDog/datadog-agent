@@ -15,8 +15,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -30,7 +32,7 @@ type ec2VMSuite struct {
 func TestEC2VMSuite(t *testing.T) {
 	t.Skip("Skipping TestEC2VMSuite as it's flaky")
 	s := &ec2VMSuite{}
-	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(awsvm.Provisioner(awsvm.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPM))))}
+	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPM))))}
 	// debug helper
 	if _, devmode := os.LookupEnv("TESTS_E2E_DEVMODE"); devmode {
 		e2eParams = []e2e.SuiteOption{e2e.WithDevMode()}

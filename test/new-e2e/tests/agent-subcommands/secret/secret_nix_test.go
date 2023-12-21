@@ -9,8 +9,10 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -19,11 +21,11 @@ type linuxSecretSuite struct {
 }
 
 func TestAgentSecretSuite(t *testing.T) {
-	e2e.Run(t, &linuxSecretSuite{}, e2e.WithProvisioner(awsvm.ProvisionerNoFakeIntake()))
+	e2e.Run(t, &linuxSecretSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
 }
 
 func (v *linuxSecretSuite) TestAgentSecretExecDoesNotExist() {
-	v.UpdateEnv(awsvm.ProvisionerNoFakeIntake(awsvm.WithAgentOptions(agentparams.WithAgentConfig("secret_backend_command: /does/not/exist"))))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig("secret_backend_command: /does/not/exist"))))
 	output := v.Env().Agent.Client.Secret()
 	assert.Contains(v.T(), output, "=== Checking executable permissions ===")
 	assert.Contains(v.T(), output, "Executable path: /does/not/exist")
@@ -32,7 +34,7 @@ func (v *linuxSecretSuite) TestAgentSecretExecDoesNotExist() {
 }
 
 func (v *linuxSecretSuite) TestAgentSecretChecksExecutablePermissions() {
-	v.UpdateEnv(awsvm.ProvisionerNoFakeIntake(awsvm.WithAgentOptions(agentparams.WithAgentConfig("secret_backend_command: /does/not/exist"))))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig("secret_backend_command: /does/not/exist"))))
 
 	output := v.Env().Agent.Client.Secret()
 
@@ -50,18 +52,18 @@ host_aliases:
   - ENC[alias_secret]`
 
 	v.UpdateEnv(
-		awsvm.Provisioner(
-			awsvm.WithoutFakeIntake(),
-			awsvm.WithAgentOptions(
+		awshost.Provisioner(
+			awshost.WithoutFakeIntake(),
+			awshost.WithAgentOptions(
 				agentparams.WithFile("/tmp/bin/secret.sh", secretScript, false),
 			),
 		),
 	)
 	v.Env().RemoteHost.MustExecute(`sudo sh -c "chown dd-agent:dd-agent /tmp/bin/secret.sh && chmod 700 /tmp/bin/secret.sh"`)
 	v.UpdateEnv(
-		awsvm.Provisioner(
-			awsvm.WithoutFakeIntake(),
-			awsvm.WithAgentOptions(
+		awshost.Provisioner(
+			awshost.WithoutFakeIntake(),
+			awshost.WithAgentOptions(
 				agentparams.WithFile("/tmp/bin/secret.sh", secretScript, false),
 				agentparams.WithAgentConfig(config),
 			),

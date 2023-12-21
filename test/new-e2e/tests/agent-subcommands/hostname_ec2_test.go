@@ -10,9 +10,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -21,12 +23,12 @@ type agentHostnameSuite struct {
 }
 
 func TestAgentHostnameEC2Suite(t *testing.T) {
-	e2e.Run(t, &agentHostnameSuite{}, e2e.WithProvisioner(awsvm.Provisioner(awsvm.WithoutFakeIntake())))
+	e2e.Run(t, &agentHostnameSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithoutFakeIntake())))
 }
 
 // https://github.com/DataDog/datadog-agent/blob/main/pkg/util/hostname/README.md#the-current-logic
 func (v *agentHostnameSuite) TestAgentHostnameDefaultsToResourceId() {
-	v.UpdateEnv(awsvm.Provisioner(awsvm.WithoutFakeIntake(), awsvm.WithAgentOptions(agentparams.WithAgentConfig(""))))
+	v.UpdateEnv(awshost.Provisioner(awshost.WithoutFakeIntake(), awshost.WithAgentOptions(agentparams.WithAgentConfig(""))))
 
 	metadata := client.NewEC2Metadata(v.Env().RemoteHost)
 	hostname := v.Env().Agent.Client.Hostname()
@@ -37,7 +39,7 @@ func (v *agentHostnameSuite) TestAgentHostnameDefaultsToResourceId() {
 }
 
 func (v *agentHostnameSuite) TestAgentConfigHostnameVarOverride() {
-	v.UpdateEnv(awsvm.Provisioner(awsvm.WithoutFakeIntake(), awsvm.WithAgentOptions(agentparams.WithAgentConfig("hostname: hostname.from.var"))))
+	v.UpdateEnv(awshost.Provisioner(awshost.WithoutFakeIntake(), awshost.WithAgentOptions(agentparams.WithAgentConfig("hostname: hostname.from.var"))))
 
 	hostname := v.Env().Agent.Client.Hostname()
 	assert.Equal(v.T(), hostname, "hostname.from.var")
@@ -45,7 +47,7 @@ func (v *agentHostnameSuite) TestAgentConfigHostnameVarOverride() {
 
 func (v *agentHostnameSuite) TestAgentConfigHostnameFileOverride() {
 	fileContent := "hostname.from.file"
-	v.UpdateEnv(awsvm.Provisioner(awsvm.WithoutFakeIntake(), awsvm.WithAgentOptions(agentparams.WithFile("/tmp/var/hostname", fileContent, false), agentparams.WithAgentConfig("hostname_file: /tmp/var/hostname"))))
+	v.UpdateEnv(awshost.Provisioner(awshost.WithoutFakeIntake(), awshost.WithAgentOptions(agentparams.WithFile("/tmp/var/hostname", fileContent, false), agentparams.WithAgentConfig("hostname_file: /tmp/var/hostname"))))
 
 	hostname := v.Env().Agent.Client.Hostname()
 	assert.Equal(v.T(), hostname, fileContent)
@@ -56,7 +58,7 @@ func (v *agentHostnameSuite) TestAgentConfigHostnameForceAsCanonical() {
 	config := `hostname: ip-172-29-113-35.ec2.internal
 hostname_force_config_as_canonical: true`
 
-	v.UpdateEnv(awsvm.Provisioner(awsvm.WithoutFakeIntake(), awsvm.WithAgentOptions(agentparams.WithAgentConfig(config))))
+	v.UpdateEnv(awshost.Provisioner(awshost.WithoutFakeIntake(), awshost.WithAgentOptions(agentparams.WithAgentConfig(config))))
 
 	hostname := v.Env().Agent.Client.Hostname()
 	assert.Equal(v.T(), hostname, "ip-172-29-113-35.ec2.internal")
@@ -66,14 +68,14 @@ func (v *agentHostnameSuite) TestAgentConfigPrioritizeEC2Id() {
 	// ec2_prioritize_instance_id_as_hostname doesn't override higher priority providers
 	config := `hostname: hostname.from.var
 ec2_prioritize_instance_id_as_hostname: true`
-	v.UpdateEnv(awsvm.Provisioner(awsvm.WithoutFakeIntake(), awsvm.WithAgentOptions(agentparams.WithAgentConfig(config))))
+	v.UpdateEnv(awshost.Provisioner(awshost.WithoutFakeIntake(), awshost.WithAgentOptions(agentparams.WithAgentConfig(config))))
 
 	hostname := v.Env().Agent.Client.Hostname()
 	assert.Equal(v.T(), hostname, "hostname.from.var")
 }
 
 func (v *agentHostnameSuite) TestAgentConfigPreferImdsv2() {
-	v.UpdateEnv(awsvm.Provisioner(awsvm.WithoutFakeIntake(), awsvm.WithAgentOptions(agentparams.WithAgentConfig("ec2_prefer_imdsv2: true"))))
+	v.UpdateEnv(awshost.Provisioner(awshost.WithoutFakeIntake(), awshost.WithAgentOptions(agentparams.WithAgentConfig("ec2_prefer_imdsv2: true"))))
 	metadata := client.NewEC2Metadata(v.Env().RemoteHost)
 
 	hostname := v.Env().Agent.Client.Hostname()

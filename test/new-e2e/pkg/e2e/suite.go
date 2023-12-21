@@ -63,7 +63,7 @@
 //	}
 //
 //	func TestSingleEnvSuite(t *testing.T) {
-//		e2e.Run(t, &singleEnvSuite{}, e2e.WithProvisioner(awsvm.Provisioner()))
+//		e2e.Run(t, &singleEnvSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
 //	}
 //
 //	func (suite *singleEnvSuite) Test1() {
@@ -103,8 +103,8 @@
 //	}
 //
 //	func TestVMSuiteEx4(t *testing.T) {
-//		e2e.Run(t, &agentSuiteEx4{}, e2e.WithProvisioner(awsvm.Provisioner(
-//			awsvm.WithAgentOptions(agentparams.WithAgentConfig("log_level: debug")),
+//		e2e.Run(t, &agentSuiteEx4{}, e2e.WithProvisioner(awshost.Provisioner(
+//			awshost.WithAgentOptions(agentparams.WithAgentConfig("log_level: debug")),
 //		)))
 //	}
 //
@@ -113,7 +113,7 @@
 //	}
 //
 //	func (v *agentSuiteEx4) TestLogInfo() {
-//		v.UpdateEnv(awsvm.Provisioner(awsvm.WithAgentOptions(agentparams.WithAgentConfig("log_level: info"))))
+//		v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig("log_level: info"))))
 //		assert.Contains(v.T(), v.Env().Agent.Client.Config(), "log_level: info")
 //	}
 //
@@ -137,11 +137,11 @@
 //	}
 //
 //	func TestSubTestSuite(t *testing.T) {
-//		e2e.Run(t, &singleEnvSuite{}, e2e.WithProvisioner(awsvm.Provisioner()))
+//		e2e.Run(t, &singleEnvSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
 //	}
 //
 //	func (suite *subTestSuite) TestLogDebug() {
-//		v.UpdateEnv(awsvm.Provisioner(awsvm.WithAgentOptions(agentparams.WithAgentConfig("log_level: debug"))))
+//		v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig("log_level: debug"))))
 //		suite.T().Run("MySubTest1", func(t *testing.T) {
 //			// Sub test 1
 //		})
@@ -151,7 +151,7 @@
 //	}
 //
 //	func (suite *subTestSuite) TestLogInfo() {
-//		v.UpdateEnv(awsvm.Provisioner(awsvm.WithAgentOptions(agentparams.WithAgentConfig("log_level: info"))))
+//		v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig("log_level: info"))))
 //		suite.T().Run("MySubTest1", func(t *testing.T) {
 //			// Sub test 1
 //		})

@@ -10,7 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 
@@ -22,7 +22,7 @@ type myVMSuite struct {
 }
 
 func TestMyVMSuite(t *testing.T) {
-	e2e.Run(t, &myVMSuite{}, e2e.WithProvisioner(awsvm.ProvisionerNoAgentNoFakeIntake(awsvm.WithEC2InstanceOptions(ec2.WithOSArch(os.AmazonLinux2023, os.ARM64Arch)))))
+	e2e.Run(t, &myVMSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOSArch(os.AmazonLinux2023, os.ARM64Arch)))))
 }
 
 func (v *myVMSuite) TestIsAmazonLinux() {

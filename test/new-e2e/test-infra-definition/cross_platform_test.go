@@ -11,7 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
@@ -23,7 +23,7 @@ type crossPlatformSuite struct {
 }
 
 func TestCrossPlatformSuite(t *testing.T) {
-	e2e.Run(t, &crossPlatformSuite{}, e2e.WithProvisioner(awsvm.Provisioner(awsvm.WithoutFakeIntake())))
+	e2e.Run(t, &crossPlatformSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithoutFakeIntake())))
 }
 
 func (s *crossPlatformSuite) TestUbuntuOS() {
@@ -50,7 +50,7 @@ func (s *crossPlatformSuite) TestOtherOSES() {
 
 func (s *crossPlatformSuite) subTestInstallAgent(os os.Descriptor) {
 	s.T().Run(fmt.Sprintf("Test install agent %v", os), func(t *testing.T) {
-		s.UpdateEnv(awsvm.Provisioner(awsvm.WithEC2InstanceOptions(ec2.WithOS(os))))
+		s.UpdateEnv(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os))))
 		output := s.Env().Agent.Client.Status().Content
 		require.Contains(s.T(), output, "Agent start")
 	})
@@ -65,7 +65,7 @@ func (s *crossPlatformSuite) subTestInstallAgentVersion(os os.Descriptor) {
 		{"7.46.0~rc.2-1", "Agent 7.46.0-rc.2"},
 	} {
 		s.T().Run("Test install agent version "+data.version, func(t *testing.T) {
-			s.UpdateEnv(awsvm.Provisioner(awsvm.WithEC2InstanceOptions(ec2.WithOS(os)), awsvm.WithAgentOptions(agentparams.WithVersion(data.version))))
+			s.UpdateEnv(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os)), awshost.WithAgentOptions(agentparams.WithVersion(data.version))))
 
 			version := s.Env().Agent.Client.Version()
 			require.Contains(s.T(), version, data.agentVersion)

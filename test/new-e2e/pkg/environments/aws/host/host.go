@@ -1,4 +1,4 @@
-package awshost
+package host
 
 import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"

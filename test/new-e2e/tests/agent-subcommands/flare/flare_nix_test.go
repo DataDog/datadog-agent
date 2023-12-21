@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 )
@@ -30,7 +30,7 @@ type linuxFlareSuite baseFlareSuite
 
 func TestLinuxFlareSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &linuxFlareSuite{}, e2e.WithProvisioner(awsvm.Provisioner()))
+	e2e.Run(t, &linuxFlareSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
 }
 
 func (v *linuxFlareSuite) TestFlareWithAllConfiguration() {
@@ -57,7 +57,7 @@ func (v *linuxFlareSuite) TestFlareWithAllConfiguration() {
 
 	agentOptions := append(withFiles, agentparams.WithAgentConfig(string(agentConfiguration)))
 
-	v.UpdateEnv(awsvm.Provisioner(awsvm.WithoutFakeIntake(), awsvm.WithAgentOptions(agentOptions...)))
+	v.UpdateEnv(awshost.Provisioner(awshost.WithoutFakeIntake(), awshost.WithAgentOptions(agentOptions...)))
 
 	flare := requestAgentFlareAndFetchFromFakeIntake(v.T(), v.Env().Agent.Client, v.Env().FakeIntake.Client(), agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
 

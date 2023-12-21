@@ -17,7 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 )
 
@@ -35,7 +35,7 @@ var logPath = "/var/log/hello-world.log"
 func TestE2EVMFakeintakeSuite(t *testing.T) {
 	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
 	options := []e2e.SuiteOption{
-		e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithLogs(), agentparams.WithIntegration("custom_logs.d", logConfig)))),
+		e2e.WithProvisioner(host.Provisioner(host.WithAgentOptions(agentparams.WithLogs(), agentparams.WithIntegration("custom_logs.d", logConfig)))),
 	}
 	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
 		options = append(options, e2e.WithDevMode())

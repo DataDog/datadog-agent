@@ -9,13 +9,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 )
 
 type linuxTestSuite struct {
@@ -23,7 +24,7 @@ type linuxTestSuite struct {
 }
 
 func TestLinuxTestSuite(t *testing.T) {
-	e2e.Run(t, &linuxTestSuite{}, e2e.WithProvisioner(awsvm.Provisioner(awsvm.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr)))))
+	e2e.Run(t, &linuxTestSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr)))))
 }
 
 func (s *linuxTestSuite) SetupSuite() {
@@ -53,7 +54,7 @@ func (s *linuxTestSuite) TestProcessCheck() {
 }
 
 func (s *linuxTestSuite) TestProcessDiscoveryCheck() {
-	s.UpdateEnv(awsvm.Provisioner(awsvm.WithAgentOptions(agentparams.WithAgentConfig(processDiscoveryCheckConfigStr))))
+	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processDiscoveryCheckConfigStr))))
 	t := s.T()
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
@@ -72,7 +73,7 @@ func (s *linuxTestSuite) TestProcessDiscoveryCheck() {
 }
 
 func (s *linuxTestSuite) TestProcessCheckWithIO() {
-	s.UpdateEnv(awsvm.Provisioner(awsvm.WithAgentOptions(agentparams.WithAgentConfig(processDiscoveryCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr))))
+	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processDiscoveryCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr))))
 
 	// Flush fake intake to remove payloads that won't have IO stats
 	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
@@ -109,7 +110,7 @@ func (s *linuxTestSuite) TestManualProcessDiscoveryCheck() {
 }
 
 func (s *linuxTestSuite) TestManualProcessCheckWithIO() {
-	s.UpdateEnv(awsvm.Provisioner(awsvm.WithAgentOptions(agentparams.WithAgentConfig(processDiscoveryCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr))))
+	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processDiscoveryCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr))))
 
 	check := s.Env().RemoteHost.MustExecute("sudo /opt/datadog-agent/embedded/bin/process-agent check process --json")
 

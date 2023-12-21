@@ -15,11 +15,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	svcmanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/svc-manager"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -36,7 +37,7 @@ var allSuites = []string{
 }
 
 func TestAgentDiagnoseEC2Suite(t *testing.T) {
-	e2e.Run(t, &agentDiagnoseSuite{}, e2e.WithProvisioner(awsvm.Provisioner()))
+	e2e.Run(t, &agentDiagnoseSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
 }
 
 // type summary represents the number of success, fail, warnings and errors of a diagnose command
@@ -79,7 +80,7 @@ func (v *agentDiagnoseSuite) TestDiagnoseLocalFallback() {
 
 func (v *agentDiagnoseSuite) TestDiagnoseOtherCmdPort() {
 	params := agentparams.WithAgentConfig("cmd_port: 4567")
-	v.UpdateEnv(awsvm.Provisioner(awsvm.WithAgentOptions(params)))
+	v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(params)))
 
 	diagnose := getDiagnoseOutput(v)
 	assert.NotContains(v.T(), diagnose, "FAIL")

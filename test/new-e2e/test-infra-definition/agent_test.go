@@ -12,7 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
@@ -24,7 +24,7 @@ type agentSuite struct {
 }
 
 func TestAgentSuite(t *testing.T) {
-	e2e.Run(t, &agentSuite{}, e2e.WithProvisioner(awsvm.Provisioner()))
+	e2e.Run(t, &agentSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
 }
 
 func (v *agentSuite) TestAgentCommandNoArg() {
@@ -56,7 +56,7 @@ func (v *agentSuite) TestWithAgentConfig() {
 		if param.useConfig {
 			agentParams = append(agentParams, agentparams.WithAgentConfig(param.config))
 		}
-		v.UpdateEnv(awsvm.Provisioner(awsvm.WithAgentOptions(agentParams...)))
+		v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentParams...)))
 		config := v.Env().Agent.Client.Config()
 		re := regexp.MustCompile(`.*log_level:(.*)\n`)
 		matches := re.FindStringSubmatch(config)
@@ -66,12 +66,12 @@ func (v *agentSuite) TestWithAgentConfig() {
 }
 
 func (v *agentSuite) TestWithTelemetry() {
-	v.UpdateEnv(awsvm.Provisioner(awsvm.WithAgentOptions(agentparams.WithTelemetry())))
+	v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithTelemetry())))
 
 	status := v.Env().Agent.Client.Status()
 	require.Contains(v.T(), status.Content, "go_expvar")
 
-	v.UpdateEnv(awsvm.Provisioner())
+	v.UpdateEnv(awshost.Provisioner())
 	status = v.Env().Agent.Client.Status()
 	require.NotContains(v.T(), status.Content, "go_expvar")
 }
@@ -80,7 +80,7 @@ func (v *agentSuite) TestWithLogs() {
 	config := v.Env().Agent.Client.Config()
 	require.Contains(v.T(), config, "logs_enabled: false")
 
-	v.UpdateEnv(awsvm.Provisioner(awsvm.WithAgentOptions(agentparams.WithLogs())))
+	v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithLogs())))
 	config = v.Env().Agent.Client.Config()
 	require.Contains(v.T(), config, "logs_enabled: true")
 }

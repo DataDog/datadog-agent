@@ -10,7 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 
 	"github.com/DataDog/test-infra-definitions/components/os"
@@ -28,7 +28,7 @@ func TestVMSuite(t *testing.T) {
 
 func (v *vmSuite) TestWithImageName() {
 	requestedAmi := "ami-05fab674de2157a80"
-	v.UpdateEnv(awsvm.Provisioner(awsvm.WithoutAgent(), awsvm.WithEC2InstanceOptions(ec2.WithAMI(requestedAmi, os.AmazonLinux2, os.ARM64Arch))))
+	v.UpdateEnv(awshost.Provisioner(awshost.WithoutAgent(), awshost.WithEC2InstanceOptions(ec2.WithAMI(requestedAmi, os.AmazonLinux2, os.ARM64Arch))))
 
 	vm := v.Env().RemoteHost
 	metadata := client.NewEC2Metadata(vm)
@@ -39,7 +39,7 @@ func (v *vmSuite) TestWithImageName() {
 
 func (v *vmSuite) TestWithInstanceType() {
 	instanceType := "t3.medium"
-	v.UpdateEnv(awsvm.Provisioner(awsvm.WithoutAgent(), awsvm.WithEC2InstanceOptions(ec2.WithInstanceType(instanceType))))
+	v.UpdateEnv(awshost.Provisioner(awshost.WithoutAgent(), awshost.WithEC2InstanceOptions(ec2.WithInstanceType(instanceType))))
 
 	vm := v.Env().RemoteHost
 	metadata := client.NewEC2Metadata(vm)
@@ -47,13 +47,13 @@ func (v *vmSuite) TestWithInstanceType() {
 }
 
 func (v *vmSuite) TestWithArch() {
-	v.UpdateEnv(awsvm.Provisioner(awsvm.WithoutAgent(), awsvm.WithEC2InstanceOptions(ec2.WithOSArch(os.DebianDefault, os.ARM64Arch))))
+	v.UpdateEnv(awshost.Provisioner(awshost.WithoutAgent(), awshost.WithEC2InstanceOptions(ec2.WithOSArch(os.DebianDefault, os.ARM64Arch))))
 	require.Equal(v.T(), "aarch64\n", v.Env().RemoteHost.MustExecute("uname -m"))
 }
 
 func (v *vmSuite) TestWithUserdata() {
 	path := "/tmp/test-userdata"
-	v.UpdateEnv(awsvm.Provisioner(awsvm.WithoutAgent(), awsvm.WithEC2InstanceOptions(ec2.WithUserData("#!/bin/bash\ntouch "+path))))
+	v.UpdateEnv(awshost.Provisioner(awshost.WithoutAgent(), awshost.WithEC2InstanceOptions(ec2.WithUserData("#!/bin/bash\ntouch "+path))))
 
 	output, err := v.Env().RemoteHost.Execute("ls " + path)
 	require.NoError(v.T(), err)

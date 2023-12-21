@@ -11,7 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,7 +21,7 @@ type agentSuiteEx5 struct {
 }
 
 func TestAgentSuiteEx5(t *testing.T) {
-	e2e.Run(t, &agentSuiteEx5{}, e2e.WithProvisioner(awsvm.Provisioner()))
+	e2e.Run(t, &agentSuiteEx5{}, e2e.WithProvisioner(awshost.Provisioner()))
 }
 
 func (s *agentSuiteEx5) TestCheckRuns() {

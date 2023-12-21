@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
@@ -40,7 +40,7 @@ var hiddenConfigs = []string{
 }
 
 func TestAgentConfigSuite(t *testing.T) {
-	e2e.Run(t, &agentConfigSuite{}, e2e.WithProvisioner(awsvm.Provisioner(awsvm.WithoutFakeIntake())))
+	e2e.Run(t, &agentConfigSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithoutFakeIntake())))
 }
 
 func getFullConfig(v *agentConfigSuite) map[interface{}]interface{} {
@@ -68,7 +68,7 @@ func (v *agentConfigSuite) TestDefaultConfig() {
 var agentConfiguration []byte
 
 func (v *agentConfigSuite) TestNonDefaultConfig() {
-	v.UpdateEnv(awsvm.Provisioner(awsvm.WithoutFakeIntake(), awsvm.WithAgentOptions(agentparams.WithAgentConfig(string(agentConfiguration)))))
+	v.UpdateEnv(awshost.Provisioner(awshost.WithoutFakeIntake(), awshost.WithAgentOptions(agentparams.WithAgentConfig(string(agentConfiguration)))))
 
 	config := getFullConfig(v)
 

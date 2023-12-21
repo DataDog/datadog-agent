@@ -12,7 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 )
@@ -25,7 +25,7 @@ type vmSuite struct {
 
 // TestVMSuite runs tests for the VM interface to ensure its implementation is correct.
 func TestVMSuite(t *testing.T) {
-	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awsvm.ProvisionerNoFakeIntake(awsvm.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault))))}
+	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault))))}
 	if *devMode {
 		suiteParams = append(suiteParams, e2e.WithDevMode())
 	}

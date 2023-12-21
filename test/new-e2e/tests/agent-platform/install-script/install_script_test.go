@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	filemanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/file-manager"
@@ -81,9 +81,9 @@ func TestInstallScript(t *testing.T) {
 
 			e2e.Run(tt,
 				&installScriptSuite{cwsSupported: cwsSupported},
-				e2e.WithProvisioner(awsvm.Provisioner(
-					awsvm.WithoutAgent(),
-					awsvm.WithEC2InstanceOptions(vmOpts...),
+				e2e.WithProvisioner(awshost.Provisioner(
+					awshost.WithoutAgent(),
+					awshost.WithEC2InstanceOptions(vmOpts...),
 				)),
 				e2e.WithStackName(fmt.Sprintf("install-script-test-%v-%v-%s-%s-%v", os.Getenv("CI_PIPELINE_ID"), osVers, *architecture, *flavor, *majorVersion)),
 			)

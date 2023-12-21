@@ -22,7 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 )
 
 const versionStr = "7.48.0~rc.1-1"
@@ -44,7 +44,7 @@ func TestLanguageDetectionSuite(t *testing.T) {
 		agentParams = append(agentParams, agentparams.WithVersion(versionStr))
 	}
 
-	e2e.Run(t, &languageDetectionSuite{}, e2e.WithProvisioner(awsvm.Provisioner(awsvm.WithoutFakeIntake(), awsvm.WithAgentOptions(agentParams...))))
+	e2e.Run(t, &languageDetectionSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithoutFakeIntake(), awshost.WithAgentOptions(agentParams...))))
 }
 
 func (s *languageDetectionSuite) checkDetectedLanguage(command string, language string) {

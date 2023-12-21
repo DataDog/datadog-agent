@@ -11,8 +11,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -22,7 +24,7 @@ type vmSuiteEx6 struct {
 
 func TestVMSuiteEx6(t *testing.T) {
 	t.Skip("Skipping TestVMSuiteEx6 as it's flaky")
-	e2e.Run(t, &vmSuiteEx6{}, e2e.WithProvisioner(awsvm.Provisioner(awsvm.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPM)))))
+	e2e.Run(t, &vmSuiteEx6{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPM)))))
 }
 
 func (v *vmSuiteEx6) Test1_FakeIntakeNPM() {
