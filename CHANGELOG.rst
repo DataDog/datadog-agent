@@ -2,6 +2,24 @@
 Release Notes
 =============
 
+.. _Release Notes_7.50.1:
+
+7.50.1 / 6.50.1
+======
+
+.. _Release Notes_7.50.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2023-12-21
+
+Bug Fixes
+---------
+
+- Fixes a bug introduced in `7.50.0` preventing `DD_TAGS` to be added to `kubernetes_state.*` metrics.
+
+
 .. _Release Notes_7.50.0:
 
 7.50.0 / 6.50.0
