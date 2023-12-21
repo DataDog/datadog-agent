@@ -22,7 +22,7 @@ type agentSuiteEx6 struct {
 }
 
 func TestAgentSuiteEx6(t *testing.T) {
-	e2e.Run(t, &agentSuiteEx6{}, e2e.WithProvisioner(awsvm.Provisioner()))
+	e2e.Run(t, &agentSuiteEx6{}, e2e.WithProvisioner(awsvm.ProvisionerNoFakeIntake()))
 }
 
 func (v *agentSuiteEx6) TestCopy() {
@@ -32,7 +32,7 @@ func (v *agentSuiteEx6) TestCopy() {
 
 	file, err := os.ReadFile(path.Join(testFolder, "hosts"))
 	require.NoError(v.T(), err)
-	v.UpdateEnv(awsvm.Provisioner(awsvm.WithAgentOptions(agentparams.WithFile("/etc/hosts", string(file), true))))
+	v.UpdateEnv(awsvm.ProvisionerNoFakeIntake(awsvm.WithAgentOptions(agentparams.WithFile("/etc/hosts", string(file), true))))
 
 	v.Env().RemoteHost.CopyFolder(path.Join(testFolder), "test")
 	v.Env().RemoteHost.CopyFile(path.Join(testFolder, "file-0"), "copied-file")

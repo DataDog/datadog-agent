@@ -21,7 +21,7 @@ type agentSuiteEx4 struct {
 }
 
 func TestVMSuiteEx4(t *testing.T) {
-	e2e.Run(t, &agentSuiteEx4{}, e2e.WithProvisioner(awsvm.Provisioner(
+	e2e.Run(t, &agentSuiteEx4{}, e2e.WithProvisioner(awsvm.ProvisionerNoFakeIntake(
 		awsvm.WithAgentOptions(agentparams.WithAgentConfig("log_level: debug")),
 	)))
 }

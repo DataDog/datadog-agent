@@ -58,7 +58,7 @@ func (h *RemoteHost) Init(ctx e2e.Context) error {
 
 	h.client, err = clients.GetSSHClient(
 		h.Username,
-		h.Address,
+		fmt.Sprintf("%s:%d", h.Address, 22),
 		privateSSHKey,
 		[]byte(privateKeyPassword),
 		sshRetryInterval,

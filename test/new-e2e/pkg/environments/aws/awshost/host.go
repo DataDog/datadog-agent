@@ -96,7 +96,6 @@ func WithoutFakeIntake() ProvisionerOption {
 func WithoutAgent() ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.agentOptions = nil
-		params.fakeintakeOptions = nil
 		return nil
 	}
 }
@@ -104,14 +103,16 @@ func WithoutAgent() ProvisionerOption {
 // ProvisionerNoAgentNoFakeIntake wraps Provisioner with hardcoded WithoutAgent and WithoutFakeIntake options.
 func ProvisionerNoAgentNoFakeIntake(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Host] {
 	mergedOpts := make([]ProvisionerOption, 0, len(opts)+2)
+	mergedOpts = append(mergedOpts, opts...)
 	mergedOpts = append(mergedOpts, WithoutAgent(), WithoutFakeIntake())
 
 	return Provisioner(mergedOpts...)
 }
 
-// ProvisionerNoAFakeintake wraps Provisioner with hardcoded WithoutFakeIntake option.
-func ProvisionerNoAFakeintake(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Host] {
+// ProvisionerNoFakeIntake wraps Provisioner with hardcoded WithoutFakeIntake option.
+func ProvisionerNoFakeIntake(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Host] {
 	mergedOpts := make([]ProvisionerOption, 0, len(opts)+2)
+	mergedOpts = append(mergedOpts, opts...)
 	mergedOpts = append(mergedOpts, WithoutFakeIntake())
 
 	return Provisioner(mergedOpts...)
