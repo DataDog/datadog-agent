@@ -11,6 +11,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	htmlTemplate "html/template"
 	"io"
 	"path"
 	"text/template"
@@ -19,6 +20,7 @@ import (
 )
 
 var fmap = Textfmap()
+var htmlfmap = Fmap()
 
 // FormatStatus takes a json bytestring and prints out the formatted statuspage
 func FormatStatus(data []byte) (string, error) {
@@ -227,6 +229,16 @@ func RenderStatusTemplate(w io.Writer, templateName string, stats interface{}) e
 		return tmplErr
 	}
 	t := template.Must(template.New(templateName).Funcs(fmap).Parse(string(tmpl)))
+	return t.Execute(w, stats)
+}
+
+// RenderHTMLStatusTemplate
+func RenderHTMLStatusTemplate(w io.Writer, templateName string, stats interface{}) error {
+	tmpl, tmplErr := templatesFS.ReadFile(path.Join("templates", templateName))
+	if tmplErr != nil {
+		return tmplErr
+	}
+	t := htmlTemplate.Must(htmlTemplate.New(templateName).Funcs(htmlfmap).Parse(string(tmpl)))
 	return t.Execute(w, stats)
 }
 

@@ -110,12 +110,11 @@ func (provider) JSON(stats map[string]interface{}) error {
 }
 
 func (provider) Text(buffer io.Writer) error {
-	render.RenderStatusTemplate(buffer, "/collector.tmpl", GetStatusInfo())
-	return nil
+	return render.RenderStatusTemplate(buffer, "/collector.tmpl", GetStatusInfo())
 }
 
 func (provider) HTML(buffer io.Writer) error {
-	return nil
+	return render.RenderHTMLStatusTemplate(buffer, "/collectorHTML.tmpl", GetStatusInfo())
 }
 
 func StatusProvider() status.Provider {

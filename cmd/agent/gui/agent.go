@@ -22,19 +22,19 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
-	"github.com/DataDog/datadog-agent/pkg/status/collector"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // Adds the specific handlers for /agent/ endpoints
-func agentHandler(r *mux.Router, flare flare.Component, invAgent inventoryagent.Component) {
+func agentHandler(r *mux.Router, flare flare.Component, invAgent inventoryagent.Component, statusComp statusComponent.Component) {
 	r.HandleFunc("/ping", http.HandlerFunc(ping)).Methods("POST")
-	r.HandleFunc("/status/{type}", func(w http.ResponseWriter, r *http.Request) { getStatus(w, r, invAgent) }).Methods("POST")
+	r.HandleFunc("/status/{type}", func(w http.ResponseWriter, r *http.Request) { getStatus(w, r, invAgent, statusComp) }).Methods("POST")
 	r.HandleFunc("/version", http.HandlerFunc(getVersion)).Methods("POST")
 	r.HandleFunc("/hostname", http.HandlerFunc(getHostname)).Methods("POST")
 	r.HandleFunc("/log/{flip}", http.HandlerFunc(getLog)).Methods("POST")
@@ -54,35 +54,43 @@ func ping(w http.ResponseWriter, r *http.Request) {
 }
 
 // Sends the current agent status
-func getStatus(w http.ResponseWriter, r *http.Request, invAgent inventoryagent.Component) {
+func getStatus(w http.ResponseWriter, r *http.Request, invAgent inventoryagent.Component, statusComp statusComponent.Component) {
 	statusType := mux.Vars(r)["type"]
 
 	var (
-		stats map[string]interface{}
-		err   error
+		stats    map[string]interface{}
+		err      error
+		response []byte
 	)
+	verbose := r.URL.Query().Get("verbose") == "true"
 	if statusType == "collector" {
-		stats = collector.GetStatusInfo()
+		response, err = statusComp.GetStatusBySection(statusComponent.CollectorSection, "html", verbose)
+		if err != nil {
+			log.Errorf("Error getting status: " + err.Error())
+			w.Write([]byte("Error getting status: " + err.Error()))
+			return
+		}
 	} else {
-		verbose := r.URL.Query().Get("verbose") == "true"
 		stats, err = status.GetStatus(verbose, invAgent)
-	}
 
-	if err != nil {
-		log.Errorf("Error getting status: " + err.Error())
-		w.Write([]byte("Error getting status: " + err.Error()))
-		return
-	}
+		if err != nil {
+			log.Errorf("Error getting status: " + err.Error())
+			w.Write([]byte("Error getting status: " + err.Error()))
+			return
+		}
 
-	json, _ := json.Marshal(stats)
-	html, e := renderStatus(json, statusType)
-	if e != nil {
-		w.Write([]byte("Error generating status html: " + e.Error()))
-		return
+		json, _ := json.Marshal(stats)
+		html, e := renderStatus(json, statusType)
+		if e != nil {
+			w.Write([]byte("Error generating status html: " + e.Error()))
+			return
+		}
+
+		response = []byte(html)
 	}
 
 	w.Header().Set("Content-Type", "text/html")
-	w.Write([]byte(html))
+	w.Write(response)
 
 }
 

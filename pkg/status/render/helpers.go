@@ -8,6 +8,7 @@ package render
 import (
 	"encoding/json"
 	"fmt"
+	"html/template"
 	htemplate "html/template"
 	"strconv"
 	"strings"
@@ -28,8 +29,6 @@ func Fmap() htemplate.FuncMap {
 	return htemplate.FuncMap{
 		"doNotEscape":        doNotEscape,
 		"lastError":          lastError,
-		"lastErrorTraceback": func(s string) htemplate.HTML { return doNotEscape(lastErrorTraceback(s)) },
-		"lastErrorMessage":   func(s string) htemplate.HTML { return doNotEscape(lastErrorMessage(s)) },
 		"configError":        configError,
 		"printDashes":        printDashes,
 		"formatUnixTime":     formatUnixTime,
@@ -38,7 +37,6 @@ func Fmap() htemplate.FuncMap {
 		"toUnsortedList":     toUnsortedList,
 		"formatTitle":        formatTitle,
 		"add":                add,
-		"status":             status,
 		"redText":            redText,
 		"yellowText":         yellowText,
 		"greenText":          greenText,
@@ -46,6 +44,10 @@ func Fmap() htemplate.FuncMap {
 		"version":            getVersion,
 		"percent":            func(v float64) string { return fmt.Sprintf("%02.1f", v*100) },
 		"complianceResult":   complianceResult,
+		"lastErrorTraceback": lastErrorTracebackHTML,
+		"lastErrorMessage":   lastErrorMessageHTML,
+		"pythonLoaderError":  pythonLoaderError,
+		"status":             statusHTML,
 	}
 }
 
@@ -267,4 +269,49 @@ func getVersion(instances map[string]interface{}) string {
 		return str
 	}
 	return ""
+}
+
+func pythonLoaderError(value string) template.HTML {
+	value = template.HTMLEscapeString(value)
+
+	value = strings.Replace(value, "\n", "<br>", -1)
+	value = strings.Replace(value, "  ", "&nbsp;&nbsp;&nbsp;", -1)
+	return template.HTML(value)
+}
+
+func lastErrorTracebackHTML(value string) template.HTML {
+	var lastErrorArray []map[string]string
+
+	err := json.Unmarshal([]byte(value), &lastErrorArray)
+	if err != nil || len(lastErrorArray) == 0 {
+		return template.HTML("No traceback")
+	}
+
+	traceback := template.HTMLEscapeString(lastErrorArray[0]["traceback"])
+
+	traceback = strings.Replace(traceback, "\n", "<br>", -1)
+	traceback = strings.Replace(traceback, "  ", "&nbsp;&nbsp;&nbsp;", -1)
+
+	return template.HTML(traceback)
+}
+
+func lastErrorMessageHTML(value string) string {
+	var lastErrorArray []map[string]string
+	err := json.Unmarshal([]byte(value), &lastErrorArray)
+	if err == nil && len(lastErrorArray) > 0 {
+		if msg, ok := lastErrorArray[0]["message"]; ok {
+			return msg
+		}
+	}
+	return "UNKNOWN ERROR"
+}
+
+func statusHTML(check map[string]interface{}) template.HTML {
+	if check["LastError"].(string) != "" {
+		return template.HTML("[<span class=\"error\">ERROR</span>]")
+	}
+	if len(check["LastWarnings"].([]interface{})) != 0 {
+		return template.HTML("[<span class=\"warning\">WARNING</span>]")
+	}
+	return template.HTML("[<span class=\"ok\">OK</span>]")
 }

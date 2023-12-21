@@ -284,6 +284,7 @@ func run(log log.Component,
 		invAgent,
 		agentAPI,
 		invChecks,
+		statusComponent,
 	); err != nil {
 		return err
 	}
@@ -404,6 +405,7 @@ func startAgent(
 	invAgent inventoryagent.Component,
 	agentAPI internalAPI.Component,
 	invChecks inventorychecks.Component,
+	statusComponent status.Component,
 ) error {
 
 	var err error
@@ -571,7 +573,7 @@ func startAgent(
 	guiPort := pkgconfig.Datadog.GetString("GUI_port")
 	if guiPort == "-1" {
 		log.Infof("GUI server port -1 specified: not starting the GUI.")
-	} else if err = gui.StartGUIServer(guiPort, flare, invAgent); err != nil {
+	} else if err = gui.StartGUIServer(guiPort, flare, invAgent, statusComponent); err != nil {
 		log.Errorf("Error while starting GUI: %v", err)
 	}
 
