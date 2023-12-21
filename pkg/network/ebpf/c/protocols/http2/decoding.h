@@ -222,8 +222,8 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
     http2_header_t *current_header;
     const __u32 frame_end = skb_info->data_off + frame_length;
     const __u32 end = frame_end < skb_info->data_end + 1 ? frame_end : skb_info->data_end + 1;
-    bool is_literal = false;
     bool is_indexed = false;
+    bool is_dynamic_table_update = false;
     __u64 max_bits = 0;
     __u64 index = 0;
 
@@ -240,16 +240,34 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
         bpf_skb_load_bytes(skb, skb_info->data_off, &current_ch, sizeof(current_ch));
         skb_info->data_off++;
 
-        is_indexed = (current_ch & 128) != 0;
-        is_literal = (current_ch & 192) == 64;
-
-        if (is_indexed) {
-            max_bits = MAX_7_BITS;
-        } else if (is_literal) {
-            max_bits = MAX_6_BITS;
-        } else {
+        // To determine the size of the dynamic table update, we read an integer representation byte by byte. 
+        // We continue reading bytes until we encounter a byte without the Most Significant Bit (MSB) set, 
+        // indicating that we've consumed the complete integer. While in the context of the dynamic table 
+        // update, we set the state as true if the MSB is set, and false otherwise. Then, we proceed to the next byte.
+        // More on the feature - https://httpwg.org/specs/rfc7541.html#rfc.section.6.3.
+        if (is_dynamic_table_update) {
+            is_dynamic_table_update = (current_ch & 128) != 0;
             continue;
         }
+        // 224 is represented as 0b11100000, which is the OR operation for
+        // - indexed representation     (0b10000000)
+        // - literal representation     (0b01000000)
+        // - dynamic table size update  (0b00100000)
+        // Thus current_ch & 224 will be 0 only if the top 3 bits are 0, which means that the current byte is not
+        // representing any of the above.
+        if ((current_ch & 224) == 0) {
+            continue;
+        }
+        // 32 is represented as 0b00100000, which is the scenario of dynamic table size update.
+        // From the previous condition we know that the top 3 bits are not 0, so if the top 3 bits are 001, then
+        // we have a dynamic table size update.
+        is_dynamic_table_update = (current_ch & 224) == 32;
+        if (is_dynamic_table_update) {
+            continue;
+        }
+
+        is_indexed = (current_ch & 128) != 0;
+        max_bits = is_indexed ? MAX_7_BITS : MAX_6_BITS;
 
         index = 0;
         if (!read_hpack_int_with_given_current_char(skb, skb_info, current_ch, max_bits, &index)) {
