@@ -654,14 +654,30 @@ func (s *USMHTTP2Suite) TestHTTP2ManyDifferentPaths() {
 
 		// Due to a known issue in http2, we might consider an RST packet as a response to a request and therefore
 		// we might capture a request twice. This is why we are expecting to see 2*numberOfRequests instead of
-		return expectedNumberOfRequests <= matches.Load() && matches.Load() <= expectedNumberOfRequests+1
+		return (expectedNumberOfRequests-1) <= matches.Load() && matches.Load() <= (expectedNumberOfRequests+1)
 	}, time.Second*10, time.Millisecond*100, "%v != %v", &matches, expectedNumberOfRequests)
 
 	for i := 0; i < numberOfRequests; i++ {
-		if v, ok := seenRequests[fmt.Sprintf("/test-%d", i+1)]; !ok || v != numberOfRequests {
-			t.Logf("path: /test-%d should have %d occurrences but instead has %d", i+1, numberOfRequests, v)
+		if v, ok := seenRequests[fmt.Sprintf("/test-%d", i+1)]; !ok || v != repetitionsPerRequest {
+			t.Logf("path: /test-%d should have %d occurrences but instead has %d", i+1, repetitionsPerRequest, v)
 		}
 	}
+}
+
+func getExpectedOutcomeForPathWithRepeatedChars() map[http.Key]captureRange {
+	expected := make(map[http.Key]captureRange)
+	for i := 1; i < 100; i++ {
+		expected[http.Key{
+			Path: http.Path{
+				Content: http.Interner.GetString(fmt.Sprintf("/%s", strings.Repeat("a", i))),
+			},
+			Method: http.MethodPost,
+		}] = captureRange{
+			lower: 1,
+			upper: 1,
+		}
+	}
+	return expected
 }
 
 func (s *USMHTTP2Suite) TestSimpleHTTP2() {
@@ -670,18 +686,6 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 	cfg.EnableHTTP2Monitoring = true
 
 	startH2CServer(t)
-
-	expected := make(map[http.Key]captureRange)
-	// currently we have a bug with paths which are not Huffman encoded, therefore, we are skipping them by starting from `/aaa` (i := 3).
-	for i := 3; i < 100; i++ {
-		expected[http.Key{
-			Path:   http.Path{Content: http.Interner.GetString(fmt.Sprintf("/%s", strings.Repeat("a", i)))},
-			Method: http.MethodPost,
-		}] = captureRange{
-			lower: 1,
-			upper: 1,
-		}
-	}
 
 	tests := []struct {
 		name              string
@@ -737,8 +741,7 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 			runClients: func(t *testing.T, clientsCount int) {
 				clients := getClientsArray(t, clientsCount)
 
-				// currently we have a bug with paths which are not Huffman encoded, therefor I am skipping them by string length 3.
-				for i := 3; i < 100; i++ {
+				for i := 1; i < 100; i++ {
 					path := strings.Repeat("a", i)
 					client := clients[getClientsIndex(i, clientsCount)]
 					req, err := client.Post(http2SrvAddr+"/"+path, "application/json", bytes.NewReader([]byte("test")))
@@ -746,7 +749,7 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 					req.Body.Close()
 				}
 			},
-			expectedEndpoints: expected,
+			expectedEndpoints: getExpectedOutcomeForPathWithRepeatedChars(),
 		},
 	}
 	for _, tt := range tests {
@@ -800,16 +803,14 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 					return true
 				}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
 				if t.Failed() {
-					for key := range expected {
+					for key := range tt.expectedEndpoints {
 						if _, ok := res[key]; !ok {
 							t.Logf("key: %v was not found in res", key.Path.Content.Get())
 						}
 					}
-					o, err := monitor.DumpMaps("http2_in_flight")
+					err := monitor.DumpMaps(&ebpftest.TestLogWriter{T: t}, "http2_in_flight")
 					if err != nil {
 						t.Logf("failed dumping http2_in_flight: %s", err)
-					} else {
-						t.Log(o)
 					}
 				}
 			})
@@ -1000,11 +1001,9 @@ func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp
 	}, 3*time.Second, time.Millisecond*100, "connection not found")
 
 	if t.Failed() {
-		o, err := monitor.DumpMaps("http_in_flight")
+		err := monitor.DumpMaps(&ebpftest.TestLogWriter{T: t}, "http_in_flight")
 		if err != nil {
 			t.Logf("failed dumping http_in_flight: %s", err)
-		} else {
-			t.Log(o)
 		}
 
 		for reqIndex, exists := range requestsExist {

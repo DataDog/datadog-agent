@@ -105,6 +105,11 @@ func (h *RemoteHost) CopyFolder(srcFolder string, dstFolder string) {
 	require.NoError(h.context.T(), err)
 }
 
+// GetFile copy file from the remote host
+func (h *RemoteHost) GetFile(src string, dst string) error {
+	return clients.GetFile(h.client, src, dst)
+}
+
 // FileExists returns true if the file exists and is a regular file and returns an error if any
 func (h *RemoteHost) FileExists(path string) (bool, error) {
 	return clients.FileExists(h.client, path)

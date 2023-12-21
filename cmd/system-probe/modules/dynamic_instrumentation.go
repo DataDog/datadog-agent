@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// DynamicInstrumentation is the dynamic instrumentation module factory
 var DynamicInstrumentation = module.Factory{
 	Name:             config.DynamicInstrumentationModule,
 	ConfigNamespaces: []string{},
@@ -32,5 +32,8 @@ var DynamicInstrumentation = module.Factory{
 		}
 
 		return m, nil
+	},
+	NeedsEBPF: func() bool {
+		return true
 	},
 }

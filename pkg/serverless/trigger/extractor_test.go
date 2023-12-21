@@ -11,8 +11,9 @@ import (
 	"encoding/base64"
 	"testing"
 
-	"github.com/aws/aws-lambda-go/events"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 )
 
 func TestGetAWSPartitionByRegion(t *testing.T) {

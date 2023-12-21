@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -187,7 +188,7 @@ func TestParseLogsAPIPayloadNotWellFormatedButNotRecoverable(t *testing.T) {
 }
 
 func TestProcessMessageValid(t *testing.T) {
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 
@@ -235,7 +236,7 @@ func TestProcessMessageValid(t *testing.T) {
 }
 
 func TestProcessMessageStartValid(t *testing.T) {
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 
@@ -269,7 +270,7 @@ func TestProcessMessageStartValid(t *testing.T) {
 }
 
 func TestProcessMessagePlatformRuntimeDoneValid(t *testing.T) {
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	messageTime := time.Now()
 	defer demux.Stop(false)
@@ -304,7 +305,7 @@ func TestProcessMessagePlatformRuntimeDoneValid(t *testing.T) {
 }
 
 func TestProcessMessagePlatformRuntimeDonePreviousInvocation(t *testing.T) {
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 
@@ -340,7 +341,7 @@ func TestProcessMessagePlatformRuntimeDonePreviousInvocation(t *testing.T) {
 }
 
 func TestProcessMessageShouldNotProcessArnNotSet(t *testing.T) {
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 	message := &LambdaLogAPIMessage{
@@ -375,7 +376,7 @@ func TestProcessMessageShouldNotProcessArnNotSet(t *testing.T) {
 }
 
 func TestProcessMessageShouldNotProcessLogsDropped(t *testing.T) {
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 	message := &LambdaLogAPIMessage{
@@ -404,7 +405,7 @@ func TestProcessMessageShouldNotProcessLogsDropped(t *testing.T) {
 }
 
 func TestProcessMessageShouldProcessLogTypeFunctionOutOfMemory(t *testing.T) {
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 	message := &LambdaLogAPIMessage{
@@ -437,7 +438,7 @@ func TestProcessMessageShouldProcessLogTypeFunctionOutOfMemory(t *testing.T) {
 }
 
 func TestProcessMessageShouldProcessLogTypePlatformReportOutOfMemory(t *testing.T) {
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 	message := &LambdaLogAPIMessage{
@@ -673,7 +674,7 @@ func TestProcessLogMessageLogsNotEnabled(t *testing.T) {
 
 func TestProcessLogMessagesTimeoutLogFromReportLog(t *testing.T) {
 	logChannel := make(chan *config.ChannelMessage)
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 
@@ -736,7 +737,7 @@ func TestProcessLogMessagesTimeoutLogFromReportLog(t *testing.T) {
 
 func TestProcessMultipleLogMessagesTimeoutLogFromReportLog(t *testing.T) {
 	logChannel := make(chan *config.ChannelMessage)
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 
@@ -832,7 +833,7 @@ func TestProcessMultipleLogMessagesTimeoutLogFromReportLog(t *testing.T) {
 
 func TestProcessLogMessagesOutOfMemoryError(t *testing.T) {
 	logChannel := make(chan *config.ChannelMessage)
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 
@@ -1144,7 +1145,7 @@ func TestUnmarshalPlatformRuntimeDoneLogNotFatal(t *testing.T) {
 func TestRuntimeMetricsMatchLogs(t *testing.T) {
 	// The test ensures that the values listed in the report log statement
 	// matches the values of the metrics being reported.
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 
@@ -1232,7 +1233,7 @@ func TestRuntimeMetricsMatchLogs(t *testing.T) {
 func TestRuntimeMetricsMatchLogsProactiveInit(t *testing.T) {
 	// The test ensures that the values listed in the report log statement
 	// matches the values of the metrics being reported.
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 
@@ -1318,7 +1319,7 @@ func TestRuntimeMetricsMatchLogsProactiveInit(t *testing.T) {
 }
 
 func TestMultipleStartLogCollection(t *testing.T) {
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 

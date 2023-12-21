@@ -7,6 +7,7 @@ package e2e
 
 import (
 	"context"
+	"io"
 	"io/fs"
 	"path/filepath"
 	"strings"
@@ -40,7 +41,7 @@ func (fp *FileProvisioner) ID() string {
 	return fp.id
 }
 
-func (fp *FileProvisioner) Provision(string, context.Context) (RawResources, error) {
+func (fp *FileProvisioner) Provision(string, context.Context, io.Writer) (RawResources, error) {
 	resources := make(RawResources)
 
 	return resources, fs.WalkDir(fp.fs, ".", func(path string, d fs.DirEntry, err error) error {
@@ -67,6 +68,6 @@ func (fp *FileProvisioner) Provision(string, context.Context) (RawResources, err
 	})
 }
 
-func (fp *FileProvisioner) Delete(string, context.Context) error {
+func (fp *FileProvisioner) Delete(string, context.Context, io.Writer) error {
 	return nil
 }

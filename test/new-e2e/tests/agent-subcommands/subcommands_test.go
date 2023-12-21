@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/awshost"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-
 	"github.com/cenkalti/backoff"
 	"github.com/stretchr/testify/assert"
 )
@@ -25,8 +25,13 @@ type subcommandSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
+type subcommandWithFakeIntakeSuite struct {
+	e2e.BaseSuite[environments.Host]
+}
+
 func TestSubcommandSuite(t *testing.T) {
-	e2e.Run(t, &subcommandSuite{}, e2e.WithProvisioner(awsvm.Provisioner(awsvm.WithoutFakeIntake())))
+	e2e.Run(t, &subcommandSuite{}, e2e.WithProvisioner(awsvm.ProvisionerNoFakeIntake()))
+	e2e.Run(t, &subcommandWithFakeIntakeSuite{}, e2e.WithProvisioner(awsvm.Provisioner()))
 }
 
 // section contains the content status of a specific section (e.g. Forwarder)
@@ -213,8 +218,7 @@ func (v *subcommandSuite) TestFIPSProxyStatus() {
 	verifySectionContent(v.T(), status.Content, expectedSection)
 }
 
-func (v *subcommandSuite) TestDefaultInstallHealthy() {
-	v.UpdateEnv(awsvm.Provisioner())
+func (v *subcommandWithFakeIntakeSuite) TestDefaultInstallHealthy() {
 	interval := 1 * time.Second
 
 	var output string
@@ -229,4 +233,28 @@ func (v *subcommandSuite) TestDefaultInstallHealthy() {
 
 	assert.NoError(v.T(), err)
 	assert.Contains(v.T(), output, "Agent health: PASS")
+}
+
+func (v *subcommandWithFakeIntakeSuite) TestDefaultInstallUnhealthy() {
+	// the fakeintake says that any API key is invalid by sending a 403 code
+	override := api.ResponseOverride{
+		Endpoint:    "/api/v1/validate",
+		StatusCode:  403,
+		ContentType: "text/plain",
+		Body:        []byte("invalid API key"),
+	}
+	v.Env().FakeIntake.Client().ConfigureOverride(override)
+
+	// restart the agent, which validates the key using the fakeintake at startup
+	v.UpdateEnv(awsvm.Provisioner(
+		awsvm.WithAgentOptions(agentparams.WithAgentConfig("log_level: info\n")),
+	))
+
+	// agent should be unhealthy because the key is invalid
+	_, err := v.Env().Agent.Client.Health()
+	if err == nil {
+		assert.Fail(v.T(), "agent expected to be unhealthy, but no error found!")
+		return
+	}
+	assert.Contains(v.T(), err.Error(), "Agent health: FAIL")
 }

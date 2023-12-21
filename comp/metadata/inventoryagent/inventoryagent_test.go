@@ -13,8 +13,9 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -27,8 +28,8 @@ func getTestInventoryPayload(t *testing.T, confOverrides map[string]any) *invent
 	p := newInventoryAgentProvider(
 		fxutil.Test[dependencies](
 			t,
-			log.MockModule,
-			config.MockModule,
+			logimpl.MockModule(),
+			config.MockModule(),
 			fx.Replace(config.MockParams{Overrides: confOverrides}),
 			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
 		),
@@ -226,4 +227,17 @@ func TestGet(t *testing.T) {
 	// verify that the return map is a copy
 	p["test"] = 21
 	assert.Equal(t, 1234, ia.data["test"])
+}
+
+func TestFlareProviderFilename(t *testing.T) {
+	ia := getTestInventoryPayload(t, nil)
+	assert.Equal(t, "agent.json", ia.FlareFileName)
+}
+
+func TestConfigRefresh(t *testing.T) {
+	ia := getTestInventoryPayload(t, nil)
+
+	assert.False(t, ia.ForceRefresh)
+	pkgconfig.Datadog.Set("inventories_max_interval", 10*time.Minute, pkgconfigmodel.SourceAgentRuntime)
+	assert.True(t, ia.ForceRefresh)
 }

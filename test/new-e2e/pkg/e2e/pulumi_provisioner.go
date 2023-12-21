@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"reflect"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
@@ -55,11 +56,11 @@ func (pp *PulumiProvisioner[Env]) ID() string {
 	return pp.id
 }
 
-func (pp *PulumiProvisioner[Env]) Provision(stackName string, ctx context.Context) (RawResources, error) {
-	return pp.ProvisionEnv(stackName, ctx, nil)
+func (pp *PulumiProvisioner[Env]) Provision(stackName string, ctx context.Context, logger io.Writer) (RawResources, error) {
+	return pp.ProvisionEnv(stackName, ctx, logger, nil)
 }
 
-func (pp *PulumiProvisioner[Env]) ProvisionEnv(stackName string, ctx context.Context, env *Env) (RawResources, error) {
+func (pp *PulumiProvisioner[Env]) ProvisionEnv(stackName string, ctx context.Context, logger io.Writer, env *Env) (RawResources, error) {
 	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(
 		ctx,
 		stackName,
@@ -68,6 +69,7 @@ func (pp *PulumiProvisioner[Env]) ProvisionEnv(stackName string, ctx context.Con
 			return pp.runFunc(ctx, env)
 		},
 		false,
+		logger,
 	)
 	if err != nil {
 		return nil, err
@@ -92,6 +94,6 @@ func (pp *PulumiProvisioner[Env]) ProvisionEnv(stackName string, ctx context.Con
 	return resources, nil
 }
 
-func (pp *PulumiProvisioner[Env]) Delete(stackName string, ctx context.Context) error {
-	return infra.GetStackManager().DeleteStack(ctx, stackName)
+func (pp *PulumiProvisioner[Env]) Delete(stackName string, ctx context.Context, logger io.Writer) error {
+	return infra.GetStackManager().DeleteStack(ctx, stackName, logger)
 }

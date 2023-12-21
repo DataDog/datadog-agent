@@ -97,7 +97,6 @@ func WithoutFakeIntake() ProvisionerOption {
 func WithoutAgent() ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.agentOptions = nil
-		params.fakeintakeOptions = nil
 		return nil
 	}
 }

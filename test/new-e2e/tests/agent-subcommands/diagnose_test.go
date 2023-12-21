@@ -20,7 +20,6 @@ import (
 	svcmanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/svc-manager"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

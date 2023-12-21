@@ -1,7 +1,7 @@
 {
     "debian": {
         "x86_64": {
-            "debian-9":  "ami-099d228beefd189f5",
+            "debian-9":  "ami-0182559468c1975fe",
             "debian-10": "ami-041540a5c191757a0",
             "debian-11": "ami-09e24b0cfe072ecef",
             "debian-12": "ami-06db4d78cb1d3bbf9"
@@ -49,6 +49,7 @@
     "centos": {
         "x86_64": {
             "centos-610": "ami-0506f01ccb6dddeda",
+<<<<<<< HEAD
             "centos-79": "ami-0aedf6b1cb669b4c7"
         },
         "arm64": {
@@ -66,13 +67,23 @@
     "rocky-linux": {
         "x86_64": {
             "rocky-92": "ami-062b16ca222175b97"
+||||||| 284aac9a59
+            "centos-79": "ami-0aedf6b1cb669b4c7",
+            "rhel-86": "ami-06640050dc3f556bb",
+            "rocky-92": "ami-062b16ca222175b97"
+=======
+            "centos-79": "ami-0aedf6b1cb669b4c7",
+            "rhel-86": "ami-06640050dc3f556bb",
+            "rocky-92": "ami-062b16ca222175b97",
+            "rhel-86-fips": "ami-0d0fb96b595c56e03"
+>>>>>>> origin/main
         },
         "arm64": {
         }
     },
     "suse": {
         "x86_64": {
-            "sles-12": "ami-09e1f60648b4fb117",
+            "sles-12": "ami-08d21b039336d9351",
             "sles-15": "ami-08f3662e2d5b3989a"
         },
         "arm64": {

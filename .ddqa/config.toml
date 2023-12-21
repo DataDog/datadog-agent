@@ -6,6 +6,8 @@ qa_statuses = [
 ]
 ignored_labels = [
   "qa/skip-qa",
+  "qa/done",
+  "qa/no-code-change",
 ]
 
 [teams."Agent Metrics Logs"]

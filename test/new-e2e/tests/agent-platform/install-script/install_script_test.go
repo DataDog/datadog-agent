@@ -52,7 +52,8 @@ func TestInstallScript(t *testing.T) {
 	osVersions := strings.Split(*osVersion, ",")
 	cwsSupportedOsVersionList := strings.Split(*cwsSupportedOsVersion, ",")
 
-	fmt.Println("Parsed platform json file: ", platformJSON)
+	t.Log("Parsed platform json file: ", platformJSON)
+
 	for _, osVers := range osVersions {
 		osVers := osVers
 		if platformJSON[*platform][*architecture][osVers] == "" {
@@ -74,7 +75,7 @@ func TestInstallScript(t *testing.T) {
 
 		t.Run(fmt.Sprintf("test install script on %s %s %s agent %s", osVers, *architecture, *flavor, *majorVersion), func(tt *testing.T) {
 			tt.Parallel()
-			fmt.Printf("Testing %s", osVers)
+			tt.Logf("Testing %s", osVers)
 			osDesc := osComp.NewDescriptorWithArch(osComp.FlavorFromString(*platform), osVers, osComp.ArchitectureFromString(*architecture))
 			vmOpts = append(vmOpts, ec2.WithAMI(platformJSON[*platform][*architecture][osVers], osDesc, osDesc.Architecture))
 

@@ -74,5 +74,5 @@ func (ibs InterfaceBandwidthState) calculateBandwidthUsageRate(fullIndex string,
 	if ok {
 		return 0, fmt.Errorf("ifSpeed changed from %d to %d for interface ID %s, no rate emitted", state.ifSpeed, ifSpeed, interfaceID)
 	}
-	return 0, nil
+	return 0, fmt.Errorf("new entry made, no rate emitted for interface ID %s", interfaceID)
 }

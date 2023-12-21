@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
@@ -65,7 +66,7 @@ func SecurityAgentCommands(globalParams *command.GlobalParams) []*cobra.Command 
 			ConfigParams:         config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
 			SecretParams:         secrets.NewEnabledParams(),
 			SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
-			LogParams:            log.ForOneShot(command.LoggerName, "info", true),
+			LogParams:            logimpl.ForOneShot(command.LoggerName, "info", true),
 		}
 	})
 }
@@ -89,13 +90,13 @@ func commandsWrapped(bundleParamsFactory func() core.BundleParams) []*cobra.Comm
 
 			bundleParams := bundleParamsFactory()
 			if checkArgs.verbose {
-				bundleParams.LogParams = log.ForOneShot(bundleParams.LogParams.LoggerName(), "trace", true)
+				bundleParams.LogParams = logimpl.ForOneShot(bundleParams.LogParams.LoggerName(), "trace", true)
 			}
 
 			return fxutil.OneShot(RunCheck,
 				fx.Supply(checkArgs),
 				fx.Supply(bundleParams),
-				core.Bundle,
+				core.Bundle(),
 				dogstatsd.ClientBundle,
 			)
 		},
@@ -238,7 +239,7 @@ func dumpComplianceEvents(reportFile string, events []*compliance.CheckEvent) er
 	if err != nil {
 		return fmt.Errorf("could not marshal events map: %w", err)
 	}
-	if err := os.WriteFile(reportFile, b, 0644); err != nil {
+	if err := os.WriteFile(reportFile, b, 0o644); err != nil {
 		return fmt.Errorf("could not write report file in %q: %w", reportFile, err)
 	}
 	return nil
@@ -274,7 +275,7 @@ func complianceKubernetesProvider(_ctx context.Context) (dynamic.Interface, disc
 	if err != nil {
 		return nil, nil, err
 	}
-	return apiCl.DynamicCl, apiCl.DiscoveryCl, nil
+	return apiCl.DynamicCl, apiCl.Cl.Discovery(), nil
 }
 
 type fakeResolver struct {

@@ -24,6 +24,7 @@ def go_version(_):
         "test_version": "Whether the image is a test image or not",
         "warn": "Don't exit in case of matching error, just warn.",
         "release_note": "Whether to create a release note or not. The default behaviour is to create a release note",
+        "include_otel_modules": "Whether to update the version in go.mod files used by otel.",
     }
 )
 def update_go(
@@ -33,6 +34,7 @@ def update_go(
     test_version: Optional[bool] = False,
     warn: Optional[bool] = False,
     release_note: Optional[bool] = True,
+    include_otel_modules: Optional[bool] = False,
 ):
     """
     Updates the version of Go and build images.
@@ -66,10 +68,14 @@ def update_go(
         else:
             raise
 
-    _update_readme(warn, new_major)
-    _update_go_mods(warn, new_major)
+    _update_root_readme(warn, new_major)
+    _update_fakeintake_readme(warn, new_major)
+    _update_go_mods(warn, new_major, include_otel_modules)
+    _update_process_agent_readme(warn, new_major)
+    _update_windowsevent_readme(warn, new_major)
     _update_go_version_file(warn, version)
     _update_gdb_dockerfile(warn, version)
+    _update_fakeintake_dockerfile(warn, version)
     _update_install_devenv(warn, version)
     _update_agent_devenv(warn, version)
     _update_task_go(warn, version)
@@ -81,7 +87,7 @@ def update_go(
     else:
         print(
             color_message(
-                "WARNING: did not run `inv tidy-all` as the version of your `go` binary doesn't match the request version",
+                "WARNING: did not run `inv tidy-all` as the version of your `go` binary doesn't match the requested version",
                 "orange",
             )
         )
@@ -152,6 +158,13 @@ def _update_gdb_dockerfile(warn: bool, version: str):
     _update_file(warn, path, pattern, replace)
 
 
+def _update_fakeintake_dockerfile(warn: bool, version: str):
+    path = "./test/fakeintake/Dockerfile"
+    pattern = r'(FROM golang:)[.0-9]+(-alpine)'
+    replace = rf'\g<1>{version}\g<2>'
+    _update_file(warn, path, pattern, replace)
+
+
 def _update_install_devenv(warn: bool, version: str):
     path = "./devenv/scripts/Install-DevEnv.ps1"
     _update_file(warn, path, '("Installing go )[.0-9]+"', rf'\g<1>{version}"')
@@ -178,16 +191,41 @@ def _update_task_go(warn: bool, version: str):
     _update_file(warn, path, pattern, replace)
 
 
-def _update_readme(warn: bool, major: str):
+def _update_root_readme(warn: bool, major: str):
     path = "./README.md"
     pattern = r'(\[Go\]\(https://golang\.org/doc/install\) )[.0-9]+( or later)'
     replace = rf'\g<1>{major}\g<2>'
     _update_file(warn, path, pattern, replace)
 
 
-def _update_go_mods(warn: bool, major: str):
-    mod_files = [f"./{module}/go.mod" for module in DEFAULT_MODULES]
-    for mod_file in mod_files:
+def _update_fakeintake_readme(warn: bool, major: str):
+    path = "./test/fakeintake/docs/README.md"
+    pattern = r'(\[Golang )[.0-9]+(\])'
+    replace = rf'\g<1>{major}\g<2>'
+    _update_file(warn, path, pattern, replace)
+
+
+def _update_process_agent_readme(warn: bool, major: str):
+    path = "./cmd/process-agent/README.md"
+    pattern = r'(`go >= )[.0-9]+(`)'
+    replace = rf'\g<1>{major}\g<2>'
+    _update_file(warn, path, pattern, replace)
+
+
+def _update_windowsevent_readme(warn: bool, major: str):
+    path = "./pkg/logs/launchers/windowsevent/README.md"
+    pattern = r'(install go )[.0-9]+(\+,)'
+    replace = rf'\g<1>{major}\g<2>'
+    _update_file(warn, path, pattern, replace)
+
+
+def _update_go_mods(warn: bool, major: str, include_otel_modules: bool):
+    for path, module in DEFAULT_MODULES.items():
+        if not include_otel_modules and module.used_by_otel:
+            # only update the go directives in go.mod files not used by otel
+            # to allow them to keep using the modules
+            continue
+        mod_file = f"./{path}/go.mod"
         _update_file(warn, mod_file, "^go [.0-9]+$", f"go {major}")
 
 

@@ -276,9 +276,9 @@ func (bs *BaseSuite[Env]) reconcileEnv() {
 
 		switch pType := provisioner.(type) {
 		case TypedProvisioner[Env]:
-			provisionerResources, err = pType.ProvisionEnv(bs.params.stackName, ctx, newEnv)
+			provisionerResources, err = pType.ProvisionEnv(bs.params.stackName, ctx, newTestLogger(bs.T()), newEnv)
 		case UntypedProvisioner:
-			provisionerResources, err = pType.Provision(bs.params.stackName, ctx)
+			provisionerResources, err = pType.Provision(bs.params.stackName, ctx, newTestLogger(bs.T()))
 		default:
 			panic(fmt.Errorf("provisioner of type %T does not implement UntypedProvisioner nor TypedProvisioner", provisioner))
 		}
@@ -471,7 +471,7 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 
 	atLeastOneFailure := false
 	for id, provisioner := range bs.currentProvisioners {
-		if err := provisioner.Delete(bs.params.stackName, ctx); err != nil {
+		if err := provisioner.Delete(bs.params.stackName, ctx, newTestLogger(bs.T())); err != nil {
 			bs.T().Errorf("unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err)
 			atLeastOneFailure = true
 		}

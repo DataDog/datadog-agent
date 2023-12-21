@@ -9,11 +9,13 @@ import (
 	"fmt"
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/docker"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/stretchr/testify/assert"
 )
 
 type dockerSuite struct {
@@ -21,7 +23,7 @@ type dockerSuite struct {
 }
 
 func TestDocker(t *testing.T) {
-	e2e.Run(t, &dockerSuite{}, e2e.WithProvisioner(awsdocker.Provisioner(awsdocker.WithoutFakeIntake())))
+	e2e.Run(t, &dockerSuite{}, e2e.WithProvisioner(awsdocker.Provisioner()))
 }
 
 func (v *dockerSuite) TestExecuteCommand() {
@@ -34,4 +36,10 @@ func (v *dockerSuite) TestExecuteCommand() {
 	args := agentclient.WithArgs([]string{"-n", "-c", "."})
 	version := v.Env().Agent.Client.Version(args)
 	v.Require().Truef(regexpVersion.MatchString(version), fmt.Sprintf("%v doesn't match %v", version, regexpVersion))
+
+	v.EventuallyWithT(func(tt *assert.CollectT) {
+		metrics, err := v.Env().FakeIntake.Client().GetMetricNames()
+		assert.NoError(tt, err)
+		assert.Contains(tt, metrics, "system.uptime", fmt.Sprintf("metrics %v doesn't contain system.uptime", metrics))
+	}, 2*time.Minute, 10*time.Second)
 }

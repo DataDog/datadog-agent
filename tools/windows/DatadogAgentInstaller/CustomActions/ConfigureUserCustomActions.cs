@@ -41,7 +41,7 @@ namespace Datadog.CustomActions
             _fileSystemServices = fileSystemServices;
             _serviceController = serviceController;
 
-            _rollbackDataStore = new RollbackDataStore(_session, rollbackDataName, _fileSystemServices);
+            _rollbackDataStore = new RollbackDataStore(_session, rollbackDataName, _fileSystemServices, _serviceController);
         }
 
         public ConfigureUserCustomActions(ISession session, string rollbackDataName)
@@ -100,6 +100,13 @@ namespace Datadog.CustomActions
             }
 
             _nativeMethods.AddToGroup(_ddAgentUserSID, WellKnownSidType.BuiltinPerformanceMonitoringUsersSid);
+            // Required for using ETW - we would not need this right if the Agent was running as virtual service account (as they have
+            // the same rights as LocalService, which can use ETW by default.
+            // See https://www.geoffchappell.com/studies/windows/km/ntoskrnl/api/etw/secure/index.htm
+            //   "By default, only the administrator of the computer, users in the Performance Log Users group, and services running as LocalSystem,
+            //    *LocalService*, NetworkService can control trace sessions and provide and consume event data.
+            //    Only users with administrative privileges and services running as LocalSystem can start and control an NT Kernel Logger session."
+            _nativeMethods.AddToGroup(_ddAgentUserSID, WellKnownSidType.BuiltinPerformanceLoggingUsersSid);
             // Builtin\Event Log Readers
             _nativeMethods.AddToGroup(_ddAgentUserSID, new SecurityIdentifier("S-1-5-32-573"));
         }
@@ -173,46 +180,6 @@ namespace Datadog.CustomActions
                 PropagationFlags.None,
                 AccessControlType.Allow));
             UpdateAndLogAccessControl(_session.Property("APPLICATIONDATADIRECTORY"), fileSystemSecurity);
-        }
-
-        private SecurityIdentifier GetPreviousAgentUser()
-        {
-            try
-            {
-                using var subkey =
-                    _registryServices.OpenRegistryKey(Registries.LocalMachine, Constants.DatadogAgentRegistryKey);
-                if (subkey == null)
-                {
-                    throw new Exception("Datadog registry key does not exist");
-                }
-                var domain = subkey.GetValue("installedDomain")?.ToString();
-                var user = subkey.GetValue("installedUser")?.ToString();
-                if (string.IsNullOrEmpty(domain) || string.IsNullOrEmpty(user))
-                {
-                    throw new Exception("Agent user information is not in registry");
-                }
-
-                var name = $"{domain}\\{user}";
-                _session.Log($"Found agent user information in registry {name}");
-                var userFound = _nativeMethods.LookupAccountName(name,
-                    out _,
-                    out _,
-                    out var securityIdentifier,
-                    out _);
-                if (!userFound || securityIdentifier == null)
-                {
-                    throw new Exception($"Could not find account for user {name}.");
-                }
-
-                _session.Log($"Found previous agent user {name} ({securityIdentifier})");
-                return securityIdentifier;
-            }
-            catch (Exception e)
-            {
-                _session.Log($"Could not find previous agent user: {e}");
-            }
-
-            return null;
         }
 
         /// <summary>
@@ -532,7 +499,7 @@ namespace Datadog.CustomActions
                     throw new Exception($"Could not find user {ddAgentUserName}.");
                 }
 
-                _previousDdAgentUserSID = GetPreviousAgentUser();
+                _previousDdAgentUserSID = InstallStateCustomActions.GetPreviousAgentUser(_session, _registryServices, _nativeMethods);
 
                 var resetPassword = _session.Property("DDAGENTUSER_RESET_PASSWORD");
                 var ddagentuserPassword = _session.Property("DDAGENTUSER_PROCESSED_PASSWORD");

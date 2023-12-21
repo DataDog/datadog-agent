@@ -224,17 +224,12 @@ func (a *Agent) loop() {
 func (a *Agent) setRootSpanTags(root *pb.Span) {
 	clientSampleRate := sampler.GetGlobalRate(root)
 	sampler.SetClientRate(root, clientSampleRate)
-	if a.conf.InAzureAppServices {
-		for k, v := range traceutil.GetAppServicesTags() {
-			traceutil.SetMeta(root, k, v)
-		}
-	}
 }
 
 // setFirstTraceTags sets additional tags on the first trace ever processed by the agent,
 // so that we can see that the customer has successfully onboarded onto APM.
 func (a *Agent) setFirstTraceTags(root *pb.Span) {
-	if a.conf == nil || a.conf.InstallSignature.InstallType == "" || root == nil {
+	if a.conf == nil || a.conf.InstallSignature.InstallID == "" || root == nil {
 		return
 	}
 	a.firstSpanOnce.Do(func() {
@@ -314,11 +309,6 @@ func (a *Agent) Process(p *api.Payload) {
 				} else {
 					traceutil.SetMeta(span, k, v)
 				}
-			}
-			if a.conf.InAzureAppServices {
-				appServicesTags := traceutil.GetAppServicesTags()
-				traceutil.SetMeta(span, "aas.site.name", appServicesTags["aas.site.name"])
-				traceutil.SetMeta(span, "aas.site.type", appServicesTags["aas.site.type"])
 			}
 			if a.ModifySpan != nil {
 				a.ModifySpan(chunk, span)

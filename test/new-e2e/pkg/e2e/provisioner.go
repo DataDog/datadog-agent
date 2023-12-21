@@ -5,19 +5,22 @@
 
 package e2e
 
-import "context"
+import (
+	"context"
+	"io"
+)
 
 type Provisioner interface {
 	ID() string
-	Delete(string, context.Context) error
+	Delete(string, context.Context, io.Writer) error
 }
 
 type UntypedProvisioner interface {
 	Provisioner
-	Provision(string, context.Context) (RawResources, error)
+	Provision(string, context.Context, io.Writer) (RawResources, error)
 }
 
 type TypedProvisioner[Env any] interface {
 	Provisioner
-	ProvisionEnv(string, context.Context, *Env) (RawResources, error)
+	ProvisionEnv(string, context.Context, io.Writer, *Env) (RawResources, error)
 }

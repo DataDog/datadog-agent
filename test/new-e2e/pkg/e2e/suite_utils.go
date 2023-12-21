@@ -4,3 +4,18 @@
 // Copyright 2016-present Datadog, Inc.
 
 package e2e
+
+import "testing"
+
+type testLogger struct {
+	t *testing.T
+}
+
+func newTestLogger(t *testing.T) testLogger {
+	return testLogger{t: t}
+}
+
+func (tl testLogger) Write(p []byte) (n int, err error) {
+	tl.t.Log(string(p))
+	return len(p), nil
+}
