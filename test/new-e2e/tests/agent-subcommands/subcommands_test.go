@@ -16,7 +16,6 @@ import (
 	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/vm"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
 
 	"github.com/cenkalti/backoff"
 	"github.com/stretchr/testify/assert"
@@ -215,7 +214,7 @@ func (v *subcommandSuite) TestFIPSProxyStatus() {
 }
 
 func (v *subcommandSuite) TestDefaultInstallHealthy() {
-	v.UpdateEnv(awsvm.Provisioner(awsvm.WithFakeIntakeOptions(fakeintake.WithoutLoadBalancer())))
+	v.UpdateEnv(awsvm.Provisioner())
 	interval := 1 * time.Second
 
 	var output string

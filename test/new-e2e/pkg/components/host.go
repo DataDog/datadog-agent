@@ -36,7 +36,7 @@ var _ e2e.Initializable = &Host{}
 
 func (h *Host) Init(ctx e2e.Context) error {
 	h.context = ctx
-	h.context.T().Logf("connecting to remote VM at %s@%s", h.Username, h.Host)
+	h.context.T().Logf("connecting to remote VM at %s@%s", h.Username, h.Address)
 
 	var privateSSHKey []byte
 	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.PrivateKeyPath, "")
@@ -58,7 +58,7 @@ func (h *Host) Init(ctx e2e.Context) error {
 
 	h.client, err = clients.GetSSHClient(
 		h.Username,
-		fmt.Sprintf("%s:%d", h.Host, 22),
+		h.Address,
 		privateSSHKey,
 		[]byte(privateKeyPassword),
 		sshRetryInterval,

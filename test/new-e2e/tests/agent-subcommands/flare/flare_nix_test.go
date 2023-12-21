@@ -15,7 +15,6 @@ import (
 	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/vm"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
 )
 
 //go:embed fixtures/datadog-agent.yaml
@@ -31,7 +30,7 @@ type linuxFlareSuite baseFlareSuite
 
 func TestLinuxFlareSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &linuxFlareSuite{}, e2e.WithProvisioner(awsvm.Provisioner(awsvm.WithFakeIntakeOptions(fakeintake.WithoutLoadBalancer()))))
+	e2e.Run(t, &linuxFlareSuite{}, e2e.WithProvisioner(awsvm.Provisioner()))
 }
 
 func (v *linuxFlareSuite) TestFlareWithAllConfiguration() {

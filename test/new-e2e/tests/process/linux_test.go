@@ -28,8 +28,8 @@ func TestLinuxTestSuite(t *testing.T) {
 
 func (s *linuxTestSuite) SetupSuite() {
 	// Start a process and keep it running
-	s.Env().Host.Execute("sudo apt-get -y install stress")
-	s.Env().Host.Execute("nohup stress -d 1 >myscript.log 2>&1 </dev/null &")
+	s.Env().Host.MustExecute("sudo apt-get -y install stress")
+	s.Env().Host.MustExecute("nohup stress -d 1 >myscript.log 2>&1 </dev/null &")
 }
 
 func (s *linuxTestSuite) TestProcessCheck() {

@@ -75,7 +75,7 @@ func TestInstallScript(t *testing.T) {
 		t.Run(fmt.Sprintf("test install script on %s %s %s agent %s", osVers, *architecture, *flavor, *majorVersion), func(tt *testing.T) {
 			tt.Parallel()
 			fmt.Printf("Testing %s", osVers)
-			osDesc := osComp.NewDescriptorWithArch(osComp.NewFlavorFromString(*platform), osVers, osComp.NewArchitectureFromString(*architecture))
+			osDesc := osComp.NewDescriptorWithArch(osComp.FlavorFromString(*platform), osVers, osComp.ArchitectureFromString(*architecture))
 			vmOpts = append(vmOpts, ec2.WithAMI(platformJSON[*platform][*architecture][osVers], osDesc, osDesc.Architecture))
 
 			e2e.Run(tt,

@@ -101,13 +101,13 @@ func multiFakeIntakeAWS(agentOptions ...agentparams.Option) e2e.Provisioner {
 		}
 		agent.Export(ctx, &env.Agent.HostAgentOutput)
 
-		fakeIntake1, err := fakeintake.NewECSFargateInstance(awsEnv, fakeintake1Name, fakeintake.WithoutLoadBalancer())
+		fakeIntake1, err := fakeintake.NewECSFargateInstance(awsEnv, fakeintake1Name)
 		if err != nil {
 			return err
 		}
 		fakeIntake1.Export(ctx, &env.Fakeintake1.FakeintakeOutput)
 
-		fakeIntake2, err := fakeintake.NewECSFargateInstance(awsEnv, fakeintake2Name, fakeintake.WithoutLoadBalancer())
+		fakeIntake2, err := fakeintake.NewECSFargateInstance(awsEnv, fakeintake2Name)
 		if err != nil {
 			return err
 		}

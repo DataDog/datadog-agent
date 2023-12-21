@@ -7,6 +7,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
+	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
 	"github.com/DataDog/test-infra-definitions/components/docker"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
@@ -25,7 +26,7 @@ type ProvisionerParams struct {
 	name string
 
 	vmOptions         []ec2.VMOption
-	agentOptions      []agent.DockerOption
+	agentOptions      []dockeragentparams.Option
 	fakeintakeOptions []fakeintake.Option
 	extraConfigParams runner.ConfigMap
 }
@@ -35,7 +36,7 @@ func newProvisionerParams() *ProvisionerParams {
 	return &ProvisionerParams{
 		name:              defaultVMName,
 		vmOptions:         []ec2.VMOption{},
-		agentOptions:      []agent.DockerOption{},
+		agentOptions:      []dockeragentparams.Option{},
 		fakeintakeOptions: []fakeintake.Option{},
 		extraConfigParams: runner.ConfigMap{},
 	}
@@ -61,7 +62,7 @@ func WithEC2VMOptions(opts ...ec2.VMOption) ProvisionerOption {
 }
 
 // WithAgentOptions sets the options for the Docker Agent
-func WithAgentOptions(opts ...agent.DockerOption) ProvisionerOption {
+func WithAgentOptions(opts ...dockeragentparams.Option) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.agentOptions = append(params.agentOptions, opts...)
 		return nil

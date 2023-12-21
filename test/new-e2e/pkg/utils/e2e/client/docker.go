@@ -29,7 +29,7 @@ type Docker struct {
 
 // NewDocker creates a new instance of Docker
 func NewDocker(t *testing.T, host remote.HostOutput) (*Docker, error) {
-	deamonURL := fmt.Sprintf("ssh://%v@%v:22", host.Username, host.Host)
+	deamonURL := fmt.Sprintf("ssh://%v@%v", host.Username, host.Address)
 
 	helper, err := connhelper.GetConnectionHelperWithSSHOpts(deamonURL, []string{"-o", "StrictHostKeyChecking no"})
 	if err != nil {
@@ -104,9 +104,3 @@ func (docker *Docker) ExecuteCommandStdoutStdErr(containerName string, commands 
 func (docker *Docker) GetClient() *client.Client {
 	return docker.client
 }
-
-// func (docker *Docker) executeAgentCmdWithError(commands []string) (string, error) {
-// 	wholeCommands := []string{"agent"}
-// 	wholeCommands = append(wholeCommands, commands...)
-// 	return docker.ExecuteCommandWithErr(docker.GetAgentContainerName(), wholeCommands...)
-// }
