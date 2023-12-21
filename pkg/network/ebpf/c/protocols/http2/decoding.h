@@ -233,10 +233,10 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
         bpf_skb_load_bytes(skb, skb_info->data_off, &current_ch, sizeof(current_ch));
         skb_info->data_off++;
 
-        // We need to read the size of the dynamic table update, which is represented by an integer representation,
-        // we need to read byte by byte until we get a byte without the MSB set, only then we know we consumed the
-        // entire integer. So if we're in the context if dynamic table update, we modify the state to be true
-        // if the MSB is set, and false otherwise, and continue to the next byte.
+        // To determine the size of the dynamic table update, we read an integer representation byte by byte. 
+        // We continue reading bytes until we encounter a byte without the Most Significant Bit (MSB) set, 
+        // indicating that we've consumed the complete integer. While in the context of the dynamic table 
+        // update, we set the state as true if the MSB is set, and false otherwise. Then, we proceed to the next byte.
         // More on the feature - https://httpwg.org/specs/rfc7541.html#rfc.section.6.3.
         if (is_dynamic_table_update) {
             is_dynamic_table_update = (current_ch & 128) != 0;
