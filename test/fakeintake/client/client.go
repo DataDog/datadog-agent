@@ -161,7 +161,7 @@ func (c *Client) getProcessDiscoveries() error {
 	return c.processDiscoveryAggregator.UnmarshallPayloads(payloads)
 }
 
-func (c *Client) getOrchestrators() error {
+func (c *Client) getOrchestratorResources() error {
 	payloads, err := c.getFakePayloads(orchestratorEndpoint)
 	if err != nil {
 		return err
@@ -535,10 +535,10 @@ func (c *Client) GetProcessDiscoveries() ([]*aggregator.ProcessDiscoveryPayload,
 	return discs, nil
 }
 
-// GetOrchestrators fetches fakeintake on `/api/v2/orch` endpoint and returns
+// GetOrchestratorResources fetches fakeintake on `/api/v2/orch` endpoint and returns
 // all received process payloads
-func (c *Client) GetOrchestrators(filter *PayloadFilter) ([]*aggregator.OrchestratorPayload, error) {
-	err := c.getOrchestrators()
+func (c *Client) GetOrchestratorResources(filter *PayloadFilter) ([]*aggregator.OrchestratorPayload, error) {
+	err := c.getOrchestratorResources()
 	if err != nil {
 		return nil, err
 	}
