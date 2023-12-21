@@ -72,7 +72,7 @@ func setupPerfMap(proto string, m *manager.Manager) {
 	pm := &manager.PerfMap{
 		Map: manager.Map{Name: mapName},
 		PerfMapOptions: manager.PerfMapOptions{
-			PerfRingBufferSize: 16 * os.Getpagesize(),
+			PerfRingBufferSize: 64 * os.Getpagesize(),
 			Watermark:          1,
 			RecordHandler:      handler.RecordHandler,
 			LostHandler:        handler.LostHandler,
