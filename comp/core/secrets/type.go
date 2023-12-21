@@ -11,9 +11,9 @@ type SecretVal struct {
 	ErrorMsg string `json:"error,omitempty"`
 }
 
-// ResolveCallback is the callback type used by Subscribe method to send notifications
-// This callback will be called once for each time a handle shows up at a particular path
-type ResolveCallback func(handle string, path []string, oldValue, newValue any)
+// SecretChangeCallback is the callback type used by SubscribeToChanges to send notifications
+// This callback will be called once for each time a handle at a particular path is resolved or refreshed
+type SecretChangeCallback func(handle string, path []string, oldValue, newValue any)
 
 // PayloadVersion defines the current payload version sent to a secret backend
 const PayloadVersion = "1.0"

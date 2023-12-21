@@ -367,7 +367,7 @@ func TestResolveNestedWithSubscribe(t *testing.T) {
 	topLevelResolved := 0
 	secondLevelResolved := 0
 	thirdLevelResolved := 0
-	resolver.Subscribe(func(handle string, path []string, oldValue, newValue any) {
+	resolver.SubscribeToChanges(func(handle string, path []string, oldValue, newValue any) {
 		switch strings.Join(path, "/") {
 		case "top_level":
 			assert.Equal(t, "password1", newValue)
@@ -403,7 +403,7 @@ func TestResolveThenRefresh(t *testing.T) {
 	keysResolved := []string{}
 	oldValues := []string{}
 	newValues := []string{}
-	resolver.Subscribe(func(handle string, path []string, oldValue, newValue any) {
+	resolver.SubscribeToChanges(func(handle string, path []string, oldValue, newValue any) {
 		keysResolved = append(keysResolved, strings.Join(path, "/"))
 		oldValues = append(oldValues, fmt.Sprintf("%s", oldValue))
 		newValues = append(newValues, fmt.Sprintf("%s", newValue))

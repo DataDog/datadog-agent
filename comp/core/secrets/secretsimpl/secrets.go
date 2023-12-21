@@ -78,7 +78,7 @@ type secretResolver struct {
 	refreshInterval int
 	ticker          *time.Ticker
 	// subscriptions want to be notified about changes to the secrets
-	subscriptions []secrets.ResolveCallback
+	subscriptions []secrets.SecretChangeCallback
 
 	// can be overridden for testing purposes
 	commandHookFunc func(string) ([]byte, error)
@@ -221,8 +221,8 @@ func (r *secretResolver) startRefreshRoutine() {
 	}()
 }
 
-// Subscribe adds this callback to the list that get notified when secrets are resolved or refreshed
-func (r *secretResolver) Subscribe(cb secrets.ResolveCallback) {
+// SubscribeToChanges adds this callback to the list that get notified when secrets are resolved or refreshed
+func (r *secretResolver) SubscribeToChanges(cb secrets.SecretChangeCallback) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
