@@ -395,6 +395,11 @@ func TestResolveNestedWithSubscribe(t *testing.T) {
 func TestResolveThenRefresh(t *testing.T) {
 	testConf := testConfNestedMultiple
 
+	// disable the whitelist for the test, let any secret changes happen
+	originalWhitelistHandles := whitelistHandles
+	whitelistHandles = nil
+	defer func() { whitelistHandles = originalWhitelistHandles }()
+
 	resolver := newEnabledSecretResolver()
 	resolver.backendCommand = "some_command"
 	resolver.cache = map[string]string{}

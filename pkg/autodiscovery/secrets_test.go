@@ -52,7 +52,7 @@ func (m *MockSecretResolver) Resolve(data []byte, origin string) ([]byte, error)
 	return nil, fmt.Errorf("Resolve called with unexpected arguments: data=%s, origin=%s", string(data), origin)
 }
 
-func (m *MockSecretResolver) Subscribe(_ secrets.SecretChangeCallback) {
+func (m *MockSecretResolver) SubscribeToChanges(_ secrets.SecretChangeCallback) {
 }
 
 func (m *MockSecretResolver) Refresh() error {

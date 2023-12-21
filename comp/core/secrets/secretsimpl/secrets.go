@@ -207,7 +207,7 @@ func isEnc(str string) (bool, string) {
 }
 
 func (r *secretResolver) startRefreshRoutine() {
-	if r.ticker != nil && r.refreshInterval == 0 {
+	if r.ticker != nil || r.refreshInterval == 0 {
 		return
 	}
 	r.ticker = time.NewTicker(time.Duration(r.refreshInterval) * time.Second)
@@ -316,7 +316,8 @@ func (r *secretResolver) Resolve(data []byte, origin string) ([]byte, error) {
 			return nil, err
 		}
 
-		r.handleSecretResponse(secretResponse)
+		// for Resolving secrets, always send notifications
+		r.processSecretResponse(secretResponse, true)
 	}
 
 	finalConfig, err := yaml.Marshal(config)
@@ -326,9 +327,17 @@ func (r *secretResolver) Resolve(data []byte, origin string) ([]byte, error) {
 	return finalConfig, nil
 }
 
-func (r *secretResolver) handleSecretResponse(secretResponse map[string]string) {
+// whitelistHandles restricts what config settings may be updated
+// tests can override this to exercise functionality
+var whitelistHandles = []string{"api_key"}
+
+func (r *secretResolver) processSecretResponse(secretResponse map[string]string, bypassWhitelist bool) {
 	// notify subscriptions about the changes to secrets
 	for handle, secretValue := range secretResponse {
+		// if whitelist is enabled and the handle is not contained in it, skip it
+		if whitelistHandles != nil && !bypassWhitelist && !slices.Contains(whitelistHandles, handle) {
+			continue
+		}
 		oldValue := r.cache[handle]
 		// if value hasn't changed, don't send notifications
 		if oldValue == secretValue {
@@ -366,7 +375,8 @@ func (r *secretResolver) Refresh() error {
 		return err
 	}
 
-	r.handleSecretResponse(secretResponse)
+	// when Refreshing secrets, only update what the whitelist allows
+	r.processSecretResponse(secretResponse, false)
 	return nil
 }
 
