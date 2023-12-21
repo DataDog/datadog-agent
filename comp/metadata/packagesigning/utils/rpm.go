@@ -31,7 +31,8 @@ func getMainGPGCheck(pkgManager string) (bool, bool) {
 		// if we end up in a non supported distribution
 		return false, false
 	}
-	mainConf, _ := ParseRPMRepoFile(repoConfig, MainData{})
+	defaultValue := strings.Contains(repoConfig, "zypp") // Settings are enabled by default on SUSE, disabled otherwise
+	mainConf, _ := ParseRPMRepoFile(repoConfig, MainData{Gpgcheck: defaultValue, LocalpkgGpgcheck: defaultValue, RepoGpgcheck: defaultValue})
 	return mainConf.Gpgcheck, mainConf.RepoGpgcheck
 }
 

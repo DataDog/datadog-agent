@@ -42,14 +42,16 @@ func updateWithRepoFiles(cacheKeys map[string]signingKey, pkgManager string, cli
 	}
 
 	// First parsing of the main config file
-	if _, err := os.Stat(repoConfig); err != nil {
-		mainConf, reposPerKey = pkgUtils.ParseRPMRepoFile(repoConfig, pkgUtils.MainData{})
+	if _, err := os.Stat(repoConfig); err == nil {
+		defaultValue := strings.Contains(repoConfig, "zypp") // Settings are enabled by default on SUSE, disabled otherwise
+		mainConf, reposPerKey = pkgUtils.ParseRPMRepoFile(repoConfig,
+			pkgUtils.MainData{Gpgcheck: defaultValue, LocalpkgGpgcheck: defaultValue, RepoGpgcheck: defaultValue})
 		for name, repos := range reposPerKey {
 			decryptGPGFile(cacheKeys, repoFile{name, repos}, "repo", client, logger)
 		}
 	}
 	// Then parsing of the repo files
-	if _, err := os.Stat(repoFilesDir); err != nil {
+	if _, err := os.Stat(repoFilesDir); err == nil {
 		if files, err := os.ReadDir(repoFilesDir); err == nil {
 			for _, file := range files {
 				repoFileName := filepath.Join(repoFilesDir, file.Name())
