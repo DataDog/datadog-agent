@@ -112,8 +112,8 @@ const (
 	// ERROR_NO_DATA The pipe is being closed.
 	ERROR_NO_DATA = 232
 
-	// MAX_EVENT_FILTER_PID_COUNT
-	// https://github.com/tpn/winsdk-10/blob/master/Include/10.0.16299.0/shared/evntprov.h#L96
+	// MAX_EVENT_FILTER_PID_COUNT The maximum number of PIDs that can be used for filtering
+	// see https://github.com/tpn/winsdk-10/blob/master/Include/10.0.16299.0/shared/evntprov.h#L96
 	MAX_EVENT_FILTER_PID_COUNT = 8
 	//revive:enable:var-naming
 )
