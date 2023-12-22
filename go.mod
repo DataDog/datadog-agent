@@ -98,7 +98,7 @@ require (
 	github.com/DataDog/nikos v1.12.1
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.9.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.9.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.9.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.11.0
 	github.com/DataDog/sketches-go v1.4.3
 	github.com/DataDog/viper v1.12.0
 	github.com/DataDog/watermarkpodautoscaler v0.6.1
