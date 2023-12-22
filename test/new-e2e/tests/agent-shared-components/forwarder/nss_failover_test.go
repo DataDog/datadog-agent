@@ -116,7 +116,7 @@ func multiFakeIntakeAWS(agentOptions ...agentparams.Option) e2e.Provisioner {
 		return nil
 	}
 
-	return e2e.NewPulumiTypedProvisioner("aws-nssfailover", runFunc, nil)
+	return e2e.NewTypedPulumiProvisioner("aws-nssfailover", runFunc, nil)
 }
 
 type multiFakeIntakeSuite struct {

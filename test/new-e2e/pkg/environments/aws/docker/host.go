@@ -107,7 +107,7 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Do
 	params := newProvisionerParams()
 	err := optional.ApplyOptions(params, opts)
 
-	provisioner := e2e.NewPulumiTypedProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.DockerHost) error {
+	provisioner := e2e.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.DockerHost) error {
 		// We are abusing Pulumi RunFunc error to return our parameter parsing error, in the sake of the slightly simpler API.
 		if err != nil {
 			return err

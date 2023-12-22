@@ -46,6 +46,7 @@
 //
 // The execution order for tests in [testify Suite] is IMPLEMENTATION SPECIFIC
 // UNLIKE REGULAR GO TESTS.
+// Use subtests for ordered tests and environments update.
 //
 // # Having a single environment
 //
@@ -80,48 +81,9 @@
 //
 // # Having different environments
 //
-// In this scenario, the environment is different for each test (or for most of them).
-// [e2e.BaseSuite.UpdateEnv] is used to update the environment.
-// You could technically use a completely different environment (for instance, switching from a Linux to a Windows VM, or changing Kubernetes cluster implementation).
-// In some cases it makes sense to do so, but in most cases we want to regroup tests that pertain to the same environment.
-//
-// Note: Calling twice [e2e.Suite.UpdateEnv] with the same argument does nothing.
-//
-//	import (
-//		"testing"
-//
-//		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-//		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-//		awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/vm"
-//		"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-//
-//		"github.com/stretchr/testify/assert"
-//)
-//
-//	type agentSuiteEx4 struct {
-//		e2e.BaseSuite[environments.VM]
-//	}
-//
-//	func TestVMSuiteEx4(t *testing.T) {
-//		e2e.Run(t, &agentSuiteEx4{}, e2e.WithProvisioner(awshost.Provisioner(
-//			awshost.WithAgentOptions(agentparams.WithAgentConfig("log_level: debug")),
-//		)))
-//	}
-//
-//	func (v *agentSuiteEx4) TestLogDebug() {
-//		assert.Contains(v.T(), v.Env().Agent.Client.Config(), "log_level: debug")
-//	}
-//
-//	func (v *agentSuiteEx4) TestLogInfo() {
-//		v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig("log_level: info"))))
-//		assert.Contains(v.T(), v.Env().Agent.Client.Config(), "log_level: info")
-//	}
-//
-// # Having few environments
-//
-// You may sometime have few environments but several tests for each on them.
-// You can still use [e2e.Suite.UpdateEnv] as explained in the previous section but using
-// [Subtests] is an alternative solution.
+// You may sometime have different environments but several tests for each on them.
+// You can use [e2e.Suite.UpdateEnv] to do that. Using `UpdateEnv` between groups of [Subtests].
+// Note that between `TestLogDebug` and `TestLogInfo`, the environment is reverted to the original one.
 //
 //	import (
 //		"testing"
@@ -141,22 +103,36 @@
 //	}
 //
 //	func (suite *subTestSuite) TestLogDebug() {
-//		v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig("log_level: debug"))))
+//		// First group of subsets
 //		suite.T().Run("MySubTest1", func(t *testing.T) {
 //			// Sub test 1
 //		})
 //		suite.T().Run("MySubTest2", func(t *testing.T) {
 //			// Sub test 2
+//		})
+//
+//		v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig("log_level: debug"))))
+//
+//		// Second group of subsets
+//		suite.T().Run("MySubTest3", func(t *testing.T) {
+//			// Sub test 3
 //		})
 //	}
 //
 //	func (suite *subTestSuite) TestLogInfo() {
-//		v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig("log_level: info"))))
+//		// First group of subsets
 //		suite.T().Run("MySubTest1", func(t *testing.T) {
 //			// Sub test 1
 //		})
 //		suite.T().Run("MySubTest2", func(t *testing.T) {
 //			// Sub test 2
+//		})
+//
+//		v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig("log_level: info"))))
+//
+//		// Second group of subsets
+//		suite.T().Run("MySubTest3", func(t *testing.T) {
+//			// Sub test 3
 //		})
 //	}
 //
@@ -207,21 +183,20 @@ type BaseSuite[Env any] struct {
 	env    *Env
 	params suiteParams
 
-	currentProvisioners map[string]Provisioner
-	targetProvisioners  map[string]Provisioner
+	originalProvisioners ProvisionerMap
+	currentProvisioners  ProvisionerMap
 
 	firstFailTest string
 }
 
 // Custom methods
 func (bs *BaseSuite[Env]) Env() *Env {
-	bs.reconcileEnv()
 	return bs.env
 }
 
 func (bs *BaseSuite[Env]) UpdateEnv(newProvisioners ...Provisioner) {
 	uniqueIDs := make(map[string]struct{})
-	newTargetProvisioners := make(map[string]Provisioner, len(newProvisioners))
+	targetProvisioners := make(ProvisionerMap, len(newProvisioners))
 	for _, provisioner := range newProvisioners {
 		if _, found := uniqueIDs[provisioner.ID()]; found {
 			bs.T().Errorf("Multiple providers with same id found, provisioner with id %s already exists", provisioner.ID())
@@ -229,11 +204,10 @@ func (bs *BaseSuite[Env]) UpdateEnv(newProvisioners ...Provisioner) {
 		}
 
 		uniqueIDs[provisioner.ID()] = struct{}{}
-		newTargetProvisioners[provisioner.ID()] = provisioner
+		targetProvisioners[provisioner.ID()] = provisioner
 	}
 
-	bs.targetProvisioners = newTargetProvisioners
-	bs.reconcileEnv()
+	bs.reconcileEnv(targetProvisioners)
 }
 
 func (bs *BaseSuite[Env]) init(options []SuiteOption, self Suite[Env]) {
@@ -254,13 +228,17 @@ func (bs *BaseSuite[Env]) init(options []SuiteOption, self Suite[Env]) {
 		hash := utils.StrHash(sType.PkgPath()) // hash of PkgPath in order to have a unique stack name
 		bs.params.stackName = fmt.Sprintf("e2e-%s-%s", sType.Name(), hash)
 	}
+
+	bs.originalProvisioners = bs.params.provisioners
 }
 
-func (bs *BaseSuite[Env]) reconcileEnv() {
-	if reflect.DeepEqual(bs.currentProvisioners, bs.targetProvisioners) {
+func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners ProvisionerMap) {
+	if reflect.DeepEqual(bs.currentProvisioners, targetProvisioners) {
+		bs.T().Logf("No change in provisioners, skipping environment update")
 		return
 	}
 
+	logger := newTestLogger(bs.T())
 	ctx, cancel := bs.providerContext(createTimeout)
 	defer cancel()
 
@@ -269,16 +247,26 @@ func (bs *BaseSuite[Env]) reconcileEnv() {
 		panic(fmt.Errorf("unable to create new env: %T for stack: %s, err: %v", newEnv, bs.params.stackName, err))
 	}
 
+	// Check for removed provisioners, we need to call delete on them first
+	for id, provisioner := range bs.currentProvisioners {
+		if _, found := targetProvisioners[id]; !found {
+			if err := provisioner.Destroy(bs.params.stackName, ctx, logger); err != nil {
+				panic(fmt.Errorf("unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err))
+			}
+		}
+	}
+
+	// Then we provision new resources
 	resources := make(RawResources)
-	for id, provisioner := range bs.targetProvisioners {
+	for id, provisioner := range targetProvisioners {
 		var provisionerResources RawResources
 		var err error
 
 		switch pType := provisioner.(type) {
 		case TypedProvisioner[Env]:
-			provisionerResources, err = pType.ProvisionEnv(bs.params.stackName, ctx, newTestLogger(bs.T()), newEnv)
+			provisionerResources, err = pType.ProvisionEnv(bs.params.stackName, ctx, logger, newEnv)
 		case UntypedProvisioner:
-			provisionerResources, err = pType.Provision(bs.params.stackName, ctx, newTestLogger(bs.T()))
+			provisionerResources, err = pType.Provision(bs.params.stackName, ctx, logger)
 		default:
 			panic(fmt.Errorf("provisioner of type %T does not implement UntypedProvisioner nor TypedProvisioner", provisioner))
 		}
@@ -304,8 +292,9 @@ func (bs *BaseSuite[Env]) reconcileEnv() {
 	}
 
 	// On success we update the current environment
+	// We need top copy provisioners to protect against external modifications
+	bs.currentProvisioners = copyProvisioners(targetProvisioners)
 	bs.env = newEnv
-	bs.currentProvisioners = bs.targetProvisioners
 }
 
 func (bs *BaseSuite[Env]) createEnv() (*Env, []reflect.StructField, []reflect.Value, error) {
@@ -428,7 +417,7 @@ func (bs *BaseSuite[Env]) providerContext(opTimeout time.Duration) (context.Cont
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 func (bs *BaseSuite[Env]) BeforeTest(string, string) {
 	// Reset provisioners to original provisioners
-	bs.targetProvisioners = bs.params.provisioners
+	bs.reconcileEnv(bs.originalProvisioners)
 }
 
 // AfterTest is executed right after the test finishes and receives the suite and test names as input.
@@ -452,7 +441,7 @@ func (bs *BaseSuite[Env]) AfterTest(suiteName, testName string) {
 // TearDownSuite run after all the tests in the suite have been run.
 // This function is called by [testify Suite].
 //
-// If you override TearDownSuite in your custom test suite type, the function must call [e2e.Suite.TearDownSuite].
+// If you override TearDownSuite in your custom test suite type, the function must call [e2e.BaseSuite.TearDownSuite].
 //
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 func (bs *BaseSuite[Env]) TearDownSuite() {
@@ -470,8 +459,8 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 	defer cancel()
 
 	atLeastOneFailure := false
-	for id, provisioner := range bs.currentProvisioners {
-		if err := provisioner.Delete(bs.params.stackName, ctx, newTestLogger(bs.T())); err != nil {
+	for id, provisioner := range bs.originalProvisioners {
+		if err := provisioner.Destroy(bs.params.stackName, ctx, newTestLogger(bs.T())); err != nil {
 			bs.T().Errorf("unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err)
 			atLeastOneFailure = true
 		}

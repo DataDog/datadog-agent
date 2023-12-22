@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	PulumiProvisionerDefaultID = "pulumi"
+	pulumiProvisionerDefaultID = "pulumi"
 )
 
 type PulumiEnvRunFunc[Env any] func(ctx *pulumi.Context, env *Env) error
@@ -34,9 +34,9 @@ var (
 	_ UntypedProvisioner    = &PulumiProvisioner[any]{}
 )
 
-func NewPulumiTypedProvisioner[Env any](id string, runFunc PulumiEnvRunFunc[Env], configMap runner.ConfigMap) *PulumiProvisioner[Env] {
+func NewTypedPulumiProvisioner[Env any](id string, runFunc PulumiEnvRunFunc[Env], configMap runner.ConfigMap) *PulumiProvisioner[Env] {
 	if id == "" {
-		id = PulumiProvisionerDefaultID
+		id = pulumiProvisionerDefaultID
 	}
 
 	return &PulumiProvisioner[Env]{
@@ -47,7 +47,7 @@ func NewPulumiTypedProvisioner[Env any](id string, runFunc PulumiEnvRunFunc[Env]
 }
 
 func NewUntypedPulumiProvisioner(id string, runFunc pulumi.RunFunc, configMap runner.ConfigMap) *PulumiProvisioner[any] {
-	return NewPulumiTypedProvisioner(id, func(ctx *pulumi.Context, _ *any) error {
+	return NewTypedPulumiProvisioner(id, func(ctx *pulumi.Context, _ *any) error {
 		return runFunc(ctx)
 	}, configMap)
 }
@@ -94,6 +94,6 @@ func (pp *PulumiProvisioner[Env]) ProvisionEnv(stackName string, ctx context.Con
 	return resources, nil
 }
 
-func (pp *PulumiProvisioner[Env]) Delete(stackName string, ctx context.Context, logger io.Writer) error {
+func (pp *PulumiProvisioner[Env]) Destroy(stackName string, ctx context.Context, logger io.Writer) error {
 	return infra.GetStackManager().DeleteStack(ctx, stackName, logger)
 }

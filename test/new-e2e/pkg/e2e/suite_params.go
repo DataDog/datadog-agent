@@ -22,7 +22,7 @@ type suiteParams struct {
 
 	skipDeleteOnFailure bool
 
-	provisioners map[string]Provisioner
+	provisioners ProvisionerMap
 }
 
 // SuiteOption is an optional function parameter type for e2e options
@@ -37,7 +37,7 @@ func WithStackName(stackName string) SuiteOption {
 }
 
 // WithDevMode enables dev mode.
-// Dev mode doesn't destroy the environment when the test finished which can
+// Dev mode doesn't destroy the environment when the test is finished which can
 // be useful when writing a new E2E test.
 func WithDevMode() SuiteOption {
 	return func(options *suiteParams) {
@@ -45,7 +45,7 @@ func WithDevMode() SuiteOption {
 	}
 }
 
-// WithSkipDeleteOnFailure doesn't destroy the environment when a test fail.
+// WithSkipDeleteOnFailure doesn't destroy the environment when a test fails.
 func WithSkipDeleteOnFailure() SuiteOption {
 	return func(options *suiteParams) {
 		options.skipDeleteOnFailure = true
@@ -60,7 +60,7 @@ func WithProvisioner(provisioner Provisioner) SuiteOption {
 		}
 
 		if options.provisioners == nil {
-			options.provisioners = make(map[string]Provisioner)
+			options.provisioners = make(ProvisionerMap)
 		}
 
 		options.provisioners[provisioner.ID()] = provisioner
@@ -72,5 +72,5 @@ func WithUntypedPulumiProvisioner(runFunc pulumi.RunFunc, configMap runner.Confi
 }
 
 func WithPulumiProvisioner[Env any](runFunc PulumiEnvRunFunc[Env], configMap runner.ConfigMap) SuiteOption {
-	return WithProvisioner(NewPulumiTypedProvisioner("", runFunc, configMap))
+	return WithProvisioner(NewTypedPulumiProvisioner("", runFunc, configMap))
 }

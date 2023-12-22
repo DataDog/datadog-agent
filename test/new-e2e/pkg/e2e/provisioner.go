@@ -12,7 +12,7 @@ import (
 
 type Provisioner interface {
 	ID() string
-	Delete(string, context.Context, io.Writer) error
+	Destroy(string, context.Context, io.Writer) error
 }
 
 type UntypedProvisioner interface {
@@ -23,4 +23,14 @@ type UntypedProvisioner interface {
 type TypedProvisioner[Env any] interface {
 	Provisioner
 	ProvisionEnv(string, context.Context, io.Writer, *Env) (RawResources, error)
+}
+
+type ProvisionerMap map[string]Provisioner
+
+func copyProvisioners(in ProvisionerMap) ProvisionerMap {
+	out := make(ProvisionerMap, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
 }

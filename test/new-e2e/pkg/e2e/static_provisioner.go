@@ -14,9 +14,8 @@ import (
 )
 
 const (
-	StaticProvisionerDefaultID = "static"
-
-	fileExtFilter = ".json"
+	staticProvisionerDefaultID = "static"
+	fileExtFilter              = ".json"
 )
 
 type FileProvisioner struct {
@@ -28,7 +27,7 @@ var _ Provisioner = &FileProvisioner{}
 
 func NewFileProvisioner(id string, fs fs.FS) *FileProvisioner {
 	if id == "" {
-		id = StaticProvisionerDefaultID
+		id = staticProvisionerDefaultID
 	}
 
 	return &FileProvisioner{
@@ -68,6 +67,6 @@ func (fp *FileProvisioner) Provision(string, context.Context, io.Writer) (RawRes
 	})
 }
 
-func (fp *FileProvisioner) Delete(string, context.Context, io.Writer) error {
+func (fp *FileProvisioner) Destroy(string, context.Context, io.Writer) error {
 	return nil
 }
