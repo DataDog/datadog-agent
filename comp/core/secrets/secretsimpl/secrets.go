@@ -317,7 +317,7 @@ func (r *secretResolver) Resolve(data []byte, origin string) ([]byte, error) {
 		}
 
 		// for Resolving secrets, always send notifications
-		r.processSecretResponse(secretResponse, true)
+		r.processSecretResponse(secretResponse, false)
 	}
 
 	finalConfig, err := yaml.Marshal(config)
@@ -331,11 +331,11 @@ func (r *secretResolver) Resolve(data []byte, origin string) ([]byte, error) {
 // tests can override this to exercise functionality
 var whitelistHandles = []string{"api_key"}
 
-func (r *secretResolver) processSecretResponse(secretResponse map[string]string, bypassWhitelist bool) {
+func (r *secretResolver) processSecretResponse(secretResponse map[string]string, useWhitelist bool) {
 	// notify subscriptions about the changes to secrets
 	for handle, secretValue := range secretResponse {
 		// if whitelist is enabled and the handle is not contained in it, skip it
-		if whitelistHandles != nil && !bypassWhitelist && !slices.Contains(whitelistHandles, handle) {
+		if useWhitelist && whitelistHandles != nil && !slices.Contains(whitelistHandles, handle) {
 			continue
 		}
 		oldValue := r.cache[handle]
@@ -376,7 +376,7 @@ func (r *secretResolver) Refresh() error {
 	}
 
 	// when Refreshing secrets, only update what the whitelist allows
-	r.processSecretResponse(secretResponse, false)
+	r.processSecretResponse(secretResponse, true)
 	return nil
 }
 
