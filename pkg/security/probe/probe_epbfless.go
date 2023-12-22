@@ -316,7 +316,7 @@ func (p *EBPFLessProbe) ApplyRuleSet(_ *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 }
 
 // HandleActions handles the rule actions
-func (p *EBPFLessProbe) HandleActions(_ *rules.Rule, _ eval.Event) {}
+func (p *EBPFLessProbe) HandleActions(_ *eval.Context, _ *rules.Rule) {}
 
 // NewEvent returns a new event
 func (p *EBPFLessProbe) NewEvent() *model.Event {
