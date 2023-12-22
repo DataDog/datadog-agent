@@ -10,11 +10,9 @@ import (
 	"strconv"
 )
 
-type resolveFunc func([]string, string) (string, error)
-
 type walker struct {
 	// resolver is called to fetch the value of a handle
-	resolver resolveFunc
+	resolver func(path []string, value string) (string, error)
 }
 
 // string handles string types, calling the resolver and returning the value to replace the original string with.
