@@ -23,11 +23,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	etwutil "github.com/DataDog/datadog-agent/pkg/util/winutil/etw"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/procmon"
 	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"golang.org/x/sys/windows"
 )
+
+var parseUnicodeString = etwutil.ParseUnicodeString
 
 // WindowsProbe defines a Windows probe
 type WindowsProbe struct {
@@ -88,7 +91,10 @@ func (p *WindowsProbe) Init() error {
 	}
 
 	pidsList := make([]uint32, 0, 0)
+<<<<<<< HEAD
 
+=======
+>>>>>>> a0a9eedf1d (working full path with file & registry)
 	p.fimSession.ConfigureProvider(p.fileguid, func(cfg *etw.ProviderConfiguration) {
 		cfg.TraceLevel = etw.TRACE_LEVEL_VERBOSE
 		cfg.PIDs = pidsList
@@ -174,7 +180,6 @@ func (p *WindowsProbe) setupEtw() error {
 		case etw.DDGUID(p.fileguid):
 			switch e.EventHeader.EventDescriptor.ID {
 			case idCreate:
-				//userdata := etwutil.GoBytes(unsafe.Pointer(e.UserData), int(e.UserDataLength))
 				if ca, err := parseCreateArgs(e); err == nil {
 					log.Debugf("Got create on file %s", ca.fileName)
 
@@ -192,24 +197,25 @@ func (p *WindowsProbe) setupEtw() error {
 			switch e.EventHeader.EventDescriptor.ID {
 			case idRegCreateKey:
 				if cka, err := parseCreateRegistryKey(e); err == nil {
-					log.Infof("Got idRegCreateKey %v %v", cka.baseName, cka.relativeName)
+					log.Infof("Got idRegCreateKey %s", cka.string())
 				}
 			case idRegOpenKey:
 				if cka, err := parseCreateRegistryKey(e); err == nil {
-					log.Debugf("Got idRegOpenKey %v %v", cka.baseName, cka.relativeName)
+					log.Debugf("Got idRegOpenKey %s", cka.string())
 				}
 
 			case idRegDeleteKey:
 				if dka, err := parseDeleteRegistryKey(e); err == nil {
-					log.Infof("Got idRegDeleteKey %v", dka.keyName)
+					log.Infof("Got idRegDeleteKey %v", dka.string())
 				}
 			case idRegFlushKey:
 				if dka, err := parseDeleteRegistryKey(e); err == nil {
-					log.Infof("Got idRegFlushKey %v", dka.keyName)
+					log.Infof("Got idRegFlushKey %v", dka.string())
 				}
 			case idRegCloseKey:
 				if dka, err := parseDeleteRegistryKey(e); err == nil {
-					log.Debugf("Got idRegCloseKey %v", dka.keyName)
+					log.Debugf("Got idRegCloseKey %s", dka.string())
+					delete(fullPathResolver, dka.keyObject)
 				}
 			case idQuerySecurityKey:
 				if dka, err := parseDeleteRegistryKey(e); err == nil {
@@ -221,7 +227,7 @@ func (p *WindowsProbe) setupEtw() error {
 				}
 			case idRegSetValueKey:
 				if svk, err := parseSetValueKey(e); err == nil {
-					log.Infof("Got idRegSetValueKey %v", *svk)
+					log.Infof("Got idRegSetValueKey %s", svk.string())
 				}
 
 			}
