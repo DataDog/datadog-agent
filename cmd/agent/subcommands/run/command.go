@@ -11,6 +11,7 @@ import (
 	"errors"
 	_ "expvar" // Blank import used because this isn't directly used in this file
 	"fmt"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	"net/http"
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 	"os"
@@ -311,19 +312,7 @@ func getSharedFxOption() fx.Option {
 
 		// workloadmeta setup
 		collectors.GetCatalog(),
-		fx.Provide(func(config config.Component) workloadmeta.Params {
-			var agentType workloadmeta.AgentType
-			if flavor.GetFlavor() == flavor.ClusterAgent {
-				agentType = workloadmeta.ClusterAgent
-			} else {
-				agentType = workloadmeta.NodeAgent
-			}
-
-			return workloadmeta.Params{
-				AgentType:  agentType,
-				InitHelper: common.GetWorkloadmetaInit(),
-			}
-		}),
+		fx.Provide(defaults.DefaultParams),
 		workloadmeta.Module(),
 		apiimpl.Module(),
 
