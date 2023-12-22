@@ -219,6 +219,7 @@ def run(
     deploy=False,
     all_builds=True,
     kitchen_tests=True,
+    e2e_tests=False,
     rc_k8s_deployments=False,
 ):
     """
@@ -227,6 +228,7 @@ def run(
     Use --deploy to make this pipeline a deploy pipeline, which will upload artifacts to the staging repositories.
     Use --no-all-builds to not run builds for all architectures (only a subset of jobs will run. No effect on pipelines on the default branch).
     Use --no-kitchen-tests to not run all kitchen tests on the pipeline.
+    Use --e2e-tests to run all e2e tests on the pipeline.
 
     By default, the nightly release.json entries (nightly and nightly-a7) are used.
     Use the --use-release-entries option to use the release-a6 and release-a7 release.json entries instead.
@@ -249,6 +251,9 @@ def run(
 
     Run a pipeline without kitchen tests on the current branch:
       inv pipeline.run --here --no-kitchen-tests
+
+    Run a pipeline with e2e tets on the current branch:
+      inv pipeline.run --here --e2e-tests
 
     Run a deploy pipeline on the 7.32.0 tag, uploading the artifacts to the stable branch of the staging repositories:
       inv pipeline.run --deploy --use-release-entries --major-versions "6,7" --git-ref "7.32.0" --repo-branch "stable"
@@ -320,6 +325,7 @@ def run(
             deploy=deploy,
             all_builds=all_builds,
             kitchen_tests=kitchen_tests,
+            e2e_tests=e2e_tests,
             rc_k8s_deployments=rc_k8s_deployments,
         )
     except FilteredOutException:

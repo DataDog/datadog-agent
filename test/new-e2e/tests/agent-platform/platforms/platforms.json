@@ -1,7 +1,7 @@
 {
     "debian": {
         "x86_64": {
-            "debian-9":  "ami-099d228beefd189f5",
+            "debian-9":  "ami-0182559468c1975fe",
             "debian-10": "ami-041540a5c191757a0",
             "debian-11": "ami-09e24b0cfe072ecef",
             "debian-12": "ami-06db4d78cb1d3bbf9"
@@ -61,7 +61,7 @@
     },
     "suse": {
         "x86_64": {
-            "sles-12": "ami-09e1f60648b4fb117",
+            "sles-12": "ami-08d21b039336d9351",
             "sles-15": "ami-08f3662e2d5b3989a"
         },
         "arm64": {

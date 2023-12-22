@@ -284,7 +284,7 @@ func pdhGetFormattedCounterArray(hCounter PDH_HCOUNTER, format uint32) (outItems
 	var items []PDH_FMT_COUNTERVALUE_ITEM_DOUBLE
 	// Accessing the `SliceHeader` to manipulate the `items` slice
 	// In the future we can use unsafe.Slice instead https://pkg.go.dev/unsafe@master#Slice
-	hdrItems := (*reflect.SliceHeader)(unsafe.Pointer(&items))
+	hdrItems := (*reflect.SliceHeader)(unsafe.Pointer(&items)) //nolint:staticcheck // TODO (WINA) fix reflect.SliceHeader has been deprecated: Use unsafe.Slice or unsafe.SliceData instead
 	hdrItems.Data = uintptr(unsafe.Pointer(&buf[0]))
 	hdrItems.Len = int(itemCount)
 	hdrItems.Cap = int(itemCount)
@@ -300,7 +300,7 @@ func pdhGetFormattedCounterArray(hCounter PDH_HCOUNTER, format uint32) (outItems
 		var u []uint16
 
 		// Accessing the `SliceHeader` to manipulate the `u` slice
-		hdrU := (*reflect.SliceHeader)(unsafe.Pointer(&u))
+		hdrU := (*reflect.SliceHeader)(unsafe.Pointer(&u)) //nolint:staticcheck // TODO (WINA) fix reflect.SliceHeader has been deprecated: Use unsafe.Slice or unsafe.SliceData instead
 		hdrU.Data = uintptr(unsafe.Pointer(item.szName))
 		hdrU.Len = strBufLen / 2
 		hdrU.Cap = strBufLen / 2

@@ -402,6 +402,10 @@ func checkEntryPoint(path string) (string, error) {
 	return name, nil
 }
 
+func isAcceptedRetval(retval int64) bool {
+	return retval < 0 && retval != -int64(syscall.EACCES) && retval != -int64(syscall.EPERM)
+}
+
 // StartCWSPtracer start the ptracer
 func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool) error {
 	entry, err := checkEntryPoint(args[0])
@@ -632,11 +636,12 @@ func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool)
 			case ExecveNr, ExecveatNr:
 				send(process.Nr[nr])
 			case OpenNr, OpenatNr:
-				if ret := tracer.ReadRet(regs); ret >= 0 {
+				if ret := tracer.ReadRet(regs); !isAcceptedRetval(ret) {
 					msg, exists := process.Nr[nr]
 					if !exists {
 						return
 					}
+					msg.Retval = ret
 
 					send(msg)
 

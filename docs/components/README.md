@@ -4,7 +4,7 @@
  * [Overview of Components](./components.md)
  * [Guidelines](./guidelines.md)
    * [Defining Components](./defining-components.md)
-   * [Using Components](./using.md)
+   * [Using Components](./usage.md)
    * [Defining Bundles](./defining-bundles.md)
    * [Defining Apps and Binaries](./defining-apps.md)
    * [Registrations](./registrations.md)

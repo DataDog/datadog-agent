@@ -165,9 +165,9 @@ def get_build_flags(
 
     # If we're not building with both Python, we want to force the use of DefaultPython
     if not has_both_python(python_runtimes):
-        ldflags += f"-X {REPO_PATH}/pkg/config.ForceDefaultPython=true "
+        ldflags += f"-X {REPO_PATH}/pkg/config/setup.ForceDefaultPython=true "
 
-    ldflags += f"-X {REPO_PATH}/pkg/config.DefaultPython={get_default_python(python_runtimes)} "
+    ldflags += f"-X {REPO_PATH}/pkg/config/setup.DefaultPython={get_default_python(python_runtimes)} "
 
     # adding rtloader libs and headers to the env
     if rtloader_lib:

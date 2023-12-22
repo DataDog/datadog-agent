@@ -1,6 +1,6 @@
 # Defining Components
 
-You can use the invoke task `inv new-component comp/<bundleName>/<component>` to generate a scaffold for your new component.
+You can use the invoke task `inv components.new-component comp/<bundleName>/<component>` to generate a scaffold for your new component.
 
 Below is a description of the different folders and files of your component.
 
