@@ -3816,7 +3816,7 @@ api_key:
     ##     * type        - string  - The field type.
     ##                              Available options are: string, integer, hex.
     ##                              Defaults to hex.
-    ##     * endianness  - string  - (Optional) If type is integer, endianness can be set using this param.
+    ##     * endianness  - string  - (Optional) If type is integer, endianness can be set using this parameter.
     ##                              Available options are: big, little.
     ##                              Defaults to big.
     #
