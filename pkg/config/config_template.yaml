@@ -3810,8 +3810,8 @@ api_key:
     ##  * mapping      - (Optional) List of NetflowV9/IPFIX fields to additionally collect.
     ##                              Defaults to None.
     ##     * field       - integer - The Netflow field type ID to collect.
-    ##     * destination - string  - Name of the collected field, will be queryable under @<destination> in Datadog.
-    ##                              Default fields can be overridden, example `destination.port` will override
+    ##     * destination - string  - Name of the collected field, is queryable under @<destination> in Datadog.
+    ##                              Default fields can be overridden, for example, `destination.port` overrides
     ##                              the default destination port collected.
     ##     * type        - string  - The field type.
     ##                              Available options are: string, integer, hex.
