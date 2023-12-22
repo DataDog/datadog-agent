@@ -232,6 +232,7 @@ func (p *EBPFLessProbe) handleNewClient(conn net.Conn, ch chan clientMsg) {
 			client: client,
 		}
 		for {
+			msg.Reset()
 			if err := p.readMsg(conn, &msg.Message); err != nil {
 				if errors.Is(err, io.EOF) {
 					seclog.Debugf("connection closed by client: %v", conn.RemoteAddr())

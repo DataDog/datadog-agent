@@ -152,3 +152,11 @@ func (m Message) String() string {
 	b, _ := json.Marshal(m)
 	return string(b)
 }
+
+// Reset resets a message
+func (m *Message) Reset() {
+	m.SeqNum = 0
+	m.Type = MessageTypeUnknown
+	m.Hello = nil
+	m.Syscall = nil
+}
