@@ -156,12 +156,18 @@ func (g *GenericMap[K, V]) Iterate(itops IteratorOptions) GenericMapIterator[K, 
 	}
 
 	if BatchAPISupported() && !isPerCPU(g.m.Type()) && !itops.ForceSingleItem {
-		return &genericMapBatchIterator[K, V]{
+		it := &genericMapBatchIterator[K, V]{
 			m:         g.m,
 			batchSize: itops.BatchSize,
 			keys:      make([]K, itops.BatchSize),
 			values:    make([]V, itops.BatchSize),
 		}
+
+		// Do an initial copy of the keys/values slices to avoid allocations
+		it.keysCopy = it.keys
+		it.valuesCopy = it.values
+
+		return it
 	}
 
 	return &genericMapItemIterator[K, V]{
@@ -187,6 +193,8 @@ type genericMapBatchIterator[K interface{}, V interface{}] struct {
 	cursor           ebpf.BatchCursor
 	keys             []K
 	values           []V
+	keysCopy         any // A pointer to keys of type "any", used to avoid allocations when calling BatchLookup
+	valuesCopy       any
 	currentBatchSize int
 	inBatchIndex     int
 	err              error
@@ -207,7 +215,9 @@ func (g *genericMapBatchIterator[K, V]) Next(key *K, value *V) bool {
 			return false
 		}
 
-		g.currentBatchSize, g.err = g.m.BatchLookup(&g.cursor, g.keys, g.values, nil)
+		// Important! If we pass here g.keys/g.values, Go will create a copy of the slice
+		// and will generate extra allocations. I am not entirely sure why it is doing that.
+		g.currentBatchSize, g.err = g.m.BatchLookup(&g.cursor, g.keysCopy, g.valuesCopy, nil)
 		g.inBatchIndex = 0
 		if g.currentBatchSize == 0 {
 			return false

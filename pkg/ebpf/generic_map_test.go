@@ -194,16 +194,16 @@ func TestBatchIterAllocsPerRun(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	numsToPut := uint32(5000)
+	numsToPut := uint32(9000)
 	for i := uint32(0); i < numsToPut; i++ {
 		require.NoError(t, m.Put(&i, &i))
 	}
 
 	var k uint32
 	var v uint32
-	batchSize := 100
+	batchSize := 10
 
-	allocs := testing.AllocsPerRun(10, func() {
+	allocsSmallBatch := testing.AllocsPerRun(100, func() {
 		numElements := uint32(0)
 		it := m.Iterate(IteratorOptions{BatchSize: batchSize})
 		for it.Next(&k, &v) {
@@ -212,11 +212,20 @@ func TestBatchIterAllocsPerRun(t *testing.T) {
 		require.Equal(t, numsToPut, numElements)
 	})
 
-	numBatches := int(numsToPut) / batchSize
-	expectedAllocs := float64(numBatches * 2) // 2 allocations per batch because ebpf has two buffers to allocate on each batch...
-	expectedAllocs *= 1.1                     // ...and we add a 10% margin to account for any other allocations that might happen
+	batchSize = 100
 
-	require.LessOrEqual(t, allocs, expectedAllocs)
+	allocsLargerBatch := testing.AllocsPerRun(100, func() {
+		numElements := uint32(0)
+		it := m.Iterate(IteratorOptions{BatchSize: batchSize})
+		for it.Next(&k, &v) {
+			numElements++
+		}
+		require.Equal(t, numsToPut, numElements)
+	})
+
+	require.LessOrEqual(t, allocsSmallBatch, 8.0)
+	require.LessOrEqual(t, allocsLargerBatch, 8.0)
+	require.Equal(t, allocsLargerBatch, allocsSmallBatch) // We don't want allocations to depend on batch size
 }
 
 func BenchmarkIterate(b *testing.B) {
