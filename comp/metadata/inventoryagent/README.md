@@ -96,6 +96,15 @@ The payload is a JSON dict with the following fields
   - `feature_apm_enabled` - **bool**: True if the APM Agent is enabled (see: `apm_config.enabled` config option).
   - `feature_otlp_enabled` - **bool**: True if the OTLP pipeline is enabled.
   - `feature_imdsv2_enabled` - **bool**: True if the IMDSv2 is enabled (see: `ec2_prefer_imdsv2` config option).
+  - `feature_container_images_enabled` - **bool**: True if Container Images is enabled (see: `container_image.enabled` config option).
+  - `feature_csm_vm_containers_enabled` - **bool**: True if VM Containers is enabled for Cloud Security Management (see: `sbom.enabled`, `container_image.enabled` and `sbom.container_image.enabled` config options).
+  - `feature_csm_vm_hosts_enabled` - **bool**: True if VM Hosts is enabled for Cloud Security Management (see: `sbom.enable` and `sbom.host.enabled` config option).
+  - `feature_cws_network_enabled` - **bool**: True if Network Monitoring is enabled for Cloud Workload Security (see: `event_monitoring_config.network.enabled` config option).
+  - `feature_cws_remote_config_enabled` - **bool**: True if Remote Config is enabled for Cloud Workload Security (see: `runtime_security_config.remote_configuration.enabled` config option).
+  - `feature_cws_security_profiles_enabled` - **bool**: True if Security Profiles is enabled for Cloud Workload Security (see: `runtime_security_config.activity_dump.enabled` config option).
+  - `feature_usm_http_by_status_code_enabled` - **bool**: True if HTTP Stats by Status Code is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_http_stats_by_status_code` config option).
+  - `feature_usm_istio_enabled` - **bool**: True if Istio is enabled for Universal Service Monitoring (see: `service_monitoring_config.tls.istio.enabled` config option).
+  - `feature_windows_crash_detection_enabled` - **bool**: True if Windows Crash Detection is enabled (see: `windows_crash_detection.enabled` config option).
   - `full_configuration` - **string**: the current Agent configuration scrubbed, including all the defaults, as a YAML
     string.
   - `provided_configuration` - **string**: the current Agent configuration (scrubbed), without the defaults, as a YAML
