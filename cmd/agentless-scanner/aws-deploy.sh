@@ -188,6 +188,13 @@ Resources:
       InstanceType: !Ref DatadogSideScannerInstanceType
       KeyName: !Ref DatadogSideScannerKeyPair
       IamInstanceProfile: !Ref DatalogSideScannerInstanceProfile
+      BlockDeviceMappings:
+      - DeviceName: /dev/sda1
+        Ebs:
+          DeleteOnTermination: true
+          Encrypted: true
+          VolumeSize: 30
+          VolumeType: gp2
       UserData: ${STACK_USER_DATA}
       SecurityGroupIds:
         - ${STACK_SECURITY_GROUP}
