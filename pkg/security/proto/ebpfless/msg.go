@@ -113,17 +113,17 @@ type SyscallMsg struct {
 	Type   SyscallType
 	PID    uint32
 	Retval int64
-	Exec   *ExecSyscallMsg
-	Open   *OpenSyscallMsg
-	Fork   *ForkSyscallMsg
-	Exit   *ExitSyscallMsg
-	Fcntl  *FcntlSyscallMsg
-	SetUID *SetUIDSyscallMsg
-	SetGID *SetGIDSyscallMsg
+	Exec   *ExecSyscallMsg   `json:",omitempty"`
+	Open   *OpenSyscallMsg   `json:",omitempty"`
+	Fork   *ForkSyscallMsg   `json:",omitempty"`
+	Exit   *ExitSyscallMsg   `json:",omitempty"`
+	Fcntl  *FcntlSyscallMsg  `json:",omitempty"`
+	SetUID *SetUIDSyscallMsg `json:",omitempty"`
+	SetGID *SetGIDSyscallMsg `json:",omitempty"`
 
 	// internals
-	Dup   *DupSyscallFakeMsg
-	Chdir *ChdirSyscallFakeMsg
+	Dup   *DupSyscallFakeMsg   `json:",omitempty"`
+	Chdir *ChdirSyscallFakeMsg `json:",omitempty"`
 }
 
 // String returns string representation
@@ -139,16 +139,16 @@ type HelloMsg struct {
 	EntrypointArgs   []string
 }
 
-// String returns string representation
-func (m Message) String() string {
-	b, _ := json.Marshal(m)
-	return string(b)
-}
-
 // Message defines a message
 type Message struct {
 	SeqNum  uint64
 	Type    MessageType
-	Hello   *HelloMsg
-	Syscall *SyscallMsg
+	Hello   *HelloMsg   `json:",omitempty"`
+	Syscall *SyscallMsg `json:",omitempty"`
+}
+
+// String returns string representation
+func (m Message) String() string {
+	b, _ := json.Marshal(m)
+	return string(b)
 }
