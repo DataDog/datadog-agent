@@ -251,3 +251,7 @@ func (g *genericMapBatchIterator[K, V]) Next(key *K, value *V) bool {
 func (g *genericMapBatchIterator[K, V]) Err() error {
 	return g.err
 }
+
+func (g *GenericMap[K, V]) String() string {
+	return g.m.String()
+}
