@@ -363,9 +363,10 @@ func TestProcess(t *testing.T) {
 	})
 
 	t.Run("aas", func(t *testing.T) {
+		t.Setenv("APPSVC_RUN_ZIP", "true")
+		t.Setenv("WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED", "false")
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
-		cfg.InAzureAppServices = true
 		ctx, cancel := context.WithCancel(context.Background())
 		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
@@ -385,17 +386,10 @@ func TestProcess(t *testing.T) {
 		}
 
 		for _, chunk := range tp.Chunks {
-			for i, span := range chunk.Spans {
-				if i == 0 {
-					// root span should contain all aas tags
-					for tag := range traceutil.GetAppServicesTags() {
-						assert.Contains(t, span.Meta, tag)
-					}
-				} else {
-					// other spans should only contain site name and type
-					assert.Contains(t, span.Meta, "aas.site.name")
-					assert.Contains(t, span.Meta, "aas.site.type")
-				}
+			for _, span := range chunk.Spans {
+				assert.Contains(t, span.Meta, "aas.resource.id")
+				assert.Contains(t, span.Meta, "aas.site.name")
+				assert.Contains(t, span.Meta, "aas.site.type")
 			}
 		}
 	})

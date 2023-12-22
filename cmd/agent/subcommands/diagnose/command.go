@@ -13,18 +13,22 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pkgdiagnose "github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"github.com/cihub/seelog"
 	"github.com/fatih/color"
@@ -81,6 +85,16 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
 					LogParams:    logimpl.ForOneShot("CORE", "off", true)}),
 				core.Bundle(),
+				// workloadmeta setup
+				collectors.GetCatalog(),
+				fx.Provide(func() workloadmeta.Params {
+					return workloadmeta.Params{
+						AgentType:  workloadmeta.NodeAgent,
+						InitHelper: common.GetWorkloadmetaInit(),
+						NoInstance: !cliParams.runLocal,
+					}
+				}),
+				workloadmeta.OptionalModule(),
 				diagnosesendermanagerimpl.Module(),
 			)
 		},
@@ -209,7 +223,7 @@ This command print the package-signing metadata payload. This payload is used by
 	return []*cobra.Command{diagnoseCommand}
 }
 
-func cmdDiagnose(cliParams *cliParams, senderManager diagnosesendermanager.Component) error {
+func cmdDiagnose(cliParams *cliParams, senderManager diagnosesendermanager.Component, _ optional.Option[workloadmeta.Component]) error {
 	diagCfg := diagnosis.Config{
 		Verbose:  cliParams.verbose,
 		RunLocal: cliParams.runLocal,

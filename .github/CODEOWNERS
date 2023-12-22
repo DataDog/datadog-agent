@@ -501,11 +501,13 @@
 /test/new-e2e/tests/cws                       @DataDog/agent-security
 /test/new-e2e/tests/agent-platform            @DataDog/agent-platform
 /test/new-e2e/tests/agent-metric-logs   @DataDog/agent-metrics-logs
+/test/new-e2e/tests/windows                   @DataDog/windows-agent @DataDog/windows-kernel-integrations
 /test/system/                                 @DataDog/agent-shared-components
 /test/system/dogstatsd/                       @DataDog/agent-metrics-logs
 /test/benchmarks/apm_scripts/                 @DataDog/agent-apm
 /test/regression/                             @DataDog/single-machine-performance
 /test/workload-checks/                        @DataDog/single-machine-performance
+
 /tools/                                 @DataDog/agent-platform
 /tools/ebpf/                            @DataDog/ebpf-platform
 /tools/gdb/                             @DataDog/agent-shared-components
