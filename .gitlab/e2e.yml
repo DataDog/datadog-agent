@@ -191,8 +191,6 @@ new-e2e-containers-main:
       - EXTRA_PARAMS: --run TestEKSSuite
       - EXTRA_PARAMS: --run TestECSSuite
       - EXTRA_PARAMS: --skip "Test(Kind|EKS|ECS)Suite"
-  # Temporary, until we manage to stabilize those tests.
-  allow_failure: true
 
 new-e2e-agent-shared-components-dev:
   extends: .new_e2e_template
