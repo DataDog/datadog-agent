@@ -110,7 +110,7 @@ func newPackageSigningProvider(deps dependencies) provides {
 			// Package signing telemetry is only valid on Linux and DEB/RPM based distros (including SUSE)
 			provider = is.MetadataProvider()
 		} else {
-			is.log.Info("No supported package manager detected, package signing telemetry will not be collected")
+			is.log.Info("Package Manager not in [apt, yum, dnf, zypper], package signing telemetry will not be collected")
 		}
 	}
 

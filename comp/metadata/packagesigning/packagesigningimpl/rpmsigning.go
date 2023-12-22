@@ -75,7 +75,8 @@ func updateWithRPMDB(cacheKeys map[string]signingKey, logger log.Component) {
 	}
 	scanner := bufio.NewScanner(strings.NewReader(string(output)))
 	for scanner.Scan() {
-		rpmCmd := exec.CommandContext(ctx, "rpm", "-qi", "%s", "--qf", "'%%{PUBKEYS}\n'")
+		publicKey := scanner.Text()
+		rpmCmd := exec.CommandContext(ctx, "rpm", "-qi", publicKey, "--qf", "'%{PUBKEYS}\n'")
 		rpmKey, err := rpmCmd.CombinedOutput()
 		if err != nil || ctx.Err() != nil {
 			return
