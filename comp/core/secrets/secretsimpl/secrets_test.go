@@ -469,3 +469,47 @@ func TestResolveThenRefresh(t *testing.T) {
 	assert.Equal(t, []string{"", "", "", "password1", "password2", "password3"}, oldValues)
 	assert.Equal(t, []string{"first", "password1", "password2", "password3", "second", "third"}, newValues)
 }
+
+func TestRefreshWhitelist(t *testing.T) {
+	originalWhitelistHandles := whitelistHandles
+	whitelistHandles = nil
+	defer func() { whitelistHandles = originalWhitelistHandles }()
+
+	resolver := newEnabledSecretResolver()
+	resolver.backendCommand = "some_command"
+	resolver.cache = map[string]string{"handle": "value"}
+	resolver.origin = handleToContext{
+		"handle": []secretContext{
+			{
+				origin: "test",
+				path:   []string{"path", "to", "key"},
+			},
+		},
+	}
+
+	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
+		return map[string]string{
+			"handle": "second_value",
+		}, nil
+	}
+	changes := []string{}
+	resolver.SubscribeToChanges(func(handle string, path []string, oldValue, newValue any) {
+		changes = append(changes, fmt.Sprintf("%s", newValue))
+	})
+
+	// only allow api_key to change
+	whitelistHandles = []string{"api_key"}
+
+	// Refresh means nothing changes because whitelist doesn't allow it
+	err := resolver.Refresh()
+	require.NoError(t, err)
+	assert.Equal(t, changes, []string{})
+
+	// now allow the handle under scrutiny to change
+	whitelistHandles = []string{"handle"}
+
+	// Refresh sees the change to the handle
+	err = resolver.Refresh()
+	require.NoError(t, err)
+	assert.Equal(t, changes, []string{"second_value"})
+}
