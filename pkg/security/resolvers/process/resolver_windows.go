@@ -149,18 +149,21 @@ func (p *Resolver) GetEnvp(pr *model.Process) []string {
 // GetProcessCmdLineScrubbed returns the scrubbed cmdline
 func (p *Resolver) GetProcessCmdLineScrubbed(pr *model.Process) string {
 	if pr.ScrubbedCmdLineResolved {
-		return pr.CmdLine
+		return pr.CmdLineScrubbed
 	}
+
+	pr.CmdLineScrubbed = pr.CmdLine
 
 	if p.scrubber != nil && len(pr.CmdLine) > 0 {
 		// replace with the scrubbed version
 		scrubbed, _ := p.scrubber.ScrubCommand([]string{pr.CmdLine})
 		if len(scrubbed) > 0 {
-			pr.CmdLine = strings.Join(scrubbed, " ")
+			pr.CmdLineScrubbed = strings.Join(scrubbed, " ")
 		}
 	}
+	pr.ScrubbedCmdLineResolved = true
 
-	return pr.CmdLine
+	return pr.CmdLineScrubbed
 }
 
 // getCacheSize returns the cache size of the process resolver
