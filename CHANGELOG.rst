@@ -79,18 +79,6 @@ New Features
 - CWS: Ability to send a signal to a process when a rule was triggered.
   CWS: Add Kubernetes user session context to events, in particular the username, UID and groups of the user that ran the commands remotely.
 
-- A new rule post action - 'kill' - can now be used to send a specific
-  signal to a process that caused a rule to be triggered. By default, this
-  signal is SIGTERM.
-  
-  ```
-  - id: my_rule
-    expression: ...
-    actions:
-      - kill:
-          signal: SIGUSR1
-  ```
-
 - Enable container image collection by default.
 
 - Enable container lifecycle events collection by default.
