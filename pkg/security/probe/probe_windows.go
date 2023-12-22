@@ -115,6 +115,8 @@ func (p *WindowsProbe) initEtwFIM() error {
 
 	pidsList := make([]uint32, 0)
 
+=======
+>>>>>>> a0a9eedf1d (working full path with file & registry)
 	p.fimSession.ConfigureProvider(p.fileguid, func(cfg *etw.ProviderConfiguration) {
 		cfg.TraceLevel = etw.TRACE_LEVEL_VERBOSE
 		cfg.PIDs = pidsList
