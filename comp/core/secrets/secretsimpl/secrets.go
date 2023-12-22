@@ -358,7 +358,7 @@ func (r *secretResolver) Refresh() error {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	newHandles := []string{}
+	newHandles := make([]string, 0, len(r.cache))
 	for handle := range r.cache {
 		newHandles = append(newHandles, handle)
 	}
