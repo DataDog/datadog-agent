@@ -26,9 +26,10 @@ type http2DynamicTableIndex struct {
 	Tup   connTuple
 }
 type http2DynamicTableEntry struct {
-	Buffer    [160]int8
-	Len       uint8
-	Pad_cgo_0 [7]byte
+	Buffer             [160]int8
+	String_len         uint8
+	Is_huffman_encoded bool
+	Pad_cgo_0          [6]byte
 }
 type http2StreamKey struct {
 	Tup       connTuple
@@ -42,7 +43,8 @@ type http2Stream struct {
 	Request_method        uint8
 	Path_size             uint8
 	Request_end_of_stream bool
-	Pad_cgo_0             [3]byte
+	Is_huffman_encoded    bool
+	Pad_cgo_0             [2]byte
 	Request_path          [160]uint8
 }
 type EbpfTx struct {

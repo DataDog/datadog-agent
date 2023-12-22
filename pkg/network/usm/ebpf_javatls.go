@@ -10,6 +10,7 @@ package usm
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -279,7 +280,7 @@ func (p *javaTLSProgram) Stop(*manager.Manager) {
 	}
 }
 
-func (p *javaTLSProgram) DumpMaps(*strings.Builder, string, *ebpf.Map) {}
+func (p *javaTLSProgram) DumpMaps(io.Writer, string, *ebpf.Map) {}
 
 func (p *javaTLSProgram) GetStats() *protocols.ProtocolStats {
 	return nil

@@ -85,6 +85,13 @@ func TestStepByStepScript(t *testing.T) {
 			}
 		}
 
+		var testOsType ec2os.Type
+		for osName, osType := range osMapping {
+			if strings.Contains(osVers, osName) {
+				testOsType = osType
+			}
+		}
+
 		t.Run(fmt.Sprintf("test step by step on %s %s", osVers, *architecture), func(tt *testing.T) {
 			tt.Parallel()
 			fmt.Printf("Testing %s", osVers)
@@ -92,6 +99,9 @@ func TestStepByStepScript(t *testing.T) {
 			var version float64
 			if len(slice) == 2 {
 				version, err = strconv.ParseFloat(slice[1], 64)
+				if version == 610 {
+					version = 6.10
+				}
 				require.NoError(tt, err)
 			} else if len(slice) == 3 {
 				version, err = strconv.ParseFloat(slice[1]+"."+slice[2], 64)
@@ -99,7 +109,7 @@ func TestStepByStepScript(t *testing.T) {
 			} else {
 				version = 0
 			}
-			vmOpts = append(vmOpts, ec2params.WithImageName(platformJSON[*platform][*architecture][osVers], archMapping[*architecture], osMapping[*platform]))
+			vmOpts = append(vmOpts, ec2params.WithImageName(platformJSON[*platform][*architecture][osVers], archMapping[*architecture], testOsType))
 			if instanceType, ok := os.LookupEnv("E2E_OVERRIDE_INSTANCE_TYPE"); ok {
 				vmOpts = append(vmOpts, ec2params.WithInstanceType(instanceType))
 			}
@@ -133,7 +143,7 @@ func (is *stepByStepSuite) ConfigureAndRunAgentService(VMclient *common.TestClie
 	is.T().Run("add config file", func(t *testing.T) {
 		ExecuteWithoutError(t, VMclient, "sudo sh -c \"sed 's/api_key:.*/api_key: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/' /etc/datadog-agent/datadog.yaml.example > /etc/datadog-agent/datadog.yaml\"")
 		ExecuteWithoutError(t, VMclient, "sudo sh -c \"chown dd-agent:dd-agent /etc/datadog-agent/datadog.yaml && chmod 640 /etc/datadog-agent/datadog.yaml\"")
-		if *platform == "ubuntu" && is.osVersion == 14.04 {
+		if (*platform == "ubuntu" && is.osVersion == 14.04) || (*platform == "centos" && is.osVersion == 6.10) {
 			ExecuteWithoutError(t, VMclient, "sudo initctl start datadog-agent")
 		} else {
 			ExecuteWithoutError(t, VMclient, "sudo systemctl restart datadog-agent.service")

@@ -37,7 +37,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
 	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
@@ -105,6 +104,9 @@ type Service struct {
 	clients            *clients
 	cacheBypassClients cacheBypassClients
 
+	// Used to report metrics on cache bypass requests
+	telemetryReporter RcTelemetryReporter
+
 	lastUpdateErr error
 
 	// Used to rate limit the 4XX error logs
@@ -128,6 +130,14 @@ type uptaneClient interface {
 	TUFVersionState() (uptane.TUFVersions, error)
 }
 
+// RcTelemetryReporter should be implemented by the agent to publish metrics on exceptional cache bypass request events
+type RcTelemetryReporter interface {
+	// IncRateLimit is invoked when a cache bypass request is prevented due to rate limiting
+	IncRateLimit()
+	// IncTimeout is invoked when a cache bypass request is cancelled due to timeout or a previous cache bypass request is still pending
+	IncTimeout()
+}
+
 func init() {
 	// Exported variable to get the state of remote-config
 	exportedMapStatus.Init()
@@ -142,7 +152,7 @@ func WithTraceAgentEnv(env string) func(s *Service) {
 }
 
 // NewService instantiates a new remote configuration management service
-func NewService(cfg model.Reader, apiKey, baseRawURL, hostname string, opts ...func(s *Service)) (*Service, error) {
+func NewService(cfg model.Reader, apiKey, baseRawURL, hostname string, telemetryReporter RcTelemetryReporter, opts ...func(s *Service)) (*Service, error) {
 	refreshIntervalOverrideAllowed := false // If a user provides a value we don't want to override
 
 	var refreshInterval time.Duration
@@ -271,6 +281,7 @@ func NewService(cfg model.Reader, apiKey, baseRawURL, hostname string, opts ...f
 			capacity:       clientsCacheBypassLimit,
 			allowance:      clientsCacheBypassLimit,
 		},
+		telemetryReporter: telemetryReporter,
 	}
 
 	for _, opt := range opts {
@@ -326,7 +337,7 @@ func (s *Service) Start(ctx context.Context) {
 				if !s.cacheBypassClients.Limit() {
 					err = s.refresh()
 				} else {
-					telemetry.CacheBypassRateLimit.Inc()
+					s.telemetryReporter.IncRateLimit()
 				}
 				close(response)
 			case <-ctx.Done():
@@ -564,7 +575,7 @@ func (s *Service) ClientGetConfigs(_ context.Context, request *pbgo.ClientGetCon
 		select {
 		case <-response:
 		case <-time.After(partialNewClientBlockTTL):
-			telemetry.CacheBypassTimeout.Inc()
+			s.telemetryReporter.IncTimeout()
 		}
 
 		s.Lock()

@@ -104,6 +104,11 @@ func (vmClient *VMClient) CopyFolder(srcFolder string, dstFolder string) {
 	require.NoError(vmClient.t, err)
 }
 
+// GetFile copy file from the remote host
+func (vmClient *VMClient) GetFile(src string, dst string) error {
+	return clients.GetFile(vmClient.client, src, dst)
+}
+
 // FileExists returns true if the file exists and is a regular file and returns an error if any
 func (vmClient *VMClient) FileExists(path string) (bool, error) {
 	return clients.FileExists(vmClient.client, path)

@@ -1122,7 +1122,7 @@ func (tm *testModule) Run(t *testing.T, name string, fnc func(t *testing.T, kind
 func (tm *testModule) reloadPolicies() error {
 	log.Debugf("reload policies with cfgDir: %s", commonCfgDir)
 
-	bundledPolicyProvider := &rulesmodule.BundledPolicyProvider{}
+	bundledPolicyProvider := rulesmodule.NewBundledPolicyProvider(tm.eventMonitor.Probe.Config.RuntimeSecurity)
 	policyDirProvider, err := rules.NewPoliciesDirProvider(commonCfgDir, false)
 	if err != nil {
 		return err

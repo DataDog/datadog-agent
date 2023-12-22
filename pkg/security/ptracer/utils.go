@@ -88,7 +88,7 @@ func retrieveContainerIDFromProc(ctx *ebpfless.ContainerContext) error {
 
 func getNSID() uint64 {
 	var stat syscall.Stat_t
-	if err := syscall.Lstat("/proc/self/ns/pid", &stat); err != nil {
+	if err := syscall.Stat("/proc/self/ns/pid", &stat); err != nil {
 		return rand.Uint64()
 	}
 	return stat.Ino

@@ -124,7 +124,7 @@ func startCompliance(senderManager sender.SenderManager, stopper startstop.Stopp
 func wrapKubernetesClient(apiCl *apiserver.APIClient, isLeader func() bool) compliance.KubernetesProvider {
 	return func(ctx context.Context) (dynamic.Interface, discovery.DiscoveryInterface, error) {
 		if isLeader() {
-			return apiCl.DynamicCl, apiCl.DiscoveryCl, nil
+			return apiCl.DynamicCl, apiCl.Cl.Discovery(), nil
 		}
 		return nil, nil, compliance.ErrIncompatibleEnvironment
 	}
