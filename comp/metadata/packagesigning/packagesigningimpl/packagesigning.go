@@ -85,6 +85,13 @@ type provides struct {
 	FlareProvider flaretypes.Provider
 }
 
+// Testing purpose
+var (
+	getPkgManager = pkgUtils.GetPackageManager
+	getAPTKeys    = getAPTSignatureKeys
+	getYUMKeys    = getYUMSignatureKeys
+)
+
 func newPackageSigningProvider(deps dependencies) provides {
 	hname, _ := hostname.Get(context.Background())
 	is := &pkgSigning{
@@ -96,6 +103,7 @@ func newPackageSigningProvider(deps dependencies) provides {
 	is.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, is.getPayload, "signing.json")
 	is.InventoryPayload.MaxInterval = defaultCollectInterval
 	is.InventoryPayload.MinInterval = defaultCollectInterval
+	is.InventoryPayload.Enabled = isPackageSigningEnabled(deps.Config, is.log)
 	provider := runnerimpl.NewEmptyProvider()
 	if runtime.GOOS == "linux" {
 		if getPkgManager() != "" {
@@ -113,12 +121,13 @@ func newPackageSigningProvider(deps dependencies) provides {
 	}
 }
 
-// Testing purpose
-var (
-	getPkgManager = pkgUtils.GetPackageManager
-	getAPTKeys    = getAPTSignatureKeys
-	getYUMKeys    = getYUMSignatureKeys
-)
+func isPackageSigningEnabled(conf config.Reader, logger log.Component) bool {
+	if !conf.GetBool("enable_signing_metadata") {
+		logger.Debugf("Signing metadata collection disabled: linux package signing keys will not be collected nor sent")
+		return false
+	}
+	return true
+}
 
 func (is *pkgSigning) getData() []signingKey {
 
