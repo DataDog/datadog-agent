@@ -1815,7 +1815,7 @@ func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newV
 	// slice[0] = 'password'
 	// config.Set('process_config.additional_endpoints', original)
 
-	trailingElements := []string{}
+	trailingElements := make([]string, 0, len(settingPath))
 	// copy the path and hold onto the original, useful for error messages
 	path := slices.Clone(settingPath)
 	for {
