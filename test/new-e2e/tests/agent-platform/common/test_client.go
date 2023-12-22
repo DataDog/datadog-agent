@@ -151,7 +151,8 @@ func (c *TestClient) GetPythonVersion() (string, error) {
 	ok := false
 	var statusString string
 
-	for try := 0; try < 5 && !ok; try++ {
+	var err error
+	for try := 0; try < 10 && !ok; try++ {
 		status, err := c.AgentClient.StatusWithError(e2eClient.WithArgs([]string{"-j"}))
 		if err == nil {
 			ok = true
@@ -159,8 +160,17 @@ func (c *TestClient) GetPythonVersion() (string, error) {
 		}
 		time.Sleep(1 * time.Second)
 	}
+	// TEMPORARY FOR DEBUG PURPOSE
+	if !ok {
+		fmt.Println("Agent status failed: ", err)
+		journalOutput, err := c.VMClient.ExecuteWithError("sudo journalctl -u datadog-agent")
+		if err != nil {
+			fmt.Println("Journalctl failed, not supported os ", err)
+		}
+		fmt.Println("Journalctl output: ", journalOutput)
+	}
 
-	err := json.Unmarshal([]byte(statusString), &statusJSON)
+	err = json.Unmarshal([]byte(statusString), &statusJSON)
 	if err != nil {
 		return "", err
 	}
