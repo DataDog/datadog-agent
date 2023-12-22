@@ -71,24 +71,24 @@ type EBPFLessProbe struct {
 	clients       map[net.Conn]*client
 }
 
-func (p *EBPFLessProbe) handleClientMsg(msg *clientMsg) {
-	if msg.client.seqNum != msg.SeqNum {
-		seclog.Errorf("communication out of sync %d vs %d", msg.client.seqNum, msg.SeqNum)
+func (p *EBPFLessProbe) handleClientMsg(cl *client, msg *ebpfless.Message) {
+	if cl.seqNum != msg.SeqNum {
+		seclog.Errorf("communication out of sync %d vs %d", cl.seqNum, msg.SeqNum)
 	}
-	msg.client.seqNum++
+	cl.seqNum++
 
 	switch msg.Type {
 	case ebpfless.MessageTypeHello:
-		if msg.client.nsID == 0 {
-			msg.client.nsID = msg.Hello.NSID
-			msg.client.containerContext = msg.Hello.ContainerContext
-			msg.client.entrypointArgs = msg.Hello.EntrypointArgs
-			if msg.client.containerContext != nil {
-				seclog.Infof("tracing started for container ID [%s] (Name: [%s]) with entrypoint %q", msg.client.containerContext.ID, msg.client.containerContext.Name, msg.client.entrypointArgs)
+		if cl.nsID == 0 {
+			cl.nsID = msg.Hello.NSID
+			cl.containerContext = msg.Hello.ContainerContext
+			cl.entrypointArgs = msg.Hello.EntrypointArgs
+			if cl.containerContext != nil {
+				seclog.Infof("tracing started for container ID [%s] (Name: [%s]) with entrypoint %q", cl.containerContext.ID, cl.containerContext.Name, cl.entrypointArgs)
 			}
 		}
 	case ebpfless.MessageTypeSyscall:
-		p.handleSyscallMsg(msg.client, msg.Syscall)
+		p.handleSyscallMsg(cl, msg.Syscall)
 	}
 }
 
@@ -288,7 +288,7 @@ func (p *EBPFLessProbe) Start() error {
 
 	go func() {
 		for msg := range ch {
-			p.handleClientMsg(&msg)
+			p.handleClientMsg(msg.client, &msg.Message)
 		}
 	}()
 
