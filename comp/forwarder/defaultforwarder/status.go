@@ -8,6 +8,7 @@ import (
 	"io"
 	"path"
 	"strconv"
+	textTemplate "text/template"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -61,14 +62,6 @@ func (s statusProvider) HTML(buffer io.Writer) error {
 	return renderHTML(buffer, s.getStatusInfo())
 }
 
-func (statusProvider) TextWithData(buffer io.Writer, data any) error {
-	return renderText(buffer, data)
-}
-
-func (statusProvider) HTMLWithData(buffer io.Writer, data any) error {
-	return renderHTML(buffer, data)
-}
-
 func renderHTML(buffer io.Writer, data any) error {
 	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "forwarderHTML.tmpl"))
 	if tmplErr != nil {
@@ -83,6 +76,6 @@ func renderText(buffer io.Writer, data any) error {
 	if tmplErr != nil {
 		return tmplErr
 	}
-	t := htmlTemplate.Must(htmlTemplate.New("forwarder").Funcs(status.HTMLFmap()).Parse(string(tmpl)))
+	t := textTemplate.Must(textTemplate.New("forwarder").Funcs(status.HTMLFmap()).Parse(string(tmpl)))
 	return t.Execute(buffer, data)
 }

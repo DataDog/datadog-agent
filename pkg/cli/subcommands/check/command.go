@@ -447,8 +447,8 @@ func run(
 	for _, c := range cs {
 		s := runCheck(cliParams, c, printer)
 		var checkResult map[string]interface{}
-		bytes, _ := json.Marshal(s)
-		json.Unmarshal(bytes, &checkResult)
+		resultBytes, _ := json.Marshal(s)
+		json.Unmarshal(resultBytes, &checkResult)
 		checkMap := make(map[string]interface{})
 
 		checkMap[string(c.ID())] = checkResult
@@ -528,8 +528,16 @@ func run(
 				checkFileOutput.WriteString(data + "\n")
 			}
 
-			checkStatus, _ := statusComponent.Render(status.CollectorSection, "text", collectorData)
-			p(string(checkStatus))
+			// workaround to this one use case of the status component
+			// we want to render the collector text format with custom data
+			collectorProvider := statuscollector.StatusProvider()
+			buffer := new(bytes.Buffer)
+			err := collectorProvider.TextWithData(buffer, collectorData)
+			if err != nil {
+				return err
+			}
+
+			p(buffer.String())
 
 			p("  Metadata\n  ========")
 

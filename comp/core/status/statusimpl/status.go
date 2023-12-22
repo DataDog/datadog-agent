@@ -318,49 +318,6 @@ func (s *statusImplementation) GetStatusBySection(section string, format string,
 	}
 }
 
-func (s *statusImplementation) Render(section, format string, data any) ([]byte, error) {
-	var errors []error
-
-	providers := s.sortedProvidersBySection[section]
-	switch format {
-	case "text":
-		var b = new(bytes.Buffer)
-
-		for i, sc := range providers {
-			if i == 0 {
-				printHeader(b, section)
-				newLine(b)
-			}
-
-			if err := sc.TextWithData(b, data); err != nil {
-				errors = append(errors, err)
-			}
-		}
-
-		if len(errors) > 0 {
-			if err := renderErrors(b, errors); err != nil {
-				return []byte{}, err
-			}
-
-			return b.Bytes(), nil
-		}
-
-		return b.Bytes(), nil
-	case "html":
-		var b = new(bytes.Buffer)
-
-		for _, sc := range providers {
-			err := sc.HTMLWithData(b, data)
-			if err != nil {
-				return b.Bytes(), err
-			}
-		}
-		return b.Bytes(), nil
-	default:
-		return []byte{}, nil
-	}
-}
-
 func present(value string, container []string) bool {
 	for _, v := range container {
 		if v == value {

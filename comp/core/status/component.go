@@ -23,8 +23,6 @@ type Component interface {
 	GetStatus(format string, verbose bool) ([]byte, error)
 	// Returns only the agent status for the especify section and format type
 	GetStatusBySection(section string, format string, verbose bool) ([]byte, error)
-	// Render
-	Render(section, format string, data any) ([]byte, error)
 }
 
 // Provider interface
@@ -36,9 +34,7 @@ type Provider interface {
 	Section() string
 	JSON(stats map[string]interface{}) error
 	Text(buffer io.Writer) error
-	TextWithData(buffer io.Writer, data any) error
 	HTML(buffer io.Writer) error
-	HTMLWithData(buffer io.Writer, data any) error
 }
 
 // HeaderProvider interface

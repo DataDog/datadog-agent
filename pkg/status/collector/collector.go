@@ -93,38 +93,34 @@ func PopulateStatus(stats map[string]interface{}) {
 	stats["inventories"] = checkMetadata
 }
 
-type provider struct{}
+type Provider struct{}
 
-func (provider) Name() string {
+func (Provider) Name() string {
 	return "Collector"
 }
 
-func (provider) Section() string {
+func (Provider) Section() string {
 	return status.CollectorSection
 }
 
-func (provider) JSON(stats map[string]interface{}) error {
+func (Provider) JSON(stats map[string]interface{}) error {
 	PopulateStatus(stats)
 
 	return nil
 }
 
-func (provider) Text(buffer io.Writer) error {
+func (Provider) Text(buffer io.Writer) error {
 	return render.RenderStatusTemplate(buffer, "/collector.tmpl", GetStatusInfo())
 }
 
-func (provider) HTML(buffer io.Writer) error {
+func (Provider) HTML(buffer io.Writer) error {
 	return render.RenderHTMLStatusTemplate(buffer, "/collectorHTML.tmpl", GetStatusInfo())
 }
 
-func (provider) TextWithData(buffer io.Writer, data any) error {
+func (Provider) TextWithData(buffer io.Writer, data any) error {
 	return render.RenderStatusTemplate(buffer, "/collector.tmpl", data)
 }
 
-func (provider) HTMLWithData(buffer io.Writer, data any) error {
-	return render.RenderHTMLStatusTemplate(buffer, "/collectorHTML.tmpl", data)
-}
-
-func StatusProvider() status.Provider {
-	return provider{}
+func StatusProvider() Provider {
+	return Provider{}
 }
