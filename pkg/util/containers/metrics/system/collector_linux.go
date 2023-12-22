@@ -246,8 +246,8 @@ func (c *systemCollector) GetSelfContainerID() (string, error) {
 // getSelfContainerIDFromInode returns the container ID of the current process by using the inode of the cgroup
 // controller. The `reader` must use a `cgroups.ContainerFilter`.
 func (c *systemCollector) getSelfContainerIDFromInode() (string, error) {
-	if c.selfReader == nil || c.reader == nil {
-		return "", fmt.Errorf("readers are not initialized")
+	if c.selfReader == nil {
+		return "", fmt.Errorf("self reader is not initialized")
 	}
 	selfCgroup := c.selfReader.GetCgroup(cgroups.SelfCgroupIdentifier)
 	if selfCgroup == nil {
