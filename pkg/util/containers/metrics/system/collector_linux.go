@@ -235,7 +235,7 @@ func (c *systemCollector) GetContainerIDForInode(inode uint64, cacheValidity tim
 
 func (c *systemCollector) GetSelfContainerID() (string, error) {
 	cid, err := c.getSelfContainerIDFromInode()
-	if err == nil {
+	if cid != "" {
 		return cid, nil
 	}
 	log.Debugf("unable to get self container ID from cgroup controller inode: %v", err)
