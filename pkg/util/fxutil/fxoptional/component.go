@@ -85,6 +85,7 @@ type Component[T any] interface {
 }
 
 // New creates a new optional component.
+// TODO(components): Use Component[T] as return type when Reset will be removed from orchestrator.Component
 func New[T any](t T) *optional.Option[T] {
 	o := optional.NewOption[T](t)
 	return &o
