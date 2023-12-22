@@ -15,27 +15,28 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 )
 
-const locksQuery12 = `SELECT 
-  MAX((SYSDATE - start_date)*24*3600) as seconds, 
+// 200 in SUBSTR is maximum tag size, see https://docs.datadoghq.com/getting_started/tagging/#define-tags
+const locksQuery122 = `SELECT
+  MAX((SYSDATE - start_date)*24*3600) as seconds,
   s.sid, s.username, s.osuser, s.machine, s.program,
-  s.status, 
-  LISTAGG(d.owner || '.' || d.object_name, ',') WITHIN GROUP (ORDER BY d.owner, d.object_name) object, 
+  s.status,
+  SUBSTR(LISTAGG(
+							d.owner || '.' || d.object_name || ':' ||
+							Decode(l.locked_mode, 0, 'None',
+							1, 'Null/NULL/',
+							2, 'Row-S/SS/',
+							3, 'Row-X/SX/',
+							4, 'Share/S/',
+							5, 'S/Row-X/SSX/',
+							6, 'Exclusive/X/',
+							l.locked_mode)
+							, ':' on overflow truncate) WITHIN GROUP (ORDER BY d.owner, d.object_name),1,200) object,
   c.name as pdb_name
-    FROM v$transaction t, v$session s, v$locked_object v, dba_objects d, v$containers c
-    WHERE s.saddr = t.ses_addr 
-      AND v.object_id = d.object_id AND v.session_id = s.sid AND v.con_id(+) = c.con_id AND temporary = 'N'
-    GROUP BY s.sid,s.serial#, s.username, s.osuser, s.machine, s.program,
-      s.status, c.name`
-
-const locksQuery11 = `SELECT 
-  MAX((SYSDATE - start_date)*24*3600) as seconds, s.sid,s.username, s.osuser, s.machine, s.program,
-  s.status, 
-  LISTAGG(d.owner || '.' || d.object_name, ',') WITHIN GROUP (ORDER BY d.owner, d.object_name) object
-  FROM v$transaction t, v$session s, v$locked_object v, dba_objects d
-  WHERE s.saddr = t.ses_addr 
-    AND v.object_id = d.object_id AND v.session_id = s.sid AND temporary = 'N'
-  GROUP BY s.sid,s.serial#, s.username, s.osuser, s.machine, s.program,
-    s.status`
+	FROM v$transaction t, v$session s, v$locked_object l, dba_objects d, v$containers c
+	WHERE s.saddr = t.ses_addr
+		AND l.object_id = d.object_id AND l.session_id = s.sid AND l.con_id(+) = c.con_id AND temporary = 'N'
+	GROUP BY s.sid, s.username, s.osuser, s.machine, s.program,
+		s.status, c.name`
 
 type locksRowDB struct {
 	Seconds  sql.NullFloat64 `db:"SECONDS"`
@@ -50,14 +51,12 @@ type locksRowDB struct {
 }
 
 func (c *Check) locks() error {
+	if isDbVersionLessThan("12.2") {
+		return nil
+	}
 	rows := []locksRowDB{}
 
-	var query string
-	if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion) {
-		query = locksQuery12
-	} else {
-		query = locksQuery11
-	}
+	query := locksQuery122
 	err := selectWrapper(c, &rows, query)
 	if err != nil {
 		return fmt.Errorf("failed to collect locks info: %w", err)
