@@ -10,21 +10,25 @@ import (
 	"io"
 )
 
+// Provisioner defines the interface for a provisioner.
 type Provisioner interface {
 	ID() string
 	Destroy(string, context.Context, io.Writer) error
 }
 
+// UntypedProvisioner defines the interface for a provisioner without env binding
 type UntypedProvisioner interface {
 	Provisioner
 	Provision(string, context.Context, io.Writer) (RawResources, error)
 }
 
+// TypedProvisioner defines the interface for a provisioner with env binding
 type TypedProvisioner[Env any] interface {
 	Provisioner
 	ProvisionEnv(string, context.Context, io.Writer, *Env) (RawResources, error)
 }
 
+// ProvisionerMap is a map of provisioners.
 type ProvisionerMap map[string]Provisioner
 
 func copyProvisioners(in ProvisionerMap) ProvisionerMap {

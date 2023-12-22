@@ -23,7 +23,7 @@ type EnvVar map[string]string
 
 var envVarNameRegexp = regexp.MustCompile("^[a-zA-Z_]+[a-zA-Z0-9_]*$")
 
-// ExecuteParams contains par for VM.Execute commands
+// ExecuteParams contains parameters for VM.Execute commands
 type ExecuteParams struct {
 	EnvVariables EnvVar
 }

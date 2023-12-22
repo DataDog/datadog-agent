@@ -21,8 +21,10 @@ const (
 	pulumiProvisionerDefaultID = "pulumi"
 )
 
+// PulumiEnvRunFunc is a function that runs a Pulumi program with a given environment.
 type PulumiEnvRunFunc[Env any] func(ctx *pulumi.Context, env *Env) error
 
+// PulumiProvisioner is a provisioner based on Pulumi with binding to an environment.
 type PulumiProvisioner[Env any] struct {
 	id        string
 	runFunc   PulumiEnvRunFunc[Env]
@@ -34,6 +36,7 @@ var (
 	_ UntypedProvisioner    = &PulumiProvisioner[any]{}
 )
 
+// NewTypedPulumiProvisioner returns a new PulumiProvisioner.
 func NewTypedPulumiProvisioner[Env any](id string, runFunc PulumiEnvRunFunc[Env], configMap runner.ConfigMap) *PulumiProvisioner[Env] {
 	if id == "" {
 		id = pulumiProvisionerDefaultID
@@ -46,20 +49,24 @@ func NewTypedPulumiProvisioner[Env any](id string, runFunc PulumiEnvRunFunc[Env]
 	}
 }
 
+// NewUntypedPulumiProvisioner returns a new PulumiProvisioner without env binding.
 func NewUntypedPulumiProvisioner(id string, runFunc pulumi.RunFunc, configMap runner.ConfigMap) *PulumiProvisioner[any] {
 	return NewTypedPulumiProvisioner(id, func(ctx *pulumi.Context, _ *any) error {
 		return runFunc(ctx)
 	}, configMap)
 }
 
+// ID returns the ID of the provisioner.
 func (pp *PulumiProvisioner[Env]) ID() string {
 	return pp.id
 }
 
+// Provision runs the Pulumi program and returns the raw resources.
 func (pp *PulumiProvisioner[Env]) Provision(stackName string, ctx context.Context, logger io.Writer) (RawResources, error) {
 	return pp.ProvisionEnv(stackName, ctx, logger, nil)
 }
 
+// ProvisionEnv runs the Pulumi program with a given environment and returns the raw resources.
 func (pp *PulumiProvisioner[Env]) ProvisionEnv(stackName string, ctx context.Context, logger io.Writer, env *Env) (RawResources, error) {
 	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(
 		ctx,
@@ -94,6 +101,7 @@ func (pp *PulumiProvisioner[Env]) ProvisionEnv(stackName string, ctx context.Con
 	return resources, nil
 }
 
+// Destroy deletes the Pulumi stack.
 func (pp *PulumiProvisioner[Env]) Destroy(stackName string, ctx context.Context, logger io.Writer) error {
 	return infra.GetStackManager().DeleteStack(ctx, stackName, logger)
 }

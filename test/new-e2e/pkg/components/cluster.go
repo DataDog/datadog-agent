@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package components
 
 import (
@@ -6,7 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/test-infra-definitions/components/kubernetes"
 
-	clientGo "k8s.io/client-go/kubernetes"
+	kubeClient "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -15,7 +20,7 @@ const kubeClientTimeout = 60 * time.Second
 type KubernetesCluster struct {
 	kubernetes.ClusterOutput
 
-	client clientGo.Interface
+	client kubeClient.Interface
 }
 
 var _ e2e.Initializable = &KubernetesCluster{}
@@ -30,8 +35,8 @@ func (kc *KubernetesCluster) Init(e2e.Context) error {
 	// Always set a timeout for the client
 	config.Timeout = kubeClientTimeout
 
-	// Create cliens
-	kc.client, err = clientGo.NewForConfig(config)
+	// Create client
+	kc.client, err = kubeClient.NewForConfig(config)
 	if err != nil {
 		return err
 	}
@@ -39,6 +44,6 @@ func (kc *KubernetesCluster) Init(e2e.Context) error {
 	return nil
 }
 
-func (kc *KubernetesCluster) Client() clientGo.Interface {
+func (kc *KubernetesCluster) Client() kubeClient.Interface {
 	return kc.client
 }

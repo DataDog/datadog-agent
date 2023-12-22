@@ -14,10 +14,11 @@ import (
 )
 
 const (
-	staticProvisionerDefaultID = "static"
-	fileExtFilter              = ".json"
+	fileProvisionerDefaultID = "file"
+	fileExtFilter            = ".json"
 )
 
+// FileProvisioner is a provisioner that reads JSON files from a filesystem.
 type FileProvisioner struct {
 	id string
 	fs fs.FS
@@ -25,9 +26,10 @@ type FileProvisioner struct {
 
 var _ Provisioner = &FileProvisioner{}
 
+// NewFileProvisioner returns a new FileProvisioner.
 func NewFileProvisioner(id string, fs fs.FS) *FileProvisioner {
 	if id == "" {
-		id = staticProvisionerDefaultID
+		id = fileProvisionerDefaultID
 	}
 
 	return &FileProvisioner{
@@ -36,10 +38,12 @@ func NewFileProvisioner(id string, fs fs.FS) *FileProvisioner {
 	}
 }
 
+// ID returns the ID of the provisioner.
 func (fp *FileProvisioner) ID() string {
 	return fp.id
 }
 
+// Provision reads JSON files from the filesystem and returns them as raw resources.
 func (fp *FileProvisioner) Provision(string, context.Context, io.Writer) (RawResources, error) {
 	resources := make(RawResources)
 
@@ -67,6 +71,7 @@ func (fp *FileProvisioner) Provision(string, context.Context, io.Writer) (RawRes
 	})
 }
 
+// Destroy is a no-op for the FileProvisioner.
 func (fp *FileProvisioner) Destroy(string, context.Context, io.Writer) error {
 	return nil
 }

@@ -177,6 +177,7 @@ type Suite[Env any] interface {
 
 var _ Suite[any] = &BaseSuite[any]{}
 
+// BaseSuite is a generic test suite that wraps testify.Suite
 type BaseSuite[Env any] struct {
 	suite.Suite
 
@@ -189,11 +190,16 @@ type BaseSuite[Env any] struct {
 	firstFailTest string
 }
 
+//
 // Custom methods
+//
+
+// Env returns the current environment
 func (bs *BaseSuite[Env]) Env() *Env {
 	return bs.env
 }
 
+// UpdateEnv updates the environment with new provisioners.
 func (bs *BaseSuite[Env]) UpdateEnv(newProvisioners ...Provisioner) {
 	uniqueIDs := make(map[string]struct{})
 	targetProvisioners := make(ProvisionerMap, len(newProvisioners))
@@ -471,6 +477,7 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 	}
 }
 
+// Run is a helper function to run a test suite.
 // Unfortunatly, we cannot use `s Suite[Env]` as Go is not able to match it with a struct
 // However it's able to verify the same constraint on T
 func Run[Env any, T Suite[Env]](t *testing.T, s T, options ...SuiteOption) {

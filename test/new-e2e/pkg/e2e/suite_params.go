@@ -67,10 +67,12 @@ func WithProvisioner(provisioner Provisioner) SuiteOption {
 	}
 }
 
+// WithUntypedPulumiProvisioner adds an untyped Pulumi provisioner to the suite
 func WithUntypedPulumiProvisioner(runFunc pulumi.RunFunc, configMap runner.ConfigMap) SuiteOption {
 	return WithProvisioner(NewUntypedPulumiProvisioner("", runFunc, configMap))
 }
 
+// WithPulumiProvisioner adds a typed Pulumi provisioner to the suite
 func WithPulumiProvisioner[Env any](runFunc PulumiEnvRunFunc[Env], configMap runner.ConfigMap) SuiteOption {
 	return WithProvisioner(NewTypedPulumiProvisioner("", runFunc, configMap))
 }

@@ -22,17 +22,17 @@ type agentCommandExecutor interface {
 	execute(arguments []string) (string, error)
 }
 
-// agentCommands is an internal type that provides methods to run Agent commands.
+// agentCommandRunner is an internal type that provides methods to run Agent commands.
 // It is used by both [VMClient] and [Docker]
-type agentCommands struct {
+type agentCommandRunner struct {
 	t        *testing.T
 	executor agentCommandExecutor
 	isReady  bool
 }
 
 // Create a new instance of agentCommandRunner
-func newAgentCommandRunner(t *testing.T, executor agentCommandExecutor) *agentCommands {
-	agent := &agentCommands{
+func newAgentCommandRunner(t *testing.T, executor agentCommandExecutor) *agentCommandRunner {
+	agent := &agentCommandRunner{
 		t:        t,
 		executor: executor,
 		isReady:  false,
@@ -40,13 +40,13 @@ func newAgentCommandRunner(t *testing.T, executor agentCommandExecutor) *agentCo
 	return agent
 }
 
-func (agent *agentCommands) executeCommand(command string, commandArgs ...agentclient.AgentArgsOption) string {
+func (agent *agentCommandRunner) executeCommand(command string, commandArgs ...agentclient.AgentArgsOption) string {
 	output, err := agent.executeCommandWithError(command, commandArgs...)
 	require.NoError(agent.t, err)
 	return output
 }
 
-func (agent *agentCommands) executeCommandWithError(command string, commandArgs ...agentclient.AgentArgsOption) (string, error) {
+func (agent *agentCommandRunner) executeCommandWithError(command string, commandArgs ...agentclient.AgentArgsOption) (string, error) {
 	if !agent.isReady {
 		err := agent.waitForReadyTimeout(1 * time.Minute)
 		require.NoErrorf(agent.t, err, "the agent is not ready")
@@ -63,23 +63,23 @@ func (agent *agentCommands) executeCommandWithError(command string, commandArgs 
 }
 
 // Version runs version command returns the runtime Agent version
-func (agent *agentCommands) Version(commandArgs ...agentclient.AgentArgsOption) string {
+func (agent *agentCommandRunner) Version(commandArgs ...agentclient.AgentArgsOption) string {
 	return agent.executeCommand("version", commandArgs...)
 }
 
 // Hostname runs hostname command and returns the runtime Agent hostname
-func (agent *agentCommands) Hostname(commandArgs ...agentclient.AgentArgsOption) string {
+func (agent *agentCommandRunner) Hostname(commandArgs ...agentclient.AgentArgsOption) string {
 	output := agent.executeCommand("hostname", commandArgs...)
 	return strings.Trim(output, "\n")
 }
 
 // Config runs config command and returns the runtime agent config
-func (agent *agentCommands) Config(commandArgs ...agentclient.AgentArgsOption) string {
+func (agent *agentCommandRunner) Config(commandArgs ...agentclient.AgentArgsOption) string {
 	return agent.executeCommand("config", commandArgs...)
 }
 
 // ConfigWithError runs config command and returns the runtime agent config or an error
-func (agent *agentCommands) ConfigWithError(commandArgs ...agentclient.AgentArgsOption) (string, error) {
+func (agent *agentCommandRunner) ConfigWithError(commandArgs ...agentclient.AgentArgsOption) (string, error) {
 	args, err := optional.MakeParams(commandArgs...)
 	require.NoError(agent.t, err)
 
@@ -88,58 +88,58 @@ func (agent *agentCommands) ConfigWithError(commandArgs ...agentclient.AgentArgs
 }
 
 // Diagnose runs diagnose command and returns its output
-func (agent *agentCommands) Diagnose(commandArgs ...agentclient.AgentArgsOption) string {
+func (agent *agentCommandRunner) Diagnose(commandArgs ...agentclient.AgentArgsOption) string {
 	return agent.executeCommand("diagnose", commandArgs...)
 }
 
 // Flare runs flare command and returns the output. You should use the FakeIntake client to fetch the flare archive
-func (agent *agentCommands) Flare(commandArgs ...agentclient.AgentArgsOption) string {
+func (agent *agentCommandRunner) Flare(commandArgs ...agentclient.AgentArgsOption) string {
 	return agent.executeCommand("flare", commandArgs...)
 }
 
 // Health runs health command and returns the runtime agent health
-func (agent *agentCommands) Health() (string, error) {
+func (agent *agentCommandRunner) Health() (string, error) {
 	arguments := []string{"health"}
 	output, err := agent.executor.execute(arguments)
 	return output, err
 }
 
 // ConfigCheck runs configcheck command and returns the runtime agent configcheck
-func (agent *agentCommands) ConfigCheck(commandArgs ...agentclient.AgentArgsOption) string {
+func (agent *agentCommandRunner) ConfigCheck(commandArgs ...agentclient.AgentArgsOption) string {
 	return agent.executeCommand("configcheck", commandArgs...)
 }
 
 // Integration run integration command and returns the output
-func (agent *agentCommands) Integration(commandArgs ...agentclient.AgentArgsOption) string {
+func (agent *agentCommandRunner) Integration(commandArgs ...agentclient.AgentArgsOption) string {
 	return agent.executeCommand("integration", commandArgs...)
 }
 
 // IntegrationWithError run integration command and returns the output
-func (agent *agentCommands) IntegrationWithError(commandArgs ...agentclient.AgentArgsOption) (string, error) {
+func (agent *agentCommandRunner) IntegrationWithError(commandArgs ...agentclient.AgentArgsOption) (string, error) {
 	return agent.executeCommandWithError("integration", commandArgs...)
 }
 
 // Secret runs the secret command
-func (agent *agentCommands) Secret(commandArgs ...agentclient.AgentArgsOption) string {
+func (agent *agentCommandRunner) Secret(commandArgs ...agentclient.AgentArgsOption) string {
 	return agent.executeCommand("secret", commandArgs...)
 }
 
 // IsReady runs status command and returns true if the command returns a zero exit code.
 // This function should rarely be used.
-func (agent *agentCommands) IsReady() bool {
+func (agent *agentCommandRunner) IsReady() bool {
 	_, err := agent.executor.execute([]string{"status"})
 	return err == nil
 }
 
 // Status runs status command and returns a Status struct
-func (agent *agentCommands) Status(commandArgs ...agentclient.AgentArgsOption) *agentclient.Status {
+func (agent *agentCommandRunner) Status(commandArgs ...agentclient.AgentArgsOption) *agentclient.Status {
 	return &agentclient.Status{
 		Content: agent.executeCommand("status", commandArgs...),
 	}
 }
 
 // StatusWithError runs status command and returns a Status struct and error
-func (agent *agentCommands) StatusWithError(commandArgs ...agentclient.AgentArgsOption) (*agentclient.Status, error) {
+func (agent *agentCommandRunner) StatusWithError(commandArgs ...agentclient.AgentArgsOption) (*agentclient.Status, error) {
 	status, err := agent.executeCommandWithError("status", commandArgs...)
 
 	return &agentclient.Status{
@@ -150,7 +150,7 @@ func (agent *agentCommands) StatusWithError(commandArgs ...agentclient.AgentArgs
 // waitForReadyTimeout blocks up to timeout waiting for agent to be ready.
 // Retries every 100 ms up to timeout.
 // Returns error on failure.
-func (agent *agentCommands) waitForReadyTimeout(timeout time.Duration) error {
+func (agent *agentCommandRunner) waitForReadyTimeout(timeout time.Duration) error {
 	interval := 100 * time.Millisecond
 	maxRetries := timeout.Milliseconds() / interval.Milliseconds()
 	err := backoff.Retry(func() error {
