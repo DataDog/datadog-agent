@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -61,7 +62,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	statuscollector "github.com/DataDog/datadog-agent/pkg/status/collector"
 	"github.com/DataDog/datadog-agent/pkg/status/render"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -145,19 +145,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 
 				// workloadmeta setup
 				collectors.GetCatalog(),
-				fx.Provide(func(config config.Component) workloadmeta.Params {
-					var agentType workloadmeta.AgentType
-					if flavor.GetFlavor() == flavor.ClusterAgent {
-						agentType = workloadmeta.ClusterAgent
-					} else {
-						agentType = workloadmeta.NodeAgent
-					}
-
-					return workloadmeta.Params{
-						AgentType:  agentType,
-						InitHelper: common.GetWorkloadmetaInit(),
-					}
-				}),
+				fx.Provide(defaults.DefaultParams),
 				workloadmeta.Module(),
 				apiimpl.Module(),
 				fx.Supply(context.Background()),
