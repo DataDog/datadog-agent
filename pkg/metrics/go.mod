@@ -24,7 +24,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/log v0.50.0-rc.4
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.9.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.11.0
 	github.com/stretchr/testify v1.8.4
 	go.uber.org/atomic v1.11.0
 )
