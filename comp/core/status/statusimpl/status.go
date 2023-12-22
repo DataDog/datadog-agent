@@ -106,7 +106,7 @@ func newStatus(deps dependencies) (status.Component, error) {
 	}, nil
 }
 
-func (s *statusImplementation) GetStatus(format string, _ bool) ([]byte, error) {
+func (s *statusImplementation) GetStatus(format string, _ bool, skipSections ...string) ([]byte, error) {
 	var errors []error
 
 	switch format {
@@ -118,7 +118,11 @@ func (s *statusImplementation) GetStatus(format string, _ bool) ([]byte, error) 
 			}
 		}
 
-		for _, providers := range s.sortedProvidersBySection {
+		for section, providers := range s.sortedProvidersBySection {
+			if present(section, skipSections) {
+				continue
+			}
+
 			for _, provider := range providers {
 				if err := provider.JSON(stats); err != nil {
 					errors = append(errors, err)
@@ -150,6 +154,10 @@ func (s *statusImplementation) GetStatus(format string, _ bool) ([]byte, error) 
 		}
 
 		for _, section := range s.sortedSectionNames {
+			if present(section, skipSections) {
+				continue
+			}
+
 			printHeader(b, section)
 			newLine(b)
 
@@ -181,6 +189,10 @@ func (s *statusImplementation) GetStatus(format string, _ bool) ([]byte, error) 
 		}
 
 		for _, section := range s.sortedSectionNames {
+			if present(section, skipSections) {
+				continue
+			}
+
 			for _, provider := range s.sortedProvidersBySection[section] {
 				err := provider.HTML(b)
 				if err != nil {
