@@ -38,7 +38,7 @@ type Repository struct {
 	RootPath string
 }
 
-// CreateRepository creates a fresh new repository at the given root path
+// Create creates a fresh new repository at the given root path
 // and moves the given stable source path to the repository as the first stable.
 // If a repository already exists at the given path, it is fully removed.
 //

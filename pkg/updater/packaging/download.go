@@ -27,6 +27,7 @@ type Downloader struct {
 	client *http.Client
 }
 
+// RemotePackage is a package available for download.
 type RemotePackage struct {
 	URL    string
 	SHA256 []byte
