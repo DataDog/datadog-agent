@@ -39,6 +39,7 @@ type http2StreamKey struct {
 type http2Stream struct {
 	Response_last_seen    uint64
 	Request_started       uint64
+	Path_index            uint64
 	Response_status_code  uint16
 	Request_method        uint8
 	Path_size             uint8
@@ -76,4 +77,7 @@ const (
 	K400Value      StaticTableEnumValue = 0xc
 	K404Value      StaticTableEnumValue = 0xd
 	K500Value      StaticTableEnumValue = 0xe
+
+	rootPathSpecialIndex  = 0xffffffffffffff00
+	indexPathSpecialIndex = 0xffffffffffffff01
 )
