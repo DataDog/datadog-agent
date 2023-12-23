@@ -220,6 +220,9 @@ static __always_inline __u8 tls_filter_relevant_headers(tls_dispatcher_arguments
 // tls_process_headers processes the headers that were filtered in
 // tls_filter_relevant_headers, looking for requests path, status code, and method.
 static __always_inline void tls_process_headers(tls_dispatcher_arguments_t *info, dynamic_table_index_t *dynamic_index, http2_stream_t *current_stream, http2_header_t *headers_to_process, __u8 interesting_headers, http2_telemetry_t *http2_tel) {
+    // http2_interesting_dynamic_table_set is a set, thus we don't care about the values of the entries, but for
+    // the existence of them. Thus, we have a dummy value.
+    bool dummy_value = true;
     http2_header_t *current_header;
     dynamic_table_entry_t dynamic_value = {};
 
@@ -274,6 +277,8 @@ static __always_inline void tls_process_headers(tls_dispatcher_arguments_t *info
             current_stream->path_size = current_header->new_dynamic_value_size;
             current_stream->is_huffman_encoded = current_header->is_huffman_encoded;
             bpf_memcpy(current_stream->request_path, dynamic_value.buffer, HTTP2_MAX_PATH_LEN);
+
+            bpf_map_update_elem(&http2_interesting_dynamic_table_set, dynamic_index, &dummy_value, BPF_ANY);
         }
     }
 }

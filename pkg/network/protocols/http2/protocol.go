@@ -47,17 +47,18 @@ type Protocol struct {
 }
 
 const (
-	inFlightMap               = "http2_in_flight"
-	dynamicTable              = "http2_dynamic_table"
-	dynamicTableCounter       = "http2_dynamic_counter_table"
-	http2IterationsTable      = "http2_iterations"
-	tlsHTTP2IterationsTable   = "tls_http2_iterations"
-	firstFrameHandlerTailCall = "socket__http2_handle_first_frame"
-	filterTailCall            = "socket__http2_filter"
-	headersParserTailCall     = "socket__http2_headers_parser"
-	eosParserTailCall         = "socket__http2_eos_parser"
-	eventStream               = "http2"
-	telemetryMap              = "http2_telemetry"
+	inFlightMap                = "http2_in_flight"
+	dynamicTable               = "http2_dynamic_table"
+	interestingDynamicTableSet = "http2_interesting_dynamic_table_set"
+	dynamicTableCounter        = "http2_dynamic_counter_table"
+	http2IterationsTable       = "http2_iterations"
+	tlsHTTP2IterationsTable    = "tls_http2_iterations"
+	firstFrameHandlerTailCall  = "socket__http2_handle_first_frame"
+	filterTailCall             = "socket__http2_filter"
+	headersParserTailCall      = "socket__http2_headers_parser"
+	eosParserTailCall          = "socket__http2_eos_parser"
+	eventStream                = "http2"
+	telemetryMap               = "http2_telemetry"
 
 	tlsFirstFrameTailCall    = "uprobe__http2_tls_handle_first_frame"
 	tlsFilterTailCall        = "uprobe__http2_tls_filter"
@@ -75,6 +76,9 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			Name: dynamicTable,
+		},
+		{
+			Name: interestingDynamicTableSet,
 		},
 		{
 			Name: dynamicTableCounter,
@@ -209,6 +213,10 @@ func (p *Protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 
 	opts.MapSpecEditors[dynamicTable] = manager.MapSpecEditor{
 		MaxEntries: dynamicMapSizeValue,
+		EditorFlag: manager.EditMaxEntries,
+	}
+	opts.MapSpecEditors[interestingDynamicTableSet] = manager.MapSpecEditor{
+		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
 	opts.MapSpecEditors[dynamicTableCounter] = manager.MapSpecEditor{
