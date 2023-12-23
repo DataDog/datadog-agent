@@ -82,6 +82,9 @@
 
 #define MAX_FRAME_SIZE 16384
 
+// Special indexes to indicate the root path and the index path.
+#define HTTP2_ROOT_PATH_INDEX    0xffffffffffffff00
+#define HTTP2_INDEX_PATH_INDEX   0xffffffffffffff01
 // Definitions representing empty and /index.html paths. These types are sent using the static table.
 // We include these to eliminate the necessity of copying the specified encoded path to the buffer.
 #define HTTP2_ROOT_PATH      "/"
@@ -125,6 +128,7 @@ typedef struct {
     __u64 response_last_seen;
     __u64 request_started;
 
+    __u64 path_index;
     __u16 response_status_code;
     __u8 request_method;
     __u8 path_size;

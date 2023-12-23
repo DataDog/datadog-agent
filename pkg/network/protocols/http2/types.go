@@ -42,4 +42,7 @@ const (
 	K400Value      StaticTableEnumValue = C.k400
 	K404Value      StaticTableEnumValue = C.k404
 	K500Value      StaticTableEnumValue = C.k500
+
+	rootPathSpecialIndex  = C.HTTP2_ROOT_PATH_INDEX
+	indexPathSpecialIndex = C.HTTP2_INDEX_PATH_INDEX
 )
