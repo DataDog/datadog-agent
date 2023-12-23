@@ -10,9 +10,13 @@ BPF_HASH_MAP(http2_remainder, conn_tuple_t, frame_header_remainder_t, 2048)
    conn tuple and it is value is the buffer which contains the dynamic string. */
 BPF_HASH_MAP(http2_dynamic_table, dynamic_table_index_t, dynamic_table_entry_t, 0)
 
+// The map acts as a set, to indicate if a given dynamic index (conn tuple + index) is interesting.
+// If a key exists - the index is interesting, otherwise it is not.
+BPF_HASH_MAP(http2_interesting_dynamic_table_set, dynamic_table_index_t, bool, 0)
+
 /* http2_dynamic_counter_table is a map that holding the current dynamic values amount, in order to use for the
-   internal calculation of the internal index in the http2_dynamic_table, it is hold by conn_tup to support different
-   clients and the value is the current counter. */
+   internal calculation of the internal index in the http2_interesting_dynamic_table_set, it is hold by conn_tup to
+   support different clients and the value is the current counter. */
 BPF_HASH_MAP(http2_dynamic_counter_table, conn_tuple_t, u64, 0)
 
 /* This map is used to keep track of in-flight HTTP2 transactions for each TCP connection */
