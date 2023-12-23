@@ -241,9 +241,11 @@ static __always_inline void tls_process_headers(tls_dispatcher_arguments_t *info
                 current_stream->response_status_code = current_header->index;
                 __sync_fetch_and_add(&http2_tel->response_seen, 1);
             } else if (current_header->index == kEmptyPath) {
+                current_stream->path_index = HTTP2_ROOT_PATH_INDEX;
                 current_stream->path_size = HTTP2_ROOT_PATH_LEN;
                 bpf_memcpy(current_stream->request_path, HTTP2_ROOT_PATH, HTTP2_ROOT_PATH_LEN);
             } else if (current_header->index == kIndexPath) {
+                current_stream->path_index = HTTP2_INDEX_PATH_INDEX;
                 current_stream->path_size = HTTP2_INDEX_PATH_LEN;
                 bpf_memcpy(current_stream->request_path, HTTP2_INDEX_PATH, HTTP2_INDEX_PATH_LEN);
             }
@@ -251,6 +253,7 @@ static __always_inline void tls_process_headers(tls_dispatcher_arguments_t *info
         }
 
         dynamic_index->index = current_header->index;
+        current_stream->path_index = current_header->index;
         if (current_header->type == kExistingDynamicHeader) {
             dynamic_table_entry_t *dynamic_value = bpf_map_lookup_elem(&http2_dynamic_table, dynamic_index);
             if (dynamic_value == NULL) {
