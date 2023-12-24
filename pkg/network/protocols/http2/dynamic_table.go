@@ -13,6 +13,7 @@ import (
 	"math"
 	"os"
 	"sync"
+	"time"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
@@ -23,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -33,6 +35,8 @@ const (
 
 	dynamicTableDefaultBufferFactor = 0.9
 )
+
+var oversizedLogLimit = util.NewLogLimit(10, time.Minute*10)
 
 // DynamicTable encapsulates the management of the dynamic table in the user mode.
 type DynamicTable struct {
@@ -251,20 +255,26 @@ func (dt *DynamicTable) launchPerfHandlerProcessor(mgr *manager.Manager) error {
 				if val.Is_huffman_encoded {
 					res, err = decodeHTTP2Path(val.Buf, val.String_len)
 					if err != nil {
-						log.Errorf("unable to decode HTTP2 path due to: %s", err)
+						if oversizedLogLimit.ShouldLog() {
+							log.Errorf("unable to decode HTTP2 path due to: %s", err)
+						}
 						data.Done()
 						continue
 					}
 				} else {
 					if err = validatePathSize(val.String_len); err != nil {
-						log.Errorf("path size is invalid due to: %s", err)
+						if oversizedLogLimit.ShouldLog() {
+							log.Errorf("path size is invalid due to: %s", err)
+						}
 						data.Done()
 						continue
 					}
 
 					res = string(val.Buf[:val.String_len])
-					if err = validatePath(res); err != nil {
-						log.Errorf("path is invalid due to: %s", err)
+					if err := validatePath(res); err != nil {
+						if oversizedLogLimit.ShouldLog() {
+							log.Errorf("path is invalid due to: %s", err)
+						}
 						data.Done()
 						continue
 					}
