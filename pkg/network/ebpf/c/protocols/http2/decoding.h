@@ -240,9 +240,9 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
         bpf_skb_load_bytes(skb, skb_info->data_off, &current_ch, sizeof(current_ch));
         skb_info->data_off++;
 
-        // To determine the size of the dynamic table update, we read an integer representation byte by byte. 
-        // We continue reading bytes until we encounter a byte without the Most Significant Bit (MSB) set, 
-        // indicating that we've consumed the complete integer. While in the context of the dynamic table 
+        // To determine the size of the dynamic table update, we read an integer representation byte by byte.
+        // We continue reading bytes until we encounter a byte without the Most Significant Bit (MSB) set,
+        // indicating that we've consumed the complete integer. While in the context of the dynamic table
         // update, we set the state as true if the MSB is set, and false otherwise. Then, we proceed to the next byte.
         // More on the feature - https://httpwg.org/specs/rfc7541.html#rfc.section.6.3.
         if (is_dynamic_table_update) {
@@ -313,18 +313,13 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
         current_header = &headers_to_process[iteration];
 
         if (current_header->type == kStaticHeader) {
-            static_table_value_t *static_value = bpf_map_lookup_elem(&http2_static_table, &current_header->index);
-            if (static_value == NULL) {
-                break;
-            }
-
             if (current_header->index == kPOST || current_header->index == kGET) {
                 // TODO: mark request
                 current_stream->request_started = bpf_ktime_get_ns();
-                current_stream->request_method = *static_value;
+                current_stream->request_method = current_header->index;
                 __sync_fetch_and_add(&http2_tel->request_seen, 1);
             } else if (current_header->index >= k200 && current_header->index <= k500) {
-                current_stream->response_status_code = *static_value;
+                current_stream->response_status_code = current_header->index;
                 __sync_fetch_and_add(&http2_tel->response_seen, 1);
             } else if (current_header->index == kEmptyPath) {
                 current_stream->path_size = HTTP2_ROOT_PATH_LEN;
