@@ -13,7 +13,6 @@ import (
 	"net"
 	"strconv"
 	"strings"
-	"time"
 
 	"golang.org/x/net/http2/hpack"
 
@@ -22,10 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-var oversizedLogLimit = util.NewLogLimit(10, time.Minute*10)
 
 // validatePath validates the given path.
 func validatePath(str string) error {
@@ -73,44 +69,38 @@ func decodeHTTP2Path(buf [maxHTTP2Path]byte, pathSize uint8) (string, error) {
 	return str, nil
 }
 
-// Path returns the URL from the request fragment captured in eBPF.
-func (tx *EbpfTx) Path(buffer []byte) ([]byte, bool) {
-	var res []byte
-	var err error
-	if tx.Stream.Is_huffman_encoded {
-		decodedPath, err := decodeHTTP2Path(tx.Stream.Request_path, tx.Stream.Path_size)
-		if err != nil {
-			if oversizedLogLimit.ShouldLog() {
-				log.Errorf("unable to decode HTTP2 path (%#v) due to: %s", tx.Stream.Request_path[:tx.Stream.Path_size], err)
-			}
-			return nil, false
-		}
-		res = []byte(decodedPath)
-	} else {
-		if err = validatePathSize(tx.Stream.Path_size); err != nil {
-			if oversizedLogLimit.ShouldLog() {
-				log.Errorf("path size: %d is invalid due to: %s", tx.Stream.Path_size, err)
-			}
-			return nil, false
-		}
+// ebpfTXWrapper is a wrapper around the eBPF transaction.
+// It extends the basic type with a pointer to an interned string, which will be filled by processHTTP2 method.
+type ebpfTXWrapper struct {
+	*EbpfTx
+	dynamicTable *DynamicTable
+	path         string
+}
 
-		res = tx.Stream.Request_path[:tx.Stream.Path_size]
-		if err = validatePath(string(res)); err != nil {
-			if oversizedLogLimit.ShouldLog() {
-				log.Errorf("path %s is invalid due to: %s", string(res), err)
-			}
-			return nil, false
+// tryResolvePath tries to resolve the path of the transaction. Returns true if the path is resolved now or was
+// already resolved in the past.
+func (tx *ebpfTXWrapper) tryResolvePath() bool {
+	if tx.path == "" {
+		path, _ := tx.dynamicTable.resolvePath(tx.Tuple, tx.Stream.Path_index)
+		if path == "" {
+			return false
 		}
-
-		res = tx.Stream.Request_path[:tx.Stream.Path_size]
+		tx.path = path
 	}
+	return true
+}
 
-	n := copy(buffer, res)
+// Path returns the URL from the request fragment captured in eBPF.
+func (tx *ebpfTXWrapper) Path(buffer []byte) ([]byte, bool) {
+	if !tx.tryResolvePath() {
+		return nil, false
+	}
+	n := copy(buffer, tx.path)
 	return buffer[:n], true
 }
 
 // RequestLatency returns the latency of the request in nanoseconds
-func (tx *EbpfTx) RequestLatency() float64 {
+func (tx *ebpfTXWrapper) RequestLatency() float64 {
 	if uint64(tx.Stream.Request_started) == 0 || uint64(tx.Stream.Response_last_seen) == 0 {
 		return 0
 	}
@@ -119,12 +109,12 @@ func (tx *EbpfTx) RequestLatency() float64 {
 
 // Incomplete returns true if the transaction contains only the request or response information
 // This happens in the context of localhost with NAT, in which case we join the two parts in userspace
-func (tx *EbpfTx) Incomplete() bool {
-	return tx.Stream.Request_started == 0 || tx.Stream.Response_last_seen == 0 || tx.StatusCode() == 0 || tx.Stream.Path_size == 0 || tx.Method() == http.MethodUnknown
+func (tx *ebpfTXWrapper) Incomplete() bool {
+	return !tx.tryResolvePath()
 }
 
 // ConnTuple returns the connections tuple of the transaction.
-func (tx *EbpfTx) ConnTuple() types.ConnectionKey {
+func (tx *ebpfTXWrapper) ConnTuple() types.ConnectionKey {
 	return types.ConnectionKey{
 		SrcIPHigh: tx.Tuple.Saddr_h,
 		SrcIPLow:  tx.Tuple.Saddr_l,
@@ -136,7 +126,7 @@ func (tx *EbpfTx) ConnTuple() types.ConnectionKey {
 }
 
 // Method returns the HTTP method of the transaction.
-func (tx *EbpfTx) Method() http.Method {
+func (tx *ebpfTXWrapper) Method() http.Method {
 	switch tx.Stream.Request_method {
 	case GetValue:
 		return http.MethodGet
@@ -148,7 +138,7 @@ func (tx *EbpfTx) Method() http.Method {
 }
 
 // StatusCode returns the HTTP status code of the transaction.
-func (tx *EbpfTx) StatusCode() uint16 {
+func (tx *ebpfTXWrapper) StatusCode() uint16 {
 	switch tx.Stream.Response_status_code {
 	case uint16(K200Value):
 		return 200
@@ -166,43 +156,43 @@ func (tx *EbpfTx) StatusCode() uint16 {
 }
 
 // SetStatusCode sets the HTTP status code of the transaction.
-func (tx *EbpfTx) SetStatusCode(code uint16) {
+func (tx *ebpfTXWrapper) SetStatusCode(code uint16) {
 	tx.Stream.Response_status_code = code
 }
 
 // ResponseLastSeen returns the last seen response.
-func (tx *EbpfTx) ResponseLastSeen() uint64 {
+func (tx *ebpfTXWrapper) ResponseLastSeen() uint64 {
 	return tx.Stream.Response_last_seen
 }
 
 // SetResponseLastSeen sets the last seen response.
-func (tx *EbpfTx) SetResponseLastSeen(lastSeen uint64) {
+func (tx *ebpfTXWrapper) SetResponseLastSeen(lastSeen uint64) {
 	tx.Stream.Response_last_seen = lastSeen
 
 }
 
 // RequestStarted returns the timestamp of the request start.
-func (tx *EbpfTx) RequestStarted() uint64 {
+func (tx *ebpfTXWrapper) RequestStarted() uint64 {
 	return tx.Stream.Request_started
 }
 
 // SetRequestMethod sets the HTTP method of the transaction.
-func (tx *EbpfTx) SetRequestMethod(m http.Method) {
+func (tx *ebpfTXWrapper) SetRequestMethod(m http.Method) {
 	tx.Stream.Request_method = uint8(m)
 }
 
 // StaticTags returns the static tags of the transaction.
-func (tx *EbpfTx) StaticTags() uint64 {
+func (tx *ebpfTXWrapper) StaticTags() uint64 {
 	return 0
 }
 
 // DynamicTags returns the dynamic tags of the transaction.
-func (tx *EbpfTx) DynamicTags() []string {
+func (tx *ebpfTXWrapper) DynamicTags() []string {
 	return nil
 }
 
 // String returns a string representation of the transaction.
-func (tx *EbpfTx) String() string {
+func (tx *ebpfTXWrapper) String() string {
 	var output strings.Builder
 	output.WriteString("http2.ebpfTx{")
 	output.WriteString(fmt.Sprintf("[%s] [%s ⇄ %s] ", tx.family(), tx.sourceEndpoint(), tx.destEndpoint()))
@@ -222,32 +212,32 @@ func (tx *EbpfTx) String() string {
 	return output.String()
 }
 
-func (tx *EbpfTx) family() ebpf.ConnFamily {
+func (tx *ebpfTXWrapper) family() ebpf.ConnFamily {
 	if tx.Tuple.Metadata&uint32(ebpf.IPv6) != 0 {
 		return ebpf.IPv6
 	}
 	return ebpf.IPv4
 }
 
-func (tx *EbpfTx) sourceAddress() util.Address {
+func (tx *ebpfTXWrapper) sourceAddress() util.Address {
 	if tx.family() == ebpf.IPv4 {
 		return util.V4Address(uint32(tx.Tuple.Saddr_l))
 	}
 	return util.V6Address(tx.Tuple.Saddr_l, tx.Tuple.Saddr_h)
 }
 
-func (tx *EbpfTx) sourceEndpoint() string {
+func (tx *ebpfTXWrapper) sourceEndpoint() string {
 	return net.JoinHostPort(tx.sourceAddress().String(), strconv.Itoa(int(tx.Tuple.Sport)))
 }
 
-func (tx *EbpfTx) destAddress() util.Address {
+func (tx *ebpfTXWrapper) destAddress() util.Address {
 	if tx.family() == ebpf.IPv4 {
 		return util.V4Address(uint32(tx.Tuple.Daddr_l))
 	}
 	return util.V6Address(tx.Tuple.Daddr_l, tx.Tuple.Daddr_h)
 }
 
-func (tx *EbpfTx) destEndpoint() string {
+func (tx *ebpfTXWrapper) destEndpoint() string {
 	return net.JoinHostPort(tx.destAddress().String(), strconv.Itoa(int(tx.Tuple.Dport)))
 }
 
