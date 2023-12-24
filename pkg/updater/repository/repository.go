@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package packaging contains the packaging logic of the updater.
-package packaging
+// Package repository contains the packaging logic of the updater.
+package repository
 
 import (
 	"errors"
@@ -47,7 +47,7 @@ type Repository struct {
 // 2. Create the root directory.
 // 3. Move the stable source to the repository.
 // 4. Create the stable link.
-func (r *Repository) Create(stableSourcePath string) error {
+func (r *Repository) Create(name string, stableSourcePath string) error {
 	err := os.RemoveAll(r.RootPath)
 	if err != nil {
 		return fmt.Errorf("could not remove previous repository: %w", err)
@@ -60,7 +60,7 @@ func (r *Repository) Create(stableSourcePath string) error {
 	if err != nil {
 		return err
 	}
-	err = repository.setStable(stableSourcePath)
+	err = repository.setStable(name, stableSourcePath)
 	if err != nil {
 		return fmt.Errorf("could not set first stable: %w", err)
 	}
@@ -72,7 +72,7 @@ func (r *Repository) Create(stableSourcePath string) error {
 // 1. Cleanup the repository.
 // 2. Move the experiment source to the repository.
 // 3. Set the experiment link to the experiment package.
-func (r *Repository) SetExperiment(sourcePath string) error {
+func (r *Repository) SetExperiment(name string, sourcePath string) error {
 	repository, err := openRepository(r.RootPath)
 	if err != nil {
 		return err
@@ -84,7 +84,7 @@ func (r *Repository) SetExperiment(sourcePath string) error {
 	if !repository.stable.Exists() {
 		return fmt.Errorf("stable package does not exist, invalid state")
 	}
-	err = repository.setExperiment(sourcePath)
+	err = repository.setExperiment(name, sourcePath)
 	if err != nil {
 		return fmt.Errorf("could not set experiment: %w", err)
 	}
@@ -182,25 +182,24 @@ func openRepository(rootPath string) (*repository, error) {
 	}, nil
 }
 
-func (r *repository) setExperiment(sourcePath string) error {
-	path, err := movePackageFromSource(r.rootPath, sourcePath)
+func (r *repository) setExperiment(name string, sourcePath string) error {
+	path, err := movePackageFromSource(name, r.rootPath, sourcePath)
 	if err != nil {
 		return fmt.Errorf("could not move experiment source: %w", err)
 	}
 	return r.experiment.Set(path)
 }
 
-func (r *repository) setStable(sourcePath string) error {
-	path, err := movePackageFromSource(r.rootPath, sourcePath)
+func (r *repository) setStable(name string, sourcePath string) error {
+	path, err := movePackageFromSource(name, r.rootPath, sourcePath)
 	if err != nil {
 		return fmt.Errorf("could not move stable source: %w", err)
 	}
 	return r.stable.Set(path)
 }
 
-func movePackageFromSource(rootPath string, sourcePath string) (string, error) {
-	packageName := filepath.Base(sourcePath)
-	if packageName == stableVersionLink || packageName == experimentVersionLink {
+func movePackageFromSource(packageName string, rootPath string, sourcePath string) (string, error) {
+	if packageName == "" || packageName == stableVersionLink || packageName == experimentVersionLink {
 		return "", fmt.Errorf("invalid package name")
 	}
 	targetPath := filepath.Join(rootPath, packageName)

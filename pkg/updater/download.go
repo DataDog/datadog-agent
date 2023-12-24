@@ -3,12 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package packaging
+package updater
 
 import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
@@ -22,20 +23,14 @@ const (
 	agentArchiveFileName = "agent.tar.gz"
 )
 
-// Downloader is the downloader used by the updater to download packages.
-type Downloader struct {
+// downloader is the downloader used by the updater to download packages.
+type downloader struct {
 	client *http.Client
 }
 
-// RemotePackage is a package available for download.
-type RemotePackage struct {
-	URL    string
-	SHA256 []byte
-}
-
-// NewDownloader returns a new Downloader.
-func NewDownloader(client *http.Client) *Downloader {
-	return &Downloader{
+// newDownloader returns a new Downloader.
+func newDownloader(client *http.Client) *downloader {
+	return &downloader{
 		client: client,
 	}
 }
@@ -43,7 +38,7 @@ func NewDownloader(client *http.Client) *Downloader {
 // Download downloads the package at the given URL in temporary directory,
 // verifies its SHA256 hash and extracts it to the given destination path.
 // It currently assumes the package is a tar.gz archive.
-func (d *Downloader) Download(ctx context.Context, pkg RemotePackage, destinationPath string) error {
+func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath string) error {
 	tmpDir, err := os.MkdirTemp("", "")
 	if err != nil {
 		return fmt.Errorf("could not create temporary directory: %w", err)
@@ -71,7 +66,11 @@ func (d *Downloader) Download(ctx context.Context, pkg RemotePackage, destinatio
 		return fmt.Errorf("could not write archive file: %w", err)
 	}
 	sha256 := hashWriter.Sum(nil)
-	if !bytes.Equal(pkg.SHA256, sha256) {
+	expectedHash, err := hex.DecodeString(pkg.SHA256)
+	if err != nil {
+		return fmt.Errorf("could not decode hash: %w", err)
+	}
+	if !bytes.Equal(expectedHash, sha256) {
 		return fmt.Errorf("invalid hash for %s: expected %x, got %x", pkg.URL, pkg.SHA256, sha256)
 	}
 	err = archiver.Extract(archivePath, "", destinationPath)

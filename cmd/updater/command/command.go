@@ -29,6 +29,12 @@ type GlobalParams struct {
 	// ConfFilePath holds the path to the folder containing the configuration
 	// file, to allow overrides from the command line
 	ConfFilePath string
+
+	// Package is the package managed by this instance of the updater.
+	Package string
+
+	// RepositoriesDir is the path to the directory containing the repositories.
+	RepositoriesDir string
 }
 
 // SubcommandFactory is a callable that will return a slice of subcommands.
@@ -48,6 +54,9 @@ Datadog Updater updates your agents based on requests received from the Datadog 
 	}
 
 	agentCmd.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "cfgpath", "c", "", "path to directory containing updater.yaml")
+	agentCmd.PersistentFlags().StringVarP(&globalParams.Package, "package", "p", "", "package to update")
+	agentCmd.PersistentFlags().StringVarP(&globalParams.RepositoriesDir, "repositories", "d", "/opt/datadog-packages", "path to directory containing repositories")
+	_ = agentCmd.MarkFlagRequired("package")
 
 	// github.com/fatih/color sets its global color.NoColor to a default value based on
 	// whether the process is running in a tty.  So, we only want to override that when

@@ -3,11 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package packaging
+package updater
 
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
@@ -40,26 +41,26 @@ func createTestServer(t *testing.T, dir string) *httptest.Server {
 	return httptest.NewServer(http.FileServer(http.Dir(dir)))
 }
 
-func agentArchiveHash(t *testing.T, dir string) []byte {
+func agentArchiveHash(t *testing.T, dir string) string {
 	f, err := os.Open(path.Join(dir, testAgentArchiveFileName))
 	assert.NoError(t, err)
 	defer f.Close()
 	hash := sha256.New()
 	_, err = io.Copy(hash, f)
 	assert.NoError(t, err)
-	return hash.Sum(nil)
+	return hex.EncodeToString(hash.Sum(nil))
 }
 
 func TestDownload(t *testing.T) {
 	dir := t.TempDir()
 	server := createTestServer(t, dir)
 	defer server.Close()
-	downloader := NewDownloader(server.Client())
+	downloader := newDownloader(server.Client())
 	downloadPath := path.Join(dir, testDownloadDir)
 	err := os.MkdirAll(downloadPath, 0755)
 	assert.NoError(t, err)
 
-	pkg := RemotePackage{URL: fmt.Sprintf("%s/%s", server.URL, testAgentArchiveFileName), SHA256: agentArchiveHash(t, dir)}
+	pkg := Package{URL: fmt.Sprintf("%s/%s", server.URL, testAgentArchiveFileName), SHA256: agentArchiveHash(t, dir)}
 	err = downloader.Download(context.Background(), pkg, downloadPath)
 	assert.NoError(t, err)
 	assert.FileExists(t, path.Join(downloadPath, testAgentFileName))
@@ -69,13 +70,13 @@ func TestDownloadCheckHash(t *testing.T) {
 	dir := t.TempDir()
 	server := createTestServer(t, dir)
 	defer server.Close()
-	downloader := NewDownloader(server.Client())
+	downloader := newDownloader(server.Client())
 	downloadPath := path.Join(dir, testDownloadDir)
 	err := os.MkdirAll(downloadPath, 0755)
 	assert.NoError(t, err)
 
 	fakeHash := sha256.Sum256([]byte(`test`))
-	pkg := RemotePackage{URL: fmt.Sprintf("%s/%s", server.URL, testAgentArchiveFileName), SHA256: fakeHash[:]}
+	pkg := Package{URL: fmt.Sprintf("%s/%s", server.URL, testAgentArchiveFileName), SHA256: hex.EncodeToString(fakeHash[:])}
 	err = downloader.Download(context.Background(), pkg, downloadPath)
 	assert.Error(t, err)
 }

@@ -1,4 +1,4 @@
-package packaging
+package repository
 
 import (
 	"os"
@@ -14,7 +14,7 @@ func createTestRepository(t *testing.T, dir string, stablePackageName string) Re
 	r := Repository{
 		RootPath: repositoryPath,
 	}
-	err := r.Create(stablePackagePath)
+	err := r.Create(stablePackageName, stablePackagePath)
 	assert.NoError(t, err)
 	return r
 }
@@ -55,7 +55,7 @@ func TestSetExperiment(t *testing.T) {
 	repository := createTestRepository(t, dir, "v1")
 	experimentDownloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
 
-	err := repository.SetExperiment(experimentDownloadPackagePath)
+	err := repository.SetExperiment("v2", experimentDownloadPackagePath)
 	assert.NoError(t, err)
 	_, err = os.Stat(path.Join(repository.RootPath, "v2"))
 	assert.NoError(t, err)
@@ -67,9 +67,9 @@ func TestSetExperimentTwice(t *testing.T) {
 	experiment1DownloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
 	experiment2DownloadPackagePath := createTestDownloadedPackage(t, dir, "v3")
 
-	err := repository.SetExperiment(experiment1DownloadPackagePath)
+	err := repository.SetExperiment("v2", experiment1DownloadPackagePath)
 	assert.NoError(t, err)
-	err = repository.SetExperiment(experiment2DownloadPackagePath)
+	err = repository.SetExperiment("v3", experiment2DownloadPackagePath)
 	assert.NoError(t, err)
 	_, err = os.Stat(path.Join(repository.RootPath, "v2"))
 	assert.NoError(t, err)
@@ -82,7 +82,7 @@ func TestSetExperimentBeforeStable(t *testing.T) {
 	}
 	experimentDownloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
 
-	err := repository.SetExperiment(experimentDownloadPackagePath)
+	err := repository.SetExperiment("v2", experimentDownloadPackagePath)
 	assert.Error(t, err)
 }
 
@@ -91,7 +91,7 @@ func TestPromoteExperiment(t *testing.T) {
 	repository := createTestRepository(t, dir, "v1")
 	experimentDownloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
 
-	err := repository.SetExperiment(experimentDownloadPackagePath)
+	err := repository.SetExperiment("v2", experimentDownloadPackagePath)
 	assert.NoError(t, err)
 	err = repository.PromoteExperiment()
 	assert.NoError(t, err)
@@ -114,7 +114,7 @@ func TestDeleteExperiment(t *testing.T) {
 	repository := createTestRepository(t, dir, "v1")
 	experimentDownloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
 
-	err := repository.SetExperiment(experimentDownloadPackagePath)
+	err := repository.SetExperiment("v2", experimentDownloadPackagePath)
 	assert.NoError(t, err)
 	err = repository.DeleteExperiment()
 	assert.NoError(t, err)
