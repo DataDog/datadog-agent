@@ -234,27 +234,15 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
                 __sync_fetch_and_add(&http2_tel->response_seen, 1);
             } else if (current_header->index == kEmptyPath) {
                 current_stream->path_index = HTTP2_ROOT_PATH_INDEX;
-                current_stream->path_size = HTTP2_ROOT_PATH_LEN;
-                bpf_memcpy(current_stream->request_path, HTTP2_ROOT_PATH, HTTP2_ROOT_PATH_LEN);
             } else if (current_header->index == kIndexPath) {
                 current_stream->path_index = HTTP2_INDEX_PATH_INDEX;
-                current_stream->path_size = HTTP2_INDEX_PATH_LEN;
-                bpf_memcpy(current_stream->request_path, HTTP2_INDEX_PATH, HTTP2_INDEX_PATH_LEN);
             }
             continue;
         }
 
         dynamic_table_value->key.index = current_header->index;
         current_stream->path_index = current_header->index;
-        if (current_header->type == kExistingDynamicHeader) {
-            dynamic_table_entry_t *dynamic_value = bpf_map_lookup_elem(&http2_dynamic_table, &dynamic_table_value->key);
-            if (dynamic_value == NULL) {
-                break;
-            }
-            current_stream->path_size = dynamic_value->string_len;
-            current_stream->is_huffman_encoded = dynamic_value->is_huffman_encoded;
-            bpf_memcpy(current_stream->request_path, dynamic_value->buffer, HTTP2_MAX_PATH_LEN);
-        } else {
+        if (current_header->type != kExistingDynamicHeader) {
             dynamic_value.string_len = current_header->new_dynamic_value_size;
             dynamic_value.is_huffman_encoded = current_header->is_huffman_encoded;
 
@@ -270,9 +258,6 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
             bpf_memcpy(dynamic_value.buffer, dynamic_table_value->buf, HTTP2_MAX_PATH_LEN);
 
             bpf_map_update_elem(&http2_dynamic_table, &dynamic_table_value->key, &dynamic_value, BPF_ANY);
-            current_stream->path_size = current_header->new_dynamic_value_size;
-            current_stream->is_huffman_encoded = current_header->is_huffman_encoded;
-            bpf_memcpy(current_stream->request_path, dynamic_value.buffer, HTTP2_MAX_PATH_LEN);
 
             bpf_map_update_elem(&http2_interesting_dynamic_table_set, &dynamic_table_value->key, &dummy_value, BPF_ANY);
         }
