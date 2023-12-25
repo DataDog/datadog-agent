@@ -537,7 +537,7 @@ static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *s
 // - HEADERS frames
 // - RST_STREAM frames
 // - DATA frames with the END_STREAM flag set
-static __always_inline void find_relevant_frames(struct __sk_buff *skb, skb_info_t *skb_info, http2_tail_call_state_t *iteration_value, http2_telemetry_t *http2_tel) {
+static __always_inline bool find_relevant_frames(struct __sk_buff *skb, skb_info_t *skb_info, http2_tail_call_state_t *iteration_value, http2_telemetry_t *http2_tel) {
     bool is_headers_or_rst_frame, is_data_end_of_stream;
     http2_frame_t current_frame = {};
 
@@ -545,7 +545,7 @@ static __always_inline void find_relevant_frames(struct __sk_buff *skb, skb_info
    // This check accounts for a future change where the value of iteration_value->frames_count may potentially be greater than 0.
    // It's essential to validate that this increase doesn't surpass the maximum number of frames we can process.
    if (iteration_value->frames_count >= HTTP2_MAX_FRAMES_ITERATIONS) {
-       return;
+       return false;
    }
 
     __u32 iteration = 0;
@@ -580,8 +580,10 @@ static __always_inline void find_relevant_frames(struct __sk_buff *skb, skb_info
         }
     }
 
+    bool more_frames_to_filter = false;
     // Checking we can read HTTP2_FRAME_HEADER_SIZE from the skb - if we can, update telemetry to indicate we have
     if ((iteration == HTTP2_MAX_FRAMES_TO_FILTER) && (skb_info->data_off + HTTP2_FRAME_HEADER_SIZE <= skb_info->data_end)) {
+        more_frames_to_filter = true;
         __sync_fetch_and_add(&http2_tel->exceeding_max_frames_to_filter, 1);
     }
 
@@ -589,6 +591,7 @@ static __always_inline void find_relevant_frames(struct __sk_buff *skb, skb_info
         __sync_fetch_and_add(&http2_tel->exceeding_max_interesting_frames, 1);
     }
 
+    return more_frames_to_filter && iteration_value->frames_count < HTTP2_MAX_FRAMES_ITERATIONS;
 }
 
 SEC("socket/http2_handle_first_frame")
@@ -695,7 +698,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
     // in a map, we cannot allow it to be modified. Thus, having a local copy of skb_info.
     skb_info_t local_skb_info = dispatcher_args_copy.skb_info;
 
-    find_relevant_frames(skb, &local_skb_info, iteration_value, http2_tel);
+    bool should_retry = find_relevant_frames(skb, &local_skb_info, iteration_value, http2_tel);
 
     frame_header_remainder_t new_frame_state = { 0 };
     if (local_skb_info.data_off > local_skb_info.data_end) {
@@ -717,6 +720,14 @@ int socket__http2_filter(struct __sk_buff *skb) {
     if (iteration_value->frames_count == 0) {
         return 0;
     }
+
+    // We have found there are more frames to filter, so we will call frame_filter again.
+    // Max current amount of tail calls would be 2, which will allow us to currently parse 2*HTTP2_MAX_FRAMES_ITERATIONS.
+    if (should_retry && iteration_value->filter_iterations < 2) {
+        iteration_value->filter_iterations++;
+        bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2_FRAME_FILTER);
+    }
+
 
     // We have couple of interesting headers, launching tail calls to handle them.
     if (bpf_map_update_elem(&http2_iterations, &dispatcher_args_copy, iteration_value, BPF_NOEXIST) >= 0) {
