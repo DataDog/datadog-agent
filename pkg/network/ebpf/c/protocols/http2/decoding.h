@@ -530,23 +530,23 @@ static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *s
 }
 
 // find_relevant_frames iterates over the packet and finds frames that are
-// relevant for us. The frames info and location are stored in the `frames_array` array,
-// and the number of frames found is returned.
+// relevant for us. The frames info and location are stored in the `iteration_value->frames_array` array,
+// and the number of frames found is being stored at iteration_value->frames_count.
 //
 // We consider frames as relevant if they are either:
 // - HEADERS frames
 // - RST_STREAM frames
 // - DATA frames with the END_STREAM flag set
-static __always_inline __u16 find_relevant_frames(struct __sk_buff *skb, skb_info_t *skb_info, http2_frame_with_offset *frames_array, __u8 original_index, http2_telemetry_t *http2_tel) {
+static __always_inline void find_relevant_frames(struct __sk_buff *skb, skb_info_t *skb_info, http2_tail_call_state_t *iteration_value, http2_telemetry_t *http2_tel) {
     bool is_headers_or_rst_frame, is_data_end_of_stream;
     http2_frame_t current_frame = {};
 
-    // We may have found a relevant frame already in http2_handle_first_frame,
-    // so we need to adjust the index accordingly. We do not set
-    // interesting_frame_index to original_index directly, as this will confuse
-    // the verifier, leading it into thinking the index could have an arbitrary
-    // value.
-    __u16 interesting_frame_index = original_index == 1;
+   // If we have found enough interesting frames, we should not process any new frame.
+   // This check accounts for a future change where the value of iteration_value->frames_count may potentially be greater than 0.
+   // It's essential to validate that this increase doesn't surpass the maximum number of frames we can process.
+   if (iteration_value->frames_count >= HTTP2_MAX_FRAMES_ITERATIONS) {
+       return;
+   }
 
     __u32 iteration = 0;
 #pragma unroll(HTTP2_MAX_FRAMES_TO_FILTER)
@@ -567,12 +567,17 @@ static __always_inline __u16 find_relevant_frames(struct __sk_buff *skb, skb_inf
         // https://datatracker.ietf.org/doc/html/rfc7540#section-6.2 for headers frame.
         is_headers_or_rst_frame = current_frame.type == kHeadersFrame || current_frame.type == kRSTStreamFrame;
         is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
-        if (interesting_frame_index < HTTP2_MAX_FRAMES_ITERATIONS && (is_headers_or_rst_frame || is_data_end_of_stream)) {
-            frames_array[interesting_frame_index].frame = current_frame;
-            frames_array[interesting_frame_index].offset = skb_info->data_off;
-            interesting_frame_index++;
+        if (iteration_value->frames_count < HTTP2_MAX_FRAMES_ITERATIONS && (is_headers_or_rst_frame || is_data_end_of_stream)) {
+            iteration_value->frames_array[iteration_value->frames_count].frame = current_frame;
+            iteration_value->frames_array[iteration_value->frames_count].offset = skb_info->data_off;
+            iteration_value->frames_count++;
         }
         skb_info->data_off += current_frame.length;
+
+        // If we have found enough interesting frames, we can stop iterating.
+        if (iteration_value->frames_count >= HTTP2_MAX_FRAMES_ITERATIONS) {
+            break;
+        }
     }
 
     // Checking we can read HTTP2_FRAME_HEADER_SIZE from the skb - if we can, update telemetry to indicate we have
@@ -580,11 +585,10 @@ static __always_inline __u16 find_relevant_frames(struct __sk_buff *skb, skb_inf
         __sync_fetch_and_add(&http2_tel->exceeding_max_frames_to_filter, 1);
     }
 
-    if (interesting_frame_index == HTTP2_MAX_FRAMES_ITERATIONS) {
+    if (iteration_value->frames_count == HTTP2_MAX_FRAMES_ITERATIONS) {
         __sync_fetch_and_add(&http2_tel->exceeding_max_interesting_frames, 1);
     }
 
-    return interesting_frame_index;
 }
 
 SEC("socket/http2_handle_first_frame")
@@ -691,10 +695,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
     // in a map, we cannot allow it to be modified. Thus, having a local copy of skb_info.
     skb_info_t local_skb_info = dispatcher_args_copy.skb_info;
 
-    // The verifier cannot tell if `iteration_value->frames_count` is 0 or 1, so we have to help it. The value is
-    // 1 if we have found an interesting frame in `socket__http2_handle_first_frame`, otherwise it is 0.
-    // filter frames
-    iteration_value->frames_count = find_relevant_frames(skb, &local_skb_info, iteration_value->frames_array, iteration_value->frames_count, http2_tel);
+    find_relevant_frames(skb, &local_skb_info, iteration_value, http2_tel);
 
     frame_header_remainder_t new_frame_state = { 0 };
     if (local_skb_info.data_off > local_skb_info.data_end) {
