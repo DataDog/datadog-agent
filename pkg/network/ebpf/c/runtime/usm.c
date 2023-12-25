@@ -262,11 +262,10 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
         return 0;
     }
 
-    char *buffer_ptr = (char *)call_data_ptr->b_data;
-    bpf_map_delete_elem(&go_tls_read_args, (go_tls_function_args_key_t *)&call_key);
+    char *buffer_ptr = (char*)call_data_ptr->b_data;
+    bpf_map_delete_elem(&go_tls_read_args, (go_tls_function_args_key_t*)&call_key);
 
     tls_process(ctx, t, buffer_ptr, bytes_read, GO);
-
     return 0;
 }
 
