@@ -542,8 +542,8 @@ static __always_inline void find_relevant_frames(struct __sk_buff *skb, skb_info
     http2_frame_t current_frame = {};
 
    // If we have found enough interesting frames, we should not process any new frame.
-    // This check accounts for a future change where the value of iteration_value->frames_count may potentially be greater than 0.
-    // It's essential to validate that this increase doesn't surpass the maximum number of frames we can process.
+   // This check accounts for a future change where the value of iteration_value->frames_count may potentially be greater than 0.
+   // It's essential to validate that this increase doesn't surpass the maximum number of frames we can process.
    if (iteration_value->frames_count >= HTTP2_MAX_FRAMES_ITERATIONS) {
        return;
    }
