@@ -265,13 +265,7 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
     char *buffer_ptr = (char *)call_data_ptr->b_data;
     bpf_map_delete_elem(&go_tls_read_args, (go_tls_function_args_key_t *)&call_key);
 
-    // We need to flip the tuple to match the tuple from the write uprobe. This
-    // is needed for HTTP2 decoding to work properly, as without that tuple flip,
-    // we would use different dynamic tables for decoding the buffers from the read
-    // & write uprobes.
-    conn_tuple_t copy = *t;
-    flip_tuple(&copy);
-    tls_process(ctx, &copy, buffer_ptr, bytes_read, GO);
+    tls_process(ctx, t, buffer_ptr, bytes_read, GO);
 
     return 0;
 }
