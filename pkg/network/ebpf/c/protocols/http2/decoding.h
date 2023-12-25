@@ -530,8 +530,8 @@ static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *s
 }
 
 // find_relevant_frames iterates over the packet and finds frames that are
-// relevant for us. The frames info and location are stored in the `frames_array` array,
-// and the number of frames found is returned.
+// relevant for us. The frames info and location are stored in the `iteration_value->frames_array` array,
+// and the number of frames found is being stored at iteration_value->frames_count.
 //
 // We consider frames as relevant if they are either:
 // - HEADERS frames
@@ -542,6 +542,7 @@ static __always_inline void find_relevant_frames(struct __sk_buff *skb, skb_info
     http2_frame_t current_frame = {};
 
    // If we have found enough interesting frames, we should not process any new frame.
+   // We want to validate that we don't have more than HTTP2_MAX_FRAMES_ITERATIONS frames in a single packet.
    if (iteration_value->frames_count >= HTTP2_MAX_FRAMES_ITERATIONS) {
        return;
    }
