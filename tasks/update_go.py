@@ -167,14 +167,7 @@ def _update_fakeintake_dockerfile(warn: bool, version: str):
 
 def _update_install_devenv(warn: bool, version: str):
     path = "./devenv/scripts/Install-DevEnv.ps1"
-    _update_file(warn, path, '("Installing go )[.0-9]+"', rf'\g<1>{version}"')
-    _update_file(
-        warn,
-        path,
-        r'(https://dl\.google\.com/go/go)[.0-9]+(\.windows-)',
-        rf'\g<1>{version}\g<2>',
-        2,
-    )
+    _update_file(warn, path, '($go_version = ")[.0-9]+"', rf'\g<1>{version}"')
 
 
 def _update_agent_devenv(warn: bool, version: str):
