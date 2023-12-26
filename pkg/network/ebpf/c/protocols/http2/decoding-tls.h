@@ -225,7 +225,8 @@ static __always_inline void tls_process_headers(struct pt_regs *ctx, tls_dispatc
     bool dummy_value = true;
     u32 cpu = bpf_get_smp_processor_id();
     http2_header_t *current_header;
-    dynamic_table_entry_t dynamic_value = {};
+    // Temporary value, required for a workaround for the verifier.
+    char buf[HTTP2_MAX_PATH_LEN] = {0};
 
 #pragma unroll(HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING)
     for (__u8 iteration = 0; iteration < HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING; ++iteration) {
@@ -256,14 +257,10 @@ static __always_inline void tls_process_headers(struct pt_regs *ctx, tls_dispatc
         current_stream->path_index = current_header->index;
         if (current_header->type != kExistingDynamicHeader) {
             // We're in new dynamic header or new dynamic header not indexed states.
-            read_into_user_buffer_http2_path(dynamic_table_value->buf, info->buffer_ptr + current_header->new_dynamic_value_offset);
+            read_into_user_buffer_http2_path(buf, info->buffer_ptr + current_header->new_dynamic_value_offset);
+            bpf_memcpy(dynamic_table_value->buf, buf, HTTP2_MAX_PATH_LEN);
             // If the value is indexed - add it to the dynamic table.
             if (current_header->type == kNewDynamicHeader) {
-                dynamic_value.string_len = current_header->new_dynamic_value_size;
-                dynamic_value.is_huffman_encoded = current_header->is_huffman_encoded;
-                bpf_memcpy(dynamic_value.buffer, dynamic_table_value->buf, HTTP2_MAX_PATH_LEN);
-                bpf_map_update_elem(&http2_dynamic_table, &dynamic_table_value->key, &dynamic_value, BPF_ANY);
-
                 dynamic_table_value->key.index = current_header->index;
                 dynamic_table_value->string_len = current_header->new_dynamic_value_size;
                 dynamic_table_value->is_huffman_encoded = current_header->is_huffman_encoded;
