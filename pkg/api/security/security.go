@@ -18,6 +18,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -68,7 +69,10 @@ func CertTemplate() (*x509.Certificate, error) {
 
 // GenerateRootCert generates a root certificate
 func GenerateRootCert(hosts []string, bits int) (cert *x509.Certificate, certPEM []byte, rootKey *rsa.PrivateKey, err error) {
-	log.InfoStackDepth(2, "Generating root certificate for hosts:", strings.Join(hosts, ", "))
+	// print the caller to identify what is calling this function
+	if _, file, line, ok := runtime.Caller(1); ok {
+		log.Infof("[%s:%d] Generating root certificate for hosts %v", file, line, strings.Join(hosts, ", "))
+	}
 
 	rootCertTmpl, err := CertTemplate()
 	if err != nil {
@@ -133,8 +137,10 @@ func fetchAuthToken(tokenCreationAllowed bool) (string, error) {
 
 	// Create a new token if it doesn't exist and if permitted by calling func
 	if _, e := os.Stat(authTokenFile); os.IsNotExist(e) && tokenCreationAllowed {
-		// needs 3 stack frames to get to the caller
-		log.InfoStackDepth(3, "Creating a new authentication token")
+		// print the caller to identify what is calling this function
+		if _, file, line, ok := runtime.Caller(2); ok {
+			log.Infof("[%s:%d] Creating a new authentication token", file, line)
+		}
 		key := make([]byte, authTokenMinimalLen)
 		_, e = rand.Read(key)
 		if e != nil {
