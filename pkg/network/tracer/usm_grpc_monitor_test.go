@@ -557,7 +557,7 @@ func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 				}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
 
 				if t.Failed() {
-					ebpftest.DumpMapsTestHelper(t, tr.usmMonitor.DumpMaps, "http2_in_flight", "http2_dynamic_table")
+					ebpftest.DumpMapsTestHelper(t, tr.usmMonitor.DumpMaps, "http2_in_flight")
 				}
 			})
 		}

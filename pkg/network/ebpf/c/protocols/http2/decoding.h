@@ -213,7 +213,8 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
     bool dummy_value = true;
     u32 cpu = bpf_get_smp_processor_id();
     http2_header_t *current_header;
-    dynamic_table_entry_t dynamic_value = {};
+    // Temporary value, required for a workaround for the verifier.
+    char buf[HTTP2_MAX_PATH_LEN] = {0};
 
 #pragma unroll(HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING)
     for (__u8 iteration = 0; iteration < HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING; ++iteration) {
@@ -243,22 +244,16 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
         dynamic_table_value->key.index = current_header->index;
         current_stream->path_index = current_header->index;
         if (current_header->type != kExistingDynamicHeader) {
-            dynamic_value.string_len = current_header->new_dynamic_value_size;
-            dynamic_value.is_huffman_encoded = current_header->is_huffman_encoded;
-
             dynamic_table_value->key.index = current_header->index;
             dynamic_table_value->string_len = current_header->new_dynamic_value_size;
             dynamic_table_value->is_huffman_encoded = current_header->is_huffman_encoded;
-            read_into_buffer_path(dynamic_table_value->buf, skb, current_header->new_dynamic_value_offset);
+            // We read into a stack-allocated buffer, and then copy it to the dynamic-table-value, as the verifier
+            // complains the code is too complex without that detour.
+            read_into_buffer_path(buf, skb, current_header->new_dynamic_value_offset);
+            bpf_memcpy(dynamic_table_value->buf, buf, HTTP2_MAX_PATH_LEN);
             bpf_perf_event_output(skb, &http2_dynamic_table_perf_buffer, cpu, dynamic_table_value, sizeof(dynamic_table_value_t));
             // Keeping the map update after the perf-event call, for the small chance the user mode will be able to
             // read the perf-event message and evict items from the map before we update it.
-            bpf_map_update_elem(&http2_interesting_dynamic_table_set, &dynamic_table_value->key, &dummy_value, BPF_ANY);
-
-            bpf_memcpy(dynamic_value.buffer, dynamic_table_value->buf, HTTP2_MAX_PATH_LEN);
-
-            bpf_map_update_elem(&http2_dynamic_table, &dynamic_table_value->key, &dynamic_value, BPF_ANY);
-
             bpf_map_update_elem(&http2_interesting_dynamic_table_set, &dynamic_table_value->key, &dummy_value, BPF_ANY);
         }
     }

@@ -25,12 +25,6 @@ type http2DynamicTableIndex struct {
 	Index uint64
 	Tup   connTuple
 }
-type http2DynamicTableEntry struct {
-	Buffer             [160]int8
-	String_len         uint8
-	Is_huffman_encoded bool
-	Pad_cgo_0          [6]byte
-}
 type http2StreamKey struct {
 	Tup       connTuple
 	Id        uint32
@@ -60,10 +54,10 @@ type HTTP2Telemetry struct {
 	Path_size_bucket                 [8]uint64
 }
 type http2DynamicTableValue struct {
-	Buf                [160]byte
 	Key                http2DynamicTableIndex
 	String_len         uint8
 	Is_huffman_encoded bool
+	Buf                [160]byte
 	Pad_cgo_0          [6]byte
 }
 type StaticTableEnumValue = uint8
