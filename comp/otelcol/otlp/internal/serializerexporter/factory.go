@@ -41,7 +41,7 @@ func NewFactory(s serializer.MetricSerializer) exp.Factory {
 func (f *factory) createMetricExporter(ctx context.Context, params exp.CreateSettings, c component.Config) (exp.Metrics, error) {
 	cfg := c.(*exporterConfig)
 
-	newExp, err := newExporter(params.Logger, f.s, cfg)
+	newExp, err := newExporter(params.TelemetrySettings, f.s, cfg)
 	if err != nil {
 		return nil, err
 	}

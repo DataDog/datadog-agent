@@ -53,16 +53,14 @@ var controllerCatalog = map[controllerName]controllerFuncs{
 
 // ControllerContext holds all the attributes needed by the controllers
 type ControllerContext struct {
-	informers          map[InformerName]cache.SharedInformer
-	InformerFactory    informers.SharedInformerFactory
-	WPAClient          dynamic.Interface
-	WPAInformerFactory dynamicinformer.DynamicSharedInformerFactory
-	DDClient           dynamic.Interface
-	DDInformerFactory  dynamicinformer.DynamicSharedInformerFactory
-	Client             kubernetes.Interface
-	IsLeaderFunc       func() bool
-	EventRecorder      record.EventRecorder
-	StopCh             chan struct{}
+	informers              map[InformerName]cache.SharedInformer
+	InformerFactory        informers.SharedInformerFactory
+	DynamicClient          dynamic.Interface
+	DynamicInformerFactory dynamicinformer.DynamicSharedInformerFactory
+	Client                 kubernetes.Interface
+	IsLeaderFunc           func() bool
+	EventRecorder          record.EventRecorder
+	StopCh                 chan struct{}
 }
 
 // StartControllers runs the enabled Kubernetes controllers for the Datadog Cluster Agent. This is
@@ -146,8 +144,9 @@ func startAutoscalersController(ctx ControllerContext, c chan error) {
 		c <- err
 		return
 	}
-	if ctx.WPAInformerFactory != nil {
-		go autoscalersController.RunWPA(ctx.StopCh, ctx.WPAClient, ctx.WPAInformerFactory)
+
+	if config.Datadog.GetBool("external_metrics_provider.wpa_controller") {
+		go autoscalersController.RunWPA(ctx.StopCh, ctx.DynamicClient, ctx.DynamicInformerFactory)
 	}
 
 	autoscalersController.enableHPA(ctx.Client, ctx.InformerFactory)

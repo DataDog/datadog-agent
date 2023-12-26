@@ -50,9 +50,16 @@ type Tracer struct {
 	info *arch.Info
 }
 
+// Creds defines credentials
+type Creds struct {
+	UID *uint32
+	GID *uint32
+}
+
 // Opts defines syscall filters
 type Opts struct {
 	Syscalls []string
+	Creds    Creds
 }
 
 func processVMReadv(pid int, addr uintptr, data []byte) (int, error) {
@@ -303,7 +310,7 @@ func NewTracer(path string, args []string, opts Opts) (*Tracer, error) {
 
 	runtime.LockOSThread()
 
-	pid, err := forkExec(path, args, os.Environ(), prog)
+	pid, err := forkExec(path, args, os.Environ(), opts.Creds, prog)
 	if err != nil {
 		return nil, err
 	}
