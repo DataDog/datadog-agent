@@ -216,7 +216,7 @@ func (g *genericMapBatchIterator[K, V]) Next(key *K, value *V) bool {
 	}
 
 	// We have finished all the values in the current batch (or there wasn't any batch
-	// to begin with with g.currentBatchSize == 0), so we need to fetch the next batch
+	// to begin with, with g.currentBatchSize == 0), so we need to fetch the next batch
 	if g.inBatchIndex >= g.currentBatchSize {
 		if g.lastBatch {
 			return false
@@ -226,14 +226,22 @@ func (g *genericMapBatchIterator[K, V]) Next(key *K, value *V) bool {
 		// and will generate extra allocations. I am not entirely sure why it is doing that.
 		g.currentBatchSize, g.err = g.m.BatchLookup(&g.cursor, g.keysCopy, g.valuesCopy, nil)
 		g.inBatchIndex = 0
-		if g.currentBatchSize == 0 {
-			return false
-		} else if g.err != nil && errors.Is(g.err, ebpf.ErrKeyNotExist) {
+		if g.err != nil && errors.Is(g.err, ebpf.ErrKeyNotExist) {
 			// The lookup API returns ErrKeyNotExist when this is the last batch,
 			// even when partial results are returned. We need to mark this so that
 			// we don't try to fetch another batch when this one is finished
 			g.lastBatch = true
+
+			// Also fix the error, because in some instances BatchLookup sets ErrKeyNotExist
+			// as the error, which is just an indicator that there are no more batches, but it's not
+			// an actual error.
+			g.err = nil
 		} else if g.err != nil {
+			return false
+		}
+
+		// After error processing we should check that we actually got a batch
+		if g.currentBatchSize == 0 {
 			return false
 		}
 	}
