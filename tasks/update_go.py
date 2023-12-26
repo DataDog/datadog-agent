@@ -45,11 +45,11 @@ def update_go(
         raise exceptions.Exit(f"The version {version} isn't valid.")
 
     current_version = _get_repo_go_version()
-    current_major = _get_major_version(current_version)
-    new_major = _get_major_version(version)
+    current_major = _get_minor_version(current_version)
+    new_minor = _get_minor_version(version)
 
-    major_update = current_major != new_major
-    if major_update:
+    minor_update = current_major != new_minor
+    if minor_update:
         print(color_message("WARNING: this is a change of major version\n", "orange"))
 
     try:
@@ -68,11 +68,11 @@ def update_go(
         else:
             raise
 
-    _update_root_readme(warn, new_major)
-    _update_fakeintake_readme(warn, new_major)
-    _update_go_mods(warn, new_major, include_otel_modules)
-    _update_process_agent_readme(warn, new_major)
-    _update_windowsevent_readme(warn, new_major)
+    _update_root_readme(warn, new_minor)
+    _update_fakeintake_readme(warn, new_minor)
+    _update_go_mods(warn, new_minor, include_otel_modules)
+    _update_process_agent_readme(warn, new_minor)
+    _update_windowsevent_readme(warn, new_minor)
     _update_go_version_file(warn, version)
     _update_gdb_dockerfile(warn, version)
     _update_fakeintake_dockerfile(warn, version)
@@ -97,11 +97,11 @@ def update_go(
         print(
             f"A default release note was created at {releasenote_path}, edit it if necessary, for example to list CVEs it fixes."
         )
-    if major_update:
-        # Examples of major updates with long descriptions:
+    if minor_update:
+        # Examples of minor updates with long descriptions:
         # releasenotes/notes/go1.16.7-4ec8477608022a26.yaml
         # releasenotes/notes/go1185-fd9d8b88c7c7a12e.yaml
-        print("In particular as this is a major update, the release note should describe user-facing changes.")
+        print("In particular as this is a minor update, the release note should describe user-facing changes.")
 
     print(
         color_message(
@@ -121,7 +121,7 @@ def _update_file(warn: bool, path: str, pattern: str, replace: str, expected_mat
 
     content, nb_match = re.subn(pattern, replace, content, flags=re.MULTILINE)
     if nb_match != expected_match:
-        msg = f"{path}: '{pattern}': expected {expected_match} matches but go {nb_match}"
+        msg = f"{path}: '{pattern}': expected {expected_match} matches but got {nb_match}"
         if warn:
             print(color_message(f"WARNING: {msg}", "orange"))
         else:
@@ -138,9 +138,9 @@ def _get_repo_go_version() -> str:
     return version.strip()
 
 
-# extracts the major version from the given string
+# extracts the minor version from the given string
 # eg. if the string is "1.2.3", returns "1.2"
-def _get_major_version(version: str) -> str:
+def _get_minor_version(version: str) -> str:
     import semver
 
     ver = semver.VersionInfo.parse(version)
