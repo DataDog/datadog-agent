@@ -100,11 +100,7 @@ func (c *Collector) run(ctx context.Context, store workloadmeta.Component, conta
 }
 
 func (c *Collector) handleContainerEvent(evt workloadmeta.EventBundle) {
-	defer func() {
-		if evt.Ch != nil {
-			close(evt.Ch)
-		}
-	}()
+	evt.Acknowledge()
 
 	for _, evt := range evt.Events {
 		ent := evt.Entity.(*workloadmeta.Container)

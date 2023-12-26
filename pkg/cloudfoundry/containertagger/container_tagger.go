@@ -77,8 +77,8 @@ func (c *ContainerTagger) Start(ctx context.Context) {
 		for {
 			select {
 			case bundle := <-ch:
-				// close Ch to indicate that the Store can proceed to the next subscriber
-				close(bundle.Ch)
+				// Acknowledge the evBundle to indicate that the Store can proceed to the next subscriber
+				bundle.Acknowledge()
 
 				for _, evt := range bundle.Events {
 					err := c.processEvent(ctx, evt)

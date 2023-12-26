@@ -62,7 +62,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 				return
 
 			case eventBundle := <-imgEventsCh:
-				close(eventBundle.Ch)
+				eventBundle.Acknowledge()
 
 				for _, event := range eventBundle.Events {
 					image := event.Entity.(*workloadmeta.ContainerImageMetadata)

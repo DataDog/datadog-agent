@@ -51,7 +51,7 @@ func (s *Server) StreamEntities(in *pb.WorkloadmetaStreamRequest, out pb.AgentSe
 	for {
 		select {
 		case eventBundle := <-workloadmetaEventsChannel:
-			close(eventBundle.Ch)
+			eventBundle.Acknowledge()
 
 			var protobufEvents []*pb.WorkloadmetaEvent
 
