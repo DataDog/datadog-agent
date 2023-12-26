@@ -310,7 +310,7 @@ func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions
 }
 
 func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applier applier.Applier, imgMeta *workloadmeta.ContainerImageMetadata) (*types.Report, error) {
-	if imgMeta != nil {
+	if imgMeta != nil && c.cacheCleaner != nil {
 		artifactReference, err := artifact.Inspect(ctx) // called by the scanner as well
 		if err != nil {
 			return nil, err
