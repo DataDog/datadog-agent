@@ -311,7 +311,9 @@ func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions
 
 func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applier applier.Applier, imgMeta *workloadmeta.ContainerImageMetadata) (*types.Report, error) {
 	if imgMeta != nil && c.cacheCleaner != nil {
-		artifactReference, err := artifact.Inspect(ctx) // called by the scanner as well
+		// The artifact reference is only needed to clean up the blobs after the scan.
+		// It is re-generated from cached partial results during the scan.
+		artifactReference, err := artifact.Inspect(ctx)
 		if err != nil {
 			return nil, err
 		}
