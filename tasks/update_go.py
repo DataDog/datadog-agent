@@ -1,5 +1,5 @@
 import re
-from typing import Optional
+from typing import List, Optional, Tuple
 
 from invoke import Context, exceptions, task
 
@@ -9,6 +9,24 @@ from .modules import DEFAULT_MODULES
 from .pipeline import update_circleci_config, update_gitlab_config
 
 GO_VERSION_FILE = "./.go-version"
+
+# list of references of Go versions
+# each tuple is (path, pre_pattern, post_pattern, minor), where
+# - path is the path of the file to update
+# - pre_pattern and post_pattern delimit the version to update
+# - minor is whether the version in the match is a minor version of a bugfix version
+GO_VERSION_REFERENCES: List[Tuple[str, str, str, bool]] = [
+    (GO_VERSION_FILE, "", "", False),  # the version is the only content of the file
+    ("./tools/gdb/Dockerfile", "https://go.dev/dl/go", ".linux-amd64.tar.gz", False),
+    ("./test/fakeintake/Dockerfile", "FROM golang:", "-alpine", False),
+    ("./devenv/scripts/Install-DevEnv.ps1", '$go_version = "', '"', False),
+    ("./docs/dev/agent_dev_env.md", "[install Golang](https://golang.org/doc/install) version `", "`", False),
+    ("./tasks/go.py", '"go version go', ' linux/amd64"', False),
+    ("./README.md", "[Go](https://golang.org/doc/install) ", " or later", True),
+    ("./test/fakeintake/docs/README.md", "[Golang ", "]", True),
+    ("./cmd/process-agent/README.md", "`go >= ", "`", True),
+    ("./pkg/logs/launchers/windowsevent/README.md", "install go ", "+,", True),
+]
 
 
 @task
@@ -68,17 +86,8 @@ def update_go(
         else:
             raise
 
-    _update_root_readme(warn, new_minor)
-    _update_fakeintake_readme(warn, new_minor)
+    _update_references(warn, version, new_minor)
     _update_go_mods(warn, new_minor, include_otel_modules)
-    _update_process_agent_readme(warn, new_minor)
-    _update_windowsevent_readme(warn, new_minor)
-    _update_go_version_file(warn, version)
-    _update_gdb_dockerfile(warn, version)
-    _update_fakeintake_dockerfile(warn, version)
-    _update_install_devenv(warn, version)
-    _update_agent_devenv(warn, version)
-    _update_task_go(warn, version)
 
     # check the installed go version before running `tidy_all`
     res = ctx.run("go version")
@@ -147,69 +156,18 @@ def _get_minor_version(version: str) -> str:
     return f"{ver.major}.{ver.minor}"
 
 
-def _update_go_version_file(warn: bool, version: str):
-    _update_file(warn, GO_VERSION_FILE, "[.0-9]+", version)
+def _get_pattern(pre_pattern: str, post_pattern: str, minor: bool) -> Tuple[str, str]:
+    version_pattern = r'1\.\d+' if minor else r'1\.\d+\.\d+'
+    pattern = rf'({re.escape(pre_pattern)}){version_pattern}({re.escape(post_pattern)})'
+    return pattern
 
 
-def _update_gdb_dockerfile(warn: bool, version: str):
-    path = "./tools/gdb/Dockerfile"
-    pattern = r'(https://go\.dev/dl/go)[.0-9]+(\.linux-amd64\.tar\.gz)'
-    replace = rf'\g<1>{version}\g<2>'
-    _update_file(warn, path, pattern, replace)
-
-
-def _update_fakeintake_dockerfile(warn: bool, version: str):
-    path = "./test/fakeintake/Dockerfile"
-    pattern = r'(FROM golang:)[.0-9]+(-alpine)'
-    replace = rf'\g<1>{version}\g<2>'
-    _update_file(warn, path, pattern, replace)
-
-
-def _update_install_devenv(warn: bool, version: str):
-    path = "./devenv/scripts/Install-DevEnv.ps1"
-    _update_file(warn, path, '($go_version = ")[.0-9]+"', rf'\g<1>{version}"')
-
-
-def _update_agent_devenv(warn: bool, version: str):
-    path = "./docs/dev/agent_dev_env.md"
-    pattern = r"^(You must \[install Golang\]\(https://golang\.org/doc/install\) version )`[.0-9]+`"
-    replace = rf"\g<1>`{version}`"
-    _update_file(warn, path, pattern, replace)
-
-
-def _update_task_go(warn: bool, version: str):
-    path = "./tasks/go.py"
-    pattern = '("go version go)[.0-9]+( linux/amd64")'
-    replace = rf'\g<1>{version}\g<2>'
-    _update_file(warn, path, pattern, replace)
-
-
-def _update_root_readme(warn: bool, major: str):
-    path = "./README.md"
-    pattern = r'(\[Go\]\(https://golang\.org/doc/install\) )[.0-9]+( or later)'
-    replace = rf'\g<1>{major}\g<2>'
-    _update_file(warn, path, pattern, replace)
-
-
-def _update_fakeintake_readme(warn: bool, major: str):
-    path = "./test/fakeintake/docs/README.md"
-    pattern = r'(\[Golang )[.0-9]+(\])'
-    replace = rf'\g<1>{major}\g<2>'
-    _update_file(warn, path, pattern, replace)
-
-
-def _update_process_agent_readme(warn: bool, major: str):
-    path = "./cmd/process-agent/README.md"
-    pattern = r'(`go >= )[.0-9]+(`)'
-    replace = rf'\g<1>{major}\g<2>'
-    _update_file(warn, path, pattern, replace)
-
-
-def _update_windowsevent_readme(warn: bool, major: str):
-    path = "./pkg/logs/launchers/windowsevent/README.md"
-    pattern = r'(install go )[.0-9]+(\+,)'
-    replace = rf'\g<1>{major}\g<2>'
-    _update_file(warn, path, pattern, replace)
+def _update_references(warn: bool, version: str, new_minor: str):
+    for path, pre_pattern, post_pattern, minor in GO_VERSION_REFERENCES:
+        pattern = _get_pattern(pre_pattern, post_pattern, minor)
+        new_version = new_minor if minor else version
+        replace = rf'\g<1>{new_version}\g<2>'
+        _update_file(warn, path, pattern, replace)
 
 
 def _update_go_mods(warn: bool, major: str, include_otel_modules: bool):
