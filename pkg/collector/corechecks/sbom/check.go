@@ -9,9 +9,10 @@ package sbom
 
 import (
 	"errors"
+	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"time"
 
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -180,7 +181,8 @@ func (c *Check) Run() error {
 	)
 
 	// Trigger an initial scan on host
-	c.processor.processHostRefresh()
+	hostSbomChan := make(chan sbom.ScanResult, 1)
+	c.processor.triggerHostScan(hostSbomChan)
 
 	c.sendUsageMetrics()
 
@@ -200,7 +202,9 @@ func (c *Check) Run() error {
 		case <-containerPeriodicRefreshTicker.C:
 			c.processor.processContainerImagesRefresh(c.workloadmetaStore.ListImages())
 		case <-hostPeriodicRefreshTicker.C:
-			c.processor.processHostRefresh()
+			c.processor.triggerHostScan(hostSbomChan)
+		case scanResult := <-hostSbomChan:
+			c.processor.processHostScanResult(scanResult)
 		case <-metricTicker.C:
 			c.sendUsageMetrics()
 		case <-c.stopCh:
