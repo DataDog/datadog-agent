@@ -532,6 +532,9 @@ static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *s
 // find_relevant_frames iterates over the packet and finds frames that are
 // relevant for us. The frames info and location are stored in the `iteration_value->frames_array` array,
 // and the number of frames found is being stored at iteration_value->frames_count.
+// This function returns true if there are more frames to filter and if the number of frames found is less than
+// HTTP2_MAX_FRAMES_ITERATIONS. This indicates that there are additional frames to filter, allowing parsing frames by
+// the next tail call. If false is returned, the subsequent tail call should not be executed.
 //
 // We consider frames as relevant if they are either:
 // - HEADERS frames
@@ -591,6 +594,8 @@ static __always_inline bool find_relevant_frames(struct __sk_buff *skb, skb_info
         __sync_fetch_and_add(&http2_tel->exceeding_max_interesting_frames, 1);
     }
 
+    // This function returns true if there are more frames to filter, which will be parsed by the next tail call,
+    // and if we have not yet reached the maximum number of frames we can process.
     return more_frames_to_filter && iteration_value->frames_count < HTTP2_MAX_FRAMES_ITERATIONS;
 }
 
@@ -698,7 +703,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
     // in a map, we cannot allow it to be modified. Thus, having a local copy of skb_info.
     skb_info_t local_skb_info = dispatcher_args_copy.skb_info;
 
-    bool should_retry = find_relevant_frames(skb, &local_skb_info, iteration_value, http2_tel);
+    bool have_more_frames_to_process = find_relevant_frames(skb, &local_skb_info, iteration_value, http2_tel);
 
     frame_header_remainder_t new_frame_state = { 0 };
     if (local_skb_info.data_off > local_skb_info.data_end) {
@@ -722,8 +727,9 @@ int socket__http2_filter(struct __sk_buff *skb) {
     }
 
     // We have found there are more frames to filter, so we will call frame_filter again.
-    // Max current amount of tail calls would be 2, which will allow us to currently parse 2*HTTP2_MAX_FRAMES_ITERATIONS.
-    if (should_retry && iteration_value->filter_iterations < 2) {
+    // Max current amount of tail calls would be 2, which will allow us to currently parse
+    // HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER*HTTP2_MAX_FRAMES_ITERATIONS.
+    if (have_more_frames_to_process && iteration_value->filter_iterations < HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER) {
         iteration_value->filter_iterations++;
         bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2_FRAME_FILTER);
     }

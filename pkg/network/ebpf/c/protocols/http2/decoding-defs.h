@@ -10,6 +10,10 @@
 // Represents the maximum number of tail calls to process EOS frames.
 // Currently we have up to 120 frames in a packet, thus 1 tail call is enough.
 #define HTTP2_MAX_TAIL_CALLS_FOR_EOS_PARSER 1
+// This represents a limit on the number of tail calls that can be executed within the frames_filter program.
+// The number of frames to parse is determined by HTTP2_MAX_FRAMES_ITERATIONS, resulting in a total defined as:
+// HTTP2_MAX_FRAMES_ITERATIONS * HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER
+#define HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER 2
 #define HTTP2_MAX_FRAMES_FOR_EOS_PARSER (HTTP2_MAX_FRAMES_FOR_EOS_PARSER_PER_TAIL_CALL * HTTP2_MAX_TAIL_CALLS_FOR_EOS_PARSER)
 
 // Represents the maximum number of frames we'll process in a single tail call in `handle_headers_frames` program.
