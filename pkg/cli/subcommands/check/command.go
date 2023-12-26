@@ -12,13 +12,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -562,8 +563,7 @@ func run(
 	return nil
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func runCheck(cliParams *cliParams, c check.Check, demux aggregator.Demultiplexer) *stats.Stats {
+func runCheck(cliParams *cliParams, c check.Check, _ aggregator.Demultiplexer) *stats.Stats {
 	s := stats.NewStats(c)
 	times := cliParams.checkTimes
 	pause := cliParams.checkPause
