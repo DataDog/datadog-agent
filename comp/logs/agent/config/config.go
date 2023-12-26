@@ -8,10 +8,9 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/url"
+	"regexp"
 	"strconv"
-	"strings"
 	"time"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -49,6 +48,9 @@ var logsEndpoints = map[string]int{
 	"agent-intake.logs.datad0g.com":   10516,
 	"agent-intake.logs.datad0g.eu":    443,
 }
+
+// regex for URL with scheme
+var urlWithScheme = regexp.MustCompile(`^([\w]+:)?//`)
 
 // HTTPConnectivity is the status of the HTTP connectivity
 type HTTPConnectivity bool
@@ -154,13 +156,10 @@ func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigK
 		// Proxy settings, expect 'logs_config.logs_dd_url' to respect the format '<HOST>:<PORT>'
 		// and '<PORT>' to be an integer.
 		// By default ssl is enabled ; to disable ssl set 'logs_config.logs_no_ssl' to true.
-		host, port, err := parseAddress(logsDDURL)
+		err := parseAddress(logsDDURL, &main, logsConfig.logsNoSSL(), true)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse %s: %v", logsDDURL, err)
 		}
-		main.Host = host
-		main.Port = port
-		*main.UseSSL = !logsConfig.logsNoSSL()
 	} else if logsConfig.usePort443() {
 		main.Host = logsConfig.ddURL443()
 		main.Port = 443
@@ -226,31 +225,21 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 	}
 
 	if vectorURL, vectorURLDefined := logsConfig.getObsPipelineURL(); logsConfig.obsPipelineWorkerEnabled() && vectorURLDefined {
-		host, port, useSSL, err := parseAddressWithScheme(vectorURL, defaultNoSSL, parseAddress)
+		err := parseAddress(vectorURL, &main, defaultNoSSL, false)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse %s: %v", vectorURL, err)
 		}
-		main.Host = host
-		main.Port = port
-		*main.UseSSL = useSSL
 	} else if logsDDURL, logsDDURLDefined := logsConfig.logsDDURL(); logsDDURLDefined {
-		host, port, useSSL, err := parseAddressWithScheme(logsDDURL, defaultNoSSL, parseAddress)
+		err := parseAddress(logsDDURL, &main, defaultNoSSL, true)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse %s: %v", logsDDURL, err)
 		}
-		main.Host = host
-		main.Port = port
-		*main.UseSSL = useSSL
 	} else {
 		addr := pkgconfigutils.GetMainEndpoint(coreConfig, endpointPrefix, logsConfig.getConfigKey("dd_url"))
-		host, port, useSSL, err := parseAddressWithScheme(addr, logsConfig.devModeNoSSL(), parseAddressAsHost)
+		err := parseAddress(addr, &main, logsConfig.devModeNoSSL(), false)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse %s: %v", logsDDURL, err)
 		}
-
-		main.Host = host
-		main.Port = port
-		*main.UseSSL = useSSL
 	}
 
 	additionals := logsConfig.getAdditionalEndpoints()
@@ -284,8 +273,8 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 			return nil, fmt.Errorf("cannot construct HA endpoint: %s", err)
 		}
 
-		haHost, haPort, haUseSSL, err := parseAddressWithScheme(haURL, defaultNoSSL, parseAddressAsHost)
-		if err != nil {
+		var endpoint Endpoint
+		if err := parseAddress(haURL, &endpoint, defaultNoSSL, false); err != nil {
 			return nil, fmt.Errorf("could not parse %s: %v", haURL, err)
 		}
 
@@ -294,9 +283,9 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 			IsHA:             true,
 			IsReliable:       pointer.Ptr(true),
 			APIKey:           coreConfig.GetString("ha.api_key"),
-			Host:             haHost,
-			Port:             haPort,
-			UseSSL:           pointer.Ptr(haUseSSL),
+			Host:             endpoint.Host,
+			Port:             endpoint.Port,
+			UseSSL:           endpoint.UseSSL,
 			UseCompression:   main.UseCompression,
 			CompressionLevel: main.CompressionLevel,
 			BackoffBase:      main.BackoffBase,
@@ -320,65 +309,42 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 	return NewEndpointsWithBatchSettings(main, additionals, false, true, batchWait, batchMaxConcurrentSend, batchMaxSize, batchMaxContentSize, inputChanSize), nil
 }
 
-type defaultParseAddressFunc func(string) (host string, port int, err error)
-
-func parseAddressWithScheme(address string, defaultNoSSL bool, defaultParser defaultParseAddressFunc) (host string, port int, useSSL bool, err error) {
-	if strings.HasPrefix(address, "https://") || strings.HasPrefix(address, "http://") {
-		if strings.HasPrefix(address, "https://") && !defaultNoSSL {
-			log.Warn("dd_url set to a URL with an HTTPS prefix and logs_no_ssl set to true. These are conflicting options. In a future release logs_no_ssl will override the dd_url prefix.")
-		}
-		host, port, useSSL, err = parseURL(address)
-	} else {
-		host, port, err = defaultParser(address)
-		if err != nil {
-			err = fmt.Errorf("could not parse %s: %v", address, err)
-			return
-		}
-		useSSL = !defaultNoSSL
+func parseAddress(address string, endpoint *Endpoint, defaultNoSSL, requirePort bool) (err error) {
+	endpoint.UseSSL = pointer.Ptr(!defaultNoSSL)
+	testAddr := address
+	if len(urlWithScheme.Find([]byte(address))) == 0 {
+		testAddr = "//" + testAddr
 	}
-	return
-}
-
-func parseURL(address string) (host string, port int, useSSL bool, err error) {
-	u, errParse := url.Parse(address)
-	if errParse != nil {
-		err = errParse
+	u, err := url.Parse(testAddr)
+	if err != nil {
 		return
 	}
 	switch u.Scheme {
 	case "https":
-		useSSL = true
+		if !defaultNoSSL {
+			log.Warn("dd_url set to a URL with an HTTPS prefix and logs_no_ssl set to true. These are conflicting options. In a future release logs_no_ssl will override the dd_url prefix.")
+		}
+		if u.Port() == "" && requirePort {
+			endpoint.Port = 443
+		}
+		endpoint.UseSSL = pointer.Ptr(true)
 	case "http":
-		useSSL = false
+		endpoint.UseSSL = pointer.Ptr(false)
+		if u.Port() == "" && requirePort {
+			endpoint.Port = 80
+		}
 	}
-	host = u.Hostname()
+	endpoint.Prefix = u.Path
+	endpoint.Host = u.Hostname()
 	if u.Port() != "" {
-		port, err = strconv.Atoi(u.Port())
+		endpoint.Port, err = strconv.Atoi(u.Port())
 		if err != nil {
 			return
 		}
+	} else if requirePort {
+		err = fmt.Errorf("either scheme or port should be set in %q", address)
 	}
-
 	return
-}
-
-// parseAddress returns the host and the port of the address.
-func parseAddress(address string) (string, int, error) {
-	host, portString, err := net.SplitHostPort(address)
-	if err != nil {
-		return "", 0, err
-	}
-	port, err := strconv.Atoi(portString)
-	if err != nil {
-		return "", 0, err
-	}
-	return host, port, nil
-}
-
-// parseAddressAsHost returns the host and the port of the address.
-// this function consider that the address is the host
-func parseAddressAsHost(address string) (string, int, error) {
-	return address, 0, nil
 }
 
 // TaggerWarmupDuration is used to configure the tag providers

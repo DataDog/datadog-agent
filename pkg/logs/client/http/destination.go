@@ -15,6 +15,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path"
 	"strconv"
 	"sync"
 	"time"
@@ -392,12 +393,15 @@ func buildURL(endpoint config.Endpoint) string {
 	url := url.URL{
 		Scheme: scheme,
 		Host:   address,
+		Path:   endpoint.Prefix,
 	}
+	var p string
 	if endpoint.Version == config.EPIntakeVersion2 && endpoint.TrackType != "" {
-		url.Path = fmt.Sprintf("/api/v2/%s", endpoint.TrackType)
+		p = fmt.Sprintf("/api/v2/%s", endpoint.TrackType)
 	} else {
-		url.Path = "/v1/input"
+		p = "/v1/input"
 	}
+	url.Path = path.Join(endpoint.Prefix, p)
 	return url.String()
 }
 
