@@ -57,7 +57,7 @@ func getFullPathFromFd(process *Process, filename string, fd int32) (string, err
 			if path, exists := process.Fd[fd]; exists {
 				filename = filepath.Join(path, filename)
 			} else {
-				return "", errors.New("Process FD cache incomplete during path resolution")
+				return "", errors.New("process FD cache incomplete during path resolution")
 			}
 		}
 	}
@@ -302,6 +302,10 @@ func isAcceptedRetval(retval int64) bool {
 
 // StartCWSPtracer start the ptracer
 func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool) error {
+	if len(args) == 0 {
+		return fmt.Errorf("an executable is required")
+	}
+
 	entry, err := checkEntryPoint(args[0])
 	if err != nil {
 		return err
