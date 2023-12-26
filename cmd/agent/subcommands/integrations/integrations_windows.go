@@ -30,7 +30,7 @@ func getRelChecksPath(cliParams *cliParams) (string, error) {
 func validateUser(_ bool) error {
 	elevated, _ := winutil.IsProcessElevated()
 	if !elevated {
-		return errors.New("Operation is not possible for unelevated process.")
+		return errors.New("operation is not possible for unelevated process.")
 	}
 	return nil
 }
