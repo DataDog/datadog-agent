@@ -11,15 +11,21 @@ import (
 	"go.uber.org/fx"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newConfig))
+		fx.Provide(newConfig),
+		fx.Provide(func(syscfg sysprobeconfig.Component) optional.Option[sysprobeconfig.Component] {
+			return optional.NewOption[sysprobeconfig.Component](syscfg)
+		}),
+	)
 }
 
 // cfg implements the Component.
@@ -28,7 +34,7 @@ type cfg struct {
 	// and uses globals in that package.
 	config.Config
 
-	syscfg *sysconfig.Config
+	syscfg *sysconfigtypes.Config
 
 	// warnings are the warnings generated during setup
 	warnings *config.Warnings
@@ -51,7 +57,7 @@ func (d dependencies) getParams() *Params {
 	return &d.Params
 }
 
-func setupConfig(deps sysprobeconfigDependencies) (*sysconfig.Config, error) {
+func setupConfig(deps sysprobeconfigDependencies) (*sysconfigtypes.Config, error) {
 	return sysconfig.New(deps.getParams().sysProbeConfFilePath)
 }
 
@@ -72,6 +78,6 @@ func (c *cfg) Object() config.Reader {
 	return c
 }
 
-func (c *cfg) SysProbeObject() *sysconfig.Config {
+func (c *cfg) SysProbeObject() *sysconfigtypes.Config {
 	return c.syscfg
 }
