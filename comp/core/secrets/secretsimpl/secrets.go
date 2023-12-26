@@ -12,6 +12,7 @@ import (
 	_ "embed"
 	"fmt"
 	"io"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -19,7 +20,7 @@ import (
 	"time"
 
 	"go.uber.org/fx"
-	"golang.org/x/exp/slices"
+	"golang.org/x/exp/maps"
 	yaml "gopkg.in/yaml.v2"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -87,9 +88,6 @@ type secretResolver struct {
 }
 
 var _ secrets.Component = (*secretResolver)(nil)
-
-//go:embed info.tmpl
-var secretInfoTmpl string
 
 // TODO: (components) Hack to maintain a singleton reference to the secrets Component
 //
@@ -329,6 +327,7 @@ func (r *secretResolver) Resolve(data []byte, origin string) ([]byte, error) {
 
 // whitelistHandles restricts what config settings may be updated
 // tests can override this to exercise functionality
+// NOTE: Related feature to `authorizedConfigPathsCore` in `comp/api/api/apiimpl/internal/config/endpoint.go`
 var whitelistHandles = []string{"api_key"}
 
 func (r *secretResolver) processSecretResponse(secretResponse map[string]string, useWhitelist bool) {
@@ -358,10 +357,7 @@ func (r *secretResolver) Refresh() error {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	newHandles := make([]string, 0, len(r.cache))
-	for handle := range r.cache {
-		newHandles = append(newHandles, handle)
-	}
+	newHandles := maps.Keys(r.cache)
 
 	var secretResponse map[string]string
 	var err error
@@ -387,6 +383,9 @@ type secretInfo struct {
 	ExecutablePermissionsError   string
 	Handles                      map[string][][]string
 }
+
+//go:embed info.tmpl
+var secretInfoTmpl string
 
 // GetDebugInfo exposes debug informations about secrets to be included in a flare
 func (r *secretResolver) GetDebugInfo(w io.Writer) {
