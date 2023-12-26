@@ -57,11 +57,13 @@
                 if (ret < 0) {                                                                          \
                     _LOG(name, "batch flush error: cpu: %d idx: %d err:%d",                             \
                          key.cpu, batch->idx, ret);                                                     \
+                    batch->failed_flushes++;                                                            \
                     return;                                                                             \
                 }                                                                                       \
                                                                                                         \
                 _LOG(name, "batch flushed: cpu: %d idx: %d", key.cpu, batch->idx);                      \
                 batch->dropped_events = 0;                                                              \
+                batch->failed_flushes = 0;                                                              \
                 batch->len = 0;                                                                         \
                 batch_state->idx_to_flush++;                                                            \
             }                                                                                           \
