@@ -9,7 +9,6 @@ package sbom
 
 import (
 	"errors"
-	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"time"
 
 	"gopkg.in/yaml.v2"
@@ -20,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
