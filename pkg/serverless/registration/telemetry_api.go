@@ -7,12 +7,11 @@ package registration
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
-
-	json "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
