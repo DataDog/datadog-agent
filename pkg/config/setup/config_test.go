@@ -1104,17 +1104,17 @@ var testExampleConf = []byte(`
 secret_backend_command: some command
 additional_endpoints:
   https://url1.com:
-    - ENC[api_key_1]
-    - ENC[api_key_2]
+    - first
+    - second
   https://url2.eu:
-    - ENC[api_key_3]
+    - third
 process_config:
   additional_endpoints:
     https://url1.com:
-      - ENC[api_key_1]
-      - ENC[api_key_2]
+      - fourth
+      - fifth
     https://url2.eu:
-      - ENC[api_key_3]
+      - sixth
 `)
 
 func TestConfigAssignAtPath(t *testing.T) {
@@ -1130,29 +1130,29 @@ func TestConfigAssignAtPath(t *testing.T) {
 	_, err := LoadCustom(config, "unit_test", optional.NewNoneOption[secrets.Component](), nil)
 	assert.NoError(t, err)
 
-	err = configAssignAtPath(config, []string{"secret_backend_command"}, "another command")
+	err = configAssignAtPath(config, []string{"secret_backend_command"}, "different")
 	assert.NoError(t, err)
 
-	err = configAssignAtPath(config, []string{"additional_endpoints", "https://url1.com", "1"}, "password")
+	err = configAssignAtPath(config, []string{"additional_endpoints", "https://url1.com", "1"}, "changed")
 	assert.NoError(t, err)
 
-	err = configAssignAtPath(config, []string{"process_config", "additional_endpoints", "https://url2.eu", "0"}, "mystery")
+	err = configAssignAtPath(config, []string{"process_config", "additional_endpoints", "https://url2.eu", "0"}, "modified")
 	assert.NoError(t, err)
 
 	expectedYaml := `additional_endpoints:
   https://url1.com:
-  - ENC[api_key_1]
-  - password
+  - first
+  - changed
   https://url2.eu:
-  - ENC[api_key_3]
+  - third
 process_config:
   additional_endpoints:
     https://url1.com:
-    - ENC[api_key_1]
-    - ENC[api_key_2]
+    - fourth
+    - fifth
     https://url2.eu:
-    - mystery
-secret_backend_command: another command
+    - modified
+secret_backend_command: different
 use_proxy_for_cloud_metadata: true
 `
 	yamlConf, err := yaml.Marshal(config.AllSettingsWithoutDefault())
@@ -1167,4 +1167,40 @@ use_proxy_for_cloud_metadata: true
 	err = configAssignAtPath(config, []string{"additional_endpoints", "https://url1.com", "5"}, "invalid")
 	assert.Error(t, err)
 	assert.Equal(t, err.Error(), "index out of range 5 >= 2")
+}
+
+func TestConfigAssignAtPathForIntMapKeys(t *testing.T) {
+	// CircleCI sets NO_PROXY, so unset it for this test
+	unsetEnvForTest(t, "NO_PROXY")
+
+	// Even if a map is using keys that looks like stringified ints, calling
+	// configAssignAtPath will still work correctly
+	var testIntKeysConf = []byte(`
+additional_endpoints:
+  0: apple
+  1: banana
+  2: carrot
+`)
+	config := Conf()
+	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
+	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
+	os.WriteFile(configPath, testIntKeysConf, 0600)
+	config.SetConfigFile(configPath)
+
+	_, err := LoadCustom(config, "unit_test", optional.NewNoneOption[secrets.Component](), nil)
+	assert.NoError(t, err)
+
+	err = configAssignAtPath(config, []string{"additional_endpoints", "2"}, "cherry")
+	assert.NoError(t, err)
+
+	expectedYaml := `additional_endpoints:
+  "0": apple
+  "1": banana
+  "2": cherry
+use_proxy_for_cloud_metadata: true
+`
+	yamlConf, err := yaml.Marshal(config.AllSettingsWithoutDefault())
+	assert.NoError(t, err)
+	yamlText := string(yamlConf)
+	assert.Equal(t, expectedYaml, yamlText)
 }

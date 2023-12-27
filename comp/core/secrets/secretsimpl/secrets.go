@@ -325,16 +325,16 @@ func (r *secretResolver) Resolve(data []byte, origin string) ([]byte, error) {
 	return finalConfig, nil
 }
 
-// whitelistHandles restricts what config settings may be updated
-// tests can override this to exercise functionality
+// allowlistHandles restricts what config settings may be updated
+// tests can override this to exercise functionality: by setting this to nil, allow all handles
 // NOTE: Related feature to `authorizedConfigPathsCore` in `comp/api/api/apiimpl/internal/config/endpoint.go`
-var whitelistHandles = []string{"api_key"}
+var allowlistHandles = []string{"api_key"}
 
-func (r *secretResolver) processSecretResponse(secretResponse map[string]string, useWhitelist bool) {
+func (r *secretResolver) processSecretResponse(secretResponse map[string]string, useAllowlist bool) {
 	// notify subscriptions about the changes to secrets
 	for handle, secretValue := range secretResponse {
-		// if whitelist is enabled and the handle is not contained in it, skip it
-		if useWhitelist && whitelistHandles != nil && !slices.Contains(whitelistHandles, handle) {
+		// if allowlist is enabled and the handle is not contained in it, skip it
+		if useAllowlist && allowlistHandles != nil && !slices.Contains(allowlistHandles, handle) {
 			continue
 		}
 		oldValue := r.cache[handle]
@@ -371,7 +371,7 @@ func (r *secretResolver) Refresh() error {
 		return err
 	}
 
-	// when Refreshing secrets, only update what the whitelist allows
+	// when Refreshing secrets, only update what the allowlist allows
 	r.processSecretResponse(secretResponse, true)
 	return nil
 }

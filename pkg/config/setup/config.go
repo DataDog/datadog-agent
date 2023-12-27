@@ -1780,7 +1780,7 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 	return nil
 }
 
-// assign a value to the given setting of the config
+// confgAssignAtPath assigns a value to the given setting of the config
 // This works around viper issues that prevent us from assigning to fields that have a dot in the
 // name (example: 'additional_endpoints.http://url.com') and also allows us to assign to individual
 // elements of a slice of items (example: 'proxy.no_proxy.0' to assign index 0 of 'no_proxy')
@@ -1801,7 +1801,16 @@ func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newV
 	// elements to figure out how to modify that particular object, before setting it back
 	// on the config.
 	//
-	// Example: configAssignAtPath(config, ['process_config', 'additional_endpoints', 'http://url.com', '0'], 'password')
+	// Example with the follow configuration:
+	//
+	//    process_config:
+	//      additional_endpoints:
+	//        http://url.com:
+	//         - ENC[handle_to_password]
+	//
+	// Calling this function like:
+	//
+	//   configAssignAtPath(config, ['process_config', 'additional_endpoints', 'http://url.com', '0'], 'password')
 	//
 	// This is split into:
 	//   ['process_config', 'additional_endpoints']  // a known config field
