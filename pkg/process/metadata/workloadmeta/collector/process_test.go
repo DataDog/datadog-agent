@@ -134,9 +134,10 @@ func (c *collectorTest) setupProcs() {
 func (c *collectorTest) waitForContainerUpdate(t *testing.T, cont *workloadmeta.Container) {
 	t.Helper()
 
+	pid := cont.PID
 	c.store.Set(cont)
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assert.Contains(t, c.collector.pidToCid, cont.PID)
+		assert.Contains(t, c.collector.pidToCid, pid)
 	}, 15*time.Second, 1*time.Second)
 }
 
