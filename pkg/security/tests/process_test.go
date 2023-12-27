@@ -1045,7 +1045,7 @@ func TestProcessScopedVariable(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{{
 		ID:         "test_rule_set_mutable_vars",
 		Expression: `open.file.path == "{{.Root}}/test-open"`,
-		Actions: []rules.ActionDefinition{{
+		Actions: []*rules.ActionDefinition{{
 			Set: &rules.SetDefinition{
 				Name:  "var1",
 				Value: true,
@@ -1083,7 +1083,7 @@ func TestProcessScopedVariable(t *testing.T) {
 	}, {
 		ID:         "test_rule_modify_mutable_vars",
 		Expression: `open.file.path == "{{.Root}}/test-open-2"`,
-		Actions: []rules.ActionDefinition{{
+		Actions: []*rules.ActionDefinition{{
 			Set: &rules.SetDefinition{
 				Name:  "var2",
 				Value: "enabled",
@@ -1154,7 +1154,7 @@ func TestTimestampVariable(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{{
 		ID:         "test_rule_set_timestamp_var",
 		Expression: `open.file.path == "{{.Root}}/test-open"`,
-		Actions: []rules.ActionDefinition{{
+		Actions: []*rules.ActionDefinition{{
 			Set: &rules.SetDefinition{
 				Name:  "timestamp1",
 				Field: "event.timestamp",
@@ -2262,7 +2262,7 @@ func TestKillAction(t *testing.T) {
 		ID: "kill_action",
 		// using a wilcard to avoid approvers on basename. events will not match thus will be noisy
 		Expression: `process.file.name == "syscall_tester" && mkdir.file.path == "{{.Root}}/test-kill-action"`,
-		Actions: []rules.ActionDefinition{
+		Actions: []*rules.ActionDefinition{
 			{
 				Kill: &rules.KillDefinition{
 					Signal: "SIGUSR2",

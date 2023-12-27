@@ -172,7 +172,7 @@ func GoBytes(data unsafe.Pointer, len int) []byte {
 	// then built-in method
 
 	var slice []byte
-	sliceHdr := (*reflect.SliceHeader)((unsafe.Pointer(&slice)))
+	sliceHdr := (*reflect.SliceHeader)((unsafe.Pointer(&slice))) //nolint:staticcheck // TODO (WINA) fix reflect.SliceHeader has been deprecated: Use unsafe.Slice or unsafe.SliceData instead
 	sliceHdr.Cap = int(len)
 	sliceHdr.Len = int(len)
 	sliceHdr.Data = uintptr(data)

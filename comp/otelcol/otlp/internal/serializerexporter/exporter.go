@@ -16,7 +16,6 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/pdata/pmetric"
-	"go.uber.org/zap"
 
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -81,7 +80,7 @@ type exporter struct {
 	cardinality collectors.TagCardinality
 }
 
-func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*metrics.Translator, error) {
+func translatorFromConfig(set component.TelemetrySettings, cfg *exporterConfig) (*metrics.Translator, error) {
 	histogramMode := metrics.HistogramMode(cfg.Metrics.HistConfig.Mode)
 	switch histogramMode {
 	case metrics.HistogramModeCounters, metrics.HistogramModeNoBuckets, metrics.HistogramModeDistributions:
@@ -128,16 +127,16 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*metrics.Tra
 	options = append(options, metrics.WithInitialCumulMonoValueMode(
 		metrics.InitialCumulMonoValueMode(cfg.Metrics.SumConfig.InitialCumulativeMonotonicMode)))
 
-	return metrics.NewTranslator(logger, options...)
+	return metrics.NewTranslator(set, options...)
 }
 
-func newExporter(logger *zap.Logger, s serializer.MetricSerializer, cfg *exporterConfig) (*exporter, error) {
+func newExporter(set component.TelemetrySettings, s serializer.MetricSerializer, cfg *exporterConfig) (*exporter, error) {
 	// Log any warnings from unmarshaling.
 	for _, warning := range cfg.warnings {
-		logger.Warn(warning)
+		set.Logger.Warn(warning)
 	}
 
-	tr, err := translatorFromConfig(logger, cfg)
+	tr, err := translatorFromConfig(set, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("incorrect OTLP metrics configuration: %w", err)
 	}
