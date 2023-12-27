@@ -110,7 +110,7 @@ type IteratorOptions struct {
 // Put inserts a new key/value pair in the map. If the key already exists, the value is updated
 func (g *GenericMap[K, V]) Put(key *K, value *V) error {
 	if g.isPerCPU() {
-		return errors.New("cannot use Put with per-cpu maps")
+		return errors.New("cannot use Put with per-cpu maps, use PutPerCPU instead")
 	}
 
 	return g.m.Put(unsafe.Pointer(key), unsafe.Pointer(value))
@@ -119,7 +119,7 @@ func (g *GenericMap[K, V]) Put(key *K, value *V) error {
 // PutPerCPU inserts a new key/value pair in the map, used for PerCPU maps. If the key already exists, the value is updated
 func (g *GenericMap[K, V]) PutPerCPU(key *K, value []V) error {
 	if !g.isPerCPU() {
-		return errors.New("cannot use Put with per-cpu maps")
+		return errors.New("cannot use PutPerCPU with non-per-cpu maps, use Put instead")
 	}
 
 	return g.m.Put(unsafe.Pointer(key), value)
@@ -127,21 +127,37 @@ func (g *GenericMap[K, V]) PutPerCPU(key *K, value []V) error {
 
 // Update updates the value of an existing key in the map.
 func (g *GenericMap[K, V]) Update(key *K, value *V, flags ebpf.MapUpdateFlags) error {
+	if g.isPerCPU() {
+		return errors.New("cannot use Update with per-cpu maps, use UpdatePerCPU instead")
+	}
+
 	return g.m.Update(unsafe.Pointer(key), unsafe.Pointer(value), flags)
 }
 
 // UpdatePerCPU updates the value of an existing key in the map, used for PerCPU maps.
 func (g *GenericMap[K, V]) UpdatePerCPU(key *K, value []V, flags ebpf.MapUpdateFlags) error {
+	if !g.isPerCPU() {
+		return errors.New("cannot use UpdatePerCPU with non-per-cpu maps, use Update instead")
+	}
+
 	return g.m.Update(unsafe.Pointer(key), unsafe.Pointer(&value), flags)
 }
 
 // Lookup looks up a key in the map and returns the value. If the key doesn't exist, it returns ErrKeyNotExist
 func (g *GenericMap[K, V]) Lookup(key *K, valueOut *V) error {
+	if g.isPerCPU() {
+		return errors.New("cannot use Lookup with per-cpu maps, use LookupPerCPU instead")
+	}
+
 	return g.m.Lookup(unsafe.Pointer(key), unsafe.Pointer(valueOut))
 }
 
 // LookupPerCPU looks up a key in the map and returns the value, used for PerCPU maps. If the key doesn't exist, it returns ErrKeyNotExist
 func (g *GenericMap[K, V]) LookupPerCPU(key *K, valueOut []V) error {
+	if !g.isPerCPU() {
+		return errors.New("cannot use LookupPerCPU with non-per-cpu maps, use Lookup instead")
+	}
+
 	return g.m.Lookup(unsafe.Pointer(key), valueOut)
 }
 
