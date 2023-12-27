@@ -132,11 +132,16 @@ func (c *Consumer[V]) Start() {
 				}
 
 				b, err := batchFromEventData(dataEvent.Data)
-				if err == nil {
-					c.process(dataEvent.CPU, b, false)
-				} else {
+
+				if err != nil {
 					c.invalidEventsCount.Add(1)
+					dataEvent.Done()
+					break
 				}
+
+				c.failedFlushesCount.Add(int64(b.Failed_flushes))
+				c.kernelDropsCount.Add(int64(b.Dropped_events))
+				c.process(dataEvent.CPU, b, false)
 				dataEvent.Done()
 			case _, ok := <-c.handler.LostChannel:
 				if !ok {
@@ -216,14 +221,6 @@ func (c *Consumer[V]) process(cpu int, b *batch, syncing bool) {
 	}
 
 	c.eventsCount.Add(int64(end - begin))
-
-	// Only track these bits of telemetry when we're reading the batch off the
-	// perf ring. In other words, if we're fetching the batch data via a Sync()
-	// call, skip this otherwise we'll double report the telemetry.
-	if !syncing {
-		c.failedFlushesCount.Add(int64(b.Failed_flushes))
-		c.kernelDropsCount.Add(int64(b.Dropped_events))
-	}
 
 	// generate a slice of type []V from the batch
 	ptr := pointerToElement[V](b, begin)
