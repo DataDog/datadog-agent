@@ -49,7 +49,7 @@ def update_go(
     ctx: Context,
     version: str,
     image_tag: str,
-    test_version: Optional[bool] = False,
+    test_version: Optional[bool] = True,
     warn: Optional[bool] = False,
     release_note: Optional[bool] = True,
     include_otel_modules: Optional[bool] = False,
