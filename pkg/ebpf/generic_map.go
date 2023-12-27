@@ -113,7 +113,7 @@ func (g *GenericMap[K, V]) Put(key *K, value *V) error {
 		return errors.New("cannot use Put with per-cpu maps")
 	}
 
-	return g.m.Put(key, value)
+	return g.m.Put(unsafe.Pointer(key), unsafe.Pointer(value))
 }
 
 // PutPerCPU inserts a new key/value pair in the map, used for PerCPU maps. If the key already exists, the value is updated
@@ -122,7 +122,7 @@ func (g *GenericMap[K, V]) PutPerCPU(key *K, value []V) error {
 		return errors.New("cannot use Put with per-cpu maps")
 	}
 
-	return g.m.Put(key, value)
+	return g.m.Put(unsafe.Pointer(key), value)
 }
 
 // Update updates the value of an existing key in the map. If the key doesn't exist, it returns an error
