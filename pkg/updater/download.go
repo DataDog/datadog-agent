@@ -6,7 +6,9 @@
 package updater
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -15,8 +17,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-
-	"github.com/mholt/archiver/v3"
 )
 
 const (
@@ -73,9 +73,55 @@ func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath 
 	if !bytes.Equal(expectedHash, sha256) {
 		return fmt.Errorf("invalid hash for %s: expected %x, got %x", pkg.URL, pkg.SHA256, sha256)
 	}
-	err = archiver.Extract(archivePath, "", destinationPath)
+	err = extractTarGz(archivePath, destinationPath)
 	if err != nil {
 		return fmt.Errorf("could not extract archive: %w", err)
+	}
+	return nil
+}
+
+func extractTarGz(archivePath string, destinationPath string) error {
+	f, err := os.Open(archivePath)
+	if err != nil {
+		return fmt.Errorf("could not open archive: %w", err)
+	}
+	defer f.Close()
+	gzr, err := gzip.NewReader(f)
+	if err != nil {
+		return fmt.Errorf("could not create gzip reader: %w", err)
+	}
+	defer gzr.Close()
+	tr := tar.NewReader(gzr)
+	for {
+		header, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("could not read tar header: %w", err)
+		}
+		target := filepath.Join(destinationPath, header.Name)
+		switch header.Typeflag {
+		case tar.TypeDir:
+			err = os.MkdirAll(target, 0755)
+			if err != nil {
+				return fmt.Errorf("could not create directory: %w", err)
+			}
+		case tar.TypeReg:
+			err := os.MkdirAll(filepath.Dir(target), 0755)
+			if err != nil {
+				return fmt.Errorf("could not create directory: %w", err)
+			}
+			f, err := os.Create(target)
+			if err != nil {
+				return fmt.Errorf("could not create file: %w", err)
+			}
+			defer f.Close()
+			_, err = io.Copy(f, tr)
+			if err != nil {
+				return fmt.Errorf("could not write file: %w", err)
+			}
+		}
 	}
 	return nil
 }
