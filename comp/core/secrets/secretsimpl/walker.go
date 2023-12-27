@@ -8,6 +8,8 @@ package secretsimpl
 import (
 	"fmt"
 	"strconv"
+
+	"golang.org/x/exp/slices"
 )
 
 type walker struct {
@@ -29,9 +31,8 @@ func (w *walker) string(text string, yamlPath []string) (string, error) {
 func (w *walker) slice(currentSlice []interface{}, yamlPath []string) error {
 	for idx, k := range currentSlice {
 
-		path := make([]string, len(yamlPath), len(yamlPath)+1)
-		copy(path, yamlPath)
-		path = append(path, strconv.Itoa(idx))
+		// clone the path to avoid modifying it, caller still needs to use it
+		path := append(slices.Clone(yamlPath), strconv.Itoa(idx))
 
 		switch v := k.(type) {
 		case string:

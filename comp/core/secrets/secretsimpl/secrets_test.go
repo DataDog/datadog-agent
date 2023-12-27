@@ -395,10 +395,10 @@ func TestResolveNestedWithSubscribe(t *testing.T) {
 func TestResolveThenRefresh(t *testing.T) {
 	testConf := testConfNestedMultiple
 
-	// disable the whitelist for the test, let any secret changes happen
-	originalWhitelistHandles := whitelistHandles
-	whitelistHandles = nil
-	defer func() { whitelistHandles = originalWhitelistHandles }()
+	// disable the allowlist for the test, let any secret changes happen
+	originalAllowlistHandles := allowlistHandles
+	allowlistHandles = nil
+	defer func() { allowlistHandles = originalAllowlistHandles }()
 
 	resolver := newEnabledSecretResolver()
 	resolver.backendCommand = "some_command"
@@ -470,10 +470,10 @@ func TestResolveThenRefresh(t *testing.T) {
 	assert.Equal(t, []string{"first", "password1", "password2", "password3", "second", "third"}, newValues)
 }
 
-func TestRefreshWhitelist(t *testing.T) {
-	originalWhitelistHandles := whitelistHandles
-	whitelistHandles = nil
-	defer func() { whitelistHandles = originalWhitelistHandles }()
+func TestRefreshAllowlist(t *testing.T) {
+	originalAllowlistHandles := allowlistHandles
+	allowlistHandles = nil
+	defer func() { allowlistHandles = originalAllowlistHandles }()
 
 	resolver := newEnabledSecretResolver()
 	resolver.backendCommand = "some_command"
@@ -498,15 +498,15 @@ func TestRefreshWhitelist(t *testing.T) {
 	})
 
 	// only allow api_key to change
-	whitelistHandles = []string{"api_key"}
+	allowlistHandles = []string{"api_key"}
 
-	// Refresh means nothing changes because whitelist doesn't allow it
+	// Refresh means nothing changes because allowlist doesn't allow it
 	err := resolver.Refresh()
 	require.NoError(t, err)
 	assert.Equal(t, changes, []string{})
 
 	// now allow the handle under scrutiny to change
-	whitelistHandles = []string{"handle"}
+	allowlistHandles = []string{"handle"}
 
 	// Refresh sees the change to the handle
 	err = resolver.Refresh()
