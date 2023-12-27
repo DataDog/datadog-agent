@@ -209,8 +209,6 @@ new-e2e-agent-shared-components-main:
   variables:
     TARGETS: ./tests/agent-shared-components
     TEAM: agent-shared-components
-  # Temporary, until we manage to stabilize those tests.
-  allow_failure: true
 
 .agent-subcommands-tests-matrix: &agent-subcommands-tests-matrix
   parallel:
