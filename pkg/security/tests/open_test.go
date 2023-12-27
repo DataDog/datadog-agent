@@ -131,10 +131,6 @@ func TestOpen(t *testing.T) {
 	})
 
 	t.Run("creat", ifSyscallSupported("SYS_CREAT", func(t *testing.T, syscallNB uintptr) {
-		if test.opts.staticOpts.enableEBPFLess {
-			t.Skip("SYS_CREAT not supported yet")
-		}
-
 		defer os.Remove(testFile)
 
 		test.WaitSignal(t, func() error {
@@ -147,7 +143,9 @@ func TestOpen(t *testing.T) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assert.Equal(t, syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, int(event.Open.Flags), "wrong flags")
 			assertRights(t, uint16(event.Open.Mode), 0711)
-			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
+			if !test.opts.staticOpts.enableEBPFLess {
+				assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
+			}
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)

@@ -111,6 +111,26 @@ func handleOpen(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs
 	return nil
 }
 
+func handleCreat(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
+	filename, err := tracer.ReadArgString(process.Pid, regs, 0)
+	if err != nil {
+		return err
+	}
+
+	filename, err = getFullPathFromFilename(process, filename)
+	if err != nil {
+		return err
+	}
+
+	msg.Type = ebpfless.SyscallTypeOpen
+	msg.Open = &ebpfless.OpenSyscallMsg{
+		Filename: filename,
+		Flags:    unix.O_CREAT | unix.O_WRONLY | unix.O_TRUNC,
+		Mode:     uint32(tracer.ReadArgUint64(regs, 1)),
+	}
+	return nil
+}
+
 func handleExecveAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
 	fd := tracer.ReadArgInt32(regs, 0)
 
@@ -586,6 +606,11 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 					logErrorf("unable to handle fchdir: %v", err)
 					return
 				}
+			case CreatNr:
+				if err = handleCreat(tracer, process, syscallMsg, regs); err != nil {
+					logErrorf("unable to handle creat: %v", err)
+					return
+				}
 			}
 		case CallbackPostType:
 			switch nr {
@@ -594,7 +619,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 
 				// now the pid is the tgid
 				process.Pid = process.Tgid
-			case OpenNr, OpenatNr:
+			case OpenNr, OpenatNr, CreatNr:
 				if ret := tracer.ReadRet(regs); !isAcceptedRetval(ret) {
 					syscallMsg, exists := process.Nr[nr]
 					if !exists || syscallMsg.Open == nil {

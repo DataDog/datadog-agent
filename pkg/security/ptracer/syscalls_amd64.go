@@ -33,6 +33,7 @@ const (
 	SetgidNr   = 106 // SetgidNr defines the syscall ID for amd64
 	SetreuidNr = 113 // SetreuidNr defines the syscall ID for amd64
 	SetregidNr = 114 // SetregidNr defines the syscall ID for amd64
+	CreatNr    = 85  // CreatNr defines the syscall ID for amd64
 
 	ptraceFlags = 0 |
 		syscall.PTRACE_O_TRACEVFORK |
@@ -65,6 +66,7 @@ var (
 		"setgid",
 		"setreuid",
 		"setregid",
+		"creat",
 	}
 )
 

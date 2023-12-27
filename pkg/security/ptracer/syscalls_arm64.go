@@ -34,6 +34,7 @@ const (
 	ForkNr  = -2 // ForkNr not available on arm64
 	VforkNr = -3 // VforkNr not available on arm64
 	Dup2Nr  = -4 // Dup2Nr not available on arm64
+	CreatNr = -5 // CreatNr not available on arm64
 
 	ptraceFlags = 0 |
 		syscall.PTRACE_O_TRACECLONE |
