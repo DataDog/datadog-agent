@@ -125,21 +125,22 @@ func (g *GenericMap[K, V]) PutPerCPU(key *K, value []V) error {
 	return g.m.Put(unsafe.Pointer(key), value)
 }
 
-// Update updates the value of an existing key in the map. If the key doesn't exist, it returns an error
+// Update updates the value of an existing key in the map.
 func (g *GenericMap[K, V]) Update(key *K, value *V, flags ebpf.MapUpdateFlags) error {
 	return g.m.Update(unsafe.Pointer(key), unsafe.Pointer(value), flags)
 }
 
+// UpdatePerCPU updates the value of an existing key in the map, used for PerCPU maps.
 func (g *GenericMap[K, V]) UpdatePerCPU(key *K, value []V, flags ebpf.MapUpdateFlags) error {
 	return g.m.Update(unsafe.Pointer(key), unsafe.Pointer(&value), flags)
 }
 
-// Lookup looks up a key in the map and returns the value. If the key doesn't exist, it returns an error
+// Lookup looks up a key in the map and returns the value. If the key doesn't exist, it returns ErrKeyNotExist
 func (g *GenericMap[K, V]) Lookup(key *K, valueOut *V) error {
 	return g.m.Lookup(unsafe.Pointer(key), unsafe.Pointer(valueOut))
 }
 
-// Delete deletes a key from the map. If the key doesn't exist, it returns an error
+// Delete deletes a key from the map. If the key doesn't exist, it returns ErrKeyNotExist
 func (g *GenericMap[K, V]) Delete(key *K) error {
 	return g.m.Delete(unsafe.Pointer(key))
 }
