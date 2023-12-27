@@ -85,7 +85,11 @@ func (c *Collector) run(ctx context.Context, store workloadmeta.Component, conta
 
 	for {
 		select {
-		case evt := <-containerEvt:
+		case evt, ok := <-containerEvt:
+			if !ok {
+				log.Infof("The %s collector has stopped, workloadmeta channel is closed", collectorId)
+				return
+			}
 			c.handleContainerEvent(evt)
 		case <-collectionTicker.C:
 			err := c.processData.Fetch()

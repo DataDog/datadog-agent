@@ -55,7 +55,10 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 				close(resultChan)
 				return
 
-			case eventBundle := <-imgEventsCh:
+			case eventBundle, ok := <-imgEventsCh:
+				if !ok {
+					return
+				}
 				eventBundle.Acknowledge()
 
 				for _, event := range eventBundle.Events {

@@ -175,7 +175,10 @@ func (c *client) run() {
 
 	for {
 		select {
-		case eventBundle := <-eventCh:
+		case eventBundle, ok := <-eventCh:
+			if !ok {
+				return
+			}
 			c.handleEvent(eventBundle)
 		case <-cleanupProcessesWithoutPodCleanupTicker.C:
 			c.cleanUpProcesssesWithoutPod(time.Now())

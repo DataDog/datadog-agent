@@ -149,7 +149,11 @@ func (c *Check) Run() error {
 
 	for {
 		select {
-		case eventBundle := <-imgEventsCh:
+		case eventBundle, ok := <-imgEventsCh:
+			if !ok {
+				c.processor.stop()
+				return nil
+			}
 			c.processor.processEvents(eventBundle)
 		case <-imgRefreshTicker.C:
 			c.processor.processRefresh(c.workloadmetaStore.ListImages())

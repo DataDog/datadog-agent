@@ -1027,7 +1027,7 @@ type EventBundle struct {
 	// Events gives the events in this bundle.
 	Events []Event
 
-	// ch should be closed once the subscriber has handled the event.
+	// Ch should be closed once the subscriber has handled the event.
 	Ch chan struct{}
 }
 
