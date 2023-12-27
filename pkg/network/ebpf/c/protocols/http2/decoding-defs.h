@@ -22,8 +22,7 @@
 // Currently we have up to 120 frames in a packet, thus 7 (7*18 = 126) tail calls is enough.
 #define HTTP2_MAX_TAIL_CALLS_FOR_HEADERS_PARSER 7
 #define HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER (HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL * HTTP2_MAX_TAIL_CALLS_FOR_HEADERS_PARSER)
-// Maximum number of frames to be processed in a single TCP packet. That's also the number of tail calls we'll have.
-// NOTE: we may need to revisit this const if we need to capture more connections.
+// Maximum number of frames to be processed in a single TCP packet.
 #define HTTP2_MAX_FRAMES_ITERATIONS 120
 #define HTTP2_MAX_FRAMES_TO_FILTER  120
 
