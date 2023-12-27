@@ -250,7 +250,7 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	}
 
 	// Discover resources that are currently available
-	resources, err := discoverResources(c.DiscoveryCl)
+	resources, err := discoverResources(c.Cl.Discovery())
 	if err != nil {
 		return err
 	}
@@ -296,9 +296,9 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 
 	builder.WithFamilyGeneratorFilter(allowDenyList)
 
-	builder.WithKubeClient(c.Cl)
+	builder.WithKubeClient(c.InformerCl)
 
-	builder.WithVPAClient(c.VPAClient)
+	builder.WithVPAClient(c.VPAInformerClient)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	k.cancel = cancel
@@ -419,11 +419,6 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 }
 
 func manageResourcesReplacement(c *apiserver.APIClient, factories []customresource.RegistryFactory, resources []*v1.APIResourceList) []customresource.RegistryFactory {
-	if c.DiscoveryCl == nil {
-		log.Warn("Kubernetes discovery client has not been properly initialized")
-		return factories
-	}
-
 	// backwards/forwards compatibility resource factories are only
 	// registered if they're needed, otherwise they'd overwrite the default
 	// ones that ship with ksm

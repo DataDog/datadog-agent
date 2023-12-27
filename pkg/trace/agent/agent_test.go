@@ -363,9 +363,10 @@ func TestProcess(t *testing.T) {
 	})
 
 	t.Run("aas", func(t *testing.T) {
+		t.Setenv("APPSVC_RUN_ZIP", "true")
+		t.Setenv("WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED", "false")
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
-		cfg.InAzureAppServices = true
 		ctx, cancel := context.WithCancel(context.Background())
 		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
@@ -385,17 +386,10 @@ func TestProcess(t *testing.T) {
 		}
 
 		for _, chunk := range tp.Chunks {
-			for i, span := range chunk.Spans {
-				if i == 0 {
-					// root span should contain all aas tags
-					for tag := range traceutil.GetAppServicesTags() {
-						assert.Contains(t, span.Meta, tag)
-					}
-				} else {
-					// other spans should only contain site name and type
-					assert.Contains(t, span.Meta, "aas.site.name")
-					assert.Contains(t, span.Meta, "aas.site.type")
-				}
+			for _, span := range chunk.Spans {
+				assert.Contains(t, span.Meta, "aas.resource.id")
+				assert.Contains(t, span.Meta, "aas.site.name")
+				assert.Contains(t, span.Meta, "aas.site.type")
 			}
 		}
 	})
@@ -2304,6 +2298,20 @@ func TestSetFirstTraceTags(t *testing.T) {
 		assert.False(t, ok)
 		_, ok = anotherRoot.Meta[tagInstallTime]
 		assert.False(t, ok)
+
+		// However, calling setFirstTraceTags on another span from a different service should set the tags again
+		differentServiceRoot := &pb.Span{
+			Service:  "discombobulator",
+			Name:     "parent",
+			TraceID:  2,
+			SpanID:   2,
+			Start:    time.Now().Add(-time.Second).UnixNano(),
+			Duration: time.Millisecond.Nanoseconds(),
+		}
+		traceAgent.setFirstTraceTags(differentServiceRoot)
+		assert.Equal(t, cfg.InstallSignature.InstallID, differentServiceRoot.Meta[tagInstallID])
+		assert.Equal(t, cfg.InstallSignature.InstallType, differentServiceRoot.Meta[tagInstallType])
+		assert.Equal(t, fmt.Sprintf("%v", cfg.InstallSignature.InstallTime), differentServiceRoot.Meta[tagInstallTime])
 	})
 
 	traceAgent = NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())

@@ -24,6 +24,8 @@ const (
 	uid = "uid"
 	// gid used to start the tracee
 	gid = "gid"
+	// async enable the traced program to start and run until we manage to connect to the GRPC endpoint
+	async = "async"
 )
 
 type traceCliParams struct {
@@ -31,6 +33,7 @@ type traceCliParams struct {
 	Verbose   bool
 	UID       int32
 	GID       int32
+	Async     bool
 }
 
 // Command returns the commands for the trace subcommand
@@ -50,7 +53,7 @@ func Command() []*cobra.Command {
 				gid := uint32(params.GID)
 				creds.GID = &gid
 			}
-			return ptracer.StartCWSPtracer(args, params.ProbeAddr, creds, params.Verbose)
+			return ptracer.StartCWSPtracer(args, params.ProbeAddr, creds, params.Verbose, params.Async)
 		},
 	}
 
@@ -58,6 +61,7 @@ func Command() []*cobra.Command {
 	traceCmd.Flags().BoolVar(&params.Verbose, verbose, false, "enable verbose output")
 	traceCmd.Flags().Int32Var(&params.UID, uid, -1, "uid used to start the tracee")
 	traceCmd.Flags().Int32Var(&params.GID, gid, -1, "gid used to start the tracee")
+	traceCmd.Flags().BoolVar(&params.Async, async, false, "enable async GRPC connection")
 
 	traceCmd.AddCommand(selftestscmd.Command()...)
 

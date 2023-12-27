@@ -93,7 +93,7 @@ func TestContainerScopedVariable(t *testing.T) {
 		{
 			ID:         "test_container_set_scoped_variable",
 			Expression: `open.file.path == "/tmp/test-open"`,
-			Actions: []rules.ActionDefinition{{
+			Actions: []*rules.ActionDefinition{{
 				Set: &rules.SetDefinition{
 					Name:  "var1",
 					Value: true,
