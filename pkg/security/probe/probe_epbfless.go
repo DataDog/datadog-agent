@@ -100,7 +100,7 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 	switch syscallMsg.Type {
 	case ebpfless.SyscallTypeExec:
 		event.Type = uint32(model.ExecEventType)
-		entry := p.Resolvers.ProcessResolver.AddExecEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.Exec.Filename, syscallMsg.Exec.Args, syscallMsg.Exec.Envs, cl.containerContext.ID)
+		entry := p.Resolvers.ProcessResolver.AddExecEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.Exec.Filename, syscallMsg.Exec.Args, syscallMsg.Exec.Envs, cl.containerContext.ID, syscallMsg.Timestamp)
 
 		if syscallMsg.Exec.Credentials != nil {
 			entry.Credentials.UID = syscallMsg.Exec.Credentials.UID
@@ -112,7 +112,7 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 		event.Exec.Process = &entry.Process
 	case ebpfless.SyscallTypeFork:
 		event.Type = uint32(model.ForkEventType)
-		p.Resolvers.ProcessResolver.AddForkEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.Fork.PPID)
+		p.Resolvers.ProcessResolver.AddForkEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.Fork.PPID, syscallMsg.Timestamp)
 	case ebpfless.SyscallTypeOpen:
 		event.Type = uint32(model.FileOpenEventType)
 		event.Open.Retval = syscallMsg.Retval
@@ -144,12 +144,11 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 
 	if syscallMsg.Type == ebpfless.SyscallTypeExit {
 		event.Type = uint32(model.ExitEventType)
-		exitTime := time.Now() // TODO: fix timestamp
-		event.ProcessContext.ExitTime = exitTime
+		event.ProcessContext.ExitTime = time.Unix(0, int64(syscallMsg.Timestamp))
 		event.Exit.Process = &event.ProcessCacheEntry.Process
 		event.Exit.Cause = uint32(model.ExitExited) // TODO: fix cause
 		event.Exit.Code = 0                         // TODO: fix code
-		defer p.Resolvers.ProcessResolver.DeleteEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, exitTime)
+		defer p.Resolvers.ProcessResolver.DeleteEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, event.ProcessContext.ExitTime)
 	}
 
 	p.DispatchEvent(event)

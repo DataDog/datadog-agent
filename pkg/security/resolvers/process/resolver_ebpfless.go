@@ -81,10 +81,11 @@ func (p *EBPFLessResolver) DeleteEntry(key CacheResolverKey, exitTime time.Time)
 }
 
 // AddForkEntry adds an entry to the local cache and returns the newly created entry
-func (p *EBPFLessResolver) AddForkEntry(key CacheResolverKey, ppid uint32) *model.ProcessCacheEntry {
+func (p *EBPFLessResolver) AddForkEntry(key CacheResolverKey, ppid uint32, ts uint64) *model.ProcessCacheEntry {
 	entry := p.processCacheEntryPool.Get()
 	entry.PIDContext.Pid = key.Pid
 	entry.PPid = ppid
+	entry.ForkTime = time.Unix(0, int64(ts))
 
 	p.Lock()
 	defer p.Unlock()
@@ -95,7 +96,7 @@ func (p *EBPFLessResolver) AddForkEntry(key CacheResolverKey, ppid uint32) *mode
 }
 
 // AddExecEntry adds an entry to the local cache and returns the newly created entry
-func (p *EBPFLessResolver) AddExecEntry(key CacheResolverKey, file string, argv []string, envs []string, ctrID string) *model.ProcessCacheEntry {
+func (p *EBPFLessResolver) AddExecEntry(key CacheResolverKey, file string, argv []string, envs []string, ctrID string, ts uint64) *model.ProcessCacheEntry {
 	entry := p.processCacheEntryPool.Get()
 	entry.PIDContext.Pid = key.Pid
 
@@ -115,8 +116,7 @@ func (p *EBPFLessResolver) AddExecEntry(key CacheResolverKey, file string, argv 
 	entry.Process.FileEvent.BasenameStr = filepath.Base(entry.Process.FileEvent.PathnameStr)
 	entry.Process.ContainerID = ctrID
 
-	// TODO fix timestamp
-	entry.ExecTime = time.Now()
+	entry.ExecTime = time.Unix(0, int64(ts))
 
 	p.Lock()
 	defer p.Unlock()

@@ -112,16 +112,17 @@ type SetGIDSyscallMsg struct {
 
 // SyscallMsg defines a syscall message
 type SyscallMsg struct {
-	Type   SyscallType
-	PID    uint32
-	Retval int64
-	Exec   *ExecSyscallMsg   `json:",omitempty"`
-	Open   *OpenSyscallMsg   `json:",omitempty"`
-	Fork   *ForkSyscallMsg   `json:",omitempty"`
-	Exit   *ExitSyscallMsg   `json:",omitempty"`
-	Fcntl  *FcntlSyscallMsg  `json:",omitempty"`
-	SetUID *SetUIDSyscallMsg `json:",omitempty"`
-	SetGID *SetGIDSyscallMsg `json:",omitempty"`
+	Type      SyscallType
+	PID       uint32
+	Timestamp uint64
+	Retval    int64
+	Exec      *ExecSyscallMsg   `json:",omitempty"`
+	Open      *OpenSyscallMsg   `json:",omitempty"`
+	Fork      *ForkSyscallMsg   `json:",omitempty"`
+	Exit      *ExitSyscallMsg   `json:",omitempty"`
+	Fcntl     *FcntlSyscallMsg  `json:",omitempty"`
+	SetUID    *SetUIDSyscallMsg `json:",omitempty"`
+	SetGID    *SetGIDSyscallMsg `json:",omitempty"`
 
 	// internals
 	Dup   *DupSyscallFakeMsg   `json:",omitempty"`

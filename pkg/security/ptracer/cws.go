@@ -614,6 +614,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 				return
 			}
 			msg.PID = uint32(process.Tgid)
+			msg.Timestamp = uint64(time.Now().UnixNano())
 			send(&ebpfless.Message{
 				Type:    ebpfless.MessageTypeSyscall,
 				Syscall: msg,
