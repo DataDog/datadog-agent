@@ -224,7 +224,12 @@ func (p *processor) processHostScanResult(result sbom.ScanResult) {
 }
 
 func (p *processor) triggerHostScan(ch chan sbom.ScanResult) {
-	if !p.hostSBOM || ch == nil {
+	if !p.hostSBOM {
+		return
+	}
+
+	if ch == nil {
+		log.Errorf("scan result channel is nil")
 		return
 	}
 
