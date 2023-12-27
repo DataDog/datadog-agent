@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/netip"
 
-	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/slice"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -18,9 +17,9 @@ type LocalResolver struct {
 	processEventsEnabled bool
 }
 
-func NewLocalResolver(cfg *config.Config) LocalResolver {
+func NewLocalResolver(processEventsEnabled bool) LocalResolver {
 	return LocalResolver{
-		processEventsEnabled: cfg.EnableProcessEventMonitoring,
+		processEventsEnabled: processEventsEnabled,
 	}
 }
 
@@ -83,7 +82,7 @@ func (r LocalResolver) Resolve(conns slice.Chain[ConnectionStats]) bool {
 
 	log.TraceFunc(func() string { return fmt.Sprintf("ctrsByConn = %v", ctrsByConn) })
 
-	// go over connections again using hashtable computed earlier to resolver dest
+	// go over connections again using hashtable computed earlier to resolve dest
 	conns.Iterate(func(_ int, conn *ConnectionStats) {
 		if !conn.IntraHost {
 			return
