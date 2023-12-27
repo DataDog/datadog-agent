@@ -225,9 +225,9 @@ func (g *genericMapItemIterator[K, V]) Next(key *K, value *V) bool {
 	// so that the library detects the type correctly
 	if g.valueTypeCanUseUnsafePointer {
 		return g.it.Next(unsafe.Pointer(key), unsafe.Pointer(value))
-	} else {
-		return g.it.Next(unsafe.Pointer(key), value)
 	}
+
+	return g.it.Next(unsafe.Pointer(key), value)
 }
 
 func (g *genericMapItemIterator[K, V]) Err() error {
