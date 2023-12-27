@@ -14,21 +14,23 @@ import (
 )
 
 const (
-	OpenatNr   = 56  // OpenatNr defines the syscall ID for arm64
-	Openat2Nr  = 437 // Openat2Nr defines the syscall ID for amd64
-	ExecveNr   = 221 // ExecveNr defines the syscall ID for arm64
-	ExecveatNr = 281 // ExecveatNr defines the syscall ID for arm64
-	CloneNr    = 220 // CloneNr defines the syscall ID for arm64
-	ExitNr     = 93  // ExitNr defines the syscall ID for arm64
-	FcntlNr    = 25  // FcntlNr defines the syscall ID for arm64
-	DupNr      = 23  // DupNr defines the syscall ID for arm64
-	Dup3Nr     = 24  // Dup3Nr defines the syscall ID for arm64
-	ChdirNr    = 49  // ChdirNr defines the syscall ID for arm64
-	FchdirNr   = 50  // FchdirNr defines the syscall ID for arm64
-	SetuidNr   = 146 // SetuidNr defines the syscall ID for arm64
-	SetgidNr   = 144 // SetgidNr defines the syscall ID for arm64
-	SetreuidNr = 145 // SetreuidNr defines the syscall ID for arm64
-	SetregidNr = 143 // SetregidNr defines the syscall ID for arm64
+	OpenatNr         = 56  // OpenatNr defines the syscall ID for arm64
+	Openat2Nr        = 437 // Openat2Nr defines the syscall ID for amd64
+	NameToHandleAtNr = 264 // NameToHandleAtNr defines the syscall ID for amd64
+	OpenByHandleAtNr = 265 // OpenByHandleAtNr defines the syscall ID for amd64
+	ExecveNr         = 221 // ExecveNr defines the syscall ID for arm64
+	ExecveatNr       = 281 // ExecveatNr defines the syscall ID for arm64
+	CloneNr          = 220 // CloneNr defines the syscall ID for arm64
+	ExitNr           = 93  // ExitNr defines the syscall ID for arm64
+	FcntlNr          = 25  // FcntlNr defines the syscall ID for arm64
+	DupNr            = 23  // DupNr defines the syscall ID for arm64
+	Dup3Nr           = 24  // Dup3Nr defines the syscall ID for arm64
+	ChdirNr          = 49  // ChdirNr defines the syscall ID for arm64
+	FchdirNr         = 50  // FchdirNr defines the syscall ID for arm64
+	SetuidNr         = 146 // SetuidNr defines the syscall ID for arm64
+	SetgidNr         = 144 // SetgidNr defines the syscall ID for arm64
+	SetreuidNr       = 145 // SetreuidNr defines the syscall ID for arm64
+	SetregidNr       = 143 // SetregidNr defines the syscall ID for arm64
 
 	OpenNr  = -1 // OpenNr not available on arm64
 	ForkNr  = -2 // ForkNr not available on arm64
@@ -48,6 +50,8 @@ var (
 	PtracedSyscalls = []string{
 		"openat",
 		"openat2",
+		"name_to_handle_at",
+		"open_by_handle_at",
 		"clone",
 		"execve",
 		"execveat",

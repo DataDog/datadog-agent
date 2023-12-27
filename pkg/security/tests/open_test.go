@@ -191,10 +191,6 @@ func TestOpen(t *testing.T) {
 	})
 
 	t.Run("open_by_handle_at", func(t *testing.T) {
-		if test.opts.staticOpts.enableEBPFLess {
-			t.Skip("open_by_handle_at not supported yet")
-		}
-
 		defer os.Remove(testFile)
 
 		// wait for this first event
@@ -233,7 +229,9 @@ func TestOpen(t *testing.T) {
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags), "wrong flags")
-			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
+			if !test.opts.staticOpts.enableEBPFLess {
+				assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
+			}
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)

@@ -9,6 +9,8 @@
 package ptracer
 
 import (
+	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	golog "log"
@@ -27,6 +29,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
 	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
+
+type fileHandleKey struct {
+	handleBytes uint32
+	handleType  int32
+}
+
+type fileHandleVal struct {
+	pathName string
+}
+
+var fileHandleCache map[fileHandleKey]*fileHandleVal
 
 func fillProcessCwd(process *Process) error {
 	cwd, err := os.Readlink(fmt.Sprintf("/proc/%d/cwd", process.Pid))
@@ -127,6 +140,96 @@ func handleCreat(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, reg
 		Filename: filename,
 		Flags:    unix.O_CREAT | unix.O_WRONLY | unix.O_TRUNC,
 		Mode:     uint32(tracer.ReadArgUint64(regs, 1)),
+	}
+	return nil
+}
+
+func handleNameToHandleAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
+	fd := tracer.ReadArgInt32(regs, 0)
+
+	filename, err := tracer.ReadArgString(process.Pid, regs, 1)
+	if err != nil {
+		return err
+	}
+
+	filename, err = getFullPathFromFd(process, filename, fd)
+	if err != nil {
+		return err
+	}
+
+	msg.Type = ebpfless.SyscallTypeOpen
+	msg.Open = &ebpfless.OpenSyscallMsg{
+		Filename: filename,
+	}
+	return nil
+}
+
+func handleNameToHandleAtRet(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) {
+	if msg.Open == nil {
+		return
+	}
+
+	if ret := tracer.ReadRet(regs); ret < 0 {
+		return
+	}
+
+	pFileHandleData, err := tracer.ReadArgData(process.Pid, regs, 2, 8 /*sizeof uint32 + sizeof int32*/)
+	if err != nil {
+		return
+	}
+	var handleBytes uint32
+	var handleType int32
+	buf := bytes.NewReader(pFileHandleData[:4])
+	err = binary.Read(buf, native.Endian, &handleBytes)
+	if err != nil {
+		return
+	}
+	buf = bytes.NewReader(pFileHandleData[4:8])
+	err = binary.Read(buf, native.Endian, &handleType)
+	if err != nil {
+		return
+	}
+
+	key := fileHandleKey{
+		handleBytes: handleBytes,
+		handleType:  handleType,
+	}
+	fileHandleCache[key] = &fileHandleVal{
+		pathName: msg.Open.Filename,
+	}
+	return
+}
+
+func handleOpenByHandleAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
+	pFileHandleData, err := tracer.ReadArgData(process.Pid, regs, 1, 8 /*sizeof uint32 + sizeof int32*/)
+	if err != nil {
+		return err
+	}
+	var handleBytes uint32
+	var handleType int32
+	buf := bytes.NewReader(pFileHandleData[:4])
+	err = binary.Read(buf, native.Endian, &handleBytes)
+	if err != nil {
+		return err
+	}
+	buf = bytes.NewReader(pFileHandleData[4:8])
+	err = binary.Read(buf, native.Endian, &handleType)
+	if err != nil {
+		return err
+	}
+
+	key := fileHandleKey{
+		handleBytes: handleBytes,
+		handleType:  handleType,
+	}
+	val, ok := fileHandleCache[key]
+	if !ok {
+		return errors.New("didnt find correspondance in the file handle cache")
+	}
+	msg.Type = ebpfless.SyscallTypeOpen
+	msg.Open = &ebpfless.OpenSyscallMsg{
+		Filename: val.pathName,
+		Flags:    uint32(tracer.ReadArgUint64(regs, 2)),
 	}
 	return nil
 }
@@ -491,6 +594,8 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 		},
 	})
 
+	fileHandleCache = make(map[fileHandleKey]*fileHandleVal)
+
 	cb := func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs) {
 		process := pc.Get(pid)
 		if process == nil {
@@ -523,6 +628,21 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 			case OpenatNr, Openat2Nr:
 				if err := handleOpenAt(tracer, process, syscallMsg, regs); err != nil {
 					logErrorf("unable to handle openat: %v", err)
+					return
+				}
+			case CreatNr:
+				if err = handleCreat(tracer, process, syscallMsg, regs); err != nil {
+					logErrorf("unable to handle creat: %v", err)
+					return
+				}
+			case NameToHandleAtNr:
+				if err = handleNameToHandleAt(tracer, process, syscallMsg, regs); err != nil {
+					logErrorf("unable to handle name_to_handle_at: %v", err)
+					return
+				}
+			case OpenByHandleAtNr:
+				if err = handleOpenByHandleAt(tracer, process, syscallMsg, regs); err != nil {
+					logErrorf("unable to handle open_by_handle_at: %v", err)
 					return
 				}
 			case ExecveNr:
@@ -606,11 +726,6 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 					logErrorf("unable to handle fchdir: %v", err)
 					return
 				}
-			case CreatNr:
-				if err = handleCreat(tracer, process, syscallMsg, regs); err != nil {
-					logErrorf("unable to handle creat: %v", err)
-					return
-				}
 			}
 		case CallbackPostType:
 			switch nr {
@@ -619,7 +734,13 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 
 				// now the pid is the tgid
 				process.Pid = process.Tgid
-			case OpenNr, OpenatNr, CreatNr:
+			case NameToHandleAtNr:
+				syscallMsg, exists := process.Nr[nr]
+				if !exists {
+					return
+				}
+				handleNameToHandleAtRet(tracer, process, syscallMsg, regs)
+			case OpenNr, OpenatNr, CreatNr, OpenByHandleAtNr:
 				if ret := tracer.ReadRet(regs); !isAcceptedRetval(ret) {
 					syscallMsg, exists := process.Nr[nr]
 					if !exists || syscallMsg.Open == nil {

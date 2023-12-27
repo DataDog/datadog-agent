@@ -10,6 +10,7 @@ package ptracer
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"runtime"
 	"syscall"
@@ -91,6 +92,34 @@ func (t *Tracer) readString(pid int, ptr uint64) (string, error) {
 	return string(data[:n]), nil
 }
 
+func (t *Tracer) readInt32(pid int, ptr uint64) (int32, error) {
+	data := make([]byte, 4)
+
+	_, err := processVMReadv(pid, uintptr(ptr), data)
+	if err != nil {
+		return 0, err
+	}
+
+	// []byte to int32
+	buf := bytes.NewReader(data)
+	var val int32
+	err = binary.Read(buf, native.Endian, &val)
+	if err != nil {
+		return 0, err
+	}
+	return val, nil
+}
+
+func (t *Tracer) readData(pid int, ptr uint64, size uint) ([]byte, error) {
+	data := make([]byte, size)
+
+	_, err := processVMReadv(pid, uintptr(ptr), data)
+	if err != nil {
+		return []byte{}, err
+	}
+	return data, nil
+}
+
 // PeekString peeks and returns a string from a pid at a given addr ptr
 func (t *Tracer) PeekString(pid int, ptr uint64) (string, error) {
 	var (
@@ -129,6 +158,18 @@ func (t *Tracer) ReadArgInt64(regs syscall.PtraceRegs, arg int) int64 {
 // ReadArgInt32 reads the regs and returns the wanted arg as int32
 func (t *Tracer) ReadArgInt32(regs syscall.PtraceRegs, arg int) int32 {
 	return int32(t.argToRegValue(regs, arg))
+}
+
+// ReadArgInt32Ptr reads the regs and returns the wanted arg as int32
+func (t *Tracer) ReadArgInt32Ptr(pid int, regs syscall.PtraceRegs, arg int) (int32, error) {
+	ptr := t.argToRegValue(regs, arg)
+	return t.readInt32(pid, ptr)
+}
+
+// ReadArgString reads the regs and returns the wanted arg as byte array
+func (t *Tracer) ReadArgData(pid int, regs syscall.PtraceRegs, arg int, size uint) ([]byte, error) {
+	ptr := t.argToRegValue(regs, arg)
+	return t.readData(pid, ptr, size)
 }
 
 // ReadArgUint32 reads the regs and returns the wanted arg as uint32
