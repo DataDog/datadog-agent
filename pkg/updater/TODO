@@ -1,3 +1,0 @@
-- Remote "initialize" from Updater and use a dedicated boostrap struct instead. Error if no stable on updater creation.
-- Integrate a hardcoded catalog properly.
-- Add HTTP api

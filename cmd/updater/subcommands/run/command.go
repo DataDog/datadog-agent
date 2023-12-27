@@ -33,7 +33,10 @@ func run(pkg string) error {
 	if err != nil {
 		return fmt.Errorf("could not create org config: %w", err)
 	}
-	u := updater.NewUpdater(orgConfig, pkg)
+	u, err := updater.NewUpdater(orgConfig, pkg)
+	if err != nil {
+		return fmt.Errorf("could not create updater: %w", err)
+	}
 	api, err := updater.NewLocalAPI(u)
 	if err != nil {
 		return fmt.Errorf("could not create local API: %w", err)

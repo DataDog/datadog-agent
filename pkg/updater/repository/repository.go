@@ -39,6 +39,34 @@ type Repository struct {
 	RootPath string
 }
 
+// Status is the status of the repository.
+type Status struct {
+	Stable     string
+	Experiment string
+}
+
+// HasStable returns true if the repository has a stable package.
+func (s *Status) HasStable() bool {
+	return s.Stable != ""
+}
+
+// HasExperiment returns true if the repository has an experiment package.
+func (s *Status) HasExperiment() bool {
+	return s.Experiment != ""
+}
+
+// GetStatus returns the status of the repository.
+func (r *Repository) GetStatus() (*Status, error) {
+	repository, err := openRepository(r.RootPath)
+	if err != nil {
+		return nil, err
+	}
+	return &Status{
+		Stable:     repository.stable.Target(),
+		Experiment: repository.experiment.Target(),
+	}, nil
+}
+
 // Create creates a fresh new repository at the given root path
 // and moves the given stable source path to the repository as the first stable.
 // If a repository already exists at the given path, it is fully removed.
@@ -272,7 +300,10 @@ func (l *link) Exists() bool {
 }
 
 func (l *link) Target() string {
-	return filepath.Base(*l.packagePath)
+	if l.Exists() {
+		return filepath.Base(*l.packagePath)
+	}
+	return ""
 }
 
 func (l *link) Set(path string) error {

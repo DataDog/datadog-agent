@@ -7,24 +7,16 @@ package updater
 
 import (
 	"context"
+	_ "embed"
+	"encoding/json"
 	"fmt"
 )
 
-// TODO: Remove test packages, use remote catalog instead.
-var (
-	testGolangPackage1_21_5 = Package{
-		Package: "go",
-		Version: "1.21.5",
-		SHA256:  "e2bc0b3e4b64111ec117295c088bde5f00eeed1567999ff77bc859d7df70078e",
-		URL:     "https://go.dev/dl/go1.21.5.linux-amd64.tar.gz",
-	}
-	testGolangPackage1_20_12 = Package{
-		Package: "go",
-		Version: "1.20.12",
-		SHA256:  "9c5d48c54dd8b0a3b2ef91b0f92a1190aa01f11d26e98033efa64c46a30bba7b",
-		URL:     "https://go.dev/dl/go1.20.12.linux-amd64.tar.gz",
-	}
-)
+//go:embed data/catalog.json
+var rawCatalog []byte
+
+//go:embed data/defaults.json
+var rawDefaults []byte
 
 // OrgConfig represents the (remote) configuration of an organization.
 // More precisely it hides away the RC details to obtain:
@@ -47,22 +39,35 @@ type Package struct {
 	URL     string `json:"url"`
 }
 
+type catalog struct {
+	Packages []Package `json:"packages"`
+}
+
 // GetPackage returns the package with the given name and version.
 // The function will block until the catalog is received from RC.
-// TODO: Implement with RC support.
+// TODO: Implement with RC support instead of hardcoded files.
 func (c *OrgConfig) GetPackage(_ context.Context, pkg string, version string) (Package, error) {
-	if pkg == "go" && version == "1.21.5" {
-		return testGolangPackage1_21_5, nil
+	var catalog catalog
+	err := json.Unmarshal(rawCatalog, &catalog)
+	if err != nil {
+		return Package{}, fmt.Errorf("could not unmarshal catalog: %w", err)
 	}
-	return Package{}, fmt.Errorf("not implemented")
+	for _, p := range catalog.Packages {
+		if p.Package == pkg && p.Version == version {
+			return p, nil
+		}
+	}
+	return Package{}, fmt.Errorf("package %s version %s not found", pkg, version)
 }
 
 // GetDefaultPackage returns the default version for the given package.
 // The function will block until the catalog and org preferences are received from RC.
-// TODO: Implement with RC support.
-func (c *OrgConfig) GetDefaultPackage(_ context.Context, pkg string) (Package, error) {
-	if pkg == "go" {
-		return testGolangPackage1_20_12, nil
+// TODO: Implement with RC support instead of hardcoded files.
+func (c *OrgConfig) GetDefaultPackage(ctx context.Context, pkg string) (Package, error) {
+	var defaults map[string]string
+	err := json.Unmarshal(rawDefaults, &defaults)
+	if err != nil {
+		return Package{}, fmt.Errorf("could not unmarshal defaults: %w", err)
 	}
-	return Package{}, fmt.Errorf("not implemented")
+	return c.GetPackage(ctx, pkg, defaults[pkg])
 }

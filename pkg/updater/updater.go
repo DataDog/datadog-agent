@@ -58,14 +58,22 @@ type Updater struct {
 }
 
 // NewUpdater returns a new Updater.
-func NewUpdater(orgConfig *OrgConfig, pkg string) *Updater {
-	return &Updater{
+func NewUpdater(orgConfig *OrgConfig, pkg string) (*Updater, error) {
+	u := &Updater{
 		pkg:            pkg,
 		repositoryPath: defaultRepositoryPath,
 		orgConfig:      orgConfig,
 		repository:     &repository.Repository{RootPath: path.Join(defaultRepositoryPath, pkg)},
 		downloader:     newDownloader(http.DefaultClient),
 	}
+	status, err := u.repository.GetStatus()
+	if err != nil {
+		return nil, fmt.Errorf("could not get repository status: %w", err)
+	}
+	if !status.HasStable() {
+		return nil, fmt.Errorf("attempt to create an updater for a package that has not been bootstrapped with a stable version")
+	}
+	return u, nil
 }
 
 // StartExperiment starts an experiment with the given package.
