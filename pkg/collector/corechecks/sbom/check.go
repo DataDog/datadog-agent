@@ -180,7 +180,10 @@ func (c *Check) Run() error {
 		workloadmeta.NewFilter(&filterParams),
 	)
 
-	// Trigger an initial scan on host
+	// Trigger an initial scan on host. This channel is buffered to avoid blocking the scanner
+	// if the processor is not ready to receive the result yet. This channel should not be closed,
+	// it is sent as part of every scan request. When the main context terminates, both references will
+	// be dropped and the scanner will be garbage collected.
 	hostSbomChan := make(chan sbom.ScanResult, 1)
 	c.processor.triggerHostScan(hostSbomChan)
 
