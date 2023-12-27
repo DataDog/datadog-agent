@@ -29,8 +29,8 @@ var processDiscoveryCheckConfigStr string
 var systemProbeConfigStr string
 
 // assertRunningChecks asserts that the given process agent checks are running on the given VM
-func assertRunningChecks(t *assert.CollectT, vm client.VM, checks []string, withSystemProbe bool) {
-	status := vm.Execute("sudo datadog-agent status --json")
+func assertRunningChecks(t *assert.CollectT, vm client.VM, checks []string, withSystemProbe bool, command string) {
+	status := vm.Execute(command)
 	var statusMap struct {
 		ProcessAgentStatus struct {
 			Expvars struct {
@@ -50,10 +50,10 @@ func assertRunningChecks(t *assert.CollectT, vm client.VM, checks []string, with
 	}
 }
 
-// assertStressProcessCollected asserts that the stress process is collected by the process check
+// assertStressProcessCollected asserts that the given process is collected by the process check
 // and that it has the expected data populated
-func assertStressProcessCollected(
-	t *testing.T, payloads []*aggregator.ProcessPayload, withIOStats bool,
+func assertProcessCollected(
+	t *testing.T, payloads []*aggregator.ProcessPayload, withIOStats bool, process string,
 ) {
 	defer func() {
 		if t.Failed() {
@@ -63,14 +63,14 @@ func assertStressProcessCollected(
 
 	var found, populated bool
 	for _, payload := range payloads {
-		found, populated = findProcess("stress", payload.Processes, withIOStats)
+		found, populated = findProcess(process, payload.Processes, withIOStats)
 		if found && populated {
 			break
 		}
 	}
 
-	require.True(t, found, "stress process not found")
-	assert.True(t, populated, "no stress process had all data populated")
+	require.True(t, found, process + " process not found")
+	assert.True(t, populated, process + "no process had all data populated")
 }
 
 // findProcess returns whether the process with the given name exists in the given list of
@@ -112,7 +112,7 @@ func processHasIOStats(process *agentmodel.Process) bool {
 // assertStressProcessDiscoveryCollected asserts that the stress process is collected by the process
 // discovery check and that it has the expected data populated
 func assertStressProcessDiscoveryCollected(
-	t *testing.T, payloads []*aggregator.ProcessDiscoveryPayload,
+	t *testing.T, payloads []*aggregator.ProcessDiscoveryPayload, process string,
 ) {
 	defer func() {
 		if t.Failed() {
@@ -122,14 +122,14 @@ func assertStressProcessDiscoveryCollected(
 
 	var found, populated bool
 	for _, payload := range payloads {
-		found, populated = findProcessDiscovery("stress", payload.ProcessDiscoveries)
+		found, populated = findProcessDiscovery(process, payload.ProcessDiscoveries)
 		if found && populated {
 			break
 		}
 	}
 
-	require.True(t, found, "stress process not found")
-	assert.True(t, populated, "no stress process had all data populated")
+	require.True(t, found, process + " process not found")
+	assert.True(t, populated, process + "no stress process had all data populated")
 }
 
 // findProcessDiscovery returns whether the process with the given name exists in the given list of
