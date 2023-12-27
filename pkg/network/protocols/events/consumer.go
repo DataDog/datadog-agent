@@ -92,11 +92,11 @@ func NewConsumer[V any](proto string, ebpf *manager.Manager, callback func([]V))
 	// `bpf_perf_event_output`. This is usually indicative of a slow-consumer
 	// problem, because flushing a perf event will fail when there is no space
 	// available in the perf ring. Having said that, in the context of this
-	// library a failed call to `bpf_perf_event_ouput` won't necessarily
+	// library a failed call to `bpf_perf_event_output` won't necessarily
 	// translate into data drop, because this library will retry flushing a
 	// given batch *until the call to `bpf_perf_event_output` succeeds*.  This
 	// is OK (in terms of no datapoints being dropped) as long as we have enough
-	// event "slots" in other batch pages.
+	// event "slots" in other batch pages while the retrying happens.
 	//
 	// The exact number of events dropped can be obtained using the metric
 	// `kernel_dropped_events`.
