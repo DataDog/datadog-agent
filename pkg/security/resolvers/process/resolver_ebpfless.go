@@ -117,7 +117,6 @@ func (p *EBPFLessResolver) AddExecEntry(key CacheResolverKey, file string, argv 
 
 	// TODO fix timestamp
 	entry.ExecTime = time.Now()
-	entry.CreatedAt = uint64(entry.ExecTime.UnixNano())
 
 	p.Lock()
 	defer p.Unlock()
