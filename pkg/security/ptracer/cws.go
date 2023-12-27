@@ -367,9 +367,9 @@ func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool,
 	logDebugf("Run %s %v [%s]", entry, args, os.Getenv("DD_CONTAINER_ID"))
 
 	var (
-		client net.Conn
+		client      net.Conn
+		clientReady = make(chan bool, 1)
 	)
-	clientReady := make(chan bool)
 
 	if probeAddr != "" {
 		logDebugf("connection to system-probe...")
