@@ -86,7 +86,7 @@ def update_go(
         else:
             raise
 
-    _update_references(warn, version, new_minor)
+    _update_references(warn, version)
     _update_go_mods(warn, new_minor, include_otel_modules)
 
     # check the installed go version before running `tidy_all`
@@ -162,7 +162,8 @@ def _get_pattern(pre_pattern: str, post_pattern: str, minor: bool) -> Tuple[str,
     return pattern
 
 
-def _update_references(warn: bool, version: str, new_minor: str):
+def _update_references(warn: bool, version: str):
+    new_minor = _get_minor_version(version)
     for path, pre_pattern, post_pattern, minor in GO_VERSION_REFERENCES:
         pattern = _get_pattern(pre_pattern, post_pattern, minor)
         new_version = new_minor if minor else version
@@ -170,14 +171,14 @@ def _update_references(warn: bool, version: str, new_minor: str):
         _update_file(warn, path, pattern, replace)
 
 
-def _update_go_mods(warn: bool, major: str, include_otel_modules: bool):
+def _update_go_mods(warn: bool, minor: str, include_otel_modules: bool):
     for path, module in DEFAULT_MODULES.items():
         if not include_otel_modules and module.used_by_otel:
             # only update the go directives in go.mod files not used by otel
             # to allow them to keep using the modules
             continue
         mod_file = f"./{path}/go.mod"
-        _update_file(warn, mod_file, "^go [.0-9]+$", f"go {major}")
+        _update_file(warn, mod_file, "^go [.0-9]+$", f"go {minor}")
 
 
 def _create_releasenote(ctx: Context, version: str):
