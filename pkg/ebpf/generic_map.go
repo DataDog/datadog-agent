@@ -140,6 +140,11 @@ func (g *GenericMap[K, V]) Lookup(key *K, valueOut *V) error {
 	return g.m.Lookup(unsafe.Pointer(key), unsafe.Pointer(valueOut))
 }
 
+// LookupPerCPU looks up a key in the map and returns the value, used for PerCPU maps. If the key doesn't exist, it returns ErrKeyNotExist
+func (g *GenericMap[K, V]) LookupPerCPU(key *K, valueOut []V) error {
+	return g.m.Lookup(unsafe.Pointer(key), valueOut)
+}
+
 // Delete deletes a key from the map. If the key doesn't exist, it returns ErrKeyNotExist
 func (g *GenericMap[K, V]) Delete(key *K) error {
 	return g.m.Delete(unsafe.Pointer(key))
