@@ -10,7 +10,7 @@ import (
 	"fmt"
 )
 
-// TODO: Remove test packages
+// TODO: Remove test packages, use remote catalog instead.
 var (
 	testGolangPackage1_21_5 = Package{
 		Package: "go",

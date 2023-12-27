@@ -49,20 +49,22 @@ func Install(ctx context.Context, orgConfig *OrgConfig, pkg string) error {
 
 // Updater is the updater used to update packages.
 type Updater struct {
-	m          sync.Mutex
-	pkg        string
-	orgConfig  *OrgConfig
-	repository *repository.Repository
-	downloader *downloader
+	m              sync.Mutex
+	pkg            string
+	repositoryPath string
+	orgConfig      *OrgConfig
+	repository     *repository.Repository
+	downloader     *downloader
 }
 
 // NewUpdater returns a new Updater.
 func NewUpdater(orgConfig *OrgConfig, pkg string) *Updater {
 	return &Updater{
-		pkg:        pkg,
-		orgConfig:  orgConfig,
-		repository: &repository.Repository{RootPath: path.Join(defaultRepositoryPath, pkg)},
-		downloader: newDownloader(http.DefaultClient),
+		pkg:            pkg,
+		repositoryPath: defaultRepositoryPath,
+		orgConfig:      orgConfig,
+		repository:     &repository.Repository{RootPath: path.Join(defaultRepositoryPath, pkg)},
+		downloader:     newDownloader(http.DefaultClient),
 	}
 }
 
