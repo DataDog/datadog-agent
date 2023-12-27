@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/require"
 )
@@ -19,10 +19,17 @@ import (
 func TestBatchAPISupported(t *testing.T) {
 	// Batch API is supported on kernels >= 5.6, so make sure that in those cases
 	// it returns true
-	kernelVersion, err := kernel.HostVersion()
+	kernelVersion, err := kernel.NewKernelVersion()
 	require.NoError(t, err)
 
-	if kernelVersion <= kernel.VersionCode(5, 6, 0) {
+	if kernelVersion.IsRH7Kernel() || kernelVersion.IsRH8Kernel() {
+		// Some of those kernels have backported the batch API, I don't want
+		// to include those specifics in unit tests that are only meant to ensure
+		// that the checks are correct in at least the basic cases.
+		t.Skip("Unknown support for batch API on RHEL kernels")
+	}
+
+	if kernelVersion.Code < kernel.Kernel5_9 {
 		require.False(t, BatchAPISupported())
 	} else {
 		require.True(t, BatchAPISupported())
