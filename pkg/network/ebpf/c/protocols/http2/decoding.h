@@ -704,6 +704,13 @@ int socket__http2_filter(struct __sk_buff *skb) {
     skb_info_t local_skb_info = dispatcher_args_copy.skb_info;
 
     bool have_more_frames_to_process = find_relevant_frames(skb, &local_skb_info, iteration_value, http2_tel);
+    // We have found there are more frames to filter, so we will call frame_filter again.
+    // Max current amount of tail calls would be 2, which will allow us to currently parse
+    // HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER*HTTP2_MAX_FRAMES_ITERATIONS.
+    if (have_more_frames_to_process && iteration_value->filter_iterations < HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER) {
+        iteration_value->filter_iterations++;
+        bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2_FRAME_FILTER);
+    }
 
     frame_header_remainder_t new_frame_state = { 0 };
     if (local_skb_info.data_off > local_skb_info.data_end) {
@@ -725,15 +732,6 @@ int socket__http2_filter(struct __sk_buff *skb) {
     if (iteration_value->frames_count == 0) {
         return 0;
     }
-
-    // We have found there are more frames to filter, so we will call frame_filter again.
-    // Max current amount of tail calls would be 2, which will allow us to currently parse
-    // HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER*HTTP2_MAX_FRAMES_ITERATIONS.
-    if (have_more_frames_to_process && iteration_value->filter_iterations < HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER) {
-        iteration_value->filter_iterations++;
-        bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2_FRAME_FILTER);
-    }
-
 
     // We have couple of interesting headers, launching tail calls to handle them.
     if (bpf_map_update_elem(&http2_iterations, &dispatcher_args_copy, iteration_value, BPF_NOEXIST) >= 0) {

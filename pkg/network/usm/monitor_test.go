@@ -10,6 +10,7 @@ package usm
 import (
 	"bytes"
 	"crypto/tls"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -61,9 +62,10 @@ const (
 	kb = 1024
 	mb = 1024 * kb
 
-	http2SrvAddr    = "http://127.0.0.1:8082"
-	http2SrvPortStr = ":8082"
-	http2SrvPort    = 8082
+	http2SrvAddr              = "http://127.0.0.1:8082"
+	http2SrvPortStr           = ":8082"
+	http2SrvPort              = 8082
+	settingsFramesRepeatCount = 130
 )
 
 var (
@@ -910,6 +912,171 @@ func (s *USMHTTP2Suite) TestHTTP2KernelTelemetry() {
 			}, time.Second*5, time.Millisecond*100)
 			if t.Failed() {
 				t.Logf("expected telemetry: %+v;\ngot: %+v", tt.expectedTelemetry, telemetry)
+			}
+		})
+	}
+}
+
+func (s *USMHTTP2Suite) TestRawTraffic() {
+	t := s.T()
+	cfg := networkconfig.New()
+	cfg.EnableHTTP2Monitoring = true
+
+	startH2CServer(t)
+
+	tests := []struct {
+		name              string
+		runClients        func(t *testing.T, clientsCount int)
+		expectedEndpoints map[http.Key]captureRange
+	}{
+		{
+			name: "test parse frames tail call using raw tcp",
+			// The purpose of this test is to validate that when we surpass the limit of HTTP2_MAX_FRAMES_ITERATIONS,
+			// the filtering of subsequent frames will continue using tail calls.
+			// Raw TCP is necessary for sending a large number of frames.
+			runClients: func(t *testing.T, clientsCount int) {
+				magicFrame := []byte{
+					// http2 magic
+					0x50, 0x52, 0x49, 0x20, 0x2a, 0x20, 0x48, 0x54, 0x54, 0x50, 0x2f, 0x32, 0x2e, 0x30, 0x0d, 0x0a, 0x0d, 0x0a, 0x53, 0x4d, 0x0d, 0x0a, 0x0d, 0x0a,
+				}
+				settingsFrame := []byte{
+					// settings frame
+					0x00, 0x00, 0x12, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x40, 0x00, 0x00, 0x00, 0x06, 0x00, 0xa0, 0x00, 0x00,
+				}
+				input := make([]byte, 0, len(settingsFrame)*settingsFramesRepeatCount+len(magicFrame))
+				input = append(input, magicFrame...)
+				for i := 0; i < settingsFramesRepeatCount; i++ {
+					input = append(input, settingsFrame...)
+				}
+				c, err := net.Dial("tcp", "127.0.0.1:8082")
+				require.NoError(t, err, "could not dial")
+				defer c.Close()
+				// Sending a magic and the settings in the same packet (we can send them separately).
+				_, err = c.Write(input)
+				require.NoError(t, err, "could not make request")
+				frame := make([]byte, 9)
+				// Since we don't know when to stop reading from the socket, we set a timeout.
+				c.SetReadDeadline(time.Now().Add(time.Second * 5))
+				for {
+					// Read the frame header.
+					_, err := c.Read(frame)
+					if err != nil {
+						break
+					}
+					// Calculate frame length.
+					frameLength := int(binary.BigEndian.Uint32(append([]byte{0}, frame[:3]...)))
+					if frameLength == 0 {
+						continue
+					}
+					// Read the frame payload.
+					payload := make([]byte, frameLength)
+					_, err = c.Read(payload)
+					if err != nil {
+						break
+					}
+				}
+
+				input = []byte{
+					// Headers frame for POST /aaa
+					0x00, 0x00, 0x37, 0x01, 0x04, 0x00, 0x00, 0x00, 0x03, 0x41, 0x8a, 0x08, 0x9d, 0x5c, 0x0b, 0x81,
+					0x70, 0xdc, 0x78, 0x0f, 0x0b, 0x83, 0x45, 0x83, 0x60, 0x63, 0x1f, 0x86, 0x5f, 0x8b, 0x1d, 0x75,
+					0xd0, 0x62, 0x0d, 0x26, 0x3d, 0x4c, 0x74, 0x41, 0xea, 0x5c, 0x01, 0x34, 0x50, 0x83, 0x9b, 0xd9,
+					0xab, 0x7a, 0x8d, 0xc4, 0x75, 0xa7, 0x4a, 0x6b, 0x58, 0x94, 0x18, 0xb5, 0x25, 0x81, 0x2e, 0x0f,
+					// Data frame & End of stream
+					0x00, 0x00, 0x04, 0x00, 0x01, 0x00, 0x00, 0x00, 0x03, 0x74, 0x65, 0x73, 0x74,
+				}
+				_, err = c.Write(input)
+				require.NoError(t, err, "could not make request")
+				// Reset the timeout.
+				c.SetReadDeadline(time.Now().Add(time.Second * 5))
+				for {
+					// Read the frame header.
+					_, err := c.Read(frame)
+					if err != nil {
+						break
+					}
+					// Calculate frame length.
+					frameLength := int(binary.BigEndian.Uint32(append([]byte{0}, frame[:3]...)))
+					if frameLength == 0 {
+						continue
+					}
+					// Read the frame payload.
+					payload := make([]byte, frameLength)
+					_, err = c.Read(payload)
+					if err != nil {
+						break
+					}
+				}
+			},
+			expectedEndpoints: map[http.Key]captureRange{
+				{
+					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
+					Method: http.MethodPost,
+				}: {
+					lower: 1,
+					upper: 1,
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			monitor, err := NewMonitor(cfg, nil, nil, nil)
+			require.NoError(t, err)
+			require.NoError(t, monitor.Start())
+			defer monitor.Stop()
+
+			tt.runClients(t, 1)
+
+			res := make(map[http.Key]int)
+			assert.Eventually(t, func() bool {
+				stats := monitor.GetProtocolStats()
+				http2Stats, ok := stats[protocols.HTTP2]
+				if !ok {
+					return false
+				}
+				http2StatsTyped := http2Stats.(map[http.Key]*http.RequestStats)
+				for key, stat := range http2StatsTyped {
+					if key.DstPort == http2SrvPort || key.SrcPort == http2SrvPort {
+						count := stat.Data[200].Count
+						newKey := http.Key{
+							Path:   http.Path{Content: key.Path.Content},
+							Method: key.Method,
+						}
+						if _, ok := res[newKey]; !ok {
+							res[newKey] = count
+						} else {
+							res[newKey] += count
+						}
+					}
+				}
+
+				if len(res) != len(tt.expectedEndpoints) {
+					return false
+				}
+
+				for key, count := range res {
+					valRange, ok := tt.expectedEndpoints[key]
+					if !ok {
+						return false
+					}
+					if count < valRange.lower || count > valRange.upper {
+						return false
+					}
+				}
+
+				return true
+			}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
+			if t.Failed() {
+				for key := range tt.expectedEndpoints {
+					if _, ok := res[key]; !ok {
+						t.Logf("key: %v was not found in res", key.Path.Content.Get())
+					}
+				}
+				err := monitor.DumpMaps(&ebpftest.TestLogWriter{T: t}, "http2_in_flight")
+				if err != nil {
+					t.Logf("failed dumping http2_in_flight: %s", err)
+				}
 			}
 		})
 	}
