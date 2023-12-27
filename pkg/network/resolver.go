@@ -13,10 +13,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// LocalResolver resolves connection remote addresses
 type LocalResolver struct {
 	processEventsEnabled bool
 }
 
+// NewLocalResolver creates a new LocalResolver
 func NewLocalResolver(processEventsEnabled bool) LocalResolver {
 	return LocalResolver{
 		processEventsEnabled: processEventsEnabled,
