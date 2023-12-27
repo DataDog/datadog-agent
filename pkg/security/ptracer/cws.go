@@ -9,14 +9,10 @@
 package ptracer
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	golog "log"
 	"net"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -61,7 +57,7 @@ func getFullPathFromFd(process *Process, filename string, fd int32) (string, err
 			if path, exists := process.Fd[fd]; exists {
 				filename = filepath.Join(path, filename)
 			} else {
-				return "", errors.New("Process FD cache incomplete during path resolution")
+				return "", errors.New("process FD cache incomplete during path resolution")
 			}
 		}
 	}
@@ -131,9 +127,16 @@ func handleExecveAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, 
 		return err
 	}
 
-	filename, err = getFullPathFromFd(process, filename, fd)
-	if err != nil {
-		return err
+	if filename == "" { // in this case, dirfd defines directly the file's FD
+		var exists bool
+		if filename, exists = process.Fd[fd]; !exists || filename == "" {
+			return errors.New("can't find related file path")
+		}
+	} else {
+		filename, err = getFullPathFromFd(process, filename, fd)
+		if err != nil {
+			return err
+		}
 	}
 
 	args, err := tracer.ReadArgStringArray(process.Pid, regs, 2)
@@ -238,106 +241,39 @@ func handleFchdir(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, re
 	return nil
 }
 
-// ECSMetadata defines ECS metadatas
-type ECSMetadata struct {
-	DockerID   string `json:"DockerId"`
-	DockerName string `json:"DockerName"`
-	Name       string `json:"Name"`
-}
-
-// simpleHTTPRequest used to avoid importing the crypto golang package
-func simpleHTTPRequest(uri string) ([]byte, error) {
-	u, err := url.Parse(uri)
-	if err != nil {
-		return nil, err
+func handleSetuid(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
+	msg.Type = ebpfless.SyscallTypeSetUID
+	msg.SetUID = &ebpfless.SetUIDSyscallMsg{
+		UID:  tracer.ReadArgInt32(regs, 0),
+		EUID: -1,
 	}
-
-	addr := u.Host
-	if u.Port() == "" {
-		addr += ":80"
-	}
-
-	tcpAddr, err := net.ResolveTCPAddr("tcp", addr)
-	if err != nil {
-		return nil, err
-	}
-
-	client, err := net.DialTCP("tcp", nil, tcpAddr)
-	if err != nil {
-		return nil, err
-	}
-	defer client.Close()
-
-	path := u.Path
-	if path == "" {
-		path = "/"
-	}
-
-	req := fmt.Sprintf("GET %s?%s HTTP/1.1\nHost: %s\nConnection: close\n\n", path, u.RawQuery, u.Hostname())
-
-	_, err = client.Write([]byte(req))
-	if err != nil {
-		return nil, err
-	}
-
-	var body []byte
-	buf := make([]byte, 256)
-
-	for {
-		n, err := client.Read(buf)
-		if err != nil {
-			if err != io.EOF {
-				return nil, err
-			}
-			break
-		}
-		body = append(body, buf[:n]...)
-	}
-
-	offset := bytes.Index(body, []byte{'\r', '\n', '\r', '\n'})
-	if offset < 0 {
-
-		return nil, errors.New("unable to parse http response")
-	}
-
-	return body[offset+2:], nil
-}
-
-func retrieveECSMetadata(ctx *ebpfless.ContainerContext) error {
-	url := os.Getenv("ECS_CONTAINER_METADATA_URI_V4")
-	if url == "" {
-		return nil
-	}
-
-	body, err := simpleHTTPRequest(url)
-	if err != nil {
-		return err
-	}
-
-	data := ECSMetadata{}
-	if err = json.Unmarshal(body, &data); err != nil {
-		return err
-	}
-
-	if data.DockerID != "" && ctx.ID == "" {
-		// only set the container ID if we previously failed to retrieve it from proc
-		ctx.ID = data.DockerID
-	}
-	if data.DockerName != "" {
-		ctx.Name = data.DockerName
-	}
-
 	return nil
 }
 
-func retrieveEnvMetadata(ctx *ebpfless.ContainerContext) {
-	if id := os.Getenv("DD_CONTAINER_ID"); id != "" {
-		ctx.ID = id
+func handleSetgid(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
+	msg.Type = ebpfless.SyscallTypeSetGID
+	msg.SetGID = &ebpfless.SetGIDSyscallMsg{
+		GID: tracer.ReadArgInt32(regs, 0),
 	}
+	return nil
+}
 
-	if name := os.Getenv("DD_CONTAINER_NAME"); name != "" {
-		ctx.Name = name
+func handleSetreuid(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
+	msg.Type = ebpfless.SyscallTypeSetUID
+	msg.SetUID = &ebpfless.SetUIDSyscallMsg{
+		UID:  tracer.ReadArgInt32(regs, 0),
+		EUID: tracer.ReadArgInt32(regs, 1),
 	}
+	return nil
+}
+
+func handleSetregid(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
+	msg.Type = ebpfless.SyscallTypeSetGID
+	msg.SetGID = &ebpfless.SetGIDSyscallMsg{
+		GID:  tracer.ReadArgInt32(regs, 0),
+		EGID: tracer.ReadArgInt32(regs, 1),
+	}
+	return nil
 }
 
 func checkEntryPoint(path string) (string, error) {
@@ -367,8 +303,54 @@ func checkEntryPoint(path string) (string, error) {
 	return name, nil
 }
 
+func isAcceptedRetval(retval int64) bool {
+	return retval < 0 && retval != -int64(syscall.EACCES) && retval != -int64(syscall.EPERM)
+}
+
+func initConn(probeAddr string, nbAttempts uint) (net.Conn, error) {
+	tcpAddr, err := net.ResolveTCPAddr("tcp", probeAddr)
+	if err != nil {
+		return nil, err
+	}
+
+	var (
+		client net.Conn
+	)
+
+	err = retry.Do(func() error {
+		client, err = net.DialTCP("tcp", nil, tcpAddr)
+		return err
+	}, retry.Delay(time.Second), retry.Attempts(nbAttempts))
+	if err != nil {
+		return nil, err
+	}
+	return client, nil
+}
+
+func sendMsg(client net.Conn, msg *ebpfless.Message) error {
+	data, err := msgpack.Marshal(msg)
+	if err != nil {
+		return fmt.Errorf("unable to marshal message: %v", err)
+	}
+
+	// write size
+	var size [4]byte
+	native.Endian.PutUint32(size[:], uint32(len(data)))
+	if _, err = client.Write(size[:]); err != nil {
+		return fmt.Errorf("unabled to send size: %v", err)
+	}
+
+	if _, err = client.Write(data); err != nil {
+		return fmt.Errorf("unabled to send message: %v", err)
+	}
+	return nil
+}
+
 // StartCWSPtracer start the ptracer
-func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool) error {
+func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool, async bool) error {
+	if len(args) == 0 {
+		return fmt.Errorf("an executable is required")
+	}
 	entry, err := checkEntryPoint(args[0])
 	if err != nil {
 		return err
@@ -387,35 +369,43 @@ func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool)
 	var (
 		client net.Conn
 	)
+	clientReady := make(chan bool)
 
 	if probeAddr != "" {
-		tcpAddr, err := net.ResolveTCPAddr("tcp", probeAddr)
-		if err != nil {
-			return err
-		}
-
 		logDebugf("connection to system-probe...")
-
-		err = retry.Do(func() error {
-			client, err = net.DialTCP("tcp", nil, tcpAddr)
-			return err
-		}, retry.Delay(time.Second), retry.Attempts(120))
-		if err != nil {
-			return err
+		if async {
+			go func() {
+				client, err = initConn(probeAddr, 600)
+				if err != nil {
+					return
+				}
+				clientReady <- true
+				logDebugf("connection to system-probe initiated!")
+			}()
+			defer func() {
+				if client.RemoteAddr() != nil {
+					client.Close()
+				}
+			}()
+		} else {
+			client, err = initConn(probeAddr, 120)
+			if err != nil {
+				return err
+			}
+			clientReady <- true
+			logDebugf("connection to system-probe initiated!")
+			defer client.Close()
 		}
-
-		defer client.Close()
 	}
 
-	var containerCtx ebpfless.ContainerContext
-	if err := retrieveContainerIDFromProc(&containerCtx); err != nil {
+	containerID, err := getCurrentProcContainerID()
+	if err != nil {
 		logErrorf("Retrieve container ID from proc failed: %v\n", err)
 	}
-	if err := retrieveECSMetadata(&containerCtx); err != nil {
+	containerCtx, err := newContainerContext(containerID)
+	if err != nil {
 		return err
 	}
-	retrieveEnvMetadata(&containerCtx)
-	containerCtx.CreatedAt = uint64(time.Now().UnixNano())
 
 	opts := Opts{
 		Syscalls: PtracedSyscalls,
@@ -427,8 +417,7 @@ func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool)
 		return err
 	}
 
-	nsid := getNSID()
-	msgChan := make(chan *ebpfless.SyscallMsg, 10000)
+	msgChan := make(chan *ebpfless.Message, 100000)
 	traceChan := make(chan bool)
 
 	cache, err := lru.New[int, *Process](1024)
@@ -436,44 +425,39 @@ func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool)
 		return err
 	}
 
+	// first process
+	process := &Process{
+		Pid: tracer.PID,
+		Nr:  make(map[int]*ebpfless.SyscallMsg),
+		Fd:  make(map[int32]string),
+	}
+	cache.Add(tracer.PID, process)
+
 	go func() {
 		var seq uint64
 
 		traceChan <- true
 
+		if probeAddr != "" {
+			<-clientReady // wait for the client to be ready
+		}
+
 		for msg := range msgChan {
 			msg.SeqNum = seq
-			msg.NSID = nsid
-
-			logDebugf("sending message: %s", msg)
 
 			if probeAddr != "" {
-				data, err := msgpack.Marshal(msg)
-				if err != nil {
-					logErrorf("unable to marshal message: %v", err)
-					return
+				logDebugf("sending message: %s", msg)
+				if err := sendMsg(client, msg); err != nil {
+					logErrorf("%v", err)
 				}
-
-				// write size
-				var size [4]byte
-				native.Endian.PutUint32(size[:], uint32(len(data)))
-				if _, err = client.Write(size[:]); err != nil {
-					logErrorf("unabled to send size: %v", err)
-				}
-
-				if _, err = client.Write(data); err != nil {
-					logErrorf("unabled to send message: %v", err)
-				}
+			} else {
+				logDebugf("sending message: %s", msg)
 			}
 			seq++
 		}
 	}()
 
-	send := func(msg *ebpfless.SyscallMsg) {
-		if msg == nil {
-			return
-		}
-
+	send := func(msg *ebpfless.Message) {
 		select {
 		case msgChan <- msg:
 		default:
@@ -481,7 +465,27 @@ func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool)
 		}
 	}
 
+	send(&ebpfless.Message{
+		Type: ebpfless.MessageTypeHello,
+		Hello: &ebpfless.HelloMsg{
+			NSID:             getNSID(),
+			ContainerContext: containerCtx,
+			EntrypointArgs:   args,
+		},
+	})
+
 	cb := func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs) {
+		sendSyscallMsg := func(msg *ebpfless.SyscallMsg) {
+			if msg == nil {
+				return
+			}
+			msg.PID = uint32(pid)
+			send(&ebpfless.Message{
+				Type:    ebpfless.MessageTypeSyscall,
+				Syscall: msg,
+			})
+		}
+
 		process, exists := cache.Get(pid)
 		if !exists {
 			process = &Process{
@@ -495,100 +499,148 @@ func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool)
 
 		switch cbType {
 		case CallbackPreType:
-			msg := &ebpfless.SyscallMsg{
-				PID:              uint32(pid),
-				ContainerContext: &containerCtx,
-			}
-			process.Nr[nr] = msg
+			syscallMsg := &ebpfless.SyscallMsg{}
+			process.Nr[nr] = syscallMsg
 
 			switch nr {
 			case OpenNr:
-				if err := handleOpen(tracer, process, msg, regs); err != nil {
+				if err := handleOpen(tracer, process, syscallMsg, regs); err != nil {
 					logErrorf("unable to handle open: %v", err)
 					return
 				}
 			case OpenatNr, Openat2Nr:
-				if err := handleOpenAt(tracer, process, msg, regs); err != nil {
+				if err := handleOpenAt(tracer, process, syscallMsg, regs); err != nil {
 					logErrorf("unable to handle openat: %v", err)
 					return
 				}
 			case ExecveNr:
-				if err = handleExecve(tracer, process, msg, regs); err != nil {
+				if err = handleExecve(tracer, process, syscallMsg, regs); err != nil {
 					logErrorf("unable to handle execve: %v", err)
 					return
 				}
+
+				// Top level pid, add creds. For the other PIDs the creds will be propagated at the probe side
+				if process.Pid == tracer.PID {
+					var uid, gid uint32
+
+					if creds.UID != nil {
+						uid = *creds.UID
+					} else {
+						uid = uint32(os.Getuid())
+					}
+
+					if creds.GID != nil {
+						gid = *creds.GID
+					} else {
+						gid = uint32(os.Getgid())
+					}
+
+					syscallMsg.Exec.Credentials = &ebpfless.Credentials{
+						UID:  uid,
+						EUID: uid,
+						GID:  gid,
+						EGID: gid,
+					}
+				}
+				sendSyscallMsg(syscallMsg)
 			case ExecveatNr:
-				if err = handleExecveAt(tracer, process, msg, regs); err != nil {
+				if err = handleExecveAt(tracer, process, syscallMsg, regs); err != nil {
 					logErrorf("unable to handle execveat: %v", err)
 					return
 				}
+				sendSyscallMsg(syscallMsg)
 			case FcntlNr:
-				_ = handleFcntl(tracer, process, msg, regs)
+				_ = handleFcntl(tracer, process, syscallMsg, regs)
 			case DupNr, Dup2Nr, Dup3Nr:
-				if err = handleDup(tracer, process, msg, regs); err != nil {
+				if err = handleDup(tracer, process, syscallMsg, regs); err != nil {
 					logErrorf("unable to handle dup: %v", err)
 					return
 				}
 			case ChdirNr:
-				if err = handleChdir(tracer, process, msg, regs); err != nil {
+				if err = handleChdir(tracer, process, syscallMsg, regs); err != nil {
 					logErrorf("unable to handle chdir: %v", err)
 					return
 				}
 			case FchdirNr:
-				if err = handleFchdir(tracer, process, msg, regs); err != nil {
+				if err = handleFchdir(tracer, process, syscallMsg, regs); err != nil {
 					logErrorf("unable to handle fchdir: %v", err)
 					return
 				}
-
+			case SetuidNr:
+				if err = handleSetuid(tracer, process, syscallMsg, regs); err != nil {
+					logErrorf("unable to handle fchdir: %v", err)
+					return
+				}
+			case SetgidNr:
+				if err = handleSetgid(tracer, process, syscallMsg, regs); err != nil {
+					logErrorf("unable to handle fchdir: %v", err)
+					return
+				}
+			case SetreuidNr:
+				if err = handleSetreuid(tracer, process, syscallMsg, regs); err != nil {
+					logErrorf("unable to handle fchdir: %v", err)
+					return
+				}
+			case SetregidNr:
+				if err = handleSetregid(tracer, process, syscallMsg, regs); err != nil {
+					logErrorf("unable to handle fchdir: %v", err)
+					return
+				}
 			}
 		case CallbackPostType:
 			switch nr {
 			case ExecveNr, ExecveatNr:
-				send(process.Nr[nr])
+				// nothing to do. send was already done at syscall entrance
 			case OpenNr, OpenatNr:
-				if ret := tracer.ReadRet(regs); ret >= 0 {
+				if ret := tracer.ReadRet(regs); !isAcceptedRetval(ret) {
+					syscallMsg, exists := process.Nr[nr]
+					if !exists {
+						return
+					}
+					syscallMsg.Retval = ret
 
-					msg, exists := process.Nr[nr]
+					sendSyscallMsg(syscallMsg)
+
+					// maintain fd/path mapping
+					process.Fd[int32(ret)] = syscallMsg.Open.Filename
+				}
+			case SetuidNr, SetgidNr, SetreuidNr, SetregidNr:
+				if ret := tracer.ReadRet(regs); ret >= 0 {
+					syscallMsg, exists := process.Nr[nr]
 					if !exists {
 						return
 					}
 
-					send(process.Nr[nr])
-
-					// maintain fd/path mapping
-					process.Fd[int32(ret)] = msg.Open.Filename
+					sendSyscallMsg(syscallMsg)
 				}
 			case ForkNr, VforkNr, CloneNr:
-				msg := &ebpfless.SyscallMsg{
-					ContainerContext: &containerCtx,
-				}
-				msg.Type = ebpfless.SyscallTypeFork
-				msg.PID = uint32(pid)
-				msg.Fork = &ebpfless.ForkSyscallMsg{
-					PPID: uint32(ppid),
-				}
-				send(msg)
+				sendSyscallMsg(&ebpfless.SyscallMsg{
+					Type: ebpfless.SyscallTypeFork,
+					Fork: &ebpfless.ForkSyscallMsg{
+						PPID: uint32(ppid),
+					},
+				})
 			case FcntlNr:
 				if ret := tracer.ReadRet(regs); ret >= 0 {
-					msg, exists := process.Nr[nr]
+					syscallMsg, exists := process.Nr[nr]
 					if !exists {
 						return
 					}
 
 					// maintain fd/path mapping
-					if msg.Fcntl.Cmd == unix.F_DUPFD || msg.Fcntl.Cmd == unix.F_DUPFD_CLOEXEC {
-						if path, exists := process.Fd[int32(msg.Fcntl.Fd)]; exists {
+					if syscallMsg.Fcntl.Cmd == unix.F_DUPFD || syscallMsg.Fcntl.Cmd == unix.F_DUPFD_CLOEXEC {
+						if path, exists := process.Fd[int32(syscallMsg.Fcntl.Fd)]; exists {
 							process.Fd[int32(ret)] = path
 						}
 					}
 				}
 			case DupNr, Dup2Nr, Dup3Nr:
 				if ret := tracer.ReadRet(regs); ret >= 0 {
-					msg, exists := process.Nr[nr]
+					syscallMsg, exists := process.Nr[nr]
 					if !exists {
 						return
 					}
-					path, ok := process.Fd[msg.Dup.OldFd]
+					path, ok := process.Fd[syscallMsg.Dup.OldFd]
 					if ok {
 						// maintain fd/path in case of dups
 						process.Fd[int32(ret)] = path
@@ -596,20 +648,17 @@ func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool)
 				}
 			case ChdirNr, FchdirNr:
 				if ret := tracer.ReadRet(regs); ret >= 0 {
-					msg, exists := process.Nr[nr]
-					if !exists || msg.Chdir == nil {
+					syscallMsg, exists := process.Nr[nr]
+					if !exists || syscallMsg.Chdir == nil {
 						return
 					}
-					process.Cwd = msg.Chdir.Path
+					process.Cwd = syscallMsg.Chdir.Path
 				}
 			}
 		case CallbackExitType:
-			msg := &ebpfless.SyscallMsg{
-				ContainerContext: &containerCtx,
-			}
-			msg.Type = ebpfless.SyscallTypeExit
-			msg.PID = uint32(pid)
-			send(msg)
+			sendSyscallMsg(&ebpfless.SyscallMsg{
+				Type: ebpfless.SyscallTypeExit,
+			})
 
 			cache.Remove(pid)
 		}

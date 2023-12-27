@@ -5,7 +5,7 @@
 
 //go:build linux
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// Package main is the test-runner tool which runs the system-probe tests
 package main
 
 import (
@@ -136,16 +136,15 @@ func buildCommandArgs(pkg string, xmlpath string, jsonpath string, file string, 
 
 // concatenateJsons combines all the test json output files into a single file.
 func concatenateJsons(indir, outdir string) error {
-	//nolint:revive // TODO(EBPF) Fix revive linter
-	testJsonFile := filepath.Join(outdir, "out.json")
+	testJSONFile := filepath.Join(outdir, "out.json")
 	matches, err := glob(indir, `.*\.json`, func(path string) bool { return true })
 	if err != nil {
 		return fmt.Errorf("json glob: %s", err)
 	}
 
-	f, err := os.OpenFile(testJsonFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o666)
+	f, err := os.OpenFile(testJSONFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o666)
 	if err != nil {
-		return fmt.Errorf("open %s: %s", testJsonFile, err)
+		return fmt.Errorf("open %s: %s", testJSONFile, err)
 	}
 	defer f.Close()
 

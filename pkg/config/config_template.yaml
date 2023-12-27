@@ -3807,10 +3807,26 @@ api_key:
     ##                            Binds to 0.0.0.0 by default (accepting all packets).
     ##  * workers      - string - (Optional) Number of workers to use for this listener.
     ##                            Defaults to 1.
+    ##  * mapping      - (Optional) List of NetflowV9/IPFIX fields to additionally collect.
+    ##                              Defaults to None.
+    ##     * field       - integer - The Netflow field type ID to collect.
+    ##     * destination - string  - Name of the collected field, is queryable under @<destination> in Datadog.
+    ##                              Default fields can be overridden, for example, `destination.port` overrides
+    ##                              the default destination port collected.
+    ##     * type        - string  - The field type.
+    ##                              Available options are: string, integer, hex.
+    ##                              Defaults to hex.
+    ##     * endianness  - string  - (Optional) If type is integer, endianness can be set using this parameter.
+    ##                              Available options are: big, little.
+    ##                              Defaults to big.
     #
     # listeners:
     # - flow_type: netflow9
     #   port: 2055
+    #   mapping:
+    #     - field: 1234
+    #       destination: transport_rtp_ssrc
+    #       type: integer
     # - flow_type: netflow5
     #   port: 2056
     # - flow_type: ipfix

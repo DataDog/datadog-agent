@@ -61,3 +61,8 @@ func (a *AppService) GetPrefix() string {
 func (a *AppService) Init() error {
 	return nil
 }
+
+func isAppService() bool {
+	_, exists := os.LookupEnv(RunZip)
+	return exists
+}

@@ -167,6 +167,7 @@ func GetDefaultObfuscatorOptions() obfuscate.SQLConfig {
 		ObfuscationMode:               obfuscate.ObfuscateAndNormalize,
 		RemoveSpaceBetweenParentheses: true,
 		KeepNull:                      true,
+		KeepTrailingSemicolon:         true,
 	}
 }
 

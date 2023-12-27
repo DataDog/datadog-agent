@@ -5,7 +5,19 @@
 
 #include "protocols/http2/defs.h"
 
-#define HTTP2_FRAMES_PER_TAIL_CALL 7
+// Represents the maximum number of frames we'll process in a single tail call in `handle_eos_frames` program.
+#define HTTP2_MAX_FRAMES_FOR_EOS_PARSER_PER_TAIL_CALL 200
+// Represents the maximum number of tail calls to process EOS frames.
+// Currently we have up to 120 frames in a packet, thus 1 tail call is enough.
+#define HTTP2_MAX_TAIL_CALLS_FOR_EOS_PARSER 1
+#define HTTP2_MAX_FRAMES_FOR_EOS_PARSER (HTTP2_MAX_FRAMES_FOR_EOS_PARSER_PER_TAIL_CALL * HTTP2_MAX_TAIL_CALLS_FOR_EOS_PARSER)
+
+// Represents the maximum number of frames we'll process in a single tail call in `handle_headers_frames` program.
+#define HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL 18
+// Represents the maximum number of tail calls to process headers frames.
+// Currently we have up to 120 frames in a packet, thus 7 (7*18 = 126) tail calls is enough.
+#define HTTP2_MAX_TAIL_CALLS_FOR_HEADERS_PARSER 7
+#define HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER (HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL * HTTP2_MAX_TAIL_CALLS_FOR_HEADERS_PARSER)
 // Maximum number of frames to be processed in a single TCP packet. That's also the number of tail calls we'll have.
 // NOTE: we may need to revisit this const if we need to capture more connections.
 #define HTTP2_MAX_FRAMES_ITERATIONS 120
@@ -56,13 +68,12 @@
 
 #define MAX_FRAME_SIZE 16384
 
-// Huffman-encoded strings for paths "/" and "/index.html". Needed for HTTP2
-// decoding, as these two paths are in the static table, we need to add the
-// encoded string ourselves instead of reading them from the Header.
-#define HTTP_ROOT_PATH      "\x63"
-#define HTTP_ROOT_PATH_LEN  (sizeof(HTTP_ROOT_PATH) - 1)
-#define HTTP_INDEX_PATH     "\x60\xd5\x48\x5f\x2b\xce\x9a\x68"
-#define HTTP_INDEX_PATH_LEN (sizeof(HTTP_INDEX_PATH) - 1)
+// Definitions representing empty and /index.html paths. These types are sent using the static table.
+// We include these to eliminate the necessity of copying the specified encoded path to the buffer.
+#define HTTP2_ROOT_PATH      "/"
+#define HTTP2_ROOT_PATH_LEN  (sizeof(HTTP2_ROOT_PATH) - 1)
+#define HTTP2_INDEX_PATH     "/index.html"
+#define HTTP2_INDEX_PATH_LEN (sizeof(HTTP2_INDEX_PATH) - 1)
 
 typedef enum {
     kGET = 2,
@@ -83,6 +94,7 @@ typedef enum {
 typedef struct {
     char buffer[HTTP2_MAX_PATH_LEN] __attribute__((aligned(8)));
     __u8 string_len;
+    bool is_huffman_encoded;
 } dynamic_table_entry_t;
 
 typedef struct {
@@ -103,6 +115,7 @@ typedef struct {
     __u8 request_method;
     __u8 path_size;
     bool request_end_of_stream;
+    bool is_huffman_encoded;
 
     __u8 request_path[HTTP2_MAX_PATH_LEN] __attribute__((aligned(8)));
 } http2_stream_t;
@@ -128,17 +141,18 @@ typedef struct {
     __u32 new_dynamic_value_offset;
     __u32 new_dynamic_value_size;
     http2_header_type_t type;
+    bool is_huffman_encoded;
 } http2_header_t;
 
 typedef struct {
-    struct http2_frame frame;
+    http2_frame_t frame;
     __u32 offset;
 } http2_frame_with_offset;
 
 typedef struct {
+    __u16 iteration;
+    __u16 frames_count;
     http2_frame_with_offset frames_array[HTTP2_MAX_FRAMES_ITERATIONS] __attribute__((aligned(8)));
-    __u8 iteration;
-    __u8 frames_count;
 } http2_tail_call_state_t;
 
 typedef struct {

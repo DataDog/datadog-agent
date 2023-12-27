@@ -1,0 +1,9 @@
+[Unit]
+Description="Monitor requests to stop experiment
+
+[PATH]
+PathModifed=<%= install_dir %>/systemd_commands/stop_experiment
+Unit=datadog-agent
+
+[Install]
+WantedBy=multi-user.target

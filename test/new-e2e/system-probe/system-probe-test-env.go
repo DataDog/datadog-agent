@@ -10,8 +10,7 @@ package systemprobe
 
 import (
 	"context"
-	//nolint:revive // TODO(EBPF) Fix revive linter
-	_ "embed"
+	_ "embed" // embed files used in this scenario
 	"fmt"
 	"os"
 	"path/filepath"
@@ -31,35 +30,26 @@ import (
 )
 
 const (
-	//nolint:revive // TODO(EBPF) Fix revive linter
-	AgentQAPrimaryAZ = "subnet-03061a1647c63c3c3"
-	//nolint:revive // TODO(EBPF) Fix revive linter
-	AgentQASecondaryAZ = "subnet-0f1ca3e929eb3fb8b"
-	//nolint:revive // TODO(EBPF) Fix revive linter
-	AgentQABackupAZ = "subnet-071213aedb0e1ae54"
+	agentQAPrimaryAZ   = "subnet-03061a1647c63c3c3"
+	agentQASecondaryAZ = "subnet-0f1ca3e929eb3fb8b"
+	agentQABackupAZ    = "subnet-071213aedb0e1ae54"
 
-	//nolint:revive // TODO(EBPF) Fix revive linter
-	SandboxPrimaryAz = "subnet-b89e00e2"
-	//nolint:revive // TODO(EBPF) Fix revive linter
-	SandboxSecondaryAz = "subnet-8ee8b1c6"
-	//nolint:revive // TODO(EBPF) Fix revive linter
-	SandboxBackupAz = "subnet-3f5db45b"
+	sandboxPrimaryAz   = "subnet-b89e00e2"
+	sandboxSecondaryAz = "subnet-8ee8b1c6"
+	sandboxBackupAz    = "subnet-3f5db45b"
 
-	//nolint:revive // TODO(EBPF) Fix revive linter
-	DatadogAgentQAEnv = "aws/agent-qa"
-	//nolint:revive // TODO(EBPF) Fix revive linter
-	SandboxEnv = "aws/sandbox"
-	//nolint:revive // TODO(EBPF) Fix revive linter
-	EC2TagsEnvVar = "RESOURCE_TAGS"
+	datadogAgentQAEnv = "aws/agent-qa"
+	sandboxEnv        = "aws/sandbox"
+	ec2TagsEnvVar     = "RESOURCE_TAGS"
 )
 
 var availabilityZones = map[string][]string{
-	DatadogAgentQAEnv: {AgentQAPrimaryAZ, AgentQASecondaryAZ, AgentQABackupAZ},
-	SandboxEnv:        {SandboxPrimaryAz, SandboxSecondaryAz, SandboxBackupAz},
+	datadogAgentQAEnv: {agentQAPrimaryAZ, agentQASecondaryAZ, agentQABackupAZ},
+	sandboxEnv:        {sandboxPrimaryAz, sandboxSecondaryAz, sandboxBackupAz},
 }
 
-//nolint:revive // TODO(EBPF) Fix revive linter
-type SystemProbeEnvOpts struct {
+// EnvOpts are the options for the system-probe scenario
+type EnvOpts struct {
 	X86AmiID              string
 	ArmAmiID              string
 	SSHKeyPath            string
@@ -76,7 +66,7 @@ type SystemProbeEnvOpts struct {
 	AgentVersion          string
 }
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// TestEnv represents options for a particular test environment
 type TestEnv struct {
 	context context.Context
 	name    string
@@ -87,17 +77,13 @@ type TestEnv struct {
 }
 
 var (
-	//nolint:revive // TODO(EBPF) Fix revive linter
-	MicroVMsDependenciesPath = filepath.Join("/", "opt", "kernel-version-testing", "dependencies-%s.tar.gz")
-	//nolint:revive // TODO(EBPF) Fix revive linter
-	CustomAMIWorkingDir = filepath.Join("/", "home", "kernel-version-testing")
+	customAMIWorkingDir = filepath.Join("/", "home", "kernel-version-testing")
 
-	//nolint:revive // TODO(EBPF) Fix revive linter
-	CI_PROJECT_DIR = GetEnv("CI_PROJECT_DIR", "/tmp")
-	sshKeyX86      = GetEnv("LibvirtSSHKeyX86", "/tmp/libvirt_rsa-x86_64")
-	sshKeyArm      = GetEnv("LibvirtSSHKeyARM", "/tmp/libvirt_rsa-arm64")
+	ciProjectDir = getEnv("CI_PROJECT_DIR", "/tmp")
+	sshKeyX86    = getEnv("LibvirtSSHKeyX86", "/tmp/libvirt_rsa-x86_64")
+	sshKeyArm    = getEnv("LibvirtSSHKeyARM", "/tmp/libvirt_rsa-arm64")
 
-	stackOutputs = filepath.Join(CI_PROJECT_DIR, "stack.output")
+	stackOutputs = filepath.Join(ciProjectDir, "stack.output")
 )
 
 func outputsToFile(output auto.OutputMap) error {
@@ -119,8 +105,7 @@ func outputsToFile(output auto.OutputMap) error {
 	return f.Sync()
 }
 
-//nolint:revive // TODO(EBPF) Fix revive linter
-func GetEnv(key, fallback string) string {
+func getEnv(key, fallback string) string {
 	if value, ok := os.LookupEnv(key); ok {
 		return value
 	}
@@ -157,8 +142,8 @@ func getAvailabilityZone(env string, azIndx int) string {
 	return ""
 }
 
-//nolint:revive // TODO(EBPF) Fix revive linter
-func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbeEnvOpts) (*TestEnv, error) {
+// NewTestEnv creates a new test environment
+func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *EnvOpts) (*TestEnv, error) {
 	var err error
 	var sudoPassword string
 
@@ -178,7 +163,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 		sudoPassword = ""
 	}
 
-	apiKey := GetEnv("DD_API_KEY", "")
+	apiKey := getEnv("DD_API_KEY", "")
 	if opts.RunAgent && apiKey == "" {
 		return nil, fmt.Errorf("No API Key for datadog-agent provided")
 	}
@@ -200,7 +185,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 		"microvm:provision":                      auto.ConfigValue{Value: strconv.FormatBool(opts.Provision)},
 		"microvm:x86AmiID":                       auto.ConfigValue{Value: opts.X86AmiID},
 		"microvm:arm64AmiID":                     auto.ConfigValue{Value: opts.ArmAmiID},
-		"microvm:workingDir":                     auto.ConfigValue{Value: CustomAMIWorkingDir},
+		"microvm:workingDir":                     auto.ConfigValue{Value: customAMIWorkingDir},
 		"ddagent:deploy":                         auto.ConfigValue{Value: strconv.FormatBool(opts.RunAgent)},
 		"ddagent:apiKey":                         auto.ConfigValue{Value: apiKey, Secret: true},
 	}
@@ -221,7 +206,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 		config["ddagent:version"] = auto.ConfigValue{Value: opts.AgentVersion}
 	}
 
-	if envVars := GetEnv(EC2TagsEnvVar, ""); envVars != "" {
+	if envVars := getEnv(ec2TagsEnvVar, ""); envVars != "" {
 		config["ddinfra:extraResourcesTags"] = auto.ConfigValue{Value: envVars}
 	}
 
@@ -242,7 +227,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 				return fmt.Errorf("setup micro-vms in remote instance: %w", err)
 			}
 			return nil
-		}, opts.FailOnMissing)
+		}, opts.FailOnMissing, nil)
 		if err != nil {
 			return handleScenarioFailure(err, func(possibleError handledError) {
 				// handle the following errors by trying in a different availability zone
@@ -268,12 +253,12 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 	return systemProbeTestEnv, nil
 }
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// Destroy deletes the stack with the provided name
 func Destroy(name string) error {
-	return infra.GetStackManager().DeleteStack(context.Background(), name)
+	return infra.GetStackManager().DeleteStack(context.Background(), name, nil)
 }
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// RemoveStack removes the stack configuration with the provided name
 func (env *TestEnv) RemoveStack() error {
 	return infra.GetStackManager().ForceRemoveStackConfiguration(env.context, env.name)
 }

@@ -239,7 +239,7 @@ func dumpComplianceEvents(reportFile string, events []*compliance.CheckEvent) er
 	if err != nil {
 		return fmt.Errorf("could not marshal events map: %w", err)
 	}
-	if err := os.WriteFile(reportFile, b, 0644); err != nil {
+	if err := os.WriteFile(reportFile, b, 0o644); err != nil {
 		return fmt.Errorf("could not write report file in %q: %w", reportFile, err)
 	}
 	return nil
@@ -275,7 +275,7 @@ func complianceKubernetesProvider(_ctx context.Context) (dynamic.Interface, disc
 	if err != nil {
 		return nil, nil, err
 	}
-	return apiCl.DynamicCl, apiCl.DiscoveryCl, nil
+	return apiCl.DynamicCl, apiCl.Cl.Discovery(), nil
 }
 
 type fakeResolver struct {
