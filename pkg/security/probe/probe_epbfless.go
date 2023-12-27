@@ -16,6 +16,7 @@ import (
 	"net"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/vmihailenco/msgpack/v5"
 	"google.golang.org/grpc"
@@ -140,6 +141,16 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 	}
 	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
 
+	if syscallMsg.Type == ebpfless.SyscallTypeExit {
+		event.Type = uint32(model.ExitEventType)
+		exitTime := time.Now() // TODO: fix timestamp
+		event.ProcessContext.ExitTime = exitTime
+		event.Exit.Process = &event.ProcessCacheEntry.Process
+		event.Exit.Cause = uint32(model.ExitExited) // TODO: fix cause
+		event.Exit.Code = 0                         // TODO: fix code
+		defer p.Resolvers.ProcessResolver.DeleteEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, exitTime)
+	}
+
 	p.DispatchEvent(event)
 }
 
@@ -213,6 +224,13 @@ func (p *EBPFLessProbe) readMsg(conn net.Conn, msg *ebpfless.Message) error {
 	}
 
 	return msgpack.Unmarshal(p.buf[0:n], msg)
+}
+
+// GetClientsCount returns the number of connected clients
+func (p *EBPFLessProbe) GetClientsCount() int {
+	p.Lock()
+	defer p.Unlock()
+	return len(p.clients)
 }
 
 func (p *EBPFLessProbe) handleNewClient(conn net.Conn, ch chan clientMsg) {

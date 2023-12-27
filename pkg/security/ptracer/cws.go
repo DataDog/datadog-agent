@@ -127,9 +127,16 @@ func handleExecveAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, 
 		return err
 	}
 
-	filename, err = getFullPathFromFd(process, filename, fd)
-	if err != nil {
-		return err
+	if filename == "" { // in this case, dirfd defines directly the file's FD
+		var exists bool
+		if filename, exists = process.Fd[fd]; !exists || filename == "" {
+			return errors.New("can't find related file path")
+		}
+	} else {
+		filename, err = getFullPathFromFd(process, filename, fd)
+		if err != nil {
+			return err
+		}
 	}
 
 	args, err := tracer.ReadArgStringArray(process.Pid, regs, 2)
@@ -300,12 +307,50 @@ func isAcceptedRetval(retval int64) bool {
 	return retval < 0 && retval != -int64(syscall.EACCES) && retval != -int64(syscall.EPERM)
 }
 
+func initConn(probeAddr string, nbAttempts uint) (net.Conn, error) {
+	tcpAddr, err := net.ResolveTCPAddr("tcp", probeAddr)
+	if err != nil {
+		return nil, err
+	}
+
+	var (
+		client net.Conn
+	)
+
+	err = retry.Do(func() error {
+		client, err = net.DialTCP("tcp", nil, tcpAddr)
+		return err
+	}, retry.Delay(time.Second), retry.Attempts(nbAttempts))
+	if err != nil {
+		return nil, err
+	}
+	return client, nil
+}
+
+func sendMsg(client net.Conn, msg *ebpfless.Message) error {
+	data, err := msgpack.Marshal(msg)
+	if err != nil {
+		return fmt.Errorf("unable to marshal message: %v", err)
+	}
+
+	// write size
+	var size [4]byte
+	native.Endian.PutUint32(size[:], uint32(len(data)))
+	if _, err = client.Write(size[:]); err != nil {
+		return fmt.Errorf("unabled to send size: %v", err)
+	}
+
+	if _, err = client.Write(data); err != nil {
+		return fmt.Errorf("unabled to send message: %v", err)
+	}
+	return nil
+}
+
 // StartCWSPtracer start the ptracer
-func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool) error {
+func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool, async bool) error {
 	if len(args) == 0 {
 		return fmt.Errorf("an executable is required")
 	}
-
 	entry, err := checkEntryPoint(args[0])
 	if err != nil {
 		return err
@@ -324,24 +369,33 @@ func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool)
 	var (
 		client net.Conn
 	)
+	clientReady := make(chan bool)
 
 	if probeAddr != "" {
-		tcpAddr, err := net.ResolveTCPAddr("tcp", probeAddr)
-		if err != nil {
-			return err
-		}
-
 		logDebugf("connection to system-probe...")
-
-		err = retry.Do(func() error {
-			client, err = net.DialTCP("tcp", nil, tcpAddr)
-			return err
-		}, retry.Delay(time.Second), retry.Attempts(120))
-		if err != nil {
-			return err
+		if async {
+			go func() {
+				client, err = initConn(probeAddr, 600)
+				if err != nil {
+					return
+				}
+				clientReady <- true
+				logDebugf("connection to system-probe initiated!")
+			}()
+			defer func() {
+				if client.RemoteAddr() != nil {
+					client.Close()
+				}
+			}()
+		} else {
+			client, err = initConn(probeAddr, 120)
+			if err != nil {
+				return err
+			}
+			clientReady <- true
+			logDebugf("connection to system-probe initiated!")
+			defer client.Close()
 		}
-
-		defer client.Close()
 	}
 
 	containerID, err := getCurrentProcContainerID()
@@ -363,7 +417,7 @@ func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool)
 		return err
 	}
 
-	msgChan := make(chan *ebpfless.Message, 10000)
+	msgChan := make(chan *ebpfless.Message, 100000)
 	traceChan := make(chan bool)
 
 	cache, err := lru.New[int, *Process](1024)
@@ -384,28 +438,20 @@ func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool)
 
 		traceChan <- true
 
+		if probeAddr != "" {
+			<-clientReady // wait for the client to be ready
+		}
+
 		for msg := range msgChan {
 			msg.SeqNum = seq
 
-			logDebugf("sending message: %s", msg)
-
 			if probeAddr != "" {
-				data, err := msgpack.Marshal(msg)
-				if err != nil {
-					logErrorf("unable to marshal message: %v", err)
-					return
+				logDebugf("sending message: %s", msg)
+				if err := sendMsg(client, msg); err != nil {
+					logErrorf("%v", err)
 				}
-
-				// write size
-				var size [4]byte
-				native.Endian.PutUint32(size[:], uint32(len(data)))
-				if _, err = client.Write(size[:]); err != nil {
-					logErrorf("unabled to send size: %v", err)
-				}
-
-				if _, err = client.Write(data); err != nil {
-					logErrorf("unabled to send message: %v", err)
-				}
+			} else {
+				logDebugf("sending message: %s", msg)
 			}
 			seq++
 		}
@@ -496,11 +542,13 @@ func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool)
 						EGID: gid,
 					}
 				}
+				sendSyscallMsg(syscallMsg)
 			case ExecveatNr:
 				if err = handleExecveAt(tracer, process, syscallMsg, regs); err != nil {
 					logErrorf("unable to handle execveat: %v", err)
 					return
 				}
+				sendSyscallMsg(syscallMsg)
 			case FcntlNr:
 				_ = handleFcntl(tracer, process, syscallMsg, regs)
 			case DupNr, Dup2Nr, Dup3Nr:
@@ -542,7 +590,7 @@ func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool)
 		case CallbackPostType:
 			switch nr {
 			case ExecveNr, ExecveatNr:
-				sendSyscallMsg(process.Nr[nr])
+				// nothing to do. send was already done at syscall entrance
 			case OpenNr, OpenatNr:
 				if ret := tracer.ReadRet(regs); !isAcceptedRetval(ret) {
 					syscallMsg, exists := process.Nr[nr]
