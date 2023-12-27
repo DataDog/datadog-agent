@@ -2,7 +2,7 @@ optimization_goal: cpu
 erratic: false
 
 environment:
-  DD_TAGS: \"uqhwd:b2xiyw,hf9gy:uwcy04,ku8oh:qutfxf,gth4p:b182zd,hbnv5:aupkow,4yiem:c1ktf1,4bfum:ybipzs,a93u3:sujkii,rubht:4hncf9,y8k0o:1mnhrd,8zsee:8137v6,5dh13:84dpgd,nvjbr:bprpm6,m6r6j:savyxj,tiwkh:imupmd,4t10x:ywns4s,8fvss:gri9t9,0oxph:32h0q0,2u54z:61d3t8,4ohhk:bi3x1f,c4ns8:vvvab2,ylmth:u5fo5h,ylsox:wz94fq,wn2i9:87cd7y,7z571:t8ijg0,ua8do:9gnppe,luaes:ksvtdm,292pm:8zu9l5,4v3fh:x1b2wa,kpbfr:yefi1w,e8o4s:t7ezxk,jsvjj:kv0uly,vhjpj:npecbu,2xuo6:cvt1fp,d94wb:lx76w4,soii9:xizgbd,d22cc:p6p20z,pqj76:qu8aze,rraus:rdplaw\"
+  DD_TAGS: uqhwd:b2xiyw,hf9gy:uwcy04,ku8oh:qutfxf,gth4p:b182zd,hbnv5:aupkow,4yiem:c1ktf1,4bfum:ybipzs,a93u3:sujkii,rubht:4hncf9,y8k0o:1mnhrd,8zsee:8137v6,5dh13:84dpgd,nvjbr:bprpm6,m6r6j:savyxj,tiwkh:imupmd,4t10x:ywns4s,8fvss:gri9t9,0oxph:32h0q0,2u54z:61d3t8,4ohhk:bi3x1f,c4ns8:vvvab2,ylmth:u5fo5h,ylsox:wz94fq,wn2i9:87cd7y,7z571:t8ijg0,ua8do:9gnppe,luaes:ksvtdm,292pm:8zu9l5,4v3fh:x1b2wa,kpbfr:yefi1w,e8o4s:t7ezxk,jsvjj:kv0uly,vhjpj:npecbu
   DD_TELEMETRY_ENABLED: true
   DD_API_KEY: 00000001
 
