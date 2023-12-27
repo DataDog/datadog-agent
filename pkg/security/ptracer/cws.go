@@ -391,6 +391,12 @@ func handleSetregid(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs s
 	return nil
 }
 
+func handleClose(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
+	fd := tracer.ReadArgInt32(regs, 0)
+	delete(process.Res.Fd, fd)
+	return nil
+}
+
 func checkEntryPoint(path string) (string, error) {
 	name, err := exec.LookPath(path)
 	if err != nil {
@@ -726,9 +732,16 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 					logErrorf("unable to handle fchdir: %v", err)
 					return
 				}
+			case CloseNr:
+				if err = handleClose(tracer, process, syscallMsg, regs); err != nil {
+					logErrorf("unable to handle close: %v", err)
+					return
+				}
 			}
 		case CallbackPostType:
 			switch nr {
+			case CloseNr:
+				// nothing to do
 			case ExecveNr, ExecveatNr:
 				sendSyscallMsg(process.Nr[nr])
 

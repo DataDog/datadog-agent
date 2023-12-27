@@ -31,6 +31,7 @@ const (
 	SetgidNr         = 144 // SetgidNr defines the syscall ID for arm64
 	SetreuidNr       = 145 // SetreuidNr defines the syscall ID for arm64
 	SetregidNr       = 143 // SetregidNr defines the syscall ID for arm64
+	CloseNr          = 57  // CloseNr defines the syscall ID for arm64
 
 	OpenNr  = -1 // OpenNr not available on arm64
 	ForkNr  = -2 // ForkNr not available on arm64
@@ -67,6 +68,7 @@ var (
 		"setgid",
 		"setreuid",
 		"setregid",
+		"close",
 	}
 )
 
