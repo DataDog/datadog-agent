@@ -9,7 +9,6 @@ package repository
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 )
@@ -246,7 +245,7 @@ func movePackageFromSource(packageName string, rootPath string, sourcePath strin
 }
 
 func (r *repository) cleanup() error {
-	files, err := ioutil.ReadDir(r.rootPath)
+	files, err := os.ReadDir(r.rootPath)
 	if err != nil {
 		return fmt.Errorf("could not read root directory: %w", err)
 	}

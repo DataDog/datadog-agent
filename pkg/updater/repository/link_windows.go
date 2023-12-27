@@ -11,18 +11,18 @@ import (
 	"fmt"
 )
 
-func linkRead(linkPath string) (string, error) {
+func linkRead(_ string) (string, error) {
 	return "", fmt.Errorf("not supported on windows")
 }
 
-func linkExists(linkPath string) (bool, error) {
+func linkExists(_ string) (bool, error) {
 	return false, fmt.Errorf("not supported on windows")
 }
 
-func linkSet(linkPath string, targetPath string) error {
+func linkSet(_ string, _ string) error {
 	return fmt.Errorf("not supported on windows")
 }
 
-func linkDelete(linkPath string) error {
+func linkDelete(_ string) error {
 	return fmt.Errorf("not supported on windows")
 }
