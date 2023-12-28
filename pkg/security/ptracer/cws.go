@@ -30,6 +30,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
+const CwsInstrumentationEnvDisableStats = "CWS_INSTRUMENTATION_DISABLE_STATS"
+
 type fileHandleKey struct {
 	handleBytes uint32
 	handleType  int32
@@ -81,6 +83,11 @@ func getFullPathFromFilename(process *Process, filename string) (string, error) 
 }
 
 func fillFileMetadata(filepath string, openMsg *ebpfless.OpenSyscallMsg) error {
+	// Lookup option to disable avoidable usage of stats to reduce the induced overhead
+	if os.Getenv(CwsInstrumentationEnvDisableStats) != "" {
+		return nil
+	}
+
 	// NB: Here we use Lstat to not follow the link, because we don't do it yet globally.
 	//     Once we'll follow them, we may want to replace it by a Stat().
 	fileInfo, err := os.Lstat(filepath)
