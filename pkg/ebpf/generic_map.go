@@ -228,6 +228,7 @@ func (g *GenericMap[K, V]) IterateWithOptions(itops IteratorOptions) GenericMapI
 	}
 }
 
+// IteratePerCPU returns an iterator for the map (only to be used in per-cpu maps)
 func (g *GenericMap[K, V]) IteratePerCPU() GenericMapIterator[K, []V] {
 	return &genericMapItemIterator[K, []V]{
 		it:                           g.m.Iterate(),
