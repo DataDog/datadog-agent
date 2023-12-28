@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
 	"syscall"
 	"time"
 
@@ -369,6 +370,7 @@ func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool,
 	var (
 		client      net.Conn
 		clientReady = make(chan bool, 1)
+		wg          sync.WaitGroup
 	)
 
 	if probeAddr != "" {
@@ -382,11 +384,6 @@ func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool,
 				clientReady <- true
 				logDebugf("connection to system-probe initiated!")
 			}()
-			defer func() {
-				if client.RemoteAddr() != nil {
-					client.Close()
-				}
-			}()
 		} else {
 			client, err = initConn(probeAddr, 120)
 			if err != nil {
@@ -394,7 +391,6 @@ func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool,
 			}
 			clientReady <- true
 			logDebugf("connection to system-probe initiated!")
-			defer client.Close()
 		}
 	}
 
@@ -417,8 +413,11 @@ func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool,
 		return err
 	}
 
-	msgChan := make(chan *ebpfless.Message, 100000)
-	traceChan := make(chan bool)
+	var (
+		msgChan   = make(chan *ebpfless.Message, 100000)
+		traceChan = make(chan bool)
+		stopChan  = make(chan bool, 1)
+	)
 
 	cache, err := lru.New[int, *Process](1024)
 	if err != nil {
@@ -433,13 +432,27 @@ func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool,
 	}
 	cache.Add(tracer.PID, process)
 
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
+
 		var seq uint64
 
+		// start tracing
 		traceChan <- true
 
 		if probeAddr != "" {
-			<-clientReady // wait for the client to be ready
+		LOOP:
+			// wait for the client to be ready of stopped
+			for {
+				select {
+				case <-stopChan:
+					return
+				case <-clientReady:
+					break LOOP
+				}
+			}
+			defer client.Close()
 		}
 
 		for msg := range msgChan {
@@ -665,6 +678,13 @@ func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool,
 	}
 
 	<-traceChan
+
+	defer func() {
+		// stop client and msg chan reader
+		stopChan <- true
+		close(msgChan)
+		wg.Wait()
+	}()
 
 	if err := tracer.Trace(cb); err != nil {
 		return err
