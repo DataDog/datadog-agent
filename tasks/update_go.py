@@ -63,12 +63,12 @@ def update_go(
         raise exceptions.Exit(f"The version {version} isn't valid.")
 
     current_version = _get_repo_go_version()
-    current_major = _get_minor_version(current_version)
-    new_minor = _get_minor_version(version)
+    current_major_minor = _get_major_minor_version(current_version)
+    new_major_minor = _get_major_minor_version(version)
 
-    minor_update = current_major != new_minor
-    if minor_update:
-        print(color_message("WARNING: this is a change of major version\n", "orange"))
+    is_minor_update = current_major_minor != new_major_minor
+    if is_minor_update:
+        print(color_message("WARNING: this is a change of minor version\n", "orange"))
 
     try:
         update_gitlab_config(".gitlab-ci.yml", image_tag, test_version=test_version)
@@ -87,7 +87,7 @@ def update_go(
             raise
 
     _update_references(warn, version)
-    _update_go_mods(warn, new_minor, include_otel_modules)
+    _update_go_mods(warn, new_major_minor, include_otel_modules)
 
     # check the installed go version before running `tidy_all`
     res = ctx.run("go version")
@@ -106,7 +106,7 @@ def update_go(
         print(
             f"A default release note was created at {releasenote_path}, edit it if necessary, for example to list CVEs it fixes."
         )
-    if minor_update:
+    if is_minor_update:
         # Examples of minor updates with long descriptions:
         # releasenotes/notes/go1.16.7-4ec8477608022a26.yaml
         # releasenotes/notes/go1185-fd9d8b88c7c7a12e.yaml
@@ -149,7 +149,7 @@ def _get_repo_go_version() -> str:
 
 # extracts the minor version from the given string
 # eg. if the string is "1.2.3", returns "1.2"
-def _get_minor_version(version: str) -> str:
+def _get_major_minor_version(version: str) -> str:
     import semver
 
     ver = semver.VersionInfo.parse(version)
@@ -157,12 +157,12 @@ def _get_minor_version(version: str) -> str:
 
 
 def _update_references(warn: bool, version: str):
-    new_minor = _get_minor_version(version)
+    new_major_minor = _get_major_minor_version(version)
     for path, pre_pattern, post_pattern, is_bugfix in GO_VERSION_REFERENCES:
         version_pattern = r'1\.\d+\.\d+' if is_bugfix else r'1\.\d+'
         pattern = rf'({re.escape(pre_pattern)}){version_pattern}({re.escape(post_pattern)})'
 
-        new_version = version if is_bugfix else new_minor
+        new_version = version if is_bugfix else new_major_minor
         replace = rf'\g<1>{new_version}\g<2>'
 
         _update_file(warn, path, pattern, replace)
