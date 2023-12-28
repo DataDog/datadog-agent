@@ -1937,20 +1937,6 @@ func waitForOpenProbeEvent(test *testModule, action func() error, filename strin
 	return waitForProbeEvent(test, action, "open.file.path", filename, model.FileOpenEventType)
 }
 
-// TestMain is the entry points for functional tests
-func TestMain(m *testing.M) {
-	flag.Parse()
-	retCode := m.Run()
-	if testMod != nil {
-		testMod.cleanup()
-	}
-
-	if commonCfgDir != "" {
-		_ = os.RemoveAll(commonCfgDir)
-	}
-	os.Exit(retCode)
-}
-
 func init() {
 	flag.StringVar(&testEnvironment, "env", HostEnvironment, "environment used to run the test suite: ex: host, docker")
 	flag.StringVar(&logLevelStr, "loglevel", seelog.WarnStr, "log level")
