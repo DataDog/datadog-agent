@@ -76,7 +76,7 @@ type secretResolver struct {
 	// responseMaxSize defines max size of the JSON output from a secrets reader backend
 	responseMaxSize int
 	// refresh secrets at a regular interval
-	refreshInterval int
+	refreshInterval time.Duration
 	ticker          *time.Ticker
 	// subscriptions want to be notified about changes to the secrets
 	subscriptions []secrets.SecretChangeCallback
@@ -187,7 +187,7 @@ func (r *secretResolver) Configure(command string, arguments []string, timeout, 
 	if r.responseMaxSize == 0 {
 		r.responseMaxSize = SecretBackendOutputMaxSizeDefault
 	}
-	r.refreshInterval = refreshInterval
+	r.refreshInterval = time.Duration(refreshInterval) * time.Second
 	r.commandAllowGroupExec = groupExecPerm
 	r.removeTrailingLinebreak = removeLinebreak
 	if r.commandAllowGroupExec {
@@ -208,7 +208,7 @@ func (r *secretResolver) startRefreshRoutine() {
 	if r.ticker != nil || r.refreshInterval == 0 {
 		return
 	}
-	r.ticker = time.NewTicker(time.Duration(r.refreshInterval) * time.Second)
+	r.ticker = time.NewTicker(r.refreshInterval)
 	go func() {
 		for {
 			<-r.ticker.C
@@ -352,7 +352,9 @@ func (r *secretResolver) processSecretResponse(secretResponse map[string]string,
 				sub(handle, secretCtx.origin, secretCtx.path, oldValue, secretValue)
 			}
 		}
-		// add results to the cache
+	}
+	// add results to the cache
+	for handle, secretValue := range secretResponse {
 		r.cache[handle] = secretValue
 	}
 }
