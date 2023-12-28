@@ -13,7 +13,7 @@ type SecretVal struct {
 
 // SecretChangeCallback is the callback type used by SubscribeToChanges to send notifications
 // This callback will be called once for each time a handle at a particular path is resolved or refreshed
-type SecretChangeCallback func(handle string, path []string, oldValue, newValue any)
+type SecretChangeCallback func(handle, origin string, path []string, oldValue, newValue any)
 
 // PayloadVersion defines the current payload version sent to a secret backend
 const PayloadVersion = "1.0"

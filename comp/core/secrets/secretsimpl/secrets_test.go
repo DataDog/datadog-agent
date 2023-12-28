@@ -367,7 +367,7 @@ func TestResolveNestedWithSubscribe(t *testing.T) {
 	topLevelResolved := 0
 	secondLevelResolved := 0
 	thirdLevelResolved := 0
-	resolver.SubscribeToChanges(func(handle string, path []string, oldValue, newValue any) {
+	resolver.SubscribeToChanges(func(handle, origin string, path []string, oldValue, newValue any) {
 		switch strings.Join(path, "/") {
 		case "top_level":
 			assert.Equal(t, "password1", newValue)
@@ -387,9 +387,36 @@ func TestResolveNestedWithSubscribe(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, topLevelResolved, "'top_level' secret was not resolved or resolved multiple times")
 	assert.Equal(t, 1, secondLevelResolved, "'second_level' secret was not resolved or resolved multiple times")
-	assert.Equal(t, 0, thirdLevelResolved, "'third_level' secret was resolved, but should not have been because it was already in the cache")
+	assert.Equal(t, 1, thirdLevelResolved, "'third_level' secret was not resolved or resolved multiple times")
 
 	assert.Equal(t, testConfNestedOriginMultiple, resolver.origin)
+}
+
+func TestResolveCached(t *testing.T) {
+	testConf := testConfNested
+
+	resolver := newEnabledSecretResolver()
+	resolver.backendCommand = "some_command"
+	resolver.cache = map[string]string{"pass1": "password1"}
+
+	fetchHappened := 0
+	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
+		fetchHappened += 1
+		return map[string]string{
+			"pass1": "password1",
+		}, nil
+	}
+
+	totalResolved := []string{}
+	resolver.SubscribeToChanges(func(handle, origin string, path []string, oldValue, newValue any) {
+		totalResolved = append(totalResolved, handle)
+	})
+	_, err := resolver.Resolve(testConf, "test")
+
+	// Resolve doesn't need to fetch because value is cached, but subscription is still called
+	require.NoError(t, err)
+	assert.Equal(t, fetchHappened, 0)
+	assert.Equal(t, totalResolved, []string{"pass1"})
 }
 
 func TestResolveThenRefresh(t *testing.T) {
@@ -408,7 +435,7 @@ func TestResolveThenRefresh(t *testing.T) {
 	keysResolved := []string{}
 	oldValues := []string{}
 	newValues := []string{}
-	resolver.SubscribeToChanges(func(handle string, path []string, oldValue, newValue any) {
+	resolver.SubscribeToChanges(func(handle, origin string, path []string, oldValue, newValue any) {
 		keysResolved = append(keysResolved, strings.Join(path, "/"))
 		oldValues = append(oldValues, fmt.Sprintf("%s", oldValue))
 		newValues = append(newValues, fmt.Sprintf("%s", newValue))
@@ -493,7 +520,7 @@ func TestRefreshAllowlist(t *testing.T) {
 		}, nil
 	}
 	changes := []string{}
-	resolver.SubscribeToChanges(func(handle string, path []string, oldValue, newValue any) {
+	resolver.SubscribeToChanges(func(handle, origin string, path []string, oldValue, newValue any) {
 		changes = append(changes, fmt.Sprintf("%s", newValue))
 	})
 

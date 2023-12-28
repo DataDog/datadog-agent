@@ -261,6 +261,11 @@ func (r *secretResolver) Resolve(data []byte, origin string) ([]byte, error) {
 					log.Debugf("Secret '%s' was retrieved from cache", handle)
 					// keep track of place where a handle was found
 					r.registerSecretOrigin(handle, origin, path)
+					// notify subscriptions
+					for _, sub := range r.subscriptions {
+						sub(handle, origin, path, secretValue, secretValue)
+					}
+
 					return secretValue, nil
 				}
 				newHandles = append(newHandles, handle)
@@ -344,7 +349,7 @@ func (r *secretResolver) processSecretResponse(secretResponse map[string]string,
 		}
 		for _, secretCtx := range r.origin[handle] {
 			for _, sub := range r.subscriptions {
-				sub(handle, secretCtx.path, oldValue, secretValue)
+				sub(handle, secretCtx.origin, secretCtx.path, oldValue, secretValue)
 			}
 		}
 		// add results to the cache
@@ -357,7 +362,20 @@ func (r *secretResolver) Refresh() error {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
+	// get handles from the cache that match the allowlist
 	newHandles := maps.Keys(r.cache)
+	if allowlistHandles != nil {
+		filteredHandles := make([]string, 0, len(newHandles))
+		for _, handle := range newHandles {
+			if slices.Contains(allowlistHandles, handle) {
+				filteredHandles = append(filteredHandles, handle)
+			}
+		}
+		newHandles = filteredHandles
+	}
+	if len(newHandles) == 0 {
+		return nil
+	}
 
 	var secretResponse map[string]string
 	var err error
