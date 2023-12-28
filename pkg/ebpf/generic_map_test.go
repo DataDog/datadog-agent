@@ -199,7 +199,7 @@ func TestIteratePerCPUMaps(t *testing.T) {
 		t.Skip("Per CPU maps not supported on this kernel version")
 	}
 
-	m, err := NewGenericMap[uint32, uint32](&ebpf.MapSpec{
+	m, err := NewGenericMap[uint32, []uint32](&ebpf.MapSpec{
 		Type:       ebpf.PerCPUHash,
 		MaxEntries: 10,
 	})
@@ -214,7 +214,7 @@ func TestIteratePerCPUMaps(t *testing.T) {
 		for i := 0; i < nbCpus; i++ {
 			entries[i] = num + uint32(i)
 		}
-		require.NoError(t, m.PutPerCPU(&num, entries))
+		require.NoError(t, m.Put(&num, &entries))
 	}
 
 	var k uint32
@@ -222,7 +222,7 @@ func TestIteratePerCPUMaps(t *testing.T) {
 	numElements := 0
 	foundElements := make(map[uint32]bool)
 
-	it := m.IteratePerCPU()
+	it := m.Iterate()
 	require.NotNil(t, it)
 	require.IsType(t, &genericMapItemIterator[uint32, []uint32]{}, it)
 	for it.Next(&k, &entries) {

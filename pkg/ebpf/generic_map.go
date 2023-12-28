@@ -59,13 +59,25 @@ type GenericMap[K interface{}, V interface{}] struct {
 
 // NewGenericMap creates a new GenericMap with the given spec. Key and Value sizes are automatically
 // inferred from the types of K and V.
+// Important: if the map is a per-cpu map, V must be a slice type
 func NewGenericMap[K interface{}, V interface{}](spec *ebpf.MapSpec) (*GenericMap[K, V], error) {
 	// Automatic inference of sizes. We assume that K/V are simple types that
 	// can be instantiated with no arguments
 	var kval K
 	var vval V
+
+	err := validateValueTypeForMapType[V](spec.Type)
+	if err != nil {
+		return nil, err
+	}
+
 	spec.KeySize = uint32(reflect.TypeOf(kval).Size())
-	spec.ValueSize = uint32(reflect.TypeOf(vval).Size())
+
+	if isPerCPU(spec.Type) {
+		spec.ValueSize = uint32(reflect.TypeOf(vval).Elem().Size())
+	} else {
+		spec.ValueSize = uint32(reflect.TypeOf(vval).Size())
+	}
 
 	m, err := ebpf.NewMap(spec)
 	if err != nil {
@@ -77,11 +89,23 @@ func NewGenericMap[K interface{}, V interface{}](spec *ebpf.MapSpec) (*GenericMa
 	}, nil
 }
 
+func validateValueTypeForMapType[V interface{}](t ebpf.MapType) error {
+	var vval V
+	if isPerCPU(t) && reflect.TypeOf(vval).Kind() != reflect.Slice {
+		return fmt.Errorf("per-cpu maps require a slice type for the value")
+	}
+	return nil
+}
+
 // Map creates a new GenericMap from an existing ebpf.Map
-func Map[K interface{}, V interface{}](m *ebpf.Map) *GenericMap[K, V] {
+func Map[K interface{}, V interface{}](m *ebpf.Map) (*GenericMap[K, V], error) {
+	if err := validateValueTypeForMapType[V](m.Type()); err != nil {
+		return nil, err
+	}
+
 	return &GenericMap[K, V]{
 		m: m,
-	}
+	}, nil
 }
 
 // GetMap gets the generic map with the given name from the manager
@@ -93,7 +117,8 @@ func GetMap[K interface{}, V interface{}](mgr *manager.Manager, name string) (*G
 	if m == nil {
 		return nil, fmt.Errorf("not found")
 	}
-	return Map[K, V](m), nil
+	gm, err := Map[K, V](m)
+	return gm, nil
 }
 
 // Map returns the underlying ebpf.Map
@@ -110,55 +135,24 @@ type IteratorOptions struct {
 // Put inserts a new key/value pair in the map. If the key already exists, the value is updated
 func (g *GenericMap[K, V]) Put(key *K, value *V) error {
 	if g.isPerCPU() {
-		return errors.New("cannot use Put with per-cpu maps, use PutPerCPU instead")
+		return g.m.Put(unsafe.Pointer(key), *value)
 	}
 
 	return g.m.Put(unsafe.Pointer(key), unsafe.Pointer(value))
 }
 
-// PutPerCPU inserts a new key/value pair in the map, used for PerCPU maps. If the key already exists, the value is updated
-func (g *GenericMap[K, V]) PutPerCPU(key *K, value []V) error {
-	if !g.isPerCPU() {
-		return errors.New("cannot use PutPerCPU with non-per-cpu maps, use Put instead")
-	}
-
-	return g.m.Put(unsafe.Pointer(key), value)
-}
-
 // Update updates the value of an existing key in the map.
 func (g *GenericMap[K, V]) Update(key *K, value *V, flags ebpf.MapUpdateFlags) error {
-	if g.isPerCPU() {
-		return errors.New("cannot use Update with per-cpu maps, use UpdatePerCPU instead")
-	}
-
 	return g.m.Update(unsafe.Pointer(key), unsafe.Pointer(value), flags)
-}
-
-// UpdatePerCPU updates the value of an existing key in the map, used for PerCPU maps.
-func (g *GenericMap[K, V]) UpdatePerCPU(key *K, value []V, flags ebpf.MapUpdateFlags) error {
-	if !g.isPerCPU() {
-		return errors.New("cannot use UpdatePerCPU with non-per-cpu maps, use Update instead")
-	}
-
-	return g.m.Update(unsafe.Pointer(key), unsafe.Pointer(&value), flags)
 }
 
 // Lookup looks up a key in the map and returns the value. If the key doesn't exist, it returns ErrKeyNotExist
 func (g *GenericMap[K, V]) Lookup(key *K, valueOut *V) error {
 	if g.isPerCPU() {
-		return errors.New("cannot use Lookup with per-cpu maps, use LookupPerCPU instead")
+		return g.m.Lookup(unsafe.Pointer(key), *valueOut)
 	}
 
 	return g.m.Lookup(unsafe.Pointer(key), unsafe.Pointer(valueOut))
-}
-
-// LookupPerCPU looks up a key in the map and returns the value, used for PerCPU maps. If the key doesn't exist, it returns ErrKeyNotExist
-func (g *GenericMap[K, V]) LookupPerCPU(key *K, valueOut []V) error {
-	if !g.isPerCPU() {
-		return errors.New("cannot use LookupPerCPU with non-per-cpu maps, use Lookup instead")
-	}
-
-	return g.m.Lookup(unsafe.Pointer(key), valueOut)
 }
 
 // Delete deletes a key from the map. If the key doesn't exist, it returns ErrKeyNotExist
@@ -175,12 +169,16 @@ type GenericMapIterator[K interface{}, V interface{}] interface {
 	Err() error
 }
 
-func (g *GenericMap[K, V]) isPerCPU() bool {
-	switch g.m.Type() {
+func isPerCPU(t ebpf.MapType) bool {
+	switch t {
 	case ebpf.PerCPUHash, ebpf.PerCPUArray, ebpf.LRUCPUHash:
 		return true
 	}
 	return false
+}
+
+func (g *GenericMap[K, V]) isPerCPU() bool {
+	return isPerCPU(g.m.Type())
 }
 
 const defaultBatchSize = 100
@@ -225,14 +223,6 @@ func (g *GenericMap[K, V]) IterateWithOptions(itops IteratorOptions) GenericMapI
 	return &genericMapItemIterator[K, V]{
 		it:                           g.m.Iterate(),
 		valueTypeCanUseUnsafePointer: g.valueTypeCanUseUnsafePointer(),
-	}
-}
-
-// IteratePerCPU returns an iterator for the map (only to be used in per-cpu maps)
-func (g *GenericMap[K, V]) IteratePerCPU() GenericMapIterator[K, []V] {
-	return &genericMapItemIterator[K, []V]{
-		it:                           g.m.Iterate(),
-		valueTypeCanUseUnsafePointer: false,
 	}
 }
 
