@@ -46,7 +46,7 @@ func TestSingleItemIter(t *testing.T) {
 	numElements := 0
 	foundElements := make(map[uint32]bool)
 
-	it := m.Iterate(IteratorOptions{ForceSingleItem: true})
+	it := m.IterateWithOptions(IteratorOptions{ForceSingleItem: true})
 	require.NotNil(t, it)
 	require.IsType(t, &genericMapItemIterator[uint32, uint32]{}, it)
 	for it.Next(&k, &v) {
@@ -81,7 +81,7 @@ func TestBatchIter(t *testing.T) {
 	numElements := uint32(0)
 	foundElements := make(map[uint32]bool)
 
-	it := m.Iterate(IteratorOptions{BatchSize: 10})
+	it := m.IterateWithOptions(IteratorOptions{BatchSize: 10})
 	require.NotNil(t, it)
 	require.IsType(t, &genericMapBatchIterator[uint32, uint32]{}, it)
 	for it.Next(&k, &v) {
@@ -116,7 +116,7 @@ func TestBatchIterLessItemsThanBatchSize(t *testing.T) {
 	numElements := uint32(0)
 	foundElements := make(map[uint32]bool)
 
-	it := m.Iterate(IteratorOptions{BatchSize: 10})
+	it := m.IterateWithOptions(IteratorOptions{BatchSize: 10})
 	require.NotNil(t, it)
 	require.IsType(t, &genericMapBatchIterator[uint32, uint32]{}, it)
 	for it.Next(&k, &v) {
@@ -154,7 +154,7 @@ func TestBatchIterWhileUpdated(t *testing.T) {
 	updateEachElements := 25
 	updatesDone := 0
 
-	it := m.Iterate(IteratorOptions{BatchSize: 10})
+	it := m.IterateWithOptions(IteratorOptions{BatchSize: 10})
 	require.NotNil(t, it)
 	require.IsType(t, &genericMapBatchIterator[uint32, uint32]{}, it)
 	for it.Next(&k, &v) {
@@ -205,7 +205,7 @@ func TestBatchIterAllocsPerRun(t *testing.T) {
 
 	allocsSmallBatch := testing.AllocsPerRun(100, func() {
 		numElements := uint32(0)
-		it := m.Iterate(IteratorOptions{BatchSize: batchSize})
+		it := m.IterateWithOptions(IteratorOptions{BatchSize: batchSize})
 		for it.Next(&k, &v) {
 			numElements++
 		}
@@ -216,7 +216,7 @@ func TestBatchIterAllocsPerRun(t *testing.T) {
 
 	allocsLargerBatch := testing.AllocsPerRun(100, func() {
 		numElements := uint32(0)
-		it := m.Iterate(IteratorOptions{BatchSize: batchSize})
+		it := m.IterateWithOptions(IteratorOptions{BatchSize: batchSize})
 		for it.Next(&k, &v) {
 			numElements++
 		}
@@ -252,7 +252,7 @@ func BenchmarkIterate(b *testing.B) {
 				var k uint32
 				var v uint32
 
-				it := m.Iterate(IteratorOptions{BatchSize: batchSize, ForceSingleItem: forceSingleItem})
+				it := m.IterateWithOptions(IteratorOptions{BatchSize: batchSize, ForceSingleItem: forceSingleItem})
 				for it.Next(&k, &v) {
 				}
 			}

@@ -145,11 +145,18 @@ func isPerCPU(typ ebpf.MapType) bool {
 	return false
 }
 
-// Iterate returns an iterator for the map, which transparenlty chooses between batch and single item
-// iterations.
-func (g *GenericMap[K, V]) Iterate(itops IteratorOptions) GenericMapIterator[K, V] {
+const defaultBatchSize = 100
+
+// Iterate returns an iterator for the map, which transparently chooses between batch and single item
+func (g *GenericMap[K, V]) Iterate() GenericMapIterator[K, V] {
+	return g.IterateWithOptions(IteratorOptions{BatchSize: defaultBatchSize})
+}
+
+// IterateWithOptions returns an iterator for the map, which transparently chooses between batch and single item
+// iterations. This version allows choosing options
+func (g *GenericMap[K, V]) IterateWithOptions(itops IteratorOptions) GenericMapIterator[K, V] {
 	if itops.BatchSize == 0 {
-		itops.BatchSize = 100 // Default value for batch sizes. Possibly needs more testing to find an optimal default
+		itops.BatchSize = defaultBatchSize // Default value for batch sizes. Possibly needs more testing to find an optimal default
 	}
 	if itops.BatchSize > int(g.m.MaxEntries()) {
 		itops.BatchSize = int(g.m.MaxEntries())
