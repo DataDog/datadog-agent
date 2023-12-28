@@ -103,6 +103,49 @@ func TestBatchIter(t *testing.T) {
 	}
 }
 
+func TestBatchIterArray(t *testing.T) {
+	if !BatchAPISupported() {
+		t.Skip("Batch API not supported")
+	}
+
+	m, err := NewGenericMap[uint32, uint32](&ebpf.MapSpec{
+		Type:       ebpf.Array,
+		MaxEntries: 100,
+	})
+	require.NoError(t, err)
+
+	numsToPut := uint32(50)
+	for i := uint32(0); i < numsToPut; i++ {
+		val := i + 200 // To distinguish from unset values
+		require.NoError(t, m.Put(&i, &val))
+	}
+
+	var k uint32
+	var v uint32
+	numElements := uint32(0)
+	foundElements := make(map[uint32]bool)
+
+	it := m.IterateWithOptions(IteratorOptions{BatchSize: 10})
+	require.NotNil(t, it)
+	require.IsType(t, &genericMapBatchIterator[uint32, uint32]{}, it)
+	for it.Next(&k, &v) {
+		numElements++
+
+		if k < 50 {
+			foundElements[k] = true
+			require.Equal(t, k+200, v)
+		} else {
+			require.Equal(t, uint32(0), v)
+		}
+	}
+
+	// Array maps will return all values on iterations, even if they are unset
+	require.Equal(t, m.Map().MaxEntries(), numElements)
+	for i := uint32(0); i < numsToPut; i++ {
+		require.True(t, foundElements[i])
+	}
+}
+
 func TestBatchIterLessItemsThanBatchSize(t *testing.T) {
 	if !BatchAPISupported() {
 		t.Skip("Batch API not supported")
