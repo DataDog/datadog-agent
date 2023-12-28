@@ -756,8 +756,11 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 	if err == nil && State(t.status.State) == StateReady {
 		return t.getConstantEditors(), nil
 	}
-
-	curNS, err := netns.Get()
+	var curNS netns.NsHandle
+	curNS, err = netns.Get()
+	if err != nil {
+		return nil, fmt.Errorf("error getting current netns: %w", err)
+	}
 	var eventGenerator *tracerEventGenerator
 	// the root NS is often 0xf0000000 which makes guessing likely to fail. If so, guess in a new NS with a different offset
 	if uintptr(curNS) == 0xf0000000 {
