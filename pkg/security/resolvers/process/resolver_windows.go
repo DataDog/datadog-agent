@@ -173,6 +173,7 @@ func (p *Resolver) GetProcessCmdLineScrubbed(pr *model.Process) string {
 			pr.CmdLine = strings.Join(scrubbed, " ")
 		}
 	}
+	pr.ScrubbedCmdLineResolved = true
 
 	return pr.CmdLine
 }
