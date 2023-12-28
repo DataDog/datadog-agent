@@ -160,6 +160,11 @@ func (g *GenericMap[K, V]) Delete(key *K) error {
 	return g.m.Delete(unsafe.Pointer(key))
 }
 
+// BatchDelete deletes a batch of keys from the map
+func (g *GenericMap[K, V]) BatchDelete(keys []K) (int, error) {
+	return g.m.BatchDelete(keys, nil)
+}
+
 // GenericMapIterator is an interface for iterating over a GenericMap
 type GenericMapIterator[K interface{}, V interface{}] interface {
 	// Next fills K and V with the next key/value pair in the map. It returns false if there are no more elements
