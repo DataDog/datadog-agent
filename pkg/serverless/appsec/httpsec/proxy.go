@@ -49,9 +49,7 @@ func (lp *ProxyLifecycleProcessor) GetExecutionInfo() *invocationlifecycle.Execu
 
 // OnInvokeStart is the hook triggered when an invocation has started
 func (lp *ProxyLifecycleProcessor) OnInvokeStart(startDetails *invocationlifecycle.InvocationStartDetails) {
-	if log.ShouldLog(seelog.DebugLvl) {
-		log.Debugf("appsec: proxy-lifecycle: invocation started with raw payload `%s`", startDetails.InvokeEventRawPayload)
-	}
+	log.Debugf("appsec: proxy-lifecycle: invocation started with raw payload `%s`", startDetails.InvokeEventRawPayload)
 
 	payloadBytes := invocationlifecycle.ParseLambdaPayload(startDetails.InvokeEventRawPayload)
 	if log.ShouldLog(seelog.DebugLvl) {

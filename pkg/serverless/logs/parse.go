@@ -11,8 +11,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/cihub/seelog"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -205,9 +203,7 @@ func (l *LambdaLogAPIMessage) handlePlatformReport(objectRecord map[string]inter
 	if v, ok := metrics["initDurationMs"].(float64); ok {
 		l.objectRecord.reportLogItem.initDurationMs = v
 	}
-	if log.ShouldLog(seelog.DebugLvl) {
-		log.Debugf("Enhanced metrics: %+v\n", l.objectRecord.reportLogItem)
-	}
+	log.Debugf("Enhanced metrics: %+v\n", l.objectRecord.reportLogItem)
 }
 
 //nolint:revive // TODO(SERV) Fix revive linter
@@ -269,9 +265,7 @@ func (l *LambdaLogAPIMessage) handlePlatformInitReport(objectRecord map[string]i
 	if v, ok := metrics["durationMs"].(float64); ok {
 		l.objectRecord.reportLogItem.initDurationTelemetry = v
 	}
-	if log.ShouldLog(seelog.DebugLvl) {
-		log.Debugf("InitReport done metrics: %+v\n", l.objectRecord.reportLogItem)
-	}
+	log.Debugf("InitReport done metrics: %+v\n", l.objectRecord.reportLogItem)
 }
 
 // parseLogsAPIPayload transforms the payload received from the Logs API to an array of LogMessage

@@ -82,12 +82,10 @@ func (r *RequestHandler) SetSamplingPriority(priority sampler.SamplingPriority) 
 
 // OnInvokeStart is the hook triggered when an invocation has started
 func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails) {
-	if log.ShouldLog(seelog.DebugLvl) {
-		log.Debug("[lifecycle] onInvokeStart ------")
-		log.Debugf("[lifecycle] Invocation has started at: %v", startDetails.StartTime)
-		log.Debugf("[lifecycle] Invocation invokeEvent payload is: %s", startDetails.InvokeEventRawPayload)
-		log.Debug("[lifecycle] ---------------------------------------")
-	}
+	log.Debug("[lifecycle] onInvokeStart ------")
+	log.Debugf("[lifecycle] Invocation has started at: %v", startDetails.StartTime)
+	log.Debugf("[lifecycle] Invocation invokeEvent payload is: %s", startDetails.InvokeEventRawPayload)
+	log.Debug("[lifecycle] ---------------------------------------")
 
 	payloadBytes := ParseLambdaPayload(startDetails.InvokeEventRawPayload)
 	if log.ShouldLog(seelog.DebugLvl) {
@@ -249,12 +247,10 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 
 // OnInvokeEnd is the hook triggered when an invocation has ended
 func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
-	if log.ShouldLog(seelog.DebugLvl) {
-		log.Debug("[lifecycle] onInvokeEnd ------")
-		log.Debugf("[lifecycle] Invocation has finished at: %v", endDetails.EndTime)
-		log.Debugf("[lifecycle] Invocation isError is: %v", endDetails.IsError)
-		log.Debug("[lifecycle] ---------------------------------------")
-	}
+	log.Debug("[lifecycle] onInvokeEnd ------")
+	log.Debugf("[lifecycle] Invocation has finished at: %v", endDetails.EndTime)
+	log.Debugf("[lifecycle] Invocation isError is: %v", endDetails.IsError)
+	log.Debug("[lifecycle] ---------------------------------------")
 
 	endDetails.ResponseRawPayload = ParseLambdaPayload(endDetails.ResponseRawPayload)
 
@@ -287,10 +283,8 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 		spans = append(spans, span)
 
 		if lp.InferredSpansEnabled {
-			if log.ShouldLog(seelog.DebugLvl) {
-				log.Debug("[lifecycle] Attempting to complete the inferred span")
-				log.Debugf("[lifecycle] Inferred span context: %+v", lp.GetInferredSpan().Span)
-			}
+			log.Debug("[lifecycle] Attempting to complete the inferred span")
+			log.Debugf("[lifecycle] Inferred span context: %+v", lp.GetInferredSpan().Span)
 			if lp.GetInferredSpan().Span.Start != 0 {
 				span0, span1 := lp.requestHandler.inferredSpans[0], lp.requestHandler.inferredSpans[1]
 				if span1 != nil {
@@ -306,9 +300,7 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 				span0.AddTagToInferredSpan("peer.service", lp.GetServiceName())
 				span := lp.completeInferredSpan(span0, endDetails.EndTime, endDetails.IsError)
 				spans = append(spans, span)
-				if log.ShouldLog(seelog.DebugLvl) {
-					log.Debugf("[lifecycle] The inferred span attributes are: %v", lp.GetInferredSpan())
-				}
+				log.Debugf("[lifecycle] The inferred span attributes are: %v", lp.GetInferredSpan())
 			} else {
 				log.Debug("[lifecyle] Failed to complete inferred span due to a missing start time. Please check that the event payload was received with the appropriate data")
 			}
