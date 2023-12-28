@@ -2,46 +2,27 @@
 #define __BPF_HELPERS_CUSTOM__
 
 #include "bpf_cross_compile.h"
-
-// If we can, try to move the definition of the format string off
-// the stack and into the read-only section of the binary.
-#ifdef BPF_NO_GLOBAL_DATA
-#define BPF_PRINTK_FMT_MOD
-#else
-#define BPF_PRINTK_FMT_MOD static const
-#endif
-
-/*
- * The existence of this tracepoint is used to detect if the bpf_trace_printk
- * function adds a newline to the output or not (added in
- * https://github.com/torvalds/linux/commit/ac5a72ea5c898, went upstream with 5.9)
- *
- * We define our own struct definition if our vmlinux.h is outdated.
- * BPF CO-RE ignores the ___ and everything after it
- */
-struct trace_event_raw_bpf_trace_printk___x {};
-
-#ifdef COMPILE_CORE
-#define BPF_PRINTK_ADDS_NEWLINE bpf_core_type_exists(struct trace_event_raw_bpf_trace_printk___x)
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 9, 0)
-#define BPF_PRINTK_ADDS_NEWLINE 1
-#else
-#define BPF_PRINTK_ADDS_NEWLINE 0
-#endif
+#include "compiler.h"
 
 /*
  * Macro to output debug logs to /sys/kernel/debug/tracing/trace_pipe
+ *
+ * By default it always adds a newline. A ConstantEditor is used to remove
+ * the extra one in linux >= 5.9.
+ *
+ * The trick here is that bpf_trace_printk doesn't seem to care if you pass a size
+ * larger than what you actually print, as long as the format string is null terminated
+ * somewhere and the buffer itself is of the proper size. That way, we can modify the
+ * last character and set it to null.
  */
 #ifdef DEBUG
-#define log_debug(fmt, ...)                                            \
-    ({                                                                 \
-        if (BPF_PRINTK_ADDS_NEWLINE) {                                 \
-            BPF_PRINTK_FMT_MOD char ____fmt[] = fmt;                   \
-            bpf_trace_printk(____fmt, sizeof(____fmt), ##__VA_ARGS__); \
-        } else {                                                       \
-            BPF_PRINTK_FMT_MOD char ____fmt[] = fmt "\n";              \
-            bpf_trace_printk(____fmt, sizeof(____fmt), ##__VA_ARGS__); \
-        }                                                              \
+#define log_debug(fmt, ...)                                        \
+    ({                                                             \
+        __u64 ___last_char = '\n';                                 \
+        LOAD_CONSTANT("log_debug_last_character", ___last_char);   \
+        char ____fmt[] = fmt "\n";                                 \
+        ____fmt[sizeof(fmt) - 1] = (char)___last_char;             \
+        bpf_trace_printk(____fmt, sizeof(____fmt), ##__VA_ARGS__); \
     })
 #else
 // No op
