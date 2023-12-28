@@ -239,9 +239,7 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 		return nil, auto.UpResult{}, err
 	}
 
-	upCtx, cancel := context.WithTimeout(ctx, stackUpTimeout)
 	var loglevel uint = 1
-	defer cancel()
 	var logger io.Writer
 
 	if logWriter == nil {
@@ -250,11 +248,26 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 		logger = logWriter
 	}
 
-	upResult, err := stack.Up(upCtx, optup.ProgressStreams(logger), optup.DebugLogging(debug.LoggingOptions{
-		FlowToPlugins: true,
-		LogLevel:      &loglevel,
-	}))
+	var ok bool
+	var upResult auto.UpResult
 
+	for retry := 0; retry < 2 && !ok; retry++ {
+		upCtx, cancel := context.WithTimeout(ctx, stackUpTimeout)
+		upResult, err = stack.Up(upCtx, optup.ProgressStreams(logger), optup.DebugLogging(debug.LoggingOptions{
+			FlowToPlugins: true,
+			LogLevel:      &loglevel,
+		}))
+		cancel()
+		time.Sleep(5 * time.Second)
+		if err != nil {
+			if shouldRetryError(err) {
+				fmt.Fprintf(logger, "Got error that should be retried during stack up, retrying: %v\n", err)
+				time.Sleep(5 * time.Second)
+				continue
+			}
+		}
+		ok = true
+	}
 	return stack, upResult, err
 
 }
@@ -299,6 +312,36 @@ func runFuncWithRecover(f pulumi.RunFunc) pulumi.RunFunc {
 
 		return f(ctx)
 	}
+}
+
+func shouldRetryError(err error) bool {
+	if auto.IsCompilationError(err) {
+		return false
+	}
+	if auto.IsConcurrentUpdateError(err) {
+		return false
+	}
+	if auto.IsSelectStack404Error(err) {
+		return false
+	}
+	if auto.IsCreateStack409Error(err) {
+		return false
+	}
+	if auto.IsRuntimeError(err) {
+		return false
+	}
+
+	// Add here errors that are known to be flakes and that should be retried
+
+	if strings.Contains(err.Error(), "i/o timeout") {
+		return true
+	}
+
+	if strings.Contains(err.Error(), "creating EC2 Instance: IdempotentParameterMismatch:") {
+		return true
+	}
+
+	return false
 }
 
 // GetPulumiStackName returns the Pulumi stack name
