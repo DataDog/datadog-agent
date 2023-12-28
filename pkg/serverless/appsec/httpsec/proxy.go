@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/aws/aws-lambda-go/events"
-	"github.com/cihub/seelog"
 )
 
 // ProxyLifecycleProcessor is an implementation of the invocationlifecycle.InvocationProcessor
@@ -52,9 +51,7 @@ func (lp *ProxyLifecycleProcessor) OnInvokeStart(startDetails *invocationlifecyc
 	log.Debugf("appsec: proxy-lifecycle: invocation started with raw payload `%s`", startDetails.InvokeEventRawPayload)
 
 	payloadBytes := invocationlifecycle.ParseLambdaPayload(startDetails.InvokeEventRawPayload)
-	if log.ShouldLog(seelog.DebugLvl) {
-		log.Debugf("Parsed payload string: %s", bytesStringer(payloadBytes))
-	}
+	log.Debugf("Parsed payload string: %s", payloadBytes)
 
 	lowercaseEventPayload, err := trigger.Unmarshal(bytes.ToLower(payloadBytes))
 	if err != nil {

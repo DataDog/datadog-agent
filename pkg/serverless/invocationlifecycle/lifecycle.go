@@ -12,8 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cihub/seelog"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
@@ -88,9 +86,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	log.Debug("[lifecycle] ---------------------------------------")
 
 	payloadBytes := ParseLambdaPayload(startDetails.InvokeEventRawPayload)
-	if log.ShouldLog(seelog.DebugLvl) {
-		log.Debugf("Parsed payload string: %s", string(payloadBytes))
-	}
+	log.Debugf("Parsed payload string: %s", payloadBytes)
 
 	lowercaseEventPayload, err := trigger.Unmarshal(bytes.ToLower(payloadBytes))
 	if err != nil {

@@ -8,8 +8,6 @@ package aggregator
 import (
 	"time"
 
-	"github.com/cihub/seelog"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 
@@ -113,8 +111,8 @@ func createIterableMetrics(
 			if logPayloads {
 				log.Debugf("Flushing Sketches: %v", sketch)
 			}
-			if isServerless && log.ShouldLog(seelog.DebugLvl) {
-				log.DebugfServerless("Sending sketches payload : %s", sketch.String())
+			if isServerless {
+				log.DebugfServerless("Sending sketches payload : %s", sketch)
 			}
 			tagsetTlm.updateHugeSketchesTelemetry(sketch)
 		}, flushAndSerializeInParallel.BufferSize, flushAndSerializeInParallel.ChannelSize)
