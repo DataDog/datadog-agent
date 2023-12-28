@@ -108,14 +108,14 @@ func (s *linuxTestSuite) TestManualProcessCheck() {
 	check := s.Env().VM.
 		Execute("sudo /opt/datadog-agent/embedded/bin/process-agent check process --json")
 
-	assertManualProcessCheck(s.T(), check, false)
+	assertManualProcessCheck(s.T(), check, false, "stress")
 }
 
 func (s *linuxTestSuite) TestManualProcessDiscoveryCheck() {
 	check := s.Env().VM.
 		Execute("sudo /opt/datadog-agent/embedded/bin/process-agent check process_discovery --json")
 
-	assertManualProcessDiscoveryCheck(s.T(), check)
+	assertManualProcessDiscoveryCheck(s.T(), check, "stress")
 }
 
 func (s *linuxTestSuite) TestManualProcessCheckWithIO() {
@@ -127,5 +127,5 @@ func (s *linuxTestSuite) TestManualProcessCheckWithIO() {
 	check := s.Env().VM.
 		Execute("sudo /opt/datadog-agent/embedded/bin/process-agent check process --json")
 
-	assertManualProcessCheck(s.T(), check, true)
+	assertManualProcessCheck(s.T(), check, true, "stress")
 }

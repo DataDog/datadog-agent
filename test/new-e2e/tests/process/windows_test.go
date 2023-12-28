@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
@@ -28,7 +27,7 @@ func TestWindowsTestSuite(t *testing.T) {
 		e2e.FakeIntakeStackDef(
 			e2e.WithAgentParams(agentparams.WithAgentConfig(processCheckConfigStr)),
 			e2e.WithVMParams(ec2params.WithOS(ec2os.WindowsOS)),
-		), params.WithDevMode())
+		))
 }
 
 func (s *windowsTestSuite) SetupSuite() {
@@ -110,4 +109,33 @@ func (s *windowsTestSuite) TestProcessCheckIO() {
 	}, 2*time.Minute, 10*time.Second)
 
 	assertProcessCollected(t, payloads, true, "MsMpEng.exe")
+}
+
+func (s *windowsTestSuite) TestManualProcessCheck() {
+	check := s.Env().VM.
+		Execute("& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\process-agent.exe\" check process --json")
+
+	assertManualProcessCheck(s.T(), check, false, "MsMpEng.exe")
+}
+
+func (s *windowsTestSuite) TestManualProcessDiscoveryCheck() {
+	check := s.Env().VM.
+		Execute("& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\process-agent.exe\" check process_discovery --json")
+	assertManualProcessDiscoveryCheck(s.T(), check, "MsMpEng.exe")
+}
+
+func (s *windowsTestSuite) TestManualProcessCheckWithIO() {
+	s.UpdateEnv(e2e.FakeIntakeStackDef(e2e.WithAgentParams(
+		agentparams.WithAgentConfig(processCheckConfigStr),
+		agentparams.WithSystemProbeConfig(systemProbeConfigStr),
+	), e2e.WithVMParams(ec2params.WithOS(ec2os.WindowsOS)),
+	))
+
+	// Flush fake intake to remove payloads that won't have IO stats
+	s.Env().Fakeintake.FlushServerAndResetAggregators()
+
+	check := s.Env().VM.
+		Execute("& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\process-agent.exe\" check process --json")
+
+	assertManualProcessCheck(s.T(), check, true, "MsMpEng.exe")
 }

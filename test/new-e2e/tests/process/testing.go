@@ -98,7 +98,7 @@ func findProcess(
 
 // processHasData asserts that the given process has the expected data populated
 func processHasData(process *agentmodel.Process) bool {
-	return process.Pid != 0 && process.NsPid != 0 && len(process.User.Name) > 0 &&
+	return process.Pid != 0 && len(process.User.Name) > 0 &&
 		process.Cpu.TotalPct > 0 && process.Cpu.SystemPct > 0 &&
 		process.Memory.Rss > 0 && process.Memory.Vms > 0
 }
@@ -109,7 +109,7 @@ func processHasIOStats(process *agentmodel.Process) bool {
 	return process.IoStat.WriteRate > 0 && process.IoStat.WriteBytesRate > 0
 }
 
-// assertStressProcessDiscoveryCollected asserts that the stress process is collected by the process
+// assertStressProcessDiscoveryCollected asserts that the given process is collected by the process
 // discovery check and that it has the expected data populated
 func assertStressProcessDiscoveryCollected(
 	t *testing.T, payloads []*aggregator.ProcessDiscoveryPayload, process string,
@@ -152,12 +152,12 @@ func findProcessDiscovery(
 
 // processDiscoveryHasData asserts that the given process discovery has the expected data populated
 func processDiscoveryHasData(disc *agentmodel.ProcessDiscovery) bool {
-	return disc.Pid != 0 && disc.NsPid != 0 && len(disc.User.Name) > 0
+	return disc.Pid != 0 && len(disc.User.Name) > 0
 }
 
 // assertManualProcessCheck asserts that the stress process is collected and reported in the output
 // of the manual process check
-func assertManualProcessCheck(t *testing.T, check string, withIOStats bool) {
+func assertManualProcessCheck(t *testing.T, check string, withIOStats bool, process string) {
 	defer func() {
 		if t.Failed() {
 			t.Logf("Check output:\n%s\n", check)
@@ -170,15 +170,15 @@ func assertManualProcessCheck(t *testing.T, check string, withIOStats bool) {
 	err := json.Unmarshal([]byte(check), &checkOutput)
 	require.NoError(t, err, "failed to unmarshal process check output")
 
-	found, populated := findProcess("stress", checkOutput.Processes, withIOStats)
+	found, populated := findProcess(process, checkOutput.Processes, withIOStats)
 
-	require.True(t, found, "stress process not found")
-	assert.True(t, populated, "no stress process had all data populated")
+	require.True(t, found, process + " process not found")
+	assert.True(t, populated, "no " + process + " process had all data populated")
 }
 
-// assertManualProcessDiscoveryCheck asserts that the stress process is collected and reported in
+// assertManualProcessDiscoveryCheck asserts that the given process is collected and reported in
 // the output of the manual process_discovery check
-func assertManualProcessDiscoveryCheck(t *testing.T, check string) {
+func assertManualProcessDiscoveryCheck(t *testing.T, check string, process string) {
 	defer func() {
 		if t.Failed() {
 			t.Logf("Check output:\n%s\n", check)
@@ -191,8 +191,8 @@ func assertManualProcessDiscoveryCheck(t *testing.T, check string) {
 	err := json.Unmarshal([]byte(check), &checkOutput)
 	require.NoError(t, err, "failed to unmarshal process check output")
 
-	found, populated := findProcessDiscovery("stress", checkOutput.ProcessDiscoveries)
+	found, populated := findProcessDiscovery(process, checkOutput.ProcessDiscoveries)
 
-	require.True(t, found, "stress process not found")
-	assert.True(t, populated, "no stress process had all data populated")
+	require.True(t, found, process + " process not found")
+	assert.True(t, populated, "no " + process + " process had all data populated")
 }
