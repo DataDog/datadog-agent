@@ -120,6 +120,9 @@ func GetMap[K interface{}, V interface{}](mgr *manager.Manager, name string) (*G
 		return nil, fmt.Errorf("map %s not found", name)
 	}
 	gm, err := Map[K, V](m)
+	if err != nil {
+		return nil, err
+	}
 	return gm, nil
 }
 

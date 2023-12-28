@@ -122,7 +122,6 @@ func (mc *MapCleaner[K, V]) cleanWithBatches(nowTS int64, shouldClean func(nowTS
 	var n int
 	for {
 		n, _ = mc.emap.BatchLookup(&cursor, mc.keyBatch, mc.valuesBatch, nil)
-		n = 0
 		if n == 0 {
 			break
 		}
