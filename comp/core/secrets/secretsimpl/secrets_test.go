@@ -401,7 +401,7 @@ func TestResolveCached(t *testing.T) {
 
 	fetchHappened := 0
 	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
-		fetchHappened += 1
+		fetchHappened++
 		return map[string]string{
 			"pass1": "password1",
 		}, nil
