@@ -62,12 +62,12 @@ func (pp *PulumiProvisioner[Env]) ID() string {
 }
 
 // Provision runs the Pulumi program and returns the raw resources.
-func (pp *PulumiProvisioner[Env]) Provision(stackName string, ctx context.Context, logger io.Writer) (RawResources, error) {
-	return pp.ProvisionEnv(stackName, ctx, logger, nil)
+func (pp *PulumiProvisioner[Env]) Provision(ctx context.Context, stackName string, logger io.Writer) (RawResources, error) {
+	return pp.ProvisionEnv(ctx, stackName, logger, nil)
 }
 
 // ProvisionEnv runs the Pulumi program with a given environment and returns the raw resources.
-func (pp *PulumiProvisioner[Env]) ProvisionEnv(stackName string, ctx context.Context, logger io.Writer, env *Env) (RawResources, error) {
+func (pp *PulumiProvisioner[Env]) ProvisionEnv(ctx context.Context, stackName string, logger io.Writer, env *Env) (RawResources, error) {
 	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(
 		ctx,
 		stackName,
@@ -102,6 +102,6 @@ func (pp *PulumiProvisioner[Env]) ProvisionEnv(stackName string, ctx context.Con
 }
 
 // Destroy deletes the Pulumi stack.
-func (pp *PulumiProvisioner[Env]) Destroy(stackName string, ctx context.Context, logger io.Writer) error {
+func (pp *PulumiProvisioner[Env]) Destroy(ctx context.Context, stackName string, logger io.Writer) error {
 	return infra.GetStackManager().DeleteStack(ctx, stackName, logger)
 }

@@ -5,21 +5,21 @@
 
 // Package e2e provides the API to manage environments and organize E2E tests.
 // Three major concepts are used to write E2E tests:
-//  - [e2e.Provisioner]: A provisioner is a component that provide compute resources (usually Cloud resources). Most common is Pulumi through `test-infra-definitions`.
-//  - [e2e.BaseSuite]: A TestSuite is a collection of tests that share the ~same environment.
-//  - Environment: An environment is a collection of resources (virtual machine, agent, etc). An environment is filled by provisioners.
+//   - [e2e.Provisioner]: A provisioner is a component that provide compute resources (usually Cloud resources). Most common is Pulumi through `test-infra-definitions`.
+//   - [e2e.BaseSuite]: A TestSuite is a collection of tests that share the ~same environment.
+//   - Environment: An environment is a collection of resources (virtual machine, agent, etc). An environment is filled by provisioners.
 //
 // See usage examples in the [examples] package.
 //
 // # Provisioners
 //
 // Three provisioners are available:
-//  - [e2e.PulumiProvisioner]: A provisioner that uses Pulumi to create resources.
-// Pulumi Provisioner can be typed or untyped:
-//  - Typed provisioners are provisioners that are typed with the environment they provision and the `Run` function must be defined in `datadog-agent` inline.
-//  - Untyped provisioners are provisioners that are not typed with the environment they provision and the `Run` function can come from anywhere.
+//   - [e2e.PulumiProvisioner]: A provisioner that uses Pulumi to create resources.
 //
-//  - [e2e.StaticProvisioner]: A provisioner that uses static resources from a JSON file. The static provisioner is Untyped.
+// Pulumi Provisioner can be typed or untyped:
+//   - Typed provisioners are provisioners that are typed with the environment they provision and the `Run` function must be defined in `datadog-agent` inline.
+//   - Untyped provisioners are provisioners that are not typed with the environment they provision and the `Run` function can come from anywhere.
+//   - [e2e.StaticProvisioner]: A provisioner that uses static resources from a JSON file. The static provisioner is Untyped.
 //
 // # Impact of Typed vs Untyped provisioners
 // Typed provisioners are more convenient to use as they are typed with the environment they provision, however they do require a close mapping between the RunFunc and the environment.
@@ -39,8 +39,8 @@
 // It allows to easily write tests that share the same environment without having to re-implement boilerplate code.
 // Check all the [e2e.SuiteOption] to customize the behavior of the BaseSuite.
 //
-// Note: By default, the BaseSuite test suite will delete the environment when the test suite finishes (whether it's succesful or not).
-// During developement, it's highly recommended to use the [params.WithDevMode] option to prevent the environment from being deleted.
+// Note: By default, the BaseSuite test suite will delete the environment when the test suite finishes (whether it's successful or not).
+// During development, it's highly recommended to use the [params.WithDevMode] option to prevent the environment from being deleted.
 //
 // # Organizing your tests
 //
@@ -138,7 +138,6 @@
 //
 // [Subtests]: https://go.dev/blog/subtests
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
-
 package e2e
 
 import (
@@ -256,7 +255,7 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners ProvisionerMap) {
 	// Check for removed provisioners, we need to call delete on them first
 	for id, provisioner := range bs.currentProvisioners {
 		if _, found := targetProvisioners[id]; !found {
-			if err := provisioner.Destroy(bs.params.stackName, ctx, logger); err != nil {
+			if err := provisioner.Destroy(ctx, bs.params.stackName, logger); err != nil {
 				panic(fmt.Errorf("unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err))
 			}
 		}
@@ -270,9 +269,9 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners ProvisionerMap) {
 
 		switch pType := provisioner.(type) {
 		case TypedProvisioner[Env]:
-			provisionerResources, err = pType.ProvisionEnv(bs.params.stackName, ctx, logger, newEnv)
+			provisionerResources, err = pType.ProvisionEnv(ctx, bs.params.stackName, logger, newEnv)
 		case UntypedProvisioner:
-			provisionerResources, err = pType.Provision(bs.params.stackName, ctx, logger)
+			provisionerResources, err = pType.Provision(ctx, bs.params.stackName, logger)
 		default:
 			panic(fmt.Errorf("provisioner of type %T does not implement UntypedProvisioner nor TypedProvisioner", provisioner))
 		}
@@ -285,7 +284,7 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners ProvisionerMap) {
 	}
 
 	// Env is taken as parameter as some fields may have keys set by Env pulumi program.
-	err = bs.buildEnvFromResources(resources, newEnvFields, newEnvValues, newEnv)
+	err = bs.buildEnvFromResources(resources, newEnvFields, newEnvValues)
 	if err != nil {
 		panic(fmt.Errorf("unable to build env: %T from resources for stack: %s, err: %v", newEnv, bs.params.stackName, err))
 	}
@@ -345,7 +344,7 @@ func (bs *BaseSuite[Env]) createEnv() (*Env, []reflect.StructField, []reflect.Va
 	return &env, retainedFields, retainedValues, nil
 }
 
-func (bs *BaseSuite[Env]) buildEnvFromResources(resources RawResources, fields []reflect.StructField, values []reflect.Value, env *Env) error {
+func (bs *BaseSuite[Env]) buildEnvFromResources(resources RawResources, fields []reflect.StructField, values []reflect.Value) error {
 	if len(fields) != len(values) {
 		panic("fields and values must have the same length")
 	}
@@ -363,9 +362,9 @@ func (bs *BaseSuite[Env]) buildEnvFromResources(resources RawResources, fields [
 		if fieldValue.IsNil() {
 			if _, found := resources[importKeyFromTag]; found {
 				return fmt.Errorf("resource named %s has key %s but is nil", fields[idx].Name, importKeyFromTag)
-			} else {
-				continue
 			}
+
+			continue
 		}
 
 		importable := fieldValue.Interface().(components.Importable)
@@ -412,7 +411,7 @@ func (bs *BaseSuite[Env]) providerContext(opTimeout time.Duration) (context.Cont
 }
 
 //
-// Overriden methods
+// Overridden methods
 //
 
 // BeforeTest is executed right before the test starts and receives the suite and test names as input.
@@ -466,7 +465,7 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 
 	atLeastOneFailure := false
 	for id, provisioner := range bs.originalProvisioners {
-		if err := provisioner.Destroy(bs.params.stackName, ctx, newTestLogger(bs.T())); err != nil {
+		if err := provisioner.Destroy(ctx, bs.params.stackName, newTestLogger(bs.T())); err != nil {
 			bs.T().Errorf("unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err)
 			atLeastOneFailure = true
 		}
@@ -478,7 +477,7 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 }
 
 // Run is a helper function to run a test suite.
-// Unfortunatly, we cannot use `s Suite[Env]` as Go is not able to match it with a struct
+// Unfortunately, we cannot use `s Suite[Env]` as Go is not able to match it with a struct
 // However it's able to verify the same constraint on T
 func Run[Env any, T Suite[Env]](t *testing.T, s T, options ...SuiteOption) {
 	options = append(options, WithDevMode())

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package agentclient provides an interface to run Agent commands.
 package agentclient
 
 // Agent is an interface to run Agent command.

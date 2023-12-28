@@ -30,6 +30,7 @@ const (
 	sshMaxRetries    = 5
 )
 
+// RemoteHost represents a remote host
 type RemoteHost struct {
 	remote.HostOutput
 
@@ -39,6 +40,7 @@ type RemoteHost struct {
 
 var _ e2e.Initializable = &RemoteHost{}
 
+// Init is called by e2e test Suite after the component is provisioned.
 func (h *RemoteHost) Init(ctx e2e.Context) error {
 	h.context = ctx
 	h.context.T().Logf("connecting to remote VM at %s@%s", h.Username, h.Address)

@@ -44,7 +44,7 @@ func (fp *FileProvisioner) ID() string {
 }
 
 // Provision reads JSON files from the filesystem and returns them as raw resources.
-func (fp *FileProvisioner) Provision(string, context.Context, io.Writer) (RawResources, error) {
+func (fp *FileProvisioner) Provision(context.Context, string, io.Writer) (RawResources, error) {
 	resources := make(RawResources)
 
 	return resources, fs.WalkDir(fp.fs, ".", func(path string, d fs.DirEntry, err error) error {
@@ -72,6 +72,6 @@ func (fp *FileProvisioner) Provision(string, context.Context, io.Writer) (RawRes
 }
 
 // Destroy is a no-op for the FileProvisioner.
-func (fp *FileProvisioner) Destroy(string, context.Context, io.Writer) error {
+func (fp *FileProvisioner) Destroy(context.Context, string, io.Writer) error {
 	return nil
 }

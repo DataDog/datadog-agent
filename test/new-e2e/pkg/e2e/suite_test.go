@@ -25,12 +25,12 @@ type testTypeOutput struct {
 type testTypeWrapper struct {
 	testTypeOutput
 
-	unrelatedField string
+	unrelatedField string // nolint:unused mimic actual struct to validate reflection code
 }
 
 var _ Initializable = &testTypeWrapper{}
 
-func (t *testTypeWrapper) Init(ctx Context) error {
+func (t *testTypeWrapper) Init(Context) error {
 	return nil
 }
 
@@ -59,7 +59,7 @@ func TestCreateEnv(t *testing.T) {
 
 	testResources := testRawResources("myWrapper1", "myValue")
 	testResources.Merge(testRawResources("myWrapper2", "myValue"))
-	err = suite.buildEnvFromResources(testResources, envFields, envValues, env)
+	err = suite.buildEnvFromResources(testResources, envFields, envValues)
 
 	require.NoError(t, err)
 	require.Equal(t, "myValue", env.Wrapper1.GetMyField())
@@ -76,12 +76,12 @@ func (m *testProvisioner) ID() string {
 	return args.Get(0).(string)
 }
 
-func (m *testProvisioner) Provision(arg0 string, arg1 context.Context, arg2 io.Writer) (RawResources, error) {
+func (m *testProvisioner) Provision(arg0 context.Context, arg1 string, arg2 io.Writer) (RawResources, error) {
 	args := m.Called(arg0, arg1, arg2)
 	return args.Get(0).(RawResources), args.Error(1)
 }
 
-func (m *testProvisioner) Destroy(arg0 string, arg1 context.Context, arg2 io.Writer) error {
+func (m *testProvisioner) Destroy(arg0 context.Context, arg1 string, arg2 io.Writer) error {
 	args := m.Called(arg0, arg1, arg2)
 	return args.Error(0)
 }

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package awsdocker contains the definition of the AWS Docker environment.
 package awsdocker
 
 import (
@@ -127,7 +128,10 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Do
 		if err != nil {
 			return err
 		}
-		host.Export(ctx, &env.Host.HostOutput)
+		err = host.Export(ctx, &env.Host.HostOutput)
+		if err != nil {
+			return err
+		}
 
 		manager, _, err := docker.NewManager(*awsEnv.CommonEnvironment, host, true)
 		if err != nil {
@@ -140,7 +144,10 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Do
 			if err != nil {
 				return err
 			}
-			fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
+			err = fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
+			if err != nil {
+				return err
+			}
 
 			// TODO: Pending PR, but currently Docker Agent does not support fakeintake
 		} else {
@@ -154,7 +161,11 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Do
 			if err != nil {
 				return err
 			}
-			agent.Export(ctx, &env.Agent.DockerAgentOutput)
+
+			err = agent.Export(ctx, &env.Agent.DockerAgentOutput)
+			if err != nil {
+				return err
+			}
 		} else {
 			// Suite inits all fields by default, so we need to explicitly set it to nil
 			env.Agent = nil

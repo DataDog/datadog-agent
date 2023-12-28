@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 )
 
+// RemoteHostAgent represents an Agent running directly on a Host
 type RemoteHostAgent struct {
 	agent.HostAgentOutput
 

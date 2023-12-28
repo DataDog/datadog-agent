@@ -17,6 +17,7 @@ import (
 
 const kubeClientTimeout = 60 * time.Second
 
+// KubernetesCluster represents a Kubernetes cluster
 type KubernetesCluster struct {
 	kubernetes.ClusterOutput
 
@@ -44,6 +45,7 @@ func (kc *KubernetesCluster) Init(e2e.Context) error {
 	return nil
 }
 
+// Client returns the Kubernetes client
 func (kc *KubernetesCluster) Client() kubeClient.Interface {
 	return kc.client
 }

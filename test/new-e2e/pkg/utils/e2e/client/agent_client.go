@@ -30,7 +30,7 @@ func NewHostAgentClient(t *testing.T, host *components.RemoteHost, waitForAgentR
 	return commandRunner, nil
 }
 
-// NewHostAgentClient creates an Agent client for host install
+// NewDockerAgentClient creates an Agent client for a Docker install
 func NewDockerAgentClient(t *testing.T, docker *Docker, agentContainerName string, waitForAgentReady bool) (agentclient.Agent, error) {
 	commandRunner := newAgentCommandRunner(t, newAgentDockerExecutor(docker, agentContainerName))
 

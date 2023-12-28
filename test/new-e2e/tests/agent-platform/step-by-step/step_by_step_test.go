@@ -44,7 +44,7 @@ type stepByStepSuite struct {
 	cwsSupported bool
 }
 
-func ExecuteWithoutError(t *testing.T, client *common.TestClient, cmd string, args ...any) {
+func ExecuteWithoutError(_ *testing.T, client *common.TestClient, cmd string, args ...any) {
 	var finalCmd string
 	if len(args) > 0 {
 		finalCmd = fmt.Sprintf(cmd, args...)

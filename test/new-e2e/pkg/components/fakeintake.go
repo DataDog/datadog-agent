@@ -8,9 +8,11 @@ package components
 import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+
 	"github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
 )
 
+// FakeIntake represents a FakeIntake instance
 type FakeIntake struct {
 	fakeintake.FakeintakeOutput
 

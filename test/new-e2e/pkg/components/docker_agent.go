@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 )
 
+// DockerAgent represents an Agent running in a Docker container
 type DockerAgent struct {
 	agent.DockerAgentOutput
 

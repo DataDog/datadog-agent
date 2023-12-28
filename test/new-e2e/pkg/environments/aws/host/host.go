@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package host contains the definition of the AWS Host environment.
 package host
 
 import (
@@ -144,7 +145,10 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Ho
 		if err != nil {
 			return err
 		}
-		host.Export(ctx, &env.RemoteHost.HostOutput)
+		err = host.Export(ctx, &env.RemoteHost.HostOutput)
+		if err != nil {
+			return err
+		}
 
 		// Create FakeIntake if required
 		if params.fakeintakeOptions != nil {
@@ -152,11 +156,14 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Ho
 			if err != nil {
 				return err
 			}
-			fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
+			err = fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
+			if err != nil {
+				return err
+			}
 
 			// Normally if FakeIntake is enabled, Agent is enabled, but just in case
 			if params.agentOptions != nil {
-				// Prepend in case it's overriden by the user
+				// Prepend in case it's overridden by the user
 				newOpts := []agentparams.Option{agentparams.WithFakeintake(fakeIntake)}
 				params.agentOptions = append(newOpts, params.agentOptions...)
 			}
@@ -171,7 +178,11 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Ho
 			if err != nil {
 				return err
 			}
-			agent.Export(ctx, &env.Agent.HostAgentOutput)
+
+			err = agent.Export(ctx, &env.Agent.HostAgentOutput)
+			if err != nil {
+				return err
+			}
 		} else {
 			// Suite inits all fields by default, so we need to explicitly set it to nil
 			env.Agent = nil

@@ -44,7 +44,7 @@ func TestE2EVMFakeintakeSuite(t *testing.T) {
 	e2e.Run(t, &LinuxFakeintakeSuite{}, options...)
 }
 
-func (s *LinuxFakeintakeSuite) AfterTest(suiteName, testName string) {
+func (s *LinuxFakeintakeSuite) AfterTest(_, _ string) {
 	// Flush server and reset aggregators before the test is ran
 	s.cleanUp()
 
