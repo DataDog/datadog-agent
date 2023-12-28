@@ -12,15 +12,15 @@ import (
 )
 
 const (
-	//nolint:revive // TODO(NET) Fix revive linter
+	// ConnTagGnuTLS is the tag for GnuTLS connections
 	ConnTagGnuTLS = http.GnuTLS
-	//nolint:revive // TODO(NET) Fix revive linter
+	// ConnTagOpenSSL is the tag for OpenSSL connections
 	ConnTagOpenSSL = http.OpenSSL
-	//nolint:revive // TODO(NET) Fix revive linter
+	// ConnTagGo is the tag for Go connections
 	ConnTagGo = http.Go
-	//nolint:revive // TODO(NET) Fix revive linter
+	// ConnTagJava is the tag for Java connections
 	ConnTagJava = http.Java
-	//nolint:revive // TODO(NET) Fix revive linter
+	// ConnTagTLS is the tag for TLS connections
 	ConnTagTLS = http.TLS
 )
 
