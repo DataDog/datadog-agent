@@ -316,6 +316,7 @@ func (k *Probe) getMapStats(stats *model.EBPFStats) error {
 			Module:     module,
 			Type:       info.Type,
 			MaxEntries: info.MaxEntries,
+			Entries:    -1, // Indicates no entries were calculated
 		}
 		ebpfmaps[baseMapStats.Name] = &baseMapStats
 
@@ -334,6 +335,7 @@ func (k *Probe) getMapStats(stats *model.EBPFStats) error {
 			}
 		case ebpf.Hash, ebpf.LRUHash, ebpf.PerCPUHash, ebpf.LRUCPUHash, ebpf.HashOfMaps:
 			baseMapStats.MaxSize, baseMapStats.RSS = hashMapMemoryUsage(info, uint64(k.nrcpus))
+			baseMapStats.Entries = hashNumberOfEntries(mp)
 		case ebpf.Array, ebpf.PerCPUArray, ebpf.ProgramArray, ebpf.CGroupArray, ebpf.ArrayOfMaps:
 			baseMapStats.MaxSize, baseMapStats.RSS = arrayMemoryUsage(info, uint64(k.nrcpus))
 		case ebpf.LPMTrie:
@@ -522,4 +524,8 @@ func ringBufferMemoryUsage(mapStats *model.EBPFMapStats, info *ebpf.MapInfo, k *
 	mapStats.MaxSize += ringInfo.Consumer.Len + ringInfo.Data.Len
 	mapStats.RSS = mapStats.MaxSize
 	return nil
+}
+
+func hashNumberOfEntries(mp *ebpf.Map) int64 {
+	return 0 // TODO(gjulianm)
 }

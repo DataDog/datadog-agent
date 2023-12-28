@@ -119,6 +119,9 @@ func (m *EBPFCheck) Run() error {
 		if mapStats.RSS > 0 {
 			sender.Gauge("ebpf.maps.memory_rss", float64(mapStats.RSS), "", tags)
 		}
+		if mapStats.Entries >= 0 {
+			sender.Gauge("ebpf.maps.entry_count", float64(mapStats.Entries), "", tags)
+		}
 		moduleTotalMapMaxSize[mapStats.Module] += mapStats.MaxSize
 		moduleTotalMapRSS[mapStats.Module] += mapStats.RSS
 
