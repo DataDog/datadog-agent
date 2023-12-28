@@ -544,8 +544,13 @@ static __always_inline bool find_relevant_frames(struct __sk_buff *skb, skb_info
     bool is_headers_or_rst_frame, is_data_end_of_stream;
     http2_frame_t current_frame = {};
 
+    // if we already processed part of the packet, we should start from the last offset we processed.
+    if (iteration_value->filter_iterations > 0) {
+        skb_info->data_off = iteration_value->data_off;
+    }
+
    // If we have found enough interesting frames, we should not process any new frame.
-   // This check accounts for a future change where the value of iteration_value->frames_count may potentially be greater than 0.
+   // The value of iteration_value->frames_count may potentially be greater than 0.
    // It's essential to validate that this increase doesn't surpass the maximum number of frames we can process.
    if (iteration_value->frames_count >= HTTP2_MAX_FRAMES_ITERATIONS) {
        return false;
@@ -708,6 +713,8 @@ int socket__http2_filter(struct __sk_buff *skb) {
     // Max current amount of tail calls would be 2, which will allow us to currently parse
     // HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER*HTTP2_MAX_FRAMES_ITERATIONS.
     if (have_more_frames_to_process && iteration_value->filter_iterations < HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER) {
+        // save local copy of the skb_info, so the next prog will start from the offset of the next valid frame.
+        iteration_value->data_off = local_skb_info.data_off;
         iteration_value->filter_iterations++;
         bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2_FRAME_FILTER);
     }

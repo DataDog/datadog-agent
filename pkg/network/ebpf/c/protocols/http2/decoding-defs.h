@@ -156,6 +156,7 @@ typedef struct {
     __u16 iteration;
     __u16 frames_count;
     __u16 filter_iterations;
+    __u32 data_off;
     http2_frame_with_offset frames_array[HTTP2_MAX_FRAMES_ITERATIONS] __attribute__((aligned(8)));
 } http2_tail_call_state_t;
 
