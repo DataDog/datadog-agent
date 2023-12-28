@@ -11,12 +11,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
 )
 
 type windowsTestSuite struct {
@@ -33,7 +33,8 @@ func TestWindowsTestSuite(t *testing.T) {
 
 func (s *windowsTestSuite) SetupSuite() {
 	s.Suite.SetupSuite()
-	s.Env().VM.Execute("ForEach ($p in 1..200){ Start-Process -WindowStyle hidden -FilePath cmd.exe }")
+	//s.Env().VM.Execute("fsutil file createnew big 107374182400")
+	//s.Env().VM.Execute("Start-Process -WindowStyle hidden -FilePath tar.exe -ArgumentList \"czvf\",\"test.tar.gz\",\"big\"")
 }
 
 func (s *windowsTestSuite) TestProcessCheck() {
@@ -53,13 +54,15 @@ func (s *windowsTestSuite) TestProcessCheck() {
 		// Wait for two payloads, as processes must be detected in two check runs to be returned
 		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
 	}, 2*time.Minute, 10*time.Second)
-	
-	assertProcessCollected(t, payloads, false, "cmd.exe")
+
+	assertProcessCollected(t, payloads, false, "MsMpEng.exe")
 }
 
 func (s *windowsTestSuite) TestProcessDiscoveryCheck() {
 	s.UpdateEnv(e2e.FakeIntakeStackDef(
-		e2e.WithAgentParams(agentparams.WithAgentConfig(processDiscoveryCheckConfigStr))))
+		e2e.WithAgentParams(agentparams.WithAgentConfig(processDiscoveryCheckConfigStr)),
+		e2e.WithVMParams(ec2params.WithOS(ec2os.WindowsOS)),
+	))
 
 	t := s.T()
 
@@ -76,14 +79,15 @@ func (s *windowsTestSuite) TestProcessDiscoveryCheck() {
 		assert.NotEmpty(c, payloads, "no process discovery payloads returned")
 	}, 2*time.Minute, 10*time.Second)
 
-	assertStressProcessDiscoveryCollected(t, payloads, "cmd.exe")
+	assertStressProcessDiscoveryCollected(t, payloads, "MsMpEng.exe")
 }
 
-func (s *windowsTestSuite) TestProcessCheckWithIO() {
+func (s *windowsTestSuite) TestProcessCheckIO() {
 	s.UpdateEnv(e2e.FakeIntakeStackDef(e2e.WithAgentParams(
 		agentparams.WithAgentConfig(processCheckConfigStr),
 		agentparams.WithSystemProbeConfig(systemProbeConfigStr),
-	)))
+	), e2e.WithVMParams(ec2params.WithOS(ec2os.WindowsOS)),
+	))
 
 	// Flush fake intake to remove payloads that won't have IO stats
 	s.Env().Fakeintake.FlushServerAndResetAggregators()
@@ -105,5 +109,5 @@ func (s *windowsTestSuite) TestProcessCheckWithIO() {
 		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
 	}, 2*time.Minute, 10*time.Second)
 
-	assertProcessCollected(t, payloads, true, "cmd.exe")
+	assertProcessCollected(t, payloads, true, "MsMpEng.exe")
 }

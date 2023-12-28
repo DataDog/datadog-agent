@@ -70,7 +70,7 @@ func assertProcessCollected(
 	}
 
 	require.True(t, found, process + " process not found")
-	assert.True(t, populated, process + "no process had all data populated")
+	assert.True(t, populated, "no " + process + " process had all data populated")
 }
 
 // findProcess returns whether the process with the given name exists in the given list of
@@ -129,7 +129,7 @@ func assertStressProcessDiscoveryCollected(
 	}
 
 	require.True(t, found, process + " process not found")
-	assert.True(t, populated, process + "no stress process had all data populated")
+	assert.True(t, populated, "no " + process + " process had all data populated")
 }
 
 // findProcessDiscovery returns whether the process with the given name exists in the given list of
