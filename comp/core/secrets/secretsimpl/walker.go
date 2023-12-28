@@ -7,9 +7,8 @@ package secretsimpl
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
-
-	"golang.org/x/exp/slices"
 )
 
 type walker struct {
