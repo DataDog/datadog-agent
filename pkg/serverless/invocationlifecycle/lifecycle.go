@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cihub/seelog"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
@@ -80,14 +82,17 @@ func (r *RequestHandler) SetSamplingPriority(priority sampler.SamplingPriority) 
 
 // OnInvokeStart is the hook triggered when an invocation has started
 func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails) {
-	log.Debug("[lifecycle] onInvokeStart ------")
-	log.Debugf("[lifecycle] Invocation has started at: %v", startDetails.StartTime)
-	log.Debugf("[lifecycle] Invocation invokeEvent payload is: %s", startDetails.InvokeEventRawPayload)
-	log.Debug("[lifecycle] ---------------------------------------")
+	if log.ShouldLog(seelog.DebugLvl) {
+		log.Debug("[lifecycle] onInvokeStart ------")
+		log.Debugf("[lifecycle] Invocation has started at: %v", startDetails.StartTime)
+		log.Debugf("[lifecycle] Invocation invokeEvent payload is: %s", startDetails.InvokeEventRawPayload)
+		log.Debug("[lifecycle] ---------------------------------------")
+	}
 
 	payloadBytes := ParseLambdaPayload(startDetails.InvokeEventRawPayload)
-	// TODO: avoid the unnecessary copy of payloadBytes when the logger isn't in debug level thanks to a []byte stringer
-	log.Debugf("Parsed payload string: %s", string(payloadBytes))
+	if log.ShouldLog(seelog.DebugLvl) {
+		log.Debugf("Parsed payload string: %s", string(payloadBytes))
+	}
 
 	lowercaseEventPayload, err := trigger.Unmarshal(bytes.ToLower(payloadBytes))
 	if err != nil {
@@ -244,10 +249,12 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 
 // OnInvokeEnd is the hook triggered when an invocation has ended
 func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
-	log.Debug("[lifecycle] onInvokeEnd ------")
-	log.Debugf("[lifecycle] Invocation has finished at: %v", endDetails.EndTime)
-	log.Debugf("[lifecycle] Invocation isError is: %v", endDetails.IsError)
-	log.Debug("[lifecycle] ---------------------------------------")
+	if log.ShouldLog(seelog.DebugLvl) {
+		log.Debug("[lifecycle] onInvokeEnd ------")
+		log.Debugf("[lifecycle] Invocation has finished at: %v", endDetails.EndTime)
+		log.Debugf("[lifecycle] Invocation isError is: %v", endDetails.IsError)
+		log.Debug("[lifecycle] ---------------------------------------")
+	}
 
 	endDetails.ResponseRawPayload = ParseLambdaPayload(endDetails.ResponseRawPayload)
 
@@ -280,8 +287,10 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 		spans = append(spans, span)
 
 		if lp.InferredSpansEnabled {
-			log.Debug("[lifecycle] Attempting to complete the inferred span")
-			log.Debugf("[lifecycle] Inferred span context: %+v", lp.GetInferredSpan().Span)
+			if log.ShouldLog(seelog.DebugLvl) {
+				log.Debug("[lifecycle] Attempting to complete the inferred span")
+				log.Debugf("[lifecycle] Inferred span context: %+v", lp.GetInferredSpan().Span)
+			}
 			if lp.GetInferredSpan().Span.Start != 0 {
 				span0, span1 := lp.requestHandler.inferredSpans[0], lp.requestHandler.inferredSpans[1]
 				if span1 != nil {
@@ -297,7 +306,9 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 				span0.AddTagToInferredSpan("peer.service", lp.GetServiceName())
 				span := lp.completeInferredSpan(span0, endDetails.EndTime, endDetails.IsError)
 				spans = append(spans, span)
-				log.Debugf("[lifecycle] The inferred span attributes are: %v", lp.GetInferredSpan())
+				if log.ShouldLog(seelog.DebugLvl) {
+					log.Debugf("[lifecycle] The inferred span attributes are: %v", lp.GetInferredSpan())
+				}
 			} else {
 				log.Debug("[lifecyle] Failed to complete inferred span due to a missing start time. Please check that the event payload was received with the appropriate data")
 			}

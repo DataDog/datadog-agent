@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cihub/seelog"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -147,7 +149,9 @@ func (c *ColdStartSpanCreator) create() {
 }
 
 func (c *ColdStartSpanCreator) processSpan(coldStartSpan *pb.Span) {
-	log.Debugf("[ColdStartCreator] Creating cold start span %v", coldStartSpan)
+	if log.ShouldLog(seelog.DebugLvl) {
+		log.Debugf("[ColdStartCreator] Creating cold start span %v", coldStartSpan)
+	}
 
 	traceChunk := &pb.TraceChunk{
 		Origin:   "lambda",

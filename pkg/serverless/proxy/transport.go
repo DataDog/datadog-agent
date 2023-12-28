@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cihub/seelog"
+
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -23,7 +25,9 @@ type proxyTransport struct {
 }
 
 func (p *proxyTransport) RoundTrip(request *http.Request) (*http.Response, error) {
-	log.Debugf("runtime api proxy: new request to %s", request.URL)
+	if log.ShouldLog(seelog.DebugLvl) {
+		log.Debugf("runtime api proxy: new request to %s", request.URL)
+	}
 
 	if err := processRequest(p, request); err != nil {
 		log.Error("runtime api proxy: error while processing the request:", err)
@@ -61,7 +65,9 @@ func processResponse(p *proxyTransport, request *http.Request, response *http.Re
 			return errors.New("invalid payload format")
 		}
 		payload := dumpedResponse[indexPayload:]
-		log.Debugf("runtime api proxy: /next: processing event payload `%s`", payload)
+		if log.ShouldLog(seelog.DebugLvl) {
+			log.Debugf("runtime api proxy: /next: processing event payload `%s`", payload)
+		}
 		details := &invocationlifecycle.InvocationStartDetails{
 			StartTime:             time.Now(),
 			InvokeEventRawPayload: payload,
@@ -86,7 +92,9 @@ func processRequest(p *proxyTransport, request *http.Request) error {
 
 	switch {
 	case request.Method == "POST" && strings.HasSuffix(request.URL.String(), "/response"):
-		log.Debugf("runtime api proxy: /response: processing response payload `%s`", body)
+		if log.ShouldLog(seelog.DebugLvl) {
+			log.Debugf("runtime api proxy: /response: processing response payload `%s`", body)
+		}
 		details := &invocationlifecycle.InvocationEndDetails{
 			EndTime:            time.Now(),
 			IsError:            false,
@@ -95,7 +103,9 @@ func processRequest(p *proxyTransport, request *http.Request) error {
 		p.processor.OnInvokeEnd(details)
 
 	case request.Method == "POST" && strings.HasSuffix(request.URL.String(), "/error"):
-		log.Debugf("runtime api proxy: /error: processing response payload `%s`", body)
+		if log.ShouldLog(seelog.DebugLvl) {
+			log.Debugf("runtime api proxy: /error: processing response payload `%s`", body)
+		}
 		details := &invocationlifecycle.InvocationEndDetails{
 			EndTime:            time.Now(),
 			IsError:            true,
@@ -104,7 +114,9 @@ func processRequest(p *proxyTransport, request *http.Request) error {
 		p.processor.OnInvokeEnd(details)
 
 	default:
-		log.Debugf("runtime api proxy: ignoring %s /%s", request.Method, request.URL.String())
+		if log.ShouldLog(seelog.DebugLvl) {
+			log.Debugf("runtime api proxy: ignoring %s /%s", request.Method, request.URL.String())
+		}
 	}
 
 	return nil
