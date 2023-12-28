@@ -73,12 +73,12 @@ func NewGenericMap[K interface{}, V interface{}](spec *ebpf.MapSpec) (*GenericMa
 		return nil, err
 	}
 
-	spec.KeySize = uint32(reflect.TypeOf(kval).Size())
+	spec.KeySize = uint32(unsafe.Sizeof(kval))
 
 	if isPerCPU(spec.Type) {
 		spec.ValueSize = uint32(reflect.TypeOf(vval).Elem().Size())
 	} else {
-		spec.ValueSize = uint32(reflect.TypeOf(vval).Size())
+		spec.ValueSize = uint32(unsafe.Sizeof(vval))
 	}
 
 	m, err := ebpf.NewMap(spec)
