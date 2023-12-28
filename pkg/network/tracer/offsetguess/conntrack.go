@@ -15,14 +15,13 @@ import (
 	"path/filepath"
 	"runtime"
 	"time"
-	"unsafe"
 
-	"github.com/cilium/ebpf"
 	"github.com/vishvananda/netns"
 
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -122,12 +121,10 @@ func (c *conntrackOffsetGuesser) getConstantEditors() []manager.ConstantEditor {
 // checkAndUpdateCurrentOffset checks the value for the current offset stored
 // in the eBPF map against the expected value, incrementing the offset if it
 // doesn't match, or going to the next field to guess if it does
-//
-//nolint:revive // TODO(NET) Fix revive linter
-func (c *conntrackOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected *fieldValues, maxRetries *int, threshold uint64) error {
-	// get the updated map value so we can check if the current offset is
+func (c *conntrackOffsetGuesser) checkAndUpdateCurrentOffset(mp *ddebpf.GenericMap[uint64, ConntrackStatus], expected *fieldValues, maxRetries *int, _ uint64) error {
+	// get the updated map value, so we can check if the current offset is
 	// the right one
-	if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(c.status)); err != nil {
+	if err := mp.Lookup(&zero, c.status); err != nil {
 		return fmt.Errorf("error reading conntrack_status: %v", err)
 	}
 
@@ -198,7 +195,7 @@ func (c *conntrackOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expec
 
 	c.status.State = uint64(StateChecking)
 	// update the map with the new offset/field to check
-	if err := mp.Put(unsafe.Pointer(&zero), unsafe.Pointer(c.status)); err != nil {
+	if err := mp.Put(&zero, c.status); err != nil {
 		return fmt.Errorf("error updating tracer_t.status: %v", err)
 	}
 
@@ -206,9 +203,9 @@ func (c *conntrackOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expec
 
 }
 
-func (c *conntrackOffsetGuesser) setReadyState(mp *ebpf.Map) error {
+func (c *conntrackOffsetGuesser) setReadyState(mp *ddebpf.GenericMap[uint64, ConntrackStatus]) error {
 	c.status.State = uint64(StateReady)
-	if err := mp.Put(unsafe.Pointer(&zero), unsafe.Pointer(c.status)); err != nil {
+	if err := mp.Put(&zero, c.status); err != nil {
 		return fmt.Errorf("error updating tracer_status: %v", err)
 	}
 	return nil
@@ -228,7 +225,7 @@ func (c *conntrackOffsetGuesser) logAndAdvance(offset uint64, next GuessWhat) {
 }
 
 func (c *conntrackOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEditor, error) {
-	mp, _, err := c.m.GetMap(probes.ConntrackStatusMap)
+	mp, err := ddebpf.GetMap[uint64, ConntrackStatus](c.m, probes.ConntrackStatusMap)
 	if err != nil {
 		return nil, fmt.Errorf("unable to find map %s: %s", probes.ConntrackStatusMap, err)
 	}
@@ -251,7 +248,7 @@ func (c *conntrackOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEd
 	c.status.Proc = Proc{Comm: cProcName}
 
 	// if we already have the offsets, just return
-	err = mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(c.status))
+	err = mp.Lookup(&zero, c.status)
 	if err == nil && State(c.status.State) == StateReady {
 		return c.getConstantEditors(), nil
 	}
@@ -290,7 +287,7 @@ func (c *conntrackOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEd
 	return nil, err
 }
 
-func (c *conntrackOffsetGuesser) runOffsetGuessing(cfg *config.Config, ns netns.NsHandle, mp *ebpf.Map) ([]manager.ConstantEditor, error) {
+func (c *conntrackOffsetGuesser) runOffsetGuessing(cfg *config.Config, ns netns.NsHandle, mp *ddebpf.GenericMap[uint64, ConntrackStatus]) ([]manager.ConstantEditor, error) {
 	log.Debugf("running conntrack offset guessing with ns %s", ns)
 	eventGenerator, err := newConntrackEventGenerator(ns)
 	if err != nil {
@@ -302,7 +299,7 @@ func (c *conntrackOffsetGuesser) runOffsetGuessing(cfg *config.Config, ns netns.
 	c.status.What = uint64(GuessCtTupleOrigin)
 
 	// initialize map
-	if err := mp.Put(unsafe.Pointer(&zero), unsafe.Pointer(c.status)); err != nil {
+	if err := mp.Put(&zero, c.status); err != nil {
 		return nil, fmt.Errorf("error initializing conntrack_c.status map: %v", err)
 	}
 

@@ -9,9 +9,8 @@ package events
 
 import (
 	"sync"
-	"unsafe"
 
-	"github.com/cilium/ebpf"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
 var batchPool = sync.Pool{
@@ -23,19 +22,19 @@ var batchPool = sync.Pool{
 type batchReader struct {
 	sync.Mutex
 	numCPUs    int
-	batchMap   *ebpf.Map
+	batchMap   *ddebpf.GenericMap[batchKey, batch]
 	offsets    *offsetManager
 	workerPool *workerPool
 	stopped    bool
 }
 
-func newBatchReader(offsetManager *offsetManager, batchMap *ebpf.Map, numCPUs int) (*batchReader, error) {
+func newBatchReader(offsetManager *offsetManager, batchMap *ddebpf.GenericMap[batchKey, batch], numCPUs int) (*batchReader, error) {
 	// initialize eBPF maps
 	batch := new(batch)
 	for i := 0; i < numCPUs; i++ {
 		for j := 0; j < batchPagesPerCPU; j++ {
 			key := &batchKey{Cpu: uint32(i), Num: uint32(j)}
-			err := batchMap.Put(unsafe.Pointer(key), unsafe.Pointer(batch))
+			err := batchMap.Put(key, batch)
 			if err != nil {
 				return nil, err
 			}
@@ -81,7 +80,7 @@ func (r *batchReader) ReadAll(f func(cpu int, b *batch)) {
 				batchPool.Put(b)
 			}()
 
-			err := r.batchMap.Lookup(unsafe.Pointer(key), unsafe.Pointer(b))
+			err := r.batchMap.Lookup(key, b)
 			if err != nil {
 				return
 			}

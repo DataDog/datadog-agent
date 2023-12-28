@@ -10,14 +10,13 @@ package connection
 import (
 	"fmt"
 	"time"
-	"unsafe"
 
-	"github.com/cilium/ebpf"
+	manager "github.com/DataDog/ebpf-manager"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 const defaultExpiredStateInterval = 60 * time.Second
@@ -31,7 +30,7 @@ const defaultExpiredStateInterval = 60 * time.Second
 // event remains stored in the eBPF map before being processed by the NetworkAgent.
 type perfBatchManager struct {
 	// eBPF
-	batchMap *ebpf.Map
+	batchMap *ddebpf.GenericMap[uint32, netebpf.Batch]
 
 	// stateByCPU contains the state of each batch.
 	// The slice is indexed by the CPU core number.
@@ -44,15 +43,15 @@ type perfBatchManager struct {
 
 // newPerfBatchManager returns a new `PerfBatchManager` and initializes the
 // eBPF map that holds the tcp_close batch objects.
-func newPerfBatchManager(batchMap *ebpf.Map, numCPUs int) (*perfBatchManager, error) {
+func newPerfBatchManager(batchMap *ddebpf.GenericMap[uint32, netebpf.Batch], numCPUs uint32) (*perfBatchManager, error) {
 	if batchMap == nil {
 		return nil, fmt.Errorf("batchMap is nil")
 	}
 
 	state := make([]percpuState, numCPUs)
-	for cpu := 0; cpu < numCPUs; cpu++ {
+	for cpu := uint32(0); cpu < numCPUs; cpu++ {
 		b := new(netebpf.Batch)
-		if err := batchMap.Put(unsafe.Pointer(&cpu), unsafe.Pointer(b)); err != nil {
+		if err := batchMap.Put(&cpu, b); err != nil {
 			return nil, fmt.Errorf("error initializing perf batch manager maps: %w", err)
 		}
 		state[cpu] = percpuState{
@@ -90,10 +89,10 @@ func (p *perfBatchManager) ExtractBatchInto(buffer *network.ConnectionBuffer, b 
 // This prevents double-processing of connections between GetPendingConns and Extract.
 func (p *perfBatchManager) GetPendingConns(buffer *network.ConnectionBuffer) {
 	b := new(netebpf.Batch)
-	for cpu := 0; cpu < len(p.stateByCPU); cpu++ {
+	for cpu := uint32(0); cpu < uint32(len(p.stateByCPU)); cpu++ {
 		cpuState := &p.stateByCPU[cpu]
 
-		err := p.batchMap.Lookup(unsafe.Pointer(&cpu), unsafe.Pointer(b))
+		err := p.batchMap.Lookup(&cpu, b)
 		if err != nil {
 			continue
 		}
@@ -177,16 +176,16 @@ func (p *perfBatchManager) cleanupExpiredState(now time.Time) {
 
 func newConnBatchManager(mgr *manager.Manager) (*perfBatchManager, error) {
 	connCloseEventMap, _, err := mgr.GetMap(probes.ConnCloseEventMap)
-	if err != nil {
-		return nil, err
+	if err != nil || connCloseEventMap == nil {
+		return nil, fmt.Errorf("unable to get map %s: %s", probes.ConnCloseEventMap, err)
 	}
 
-	connCloseMap, _, err := mgr.GetMap(probes.ConnCloseBatchMap)
+	connCloseMap, err := ddebpf.GetMap[uint32, netebpf.Batch](mgr, probes.ConnCloseBatchMap)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to get map %s: %s", probes.ConnCloseBatchMap, err)
 	}
 
-	numCPUs := int(connCloseEventMap.MaxEntries())
+	numCPUs := connCloseEventMap.MaxEntries()
 	batchMgr, err := newPerfBatchManager(connCloseMap, numCPUs)
 	if err != nil {
 		return nil, err

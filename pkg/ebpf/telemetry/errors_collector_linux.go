@@ -14,7 +14,6 @@ import (
 	"hash/fnv"
 	"sync"
 	"syscall"
-	"unsafe"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -23,6 +22,7 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -59,8 +59,8 @@ var helperNames = map[int]string{
 // are registered to have their telemetry collected.
 type EBPFTelemetry struct {
 	mtx          sync.Mutex
-	mapErrMap    *ebpf.Map
-	helperErrMap *ebpf.Map
+	mapErrMap    *ddebpf.GenericMap[uint64, MapErrTelemetry]
+	helperErrMap *ddebpf.GenericMap[uint64, HelperErrTelemetry]
 	mapKeys      map[string]uint64
 	probeKeys    map[string]uint64
 }
@@ -84,10 +84,10 @@ func (b *EBPFTelemetry) populateMapsWithKeys(m *manager.Manager) error {
 
 	// first manager to call will populate the maps
 	if b.mapErrMap == nil {
-		b.mapErrMap, _, _ = m.GetMap(probes.MapErrTelemetryMap)
+		b.mapErrMap, _ = ddebpf.GetMap[uint64, MapErrTelemetry](m, probes.MapErrTelemetryMap)
 	}
 	if b.helperErrMap == nil {
-		b.helperErrMap, _, _ = m.GetMap(probes.HelperErrTelemetryMap)
+		b.helperErrMap, _ = ddebpf.GetMap[uint64, HelperErrTelemetry](m, probes.HelperErrTelemetryMap)
 	}
 
 	if err := b.initializeMapErrTelemetryMap(m.Maps); err != nil {
@@ -113,7 +113,7 @@ func (b *EBPFTelemetry) Collect(ch chan<- prometheus.Metric) {
 	if b.helperErrMap != nil {
 		var hval HelperErrTelemetry
 		for probeName, k := range b.probeKeys {
-			err := b.helperErrMap.Lookup(unsafe.Pointer(&k), unsafe.Pointer(&hval))
+			err := b.helperErrMap.Lookup(&k, &hval)
 			if err != nil {
 				log.Debugf("failed to get telemetry for probe:key %s:%d\n", probeName, k)
 				continue
@@ -132,7 +132,7 @@ func (b *EBPFTelemetry) Collect(ch chan<- prometheus.Metric) {
 	if b.mapErrMap != nil {
 		var val MapErrTelemetry
 		for m, k := range b.mapKeys {
-			err := b.mapErrMap.Lookup(unsafe.Pointer(&k), unsafe.Pointer(&val))
+			err := b.mapErrMap.Lookup(&k, &val)
 			if err != nil {
 				log.Debugf("failed to get telemetry for map:key %s:%d\n", m, k)
 				continue
@@ -207,7 +207,7 @@ func (b *EBPFTelemetry) initializeMapErrTelemetryMap(maps []*manager.Map) error 
 		}
 
 		key := mapKey(h, m)
-		err := b.mapErrMap.Update(unsafe.Pointer(&key), unsafe.Pointer(z), ebpf.UpdateNoExist)
+		err := b.mapErrMap.Update(&key, z, ebpf.UpdateNoExist)
 		if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
 			return fmt.Errorf("failed to initialize telemetry struct for map %s", m.Name)
 		}
@@ -224,7 +224,7 @@ func (b *EBPFTelemetry) initializeHelperErrTelemetryMap() error {
 	// the `probeKeys` get added during instruction patching, so we just try to insert entries for any that don't exist
 	z := new(HelperErrTelemetry)
 	for p, key := range b.probeKeys {
-		err := b.helperErrMap.Update(unsafe.Pointer(&key), unsafe.Pointer(z), ebpf.UpdateNoExist)
+		err := b.helperErrMap.Update(&key, z, ebpf.UpdateNoExist)
 		if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
 			return fmt.Errorf("failed to initialize telemetry struct for probe %s", p)
 		}
@@ -321,10 +321,10 @@ func (b *EBPFTelemetry) setupMapEditors(opts *manager.Options) {
 	}
 	// if the maps have already been loaded, setup editors to point to them
 	if b.mapErrMap != nil {
-		opts.MapEditors[probes.MapErrTelemetryMap] = b.mapErrMap
+		opts.MapEditors[probes.MapErrTelemetryMap] = b.mapErrMap.Map()
 	}
 	if b.helperErrMap != nil {
-		opts.MapEditors[probes.HelperErrTelemetryMap] = b.helperErrMap
+		opts.MapEditors[probes.HelperErrTelemetryMap] = b.helperErrMap.Map()
 	}
 }
 
