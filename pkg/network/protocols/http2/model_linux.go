@@ -77,12 +77,12 @@ func (tx *EbpfTx) Path(buffer []byte) ([]byte, bool) {
 	if tx.Stream.Is_huffman_encoded {
 		res, err = decodeHTTP2Path(tx.Stream.Request_path, tx.Stream.Path_size)
 		if err != nil {
-			log.Errorf("unable to decode HTTP2 path: due to: %s", string(tx.Stream.Request_path[:tx.Stream.Path_size]), err)
+			log.Errorf("unable to decode HTTP2 path (%#v) due to: %s", tx.Stream.Request_path[:tx.Stream.Path_size], err)
 			return nil, false
 		}
 	} else {
 		if err = validatePathSize(tx.Stream.Path_size); err != nil {
-			log.Errorf("path size: %s is invalid due to: %s", tx.Stream.Path_size, err)
+			log.Errorf("path size: %d is invalid due to: %s", tx.Stream.Path_size, err)
 			return nil, false
 		}
 
