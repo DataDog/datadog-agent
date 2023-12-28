@@ -1427,7 +1427,7 @@ func TestProcessExecExit(t *testing.T) {
 	defer test.Close()
 
 	var execPid uint32
-	var nsId uint64
+	var nsID uint64
 
 	err = test.GetProbeEvent(func() error {
 		cmd := exec.Command(executable, "-t", "01010101", "/dev/null")
@@ -1443,8 +1443,8 @@ func TestProcessExecExit(t *testing.T) {
 			}
 
 			validate := test.validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
-				validateProcessContextLineage(t, event, test.probe)
-				validateProcessContextSECL(t, event, test.probe)
+				validateProcessContextLineage(t, event)
+				validateProcessContextSECL(t, event)
 
 				assertFieldEqual(t, event, "exec.file.name", "touch")
 				assertFieldContains(t, event, "exec.args", "01010101")
@@ -1453,7 +1453,7 @@ func TestProcessExecExit(t *testing.T) {
 
 			execPid = event.ProcessContext.Pid
 			if test.opts.staticOpts.enableEBPFLess == true {
-				nsId = event.NSID
+				nsID = event.NSID
 			}
 
 		case model.ExitEventType:
@@ -1487,7 +1487,7 @@ func TestProcessExecExit(t *testing.T) {
 			if !ok {
 				t.Skip("not supported")
 			}
-			entry := p.Resolvers.ProcessResolver.Resolve(process.CacheResolverKey{Pid: execPid, NSID: nsId})
+			entry := p.Resolvers.ProcessResolver.Resolve(process.CacheResolverKey{Pid: execPid, NSID: nsID})
 			if entry != nil {
 				return errors.New("the process cache entry was not deleted from the user space cache")
 			}
@@ -1650,8 +1650,8 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 				t.Error(err)
 			}
 			newSet.Clear(capability.PERMITTED | capability.EFFECTIVE)
-			parseCapIntoSet(event.Capset.CapEffective, capability.EFFECTIVE, newSet, t)
-			parseCapIntoSet(event.Capset.CapPermitted, capability.PERMITTED, newSet, t)
+			parseCapIntoSet(event.Capset.CapEffective, capability.EFFECTIVE, newSet)
+			parseCapIntoSet(event.Capset.CapPermitted, capability.PERMITTED, newSet)
 
 			for _, c := range capability.List() {
 				if expectedValue := threadCapabilities.Get(capability.EFFECTIVE, c); expectedValue != newSet.Get(capability.EFFECTIVE, c) {
@@ -1665,7 +1665,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 	})
 }
 
-func parseCapIntoSet(capabilities uint64, flag capability.CapType, c capability.Capabilities, t *testing.T) {
+func parseCapIntoSet(capabilities uint64, flag capability.CapType, c capability.Capabilities) {
 	for _, v := range model.KernelCapabilityConstants {
 		if v == 0 {
 			continue
@@ -1681,11 +1681,11 @@ func TestProcessIsThread(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_process_fork_is_thread",
-			Expression: fmt.Sprintf(`(mmap.protection & (PROT_READ|PROT_WRITE)) == (PROT_READ|PROT_WRITE) && process.file.name == "syscall_tester" && process.ancestors.file.name == "syscall_tester" && process.is_thread`),
+			Expression: `(mmap.protection & (PROT_READ|PROT_WRITE)) == (PROT_READ|PROT_WRITE) && process.file.name == "syscall_tester" && process.ancestors.file.name == "syscall_tester" && process.is_thread`,
 		},
 		{
 			ID:         "test_process_exec_is_not_thread",
-			Expression: fmt.Sprintf(`(mmap.protection & (PROT_READ|PROT_WRITE)) == (PROT_READ|PROT_WRITE) && process.file.name == "syscall_tester" && process.ancestors.file.name == "syscall_tester" && !process.is_thread`),
+			Expression: `(mmap.protection & (PROT_READ|PROT_WRITE)) == (PROT_READ|PROT_WRITE) && process.file.name == "syscall_tester" && process.ancestors.file.name == "syscall_tester" && !process.is_thread`,
 		},
 	}
 
@@ -2013,10 +2013,10 @@ func TestProcessInterpreter(t *testing.T) {
 			scriptName: "regularExec.sh",
 			executedScript: fmt.Sprintf(`#!/bin/bash
 
-echo "Executing echo inside a bash script"
+echo "Executing echo insIDe a bash script"
 
 %s - << EOF
-print('Executing print inside a python (%s) script inside a bash script')
+print('Executing print insIDe a python (%s) script insIDe a bash script')
 
 EOF
 
@@ -2038,12 +2038,12 @@ echo "Back to bash"`, python, python),
 			scriptName: "regularExecWithInterpreterRule.sh",
 			executedScript: fmt.Sprintf(`#!/bin/bash
 
-echo "Executing echo inside a bash script"
+echo "Executing echo insIDe a bash script"
 
 %s <<__HERE__
 #!%s
 
-print('Executing print inside a python (%s) script inside a bash script')
+print('Executing print insIDe a python (%s) script insIDe a bash script')
 __HERE__
 
 echo "Back to bash"`, python, python, python),
@@ -2065,12 +2065,12 @@ echo "Back to bash"`, python, python, python),
 			innerScriptName: "pyscript.py",
 			executedScript: fmt.Sprintf(`#!/bin/bash
 
-echo "Executing echo inside a bash script"
+echo "Executing echo insIDe a bash script"
 
 cat << EOF > pyscript.py
 #!%s
 
-print('Executing print inside a python (%s) script inside a bash script')
+print('Executing print insIDe a python (%s) script insIDe a bash script')
 
 EOF
 
@@ -2095,7 +2095,7 @@ chmod 755 pyscript.py
 		//			scriptName: "nestedInterpretedExec.sh",
 		//			executedScript: `#!/bin/bash
 		//
-		//echo "Executing echo inside a bash script"
+		//echo "Executing echo insIDe a bash script"
 		//
 		//cat << '__HERE__' > hello.pl
 		//#!/usr/bin/perl
@@ -2112,7 +2112,7 @@ chmod 755 pyscript.py
 		//
 		//import subprocess
 		//
-		//print('Executing print inside a python script')
+		//print('Executing print insIDe a python script')
 		//
 		//subprocess.run(["perl", "./hello.pl"])
 		//
@@ -2255,7 +2255,7 @@ func TestProcessResolution(t *testing.T) {
 			assert.Equal(t, entry1.ContainerID, entry2.ContainerID)
 			assert.Equal(t, entry1.Cookie, entry2.Cookie)
 
-			// may not be exaclty equal because of clock drift between two boot time resolution, see time resolver
+			// may not be exactly equal because of clock drift between two boot time resolution, see time resolver
 			assert.Greater(t, time.Second, entry1.ExecTime.Sub(entry2.ExecTime).Abs())
 			assert.Greater(t, time.Second, entry1.ForkTime.Sub(entry2.ForkTime).Abs())
 		}

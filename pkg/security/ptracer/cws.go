@@ -597,7 +597,7 @@ func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool,
 			case OpenNr, OpenatNr:
 				if ret := tracer.ReadRet(regs); !isAcceptedRetval(ret) {
 					syscallMsg, exists := process.Nr[nr]
-					if !exists {
+					if !exists || syscallMsg.Open == nil {
 						return
 					}
 					syscallMsg.Retval = ret
