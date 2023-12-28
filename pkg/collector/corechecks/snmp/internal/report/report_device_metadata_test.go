@@ -117,6 +117,9 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 							},
 						},
 					},
+					"type": {
+						Value: "default-type",
+					},
 				},
 			},
 		},
@@ -150,7 +153,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
             "location": "my-sys-location",
             "profile": "my-profile",
             "profile_version": 10,
-            "subnet": "127.0.0.0/29"
+            "subnet": "127.0.0.0/29",
+			"device_type": "default-type"
         }
     ],
     "collect_timestamp":1415792726
@@ -285,6 +289,13 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
 		ResolvedSubnetName: "127.0.0.0/29",
 		Namespace:          "my-ns",
 		Metadata: profiledefinition.MetadataConfig{
+			"device": {
+				Fields: map[string]profiledefinition.MetadataField{
+					"type": {
+						Value: "default-type",
+					},
+				},
+			},
 			"interface": {
 				Fields: map[string]profiledefinition.MetadataField{
 					"name": {
@@ -359,7 +370,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
             ],
             "ip_address": "1.2.3.4",
             "status":1,
-            "subnet": "127.0.0.0/29"
+            "subnet": "127.0.0.0/29",
+			"device_type": "default-type"
         }
     ],
     "interfaces": [
@@ -435,6 +447,9 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
 						},
 						Value: "my-fallback-value",
 					},
+					"type": {
+						Value: "default-type",
+					},
 				},
 			},
 		},
@@ -464,7 +479,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
             "ip_address": "1.2.3.4",
             "status":1,
             "name": "my-fallback-value",
-            "subnet": "127.0.0.0/29"
+            "subnet": "127.0.0.0/29",
+			"device_type": "default-type"
         }
     ],
     "collect_timestamp":1415792726
