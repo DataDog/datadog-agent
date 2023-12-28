@@ -11,7 +11,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/require"
 )
@@ -19,7 +20,7 @@ import (
 func TestBatchAPISupported(t *testing.T) {
 	// Batch API is supported on kernels >= 5.6, so make sure that in those cases
 	// it returns true
-	kernelVersion, err := kernel.NewKernelVersion()
+	kernelVersion, err := ebpfkernel.NewKernelVersion()
 	require.NoError(t, err)
 
 	if kernelVersion.IsRH7Kernel() || kernelVersion.IsRH8Kernel() {
@@ -29,7 +30,7 @@ func TestBatchAPISupported(t *testing.T) {
 		t.Skip("Unknown support for batch API on RHEL kernels")
 	}
 
-	if kernelVersion.Code < kernel.Kernel5_9 {
+	if kernelVersion.Code < ebpfkernel.Kernel5_9 {
 		require.False(t, BatchAPISupported())
 	} else {
 		require.True(t, BatchAPISupported())
@@ -188,6 +189,112 @@ func TestBatchIterWhileUpdated(t *testing.T) {
 
 	// Again, just concerned with exiting the loop and not correctness
 	require.LessOrEqual(t, numElements, uint32(maxEntries))
+}
+
+func TestIteratePerCPUMaps(t *testing.T) {
+	m, err := NewGenericMap[uint32, uint32](&ebpf.MapSpec{
+		Type:       ebpf.PerCPUHash,
+		MaxEntries: 10,
+	})
+	require.NoError(t, err)
+
+	nbCpus, err := kernel.PossibleCPUs()
+	require.NoError(t, err)
+
+	numsToPut := []uint32{0, 100, 200, 300, 400, 500}
+	for _, num := range numsToPut {
+		entries := make([]uint32, nbCpus)
+		for i := 0; i < nbCpus; i++ {
+			entries[i] = num + uint32(i)
+		}
+		require.NoError(t, m.PutPerCPU(&num, entries))
+	}
+
+	var k uint32
+	entries := make([]uint32, nbCpus)
+	numElements := 0
+	foundElements := make(map[uint32]bool)
+
+	it := m.IteratePerCPU()
+	require.NotNil(t, it)
+	require.IsType(t, &genericMapItemIterator[uint32, []uint32]{}, it)
+	for it.Next(&k, &entries) {
+		numElements++
+		foundElements[k] = true
+
+		for i := 0; i < nbCpus; i++ {
+			require.Equal(t, k+uint32(i), entries[i])
+		}
+	}
+
+	require.Equal(t, len(numsToPut), numElements)
+	for _, num := range numsToPut {
+		require.True(t, foundElements[num])
+	}
+}
+
+type ValueStruct struct {
+	A uint32
+	B uint32
+}
+
+func TestIterateWithValueStructs(t *testing.T) {
+	doTest := func(t *testing.T, singleItem bool, oneItem bool) {
+		m, err := NewGenericMap[uint32, ValueStruct](&ebpf.MapSpec{
+			Type:       ebpf.Hash,
+			MaxEntries: 10,
+		})
+		require.NoError(t, err)
+
+		var numsToPut []uint32
+		if oneItem {
+			numsToPut = []uint32{10}
+		} else {
+			numsToPut = []uint32{0, 100, 200, 300, 400, 500}
+		}
+		for _, num := range numsToPut {
+			v := ValueStruct{A: num, B: num + 1}
+			require.NoError(t, m.Put(&num, &v))
+		}
+
+		var k uint32
+		var v ValueStruct
+		numElements := 0
+		foundElements := make(map[uint32]bool)
+
+		it := m.IterateWithOptions(IteratorOptions{ForceSingleItem: singleItem})
+		require.NotNil(t, it)
+		if singleItem {
+			require.IsType(t, &genericMapItemIterator[uint32, ValueStruct]{}, it)
+		} else {
+			require.IsType(t, &genericMapBatchIterator[uint32, ValueStruct]{}, it)
+		}
+
+		for it.Next(&k, &v) {
+			numElements++
+			foundElements[k] = true
+
+			require.Equal(t, k, v.A)
+			require.Equal(t, k+1, v.B)
+		}
+
+		require.Equal(t, len(numsToPut), numElements)
+		for _, num := range numsToPut {
+			require.True(t, foundElements[num])
+		}
+	}
+
+	t.Run("SingleItem", func(t *testing.T) {
+		doTest(t, true, false)
+	})
+
+	t.Run("Batch", func(t *testing.T) {
+		doTest(t, false, false)
+	})
+
+	t.Run("BatchWithOneItem", func(t *testing.T) {
+		doTest(t, false, true)
+	})
 }
 
 func TestBatchIterAllocsPerRun(t *testing.T) {

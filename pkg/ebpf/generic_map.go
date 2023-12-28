@@ -109,12 +109,29 @@ type IteratorOptions struct {
 
 // Put inserts a new key/value pair in the map. If the key already exists, the value is updated
 func (g *GenericMap[K, V]) Put(key *K, value *V) error {
-	return g.Update(key, value, ebpf.UpdateAny)
+	if g.isPerCPU() {
+		return errors.New("cannot use Put with per-cpu maps")
+	}
+
+	return g.m.Put(key, value)
+}
+
+// PutPerCPU inserts a new key/value pair in the map, used for PerCPU maps. If the key already exists, the value is updated
+func (g *GenericMap[K, V]) PutPerCPU(key *K, value []V) error {
+	if !g.isPerCPU() {
+		return errors.New("cannot use Put with per-cpu maps")
+	}
+
+	return g.m.Put(key, value)
 }
 
 // Update updates the value of an existing key in the map. If the key doesn't exist, it returns an error
 func (g *GenericMap[K, V]) Update(key *K, value *V, flags ebpf.MapUpdateFlags) error {
 	return g.m.Update(unsafe.Pointer(key), unsafe.Pointer(value), flags)
+}
+
+func (g *GenericMap[K, V]) UpdatePerCPU(key *K, value []V, flags ebpf.MapUpdateFlags) error {
+	return g.m.Update(unsafe.Pointer(key), unsafe.Pointer(&value), flags)
 }
 
 // Lookup looks up a key in the map and returns the value. If the key doesn't exist, it returns an error
@@ -136,11 +153,8 @@ type GenericMapIterator[K interface{}, V interface{}] interface {
 	Err() error
 }
 
-// TODO: This is copied from pkg/collector/corechecks/ebpf/probe/probe.go temporarily
-// I feel like this should be in a generic package (ebpf-manager maybe?) but I'm not sure,
-// so I'm leaving it here for now until PR review
-func isPerCPU(typ ebpf.MapType) bool {
-	switch typ {
+func (g *GenericMap[K, V]) isPerCPU() bool {
+	switch g.m.Type() {
 	case ebpf.PerCPUHash, ebpf.PerCPUArray, ebpf.LRUCPUHash:
 		return true
 	}
@@ -154,6 +168,12 @@ func (g *GenericMap[K, V]) Iterate() GenericMapIterator[K, V] {
 	return g.IterateWithOptions(IteratorOptions{BatchSize: defaultBatchSize})
 }
 
+func (g *GenericMap[K, V]) valueTypeCanUseUnsafePointer() bool {
+	// Simple test for now, but we probably will need to add more cases,
+	// as I am not 100% sure of the behavior of structs with maps
+	return !g.isPerCPU() // PerCPU maps use slices, so we need to pass them directly
+}
+
 // IterateWithOptions returns an iterator for the map, which transparently chooses between batch and single item
 // iterations. This version allows choosing options
 func (g *GenericMap[K, V]) IterateWithOptions(itops IteratorOptions) GenericMapIterator[K, V] {
@@ -164,12 +184,13 @@ func (g *GenericMap[K, V]) IterateWithOptions(itops IteratorOptions) GenericMapI
 		itops.BatchSize = int(g.m.MaxEntries())
 	}
 
-	if BatchAPISupported() && !isPerCPU(g.m.Type()) && !itops.ForceSingleItem {
+	if BatchAPISupported() && !g.isPerCPU() && !itops.ForceSingleItem {
 		it := &genericMapBatchIterator[K, V]{
-			m:         g.m,
-			batchSize: itops.BatchSize,
-			keys:      make([]K, itops.BatchSize),
-			values:    make([]V, itops.BatchSize),
+			m:                            g.m,
+			batchSize:                    itops.BatchSize,
+			keys:                         make([]K, itops.BatchSize),
+			values:                       make([]V, itops.BatchSize),
+			valueTypeCanUseUnsafePointer: g.valueTypeCanUseUnsafePointer(),
 		}
 
 		// Do an initial copy of the keys/values slices to avoid allocations
@@ -180,16 +201,33 @@ func (g *GenericMap[K, V]) IterateWithOptions(itops IteratorOptions) GenericMapI
 	}
 
 	return &genericMapItemIterator[K, V]{
-		it: g.m.Iterate(),
+		it:                           g.m.Iterate(),
+		valueTypeCanUseUnsafePointer: g.valueTypeCanUseUnsafePointer(),
+	}
+}
+
+func (g *GenericMap[K, V]) IteratePerCPU() GenericMapIterator[K, []V] {
+	return &genericMapItemIterator[K, []V]{
+		it:                           g.m.Iterate(),
+		valueTypeCanUseUnsafePointer: false,
 	}
 }
 
 type genericMapItemIterator[K interface{}, V interface{}] struct {
-	it *ebpf.MapIterator
+	it                           *ebpf.MapIterator
+	valueTypeCanUseUnsafePointer bool
 }
 
 func (g *genericMapItemIterator[K, V]) Next(key *K, value *V) bool {
-	return g.it.Next(unsafe.Pointer(key), unsafe.Pointer(value))
+	// we resort to unsafe.Pointers because by doing so the underlying eBPF
+	// library avoids marshaling the key/value variables while traversing the map
+	// However, in some cases (slices, structs) we need to pass the variable directly
+	// so that the library detects the type correctly
+	if g.valueTypeCanUseUnsafePointer {
+		return g.it.Next(unsafe.Pointer(key), unsafe.Pointer(value))
+	} else {
+		return g.it.Next(unsafe.Pointer(key), value)
+	}
 }
 
 func (g *genericMapItemIterator[K, V]) Err() error {
@@ -197,18 +235,19 @@ func (g *genericMapItemIterator[K, V]) Err() error {
 }
 
 type genericMapBatchIterator[K interface{}, V interface{}] struct {
-	m                *ebpf.Map
-	batchSize        int
-	cursor           ebpf.BatchCursor
-	keys             []K
-	values           []V
-	keysCopy         any // A pointer to keys of type "any", used to avoid allocations when calling BatchLookup
-	valuesCopy       any
-	currentBatchSize int
-	inBatchIndex     int
-	err              error
-	totalCount       int
-	lastBatch        bool
+	m                            *ebpf.Map
+	batchSize                    int
+	cursor                       ebpf.BatchCursor
+	keys                         []K
+	values                       []V
+	keysCopy                     any // A pointer to keys of type "any", used to avoid allocations when calling BatchLookup
+	valuesCopy                   any
+	currentBatchSize             int
+	inBatchIndex                 int
+	err                          error
+	totalCount                   int
+	lastBatch                    bool
+	valueTypeCanUseUnsafePointer bool
 }
 
 func (g *genericMapBatchIterator[K, V]) Next(key *K, value *V) bool {
