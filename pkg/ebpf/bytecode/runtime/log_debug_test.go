@@ -9,7 +9,6 @@ package runtime
 
 import (
 	"bufio"
-	"fmt"
 	"math"
 	"os"
 	"testing"
@@ -86,12 +85,10 @@ func TestPatchPrintkNewline(t *testing.T) {
 		// additional lines or empty lines. We check with "contains" to avoid issues with
 		// the variable output (PID, time, etc)
 		line1, err := traceReader.ReadString('\n')
-		fmt.Println(line1)
 		require.NoError(t, err)
 		require.Contains(t, line1, "Hello, world!")
 
 		line2, err := traceReader.ReadString('\n')
-		fmt.Println(line2)
 		require.NoError(t, err)
 		require.Contains(t, line2, "Goodbye, world!")
 	})
