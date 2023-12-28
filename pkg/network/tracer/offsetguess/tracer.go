@@ -24,6 +24,7 @@ import (
 	"unsafe"
 
 	"github.com/cilium/ebpf"
+	"github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -138,7 +139,7 @@ func extractIPv6AddressAndPort(addr net.Addr) (ip [4]uint32, port uint16, err er
 }
 
 func expectedValues(conn net.Conn) (*fieldValues, error) {
-	netns, err := kernel.GetCurrentIno()
+	currentIno, err := kernel.GetCurrentIno()
 	if err != nil {
 		return nil, err
 	}
@@ -158,21 +159,24 @@ func expectedValues(conn net.Conn) (*fieldValues, error) {
 		daddr:  daddr,
 		sport:  sport,
 		dport:  dport,
-		netns:  netns,
+		netns:  currentIno,
 		family: syscall.AF_INET,
 		rtt:    tcpInfo.Rtt,
 		rttVar: tcpInfo.Rttvar,
 	}, nil
 }
 
-func waitUntilStable(conn net.Conn, window time.Duration, attempts int) (*fieldValues, error) {
+func waitUntilStable(conn net.Conn, window time.Duration, attempts int, ns netns.NsHandle) (*fieldValues, error) {
 	var (
 		current *fieldValues
 		prev    *fieldValues
 		err     error
 	)
 	for i := 0; i <= attempts; i++ {
-		current, err = expectedValues(conn)
+		err = kernel.WithNS(ns, func() error {
+			current, err = expectedValues(conn)
+			return err
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -753,7 +757,16 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 		return t.getConstantEditors(), nil
 	}
 
-	eventGenerator, err := newTracerEventGenerator(t.guessUDPv6)
+	curNS, err := netns.Get()
+	var eventGenerator *tracerEventGenerator
+	// the root NS is often 0xf0000000 which makes guessing likely to fail. If so, guess in a new NS with a different offset
+	if uintptr(curNS) == 0xf0000000 {
+		curNS, err = netns.New()
+		if err != nil {
+			return nil, fmt.Errorf("error creating new netns: %w", err)
+		}
+	}
+	eventGenerator, err = newTracerEventGenerator(t.guessUDPv6, curNS)
 	if err != nil {
 		return nil, err
 	}
@@ -769,7 +782,7 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 	maxRetries := 100
 
 	// Retrieve expected values from local connection
-	expected, err := waitUntilStable(eventGenerator.conn, 200*time.Millisecond, 5)
+	expected, err := waitUntilStable(eventGenerator.conn, 200*time.Millisecond, 5, curNS)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving expected value: %w", err)
 	}
@@ -838,52 +851,55 @@ func (t *tracerOffsetGuesser) getConstantEditors() []manager.ConstantEditor {
 type tracerEventGenerator struct {
 	listener net.Listener
 	conn     net.Conn
+	ns       netns.NsHandle
 	udpConn  net.Conn
 	udp6Conn *net.UDPConn
 	udpDone  func()
 }
 
-func newTracerEventGenerator(flowi6 bool) (*tracerEventGenerator, error) {
-	eg := &tracerEventGenerator{}
-
-	// port 0 means we let the kernel choose a free port
+func newTracerEventGenerator(flowi6 bool, ns netns.NsHandle) (*tracerEventGenerator, error) {
+	eg := &tracerEventGenerator{ns: ns}
 	var err error
-	addr := fmt.Sprintf("%s:0", listenIPv4)
-	eg.listener, err = net.Listen("tcp4", addr)
-	if err != nil {
-		return nil, err
-	}
-
-	go acceptHandler(eg.listener)
-
-	// Spin up UDP server
 	var udpAddr string
-	udpAddr, eg.udpDone, err = newUDPServer(addr)
-	if err != nil {
-		eg.Close()
-		return nil, err
-	}
+	err = kernel.WithNS(eg.ns, func() error {
+		// port 0 means we let the kernel choose a free port
+		addr := fmt.Sprintf("%s:0", listenIPv4)
+		eg.listener, err = net.Listen("tcp4", addr)
+		if err != nil {
+			return err
+		}
 
-	// Establish connection that will be used in the offset guessing
-	eg.conn, err = net.Dial(eg.listener.Addr().Network(), eg.listener.Addr().String())
-	if err != nil {
-		eg.Close()
-		return nil, err
-	}
+		go acceptHandler(eg.listener)
 
-	eg.udpConn, err = net.Dial("udp", udpAddr)
-	if err != nil {
-		eg.Close()
-		return nil, err
-	}
+		// Spin up UDP server
+		udpAddr, eg.udpDone, err = newUDPServer(addr)
+		if err != nil {
+			eg.Close()
+			return err
+		}
 
-	eg.udp6Conn, err = getUDP6Conn(flowi6)
-	if err != nil {
-		eg.Close()
-		return nil, err
-	}
+		// Establish connection that will be used in the offset guessing
+		eg.conn, err = net.Dial(eg.listener.Addr().Network(), eg.listener.Addr().String())
+		if err != nil {
+			eg.Close()
+			return err
+		}
 
-	return eg, nil
+		eg.udpConn, err = net.Dial("udp", udpAddr)
+		if err != nil {
+			eg.Close()
+			return err
+		}
+
+		eg.udp6Conn, err = getUDP6Conn(flowi6)
+		if err != nil {
+			eg.Close()
+			return err
+		}
+		return err
+	})
+
+	return eg, err
 }
 
 func getUDP6Conn(flowi6 bool) (*net.UDPConn, error) {
