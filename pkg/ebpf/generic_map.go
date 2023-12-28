@@ -19,6 +19,8 @@ import (
 	"github.com/cilium/ebpf"
 )
 
+const defaultBatchSize = 100
+
 var (
 	batchAPISupportedOnce sync.Once
 	batchAPISupported     bool
@@ -115,7 +117,7 @@ func GetMap[K interface{}, V interface{}](mgr *manager.Manager, name string) (*G
 		return nil, err
 	}
 	if m == nil {
-		return nil, fmt.Errorf("not found")
+		return nil, fmt.Errorf("map %s not found", name)
 	}
 	gm, err := Map[K, V](m)
 	return gm, nil
@@ -185,8 +187,6 @@ func isPerCPU(t ebpf.MapType) bool {
 func (g *GenericMap[K, V]) isPerCPU() bool {
 	return isPerCPU(g.m.Type())
 }
-
-const defaultBatchSize = 100
 
 // Iterate returns an iterator for the map, which transparently chooses between batch and single item
 func (g *GenericMap[K, V]) Iterate() GenericMapIterator[K, V] {
@@ -281,7 +281,7 @@ func (g *genericMapBatchIterator[K, V]) Next(key *K, value *V) bool {
 			return false
 		}
 
-		// Important! If we pass here g.keys/g.values, Go will create a copy of the slice
+		// Important! If we pass here g.keys/g.values, Go will create a copy of the slice instance
 		// and will generate extra allocations. I am not entirely sure why it is doing that.
 		g.currentBatchSize, g.err = g.m.BatchLookup(&g.cursor, g.keysCopy, g.valuesCopy, nil)
 		g.inBatchIndex = 0
