@@ -32,8 +32,6 @@ import (
 	//nolint:revive // TODO(APM) Fix revive linter
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
@@ -131,13 +129,8 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 			cfg.RemoteConfigClient = client
 		}
 	}
-	cfg.ContainerTags = containerTagsFunc
-	cfg.ContainerProcRoot = coreConfigObject.GetString("container_proc_root")
+	containerSetup(cfg, coreConfigObject.GetString("container_proc_root"))
 	return cfg, nil
-}
-
-func containerTagsFunc(cid string) ([]string, error) {
-	return tagger.Tag("container_id://"+cid, collectors.HighCardinality)
 }
 
 // appendEndpoints appends any endpoint configuration found at the given cfgKey.

@@ -9,6 +9,7 @@
 // the TagStore) and can be queried by the tagger.Tag() method. Calling once
 // tagger.Init() after the config package is ready is needed to enable
 // collection.
+
 package tagger
 
 import (

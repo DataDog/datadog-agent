@@ -5,6 +5,7 @@
 
 // Package tagstore implements the TagStore which is the component of the Tagger
 // responsible for storing the tags in memory.
+
 package tagstore
 
 import (
