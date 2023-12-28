@@ -80,6 +80,26 @@ func getFullPathFromFilename(process *Process, filename string) (string, error) 
 	return filename, nil
 }
 
+func fillFileMetadata(filepath string, openMsg *ebpfless.OpenSyscallMsg) error {
+	// NB: Here we use Lstat to not follow the link, because we don't do it yet globally.
+	//     Once we'll follow them, we may want to replace it by a Stat().
+	fileInfo, err := os.Lstat(filepath)
+	if err != nil {
+		return nil
+	}
+	stat := fileInfo.Sys().(*syscall.Stat_t)
+	openMsg.MTime = uint64(stat.Mtim.Nano())
+	openMsg.CTime = uint64(stat.Ctim.Nano())
+	openMsg.Credentials = &ebpfless.Credentials{
+		UID: stat.Uid,
+		GID: stat.Gid,
+	}
+	if openMsg.Mode == 0 { // here, mode can be already set by handler of open syscalls
+		openMsg.Mode = stat.Mode // useful for exec handlers
+	}
+	return nil
+}
+
 func handleOpenAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
 	fd := tracer.ReadArgInt32(regs, 0)
 
@@ -100,6 +120,10 @@ func handleOpenAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, re
 		Mode:     uint32(tracer.ReadArgUint64(regs, 3)),
 	}
 
+	err = fillFileMetadata(filename, msg.Open)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -121,6 +145,10 @@ func handleOpen(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs
 		Mode:     uint32(tracer.ReadArgUint64(regs, 2)),
 	}
 
+	err = fillFileMetadata(filename, msg.Open)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -140,6 +168,11 @@ func handleCreat(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, reg
 		Filename: filename,
 		Flags:    unix.O_CREAT | unix.O_WRONLY | unix.O_TRUNC,
 		Mode:     uint32(tracer.ReadArgUint64(regs, 1)),
+	}
+
+	err = fillFileMetadata(filename, msg.Open)
+	if err != nil {
+		return err
 	}
 	return nil
 }
@@ -231,6 +264,10 @@ func handleOpenByHandleAt(tracer *Tracer, process *Process, msg *ebpfless.Syscal
 		Filename: val.pathName,
 		Flags:    uint32(tracer.ReadArgUint64(regs, 2)),
 	}
+	err = fillFileMetadata(val.pathName, msg.Open)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -266,11 +303,16 @@ func handleExecveAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, 
 
 	msg.Type = ebpfless.SyscallTypeExec
 	msg.Exec = &ebpfless.ExecSyscallMsg{
-		Filename: filename,
-		Args:     args,
-		Envs:     envs,
+		File: &ebpfless.OpenSyscallMsg{
+			Filename: filename,
+		},
+		Args: args,
+		Envs: envs,
 	}
-
+	err = fillFileMetadata(filename, msg.Exec.File)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -306,11 +348,16 @@ func handleExecve(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, re
 
 	msg.Type = ebpfless.SyscallTypeExec
 	msg.Exec = &ebpfless.ExecSyscallMsg{
-		Filename: filename,
-		Args:     args,
-		Envs:     envs,
+		File: &ebpfless.OpenSyscallMsg{
+			Filename: filename,
+		},
+		Args: args,
+		Envs: envs,
 	}
-
+	err = fillFileMetadata(filename, msg.Exec.File)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -368,7 +415,8 @@ func handleSetuid(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs sys
 func handleSetgid(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
 	msg.Type = ebpfless.SyscallTypeSetGID
 	msg.SetGID = &ebpfless.SetGIDSyscallMsg{
-		GID: tracer.ReadArgInt32(regs, 0),
+		GID:  tracer.ReadArgInt32(regs, 0),
+		EGID: -1,
 	}
 	return nil
 }

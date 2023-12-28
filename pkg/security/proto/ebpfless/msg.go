@@ -71,7 +71,7 @@ type Credentials struct {
 
 // ExecSyscallMsg defines an exec message
 type ExecSyscallMsg struct {
-	Filename    string
+	File        *OpenSyscallMsg
 	Args        []string
 	Envs        []string
 	Credentials *Credentials
@@ -90,9 +90,12 @@ type ExitSyscallMsg struct {
 
 // OpenSyscallMsg defines an open message
 type OpenSyscallMsg struct {
-	Filename string
-	Flags    uint32
-	Mode     uint32
+	Filename    string
+	CTime       uint64
+	MTime       uint64
+	Flags       uint32
+	Mode        uint32
+	Credentials *Credentials
 }
 
 // DupSyscallFakeMsg defines a dup message

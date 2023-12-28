@@ -368,9 +368,6 @@ func TestOpenMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
-	if test.opts.staticOpts.enableEBPFLess {
-		t.Skip("some metadata not supported yet")
-	}
 
 	fileMode := 0o447
 	expectedMode := uint16(applyUmask(fileMode))
@@ -385,7 +382,7 @@ func TestOpenMetadata(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			// CreateWithOptions creates the file and then chmod the user / group. When the file was created it didn't
 			// have the right uid / gid, thus didn't match the rule. Open the file again to trigger the rule.
-			f, err := os.Open(testFile)
+			f, err := os.OpenFile(testFile, os.O_RDONLY, os.FileMode(expectedMode))
 			if err != nil {
 				return err
 			}
@@ -393,7 +390,9 @@ func TestOpenMetadata(t *testing.T) {
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assertRights(t, event.Open.File.Mode, expectedMode)
-			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
+			if !test.opts.staticOpts.enableEBPFLess {
+				assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
+			}
 			assertNearTime(t, event.Open.File.MTime)
 			assertNearTime(t, event.Open.File.CTime)
 

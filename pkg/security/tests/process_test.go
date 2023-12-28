@@ -1098,9 +1098,6 @@ func TestProcessExecCTime(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
-	if test.opts.staticOpts.enableEBPFLess == true {
-		t.Skip("ctime not supported yet")
-	}
 
 	test.WaitSignal(t, func() error {
 		testFile, _, err := test.Path("touch")
@@ -1353,9 +1350,6 @@ func TestProcessMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
-	if test.opts.staticOpts.enableEBPFLess == true {
-		t.Skip("not supported yet")
-	}
 
 	fileMode := uint16(0o777)
 	testFile, _, err := test.CreateWithOptions("test-exec", 98, 99, int(fileMode))
@@ -1403,11 +1397,13 @@ func TestProcessMetadata(t *testing.T) {
 		}, test.validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "exec", event.GetType(), "wrong event type")
 			assert.Equal(t, 1001, int(event.Exec.Credentials.UID), "wrong uid")
-			assert.Equal(t, 1001, int(event.Exec.Credentials.EUID), "wrong euid")
 			assert.Equal(t, 2001, int(event.Exec.Credentials.GID), "wrong gid")
-			assert.Equal(t, 2001, int(event.Exec.Credentials.EGID), "wrong egid")
-			assert.Equal(t, 1001, int(event.Exec.Credentials.FSUID), "wrong fsuid")
-			assert.Equal(t, 2001, int(event.Exec.Credentials.FSGID), "wrong fsgid")
+			if !test.opts.staticOpts.enableEBPFLess {
+				assert.Equal(t, 1001, int(event.Exec.Credentials.EUID), "wrong euid")
+				assert.Equal(t, 1001, int(event.Exec.Credentials.FSUID), "wrong fsuid")
+				assert.Equal(t, 2001, int(event.Exec.Credentials.EGID), "wrong egid")
+				assert.Equal(t, 2001, int(event.Exec.Credentials.FSGID), "wrong fsgid")
+			}
 		}))
 	})
 }
