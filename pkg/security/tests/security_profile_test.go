@@ -32,7 +32,7 @@ func TestSecurityProfile(t *testing.T) {
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
-	if !IsDedicatedNode(dedicatedADNodeForTestsEnv) {
+	if !IsDedicatedNodeForAD() {
 		t.Skip("Skip test when not run in dedicated env")
 	}
 
@@ -141,10 +141,7 @@ func TestSecurityProfile(t *testing.T) {
 		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, nil,
 			func(sp *profile.SecurityProfile) bool {
 				nodes := WalkActivityTree(sp.ActivityTree, func(node *ProcessNodeAndParent) bool {
-					if node.Node.Process.FileEvent.PathnameStr == syscallTester {
-						return true
-					}
-					return false
+					return node.Node.Process.FileEvent.PathnameStr == syscallTester
 				})
 				if nodes == nil {
 					t.Fatal("Node not found in security profile")
@@ -184,10 +181,7 @@ func TestSecurityProfile(t *testing.T) {
 		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, nil,
 			func(sp *profile.SecurityProfile) bool {
 				nodes := WalkActivityTree(sp.ActivityTree, func(node *ProcessNodeAndParent) bool {
-					if node.Node.Process.Argv0 == "nslookup" {
-						return true
-					}
-					return false
+					return node.Node.Process.Argv0 == "nslookup"
 				})
 				if nodes == nil {
 					t.Fatal("Node not found in security profile")
@@ -214,7 +208,7 @@ func TestAnomalyDetection(t *testing.T) {
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
-	if !IsDedicatedNode(dedicatedADNodeForTestsEnv) {
+	if !IsDedicatedNodeForAD() {
 		t.Skip("Skip test when not run in dedicated env")
 	}
 
@@ -398,7 +392,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
-	if !IsDedicatedNode(dedicatedADNodeForTestsEnv) {
+	if !IsDedicatedNodeForAD() {
 		t.Skip("Skip test when not run in dedicated env")
 	}
 
@@ -567,7 +561,7 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
-	if !IsDedicatedNode(dedicatedADNodeForTestsEnv) {
+	if !IsDedicatedNodeForAD() {
 		t.Skip("Skip test when not run in dedicated env")
 	}
 
@@ -752,7 +746,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
-	if !IsDedicatedNode(dedicatedADNodeForTestsEnv) {
+	if !IsDedicatedNodeForAD() {
 		t.Skip("Skip test when not run in dedicated env")
 	}
 
