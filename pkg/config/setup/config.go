@@ -1768,7 +1768,10 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 			return fmt.Errorf("unable to marshal configuration to YAML to decrypt secrets: %v", err)
 		}
 
-		secretResolver.SubscribeToChanges(func(handle, origin string, settingPath []string, oldValue, newValue any) {
+		secretResolver.SubscribeToChanges(func(handle, settingOrigin string, settingPath []string, oldValue, newValue any) {
+			if origin != settingOrigin {
+				return
+			}
 			if err := configAssignAtPath(config, settingPath, newValue); err != nil {
 				log.Errorf("could not assign to config: %s", err)
 			}
