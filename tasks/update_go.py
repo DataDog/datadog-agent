@@ -1,7 +1,6 @@
 import re
 from typing import Optional
 
-import semver
 from invoke import Context, exceptions, task
 
 from .go import tidy_all
@@ -40,6 +39,8 @@ def update_go(
     """
     Updates the version of Go and build images.
     """
+    import semver
+
     if not semver.VersionInfo.isvalid(version):
         raise exceptions.Exit(f"The version {version} isn't valid.")
 
@@ -140,6 +141,8 @@ def _get_repo_go_version() -> str:
 # extracts the major version from the given string
 # eg. if the string is "1.2.3", returns "1.2"
 def _get_major_version(version: str) -> str:
+    import semver
+
     ver = semver.VersionInfo.parse(version)
     return f"{ver.major}.{ver.minor}"
 
