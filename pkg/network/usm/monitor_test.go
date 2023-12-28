@@ -65,9 +65,9 @@ const (
 	http2SrvAddr                      = "http://127.0.0.1:8082"
 	http2SrvPortStr                   = ":8082"
 	http2SrvPort                      = 8082
-	oneProgramSettingsFrames          = 119
+	oneProgramSettingsFrames          = 100
 	twoProgramsSettingsFrames         = 130
-	moreThenTwoProgramsSettingsFrames = 260
+	moreThenTwoProgramsSettingsFrames = 250
 )
 
 var (
