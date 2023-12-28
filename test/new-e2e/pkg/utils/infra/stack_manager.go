@@ -258,7 +258,6 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 			LogLevel:      &loglevel,
 		}))
 		cancel()
-		time.Sleep(5 * time.Second)
 		if err != nil {
 			if shouldRetryError(err) {
 				fmt.Fprintf(logger, "Got error that should be retried during stack up, retrying: %v\n", err)
