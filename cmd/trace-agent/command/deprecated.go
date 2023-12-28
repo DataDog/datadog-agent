@@ -32,6 +32,7 @@ func FixDeprecatedFlags(args []string, w io.Writer) []string {
 		"-info":     replaceInfo,
 		"--info":    replaceInfo,
 		"-pid":      replacePid,
+		"--pid":     replacePid,
 		// Profiling flags
 		"-cpuprofile": replaceCPUProfile,
 		"-memprofile": replaceMemProfile,
