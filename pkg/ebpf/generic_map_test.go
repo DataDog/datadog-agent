@@ -240,6 +240,10 @@ type ValueStruct struct {
 
 func TestIterateWithValueStructs(t *testing.T) {
 	doTest := func(t *testing.T, singleItem bool, oneItem bool) {
+		if !singleItem && !BatchAPISupported() {
+			t.Skip("Batch API not supported")
+		}
+
 		m, err := NewGenericMap[uint32, ValueStruct](&ebpf.MapSpec{
 			Type:       ebpf.Hash,
 			MaxEntries: 10,
@@ -344,6 +348,10 @@ func TestBatchIterAllocsPerRun(t *testing.T) {
 
 func BenchmarkIterate(b *testing.B) {
 	setupAndBenchmark := func(b *testing.B, forceSingleItem bool, maxEntries int, numEntries int, batchSize int) {
+		if !forceSingleItem && !BatchAPISupported() {
+			b.Skip("Batch API not supported")
+		}
+
 		m, err := NewGenericMap[uint32, uint32](&ebpf.MapSpec{
 			Type:       ebpf.Hash,
 			MaxEntries: uint32(maxEntries),
