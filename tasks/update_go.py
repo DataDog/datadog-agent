@@ -14,18 +14,18 @@ GO_VERSION_FILE = "./.go-version"
 # each tuple is (path, pre_pattern, post_pattern, minor), where
 # - path is the path of the file to update
 # - pre_pattern and post_pattern delimit the version to update
-# - minor is whether the version in the match is a minor version of a bugfix version
+# - is_bugfix is True if the version in the match is a bugfix version, False if it's a minor
 GO_VERSION_REFERENCES: List[Tuple[str, str, str, bool]] = [
-    (GO_VERSION_FILE, "", "", False),  # the version is the only content of the file
-    ("./tools/gdb/Dockerfile", "https://go.dev/dl/go", ".linux-amd64.tar.gz", False),
-    ("./test/fakeintake/Dockerfile", "FROM golang:", "-alpine", False),
-    ("./devenv/scripts/Install-DevEnv.ps1", '$go_version = "', '"', False),
-    ("./docs/dev/agent_dev_env.md", "[install Golang](https://golang.org/doc/install) version `", "`", False),
-    ("./tasks/go.py", '"go version go', ' linux/amd64"', False),
-    ("./README.md", "[Go](https://golang.org/doc/install) ", " or later", True),
-    ("./test/fakeintake/docs/README.md", "[Golang ", "]", True),
-    ("./cmd/process-agent/README.md", "`go >= ", "`", True),
-    ("./pkg/logs/launchers/windowsevent/README.md", "install go ", "+,", True),
+    (GO_VERSION_FILE, "", "", True),  # the version is the only content of the file
+    ("./tools/gdb/Dockerfile", "https://go.dev/dl/go", ".linux-amd64.tar.gz", True),
+    ("./test/fakeintake/Dockerfile", "FROM golang:", "-alpine", True),
+    ("./devenv/scripts/Install-DevEnv.ps1", '$go_version = "', '"', True),
+    ("./docs/dev/agent_dev_env.md", "[install Golang](https://golang.org/doc/install) version `", "`", True),
+    ("./tasks/go.py", '"go version go', ' linux/amd64"', True),
+    ("./README.md", "[Go](https://golang.org/doc/install) ", " or later", False),
+    ("./test/fakeintake/docs/README.md", "[Golang ", "]", False),
+    ("./cmd/process-agent/README.md", "`go >= ", "`", False),
+    ("./pkg/logs/launchers/windowsevent/README.md", "install go ", "+,", False),
 ]
 
 
@@ -156,18 +156,15 @@ def _get_minor_version(version: str) -> str:
     return f"{ver.major}.{ver.minor}"
 
 
-def _get_pattern(pre_pattern: str, post_pattern: str, minor: bool) -> Tuple[str, str]:
-    version_pattern = r'1\.\d+' if minor else r'1\.\d+\.\d+'
-    pattern = rf'({re.escape(pre_pattern)}){version_pattern}({re.escape(post_pattern)})'
-    return pattern
-
-
 def _update_references(warn: bool, version: str):
     new_minor = _get_minor_version(version)
-    for path, pre_pattern, post_pattern, minor in GO_VERSION_REFERENCES:
-        pattern = _get_pattern(pre_pattern, post_pattern, minor)
-        new_version = new_minor if minor else version
+    for path, pre_pattern, post_pattern, is_bugfix in GO_VERSION_REFERENCES:
+        version_pattern = r'1\.\d+\.\d+' if is_bugfix else r'1\.\d+'
+        pattern = rf'({re.escape(pre_pattern)}){version_pattern}({re.escape(post_pattern)})'
+
+        new_version = version if is_bugfix else new_minor
         replace = rf'\g<1>{new_version}\g<2>'
+
         _update_file(warn, path, pattern, replace)
 
 
