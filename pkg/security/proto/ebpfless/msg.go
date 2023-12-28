@@ -6,7 +6,11 @@
 // Package ebpfless holds msgpack messages
 package ebpfless
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+)
 
 // MessageType defines the type of a message
 type MessageType int32
@@ -79,7 +83,10 @@ type ForkSyscallMsg struct {
 }
 
 // ExitSyscallMsg defines an exit message
-type ExitSyscallMsg struct{}
+type ExitSyscallMsg struct {
+	Code  uint32
+	Cause model.ExitCause
+}
 
 // OpenSyscallMsg defines an open message
 type OpenSyscallMsg struct {

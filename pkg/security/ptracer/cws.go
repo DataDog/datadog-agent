@@ -602,7 +602,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 
 	fileHandleCache = make(map[fileHandleKey]*fileHandleVal)
 
-	cb := func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs) {
+	cb := func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs, exitCtx *ebpfless.ExitSyscallMsg) {
 		process := pc.Get(pid)
 		if process == nil {
 			process = NewProcess(pid)
@@ -826,9 +826,10 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 			}
 		case CallbackExitType:
 			// send exit only for process not threads
-			if process.Pid == process.Tgid {
+			if process.Pid == process.Tgid && exitCtx != nil {
 				sendSyscallMsg(&ebpfless.SyscallMsg{
 					Type: ebpfless.SyscallTypeExit,
+					Exit: exitCtx,
 				})
 			}
 

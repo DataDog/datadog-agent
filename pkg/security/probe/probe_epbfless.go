@@ -146,8 +146,8 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 		event.Type = uint32(model.ExitEventType)
 		event.ProcessContext.ExitTime = time.Unix(0, int64(syscallMsg.Timestamp))
 		event.Exit.Process = &event.ProcessCacheEntry.Process
-		event.Exit.Cause = uint32(model.ExitExited) // TODO: fix cause
-		event.Exit.Code = 0                         // TODO: fix code
+		event.Exit.Cause = uint32(syscallMsg.Exit.Cause)
+		event.Exit.Code = syscallMsg.Exit.Code
 		defer p.Resolvers.ProcessResolver.DeleteEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, event.ProcessContext.ExitTime)
 	}
 

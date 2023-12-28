@@ -20,6 +20,8 @@ import (
 	"golang.org/x/net/bpf"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
@@ -222,7 +224,7 @@ func (t *Tracer) ReadArgStringArray(pid int, regs syscall.PtraceRegs, arg int) (
 }
 
 // Trace traces a process
-func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs)) error {
+func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs, exitCtx *ebpfless.ExitSyscallMsg)) error {
 	var waitStatus syscall.WaitStatus
 
 	if err := syscall.PtraceCont(t.PID, 0); err != nil {
@@ -237,11 +239,36 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 			break
 		}
 
-		if waitStatus.Exited() || waitStatus.Signaled() {
+		if waitStatus.Exited() {
 			if pid == t.PID {
 				break
 			}
-			cb(CallbackExitType, ExitNr, pid, 0, regs)
+			cb(CallbackExitType, ExitNr, pid, 0, regs, &ebpfless.ExitSyscallMsg{
+				Cause: model.ExitExited,
+				Code:  uint32(waitStatus.ExitStatus()),
+			})
+			continue
+		}
+
+		if waitStatus.CoreDump() {
+			if pid == t.PID {
+				break
+			}
+			cb(CallbackExitType, ExitNr, pid, 0, regs, &ebpfless.ExitSyscallMsg{
+				Cause: model.ExitCoreDumped,
+				Code:  uint32(waitStatus.Signal()),
+			})
+			continue
+		}
+
+		if waitStatus.Signaled() {
+			if pid == t.PID {
+				break
+			}
+			cb(CallbackExitType, ExitNr, pid, 0, regs, &ebpfless.ExitSyscallMsg{
+				Cause: model.ExitSignaled,
+				Code:  uint32(waitStatus.Signal()),
+			})
 			continue
 		}
 
@@ -262,14 +289,14 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 			switch waitStatus.TrapCause() {
 			case syscall.PTRACE_EVENT_CLONE, syscall.PTRACE_EVENT_FORK, syscall.PTRACE_EVENT_VFORK:
 				if npid, err := syscall.PtraceGetEventMsg(pid); err == nil {
-					cb(CallbackPostType, nr, int(npid), pid, regs)
+					cb(CallbackPostType, nr, int(npid), pid, regs, nil)
 				}
 			case unix.PTRACE_EVENT_SECCOMP:
 				switch nr {
 				case ForkNr, VforkNr, CloneNr:
 					// already handled
 				default:
-					cb(CallbackPreType, nr, pid, 0, regs)
+					cb(CallbackPreType, nr, pid, 0, regs, nil)
 
 					// force a ptrace syscall in order to get to return value
 					if err := syscall.PtraceSyscall(pid, 0); err != nil {
@@ -283,11 +310,11 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 				case ExecveNr, ExecveatNr:
 					// does not return on success, thus ret value stay at syscall.ENOSYS
 					if ret := -t.ReadRet(regs); ret == int64(syscall.ENOSYS) {
-						cb(CallbackPostType, nr, pid, 0, regs)
+						cb(CallbackPostType, nr, pid, 0, regs, nil)
 					}
 				default:
 					if ret := -t.ReadRet(regs); ret != int64(syscall.ENOSYS) {
-						cb(CallbackPostType, nr, pid, 0, regs)
+						cb(CallbackPostType, nr, pid, 0, regs, nil)
 					}
 				}
 			}

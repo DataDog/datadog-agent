@@ -1797,10 +1797,6 @@ func TestProcessExit(t *testing.T) {
 	})
 
 	t.Run("exit-error", func(t *testing.T) {
-		if test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("not supported yet")
-		}
-
 		test.WaitSignal(t, func() error {
 			args := []string{} // sleep with no argument should exit with return code 1
 			envp := []string{envpExitSleep}
@@ -1810,7 +1806,9 @@ func TestProcessExit(t *testing.T) {
 			_ = cmd.Run()
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
-			test.validateExitSchema(t, event)
+			if !test.opts.staticOpts.enableEBPFLess {
+				test.validateExitSchema(t, event)
+			}
 			assertTriggeredRule(t, rule, "test_exit_error")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
@@ -1820,10 +1818,6 @@ func TestProcessExit(t *testing.T) {
 	})
 
 	t.Run("exit-coredumped", func(t *testing.T) {
-		if test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("not supported yet")
-		}
-
 		test.WaitSignal(t, func() error {
 			args := []string{"--preserve-status", "--signal=SIGQUIT", "2", sleepExec, "9"}
 			envp := []string{envpExitSleep}
@@ -1833,7 +1827,9 @@ func TestProcessExit(t *testing.T) {
 			_ = cmd.Run()
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
-			test.validateExitSchema(t, event)
+			if !test.opts.staticOpts.enableEBPFLess {
+				test.validateExitSchema(t, event)
+			}
 			assertTriggeredRule(t, rule, "test_exit_coredump")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitCoreDumped), event.Exit.Cause, "wrong exit cause")
@@ -1843,10 +1839,6 @@ func TestProcessExit(t *testing.T) {
 	})
 
 	t.Run("exit-signaled", func(t *testing.T) {
-		if test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("not supported yet")
-		}
-
 		test.WaitSignal(t, func() error {
 			args := []string{"--preserve-status", "--signal=SIGKILL", "2", sleepExec, "9"}
 			envp := []string{envpExitSleep}
@@ -1856,7 +1848,9 @@ func TestProcessExit(t *testing.T) {
 			_ = cmd.Run()
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
-			test.validateExitSchema(t, event)
+			if !test.opts.staticOpts.enableEBPFLess {
+				test.validateExitSchema(t, event)
+			}
 			assertTriggeredRule(t, rule, "test_exit_signal")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitSignaled), event.Exit.Cause, "wrong exit cause")
