@@ -192,6 +192,13 @@ func TestBatchIterWhileUpdated(t *testing.T) {
 }
 
 func TestIteratePerCPUMaps(t *testing.T) {
+	kernelVersion, err := kernel.HostVersion()
+	require.NoError(t, err)
+
+	if kernelVersion < kernel.VersionCode(4, 6, 0) {
+		t.Skip("Per CPU maps not supported on this kernel version")
+	}
+
 	m, err := NewGenericMap[uint32, uint32](&ebpf.MapSpec{
 		Type:       ebpf.PerCPUHash,
 		MaxEntries: 10,
