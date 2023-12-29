@@ -192,7 +192,7 @@ def _update_go_mods(warn: bool, minor: str, include_otel_modules: bool, dry_run:
             continue
         mod_file = f"./{path}/go.mod"
         # $ only matches \n, not \r\n, so we need to use \r?$ to make it work on Windows
-        _update_file(warn, mod_file, "^go [.0-9]+\r?$", f"go {minor}", dry_run=dry_run)
+        _update_file(warn, mod_file, f"^go {PATTERN_MAJOR_MINOR}\r?$", f"go {minor}", dry_run=dry_run)
 
 
 def _create_releasenote(ctx: Context, version: str):
