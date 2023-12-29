@@ -17,7 +17,9 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -278,6 +280,17 @@ func handleOpenByHandleAt(tracer *Tracer, process *Process, msg *ebpfless.Syscal
 	return nil
 }
 
+func getPidTTY(pid int) string {
+	tty, err := os.Readlink(fmt.Sprintf("/proc/%d/fd/0", pid))
+	if err != nil {
+		return ""
+	}
+	if !strings.HasPrefix(tty, "/dev/pts") {
+		return ""
+	}
+	return "pts" + path.Base(tty)
+}
+
 func handleExecveAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
 	fd := tracer.ReadArgInt32(regs, 0)
 
@@ -315,6 +328,7 @@ func handleExecveAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, 
 		},
 		Args: args,
 		Envs: envs,
+		TTY:  getPidTTY(process.Pid),
 	}
 	err = fillFileMetadata(filename, msg.Exec.File)
 	if err != nil {
@@ -360,6 +374,7 @@ func handleExecve(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, re
 		},
 		Args: args,
 		Envs: envs,
+		TTY:  getPidTTY(process.Pid),
 	}
 	err = fillFileMetadata(filename, msg.Exec.File)
 	if err != nil {

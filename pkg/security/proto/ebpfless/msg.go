@@ -74,6 +74,7 @@ type ExecSyscallMsg struct {
 	File        *OpenSyscallMsg
 	Args        []string
 	Envs        []string
+	TTY         string
 	Credentials *Credentials
 }
 

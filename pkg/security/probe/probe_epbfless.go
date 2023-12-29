@@ -100,7 +100,7 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 	switch syscallMsg.Type {
 	case ebpfless.SyscallTypeExec:
 		event.Type = uint32(model.ExecEventType)
-		entry := p.Resolvers.ProcessResolver.AddExecEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.Exec.File.Filename, syscallMsg.Exec.Args, syscallMsg.Exec.Envs, cl.containerContext.ID, syscallMsg.Timestamp)
+		entry := p.Resolvers.ProcessResolver.AddExecEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.Exec.File.Filename, syscallMsg.Exec.Args, syscallMsg.Exec.Envs, cl.containerContext.ID, syscallMsg.Timestamp, syscallMsg.Exec.TTY)
 		if syscallMsg.Exec.Credentials != nil {
 			entry.Credentials.UID = syscallMsg.Exec.Credentials.UID
 			entry.Credentials.EUID = syscallMsg.Exec.Credentials.EUID

@@ -96,7 +96,7 @@ func (p *EBPFLessResolver) AddForkEntry(key CacheResolverKey, ppid uint32, ts ui
 }
 
 // AddExecEntry adds an entry to the local cache and returns the newly created entry
-func (p *EBPFLessResolver) AddExecEntry(key CacheResolverKey, file string, argv []string, envs []string, ctrID string, ts uint64) *model.ProcessCacheEntry {
+func (p *EBPFLessResolver) AddExecEntry(key CacheResolverKey, file string, argv []string, envs []string, ctrID string, ts uint64, tty string) *model.ProcessCacheEntry {
 	entry := p.processCacheEntryPool.Get()
 	entry.PIDContext.Pid = key.Pid
 
@@ -109,6 +109,7 @@ func (p *EBPFLessResolver) AddExecEntry(key CacheResolverKey, file string, argv 
 		// truncate comm to max 16 chars to be ebpf ISO
 		entry.Process.Comm = entry.Process.Comm[:16]
 	}
+	entry.Process.TTYName = tty
 
 	entry.Process.EnvsEntry = &model.EnvsEntry{Values: envs}
 

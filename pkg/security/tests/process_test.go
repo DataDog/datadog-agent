@@ -710,10 +710,6 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	t.Run("tty", func(t *testing.T) {
-		if test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("not supported yet")
-		}
-
 		testFile, _, err := test.Path("test-process-tty")
 		if err != nil {
 			t.Fatal(err)
@@ -769,8 +765,10 @@ func TestProcessContext(t *testing.T) {
 				t.Errorf("not able to get a tty name: %s\n", name)
 			}
 
-			if inode := getInode(t, executable); inode != event.ProcessContext.FileEvent.Inode {
-				t.Errorf("expected inode %d, got %d => %+v", event.ProcessContext.FileEvent.Inode, inode, event)
+			if !test.opts.staticOpts.enableEBPFLess {
+				if inode := getInode(t, executable); inode != event.ProcessContext.FileEvent.Inode {
+					t.Errorf("expected inode %d, got %d => %+v", event.ProcessContext.FileEvent.Inode, inode, event)
+				}
 			}
 
 			str, err := test.marshalEvent(event)
