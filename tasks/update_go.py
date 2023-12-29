@@ -28,6 +28,9 @@ GO_VERSION_REFERENCES: List[Tuple[str, str, str, bool]] = [
     ("./pkg/logs/launchers/windowsevent/README.md", "install go ", "+,", False),
 ]
 
+PATTERN_MAJOR_MINOR = r'1\.\d+'
+PATTERN_MAJOR_MINOR_BUGFIX = r'1\.\d+\.\d+'
+
 
 @task
 def go_version(_):
@@ -121,14 +124,19 @@ def update_go(
 
 
 # replace the given pattern with the given string in the file
-def _update_file(warn: bool, path: str, pattern: str, replace: str, expected_match: int = 1):
+def _update_file(warn: bool, path: str, pattern: str, replace: str, expected_match: int = 1, dry_run: bool = False):
     # newline='' keeps the file's newline character(s)
     # meaning it keeps '\n' for most files and '\r\n' for windows specific files
 
     with open(path, "r", newline='') as reader:
         content = reader.read()
 
-    content, nb_match = re.subn(pattern, replace, content, flags=re.MULTILINE)
+    if dry_run:
+        matches = re.findall(pattern, content, flags=re.MULTILINE)
+        nb_match = len(matches)
+    else:
+        content, nb_match = re.subn(pattern, replace, content, flags=re.MULTILINE)
+
     if nb_match != expected_match:
         msg = f"{path}: '{pattern}': expected {expected_match} matches but got {nb_match}"
         if warn:
@@ -136,8 +144,9 @@ def _update_file(warn: bool, path: str, pattern: str, replace: str, expected_mat
         else:
             raise exceptions.Exit(msg)
 
-    with open(path, "w", newline='') as writer:
-        writer.write(content)
+    if not dry_run:
+        with open(path, "w", newline='') as writer:
+            writer.write(content)
 
 
 # returns the current go version
@@ -156,26 +165,31 @@ def _get_major_minor_version(version: str) -> str:
     return f"{ver.major}.{ver.minor}"
 
 
-def _update_references(warn: bool, version: str):
+def _get_pattern(pre_pattern: str, post_pattern: str, is_bugfix: bool) -> str:
+    version_pattern = PATTERN_MAJOR_MINOR_BUGFIX if is_bugfix else PATTERN_MAJOR_MINOR
+    pattern = rf'({re.escape(pre_pattern)}){version_pattern}({re.escape(post_pattern)})'
+    return pattern
+
+
+def _update_references(warn: bool, version: str, dry_run: bool = False):
     new_major_minor = _get_major_minor_version(version)
     for path, pre_pattern, post_pattern, is_bugfix in GO_VERSION_REFERENCES:
-        version_pattern = r'1\.\d+\.\d+' if is_bugfix else r'1\.\d+'
-        pattern = rf'({re.escape(pre_pattern)}){version_pattern}({re.escape(post_pattern)})'
+        pattern = _get_pattern(pre_pattern, post_pattern, is_bugfix)
 
         new_version = version if is_bugfix else new_major_minor
         replace = rf'\g<1>{new_version}\g<2>'
 
-        _update_file(warn, path, pattern, replace)
+        _update_file(warn, path, pattern, replace, dry_run=dry_run)
 
 
-def _update_go_mods(warn: bool, minor: str, include_otel_modules: bool):
+def _update_go_mods(warn: bool, minor: str, include_otel_modules: bool, dry_run: bool = False):
     for path, module in DEFAULT_MODULES.items():
         if not include_otel_modules and module.used_by_otel:
             # only update the go directives in go.mod files not used by otel
             # to allow them to keep using the modules
             continue
         mod_file = f"./{path}/go.mod"
-        _update_file(warn, mod_file, "^go [.0-9]+$", f"go {minor}")
+        _update_file(warn, mod_file, "^go [.0-9]+$", f"go {minor}", dry_run=dry_run)
 
 
 def _create_releasenote(ctx: Context, version: str):
