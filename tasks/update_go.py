@@ -1,7 +1,9 @@
 import re
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
-from invoke import Context, exceptions, task
+from invoke import exceptions
+from invoke.context import Context
+from invoke.tasks import task
 
 from .go import tidy_all
 from .libs.common.color import color_message
@@ -52,10 +54,10 @@ def update_go(
     ctx: Context,
     version: str,
     image_tag: str,
-    test_version: Optional[bool] = False,
-    warn: Optional[bool] = False,
-    release_note: Optional[bool] = True,
-    include_otel_modules: Optional[bool] = False,
+    test_version: bool = False,
+    warn: bool = False,
+    release_note: bool = True,
+    include_otel_modules: bool = False,
 ):
     """
     Updates the version of Go and build images.
