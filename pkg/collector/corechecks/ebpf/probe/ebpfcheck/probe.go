@@ -531,7 +531,60 @@ func hashMapNumberOfEntries(mp *ebpf.Map) int64 {
 		return -1
 	}
 
+	canUseBatchApi := true // TODO(gjulianm): Use BatchAPISupported() when merged
 	numElements := 0
+
+	if canUseBatchApi {
+		// Here we duplicate a bit the code from cilium/ebpf to use the batch API
+		// in our own way, because the way it's coded there it cannot be used with
+		// key sizes that are only known at runtime.
+		//
+		// The BatchLookup function from cilium wants to receive buffers for the keys and
+		// values in the form of slices, and it expects that the elements of the slice
+		// are of the same size as the key and value size of the map. I haven't found a
+		// way to do this with arbitrary key sizes only known at runtime (i.e., I can't do
+		// a type [][mp.KeySize()]byte), and instead of defining one type per possible key size,
+		// I just replicated the system call here. It requires redinifing the struct used in cilium to
+		// pass arguments, but it's not a big amount of code.
+		keys := make([]byte, mp.KeySize()*mp.MaxEntries())
+		values := make([]byte, mp.ValueSize()*mp.MaxEntries())
+		cursor := make([]byte, mp.KeySize(), 4)
+
+		const BPF_MAP_LOOKUP_BATCH = uint32(24)
+		type MapLookupBatchAttr struct {
+			InBatch   Pointer
+			OutBatch  Pointer
+			Keys      Pointer
+			Values    Pointer
+			Count     uint32
+			MapFd     uint32
+			ElemFlags uint64
+			Flags     uint64
+		}
+		attr := MapLookupBatchAttr{
+			MapFd:    uint32(mp.FD()),
+			Keys:     NewPointer(unsafe.Pointer(&keys[0])),
+			Values:   NewPointer(unsafe.Pointer(&values[0])),
+			Count:    uint32(mp.MaxEntries()),
+			InBatch:  NewPointer(nil),
+			OutBatch: NewPointer(unsafe.Pointer(&cursor[0])),
+		}
+
+		_, _, errno := unix.Syscall(unix.SYS_BPF, uintptr(BPF_MAP_LOOKUP_BATCH), uintptr(unsafe.Pointer(&attr)), unsafe.Sizeof(attr))
+
+		// We only care about the errno returned. Note that batch lookup commands return
+		// ENOENT to indicate it is the last batch. In this case, we want a single batch so
+		// it should return ENOENT in normal operation
+		if errno != 0 && errno != unix.ENOENT {
+			log.Debugf("error iterating map %s: %s", mp.String(), errno)
+			fmt.Printf("no luck: %s\n", errno)
+			return -1
+		}
+
+		// The syscall modifies this field with the number of elements returned
+		return int64(attr.Count)
+	}
+
 	key := make([]byte, mp.KeySize())
 	value := make([]byte, mp.ValueSize())
 
