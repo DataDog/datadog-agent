@@ -41,7 +41,7 @@ import (
 const (
 	// InterfaceLocalMulticastIPv6 is a destination IPv6 address used for offset guessing
 	InterfaceLocalMulticastIPv6 = "ff01::1"
-	listenIPv4                  = "127.0.0.2"
+	listenIPv4                  = "127.0.0.1"
 
 	tcpGetSockOptKProbeNotCalled uint64 = 0
 	tcpGetSockOptKProbeCalled    uint64 = 1
@@ -702,6 +702,24 @@ func (t *tracerOffsetGuesser) flowi6EntryState() GuessWhat {
 	return GuessSAddrFl6
 }
 
+func setupLoopbackInNS(ns netns.NsHandle) error {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	if err := netns.Set(ns); err != nil {
+		return err
+	}
+	defer netns.Set(netns.None())
+
+	lo, err := net.InterfaceByName("lo")
+	if err != nil {
+		return err
+	}
+	lo.Flags |= net.FlagUp
+
+	return nil
+}
+
 // Guess expects manager.Manager to contain a map named tracer_status and helps initialize the
 // tracer by guessing the right struct sock kernel struct offsets. Results are
 // returned as constants which are runtime-edited into the tracer eBPF code.
@@ -761,14 +779,24 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 	if err != nil {
 		return nil, fmt.Errorf("error getting current netns: %w", err)
 	}
-	var eventGenerator *tracerEventGenerator
 	// the root NS is often 0xf0000000 which makes guessing likely to fail. If so, guess in a new NS with a different offset
-	if uintptr(curNS) == 0xf0000000 {
+	log.Debugf("ADAMK STARTING DEBUG")
+	log.Debugf("adamk current netns: %v", curNS)
+	ino, err := kernel.GetInoForNs(curNS)
+	if ino == 4026531840 {
+		log.Debugf("adamk current netns is conflict prone in offset guessing. guessing in a new netns")
 		curNS, err = netns.New()
+		err := setupLoopbackInNS(curNS)
 		if err != nil {
+			return nil, err
+		}
+		defer curNS.Close()
+		if err != nil {
+			log.Debugf("adamk error creating new netns: %v", err)
 			return nil, fmt.Errorf("error creating new netns: %w", err)
 		}
 	}
+	var eventGenerator *tracerEventGenerator
 	eventGenerator, err = newTracerEventGenerator(t.guessUDPv6, curNS)
 	if err != nil {
 		return nil, err
@@ -785,7 +813,7 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 	maxRetries := 100
 
 	// Retrieve expected values from local connection
-	expected, err := waitUntilStable(eventGenerator.conn, 200*time.Millisecond, 5, curNS)
+	expected, err := waitUntilStable(eventGenerator.conn, 200*time.Millisecond, 1, curNS)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving expected value: %w", err)
 	}
@@ -865,12 +893,18 @@ func newTracerEventGenerator(flowi6 bool, ns netns.NsHandle) (*tracerEventGenera
 	var err error
 	var udpAddr string
 	err = kernel.WithNS(eg.ns, func() error {
+		ifaces, _ := net.Interfaces()
+		currNs, _ := netns.Get()
+		log.Debugf("adamk newTracerEventGenerator currNs: %v", currNs)
+		log.Debugf("adamk newTracerEventGenerator IFACES: %v", ifaces)
+		log.Debugf("adamk newTracerEventGenerator 1 %v", eg.ns.String())
 		// port 0 means we let the kernel choose a free port
 		addr := fmt.Sprintf("%s:0", listenIPv4)
 		eg.listener, err = net.Listen("tcp4", addr)
 		if err != nil {
 			return err
 		}
+		log.Debugf("adamk newTracerEventGenerator 2 tcp4: %v", eg.listener.Addr().String())
 
 		go acceptHandler(eg.listener)
 
@@ -881,12 +915,17 @@ func newTracerEventGenerator(flowi6 bool, ns netns.NsHandle) (*tracerEventGenera
 			return err
 		}
 
-		// Establish connection that will be used in the offset guessing
+		//log.Debugf("adamk newTracerEventGenerator 3 udpAddr: %v", udpAddr)
+
+		// Establish TCP connection that will be used in the offset guessing
 		eg.conn, err = net.Dial(eg.listener.Addr().Network(), eg.listener.Addr().String())
 		if err != nil {
+			log.Debugf("adamk newTracerEventGenerator 3.5 %v", err)
 			eg.Close()
 			return err
 		}
+
+		log.Debugf("adamk newTracerEventGenerator 4 dialing udp")
 
 		eg.udpConn, err = net.Dial("udp", udpAddr)
 		if err != nil {
@@ -1030,14 +1069,19 @@ func (e *tracerEventGenerator) Close() {
 }
 
 func acceptHandler(l net.Listener) {
+	currNs, _ := netns.Get()
+	log.Debugf("adamk acceptHandler, ns: %v", currNs)
 	for {
+		//log.Debugf("adamk listener %v", l)
 		conn, err := l.Accept()
+		//log.Debugf("adamk listener %v", conn)
 		if err != nil {
 			return
 		}
 
 		_, _ = io.Copy(io.Discard, conn)
 		if tcpc, ok := conn.(*net.TCPConn); ok {
+			//log.Debugf("adamk listener %v", tcpc.LocalAddr().String())
 			_ = tcpc.SetLinger(0)
 		}
 		conn.Close()
