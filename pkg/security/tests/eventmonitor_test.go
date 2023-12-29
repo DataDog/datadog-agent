@@ -133,11 +133,7 @@ func (fc *FakeEventConsumer) Copy(ev *model.Event) any {
 		Pid:         ev.GetProcessPid(),
 		ContainerID: intern.GetByString(ev.GetContainerId()),
 		StartTime:   processStartTime.UnixNano(),
-		Envs: ev.GetProcessEnvp(map[string]bool{
-			"DD_SERVICE": true,
-			"DD_VERSION": true,
-			"DD_ENV":     true,
-		}),
+		Envs:        ev.GetProcessEnvp(),
 	}
 }
 
@@ -173,9 +169,8 @@ func TestEventMonitor(t *testing.T) {
 
 			return errors.New("event not received")
 		}, retry.Delay(200*time.Millisecond), retry.Attempts(10))
-		}, retry.Delay(200), retry.Attempts(10))
 		fmt.Printf("%+v\n", fc.lastReceivedFork)
-		assert.Equal(t, []string{"DD_SERVICE=myService", "DD_VERSION=0.1.0", "DD_ENV=myEnv"}, fc.lastReceivedFork.Envs)
+		assert.Subset(t, fc.lastReceivedFork.Envs, []string{"DD_SERVICE=myService", "DD_VERSION=0.1.0", "DD_ENV=myEnv"})
 		assert.Nil(t, err)
 	})
 
