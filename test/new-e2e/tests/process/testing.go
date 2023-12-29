@@ -69,8 +69,8 @@ func assertProcessCollected(
 		}
 	}
 
-	require.True(t, found, process + " process not found")
-	assert.True(t, populated, "no " + process + " process had all data populated")
+	require.True(t, found, "%s process not found", process)
+	assert.True(t, populated, "no %s process had all data populated", process)
 }
 
 // findProcess returns whether the process with the given name exists in the given list of
@@ -105,8 +105,8 @@ func processHasData(process *agentmodel.Process) bool {
 
 // processHasIOStats asserts that the given process has the expected IO stats populated
 func processHasIOStats(process *agentmodel.Process) bool {
-	// The processes we currently use to test can only read or write, not both 
-	return process.IoStat.WriteRate > 0 && process.IoStat.WriteBytesRate > 0 ||  process.IoStat.ReadRate > 0 && process.IoStat.ReadBytesRate > 0 
+	// The processes we currently use to test can only read or write, not both
+	return process.IoStat.WriteRate > 0 && process.IoStat.WriteBytesRate > 0 || process.IoStat.ReadRate > 0 && process.IoStat.ReadBytesRate > 0
 }
 
 // assertProcessDiscoveryCollected asserts that the given process is collected by the process
@@ -128,8 +128,8 @@ func assertProcessDiscoveryCollected(
 		}
 	}
 
-	require.True(t, found, process + " process not found")
-	assert.True(t, populated, "no " + process + " process had all data populated")
+	require.True(t, found, "%s process not found", process)
+	assert.True(t, populated, "no %s process had all data populated", process)
 }
 
 // findProcessDiscovery returns whether the process with the given name exists in the given list of
@@ -172,8 +172,8 @@ func assertManualProcessCheck(t *testing.T, check string, withIOStats bool, proc
 
 	found, populated := findProcess(process, checkOutput.Processes, withIOStats)
 
-	require.True(t, found, process + " process not found")
-	assert.True(t, populated, "no " + process + " process had all data populated")
+	require.True(t, found, "%s process not found", process)
+	assert.True(t, populated, "no %s process had all data populated", process)
 }
 
 // assertManualProcessDiscoveryCheck asserts that the given process is collected and reported in
@@ -193,6 +193,6 @@ func assertManualProcessDiscoveryCheck(t *testing.T, check string, process strin
 
 	found, populated := findProcessDiscovery(process, checkOutput.ProcessDiscoveries)
 
-	require.True(t, found, process + " process not found")
-	assert.True(t, populated, "no " + process + " process had all data populated")
+	require.True(t, found, "%s process not found", process)
+	assert.True(t, populated, "no %s process had all data populated", process)
 }

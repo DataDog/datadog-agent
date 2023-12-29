@@ -109,7 +109,7 @@ func (s *windowsTestSuite) TestProcessCheckIO() {
 		// Wait for two payloads, as processes must be detected in two check runs to be returned
 		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
 	}, 2*time.Minute, 10*time.Second)
-	
+
 	assertProcessCollected(t, payloads, true, "MsMpEng.exe")
 }
 
