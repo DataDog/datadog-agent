@@ -8,6 +8,6 @@
 ---
 fixes:
   - |
-    Add support for previously unofficially supported deprecated flags
+    Adds support for previously unofficially supported deprecated flags
     in the Datadog Trace Agent ``trace-agent`` that were broken when the
     CLI compatibility layer was first added for new flags.
