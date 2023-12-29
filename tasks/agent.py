@@ -95,6 +95,7 @@ CACHED_WHEEL_FILENAME_PATTERN = "datadog_{integration}-*.whl"
 CACHED_WHEEL_DIRECTORY_PATTERN = "integration-wheels/{branch}/{hash}/{python_version}/"
 CACHED_WHEEL_FULL_PATH_PATTERN = CACHED_WHEEL_DIRECTORY_PATTERN + CACHED_WHEEL_FILENAME_PATTERN
 LAST_DIRECTORY_COMMIT_PATTERN = "git -C {integrations_dir} rev-list -1 HEAD {integration}"
+MAX_TRY_BUNDLE_INSTALL = 2
 
 
 @task
@@ -666,7 +667,22 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None):
         cmd = "bundle install"
         if gem_path:
             cmd += f" --path {gem_path}"
-        ctx.run(cmd, env=env)
+
+        for trial in range(MAX_TRY_BUNDLE_INSTALL):
+            res = ctx.run(cmd, env=env, warn=True)
+            if res.ok:
+                return
+            if not should_retry_bundle_install(res):
+                return
+            print(f"Retrying bundle install, attempt {trial + 1}/{MAX_TRY_BUNDLE_INSTALL}")
+
+
+def should_retry_bundle_install(res):
+    # We sometimes get a Net::HTTPNotFound error when fetching the
+    # license-scout gem. This is a transient error, so we retry the bundle install
+    if "Net::HTTPNotFound:" in res.stderr:
+        return True
+    return False
 
 
 # hardened-runtime needs to be set to False to build on MacOS < 10.13.6, as the -o runtime option is not supported.
@@ -699,6 +715,7 @@ def omnibus_build(
     """
     Build the Agent packages with Omnibus Installer.
     """
+
     flavor = AgentFlavor[flavor]
     if not skip_deps:
         with timed(quiet=True) as deps_elapsed:
