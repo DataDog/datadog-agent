@@ -130,7 +130,7 @@ def _update_file(warn: bool, path: str, pattern: str, replace: str, expected_mat
     # newline='' keeps the file's newline character(s)
     # meaning it keeps '\n' for most files and '\r\n' for windows specific files
 
-    with open(path, "r", newline='') as reader:
+    with open(path, "r", newline='', encoding='utf-8') as reader:
         content = reader.read()
 
     if dry_run:
