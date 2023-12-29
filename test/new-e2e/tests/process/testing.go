@@ -105,7 +105,7 @@ func processHasData(process *agentmodel.Process) bool {
 
 // processHasIOStats asserts that the given process has the expected IO stats populated
 func processHasIOStats(process *agentmodel.Process) bool {
-	// the given process only writes to disk, does not read from it
+	// The processes we currently use to test can only read or write, not both 
 	return process.IoStat.WriteRate > 0 && process.IoStat.WriteBytesRate > 0 ||  process.IoStat.ReadRate > 0 && process.IoStat.ReadBytesRate > 0 
 }
 
