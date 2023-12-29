@@ -72,7 +72,7 @@ func WithUpgrade(upgrade bool) Option {
 	}
 }
 
-// WithCustomApiKey specify a custom api key to use when installing the agent
+// WithCustomAPIKey specify a custom api key to use when installing the agent
 func WithCustomAPIKey(apiKey string) Option {
 	return func(p *Params) {
 		p.CustomAPIKey = apiKey
