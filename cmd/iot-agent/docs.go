@@ -3,15 +3,5 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !gce
-
-package gce
-
-import "context"
-
-// GetTags gets the tags from the GCE api
-func GetTags(_ context.Context) ([]string, error) {
-	tags := []string{}
-
-	return tags, nil
-}
+// Package main is the entrypoint for the IoT Agent.
+package main

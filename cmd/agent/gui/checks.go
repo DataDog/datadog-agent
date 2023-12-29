@@ -61,9 +61,7 @@ func checkHandler(r *mux.Router) {
 }
 
 // Sends a list of all the current running checks
-//
-//nolint:revive // TODO(ASC) Fix revive linter
-func sendRunningChecks(w http.ResponseWriter, r *http.Request) {
+func sendRunningChecks(w http.ResponseWriter, _ *http.Request) {
 	html, e := renderRunningChecks()
 	if e != nil {
 		w.Write([]byte("Error generating status html: " + e.Error()))
@@ -75,9 +73,7 @@ func sendRunningChecks(w http.ResponseWriter, r *http.Request) {
 }
 
 // Schedules a specific check
-//
-//nolint:revive // TODO(ASC) Fix revive linter
-func runCheck(w http.ResponseWriter, r *http.Request) {
+func runCheck(_ http.ResponseWriter, r *http.Request) {
 	// Fetch the desired check
 	name := mux.Vars(r)["name"]
 	instances := collector.GetChecksByNameForConfigs(name, common.AC.GetAllConfigs())
@@ -342,9 +338,7 @@ func getWheelsChecks() ([]string, error) {
 }
 
 // Sends a list containing the names of all the checks
-//
-//nolint:revive // TODO(ASC) Fix revive linter
-func listChecks(w http.ResponseWriter, r *http.Request) {
+func listChecks(w http.ResponseWriter, _ *http.Request) {
 	integrations := []string{}
 	for _, path := range checkPaths {
 		files, err := os.ReadDir(path)
@@ -423,9 +417,7 @@ func getConfigsInPath(path string) ([]string, error) {
 }
 
 // Sends a list containing the names of all the config files
-//
-//nolint:revive // TODO(ASC) Fix revive linter
-func listConfigs(w http.ResponseWriter, r *http.Request) {
+func listConfigs(w http.ResponseWriter, _ *http.Request) {
 	filenames := []string{}
 	for _, path := range configPaths {
 
