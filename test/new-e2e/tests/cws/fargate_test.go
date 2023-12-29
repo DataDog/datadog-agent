@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package fargate contains e2e tests for fargate
-package fargate
+package cws
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"testing"
+	"text/template"
 	"time"
 
 	"github.com/pulumi/pulumi-aws/sdk/v5/go/aws/ecs"
@@ -31,7 +32,7 @@ import (
 	ecsResources "github.com/DataDog/test-infra-definitions/resources/aws/ecs"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
-	e2elib "github.com/DataDog/datadog-agent/test/new-e2e/tests/cws/lib"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/cws/api"
 )
 
 const (
@@ -73,7 +74,7 @@ type ECSFargateSuite struct {
 	stackName string
 	testID    string
 
-	apiClient      *e2elib.APIClient
+	apiClient      *api.Client
 	ddHostname     string
 	ecsClusterArn  string
 	ecsClusterName string
@@ -84,14 +85,14 @@ func TestECSFargate(t *testing.T) {
 	suite.Run(t, &ECSFargateSuite{
 		ctx:       context.Background(),
 		stackName: "cws-tests-ecs-fg",
-		testID:    e2elib.RandomString(4),
+		testID:    randomString(4),
 	})
 }
 
 func (s *ECSFargateSuite) SetupSuite() {
-	s.apiClient = e2elib.NewAPIClient()
+	s.apiClient = api.NewClient()
 
-	ruleDefs := []*e2elib.TestRuleDefinition{
+	ruleDefs := []*testRuleDefinition{
 		{
 			ID:         execRuleID,
 			Expression: fmt.Sprintf(`exec.file.path == \"%s\"`, execFilePath),
@@ -101,7 +102,7 @@ func (s *ECSFargateSuite) SetupSuite() {
 			Expression: fmt.Sprintf(`open.file.path == \"%s\"`, openFilePath),
 		},
 	}
-	selftestsPolicy, err := e2elib.GetPolicyContent(ruleDefs)
+	selftestsPolicy, err := getPolicyContent(ruleDefs)
 	s.Require().NoError(err)
 
 	_, result, err := infra.GetStackManager().GetStack(s.ctx, s.stackName, nil, func(ctx *pulumi.Context) error {
@@ -445,7 +446,7 @@ func (s *ECSFargateSuite) Test00ECSFargateReady() {
 
 func (s *ECSFargateSuite) Test01RulesetLoaded() {
 	query := fmt.Sprintf("host:%s rule_id:ruleset_loaded @policies.name:%s", s.ddHostname, selfTestsPolicyName)
-	result, err := e2elib.WaitAppLogs(s.apiClient, query)
+	result, err := api.WaitAppLogs(s.apiClient, query)
 	s.Require().NoError(err, "could not get new ruleset_loaded event log")
 	agentContext, ok := result.Attributes["agent"].(map[string]interface{})
 	s.Require().True(ok, "unexpected agent context")
@@ -454,7 +455,7 @@ func (s *ECSFargateSuite) Test01RulesetLoaded() {
 
 func (s *ECSFargateSuite) Test02ExecRule() {
 	query := fmt.Sprintf("host:%s rule_id:%s", s.ddHostname, execRuleID)
-	result, err := e2elib.WaitAppLogs(s.apiClient, query)
+	result, err := api.WaitAppLogs(s.apiClient, query)
 	s.Require().NoError(err, "could not get the exec rule event log")
 	agentContext, ok := result.Attributes["agent"].(map[string]interface{})
 	s.Require().True(ok, "unexpected agent context")
@@ -463,9 +464,44 @@ func (s *ECSFargateSuite) Test02ExecRule() {
 
 func (s *ECSFargateSuite) Test03OpenRule() {
 	query := fmt.Sprintf("host:%s rule_id:%s", s.ddHostname, openRuleID)
-	result, err := e2elib.WaitAppLogs(s.apiClient, query)
+	result, err := api.WaitAppLogs(s.apiClient, query)
 	s.Require().NoError(err, "could not get the open rule event log")
 	agentContext, ok := result.Attributes["agent"].(map[string]interface{})
 	s.Require().True(ok, "unexpected agent context")
 	s.Require().EqualValues(openRuleID, agentContext["rule_id"], "unexpected agent rule ID")
+}
+
+// testRuleDefinition defines a rule used in a test policy
+type testRuleDefinition struct {
+	ID         string
+	Version    string
+	Expression string
+}
+
+const testPolicyTemplate = `---
+version: 1.2.3
+
+rules:
+{{range $Rule := .Rules}}
+  - id: {{$Rule.ID}}
+    version: {{$Rule.Version}}
+    expression: >-
+      {{$Rule.Expression}}
+{{end}}
+`
+
+// getPolicyContent returns the policy content from the given test rule definitions
+func getPolicyContent(rules []*testRuleDefinition) (string, error) {
+	tmpl, err := template.New("policy").Parse(testPolicyTemplate)
+	if err != nil {
+		return "", err
+	}
+
+	buffer := new(bytes.Buffer)
+	if err := tmpl.Execute(buffer, map[string]interface{}{
+		"Rules": rules,
+	}); err != nil {
+		return "", err
+	}
+	return buffer.String(), nil
 }

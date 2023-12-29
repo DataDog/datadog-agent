@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package e2elib
+package api
 
 import (
 	"errors"
@@ -14,7 +14,7 @@ import (
 )
 
 // WaitAppLogs waits for the app log corresponding to the query
-func WaitAppLogs(apiClient *APIClient, query string) (*datadog.LogAttributes, error) {
+func WaitAppLogs(apiClient *Client, query string) (*datadog.LogAttributes, error) {
 	var resp *datadog.LogAttributes
 	err := backoff.Retry(func() error {
 		tmpResp, err := apiClient.GetAppLog(query)
@@ -31,7 +31,7 @@ func WaitAppLogs(apiClient *APIClient, query string) (*datadog.LogAttributes, er
 }
 
 // WaitAppSignal waits for the signal corresponding to the query
-func WaitAppSignal(apiClient *APIClient, query string) (*datadog.SecurityMonitoringSignalAttributes, error) {
+func WaitAppSignal(apiClient *Client, query string) (*datadog.SecurityMonitoringSignalAttributes, error) {
 	var resp *datadog.SecurityMonitoringSignalAttributes
 	err := backoff.Retry(func() error {
 		tmpResp, err := apiClient.GetAppSignal(query)

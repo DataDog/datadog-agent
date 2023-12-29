@@ -3,14 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package e2elib
+package cws
 
 import "math/rand"
 
 const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-// RandomString returns a random string of the specified length
-func RandomString(length int) string {
+// randomString returns a random string of the specified length
+func randomString(length int) string {
 	b := make([]byte, length)
 	for i := range b {
 		b[i] = alphabet[rand.Intn(len(alphabet))]
