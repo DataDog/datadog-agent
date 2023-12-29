@@ -22,14 +22,14 @@
     EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --cws-supported-osversion $E2E_CWS_SUPPORTED_OSVERS --dest-agent-version $AGENT_MAJOR_VERSION --src-agent-version $START_MAJOR_VERSION --arch $E2E_ARCH
   script:
     - export DATADOG_AGENT_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.e2e_tests_api_key --with-decryption --query "Parameter.Value" --out text)
-    - export $START_MAJOR_VERSION=5
-    - export $AGENT_MAJOR_VERSION=7
+    - export START_MAJOR_VERSION=5
+    - export AGENT_MAJOR_VERSION=7
     - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:fullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA} -c ddagent:clusterAgentFullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/cluster-agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA} -c dddogstatsd:fullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/dogstatsd:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA} -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar "junit-${CI_JOB_NAME}.tgz" ${EXTRA_PARAMS}
-    - export $START_MAJOR_VERSION=5
-    - export $AGENT_MAJOR_VERSION=6
+    - export START_MAJOR_VERSION=5
+    - export AGENT_MAJOR_VERSION=6
     - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:fullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA} -c ddagent:clusterAgentFullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/cluster-agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA} -c dddogstatsd:fullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/dogstatsd:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA} -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar "junit-${CI_JOB_NAME}.tgz" ${EXTRA_PARAMS}
-    - export $START_MAJOR_VERSION=6
-    - export $AGENT_MAJOR_VERSION=7
+    - export START_MAJOR_VERSION=6
+    - export AGENT_MAJOR_VERSION=7
     - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:fullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA} -c ddagent:clusterAgentFullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/cluster-agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA} -c dddogstatsd:fullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/dogstatsd:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA} -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar "junit-${CI_JOB_NAME}.tgz" ${EXTRA_PARAMS}
 
 .new-e2e_ubuntu_a6_x86_64:
