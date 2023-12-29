@@ -90,6 +90,9 @@ func fillFileMetadata(filepath string, openMsg *ebpfless.OpenSyscallMsg) error {
 	if os.Getenv(CwsInstrumentationEnvDisableStats) != "" {
 		return nil
 	}
+	if strings.HasPrefix(filepath, "memfd:") {
+		return nil
+	}
 
 	// NB: Here we use Lstat to not follow the link, because we don't do it yet globally.
 	//     Once we'll follow them, we may want to replace it by a Stat().
@@ -183,6 +186,21 @@ func handleCreat(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, reg
 	err = fillFileMetadata(filename, msg.Open)
 	if err != nil {
 		return err
+	}
+	return nil
+}
+
+func handleMemfdCreate(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
+	filename, err := tracer.ReadArgString(process.Pid, regs, 0)
+	if err != nil {
+		return err
+	}
+	filename = "memfd:" + filename
+
+	msg.Type = ebpfless.SyscallTypeOpen
+	msg.Open = &ebpfless.OpenSyscallMsg{
+		Filename: filename,
+		Flags:    uint32(tracer.ReadArgUint64(regs, 1)),
 	}
 	return nil
 }
@@ -694,7 +712,13 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 		switch cbType {
 		case CallbackPreType:
 			syscallMsg := &ebpfless.SyscallMsg{}
-			process.Nr[nr] = syscallMsg
+			if nr == ExecveatNr {
+				// special case: sometimes, execveat returns as execve, to handle that, we force
+				// the msg to be put in ExecveNr
+				process.Nr[ExecveNr] = syscallMsg
+			} else {
+				process.Nr[nr] = syscallMsg
+			}
 
 			switch nr {
 			case OpenNr:
@@ -808,13 +832,18 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 					logErrorf("unable to handle close: %v", err)
 					return
 				}
+			case MemfdCreateNr:
+				if err = handleMemfdCreate(tracer, process, syscallMsg, regs); err != nil {
+					logErrorf("unable to handle memfd_create: %v", err)
+					return
+				}
 			}
 		case CallbackPostType:
 			switch nr {
 			case CloseNr:
 				// nothing to do
 			case ExecveNr, ExecveatNr:
-				sendSyscallMsg(process.Nr[nr])
+				sendSyscallMsg(process.Nr[ExecveNr]) // special case for execveat: we store the msg in execve bucket (see upper)
 
 				// now the pid is the tgid
 				process.Pid = process.Tgid
@@ -824,7 +853,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 					return
 				}
 				handleNameToHandleAtRet(tracer, process, syscallMsg, regs)
-			case OpenNr, OpenatNr, CreatNr, OpenByHandleAtNr:
+			case OpenNr, OpenatNr, CreatNr, OpenByHandleAtNr, MemfdCreateNr:
 				if ret := tracer.ReadRet(regs); !isAcceptedRetval(ret) {
 					syscallMsg, exists := process.Nr[nr]
 					if !exists || syscallMsg.Open == nil {

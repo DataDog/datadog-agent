@@ -2370,8 +2370,8 @@ func TestProcessFilelessExecution(t *testing.T) {
 					t.Fatal("shouldn't get an event")
 				}
 			} else {
-				if testModule.opts.staticOpts.enableEBPFLess == true {
-					t.Skip("memfd unsupported yet")
+				if testModule.opts.staticOpts.enableEBPFLess == true && test.rule.ID == "test_fileless_with_interpreter" {
+					t.Skip("interpreter detection unsupported")
 				}
 
 				testModule.WaitSignal(t, func() error {

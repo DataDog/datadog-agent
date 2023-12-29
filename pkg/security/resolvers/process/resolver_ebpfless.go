@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -113,8 +114,13 @@ func (p *EBPFLessResolver) AddExecEntry(key CacheResolverKey, file string, argv 
 
 	entry.Process.EnvsEntry = &model.EnvsEntry{Values: envs}
 
-	entry.Process.FileEvent.PathnameStr = file
-	entry.Process.FileEvent.BasenameStr = filepath.Base(entry.Process.FileEvent.PathnameStr)
+	if strings.HasPrefix(file, "memfd:") {
+		entry.Process.FileEvent.PathnameStr = ""
+		entry.Process.FileEvent.BasenameStr = file
+	} else {
+		entry.Process.FileEvent.PathnameStr = file
+		entry.Process.FileEvent.BasenameStr = filepath.Base(entry.Process.FileEvent.PathnameStr)
+	}
 	entry.Process.ContainerID = ctrID
 
 	entry.ExecTime = time.Unix(0, int64(ts))

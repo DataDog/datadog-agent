@@ -15,6 +15,7 @@ import (
 	"io"
 	"net"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -120,8 +121,13 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 		p.Resolvers.ProcessResolver.AddForkEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.Fork.PPID, syscallMsg.Timestamp)
 	case ebpfless.SyscallTypeOpen:
 		event.Type = uint32(model.FileOpenEventType)
-		event.Open.File.PathnameStr = syscallMsg.Open.Filename
-		event.Open.File.BasenameStr = filepath.Base(syscallMsg.Open.Filename)
+		if strings.HasPrefix(syscallMsg.Open.Filename, "memfd:") {
+			event.Open.File.PathnameStr = ""
+			event.Open.File.BasenameStr = syscallMsg.Open.Filename
+		} else {
+			event.Open.File.PathnameStr = syscallMsg.Open.Filename
+			event.Open.File.BasenameStr = filepath.Base(syscallMsg.Open.Filename)
+		}
 		event.Open.File.MTime = syscallMsg.Open.MTime
 		event.Open.File.CTime = syscallMsg.Open.CTime
 		event.Open.File.Mode = uint16(syscallMsg.Open.Mode)
