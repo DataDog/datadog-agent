@@ -95,7 +95,6 @@ CACHED_WHEEL_FILENAME_PATTERN = "datadog_{integration}-*.whl"
 CACHED_WHEEL_DIRECTORY_PATTERN = "integration-wheels/{branch}/{hash}/{python_version}/"
 CACHED_WHEEL_FULL_PATH_PATTERN = CACHED_WHEEL_DIRECTORY_PATTERN + CACHED_WHEEL_FILENAME_PATTERN
 LAST_DIRECTORY_COMMIT_PATTERN = "git -C {integrations_dir} rev-list -1 HEAD {integration}"
-MAX_TRY_BUNDLE_INSTALL = 2
 
 
 @task
@@ -656,7 +655,7 @@ def omnibus_run_task(
         ctx.run(cmd.format(**args), env=env)
 
 
-def bundle_install_omnibus(ctx, gem_path=None, env=None):
+def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
     with ctx.cd("omnibus"):
         # make sure bundle install starts from a clean state
         try:
@@ -668,13 +667,13 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None):
         if gem_path:
             cmd += f" --path {gem_path}"
 
-        for trial in range(MAX_TRY_BUNDLE_INSTALL):
+        for trial in range(max_try):
             res = ctx.run(cmd, env=env, warn=True)
             if res.ok:
                 return
             if not should_retry_bundle_install(res):
                 return
-            print(f"Retrying bundle install, attempt {trial + 1}/{MAX_TRY_BUNDLE_INSTALL}")
+            print(f"Retrying bundle install, attempt {trial + 1}/{max_try}")
 
 
 def should_retry_bundle_install(res):
