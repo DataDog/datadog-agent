@@ -338,6 +338,10 @@ func shouldRetryError(err error) bool {
 		return true
 	}
 
+	if strings.Contains(err.Error(), "InvalidInstanceID.NotFound") {
+		return true
+	}
+
 	return false
 }
 
