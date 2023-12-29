@@ -82,7 +82,7 @@ def refresh_assets_common(_, bin_path, additional_dist_folders, development):
         if os.path.exists(dist_folder):
             shutil.rmtree(dist_folder)
         if development:
-            shutil.copytree("./dev/dist/", dist_folder)
+            shutil.copytree("./dev/dist/", dist_folder, dirs_exist_ok=True)
 
 
 def clean_common(ctx, rmdir):

@@ -117,7 +117,7 @@ def refresh_assets(_):
     dist_folder = os.path.join(DOGSTATSD_BIN_PATH, "dist")
     if os.path.exists(dist_folder):
         shutil.rmtree(dist_folder)
-    shutil.copytree("./cmd/dogstatsd/dist/", dist_folder)
+    shutil.copytree("./cmd/dogstatsd/dist/", dist_folder, dirs_exist_ok=True)
 
 
 @task
