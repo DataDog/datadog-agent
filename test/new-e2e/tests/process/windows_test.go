@@ -32,6 +32,7 @@ func TestWindowsTestSuite(t *testing.T) {
 
 func (s *windowsTestSuite) SetupSuite() {
 	s.Suite.SetupSuite()
+	// Start an antivirus scan to use as process for testing
 	s.Env().VM.Execute("Start-MpScan -ScanType FullScan -AsJob")
 }
 
