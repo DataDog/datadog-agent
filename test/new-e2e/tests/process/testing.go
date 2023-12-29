@@ -50,7 +50,7 @@ func assertRunningChecks(t *assert.CollectT, vm client.VM, checks []string, with
 	}
 }
 
-// assertStressProcessCollected asserts that the given process is collected by the process check
+// assertProcessCollected asserts that the given process is collected by the process check
 // and that it has the expected data populated
 func assertProcessCollected(
 	t *testing.T, payloads []*aggregator.ProcessPayload, withIOStats bool, process string,
@@ -105,13 +105,13 @@ func processHasData(process *agentmodel.Process) bool {
 
 // processHasIOStats asserts that the given process has the expected IO stats populated
 func processHasIOStats(process *agentmodel.Process) bool {
-	// the stress process only writes to disk, does not read from it
+	// the given process only writes to disk, does not read from it
 	return process.IoStat.WriteRate > 0 && process.IoStat.WriteBytesRate > 0 ||  process.IoStat.ReadRate > 0 && process.IoStat.ReadBytesRate > 0 
 }
 
-// assertStressProcessDiscoveryCollected asserts that the given process is collected by the process
+// assertProcessDiscoveryCollected asserts that the given process is collected by the process
 // discovery check and that it has the expected data populated
-func assertStressProcessDiscoveryCollected(
+func assertProcessDiscoveryCollected(
 	t *testing.T, payloads []*aggregator.ProcessDiscoveryPayload, process string,
 ) {
 	defer func() {
@@ -155,7 +155,7 @@ func processDiscoveryHasData(disc *agentmodel.ProcessDiscovery) bool {
 	return disc.Pid != 0 && disc.Command.Ppid != 0 && len(disc.User.Name) > 0
 }
 
-// assertManualProcessCheck asserts that the stress process is collected and reported in the output
+// assertManualProcessCheck asserts that the given process is collected and reported in the output
 // of the manual process check
 func assertManualProcessCheck(t *testing.T, check string, withIOStats bool, process string) {
 	defer func() {

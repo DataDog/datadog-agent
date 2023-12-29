@@ -73,7 +73,7 @@ func (s *linuxTestSuite) TestProcessDiscoveryCheck() {
 		assert.NotEmpty(c, payloads, "no process discovery payloads returned")
 	}, 2*time.Minute, 10*time.Second)
 
-	assertStressProcessDiscoveryCollected(t, payloads, "stress")
+	assertProcessDiscoveryCollected(t, payloads, "stress")
 }
 
 func (s *linuxTestSuite) TestProcessCheckWithIO() {

@@ -78,7 +78,7 @@ func (s *windowsTestSuite) TestProcessDiscoveryCheck() {
 		assert.NotEmpty(c, payloads, "no process discovery payloads returned")
 	}, 2*time.Minute, 10*time.Second)
 
-	assertStressProcessDiscoveryCollected(t, payloads, "MsMpEng.exe")
+	assertProcessDiscoveryCollected(t, payloads, "MsMpEng.exe")
 }
 
 func (s *windowsTestSuite) TestProcessCheckIO() {
