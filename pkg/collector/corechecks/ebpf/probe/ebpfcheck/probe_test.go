@@ -175,3 +175,51 @@ func testConfig() *ddebpf.Config {
 	cfg := ddebpf.NewConfig()
 	return cfg
 }
+
+func TestHashMapNumberOfEntries(t *testing.T) {
+	maxEntries := uint32(1000)
+	filledEntries := uint32(500)
+
+	m, err := ebpf.NewMap(&ebpf.MapSpec{
+		Type:       ebpf.Hash,
+		MaxEntries: uint32(maxEntries),
+		KeySize:    4,
+		ValueSize:  4,
+	})
+	require.NoError(t, err)
+
+	for i := uint32(0); i < filledEntries; i++ {
+		require.NoError(t, m.Put(&i, &i))
+	}
+
+	require.Equal(t, int64(filledEntries), hashMapNumberOfEntries(m))
+}
+
+func TestHashMapNumberOfEntriesNoExtraAllocations(t *testing.T) {
+	entriesToTest := []uint32{10, 100, 1000, 10000}
+	maxAllocs := 6.0
+
+	for _, maxEntries := range entriesToTest {
+		t.Run(fmt.Sprintf("%dMaxEntries", maxEntries), func(t *testing.T) {
+			maxEntries := uint32(1000)
+			filledEntries := uint32(500)
+
+			m, err := ebpf.NewMap(&ebpf.MapSpec{
+				Type:       ebpf.Hash,
+				MaxEntries: uint32(maxEntries),
+				KeySize:    4,
+				ValueSize:  4,
+			})
+			require.NoError(t, err)
+
+			for i := uint32(0); i < filledEntries; i++ {
+				require.NoError(t, m.Put(&i, &i))
+			}
+
+			allocs := testing.AllocsPerRun(10, func() {
+				hashMapNumberOfEntries(m)
+			})
+			require.LessOrEqual(t, allocs, maxAllocs)
+		})
+	}
+}
