@@ -34,6 +34,14 @@ func TestLinkRead(t *testing.T) {
 
 	actualTargetPath, err := linkRead(linkPath)
 	assert.NoError(t, err)
+
+	// the following cleanup is required on darwin because t.TempDir returns a symlinked path.
+	// see https://github.com/golang/go/issues/56259
+	targetPath, err = filepath.EvalSymlinks(targetPath)
+	assert.NoError(t, err)
+	actualTargetPath, err = filepath.EvalSymlinks(actualTargetPath)
+	assert.NoError(t, err)
+
 	assert.Equal(t, targetPath, actualTargetPath)
 }
 
