@@ -21,7 +21,7 @@ type Params struct {
 	Arch         string
 	Flavor       string
 	Upgrade      bool
-	CustomApiKey string
+	CustomAPIKey string
 }
 
 // Option alias to a functional option changing a given Params instance
@@ -73,8 +73,8 @@ func WithUpgrade(upgrade bool) Option {
 }
 
 // WithCustomApiKey specify a custom api key to use when installing the agent
-func WithCustomApiKey(apiKey string) Option {
+func WithCustomAPIKey(apiKey string) Option {
 	return func(p *Params) {
-		p.CustomApiKey = apiKey
+		p.CustomAPIKey = apiKey
 	}
 }

@@ -42,6 +42,7 @@ func CheckInstallation(t *testing.T, client *TestClient) {
 	})
 }
 
+// CheckInstallationMajorAgentVersion run tests to check the installation of an agent has the correct major version
 func CheckInstallationMajorAgentVersion(t *testing.T, client *TestClient, expectedVersion string) bool {
 	return t.Run("Check datadog-agent status version", func(tt *testing.T) {
 		versionRegexPattern := regexp.MustCompile(`(?m:^Agent \(v([0-9]).*\)$)`)
