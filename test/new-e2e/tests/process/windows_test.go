@@ -32,8 +32,7 @@ func TestWindowsTestSuite(t *testing.T) {
 
 func (s *windowsTestSuite) SetupSuite() {
 	s.Suite.SetupSuite()
-	//s.Env().VM.Execute("fsutil file createnew big 107374182400")
-	//s.Env().VM.Execute("Start-Process -WindowStyle hidden -FilePath tar.exe -ArgumentList \"czvf\",\"test.tar.gz\",\"big\"")
+	s.Env().VM.Execute("Start-MpScan -ScanType FullScan -AsJob")
 }
 
 func (s *windowsTestSuite) TestProcessCheck() {
@@ -98,6 +97,8 @@ func (s *windowsTestSuite) TestProcessCheckIO() {
 		assertRunningChecks(collect, s.Env().VM, []string{"process", "rtprocess"}, true, command)
 	}, 1*time.Minute, 5*time.Second)
 
+	//s.Env().VM.Execute("Start-MpScan -ScanType FullScan")
+
 	var payloads []*aggregator.ProcessPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		var err error
@@ -107,7 +108,7 @@ func (s *windowsTestSuite) TestProcessCheckIO() {
 		// Wait for two payloads, as processes must be detected in two check runs to be returned
 		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
 	}, 2*time.Minute, 10*time.Second)
-
+	
 	assertProcessCollected(t, payloads, true, "MsMpEng.exe")
 }
 

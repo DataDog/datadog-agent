@@ -98,7 +98,7 @@ func findProcess(
 
 // processHasData asserts that the given process has the expected data populated
 func processHasData(process *agentmodel.Process) bool {
-	return process.Pid != 0 && len(process.User.Name) > 0 &&
+	return process.Pid != 0 && process.Command.Ppid != 0 && len(process.User.Name) > 0 &&
 		process.Cpu.TotalPct > 0 && process.Cpu.SystemPct > 0 &&
 		process.Memory.Rss > 0 && process.Memory.Vms > 0
 }
@@ -106,7 +106,7 @@ func processHasData(process *agentmodel.Process) bool {
 // processHasIOStats asserts that the given process has the expected IO stats populated
 func processHasIOStats(process *agentmodel.Process) bool {
 	// the stress process only writes to disk, does not read from it
-	return process.IoStat.WriteRate > 0 && process.IoStat.WriteBytesRate > 0
+	return process.IoStat.WriteRate > 0 && process.IoStat.WriteBytesRate > 0 ||  process.IoStat.ReadRate > 0 && process.IoStat.ReadBytesRate > 0 
 }
 
 // assertStressProcessDiscoveryCollected asserts that the given process is collected by the process
@@ -152,7 +152,7 @@ func findProcessDiscovery(
 
 // processDiscoveryHasData asserts that the given process discovery has the expected data populated
 func processDiscoveryHasData(disc *agentmodel.ProcessDiscovery) bool {
-	return disc.Pid != 0 && len(disc.User.Name) > 0
+	return disc.Pid != 0 && disc.Command.Ppid != 0 && len(disc.User.Name) > 0
 }
 
 // assertManualProcessCheck asserts that the stress process is collected and reported in the output
