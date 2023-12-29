@@ -15,6 +15,22 @@
     TEAM: agent-platform
     EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --cws-supported-osversion $E2E_CWS_SUPPORTED_OSVERS --major-version $AGENT_MAJOR_VERSION --arch $E2E_ARCH --flavor $FLAVOR
 
+.new-e2e_script_upgrade:
+  variables:
+    TARGETS: ./tests/agent-platform/upgrade
+    TEAM: agent-platform
+    EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --cws-supported-osversion $E2E_CWS_SUPPORTED_OSVERS --dest-agent-version $AGENT_MAJOR_VERSION --src-agent-version $START_MAJOR_VERSION --arch $E2E_ARCH
+  script:
+    - export $START_MAJOR_VERSION=5
+    - export $AGENT_MAJOR_VERSION=7
+    - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:fullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA} -c ddagent:clusterAgentFullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/cluster-agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA} -c dddogstatsd:fullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/dogstatsd:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA} -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar "junit-${CI_JOB_NAME}.tgz" ${EXTRA_PARAMS}
+    - export $START_MAJOR_VERSION=5
+    - export $AGENT_MAJOR_VERSION=6
+    - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:fullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA} -c ddagent:clusterAgentFullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/cluster-agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA} -c dddogstatsd:fullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/dogstatsd:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA} -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar "junit-${CI_JOB_NAME}.tgz" ${EXTRA_PARAMS}
+    - export $START_MAJOR_VERSION=6
+    - export $AGENT_MAJOR_VERSION=7
+    - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:fullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA} -c ddagent:clusterAgentFullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/cluster-agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA} -c dddogstatsd:fullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/dogstatsd:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA} -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar "junit-${CI_JOB_NAME}.tgz" ${EXTRA_PARAMS}
+
 .new-e2e_ubuntu_a6_x86_64:
   variables:
     E2E_ARCH: x86_64
@@ -190,3 +206,40 @@ new-e2e-agent-platform-step-by-step-ubuntu-a7-arm64:
     !reference [.on_deploy_a7]
   variables:
     FLAVOR: datadog-agent
+
+
+new-e2e-agent-platform-install-script-upgrade-ubuntu-a6-x86_64:
+  stage: kitchen_testing
+  extends:
+    - .new_e2e_template
+    - .new-e2e_script_upgrade
+    - .new-e2e_os_ubuntu
+    - .new-e2e_ubuntu_a6_x86_64
+    - .new-e2e_agent_a6
+
+new-e2e-agent-platform-install-script-upgrade-ubuntu-a6-arm64:
+  stage: kitchen_testing
+  extends:
+    - .new_e2e_template
+    - .new-e2e_script_upgrade
+    - .new-e2e_os_ubuntu
+    - .new-e2e_ubuntu_a6_arm64
+    - .new-e2e_agent_a6
+
+new-e2e-agent-platform-install-script-upgrade-ubuntu-a7-x86_64:
+  stage: kitchen_testing
+  extends:
+    - .new_e2e_template
+    - .new-e2e_script_upgrade
+    - .new-e2e_os_ubuntu
+    - .new-e2e_ubuntu_a7_x86_64
+    - .new-e2e_agent_a7
+
+new-e2e-agent-platform-install-script-upgrade-ubuntu-a7-arm64:
+  stage: kitchen_testing
+  extends:
+    - .new_e2e_template
+    - .new-e2e_script_upgrade
+    - .new-e2e_os_ubuntu
+    - .new-e2e_ubuntu_a7_arm64
+    - .new-e2e_agent_a7
