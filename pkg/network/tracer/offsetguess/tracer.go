@@ -141,7 +141,6 @@ func extractIPv6AddressAndPort(addr net.Addr) (ip [4]uint32, port uint16, err er
 
 func expectedValues(conn net.Conn) (*fieldValues, error) {
 	currentIno, err := kernel.GetCurrentIno()
-	log.Debugf("Current netns ino: %d", currentIno)
 	if err != nil {
 		return nil, err
 	}
@@ -705,9 +704,6 @@ func (t *tracerOffsetGuesser) flowi6EntryState() GuessWhat {
 }
 
 func setupLoopbackInNS(ns netns.NsHandle) error {
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-
 	if err := netns.Set(ns); err != nil {
 		return err
 	}
@@ -715,13 +711,11 @@ func setupLoopbackInNS(ns netns.NsHandle) error {
 
 	loopback, err := netlink.LinkByName("lo")
 	if err != nil {
-		log.Debugf("error getting loopback iface: %v", err)
-		return err
+		return fmt.Errorf("error getting loopback iface: %w", err)
 	}
 	err = netlink.LinkSetUp(loopback)
 	if err != nil {
-		log.Debugf("error setting loopback to up: %v", err)
-		return err
+		return fmt.Errorf("error setting loopback to up: %w", err)
 	}
 
 	return nil
@@ -793,7 +787,7 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 		defer newNS.Close()
 		innerErr = setupLoopbackInNS(newNS)
 		if innerErr != nil {
-			return nil, fmt.Errorf("error creating new netns: %w", err)
+			return nil, fmt.Errorf("error setting up lookback in new netns: %w", err)
 		}
 		unix.Setns(int(curNS), unix.CLONE_NEWNET)
 	}
@@ -814,7 +808,7 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 	maxRetries := 100
 
 	// Retrieve expected values from local connection
-	expected, err := waitUntilStable(eventGenerator.conn, 200*time.Millisecond, 1, curNS)
+	expected, err := waitUntilStable(eventGenerator.conn, 200*time.Millisecond, 5, curNS)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving expected value: %w", err)
 	}
@@ -930,7 +924,7 @@ func newTracerEventGenerator(flowi6 bool, ns netns.NsHandle) (*tracerEventGenera
 		eg.Close()
 		return nil, err
 	}
-	return eg, err
+	return eg, nil
 }
 
 func getUDP6Conn(flowi6 bool) (*net.UDPConn, error) {
