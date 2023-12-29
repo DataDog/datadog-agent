@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
+// CwsInstrumentationEnvDisableStats defines the environ variable to set to disable aviodable stats
 const CwsInstrumentationEnvDisableStats = "CWS_INSTRUMENTATION_DISABLE_STATS"
 
 type fileHandleKey struct {
@@ -239,7 +240,6 @@ func handleNameToHandleAtRet(tracer *Tracer, process *Process, msg *ebpfless.Sys
 	fileHandleCache[key] = &fileHandleVal{
 		pathName: msg.Open.Filename,
 	}
-	return
 }
 
 func handleOpenByHandleAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
@@ -461,7 +461,7 @@ func handleSetregid(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs s
 	return nil
 }
 
-func handleClose(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
+func handleClose(tracer *Tracer, process *Process, _ *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
 	fd := tracer.ReadArgInt32(regs, 0)
 	delete(process.Res.Fd, fd)
 	return nil

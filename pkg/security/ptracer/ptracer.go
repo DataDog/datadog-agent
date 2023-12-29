@@ -168,7 +168,7 @@ func (t *Tracer) ReadArgInt32Ptr(pid int, regs syscall.PtraceRegs, arg int) (int
 	return t.readInt32(pid, ptr)
 }
 
-// ReadArgString reads the regs and returns the wanted arg as byte array
+// ReadArgData reads the regs and returns the wanted arg as byte array
 func (t *Tracer) ReadArgData(pid int, regs syscall.PtraceRegs, arg int, size uint) ([]byte, error) {
 	ptr := t.argToRegValue(regs, arg)
 	return t.readData(pid, ptr, size)
