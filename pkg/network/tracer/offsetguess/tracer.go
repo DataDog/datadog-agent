@@ -24,6 +24,7 @@ import (
 	"unsafe"
 
 	"github.com/cilium/ebpf"
+	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
 
@@ -41,7 +42,7 @@ import (
 const (
 	// InterfaceLocalMulticastIPv6 is a destination IPv6 address used for offset guessing
 	InterfaceLocalMulticastIPv6 = "ff01::1"
-	listenIPv4                  = "127.0.0.1"
+	listenIPv4                  = "127.0.0.2"
 
 	tcpGetSockOptKProbeNotCalled uint64 = 0
 	tcpGetSockOptKProbeCalled    uint64 = 1
@@ -140,6 +141,7 @@ func extractIPv6AddressAndPort(addr net.Addr) (ip [4]uint32, port uint16, err er
 
 func expectedValues(conn net.Conn) (*fieldValues, error) {
 	currentIno, err := kernel.GetCurrentIno()
+	log.Debugf("Current netns ino: %d", currentIno)
 	if err != nil {
 		return nil, err
 	}
@@ -711,11 +713,16 @@ func setupLoopbackInNS(ns netns.NsHandle) error {
 	}
 	defer netns.Set(netns.None())
 
-	lo, err := net.InterfaceByName("lo")
+	loopback, err := netlink.LinkByName("lo")
 	if err != nil {
+		log.Debugf("error getting loopback iface: %v", err)
 		return err
 	}
-	lo.Flags |= net.FlagUp
+	err = netlink.LinkSetUp(loopback)
+	if err != nil {
+		log.Debugf("error setting loopback to up: %v", err)
+		return err
+	}
 
 	return nil
 }
@@ -780,21 +787,15 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 		return nil, fmt.Errorf("error getting current netns: %w", err)
 	}
 	// the root NS is often 0xf0000000 which makes guessing likely to fail. If so, guess in a new NS with a different offset
-	log.Debugf("ADAMK STARTING DEBUG")
-	log.Debugf("adamk current netns: %v", curNS)
 	ino, err := kernel.GetInoForNs(curNS)
 	if ino == 4026531840 {
-		log.Debugf("adamk current netns is conflict prone in offset guessing. guessing in a new netns")
-		curNS, err = netns.New()
-		err := setupLoopbackInNS(curNS)
-		if err != nil {
-			return nil, err
-		}
-		defer curNS.Close()
-		if err != nil {
-			log.Debugf("adamk error creating new netns: %v", err)
+		newNS, innerErr := netns.New()
+		defer newNS.Close()
+		innerErr = setupLoopbackInNS(newNS)
+		if innerErr != nil {
 			return nil, fmt.Errorf("error creating new netns: %w", err)
 		}
+		unix.Setns(int(curNS), unix.CLONE_NEWNET)
 	}
 	var eventGenerator *tracerEventGenerator
 	eventGenerator, err = newTracerEventGenerator(t.guessUDPv6, curNS)
@@ -892,48 +893,18 @@ func newTracerEventGenerator(flowi6 bool, ns netns.NsHandle) (*tracerEventGenera
 	eg := &tracerEventGenerator{ns: ns}
 	var err error
 	var udpAddr string
+	// port 0 means we let the kernel choose a free port
+	addr := fmt.Sprintf("%s:0", listenIPv4)
 	err = kernel.WithNS(eg.ns, func() error {
-		ifaces, _ := net.Interfaces()
-		currNs, _ := netns.Get()
-		log.Debugf("adamk newTracerEventGenerator currNs: %v", currNs)
-		log.Debugf("adamk newTracerEventGenerator IFACES: %v", ifaces)
-		log.Debugf("adamk newTracerEventGenerator 1 %v", eg.ns.String())
-		// port 0 means we let the kernel choose a free port
-		addr := fmt.Sprintf("%s:0", listenIPv4)
 		eg.listener, err = net.Listen("tcp4", addr)
 		if err != nil {
 			return err
 		}
-		log.Debugf("adamk newTracerEventGenerator 2 tcp4: %v", eg.listener.Addr().String())
 
 		go acceptHandler(eg.listener)
 
-		// Spin up UDP server
-		udpAddr, eg.udpDone, err = newUDPServer(addr)
-		if err != nil {
-			eg.Close()
-			return err
-		}
-
-		//log.Debugf("adamk newTracerEventGenerator 3 udpAddr: %v", udpAddr)
-
 		// Establish TCP connection that will be used in the offset guessing
 		eg.conn, err = net.Dial(eg.listener.Addr().Network(), eg.listener.Addr().String())
-		if err != nil {
-			log.Debugf("adamk newTracerEventGenerator 3.5 %v", err)
-			eg.Close()
-			return err
-		}
-
-		log.Debugf("adamk newTracerEventGenerator 4 dialing udp")
-
-		eg.udpConn, err = net.Dial("udp", udpAddr)
-		if err != nil {
-			eg.Close()
-			return err
-		}
-
-		eg.udp6Conn, err = getUDP6Conn(flowi6)
 		if err != nil {
 			eg.Close()
 			return err
@@ -941,6 +912,24 @@ func newTracerEventGenerator(flowi6 bool, ns netns.NsHandle) (*tracerEventGenera
 		return err
 	})
 
+	// Spin up UDP server
+	udpAddr, eg.udpDone, err = newUDPServer(addr)
+	if err != nil {
+		eg.Close()
+		return nil, err
+	}
+
+	eg.udpConn, err = net.Dial("udp", udpAddr)
+	if err != nil {
+		eg.Close()
+		return nil, err
+	}
+
+	eg.udp6Conn, err = getUDP6Conn(flowi6)
+	if err != nil {
+		eg.Close()
+		return nil, err
+	}
 	return eg, err
 }
 
@@ -1069,19 +1058,14 @@ func (e *tracerEventGenerator) Close() {
 }
 
 func acceptHandler(l net.Listener) {
-	currNs, _ := netns.Get()
-	log.Debugf("adamk acceptHandler, ns: %v", currNs)
 	for {
-		//log.Debugf("adamk listener %v", l)
 		conn, err := l.Accept()
-		//log.Debugf("adamk listener %v", conn)
 		if err != nil {
 			return
 		}
 
 		_, _ = io.Copy(io.Discard, conn)
 		if tcpc, ok := conn.(*net.TCPConn); ok {
-			//log.Debugf("adamk listener %v", tcpc.LocalAddr().String())
 			_ = tcpc.SetLinger(0)
 		}
 		conn.Close()
