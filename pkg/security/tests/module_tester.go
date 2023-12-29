@@ -231,6 +231,7 @@ var (
 	logTags          stringSlice
 	logStatusMetrics bool
 	withProfile      bool
+	trace            bool
 )
 
 const (
@@ -1943,6 +1944,7 @@ func init() {
 	flag.Var(&logTags, "logtag", "List of log tag")
 	flag.BoolVar(&logStatusMetrics, "status-metrics", false, "display status metrics")
 	flag.BoolVar(&withProfile, "with-profile", false, "enable profile per test")
+	flag.BoolVar(&trace, "trace", false, "wrap the test suite with the ptracer")
 
 	rand.Seed(time.Now().UnixNano())
 
