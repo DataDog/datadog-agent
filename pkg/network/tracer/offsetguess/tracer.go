@@ -707,8 +707,6 @@ func setupLoopbackInNS(ns netns.NsHandle) error {
 	if err := netns.Set(ns); err != nil {
 		return err
 	}
-	defer netns.Set(netns.None())
-
 	loopback, err := netlink.LinkByName("lo")
 	if err != nil {
 		return fmt.Errorf("error getting loopback iface: %w", err)
@@ -787,12 +785,14 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 		defer newNS.Close()
 		innerErr = setupLoopbackInNS(newNS)
 		if innerErr != nil {
-			return nil, fmt.Errorf("error setting up lookback in new netns: %w", err)
+			return nil, fmt.Errorf("error setting up lookback in new netns: %w", innerErr)
 		}
-		unix.Setns(int(curNS), unix.CLONE_NEWNET)
+		innerErr = unix.Setns(int(curNS), unix.CLONE_NEWNET)
+		if innerErr != nil {
+			return nil, fmt.Errorf("error returning to new NS: %w", innerErr)
+		}
 	}
-	var eventGenerator *tracerEventGenerator
-	eventGenerator, err = newTracerEventGenerator(t.guessUDPv6, curNS)
+	eventGenerator, err := newTracerEventGenerator(t.guessUDPv6, curNS)
 	if err != nil {
 		return nil, err
 	}
