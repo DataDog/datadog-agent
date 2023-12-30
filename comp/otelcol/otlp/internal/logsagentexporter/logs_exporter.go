@@ -11,8 +11,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/serializerexporter"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	ddlog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"go.uber.org/zap"
 
@@ -22,6 +25,20 @@ import (
 
 // otelTag specifies a tag to be added to all logs sent from the Datadog Agent
 const otelTag = "otel_source:datadog_agent"
+
+func cidFromTags(tags []string) string {
+	for _, tag := range tags {
+		parts := strings.Split(tag, ":")
+		if len(parts) != 2 {
+			continue
+		}
+		if parts[0] != "container.id" {
+			continue
+		}
+		return parts[1]
+	}
+	return ""
+}
 
 // createConsumeLogsFunc returns an implementation of consumer.ConsumeLogsFunc
 func createConsumeLogsFunc(logger *zap.Logger, logSource *sources.LogSource, logsAgentChannel chan *message.Message) func(context.Context, plog.Logs) error {
@@ -57,6 +74,12 @@ func createConsumeLogsFunc(logger *zap.Logger, logSource *sources.LogSource, log
 						tags = []string{otelTag}
 					} else {
 						tags = append(strings.Split(ddTags, ","), otelTag)
+						ctags, err := serializerexporter.TaggerTags(cidFromTags(tags), collectors.HighCardinality)
+						if err != nil {
+							ddlog.Trace(err.Error())
+						} else {
+							tags = append(tags, ctags...)
+						}
 					}
 					// Tags are set in the message origin instead
 					ddLog.Ddtags = nil
