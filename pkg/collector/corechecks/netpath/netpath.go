@@ -87,11 +87,16 @@ func (c *Check) traceroute(sender sender.Sender) error {
 		return errors.New("no hops")
 	}
 
+	for i := 0; i < 100; i++ {
+		err = c.traceRouteV1(sender, hostHops, hname, destinationHost+"-"+strconv.Itoa(i))
+		if err != nil {
+			return err
+		}
+	}
 	err = c.traceRouteV2(sender, hostHops, hname, destinationHost)
 	if err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -140,15 +145,18 @@ func (c *Check) traceRouteV2(sender sender.Sender, hostHops [][]traceroute.Trace
 			TTL:              hop.TTL,
 			IpAddress:        ip,
 			Host:             hop.HostOrAddressString(),
+			PrevHopIpAddress: prevHop.AddressString(),
 			Duration:         durationMs,
 			Success:          hop.Success,
+			Message:          "my-network-path",
+			Team:             "network-device-monitoring",
 		}
 		tracerouteStr, err := json.MarshalIndent(tr, "", "\t")
 		if err != nil {
 			return err
 		}
 
-		log.Infof("traceroute: %s", tracerouteStr)
+		log.Infof("traceroute: %s", string(tracerouteStr))
 
 		sender.EventPlatformEvent(tracerouteStr, epforwarder.EventTypeNetworkDevicesNetpath)
 		tags := []string{

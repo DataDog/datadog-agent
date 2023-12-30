@@ -24,9 +24,12 @@ type TracerouteV2 struct {
 	DestinationHost  string  `json:"destination_host"`
 	TTL              int     `json:"ttl"`
 	IpAddress        string  `json:"ip_address"`
+	PrevHopIpAddress string  `json:"prev_hop_ip_address"`
 	Host             string  `json:"host"`
 	Duration         float64 `json:"duration"`
 	Success          bool    `json:"success"`
+	Message          string  `json:"message"`
+	Team             string  `json:"team"`
 }
 
 func NewTraceroute() *Traceroute {
