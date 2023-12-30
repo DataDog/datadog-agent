@@ -780,16 +780,27 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 	}
 	// the root NS is often 0xf0000000 which makes guessing likely to fail. If so, guess in a new NS with a different offset
 	ino, err := kernel.GetInoForNs(curNS)
-	if ino == 4026531840 {
+	if err != nil {
+		log.Debugf("error getting ino for current netns: %v", err)
+	}
+	if ino == 4026531840 && err != nil {
 		newNS, innerErr := netns.New()
-		defer newNS.Close()
+		if innerErr != nil {
+			return nil, fmt.Errorf("error creating offsetguess netns: %w", innerErr)
+		}
+		defer func() {
+			deferErr := newNS.Close()
+			if deferErr != nil {
+				log.Debugf("error closing offsetguess netns: %v", deferErr)
+			}
+		}()
 		innerErr = setupLoopbackInNS(newNS)
 		if innerErr != nil {
-			return nil, fmt.Errorf("error setting up lookback in new netns: %w", innerErr)
+			return nil, fmt.Errorf("error setting up lookback in offsetguess netns: %w", innerErr)
 		}
 		innerErr = unix.Setns(int(curNS), unix.CLONE_NEWNET)
 		if innerErr != nil {
-			return nil, fmt.Errorf("error returning to new NS: %w", innerErr)
+			return nil, fmt.Errorf("error returning to offsetguess NS: %w", innerErr)
 		}
 	}
 	eventGenerator, err := newTracerEventGenerator(t.guessUDPv6, curNS)
