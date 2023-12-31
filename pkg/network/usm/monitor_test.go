@@ -917,9 +917,13 @@ func (s *USMHTTP2Suite) TestHTTP2KernelTelemetry() {
 }
 
 // writeInput writes the given input to the socket and reads the response.
-func writeInput(t *testing.T, c net.Conn, input []byte, timeout time.Duration) error {
+// Presently, the timeout is configured to one second for all readings.
+// In case of encountered issues, increasing this duration might be necessary.
+func writeInput(c net.Conn, input []byte, timeout time.Duration) error {
 	_, err := c.Write(input)
-	require.NoError(t, err, "could not make request")
+	if err != nil {
+		return err
+	}
 	frame := make([]byte, 9)
 	// Since we don't know when to stop reading from the socket, we set a timeout.
 	c.SetReadDeadline(time.Now().Add(timeout))
@@ -927,6 +931,7 @@ func writeInput(t *testing.T, c net.Conn, input []byte, timeout time.Duration) e
 		// Read the frame header.
 		_, err := c.Read(frame)
 		if err != nil {
+			// we want to stop reading from the socket when we encounter an i/o timeout.
 			if strings.Contains(err.Error(), "i/o timeout") {
 				return nil
 			}
@@ -941,6 +946,7 @@ func writeInput(t *testing.T, c net.Conn, input []byte, timeout time.Duration) e
 		payload := make([]byte, frameLength)
 		_, err = c.Read(payload)
 		if err != nil {
+			// we want to stop reading from the socket when we encounter an i/o timeout.
 			if strings.Contains(err.Error(), "i/o timeout") {
 				return nil
 			}
@@ -960,6 +966,7 @@ var (
 		0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00,
 	}
 
+	// http2 request to path /aaa
 	request = []byte{
 		0x00, 0x00, 0x37, 0x01, 0x04, 0x00, 0x00, 0x00, 0x03, 0x41, 0x8a, 0x08, 0x9d, 0x5c, 0x0b, 0x81,
 		0x70, 0xdc, 0x78, 0x0f, 0x0b, 0x83, 0x45, 0x83, 0x60, 0x63, 0x1f, 0x86, 0x5f, 0x8b, 0x1d, 0x75,
@@ -967,7 +974,7 @@ var (
 		0xab, 0x7a, 0x8d, 0xc4, 0x75, 0xa7, 0x4a, 0x6b, 0x58, 0x94, 0x18, 0xb5, 0x25, 0x81, 0x2e, 0x0f,
 	}
 
-	// Data frame & End of stream
+	// data frame & end of stream
 	dataFrame = []byte{
 		0x00, 0x00, 0x04, 0x00, 0x01, 0x00, 0x00, 0x00, 0x03, 0x74, 0x65, 0x73, 0x74,
 	}
@@ -1034,7 +1041,7 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			defer c.Close()
 
 			// Sending a magic and the settings in the same packet.
-			require.NoError(t, writeInput(t, c, input, time.Second))
+			require.NoError(t, writeInput(c, input, time.Second))
 
 			reqInput := make([]byte, 0, len(settingsFrame)*tt.numberOfSettingFrames+len(request)+len(dataFrame))
 			for i := 0; i < tt.numberOfSettingFrames; i++ {
@@ -1043,7 +1050,7 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			reqInput = append(reqInput, request...)
 			reqInput = append(reqInput, dataFrame...)
 			// Sending the repeated settings with request.
-			require.NoError(t, writeInput(t, c, reqInput, time.Second), "could not make request")
+			require.NoError(t, writeInput(c, reqInput, time.Second), "could not make request")
 
 			res := make(map[http.Key]int)
 			assert.Eventually(t, func() bool {

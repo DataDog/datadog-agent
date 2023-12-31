@@ -10,10 +10,6 @@
 // Represents the maximum number of tail calls to process EOS frames.
 // Currently we have up to 120 frames in a packet, thus 1 tail call is enough.
 #define HTTP2_MAX_TAIL_CALLS_FOR_EOS_PARSER 1
-// This represents a limit on the number of tail calls that can be executed within the frames_filter program.
-// The number of frames to parse is determined by HTTP2_MAX_FRAMES_ITERATIONS, resulting in a total defined as:
-// HTTP2_MAX_FRAMES_ITERATIONS * HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER (for tail call 0-1)
-#define HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER 1
 #define HTTP2_MAX_FRAMES_FOR_EOS_PARSER (HTTP2_MAX_FRAMES_FOR_EOS_PARSER_PER_TAIL_CALL * HTTP2_MAX_TAIL_CALLS_FOR_EOS_PARSER)
 
 // Represents the maximum number of frames we'll process in a single tail call in `handle_headers_frames` program.
@@ -24,6 +20,10 @@
 #define HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER (HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL * HTTP2_MAX_TAIL_CALLS_FOR_HEADERS_PARSER)
 // Maximum number of frames to be processed in a single TCP packet.
 #define HTTP2_MAX_FRAMES_ITERATIONS 120
+// This represents a limit on the number of tail calls that can be executed within the frames_filter program.
+// The number of frames to parse is determined by HTTP2_MAX_FRAMES_ITERATIONS, resulting in a total defined as:
+// HTTP2_MAX_FRAMES_ITERATIONS * HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER (for tail call 0-1)
+#define HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER 1
 #define HTTP2_MAX_FRAMES_TO_FILTER  120
 
 // A limit of max headers which we process in the request/response.
@@ -155,7 +155,11 @@ typedef struct {
 typedef struct {
     __u16 iteration;
     __u16 frames_count;
+    // filterIterations maintains the count of executions performed by the filter program.
+    // Its purpose is to restrict the usage of tail calls within the filter program.
     __u16 filter_iterations;
+    // Saving the data offset is crucial for maintaining the current read position and ensuring proper utilization
+    // of tail calls.
     __u32 data_off;
     http2_frame_with_offset frames_array[HTTP2_MAX_FRAMES_ITERATIONS] __attribute__((aligned(8)));
 } http2_tail_call_state_t;

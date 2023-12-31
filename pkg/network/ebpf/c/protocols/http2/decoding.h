@@ -588,16 +588,15 @@ static __always_inline bool find_relevant_frames(struct __sk_buff *skb, skb_info
         }
     }
 
-    // Checking we can read HTTP2_FRAME_HEADER_SIZE from the skb - if we can, update telemetry to indicate we have
-    bool more_frames_to_filter = ((iteration == HTTP2_MAX_FRAMES_TO_FILTER) && (skb_info->data_off + HTTP2_FRAME_HEADER_SIZE <= skb_info->data_end));
-
     if (iteration_value->frames_count == HTTP2_MAX_FRAMES_ITERATIONS) {
         __sync_fetch_and_add(&http2_tel->exceeding_max_interesting_frames, 1);
     }
 
     // This function returns true if there are more frames to filter, which will be parsed by the next tail call,
     // and if we have not yet reached the maximum number of frames we can process.
-    return more_frames_to_filter && iteration_value->frames_count < HTTP2_MAX_FRAMES_ITERATIONS;
+    return (((iteration == HTTP2_MAX_FRAMES_TO_FILTER) &&
+            (skb_info->data_off + HTTP2_FRAME_HEADER_SIZE <= skb_info->data_end))&&
+            iteration_value->frames_count < HTTP2_MAX_FRAMES_ITERATIONS);
 }
 
 SEC("socket/http2_handle_first_frame")
