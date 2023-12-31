@@ -14,7 +14,7 @@ import (
 
 const (
 	capacity   = 10
-	iterations = 25
+	iterations = 35
 )
 
 func TestCyclicMap(t *testing.T) {
@@ -46,8 +46,10 @@ func TestCyclicMapEviction(t *testing.T) {
 	require.Greater(t, iterations, capacity)
 
 	evictedList := make([]int, 0)
-	onEvict := func(key int, _ int) {
-		evictedList = append(evictedList, key)
+	onEvict := func(k int, v int) {
+		// Ensuring we're getting the correct value and key.
+		require.Equal(t, k, v)
+		evictedList = append(evictedList, k)
 	}
 
 	c := NewCyclicMap[int, int](capacity, onEvict)
@@ -67,7 +69,7 @@ func TestCyclicMapEviction(t *testing.T) {
 	}
 }
 
-func TestCyclicCheckLength(t *testing.T) {
+func TestCyclicMapCheckLength(t *testing.T) {
 	require.Greater(t, iterations, capacity)
 
 	c := NewCyclicMap[int, int](capacity, nil)
@@ -83,7 +85,7 @@ func TestCyclicCheckLength(t *testing.T) {
 	require.Equal(t, capacity, c.Len())
 }
 
-func TestRemoveOldest(t *testing.T) {
+func TestCyclicMapRemoveOldest(t *testing.T) {
 	require.Greater(t, iterations, capacity)
 
 	c := NewCyclicMap[int, int](capacity, nil)
