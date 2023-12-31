@@ -239,7 +239,10 @@ func (p *parser) parseFloat64List(rawFloats []byte) ([]float64, error) {
 
 // extractContainerID parses the value of the container ID field.
 func (p *parser) extractContainerID(rawContainerIDField []byte) []byte {
-	return rawContainerIDField[len(containerIDFieldPrefix):]
+	containerIdRef := rawContainerIDField[len(containerIDFieldPrefix):]
+	containerId := make([]byte, len(containerIdRef))
+	copy(containerId, containerIdRef)
+	return containerId
 }
 
 // the std API does not have methods to do []byte => float parsing
