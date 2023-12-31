@@ -90,7 +90,7 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 	cfg := config.New()
 	cfg.EnableHTTP2Monitoring = true
 
-	srv, err := grpc.NewServer(srvAddr)
+	srv, err := grpc.NewServer(srvAddr, false)
 	require.NoError(t, err)
 	srv.Run()
 	t.Cleanup(srv.Stop)
@@ -392,7 +392,7 @@ func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 	cfg := config.New()
 	cfg.EnableHTTP2Monitoring = true
 
-	srv, err := grpc.NewServer(srvAddr)
+	srv, err := grpc.NewServer(srvAddr, false)
 	require.NoError(t, err)
 	srv.Run()
 	t.Cleanup(srv.Stop)
