@@ -234,7 +234,8 @@ func NewServer(addr string) (*Server, error) {
 }
 
 // NewServerWithoutBind returns a new instance of the gRPC server.
-func NewServerWithoutBind() *Server {
+func NewServerWithoutBind(opts ...grpc.ServerOption) *Server {
+	opts = append(opts, grpc.MaxRecvMsgSize(100*1024*1024), grpc.MaxSendMsgSize(100*1024*1024))
 	server := &Server{
 		grpcSrv:    grpc.NewServer(grpc.MaxRecvMsgSize(100*1024*1024), grpc.MaxSendMsgSize(100*1024*1024)),
 		routeNotes: make(map[string][]*routeguide.RouteNote),
