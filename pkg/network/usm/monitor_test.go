@@ -62,12 +62,9 @@ const (
 	kb = 1024
 	mb = 1024 * kb
 
-	http2SrvAddr                      = "http://127.0.0.1:8082"
-	http2SrvPortStr                   = ":8082"
-	http2SrvPort                      = 8082
-	oneProgramSettingsFrames          = 100
-	twoProgramsSettingsFrames         = 130
-	moreThenTwoProgramsSettingsFrames = 250
+	http2SrvAddr    = "http://127.0.0.1:8082"
+	http2SrvPortStr = ":8082"
+	http2SrvPort    = 8082
 )
 
 var (
@@ -919,12 +916,13 @@ func (s *USMHTTP2Suite) TestHTTP2KernelTelemetry() {
 	}
 }
 
-func writeInput(t *testing.T, c net.Conn, input []byte) error {
+// writeInput writes the given input to the socket and reads the response.
+func writeInput(t *testing.T, c net.Conn, input []byte, timeout time.Duration) error {
 	_, err := c.Write(input)
 	require.NoError(t, err, "could not make request")
 	frame := make([]byte, 9)
 	// Since we don't know when to stop reading from the socket, we set a timeout.
-	c.SetReadDeadline(time.Now().Add(time.Second * 5))
+	c.SetReadDeadline(time.Now().Add(timeout))
 	for {
 		// Read the frame header.
 		_, err := c.Read(frame)
@@ -951,6 +949,30 @@ func writeInput(t *testing.T, c net.Conn, input []byte) error {
 	}
 }
 
+var (
+	// http2 magic
+	magicFrame = []byte{
+		0x50, 0x52, 0x49, 0x20, 0x2a, 0x20, 0x48, 0x54, 0x54, 0x50, 0x2f, 0x32, 0x2e, 0x30, 0x0d, 0x0a, 0x0d, 0x0a, 0x53, 0x4d, 0x0d, 0x0a, 0x0d, 0x0a,
+	}
+
+	// http2 settings frame
+	settingsFrame = []byte{
+		0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00,
+	}
+
+	request = []byte{
+		0x00, 0x00, 0x37, 0x01, 0x04, 0x00, 0x00, 0x00, 0x03, 0x41, 0x8a, 0x08, 0x9d, 0x5c, 0x0b, 0x81,
+		0x70, 0xdc, 0x78, 0x0f, 0x0b, 0x83, 0x45, 0x83, 0x60, 0x63, 0x1f, 0x86, 0x5f, 0x8b, 0x1d, 0x75,
+		0xd0, 0x62, 0x0d, 0x26, 0x3d, 0x4c, 0x74, 0x41, 0xea, 0x5c, 0x01, 0x34, 0x50, 0x83, 0x9b, 0xd9,
+		0xab, 0x7a, 0x8d, 0xc4, 0x75, 0xa7, 0x4a, 0x6b, 0x58, 0x94, 0x18, 0xb5, 0x25, 0x81, 0x2e, 0x0f,
+	}
+
+	// Data frame & End of stream
+	dataFrame = []byte{
+		0x00, 0x00, 0x04, 0x00, 0x01, 0x00, 0x00, 0x00, 0x03, 0x74, 0x65, 0x73, 0x74,
+	}
+)
+
 func (s *USMHTTP2Suite) TestRawTraffic() {
 	t := s.T()
 	cfg := networkconfig.New()
@@ -959,176 +981,41 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 	startH2CServer(t)
 
 	tests := []struct {
-		name              string
-		runClients        func(t *testing.T, clientsCount int)
-		expectedEndpoints map[http.Key]captureRange
+		name                  string
+		numberOfSettingFrames int
+		expectedEndpoints     map[http.Key]int
 	}{
 		{
 			name: "parse_frames tail call using 1 program",
 			// The objective of this test is to verify that we accurately perform the parsing of frames within
 			// a single program.
-
-			runClients: func(t *testing.T, clientsCount int) {
-				// http2 magic
-				magicFrame := []byte{
-					0x50, 0x52, 0x49, 0x20, 0x2a, 0x20, 0x48, 0x54, 0x54, 0x50, 0x2f, 0x32, 0x2e, 0x30, 0x0d, 0x0a, 0x0d, 0x0a, 0x53, 0x4d, 0x0d, 0x0a, 0x0d, 0x0a,
-				}
-
-				// http2 settings frame
-				settingsFrame := []byte{
-					0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00,
-				}
-
-				input := make([]byte, 0, len(magicFrame)+len(settingsFrame))
-				input = append(input, magicFrame...)
-				input = append(input, settingsFrame...)
-
-				c, err := net.Dial("tcp", "127.0.0.1:8082")
-				require.NoError(t, err, "could not dial")
-				defer c.Close()
-
-				// Sending a magic and the settings in the same packet.
-				err = writeInput(t, c, input)
-				require.NoError(t, err)
-				// Headers frame for POST /aaa
-				request := []byte{
-					0x00, 0x00, 0x37, 0x01, 0x04, 0x00, 0x00, 0x00, 0x03, 0x41, 0x8a, 0x08, 0x9d, 0x5c, 0x0b, 0x81,
-					0x70, 0xdc, 0x78, 0x0f, 0x0b, 0x83, 0x45, 0x83, 0x60, 0x63, 0x1f, 0x86, 0x5f, 0x8b, 0x1d, 0x75,
-					0xd0, 0x62, 0x0d, 0x26, 0x3d, 0x4c, 0x74, 0x41, 0xea, 0x5c, 0x01, 0x34, 0x50, 0x83, 0x9b, 0xd9,
-					0xab, 0x7a, 0x8d, 0xc4, 0x75, 0xa7, 0x4a, 0x6b, 0x58, 0x94, 0x18, 0xb5, 0x25, 0x81, 0x2e, 0x0f,
-				}
-
-				// Data frame & End of stream
-				dataFrame := []byte{
-					0x00, 0x00, 0x04, 0x00, 0x01, 0x00, 0x00, 0x00, 0x03, 0x74, 0x65, 0x73, 0x74,
-				}
-				reqInput := make([]byte, 0, len(settingsFrame)*oneProgramSettingsFrames+len(request)+len(dataFrame))
-				for i := 0; i < oneProgramSettingsFrames; i++ {
-					input = append(input, settingsFrame...)
-				}
-				reqInput = append(reqInput, request...)
-				reqInput = append(reqInput, dataFrame...)
-				// Sending the repeated settings with request.
-				require.NoError(t, writeInput(t, c, reqInput), "could not make request")
-			},
-			expectedEndpoints: map[http.Key]captureRange{
+			numberOfSettingFrames: 100,
+			expectedEndpoints: map[http.Key]int{
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
 					Method: http.MethodPost,
-				}: {
-					lower: 1,
-					upper: 1,
-				},
+				}: 1,
 			},
 		},
-		//{
-		//	name: "parse_frames tail call using 2 programs",
-		//	// The purpose of this test is to validate that when we surpass the limit of HTTP2_MAX_FRAMES_ITERATIONS,
-		//	// the filtering of subsequent frames will continue using tail calls.
-		//
-		//	runClients: func(t *testing.T, clientsCount int) {
-		//		// http2 magic
-		//		magicFrame := []byte{
-		//			0x50, 0x52, 0x49, 0x20, 0x2a, 0x20, 0x48, 0x54, 0x54, 0x50, 0x2f, 0x32, 0x2e, 0x30, 0x0d, 0x0a, 0x0d, 0x0a, 0x53, 0x4d, 0x0d, 0x0a, 0x0d, 0x0a,
-		//		}
-		//
-		//		// http2 settings frame
-		//		settingsFrame := []byte{
-		//			0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00,
-		//		}
-		//
-		//		input := make([]byte, 0, len(magicFrame)+len(settingsFrame))
-		//		input = append(input, magicFrame...)
-		//		input = append(input, settingsFrame...)
-		//
-		//		c, err := net.Dial("tcp", "127.0.0.1:8082")
-		//		require.NoError(t, err, "could not dial")
-		//		defer c.Close()
-		//
-		//		// Sending a magic and the settings in the same packet.
-		//		err = writeInput(t, c, input)
-		//		require.NoError(t, err)
-		//		// Headers frame for POST /aaa
-		//		request := []byte{
-		//			0x00, 0x00, 0x37, 0x01, 0x04, 0x00, 0x00, 0x00, 0x03, 0x41, 0x8a, 0x08, 0x9d, 0x5c, 0x0b, 0x81,
-		//			0x70, 0xdc, 0x78, 0x0f, 0x0b, 0x83, 0x45, 0x83, 0x60, 0x63, 0x1f, 0x86, 0x5f, 0x8b, 0x1d, 0x75,
-		//			0xd0, 0x62, 0x0d, 0x26, 0x3d, 0x4c, 0x74, 0x41, 0xea, 0x5c, 0x01, 0x34, 0x50, 0x83, 0x9b, 0xd9,
-		//			0xab, 0x7a, 0x8d, 0xc4, 0x75, 0xa7, 0x4a, 0x6b, 0x58, 0x94, 0x18, 0xb5, 0x25, 0x81, 0x2e, 0x0f,
-		//		}
-		//
-		//		// Data frame & End of stream
-		//		dataFrame := []byte{
-		//			0x00, 0x00, 0x04, 0x00, 0x01, 0x00, 0x00, 0x00, 0x03, 0x74, 0x65, 0x73, 0x74,
-		//		}
-		//		reqInput := make([]byte, 0, len(settingsFrame)*twoProgramsSettingsFrames+len(request)+len(dataFrame))
-		//		for i := 0; i < twoProgramsSettingsFrames; i++ {
-		//			input = append(input, settingsFrame...)
-		//		}
-		//		reqInput = append(reqInput, request...)
-		//		reqInput = append(reqInput, dataFrame...)
-		//		// Sending the repeated settings with request.
-		//		require.NoError(t, writeInput(t, c, reqInput), "could not make request")
-		//	},
-		//	expectedEndpoints: map[http.Key]captureRange{
-		//		{
-		//			Path:   http.Path{Content: http.Interner.GetString("/aaa")},
-		//			Method: http.MethodPost,
-		//		}: {
-		//			lower: 1,
-		//			upper: 1,
-		//		},
-		//	},
-		//},
-		//{
-		//	name: "validate frames_filter tail calls limit",
-		//	// The purpose of this test is to validate that when we surpass the limit of HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER,
-		//	// for 2 filter_frames we do not use more than two tail calls.
-		//
-		//	runClients: func(t *testing.T, clientsCount int) {
-		//		// http2 magic
-		//		magicFrame := []byte{
-		//			0x50, 0x52, 0x49, 0x20, 0x2a, 0x20, 0x48, 0x54, 0x54, 0x50, 0x2f, 0x32, 0x2e, 0x30, 0x0d, 0x0a, 0x0d, 0x0a, 0x53, 0x4d, 0x0d, 0x0a, 0x0d, 0x0a,
-		//		}
-		//
-		//		// http2 settings frame
-		//		settingsFrame := []byte{
-		//			0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00,
-		//		}
-		//
-		//		input := make([]byte, 0, len(magicFrame)+len(settingsFrame))
-		//		input = append(input, magicFrame...)
-		//		input = append(input, settingsFrame...)
-		//
-		//		c, err := net.Dial("tcp", "127.0.0.1:8082")
-		//		require.NoError(t, err, "could not dial")
-		//		defer c.Close()
-		//
-		//		// Sending a magic and the settings in the same packet.
-		//		err = writeInput(t, c, input)
-		//		require.NoError(t, err)
-		//		// Headers frame for POST /aaa
-		//		request := []byte{
-		//			0x00, 0x00, 0x37, 0x01, 0x04, 0x00, 0x00, 0x00, 0x03, 0x41, 0x8a, 0x08, 0x9d, 0x5c, 0x0b, 0x81,
-		//			0x70, 0xdc, 0x78, 0x0f, 0x0b, 0x83, 0x45, 0x83, 0x60, 0x63, 0x1f, 0x86, 0x5f, 0x8b, 0x1d, 0x75,
-		//			0xd0, 0x62, 0x0d, 0x26, 0x3d, 0x4c, 0x74, 0x41, 0xea, 0x5c, 0x01, 0x34, 0x50, 0x83, 0x9b, 0xd9,
-		//			0xab, 0x7a, 0x8d, 0xc4, 0x75, 0xa7, 0x4a, 0x6b, 0x58, 0x94, 0x18, 0xb5, 0x25, 0x81, 0x2e, 0x0f,
-		//		}
-		//
-		//		// Data frame & End of stream
-		//		dataFrame := []byte{
-		//			0x00, 0x00, 0x04, 0x00, 0x01, 0x00, 0x00, 0x00, 0x03, 0x74, 0x65, 0x73, 0x74,
-		//		}
-		//		reqInput := make([]byte, 0, len(settingsFrame)*moreThenTwoProgramsSettingsFrames+len(request)+len(dataFrame))
-		//		for i := 0; i < moreThenTwoProgramsSettingsFrames; i++ {
-		//			input = append(input, settingsFrame...)
-		//		}
-		//		reqInput = append(reqInput, request...)
-		//		reqInput = append(reqInput, dataFrame...)
-		//		// Sending the repeated settings with request.
-		//		require.NoError(t, writeInput(t, c, reqInput), "could not make request")
-		//	},
-		//	expectedEndpoints: nil,
-		//},
+		{
+			name: "parse_frames tail call using 2 programs",
+			// The purpose of this test is to validate that when we surpass the limit of HTTP2_MAX_FRAMES_ITERATIONS,
+			// the filtering of subsequent frames will continue using tail calls.
+			numberOfSettingFrames: 130,
+			expectedEndpoints: map[http.Key]int{
+				{
+					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
+					Method: http.MethodPost,
+				}: 1,
+			},
+		},
+		{
+			name: "validate frames_filter tail calls limit",
+			// The purpose of this test is to validate that when we surpass the limit of HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER,
+			// for 2 filter_frames we do not use more than two tail calls.
+			numberOfSettingFrames: 250,
+			expectedEndpoints:     nil,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1137,7 +1024,26 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			require.NoError(t, monitor.Start())
 			defer monitor.Stop()
 
-			tt.runClients(t, 1)
+			input := make([]byte, 0, len(magicFrame)+len(settingsFrame))
+			input = append(input, magicFrame...)
+			input = append(input, settingsFrame...)
+
+			// TODO: Make this to a const
+			c, err := net.Dial("tcp", "127.0.0.1:8082")
+			require.NoError(t, err, "could not dial")
+			defer c.Close()
+
+			// Sending a magic and the settings in the same packet.
+			require.NoError(t, writeInput(t, c, input, time.Second))
+
+			reqInput := make([]byte, 0, len(settingsFrame)*tt.numberOfSettingFrames+len(request)+len(dataFrame))
+			for i := 0; i < tt.numberOfSettingFrames; i++ {
+				reqInput = append(reqInput, settingsFrame...)
+			}
+			reqInput = append(reqInput, request...)
+			reqInput = append(reqInput, dataFrame...)
+			// Sending the repeated settings with request.
+			require.NoError(t, writeInput(t, c, reqInput, time.Second), "could not make request")
 
 			res := make(map[http.Key]int)
 			assert.Eventually(t, func() bool {
@@ -1166,18 +1072,15 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 					return false
 				}
 
-				for key, count := range res {
-					valRange, ok := tt.expectedEndpoints[key]
+				for key := range res {
+					_, ok := tt.expectedEndpoints[key]
 					if !ok {
-						return false
-					}
-					if count < valRange.lower || count > valRange.upper {
 						return false
 					}
 				}
 
 				return true
-			}, time.Second*5, time.Millisecond*200, "%v != %v", res, tt.expectedEndpoints)
+			}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
 			if t.Failed() {
 				for key := range tt.expectedEndpoints {
 					if _, ok := res[key]; !ok {
