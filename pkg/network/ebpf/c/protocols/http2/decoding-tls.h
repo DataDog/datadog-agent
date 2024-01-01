@@ -478,6 +478,23 @@ int uprobe__http2_tls_eos_parser(struct pt_regs *ctx) {
 
 SEC("uprobe/http2_tls_termination")
 int uprobe__http2_tls_termination(struct pt_regs *ctx) {
+    const __u32 zero = 0;
+
+    tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
+    if (args == NULL) {
+        return 0;
+    }
+
+    terminated_http2_batch_enqueue(&args->tup);
+    // Deleting the entry for the original tuple.
+    bpf_map_delete_elem(&http2_dynamic_counter_table, &args->tup);
+    // In case of local host, the protocol will be deleted for both (client->server) and (server->client),
+    // so we won't reach for that path again in the code, so we're deleting the opposite side as well.
+    flip_tuple(&args->tup);
+    bpf_map_delete_elem(&http2_dynamic_counter_table, &args->tup);
+
+    bpf_map_delete_elem(&tls_http2_iterations, &args->tup);
+
     return 0;
 }
 #endif
