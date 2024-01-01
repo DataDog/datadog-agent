@@ -519,6 +519,62 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
 
 SEC("uprobe/http2_tls_filter")
 int uprobe__http2_tls_filter(struct pt_regs *ctx) {
+    const __u32 zero = 0;
+
+    tls_dispatcher_arguments_t dispatcher_args_copy;
+    // We're not calling fetch_dispatching_arguments as, we need to modify the `off` field of skb_info, so
+    // the next prog will start to read from the next valid frame.
+    tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
+    if (args == NULL) {
+        return false;
+    }
+    dispatcher_args_copy = *args;
+
+    // A single packet can contain multiple HTTP/2 frames, due to instruction limitations we have divided the
+    // processing into multiple tail calls, where each tail call process a single frame. We must have context when
+    // we are processing the frames, for example, to know how many bytes have we read in the packet, or it we reached
+    // to the maximum number of frames we can process. For that we are checking if the iteration context already exists.
+    // If not, creating a new one to be used for further processing
+    http2_tail_call_state_t *iteration_value = bpf_map_lookup_elem(&http2_frames_to_process, &zero);
+    if (iteration_value == NULL) {
+        return 0;
+    }
+
+    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&http2_telemetry, &zero);
+    if (http2_tel == NULL) {
+        return 0;
+    }
+
+    tls_find_relevant_frames(&dispatcher_args_copy, iteration_value, http2_tel);
+
+    frame_header_remainder_t new_frame_state = { 0 };
+    if (dispatcher_args_copy.off > dispatcher_args_copy.len) {
+        // We have a remainder
+        new_frame_state.remainder = dispatcher_args_copy.off - dispatcher_args_copy.len;
+        bpf_map_update_elem(&http2_remainder, &dispatcher_args_copy.tup, &new_frame_state, BPF_ANY);
+    } else if (dispatcher_args_copy.off < dispatcher_args_copy.len && dispatcher_args_copy.off + HTTP2_FRAME_HEADER_SIZE > dispatcher_args_copy.len) {
+        // We have a frame header remainder
+        new_frame_state.remainder = HTTP2_FRAME_HEADER_SIZE - (dispatcher_args_copy.len - dispatcher_args_copy.off);
+        bpf_memset(new_frame_state.buf, 0, HTTP2_FRAME_HEADER_SIZE);
+    #pragma unroll(HTTP2_FRAME_HEADER_SIZE)
+        for (__u32 iteration = 0; iteration < HTTP2_FRAME_HEADER_SIZE && new_frame_state.remainder + iteration < HTTP2_FRAME_HEADER_SIZE; ++iteration) {
+            bpf_probe_read_user(new_frame_state.buf + iteration, 1, dispatcher_args_copy.buffer_ptr + dispatcher_args_copy.off + iteration);
+        }
+        new_frame_state.header_length = HTTP2_FRAME_HEADER_SIZE - new_frame_state.remainder;
+        bpf_map_update_elem(&http2_remainder, &dispatcher_args_copy.tup, &new_frame_state, BPF_ANY);
+    }
+
+    if (iteration_value->frames_count == 0) {
+        return 0;
+    }
+
+    dispatcher_args_copy.off = args->off;
+    // We have couple of interesting headers, launching tail calls to handle them.
+    if (bpf_map_update_elem(&tls_http2_iterations, &dispatcher_args_copy, iteration_value, BPF_NOEXIST) >= 0) {
+        // We managed to cache the iteration_value in the tls_http2_iterations map.
+        bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_HEADERS_PARSER);
+    }
+
     return 0;
 }
 
