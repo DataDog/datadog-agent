@@ -458,6 +458,62 @@ static __always_inline void tls_find_relevant_frames(tls_dispatcher_arguments_t 
 
 SEC("uprobe/http2_tls_handle_first_frame")
 int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
+    const __u32 zero = 0;
+    http2_frame_t current_frame = {};
+
+    tls_dispatcher_arguments_t dispatcher_args_copy;
+    // We're not calling fetch_dispatching_arguments as, we need to modify the `data_off` field of skb_info, so
+    // the next prog will start to read from the next valid frame.
+    tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
+    if (args == NULL) {
+        return false;
+    }
+    dispatcher_args_copy = *args;
+
+    // A single packet can contain multiple HTTP/2 frames, due to instruction limitations we have divided the
+    // processing into multiple tail calls, where each tail call process a single frame. We must have context when
+    // we are processing the frames, for example, to know how many bytes have we read in the packet, or it we reached
+    // to the maximum number of frames we can process. For that we are checking if the iteration context already exists.
+    // If not, creating a new one to be used for further processing
+    http2_tail_call_state_t *iteration_value = bpf_map_lookup_elem(&http2_frames_to_process, &zero);
+    if (iteration_value == NULL) {
+        return 0;
+    }
+    iteration_value->frames_count = 0;
+    iteration_value->iteration = 0;
+
+    // skip HTTP2 magic, if present
+    tls_skip_preface(&dispatcher_args_copy);
+
+    frame_header_remainder_t *frame_state = bpf_map_lookup_elem(&http2_remainder, &dispatcher_args_copy.tup);
+
+    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&http2_telemetry, &zero);
+    if (http2_tel == NULL) {
+        return 0;
+    }
+
+    if (!tls_get_first_frame(&dispatcher_args_copy, frame_state, &current_frame, http2_tel)) {
+        return 0;
+    }
+
+    // If we have a state and we consumed it, then delete it.
+    if (frame_state != NULL && frame_state->remainder == 0) {
+        bpf_map_delete_elem(&http2_remainder, &dispatcher_args_copy.tup);
+    }
+
+    bool is_headers_or_rst_frame = current_frame.type == kHeadersFrame || current_frame.type == kRSTStreamFrame;
+    bool is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
+    if (is_headers_or_rst_frame || is_data_end_of_stream) {
+        iteration_value->frames_array[0].frame = current_frame;
+        iteration_value->frames_array[0].offset = dispatcher_args_copy.off;
+        iteration_value->frames_count = 1;
+    }
+    dispatcher_args_copy.off += current_frame.length;
+    // Overriding the off field of the cached args. The next prog will start from the offset of the next valid
+    // frame.
+    args->off = dispatcher_args_copy.off;
+
+    bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_FILTER);
     return 0;
 }
 
