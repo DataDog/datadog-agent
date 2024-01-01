@@ -31,7 +31,7 @@ func main() {
 	serverAddr := args[0]
 	reqCount, err := strconv.Atoi(args[1])
 	if err != nil || reqCount < 0 {
-		log.Fatalf("invalid value %q for number of request", args[1])
+		log.Fatalf("invalid value %q for number of requests", args[1])
 	}
 
 	var transport http.RoundTripper
