@@ -23,7 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// This is the number of events that are expected to be received by the event monitor at test module initialization, before any test commands have been run
+// This is the number of events that are expected to be received by the event monitor at test module initialization, before any test commands have been run.
+// They're not exactly constants in that they could change due to changes in the test module implementation, but they're constant in the context of writing tests.
 const (
 	testModuleInitialExecs = 34
 	testModuleInitialForks = 0
