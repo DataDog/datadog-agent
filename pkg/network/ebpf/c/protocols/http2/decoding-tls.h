@@ -580,6 +580,88 @@ int uprobe__http2_tls_filter(struct pt_regs *ctx) {
 
 SEC("uprobe/http2_tls_headers_parser")
 int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
+    const __u32 zero = 0;
+
+    tls_dispatcher_arguments_t dispatcher_args_copy;
+    // We're not calling fetch_dispatching_arguments as, we need to modify the `off` field of skb_info, so
+    // the next prog will start to read from the next valid frame.
+    tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
+    if (args == NULL) {
+        return false;
+    }
+    dispatcher_args_copy = *args;
+
+    // A single packet can contain multiple HTTP/2 frames, due to instruction limitations we have divided the
+    // processing into multiple tail calls, where each tail call process a single frame. We must have context when
+    // we are processing the frames, for example, to know how many bytes have we read in the packet, or it we reached
+    // to the maximum number of frames we can process. For that we are checking if the iteration context already exists.
+    // If not, creating a new one to be used for further processing
+    http2_tail_call_state_t *tail_call_state = bpf_map_lookup_elem(&tls_http2_iterations, &dispatcher_args_copy);
+    if (tail_call_state == NULL) {
+        // We didn't find the cached context, aborting.
+        return 0;
+    }
+
+    http2_ctx_t *http2_ctx = bpf_map_lookup_elem(&http2_ctx_heap, &zero);
+    if (http2_ctx == NULL) {
+        goto delete_iteration;
+    }
+
+    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&http2_telemetry, &zero);
+    if (http2_tel == NULL) {
+        goto delete_iteration;
+    }
+
+    http2_frame_with_offset *frames_array = tail_call_state->frames_array;
+    http2_frame_with_offset current_frame;
+
+    // create the http2 ctx for the current http2 frame.
+    bpf_memset(http2_ctx, 0, sizeof(http2_ctx_t));
+    http2_ctx->http2_stream_key.tup = dispatcher_args_copy.tup;
+    normalize_tuple(&http2_ctx->http2_stream_key.tup);
+    http2_ctx->dynamic_index.tup = dispatcher_args_copy.tup;
+
+    http2_stream_t *current_stream = NULL;
+
+    #pragma unroll(HTTP2_TLS_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL)
+    for (__u16 index = 0; index < HTTP2_TLS_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL; index++) {
+        if (tail_call_state->iteration >= tail_call_state->frames_count) {
+            break;
+        }
+        // This check must be next to the access of the array, otherwise the verifier will complain.
+        if (tail_call_state->iteration >= HTTP2_MAX_FRAMES_ITERATIONS) {
+            break;
+        }
+        current_frame = frames_array[tail_call_state->iteration];
+        tail_call_state->iteration += 1;
+
+        if (current_frame.frame.type != kHeadersFrame) {
+            continue;
+        }
+
+        http2_ctx->http2_stream_key.stream_id = current_frame.frame.stream_id;
+        current_stream = http2_fetch_stream(&http2_ctx->http2_stream_key);
+        if (current_stream == NULL) {
+            continue;
+        }
+        dispatcher_args_copy.off = current_frame.offset;
+        tls_process_headers_frame(&dispatcher_args_copy, current_stream, &http2_ctx->dynamic_index, &current_frame.frame, http2_tel);
+    }
+
+    if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS &&
+        tail_call_state->iteration < tail_call_state->frames_count &&
+        tail_call_state->iteration < HTTP2_TLS_MAX_FRAMES_FOR_HEADERS_PARSER) {
+        bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_HEADERS_PARSER);
+    }
+    // Zeroing the iteration index to call EOS parser
+    tail_call_state->iteration = 0;
+    bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_EOS_PARSER);
+
+delete_iteration:
+    // restoring the original value.
+    dispatcher_args_copy.off = args->off;
+    bpf_map_delete_elem(&tls_http2_iterations, &dispatcher_args_copy);
+
     return 0;
 }
 
