@@ -84,6 +84,9 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
         t->pid = 0;
         t->netns = 0;
         break;
+    case PROTOCOL_HTTP2:
+        prog = TLS_HTTP2_FIRST_FRAME;
+        break;
     default:
         return;
     }
@@ -121,6 +124,9 @@ static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t) {
         // with the socket_filter program which does not have access to such fields).
         t->pid = 0;
         t->netns = 0;
+        break;
+    case PROTOCOL_HTTP2:
+        prog = TLS_HTTP2_TERMINATION;
         break;
     default:
         return;

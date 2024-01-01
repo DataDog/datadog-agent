@@ -9,6 +9,7 @@
 #include "protocols/http/buffer.h"
 #include "protocols/http/http.h"
 #include "protocols/http2/decoding.h"
+#include "protocols/http2/decoding-tls.h"
 #include "protocols/kafka/kafka-parsing.h"
 #include "protocols/sockfd-probes.h"
 #include "protocols/tls/java/erpc_dispatcher.h"

@@ -456,4 +456,28 @@ static __always_inline void tls_find_relevant_frames(tls_dispatcher_arguments_t 
     }
 }
 
+SEC("uprobe/http2_tls_handle_first_frame")
+int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
+    return 0;
+}
+
+SEC("uprobe/http2_tls_filter")
+int uprobe__http2_tls_filter(struct pt_regs *ctx) {
+    return 0;
+}
+
+SEC("uprobe/http2_tls_headers_parser")
+int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
+    return 0;
+}
+
+SEC("uprobe/http2_tls_eos_parser")
+int uprobe__http2_tls_eos_parser(struct pt_regs *ctx) {
+    return 0;
+}
+
+SEC("uprobe/http2_tls_termination")
+int uprobe__http2_tls_termination(struct pt_regs *ctx) {
+    return 0;
+}
 #endif
