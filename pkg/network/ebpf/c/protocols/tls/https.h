@@ -93,10 +93,13 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
         log_debug("dispatcher failed to save arguments for tls tail call\n");
         return;
     }
-    bpf_memset(args, 0, sizeof(tls_dispatcher_arguments_t));
-    bpf_memcpy(&args->tup, t, sizeof(conn_tuple_t));
-    args->buffer_ptr = buffer_ptr;
-    args->tags = tags;
+    *args = (tls_dispatcher_arguments_t){
+        .tup = *t,
+        .tags = tags,
+        .buffer_ptr = buffer_ptr,
+        .len = len,
+        .off = 0,
+    };
     bpf_tail_call_compat(ctx, &tls_process_progs, prog);
 }
 
