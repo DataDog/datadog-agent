@@ -667,6 +667,97 @@ delete_iteration:
 
 SEC("uprobe/http2_tls_eos_parser")
 int uprobe__http2_tls_eos_parser(struct pt_regs *ctx) {
+    const __u32 zero = 0;
+
+    tls_dispatcher_arguments_t dispatcher_args_copy;
+    // We're not calling fetch_dispatching_arguments as, we need to modify the `off` field of skb_info, so
+    // the next prog will start to read from the next valid frame.
+    tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
+    if (args == NULL) {
+        return false;
+    }
+    dispatcher_args_copy = *args;
+
+    // A single packet can contain multiple HTTP/2 frames, due to instruction limitations we have divided the
+    // processing into multiple tail calls, where each tail call process a single frame. We must have context when
+    // we are processing the frames, for example, to know how many bytes have we read in the packet, or it we reached
+    // to the maximum number of frames we can process. For that we are checking if the iteration context already exists.
+    // If not, creating a new one to be used for further processing
+    http2_tail_call_state_t *tail_call_state = bpf_map_lookup_elem(&tls_http2_iterations, &dispatcher_args_copy);
+    if (tail_call_state == NULL) {
+        // We didn't find the cached context, aborting.
+        return 0;
+    }
+
+    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&http2_telemetry, &zero);
+    if (http2_tel == NULL) {
+        goto delete_iteration;
+    }
+
+    http2_frame_with_offset *frames_array = tail_call_state->frames_array;
+    http2_frame_with_offset current_frame;
+
+    http2_ctx_t *http2_ctx = bpf_map_lookup_elem(&http2_ctx_heap, &zero);
+    if (http2_ctx == NULL) {
+        goto delete_iteration;
+    }
+    bpf_memset(http2_ctx, 0, sizeof(http2_ctx_t));
+    http2_ctx->http2_stream_key.tup = dispatcher_args_copy.tup;
+    normalize_tuple(&http2_ctx->http2_stream_key.tup);
+
+    bool is_rst = false, is_end_of_stream = false;
+    http2_stream_t *current_stream = NULL;
+
+    #pragma unroll(HTTP2_MAX_FRAMES_FOR_EOS_PARSER_PER_TAIL_CALL)
+    for (__u16 index = 0; index < HTTP2_MAX_FRAMES_FOR_EOS_PARSER_PER_TAIL_CALL; index++) {
+        if (tail_call_state->iteration >= HTTP2_MAX_FRAMES_ITERATIONS) {
+            break;
+        }
+
+        current_frame = frames_array[tail_call_state->iteration];
+        // Having this condition after assignment and not before is due to a verifier issue.
+        if (tail_call_state->iteration >= tail_call_state->frames_count) {
+            break;
+        }
+        tail_call_state->iteration += 1;
+
+        is_rst = current_frame.frame.type == kRSTStreamFrame;
+        is_end_of_stream = (current_frame.frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM;
+        if (!is_rst && !is_end_of_stream) {
+            continue;
+        }
+
+        http2_ctx->http2_stream_key.stream_id = current_frame.frame.stream_id;
+        current_stream = http2_fetch_stream(&http2_ctx->http2_stream_key);
+        if (current_stream == NULL) {
+            continue;
+        }
+
+        // When we accept an RST, it means that the current stream is terminated.
+        // See: https://datatracker.ietf.org/doc/html/rfc7540#section-6.4
+        // If rst, and stream is empty (no status code, or no response) then delete from inflight
+        if (is_rst && (current_stream->response_status_code == 0 || current_stream->request_started == 0)) {
+            bpf_map_delete_elem(&http2_in_flight, &http2_ctx->http2_stream_key);
+            continue;
+        }
+
+        if (is_rst) {
+            __sync_fetch_and_add(&http2_tel->end_of_stream_rst, 1);
+        } else if ((current_frame.frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) {
+            __sync_fetch_and_add(&http2_tel->end_of_stream, 1);
+        }
+        handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key, http2_tel);
+    }
+
+    if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS &&
+        tail_call_state->iteration < tail_call_state->frames_count &&
+        tail_call_state->iteration < HTTP2_MAX_FRAMES_FOR_EOS_PARSER) {
+        bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_EOS_PARSER);
+    }
+
+delete_iteration:
+    bpf_map_delete_elem(&tls_http2_iterations, &dispatcher_args_copy);
+
     return 0;
 }
 
