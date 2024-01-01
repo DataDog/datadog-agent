@@ -51,6 +51,7 @@ const (
 	dynamicTable              = "http2_dynamic_table"
 	dynamicTableCounter       = "http2_dynamic_counter_table"
 	http2IterationsTable      = "http2_iterations"
+	tlsHTTP2IterationsTable   = "tls_http2_iterations"
 	firstFrameHandlerTailCall = "socket__http2_handle_first_frame"
 	filterTailCall            = "socket__http2_filter"
 	headersParserTailCall     = "socket__http2_headers_parser"
@@ -74,6 +75,9 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			Name: http2IterationsTable,
+		},
+		{
+			Name: tlsHTTP2IterationsTable,
 		},
 		{
 			Name: "http2_headers_to_process",
@@ -171,6 +175,10 @@ func (p *Protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 		EditorFlag: manager.EditMaxEntries,
 	}
 	opts.MapSpecEditors[http2IterationsTable] = manager.MapSpecEditor{
+		MaxEntries: mapSizeValue,
+		EditorFlag: manager.EditMaxEntries,
+	}
+	opts.MapSpecEditors[tlsHTTP2IterationsTable] = manager.MapSpecEditor{
 		MaxEntries: mapSizeValue,
 		EditorFlag: manager.EditMaxEntries,
 	}
