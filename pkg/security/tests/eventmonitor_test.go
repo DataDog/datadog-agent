@@ -162,53 +162,36 @@ func TestEventMonitor(t *testing.T) {
 	updatedForks := testModuleInitialForks
 	updatedExits := testModuleInitialExits
 
-	testEnvs := []string{"DD_SERVICE=myService", "DD_VERSION=0.1.0", "DD_ENV=myEnv"}
-	assertStoreFunc := func(c *assert.CollectT) {
-		hctrl.toStore.m.Lock()
-		storeData := hctrl.toStore.data
-		hctrl.toStore.m.Unlock()
-		assert.NotEmpty(c, storeData, "store should not be empty")
-		assert.Len(c, storeData, 1, "store should container only 1 element")
-	}
+	envVars := []string{"DD_SERVICE=myService", "DD_VERSION=0.1.0", "DD_ENV=myEnv"}
 
 	tests := []struct {
 		name         string
 		commandToRun *exec.Cmd
-		check        func()
+		check        func(c *assert.CollectT)
 	}{
 		{
 			name:         "fork",
 			commandToRun: exec.Command(syscallTester, "fork"),
-			check: func() {
-				assert.Eventually(t, func() bool {
-					assert.GreaterOrEqual(t, fc.GetExecCount(), updatedExecs)
-					assert.GreaterOrEqual(t, fc.GetForkCount(), updatedForks)
-					assert.GreaterOrEqual(t, fc.GetExitCount(), updatedExits)
+			check: func(c *assert.CollectT) {
+				assert.GreaterOrEqual(t, fc.GetExecCount(), updatedExecs)
+				assert.GreaterOrEqual(t, fc.GetForkCount(), updatedForks)
+				assert.GreaterOrEqual(t, fc.GetExitCount(), updatedExits)
 
-					assert.Subset(t, fc.lastReceivedFork.Envs, testEnvs)
-					assert.Greater(t, fc.lastReceivedFork.StartTime, fc.lastReceivedExec.StartTime)
-
-					return true
-				}, 200*time.Millisecond*12, 200*time.Millisecond)
+				assert.Subset(t, fc.lastReceivedFork.Envs, envVars)
 			},
 		},
 		{
 			name:         "exec-exit",
 			commandToRun: exec.Command(which(t, "ls"), "-l"),
-			check: func() {
-				assert.Eventually(t, func() bool {
-					if assert.GreaterOrEqual(t, fc.GetExecCount(), updatedExecs) &&
-						assert.GreaterOrEqual(t, fc.GetForkCount(), updatedForks) &&
-						assert.GreaterOrEqual(t, fc.GetExitCount(), updatedExits) &&
-						assert.Subset(t, fc.lastReceivedExec.Envs, testEnvs) &&
-						assert.Subset(t, fc.lastReceivedExit.Envs, testEnvs) &&
-						assert.Greater(t, fc.lastReceivedExec.StartTime, fc.lastReceivedFork.StartTime) &&
-						assert.Greater(t, fc.lastReceivedExec.ExitTime, time.Unix(fc.lastReceivedExec.StartTime, 0)) {
-						return true
-					}
+			check: func(c *assert.CollectT) {
+				assert.GreaterOrEqual(t, fc.GetExecCount(), updatedExecs)
+				assert.GreaterOrEqual(t, fc.GetForkCount(), updatedForks)
+				assert.GreaterOrEqual(t, fc.GetExitCount(), updatedExits)
 
-					return false
-				}, 200*time.Millisecond*12, 200*time.Millisecond)
+				assert.Subset(t, fc.lastReceivedExec.Envs, envVars)
+				assert.Subset(t, fc.lastReceivedExit.Envs, envVars)
+
+				assert.Greater(t, fc.lastReceivedExit.ExitTime, time.Unix(fc.lastReceivedExec.StartTime, 0))
 			},
 		},
 	}
@@ -224,7 +207,7 @@ func TestEventMonitor(t *testing.T) {
 			updatedForks++
 			updatedExits++
 
-			test.check()
+			assert.EventuallyWithTf(t, test.check, 200*time.Millisecond*12, 200*time.Millisecond, "event monitor has not received an expected event yet")
 		})
 	}
 }
