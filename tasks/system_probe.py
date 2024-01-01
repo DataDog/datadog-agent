@@ -794,9 +794,6 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False, pack
             if os.path.isdir(extra_path):
                 shutil.copytree(extra_path, os.path.join(target_path, extra))
 
-        if pkg.endswith("java"):
-            shutil.copy(os.path.join(pkg, "agent-usm.jar"), os.path.join(target_path, "agent-usm.jar"))
-
         for gobin in ["gotls_client", "fmapper", "prefetch_file"]:
             src_file_path = os.path.join(pkg, f"{gobin}.go")
             if not windows and os.path.isdir(pkg) and os.path.isfile(src_file_path):
@@ -1291,7 +1288,6 @@ def build_object_files(
 
         java_dir = os.path.join("pkg", "network", "protocols", "tls", "java")
         ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_JAVA_DIR}")
-        ctx.run(f"{sudo} install -m644 -oroot -groot {java_dir}/agent-usm.jar {EMBEDDED_SHARE_JAVA_DIR}/agent-usm.jar")
 
         if ctx.run("command -v rsync >/dev/null 2>&1", warn=True, hide=True).ok:
             rsync_filter = "--filter='+ */' --filter='+ *.o' --filter='+ *.c' --filter='- *'"
