@@ -31,7 +31,7 @@ func NewGRPCTLSServer(t *testing.T) (*exec.Cmd, context.CancelFunc) {
 }
 
 const (
-	serverSrcPath = "external_server"
+	serverSrcPath = "grpc_external_server"
 )
 
 // buildGRPCServerBin builds the grpc server binary and returns the path to the binary.
