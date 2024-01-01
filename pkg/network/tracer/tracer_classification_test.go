@@ -1502,7 +1502,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 	http2ServerAddress := net.JoinHostPort(serverHost, http2Port)
 	http2TargetAddress := net.JoinHostPort(targetHost, http2Port)
 
-	grpcServer, err := grpc.NewServer(grpcServerAddress)
+	grpcServer, err := grpc.NewServer(grpcServerAddress, false)
 	require.NoError(t, err)
 	grpcServer.Run()
 	t.Cleanup(grpcServer.Stop)
