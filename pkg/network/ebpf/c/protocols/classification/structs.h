@@ -27,6 +27,8 @@ typedef struct {
     conn_tuple_t tup;
     __u64 tags;
     char *buffer_ptr;
+    size_t len;
+    size_t off;
 } tls_dispatcher_arguments_t;
 
 #endif
