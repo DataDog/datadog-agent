@@ -9,21 +9,25 @@
 package tests
 
 import (
-	"errors"
-	"fmt"
 	"os"
 	"os/exec"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/avast/retry-go/v4"
 	"github.com/stretchr/testify/assert"
 	"go4.org/intern"
 
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+// This is the number of events that are expected to be received by the event monitor at test module initialization, before any test commands have been run
+const (
+	testModuleInitialExecs = 34
+	testModuleInitialForks = 0
+	testModuleInitialExits = 0
 )
 
 type FakeEventConsumer struct {
@@ -42,19 +46,8 @@ type FakeConsumerProcess struct {
 	Envs           []string
 	ContainerID    *intern.Value
 	StartTime      int64
-	Expiry         int64
 	CollectionTime time.Time
-	//Ppid           uint32
-	//UID            uint32
-	//GID            uint32
-	//Username       string
-	//Group          string
-	//Exe            string
-	//Cmdline        []string
-	//ForkTime       time.Time
-	//ExecTime       time.Time
-	//ExitTime       time.Time
-	//ExitCode       uint32
+	ExitTime       time.Time
 }
 
 func NewFakeEventConsumer(em *eventmonitor.EventMonitor) *FakeEventConsumer {
@@ -121,11 +114,15 @@ func (fc *FakeEventConsumer) HandleEvent(incomingEvent any) {
 
 func (fc *FakeEventConsumer) Copy(ev *model.Event) any {
 	var processStartTime time.Time
+	var exitTime time.Time
 	if ev.GetEventType() == model.ExecEventType {
 		processStartTime = ev.GetProcessExecTime()
 	}
 	if ev.GetEventType() == model.ForkEventType {
 		processStartTime = ev.GetProcessForkTime()
+	}
+	if ev.GetEventType() == model.ExitEventType {
+		exitTime = ev.GetProcessExitTime()
 	}
 
 	return &FakeConsumerProcess{
@@ -133,13 +130,18 @@ func (fc *FakeEventConsumer) Copy(ev *model.Event) any {
 		Pid:         ev.GetProcessPid(),
 		ContainerID: intern.GetByString(ev.GetContainerId()),
 		StartTime:   processStartTime.UnixNano(),
+		ExitTime:    exitTime,
 		Envs:        ev.GetProcessEnvp(),
 	}
 }
 
+func (fc *FakeEventConsumer) Reset() {
+
+}
+
 func TestEventMonitor(t *testing.T) {
 	var fc *FakeEventConsumer
-	test, err := newTestModule(t, nil, nil, withStaticOpts(testOpts{
+	testModule, err := newTestModule(t, nil, nil, withStaticOpts(testOpts{
 		disableRuntimeSecurity: true,
 		preStartCallback: func(test *testModule) {
 			fc = NewFakeEventConsumer(test.eventMonitor)
@@ -149,46 +151,80 @@ func TestEventMonitor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer testModule.Close()
 
-	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	syscallTester, err := loadSyscallTester(t, testModule, "syscall_tester")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	t.Run("fork", func(t *testing.T) {
-		forkCount := fc.GetForkCount()
-		cmd := exec.Command(syscallTester, "fork")
-		cmd.Env = append(os.Environ(), "DD_SERVICE=myService", "DD_VERSION=0.1.0", "DD_ENV=myEnv", "EXTRAVAR=extra")
-		_ = cmd.Run()
+	updatedExecs := testModuleInitialExecs
+	updatedForks := testModuleInitialForks
+	updatedExits := testModuleInitialExits
 
-		err := retry.Do(func() error {
-			if forkCount+1 <= fc.GetForkCount() {
-				return nil
-			}
+	testEnvs := []string{"DD_SERVICE=myService", "DD_VERSION=0.1.0", "DD_ENV=myEnv"}
+	assertStoreFunc := func(c *assert.CollectT) {
+		hctrl.toStore.m.Lock()
+		storeData := hctrl.toStore.data
+		hctrl.toStore.m.Unlock()
+		assert.NotEmpty(c, storeData, "store should not be empty")
+		assert.Len(c, storeData, 1, "store should container only 1 element")
+	}
 
-			return errors.New("event not received")
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(10))
-		fmt.Printf("%+v\n", fc.lastReceivedFork)
-		assert.Subset(t, fc.lastReceivedFork.Envs, []string{"DD_SERVICE=myService", "DD_VERSION=0.1.0", "DD_ENV=myEnv"})
-		assert.Nil(t, err)
-	})
+	tests := []struct {
+		name         string
+		commandToRun *exec.Cmd
+		check        func()
+	}{
+		{
+			name:         "fork",
+			commandToRun: exec.Command(syscallTester, "fork"),
+			check: func() {
+				assert.Eventually(t, func() bool {
+					assert.GreaterOrEqual(t, fc.GetExecCount(), updatedExecs)
+					assert.GreaterOrEqual(t, fc.GetForkCount(), updatedForks)
+					assert.GreaterOrEqual(t, fc.GetExitCount(), updatedExits)
 
-	t.Run("exec-exit", func(t *testing.T) {
-		execCount := fc.GetExecCount()
-		exitCount := fc.GetExitCount()
+					assert.Subset(t, fc.lastReceivedFork.Envs, testEnvs)
+					assert.Greater(t, fc.lastReceivedFork.StartTime, fc.lastReceivedExec.StartTime)
 
-		lsExecutable := which(t, "ls")
-		cmd := exec.Command(lsExecutable, "-l")
-		_ = cmd.Run()
+					return true
+				}, 200*time.Millisecond*12, 200*time.Millisecond)
+			},
+		},
+		{
+			name:         "exec-exit",
+			commandToRun: exec.Command(which(t, "ls"), "-l"),
+			check: func() {
+				assert.Eventually(t, func() bool {
+					if assert.GreaterOrEqual(t, fc.GetExecCount(), updatedExecs) &&
+						assert.GreaterOrEqual(t, fc.GetForkCount(), updatedForks) &&
+						assert.GreaterOrEqual(t, fc.GetExitCount(), updatedExits) &&
+						assert.Subset(t, fc.lastReceivedExec.Envs, testEnvs) &&
+						assert.Subset(t, fc.lastReceivedExit.Envs, testEnvs) &&
+						assert.Greater(t, fc.lastReceivedExec.StartTime, fc.lastReceivedFork.StartTime) &&
+						assert.Greater(t, fc.lastReceivedExec.ExitTime, time.Unix(fc.lastReceivedExec.StartTime, 0)) {
+						return true
+					}
 
-		err := retry.Do(func() error {
-			if execCount+1 <= fc.GetExecCount() && exitCount+1 <= fc.GetExitCount() {
-				return nil
-			}
+					return false
+				}, 200*time.Millisecond*12, 200*time.Millisecond)
+			},
+		},
+	}
 
-			return errors.New("event not received")
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(10))
-		assert.Nil(t, err)
-	})
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.commandToRun.Env = append(os.Environ(), "DD_SERVICE=myService", "DD_VERSION=0.1.0", "DD_ENV=myEnv", "EXTRAVAR=extra")
+			_ = test.commandToRun.Run()
+
+			// Running a command with the syscall tester creates more than 1 event per type, so this incrementation is just an estimate of the real count,
+			// and all tests should use comparisons instead of equality
+			updatedExecs++
+			updatedForks++
+			updatedExits++
+
+			test.check()
+		})
+	}
 }
