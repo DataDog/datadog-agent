@@ -192,14 +192,14 @@ func TestEventMonitor(t *testing.T) {
 				assert.Subset(t, fc.lastReceivedExec.Envs, envVars)
 				assert.Subset(t, fc.lastReceivedExit.Envs, envVars)
 
-				assert.Greater(t, fc.lastReceivedExit.ExitTime, time.Unix(fc.lastReceivedExec.StartTime, 0))
+				assert.Greater(t, fc.lastReceivedExit.ExitTime, time.Unix(0, fc.lastReceivedExec.StartTime))
 			},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			test.commandToRun.Env = append(os.Environ(), "DD_SERVICE=myService", "DD_VERSION=0.1.0", "DD_ENV=myEnv", "EXTRAVAR=extra")
+			test.commandToRun.Env = append(os.Environ(), envVars...)
 			_ = test.commandToRun.Run()
 
 			// Running a command with the syscall tester creates more than 1 event per type, so this incrementation is just an estimate of the real count,
