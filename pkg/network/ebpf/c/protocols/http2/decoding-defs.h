@@ -155,7 +155,7 @@ typedef struct {
 typedef struct {
     __u16 iteration;
     __u16 frames_count;
-    // filterIterations maintains the count of executions performed by the filter program.
+    // Maintains the count of executions performed by the filter program.
     // Its purpose is to restrict the usage of tail calls within the filter program.
     __u16 filter_iterations;
     // Saving the data offset is crucial for maintaining the current read position and ensuring proper utilization
