@@ -77,6 +77,13 @@ func InitCheckScheduler(collector Collector, senderManager sender.SenderManager)
 // Schedule schedules configs to checks
 func (s *CheckScheduler) Schedule(configs []integration.Config) {
 	checks := s.GetChecksFromConfigs(configs, true)
+
+	for _, l := range s.loaders {
+		if l.Name() == "Python Check Loader" {
+			l.Load(s.senderManager, integration.Config{}, []byte{})
+		}
+	}
+
 	for _, c := range checks {
 		_, err := s.collector.RunCheck(c)
 		if err != nil {

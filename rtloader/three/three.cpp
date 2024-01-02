@@ -261,6 +261,13 @@ bool Three::getClass(const char *module, RtLoaderPyObject *&pyModule, RtLoaderPy
         setError(err.str());
         return false;
     }
+    obj_module = PyImport_ReloadModule(obj_module);
+    if (obj_module == NULL) {
+        std::ostringstream err;
+        err << "unable to reload module '" << module << "': " + _fetchPythonError();
+        setError(err.str());
+        return false;
+    }
 
     obj_class = _findSubclassOf(_baseClass, obj_module);
     if (obj_class == NULL) {
