@@ -13,7 +13,7 @@ import (
 
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/require"
-	
+
 	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -31,7 +31,7 @@ func TestBatchAPISupported(t *testing.T) {
 		t.Skip("Unknown support for batch API on RHEL kernels")
 	}
 
-        require.Equal(t, kernelVersion.Code >= ebpfkernel.Kernel5_6, BatchAPISupported())
+	require.Equal(t, kernelVersion.Code >= ebpfkernel.Kernel5_6, BatchAPISupported())
 }
 
 func TestSingleItemIter(t *testing.T) {
