@@ -14,6 +14,7 @@ import (
 	"io"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"text/template"
@@ -156,6 +157,11 @@ func (r *secretResolver) registerSecretOrigin(handle string, origin string, path
 
 	if len(path) != 0 {
 		lastElem := path[len(path)-1:]
+		// work around a bug in the scrubber: if the last element looks like an
+		// index into a slice, remove it and use the element before
+		if _, err := strconv.Atoi(lastElem[0]); err == nil && len(path) >= 2 {
+			lastElem = path[len(path)-2 : len(path)-1]
+		}
 		if r.scrubHookFunc != nil {
 			// hook used only for tests
 			r.scrubHookFunc(lastElem)

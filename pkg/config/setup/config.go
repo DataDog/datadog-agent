@@ -1832,7 +1832,7 @@ func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newV
 	path := slices.Clone(settingPath)
 	for {
 		if len(path) == 0 {
-			return fmt.Errorf("invalid config setting '%s'", settingPath)
+			return fmt.Errorf("unknown config setting '%s'", settingPath)
 		}
 		// get the last element from the path and add it to the trailing elements
 		lastElem := path[len(path)-1]
@@ -1858,6 +1858,12 @@ func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newV
 				modifyValue[elem] = newValue
 			} else {
 				// otherwise iterate inside that compound object
+				iterateValue = modifyValue[elem]
+			}
+		case map[interface{}]interface{}:
+			if k == len(trailingElements)-1 {
+				modifyValue[elem] = newValue
+			} else {
 				iterateValue = modifyValue[elem]
 			}
 		case []interface{}:

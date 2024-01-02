@@ -1162,11 +1162,80 @@ use_proxy_for_cloud_metadata: true
 
 	err = configAssignAtPath(config, []string{"0"}, "invalid")
 	assert.Error(t, err)
-	assert.Equal(t, err.Error(), "invalid config setting '[0]'")
+	assert.Equal(t, err.Error(), "unknown config setting '[0]'")
 
 	err = configAssignAtPath(config, []string{"additional_endpoints", "https://url1.com", "5"}, "invalid")
 	assert.Error(t, err)
 	assert.Equal(t, err.Error(), "index out of range 5 >= 2")
+}
+
+func TestConfigMustMatchOrigin(t *testing.T) {
+	// CircleCI sets NO_PROXY, so unset it for this test
+	unsetEnvForTest(t, "NO_PROXY")
+
+	testMinimalConf := []byte(`apm_config:
+  apm_dd_url: ENC[some_url]
+secret_backend_command: command
+use_proxy_for_cloud_metadata: true
+`)
+
+	testMinimalDiffConf := []byte(`apm_config:
+  apm_dd_url: ENC[diff_url]
+secret_backend_command: command
+use_proxy_for_cloud_metadata: true
+`)
+
+	expectedYaml := `apm_config:
+  apm_dd_url: first_value
+secret_backend_command: command
+use_proxy_for_cloud_metadata: true
+`
+	expectedDiffYaml := `apm_config:
+  apm_dd_url: second_value
+secret_backend_command: command
+use_proxy_for_cloud_metadata: true
+`
+
+	config := Conf()
+	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
+	os.WriteFile(configPath, testMinimalConf, 0600)
+	config.SetConfigFile(configPath)
+
+	resolver := secretsimpl.NewMock()
+	resolver.SetBackendCommand("command")
+	resolver.SetFetchHookFunc(func(handles []string) (map[string]string, error) {
+		return map[string]string{
+			"some_url": "first_value",
+			"diff_url": "second_value",
+		}, nil
+	})
+
+	_, err := LoadCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
+	assert.NoError(t, err)
+
+	yamlConf, err := yaml.Marshal(config.AllSettingsWithoutDefault())
+	assert.NoError(t, err)
+	assert.Equal(t, expectedYaml, string(yamlConf))
+
+	// use resolver to modify a 2nd config with a different origin
+	diffYaml, err := resolver.Resolve(testMinimalDiffConf, "diff_test")
+	assert.NoError(t, err)
+	assert.Equal(t, expectedDiffYaml, string(diffYaml))
+
+	// verify that the original config was not changed because origin is different
+	yamlConf, err = yaml.Marshal(config.AllSettingsWithoutDefault())
+	assert.NoError(t, err)
+	assert.Equal(t, expectedYaml, string(yamlConf))
+
+	// use resolver again, but with the original origin now
+	diffYaml, err = resolver.Resolve(testMinimalDiffConf, "unit_test")
+	assert.NoError(t, err)
+	assert.Equal(t, expectedDiffYaml, string(diffYaml))
+
+	// now the original config was modified because of the origin match
+	yamlConf, err = yaml.Marshal(config.AllSettingsWithoutDefault())
+	assert.NoError(t, err)
+	assert.Equal(t, expectedDiffYaml, string(yamlConf))
 }
 
 func TestConfigAssignAtPathForIntMapKeys(t *testing.T) {
