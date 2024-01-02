@@ -128,7 +128,11 @@ int uretprobe__SSL_read(struct pt_regs *ctx) {
 
     char *buffer_ptr = args->buf;
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
-    tls_process(ctx, t, buffer_ptr, len, LIBSSL);
+    // The read tuple should be flipped (compared to the write tuple).
+    // tls_process and the appropriate parsers will flip it back if needed.
+    conn_tuple_t copy = *t;
+    flip_tuple(&copy);
+    tls_process(ctx, &copy, buffer_ptr, len, LIBSSL);
     return 0;
 cleanup:
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
@@ -222,7 +226,11 @@ int uretprobe__SSL_read_ex(struct pt_regs* ctx) {
 
     char *buffer_ptr = args->buf;
     bpf_map_delete_elem(&ssl_read_ex_args, &pid_tgid);
-    tls_process(ctx, conn_tuple, buffer_ptr, bytes_count, LIBSSL);
+    // The read tuple should be flipped (compared to the write tuple).
+    // tls_process and the appropriate parsers will flip it back if needed.
+    conn_tuple_t copy = *conn_tuple;
+    flip_tuple(&copy);
+    tls_process(ctx, &copy, buffer_ptr, bytes_count, LIBSSL);
     return 0;
 cleanup:
     bpf_map_delete_elem(&ssl_read_ex_args, &pid_tgid);
@@ -401,7 +409,11 @@ int uretprobe__gnutls_record_recv(struct pt_regs *ctx) {
 
     char *buffer_ptr = args->buf;
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
-    tls_process(ctx, t, buffer_ptr, read_len, LIBGNUTLS);
+    // The read tuple should be flipped (compared to the write tuple).
+    // tls_process and the appropriate parsers will flip it back if needed.
+    conn_tuple_t copy = *t;
+    flip_tuple(&copy);
+    tls_process(ctx, &copy, buffer_ptr, read_len, LIBGNUTLS);
     return 0;
 cleanup:
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);

@@ -20,7 +20,7 @@ func init() {
 	diagnosis.Register("connectivity-datadog-autodiscovery", diagnoseMetadataAutodiscoveryConnectivity)
 }
 
-func diagnoseMetadataAutodiscoveryConnectivity(cfg diagnosis.Config, _ sender.DiagnoseSenderManager) []diagnosis.Diagnosis { //nolint:revive // TODO fix revive unused-parameter
+func diagnoseMetadataAutodiscoveryConnectivity(_ diagnosis.Config, _ sender.DiagnoseSenderManager) []diagnosis.Diagnosis {
 	if len(diagnosis.MetadataAvailCatalog) == 0 {
 		return nil
 	}

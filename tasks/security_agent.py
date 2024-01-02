@@ -192,7 +192,7 @@ def run_functional_tests(ctx, testsuite, verbose=False, testflags='', fentry=Fal
 
 @task
 def run_ebpfless_functional_tests(ctx, cws_instrumentation, testsuite, verbose=False, testflags=''):
-    cmd = 'EBPFLESS=true {cws_instrumentation} trace --async -- {testsuite} {verbose_opt} {testflags} {tests}'
+    cmd = '{testsuite} -trace {verbose_opt} {testflags} {tests}'
 
     if os.getuid() != 0:
         cmd = 'sudo -E PATH={path} ' + cmd
