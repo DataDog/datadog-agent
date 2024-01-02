@@ -29,22 +29,9 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
-
-// CwsInstrumentationEnvDisableStats defines the environ variable to set to disable aviodable stats
-const CwsInstrumentationEnvDisableStats = "CWS_INSTRUMENTATION_DISABLE_STATS"
-
-type fileHandleKey struct {
-	handleBytes uint32
-	handleType  int32
-}
-
-type fileHandleVal struct {
-	pathName string
-}
-
-var fileHandleCache map[fileHandleKey]*fileHandleVal
 
 func fillProcessCwd(process *Process) error {
 	cwd, err := os.Readlink(fmt.Sprintf("/proc/%d/cwd", process.Pid))
@@ -85,12 +72,8 @@ func getFullPathFromFilename(process *Process, filename string) (string, error) 
 	return filename, nil
 }
 
-func fillFileMetadata(filepath string, openMsg *ebpfless.OpenSyscallMsg) error {
-	// Lookup option to disable avoidable usage of stats to reduce the induced overhead
-	if os.Getenv(CwsInstrumentationEnvDisableStats) != "" {
-		return nil
-	}
-	if strings.HasPrefix(filepath, "memfd:") {
+func fillFileMetadata(filepath string, openMsg *ebpfless.OpenSyscallMsg, disableStats bool) error {
+	if disableStats || strings.HasPrefix(filepath, "memfd:") {
 		return nil
 	}
 
@@ -113,7 +96,7 @@ func fillFileMetadata(filepath string, openMsg *ebpfless.OpenSyscallMsg) error {
 	return nil
 }
 
-func handleOpenAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
+func handleOpenAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
 	fd := tracer.ReadArgInt32(regs, 0)
 
 	filename, err := tracer.ReadArgString(process.Pid, regs, 1)
@@ -133,14 +116,14 @@ func handleOpenAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, re
 		Mode:     uint32(tracer.ReadArgUint64(regs, 3)),
 	}
 
-	err = fillFileMetadata(filename, msg.Open)
+	err = fillFileMetadata(filename, msg.Open, disableStats)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func handleOpen(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
+func handleOpen(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
 	filename, err := tracer.ReadArgString(process.Pid, regs, 0)
 	if err != nil {
 		return err
@@ -158,14 +141,14 @@ func handleOpen(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs
 		Mode:     uint32(tracer.ReadArgUint64(regs, 2)),
 	}
 
-	err = fillFileMetadata(filename, msg.Open)
+	err = fillFileMetadata(filename, msg.Open, disableStats)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func handleCreat(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
+func handleCreat(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
 	filename, err := tracer.ReadArgString(process.Pid, regs, 0)
 	if err != nil {
 		return err
@@ -183,7 +166,7 @@ func handleCreat(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, reg
 		Mode:     uint32(tracer.ReadArgUint64(regs, 1)),
 	}
 
-	err = fillFileMetadata(filename, msg.Open)
+	err = fillFileMetadata(filename, msg.Open, disableStats)
 	if err != nil {
 		return err
 	}
@@ -255,12 +238,12 @@ func handleNameToHandleAtRet(tracer *Tracer, process *Process, msg *ebpfless.Sys
 		handleBytes: handleBytes,
 		handleType:  handleType,
 	}
-	fileHandleCache[key] = &fileHandleVal{
+	process.Res.FileHandleCache[key] = &fileHandleVal{
 		pathName: msg.Open.Filename,
 	}
 }
 
-func handleOpenByHandleAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
+func handleOpenByHandleAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
 	pFileHandleData, err := tracer.ReadArgData(process.Pid, regs, 1, 8 /*sizeof uint32 + sizeof int32*/)
 	if err != nil {
 		return err
@@ -282,16 +265,16 @@ func handleOpenByHandleAt(tracer *Tracer, process *Process, msg *ebpfless.Syscal
 		handleBytes: handleBytes,
 		handleType:  handleType,
 	}
-	val, ok := fileHandleCache[key]
+	val, ok := process.Res.FileHandleCache[key]
 	if !ok {
-		return errors.New("didnt find correspondance in the file handle cache")
+		return errors.New("didn't find correspondance in the file handle cache")
 	}
 	msg.Type = ebpfless.SyscallTypeOpen
 	msg.Open = &ebpfless.OpenSyscallMsg{
 		Filename: val.pathName,
 		Flags:    uint32(tracer.ReadArgUint64(regs, 2)),
 	}
-	err = fillFileMetadata(val.pathName, msg.Open)
+	err = fillFileMetadata(val.pathName, msg.Open, disableStats)
 	if err != nil {
 		return err
 	}
@@ -309,7 +292,7 @@ func getPidTTY(pid int) string {
 	return "pts" + path.Base(tty)
 }
 
-func handleExecveAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
+func handleExecveAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
 	fd := tracer.ReadArgInt32(regs, 0)
 
 	filename, err := tracer.ReadArgString(process.Pid, regs, 1)
@@ -348,7 +331,7 @@ func handleExecveAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, 
 		Envs: envs,
 		TTY:  getPidTTY(process.Pid),
 	}
-	err = fillFileMetadata(filename, msg.Exec.File)
+	err = fillFileMetadata(filename, msg.Exec.File, disableStats)
 	if err != nil {
 		return err
 	}
@@ -364,7 +347,7 @@ func handleFcntl(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs sysc
 	return nil
 }
 
-func handleExecve(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
+func handleExecve(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
 	filename, err := tracer.ReadArgString(process.Pid, regs, 0)
 	if err != nil {
 		return err
@@ -394,7 +377,7 @@ func handleExecve(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, re
 		Envs: envs,
 		TTY:  getPidTTY(process.Pid),
 	}
-	err = fillFileMetadata(filename, msg.Exec.File)
+	err = fillFileMetadata(filename, msg.Exec.File, disableStats)
 	if err != nil {
 		return err
 	}
@@ -556,7 +539,7 @@ func sendMsg(client net.Conn, msg *ebpfless.Message) error {
 }
 
 // StartCWSPtracer start the ptracer
-func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds, verbose bool, async bool) error {
+func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds, verbose bool, async bool, disableStats bool) error {
 	if len(args) == 0 {
 		return fmt.Errorf("an executable is required")
 	}
@@ -688,9 +671,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 		},
 	})
 
-	fileHandleCache = make(map[fileHandleKey]*fileHandleVal)
-
-	cb := func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs, exitCtx *ebpfless.ExitSyscallMsg) {
+	cb := func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs, waitStatus *syscall.WaitStatus) {
 		process := pc.Get(pid)
 		if process == nil {
 			process = NewProcess(pid)
@@ -722,17 +703,17 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 
 			switch nr {
 			case OpenNr:
-				if err := handleOpen(tracer, process, syscallMsg, regs); err != nil {
+				if err := handleOpen(tracer, process, syscallMsg, regs, disableStats); err != nil {
 					logErrorf("unable to handle open: %v", err)
 					return
 				}
 			case OpenatNr, Openat2Nr:
-				if err := handleOpenAt(tracer, process, syscallMsg, regs); err != nil {
+				if err := handleOpenAt(tracer, process, syscallMsg, regs, disableStats); err != nil {
 					logErrorf("unable to handle openat: %v", err)
 					return
 				}
 			case CreatNr:
-				if err = handleCreat(tracer, process, syscallMsg, regs); err != nil {
+				if err = handleCreat(tracer, process, syscallMsg, regs, disableStats); err != nil {
 					logErrorf("unable to handle creat: %v", err)
 					return
 				}
@@ -742,12 +723,12 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 					return
 				}
 			case OpenByHandleAtNr:
-				if err = handleOpenByHandleAt(tracer, process, syscallMsg, regs); err != nil {
+				if err = handleOpenByHandleAt(tracer, process, syscallMsg, regs, disableStats); err != nil {
 					logErrorf("unable to handle open_by_handle_at: %v", err)
 					return
 				}
 			case ExecveNr:
-				if err = handleExecve(tracer, process, syscallMsg, regs); err != nil {
+				if err = handleExecve(tracer, process, syscallMsg, regs, disableStats); err != nil {
 					logErrorf("unable to handle execve: %v", err)
 					return
 				}
@@ -781,7 +762,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 					pc.Add(process.Tgid, process)
 				}
 			case ExecveatNr:
-				if err = handleExecveAt(tracer, process, syscallMsg, regs); err != nil {
+				if err = handleExecveAt(tracer, process, syscallMsg, regs, disableStats); err != nil {
 					logErrorf("unable to handle execveat: %v", err)
 					return
 				}
@@ -849,7 +830,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 				process.Pid = process.Tgid
 			case NameToHandleAtNr:
 				syscallMsg, exists := process.Nr[nr]
-				if !exists {
+				if !exists || syscallMsg.Open == nil {
 					return
 				}
 				handleNameToHandleAtRet(tracer, process, syscallMsg, regs)
@@ -925,7 +906,18 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 			}
 		case CallbackExitType:
 			// send exit only for process not threads
-			if process.Pid == process.Tgid && exitCtx != nil {
+			if process.Pid == process.Tgid && waitStatus != nil {
+				exitCtx := &ebpfless.ExitSyscallMsg{}
+				if waitStatus.Exited() {
+					exitCtx.Cause = model.ExitExited
+					exitCtx.Code = uint32(waitStatus.ExitStatus())
+				} else if waitStatus.CoreDump() {
+					exitCtx.Cause = model.ExitCoreDumped
+					exitCtx.Code = uint32(waitStatus.Signal())
+				} else if waitStatus.Signaled() {
+					exitCtx.Cause = model.ExitSignaled
+					exitCtx.Code = uint32(waitStatus.Signal())
+				}
 				sendSyscallMsg(&ebpfless.SyscallMsg{
 					Type: ebpfless.SyscallTypeExit,
 					Exit: exitCtx,

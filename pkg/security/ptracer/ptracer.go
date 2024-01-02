@@ -20,8 +20,6 @@ import (
 	"golang.org/x/net/bpf"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
@@ -224,7 +222,7 @@ func (t *Tracer) ReadArgStringArray(pid int, regs syscall.PtraceRegs, arg int) (
 }
 
 // Trace traces a process
-func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs, exitCtx *ebpfless.ExitSyscallMsg)) error {
+func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs, waitStatus *syscall.WaitStatus)) error {
 	var waitStatus syscall.WaitStatus
 
 	if err := syscall.PtraceCont(t.PID, 0); err != nil {
@@ -239,36 +237,11 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 			break
 		}
 
-		if waitStatus.Exited() {
+		if waitStatus.Exited() || waitStatus.CoreDump() || waitStatus.Signaled() {
 			if pid == t.PID {
 				break
 			}
-			cb(CallbackExitType, ExitNr, pid, 0, regs, &ebpfless.ExitSyscallMsg{
-				Cause: model.ExitExited,
-				Code:  uint32(waitStatus.ExitStatus()),
-			})
-			continue
-		}
-
-		if waitStatus.CoreDump() {
-			if pid == t.PID {
-				break
-			}
-			cb(CallbackExitType, ExitNr, pid, 0, regs, &ebpfless.ExitSyscallMsg{
-				Cause: model.ExitCoreDumped,
-				Code:  uint32(waitStatus.Signal()),
-			})
-			continue
-		}
-
-		if waitStatus.Signaled() {
-			if pid == t.PID {
-				break
-			}
-			cb(CallbackExitType, ExitNr, pid, 0, regs, &ebpfless.ExitSyscallMsg{
-				Cause: model.ExitSignaled,
-				Code:  uint32(waitStatus.Signal()),
-			})
+			cb(CallbackExitType, ExitNr, pid, 0, regs, &waitStatus)
 			continue
 		}
 
