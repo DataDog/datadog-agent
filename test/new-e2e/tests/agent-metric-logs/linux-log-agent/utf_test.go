@@ -40,7 +40,7 @@ func TestUtfSuite(t *testing.T) {
 }
 
 func (s *UtfSuite) generateUtfLog(endianness, content string) error {
-	utfLogGenerationCommand := fmt.Sprintf(`sudo python3 -c "f = open('/var/log/hello-world-utf.log', 'ab'); t = '%s\n'.encode('utf-16-%s'); f.write(t); f.close()"`, content, endianness)
+	utfLogGenerationCommand := fmt.Sprintf(`sudo python3 -c "f = open('/var/log/hello-world-utf.log', 'wb'); t = '%s\n'.encode('utf-16-%s'); f.write(t); f.close()"`, content, endianness)
 	_, err := s.Env().VM.ExecuteWithError(utfLogGenerationCommand)
 	return err
 }
