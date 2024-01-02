@@ -531,10 +531,10 @@ func hashMapNumberOfEntries(mp *ebpf.Map) int64 {
 		return -1
 	}
 
-	canUseBatchApi := true // TODO(gjulianm): Use BatchAPISupported() when merged
+	canUseBatchAPI := true // TODO(gjulianm): Use BatchAPISupported() when merged
 	numElements := 0
 
-	if canUseBatchApi {
+	if canUseBatchAPI {
 		// Here we duplicate a bit the code from cilium/ebpf to use the batch API
 		// in our own way, because the way it's coded there it cannot be used with
 		// key sizes that are only known at runtime.
@@ -550,7 +550,7 @@ func hashMapNumberOfEntries(mp *ebpf.Map) int64 {
 		values := make([]byte, mp.ValueSize()*mp.MaxEntries())
 		cursor := make([]byte, mp.KeySize(), 4)
 
-		const BPF_MAP_LOOKUP_BATCH = uint32(24)
+		const BpfMapLookupBatchCommandCode = uint32(24)
 		type MapLookupBatchAttr struct {
 			InBatch   Pointer
 			OutBatch  Pointer
@@ -570,11 +570,11 @@ func hashMapNumberOfEntries(mp *ebpf.Map) int64 {
 			OutBatch: NewPointer(unsafe.Pointer(&cursor[0])),
 		}
 
-		_, _, errno := unix.Syscall(unix.SYS_BPF, uintptr(BPF_MAP_LOOKUP_BATCH), uintptr(unsafe.Pointer(&attr)), unsafe.Sizeof(attr))
+		_, _, errno := unix.Syscall(unix.SYS_BPF, uintptr(BpfMapLookupBatchCommandCode), uintptr(unsafe.Pointer(&attr)), unsafe.Sizeof(attr))
 
 		// We only care about the errno returned. Note that batch lookup commands return
-		// ENOENT to indicate it is the last batch. In this case, we want a single batch so
-		// it should return ENOENT in normal operation
+		// ENOENT to indicate it is the last batch. In this case, we want a single batch with all
+		// the elements so it should return ENOENT in normal operation
 		if errno != 0 && errno != unix.ENOENT {
 			log.Debugf("error iterating map %s: %s", mp.String(), errno)
 			fmt.Printf("no luck: %s\n", errno)
