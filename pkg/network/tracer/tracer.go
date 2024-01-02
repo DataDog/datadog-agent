@@ -422,7 +422,6 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	tracerTelemetry.payloadSizePerClient.Set(float64(udpConns), clientID, network.UDP.String())
 	tracerTelemetry.payloadSizePerClient.Set(float64(tcpConns), clientID, network.TCP.String())
 	conns.DNS = t.reverseDNS.Resolve(ips)
-	conns.DNSStats = delta.DNSStats
 	conns.HTTP = delta.HTTP
 	conns.HTTP2 = delta.HTTP2
 	conns.Kafka = delta.Kafka
