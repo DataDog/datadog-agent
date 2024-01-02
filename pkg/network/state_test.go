@@ -1580,12 +1580,10 @@ func TestDNSStatsWithMultipleClients(t *testing.T) {
 	client3 := "client3"
 	state := newDefaultState()
 
-	getRCodeFrom := func(delta Delta, c ConnectionStats, domain string, qtype dns.QueryType, code int) uint32 {
-		key, _ := DNSKey(&c)
-		stats, ok := delta.DNSStats[key]
-		require.Truef(t, ok, "couldn't find DNSStats for connection: %+v", c)
+	getRCodeFrom := func(c ConnectionStats, domain string, qtype dns.QueryType, code int) uint32 {
+		require.NotEmpty(t, c.DNSStats, "couldn't find DNSStats for connection: %+v", c)
 
-		domainStats, ok := stats[dns.ToHostname(domain)]
+		domainStats, ok := c.DNSStats[dns.ToHostname(domain)]
 		require.Truef(t, ok, "couldn't find DNSStats for domain: %s", domain)
 
 		queryTypeStats, ok := domainStats[qtype]
@@ -1609,7 +1607,7 @@ func TestDNSStatsWithMultipleClients(t *testing.T) {
 	delta := state.GetDelta(client1, latestEpochTime(), []ConnectionStats{c}, getStats(), nil)
 	require.Len(t, delta.Conns, 1)
 
-	rcode := getRCodeFrom(delta, delta.Conns[0], "foo.com", dns.TypeA, DNSResponseCodeNoError)
+	rcode := getRCodeFrom(delta.Conns[0], "foo.com", dns.TypeA, DNSResponseCodeNoError)
 	assert.EqualValues(t, 1, rcode)
 
 	// Register the third client but also pass in dns stats
@@ -1617,14 +1615,14 @@ func TestDNSStatsWithMultipleClients(t *testing.T) {
 	require.Len(t, delta.Conns, 1)
 
 	// DNS stats should be available for the new client
-	rcode = getRCodeFrom(delta, delta.Conns[0], "foo.com", dns.TypeA, DNSResponseCodeNoError)
+	rcode = getRCodeFrom(delta.Conns[0], "foo.com", dns.TypeA, DNSResponseCodeNoError)
 	assert.EqualValues(t, 1, rcode)
 
 	delta = state.GetDelta(client2, latestEpochTime(), []ConnectionStats{c}, getStats(), nil)
 	require.Len(t, delta.Conns, 1)
 
 	// 2nd client should get accumulated stats
-	rcode = getRCodeFrom(delta, delta.Conns[0], "foo.com", dns.TypeA, DNSResponseCodeNoError)
+	rcode = getRCodeFrom(delta.Conns[0], "foo.com", dns.TypeA, DNSResponseCodeNoError)
 	assert.EqualValues(t, 3, rcode)
 }
 
