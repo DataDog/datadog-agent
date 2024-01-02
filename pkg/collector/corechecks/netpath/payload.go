@@ -9,12 +9,12 @@ type TracerouteHop struct {
 }
 
 type Traceroute struct {
-	TracerouteSource string                   `json:"traceroute_source"`
-	Timestamp        int64                    `json:"timestamp"`
-	AgentHost        string                   `json:"agent_host"`
-	DestinationHost  string                   `json:"destination_host"`
-	Hops             []TracerouteHop          `json:"hops"`
-	HopsByIpAddress  map[string]TracerouteHop `json:"hops_by_ip_address"`
+	TracerouteSource string          `json:"traceroute_source"`
+	Timestamp        int64           `json:"timestamp"`
+	AgentHost        string          `json:"agent_host"`
+	DestinationHost  string          `json:"destination_host"`
+	Hops             []TracerouteHop `json:"hops"`
+	//HopsByIpAddress  map[string]TracerouteHop `json:"hops_by_ip_address"`
 }
 
 type TracerouteV2 struct {

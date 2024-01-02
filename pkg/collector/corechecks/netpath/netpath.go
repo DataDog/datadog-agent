@@ -19,7 +19,6 @@ import (
 	"github.com/shirou/gopsutil/v3/cpu"
 	"net"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -93,10 +92,10 @@ func (c *Check) traceroute(sender sender.Sender) error {
 			return err
 		}
 	}
-	err = c.traceRouteV2(sender, hostHops, hname, destinationHost)
-	if err != nil {
-		return err
-	}
+	//err = c.traceRouteV2(sender, hostHops, hname, destinationHost)
+	//if err != nil {
+	//	return err
+	//}
 	return nil
 }
 
@@ -117,7 +116,7 @@ func (c *Check) traceRouteV1(sender sender.Sender, hostHops [][]traceroute.Trace
 			Success:   hop.Success,
 		}
 		tr.Hops = append(tr.Hops, hop)
-		tr.HopsByIpAddress[strings.ReplaceAll(ip, ".", "-")] = hop
+		//tr.HopsByIpAddress[strings.ReplaceAll(ip, ".", "-")] = hop
 	}
 
 	tracerouteStr, err := json.MarshalIndent(tr, "", "\t")
