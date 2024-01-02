@@ -64,6 +64,14 @@ func TestGRPCScenarios(t *testing.T) {
 
 		suite.Run(t, grpcSuite)
 	})
+
+	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}, "with TLS", func(t *testing.T) {
+		grpcSuite := &USMgRPCSuite{
+			fixtures: &tlsGRPCFixtures{},
+		}
+
+		suite.Run(t, grpcSuite)
+	})
 }
 
 func getClientsArray(t *testing.T, size int, withTLS bool) ([]*grpc.Client, func()) {
