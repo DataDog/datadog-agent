@@ -171,9 +171,14 @@ func (g *GenericMap[K, V]) Delete(key *K) error {
 	return g.m.Delete(unsafe.Pointer(key))
 }
 
-// BatchDelete deletes a batch of keys from the map
+// BatchDelete deletes a batch of keys from the map. Returns the number of deleted items
 func (g *GenericMap[K, V]) BatchDelete(keys []K) (int, error) {
 	return g.m.BatchDelete(keys, nil)
+}
+
+// BatchUpdate updates a batch of keys in the map
+func (g *GenericMap[K, V]) BatchUpdate(keys []K, values []V, opts *ebpf.BatchOptions) (int, error) {
+	return g.m.BatchUpdate(keys, values, opts)
 }
 
 // GenericMapIterator is an interface for iterating over a GenericMap

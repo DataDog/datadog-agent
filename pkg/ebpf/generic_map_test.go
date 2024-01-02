@@ -439,3 +439,80 @@ func BenchmarkIterate(b *testing.B) {
 		}
 	}
 }
+
+func TestBatchDelete(t *testing.T) {
+	m, err := NewGenericMap[uint32, uint32](&ebpf.MapSpec{
+		Type:       ebpf.Hash,
+		MaxEntries: 100,
+	})
+	require.NoError(t, err)
+
+	numsToPut := uint32(90)
+	for i := uint32(0); i < numsToPut; i++ {
+		require.NoError(t, m.Put(&i, &i))
+	}
+
+	numsToDelete := uint32(10)
+	toDelete := make([]uint32, numsToDelete)
+	for i := uint32(0); i < numsToDelete; i++ {
+		toDelete[i] = i
+	}
+	deleted, err := m.BatchDelete(toDelete)
+	require.NoError(t, err)
+	require.Equal(t, numsToDelete, uint32(deleted))
+
+	var k uint32
+	var v uint32
+	numElements := uint32(0)
+	foundElements := make(map[uint32]bool)
+
+	it := m.IterateWithOptions(IteratorOptions{ForceSingleItem: true})
+	require.NotNil(t, it)
+	require.IsType(t, &genericMapItemIterator[uint32, uint32]{}, it)
+	for it.Next(&k, &v) {
+		numElements++
+		foundElements[k] = true
+	}
+
+	require.Equal(t, numsToPut-numsToDelete, numElements)
+	for i := uint32(0); i < numsToPut; i++ {
+		require.Equal(t, foundElements[i], i >= numsToDelete)
+	}
+}
+
+func TestBatchUpdate(t *testing.T) {
+	m, err := NewGenericMap[uint32, uint32](&ebpf.MapSpec{
+		Type:       ebpf.Hash,
+		MaxEntries: 100,
+	})
+	require.NoError(t, err)
+
+	numsToCreate := uint32(90)
+	toCreateKeys := make([]uint32, numsToCreate)
+	toCreateValues := make([]uint32, numsToCreate)
+	for i := uint32(0); i < numsToCreate; i++ {
+		toCreateKeys[i] = i
+		toCreateValues[i] = i
+	}
+	updated, err := m.BatchUpdate(toCreateKeys, toCreateValues, nil)
+	require.NoError(t, err)
+	require.Equal(t, numsToCreate, uint32(updated))
+
+	var k uint32
+	var v uint32
+	numElements := uint32(0)
+	foundElements := make(map[uint32]bool)
+
+	it := m.IterateWithOptions(IteratorOptions{ForceSingleItem: true})
+	require.NotNil(t, it)
+	require.IsType(t, &genericMapItemIterator[uint32, uint32]{}, it)
+	for it.Next(&k, &v) {
+		numElements++
+		foundElements[k] = true
+	}
+
+	require.Equal(t, numsToCreate, numElements)
+	for i := uint32(0); i < numsToCreate; i++ {
+		require.True(t, foundElements[i])
+	}
+}
