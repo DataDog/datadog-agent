@@ -29,7 +29,7 @@ func NewGoTLSClient(t *testing.T, serverAddr string, numRequests int, enableHTTP
 	if enableHTTP2 {
 		args = append(args, "-http2")
 	}
-	// We're using `flag` library, which requires the flags to be right after the binary name, and before positional arguments.
+	// We're using the `flag` library, which requires the flags to be right after the binary name, and before positional arguments.
 	args = append(args, serverAddr, strconv.Itoa(numRequests))
 
 	timedCtx, cancel := context.WithTimeout(context.Background(), time.Second*60)
