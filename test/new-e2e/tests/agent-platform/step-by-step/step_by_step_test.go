@@ -54,12 +54,14 @@ func TestStepByStepScript(t *testing.T) {
 		"debian":      ec2os.DebianOS,
 		"ubuntu":      ec2os.UbuntuOS,
 		"centos":      ec2os.CentOS,
-		"rhel":        ec2os.RedHatOS,
 		"amazonlinux": ec2os.AmazonLinuxOS,
 		"redhat":      ec2os.RedHatOS,
+		"rhel":        ec2os.RedHatOS,
+		"sles":        ec2os.SuseOS,
 		"windows":     ec2os.WindowsOS,
 		"fedora":      ec2os.FedoraOS,
 		"suse":        ec2os.SuseOS,
+		"rocky":       ec2os.RockyLinux,
 	}
 
 	archMapping := map[string]e2eOs.Architecture{

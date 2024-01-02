@@ -804,15 +804,14 @@ int socket__http2_headers_parser(struct __sk_buff *skb) {
 
     #pragma unroll(HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL)
     for (__u16 index = 0; index < HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL; index++) {
-        if (tail_call_state->iteration >= HTTP2_MAX_FRAMES_ITERATIONS) {
-            break;
-        }
-
-        current_frame = frames_array[tail_call_state->iteration];
-        // Having this condition after assignment and not before is due to a verifier issue.
         if (tail_call_state->iteration >= tail_call_state->frames_count) {
             break;
         }
+        // This check must be next to the access of the array, otherwise the verifier will complain.
+        if (tail_call_state->iteration >= HTTP2_MAX_FRAMES_ITERATIONS) {
+            break;
+        }
+        current_frame = frames_array[tail_call_state->iteration];
         tail_call_state->iteration += 1;
 
         if (current_frame.frame.type != kHeadersFrame) {

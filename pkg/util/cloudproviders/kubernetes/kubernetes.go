@@ -5,7 +5,6 @@
 
 //go:build kubelet
 
-//nolint:revive // TODO(ASC) Fix revive linter
 package kubernetes
 
 import (
