@@ -441,6 +441,10 @@ func BenchmarkIterate(b *testing.B) {
 }
 
 func TestBatchDelete(t *testing.T) {
+	if !BatchAPISupported() {
+		t.Skip("Batch API not supported")
+	}
+
 	m, err := NewGenericMap[uint32, uint32](&ebpf.MapSpec{
 		Type:       ebpf.Hash,
 		MaxEntries: 100,
@@ -481,6 +485,10 @@ func TestBatchDelete(t *testing.T) {
 }
 
 func TestBatchUpdate(t *testing.T) {
+	if !BatchAPISupported() {
+		t.Skip("Batch API not supported")
+	}
+
 	m, err := NewGenericMap[uint32, uint32](&ebpf.MapSpec{
 		Type:       ebpf.Hash,
 		MaxEntries: 100,
