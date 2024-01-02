@@ -30,11 +30,7 @@ func TestBatchAPISupported(t *testing.T) {
 		t.Skip("Unknown support for batch API on RHEL kernels")
 	}
 
-	if kernelVersion.Code < ebpfkernel.Kernel5_9 {
-		require.False(t, BatchAPISupported())
-	} else {
-		require.True(t, BatchAPISupported())
-	}
+        require.Equal(t, kernelVersion.Code >= ebpfkernel.Kernel5_6, BatchAPISupported())
 }
 
 func TestSingleItemIter(t *testing.T) {
