@@ -1150,7 +1150,7 @@ func (a *connectionAggregator) dns(c *ConnectionStats) map[dns.Hostname]map[dns.
 func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
 	key := string(c.ByteKey(a.buf))
 
-	// get dns stats
+	// get dns stats for connection
 	c.DNSStats = a.dns(c)
 
 	aggrConns, ok := a.conns[key]
@@ -1201,26 +1201,30 @@ func (ac *aggregateConnection) merge(c *ConnectionStats) {
 
 	ac.ProtocolStack.MergeWith(c.ProtocolStack)
 
-	for hostname, statsByQuery := range c.DNSStats {
-		hostStats := ac.DNSStats[hostname]
-		if hostStats == nil {
-			hostStats = make(map[dns.QueryType]dns.Stats)
-			ac.DNSStats[hostname] = hostStats
-		}
-		for q, stats := range statsByQuery {
-			queryStats, ok := hostStats[q]
-			if !ok {
-				hostStats[q] = stats
-				continue
+	if ac.DNSStats == nil {
+		ac.DNSStats = c.DNSStats
+	} else {
+		for hostname, statsByQuery := range c.DNSStats {
+			hostStats := ac.DNSStats[hostname]
+			if hostStats == nil {
+				hostStats = make(map[dns.QueryType]dns.Stats)
+				ac.DNSStats[hostname] = hostStats
 			}
+			for q, stats := range statsByQuery {
+				queryStats, ok := hostStats[q]
+				if !ok {
+					hostStats[q] = stats
+					continue
+				}
 
-			queryStats.FailureLatencySum += stats.FailureLatencySum
-			queryStats.SuccessLatencySum += stats.SuccessLatencySum
-			queryStats.Timeouts += stats.Timeouts
-			for rcode, count := range stats.CountByRcode {
-				queryStats.CountByRcode[rcode] += count
+				queryStats.FailureLatencySum += stats.FailureLatencySum
+				queryStats.SuccessLatencySum += stats.SuccessLatencySum
+				queryStats.Timeouts += stats.Timeouts
+				for rcode, count := range stats.CountByRcode {
+					queryStats.CountByRcode[rcode] += count
+				}
+				hostStats[q] = queryStats
 			}
-			hostStats[q] = queryStats
 		}
 	}
 
