@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -2554,6 +2555,68 @@ func TestFilterConnections(t *testing.T) {
 			assert.Equal(t, kept[i], conns[i])
 		}
 	})
+}
+
+func TestDNSPIDCollision(t *testing.T) {
+	conns := []ConnectionStats{
+		{
+			Source:    util.AddressFromString("10.1.1.1"),
+			Dest:      util.AddressFromString("8.8.8.8"),
+			Pid:       1,
+			SPort:     1000,
+			DPort:     53,
+			Type:      UDP,
+			Family:    AFINET,
+			Direction: LOCAL,
+			Cookie:    1,
+			Monotonic: StatCounters{
+				RecvBytes: 2,
+			},
+		},
+		{
+			Source:    util.AddressFromString("10.1.1.1"),
+			Dest:      util.AddressFromString("8.8.8.8"),
+			Pid:       2,
+			SPort:     1000,
+			DPort:     53,
+			Type:      UDP,
+			Family:    AFINET,
+			Direction: LOCAL,
+			Cookie:    2,
+			Monotonic: StatCounters{
+				RecvBytes: 2,
+			},
+		},
+	}
+
+	dnsStats := dns.StatsByKeyByNameByType{
+		dns.Key{
+			ClientIP:   util.AddressFromString("10.1.1.1"),
+			ServerIP:   util.AddressFromString("8.8.8.8"),
+			ClientPort: uint16(1000),
+			Protocol:   syscall.IPPROTO_UDP,
+		}: map[dns.Hostname]map[dns.QueryType]dns.Stats{
+			dns.ToHostname("foo.com"): {
+				dns.TypeA: {
+					Timeouts:          0,
+					SuccessLatencySum: 0,
+					FailureLatencySum: 0,
+					CountByRcode:      map[uint32]uint32{0: 1},
+				},
+			},
+		},
+	}
+
+	config.SystemProbe.SetWithoutSource("system_probe_config.collect_dns_domains", true)
+	config.SystemProbe.SetWithoutSource("network_config.enable_dns_by_querytype", false)
+
+	state := newDefaultState()
+	state.RegisterClient("foo")
+	delta := state.GetDelta("foo", 0, conns, dnsStats, nil)
+
+	// Only the first connection should be bound to DNS stats in the context of a PID collision
+	assert.NotEmpty(t, delta.Conns[0].DNSStats, "dns stats should not be empty")
+	assert.Empty(t, delta.Conns[1].DNSStats, "dns stats should not be empty")
 }
 
 func generateRandConnections(n int) []ConnectionStats {
