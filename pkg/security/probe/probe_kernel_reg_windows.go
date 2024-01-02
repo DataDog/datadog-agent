@@ -100,7 +100,7 @@ type setValueKeyArgs struct {
 	capturedData             []byte
 	previousDataType         uint32
 	previousDataSize         uint32
-	capturedPreviousDataSize uint16
+	capturedPreviousDataSize uint16 //nolint:golint,unused
 	previousData             []byte
 	computedFullPath         string
 }
@@ -154,8 +154,6 @@ func (cka *createKeyArgs) computeFullPath() {
 	}
 	fullPathResolver[cka.keyObject] = outstr
 	cka.computedFullPath = outstr
-	return
-
 }
 func (cka *createKeyArgs) string() string {
 

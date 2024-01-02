@@ -54,9 +54,9 @@ type WindowsProbe struct {
 	onError       chan bool
 
 	// ETW component for FIM
-	fileguid   windows.GUID
-	regguid    windows.GUID
-	etwcomp    etw.Component
+	fileguid windows.GUID
+	regguid  windows.GUID
+	//etwcomp    etw.Component
 	fimSession etw.Session
 	fimwg      sync.WaitGroup
 }
@@ -90,11 +90,8 @@ func (p *WindowsProbe) Init() error {
 		return err
 	}
 
-	pidsList := make([]uint32, 0, 0)
-<<<<<<< HEAD
+	pidsList := make([]uint32, 0)
 
-=======
->>>>>>> a0a9eedf1d (working full path with file & registry)
 	p.fimSession.ConfigureProvider(p.fileguid, func(cfg *etw.ProviderConfiguration) {
 		cfg.TraceLevel = etw.TRACE_LEVEL_VERBOSE
 		cfg.PIDs = pidsList
@@ -166,7 +163,7 @@ func (p *WindowsProbe) Setup() error {
 
 // Stop the probe
 func (p *WindowsProbe) Stop() {
-	p.fimSession.StopTracing()
+	_ = p.fimSession.StopTracing()
 	p.fimwg.Wait()
 	p.pm.Stop()
 }

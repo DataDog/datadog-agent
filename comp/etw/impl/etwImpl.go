@@ -34,7 +34,7 @@ func (s *etwImpl) NewSession(sessionName string) (etw.Session, error) {
 	return session, nil
 }
 
-// NewETWSessionWithoutInit
+// NewETWSessionWithoutInit is a
 //
 // temporary implmentation to allow system probe access to this component
 // without being a component itself.  Consumer is buried deep in system
