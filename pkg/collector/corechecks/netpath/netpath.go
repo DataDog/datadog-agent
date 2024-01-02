@@ -86,11 +86,9 @@ func (c *Check) traceroute(sender sender.Sender) error {
 		return errors.New("no hops")
 	}
 
-	for i := 0; i < 100; i++ {
-		err = c.traceRouteV1(sender, hostHops, hname, destinationHost+"-"+strconv.Itoa(i))
-		if err != nil {
-			return err
-		}
+	err = c.traceRouteV1(sender, hostHops, hname, destinationHost)
+	if err != nil {
+		return err
 	}
 	err = c.traceRouteV2(sender, hostHops, hname, destinationHost)
 	if err != nil {
@@ -138,6 +136,7 @@ func (c *Check) traceRouteV2(sender sender.Sender, hostHops [][]traceroute.Trace
 		durationMs := hop.ElapsedTime.Seconds() * 10e3
 		tr := TracerouteV2{
 			TracerouteSource: "netpath_integration",
+			Strategy:         "hop_per_event",
 			Timestamp:        time.Now().UnixMilli(),
 			AgentHost:        hname,
 			DestinationHost:  destinationHost,
@@ -157,7 +156,7 @@ func (c *Check) traceRouteV2(sender sender.Sender, hostHops [][]traceroute.Trace
 
 		log.Infof("traceroute: %s", string(tracerouteStr))
 
-		//sender.EventPlatformEvent(tracerouteStr, epforwarder.EventTypeNetworkDevicesNetpath)
+		sender.EventPlatformEvent(tracerouteStr, epforwarder.EventTypeNetworkDevicesNetpath)
 		tags := []string{
 			"target_service:" + c.config.TargetService,
 			"agent_host:" + hname,

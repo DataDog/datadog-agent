@@ -10,6 +10,7 @@ type TracerouteHop struct {
 
 type Traceroute struct {
 	TracerouteSource string          `json:"traceroute_source"`
+	Strategy         string          `json:"strategy"`
 	Timestamp        int64           `json:"timestamp"`
 	AgentHost        string          `json:"agent_host"`
 	DestinationHost  string          `json:"destination_host"`
@@ -19,6 +20,7 @@ type Traceroute struct {
 
 type TracerouteV2 struct {
 	TracerouteSource string  `json:"traceroute_source"`
+	Strategy         string  `json:"strategy"`
 	Timestamp        int64   `json:"timestamp"`
 	AgentHost        string  `json:"agent_host"`
 	DestinationHost  string  `json:"destination_host"`
@@ -35,6 +37,7 @@ type TracerouteV2 struct {
 func NewTraceroute() *Traceroute {
 	return &Traceroute{
 		TracerouteSource: "netpath_integration",
+		Strategy:         "path_per_event",
 		//HopsByIpAddress:  make(map[string]TracerouteHop),
 	}
 }
