@@ -26,6 +26,8 @@ type Hello struct {
 //nolint:revive // TODO(SERV) Fix revive linter
 func (h *Hello) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.Hello route.")
+	h.daemon.LambdaLibraryStateLock.Lock()
+	defer h.daemon.LambdaLibraryStateLock.Unlock()
 	h.daemon.LambdaLibraryDetected = true
 }
 
@@ -53,6 +55,8 @@ type StartInvocation struct {
 
 func (s *StartInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.StartInvocation route.")
+	s.daemon.ExecutionSpanStateLock.Lock()
+	defer s.daemon.ExecutionSpanStateLock.Unlock()
 	s.daemon.hitOnStart = true
 	startTime := time.Now()
 	reqBody, err := io.ReadAll(r.Body)
@@ -87,6 +91,8 @@ type EndInvocation struct {
 
 func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.EndInvocation route.")
+	e.daemon.ExecutionSpanStateLock.Lock()
+	defer e.daemon.ExecutionSpanStateLock.Unlock()
 	e.daemon.hitOnEnd = true
 	endTime := time.Now()
 	ecs := e.daemon.ExecutionContext.GetCurrentState()
