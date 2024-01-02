@@ -37,7 +37,6 @@ type Telemetry struct {
 
 	hits1XX, hits2XX, hits3XX, hits4XX, hits5XX *TLSCounter
 
-	totalHits                                                        *TLSCounter
 	dropped                                                          *libtelemetry.Counter // this happens when statKeeper reaches capacity
 	rejected                                                         *libtelemetry.Counter // this happens when an user-defined reject-filter matches a request
 	emptyPath, unknownMethod, invalidLatency, nonPrintableCharacters *libtelemetry.Counter // this happens when the request doesn't have the expected format
@@ -52,18 +51,16 @@ func NewTelemetry(protocol string) *Telemetry {
 	metricGroupJoiner := libtelemetry.NewMetricGroup(fmt.Sprintf("usm.%s.joiner", protocol))
 
 	return &Telemetry{
-		protocol:    protocol,
-		metricGroup: metricGroup,
-
-		hits1XX:      NewTLSCounter(metricGroup, "hits", "status:1xx", libtelemetry.OptPrometheus),
-		hits2XX:      NewTLSCounter(metricGroup, "hits", "status:2xx", libtelemetry.OptPrometheus),
-		hits3XX:      NewTLSCounter(metricGroup, "hits", "status:3xx", libtelemetry.OptPrometheus),
-		hits4XX:      NewTLSCounter(metricGroup, "hits", "status:4xx", libtelemetry.OptPrometheus),
-		hits5XX:      NewTLSCounter(metricGroup, "hits", "status:5xx", libtelemetry.OptPrometheus),
+		protocol:     protocol,
+		metricGroup:  metricGroup,
 		aggregations: metricGroup.NewCounter("aggregations", libtelemetry.OptPrometheus),
 
 		// these metrics are also exported as statsd metrics
-		totalHits:              NewTLSCounter(metricGroup, "total_hits", libtelemetry.OptStatsd),
+		hits1XX:                NewTLSCounter(metricGroup, "total_hits", "status:1xx", libtelemetry.OptStatsd),
+		hits2XX:                NewTLSCounter(metricGroup, "total_hits", "status:2xx", libtelemetry.OptStatsd),
+		hits3XX:                NewTLSCounter(metricGroup, "total_hits", "status:3xx", libtelemetry.OptStatsd),
+		hits4XX:                NewTLSCounter(metricGroup, "total_hits", "status:4xx", libtelemetry.OptStatsd),
+		hits5XX:                NewTLSCounter(metricGroup, "total_hits", "status:5xx", libtelemetry.OptStatsd),
 		dropped:                metricGroup.NewCounter("dropped", libtelemetry.OptStatsd),
 		rejected:               metricGroup.NewCounter("rejected", libtelemetry.OptStatsd),
 		emptyPath:              metricGroup.NewCounter("malformed", "type:empty-path", libtelemetry.OptStatsd),
@@ -96,8 +93,6 @@ func (t *Telemetry) Count(tx Transaction) {
 	case 500:
 		t.hits5XX.Add(tx)
 	}
-
-	t.totalHits.Add(tx)
 }
 
 // Log logs the telemetry.

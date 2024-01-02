@@ -10,8 +10,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
@@ -169,7 +169,7 @@ func TestSnsSqsMessageCarrier(t *testing.T) {
 				}`,
 			},
 			expMap: nil,
-			expErr: errors.New("Error unmarshaling message body: json: cannot unmarshal string into Go struct field .MessageAttributes of type map[string]struct { Type string; Value string }"),
+			expErr: errors.New("Error unmarshaling message body: json: cannot unmarshal string into Go struct field snsBody.MessageAttributes of type map[string]interface {}"),
 		},
 		{
 			name: "non-binary-type",
@@ -177,14 +177,14 @@ func TestSnsSqsMessageCarrier(t *testing.T) {
 				Body: `{
 					"MessageAttributes": {
 						"_datadog": {
-							"Type": "String",
+							"Type": "Purple",
 							"Value": "Value"
 						}
 					}
 				}`,
 			},
 			expMap: nil,
-			expErr: errors.New("Unsupported DataType in _datadog payload"),
+			expErr: errors.New("Unsupported Type in _datadog payload"),
 		},
 		{
 			name: "cannot-decode",
@@ -234,6 +234,135 @@ func TestSnsSqsMessageCarrier(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			tm, err := snsSqsMessageCarrier(tc.event)
 			t.Logf("snsSqsMessageCarrier returned TextMapReader=%#v error=%#v", tm, err)
+			assert.Equal(t, tc.expErr != nil, err != nil)
+			if tc.expErr != nil && err != nil {
+				assert.Equal(t, tc.expErr.Error(), err.Error())
+			}
+			assert.Equal(t, tc.expMap, getMapFromCarrier(tm))
+		})
+	}
+}
+
+func TestSnsEntityCarrier(t *testing.T) {
+	testcases := []struct {
+		name   string
+		event  events.SNSEntity
+		expMap map[string]string
+		expErr error
+	}{
+		{
+			name:   "no-msg-attrs",
+			event:  events.SNSEntity{},
+			expMap: nil,
+			expErr: errors.New("No Datadog trace context found"),
+		},
+		{
+			name: "wrong-type-msg-attrs",
+			event: events.SNSEntity{
+				MessageAttributes: map[string]interface{}{
+					"_datadog": 12345,
+				},
+			},
+			expMap: nil,
+			expErr: errors.New("Unsupported type for _datadog payload"),
+		},
+		{
+			name: "wrong-type-type",
+			event: events.SNSEntity{
+				MessageAttributes: map[string]interface{}{
+					"_datadog": map[string]interface{}{
+						"Type":  12345,
+						"Value": "Value",
+					},
+				},
+			},
+			expMap: nil,
+			expErr: errors.New("Unsupported type in _datadog payload"),
+		},
+		{
+			name: "wrong-value-type",
+			event: events.SNSEntity{
+				MessageAttributes: map[string]interface{}{
+					"_datadog": map[string]interface{}{
+						"Type":  "Binary",
+						"Value": 12345,
+					},
+				},
+			},
+			expMap: nil,
+			expErr: errors.New("Unsupported value type in _datadog payload"),
+		},
+		{
+			name: "cannot-decode",
+			event: events.SNSEntity{
+				MessageAttributes: map[string]interface{}{
+					"_datadog": map[string]interface{}{
+						"Type":  "Binary",
+						"Value": "Value",
+					},
+				},
+			},
+			expMap: nil,
+			expErr: errors.New("Error decoding binary: illegal base64 data at input byte 4"),
+		},
+		{
+			name: "unknown-type",
+			event: events.SNSEntity{
+				MessageAttributes: map[string]interface{}{
+					"_datadog": map[string]interface{}{
+						"Type":  "Purple",
+						"Value": "Value",
+					},
+				},
+			},
+			expMap: nil,
+			expErr: errors.New("Unsupported Type in _datadog payload"),
+		},
+		{
+			name: "empty-string-encoded",
+			event: events.SNSEntity{
+				MessageAttributes: map[string]interface{}{
+					"_datadog": map[string]interface{}{
+						"Type":  "Binary",
+						"Value": base64.StdEncoding.EncodeToString([]byte(``)),
+					},
+				},
+			},
+			expMap: nil,
+			expErr: errors.New("Error unmarshaling the decoded binary: unexpected end of JSON input"),
+		},
+		{
+			name: "binary-type",
+			event: events.SNSEntity{
+				MessageAttributes: map[string]interface{}{
+					"_datadog": map[string]interface{}{
+						"Type":  "Binary",
+						"Value": base64.StdEncoding.EncodeToString([]byte(headersAll)),
+					},
+				},
+			},
+			expMap: headersMapAll,
+			expErr: nil,
+		},
+		{
+			name: "string-type",
+			event: events.SNSEntity{
+				MessageAttributes: map[string]interface{}{
+					"_datadog": map[string]interface{}{
+						"Type":  "String",
+						"Value": headersAll,
+					},
+				},
+			},
+			expMap: headersMapAll,
+			expErr: nil,
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			tm, err := snsEntityCarrier(tc.event)
+			t.Logf("snsEntityCarrier returned TextMapReader=%#v error=%#v", tm, err)
 			assert.Equal(t, tc.expErr != nil, err != nil)
 			if tc.expErr != nil && err != nil {
 				assert.Equal(t, tc.expErr.Error(), err.Error())
@@ -441,6 +570,24 @@ func TestExtractTraceContextfromAWSTraceHeader(t *testing.T) {
 		{
 			name:     "parent key no parent value",
 			value:    "Root=1-00000000-000000000000000000000001;Parent=",
+			expTc:    nil,
+			expNoErr: false,
+		},
+		{
+			name:     "bad trace id",
+			value:    "Root=1-00000000-000000000000000000000001purple;Parent=0000000000000002;Sampled=1",
+			expTc:    nil,
+			expNoErr: false,
+		},
+		{
+			name:     "bad parent id",
+			value:    "Root=1-00000000-000000000000000000000001;Parent=0000000000000002purple;Sampled=1",
+			expTc:    nil,
+			expNoErr: false,
+		},
+		{
+			name:     "zero value trace and parent id",
+			value:    "Root=1-00000000-000000000000000000000000;Parent=0000000000000000;Sampled=1",
 			expTc:    nil,
 			expNoErr: false,
 		},

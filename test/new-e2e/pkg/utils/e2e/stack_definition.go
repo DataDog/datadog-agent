@@ -6,9 +6,6 @@
 package e2e
 
 import (
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
@@ -20,6 +17,10 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2vm"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 )
 
 // StackDefinition contains a Pulumi stack definition
@@ -218,8 +219,7 @@ func FakeIntakeStackDef(options ...func(*AgentStackDefParam) error) *StackDefini
 			}
 
 			// fakeintakeExporter, err := aws.NewEcsFakeintake(vm.GetAwsEnvironment(), params.fakeintakeParams...)
-			fakeintakeOptions := append([]fakeintakeparams.Option{fakeintakeparams.WithoutLoadBalancer()}, params.fakeintakeParams...)
-			fakeintakeExporter, err := aws.NewEcsFakeintake(vm.GetAwsEnvironment(), fakeintakeOptions...)
+			fakeintakeExporter, err := aws.NewEcsFakeintake(vm.GetAwsEnvironment(), params.fakeintakeParams...)
 
 			if err != nil {
 				return nil, err

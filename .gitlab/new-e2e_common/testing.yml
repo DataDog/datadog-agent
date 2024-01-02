@@ -14,4 +14,10 @@
   variables:
     TARGETS: ./tests/agent-platform/install-script
     TEAM: agent-platform
+    EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --cws-supported-osversion $E2E_CWS_SUPPORTED_OSVERS --major-version $AGENT_MAJOR_VERSION --arch $E2E_ARCH --flavor $FLAVOR --no-verbose
+
+.new-e2e_step_by_step:
+  variables:
+    TARGETS: ./tests/agent-platform/step-by-step
+    TEAM: agent-platform
     EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --cws-supported-osversion $E2E_CWS_SUPPORTED_OSVERS --major-version $AGENT_MAJOR_VERSION --arch $E2E_ARCH --flavor $FLAVOR
