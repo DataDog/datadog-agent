@@ -339,7 +339,7 @@ func sendMsg(client net.Conn, msg *ebpfless.Message) error {
 }
 
 // StartCWSPtracer start the ptracer
-func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool, async bool) error {
+func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds, verbose bool, async bool) error {
 	if len(args) == 0 {
 		return fmt.Errorf("an executable is required")
 	}
@@ -399,7 +399,7 @@ func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool,
 		Creds:    creds,
 	}
 
-	tracer, err := NewTracer(entry, args, opts)
+	tracer, err := NewTracer(entry, args, envs, opts)
 	if err != nil {
 		return err
 	}
@@ -445,7 +445,7 @@ func StartCWSPtracer(args []string, probeAddr string, creds Creds, verbose bool,
 			if probeAddr != "" {
 				logDebugf("sending message: %s", msg)
 				if err := sendMsg(client, msg); err != nil {
-					logErrorf("%v", err)
+					logDebugf("%v", err)
 				}
 			} else {
 				logDebugf("sending message: %s", msg)
