@@ -35,6 +35,6 @@ type TracerouteV2 struct {
 func NewTraceroute() *Traceroute {
 	return &Traceroute{
 		TracerouteSource: "netpath_integration",
-		HopsByIpAddress:  make(map[string]TracerouteHop),
+		//HopsByIpAddress:  make(map[string]TracerouteHop),
 	}
 }
