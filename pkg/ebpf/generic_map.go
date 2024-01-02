@@ -94,7 +94,7 @@ func NewGenericMap[K interface{}, V interface{}](spec *ebpf.MapSpec) (*GenericMa
 func validateValueTypeForMapType[V interface{}](t ebpf.MapType) error {
 	var vval V
 	if isPerCPU(t) && reflect.TypeOf(vval).Kind() != reflect.Slice {
-		return errors.New("per-cpu maps require a slice type for the value")
+		return errors.New("per-cpu maps require a slice type for the value, instead got %T", vval)
 	}
 	return nil
 }
