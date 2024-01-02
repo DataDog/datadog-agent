@@ -16,7 +16,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
-	
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -92,6 +92,11 @@ func NewGenericMap[K interface{}, V interface{}](spec *ebpf.MapSpec) (*GenericMa
 	}, nil
 }
 
+// validateValueTypeForMapType checks that the type of values (V) is valid for the given map type, returning
+// an error if it's not valid.
+//
+// For now it ensures that per-cpu maps use a slice type for the value.
+// Separate function to allow using it in the different constructors/converters
 func validateValueTypeForMapType[V interface{}](t ebpf.MapType) error {
 	var vval V
 	if isPerCPU(t) && reflect.TypeOf(vval).Kind() != reflect.Slice {
@@ -235,11 +240,13 @@ func (g *GenericMap[K, V]) IterateWithOptions(itops IteratorOptions) GenericMapI
 	}
 }
 
+// genericMapItemIterator is an iterator for a map that returns a single item at a time
 type genericMapItemIterator[K interface{}, V interface{}] struct {
 	it                           *ebpf.MapIterator
 	valueTypeCanUseUnsafePointer bool
 }
 
+// Next fills K and V with the next key/value pair in the map. It returns false if there are no more elements
 func (g *genericMapItemIterator[K, V]) Next(key *K, value *V) bool {
 	// we resort to unsafe.Pointers because by doing so the underlying eBPF
 	// library avoids marshaling the key/value variables while traversing the map
@@ -252,26 +259,33 @@ func (g *genericMapItemIterator[K, V]) Next(key *K, value *V) bool {
 	return g.it.Next(unsafe.Pointer(key), value)
 }
 
+// Err returns the last error that happened during iteration. Should be checked
+// after completing the iteration, as it can report issues such as wrong types
+// being passed to the Next() method or aborted iterations, which would be perceived
+// as empty/partial map iterations.
 func (g *genericMapItemIterator[K, V]) Err() error {
 	return g.it.Err()
 }
 
+// genericMapBatchIterator is an iterator for a map that, under the hood, uses BatchLookup to reduce
+// the number of syscalls
 type genericMapBatchIterator[K interface{}, V interface{}] struct {
-	m                            *ebpf.Map
-	batchSize                    int
-	cursor                       ebpf.BatchCursor
-	keys                         []K
-	values                       []V
-	keysCopy                     any // A pointer to keys of type "any", used to avoid allocations when calling BatchLookup
-	valuesCopy                   any
-	currentBatchSize             int
-	inBatchIndex                 int
-	err                          error
-	totalCount                   int
-	lastBatch                    bool
-	valueTypeCanUseUnsafePointer bool
+	m                            *ebpf.Map        // Map to iterate
+	batchSize                    int              // Number of items to fetch per batch
+	cursor                       ebpf.BatchCursor // Cursor that maintains the state of the iteration
+	keys                         []K              // Buffer for storing the keys of the current batch
+	values                       []V              // Buffer for storing the values of the current batch
+	keysCopy                     any              // A pointer to keys of type "any", used to avoid allocations when calling BatchLookup
+	valuesCopy                   any              // Same as keysCopy but for values
+	currentBatchSize             int              // Number of elements in the current batch, as returned by BatchLookup
+	inBatchIndex                 int              // Index of the next element to return in the current batch
+	err                          error            // Last error that happened during iteration
+	totalCount                   int              // Total number of elements returned so far
+	lastBatch                    bool             // True if this is the last batch, used to avoid extra calls to BatchLookup
+	valueTypeCanUseUnsafePointer bool             // True if the value type can be passed as an unsafe.Pointer or not. Helps avoid allocations
 }
 
+// Next fills K and V with the next key/value pair in the map. It returns false if there are no more elements
 func (g *genericMapBatchIterator[K, V]) Next(key *K, value *V) bool {
 	// Safety check to avoid an infinite loop
 	if g.totalCount >= int(g.m.MaxEntries()) {
@@ -319,10 +333,15 @@ func (g *genericMapBatchIterator[K, V]) Next(key *K, value *V) bool {
 	return true
 }
 
+// Err returns the last error that happened during iteration. Should be checked
+// after completing the iteration, as it can report issues such as wrong types
+// being passed to the Next() method or aborted iterations, which would be perceived
+// as empty/partial map iterations.
 func (g *genericMapBatchIterator[K, V]) Err() error {
 	return g.err
 }
 
+// String returns a string representation of the map. Delegated to the underlying ebpf.Map method
 func (g *GenericMap[K, V]) String() string {
 	return g.m.String()
 }
