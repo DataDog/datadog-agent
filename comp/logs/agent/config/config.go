@@ -15,7 +15,7 @@ import (
 	"time"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
@@ -166,7 +166,7 @@ func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigK
 	} else {
 		// If no proxy is set, we default to 'logs_config.dd_url' if set, or to 'site'.
 		// if none of them is set, we default to the US agent endpoint.
-		main.Host = pkgconfigsetup.GetMainEndpoint(coreConfig, tcpEndpointPrefix, logsConfig.getConfigKey("dd_url"))
+		main.Host = pkgconfigutils.GetMainEndpoint(coreConfig, tcpEndpointPrefix, logsConfig.getConfigKey("dd_url"))
 		if port, found := logsEndpoints[main.Host]; found {
 			main.Port = port
 		} else {
@@ -181,7 +181,7 @@ func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigK
 			additionals[i].UseSSL = main.UseSSL
 		}
 		additionals[i].ProxyAddress = proxyAddress
-		additionals[i].APIKey = pkgconfigsetup.SanitizeAPIKey(additionals[i].APIKey)
+		additionals[i].APIKey = pkgconfigutils.SanitizeAPIKey(additionals[i].APIKey)
 	}
 	return NewEndpoints(main, additionals, useProto, false), nil
 }
@@ -240,7 +240,7 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 		main.Port = port
 		*main.UseSSL = useSSL
 	} else {
-		addr := pkgconfigsetup.GetMainEndpoint(coreConfig, endpointPrefix, logsConfig.getConfigKey("dd_url"))
+		addr := pkgconfigutils.GetMainEndpoint(coreConfig, endpointPrefix, logsConfig.getConfigKey("dd_url"))
 		host, port, useSSL, err := parseAddressWithScheme(addr, logsConfig.devModeNoSSL(), parseAddressAsHost)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse %s: %v", logsDDURL, err)
@@ -256,7 +256,7 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 		if additionals[i].UseSSL == nil {
 			additionals[i].UseSSL = main.UseSSL
 		}
-		additionals[i].APIKey = pkgconfigsetup.SanitizeAPIKey(additionals[i].APIKey)
+		additionals[i].APIKey = pkgconfigutils.SanitizeAPIKey(additionals[i].APIKey)
 		additionals[i].UseCompression = main.UseCompression
 		additionals[i].CompressionLevel = main.CompressionLevel
 		additionals[i].BackoffBase = main.BackoffBase

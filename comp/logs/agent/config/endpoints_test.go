@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -33,35 +34,35 @@ func (suite *EndpointsTestSuite) SetupTest() {
 func (suite *EndpointsTestSuite) TestLogsEndpointConfig() {
 	mockConfig := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
 
-	suite.Equal("agent-intake.logs.datadoghq.com", pkgconfigsetup.GetMainEndpoint(mockConfig, tcpEndpointPrefix, "logs_config.dd_url"))
+	suite.Equal("agent-intake.logs.datadoghq.com", pkgconfigutils.GetMainEndpoint(mockConfig, tcpEndpointPrefix, "logs_config.dd_url"))
 	endpoints, err := BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	suite.Equal("agent-intake.logs.datadoghq.com", endpoints.Main.Host)
 	suite.Equal(10516, endpoints.Main.Port)
 
 	suite.config.SetWithoutSource("site", "datadoghq.com")
-	suite.Equal("agent-intake.logs.datadoghq.com", pkgconfigsetup.GetMainEndpoint(mockConfig, tcpEndpointPrefix, "logs_config.dd_url"))
+	suite.Equal("agent-intake.logs.datadoghq.com", pkgconfigutils.GetMainEndpoint(mockConfig, tcpEndpointPrefix, "logs_config.dd_url"))
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	suite.Equal("agent-intake.logs.datadoghq.com", endpoints.Main.Host)
 	suite.Equal(10516, endpoints.Main.Port)
 
 	suite.config.SetWithoutSource("site", "datadoghq.eu")
-	suite.Equal("agent-intake.logs.datadoghq.eu", pkgconfigsetup.GetMainEndpoint(mockConfig, tcpEndpointPrefix, "logs_config.dd_url"))
+	suite.Equal("agent-intake.logs.datadoghq.eu", pkgconfigutils.GetMainEndpoint(mockConfig, tcpEndpointPrefix, "logs_config.dd_url"))
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	suite.Equal("agent-intake.logs.datadoghq.eu", endpoints.Main.Host)
 	suite.Equal(443, endpoints.Main.Port)
 
 	suite.config.SetWithoutSource("logs_config.dd_url", "lambda.logs.datadoghq.co.jp")
-	suite.Equal("lambda.logs.datadoghq.co.jp", pkgconfigsetup.GetMainEndpoint(mockConfig, tcpEndpointPrefix, "logs_config.dd_url"))
+	suite.Equal("lambda.logs.datadoghq.co.jp", pkgconfigutils.GetMainEndpoint(mockConfig, tcpEndpointPrefix, "logs_config.dd_url"))
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	suite.Equal("lambda.logs.datadoghq.co.jp", endpoints.Main.Host)
 	suite.Equal(10516, endpoints.Main.Port)
 
 	suite.config.SetWithoutSource("logs_config.logs_dd_url", "azure.logs.datadoghq.co.uk:1234")
-	suite.Equal("azure.logs.datadoghq.co.uk:1234", pkgconfigsetup.GetMainEndpoint(mockConfig, tcpEndpointPrefix, "logs_config.logs_dd_url"))
+	suite.Equal("azure.logs.datadoghq.co.uk:1234", pkgconfigutils.GetMainEndpoint(mockConfig, tcpEndpointPrefix, "logs_config.logs_dd_url"))
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	suite.Equal("azure.logs.datadoghq.co.uk", endpoints.Main.Host)

@@ -11,6 +11,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../../pkg/config/env/
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../../../pkg/config/model/
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../pkg/config/setup
+	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../../pkg/config/utils
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../../pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../../pkg/util/executable
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../../pkg/util/fxutil
@@ -25,6 +26,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/config/model v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/config/utils v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/log v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.50.0-rc.4

@@ -11,6 +11,7 @@ import (
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -123,9 +124,9 @@ func (l *LogsConfigKeys) hasAdditionalEndpoints() bool {
 // getLogsAPIKey provides the dd api key used by the main logs agent sender.
 func (l *LogsConfigKeys) getLogsAPIKey() string {
 	if configKey := l.getConfigKey("api_key"); l.isSetAndNotEmpty(configKey) {
-		return pkgconfigsetup.SanitizeAPIKey(l.getConfig().GetString(configKey))
+		return pkgconfigutils.SanitizeAPIKey(l.getConfig().GetString(configKey))
 	}
-	return pkgconfigsetup.SanitizeAPIKey(l.getConfig().GetString("api_key"))
+	return pkgconfigutils.SanitizeAPIKey(l.getConfig().GetString("api_key"))
 }
 
 func (l *LogsConfigKeys) connectionResetInterval() time.Duration {
