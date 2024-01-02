@@ -18,21 +18,21 @@ import (
 
 // SBOMPayload is a payload type for the sbom check
 type SBOMPayload struct {
-	agentmodel.SBOMEntity
+	*agentmodel.SBOMEntity
 	collectedTime time.Time
 }
 
-func (p SBOMPayload) name() string {
+func (p *SBOMPayload) name() string {
 	return p.Id
 }
 
 // GetTags return the tags from a payload
-func (p SBOMPayload) GetTags() []string {
+func (p *SBOMPayload) GetTags() []string {
 	return p.DdTags
 }
 
 // GetCollectedTime returns the time that the payload was received by the fake intake
-func (p SBOMPayload) GetCollectedTime() time.Time {
+func (p *SBOMPayload) GetCollectedTime() time.Time {
 	return p.collectedTime
 }
 
@@ -50,7 +50,7 @@ func ParseSbomPayload(payload api.Payload) ([]*SBOMPayload, error) {
 
 	payloads := make([]*SBOMPayload, len(msg.Entities))
 	for i, sbomEntity := range msg.Entities {
-		payloads[i] = &SBOMPayload{SBOMEntity: *sbomEntity, collectedTime: payload.Timestamp}
+		payloads[i] = &SBOMPayload{SBOMEntity: sbomEntity, collectedTime: payload.Timestamp}
 	}
 	return payloads, nil
 }

@@ -18,21 +18,26 @@ import (
 
 // ContainerLifecyclePayload is a payload type for the container lifecycle check
 type ContainerLifecyclePayload struct {
-	agentmodel.Event
+	*agentmodel.Event
 	collectedTime time.Time
 }
 
-func (p ContainerLifecyclePayload) name() string {
+func (p *ContainerLifecyclePayload) name() string {
+	if container := p.Event.GetContainer(); container != nil {
+		return fmt.Sprintf("container_id://%s", container.GetContainerID())
+	} else if pod := p.Event.GetPod(); pod != nil {
+		return fmt.Sprintf("kubernetes_pod_uid://%s", pod.GetPodUID())
+	}
 	return ""
 }
 
 // GetTags is not implemented for container lifecycle payloads
-func (p ContainerLifecyclePayload) GetTags() []string {
+func (p *ContainerLifecyclePayload) GetTags() []string {
 	return nil
 }
 
 // GetCollectedTime returns the time that the payload was received by the fake intake
-func (p ContainerLifecyclePayload) GetCollectedTime() time.Time {
+func (p *ContainerLifecyclePayload) GetCollectedTime() time.Time {
 	return p.collectedTime
 }
 
@@ -50,7 +55,7 @@ func ParseContainerLifecyclePayload(payload api.Payload) ([]*ContainerLifecycleP
 
 	events := make([]*ContainerLifecyclePayload, len(msg.Events))
 	for i, event := range msg.Events {
-		events[i] = &ContainerLifecyclePayload{Event: *event, collectedTime: payload.Timestamp}
+		events[i] = &ContainerLifecyclePayload{Event: event, collectedTime: payload.Timestamp}
 	}
 	return events, nil
 }

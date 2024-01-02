@@ -545,7 +545,7 @@ func (c *Client) GetProcessDiscoveries() ([]*aggregator.ProcessDiscoveryPayload,
 	return discs, nil
 }
 
-func (c Client) getContainerImage(name string) ([]*aggregator.ContainerImagePayload, error) {
+func (c *Client) getContainerImage(name string) ([]*aggregator.ContainerImagePayload, error) {
 	if err := c.getContainerImages(); err != nil {
 		return nil, err
 	}

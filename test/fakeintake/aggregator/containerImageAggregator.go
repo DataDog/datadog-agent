@@ -18,21 +18,21 @@ import (
 
 // ContainerImagePayload is a payload type for the container image check
 type ContainerImagePayload struct {
-	agentmodel.ContainerImage
+	*agentmodel.ContainerImage
 	collectedTime time.Time
 }
 
-func (p ContainerImagePayload) name() string {
+func (p *ContainerImagePayload) name() string {
 	return p.Name
 }
 
 // GetTags return the tags from a payload
-func (p ContainerImagePayload) GetTags() []string {
+func (p *ContainerImagePayload) GetTags() []string {
 	return p.DdTags
 }
 
 // GetCollectedTime returns the time that the payload was received by the fake intake
-func (p ContainerImagePayload) GetCollectedTime() time.Time {
+func (p *ContainerImagePayload) GetCollectedTime() time.Time {
 	return p.collectedTime
 }
 
@@ -50,7 +50,7 @@ func ParseContainerImagePayload(payload api.Payload) ([]*ContainerImagePayload, 
 
 	payloads := make([]*ContainerImagePayload, len(msg.Images))
 	for i, containerImage := range msg.Images {
-		payloads[i] = &ContainerImagePayload{ContainerImage: *containerImage, collectedTime: payload.Timestamp}
+		payloads[i] = &ContainerImagePayload{ContainerImage: containerImage, collectedTime: payload.Timestamp}
 	}
 	return payloads, nil
 }
