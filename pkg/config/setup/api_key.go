@@ -3,13 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package utils
+package setup
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	"strings"
 )
 
 // SanitizeAPIKey strips newlines and other control characters from a given string.
 func SanitizeAPIKey(key string) string {
-	return setup.SanitizeAPIKey(key)
+	return strings.TrimSpace(key)
 }
