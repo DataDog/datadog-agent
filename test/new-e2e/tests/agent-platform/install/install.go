@@ -22,7 +22,7 @@ func Unix(t *testing.T, client *common.TestClient, options ...installparams.Opti
 	params := installparams.NewParams(options...)
 	commandLine := ""
 
-	if params.PipelineID != "" {
+	if params.PipelineID != "" && params.MajorVersion != "5" {
 		testEnvVars := []string{}
 		testEnvVars = append(testEnvVars, "TESTING_APT_URL=apttesting.datad0g.com")
 		// apt testing repo
