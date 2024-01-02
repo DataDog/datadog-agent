@@ -304,7 +304,7 @@ func procTable(str string) []proc {
 			continue
 		}
 		cmdline := strings.Fields(l)
-		table = append(table, buildProc(cmdline[0], cmdline))
+		table = append(table, buildProc(cmdline[0], "", cmdline))
 	}
 	return table
 }
