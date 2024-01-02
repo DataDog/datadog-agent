@@ -23,10 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func TestHostnameCaching(t *testing.T) {
-}
-
 // testCase represents a test scenario for hostname resolution. The logic goes down a list trying different provider
 // that might or might not be coupled. Each field represents if the corresponding provider should be successful or not
 // and which one we expect at the end.

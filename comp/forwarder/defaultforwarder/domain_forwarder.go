@@ -70,8 +70,7 @@ func newDomainForwarder(
 	}
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
+func (f *domainForwarder) retryTransactions(_ time.Time) {
 	// In case it takes more that flushInterval to sort and retry
 	// transactions we skip a retry.
 	if !f.isRetrying.CompareAndSwap(false, true) {

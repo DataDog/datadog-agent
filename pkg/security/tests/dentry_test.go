@@ -9,7 +9,6 @@
 package tests
 
 import (
-	"fmt"
 	"os"
 	"path"
 	"syscall"
@@ -33,7 +32,7 @@ func TestDentryPathERPC(t *testing.T) {
 	}
 	rule := &rules.RuleDefinition{
 		ID:         "test_erpc_path_rule",
-		Expression: fmt.Sprintf(`open.flags & (O_CREAT|O_NOCTTY|O_NOFOLLOW) != 0 && process.file.name == "testsuite"`),
+		Expression: `open.flags & (O_CREAT|O_NOCTTY|O_NOFOLLOW) != 0 && process.file.name == "testsuite"`,
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{disableMapDentryResolution: true}))
@@ -98,7 +97,7 @@ func TestDentryPathMap(t *testing.T) {
 	}
 	rule := &rules.RuleDefinition{
 		ID:         "test_map_path_rule",
-		Expression: fmt.Sprintf(`open.flags & (O_CREAT|O_NOCTTY|O_NOFOLLOW) != 0 && process.file.name == "testsuite"`),
+		Expression: `open.flags & (O_CREAT|O_NOCTTY|O_NOFOLLOW) != 0 && process.file.name == "testsuite"`,
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{disableERPCDentryResolution: true}))
@@ -163,7 +162,7 @@ func TestDentryName(t *testing.T) {
 	}
 	rule := &rules.RuleDefinition{
 		ID:         "test_dentry_name_rule",
-		Expression: fmt.Sprintf(`open.flags & (O_CREAT|O_NOCTTY|O_NOFOLLOW) != 0 && process.file.name == "testsuite"`),
+		Expression: `open.flags & (O_CREAT|O_NOCTTY|O_NOFOLLOW) != 0 && process.file.name == "testsuite"`,
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})

@@ -18,9 +18,7 @@ import (
 	"github.com/cihub/seelog"
 )
 
-// Name of the Windows Service the agent runs as
-//
-//nolint:revive // TODO(ASC) Fix revive linter
+// ServiceName is the name of the Windows Service the agent runs as
 const ServiceName = "DatadogAgent"
 
 func init() {

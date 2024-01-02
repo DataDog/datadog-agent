@@ -11,9 +11,11 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"os"
 	"testing"
 	"time"
 
+	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -27,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -41,6 +44,15 @@ func randStringRunes(n int) []rune {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]
 	}
 	return b
+}
+
+func TestMain(m *testing.M) {
+	logLevel := os.Getenv("DD_LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "warn"
+	}
+	log.SetupLogger(seelog.Default, logLevel)
+	os.Exit(m.Run())
 }
 
 type USMgRPCSuite struct {
@@ -64,7 +76,7 @@ func TestGRPCScenarios(t *testing.T) {
 func getClientsArray(t *testing.T, size int) ([]*grpc.Client, func()) {
 	res := make([]*grpc.Client, size)
 	for i := 0; i < size; i++ {
-		client, err := grpc.NewClient(srvAddr, grpc.Options{})
+		client, err := grpc.NewClient(srvAddr, grpc.Options{}, false)
 		require.NoError(t, err)
 		res[i] = &client
 	}
@@ -90,7 +102,7 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 	cfg := config.New()
 	cfg.EnableHTTP2Monitoring = true
 
-	srv, err := grpc.NewServer(srvAddr)
+	srv, err := grpc.NewServer(srvAddr, false)
 	require.NoError(t, err)
 	srv.Run()
 	t.Cleanup(srv.Stop)
@@ -392,7 +404,7 @@ func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 	cfg := config.New()
 	cfg.EnableHTTP2Monitoring = true
 
-	srv, err := grpc.NewServer(srvAddr)
+	srv, err := grpc.NewServer(srvAddr, false)
 	require.NoError(t, err)
 	srv.Run()
 	t.Cleanup(srv.Stop)

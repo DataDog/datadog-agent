@@ -44,9 +44,11 @@ const (
 
 // ContainerContext defines a container context
 type ContainerContext struct {
-	ID        string
-	Name      string
-	CreatedAt uint64
+	ID             string
+	Name           string
+	ImageShortName string
+	ImageTag       string
+	CreatedAt      uint64
 }
 
 // FcntlSyscallMsg defines a fcntl message
