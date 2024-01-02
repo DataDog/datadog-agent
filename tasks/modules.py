@@ -167,6 +167,7 @@ DEFAULT_MODULES = {
     "comp/core/config": GoModule("comp/core/config", independent=True),
     "comp/core/secrets": GoModule("comp/core/secrets", independent=True),
     "comp/core/telemetry": GoModule("comp/core/telemetry", independent=True),
+    "comp/logs/agent/config": GoModule("comp/logs/agent/config", independent=True),
     "cmd/agent/common/path": GoModule("cmd/agent/common/path", independent=True),
     "pkg/config/model": GoModule("pkg/config/model", independent=True),
     "pkg/config/env": GoModule("pkg/config/env", independent=True),
