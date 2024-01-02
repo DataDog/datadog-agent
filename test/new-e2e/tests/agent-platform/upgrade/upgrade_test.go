@@ -117,7 +117,12 @@ func (is *upgradeSuite) TestUpgrade() {
 
 func (is *upgradeSuite) SetupAgentStartVersion(VMclient *common.TestClient) {
 	install.Unix(is.T(), VMclient, installparams.WithArch(*architecture), installparams.WithFlavor(*flavorName), installparams.WithMajorVersion(is.srcVersion), installparams.WithCustomAPIKey(os.Getenv("DATADOG_AGENT_API_KEY")))
-	_, err := VMclient.VMClient.ExecuteWithError("sudo /etc/init.d/datadog-agent stop")
+	var err error
+	if is.srcVersion == "5" {
+		_, err = VMclient.VMClient.ExecuteWithError("sudo /etc/init.d/datadog-agent stop")
+	} else {
+		_, err = VMclient.SvcManager.Stop("datadog-agent")
+	}
 	require.NoError(is.T(), err)
 }
 
