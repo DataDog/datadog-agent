@@ -29,6 +29,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ./comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/secrets => ./comp/core/secrets
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ./comp/core/telemetry/
+	github.com/DataDog/datadog-agent/comp/logs/agent/config => ./comp/logs/agent/config
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ./pkg/aggregator/ckey/
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ./pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ./pkg/config/env
@@ -596,6 +597,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.50.0-rc.4
+	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/config/env v0.50.0-rc.4
@@ -628,7 +630,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/version v0.50.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/version v0.50.1
 	github.com/DataDog/go-libddwaf/v2 v2.2.2
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.9.0
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
