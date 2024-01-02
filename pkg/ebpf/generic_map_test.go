@@ -11,10 +11,11 @@ import (
 	"fmt"
 	"testing"
 
-	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/require"
+	
+	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func TestBatchAPISupported(t *testing.T) {
