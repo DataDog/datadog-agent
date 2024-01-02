@@ -10,7 +10,7 @@ package ptracer
 
 import (
 	"bytes"
-	"os"
+	"fmt"
 	"runtime"
 	"syscall"
 
@@ -50,9 +50,16 @@ type Tracer struct {
 	info *arch.Info
 }
 
+// Creds defines credentials
+type Creds struct {
+	UID *uint32
+	GID *uint32
+}
+
 // Opts defines syscall filters
 type Opts struct {
 	Syscalls []string
+	Creds    Creds
 }
 
 func processVMReadv(pid int, addr uintptr, data []byte) (int, error) {
@@ -289,8 +296,7 @@ func traceFilterProg(opts Opts) (*syscall.SockFprog, error) {
 }
 
 // NewTracer returns a tracer
-func NewTracer(path string, args []string, opts Opts) (*Tracer, error) {
-
+func NewTracer(path string, args []string, envs []string, opts Opts) (*Tracer, error) {
 	info, err := arch.GetInfo("")
 	if err != nil {
 		return nil, err
@@ -298,24 +304,24 @@ func NewTracer(path string, args []string, opts Opts) (*Tracer, error) {
 
 	prog, err := traceFilterProg(opts)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to compile bpf prog: %w", err)
 	}
 
 	runtime.LockOSThread()
 
-	pid, err := forkExec(path, args, os.Environ(), prog)
+	pid, err := forkExec(path, args, envs, opts.Creds, prog)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to execute `%s`: %w", path, err)
 	}
 
 	var wstatus syscall.WaitStatus
 	if _, err = syscall.Wait4(pid, &wstatus, 0, nil); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to call wait4 on `%s`: %w", path, err)
 	}
 
 	err = syscall.PtraceSetOptions(pid, ptraceFlags)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to ptrace `%s`, please verify the capabilities: %w", path, err)
 	}
 
 	return &Tracer{

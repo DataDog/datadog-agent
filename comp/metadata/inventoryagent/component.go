@@ -22,8 +22,6 @@ type Component interface {
 	GetAsJSON() ([]byte, error)
 	// Get returns a copy of the agent metadata. Useful to be incorporated in the status page.
 	Get() map[string]interface{}
-	// Refresh trigger a new payload to be send while still respecting the minimal interval between two updates.
-	Refresh()
 }
 
 // Module defines the fx options for this component.

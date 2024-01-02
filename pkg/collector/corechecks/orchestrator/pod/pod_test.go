@@ -121,7 +121,7 @@ func (suite *PodTestSuite) SetupTest() {
 	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", kubeletPort)
 	mockConfig.SetWithoutSource("kubelet_tls_verify", false)
 	mockConfig.SetWithoutSource("orchestrator_explorer.enabled", true)
-	mockConfig.SetWithoutSource("orchestrator_explorer.run_on_node_agent", false)
+	mockConfig.SetWithoutSource("orchestrator_explorer.run_on_node_agent", true)
 	mockConfig.SetWithoutSource("orchestrator_explorer.manifest_collection.enabled", true)
 
 	kubeutil, _ := kubelet.GetKubeUtilWithRetrier()

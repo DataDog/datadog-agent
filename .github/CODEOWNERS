@@ -28,7 +28,7 @@
 # Todo: is this file still needed?
 /Makefile.trace                         @DataDog/agent-platform
 
-/release.json                           @DataDog/agent-platform @DataDog/agent-shared-components @DataDog/agent-metrics-logs @DataDog/windows-kernel-integrations
+/release.json                           @DataDog/agent-platform @DataDog/agent-metrics-logs @DataDog/windows-kernel-integrations
 /requirements.txt                       @DataDog/agent-platform
 /pyproject.toml                         @DataDog/agent-platform
 /setup.cfg                              @DataDog/agent-platform
@@ -47,6 +47,7 @@
 /.github/workflows/windows-*.yml                    @DataDog/windows-agent
 /.github/workflows/cws-btfhub-sync.yml              @DataDog/agent-security
 /.github/workflows/gohai.yml                        @DataDog/agent-shared-components
+/.github/workflows/go-update-commenter.yml          @DataDog/agent-shared-components
 
 # Gitlab files
 # Files containing job contents are owned by teams in charge of the jobs + agent-platform
@@ -305,16 +306,17 @@
 /pkg/collector/corechecks/windows_event_log/ @DataDog/windows-agent
 /pkg/config/                            @DataDog/agent-shared-components
 /pkg/config/config_template.yaml        @DataDog/agent-shared-components @DataDog/documentation
-/pkg/config/apm.go                      @DataDog/agent-apm
+/pkg/config/setup/apm.go                @DataDog/agent-apm
 /pkg/config/autodiscovery/              @Datadog/container-integrations
 /pkg/config/env                         @DataDog/container-integrations @DataDog/container-app
 /pkg/config/logs                        @Datadog/agent-shared-components @Datadog/agent-platform
 /pkg/config/logs/internal/seelog/seelog_config.go          @Datadog/agent-shared-components
-/pkg/config/process*.go                 @DataDog/processes
-/pkg/config/system_probe.go               @DataDog/ebpf-platform
-/pkg/config/system_probe_cws.go           @DataDog/agent-security
-/pkg/config/system_probe_cws_notwin.go    @DataDog/agent-security
-/pkg/config/system_probe_cws_windows.go   @DataDog/windows-kernel-integrations
+/pkg/config/setup                            @DataDog/agent-shared-components
+/pkg/config/setup/process*.go                 @DataDog/processes
+/pkg/config/setup/system_probe.go               @DataDog/ebpf-platform
+/pkg/config/setup/system_probe_cws.go           @DataDog/agent-security
+/pkg/config/setup/system_probe_cws_notwin.go    @DataDog/agent-security
+/pkg/config/setup/system_probe_cws_windows.go   @DataDog/windows-kernel-integrations
 /pkg/config/remote/                     @DataDog/remote-config
 /pkg/config/remote/meta/                @DataDog/remote-config @DataDog/software-integrity-and-trust
 /pkg/containerlifecycle/                @Datadog/container-integrations
@@ -339,7 +341,6 @@
 /pkg/proto/datadog/trace                @DataDog/agent-apm
 /pkg/remoteconfig/                      @DataDog/remote-config
 /pkg/runtime/                           @DataDog/agent-shared-components
-/pkg/secrets/                           @DataDog/agent-shared-components
 /pkg/serializer/                        @DataDog/agent-metrics-logs
 /pkg/tagger/                            @DataDog/container-integrations
 /pkg/tagset/                            @DataDog/agent-shared-components
@@ -499,14 +500,17 @@
 /test/new-e2e/tests/cws                       @DataDog/agent-security
 /test/new-e2e/tests/agent-platform            @DataDog/agent-platform
 /test/new-e2e/tests/agent-metric-logs   @DataDog/agent-metrics-logs
+/test/new-e2e/tests/windows                   @DataDog/windows-agent @DataDog/windows-kernel-integrations
 /test/system/                                 @DataDog/agent-shared-components
 /test/system/dogstatsd/                       @DataDog/agent-metrics-logs
 /test/benchmarks/apm_scripts/                 @DataDog/agent-apm
 /test/regression/                             @DataDog/single-machine-performance
 /test/workload-checks/                        @DataDog/single-machine-performance
+
 /tools/                                 @DataDog/agent-platform
 /tools/ebpf/                            @DataDog/ebpf-platform
 /tools/gdb/                             @DataDog/agent-shared-components
+/tools/go-update/                       @DataDog/agent-shared-components
 /tools/retry_file_dump/                 @DataDog/agent-metrics-logs
 /tools/windows/                         @DataDog/windows-agent
 /tools/windows/DatadogAgentInstaller/WixSetup/localization-en-us.wxl @DataDog/windows-agent @DataDog/documentation

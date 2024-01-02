@@ -691,6 +691,77 @@ func (suite *k8sSuite) TestPrometheus() {
 	})
 }
 
+func (suite *k8sSuite) TestAdmissionController() {
+	ctx := context.Background()
+
+	// Delete the pod to ensure it is recreated after the admission controller is deployed
+	err := suite.K8sClient.CoreV1().Pods("workload-mutated").DeleteCollection(ctx, metav1.DeleteOptions{}, metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", "mutated").String(),
+	})
+	suite.Require().NoError(err)
+
+	// Wait for the fresh pod to be created
+	var pod corev1.Pod
+	suite.Require().EventuallyWithTf(func(c *assert.CollectT) {
+		pods, err := suite.K8sClient.CoreV1().Pods("workload-mutated").List(ctx, metav1.ListOptions{
+			LabelSelector: fields.OneTermEqualSelector("app", "mutated").String(),
+		})
+		if !assert.NoError(c, err) {
+			return
+		}
+		if !assert.Len(c, pods.Items, 1) {
+			return
+		}
+		pod = pods.Items[0]
+	}, 2*time.Minute, 10*time.Second, "Failed to witness the creation of a pod in workload-mutated")
+
+	suite.Require().Len(pod.Spec.Containers, 1)
+
+	// Assert injected env vars
+	env := make(map[string]string)
+	for _, envVar := range pod.Spec.Containers[0].Env {
+		env[envVar.Name] = envVar.Value
+	}
+
+	if suite.Contains(env, "DD_DOGSTATSD_URL") {
+		suite.Equal("unix:///var/run/datadog/dsd.socket", env["DD_DOGSTATSD_URL"])
+	}
+	if suite.Contains(env, "DD_TRACE_AGENT_URL") {
+		suite.Equal("unix:///var/run/datadog/apm.socket", env["DD_TRACE_AGENT_URL"])
+	}
+	suite.Contains(env, "DD_ENTITY_ID")
+	if suite.Contains(env, "DD_ENV") {
+		suite.Equal("e2e", env["DD_ENV"])
+	}
+	if suite.Contains(env, "DD_SERVICE") {
+		suite.Equal("mutated", env["DD_SERVICE"])
+	}
+	if suite.Contains(env, "DD_VERSION") {
+		suite.Equal("v0.0.1", env["DD_VERSION"])
+	}
+
+	// Assert injected volumes and mounts
+	hostPathVolumes := make(map[string]*corev1.HostPathVolumeSource)
+	for _, volume := range pod.Spec.Volumes {
+		if volume.HostPath != nil {
+			hostPathVolumes[volume.Name] = volume.HostPath
+		}
+	}
+
+	if suite.Contains(hostPathVolumes, "datadog") {
+		suite.Equal("/var/run/datadog", hostPathVolumes["datadog"].Path)
+	}
+
+	volumeMounts := make(map[string]string)
+	for _, volumeMount := range pod.Spec.Containers[0].VolumeMounts {
+		volumeMounts[volumeMount.Name] = volumeMount.MountPath
+	}
+
+	if suite.Contains(volumeMounts, "datadog") {
+		suite.Equal("/var/run/datadog", volumeMounts["datadog"])
+	}
+}
+
 func (suite *k8sSuite) testHPA(namespace, deployment string) {
 	suite.Run(fmt.Sprintf("hpa   kubernetes_state.deployment.replicas_available{kube_namespace:%s,kube_deployment:%s}", namespace, deployment), func() {
 		sendEvent := func(alertType, text string, time *int) {

@@ -158,8 +158,13 @@ new-e2e-containers-dev:
   # TODO once images are deployed to ECR for dev branches, update
   # on_main_and_no_skip_e2e adding on_dev_branch_manual rules
   # and move rules to template
-  rules: !reference [.on_dev_branch_manual]
-  needs: []
+  rules:
+    - !reference [.if_run_e2e_tests]
+    - !reference [.on_dev_branch_manual]
+  needs:
+    - qa_branch_agent
+    - qa_branch_dca
+    - qa_branch_dogstatsd
   variables:
     TARGETS: ./tests/containers
     TEAM: container-integrations
@@ -186,13 +191,13 @@ new-e2e-containers-main:
       - EXTRA_PARAMS: --run TestEKSSuite
       - EXTRA_PARAMS: --run TestECSSuite
       - EXTRA_PARAMS: --skip "Test(Kind|EKS|ECS)Suite"
-  # Temporary, until we manage to stabilize those tests.
-  allow_failure: true
 
 new-e2e-agent-shared-components-dev:
   extends: .new_e2e_template
-  rules: !reference [.on_dev_branch_manual]
-  needs: []
+  rules:
+    - !reference [.if_run_e2e_tests]
+    - !reference [.on_dev_branch_manual]
+  needs: ["deploy_deb_testing-a7_x64"]
   variables:
     TARGETS: ./tests/agent-shared-components
     TEAM: agent-shared-components
@@ -200,35 +205,52 @@ new-e2e-agent-shared-components-dev:
 new-e2e-agent-shared-components-main:
   extends: .new_e2e_template
   rules: !reference [.on_main_and_no_skip_e2e]
-  needs: ['deploy_deb_testing-a7_x64']
+  needs: ["deploy_deb_testing-a7_x64"]
   variables:
     TARGETS: ./tests/agent-shared-components
     TEAM: agent-shared-components
-  # Temporary, until we manage to stabilize those tests.
-  allow_failure: true
+
+.agent-subcommands-tests-matrix: &agent-subcommands-tests-matrix
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestSubcommandSuite
+      - EXTRA_PARAMS: --run TestAgentConfigSuite
+      - EXTRA_PARAMS: --run TestAgentHostnameEC2Suite
+      - EXTRA_PARAMS: --run TestAgentDiagnoseEC2Suite
+      - EXTRA_PARAMS: --run TestAgentConfigCheckSuite
+      - EXTRA_PARAMS: --run TestLinuxFlareSuite
+      - EXTRA_PARAMS: --run TestWindowsFlareSuite
+      - EXTRA_PARAMS: --run TestLinuxSecretSuite
+      - EXTRA_PARAMS: --run TestWindowsSecretSuite
 
 new-e2e-agent-subcommands-dev:
   extends: .new_e2e_template
-  rules: !reference [.on_dev_branch_manual]
-  needs: []
+  rules:
+    - !reference [.if_run_e2e_tests]
+    - !reference [.on_dev_branch_manual]
+  needs: ["deploy_deb_testing-a7_x64"]
   variables:
     TARGETS: ./tests/agent-subcommands
     TEAM: agent-shared-components
+  <<: *agent-subcommands-tests-matrix
 
 new-e2e-agent-subcommands-main:
   extends: .new_e2e_template
   rules: !reference [.on_main_and_no_skip_e2e]
-  needs: ['deploy_deb_testing-a7_x64']
+  needs: ["deploy_deb_testing-a7_x64"]
   variables:
     TARGETS: ./tests/agent-subcommands
     TEAM: agent-shared-components
   # Temporary, until we manage to stabilize those tests.
   allow_failure: true
+  <<: *agent-subcommands-tests-matrix
 
 new-e2e-language-detection-dev:
   extends: .new_e2e_template
-  rules: !reference [.on_dev_branch_manual]
-  needs: []
+  rules:
+    - !reference [.if_run_e2e_tests]
+    - !reference [.on_dev_branch_manual]
+  needs: ["deploy_deb_testing-a7_x64"]
   variables:
     TARGETS: ./tests/language-detection
     TEAM: processes
@@ -242,8 +264,10 @@ new-e2e-language-detection-main:
 
 new-e2e-npm-dev:
   extends: .new_e2e_template
-  rules: !reference [.on_dev_branch_manual]
-  needs: []
+  rules:
+    - !reference [.if_run_e2e_tests]
+    - !reference [.on_dev_branch_manual]
+  needs: ["deploy_deb_testing-a7_x64"]
   variables:
     TARGETS: ./tests/npm
 
@@ -257,7 +281,10 @@ new-e2e-npm-main:
 
 new-e2e-aml-dev:
   extends: .new_e2e_template
-  rules: !reference [.on_dev_branch_manual]
+  rules:
+    - !reference [.if_run_e2e_tests]
+    - !reference [.on_dev_branch_manual]
+  needs: ["deploy_deb_testing-a7_x64"]
   variables:
     TARGETS: ./tests/agent-metric-logs
     TEAM: agent-metric-logs
@@ -271,8 +298,10 @@ new-e2e-aml-main:
 
 new-e2e-cws-dev:
   extends: .new_e2e_template
-  rules: !reference [.on_dev_branch_manual]
-  needs: []
+  rules:
+    - !reference [.if_run_e2e_tests]
+    - !reference [.on_dev_branch_manual]
+  needs: ["deploy_deb_testing-a7_x64"]
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
@@ -290,8 +319,10 @@ new-e2e-cws-main:
 
 new-e2e-process-dev:
   extends: .new_e2e_template
-  rules: !reference [.on_dev_branch_manual]
-  needs: []
+  rules:
+    - !reference [.if_run_e2e_tests]
+    - !reference [.on_dev_branch_manual]
+  needs: ["deploy_deb_testing-a7_x64"]
   variables:
     TARGETS: ./tests/process
     TEAM: processes
@@ -302,8 +333,6 @@ new-e2e-process-main:
   variables:
     TARGETS: ./tests/process
     TEAM: processes
-
-
 #   ^    If you create a new job here that extends `.new_e2e_template`,
 #  /!\   do not forget to add it in the `dependencies` statement of the
 # /___\  `e2e_test_junit_upload` job in the `.gitlab/e2e_test_junit_upload.yml` file

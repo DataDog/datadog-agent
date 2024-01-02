@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -21,12 +23,16 @@ import (
 
 // NewGoTLSClient triggers an external go tls client that runs `numRequests` HTTPs requests to `serverAddr`.
 // Returns the command executed and a callback to start sending requests.
-func NewGoTLSClient(t *testing.T, serverAddr string, numRequests int) (*exec.Cmd, func()) {
+func NewGoTLSClient(t *testing.T, serverAddr string, numRequests int, enableHTTP2 bool) (*exec.Cmd, func()) {
 	clientBin := buildGoTLSClientBin(t)
-	clientCmd := fmt.Sprintf("%s %s %d", clientBin, serverAddr, numRequests)
+	args := []string{clientBin, serverAddr, strconv.Itoa(numRequests)}
+	if enableHTTP2 {
+		args = append(args, "-http2")
+	}
 
 	timedCtx, cancel := context.WithTimeout(context.Background(), time.Second*60)
-	c, clientInput, err := nettestutil.StartCommandCtx(timedCtx, clientCmd)
+	commandLine := strings.Join(args, " ")
+	c, clientInput, err := nettestutil.StartCommandCtx(timedCtx, commandLine)
 
 	require.NoError(t, err)
 	return c, func() {
