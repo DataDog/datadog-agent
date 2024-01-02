@@ -9,6 +9,22 @@
     TEAM: agent-platform
     EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --cws-supported-osversion $E2E_CWS_SUPPORTED_OSVERS --major-version $AGENT_MAJOR_VERSION --arch $E2E_ARCH --flavor $FLAVOR
 
+.new-suse-e2e_script_upgrade:
+  variables:
+    TARGETS: ./tests/agent-platform/upgrade
+    TEAM: agent-platform
+    EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --cws-supported-osversion $E2E_CWS_SUPPORTED_OSVERS --arch $E2E_ARCH
+  script:
+    - export DATADOG_AGENT_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.agent-linux-install-script.datadog_api_key --with-decryption --query "Parameter.Value" --out text)
+    - export START_MAJOR_VERSION=6
+    - export AGENT_MAJOR_VERSION=7
+    - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:fullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA} -c ddagent:clusterAgentFullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/cluster-agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA} -c dddogstatsd:fullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/dogstatsd:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA} -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar "junit-${CI_JOB_NAME}.tgz" ${EXTRA_PARAMS} --src-agent-version $START_MAJOR_VERSION --dest-agent-version $AGENT_MAJOR_VERSION
+
+.new-e2e-suse_need_a6_and_a7:
+  needs:
+    - "deploy_suse_rpm_testing_x64-a6"
+    - "deploy_suse_rpm_testing_x64-a7"
+
 .new-e2e_suse_a6_x86_64:
   variables:
     E2E_ARCH: x86_64
@@ -133,33 +149,14 @@ new-e2e-agent-platform-step-by-step-suse-a7-arm64:
   variables:
     FLAVOR: datadog-agent
 
-new-e2e-agent-platform-install-script-upgrade-suse-a6-x86_64:
+new-e2e-agent-platform-install-script-upgrade-suse-x86_64:
   stage: kitchen_testing
   extends:
     - .new_e2e_template
-    - .new-e2e_script_upgrade
-    - .new-e2e_os_suse
-    - .new-e2e_suse_a6_x86_64
-    - .new-e2e_agent_a6
-
-new-e2e-agent-platform-install-script-upgrade-suse-a7-x86_64:
-  stage: kitchen_testing
-  extends:
-    - .new_e2e_template
-    - .new-e2e_script_upgrade
+    - .new-suse-e2e_script_upgrade
     - .new-e2e_os_suse
     - .new-e2e_suse_a7_x86_64
     - .new-e2e_agent_a7
+    - .new-e2e-suse_need_a6_and_a7
   rules:
     !reference [.on_default_new-e2e_tests_a7]
-
-new-e2e-agent-platform-install-script-upgrade-suse-a7-arm64:
-  stage: kitchen_testing
-  extends:
-    - .new_e2e_template
-    - .new-e2e_script_upgrade
-    - .new-e2e_os_suse
-    - .new-e2e_suse_a7_arm64
-    - .new-e2e_agent_a7
-  rules:
-    !reference [.on_all_new-e2e_tests_a7]
