@@ -2,7 +2,8 @@
 Description=Datadog Security Agent
 After=network.target datadog-agent.service
 BindsTo=datadog-agent.service
-ConditionPathExists=<%= etc_dir %>/security-agent.yaml
+ConditionPathExists=|<%= etc_dir %>/security-agent.yaml
+ConditionPathExists=|<%= etc_dir %>/enabled.d/security-agent
 
 [Service]
 Type=simple

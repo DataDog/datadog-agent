@@ -120,7 +120,11 @@ build do
             move "#{install_dir}/scripts/datadog-agent-trace.service", systemd_directory
             move "#{install_dir}/scripts/datadog-agent-process.service", systemd_directory
             move "#{install_dir}/scripts/datadog-agent-sysprobe.service", systemd_directory
+            move "#{install_dir}/scripts/datadog-agent-sysprobe-reload.path", systemd_directory
+            move "#{install_dir}/scripts/datadog-agent-sysprobe-reload.service", systemd_directory
             move "#{install_dir}/scripts/datadog-agent-security.service", systemd_directory
+            move "#{install_dir}/scripts/datadog-agent-security-reload.path", systemd_directory
+            move "#{install_dir}/scripts/datadog-agent-security-reload.service", systemd_directory
 
             # Move configuration files
             mkdir "/etc/datadog-agent"
@@ -131,6 +135,7 @@ build do
             move "#{install_dir}/etc/datadog-agent/runtime-security.d", "/etc/datadog-agent", :force=>true
             move "#{install_dir}/etc/datadog-agent/security-agent.yaml.example", "/etc/datadog-agent", :force=>true
             move "#{install_dir}/etc/datadog-agent/compliance.d", "/etc/datadog-agent"
+            mkdir "/etc/datadog-agent/enabled.d"
 
             # Move SELinux policy
             if debian_target? || redhat_target?

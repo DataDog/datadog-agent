@@ -495,6 +495,7 @@ def build(
     strip_object_files=False,
     strip_binary=False,
     with_unit_test=False,
+    static=False,
 ):
     """
     Build the system-probe
@@ -520,6 +521,7 @@ def build(
         race=race,
         incremental_build=incremental_build,
         strip_binary=strip_binary,
+        static=static,
     )
 
 
@@ -549,11 +551,13 @@ def build_sysprobe_binary(
     binary=BIN_PATH,
     bundle_ebpf=False,
     strip_binary=False,
+    static=False,
 ):
     ldflags, gcflags, env = get_build_flags(
         ctx,
         major_version=major_version,
         python_runtimes=python_runtimes,
+        static=static,
     )
 
     build_tags = get_default_build_tags(build="system-probe", arch=arch)
