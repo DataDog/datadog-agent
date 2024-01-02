@@ -45,6 +45,7 @@ func randStringRunes(n int) []rune {
 
 type USMgRPCSuite struct {
 	suite.Suite
+	fixtures grpcFixtures
 }
 
 func TestGRPCScenarios(t *testing.T) {
@@ -56,8 +57,12 @@ func TestGRPCScenarios(t *testing.T) {
 
 	rand.Seed(time.Now().UnixNano())
 
-	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
-		suite.Run(t, new(USMgRPCSuite))
+	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "without TLS", func(t *testing.T) {
+		grpcSuite := &USMgRPCSuite{
+			fixtures: &plainGRPCFixtures{},
+		}
+
+		suite.Run(t, grpcSuite)
 	})
 }
 
@@ -87,27 +92,23 @@ type captureRange struct {
 
 func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 	t := s.T()
-	cfg := config.New()
-	cfg.EnableHTTP2Monitoring = true
 
-	srv, err := grpc.NewServer(srvAddr, false)
-	require.NoError(t, err)
-	srv.Run()
-	t.Cleanup(srv.Stop)
+	cfg := s.fixtures.GetConfig(t)
+	serverPid := s.fixtures.StartServer(t)
 	defaultCtx := context.Background()
 
 	// c is a stream endpoint
 	// a + b are unary endpoints
 	tests := []struct {
 		name              string
-		runClients        func(t *testing.T, clientsCount int)
+		clientsSetupFn    func(t *testing.T, clientsCount int, withTLS bool)
 		expectedEndpoints map[http.Key]captureRange
 		expectedError     bool
 	}{
 		{
 			name: "simple unary - multiple requests",
-			runClients: func(t *testing.T, clientsCount int) {
-				clients, cleanup := getClientsArray(t, clientsCount, false)
+			clientsSetupFn: func(t *testing.T, clientsCount int, withTLS bool) {
+				clients, cleanup := getClientsArray(t, clientsCount, withTLS)
 				defer cleanup()
 				for i := 0; i < 1000; i++ {
 					client := clients[getClientsIndex(i, clientsCount)]
@@ -126,8 +127,8 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 		},
 		{
 			name: "unary, a->b->a",
-			runClients: func(t *testing.T, clientsCount int) {
-				clients, cleanup := getClientsArray(t, clientsCount, false)
+			clientsSetupFn: func(t *testing.T, clientsCount int, withTLS bool) {
+				clients, cleanup := getClientsArray(t, clientsCount, withTLS)
 				defer cleanup()
 				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleUnary(defaultCtx, "first"))
 				require.NoError(t, clients[getClientsIndex(1, clientsCount)].GetFeature(defaultCtx, -746143763, 407838351))
@@ -152,8 +153,8 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 		},
 		{
 			name: "unary, a->b->a->b",
-			runClients: func(t *testing.T, clientsCount int) {
-				clients, cleanup := getClientsArray(t, clientsCount, false)
+			clientsSetupFn: func(t *testing.T, clientsCount int, withTLS bool) {
+				clients, cleanup := getClientsArray(t, clientsCount, withTLS)
 				defer cleanup()
 				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleUnary(defaultCtx, "first"))
 				require.NoError(t, clients[getClientsIndex(1, clientsCount)].GetFeature(defaultCtx, -746143763, 407838351))
@@ -179,8 +180,8 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 		},
 		{
 			name: "unary, a->b->b->a",
-			runClients: func(t *testing.T, clientsCount int) {
-				clients, cleanup := getClientsArray(t, clientsCount, false)
+			clientsSetupFn: func(t *testing.T, clientsCount int, withTLS bool) {
+				clients, cleanup := getClientsArray(t, clientsCount, withTLS)
 				defer cleanup()
 				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleUnary(defaultCtx, "first"))
 				require.NoError(t, clients[getClientsIndex(1, clientsCount)].GetFeature(defaultCtx, -746143763, 407838351))
@@ -206,8 +207,8 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 		},
 		{
 			name: "stream, c",
-			runClients: func(t *testing.T, clientsCount int) {
-				clients, cleanup := getClientsArray(t, clientsCount, false)
+			clientsSetupFn: func(t *testing.T, clientsCount int, withTLS bool) {
+				clients, cleanup := getClientsArray(t, clientsCount, withTLS)
 				defer cleanup()
 				for i := 0; i < 25; i++ {
 					client := clients[getClientsIndex(i, clientsCount)]
@@ -226,8 +227,8 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 		},
 		{
 			name: "mixed, c->b->c->b",
-			runClients: func(t *testing.T, clientsCount int) {
-				clients, cleanup := getClientsArray(t, clientsCount, false)
+			clientsSetupFn: func(t *testing.T, clientsCount int, withTLS bool) {
+				clients, cleanup := getClientsArray(t, clientsCount, withTLS)
 				defer cleanup()
 				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleStream(defaultCtx, 10))
 				require.NoError(t, clients[getClientsIndex(1, clientsCount)].HandleUnary(defaultCtx, "first"))
@@ -253,8 +254,8 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 		},
 		{
 			name: "500 headers -> b -> 500 headers -> b",
-			runClients: func(t *testing.T, clientsCount int) {
-				clients, cleanup := getClientsArray(t, clientsCount, false)
+			clientsSetupFn: func(t *testing.T, clientsCount int, withTLS bool) {
+				clients, cleanup := getClientsArray(t, clientsCount, withTLS)
 				defer cleanup()
 				ctxWithoutHeaders := context.Background()
 				ctxWithHeaders := context.Background()
@@ -290,8 +291,8 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 		},
 		{
 			name: "duplicated headers -> b -> duplicated headers -> b",
-			runClients: func(t *testing.T, clientsCount int) {
-				clients, cleanup := getClientsArray(t, clientsCount, false)
+			clientsSetupFn: func(t *testing.T, clientsCount int, withTLS bool) {
+				clients, cleanup := getClientsArray(t, clientsCount, withTLS)
 				defer cleanup()
 				ctxWithoutHeaders := context.Background()
 				ctxWithHeaders := context.Background()
@@ -336,22 +337,18 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 					t.Skip("Skipping test due to known issue")
 				}
 
-				monitor, err := usm.NewMonitor(cfg, nil, nil, nil)
-				require.NoError(t, err)
-				require.NoError(t, monitor.Start())
-				defer monitor.Stop()
+				mon := s.fixtures.GetMonitor(t, cfg)
+				s.fixtures.WaitServerHooking(t, serverPid)
 
-				tt.runClients(t, clientCount)
+				s.fixtures.RunClients(t, clientCount, tt.clientsSetupFn)
 
 				res := make(map[http.Key]int)
 				require.Eventually(t, func() bool {
-					stats := monitor.GetProtocolStats()
-					http2Stats, ok := stats[protocols.HTTP2]
-					if !ok {
+					http2Stats := mon.GetHTTP2Stats()
+					if http2Stats == nil {
 						return false
 					}
-					http2StatsTyped := http2Stats.(map[http.Key]*http.RequestStats)
-					for key, stat := range http2StatsTyped {
+					for key, stat := range http2Stats {
 						if key.DstPort == 5050 || key.SrcPort == 5050 {
 							count := stat.Data[200].Count
 							newKey := http.Key{
@@ -389,13 +386,9 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 
 func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 	t := s.T()
-	cfg := config.New()
-	cfg.EnableHTTP2Monitoring = true
 
-	srv, err := grpc.NewServer(srvAddr, false)
-	require.NoError(t, err)
-	srv.Run()
-	t.Cleanup(srv.Stop)
+	cfg := s.fixtures.GetConfig(t)
+	serverPid := s.fixtures.StartServer(t)
 	defaultCtx := context.Background()
 
 	// Random string generation is an heavy operation, and it's proportional for the length (30MB)
@@ -407,13 +400,13 @@ func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 	// a + b are unary endpoints
 	tests := []struct {
 		name              string
-		runClients        func(t *testing.T, clientsCount int)
+		clientsSetupFn    func(t *testing.T, clientsCount int, withTLS bool)
 		expectedEndpoints map[http.Key]captureRange
 	}{
 		{
 			name: "request with large body (30MB)",
-			runClients: func(t *testing.T, clientsCount int) {
-				clients, cleanup := getClientsArray(t, clientsCount, false)
+			clientsSetupFn: func(t *testing.T, clientsCount int, withTLS bool) {
+				clients, cleanup := getClientsArray(t, clientsCount, withTLS)
 				defer cleanup()
 				longRandomString[0] = '0' + rune(clientsCount)
 				for i := 0; i < 5; i++ {
@@ -433,8 +426,8 @@ func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 		},
 		{
 			name: "request with large body (5MB) -> b -> request with large body (5MB) -> b",
-			runClients: func(t *testing.T, clientsCount int) {
-				clients, cleanup := getClientsArray(t, clientsCount, false)
+			clientsSetupFn: func(t *testing.T, clientsCount int, withTLS bool) {
+				clients, cleanup := getClientsArray(t, clientsCount, withTLS)
 				defer cleanup()
 				longRandomString[3] = '0' + rune(clientsCount)
 
@@ -465,22 +458,18 @@ func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 		for _, clientCount := range []int{1, 2, 5} {
 			testNameSuffix := fmt.Sprintf("-different clients - %v", clientCount)
 			t.Run(tt.name+testNameSuffix, func(t *testing.T) {
-				monitor, err := usm.NewMonitor(cfg, nil, nil, nil)
-				require.NoError(t, err)
-				require.NoError(t, monitor.Start())
-				defer monitor.Stop()
-
-				tt.runClients(t, clientCount)
+				mon := s.fixtures.GetMonitor(t, cfg)
+				s.fixtures.WaitServerHooking(t, serverPid)
+				s.fixtures.RunClients(t, clientCount, tt.clientsSetupFn)
 
 				res := make(map[http.Key]int)
 				assert.Eventually(t, func() bool {
-					stats := monitor.GetProtocolStats()
-					http2Stats, ok := stats[protocols.HTTP2]
-					if !ok {
+					http2Stats := mon.GetHTTP2Stats()
+					if http2Stats == nil {
 						return false
 					}
-					http2StatsTyped := http2Stats.(map[http.Key]*http.RequestStats)
-					for key, stat := range http2StatsTyped {
+
+					for key, stat := range http2Stats {
 						if key.DstPort == 5050 || key.SrcPort == 5050 {
 							count := stat.Data[200].Count
 							newKey := http.Key{
@@ -511,20 +500,6 @@ func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 
 					return true
 				}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
-
-				if t.Failed() {
-					tlw := &ebpftest.TestLogWriter{T: t}
-
-					err := monitor.DumpMaps(tlw, "http2_in_flight")
-					if err != nil {
-						t.Logf("failed dumping http2_in_flight: %s", err)
-					}
-
-					err = monitor.DumpMaps(tlw, "http2_dynamic_table")
-					if err != nil {
-						t.Logf("failed dumping http2_dynamic_table: %s", err)
-					}
-				}
 			})
 		}
 	}
