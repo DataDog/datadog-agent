@@ -13,7 +13,6 @@ import (
 	"log"
 	"math"
 	"net"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -233,9 +232,10 @@ func NewServer(addr string, enableTLS bool) (*Server, error) {
 
 	creds := insecure.NewCredentials()
 	if enableTLS {
-		curDir, _ := testutil.CurDir()
-		crtPath := filepath.Join(curDir, "testdata/cert.pem.0")
-		keyPath := filepath.Join(curDir, "testdata/server.key")
+		crtPath, keyPath, err := testutil.GetCertsPaths()
+		if err != nil {
+			return nil, err
+		}
 		creds, err = credentials.NewServerTLSFromFile(crtPath, keyPath)
 		if err != nil {
 			return nil, err
