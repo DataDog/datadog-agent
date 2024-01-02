@@ -163,13 +163,14 @@ type SpanContext struct {
 
 // BaseEvent represents an event sent from the kernel
 type BaseEvent struct {
-	ID           string         `field:"-" event:"*"`
-	Type         uint32         `field:"-"`
-	Flags        uint32         `field:"-"`
-	TimestampRaw uint64         `field:"event.timestamp,handler:ResolveEventTimestamp" event:"*"` // SECLDoc[event.timestamp] Definition:`Timestamp of the event`
-	Timestamp    time.Time      `field:"timestamp,opts:getters_only,handler:ResolveEventTime"`
-	Rules        []*MatchedRule `field:"-"`
-	Origin       string         `field:"-"`
+	ID           string             `field:"-" event:"*"`
+	Type         uint32             `field:"-"`
+	Flags        uint32             `field:"-"`
+	TimestampRaw uint64             `field:"event.timestamp,handler:ResolveEventTimestamp" event:"*"` // SECLDoc[event.timestamp] Definition:`Timestamp of the event`
+	Timestamp    time.Time          `field:"timestamp,opts:getters_only,handler:ResolveEventTime"`
+	Rules        []*MatchedRule     `field:"-"`
+	Actions      []*ActionTriggered `field:"-"`
+	Origin       string             `field:"-"`
 
 	// context shared with all events
 	ProcessContext         *ProcessContext        `field:"process" event:"*"`
@@ -307,6 +308,11 @@ func (e *Event) GetTags() []string {
 	return tags
 }
 
+// GetActions returns the triggred actions
+func (e *Event) GetActions() []*ActionTriggered {
+	return e.Actions
+}
+
 // GetWorkloadID returns an ID that represents the workload
 func (e *Event) GetWorkloadID() string {
 	return e.SecurityProfileContext.Name
@@ -362,6 +368,12 @@ type MatchedRule struct {
 	RuleTags      map[string]string
 	PolicyName    string
 	PolicyVersion string
+}
+
+// ActionTriggered defines a triggered action
+type ActionTriggered struct {
+	Name  string
+	Value string
 }
 
 // NewMatchedRule return a new MatchedRule instance

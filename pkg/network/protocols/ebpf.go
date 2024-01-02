@@ -37,8 +37,10 @@ const (
 	ProgramHTTP2HandleFirstFrame ProgramType = C.PROG_HTTP2_HANDLE_FIRST_FRAME
 	// ProgramHTTP2FrameFilter is the Golang representation of the C.PROG_HTTP2_HANDLE_FRAME enum
 	ProgramHTTP2FrameFilter ProgramType = C.PROG_HTTP2_FRAME_FILTER
-	// ProgramHTTP2FrameParser is the Golang representation of the C.PROG_HTTP2_FRAME_PARSER enum
-	ProgramHTTP2FrameParser ProgramType = C.PROG_HTTP2_FRAME_PARSER
+	// ProgramHTTP2HeadersParser is the Golang representation of the C.PROG_HTTP2_HEADERS_PARSER enum
+	ProgramHTTP2HeadersParser ProgramType = C.PROG_HTTP2_HEADERS_PARSER
+	// ProgramHTTP2EOSParser is the Golang representation of the C.PROG_HTTP2_EOS_PARSER enum
+	ProgramHTTP2EOSParser ProgramType = C.PROG_HTTP2_EOS_PARSER
 	// ProgramKafka is the Golang representation of the C.PROG_KAFKA enum
 	ProgramKafka ProgramType = C.PROG_KAFKA
 )

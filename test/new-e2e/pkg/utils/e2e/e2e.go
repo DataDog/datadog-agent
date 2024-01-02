@@ -461,6 +461,10 @@ func (suite *Suite[Env]) BeforeTest(suiteName, testName string) {
 	_ = suiteName
 	_ = testName
 	suite.isUpdateEnvCalledInThisTest = false
+	if suite.params.LazyEnvironment {
+		return
+	}
+	suite.UpdateEnv(suite.defaultStackDef)
 }
 
 // AfterTest is executed right after the test finishes and receives the suite and test names as input.
@@ -526,6 +530,29 @@ func (suite *Suite[Env]) TearDownSuite() {
 	}
 }
 
+// UpdateEnv updates the environment.
+// This affects only the test that calls this function.
+// Test functions that don't call UpdateEnv have the environment defined by [e2e.Run].
+func (suite *Suite[Env]) UpdateEnv(stackDef *StackDefinition[Env]) {
+	if stackDef != suite.currentStackDef {
+		if (suite.firstFailTest != "" || suite.T().Failed()) && suite.params.SkipDeleteOnFailure {
+			// In case of failure, do not override the environment
+			suite.T().SkipNow()
+		}
+		suite.setupEnv(stackDef)
+	}
+	suite.isUpdateEnvCalledInThisTest = true
+}
+
+func (suite *Suite[Env]) setupEnv(stackDef *StackDefinition[Env]) {
+	env, upResult, err := createEnv(suite, stackDef)
+	suite.Require().NoError(err)
+	err = client.CallStackInitializers(suite.T(), env, upResult)
+	suite.Require().NoError(err)
+	suite.env = env
+	suite.currentStackDef = stackDef
+}
+
 func createEnv[Env any](suite *Suite[Env], stackDef *StackDefinition[Env]) (*Env, auto.UpResult, error) {
 	var env *Env
 	ctx := context.Background()
@@ -540,23 +567,4 @@ func createEnv[Env any](suite *Suite[Env], stackDef *StackDefinition[Env]) (*Env
 		}, false, testWriter{t: suite.T()})
 
 	return env, stackOutput, err
-}
-
-// UpdateEnv updates the environment.
-// This affects only the test that calls this function.
-// Test functions that don't call UpdateEnv have the environment defined by [e2e.Run].
-func (suite *Suite[Env]) UpdateEnv(stackDef *StackDefinition[Env]) {
-	if stackDef != suite.currentStackDef {
-		if (suite.firstFailTest != "" || suite.T().Failed()) && suite.params.SkipDeleteOnFailure {
-			// In case of failure, do not override the environment
-			suite.T().SkipNow()
-		}
-		env, upResult, err := createEnv(suite, stackDef)
-		suite.Require().NoError(err)
-		err = client.CallStackInitializers(suite.T(), env, upResult)
-		suite.Require().NoError(err)
-		suite.env = env
-		suite.currentStackDef = stackDef
-	}
-	suite.isUpdateEnvCalledInThisTest = true
 }

@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/test/fakeintake
 
-go 1.20
+go 1.21
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.73
@@ -11,7 +11,7 @@ require (
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/prometheus/client_golang v1.17.0
 	github.com/spf13/cobra v1.8.0
-	github.com/stretchr/testify v1.8.1
+	github.com/stretchr/testify v1.8.4
 )
 
 require (

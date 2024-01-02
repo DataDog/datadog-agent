@@ -24,7 +24,7 @@ func TestServerlessLoggingNotInServerlessContext(t *testing.T) {
 	assert.Nil(t, err)
 
 	SetupLogger(l, "debug")
-	assert.NotNil(t, Logger)
+	assert.NotNil(t, logger.Load())
 
 	DebugfServerless("%s %d", "foo", 10)
 	DebugServerless("Not in serverless mode")

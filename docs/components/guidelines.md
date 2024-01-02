@@ -8,7 +8,7 @@ It also allows Agent-wide changes, where we make the same formulaic change to ea
 If a situation arises that contradicts the guidelines, then we can update the guidelines (and change all affected components).
 
 * [Defining Components](./defining-components.md)
-* [Using Components](./using.md)
+* [Using Components](./usage.md)
 * [Defining Bundles](./defining-bundles.md)
 * [Defining Apps](./defining-apps.md)
 * [Registrations](./registrations.md)
