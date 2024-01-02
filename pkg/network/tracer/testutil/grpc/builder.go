@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -20,11 +21,15 @@ import (
 
 // NewGRPCTLSServer triggers an external go tls client that runs `numRequests` HTTPs requests to `serverAddr`.
 // Returns the command executed and a callback to start sending requests.
-func NewGRPCTLSServer(t *testing.T) (*exec.Cmd, context.CancelFunc) {
+func NewGRPCTLSServer(t *testing.T, addr string, useTLS bool) (*exec.Cmd, context.CancelFunc) {
 	serverBin := buildGRPCServerBin(t)
-
+	args := []string{serverBin, "-addr", addr}
+	if useTLS {
+		args = append(args, "-tls")
+	}
 	cancelCtx, cancel := context.WithCancel(context.Background())
-	c, _, err := nettestutil.StartCommandCtx(cancelCtx, serverBin)
+	commandLine := strings.Join(args, " ")
+	c, _, err := nettestutil.StartCommandCtx(cancelCtx, commandLine)
 
 	require.NoError(t, err)
 	return c, cancel
