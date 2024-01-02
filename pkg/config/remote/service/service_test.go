@@ -104,6 +104,25 @@ func (m *mockUptane) TUFVersionState() (uptane.TUFVersions, error) {
 	return args.Get(0).(uptane.TUFVersions), args.Error(1)
 }
 
+type mockRcTelemetryReporter struct {
+	mock.Mock
+}
+
+func (m *mockRcTelemetryReporter) IncRateLimit() {
+	m.Called()
+}
+
+func (m *mockRcTelemetryReporter) IncTimeout() {
+	m.Called()
+}
+
+func newMockRcTelemetryReporter() *mockRcTelemetryReporter {
+	m := &mockRcTelemetryReporter{}
+	m.On("IncRateLimit").Return()
+	m.On("IncBypassTimeout").Return()
+	return m
+}
+
 var testRCKey = msgpgo.RemoteConfigKey{
 	AppKey:     "fake_key",
 	OrgID:      2,
@@ -164,7 +183,8 @@ func newTestService(t *testing.T, api *mockAPI, uptane *mockUptane, clock clock.
 	cfg.SetWithoutSource("remote_configuration.key", base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(serializedKey))
 	baseRawURL := "https://localhost"
 	traceAgentEnv := getTraceAgentDefaultEnv(cfg)
-	service, err := NewService(cfg, "abc", baseRawURL, "localhost", WithTraceAgentEnv(traceAgentEnv))
+	mockTelemetryReporter := newMockRcTelemetryReporter()
+	service, err := NewService(cfg, "abc", baseRawURL, "localhost", mockTelemetryReporter, WithTraceAgentEnv(traceAgentEnv))
 	require.NoError(t, err)
 	t.Cleanup(func() { service.Stop() })
 	service.api = api

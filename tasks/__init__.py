@@ -7,6 +7,7 @@ from invoke import Collection
 from . import (
     agent,
     bench,
+    buildimages,
     cluster_agent,
     cluster_agent_cloudfoundry,
     components,
@@ -32,6 +33,7 @@ from . import (
     system_probe,
     systray,
     trace_agent,
+    updater,
     vscode,
 )
 from .build_tags import audit_tag_impact, print_default_build_tags
@@ -127,6 +129,7 @@ ns.add_task(send_unit_tests_stats)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)
+ns.add_collection(buildimages)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
 ns.add_collection(components)
@@ -153,6 +156,7 @@ ns.add_collection(new_e2e_tests)
 ns.add_collection(fakeintake)
 ns.add_collection(kmt)
 ns.add_collection(diff)
+ns.add_collection(updater)
 ns.configure(
     {
         'run': {

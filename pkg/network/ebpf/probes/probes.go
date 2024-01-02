@@ -244,6 +244,4 @@ const (
 	ClassificationProgsMap BPFMapName = "classification_progs"
 	//nolint:revive // TODO(NET) Fix revive linter
 	TCPCloseProgsMap BPFMapName = "tcp_close_progs"
-	//nolint:revive // TODO(NET) Fix revive linter
-	StaticTableMap BPFMapName = "http2_static_table"
 )

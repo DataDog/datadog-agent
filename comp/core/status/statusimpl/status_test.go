@@ -26,11 +26,12 @@ import (
 )
 
 type mockProvider struct {
-	data    map[string]interface{}
-	text    string
-	html    string
-	name    string
-	section string
+	data        map[string]interface{}
+	text        string
+	html        string
+	name        string
+	section     string
+	returnError bool
 }
 
 func (m mockProvider) Name() string {
@@ -42,6 +43,10 @@ func (m mockProvider) Section() string {
 }
 
 func (m mockProvider) JSON(stats map[string]interface{}) error {
+	if m.returnError {
+		return fmt.Errorf("JSON error")
+	}
+
 	for key, value := range m.data {
 		stats[key] = value
 	}
@@ -50,21 +55,30 @@ func (m mockProvider) JSON(stats map[string]interface{}) error {
 }
 
 func (m mockProvider) Text(buffer io.Writer) error {
+	if m.returnError {
+		return fmt.Errorf("Text error")
+	}
+
 	_, err := buffer.Write([]byte(m.text))
 	return err
 }
 
 func (m mockProvider) HTML(buffer io.Writer) error {
+	if m.returnError {
+		return fmt.Errorf("HTML error")
+	}
+
 	_, err := buffer.Write([]byte(m.html))
 	return err
 }
 
 type mockHeaderProvider struct {
-	data  map[string]interface{}
-	text  string
-	html  string
-	index int
-	name  string
+	data        map[string]interface{}
+	text        string
+	html        string
+	index       int
+	name        string
+	returnError bool
 }
 
 func (m mockHeaderProvider) Index() int {
@@ -76,6 +90,10 @@ func (m mockHeaderProvider) Name() string {
 }
 
 func (m mockHeaderProvider) JSON(stats map[string]interface{}) error {
+	if m.returnError {
+		return fmt.Errorf("JSON error")
+	}
+
 	for key, value := range m.data {
 		stats[key] = value
 	}
@@ -84,35 +102,21 @@ func (m mockHeaderProvider) JSON(stats map[string]interface{}) error {
 }
 
 func (m mockHeaderProvider) Text(buffer io.Writer) error {
+	if m.returnError {
+		return fmt.Errorf("Text error")
+	}
+
 	_, err := buffer.Write([]byte(m.text))
 	return err
 }
 
 func (m mockHeaderProvider) HTML(buffer io.Writer) error {
+	if m.returnError {
+		return fmt.Errorf("HTML error")
+	}
+
 	_, err := buffer.Write([]byte(m.html))
 	return err
-}
-
-type errorMockProvider struct{}
-
-func (m errorMockProvider) Name() string {
-	return "error mock"
-}
-
-func (m errorMockProvider) Section() string {
-	return "error section"
-}
-
-func (m errorMockProvider) JSON(map[string]interface{}) error {
-	return fmt.Errorf("testing JSON errors")
-}
-
-func (m errorMockProvider) Text(io.Writer) error {
-	return fmt.Errorf("testing Text errors")
-}
-
-func (m errorMockProvider) HTML(io.Writer) error {
-	return fmt.Errorf("testing HTML errors")
 }
 
 var (
@@ -128,41 +132,6 @@ var (
 var testTextHeader = fmt.Sprintf(`%s
 %s
 %s`, status.PrintDashes(testTitle, "="), testTitle, status.PrintDashes(testTitle, "="))
-
-var expectedStatusTextOutput = fmt.Sprintf(`%s
-  Status date: 2018-01-05 11:25:15 UTC (1515151515000)
-  Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
-  Pid: %d
-  Go Version: %s
-  Python Version: n/a
-  Build arch: %s
-  Agent flavor: %s
-  Log Level: info
-
-==========
-Header Foo
-==========
-  header foo: header bar
-  header foo2: header bar 2
-
-=========
-Collector
-=========
- text from a
- text from b
-
-=========
-A Section
-=========
- text from a
-
-=========
-X Section
-=========
- text from a
- text from x
-
-`, testTextHeader, pid, goVersion, arch, agentFlavor)
 
 func TestGetStatus(t *testing.T) {
 	nowFunc = func() time.Time { return time.Unix(1515151515, 0) }
@@ -272,6 +241,41 @@ func TestGetStatus(t *testing.T) {
 			name:   "Text",
 			format: "text",
 			assertFunc: func(t *testing.T, bytes []byte) {
+				expectedStatusTextOutput := fmt.Sprintf(`%s
+  Status date: 2018-01-05 11:25:15 UTC (1515151515000)
+  Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
+  Pid: %d
+  Go Version: %s
+  Python Version: n/a
+  Build arch: %s
+  Agent flavor: %s
+  Log Level: info
+
+==========
+Header Foo
+==========
+  header foo: header bar
+  header foo2: header bar 2
+
+=========
+Collector
+=========
+ text from a
+ text from b
+
+=========
+A Section
+=========
+ text from a
+
+=========
+X Section
+=========
+ text from a
+ text from x
+
+`, testTextHeader, pid, goVersion, arch, agentFlavor)
+
 				// We replace windows line break by linux so the tests pass on every OS
 				expectedResult := strings.Replace(expectedStatusTextOutput, "\r\n", "\n", -1)
 				output := strings.Replace(string(bytes), "\r\n", "\n", -1)
@@ -345,31 +349,63 @@ func TestGetStatus(t *testing.T) {
 	}
 }
 
-var expectedStatusTextErrorOutput = fmt.Sprintf(`%s
+func TestGetStatusDoNotRenderHeaderIfNoProviders(t *testing.T) {
+	nowFunc = func() time.Time { return time.Unix(1515151515, 0) }
+	startTimeProvider = time.Unix(1515151515, 0)
+	originalTZ := os.Getenv("TZ")
+	os.Setenv("TZ", "UTC")
+
+	defer func() {
+		nowFunc = time.Now
+		startTimeProvider = pkgConfig.StartTime
+		os.Setenv("TZ", originalTZ)
+	}()
+
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		config.MockModule(),
+		fx.Supply(
+			status.NewInformationProvider(mockProvider{
+				data: map[string]interface{}{
+					"foo": "bar",
+				},
+				name:    "a",
+				text:    " text from a\n",
+				section: "section",
+			}),
+		),
+	))
+
+	statusComponent, err := newStatus(deps)
+
+	assert.NoError(t, err)
+
+	bytesResult, err := statusComponent.GetStatus("text", false)
+
+	assert.NoError(t, err)
+
+	expectedOutput := fmt.Sprintf(`%s
   Status date: 2018-01-05 11:25:15 UTC (1515151515000)
   Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
   Pid: %d
   Go Version: %s
   Python Version: n/a
   Build arch: %s
-  Agent flavor: agent
+  Agent flavor: %s
   Log Level: info
 
-=========
-Collector
-=========
- text from b
+=======
+Section
+=======
+ text from a
 
-=============
-Error Section
-=============
+`, testTextHeader, pid, goVersion, arch, agentFlavor)
 
-====================
-Status render errors
-====================
-  - testing Text errors
+	// We replace windows line break by linux so the tests pass on every OS
+	expectedResult := strings.Replace(expectedOutput, "\r\n", "\n", -1)
+	output := strings.Replace(string(bytesResult), "\r\n", "\n", -1)
 
-`, testTextHeader, pid, goVersion, arch)
+	assert.Equal(t, expectedResult, output)
+}
 
 func TestGetStatusWithErrors(t *testing.T) {
 	nowFunc = func() time.Time { return time.Unix(1515151515, 0) }
@@ -386,7 +422,11 @@ func TestGetStatusWithErrors(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
 		fx.Supply(
-			status.NewInformationProvider(errorMockProvider{}),
+			status.NewInformationProvider(mockProvider{
+				section:     "error section",
+				name:        "a",
+				returnError: true,
+			}),
 			status.NewInformationProvider(mockProvider{
 				data: map[string]interface{}{
 					"foo2": "bar2",
@@ -416,13 +456,39 @@ func TestGetStatusWithErrors(t *testing.T) {
 
 				assert.NoError(t, err)
 
-				assert.Equal(t, "testing JSON errors", result["errors"].([]interface{})[0].(string))
+				assert.Equal(t, "JSON error", result["errors"].([]interface{})[0].(string))
 			},
 		},
 		{
 			name:   "Text",
 			format: "text",
 			assertFunc: func(t *testing.T, bytes []byte) {
+				expectedStatusTextErrorOutput := fmt.Sprintf(`%s
+  Status date: 2018-01-05 11:25:15 UTC (1515151515000)
+  Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
+  Pid: %d
+  Go Version: %s
+  Python Version: n/a
+  Build arch: %s
+  Agent flavor: agent
+  Log Level: info
+
+=========
+Collector
+=========
+ text from b
+
+=============
+Error Section
+=============
+
+====================
+Status render errors
+====================
+  - Text error
+
+`, testTextHeader, pid, goVersion, arch)
+
 				// We replace windows line break by linux so the tests pass on every OS
 				expectedResult := strings.Replace(expectedStatusTextErrorOutput, "\r\n", "\n", -1)
 				output := strings.Replace(string(bytes), "\r\n", "\n", -1)
@@ -603,7 +669,16 @@ func TestGetStatusBySectionsWithErrors(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
 		fx.Supply(
-			status.NewInformationProvider(errorMockProvider{}),
+			status.NewInformationProvider(mockProvider{
+				returnError: true,
+				section:     "error section",
+				name:        "a",
+			}),
+			status.NewHeaderInformationProvider(mockHeaderProvider{
+				returnError: true,
+				name:        "a",
+				index:       3,
+			}),
 			status.NewInformationProvider(mockProvider{
 				data: map[string]interface{}{
 					"foo2": "bar2",
@@ -622,23 +697,26 @@ func TestGetStatusBySectionsWithErrors(t *testing.T) {
 	testCases := []struct {
 		name       string
 		format     string
+		section    string
 		assertFunc func(*testing.T, []byte)
 	}{
 		{
-			name:   "JSON",
-			format: "json",
+			name:    "JSON",
+			format:  "json",
+			section: "error section",
 			assertFunc: func(t *testing.T, bytes []byte) {
 				result := map[string]interface{}{}
 				err = json.Unmarshal(bytes, &result)
 
 				assert.NoError(t, err)
 
-				assert.Equal(t, "testing JSON errors", result["errors"].([]interface{})[0].(string))
+				assert.Equal(t, "JSON error", result["errors"].([]interface{})[0].(string))
 			},
 		},
 		{
-			name:   "Text",
-			format: "text",
+			name:    "Text",
+			format:  "text",
+			section: "error section",
 			assertFunc: func(t *testing.T, bytes []byte) {
 				expected := `=============
 Error Section
@@ -646,7 +724,7 @@ Error Section
 ====================
 Status render errors
 ====================
-  - testing Text errors
+  - Text error
 
 `
 
@@ -657,11 +735,54 @@ Status render errors
 				assert.Equal(t, expectedResult, output)
 			},
 		},
+		{
+			name:    "Header section JSON format",
+			format:  "json",
+			section: "header",
+			assertFunc: func(t *testing.T, bytes []byte) {
+				result := map[string]interface{}{}
+				err = json.Unmarshal(bytes, &result)
+
+				assert.NoError(t, err)
+
+				assert.Equal(t, "JSON error", result["errors"].([]interface{})[0].(string))
+			},
+		},
+		{
+			name:    "Header section text format",
+			format:  "text",
+			section: "header",
+			assertFunc: func(t *testing.T, bytes []byte) {
+
+				expectedStatusTextErrorOutput := fmt.Sprintf(`%s
+  Status date: 2018-01-05 11:25:15 UTC (1515151515000)
+  Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
+  Pid: %d
+  Go Version: %s
+  Python Version: n/a
+  Build arch: %s
+  Agent flavor: agent
+  Log Level: info
+
+====================
+Status render errors
+====================
+  - Text error
+
+`, testTextHeader, pid, goVersion, arch)
+
+				// We replace windows line break by linux so the tests pass on every OS
+				expectedResult := strings.Replace(expectedStatusTextErrorOutput, "\r\n", "\n", -1)
+				output := strings.Replace(string(bytes), "\r\n", "\n", -1)
+
+				assert.Equal(t, expectedResult, output)
+			},
+		},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			bytesResult, err := statusComponent.GetStatusBySection("error section", testCase.format, false)
+			bytesResult, err := statusComponent.GetStatusBySection(testCase.section, testCase.format, false)
 
 			assert.NoError(t, err)
 
