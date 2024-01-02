@@ -14,9 +14,10 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+	
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const defaultBatchSize = 100
