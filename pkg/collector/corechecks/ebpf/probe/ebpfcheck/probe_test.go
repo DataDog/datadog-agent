@@ -223,3 +223,22 @@ func TestHashMapNumberOfEntriesNoExtraAllocations(t *testing.T) {
 		})
 	}
 }
+
+func TestLRUHashMapNumberOfEntries(t *testing.T) {
+	maxEntries := uint32(1000)
+	filledEntries := uint32(500)
+
+	m, err := ebpf.NewMap(&ebpf.MapSpec{
+		Type:       ebpf.LRUHash,
+		MaxEntries: uint32(maxEntries),
+		KeySize:    4,
+		ValueSize:  4,
+	})
+	require.NoError(t, err)
+
+	for i := uint32(0); i < filledEntries; i++ {
+		require.NoError(t, m.Put(&i, &i))
+	}
+
+	require.Equal(t, int64(filledEntries), hashMapNumberOfEntries(m))
+}
