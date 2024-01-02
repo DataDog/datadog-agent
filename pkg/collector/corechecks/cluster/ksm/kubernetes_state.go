@@ -703,10 +703,18 @@ func (k *KSMCheck) mergeAnnotationsAsTags(extra map[string]map[string]string) {
 	if k.instance.AnnotationsAsTags == nil {
 		k.instance.AnnotationsAsTags = make(map[string]map[string]string)
 	}
+	// In the case of a misconfiguration issue, the value could be explicitly set to nil
+	for resource, mapping := range k.instance.AnnotationsAsTags {
+		if mapping == nil {
+			delete(k.instance.AnnotationsAsTags, resource)
+		}
+	}
 	for resource, mapping := range extra {
-		val, found := k.instance.AnnotationsAsTags[resource]
-		// In the case of a misconfiguration issue, the value could be explicitly set to nil
-		if !found || val == nil {
+		_, found := k.instance.AnnotationsAsTags[resource]
+		if mapping == nil {
+			continue
+		}
+		if !found {
 			k.instance.AnnotationsAsTags[resource] = make(map[string]string)
 			k.instance.AnnotationsAsTags[resource] = mapping
 			continue

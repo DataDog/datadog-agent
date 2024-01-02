@@ -1465,10 +1465,10 @@ func TestKSMCheck_mergeAnnotationsAsTags(t *testing.T) {
 			expected: map[string]map[string]string{"pod": {"common_key": "in_val"}},
 		},
 		{
-			name:     "conf nil value",
-			conf:     map[string]map[string]string{"pod": nil},
-			extra:    map[string]map[string]string{"pod": {"common_key": "extra_val", "foo": "bar"}},
-			expected: map[string]map[string]string{"pod": {"common_key": "extra_val", "foo": "bar"}},
+			name:     "conf nil values",
+			conf:     map[string]map[string]string{"job": nil, "deployment": nil, "statefulset": nil, "daemonset": nil},
+			extra:    defaultAnnotationsAsTags(),
+			expected: defaultAnnotationsAsTags(),
 		},
 	}
 	for _, tt := range tests {
