@@ -53,7 +53,7 @@ instances:
   user: test2
 `)
 
-	testConfResolveed = `instances:
+	testConfResolved = `instances:
 - password: password1
   user: test
 - password: password2
@@ -75,13 +75,34 @@ instances:
 		},
 	}
 
+	testConfSlice = []byte(`additional_endpoints:
+  http://example.com:
+  - ENC[pass1]
+  - data
+`)
+
+	testConfSliceResolved = `additional_endpoints:
+  http://example.com:
+  - password1
+  - data
+`
+
+	testConfSliceOrigin = handleToContext{
+		"pass1": []secretContext{
+			{
+				origin: "test",
+				path:   []string{"additional_endpoints", "http://example.com", "0"},
+			},
+		},
+	}
+
 	testConfDash = []byte(`---
 some_encoded_password: ENC[pass1]
 keys_with_dash_string_value:
   foo: "-"
 `)
 
-	testConfResolveedDash = `keys_with_dash_string_value:
+	testConfResolvedDash = `keys_with_dash_string_value:
   foo: '-'
 some_encoded_password: password1
 `
@@ -98,7 +119,7 @@ some_encoded_password: password1
 some_encoded_password: ENC[pass1]
 `)
 
-	testConfResolveedMultiline = `some_encoded_password: |
+	testConfResolvedMultiline = `some_encoded_password: |
   password1
 `
 	testConfMultilineOrigin = handleToContext{
@@ -116,7 +137,7 @@ some:
     data: ENC[pass1]
 `)
 
-	testConfResolveedNested = `some:
+	testConfResolvedNested = `some:
   encoded:
     data: password1
 `
@@ -215,7 +236,7 @@ func TestResolve(t *testing.T) {
 	type testCase struct {
 		name                 string
 		testConf             []byte
-		resolveedConf        string
+		resolvedConf         string
 		expectedSecretOrigin handleToContext
 		expectedScrubbedKey  []string
 		secretFetchCB        func([]string) (map[string]string, error)
@@ -225,13 +246,13 @@ func TestResolve(t *testing.T) {
 	currentTest := t
 	testCases := []testCase{
 		{
-			// TestResolveSecretStringMapStringWithDashValue checks that a nested string config value
+			// TestResolve/map_with_dash_value checks that a nested string config value
 			// that can be interpreted as YAML (such as a "-") is not interpreted as YAML by the secrets
 			// decryption logic, but is left unchanged as a string instead.
 			// See https://github.com/DataDog/datadog-agent/pull/6586 for details.
 			name:                 "map with dash value",
 			testConf:             testConfDash,
-			resolveedConf:        testConfResolveedDash,
+			resolvedConf:         testConfResolvedDash,
 			expectedSecretOrigin: testConfDashOrigin,
 			expectedScrubbedKey:  []string{"some_encoded_password"},
 			secretFetchCB: func(secrets []string) (map[string]string, error) {
@@ -245,9 +266,29 @@ func TestResolve(t *testing.T) {
 			},
 		},
 		{
+			// TestResolve/index_into_slice checks that when a slice contains a resolved
+			// secret, the key given to the scrubber is the key of the slice, not an
+			// index into that slice
+			name:                 "index into slice",
+			testConf:             testConfSlice,
+			resolvedConf:         testConfSliceResolved,
+			expectedSecretOrigin: testConfSliceOrigin,
+			// NOTE: the scrubbed key is the url key, not an index into a slice
+			expectedScrubbedKey: []string{"http://example.com"},
+			secretFetchCB: func(secrets []string) (map[string]string, error) {
+				assert.Equal(currentTest, []string{
+					"pass1",
+				}, secrets)
+
+				return map[string]string{
+					"pass1": "password1",
+				}, nil
+			},
+		},
+		{
 			name:                 "multiline",
 			testConf:             testConfMultiline,
-			resolveedConf:        testConfResolveedMultiline,
+			resolvedConf:         testConfResolvedMultiline,
 			expectedSecretOrigin: testConfMultilineOrigin,
 			expectedScrubbedKey:  []string{"some_encoded_password"},
 			secretFetchCB: func(secrets []string) (map[string]string, error) {
@@ -263,7 +304,7 @@ func TestResolve(t *testing.T) {
 		{
 			name:                 "nested",
 			testConf:             testConfNested,
-			resolveedConf:        testConfResolveedNested,
+			resolvedConf:         testConfResolvedNested,
 			expectedSecretOrigin: testConfNestedOrigin,
 			expectedScrubbedKey:  []string{"data"},
 			secretFetchCB: func(secrets []string) (map[string]string, error) {
@@ -279,7 +320,7 @@ func TestResolve(t *testing.T) {
 		{
 			name:                 "no cache",
 			testConf:             testConf,
-			resolveedConf:        testConfResolveed,
+			resolvedConf:         testConfResolved,
 			expectedSecretOrigin: testConfOrigin,
 			expectedScrubbedKey:  []string{"password", "password"},
 			secretFetchCB: func(secrets []string) (map[string]string, error) {
@@ -298,7 +339,7 @@ func TestResolve(t *testing.T) {
 		{
 			name:                 "partial cache",
 			testConf:             testConf,
-			resolveedConf:        testConfResolveed,
+			resolvedConf:         testConfResolved,
 			expectedSecretOrigin: testConfOrigin,
 			expectedScrubbedKey:  []string{"password", "password"},
 			secretCache:          map[string]string{"pass1": "password1"},
@@ -316,7 +357,7 @@ func TestResolve(t *testing.T) {
 		{
 			name:                 "full cache",
 			testConf:             testConf,
-			resolveedConf:        testConfResolveed,
+			resolvedConf:         testConfResolved,
 			expectedSecretOrigin: testConfOrigin,
 			expectedScrubbedKey:  []string{"password", "password"},
 			secretCache:          map[string]string{"pass1": "password1", "pass2": "password2"},
@@ -343,7 +384,7 @@ func TestResolve(t *testing.T) {
 			newConf, err := resolver.Resolve(tc.testConf, "test")
 			require.NoError(t, err)
 
-			assert.Equal(t, tc.resolveedConf, string(newConf))
+			assert.Equal(t, tc.resolvedConf, string(newConf))
 			assert.Equal(t, tc.expectedSecretOrigin, resolver.origin)
 			assert.Equal(t, tc.expectedScrubbedKey, scrubbedKey)
 		})
