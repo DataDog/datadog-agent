@@ -14,8 +14,6 @@ import (
 // isOSHostnameUsable returns `false` if it has the certainty that the agent is running
 // in a non-root UTS namespace because in that case, the OS hostname characterizes the
 // identity of the agent container and not the one of the nodes it is running on.
-//
-//nolint:revive // TODO(ASC) Fix revive linter
-func isOSHostnameUsable(ctx context.Context) bool {
+func isOSHostnameUsable(_ context.Context) bool {
 	return !isContainerized()
 }

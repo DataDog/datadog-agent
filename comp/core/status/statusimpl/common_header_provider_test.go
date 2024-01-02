@@ -58,16 +58,6 @@ func TestCommonHeaderProviderJSON(t *testing.T) {
 	assert.NotEqual(t, "", stats["title"])
 }
 
-var expectedTextOutput = fmt.Sprintf(`  Status date: 2018-01-05 11:25:15 UTC (1515151515000)
-  Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
-  Pid: %d
-  Go Version: %s
-  Python Version: n/a
-  Build arch: %s
-  Agent flavor: %s
-  Log Level: info
-`, pid, goVersion, arch, agentFlavor)
-
 func TestCommonHeaderProviderText(t *testing.T) {
 	nowFunc = func() time.Time { return time.Unix(1515151515, 0) }
 	startTimeProvider = time.Unix(1515151515, 0)
@@ -83,6 +73,16 @@ func TestCommonHeaderProviderText(t *testing.T) {
 
 	buffer := new(bytes.Buffer)
 	provider.Text(buffer)
+
+	expectedTextOutput := fmt.Sprintf(`  Status date: 2018-01-05 11:25:15 UTC (1515151515000)
+  Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
+  Pid: %d
+  Go Version: %s
+  Python Version: n/a
+  Build arch: %s
+  Agent flavor: %s
+  Log Level: info
+`, pid, goVersion, arch, agentFlavor)
 
 	// We replace windows line break by linux so the tests pass on every OS
 	expectedResult := strings.Replace(expectedTextOutput, "\r\n", "\n", -1)

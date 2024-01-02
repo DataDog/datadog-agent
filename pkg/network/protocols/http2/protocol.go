@@ -8,9 +8,8 @@
 package http2
 
 import (
-	"errors"
 	"fmt"
-	"strings"
+	"io"
 	"time"
 	"unsafe"
 
@@ -21,7 +20,6 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -53,10 +51,10 @@ const (
 	dynamicTable              = "http2_dynamic_table"
 	dynamicTableCounter       = "http2_dynamic_counter_table"
 	http2IterationsTable      = "http2_iterations"
-	staticTable               = "http2_static_table"
 	firstFrameHandlerTailCall = "socket__http2_handle_first_frame"
 	filterTailCall            = "socket__http2_filter"
-	parserTailCall            = "socket__http2_frames_parser"
+	headersParserTailCall     = "socket__http2_headers_parser"
+	eosParserTailCall         = "socket__http2_eos_parser"
 	eventStream               = "http2"
 	telemetryMap              = "http2_telemetry"
 )
@@ -70,9 +68,6 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			Name: dynamicTable,
-		},
-		{
-			Name: staticTable,
 		},
 		{
 			Name: dynamicTableCounter,
@@ -110,9 +105,16 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramHTTP2FrameParser),
+			Key:           uint32(protocols.ProgramHTTP2HeadersParser),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: parserTailCall,
+				EBPFFuncName: headersParserTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramHTTP2EOSParser),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: eosParserTailCall,
 			},
 		},
 	},
@@ -200,10 +202,6 @@ func (p *Protocol) PreStart(mgr *manager.Manager) (err error) {
 	p.statkeeper = http.NewStatkeeper(p.cfg, p.telemetry, http.NewIncompleteBuffer(p.cfg, p.telemetry))
 	p.eventsConsumer.Start()
 
-	if err = p.createStaticTable(mgr); err != nil {
-		return fmt.Errorf("error creating a static table for http2 monitoring: %w", err)
-	}
-
 	return
 }
 
@@ -275,22 +273,22 @@ func (p *Protocol) Stop(_ *manager.Manager) {
 
 // DumpMaps dumps the content of the map represented by mapName &
 // currentMap, if it used by the eBPF program, to output.
-func (p *Protocol) DumpMaps(output *strings.Builder, mapName string, currentMap *ebpf.Map) {
+func (p *Protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 	if mapName == inFlightMap { // maps/http2_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value httpTX
-		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'httpTX'\n")
+		io.WriteString(w, "Map: '"+mapName+"', key: 'ConnTuple', value: 'httpTX'\n")
 		iter := currentMap.Iterate()
 		var key http2StreamKey
 		var value EbpfTx
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			output.WriteString(spew.Sdump(key, value))
+			spew.Fdump(w, key, value)
 		}
 	} else if mapName == dynamicTable {
-		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'httpTX'\n")
+		io.WriteString(w, "Map: '"+mapName+"', key: 'ConnTuple', value: 'httpTX'\n")
 		iter := currentMap.Iterate()
 		var key http2DynamicTableIndex
 		var value http2DynamicTableEntry
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			output.WriteString(spew.Sdump(key, value))
+			spew.Fdump(w, key, value)
 		}
 	}
 }
@@ -337,41 +335,6 @@ func (p *Protocol) GetStats() *protocols.ProtocolStats {
 		Type:  protocols.HTTP2,
 		Stats: p.statkeeper.GetAndResetAllStats(),
 	}
-}
-
-// The following map contains a list of static table entries that are used by the http2 monitor.
-// The full list of static table entries can be found here: https://httpwg.org/specs/rfc7541.html#static.table.definition.
-var (
-	staticTableEntries = map[uint64]StaticTableEnumValue{
-		2:  GetValue,
-		3:  PostValue,
-		4:  EmptyPathValue,
-		5:  IndexPathValue,
-		8:  K200Value,
-		9:  K204Value,
-		10: K206Value,
-		11: K304Value,
-		12: K400Value,
-		13: K404Value,
-		14: K500Value,
-	}
-)
-
-// createStaticTable creates a static table for http2 monitor.
-func (p *Protocol) createStaticTable(mgr *manager.Manager) error {
-	staticTable, _, _ := mgr.GetMap(probes.StaticTableMap)
-	if staticTable == nil {
-		return errors.New("http2 static table is null")
-	}
-
-	for key, value := range staticTableEntries {
-		err := staticTable.Put(unsafe.Pointer(&key), unsafe.Pointer(&value))
-
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // IsBuildModeSupported returns always true, as http2 module is supported by all modes.

@@ -62,13 +62,23 @@ func newStatus(deps dependencies) (status.Component, error) {
 	// The exception is the collector section. We want that to be the first section to be displayed
 	// We manually insert the collector section in the first place after sorting them alphabetically
 	sortedSectionNames := []string{}
+	collectorSectionPresent := false
+
 	for _, provider := range deps.Providers {
+		if provider.Section() == status.CollectorSection && !collectorSectionPresent {
+			collectorSectionPresent = true
+		}
+
 		if !present(provider.Section(), sortedSectionNames) && provider.Section() != status.CollectorSection {
 			sortedSectionNames = append(sortedSectionNames, provider.Section())
 		}
 	}
+
 	sort.Strings(sortedSectionNames)
-	sortedSectionNames = append([]string{status.CollectorSection}, sortedSectionNames...)
+
+	if collectorSectionPresent {
+		sortedSectionNames = append([]string{status.CollectorSection}, sortedSectionNames...)
+	}
 
 	// Providers of each section are sort alphabetically by name
 	sortedProvidersBySection := map[string][]status.Provider{}
@@ -140,7 +150,6 @@ func (s *statusImplementation) GetStatus(format string, _ bool) ([]byte, error) 
 		}
 
 		for _, section := range s.sortedSectionNames {
-
 			printHeader(b, section)
 			newLine(b)
 
@@ -221,8 +230,18 @@ func (s *statusImplementation) GetStatusBySection(section string, format string,
 
 				err := sc.Text(b)
 				if err != nil {
-					return b.Bytes(), err
+					errors = append(errors, err)
 				}
+			}
+
+			newLine(b)
+
+			if len(errors) > 0 {
+				if err := renderErrors(b, errors); err != nil {
+					return []byte{}, err
+				}
+
+				return b.Bytes(), nil
 			}
 
 			return b.Bytes(), nil

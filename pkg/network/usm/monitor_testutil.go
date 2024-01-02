@@ -8,7 +8,7 @@
 package usm
 
 import (
-	"strings"
+	"io"
 	"testing"
 
 	"github.com/cilium/ebpf"
@@ -66,8 +66,8 @@ func (p *protocolMock) Stop(mgr *manager.Manager) {
 	}
 }
 
-func (p *protocolMock) DumpMaps(*strings.Builder, string, *ebpf.Map) {}
-func (p *protocolMock) GetStats() *protocols.ProtocolStats           { return nil }
+func (p *protocolMock) DumpMaps(io.Writer, string, *ebpf.Map) {}
+func (p *protocolMock) GetStats() *protocols.ProtocolStats    { return nil }
 
 // IsBuildModeSupported returns always true, as java tls module is supported by all modes.
 func (*protocolMock) IsBuildModeSupported(buildmode.Type) bool { return true }

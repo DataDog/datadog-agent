@@ -145,14 +145,3 @@ instances:
     ## This is useful for cluster-level checks.
     #
     # empty_default_hostname: false
-
-    ## @param metric_patterns - mapping - optional
-    ## A mapping of metrics to include or exclude, with each entry being a regular expression.
-    ##
-    ## Metrics defined in `exclude` will take precedence in case of overlap.
-    #
-    # metric_patterns:
-    #   include:
-    #   - <INCLUDE_REGEX>
-    #   exclude:
-    #   - <EXCLUDE_REGEX>

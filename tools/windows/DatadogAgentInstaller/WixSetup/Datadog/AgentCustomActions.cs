@@ -59,7 +59,9 @@ namespace WixSetup.Datadog
 
         public ManagedAction EnsureNpmServiceDepdendency { get; }
 
-        public ManagedAction ConfigureServiceUsers { get; }
+        public ManagedAction ConfigureServices { get; }
+
+        public ManagedAction ConfigureServicesRollback { get; }
 
         public ManagedAction StopDDServices { get; }
 
@@ -403,9 +405,9 @@ namespace WixSetup.Datadog
             // Enables the user to change the service accounts during upgrade/change
             // Relies on StopDDServices/StartDDServices to ensure the services are restarted
             // so that the new configuration is used.
-            ConfigureServiceUsers = new CustomAction<ServiceCustomAction>(
-                    new Id(nameof(ConfigureServiceUsers)),
-                    ServiceCustomAction.ConfigureServiceUsers,
+            ConfigureServices = new CustomAction<ServiceCustomAction>(
+                    new Id(nameof(ConfigureServices)),
+                    ServiceCustomAction.ConfigureServices,
                     Return.check,
                     When.After,
                     Step.InstallServices,
@@ -417,6 +419,22 @@ namespace WixSetup.Datadog
             }
                 .SetProperties("DDAGENTUSER_PROCESSED_PASSWORD=[DDAGENTUSER_PROCESSED_PASSWORD], " +
                                "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME], " +
+                               "INSTALL_CWS=[INSTALL_CWS]")
+                .HideTarget(true);
+
+            ConfigureServicesRollback = new CustomAction<ServiceCustomAction>(
+                    new Id(nameof(ConfigureServicesRollback)),
+                    ServiceCustomAction.ConfigureServicesRollback,
+                    Return.check,
+                    When.Before,
+                    new Step(ConfigureServices.Id),
+                    Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+                )
+            {
+                Execute = Execute.rollback,
+                Impersonate = false
+            }
+                .SetProperties("DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME], " +
                                "INSTALL_CWS=[INSTALL_CWS]")
                 .HideTarget(true);
 

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(ASC) Fix revive linter
+// Package flare contains the logic to create a flare archive.
 package flare
 
 import (

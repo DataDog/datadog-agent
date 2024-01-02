@@ -164,10 +164,10 @@ func TestCollect(t *testing.T) {
 	i.collect(context.Background())
 	i.serializer.(*serializer.MockSerializer).AssertExpectations(t)
 
-	// testing collect with LastCollect between MinInterval and MaxInterval with ForceRefresh being trigger
+	// testing collect with LastCollect between MinInterval and MaxInterval with forceRefresh being trigger
 
 	i.Refresh()
-	assert.True(t, i.ForceRefresh)
+	assert.True(t, i.forceRefresh.Load())
 
 	serializerMock.On(
 		"SendMetadata",
@@ -180,5 +180,5 @@ func TestCollect(t *testing.T) {
 
 	i.collect(context.Background())
 	i.serializer.(*serializer.MockSerializer).AssertExpectations(t)
-	assert.False(t, i.ForceRefresh)
+	assert.False(t, i.forceRefresh.Load())
 }

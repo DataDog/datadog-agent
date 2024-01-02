@@ -29,6 +29,9 @@ type VM interface {
 	// GetOSType returns the OS type of the VM.
 	GetOSType() componentos.Type
 
+	// GetFile copy file from the remote host
+	GetFile(src string, dst string) error
+
 	// FileExists returns true if the file exists and is a regular file and returns an error if any
 	FileExists(path string) (bool, error)
 

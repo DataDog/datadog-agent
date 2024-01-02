@@ -37,12 +37,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
@@ -142,9 +145,11 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					LogParams:            logimpl.ForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle(),
 
+				// workloadmeta setup
+				collectors.GetCatalog(),
+				fx.Provide(defaults.DefaultParams),
 				workloadmeta.Module(),
 				apiimpl.Module(),
-				fx.Supply(workloadmeta.NewParams()),
 				fx.Supply(context.Background()),
 
 				forwarder.Bundle(),
@@ -153,6 +158,10 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				// Here we just want to collect metadata to be displayed, so we don't need a collector.
 				fx.Provide(func() optional.Option[collector.Collector] {
 					return optional.NewNoneOption[collector.Collector]()
+				}),
+				fx.Provide(func() optional.Option[logagent.Component] {
+					return optional.NewNoneOption[logagent.Component]()
+
 				}),
 				fx.Provide(func() serializer.MetricSerializer { return nil }),
 				fx.Supply(defaultforwarder.Params{UseNoopForwarder: true}),
@@ -553,8 +562,7 @@ func run(
 	return nil
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func runCheck(cliParams *cliParams, c check.Check, demux aggregator.Demultiplexer) *stats.Stats {
+func runCheck(cliParams *cliParams, c check.Check, _ aggregator.Demultiplexer) *stats.Stats {
 	s := stats.NewStats(c)
 	times := cliParams.checkTimes
 	pause := cliParams.checkPause
