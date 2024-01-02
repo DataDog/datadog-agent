@@ -6,10 +6,10 @@
 package utils
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	"strings"
 )
 
 // SanitizeAPIKey strips newlines and other control characters from a given string.
 func SanitizeAPIKey(key string) string {
-	return setup.SanitizeAPIKey(key)
+	return strings.TrimSpace(key)
 }
