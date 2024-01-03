@@ -58,6 +58,10 @@ func (s *windowsTestSuite) TestProcessCheck() {
 }
 
 func (s *windowsTestSuite) TestProcessDiscoveryCheck() {
+	// Skipping due to flakiness
+	// Responses with more than 100 processes end up being chunked, which fails JSON unmarshalling
+	s.T().Skip()
+
 	s.UpdateEnv(e2e.FakeIntakeStackDef(
 		e2e.WithAgentParams(agentparams.WithAgentConfig(processDiscoveryCheckConfigStr)),
 		e2e.WithVMParams(ec2params.WithOS(ec2os.WindowsOS)),
