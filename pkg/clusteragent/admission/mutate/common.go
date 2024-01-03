@@ -12,6 +12,7 @@ import (
 	"fmt"
 
 	"github.com/wI2L/jsondiff"
+	"golang.org/x/exp/slices"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/dynamic"
@@ -225,19 +226,21 @@ func shouldInject(pod *corev1.Pod) bool {
 }
 
 // isApmInstrumentationEnabled indicates if Single Step Instrumentation is enabled for the namespace in the cluster
-// Single Step Instrumentation is enabled if:
-//   - configuration `apm_config.instrumentation.enabled` is true and the namespace is not excluded via `apm_config.instrumentation.disabled_namespaces`
-//   - configuration `apm_config.instrumentation.enabled` is true and the namespace is included via `apm_config.instrumentation.enabled_namespaces`
-//   - configuration `apm_config.instrumentation.enabled` is true
 func isApmInstrumentationEnabled(namespace string) bool {
 	apmInstrumentationEnabled := config.Datadog.GetBool("apm_config.instrumentation.enabled")
-	apmEnabledNamespaces := config.Datadog.GetStringSlice("apm_config.instrumentation.enabled_namespaces")
-	apmDisabledNamespaces := config.Datadog.GetStringSlice("apm_config.instrumentation.disabled_namespaces")
 
 	if !apmInstrumentationEnabled {
 		log.Debugf("APM Instrumentation is disabled")
 		return false
 	}
+
+	return filterNamespace(namespace)
+}
+
+// filterNamespace returns a bool indicating if Single Step Instrumentation on the namespace
+func filterNamespace(ns string) bool {
+	apmEnabledNamespaces := config.Datadog.GetStringSlice("apm_config.instrumentation.enabled_namespaces")
+	apmDisabledNamespaces := config.Datadog.GetStringSlice("apm_config.instrumentation.disabled_namespaces")
 
 	// apm.instrumentation.enabled_namespaces and apm.instrumentation.disabled_namespaces configuration cannot be set at the same time
 	if len(apmEnabledNamespaces) > 0 && len(apmDisabledNamespaces) > 0 {
@@ -246,24 +249,21 @@ func isApmInstrumentationEnabled(namespace string) bool {
 	}
 
 	// Always disable Single Step Instrumentation in kube-system and Datadog namespaces
-	if (namespace == namespaceWithAlwaysDisabledInjections) || (namespace == apiServerCommon.GetResourcesNamespace()) {
+	if (ns == namespaceWithAlwaysDisabledInjections) || (ns == apiServerCommon.GetResourcesNamespace()) {
 		return false
 	}
 
 	// If apm_config.instrumentation.enabled_namespaces option set, enable Single Step Instrumentation only in listed namespaces
 	if len(apmEnabledNamespaces) > 0 {
-		for _, ns := range apmEnabledNamespaces {
-			if ns == namespace {
-				return true
-			}
+		if slices.Contains[[]string, string](apmEnabledNamespaces, ns) {
+			return true
 		}
 		return false
 	}
 
-	for _, ns := range apmDisabledNamespaces {
-		if ns == namespace {
-			return false
-		}
+	// Disable Single Step Instrumentation in all excluded namespaces
+	if slices.Contains[[]string, string](apmDisabledNamespaces, ns) {
+		return false
 	}
 
 	return true
