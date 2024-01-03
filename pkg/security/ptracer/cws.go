@@ -798,12 +798,12 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 					logErrorf("unable to handle fchdir: %v", err)
 					return
 				}
-			case SetreuidNr:
+			case SetreuidNr, SetresuidNr:
 				if err = handleSetreuid(tracer, process, syscallMsg, regs); err != nil {
 					logErrorf("unable to handle fchdir: %v", err)
 					return
 				}
-			case SetregidNr:
+			case SetregidNr, SetresgidNr:
 				if err = handleSetregid(tracer, process, syscallMsg, regs); err != nil {
 					logErrorf("unable to handle fchdir: %v", err)
 					return
@@ -847,7 +847,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 					// maintain fd/path mapping
 					process.Res.Fd[int32(ret)] = syscallMsg.Open.Filename
 				}
-			case SetuidNr, SetgidNr, SetreuidNr, SetregidNr:
+			case SetuidNr, SetgidNr, SetreuidNr, SetregidNr, SetresuidNr, SetresgidNr:
 				if ret := tracer.ReadRet(regs); ret >= 0 {
 					syscallMsg, exists := process.Nr[nr]
 					if !exists {

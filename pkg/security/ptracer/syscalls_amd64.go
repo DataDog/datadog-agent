@@ -36,6 +36,8 @@ const (
 	SetgidNr         = 106 // SetgidNr defines the syscall ID for amd64
 	SetreuidNr       = 113 // SetreuidNr defines the syscall ID for amd64
 	SetregidNr       = 114 // SetregidNr defines the syscall ID for amd64
+	SetresuidNr      = 117 // SetreuidNr defines the syscall ID for amd64
+	SetresgidNr      = 119 // SetregidNr defines the syscall ID for amd64
 	CloseNr          = 3   // CloseNr defines the syscall ID for amd64
 	MemfdCreateNr    = 319 // MemfdCreateNr defines the syscall ID for amd64
 
@@ -73,6 +75,8 @@ var (
 		"setgid",
 		"setreuid",
 		"setregid",
+		"setresuid",
+		"setresgid",
 		"close",
 		"memfd_create",
 	}

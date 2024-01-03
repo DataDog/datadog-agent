@@ -31,6 +31,8 @@ const (
 	SetgidNr         = 144 // SetgidNr defines the syscall ID for arm64
 	SetreuidNr       = 145 // SetreuidNr defines the syscall ID for arm64
 	SetregidNr       = 143 // SetregidNr defines the syscall ID for arm64
+	SetresuidNr      = 147 // SetreuidNr defines the syscall ID for arm64
+	SetresgidNr      = 149 // SetregidNr defines the syscall ID for arm64
 	CloseNr          = 57  // CloseNr defines the syscall ID for arm64
 	MemfdCreateNr    = 279 // MemfdCreateNr defines the syscall ID for arm64
 
@@ -69,6 +71,8 @@ var (
 		"setgid",
 		"setreuid",
 		"setregid",
+		"setresuid",
+		"setresgid",
 		"close",
 		"memfd_create",
 	}

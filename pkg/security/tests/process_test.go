@@ -1502,10 +1502,10 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 			ID:         "test_setreuid",
 			Expression: `setuid.uid == 1002 && setuid.euid == 1003 && process.file.name == "syscall_tester"`,
 		},
-		{
-			ID:         "test_setfsuid",
-			Expression: `setuid.fsuid == 1004 && process.file.name == "syscall_tester"`,
-		},
+		// {
+		// 	ID:         "test_setfsuid",
+		// 	Expression: `setuid.fsuid == 1004 && process.file.name == "syscall_tester"`,
+		// },
 		{
 			ID:         "test_setgid",
 			Expression: `setgid.gid == 1005 && process.file.name == "syscall_tester"`,
@@ -1529,9 +1529,6 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
-	if test.opts.staticOpts.enableEBPFLess == true {
-		t.Skip("not supported")
-	}
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {

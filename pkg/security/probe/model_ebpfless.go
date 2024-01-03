@@ -25,6 +25,10 @@ func NewEBPFLessModel() *model.Model {
 				!strings.HasPrefix(field, "exit.") &&
 				!strings.HasPrefix(field, "open.") &&
 				!strings.HasPrefix(field, "process.") &&
+				!strings.HasPrefix(field, "setuid.") &&
+				!strings.HasPrefix(field, "setgid.") &&
+				!strings.HasPrefix(field, "setreuid.") &&
+				!strings.HasPrefix(field, "setregid.") &&
 				!strings.HasPrefix(field, "container.") {
 				return rules.ErrEventTypeNotEnabled
 			}

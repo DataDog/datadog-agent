@@ -140,9 +140,15 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 		}
 	case ebpfless.SyscallTypeSetUID:
 		p.Resolvers.ProcessResolver.UpdateUID(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.SetUID.UID, syscallMsg.SetUID.EUID)
+		event.Type = uint32(model.SetuidEventType)
+		event.SetUID.UID = uint32(syscallMsg.SetUID.UID)
+		event.SetUID.EUID = uint32(syscallMsg.SetUID.EUID)
 
 	case ebpfless.SyscallTypeSetGID:
 		p.Resolvers.ProcessResolver.UpdateGID(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.SetGID.GID, syscallMsg.SetGID.EGID)
+		event.Type = uint32(model.SetgidEventType)
+		event.SetGID.GID = uint32(syscallMsg.SetGID.GID)
+		event.SetGID.EGID = uint32(syscallMsg.SetGID.EGID)
 	}
 
 	// container context
