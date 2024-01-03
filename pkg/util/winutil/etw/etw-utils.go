@@ -172,7 +172,7 @@ func GoBytes(data unsafe.Pointer, len int) []byte {
 
 	sl := unsafe.Slice((*byte)(data), len)
 
-	return sl>>>>>>> 8a2bcd626f (very basic working with file & reg)
+	return sl
 }
 
 func bytesIndexOfDoubleZero(data []byte) int {
