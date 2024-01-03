@@ -10,36 +10,38 @@ import (
 	"time"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 )
 
-type linuxTestSuite struct {
+type windowsTestSuite struct {
 	e2e.Suite[e2e.FakeIntakeEnv]
 }
 
-func TestLinuxTestSuite(t *testing.T) {
-	e2e.Run(t, &linuxTestSuite{},
+func TestWindowsTestSuite(t *testing.T) {
+	e2e.Run(t, &windowsTestSuite{},
 		e2e.FakeIntakeStackDef(
 			e2e.WithAgentParams(agentparams.WithAgentConfig(processCheckConfigStr)),
+			e2e.WithVMParams(ec2params.WithOS(ec2os.WindowsOS)),
 		))
 }
 
-func (s *linuxTestSuite) SetupSuite() {
+func (s *windowsTestSuite) SetupSuite() {
 	s.Suite.SetupSuite()
-
-	// Start a process and keep it running
-	s.Env().VM.Execute("sudo apt-get -y install stress")
-	s.Env().VM.Execute("nohup stress -d 1 >myscript.log 2>&1 </dev/null &")
+	// Start an antivirus scan to use as process for testing
+	s.Env().VM.Execute("Start-MpScan -ScanType FullScan -AsJob")
 }
 
-func (s *linuxTestSuite) TestProcessCheck() {
+func (s *windowsTestSuite) TestProcessCheck() {
 	t := s.T()
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertRunningChecks(collect, s.Env().VM, []string{"process", "rtprocess"}, false, "sudo datadog-agent status --json")
+		command := "& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe\" status --json"
+		assertRunningChecks(collect, s.Env().VM, []string{"process", "rtprocess"}, false, command)
 	}, 1*time.Minute, 5*time.Second)
 
 	var payloads []*aggregator.ProcessPayload
@@ -52,17 +54,20 @@ func (s *linuxTestSuite) TestProcessCheck() {
 		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
 	}, 2*time.Minute, 10*time.Second)
 
-	assertProcessCollected(t, payloads, false, "stress")
+	assertProcessCollected(t, payloads, false, "MsMpEng.exe")
 }
 
-func (s *linuxTestSuite) TestProcessDiscoveryCheck() {
+func (s *windowsTestSuite) TestProcessDiscoveryCheck() {
 	s.UpdateEnv(e2e.FakeIntakeStackDef(
-		e2e.WithAgentParams(agentparams.WithAgentConfig(processDiscoveryCheckConfigStr))))
+		e2e.WithAgentParams(agentparams.WithAgentConfig(processDiscoveryCheckConfigStr)),
+		e2e.WithVMParams(ec2params.WithOS(ec2os.WindowsOS)),
+	))
 
 	t := s.T()
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertRunningChecks(collect, s.Env().VM, []string{"process_discovery"}, false, "sudo datadog-agent status --json")
+		command := "& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe\" status --json"
+		assertRunningChecks(collect, s.Env().VM, []string{"process_discovery"}, false, command)
 	}, 1*time.Minute, 5*time.Second)
 
 	var payloads []*aggregator.ProcessDiscoveryPayload
@@ -73,14 +78,15 @@ func (s *linuxTestSuite) TestProcessDiscoveryCheck() {
 		assert.NotEmpty(c, payloads, "no process discovery payloads returned")
 	}, 2*time.Minute, 10*time.Second)
 
-	assertProcessDiscoveryCollected(t, payloads, "stress")
+	assertProcessDiscoveryCollected(t, payloads, "MsMpEng.exe")
 }
 
-func (s *linuxTestSuite) TestProcessCheckWithIO() {
+func (s *windowsTestSuite) TestProcessCheckIO() {
 	s.UpdateEnv(e2e.FakeIntakeStackDef(e2e.WithAgentParams(
 		agentparams.WithAgentConfig(processCheckConfigStr),
 		agentparams.WithSystemProbeConfig(systemProbeConfigStr),
-	)))
+	), e2e.WithVMParams(ec2params.WithOS(ec2os.WindowsOS)),
+	))
 
 	// Flush fake intake to remove payloads that won't have IO stats
 	s.Env().Fakeintake.FlushServerAndResetAggregators()
@@ -88,8 +94,11 @@ func (s *linuxTestSuite) TestProcessCheckWithIO() {
 	t := s.T()
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertRunningChecks(collect, s.Env().VM, []string{"process", "rtprocess"}, true, "sudo datadog-agent status --json")
+		command := "& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe\" status --json"
+		assertRunningChecks(collect, s.Env().VM, []string{"process", "rtprocess"}, true, command)
 	}, 1*time.Minute, 5*time.Second)
+
+	//s.Env().VM.Execute("Start-MpScan -ScanType FullScan")
 
 	var payloads []*aggregator.ProcessPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -101,31 +110,34 @@ func (s *linuxTestSuite) TestProcessCheckWithIO() {
 		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
 	}, 2*time.Minute, 10*time.Second)
 
-	assertProcessCollected(t, payloads, true, "stress")
+	assertProcessCollected(t, payloads, true, "MsMpEng.exe")
 }
 
-func (s *linuxTestSuite) TestManualProcessCheck() {
+func (s *windowsTestSuite) TestManualProcessCheck() {
 	check := s.Env().VM.
-		Execute("sudo /opt/datadog-agent/embedded/bin/process-agent check process --json")
+		Execute("& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\process-agent.exe\" check process --json")
 
-	assertManualProcessCheck(s.T(), check, false, "stress")
+	assertManualProcessCheck(s.T(), check, false, "MsMpEng.exe")
 }
 
-func (s *linuxTestSuite) TestManualProcessDiscoveryCheck() {
+func (s *windowsTestSuite) TestManualProcessDiscoveryCheck() {
 	check := s.Env().VM.
-		Execute("sudo /opt/datadog-agent/embedded/bin/process-agent check process_discovery --json")
-
-	assertManualProcessDiscoveryCheck(s.T(), check, "stress")
+		Execute("& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\process-agent.exe\" check process_discovery --json")
+	assertManualProcessDiscoveryCheck(s.T(), check, "MsMpEng.exe")
 }
 
-func (s *linuxTestSuite) TestManualProcessCheckWithIO() {
+func (s *windowsTestSuite) TestManualProcessCheckWithIO() {
 	s.UpdateEnv(e2e.FakeIntakeStackDef(e2e.WithAgentParams(
 		agentparams.WithAgentConfig(processCheckConfigStr),
 		agentparams.WithSystemProbeConfig(systemProbeConfigStr),
-	)))
+	), e2e.WithVMParams(ec2params.WithOS(ec2os.WindowsOS)),
+	))
+
+	// Flush fake intake to remove payloads that won't have IO stats
+	s.Env().Fakeintake.FlushServerAndResetAggregators()
 
 	check := s.Env().VM.
-		Execute("sudo /opt/datadog-agent/embedded/bin/process-agent check process --json")
+		Execute("& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\process-agent.exe\" check process --json")
 
-	assertManualProcessCheck(s.T(), check, true, "stress")
+	assertManualProcessCheck(s.T(), check, true, "MsMpEng.exe")
 }
