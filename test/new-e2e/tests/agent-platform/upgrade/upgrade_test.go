@@ -95,7 +95,7 @@ func TestUpgradeScript(t *testing.T) {
 				vmOpts = append(vmOpts, ec2params.WithInstanceType(instanceType))
 			}
 
-			e2e.Run(tt, &upgradeSuite{srcVersion: *srcAgentVersion, destVersion: *destAgentVersion, cwsSupported: cwsSupported}, e2e.EC2VMStackDef(vmOpts...), params.WithStackName(fmt.Sprintf("upgrade-from-%s-to-%s-test-%v-%v-%s", *srcAgentVersion, *destAgentVersion, os.Getenv("CI_PIPELINE_ID"), osVers, *architecture)))
+			e2e.Run(tt, &upgradeSuite{srcVersion: *srcAgentVersion, destVersion: *destAgentVersion, cwsSupported: cwsSupported}, e2e.EC2VMStackDef(vmOpts...), params.WithStackName(fmt.Sprintf("upgrade-from-%s-to-%s-test-%s-%v-%v-%s", *srcAgentVersion, *destAgentVersion, *flavorName, os.Getenv("CI_PIPELINE_ID"), osVers, *architecture)))
 		})
 	}
 }
