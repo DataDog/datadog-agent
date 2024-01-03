@@ -3,4 +3,4 @@
 
 package runtime
 
-var LogdebugTest = newAsset("logdebug-test.c", "06d126e77235166eda894cb62716661b31c0f1e1d29d7f2840892d4c5134176c")
+var LogdebugTest = newAsset("logdebug-test.c", "769bc30a2c6b812a1c5d981e0f63ae08b3dfe7800138a727485b65dce0e50e04")

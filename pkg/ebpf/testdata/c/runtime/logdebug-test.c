@@ -5,9 +5,10 @@
 
 char __license[] SEC("license") = "GPL";
 
-SEC("xdp/ingress")
-int logdebugtest(struct __sk_buff *skb) {
+SEC("kprobe/do_vfs_ioctl")
+int logdebugtest(struct pt_regs *ctx) {
     log_debug("Hello, world!");
     log_debug("Goodbye, world!");
-    return 42;
+
+    return 0;
 }

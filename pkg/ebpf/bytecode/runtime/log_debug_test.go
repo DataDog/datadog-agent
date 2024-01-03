@@ -11,15 +11,17 @@ import (
 	"bufio"
 	"math"
 	"os"
+	"syscall"
 	"testing"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
+
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 )
 
 //go:generate $GOPATH/bin/include_headers pkg/ebpf/testdata/c/runtime/logdebug-test.c pkg/ebpf/bytecode/build/runtime/logdebug-test.c pkg/ebpf/c pkg/network/ebpf/c/runtime pkg/network/ebpf/c
@@ -73,12 +75,14 @@ func TestPatchPrintkNewline(t *testing.T) {
 		require.True(t, ok)
 		require.NotNil(t, progs)
 		require.NotEmpty(t, progs)
-		prog := progs[0]
 
-		input := make([]byte, 30) // Enough for the arguments
-		ret, _, err := prog.Test(input)
-		require.NoError(t, err)
-		require.Equal(t, uint32(42), ret) // Check that the program did actually execute
+		// The logdebugtest program is a kprobe on do_vfs_ioctl, so we can use that to trigger the
+		// it and check that the output is correct. We do not actually care about the arguments.
+		if _, _, errno := syscall.Syscall(syscall.SYS_IOCTL, uintptr(0), 0, uintptr(0)); errno != 0 {
+			// Only valid return value is ENOTTY (invalid ioctl for device) because indeed we
+			// are not doing any valid ioctl, we just want to trigger the kprobe
+			require.Equal(t, syscall.ENOTTY, errno)
+		}
 
 		// The logdebug-test.c program outputs two lines: Hello, world! and Goodbye, world!
 		// Check that those two are the lines included in the trace_pipe output, with no
