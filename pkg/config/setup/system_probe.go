@@ -235,7 +235,6 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(smNS, "max_kafka_stats_buffered"), 100000)
 	cfg.BindEnv(join(smNS, "max_concurrent_requests"))
 	cfg.BindEnv(join(smNS, "enable_quantization"))
-	cfg.BindEnv(join(smNS, "enable_connection_rollup"))
 
 	oldHTTPRules := join(netNS, "http_replace_rules")
 	newHTTPRules := join(smNS, "http_replace_rules")
@@ -268,7 +267,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	// (temporary) enable submitting DNS stats by query type.
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_dns_by_querytype"), false)
 	// connection aggregation with port rollups
-	cfg.BindEnvAndSetDefault(join(netNS, "enable_port_rollups"), false)
+	cfg.BindEnvAndSetDefault(join(netNS, "enable_connection_rollup"), false)
 
 	// windows config
 	cfg.BindEnvAndSetDefault(join(spNS, "windows.enable_monotonic_count"), false)

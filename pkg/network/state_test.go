@@ -2499,7 +2499,7 @@ func TestConnectionRollup(t *testing.T) {
 	}
 
 	ns := newDefaultState()
-	ns.enablePortRollups = true
+	ns.enableConnectionRollup = true
 	ns.RegisterClient("foo")
 	delta := ns.GetDelta("foo", 0, conns, nil, nil)
 	assert.Len(t, delta.Conns, 2)

@@ -260,13 +260,13 @@ type networkState struct {
 	latestTimeEpoch uint64
 
 	// Network state configuration
-	clientExpiry      time.Duration
-	maxClosedConns    uint32
-	maxClientStats    int
-	maxDNSStats       int
-	maxHTTPStats      int
-	maxKafkaStats     int
-	enablePortRollups bool
+	clientExpiry           time.Duration
+	maxClosedConns         uint32
+	maxClientStats         int
+	maxDNSStats            int
+	maxHTTPStats           int
+	maxKafkaStats          int
+	enableConnectionRollup bool
 
 	mergeStatsBuffers [2][]byte
 
@@ -274,16 +274,16 @@ type networkState struct {
 }
 
 // NewState creates a new network state
-func NewState(clientExpiry time.Duration, maxClosedConns uint32, maxClientStats int, maxDNSStats int, maxHTTPStats int, maxKafkaStats int, enablePortRollups bool, processEventConsumerEnabled bool) State {
+func NewState(clientExpiry time.Duration, maxClosedConns uint32, maxClientStats int, maxDNSStats int, maxHTTPStats int, maxKafkaStats int, enableConnectionRollup bool, processEventConsumerEnabled bool) State {
 	ns := &networkState{
-		clients:           map[string]*client{},
-		clientExpiry:      clientExpiry,
-		maxClosedConns:    maxClosedConns,
-		maxClientStats:    maxClientStats,
-		maxDNSStats:       maxDNSStats,
-		maxHTTPStats:      maxHTTPStats,
-		maxKafkaStats:     maxKafkaStats,
-		enablePortRollups: enablePortRollups,
+		clients:                map[string]*client{},
+		clientExpiry:           clientExpiry,
+		maxClosedConns:         maxClosedConns,
+		maxClientStats:         maxClientStats,
+		maxDNSStats:            maxDNSStats,
+		maxHTTPStats:           maxHTTPStats,
+		maxKafkaStats:          maxKafkaStats,
+		enableConnectionRollup: enableConnectionRollup,
 		mergeStatsBuffers: [2][]byte{
 			make([]byte, ConnectionByteKeyMaxLen),
 			make([]byte, ConnectionByteKeyMaxLen),
@@ -291,9 +291,9 @@ func NewState(clientExpiry time.Duration, maxClosedConns uint32, maxClientStats 
 		localResolver: NewLocalResolver(processEventConsumerEnabled),
 	}
 
-	if ns.enablePortRollups && !processEventConsumerEnabled {
+	if ns.enableConnectionRollup && !processEventConsumerEnabled {
 		log.Warnf("disabling port rollups since network event consumer is not enabled")
-		ns.enablePortRollups = false
+		ns.enableConnectionRollup = false
 	}
 
 	return ns
@@ -374,7 +374,7 @@ func (ns *networkState) GetDelta(
 		ns.storeDNSStats(dnsStats)
 	}
 
-	aggr := newConnectionAggregator((len(closed)+len(active))/2, ns.enablePortRollups, client.dnsStats)
+	aggr := newConnectionAggregator((len(closed)+len(active))/2, ns.enableConnectionRollup, client.dnsStats)
 	active = filterConnections(active, func(c *ConnectionStats) bool {
 		return !aggr.Aggregate(c)
 	})
