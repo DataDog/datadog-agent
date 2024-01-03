@@ -11,48 +11,43 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"sync"
 	"unsafe"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 
+	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const defaultBatchSize = 100
 
-var (
-	batchAPISupportedOnce sync.Once
-	batchAPISupported     bool
-)
-
 // BatchAPISupported returns true if the kernel supports the batch API for maps
-func BatchAPISupported() bool {
-	batchAPISupportedOnce.Do(func() {
-		// Do feature detection directly instead of based on kernel versions for more accuracy
-		m, err := ebpf.NewMap(&ebpf.MapSpec{
-			Type:       ebpf.Hash,
-			KeySize:    4,
-			ValueSize:  4,
-			MaxEntries: 10,
-		})
-		if err != nil {
-			log.Warnf("Failed to create map for batch API test: %v, will mark batch API as unsupported", err)
-			batchAPISupported = false
-			return
-		}
-
-		keys := make([]uint32, 1)
-		values := make([]uint32, 1)
-
-		// Do a batch update, check the result.
-		// We do an update instead of a lookup because it's more reliable for detection
-		_, err = m.BatchUpdate(keys, values, nil)
-		batchAPISupported = err == nil
+var BatchAPISupported = funcs.MemoizeNoError(func() bool {
+	// Do feature detection directly instead of based on kernel versions for more accuracy
+	m, err := ebpf.NewMap(&ebpf.MapSpec{
+		Type:       ebpf.Hash,
+		KeySize:    4,
+		ValueSize:  4,
+		MaxEntries: 10,
 	})
-	return batchAPISupported
-}
+	if err != nil {
+		log.Warnf("Failed to create map for batch API test: %v, will mark batch API as unsupported", err)
+		return false
+	}
+	defer m.Close()
+
+	keys := make([]uint32, 1)
+	values := make([]uint32, 1)
+
+	// Do a batch update, check the result.
+	// We do an update instead of a lookup because it's more reliable for detection
+	_, err = m.BatchUpdate(keys, values, &ebpf.BatchOptions{ElemFlags: uint64(ebpf.UpdateAny)})
+	if !errors.Is(err, ebpf.ErrNotSupported) {
+		log.Warnf("Unexpected error while testing batch API support: %v", err)
+	}
+	return err == nil
+})
 
 // GenericMap is a wrapper around ebpf.Map that allows to use generic types.
 // Also includes support for batch iterations

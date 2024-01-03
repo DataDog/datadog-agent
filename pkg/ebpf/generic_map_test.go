@@ -77,27 +77,25 @@ func TestBatchIter(t *testing.T) {
 	require.NoError(t, err)
 
 	numsToPut := uint32(50)
+	expectedNumbers := make([]uint32, numsToPut)
 	for i := uint32(0); i < numsToPut; i++ {
 		require.NoError(t, m.Put(&i, &i))
+		expectedNumbers[i] = i
 	}
 
 	var k uint32
 	var v uint32
-	numElements := uint32(0)
-	foundElements := make(map[uint32]bool)
+	actualNumbers := make([]uint32, numsToPut)
 
 	it := m.IterateWithOptions(IteratorOptions{BatchSize: 10})
 	require.NotNil(t, it)
 	require.IsType(t, &genericMapBatchIterator[uint32, uint32]{}, it)
 	for it.Next(&k, &v) {
-		numElements++
-		foundElements[k] = true
+		actualNumbers[k] = v
 	}
 
-	require.Equal(t, numsToPut, numElements)
-	for i := uint32(0); i < numsToPut; i++ {
-		require.True(t, foundElements[i])
-	}
+	require.NoError(t, it.Err())
+	require.Equal(t, expectedNumbers, actualNumbers)
 }
 
 func TestBatchIterArray(t *testing.T) {
@@ -112,35 +110,30 @@ func TestBatchIterArray(t *testing.T) {
 	require.NoError(t, err)
 
 	numsToPut := uint32(50)
+	expectedNumbers := make([]uint32, m.Map().MaxEntries())
 	for i := uint32(0); i < numsToPut; i++ {
 		val := i + 200 // To distinguish from unset values
 		require.NoError(t, m.Put(&i, &val))
+		expectedNumbers[i] = val
 	}
 
 	var k uint32
 	var v uint32
 	numElements := uint32(0)
-	foundElements := make(map[uint32]bool)
+	actualNumbers := make([]uint32, m.Map().MaxEntries())
 
 	it := m.IterateWithOptions(IteratorOptions{BatchSize: 10})
 	require.NotNil(t, it)
 	require.IsType(t, &genericMapBatchIterator[uint32, uint32]{}, it)
 	for it.Next(&k, &v) {
+		actualNumbers[k] = v
 		numElements++
-
-		if k < 50 {
-			foundElements[k] = true
-			require.Equal(t, k+200, v)
-		} else {
-			require.Equal(t, uint32(0), v)
-		}
 	}
+	require.NoError(t, it.Err())
 
 	// Array maps will return all values on iterations, even if they are unset
 	require.Equal(t, m.Map().MaxEntries(), numElements)
-	for i := uint32(0); i < numsToPut; i++ {
-		require.True(t, foundElements[i])
-	}
+	require.Equal(t, expectedNumbers, actualNumbers)
 }
 
 func TestBatchIterLessItemsThanBatchSize(t *testing.T) {
@@ -155,27 +148,24 @@ func TestBatchIterLessItemsThanBatchSize(t *testing.T) {
 	require.NoError(t, err)
 
 	numsToPut := uint32(5)
+	expectedNumbers := make([]uint32, numsToPut)
 	for i := uint32(0); i < numsToPut; i++ {
 		require.NoError(t, m.Put(&i, &i))
+		expectedNumbers[i] = i
 	}
 
 	var k uint32
 	var v uint32
-	numElements := uint32(0)
-	foundElements := make(map[uint32]bool)
+	actualNumbers := make([]uint32, numsToPut)
 
 	it := m.IterateWithOptions(IteratorOptions{BatchSize: 10})
 	require.NotNil(t, it)
 	require.IsType(t, &genericMapBatchIterator[uint32, uint32]{}, it)
 	for it.Next(&k, &v) {
-		numElements++
-		foundElements[k] = true
+		actualNumbers[k] = v
 	}
 
-	require.Equal(t, numsToPut, numElements)
-	for i := uint32(0); i < numsToPut; i++ {
-		require.True(t, foundElements[i])
-	}
+	require.Equal(t, expectedNumbers, actualNumbers)
 }
 
 func TestBatchIterWhileUpdated(t *testing.T) {
