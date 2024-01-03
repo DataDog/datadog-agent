@@ -79,6 +79,9 @@ func newServer(lc fx.Lifecycle, deps dependencies) server.Component {
 		return &TrapsServer{running: false}
 	}
 	stat := statusimpl.New()
+	// TODO: (components) Having apps within apps is not ideal - you have to be
+	// careful never to double-instantiate anything. Do not use this solution
+	// elsewhere if possible.
 	app := fx.New(
 		fx.Supply(injections{
 			Conf:      deps.Conf,
