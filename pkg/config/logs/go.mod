@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/config/logs
 
-go 1.20
+go 1.21
 
 replace (
 	github.com/DataDog/datadog-agent/pkg/config/model => ../model/

@@ -205,9 +205,7 @@ func BenchmarkNetflowAdditionalFields(b *testing.B) {
 	ctx := context.Background()
 
 	templateSystem, err := templates.FindTemplateSystem(ctx, "memory")
-	if err != nil {
-		require.NoError(b, err, "error with template")
-	}
+	require.NoError(b, err, "error with template")
 	defer templateSystem.Close(ctx)
 
 	goflowState := utils.NewStateNetFlow()
