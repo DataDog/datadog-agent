@@ -193,11 +193,11 @@ func (c *Check) Run() error {
 	metricTicker := time.NewTicker(metricPeriod)
 	defer metricTicker.Stop()
 
+	defer c.processor.stop()
 	for {
 		select {
 		case eventBundle, ok := <-imgEventsCh:
 			if !ok {
-				c.processor.stop()
 				return nil
 			}
 			c.processor.processContainerImagesEvents(eventBundle)
@@ -208,7 +208,6 @@ func (c *Check) Run() error {
 		case <-metricTicker.C:
 			c.sendUsageMetrics()
 		case <-c.stopCh:
-			c.processor.stop()
 			return nil
 		}
 	}

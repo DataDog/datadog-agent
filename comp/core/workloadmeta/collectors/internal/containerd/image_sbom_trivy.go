@@ -57,6 +57,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 
 			case eventBundle, ok := <-imgEventsCh:
 				if !ok {
+					// closed channel case
 					return
 				}
 				eventBundle.Acknowledge()
