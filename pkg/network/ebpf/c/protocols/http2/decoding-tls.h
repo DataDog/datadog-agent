@@ -500,6 +500,22 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
         return 0;
     }
 
+    // A case where we read an interesting valid frame header in the previous call, and now we're trying to read the
+    // rest of the frame payload. But, since we already read a valid frame, we just fill it as an interesting frame,
+    // and continue to the next tail call.
+    if (frame_state != NULL && frame_state->header_length == HTTP2_FRAME_HEADER_SIZE) {
+        // Copy the cached frame header to the current frame.
+        bpf_memcpy((char *)&current_frame, frame_state->buf, HTTP2_FRAME_HEADER_SIZE);
+        // Delete the cached frame header.
+        bpf_map_delete_elem(&http2_remainder, &dispatcher_args_copy.tup);
+        // Save the frame as an interesting frame (a.k.a, restoring the state we had in the previous call).
+        // We need to do so, as we're zeroing the iteration_value at the beginning of this function.
+        iteration_value->frames_array[0].frame = current_frame;
+        iteration_value->frames_array[0].offset = 0;
+        iteration_value->frames_count = 1;
+        // Continuing to the next tail call.
+        bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_FILTER);
+    }
     if (!tls_get_first_frame(&dispatcher_args_copy, frame_state, &current_frame, http2_tel)) {
         return 0;
     }
@@ -517,10 +533,27 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
         iteration_value->frames_count = 1;
     }
     dispatcher_args_copy.off += current_frame.length;
+    // We're exceeding the packet boundaries, so we have a remainder.
+    if (dispatcher_args_copy.off > dispatcher_args_copy.len) {
+        frame_header_remainder_t new_frame_state = { 0 };
+
+        // Saving the remainder.
+        new_frame_state.remainder = dispatcher_args_copy.off - dispatcher_args_copy.len;
+        // We did find an interesting frame (as frames_count == 1), so we cache the current frame and waiting for the
+        // next call.
+        if (iteration_value->frames_count == 1) {
+            new_frame_state.header_length = HTTP2_FRAME_HEADER_SIZE;
+            bpf_memcpy(new_frame_state.buf, (char *)&current_frame, HTTP2_FRAME_HEADER_SIZE);
+        }
+
+        bpf_map_update_elem(&http2_remainder, &dispatcher_args_copy.tup, &new_frame_state, BPF_ANY);
+        // Not calling the next tail call as we have nothing to process.
+        return 0;
+    }
     // Overriding the off field of the cached args. The next prog will start from the offset of the next valid
     // frame.
     args->off = dispatcher_args_copy.off;
-
+    // Calling the next tail call.
     bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_FILTER);
     return 0;
 }
