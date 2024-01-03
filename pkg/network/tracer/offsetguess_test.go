@@ -335,3 +335,9 @@ func TestOffsetGuessPortIPv6Overlap(t *testing.T) {
 		testOffsetGuess(t)
 	})
 }
+
+func TestOffsetGuessNetNSOffsetLog(t *testing.T) {
+	ebpftest.LogLevel(t, "trace")
+	ebpftest.TestBuildMode(t, ebpftest.RuntimeCompiled, "", testOffsetGuess)
+	require.Fail(t, "test should always fail")
+}
