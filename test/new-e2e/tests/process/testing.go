@@ -15,6 +15,7 @@ import (
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 )
@@ -35,17 +36,11 @@ const (
 	stressK8sImageTag = "short_image:stress-ng"
 )
 
-// cleanJSONOutput removes any stray log lines before or after the JSON object in the output
+// cleanJSONOutput removes any text before or after the JSON object in the output
 func cleanJSONOutput(str string) string {
-	for !strings.HasPrefix(str, "{") {
-		_, str, _ = strings.Cut(str, "\n")
-	}
-
-	for !strings.HasSuffix(str, "}") {
-		str = str[0:strings.LastIndexByte(str, '\n')]
-	}
-
-	return str
+	start := strings.IndexByte(str, '{') + 1
+	end := strings.LastIndexByte(str, '}')
+	return str[start:end]
 }
 
 // assertRunningChecks inspects the given status output and asserts that the given process agent
@@ -194,13 +189,11 @@ func processDiscoveryHasData(disc *agentmodel.ProcessDiscovery) bool {
 // container payloads and whether it has the expected data populated
 func findContainer(image string, containers []*agentmodel.Container) (found, populated bool) {
 	for _, container := range containers {
-		for _, tag := range container.Tags {
-			if tag == image {
-				found = true
-				populated = containerHasData(container)
-				if populated {
-					break
-				}
+		if slices.Contains(container.Tags, image) {
+			found = true
+			populated = containerHasData(container)
+			if populated {
+				break
 			}
 		}
 	}
