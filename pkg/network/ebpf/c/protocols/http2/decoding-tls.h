@@ -67,7 +67,7 @@ static __always_inline bool tls_read_hpack_int(tls_dispatcher_arguments_t *info,
 //
 // We are only interested in path headers, that we will store in our internal
 // dynamic table, and will skip headers that are not path headers.
-static __always_inline bool tls_parse_field_literal(tls_dispatcher_arguments_t *info, http2_header_t *headers_to_process, __u64 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter, http2_telemetry_t *http2_tel) {
+static __always_inline bool tls_parse_field_literal(tls_dispatcher_arguments_t *info, http2_header_t *headers_to_process, __u64 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter, http2_telemetry_t *http2_tel, bool save_header) {
     __u64 str_len = 0;
     bool is_huffman_encoded = false;
     // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
@@ -106,8 +106,12 @@ static __always_inline bool tls_parse_field_literal(tls_dispatcher_arguments_t *
         goto end;
     }
 
-    headers_to_process->index = global_dynamic_counter - 1;
-    headers_to_process->type = kNewDynamicHeader;
+    if (save_header) {
+        headers_to_process->index = global_dynamic_counter - 1;
+        headers_to_process->type = kNewDynamicHeader;
+    } else {
+        headers_to_process->type = kNewDynamicHeaderNotIndexed;
+    }
     headers_to_process->new_dynamic_value_offset = info->off;
     headers_to_process->new_dynamic_value_size = str_len;
     headers_to_process->is_huffman_encoded = is_huffman_encoded;
@@ -131,6 +135,7 @@ static __always_inline __u8 tls_filter_relevant_headers(tls_dispatcher_arguments
     const __u32 frame_end = info->off + frame_length;
     const __u32 end = frame_end < info->len + 1 ? frame_end : info->len + 1;
     bool is_indexed = false;
+    bool is_literal = false;
     bool is_dynamic_table_update = false;
     __u64 max_bits = 0;
     __u64 index = 0;
@@ -157,25 +162,25 @@ static __always_inline __u8 tls_filter_relevant_headers(tls_dispatcher_arguments
             is_dynamic_table_update = (current_ch & 128) != 0;
             continue;
         }
-        // 224 is represented as 0b11100000, which is the OR operation for
-        // - indexed representation     (0b10000000)
-        // - literal representation     (0b01000000)
-        // - dynamic table size update  (0b00100000)
-        // Thus current_ch & 224 will be 0 only if the top 3 bits are 0, which means that the current byte is not
-        // representing any of the above.
-        if ((current_ch & 224) == 0) {
-            continue;
-        }
         // 32 is represented as 0b00100000, which is the scenario of dynamic table size update.
-        // From the previous condition we know that the top 3 bits are not 0, so if the top 3 bits are 001, then
-        // we have a dynamic table size update.
+        // If the top 3 bits are 001, then we have a dynamic table size update.
         is_dynamic_table_update = (current_ch & 224) == 32;
         if (is_dynamic_table_update) {
             continue;
         }
 
         is_indexed = (current_ch & 128) != 0;
-        max_bits = is_indexed ? MAX_7_BITS : MAX_6_BITS;
+        is_literal = (current_ch & 192) == 64;
+        // If all (is_indexed, is_literal, is_dynamic_table_update) are false, then we
+        // have a literal header field without indexing (prefix 0000) or literal header field never indexed (prefix 0001).
+
+        max_bits = MAX_4_BITS;
+        // If we're in an indexed header - the max bits are 7.
+        max_bits = is_indexed ? MAX_7_BITS : max_bits;
+        // else, if we're in a literal header - the max bits are 6.
+        max_bits = is_literal ? MAX_6_BITS : max_bits;
+        // otherwise, we're in literal header without indexing or literal header never indexed - and for both, the
+        // max bits are 4.
 
         index = 0;
         if (!tls_read_hpack_int_with_given_current_char(info, current_ch, max_bits, &index)) {
@@ -192,14 +197,15 @@ static __always_inline __u8 tls_filter_relevant_headers(tls_dispatcher_arguments
             // MSB bit set.
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.1
             parse_field_indexed(dynamic_index, current_header, index, *global_dynamic_counter, &interesting_headers);
-        } else {
-            __sync_fetch_and_add(global_dynamic_counter, 1);
-            // 6.2.1 Literal Header Field with Incremental Indexing
-            // top two bits are 11
-            // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
-            if (!tls_parse_field_literal(info, current_header, index, *global_dynamic_counter, &interesting_headers, http2_tel)) {
-                break;
-            }
+            continue;
+        }
+        // Increment the global dynamic counter for each literal header field.
+        // We're not increasing the counter for literal without indexing or literal never indexed.
+        __sync_fetch_and_add(global_dynamic_counter, is_literal);
+
+        // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
+        if (!tls_parse_field_literal(info, current_header, index, *global_dynamic_counter, &interesting_headers, http2_tel, is_literal)) {
+            break;
         }
     }
 
@@ -249,12 +255,15 @@ static __always_inline void tls_process_headers(tls_dispatcher_arguments_t *info
             current_stream->is_huffman_encoded = dynamic_value->is_huffman_encoded;
             bpf_memcpy(current_stream->request_path, dynamic_value->buffer, HTTP2_MAX_PATH_LEN);
         } else {
-            dynamic_value.string_len = current_header->new_dynamic_value_size;
-            dynamic_value.is_huffman_encoded = current_header->is_huffman_encoded;
+            // We're in new dynamic header or new dynamic header not indexed states.
 
-            // create the new dynamic value which will be added to the internal table.
             read_into_user_buffer_http2_path(dynamic_value.buffer, info->buffer_ptr + current_header->new_dynamic_value_offset);
-            bpf_map_update_elem(&http2_dynamic_table, dynamic_index, &dynamic_value, BPF_ANY);
+            // If the value is indexed - add it to the dynamic table.
+            if (current_header->type == kNewDynamicHeader) {
+                dynamic_value.string_len = current_header->new_dynamic_value_size;
+                dynamic_value.is_huffman_encoded = current_header->is_huffman_encoded;
+                bpf_map_update_elem(&http2_dynamic_table, dynamic_index, &dynamic_value, BPF_ANY);
+            }
             current_stream->path_size = current_header->new_dynamic_value_size;
             current_stream->is_huffman_encoded = current_header->is_huffman_encoded;
             bpf_memcpy(current_stream->request_path, dynamic_value.buffer, HTTP2_MAX_PATH_LEN);
