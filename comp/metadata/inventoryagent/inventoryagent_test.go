@@ -237,7 +237,7 @@ func TestFlareProviderFilename(t *testing.T) {
 func TestConfigRefresh(t *testing.T) {
 	ia := getTestInventoryPayload(t, nil)
 
-	assert.False(t, ia.ForceRefresh)
+	assert.False(t, ia.RefreshTriggered())
 	pkgconfig.Datadog.Set("inventories_max_interval", 10*time.Minute, pkgconfigmodel.SourceAgentRuntime)
-	assert.True(t, ia.ForceRefresh)
+	assert.True(t, ia.RefreshTriggered())
 }

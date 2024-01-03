@@ -127,7 +127,7 @@ checks code.
 
 [custom-checks]: https://docs.datadoghq.com/developers/write_agent_check/?tab=agentv6
 [collector]: /pkg/collector
-[datadog_checks_base]: https://datadog-checks-base.readthedocs.io/en/latest/
+[datadog_checks_base]: https://datadoghq.dev/integrations-core/base/about/
 [developer_docs]: https://docs.datadoghq.com/developers/
 
 ## Running checks with a local Agent Build
@@ -282,4 +282,3 @@ The very simplified summary is that `libdatadog-agent-rtloader.so` attempts to l
 does not have its `RUNPATH` set correctly in local builds, so `dlopen` is unable to find
 `libdatadog-agent-three.so`. Using `LD_LIBRARY_PATH` instructs `dlopen` where to
 search for libraries, so using it sidesteps this issue.
-

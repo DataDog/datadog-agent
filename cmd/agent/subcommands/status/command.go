@@ -130,8 +130,7 @@ func redactError(unscrubbedError error) error {
 	return scrubbedError
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func statusCmd(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, cliParams *cliParams) error {
+func statusCmd(_ log.Component, config config.Component, _ sysprobeconfig.Component, cliParams *cliParams) error {
 	return redactError(requestStatus(config, cliParams))
 }
 
@@ -187,8 +186,7 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 	return nil
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func componentStatusCmd(log log.Component, config config.Component, cliParams *cliParams) error {
+func componentStatusCmd(_ log.Component, config config.Component, cliParams *cliParams) error {
 	if len(cliParams.args) != 1 {
 		return fmt.Errorf("a component name must be specified")
 	}

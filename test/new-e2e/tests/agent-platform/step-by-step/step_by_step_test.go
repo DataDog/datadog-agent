@@ -54,12 +54,14 @@ func TestStepByStepScript(t *testing.T) {
 		"debian":      ec2os.DebianOS,
 		"ubuntu":      ec2os.UbuntuOS,
 		"centos":      ec2os.CentOS,
-		"rhel":        ec2os.RedHatOS,
 		"amazonlinux": ec2os.AmazonLinuxOS,
 		"redhat":      ec2os.RedHatOS,
+		"rhel":        ec2os.RedHatOS,
+		"sles":        ec2os.SuseOS,
 		"windows":     ec2os.WindowsOS,
 		"fedora":      ec2os.FedoraOS,
 		"suse":        ec2os.SuseOS,
+		"rocky":       ec2os.RockyLinux,
 	}
 
 	archMapping := map[string]e2eOs.Architecture{
@@ -85,6 +87,13 @@ func TestStepByStepScript(t *testing.T) {
 			}
 		}
 
+		var testOsType ec2os.Type
+		for osName, osType := range osMapping {
+			if strings.Contains(osVers, osName) {
+				testOsType = osType
+			}
+		}
+
 		t.Run(fmt.Sprintf("test step by step on %s %s", osVers, *architecture), func(tt *testing.T) {
 			tt.Parallel()
 			fmt.Printf("Testing %s", osVers)
@@ -102,7 +111,7 @@ func TestStepByStepScript(t *testing.T) {
 			} else {
 				version = 0
 			}
-			vmOpts = append(vmOpts, ec2params.WithImageName(platformJSON[*platform][*architecture][osVers], archMapping[*architecture], osMapping[*platform]))
+			vmOpts = append(vmOpts, ec2params.WithImageName(platformJSON[*platform][*architecture][osVers], archMapping[*architecture], testOsType))
 			if instanceType, ok := os.LookupEnv("E2E_OVERRIDE_INSTANCE_TYPE"); ok {
 				vmOpts = append(vmOpts, ec2params.WithInstanceType(instanceType))
 			}
