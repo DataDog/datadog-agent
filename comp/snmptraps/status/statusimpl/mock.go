@@ -61,5 +61,7 @@ func (s *mockManager) SetStartError(err error) {
 }
 
 func (s *mockManager) GetStartError() error {
+	s.lock.Lock()
+	defer s.lock.Unlock()
 	return s.err
 }
