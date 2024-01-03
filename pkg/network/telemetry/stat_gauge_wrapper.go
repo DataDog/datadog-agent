@@ -18,36 +18,36 @@ type StatGaugeWrapper struct {
 	gauge telemetry.Gauge
 }
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// Inc increments the Gauge value.
 func (sgw *StatGaugeWrapper) Inc() {
 	sgw.stat.Inc()
 	sgw.gauge.Inc()
 }
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// Dec decrements the Gauge value.
 func (sgw *StatGaugeWrapper) Dec() {
 	sgw.stat.Dec()
 	sgw.gauge.Dec()
 }
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// Add adds the value to the Gauge value.
 func (sgw *StatGaugeWrapper) Add(v int64) {
 	sgw.stat.Add(v)
 	sgw.gauge.Add(float64(v))
 }
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// Set stores the value for the given tags.
 func (sgw *StatGaugeWrapper) Set(v int64) {
 	sgw.stat.Store(v)
 	sgw.gauge.Set(float64(v))
 }
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// Load atomically loads the wrapped value.
 func (sgw *StatGaugeWrapper) Load() int64 {
 	return sgw.stat.Load()
 }
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// NewStatGaugeWrapper returns a new StatGaugeWrapper
 func NewStatGaugeWrapper(subsystem string, statName string, tags []string, description string) *StatGaugeWrapper {
 	return &StatGaugeWrapper{
 		stat:  atomic.NewInt64(0),

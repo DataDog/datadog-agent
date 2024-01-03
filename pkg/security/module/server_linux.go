@@ -151,9 +151,12 @@ func (a *APIServer) SaveSecurityProfile(_ context.Context, params *api.SecurityP
 
 // GetStatus returns the status of the module
 func (a *APIServer) GetStatus(_ context.Context, _ *api.GetStatusParams) (*api.Status, error) {
-	apiStatus := &api.Status{
-		SelfTests: a.selfTester.GetStatus(),
+	var apiStatus api.Status
+	if a.selfTester != nil {
+		apiStatus.SelfTests = a.selfTester.GetStatus()
 	}
+
+	apiStatus.PoliciesStatus = a.policiesStatus
 
 	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
 	if ok {
@@ -180,17 +183,17 @@ func (a *APIServer) GetStatus(_ context.Context, _ *api.GetStatusParams) (*api.S
 			UseMmapableMaps: p.GetKernelVersion().HaveMmapableMaps(),
 			UseRingBuffer:   p.UseRingBuffers(),
 		}
-	}
 
-	envErrors := p.VerifyEnvironment()
-	if envErrors != nil {
-		apiStatus.Environment.Warnings = make([]string, len(envErrors.Errors))
-		for i, err := range envErrors.Errors {
-			apiStatus.Environment.Warnings[i] = err.Error()
+		envErrors := p.VerifyEnvironment()
+		if envErrors != nil {
+			apiStatus.Environment.Warnings = make([]string, len(envErrors.Errors))
+			for i, err := range envErrors.Errors {
+				apiStatus.Environment.Warnings[i] = err.Error()
+			}
 		}
 	}
 
-	return apiStatus, nil
+	return &apiStatus, nil
 }
 
 // DumpNetworkNamespace handles network namespace cache dump requests

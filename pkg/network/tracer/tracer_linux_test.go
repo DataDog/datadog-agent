@@ -40,6 +40,7 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	rc "github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
@@ -382,14 +383,12 @@ func (s *TracerSuite) TestConnectionExpirationRegression() {
 
 func (s *TracerSuite) TestConntrackExpiration() {
 	t := s.T()
+	ebpftest.LogLevel(t, "trace")
 	netlinktestutil.SetupDNAT(t)
-	wg := sync.WaitGroup{}
 
 	tr := setupTracer(t, testConfig())
 
 	server := NewTCPServerOnAddress("1.1.1.1:0", func(c net.Conn) {
-		wg.Add(1)
-		defer wg.Done()
 		defer c.Close()
 
 		r := bufio.NewReader(c)
@@ -401,7 +400,7 @@ func (s *TracerSuite) TestConntrackExpiration() {
 				}
 				require.NoError(t, err)
 			}
-			if bytes.Equal(b, []byte("\n")) {
+			if len(b) == 0 {
 				return
 			}
 		}
@@ -454,7 +453,6 @@ func (s *TracerSuite) TestConntrackExpiration() {
 	// write newline so server connections will exit
 	_, err = c.Write([]byte("\n"))
 	require.NoError(t, err)
-	wg.Wait()
 }
 
 // This test ensures that conntrack lookups are retried for short-lived
@@ -1391,6 +1389,8 @@ func (s *TracerSuite) TestDNSStatsWithNAT() {
 	cfg.CollectDNSStats = true
 	cfg.DNSTimeout = 1 * time.Second
 	tr := setupTracer(t, cfg)
+
+	t.Logf("requesting golang.com@2.2.2.2 with conntrack type: %T", tr.conntracker)
 	testDNSStats(t, tr, "golang.org", 1, 0, 0, "2.2.2.2")
 }
 
@@ -1477,9 +1477,11 @@ func (s *TracerSuite) TestSendfileRegression() {
 			return int64(clientMessageSize) == rcvdFunc()
 		}, 3*time.Second, 500*time.Millisecond, "TCP server didn't receive data")
 
+		t.Logf("looking for connections %+v <-> %+v", c.LocalAddr(), c.RemoteAddr())
 		var outConn, inConn *network.ConnectionStats
 		assert.Eventually(t, func() bool {
 			conns := getConnections(t, tr)
+			t.Log(conns)
 			if outConn == nil {
 				outConn = network.FirstConnection(conns, network.ByType(connType), network.ByFamily(family), network.ByTuple(c.LocalAddr(), c.RemoteAddr()))
 			}
@@ -1744,22 +1746,38 @@ func (s *TracerSuite) TestBlockingReadCounts() {
 	require.NoError(t, err)
 	defer c.Close()
 
-	f, err := c.(*net.TCPConn).File()
-	require.NoError(t, err)
+	rawConn, err := c.(syscall.Conn).SyscallConn()
+	require.NoError(t, err, "error getting raw conn")
 
-	fd := int(f.Fd())
+	// set the socket to blocking as the MSG_WAITALL
+	// option used later on for reads only works for
+	// blocking sockets
+	// also set a timeout on the reads to not wait
+	// forever
+	rawConn.Control(func(fd uintptr) {
+		err = syscall.SetNonblock(int(fd), false)
+		require.NoError(t, err, "could not set socket to blocking")
+		err = syscall.SetsockoptTimeval(int(fd), syscall.SOL_SOCKET, syscall.SO_RCVTIMEO, &syscall.Timeval{Sec: 5})
+		require.NoError(t, err, "could not set read timeout on socket")
+	})
 
 	read := 0
 	buf := make([]byte, 6)
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		n, _, err := syscall.Recvfrom(fd, buf[read:], syscall.MSG_WAITALL)
-		if !assert.NoError(c, err) {
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		var n int
+		readErr := rawConn.Read(func(fd uintptr) bool {
+			n, _, err = syscall.Recvfrom(int(fd), buf[read:], syscall.MSG_WAITALL)
+			return true
+		})
+
+		if !assert.NoError(collect, err, "error reading from connection") ||
+			!assert.NoError(collect, readErr, "error from raw conn") {
 			return
 		}
 
 		read += n
 		t.Logf("read %d", read)
-		assert.Equal(c, 6, read)
+		assert.Equal(collect, 6, read)
 	}, 10*time.Second, 100*time.Millisecond, "failed to get required bytes")
 
 	var conn *network.ConnectionStats
@@ -2007,6 +2025,7 @@ func (s *TracerSuite) TestGetHelpersTelemetry() {
 }
 
 func TestEbpfConntrackerFallback(t *testing.T) {
+	ebpftest.LogLevel(t, "trace")
 	type testCase struct {
 		enableRuntimeCompiler    bool
 		allowPrecompiledFallback bool
@@ -2082,6 +2101,7 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 }
 
 func TestConntrackerFallback(t *testing.T) {
+	ebpftest.LogLevel(t, "trace")
 	cfg := testConfig()
 	cfg.EnableEbpfConntracker = false
 	cfg.AllowNetlinkConntrackerFallback = true

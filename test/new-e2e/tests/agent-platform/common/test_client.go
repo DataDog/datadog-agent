@@ -151,7 +151,7 @@ func (c *TestClient) GetPythonVersion() (string, error) {
 	ok := false
 	var statusString string
 
-	for try := 0; try < 5 && !ok; try++ {
+	for try := 0; try < 60 && !ok; try++ {
 		status, err := c.AgentClient.StatusWithError(e2eClient.WithArgs([]string{"-j"}))
 		if err == nil {
 			ok = true
@@ -162,6 +162,16 @@ func (c *TestClient) GetPythonVersion() (string, error) {
 
 	err := json.Unmarshal([]byte(statusString), &statusJSON)
 	if err != nil {
+		fmt.Println("Failed to unmarshal status content: ", statusString)
+
+		// TEMPORARY DEBUG: on error print logs from journalctx
+		output, err := c.VMClient.ExecuteWithError("journalctl -u datadog-agent")
+		if err != nil {
+			fmt.Println("Failed to get logs from journalctl, ignoring... ")
+		} else {
+			fmt.Println("Logs from journalctl: ", output)
+		}
+
 		return "", err
 	}
 	pythonVersion := statusJSON["python_version"].(string)

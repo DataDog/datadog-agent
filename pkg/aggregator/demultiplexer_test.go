@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	orchestratorForwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
@@ -290,7 +290,7 @@ type internalDemutiplexerDeps struct {
 }
 
 func createDemuxDepsWithOrchestratorFwd(t *testing.T, opts AgentDemultiplexerOptions, params orchestratorForwarderImpl.Params) aggregatorDeps {
-	modules := fx.Options(defaultforwarder.MockModule, config.MockModule, log.MockModule, orchestratorForwarderImpl.Module, fx.Supply(params))
+	modules := fx.Options(defaultforwarder.MockModule(), config.MockModule(), logimpl.MockModule(), orchestratorForwarderImpl.Module(), fx.Supply(params))
 	deps := fxutil.Test[internalDemutiplexerDeps](t, modules)
 
 	return aggregatorDeps{

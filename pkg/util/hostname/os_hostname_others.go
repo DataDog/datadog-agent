@@ -13,8 +13,6 @@ import (
 
 // On non-Linux, non-Windows, we don't support containers and will assume
 // os hostname is usable
-//
-//nolint:revive // TODO(ASC) Fix revive linter
-func isOSHostnameUsable(ctx context.Context) bool {
+func isOSHostnameUsable(_ context.Context) bool {
 	return true
 }

@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/oidresolverimpl"
@@ -215,7 +216,7 @@ var (
 )
 
 var testOptions = fx.Options(
-	log.MockModule,
+	logimpl.MockModule(),
 	senderhelper.Opts,
 	oidresolverimpl.MockModule,
 	Module,
@@ -853,7 +854,7 @@ func TestIsBitEnabled(t *testing.T) {
 }
 
 func TestEnrichBits(t *testing.T) {
-	logger := fxutil.Test[log.Component](t, log.MockModule)
+	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
 	data := []struct {
 		description     string
 		variable        trapVariable

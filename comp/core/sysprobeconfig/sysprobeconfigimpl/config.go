@@ -17,9 +17,10 @@ import (
 )
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newConfig),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newConfig))
+}
 
 // cfg implements the Component.
 type cfg struct {

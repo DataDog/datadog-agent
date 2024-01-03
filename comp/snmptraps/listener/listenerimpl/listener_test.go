@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/config"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/config/configimpl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
@@ -44,8 +45,8 @@ type services struct {
 func listenerTestSetup(t *testing.T, conf *config.TrapsConfig) *services {
 	conf.Enabled = true
 	s := fxutil.Test[services](t,
-		hostnameimpl.MockModule,
-		log.MockModule,
+		hostnameimpl.MockModule(),
+		logimpl.MockModule(),
 		configimpl.MockModule,
 		statusimpl.MockModule,
 		senderhelper.Opts,

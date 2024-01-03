@@ -13,17 +13,22 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pkgdiagnose "github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"github.com/cihub/seelog"
 	"github.com/fatih/color"
@@ -78,9 +83,19 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
-					LogParams:    log.ForOneShot("CORE", "off", true)}),
-				core.Bundle,
-				diagnosesendermanagerimpl.Module,
+					LogParams:    logimpl.ForOneShot("CORE", "off", true)}),
+				core.Bundle(),
+				// workloadmeta setup
+				collectors.GetCatalog(),
+				fx.Provide(func() workloadmeta.Params {
+					return workloadmeta.Params{
+						AgentType:  workloadmeta.NodeAgent,
+						InitHelper: common.GetWorkloadmetaInit(),
+						NoInstance: !cliParams.runLocal,
+					}
+				}),
+				workloadmeta.OptionalModule(),
+				diagnosesendermanagerimpl.Module(),
 			)
 		},
 	}
@@ -122,7 +137,7 @@ This command print the V5 metadata payload for the Agent. This payload is used t
 			return fxutil.OneShot(printPayload,
 				fx.Supply(payloadName("v5")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -136,7 +151,7 @@ This command prints the gohai data sent by the Agent, including current processe
 			return fxutil.OneShot(printPayload,
 				fx.Supply(payloadName("gohai")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -150,7 +165,7 @@ This command print the inventory-agent metadata payload. This payload is used by
 			return fxutil.OneShot(printPayload,
 				fx.Supply(payloadName("inventory-agent")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -164,7 +179,7 @@ This command print the inventory-host metadata payload. This payload is used by 
 			return fxutil.OneShot(printPayload,
 				fx.Supply(payloadName("inventory-host")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -178,7 +193,7 @@ This command print the inventory-checks metadata payload. This payload is used b
 			return fxutil.OneShot(printPayload,
 				fx.Supply(payloadName("inventory-checks")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -193,7 +208,7 @@ This command print the inventory-checks metadata payload. This payload is used b
 	return []*cobra.Command{diagnoseCommand}
 }
 
-func cmdDiagnose(cliParams *cliParams, senderManager diagnosesendermanager.Component) error {
+func cmdDiagnose(cliParams *cliParams, senderManager diagnosesendermanager.Component, _ optional.Option[workloadmeta.Component]) error {
 	diagCfg := diagnosis.Config{
 		Verbose:  cliParams.verbose,
 		RunLocal: cliParams.runLocal,
@@ -212,8 +227,6 @@ func cmdDiagnose(cliParams *cliParams, senderManager diagnosesendermanager.Compo
 }
 
 // NOTE: This and related will be moved to separate "agent telemetry" command in future
-//
-//nolint:revive // TODO(ASC) Fix revive linter
 func printPayload(name payloadName, _ log.Component, config config.Component) error {
 	if err := util.SetAuthToken(); err != nil {
 		fmt.Println(err)

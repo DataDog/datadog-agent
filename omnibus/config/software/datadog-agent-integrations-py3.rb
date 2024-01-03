@@ -68,7 +68,10 @@ if redhat? && !arm_target?
   excluded_packages.push(/^pydantic-core==/)
 end
 
-if arm_target?
+# _64_bit checks the kernel arch.  On windows, the builder is 64 bit
+# even when doing a 32 bit build.  Do a specific check for the 32 bit
+# build
+if arm_target? || !_64_bit? || (windows_target? && windows_arch_i386?)
   excluded_packages.push(/^orjson==/)
 end
 
@@ -171,6 +174,8 @@ build do
       {
         "RUSTFLAGS" => "-C link-arg=-Wl,-rpath,#{install_dir}/embedded/lib",
         "OPENSSL_DIR" => "#{install_dir}/embedded/",
+        "PIP_NO_CACHE_DIR" => "off",
+        "PIP_FORCE_REINSTALL" => "1",
       }
     )
   end

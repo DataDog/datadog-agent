@@ -17,10 +17,11 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
+	corelogimpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -60,28 +61,26 @@ func run(
 func main() {
 	flag.Parse()
 	err := fxutil.OneShot(run,
-		core.Bundle,
-		forwarder.Bundle,
-		otelcol.Bundle,
-		logs.Bundle,
+		core.Bundle(),
+		forwarder.Bundle(),
+		otelcol.Bundle(),
+		logs.Bundle(),
 		fx.Supply(
 			core.BundleParams{
 				ConfigParams: config.NewAgentParams(*cfgPath),
 				SecretParams: secrets.NewEnabledParams(),
-				LogParams:    corelog.ForOneShot(loggerName, "debug", true),
+				LogParams:    corelogimpl.ForOneShot(loggerName, "debug", true),
 			},
 		),
 		fx.Provide(newForwarderParams),
-		demultiplexer.Module,
-		orchestratorForwarderImpl.Module,
+		demultiplexerimpl.Module(),
+		orchestratorForwarderImpl.Module(),
 		fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
 		fx.Provide(newSerializer),
-		fx.Provide(func(cfg config.Component) demultiplexer.Params {
+		fx.Provide(func(cfg config.Component) demultiplexerimpl.Params {
 			opts := aggregator.DefaultAgentDemultiplexerOptions()
 			opts.EnableNoAggregationPipeline = cfg.GetBool("dogstatsd_no_aggregation_pipeline")
-			opts.UseDogstatsdContextLimiter = true
-			opts.DogstatsdMaxMetricsTags = cfg.GetInt("dogstatsd_max_metrics_tags")
-			return demultiplexer.Params{Options: opts}
+			return demultiplexerimpl.Params{Options: opts}
 		}),
 	)
 	if err != nil {

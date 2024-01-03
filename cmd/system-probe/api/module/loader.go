@@ -64,16 +64,20 @@ func withModule(name config.ModuleName, fn func()) {
 // * Registering the HTTP endpoints of each module;
 // * Register the gRPC server;
 func Register(cfg *config.Config, httpMux *mux.Router, grpcServer *grpc.Server, factories []Factory) error {
-	if err := preRegister(cfg); err != nil {
-		return fmt.Errorf("error in pre-register hook: %w", err)
-	}
-
+	var enabledModulesFactories []Factory
 	for _, factory := range factories {
 		if !cfg.ModuleIsEnabled(factory.Name) {
 			log.Infof("module %s disabled", factory.Name)
 			continue
 		}
+		enabledModulesFactories = append(enabledModulesFactories, factory)
+	}
 
+	if err := preRegister(cfg, enabledModulesFactories); err != nil {
+		return fmt.Errorf("error in pre-register hook: %w", err)
+	}
+
+	for _, factory := range enabledModulesFactories {
 		var err error
 		var module Module
 		withModule(factory.Name, func() {
@@ -115,7 +119,7 @@ func Register(cfg *config.Config, httpMux *mux.Router, grpcServer *grpc.Server, 
 		log.Infof("module %s started", factory.Name)
 	}
 
-	if err := postRegister(cfg); err != nil {
+	if err := postRegister(cfg, enabledModulesFactories); err != nil {
 		return fmt.Errorf("error in post-register hook: %w", err)
 	}
 
