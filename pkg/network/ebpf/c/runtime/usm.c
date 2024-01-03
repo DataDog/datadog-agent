@@ -265,7 +265,11 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
     char *buffer_ptr = (char*)call_data_ptr->b_data;
     bpf_map_delete_elem(&go_tls_read_args, (go_tls_function_args_key_t*)&call_key);
 
-    tls_process(ctx, t, buffer_ptr, bytes_read, GO);
+    // The read tuple should be flipped (compared to the write tuple).
+    // tls_process and the appropriate parsers will flip it back if needed.
+    conn_tuple_t copy = *t;
+    flip_tuple(&copy);
+    tls_process(ctx, &copy, buffer_ptr, bytes_read, GO);
     return 0;
 }
 
