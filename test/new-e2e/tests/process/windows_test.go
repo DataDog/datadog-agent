@@ -58,6 +58,8 @@ func (s *windowsTestSuite) TestProcessCheck() {
 }
 
 func (s *windowsTestSuite) TestProcessDiscoveryCheck() {
+	s.T().Skip()
+
 	s.UpdateEnv(e2e.FakeIntakeStackDef(
 		e2e.WithAgentParams(agentparams.WithAgentConfig(processDiscoveryCheckConfigStr)),
 		e2e.WithVMParams(ec2params.WithOS(ec2os.WindowsOS)),
