@@ -11,7 +11,6 @@ package ptracer
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"runtime"
 	"syscall"
 
@@ -297,7 +296,7 @@ func traceFilterProg(opts Opts) (*syscall.SockFprog, error) {
 }
 
 // NewTracer returns a tracer
-func NewTracer(path string, args []string, opts Opts) (*Tracer, error) {
+func NewTracer(path string, args []string, envs []string, opts Opts) (*Tracer, error) {
 	info, err := arch.GetInfo("")
 	if err != nil {
 		return nil, err
@@ -310,7 +309,7 @@ func NewTracer(path string, args []string, opts Opts) (*Tracer, error) {
 
 	runtime.LockOSThread()
 
-	pid, err := forkExec(path, args, os.Environ(), opts.Creds, prog)
+	pid, err := forkExec(path, args, envs, opts.Creds, prog)
 	if err != nil {
 		return nil, fmt.Errorf("unable to execute `%s`: %w", path, err)
 	}
