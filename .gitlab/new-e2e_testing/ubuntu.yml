@@ -19,7 +19,7 @@
   variables:
     TARGETS: ./tests/agent-platform/upgrade
     TEAM: agent-platform
-    EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --cws-supported-osversion $E2E_CWS_SUPPORTED_OSVERS --arch $E2E_ARCH
+    EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --cws-supported-osversion $E2E_CWS_SUPPORTED_OSVERS --arch $E2E_ARCH --flavor $FLAVOR
   parallel:
     matrix:
       - START_MAJOR_VERSION: [5,6]
@@ -220,6 +220,8 @@ new-e2e-agent-platform-install-script-upgrade-ubuntu-x86_64:
     - .new-e2e_ubuntu_a7_x86_64
     - .new-e2e_agent_a6
     - .new-e2e-ubuntu-need_a6_and_a7
+  variables:
+    FLAVOR: datadog-agent
 
 new-e2e-agent-platform-install-script-upgrade-ubuntu-iot-agent-x86_64:
   stage: kitchen_testing
