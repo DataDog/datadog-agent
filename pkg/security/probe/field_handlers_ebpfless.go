@@ -151,3 +151,36 @@ func (fh *EBPFLessFieldHandlers) ResolveEventTime(ev *model.Event, _ *model.Base
 	}
 	return ev.Timestamp
 }
+
+// ResolveContainerID resolves the container ID of the event
+func (fh *EBPFLessFieldHandlers) ResolveContainerID(ev *model.Event, e *model.ContainerContext) string {
+	if len(e.ID) == 0 {
+		if entry, _ := fh.ResolveProcessCacheEntry(ev); entry != nil {
+			e.ID = entry.ContainerID
+		}
+	}
+	return e.ID
+}
+
+// ResolveContainerCreatedAt resolves the container creation time of the event
+func (fh *EBPFLessFieldHandlers) ResolveContainerCreatedAt(ev *model.Event, e *model.ContainerContext) int {
+	if e.CreatedAt == 0 {
+		if containerContext, _ := fh.ResolveContainerContext(ev); containerContext != nil {
+			e.CreatedAt = containerContext.CreatedAt
+		}
+	}
+	return int(e.CreatedAt)
+}
+
+// ResolveContainerTags resolves the container tags of the event
+func (fh *EBPFLessFieldHandlers) ResolveContainerTags(_ *model.Event, e *model.ContainerContext) []string {
+	if len(e.Tags) == 0 && e.ID != "" {
+		e.Tags = fh.resolvers.TagsResolver.Resolve(e.ID)
+	}
+	return e.Tags
+}
+
+// ResolveProcessCreatedAt resolves process creation time
+func (fh *EBPFLessFieldHandlers) ResolveProcessCreatedAt(_ *model.Event, e *model.Process) int {
+	return int(e.ExecTime.UnixNano())
+}

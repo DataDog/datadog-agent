@@ -545,7 +545,7 @@ static __always_inline bool find_relevant_frames(struct __sk_buff *skb, skb_info
     http2_frame_t current_frame = {};
 
     // if we already processed part of the packet, we should start from the last offset we processed.
-    if (iteration_value->filter_iterations > 0) {
+    if (iteration_value->filter_iterations != 0) {
         skb_info->data_off = iteration_value->data_off;
     }
 
@@ -638,6 +638,8 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
     }
     iteration_value->frames_count = 0;
     iteration_value->iteration = 0;
+    iteration_value->filter_iterations = 0;
+    iteration_value->data_off = 0;
 
     // skip HTTP2 magic, if present
     skip_preface(skb, &dispatcher_args_copy.skb_info);
@@ -707,10 +709,10 @@ int socket__http2_filter(struct __sk_buff *skb) {
     // We have found there are more frames to filter, so we will call frame_filter again.
     // Max current amount of tail calls would be 2, which will allow us to currently parse
     // HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER*HTTP2_MAX_FRAMES_ITERATIONS.
+    iteration_value->filter_iterations++;
     if (have_more_frames_to_process && iteration_value->filter_iterations < HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER) {
         // save local copy of the skb_info, so the next prog will start from the offset of the next valid frame.
         iteration_value->data_off = local_skb_info.data_off;
-        iteration_value->filter_iterations++;
         bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2_FRAME_FILTER);
     }
 
@@ -802,15 +804,14 @@ int socket__http2_headers_parser(struct __sk_buff *skb) {
 
     #pragma unroll(HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL)
     for (__u16 index = 0; index < HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL; index++) {
-        if (tail_call_state->iteration >= HTTP2_MAX_FRAMES_ITERATIONS) {
-            break;
-        }
-
-        current_frame = frames_array[tail_call_state->iteration];
-        // Having this condition after assignment and not before is due to a verifier issue.
         if (tail_call_state->iteration >= tail_call_state->frames_count) {
             break;
         }
+        // This check must be next to the access of the array, otherwise the verifier will complain.
+        if (tail_call_state->iteration >= HTTP2_MAX_FRAMES_ITERATIONS) {
+            break;
+        }
+        current_frame = frames_array[tail_call_state->iteration];
         tail_call_state->iteration += 1;
 
         if (current_frame.frame.type != kHeadersFrame) {

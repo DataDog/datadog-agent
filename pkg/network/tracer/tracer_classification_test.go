@@ -1502,7 +1502,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 	http2ServerAddress := net.JoinHostPort(serverHost, http2Port)
 	http2TargetAddress := net.JoinHostPort(targetHost, http2Port)
 
-	grpcServer, err := grpc.NewServer(grpcServerAddress)
+	grpcServer, err := grpc.NewServer(grpcServerAddress, false)
 	require.NoError(t, err)
 	grpcServer.Run()
 	t.Cleanup(grpcServer.Stop)
@@ -1558,7 +1558,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				c, err := grpc.NewClient(ctx.targetAddress, grpc.Options{
 					CustomDialer: defaultDialer,
-				})
+				}, false)
 				require.NoError(t, err)
 				defer c.Close()
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
@@ -1573,7 +1573,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				c, err := grpc.NewClient(ctx.targetAddress, grpc.Options{
 					CustomDialer: defaultDialer,
-				})
+				}, false)
 				require.NoError(t, err)
 				defer c.Close()
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
