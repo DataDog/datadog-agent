@@ -20,6 +20,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../util/scrubber
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../util/system/socket
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../util/winutil
+	github.com/DataDog/datadog-agent/pkg/version => ../../version
 )
 
 require (

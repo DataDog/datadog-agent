@@ -14,12 +14,16 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../../pkg/config/utils
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../../pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../../pkg/util/executable
+	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../../../pkg/util/filesystem
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../../pkg/util/fxutil
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../../pkg/util/hostname/validate
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../../../pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/optional => ../../../../pkg/util/optional
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../../../pkg/util/pointer
+	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../../pkg/util/scrubber
+	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../../../pkg/util/system/socket
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../pkg/util/winutil
+	github.com/DataDog/datadog-agent/pkg/version => ../../../../pkg/version
 )
 
 require (
