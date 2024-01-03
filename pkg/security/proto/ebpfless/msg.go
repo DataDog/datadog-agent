@@ -44,6 +44,10 @@ const (
 	SyscallTypeSetUID
 	// SyscallTypeSetGID setgid/setregid type
 	SyscallTypeSetGID
+	// SyscallTypeSetFSUID setfsuid type
+	SyscallTypeSetFSUID
+	// SyscallTypeSetFSGID setfsgid type
+	SyscallTypeSetFSGID
 )
 
 // ContainerContext defines a container context
@@ -121,19 +125,31 @@ type SetGIDSyscallMsg struct {
 	EGID int32
 }
 
+// SetFSUIDSyscallMsg defines a setfsuid message
+type SetFSUIDSyscallMsg struct {
+	FSUID int32
+}
+
+// SetFSGIDSyscallMsg defines a setfsgid message
+type SetFSGIDSyscallMsg struct {
+	FSGID int32
+}
+
 // SyscallMsg defines a syscall message
 type SyscallMsg struct {
 	Type      SyscallType
 	PID       uint32
 	Timestamp uint64
 	Retval    int64
-	Exec      *ExecSyscallMsg   `json:",omitempty"`
-	Open      *OpenSyscallMsg   `json:",omitempty"`
-	Fork      *ForkSyscallMsg   `json:",omitempty"`
-	Exit      *ExitSyscallMsg   `json:",omitempty"`
-	Fcntl     *FcntlSyscallMsg  `json:",omitempty"`
-	SetUID    *SetUIDSyscallMsg `json:",omitempty"`
-	SetGID    *SetGIDSyscallMsg `json:",omitempty"`
+	Exec      *ExecSyscallMsg     `json:",omitempty"`
+	Open      *OpenSyscallMsg     `json:",omitempty"`
+	Fork      *ForkSyscallMsg     `json:",omitempty"`
+	Exit      *ExitSyscallMsg     `json:",omitempty"`
+	Fcntl     *FcntlSyscallMsg    `json:",omitempty"`
+	SetUID    *SetUIDSyscallMsg   `json:",omitempty"`
+	SetGID    *SetGIDSyscallMsg   `json:",omitempty"`
+	SetFSUID  *SetFSUIDSyscallMsg `json:",omitempty"`
+	SetFSGID  *SetFSGIDSyscallMsg `json:",omitempty"`
 
 	// internals
 	Dup   *DupSyscallFakeMsg   `json:",omitempty"`

@@ -462,6 +462,22 @@ func handleSetregid(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs s
 	return nil
 }
 
+func handleSetfsuid(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
+	msg.Type = ebpfless.SyscallTypeSetFSUID
+	msg.SetFSUID = &ebpfless.SetFSUIDSyscallMsg{
+		FSUID: tracer.ReadArgInt32(regs, 0),
+	}
+	return nil
+}
+
+func handleSetfsgid(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
+	msg.Type = ebpfless.SyscallTypeSetFSGID
+	msg.SetFSGID = &ebpfless.SetFSGIDSyscallMsg{
+		FSGID: tracer.ReadArgInt32(regs, 0),
+	}
+	return nil
+}
+
 func handleClose(tracer *Tracer, process *Process, _ *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
 	fd := tracer.ReadArgInt32(regs, 0)
 	delete(process.Res.Fd, fd)
@@ -808,6 +824,16 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 					logErrorf("unable to handle fchdir: %v", err)
 					return
 				}
+			case SetfsuidNr:
+				if err = handleSetfsuid(tracer, process, syscallMsg, regs); err != nil {
+					logErrorf("unable to handle fchdir: %v", err)
+					return
+				}
+			case SetfsgidNr:
+				if err = handleSetfsgid(tracer, process, syscallMsg, regs); err != nil {
+					logErrorf("unable to handle fchdir: %v", err)
+					return
+				}
 			case CloseNr:
 				if err = handleClose(tracer, process, syscallMsg, regs); err != nil {
 					logErrorf("unable to handle close: %v", err)
@@ -847,7 +873,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 					// maintain fd/path mapping
 					process.Res.Fd[int32(ret)] = syscallMsg.Open.Filename
 				}
-			case SetuidNr, SetgidNr, SetreuidNr, SetregidNr, SetresuidNr, SetresgidNr:
+			case SetuidNr, SetgidNr, SetreuidNr, SetregidNr, SetresuidNr, SetresgidNr, SetfsuidNr, SetfsgidNr:
 				if ret := tracer.ReadRet(regs); ret >= 0 {
 					syscallMsg, exists := process.Nr[nr]
 					if !exists {

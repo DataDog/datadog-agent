@@ -1502,10 +1502,10 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 			ID:         "test_setreuid",
 			Expression: `setuid.uid == 1002 && setuid.euid == 1003 && process.file.name == "syscall_tester"`,
 		},
-		// {
-		// 	ID:         "test_setfsuid",
-		// 	Expression: `setuid.fsuid == 1004 && process.file.name == "syscall_tester"`,
-		// },
+		{
+			ID:         "test_setfsuid",
+			Expression: `setuid.fsuid == 1004 && process.file.name == "syscall_tester"`,
+		},
 		{
 			ID:         "test_setgid",
 			Expression: `setgid.gid == 1005 && process.file.name == "syscall_tester"`,
