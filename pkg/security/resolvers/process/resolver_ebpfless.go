@@ -87,6 +87,7 @@ func (p *EBPFLessResolver) AddForkEntry(key CacheResolverKey, ppid uint32, ts ui
 	entry.PIDContext.Pid = key.Pid
 	entry.PPid = ppid
 	entry.ForkTime = time.Unix(0, int64(ts))
+	entry.IsThread = true
 
 	p.Lock()
 	defer p.Unlock()
