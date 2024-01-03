@@ -113,12 +113,6 @@ kitchen_suse_step_by_step_agent_arm64-a7:
 #     - .kitchen_scenario_suse_x64_a7
 #     - .kitchen_test_upgrade5_agent
 
-
-kitchen_suse_upgrade7_iot_agent_x64-a7:
-  extends:
-    - .kitchen_scenario_suse_x64_a7
-    - .kitchen_test_upgrade7_iot_agent
-
 kitchen_suse_process_agent_x64-a7:
   extends:
     - .kitchen_scenario_suse_x64_a7

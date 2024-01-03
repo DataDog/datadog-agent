@@ -120,11 +120,6 @@ kitchen_centos_fips_upgrade7_agent-a7:
     - .kitchen_scenario_centos_with_fips_a7
     - .kitchen_test_upgrade7_agent
 
-kitchen_centos_upgrade7_iot_agent-a7:
-  extends:
-    - .kitchen_scenario_centos_without_fips_a7
-    - .kitchen_test_upgrade7_iot_agent
-
 kitchen_centos_fips_upgrade7_iot_agent-a7:
   extends:
     - .kitchen_scenario_centos_with_fips_a7
