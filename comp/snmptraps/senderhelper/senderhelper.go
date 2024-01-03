@@ -13,6 +13,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -22,9 +23,9 @@ import (
 // Opts is a set of options for providing a demux with a mock sender.
 // We can remove this if the Sender is ever exposed as a component.
 var Opts = fx.Options(
-	defaultforwarder.MockModule,
-	demultiplexer.MockModule,
-	config.MockModule,
+	defaultforwarder.MockModule(),
+	demultiplexerimpl.MockModule(),
+	config.MockModule(),
 	fx.Provide(func() (*mocksender.MockSender, sender.Sender) {
 		mockSender := mocksender.NewMockSender("mock-sender")
 		mockSender.SetupAcceptAll()

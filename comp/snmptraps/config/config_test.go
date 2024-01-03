@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
@@ -61,7 +62,7 @@ func withConfig(t testing.TB, trapConfig *TrapsConfig, globalNamespace string) f
 		overrides["network_devices.snmp_traps"] = rawTrapConfig
 	}
 	return fx.Options(
-		config.MockModule,
+		config.MockModule(),
 		fx.Replace(config.MockParams{Overrides: overrides}),
 	)
 }
@@ -81,9 +82,9 @@ func buildConfig(conf config.Component, hnService hostname.Component) (*TrapsCon
 // testOptions provides several fx options that multiple tests need
 var testOptions = fx.Options(
 	fx.Provide(buildConfig),
-	hostnameimpl.MockModule,
+	hostnameimpl.MockModule(),
 	fx.Replace(hostnameimpl.MockHostname(mockedHostname)),
-	log.MockModule,
+	logimpl.MockModule(),
 )
 
 func TestFullConfig(t *testing.T) {
@@ -150,7 +151,7 @@ func TestMinimalConfig(t *testing.T) {
 		Config *TrapsConfig
 		Logger log.Component
 	}](t,
-		config.MockModule,
+		config.MockModule(),
 		testOptions,
 	)
 	config := deps.Config
@@ -185,9 +186,9 @@ func TestDefaultUsers(t *testing.T) {
 func TestBuildAuthoritativeEngineID(t *testing.T) {
 	for name, engineID := range expectedEngineIDs {
 		config := fxutil.Test[*TrapsConfig](t,
-			config.MockModule,
+			config.MockModule(),
 			fx.Provide(buildConfig),
-			hostnameimpl.MockModule,
+			hostnameimpl.MockModule(),
 			fx.Replace(hostnameimpl.MockHostname(name)),
 		)
 		assert.Equal(t, engineID, config.authoritativeEngineID)

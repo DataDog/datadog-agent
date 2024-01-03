@@ -18,7 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/senderhelper"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/server"
 	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
@@ -37,7 +37,7 @@ func TestServer(t *testing.T) {
 	freePort, err := ndmtestutils.GetFreePort()
 	require.NoError(t, err)
 	server := fxutil.Test[server.Component](t,
-		log.MockModule,
+		logimpl.MockModule(),
 		senderhelper.Opts,
 		fx.Replace(config.MockParams{
 			Overrides: map[string]interface{}{
@@ -47,7 +47,7 @@ func TestServer(t *testing.T) {
 				"network_devices.snmp_traps.community_strings": []string{"public"},
 			},
 		}),
-		hostnameimpl.MockModule,
+		hostnameimpl.MockModule(),
 		Module,
 	)
 	assert.NotEmpty(t, server)
@@ -62,7 +62,7 @@ func TestNonBlockingFailure(t *testing.T) {
 	freePort, err := ndmtestutils.GetFreePort()
 	require.NoError(t, err)
 	server := fxutil.Test[server.Component](t,
-		log.MockModule,
+		logimpl.MockModule(),
 		senderhelper.Opts,
 		fx.Replace(config.MockParams{
 			Overrides: map[string]interface{}{
@@ -72,7 +72,7 @@ func TestNonBlockingFailure(t *testing.T) {
 				"network_devices.snmp_traps.community_strings": []string{"public"},
 			},
 		}),
-		hostnameimpl.MockModule,
+		hostnameimpl.MockModule(),
 		Module,
 	)
 	assert.NotEmpty(t, server)
@@ -82,14 +82,14 @@ func TestNonBlockingFailure(t *testing.T) {
 
 func TestDisabled(t *testing.T) {
 	server := fxutil.Test[server.Component](t,
-		log.MockModule,
+		logimpl.MockModule(),
 		senderhelper.Opts,
 		fx.Replace(config.MockParams{
 			Overrides: map[string]interface{}{
 				"network_devices.snmp_traps.enabled": false,
 			},
 		}),
-		hostnameimpl.MockModule,
+		hostnameimpl.MockModule(),
 		Module,
 	)
 	assert.NotNil(t, server)
