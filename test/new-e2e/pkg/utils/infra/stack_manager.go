@@ -35,6 +35,7 @@ const (
 	stackUpTimeout      = 60 * time.Minute
 	stackDestroyTimeout = 60 * time.Minute
 	stackDeleteTimeout  = 20 * time.Minute
+	stackUpRetry        = 2
 )
 
 var (
@@ -251,7 +252,7 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 	var ok bool
 	var upResult auto.UpResult
 
-	for retry := 0; retry < 2 && !ok; retry++ {
+	for retry := 0; retry < stackUpRetry && !ok; retry++ {
 		upCtx, cancel := context.WithTimeout(ctx, stackUpTimeout)
 		upResult, err = stack.Up(upCtx, optup.ProgressStreams(logger), optup.DebugLogging(debug.LoggingOptions{
 			FlowToPlugins: true,
@@ -260,7 +261,6 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 		cancel()
 		if err != nil && shouldRetryError(err) {
 			fmt.Fprintf(logger, "Got error that should be retried during stack up, retrying: %v\n", err)
-			time.Sleep(5 * time.Second)
 		} else {
 			ok = true
 		}
@@ -312,24 +312,8 @@ func runFuncWithRecover(f pulumi.RunFunc) pulumi.RunFunc {
 }
 
 func shouldRetryError(err error) bool {
-	if auto.IsCompilationError(err) {
-		return false
-	}
-	if auto.IsConcurrentUpdateError(err) {
-		return false
-	}
-	if auto.IsSelectStack404Error(err) {
-		return false
-	}
-	if auto.IsCreateStack409Error(err) {
-		return false
-	}
-	if auto.IsRuntimeError(err) {
-		return false
-	}
 
 	// Add here errors that are known to be flakes and that should be retried
-
 	if strings.Contains(err.Error(), "i/o timeout") {
 		return true
 	}
