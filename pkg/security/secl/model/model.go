@@ -314,6 +314,11 @@ func (e *Event) GetActions() []*ActionTriggered {
 	return e.Actions
 }
 
+// IsSuppressed returns true if the event is suppressed
+func (e *Event) IsSuppressed() bool {
+	return e.Suppressed
+}
+
 // GetWorkloadID returns an ID that represents the workload
 func (e *Event) GetWorkloadID() string {
 	return e.SecurityProfileContext.Name
