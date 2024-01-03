@@ -1454,14 +1454,14 @@ func TestUSMTLSGoSelfHook(t *testing.T) {
 service_monitoring_config:
   tls:
     go:
-      test_self_hook: true
+      enable_self_hook: true
 `)
 		require.True(t, cfg.EnableGoTLSTestSelfHook)
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_GO_TEST_SELF_HOOK", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_GO_ENABLE_SELF_HOOK", "true")
 
 		cfg := New()
 

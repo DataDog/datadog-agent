@@ -359,7 +359,7 @@ func New() *Config {
 		JavaAgentAllowRegex:         cfg.GetString(join(smjtNS, "allow_regex")),
 		JavaAgentBlockRegex:         cfg.GetString(join(smjtNS, "block_regex")),
 		EnableGoTLSSupport:          cfg.GetBool(join(smNS, "tls", "go", "enabled")),
-		EnableGoTLSTestSelfHook:     cfg.GetBool(join(smNS, "tls", "go", "test_self_hook")),
+		EnableGoTLSTestSelfHook:     cfg.GetBool(join(smNS, "tls", "go", "enable_self_hook")),
 		EnableHTTPStatsByStatusCode: cfg.GetBool(join(smNS, "enable_http_stats_by_status_code")),
 		EnableUSMQuantization:       cfg.GetBool(join(smNS, "enable_quantization")),
 	}
