@@ -38,8 +38,8 @@ const (
 
 // cleanJSONOutput removes any text before or after the JSON object in the output
 func cleanJSONOutput(str string) string {
-	start := strings.IndexByte(str, '{') + 1
-	end := strings.LastIndexByte(str, '}')
+	start := strings.IndexByte(str, '{')
+	end := strings.LastIndexByte(str, '}') + 1
 	return str[start:end]
 }
 
