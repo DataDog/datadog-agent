@@ -16,18 +16,14 @@ import (
 
 type dependencies struct {
 	fx.In
-	HostnameService hostname.Component `optional:"true"`
+	HostnameService hostname.Component
 	Conf            *trapsconf.TrapsConfig
 }
 
 func newMockConfig(dep dependencies) (trapsconf.Component, error) {
-	host := "my-hostname"
-	if dep.HostnameService != nil {
-		var err error
-		host, err = dep.HostnameService.Get(context.Background())
-		if err != nil {
-			return nil, err
-		}
+	host, err := dep.HostnameService.Get(context.Background())
+	if err != nil {
+		return nil, err
 	}
 	tc := dep.Conf
 	if err := tc.SetDefaults(host, "default"); err != nil {
