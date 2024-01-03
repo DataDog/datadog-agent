@@ -51,7 +51,7 @@ func TestSingleItemIter(t *testing.T) {
 	numElements := 0
 	foundElements := make(map[uint32]bool)
 
-	it := m.IterateWithOptions(IteratorOptions{ForceSingleItem: true})
+	it := m.IterateWithOptions(1)
 	require.NotNil(t, it)
 	require.IsType(t, &genericMapItemIterator[uint32, uint32]{}, it)
 	for it.Next(&k, &v) {
@@ -87,7 +87,7 @@ func TestBatchIter(t *testing.T) {
 	var v uint32
 	actualNumbers := make([]uint32, numsToPut)
 
-	it := m.IterateWithOptions(IteratorOptions{BatchSize: 10})
+	it := m.IterateWithOptions(10)
 	require.NotNil(t, it)
 	require.IsType(t, &genericMapBatchIterator[uint32, uint32]{}, it)
 	for it.Next(&k, &v) {
@@ -122,7 +122,7 @@ func TestBatchIterArray(t *testing.T) {
 	numElements := uint32(0)
 	actualNumbers := make([]uint32, m.Map().MaxEntries())
 
-	it := m.IterateWithOptions(IteratorOptions{BatchSize: 10})
+	it := m.IterateWithOptions(10)
 	require.NotNil(t, it)
 	require.IsType(t, &genericMapBatchIterator[uint32, uint32]{}, it)
 	for it.Next(&k, &v) {
@@ -158,7 +158,7 @@ func TestBatchIterLessItemsThanBatchSize(t *testing.T) {
 	var v uint32
 	actualNumbers := make([]uint32, numsToPut)
 
-	it := m.IterateWithOptions(IteratorOptions{BatchSize: 10})
+	it := m.IterateWithOptions(10)
 	require.NotNil(t, it)
 	require.IsType(t, &genericMapBatchIterator[uint32, uint32]{}, it)
 	for it.Next(&k, &v) {
@@ -192,7 +192,7 @@ func TestBatchIterWhileUpdated(t *testing.T) {
 	updateEachElements := 25
 	updatesDone := 0
 
-	it := m.IterateWithOptions(IteratorOptions{BatchSize: 10})
+	it := m.IterateWithOptions(10)
 	require.NotNil(t, it)
 	require.IsType(t, &genericMapBatchIterator[uint32, uint32]{}, it)
 	for it.Next(&k, &v) {
@@ -276,7 +276,8 @@ type ValueStruct struct {
 }
 
 func TestIterateWithValueStructs(t *testing.T) {
-	doTest := func(t *testing.T, singleItem bool, oneItem bool) {
+	doTest := func(t *testing.T, batchSize int, oneItem bool) {
+		singleItem := batchSize == 1
 		if !singleItem && !BatchAPISupported() {
 			t.Skip("Batch API not supported")
 		}
@@ -303,7 +304,7 @@ func TestIterateWithValueStructs(t *testing.T) {
 		numElements := 0
 		foundElements := make(map[uint32]bool)
 
-		it := m.IterateWithOptions(IteratorOptions{ForceSingleItem: singleItem})
+		it := m.IterateWithOptions(batchSize)
 		require.NotNil(t, it)
 		if singleItem {
 			require.IsType(t, &genericMapItemIterator[uint32, ValueStruct]{}, it)
@@ -326,15 +327,15 @@ func TestIterateWithValueStructs(t *testing.T) {
 	}
 
 	t.Run("SingleItem", func(t *testing.T) {
-		doTest(t, true, false)
+		doTest(t, 1, false)
 	})
 
 	t.Run("Batch", func(t *testing.T) {
-		doTest(t, false, false)
+		doTest(t, 0, false)
 	})
 
 	t.Run("BatchWithOneItem", func(t *testing.T) {
-		doTest(t, false, true)
+		doTest(t, 0, true)
 	})
 }
 
@@ -360,7 +361,7 @@ func TestBatchIterAllocsPerRun(t *testing.T) {
 
 	allocsSmallBatch := testing.AllocsPerRun(100, func() {
 		numElements := uint32(0)
-		it := m.IterateWithOptions(IteratorOptions{BatchSize: batchSize})
+		it := m.IterateWithOptions(batchSize)
 		for it.Next(&k, &v) {
 			numElements++
 		}
@@ -371,7 +372,7 @@ func TestBatchIterAllocsPerRun(t *testing.T) {
 
 	allocsLargerBatch := testing.AllocsPerRun(100, func() {
 		numElements := uint32(0)
-		it := m.IterateWithOptions(IteratorOptions{BatchSize: batchSize})
+		it := m.IterateWithOptions(batchSize)
 		for it.Next(&k, &v) {
 			numElements++
 		}
@@ -402,6 +403,7 @@ func BenchmarkIterate(b *testing.B) {
 		var benchName string
 		if forceSingleItem {
 			benchName = fmt.Sprintf("BenchmarkIterateSingleItem-%dentries-%dbatch", numEntries, batchSize)
+			batchSize = 1
 		} else {
 			benchName = fmt.Sprintf("BenchmarkIterateBatch-%dentries-%dbatch", numEntries, batchSize)
 		}
@@ -411,7 +413,7 @@ func BenchmarkIterate(b *testing.B) {
 				var k uint32
 				var v uint32
 
-				it := m.IterateWithOptions(IteratorOptions{BatchSize: batchSize, ForceSingleItem: forceSingleItem})
+				it := m.IterateWithOptions(batchSize)
 				for it.Next(&k, &v) {
 				}
 			}
@@ -460,7 +462,7 @@ func TestBatchDelete(t *testing.T) {
 	numElements := uint32(0)
 	foundElements := make(map[uint32]bool)
 
-	it := m.IterateWithOptions(IteratorOptions{ForceSingleItem: true})
+	it := m.IterateWithOptions(1)
 	require.NotNil(t, it)
 	require.IsType(t, &genericMapItemIterator[uint32, uint32]{}, it)
 	for it.Next(&k, &v) {
@@ -501,7 +503,7 @@ func TestBatchUpdate(t *testing.T) {
 	numElements := uint32(0)
 	foundElements := make(map[uint32]bool)
 
-	it := m.IterateWithOptions(IteratorOptions{ForceSingleItem: true})
+	it := m.IterateWithOptions(1)
 	require.NotNil(t, it)
 	require.IsType(t, &genericMapItemIterator[uint32, uint32]{}, it)
 	for it.Next(&k, &v) {

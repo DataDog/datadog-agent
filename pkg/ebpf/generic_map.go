@@ -199,7 +199,7 @@ func (g *GenericMap[K, V]) isPerCPU() bool {
 
 // Iterate returns an iterator for the map, which transparently chooses between batch and single item
 func (g *GenericMap[K, V]) Iterate() GenericMapIterator[K, V] {
-	return g.IterateWithOptions(IteratorOptions{BatchSize: defaultBatchSize})
+	return g.IterateWithOptions(defaultBatchSize)
 }
 
 func (g *GenericMap[K, V]) valueTypeCanUseUnsafePointer() bool {
@@ -209,21 +209,23 @@ func (g *GenericMap[K, V]) valueTypeCanUseUnsafePointer() bool {
 }
 
 // IterateWithOptions returns an iterator for the map, which transparently chooses between batch and single item
-// iterations. This version allows choosing options
-func (g *GenericMap[K, V]) IterateWithOptions(itops IteratorOptions) GenericMapIterator[K, V] {
-	if itops.BatchSize == 0 {
-		itops.BatchSize = defaultBatchSize // Default value for batch sizes. Possibly needs more testing to find an optimal default
+// iterations. This version allows choosing the batch size. Setting the batch size to 1 will force the use of the
+// single item iterator
+func (g *GenericMap[K, V]) IterateWithOptions(batchSize int) GenericMapIterator[K, V] {
+	if batchSize == 0 {
+		batchSize = defaultBatchSize // Default value for batch sizes. Possibly needs more testing to find an optimal default
 	}
-	if itops.BatchSize > int(g.m.MaxEntries()) {
-		itops.BatchSize = int(g.m.MaxEntries())
+	if batchSize > int(g.m.MaxEntries()) {
+		batchSize = int(g.m.MaxEntries())
+		log.Warnf("Batch size %d is larger than the maximum number of entries in the map (%d), using that value instead", batchSize, g.m.MaxEntries())
 	}
 
-	if BatchAPISupported() && !g.isPerCPU() && !itops.ForceSingleItem {
+	if BatchAPISupported() && !g.isPerCPU() && batchSize > 1 {
 		it := &genericMapBatchIterator[K, V]{
 			m:                            g.m,
-			batchSize:                    itops.BatchSize,
-			keys:                         make([]K, itops.BatchSize),
-			values:                       make([]V, itops.BatchSize),
+			batchSize:                    batchSize,
+			keys:                         make([]K, batchSize),
+			values:                       make([]V, batchSize),
 			valueTypeCanUseUnsafePointer: g.valueTypeCanUseUnsafePointer(),
 		}
 
