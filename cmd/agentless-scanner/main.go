@@ -115,6 +115,7 @@ const (
 type scanType string
 
 const (
+	hostScanType   scanType = "host-scan"
 	ebsScanType    scanType = "ebs-volume"
 	lambdaScanType scanType = "lambda"
 )
@@ -122,8 +123,9 @@ const (
 type scanAction string
 
 const (
-	malware scanAction = "malware"
-	vulns   scanAction = "vulns"
+	malware         scanAction = "malware"
+	vulnsHost       scanAction = "vulns"
+	vulnsContainers scanAction = "vulnscontainers"
 )
 
 type diskMode string
@@ -144,7 +146,8 @@ const (
 )
 
 var defaultActions = []string{
-	string(vulns),
+	string(vulnsHost),
+	string(vulnsContainers),
 }
 
 type (
@@ -527,10 +530,15 @@ func getDefaultRolesMapping() rolesMapping {
 func scanCmd(config scanConfig) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	hostname, err := utils.GetHostnameWithContext(ctx)
+
+	ctxhostname, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+	defer cancel()
+
+	hostname, err := utils.GetHostnameWithContext(ctxhostname)
 	if err != nil {
-		return fmt.Errorf("could not fetch hostname: %w", err)
+		hostname = "unknown"
 	}
+
 	limits := newAWSLimits(defaultEC2Rate, defaultEBSListBlockRate, defaultEBSGetBlockRate)
 	sidescanner, err := newSideScanner(hostname, limits, 1, nil)
 	if err != nil {
@@ -1049,27 +1057,31 @@ func nbdMountCmd(snapshotARN arn.ARN, mount, runClient bool) error {
 func newScanTask(t string, resourceARN, hostname string, actions []string, roles rolesMapping, mode diskMode) (*scanTask, error) {
 	var scan scanTask
 	var err error
-	scan.ARN, err = parseARN(resourceARN, resourceTypeSnapshot, resourceTypeVolume, resourceTypeFunction)
-	if err != nil {
-		return nil, err
-	}
-	resourceType, _, err := getARNResource(scan.ARN)
-	if err != nil {
-		return nil, err
-	}
-	switch t {
-	case string(ebsScanType):
-		if resourceType != resourceTypeSnapshot && resourceType != resourceTypeVolume {
-			return nil, fmt.Errorf("malformed scan task: unexpected type %q", resourceType)
+	if t == string(hostScanType) {
+		scan.Type = hostScanType
+	} else {
+		scan.ARN, err = parseARN(resourceARN, resourceTypeSnapshot, resourceTypeVolume, resourceTypeFunction)
+		if err != nil {
+			return nil, err
 		}
-		scan.Type = ebsScanType
-	case string(lambdaScanType):
-		if resourceType != resourceTypeFunction {
-			return nil, fmt.Errorf("malformed scan task: unexpected type %q", resourceType)
+		resourceType, _, err := getARNResource(scan.ARN)
+		if err != nil {
+			return nil, err
 		}
-		scan.Type = lambdaScanType
-	default:
-		return nil, fmt.Errorf("unknown scan type %q", t)
+		switch t {
+		case string(ebsScanType):
+			if resourceType != resourceTypeSnapshot && resourceType != resourceTypeVolume {
+				return nil, fmt.Errorf("malformed scan task: unexpected type %q", resourceType)
+			}
+			scan.Type = ebsScanType
+		case string(lambdaScanType):
+			if resourceType != resourceTypeFunction {
+				return nil, fmt.Errorf("malformed scan task: unexpected type %q", resourceType)
+			}
+			scan.Type = lambdaScanType
+		default:
+			return nil, fmt.Errorf("unknown scan type %q", t)
+		}
 	}
 	scan.Hostname = hostname
 	scan.Roles = roles
@@ -1079,8 +1091,10 @@ func newScanTask(t string, resourceARN, hostname string, actions []string, roles
 	}
 	for _, actionRaw := range actions {
 		switch actionRaw {
-		case string(vulns):
-			scan.Actions = append(scan.Actions, vulns)
+		case string(vulnsHost):
+			scan.Actions = append(scan.Actions, vulnsHost)
+		case string(vulnsContainers):
+			scan.Actions = append(scan.Actions, vulnsContainers)
 		case string(malware):
 			scan.Actions = append(scan.Actions, malware)
 		default:
@@ -1441,6 +1455,8 @@ func (s *sideScanner) launchScan(ctx context.Context, scan *scanTask) (err error
 
 	ctx = withAWSLimits(ctx, s.limits)
 	switch scan.Type {
+	case hostScanType:
+		return scanRoots(ctx, scan, []string{"/"}, s.resultsCh)
 	case ebsScanType:
 		return scanEBS(ctx, scan, s.resultsCh)
 	case lambdaScanType:
@@ -1996,10 +2012,29 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 
 	log.Infof("start EBS scanning %s", scan)
 
+	// In noAttach mode we are only able to do host vuln scanning.
+	// TODO: remove this mode
+	if scan.DiskMode == noAttach {
+		// Only vulns scanning works without a proper mount point (for now)
+		for _, action := range scan.Actions {
+			if action != vulnsHost {
+				return fmt.Errorf("we can only perform vulns scanning of %q without volume attach", scan)
+			}
+		}
+		ebsclient := ebs.NewFromConfig(cfg)
+		scanStartedAt := time.Now()
+		sbom, err := launchScannerTrivyVM(ctx, scan, ebsclient, snapshotARN)
+		resultsCh <- scanResult{err: err, scan: scan, sbom: sbom, duration: time.Since(scanStartedAt)}
+		scanDuration := time.Since(scanStartedAt)
+		if err := statsd.Histogram("datadog.agentless_scanner.scans.duration", float64(scanDuration.Milliseconds()), tagScan(scan), 1.0); err != nil {
+			log.Warnf("failed to send metric: %v", err)
+		}
+		return nil
+	}
+
 	var device string
 	var attachedVolumeARN *arn.ARN
 	var localSnapshotARN arn.ARN
-	var scanStartedAt time.Time
 	var cleanupAttach func(context.Context)
 	switch scan.DiskMode {
 	case volumeAttach:
@@ -2026,50 +2061,59 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 			return err
 		}
 		localSnapshotARN = snapshotARN
-	case noAttach:
-		// Only vulns scanning works without a proper mount point (for now)
-		for _, action := range scan.Actions {
-			if action != vulns {
-				return fmt.Errorf("we can only perform vulns scanning of %q without volume attach", scan)
-			}
-		}
-		ebsclient := ebs.NewFromConfig(cfg)
-		scanStartedAt = time.Now()
-		sbom, err := launchScannerTrivyVM(ctx, scan, ebsclient, snapshotARN)
-		resultsCh <- scanResult{err: err, scan: scan, sbom: sbom, duration: time.Since(scanStartedAt)}
+	default:
+		panic("unreachable")
 	}
 
-	// TODO: remove this check once we definitely move to nbd mounting
-	if scan.DiskMode == volumeAttach || scan.DiskMode == nbdAttach {
-		partitions, err := listDevicePartitions(ctx, device, attachedVolumeARN)
-		if err != nil {
-			return err
-		}
+	partitions, err := listDevicePartitions(ctx, device, attachedVolumeARN)
+	if err != nil {
+		return err
+	}
 
-		mountPoints, cleanupMount, err := mountDevice(ctx, localSnapshotARN, partitions)
-		defer func() {
-			cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
-			defer cancel()
-			cleanupMount(cleanupctx)
-		}()
-		if err != nil {
-			return err
-		}
+	mountPoints, cleanupMount, err := mountDevice(ctx, localSnapshotARN, partitions)
+	defer func() {
+		cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
+		defer cancel()
+		cleanupMount(cleanupctx)
+	}()
+	if err != nil {
+		return err
+	}
 
-		scanStartedAt = time.Now()
-		for _, mountPoint := range mountPoints {
-			for _, action := range scan.Actions {
-				switch action {
-				case vulns:
-					start := time.Now()
-					sbom, err := launchScannerTrivyLocal(ctx, scan, mountPoint)
-					resultsCh <- scanResult{err: err, scan: scan, sbom: sbom, duration: time.Since(start)}
-					_ = launchScannerContainers(ctx, scan, mountPoint) // XXX
-				case malware:
-					start := time.Now()
-					findings, err := launchScannerMalwareLocal(ctx, scan, mountPoint)
-					resultsCh <- scanResult{err: err, scan: scan, findings: findings, duration: time.Since(start)}
+	return scanRoots(ctx, scan, mountPoints, resultsCh)
+}
+
+func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh chan scanResult) error {
+	scanStartedAt := time.Now()
+
+	for _, root := range roots {
+		for _, action := range scan.Actions {
+			switch action {
+			case vulnsHost:
+				start := time.Now()
+				sbom, err := launchScannerTrivyLocal(ctx, scan, root, sbommodel.SBOMSourceType_HOST_FILE_SYSTEM, scan.Hostname, nil)
+				resultsCh <- scanResult{err: err, scan: scan, sbom: sbom, duration: time.Since(start)}
+			case vulnsContainers:
+				start := time.Now()
+				ctrMountPoints, cleanupMount, err := mountContainers(ctx, scan, root)
+				defer func() {
+					cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
+					defer cancel()
+					cleanupMount(cleanupctx)
+				}()
+				if err != nil {
+					resultsCh <- scanResult{err: err, scan: scan, duration: time.Since(start)}
+				} else {
+					for _, ctrMnt := range ctrMountPoints {
+						entityID, entityTags := containerTags(ctrMnt)
+						sbom, err := launchScannerTrivyLocal(ctx, scan, ctrMnt.Path, sbommodel.SBOMSourceType_CONTAINER_FILE_SYSTEM, entityID, entityTags)
+						resultsCh <- scanResult{err: err, scan: scan, sbom: sbom, duration: time.Since(start)}
+					}
 				}
+			case malware:
+				start := time.Now()
+				findings, err := launchScannerMalwareLocal(ctx, scan, root)
+				resultsCh <- scanResult{err: err, scan: scan, findings: findings, duration: time.Since(start)}
 			}
 		}
 	}
@@ -2078,7 +2122,6 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 	if err := statsd.Histogram("datadog.agentless_scanner.scans.duration", float64(scanDuration.Milliseconds()), tagScan(scan), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}
-
 	return nil
 }
 

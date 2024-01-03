@@ -11,8 +11,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	_ "crypto/sha256"
@@ -28,31 +30,128 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func launchScannerContainers(_ context.Context, scan *scanTask, mountPoint string) error {
+type containerMountpoint struct {
+	ImageName     string
+	ImageDigest   string
+	ContainerName string
+	Path          string
+}
+
+func mountContainers(ctx context.Context, scan *scanTask, root string) (mountPoints []containerMountpoint, cleanupMount func(context.Context), err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Errorf("launchScannerContainers recovered: %s", r)
+			err = fmt.Errorf("mountContainers panic recovered: %s", r)
 		}
 	}()
 
-	ctrdRoot := filepath.Join(mountPoint, "/var/lib/containerd")
-	if i, err := os.Stat(ctrdRoot); err == nil && i.IsDir() {
-		log.Debugf("%s: starting scanning for containerd containers", scan)
-		containers, err := ctrdReadMetadata(ctrdRoot)
-		if err != nil {
-			return err
-		}
-		log.Debugf("%s: found %d containers on %q", scan, len(containers), mountPoint)
-		for i, c := range containers {
-			j, _ := json.MarshalIndent(c, "", "  ")
-			log.Debugf("%s: container %d: %s", scan, i, string(j))
-			if c.Snapshot != nil {
-				log.Debugf("%s: container %d layers: %v", scan, i, ctrdLayersPaths(ctrdRoot, c.Snapshot))
+	var cleanups []func(context.Context)
+	pushCleanup := func(cleanup func(context.Context)) {
+		cleanups = append(cleanups, cleanup)
+	}
+	cleanupMount = func(ctx context.Context) {
+		for i := len(cleanups) - 1; i >= 0; i-- {
+			if cleanups[i] != nil {
+				cleanups[i](ctx)
 			}
 		}
 	}
 
-	return nil
+	ctrdRoot := filepath.Join(root, "/var/lib/containerd")
+	ctrdRootInfo, err := os.Stat(ctrdRoot)
+	if err == nil && ctrdRootInfo.IsDir() {
+		log.Debugf("%s: starting scanning for containerd containers", scan)
+		var containers []ctrdContainer
+		containers, err = ctrdReadMetadata(ctrdRoot)
+		if err != nil {
+			return
+		}
+		log.Debugf("%s: found %d containers on %q", scan, len(containers), root)
+		for _, ctr := range containers {
+			if ctr.Snapshot.Backend.Kind != kindActive {
+				continue
+			}
+
+			log.Debugf("%s: container %s", scan, ctr)
+			if ctr.Snapshot == nil {
+				log.Warnf("%s: container %s is active but without an associated snapshot", scan, ctr)
+				continue
+			}
+
+			var ctrMountPoint string
+			var ctrCleanup func(context.Context)
+			ctrMountPoint, ctrCleanup, err = ctrdMountContainer(ctx, ctrdRoot, ctr)
+			pushCleanup(ctrCleanup)
+			if err != nil {
+				log.Errorf("could not mount container %s: %v", ctr, err)
+				continue
+			}
+			mountPoints = append(mountPoints, containerMountpoint{
+				ImageName:     ctr.ImageName,
+				ImageDigest:   ctr.Image.Digest.String(),
+				ContainerName: ctr.Name,
+				Path:          ctrMountPoint,
+			})
+		}
+	}
+
+	return
+}
+
+func containerTags(ctr containerMountpoint) (string, []string) {
+	imageNameSplit := strings.SplitN(ctr.ImageName, ":", 2)
+	if len(imageNameSplit) == 1 {
+		imageNameSplit = append(imageNameSplit, "")
+	}
+	imageRepo := imageNameSplit[0]
+	imageRepoSplit := strings.Split(imageRepo, "/")
+	entityID := imageRepo + "@" + ctr.ImageDigest
+	entityTags := []string{
+		"image_id:" + entityID,                                      // public.ecr.aws/datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409
+		"image_name:" + imageRepo,                                   // public.ecr.aws/datadog/agent
+		"image_registry:" + imageRepoSplit[0],                       // public.ecr.aws
+		"image_repository:" + strings.Join(imageRepoSplit[1:], "/"), // datadog/agent
+		"short_image:" + imageRepoSplit[len(imageRepoSplit)-1],      // agent
+		"repo_digest:" + ctr.ImageDigest,                            // sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409
+		"image_tag:" + imageNameSplit[1],                            // 7-rc
+		"container_name:" + ctr.ContainerName,
+	}
+	return entityID, entityTags
+}
+
+func ctrdMountContainer(ctx context.Context, ctrdRoot string, ctr ctrdContainer) (string, func(context.Context), error) {
+	ctrLayers := ctrdLayersPaths(ctrdRoot, ctr.Snapshot)
+	if len(ctrLayers) == 0 {
+		return "", nil, fmt.Errorf("container without any layer: %s", ctr)
+	}
+	if len(ctrLayers) == 1 {
+		// only one layer, no need to mount anything.
+		return ctrLayers[0], nil, nil
+	}
+	ctrMountPoint := fmt.Sprintf("/containers/%d", ctr.Snapshot.Backend.ID)
+	if err := os.MkdirAll(ctrMountPoint, 0700); err != nil {
+		return "", nil, fmt.Errorf("could not create container mountPoint directory %q: %w", ctrMountPoint, err)
+	}
+	ctrMountOpts := "ro,noauto,nodev,noexec,nosuid,index=off," + fmt.Sprintf("lowerdir=%s", strings.Join(ctrLayers, ":"))
+	log.Debugf("execing mount -o %s -t overlay --source overlay --target %q", ctrMountOpts, ctrMountPoint)
+	mountOutput, err := exec.CommandContext(ctx, "mount", "-o", ctrMountOpts, "-t", "overlay", "--source", "overlay", "--target", ctrMountPoint).CombinedOutput()
+	if err != nil {
+		err = fmt.Errorf("could not mount into target=%q options=%q output=%q: %w", ctrMountPoint, ctrMountOpts, string(mountOutput), err)
+		return "", nil, err
+	}
+	cleanup := func(ctx context.Context) {
+		log.Debugf("un-mounting %s", ctrMountPoint)
+		for i := 0; i < 10; i++ {
+			umountOuput, err := exec.CommandContext(ctx, "umount", "-f", ctrMountPoint).CombinedOutput()
+			if err == nil {
+				break
+			}
+			log.Warnf("could not umount %s: %s: %s", ctrMountPoint, err, string(umountOuput))
+			if !sleepCtx(ctx, 3*time.Second) {
+				break
+			}
+		}
+	}
+	return ctrMountPoint, cleanup, nil
 }
 
 const ctrdSupportedVersion = 3
@@ -107,6 +206,7 @@ type ctrdBlob struct {
 }
 
 type ctrdImage struct {
+	NS           string
 	Name         string
 	Digest       digest.Digest
 	MediaType    string
@@ -129,6 +229,7 @@ type ctrdImage struct {
 }
 
 type ctrdContainer struct {
+	NS          string
 	Name        string
 	Snapshotter string
 	SnapshotKey string
@@ -144,6 +245,10 @@ type ctrdContainer struct {
 	Spec      interface{}
 	CreatedAt time.Time
 	UpdatedAt time.Time
+}
+
+func (c ctrdContainer) String() string {
+	return fmt.Sprintf("%s/%s", c.NS, c.Name)
 }
 
 type ctrdSnapshot struct {
@@ -277,6 +382,7 @@ func ctrdReadMetadata(ctrdRoot string) ([]ctrdContainer, error) {
 				if err := image.UpdatedAt.UnmarshalBinary(bktImg.Get(bucketKeyUpdatedAt)); err != nil {
 					return err
 				}
+				image.NS = string(ns)
 				image.Name = string(imageName)
 				image.Digest = digest.Digest(bktImageTarget.Get(bucketKeyDigest))
 				image.MediaType = string(bktImageTarget.Get(bucketKeyMediaType))
@@ -333,6 +439,7 @@ func ctrdReadMetadata(ctrdRoot string) ([]ctrdContainer, error) {
 				if err := json.Unmarshal(specPB.GetValue(), &container.Spec); err != nil {
 					return err
 				}
+				container.NS = string(ns)
 				container.Name = string(containerName)
 				container.ImageName = string(bktCtr.Get(bucketKeyImage))
 				container.Image = images[container.ImageName]
@@ -473,15 +580,17 @@ func ctrdFillSapshotBackend(db *bolt.DB, snapshot *ctrdSnapshot) error {
 			parentID, _ := binary.Uvarint(bktSnapshotParent.Get(bucketKeyID))
 			snapshot.Backend.Parents = append(snapshot.Backend.Parents, parentID)
 		}
-		switch bktSnap.Get(bucketKeyKind)[0] {
-		case 1:
-			snapshot.Backend.Kind = kindView
-		case 2:
-			snapshot.Backend.Kind = kindActive
-		case 3:
-			snapshot.Backend.Kind = kindCommitted
-		default:
-			snapshot.Backend.Kind = kindUnknown
+		if kind := bktSnap.Get(bucketKeyKind); len(kind) > 0 {
+			switch kind[0] {
+			case 1:
+				snapshot.Backend.Kind = kindView
+			case 2:
+				snapshot.Backend.Kind = kindActive
+			case 3:
+				snapshot.Backend.Kind = kindCommitted
+			default:
+				snapshot.Backend.Kind = kindUnknown
+			}
 		}
 		snapshot.Backend.Inodes, _ = binary.Varint(bktSnap.Get(bucketKeyInodes))
 		snapshot.Backend.Size, _ = binary.Varint(bktSnap.Get(bucketKeySize))

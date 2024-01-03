@@ -34,7 +34,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ebs"
 )
 
-func launchScannerTrivyLocal(ctx context.Context, scan *scanTask, mountPoint string) (*sbommodel.SBOMEntity, error) {
+func launchScannerTrivyLocal(ctx context.Context, scan *scanTask, mountPoint string, entityType sbommodel.SBOMSourceType, entityID string, entityTags []string) (*sbommodel.SBOMEntity, error) {
 	trivyDisabledAnalyzers := []analyzer.Type{analyzer.TypeSecret, analyzer.TypeLicenseFile}
 	trivyDisabledAnalyzers = append(trivyDisabledAnalyzers, analyzer.TypeConfigFiles...)
 	trivyDisabledAnalyzers = append(trivyDisabledAnalyzers, analyzer.TypeLanguages...)
@@ -64,7 +64,13 @@ func launchScannerTrivyLocal(ctx context.Context, scan *scanTask, mountPoint str
 		return nil, err
 	}
 	duration := time.Since(startTime)
-	return scanEBSSbomEntity(trivyReport, scan, duration)
+	return scanSbomEntity(
+		trivyReport,
+		scan,
+		duration,
+		entityType,
+		entityID,
+		entityTags)
 }
 
 func launchScannerTrivyVM(ctx context.Context, scan *scanTask, ebsclient *ebs.Client, snapshotARN arn.ARN) (*sbommodel.SBOMEntity, error) {
@@ -97,7 +103,13 @@ func launchScannerTrivyVM(ctx context.Context, scan *scanTask, ebsclient *ebs.Cl
 		return nil, err
 	}
 	duration := time.Since(startTime)
-	return scanEBSSbomEntity(trivyReport, scan, duration)
+	return scanSbomEntity(
+		trivyReport,
+		scan,
+		duration,
+		sbommodel.SBOMSourceType_HOST_FILE_SYSTEM,
+		scan.Hostname,
+		nil)
 }
 
 func launchScannerTrivyLambda(ctx context.Context, scan *scanTask, codePath string) (*sbommodel.SBOMEntity, error) {
@@ -120,7 +132,17 @@ func launchScannerTrivyLambda(ctx context.Context, scan *scanTask, codePath stri
 		return nil, err
 	}
 	duration := time.Since(startTime)
-	return scanLambdaSbomEntity(trivyReport, scan, duration)
+	return scanSbomEntity(
+		trivyReport,
+		scan,
+		duration,
+		sbommodel.SBOMSourceType_CI_PIPELINE, // TODO: SBOMSourceType_LAMBDA
+		scan.ARN.String(),
+		[]string{
+			"runtime_id:" + scan.ARN.String(),
+			"service_version:TODO", // XXX
+		},
+	)
 }
 
 func doTrivyScan(ctx context.Context, scan *scanTask, trivyArtifact artifact.Artifact, trivyCache cache.LocalArtifactCache) (*types.Report, error) {
@@ -144,7 +166,7 @@ func doTrivyScan(ctx context.Context, scan *scanTask, trivyArtifact artifact.Art
 	return &trivyReport, nil
 }
 
-func scanEBSSbomEntity(trivyReport *types.Report, scan *scanTask, duration time.Duration) (*sbommodel.SBOMEntity, error) {
+func scanSbomEntity(trivyReport *types.Report, scan *scanTask, duration time.Duration, entityType sbommodel.SBOMSourceType, entityID string, entityTags []string) (*sbommodel.SBOMEntity, error) {
 	marshaler := cyclonedx.NewMarshaler("")
 	cyclonedxBOM, err := marshaler.Marshal(*trivyReport)
 	if err != nil {
@@ -152,39 +174,13 @@ func scanEBSSbomEntity(trivyReport *types.Report, scan *scanTask, duration time.
 	}
 	return &sbommodel.SBOMEntity{
 		Status: sbommodel.SBOMStatus_SUCCESS,
-		Type:   sbommodel.SBOMSourceType_HOST_FILE_SYSTEM, // TODO: SBOMSourceType_EBS
-		Id:     scan.Hostname,
+		Type:   entityType,
+		Id:     entityID,
 		InUse:  true,
-		DdTags: []string{
+		DdTags: append([]string{
 			fmt.Sprintf("region:%s", scan.ARN.Region),
 			fmt.Sprintf("account_id:%s", scan.ARN.AccountID),
-		},
-		GeneratedAt:        timestamppb.New(time.Now()),
-		GenerationDuration: convertDuration(duration),
-		Hash:               "",
-		Sbom: &sbommodel.SBOMEntity_Cyclonedx{
-			Cyclonedx: convertBOM(cyclonedxBOM),
-		},
-	}, nil
-}
-
-func scanLambdaSbomEntity(trivyReport *types.Report, scan *scanTask, duration time.Duration) (*sbommodel.SBOMEntity, error) {
-	marshaler := cyclonedx.NewMarshaler("")
-	cyclonedxBOM, err := marshaler.Marshal(*trivyReport)
-	if err != nil {
-		return nil, fmt.Errorf("unable to marshal report to sbom format: %w", err)
-	}
-	return &sbommodel.SBOMEntity{
-		Status: sbommodel.SBOMStatus_SUCCESS,
-		Type:   sbommodel.SBOMSourceType_CI_PIPELINE, // TODO: SBOMSourceType_LAMBDA
-		Id:     scan.ARN.String(),
-		InUse:  true,
-		DdTags: []string{
-			"runtime_id:" + scan.ARN.String(),
-			"service_version:TODO", // XXX
-			fmt.Sprintf("region:%s", scan.ARN.Region),
-			fmt.Sprintf("account_id:%s", scan.ARN.AccountID),
-		},
+		}, entityTags...),
 		GeneratedAt:        timestamppb.New(time.Now()),
 		GenerationDuration: convertDuration(duration),
 		Hash:               "",
