@@ -726,6 +726,12 @@ func getOrCreateNSForGuessing() (netns.NsHandle, error, func()) {
 		if err != nil {
 			return curNS, fmt.Errorf("error creating offsetguess netns: %w", err), cleanupFunc
 		}
+		cleanupFunc = func() {
+			err := newNS.Close()
+			if err != nil {
+				log.Debugf("error closing offsetguess netns: %v", err)
+			}
+		}
 		err = setupLoopbackInNS(newNS)
 		if err != nil {
 			return curNS, fmt.Errorf("error setting up lookback in offsetguess netns: %w", err), cleanupFunc
@@ -733,12 +739,6 @@ func getOrCreateNSForGuessing() (netns.NsHandle, error, func()) {
 		err = unix.Setns(int(curNS), unix.CLONE_NEWNET)
 		if err != nil {
 			return curNS, fmt.Errorf("error returning to original NS: %w", err), cleanupFunc
-		}
-		cleanupFunc = func() {
-			err := newNS.Close()
-			if err != nil {
-				log.Debugf("error closing offsetguess netns: %v", err)
-			}
 		}
 		return newNS, nil, cleanupFunc
 	}
