@@ -92,4 +92,6 @@ jobs:
           # allow empty commits, so that the branch always exists if the workflow succeeds
           commit_options: '--allow-empty'
           skip_dirty_check: true # prevents pushing an empty commit if false
-          skip_fetch: true # if the branch exists it is already fetched
+          # the action fetches all branches and tags, in our case the branches we care about are already fetched
+          # if they exist, so we can skip the fetch
+          skip_fetch: true
