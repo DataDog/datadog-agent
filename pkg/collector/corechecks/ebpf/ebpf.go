@@ -148,9 +148,6 @@ func (m *EBPFCheck) Run() error {
 			"program_type:" + progInfo.Type.String(),
 			"module:" + progInfo.Module,
 		}
-		if progInfo.Tag != "" {
-			tags = append(tags, "program_tag:"+progInfo.Tag)
-		}
 		var debuglogs []string
 		if log.ShouldLog(seelog.TraceLvl) {
 			debuglogs = []string{"program=" + progInfo.Name, "type=" + progInfo.Type.String()}
