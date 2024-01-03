@@ -99,8 +99,8 @@ func findProcess(
 // processHasData asserts that the given process has the expected data populated
 func processHasData(process *agentmodel.Process) bool {
 	return process.Pid != 0 && process.Command.Ppid != 0 && len(process.User.Name) > 0 &&
-		process.Cpu.TotalPct > 0 && process.Cpu.SystemPct > 0 &&
-		process.Memory.Rss > 0 && process.Memory.Vms > 0
+		(process.Cpu.UserPct > 0 || process.Cpu.SystemPct > 0) &&
+		(process.Memory.Rss > 0 || process.Memory.Vms > 0 || process.Memory.Swap > 0)
 }
 
 // processHasIOStats asserts that the given process has the expected IO stats populated
