@@ -2064,6 +2064,7 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 					start := time.Now()
 					sbom, err := launchScannerTrivyLocal(ctx, scan, mountPoint)
 					resultsCh <- scanResult{err: err, scan: scan, sbom: sbom, duration: time.Since(start)}
+					_ = launchScannerContainers(ctx, scan, mountPoint) // XXX
 				case malware:
 					start := time.Now()
 					findings, err := launchScannerMalwareLocal(ctx, scan, mountPoint)
