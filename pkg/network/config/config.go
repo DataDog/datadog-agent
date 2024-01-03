@@ -95,9 +95,9 @@ type Config struct {
 	// traffic done through Go's standard library's TLS implementation
 	EnableGoTLSSupport bool
 
-	// EnableGoTLSTestSelfHook specifies whether USM's GoTLS module should hook the
+	// EnableGoTLSSelfHook specifies whether USM's GoTLS module should hook the
 	// system-probe test binary
-	EnableGoTLSTestSelfHook bool
+	EnableGoTLSSelfHook bool
 
 	// EnableJavaTLSSupport specifies whether the tracer should monitor HTTPS
 	// traffic done through Java's TLS implementation
@@ -359,7 +359,7 @@ func New() *Config {
 		JavaAgentAllowRegex:         cfg.GetString(join(smjtNS, "allow_regex")),
 		JavaAgentBlockRegex:         cfg.GetString(join(smjtNS, "block_regex")),
 		EnableGoTLSSupport:          cfg.GetBool(join(smNS, "tls", "go", "enabled")),
-		EnableGoTLSTestSelfHook:     cfg.GetBool(join(smNS, "tls", "go", "enable_self_hook")),
+		EnableGoTLSSelfHook:         cfg.GetBool(join(smNS, "tls", "go", "enable_self_hook")),
 		EnableHTTPStatsByStatusCode: cfg.GetBool(join(smNS, "enable_http_stats_by_status_code")),
 		EnableUSMQuantization:       cfg.GetBool(join(smNS, "enable_quantization")),
 	}

@@ -1456,7 +1456,7 @@ service_monitoring_config:
     go:
       enable_self_hook: true
 `)
-		require.True(t, cfg.EnableGoTLSTestSelfHook)
+		require.True(t, cfg.EnableGoTLSSelfHook)
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
@@ -1465,14 +1465,14 @@ service_monitoring_config:
 
 		cfg := New()
 
-		require.True(t, cfg.EnableGoTLSTestSelfHook)
+		require.True(t, cfg.EnableGoTLSSelfHook)
 	})
 
 	t.Run("Not enabled", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
 		cfg := New()
 		// Default value.
-		require.False(t, cfg.EnableGoTLSTestSelfHook)
+		require.False(t, cfg.EnableGoTLSSelfHook)
 	})
 }
 
