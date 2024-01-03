@@ -152,5 +152,5 @@ new-e2e-agent-platform-install-script-upgrade-amazonlinux-x64:
     - .new-e2e_agent_a7
     - .new-e2e-amazonlinux_need_a6_and_a7
   rules:
-    !reference [.on_default_new-e2e_tests_a7]
+    !reference [.on_deploy]
 

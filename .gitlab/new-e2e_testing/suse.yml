@@ -159,4 +159,4 @@ new-e2e-agent-platform-install-script-upgrade-suse-x86_64:
     - .new-e2e_agent_a7
     - .new-e2e-suse_need_a6_and_a7
   rules:
-    !reference [.on_default_new-e2e_tests_a7]
+    !reference [.on_deploy]
