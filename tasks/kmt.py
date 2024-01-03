@@ -244,9 +244,6 @@ def full_arch(arch):
     return arch
 
 
-def first_build(ctx):
-    pass
-
 @task
 def prepare(ctx, vms, stack=None, arch=None, ssh_key="", rebuild_deps=False, packages="", verbose=False):
     stack = check_and_get_stack(stack)
@@ -267,7 +264,7 @@ def prepare(ctx, vms, stack=None, arch=None, ssh_key="", rebuild_deps=False, pac
     domains = build_target_domains(ctx, stack, vms, ssh_key, verbose)
 
     constrain_pkgs=""
-    if not rebuild_deps:
+    if not rebuild_deps or (not os.path.isfile(f"kmt-deps/{stack}/dependencies-{arch}.tar.gz")):
         constrain_pkgs = f"--packages={packages}"
 
     docker_exec(
