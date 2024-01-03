@@ -71,22 +71,22 @@ jobs:
           echo "GO_VERSION=$(inv go-version)" >> $GITHUB_OUTPUT
 
       - name: Update buildimages IDs and Go version
-        id: make_changes
+        id: update_build_images
         env:
-          TEST_VERSION: ${{ inputs.test_version && '--test-version' || '--no-test-version' }}
+          TEST_VERSION_FLAG: ${{ inputs.test_version && '--test-version' || '--no-test-version' }}
         run: |
           if [ "${{ steps.current_go_version.outputs.GO_VERSION }}" = "${{ inputs.go_version }}" ]; then
-            inv -e buildimages.update --image-tag ${{ inputs.images_id }} $TEST_VERSION
+            inv -e buildimages.update --image-tag ${{ inputs.images_id }} $TEST_VERSION_FLAG
             echo 'MESSAGE=Update buildimages ID to ${{ inputs.images_id }}' >> $GITHUB_OUTPUT
           else
-            inv -e update-go --image-tag ${{ inputs.images_id }} $TEST_VERSION -v "${{ inputs.go_version }}"
+            inv -e update-go --image-tag ${{ inputs.images_id }} $TEST_VERSION_FLAG -v "${{ inputs.go_version }}"
             echo 'MESSAGE=Update Go version to ${{ inputs.go_version }}' >> $GITHUB_OUTPUT
           fi
 
       - uses: stefanzweifel/git-auto-commit-action@v5
         id: autocommit
         with:
-          commit_message: ${{ steps.make_changes.outputs.MESSAGE }}
+          commit_message: ${{ steps.update_build_images.outputs.MESSAGE }}
           branch: ${{ inputs.branch }}
           create_branch: true
           # allow empty commits, so that the branch always exists if the workflow succeeds
