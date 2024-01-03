@@ -66,6 +66,10 @@
 // See more details in the comments of the USM_EVENTS_INIT.
 #define HTTP2_TERMINATED_BATCH_SIZE 80
 
+// MAX_4_BITS represents the maximum number that can be represented with 4 bits or less.
+// 1 << 64 - 1
+#define MAX_4_BITS 15
+
 // MAX_6_BITS represents the maximum number that can be represented with 6 bits or less.
 // 1 << 6 - 1
 #define MAX_6_BITS 63
@@ -144,6 +148,7 @@ typedef enum {
     kStaticHeader = 0,
     kExistingDynamicHeader = 1,
     kNewDynamicHeader = 2,
+    kNewDynamicHeaderNotIndexed = 3,
 } __attribute__((packed)) http2_header_type_t;
 
 typedef struct {
