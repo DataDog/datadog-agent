@@ -88,6 +88,7 @@ package :deb do
   priority 'extra'
   compression_threads COMPRESSION_THREADS
   compression_level COMPRESSION_LEVEL
+  compression_algo "xz"
   if ENV.has_key?('DEB_SIGNING_PASSPHRASE') and not ENV['DEB_SIGNING_PASSPHRASE'].empty?
     signing_passphrase "#{ENV['DEB_SIGNING_PASSPHRASE']}"
     if ENV.has_key?('DEB_GPG_KEY_NAME') and not ENV['DEB_GPG_KEY_NAME'].empty?
@@ -106,6 +107,7 @@ package :rpm do
   priority 'extra'
   compression_threads COMPRESSION_THREADS
   compression_level COMPRESSION_LEVEL
+  compression_algo "xz"
   if ENV.has_key?('RPM_SIGNING_PASSPHRASE') and not ENV['RPM_SIGNING_PASSPHRASE'].empty?
     signing_passphrase "#{ENV['RPM_SIGNING_PASSPHRASE']}"
     if ENV.has_key?('RPM_GPG_KEY_NAME') and not ENV['RPM_GPG_KEY_NAME'].empty?
