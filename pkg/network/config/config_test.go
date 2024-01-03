@@ -1447,32 +1447,32 @@ service_monitoring_config:
 	})
 }
 
-func TestUSMTLSGoSelfHook(t *testing.T) {
+func TestUSMTLSGoExcludeSelf(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
 		cfg := configurationFromYAML(t, `
 service_monitoring_config:
   tls:
     go:
-      enable_self_hook: true
+      exclude_self: false
 `)
-		require.True(t, cfg.EnableGoTLSSelfHook)
+		require.False(t, cfg.GoTLSExcludeSelf)
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_GO_ENABLE_SELF_HOOK", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_GO_EXCLUDE_SELF", "false")
 
 		cfg := New()
 
-		require.True(t, cfg.EnableGoTLSSelfHook)
+		require.False(t, cfg.GoTLSExcludeSelf)
 	})
 
-	t.Run("Not enabled", func(t *testing.T) {
+	t.Run("Not disabled", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
 		cfg := New()
 		// Default value.
-		require.False(t, cfg.EnableGoTLSSelfHook)
+		require.True(t, cfg.GoTLSExcludeSelf)
 	})
 }
 

@@ -320,7 +320,7 @@ func registerCBCreator(mgr *manager.Manager, offsetsDataMap *ebpf.Map, probeIDs 
 }
 
 func (p *goTLSProgram) handleProcessStart(pid pid) {
-	if !p.cfg.EnableGoTLSSelfHook && pid == uint32(os.Getpid()) {
+	if p.cfg.GoTLSExcludeSelf && pid == uint32(os.Getpid()) {
 		return
 	}
 
