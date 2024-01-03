@@ -3,7 +3,10 @@ def compiler_built(ctx):
     return res.ok
 
 
-def docker_exec(ctx, cmd, user="compiler", verbose=True):
+def docker_exec(ctx, cmd, user="compiler", verbose=True, run_dir=None):
+    if run_dir:
+        cmd = f"cd {run_dir} && {cmd}"
+
     ctx.run(f"docker exec -u {user} -i kmt-compiler bash -c \"{cmd}\"", hide=(not verbose))
 
 

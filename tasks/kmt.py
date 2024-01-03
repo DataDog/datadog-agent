@@ -1,6 +1,8 @@
+import json
 import os
 import platform
 import re
+import tempfile
 from glob import glob
 
 from invoke import task
@@ -242,6 +244,9 @@ def full_arch(arch):
     return arch
 
 
+def first_build(ctx):
+    pass
+
 @task
 def prepare(ctx, vms, stack=None, arch=None, ssh_key="", rebuild_deps=False, packages="", verbose=False):
     stack = check_and_get_stack(stack)
@@ -260,23 +265,46 @@ def prepare(ctx, vms, stack=None, arch=None, ssh_key="", rebuild_deps=False, pac
     download_gotestsum(ctx)
 
     domains = build_target_domains(ctx, stack, vms, ssh_key, verbose)
+
+    constrain_pkgs=""
+    if not rebuild_deps:
+        constrain_pkgs = f"--packages={packages}"
+
     docker_exec(
         ctx,
-        f"cd /datadog-agent && git config --global --add safe.directory /datadog-agent && inv -e system-probe.kitchen-prepare --ci --packages={packages}",
+        f"git config --global --add safe.directory /datadog-agent && inv -e system-probe.kitchen-prepare --ci {constrain_pkgs}",
+        run_dir="/datadog-agent",
     )
     if rebuild_deps or not os.path.isfile(f"kmt-deps/{stack}/dependencies-{arch}.tar.gz"):
         docker_exec(
             ctx,
-            f"cd /datadog-agent && ./test/new-e2e/system-probe/test/setup-microvm-deps.sh {stack} {os.getuid()} {os.getgid()} {platform.machine()}",
+            f"./test/new-e2e/system-probe/test/setup-microvm-deps.sh {stack} {os.getuid()} {os.getgid()} {platform.machine()}",
+            run_dir="/datadog-agent",
         )
         for d in domains:
-            d.runner.copy_files(stack, f"kmt-deps/{stack}/dependencies-{full_arch(d.arch)}.tar.gz")
+            d.runner.copy_files(f"kmt-deps/{stack}/dependencies-{full_arch(d.arch)}.tar.gz")
             d.runner.run_cmd(f"/root/fetch_dependencies.sh {platform.machine()}", allow_fail=True, verbose=True)
             d.runner.sync_source(
                 "./test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg",
                 "/opt/system-probe-tests",
             )
 
+
+def build_run_config(run, packages):
+    c = dict()
+
+    if len(packages) == 0:
+        return {"*": {"exclude": False}}
+
+    for p in packages:
+        if p[:2] == "./":
+            p = p[2:]
+        if run is not None:
+            c[p] = {"run-only": [run]}
+        else:
+            c[p] = {"exclude":False}
+
+    return c
 
 @task
 def test(ctx, vms, stack=None, packages="", run=None, retry=2, rebuild_deps=False, ssh_key="", verbose=False):
@@ -287,13 +315,20 @@ def test(ctx, vms, stack=None, packages="", run=None, retry=2, rebuild_deps=Fals
     prepare(ctx, stack=stack, vms=vms, ssh_key=ssh_key, rebuild_deps=rebuild_deps, packages=packages)
 
     domains = build_target_domains(ctx, stack, vms, ssh_key, verbose)
-    args = [
-        f"-include-packages {packages}" if packages else "",
-        f"-run-tests {run}" if run else "",
-    ]
+    if run is not None and packages is None:
+        raise Exit("Package must be provided when specifying test")
+    pkgs = packages.split(",")
+    if run is not None and len(pkgs) > 1:
+        raise Exit("Only a single package can be specified when running specific tests")
 
-    for d in domains:
-        d.runner.run_cmd(f"bash /micro-vm-init.sh {retry} {' '.join(args)}", verbose=True)
+    run_config = build_run_config(run, pkgs)
+    with tempfile.NamedTemporaryFile(mode='w') as tmp:
+        json.dump(run_config, tmp)
+        tmp.flush()
+
+        for d in domains:
+            d.runner.copy_files(f"{tmp.name}", "/tmp")
+            d.runner.run_cmd(f"bash /micro-vm-init.sh {retry} {tmp.name}", verbose=True)
 
 
 @task
@@ -309,10 +344,11 @@ def build(ctx, vms, stack=None, ssh_key="", rebuild_deps=False, verbose=False):
     if rebuild_deps or not os.path.isfile(f"kmt-deps/{stack}/dependencies-{platform.machine()}.tar.gz"):
         docker_exec(
             ctx,
-            f"cd /datadog-agent && ./test/new-e2e/system-probe/test/setup-microvm-deps.sh {stack} {os.getuid()} {os.getgid()} {platform.machine()}",
+            f"./test/new-e2e/system-probe/test/setup-microvm-deps.sh {stack} {os.getuid()} {os.getgid()} {platform.machine()}",
+            run_dir="/datadog-agent",
         )
         for d in domains:
-            d.runner.copy_files(stack, f"kmt-deps/{stack}/dependencies-{full_arch(d.arch)}.tar.gz")
+            d.runner.copy_files(f"kmt-deps/{stack}/dependencies-{full_arch(d.arch)}.tar.gz")
             d.runner.run_cmd(f"/root/fetch_dependencies.sh {arch_mapping[platform.machine()]}")
 
     docker_exec(
@@ -332,6 +368,7 @@ def clean(ctx, stack=None, container=False, image=False):
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
+    docker_exec(ctx, "inv -e system-probe.clean", run_dir="/datadog-agent")
     ctx.run("rm -rf ./test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg")
     ctx.run(f"rm -rf kmt-deps/{stack}", warn=True)
     ctx.run(f"rm {get_kmt_os().shared_dir}/*.tar.gz", warn=True)
