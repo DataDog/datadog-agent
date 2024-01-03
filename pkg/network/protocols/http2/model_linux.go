@@ -86,8 +86,7 @@ func (tx *EbpfTx) Path(buffer []byte) ([]byte, bool) {
 			return nil, false
 		}
 	} else {
-		err = validatePathSize(tx.Stream.Path_size)
-		if err != nil {
+		if err = validatePathSize(tx.Stream.Path_size); err != nil {
 			if oversizedLogLimit.ShouldLog() {
 				log.Errorf("path size: %d is invalid due to: %s", tx.Stream.Path_size, err)
 			}
@@ -95,8 +94,7 @@ func (tx *EbpfTx) Path(buffer []byte) ([]byte, bool) {
 		}
 
 		res = tx.Stream.Request_path[:tx.Stream.Path_size]
-		err = validatePath(string(res))
-		if err != nil {
+		if err = validatePath(string(res)); err != nil {
 			if oversizedLogLimit.ShouldLog() {
 				log.Errorf("path %s is invalid due to: %s", string(res), err)
 			}
