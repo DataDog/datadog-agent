@@ -78,3 +78,10 @@ func WithCustomAPIKey(apiKey string) Option {
 		p.CustomAPIKey = apiKey
 	}
 }
+
+// WithCustomPipelineID specify a custom api key to use when installing the agent
+func WithCustomPipelineID(id string) Option {
+	return func(p *Params) {
+		p.PipelineID = id
+	}
+}
