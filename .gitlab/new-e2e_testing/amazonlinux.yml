@@ -152,3 +152,18 @@ new-e2e-agent-platform-install-script-upgrade-amazonlinux-x64:
     - .new-e2e_agent_a6
     - .new-e2e-amazonlinux_need_a6_and_a7
 
+new-e2e-agent-platform-install-script-upgrade-amazonlinux-iot-agent-x64:
+  stage: kitchen_testing
+  extends:
+    - .new_e2e_template
+    - .new-e2e_script_upgrade
+    - .new-e2e_os_amazonlinux
+    - .new-e2e_amazonlinux_a7_x86_64
+    - .new-e2e_agent_a7
+    - .new-e2e-amazonlinux_need_a6_and_a7
+  variables:
+    FLAVOR: datadog-iot-agent
+  parallel:
+    matrix:
+      - START_MAJOR_VERSION: [7]
+        AGENT_MAJOR_VERSION: [7]

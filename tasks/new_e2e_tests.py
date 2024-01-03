@@ -113,9 +113,11 @@ def run(
         "arch": f"-arch {arch}" if arch else '',
         "flavor": f"-flavor {flavor}" if flavor else '',
         "major_version": f"-major-version {major_version}" if major_version else '',
-        "cws_supported_osversion": f"-cws-supported-osversion {cws_supported_osversion}" if cws_supported_osversion else '',
-        "src_agent_version":f"-src-agent-version {src_agent_version}" if src_agent_version else '',
-        "dest_agent_version":f"-dest-agent-version {dest_agent_version}" if dest_agent_version else '',
+        "cws_supported_osversion": f"-cws-supported-osversion {cws_supported_osversion}"
+        if cws_supported_osversion
+        else '',
+        "src_agent_version": f"-src-agent-version {src_agent_version}" if src_agent_version else '',
+        "dest_agent_version": f"-dest-agent-version {dest_agent_version}" if dest_agent_version else '',
         "keep_stacks": '-keep-stacks' if keep_stacks else '',
     }
 
