@@ -88,11 +88,10 @@ static __always_inline bool tls_parse_field_literal(tls_dispatcher_arguments_t *
         goto end;
     }
 
-    if (index == kIndexPath) {
-        update_path_size_telemetry(http2_tel, str_len);
-    } else {
+    if (index != kIndexPath && index != kEmptyPath) {
         goto end;
     }
+    update_path_size_telemetry(http2_tel, str_len);
 
     // We skip if:
     // - The string is too big
