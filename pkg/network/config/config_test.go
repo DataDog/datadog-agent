@@ -1447,6 +1447,35 @@ service_monitoring_config:
 	})
 }
 
+func TestUSMTLSGoSelfHook(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  tls:
+    go:
+      test_self_hook: true
+`)
+		require.True(t, cfg.EnableGoTLSTestSelfHook)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_GO_TEST_SELF_HOOK", "true")
+
+		cfg := New()
+
+		require.True(t, cfg.EnableGoTLSTestSelfHook)
+	})
+
+	t.Run("Not enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+		// Default value.
+		require.False(t, cfg.EnableGoTLSTestSelfHook)
+	})
+}
+
 func TestProcessServiceInference(t *testing.T) {
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
