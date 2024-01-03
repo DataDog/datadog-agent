@@ -703,11 +703,55 @@ func (t *tracerOffsetGuesser) flowi6EntryState() GuessWhat {
 	return GuessSAddrFl6
 }
 
-func setupLoopbackInNS(ns netns.NsHandle) error {
-	if err := netns.Set(ns); err != nil {
-		return err
+// getOrCreateNSForGuessing returns the current netns, or a new one if the current one is flaky for guessing. If a new
+// netNS is created, it is returned along with a cleanup function that should be called when the guessing is done.
+func getOrCreateNSForGuessing() (netns.NsHandle, error, func()) {
+	cleanupFunc := func() {}
+	var err error
+	var curNS netns.NsHandle
+	curNS, err = netns.Get()
+	if err != nil {
+		return curNS, fmt.Errorf("error getting current netns: %w", err), cleanupFunc
 	}
-	loopback, err := netlink.LinkByName("lo")
+	ino, err := kernel.GetInoForNs(curNS)
+	if err != nil {
+		log.Debugf("error getting ino for current netns: %v", err)
+	}
+	// the root NS is often 0xF0000000 which makes guessing likely to fail. If so, guess in a new NS with a different offset
+	if ino == 0xF0000000 && err == nil {
+		log.Debugf("current netns is flaky for guessing, creating temporary NS to guess in")
+		var newNS netns.NsHandle
+		// netns.New() will create a new NS and switch to it, so we need to switch back to the original NS afterward.
+		newNS, err = netns.New()
+		if err != nil {
+			return curNS, fmt.Errorf("error creating offsetguess netns: %w", err), cleanupFunc
+		}
+		err = setupLoopbackInNS(newNS)
+		if err != nil {
+			return curNS, fmt.Errorf("error setting up lookback in offsetguess netns: %w", err), cleanupFunc
+		}
+		err = unix.Setns(int(curNS), unix.CLONE_NEWNET)
+		if err != nil {
+			return curNS, fmt.Errorf("error returning to original NS: %w", err), cleanupFunc
+		}
+		cleanupFunc = func() {
+			err := newNS.Close()
+			if err != nil {
+				log.Debugf("error closing offsetguess netns: %v", err)
+			}
+		}
+		return newNS, nil, cleanupFunc
+	}
+	return curNS, nil, cleanupFunc
+}
+
+// setupLoopbackInNS sets up the loopback interface in the given NS.
+func setupLoopbackInNS(ns netns.NsHandle) error {
+	handle, err := netlink.NewHandleAt(ns)
+	if err != nil {
+		return fmt.Errorf("error getting netlink handle: %w", err)
+	}
+	loopback, err := handle.LinkByName("lo")
 	if err != nil {
 		return fmt.Errorf("error getting loopback iface: %w", err)
 	}
@@ -715,7 +759,6 @@ func setupLoopbackInNS(ns netns.NsHandle) error {
 	if err != nil {
 		return fmt.Errorf("error setting loopback to up: %w", err)
 	}
-
 	return nil
 }
 
@@ -773,44 +816,19 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 	if err == nil && State(t.status.State) == StateReady {
 		return t.getConstantEditors(), nil
 	}
-	var curNS netns.NsHandle
-	curNS, err = netns.Get()
+	guessNS, err, cleanupFunc := getOrCreateNSForGuessing()
 	if err != nil {
-		return nil, fmt.Errorf("error getting current netns: %w", err)
+		log.Debugf("error getting or creating NS for guessing: %v", err)
 	}
-	// the root NS is often 0xf0000000 which makes guessing likely to fail. If so, guess in a new NS with a different offset
-	ino, err := kernel.GetInoForNs(curNS)
-	if err != nil {
-		log.Debugf("error getting ino for current netns: %v", err)
-	}
-	if ino == 4026531840 && err != nil {
-		newNS, innerErr := netns.New()
-		if innerErr != nil {
-			return nil, fmt.Errorf("error creating offsetguess netns: %w", innerErr)
-		}
-		defer func() {
-			deferErr := newNS.Close()
-			if deferErr != nil {
-				log.Debugf("error closing offsetguess netns: %v", deferErr)
-			}
-		}()
-		innerErr = setupLoopbackInNS(newNS)
-		if innerErr != nil {
-			return nil, fmt.Errorf("error setting up lookback in offsetguess netns: %w", innerErr)
-		}
-		innerErr = unix.Setns(int(curNS), unix.CLONE_NEWNET)
-		if innerErr != nil {
-			return nil, fmt.Errorf("error returning to offsetguess NS: %w", innerErr)
-		}
-	}
-	eventGenerator, err := newTracerEventGenerator(t.guessUDPv6, curNS)
+	defer cleanupFunc()
+	eventGenerator, err := newTracerEventGenerator(t.guessUDPv6, guessNS)
 	if err != nil {
 		return nil, err
 	}
 	defer eventGenerator.Close()
 
 	// initialize map
-	if err := mp.Put(unsafe.Pointer(&zero), unsafe.Pointer(t.status)); err != nil {
+	if err = mp.Put(unsafe.Pointer(&zero), unsafe.Pointer(t.status)); err != nil {
 		return nil, fmt.Errorf("error initializing tracer_status map: %v", err)
 	}
 
@@ -819,7 +837,7 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 	maxRetries := 100
 
 	// Retrieve expected values from local connection
-	expected, err := waitUntilStable(eventGenerator.conn, 200*time.Millisecond, 5, curNS)
+	expected, err := waitUntilStable(eventGenerator.conn, 200*time.Millisecond, 5, guessNS)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving expected value: %w", err)
 	}
