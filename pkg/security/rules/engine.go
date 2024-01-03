@@ -386,7 +386,18 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 		return false
 	}
 
-	e.probe.HandleActions(rule, event)
+	ev.Suppressed = false
+	if e.config.SecurityProfileAutoSuppressionEnabled &&
+		ev.SecurityProfileContext.Status.IsEnabled(model.AutoSuppression) &&
+		ev.IsInProfile() {
+		if val, ok := rule.Definition.GetTag("allow_autosuppression"); ok && val == "true" {
+			ev.Suppressed = true
+		}
+	}
+
+	if !ev.Suppressed {
+		e.probe.HandleActions(rule, event)
+	}
 
 	if rule.Definition.Silent {
 		return false
@@ -397,7 +408,7 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 	ev.FieldHandlers.ResolveContainerTags(ev, ev.ContainerContext)
 	ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.ContainerContext)
 
-	if ev.ContainerContext.ID != "" && (e.config.ActivityDumpTagRulesEnabled || e.config.AnomalyDetectionTagRulesEnabled) {
+	if ev.ContainerContext.ID != "" && (e.config.ActivityDumpTagRulesEnabled || e.config.AnomalyDetectionTagRulesEnabled) && !ev.Suppressed {
 		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Definition.ID, rule.Definition.Version, rule.Definition.Tags, rule.Definition.Policy.Name, rule.Definition.Policy.Version))
 	}
 
@@ -512,7 +523,7 @@ func (e *RuleEngine) HandleEvent(event *model.Event) {
 	}
 
 	if ruleSet := e.GetRuleSet(); ruleSet != nil {
-		if (event.SecurityProfileContext.Status.IsEnabled(model.AutoSuppression) && event.IsInProfile()) || !ruleSet.Evaluate(event) {
+		if !ruleSet.Evaluate(event) {
 			ruleSet.EvaluateDiscarders(event)
 		}
 	}

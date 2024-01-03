@@ -171,6 +171,7 @@ type BaseEvent struct {
 	Rules        []*MatchedRule     `field:"-"`
 	Actions      []*ActionTriggered `field:"-"`
 	Origin       string             `field:"-"`
+	Suppressed   bool               `field:"-"`
 
 	// context shared with all events
 	ProcessContext         *ProcessContext        `field:"process" event:"*"`
