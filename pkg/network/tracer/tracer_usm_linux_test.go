@@ -788,10 +788,32 @@ func TestHTTPGoTLSAttachProbes(t *testing.T) {
 		}
 
 		t.Run("new process", func(t *testing.T) {
-			testHTTPGoTLSCaptureNewProcess(t, config.New())
+			testHTTPGoTLSCaptureNewProcess(t, config.New(), false)
 		})
 		t.Run("already running process", func(t *testing.T) {
-			testHTTPGoTLSCaptureAlreadyRunning(t, config.New())
+			testHTTPGoTLSCaptureAlreadyRunning(t, config.New(), false)
+		})
+	})
+}
+
+func TestHTTP2GoTLSAttachProbes(t *testing.T) {
+	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
+	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
+		if !goTLSSupported() {
+			t.Skip("GoTLS not supported for this setup")
+		}
+
+		// TODO fix TestHTTPGoTLSAttachProbes on these Fedora versions
+		if skipFedora(t) {
+			// TestHTTPGoTLSAttachProbes fails consistently in CI on Fedora 36,37
+			t.Skip("TestHTTP2GoTLSAttachProbes fails on this OS consistently")
+		}
+
+		t.Run("new process", func(t *testing.T) {
+			testHTTPGoTLSCaptureNewProcess(t, config.New(), true)
+		})
+		t.Run("already running process", func(t *testing.T) {
+			testHTTPGoTLSCaptureAlreadyRunning(t, config.New(), true)
 		})
 	})
 }
@@ -815,7 +837,7 @@ func TestHTTPSGoTLSAttachProbesOnContainer(t *testing.T) {
 
 // Test that we can capture HTTPS traffic from Go processes started after the
 // tracer.
-func testHTTPGoTLSCaptureNewProcess(t *testing.T, cfg *config.Config) {
+func testHTTPGoTLSCaptureNewProcess(t *testing.T, cfg *config.Config, isHTTP2 bool) {
 	const (
 		serverAddr          = "localhost:8081"
 		expectedOccurrences = 10
@@ -825,11 +847,16 @@ func testHTTPGoTLSCaptureNewProcess(t *testing.T, cfg *config.Config) {
 	closeServer := testutil.HTTPServer(t, serverAddr, testutil.Options{
 		EnableTLS:       true,
 		EnableKeepAlive: false,
+		EnableHTTP2:     isHTTP2,
 	})
 	t.Cleanup(closeServer)
 
 	cfg.EnableGoTLSSupport = true
-	cfg.EnableHTTPMonitoring = true
+	if isHTTP2 {
+		cfg.EnableHTTP2Monitoring = true
+	} else {
+		cfg.EnableHTTPMonitoring = true
+	}
 
 	tr := setupTracer(t, cfg)
 
@@ -842,7 +869,7 @@ func testHTTPGoTLSCaptureNewProcess(t *testing.T, cfg *config.Config) {
 	}
 
 	// spin-up goTLS client and issue requests after initialization
-	command, runRequests := gotlstestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences, false)
+	command, runRequests := gotlstestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences, isHTTP2)
 	require.Eventuallyf(t, func() bool {
 		traced := utils.GetTracedPrograms("go-tls")
 		for _, prog := range traced {
@@ -853,10 +880,10 @@ func testHTTPGoTLSCaptureNewProcess(t *testing.T, cfg *config.Config) {
 		return false
 	}, time.Second*5, time.Millisecond*100, "process %v is not traced by gotls", command.Process.Pid)
 	runRequests()
-	checkRequests(t, tr, expectedOccurrences, reqs)
+	checkRequests(t, tr, expectedOccurrences, reqs, isHTTP2)
 }
 
-func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config) {
+func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config, isHTTP2 bool) {
 	const (
 		serverAddr          = "localhost:8081"
 		expectedOccurrences = 10
@@ -864,16 +891,19 @@ func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config) {
 
 	// Setup
 	closeServer := testutil.HTTPServer(t, serverAddr, testutil.Options{
-		EnableTLS:       true,
-		EnableKeepAlive: false,
+		EnableTLS:   true,
+		EnableHTTP2: isHTTP2,
 	})
 	t.Cleanup(closeServer)
 
-	// spin-up goTLS client but don't issue requests yet
-	command, issueRequestsFn := gotlstestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences, false)
-
 	cfg.EnableGoTLSSupport = true
-	cfg.EnableHTTPMonitoring = true
+	if isHTTP2 {
+		cfg.EnableHTTP2Monitoring = true
+	} else {
+		cfg.EnableHTTPMonitoring = true
+	}
+	// spin-up goTLS client but don't issue requests yet
+	command, issueRequestsFn := gotlstestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences, isHTTP2)
 
 	tr := setupTracer(t, cfg)
 
@@ -895,7 +925,7 @@ func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config) {
 		return false
 	}, time.Second*5, time.Millisecond*100, "process %v is not traced by gotls", command.Process.Pid)
 	issueRequestsFn()
-	checkRequests(t, tr, expectedOccurrences, reqs)
+	checkRequests(t, tr, expectedOccurrences, reqs, isHTTP2)
 }
 
 func testHTTPSGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) {
@@ -929,7 +959,7 @@ func testHTTPSGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) 
 	}
 
 	client.CloseIdleConnections()
-	checkRequests(t, tr, expectedOccurrences, reqs)
+	checkRequests(t, tr, expectedOccurrences, reqs, false)
 }
 
 func testHTTPSGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Config) {
@@ -963,7 +993,7 @@ func testHTTPSGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Conf
 	}
 
 	client.CloseIdleConnections()
-	checkRequests(t, tr, expectedOccurrences, reqs)
+	checkRequests(t, tr, expectedOccurrences, reqs, false)
 }
 
 type tlsTestCommand struct {
@@ -1066,21 +1096,25 @@ func (s *USMSuite) TestTLSClassification() {
 	}
 }
 
-func checkRequests(t *testing.T, tr *Tracer, expectedOccurrences int, reqs requestsMap) {
+func checkRequests(t *testing.T, tr *Tracer, expectedOccurrences int, reqs requestsMap, isHTTP2 bool) {
 	t.Helper()
 
 	occurrences := PrintableInt(0)
 	require.Eventually(t, func() bool {
-		stats := getConnections(t, tr)
+		conns := getConnections(t, tr)
+		stats := conns.HTTP
+		if isHTTP2 {
+			stats = conns.HTTP2
+		}
 		occurrences += PrintableInt(countRequestsOccurrences(t, stats, reqs))
 		return int(occurrences) == expectedOccurrences
 	}, 3*time.Second, 100*time.Millisecond, "Expected to find the request %v times, got %v captured. Requests not found:\n%v", expectedOccurrences, &occurrences, reqs)
 }
 
-func countRequestsOccurrences(t *testing.T, conns *network.Connections, reqs map[*nethttp.Request]bool) (occurrences int) {
+func countRequestsOccurrences(t *testing.T, conns map[http.Key]*http.RequestStats, reqs map[*nethttp.Request]bool) (occurrences int) {
 	t.Helper()
 
-	for key, stats := range conns.HTTP {
+	for key, stats := range conns {
 		for req, found := range reqs {
 			if found {
 				continue
