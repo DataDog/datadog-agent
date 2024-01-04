@@ -131,13 +131,16 @@ func (c *TrapsConfig) BuildSNMPParams(logger log.Component) (*gosnmp.GoSNMP, err
 		if err != nil {
 			return nil, err
 		}
-		usmTable.Add(user.Username, &gosnmp.UsmSecurityParameters{
+		err = usmTable.Add(user.Username, &gosnmp.UsmSecurityParameters{
 			UserName:                 user.Username,
 			AuthenticationProtocol:   authProtocol,
 			AuthenticationPassphrase: user.AuthKey,
 			PrivacyProtocol:          privProtocol,
 			PrivacyPassphrase:        user.PrivKey,
 		})
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &gosnmp.GoSNMP{

@@ -54,21 +54,21 @@ var usersV3 = []UserV3{
 }
 
 var usmUsers = []*gosnmp.UsmSecurityParameters{
-	&gosnmp.UsmSecurityParameters{
+	{
 		UserName:                 "user",
 		AuthenticationProtocol:   gosnmp.MD5,
 		AuthenticationPassphrase: "password",
 		PrivacyProtocol:          gosnmp.AES,
 		PrivacyPassphrase:        "password",
 	},
-	&gosnmp.UsmSecurityParameters{
+	{
 		UserName:                 "user",
 		AuthenticationProtocol:   gosnmp.SHA,
 		AuthenticationPassphrase: "password",
 		PrivacyProtocol:          gosnmp.DES,
 		PrivacyPassphrase:        "password",
 	},
-	&gosnmp.UsmSecurityParameters{
+	{
 		UserName:                 "user2",
 		AuthenticationProtocol:   gosnmp.MD5,
 		AuthenticationPassphrase: "password",

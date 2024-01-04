@@ -119,10 +119,10 @@ func TestServerV3(t *testing.T) {
 }
 
 var users = []config.UserV3{
-	config.UserV3{Username: "user", AuthKey: "password", AuthProtocol: "sha", PrivKey: "password", PrivProtocol: "aes"},
-	config.UserV3{Username: "user2", AuthKey: "password2", AuthProtocol: "md5", PrivKey: "password", PrivProtocol: "des"},
-	config.UserV3{Username: "user2", AuthKey: "password2", AuthProtocol: "sha", PrivKey: "password", PrivProtocol: "aes"},
-	config.UserV3{Username: "user3", AuthKey: "password", AuthProtocol: "sha"},
+	{Username: "user", AuthKey: "password", AuthProtocol: "sha", PrivKey: "password", PrivProtocol: "aes"},
+	{Username: "user2", AuthKey: "password2", AuthProtocol: "md5", PrivKey: "password", PrivProtocol: "des"},
+	{Username: "user2", AuthKey: "password2", AuthProtocol: "sha", PrivKey: "password", PrivProtocol: "aes"},
+	{Username: "user3", AuthKey: "password", AuthProtocol: "sha"},
 }
 
 func TestServerV3MultipleCredentials(t *testing.T) {
