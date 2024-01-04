@@ -255,10 +255,7 @@ func filterNamespace(ns string) bool {
 
 	// If apm_config.instrumentation.enabled_namespaces option set, enable Single Step Instrumentation only in listed namespaces
 	if len(apmEnabledNamespaces) > 0 {
-		if slices.Contains[[]string, string](apmEnabledNamespaces, ns) {
-			return true
-		}
-		return false
+		return slices.Contains[[]string, string](apmEnabledNamespaces, ns)
 	}
 
 	// Disable Single Step Instrumentation in all excluded namespaces
