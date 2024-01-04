@@ -34,9 +34,14 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/agent-payload/v5/process"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/encoding/marshal"
+	"github.com/DataDog/datadog-agent/pkg/network/encoding/unmarshal"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -99,6 +104,80 @@ func (s *USMSuite) TestEnableHTTPMonitoring() {
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
 	_ = setupTracer(t, cfg)
+}
+
+func (s *USMSuite) TestHttpRollups() {
+	t := s.T()
+	if !httpSupported() {
+		t.Skip("HTTP monitoring not supported")
+	}
+
+	ddconfig.SystemProbe.Set("network_config.enable_connection_rollup", true, model.SourceAgentRuntime)
+	t.Cleanup(func() {
+		ddconfig.SystemProbe.UnsetForSource("network_config.enable_connection_rollup", model.SourceAgentRuntime)
+	})
+	cfg := testConfig()
+	cfg.EnableHTTPMonitoring = true
+	tr := setupTracer(t, cfg)
+
+	tr.RegisterClient("test")
+
+	closeServer := testutil.HTTPServer(t, "127.0.0.1:8888", testutil.Options{})
+	t.Cleanup(closeServer)
+
+	req, err := nethttp.NewRequest(nethttp.MethodGet, fmt.Sprintf("http://%s/%d/request", "127.0.0.1:8888", nethttp.StatusOK), nil)
+	require.NoError(t, err)
+
+	client := nethttp.Client{}
+	for i := 0; i < 10; i++ {
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+	}
+
+	cs, err := tr.GetActiveConnections("test")
+	require.NoError(t, err, "could not get active connections")
+	marshaler := marshal.GetMarshaler("application/json")
+	connectionsModeler := marshal.NewConnectionsModeler(cs)
+	defer connectionsModeler.Close()
+
+	var buf bytes.Buffer
+	err = marshaler.Marshal(cs, &buf, connectionsModeler)
+	require.NoError(t, err, "could not marshal connections")
+
+	unmarshaler := unmarshal.GetUnmarshaler("application/json")
+	conns, err := unmarshaler.Unmarshal(buf.Bytes())
+	require.NoError(t, err, "could not unmarshal connections")
+
+	var incoming, outgoing *process.Connection
+	for _, c := range conns.Conns {
+		if c.Raddr.Ip == "127.0.0.1" && c.Raddr.Port == 8888 {
+			assert.Equal(t, c.Laddr.Ip, "127.0.0.1")
+			assert.Equal(t, c.Laddr.Port, int32(0))
+			assert.Nil(t, outgoing, "outgoing connection already found")
+			assert.Equal(t, c.Direction, process.ConnectionDirection_outgoing)
+			outgoing = c
+		}
+	}
+	require.NotNil(t, outgoing, "could not find outgoing connection")
+	assert.NotEmpty(t, outgoing.HttpAggregations)
+	assert.Equal(t, outgoing.LastTcpClosed, uint32(10))
+	assert.Equal(t, outgoing.LastTcpEstablished, uint32(10))
+
+	for _, c := range conns.Conns {
+		if c.Laddr.Ip == "127.0.0.1" && c.Laddr.Port == 8888 {
+			assert.Equal(t, c.Raddr.Ip, "127.0.0.1")
+			assert.Equal(t, c.Raddr.Port, int32(0))
+			assert.Nil(t, incoming, "incoming connection already found")
+			assert.Equal(t, c.Direction, process.ConnectionDirection_incoming)
+			incoming = c
+		}
+	}
+	require.NotNil(t, incoming, "could not find incoming connection")
+	assert.NotEmpty(t, incoming.HttpAggregations)
+	assert.Equal(t, incoming.LastTcpClosed, uint32(10))
+	assert.Equal(t, incoming.LastTcpEstablished, uint32(10))
 }
 
 func generateTemporaryFile(t *testing.T) string {
