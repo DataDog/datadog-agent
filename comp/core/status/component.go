@@ -62,6 +62,42 @@ type HeaderInformationProvider struct {
 	Provider HeaderProvider `group:"header_status"`
 }
 
+type NoopProvider struct{}
+
+func (p NoopProvider) Name() string {
+	return ""
+}
+func (p NoopProvider) Section() string {
+	return ""
+}
+func (p NoopProvider) JSON(_ map[string]interface{}) error {
+	return nil
+}
+func (p NoopProvider) Text(_ io.Writer) error {
+	return nil
+}
+func (p NoopProvider) HTML(_ io.Writer) error {
+	return nil
+}
+
+type NoopHeaderProvider struct{}
+
+func (p NoopHeaderProvider) Name() string {
+	return ""
+}
+func (p NoopHeaderProvider) Index() int {
+	return 0
+}
+func (p NoopHeaderProvider) JSON(_ map[string]interface{}) error {
+	return nil
+}
+func (p NoopHeaderProvider) Text(_ io.Writer) error {
+	return nil
+}
+func (p NoopHeaderProvider) HTML(_ io.Writer) error {
+	return nil
+}
+
 // NewInformationProvider returns a InformationProvider to be called when generating the agent status
 func NewInformationProvider(provider Provider) InformationProvider {
 	return InformationProvider{
@@ -69,9 +105,23 @@ func NewInformationProvider(provider Provider) InformationProvider {
 	}
 }
 
+// NoopInformationProvider returns a Noop InformationProvider
+func NoopInformationProvider() InformationProvider {
+	return InformationProvider{
+		Provider: NoopProvider{},
+	}
+}
+
 // NewHeaderInformationProvider returns a new HeaderInformationProvider to be called when generating the agent status
 func NewHeaderInformationProvider(provider HeaderProvider) HeaderInformationProvider {
 	return HeaderInformationProvider{
 		Provider: provider,
+	}
+}
+
+// NoopHeaderInformationProvider returns a Noop HeaderInformationProvider
+func NoopHeaderInformationProvider() HeaderInformationProvider {
+	return HeaderInformationProvider{
+		Provider: NoopHeaderProvider{},
 	}
 }

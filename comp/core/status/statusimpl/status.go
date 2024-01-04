@@ -65,6 +65,10 @@ func newStatus(deps dependencies) (status.Component, error) {
 	collectorSectionPresent := false
 
 	for _, provider := range deps.Providers {
+		if _, ok := provider.(status.NoopProvider); ok {
+			continue
+		}
+
 		if provider.Section() == status.CollectorSection && !collectorSectionPresent {
 			collectorSectionPresent = true
 		}
@@ -83,6 +87,10 @@ func newStatus(deps dependencies) (status.Component, error) {
 	// Providers of each section are sort alphabetically by name
 	sortedProvidersBySection := map[string][]status.Provider{}
 	for _, provider := range deps.Providers {
+		if _, ok := provider.(status.NoopProvider); ok {
+			continue
+		}
+
 		providers := sortedProvidersBySection[provider.Section()]
 		sortedProvidersBySection[provider.Section()] = append(providers, provider)
 	}
@@ -92,7 +100,15 @@ func newStatus(deps dependencies) (status.Component, error) {
 
 	// Header providers are sorted by index
 	// We manually insert the common header provider in the first place after sorting is done
-	sortedHeaderProviders := deps.HeaderProviders
+	sortedHeaderProviders := []status.HeaderProvider
+	for _, headerProvider := range deps.HeaderProviders {
+		if _, ok := headerProvider.(status.NoopHeaderProvider); ok {
+			continue
+		}
+
+		sortedHeaderProviders = append(sortedHeaderProviders, headerProvider)
+	}
+
 	sort.SliceStable(sortedHeaderProviders, func(i, j int) bool {
 		return sortedHeaderProviders[i].Index() < sortedHeaderProviders[j].Index()
 	})
