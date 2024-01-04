@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package status
+// Package processagent fetch information about the process agent
+package processagent
 
 import (
 	"encoding/json"
@@ -33,8 +34,8 @@ func getHTTPClient() *http.Client {
 	return httpClient
 }
 
-// GetProcessAgentStatus fetches the process-agent status from the process-agent API server
-func GetProcessAgentStatus() map[string]interface{} {
+// GetStatus fetches the process-agent status from the process-agent API server
+func GetStatus() map[string]interface{} {
 	s := make(map[string]interface{})
 	addressPort, err := config.GetProcessAPIAddressPort()
 	if err != nil {
@@ -74,11 +75,11 @@ func marshalError(err error) []byte {
 	return b
 }
 
-// GetProcessAgentRuntimeConfig fetches the process-agent runtime settings.
+// GetRuntimeConfig fetches the process-agent runtime settings.
 // The API server in process-agent already scrubs and marshals the runtime settings as YAML.
 // Since the api_key has been obfuscated with *, we're not able to unmarshal the response as YAML because *
 // is not a valid YAML character
-func GetProcessAgentRuntimeConfig(statusURL string) []byte {
+func GetRuntimeConfig(statusURL string) []byte {
 	client := getHTTPClient()
 	b, err := apiutil.DoGet(client, statusURL, apiutil.CloseConnection)
 	if err != nil {
