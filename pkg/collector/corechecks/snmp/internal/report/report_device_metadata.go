@@ -189,7 +189,7 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 		osName = store.GetScalarAsString("device.os_name")
 		osVersion = store.GetScalarAsString("device.os_version")
 		osHostname = store.GetScalarAsString("device.os_hostname")
-		deviceType = store.GetScalarAsString("device.type")
+		deviceType = getDeviceType(store)
 	}
 
 	// fallback to Device.Vendor for backward compatibility
@@ -228,6 +228,31 @@ func getProfileVersion(config *checkconfig.CheckConfig) uint64 {
 		profileVersion = config.ProfileDef.Version
 	}
 	return profileVersion
+}
+
+func getDeviceType(store *metadata.Store) string {
+	deviceType := strings.ToLower(store.GetScalarAsString("device.type"))
+	switch deviceType {
+	case
+		"access point",
+		"firewall",
+		"load balancer",
+		"pdu",
+		"printer",
+		"router",
+		"sd-wan",
+		"sensor",
+		"server",
+		"storage",
+		"switch",
+		"ups",
+		"wlc":
+		return deviceType
+	case "":
+		return "other"
+	}
+	log.Debugf("Unsupported device type: %s", deviceType)
+	return "other"
 }
 
 func buildNetworkInterfacesMetadata(deviceID string, store *metadata.Store) []devicemetadata.InterfaceMetadata {
