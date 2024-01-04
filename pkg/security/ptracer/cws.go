@@ -292,10 +292,45 @@ func getPidTTY(pid int) string {
 	return "pts" + path.Base(tty)
 }
 
-func truncateArgsOrEnvs(list []string) ([]string, bool) {
+func truncateArgs(list []string) ([]string, bool) {
 	truncated := false
 	if len(list) > model.MaxArgsEnvsSize {
 		list = list[:model.MaxArgsEnvsSize]
+		truncated = true
+	}
+	for i, l := range list {
+		if len(l) > model.MaxArgEnvSize {
+			list[i] = l[:model.MaxArgEnvSize-4] + "..."
+			truncated = true
+		}
+	}
+	return list, truncated
+}
+
+// list copied from default value of env_with_value system-probe config
+var priorityEnvs = []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE", "GLIBC_TUNABLES"}
+
+func truncateEnvs(list []string) ([]string, bool) {
+	truncated := false
+	if len(list) > model.MaxArgsEnvsSize {
+		// walk over all envs and put priority ones asides
+		var priorityList []string
+		var secondaryList []string
+		for _, l := range list {
+			found := false
+			for _, prio := range priorityEnvs {
+				if strings.HasPrefix(l, prio) {
+					priorityList = append(priorityList, l)
+					found = true
+					break
+				}
+			}
+			if !found {
+				secondaryList = append(secondaryList, l)
+			}
+		}
+		// build the result by first taking the priority envs if found
+		list = append(priorityList, secondaryList[:model.MaxArgsEnvsSize-len(priorityList)]...)
 		truncated = true
 	}
 	for i, l := range list {
@@ -331,13 +366,13 @@ func handleExecveAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, 
 	if err != nil {
 		return err
 	}
-	args, argsTruncated := truncateArgsOrEnvs(args)
+	args, argsTruncated := truncateArgs(args)
 
 	envs, err := tracer.ReadArgStringArray(process.Pid, regs, 3)
 	if err != nil {
 		return err
 	}
-	envs, envsTruncated := truncateArgsOrEnvs(envs)
+	envs, envsTruncated := truncateEnvs(envs)
 
 	msg.Type = ebpfless.SyscallTypeExec
 	msg.Exec = &ebpfless.ExecSyscallMsg{
@@ -381,13 +416,13 @@ func handleExecve(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, re
 	if err != nil {
 		return err
 	}
-	args, argsTruncated := truncateArgsOrEnvs(args)
+	args, argsTruncated := truncateArgs(args)
 
 	envs, err := tracer.ReadArgStringArray(process.Pid, regs, 2)
 	if err != nil {
 		return err
 	}
-	envs, envsTruncated := truncateArgsOrEnvs(envs)
+	envs, envsTruncated := truncateEnvs(envs)
 
 	msg.Type = ebpfless.SyscallTypeExec
 	msg.Exec = &ebpfless.ExecSyscallMsg{

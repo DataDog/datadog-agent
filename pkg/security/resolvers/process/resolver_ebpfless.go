@@ -121,7 +121,6 @@ func (p *EBPFLessResolver) AddExecEntry(key CacheResolverKey, file string, argv 
 		Values:    envs,
 		Truncated: envsTruncated,
 	}
-	// TODO: use env resolvers + config for priority envs
 
 	if strings.HasPrefix(file, "memfd:") {
 		entry.Process.FileEvent.PathnameStr = ""
