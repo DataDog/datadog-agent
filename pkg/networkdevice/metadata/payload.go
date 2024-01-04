@@ -150,8 +150,9 @@ type DiagnosisMetadata struct {
 
 // DeviceOid device scan oid data
 type DeviceOid struct {
-	DeviceID    string `json:"device_id"`
-	Oid         string `json:"oid"`
-	Type        string `json:"type"`
-	ValueString string `json:"value_string"`
+	DeviceID      string `json:"device_id"`
+	Oid           string `json:"oid"`
+	Type          string `json:"type"`
+	ValueAsString string `json:"value_as_string"`
+	ValueAsBase64 string `json:"value_as_base64"`
 }

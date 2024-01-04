@@ -275,10 +275,10 @@ func buildDeviceScanMetadata(deviceID string, oidsValues []gosnmp.SnmpPDU) []met
 		}
 
 		deviceOids = append(deviceOids, metadata.DeviceOid{
-			DeviceID:    deviceID,
-			Oid:         strings.TrimLeft(variablePdu.Name, "."),
-			Type:        variablePdu.Type.String(), // TODO: Map to internal types?
-			ValueString: strValue,
+			DeviceID:      deviceID,
+			Oid:           strings.TrimLeft(variablePdu.Name, "."),
+			Type:          variablePdu.Type.String(), // TODO: Map to internal types?
+			ValueAsString: strValue,
 		})
 	}
 	return deviceOids
