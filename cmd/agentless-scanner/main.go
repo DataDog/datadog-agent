@@ -1,4 +1,4 @@
-// Unless explicitly stated otherwise all files in this repository are licensed
+// Unless explicitly sttaed otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
@@ -8,7 +8,6 @@ package main
 
 import (
 	"archive/zip"
-	"bufio"
 	"bytes"
 	"context"
 	"crypto/sha256"
@@ -194,13 +193,17 @@ type (
 	}
 
 	scanTask struct {
-		ID       string
-		Type     scanType
-		ARN      arn.ARN
-		Hostname string
-		Actions  []scanAction
-		Roles    rolesMapping
-		DiskMode diskMode
+		ID                  string
+		Type                scanType
+		ARN                 arn.ARN
+		Hostname            string
+		Actions             []scanAction
+		Roles               rolesMapping
+		Snapshots           map[arn.ARN]*time.Time
+		DiskMode            diskMode
+		DiskDeviceName      *string
+		DiskVolumeARN       *arn.ARN
+		DiskVolumeCreatedAt *time.Time
 	}
 
 	scanResult struct {
@@ -276,8 +279,7 @@ func rootCommand() *cobra.Command {
 	sideScannerCmd.AddCommand(runCommand())
 	sideScannerCmd.AddCommand(scanCommand())
 	sideScannerCmd.AddCommand(offlineCommand())
-	sideScannerCmd.AddCommand(attachCommand())
-	sideScannerCmd.AddCommand(nbdCommand())
+	sideScannerCmd.AddCommand(mountCommand())
 	sideScannerCmd.AddCommand(cleanupCommand())
 
 	return sideScannerCmd
@@ -397,34 +399,13 @@ func offlineCommand() *cobra.Command {
 	return cmd
 }
 
-func attachCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "attach",
-		Short: "Attach a list of ARNs given in stdin into volumes to the EC2 instance using a dedicated EBS volume",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return fxutil.OneShot(
-				func(_ complog.Component, _ compconfig.Component) error {
-					return attachCmd()
-				},
-				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
-				fx.Supply(complog.ForDaemon("AGENTLESSSCANER", "log_file", pkgconfig.DefaultAgentlessScannerLogFile)),
-				complog.Module,
-				compconfig.Module,
-			)
-		},
-	}
-
-	return cmd
-}
-
-func nbdCommand() *cobra.Command {
+func mountCommand() *cobra.Command {
 	var cliArgs struct {
-		mount     bool
-		runClient bool
+		mount bool
 	}
 
 	cmd := &cobra.Command{
-		Use:   "nbd <snapshot-arn>",
+		Use:   "mount <snapshot-arn>",
 		Short: "Mount the given snapshot into /snapshots/<snapshot-id>/<part> using a network block device",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -434,7 +415,7 @@ func nbdCommand() *cobra.Command {
 					if err != nil {
 						return err
 					}
-					return nbdMountCmd(snapshotARN, cliArgs.mount, cliArgs.runClient)
+					return mountCmd(snapshotARN, globalParams.diskMode, cliArgs.mount)
 				},
 				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
 				fx.Supply(complog.ForDaemon("AGENTLESSSCANER", "log_file", pkgconfig.DefaultAgentlessScannerLogFile)),
@@ -444,7 +425,6 @@ func nbdCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().BoolVar(&cliArgs.runClient, "run-client", false, "start the nbd client")
 	cmd.Flags().BoolVar(&cliArgs.mount, "mount", false, "mount the nbd device")
 
 	return cmd
@@ -933,110 +913,7 @@ func downloadSnapshot(ctx context.Context, w io.Writer, snapshotARN arn.ARN) err
 	return nil
 }
 
-func attachCmd() error {
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-
-	stdin := os.Stdin
-
-	var arns []arn.ARN
-	lineNumber := 0
-	scanner := bufio.NewScanner(stdin)
-	for scanner.Scan() {
-		if err := scanner.Err(); err != nil {
-			return err
-		}
-		lineNumber++
-		line := scanner.Text()
-		fmt.Println(lineNumber, line)
-		arn, err := parseARN(line, resourceTypeSnapshot, resourceTypeVolume)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "%s (line %d)\n", err, lineNumber)
-		} else {
-			arns = append(arns, arn)
-		}
-	}
-	if len(arns) == 0 {
-		return fmt.Errorf("provided an empty list of ARNs in stdin to be mounted")
-	}
-
-	var cleanups []func(context.Context)
-	defer func() {
-		cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
-		defer cancel()
-		for _, cleanup := range cleanups {
-			cleanup(cleanupctx)
-		}
-	}()
-
-	roles := getDefaultRolesMapping()
-	for _, resourceARN := range arns {
-		cfg, err := newAWSConfig(ctx, resourceARN.Region, roles[resourceARN.AccountID])
-		if err != nil {
-			return err
-		}
-
-		ec2client := ec2.NewFromConfig(cfg)
-		hostname := ""
-		scan, err := newScanTask(
-			string(ebsScanType),
-			resourceARN.String(),
-			hostname,
-			nil,
-			roles,
-			globalParams.diskMode,
-		)
-		if err != nil {
-			return err
-		}
-
-		resourceType, resourceID, err := getARNResource(resourceARN)
-		if err != nil {
-			return err
-		}
-		var snapshotARN arn.ARN
-		switch resourceType {
-		case resourceTypeVolume:
-			var cleanupSnapshot func(context.Context)
-			snapshotARN, cleanupSnapshot, err = createSnapshot(ctx, scan, ec2client, resourceARN)
-			cleanups = append(cleanups, cleanupSnapshot)
-			if err != nil {
-				return err
-			}
-		case resourceTypeSnapshot:
-			snapshotARN = resourceARN
-		default:
-			return fmt.Errorf("unsupport resource type %q", resourceType)
-		}
-
-		device, volumeARN, cleanupVolume, err := attachSnapshotWithVolume(ctx, scan, snapshotARN)
-		cleanups = append(cleanups, cleanupVolume)
-		if err != nil {
-			return err
-		}
-		partitions, err := listDevicePartitions(ctx, device, &volumeARN)
-		if err != nil {
-			return err
-		}
-		mountPoints, err := mountDevice(ctx, scan, partitions)
-		cleanups = append(cleanups, func(ctx context.Context) {
-			cleanupScan(ctx, scan)
-		})
-		if err != nil {
-			return err
-		}
-		fmt.Printf("%s mount directories:\n", resourceID)
-		for _, mountPoint := range mountPoints {
-			fmt.Printf("  - %s\n", mountPoint)
-		}
-	}
-
-	<-ctx.Done()
-
-	return nil
-}
-
-func nbdMountCmd(snapshotARN arn.ARN, mount, runClient bool) error {
+func mountCmd(snapshotARN arn.ARN, mode diskMode, mount bool) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -1044,45 +921,40 @@ func nbdMountCmd(snapshotARN arn.ARN, mount, runClient bool) error {
 	if err != nil {
 		return err
 	}
-	ebsclient := ebs.NewFromConfig(cfg)
-	device := nextNBDDevice()
-	ebsnbd := NewEBSBlockDevice(EBSBlockDeviceOptions{
-		EBSClient:   ebsclient,
-		SnapshotARN: snapshotARN,
-		DeviceName:  device,
-		RunClient:   runClient,
-	})
-	if err := ebsnbd.Start(ctx); err != nil {
+
+	scan, err := newScanTask(string(hostScanType), "", "unknown", defaultActions, nil, mode)
+	if err != nil {
 		return err
 	}
+	defer cleanupScan(scan)
 
-	if runClient {
-		partitions, err := listDevicePartitions(ctx, device, nil)
+	switch mode {
+	case volumeAttach:
+		if err := attachSnapshotWithVolume(ctx, scan, snapshotARN); err != nil {
+			return err
+		}
+	case nbdAttach:
+		ebsclient := ebs.NewFromConfig(cfg)
+		if err := attachSnapshotWithNBD(ctx, scan, snapshotARN, ebsclient); err != nil {
+			return err
+		}
+	}
+
+	partitions, err := listDevicePartitions(ctx, *scan.DiskDeviceName, scan.DiskVolumeARN)
+	if err != nil {
+		log.Errorf("error could list paritions (device is still available on %q): %v", *scan.DiskDeviceName, err)
+	} else if mount {
+		mountPoints, err := mountDevice(ctx, scan, partitions)
 		if err != nil {
-			log.Errorf("error could list paritions (device is still available on %q): %v", device, err)
-		} else if mount {
-			scan, err := newScanTask(string(hostScanType), "", "unknown", defaultActions, nil, nbdAttach)
-			if err != nil {
-				return err
-			}
-			mountPoints, err := mountDevice(ctx, scan, partitions)
-			defer func() {
-				cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
-				defer cancel()
-				cleanupScan(cleanupctx, scan)
-			}()
-			if err != nil {
-				log.Errorf("error could not mount (device is still available on %q): %v", device, err)
-			} else {
-				for _, mountPoint := range mountPoints {
-					fmt.Println(mountPoint)
-				}
+			log.Errorf("error could not mount (device is still available on %q): %v", *scan.DiskDeviceName, err)
+		} else {
+			for _, mountPoint := range mountPoints {
+				fmt.Println(mountPoint)
 			}
 		}
 	}
 
 	<-ctx.Done()
-	ebsnbd.WaitCleanup()
 	return nil
 }
 
@@ -1134,6 +1006,7 @@ func newScanTask(t string, resourceARN, hostname string, actions []string, roles
 		}
 	}
 	scan.ID = makeScanTaskID(&scan)
+	scan.Snapshots = make(map[arn.ARN]*time.Time)
 	return &scan, nil
 }
 
@@ -1487,11 +1360,7 @@ func (s *sideScanner) launchScan(ctx context.Context, scan *scanTask) (err error
 	}()
 
 	ctx = withAWSLimits(ctx, s.limits)
-	defer func() {
-		cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
-		defer cancel()
-		cleanupScan(cleanupctx, scan)
-	}()
+	defer cleanupScan(scan)
 	switch scan.Type {
 	case hostScanType:
 		return scanRoots(ctx, scan, []string{"/"}, s.resultsCh)
@@ -1639,23 +1508,7 @@ func statsResourceTTL(resourceType resourceType, scan *scanTask, createTime time
 	}
 }
 
-func createSnapshot(ctx context.Context, scan *scanTask, ec2client *ec2.Client, volumeARN arn.ARN) (snapshotARN arn.ARN, cleanupSnapshot func(context.Context), err error) {
-	var createSnapshotOutput *ec2.CreateSnapshotOutput
-
-	cleanupSnapshot = func(ctx context.Context) {
-		if createSnapshotOutput != nil {
-			log.Debugf("deleting snapshot %q for volume %q", snapshotARN, volumeARN)
-			statsResourceTTL(resourceTypeSnapshot, scan, *createSnapshotOutput.StartTime)
-			if _, err := ec2client.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{
-				SnapshotId: createSnapshotOutput.SnapshotId,
-			}); err != nil {
-				log.Warnf("could not delete snapshot %s: %v", *createSnapshotOutput.SnapshotId, err)
-			} else {
-				log.Debugf("snapshot deleted %s", *createSnapshotOutput.SnapshotId)
-			}
-		}
-	}
-
+func createSnapshot(ctx context.Context, scan *scanTask, ec2client *ec2.Client, volumeARN arn.ARN) (arn.ARN, error) {
 	snapshotStartedAt := time.Now()
 	if err := statsd.Count("datadog.agentless_scanner.snapshots.started", 1.0, tagScan(scan), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
@@ -1665,7 +1518,7 @@ func createSnapshot(ctx context.Context, scan *scanTask, ec2client *ec2.Client, 
 	retries := 0
 retry:
 	_, volumeID, _ := getARNResource(volumeARN)
-	createSnapshotOutput, err = ec2client.CreateSnapshot(ctx, &ec2.CreateSnapshotInput{
+	createSnapshotOutput, err := ec2client.CreateSnapshot(ctx, &ec2.CreateSnapshotInput{
 		VolumeId:          aws.String(volumeID),
 		TagSpecifications: cloudResourceTagSpec(resourceTypeSnapshot),
 	})
@@ -1707,17 +1560,17 @@ retry:
 		if err := statsd.Count("datadog.agentless_scanner.snapshots.finished", 1.0, tags, 1.0); err != nil {
 			log.Warnf("failed to send metric: %v", err)
 		}
-		return
+		return arn.ARN{}, err
 	}
 
 	snapshotID := *createSnapshotOutput.SnapshotId
-	snapshotARN = ec2ARN(volumeARN.Region, volumeARN.AccountID, resourceTypeSnapshot, snapshotID)
+	snapshotARN := ec2ARN(volumeARN.Region, volumeARN.AccountID, resourceTypeSnapshot, snapshotID)
+	scan.Snapshots[snapshotARN] = &snapshotStartedAt
 
 	waiter := ec2.NewSnapshotCompletedWaiter(ec2client, func(scwo *ec2.SnapshotCompletedWaiterOptions) {
 		scwo.MinDelay = 1 * time.Second
 	})
 	err = waiter.Wait(ctx, &ec2.DescribeSnapshotsInput{SnapshotIds: []string{snapshotID}}, 10*time.Minute)
-
 	if err == nil {
 		snapshotDuration := time.Since(snapshotStartedAt)
 		log.Debugf("volume snapshotting of %q finished successfully %q (took %s)", volumeARN, snapshotID, snapshotDuration)
@@ -1735,8 +1588,7 @@ retry:
 			log.Warnf("failed to send metric: %v", err)
 		}
 	}
-
-	return
+	return snapshotARN, err
 }
 
 func tagScan(scan *scanTask, rest ...string) []string {
@@ -2028,13 +1880,7 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 	var snapshotARN arn.ARN
 	switch resourceType {
 	case resourceTypeVolume:
-		var cleanupSnapshot func(context.Context)
-		snapshotARN, cleanupSnapshot, err = createSnapshot(ctx, scan, ec2client, scan.ARN)
-		defer func() {
-			cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
-			defer cancel()
-			cleanupSnapshot(cleanupctx)
-		}()
+		snapshotARN, err = createSnapshot(ctx, scan, ec2client, scan.ARN)
 		if err != nil {
 			return err
 		}
@@ -2070,38 +1916,21 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 		return nil
 	}
 
-	var device string
-	var attachedVolumeARN *arn.ARN
-	var cleanupAttach func(context.Context)
 	switch scan.DiskMode {
 	case volumeAttach:
-		var volumeARN arn.ARN
-		device, volumeARN, cleanupAttach, err = attachSnapshotWithVolume(ctx, scan, snapshotARN)
-		defer func() {
-			cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
-			defer cancel()
-			cleanupAttach(cleanupctx)
-		}()
-		if err != nil {
+		if err := attachSnapshotWithVolume(ctx, scan, snapshotARN); err != nil {
 			return err
 		}
-		attachedVolumeARN = &volumeARN
 	case nbdAttach:
 		ebsclient := ebs.NewFromConfig(cfg)
-		device, cleanupAttach, err = attachSnapshotWithNBD(ctx, snapshotARN, ebsclient)
-		defer func() {
-			cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
-			defer cancel()
-			cleanupAttach(cleanupctx)
-		}()
-		if err != nil {
+		if err := attachSnapshotWithNBD(ctx, scan, snapshotARN, ebsclient); err != nil {
 			return err
 		}
 	default:
 		panic("unreachable")
 	}
 
-	partitions, err := listDevicePartitions(ctx, device, attachedVolumeARN)
+	partitions, err := listDevicePartitions(ctx, *scan.DiskDeviceName, scan.DiskVolumeARN)
 	if err != nil {
 		return err
 	}
@@ -2151,22 +1980,15 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 	return nil
 }
 
-func attachSnapshotWithNBD(ctx context.Context, snapshotARN arn.ARN, ebsclient *ebs.Client) (string, func(context.Context), error) {
-	ctx, cancel := context.WithCancel(ctx)
+func attachSnapshotWithNBD(_ context.Context, scan *scanTask, snapshotARN arn.ARN, ebsclient *ebs.Client) error {
 	device := nextNBDDevice()
-	ebsnbd := NewEBSBlockDevice(EBSBlockDeviceOptions{
+	err := startEBSBlockDevice(&ebsBlockDevice{
 		EBSClient:   ebsclient,
 		DeviceName:  device,
 		SnapshotARN: snapshotARN,
 	})
-	cleanupAttach := func(ctx context.Context) {
-		cancel()
-		ebsnbd.WaitCleanup()
-	}
-	if err := ebsnbd.Start(ctx); err != nil {
-		return "", cleanupAttach, err
-	}
-	return device, cleanupAttach, nil
+	scan.DiskDeviceName = &device
+	return err
 }
 
 // reference: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/device_naming.html
@@ -2195,7 +2017,7 @@ var nbdDeviceName struct {
 }
 
 func nextNBDDevice() string {
-	const nbdsMax = 1024
+	const nbdsMax = 128
 	nbdDeviceName.mu.Lock()
 	defer nbdDeviceName.mu.Unlock()
 	count := nbdDeviceName.count
@@ -2368,77 +2190,51 @@ func extractZip(ctx context.Context, zipPath, destinationPath string) error {
 	return nil
 }
 
-func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, snapshotARN arn.ARN) (device string, volumeARN arn.ARN, cleanupVolume func(context.Context), err error) {
-	var cleanups []func(context.Context)
-	pushCleanup := func(cleanup func(context.Context)) {
-		cleanups = append(cleanups, cleanup)
-	}
-	cleanupVolume = func(ctx context.Context) {
-		for i := len(cleanups) - 1; i >= 0; i-- {
-			cleanups[i](ctx)
-		}
-	}
-
+func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, snapshotARN arn.ARN) error {
 	resourceType, snapshotID, err := getARNResource(snapshotARN)
 	if err != nil {
-		return
+		return err
 	}
 	if resourceType != resourceTypeSnapshot {
-		err = fmt.Errorf("expected ARN for a snapshot: %s", snapshotARN.String())
-		return
+		return fmt.Errorf("expected ARN for a snapshot: %s", snapshotARN.String())
 	}
 
 	self, err := getSelfEC2InstanceIndentity(ctx)
 	if err != nil {
-		err = fmt.Errorf("could not get EC2 instance identity: using attach volumes cannot work outside an EC2 instance: %w", err)
-		return
+		return fmt.Errorf("could not get EC2 instance identity: using attach volumes cannot work outside an EC2 instance: %w", err)
 	}
 
 	remoteAssumedRole := scan.Roles[snapshotARN.AccountID]
-	remoteAWSCfg, err := newAWSConfig(ctx, self.Region, remoteAssumedRole)
+	remoteAWSCfg, err := newAWSConfig(ctx, snapshotARN.Region, remoteAssumedRole)
 	if err != nil {
-		err = fmt.Errorf("could not create local aws config: %w", err)
-		return
+		return fmt.Errorf("could not create local aws config: %w", err)
 	}
 	remoteEC2Client := ec2.NewFromConfig(remoteAWSCfg)
 
 	var localSnapshotARN arn.ARN
 	if snapshotARN.Region != self.Region {
 		log.Debugf("copying snapshot %q into %q", snapshotARN, self.Region)
-		var copySnapshot *ec2.CopySnapshotOutput
 		copySnapshotStartTime := time.Now()
-		copySnapshot, err = remoteEC2Client.CopySnapshot(ctx, &ec2.CopySnapshotInput{
+		copySnapshot, err := remoteEC2Client.CopySnapshot(ctx, &ec2.CopySnapshotInput{
 			SourceRegion: aws.String(snapshotARN.Region),
 			// DestinationRegion: aws.String(self.Region): automatically filled by SDK
 			SourceSnapshotId:  aws.String(snapshotID),
 			TagSpecifications: cloudResourceTagSpec(resourceTypeSnapshot),
 		})
 		if err != nil {
-			err = fmt.Errorf("could not copy snapshot %q to %q: %w", snapshotARN, self.Region, err)
-			return
+			return fmt.Errorf("could not copy snapshot %q to %q: %w", snapshotARN, self.Region, err)
 		}
-		pushCleanup(func(ctx context.Context) {
-			log.Debugf("deleting snapshot %q", *copySnapshot.SnapshotId)
-			if _, err := remoteEC2Client.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{
-				SnapshotId: copySnapshot.SnapshotId,
-			}); err != nil {
-				log.Warnf("could not delete snapshot %s: %v", *copySnapshot.SnapshotId, err)
-			} else {
-				log.Debugf("snapshot deleted %s", *copySnapshot.SnapshotId)
-				statsResourceTTL(resourceTypeSnapshot, scan, copySnapshotStartTime)
-			}
-		})
 		log.Debugf("waiting for copy of snapshot %q into %q as %q", snapshotARN, self.Region, *copySnapshot.SnapshotId)
 		waiter := ec2.NewSnapshotCompletedWaiter(remoteEC2Client, func(scwo *ec2.SnapshotCompletedWaiterOptions) {
 			scwo.MinDelay = 1 * time.Second
 		})
 		err = waiter.Wait(ctx, &ec2.DescribeSnapshotsInput{SnapshotIds: []string{*copySnapshot.SnapshotId}}, 10*time.Minute)
 		if err != nil {
-			err = fmt.Errorf("could not finish copying %q to %q as %q: %w", snapshotARN, self.Region, *copySnapshot.SnapshotId, err)
-			return
+			return fmt.Errorf("could not finish copying %q to %q as %q: %w", snapshotARN, self.Region, *copySnapshot.SnapshotId, err)
 		}
 		log.Debugf("successfully copied snapshot %q into %q: %q", snapshotARN, self.Region, *copySnapshot.SnapshotId)
 		localSnapshotARN = ec2ARN(self.Region, snapshotARN.AccountID, resourceTypeSnapshot, *copySnapshot.SnapshotId)
+		scan.Snapshots[localSnapshotARN] = &copySnapshotStartTime
 	} else {
 		localSnapshotARN = snapshotARN
 	}
@@ -2451,16 +2247,14 @@ func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, snapshotARN a
 			UserIds:       []string{self.AccountID},
 		})
 		if err != nil {
-			err = fmt.Errorf("could not modify snapshot attributes %q for sharing with account ID %q: %w", localSnapshotARN, self.AccountID, err)
-			return
+			return fmt.Errorf("could not modify snapshot attributes %q for sharing with account ID %q: %w", localSnapshotARN, self.AccountID, err)
 		}
 	}
 
 	localAssumedRole := scan.Roles[self.AccountID]
 	localAWSCfg, err := newAWSConfig(ctx, self.Region, localAssumedRole)
 	if err != nil {
-		err = fmt.Errorf("could not create local aws config: %w", err)
-		return
+		return fmt.Errorf("could not create local aws config: %w", err)
 	}
 	locaEC2Client := ec2.NewFromConfig(localAWSCfg)
 
@@ -2473,38 +2267,10 @@ func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, snapshotARN a
 		TagSpecifications: cloudResourceTagSpec(resourceTypeVolume),
 	})
 	if err != nil {
-		err = fmt.Errorf("could not create volume from snapshot: %s", err)
-		return
+		return fmt.Errorf("could not create volume from snapshot: %s", err)
 	}
-	pushCleanup(func(ctx context.Context) {
-		log.Debugf("detaching volume %q", *volume.VolumeId)
-		if _, err := locaEC2Client.DetachVolume(ctx, &ec2.DetachVolumeInput{
-			Force:    aws.Bool(true),
-			VolumeId: volume.VolumeId,
-		}); err != nil {
-			log.Warnf("could not detach volume %s: %v", *volume.VolumeId, err)
-		}
-		var errd error
-		for i := 0; i < 50; i++ {
-			if !sleepCtx(ctx, 1*time.Second) {
-				break
-			}
-			_, errd = locaEC2Client.DeleteVolume(ctx, &ec2.DeleteVolumeInput{
-				VolumeId: volume.VolumeId,
-			})
-			if errd == nil {
-				log.Debugf("volume deleted %q", *volume.VolumeId)
-				break
-			}
-		}
-		if errd != nil {
-			log.Warnf("could not delete volume %q: %v", *volume.VolumeId, errd)
-		} else {
-			statsResourceTTL(resourceTypeVolume, scan, *volume.CreateTime)
-		}
-	})
 
-	device = nextDeviceName()
+	device := nextDeviceName()
 	log.Debugf("attaching volume %q into device %q", *volume.VolumeId, device)
 	var errAttach error
 	for i := 0; i < maxAttachRetries; i++ {
@@ -2524,12 +2290,14 @@ func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, snapshotARN a
 		}
 	}
 	if errAttach != nil {
-		err = fmt.Errorf("could not attach volume %q into device %q: %w", *volume.VolumeId, device, errAttach)
-		return
+		return fmt.Errorf("could not attach volume %q into device %q: %w", *volume.VolumeId, device, errAttach)
 	}
 
-	volumeARN = ec2ARN(localSnapshotARN.Region, localSnapshotARN.AccountID, resourceTypeVolume, *volume.VolumeId)
-	return
+	volumeARN := ec2ARN(localSnapshotARN.Region, localSnapshotARN.AccountID, resourceTypeVolume, *volume.VolumeId)
+	scan.DiskVolumeARN = &volumeARN
+	scan.DiskVolumeCreatedAt = volume.CreateTime
+	scan.DiskDeviceName = &device
+	return nil
 }
 
 type devicePartition struct {
@@ -2683,11 +2451,27 @@ func mountDevice(ctx context.Context, scan *scanTask, partitions []devicePartiti
 	return mountPoints, nil
 }
 
-func cleanupScan(ctx context.Context, scan *scanTask) {
-	mountRoot := scan.MountPoint("")
-	mountEntries, err := os.ReadDir(mountRoot)
-	if err != nil {
-		return
+func cleanupScan(scan *scanTask) {
+	ctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
+	defer cancel()
+
+	for snapshotARN, snapshotStartTime := range scan.Snapshots {
+		_, snapshotID, _ := getARNResource(snapshotARN)
+		cfg, err := newAWSConfig(ctx, snapshotARN.Region, scan.Roles[snapshotARN.AccountID])
+		if err != nil {
+			log.Errorf("could not create local aws config: %v", err)
+		} else {
+			ec2client := ec2.NewFromConfig(cfg)
+			log.Debugf("deleting snapshot %q", snapshotID)
+			if _, err := ec2client.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{
+				SnapshotId: aws.String(snapshotID),
+			}); err != nil {
+				log.Warnf("could not delete snapshot %s: %v", snapshotID, err)
+			} else {
+				log.Debugf("snapshot deleted %s", snapshotID)
+				statsResourceTTL(resourceTypeSnapshot, scan, *snapshotStartTime)
+			}
+		}
 	}
 
 	umount := func(mountPoint string) {
@@ -2716,23 +2500,68 @@ func cleanupScan(ctx context.Context, scan *scanTask) {
 		log.Errorf("%s: could not umount %s: %s: %s", scan, mountPoint, erru, string(umountOutput))
 	}
 
-	var wg sync.WaitGroup
-	for _, mountEntry := range mountEntries {
-		// unmount "root" entrypoint last as the other mountpoint may depend on it
-		if mountEntry.IsDir() && mountEntry.Name() != rootMountPrefix {
-			wg.Add(1)
-			go func() {
-				umount(filepath.Join(mountRoot, mountEntry.Name()))
-				wg.Done()
-			}()
+	mountRoot := scan.MountPoint("")
+	if mountEntries, err := os.ReadDir(mountRoot); err == nil {
+		var wg sync.WaitGroup
+		for _, mountEntry := range mountEntries {
+			// unmount "root" entrypoint last as the other mountpoint may depend on it
+			if mountEntry.IsDir() && mountEntry.Name() != rootMountPrefix {
+				wg.Add(1)
+				go func(mountPoint string) {
+					umount(mountPoint)
+					wg.Done()
+				}(filepath.Join(mountRoot, mountEntry.Name()))
+			}
 		}
+		wg.Wait()
 	}
-	wg.Wait()
-
 	umount(filepath.Join(mountRoot, rootMountPrefix))
 
 	if err := os.RemoveAll(mountRoot); err != nil {
 		log.Errorf("%s: could not cleanup mount root %q", scan, mountRoot)
+	}
+
+	switch scan.DiskMode {
+	case volumeAttach:
+		if volumeARN := scan.DiskVolumeARN; volumeARN != nil {
+			_, volumeID, _ := getARNResource(*scan.DiskVolumeARN)
+			cfg, err := newAWSConfig(ctx, volumeARN.Region, scan.Roles[volumeARN.AccountID])
+			if err != nil {
+				log.Errorf("could not create local aws config: %v", err)
+			} else {
+				ec2client := ec2.NewFromConfig(cfg)
+				log.Debugf("detaching volume %q", volumeID)
+				if _, err := ec2client.DetachVolume(ctx, &ec2.DetachVolumeInput{
+					Force:    aws.Bool(true),
+					VolumeId: aws.String(volumeID),
+				}); err != nil {
+					log.Warnf("could not detach volume %s: %v", volumeID, err)
+				}
+
+				var errd error
+				for i := 0; i < 50; i++ {
+					if !sleepCtx(ctx, 1*time.Second) {
+						break
+					}
+					_, errd = ec2client.DeleteVolume(ctx, &ec2.DeleteVolumeInput{
+						VolumeId: aws.String(volumeID),
+					})
+					if errd == nil {
+						log.Debugf("volume deleted %q", volumeID)
+						break
+					}
+				}
+				if errd != nil {
+					log.Warnf("could not delete volume %q: %v", volumeID, errd)
+				} else {
+					statsResourceTTL(resourceTypeVolume, scan, *scan.DiskVolumeCreatedAt)
+				}
+			}
+		}
+	case nbdAttach:
+		if diskDeviceName := scan.DiskDeviceName; diskDeviceName != nil {
+			stopEBSBlockDevice(ctx, *diskDeviceName)
+		}
 	}
 }
 

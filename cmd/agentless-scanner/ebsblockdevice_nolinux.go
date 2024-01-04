@@ -15,30 +15,16 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ebs"
 )
 
-// EBSBlockDeviceOptions represents the options of the EBS block device.
-type EBSBlockDeviceOptions struct {
+type ebsBlockDevice struct {
 	EBSClient   *ebs.Client
 	DeviceName  string
 	SnapshotARN arn.ARN
-	RunClient   bool
 }
 
-// EBSBlockDevice is used to create an EBS block device using NBD.
-type EBSBlockDevice struct {
-	EBSBlockDeviceOptions
-}
-
-// NewEBSBlockDevice sets up the EBS block device.
-func NewEBSBlockDevice(_ EBSBlockDeviceOptions) EBSBlockDevice {
-	return EBSBlockDevice{}
-}
-
-// Start runs the NBD server and client if required.
-func (bd *EBSBlockDevice) Start(_ context.Context) error {
+func startEBSBlockDevice(bd *ebsBlockDevice) error {
 	return fmt.Errorf("ebsblockdevice: not supported on this platform")
 }
 
-// WaitCleanup waits after context has been canceled for a complete cleanup of
-// the running NBD server and client.
-func (bd *EBSBlockDevice) WaitCleanup() {
+func stopEBSBlockDevice(ctx context.Context, deviceName string) error {
+	return fmt.Errorf("ebsblockdevice: not supported on this platform")
 }
