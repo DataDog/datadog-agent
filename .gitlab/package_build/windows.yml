@@ -56,22 +56,22 @@
 windows_msi_and_bosh_zip_x64-a7:
   extends: .windows_main_agent_base
   rules:
-    !reference [.on_a7]
+    - !reference [.on_a7]
   variables:
     ARCH: "x64"
     AGENT_MAJOR_VERSION: 7
-    PYTHON_RUNTIMES: '3'
+    PYTHON_RUNTIMES: "3"
   before_script:
     - set RELEASE_VERSION $RELEASE_VERSION_7
 
 windows_msi_x64-a6:
   extends: .windows_main_agent_base
   rules:
-    !reference [.on_a6]
+    - !reference [.on_a6]
   variables:
     ARCH: "x64"
     AGENT_MAJOR_VERSION: 6
-    PYTHON_RUNTIMES: '2,3'
+    PYTHON_RUNTIMES: "2,3"
   before_script:
     - set RELEASE_VERSION $RELEASE_VERSION_6
   timeout: 3h
@@ -79,7 +79,7 @@ windows_msi_x64-a6:
 # cloudfoundry IoT build for Windows
 windows_zip_agent_binaries_x64-a7:
   rules:
-    !reference [.on_a7]
+    - !reference [.on_a7]
   stage: package_build
   tags: ["runner:windows-docker", "windowsversion:1809"]
   needs: ["go_mod_tidy_check", "go_deps"]

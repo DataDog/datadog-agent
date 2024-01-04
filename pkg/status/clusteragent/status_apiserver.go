@@ -5,7 +5,7 @@
 
 //go:build kubeapiserver
 
-package status
+package clusteragent
 
 import (
 	"fmt"
@@ -32,7 +32,8 @@ func getLeaderElectionDetails() map[string]string {
 	return leaderElectionStats
 }
 
-func getDCAStatus() map[string]string {
+// GetDCAStatus collect the DCA agent information and return it in a map
+func GetDCAStatus() map[string]string {
 	clusterAgentDetails := make(map[string]string)
 
 	dcaCl, err := clusteragent.GetClusterAgentClient()

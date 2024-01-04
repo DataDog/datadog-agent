@@ -414,6 +414,17 @@ func (bs *BaseSuite[Env]) providerContext(opTimeout time.Duration) (context.Cont
 // Overridden methods
 //
 
+// SetupSuite run before all the tests in the suite have been run.
+// This function is called by [testify Suite].
+//
+// If you override SetupSuite in your custom test suite type, the function must call [e2e.BaseSuite.SetupSuite].
+//
+// [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
+func (bs *BaseSuite[Env]) SetupSuite() {
+	// Do the initial provisioning
+	bs.reconcileEnv(bs.originalProvisioners)
+}
+
 // BeforeTest is executed right before the test starts and receives the suite and test names as input.
 // This function is called by [testify Suite].
 //

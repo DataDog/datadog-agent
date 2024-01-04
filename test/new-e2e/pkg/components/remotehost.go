@@ -43,39 +43,7 @@ var _ e2e.Initializable = &RemoteHost{}
 // Init is called by e2e test Suite after the component is provisioned.
 func (h *RemoteHost) Init(ctx e2e.Context) error {
 	h.context = ctx
-	h.context.T().Logf("connecting to remote VM at %s@%s", h.Username, h.Address)
-
-	var privateSSHKey []byte
-	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.PrivateKeyPath, "")
-	if err != nil {
-		return err
-	}
-
-	privateKeyPassword, err := runner.GetProfile().SecretStore().GetWithDefault(parameters.PrivateKeyPassword, "")
-	if err != nil {
-		return err
-	}
-
-	if privateKeyPath != "" {
-		privateSSHKey, err = os.ReadFile(privateKeyPath)
-		if err != nil {
-			return err
-		}
-	}
-
-	h.client, err = clients.GetSSHClient(
-		h.Username,
-		fmt.Sprintf("%s:%d", h.Address, 22),
-		privateSSHKey,
-		[]byte(privateKeyPassword),
-		sshRetryInterval,
-		sshMaxRetries,
-	)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return h.ReconnectSSH()
 }
 
 // Execute executes a command and returns an error if any.
@@ -160,6 +128,44 @@ func (h *RemoteHost) Remove(path string) error {
 // Returns an error if the directory does not exist.
 func (h *RemoteHost) RemoveAll(path string) error {
 	return clients.RemoveAll(h.client, path)
+}
+
+// ReconnectSSH recreate the SSH connection to the VM. Should be used only after VM reboot to restore the SSH connection.
+// Returns an error if the VM is not reachable after retries.
+func (h *RemoteHost) ReconnectSSH() error {
+	h.context.T().Logf("connecting to remote VM at %s@%s", h.Username, h.Address)
+
+	if h.client != nil {
+		_ = h.client.Close()
+	}
+
+	var privateSSHKey []byte
+	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.PrivateKeyPath, "")
+	if err != nil {
+		return err
+	}
+
+	privateKeyPassword, err := runner.GetProfile().SecretStore().GetWithDefault(parameters.PrivateKeyPassword, "")
+	if err != nil {
+		return err
+	}
+
+	if privateKeyPath != "" {
+		privateSSHKey, err = os.ReadFile(privateKeyPath)
+		if err != nil {
+			return err
+		}
+	}
+
+	h.client, err = clients.GetSSHClient(
+		h.Username,
+		fmt.Sprintf("%s:%d", h.Address, 22),
+		privateSSHKey,
+		[]byte(privateKeyPassword),
+		sshRetryInterval,
+		sshMaxRetries,
+	)
+	return err
 }
 
 func (h *RemoteHost) buildEnvVariables(command string, envVar EnvVar) string {

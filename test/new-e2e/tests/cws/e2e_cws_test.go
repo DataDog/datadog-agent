@@ -65,6 +65,8 @@ func TestAgentSuite(t *testing.T) {
 }
 
 func (a *agentSuite) SetupSuite() {
+	a.BaseSuite.SetupSuite()
+
 	// Create temporary directory
 	tempDir := a.Env().RemoteHost.MustExecute("mktemp -d")
 	a.dirname = strings.TrimSuffix(tempDir, "\n")
