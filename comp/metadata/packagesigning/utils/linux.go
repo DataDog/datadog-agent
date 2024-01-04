@@ -9,19 +9,29 @@ package utils
 import (
 	"os"
 	"runtime"
+
+	"github.com/DataDog/datadog-agent/comp/core/log"
 )
 
 // GetLinuxGlobalSigningPolicies returns:
 // * if package signing is enabled on the host
 // * if repository signing is enabled on the
-func GetLinuxGlobalSigningPolicies() (bool, bool) {
+func GetLinuxGlobalSigningPolicies(logger log.Component) (bool, bool) {
 	if runtime.GOOS == "linux" {
 		pkgManager := GetPackageManager()
 		switch pkgManager {
 		case "apt":
-			return IsPackageSigningEnabled(), false
+			pkgSigning, err := IsPackageSigningEnabled()
+			if err != nil {
+				logger.Info("Error while reading main config file: %s", err)
+			}
+			return pkgSigning, false
 		case "yum", "dnf", "zypper":
-			return getMainGPGCheck(pkgManager)
+			pkgSigning, repoSigning, err := getMainGPGCheck(pkgManager)
+			if err != nil {
+				logger.Info("Error while reading main config file: %s", err)
+			}
+			return pkgSigning, repoSigning
 		default: // should not happen, tested above
 			return false, false
 		}

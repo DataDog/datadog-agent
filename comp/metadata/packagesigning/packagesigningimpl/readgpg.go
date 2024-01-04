@@ -7,13 +7,13 @@ package packagesigningimpl
 
 import (
 	"bytes"
+	"encoding/hex"
 	"io"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
 	pkgUtils "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/utils"
 	pgp "github.com/ProtonMail/go-crypto/openpgp"
 )
@@ -36,50 +36,43 @@ const (
 	formatDate = "2006-01-02"
 )
 
-// decryptGPGFile parse a gpg file (local or http) and extract signing keys information
+// readGPGFile parse a gpg file (local or http) and extract signing keys information
 // Some files can contain a list of repositories.
 // We insert information even if the key is not found (nokey file or issue in getting the URI content)
-func decryptGPGFile(cacheKeys map[string]signingKey, gpgFile repoFile, keyType string, client *http.Client, logger log.Component) {
+func readGPGFile(cacheKeys map[string]signingKey, gpgFile repoFile, keyType string, client *http.Client) error {
 	var reader io.Reader
 	epochDate := time.Date(1970, 01, 01, 0, 0, 0, 0, time.UTC)
-	// Exception: when no key is found, we insert without decrypting
 	if gpgFile.filename == "nokey" {
 		insertKey(cacheKeys, gpgFile.filename, epochDate, nil, keyType, gpgFile.repositories)
-		return
+		return nil
 	}
 	// Nominal case
 	if strings.HasPrefix(gpgFile.filename, "http") {
 		response, err := client.Get(gpgFile.filename)
 		if err != nil {
-			logger.Infof("Error while reading %s: %s", gpgFile.filename, err)
 			insertKey(cacheKeys, "keynotfound", epochDate, nil, keyType, gpgFile.repositories)
-			return
+			return err
 		}
 		defer response.Body.Close()
 		reader = response.Body
 	} else {
 		file, err := os.Open(strings.Replace(gpgFile.filename, "file://", "", 1))
 		if err != nil {
-			logger.Infof("Error while reading %s: %s", gpgFile.filename, err)
 			insertKey(cacheKeys, "keynotfound", epochDate, nil, keyType, gpgFile.repositories)
-			return
+			return err
 		}
 		defer file.Close()
 		reader = file
 	}
 	content, err := io.ReadAll(reader)
 	if err != nil {
-		logger.Infof("Error while extracting bytes from the reader: %s", err)
-		return
+		return err
 	}
-	err = decryptGPGContent(cacheKeys, content, keyType, gpgFile.repositories)
-	if err != nil {
-		logger.Infof("Error while decrypting %s: %s", gpgFile.filename, err)
-	}
+	return readGPGContent(cacheKeys, content, keyType, gpgFile.repositories)
 }
 
-// decryptGPGContent extract keys from a byte slice (direct usage when reading from rpm db)
-func decryptGPGContent(cacheKeys map[string]signingKey, content []byte, keyType string, repositories []pkgUtils.Repository) error {
+// readGPGContent extract keys from a byte slice (direct usage when reading from rpm db)
+func readGPGContent(cacheKeys map[string]signingKey, content []byte, keyType string, repositories []pkgUtils.Repository) error {
 	keyList, err := pgp.ReadKeyRing(bytes.NewReader(content))
 	if err != nil {
 		keyList, err = pgp.ReadArmoredKeyRing(bytes.NewReader(content))
@@ -88,13 +81,13 @@ func decryptGPGContent(cacheKeys map[string]signingKey, content []byte, keyType 
 		}
 	}
 	for _, key := range keyList {
-		fingerprint := key.PrimaryKey.KeyIdString()
+		fingerprint := strings.ToUpper(hex.EncodeToString(key.PrimaryKey.Fingerprint))
 		i := key.PrimaryIdentity()
 		keyLifetime := i.SelfSignature.KeyLifetimeSecs
 		insertKey(cacheKeys, fingerprint, key.PrimaryKey.CreationTime, keyLifetime, keyType, repositories)
 		// Insert also subkeys
 		for _, subkey := range key.Subkeys {
-			fingerprint = subkey.PublicKey.KeyIdString()
+			fingerprint = strings.ToUpper(hex.EncodeToString(subkey.PublicKey.Fingerprint))
 			keyLifetime = subkey.Sig.KeyLifetimeSecs
 			insertKey(cacheKeys, fingerprint, subkey.PublicKey.CreationTime, keyLifetime, keyType, repositories)
 		}

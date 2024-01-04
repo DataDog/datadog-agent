@@ -15,17 +15,23 @@ const (
 )
 
 // IsPackageSigningEnabled returns the signature policy for the host. When no-debsig is written (and uncommented) in the configuration it means GPG package signing verification is disabled
-func IsPackageSigningEnabled() bool {
-	if _, err := os.Stat(packageConfig); err == nil {
-		if file, err := os.Open(packageConfig); err == nil {
-			defer file.Close()
-			scanner := bufio.NewScanner(file)
-			for scanner.Scan() {
-				if scanner.Text() == "no-debsig" {
-					return false
-				}
+func IsPackageSigningEnabled() (bool, error) {
+	if _, err := os.Stat(packageConfig); err != nil {
+		return false, err
+	}
+	if file, err := os.Open(packageConfig); err == nil {
+		defer file.Close()
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			if scanner.Text() == "no-debsig" {
+				return false, nil
 			}
 		}
+		if err := scanner.Err(); err != nil {
+			return false, err
+		}
+	} else {
+		return false, err
 	}
-	return true
+	return true, nil
 }

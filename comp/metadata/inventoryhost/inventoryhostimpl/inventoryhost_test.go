@@ -13,6 +13,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	pkgUtils "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/utils"
@@ -78,7 +79,7 @@ func platformMock() *platform.Info {
 		Processor:        gohaiutils.NewValue("unknown"),
 	}
 }
-func pkgSigningMock() (bool, bool) { return true, false }
+func pkgSigningMock(_ log.Component) (bool, bool) { return true, false }
 
 func cpuErrorMock() *cpu.Info                  { return &cpu.Info{} }
 func memoryErrorMock() *memory.Info            { return &memory.Info{} }

@@ -37,13 +37,26 @@ var (
 func getAPTSignatureKeys(client *http.Client, logger log.Component) []signingKey {
 	cacheKeys := make(map[string]signingKey)
 	// debian 11 and ubuntu 22.04 will be the last using legacy trusted.gpg.d folder and trusted.gpg file
-	updateWithTrustedKeys(cacheKeys, client, logger)
+	err := updateWithTrustedKeys(cacheKeys, client)
+	if err != nil {
+		logger.Info("Error while reading trusted keys: %s", err)
+	}
 	// Regular files are referenced in the sources.list file by signed-by=filename
-	updateWithSignedByKeys(cacheKeys, client, logger)
+	err = updateWithSignedByKeys(cacheKeys, client)
+	if err != nil {
+		logger.Info("Error while reading signed-by keys: %s", err)
+	}
 	// In APT we can also sign packages with debsig
-	keyPaths := getDebsigKeyPaths()
+	keyPaths, err := getDebsigKeyPaths()
+	if err != nil {
+		logger.Info("Error while reading debsig keys: %s", err)
+	}
 	for _, keyPath := range keyPaths {
-		decryptGPGFile(cacheKeys, repoFile{filename: keyPath, repositories: nil}, "debsig", client, logger)
+		err = readGPGFile(cacheKeys, repoFile{filename: keyPath, repositories: nil}, "debsig", client)
+		if err != nil {
+			logger.Info("Error while reading debsig key %s: %s", keyPath, err)
+			continue
+		}
 	}
 	// Extract signingKeys from the cache in a list
 	var keyList []signingKey
@@ -53,39 +66,57 @@ func getAPTSignatureKeys(client *http.Client, logger log.Component) []signingKey
 	return keyList
 }
 
-func updateWithTrustedKeys(cacheKeys map[string]signingKey, client *http.Client, logger log.Component) {
+func updateWithTrustedKeys(cacheKeys map[string]signingKey, client *http.Client) error {
 	// debian 11 and ubuntu 22.04 will be the last using legacy trusted.gpg.d folder and trusted.gpg file
-	if _, err := os.Stat(trustedFolder); err == nil {
-		if files, err := os.ReadDir(trustedFolder); err == nil {
-			for _, file := range files {
-				trustedFileName := filepath.Join(trustedFolder, file.Name())
-				decryptGPGFile(cacheKeys, repoFile{trustedFileName, nil}, "trusted", client, logger)
+	if _, err := os.Stat(trustedFolder); err != nil {
+		return err
+	}
+	if files, err := os.ReadDir(trustedFolder); err == nil {
+		for _, file := range files {
+			trustedFileName := filepath.Join(trustedFolder, file.Name())
+			err = readGPGFile(cacheKeys, repoFile{trustedFileName, nil}, "trusted", client)
+			if err != nil {
+				return err
 			}
 		}
 	}
-	if _, err := os.Stat(trustedFile); err == nil {
-		decryptGPGFile(cacheKeys, repoFile{trustedFile, nil}, "trusted", client, logger)
+	if _, err := os.Stat(trustedFile); err != nil {
+		return err
 	}
+	return readGPGFile(cacheKeys, repoFile{trustedFile, nil}, "trusted", client)
 }
 
-func updateWithSignedByKeys(cacheKeys map[string]signingKey, client *http.Client, logger log.Component) {
-	gpgcheck := pkgUtils.IsPackageSigningEnabled()
-	if _, err := os.Stat(mainSourceList); err == nil {
-		reposPerKey := parseSourceListFile(mainSourceList, gpgcheck)
-		for name, repos := range reposPerKey {
-			decryptGPGFile(cacheKeys, repoFile{name, repos}, "signed-by", client, logger)
+func updateWithSignedByKeys(cacheKeys map[string]signingKey, client *http.Client) error {
+	gpgcheck, err := pkgUtils.IsPackageSigningEnabled()
+	if err != nil {
+		return err
+	}
+	if _, err := os.Stat(mainSourceList); err != nil {
+		return err
+	}
+	reposPerKey := parseSourceListFile(mainSourceList, gpgcheck)
+	for name, repos := range reposPerKey {
+		err := readGPGFile(cacheKeys, repoFile{name, repos}, "signed-by", client)
+		if err != nil {
+			return err
 		}
 	}
-	if _, err := os.Stat(sourceList); err == nil {
-		if files, err := os.ReadDir(sourceList); err == nil {
-			for _, file := range files {
-				reposPerKey := parseSourceListFile(filepath.Join(sourceList, file.Name()), gpgcheck)
-				for name, repos := range reposPerKey {
-					decryptGPGFile(cacheKeys, repoFile{name, repos}, "signed-by", client, logger)
+
+	if _, err := os.Stat(sourceList); err != nil {
+		return err
+	}
+	if files, err := os.ReadDir(sourceList); err == nil {
+		for _, file := range files {
+			reposPerKey := parseSourceListFile(filepath.Join(sourceList, file.Name()), gpgcheck)
+			for name, repos := range reposPerKey {
+				err = readGPGFile(cacheKeys, repoFile{name, repos}, "signed-by", client)
+				if err != nil {
+					return err
 				}
 			}
 		}
 	}
+	return nil
 }
 
 func parseSourceListFile(filePath string, gpgcheck bool) map[string][]pkgUtils.Repository {
@@ -124,34 +155,41 @@ func parseSourceListFile(filePath string, gpgcheck bool) map[string][]pkgUtils.R
 	return reposPerKey
 }
 
-func getDebsigKeyPaths() []string {
+func getDebsigKeyPaths() ([]string, error) {
 	filePaths := make(map[string]struct{})
 	// Search in the policy files
-	if _, err := os.Stat(debsigPolicies); err == nil {
-		if debsigDirs, err := os.ReadDir(debsigPolicies); err == nil {
-			for _, debsigDir := range debsigDirs {
-				if debsigDir.IsDir() {
-					if policyFiles, err := os.ReadDir(filepath.Join(debsigPolicies, debsigDir.Name())); err == nil {
-						for _, policyFile := range policyFiles {
-							// Get the gpg file name from policy files
-							if debsigFile := getDebsigFileFromPolicy(filepath.Join(debsigPolicies, debsigDir.Name(), policyFile.Name())); debsigFile != "" {
-								debsigFilePath := filepath.Join(debsigKeyring, debsigDir.Name(), debsigFile)
-								if _, err := os.Stat(debsigFilePath); err == nil {
-									filePaths[debsigFilePath] = struct{}{}
-								}
+	if _, err := os.Stat(debsigPolicies); err != nil {
+		return nil, err
+	}
+	if debsigDirs, err := os.ReadDir(debsigPolicies); err == nil {
+		for _, debsigDir := range debsigDirs {
+			if debsigDir.IsDir() {
+				if policyFiles, err := os.ReadDir(filepath.Join(debsigPolicies, debsigDir.Name())); err == nil {
+					for _, policyFile := range policyFiles {
+						// Get the gpg file name from policy files
+						if debsigFile := getDebsigFileFromPolicy(filepath.Join(debsigPolicies, debsigDir.Name(), policyFile.Name())); debsigFile != "" {
+							debsigFilePath := filepath.Join(debsigKeyring, debsigDir.Name(), debsigFile)
+							if _, err := os.Stat(debsigFilePath); err == nil {
+								filePaths[debsigFilePath] = struct{}{}
+							} else {
+								return nil, err
 							}
 						}
 					}
+				} else {
+					return nil, err
 				}
 			}
 		}
+	} else {
+		return nil, err
 	}
 	// Denormalise the map
 	filePathsSlice := make([]string, 0)
 	for k := range filePaths {
 		filePathsSlice = append(filePathsSlice, k)
 	}
-	return filePathsSlice
+	return filePathsSlice, nil
 }
 
 // policy structure to unmarshall the policy files

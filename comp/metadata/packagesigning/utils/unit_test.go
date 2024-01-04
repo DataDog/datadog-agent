@@ -99,7 +99,7 @@ func TestParseRPMRepoFile(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			mainConf, reposPerKey := ParseRPMRepoFile(testCase.fileName, testCase.mainConf)
+			mainConf, reposPerKey, _ := ParseRPMRepoFile(testCase.fileName, testCase.mainConf)
 			errorData := CompareRepoPerKeys(reposPerKey, testCase.reposPerKey)
 			if mainConf != testCase.mainConf {
 				t.Errorf("Expected gpgcheck/local/repo %t/%t/%t, got %t/%t/%t",

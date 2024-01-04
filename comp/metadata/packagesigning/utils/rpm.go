@@ -7,6 +7,7 @@ package utils
 
 import (
 	"bufio"
+	"errors"
 	"os"
 	"regexp"
 	"strings"
@@ -18,6 +19,11 @@ var (
 	YumRepo = "/etc/yum.repos.d/"
 )
 
+var (
+	table = regexp.MustCompile(`\[[A-Za-z0-9_\-\.\/ ]+\]`)
+	field = regexp.MustCompile(`^([a-z_]+)\s?=\s?(.*)$`)
+)
+
 const (
 	dnfConf  = "/etc/dnf/dnf.conf"
 	zyppConf = "/etc/zypp/zypp.conf"
@@ -25,15 +31,18 @@ const (
 )
 
 // getMainGPGCheck returns gpgcheck and repo_gpgcheck setting for [main] table
-func getMainGPGCheck(pkgManager string) (bool, bool) {
+func getMainGPGCheck(pkgManager string) (bool, bool, error) {
 	repoConfig, _ := GetRepoPathFromPkgManager(pkgManager)
 	if repoConfig == "" {
 		// if we end up in a non supported distribution
-		return false, false
+		return false, false, errors.New("No repo config file found for this distribution:" + pkgManager)
 	}
 	defaultValue := strings.Contains(repoConfig, "zypp") // Settings are enabled by default on SUSE, disabled otherwise
-	mainConf, _ := ParseRPMRepoFile(repoConfig, MainData{Gpgcheck: defaultValue, LocalpkgGpgcheck: defaultValue, RepoGpgcheck: defaultValue})
-	return mainConf.Gpgcheck, mainConf.RepoGpgcheck
+	mainConf, _, err := ParseRPMRepoFile(repoConfig, MainData{Gpgcheck: defaultValue, LocalpkgGpgcheck: defaultValue, RepoGpgcheck: defaultValue})
+	if err != nil {
+		return defaultValue, defaultValue, err
+	}
+	return mainConf.Gpgcheck, mainConf.RepoGpgcheck, nil
 }
 
 // GetRepoPathFromPkgManager returns the path to the configuration file and the path to the repository files for RH or SUSE based OS
@@ -81,16 +90,14 @@ type multiLine struct {
 // Save the global gpgcheck value when encountering a [main] table (should only occur on `/etc/yum.conf`)
 // Match several entries in gpgkey field, either file references (file://) or http(s)://. From observations,
 // these reference can be separated either by space or by new line. We assume it possible to mix file and http references
-func ParseRPMRepoFile(inputFile string, mainConf MainData) (MainData, map[string][]Repository) {
+func ParseRPMRepoFile(inputFile string, mainConf MainData) (MainData, map[string][]Repository, error) {
 	main := mainConf
 	file, err := os.Open(inputFile)
 	if err != nil {
-		return main, nil
+		return main, nil, err
 	}
 	defer file.Close()
 	reposPerKey := make(map[string][]Repository)
-	table := regexp.MustCompile(`\[[A-Za-z0-9_\-\.\/ ]+\]`)
-	field := regexp.MustCompile(`^([a-z_]+)\s?=\s?(.*)$`)
 	nextLine := multiLine{inside: false, name: ""}
 	defaultValue := strings.Contains(inputFile, "zypp") // Settings are enabled by default on SUSE, disabled otherwise
 	repo := repoData{enabled: true, gpgcheck: main.Gpgcheck || defaultValue, repoGpgcheck: main.RepoGpgcheck || defaultValue}
@@ -155,6 +162,9 @@ func ParseRPMRepoFile(inputFile string, mainConf MainData) (MainData, map[string
 			}
 		}
 	}
+	if err := scanner.Err(); err != nil {
+		return main, nil, err
+	}
 	// save last values
 	if nextLine.name != "main" && repo.gpgkey == nil { // Track repositories without gpgkey
 		repo.gpgkey = append(repo.gpgkey, "nokey")
@@ -177,7 +187,7 @@ func ParseRPMRepoFile(inputFile string, mainConf MainData) (MainData, map[string
 			}
 		}
 	}
-	return main, reposPerKey
+	return main, reposPerKey, nil
 }
 
 func isEnabled(value string) bool {

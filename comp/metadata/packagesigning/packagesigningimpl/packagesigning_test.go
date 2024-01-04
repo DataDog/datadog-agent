@@ -119,7 +119,7 @@ nHqwA45eQzOye+95moLpip69fGWCX12OxjAH2jFieUX4yxHczYdc/CqyH9eyoKxL
 -----END PGP PUBLIC KEY BLOCK-----`
 )
 
-func TestDecryptGPGReader(t *testing.T) {
+func TestReadGPGReader(t *testing.T) {
 	// Example data for testing
 	keys := make(map[string]signingKey)
 
@@ -135,7 +135,7 @@ func TestDecryptGPGReader(t *testing.T) {
 			content: publicKeyWithoutExpiration,
 			keyType: "RSA",
 			output: signingKey{
-				Fingerprint:    "199E2F91FD431D51",
+				Fingerprint:    "567E347AD0044ADE55BA8A5F199E2F91FD431D51",
 				ExpirationDate: "9999-12-31",
 				KeyType:        "RSA",
 			},
@@ -145,7 +145,7 @@ func TestDecryptGPGReader(t *testing.T) {
 			content: datadogPublicKey,
 			keyType: "RSA",
 			output: signingKey{
-				Fingerprint:    "F1068E14E09422B3",
+				Fingerprint:    "A4C0B90D7443CF6E4E8AA341F1068E14E09422B3",
 				ExpirationDate: "2022-06-28",
 				KeyType:        "RSA",
 			},
@@ -155,9 +155,9 @@ func TestDecryptGPGReader(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 
-			err := decryptGPGContent(keys, []byte(testCase.content), testCase.keyType, nil)
+			err := readGPGContent(keys, []byte(testCase.content), testCase.keyType, nil)
 			if err != nil {
-				t.Errorf("Error while decrypting %s: %s", testCase.name, err)
+				t.Errorf("Error while reading GPG content %s: %s", testCase.name, err)
 			}
 			retrieved, ok := keys[testCase.output.Fingerprint+testCase.output.KeyType]
 			if !ok || !compareKeys(retrieved, testCase.output) {
@@ -203,38 +203,38 @@ func TestUpdateWithRepoFile(t *testing.T) {
 		{
 			name: "Update with repo files",
 			cacheKeys: map[string]signingKey{
-				"32637D44F14F620Erepo": {
-					Fingerprint:    "32637D44F14F620E",
+				"D75CEA17048B9ACBF186794B32637D44F14F620Erepo": {
+					Fingerprint:    "D75CEA17048B9ACBF186794B32637D44F14F620E",
 					ExpirationDate: "2032-09-05",
 					KeyType:        "repo",
 					Repositories: []pkgUtils.Repository{
 						{Name: "https://versailles.com"}}},
-				"E6266D4AC0962C7Drepo": {
-					Fingerprint:    "E6266D4AC0962C7D",
+				"5F1E256061D813B125E156E8E6266D4AC0962C7Drepo": {
+					Fingerprint:    "5F1E256061D813B125E156E8E6266D4AC0962C7D",
 					ExpirationDate: "2028-04-18",
 					KeyType:        "repo",
 					Repositories: []pkgUtils.Repository{
 						{Name: "https://versailles.com"}}},
-				"D3A80E30382E94DErepo": {
-					Fingerprint:    "D3A80E30382E94DE",
+				"A2923DFF56EDA6E76E55E492D3A80E30382E94DErepo": {
+					Fingerprint:    "A2923DFF56EDA6E76E55E492D3A80E30382E94DE",
 					ExpirationDate: "2022-06-28",
 					KeyType:        "repo",
 					Repositories: []pkgUtils.Repository{
 						{Name: "https://versailles.com"}}},
-				"4B4593018387EEAFrepo": {
-					Fingerprint:    "4B4593018387EEAF",
+				"FB3E017DBD6C2FDDEFDC27824B4593018387EEAFrepo": {
+					Fingerprint:    "FB3E017DBD6C2FDDEFDC27824B4593018387EEAF",
 					ExpirationDate: "2022-06-28",
 					KeyType:        "repo",
 					Repositories: []pkgUtils.Repository{
 						{Name: "https://versailles.com"}}},
-				"24BEB436F432F6E0repo": {
-					Fingerprint:    "24BEB436F432F6E0",
+				"3B3A57896F7E1827291BF54C24BEB436F432F6E0repo": {
+					Fingerprint:    "3B3A57896F7E1827291BF54C24BEB436F432F6E0",
 					ExpirationDate: "2022-06-28",
 					KeyType:        "repo",
 					Repositories: []pkgUtils.Repository{
 						{Name: "https://versailles.com"}}},
-				"BC954701BFF6291Erepo": {
-					Fingerprint:    "BC954701BFF6291E",
+				"F2589B1D25D17B4FA78AC974BC954701BFF6291Erepo": {
+					Fingerprint:    "F2589B1D25D17B4FA78AC974BC954701BFF6291E",
 					ExpirationDate: "2022-07-10",
 					KeyType:        "repo",
 					Repositories: []pkgUtils.Repository{
@@ -243,8 +243,8 @@ func TestUpdateWithRepoFile(t *testing.T) {
 							Enabled:      true,
 							GPGCheck:     true,
 							RepoGPGCheck: false}}},
-				"E7F854C410D33C42repo": {
-					Fingerprint:    "E7F854C410D33C42",
+				"C02432A9AEA46C8F5A1C68A5E7F854C410D33C42repo": {
+					Fingerprint:    "C02432A9AEA46C8F5A1C68A5E7F854C410D33C42",
 					ExpirationDate: "2024-09-07",
 					KeyType:        "repo",
 					Repositories: []pkgUtils.Repository{
@@ -253,8 +253,8 @@ func TestUpdateWithRepoFile(t *testing.T) {
 							Enabled:      true,
 							GPGCheck:     true,
 							RepoGPGCheck: false}}},
-				"33EE313BAD9589B7repo": {
-					Fingerprint:    "33EE313BAD9589B7",
+				"DBD145AB63EAC0BEE68F004D33EE313BAD9589B7repo": {
+					Fingerprint:    "DBD145AB63EAC0BEE68F004D33EE313BAD9589B7",
 					ExpirationDate: "2024-09-07",
 					KeyType:        "repo",
 					Repositories: []pkgUtils.Repository{
@@ -269,7 +269,7 @@ func TestUpdateWithRepoFile(t *testing.T) {
 	cacheKeys := make(map[string]signingKey)
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			updateWithRepoFiles(cacheKeys, "yum", nil, nil)
+			updateWithRepoFiles(cacheKeys, "yum", nil)
 			for key := range cacheKeys {
 				if _, ok := testCase.cacheKeys[key]; !ok {
 					t.Errorf("Unexpected key %s", key)
@@ -304,7 +304,7 @@ func TestGetDebsigPath(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 
-			debsigFiles := getDebsigKeyPaths()
+			debsigFiles, _ := getDebsigKeyPaths()
 			for idx, file := range debsigFiles {
 				if file != testCase.files[idx] {
 					t.Errorf("Expected file %s, got %s", testCase.files[idx], file)

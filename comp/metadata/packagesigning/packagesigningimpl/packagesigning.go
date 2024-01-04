@@ -92,6 +92,10 @@ var (
 	getYUMKeys    = getYUMSignatureKeys
 )
 
+const (
+	supportedPkgManager = "apt, yum, dnf, zypper"
+)
+
 func newPackageSigningProvider(deps dependencies) provides {
 	hname, _ := hostname.Get(context.Background())
 	is := &pkgSigning{
@@ -110,7 +114,7 @@ func newPackageSigningProvider(deps dependencies) provides {
 			// Package signing telemetry is only valid on Linux and DEB/RPM based distros (including SUSE)
 			provider = is.MetadataProvider()
 		} else {
-			is.log.Info("Package Manager not in [apt, yum, dnf, zypper], package signing telemetry will not be collected")
+			is.log.Infof("Package Manager not in [%s], package signing telemetry will not be collected\n", supportedPkgManager)
 		}
 	}
 
@@ -122,10 +126,11 @@ func newPackageSigningProvider(deps dependencies) provides {
 }
 
 func isPackageSigningEnabled(conf config.Reader, logger log.Component) bool {
-	if !conf.GetBool("enable_signing_metadata") {
-		logger.Debugf("Signing metadata collection disabled: linux package signing keys will not be collected nor sent")
+	if !conf.GetBool("enable_signing_metadata_collection") {
+		logger.Debug("Signing metadata collection disabled: linux package signing keys will not be collected nor sent")
 		return false
 	}
+	logger.Debug("Signing metadata collection enabled")
 	return true
 }
 

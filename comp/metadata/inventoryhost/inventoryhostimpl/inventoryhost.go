@@ -238,7 +238,7 @@ func (ih *invHost) fillData() {
 	ih.data.CloudProviderHostID = cloudproviders.GetHostID(context.Background(), cloudProvider)
 	ih.data.OsVersion = osVersionGet()
 
-	gpgcheck, repoGPGCheck := pkgSigningGet()
+	gpgcheck, repoGPGCheck := pkgSigningGet(ih.log)
 	ih.data.LinuxPackageSigningEnabled = gpgcheck
 	ih.data.RPMGlobalRepoGPGCheckEnabled = repoGPGCheck
 }

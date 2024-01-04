@@ -14,11 +14,11 @@ import (
 // configuration.
 func InventoryEnabled(conf config.Reader) bool {
 	if !conf.GetBool("enable_metadata_collection") {
-		log.Debugf("Metadata collection disabled: inventories payload will not be collected nor sent")
+		log.Debug("Metadata collection disabled: inventories payload will not be collected nor sent")
 		return false
 	}
 	if !conf.GetBool("inventories_enabled") {
-		log.Debugf("inventories metadata is disabled: inventories payload will not be collected nor sent")
+		log.Debug("inventories metadata is disabled: inventories payload will not be collected nor sent")
 		return false
 	}
 	return true
