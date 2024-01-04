@@ -183,10 +183,6 @@ func TestProcessContext(t *testing.T) {
 	}
 
 	t.Run("exec-time", func(t *testing.T) {
-		if test.opts.staticOpts.enableEBPFLess {
-			t.Skip("create_at not supported yet")
-		}
-
 		testFile, _, err := test.Path("test-exec-time-1")
 		if err != nil {
 			t.Fatal(err)
