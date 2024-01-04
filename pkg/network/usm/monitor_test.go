@@ -1092,8 +1092,9 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 
 			// we have to use negative numbers for the stream id.
 			for i := 0; i < tt.numberOfRequestFrames; i++ {
-				reqInput = append(reqInput, createRawRequestFrame(2*i+1)...)
-				reqInput = append(reqInput, createRawDataFrame(2*i+1)...)
+				streamID := 2*i + 1
+				reqInput = append(reqInput, createRawRequestFrame(streamID)...)
+				reqInput = append(reqInput, createRawDataFrame(streamID)...)
 			}
 
 			// Sending the repeated settings with request.
