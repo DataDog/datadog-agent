@@ -2699,7 +2699,7 @@ func cleanupScan(ctx context.Context, scan *scanTask) {
 			if _, err := os.Stat(mountPoint); os.IsNotExist(err) {
 				return
 			}
-			umountCmd := exec.CommandContext(ctx, "umount", "-f", mountPoint)
+			umountCmd := exec.CommandContext(ctx, "umount", mountPoint)
 			if umountOuput, err := umountCmd.CombinedOutput(); err != nil {
 				// Check for "not mounted" errors that we ignore
 				const MntExFail = 32 // MNT_EX_FAIL
