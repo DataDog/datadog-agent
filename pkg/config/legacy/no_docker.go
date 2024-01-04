@@ -14,9 +14,7 @@ import (
 )
 
 // ImportDockerConf is a place holder if the agent is built without the docker flag
-//
-//nolint:revive // TODO(ASC) Fix revive linter
-func ImportDockerConf(src, dst string, overwrite bool, converter *config.LegacyConfigConverter) error {
+func ImportDockerConf(_, _ string, _ bool, _ *config.LegacyConfigConverter) error {
 	fmt.Println("This agent was build without docker support: could not convert docker_daemon.yaml")
 	return nil
 }

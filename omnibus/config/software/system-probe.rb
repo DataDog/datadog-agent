@@ -17,8 +17,6 @@ build do
   mkdir "#{install_dir}/embedded/share/system-probe/ebpf/co-re/btf"
   mkdir "#{install_dir}/embedded/share/system-probe/java"
 
-  copy 'pkg/network/protocols/tls/java/agent-usm.jar', "#{install_dir}/embedded/share/system-probe/java/"
-
   if ENV.has_key?('SYSTEM_PROBE_BIN') and not ENV['SYSTEM_PROBE_BIN'].empty?
     copy "pkg/ebpf/bytecode/build/*.o", "#{install_dir}/embedded/share/system-probe/ebpf/"
     delete "#{install_dir}/embedded/share/system-probe/ebpf/usm_events_test*.o"

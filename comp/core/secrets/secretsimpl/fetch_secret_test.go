@@ -133,7 +133,7 @@ func TestExecCommandError(t *testing.T) {
 
 	t.Run("No Error", func(t *testing.T) {
 		resolver := newEnabledSecretResolver()
-		resolver.Configure("./test/simple/simple"+binExtension, nil, 0, 0, false, false)
+		resolver.Configure("./test/simple/simple"+binExtension, nil, 0, 0, 0, false, false)
 		setCorrectRight(resolver.backendCommand)
 		resp, err := resolver.execCommand(inputPayload)
 		require.NoError(t, err)
@@ -150,7 +150,7 @@ func TestExecCommandError(t *testing.T) {
 
 	t.Run("argument", func(t *testing.T) {
 		resolver := newEnabledSecretResolver()
-		resolver.Configure("./test/argument/argument"+binExtension, nil, 0, 0, false, false)
+		resolver.Configure("./test/argument/argument"+binExtension, nil, 0, 0, 0, false, false)
 		setCorrectRight(resolver.backendCommand)
 		resolver.backendArguments = []string{"arg1"}
 		_, err := resolver.execCommand(inputPayload)
@@ -163,7 +163,7 @@ func TestExecCommandError(t *testing.T) {
 
 	t.Run("input", func(t *testing.T) {
 		resolver := newEnabledSecretResolver()
-		resolver.Configure("./test/input/input"+binExtension, nil, 0, 0, false, false)
+		resolver.Configure("./test/input/input"+binExtension, nil, 0, 0, 0, false, false)
 		setCorrectRight(resolver.backendCommand)
 		resp, err := resolver.execCommand(inputPayload)
 		require.NoError(t, err)
@@ -172,7 +172,7 @@ func TestExecCommandError(t *testing.T) {
 
 	t.Run("buffer limit", func(t *testing.T) {
 		resolver := newEnabledSecretResolver()
-		resolver.Configure("./test/response_too_long/response_too_long"+binExtension, nil, 0, 0, false, false)
+		resolver.Configure("./test/response_too_long/response_too_long"+binExtension, nil, 0, 0, 0, false, false)
 		setCorrectRight(resolver.backendCommand)
 		resolver.responseMaxSize = 20
 		_, err := resolver.execCommand(inputPayload)
@@ -237,9 +237,9 @@ func TestFetchSecret(t *testing.T) {
 	// some dummy value to check the cache is not purge
 	resolver.cache["test"] = "yes"
 	resolver.commandHookFunc = func(string) ([]byte, error) {
-		res := []byte("{\"handle1\":{\"value\":\"p1\"},")
-		res = append(res, []byte("\"handle2\":{\"value\":\"p2\"},")...)
-		res = append(res, []byte("\"handle3\":{\"value\":\"p3\"}}")...)
+		res := []byte(`{"handle1":{"value":"p1"},
+		                "handle2":{"value":"p2"},
+		                "handle3":{"value":"p3"}}`)
 		return res, nil
 	}
 	resp, err := resolver.fetchSecret(secrets)
@@ -249,9 +249,7 @@ func TestFetchSecret(t *testing.T) {
 		"handle2": "p2",
 	}, resp)
 	assert.Equal(t, map[string]string{
-		"test":    "yes",
-		"handle1": "p1",
-		"handle2": "p2",
+		"test": "yes",
 	}, resolver.cache)
 }
 

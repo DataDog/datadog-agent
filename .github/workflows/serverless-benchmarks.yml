@@ -24,7 +24,7 @@ jobs:
           go install golang.org/x/perf/cmd/benchstat@latest
 
       - name: Checkout datadog-agent repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: go/src/github.com/DataDog/datadog-agent
 
