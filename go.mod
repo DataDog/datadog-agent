@@ -739,3 +739,6 @@ exclude (
 	github.com/knadh/koanf/maps v0.1.1
 	github.com/knadh/koanf/providers/confmap v0.1.0
 )
+
+// Temporarily use a fork of gosnmp for multiple-user traps support
+replace github.com/gosnmp/gosnmp => github.com/zoedt/gosnmp v0.0.0-20231218153121-83a06ce65d5a
