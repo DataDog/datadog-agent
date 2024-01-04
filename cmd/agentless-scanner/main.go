@@ -108,6 +108,11 @@ var (
 	awsConfigsMu sync.Mutex
 )
 
+const (
+	rootMountPrefix = "root"
+	ctrdMountPrefix = "ctrd"
+)
+
 type configType string
 
 const (
@@ -2640,7 +2645,7 @@ func listDevicePartitions(ctx context.Context, device string, volumeARN *arn.ARN
 func mountDevice(ctx context.Context, scan *scanTask, partitions []devicePartition) ([]string, error) {
 	var mountPoints []string
 	for _, mp := range partitions {
-		mountPoint := scan.MountPoint("root")
+		mountPoint := scan.MountPoint(rootMountPrefix)
 		if err := os.MkdirAll(mountPoint, 0700); err != nil {
 			return nil, fmt.Errorf("could not create mountPoint directory %q: %w", mountPoint, err)
 		}
@@ -2684,34 +2689,46 @@ func cleanupScan(ctx context.Context, scan *scanTask) {
 	if err != nil {
 		return
 	}
-	var wg sync.WaitGroup
-	for _, mountEntry := range mountEntries {
-		if !mountEntry.IsDir() {
-			continue
-		}
-		wg.Add(1)
-		go func(mountPoint string) {
-			log.Debugf("%s: un-mounting %s", scan, mountPoint)
-			defer wg.Done()
-			for i := 0; i < 10; i++ {
-				umountCmd := exec.CommandContext(ctx, "umount", "-f", mountPoint)
-				if umountOuput, err := umountCmd.CombinedOutput(); err != nil {
-					// Check for "not mounted" errors that we ignore
-					const MNT_EX_FAIL = 32
-					if exiterr, ok := err.(*exec.ExitError); ok && exiterr.ExitCode() == MNT_EX_FAIL && bytes.Contains(umountOuput, []byte("not mounted")) {
-						return
-					}
-					log.Warnf("%s: could not umount %s: %s: %s", scan, mountPoint, err, string(umountOuput))
-					if !sleepCtx(ctx, 3*time.Second) {
-						return
-					}
-					continue
-				}
+
+	var umountWG sync.WaitGroup
+
+	umount := func(mountPoint string) {
+		log.Debugf("%s: un-mounting %s", scan, mountPoint)
+		defer umountWG.Done()
+		for i := 0; i < 10; i++ {
+			if _, err := os.Stat(mountPoint); os.IsNotExist(err) {
 				return
 			}
-		}(filepath.Join(mountRoot, mountEntry.Name()))
+			umountCmd := exec.CommandContext(ctx, "umount", "-f", mountPoint)
+			if umountOuput, err := umountCmd.CombinedOutput(); err != nil {
+				// Check for "not mounted" errors that we ignore
+				const MntExFail = 32 // MNT_EX_FAIL
+				if exiterr, ok := err.(*exec.ExitError); ok && exiterr.ExitCode() == MntExFail && bytes.Contains(umountOuput, []byte("not mounted")) {
+					return
+				}
+				log.Warnf("%s: could not umount %s: %s: %s", scan, mountPoint, err, string(umountOuput))
+				if !sleepCtx(ctx, 3*time.Second) {
+					return
+				}
+				continue
+			}
+			return
+		}
 	}
-	wg.Wait()
+
+	for _, mountEntry := range mountEntries {
+		// unmount "root" entrypoint last as the other mountpoint may depend on it
+		if mountEntry.IsDir() && mountEntry.Name() != rootMountPrefix {
+			umountWG.Add(1)
+			go umount(filepath.Join(mountRoot, mountEntry.Name()))
+		}
+	}
+
+	umountWG.Add(1)
+	go umount(filepath.Join(mountRoot, rootMountPrefix))
+
+	umountWG.Wait()
+
 	if err := os.RemoveAll(mountRoot); err != nil {
 		log.Errorf("%s: could not cleanup mount root %q", scan, mountRoot)
 	}
