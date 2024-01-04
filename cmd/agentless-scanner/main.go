@@ -2684,28 +2684,34 @@ func cleanupScan(ctx context.Context, scan *scanTask) {
 	if err != nil {
 		return
 	}
+	var wg sync.WaitGroup
 	for _, mountEntry := range mountEntries {
 		if !mountEntry.IsDir() {
 			continue
 		}
-		mountPoint := filepath.Join(mountRoot, mountEntry.Name())
-		log.Debugf("%s: un-mounting %s", scan, mountPoint)
-		for i := 0; i < 10; i++ {
-			umountOuput, err := exec.CommandContext(ctx, "umount", "-f", mountPoint).CombinedOutput()
-			if err == nil {
-				break
-			}
-			// Check for "not mounted" errors that we ignore
-			const MNT_EX_FAIL = 32
-			if exiterr, ok := err.(*exec.ExitError); ok && exiterr.ExitCode() == MNT_EX_FAIL && bytes.Contains(umountOuput, []byte("not mounted")) {
-				break
-			}
-			log.Warnf("%s: could not umount %s: %s: %s", scan, mountPoint, err, string(umountOuput))
-			if !sleepCtx(ctx, 3*time.Second) {
+		wg.Add(1)
+		go func(mountPoint string) {
+			log.Debugf("%s: un-mounting %s", scan, mountPoint)
+			defer wg.Done()
+			for i := 0; i < 10; i++ {
+				umountCmd := exec.CommandContext(ctx, "umount", "-f", mountPoint)
+				if umountOuput, err := umountCmd.CombinedOutput(); err != nil {
+					// Check for "not mounted" errors that we ignore
+					const MNT_EX_FAIL = 32
+					if exiterr, ok := err.(*exec.ExitError); ok && exiterr.ExitCode() == MNT_EX_FAIL && bytes.Contains(umountOuput, []byte("not mounted")) {
+						return
+					}
+					log.Warnf("%s: could not umount %s: %s: %s", scan, mountPoint, err, string(umountOuput))
+					if !sleepCtx(ctx, 3*time.Second) {
+						return
+					}
+					continue
+				}
 				return
 			}
-		}
+		}(filepath.Join(mountRoot, mountEntry.Name()))
 	}
+	wg.Wait()
 	if err := os.RemoveAll(mountRoot); err != nil {
 		log.Errorf("%s: could not cleanup mount root %q", scan, mountRoot)
 	}
