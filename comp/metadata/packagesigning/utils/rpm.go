@@ -88,12 +88,12 @@ func ParseRPMRepoFile(inputFile string, mainConf MainData) (MainData, map[string
 		return main, nil
 	}
 	defer file.Close()
-	defaultValue := strings.Contains(inputFile, "zypp") // Settings are enabled by default on SUSE, disabled otherwise
 	reposPerKey := make(map[string][]Repository)
 	table := regexp.MustCompile(`\[[A-Za-z0-9_\-\.\/ ]+\]`)
 	field := regexp.MustCompile(`^([a-z_]+)\s?=\s?(.*)$`)
 	nextLine := multiLine{inside: false, name: ""}
-	repo := repoData{enabled: true, gpgcheck: defaultValue, repoGpgcheck: defaultValue}
+	defaultValue := strings.Contains(inputFile, "zypp") // Settings are enabled by default on SUSE, disabled otherwise
+	repo := repoData{enabled: true, gpgcheck: main.Gpgcheck || defaultValue, repoGpgcheck: main.RepoGpgcheck || defaultValue}
 	var repos []repoData
 
 	scanner := bufio.NewScanner(file)
@@ -105,11 +105,14 @@ func ParseRPMRepoFile(inputFile string, mainConf MainData) (MainData, map[string
 			nextLine = multiLine{inside: true, name: "main"}
 		} else if currentTable != "" {
 			// entering new table, save values
-			if repo.gpgkey != nil {
+			if nextLine.name != "" {
+				if nextLine.name != "main" && repo.gpgkey == nil { // Track repositories without gpgkey
+					repo.gpgkey = append(repo.gpgkey, "nokey")
+				}
 				repos = append(repos, repo)
-				repo = repoData{enabled: true}
+				repo = repoData{enabled: true, gpgcheck: main.Gpgcheck || defaultValue, repoGpgcheck: main.RepoGpgcheck || defaultValue}
 			}
-			nextLine = multiLine{inside: false, name: ""}
+			nextLine = multiLine{inside: false, name: currentTable}
 		}
 		// Analyse raws
 		matches := field.FindStringSubmatch(line)
@@ -153,6 +156,9 @@ func ParseRPMRepoFile(inputFile string, mainConf MainData) (MainData, map[string
 		}
 	}
 	// save last values
+	if nextLine.name != "main" && repo.gpgkey == nil { // Track repositories without gpgkey
+		repo.gpgkey = append(repo.gpgkey, "nokey")
+	}
 	repos = append(repos, repo)
 	// Now denormalize the data
 	for _, repo := range repos {

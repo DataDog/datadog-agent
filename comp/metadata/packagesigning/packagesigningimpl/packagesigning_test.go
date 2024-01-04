@@ -336,6 +336,8 @@ func TestParseSourceListFile(t *testing.T) {
 					{Name: "https://apt.ghostbusters.com/ stable 84", Enabled: true, GPGCheck: false, RepoGPGCheck: true}},
 				"/don/rosa/carl/barks": {
 					{Name: "https://duck.family.com scrooge donald huey dewey louie", Enabled: true, GPGCheck: false, RepoGPGCheck: false}},
+				"nokey": {
+					{Name: "https://the.invisible.url.com", Enabled: true, GPGCheck: false, RepoGPGCheck: true}},
 			},
 		},
 	}

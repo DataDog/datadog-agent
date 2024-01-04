@@ -38,12 +38,21 @@ const (
 
 // decryptGPGFile parse a gpg file (local or http) and extract signing keys information
 // Some files can contain a list of repositories.
+// We insert information even if the key is not found (nokey file or issue in getting the URI content)
 func decryptGPGFile(cacheKeys map[string]signingKey, gpgFile repoFile, keyType string, client *http.Client, logger log.Component) {
 	var reader io.Reader
+	epochDate := time.Date(1970, 01, 01, 0, 0, 0, 0, time.UTC)
+	// Exception: when no key is found, we insert without decrypting
+	if gpgFile.filename == "nokey" {
+		insertKey(cacheKeys, gpgFile.filename, epochDate, nil, keyType, gpgFile.repositories)
+		return
+	}
+	// Nominal case
 	if strings.HasPrefix(gpgFile.filename, "http") {
 		response, err := client.Get(gpgFile.filename)
 		if err != nil {
 			logger.Infof("Error while reading %s: %s", gpgFile.filename, err)
+			insertKey(cacheKeys, "keynotfound", epochDate, nil, keyType, gpgFile.repositories)
 			return
 		}
 		defer response.Body.Close()
@@ -52,6 +61,7 @@ func decryptGPGFile(cacheKeys map[string]signingKey, gpgFile repoFile, keyType s
 		file, err := os.Open(strings.Replace(gpgFile.filename, "file://", "", 1))
 		if err != nil {
 			logger.Infof("Error while reading %s: %s", gpgFile.filename, err)
+			insertKey(cacheKeys, "keynotfound", epochDate, nil, keyType, gpgFile.repositories)
 			return
 		}
 		defer file.Close()
@@ -116,16 +126,16 @@ func insertKey(cacheKeys map[string]signingKey, fingerprint string, keyCreationT
 
 // mergeRepositoryList merge 2 lists of repositories and remove duplicates
 func mergeRepositoryLists(a, b []pkgUtils.Repository) []pkgUtils.Repository {
-	uniqueRepositories := make(map[string]struct{})
+	uniqueRepositories := make(map[string]pkgUtils.Repository)
 	for _, repo := range a {
-		uniqueRepositories[repo.Name] = struct{}{}
+		uniqueRepositories[repo.Name] = repo
 	}
 	for _, repo := range b {
-		uniqueRepositories[repo.Name] = struct{}{}
+		uniqueRepositories[repo.Name] = repo
 	}
 	mergedList := make([]pkgUtils.Repository, 0, len(uniqueRepositories))
-	for repo := range uniqueRepositories {
-		mergedList = append(mergedList, pkgUtils.Repository{Name: repo})
+	for _, repo := range uniqueRepositories {
+		mergedList = append(mergedList, repo)
 	}
 	return mergedList
 }

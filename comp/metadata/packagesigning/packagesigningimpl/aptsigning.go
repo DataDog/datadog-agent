@@ -110,12 +110,14 @@ func parseSourceListFile(filePath string, gpgcheck bool) map[string][]pkgUtils.R
 			if len(repoCheck) > 0 {
 				repoGpgcheck = false
 			}
+			keyPath := "nokey" // Track repositories without gpgkey
 			if len(keyURI) > 1 {
-				if _, ok := reposPerKey[keyURI[1]]; !ok {
-					reposPerKey[keyURI[1]] = []pkgUtils.Repository{{Name: splitLine[3], Enabled: true, GPGCheck: gpgcheck, RepoGPGCheck: repoGpgcheck}}
-				} else {
-					reposPerKey[keyURI[1]] = append(reposPerKey[keyURI[1]], pkgUtils.Repository{Name: splitLine[3], Enabled: true, GPGCheck: gpgcheck, RepoGPGCheck: repoGpgcheck})
-				}
+				keyPath = keyURI[1]
+			}
+			if _, ok := reposPerKey[keyPath]; !ok {
+				reposPerKey[keyPath] = []pkgUtils.Repository{{Name: splitLine[3], Enabled: true, GPGCheck: gpgcheck, RepoGPGCheck: repoGpgcheck}}
+			} else {
+				reposPerKey[keyPath] = append(reposPerKey[keyPath], pkgUtils.Repository{Name: splitLine[3], Enabled: true, GPGCheck: gpgcheck, RepoGPGCheck: repoGpgcheck})
 			}
 		}
 	}
