@@ -7,7 +7,7 @@
 /*
  * Macro to output debug logs to /sys/kernel/debug/tracing/trace_pipe
  *
- * By default it always adds a newline. A ConstantEditor is used to remove
+ * By default it always adds a newline. A instruction patcher is used to remove
  * the extra one in linux >= 5.9.
  *
  * The trick here is that bpf_trace_printk doesn't seem to care if you pass a size
@@ -18,10 +18,7 @@
 #ifdef DEBUG
 #define log_debug(fmt, ...)                                        \
     ({                                                             \
-        __u64 ___last_char = '\n';                                 \
-        LOAD_CONSTANT("log_debug_last_character", ___last_char);   \
         char ____fmt[] = fmt "\n";                                 \
-        ____fmt[sizeof(fmt) - 1] = (char)___last_char;             \
         bpf_trace_printk(____fmt, sizeof(____fmt), ##__VA_ARGS__); \
     })
 #else

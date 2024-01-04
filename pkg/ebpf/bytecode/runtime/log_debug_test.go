@@ -60,6 +60,7 @@ func TestPatchPrintkNewline(t *testing.T) {
 				ddebpf.GetPatchedPrintkEditor(),
 			},
 		}
+		mgr.InstructionPatcher = ddebpf.PatchPrintkNewline
 
 		tp, err := tracefs.OpenFile("trace_pipe", os.O_RDONLY, 0)
 		require.NoError(t, err)
@@ -84,16 +85,18 @@ func TestPatchPrintkNewline(t *testing.T) {
 			require.Equal(t, syscall.ENOTTY, errno)
 		}
 
-		// The logdebug-test.c program outputs two lines: Hello, world! and Goodbye, world!
+		// The logdebug-test.c program outputs several lines
 		// Check that those two are the lines included in the trace_pipe output, with no
 		// additional lines or empty lines. We check with "contains" to avoid issues with
 		// the variable output (PID, time, etc)
-		line1, err := traceReader.ReadString('\n')
-		require.NoError(t, err)
-		require.Contains(t, line1, "Hello, world!")
+		expectedLines := []string{
+			"hi", "123456", "1234567", "12345678", "Goodbye, world!", "even more words a lot of words here should be several instructions", "bye",
+		}
 
-		line2, err := traceReader.ReadString('\n')
-		require.NoError(t, err)
-		require.Contains(t, line2, "Goodbye, world!")
+		for _, line := range expectedLines {
+			actualLine, err := traceReader.ReadString('\n')
+			require.NoError(t, err)
+			require.Contains(t, actualLine, line)
+		}
 	})
 }
