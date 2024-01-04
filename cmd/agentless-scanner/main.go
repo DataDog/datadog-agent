@@ -2685,11 +2685,19 @@ func cleanupScan(ctx context.Context, scan *scanTask) {
 		return
 	}
 	for _, mountEntry := range mountEntries {
+		if !mountEntry.IsDir() {
+			continue
+		}
 		mountPoint := filepath.Join(mountRoot, mountEntry.Name())
 		log.Debugf("%s: un-mounting %s", scan, mountPoint)
 		for i := 0; i < 10; i++ {
 			umountOuput, err := exec.CommandContext(ctx, "umount", "-f", mountPoint).CombinedOutput()
 			if err == nil {
+				break
+			}
+			// Check for "not mounted" errors that we ignore
+			const MNT_EX_FAIL = 32
+			if exiterr, ok := err.(*exec.ExitError); ok && exiterr.ExitCode() == MNT_EX_FAIL && bytes.Contains(umountOuput, []byte("not mounted")) {
 				break
 			}
 			log.Warnf("%s: could not umount %s: %s: %s", scan, mountPoint, err, string(umountOuput))
