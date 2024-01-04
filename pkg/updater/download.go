@@ -118,23 +118,33 @@ func extractTarGz(archivePath string, destinationPath string) error {
 				return fmt.Errorf("could not create directory: %w", err)
 			}
 		case tar.TypeReg:
-			err := os.MkdirAll(filepath.Dir(target), 0755)
+			err = extractTarGzFile(target, tr)
 			if err != nil {
-				return fmt.Errorf("could not create directory: %w", err)
-			}
-			f, err := os.Create(target)
-			if err != nil {
-				return fmt.Errorf("could not create file: %w", err)
-			}
-			defer f.Close()
-			_, err = io.Copy(f, tr)
-			if err != nil {
-				return fmt.Errorf("could not write file: %w", err)
+				return err // already wrapped
 			}
 		default:
 			log.Warnf("Unsupported tar entry type %d for %s", header.Typeflag, header.Name)
 		}
 	}
 	log.Debugf("Successfully extracted archive %s to %s", archivePath, destinationPath)
+	return nil
+}
+
+// extractTarGzFile extracts a file from a tar.gz archive.
+// It is separated from extractTarGz to ensure `defer f.Close()` is called right after the file is written.
+func extractTarGzFile(targetPath string, reader io.Reader) error {
+	err := os.MkdirAll(filepath.Dir(targetPath), 0755)
+	if err != nil {
+		return fmt.Errorf("could not create directory: %w", err)
+	}
+	f, err := os.Create(targetPath)
+	if err != nil {
+		return fmt.Errorf("could not create file: %w", err)
+	}
+	defer f.Close()
+	_, err = io.Copy(f, reader)
+	if err != nil {
+		return fmt.Errorf("could not write file: %w", err)
+	}
 	return nil
 }
