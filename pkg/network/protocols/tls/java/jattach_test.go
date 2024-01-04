@@ -8,7 +8,6 @@
 package java
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -110,7 +109,6 @@ func TestInjectInReadOnlyFS(t *testing.T) {
 		}
 	}()
 
-	fmt.Println(rodir)
 	err = syscall.Mount(curDir, rodir, "auto", syscall.MS_BIND|syscall.MS_RDONLY, "")
 	require.NoError(t, err)
 	err = syscall.Mount("none", rodir, "", syscall.MS_RDONLY|syscall.MS_REMOUNT|syscall.MS_BIND, "")
