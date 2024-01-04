@@ -6,21 +6,22 @@
 package ebpftest
 
 import (
+	"bytes"
+	"io"
 	"testing"
 )
 
-// TestLogWriter wraps the testing.T object and provides a simple
-// io.Writer interface, to be used with DumpMaps functions
-// Very simple implementation now for output in debug functions so
-// newlines aren't handled: each call to Write is just sent to
-// t.Log
-type TestLogWriter struct {
-	T *testing.T
-}
+// DumpMapsTestHelper dumps the content of the given maps to the test log, handling errors if any.
+func DumpMapsTestHelper(t *testing.T, dumpfunc func(io.Writer, ...string) error, maps ...string) {
+	for _, m := range maps {
+		var buffer bytes.Buffer
 
-// Write method implementation, sends the data to t.Log()
-func (tlw *TestLogWriter) Write(p []byte) (int, error) {
-	tlw.T.Log(string(p))
-
-	return len(p), nil
+		t.Log("Dumping map", m)
+		err := dumpfunc(&buffer, m)
+		if err != nil {
+			t.Logf("Error dumping map %s: %s", m, err)
+		} else {
+			t.Log(buffer.String())
+		}
+	}
 }
