@@ -37,7 +37,7 @@ fi
 BASEDIR=$(dirname "$0")
 
 # Stack meta
-STACK_NAME="DatadogSideScanner-${STACK_OWNER}"
+STACK_NAME="DatadogAgentlessScanner-${STACK_OWNER}"
 STACK_AWS_REGION="us-east-1"
 STACK_PUBLIC_KEY=$(cat "$HOME/.ssh/sidescanner.pub")
 STACK_INSTALL_SH=$(base64 -w 0 < "${BASEDIR}/userdata.sh")
@@ -50,25 +50,25 @@ EOF
 )
 STACK_TEMPLATE=$(cat <<EOF
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Create an EC2 instance in an isolated VPC for Datadog SideScanner
+Description: Create an EC2 instance in an isolated VPC for Datadog AgentlessScanner
 
 Parameters:
-  DatadogSideScannerAMIId:
+  DatadogAgentlessScannerAMIId:
     Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
     Default: '/aws/service/canonical/ubuntu/server/22.04/stable/current/arm64/hvm/ebs-gp2/ami-id'
 
-  DatadogSideScannerInstanceType:
+  DatadogAgentlessScannerInstanceType:
     Type: String
     Default: '${STACK_INSTANCE_TYPE}'
 
 Resources:
-  DatadogSideScannerKeyPair:
+  DatadogAgentlessScannerKeyPair:
     Type: AWS::EC2::KeyPair
     Properties:
       KeyName: ${STACK_NAME}SSHKeyPair
       PublicKeyMaterial: "${STACK_PUBLIC_KEY}"
 
-  DatadogSideScannerAccessRole:
+  DatadogAgentlessScannerAccessRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -81,12 +81,12 @@ Resources:
             Action:
               - sts:AssumeRole
 
-  DatadogSideScannerAccessPolicy:
+  DatadogAgentlessScannerAccessPolicy:
     Type: AWS::IAM::Policy
     Properties:
       PolicyName: ${STACK_NAME}AccessPolicy
       Roles:
-        - !Ref DatadogSideScannerAccessRole
+        - !Ref DatadogAgentlessScannerAccessRole
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -100,23 +100,23 @@ Resources:
           Resource:
           - arn:aws:ec2:*:*:volume/*
           - arn:aws:ec2:*:*:snapshot/*
-          Sid: DatadogSideScannerResourceTagging
+          Sid: DatadogAgentlessScannerResourceTagging
         - Action: ec2:CreateSnapshot
           Condition:
             StringNotEquals:
-              aws:ResourceTag/DatadogSideScanner: 'false'
+              aws:ResourceTag/DatadogAgentlessScanner: 'false'
           Effect: Allow
           Resource: arn:aws:ec2:*:*:volume/*
-          Sid: DatadogSideScannerVolumeSnapshotCreation
+          Sid: DatadogAgentlessScannerVolumeSnapshotCreation
         - Action: ec2:CreateSnapshot
           Condition:
             ForAllValues:StringLike:
-              aws:TagKeys: DatadogSideScanner*
+              aws:TagKeys: DatadogAgentlessScanner*
             StringEquals:
-              aws:RequestTag/DatadogSideScanner: 'true'
+              aws:RequestTag/DatadogAgentlessScanner: 'true'
           Effect: Allow
           Resource: arn:aws:ec2:*:*:snapshot/*
-          Sid: DatadogSideScannerSnapshotCreation
+          Sid: DatadogAgentlessScannerSnapshotCreation
         - Action:
           - ec2:ModifySnapshotAttribute
           - ec2:DescribeSnapshotAttribute
@@ -126,42 +126,42 @@ Resources:
           - ebs:GetSnapshotBlock
           Condition:
             StringEquals:
-              aws:ResourceTag/DatadogSideScanner: 'true'
+              aws:ResourceTag/DatadogAgentlessScanner: 'true'
           Effect: Allow
           Resource: arn:aws:ec2:*:*:snapshot/*
-          Sid: DatadogSideScannerSnapshotAccessAndCleanup
+          Sid: DatadogAgentlessScannerSnapshotAccessAndCleanup
         - Action: ec2:DescribeSnapshots
           Effect: Allow
           Resource: "*"
-          Sid: DatadogSideScannerDescribeSnapshots
+          Sid: DatadogAgentlessScannerDescribeSnapshots
         - Action: ec2:CreateVolume
           Condition:
             ForAllValues:StringLike:
-              aws:TagKeys: DatadogSideScanner*
+              aws:TagKeys: DatadogAgentlessScanner*
             StringEquals:
-              aws:RequestTag/DatadogSideScanner: 'true'
+              aws:RequestTag/DatadogAgentlessScanner: 'true'
           Effect: Allow
           Resource: arn:aws:ec2:*:*:volume/*
-          Sid: DatadogSideScannerVolumeCreation
+          Sid: DatadogAgentlessScannerVolumeCreation
         - Action:
           - ec2:DetachVolume
           - ec2:AttachVolume
           Condition:
             StringEquals:
-              aws:ResourceTag/DatadogSideScanner: 'true'
+              aws:ResourceTag/DatadogAgentlessScanner: 'true'
           Effect: Allow
           Resource: arn:aws:ec2:*:*:instance/*
-          Sid: DatadogSideScannerVolumeAttachToInstance
+          Sid: DatadogAgentlessScannerVolumeAttachToInstance
         - Action:
           - ec2:DetachVolume
           - ec2:DeleteVolume
           - ec2:AttachVolume
           Condition:
             StringEquals:
-              aws:ResourceTag/DatadogSideScanner: 'true'
+              aws:ResourceTag/DatadogAgentlessScanner: 'true'
           Effect: Allow
           Resource: arn:aws:ec2:*:*:volume/*
-          Sid: DatadogSideScannerVolumeAttachAndDelete
+          Sid: DatadogAgentlessScannerVolumeAttachAndDelete
         - Action: lambda:GetFunction
           Effect: Allow
           Resource: arn:aws:lambda:*:*:function:*
@@ -169,25 +169,25 @@ Resources:
         - Action: ec2:DescribeInstances
           Effect: Allow
           Resource: '*'
-          Sid: DatadogSideScannerOfflineMode
+          Sid: DatadogAgentlessScannerOfflineMode
         - Action: ec2:DescribeVolumes
           Effect: Allow
           Resource: '*'
-          Sid: DatadogSideScannerDescribeVolumes
+          Sid: DatadogAgentlessScannerDescribeVolumes
 
-  DatalogSideScannerInstanceProfile:
+  DatadogAgentlessScannerInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
       Path: /
       Roles:
-        - !Ref DatadogSideScannerAccessRole
+        - !Ref DatadogAgentlessScannerAccessRole
 
-  DatadogSideScannerInstance:
+  DatadogAgentlessScannerInstance:
     Type: AWS::EC2::Instance
     Properties:
-      InstanceType: !Ref DatadogSideScannerInstanceType
-      KeyName: !Ref DatadogSideScannerKeyPair
-      IamInstanceProfile: !Ref DatalogSideScannerInstanceProfile
+      InstanceType: !Ref DatadogAgentlessScannerInstanceType
+      KeyName: !Ref DatadogAgentlessScannerKeyPair
+      IamInstanceProfile: !Ref DatadogAgentlessScannerInstanceProfile
       BlockDeviceMappings:
       - DeviceName: /dev/sda1
         Ebs:
@@ -199,7 +199,7 @@ Resources:
       SecurityGroupIds:
         - ${STACK_SECURITY_GROUP}
       SubnetId: ${STACK_SUBNET_ID}
-      ImageId: !Ref DatadogSideScannerAMIId
+      ImageId: !Ref DatadogAgentlessScannerAMIId
       Tags:
         - Key: Name
           Value: ${STACK_NAME}RootInstance
@@ -229,7 +229,7 @@ then
   printf "\n"
   STACK_INSTANCE_ID=$(aws cloudformation describe-stack-resource \
     --stack-name "$STACK_NAME" \
-    --logical-resource-id "DatadogSideScannerInstance" \
+    --logical-resource-id "DatadogAgentlessScannerInstance" \
     --query 'StackResourceDetail.PhysicalResourceId' \
     --output text)
 

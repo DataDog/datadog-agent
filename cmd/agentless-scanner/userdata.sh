@@ -8,6 +8,11 @@ if [ -z "$SCANNER_NAME" ]; then
   exit 1
 fi
 
+apt update
+apt install -y nbd-client
+
+modprobe nbd nbds_max=128
+
 echo "sidescanning-${SCANNER_NAME}" > /etc/hostname
 
 # Install the agent
@@ -52,6 +57,17 @@ cat << EOF >> /etc/apt/apt.conf.d/50unattended-upgrades
 Unattended-Upgrade::Automatic-Reboot "true";
 Unattended-Upgrade::Automatic-Reboot-WithUsers "true";
 Unattended-Upgrade::Automatic-Reboot-Time "now";
+EOF
+
+cp /etc/cron.daily/logrotate /etc/cron.hourly/logrotate
+cat <<EOF > /etc/logrotate.d/datadog
+/var/log/datadog/*.log {
+    hourly
+    rotate 12
+    compress
+    missingok
+    notifempty
+}
 EOF
 
 # Activate agentless-scanner logging
