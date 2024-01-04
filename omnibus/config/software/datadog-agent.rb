@@ -108,7 +108,7 @@ build do
     mkdir Omnibus::Config.package_dir() unless Dir.exists?(Omnibus::Config.package_dir())
   end
 
-  if windows_target? or (not bundled_agents.include? "trace-agent")
+  block do
     # defer compilation step in a block to allow getting the project's build version, which is populated
     # only once the software that the project takes its version from (i.e. `datadog-agent`) has finished building
     platform = windows_arch_i386? ? "x86" : "x64"
@@ -119,8 +119,6 @@ build do
     else
       copy 'bin/trace-agent/trace-agent', "#{install_dir}/embedded/bin"
     end
-  else
-    link "#{install_dir}/bin/agent/agent", "#{install_dir}/embedded/bin/trace-agent"
   end
 
   # Process agent
@@ -131,12 +129,8 @@ build do
 
     copy 'bin/process-agent/process-agent.exe', "#{install_dir}/bin/agent"
   else
-    if not bundled_agents.include? "process-agent"
-      command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
-      copy 'bin/process-agent/process-agent', "#{install_dir}/embedded/bin"
-    else
-      link "#{install_dir}/bin/agent/agent", "#{install_dir}/embedded/bin/process-agent"
-    end
+    command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
+    copy 'bin/process-agent/process-agent', "#{install_dir}/embedded/bin"
   end
 
   # System-probe
@@ -149,12 +143,8 @@ build do
       end
     end
   elsif linux_target?
-    if not bundled_agents.include? "system-probe"
-      command "invoke -e system-probe.build-sysprobe-binary --install-path=#{install_dir}"
-      copy "bin/system-probe/system-probe", "#{install_dir}/embedded/bin"
-    else
-      link "#{install_dir}/bin/agent/agent", "#{install_dir}/embedded/bin/system-probe"
-    end
+    command "invoke -e system-probe.build-sysprobe-binary --install-path=#{install_dir}"
+    copy "bin/system-probe/system-probe", "#{install_dir}/embedded/bin"
   end
 
   # Add SELinux policy for system-probe
@@ -166,15 +156,11 @@ build do
   # Security agent
   unless heroku_target?
     if not windows_target? or (ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?)
-      if not linux_target? or (not bundled_agents.include? "security-agent")
-        command "invoke -e security-agent.build --install-path=#{install_dir} --major-version #{major_version_arg}", :env => env
-        if windows_target?
-          copy 'bin/security-agent/security-agent.exe', "#{install_dir}/bin/agent"
-        else
-          copy 'bin/security-agent/security-agent', "#{install_dir}/embedded/bin"
-        end
+      command "invoke -e security-agent.build --install-path=#{install_dir} --major-version #{major_version_arg}", :env => env
+      if windows_target?
+        copy 'bin/security-agent/security-agent.exe', "#{install_dir}/bin/agent"
       else
-        link "#{install_dir}/bin/agent/agent", "#{install_dir}/embedded/bin/security-agent"
+        copy 'bin/security-agent/security-agent', "#{install_dir}/embedded/bin"
       end
       move 'bin/agent/dist/security-agent.yaml', "#{conf_dir}/security-agent.yaml.example"
     end

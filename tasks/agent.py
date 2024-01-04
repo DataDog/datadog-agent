@@ -23,6 +23,7 @@ from .libs.common.utils import (
     bin_name,
     cache_version,
     get_build_flags,
+    get_embedded_path,
     get_version,
     has_both_python,
     load_release_versions,
@@ -209,23 +210,21 @@ def build(
     }
     ctx.run(cmd.format(**args), env=env)
 
+    if embedded_path is None:
+        embedded_path = get_embedded_path(ctx)
+
     for build in bundled_agents:
         if build == "agent":
             continue
 
         bundled_agent_dir = os.path.join(BIN_DIR, build)
         bundled_agent_bin = os.path.join(bundled_agent_dir, bin_name(build))
-        allinone_bin = os.path.relpath(agent_bin, bundled_agent_dir)
-
-        if os.path.exists(bundled_agent_bin):
-            if os.path.islink(bundled_agent_bin) and os.readlink(bundled_agent_bin) == allinone_bin:
-                continue
-            os.unlink(bundled_agent_bin)
+        allinone_bin = os.path.normpath(os.path.join(embedded_path, "..", "bin", "agent", "agent"))
 
         if not os.path.exists(os.path.dirname(bundled_agent_bin)):
             os.mkdir(os.path.dirname(bundled_agent_bin))
 
-        os.symlink(allinone_bin, bundled_agent_bin)
+        create_launcher(ctx, allinone_bin, bundled_agent_bin)
 
     render_config(
         ctx,
@@ -237,6 +236,15 @@ def build(
         development=development,
         windows_sysprobe=windows_sysprobe,
     )
+
+
+def create_launcher(ctx, src, dst):
+    launcher = open(dst, "wt")
+    launcher.write("#!/bin/sh\n\n")
+    process_name = os.path.basename(dst)
+    launcher.write(f"DD_BUNDLED_AGENT={process_name} {src} \"$@\"")
+    launcher.close()
+    os.chmod(dst, 0o0755)
 
 
 def render_config(ctx, env, flavor, python_runtimes, skip_assets, build_tags, development, windows_sysprobe):

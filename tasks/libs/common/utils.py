@@ -110,6 +110,21 @@ def get_win_py_runtime_var(python_runtimes):
     return "PY2_RUNTIME" if '2' in python_runtimes else "PY3_RUNTIME"
 
 
+def get_embedded_path(ctx):
+    embedded_path = ""
+    base = os.path.dirname(os.path.abspath(__file__))
+    task_repo_root = os.path.abspath(os.path.join(base, ".."))
+    git_repo_root = get_root()
+    gopath_root = f"{get_gopath(ctx)}/src/github.com/DataDog/datadog-agent"
+
+    for root_candidate in [task_repo_root, git_repo_root, gopath_root]:
+        test_embedded_path = os.path.join(root_candidate, "dev")
+        if os.path.exists(test_embedded_path):
+            embedded_path = test_embedded_path
+
+    return embedded_path
+
+
 def get_build_flags(
     ctx,
     static=False,
@@ -142,18 +157,9 @@ def get_build_flags(
         env['CGO_LDFLAGS_ALLOW'] = "-Wl,--wrap=.*"
 
     if embedded_path is None:
-        base = os.path.dirname(os.path.abspath(__file__))
-        task_repo_root = os.path.abspath(os.path.join(base, ".."))
-        git_repo_root = get_root()
-        gopath_root = f"{get_gopath(ctx)}/src/github.com/DataDog/datadog-agent"
-
-        for root_candidate in [task_repo_root, git_repo_root, gopath_root]:
-            test_embedded_path = os.path.join(root_candidate, "dev")
-            if os.path.exists(test_embedded_path):
-                embedded_path = test_embedded_path
-
-    if embedded_path is None:
-        raise Exit("unable to locate embedded path please check your setup or set --embedded-path")
+        embedded_path = get_embedded_path(ctx)
+        if embedded_path is None:
+            raise Exit("unable to locate embedded path please check your setup or set --embedded-path")
 
     rtloader_lib, rtloader_headers, rtloader_common_headers = get_rtloader_paths(embedded_path, rtloader_root)
 
