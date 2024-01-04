@@ -19,12 +19,6 @@ const (
 	DefaultServiceAccountCAPath    = DefaultServiceAccountPath + "/ca.crt"
 )
 
-// IsServiceAccountTokenAvailable returns if a service account token is available on disk
-func IsServiceAccountTokenAvailable() bool {
-	_, err := os.Stat(DefaultServiceAccountPath)
-	return err == nil
-}
-
 // GetBearerToken reads the serviceaccount token
 func GetBearerToken(authTokenPath string) (string, error) {
 	token, err := os.ReadFile(authTokenPath)

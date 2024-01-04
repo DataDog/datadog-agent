@@ -169,12 +169,6 @@ func fetchAuthToken(tokenCreationAllowed bool) (string, error) {
 	return authToken, nil
 }
 
-// DeleteAuthToken removes auth_token file (test clean up)
-func DeleteAuthToken() error {
-	authTokenFile := filepath.Join(filepath.Dir(config.Datadog.ConfigFileUsed()), authTokenName)
-	return os.Remove(authTokenFile)
-}
-
 // GetClusterAgentAuthToken load the authentication token from:
 // 1st. the configuration value of "cluster_agent.auth_token" in datadog.yaml
 // 2nd. from the filesystem
