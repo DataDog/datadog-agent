@@ -39,7 +39,7 @@ func (s *linuxTestSuite) TestProcessCheck() {
 	t := s.T()
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertRunningChecks(collect, s.Env().VM, []string{"process", "rtprocess"}, false)
+		assertRunningChecks(collect, s.Env().VM, []string{"process", "rtprocess"}, false, "sudo datadog-agent status --json")
 	}, 1*time.Minute, 5*time.Second)
 
 	var payloads []*aggregator.ProcessPayload
@@ -52,7 +52,7 @@ func (s *linuxTestSuite) TestProcessCheck() {
 		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
 	}, 2*time.Minute, 10*time.Second)
 
-	assertStressProcessCollected(t, payloads, false)
+	assertProcessCollected(t, payloads, false, "stress")
 }
 
 func (s *linuxTestSuite) TestProcessDiscoveryCheck() {
@@ -62,7 +62,7 @@ func (s *linuxTestSuite) TestProcessDiscoveryCheck() {
 	t := s.T()
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertRunningChecks(collect, s.Env().VM, []string{"process_discovery"}, false)
+		assertRunningChecks(collect, s.Env().VM, []string{"process_discovery"}, false, "sudo datadog-agent status --json")
 	}, 1*time.Minute, 5*time.Second)
 
 	var payloads []*aggregator.ProcessDiscoveryPayload
@@ -73,7 +73,7 @@ func (s *linuxTestSuite) TestProcessDiscoveryCheck() {
 		assert.NotEmpty(c, payloads, "no process discovery payloads returned")
 	}, 2*time.Minute, 10*time.Second)
 
-	assertStressProcessDiscoveryCollected(t, payloads)
+	assertProcessDiscoveryCollected(t, payloads, "stress")
 }
 
 func (s *linuxTestSuite) TestProcessCheckWithIO() {
@@ -88,7 +88,7 @@ func (s *linuxTestSuite) TestProcessCheckWithIO() {
 	t := s.T()
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertRunningChecks(collect, s.Env().VM, []string{"process", "rtprocess"}, true)
+		assertRunningChecks(collect, s.Env().VM, []string{"process", "rtprocess"}, true, "sudo datadog-agent status --json")
 	}, 1*time.Minute, 5*time.Second)
 
 	var payloads []*aggregator.ProcessPayload
@@ -101,21 +101,21 @@ func (s *linuxTestSuite) TestProcessCheckWithIO() {
 		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
 	}, 2*time.Minute, 10*time.Second)
 
-	assertStressProcessCollected(t, payloads, true)
+	assertProcessCollected(t, payloads, true, "stress")
 }
 
 func (s *linuxTestSuite) TestManualProcessCheck() {
 	check := s.Env().VM.
 		Execute("sudo /opt/datadog-agent/embedded/bin/process-agent check process --json")
 
-	assertManualProcessCheck(s.T(), check, false)
+	assertManualProcessCheck(s.T(), check, false, "stress")
 }
 
 func (s *linuxTestSuite) TestManualProcessDiscoveryCheck() {
 	check := s.Env().VM.
 		Execute("sudo /opt/datadog-agent/embedded/bin/process-agent check process_discovery --json")
 
-	assertManualProcessDiscoveryCheck(s.T(), check)
+	assertManualProcessDiscoveryCheck(s.T(), check, "stress")
 }
 
 func (s *linuxTestSuite) TestManualProcessCheckWithIO() {
@@ -127,5 +127,5 @@ func (s *linuxTestSuite) TestManualProcessCheckWithIO() {
 	check := s.Env().VM.
 		Execute("sudo /opt/datadog-agent/embedded/bin/process-agent check process --json")
 
-	assertManualProcessCheck(s.T(), check, true)
+	assertManualProcessCheck(s.T(), check, true, "stress")
 }

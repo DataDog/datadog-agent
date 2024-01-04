@@ -334,8 +334,7 @@ func testHTTPSLibrary(t *testing.T, tr *Tracer, fetchCmd, prefetchLibs []string)
 	}, 5*time.Second, 100*time.Millisecond, "couldn't find USM HTTPS stats")
 
 	if t.Failed() {
-		t.Log("http_in_flight: ")
-		tr.usmMonitor.DumpMaps(&ebpftest.TestLogWriter{T: t}, "http_in_flight")
+		ebpftest.DumpMapsTestHelper(t, tr.usmMonitor.DumpMaps, "http_in_flight")
 	}
 
 	// check NPM static TLS tag
@@ -656,7 +655,7 @@ func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *Tracer, clientHo
 
 		grpcClient, err := grpc.NewClient(targetAddr, grpc.Options{
 			CustomDialer: dialer,
-		})
+		}, false)
 		require.NoError(t, err)
 		defer grpcClient.Close()
 		_ = grpcClient.HandleUnary(context.Background(), "test")
@@ -842,7 +841,7 @@ func testHTTPGoTLSCaptureNewProcess(t *testing.T, cfg *config.Config) {
 	}
 
 	// spin-up goTLS client and issue requests after initialization
-	command, runRequests := gotlstestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences)
+	command, runRequests := gotlstestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences, false)
 	require.Eventuallyf(t, func() bool {
 		traced := utils.GetTracedPrograms("go-tls")
 		for _, prog := range traced {
@@ -870,7 +869,7 @@ func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config) {
 	t.Cleanup(closeServer)
 
 	// spin-up goTLS client but don't issue requests yet
-	command, issueRequestsFn := gotlstestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences)
+	command, issueRequestsFn := gotlstestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences, false)
 
 	cfg.EnableGoTLSSupport = true
 	cfg.EnableHTTPMonitoring = true

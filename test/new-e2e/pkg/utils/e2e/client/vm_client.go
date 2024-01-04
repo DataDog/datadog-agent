@@ -26,48 +26,42 @@ var _ VM = (*VMClient)(nil)
 
 // VMClient is a type that implements [VM] interface to interact with a remote VM.
 type VMClient struct {
-	client *ssh.Client
-	osType componentos.Type
-	t      *testing.T
+	client     *ssh.Client
+	connection *utils.Connection
+	osType     componentos.Type
+	t          *testing.T
 }
 
 // NewVMClient creates a new instance of VMClient.
 func NewVMClient(t *testing.T, connection *utils.Connection, osType componentos.Type) (*VMClient, error) {
 	t.Logf("connecting to remote VM at %s:%s", connection.User, connection.Host)
+	vmClient := &VMClient{
+		connection: connection,
+		osType:     osType,
+		t:          t,
+	}
 
-	var privateSSHKey, privateKeyPassphraseBytes []byte
+	err := vmClient.connect()
 
-	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.PrivateKeyPath, "")
 	if err != nil {
 		return nil, err
 	}
 
-	if privateKeyPath != "" {
-		privateSSHKey, err = os.ReadFile(privateKeyPath)
-		if err != nil {
-			return nil, err
-		}
+	return vmClient, nil
+}
+
+// ReconnectSSH recreate the SSH connection to the VM. Should be used only after VM reboot to restore the SSH connection.
+func (vmClient *VMClient) ReconnectSSH() error {
+	if vmClient.client != nil {
+		vmClient.client.Close()
 	}
 
-	privateKeyPassphrase, err := runner.GetProfile().SecretStore().GetWithDefault(parameters.PrivateKeyPassword, "")
+	err := vmClient.connect()
 	if err != nil {
-		return nil, err
-	}
-	if privateKeyPassphrase != "" {
-		privateKeyPassphraseBytes = []byte(privateKeyPassphrase)
+		return err
 	}
 
-	client, _, err := clients.GetSSHClient(
-		connection.User,
-		fmt.Sprintf("%s:%d", connection.Host, 22),
-		privateSSHKey,
-		privateKeyPassphraseBytes,
-		2*time.Second, 5)
-	return &VMClient{
-		client: client,
-		osType: osType,
-		t:      t,
-	}, err
+	return nil
 }
 
 // ExecuteWithError executes a command and returns an error if any.
@@ -182,6 +176,44 @@ func (vmClient *VMClient) setEnvVariables(command string, envVar executeparams.E
 	}
 	return cmd
 
+}
+
+func (vmClient *VMClient) connect() error {
+	var privateSSHKey, privateKeyPassphraseBytes []byte
+
+	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.PrivateKeyPath, "")
+	if err != nil {
+		return err
+	}
+
+	if privateKeyPath != "" {
+		privateSSHKey, err = os.ReadFile(privateKeyPath)
+		if err != nil {
+			return err
+		}
+	}
+
+	privateKeyPassphrase, err := runner.GetProfile().SecretStore().GetWithDefault(parameters.PrivateKeyPassword, "")
+	if err != nil {
+		return err
+	}
+	if privateKeyPassphrase != "" {
+		privateKeyPassphraseBytes = []byte(privateKeyPassphrase)
+	}
+
+	client, _, err := clients.GetSSHClient(
+		vmClient.connection.User,
+		fmt.Sprintf("%s:%d", vmClient.connection.Host, 22),
+		privateSSHKey,
+		privateKeyPassphraseBytes,
+		2*time.Second, 5)
+	if err != nil {
+		return err
+	}
+
+	vmClient.client = client
+
+	return nil
 }
 
 // GetOSType returns the operating system type of the VMClient instance.

@@ -158,7 +158,7 @@ func TestMountPropagated(t *testing.T) {
 
 	ruleDefs := []*rules.RuleDefinition{{
 		ID:         "test_rule",
-		Expression: fmt.Sprintf(`chmod.file.path == "{{.Root}}/dir1-bind-mounted/test-drive/test-file"`),
+		Expression: `chmod.file.path == "{{.Root}}/dir1-bind-mounted/test-drive/test-file"`,
 	}}
 
 	test, err := newTestModule(t, nil, ruleDefs)
