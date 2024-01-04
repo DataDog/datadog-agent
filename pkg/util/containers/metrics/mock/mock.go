@@ -21,6 +21,34 @@ type MetricsProvider struct {
 	metaCollector provider.MetaCollector
 }
 
+// MetaCollector is a mocked provider.MetaCollector
+type MetaCollector struct {
+	ContainerID  string
+	CIDFromPID   map[int]string
+	CIDFromInode map[uint64]string
+}
+
+// GetSelfContainerID returns the container ID for current container.
+func (mc *MetaCollector) GetSelfContainerID() (string, error) {
+	return mc.ContainerID, nil
+}
+
+// GetContainerIDForPID returns a container ID for given PID.
+func (mc *MetaCollector) GetContainerIDForPID(pid int, _ time.Duration) (string, error) {
+	if val, found := mc.CIDFromPID[pid]; found {
+		return val, nil
+	}
+	return "", nil
+}
+
+// GetContainerIDForInode returns a container ID for given inode.
+func (mc *MetaCollector) GetContainerIDForInode(inode uint64, _ time.Duration) (string, error) {
+	if val, found := mc.CIDFromInode[inode]; found {
+		return val, nil
+	}
+	return "", nil
+}
+
 // NewMetricsProvider creates a mock provider
 func NewMetricsProvider() *MetricsProvider {
 	return &MetricsProvider{
