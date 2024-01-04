@@ -99,8 +99,7 @@ func ParseRPMRepoFile(inputFile string, mainConf MainData) (MainData, map[string
 	defer file.Close()
 	reposPerKey := make(map[string][]Repository)
 	nextLine := multiLine{inside: false, name: ""}
-	defaultValue := strings.Contains(inputFile, "zypp") // Settings are enabled by default on SUSE, disabled otherwise
-	repo := repoData{enabled: true, gpgcheck: main.Gpgcheck || defaultValue, repoGpgcheck: main.RepoGpgcheck || defaultValue}
+	repo := repoData{enabled: true, gpgcheck: main.Gpgcheck, repoGpgcheck: main.RepoGpgcheck}
 	var repos []repoData
 
 	scanner := bufio.NewScanner(file)
@@ -117,7 +116,7 @@ func ParseRPMRepoFile(inputFile string, mainConf MainData) (MainData, map[string
 					repo.gpgkey = append(repo.gpgkey, "nokey")
 				}
 				repos = append(repos, repo)
-				repo = repoData{enabled: true, gpgcheck: main.Gpgcheck || defaultValue, repoGpgcheck: main.RepoGpgcheck || defaultValue}
+				repo = repoData{enabled: true, gpgcheck: main.Gpgcheck, repoGpgcheck: main.RepoGpgcheck}
 			}
 			nextLine = multiLine{inside: false, name: currentTable}
 		}
@@ -130,6 +129,10 @@ func ParseRPMRepoFile(inputFile string, mainConf MainData) (MainData, map[string
 				switch fieldName {
 				case "gpgcheck":
 					main.Gpgcheck = isEnabled(matches[2])
+					if strings.Contains(inputFile, "zypp") { // package and repo check are based on gpgcheck value on SUSE
+						main.LocalpkgGpgcheck = isEnabled(matches[2])
+						main.RepoGpgcheck = isEnabled(matches[2])
+					}
 				case "localpkg_gpgcheck", "pkg_gpgcheck":
 					main.LocalpkgGpgcheck = isEnabled(matches[2])
 				case "repo_gpgcheck":

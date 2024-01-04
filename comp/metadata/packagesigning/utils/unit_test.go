@@ -45,9 +45,15 @@ func TestParseRPMRepoFile(t *testing.T) {
 			reposPerKey: nil,
 		},
 		{
-			name:        "Main with SUSE logic",
+			name:        "Main with SUSE logic on",
 			fileName:    "testdata/suse.repo",
-			mainConf:    MainData{Gpgcheck: false, LocalpkgGpgcheck: true, RepoGpgcheck: true},
+			mainConf:    MainData{Gpgcheck: true, LocalpkgGpgcheck: true, RepoGpgcheck: true},
+			reposPerKey: nil,
+		},
+		{
+			name:        "Main with SUSE logic off",
+			fileName:    "testdata/suse_off.repo",
+			mainConf:    MainData{Gpgcheck: true, LocalpkgGpgcheck: true, RepoGpgcheck: false},
 			reposPerKey: nil,
 		},
 		{
@@ -91,7 +97,7 @@ func TestParseRPMRepoFile(t *testing.T) {
 			mainConf: MainData{Gpgcheck: false, LocalpkgGpgcheck: false, RepoGpgcheck: false},
 			reposPerKey: map[string][]Repository{
 				"file:///psychedelic/rock.com": {
-					{Name: "And/our:love=become&a-funeral?pyre", Enabled: true, GPGCheck: true, RepoGPGCheck: true},
+					{Name: "And/our:love=become&a-funeral?pyre", Enabled: true, GPGCheck: false, RepoGPGCheck: true},
 				},
 			},
 		},
