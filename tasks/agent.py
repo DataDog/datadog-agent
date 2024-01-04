@@ -224,7 +224,7 @@ def build(
         if not os.path.exists(os.path.dirname(bundled_agent_bin)):
             os.mkdir(os.path.dirname(bundled_agent_bin))
 
-        create_launcher(ctx, allinone_bin, bundled_agent_bin)
+        create_launcher(allinone_bin, bundled_agent_bin)
 
     render_config(
         ctx,
@@ -238,7 +238,7 @@ def build(
     )
 
 
-def create_launcher(ctx, src, dst):
+def create_launcher(src, dst):
     launcher = open(dst, "wt")
     launcher.write("#!/bin/sh\n\n")
     process_name = os.path.basename(dst)

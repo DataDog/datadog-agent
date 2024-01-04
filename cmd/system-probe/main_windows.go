@@ -5,7 +5,7 @@
 
 //go:build windows
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// Package main is the entrypoint for system-probe process
 package main
 
 import (
