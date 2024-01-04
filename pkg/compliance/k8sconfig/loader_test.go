@@ -32,7 +32,8 @@ kubelet \
 	--cloud-provider=aws \
 	--container-runtime=remote \
 	--node-labels=eks.amazonaws.com/sourceLaunchTemplateVersion=1,alpha.eksctl.io/cluster-name=Sandbox,alpha.eksctl.io/nodegroup-name=standard,eks.amazonaws.com/nodegroup-image=ami-09f37ddb4a6ecc85e,eks.amazonaws.com/capacityType=ON_DEMAND,eks.amazonaws.com/nodegroup=standard,eks.amazonaws.com/sourceLaunchTemplateId=lt-0df2e04572534b928 \
-	--max-pods=17
+	--max-pods=17 \
+	--rotate-server-certificates=true
 `
 
 // TODO(jinroh): use testdata files
@@ -99,7 +100,6 @@ ARCH="aarch64"`,
   },
   "clusterDomain": "cluster.local",
   "hairpinMode": "hairpin-veth",
-  "readOnlyPort": 0,
   "cgroupDriver": "systemd",
   "cgroupRoot": "/",
   "featureGates": {
@@ -135,7 +135,8 @@ ARCH="aarch64"`,
     "memory": "442Mi"
   },
   "systemReservedCgroup": "/system",
-  "kubeReservedCgroup": "/runtime"
+  "kubeReservedCgroup": "/runtime",
+  "maxPods": 18
 }`,
 	},
 	{
@@ -337,6 +338,20 @@ func TestKubEksConfigLoader(t *testing.T) {
 	assert.NotNil(t, conf.Components.Kubelet.Kubeconfig)
 	assert.NotNil(t, conf.Components.Kubelet.Config.Content)
 
+	kubeletConfig := conf.Components.Kubelet.Config.Content.(map[string]interface{})
+
+	{
+		assert.Nil(t, conf.Components.Kubelet.AnonymousAuth)
+		assert.Equal(t, false, kubeletConfig["authentication"].(map[string]interface{})["anonymous"].(map[string]interface{})["enabled"])
+	}
+
+	{
+		v := 10255
+		assert.NotNil(t, conf.Components.Kubelet.ReadOnlyPort)
+		assert.Equal(t, &v, conf.Components.Kubelet.ReadOnlyPort)
+		assert.Nil(t, kubeletConfig["readOnlyPort"])
+	}
+
 	{
 		content, ok := conf.Components.Kubelet.Config.Content.(map[string]interface{})
 		assert.True(t, ok)
@@ -347,6 +362,17 @@ func TestKubEksConfigLoader(t *testing.T) {
 		clientCAFile, ok := x509["clientCAFile"].(*K8sCertFileMeta)
 		assert.True(t, ok)
 		assert.NotNil(t, clientCAFile)
+		assert.Nil(t, conf.Components.Kubelet.ClientCaFile)
+
+		assert.Equal(t, true, content["featureGates"].(map[string]interface{})["RotateKubeletServerCertificate"])
+
+		assert.Nil(t, conf.Components.Kubelet.AuthorizationMode)
+		assert.Equal(t, "Webhook", content["authorization"].(map[string]interface{})["mode"])
+
+		sevenTeen := 17
+		eigthTeen := 18
+		assert.Equal(t, &sevenTeen, conf.Components.Kubelet.MaxPods)
+		assert.Equal(t, float64(eigthTeen), content["maxPods"])
 	}
 }
 

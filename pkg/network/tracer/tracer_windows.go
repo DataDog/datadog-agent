@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"runtime"
 	"sync"
 	"syscall"
@@ -239,8 +240,8 @@ func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 // DebugEBPFMaps is not implemented on this OS for Tracer
 //
 //nolint:revive // TODO(WKIT) Fix revive linter
-func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) {
-	return "", ebpf.ErrNotImplemented
+func (t *Tracer) DebugEBPFMaps(_ io.Writer, _ ...string) error {
+	return ebpf.ErrNotImplemented
 }
 
 // DebugCachedConntrack is not implemented on this OS for Tracer

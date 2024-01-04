@@ -11,11 +11,11 @@ import (
 	"debug/elf"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 	"unsafe"
@@ -263,7 +263,7 @@ func (p *goTLSProgram) PostStart(_ *manager.Manager) error {
 	return nil
 }
 
-func (p *goTLSProgram) DumpMaps(_ *strings.Builder, _ string, _ *ebpf.Map) {}
+func (p *goTLSProgram) DumpMaps(_ io.Writer, _ string, _ *ebpf.Map) {}
 
 func (p *goTLSProgram) GetStats() *protocols.ProtocolStats {
 	return nil
@@ -320,6 +320,10 @@ func registerCBCreator(mgr *manager.Manager, offsetsDataMap *ebpf.Map, probeIDs 
 }
 
 func (p *goTLSProgram) handleProcessStart(pid pid) {
+	if p.cfg.GoTLSExcludeSelf && pid == uint32(os.Getpid()) {
+		return
+	}
+
 	pidAsStr := strconv.FormatUint(uint64(pid), 10)
 	exePath := filepath.Join(p.procRoot, pidAsStr, "exe")
 

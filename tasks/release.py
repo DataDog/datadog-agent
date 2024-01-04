@@ -1135,6 +1135,7 @@ Make sure that milestone is open before trying again.""",
         labels=[
             "changelog/no-changelog",
             "qa/skip-qa",
+            "qa/no-code-change",
             "team/agent-platform",
             "team/agent-release-management",
             "category/release_operations",
@@ -1232,6 +1233,23 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=Fal
         deploy=True,
         rc_k8s_deployments=k8s_deployments,
     )
+
+
+@task(help={'key': "Path to an existing release.json key, separated with double colons, eg. 'last_stable::6'"})
+def set_release_json(_, key, value):
+    release_json = _load_release_json()
+    path = key.split('::')
+    current_node = release_json
+    for key_idx in range(len(path)):
+        key = path[key_idx]
+        if key not in current_node:
+            raise Exit(code=1, message=f"Couldn't find '{key}' in release.json")
+        if key_idx == len(path) - 1:
+            current_node[key] = value
+            break
+        else:
+            current_node = current_node[key]
+    _save_release_json(release_json)
 
 
 @task(help={'key': "Path to the release.json key, separated with double colons, eg. 'last_stable::6'"})

@@ -165,9 +165,9 @@ def get_build_flags(
 
     # If we're not building with both Python, we want to force the use of DefaultPython
     if not has_both_python(python_runtimes):
-        ldflags += f"-X {REPO_PATH}/pkg/config.ForceDefaultPython=true "
+        ldflags += f"-X {REPO_PATH}/pkg/config/setup.ForceDefaultPython=true "
 
-    ldflags += f"-X {REPO_PATH}/pkg/config.DefaultPython={get_default_python(python_runtimes)} "
+    ldflags += f"-X {REPO_PATH}/pkg/config/setup.DefaultPython={get_default_python(python_runtimes)} "
 
     # adding rtloader libs and headers to the env
     if rtloader_lib:
@@ -374,13 +374,14 @@ def cache_version(ctx, git_sha_length=7, prefix=None):
 
 def get_version(
     ctx,
-    include_git=False,
     url_safe=False,
     git_sha_length=7,
     prefix=None,
     major_version='7',
     include_pipeline_id=False,
     pipeline_id=None,
+    include_git=False,
+    include_pre=True,
 ):
     version = ""
     if pipeline_id is None:
@@ -405,7 +406,7 @@ def get_version(
             # Dev's versions behave the same as nightly
             is_nightly = cache_data["nightly"] or cache_data["dev"]
 
-            if pre:
+            if pre and include_pre:
                 version = f"{version}-{pre}"
     except (IOError, json.JSONDecodeError, IndexError) as e:
         # If a cache file is found but corrupted we ignore it.
@@ -423,7 +424,7 @@ def get_version(
         # Dev's versions behave the same as nightly
         bucket_branch = os.getenv("BUCKET_BRANCH")
         is_nightly = is_allowed_repo_nightly_branch(bucket_branch) or bucket_branch == "dev"
-        if pre:
+        if pre and include_pre:
             version = f"{version}-{pre}"
 
     if not commits_since_version and is_nightly and include_git:

@@ -8,7 +8,7 @@ package aggregator
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
@@ -17,10 +17,10 @@ import (
 )
 
 func TestBundleDependencies(t *testing.T) {
-	fxutil.TestBundle(t, Bundle,
-		core.MockBundle,
-		defaultforwarder.MockModule,
-		orchestratorForwarderImpl.MockModule,
-		fx.Supply(demultiplexer.Params{}),
+	fxutil.TestBundle(t, Bundle(),
+		core.MockBundle(),
+		defaultforwarder.MockModule(),
+		orchestratorForwarderImpl.MockModule(),
+		fx.Supply(demultiplexerimpl.Params{}),
 	)
 }

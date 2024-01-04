@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/start"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -99,22 +100,22 @@ func (s *service) Run(svcctx context.Context) error {
 			SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(defaultSysProbeConfPath)),
 			LogParams:            logimpl.ForDaemon(command.LoggerName, "security_agent.log_file", pkgconfig.DefaultSecurityAgentLogFile),
 		}),
-		core.Bundle,
+		core.Bundle(),
 		dogstatsd.ClientBundle,
-		forwarder.Bundle,
+		forwarder.Bundle(),
 		fx.Provide(defaultforwarder.NewParamsWithResolvers),
-		demultiplexer.Module,
-		orchestratorForwarderImpl.Module,
+		demultiplexerimpl.Module(),
+		orchestratorForwarderImpl.Module(),
 		fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
-		fx.Provide(func() demultiplexer.Params {
+		fx.Provide(func() demultiplexerimpl.Params {
 			opts := aggregator.DefaultAgentDemultiplexerOptions()
 			opts.UseEventPlatformForwarder = false
-			return demultiplexer.Params{Options: opts}
+			return demultiplexerimpl.Params{Options: opts}
 		}),
 
 		// workloadmeta setup
 		collectors.GetCatalog(),
-		workloadmeta.Module,
+		workloadmeta.Module(),
 		fx.Provide(func(config config.Component) workloadmeta.Params {
 
 			catalog := workloadmeta.NodeAgent
