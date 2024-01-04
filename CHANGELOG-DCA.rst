@@ -2,6 +2,19 @@
 Release Notes
 =============
 
+.. _Release Notes_7.50.2:
+
+7.50.2 / 6.50.2
+======
+
+.. _Release Notes_7.50.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes a bug introduced in `7.50.0` preventing `DD_TAGS` to be added to `kubernetes_state.*` metrics.
+
+
 .. _Release Notes_7.50.0:
 
 7.50.0 / 6.50.0
