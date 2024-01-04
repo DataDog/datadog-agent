@@ -19,21 +19,21 @@ import (
 
 // Commands returns the global params commands
 func Commands(global *command.GlobalParams) []*cobra.Command {
-	var defaultTimeout time.Duration
+	var timeout time.Duration
 	bootstrapCmd := &cobra.Command{
 		Use:   "bootstrap",
 		Short: "Bootstraps the package with the first version.",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return bootstrap(global.Package, defaultTimeout)
+			return bootstrap(global.Package, timeout)
 		},
 	}
-	bootstrapCmd.Flags().DurationVarP(&defaultTimeout, "default-timeout", "T", 3*time.Minute, "default timeout to bootstrap with")
+	bootstrapCmd.Flags().DurationVarP(&timeout, "timeout", "T", 3*time.Minute, "timeout to bootstrap with")
 	return []*cobra.Command{bootstrapCmd}
 }
 
-func bootstrap(pkg string, defaultTimeout time.Duration) error {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+func bootstrap(pkg string, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	orgConfig, err := updater.NewOrgConfig()
 	if err != nil {
