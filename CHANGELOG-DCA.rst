@@ -2,12 +2,12 @@
 Release Notes
 =============
 
-.. _Release Notes_7.50.2:
+.. _Release Notes_7.50.1:
 
-7.50.2 / 6.50.2
+7.50.1 / 6.50.1
 ======
 
-.. _Release Notes_7.50.2_Bug Fixes:
+.. _Release Notes_7.50.1_Bug Fixes:
 
 Bug Fixes
 ---------
