@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 
@@ -133,7 +134,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 			}
 		}),
 		workloadmeta.OptionalModule(),
-		demultiplexer.Module(),
+		demultiplexerimpl.Module(),
 		secretsimpl.Module(),
 		orchestratorForwarderImpl.Module(),
 		fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
@@ -142,11 +143,11 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
 			return demuxInstance.Serializer()
 		}),
-		fx.Provide(func(config config.Component) demultiplexer.Params {
+		fx.Provide(func(config config.Component) demultiplexerimpl.Params {
 			opts := aggregator.DefaultAgentDemultiplexerOptions()
 			opts.UseEventPlatformForwarder = false
 			opts.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
-			return demultiplexer.Params{Options: opts, ContinueOnMissingHostname: true}
+			return demultiplexerimpl.Params{Options: opts, ContinueOnMissingHostname: true}
 		}),
 		fx.Supply(resourcesimpl.Disabled()),
 		metadatarunnerimpl.Module(),

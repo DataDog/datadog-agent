@@ -37,6 +37,9 @@ var TCPQueueLength = module.Factory{
 			lastCheck: atomic.NewInt64(0),
 		}, nil
 	},
+	NeedsEBPF: func() bool {
+		return true
+	},
 }
 
 var _ module.Module = &tcpQueueLengthModule{}

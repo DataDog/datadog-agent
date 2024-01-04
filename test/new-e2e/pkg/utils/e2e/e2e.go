@@ -370,6 +370,15 @@ const (
 	deleteTimeout = 30 * time.Minute
 )
 
+type testWriter struct {
+	t *testing.T
+}
+
+func (tw testWriter) Write(p []byte) (n int, err error) {
+	tw.t.Log(string(p))
+	return len(p), nil
+}
+
 // Suite manages the environment creation and runs E2E tests.
 type Suite[Env any] struct {
 	suite.Suite
@@ -452,6 +461,10 @@ func (suite *Suite[Env]) BeforeTest(suiteName, testName string) {
 	_ = suiteName
 	_ = testName
 	suite.isUpdateEnvCalledInThisTest = false
+	if suite.params.LazyEnvironment {
+		return
+	}
+	suite.UpdateEnv(suite.defaultStackDef)
 }
 
 // AfterTest is executed right after the test finishes and receives the suite and test names as input.
@@ -510,28 +523,11 @@ func (suite *Suite[Env]) TearDownSuite() {
 	// TODO: Implement retry on delete
 	ctx, cancel := context.WithTimeout(context.Background(), deleteTimeout)
 	defer cancel()
-	err := infra.GetStackManager().DeleteStack(ctx, suite.params.StackName)
+	err := infra.GetStackManager().DeleteStack(ctx, suite.params.StackName, testWriter{t: suite.T()})
 	if err != nil {
 		suite.T().Errorf("unable to delete stack: %s, err :%v", suite.params.StackName, err)
 		suite.T().Fail()
 	}
-}
-
-func createEnv[Env any](suite *Suite[Env], stackDef *StackDefinition[Env]) (*Env, auto.UpResult, error) {
-	var env *Env
-	ctx := context.Background()
-
-	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(
-		ctx,
-		suite.params.StackName,
-		stackDef.configMap,
-		func(ctx *pulumi.Context) error {
-			var err error
-			env, err = stackDef.envFactory(ctx)
-			return err
-		}, false)
-
-	return env, stackOutput, err
 }
 
 // UpdateEnv updates the environment.
@@ -543,12 +539,32 @@ func (suite *Suite[Env]) UpdateEnv(stackDef *StackDefinition[Env]) {
 			// In case of failure, do not override the environment
 			suite.T().SkipNow()
 		}
-		env, upResult, err := createEnv(suite, stackDef)
-		suite.Require().NoError(err)
-		err = client.CallStackInitializers(suite.T(), env, upResult)
-		suite.Require().NoError(err)
-		suite.env = env
-		suite.currentStackDef = stackDef
+		suite.setupEnv(stackDef)
 	}
 	suite.isUpdateEnvCalledInThisTest = true
+}
+
+func (suite *Suite[Env]) setupEnv(stackDef *StackDefinition[Env]) {
+	env, upResult, err := createEnv(suite, stackDef)
+	suite.Require().NoError(err)
+	err = client.CallStackInitializers(suite.T(), env, upResult)
+	suite.Require().NoError(err)
+	suite.env = env
+	suite.currentStackDef = stackDef
+}
+
+func createEnv[Env any](suite *Suite[Env], stackDef *StackDefinition[Env]) (*Env, auto.UpResult, error) {
+	var env *Env
+	ctx := context.Background()
+	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(
+		ctx,
+		suite.params.StackName,
+		stackDef.configMap,
+		func(ctx *pulumi.Context) error {
+			var err error
+			env, err = stackDef.envFactory(ctx)
+			return err
+		}, false, testWriter{t: suite.T()})
+
+	return env, stackOutput, err
 }

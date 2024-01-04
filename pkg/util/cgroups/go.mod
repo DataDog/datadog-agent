@@ -26,6 +26,7 @@ require (
 	github.com/godbus/dbus/v5 v5.0.4 // indirect
 	github.com/opencontainers/runtime-spec v1.0.2 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/sys v0.2.0 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect

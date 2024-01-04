@@ -37,6 +37,9 @@ var ComplianceModule = module.Factory{
 	Fn: func(cfg *config.Config) (module.Module, error) {
 		return &complianceModule{}, nil
 	},
+	NeedsEBPF: func() bool {
+		return false
+	},
 }
 
 type complianceModule struct {

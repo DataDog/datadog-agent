@@ -63,6 +63,8 @@ type safeConfig struct {
 	envPrefix      string
 	envKeyReplacer *strings.Replacer
 
+	notificationReceivers []NotificationReceiver
+
 	// Proxy settings
 	proxiesOnce sync.Once
 	proxies     *Proxy
@@ -70,6 +72,14 @@ type safeConfig struct {
 	// configEnvVars is the set of env vars that are consulted for
 	// configuration values.
 	configEnvVars map[string]struct{}
+}
+
+// OnUpdate adds a callback to the list receivers to be called each time a value is change in the configuration
+// by a call to the 'Set' method.
+func (c *safeConfig) OnUpdate(callback NotificationReceiver) {
+	c.Lock()
+	defer c.Unlock()
+	c.notificationReceivers = append(c.notificationReceivers, callback)
 }
 
 // Set wraps Viper for concurrent access
@@ -83,6 +93,11 @@ func (c *safeConfig) Set(key string, value interface{}, source Source) {
 	defer c.Unlock()
 	c.configSources[source].Set(key, value)
 	c.mergeViperInstances(key)
+
+	// notifying all receiver about the updated setting
+	for _, receiver := range c.notificationReceivers {
+		receiver(key)
+	}
 }
 
 // SetWithoutSource sets the given value using source Unknown
@@ -509,13 +524,6 @@ func (c *safeConfig) MergeConfig(in io.Reader) error {
 	c.Lock()
 	defer c.Unlock()
 	return c.Viper.MergeConfig(in)
-}
-
-// MergeConfigOverride wraps Viper for concurrent access
-func (c *safeConfig) MergeConfigOverride(in io.Reader) error {
-	c.Lock()
-	defer c.Unlock()
-	return c.Viper.MergeConfigOverride(in)
 }
 
 // MergeConfigMap merges the configuration from the map given with an existing config.

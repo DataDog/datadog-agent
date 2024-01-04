@@ -78,9 +78,9 @@ def split_junitxml(xml_path, codeowners, output_dir):
     return list(output_xmls), flavor
 
 
-def create_upload_junitxmls_processes(output_dir, owners, flavor, xmlfile_name, process_env, additional_tags=None):
+def upload_junitxmls(output_dir, owners, flavor, xmlfile_name, process_env, additional_tags=None):
     """
-    Spawn process to upload all per-team split JUnit XMLs from given directory.
+    Upload all per-team split JUnit XMLs from given directory.
     """
     processes = []
 
@@ -113,7 +113,10 @@ def create_upload_junitxmls_processes(output_dir, owners, flavor, xmlfile_name, 
             args.extend(additional_tags)
         args.append(junit_file_path)
         processes.append(subprocess.Popen(DATADOG_CI_COMMAND + args, bufsize=-1, env=process_env))
-    return processes
+    for process in processes:
+        exit_code = process.wait()
+        if exit_code != 0:
+            raise subprocess.CalledProcessError(exit_code, DATADOG_CI_COMMAND)
 
 
 def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
@@ -147,33 +150,14 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
         # for each unpacked xml file, split it and submit all parts
         # NOTE: recursive=True is necessary for "**" to unpack into 0-n dirs, not just 1
         xmls = 0
-        processes = []
-        tempdirs = []
         for xmlfile in glob.glob(f"{unpack_dir}/**/*.xml", recursive=True):
             if not os.path.isfile(xmlfile):
                 print(f"[WARN] Matched folder named {xmlfile}")
                 continue
             xmls += 1
-            output_dir = tempfile.TemporaryDirectory()
-            written_owners, flavor = split_junitxml(xmlfile, codeowners, output_dir.name)
-            processes.extend(
-                create_upload_junitxmls_processes(
-                    output_dir.name, written_owners, flavor, xmlfile.split("/")[-1], process_env, tags
-                )
-            )
-            tempdirs.append(output_dir)
-
-        # wait for the processes created to finish
-        try:
-            for process in processes:
-                exit_code = process.wait()
-                if exit_code != 0:
-                    raise subprocess.CalledProcessError(exit_code, DATADOG_CI_COMMAND)
-        finally:
-            # ensure the temporary directories created for each xml files are cleaned up
-            for dir in tempdirs:
-                dir.cleanup()
-
+            with tempfile.TemporaryDirectory() as output_dir:
+                written_owners, flavor = split_junitxml(xmlfile, codeowners, output_dir)
+                upload_junitxmls(output_dir, written_owners, flavor, xmlfile.split("/")[-1], process_env, tags)
         xmlcounts[junit_tgz] = xmls
 
     empty_tgzs = []

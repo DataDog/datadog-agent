@@ -40,6 +40,7 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	rc "github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
@@ -382,14 +383,12 @@ func (s *TracerSuite) TestConnectionExpirationRegression() {
 
 func (s *TracerSuite) TestConntrackExpiration() {
 	t := s.T()
+	ebpftest.LogLevel(t, "trace")
 	netlinktestutil.SetupDNAT(t)
-	wg := sync.WaitGroup{}
 
 	tr := setupTracer(t, testConfig())
 
 	server := NewTCPServerOnAddress("1.1.1.1:0", func(c net.Conn) {
-		wg.Add(1)
-		defer wg.Done()
 		defer c.Close()
 
 		r := bufio.NewReader(c)
@@ -401,7 +400,7 @@ func (s *TracerSuite) TestConntrackExpiration() {
 				}
 				require.NoError(t, err)
 			}
-			if bytes.Equal(b, []byte("\n")) {
+			if len(b) == 0 {
 				return
 			}
 		}
@@ -454,7 +453,6 @@ func (s *TracerSuite) TestConntrackExpiration() {
 	// write newline so server connections will exit
 	_, err = c.Write([]byte("\n"))
 	require.NoError(t, err)
-	wg.Wait()
 }
 
 // This test ensures that conntrack lookups are retried for short-lived
@@ -2027,6 +2025,7 @@ func (s *TracerSuite) TestGetHelpersTelemetry() {
 }
 
 func TestEbpfConntrackerFallback(t *testing.T) {
+	ebpftest.LogLevel(t, "trace")
 	type testCase struct {
 		enableRuntimeCompiler    bool
 		allowPrecompiledFallback bool
@@ -2102,6 +2101,7 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 }
 
 func TestConntrackerFallback(t *testing.T) {
+	ebpftest.LogLevel(t, "trace")
 	cfg := testConfig()
 	cfg.EnableEbpfConntracker = false
 	cfg.AllowNetlinkConntrackerFallback = true

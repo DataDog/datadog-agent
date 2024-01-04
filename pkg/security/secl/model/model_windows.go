@@ -47,15 +47,15 @@ type Process struct {
 
 	ContainerID string `field:"container.id"` // SECLDoc[container.id] Definition:`Container ID`
 
-	ExitTime time.Time `field:"exit_time,opts:getters_only" json:"-"`
-	ExecTime time.Time `field:"exec_time,opts:getters_only" json:"-"`
+	ExitTime time.Time `field:"exit_time,opts:getters_only"`
+	ExecTime time.Time `field:"exec_time,opts:getters_only"`
 
 	CreatedAt uint64 `field:"created_at,handler:ResolveProcessCreatedAt"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the process`
 
 	PPid uint32 `field:"ppid"` // SECLDoc[ppid] Definition:`Parent process ID`
 
-	ArgsEntry *ArgsEntry `field:"-" json:"-"`
-	EnvsEntry *EnvsEntry `field:"-" json:"-"`
+	ArgsEntry *ArgsEntry `field:"-"`
+	EnvsEntry *EnvsEntry `field:"-"`
 
 	CmdLine         string `field:"cmdline,handler:ResolveProcessCmdLine,weight:200"` // SECLDoc[cmdline] Definition:`Command line of the process` Example:`exec.cmdline == "-sV -p 22,53,110,143,4564 198.116.0-255.1-127"` Description:`Matches any process with these exact arguments.` Example:`exec.cmdline =~ "* -F * http*"` Description:`Matches any process that has the "-F" argument anywhere before an argument starting with "http".`
 	CmdLineScrubbed string `field:"cmdline_scrubbed,handler:ResolveProcessCmdLineScrubbed,weight:500,opts:getters_only"`
@@ -64,8 +64,8 @@ type Process struct {
 	Envp []string `field:"envp,handler:ResolveProcessEnvp,weight:100"` // SECLDoc[envp] Definition:`Environment variables of the process`                                                                                                                         // SECLDoc[envp] Definition:`Environment variables of the process`
 
 	// cache version
-	Variables               eval.Variables `field:"-" json:"-"`
-	ScrubbedCmdLineResolved bool           `field:"-" json:"-"`
+	Variables               eval.Variables `field:"-"`
+	ScrubbedCmdLineResolved bool           `field:"-"`
 }
 
 // ExecEvent represents a exec event

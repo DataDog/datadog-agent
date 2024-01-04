@@ -2,13 +2,13 @@ module github.com/DataDog/datadog-agent/pkg/gohai
 
 // we don't want to just use the agent's go version because gohai might be used outside of it
 // eg. opentelemetry
-go 1.20
+go 1.21
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.50.0-rc.4
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/moby/sys/mountinfo v0.7.1
-	github.com/shirou/gopsutil/v3 v3.23.11
+	github.com/shirou/gopsutil/v3 v3.23.12
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/sys v0.15.0
 )
@@ -26,6 +26,7 @@ require (
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
+	go.uber.org/atomic v1.11.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
