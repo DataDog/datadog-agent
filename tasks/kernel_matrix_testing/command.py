@@ -30,7 +30,9 @@ class CommandRunner:
         if self.vm.arch == "local" and dest is None:
             self.ctx.run(f"cp {path} {get_kmt_os().shared_dir}")
         elif self.vm.arch == "local" and dest is not None:
-            self.ctx.run(f"scp -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa {path} root@{self.vm.ip}:{dest}")
+            self.ctx.run(
+                f"scp -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa {path} root@{self.vm.ip}:{dest}"
+            )
         else:
             if self.remote_ssh_key == "" or self.remote_ip == "":
                 raise Exit("remote ssh key and remote ip are required to run command on remote VMs")

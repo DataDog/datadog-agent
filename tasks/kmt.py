@@ -263,7 +263,7 @@ def prepare(ctx, vms, stack=None, arch=None, ssh_key="", rebuild_deps=False, pac
 
     domains = build_target_domains(ctx, stack, vms, ssh_key, verbose)
 
-    constrain_pkgs=""
+    constrain_pkgs = ""
     if not rebuild_deps or (not os.path.isfile(f"kmt-deps/{stack}/dependencies-{arch}.tar.gz")):
         constrain_pkgs = f"--packages={packages}"
 
