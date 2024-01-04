@@ -711,9 +711,6 @@ func (k *KSMCheck) mergeAnnotationsAsTags(extra map[string]map[string]string) {
 	}
 	for resource, mapping := range extra {
 		_, found := k.instance.AnnotationsAsTags[resource]
-		if mapping == nil {
-			continue
-		}
 		if !found {
 			k.instance.AnnotationsAsTags[resource] = make(map[string]string)
 			k.instance.AnnotationsAsTags[resource] = mapping
