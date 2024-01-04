@@ -46,8 +46,8 @@ func Unix(t *testing.T, client *common.TestClient, options ...installparams.Opti
 	}
 
 	var apikey string
-	if params.CustomAPIKey != "" {
-		apikey = params.CustomAPIKey
+	if params.APIKey != "" {
+		apikey = params.APIKey
 	} else {
 		apikey = "aaaaaaaaaa"
 	}

@@ -116,7 +116,7 @@ func (is *upgradeSuite) TestUpgrade() {
 }
 
 func (is *upgradeSuite) SetupAgentStartVersion(VMclient *common.TestClient) {
-	install.Unix(is.T(), VMclient, installparams.WithArch(*architecture), installparams.WithFlavor(*flavorName), installparams.WithMajorVersion(is.srcVersion), installparams.WithCustomAPIKey(os.Getenv("DATADOG_AGENT_API_KEY")), installparams.WithCustomPipelineID(""))
+	install.Unix(is.T(), VMclient, installparams.WithArch(*architecture), installparams.WithFlavor(*flavorName), installparams.WithMajorVersion(is.srcVersion), installparams.WithAPIKey(os.Getenv("DATADOG_AGENT_API_KEY")), installparams.WithPipelineID(""))
 	var err error
 	if is.srcVersion == "5" {
 		_, err = VMclient.VMClient.ExecuteWithError("sudo /etc/init.d/datadog-agent stop")
@@ -127,13 +127,7 @@ func (is *upgradeSuite) SetupAgentStartVersion(VMclient *common.TestClient) {
 }
 
 func (is *upgradeSuite) UpgradeAgentVersion(VMclient *common.TestClient) {
-	var arch string
-	if *architecture == "arm64" && (*platform == "centos" || *platform == "amazonlinux" || *platform == "fedora" || *platform == "redhat") {
-		arch = "aarch64"
-	} else {
-		arch = *architecture
-	}
-	install.Unix(is.T(), VMclient, installparams.WithArch(arch), installparams.WithFlavor(*flavorName), installparams.WithMajorVersion(is.destVersion), installparams.WithUpgrade(true))
+	install.Unix(is.T(), VMclient, installparams.WithArch(*architecture), installparams.WithFlavor(*flavorName), installparams.WithMajorVersion(is.destVersion), installparams.WithUpgrade(true))
 	_, err := VMclient.SvcManager.Restart("datadog-agent")
 	require.NoError(is.T(), err)
 }
