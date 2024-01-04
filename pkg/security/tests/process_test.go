@@ -379,9 +379,6 @@ func TestProcessContext(t *testing.T) {
 		if kind == dockerWrapperType && test.opts.staticOpts.enableEBPFLess == true {
 			t.Skip("docker tests not supported")
 		}
-		if test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("args not yet truncated")
-		}
 
 		args := []string{"-al"}
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
@@ -406,7 +403,7 @@ func TestProcessContext(t *testing.T) {
 
 			argv := strings.Split(args.(string), " ")
 			assert.Equal(t, 2, len(argv), "incorrect number of args: %s", argv)
-			assert.Equal(t, 255, len(argv[1]), "wrong arg length")
+			assert.Equal(t, model.MaxArgEnvSize-1, len(argv[1]), "wrong arg length")
 			assert.Equal(t, true, strings.HasSuffix(argv[1], "..."), "args not truncated")
 
 			// truncated is reported if a single argument is truncated or if the list is truncated
@@ -429,9 +426,6 @@ func TestProcessContext(t *testing.T) {
 	test.Run(t, "args-overflow-list-50", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		if kind == dockerWrapperType && test.opts.staticOpts.enableEBPFLess == true {
 			t.Skip("docker tests not supported")
-		}
-		if test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("args not yet truncated")
 		}
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
 
@@ -456,10 +450,16 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			argv := strings.Split(execArgs.(string), " ")
-			assert.Equal(t, 459, len(argv), "incorrect number of args: %s", argv)
-
-			for i := 0; i != 459; i++ {
-				assert.Equal(t, args[i], argv[i], "expected arg not found")
+			if test.opts.staticOpts.enableEBPFLess {
+				assert.Equal(t, model.MaxArgsEnvsSize-1, len(argv), "incorrect number of args: %s", argv)
+				for i := 0; i != model.MaxArgsEnvsSize-1; i++ {
+					assert.Equal(t, args[i], argv[i], "expected arg not found")
+				}
+			} else {
+				assert.Equal(t, 459, len(argv), "incorrect number of args: %s", argv)
+				for i := 0; i != 459; i++ {
+					assert.Equal(t, args[i], argv[i], "expected arg not found")
+				}
 			}
 
 			// truncated is reported if a single argument is truncated or if the list is truncated
@@ -479,9 +479,6 @@ func TestProcessContext(t *testing.T) {
 	test.Run(t, "args-overflow-list-500", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		if kind == dockerWrapperType && test.opts.staticOpts.enableEBPFLess == true {
 			t.Skip("docker tests not supported")
-		}
-		if test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("args not yet truncated")
 		}
 
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
@@ -507,14 +504,24 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			argv := strings.Split(execArgs.(string), " ")
-			assert.Equal(t, 474, len(argv), "incorrect number of args: %s", argv)
-
-			for i := 0; i != 474; i++ {
-				expected := args[i]
-				if len(expected) > model.MaxArgEnvSize {
-					expected = args[i][:model.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
+			if test.opts.staticOpts.enableEBPFLess {
+				assert.Equal(t, model.MaxArgsEnvsSize-1, len(argv), "incorrect number of args: %s", argv)
+				for i := 0; i != model.MaxArgsEnvsSize-1; i++ {
+					expected := args[i]
+					if len(expected) > model.MaxArgEnvSize {
+						expected = args[i][:model.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
+					}
+					assert.Equal(t, expected, argv[i], "expected arg not found")
 				}
-				assert.Equal(t, expected, argv[i], "expected arg not found")
+			} else {
+				assert.Equal(t, 474, len(argv), "incorrect number of args: %s", argv)
+				for i := 0; i != 474; i++ {
+					expected := args[i]
+					if len(expected) > model.MaxArgEnvSize {
+						expected = args[i][:model.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
+					}
+					assert.Equal(t, expected, argv[i], "expected arg not found")
+				}
 			}
 
 			// truncated is reported if a single argument is truncated or if the list is truncated
@@ -532,8 +539,8 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "envs-overflow-single", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		if test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("envs truncate not supported yet")
+		if kind == dockerWrapperType && test.opts.staticOpts.enableEBPFLess == true {
+			t.Skip("docker tests not supported")
 		}
 
 		args := []string{"-al"}
@@ -566,7 +573,7 @@ func TestProcessContext(t *testing.T) {
 
 			envp := (execEnvp.([]string))
 			assert.Equal(t, 2, len(envp), "incorrect number of envs: %s", envp)
-			assert.Equal(t, 255, len(envp[1]), "wrong env length")
+			assert.Equal(t, model.MaxArgEnvSize-1, len(envp[1]), "wrong env length")
 			assert.Equal(t, true, strings.HasSuffix(envp[1], "..."), "envs not truncated")
 
 			// truncated is reported if a single environment variable is truncated or if the list is truncated
@@ -583,8 +590,8 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "envs-overflow-list-50", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		if test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("envs truncate not supported yet")
+		if kind == dockerWrapperType && test.opts.staticOpts.enableEBPFLess == true {
+			t.Skip("docker tests not supported")
 		}
 
 		args := []string{"-al"}
@@ -620,10 +627,16 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			envp := (execEnvp.([]string))
-			assert.Equal(t, 736, len(envp), "incorrect number of envs: %s", envp)
-
-			for i := 0; i != 736; i++ {
-				assert.Equal(t, envs[i], envp[i], "expected env not found")
+			if test.opts.staticOpts.enableEBPFLess == true {
+				assert.Equal(t, model.MaxArgsEnvsSize, len(envp), "incorrect number of envs: %s", envp)
+				for i := 0; i != model.MaxArgsEnvsSize; i++ {
+					assert.Equal(t, envs[i], envp[i], "expected env not found")
+				}
+			} else {
+				assert.Equal(t, 736, len(envp), "incorrect number of envs: %s", envp)
+				for i := 0; i != 736; i++ {
+					assert.Equal(t, envs[i], envp[i], "expected env not found")
+				}
 			}
 
 			// truncated is reported if a single environment variable is truncated or if the list is truncated
@@ -641,8 +654,8 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "envs-overflow-list-500", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		if test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("envs truncate not supported yet")
+		if kind == dockerWrapperType && test.opts.staticOpts.enableEBPFLess == true {
+			t.Skip("docker tests not supported")
 		}
 
 		args := []string{"-al"}
@@ -680,14 +693,24 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			envp := (execEnvp.([]string))
-			assert.Equal(t, 895, len(envp), "incorrect number of envs: %s", envp)
-
-			for i := 0; i != 895; i++ {
-				expected := envs[i]
-				if len(expected) > model.MaxArgEnvSize {
-					expected = envs[i][:model.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
+			if test.opts.staticOpts.enableEBPFLess == true {
+				assert.Equal(t, model.MaxArgsEnvsSize, len(envp), "incorrect number of envs: %s", envp)
+				for i := 0; i != model.MaxArgsEnvsSize; i++ {
+					expected := envs[i]
+					if len(expected) > model.MaxArgEnvSize {
+						expected = envs[i][:model.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
+					}
+					assert.Equal(t, expected, envp[i], "expected env not found")
 				}
-				assert.Equal(t, expected, envp[i], "expected env not found")
+			} else {
+				assert.Equal(t, 895, len(envp), "incorrect number of envs: %s", envp)
+				for i := 0; i != 895; i++ {
+					expected := envs[i]
+					if len(expected) > model.MaxArgEnvSize {
+						expected = envs[i][:model.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
+					}
+					assert.Equal(t, expected, envp[i], "expected env not found")
+				}
 			}
 
 			// truncated is reported if a single environment variable is truncated or if the list is truncated

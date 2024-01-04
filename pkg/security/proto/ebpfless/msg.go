@@ -77,11 +77,13 @@ type Credentials struct {
 
 // ExecSyscallMsg defines an exec message
 type ExecSyscallMsg struct {
-	File        *OpenSyscallMsg
-	Args        []string
-	Envs        []string
-	TTY         string
-	Credentials *Credentials
+	File          *OpenSyscallMsg
+	Args          []string
+	ArgsTruncated bool
+	Envs          []string
+	EnvsTruncated bool
+	TTY           string
+	Credentials   *Credentials
 }
 
 // ForkSyscallMsg defines a fork message

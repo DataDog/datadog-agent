@@ -292,6 +292,21 @@ func getPidTTY(pid int) string {
 	return "pts" + path.Base(tty)
 }
 
+func truncateArgsOrEnvs(list []string) ([]string, bool) {
+	truncated := false
+	if len(list) > model.MaxArgsEnvsSize {
+		list = list[:model.MaxArgsEnvsSize]
+		truncated = true
+	}
+	for i, l := range list {
+		if len(l) > model.MaxArgEnvSize {
+			list[i] = l[:model.MaxArgEnvSize-4] + "..."
+			truncated = true
+		}
+	}
+	return list, truncated
+}
+
 func handleExecveAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
 	fd := tracer.ReadArgInt32(regs, 0)
 
@@ -316,20 +331,24 @@ func handleExecveAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, 
 	if err != nil {
 		return err
 	}
+	args, argsTruncated := truncateArgsOrEnvs(args)
 
 	envs, err := tracer.ReadArgStringArray(process.Pid, regs, 3)
 	if err != nil {
 		return err
 	}
+	envs, envsTruncated := truncateArgsOrEnvs(envs)
 
 	msg.Type = ebpfless.SyscallTypeExec
 	msg.Exec = &ebpfless.ExecSyscallMsg{
 		File: &ebpfless.OpenSyscallMsg{
 			Filename: filename,
 		},
-		Args: args,
-		Envs: envs,
-		TTY:  getPidTTY(process.Pid),
+		Args:          args,
+		ArgsTruncated: argsTruncated,
+		Envs:          envs,
+		EnvsTruncated: envsTruncated,
+		TTY:           getPidTTY(process.Pid),
 	}
 	err = fillFileMetadata(filename, msg.Exec.File, disableStats)
 	if err != nil {
@@ -362,20 +381,24 @@ func handleExecve(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, re
 	if err != nil {
 		return err
 	}
+	args, argsTruncated := truncateArgsOrEnvs(args)
 
 	envs, err := tracer.ReadArgStringArray(process.Pid, regs, 2)
 	if err != nil {
 		return err
 	}
+	envs, envsTruncated := truncateArgsOrEnvs(envs)
 
 	msg.Type = ebpfless.SyscallTypeExec
 	msg.Exec = &ebpfless.ExecSyscallMsg{
 		File: &ebpfless.OpenSyscallMsg{
 			Filename: filename,
 		},
-		Args: args,
-		Envs: envs,
-		TTY:  getPidTTY(process.Pid),
+		Args:          args,
+		ArgsTruncated: argsTruncated,
+		Envs:          envs,
+		EnvsTruncated: envsTruncated,
+		TTY:           getPidTTY(process.Pid),
 	}
 	err = fillFileMetadata(filename, msg.Exec.File, disableStats)
 	if err != nil {
