@@ -56,6 +56,8 @@ go_tools_deps:
   tags: ["arch:amd64"]
   needs: ["setup_agent_version"]
   extends: .cache_policy
+  variables:
+    KUBERNETES_CPU_REQUEST: 16
   script:
     - if [ -f modcache_tools.tar.xz  ]; then exit 0; fi
     - source /root/.bashrc
