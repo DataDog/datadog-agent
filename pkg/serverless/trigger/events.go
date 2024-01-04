@@ -7,8 +7,9 @@
 package trigger
 
 import (
-	jsonEncoder "encoding/json"
 	"strings"
+
+	jsonEncoder "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/pkg/util/json"
 )
