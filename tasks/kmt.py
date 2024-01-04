@@ -299,9 +299,10 @@ def build_run_config(run, packages):
         if run is not None:
             c[p] = {"run-only": [run]}
         else:
-            c[p] = {"exclude":False}
+            c[p] = {"exclude": False}
 
     return c
+
 
 @task
 def test(ctx, vms, stack=None, packages="", run=None, retry=2, rebuild_deps=False, ssh_key="", verbose=False):
