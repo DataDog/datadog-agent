@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Enable CRD collection
+    Enable CRD collection by default in the orchestrator check.
