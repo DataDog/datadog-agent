@@ -1,3 +1,5 @@
+github.com/DataDog/datadog-agent/pkg/util/optional v0.50.2 h1:10NvNCP6UPn7jBKFGpb39+luHKfIgOnoNH3bbPeBNNY=
+github.com/DataDog/datadog-agent/pkg/util/optional v0.50.2/go.mod h1:G991O09J5EeAdk6AjeCBc8mPooxIUT29Py8dh1ktW90=
 github.com/benbjohnson/clock v1.3.0 h1:ip6w0uFQkncKQ979AypyG0ER7mqUSBdKLOgAle/AT8A=
 github.com/benbjohnson/clock v1.3.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
 github.com/cpuguy83/go-md2man/v2 v2.0.2/go.mod h1:tgQtvFlXSQOSOSIRvRPT7W67SCa46tRHOmNcaadrF8o=
