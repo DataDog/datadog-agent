@@ -392,9 +392,6 @@ type Suite[Env any] struct {
 	env *Env
 
 	isUpdateEnvCalledInThisTest bool
-
-	// DevMode indicates if the suite is running in development mode.
-	DevMode bool
 }
 
 type suiteConstraint[Env any] interface {
@@ -574,5 +571,5 @@ func createEnv[Env any](suite *Suite[Env], stackDef *StackDefinition[Env]) (*Env
 
 // IsDevMode returns true if the suite is running in development mode.
 func (suite *Suite[Env]) IsDevMode() bool {
-	return suite.DevMode
+	return suite.params.DevMode
 }

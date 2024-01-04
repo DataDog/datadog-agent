@@ -46,7 +46,6 @@ func TestE2EVMFakeintakeSuite(t *testing.T) {
 	options := []params.Option{}
 	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
 		options = append(options, params.WithDevMode())
-		s.DevMode = true
 	}
 	e2e.Run(t, s, logsExampleStackDef(), options...)
 }
