@@ -102,8 +102,9 @@ type LoggerName = logs.LoggerName
 
 // Aliases for  logs
 var (
-	NewLogWriter   = logs.NewLogWriter
-	ChangeLogLevel = logs.ChangeLogLevel
+	NewLogWriter               = logs.NewLogWriter
+	ChangeLogLevel             = logs.ChangeLogLevel
+	NewTlsHandshakeErrorWriter = logs.NewTlsHandshakeErrorWriter
 )
 
 // SetupLogger Alias using Datadog config
