@@ -18,9 +18,9 @@ import (
 )
 
 func init() {
-	registerAgent(func() *cobra.Command {
+	registerAgent("process-agent", func() *cobra.Command {
 		flavor.SetFlavor(flavor.ProcessAgent)
 		os.Args = processcommand.FixDeprecatedFlags(os.Args, os.Stdout)
 		return processcommand.MakeCommand(processsubcommands.ProcessAgentSubcommands(), processcommand.UseWinParams, processcommand.RootCmdRun)
-	}, "process-agent")
+	})
 }

@@ -16,8 +16,8 @@ import (
 )
 
 func init() {
-	registerAgent(func() *cobra.Command {
+	registerAgent("security-agent", func() *cobra.Command {
 		flavor.SetFlavor(flavor.SecurityAgent)
 		return seccommand.MakeCommand(secsubcommands.SecurityAgentSubcommands())
-	}, "security-agent")
+	})
 }

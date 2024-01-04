@@ -16,8 +16,8 @@ import (
 )
 
 func init() {
-	registerAgent(func() *cobra.Command {
+	registerAgent("trace-agent", func() *cobra.Command {
 		os.Args = tracecommand.FixDeprecatedFlags(os.Args, os.Stdout)
 		return tracecommand.MakeRootCommand()
-	}, "trace-agent")
+	})
 }

@@ -20,29 +20,45 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func init() {
-	registerAgent(func() *cobra.Command {
-		return command.MakeCommand(subcommands.AgentSubcommands())
-	}, "agent", "datadog-agent")
-}
-
 var agents = map[string]func() *cobra.Command{}
 
-func registerAgent(getCommand func() *cobra.Command, names ...string) {
-	for _, name := range names {
-		agents[name] = getCommand
-	}
+func registerAgent(name string, getCommand func() *cobra.Command) {
+	agents[name] = getCommand
+}
+
+func coreAgentMain() *cobra.Command {
+	return command.MakeCommand(subcommands.AgentSubcommands())
+}
+
+func init() {
+	registerAgent("agent", coreAgentMain)
 }
 
 func main() {
-	executable := path.Base(os.Args[0])
-	process := strings.TrimSuffix(executable, path.Ext(executable))
+	process := strings.TrimSpace(os.Getenv("DD_BUNDLED_AGENT"))
 
-	if agentCmdBuilder := agents[process]; agentCmdBuilder != nil {
-		rootCmd := agentCmdBuilder()
-		os.Exit(runcmd.Run(rootCmd))
+	if process == "" {
+		if len(os.Args) > 0 {
+			process = strings.TrimSpace(path.Base(os.Args[0]))
+		}
+
+		if process == "" {
+			executable, err := os.Executable()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to determine the Agent process name: %s\n", err.Error())
+				os.Exit(1)
+			}
+			process = executable
+		}
+
+		process = strings.TrimSuffix(process, path.Ext(process))
 	}
 
-	fmt.Fprintf(os.Stderr, "'%s' is an incorrect invocation of the Datadog Agent\n", process)
-	os.Exit(1)
+	agentCmdBuilder := agents[process]
+	if agentCmdBuilder == nil {
+		agentCmdBuilder = coreAgentMain
+	}
+
+	rootCmd := agentCmdBuilder()
+	os.Exit(runcmd.Run(rootCmd))
 }
