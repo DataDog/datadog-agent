@@ -279,6 +279,7 @@ func buildDeviceScanMetadata(deviceID string, oidsValues []gosnmp.SnmpPDU) []met
 			Oid:           strings.TrimLeft(variablePdu.Name, "."),
 			Type:          variablePdu.Type.String(), // TODO: Map to internal types?
 			ValueAsString: strValue,
+			ValueAsBase64: value.ToBase64(),
 		})
 	}
 	return deviceOids

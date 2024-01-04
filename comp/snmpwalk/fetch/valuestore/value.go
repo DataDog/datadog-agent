@@ -6,6 +6,7 @@
 package valuestore
 
 import (
+	"encoding/base64"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -40,6 +41,17 @@ func (sv *ResultValue) ToFloat64() (float64, error) {
 // ToString converts value to string
 func (sv ResultValue) ToString() (string, error) {
 	return gosnmplib.StandardTypeToString(sv.Value)
+}
+
+// ToBase64 converts value to base64 value
+func (sv ResultValue) ToBase64() string {
+	switch value := sv.Value.(type) {
+	//case string: // needed?
+	//	return base64.StdEncoding.EncodeToString([]byte(value))
+	case []byte:
+		return base64.StdEncoding.EncodeToString(value)
+	}
+	return ""
 }
 
 // ExtractStringValue extract value using a regex
