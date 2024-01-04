@@ -36,10 +36,10 @@ const (
 	SetgidNr         = 106 // SetgidNr defines the syscall ID for amd64
 	SetreuidNr       = 113 // SetreuidNr defines the syscall ID for amd64
 	SetregidNr       = 114 // SetregidNr defines the syscall ID for amd64
-	SetresuidNr      = 117 // SetreuidNr defines the syscall ID for amd64
-	SetresgidNr      = 119 // SetregidNr defines the syscall ID for amd64
-	SetfsuidNr       = 122 // SetreuidNr defines the syscall ID for amd64
-	SetfsgidNr       = 123 // SetregidNr defines the syscall ID for amd64
+	SetresuidNr      = 117 // SetresuidNr defines the syscall ID for amd64
+	SetresgidNr      = 119 // SetresgidNr defines the syscall ID for amd64
+	SetfsuidNr       = 122 // SetfsuidNr defines the syscall ID for amd64
+	SetfsgidNr       = 123 // SetfsgidNr defines the syscall ID for amd64
 	CloseNr          = 3   // CloseNr defines the syscall ID for amd64
 	MemfdCreateNr    = 319 // MemfdCreateNr defines the syscall ID for amd64
 	CapsetNr         = 126 // CapsetNr defines the syscall ID for amd64

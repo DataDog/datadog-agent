@@ -31,10 +31,10 @@ const (
 	SetgidNr         = 144 // SetgidNr defines the syscall ID for arm64
 	SetreuidNr       = 145 // SetreuidNr defines the syscall ID for arm64
 	SetregidNr       = 143 // SetregidNr defines the syscall ID for arm64
-	SetresuidNr      = 147 // SetreuidNr defines the syscall ID for arm64
-	SetresgidNr      = 149 // SetregidNr defines the syscall ID for arm64
-	SetfsuidNr       = 151 // SetreuidNr defines the syscall ID for arm64
-	SetfsgidNr       = 152 // SetregidNr defines the syscall ID for arm64
+	SetresuidNr      = 147 // SetresuidNr defines the syscall ID for arm64
+	SetresgidNr      = 149 // SetresgidNr defines the syscall ID for arm64
+	SetfsuidNr       = 151 // SetfsuidNr defines the syscall ID for arm64
+	SetfsgidNr       = 152 // SetfsgidNr defines the syscall ID for arm64
 	CloseNr          = 57  // CloseNr defines the syscall ID for arm64
 	MemfdCreateNr    = 279 // MemfdCreateNr defines the syscall ID for arm64
 	CapsetNr         = 91  // CapsetNr defines the syscall ID for arm64
