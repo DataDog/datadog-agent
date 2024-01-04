@@ -35,7 +35,7 @@ func init() {
 
 func getLogsHTTPEndpoints() (*logsConfig.Endpoints, error) {
 	datadogConfig := config.Datadog
-	logsConfigKey := logsConfig.NewLogsConfigKeys("logs_config", datadogConfig)
+	logsConfigKey := logsConfig.NewLogsConfigKeys("logs_config.", datadogConfig)
 	return logsConfig.BuildHTTPEndpointsWithConfig(datadogConfig, logsConfigKey, "agent-http-intake.logs.", "logs", logsConfig.AgentJSONIntakeProtocol, logsConfig.DefaultIntakeOrigin)
 }
 
