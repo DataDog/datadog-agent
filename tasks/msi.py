@@ -320,7 +320,7 @@ def test(
 
     # Generate the config file
     if not ctx.run(
-        f'inv -e generate-config --build-type="agent-py2py3" --output-file="{build_outdir}\\datadog.yaml"',
+        f'inv -e agent.generate-config --build-type="agent-py2py3" --output-file="{build_outdir}\\datadog.yaml"',
         warn=True,
         env=env,
     ):

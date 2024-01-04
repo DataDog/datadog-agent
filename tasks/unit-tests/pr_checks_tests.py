@@ -19,6 +19,7 @@ class TestLintSkipQA(unittest.TestCase):
     @patch('builtins.print')
     def test_no_pr(self, mock_print):
         os.environ["BRANCH_NAME"] = "pied"
+        os.environ["PR_ID"] = ""
         pr_checks.lint_skip_qa(MockContext())
         mock_print.assert_called_with("PR not found, skipping check for skip-qa.")
 
@@ -45,6 +46,7 @@ class TestLintSkipQA(unittest.TestCase):
         pr_checks.lint_skip_qa(MockContext())
         mock_print.assert_not_called()
 
+
 class TestLintMilestone(unittest.TestCase):
     @patch('builtins.print')
     @patch.object(pr_checks.GithubAPI, 'get_pr_milestone')
@@ -56,18 +58,18 @@ class TestLintMilestone(unittest.TestCase):
         with self.assertRaises(Exit):
             pr_checks.lint_milestone(MockContext())
             mock_print.assert_called_with(f"PR {os.environ['PR_ID']} requires a non-Triage milestone.")
-    
+
     @patch('builtins.print')
     @patch.object(pr_checks.GithubAPI, 'get_pr_milestone')
     @patch("tasks.libs.common.github_api.Github", autospec=True)
     def test_triage(self, _, mock_pr_check, mock_print):
         os.environ["BRANCH_NAME"] = "dolomite"
         os.environ["PR_ID"] = "4"
-        mock_pr_check.return_value ="Triage"
+        mock_pr_check.return_value = "Triage"
         with self.assertRaises(Exit):
             pr_checks.lint_milestone(MockContext())
             mock_print.assert_called_with(f"PR {os.environ['PR_ID']} requires a non-Triage milestone.")
-    
+
     @patch('builtins.print')
     @patch.object(pr_checks.GithubAPI, 'get_pr_milestone')
     @patch("tasks.libs.common.github_api.Github", autospec=True)
@@ -76,7 +78,7 @@ class TestLintMilestone(unittest.TestCase):
         os.environ["PR_ID"] = "6"
         mock_pr_check.return_value = "Milestone"
         pr_checks.lint_milestone(MockContext())
-        mock_print.assert_called_with(f"Milestone: Milestone")
+        mock_print.assert_called_with("Milestone: Milestone")
 
 
 if __name__ == "__main__":

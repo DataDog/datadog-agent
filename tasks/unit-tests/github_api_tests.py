@@ -17,7 +17,7 @@ class Myfile:
 class TestTeamAssignmentLabel(unittest.TestCase):
     @patch("tasks.libs.common.github_api.Github", autospec=True)
     def test_skip_qa(self, _):
-        github = GithubAPI(repository="test")
+        github = GithubAPI(repository="test", public_repo=True)
         with patch.object(github, '_repository') as mock_repo:
             mock_pr = mock_repo.get_pull.return_value
             mock_pr.get_labels.return_value = [Label('qa/skip-qa'), Label("team/dream")]
@@ -25,7 +25,7 @@ class TestTeamAssignmentLabel(unittest.TestCase):
 
     @patch("tasks.libs.common.github_api.Github", autospec=True)
     def test_without_teams(self, _):
-        github = GithubAPI(repository="test")
+        github = GithubAPI(repository="test", public_repo=True)
         with patch.object(github, '_repository') as mock_repo:
             mock_pr = mock_repo.get_pull.return_value
             mock_pr.get_labels.return_value = [Label('de_cadix_a_des_yeux_de_velours'), Label("team/triage")]
@@ -33,7 +33,7 @@ class TestTeamAssignmentLabel(unittest.TestCase):
 
     @patch("tasks.libs.common.github_api.Github", autospec=True)
     def test_with_teams(self, _):
-        github = GithubAPI(repository="test")
+        github = GithubAPI(repository="test", public_repo=True)
         with patch.object(github, '_repository') as mock_repo:
             mock_pr = mock_repo.get_pull.return_value
             mock_pr.get_labels.return_value = [Label("qa/lity-streets"), Label("team/yavbou")]
@@ -43,7 +43,7 @@ class TestTeamAssignmentLabel(unittest.TestCase):
 class TestQASkip(unittest.TestCase):
     @patch("tasks.libs.common.github_api.Github", autospec=True)
     def test_skip_qa_alone(self, _):
-        github = GithubAPI(repository="test")
+        github = GithubAPI(repository="test", public_repo=True)
         with patch.object(github, '_repository') as mock_repo:
             mock_pr = mock_repo.get_pull.return_value
             mock_pr.get_labels.return_value = [Label("qa/skip-qa")]
@@ -51,7 +51,7 @@ class TestQASkip(unittest.TestCase):
 
     @patch("tasks.libs.common.github_api.Github", autospec=True)
     def test_bad_validation(self, _):
-        github = GithubAPI(repository="test")
+        github = GithubAPI(repository="test", public_repo=True)
         with patch.object(github, '_repository') as mock_repo:
             mock_pr = mock_repo.get_pull.return_value
             mock_pr.get_labels.return_value = [Label("qa/skip-qa"), Label("qa/lity-streets")]
@@ -59,7 +59,7 @@ class TestQASkip(unittest.TestCase):
 
     @patch("tasks.libs.common.github_api.Github", autospec=True)
     def test_ok(self, _):
-        github = GithubAPI(repository="test")
+        github = GithubAPI(repository="test", public_repo=True)
         with patch.object(github, '_repository') as mock_repo:
             mock_pr = mock_repo.get_pull.return_value
             mock_pr.get_labels.return_value = [Label("qa/skip-qa"), Label("qa/done")]
@@ -67,7 +67,7 @@ class TestQASkip(unittest.TestCase):
 
     @patch("tasks.libs.common.github_api.Github", autospec=True)
     def test_validation_alone(self, _):
-        github = GithubAPI(repository="test")
+        github = GithubAPI(repository="test", public_repo=True)
         with patch.object(github, '_repository') as mock_repo:
             mock_pr = mock_repo.get_pull.return_value
             mock_pr.get_labels.return_value = [Label("qa/done")]
@@ -77,7 +77,7 @@ class TestQASkip(unittest.TestCase):
 class TestPRMilestone(unittest.TestCase):
     @patch("tasks.libs.common.github_api.Github", autospec=True)
     def test_with_milestone(self, _):
-        github = GithubAPI(repository="test")
+        github = GithubAPI(repository="test", public_repo=True)
         with patch.object(github, '_repository') as mock_repo:
             mock_pr = mock_repo.get_pull.return_value
             mock_pr.milestone.title = "emerald"
@@ -85,7 +85,7 @@ class TestPRMilestone(unittest.TestCase):
 
     @patch("tasks.libs.common.github_api.Github", autospec=True)
     def test_without_milestone(self, _):
-        github = GithubAPI(repository="test")
+        github = GithubAPI(repository="test", public_repo=True)
         with patch.object(github, '_repository') as mock_repo:
             mock_pr = mock_repo.get_pull.return_value
             mock_pr.milestone = None
@@ -95,7 +95,7 @@ class TestPRMilestone(unittest.TestCase):
 class TestReleaseNoteNeeded(unittest.TestCase):
     @patch("tasks.libs.common.github_api.Github", autospec=True)
     def test_needed(self, _):
-        github = GithubAPI(repository="test")
+        github = GithubAPI(repository="test", public_repo=True)
         with patch.object(github, '_repository') as mock_repo:
             mock_pr = mock_repo.get_pull.return_value
             mock_pr.get_labels.return_value = [Label("changeling/no-changelog")]
@@ -103,7 +103,7 @@ class TestReleaseNoteNeeded(unittest.TestCase):
 
     @patch("tasks.libs.common.github_api.Github", autospec=True)
     def test_not_needed(self, _):
-        github = GithubAPI(repository="test")
+        github = GithubAPI(repository="test", public_repo=True)
         with patch.object(github, '_repository') as mock_repo:
             mock_pr = mock_repo.get_pull.return_value
             mock_pr.get_labels.return_value = [Label("changelog/no-changelog")]
@@ -113,7 +113,7 @@ class TestReleaseNoteNeeded(unittest.TestCase):
 class TestContainsReleaseNote(unittest.TestCase):
     @patch("tasks.libs.common.github_api.Github", autospec=True)
     def test_contains(self, _):
-        github = GithubAPI(repository="test")
+        github = GithubAPI(repository="test", public_repo=True)
         with patch.object(github, '_repository') as mock_repo:
             mock_pr = mock_repo.get_pull.return_value
             mock_pr.get_files.return_value = [Myfile("releasenotes/notes/do/re/mi")]
@@ -121,7 +121,7 @@ class TestContainsReleaseNote(unittest.TestCase):
 
     @patch("tasks.libs.common.github_api.Github", autospec=True)
     def test_do_not_contain(self, _):
-        github = GithubAPI(repository="test")
+        github = GithubAPI(repository="test", public_repo=True)
         with patch.object(github, '_repository') as mock_repo:
             mock_pr = mock_repo.get_pull.return_value
             mock_pr.get_files.return_value = [Myfile("release_notes/notes")]
