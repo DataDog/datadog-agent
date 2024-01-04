@@ -8,6 +8,7 @@
 package repository
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 
@@ -20,7 +21,7 @@ func linkRead(linkPath string) (string, error) {
 
 func linkExists(linkPath string) (bool, error) {
 	_, err := os.Stat(linkPath)
-	if err != nil && os.IsNotExist(err) {
+	if errors.Is(err, os.ErrNotExist) {
 		return false, nil
 	} else if err != nil {
 		return false, err

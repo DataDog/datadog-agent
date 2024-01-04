@@ -15,6 +15,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/updater/repository"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -25,6 +26,7 @@ const (
 // Install installs the default version for the given package.
 // It is purposefully not part of the updater to avoid misuse.
 func Install(ctx context.Context, orgConfig *OrgConfig, pkg string) error {
+	log.Infof("Installing default version of package %s", pkg)
 	downloader := newDownloader(http.DefaultClient)
 	repository := &repository.Repository{RootPath: path.Join(defaultRepositoryPath, pkg)}
 	firstPackage, err := orgConfig.GetDefaultPackage(ctx, pkg)
@@ -44,6 +46,7 @@ func Install(ctx context.Context, orgConfig *OrgConfig, pkg string) error {
 	if err != nil {
 		return fmt.Errorf("could not create repository: %w", err)
 	}
+	log.Infof("Successfully installed default version of package %s", pkg)
 	return nil
 }
 
@@ -80,6 +83,7 @@ func NewUpdater(orgConfig *OrgConfig, pkg string) (*Updater, error) {
 func (u *Updater) StartExperiment(ctx context.Context, version string) error {
 	u.m.Lock()
 	defer u.m.Unlock()
+	log.Infof("Starting experiment for package %s version %s", u.pkg, version)
 	experimentPackage, err := u.orgConfig.GetPackage(ctx, u.pkg, version)
 	if err != nil {
 		return fmt.Errorf("could not get package: %w", err)
@@ -97,6 +101,7 @@ func (u *Updater) StartExperiment(ctx context.Context, version string) error {
 	if err != nil {
 		return fmt.Errorf("could not set experiment: %w", err)
 	}
+	log.Infof("Successfully started experiment for package %s version %s", u.pkg, version)
 	return nil
 }
 
@@ -104,10 +109,12 @@ func (u *Updater) StartExperiment(ctx context.Context, version string) error {
 func (u *Updater) PromoteExperiment() error {
 	u.m.Lock()
 	defer u.m.Unlock()
+	log.Infof("Promoting experiment for package %s", u.pkg)
 	err := u.repository.PromoteExperiment()
 	if err != nil {
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
+	log.Infof("Successfully promoted experiment for package %s", u.pkg)
 	return nil
 }
 
@@ -115,9 +122,11 @@ func (u *Updater) PromoteExperiment() error {
 func (u *Updater) StopExperiment() error {
 	u.m.Lock()
 	defer u.m.Unlock()
+	log.Infof("Stopping experiment for package %s", u.pkg)
 	err := u.repository.DeleteExperiment()
 	if err != nil {
 		return fmt.Errorf("could not set stable: %w", err)
 	}
+	log.Infof("Successfully stopped experiment for package %s", u.pkg)
 	return nil
 }

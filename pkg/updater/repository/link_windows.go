@@ -8,21 +8,21 @@
 package repository
 
 import (
-	"fmt"
+	"errors"
 )
 
 func linkRead(_ string) (string, error) {
-	return "", fmt.Errorf("not supported on windows")
+	return "", errors.New("not supported on windows")
 }
 
 func linkExists(_ string) (bool, error) {
-	return false, fmt.Errorf("not supported on windows")
+	return false, errors.New("not supported on windows")
 }
 
 func linkSet(_ string, _ string) error {
-	return fmt.Errorf("not supported on windows")
+	return errors.New("not supported on windows")
 }
 
 func linkDelete(_ string) error {
-	return fmt.Errorf("not supported on windows")
+	return errors.New("not supported on windows")
 }

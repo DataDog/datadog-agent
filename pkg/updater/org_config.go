@@ -33,7 +33,7 @@ func NewOrgConfig() (*OrgConfig, error) {
 
 // Package represents a downloadable package.
 type Package struct {
-	Package string `json:"package"`
+	Name    string `json:"name"`
 	Version string `json:"version"`
 	SHA256  string `json:"sha256"`
 	URL     string `json:"url"`
@@ -53,7 +53,7 @@ func (c *OrgConfig) GetPackage(_ context.Context, pkg string, version string) (P
 		return Package{}, fmt.Errorf("could not unmarshal catalog: %w", err)
 	}
 	for _, p := range catalog.Packages {
-		if p.Package == pkg && p.Version == version {
+		if p.Name == pkg && p.Version == version {
 			return p, nil
 		}
 	}

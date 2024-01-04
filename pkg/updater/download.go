@@ -17,6 +17,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -39,11 +41,17 @@ func newDownloader(client *http.Client) *downloader {
 // verifies its SHA256 hash and extracts it to the given destination path.
 // It currently assumes the package is a tar.gz archive.
 func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath string) error {
+	log.Debugf("Downloading package %s version %s from %s", pkg.Name, pkg.Version, pkg.URL)
 	tmpDir, err := os.MkdirTemp("", "")
 	if err != nil {
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		err := os.RemoveAll(tmpDir)
+		if err != nil {
+			log.Errorf("could not cleanup temporary directory: %v", err)
+		}
+	}()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pkg.URL, nil)
 	if err != nil {
 		return fmt.Errorf("could not create download request: %w", err)
@@ -77,10 +85,12 @@ func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath 
 	if err != nil {
 		return fmt.Errorf("could not extract archive: %w", err)
 	}
+	log.Debugf("Successfully downloaded package %s version %s from %s", pkg.Name, pkg.Version, pkg.URL)
 	return nil
 }
 
 func extractTarGz(archivePath string, destinationPath string) error {
+	log.Debugf("Extracting archive %s to %s", archivePath, destinationPath)
 	f, err := os.Open(archivePath)
 	if err != nil {
 		return fmt.Errorf("could not open archive: %w", err)
@@ -121,7 +131,10 @@ func extractTarGz(archivePath string, destinationPath string) error {
 			if err != nil {
 				return fmt.Errorf("could not write file: %w", err)
 			}
+		default:
+			log.Warnf("Unsupported tar entry type %d for %s", header.Typeflag, header.Name)
 		}
 	}
+	log.Debugf("Successfully extracted archive %s to %s", archivePath, destinationPath)
 	return nil
 }

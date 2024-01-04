@@ -13,6 +13,7 @@ import (
 	"os"
 	"path"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gorilla/mux"
 )
 
@@ -96,6 +97,7 @@ func (l *LocalAPI) startExperiment(w http.ResponseWriter, r *http.Request) {
 		response.Error = err.Error()
 		return
 	}
+	log.Infof("Received local request to start experiment for package %s version %s", l.updater.pkg, request.Version)
 	err = l.updater.StartExperiment(r.Context(), request.Version)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -118,6 +120,7 @@ func (l *LocalAPI) stopExperiment(w http.ResponseWriter, r *http.Request) {
 		response.Error = err.Error()
 		return
 	}
+	log.Infof("Received local request to stop experiment for package %s", l.updater.pkg)
 	err = l.updater.StopExperiment()
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -140,6 +143,7 @@ func (l *LocalAPI) promoteExperiment(w http.ResponseWriter, r *http.Request) {
 		response.Error = err.Error()
 		return
 	}
+	log.Infof("Received local request to promote experiment for package %s", l.updater.pkg)
 	err = l.updater.PromoteExperiment()
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
