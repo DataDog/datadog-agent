@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 )
 
 type dependencies struct {
@@ -19,18 +20,40 @@ type dependencies struct {
 	Params Params
 }
 
-func newForwarder(dep dependencies) Component {
+type provides struct {
+	fx.Out
+
+	Comp           Component
+	StatusProvider status.InformationProvider
+}
+
+func newForwarder(dep dependencies) provides {
 	return NewForwarder(dep.Config, dep.Log, dep.Params)
 }
 
 // NewForwarder returns a new forwarder component.
-func NewForwarder(config config.Component, log log.Component, params Params) Component {
+func NewForwarder(config config.Component, log log.Component, params Params) provides {
+	var forwarder Component
+	var provider status.InformationProvider
+
 	if params.UseNoopForwarder {
-		return NoopForwarder{}
+		forwarder = NoopForwarder{}
+		provider = status.NoopInformationProvider()
+	} else {
+		forwarder = NewDefaultForwarder(config, log, params.Options)
+		provider = status.NewInformationProvider(statusProvider{
+			config: config,
+		})
 	}
-	return NewDefaultForwarder(config, log, params.Options)
+	return provides{
+		Comp:           forwarder,
+		StatusProvider: provider,
+	}
 }
 
-func newMockForwarder(config config.Component, log log.Component) Component {
-	return NewDefaultForwarder(config, log, NewOptions(config, log, nil))
+func newMockForwarder(config config.Component, log log.Component) provides {
+	return provides{
+		Comp:           NewDefaultForwarder(config, log, NewOptions(config, log, nil)),
+		StatusProvider: status.NoopInformationProvider(),
+	}
 }
