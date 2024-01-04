@@ -15,6 +15,7 @@ import (
 	"io"
 	"net"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -100,26 +101,43 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 	switch syscallMsg.Type {
 	case ebpfless.SyscallTypeExec:
 		event.Type = uint32(model.ExecEventType)
-		entry := p.Resolvers.ProcessResolver.AddExecEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.Exec.Filename, syscallMsg.Exec.Args, syscallMsg.Exec.Envs, cl.containerContext.ID)
-
+		entry := p.Resolvers.ProcessResolver.AddExecEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.Exec.File.Filename, syscallMsg.Exec.Args, syscallMsg.Exec.Envs, cl.containerContext.ID, syscallMsg.Timestamp, syscallMsg.Exec.TTY)
 		if syscallMsg.Exec.Credentials != nil {
 			entry.Credentials.UID = syscallMsg.Exec.Credentials.UID
 			entry.Credentials.EUID = syscallMsg.Exec.Credentials.EUID
 			entry.Credentials.GID = syscallMsg.Exec.Credentials.GID
 			entry.Credentials.EGID = syscallMsg.Exec.Credentials.EGID
 		}
-
 		event.Exec.Process = &entry.Process
+		event.Exec.FileEvent.CTime = syscallMsg.Exec.File.CTime
+		event.Exec.FileEvent.MTime = syscallMsg.Exec.File.MTime
+		event.Exec.FileEvent.Mode = uint16(syscallMsg.Exec.File.Mode)
+		if syscallMsg.Exec.File.Credentials != nil {
+			event.Exec.FileEvent.UID = syscallMsg.Exec.File.Credentials.UID
+			event.Exec.FileEvent.GID = syscallMsg.Exec.File.Credentials.GID
+		}
 	case ebpfless.SyscallTypeFork:
 		event.Type = uint32(model.ForkEventType)
-		p.Resolvers.ProcessResolver.AddForkEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.Fork.PPID)
+		p.Resolvers.ProcessResolver.AddForkEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.Fork.PPID, syscallMsg.Timestamp)
 	case ebpfless.SyscallTypeOpen:
 		event.Type = uint32(model.FileOpenEventType)
-		event.Open.Retval = syscallMsg.Retval
-		event.Open.File.PathnameStr = syscallMsg.Open.Filename
-		event.Open.File.BasenameStr = filepath.Base(syscallMsg.Open.Filename)
-		event.Open.Flags = syscallMsg.Open.Flags
+		if strings.HasPrefix(syscallMsg.Open.Filename, "memfd:") {
+			event.Open.File.PathnameStr = ""
+			event.Open.File.BasenameStr = syscallMsg.Open.Filename
+		} else {
+			event.Open.File.PathnameStr = syscallMsg.Open.Filename
+			event.Open.File.BasenameStr = filepath.Base(syscallMsg.Open.Filename)
+		}
+		event.Open.File.MTime = syscallMsg.Open.MTime
+		event.Open.File.CTime = syscallMsg.Open.CTime
+		event.Open.File.Mode = uint16(syscallMsg.Open.Mode)
 		event.Open.Mode = syscallMsg.Open.Mode
+		event.Open.Flags = syscallMsg.Open.Flags
+		event.Open.Retval = syscallMsg.Retval
+		if syscallMsg.Open.Credentials != nil {
+			event.Open.File.UID = syscallMsg.Open.Credentials.UID
+			event.Open.File.GID = syscallMsg.Open.Credentials.GID
+		}
 	case ebpfless.SyscallTypeSetUID:
 		p.Resolvers.ProcessResolver.UpdateUID(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.SetUID.UID, syscallMsg.SetUID.EUID)
 
@@ -144,12 +162,11 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 
 	if syscallMsg.Type == ebpfless.SyscallTypeExit {
 		event.Type = uint32(model.ExitEventType)
-		exitTime := time.Now() // TODO: fix timestamp
-		event.ProcessContext.ExitTime = exitTime
+		event.ProcessContext.ExitTime = time.Unix(0, int64(syscallMsg.Timestamp))
 		event.Exit.Process = &event.ProcessCacheEntry.Process
-		event.Exit.Cause = uint32(model.ExitExited) // TODO: fix cause
-		event.Exit.Code = 0                         // TODO: fix code
-		defer p.Resolvers.ProcessResolver.DeleteEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, exitTime)
+		event.Exit.Cause = uint32(syscallMsg.Exit.Cause)
+		event.Exit.Code = syscallMsg.Exit.Code
+		defer p.Resolvers.ProcessResolver.DeleteEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, event.ProcessContext.ExitTime)
 	}
 
 	p.DispatchEvent(event)

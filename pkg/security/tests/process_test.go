@@ -710,10 +710,6 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	t.Run("tty", func(t *testing.T) {
-		if test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("not supported yet")
-		}
-
 		testFile, _, err := test.Path("test-process-tty")
 		if err != nil {
 			t.Fatal(err)
@@ -769,8 +765,10 @@ func TestProcessContext(t *testing.T) {
 				t.Errorf("not able to get a tty name: %s\n", name)
 			}
 
-			if inode := getInode(t, executable); inode != event.ProcessContext.FileEvent.Inode {
-				t.Errorf("expected inode %d, got %d => %+v", event.ProcessContext.FileEvent.Inode, inode, event)
+			if !test.opts.staticOpts.enableEBPFLess {
+				if inode := getInode(t, executable); inode != event.ProcessContext.FileEvent.Inode {
+					t.Errorf("expected inode %d, got %d => %+v", event.ProcessContext.FileEvent.Inode, inode, event)
+				}
 			}
 
 			str, err := test.marshalEvent(event)
@@ -1098,9 +1096,6 @@ func TestProcessExecCTime(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
-	if test.opts.staticOpts.enableEBPFLess == true {
-		t.Skip("ctime not supported yet")
-	}
 
 	test.WaitSignal(t, func() error {
 		testFile, _, err := test.Path("touch")
@@ -1353,9 +1348,6 @@ func TestProcessMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
-	if test.opts.staticOpts.enableEBPFLess == true {
-		t.Skip("not supported yet")
-	}
 
 	fileMode := uint16(0o777)
 	testFile, _, err := test.CreateWithOptions("test-exec", 98, 99, int(fileMode))
@@ -1403,11 +1395,13 @@ func TestProcessMetadata(t *testing.T) {
 		}, test.validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "exec", event.GetType(), "wrong event type")
 			assert.Equal(t, 1001, int(event.Exec.Credentials.UID), "wrong uid")
-			assert.Equal(t, 1001, int(event.Exec.Credentials.EUID), "wrong euid")
 			assert.Equal(t, 2001, int(event.Exec.Credentials.GID), "wrong gid")
-			assert.Equal(t, 2001, int(event.Exec.Credentials.EGID), "wrong egid")
-			assert.Equal(t, 1001, int(event.Exec.Credentials.FSUID), "wrong fsuid")
-			assert.Equal(t, 2001, int(event.Exec.Credentials.FSGID), "wrong fsgid")
+			if !test.opts.staticOpts.enableEBPFLess {
+				assert.Equal(t, 1001, int(event.Exec.Credentials.EUID), "wrong euid")
+				assert.Equal(t, 1001, int(event.Exec.Credentials.FSUID), "wrong fsuid")
+				assert.Equal(t, 2001, int(event.Exec.Credentials.EGID), "wrong egid")
+				assert.Equal(t, 2001, int(event.Exec.Credentials.FSGID), "wrong fsgid")
+			}
 		}))
 	})
 }
@@ -1797,10 +1791,6 @@ func TestProcessExit(t *testing.T) {
 	})
 
 	t.Run("exit-error", func(t *testing.T) {
-		if test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("not supported yet")
-		}
-
 		test.WaitSignal(t, func() error {
 			args := []string{} // sleep with no argument should exit with return code 1
 			envp := []string{envpExitSleep}
@@ -1810,7 +1800,9 @@ func TestProcessExit(t *testing.T) {
 			_ = cmd.Run()
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
-			test.validateExitSchema(t, event)
+			if !test.opts.staticOpts.enableEBPFLess {
+				test.validateExitSchema(t, event)
+			}
 			assertTriggeredRule(t, rule, "test_exit_error")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
@@ -1820,10 +1812,6 @@ func TestProcessExit(t *testing.T) {
 	})
 
 	t.Run("exit-coredumped", func(t *testing.T) {
-		if test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("not supported yet")
-		}
-
 		test.WaitSignal(t, func() error {
 			args := []string{"--preserve-status", "--signal=SIGQUIT", "2", sleepExec, "9"}
 			envp := []string{envpExitSleep}
@@ -1833,7 +1821,9 @@ func TestProcessExit(t *testing.T) {
 			_ = cmd.Run()
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
-			test.validateExitSchema(t, event)
+			if !test.opts.staticOpts.enableEBPFLess {
+				test.validateExitSchema(t, event)
+			}
 			assertTriggeredRule(t, rule, "test_exit_coredump")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitCoreDumped), event.Exit.Cause, "wrong exit cause")
@@ -1843,10 +1833,6 @@ func TestProcessExit(t *testing.T) {
 	})
 
 	t.Run("exit-signaled", func(t *testing.T) {
-		if test.opts.staticOpts.enableEBPFLess == true {
-			t.Skip("not supported yet")
-		}
-
 		test.WaitSignal(t, func() error {
 			args := []string{"--preserve-status", "--signal=SIGKILL", "2", sleepExec, "9"}
 			envp := []string{envpExitSleep}
@@ -1856,7 +1842,9 @@ func TestProcessExit(t *testing.T) {
 			_ = cmd.Run()
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
-			test.validateExitSchema(t, event)
+			if !test.opts.staticOpts.enableEBPFLess {
+				test.validateExitSchema(t, event)
+			}
 			assertTriggeredRule(t, rule, "test_exit_signal")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitSignaled), event.Exit.Cause, "wrong exit cause")
@@ -2382,8 +2370,8 @@ func TestProcessFilelessExecution(t *testing.T) {
 					t.Fatal("shouldn't get an event")
 				}
 			} else {
-				if testModule.opts.staticOpts.enableEBPFLess == true {
-					t.Skip("memfd unsupported yet")
+				if testModule.opts.staticOpts.enableEBPFLess == true && test.rule.ID == "test_fileless_with_interpreter" {
+					t.Skip("interpreter detection unsupported")
 				}
 
 				testModule.WaitSignal(t, func() error {
