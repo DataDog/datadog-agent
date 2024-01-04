@@ -8,6 +8,7 @@ package status
 import (
 	"encoding/json"
 	"fmt"
+	"html/template"
 	htemplate "html/template"
 	"strconv"
 	"strings"
@@ -37,8 +38,6 @@ func HTMLFmap() htemplate.FuncMap {
 		htmlFuncMap = htemplate.FuncMap{
 			"doNotEscape":        doNotEscape,
 			"lastError":          lastError,
-			"lastErrorTraceback": func(s string) htemplate.HTML { return doNotEscape(lastErrorTraceback(s)) },
-			"lastErrorMessage":   func(s string) htemplate.HTML { return doNotEscape(lastErrorMessage(s)) },
 			"configError":        configError,
 			"printDashes":        PrintDashes,
 			"formatUnixTime":     formatUnixTime,
@@ -47,7 +46,6 @@ func HTMLFmap() htemplate.FuncMap {
 			"toUnsortedList":     toUnsortedList,
 			"formatTitle":        formatTitle,
 			"add":                add,
-			"status":             status,
 			"redText":            redText,
 			"yellowText":         yellowText,
 			"greenText":          greenText,
@@ -55,6 +53,10 @@ func HTMLFmap() htemplate.FuncMap {
 			"version":            getVersion,
 			"percent":            func(v float64) string { return fmt.Sprintf("%02.1f", v*100) },
 			"complianceResult":   complianceResult,
+			"lastErrorTraceback": lastErrorTracebackHTML,
+			"lastErrorMessage":   lastErrorMessageHTML,
+			"pythonLoaderError":  pythonLoaderErrorHTML,
+			"status":             statusHTML,
 		}
 	})
 	return htmlFuncMap
@@ -126,7 +128,7 @@ func lastErrorMessage(value string) string {
 }
 
 // formatUnixTime formats the unix time to make it more readable
-func formatUnixTime(unixTime int64) string {
+func formatUnixTime(unixTime float64) string {
 	// Initially treat given unixTime is in nanoseconds
 	t := time.Unix(0, int64(unixTime))
 	// If year returned 1970, assume unixTime actually in seconds
@@ -283,4 +285,49 @@ func getVersion(instances map[string]interface{}) string {
 		return str
 	}
 	return ""
+}
+
+func pythonLoaderErrorHTML(value string) template.HTML {
+	value = htemplate.HTMLEscapeString(value)
+
+	value = strings.Replace(value, "\n", "<br>", -1)
+	value = strings.Replace(value, "  ", "&nbsp;&nbsp;&nbsp;", -1)
+	return htemplate.HTML(value)
+}
+
+func lastErrorTracebackHTML(value string) template.HTML {
+	var lastErrorArray []map[string]string
+
+	err := json.Unmarshal([]byte(value), &lastErrorArray)
+	if err != nil || len(lastErrorArray) == 0 {
+		return htemplate.HTML("No traceback")
+	}
+
+	traceback := htemplate.HTMLEscapeString(lastErrorArray[0]["traceback"])
+
+	traceback = strings.Replace(traceback, "\n", "<br>", -1)
+	traceback = strings.Replace(traceback, "  ", "&nbsp;&nbsp;&nbsp;", -1)
+
+	return htemplate.HTML(traceback)
+}
+
+func lastErrorMessageHTML(value string) string {
+	var lastErrorArray []map[string]string
+	err := json.Unmarshal([]byte(value), &lastErrorArray)
+	if err == nil && len(lastErrorArray) > 0 {
+		if msg, ok := lastErrorArray[0]["message"]; ok {
+			return msg
+		}
+	}
+	return "UNKNOWN ERROR"
+}
+
+func statusHTML(check map[string]interface{}) template.HTML {
+	if check["LastError"].(string) != "" {
+		return htemplate.HTML("[<span class=\"error\">ERROR</span>]")
+	}
+	if len(check["LastWarnings"].([]interface{})) != 0 {
+		return htemplate.HTML("[<span class=\"warning\">WARNING</span>]")
+	}
+	return htemplate.HTML("[<span class=\"ok\">OK</span>]")
 }

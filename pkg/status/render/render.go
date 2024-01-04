@@ -15,10 +15,11 @@ import (
 	"path"
 	"text/template"
 
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-var fmap = Textfmap()
+var fmap = status.TextFmap()
 
 // FormatStatus takes a json bytestring and prints out the formatted statuspage
 func FormatStatus(data []byte) (string, error) {
