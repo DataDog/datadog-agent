@@ -18,6 +18,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ptracer"
 )
 
+// EnvDisableStats defines the environ variable to set to disable aviodable stats
+const EnvDisableStats = "DD_CWS_INSTRUMENTATION_DISABLE_STATS"
+
 const (
 	// gRPCAddr defines the system-probe addr
 	probeAddr = "probe-addr"
@@ -29,14 +32,17 @@ const (
 	gid = "gid"
 	// async enable the traced program to start and run until we manage to connect to the GRPC endpoint
 	async = "async"
+	// disableStats -if set- disable the avoidable use of stats to fill more files properties
+	disableStats = "disable-stats"
 )
 
 type traceCliParams struct {
-	ProbeAddr string
-	Verbose   bool
-	UID       int32
-	GID       int32
-	Async     bool
+	ProbeAddr    string
+	Verbose      bool
+	UID          int32
+	GID          int32
+	Async        bool
+	DisableStats bool
 }
 
 // Command returns the commands for the trace subcommand
@@ -56,7 +62,7 @@ func Command() []*cobra.Command {
 				gid := uint32(params.GID)
 				creds.GID = &gid
 			}
-			return ptracer.StartCWSPtracer(args, os.Environ(), params.ProbeAddr, creds, params.Verbose, params.Async)
+			return ptracer.StartCWSPtracer(args, os.Environ(), params.ProbeAddr, creds, params.Verbose, params.Async, params.DisableStats)
 		},
 	}
 
@@ -65,6 +71,11 @@ func Command() []*cobra.Command {
 	traceCmd.Flags().Int32Var(&params.UID, uid, -1, "uid used to start the tracee")
 	traceCmd.Flags().Int32Var(&params.GID, gid, -1, "gid used to start the tracee")
 	traceCmd.Flags().BoolVar(&params.Async, async, false, "enable async GRPC connection")
+	if os.Getenv(EnvDisableStats) != "" {
+		params.DisableStats = true
+	} else {
+		traceCmd.Flags().BoolVar(&params.DisableStats, disableStats, false, "disable use of stats")
+	}
 
 	traceCmd.AddCommand(selftestscmd.Command()...)
 

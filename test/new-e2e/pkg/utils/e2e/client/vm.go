@@ -60,4 +60,8 @@ type VM interface {
 	// RemoveAll recursively removes all files/folders in the specified directory.
 	// Returns an error if the directory does not exist.
 	RemoveAll(path string) error
+
+	// ReconnectSSH recreate the SSH connection to the VM. Should be used only after VM reboot to restore the SSH connection.
+	// Returns an error if the VM is not reachable after retries.
+	ReconnectSSH() error
 }
