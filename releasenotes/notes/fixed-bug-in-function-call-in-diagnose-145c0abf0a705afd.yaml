@@ -8,5 +8,5 @@
 ---
 fixes:
   - |
-    Fixed a bug in diagnose core_endpoint.go where parameter didn't
-    include a ``.``.
+    Fixed configuration in the logs endpoints suite of the
+    ``agent diagnose`` command.
