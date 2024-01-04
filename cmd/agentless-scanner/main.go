@@ -11,6 +11,8 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"encoding/xml"
 	"errors"
@@ -187,6 +189,7 @@ type (
 	}
 
 	scanTask struct {
+		ID       string
 		Type     scanType
 		ARN      arn.ARN
 		Hostname string
@@ -209,8 +212,26 @@ type (
 	}
 )
 
+func makeScanTaskID(s *scanTask) string {
+	h := sha256.New()
+	h.Write([]byte(s.Type))
+	h.Write([]byte(s.ARN.String()))
+	h.Write([]byte(s.Hostname))
+	h.Write([]byte(s.DiskMode))
+	for _, action := range s.Actions {
+		h.Write([]byte(action))
+	}
+	return string(s.Type) + "-" + hex.EncodeToString(h.Sum(nil)[:8])
+}
+
+func (s scanTask) MountPoint(name string) string {
+	name = strings.ToLower(name)
+	name = regexp.MustCompile("[^a-z0-9_-]").ReplaceAllString(name, "")
+	return filepath.Join("/scans", s.ID, name)
+}
+
 func (s scanTask) String() string {
-	return fmt.Sprintf("%s=%q hostname=%q", s.Type, s.ARN, s.Hostname)
+	return fmt.Sprintf("%s-%s", s.ID, s.ARN)
 }
 
 func main() {
@@ -983,7 +1004,7 @@ func attachCmd() error {
 			return fmt.Errorf("unsupport resource type %q", resourceType)
 		}
 
-		device, volumeARN, localSnapshotARN, cleanupVolume, err := attachSnapshotWithVolume(ctx, scan, snapshotARN)
+		device, volumeARN, cleanupVolume, err := attachSnapshotWithVolume(ctx, scan, snapshotARN)
 		cleanups = append(cleanups, cleanupVolume)
 		if err != nil {
 			return err
@@ -992,8 +1013,10 @@ func attachCmd() error {
 		if err != nil {
 			return err
 		}
-		mountPoints, cleanupMount, err := mountDevice(ctx, localSnapshotARN, partitions)
-		cleanups = append(cleanups, cleanupMount)
+		mountPoints, err := mountDevice(ctx, scan, partitions)
+		cleanups = append(cleanups, func(ctx context.Context) {
+			cleanupScan(ctx, scan)
+		})
 		if err != nil {
 			return err
 		}
@@ -1033,11 +1056,15 @@ func nbdMountCmd(snapshotARN arn.ARN, mount, runClient bool) error {
 		if err != nil {
 			log.Errorf("error could list paritions (device is still available on %q): %v", device, err)
 		} else if mount {
-			mountPoints, cleanupMount, err := mountDevice(ctx, snapshotARN, partitions)
+			scan, err := newScanTask(string(hostScanType), "", "unknown", defaultActions, nil, nbdAttach)
+			if err != nil {
+				return err
+			}
+			mountPoints, err := mountDevice(ctx, scan, partitions)
 			defer func() {
 				cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
 				defer cancel()
-				cleanupMount(cleanupctx)
+				cleanupScan(cleanupctx, scan)
 			}()
 			if err != nil {
 				log.Errorf("error could not mount (device is still available on %q): %v", device, err)
@@ -1101,6 +1128,7 @@ func newScanTask(t string, resourceARN, hostname string, actions []string, roles
 			log.Warnf("unknown action type %q", actionRaw)
 		}
 	}
+	scan.ID = makeScanTaskID(&scan)
 	return &scan, nil
 }
 
@@ -1454,6 +1482,11 @@ func (s *sideScanner) launchScan(ctx context.Context, scan *scanTask) (err error
 	}()
 
 	ctx = withAWSLimits(ctx, s.limits)
+	defer func() {
+		cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
+		defer cancel()
+		cleanupScan(cleanupctx, scan)
+	}()
 	switch scan.Type {
 	case hostScanType:
 		return scanRoots(ctx, scan, []string{"/"}, s.resultsCh)
@@ -2034,12 +2067,11 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 
 	var device string
 	var attachedVolumeARN *arn.ARN
-	var localSnapshotARN arn.ARN
 	var cleanupAttach func(context.Context)
 	switch scan.DiskMode {
 	case volumeAttach:
 		var volumeARN arn.ARN
-		device, volumeARN, localSnapshotARN, cleanupAttach, err = attachSnapshotWithVolume(ctx, scan, snapshotARN)
+		device, volumeARN, cleanupAttach, err = attachSnapshotWithVolume(ctx, scan, snapshotARN)
 		defer func() {
 			cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
 			defer cancel()
@@ -2060,7 +2092,6 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 		if err != nil {
 			return err
 		}
-		localSnapshotARN = snapshotARN
 	default:
 		panic("unreachable")
 	}
@@ -2070,12 +2101,7 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 		return err
 	}
 
-	mountPoints, cleanupMount, err := mountDevice(ctx, localSnapshotARN, partitions)
-	defer func() {
-		cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
-		defer cancel()
-		cleanupMount(cleanupctx)
-	}()
+	mountPoints, err := mountDevice(ctx, scan, partitions)
 	if err != nil {
 		return err
 	}
@@ -2095,12 +2121,7 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 				resultsCh <- scanResult{err: err, scan: scan, sbom: sbom, duration: time.Since(start)}
 			case vulnsContainers:
 				start := time.Now()
-				ctrMountPoints, cleanupMount, err := mountContainers(ctx, scan, root)
-				defer func() {
-					cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
-					defer cancel()
-					cleanupMount(cleanupctx)
-				}()
+				ctrMountPoints, err := mountContainers(ctx, scan, root)
 				if err != nil {
 					resultsCh <- scanResult{err: err, scan: scan, duration: time.Since(start)}
 				} else {
@@ -2342,7 +2363,7 @@ func extractZip(ctx context.Context, zipPath, destinationPath string) error {
 	return nil
 }
 
-func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, snapshotARN arn.ARN) (device string, volumeARN arn.ARN, localSnapshotARN arn.ARN, cleanupVolume func(context.Context), err error) {
+func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, snapshotARN arn.ARN) (device string, volumeARN arn.ARN, cleanupVolume func(context.Context), err error) {
 	var cleanups []func(context.Context)
 	pushCleanup := func(cleanup func(context.Context)) {
 		cleanups = append(cleanups, cleanup)
@@ -2376,6 +2397,7 @@ func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, snapshotARN a
 	}
 	remoteEC2Client := ec2.NewFromConfig(remoteAWSCfg)
 
+	var localSnapshotARN arn.ARN
 	if snapshotARN.Region != self.Region {
 		log.Debugf("copying snapshot %q into %q", snapshotARN, self.Region)
 		var copySnapshot *ec2.CopySnapshotOutput
@@ -2615,39 +2637,13 @@ func listDevicePartitions(ctx context.Context, device string, volumeARN *arn.ARN
 	return partitions, nil
 }
 
-func mountDevice(ctx context.Context, snapshotARN arn.ARN, partitions []devicePartition) (mountPoints []string, cleanupMount func(context.Context), err error) {
-	var cleanups []func(context.Context)
-	pushCleanup := func(cleanup func(context.Context)) {
-		cleanups = append(cleanups, cleanup)
-	}
-	cleanupMount = func(ctx context.Context) {
-		for i := len(cleanups) - 1; i >= 0; i-- {
-			cleanups[i](ctx)
-		}
-	}
-
-	_, snapshotID, err := getARNResource(snapshotARN)
-	if err != nil {
-		return
-	}
-
-	pushCleanup(func(_ context.Context) {
-		baseMountTarget := fmt.Sprintf("/snapshots/%s", snapshotID)
-		log.Debugf("unlink directory %q", baseMountTarget)
-		os.Remove(baseMountTarget)
-	})
-
+func mountDevice(ctx context.Context, scan *scanTask, partitions []devicePartition) ([]string, error) {
+	var mountPoints []string
 	for _, mp := range partitions {
-		mountPoint := fmt.Sprintf("/snapshots/%s/%s", snapshotID, path.Base(mp.devicePath))
-		err = os.MkdirAll(mountPoint, 0700)
-		if err != nil {
-			err = fmt.Errorf("could not create mountPoint directory %q: %w", mountPoint, err)
-			return
+		mountPoint := scan.MountPoint("root")
+		if err := os.MkdirAll(mountPoint, 0700); err != nil {
+			return nil, fmt.Errorf("could not create mountPoint directory %q: %w", mountPoint, err)
 		}
-		pushCleanup(func(_ context.Context) {
-			log.Debugf("unlink directory %q", mountPoint)
-			os.Remove(mountPoint)
-		})
 
 		fsOptions := "ro,noauto,nodev,noexec,nosuid," // these are generic options supported for all filesystems
 		switch mp.fsType {
@@ -2662,38 +2658,49 @@ func mountDevice(ctx context.Context, snapshotARN arn.ARN, partitions []devicePa
 		}
 
 		var mountOutput []byte
+		var errm error
 		for i := 0; i < 50; i++ {
 			log.Debugf("execing mount -o %s -t %s --source %s --target %q", fsOptions, mp.fsType, mp.devicePath, mountPoint)
-			mountOutput, err = exec.CommandContext(ctx, "mount", "-o", fsOptions, "-t", mp.fsType, "--source", mp.devicePath, "--target", mountPoint).CombinedOutput()
-			if err == nil {
+			mountOutput, errm = exec.CommandContext(ctx, "mount", "-o", fsOptions, "-t", mp.fsType, "--source", mp.devicePath, "--target", mountPoint).CombinedOutput()
+			if errm == nil {
 				break
 			}
 			if !sleepCtx(ctx, 200*time.Millisecond) {
-				log.Debugf("mount error %#v: %v", mp, err)
+				log.Debugf("mount error %#v: %v", mp, errm)
 				break
 			}
 		}
-		if err != nil {
-			err = fmt.Errorf("could not mount into target=%q device=%q output=%q: %w", mountPoint, mp.devicePath, string(mountOutput), err)
-			return
+		if errm != nil {
+			return nil, fmt.Errorf("could not mount into target=%q device=%q output=%q: %w", mountPoint, mp.devicePath, string(mountOutput), errm)
 		}
-		pushCleanup(func(ctx context.Context) {
-			log.Debugf("un-mounting %s", mountPoint)
-			for i := 0; i < 10; i++ {
-				umountOuput, err := exec.CommandContext(ctx, "umount", "-f", mountPoint).CombinedOutput()
-				if err == nil {
-					break
-				}
-				log.Warnf("could not umount %s: %s: %s", mountPoint, err, string(umountOuput))
-				if !sleepCtx(ctx, 3*time.Second) {
-					break
-				}
-			}
-		})
 		mountPoints = append(mountPoints, mountPoint)
 	}
+	return mountPoints, nil
+}
 
-	return
+func cleanupScan(ctx context.Context, scan *scanTask) {
+	mountRoot := scan.MountPoint("")
+	mountEntries, err := os.ReadDir(mountRoot)
+	if err != nil {
+		return
+	}
+	for _, mountEntry := range mountEntries {
+		mountPoint := filepath.Join(mountRoot, mountEntry.Name())
+		log.Debugf("%s: un-mounting %s", scan, mountPoint)
+		for i := 0; i < 10; i++ {
+			umountOuput, err := exec.CommandContext(ctx, "umount", "-f", mountPoint).CombinedOutput()
+			if err == nil {
+				break
+			}
+			log.Warnf("%s: could not umount %s: %s: %s", scan, mountPoint, err, string(umountOuput))
+			if !sleepCtx(ctx, 3*time.Second) {
+				return
+			}
+		}
+	}
+	if err := os.RemoveAll(mountRoot); err != nil {
+		log.Errorf("%s: could not cleanup mount root %q", scan, mountRoot)
+	}
 }
 
 func sleepCtx(ctx context.Context, d time.Duration) bool {

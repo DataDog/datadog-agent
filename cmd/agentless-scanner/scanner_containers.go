@@ -37,33 +37,20 @@ type containerMountpoint struct {
 	Path          string
 }
 
-func mountContainers(ctx context.Context, scan *scanTask, root string) (mountPoints []containerMountpoint, cleanupMount func(context.Context), err error) {
+func mountContainers(ctx context.Context, scan *scanTask, root string) (mountPoints []containerMountpoint, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("mountContainers panic recovered: %s", r)
 		}
 	}()
 
-	var cleanups []func(context.Context)
-	pushCleanup := func(cleanup func(context.Context)) {
-		cleanups = append(cleanups, cleanup)
-	}
-	cleanupMount = func(ctx context.Context) {
-		for i := len(cleanups) - 1; i >= 0; i-- {
-			if cleanups[i] != nil {
-				cleanups[i](ctx)
-			}
-		}
-	}
-
 	ctrdRoot := filepath.Join(root, "/var/lib/containerd")
 	ctrdRootInfo, err := os.Stat(ctrdRoot)
 	if err == nil && ctrdRootInfo.IsDir() {
 		log.Debugf("%s: starting scanning for containerd containers", scan)
-		var containers []ctrdContainer
-		containers, err = ctrdReadMetadata(ctrdRoot)
+		containers, err := ctrdReadMetadata(ctrdRoot)
 		if err != nil {
-			return
+			return nil, err
 		}
 		log.Debugf("%s: found %d containers on %q", scan, len(containers), root)
 		for _, ctr := range containers {
@@ -78,9 +65,7 @@ func mountContainers(ctx context.Context, scan *scanTask, root string) (mountPoi
 			}
 
 			var ctrMountPoint string
-			var ctrCleanup func(context.Context)
-			ctrMountPoint, ctrCleanup, err = ctrdMountContainer(ctx, ctrdRoot, ctr)
-			pushCleanup(ctrCleanup)
+			ctrMountPoint, err = ctrdMountContainer(ctx, scan, ctrdRoot, ctr)
 			if err != nil {
 				log.Errorf("could not mount container %s: %v", ctr, err)
 				continue
@@ -94,7 +79,7 @@ func mountContainers(ctx context.Context, scan *scanTask, root string) (mountPoi
 		}
 	}
 
-	return
+	return mountPoints, nil
 }
 
 func containerTags(ctr containerMountpoint) (string, []string) {
@@ -118,40 +103,27 @@ func containerTags(ctr containerMountpoint) (string, []string) {
 	return entityID, entityTags
 }
 
-func ctrdMountContainer(ctx context.Context, ctrdRoot string, ctr ctrdContainer) (string, func(context.Context), error) {
+func ctrdMountContainer(ctx context.Context, scan *scanTask, ctrdRoot string, ctr ctrdContainer) (string, error) {
 	ctrLayers := ctrdLayersPaths(ctrdRoot, ctr.Snapshot)
 	if len(ctrLayers) == 0 {
-		return "", nil, fmt.Errorf("container without any layer: %s", ctr)
+		return "", fmt.Errorf("container without any layer: %s", ctr)
 	}
 	if len(ctrLayers) == 1 {
 		// only one layer, no need to mount anything.
-		return ctrLayers[0], nil, nil
+		return ctrLayers[0], nil
 	}
-	ctrMountPoint := fmt.Sprintf("/containers/%d", ctr.Snapshot.Backend.ID)
+	ctrMountPoint := scan.MountPoint(fmt.Sprintf("ctrd-%s-%s-%d", ctr.NS, ctr.Name, ctr.Snapshot.Backend.ID))
 	if err := os.MkdirAll(ctrMountPoint, 0700); err != nil {
-		return "", nil, fmt.Errorf("could not create container mountPoint directory %q: %w", ctrMountPoint, err)
+		return "", fmt.Errorf("could not create container mountPoint directory %q: %w", ctrMountPoint, err)
 	}
 	ctrMountOpts := "ro,noauto,nodev,noexec,nosuid,index=off," + fmt.Sprintf("lowerdir=%s", strings.Join(ctrLayers, ":"))
 	log.Debugf("execing mount -o %s -t overlay --source overlay --target %q", ctrMountOpts, ctrMountPoint)
 	mountOutput, err := exec.CommandContext(ctx, "mount", "-o", ctrMountOpts, "-t", "overlay", "--source", "overlay", "--target", ctrMountPoint).CombinedOutput()
 	if err != nil {
 		err = fmt.Errorf("could not mount into target=%q options=%q output=%q: %w", ctrMountPoint, ctrMountOpts, string(mountOutput), err)
-		return "", nil, err
+		return "", err
 	}
-	cleanup := func(ctx context.Context) {
-		log.Debugf("un-mounting %s", ctrMountPoint)
-		for i := 0; i < 10; i++ {
-			umountOuput, err := exec.CommandContext(ctx, "umount", "-f", ctrMountPoint).CombinedOutput()
-			if err == nil {
-				break
-			}
-			log.Warnf("could not umount %s: %s: %s", ctrMountPoint, err, string(umountOuput))
-			if !sleepCtx(ctx, 3*time.Second) {
-				break
-			}
-		}
-	}
-	return ctrMountPoint, cleanup, nil
+	return ctrMountPoint, nil
 }
 
 const ctrdSupportedVersion = 3
