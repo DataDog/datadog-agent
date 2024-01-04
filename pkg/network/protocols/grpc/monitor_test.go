@@ -524,7 +524,7 @@ func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 					return true
 				}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
 
-				if t.Failed() || true {
+				if t.Failed() {
 					ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, "http2_in_flight", "http2_dynamic_table")
 				}
 			})
