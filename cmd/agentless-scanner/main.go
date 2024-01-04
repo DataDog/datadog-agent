@@ -2695,18 +2695,20 @@ func cleanupScan(ctx context.Context, scan *scanTask) {
 	umount := func(mountPoint string) {
 		log.Debugf("%s: un-mounting %s", scan, mountPoint)
 		defer umountWG.Done()
+		var umountOutput []byte
+		var erru error
 		for i := 0; i < 10; i++ {
 			if _, err := os.Stat(mountPoint); os.IsNotExist(err) {
 				return
 			}
 			umountCmd := exec.CommandContext(ctx, "umount", mountPoint)
-			if umountOuput, err := umountCmd.CombinedOutput(); err != nil {
+			if umountOutput, erru = umountCmd.CombinedOutput(); erru != nil {
 				// Check for "not mounted" errors that we ignore
 				const MntExFail = 32 // MNT_EX_FAIL
-				if exiterr, ok := err.(*exec.ExitError); ok && exiterr.ExitCode() == MntExFail && bytes.Contains(umountOuput, []byte("not mounted")) {
+				if exiterr, ok := erru.(*exec.ExitError); ok && exiterr.ExitCode() == MntExFail && bytes.Contains(umountOutput, []byte("not mounted")) {
 					return
 				}
-				log.Warnf("%s: could not umount %s: %s: %s", scan, mountPoint, err, string(umountOuput))
+				log.Warnf("%s: could not umount %s: %s: %s", scan, mountPoint, erru, string(umountOutput))
 				if !sleepCtx(ctx, 3*time.Second) {
 					return
 				}
@@ -2714,6 +2716,7 @@ func cleanupScan(ctx context.Context, scan *scanTask) {
 			}
 			return
 		}
+		log.Errorf("%s: could not umount %s: %s: %s", scan, mountPoint, erru, string(umountOutput))
 	}
 
 	for _, mountEntry := range mountEntries {
