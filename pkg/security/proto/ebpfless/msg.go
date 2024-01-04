@@ -48,6 +48,8 @@ const (
 	SyscallTypeSetFSUID
 	// SyscallTypeSetFSGID setfsgid type
 	SyscallTypeSetFSGID
+	// SyscallTypeCapset capset type
+	SyscallTypeCapset
 )
 
 // ContainerContext defines a container context
@@ -135,6 +137,12 @@ type SetFSGIDSyscallMsg struct {
 	FSGID int32
 }
 
+// CapsetSyscallMsg defines a setfsgid message
+type CapsetSyscallMsg struct {
+	Effective uint64
+	Permitted uint64
+}
+
 // SyscallMsg defines a syscall message
 type SyscallMsg struct {
 	Type      SyscallType
@@ -150,6 +158,7 @@ type SyscallMsg struct {
 	SetGID    *SetGIDSyscallMsg   `json:",omitempty"`
 	SetFSUID  *SetFSUIDSyscallMsg `json:",omitempty"`
 	SetFSGID  *SetFSGIDSyscallMsg `json:",omitempty"`
+	Capset    *CapsetSyscallMsg   `json:",omitempty"`
 
 	// internals
 	Dup   *DupSyscallFakeMsg   `json:",omitempty"`

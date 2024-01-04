@@ -484,6 +484,57 @@ func handleClose(tracer *Tracer, process *Process, _ *ebpfless.SyscallMsg, regs 
 	return nil
 }
 
+func handleCapset(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
+	pCaps, err := tracer.ReadArgData(process.Pid, regs, 1, 24 /*sizeof uint32 x3 x2*/)
+	if err != nil {
+		return err
+	}
+	var (
+		tmp       uint32
+		effective uint64
+		permitted uint64
+	)
+
+	// extract low bytes of effective caps
+	buf := bytes.NewReader(pCaps[:4])
+	err = binary.Read(buf, native.Endian, &tmp)
+	if err != nil {
+		return err
+	}
+	effective = uint64(tmp)
+	// extract high bytes of effective caps
+	buf = bytes.NewReader(pCaps[12:16])
+	err = binary.Read(buf, native.Endian, &tmp)
+	if err != nil {
+		return err
+	}
+	// merge them together
+	effective |= uint64(tmp) << 32
+
+	// extract low bytes of permitted caps
+	buf = bytes.NewReader(pCaps[4:8])
+	err = binary.Read(buf, native.Endian, &tmp)
+	if err != nil {
+		return err
+	}
+	permitted = uint64(tmp)
+	// extract high bytes of permitted caps
+	buf = bytes.NewReader(pCaps[16:20])
+	err = binary.Read(buf, native.Endian, &tmp)
+	if err != nil {
+		return err
+	}
+	// merge them together
+	permitted |= uint64(tmp) << 32
+
+	msg.Type = ebpfless.SyscallTypeCapset
+	msg.Capset = &ebpfless.CapsetSyscallMsg{
+		Effective: uint64(effective),
+		Permitted: uint64(permitted),
+	}
+	return nil
+}
+
 func checkEntryPoint(path string) (string, error) {
 	name, err := exec.LookPath(path)
 	if err != nil {
@@ -844,6 +895,11 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 					logErrorf("unable to handle memfd_create: %v", err)
 					return
 				}
+			case CapsetNr:
+				if err = handleCapset(tracer, process, syscallMsg, regs); err != nil {
+					logErrorf("unable to handle capset: %v", err)
+					return
+				}
 			}
 		case CallbackPostType:
 			switch nr {
@@ -928,6 +984,15 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 						return
 					}
 					process.Res.Cwd = syscallMsg.Chdir.Path
+				}
+			case CapsetNr:
+				if ret := tracer.ReadRet(regs); ret == 0 {
+					syscallMsg, exists := process.Nr[nr]
+					if !exists || syscallMsg.Capset == nil {
+						return
+					}
+					syscallMsg.Retval = ret
+					sendSyscallMsg(syscallMsg)
 				}
 			}
 		case CallbackExitType:

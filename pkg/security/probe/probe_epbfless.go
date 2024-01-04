@@ -157,6 +157,11 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 	case ebpfless.SyscallTypeSetFSGID:
 		event.Type = uint32(model.SetgidEventType)
 		event.SetGID.FSGID = uint32(syscallMsg.SetFSGID.FSGID)
+
+	case ebpfless.SyscallTypeCapset:
+		event.Type = uint32(model.CapsetEventType)
+		event.Capset.CapEffective = syscallMsg.Capset.Effective
+		event.Capset.CapPermitted = syscallMsg.Capset.Permitted
 	}
 
 	// container context

@@ -37,6 +37,7 @@ const (
 	SetfsgidNr       = 152 // SetregidNr defines the syscall ID for arm64
 	CloseNr          = 57  // CloseNr defines the syscall ID for arm64
 	MemfdCreateNr    = 279 // MemfdCreateNr defines the syscall ID for arm64
+	CapsetNr         = 91  // CapsetNr defines the syscall ID for arm64
 
 	OpenNr  = -1 // OpenNr not available on arm64
 	ForkNr  = -2 // ForkNr not available on arm64
@@ -79,6 +80,7 @@ var (
 		"setfsgid",
 		"close",
 		"memfd_create",
+		"capset",
 	}
 )
 

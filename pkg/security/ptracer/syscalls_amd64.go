@@ -42,6 +42,7 @@ const (
 	SetfsgidNr       = 123 // SetregidNr defines the syscall ID for amd64
 	CloseNr          = 3   // CloseNr defines the syscall ID for amd64
 	MemfdCreateNr    = 319 // MemfdCreateNr defines the syscall ID for amd64
+	CapsetNr         = 126 // CapsetNr defines the syscall ID for amd64
 
 	ptraceFlags = 0 |
 		syscall.PTRACE_O_TRACEVFORK |
@@ -83,6 +84,7 @@ var (
 		"setfsgid",
 		"close",
 		"memfd_create",
+		"capset",
 	}
 )
 
