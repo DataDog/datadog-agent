@@ -6,7 +6,11 @@
 // Package ebpfless holds msgpack messages
 package ebpfless
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+)
 
 // MessageType defines the type of a message
 type MessageType int32
@@ -67,9 +71,10 @@ type Credentials struct {
 
 // ExecSyscallMsg defines an exec message
 type ExecSyscallMsg struct {
-	Filename    string
+	File        *OpenSyscallMsg
 	Args        []string
 	Envs        []string
+	TTY         string
 	Credentials *Credentials
 }
 
@@ -79,13 +84,19 @@ type ForkSyscallMsg struct {
 }
 
 // ExitSyscallMsg defines an exit message
-type ExitSyscallMsg struct{}
+type ExitSyscallMsg struct {
+	Code  uint32
+	Cause model.ExitCause
+}
 
 // OpenSyscallMsg defines an open message
 type OpenSyscallMsg struct {
-	Filename string
-	Flags    uint32
-	Mode     uint32
+	Filename    string
+	CTime       uint64
+	MTime       uint64
+	Flags       uint32
+	Mode        uint32
+	Credentials *Credentials
 }
 
 // DupSyscallFakeMsg defines a dup message
@@ -112,16 +123,17 @@ type SetGIDSyscallMsg struct {
 
 // SyscallMsg defines a syscall message
 type SyscallMsg struct {
-	Type   SyscallType
-	PID    uint32
-	Retval int64
-	Exec   *ExecSyscallMsg   `json:",omitempty"`
-	Open   *OpenSyscallMsg   `json:",omitempty"`
-	Fork   *ForkSyscallMsg   `json:",omitempty"`
-	Exit   *ExitSyscallMsg   `json:",omitempty"`
-	Fcntl  *FcntlSyscallMsg  `json:",omitempty"`
-	SetUID *SetUIDSyscallMsg `json:",omitempty"`
-	SetGID *SetGIDSyscallMsg `json:",omitempty"`
+	Type      SyscallType
+	PID       uint32
+	Timestamp uint64
+	Retval    int64
+	Exec      *ExecSyscallMsg   `json:",omitempty"`
+	Open      *OpenSyscallMsg   `json:",omitempty"`
+	Fork      *ForkSyscallMsg   `json:",omitempty"`
+	Exit      *ExitSyscallMsg   `json:",omitempty"`
+	Fcntl     *FcntlSyscallMsg  `json:",omitempty"`
+	SetUID    *SetUIDSyscallMsg `json:",omitempty"`
+	SetGID    *SetGIDSyscallMsg `json:",omitempty"`
 
 	// internals
 	Dup   *DupSyscallFakeMsg   `json:",omitempty"`
