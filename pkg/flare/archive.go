@@ -32,6 +32,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	processagentStatus "github.com/DataDog/datadog-agent/pkg/status/processagent"
+	systemprobeStatus "github.com/DataDog/datadog-agent/pkg/status/systemprobe"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -181,7 +183,7 @@ func getExpVar(fb flaretypes.FlareBuilder) error {
 }
 
 func getSystemProbeStats() ([]byte, error) {
-	sysProbeStats := status.GetSystemProbeStats(config.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
+	sysProbeStats := systemprobeStatus.GetStatus(config.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
 	sysProbeBuf, err := yaml.Marshal(sysProbeStats)
 	if err != nil {
 		return nil, err
@@ -199,7 +201,7 @@ func getProcessAgentFullConfig() ([]byte, error) {
 
 	procStatusURL := fmt.Sprintf("http://%s/config/all", addressPort)
 
-	cfgB := status.GetProcessAgentRuntimeConfig(procStatusURL)
+	cfgB := processagentStatus.GetRuntimeConfig(procStatusURL)
 	return cfgB, nil
 }
 
