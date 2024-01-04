@@ -2690,11 +2690,8 @@ func cleanupScan(ctx context.Context, scan *scanTask) {
 		return
 	}
 
-	var umountWG sync.WaitGroup
-
 	umount := func(mountPoint string) {
 		log.Debugf("%s: un-mounting %s", scan, mountPoint)
-		defer umountWG.Done()
 		var umountOutput []byte
 		var erru error
 		for i := 0; i < 10; i++ {
@@ -2719,18 +2716,20 @@ func cleanupScan(ctx context.Context, scan *scanTask) {
 		log.Errorf("%s: could not umount %s: %s: %s", scan, mountPoint, erru, string(umountOutput))
 	}
 
+	var wg sync.WaitGroup
 	for _, mountEntry := range mountEntries {
 		// unmount "root" entrypoint last as the other mountpoint may depend on it
 		if mountEntry.IsDir() && mountEntry.Name() != rootMountPrefix {
-			umountWG.Add(1)
-			go umount(filepath.Join(mountRoot, mountEntry.Name()))
+			wg.Add(1)
+			go func() {
+				umount(filepath.Join(mountRoot, mountEntry.Name()))
+				wg.Done()
+			}()
 		}
 	}
+	wg.Wait()
 
-	umountWG.Add(1)
-	go umount(filepath.Join(mountRoot, rootMountPrefix))
-
-	umountWG.Wait()
+	umount(filepath.Join(mountRoot, rootMountPrefix))
 
 	if err := os.RemoveAll(mountRoot); err != nil {
 		log.Errorf("%s: could not cleanup mount root %q", scan, mountRoot)
