@@ -15,11 +15,11 @@ import (
 func TestCollectorRegistry(t *testing.T) {
 	c := newCollectorRegistry()
 
-	assert.Nil(t, c.effectiveCollectors[RuntimeNameDocker])
+	assert.Nil(t, c.effectiveCollectors[RuntimeMetadata{runtime: RuntimeNameDocker}])
 
 	// Check for collectors (none are registered, should not change output)
 	c.retryCollectors(nil)
-	assert.Nil(t, c.effectiveCollectors[RuntimeNameDocker])
+	assert.Nil(t, c.effectiveCollectors[RuntimeMetadata{runtime: RuntimeNameDocker}])
 
 	c.registerCollector(
 		CollectorFactory{
@@ -30,7 +30,11 @@ func TestCollectorRegistry(t *testing.T) {
 					selfContainerID: "dummy1",
 				}
 
-				return collector.constructor(10, RuntimeNameDocker, RuntimeNameContainerd, RuntimeNameCRIO)
+				return collector.constructor(10,
+					RuntimeMetadata{runtime: RuntimeNameDocker},
+					RuntimeMetadata{runtime: RuntimeNameContainerd},
+					RuntimeMetadata{runtime: RuntimeNameCRIO},
+				)
 			},
 		},
 	)
@@ -59,19 +63,23 @@ func TestCollectorRegistry(t *testing.T) {
 					selfContainerID: "dummy3",
 				}
 
-				return collector.constructor(9, RuntimeNameCRIO)
+				return collector.constructor(9, RuntimeMetadata{runtime: RuntimeNameCRIO})
 			},
 		},
 	)
 
 	// No retry, should still fail
-	assert.Nil(t, c.effectiveCollectors[RuntimeNameDocker])
+	assert.Nil(t, c.effectiveCollectors[RuntimeMetadata{runtime: RuntimeNameDocker}])
 
 	// dummy1 should answer to everything
-	assertCollectors := func(expected map[Runtime]string) {
-		actual := make(map[Runtime]string)
+	assertCollectors := func(expected map[RuntimeMetadata]string) {
+		actual := make(map[RuntimeMetadata]string)
 
-		for _, runtime := range []Runtime{RuntimeNameDocker, RuntimeNameContainerd, RuntimeNameCRIO} {
+		for _, runtime := range []RuntimeMetadata{
+			{runtime: RuntimeNameDocker},
+			{runtime: RuntimeNameContainerd},
+			{runtime: RuntimeNameCRIO},
+		} {
 			val, err := c.effectiveCollectors[runtime].SelfContainerID.Collector.GetSelfContainerID()
 			assert.NoError(t, err)
 			actual[runtime] = val
@@ -82,28 +90,28 @@ func TestCollectorRegistry(t *testing.T) {
 
 	collectorsToRetry := c.retryCollectors(nil)
 	assert.Equal(t, 1, collectorsToRetry)
-	assertCollectors(map[Runtime]string{
-		RuntimeNameDocker:     "dummy1",
-		RuntimeNameContainerd: "dummy1",
-		RuntimeNameCRIO:       "dummy1",
+	assertCollectors(map[RuntimeMetadata]string{
+		{runtime: RuntimeNameDocker}:     "dummy1",
+		{runtime: RuntimeNameContainerd}: "dummy1",
+		{runtime: RuntimeNameCRIO}:       "dummy1",
 	})
 
 	// dummy3 still not there, dummy2 never ok
 	collectorsToRetry = c.retryCollectors(nil)
 	assert.Equal(t, 1, collectorsToRetry)
-	assertCollectors(map[Runtime]string{
-		RuntimeNameDocker:     "dummy1",
-		RuntimeNameContainerd: "dummy1",
-		RuntimeNameCRIO:       "dummy1",
+	assertCollectors(map[RuntimeMetadata]string{
+		{runtime: RuntimeNameDocker}:     "dummy1",
+		{runtime: RuntimeNameContainerd}: "dummy1",
+		{runtime: RuntimeNameCRIO}:       "dummy1",
 	})
 
 	// dummy3 should pop up
 	collectorsToRetry = c.retryCollectors(nil)
 	assert.Equal(t, 0, collectorsToRetry)
-	assertCollectors(map[Runtime]string{
-		RuntimeNameDocker:     "dummy1",
-		RuntimeNameContainerd: "dummy1",
-		RuntimeNameCRIO:       "dummy3",
+	assertCollectors(map[RuntimeMetadata]string{
+		{runtime: RuntimeNameDocker}:     "dummy1",
+		{runtime: RuntimeNameContainerd}: "dummy1",
+		{runtime: RuntimeNameCRIO}:       "dummy3",
 	})
 
 	// Registering a new collector
@@ -116,16 +124,16 @@ func TestCollectorRegistry(t *testing.T) {
 					selfContainerID: "dummy4",
 				}
 
-				return collector.constructor(8, RuntimeNameDocker)
+				return collector.constructor(8, RuntimeMetadata{runtime: RuntimeNameDocker})
 			},
 		},
 	)
 
 	collectorsToRetry = c.retryCollectors(nil)
 	assert.Equal(t, 0, collectorsToRetry)
-	assertCollectors(map[Runtime]string{
-		RuntimeNameDocker:     "dummy4",
-		RuntimeNameContainerd: "dummy1",
-		RuntimeNameCRIO:       "dummy3",
+	assertCollectors(map[RuntimeMetadata]string{
+		{runtime: RuntimeNameDocker}:     "dummy4",
+		{runtime: RuntimeNameContainerd}: "dummy1",
+		{runtime: RuntimeNameCRIO}:       "dummy3",
 	})
 }

@@ -87,6 +87,7 @@ func (p *EBPFLessResolver) AddForkEntry(key CacheResolverKey, ppid uint32, ts ui
 	entry.PIDContext.Pid = key.Pid
 	entry.PPid = ppid
 	entry.ForkTime = time.Unix(0, int64(ts))
+	entry.IsThread = true
 
 	p.Lock()
 	defer p.Unlock()
@@ -97,11 +98,15 @@ func (p *EBPFLessResolver) AddForkEntry(key CacheResolverKey, ppid uint32, ts ui
 }
 
 // AddExecEntry adds an entry to the local cache and returns the newly created entry
-func (p *EBPFLessResolver) AddExecEntry(key CacheResolverKey, file string, argv []string, envs []string, ctrID string, ts uint64, tty string) *model.ProcessCacheEntry {
+func (p *EBPFLessResolver) AddExecEntry(key CacheResolverKey, file string, argv []string, argsTruncated bool,
+	envs []string, envsTruncated bool, ctrID string, ts uint64, tty string) *model.ProcessCacheEntry {
 	entry := p.processCacheEntryPool.Get()
 	entry.PIDContext.Pid = key.Pid
 
-	entry.Process.ArgsEntry = &model.ArgsEntry{Values: argv}
+	entry.Process.ArgsEntry = &model.ArgsEntry{
+		Values:    argv,
+		Truncated: argsTruncated,
+	}
 	if len(argv) > 0 {
 		entry.Process.Argv0 = argv[0]
 	}
@@ -112,7 +117,10 @@ func (p *EBPFLessResolver) AddExecEntry(key CacheResolverKey, file string, argv 
 	}
 	entry.Process.TTYName = tty
 
-	entry.Process.EnvsEntry = &model.EnvsEntry{Values: envs}
+	entry.Process.EnvsEntry = &model.EnvsEntry{
+		Values:    envs,
+		Truncated: envsTruncated,
+	}
 
 	if strings.HasPrefix(file, "memfd:") {
 		entry.Process.FileEvent.PathnameStr = ""
