@@ -26,7 +26,7 @@ type windowsTestSuite struct {
 }
 
 func TestWindowsTestSuite(t *testing.T) {
-	e2e.Run(t, &linuxTestSuite{},
+	e2e.Run(t, &windowsTestSuite{},
 		e2e.WithProvisioner(
 			awshost.Provisioner(
 				awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
