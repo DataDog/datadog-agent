@@ -10,6 +10,7 @@ on:
 
 jobs:
   team-label:
+    if: github.triggering_actor != 'dd-devflow'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,6 +29,7 @@ jobs:
         run: |
           inv -e lint-teamassignment
   skip-qa:
+    if: github.triggering_actor != 'dd-devflow'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
