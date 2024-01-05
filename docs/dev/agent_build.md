@@ -64,9 +64,20 @@ building the Agent with the `bundle_process_agent` and `bundle_security_agent` w
 a binary that has the process Agent and security Agent capabilities.
 
 The `--bundle` argument can be used to override the default set of functionalities bundled
-into the Agent binary.
+into the Agent binary. For instance, to override the defaults and bundle only the process and
+and the security Agents:
 
-One binary per Agent can still be built by using its own its own invoke task and passing the
+```
+invoke agent.build --bundle process-agent --bundle security-agent
+```
+
+To disable bundling entirely:
+
+```
+invoke agent.build --bundle
+```
+
+One binary per Agent can still be built by using its own invoke task and passing the
 `--no-bundle` argument:
 - The 'main' Agent: https://github.com/DataDog/datadog-agent/blob/main/tasks/agent.py
 - The process Agent: https://github.com/DataDog/datadog-agent/blob/main/tasks/process_agent.py
@@ -74,6 +85,13 @@ One binary per Agent can still be built by using its own its own invoke task and
 - The cluster Agent: https://github.com/DataDog/datadog-agent/blob/main/tasks/cluster_agent.py
 - The security Agent: https://github.com/DataDog/datadog-agent/blob/main/tasks/security_agent.py
 - The system probe: https://github.com/DataDog/datadog-agent/blob/main/tasks/system_probe.py
+
+So to build the process Agent as a standalone self contained executable:
+
+```
+invoke process-agent.build --no-bundle
+```
+
 
 ## Testing Agent changes in containerized environments
 
