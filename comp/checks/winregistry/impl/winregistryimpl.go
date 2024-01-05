@@ -110,21 +110,7 @@ type WindowsRegistryCheck struct {
 
 func createSchema() ([]byte, error) {
 	reflector := jsonschema.Reflector{}
-
-	conf := checkCfg{}
-	conf.RegistryKeys = map[string]registryKeyCfg{
-		"test_key": {
-			Name: "test_key_name",
-			RegistryValues: map[string]registryValueCfg{
-				"test_value": {
-					Name:         "test_value_name",
-					DefaultValue: optional.Option[float64]{},
-					Mappings:     []map[string]float64{},
-				},
-			},
-		},
-	}
-	schema, err := reflector.Reflect(conf)
+	schema, err := reflector.Reflect(checkCfg{})
 	if err != nil {
 		return nil, err
 	}
