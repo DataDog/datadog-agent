@@ -94,7 +94,7 @@ func newProcessor(workloadmetaStore workloadmeta.Component, sender sender.Sender
 }
 
 func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBundle) {
-	close(evBundle.Ch)
+	evBundle.Acknowledge()
 
 	log.Tracef("Processing %d events", len(evBundle.Events))
 

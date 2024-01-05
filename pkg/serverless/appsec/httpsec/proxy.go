@@ -7,7 +7,6 @@ package httpsec
 
 import (
 	"bytes"
-	"encoding/json"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/config"
@@ -17,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/aws/aws-lambda-go/events"
+	json "github.com/json-iterator/go"
 )
 
 // ProxyLifecycleProcessor is an implementation of the invocationlifecycle.InvocationProcessor
