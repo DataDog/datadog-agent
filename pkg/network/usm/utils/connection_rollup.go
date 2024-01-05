@@ -24,13 +24,20 @@ func NewConnectionAggregator() *ConnectionAggregator {
 	}
 }
 
+// ipTuple represents a pair of 64-bit IP addresses.
+//
+// note: we chose generic names ("a" and "b") on purpose, since the order of IPs
+// here doesn't align with the notion of "source/destination", "local/remote"
+// or "client/server".
 type ipTuple struct {
-	al uint64
-	ah uint64
-	bl uint64
-	bh uint64
+	aLow  uint64
+	aHigh uint64
+	bLow  uint64
+	bHigh uint64
 }
 
+// ephemeralPortSide designates which side of the tuple ("a" or "b") contains
+// the ephemeral/client port
 type ephemeralPortSide uint8
 
 const (
@@ -241,10 +248,10 @@ func normalizeByIP(key types.ConnectionKey) (normalizedKey types.ConnectionKey, 
 
 func split(key types.ConnectionKey) (ipTuple, portValues) {
 	ips := ipTuple{
-		al: key.SrcIPLow,
-		ah: key.SrcIPHigh,
-		bl: key.DstIPLow,
-		bh: key.DstIPHigh,
+		aLow:  key.SrcIPLow,
+		aHigh: key.SrcIPHigh,
+		bLow:  key.DstIPLow,
+		bHigh: key.DstIPHigh,
 	}
 
 	ports := portValues{
@@ -257,10 +264,10 @@ func split(key types.ConnectionKey) (ipTuple, portValues) {
 
 func generateKey(ips ipTuple, ports portValues) types.ConnectionKey {
 	key := types.ConnectionKey{
-		SrcIPLow:  ips.al,
-		SrcIPHigh: ips.ah,
-		DstIPLow:  ips.bl,
-		DstIPHigh: ips.bh,
+		SrcIPLow:  ips.aLow,
+		SrcIPHigh: ips.aHigh,
+		DstIPLow:  ips.bLow,
+		DstIPHigh: ips.bHigh,
 		SrcPort:   ports.a,
 		DstPort:   ports.b,
 	}
