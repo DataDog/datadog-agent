@@ -206,7 +206,8 @@ func TestOverlayDir(t *testing.T) {
 		assert.True(t, errors.Is(err, fs.ErrNotExist))
 
 		_, err = testFS.Open(path.Join("dir", "subdir", "file3"))
-		assert.NoError(t, err)
+		assert.Error(t, err)
+		assert.True(t, errors.Is(err, fs.ErrNotExist))
 	}
 }
 
@@ -236,13 +237,16 @@ func TestOverlayDirWhitedout(t *testing.T) {
 	assert.Equal(t, entries[0].Name(), "file1")
 
 	_, err = testFS.Open("dir/ghost/file2")
-	assert.NoError(t, err)
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, fs.ErrNotExist))
 
 	_, err = testFS.ReadDir("dir/ghost/subdir1")
-	assert.NoError(t, err)
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, fs.ErrNotExist))
 
 	_, err = testFS.ReadDir("dir/ghost/subdir1/subdir2")
-	assert.NoError(t, err)
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, fs.ErrNotExist))
 }
 
 func createWhiteout(t *testing.T, path string) {

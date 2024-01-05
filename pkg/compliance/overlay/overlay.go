@@ -81,11 +81,9 @@ func (ofs filesystem) stat(name string) (int, fs.FileInfo, error) {
 	for layerIndex := range ofs.layers {
 		fi, err := os.Stat(ofs.path(layerIndex, name))
 		if errors.Is(err, syscall.ENOENT) || errors.Is(err, syscall.ENOTDIR) {
-			// When path does not exist, overlayfs does not verify that a
-			// whiteout file has been created as one of the parent dir in the
-			// current layer. Meaning you can open file from lower dirs even
-			// if a whiteout or opaque directory has been created on an upper
-			// layer.
+			if ofs.whiteoutParent(layerIndex, name) {
+				break
+			}
 			continue
 		}
 		if err != nil {
@@ -146,6 +144,9 @@ func (ofs filesystem) readDirLayer(layerIndex int, name string, n int, entriesMa
 
 	di, err := os.Stat(fullname)
 	if errors.Is(err, syscall.ENOENT) || errors.Is(err, syscall.ENOTDIR) {
+		if ofs.whiteoutParent(layerIndex, name) {
+			return true, syscall.ENOENT
+		}
 		return false, nil
 	}
 	if err != nil {
@@ -190,7 +191,24 @@ func (ofs filesystem) readDirLayer(layerIndex int, name string, n int, entriesMa
 		}
 	}
 
-	return isOpaqueDir(d), nil
+	return isOpaqueDir(di, fullname), nil
+}
+
+func (ofs filesystem) whiteoutParent(layerIndex int, name string) bool {
+	// When path does not exist, check for any parent directory that
+	// could be a whiteout - in which case we can abort with
+	// ErrNotExit. No need for this check if we are at the lowest
+	// layer though.
+	if layerIndex != len(ofs.layers)-1 {
+		for parent := path.Dir(name); parent != "."; parent = path.Dir(parent) {
+			parentPath := ofs.path(layerIndex, parent)
+			parentInfo, err := os.Stat(parentPath)
+			if err == nil && (isWhiteout(parentInfo) || isOpaqueDir(parentInfo, parentPath)) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // ReadDir implements fs.ReadDirFile.
@@ -222,12 +240,15 @@ func isWhiteout(fm fs.FileInfo) bool {
 	return fm.Mode()&fs.ModeCharDevice != 0 && uint64(fm.Sys().(*syscall.Stat_t).Rdev) == whiteoutCharDev
 }
 
-func isOpaqueDir(d *os.File) bool {
+func isOpaqueDir(di fs.FileInfo, name string) bool {
+	if !di.IsDir() {
+		return false
+	}
 	var data [1]byte
 	var sz int
 	var err error
 	for {
-		sz, err = unix.Fgetxattr(int(d.Fd()), "trusted.overlay.opaque", data[:])
+		sz, err = unix.Getxattr(name, "trusted.overlay.opaque", data[:])
 		if err != unix.EINTR {
 			break
 		}
