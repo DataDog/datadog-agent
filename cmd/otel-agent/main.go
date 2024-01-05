@@ -78,9 +78,9 @@ func main() {
 		fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
 		fx.Provide(newSerializer),
 		fx.Provide(func(cfg config.Component) demultiplexerimpl.Params {
-			opts := aggregator.DefaultAgentDemultiplexerOptions()
-			opts.EnableNoAggregationPipeline = cfg.GetBool("dogstatsd_no_aggregation_pipeline")
-			return demultiplexerimpl.Params{Options: opts}
+			params := demultiplexerimpl.NewDefaultParams()
+			params.EnableNoAggregationPipeline = cfg.GetBool("dogstatsd_no_aggregation_pipeline")
+			return params
 		}),
 	)
 	if err != nil {
