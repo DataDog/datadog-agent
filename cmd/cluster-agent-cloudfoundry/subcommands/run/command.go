@@ -37,7 +37,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
@@ -74,9 +73,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				orchestratorForwarderImpl.Module(),
 				fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
 				fx.Provide(func() demultiplexerimpl.Params {
-					opts := aggregator.DefaultAgentDemultiplexerOptions()
-					opts.UseEventPlatformForwarder = false
-					return demultiplexerimpl.Params{Options: opts}
+					params := demultiplexerimpl.NewDefaultParams()
+					params.UseEventPlatformForwarder = false
+					return params
 				}),
 				// setup workloadmeta
 				collectors.GetCatalog(),

@@ -166,10 +166,10 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Supply(orchestratorForwarderImpl.NewNoopParams()),
 				fx.Provide(func() demultiplexerimpl.Params {
 					// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
-					opts := aggregator.DefaultAgentDemultiplexerOptions()
-					opts.FlushInterval = 0
-					opts.UseNoopEventPlatformForwarder = true
-					return demultiplexerimpl.Params{Options: opts}
+					params := demultiplexerimpl.NewDefaultParams()
+					params.FlushInterval = 0
+					params.UseNoopEventPlatformForwarder = true
+					return params
 				}),
 
 				// TODO(components): this is a temporary hack as the StartServer() method of the API package was previously called with nil arguments
