@@ -34,6 +34,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
+
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 )
 
 const (
@@ -82,7 +84,14 @@ type agent struct {
 	started *atomic.Bool
 }
 
-func newLogsAgent(deps dependencies) optional.Option[Component] {
+type provides struct {
+	fx.Out
+
+	Comp          Component
+	FlareProvider flaretypes.Provider
+}
+
+func newLogsAgent(deps dependencies) optional.Option[provides] {
 	if deps.Config.GetBool("logs_enabled") || deps.Config.GetBool("log_enabled") {
 		if deps.Config.GetBool("log_enabled") {
 			deps.Log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
@@ -103,11 +112,15 @@ func newLogsAgent(deps dependencies) optional.Option[Component] {
 			OnStop:  logsAgent.stop,
 		})
 
-		return optional.NewOption[Component](logsAgent)
+		return optional.NewOption[provides](provides{
+			Comp:          logsAgent,
+			FlareProvider: logsAgent.FlareProvider(),
+		})
+		// return optional.NewOption[Component](logsAgent)
 	}
 
 	deps.Log.Info("logs-agent disabled")
-	return optional.NewNoneOption[Component]()
+	return optional.NewNoneOption[provides]()
 }
 
 func (a *agent) start(context.Context) error {
@@ -253,4 +266,23 @@ func (a *agent) GetMessageReceiver() *diagnostic.BufferedMessageReceiver {
 
 func (a *agent) GetPipelineProvider() pipeline.Provider {
 	return a.pipelineProvider
+}
+
+func (a *agent) FlareProvider() flaretypes.Provider {
+	return flaretypes.NewProvider(a.fillFlare)
+}
+
+func (a *agent) fillFlare(fb flaretypes.FlareBuilder) error {
+	tailers := a.tracker.All()
+
+	for _, tailer := range tailers {
+		tailer.GetInfo().All()
+	}
+
+	fb.AddFileFromFunc("logs_file_permissions", func() ([]byte, error) {
+		sample := []byte("Hello")
+		return sample, nil
+	})
+
+	return nil
 }
