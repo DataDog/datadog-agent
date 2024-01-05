@@ -22,7 +22,7 @@ const (
 )
 
 // CollectorCatalog defines the enabled Collectors for a given runtime
-type CollectorCatalog map[Runtime]*Collectors
+type CollectorCatalog map[RuntimeMetadata]*Collectors
 
 func (cc CollectorCatalog) merge(otherID string, othCatalog CollectorCatalog) {
 	for runtime, othCollectors := range othCatalog {
