@@ -569,7 +569,7 @@ func TestProcessContext(t *testing.T) {
 				t.Errorf("not able to get exec.envp")
 			}
 
-			envp := (execEnvp.([]string))
+			envp := execEnvp.([]string)
 			assert.Equal(t, 2, len(envp), "incorrect number of envs: %s", envp)
 			assert.Equal(t, 255, len(envp[1]), "wrong env length")
 			assert.Equal(t, true, strings.HasSuffix(envp[1], "..."), "envs not truncated")
@@ -624,7 +624,7 @@ func TestProcessContext(t *testing.T) {
 				t.Errorf("not able to get exec.envp")
 			}
 
-			envp := (execEnvp.([]string))
+			envp := execEnvp.([]string)
 			assert.Equal(t, 736, len(envp), "incorrect number of envs: %s", envp)
 
 			for i := 0; i != 736; i++ {
@@ -684,7 +684,7 @@ func TestProcessContext(t *testing.T) {
 				t.Errorf("not able to get exec.envp")
 			}
 
-			envp := (execEnvp.([]string))
+			envp := execEnvp.([]string)
 			assert.Equal(t, 895, len(envp), "incorrect number of envs: %s", envp)
 
 			for i := 0; i != 895; i++ {

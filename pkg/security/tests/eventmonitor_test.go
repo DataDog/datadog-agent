@@ -9,25 +9,46 @@
 package tests
 
 import (
-	"errors"
+	"os"
 	"os/exec"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/avast/retry-go/v4"
 	"github.com/stretchr/testify/assert"
+	"go4.org/intern"
 
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// This is the number of events that are expected to be received by the event monitor at test module initialization, before any test commands have been run.
+// They're not exactly constants in that they could change due to changes in the test module implementation, but they're constant in the context of writing tests.
+const (
+	testModuleInitialExecs = 34
+	testModuleInitialForks = 0
+	testModuleInitialExits = 0
+)
+
 type FakeEventConsumer struct {
 	sync.RWMutex
-	exec int
-	fork int
-	exit int
+	exec             int
+	fork             int
+	exit             int
+	lastReceivedExec *FakeConsumerProcess
+	lastReceivedFork *FakeConsumerProcess
+	lastReceivedExit *FakeConsumerProcess
+}
+
+type FakeConsumerProcess struct {
+	EventType      model.EventType
+	Pid            uint32
+	Envs           []string
+	ContainerID    *intern.Value
+	StartTime      int64
+	CollectionTime time.Time
+	ExitTime       time.Time
 }
 
 func NewFakeEventConsumer(em *eventmonitor.EventMonitor) *FakeEventConsumer {
@@ -70,7 +91,7 @@ func (fc *FakeEventConsumer) GetExecCount() int {
 }
 
 func (fc *FakeEventConsumer) HandleEvent(incomingEvent any) {
-	event, ok := incomingEvent.(*model.Event)
+	event, ok := incomingEvent.(*FakeConsumerProcess)
 	if !ok {
 		log.Error("Event is not a security model event")
 		return
@@ -79,24 +100,49 @@ func (fc *FakeEventConsumer) HandleEvent(incomingEvent any) {
 	fc.Lock()
 	defer fc.Unlock()
 
-	switch event.GetEventType() {
+	switch event.EventType {
 	case model.ExecEventType:
 		fc.exec++
+		fc.lastReceivedExec = event
 	case model.ForkEventType:
 		fc.fork++
+		fc.lastReceivedFork = event
 	case model.ExitEventType:
 		fc.exit++
+		fc.lastReceivedExit = event
 	}
 }
 
-// Copy is no-op function used to satisfy the EventHandler interface
-func (fc *FakeEventConsumer) Copy(incomingEvent *model.Event) any {
-	return incomingEvent
+func (fc *FakeEventConsumer) Copy(ev *model.Event) any {
+	var processStartTime time.Time
+	var exitTime time.Time
+	if ev.GetEventType() == model.ExecEventType {
+		processStartTime = ev.GetProcessExecTime()
+	}
+	if ev.GetEventType() == model.ForkEventType {
+		processStartTime = ev.GetProcessForkTime()
+	}
+	if ev.GetEventType() == model.ExitEventType {
+		exitTime = ev.GetProcessExitTime()
+	}
+
+	return &FakeConsumerProcess{
+		EventType:   ev.GetEventType(),
+		Pid:         ev.GetProcessPid(),
+		ContainerID: intern.GetByString(ev.GetContainerId()),
+		StartTime:   processStartTime.UnixNano(),
+		ExitTime:    exitTime,
+		Envs:        ev.GetProcessEnvp(),
+	}
+}
+
+func (fc *FakeEventConsumer) Reset() {
+
 }
 
 func TestEventMonitor(t *testing.T) {
 	var fc *FakeEventConsumer
-	test, err := newTestModule(t, nil, nil, withStaticOpts(testOpts{
+	testModule, err := newTestModule(t, nil, nil, withStaticOpts(testOpts{
 		disableRuntimeSecurity: true,
 		preStartCallback: func(test *testModule) {
 			fc = NewFakeEventConsumer(test.eventMonitor)
@@ -106,43 +152,63 @@ func TestEventMonitor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer testModule.Close()
 
-	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	syscallTester, err := loadSyscallTester(t, testModule, "syscall_tester")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	t.Run("fork", func(t *testing.T) {
-		forkCount := fc.GetForkCount()
-		cmd := exec.Command(syscallTester, "fork")
-		_ = cmd.Run()
+	updatedExecs := testModuleInitialExecs
+	updatedForks := testModuleInitialForks
+	updatedExits := testModuleInitialExits
 
-		err := retry.Do(func() error {
-			if forkCount+1 <= fc.GetForkCount() {
-				return nil
-			}
+	envVars := []string{"DD_SERVICE=myService", "DD_VERSION=0.1.0", "DD_ENV=myEnv"}
 
-			return errors.New("event not received")
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(10))
-		assert.Nil(t, err)
-	})
+	tests := []struct {
+		name         string
+		commandToRun *exec.Cmd
+		check        func(c *assert.CollectT)
+	}{
+		{
+			name:         "fork",
+			commandToRun: exec.Command(syscallTester, "fork"),
+			check: func(c *assert.CollectT) {
+				assert.GreaterOrEqual(t, fc.GetExecCount(), updatedExecs)
+				assert.GreaterOrEqual(t, fc.GetForkCount(), updatedForks)
+				assert.GreaterOrEqual(t, fc.GetExitCount(), updatedExits)
 
-	t.Run("exec-exit", func(t *testing.T) {
-		execCount := fc.GetExecCount()
-		exitCount := fc.GetExitCount()
+				assert.Subset(t, fc.lastReceivedFork.Envs, envVars)
+			},
+		},
+		{
+			name:         "exec-exit",
+			commandToRun: exec.Command(which(t, "ls"), "-l"),
+			check: func(c *assert.CollectT) {
+				assert.GreaterOrEqual(t, fc.GetExecCount(), updatedExecs)
+				assert.GreaterOrEqual(t, fc.GetForkCount(), updatedForks)
+				assert.GreaterOrEqual(t, fc.GetExitCount(), updatedExits)
 
-		lsExecutable := which(t, "ls")
-		cmd := exec.Command(lsExecutable, "-l")
-		_ = cmd.Run()
+				assert.Subset(t, fc.lastReceivedExec.Envs, envVars)
+				assert.Subset(t, fc.lastReceivedExit.Envs, envVars)
 
-		err := retry.Do(func() error {
-			if execCount+1 <= fc.GetExecCount() && exitCount+1 <= fc.GetExitCount() {
-				return nil
-			}
+				assert.Greater(t, fc.lastReceivedExit.ExitTime, time.Unix(0, fc.lastReceivedExec.StartTime))
+			},
+		},
+	}
 
-			return errors.New("event not received")
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(10))
-		assert.Nil(t, err)
-	})
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.commandToRun.Env = append(os.Environ(), envVars...)
+			_ = test.commandToRun.Run()
+
+			// Running a command with the syscall tester creates more than 1 event per type, so this incrementation is just an estimate of the real count,
+			// and all tests should use comparisons instead of equality
+			updatedExecs++
+			updatedForks++
+			updatedExits++
+
+			assert.EventuallyWithTf(t, test.check, 200*time.Millisecond*12, 200*time.Millisecond, "event monitor has not received an expected event yet")
+		})
+	}
 }
