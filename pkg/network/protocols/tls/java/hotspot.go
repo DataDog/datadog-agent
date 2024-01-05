@@ -99,20 +99,23 @@ func getPathOwner(path string) (uint32, uint32, error) {
 	return stat.Uid, stat.Gid, nil
 }
 
+// findWritableDest looks for a writable destination for agent-usm.jar file.
+// The default is to write this file into the working directory of the agent.
+// If this is not possible then we try 'root/tmp', and finally fail.
 func findWritableDest(cwd, root, agent string) (string, error) {
 	if unix.Access(cwd, unix.W_OK) == nil {
 		return filepath.Join(cwd, filepath.Base(agent)), nil
 	}
 
-	log.Debugf("Current working directory %s is not writable", cwd)
+	log.Debugf("Current working directory %q is not writable", cwd)
 
 	if unix.Access(filepath.Join(root, "tmp"), unix.W_OK) == nil {
 		dstPath := filepath.Join(root, "tmp", filepath.Base(agent))
-		log.Debugf("Writing agent jar file to %s", dstPath)
+		log.Debugf("Writing agent jar file to %q", dstPath)
 		return dstPath, nil
 	}
 
-	return "", fmt.Errorf("unable to find writable destionation")
+	return "", errors.New("unable to find writable destionation")
 }
 
 // copyAgent copy the agent-usm.jar to a directory where the running java process can load it.
