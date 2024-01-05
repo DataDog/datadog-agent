@@ -73,6 +73,10 @@ func (wp *WinProcmon) OnData(data []uint8) {
 	returnedsize := uint32(len(data))
 	for consumed < returnedsize {
 		t, pid, img, cmd, used := decodeStruct(data[consumed:], returnedsize-consumed)
+		if used == 0 {
+			break
+		}
+
 		consumed += used
 		if t == ProcmonNotifyStart {
 
@@ -145,7 +149,14 @@ func (wp *WinProcmon) Start() error {
 
 //nolint:revive // TODO(WKIT) Fix revive linter
 func decodeStruct(data []uint8, sz uint32) (t DDProcessNotifyType, pid uint64, imagefile, cmdline string, consumed uint32) {
+	if unsafe.Sizeof(DDProcessNotification{}.Size) > uintptr(sz) {
+		return
+	}
+
 	n := *(*DDProcessNotification)(unsafe.Pointer(&data[0]))
+	if n.Size > uint64(sz) {
+		return
+	}
 
 	consumed = uint32(n.Size)
 	pid = uint64(n.ProcessId)
