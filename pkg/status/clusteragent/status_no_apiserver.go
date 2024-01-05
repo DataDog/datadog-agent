@@ -5,7 +5,7 @@
 
 //go:build !kubeapiserver
 
-package status
+package clusteragent
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -16,7 +16,8 @@ func getLeaderElectionDetails() map[string]string {
 	return nil
 }
 
-func getDCAStatus() map[string]string {
+// GetDCAStatus empty function for agents not running in a  k8s environment
+func GetDCAStatus() map[string]string {
 	log.Info("Not implemented")
 	return nil
 }

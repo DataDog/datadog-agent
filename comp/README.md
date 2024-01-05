@@ -147,7 +147,7 @@ Package forwarder implements the "forwarder" bundle
 
 ### [comp/forwarder/defaultforwarder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder)
 
-Package defaultForwarder implements a component to send payloads to the backend
+Package defaultforwarder implements a component to send payloads to the backend
 
 ### [comp/forwarder/orchestrator](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/orchestrator)
 

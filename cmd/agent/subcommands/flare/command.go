@@ -35,9 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-
-	//nolint:revive // TODO(ASC) Fix revive linter
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -140,7 +137,7 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 	type agentProfileCollector func(service string) error
 
 	pdata := flare.ProfileData{}
-	c := apiutil.GetClient(false)
+	c := util.GetClient(false)
 
 	serviceProfileCollector := func(portConfig string, seconds int) agentProfileCollector {
 		return func(service string) error {
@@ -174,7 +171,7 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 					URL:  pprofURL + "/block",
 				},
 			} {
-				b, err := apiutil.DoGet(c, prof.URL, apiutil.LeaveConnectionOpen)
+				b, err := util.DoGet(c, prof.URL, util.LeaveConnectionOpen)
 				if err != nil {
 					return err
 				}
@@ -223,11 +220,10 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 	return pdata, errs
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
 func makeFlare(flareComp flare.Component,
-	log log.Component,
+	_ log.Component,
 	config config.Component,
-	sysprobeconfig sysprobeconfig.Component,
+	_ sysprobeconfig.Component,
 	cliParams *cliParams,
 	_ optional.Option[workloadmeta.Component]) error {
 	var (
