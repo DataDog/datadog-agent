@@ -104,7 +104,7 @@ type LoggerName = logs.LoggerName
 var (
 	NewLogWriter               = logs.NewLogWriter
 	ChangeLogLevel             = logs.ChangeLogLevel
-	NewTlsHandshakeErrorWriter = logs.NewTlsHandshakeErrorWriter
+	NewTLSHandshakeErrorWriter = logs.NewTLSHandshakeErrorWriter
 )
 
 // SetupLogger Alias using Datadog config

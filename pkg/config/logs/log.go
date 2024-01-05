@@ -264,23 +264,28 @@ const tlsHandshakeErrorPrefix = "http: TLS handshake error"
 // tlsHandshakeErrorWriter writes TLS handshake errors to log with
 // debug level, to avoid flooding of tls handshake errors.
 type tlsHandshakeErrorWriter struct {
-	writer logWriter
+	writer io.Writer
 }
 
-// NewTlsHandshakeErrorWriter is a wrapper function which creates a new logWriter.
-func NewTlsHandshakeErrorWriter(additionalDepth int, logLevel seelog.LogLevel) (io.Writer, error) {
-	return NewLogWriter(additionalDepth, logLevel)
+// NewTLSHandshakeErrorWriter is a wrapper function which creates a new logWriter.
+func NewTLSHandshakeErrorWriter(additionalDepth int, logLevel seelog.LogLevel) (io.Writer, error) {
+	logWriter, err := NewLogWriter(additionalDepth, logLevel)
+	if err != nil {
+		return nil, err
+	}
+	tlsWriter := &tlsHandshakeErrorWriter{
+		writer: logWriter,
+	}
+	return tlsWriter, nil
 }
 
 // Write writes TLS handshake errors to log with debug level.
 func (t *tlsHandshakeErrorWriter) Write(p []byte) (n int, err error) {
-	tlsWriter := &t.writer
 	if strings.HasPrefix(string(p), tlsHandshakeErrorPrefix) {
 		log.DebugStackDepth(2, strings.TrimSpace(string(p)))
-	} else {
-		tlsWriter.logFunc(tlsWriter.additionalDepth, strings.TrimSpace(string(p)))
+		return len(p), nil
 	}
-	return len(p), nil
+	return t.writer.Write(p)
 }
 
 var levelToSyslogSeverity = map[seelog.LogLevel]int{

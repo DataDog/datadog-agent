@@ -88,7 +88,7 @@ func (s *Server) Run(mainCtx context.Context, client kubernetes.Interface) error
 		tlsMinVersion = tls.VersionTLS10
 	}
 
-	logWriter, _ := config.NewTlsHandshakeErrorWriter(4, seelog.WarnLvl)
+	logWriter, _ := config.NewTLSHandshakeErrorWriter(4, seelog.WarnLvl)
 	server := &http.Server{
 		Addr:     fmt.Sprintf(":%d", config.Datadog.GetInt("admission_controller.port")),
 		Handler:  s.mux,
