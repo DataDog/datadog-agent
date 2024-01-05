@@ -137,15 +137,15 @@ func lastErrorTraceback(value string) template.HTML {
 	return template.HTML(traceback)
 }
 
-func lastErrorMessage(value string) string {
+func lastErrorMessage(value string) template.HTML {
 	var lastErrorArray []map[string]string
 	err := json.Unmarshal([]byte(value), &lastErrorArray)
 	if err == nil && len(lastErrorArray) > 0 {
 		if msg, ok := lastErrorArray[0]["message"]; ok {
-			return msg
+			value = msg
 		}
 	}
-	return "UNKNOWN ERROR"
+	return template.HTML(template.HTMLEscapeString(value))
 }
 
 func displayStatus(check map[string]interface{}) template.HTML {

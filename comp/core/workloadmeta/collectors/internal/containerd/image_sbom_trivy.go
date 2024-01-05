@@ -55,8 +55,12 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 				close(resultChan)
 				return
 
-			case eventBundle := <-imgEventsCh:
-				close(eventBundle.Ch)
+			case eventBundle, ok := <-imgEventsCh:
+				if !ok {
+					// closed channel case
+					return
+				}
+				eventBundle.Acknowledge()
 
 				for _, event := range eventBundle.Events {
 					image := event.Entity.(*workloadmeta.ContainerImageMetadata)

@@ -137,7 +137,7 @@ some:
     data: ENC[pass1]
 `)
 
-	testConfResolvedNested = `some:
+	testConfNestedResolved = `some:
   encoded:
     data: password1
 `
@@ -146,6 +146,32 @@ some:
 			{
 				origin: "test",
 				path:   []string{"some", "encoded", "data"},
+			},
+		},
+	}
+
+	testConfSibling = []byte(`
+some:
+  encoded:
+  - data: ENC[pass1]
+    sibling: text
+`)
+
+	testConfSiblingResolved = `some:
+  encoded:
+  - data: password1
+    sibling: text
+`
+
+	testConfSiblingOrigin = handleToContext{
+		"pass1": []secretContext{
+			{
+				origin: "test",
+				// test that the path doesn't get corrupted by possible aliasing bugs in
+				// the walker: if the path added to the `origin` map is not owned by the map,
+				// having another string appear after the first (like "sibling"), can modify
+				// this path
+				path: []string{"some", "encoded", "0", "data"},
 			},
 		},
 	}
@@ -304,8 +330,24 @@ func TestResolve(t *testing.T) {
 		{
 			name:                 "nested",
 			testConf:             testConfNested,
-			resolvedConf:         testConfResolvedNested,
+			resolvedConf:         testConfNestedResolved,
 			expectedSecretOrigin: testConfNestedOrigin,
+			expectedScrubbedKey:  []string{"data"},
+			secretFetchCB: func(secrets []string) (map[string]string, error) {
+				assert.Equal(currentTest, []string{
+					"pass1",
+				}, secrets)
+
+				return map[string]string{
+					"pass1": "password1",
+				}, nil
+			},
+		},
+		{
+			name:                 "sibling",
+			testConf:             testConfSibling,
+			resolvedConf:         testConfSiblingResolved,
+			expectedSecretOrigin: testConfSiblingOrigin,
 			expectedScrubbedKey:  []string{"data"},
 			secretFetchCB: func(secrets []string) (map[string]string, error) {
 				assert.Equal(currentTest, []string{
