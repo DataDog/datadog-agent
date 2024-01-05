@@ -554,7 +554,6 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 				t.status.Offset_netns = t.status.Offset_family
 				t.status.Seen_failure = 1
 			}
-			t.status.Offset_netns = t.status.Offset_family
 			t.status.Offset_netns, _ = skipOverlaps(t.status.Offset_netns, t.sockRanges())
 		}
 	case GuessRTT:
