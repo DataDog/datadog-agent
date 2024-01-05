@@ -118,7 +118,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 						},
 					},
 					"type": {
-						Value: "default-type",
+						Value: "router",
 					},
 				},
 			},
@@ -154,7 +154,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
             "profile": "my-profile",
             "profile_version": 10,
             "subnet": "127.0.0.0/29",
-			"device_type": "default-type"
+			"device_type": "router"
         }
     ],
     "collect_timestamp":1415792726
@@ -231,7 +231,8 @@ profiles:
             "status":1,
             "profile": "f5-big-ip",
             "vendor": "f5",
-            "subnet": "127.0.0.0/29"
+            "subnet": "127.0.0.0/29",
+			"device_type": "other"
         }
     ],
     "collect_timestamp":1415792726
@@ -292,7 +293,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
 			"device": {
 				Fields: map[string]profiledefinition.MetadataField{
 					"type": {
-						Value: "default-type",
+						Value: "switch",
 					},
 				},
 			},
@@ -371,7 +372,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
             "ip_address": "1.2.3.4",
             "status":1,
             "subnet": "127.0.0.0/29",
-			"device_type": "default-type"
+			"device_type": "switch"
         }
     ],
     "interfaces": [
@@ -448,7 +449,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
 						Value: "my-fallback-value",
 					},
 					"type": {
-						Value: "default-type",
+						Value: "firewall",
 					},
 				},
 			},
@@ -480,7 +481,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
             "status":1,
             "name": "my-fallback-value",
             "subnet": "127.0.0.0/29",
-			"device_type": "default-type"
+			"device_type": "firewall"
         }
     ],
     "collect_timestamp":1415792726
