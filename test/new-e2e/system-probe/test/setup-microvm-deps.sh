@@ -11,7 +11,7 @@ DD_AGENT_TESTING_DIR=/datadog-agent
 ROOT_DIR=kmt-deps
 
 rm -rf $ROOT_DIR/$STACK/dependencies
-mkdir $ROOT_DIR/$STACK/dependencies
+mkdir -p $ROOT_DIR/$STACK/dependencies
 DEPENDENCIES=$(realpath $ROOT_DIR/$STACK/dependencies)
 
 ARCHIVE_NAME=dependencies-x86_64.tar.gz
