@@ -78,9 +78,10 @@ distributions = {
     "amzn_4.14": "amzn_4.14",
     "amzn_5.4": "amzn_5.4",
     "amzn_5.10": "amzn_5.10",
-    "amzn_3": "amzn_3",
-    "amazon_2023": "amzn_3",
-    "al3": "amzn_3",
+    "amzn_2023": "amzn_2023",
+    "amazon_2023": "amzn_2023",
+    "al3": "amzn_2023",
+    "amzn_3": "amzn_2023",
     # Fedora mappings
     "fedora_37": "fedora_37",
     "fedora_38": "fedora_38",
