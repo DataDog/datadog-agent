@@ -95,6 +95,15 @@ static __always_inline void update_path_size_telemetry(http2_telemetry_t *http2_
     __sync_fetch_and_add(&http2_tel->path_size_bucket[bucket_idx], 1);
 }
 
+// handle_end_of_stream is called when we see a HTTP2 END_STREAM (EOS) flag in
+// a frame. When a stream is considered as ended, we can enqueue the stream's
+// in-flight data for batch processing.
+//
+// For a given stream to be considered as ended, both the client and server
+// sides must send an EOS, so this function should be called twice for each
+// stream, before it actually enqueues the stream's stats.
+//
+// See RFC 7540 section 5.1: https://datatracker.ietf.org/doc/html/rfc7540#section-5.1
 static __always_inline void handle_end_of_stream(http2_stream_t *current_stream, http2_stream_key_t *http2_stream_key_template, http2_telemetry_t *http2_tel) {
     // We want to see the EOS twice for a given stream: one for the client, one for the server.
     if (!current_stream->request_end_of_stream) {

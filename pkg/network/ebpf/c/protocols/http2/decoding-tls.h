@@ -88,6 +88,10 @@ static __always_inline bool tls_parse_field_literal(tls_dispatcher_arguments_t *
         goto end;
     }
 
+    // Path headers in HTTP2 that are not "/" or "/index.html"  are represented
+    // with an indexed name, literal value, reusing the index 4 and 5 in the
+    // static table. A different index means that the header is not a path, so
+    // we skip it.
     if (index != kIndexPath && index != kEmptyPath) {
         goto end;
     }
@@ -181,6 +185,7 @@ static __always_inline __u8 tls_filter_relevant_headers(tls_dispatcher_arguments
         max_bits = is_literal ? MAX_6_BITS : max_bits;
         // otherwise, we're in literal header without indexing or literal header never indexed - and for both, the
         // max bits are 4.
+        // See RFC7541 - https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.2
 
         index = 0;
         if (!tls_read_hpack_int_with_given_current_char(info, current_ch, max_bits, &index)) {
@@ -212,9 +217,9 @@ static __always_inline __u8 tls_filter_relevant_headers(tls_dispatcher_arguments
     return interesting_headers;
 }
 
-// tls_process_headers processes the headers that were filtered in filter_relevant_headers,
-// looking for requests path, status code, and method.
-static __always_inline void tls_process_headers(tls_dispatcher_arguments_t *info, dynamic_table_index_t *dynamic_index, http2_stream_t *current_stream, http2_header_t *headers_to_process, __u8 interesting_headers,  http2_telemetry_t *http2_tel) {
+// tls_process_headers processes the headers that were filtered in
+// tls_filter_relevant_headers, looking for requests path, status code, and method.
+static __always_inline void tls_process_headers(tls_dispatcher_arguments_t *info, dynamic_table_index_t *dynamic_index, http2_stream_t *current_stream, http2_header_t *headers_to_process, __u8 interesting_headers, http2_telemetry_t *http2_tel) {
     http2_header_t *current_header;
     dynamic_table_entry_t dynamic_value = {};
 
@@ -256,7 +261,6 @@ static __always_inline void tls_process_headers(tls_dispatcher_arguments_t *info
             bpf_memcpy(current_stream->request_path, dynamic_value->buffer, HTTP2_MAX_PATH_LEN);
         } else {
             // We're in new dynamic header or new dynamic header not indexed states.
-
             read_into_user_buffer_http2_path(dynamic_value.buffer, info->buffer_ptr + current_header->new_dynamic_value_offset);
             // If the value is indexed - add it to the dynamic table.
             if (current_header->type == kNewDynamicHeader) {
@@ -415,12 +419,12 @@ static __always_inline void tls_find_relevant_frames(tls_dispatcher_arguments_t 
     bool is_headers_or_rst_frame, is_data_end_of_stream;
     http2_frame_t current_frame = {};
 
-   // If we have found enough interesting frames, we should not process any new frame.
-   // This check accounts for a future change where the value of iteration_value->frames_count may potentially be greater than 0.
-   // It's essential to validate that this increase doesn't surpass the maximum number of frames we can process.
-   if (iteration_value->frames_count >= HTTP2_MAX_FRAMES_ITERATIONS) {
-       return;
-   }
+    // If we have found enough interesting frames, we should not process any new frame.
+    // This check accounts for a future change where the value of iteration_value->frames_count may potentially be greater than 0.
+    // It's essential to validate that this increase doesn't surpass the maximum number of frames we can process.
+    if (iteration_value->frames_count >= HTTP2_MAX_FRAMES_ITERATIONS) {
+        return;
+    }
 
     __u32 iteration = 0;
 #pragma unroll(HTTP2_MAX_FRAMES_TO_FILTER)
@@ -464,14 +468,26 @@ static __always_inline void tls_find_relevant_frames(tls_dispatcher_arguments_t 
     }
 }
 
+// http2_tls_handle_first_frame is the entry point of our HTTP2+TLS processing.
+// It is responsible for getting and filtering the first frame present in the
+// buffer we get from the TLS uprobes.
+//
+// This first frame needs special handling as it may be split between multiple
+// two buffers, and we may have the first part of the first frame from the
+// processing of the previous buffer, in which case http2_tls_handle_first_frame
+// will try to complete the frame.
+//
+// Once we have the first frame, we can continue to the regular frame filtering
+// program.
 SEC("uprobe/http2_tls_handle_first_frame")
 int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
     const __u32 zero = 0;
     http2_frame_t current_frame = {};
 
     tls_dispatcher_arguments_t dispatcher_args_copy;
-    // We're not calling fetch_dispatching_arguments as, we need to modify the `data_off` field of skb_info, so
-    // the next prog will start to read from the next valid frame.
+    // We're not calling fetch_dispatching_arguments as, we need to modify the
+    // `off` field of tls_dispatcher_arguments, so the next prog will start to
+    // read from the next valid frame.
     tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
     if (args == NULL) {
         return false;
@@ -553,18 +569,21 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
     // Overriding the off field of the cached args. The next prog will start from the offset of the next valid
     // frame.
     args->off = dispatcher_args_copy.off;
-    // Calling the next tail call.
     bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_FILTER);
     return 0;
 }
 
+// http2_tls_filter finds and filters the HTTP2 frames from the buffer got from
+// the TLS probes. Interesting frames are saved to be parsed in
+// http2_tls_headers_parser.
 SEC("uprobe/http2_tls_filter")
 int uprobe__http2_tls_filter(struct pt_regs *ctx) {
     const __u32 zero = 0;
 
     tls_dispatcher_arguments_t dispatcher_args_copy;
-    // We're not calling fetch_dispatching_arguments as, we need to modify the `off` field of skb_info, so
-    // the next prog will start to read from the next valid frame.
+    // We're not calling fetch_dispatching_arguments as, we need to modify the
+    // `off` field of the tls_dispatcher_arguments, so the next prog will start
+    // to read from the next valid frame.
     tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
     if (args == NULL) {
         return false;
@@ -609,8 +628,9 @@ int uprobe__http2_tls_filter(struct pt_regs *ctx) {
         return 0;
     }
 
+    // We have found interesting headers, we hand them over to the headers
+    // parser.
     dispatcher_args_copy.off = args->off;
-    // We have couple of interesting headers, launching tail calls to handle them.
     if (bpf_map_update_elem(&tls_http2_iterations, &dispatcher_args_copy, iteration_value, BPF_NOEXIST) >= 0) {
         // We managed to cache the iteration_value in the tls_http2_iterations map.
         bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_HEADERS_PARSER);
@@ -619,13 +639,17 @@ int uprobe__http2_tls_filter(struct pt_regs *ctx) {
     return 0;
 }
 
+// http2_tls_headers_parser parses the headers of the interesting HTTP2 frames
+// found in http2_tls_filter. We are trying to find the request path, status code,
+// and method of the request.
 SEC("uprobe/http2_tls_headers_parser")
 int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
     const __u32 zero = 0;
 
     tls_dispatcher_arguments_t dispatcher_args_copy;
-    // We're not calling fetch_dispatching_arguments as, we need to modify the `off` field of skb_info, so
-    // the next prog will start to read from the next valid frame.
+    // We're not calling fetch_dispatching_arguments as, we need to modify the
+    // `off` field of tls_dispatcher_arguments, so the next prog will start to
+    // read from the next valid frame.
     tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
     if (args == NULL) {
         return false;
@@ -706,6 +730,8 @@ delete_iteration:
     return 0;
 }
 
+// http2_tls_eos_parser parses the EOS HTTP2 frames similar to
+// http2_tls_headers_parser.
 SEC("uprobe/http2_tls_eos_parser")
 int uprobe__http2_tls_eos_parser(struct pt_regs *ctx) {
     const __u32 zero = 0;
@@ -802,6 +828,8 @@ delete_iteration:
     return 0;
 }
 
+// http2_tls_termination is responsible for cleaning up the state of the HTTP2
+// decoding once the TLS connection is terminated.
 SEC("uprobe/http2_tls_termination")
 int uprobe__http2_tls_termination(struct pt_regs *ctx) {
     const __u32 zero = 0;
