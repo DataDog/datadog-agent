@@ -118,6 +118,8 @@ typedef struct {
     __u64 offset_netns;
     __u64 offset_ino;
 
+    __u64 err;
+
     __u32 saddr;
     __u32 netns;
 } conntrack_status_t;

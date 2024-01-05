@@ -57,8 +57,6 @@ func NewConntrackOffsetGuesser(cfg *config.Config) (OffsetGuesser, error) {
 	var tcpv6Enabled, udpv6Enabled uint64
 	for _, c := range consts {
 		switch c.Name {
-		case "offset_ino":
-			offsetIno = c.Value.(uint64)
 		case "tcpv6_enabled":
 			tcpv6Enabled = c.Value.(uint64)
 		case "udpv6_enabled":
@@ -188,10 +186,14 @@ func (c *conntrackOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expec
 			c.logAndAdvance(c.status.Offset_netns, GuessNotApplicable)
 			return c.setReadyState(mp)
 		}
+		c.status.Offset_ino++
 		log.Tracef("%v %d does not match expected %d, incrementing offset %d",
 			whatString[GuessWhat(c.status.What)], c.status.Netns, expected.netns, c.status.Offset_netns)
-		c.status.Offset_netns++
-		c.status.Offset_netns, _ = skipOverlaps(c.status.Offset_netns, c.nfConnRanges())
+		if c.status.Err != 0 || c.status.Offset_ino >= threshold {
+			c.status.Offset_ino = 0
+			c.status.Offset_netns++
+			c.status.Offset_netns, _ = skipOverlaps(c.status.Offset_netns, c.nfConnRanges())
+		}
 	default:
 		return fmt.Errorf("unexpected field to guess: %v", whatString[GuessWhat(c.status.What)])
 	}
