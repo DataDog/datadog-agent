@@ -129,7 +129,6 @@ func lastErrorMessage(value string) string {
 // formatUnixTime formats the unix time to make it more readable
 func formatUnixTime(unixTime any) string {
 	// Initially treat given unixTime is in nanoseconds
-
 	parseFunction := func(value int64) string {
 		t := time.Unix(0, value)
 		// If year returned 1970, assume unixTime actually in seconds
@@ -154,7 +153,7 @@ func formatUnixTime(unixTime any) string {
 	case float64:
 		return parseFunction(int64(v))
 	default:
-		return ""
+		return fmt.Sprintf("Invalid time parameter %T", v)
 	}
 }
 

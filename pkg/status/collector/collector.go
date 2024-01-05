@@ -93,7 +93,7 @@ func PopulateStatus(stats map[string]interface{}) {
 	stats["inventories"] = checkMetadata
 }
 
-// Provider provides the functionality to populate the status output with the collectro information
+// Provider provides the functionality to populate the status output with the collector information
 type Provider struct{}
 
 // Name returns the name

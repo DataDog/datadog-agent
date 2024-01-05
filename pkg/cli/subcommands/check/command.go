@@ -450,19 +450,18 @@ func run(
 	checkRuns := collectorData["runnerStats"].(map[string]interface{})["Checks"].(map[string]interface{})
 	for _, c := range cs {
 		s := runCheck(cliParams, c, printer)
-		var checkResult map[string]interface{}
 		resultBytes, err := json.Marshal(s)
 		if err != nil {
 			return err
 		}
 
+		var checkResult map[string]interface{}
 		err = json.Unmarshal(resultBytes, &checkResult)
 		if err != nil {
 			return err
 		}
 
 		checkMap := make(map[string]interface{})
-
 		checkMap[string(c.ID())] = checkResult
 		checkRuns[c.String()] = checkMap
 
