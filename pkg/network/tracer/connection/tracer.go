@@ -654,10 +654,11 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 		Monotonic: network.StatCounters{
 			SentBytes:   s.Sent_bytes,
 			RecvBytes:   s.Recv_bytes,
-			SentPackets: s.Sent_packets,
-			RecvPackets: s.Recv_packets,
+			SentPackets: uint64(s.Sent_packets),
+			RecvPackets: uint64(s.Recv_packets),
 		},
 		LastUpdateEpoch: s.Timestamp,
+		Duration:        s.Duration,
 		IsAssured:       s.IsAssured(),
 		Cookie:          network.StatCookie(s.Cookie),
 	}

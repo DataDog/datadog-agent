@@ -29,9 +29,10 @@ typedef enum
 typedef struct {
     __u64 sent_bytes;
     __u64 recv_bytes;
+    __u32 sent_packets;
+    __u32 recv_packets;
     __u64 timestamp;
     __u64 duration;
-    __u32 flags;
     // "cookie" that uniquely identifies
     // a conn_stas_ts_t. This is used
     // in user space to distinguish between
@@ -41,10 +42,9 @@ typedef struct {
     // This is not the same as a TCP cookie or
     // the cookie in struct sock in the kernel
     __u32 cookie;
-    __u64 sent_packets;
-    __u64 recv_packets;
-    __u8 direction;
     protocol_stack_t protocol_stack;
+    __u8 flags;
+    __u8 direction;
 } conn_stats_ts_t;
 
 // Connection flags
@@ -73,7 +73,7 @@ typedef struct {
 
 // Must match the number of conn_t objects embedded in the batch_t struct
 #ifndef CONN_CLOSED_BATCH_SIZE
-#define CONN_CLOSED_BATCH_SIZE 3
+#define CONN_CLOSED_BATCH_SIZE 4
 #endif
 
 // This struct is meant to be used as a container for batching
@@ -83,8 +83,9 @@ typedef struct {
     conn_t c0;
     conn_t c1;
     conn_t c2;
-    __u16 len;
+    conn_t c3;
     __u64 id;
+    __u16 len;
 } batch_t;
 
 // Telemetry names
