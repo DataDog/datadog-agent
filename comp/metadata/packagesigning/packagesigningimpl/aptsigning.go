@@ -39,22 +39,22 @@ func getAPTSignatureKeys(client *http.Client, logger log.Component) []signingKey
 	// debian 11 and ubuntu 22.04 will be the last using legacy trusted.gpg.d folder and trusted.gpg file
 	err := updateWithTrustedKeys(cacheKeys, client)
 	if err != nil {
-		logger.Info("Error while reading trusted keys: %s", err)
+		logger.Debugf("Error while reading trusted keys: %s", err)
 	}
 	// Regular files are referenced in the sources.list file by signed-by=filename
 	err = updateWithSignedByKeys(cacheKeys, client)
 	if err != nil {
-		logger.Info("Error while reading signed-by keys: %s", err)
+		logger.Debugf("Error while reading signed-by keys: %s", err)
 	}
 	// In APT we can also sign packages with debsig
 	keyPaths, err := getDebsigKeyPaths()
 	if err != nil {
-		logger.Info("Error while reading debsig keys: %s", err)
+		logger.Debugf("Error while reading debsig keys: %s", err)
 	}
 	for _, keyPath := range keyPaths {
 		err = readGPGFile(cacheKeys, repoFile{filename: keyPath, repositories: nil}, "debsig", client)
 		if err != nil {
-			logger.Info("Error while reading debsig key %s: %s", keyPath, err)
+			logger.Debugf("Error while reading debsig key %s: %s", keyPath, err)
 			continue
 		}
 	}

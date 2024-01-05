@@ -23,13 +23,13 @@ func GetLinuxGlobalSigningPolicies(logger log.Component) (bool, bool) {
 		case "apt":
 			pkgSigning, err := IsPackageSigningEnabled()
 			if err != nil {
-				logger.Info("Error while reading main config file: %s", err)
+				logger.Debugf("Error while reading main config file: %s", err)
 			}
 			return pkgSigning, false
 		case "yum", "dnf", "zypper":
 			pkgSigning, repoSigning, err := getMainGPGCheck(pkgManager)
 			if err != nil {
-				logger.Info("Error while reading main config file: %s", err)
+				logger.Debugf("Error while reading main config file: %s", err)
 			}
 			return pkgSigning, repoSigning
 		default: // should not happen, tested above

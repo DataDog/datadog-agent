@@ -25,11 +25,11 @@ func getYUMSignatureKeys(pkgManager string, client *http.Client, logger log.Comp
 	cacheKeys := make(map[string]signingKey)
 	err := updateWithRepoFiles(cacheKeys, pkgManager, client)
 	if err != nil {
-		logger.Infof("Error while reading repo files: %s", err)
+		logger.Debugf("Error while reading repo files: %s", err)
 	}
 	err = updateWithRPMDB(cacheKeys)
 	if err != nil {
-		logger.Infof("Error while reading rpmdb: %s", err)
+		logger.Debugf("Error while reading rpmdb: %s", err)
 	}
 	var keyList []signingKey
 	for _, key := range cacheKeys {
