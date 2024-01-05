@@ -108,7 +108,7 @@ build do
     mkdir Omnibus::Config.package_dir() unless Dir.exists?(Omnibus::Config.package_dir())
   end
 
-  block do
+  if windows_target? or (not bundled_agents.include? "trace-agent")
     # defer compilation step in a block to allow getting the project's build version, which is populated
     # only once the software that the project takes its version from (i.e. `datadog-agent`) has finished building
     platform = windows_arch_i386? ? "x86" : "x64"
@@ -119,6 +119,8 @@ build do
     else
       copy 'bin/trace-agent/trace-agent', "#{install_dir}/embedded/bin"
     end
+  else
+    copy 'bin/trace-agent/trace-agent', "#{install_dir}/embedded/bin"
   end
 
   # Process agent
@@ -129,7 +131,9 @@ build do
 
     copy 'bin/process-agent/process-agent.exe', "#{install_dir}/bin/agent"
   else
-    command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
+    if not bundled_agents.include? "process-agent"
+      command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
+    end
     copy 'bin/process-agent/process-agent', "#{install_dir}/embedded/bin"
   end
 
@@ -143,7 +147,9 @@ build do
       end
     end
   elsif linux_target?
-    command "invoke -e system-probe.build-sysprobe-binary --install-path=#{install_dir}"
+    if not bundled_agents.include? "system-probe"
+      command "invoke -e system-probe.build-sysprobe-binary --install-path=#{install_dir}"
+    end
     copy "bin/system-probe/system-probe", "#{install_dir}/embedded/bin"
   end
 
@@ -156,9 +162,13 @@ build do
   # Security agent
   unless heroku_target?
     if not windows_target? or (ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?)
-      command "invoke -e security-agent.build --install-path=#{install_dir} --major-version #{major_version_arg}", :env => env
-      if windows_target?
-        copy 'bin/security-agent/security-agent.exe', "#{install_dir}/bin/agent"
+      if not linux_target? or (not bundled_agents.include? "security-agent")
+        command "invoke -e security-agent.build --install-path=#{install_dir} --major-version #{major_version_arg}", :env => env
+        if windows_target?
+          copy 'bin/security-agent/security-agent.exe', "#{install_dir}/bin/agent"
+        else
+          copy 'bin/security-agent/security-agent', "#{install_dir}/embedded/bin"
+        end
       else
         copy 'bin/security-agent/security-agent', "#{install_dir}/embedded/bin"
       end
