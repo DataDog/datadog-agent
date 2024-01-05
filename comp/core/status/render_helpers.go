@@ -127,22 +127,35 @@ func lastErrorMessage(value string) string {
 }
 
 // formatUnixTime formats the unix time to make it more readable
-func formatUnixTime(unixTime float64) string {
+func formatUnixTime(unixTime any) string {
 	// Initially treat given unixTime is in nanoseconds
-	t := time.Unix(0, int64(unixTime))
-	// If year returned 1970, assume unixTime actually in seconds
-	if t.Year() == time.Unix(0, 0).Year() {
-		t = time.Unix(int64(unixTime), 0)
+
+	parseFunction := func(value int64) string {
+		t := time.Unix(0, value)
+		// If year returned 1970, assume unixTime actually in seconds
+		if t.Year() == time.Unix(0, 0).Year() {
+			t = time.Unix(value, 0)
+		}
+
+		_, tzoffset := t.Zone()
+		result := t.Format(timeFormat)
+		if tzoffset != 0 {
+			result += " / " + t.UTC().Format(timeFormat)
+		}
+		msec := t.UnixNano() / int64(time.Millisecond)
+		result += " (" + strconv.Itoa(int(msec)) + ")"
+
+		return result
 	}
 
-	_, tzoffset := t.Zone()
-	result := t.Format(timeFormat)
-	if tzoffset != 0 {
-		result += " / " + t.UTC().Format(timeFormat)
+	switch v := unixTime.(type) {
+	case int64:
+		return parseFunction(int64(v))
+	case float64:
+		return parseFunction(int64(v))
+	default:
+		return ""
 	}
-	msec := t.UnixNano() / int64(time.Millisecond)
-	result += " (" + strconv.Itoa(int(msec)) + ")"
-	return result
 }
 
 // PrintDashes repeats the pattern (dash) for the length of s
