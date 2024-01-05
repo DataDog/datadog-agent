@@ -149,7 +149,7 @@ func formatUnixTime(unixTime any) string {
 
 	switch v := unixTime.(type) {
 	case int64:
-		return parseFunction(int64(v))
+		return parseFunction(v)
 	case float64:
 		return parseFunction(int64(v))
 	default:

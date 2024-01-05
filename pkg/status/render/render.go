@@ -230,7 +230,10 @@ func ParseTemplate(w io.Writer, templateName string, stats interface{}) error {
 	if tmplErr != nil {
 		return tmplErr
 	}
-	t := template.Must(template.New(templateName).Funcs(fmap).Parse(string(tmpl)))
+	t, err := template.New(templateName).Funcs(fmap).Parse(string(tmpl))
+	if err != nil {
+		return err
+	}
 	return t.Execute(w, stats)
 }
 
@@ -240,7 +243,10 @@ func ParseHTMLTemplate(w io.Writer, templateName string, stats interface{}) erro
 	if tmplErr != nil {
 		return tmplErr
 	}
-	t := htmlTemplate.Must(htmlTemplate.New(templateName).Funcs(htmlfmap).Parse(string(tmpl)))
+	t, err := htmlTemplate.New(templateName).Funcs(htmlfmap).Parse(string(tmpl))
+	if err != nil {
+		return err
+	}
 	return t.Execute(w, stats)
 }
 
