@@ -44,6 +44,7 @@ const (
 
 	tcpGetSockOptKProbeNotCalled uint64 = 0
 	tcpGetSockOptKProbeCalled    uint64 = 1
+	netNsDefaultOffsetBytes             = 48
 )
 
 var tcpKprobeCalledString = map[uint64]string{
@@ -740,7 +741,7 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 		State:        uint64(StateChecking),
 		Proc:         Proc{Comm: cProcName},
 		What:         uint64(GuessSAddr),
-		Offset_netns: 48,
+		Offset_netns: netNsDefaultOffsetBytes,
 	}
 
 	// if we already have the offsets, just return
