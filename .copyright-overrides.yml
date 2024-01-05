@@ -160,7 +160,6 @@ github.com/dgraph-io/badger:
  - "Copyright 2020 Dgraph Labs, Inc. and Contributors"
  - "Copyright 2021 Dgraph Labs, Inc. and Contributors"
 github.com/mostynb/go-grpc-compression: "Copyright 2023 Mostyn Bramley-Moore."
-github.com/pjbgf/sha1cd: "Copyright 2009 The Go Authors"
 github.com/stormcat24/protodep: "Copyright Akinori Yamada"
 
 # These have large AUTHORS/CONTRIBUTORS files but attribute copyright as a group
@@ -282,3 +281,4 @@ github.com/ebitengine/purego: Copyright 2022 The Ebitengine Authors
 github.com/pjbgf/sha1cd:
  - Copyright 2009 The Go Authors. All rights reserved.
  - Copyright 2017 Marc Stevens <marc@marc-stevens.nl>, Dan Shumow <danshu@microsoft.com>
+ - Copyright 2022 Paulo Gomes <pjbgf@linux.com>
