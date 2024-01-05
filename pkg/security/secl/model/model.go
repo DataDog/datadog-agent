@@ -171,6 +171,7 @@ type BaseEvent struct {
 	Rules        []*MatchedRule     `field:"-"`
 	Actions      []*ActionTriggered `field:"-"`
 	Origin       string             `field:"-"`
+	Suppressed   bool               `field:"-"`
 
 	// context shared with all events
 	ProcessContext         *ProcessContext        `field:"process" event:"*"`
@@ -311,6 +312,11 @@ func (e *Event) GetTags() []string {
 // GetActions returns the triggred actions
 func (e *Event) GetActions() []*ActionTriggered {
 	return e.Actions
+}
+
+// IsSuppressed returns true if the event is suppressed
+func (e *Event) IsSuppressed() bool {
+	return e.Suppressed
 }
 
 // GetWorkloadID returns an ID that represents the workload
