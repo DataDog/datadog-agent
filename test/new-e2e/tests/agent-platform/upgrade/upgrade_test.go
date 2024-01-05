@@ -32,13 +32,11 @@ var architecture = flag.String("arch", "", "architecture to test (x86_64, arm64)
 var flavorName = flag.String("flavor", "datadog-agent", "package flavor to install")
 var srcAgentVersion = flag.String("src-agent-version", "5", "start agent version")
 var destAgentVersion = flag.String("dest-agent-version", "7", "destination agent version to upgrade to")
-var cwsSupportedOsVersion = flag.String("cws-supported-osversion", "", "list of os where CWS is supported")
 
 type upgradeSuite struct {
 	e2e.Suite[e2e.VMEnv]
-	srcVersion   string
-	destVersion  string
-	cwsSupported bool
+	srcVersion  string
+	destVersion string
 }
 
 func TestUpgradeScript(t *testing.T) {
@@ -67,17 +65,10 @@ func TestUpgradeScript(t *testing.T) {
 	require.NoErrorf(t, err, "failed to umarshall platform file: %v", err)
 
 	osVersions := strings.Split(*osVersion, ",")
-	cwsSupportedOsVersionList := strings.Split(*cwsSupportedOsVersion, ",")
 	fmt.Println("Parsed platform json file: ", platformJSON)
 	for _, osVers := range osVersions {
 		vmOpts := []ec2params.Option{}
 		osVers := osVers
-		cwsSupported := false
-		for _, cwsSupportedOs := range cwsSupportedOsVersionList {
-			if cwsSupportedOs == osVers {
-				cwsSupported = true
-			}
-		}
 
 		var testOsType ec2os.Type
 		for osName, osType := range osMapping {
@@ -95,7 +86,7 @@ func TestUpgradeScript(t *testing.T) {
 				vmOpts = append(vmOpts, ec2params.WithInstanceType(instanceType))
 			}
 
-			e2e.Run(tt, &upgradeSuite{srcVersion: *srcAgentVersion, destVersion: *destAgentVersion, cwsSupported: cwsSupported}, e2e.EC2VMStackDef(vmOpts...), params.WithStackName(fmt.Sprintf("upgrade-from-%s-to-%s-test-%s-%v-%v-%s", *srcAgentVersion, *destAgentVersion, *flavorName, os.Getenv("CI_PIPELINE_ID"), osVers, *architecture)))
+			e2e.Run(tt, &upgradeSuite{srcVersion: *srcAgentVersion, destVersion: *destAgentVersion}, e2e.EC2VMStackDef(vmOpts...), params.WithStackName(fmt.Sprintf("upgrade-from-%s-to-%s-test-%s-%v-%v-%s", *srcAgentVersion, *destAgentVersion, *flavorName, os.Getenv("CI_PIPELINE_ID"), osVers, *architecture)))
 		})
 	}
 }
