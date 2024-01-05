@@ -1910,11 +1910,7 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 
 func attachSnapshotWithNBD(_ context.Context, scan *scanTask, snapshotARN arn.ARN, ebsclient *ebs.Client) error {
 	device := nextNBDDevice()
-	err := startEBSBlockDevice(&ebsBlockDevice{
-		EBSClient:   ebsclient,
-		DeviceName:  device,
-		SnapshotARN: snapshotARN,
-	})
+	err := startEBSBlockDevice(scan.ID, ebsclient, device, snapshotARN)
 	scan.AttachedDeviceName = &device
 	return err
 }

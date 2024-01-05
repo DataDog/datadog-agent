@@ -15,13 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ebs"
 )
 
-type ebsBlockDevice struct {
-	EBSClient   *ebs.Client
-	DeviceName  string
-	SnapshotARN arn.ARN
-}
-
-func startEBSBlockDevice(bd *ebsBlockDevice) error {
+func startEBSBlockDevice(id string, ebsclient *ebs.Client, deviceName string, snapshotARN arn.ARN) error {
 	return fmt.Errorf("ebsblockdevice: not supported on this platform")
 }
 
