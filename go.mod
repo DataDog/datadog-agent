@@ -99,7 +99,7 @@ require (
 	github.com/DataDog/ebpf-manager v0.4.0
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.1
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.9.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.11.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.9.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.9.0
 	github.com/DataDog/sketches-go v1.4.3
@@ -635,7 +635,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/version v0.50.1
 	github.com/DataDog/go-libddwaf/v2 v2.2.2
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.9.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.11.0
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 	github.com/aws/aws-sdk-go-v2/service/kms v1.27.1
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.25.1
