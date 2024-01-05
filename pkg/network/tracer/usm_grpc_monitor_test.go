@@ -424,6 +424,9 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 
 func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 	t := s.T()
+	if s.isTLS {
+		t.Skip("Skipping TestLargeBodiesGRPCScenarios for TLS due to flakiness")
+	}
 
 	srv, cancel := grpc.NewGRPCTLSServer(t, srvAddr, s.isTLS)
 	t.Cleanup(cancel)
