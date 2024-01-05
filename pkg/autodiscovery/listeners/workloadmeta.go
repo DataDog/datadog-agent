@@ -166,9 +166,9 @@ func (l *workloadmetaListenerImpl) Stop() {
 }
 
 func (l *workloadmetaListenerImpl) processEvents(evBundle workloadmeta.EventBundle) {
-	// close the bundle channel asap since there are no downstream
+	// Acknowledge the bundle since there are no downstream
 	// collectors that depend on AD having up to date data.
-	close(evBundle.Ch)
+	evBundle.Acknowledge()
 
 	for _, ev := range evBundle.Events {
 		entity := ev.Entity

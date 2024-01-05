@@ -8,16 +8,16 @@
 package appsec
 
 import (
-	"encoding/json"
 	"math/rand"
 	"time"
 
 	appsecLog "github.com/DataDog/appsec-internal-go/log"
+	waf "github.com/DataDog/go-libddwaf/v2"
+	json "github.com/json-iterator/go"
+
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/httpsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
-	waf "github.com/DataDog/go-libddwaf/v2"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

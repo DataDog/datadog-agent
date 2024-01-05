@@ -85,7 +85,11 @@ func (c *Collector) run(ctx context.Context, store workloadmeta.Component, conta
 
 	for {
 		select {
-		case evt := <-containerEvt:
+		case evt, ok := <-containerEvt:
+			if !ok {
+				log.Infof("The %s collector has stopped, workloadmeta channel is closed", collectorId)
+				return
+			}
 			c.handleContainerEvent(evt)
 		case <-collectionTicker.C:
 			err := c.processData.Fetch()
@@ -100,11 +104,7 @@ func (c *Collector) run(ctx context.Context, store workloadmeta.Component, conta
 }
 
 func (c *Collector) handleContainerEvent(evt workloadmeta.EventBundle) {
-	defer func() {
-		if evt.Ch != nil {
-			close(evt.Ch)
-		}
-	}()
+	defer evt.Acknowledge()
 
 	for _, evt := range evt.Events {
 		ent := evt.Entity.(*workloadmeta.Container)
