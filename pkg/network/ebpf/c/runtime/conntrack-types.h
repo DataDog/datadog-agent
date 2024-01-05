@@ -1,7 +1,7 @@
 #ifndef __CONNTRACK_TYPES_H
 #define __CONNTRACK_TYPES_H
 
-#include <linux/types.h>
+#include "ktypes.h"
 
 typedef struct {
     /* Using the type unsigned __int128 generates an error in the ebpf verifier */

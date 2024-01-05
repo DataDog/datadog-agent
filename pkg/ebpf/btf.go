@@ -86,12 +86,19 @@ func FlushBTF() {
 	}
 }
 
+type kernelModuleBTFLoadFunc func(string) (*btf.Spec, error)
+
+type returnBTF struct {
+	vmlinux        *btf.Spec
+	moduleLoadFunc kernelModuleBTFLoadFunc
+}
+
 type orderedBTFLoader struct {
 	userBTFPath string
 	embeddedDir string
 
 	result         ebpftelemetry.BTFResult
-	loadFunc       funcs.CachedFunc[btf.Spec]
+	loadFunc       funcs.CachedFunc[returnBTF]
 	delayedFlusher *time.Timer
 }
 
@@ -101,20 +108,20 @@ func initBTFLoader(cfg *Config) *orderedBTFLoader {
 		embeddedDir: filepath.Join(cfg.BPFDir, "co-re", "btf"),
 		result:      ebpftelemetry.BtfNotFound,
 	}
-	btfLoader.loadFunc = funcs.CacheWithCallback[btf.Spec](btfLoader.get, loadKernelSpec.Flush)
+	btfLoader.loadFunc = funcs.CacheWithCallback[returnBTF](btfLoader.get, loadKernelSpec.Flush)
 	btfLoader.delayedFlusher = time.AfterFunc(btfFlushDelay, btfLoader.Flush)
 	return btfLoader
 }
 
-type btfLoaderFunc func() (*btf.Spec, error)
+type btfLoaderFunc func() (*returnBTF, error)
 
 // Get returns BTF for the running kernel
-func (b *orderedBTFLoader) Get() (*btf.Spec, ebpftelemetry.COREResult, error) {
-	spec, err := b.loadFunc.Do()
-	if spec != nil {
+func (b *orderedBTFLoader) Get() (*returnBTF, ebpftelemetry.COREResult, error) {
+	ret, err := b.loadFunc.Do()
+	if ret != nil && ret.vmlinux != nil {
 		b.delayedFlusher.Reset(btfFlushDelay)
 	}
-	return spec, ebpftelemetry.COREResult(b.result), err
+	return ret, ebpftelemetry.COREResult(b.result), err
 }
 
 // Flush deletes any cached BTF
@@ -123,7 +130,7 @@ func (b *orderedBTFLoader) Flush() {
 	b.loadFunc.Flush()
 }
 
-func (b *orderedBTFLoader) get() (*btf.Spec, error) {
+func (b *orderedBTFLoader) get() (*returnBTF, error) {
 	loaders := []struct {
 		result ebpftelemetry.BTFResult
 		loader btfLoaderFunc
@@ -134,10 +141,10 @@ func (b *orderedBTFLoader) get() (*btf.Spec, error) {
 		{ebpftelemetry.SuccessEmbeddedBTF, b.loadEmbedded, "embedded collection"},
 	}
 	var err error
-	var spec *btf.Spec
+	var ret *returnBTF
 	for _, l := range loaders {
 		log.Debugf("attempting BTF load from %s", l.desc)
-		spec, err = l.loader()
+		ret, err = l.loader()
 		if err != nil {
 			err = fmt.Errorf("BTF load from %s: %w", l.desc, err)
 			// attempting default kernel when not supported will return this error
@@ -146,37 +153,59 @@ func (b *orderedBTFLoader) get() (*btf.Spec, error) {
 			}
 			continue
 		}
-		if spec != nil {
+		if ret != nil {
 			log.Debugf("successfully loaded BTF from %s", l.desc)
 			b.result = l.result
-			return spec, nil
+			return ret, nil
 		}
 	}
 	return nil, err
 }
 
-func (b *orderedBTFLoader) loadKernel() (*btf.Spec, error) {
-	return GetKernelSpec()
+func (b *orderedBTFLoader) loadKernel() (*returnBTF, error) {
+	spec, err := GetKernelSpec()
+	if err != nil {
+		return nil, err
+	}
+	return &returnBTF{vmlinux: spec, moduleLoadFunc: nil}, nil
 }
 
-func (b *orderedBTFLoader) loadUser() (*btf.Spec, error) {
+func (b *orderedBTFLoader) loadUser() (*returnBTF, error) {
 	if b.userBTFPath == "" {
 		return nil, nil
 	}
-	return loadBTFFrom(b.userBTFPath)
+	spec, err := loadBTFFrom(b.userBTFPath)
+	if err != nil {
+		return nil, err
+	}
+	return &returnBTF{vmlinux: spec, moduleLoadFunc: nil}, nil
 }
 
-func (b *orderedBTFLoader) loadEmbedded() (*btf.Spec, error) {
+func (b *orderedBTFLoader) loadEmbedded() (*returnBTF, error) {
 	btfRelativeTarballFilename, err := b.embeddedPath()
 	if err != nil {
 		return nil, err
 	}
-	btfRelativePath := strings.TrimSuffix(btfRelativeTarballFilename, ".tar.xz")
+	kernelVersion, err := kernel.Release()
+	if err != nil {
+		return nil, fmt.Errorf("kernel release: %s", err)
+	}
+	extractDir := filepath.Join(filepath.Dir(btfRelativeTarballFilename), kernelVersion)
+	absExtractDir := filepath.Join(b.embeddedDir, extractDir)
+	modLoadFunc := func(mod string) (*btf.Spec, error) {
+		b.delayedFlusher.Reset(btfFlushDelay)
+		return loadBTFFrom(filepath.Join(absExtractDir, mod))
+	}
 
 	// If we've previously extracted the BTF file in question, we can just load it
+	btfRelativePath := filepath.Join(extractDir, "vmlinux")
 	extractedBtfPath := filepath.Join(b.embeddedDir, btfRelativePath)
 	if _, err := os.Stat(extractedBtfPath); err == nil {
-		return loadBTFFrom(extractedBtfPath)
+		spec, err := loadBTFFrom(extractedBtfPath)
+		if err != nil {
+			return nil, err
+		}
+		return &returnBTF{vmlinux: spec, moduleLoadFunc: modLoadFunc}, nil
 	}
 	log.Debugf("extracted btf file not found at %s: attempting to extract from embedded archive", extractedBtfPath)
 
@@ -192,10 +221,14 @@ func (b *orderedBTFLoader) loadEmbedded() (*btf.Spec, error) {
 		}
 	}
 
-	if err := archiver.NewTarXz().Unarchive(btfTarball, filepath.Dir(extractedBtfPath)); err != nil {
+	if err := archiver.NewTarXz().Unarchive(btfTarball, absExtractDir); err != nil {
 		return nil, fmt.Errorf("extract kernel BTF from tarball: %w", err)
 	}
-	return loadBTFFrom(extractedBtfPath)
+	spec, err := loadBTFFrom(extractedBtfPath)
+	if err != nil {
+		return nil, err
+	}
+	return &returnBTF{vmlinux: spec, moduleLoadFunc: modLoadFunc}, nil
 }
 
 func (b *orderedBTFLoader) embeddedPath() (string, error) {
@@ -232,8 +265,7 @@ var errIncorrectOSReleaseMount = errors.New("please mount the /etc/os-release fi
 
 // getEmbeddedBTF returns the relative path to the BTF *tarball* file
 func (b *orderedBTFLoader) getEmbeddedBTF(platform btfPlatform, platformVersion, kernelVersion string) (string, error) {
-	btfFilename := kernelVersion + ".btf"
-	btfTarball := btfFilename + ".tar.xz"
+	btfTarball := kernelVersion + ".btf.tar.xz"
 	possiblePaths := b.searchEmbeddedCollection(btfTarball)
 	if len(possiblePaths) == 0 {
 		return "", fmt.Errorf("no BTF file in embedded collection matching kernel version `%s`", kernelVersion)
