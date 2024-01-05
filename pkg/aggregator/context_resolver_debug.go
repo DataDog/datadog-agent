@@ -23,10 +23,10 @@ type ContextDebugRepr struct {
 	Source     metrics.MetricSource
 }
 
-func (c *contextResolver) dumpContexts(dest io.Writer) error {
+func (cr *contextResolver) dumpContexts(dest io.Writer) error {
 	enc := json.NewEncoder(dest)
 
-	for _, c := range c.contextsByKey {
+	for _, c := range cr.contextsByKey {
 		err := enc.Encode(ContextDebugRepr{
 			Name:       c.Name,
 			Host:       c.Host,

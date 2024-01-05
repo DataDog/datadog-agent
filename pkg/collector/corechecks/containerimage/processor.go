@@ -57,7 +57,7 @@ func newProcessor(sender sender.Sender, maxNbItem int, maxRetentionTime time.Dur
 }
 
 func (p *processor) processEvents(evBundle workloadmeta.EventBundle) {
-	close(evBundle.Ch)
+	evBundle.Acknowledge()
 
 	log.Tracef("Processing %d events", len(evBundle.Events))
 

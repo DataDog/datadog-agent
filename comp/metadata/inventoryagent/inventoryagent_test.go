@@ -14,23 +14,27 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/stretchr/testify/assert"
 )
 
-func getTestInventoryPayload(t *testing.T, confOverrides map[string]any) *inventoryagent {
+func getTestInventoryPayload(t *testing.T, confOverrides map[string]any, sysprobeConfOverrides map[string]any) *inventoryagent {
 	p := newInventoryAgentProvider(
 		fxutil.Test[dependencies](
 			t,
 			logimpl.MockModule(),
 			config.MockModule(),
 			fx.Replace(config.MockParams{Overrides: confOverrides}),
+			sysprobeconfigimpl.MockModule(),
+			fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysprobeConfOverrides}),
 			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
 		),
 	)
@@ -38,14 +42,14 @@ func getTestInventoryPayload(t *testing.T, confOverrides map[string]any) *invent
 }
 
 func TestSet(t *testing.T) {
-	ia := getTestInventoryPayload(t, nil)
+	ia := getTestInventoryPayload(t, nil, nil)
 
 	ia.Set("test", 1234)
 	assert.Equal(t, 1234, ia.data["test"])
 }
 
 func TestGetPayload(t *testing.T) {
-	ia := getTestInventoryPayload(t, nil)
+	ia := getTestInventoryPayload(t, nil, nil)
 	ia.hostname = "hostname-for-test"
 
 	ia.Set("test", 1234)
@@ -65,7 +69,7 @@ func TestInitDataErrorInstallInfo(t *testing.T) {
 		return nil, fmt.Errorf("some error")
 	}
 
-	ia := getTestInventoryPayload(t, nil)
+	ia := getTestInventoryPayload(t, nil, nil)
 
 	ia.initData()
 	assert.Equal(t, "undefined", ia.data["install_method_tool"])
@@ -87,40 +91,41 @@ func TestInitDataErrorInstallInfo(t *testing.T) {
 }
 
 func TestInitData(t *testing.T) {
-	// TODO: (components) - until system probe configuration is migrated to a component we use the old mock here.
-	systemProbeMock := pkgconfig.MockSystemProbe(t)
-	systemProbeMock.SetWithoutSource("dynamic_instrumentation.enabled", true)
-	systemProbeMock.SetWithoutSource("remote_configuration.enabled", true)
-	systemProbeMock.SetWithoutSource("runtime_security_config.enabled", true)
-	systemProbeMock.SetWithoutSource("event_monitoring_config.network.enabled", true)
-	systemProbeMock.SetWithoutSource("runtime_security_config.activity_dump.enabled", true)
-	systemProbeMock.SetWithoutSource("runtime_security_config.remote_configuration.enabled", true)
-	systemProbeMock.SetWithoutSource("network_config.enabled", true)
-	systemProbeMock.SetWithoutSource("service_monitoring_config.enable_http_monitoring", true)
-	systemProbeMock.SetWithoutSource("service_monitoring_config.tls.native.enabled", true)
-	systemProbeMock.SetWithoutSource("service_monitoring_config.enabled", true)
-	systemProbeMock.SetWithoutSource("data_streams_config.enabled", true)
-	systemProbeMock.SetWithoutSource("service_monitoring_config.tls.java.enabled", true)
-	systemProbeMock.SetWithoutSource("service_monitoring_config.enable_http2_monitoring", true)
-	systemProbeMock.SetWithoutSource("service_monitoring_config.tls.istio.enabled", true)
-	systemProbeMock.SetWithoutSource("service_monitoring_config.enable_http_stats_by_status_code", true)
-	systemProbeMock.SetWithoutSource("service_monitoring_config.tls.go.enabled", true)
-	systemProbeMock.SetWithoutSource("system_probe_config.enable_tcp_queue_length", true)
-	systemProbeMock.SetWithoutSource("system_probe_config.enable_oom_kill", true)
-	systemProbeMock.SetWithoutSource("windows_crash_detection.enabled", true)
-	systemProbeMock.SetWithoutSource("system_probe_config.enable_co_re", true)
-	systemProbeMock.SetWithoutSource("system_probe_config.enable_runtime_compiler", true)
-	systemProbeMock.SetWithoutSource("system_probe_config.enable_kernel_header_download", true)
-	systemProbeMock.SetWithoutSource("system_probe_config.allow_precompiled_fallback", true)
-	systemProbeMock.SetWithoutSource("system_probe_config.telemetry_enabled", true)
-	systemProbeMock.SetWithoutSource("system_probe_config.max_conns_per_message", 10)
-	systemProbeMock.SetWithoutSource("network_config.collect_tcp_v4", true)
-	systemProbeMock.SetWithoutSource("network_config.collect_tcp_v6", true)
-	systemProbeMock.SetWithoutSource("network_config.collect_udp_v4", true)
-	systemProbeMock.SetWithoutSource("network_config.collect_udp_v6", true)
-	systemProbeMock.SetWithoutSource("network_config.enable_protocol_classification", true)
-	systemProbeMock.SetWithoutSource("network_config.enable_gateway_lookup", true)
-	systemProbeMock.SetWithoutSource("network_config.enable_root_netns", true)
+	sysprobeOverrides := map[string]any{
+		"dynamic_instrumentation.enabled":                            true,
+		"remote_configuration.enabled":                               true,
+		"runtime_security_config.enabled":                            true,
+		"event_monitoring_config.network.enabled":                    true,
+		"runtime_security_config.activity_dump.enabled":              true,
+		"runtime_security_config.remote_configuration.enabled":       true,
+		"network_config.enabled":                                     true,
+		"service_monitoring_config.enable_http_monitoring":           true,
+		"service_monitoring_config.tls.native.enabled":               true,
+		"service_monitoring_config.enabled":                          true,
+		"data_streams_config.enabled":                                true,
+		"service_monitoring_config.tls.java.enabled":                 true,
+		"service_monitoring_config.enable_http2_monitoring":          true,
+		"service_monitoring_config.tls.istio.enabled":                true,
+		"service_monitoring_config.enable_http_stats_by_status_code": true,
+		"service_monitoring_config.tls.go.enabled":                   true,
+		"system_probe_config.enable_tcp_queue_length":                true,
+		"system_probe_config.enable_oom_kill":                        true,
+		"windows_crash_detection.enabled":                            true,
+		"system_probe_config.enable_co_re":                           true,
+		"system_probe_config.enable_runtime_compiler":                true,
+		"system_probe_config.enable_kernel_header_download":          true,
+		"system_probe_config.allow_precompiled_fallback":             true,
+		"system_probe_config.telemetry_enabled":                      true,
+		"system_probe_config.max_conns_per_message":                  10,
+		"system_probe_config.disable_ipv6":                           false,
+		"network_config.collect_tcp_v4":                              true,
+		"network_config.collect_tcp_v6":                              true,
+		"network_config.collect_udp_v4":                              true,
+		"network_config.collect_udp_v6":                              true,
+		"network_config.enable_protocol_classification":              true,
+		"network_config.enable_gateway_lookup":                       true,
+		"network_config.enable_root_netns":                           true,
+	}
 
 	overrides := map[string]any{
 		"language_detection.enabled":       true,
@@ -148,7 +153,7 @@ func TestInitData(t *testing.T) {
 		"sbom.container_image.enabled":                true,
 		"sbom.host.enabled":                           true,
 	}
-	ia := getTestInventoryPayload(t, overrides)
+	ia := getTestInventoryPayload(t, overrides, sysprobeOverrides)
 
 	expected := map[string]any{
 		"agent_version":                    version.AgentVersion,
@@ -209,6 +214,11 @@ func TestInitData(t *testing.T) {
 		"system_probe_max_connections_per_message":     10,
 	}
 
+	if !kernel.IsIPv6Enabled() {
+		expected["system_probe_track_tcp_6_connections"] = false
+		expected["system_probe_track_udp_6_connections"] = false
+	}
+
 	for name, value := range expected {
 		assert.Equal(t, value, ia.data[name], "value for '%s' is wrong", name)
 	}
@@ -217,7 +227,7 @@ func TestInitData(t *testing.T) {
 }
 
 func TestGet(t *testing.T) {
-	ia := getTestInventoryPayload(t, nil)
+	ia := getTestInventoryPayload(t, nil, nil)
 
 	ia.Set("test", 1234)
 
@@ -230,12 +240,12 @@ func TestGet(t *testing.T) {
 }
 
 func TestFlareProviderFilename(t *testing.T) {
-	ia := getTestInventoryPayload(t, nil)
+	ia := getTestInventoryPayload(t, nil, nil)
 	assert.Equal(t, "agent.json", ia.FlareFileName)
 }
 
 func TestConfigRefresh(t *testing.T) {
-	ia := getTestInventoryPayload(t, nil)
+	ia := getTestInventoryPayload(t, nil, nil)
 
 	assert.False(t, ia.RefreshTriggered())
 	pkgconfig.Datadog.Set("inventories_max_interval", 10*time.Minute, pkgconfigmodel.SourceAgentRuntime)

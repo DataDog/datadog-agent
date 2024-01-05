@@ -149,7 +149,7 @@ func NewRCProfileProvider() (*RCProfileProvider, error) {
 		return nil, fmt.Errorf("failed to get ipc address: %w", err)
 	}
 
-	c, err := client.NewUnverifiedGRPCClient(ipcAddress, config.GetIPCPort(), security.FetchAuthToken,
+	c, err := client.NewGRPCClient(ipcAddress, config.GetIPCPort(), security.FetchAuthToken,
 		client.WithAgent(agentName, agentVersion.String()),
 		client.WithProducts([]data.Product{data.ProductCWSProfile}),
 		client.WithPollInterval(securityAgentRCPollInterval))

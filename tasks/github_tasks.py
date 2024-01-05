@@ -164,4 +164,4 @@ def get_milestone_id(_, milestone):
     m = gh.get_milestone_by_name(milestone)
     if not m:
         raise Exit(f'Milestone {milestone} wasn\'t found in the repo', code=1)
-    print(m.id)
+    print(m.number)

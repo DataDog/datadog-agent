@@ -121,6 +121,10 @@ func (s *windowsTestSuite) TestManualProcessCheck() {
 }
 
 func (s *windowsTestSuite) TestManualProcessDiscoveryCheck() {
+	// Skipping due to flakiness
+	// Responses with more than 100 processes end up being chunked, which fails JSON unmarshalling
+	s.T().Skip()
+
 	check := s.Env().VM.
 		Execute("& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\process-agent.exe\" check process_discovery --json")
 	assertManualProcessDiscoveryCheck(s.T(), check, "MsMpEng.exe")

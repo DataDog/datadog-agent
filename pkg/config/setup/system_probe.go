@@ -218,6 +218,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	// For backward compatibility
 	cfg.BindEnv(join(smNS, "enable_go_tls_support"))
 	cfg.BindEnv(join(smNS, "tls", "go", "enabled"))
+	cfg.BindEnvAndSetDefault(join(smNS, "tls", "go", "exclude_self"), true)
 
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_http2_monitoring"), false)
 	cfg.BindEnvAndSetDefault(join(smNS, "tls", "istio", "enabled"), false)
