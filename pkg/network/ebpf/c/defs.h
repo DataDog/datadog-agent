@@ -1,6 +1,10 @@
 #ifndef _DEFS_H_
 #define _DEFS_H_
 
+#ifndef __maybe_unused
+#define __maybe_unused		__attribute__((__unused__))
+#endif
+
 __maybe_unused static const __u64 ENABLED = 1;
 
 #ifdef COMPILE_CORE

@@ -1,9 +1,11 @@
 #ifndef __CONNTRACK_HELPERS_H
 #define __CONNTRACK_HELPERS_H
 
+#ifndef COMPILE_CORE
 #include <net/netfilter/nf_conntrack.h>
 #include <linux/types.h>
 #include <linux/sched.h>
+#endif
 
 #include "bpf_builtins.h"
 

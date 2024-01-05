@@ -251,7 +251,13 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
         "prebuilt/shared-libraries",
         "prebuilt/conntrack",
     ]
-    network_co_re_programs = ["tracer", "co-re/tracer-fentry", "runtime/usm", "runtime/shared-libraries"]
+    network_co_re_programs = [
+        "tracer",
+        "co-re/tracer-fentry",
+        "runtime/usm",
+        "runtime/shared-libraries",
+        "runtime/conntrack",
+    ]
     network_programs_wo_instrumentation = ["prebuilt/dns", "prebuilt/offset-guess"]
 
     for prog in network_programs:
