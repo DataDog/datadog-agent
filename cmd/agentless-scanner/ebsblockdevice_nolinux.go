@@ -15,10 +15,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ebs"
 )
 
-func startEBSBlockDevice(id string, ebsclient *ebs.Client, deviceName string, snapshotARN arn.ARN) error {
+func startEBSBlockDevice(_ string, _ *ebs.Client, _ string, _ arn.ARN) error {
 	return fmt.Errorf("ebsblockdevice: not supported on this platform")
 }
 
-func stopEBSBlockDevice(ctx context.Context, deviceName string) error {
-	return fmt.Errorf("ebsblockdevice: not supported on this platform")
+func stopEBSBlockDevice(_ context.Context, _ string) {
 }
