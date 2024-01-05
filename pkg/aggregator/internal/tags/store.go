@@ -30,32 +30,17 @@ type Entry struct {
 	refs atomic.Uint64
 
 	// tags contains the cached tags in this entry.
-	tags tagSet
+	tags []string
 }
-
-type tagSet []string
-
-// SizeInBytes returns the size of the tagSet in bytes.
-func (t tagSet) SizeInBytes() int {
-	return util.SizeOfStringSlice(t)
-}
-
-// DataSizeInBytes returns the size of the tagSet data in bytes.
-func (t tagSet) DataSizeInBytes() int {
-	// This could be optimized by keeping track of the size when the TagSet is created.
-	return util.DataSizeOfStringSlice(t)
-}
-
-var _ util.HasSizeInBytes = (*tagSet)(nil)
 
 // SizeInBytes returns the size of the Entry in bytes.
-func (e Entry) SizeInBytes() int {
-	return e.tags.SizeInBytes() + 8
+func (e *Entry) SizeInBytes() int {
+	return util.SizeOfStringSlice(e.tags) + 8
 }
 
 // DataSizeInBytes returns the size of the Entry data in bytes.
-func (e Entry) DataSizeInBytes() int {
-	return e.tags.DataSizeInBytes()
+func (e *Entry) DataSizeInBytes() int {
+	return util.DataSizeOfStringSlice(e.tags)
 }
 
 var _ util.HasSizeInBytes = (*Entry)(nil)

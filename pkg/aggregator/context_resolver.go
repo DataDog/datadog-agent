@@ -63,6 +63,7 @@ var _ util.HasSizeInBytes = &Context{}
 type contextResolver struct {
 	id               string
 	contextsByKey    map[ckey.ContextKey]*Context
+	seendByMtype     []bool
 	countsByMtype    []uint64
 	bytesByMtype     []uint64
 	dataBytesByMtype []uint64
@@ -81,6 +82,7 @@ func newContextResolver(cache *tags.Store, id string) *contextResolver {
 	return &contextResolver{
 		id:               id,
 		contextsByKey:    make(map[ckey.ContextKey]*Context),
+		seendByMtype:     make([]bool, metrics.NumMetricTypes),
 		countsByMtype:    make([]uint64, metrics.NumMetricTypes),
 		bytesByMtype:     make([]uint64, metrics.NumMetricTypes),
 		dataBytesByMtype: make([]uint64, metrics.NumMetricTypes),
@@ -111,6 +113,7 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 			source:     metricSampleContext.GetSource(),
 		}
 		cr.contextsByKey[contextKey] = context
+		cr.seendByMtype[mtype] = true
 		cr.countsByMtype[mtype]++
 		cr.bytesByMtype[mtype] += uint64(context.SizeInBytes())
 		cr.dataBytesByMtype[mtype] += uint64(context.DataSizeInBytes())
@@ -148,17 +151,10 @@ func (cr *contextResolver) updateMetrics(countsByMTypeGauge telemetry.Gauge, byt
 		mtype := metrics.MetricType(i).String()
 
 		// Limit un-needed cardinality (especially because each check has its own resolver)
-		gauge := countsByMTypeGauge.WithValues(cr.id, mtype)
-		// If the gauge doesn't exist, and we have nothing to report, continue
-		if gauge == nil && count == 0 {
+		if !cr.seendByMtype[i] {
 			continue
 		}
-		// If the gauge exists, and we have nothing to report, and it was previously set to 0 already, continue
-		if gauge != nil && gauge.Get() == 0 && count == 0 {
-			continue
-		}
-		gauge.Set(float64(count))
-
+		countsByMTypeGauge.WithValues(cr.id, mtype).Set(float64(count))
 		bytesByMTypeGauge.Set(float64(bytes), cr.id, mtype, util.BytesKindStruct)
 		bytesByMTypeGauge.Set(float64(dataBytes), cr.id, mtype, util.BytesKindData)
 	}
