@@ -218,7 +218,6 @@ func FakeIntakeStackDef(options ...func(*AgentStackDefParam) error) *StackDefini
 				return nil, err
 			}
 
-			// fakeintakeExporter, err := aws.NewEcsFakeintake(vm.GetAwsEnvironment(), params.fakeintakeParams...)
 			fakeintakeExporter, err := aws.NewEcsFakeintake(vm.GetAwsEnvironment(), params.fakeintakeParams...)
 
 			if err != nil {

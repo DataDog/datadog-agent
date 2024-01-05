@@ -9,6 +9,7 @@ package java
 
 import (
 	"os"
+	"path/filepath"
 	"syscall"
 	"testing"
 	"time"
@@ -51,7 +52,7 @@ func testInject(t *testing.T, prefix string) {
 	require.NoError(t, tfile.Close())
 	require.NoError(t, os.Remove(tfile.Name()))
 	// equivalent to jattach <pid> load instrument false testdata/TestAgentLoaded.jar=<tempfile>
-	require.NoError(t, InjectAgent(pids[0], "testdata/TestAgentLoaded.jar", "testfile="+tfile.Name()))
+	require.NoError(t, InjectAgent(pids[0], filepath.Join("testdata", "TestAgentLoaded.jar"), "testfile="+tfile.Name()))
 	require.Eventually(t, func() bool {
 		_, err = os.Stat(tfile.Name())
 		return err == nil
@@ -62,7 +63,7 @@ func testInject(t *testing.T, prefix string) {
 //
 //	o on the host
 //	o in the container, _simulated_ by running java in his own PID namespace
-func TestInject(t *testing.T) {
+func runTestInject(t *testing.T) {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
 	if currKernelVersion < kernel.VersionCode(4, 14, 0) {
@@ -88,4 +89,44 @@ func TestInject(t *testing.T) {
 		// and testing if the test/platform give enough permission to do that
 		testInject(t, p)
 	})
+}
+
+func TestInject(t *testing.T) {
+	runTestInject(t)
+}
+
+func TestInjectInReadOnlyFS(t *testing.T) {
+	curDir, err := os.Getwd()
+	require.NoError(t, err)
+	rodir := filepath.Join(curDir, "rodir")
+
+	err = os.Mkdir(rodir, 0766)
+	require.NoError(t, err)
+	defer func() {
+		err = os.RemoveAll(rodir)
+		if err != nil {
+			t.Log(err)
+		}
+	}()
+
+	err = syscall.Mount(curDir, rodir, "auto", syscall.MS_BIND|syscall.MS_RDONLY, "")
+	require.NoError(t, err)
+	err = syscall.Mount("none", rodir, "", syscall.MS_RDONLY|syscall.MS_REMOUNT|syscall.MS_BIND, "")
+	require.NoError(t, err)
+	defer func() {
+		// without the sleep the unmount fails with a 'resource busy' error
+		time.Sleep(1 * time.Second)
+		err = syscall.Unmount(rodir, 0)
+		if err != nil {
+			t.Log(err)
+		}
+	}()
+
+	err = os.Chdir(rodir)
+	require.NoError(t, err)
+
+	runTestInject(t)
+
+	err = os.Chdir(curDir)
+	require.NoError(t, err)
 }

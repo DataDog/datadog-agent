@@ -3,11 +3,11 @@
 // This constant defines the maximum number of filter types supported.
 #define MAX_FILTER_SUPPORTED                2
 
-extern void etwCallbackC(PEVENT_RECORD);
+extern void ddEtwCallbackC(PEVENT_RECORD);
 
 static void WINAPI RecordEventCallback(PEVENT_RECORD event)
 {
-    etwCallbackC(event);
+    ddEtwCallbackC(event);
 }
 
 TRACEHANDLE DDStartTracing(LPWSTR name, uintptr_t context)
@@ -29,7 +29,7 @@ ULONG DDEnableTrace(
     ULONGLONG   MatchAnyKeyword,
     ULONGLONG   MatchAllKeyword,
     ULONG       Timeout,
-    ULONGLONG*  PIDs,
+    ULONG*      PIDs,
     ULONG       PIDCount
 )
 {
@@ -43,7 +43,7 @@ ULONG DDEnableTrace(
     if (PIDCount > 0)
     {
         eventFilterDescriptors[0].Ptr  = (ULONGLONG)PIDs;
-        eventFilterDescriptors[0].Size = (ULONG)(sizeof(PIDCount) * PIDCount);
+        eventFilterDescriptors[0].Size = (ULONG)(sizeof(PIDs[0]) * PIDCount);
         eventFilterDescriptors[0].Type = EVENT_FILTER_TYPE_PID;
 
         enableParameters.FilterDescCount++;

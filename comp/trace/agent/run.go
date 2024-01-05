@@ -194,6 +194,7 @@ func profilingConfig(tracecfg *tracecfg.AgentConfig) *profiling.Settings {
 
 		// remaining configuration parameters use the top-level `internal_profiling` config
 		Period:               coreconfig.Datadog.GetDuration("internal_profiling.period"),
+		Service:              "trace-agent",
 		CPUDuration:          coreconfig.Datadog.GetDuration("internal_profiling.cpu_duration"),
 		MutexProfileFraction: coreconfig.Datadog.GetInt("internal_profiling.mutex_profile_fraction"),
 		BlockProfileRate:     coreconfig.Datadog.GetInt("internal_profiling.block_profile_rate"),

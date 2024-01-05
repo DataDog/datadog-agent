@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -81,10 +82,12 @@ func (p *EBPFLessResolver) DeleteEntry(key CacheResolverKey, exitTime time.Time)
 }
 
 // AddForkEntry adds an entry to the local cache and returns the newly created entry
-func (p *EBPFLessResolver) AddForkEntry(key CacheResolverKey, ppid uint32) *model.ProcessCacheEntry {
+func (p *EBPFLessResolver) AddForkEntry(key CacheResolverKey, ppid uint32, ts uint64) *model.ProcessCacheEntry {
 	entry := p.processCacheEntryPool.Get()
 	entry.PIDContext.Pid = key.Pid
 	entry.PPid = ppid
+	entry.ForkTime = time.Unix(0, int64(ts))
+	entry.IsThread = true
 
 	p.Lock()
 	defer p.Unlock()
@@ -95,24 +98,40 @@ func (p *EBPFLessResolver) AddForkEntry(key CacheResolverKey, ppid uint32) *mode
 }
 
 // AddExecEntry adds an entry to the local cache and returns the newly created entry
-func (p *EBPFLessResolver) AddExecEntry(key CacheResolverKey, file string, argv []string, envs []string, ctrID string) *model.ProcessCacheEntry {
+func (p *EBPFLessResolver) AddExecEntry(key CacheResolverKey, file string, argv []string, argsTruncated bool,
+	envs []string, envsTruncated bool, ctrID string, ts uint64, tty string) *model.ProcessCacheEntry {
 	entry := p.processCacheEntryPool.Get()
 	entry.PIDContext.Pid = key.Pid
 
-	entry.Process.ArgsEntry = &model.ArgsEntry{Values: argv}
+	entry.Process.ArgsEntry = &model.ArgsEntry{
+		Values:    argv,
+		Truncated: argsTruncated,
+	}
 	if len(argv) > 0 {
-		entry.Process.Comm = argv[0]
 		entry.Process.Argv0 = argv[0]
 	}
+	entry.Process.Comm = filepath.Base(file)
+	if len(entry.Process.Comm) > 16 {
+		// truncate comm to max 16 chars to be ebpf ISO
+		entry.Process.Comm = entry.Process.Comm[:16]
+	}
+	entry.Process.TTYName = tty
 
-	entry.Process.EnvsEntry = &model.EnvsEntry{Values: envs}
+	entry.Process.EnvsEntry = &model.EnvsEntry{
+		Values:    envs,
+		Truncated: envsTruncated,
+	}
 
-	entry.Process.FileEvent.PathnameStr = file
-	entry.Process.FileEvent.BasenameStr = filepath.Base(entry.Process.FileEvent.PathnameStr)
+	if strings.HasPrefix(file, "memfd:") {
+		entry.Process.FileEvent.PathnameStr = ""
+		entry.Process.FileEvent.BasenameStr = file
+	} else {
+		entry.Process.FileEvent.PathnameStr = file
+		entry.Process.FileEvent.BasenameStr = filepath.Base(entry.Process.FileEvent.PathnameStr)
+	}
 	entry.Process.ContainerID = ctrID
 
-	// TODO fix timestamp
-	entry.ExecTime = time.Now()
+	entry.ExecTime = time.Unix(0, int64(ts))
 
 	p.Lock()
 	defer p.Unlock()

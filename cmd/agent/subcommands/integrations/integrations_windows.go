@@ -8,6 +8,7 @@
 package integrations
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 
@@ -26,12 +27,10 @@ func getRelChecksPath(cliParams *cliParams) (string, error) {
 	return filepath.Join(fmt.Sprintf("embedded%s", cliParams.pythonMajorVersion), "Lib", "site-packages", "datadog_checks"), nil
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func validateUser(allowRoot bool) error {
+func validateUser(_ bool) error {
 	elevated, _ := winutil.IsProcessElevated()
 	if !elevated {
-		//nolint:revive // TODO(ASC) Fix revive linter
-		return fmt.Errorf("Operation is not possible for unelevated process.")
+		return errors.New("operation is not possible for unelevated process")
 	}
 	return nil
 }

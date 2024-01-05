@@ -67,8 +67,8 @@ func mockContainerProvider(t *testing.T) proccontainers.ContainerProvider {
 	// Metrics provider
 	metricsCollector := metricsmock.NewCollector("foo")
 	metricsProvider := metricsmock.NewMetricsProvider()
-	metricsProvider.RegisterConcreteCollector(provider.RuntimeNameContainerd, metricsCollector)
-	metricsProvider.RegisterConcreteCollector(provider.RuntimeNameGarden, metricsCollector)
+	metricsProvider.RegisterConcreteCollector(provider.NewRuntimeMetadata(string(provider.RuntimeNameContainerd), ""), metricsCollector)
+	metricsProvider.RegisterConcreteCollector(provider.NewRuntimeMetadata(string(provider.RuntimeNameGarden), ""), metricsCollector)
 
 	// Workload meta + tagger
 	metadataProvider := fxutil.Test[workloadmeta.Mock](t, fx.Options(

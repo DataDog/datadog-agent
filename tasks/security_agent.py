@@ -190,6 +190,25 @@ def run_functional_tests(ctx, testsuite, verbose=False, testflags='', fentry=Fal
     ctx.run(cmd.format(**args))
 
 
+@task
+def run_ebpfless_functional_tests(ctx, cws_instrumentation, testsuite, verbose=False, testflags=''):
+    cmd = '{testsuite} -trace {verbose_opt} {testflags} {tests}'
+
+    if os.getuid() != 0:
+        cmd = 'sudo -E PATH={path} ' + cmd
+
+    args = {
+        "cws_instrumentation": cws_instrumentation,
+        "testsuite": testsuite,
+        "verbose_opt": "-test.v" if verbose else "",
+        "testflags": testflags,
+        "path": os.environ['PATH'],
+        "tests": "-test.run '^(TestOpen|TestProcess|TimestampVariable|KillAction|TestRmdir|TestUnlink|TestRename)'",
+    }
+
+    ctx.run(cmd.format(**args))
+
+
 def ninja_ebpf_probe_syscall_tester(nw, build_dir):
     c_dir = os.path.join("pkg", "security", "tests", "syscall_tester", "c")
     c_file = os.path.join(c_dir, "ebpf_probe.c")
@@ -476,6 +495,40 @@ def functional_tests(
         verbose=verbose,
         testflags=testflags,
         fentry=fentry,
+    )
+
+
+@task
+def ebpfless_functional_tests(
+    ctx,
+    verbose=False,
+    race=False,
+    arch=CURRENT_ARCH,
+    major_version='7',
+    output='pkg/security/tests/testsuite',
+    bundle_ebpf=True,
+    testflags='',
+    skip_linters=False,
+    kernel_release=None,
+    cws_instrumentation='bin/cws-instrumentation/cws-instrumentation',
+):
+    build_functional_tests(
+        ctx,
+        arch=arch,
+        major_version=major_version,
+        output=output,
+        bundle_ebpf=bundle_ebpf,
+        skip_linters=skip_linters,
+        race=race,
+        kernel_release=kernel_release,
+    )
+
+    run_ebpfless_functional_tests(
+        ctx,
+        cws_instrumentation,
+        testsuite=output,
+        verbose=verbose,
+        testflags=testflags,
     )
 
 

@@ -2,7 +2,8 @@ import getpass
 import json
 import os
 
-from .init_kmt import KMT_STACKS_DIR, VMCONFIG, check_and_get_stack
+from .init_kmt import VMCONFIG, check_and_get_stack
+from .kmt_os import get_kmt_os
 from .libvirt import delete_domains, delete_networks, delete_pools, delete_volumes, pause_domains, resume_domains
 from .tool import Exit, ask, error, info, warn
 
@@ -16,20 +17,20 @@ ARM_INSTANCE_TYPE = "m6gd.metal"
 
 
 def stack_exists(stack):
-    return os.path.exists(f"{KMT_STACKS_DIR}/{stack}")
+    return os.path.exists(f"{get_kmt_os().stacks_dir}/{stack}")
 
 
 def vm_config_exists(stack):
-    return os.path.exists(f"{KMT_STACKS_DIR}/{stack}/{VMCONFIG}")
+    return os.path.exists(f"{get_kmt_os().stacks_dir}/{stack}/{VMCONFIG}")
 
 
 def create_stack(ctx, stack=None):
-    if not os.path.exists(f"{KMT_STACKS_DIR}"):
+    if not os.path.exists(f"{get_kmt_os().stacks_dir}"):
         raise Exit("Kernel matrix testing environment not correctly setup. Run 'inv kmt.init'.")
 
     stack = check_and_get_stack(stack)
 
-    stack_dir = f"{KMT_STACKS_DIR}/{stack}"
+    stack_dir = f"{get_kmt_os().stacks_dir}/{stack}"
     if os.path.exists(stack_dir):
         raise Exit(f"Stack {stack} already exists")
 
@@ -115,7 +116,7 @@ def launch_stack(ctx, stack, ssh_key, x86_ami, arm_ami):
     if not vm_config_exists(stack):
         raise Exit(f"No {VMCONFIG} for stack {stack}. Refer to 'inv kmt.gen-config --help'")
 
-    stack_dir = f"{KMT_STACKS_DIR}/{stack}"
+    stack_dir = f"{get_kmt_os().stacks_dir}/{stack}"
     vm_config = f"{stack_dir}/{VMCONFIG}"
 
     ssh_key.rstrip(".pem")
@@ -169,7 +170,7 @@ def destroy_stack_pulumi(ctx, stack, ssh_key):
 
     ctx.run(ssh_add_cmd)
 
-    stack_dir = f"{KMT_STACKS_DIR}/{stack}"
+    stack_dir = f"{get_kmt_os().stacks_dir}/{stack}"
     env = [
         "PULUMI_CONFIG_PASSPHRASE=1234",
         f"LibvirtSSHKeyX86={stack_dir}/libvirt_rsa-x86_64",
@@ -205,7 +206,7 @@ def ec2_instance_ids(ctx, ip_list):
 
 
 def destroy_ec2_instances(ctx, stack):
-    stack_output = os.path.join(KMT_STACKS_DIR, stack, "stack.output")
+    stack_output = os.path.join(get_kmt_os().stacks_dir, stack, "stack.output")
     if not os.path.exists(stack_output):
         warn(f"[-] File {stack_output} not found")
         return
@@ -285,7 +286,7 @@ def destroy_stack(ctx, stack, force, ssh_key):
     else:
         destroy_stack_pulumi(ctx, stack, ssh_key)
 
-    ctx.run(f"rm -r {KMT_STACKS_DIR}/{stack}")
+    ctx.run(f"rm -r {get_kmt_os().stacks_dir}/{stack}")
 
 
 def pause_stack(stack=None):
