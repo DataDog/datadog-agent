@@ -75,7 +75,7 @@ type OTLP struct {
 	// decision is followed.
 	ProbabilisticSampling float64
 
-	// AttributesTranslator specifies an OTLP to Datadog attributes translaator.
+	// AttributesTranslator specifies an OTLP to Datadog attributes translator.
 	AttributesTranslator *attributes.Translator `mapstructure:"-"`
 }
 
