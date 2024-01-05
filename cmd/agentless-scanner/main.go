@@ -108,8 +108,8 @@ var (
 )
 
 const (
-	rootMountPrefix = "root"
-	ctrdMountPrefix = "ctrd"
+	rootMountPrefix = "root-"
+	ctrdMountPrefix = "ctrd-"
 )
 
 type configType string
@@ -2337,7 +2337,7 @@ func listDevicePartitions(ctx context.Context, device string, volumeARN *arn.ARN
 func mountDevice(ctx context.Context, scan *scanTask, partitions []devicePartition) ([]string, error) {
 	var mountPoints []string
 	for _, mp := range partitions {
-		mountPoint := scan.MountPoint(rootMountPrefix)
+		mountPoint := scan.MountPoint(fmt.Sprintf("%s-%s", rootMountPrefix, path.Base(mp.devicePath)))
 		if err := os.MkdirAll(mountPoint, 0700); err != nil {
 			return nil, fmt.Errorf("could not create mountPoint directory %q: %w", mountPoint, err)
 		}
@@ -2425,11 +2425,21 @@ func cleanupScan(scan *scanTask) {
 	}
 
 	mountRoot := scan.MountPoint("")
-	if mountEntries, err := os.ReadDir(mountRoot); err == nil {
+	mountEntries, err := os.ReadDir(mountRoot)
+	if err == nil {
 		var wg sync.WaitGroup
 		for _, mountEntry := range mountEntries {
-			// unmount "root" entrypoint last as the other mountpoint may depend on it
-			if mountEntry.IsDir() && mountEntry.Name() != rootMountPrefix {
+			if mountEntry.IsDir() && !strings.HasPrefix(mountEntry.Name(), rootMountPrefix) {
+				wg.Add(1)
+				go func(mountPoint string) {
+					umount(mountPoint)
+					wg.Done()
+				}(filepath.Join(mountRoot, mountEntry.Name()))
+			}
+		}
+		for _, mountEntry := range mountEntries {
+			// unmount "root-*" entrypoint last as the other mountpoint may depend on it
+			if mountEntry.IsDir() && strings.HasPrefix(mountEntry.Name(), rootMountPrefix) {
 				wg.Add(1)
 				go func(mountPoint string) {
 					umount(mountPoint)
@@ -2439,7 +2449,6 @@ func cleanupScan(scan *scanTask) {
 		}
 		wg.Wait()
 	}
-	umount(filepath.Join(mountRoot, rootMountPrefix))
 
 	if err := os.RemoveAll(mountRoot); err != nil {
 		log.Errorf("%s: could not cleanup mount root %q", scan, mountRoot)

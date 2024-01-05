@@ -112,7 +112,7 @@ func ctrdMountContainer(ctx context.Context, scan *scanTask, ctrdRoot string, ct
 		// only one layer, no need to mount anything.
 		return ctrLayers[0], nil
 	}
-	ctrMountPoint := scan.MountPoint(fmt.Sprintf("%s-%s-%s-%d", ctrdMountPrefix, ctr.NS, ctr.Name, ctr.Snapshot.Backend.ID))
+	ctrMountPoint := scan.MountPoint(fmt.Sprintf("%s%s-%s-%d", ctrdMountPrefix, ctr.NS, ctr.Name, ctr.Snapshot.Backend.ID))
 	if err := os.MkdirAll(ctrMountPoint, 0700); err != nil {
 		return "", fmt.Errorf("could not create container mountPoint directory %q: %w", ctrMountPoint, err)
 	}
