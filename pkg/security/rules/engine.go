@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"strconv"
 	"sync"
 	"time"
 
@@ -390,8 +391,10 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 	if e.config.SecurityProfileAutoSuppressionEnabled &&
 		ev.SecurityProfileContext.Status.IsEnabled(model.AutoSuppression) &&
 		ev.IsInProfile() {
-		if val, ok := rule.Definition.GetTag("allow_autosuppression"); ok && val == "true" {
-			ev.Suppressed = true
+		if val, ok := rule.Definition.GetTag("allow_autosuppression"); ok {
+			if b, err := strconv.ParseBool(val); err == nil && b {
+				ev.Suppressed = true
+			}
 		}
 	}
 
