@@ -193,17 +193,19 @@ type (
 	}
 
 	scanTask struct {
-		ID                  string
-		Type                scanType
-		ARN                 arn.ARN
-		Hostname            string
-		Actions             []scanAction
-		Roles               rolesMapping
-		Snapshots           map[arn.ARN]*time.Time
-		DiskMode            diskMode
-		DiskDeviceName      *string
-		DiskVolumeARN       *arn.ARN
-		DiskVolumeCreatedAt *time.Time
+		ID       string
+		Type     scanType
+		ARN      arn.ARN
+		Hostname string
+		Actions  []scanAction
+		Roles    rolesMapping
+		DiskMode diskMode
+
+		// Lifecycle metadata of the task
+		CreatedSnapshots        map[arn.ARN]*time.Time
+		AttachedDeviceName      *string
+		AttachedVolumeARN       *arn.ARN
+		AttachedVolumeCreatedAt *time.Time
 	}
 
 	scanResult struct {
@@ -856,11 +858,13 @@ func attachCmd(snapshotARN arn.ARN, mode diskMode, mount bool) error {
 		if err := attachSnapshotWithNBD(ctx, scan, snapshotARN, ebsclient); err != nil {
 			return err
 		}
+	default:
+		panic("unreachable")
 	}
 
-	partitions, err := listDevicePartitions(ctx, *scan.DiskDeviceName, scan.DiskVolumeARN)
+	partitions, err := listDevicePartitions(ctx, *scan.AttachedDeviceName, scan.AttachedVolumeARN)
 	if err != nil {
-		log.Errorf("error could list paritions (device is still available on %q): %v", *scan.DiskDeviceName, err)
+		log.Errorf("error could list paritions (device is still available on %q): %v", *scan.AttachedDeviceName, err)
 	} else {
 		for _, part := range partitions {
 			fmt.Println(part.devicePath, part.fsType)
@@ -868,7 +872,7 @@ func attachCmd(snapshotARN arn.ARN, mode diskMode, mount bool) error {
 		if mount {
 			mountPoints, err := mountDevice(ctx, scan, partitions)
 			if err != nil {
-				log.Errorf("error could not mount (device is still available on %q): %v", *scan.DiskDeviceName, err)
+				log.Errorf("error could not mount (device is still available on %q): %v", *scan.AttachedDeviceName, err)
 			} else {
 				fmt.Println()
 				for _, mountPoint := range mountPoints {
@@ -930,7 +934,7 @@ func newScanTask(t string, resourceARN, hostname string, actions []string, roles
 		}
 	}
 	scan.ID = makeScanTaskID(&scan)
-	scan.Snapshots = make(map[arn.ARN]*time.Time)
+	scan.CreatedSnapshots = make(map[arn.ARN]*time.Time)
 	return &scan, nil
 }
 
@@ -1433,7 +1437,7 @@ func statsResourceTTL(resourceType resourceType, scan *scanTask, createTime time
 }
 
 func createSnapshot(ctx context.Context, scan *scanTask, ec2client *ec2.Client, volumeARN arn.ARN) (arn.ARN, error) {
-	snapshotStartedAt := time.Now()
+	snapshotCreatedAt := time.Now()
 	if err := statsd.Count("datadog.agentless_scanner.snapshots.started", 1.0, tagScan(scan), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}
@@ -1489,14 +1493,14 @@ retry:
 
 	snapshotID := *createSnapshotOutput.SnapshotId
 	snapshotARN := ec2ARN(volumeARN.Region, volumeARN.AccountID, resourceTypeSnapshot, snapshotID)
-	scan.Snapshots[snapshotARN] = &snapshotStartedAt
+	scan.CreatedSnapshots[snapshotARN] = &snapshotCreatedAt
 
 	waiter := ec2.NewSnapshotCompletedWaiter(ec2client, func(scwo *ec2.SnapshotCompletedWaiterOptions) {
 		scwo.MinDelay = 1 * time.Second
 	})
 	err = waiter.Wait(ctx, &ec2.DescribeSnapshotsInput{SnapshotIds: []string{snapshotID}}, 10*time.Minute)
 	if err == nil {
-		snapshotDuration := time.Since(snapshotStartedAt)
+		snapshotDuration := time.Since(snapshotCreatedAt)
 		log.Debugf("volume snapshotting of %q finished successfully %q (took %s)", volumeARN, snapshotID, snapshotDuration)
 		if err := statsd.Histogram("datadog.agentless_scanner.snapshots.duration", float64(snapshotDuration.Milliseconds()), tagScan(scan), 1.0); err != nil {
 			log.Warnf("failed to send metric: %v", err)
@@ -1854,7 +1858,7 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 		panic("unreachable")
 	}
 
-	partitions, err := listDevicePartitions(ctx, *scan.DiskDeviceName, scan.DiskVolumeARN)
+	partitions, err := listDevicePartitions(ctx, *scan.AttachedDeviceName, scan.AttachedVolumeARN)
 	if err != nil {
 		return err
 	}
@@ -1911,7 +1915,7 @@ func attachSnapshotWithNBD(_ context.Context, scan *scanTask, snapshotARN arn.AR
 		DeviceName:  device,
 		SnapshotARN: snapshotARN,
 	})
-	scan.DiskDeviceName = &device
+	scan.AttachedDeviceName = &device
 	return err
 }
 
@@ -2138,7 +2142,7 @@ func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, snapshotARN a
 	var localSnapshotARN arn.ARN
 	if snapshotARN.Region != self.Region {
 		log.Debugf("copying snapshot %q into %q", snapshotARN, self.Region)
-		copySnapshotStartTime := time.Now()
+		copySnapshotCreatedAt := time.Now()
 		copySnapshot, err := remoteEC2Client.CopySnapshot(ctx, &ec2.CopySnapshotInput{
 			SourceRegion: aws.String(snapshotARN.Region),
 			// DestinationRegion: aws.String(self.Region): automatically filled by SDK
@@ -2158,7 +2162,7 @@ func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, snapshotARN a
 		}
 		log.Debugf("successfully copied snapshot %q into %q: %q", snapshotARN, self.Region, *copySnapshot.SnapshotId)
 		localSnapshotARN = ec2ARN(self.Region, snapshotARN.AccountID, resourceTypeSnapshot, *copySnapshot.SnapshotId)
-		scan.Snapshots[localSnapshotARN] = &copySnapshotStartTime
+		scan.CreatedSnapshots[localSnapshotARN] = &copySnapshotCreatedAt
 	} else {
 		localSnapshotARN = snapshotARN
 	}
@@ -2218,9 +2222,9 @@ func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, snapshotARN a
 	}
 
 	volumeARN := ec2ARN(localSnapshotARN.Region, localSnapshotARN.AccountID, resourceTypeVolume, *volume.VolumeId)
-	scan.DiskVolumeARN = &volumeARN
-	scan.DiskVolumeCreatedAt = volume.CreateTime
-	scan.DiskDeviceName = &device
+	scan.AttachedVolumeARN = &volumeARN
+	scan.AttachedVolumeCreatedAt = volume.CreateTime
+	scan.AttachedDeviceName = &device
 	return nil
 }
 
@@ -2379,7 +2383,7 @@ func cleanupScan(scan *scanTask) {
 	ctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
 	defer cancel()
 
-	for snapshotARN, snapshotStartTime := range scan.Snapshots {
+	for snapshotARN, snapshotCreatedAt := range scan.CreatedSnapshots {
 		_, snapshotID, _ := getARNResource(snapshotARN)
 		cfg, err := newAWSConfig(ctx, snapshotARN.Region, scan.Roles[snapshotARN.AccountID])
 		if err != nil {
@@ -2393,7 +2397,7 @@ func cleanupScan(scan *scanTask) {
 				log.Warnf("could not delete snapshot %s: %v", snapshotID, err)
 			} else {
 				log.Debugf("snapshot deleted %s", snapshotID)
-				statsResourceTTL(resourceTypeSnapshot, scan, *snapshotStartTime)
+				statsResourceTTL(resourceTypeSnapshot, scan, *snapshotCreatedAt)
 			}
 		}
 	}
@@ -2447,8 +2451,8 @@ func cleanupScan(scan *scanTask) {
 
 	switch scan.DiskMode {
 	case volumeAttach:
-		if volumeARN := scan.DiskVolumeARN; volumeARN != nil {
-			_, volumeID, _ := getARNResource(*scan.DiskVolumeARN)
+		if volumeARN := scan.AttachedVolumeARN; volumeARN != nil {
+			_, volumeID, _ := getARNResource(*scan.AttachedVolumeARN)
 			cfg, err := newAWSConfig(ctx, volumeARN.Region, scan.Roles[volumeARN.AccountID])
 			if err != nil {
 				log.Errorf("could not create local aws config: %v", err)
@@ -2478,14 +2482,18 @@ func cleanupScan(scan *scanTask) {
 				if errd != nil {
 					log.Warnf("could not delete volume %q: %v", volumeID, errd)
 				} else {
-					statsResourceTTL(resourceTypeVolume, scan, *scan.DiskVolumeCreatedAt)
+					statsResourceTTL(resourceTypeVolume, scan, *scan.AttachedVolumeCreatedAt)
 				}
 			}
 		}
 	case nbdAttach:
-		if diskDeviceName := scan.DiskDeviceName; diskDeviceName != nil {
+		if diskDeviceName := scan.AttachedDeviceName; diskDeviceName != nil {
 			stopEBSBlockDevice(ctx, *diskDeviceName)
 		}
+	case noAttach:
+		// do nothing
+	default:
+		panic("unreachable")
 	}
 }
 
