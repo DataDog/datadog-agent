@@ -1223,8 +1223,10 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 						return
 					}
 					syscallMsg.Retval = ret
-					fillFileMetadata(syscallMsg.Rename.NewFile.Filename, &syscallMsg.Rename.NewFile, disableStats)
-					sendSyscallMsg(syscallMsg)
+					err := fillFileMetadata(syscallMsg.Rename.NewFile.Filename, &syscallMsg.Rename.NewFile, disableStats)
+					if err == nil {
+						sendSyscallMsg(syscallMsg)
+					}
 				}
 			}
 		case CallbackExitType:
