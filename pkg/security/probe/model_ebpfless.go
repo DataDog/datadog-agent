@@ -34,6 +34,7 @@ func NewEBPFLessModel() *model.Model {
 				!strings.HasPrefix(field, "capset.") &&
 				!strings.HasPrefix(field, "rmdir.") &&
 				!strings.HasPrefix(field, "unlink.") &&
+				!strings.HasPrefix(field, "rename.") &&
 				!strings.HasPrefix(field, "container.") {
 				return rules.ErrEventTypeNotEnabled
 			}

@@ -46,6 +46,9 @@ const (
 	UnlinkNr         = 87  // UnlinkNr defines the syscall ID for amd64
 	UnlinkatNr       = 263 // UnlinkatNr defines the syscall ID for amd64
 	RmdirNr          = 84  // RmdirNr defines the syscall ID for amd64
+	RenameNr         = 82  // RenameNr defines the syscall ID for amd64
+	RenameAtNr       = 264 // RenameAtNr defines the syscall ID for amd64
+	RenameAt2Nr      = 316 // RenameAt2Nr defines the syscall ID for amd64
 
 	ptraceFlags = 0 |
 		syscall.PTRACE_O_TRACEVFORK |
@@ -91,6 +94,9 @@ var (
 		"unlink",
 		"unlinkat",
 		"rmdir",
+		"rename",
+		"renameat",
+		"renameat2",
 	}
 )
 

@@ -116,11 +116,7 @@ func handleOpenAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, re
 		Mode:     uint32(tracer.ReadArgUint64(regs, 3)),
 	}
 
-	err = fillFileMetadata(filename, msg.Open, disableStats)
-	if err != nil {
-		return err
-	}
-	return nil
+	return fillFileMetadata(filename, msg.Open, disableStats)
 }
 
 func handleOpen(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
@@ -141,11 +137,7 @@ func handleOpen(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs
 		Mode:     uint32(tracer.ReadArgUint64(regs, 2)),
 	}
 
-	err = fillFileMetadata(filename, msg.Open, disableStats)
-	if err != nil {
-		return err
-	}
-	return nil
+	return fillFileMetadata(filename, msg.Open, disableStats)
 }
 
 func handleCreat(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
@@ -166,11 +158,7 @@ func handleCreat(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, reg
 		Mode:     uint32(tracer.ReadArgUint64(regs, 1)),
 	}
 
-	err = fillFileMetadata(filename, msg.Open, disableStats)
-	if err != nil {
-		return err
-	}
-	return nil
+	return fillFileMetadata(filename, msg.Open, disableStats)
 }
 
 func handleMemfdCreate(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
@@ -274,11 +262,7 @@ func handleOpenByHandleAt(tracer *Tracer, process *Process, msg *ebpfless.Syscal
 		Filename: val.pathName,
 		Flags:    uint32(tracer.ReadArgUint64(regs, 2)),
 	}
-	err = fillFileMetadata(val.pathName, msg.Open, disableStats)
-	if err != nil {
-		return err
-	}
-	return nil
+	return fillFileMetadata(val.pathName, msg.Open, disableStats)
 }
 
 func handleUnlinkat(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
@@ -333,11 +317,7 @@ func handleUnlink(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, re
 			Filename: filename,
 		},
 	}
-	err = fillFileMetadata(filename, &msg.Unlink.File, disableStats)
-	if err != nil {
-		return err
-	}
-	return nil
+	return fillFileMetadata(filename, &msg.Unlink.File, disableStats)
 }
 
 func handleRmdir(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
@@ -357,11 +337,77 @@ func handleRmdir(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, reg
 			Filename: filename,
 		},
 	}
-	err = fillFileMetadata(filename, &msg.Rmdir.File, disableStats)
+	return fillFileMetadata(filename, &msg.Rmdir.File, disableStats)
+}
+
+func handleRename(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
+	oldFilename, err := tracer.ReadArgString(process.Pid, regs, 0)
 	if err != nil {
 		return err
 	}
-	return nil
+
+	oldFilename, err = getFullPathFromFilename(process, oldFilename)
+	if err != nil {
+		return err
+	}
+
+	newFilename, err := tracer.ReadArgString(process.Pid, regs, 1)
+	if err != nil {
+		return err
+	}
+
+	newFilename, err = getFullPathFromFilename(process, newFilename)
+	if err != nil {
+		return err
+	}
+
+	msg.Type = ebpfless.SyscallTypeRename
+	msg.Rename = &ebpfless.RenameSyscallMsg{
+		OldFile: ebpfless.OpenSyscallMsg{
+			Filename: oldFilename,
+		},
+		NewFile: ebpfless.OpenSyscallMsg{
+			Filename: newFilename,
+		},
+	}
+	return fillFileMetadata(oldFilename, &msg.Rename.OldFile, disableStats)
+}
+
+func handleRenameAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
+	oldFD := tracer.ReadArgInt32(regs, 0)
+
+	oldFilename, err := tracer.ReadArgString(process.Pid, regs, 1)
+	if err != nil {
+		return err
+	}
+
+	oldFilename, err = getFullPathFromFd(process, oldFilename, oldFD)
+	if err != nil {
+		return err
+	}
+
+	newFD := tracer.ReadArgInt32(regs, 2)
+
+	newFilename, err := tracer.ReadArgString(process.Pid, regs, 3)
+	if err != nil {
+		return err
+	}
+
+	newFilename, err = getFullPathFromFd(process, newFilename, newFD)
+	if err != nil {
+		return err
+	}
+
+	msg.Type = ebpfless.SyscallTypeRename
+	msg.Rename = &ebpfless.RenameSyscallMsg{
+		OldFile: ebpfless.OpenSyscallMsg{
+			Filename: oldFilename,
+		},
+		NewFile: ebpfless.OpenSyscallMsg{
+			Filename: newFilename,
+		},
+	}
+	return fillFileMetadata(oldFilename, &msg.Rename.OldFile, disableStats)
 }
 
 func getPidTTY(pid int) string {
@@ -1056,6 +1102,16 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 					logErrorf("unable to handle rmdir: %v", err)
 					return
 				}
+			case RenameNr:
+				if err := handleRename(tracer, process, syscallMsg, regs, disableStats); err != nil {
+					logErrorf("unable to handle rename: %v", err)
+					return
+				}
+			case RenameAtNr, RenameAt2Nr:
+				if err := handleRenameAt(tracer, process, syscallMsg, regs, disableStats); err != nil {
+					logErrorf("unable to handle renameat: %v", err)
+					return
+				}
 			}
 		case CallbackPostType:
 			switch nr {
@@ -1157,6 +1213,17 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 						return
 					}
 					syscallMsg.Retval = ret
+					sendSyscallMsg(syscallMsg)
+				}
+
+			case RenameNr, RenameAtNr, RenameAt2Nr:
+				if ret := tracer.ReadRet(regs); ret == 0 {
+					syscallMsg, exists := process.Nr[nr]
+					if !exists {
+						return
+					}
+					syscallMsg.Retval = ret
+					fillFileMetadata(syscallMsg.Rename.NewFile.Filename, &syscallMsg.Rename.NewFile, disableStats)
 					sendSyscallMsg(syscallMsg)
 				}
 			}

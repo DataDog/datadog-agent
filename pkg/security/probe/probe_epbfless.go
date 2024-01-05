@@ -191,6 +191,28 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 			event.Rmdir.File.UID = syscallMsg.Rmdir.File.Credentials.UID
 			event.Rmdir.File.GID = syscallMsg.Rmdir.File.Credentials.GID
 		}
+
+	case ebpfless.SyscallTypeRename:
+		event.Type = uint32(model.FileRenameEventType)
+		event.Rename.Retval = syscallMsg.Retval
+		event.Rename.Old.PathnameStr = syscallMsg.Rename.OldFile.Filename
+		event.Rename.Old.BasenameStr = filepath.Base(syscallMsg.Rename.OldFile.Filename)
+		event.Rename.Old.MTime = syscallMsg.Rename.OldFile.MTime
+		event.Rename.Old.CTime = syscallMsg.Rename.OldFile.CTime
+		event.Rename.Old.Mode = uint16(syscallMsg.Rename.OldFile.Mode)
+		if syscallMsg.Rename.OldFile.Credentials != nil {
+			event.Rename.Old.UID = syscallMsg.Rename.OldFile.Credentials.UID
+			event.Rename.Old.GID = syscallMsg.Rename.OldFile.Credentials.GID
+		}
+		event.Rename.New.PathnameStr = syscallMsg.Rename.NewFile.Filename
+		event.Rename.New.BasenameStr = filepath.Base(syscallMsg.Rename.NewFile.Filename)
+		event.Rename.New.MTime = syscallMsg.Rename.NewFile.MTime
+		event.Rename.New.CTime = syscallMsg.Rename.NewFile.CTime
+		event.Rename.New.Mode = uint16(syscallMsg.Rename.NewFile.Mode)
+		if syscallMsg.Rename.NewFile.Credentials != nil {
+			event.Rename.New.UID = syscallMsg.Rename.NewFile.Credentials.UID
+			event.Rename.New.GID = syscallMsg.Rename.NewFile.Credentials.GID
+		}
 	}
 
 	// container context

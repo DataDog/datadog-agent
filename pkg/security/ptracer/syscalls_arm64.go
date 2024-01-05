@@ -39,6 +39,8 @@ const (
 	MemfdCreateNr    = 279 // MemfdCreateNr defines the syscall ID for arm64
 	CapsetNr         = 91  // CapsetNr defines the syscall ID for arm64
 	UnlinkatNr       = 35  // UnlinkatNr defines the syscall ID for arm64
+	RenameAtNr       = 38  // RenameAtNr defines the syscall ID for arm64
+	RenameAt2Nr      = 276 // RenameAt2Nr defines the syscall ID for arm64
 
 	OpenNr   = -1 // OpenNr not available on arm64
 	ForkNr   = -2 // ForkNr not available on arm64
@@ -47,6 +49,7 @@ const (
 	CreatNr  = -5 // CreatNr not available on arm64
 	UnlinkNr = -6 // UnlinkNr not available on arm64
 	RmdirNr  = -7 // RmdirNr not available on arm64
+	RenameNr = -8 // RenameNr not available on arm64
 
 	ptraceFlags = 0 |
 		syscall.PTRACE_O_TRACECLONE |
@@ -85,6 +88,8 @@ var (
 		"memfd_create",
 		"capset",
 		"unlinkat",
+		"renameat",
+		"renameat2",
 	}
 )
 

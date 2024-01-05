@@ -54,6 +54,8 @@ const (
 	SyscallTypeUnlink
 	// SyscallTypeRmdir rmdir type
 	SyscallTypeRmdir
+	// SyscallTypeRename rename/renameat/renameat2 type
+	SyscallTypeRename
 )
 
 // ContainerContext defines a container context
@@ -149,14 +151,20 @@ type CapsetSyscallMsg struct {
 	Permitted uint64
 }
 
-// UnlinkSyscallMsg defines a setfsgid message
+// UnlinkSyscallMsg defines a unlink message
 type UnlinkSyscallMsg struct {
 	File OpenSyscallMsg
 }
 
-// RmdirSyscallMsg defines a setfsgid message
+// RmdirSyscallMsg defines a rmdir message
 type RmdirSyscallMsg struct {
 	File OpenSyscallMsg
+}
+
+// RenameSyscallMsg defines a rename/renameat/renameat2 message
+type RenameSyscallMsg struct {
+	OldFile OpenSyscallMsg
+	NewFile OpenSyscallMsg
 }
 
 // SyscallMsg defines a syscall message
@@ -177,6 +185,7 @@ type SyscallMsg struct {
 	Capset    *CapsetSyscallMsg   `json:",omitempty"`
 	Unlink    *UnlinkSyscallMsg   `json:",omitempty"`
 	Rmdir     *RmdirSyscallMsg    `json:",omitempty"`
+	Rename    *RenameSyscallMsg   `json:",omitempty"`
 
 	// internals
 	Dup   *DupSyscallFakeMsg   `json:",omitempty"`
