@@ -90,7 +90,7 @@ func NewRuntimeMetadata(runtime, flavor string) RuntimeMetadata {
 
 // String returns the runtime compose.
 func (r *RuntimeMetadata) String() string {
-	if r.flavor == "" {
+	if r.flavor != "" {
 		return string(r.runtime) + "-" + string(r.flavor)
 	}
 
