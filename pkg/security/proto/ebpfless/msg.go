@@ -145,7 +145,7 @@ type SetFSGIDSyscallMsg struct {
 	FSGID int32
 }
 
-// CapsetSyscallMsg defines a setfsgid message
+// CapsetSyscallMsg defines a capset message
 type CapsetSyscallMsg struct {
 	Effective uint64
 	Permitted uint64
