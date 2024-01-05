@@ -62,9 +62,10 @@ const (
 	kb = 1024
 	mb = 1024 * kb
 
-	http2SrvAddr    = "http://127.0.0.1:8082"
-	http2SrvPortStr = ":8082"
-	http2SrvPort    = 8082
+	localHostAddress = "127.0.0.1:8082"
+	http2SrvAddr     = "http://" + localHostAddress
+	http2SrvPortStr  = ":8082"
+	http2SrvPort     = 8082
 )
 
 var (
@@ -809,10 +810,7 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 							t.Logf("key: %v was not found in res", key.Path.Content.Get())
 						}
 					}
-					err := monitor.DumpMaps(&ebpftest.TestLogWriter{T: t}, "http2_in_flight")
-					if err != nil {
-						t.Logf("failed dumping http2_in_flight: %s", err)
-					}
+					ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, "http2_in_flight")
 				}
 			})
 		}
@@ -980,6 +978,18 @@ var (
 	}
 )
 
+// createRawRequestFrame creates a raw request frame with the given streamID.
+func createRawRequestFrame(streamID int) []byte {
+	binary.BigEndian.PutUint16(request[7:9], uint16(streamID))
+	return request
+}
+
+// createRawRequestFrame creates a raw request frame with the given streamID.
+func createRawDataFrame(streamID int) []byte {
+	binary.BigEndian.PutUint16(dataFrame[7:9], uint16(streamID))
+	return dataFrame
+}
+
 func (s *USMHTTP2Suite) TestRawTraffic() {
 	t := s.T()
 	cfg := networkconfig.New()
@@ -990,6 +1000,7 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 	tests := []struct {
 		name                  string
 		numberOfSettingFrames int
+		numberOfRequestFrames int
 		expectedEndpoints     map[http.Key]int
 	}{
 		{
@@ -997,6 +1008,7 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			// The objective of this test is to verify that we accurately perform the parsing of frames within
 			// a single program.
 			numberOfSettingFrames: 100,
+			numberOfRequestFrames: 1,
 			expectedEndpoints: map[http.Key]int{
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
@@ -1009,6 +1021,7 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			// The purpose of this test is to validate that when we surpass the limit of HTTP2_MAX_FRAMES_ITERATIONS,
 			// the filtering of subsequent frames will continue using tail calls.
 			numberOfSettingFrames: 130,
+			numberOfRequestFrames: 1,
 			expectedEndpoints: map[http.Key]int{
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
@@ -1021,7 +1034,34 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			// The purpose of this test is to validate that when we surpass the limit of HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER,
 			// for 2 filter_frames we do not use more than two tail calls.
 			numberOfSettingFrames: 250,
+			numberOfRequestFrames: 1,
 			expectedEndpoints:     nil,
+		},
+		{
+			name: "validate max interesting frames limit",
+			// The purpose of this test is to verify our ability to reach the limit set by HTTP2_MAX_FRAMES_ITERATIONS, which
+			// determines the maximum number of "interesting frames" we can process.
+			numberOfSettingFrames: 0,
+			numberOfRequestFrames: 120,
+			expectedEndpoints: map[http.Key]int{
+				{
+					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
+					Method: http.MethodPost,
+				}: 120,
+			},
+		},
+		{
+			name: "validate more then limit max interesting frames",
+			// The purpose of this test is to verify our ability to reach the limit set by HTTP2_MAX_FRAMES_ITERATIONS
+			// and validate that we cannot handle more than that limit.
+			numberOfSettingFrames: 0,
+			numberOfRequestFrames: 130,
+			expectedEndpoints: map[http.Key]int{
+				{
+					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
+					Method: http.MethodPost,
+				}: 120,
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -1035,20 +1075,25 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			input = append(input, magicFrame...)
 			input = append(input, settingsFrame...)
 
-			// TODO: Make this to a const
-			c, err := net.Dial("tcp", "127.0.0.1:8082")
+			c, err := net.Dial("tcp", localHostAddress)
 			require.NoError(t, err, "could not dial")
 			defer c.Close()
 
 			// Sending a magic and the settings in the same packet.
 			require.NoError(t, writeInput(c, input, time.Second))
 
-			reqInput := make([]byte, 0, len(settingsFrame)*tt.numberOfSettingFrames+len(request)+len(dataFrame))
+			reqInput := make([]byte, 0, len(settingsFrame)*tt.numberOfSettingFrames+tt.numberOfRequestFrames+tt.numberOfRequestFrames)
 			for i := 0; i < tt.numberOfSettingFrames; i++ {
 				reqInput = append(reqInput, settingsFrame...)
 			}
-			reqInput = append(reqInput, request...)
-			reqInput = append(reqInput, dataFrame...)
+
+			// we have to use negative numbers for the stream id.
+			for i := 0; i < tt.numberOfRequestFrames; i++ {
+				streamID := 2*i + 1
+				reqInput = append(reqInput, createRawRequestFrame(streamID)...)
+				reqInput = append(reqInput, createRawDataFrame(streamID)...)
+			}
+
 			// Sending the repeated settings with request.
 			require.NoError(t, writeInput(c, reqInput, time.Second), "could not make request")
 
@@ -1079,9 +1124,12 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 					return false
 				}
 
-				for key := range res {
+				for key, endpointCount := range res {
 					_, ok := tt.expectedEndpoints[key]
 					if !ok {
+						return false
+					}
+					if endpointCount > tt.expectedEndpoints[key] {
 						return false
 					}
 				}
@@ -1094,10 +1142,7 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 						t.Logf("key: %v was not found in res", key.Path.Content.Get())
 					}
 				}
-				err := monitor.DumpMaps(&ebpftest.TestLogWriter{T: t}, "http2_in_flight")
-				if err != nil {
-					t.Logf("failed dumping http2_in_flight: %s", err)
-				}
+				ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, "http2_in_flight")
 			}
 		})
 	}
@@ -1189,10 +1234,7 @@ func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp
 	}, 3*time.Second, time.Millisecond*100, "connection not found")
 
 	if t.Failed() {
-		err := monitor.DumpMaps(&ebpftest.TestLogWriter{T: t}, "http_in_flight")
-		if err != nil {
-			t.Logf("failed dumping http_in_flight: %s", err)
-		}
+		ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, "http_in_flight")
 
 		for reqIndex, exists := range requestsExist {
 			if !exists {

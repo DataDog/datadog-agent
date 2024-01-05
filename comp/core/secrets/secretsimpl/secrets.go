@@ -170,6 +170,10 @@ func (r *secretResolver) registerSecretOrigin(handle string, origin string, path
 		}
 	}
 
+	// clone the path to take ownership of it, otherwise callers may
+	// modify the original object and corrupt data in the origin map
+	path = slices.Clone(path)
+
 	r.origin[handle] = append(
 		r.origin[handle],
 		secretContext{
