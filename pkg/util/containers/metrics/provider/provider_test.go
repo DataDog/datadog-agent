@@ -17,25 +17,25 @@ func TestRuntimeMetadataString(t *testing.T) {
 		name     string
 		runtime  string
 		flavor   string
-		expected Runtime
+		expected string
 	}{
 		{
 			name:     "containerd",
 			runtime:  string(RuntimeNameContainerd),
 			flavor:   "",
-			expected: RuntimeNameContainerd,
+			expected: "containerd",
 		},
 		{
 			name:     "containerd with kata",
 			runtime:  string(RuntimeNameContainerd),
 			flavor:   "kata",
-			expected: Runtime("containerd-kata"),
+			expected: "containerd-kata",
 		},
 		{
 			name:     "containerd with runc",
 			runtime:  string(RuntimeNameContainerd),
 			flavor:   "runc",
-			expected: RuntimeNameContainerd,
+			expected: "containerd-runc",
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {

@@ -89,12 +89,12 @@ func NewRuntimeMetadata(runtime, flavor string) RuntimeMetadata {
 }
 
 // String returns the runtime compose.
-func (r *RuntimeMetadata) String() Runtime {
+func (r *RuntimeMetadata) String() string {
 	if r.flavor == RuntimeFlavorKata {
-		return r.runtime + Runtime("-") + Runtime(RuntimeFlavorKata)
+		return string(r.runtime) + "-" + string(r.runtime)
 	}
 
-	return r.runtime
+	return string(r.runtime)
 }
 
 // Provider interface allows to mock the metrics provider
