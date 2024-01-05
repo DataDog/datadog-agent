@@ -145,7 +145,7 @@ func (bd *ebsBlockDevice) startServer() error {
 
 	addr := bd.getSocketAddr()
 	if _, err := os.Stat(addr); err == nil {
-		return fmt.Errorf("ebsblockdevice: socket %q already exists")
+		return fmt.Errorf("ebsblockdevice: socket %q already exists", addr)
 	}
 
 	bd.srv, err = lc.Listen(bd.ctx, "unix", addr)
