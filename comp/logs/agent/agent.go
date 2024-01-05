@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"go.uber.org/atomic"
@@ -87,11 +88,11 @@ type agent struct {
 type provides struct {
 	fx.Out
 
-	Comp          Component
+	Comp          optional.Option[Component]
 	FlareProvider flaretypes.Provider
 }
 
-func newLogsAgent(deps dependencies) optional.Option[provides] {
+func newLogsAgent(deps dependencies) provides {
 	if deps.Config.GetBool("logs_enabled") || deps.Config.GetBool("log_enabled") {
 		if deps.Config.GetBool("log_enabled") {
 			deps.Log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
@@ -112,15 +113,15 @@ func newLogsAgent(deps dependencies) optional.Option[provides] {
 			OnStop:  logsAgent.stop,
 		})
 
-		return optional.NewOption[provides](provides{
-			Comp:          logsAgent,
-			FlareProvider: logsAgent.FlareProvider(),
-		})
+		return provides{
+			Comp:          optional.NewOption[Component](logsAgent),
+			FlareProvider: flaretypes.NewProvider(logsAgent.fillFlare),
+		}
 		// return optional.NewOption[Component](logsAgent)
 	}
 
 	deps.Log.Info("logs-agent disabled")
-	return optional.NewNoneOption[provides]()
+	return provides{Comp: optional.NewNoneOption[Component]()}
 }
 
 func (a *agent) start(context.Context) error {
@@ -268,20 +269,34 @@ func (a *agent) GetPipelineProvider() pipeline.Provider {
 	return a.pipelineProvider
 }
 
-func (a *agent) FlareProvider() flaretypes.Provider {
-	return flaretypes.NewProvider(a.fillFlare)
-}
+// func (a *agent) FlareProvider() flaretypes.Provider {
+// 	return flaretypes.NewProvider(a.fillFlare)
+// }
 
 func (a *agent) fillFlare(fb flaretypes.FlareBuilder) error {
 	tailers := a.tracker.All()
 
 	for _, tailer := range tailers {
-		tailer.GetInfo().All()
+		fmt.Println(tailer.GetId())
+		fmt.Println(tailer.GetType())
+		fmt.Println(tailer.GetInfo())
+		fmt.Println()
 	}
 
-	fb.AddFileFromFunc("logs_file_permissions", func() ([]byte, error) {
-		sample := []byte("Hello")
-		return sample, nil
+	fb.AddFileFromFunc("logs_file_permissions.log", func() ([]byte, error) {
+		var files []byte
+
+		for _, tailer := range tailers {
+			if tailer.GetType() == "file" {
+				fi, err := os.Stat(tailer.GetId())
+				if err != nil {
+					return nil, err
+				}
+				files = append(files, []byte(tailer.GetId()+" "+fi.Mode().String()+"\n")...)
+			}
+		}
+
+		return files, nil
 	})
 
 	return nil
