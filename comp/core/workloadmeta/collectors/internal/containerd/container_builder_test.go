@@ -91,6 +91,9 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 				Labels:    labels,
 				CreatedAt: createdAt,
 				Image:     imgName,
+				Runtime: containers.RuntimeInfo{
+					Name: "io.containerd.kata-qemu.v2",
+				},
 			}, nil
 		},
 		MockSpec: func(namespace string, ctn containers.Container) (*oci.Spec, error) {
@@ -123,9 +126,10 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 			Tag:       "7",
 			ID:        "my_image_id",
 		},
-		EnvVars: envVars,
-		Ports:   nil, // Not available
-		Runtime: workloadmeta.ContainerRuntimeContainerd,
+		EnvVars:       envVars,
+		Ports:         nil, // Not available
+		Runtime:       workloadmeta.ContainerRuntimeContainerd,
+		RuntimeFlavor: workloadmeta.ContainerRuntimeFlavorKata,
 		State: workloadmeta.ContainerState{
 			Running:    true,
 			Status:     workloadmeta.ContainerStatusRunning,
@@ -138,4 +142,34 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 		PID:        0, // Not available
 	}
 	assert.Equal(t, expected, result)
+}
+
+func TestExtractRuntimeFlavor(t *testing.T) {
+	tests := []struct {
+		name     string
+		runtime  string
+		expected workloadmeta.ContainerRuntimeFlavor
+	}{
+		{
+			name:     "kata",
+			runtime:  "io.containerd.kata.v2",
+			expected: workloadmeta.ContainerRuntimeFlavorKata,
+		},
+		{
+			name:     "kata-qemu",
+			runtime:  "io.containerd.kata-qemu.v2",
+			expected: workloadmeta.ContainerRuntimeFlavorKata,
+		},
+		{
+			name:     "non-kata",
+			runtime:  "io.containerd.runc.v2",
+			expected: workloadmeta.ContainerRuntimeFlavorDefault,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := extractRuntimeFlavor(tt.runtime)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }

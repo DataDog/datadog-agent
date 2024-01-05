@@ -203,7 +203,7 @@ def run_ebpfless_functional_tests(ctx, cws_instrumentation, testsuite, verbose=F
         "verbose_opt": "-test.v" if verbose else "",
         "testflags": testflags,
         "path": os.environ['PATH'],
-        "tests": "-test.run '^(TestOpen|TestProcess|TimestampVariable|KillAction)'",
+        "tests": "-test.run '^(TestOpen|TestProcess|TimestampVariable|KillAction|TestRmdir|TestUnlink|TestRename)'",
     }
 
     ctx.run(cmd.format(**args))

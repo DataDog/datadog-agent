@@ -43,7 +43,7 @@ func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]string, forw
 	log := logimpl.NewTemporaryLoggerWithoutInit()
 	forwarder := forwarder.NewSyncForwarder(config.Datadog, log, keysPerDomain, forwarderTimeout)
 	serializer := serializer.NewSerializer(forwarder, nil)
-	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize, utils.IsTelemetryEnabled())
+	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize, utils.IsTelemetryEnabled(config.Datadog))
 	tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), "timesampler")
 
 	statsdSampler := NewTimeSampler(TimeSamplerID(0), bucketSize, tagsStore, "")
