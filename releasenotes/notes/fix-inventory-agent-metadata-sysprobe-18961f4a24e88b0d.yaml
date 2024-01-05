@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix incorrect metadata about system-probe being sent to Inventory and Fleet Automation products.

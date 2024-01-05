@@ -165,15 +165,9 @@ func (ia *inventoryagent) initData() {
 	ia.data["feature_cspm_enabled"] = ia.conf.GetBool("compliance_config.enabled")
 	ia.data["feature_apm_enabled"] = ia.conf.GetBool("apm_config.enabled")
 	ia.data["feature_imdsv2_enabled"] = ia.conf.GetBool("ec2_prefer_imdsv2")
-	ia.data["feature_dynamic_instrumentation_enabled"] = pkgconfig.SystemProbe.GetBool("dynamic_instrumentation.enabled")
 	ia.data["feature_remote_configuration_enabled"] = ia.conf.GetBool("remote_configuration.enabled")
 
 	ia.data["feature_container_images_enabled"] = ia.conf.GetBool("container_image.enabled")
-
-	ia.data["feature_cws_enabled"] = pkgconfig.SystemProbe.GetBool("runtime_security_config.enabled")
-	ia.data["feature_cws_network_enabled"] = pkgconfig.SystemProbe.GetBool("event_monitoring_config.network.enabled")
-	ia.data["feature_cws_security_profiles_enabled"] = pkgconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.enabled")
-	ia.data["feature_cws_remote_config_enabled"] = pkgconfig.SystemProbe.GetBool("runtime_security_config.remote_configuration.enabled")
 
 	ia.data["feature_csm_vm_containers_enabled"] = ia.conf.GetBool("sbom.enabled") && ia.conf.GetBool("container_image.enabled") && ia.conf.GetBool("sbom.container_image.enabled")
 	ia.data["feature_csm_vm_hosts_enabled"] = ia.conf.GetBool("sbom.enabled") && ia.conf.GetBool("sbom.host.enabled")
@@ -181,6 +175,22 @@ func (ia *inventoryagent) initData() {
 	ia.data["feature_process_enabled"] = ia.conf.GetBool("process_config.process_collection.enabled")
 	ia.data["feature_process_language_detection_enabled"] = ia.conf.GetBool("language_detection.enabled")
 	ia.data["feature_processes_container_enabled"] = ia.conf.GetBool("process_config.container_collection.enabled")
+
+	ia.fetchSystemProbeData()
+}
+
+// fetchSystemProbeData pulls data from the SystemProbe configuration.
+//
+// Since we're not using the component version of the system-probe config in 7.50.0, we need to refresh the data before
+// generating any payload. This fixes issues where the inventoryagent component was initialized before
+// pkgconfig.SystemProbe. A proper fix was made for 7.51.0+.
+func (ia *inventoryagent) fetchSystemProbeData() {
+	ia.data["feature_dynamic_instrumentation_enabled"] = pkgconfig.SystemProbe.GetBool("dynamic_instrumentation.enabled")
+
+	ia.data["feature_cws_enabled"] = pkgconfig.SystemProbe.GetBool("runtime_security_config.enabled")
+	ia.data["feature_cws_network_enabled"] = pkgconfig.SystemProbe.GetBool("event_monitoring_config.network.enabled")
+	ia.data["feature_cws_security_profiles_enabled"] = pkgconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.enabled")
+	ia.data["feature_cws_remote_config_enabled"] = pkgconfig.SystemProbe.GetBool("runtime_security_config.remote_configuration.enabled")
 
 	ia.data["feature_networks_enabled"] = pkgconfig.SystemProbe.GetBool("network_config.enabled")
 	ia.data["feature_networks_http_enabled"] = pkgconfig.SystemProbe.GetBool("service_monitoring_config.enable_http_monitoring")
@@ -234,9 +244,14 @@ func (ia *inventoryagent) Set(name string, value interface{}) {
 func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 	// Create a static copy of agentMetadata for the payload
 	data := make(agentMetadata)
+
+	ia.m.Lock()
+	// we refresh the latest version for SystemProbe.
+	ia.fetchSystemProbeData()
 	for k, v := range ia.data {
 		data[k] = v
 	}
+	ia.m.Unlock()
 
 	if fullConf, err := ia.getFullAgentConfiguration(); err == nil {
 		data["full_configuration"] = fullConf
