@@ -451,7 +451,11 @@ func run(
 	for _, c := range cs {
 		s := runCheck(cliParams, c, printer)
 		var checkResult map[string]interface{}
-		resultBytes, _ := json.Marshal(s)
+		resultBytes, err := json.Marshal(s)
+		if err != nil {
+			return err
+		}
+
 		err = json.Unmarshal(resultBytes, &checkResult)
 		if err != nil {
 			return err
