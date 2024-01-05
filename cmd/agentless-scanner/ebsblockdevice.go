@@ -88,9 +88,9 @@ func startEBSBlockDevice(bd *ebsBlockDevice) error {
 func stopEBSBlockDevice(ctx context.Context, deviceName string) {
 	log.Debugf("nbdclient: destroying client for device %q", deviceName)
 	if err := exec.CommandContext(ctx, "nbd-client", "-d", deviceName).Run(); err != nil {
-		log.Errorf("nbd-client: disconnecting %q failed: %v", deviceName, err)
+		log.Errorf("nbd-client: %q disconnecting failed: %v", deviceName, err)
 	} else {
-		log.Debugf("nbd-client: disconnected device %q", deviceName)
+		log.Debugf("nbd-client: %q disconnected", deviceName)
 	}
 	ebsBlockDevicesMu.Lock()
 	defer ebsBlockDevicesMu.Unlock()
@@ -98,7 +98,9 @@ func stopEBSBlockDevice(ctx context.Context, deviceName string) {
 		bd.cancel()
 		if srv := bd.srv; srv != nil {
 			if err := srv.Close(); err != nil {
-				log.Errorf("nbdserver: could not close server: %v", err)
+				log.Errorf("nbdserver: %q could not close: %v", deviceName, err)
+			} else {
+				log.Debugf("nbdserver: %q closed successfully ", deviceName)
 			}
 		}
 		delete(ebsBlockDevices, deviceName)
@@ -122,7 +124,7 @@ func (bd *ebsBlockDevice) startClient() error {
 		"-connections", "5")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Errorf("nbd-client: failed: %s", string(out))
+		log.Errorf("nbd-client: %q failed: %s", bd.DeviceName, string(out))
 		return err
 	}
 	return nil
@@ -162,14 +164,14 @@ func (bd *ebsBlockDevice) startServer() error {
 				if errors.Is(err, net.ErrClosed) {
 					return
 				}
-				log.Warnf("nbdserver: could not accept connection: %v", err)
+				log.Warnf("nbdserver: %q could not accept connection: %v", bd.DeviceName, err)
 			} else {
 				addConn <- conn
 			}
 		}
 	}()
 
-	log.Infof("nbd server accepting connections on %q", addr)
+	log.Infof("nbdserver: %q accepting connections on %q", bd.DeviceName, addr)
 	go func() {
 		for {
 			select {
@@ -177,7 +179,7 @@ func (bd *ebsBlockDevice) startServer() error {
 				conns[conn] = struct{}{}
 				go func() {
 					bd.serverHandleConn(conn, b)
-					log.Debugf("nbdserver: client disconnected")
+					log.Debugf("nbdserver: %q client disconnected", bd.DeviceName)
 					rmvConn <- conn
 				}()
 
@@ -186,7 +188,7 @@ func (bd *ebsBlockDevice) startServer() error {
 				conn.Close()
 
 			case <-bd.ctx.Done():
-				log.Debugf("nbdserver: closing server for device %q", bd.DeviceName)
+				log.Debugf("nbdserver: %q closing server", bd.DeviceName)
 				for conn := range conns {
 					conn.Close()
 				}
@@ -198,7 +200,7 @@ func (bd *ebsBlockDevice) startServer() error {
 }
 
 func (bd *ebsBlockDevice) serverHandleConn(conn net.Conn, backend backend.Backend) {
-	log.Debugf("nbdserver: client connected %q", conn.RemoteAddr())
+	log.Debugf("nbdserver: %q client connected ", bd.DeviceName)
 	err := server.Handle(conn,
 		[]*server.Export{
 			{
@@ -214,7 +216,7 @@ func (bd *ebsBlockDevice) serverHandleConn(conn net.Conn, backend backend.Backen
 			SupportsMultiConn:  true,
 		})
 	if err != nil {
-		log.Errorf("nbdserver: could not handle new connection %q: %v", conn.RemoteAddr(), err)
+		log.Errorf("nbdserver: %q could not handle new connection: %v", bd.DeviceName, err)
 	}
 }
 

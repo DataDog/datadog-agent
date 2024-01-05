@@ -275,11 +275,11 @@ func rootCommand() *cobra.Command {
 
 	pflags := sideScannerCmd.PersistentFlags()
 	pflags.StringVarP(&globalParams.configFilePath, "config-path", "c", path.Join(commonpath.DefaultConfPath, "datadog.yaml"), "specify the path to agentless-scanner configuration yaml file")
-	pflags.StringVar(&diskModeStr, "disk-mode", "no-attach", fmt.Sprintf("disk mode used for scanning EBS volumes: %s, %s or %s", volumeAttach, nbdAttach, noAttach))
+	pflags.StringVar(&diskModeStr, "disk-mode", string(noAttach), fmt.Sprintf("disk mode used for scanning EBS volumes: %s, %s or %s", volumeAttach, nbdAttach, noAttach))
 	sideScannerCmd.AddCommand(runCommand())
 	sideScannerCmd.AddCommand(scanCommand())
 	sideScannerCmd.AddCommand(offlineCommand())
-	sideScannerCmd.AddCommand(mountCommand())
+	sideScannerCmd.AddCommand(attachCommand())
 	sideScannerCmd.AddCommand(cleanupCommand())
 
 	return sideScannerCmd
@@ -399,13 +399,13 @@ func offlineCommand() *cobra.Command {
 	return cmd
 }
 
-func mountCommand() *cobra.Command {
+func attachCommand() *cobra.Command {
 	var cliArgs struct {
 		mount bool
 	}
 
 	cmd := &cobra.Command{
-		Use:   "mount <snapshot-arn>",
+		Use:   "attach <snapshot-arn>",
 		Short: "Mount the given snapshot into /snapshots/<snapshot-id>/<part> using a network block device",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -415,7 +415,7 @@ func mountCommand() *cobra.Command {
 					if err != nil {
 						return err
 					}
-					return mountCmd(snapshotARN, globalParams.diskMode, cliArgs.mount)
+					return attachCmd(snapshotARN, globalParams.diskMode, cliArgs.mount)
 				},
 				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
 				fx.Supply(complog.ForDaemon("AGENTLESSSCANER", "log_file", pkgconfig.DefaultAgentlessScannerLogFile)),
@@ -827,7 +827,7 @@ func (s *sideScanner) cleanupProcess(ctx context.Context) {
 	}
 }
 
-func mountCmd(snapshotARN arn.ARN, mode diskMode, mount bool) error {
+func attachCmd(snapshotARN arn.ARN, mode diskMode, mount bool) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -836,7 +836,11 @@ func mountCmd(snapshotARN arn.ARN, mode diskMode, mount bool) error {
 		return err
 	}
 
-	scan, err := newScanTask(string(hostScanType), "", "unknown", defaultActions, nil, mode)
+	if mode == noAttach {
+		mode = nbdAttach
+	}
+
+	scan, err := newScanTask(string(ebsScanType), snapshotARN.String(), "unknown", defaultActions, nil, mode)
 	if err != nil {
 		return err
 	}
@@ -857,13 +861,19 @@ func mountCmd(snapshotARN arn.ARN, mode diskMode, mount bool) error {
 	partitions, err := listDevicePartitions(ctx, *scan.DiskDeviceName, scan.DiskVolumeARN)
 	if err != nil {
 		log.Errorf("error could list paritions (device is still available on %q): %v", *scan.DiskDeviceName, err)
-	} else if mount {
-		mountPoints, err := mountDevice(ctx, scan, partitions)
-		if err != nil {
-			log.Errorf("error could not mount (device is still available on %q): %v", *scan.DiskDeviceName, err)
-		} else {
-			for _, mountPoint := range mountPoints {
-				fmt.Println(mountPoint)
+	} else {
+		for _, part := range partitions {
+			fmt.Println(part.devicePath, part.fsType)
+		}
+		if mount {
+			mountPoints, err := mountDevice(ctx, scan, partitions)
+			if err != nil {
+				log.Errorf("error could not mount (device is still available on %q): %v", *scan.DiskDeviceName, err)
+			} else {
+				fmt.Println()
+				for _, mountPoint := range mountPoints {
+					fmt.Println(mountPoint)
+				}
 			}
 		}
 	}
