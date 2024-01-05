@@ -1030,3 +1030,10 @@ type EventBundle struct {
 	// Ch should be closed once the subscriber has handled the event.
 	Ch chan struct{}
 }
+
+// Acknowledge acknowledges that the subscriber has handled the event.
+func (e EventBundle) Acknowledge() {
+	if e.Ch != nil {
+		close(e.Ch)
+	}
+}

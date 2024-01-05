@@ -11,7 +11,7 @@ import (
 	"errors"
 	"time"
 
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -193,9 +193,13 @@ func (c *Check) Run() error {
 	metricTicker := time.NewTicker(metricPeriod)
 	defer metricTicker.Stop()
 
+	defer c.processor.stop()
 	for {
 		select {
-		case eventBundle := <-imgEventsCh:
+		case eventBundle, ok := <-imgEventsCh:
+			if !ok {
+				return nil
+			}
 			c.processor.processContainerImagesEvents(eventBundle)
 		case <-containerPeriodicRefreshTicker.C:
 			c.processor.processContainerImagesRefresh(c.workloadmetaStore.ListImages())
@@ -204,7 +208,6 @@ func (c *Check) Run() error {
 		case <-metricTicker.C:
 			c.sendUsageMetrics()
 		case <-c.stopCh:
-			c.processor.stop()
 			return nil
 		}
 	}

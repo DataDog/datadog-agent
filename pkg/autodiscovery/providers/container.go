@@ -81,8 +81,7 @@ func (k *ContainerConfigProvider) Stream(ctx context.Context) <-chan integration
 				// need to signal that an event has been
 				// received, for flow control reasons
 				outCh <- k.processEvents(evBundle)
-
-				close(evBundle.Ch)
+				evBundle.Acknowledge()
 			}
 		}
 	}()

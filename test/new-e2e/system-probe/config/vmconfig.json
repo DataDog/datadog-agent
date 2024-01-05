@@ -11,27 +11,27 @@
                 {
                     "dir": "xenial-server-cloudimg-x86_64.qcow2",
                     "tag": "ubuntu_16.04",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/xenial-server-cloudimg-x86_64.qcow2.xz"
+                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/ubuntu-16-x86_64.qcow2.xz"
                 },
                 {
                     "dir": "bionic-server-cloudimg-x86_64.qcow2",
                     "tag": "ubuntu_18.04",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/bionic-server-cloudimg-x86_64.qcow2.xz"
+                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/ubuntu-18-x86_64.qcow2.xz"
                 },
                 {
                     "dir": "focal-server-cloudimg-x86_64.qcow2",
                     "tag": "ubuntu_20.04",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/focal-server-cloudimg-x86_64.qcow2.xz"
+                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/ubuntu-20-x86_64.qcow2.xz"
                 },
                 {
                     "dir": "jammy-server-cloudimg-x86_64.qcow2",
                     "tag": "ubuntu_22.04",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/jammy-server-cloudimg-x86_64.qcow2.xz"
+                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/ubuntu-22-x86_64.qcow2.xz"
                 },
                 {
                     "dir": "mantic-server-cloudimg-x86_64.qcow2",
                     "tag": "ubuntu_23.10",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/mantic-server-cloudimg-x86_64.qcow2.xz"
+                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/ubuntu-23-x86_64.qcow2.xz"
                 },
                 {
                     "dir": "amzn2-kvm-2.0-x86_64-4.14.qcow2",
@@ -110,22 +110,22 @@
                 {
                     "dir": "bionic-server-cloudimg-arm64.qcow2",
                     "tag": "ubuntu_18.04",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/bionic-server-cloudimg-arm64.qcow2.xz"
+                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/ubuntu-18-arm64.qcow2.xz"
                 },
                 {
                     "dir": "focal-server-cloudimg-arm64.qcow2",
                     "tag": "ubuntu_20.04",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/focal-server-cloudimg-arm64.qcow2.xz"
+                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/ubuntu-20-arm64.qcow2.xz"
                 },
                 {
                     "dir": "jammy-server-cloudimg-arm64.qcow2",
                     "tag": "ubuntu_22.04",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/jammy-server-cloudimg-arm64.qcow2.xz"
+                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/ubuntu-22-arm64.qcow2.xz"
                 },
                 {
                     "dir": "mantic-server-cloudimg-arm64.qcow2",
                     "tag": "ubuntu_23.10",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/mantic-server-cloudimg-arm64.qcow2.xz"
+                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/ubuntu-23-arm64.qcow2.xz"
                 },
                 {
                     "dir": "amzn2-kvm-2.0-arm64-4.14.qcow2",
