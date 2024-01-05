@@ -21,8 +21,6 @@ var (
 	// PyChecksPath holds the path to the python checks from integrations-core shipped with the agent
 	PyChecksPath = filepath.Join(_here, "..", "checks.d")
 	distPath     string
-	// ViewsPath holds the path to the folder containing the GUI support files
-	viewsPath string
 )
 
 var (
