@@ -15,11 +15,6 @@
     TEAM: agent-platform
     EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --cws-supported-osversion $E2E_CWS_SUPPORTED_OSVERS --major-version $AGENT_MAJOR_VERSION --arch $E2E_ARCH --flavor $FLAVOR
 
-.new-e2e-ubuntu-need_a6_and_a7:
-  needs:
-    - "deploy_deb_testing-a6_x64"
-    - "deploy_deb_testing-a7_x64"
-
 .new-e2e_ubuntu_a6_x86_64:
   variables:
     E2E_ARCH: x86_64
@@ -218,7 +213,7 @@ new-e2e-agent-platform-install-script-upgrade6-ubuntu-x86_64:
   variables:
     FLAVOR: datadog-agent
 
-new-e2e-agent-platform-install-script-upgrade-ubuntu-iot-agent-x86_64:
+new-e2e-agent-platform-install-script-upgrade7-ubuntu-iot-agent-x86_64:
   stage: kitchen_testing
   extends:
     - .new_e2e_template

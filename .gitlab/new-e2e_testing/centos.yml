@@ -3,11 +3,6 @@
   variables:
     E2E_PLATFORM: centos
 
-.new-e2e-centos_need_a6_and_a7:
-  needs:
-    - "deploy_rpm_testing-a6_x64"
-    - "deploy_rpm_testing-a7_x64"
-
 .new-e2e_centos_a6_x86_64:
   variables:
     E2E_ARCH: x86_64
@@ -201,7 +196,7 @@ new-e2e-agent-platform-install-script-upgrade7-centos-iot-agent-x86_64:
       - START_MAJOR_VERSION: [7]
         END_MAJOR_VERSION: [7]
 
-new-e2e-agent-platform-install-script-upgrade-centos-fips-iot-agent-x86_64:
+new-e2e-agent-platform-install-script-upgrade7-centos-fips-iot-agent-x86_64:
   stage: kitchen_testing
   extends:
     - .new_e2e_template
@@ -216,7 +211,7 @@ new-e2e-agent-platform-install-script-upgrade-centos-fips-iot-agent-x86_64:
       - START_MAJOR_VERSION: [7]
         END_MAJOR_VERSION: [7]
 
-new-e2e-agent-platform-install-script-upgrade6-centos-fips-a7-x86_64:
+new-e2e-agent-platform-install-script-upgrade6-centos-fips-x86_64:
   stage: kitchen_testing
   extends:
     - .new_e2e_template
@@ -231,7 +226,7 @@ new-e2e-agent-platform-install-script-upgrade6-centos-fips-a7-x86_64:
       - START_MAJOR_VERSION: [6]
         END_MAJOR_VERSION: [6]
 
-new-e2e-agent-platform-install-script-upgrade7-centos-fips-a7-x86_64:
+new-e2e-agent-platform-install-script-upgrade7-centos-fips-x86_64:
   stage: kitchen_testing
   extends:
     - .new_e2e_template
