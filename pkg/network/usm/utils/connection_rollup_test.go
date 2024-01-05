@@ -10,9 +10,10 @@ package utils
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestRollupKey(t *testing.T) {
