@@ -92,7 +92,7 @@ func (s *Server) Run(mainCtx context.Context, client kubernetes.Interface) error
 	server := &http.Server{
 		Addr:     fmt.Sprintf(":%d", config.Datadog.GetInt("admission_controller.port")),
 		Handler:  s.mux,
-		ErrorLog: stdLog.New(logWriter, "Error from DCA http API server: ", 0),
+		ErrorLog: stdLog.New(logWriter, "Error from the admission controller http API server: ", 0),
 		TLSConfig: &tls.Config{
 			GetCertificate: func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
 				secretNs := common.GetResourcesNamespace()
