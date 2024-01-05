@@ -58,6 +58,9 @@ default:
       - stuck_or_timeout_failure
       - unknown_failure
       - api_failure
+      - scheduler_failure
+      - stale_schedule
+      - data_integrity_failure
 
 stages:
   - .pre
