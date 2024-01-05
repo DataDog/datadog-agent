@@ -1345,9 +1345,9 @@ core,github.com/pierrec/lz4/v4/internal/lz4block,BSD-3-Clause,"Copyright (c) 201
 core,github.com/pierrec/lz4/v4/internal/lz4errors,BSD-3-Clause,"Copyright (c) 2015, Pierre Curto"
 core,github.com/pierrec/lz4/v4/internal/lz4stream,BSD-3-Clause,"Copyright (c) 2015, Pierre Curto"
 core,github.com/pierrec/lz4/v4/internal/xxh32,BSD-3-Clause,"Copyright (c) 2015, Pierre Curto"
-core,github.com/pjbgf/sha1cd,Apache-2.0,"Copyright 2009 The Go Authors. All rights reserved. | Copyright 2017 Marc Stevens <marc@marc-stevens.nl>, Dan Shumow <danshu@microsoft.com>"
-core,github.com/pjbgf/sha1cd/internal,Apache-2.0,"Copyright 2009 The Go Authors. All rights reserved. | Copyright 2017 Marc Stevens <marc@marc-stevens.nl>, Dan Shumow <danshu@microsoft.com>"
-core,github.com/pjbgf/sha1cd/ubc,Apache-2.0,"Copyright 2009 The Go Authors. All rights reserved. | Copyright 2017 Marc Stevens <marc@marc-stevens.nl>, Dan Shumow <danshu@microsoft.com>"
+core,github.com/pjbgf/sha1cd,Apache-2.0,"Copyright 2009 The Go Authors. All rights reserved. | Copyright 2017 Marc Stevens <marc@marc-stevens.nl>, Dan Shumow <danshu@microsoft.com> | Copyright 2022 Paulo Gomes <pjbgf@linux.com>"
+core,github.com/pjbgf/sha1cd/internal,Apache-2.0,"Copyright 2009 The Go Authors. All rights reserved. | Copyright 2017 Marc Stevens <marc@marc-stevens.nl>, Dan Shumow <danshu@microsoft.com> | Copyright 2022 Paulo Gomes <pjbgf@linux.com>"
+core,github.com/pjbgf/sha1cd/ubc,Apache-2.0,"Copyright 2009 The Go Authors. All rights reserved. | Copyright 2017 Marc Stevens <marc@marc-stevens.nl>, Dan Shumow <danshu@microsoft.com> | Copyright 2022 Paulo Gomes <pjbgf@linux.com>"
 core,github.com/pkg/errors,BSD-2-Clause,"Copyright (c) 2015, Dave Cheney <dave@cheney.net>"
 core,github.com/pmezard/go-difflib/difflib,BSD-3-Clause,"Copyright (c) 2013, Patrick Mezard"
 core,github.com/power-devops/perfstat,MIT,Copyright (c) 2020 Power DevOps
