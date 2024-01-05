@@ -10,4 +10,4 @@ fixes:
   - |
     Adds support for previously unofficially supported deprecated flags
     in the Datadog Trace Agent ``trace-agent`` that were broken when the
-    CLI compatibility layer was first added for new flags.
+    CLI compatibility layer was first added for new flags in v7.48.0.
