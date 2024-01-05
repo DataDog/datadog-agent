@@ -65,6 +65,9 @@ const (
 	processesEndpoint            = "/api/v1/collector"
 	containersEndpoint           = "/api/v1/container"
 	processDiscoveryEndpoint     = "/api/v1/discovery"
+	containerImageEndpoint       = "/api/v2/contimage"
+	containerLifecycleEndpoint   = "/api/v2/contlcycle"
+	sbomEndpoint                 = "/api/v2/sbom"
 	flareEndpoint                = "/support/flare"
 	orchestratorEndpoint         = "/api/v2/orch"
 	orchestratorManifestEndpoint = "/api/v2/orchmanif"
@@ -84,6 +87,9 @@ type Client struct {
 	processAggregator              aggregator.ProcessAggregator
 	containerAggregator            aggregator.ContainerAggregator
 	processDiscoveryAggregator     aggregator.ProcessDiscoveryAggregator
+	containerImageAggregator       aggregator.ContainerImageAggregator
+	containerLifecycleAggregator   aggregator.ContainerLifecycleAggregator
+	sbomAggregator                 aggregator.SBOMAggregator
 	orchestratorAggregator         aggregator.OrchestratorAggregator
 	orchestratorManifestAggregator aggregator.OrchestratorManifestAggregator
 }
@@ -100,6 +106,9 @@ func NewClient(fakeIntakeURL string) *Client {
 		processAggregator:              aggregator.NewProcessAggregator(),
 		containerAggregator:            aggregator.NewContainerAggregator(),
 		processDiscoveryAggregator:     aggregator.NewProcessDiscoveryAggregator(),
+		containerImageAggregator:       aggregator.NewContainerImageAggregator(),
+		containerLifecycleAggregator:   aggregator.NewContainerLifecycleAggregator(),
+		sbomAggregator:                 aggregator.NewSBOMAggregator(),
 		orchestratorAggregator:         aggregator.NewOrchestratorAggregator(),
 		orchestratorManifestAggregator: aggregator.NewOrchestratorManifestAggregator(),
 	}
@@ -159,6 +168,30 @@ func (c *Client) getProcessDiscoveries() error {
 		return err
 	}
 	return c.processDiscoveryAggregator.UnmarshallPayloads(payloads)
+}
+
+func (c *Client) getContainerImages() error {
+	payloads, err := c.getFakePayloads(containerImageEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.containerImageAggregator.UnmarshallPayloads(payloads)
+}
+
+func (c *Client) getContainerLifecycleEvents() error {
+	payloads, err := c.getFakePayloads(containerLifecycleEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.containerLifecycleAggregator.UnmarshallPayloads(payloads)
+}
+
+func (c *Client) getSBOMs() error {
+	payloads, err := c.getFakePayloads(sbomEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.sbomAggregator.UnmarshallPayloads(payloads)
 }
 
 func (c *Client) getOrchestratorResources() error {
@@ -533,6 +566,109 @@ func (c *Client) GetProcessDiscoveries() ([]*aggregator.ProcessDiscoveryPayload,
 	}
 
 	return discs, nil
+}
+
+func (c *Client) getContainerImage(name string) ([]*aggregator.ContainerImagePayload, error) {
+	if err := c.getContainerImages(); err != nil {
+		return nil, err
+	}
+	return c.containerImageAggregator.GetPayloadsByName(name), nil
+}
+
+// GetContainerImageNames fetches fakeintake on `/api/v2/contimage` endpoint and returns
+// all received container image names
+func (c *Client) GetContainerImageNames() ([]string, error) {
+	if err := c.getContainerImages(); err != nil {
+		return nil, err
+	}
+	return c.containerImageAggregator.GetNames(), nil
+}
+
+// FilterContainerImages fetches fakeintake on `/api/v2/contimage` endpoint and returns
+// container images matching `name` and any [MatchOpt](#MatchOpt) options
+func (c *Client) FilterContainerImages(name string, options ...MatchOpt[*aggregator.ContainerImagePayload]) ([]*aggregator.ContainerImagePayload, error) {
+	images, err := c.getContainerImage(name)
+	if err != nil {
+		return nil, err
+	}
+	// apply filters one after the other
+	filteredImages := []*aggregator.ContainerImagePayload{}
+	for _, image := range images {
+		matchCount := 0
+		for _, matchOpt := range options {
+			isMatch, err := matchOpt(image)
+			if err != nil {
+				return nil, err
+			}
+			if !isMatch {
+				break
+			}
+			matchCount++
+		}
+		if matchCount == len(options) {
+			filteredImages = append(filteredImages, image)
+		}
+	}
+	return filteredImages, nil
+}
+
+// GetContainerLifecycleEvents fetches fakeintake on `/api/v2/contlcycle` endpoint and returns
+// all received container lifecycle payloads
+func (c *Client) GetContainerLifecycleEvents() ([]*aggregator.ContainerLifecyclePayload, error) {
+	if err := c.getContainerLifecycleEvents(); err != nil {
+		return nil, err
+	}
+
+	var events []*aggregator.ContainerLifecyclePayload
+	for _, name := range c.containerLifecycleAggregator.GetNames() {
+		events = append(events, c.containerLifecycleAggregator.GetPayloadsByName(name)...)
+	}
+
+	return events, nil
+}
+
+func (c *Client) getSBOM(id string) ([]*aggregator.SBOMPayload, error) {
+	if err := c.getSBOMs(); err != nil {
+		return nil, err
+	}
+	return c.sbomAggregator.GetPayloadsByName(id), nil
+}
+
+// GetSBOMIDs fetches fakeintake on `/api/v2/sbom` endpoint and returns
+// all received SBOM IDs
+func (c *Client) GetSBOMIDs() ([]string, error) {
+	if err := c.getSBOMs(); err != nil {
+		return nil, err
+	}
+	return c.sbomAggregator.GetNames(), nil
+}
+
+// FilterSBOMs fetches fakeintake on `/api/v2/sbom` endpoint and returns
+// SBOMs matching `id` and any [MatchOpt](#MatchOpt) options
+func (c *Client) FilterSBOMs(id string, options ...MatchOpt[*aggregator.SBOMPayload]) ([]*aggregator.SBOMPayload, error) {
+	sboms, err := c.getSBOM(id)
+	if err != nil {
+		return nil, err
+	}
+	// apply filters one after the other
+	filteredSBOMs := []*aggregator.SBOMPayload{}
+	for _, sbom := range sboms {
+		matchCount := 0
+		for _, matchOpt := range options {
+			isMatch, err := matchOpt(sbom)
+			if err != nil {
+				return nil, err
+			}
+			if !isMatch {
+				break
+			}
+			matchCount++
+		}
+		if matchCount == len(options) {
+			filteredSBOMs = append(filteredSBOMs, sbom)
+		}
+	}
+	return filteredSBOMs, nil
 }
 
 // GetOrchestratorResources fetches fakeintake on `/api/v2/orch` endpoint and returns

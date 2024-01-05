@@ -171,7 +171,7 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 		c.tagProcessor.ProcessTagInfo(tagInfos)
 	}
 
-	close(evBundle.Ch)
+	evBundle.Acknowledge()
 }
 
 func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*TagInfo {

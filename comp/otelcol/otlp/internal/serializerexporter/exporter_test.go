@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/pdata/pmetric"
-	"go.uber.org/zap"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -191,7 +191,7 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 			}
 			rec := &metricRecorder{}
 			exp, err := newExporter(
-				zap.NewNop(),
+				componenttest.NewNopTelemetrySettings(),
 				rec,
 				NewFactory(rec).CreateDefaultConfig().(*exporterConfig),
 			)

@@ -13,6 +13,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/net/http2/hpack"
 
@@ -21,7 +22,33 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var oversizedLogLimit = util.NewLogLimit(10, time.Minute*10)
+
+// validatePath validates the given path.
+func validatePath(str string) error {
+	if len(str) == 0 {
+		return errors.New("decoded path is empty")
+	}
+	// ensure we found a '/' at the beginning of the path
+	if str[0] != '/' {
+		return fmt.Errorf("decoded path '%s' doesn't start with '/'", str)
+	}
+	return nil
+}
+
+// validatePathSize validates the given path size.
+func validatePathSize(size uint8) error {
+	if size == 0 {
+		return errors.New("empty path")
+	}
+	if size > maxHTTP2Path {
+		return fmt.Errorf("path size has exceeded the maximum limit: %d", size)
+	}
+	return nil
+}
 
 // decodeHTTP2Path tries to decode (Huffman) the path from the given buffer.
 // Possible errors:
@@ -30,11 +57,8 @@ import (
 // - If the Huffman decoding fails.
 // - If the decoded path doesn't start with a '/'.
 func decodeHTTP2Path(buf [maxHTTP2Path]byte, pathSize uint8) ([]byte, error) {
-	if pathSize == 0 {
-		return nil, errors.New("empty path")
-	}
-	if pathSize > maxHTTP2Path {
-		return nil, fmt.Errorf("path size has exceeded the maximum limit: %d", pathSize)
+	if err := validatePathSize(pathSize); err != nil {
+		return nil, err
 	}
 
 	str, err := hpack.HuffmanDecodeToString(buf[:pathSize])
@@ -42,12 +66,8 @@ func decodeHTTP2Path(buf [maxHTTP2Path]byte, pathSize uint8) ([]byte, error) {
 		return nil, err
 	}
 
-	if len(str) == 0 {
-		return nil, errors.New("decoded path is empty")
-	}
-	// ensure we found a '/' in the beginning of the path
-	if str[0] != '/' {
-		return nil, fmt.Errorf("decoded path '%s' doesn't start with '/'", str)
+	if err = validatePath(str); err != nil {
+		return nil, err
 	}
 
 	return []byte(str), nil
@@ -55,10 +75,35 @@ func decodeHTTP2Path(buf [maxHTTP2Path]byte, pathSize uint8) ([]byte, error) {
 
 // Path returns the URL from the request fragment captured in eBPF.
 func (tx *EbpfTx) Path(buffer []byte) ([]byte, bool) {
-	res, err := decodeHTTP2Path(tx.Stream.Request_path, tx.Stream.Path_size)
-	if err != nil {
-		return nil, false
+	var res []byte
+	var err error
+	if tx.Stream.Is_huffman_encoded {
+		res, err = decodeHTTP2Path(tx.Stream.Request_path, tx.Stream.Path_size)
+		if err != nil {
+			if oversizedLogLimit.ShouldLog() {
+				log.Errorf("unable to decode HTTP2 path (%#v) due to: %s", tx.Stream.Request_path[:tx.Stream.Path_size], err)
+			}
+			return nil, false
+		}
+	} else {
+		if err = validatePathSize(tx.Stream.Path_size); err != nil {
+			if oversizedLogLimit.ShouldLog() {
+				log.Errorf("path size: %d is invalid due to: %s", tx.Stream.Path_size, err)
+			}
+			return nil, false
+		}
+
+		res = tx.Stream.Request_path[:tx.Stream.Path_size]
+		if err = validatePath(string(res)); err != nil {
+			if oversizedLogLimit.ShouldLog() {
+				log.Errorf("path %s is invalid due to: %s", string(res), err)
+			}
+			return nil, false
+		}
+
+		res = tx.Stream.Request_path[:tx.Stream.Path_size]
 	}
+
 	n := copy(buffer, res)
 	return buffer[:n], true
 }
@@ -161,7 +206,13 @@ func (tx *EbpfTx) String() string {
 	output.WriteString("http2.ebpfTx{")
 	output.WriteString(fmt.Sprintf("[%s] [%s ⇄ %s] ", tx.family(), tx.sourceEndpoint(), tx.destEndpoint()))
 	output.WriteString(" Method: '" + tx.Method().String() + "', ")
-	buf := make([]byte, len(tx.Stream.Request_path))
+	fullBufferSize := len(tx.Stream.Request_path)
+	if tx.Stream.Is_huffman_encoded {
+		// If the path is huffman encoded, then the path is compressed (with an upper bound to compressed size of maxHTTP2Path)
+		// thus, we need more room for the decompressed path, therefore using 2*maxHTTP2Path.
+		fullBufferSize = 2 * maxHTTP2Path
+	}
+	buf := make([]byte, fullBufferSize)
 	path, ok := tx.Path(buf)
 	if ok {
 		output.WriteString("Path: '" + string(path) + "'")
@@ -241,12 +292,12 @@ func (t http2StreamKey) String() string {
 
 // String returns a string representation of the http2 dynamic table.
 func (t http2DynamicTableEntry) String() string {
-	if t.Len == 0 {
+	if t.String_len == 0 {
 		return ""
 	}
 
-	b := make([]byte, t.Len)
-	for i := uint8(0); i < t.Len; i++ {
+	b := make([]byte, t.String_len)
+	for i := uint8(0); i < t.String_len; i++ {
 		b[i] = byte(t.Buffer[i])
 	}
 	// trim null byte + after

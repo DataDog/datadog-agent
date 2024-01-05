@@ -119,6 +119,7 @@ func MemoryTracker(ptr unsafe.Pointer, sz C.size_t, op C.rtloader_mem_ops_t) {
 func TrackedCString(str string) *C.char {
 	cstr := C.CString(str)
 
+	// TODO(memory-tracking): track the origin of the string (for example check name)
 	if config.Datadog.GetBool("memtrack_enabled") {
 		MemoryTracker(unsafe.Pointer(cstr), C.size_t(len(str)+1), C.DATADOG_AGENT_RTLOADER_ALLOCATION)
 	}

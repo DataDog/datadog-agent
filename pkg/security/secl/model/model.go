@@ -163,13 +163,15 @@ type SpanContext struct {
 
 // BaseEvent represents an event sent from the kernel
 type BaseEvent struct {
-	ID           string         `field:"-" event:"*"`
-	Type         uint32         `field:"-"`
-	Flags        uint32         `field:"-"`
-	TimestampRaw uint64         `field:"event.timestamp,handler:ResolveEventTimestamp" event:"*"` // SECLDoc[event.timestamp] Definition:`Timestamp of the event`
-	Timestamp    time.Time      `field:"timestamp,opts:getters_only,handler:ResolveEventTime"`
-	Rules        []*MatchedRule `field:"-"`
-	Origin       string         `field:"-"`
+	ID           string             `field:"-" event:"*"`
+	Type         uint32             `field:"-"`
+	Flags        uint32             `field:"-"`
+	TimestampRaw uint64             `field:"event.timestamp,handler:ResolveEventTimestamp" event:"*"` // SECLDoc[event.timestamp] Definition:`Timestamp of the event`
+	Timestamp    time.Time          `field:"timestamp,opts:getters_only,handler:ResolveEventTime"`
+	Rules        []*MatchedRule     `field:"-"`
+	Actions      []*ActionTriggered `field:"-"`
+	Origin       string             `field:"-"`
+	Suppressed   bool               `field:"-"`
 
 	// context shared with all events
 	ProcessContext         *ProcessContext        `field:"process" event:"*"`
@@ -307,6 +309,16 @@ func (e *Event) GetTags() []string {
 	return tags
 }
 
+// GetActions returns the triggred actions
+func (e *Event) GetActions() []*ActionTriggered {
+	return e.Actions
+}
+
+// IsSuppressed returns true if the event is suppressed
+func (e *Event) IsSuppressed() bool {
+	return e.Suppressed
+}
+
 // GetWorkloadID returns an ID that represents the workload
 func (e *Event) GetWorkloadID() string {
 	return e.SecurityProfileContext.Name
@@ -362,6 +374,12 @@ type MatchedRule struct {
 	RuleTags      map[string]string
 	PolicyName    string
 	PolicyVersion string
+}
+
+// ActionTriggered defines a triggered action
+type ActionTriggered struct {
+	Name  string
+	Value string
 }
 
 // NewMatchedRule return a new MatchedRule instance
@@ -426,6 +444,8 @@ const (
 	EventTypeNotConfigured
 	// HashWasRateLimited means that the hash will be tried again later, it was rate limited
 	HashWasRateLimited
+	// HashFailed means that the hashing failed
+	HashFailed
 	// MaxHashState is used for initializations
 	MaxHashState
 )
@@ -440,6 +460,8 @@ const (
 	SHA256
 	// MD5 is used to identify a MD5 hash
 	MD5
+	// SSDEEP is used to identify a SSDEEP hash
+	SSDEEP
 	// MaxHashAlgorithm is used for initializations
 	MaxHashAlgorithm
 )
@@ -452,6 +474,8 @@ func (ha HashAlgorithm) String() string {
 		return "sha256"
 	case MD5:
 		return "md5"
+	case SSDEEP:
+		return "ssdeep"
 	default:
 		return ""
 	}
