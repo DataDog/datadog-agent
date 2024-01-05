@@ -2398,53 +2398,48 @@ func cleanupScan(scan *scanTask) {
 		}
 	}
 
-	umount := func(mountPoint string) {
-		log.Debugf("%s: un-mounting %s", scan, mountPoint)
-		var umountOutput []byte
-		var erru error
-		for i := 0; i < 10; i++ {
-			if _, err := os.Stat(mountPoint); os.IsNotExist(err) {
+	mountRoot := scan.MountPoint("")
+	if mountEntries, err := os.ReadDir(mountRoot); err == nil {
+		var wg sync.WaitGroup
+
+		umount := func(mountPoint string) {
+			defer wg.Done()
+			log.Debugf("%s: un-mounting %s", scan, mountPoint)
+			var umountOutput []byte
+			var erru error
+			for i := 0; i < 10; i++ {
+				if _, err := os.Stat(mountPoint); os.IsNotExist(err) {
+					return
+				}
+				umountCmd := exec.CommandContext(ctx, "umount", mountPoint)
+				if umountOutput, erru = umountCmd.CombinedOutput(); erru != nil {
+					// Check for "not mounted" errors that we ignore
+					const MntExFail = 32 // MNT_EX_FAIL
+					if exiterr, ok := erru.(*exec.ExitError); ok && exiterr.ExitCode() == MntExFail && bytes.Contains(umountOutput, []byte("not mounted")) {
+						return
+					}
+					log.Warnf("%s: could not umount %s: %s: %s", scan, mountPoint, erru, string(umountOutput))
+					if !sleepCtx(ctx, 3*time.Second) {
+						return
+					}
+					continue
+				}
 				return
 			}
-			umountCmd := exec.CommandContext(ctx, "umount", mountPoint)
-			if umountOutput, erru = umountCmd.CombinedOutput(); erru != nil {
-				// Check for "not mounted" errors that we ignore
-				const MntExFail = 32 // MNT_EX_FAIL
-				if exiterr, ok := erru.(*exec.ExitError); ok && exiterr.ExitCode() == MntExFail && bytes.Contains(umountOutput, []byte("not mounted")) {
-					return
-				}
-				log.Warnf("%s: could not umount %s: %s: %s", scan, mountPoint, erru, string(umountOutput))
-				if !sleepCtx(ctx, 3*time.Second) {
-					return
-				}
-				continue
-			}
-			return
+			log.Errorf("%s: could not umount %s: %s: %s", scan, mountPoint, erru, string(umountOutput))
 		}
-		log.Errorf("%s: could not umount %s: %s: %s", scan, mountPoint, erru, string(umountOutput))
-	}
 
-	mountRoot := scan.MountPoint("")
-	mountEntries, err := os.ReadDir(mountRoot)
-	if err == nil {
-		var wg sync.WaitGroup
 		for _, mountEntry := range mountEntries {
 			if mountEntry.IsDir() && !strings.HasPrefix(mountEntry.Name(), rootMountPrefix) {
 				wg.Add(1)
-				go func(mountPoint string) {
-					umount(mountPoint)
-					wg.Done()
-				}(filepath.Join(mountRoot, mountEntry.Name()))
+				go umount(filepath.Join(mountRoot, mountEntry.Name()))
 			}
 		}
 		for _, mountEntry := range mountEntries {
 			// unmount "root-*" entrypoint last as the other mountpoint may depend on it
 			if mountEntry.IsDir() && strings.HasPrefix(mountEntry.Name(), rootMountPrefix) {
 				wg.Add(1)
-				go func(mountPoint string) {
-					umount(mountPoint)
-					wg.Done()
-				}(filepath.Join(mountRoot, mountEntry.Name()))
+				go umount(filepath.Join(mountRoot, mountEntry.Name()))
 			}
 		}
 		wg.Wait()
