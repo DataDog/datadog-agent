@@ -106,7 +106,8 @@ func (c *collector) startScanResultHandler(ctx context.Context, resultChan <-cha
 		select {
 		case <-ctx.Done():
 			return
-		case result := <-resultChan:
+		case result, ok := <-resultChan:
+		  if !ok { return }
 			c.processScanResult(ctx, result)
 		}
 	}
