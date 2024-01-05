@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -39,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
@@ -170,10 +170,10 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Supply(orchestratorForwarderImpl.NewNoopParams()),
 				fx.Provide(func() demultiplexerimpl.Params {
 					// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
-					opts := aggregator.DefaultAgentDemultiplexerOptions()
-					opts.FlushInterval = 0
-					opts.UseNoopEventPlatformForwarder = true
-					return demultiplexerimpl.Params{Options: opts}
+					params := demultiplexerimpl.NewDefaultParams()
+					params.FlushInterval = 0
+					params.UseNoopEventPlatformForwarder = true
+					return params
 				}),
 
 				// TODO(components): this is a temporary hack as the StartServer() method of the API package was previously called with nil arguments
@@ -562,8 +562,7 @@ func run(
 	return nil
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func runCheck(cliParams *cliParams, c check.Check, demux aggregator.Demultiplexer) *stats.Stats {
+func runCheck(cliParams *cliParams, c check.Check, _ aggregator.Demultiplexer) *stats.Stats {
 	s := stats.NewStats(c)
 	times := cliParams.checkTimes
 	pause := cliParams.checkPause

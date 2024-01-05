@@ -50,8 +50,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{getHostnameCommand}
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func getHostname(log log.Component, config config.Component, cliParams *cliParams) error {
+func getHostname(_ log.Component, _ config.Component, _ *cliParams) error {
 	hname, err := hostname.Get(context.TODO())
 	if err != nil {
 		return fmt.Errorf("Error getting the hostname: %v", err)

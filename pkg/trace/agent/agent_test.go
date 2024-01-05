@@ -2298,6 +2298,20 @@ func TestSetFirstTraceTags(t *testing.T) {
 		assert.False(t, ok)
 		_, ok = anotherRoot.Meta[tagInstallTime]
 		assert.False(t, ok)
+
+		// However, calling setFirstTraceTags on another span from a different service should set the tags again
+		differentServiceRoot := &pb.Span{
+			Service:  "discombobulator",
+			Name:     "parent",
+			TraceID:  2,
+			SpanID:   2,
+			Start:    time.Now().Add(-time.Second).UnixNano(),
+			Duration: time.Millisecond.Nanoseconds(),
+		}
+		traceAgent.setFirstTraceTags(differentServiceRoot)
+		assert.Equal(t, cfg.InstallSignature.InstallID, differentServiceRoot.Meta[tagInstallID])
+		assert.Equal(t, cfg.InstallSignature.InstallType, differentServiceRoot.Meta[tagInstallType])
+		assert.Equal(t, fmt.Sprintf("%v", cfg.InstallSignature.InstallTime), differentServiceRoot.Meta[tagInstallTime])
 	})
 
 	traceAgent = NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())

@@ -11,7 +11,6 @@ import (
 	"errors"
 	_ "expvar" // Blank import used because this isn't directly used in this file
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	"net/http"
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 	"os"
@@ -33,13 +32,12 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	"github.com/DataDog/datadog-agent/cmd/manager"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
-	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 
 	// checks implemented as components
 
 	// core components
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -53,15 +51,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-
-	//nolint:revive // TODO(ASC) Fix revive linter
-	pkgforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client"
 	langDetectionClimpl "github.com/DataDog/datadog-agent/comp/languagedetection/client/clientimpl"
@@ -75,10 +71,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp"
 	"github.com/DataDog/datadog-agent/comp/netflow"
+	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
@@ -196,8 +192,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 //
 // This is exported because it also used from the deprecated `agent start` command.
 func run(log log.Component,
-	//nolint:revive // TODO(ASC) Fix revive linter
-	config config.Component,
+	_ config.Component,
 	flare flare.Component,
 	telemetry telemetry.Component,
 	sysprobeconfig sysprobeconfig.Component,
@@ -207,8 +202,7 @@ func run(log log.Component,
 	forwarder defaultforwarder.Component,
 	wmeta workloadmeta.Component,
 	rcclient rcclient.Component,
-	//nolint:revive // TODO(ASC) Fix revive linter
-	metadataRunner runner.Component,
+	_ runner.Component,
 	demultiplexer demultiplexer.Component,
 	sharedSerializer serializer.MetricSerializer,
 	cliParams *cliParams,
@@ -258,7 +252,7 @@ func run(log log.Component,
 	sigpipeCh := make(chan os.Signal, 1)
 	signal.Notify(sigpipeCh, syscall.SIGPIPE)
 	go func() {
-		//nolint:revive // TODO(ASC) Fix revive linter
+		//nolint:revive
 		for range sigpipeCh {
 			// do nothing
 		}
@@ -306,7 +300,7 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(func(config config.Component, log log.Component) defaultforwarder.Params {
 			params := defaultforwarder.NewParams(config, log)
 			// Enable core agent specific features like persistence-to-disk
-			params.Options.EnabledFeatures = pkgforwarder.SetFeature(params.Options.EnabledFeatures, pkgforwarder.CoreFeatures)
+			params.Options.EnabledFeatures = defaultforwarder.SetFeature(params.Options.EnabledFeatures, defaultforwarder.CoreFeatures)
 			return params
 		}),
 
@@ -343,9 +337,9 @@ func getSharedFxOption() fx.Option {
 		// injecting the aggregator demultiplexer to FX until we migrate it to a proper component. This allows
 		// other already migrated components to request it.
 		fx.Provide(func(config config.Component) demultiplexerimpl.Params {
-			opts := aggregator.DefaultAgentDemultiplexerOptions()
-			opts.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
-			return demultiplexerimpl.Params{Options: opts}
+			params := demultiplexerimpl.NewDefaultParams()
+			params.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
+			return params
 		}),
 		demultiplexerimpl.Module(),
 		orchestratorForwarderImpl.Module(),
@@ -369,17 +363,14 @@ func startAgent(
 	log log.Component,
 	flare flare.Component,
 	telemetry telemetry.Component,
-	//nolint:revive // TODO(ASC) Fix revive linter
-	sysprobeconfig sysprobeconfig.Component,
+	_ sysprobeconfig.Component,
 	server dogstatsdServer.Component,
 	serverDebug dogstatsddebug.Component,
 	wmeta workloadmeta.Component,
 	rcclient rcclient.Component,
 	logsAgent optional.Option[logsAgent.Component],
-	//nolint:revive // TODO(ASC) Fix revive linter
-	sharedForwarder defaultforwarder.Component,
-	//nolint:revive // TODO(ASC) Fix revive linter
-	sharedSerializer serializer.MetricSerializer,
+	_ defaultforwarder.Component,
+	_ serializer.MetricSerializer,
 	otelcollector otelcollector.Component,
 	demultiplexer demultiplexer.Component,
 	invAgent inventoryagent.Component,

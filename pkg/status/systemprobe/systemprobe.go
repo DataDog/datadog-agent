@@ -5,7 +5,8 @@
 
 //go:build process
 
-package status
+// Package systemprobe fetch information about the system probe
+package systemprobe
 
 import (
 	"fmt"
@@ -13,8 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 )
 
-// GetSystemProbeStats returns the expvar stats of the system probe
-func GetSystemProbeStats(socketPath string) map[string]interface{} {
+// GetStatus returns the expvar stats of the system probe
+func GetStatus(socketPath string) map[string]interface{} {
 	probeUtil, err := net.GetRemoteSystemProbeUtil(socketPath)
 
 	if err != nil {
