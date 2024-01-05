@@ -34,25 +34,25 @@ func FormatStatus(data []byte) (string, error) {
 	stats["title"] = title
 
 	var b = new(bytes.Buffer)
-	headerFunc := func() error { return RenderStatusTemplate(b, "/header.tmpl", stats) }
+	headerFunc := func() error { return ParseTemplate(b, "/header.tmpl", stats) }
 	checkStatsFunc := func() error {
-		return RenderStatusTemplate(b, "/collector.tmpl", stats)
+		return ParseTemplate(b, "/collector.tmpl", stats)
 	}
-	jmxFetchFunc := func() error { return RenderStatusTemplate(b, "/jmxfetch.tmpl", stats) }
-	forwarderFunc := func() error { return RenderStatusTemplate(b, "/forwarder.tmpl", stats) }
-	endpointsFunc := func() error { return RenderStatusTemplate(b, "/endpoints.tmpl", stats) }
-	logsAgentFunc := func() error { return RenderStatusTemplate(b, "/logsagent.tmpl", stats) }
-	systemProbeFunc := func() error { return RenderStatusTemplate(b, "/systemprobe.tmpl", stats) }
-	processAgentFunc := func() error { return RenderStatusTemplate(b, "/process-agent.tmpl", stats) }
-	traceAgentFunc := func() error { return RenderStatusTemplate(b, "/trace-agent.tmpl", stats) }
-	aggregatorFunc := func() error { return RenderStatusTemplate(b, "/aggregator.tmpl", stats) }
-	dogstatsdFunc := func() error { return RenderStatusTemplate(b, "/dogstatsd.tmpl", stats) }
-	clusterAgentFunc := func() error { return RenderStatusTemplate(b, "/clusteragent.tmpl", stats) }
-	snmpTrapFunc := func() error { return RenderStatusTemplate(b, "/snmp-traps.tmpl", stats) }
-	netflowFunc := func() error { return RenderStatusTemplate(b, "/netflow.tmpl", stats) }
-	autodiscoveryFunc := func() error { return RenderStatusTemplate(b, "/autodiscovery.tmpl", stats) }
-	remoteConfigFunc := func() error { return RenderStatusTemplate(b, "/remoteconfig.tmpl", stats) }
-	otlpFunc := func() error { return RenderStatusTemplate(b, "/otlp.tmpl", stats) }
+	jmxFetchFunc := func() error { return ParseTemplate(b, "/jmxfetch.tmpl", stats) }
+	forwarderFunc := func() error { return ParseTemplate(b, "/forwarder.tmpl", stats) }
+	endpointsFunc := func() error { return ParseTemplate(b, "/endpoints.tmpl", stats) }
+	logsAgentFunc := func() error { return ParseTemplate(b, "/logsagent.tmpl", stats) }
+	systemProbeFunc := func() error { return ParseTemplate(b, "/systemprobe.tmpl", stats) }
+	processAgentFunc := func() error { return ParseTemplate(b, "/process-agent.tmpl", stats) }
+	traceAgentFunc := func() error { return ParseTemplate(b, "/trace-agent.tmpl", stats) }
+	aggregatorFunc := func() error { return ParseTemplate(b, "/aggregator.tmpl", stats) }
+	dogstatsdFunc := func() error { return ParseTemplate(b, "/dogstatsd.tmpl", stats) }
+	clusterAgentFunc := func() error { return ParseTemplate(b, "/clusteragent.tmpl", stats) }
+	snmpTrapFunc := func() error { return ParseTemplate(b, "/snmp-traps.tmpl", stats) }
+	netflowFunc := func() error { return ParseTemplate(b, "/netflow.tmpl", stats) }
+	autodiscoveryFunc := func() error { return ParseTemplate(b, "/autodiscovery.tmpl", stats) }
+	remoteConfigFunc := func() error { return ParseTemplate(b, "/remoteconfig.tmpl", stats) }
+	otlpFunc := func() error { return ParseTemplate(b, "/otlp.tmpl", stats) }
 
 	var renderFuncs []func() error
 	if config.IsCLCRunner() {
@@ -93,26 +93,26 @@ func FormatDCAStatus(data []byte) (string, error) {
 
 	var b = new(bytes.Buffer)
 	var errs []error
-	if err := RenderStatusTemplate(b, "/header.tmpl", stats); err != nil {
+	if err := ParseTemplate(b, "/header.tmpl", stats); err != nil {
 		errs = append(errs, err)
 	}
-	if err := RenderStatusTemplate(b, "/collector.tmpl", stats); err != nil {
+	if err := ParseTemplate(b, "/collector.tmpl", stats); err != nil {
 		errs = append(errs, err)
 	}
-	if err := RenderStatusTemplate(b, "/forwarder.tmpl", stats); err != nil {
+	if err := ParseTemplate(b, "/forwarder.tmpl", stats); err != nil {
 		errs = append(errs, err)
 	}
-	if err := RenderStatusTemplate(b, "/endpoints.tmpl", stats); err != nil {
+	if err := ParseTemplate(b, "/endpoints.tmpl", stats); err != nil {
 		errs = append(errs, err)
 	}
-	if err := RenderStatusTemplate(b, "/logsagent.tmpl", stats); err != nil {
+	if err := ParseTemplate(b, "/logsagent.tmpl", stats); err != nil {
 		errs = append(errs, err)
 	}
-	if err := RenderStatusTemplate(b, "/autodiscovery.tmpl", stats); err != nil {
+	if err := ParseTemplate(b, "/autodiscovery.tmpl", stats); err != nil {
 		errs = append(errs, err)
 	}
 
-	if err := RenderStatusTemplate(b, "/orchestrator.tmpl", stats); err != nil {
+	if err := ParseTemplate(b, "/orchestrator.tmpl", stats); err != nil {
 		errs = append(errs, err)
 	}
 	if err := renderErrors(b, errs); err != nil {
@@ -130,7 +130,7 @@ func FormatHPAStatus(data []byte) (string, error) {
 	}
 	var b = new(bytes.Buffer)
 	var errs []error
-	if err := RenderStatusTemplate(b, "/custommetricsprovider.tmpl", stats); err != nil {
+	if err := ParseTemplate(b, "/custommetricsprovider.tmpl", stats); err != nil {
 		errs = append(errs, err)
 	}
 	if err := renderErrors(b, errs); err != nil {
@@ -151,13 +151,13 @@ func FormatSecurityAgentStatus(data []byte) (string, error) {
 
 	var b = new(bytes.Buffer)
 	var errs []error
-	if err := RenderStatusTemplate(b, "/header.tmpl", stats); err != nil {
+	if err := ParseTemplate(b, "/header.tmpl", stats); err != nil {
 		errs = append(errs, err)
 	}
-	if err := RenderStatusTemplate(b, "/runtimesecurity.tmpl", stats); err != nil {
+	if err := ParseTemplate(b, "/runtimesecurity.tmpl", stats); err != nil {
 		errs = append(errs, err)
 	}
-	if err := RenderStatusTemplate(b, "/compliance.tmpl", stats); err != nil {
+	if err := ParseTemplate(b, "/compliance.tmpl", stats); err != nil {
 		errs = append(errs, err)
 	}
 	if err := renderErrors(b, errs); err != nil {
@@ -175,7 +175,7 @@ func FormatProcessAgentStatus(data []byte) (string, error) {
 	}
 	var b = new(bytes.Buffer)
 	var errs []error
-	if err := RenderStatusTemplate(b, "/process-agent.tmpl", stats); err != nil {
+	if err := ParseTemplate(b, "/process-agent.tmpl", stats); err != nil {
 		errs = append(errs, err)
 	}
 	if err := renderErrors(b, errs); err != nil {
@@ -193,7 +193,7 @@ func FormatMetadataMapCLI(data []byte) (string, error) {
 	}
 	var b = new(bytes.Buffer)
 	var errs []error
-	if err := RenderStatusTemplate(b, "/metadatamapper.tmpl", stats); err != nil {
+	if err := ParseTemplate(b, "/metadatamapper.tmpl", stats); err != nil {
 		errs = append(errs, err)
 	}
 	if err := renderErrors(b, errs); err != nil {
@@ -211,7 +211,7 @@ func FormatCheckStats(data []byte) (string, error) {
 
 	var b = new(bytes.Buffer)
 	var errs []error
-	if err := RenderStatusTemplate(b, "/collector.tmpl", stats); err != nil {
+	if err := ParseTemplate(b, "/collector.tmpl", stats); err != nil {
 		errs = append(errs, err)
 	}
 	if err := renderErrors(b, errs); err != nil {
@@ -224,8 +224,8 @@ func FormatCheckStats(data []byte) (string, error) {
 //go:embed templates
 var templatesFS embed.FS
 
-// RenderStatusTemplate renders the text template with the data provided
-func RenderStatusTemplate(w io.Writer, templateName string, stats interface{}) error {
+// ParseTemplate renders the text template with the data provided
+func ParseTemplate(w io.Writer, templateName string, stats interface{}) error {
 	tmpl, tmplErr := templatesFS.ReadFile(path.Join("templates", templateName))
 	if tmplErr != nil {
 		return tmplErr
@@ -234,8 +234,8 @@ func RenderStatusTemplate(w io.Writer, templateName string, stats interface{}) e
 	return t.Execute(w, stats)
 }
 
-// RenderHTMLStatusTemplate the HTML template with the data provided
-func RenderHTMLStatusTemplate(w io.Writer, templateName string, stats interface{}) error {
+// ParseHTMLTemplate the HTML template with the data provided
+func ParseHTMLTemplate(w io.Writer, templateName string, stats interface{}) error {
 	tmpl, tmplErr := templatesFS.ReadFile(path.Join("templates", templateName))
 	if tmplErr != nil {
 		return tmplErr
@@ -246,7 +246,7 @@ func RenderHTMLStatusTemplate(w io.Writer, templateName string, stats interface{
 
 func renderErrors(w io.Writer, errs []error) error {
 	if len(errs) > 0 {
-		return RenderStatusTemplate(w, "/rendererrors.tmpl", errs)
+		return ParseTemplate(w, "/rendererrors.tmpl", errs)
 	}
 	return nil
 }

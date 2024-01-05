@@ -8,7 +8,6 @@ package status
 import (
 	"encoding/json"
 	"fmt"
-	"html/template"
 	htemplate "html/template"
 	"strconv"
 	"strings"
@@ -287,7 +286,7 @@ func getVersion(instances map[string]interface{}) string {
 	return ""
 }
 
-func pythonLoaderErrorHTML(value string) template.HTML {
+func pythonLoaderErrorHTML(value string) htemplate.HTML {
 	value = htemplate.HTMLEscapeString(value)
 
 	value = strings.Replace(value, "\n", "<br>", -1)
@@ -295,7 +294,7 @@ func pythonLoaderErrorHTML(value string) template.HTML {
 	return htemplate.HTML(value)
 }
 
-func lastErrorTracebackHTML(value string) template.HTML {
+func lastErrorTracebackHTML(value string) htemplate.HTML {
 	var lastErrorArray []map[string]string
 
 	err := json.Unmarshal([]byte(value), &lastErrorArray)
@@ -322,7 +321,7 @@ func lastErrorMessageHTML(value string) string {
 	return "UNKNOWN ERROR"
 }
 
-func statusHTML(check map[string]interface{}) template.HTML {
+func statusHTML(check map[string]interface{}) htemplate.HTML {
 	if check["LastError"].(string) != "" {
 		return htemplate.HTML("[<span class=\"error\">ERROR</span>]")
 	}

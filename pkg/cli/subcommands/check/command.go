@@ -452,7 +452,11 @@ func run(
 		s := runCheck(cliParams, c, printer)
 		var checkResult map[string]interface{}
 		resultBytes, _ := json.Marshal(s)
-		json.Unmarshal(resultBytes, &checkResult)
+		err = json.Unmarshal(resultBytes, &checkResult)
+		if err != nil {
+			return err
+		}
+
 		checkMap := make(map[string]interface{})
 
 		checkMap[string(c.ID())] = checkResult

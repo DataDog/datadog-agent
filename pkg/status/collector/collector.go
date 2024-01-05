@@ -115,16 +115,16 @@ func (Provider) JSON(stats map[string]interface{}) error {
 
 // Text populates the status buffer with the human readbable version
 func (Provider) Text(buffer io.Writer) error {
-	return render.RenderStatusTemplate(buffer, "/collector.tmpl", GetStatusInfo())
+	return render.ParseTemplate(buffer, "/collector.tmpl", GetStatusInfo())
 }
 
 // HTML populates the status buffer with the HTML version
 func (Provider) HTML(buffer io.Writer) error {
-	return render.RenderHTMLStatusTemplate(buffer, "/collectorHTML.tmpl", GetStatusInfo())
+	return render.ParseHTMLTemplate(buffer, "/collectorHTML.tmpl", GetStatusInfo())
 }
 
 // TextWithData allows to render the human reaadable version with custom data
 // This is a hack only needed for the agent check subcommand
 func (Provider) TextWithData(buffer io.Writer, data any) error {
-	return render.RenderStatusTemplate(buffer, "/collector.tmpl", data)
+	return render.ParseTemplate(buffer, "/collector.tmpl", data)
 }
