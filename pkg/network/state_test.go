@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"net/netip"
 	"sync"
 	"syscall"
 	"testing"
@@ -2347,6 +2348,7 @@ func TestConnectionRollup(t *testing.T) {
 	strPtr := func(s string) *string { return &s }
 	conns := []ConnectionStats{
 		{
+			// should be rolled up with next connection
 			Direction: OUTGOING,
 			Family:    AFINET,
 			IntraHost: false,
@@ -2369,14 +2371,17 @@ func TestConnectionRollup(t *testing.T) {
 				TCPClosed:      0,
 				TCPEstablished: 0,
 			},
-			NetNS:  4026532341,
-			Pid:    28385,
-			Dest:   util.AddressFromString("10.100.0.10"),
-			DPort:  53,
-			Type:   UDP,
-			Cookie: 1,
+			NetNS:    4026532341,
+			Pid:      28385,
+			Dest:     util.AddressFromString("10.100.0.10"),
+			DPort:    53,
+			Type:     UDP,
+			Cookie:   1,
+			Duration: uint64(time.Second),
+			IsClosed: true,
 		},
 		{
+			// should be rolled up with previous connection
 			Direction: OUTGOING,
 			Family:    AFINET,
 			IntraHost: false,
@@ -2399,14 +2404,17 @@ func TestConnectionRollup(t *testing.T) {
 				TCPClosed:      0,
 				TCPEstablished: 0,
 			},
-			NetNS:  4026532341,
-			Pid:    28385,
-			Dest:   util.AddressFromString("10.100.0.10"),
-			DPort:  53,
-			Type:   UDP,
-			Cookie: 2,
+			NetNS:    4026532341,
+			Pid:      28385,
+			Dest:     util.AddressFromString("10.100.0.10"),
+			DPort:    53,
+			Type:     UDP,
+			Cookie:   2,
+			Duration: uint64(time.Second),
+			IsClosed: true,
 		},
 		{
+			// should be rolled up with next connection
 			Direction: OUTGOING,
 			Family:    AFINET,
 			IntraHost: false,
@@ -2429,14 +2437,17 @@ func TestConnectionRollup(t *testing.T) {
 				TCPClosed:      0,
 				TCPEstablished: 0,
 			},
-			NetNS:  4026532341,
-			Pid:    28385,
-			Dest:   util.AddressFromString("10.100.0.10"),
-			DPort:  53,
-			Type:   UDP,
-			Cookie: 3,
+			NetNS:    4026532341,
+			Pid:      28385,
+			Dest:     util.AddressFromString("10.100.0.10"),
+			DPort:    53,
+			Type:     UDP,
+			Cookie:   3,
+			Duration: uint64(time.Second),
+			IsClosed: true,
 		},
 		{
+			// should be rolled up with previous connection
 			Direction: OUTGOING,
 			Family:    AFINET,
 			IntraHost: false,
@@ -2459,14 +2470,17 @@ func TestConnectionRollup(t *testing.T) {
 				TCPClosed:      0,
 				TCPEstablished: 0,
 			},
-			NetNS:  4026532341,
-			Pid:    28385,
-			Dest:   util.AddressFromString("10.100.0.10"),
-			DPort:  53,
-			Type:   UDP,
-			Cookie: 4,
+			NetNS:    4026532341,
+			Pid:      28385,
+			Dest:     util.AddressFromString("10.100.0.10"),
+			DPort:    53,
+			Type:     UDP,
+			Cookie:   4,
+			Duration: uint64(time.Second),
+			IsClosed: true,
 		},
 		{
+			// this should not be rolled up as the duration is > 2 mins
 			Direction: OUTGOING,
 			Family:    AFINET,
 			IntraHost: false,
@@ -2489,12 +2503,14 @@ func TestConnectionRollup(t *testing.T) {
 				TCPClosed:      0,
 				TCPEstablished: 0,
 			},
-			NetNS:  4026532341,
-			Pid:    28385,
-			Dest:   util.AddressFromString("10.100.0.10"),
-			DPort:  53,
-			Type:   UDP,
-			Cookie: 5,
+			NetNS:    4026532341,
+			Pid:      28385,
+			Dest:     util.AddressFromString("10.100.0.10"),
+			DPort:    53,
+			Type:     UDP,
+			Cookie:   5,
+			Duration: uint64(3 * time.Minute),
+			IsClosed: true,
 		},
 	}
 
@@ -2502,7 +2518,81 @@ func TestConnectionRollup(t *testing.T) {
 	ns.enableConnectionRollup = true
 	ns.RegisterClient("foo")
 	delta := ns.GetDelta("foo", 0, conns, nil, nil)
-	assert.Len(t, delta.Conns, 2)
+	// should have 3 connections
+	assert.Len(t, delta.Conns, 3)
+
+	findConnections := func(conns []ConnectionStats, _laddr, _raddr string) []ConnectionStats {
+		laddr, err := netip.ParseAddrPort(_laddr)
+		require.NoError(t, err, "could not parse laddr addr port")
+		raddr, err := netip.ParseAddrPort(_raddr)
+		require.NoError(t, err, "could not parse raddr addr port")
+		var found []ConnectionStats
+		for _, c := range conns {
+			if c.Source.Addr == laddr.Addr() &&
+				c.SPort == laddr.Port() &&
+				c.Dest.Addr == raddr.Addr() &&
+				c.DPort == raddr.Port() {
+				found = append(found, c)
+			}
+		}
+
+		return found
+	}
+
+	found := findConnections(conns, "172.29.141.26:37240", "10.100.0.10:53")
+	require.Len(t, found, 1)
+	c := found[0]
+	assert.NotNil(t, c.IPTranslation, "ip translation was nil")
+	assert.Equal(t, "172.29.141.26", c.IPTranslation.ReplDstIP.String())
+	assert.Equal(t, uint16(37240), c.IPTranslation.ReplDstPort)
+	assert.Equal(t, "172.29.151.242", c.IPTranslation.ReplSrcIP.String())
+	assert.Equal(t, uint16(53), c.IPTranslation.ReplSrcPort)
+	assert.Equal(t, StatCounters{
+		RecvBytes:      594,
+		SentBytes:      92,
+		RecvPackets:    2,
+		SentPackets:    0,
+		Retransmits:    0,
+		TCPClosed:      0,
+		TCPEstablished: 0,
+	}, c.Monotonic)
+	assert.Equal(t, uint32(28385), c.Pid)
+
+	found = findConnections(conns, "172.29.141.26:0", "10.100.0.10:53")
+	require.Len(t, found, 2)
+	c = found[0]
+	assert.NotNil(t, c.IPTranslation, "ip translation was nil")
+	assert.Equal(t, "172.29.141.26", c.IPTranslation.ReplDstIP.String())
+	assert.Equal(t, uint16(0), c.IPTranslation.ReplDstPort)
+	assert.Equal(t, "172.29.177.127", c.IPTranslation.ReplSrcIP.String())
+	assert.Equal(t, uint16(53), c.IPTranslation.ReplSrcPort)
+	assert.Equal(t, StatCounters{
+		RecvBytes:      314 + 342,
+		SentBytes:      156 + 128,
+		RecvPackets:    2 + 2,
+		SentPackets:    0,
+		Retransmits:    0,
+		TCPClosed:      0,
+		TCPEstablished: 0,
+	}, c.Monotonic)
+	assert.Equal(t, uint32(28385), c.Pid)
+
+	c = found[1]
+	assert.NotNil(t, c.IPTranslation, "ip translation was nil")
+	assert.Equal(t, "172.29.141.26", c.IPTranslation.ReplDstIP.String())
+	assert.Equal(t, uint16(0), c.IPTranslation.ReplDstPort)
+	assert.Equal(t, "172.29.151.242", c.IPTranslation.ReplSrcIP.String())
+	assert.Equal(t, uint16(53), c.IPTranslation.ReplSrcPort)
+	assert.Equal(t, StatCounters{
+		RecvBytes:      306 + 288,
+		SentBytes:      120 + 118,
+		RecvPackets:    2 + 2,
+		SentPackets:    0,
+		Retransmits:    0,
+		TCPClosed:      0,
+		TCPEstablished: 0,
+	}, c.Monotonic)
+	assert.Equal(t, uint32(28385), c.Pid)
 }
 
 func TestFilterConnections(t *testing.T) {
