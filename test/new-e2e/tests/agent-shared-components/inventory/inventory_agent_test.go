@@ -8,10 +8,11 @@ package inventory
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 )
 
 type inventoryAgentSuite struct {
@@ -38,7 +39,6 @@ func (v *inventoryAgentSuite) TestInventoryAllEnabled() {
 	agentConfig := `logs_enabled: true
 process_config:
   enabled: true
-process_config:
   process_collection:
     enabled: true`
 
