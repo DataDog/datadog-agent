@@ -291,6 +291,7 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 	_ = t.timeResolver.Sync()
 	for i := range connections {
 		cs := &connections[i]
+		cs.IsClosed = true
 		if t.shouldSkipConnection(cs) {
 			connections[rejected], connections[i] = connections[i], connections[rejected]
 			rejected++

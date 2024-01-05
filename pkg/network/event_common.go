@@ -275,6 +275,7 @@ type ConnectionStats struct {
 
 	IntraHost bool
 	IsAssured bool
+	IsClosed  bool
 
 	ContainerID struct {
 		Source, Dest *string
@@ -329,12 +330,6 @@ func (c ConnectionStats) ByteKey(buf []byte) []byte {
 // Currently this key is used only for the aggregation of ephemeral connections.
 func (c ConnectionStats) ByteKeyNAT(buf []byte) []byte {
 	return generateConnectionKey(c, buf, true)
-}
-
-// IsShortLived returns true when a connection went through its whole lifecycle
-// between two connection checks
-func (c ConnectionStats) IsShortLived() bool {
-	return c.Last.TCPEstablished >= 1 && c.Last.TCPClosed >= 1
 }
 
 const keyFmt = "p:%d|src:%s:%d|dst:%s:%d|f:%d|t:%d"

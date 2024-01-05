@@ -71,6 +71,8 @@ const (
 	ConnectionByteKeyMaxLen = 41
 
 	stateModuleName = "network_tracer__state"
+
+	shortLivedConnectionThreshold = 2 * time.Minute
 )
 
 // State takes care of handling the logic for:
@@ -1151,7 +1153,7 @@ func (a *connectionAggregator) key(c *ConnectionStats) (key aggregationKey, spor
 		return key, false, false
 	}
 
-	isShortLived := c.Duration < uint64((2*time.Minute)/time.Nanosecond)
+	isShortLived := c.IsClosed && c.Duration < uint64(shortLivedConnectionThreshold/time.Nanosecond)
 	sportRolledUp = c.Direction == OUTGOING
 	dportRolledUp = c.Direction == INCOMING
 
