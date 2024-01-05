@@ -10,6 +10,7 @@ package containerd
 import (
 	"context"
 	"fmt"
+
 	"github.com/CycloneDX/cyclonedx-go"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -107,9 +108,9 @@ func (c *collector) startScanResultHandler(ctx context.Context, resultChan <-cha
 		case <-ctx.Done():
 			return
 		case result, ok := <-resultChan:
-		  if !ok { 
-		    return 
-		  }
+			if !ok {
+				return
+			}
 			c.processScanResult(ctx, result)
 		}
 	}
