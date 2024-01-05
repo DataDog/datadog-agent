@@ -106,7 +106,7 @@ func StartServer(w workloadmeta.Component, senderManager sender.DiagnoseSenderMa
 	}
 
 	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
-	logWriter, _ := config.NewLogWriter(4, seelog.WarnLvl)
+	logWriter, _ := config.NewTLSHandshakeErrorWriter(4, seelog.WarnLvl)
 
 	authInterceptor := grpcutil.AuthInterceptor(func(token string) (interface{}, error) {
 		if token != util.GetDCAAuthToken() {
