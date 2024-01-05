@@ -17,7 +17,6 @@ import (
 	"os/exec"
 	"path"
 	"strconv"
-	"strings"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -51,30 +50,37 @@ var (
 )
 
 type ebsBlockDevice struct {
-	EBSClient   *ebs.Client
-	DeviceName  string
-	SnapshotARN arn.ARN
+	id          string
+	ebsclient   *ebs.Client
+	deviceName  string
+	snapshotARN arn.ARN
 
 	srv    net.Listener
 	ctx    context.Context
 	cancel context.CancelFunc
 }
 
-func startEBSBlockDevice(bd *ebsBlockDevice) error {
-	ebsBlockDevicesMu.Lock()
-	if _, ok := ebsBlockDevices[bd.DeviceName]; ok {
-		ebsBlockDevicesMu.Unlock()
-		return fmt.Errorf("ebsblockdevice: already running nbd server for device %q", bd.DeviceName)
+func startEBSBlockDevice(id string, ebsclient *ebs.Client, deviceName string, snapshotARN arn.ARN) error {
+	bd := &ebsBlockDevice{
+		id:          id,
+		ebsclient:   ebsclient,
+		deviceName:  deviceName,
+		snapshotARN: snapshotARN,
 	}
-	ebsBlockDevices[bd.DeviceName] = bd
+	ebsBlockDevicesMu.Lock()
+	if _, ok := ebsBlockDevices[bd.deviceName]; ok {
+		ebsBlockDevicesMu.Unlock()
+		return fmt.Errorf("ebsblockdevice: already running nbd server for device %q", bd.deviceName)
+	}
+	ebsBlockDevices[bd.deviceName] = bd
 	ebsBlockDevicesMu.Unlock()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	bd.cancel = cancel
 	bd.ctx = ctx
-	_, err := os.Stat(bd.DeviceName)
+	_, err := os.Stat(bd.deviceName)
 	if err != nil {
-		return fmt.Errorf("ebsblockdevice: could not stat device %q: %w", bd.DeviceName, err)
+		return fmt.Errorf("ebsblockdevice: could not stat device %q: %w", bd.deviceName, err)
 	}
 	if err := bd.startServer(); err != nil {
 		return err
@@ -107,9 +113,8 @@ func stopEBSBlockDevice(ctx context.Context, deviceName string) {
 	}
 }
 
-func (bd *ebsBlockDevice) getSocketAddr(device string, snapshotARN arn.ARN) string {
-	snapshotID := strings.TrimPrefix(snapshotARN.Resource, "snapshot/")
-	return fmt.Sprintf("/tmp/nbd-ebs-%s-%s", path.Base(device), snapshotID)
+func (bd *ebsBlockDevice) getSocketAddr() string {
+	return fmt.Sprintf("/tmp/nbd-%s-%s.sock", bd.id, path.Base(bd.deviceName))
 }
 
 func (bd *ebsBlockDevice) startClient() error {
@@ -117,14 +122,14 @@ func (bd *ebsBlockDevice) startClient() error {
 	if err != nil {
 		return fmt.Errorf("ebsblockdevice: could not locate 'nbd-client' util binary in PATH: %w", err)
 	}
-	addr := bd.getSocketAddr(bd.DeviceName, bd.SnapshotARN)
+	addr := bd.getSocketAddr()
 	cmd := exec.CommandContext(bd.ctx, "nbd-client",
-		"-unix", addr, bd.DeviceName,
-		"-name", bd.SnapshotARN.Resource,
+		"-unix", addr, bd.deviceName,
+		"-name", bd.id,
 		"-connections", "5")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Errorf("nbd-client: %q failed: %s", bd.DeviceName, string(out))
+		log.Errorf("nbd-client: %q failed: %s", bd.deviceName, string(out))
 		return err
 	}
 	return nil
@@ -132,17 +137,15 @@ func (bd *ebsBlockDevice) startClient() error {
 
 func (bd *ebsBlockDevice) startServer() error {
 	var lc net.ListenConfig
-	_, snapshotID, _ := getARNResource(bd.SnapshotARN)
-	b, err := newEBSBackend(bd.ctx, bd.EBSClient, snapshotID)
+	_, snapshotID, _ := getARNResource(bd.snapshotARN)
+	b, err := newEBSBackend(bd.ctx, bd.ebsclient, snapshotID)
 	if err != nil {
 		return fmt.Errorf("ebsblockdevice: could not start backend: %w", err)
 	}
 
-	addr := bd.getSocketAddr(bd.DeviceName, bd.SnapshotARN)
+	addr := bd.getSocketAddr()
 	if _, err := os.Stat(addr); err == nil {
-		if err := os.Remove(addr); err != nil {
-			return fmt.Errorf("ebsblockdevice: could not delete %q: %w", addr, err)
-		}
+		return fmt.Errorf("ebsblockdevice: socket %q already exists")
 	}
 
 	bd.srv, err = lc.Listen(bd.ctx, "unix", addr)
@@ -164,14 +167,14 @@ func (bd *ebsBlockDevice) startServer() error {
 				if errors.Is(err, net.ErrClosed) {
 					return
 				}
-				log.Warnf("nbdserver: %q could not accept connection: %v", bd.DeviceName, err)
+				log.Warnf("nbdserver: %q could not accept connection: %v", bd.deviceName, err)
 			} else {
 				addConn <- conn
 			}
 		}
 	}()
 
-	log.Infof("nbdserver: %q accepting connections on %q", bd.DeviceName, addr)
+	log.Infof("nbdserver: %q accepting connections on %q", bd.deviceName, addr)
 	go func() {
 		for {
 			select {
@@ -179,16 +182,16 @@ func (bd *ebsBlockDevice) startServer() error {
 				conns[conn] = struct{}{}
 				go func() {
 					bd.serverHandleConn(conn, b)
-					log.Debugf("nbdserver: %q client disconnected", bd.DeviceName)
 					rmvConn <- conn
 				}()
 
 			case conn := <-rmvConn:
+				log.Debugf("nbdserver: %q client disconnected", bd.deviceName)
 				delete(conns, conn)
 				conn.Close()
 
 			case <-bd.ctx.Done():
-				log.Debugf("nbdserver: %q closing server", bd.DeviceName)
+				log.Debugf("nbdserver: %q closing server", bd.deviceName)
 				for conn := range conns {
 					conn.Close()
 				}
@@ -200,11 +203,11 @@ func (bd *ebsBlockDevice) startServer() error {
 }
 
 func (bd *ebsBlockDevice) serverHandleConn(conn net.Conn, backend backend.Backend) {
-	log.Debugf("nbdserver: %q client connected ", bd.DeviceName)
+	log.Debugf("nbdserver: %q client connected ", bd.deviceName)
 	err := server.Handle(conn,
 		[]*server.Export{
 			{
-				Name:    bd.SnapshotARN.Resource,
+				Name:    bd.id,
 				Backend: backend,
 			},
 		},
@@ -216,7 +219,7 @@ func (bd *ebsBlockDevice) serverHandleConn(conn net.Conn, backend backend.Backen
 			SupportsMultiConn:  true,
 		})
 	if err != nil {
-		log.Errorf("nbdserver: %q could not handle new connection: %v", bd.DeviceName, err)
+		log.Errorf("nbdserver: %q could not handle new connection: %v", bd.deviceName, err)
 	}
 }
 

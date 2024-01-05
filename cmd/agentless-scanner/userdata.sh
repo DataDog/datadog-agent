@@ -12,6 +12,8 @@ apt update
 apt install -y nbd-client
 
 modprobe nbd nbds_max=128
+echo "nbd" > /etc/modules-load.d//nbd.conf
+echo "options nbd nbds_max=128" > /etc/modprobe.d/nbd.conf
 
 echo "sidescanning-${SCANNER_NAME}" > /etc/hostname
 
