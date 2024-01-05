@@ -86,11 +86,11 @@ type (
 )
 
 type K8sKubeconfigMeta struct {
-	Path       string      `json:"path,omitempty"`
-	User       string      `json:"user,omitempty"`
-	Group      string      `json:"group,omitempty"`
-	Mode       uint32      `json:"mode,omitempty"`
-	Kubeconfig interface{} `json:"kubeconfig"`
+	Path       string         `json:"path,omitempty"`
+	User       string         `json:"user,omitempty"`
+	Group      string         `json:"group,omitempty"`
+	Mode       uint32         `json:"mode,omitempty"`
+	Kubeconfig *K8SKubeconfig `json:"kubeconfig"`
 }
 
 type K8sKeyFileMeta struct {
@@ -159,14 +159,18 @@ type (
 	}
 
 	k8sKubeconfigUserSource struct {
-		ClientCertificate     string      `yaml:"client-certificate,omitempty"`
-		ClientCertificateData string      `yaml:"client-certificate-data,omitempty"`
-		ClientKey             string      `yaml:"client-key,omitempty"`
-		Token                 string      `yaml:"token,omitempty"`
-		TokenFile             string      `yaml:"tokenFile,omitempty"`
-		Username              string      `yaml:"username,omitempty"`
-		Password              string      `yaml:"password,omitempty"`
-		Exec                  interface{} `yaml:"exec,omitempty"`
+		ClientCertificate     string `yaml:"client-certificate,omitempty"`
+		ClientCertificateData string `yaml:"client-certificate-data,omitempty"`
+		ClientKey             string `yaml:"client-key,omitempty"`
+		Token                 string `yaml:"token,omitempty"`
+		TokenFile             string `yaml:"tokenFile,omitempty"`
+		Username              string `yaml:"username,omitempty"`
+		Password              string `yaml:"password,omitempty"`
+		Exec                  *struct {
+			APIVersion string   `yaml:"apiVersion,omitempty"`
+			Command    string   `yaml:"command,omitempty"`
+			Args       []string `yaml:"args,omitempty"`
+		} `yaml:"exec,omitempty"`
 	}
 
 	k8sKubeconfigContextSource struct {
@@ -192,9 +196,13 @@ type (
 	}
 
 	K8sKubeconfigUser struct {
-		UseToken          bool             `json:"useToken"`
-		UsePassword       bool             `json:"usePassword"`
-		Exec              interface{}      `json:"exec"`
+		UseToken    bool `json:"useToken"`
+		UsePassword bool `json:"usePassword"`
+		Exec        struct {
+			APIVersion string   `json:"apiVersion,omitempty"`
+			Command    string   `json:"command,omitempty"`
+			Args       []string `json:"args,omitempty"`
+		} `json:"exec,omitempty"`
 		ClientCertificate *K8sCertFileMeta `json:"clientCertificate,omitempty"`
 		ClientKey         *K8sKeyFileMeta  `json:"clientKey,omitempty"`
 	}

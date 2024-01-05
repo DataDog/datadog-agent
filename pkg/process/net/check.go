@@ -15,6 +15,7 @@ import (
 	"net/http"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	ebpfcheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck/model"
 	oomkill "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/oomkill/model"
 	tcpqueuelength "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model"
@@ -25,7 +26,7 @@ const (
 )
 
 // GetCheck returns the check output of the specified module
-func (r *RemoteSysProbeUtil) GetCheck(module sysconfig.ModuleName) (interface{}, error) {
+func (r *RemoteSysProbeUtil) GetCheck(module sysconfigtypes.ModuleName) (interface{}, error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf(checksURL, module), nil)
 	if err != nil {
 		return nil, err

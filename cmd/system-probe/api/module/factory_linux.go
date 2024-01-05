@@ -7,12 +7,14 @@
 
 package module
 
-import "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+import (
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
+)
 
 // Factory encapsulates the initialization of a Module
 type Factory struct {
-	Name             config.ModuleName
+	Name             sysconfigtypes.ModuleName
 	ConfigNamespaces []string
-	Fn               func(cfg *config.Config) (Module, error)
+	Fn               func(cfg *sysconfigtypes.Config) (Module, error)
 	NeedsEBPF        func() bool
 }

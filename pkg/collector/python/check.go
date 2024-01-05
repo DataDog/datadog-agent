@@ -79,7 +79,7 @@ func NewPythonCheck(senderManager sender.SenderManager, name string, class *C.rt
 		class:         class,
 		interval:      defaults.DefaultCheckInterval,
 		lastWarnings:  []error{},
-		telemetry:     utils.IsCheckTelemetryEnabled(name),
+		telemetry:     utils.IsCheckTelemetryEnabled(name, config.Datadog),
 	}
 	runtime.SetFinalizer(pyCheck, pythonCheckFinalizer)
 

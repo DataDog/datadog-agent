@@ -42,6 +42,7 @@ func init() {
 
 type systemCollector struct {
 	reader              *cgroups.Reader
+	selfReader          *cgroups.Reader
 	pidMapper           cgroups.StandalonePIDMapper
 	procPath            string
 	baseController      string
@@ -70,9 +71,20 @@ func newSystemCollector(cache *provider.Cache) (provider.CollectorMetadata, erro
 		return collectorMetadata, provider.ErrPermaFail
 	}
 
+	selfReader, err := cgroups.NewSelfReader(
+		procPath,
+		config.IsContainerized(),
+		cgroups.WithCgroupV1BaseController(cgroupV1BaseController),
+	)
+	if err != nil {
+		// Cgroup provider is pretty static. Except not having required mounts, it should always work.
+		log.Errorf("Unable to initialize self cgroup reader, err: %v", err)
+		return collectorMetadata, provider.ErrPermaFail
+	}
 	systemCollector := &systemCollector{
-		reader:   reader,
-		procPath: procPath,
+		reader:     reader,
+		selfReader: selfReader,
+		procPath:   procPath,
 	}
 
 	// Set base controller for cgroupV1 (remains empty for cgroupV2)
@@ -154,7 +166,7 @@ func newSystemCollector(cache *provider.Cache) (provider.CollectorMetadata, erro
 
 	// Finally add to catalog
 	for _, runtime := range provider.AllLinuxRuntimes {
-		metadata.Collectors[runtime] = collectors
+		metadata.Collectors[provider.NewRuntimeMetadata(string(runtime), "")] = collectors
 	}
 
 	return metadata, nil
@@ -222,7 +234,27 @@ func (c *systemCollector) GetContainerIDForInode(inode uint64, cacheValidity tim
 }
 
 func (c *systemCollector) GetSelfContainerID() (string, error) {
+	cid, err := c.getSelfContainerIDFromInode()
+	if cid != "" {
+		return cid, nil
+	}
+	log.Debugf("unable to get self container ID from cgroup controller inode: %v", err)
+
 	return getSelfContainerID(c.hostCgroupNamespace, c.reader.CgroupVersion(), c.baseController)
+}
+
+// getSelfContainerIDFromInode returns the container ID of the current process by using the inode of the cgroup
+// controller. The `reader` must use a `cgroups.ContainerFilter`.
+func (c *systemCollector) getSelfContainerIDFromInode() (string, error) {
+	if c.selfReader == nil {
+		return "", fmt.Errorf("self reader is not initialized")
+	}
+	selfCgroup := c.selfReader.GetCgroup(cgroups.SelfCgroupIdentifier)
+	if selfCgroup == nil {
+		return "", fmt.Errorf("unable to get self cgroup")
+	}
+
+	return c.GetContainerIDForInode(selfCgroup.Inode(), 0)
 }
 
 func (c *systemCollector) getCgroup(containerID string, cacheValidity time.Duration) (cgroups.Cgroup, error) {
