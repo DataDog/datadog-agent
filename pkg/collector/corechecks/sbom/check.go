@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -179,8 +180,12 @@ func (c *Check) Run() error {
 		workloadmeta.NewFilter(&filterParams),
 	)
 
-	// Trigger an initial scan on host
-	c.processor.processHostRefresh()
+	// Trigger an initial scan on host. This channel is buffered to avoid blocking the scanner
+	// if the processor is not ready to receive the result yet. This channel should not be closed,
+	// it is sent as part of every scan request. When the main context terminates, both references will
+	// be dropped and the scanner will be garbage collected.
+	hostSbomChan := make(chan sbom.ScanResult, 1)
+	c.processor.triggerHostScan(hostSbomChan)
 
 	c.sendUsageMetrics()
 
@@ -204,7 +209,9 @@ func (c *Check) Run() error {
 		case <-containerPeriodicRefreshTicker.C:
 			c.processor.processContainerImagesRefresh(c.workloadmetaStore.ListImages())
 		case <-hostPeriodicRefreshTicker.C:
-			c.processor.processHostRefresh()
+			c.processor.triggerHostScan(hostSbomChan)
+		case scanResult := <-hostSbomChan:
+			c.processor.processHostScanResult(scanResult)
 		case <-metricTicker.C:
 			c.sendUsageMetrics()
 		case <-c.stopCh:
