@@ -234,9 +234,9 @@ func getDeviceType(store *metadata.Store) string {
 	deviceType := strings.ToLower(store.GetScalarAsString("device.type"))
 	switch deviceType {
 	case
-		"access point",
+		"access_point",
 		"firewall",
-		"load balancer",
+		"load_balancer",
 		"pdu",
 		"printer",
 		"router",
