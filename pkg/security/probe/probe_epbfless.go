@@ -165,6 +165,32 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 		event.Type = uint32(model.CapsetEventType)
 		event.Capset.CapEffective = syscallMsg.Capset.Effective
 		event.Capset.CapPermitted = syscallMsg.Capset.Permitted
+
+	case ebpfless.SyscallTypeUnlink:
+		event.Type = uint32(model.FileUnlinkEventType)
+		event.Unlink.Retval = syscallMsg.Retval
+		event.Unlink.File.PathnameStr = syscallMsg.Unlink.File.Filename
+		event.Unlink.File.BasenameStr = filepath.Base(syscallMsg.Unlink.File.Filename)
+		event.Unlink.File.MTime = syscallMsg.Unlink.File.MTime
+		event.Unlink.File.CTime = syscallMsg.Unlink.File.CTime
+		event.Unlink.File.Mode = uint16(syscallMsg.Unlink.File.Mode)
+		if syscallMsg.Unlink.File.Credentials != nil {
+			event.Unlink.File.UID = syscallMsg.Unlink.File.Credentials.UID
+			event.Unlink.File.GID = syscallMsg.Unlink.File.Credentials.GID
+		}
+
+	case ebpfless.SyscallTypeRmdir:
+		event.Type = uint32(model.FileRmdirEventType)
+		event.Rmdir.Retval = syscallMsg.Retval
+		event.Rmdir.File.PathnameStr = syscallMsg.Rmdir.File.Filename
+		event.Rmdir.File.BasenameStr = filepath.Base(syscallMsg.Rmdir.File.Filename)
+		event.Rmdir.File.MTime = syscallMsg.Rmdir.File.MTime
+		event.Rmdir.File.CTime = syscallMsg.Rmdir.File.CTime
+		event.Rmdir.File.Mode = uint16(syscallMsg.Rmdir.File.Mode)
+		if syscallMsg.Rmdir.File.Credentials != nil {
+			event.Rmdir.File.UID = syscallMsg.Rmdir.File.Credentials.UID
+			event.Rmdir.File.GID = syscallMsg.Rmdir.File.Credentials.GID
+		}
 	}
 
 	// container context

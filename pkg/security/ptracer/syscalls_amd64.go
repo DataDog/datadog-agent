@@ -43,6 +43,9 @@ const (
 	CloseNr          = 3   // CloseNr defines the syscall ID for amd64
 	MemfdCreateNr    = 319 // MemfdCreateNr defines the syscall ID for amd64
 	CapsetNr         = 126 // CapsetNr defines the syscall ID for amd64
+	UnlinkNr         = 87  // UnlinkNr defines the syscall ID for amd64
+	UnlinkatNr       = 263 // UnlinkatNr defines the syscall ID for amd64
+	RmdirNr          = 84  // RmdirNr defines the syscall ID for amd64
 
 	ptraceFlags = 0 |
 		syscall.PTRACE_O_TRACEVFORK |
@@ -85,6 +88,9 @@ var (
 		"close",
 		"memfd_create",
 		"capset",
+		"unlink",
+		"unlinkat",
+		"rmdir",
 	}
 )
 

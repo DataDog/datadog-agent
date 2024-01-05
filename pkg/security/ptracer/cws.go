@@ -281,6 +281,89 @@ func handleOpenByHandleAt(tracer *Tracer, process *Process, msg *ebpfless.Syscal
 	return nil
 }
 
+func handleUnlinkat(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
+	fd := tracer.ReadArgInt32(regs, 0)
+
+	filename, err := tracer.ReadArgString(process.Pid, regs, 1)
+	if err != nil {
+		return err
+	}
+
+	flags := tracer.ReadArgInt32(regs, 2)
+
+	filename, err = getFullPathFromFd(process, filename, fd)
+	if err != nil {
+		return err
+	}
+
+	if flags == unix.AT_REMOVEDIR {
+		msg.Type = ebpfless.SyscallTypeRmdir
+		msg.Rmdir = &ebpfless.RmdirSyscallMsg{
+			File: ebpfless.OpenSyscallMsg{
+				Filename: filename,
+			},
+		}
+		err = fillFileMetadata(filename, &msg.Rmdir.File, disableStats)
+	} else {
+		msg.Type = ebpfless.SyscallTypeUnlink
+		msg.Unlink = &ebpfless.UnlinkSyscallMsg{
+			File: ebpfless.OpenSyscallMsg{
+				Filename: filename,
+			},
+		}
+		err = fillFileMetadata(filename, &msg.Unlink.File, disableStats)
+	}
+	return err
+}
+
+func handleUnlink(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
+	filename, err := tracer.ReadArgString(process.Pid, regs, 0)
+	if err != nil {
+		return err
+	}
+
+	filename, err = getFullPathFromFilename(process, filename)
+	if err != nil {
+		return err
+	}
+
+	msg.Type = ebpfless.SyscallTypeUnlink
+	msg.Unlink = &ebpfless.UnlinkSyscallMsg{
+		File: ebpfless.OpenSyscallMsg{
+			Filename: filename,
+		},
+	}
+	err = fillFileMetadata(filename, &msg.Unlink.File, disableStats)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func handleRmdir(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
+	filename, err := tracer.ReadArgString(process.Pid, regs, 0)
+	if err != nil {
+		return err
+	}
+
+	filename, err = getFullPathFromFilename(process, filename)
+	if err != nil {
+		return err
+	}
+
+	msg.Type = ebpfless.SyscallTypeRmdir
+	msg.Rmdir = &ebpfless.RmdirSyscallMsg{
+		File: ebpfless.OpenSyscallMsg{
+			Filename: filename,
+		},
+	}
+	err = fillFileMetadata(filename, &msg.Rmdir.File, disableStats)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func getPidTTY(pid int) string {
 	tty, err := os.Readlink(fmt.Sprintf("/proc/%d/fd/0", pid))
 	if err != nil {
@@ -376,7 +459,7 @@ func handleExecveAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, 
 
 	msg.Type = ebpfless.SyscallTypeExec
 	msg.Exec = &ebpfless.ExecSyscallMsg{
-		File: &ebpfless.OpenSyscallMsg{
+		File: ebpfless.OpenSyscallMsg{
 			Filename: filename,
 		},
 		Args:          args,
@@ -385,7 +468,7 @@ func handleExecveAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, 
 		EnvsTruncated: envsTruncated,
 		TTY:           getPidTTY(process.Pid),
 	}
-	err = fillFileMetadata(filename, msg.Exec.File, disableStats)
+	err = fillFileMetadata(filename, &msg.Exec.File, disableStats)
 	if err != nil {
 		return err
 	}
@@ -426,7 +509,7 @@ func handleExecve(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, re
 
 	msg.Type = ebpfless.SyscallTypeExec
 	msg.Exec = &ebpfless.ExecSyscallMsg{
-		File: &ebpfless.OpenSyscallMsg{
+		File: ebpfless.OpenSyscallMsg{
 			Filename: filename,
 		},
 		Args:          args,
@@ -435,7 +518,7 @@ func handleExecve(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, re
 		EnvsTruncated: envsTruncated,
 		TTY:           getPidTTY(process.Pid),
 	}
-	err = fillFileMetadata(filename, msg.Exec.File, disableStats)
+	err = fillFileMetadata(filename, &msg.Exec.File, disableStats)
 	if err != nil {
 		return err
 	}
@@ -958,6 +1041,21 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 					logErrorf("unable to handle capset: %v", err)
 					return
 				}
+			case UnlinkNr:
+				if err := handleUnlink(tracer, process, syscallMsg, regs, disableStats); err != nil {
+					logErrorf("unable to handle unlink: %v", err)
+					return
+				}
+			case UnlinkatNr:
+				if err := handleUnlinkat(tracer, process, syscallMsg, regs, disableStats); err != nil {
+					logErrorf("unable to handle unlinkat: %v", err)
+					return
+				}
+			case RmdirNr:
+				if err := handleRmdir(tracer, process, syscallMsg, regs, disableStats); err != nil {
+					logErrorf("unable to handle rmdir: %v", err)
+					return
+				}
 			}
 		case CallbackPostType:
 			switch nr {
@@ -988,12 +1086,11 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 					process.Res.Fd[int32(ret)] = syscallMsg.Open.Filename
 				}
 			case SetuidNr, SetgidNr, SetreuidNr, SetregidNr, SetresuidNr, SetresgidNr, SetfsuidNr, SetfsgidNr:
-				if ret := tracer.ReadRet(regs); ret >= 0 {
+				if ret := tracer.ReadRet(regs); ret == 0 || nr == SetfsuidNr || nr == SetfsgidNr {
 					syscallMsg, exists := process.Nr[nr]
 					if !exists {
 						return
 					}
-
 					sendSyscallMsg(syscallMsg)
 				}
 			case CloneNr:
@@ -1047,6 +1144,16 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 				if ret := tracer.ReadRet(regs); ret == 0 {
 					syscallMsg, exists := process.Nr[nr]
 					if !exists || syscallMsg.Capset == nil {
+						return
+					}
+					syscallMsg.Retval = ret
+					sendSyscallMsg(syscallMsg)
+				}
+
+			case UnlinkNr, UnlinkatNr, RmdirNr:
+				if ret := tracer.ReadRet(regs); ret == 0 {
+					syscallMsg, exists := process.Nr[nr]
+					if !exists {
 						return
 					}
 					syscallMsg.Retval = ret

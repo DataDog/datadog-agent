@@ -50,6 +50,10 @@ const (
 	SyscallTypeSetFSGID
 	// SyscallTypeCapset capset type
 	SyscallTypeCapset
+	// SyscallTypeUnlink unlink/unlinkat type
+	SyscallTypeUnlink
+	// SyscallTypeRmdir rmdir type
+	SyscallTypeRmdir
 )
 
 // ContainerContext defines a container context
@@ -77,7 +81,7 @@ type Credentials struct {
 
 // ExecSyscallMsg defines an exec message
 type ExecSyscallMsg struct {
-	File          *OpenSyscallMsg
+	File          OpenSyscallMsg
 	Args          []string
 	ArgsTruncated bool
 	Envs          []string
@@ -145,6 +149,16 @@ type CapsetSyscallMsg struct {
 	Permitted uint64
 }
 
+// UnlinkSyscallMsg defines a setfsgid message
+type UnlinkSyscallMsg struct {
+	File OpenSyscallMsg
+}
+
+// RmdirSyscallMsg defines a setfsgid message
+type RmdirSyscallMsg struct {
+	File OpenSyscallMsg
+}
+
 // SyscallMsg defines a syscall message
 type SyscallMsg struct {
 	Type      SyscallType
@@ -161,6 +175,8 @@ type SyscallMsg struct {
 	SetFSUID  *SetFSUIDSyscallMsg `json:",omitempty"`
 	SetFSGID  *SetFSGIDSyscallMsg `json:",omitempty"`
 	Capset    *CapsetSyscallMsg   `json:",omitempty"`
+	Unlink    *UnlinkSyscallMsg   `json:",omitempty"`
+	Rmdir     *RmdirSyscallMsg    `json:",omitempty"`
 
 	// internals
 	Dup   *DupSyscallFakeMsg   `json:",omitempty"`
