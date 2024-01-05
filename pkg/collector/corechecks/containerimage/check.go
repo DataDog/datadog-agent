@@ -147,14 +147,17 @@ func (c *Check) Run() error {
 
 	imgRefreshTicker := time.NewTicker(time.Duration(c.instance.PeriodicRefreshSeconds) * time.Second)
 
+	defer c.processor.stop()
 	for {
 		select {
-		case eventBundle := <-imgEventsCh:
+		case eventBundle, ok := <-imgEventsCh:
+			if !ok {
+				return nil
+			}
 			c.processor.processEvents(eventBundle)
 		case <-imgRefreshTicker.C:
 			c.processor.processRefresh(c.workloadmetaStore.ListImages())
 		case <-c.stopCh:
-			c.processor.stop()
 			return nil
 		}
 	}

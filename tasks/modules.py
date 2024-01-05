@@ -165,6 +165,7 @@ DEFAULT_MODULES = {
     "pkg/telemetry": GoModule("pkg/telemetry", independent=True),
     "comp/core/flare/types": GoModule("comp/core/flare/types", independent=True),
     "comp/core/config": GoModule("comp/core/config", independent=True),
+    "comp/core/log": GoModule("comp/core/log", independent=True),
     "comp/core/secrets": GoModule("comp/core/secrets", independent=True),
     "comp/core/telemetry": GoModule("comp/core/telemetry", independent=True),
     "cmd/agent/common/path": GoModule("cmd/agent/common/path", independent=True),

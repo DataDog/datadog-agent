@@ -14,7 +14,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/http => ../../util/http
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../util/log
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../util/scrubber
-	github.com/DataDog/datadog-agent/pkg/version => ../../version
 )
 
 require (
@@ -25,7 +24,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/grpc v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/http v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/log v0.50.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/version v0.50.0-rc.4
 	github.com/Masterminds/semver v1.5.0
 	github.com/benbjohnson/clock v1.3.0
 	github.com/pkg/errors v0.9.1
