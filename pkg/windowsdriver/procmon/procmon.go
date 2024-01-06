@@ -11,7 +11,6 @@ package procmon
 import (
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/driver"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/olreader"
@@ -19,10 +18,13 @@ import (
 
 //nolint:revive // TODO(WKIT) Fix revive linter
 type ProcessStartNotification struct {
-	Pid       uint64
-	PPid      uint64
-	ImageFile string
-	CmdLine   string
+	Pid               uint64
+	PPid              uint64
+	CreatingProcessId uint64
+	CreatingThreadId  uint64
+	OwnerSidString    string
+	ImageFile         string
+	CmdLine           string
 }
 
 //nolint:revive // TODO(WKIT) Fix revive linter
@@ -43,6 +45,12 @@ const (
 	deviceName = `\\.\ddprocmon`
 	// driverName is the name of the driver service
 	driverName = "ddprocmon"
+
+	// read buffer size provided to driver.  Must be large enough to contain entire buffer
+	readBufferSize = 4096
+
+	// number of buffers to pre-allocate
+	numReadBuffers = 100
 )
 
 //nolint:revive // TODO(WKIT) Fix revive linter
@@ -55,7 +63,7 @@ func NewWinProcMon(onStart chan *ProcessStartNotification, onStop chan *ProcessS
 	if err := driver.StartDriverService(driverName); err != nil {
 		return nil, err
 	}
-	reader, err := olreader.NewOverlappedReader(wp, 1024, 100)
+	reader, err := olreader.NewOverlappedReader(wp, readBufferSize, numReadBuffers)
 	if err != nil {
 		return nil, err
 	}
@@ -72,34 +80,18 @@ func (wp *WinProcmon) OnData(data []uint8) {
 	var consumed uint32
 	returnedsize := uint32(len(data))
 	for consumed < returnedsize {
-		t, pid, img, cmd, used := decodeStruct(data[consumed:], returnedsize-consumed)
+		start, stop, used := decodeStruct(data[consumed:], returnedsize-consumed)
 		if used == 0 {
 			break
 		}
 
 		consumed += used
-		if t == ProcmonNotifyStart {
+		if start != nil {
 
-			// for now, calculate PPID here in user mode.
-			// by calculating here, we can replace with kernel mode later and no
-			// downstream code will have to change
-			// TODO.  Add parent pid
-			ppid, err := procutil.GetParentPid(uint32(pid))
-			if err != nil {
-				ppid = 0
-			}
-			s := &ProcessStartNotification{
-				Pid:       pid,
-				PPid:      uint64(ppid),
-				ImageFile: img,
-				CmdLine:   cmd,
-			}
-			wp.onStart <- s
-		} else if t == ProcmonNotifyStop {
-			s := &ProcessStopNotification{
-				Pid: pid,
-			}
-			wp.onStop <- s
+			wp.onStart <- start
+		} else if stop != nil {
+
+			wp.onStop <- stop
 		}
 	}
 }
@@ -148,23 +140,41 @@ func (wp *WinProcmon) Start() error {
 }
 
 //nolint:revive // TODO(WKIT) Fix revive linter
-func decodeStruct(data []uint8, sz uint32) (t DDProcessNotifyType, pid uint64, imagefile, cmdline string, consumed uint32) {
+func decodeStruct(data []uint8, sz uint32) (start *ProcessStartNotification, stop *ProcessStopNotification, consumed uint32) {
+	start = nil
+	stop = nil
 	if unsafe.Sizeof(DDProcessNotification{}.Size) > uintptr(sz) {
-		return
+		return nil, nil, 0
 	}
 
 	n := *(*DDProcessNotification)(unsafe.Pointer(&data[0]))
 	if n.Size > uint64(sz) {
-		return
+		return nil, nil, 0
 	}
 
 	consumed = uint32(n.Size)
-	pid = uint64(n.ProcessId)
-	t = DDProcessNotifyType(n.NotifyType)
+	t := DDProcessNotifyType(n.NotifyType)
 
 	if t == ProcmonNotifyStart {
-		imagefile = winutil.ConvertWindowsString(data[n.ImageFileOffset : n.ImageFileOffset+n.ImageFileLen])
-		cmdline = winutil.ConvertWindowsString(data[n.CommandLineOffset : n.CommandLineOffset+n.CommandLineLen])
+		imagefile := winutil.ConvertWindowsString(data[n.ImageFileOffset : n.ImageFileOffset+n.ImageFileLen])
+		cmdline := winutil.ConvertWindowsString(data[n.CommandLineOffset : n.CommandLineOffset+n.CommandLineLen])
+		var sidstring string
+		if n.SidLen > 0 {
+			sidstring = winutil.ConvertWindowsString(data[n.SidOffset : n.SidOffset+n.SidLen])
+		}
+		start = &ProcessStartNotification{
+			Pid:               n.ProcessId,
+			PPid:              n.ParentProcessId,
+			CreatingProcessId: n.CreatingProcessId,
+			CreatingThreadId:  n.CreatingThreadId,
+			ImageFile:         imagefile,
+			CmdLine:           cmdline,
+			OwnerSidString:    sidstring,
+		}
+	} else if t == ProcmonNotifyStop {
+		stop = &ProcessStopNotification{
+			Pid: n.ProcessId,
+		}
 	}
 	return
 }
