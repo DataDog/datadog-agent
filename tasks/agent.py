@@ -213,18 +213,23 @@ def build(
     if embedded_path is None:
         embedded_path = get_embedded_path(ctx)
 
+    launcher_compiled = False
     for build in bundled_agents:
         if build == "agent":
             continue
 
         bundled_agent_dir = os.path.join(BIN_DIR, build)
         bundled_agent_bin = os.path.join(bundled_agent_dir, bin_name(build))
-        allinone_bin = os.path.normpath(os.path.join(embedded_path, "..", "bin", "agent", "agent"))
+        launcher_bin = os.path.normpath(os.path.join(embedded_path, "..", "bin", "agent", bin_name("launcher")))
+
+        if not launcher_compiled:
+            compile_launcher(ctx, embedded_path, agent_bin, os.path.join(BIN_PATH, bin_name("launcher")))
+            launcher_compiled = True
 
         if not os.path.exists(os.path.dirname(bundled_agent_bin)):
             os.mkdir(os.path.dirname(bundled_agent_bin))
 
-        create_launcher(allinone_bin, bundled_agent_bin)
+        create_launcher(launcher_bin, bundled_agent_bin)
 
     render_config(
         ctx,
@@ -238,11 +243,22 @@ def build(
     )
 
 
+def compile_launcher(ctx, embedded_path, agent_bin, launcher_bin):
+    cmd = "go build -ldflags=\"-X main.EmbeddedPath={embedded_path}\" -o {launcher_bin} {REPO_PATH}/cmd/agent/launcher"
+    args = {
+        "embedded_path": embedded_path,
+        "agent_bin": agent_bin,
+        "launcher_bin": launcher_bin,
+        "REPO_PATH": REPO_PATH,
+    }
+    ctx.run(cmd.format(**args))
+
+
 def create_launcher(src, dst):
     launcher = open(dst, "wt")
     launcher.write("#!/bin/sh\n\n")
     process_name = os.path.basename(dst)
-    launcher.write(f"DD_BUNDLED_AGENT={process_name} {src} \"$@\"")
+    launcher.write(f"DD_BUNDLED_AGENT={process_name} exec {src} \"$@\"")
     launcher.close()
     os.chmod(dst, 0o0755)
 
