@@ -29,7 +29,7 @@ func NewCounter(name string, tagsAndOptions ...string) *Counter {
 // Add value atomically
 func (c *Counter) Add(v int64) {
 	if v < 0 {
-		// Counters are always monotonic so we don't allow negative numbers. We
+		// Counters are always monotonic, so we don't allow negative numbers. We
 		// could enforce this by using an unsigned type, but that would make the
 		// API a little bit more cumbersome to use.
 		return
@@ -40,8 +40,8 @@ func (c *Counter) Add(v int64) {
 
 func (c *Counter) UpdateCounterWithDifference(v int64) {
 	differenceValue := v - c.Get()
-	if v < 0 || (differenceValue <= 0) {
-		// Counters are always monotonic so we don't allow negative numbers. We
+	if v < 0 || differenceValue <= 0 {
+		// Counters are always monotonic, so we don't allow negative numbers. We
 		// could enforce this by using an unsigned type, but that would make the
 		// API a little bit more cumbersome to use.
 		return
