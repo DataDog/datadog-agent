@@ -57,15 +57,15 @@ func newHTTP2KernelTelemetry() *kernelTelemetry {
 
 // update updates the kernel metrics with the given telemetry.
 func (t *kernelTelemetry) update(tel *HTTP2Telemetry) {
-	t.http2requests.Add(int64(tel.Request_seen))
-	t.http2responses.Add(int64(tel.Response_seen))
-	t.endOfStream.Add(int64(tel.End_of_stream))
-	t.endOfStreamRST.Add(int64(tel.End_of_stream_rst))
-	t.pathExceedsFrame.Add(int64(tel.Path_exceeds_frame))
-	t.exceedingMaxInterestingFrames.Add(int64(tel.Exceeding_max_interesting_frames))
-	t.exceedingMaxFramesToFilter.Add(int64(tel.Exceeding_max_frames_to_filter))
+	t.http2requests.UpdateCounterWithDifference(int64(tel.Request_seen))
+	t.http2responses.UpdateCounterWithDifference(int64(tel.Response_seen))
+	t.endOfStream.UpdateCounterWithDifference(int64(tel.End_of_stream))
+	t.endOfStreamRST.UpdateCounterWithDifference(int64(tel.End_of_stream_rst))
+	t.pathExceedsFrame.UpdateCounterWithDifference(int64(tel.Path_exceeds_frame))
+	t.exceedingMaxInterestingFrames.UpdateCounterWithDifference(int64(tel.Exceeding_max_interesting_frames))
+	t.exceedingMaxFramesToFilter.UpdateCounterWithDifference(int64(tel.Exceeding_max_frames_to_filter))
 	for bucketIndex := range t.pathSizeBucket {
-		t.pathSizeBucket[bucketIndex].Add(int64(tel.Path_size_bucket[bucketIndex]))
+		t.pathSizeBucket[bucketIndex].UpdateCounterWithDifference(int64(tel.Path_size_bucket[bucketIndex]))
 	}
 }
 
