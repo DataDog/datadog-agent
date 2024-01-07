@@ -972,11 +972,24 @@ var (
 		0xab, 0x7a, 0x8d, 0xc4, 0x75, 0xa7, 0x4a, 0x6b, 0x58, 0x94, 0x18, 0xb5, 0x25, 0x81, 0x2e, 0x0f,
 	}
 
+	emptyRequest = []byte{
+		0x00, 0x00, 0x33, 0x01, 0x04, 0x00, 0x00, 0x00, 0x03, 0x41, 0x8a, 0x08, 0x9d, 0x5c, 0x0b, 0x81,
+		0x70, 0xdc, 0x78, 0x0f, 0x0b, 0x83, 0x84, 0x86, 0x5f, 0x8b, 0x1d, 0x75, 0xd0, 0x62, 0x0d, 0x26,
+		0x3d, 0x4c, 0x74, 0x41, 0xea, 0x5c, 0x01, 0x34, 0x50, 0x83, 0x9b, 0xd9, 0xab, 0x7a, 0x8d, 0xc4,
+		0x75, 0xa7, 0x4a, 0x6b, 0x58, 0x94, 0x18, 0xb5, 0x25, 0x81, 0x2e, 0x0f,
+	}
+
 	// data frame & end of stream
 	dataFrame = []byte{
 		0x00, 0x00, 0x04, 0x00, 0x01, 0x00, 0x00, 0x00, 0x03, 0x74, 0x65, 0x73, 0x74,
 	}
 )
+
+// createRawEmptyRequestFrame creates a raw request frame with the given streamID and path index 4 ("/").
+func createRawEmptyRequestFrame(streamID int) []byte {
+	binary.BigEndian.PutUint16(emptyRequest[7:9], uint16(streamID))
+	return emptyRequest
+}
 
 // createRawRequestFrame creates a raw request frame with the given streamID.
 func createRawRequestFrame(streamID int) []byte {
@@ -1001,6 +1014,7 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 		name                  string
 		numberOfSettingFrames int
 		numberOfRequestFrames int
+		isEmptyPath           bool
 		expectedEndpoints     map[http.Key]int
 	}{
 		{
@@ -1063,6 +1077,19 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 				}: 120,
 			},
 		},
+		{
+			name: "validate path with index 4",
+			// The purpose of this test is to verify our ability to identify paths with index 4.
+			numberOfSettingFrames: 0,
+			numberOfRequestFrames: 5,
+			isEmptyPath:           true,
+			expectedEndpoints: map[http.Key]int{
+				{
+					Path:   http.Path{Content: http.Interner.GetString("/")},
+					Method: http.MethodPost,
+				}: 5,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1087,11 +1114,20 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 				reqInput = append(reqInput, settingsFrame...)
 			}
 
-			// we have to use negative numbers for the stream id.
-			for i := 0; i < tt.numberOfRequestFrames; i++ {
-				streamID := 2*i + 1
-				reqInput = append(reqInput, createRawRequestFrame(streamID)...)
-				reqInput = append(reqInput, createRawDataFrame(streamID)...)
+			if tt.isEmptyPath {
+				// we have to use negative numbers for the stream id.
+				for i := 0; i < tt.numberOfRequestFrames; i++ {
+					streamID := 2*i + 1
+					reqInput = append(reqInput, createRawEmptyRequestFrame(streamID)...)
+					reqInput = append(reqInput, createRawDataFrame(streamID)...)
+				}
+			} else {
+				// we have to use negative numbers for the stream id.
+				for i := 0; i < tt.numberOfRequestFrames; i++ {
+					streamID := 2*i + 1
+					reqInput = append(reqInput, createRawRequestFrame(streamID)...)
+					reqInput = append(reqInput, createRawDataFrame(streamID)...)
+				}
 			}
 
 			// Sending the repeated settings with request.

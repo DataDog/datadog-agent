@@ -86,11 +86,14 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
         goto end;
     }
 
-    if (index == kIndexPath) {
-        update_path_size_telemetry(http2_tel, str_len);
-    } else {
+    // Path headers in HTTP2 that are not "/" or "/index.html"  are represented
+    // with an indexed name, literal value, reusing the index 4 and 5 in the
+    // static table. A different index means that the header is not a path, so
+    // we skip it.
+    if (index != kIndexPath && index != kEmptyPath) {
         goto end;
     }
+    update_path_size_telemetry(http2_tel, str_len);
 
     // We skip if:
     // - The string is too big
