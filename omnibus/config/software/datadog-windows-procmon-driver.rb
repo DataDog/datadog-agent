@@ -14,8 +14,8 @@ if ohai["platform"] == "windows"
     driverpath = ENV['WINDOWS_DDPROCMON_DRIVER']
     driverver = ENV['WINDOWS_DDPROCMON_VERSION']
     drivermsmsha = ENV['WINDOWS_DDPROCMON_SHASUM']
-
-    source :url => "https://s3.amazonaws.com/dd-windowsfilter/builds/#{driverpath}/ddprocmoninstall-#{driverver}.msm",
+    
+    source :url => "https://dd-windowsfilter.s3.amazonaws.com/builds/#{driverpath}/ddprocmoninstall-#{driverver}.msm",
            :sha256 => "#{drivermsmsha}",
            :target_filename => "DDPROCMON.msm"
 
