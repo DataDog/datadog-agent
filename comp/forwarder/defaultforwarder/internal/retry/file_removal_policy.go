@@ -16,7 +16,6 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
@@ -129,7 +128,7 @@ func (p *FileRemovalPolicy) removeUnknownDomain(folderPath string) ([]string, er
 
 func (p *FileRemovalPolicy) removeOutdatedRetryFiles(folderPath string) ([]string, error) {
 	return p.removeRetryFiles(folderPath, func(filename string) bool {
-		modTime, err := util.GetFileModTime(filename)
+		modTime, err := filesystem.GetFileModTime(filename)
 		if err != nil {
 			return false
 		}

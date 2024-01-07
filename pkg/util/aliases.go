@@ -5,7 +5,16 @@
 
 package util
 
-import "github.com/DataDog/datadog-agent/pkg/util/sort"
+import (
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	"github.com/DataDog/datadog-agent/pkg/util/sort"
+)
 
 // SortUniqInPlace alias
 var SortUniqInPlace = sort.UniqInPlace
+
+// GetFileSize alias
+var GetFileSize = filesystem.GetFileSize
+
+// GetFileModTime alias
+var GetFileModTime = filesystem.GetFileModTime
