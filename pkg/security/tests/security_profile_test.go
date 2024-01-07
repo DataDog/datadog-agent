@@ -15,13 +15,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"golang.org/x/exp/slices"
+
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
-	"github.com/stretchr/testify/assert"
-	"golang.org/x/exp/slices"
 )
 
 func TestSecurityProfile(t *testing.T) {
@@ -761,10 +762,12 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 		{
 			ID:         "test_autosuppression_exec",
 			Expression: `exec.file.name == "getconf"`,
+			Tags:       map[string]string{"allow_autosuppression": "true"},
 		},
 		{
 			ID:         "test_autosuppression_dns",
 			Expression: `dns.question.type == A && dns.question.name == "foo.bar"`,
+			Tags:       map[string]string{"allow_autosuppression": "true"},
 		},
 	}
 	test, err := newTestModule(t, nil, rulesDef, withStaticOpts(testOpts{
@@ -807,26 +810,34 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 
 	t.Run("auto-suppression-process-signal", func(t *testing.T) {
 		// check that we generate an event during profile learning phase
-		test.WaitSignal(t, func() error {
+		err = test.GetEventSent(t, func() error {
 			cmd := dockerInstance.Command("getconf", []string{"-a"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
-		}, func(event *model.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "test_autosuppression_exec")
-			assert.Equal(t, "getconf", event.ProcessContext.FileEvent.BasenameStr, "wrong exec file")
-		})
+		}, func(rule *rules.Rule, event *model.Event) bool {
+			return assertTriggeredRule(t, rule, "test_autosuppression_exec") &&
+				assert.Equal(t, "getconf", event.ProcessContext.FileEvent.BasenameStr, "wrong exec file") &&
+				assert.False(t, event.IsSuppressed(), "exec event should not be marked as suppressed")
+		}, time.Second*3, "test_autosuppression_exec")
+		if err != nil {
+			t.Fatal(err)
+		}
 	})
 
 	t.Run("auto-suppression-dns-signal", func(t *testing.T) {
 		// check that we generate an event during profile learning phase
-		test.WaitSignal(t, func() error {
+		err = test.GetEventSent(t, func() error {
 			cmd := dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
-		}, func(event *model.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "test_autosuppression_dns")
-			assert.Equal(t, "nslookup", event.ProcessContext.Argv0, "wrong exec file")
-		})
+		}, func(rule *rules.Rule, event *model.Event) bool {
+			return assertTriggeredRule(t, rule, "test_autosuppression_dns") &&
+				assert.Equal(t, "nslookup", event.ProcessContext.Argv0, "wrong exec file") &&
+				assert.False(t, event.IsSuppressed(), "dns event should not be marked as suppressed")
+		}, time.Second*3, "test_autosuppression_dns")
+		if err != nil {
+			t.Fatal(err)
+		}
 	})
 
 	err = test.StopActivityDump(dump.Name, "", "")
@@ -846,33 +857,33 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 
 	t.Run("auto-suppression-process-suppression", func(t *testing.T) {
 		// check we autosuppres signals
-		err = test.GetSignal(t, func() error {
+		err = test.GetEventSent(t, func() error {
 			cmd := dockerInstance.Command("getconf", []string{"-a"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
-		}, func(event *model.Event, rule *rules.Rule) {
-			if event.ProcessContext.ContainerID == dump.ContainerID {
-				t.Fatal("Got a signal that should have been suppressed")
-			}
-		})
-		if err != nil && !strings.HasPrefix(err.Error(), "timeout") {
-			t.Fatal("Got an error different from timeout")
+		}, func(rule *rules.Rule, event *model.Event) bool {
+			return assertTriggeredRule(t, rule, "test_autosuppression_exec") &&
+				assert.Equal(t, "getconf", event.ProcessContext.FileEvent.BasenameStr, "wrong exec file") &&
+				assert.True(t, event.IsSuppressed(), "exec event should be marked as suppressed")
+		}, time.Second*3, "test_autosuppression_exec")
+		if err != nil {
+			t.Fatal(err)
 		}
 	})
 
 	t.Run("auto-suppression-dns-suppression", func(t *testing.T) {
 		// check we autosuppres signals
-		err = test.GetSignal(t, func() error {
+		err = test.GetEventSent(t, func() error {
 			cmd := dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
-		}, func(event *model.Event, rule *rules.Rule) {
-			if event.ProcessContext.ContainerID == dump.ContainerID {
-				t.Fatal("Got a signal that should have been suppressed")
-			}
-		})
-		if err != nil && !strings.HasPrefix(err.Error(), "timeout") {
-			t.Fatal("Got an error different from timeout")
+		}, func(rule *rules.Rule, event *model.Event) bool {
+			return assertTriggeredRule(t, rule, "test_autosuppression_dns") &&
+				assert.Equal(t, "nslookup", event.ProcessContext.Argv0, "wrong exec file") &&
+				assert.True(t, event.IsSuppressed(), "dns event should be marked as suppressed")
+		}, time.Second*3, "test_autosuppression_dns")
+		if err != nil {
+			t.Fatal(err)
 		}
 	})
 }

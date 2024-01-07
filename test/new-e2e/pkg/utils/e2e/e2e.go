@@ -568,3 +568,8 @@ func createEnv[Env any](suite *Suite[Env], stackDef *StackDefinition[Env]) (*Env
 
 	return env, stackOutput, err
 }
+
+// IsDevMode returns true if the suite is running in development mode.
+func (suite *Suite[Env]) IsDevMode() bool {
+	return suite.params.DevMode
+}

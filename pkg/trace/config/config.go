@@ -15,6 +15,8 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
+
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -72,6 +74,9 @@ type OTLP struct {
 	// If spans have the "sampling.priority" attribute set, probabilistic sampling is skipped and the user's
 	// decision is followed.
 	ProbabilisticSampling float64
+
+	// AttributesTranslator specifies an OTLP to Datadog attributes translator.
+	AttributesTranslator *attributes.Translator `mapstructure:"-"`
 }
 
 // ObfuscationConfig holds the configuration for obfuscating sensitive data

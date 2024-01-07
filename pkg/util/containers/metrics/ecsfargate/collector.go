@@ -73,7 +73,7 @@ func newEcsFargateCollector(cache *provider.Cache) (provider.CollectorMetadata, 
 	return provider.CollectorMetadata{
 		ID: collectorID,
 		Collectors: provider.CollectorCatalog{
-			provider.RuntimeNameECSFargate: provider.MakeCached(collectorID, cache, collectors),
+			provider.NewRuntimeMetadata(string(provider.RuntimeNameECSFargate), ""): provider.MakeCached(collectorID, cache, collectors),
 		},
 	}, nil
 }
