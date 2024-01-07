@@ -8,8 +8,8 @@ package defaultforwarder
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
