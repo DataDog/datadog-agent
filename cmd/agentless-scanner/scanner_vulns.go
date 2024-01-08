@@ -24,6 +24,7 @@ import (
 	trivyartifactlocal "github.com/aquasecurity/trivy/pkg/fanal/artifact/local"
 	"github.com/aquasecurity/trivy/pkg/fanal/artifact/vm"
 	"github.com/aquasecurity/trivy/pkg/fanal/cache"
+	trivyhandler "github.com/aquasecurity/trivy/pkg/fanal/handler"
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 	"github.com/aquasecurity/trivy/pkg/scanner"
@@ -33,6 +34,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/service/ebs"
 )
+
+func init() {
+	trivyhandler.DeregisterPostHandler(ftypes.UnpackagedPostHandler)
+}
 
 func launchScannerTrivyLocal(ctx context.Context, scan *scanTask, mountPoint string, entityType sbommodel.SBOMSourceType, entityID string, entityTags []string) (*sbommodel.SBOMEntity, error) {
 	trivyDisabledAnalyzers := []analyzer.Type{analyzer.TypeSecret, analyzer.TypeLicenseFile}
