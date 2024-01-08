@@ -19,7 +19,6 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	probing "github.com/prometheus-community/pro-bing"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
@@ -164,7 +163,7 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections
 }
 
 // GetPing returns the results of a ping to a host
-func (r *RemoteSysProbeUtil) GetPing(clientID string, host string) (*probing.Statistics, error) {
+func (r *RemoteSysProbeUtil) GetPing(clientID string, host string) ([]byte, error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s/%s?client_id=%s", pingURL, host, clientID), nil)
 	if err != nil {
 		return nil, err
@@ -174,20 +173,17 @@ func (r *RemoteSysProbeUtil) GetPing(clientID string, host string) (*probing.Sta
 	resp, err := r.httpClient.Do(req)
 	if err != nil {
 		return nil, err
-	}
-
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
+	} else if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("ping request failed: Probe Path %s, url: %s, status code: %d", r.path, pingURL, resp.StatusCode)
 	}
 
-	var stats probing.Statistics
-	if err := json.NewDecoder(resp.Body).Decode(&stats); err != nil {
+	body, err := io.ReadAll(resp.Body)
+	defer resp.Body.Close()
+	if err != nil {
 		return nil, err
 	}
 
-	return &stats, nil
+	return body, nil
 }
 
 // GetStats returns the expvar stats of the system probe

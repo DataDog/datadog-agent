@@ -3,9 +3,10 @@
 package pinger
 
 import (
+	"encoding/json"
+
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	probing "github.com/prometheus-community/pro-bing"
 )
 
 type LinuxPinger struct {
@@ -18,8 +19,8 @@ func NewPinger(cfg Config) (Pinger, error) {
 	}, nil
 }
 
-func (p *LinuxPinger) Ping(host string) (*probing.Statistics, error) {
-	if !p.cfg.useRawSocket {
+func (p *LinuxPinger) Ping(host string) (*Result, error) {
+	if !p.cfg.UseRawSocket {
 		return RunPing(&p.cfg, host)
 	}
 
@@ -28,5 +29,15 @@ func (p *LinuxPinger) Ping(host string) (*probing.Statistics, error) {
 		log.Warnf("could not initialize system-probe connection: %v (will only log every 10 minutes)", err)
 		return nil, err
 	}
-	return tu.GetPing("my-client-id", host) // TODO: create a client ID and pass it here
+	resp, err := tu.GetPing("my-client-id", host) // TODO: create a client ID and pass it here
+	if err != nil {
+		return nil, err
+	}
+
+	var result Result
+	if err := json.Unmarshal(resp, &result); err != nil {
+		return nil, err
+	}
+
+	return &result, nil
 }

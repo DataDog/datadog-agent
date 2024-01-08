@@ -142,11 +142,12 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		pingResult, err := d.Ping(d.config.PingConfig)
 		if err != nil {
 			log.Errorf("%s: failed to ping device: %s", d.config.IPAddress, err.Error())
+			d.sender.Gauge(pingCanConnectMetric, float64(0.0), tags)
 		} else {
 			log.Infof("%s: ping returned: %+v", d.config.IPAddress, pingResult)
-			d.sender.Gauge(pingAvgRttMetric, float64(pingResult.AvgLatency/time.Millisecond), tags)
+			d.sender.Gauge(pingAvgRttMetric, float64(pingResult.AvgRtt/time.Millisecond), tags)
+			d.sender.Gauge(pingCanConnectMetric, common.BoolToFloat64(pingResult.CanConnect), tags)
 		}
-		d.sender.Gauge(pingCanConnectMetric, common.BoolToFloat64(pingResult.CanConnect), tags)
 	}
 
 	if d.config.CollectDeviceMetadata {

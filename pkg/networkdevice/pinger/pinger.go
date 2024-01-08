@@ -38,8 +38,8 @@ type (
 		// CanConnect indicates if we can connect to the host
 		// TODO:(ken) should this be true only if 1/4 packets is good? Should it be percentage based?
 		// do we start with only a single ping packet?
-		CanConnect bool
-		// AvgLatency is the average latency
-		AvgLatency time.Duration
+		CanConnect bool `json:"can_connect"`
+		// AvgRtt is the average round trip time
+		AvgRtt time.Duration `json:"avg_rtt"`
 	}
 )

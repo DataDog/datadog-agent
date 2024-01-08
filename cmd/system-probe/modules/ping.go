@@ -50,14 +50,14 @@ func (p *pinger) Register(httpMux *module.Router) error {
 		}
 
 		// Run ping using raw socket
-		stats, err := pingcheck.RunPing(&cfg, host)
+		result, err := pingcheck.RunPing(&cfg, host)
 		if err != nil {
 			log.Errorf("unable to run ping for host %s: %s", host, err)
 			w.WriteHeader(500)
 			return
 		}
 
-		resp, err := json.Marshal(stats)
+		resp, err := json.Marshal(result)
 		if err != nil {
 			log.Errorf("unable to marshall ping stats: %s", err)
 			w.WriteHeader(500)
@@ -69,7 +69,7 @@ func (p *pinger) Register(httpMux *module.Router) error {
 		}
 
 		count := runCounter.Inc()
-		logPingRequests(host, id, count, start)
+		logPingRequests(host, id, count, start, result)
 	}))
 
 	return nil
@@ -81,9 +81,9 @@ func (p *pinger) RegisterGRPC(_ grpc.ServiceRegistrar) error {
 
 func (p *pinger) Close() {}
 
-func logPingRequests(host string, client string, count uint64, start time.Time) {
-	args := []interface{}{host, client, count, time.Since(start)}
-	msg := "Got request on /ping/%s?client_id=%s (count: %d): retrieved ping in %s"
+func logPingRequests(host string, client string, count uint64, start time.Time, result *pingcheck.Result) {
+	args := []interface{}{host, client, count, time.Since(start), result}
+	msg := "Got request on /ping/%s?client_id=%s (count: %d): retrieved ping in %s: result: %+v"
 	switch {
 	case count <= 5, count%20 == 0:
 		log.Infof(msg, args...)
