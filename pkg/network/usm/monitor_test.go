@@ -964,7 +964,7 @@ var (
 		0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00,
 	}
 
-	// http2 request to path /aaa
+	// http2 request to path /aaa with index 5
 	request = []byte{
 		0x00, 0x00, 0x37, 0x01, 0x04, 0x00, 0x00, 0x00, 0x03, 0x41, 0x8a, 0x08, 0x9d, 0x5c, 0x0b, 0x81,
 		0x70, 0xdc, 0x78, 0x0f, 0x0b, 0x83, 0x45, 0x83, 0x60, 0x63, 0x1f, 0x86, 0x5f, 0x8b, 0x1d, 0x75,
@@ -978,16 +978,31 @@ var (
 	}
 )
 
-// createRawRequestFrame creates a raw request frame with the given streamID.
-func createRawRequestFrame(streamID int) []byte {
-	binary.BigEndian.PutUint16(request[7:9], uint16(streamID))
-	return request
+const (
+	caseWithoutIndexing = 1
+	caseNeverIndexed    = 2
+)
+
+// createHTTP2RequestByCase generates an HTTP/2 request based on the specified case.
+func createHTTP2RequestByCase(requestType int) []byte {
+	switch requestType {
+	// http2 request to path /aaa without indexing (same as request but with different index changed from 0x45 to 0x05)
+	case caseWithoutIndexing:
+		request[22] = 0x05
+		return request
+	// http2 request to path /aaa which never indexed (same as request but with different index changed from 0x45 to 0x15)
+	case caseNeverIndexed:
+		request[22] = 0x15
+		return request
+	default:
+		return request
+	}
 }
 
-// createRawRequestFrame creates a raw request frame with the given streamID.
-func createRawDataFrame(streamID int) []byte {
-	binary.BigEndian.PutUint16(dataFrame[7:9], uint16(streamID))
-	return dataFrame
+// changeStreamIDInFrame changes the streamID in the given frame to the given streamID.
+func changeStreamIDInFrame(buf []byte, streamID int) []byte {
+	binary.BigEndian.PutUint16(buf[7:9], uint16(streamID))
+	return buf
 }
 
 func (s *USMHTTP2Suite) TestRawTraffic() {
@@ -1001,6 +1016,7 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 		name                  string
 		numberOfSettingFrames int
 		numberOfRequestFrames int
+		requestBuffer         []byte
 		expectedEndpoints     map[http.Key]int
 	}{
 		{
@@ -1009,6 +1025,7 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			// a single program.
 			numberOfSettingFrames: 100,
 			numberOfRequestFrames: 1,
+			requestBuffer:         request,
 			expectedEndpoints: map[http.Key]int{
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
@@ -1022,6 +1039,7 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			// the filtering of subsequent frames will continue using tail calls.
 			numberOfSettingFrames: 130,
 			numberOfRequestFrames: 1,
+			requestBuffer:         request,
 			expectedEndpoints: map[http.Key]int{
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
@@ -1035,6 +1053,7 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			// for 2 filter_frames we do not use more than two tail calls.
 			numberOfSettingFrames: 250,
 			numberOfRequestFrames: 1,
+			requestBuffer:         request,
 			expectedEndpoints:     nil,
 		},
 		{
@@ -1043,6 +1062,7 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			// determines the maximum number of "interesting frames" we can process.
 			numberOfSettingFrames: 0,
 			numberOfRequestFrames: 120,
+			requestBuffer:         request,
 			expectedEndpoints: map[http.Key]int{
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
@@ -1056,11 +1076,42 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			// and validate that we cannot handle more than that limit.
 			numberOfSettingFrames: 0,
 			numberOfRequestFrames: 130,
+			requestBuffer:         request,
 			expectedEndpoints: map[http.Key]int{
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
 					Method: http.MethodPost,
 				}: 120,
+			},
+		},
+		{
+			name: "validate literal header field without indexing",
+			// The purpose of this test is to verify our ability the case:
+			// Literal Header Field without Indexing (0b0000xxxx: top four bits are 0000)
+			// https://httpwg.org/specs/rfc7541.html#rfc.section.C.2.2
+			numberOfSettingFrames: 0,
+			numberOfRequestFrames: 5,
+			requestBuffer:         createHTTP2RequestByCase(caseWithoutIndexing),
+			expectedEndpoints: map[http.Key]int{
+				{
+					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
+					Method: http.MethodPost,
+				}: 5,
+			},
+		},
+		{
+			name: "validate literal header field never indexed",
+			// The purpose of this test is to verify our ability the case:
+			// Literal Header Field never Indexed (0b0001xxxx: top four bits are 0001)
+			// https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.3
+			numberOfSettingFrames: 0,
+			numberOfRequestFrames: 5,
+			requestBuffer:         createHTTP2RequestByCase(caseNeverIndexed),
+			expectedEndpoints: map[http.Key]int{
+				{
+					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
+					Method: http.MethodPost,
+				}: 5,
 			},
 		},
 	}
@@ -1090,8 +1141,8 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			// we have to use negative numbers for the stream id.
 			for i := 0; i < tt.numberOfRequestFrames; i++ {
 				streamID := 2*i + 1
-				reqInput = append(reqInput, createRawRequestFrame(streamID)...)
-				reqInput = append(reqInput, createRawDataFrame(streamID)...)
+				reqInput = append(reqInput, changeStreamIDInFrame(tt.requestBuffer, streamID)...)
+				reqInput = append(reqInput, changeStreamIDInFrame(dataFrame, streamID)...)
 			}
 
 			// Sending the repeated settings with request.
