@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(USM) Fix revive linter
+// Package amqp provides a simple wrapper around 3rd party amqp client.
 package amqp
 
 import (
@@ -16,7 +16,7 @@ import (
 	"github.com/streadway/amqp"
 )
 
-//nolint:revive // TODO(USM) Fix revive linter
+// Options is a struct to hold the options for the amqp client
 type Options struct {
 	ServerAddress string
 	Username      string
@@ -24,7 +24,7 @@ type Options struct {
 	Dialer        *net.Dialer
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// Client is a wrapper around the amqp client
 type Client struct {
 	opts           Options
 	PublishConn    *amqp.Connection
@@ -33,6 +33,7 @@ type Client struct {
 	ConsumeChannel *amqp.Channel
 }
 
+// NewClient creates a new amqp client
 func NewClient(opts Options) (*Client, error) {
 	if opts.Username == "" {
 		opts.Username = User
@@ -72,10 +73,12 @@ func NewClient(opts Options) (*Client, error) {
 	}, nil
 }
 
+// Queue represents an amqp queue
 type Queue struct {
 	Name string
 }
 
+// DeleteQueues deletes all queues from the server
 func (c *Client) DeleteQueues() error {
 	host, _, _ := net.SplitHostPort(c.opts.ServerAddress)
 	manager := fmt.Sprintf("http://%s:15672/api/queues/", host)
@@ -103,6 +106,7 @@ func (c *Client) DeleteQueues() error {
 	return nil
 }
 
+// Terminate closes all connections and channels
 func (c *Client) Terminate() {
 	c.PublishChannel.Close()
 	c.ConsumeChannel.Close()
@@ -110,6 +114,7 @@ func (c *Client) Terminate() {
 	c.ConsumeConn.Close()
 }
 
+// DeclareQueue creates a queue with the given name
 func (c *Client) DeclareQueue(name string, ch *amqp.Channel) error {
 	_, err := ch.QueueDeclare(
 		name,  // name
@@ -122,6 +127,7 @@ func (c *Client) DeclareQueue(name string, ch *amqp.Channel) error {
 	return err
 }
 
+// Publish sends a message to the queue
 func (c *Client) Publish(queue, body string) error {
 	return c.PublishChannel.Publish(
 		"",    // exchange
@@ -134,6 +140,7 @@ func (c *Client) Publish(queue, body string) error {
 		})
 }
 
+// Consume reads a message from the queue
 func (c *Client) Consume(queue string, numberOfMessages int) ([]string, error) {
 	msgs, err := c.ConsumeChannel.Consume(
 		queue,

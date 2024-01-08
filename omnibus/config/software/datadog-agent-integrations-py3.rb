@@ -47,12 +47,6 @@ excluded_packages = Array.new
 # We build these manually
 excluded_packages.push(/^confluent-kafka==/)
 
-if suse_target?
-  # Temporarily exclude Aerospike until builder supports new dependency
-  excluded_packages.push(/^aerospike==/)
-  excluded_folders.push('aerospike')
-end
-
 if osx_target?
   # Temporarily exclude Aerospike until builder supports new dependency
   excluded_packages.push(/^aerospike==/)
@@ -180,6 +174,8 @@ build do
       {
         "RUSTFLAGS" => "-C link-arg=-Wl,-rpath,#{install_dir}/embedded/lib",
         "OPENSSL_DIR" => "#{install_dir}/embedded/",
+        "PIP_NO_CACHE_DIR" => "off",
+        "PIP_FORCE_REINSTALL" => "1",
       }
     )
   end

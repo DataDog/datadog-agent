@@ -16,7 +16,9 @@
 #include "protocols/http/buffer.h"
 #include "protocols/http/http.h"
 #include "protocols/http2/decoding.h"
+#include "protocols/http2/decoding-tls.h"
 #include "protocols/kafka/kafka-parsing.h"
+#include "protocols/sockfd-probes.h"
 #include "protocols/tls/java/erpc_dispatcher.h"
 #include "protocols/tls/java/erpc_handlers.h"
 #include "protocols/tls/go-tls-types.h"
@@ -264,7 +266,11 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
     char *buffer_ptr = (char*)call_data_ptr->b_data;
     bpf_map_delete_elem(&go_tls_read_args, (go_tls_function_args_key_t*)&call_key);
 
-    tls_process(ctx, t, buffer_ptr, bytes_read, GO);
+    // The read tuple should be flipped (compared to the write tuple).
+    // tls_process and the appropriate parsers will flip it back if needed.
+    conn_tuple_t copy = *t;
+    flip_tuple(&copy);
+    tls_process(ctx, &copy, buffer_ptr, bytes_read, GO);
     return 0;
 }
 

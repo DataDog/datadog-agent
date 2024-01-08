@@ -33,44 +33,32 @@ type NoResolver struct {
 }
 
 // ResolveBasename resolves an inode/mount ID pair to a file basename
-//
-//nolint:revive // TODO(SEC) Fix revive linter
-func (n *NoResolver) ResolveBasename(e *model.FileFields) string {
+func (n *NoResolver) ResolveBasename(_ *model.FileFields) string {
 	return ""
 }
 
 // ResolveFileFieldsPath resolves an inode/mount ID pair to a full path
-//
-//nolint:revive // TODO(SEC) Fix revive linter
-func (n *NoResolver) ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, error) {
+func (n *NoResolver) ResolveFileFieldsPath(_ *model.FileFields, _ *model.PIDContext, _ *model.ContainerContext) (string, error) {
 	return "", nil
 }
 
 // SetMountRoot set the mount point information
-//
-//nolint:revive // TODO(SEC) Fix revive linter
-func (n *NoResolver) SetMountRoot(ev *model.Event, e *model.Mount) error {
+func (n *NoResolver) SetMountRoot(_ *model.Event, _ *model.Mount) error {
 	return nil
 }
 
 // ResolveMountRoot resolves the mountpoint to a full path
-//
-//nolint:revive // TODO(SEC) Fix revive linter
-func (n *NoResolver) ResolveMountRoot(ev *model.Event, e *model.Mount) (string, error) {
+func (n *NoResolver) ResolveMountRoot(_ *model.Event, _ *model.Mount) (string, error) {
 	return "", nil
 }
 
 // SetMountPoint set the mount point information
-//
-//nolint:revive // TODO(SEC) Fix revive linter
-func (n *NoResolver) SetMountPoint(ev *model.Event, e *model.Mount) error {
+func (n *NoResolver) SetMountPoint(_ *model.Event, _ *model.Mount) error {
 	return nil
 }
 
 // ResolveMountPoint resolves the mountpoint to a full path
-//
-//nolint:revive // TODO(SEC) Fix revive linter
-func (n *NoResolver) ResolveMountPoint(ev *model.Event, e *model.Mount) (string, error) {
+func (n *NoResolver) ResolveMountPoint(_ *model.Event, _ *model.Mount) (string, error) {
 	return "", nil
 }
 
@@ -133,9 +121,7 @@ func (r *Resolver) ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDC
 }
 
 // SetMountRoot set the mount point information
-//
-//nolint:revive // TODO(SEC) Fix revive linter
-func (r *Resolver) SetMountRoot(ev *model.Event, e *model.Mount) error {
+func (r *Resolver) SetMountRoot(_ *model.Event, e *model.Mount) error {
 	var err error
 
 	e.RootStr, err = r.dentryResolver.Resolve(e.RootPathKey, true)
@@ -156,9 +142,7 @@ func (r *Resolver) ResolveMountRoot(ev *model.Event, e *model.Mount) (string, er
 }
 
 // SetMountPoint set the mount point information
-//
-//nolint:revive // TODO(SEC) Fix revive linter
-func (r *Resolver) SetMountPoint(ev *model.Event, e *model.Mount) error {
+func (r *Resolver) SetMountPoint(_ *model.Event, e *model.Mount) error {
 	var err error
 
 	e.MountPointStr, err = r.dentryResolver.Resolve(e.ParentPathKey, true)

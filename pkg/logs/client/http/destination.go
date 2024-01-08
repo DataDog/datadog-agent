@@ -274,9 +274,11 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		req.Header.Set("DD-EVP-ORIGIN", string(d.origin))
 		req.Header.Set("DD-EVP-ORIGIN-VERSION", version.AgentVersion)
 	}
-	req = req.WithContext(ctx)
-
+	req.Header.Set("dd-message-timestamp", strconv.FormatInt(getMessageTimestamp(payload.Messages), 10))
 	then := time.Now()
+	req.Header.Set("dd-current-timestamp", strconv.FormatInt(then.UnixMilli(), 10))
+
+	req = req.WithContext(ctx)
 	resp, err := d.client.Do(req)
 
 	latency := time.Since(then).Milliseconds()
@@ -358,7 +360,7 @@ func httpClientFactory(timeout time.Duration) func() *http.Client {
 // buildURL buils a url from a config endpoint.
 func buildURL(endpoint config.Endpoint) string {
 	var scheme string
-	if endpoint.UseSSL {
+	if endpoint.GetUseSSL() {
 		scheme = "https"
 	} else {
 		scheme = "http"
@@ -379,6 +381,14 @@ func buildURL(endpoint config.Endpoint) string {
 		url.Path = "/v1/input"
 	}
 	return url.String()
+}
+
+func getMessageTimestamp(messages []*message.Message) int64 {
+	timestampNanos := int64(-1)
+	if len(messages) > 0 {
+		timestampNanos = messages[len(messages)-1].IngestionTimestamp
+	}
+	return timestampNanos / int64(time.Millisecond/time.Nanosecond)
 }
 
 func prepareCheckConnectivity(endpoint config.Endpoint) (*client.DestinationsContext, *Destination) {

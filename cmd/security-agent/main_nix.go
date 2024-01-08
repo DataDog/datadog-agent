@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-//nolint:revive // TODO(SEC) Fix revive linter
+// Package main implements main
 package main
 
 import (

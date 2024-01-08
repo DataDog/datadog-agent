@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -27,7 +28,7 @@ import (
 var EBPFProbe = module.Factory{
 	Name:             config.EBPFModule,
 	ConfigNamespaces: []string{},
-	Fn: func(cfg *config.Config) (module.Module, error) {
+	Fn: func(cfg *sysconfigtypes.Config) (module.Module, error) {
 		log.Infof("Starting the ebpf probe")
 		okp, err := ebpfcheck.NewProbe(ebpf.NewConfig())
 		if err != nil {
@@ -37,6 +38,9 @@ var EBPFProbe = module.Factory{
 			Probe:     okp,
 			lastCheck: atomic.NewInt64(0),
 		}, nil
+	},
+	NeedsEBPF: func() bool {
+		return true
 	},
 }
 

@@ -5,7 +5,7 @@
 
 //go:build windows && npm
 
-//nolint:revive // TODO(USM) Fix revive linter
+// Package usm contains implementation for all USM logic
 package usm
 
 import (
@@ -55,7 +55,7 @@ func NewWindowsMonitor(c *config.Config, dh driver.Handle) (Monitor, error) {
 		di:         di,
 		hei:        hei,
 		telemetry:  telemetry,
-		statkeeper: http.NewStatkeeper(c, telemetry),
+		statkeeper: http.NewStatkeeper(c, telemetry, http.NewIncompleteBuffer(c, telemetry)),
 	}, nil
 }
 
@@ -93,9 +93,6 @@ func (m *WindowsMonitor) Start() {
 			}
 		}
 	}()
-
-	//nolint:gosimple // TODO(USM) Fix gosimple linter
-	return
 }
 
 func (m *WindowsMonitor) process(transactionBatch []http.WinHttpTransaction) {

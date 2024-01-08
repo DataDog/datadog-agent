@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-//nolint:revive // TODO(USM) Fix revive linter
+// Package events contains implementation to unify perf-map communication between kernel and user space.
 package events
 
 import (

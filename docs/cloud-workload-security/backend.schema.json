@@ -205,6 +205,14 @@
           },
           "type": "array",
           "description": "The list of rules that the event matched (only valid in the context of an anomaly)"
+        },
+        "origin": {
+          "type": "string",
+          "description": "Origin of the event"
+        },
+        "suppressed": {
+          "type": "boolean",
+          "description": "True if the event has been suppressed"
         }
       },
       "additionalProperties": false,

@@ -44,9 +44,7 @@ func (v *Variable) Set(ctx *Context, value interface{}) error {
 }
 
 // Append a value to the variable
-//
-//nolint:revive // TODO(SEC) Fix revive linter
-func (v *Variable) Append(ctx *Context, value interface{}) error {
+func (v *Variable) Append(_ *Context, _ interface{}) error {
 	return errAppendNotSupported
 }
 
@@ -204,17 +202,13 @@ type MutableIntVariable struct {
 }
 
 // Set the variable with the specified value
-//
-//nolint:revive // TODO(SEC) Fix revive linter
-func (m *MutableIntVariable) Set(ctx *Context, value interface{}) error {
+func (m *MutableIntVariable) Set(_ *Context, value interface{}) error {
 	m.Value = value.(int)
 	return nil
 }
 
 // Append a value to the integer
-//
-//nolint:revive // TODO(SEC) Fix revive linter
-func (m *MutableIntVariable) Append(ctx *Context, value interface{}) error {
+func (m *MutableIntVariable) Append(_ *Context, value interface{}) error {
 	switch value := value.(type) {
 	case int:
 		m.Value += value
@@ -253,17 +247,13 @@ func (m *MutableBoolVariable) GetEvaluator() interface{} {
 }
 
 // Set the variable with the specified value
-//
-//nolint:revive // TODO(SEC) Fix revive linter
-func (m *MutableBoolVariable) Set(ctx *Context, value interface{}) error {
+func (m *MutableBoolVariable) Set(_ *Context, value interface{}) error {
 	m.Value = value.(bool)
 	return nil
 }
 
 // Append a value to the boolean
-//
-//nolint:revive // TODO(SEC) Fix revive linter
-func (m *MutableBoolVariable) Append(ctx *Context, value interface{}) error {
+func (m *MutableBoolVariable) Append(_ *Context, _ interface{}) error {
 	return errAppendNotSupported
 }
 
@@ -288,9 +278,7 @@ func (m *MutableStringVariable) GetEvaluator() interface{} {
 }
 
 // Append a value to the string
-//
-//nolint:revive // TODO(SEC) Fix revive linter
-func (m *MutableStringVariable) Append(ctx *Context, value interface{}) error {
+func (m *MutableStringVariable) Append(_ *Context, value interface{}) error {
 	switch value := value.(type) {
 	case string:
 		m.Value += value
@@ -301,9 +289,7 @@ func (m *MutableStringVariable) Append(ctx *Context, value interface{}) error {
 }
 
 // Set the variable with the specified value
-//
-//nolint:revive // TODO(SEC) Fix revive linter
-func (m *MutableStringVariable) Set(ctx *Context, value interface{}) error {
+func (m *MutableStringVariable) Set(_ *Context, value interface{}) error {
 	m.Value = value.(string)
 	return nil
 }
@@ -319,9 +305,7 @@ type MutableStringArrayVariable struct {
 }
 
 // Set the variable with the specified value
-//
-//nolint:revive // TODO(SEC) Fix revive linter
-func (m *MutableStringArrayVariable) Set(ctx *Context, values interface{}) error {
+func (m *MutableStringArrayVariable) Set(_ *Context, values interface{}) error {
 	if s, ok := values.(string); ok {
 		values = []string{s}
 	}
@@ -334,9 +318,7 @@ func (m *MutableStringArrayVariable) Set(ctx *Context, values interface{}) error
 }
 
 // Append a value to the array
-//
-//nolint:revive // TODO(SEC) Fix revive linter
-func (m *MutableStringArrayVariable) Append(ctx *Context, value interface{}) error {
+func (m *MutableStringArrayVariable) Append(_ *Context, value interface{}) error {
 	switch value := value.(type) {
 	case string:
 		m.AppendScalarValue(value)
@@ -370,9 +352,7 @@ type MutableIntArrayVariable struct {
 }
 
 // Set the variable with the specified value
-//
-//nolint:revive // TODO(SEC) Fix revive linter
-func (m *MutableIntArrayVariable) Set(ctx *Context, values interface{}) error {
+func (m *MutableIntArrayVariable) Set(_ *Context, values interface{}) error {
 	if i, ok := values.(int); ok {
 		values = []int{i}
 	}
@@ -381,9 +361,7 @@ func (m *MutableIntArrayVariable) Set(ctx *Context, values interface{}) error {
 }
 
 // Append a value to the array
-//
-//nolint:revive // TODO(SEC) Fix revive linter
-func (m *MutableIntArrayVariable) Append(ctx *Context, value interface{}) error {
+func (m *MutableIntArrayVariable) Append(_ *Context, value interface{}) error {
 	switch value := value.(type) {
 	case int:
 		m.Values = append(m.Values, value)
@@ -421,9 +399,7 @@ type Scoper func(ctx *Context) ScopedVariable
 type GlobalVariables struct{}
 
 // GetVariable returns new variable of the type of the specified value
-//
-//nolint:revive // TODO(SEC) Fix revive linter
-func (v *GlobalVariables) GetVariable(name string, value interface{}) (VariableValue, error) {
+func (v *GlobalVariables) GetVariable(_ string, value interface{}) (VariableValue, error) {
 	switch value := value.(type) {
 	case bool:
 		return NewMutableBoolVariable(), nil

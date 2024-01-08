@@ -15,6 +15,7 @@ import (
 	"net/http"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect/probe"
 )
 
@@ -23,7 +24,7 @@ const (
 )
 
 // GetCheck returns the check output of the specified module
-func (r *RemoteSysProbeUtil) GetCheck(module sysconfig.ModuleName) (interface{}, error) {
+func (r *RemoteSysProbeUtil) GetCheck(module sysconfigtypes.ModuleName) (interface{}, error) {
 
 	switch module {
 	default:

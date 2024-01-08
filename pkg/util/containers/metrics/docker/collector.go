@@ -76,7 +76,7 @@ func newDockerCollector(cache *provider.Cache) (provider.CollectorMetadata, erro
 	return provider.CollectorMetadata{
 		ID: collectorID,
 		Collectors: provider.CollectorCatalog{
-			provider.RuntimeNameContainerd: provider.MakeCached(collectorID, cache, collectors),
+			provider.NewRuntimeMetadata(string(provider.RuntimeNameDocker), ""): provider.MakeCached(collectorID, cache, collectors),
 		},
 	}, nil
 }

@@ -33,6 +33,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/avast/retry-go/v4"
 	"github.com/cihub/seelog"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/hashicorp/go-multierror"
@@ -48,7 +49,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/module"
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
@@ -177,6 +177,8 @@ runtime_security_config:
   {{range .LogTags}}
     - {{.}}
   {{end}}
+  ebpfless:
+    enabled: {{.EnableEBPFLess}}
 `
 
 const testPolicy = `---
@@ -229,6 +231,7 @@ var (
 	logTags          stringSlice
 	logStatusMetrics bool
 	withProfile      bool
+	trace            bool
 )
 
 const (
@@ -269,6 +272,7 @@ type testOpts struct {
 	preStartCallback                           func(test *testModule)
 	tagsResolver                               tags.Resolver
 	snapshotRuleMatchHandler                   func(*testModule, *model.Event, *rules.Rule)
+	enableEBPFLess                             bool
 }
 
 type dynamicTestOpts struct {
@@ -313,7 +317,8 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.disableRuntimeSecurity == opts.disableRuntimeSecurity &&
 		to.enableSBOM == opts.enableSBOM &&
 		to.snapshotRuleMatchHandler == nil && opts.snapshotRuleMatchHandler == nil &&
-		to.preStartCallback == nil && opts.preStartCallback == nil
+		to.preStartCallback == nil && opts.preStartCallback == nil &&
+		to.enableEBPFLess == opts.enableEBPFLess
 }
 
 type testModule struct {
@@ -339,6 +344,7 @@ var commonCfgDir string
 type onRuleHandler func(*model.Event, *rules.Rule)
 type onProbeEventHandler func(*model.Event)
 type onCustomSendEventHandler func(*rules.Rule, *events.CustomEvent)
+type onSendEventHandler func(*rules.Rule, *model.Event)
 type onDiscarderPushedHandler func(event eval.Event, field eval.Field, eventType eval.EventType) bool
 
 type eventHandlers struct {
@@ -346,6 +352,7 @@ type eventHandlers struct {
 	onRuleMatch       onRuleHandler
 	onProbeEvent      onProbeEventHandler
 	onCustomSendEvent onCustomSendEventHandler
+	onSendEvent       onSendEventHandler
 	onDiscarderPushed onDiscarderPushedHandler
 }
 
@@ -519,12 +526,12 @@ func assertFieldStringArrayIndexedOneOf(tb *testing.T, e *model.Event, field str
 		return assert.Contains(tb, values, fieldValues[index])
 	}
 
-	tb.Errorf("failed to get field '%s' as an array", field)
+	tb.Errorf("failed to get field '%s' as an array: %v", field, msgAndArgs)
 	return false
 }
 
 //nolint:deadcode,unused
-func validateProcessContextLineage(tb testing.TB, event *model.Event, probe *sprobe.Probe) {
+func validateProcessContextLineage(tb testing.TB, event *model.Event) {
 	eventJSON, err := serializers.MarshalEvent(event)
 	if err != nil {
 		tb.Errorf("failed to marshal event: %v", err)
@@ -540,12 +547,15 @@ func validateProcessContextLineage(tb testing.TB, event *model.Event, probe *spr
 
 	json, err := jsonpath.JsonPathLookup(data, "$.process.ancestors")
 	if err != nil {
-		tb.Errorf("should have a process context with ancestors, got %+v (%s)", json, spew.Sdump(data))
-		tb.Error(string(eventJSON))
+		if event.Origin != "ebpfless" { // first exec event can't have ancestors
+			tb.Errorf("should have a process context with ancestors, got %+v (%s)", json, spew.Sdump(data))
+			tb.Error(string(eventJSON))
+		}
 		return
 	}
 
 	var prevPID, prevPPID float64
+	var prevArgs []interface{}
 
 	for _, entry := range json.([]interface{}) {
 		pce, ok := entry.(map[string]interface{})
@@ -568,34 +578,57 @@ func validateProcessContextLineage(tb testing.TB, event *model.Event, probe *spr
 			tb.Error(string(eventJSON))
 			return
 		}
-		prevPID = pid
 
 		if pid != 1 {
 			ppid, ok := pce["ppid"].(float64)
 			if !ok {
-				tb.Errorf("invalid pid, %+v", pce)
-				tb.Error(string(eventJSON))
+				// could happen in ebpfless, because we don't have complete lineage
+				if event.Origin != "ebpfless" {
+					tb.Errorf("invalid pid, %+v", pce)
+					tb.Error(string(eventJSON))
+				}
 				return
 			}
 
 			prevPPID = ppid
 		}
+
+		// check that parent/child ancestors have deduplicated args
+		args, ok := pce["args"].([]interface{})
+		if ok && len(args) > 0 {
+			if pid != prevPID && prevArgs != nil {
+				if reflect.DeepEqual(args, prevArgs) {
+					tb.Errorf("invalid process tree, same parent/child args (%d/%d) %+q", int(pid), int(prevPID), args)
+					tb.Error(string(eventJSON))
+					return
+				}
+			}
+			prevArgs = args
+		} else {
+			prevArgs = nil
+		}
+
+		prevPID = pid
 	}
 
-	if prevPID != 1 {
+	if event.Origin != "ebpfless" && prevPID != 1 {
 		tb.Errorf("invalid process tree, last ancestor should be pid 1, %+v", json)
 		tb.Error(string(eventJSON))
 	}
 }
 
 //nolint:deadcode,unused
-func validateProcessContextSECL(tb testing.TB, event *model.Event, probe *sprobe.Probe) {
+func validateProcessContextSECL(tb testing.TB, event *model.Event) {
 	// Process file name values cannot be blank
 	nameFields := []string{
 		"process.file.name",
-		"process.ancestors.file.name",
-		"process.parent.file.path",
-		"process.parent.file.name",
+	}
+	if event.Origin != "ebpfless" {
+		nameFields = append(nameFields,
+			"process.ancestors.file.name",
+			"process.parent.file.path",
+			"process.parent.file.name",
+		)
 	}
 
 	nameFieldValid, hasPath := checkProcessContextFieldsForBlankValues(tb, event, nameFields)
@@ -603,7 +636,9 @@ func validateProcessContextSECL(tb testing.TB, event *model.Event, probe *sprobe
 	// Process path values can be blank if the process was a fileless execution
 	pathFields := []string{
 		"process.file.path",
-		"process.ancestors.file.path",
+	}
+	if event.Origin != "ebpfless" {
+		pathFields = append(pathFields, "process.ancestors.file.path")
 	}
 
 	pathFieldValid := true
@@ -664,20 +699,20 @@ func checkProcessContextFieldsForBlankValues(tb testing.TB, event *model.Event, 
 }
 
 //nolint:deadcode,unused
-func validateProcessContext(tb testing.TB, event *model.Event, probe *sprobe.Probe) {
+func validateProcessContext(tb testing.TB, event *model.Event) {
 	if event.ProcessContext.IsKworker {
 		return
 	}
 
-	validateProcessContextLineage(tb, event, probe)
-	validateProcessContextSECL(tb, event, probe)
+	validateProcessContextLineage(tb, event)
+	validateProcessContextSECL(tb, event)
 }
 
 //nolint:deadcode,unused
-func validateEvent(tb testing.TB, validate func(event *model.Event, rule *rules.Rule), probe *sprobe.Probe) func(event *model.Event, rule *rules.Rule) {
+func validateEvent(tb testing.TB, validate func(event *model.Event, rule *rules.Rule)) func(event *model.Event, rule *rules.Rule) {
 	return func(event *model.Event, rule *rules.Rule) {
 		validate(event, rule)
-		validateProcessContext(tb, event, probe)
+		validateProcessContext(tb, event)
 	}
 }
 
@@ -691,7 +726,9 @@ func (tm *testModule) validateExecEvent(tb *testing.T, kind wrapperType, validat
 			assertFieldNotEmpty(tb, event, "process.container.id", "process container id not found")
 		}
 
-		tm.validateExecSchema(tb, event)
+		if event.Origin != "ebpfless" {
+			tm.validateExecSchema(tb, event)
+		}
 	}
 }
 
@@ -807,6 +844,7 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		"EnvsWithValue":                              opts.envsWithValue,
 		"RuntimeSecurityEnabled":                     runtimeSecurityEnabled,
 		"SBOMEnabled":                                opts.enableSBOM,
+		"EnableEBPFLess":                             opts.enableEBPFLess,
 	}); err != nil {
 		return nil, nil, err
 	}
@@ -882,6 +920,10 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		opt(&opts)
 	}
 
+	if env := os.Getenv("EBPFLESS"); env != "" {
+		opts.staticOpts.enableEBPFLess = true
+	}
+
 	if commonCfgDir == "" {
 		cd, err := os.MkdirTemp("", "test-cfgdir")
 		if err != nil {
@@ -935,7 +977,25 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		}
 	}
 
-	if testMod != nil && opts.staticOpts.Equal(testMod.opts.staticOpts) {
+	if testMod != nil && opts.staticOpts.enableEBPFLess {
+		testMod.st = st
+		testMod.cmdWrapper = cmdWrapper
+		testMod.t = t
+		testMod.opts.dynamicOpts = opts.dynamicOpts
+		testMod.opts.staticOpts = opts.staticOpts
+
+		if opts.staticOpts.preStartCallback != nil {
+			opts.staticOpts.preStartCallback(testMod)
+		}
+
+		if !opts.staticOpts.disableRuntimeSecurity {
+			if err = testMod.reloadPolicies(); err != nil {
+				return testMod, err
+			}
+		}
+		return testMod, nil
+
+	} else if testMod != nil && opts.staticOpts.Equal(testMod.opts.staticOpts) {
 		testMod.st = st
 		testMod.cmdWrapper = cmdWrapper
 		testMod.t = t
@@ -984,12 +1044,13 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	emopts := eventmonitor.Opts{
 		StatsdClient: statsdClient,
-		ProbeOpts: probe.Opts{
+		ProbeOpts: sprobe.Opts{
 			StatsdClient:           statsdClient,
 			DontDiscardRuntime:     true,
 			PathResolutionEnabled:  true,
 			SyscallsMonitorEnabled: true,
 			TTYFallbackEnabled:     true,
+			EBPFLessEnabled:        opts.staticOpts.enableEBPFLess,
 		},
 	}
 	if opts.staticOpts.tagsResolver != nil {
@@ -1037,7 +1098,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	kv, _ := kernel.NewKernelVersion()
 
 	var isRuntimeCompiled bool
-	if p, ok := testMod.eventMonitor.Probe.PlatformProbe.(*probe.EBPFProbe); ok {
+	if p, ok := testMod.eventMonitor.Probe.PlatformProbe.(*sprobe.EBPFProbe); ok {
 		isRuntimeCompiled = p.IsRuntimeCompiled()
 	}
 
@@ -1059,6 +1120,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		})
 		defer testMod.RegisterRuleEventHandler(nil)
 	}
+
 	if err := testMod.eventMonitor.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start module: %w", err)
 	}
@@ -1072,6 +1134,20 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		t.Logf("%s entry stats: %s\n", t.Name(), GetEBPFStatusMetrics(testMod.probe))
 	}
 
+	if opts.staticOpts.enableEBPFLess {
+		t.Logf("EBPFLess mode, waiting for a client to connect\n")
+		err := retry.Do(func() error {
+			if testMod.probe.PlatformProbe.(*sprobe.EBPFLessProbe).GetClientsCount() > 0 {
+				return nil
+			}
+			return errors.New("No client connected, aborting")
+		}, retry.Delay(time.Second), retry.Attempts(120))
+		if err != nil {
+			return nil, err
+		}
+		time.Sleep(time.Second * 2) // sleep another sec to let tests starting before the tracing is ready
+		t.Logf("client connected\n")
+	}
 	return testMod, nil
 }
 
@@ -1084,9 +1160,9 @@ func (tm *testModule) HandleEvent(event *model.Event) {
 	}
 }
 
-func (tm *testModule) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {}
+func (tm *testModule) HandleCustomEvent(_ *rules.Rule, _ *events.CustomEvent) {}
 
-func (tm *testModule) SendEvent(rule *rules.Rule, event events.Event, extTagsCb func() []string, service string) {
+func (tm *testModule) SendEvent(rule *rules.Rule, event events.Event, _ func() []string, _ string) {
 	tm.eventHandlers.RLock()
 	defer tm.eventHandlers.RUnlock()
 
@@ -1094,6 +1170,10 @@ func (tm *testModule) SendEvent(rule *rules.Rule, event events.Event, extTagsCb 
 	case *events.CustomEvent:
 		if tm.eventHandlers.onCustomSendEvent != nil {
 			tm.eventHandlers.onCustomSendEvent(rule, ev)
+		}
+	case *model.Event:
+		if tm.eventHandlers.onSendEvent != nil {
+			tm.eventHandlers.onSendEvent(rule, ev)
 		}
 	}
 }
@@ -1105,7 +1185,7 @@ func (tm *testModule) Run(t *testing.T, name string, fnc func(t *testing.T, kind
 func (tm *testModule) reloadPolicies() error {
 	log.Debugf("reload policies with cfgDir: %s", commonCfgDir)
 
-	bundledPolicyProvider := &rulesmodule.BundledPolicyProvider{}
+	bundledPolicyProvider := rulesmodule.NewBundledPolicyProvider(tm.eventMonitor.Probe.Config.RuntimeSecurity)
 	policyDirProvider, err := rules.NewPoliciesDirProvider(commonCfgDir, false)
 	if err != nil {
 		return err
@@ -1134,7 +1214,7 @@ func (tm *testModule) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 	return true
 }
 
-func (tm *testModule) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
+func (tm *testModule) EventDiscarderFound(_ *rules.RuleSet, _ eval.Event, _ eval.Field, _ eval.EventType) {
 }
 
 func (tm *testModule) RegisterDiscarderPushedHandler(cb onDiscarderPushedHandler) {
@@ -1326,7 +1406,7 @@ func (tm *testModule) WaitSignals(tb testing.TB, action func() error, cbs ...fun
 	tb.Helper()
 
 	tm.waitSignal(tb, action, func(event *model.Event, rule *rules.Rule) error {
-		validateProcessContext(tb, event, tm.probe)
+		validateProcessContext(tb, event)
 
 		return tm.mapFilters(cbs...)(event, rule)
 	})
@@ -1337,7 +1417,7 @@ func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb onRuleHa
 	tb.Helper()
 
 	tm.waitSignal(tb, action, func(event *model.Event, rule *rules.Rule) error {
-		validateProcessContext(tb, event, tm.probe)
+		validateProcessContext(tb, event)
 		cb(event, rule)
 		return nil
 	})
@@ -1466,6 +1546,50 @@ func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb 
 	}
 }
 
+func (tm *testModule) GetEventSent(tb testing.TB, action func() error, cb func(rule *rules.Rule, event *model.Event) bool, timeout time.Duration, ruleID eval.RuleID) error {
+	tb.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	message := make(chan ActionMessage, 1)
+
+	tm.RegisterSendEventHandler(func(rule *rules.Rule, event *model.Event) {
+		if rule.ID != ruleID {
+			return
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		case msg := <-message:
+			switch msg {
+			case Continue:
+				if cb(rule, event) {
+					cancel()
+				} else {
+					message <- Continue
+				}
+			case Skip:
+				cancel()
+			}
+		}
+	})
+	defer tm.RegisterSendEventHandler(nil)
+
+	if err := action(); err != nil {
+		message <- Skip
+		return err
+	}
+	message <- Continue
+
+	select {
+	case <-time.After(timeout):
+		return tm.NewTimeoutError()
+	case <-ctx.Done():
+		return nil
+	}
+}
+
 func (tm *testModule) RegisterProbeEventHandler(cb onProbeEventHandler) {
 	tm.eventHandlers.Lock()
 	tm.eventHandlers.onProbeEvent = cb
@@ -1475,6 +1599,12 @@ func (tm *testModule) RegisterProbeEventHandler(cb onProbeEventHandler) {
 func (tm *testModule) RegisterCustomSendEventHandler(cb onCustomSendEventHandler) {
 	tm.eventHandlers.Lock()
 	tm.eventHandlers.onCustomSendEvent = cb
+	tm.eventHandlers.Unlock()
+}
+
+func (tm *testModule) RegisterSendEventHandler(cb onSendEventHandler) {
+	tm.eventHandlers.Lock()
+	tm.eventHandlers.onSendEvent = cb
 	tm.eventHandlers.Unlock()
 }
 
@@ -1863,20 +1993,6 @@ func waitForOpenProbeEvent(test *testModule, action func() error, filename strin
 	return waitForProbeEvent(test, action, "open.file.path", filename, model.FileOpenEventType)
 }
 
-// TestMain is the entry points for functional tests
-func TestMain(m *testing.M) {
-	flag.Parse()
-	retCode := m.Run()
-	if testMod != nil {
-		testMod.cleanup()
-	}
-
-	if commonCfgDir != "" {
-		_ = os.RemoveAll(commonCfgDir)
-	}
-	os.Exit(retCode)
-}
-
 func init() {
 	flag.StringVar(&testEnvironment, "env", HostEnvironment, "environment used to run the test suite: ex: host, docker")
 	flag.StringVar(&logLevelStr, "loglevel", seelog.WarnStr, "log level")
@@ -1884,6 +2000,7 @@ func init() {
 	flag.Var(&logTags, "logtag", "List of log tag")
 	flag.BoolVar(&logStatusMetrics, "status-metrics", false, "display status metrics")
 	flag.BoolVar(&withProfile, "with-profile", false, "enable profile per test")
+	flag.BoolVar(&trace, "trace", false, "wrap the test suite with the ptracer")
 
 	rand.Seed(time.Now().UnixNano())
 
@@ -2033,6 +2150,7 @@ func (tm *testModule) DecodeActivityDump(path string) (*dump.ActivityDump, error
 	return ad, nil
 }
 
+// DecodeSecurityProfile decode a security profile
 func DecodeSecurityProfile(path string) (*profile.SecurityProfile, error) {
 	protoProfile, err := profile.LoadProfileFromFile(path)
 	if err != nil {
@@ -2114,10 +2232,7 @@ func (tm *testModule) isDumpRunning(id *activityDumpIdentifier) bool {
 		return false
 	}
 	dump := findLearningContainerName(dumps, id.Name)
-	if dump == nil {
-		return false
-	}
-	return true
+	return dump != nil
 }
 
 //nolint:deadcode,unused
@@ -2134,7 +2249,7 @@ func (tm *testModule) findCgroupDump(id *activityDumpIdentifier) *activityDumpId
 }
 
 //nolint:deadcode,unused
-func (tm *testModule) addAllEventTypesOnDump(dockerInstance *dockerCmdWrapper, id *activityDumpIdentifier, syscallTester string) {
+func (tm *testModule) addAllEventTypesOnDump(dockerInstance *dockerCmdWrapper, syscallTester string) {
 	// open
 	cmd := dockerInstance.Command("touch", []string{filepath.Join(tm.Root(), "open")}, []string{})
 	_, _ = cmd.CombinedOutput()
@@ -2151,7 +2266,7 @@ func (tm *testModule) addAllEventTypesOnDump(dockerInstance *dockerCmdWrapper, i
 }
 
 //nolint:deadcode,unused
-func (tm *testModule) triggerLoadControllerReducer(dockerInstance *dockerCmdWrapper, id *activityDumpIdentifier) {
+func (tm *testModule) triggerLoadControllerReducer(_ *dockerCmdWrapper, id *activityDumpIdentifier) {
 	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
 		return
@@ -2217,7 +2332,7 @@ func searchForOpen(ad *dump.ActivityDump) bool {
 }
 
 //nolint:deadcode,unused
-func searchForDns(ad *dump.ActivityDump) bool {
+func searchForDNS(ad *dump.ActivityDump) bool {
 	for _, node := range ad.ActivityTree.ProcessNodes {
 		if len(node.DNSNames) > 0 {
 			return true
@@ -2247,7 +2362,7 @@ func searchForSyscalls(ad *dump.ActivityDump) bool {
 }
 
 //nolint:deadcode,unused
-func (tm *testModule) getADFromDumpId(id *activityDumpIdentifier) (*dump.ActivityDump, error) {
+func (tm *testModule) getADFromDumpID(id *activityDumpIdentifier) (*dump.ActivityDump, error) {
 	var fileProtobuf string
 	// decode the dump
 	for _, file := range id.OutputFiles {
@@ -2268,7 +2383,7 @@ func (tm *testModule) getADFromDumpId(id *activityDumpIdentifier) (*dump.Activit
 
 //nolint:deadcode,unused
 func (tm *testModule) findNumberOfExistingDirectoryFiles(id *activityDumpIdentifier, testDir string) (int, error) {
-	ad, err := tm.getADFromDumpId(id)
+	ad, err := tm.getADFromDumpID(id)
 	if err != nil {
 		return 0, err
 	}
@@ -2302,7 +2417,7 @@ firstLoop:
 func (tm *testModule) extractAllDumpEventTypes(id *activityDumpIdentifier) ([]string, error) {
 	var res []string
 
-	ad, err := tm.getADFromDumpId(id)
+	ad, err := tm.getADFromDumpID(id)
 	if err != nil {
 		return res, err
 	}
@@ -2310,7 +2425,7 @@ func (tm *testModule) extractAllDumpEventTypes(id *activityDumpIdentifier) ([]st
 	if searchForBind(ad) {
 		res = append(res, "bind")
 	}
-	if searchForDns(ad) {
+	if searchForDNS(ad) {
 		res = append(res, "dns")
 	}
 	if searchForSyscalls(ad) {
@@ -2343,18 +2458,19 @@ func (tm *testModule) StopAllActivityDumps() error {
 	return nil
 }
 
-func IsDedicatedNode(env string) bool {
-	_, present := os.LookupEnv(env)
+// IsDedicatedNodeForAD used only for AD
+func IsDedicatedNodeForAD() bool {
+	_, present := os.LookupEnv(dedicatedADNodeForTestsEnv)
 	return present
 }
 
-// for test purpose only
+// ProcessNodeAndParent for test purpose only
 type ProcessNodeAndParent struct {
 	Node   *activity_tree.ProcessNode
 	Parent *ProcessNodeAndParent
 }
 
-// for test purpose only
+// NewProcessNodeAndParent for test purpose only
 func NewProcessNodeAndParent(node *activity_tree.ProcessNode, parent *ProcessNodeAndParent) *ProcessNodeAndParent {
 	return &ProcessNodeAndParent{
 		Node:   node,
@@ -2362,7 +2478,7 @@ func NewProcessNodeAndParent(node *activity_tree.ProcessNode, parent *ProcessNod
 	}
 }
 
-// for test purpose only
+// WalkActivityTree for test purpose only
 func WalkActivityTree(at *activity_tree.ActivityTree, walkFunc func(node *ProcessNodeAndParent) bool) []*activity_tree.ProcessNode {
 	var result []*activity_tree.ProcessNode
 	if len(at.ProcessNodes) == 0 {
@@ -2395,7 +2511,7 @@ func WalkActivityTree(at *activity_tree.ActivityTree, walkFunc func(node *Proces
 }
 
 func (tm *testModule) GetADSelector(dumpID *activityDumpIdentifier) (*cgroupModel.WorkloadSelector, error) {
-	ad, err := tm.getADFromDumpId(dumpID)
+	ad, err := tm.getADFromDumpID(dumpID)
 	if err != nil {
 		return nil, err
 	}

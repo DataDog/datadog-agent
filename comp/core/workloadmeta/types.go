@@ -94,6 +94,15 @@ const (
 	ContainerRuntimeECSFargate ContainerRuntime = "ecsfargate"
 )
 
+// ContainerRuntimeFlavor is the container runtime with respect to the OCI spect
+type ContainerRuntimeFlavor string
+
+// Defined ContainerRuntimeFlavors
+const (
+	ContainerRuntimeFlavorDefault ContainerRuntimeFlavor = ""
+	ContainerRuntimeFlavorKata    ContainerRuntimeFlavor = "kata"
+)
+
 // ContainerStatus is the status of the container
 type ContainerStatus string
 
@@ -364,14 +373,15 @@ type Container struct {
 	EntityID
 	EntityMeta
 	// EnvVars are limited to variables included in pkg/util/containers/env_vars_filter.go
-	EnvVars    map[string]string
-	Hostname   string
-	Image      ContainerImage
-	NetworkIPs map[string]string
-	PID        int
-	Ports      []ContainerPort
-	Runtime    ContainerRuntime
-	State      ContainerState
+	EnvVars       map[string]string
+	Hostname      string
+	Image         ContainerImage
+	NetworkIPs    map[string]string
+	PID           int
+	Ports         []ContainerPort
+	Runtime       ContainerRuntime
+	RuntimeFlavor ContainerRuntimeFlavor
+	State         ContainerState
 	// CollectorTags represent tags coming from the collector itself
 	// and that it would be impossible to compute later on
 	CollectorTags   []string
@@ -416,6 +426,7 @@ func (c Container) String(verbose bool) string {
 
 	_, _ = fmt.Fprintln(&sb, "----------- Container Info -----------")
 	_, _ = fmt.Fprintln(&sb, "Runtime:", c.Runtime)
+	_, _ = fmt.Fprintln(&sb, "RuntimeFlavor:", c.RuntimeFlavor)
 	_, _ = fmt.Fprint(&sb, c.State.String(verbose))
 
 	_, _ = fmt.Fprintln(&sb, "----------- Resources -----------")
@@ -1029,4 +1040,11 @@ type EventBundle struct {
 
 	// Ch should be closed once the subscriber has handled the event.
 	Ch chan struct{}
+}
+
+// Acknowledge acknowledges that the subscriber has handled the event.
+func (e EventBundle) Acknowledge() {
+	if e.Ch != nil {
+		close(e.Ch)
+	}
 }

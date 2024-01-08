@@ -11,9 +11,10 @@ import (
 )
 
 const (
-	//nolint:revive // TODO(USM) Fix revive linter
+	// ProduceAPIKey is the API key for produce requests
 	ProduceAPIKey = 0
-	//nolint:revive // TODO(USM) Fix revive linter
+
+	// FetchAPIKey is the API key for fetch requests
 	FetchAPIKey = 1
 )
 

@@ -57,6 +57,4 @@ func (storage *ActivityDumpRemoteStorageForwarder) Persist(request config.Storag
 }
 
 // SendTelemetry sends telemetry for the current storage
-//
-//nolint:revive // TODO(SEC) Fix revive linter
-func (storage *ActivityDumpRemoteStorageForwarder) SendTelemetry(sender sender.Sender) {}
+func (storage *ActivityDumpRemoteStorageForwarder) SendTelemetry(_ sender.Sender) {}

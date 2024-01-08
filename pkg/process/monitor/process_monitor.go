@@ -5,7 +5,8 @@
 
 //go:build linux
 
-//nolint:revive // TODO(USM) Fix revive linter
+// Package monitor represents a wrapper to netlink, which gives us the ability to monitor process events like Exec and
+// Exit, and activate the registered callbacks for the relevant events
 package monitor
 
 import (
@@ -122,7 +123,7 @@ type ProcessMonitor struct {
 	tel processMonitorTelemetry
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// ProcessCallback is a callback function that is called on a given pid that represents a new process.
 type ProcessCallback func(pid uint32)
 
 // GetProcessMonitor create a monitor (only once) that register to netlink process events.

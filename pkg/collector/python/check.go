@@ -79,7 +79,7 @@ func NewPythonCheck(senderManager sender.SenderManager, name string, class *C.rt
 		class:         class,
 		interval:      defaults.DefaultCheckInterval,
 		lastWarnings:  []error{},
-		telemetry:     utils.IsCheckTelemetryEnabled(name),
+		telemetry:     utils.IsCheckTelemetryEnabled(name, config.Datadog),
 	}
 	runtime.SetFinalizer(pyCheck, pythonCheckFinalizer)
 
@@ -327,9 +327,8 @@ func (c *PythonCheck) Configure(senderManager sender.SenderManager, integrationC
 		log.Errorf("failed to retrieve a sender for check %s: %s", string(c.id), err)
 	} else {
 		s.FinalizeCheckServiceTag()
+		s.SetNoIndex(commonOptions.NoIndex)
 	}
-
-	s.SetNoIndex(commonOptions.NoIndex)
 
 	c.initConfig = string(initConfig)
 	c.instanceConfig = string(data)

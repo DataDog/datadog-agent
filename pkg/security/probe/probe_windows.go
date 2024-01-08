@@ -36,6 +36,7 @@ type WindowsProbe struct {
 	statsdClient statsd.ClientInterface
 
 	// internals
+	event         *model.Event
 	ctx           context.Context
 	cancelFnc     context.CancelFunc
 	wg            sync.WaitGroup
@@ -77,7 +78,8 @@ func (p *WindowsProbe) Start() error {
 
 		for {
 			var pce *model.ProcessCacheEntry
-			ev := p.probe.zeroEvent()
+			ev := p.zeroEvent()
+			var pidToCleanup uint32
 
 			select {
 			case <-p.ctx.Done():
@@ -113,7 +115,7 @@ func (p *WindowsProbe) Start() error {
 				log.Infof("Received stop %v", stop)
 
 				pce = p.Resolvers.ProcessResolver.GetEntry(pid)
-				defer p.Resolvers.ProcessResolver.DeleteEntry(pid, time.Now())
+				pidToCleanup = pid
 
 				ev.Type = uint32(model.ExitEventType)
 				if pce == nil {
@@ -132,6 +134,11 @@ func (p *WindowsProbe) Start() error {
 			ev.ProcessContext = &pce.ProcessContext
 
 			p.DispatchEvent(ev)
+
+			if pidToCleanup != 0 {
+				p.Resolvers.ProcessResolver.DeleteEntry(pidToCleanup, time.Now())
+				pidToCleanup = 0
+			}
 		}
 	}()
 	return p.pm.Start()
@@ -194,6 +201,11 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 
 	p.fieldHandlers = &FieldHandlers{resolvers: p.Resolvers}
 
+	p.event = p.NewEvent()
+
+	// be sure to zero the probe event before everything else
+	p.zeroEvent()
+
 	return p, nil
 }
 
@@ -237,7 +249,7 @@ func (p *WindowsProbe) NewEvent() *model.Event {
 }
 
 // HandleActions executes the actions of a triggered rule
-func (p *WindowsProbe) HandleActions(_ *rules.Rule, _ eval.Event) {}
+func (p *WindowsProbe) HandleActions(_ *eval.Context, _ *rules.Rule) {}
 
 // AddDiscarderPushedCallback add a callback to the list of func that have to be called when a discarder is pushed to kernel
 func (p *WindowsProbe) AddDiscarderPushedCallback(_ DiscarderPushedCallback) {}
@@ -245,6 +257,12 @@ func (p *WindowsProbe) AddDiscarderPushedCallback(_ DiscarderPushedCallback) {}
 // GetEventTags returns the event tags
 func (p *WindowsProbe) GetEventTags(_ string) []string {
 	return nil
+}
+
+func (p *WindowsProbe) zeroEvent() *model.Event {
+	p.event.Zero()
+	p.event.FieldHandlers = p.fieldHandlers
+	return p.event
 }
 
 // NewProbe instantiates a new runtime security agent probe
@@ -263,11 +281,6 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		return nil, err
 	}
 	p.PlatformProbe = pp
-
-	p.event = p.PlatformProbe.NewEvent()
-
-	// be sure to zero the probe event before everything else
-	p.zeroEvent()
 
 	return p, nil
 }

@@ -140,16 +140,12 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 }
 
 // AppendSizeofRequest appends a sizeof request
-//
-//nolint:revive // TODO(SEC) Fix revive linter
-func (f *FallbackConstantFetcher) AppendSizeofRequest(id, typeName, headerName string) {
+func (f *FallbackConstantFetcher) AppendSizeofRequest(id, _, _ string) {
 	f.appendRequest(id)
 }
 
 // AppendOffsetofRequest appends an offset request
-//
-//nolint:revive // TODO(SEC) Fix revive linter
-func (f *FallbackConstantFetcher) AppendOffsetofRequest(id, typeName, fieldName, headerName string) {
+func (f *FallbackConstantFetcher) AppendOffsetofRequest(id, _, _, _ string) {
 	f.appendRequest(id)
 }
 
@@ -220,7 +216,7 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 	return sizeOf
 }
 
-func getSuperBlockFlagsOffset(kv *kernel.Version) uint64 { //nolint:revive // TODO fix revive unused-parameter
+func getSuperBlockFlagsOffset(_ *kernel.Version) uint64 {
 	return uint64(80)
 }
 
@@ -381,12 +377,10 @@ func getBpfMapNameOffset(kv *kernel.Version) uint64 {
 	return nameOffset
 }
 
-//nolint:revive // TODO(SEC) Fix revive linter
-func getBpfMapTypeOffset(kv *kernel.Version) uint64 {
+func getBpfMapTypeOffset(_ *kernel.Version) uint64 {
 	return uint64(24)
 }
 
-//nolint:revive // TODO(SEC) Fix revive linter
 func getBpfProgAuxOffset(kv *kernel.Version) uint64 {
 	auxOffset := uint64(32)
 
@@ -402,7 +396,6 @@ func getBpfProgAuxOffset(kv *kernel.Version) uint64 {
 	return auxOffset
 }
 
-//nolint:revive // TODO(SEC) Fix revive linter
 func getBpfProgTagOffset(kv *kernel.Version) uint64 {
 	progTagOffset := uint64(20)
 	switch {
@@ -415,13 +408,11 @@ func getBpfProgTagOffset(kv *kernel.Version) uint64 {
 	return progTagOffset
 }
 
-//nolint:revive // TODO(SEC) Fix revive linter
-func getBpfProgTypeOffset(kv *kernel.Version) uint64 {
+func getBpfProgTypeOffset(_ *kernel.Version) uint64 {
 	return uint64(4)
 }
 
-//nolint:revive // TODO(SEC) Fix revive linter
-func getBpfProgAttachTypeOffset(kv *kernel.Version) uint64 {
+func getBpfProgAttachTypeOffset(_ *kernel.Version) uint64 {
 	return uint64(8)
 }
 
@@ -503,8 +494,7 @@ func getBpfProgAuxNameOffset(kv *kernel.Version) uint64 {
 	return nameOffset
 }
 
-//nolint:revive // TODO(SEC) Fix revive linter
-func getPIDLevelOffset(kv *kernel.Version) uint64 {
+func getPIDLevelOffset(_ *kernel.Version) uint64 {
 	return uint64(4)
 }
 
@@ -737,13 +727,11 @@ func getNetNSOffset(kv *kernel.Version) uint64 {
 	}
 }
 
-//nolint:revive // TODO(SEC) Fix revive linter
-func getNetProcINumOffset(kv *kernel.Version) uint64 {
+func getNetProcINumOffset(_ *kernel.Version) uint64 {
 	return uint64(72)
 }
 
-//nolint:revive // TODO(SEC) Fix revive linter
-func getSockCommonSKCNetOffset(kv *kernel.Version) uint64 {
+func getSockCommonSKCNetOffset(_ *kernel.Version) uint64 {
 	return uint64(48)
 }
 
@@ -782,8 +770,7 @@ func getNFConnCTNetOffset(kv *kernel.Version) uint64 {
 	}
 }
 
-//nolint:revive // TODO(SEC) Fix revive linter
-func getSockCommonSKCFamilyOffset(kv *kernel.Version) uint64 {
+func getSockCommonSKCFamilyOffset(_ *kernel.Version) uint64 {
 	return 16
 }
 
@@ -945,14 +932,12 @@ func getVMAreaStructFlagsOffset(kv *kernel.Version) uint64 {
 	return 80
 }
 
-//nolint:revive // TODO(SEC) Fix revive linter
-func getTaskStructPIDOffset(kv *kernel.Version) uint64 {
+func getTaskStructPIDOffset(_ *kernel.Version) uint64 {
 	// do not use fallback for offsets inside task_struct
 	return ErrorSentinel
 }
 
-//nolint:revive // TODO(SEC) Fix revive linter
-func getTaskStructPIDLinkOffset(kv *kernel.Version) uint64 {
+func getTaskStructPIDLinkOffset(_ *kernel.Version) uint64 {
 	// do not use fallback for offsets inside task_struct
 	return ErrorSentinel
 }

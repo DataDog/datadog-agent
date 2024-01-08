@@ -12,7 +12,6 @@ import (
 	"fmt"
 
 	"github.com/CycloneDX/cyclonedx-go"
-
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
@@ -50,13 +49,15 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 	go func() {
 		for {
 			select {
-			// We don't want to keep scanning if image channel is not empty but context is expired
 			case <-ctx.Done():
-				close(resultChan)
 				return
 
-			case eventBundle := <-imgEventsCh:
-				close(eventBundle.Ch)
+			case eventBundle, ok := <-imgEventsCh:
+				if !ok {
+					// closed channel case
+					return
+				}
+				eventBundle.Acknowledge()
 
 				for _, event := range eventBundle.Events {
 					image := event.Entity.(*workloadmeta.ContainerImageMetadata)
@@ -76,46 +77,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 		}
 	}()
 
-	go func() {
-		for result := range resultChan {
-			if result.ImgMeta == nil {
-				log.Errorf("Scan result does not hold the image identifier. Error: %s", result.Error)
-				continue
-			}
-
-			status := workloadmeta.Success
-			reportedError := ""
-			var report *cyclonedx.BOM
-			if result.Error != nil {
-				// TODO: add a retry mechanism for retryable errors
-				log.Errorf("Failed to generate SBOM for containerd image: %s", result.Error)
-				status = workloadmeta.Failed
-				reportedError = result.Error.Error()
-			} else {
-				bom, err := result.Report.ToCycloneDX()
-				if err != nil {
-					log.Errorf("Failed to extract SBOM from report")
-					status = workloadmeta.Failed
-					reportedError = err.Error()
-				}
-				report = bom
-			}
-
-			sbom := &workloadmeta.SBOM{
-				CycloneDXBOM:       report,
-				GenerationTime:     result.CreatedAt,
-				GenerationDuration: result.Duration,
-				Status:             status,
-				Error:              reportedError,
-			}
-
-			// Updating workloadmeta entities directly is not thread-safe, that's why we
-			// generate an update event here instead.
-			if err := c.handleImageCreateOrUpdate(ctx, result.ImgMeta.Namespace, result.ImgMeta.Name, sbom); err != nil {
-				log.Warnf("Error extracting SBOM for image: namespace=%s name=%s, err: %s", result.ImgMeta.Namespace, result.ImgMeta.Name, err)
-			}
-		}
-	}()
+	go c.startScanResultHandler(ctx, resultChan)
 
 	return nil
 }
@@ -138,4 +100,57 @@ func (c *collector) extractSBOMWithTrivy(_ context.Context, storedImage *workloa
 	}
 
 	return nil
+}
+
+func (c *collector) startScanResultHandler(ctx context.Context, resultChan <-chan sbom.ScanResult) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case result, ok := <-resultChan:
+			if !ok {
+				return
+			}
+			c.processScanResult(ctx, result)
+		}
+	}
+}
+
+func (c *collector) processScanResult(ctx context.Context, result sbom.ScanResult) {
+	if result.ImgMeta == nil {
+		log.Errorf("Scan result does not hold the image identifier. Error: %s", result.Error)
+		return
+	}
+
+	// Updating workloadmeta entities directly is not thread-safe, that's why we
+	// generate an update event here instead.
+	if err := c.handleImageCreateOrUpdate(ctx, result.ImgMeta.Namespace, result.ImgMeta.Name, convertScanResultToSBOM(result)); err != nil {
+		log.Warnf("Error extracting SBOM for image: namespace=%s name=%s, err: %s", result.ImgMeta.Namespace, result.ImgMeta.Name, err)
+	}
+}
+
+func convertScanResultToSBOM(result sbom.ScanResult) *workloadmeta.SBOM {
+	status := workloadmeta.Success
+	reportedError := ""
+	var report *cyclonedx.BOM
+
+	if result.Error != nil {
+		log.Errorf("Failed to generate SBOM for containerd image: %s", result.Error)
+		status = workloadmeta.Failed
+		reportedError = result.Error.Error()
+	} else if bom, err := result.Report.ToCycloneDX(); err != nil {
+		log.Errorf("Failed to extract SBOM from report")
+		status = workloadmeta.Failed
+		reportedError = err.Error()
+	} else {
+		report = bom
+	}
+
+	return &workloadmeta.SBOM{
+		CycloneDXBOM:       report,
+		GenerationTime:     result.CreatedAt,
+		GenerationDuration: result.Duration,
+		Status:             status,
+		Error:              reportedError,
+	}
 }

@@ -25,7 +25,7 @@ func runtimeAfterForkInChild()
 
 //go:norace
 //nolint:unused
-func forkExec(argv0 string, argv []string, envv []string, prog *syscall.SockFprog) (int, error) {
+func forkExec(argv0 string, argv []string, envv []string, creds Creds, prog *syscall.SockFprog) (int, error) {
 	argv0p, err := syscall.BytePtrFromString(argv0)
 	if err != nil {
 		return 0, err
@@ -90,6 +90,21 @@ func forkExec(argv0 string, argv []string, envv []string, prog *syscall.SockFpro
 	_, _, errno = syscall.RawSyscall(syscall.SYS_KILL, pid, uintptr(syscall.SIGSTOP), 0)
 	if errno != 0 {
 		exit(errno)
+	}
+
+	if creds.GID != nil {
+		_, _, errno = syscall.RawSyscall(syscall.SYS_SETGID, uintptr(*creds.GID), 0, 0)
+		if errno != 0 {
+			exit(errno)
+		}
+
+	}
+
+	if creds.UID != nil {
+		_, _, errno = syscall.RawSyscall(syscall.SYS_SETUID, uintptr(*creds.UID), 0, 0)
+		if errno != 0 {
+			exit(errno)
+		}
 	}
 
 	_, _, err = syscall.RawSyscall(syscall.SYS_EXECVE,

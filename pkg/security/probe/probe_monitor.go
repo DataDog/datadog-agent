@@ -24,9 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-// Monitor regroups all the work we want to do to monitor the probes we pushed in the kernel
-//
-//nolint:revive // TODO(SEC) Fix revive linter
+// EBPFMonitors regroups all the work we want to do to monitor the probes we pushed in the kernel
 type EBPFMonitors struct {
 	ebpfProbe *EBPFProbe
 

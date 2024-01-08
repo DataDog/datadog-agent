@@ -49,11 +49,14 @@ type ASMFeaturesConfig struct {
 	Metadata Metadata
 }
 
-// ASMFeaturesData describes the enabled state of ASM features
+// ASMFeaturesData describes the state of ASM and some of its features
 type ASMFeaturesData struct {
 	ASM struct {
 		Enabled bool `json:"enabled"`
 	} `json:"asm"`
+	APISecurity struct {
+		RequestSampleRate float64 `json:"request_sample_rate"`
+	} `json:"api_security"`
 }
 
 func parseASMFeaturesConfig(data []byte, metadata Metadata) (ASMFeaturesConfig, error) {
@@ -95,13 +98,13 @@ func (r *Repository) ASMFeaturesConfigs() map[string]ASMFeaturesConfig {
 type ApplyState uint64
 
 const (
-	//nolint:revive // TODO(RC) Fix revive linter
+	//ApplyStateUnknown indicates that a client does not support the ApplyState feature
 	ApplyStateUnknown ApplyState = iota
-	//nolint:revive // TODO(RC) Fix revive linter
+	// ApplyStateUnacknowledged indicates a client has received the config but has not specified success or failure
 	ApplyStateUnacknowledged
-	//nolint:revive // TODO(RC) Fix revive linter
+	// ApplyStateAcknowledged indicates a client has successfully applied the config
 	ApplyStateAcknowledged
-	//nolint:revive // TODO(RC) Fix revive linter
+	// ApplyStateError indicates that a client has failed to apply the config
 	ApplyStateError
 )
 

@@ -7,33 +7,44 @@
 
 package cgroups
 
-import "path/filepath"
+import (
+	"path/filepath"
+)
 
 type cgroupV1 struct {
-	identifier  string
-	mountPoints map[string]string
-	path        string
-	fr          fileReader
-	pidMapper   pidMapper
+	identifier     string
+	mountPoints    map[string]string
+	path           string
+	fr             fileReader
+	pidMapper      pidMapper
+	inode          uint64
+	baseController string
 }
 
-func newCgroupV1(identifier, path string, mountPoints map[string]string, pidMapper pidMapper) *cgroupV1 {
-	return &cgroupV1{
-		identifier:  identifier,
-		mountPoints: mountPoints,
-		path:        path,
-		pidMapper:   pidMapper,
-		fr:          defaultFileReader,
+func newCgroupV1(identifier, path, baseController string, mountPoints map[string]string, pidMapper pidMapper) *cgroupV1 {
+	cg := &cgroupV1{
+		identifier:     identifier,
+		mountPoints:    mountPoints,
+		path:           path,
+		pidMapper:      pidMapper,
+		fr:             defaultFileReader,
+		baseController: baseController,
 	}
+	cg.inode = inodeForPath(cg.pathFor(cg.baseController, ""))
+	return cg
 }
 
 func (c *cgroupV1) Identifier() string {
 	return c.identifier
 }
 
+func (c *cgroupV1) Inode() uint64 {
+	return c.inode
+}
+
 func (c *cgroupV1) GetParent() (Cgroup, error) {
 	parentPath := filepath.Join(c.path, "/..")
-	return newCgroupV1(filepath.Base(parentPath), parentPath, c.mountPoints, c.pidMapper), nil
+	return newCgroupV1(filepath.Base(parentPath), parentPath, c.baseController, c.mountPoints, c.pidMapper), nil
 }
 
 func (c *cgroupV1) controllerMounted(controller string) bool {

@@ -9,6 +9,12 @@
     TEAM: agent-platform
     EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --cws-supported-osversion $E2E_CWS_SUPPORTED_OSVERS --major-version $AGENT_MAJOR_VERSION --arch $E2E_ARCH --flavor $FLAVOR
 
+.new-e2e_step_by_step:
+  variables:
+    TARGETS: ./tests/agent-platform/step-by-step
+    TEAM: agent-platform
+    EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --cws-supported-osversion $E2E_CWS_SUPPORTED_OSVERS --major-version $AGENT_MAJOR_VERSION --arch $E2E_ARCH --flavor $FLAVOR
+
 .new-e2e_ubuntu_a6_x86_64:
   variables:
     E2E_ARCH: x86_64
@@ -43,7 +49,7 @@
 
 new-e2e-agent-platform-install-script-ubuntu-a6-x86_64:
   stage: kitchen_testing
-  extends: 
+  extends:
     - .new_e2e_template
     - .new-e2e_install_script
     - .new-e2e_os_ubuntu
@@ -54,7 +60,7 @@ new-e2e-agent-platform-install-script-ubuntu-a6-x86_64:
 
 new-e2e-agent-platform-install-script-ubuntu-a6-arm64:
   stage: kitchen_testing
-  extends: 
+  extends:
     - .new_e2e_template
     - .new-e2e_install_script
     - .new-e2e_os_ubuntu
@@ -65,7 +71,7 @@ new-e2e-agent-platform-install-script-ubuntu-a6-arm64:
 
 new-e2e-agent-platform-install-script-ubuntu-a7-x86_64:
   stage: kitchen_testing
-  extends: 
+  extends:
     - .new_e2e_template
     - .new-e2e_install_script
     - .new-e2e_os_ubuntu
@@ -78,7 +84,7 @@ new-e2e-agent-platform-install-script-ubuntu-a7-x86_64:
 
 new-e2e-agent-platform-install-script-ubuntu-a7-arm64:
   stage: kitchen_testing
-  extends: 
+  extends:
     - .new_e2e_template
     - .new-e2e_install_script
     - .new-e2e_os_ubuntu
@@ -91,7 +97,7 @@ new-e2e-agent-platform-install-script-ubuntu-a7-arm64:
 
 new-e2e-agent-platform-install-script-ubuntu-iot-agent-a7-x86_64:
   stage: kitchen_testing
-  extends: 
+  extends:
     - .new_e2e_template
     - .new-e2e_install_script
     - .new-e2e_os_ubuntu
@@ -102,7 +108,7 @@ new-e2e-agent-platform-install-script-ubuntu-iot-agent-a7-x86_64:
 
 new-e2e-agent-platform-install-script-ubuntu-dogstatsd-a7-x86_64:
   stage: kitchen_testing
-  extends: 
+  extends:
     - .new_e2e_template
     - .new-e2e_install_script
     - .new-e2e_os_ubuntu
@@ -113,8 +119,9 @@ new-e2e-agent-platform-install-script-ubuntu-dogstatsd-a7-x86_64:
 
 new-e2e-agent-platform-install-script-ubuntu-heroku-agent-a6-x86_64:
   stage: kitchen_testing
-  extends: 
+  extends:
     - .new_e2e_template
+    - .new-e2e_install_script
     - .new-e2e_os_ubuntu
     - .new-e2e_ubuntu_a6_x86_64
     - .new-e2e_agent_a6
@@ -123,10 +130,100 @@ new-e2e-agent-platform-install-script-ubuntu-heroku-agent-a6-x86_64:
 
 new-e2e-agent-platform-install-script-ubuntu-heroku-agent-a7-x86_64:
   stage: kitchen_testing
-  extends: 
+  extends:
     - .new_e2e_template
+    - .new-e2e_install_script
     - .new-e2e_os_ubuntu
     - .new-e2e_ubuntu_a7_x86_64
     - .new-e2e_agent_a7
   variables:
     FLAVOR: datadog-heroku-agent
+
+new-e2e-agent-platform-step-by-step-ubuntu-a6-x86_64:
+  stage: kitchen_testing
+  extends:
+    - .new_e2e_template
+    - .new-e2e_step_by_step
+    - .new-e2e_os_ubuntu
+    - .new-e2e_ubuntu_a6_x86_64
+    - .new-e2e_agent_a6
+  rules:
+    !reference [.on_deploy_a6]
+  variables:
+    FLAVOR: datadog-agent
+
+new-e2e-agent-platform-step-by-step-ubuntu-a6-arm64:
+  stage: kitchen_testing
+  extends:
+    - .new_e2e_template
+    - .new-e2e_step_by_step
+    - .new-e2e_os_ubuntu
+    - .new-e2e_ubuntu_a6_arm64
+    - .new-e2e_agent_a6
+  rules:
+    !reference [.on_deploy_a6]
+  variables:
+    FLAVOR: datadog-agent
+
+new-e2e-agent-platform-step-by-step-ubuntu-a7-x86_64:
+  stage: kitchen_testing
+  extends:
+    - .new_e2e_template
+    - .new-e2e_step_by_step
+    - .new-e2e_os_ubuntu
+    - .new-e2e_ubuntu_a7_x86_64
+    - .new-e2e_agent_a7
+  rules:
+    !reference [.on_deploy_a7]
+  variables:
+    FLAVOR: datadog-agent
+
+new-e2e-agent-platform-step-by-step-ubuntu-a7-arm64:
+  stage: kitchen_testing
+  extends:
+    - .new_e2e_template
+    - .new-e2e_step_by_step
+    - .new-e2e_os_ubuntu
+    - .new-e2e_ubuntu_a7_arm64
+    - .new-e2e_agent_a7
+  rules:
+    !reference [.on_deploy_a7]
+  variables:
+    FLAVOR: datadog-agent
+
+new-e2e-agent-platform-install-script-upgrade7-ubuntu-x86_64:
+  stage: kitchen_testing
+  extends:
+    - .new_e2e_template
+    - .new-e2e_script_upgrade7
+    - .new-e2e_os_ubuntu
+    - .new-e2e_ubuntu_a7_x86_64
+    - .new-e2e_agent_a7
+  variables:
+    FLAVOR: datadog-agent
+
+new-e2e-agent-platform-install-script-upgrade6-ubuntu-x86_64:
+  stage: kitchen_testing
+  extends:
+    - .new_e2e_template
+    - .new-e2e_script_upgrade6
+    - .new-e2e_os_ubuntu
+    - .new-e2e_ubuntu_a6_x86_64
+    - .new-e2e_agent_a6
+  variables:
+    FLAVOR: datadog-agent
+
+new-e2e-agent-platform-install-script-upgrade7-ubuntu-iot-agent-x86_64:
+  stage: kitchen_testing
+  extends:
+    - .new_e2e_template
+    - .new-e2e_script_upgrade7
+    - .new-e2e_os_ubuntu
+    - .new-e2e_ubuntu_a7_x86_64
+    - .new-e2e_agent_a7
+  variables:
+    FLAVOR: datadog-iot-agent
+  parallel:
+    matrix:
+      - START_MAJOR_VERSION: [7]
+        END_MAJOR_VERSION: [7]

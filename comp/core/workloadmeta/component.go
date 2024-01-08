@@ -47,7 +47,8 @@ type Component interface {
 	// for messages on this channel.
 	Subscribe(name string, priority SubscriberPriority, filter *Filter) chan EventBundle
 
-	// Unsubscribe reverses the effect of Subscribe.
+	// Unsubscribe closes the EventBundle channel. Note that it will emit a zero-value event.
+	// Thus, it is important to check that the channel is not closed.
 	Unsubscribe(ch chan EventBundle)
 
 	// GetContainer returns metadata about a container.  It fetches the entity
@@ -131,15 +132,18 @@ type Component interface {
 }
 
 // Module defines the fx options for this component.
-var Module fx.Option = fxutil.Component(
-	fx.Provide(
-		newWorkloadMeta,
-	),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(
+			newWorkloadMeta,
+		))
+}
 
 // OptionalModule defines the fx options when workloadmeta should be used as an optional.
-var OptionalModule fx.Option = fxutil.Component(
-	fx.Provide(
-		newWorkloadMetaOptional,
-	),
-)
+func OptionalModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(
+			newWorkloadMetaOptional,
+		),
+	)
+}

@@ -1,0 +1,147 @@
+## All options defined here are available to all instances.
+#
+init_config:
+  ## @param send_on_start - boolean - optional - default: true
+  ## Can be overridden per instance and indicate that registry values will
+  ## be sent as logs not only when they change but also when Agent starts.
+  #
+  # send_on_start: true
+
+
+  ## @param service - string - optional
+  ## Attach the tag `service:<SERVICE>` to every metric, event, and service check emitted by this integration.
+  ##
+  ## Additionally, this sets the default `service` for every log source.
+  #
+  # service: <SERVICE>
+
+## Every instance is scheduled independently of the others.
+#
+instances:
+
+  - 
+    ## @param registry_keys - mapping - required
+    ## This mapping defines which metrics to collect from the windows registry monitoring integration.
+    ## All of the specified registry values will also be sent as a log when the value is added, modified
+    ## or deleted but only if the Logs Agent is enabled. Registry value also will be sent as a log
+    ## when the Agent starts if send_on_start option is set to true.
+    ##
+    ## For each registry key, the following options are available:
+    ##
+    ##   name (string - required): The metric name of the registry key.
+    ##   registry_values (map of registry values - required): The registry values to monitor.
+    ##
+    ## For each registry value, the following options are available:
+    ##
+    ##   name (string - required): The metrics name of the registry value.
+    ##   default_value (float - optional): An optional value to send if the registry value was not found.
+    ##   mapping (map string to float - optional): An optional map to convert registry string values to valid metrics.
+    ##
+    ##    registry_keys:
+    ##      <REGISTRY KEY PATH 1>:
+    ##        name: <Name for registry key path 1>
+    ##        registry_values:
+    ##          <REGISTRY VALUE NAME 1>:
+    ##            name: <metric name for registry value 1>
+    ##            <options for registry value 1>
+    ##          <REGISTRY VALUE NAME 2>:
+    ##            name: <metric name for registry value 2>
+    ##            <options for registry value 1>
+    ##      <REGISTRY KEY PATH_2>:
+    ##        ...
+    ##      <REGISTRY KEY PATH_N>:
+    ##        ...
+    ##
+    ## Numeric registry value or string registry value which can be automatically converted to a number
+    ## will be sent as a metric. If a registry string value cannot be automatically converted to a number
+    ## it can still be sent as a metric if custom conversion mapping from string to numeric value is
+    ## specified via the `mapping` option.
+    ##
+    ## Note: registry value of types REG_MULTI_SZ and REG_BINARY are not supported.
+    ##
+    ## Metric name is implicitly constructed from the provided registry key and registry value name options
+    ## according to the following formula:
+    ##
+    ##     winregistry.<name for registry key path>.<name for registry value>
+    ##
+    ##  For the following registry key and value ...
+    ##
+    ##    registry_keys:
+    ##      HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecureBoot\State:
+    ##        name: secureboot_state
+    ##        registry_values:
+    ##          UEFISecureBootEnabled:
+    ##            name: uefi_secure_boot_enabled
+    ##
+    ##  ... the following metric will be sent.
+    ##
+    ##    winregistry.secureboot_state.uefi_secure_boot_enabled
+    ##
+    ## Examples:
+    ##
+    ##   The following example checks if secure boot is enabled:
+    ##   # HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecureBoot\State:
+    ##   #   name: secureboot_state
+    ##   #   registry_values:
+    ##   #     UEFISecureBootEnabled:
+    ##   #       name: uefi_secure_boot_enabled
+    ##
+    ##   The following example checks if TLS 1.2 is enabled:
+    ##   # HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Client:
+    ##   #   name: tls12.client
+    ##   #   registry_values:
+    ##   #     Enabled:
+    ##   #       name: enabled
+    ##   #       default_value: -1
+    ##
+    ##   The following example checks the Windows version:
+    ##   # HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion:
+    ##   #   name: windows.version
+    ##   #   registry_values:
+    ##   #     CurrentBuild:
+    ##   #       name: current_build
+    ##   #     CurrentVersion:
+    ##   #       name: current_version
+    ##   #     InstallationType:
+    ##   #       name: installation_type
+    ##   #       mapping:
+    ##   #         - Client: 0
+    ##   #         - Server: 1
+    ##
+    ##   The following example checks the start type of the Windows Update service:
+    ##   # HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\wuauserv:
+    ##   #   name: wuauserv
+    ##   #   registry_values:
+    ##   #     Start:
+    ##   #       name: start
+    #
+    registry_keys:
+
+    ## @param tags - list of strings - optional
+    ## A list of tags to attach to every metric and service check emitted by this instance.
+    ##
+    ## Learn more about tagging at https://docs.datadoghq.com/tagging
+    #
+    # tags:
+    #   - <KEY_1>:<VALUE_1>
+    #   - <KEY_2>:<VALUE_2>
+
+    ## @param service - string - optional
+    ## Attach the tag `service:<SERVICE>` to every metric, event, and service check emitted by this integration.
+    ##
+    ## Overrides any `service` defined in the `init_config` section.
+    #
+    # service: <SERVICE>
+
+    ## @param min_collection_interval - number - optional - default: 15
+    ## This changes the collection interval of the check. For more information, see:
+    ## https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
+    #
+    # min_collection_interval: 15
+
+    ## @param empty_default_hostname - boolean - optional - default: false
+    ## This forces the check to send metrics with no hostname.
+    ##
+    ## This is useful for cluster-level checks.
+    #
+    # empty_default_hostname: false

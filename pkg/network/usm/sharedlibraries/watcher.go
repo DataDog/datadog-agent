@@ -41,7 +41,7 @@ func toBytes(l *libPath) []byte {
 	return l.Buf[:l.Len]
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// Rule is a rule to match against a shared library path
 type Rule struct {
 	Re           *regexp.Regexp
 	RegisterCB   func(utils.FilePath) error
@@ -64,7 +64,7 @@ type Watcher struct {
 	libMatches *telemetry.Counter
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// NewWatcher creates a new Watcher instance
 func NewWatcher(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry, rules ...Rule) (*Watcher, error) {
 	ebpfProgram := newEBPFProgram(cfg, bpfTelemetry)
 	err := ebpfProgram.Init()
@@ -87,7 +87,7 @@ func NewWatcher(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry, ru
 	}, nil
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// Stop the Watcher
 func (w *Watcher) Stop() {
 	if w == nil {
 		return

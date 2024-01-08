@@ -8,7 +8,10 @@
 // Package events holds events related files
 package events
 
-import "github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+import (
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+)
 
 // AgentContext serializes the agent context to JSON
 // easyjson:json
@@ -42,6 +45,8 @@ type Event interface {
 	GetWorkloadID() string
 	GetTags() []string
 	GetType() string
+	GetActions() []*model.ActionTriggered
+	IsSuppressed() bool
 }
 
 // EventSender defines an event sender

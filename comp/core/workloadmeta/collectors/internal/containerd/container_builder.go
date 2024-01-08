@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/containerd/containerd"
@@ -24,6 +25,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// kataRuntimePrefix is the prefix used by Kata Containers runtime
+const kataRuntimePrefix = "io.containerd.kata"
+
 // buildWorkloadMetaContainer generates a workloadmeta.Container from a containerd.Container
 func buildWorkloadMetaContainer(namespace string, container containerd.Container, containerdClient cutil.ContainerdItf) (workloadmeta.Container, error) {
 	if container == nil {
@@ -34,6 +38,7 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 	if err != nil {
 		return workloadmeta.Container{}, err
 	}
+	runtimeFlavor := extractRuntimeFlavor(info.Runtime.Name)
 
 	// Prepare context
 	ctx := context.Background()
@@ -89,9 +94,10 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 			Name:   "", // Not available
 			Labels: info.Labels,
 		},
-		Image:   image,
-		Ports:   nil, // Not available
-		Runtime: workloadmeta.ContainerRuntimeContainerd,
+		Image:         image,
+		Ports:         nil, // Not available
+		Runtime:       workloadmeta.ContainerRuntimeContainerd,
+		RuntimeFlavor: runtimeFlavor,
 		State: workloadmeta.ContainerState{
 			Running:    status == containerd.Running,
 			Status:     extractStatus(status),
@@ -139,4 +145,12 @@ func extractStatus(status containerd.ProcessStatus) workloadmeta.ContainerStatus
 	}
 
 	return workloadmeta.ContainerStatusUnknown
+}
+
+// extractRuntimeFlavor extracts the runtime from a runtime string.
+func extractRuntimeFlavor(runtime string) workloadmeta.ContainerRuntimeFlavor {
+	if strings.HasPrefix(runtime, kataRuntimePrefix) {
+		return workloadmeta.ContainerRuntimeFlavorKata
+	}
+	return workloadmeta.ContainerRuntimeFlavorDefault
 }

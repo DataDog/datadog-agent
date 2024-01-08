@@ -14,9 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/limiter"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags_limiter"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
@@ -76,12 +74,12 @@ func testTrackContext(t *testing.T, store *tags.Store) {
 		SampleRate: 1,
 	}
 
-	contextResolver := newContextResolver(store, nil, nil)
+	contextResolver := newContextResolver(store, "test")
 
 	// Track the 2 contexts
-	contextKey1, _ := contextResolver.trackContext(&mSample1)
-	contextKey2, _ := contextResolver.trackContext(&mSample2)
-	contextKey3, _ := contextResolver.trackContext(&mSample3)
+	contextKey1 := contextResolver.trackContext(&mSample1)
+	contextKey2 := contextResolver.trackContext(&mSample2)
+	contextKey3 := contextResolver.trackContext(&mSample3)
 
 	// When we look up the 2 keys, they return the correct contexts
 	context1 := contextResolver.contextsByKey[contextKey1]
@@ -96,6 +94,18 @@ func testTrackContext(t *testing.T, store *tags.Store) {
 	assert.Equal(t, uint64(2), contextResolver.countsByMtype[metrics.GaugeType])
 	assert.Equal(t, uint64(1), contextResolver.countsByMtype[metrics.CountType])
 	assert.Equal(t, uint64(0), contextResolver.countsByMtype[metrics.RateType])
+
+	// If the struct changes it's ok to change these, but be careful if you notice that
+	// the size increases a lot.
+	assert.Equal(t, uint64(0x90), contextResolver.bytesByMtype[metrics.GaugeType])
+	assert.Equal(t, uint64(0x48), contextResolver.bytesByMtype[metrics.CountType])
+	assert.Equal(t, uint64(0), contextResolver.bytesByMtype[metrics.RateType])
+	assert.Equal(t, uint64(0x2b), contextResolver.dataBytesByMtype[metrics.GaugeType])
+	assert.Equal(t, uint64(0x26), contextResolver.dataBytesByMtype[metrics.CountType])
+	assert.Equal(t, uint64(0), contextResolver.dataBytesByMtype[metrics.RateType])
+
+	// Make sure we can update the telemetry as well
+	contextResolver.updateMetrics(tlmDogstatsdContextsByMtype, tlmDogstatsdContextsBytesByMtype)
 
 	unknownContextKey := ckey.ContextKey(0xffffffffffffffff)
 	_, ok := contextResolver.contextsByKey[unknownContextKey]
@@ -121,11 +131,11 @@ func testExpireContexts(t *testing.T, store *tags.Store) {
 		Tags:       []string{"foo", "bar", "baz"},
 		SampleRate: 1,
 	}
-	contextResolver := newTimestampContextResolver(store, nil, nil)
+	contextResolver := newTimestampContextResolver(store, "test")
 
 	// Track the 2 contexts
-	contextKey1, _ := contextResolver.trackContext(&mSample1, 4)
-	contextKey2, _ := contextResolver.trackContext(&mSample2, 6)
+	contextKey1 := contextResolver.trackContext(&mSample1, 4)
+	contextKey2 := contextResolver.trackContext(&mSample2, 6)
 
 	// With an expireTimestap of 3, both contexts are still valid
 	contextResolver.expireContexts(3, nil)
@@ -163,11 +173,11 @@ func testExpireContextsWithKeep(t *testing.T, store *tags.Store) {
 		Tags:       []string{"foo", "bar", "baz"},
 		SampleRate: 1,
 	}
-	contextResolver := newTimestampContextResolver(store, nil, nil)
+	contextResolver := newTimestampContextResolver(store, "test")
 
 	// Track the 2 contexts
-	contextKey1, _ := contextResolver.trackContext(&mSample1, 4)
-	contextKey2, _ := contextResolver.trackContext(&mSample2, 7)
+	contextKey1 := contextResolver.trackContext(&mSample1, 4)
+	contextKey2 := contextResolver.trackContext(&mSample2, 7)
 
 	keeperCalled := 0
 	keep := true
@@ -215,7 +225,7 @@ func testCountBasedExpireContexts(t *testing.T, store *tags.Store) {
 	mSample1 := metrics.MetricSample{Name: "my.metric.name1"}
 	mSample2 := metrics.MetricSample{Name: "my.metric.name2"}
 	mSample3 := metrics.MetricSample{Name: "my.metric.name3"}
-	contextResolver := newCountBasedContextResolver(2, store)
+	contextResolver := newCountBasedContextResolver(2, store, "test")
 
 	contextKey1 := contextResolver.trackContext(&mSample1)
 	contextKey2 := contextResolver.trackContext(&mSample2)
@@ -240,9 +250,9 @@ func TestCountBasedExpireContexts(t *testing.T) {
 }
 
 func testTagDeduplication(t *testing.T, store *tags.Store) {
-	resolver := newContextResolver(store, nil, nil)
+	resolver := newContextResolver(store, "test")
 
-	ckey, _ := resolver.trackContext(&metrics.MetricSample{
+	ckey := resolver.trackContext(&metrics.MetricSample{
 		Name: "foo",
 		Tags: []string{"bar", "bar"},
 	})
@@ -278,7 +288,7 @@ func (s *mockSample) GetTags(tb, mb tagset.TagsAccumulator, _ metrics.EnrichTags
 }
 
 func TestOriginTelemetry(t *testing.T) {
-	r := newContextResolver(tags.NewStore(true, "test"), nil, nil)
+	r := newContextResolver(tags.NewStore(true, "test"), "test")
 	r.trackContext(&mockSample{"foo", []string{"foo"}, []string{"ook"}})
 	r.trackContext(&mockSample{"foo", []string{"foo"}, []string{"eek"}})
 	r.trackContext(&mockSample{"foo", []string{"bar"}, []string{"ook"}})
@@ -307,76 +317,4 @@ func TestOriginTelemetry(t *testing.T) {
 		MType:  metrics.APIGaugeType,
 		Points: []metrics.Point{{Ts: ts, Value: 1.0}},
 	}})
-}
-
-func TestLimiterTelemetry(t *testing.T) {
-	l := limiter.New(2, "pod", []string{"pod", "srv"})
-	tl := tags_limiter.New(4)
-	r := newContextResolver(tags.NewStore(true, "test"), l, tl)
-	r.trackContext(&mockSample{"foo", []string{"pod:foo", "srv:foo"}, []string{"pod:bar"}})
-	r.trackContext(&mockSample{"foo", []string{"pod:foo", "srv:foo"}, []string{"srv:bar"}})
-	r.trackContext(&mockSample{"bar", []string{"pod:foo", "srv:foo"}, []string{"srv:bar"}})
-	r.trackContext(&mockSample{"foo", []string{"pod:bar"}, []string{"srv:foo"}})
-	r.trackContext(&mockSample{"bar", []string{"pod:bar"}, []string{"srv:bar"}})
-	r.trackContext(&mockSample{"bar", []string{"pod:baz"}, []string{}})
-	r.trackContext(&mockSample{"bar", []string{"pod:baz"}, []string{"1", "2", "3", "4", "5"}})
-	sink := mockSink{}
-	ts := 1672835152.0
-	r.sendLimiterTelemetry(ts, &sink, "test", []string{"test"})
-
-	assert.Subset(t, sink, []*metrics.Serie{{
-		Name:   "datadog.agent.aggregator.dogstatsd_context_limiter.current",
-		Host:   "test",
-		Tags:   tagset.NewCompositeTags([]string{"test"}, []string{"pod:foo", "srv:foo"}),
-		MType:  metrics.APIGaugeType,
-		Points: []metrics.Point{{Ts: ts, Value: 2.0}},
-	}, {
-		Name:   "datadog.agent.aggregator.dogstatsd_samples_dropped",
-		Host:   "test",
-		Tags:   tagset.NewCompositeTags([]string{"test", "reason:too_many_contexts"}, []string{"pod:foo", "srv:foo"}),
-		MType:  metrics.APICountType,
-		Points: []metrics.Point{{Ts: ts, Value: 1.0}},
-	}, {
-		Name:   "datadog.agent.aggregator.dogstatsd_context_limiter.current",
-		Host:   "test",
-		Tags:   tagset.NewCompositeTags([]string{"test"}, []string{"pod:bar"}),
-		MType:  metrics.APIGaugeType,
-		Points: []metrics.Point{{Ts: ts, Value: 2.0}},
-	}, {
-		Name:   "datadog.agent.aggregator.dogstatsd_samples_dropped",
-		Host:   "test",
-		Tags:   tagset.NewCompositeTags([]string{"test", "reason:too_many_contexts"}, []string{"pod:bar"}),
-		MType:  metrics.APICountType,
-		Points: []metrics.Point{{Ts: ts, Value: 0.0}},
-	}, {
-		Name:   "datadog.agent.aggregator.dogstatsd_context_limiter.current",
-		Host:   "test",
-		Tags:   tagset.NewCompositeTags([]string{"test"}, []string{"pod:baz"}),
-		MType:  metrics.APIGaugeType,
-		Points: []metrics.Point{{Ts: ts, Value: 1.0}},
-	}, {
-		Name:   "datadog.agent.aggregator.dogstatsd_samples_dropped",
-		Host:   "test",
-		Tags:   tagset.NewCompositeTags([]string{"test", "reason:too_many_contexts"}, []string{"pod:baz"}),
-		MType:  metrics.APICountType,
-		Points: []metrics.Point{{Ts: ts, Value: 0.0}},
-	}, {
-		Name:   "datadog.agent.aggregator.dogstatsd_samples_dropped",
-		Host:   "test",
-		Tags:   tagset.NewCompositeTags([]string{"test", "reason:too_many_tags"}, []string{"pod:baz"}),
-		MType:  metrics.APICountType,
-		Points: []metrics.Point{{Ts: ts, Value: 1.0}},
-	}})
-}
-
-func TestTimestampContextResolverLimit(t *testing.T) {
-	store := tags.NewStore(true, "")
-	limiter := limiter.New(1, "pod", []string{})
-	r := newTimestampContextResolver(store, limiter, nil)
-
-	r.trackContext(&mockSample{"foo", []string{"pod:foo", "srv:foo"}, []string{"pod:bar"}}, 42)
-	r.trackContext(&mockSample{"foo", []string{"pod:foo", "srv:foo"}, []string{"srv:bar"}}, 42)
-
-	assert.Len(t, r.resolver.contextsByKey, 1)
-	assert.Len(t, r.lastSeenByKey, 1)
 }

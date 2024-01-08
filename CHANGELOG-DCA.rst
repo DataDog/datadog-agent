@@ -2,6 +2,68 @@
 Release Notes
 =============
 
+.. _Release Notes_7.50.1:
+
+7.50.1 / 6.50.1
+======
+
+.. _Release Notes_7.50.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes a bug introduced in `7.50.0` preventing `DD_TAGS` to be added to `kubernetes_state.*` metrics.
+
+
+.. _Release Notes_7.50.0:
+
+7.50.0 / 6.50.0
+======
+
+.. _Release Notes_7.50.0_New Features:
+
+New Features
+------------
+
+- Add language detection API handler to the cluster-agent.
+
+- Report `rate_limit_queries_remaining_min` telemetry from `external-metrics` server.
+
+- Added a new `--force` option to the `datadog-cluster-agent clusterchecks rebalance` command that allows you to force clustercheck rebalancing with utilization.
+
+- [Beta] Enable `APM` library injection in `cluster-agent` admission controller based on automatic language detection annotations.
+
+
+.. _Release Notes_7.50.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Show Autodiscovery information in the output of ``datadog-cluster-agent status``.
+
+- Added CreateContainerConfigError wait reason to the `kubernetes_state.container.status_report.count.waiting` metric
+  reported by the kubernetes_state_core check.
+
+- Release the Leader Election Lock on shutdown to make the initialization of future cluster-agents faster. 
+
+- The Datadog cluster-agent container image is now using Ubuntu 23.10 mantic
+  as the base image.
+
+
+.. _Release Notes_7.50.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixed a bug in the ``kubernetes_state_core`` check that caused tag corruption when ``telemetry`` was set to ``true``.
+
+- Fix stale metrics being reported by kubernetes_state_core check in some rare cases.
+
+- Fixed a bug in the rebalancing of cluster checks. Checks that contained
+  secrets were never rebalanced when the Cluster Agent was configured to not
+  resolve check secrets (option ``secret_backend_skip_checks`` set to true).
+
+
 .. _Release Notes_7.49.0:
 
 7.49.0 / 6.49.0

@@ -15,13 +15,13 @@ import (
 )
 
 const (
-	//nolint:revive // TODO(USM) Fix revive linter
+	// User is the username to use for authentication
 	User = "root"
-	//nolint:revive // TODO(USM) Fix revive linter
+	// Pass is the password to use for authentication
 	Pass = "password"
 )
 
-//nolint:revive // TODO(USM) Fix revive linter
+// RunServer runs a mongo server in a docker container
 func RunServer(t testing.TB, serverAddress, serverPort string) error {
 	env := []string{
 		"MONGO_ADDR=" + serverAddress,

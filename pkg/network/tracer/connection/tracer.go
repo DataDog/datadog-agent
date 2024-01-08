@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"hash"
+	"io"
 	"math"
 	"sync"
 	"time"
@@ -73,7 +74,7 @@ type Tracer interface {
 	// An individual tracer implementation may choose which maps to expose via this function.
 	GetMap(string) *ebpf.Map
 	// DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.
-	DumpMaps(maps ...string) (string, error)
+	DumpMaps(w io.Writer, maps ...string) error
 	// Type returns the type of the underlying ebpf tracer that is currently loaded
 	Type() TracerType
 
@@ -328,6 +329,7 @@ func (t *tracer) Stop() {
 	t.stopOnce.Do(func() {
 		close(t.exitTelemetry)
 		ebpfcheck.RemoveNameMappings(t.m)
+		ddebpf.UnregisterTelemetry(t.m)
 		_ = t.m.Stop(manager.CleanAll)
 		t.closeConsumer.Stop()
 		if t.closeTracer != nil {
@@ -553,8 +555,8 @@ func (t *tracer) Collect(ch chan<- prometheus.Metric) {
 }
 
 // DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.
-func (t *tracer) DumpMaps(maps ...string) (string, error) {
-	return t.m.DumpMaps(maps...)
+func (t *tracer) DumpMaps(w io.Writer, maps ...string) error {
+	return t.m.DumpMaps(w, maps...)
 }
 
 // Type returns the type of the underlying ebpf tracer that is currently loaded
@@ -661,7 +663,7 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 	}
 
 	stats.ProtocolStack = protocols.Stack{
-		Api:         protocols.API(s.Protocol_stack.Api),
+		API:         protocols.API(s.Protocol_stack.Api),
 		Application: protocols.Application(s.Protocol_stack.Application),
 		Encryption:  protocols.Encryption(s.Protocol_stack.Encryption),
 	}
