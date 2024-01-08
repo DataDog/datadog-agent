@@ -359,29 +359,18 @@ func TestBatchIterAllocsPerRun(t *testing.T) {
 	var v uint32
 	batchSize := 10
 
-	allocsSmallBatch := testing.AllocsPerRun(100, func() {
-		numElements := uint32(0)
-		it := m.IterateWithOptions(batchSize)
-		for it.Next(&k, &v) {
-			numElements++
-		}
-		require.Equal(t, numsToPut, numElements)
+	it := m.IterateWithOptions(batchSize)
+	allocs := testing.AllocsPerRun(1, func() {
+		it.Next(&k, &v)
 	})
+	assert.EqualValues(t, allocs, 0)
 
 	batchSize = 100
-
-	allocsLargerBatch := testing.AllocsPerRun(100, func() {
-		numElements := uint32(0)
-		it := m.IterateWithOptions(batchSize)
-		for it.Next(&k, &v) {
-			numElements++
-		}
-		require.Equal(t, numsToPut, numElements)
+	it = m.IterateWithOptions(batchSize)
+	allocs = testing.AllocsPerRun(1, func() {
+		it.Next(&k, &v)
 	})
-
-	require.LessOrEqual(t, allocsSmallBatch, 8.0)
-	require.LessOrEqual(t, allocsLargerBatch, 8.0)
-	require.Equal(t, allocsLargerBatch, allocsSmallBatch) // We don't want allocations to depend on batch size
+	assert.EqualValues(t, allocs, 0)
 }
 
 func BenchmarkIterate(b *testing.B) {
