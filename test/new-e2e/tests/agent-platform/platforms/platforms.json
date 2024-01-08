@@ -32,7 +32,7 @@
             "ubuntu-23-10": "ami-0dea732dd5f1da0a8"
         }
     },
-    "amazon-linux": {
+    "amazonlinux": {
         "x86_64": {
             "amazonlinux2-4-14": "ami-038b3df3312ddf25d",
             "amazonlinux2-5-10": "ami-06a0cd9728546d178",
@@ -49,36 +49,14 @@
     "centos": {
         "x86_64": {
             "centos-610": "ami-0506f01ccb6dddeda",
-<<<<<<< HEAD
-            "centos-79": "ami-0aedf6b1cb669b4c7"
-        },
-        "arm64": {
-            "centos-79": "ami-0144a5a84f5699847"
-        }
-    },
-    "redhat": {
-        "x86_64": {
-            "rhel-86": "ami-06640050dc3f556bb"
-        },
-        "arm64": {
-            "rhel-86": "ami-0238411fb452f8275"
-        }
-    },
-    "rocky-linux": {
-        "x86_64": {
-            "rocky-92": "ami-062b16ca222175b97"
-||||||| 284aac9a59
-            "centos-79": "ami-0aedf6b1cb669b4c7",
-            "rhel-86": "ami-06640050dc3f556bb",
-            "rocky-92": "ami-062b16ca222175b97"
-=======
             "centos-79": "ami-0aedf6b1cb669b4c7",
             "rhel-86": "ami-06640050dc3f556bb",
             "rocky-92": "ami-062b16ca222175b97",
             "rhel-86-fips": "ami-0d0fb96b595c56e03"
->>>>>>> origin/main
         },
         "arm64": {
+            "centos-79": "ami-0144a5a84f5699847",
+            "rhel-86": "ami-0238411fb452f8275"
         }
     },
     "suse": {
