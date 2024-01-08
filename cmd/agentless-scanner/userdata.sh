@@ -26,7 +26,7 @@ api_key: ${DD_API_KEY}
 site: datad0g.com
 
 logs_enabled: true
-log_level: debug
+log_level: info
 
 ec2_prefer_imdsv2: true
 

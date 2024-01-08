@@ -265,11 +265,11 @@ func rootCommand() *cobra.Command {
 		Long:         `Datadog Agentless Scanner scans your cloud environment for vulnerabilities, compliance and security issues.`,
 		SilenceUsage: true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			var err error
-			globalParams.diskMode, err = parseDiskMode(diskModeStr)
+			mode, err := parseDiskMode(diskModeStr)
 			if err != nil {
 				return err
 			}
+			globalParams.diskMode = mode
 			initStatsdClient()
 			return nil
 		},
@@ -287,6 +287,21 @@ func rootCommand() *cobra.Command {
 	return sideScannerCmd
 }
 
+func runWithModules(run func(cmd *cobra.Command, args []string) error) func(cmd *cobra.Command, args []string) error {
+	return func(cmd *cobra.Command, args []string) error {
+		return fxutil.OneShot(
+			func(_ complog.Component, _ compconfig.Component) error {
+				_ = pkgconfig.ChangeLogLevel("debug") // TODO(jinroh): remove this
+				return run(cmd, args)
+			},
+			fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
+			fx.Supply(complog.ForDaemon("AGENTLESSSCANER", "log_file", pkgconfig.DefaultAgentlessScannerLogFile)),
+			complog.Module,
+			compconfig.Module,
+		)
+	}
+}
+
 func runCommand() *cobra.Command {
 	var runParams struct {
 		pidfilePath      string
@@ -297,17 +312,9 @@ func runCommand() *cobra.Command {
 	runCmd := &cobra.Command{
 		Use:   "run",
 		Short: "Runs the agentless-scanner",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return fxutil.OneShot(
-				func(_ complog.Component, _ compconfig.Component) error {
-					return runCmd(runParams.pidfilePath, runParams.poolSize, runParams.allowedScanTypes)
-				},
-				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
-				fx.Supply(complog.ForDaemon("AGENTLESSSCANER", "log_file", pkgconfig.DefaultAgentlessScannerLogFile)),
-				complog.Module,
-				compconfig.Module,
-			)
-		},
+		RunE: runWithModules(func(cmd *cobra.Command, args []string) error {
+			return runCmd(runParams.pidfilePath, runParams.poolSize, runParams.allowedScanTypes)
+		}),
 	}
 	runCmd.Flags().StringVarP(&runParams.pidfilePath, "pidfile", "p", "", "path to the pidfile")
 	runCmd.Flags().IntVar(&runParams.poolSize, "workers", defaultWorkersCount, "number of scans running in parallel")
@@ -326,41 +333,33 @@ func scanCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "scan",
 		Short: "execute a scan",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return fxutil.OneShot(
-				func(_ complog.Component, _ compconfig.Component) error {
-					var config *scanConfig
-					var err error
-					if len(cliArgs.RawScan) > 0 {
-						config, err = unmarshalConfig([]byte(cliArgs.RawScan))
-					} else {
-						roles := getDefaultRolesMapping()
-						task, err := newScanTask(
-							cliArgs.ScanType,
-							cliArgs.ARN,
-							cliArgs.Hostname,
-							nil,
-							roles,
-							globalParams.diskMode)
-						if err != nil {
-							return err
-						}
-						config = &scanConfig{
-							Type:  awsScan,
-							Tasks: []*scanTask{task},
-						}
-					}
-					if err != nil {
-						return err
-					}
-					return scanCmd(*config)
-				},
-				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
-				fx.Supply(complog.ForDaemon("AGENTLESSSCANER", "log_file", pkgconfig.DefaultAgentlessScannerLogFile)),
-				complog.Module,
-				compconfig.Module,
-			)
-		},
+		RunE: runWithModules(func(cmd *cobra.Command, args []string) error {
+			var config *scanConfig
+			var err error
+			if len(cliArgs.RawScan) > 0 {
+				config, err = unmarshalConfig([]byte(cliArgs.RawScan))
+			} else {
+				roles := getDefaultRolesMapping()
+				task, err := newScanTask(
+					cliArgs.ScanType,
+					cliArgs.ARN,
+					cliArgs.Hostname,
+					nil,
+					roles,
+					globalParams.diskMode)
+				if err != nil {
+					return err
+				}
+				config = &scanConfig{
+					Type:  awsScan,
+					Tasks: []*scanTask{task},
+				}
+			}
+			if err != nil {
+				return err
+			}
+			return scanCmd(*config)
+		}),
 	}
 
 	cmd.Flags().StringVar(&cliArgs.RawScan, "raw-config-data", "", "scan config data in JSON")
@@ -381,17 +380,9 @@ func offlineCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "offline",
 		Short: "Runs the agentless-scanner in offline mode (server-less mode)",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return fxutil.OneShot(
-				func(_ complog.Component, _ compconfig.Component) error {
-					return offlineCmd(cliArgs.poolSize, cliArgs.regions, cliArgs.maxScans)
-				},
-				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
-				fx.Supply(complog.ForDaemon("AGENTLESSSCANER", "log_file", pkgconfig.DefaultAgentlessScannerLogFile)),
-				complog.Module,
-				compconfig.Module,
-			)
-		},
+		RunE: runWithModules(func(cmd *cobra.Command, args []string) error {
+			return offlineCmd(cliArgs.poolSize, cliArgs.regions, cliArgs.maxScans)
+		}),
 	}
 
 	cmd.Flags().IntVarP(&cliArgs.poolSize, "workers", "", defaultWorkersCount, "number of scans running in parallel")
@@ -410,21 +401,13 @@ func attachCommand() *cobra.Command {
 		Use:   "attach <snapshot-arn>",
 		Short: "Mount the given snapshot into /snapshots/<snapshot-id>/<part> using a network block device",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return fxutil.OneShot(
-				func(_ complog.Component, _ compconfig.Component) error {
-					snapshotARN, err := parseARN(args[0], resourceTypeSnapshot)
-					if err != nil {
-						return err
-					}
-					return attachCmd(snapshotARN, globalParams.diskMode, cliArgs.mount)
-				},
-				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
-				fx.Supply(complog.ForDaemon("AGENTLESSSCANER", "log_file", pkgconfig.DefaultAgentlessScannerLogFile)),
-				complog.Module,
-				compconfig.Module,
-			)
-		},
+		RunE: runWithModules(func(cmd *cobra.Command, args []string) error {
+			snapshotARN, err := parseARN(args[0], resourceTypeSnapshot)
+			if err != nil {
+				return err
+			}
+			return attachCmd(snapshotARN, globalParams.diskMode, cliArgs.mount)
+		}),
 	}
 
 	cmd.Flags().BoolVar(&cliArgs.mount, "mount", false, "mount the nbd device")
@@ -441,17 +424,9 @@ func cleanupCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "cleanup",
 		Short: "Cleanup resources created by the agentless-scanner",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return fxutil.OneShot(
-				func(_ complog.Component, _ compconfig.Component) error {
-					return cleanupCmd(cliArgs.region, cliArgs.dryRun, cliArgs.delay)
-				},
-				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
-				fx.Supply(complog.ForDaemon("AGENTLESSSCANER", "log_file", pkgconfig.DefaultAgentlessScannerLogFile)),
-				complog.Module,
-				compconfig.Module,
-			)
-		},
+		RunE: runWithModules(func(cmd *cobra.Command, args []string) error {
+			return cleanupCmd(cliArgs.region, cliArgs.dryRun, cliArgs.delay)
+		}),
 	}
 	cmd.Flags().StringVarP(&cliArgs.region, "region", "", "us-east-1", "AWS region")
 	cmd.Flags().BoolVarP(&cliArgs.dryRun, "dry-run", "", false, "dry run")
@@ -1958,7 +1933,7 @@ func scanLambda(ctx context.Context, scan *scanTask, resultsCh chan scanResult) 
 	}
 	defer func() {
 		if err := os.RemoveAll(tempDir); err != nil {
-			log.Error("lambda: could not remove temp directory %q", tempDir)
+			log.Errorf("lambda: could not remove temp directory %q", tempDir)
 		}
 	}()
 
@@ -2089,7 +2064,8 @@ func extractZip(ctx context.Context, zipPath, destinationPath string) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		dest := filepath.Join(destinationPath, f.Name)
+		name := filepath.Join("/", f.Name)[1:]
+		dest := filepath.Join(destinationPath, name)
 		destDir := filepath.Dir(dest)
 		if err := os.MkdirAll(destDir, 0700); err != nil {
 			return err
