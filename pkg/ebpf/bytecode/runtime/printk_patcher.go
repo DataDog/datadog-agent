@@ -9,6 +9,7 @@ package runtime
 
 import (
 	"errors"
+	"fmt"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -165,7 +166,7 @@ func patchPrintkInstructions(p *ebpf.ProgramSpec) (int, error) {
 					break
 				}
 			} else if candidate.Dst == asm.RFP {
-				// Something is modifying the stack pointer and it's not a load instruction,
+				// Something is modifying the stack pointer and it's not a store instruction,
 				// we cannot be sure any longer that we're in the same call. Abort this search.
 				errs = append(errs, log.Warnf("Found instruction %v that modifies the stack pointer, aborting search for bpf_trace_printk call %d in %s", candidate, idx, p.Name))
 				break
@@ -196,6 +197,10 @@ func patchPrintkInstructions(p *ebpf.ProgramSpec) (int, error) {
 					lengthLoadIns.Constant--
 					patchedInstructionIndexes[i] = true // Keep track of which instructions we've patched
 					numPatches++
+					if idx-i > 30 {
+						fmt.Printf("[%s] patch for instruction %d in %d - %d offset\n", p.Name, idx, i, idx-i)
+						fmt.Println(p.Instructions[i : idx+1])
+					}
 				} else if !patchedInstructionIndexes[i] {
 					// If we've already patched this instruction, don't warn about it again. The compiler
 					// can reuse the same instruction for multiple calls to bpf_trace_printk, and in that case
