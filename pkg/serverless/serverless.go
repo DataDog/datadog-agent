@@ -154,6 +154,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 					ResponseRawPayload: nil,
 				}
 				daemon.InvocationProcessor.OnInvokeEnd(timeoutDetails)
+				daemon.SetExecutionSpanComplete(true)
 			}
 		}
 		err := daemon.ExecutionContext.SaveCurrentExecutionContext()

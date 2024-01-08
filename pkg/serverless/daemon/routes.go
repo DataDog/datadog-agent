@@ -55,9 +55,7 @@ type StartInvocation struct {
 
 func (s *StartInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.StartInvocation route.")
-	s.daemon.ExecutionSpanStateLock.Lock()
-	defer s.daemon.ExecutionSpanStateLock.Unlock()
-	s.daemon.hitOnStart = true
+	s.daemon.SetExecutionSpanComplete(false)
 	startTime := time.Now()
 	reqBody, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -91,9 +89,7 @@ type EndInvocation struct {
 
 func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.EndInvocation route.")
-	e.daemon.ExecutionSpanStateLock.Lock()
-	defer e.daemon.ExecutionSpanStateLock.Unlock()
-	e.daemon.hitOnEnd = true
+	e.daemon.SetExecutionSpanComplete(true)
 	endTime := time.Now()
 	ecs := e.daemon.ExecutionContext.GetCurrentState()
 	coldStartTags := e.daemon.ExecutionContext.GetColdStartTagsForRequestID(ecs.LastRequestID)
