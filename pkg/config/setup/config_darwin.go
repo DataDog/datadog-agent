@@ -19,6 +19,8 @@ const (
 	defaultSystemProbeLogFilePath = "/opt/datadog-agent/logs/system-probe.log"
 	// DefaultDDAgentBin the process agent's binary
 	DefaultDDAgentBin = "/opt/datadog-agent/bin/agent/agent"
+	// InstallPath is the default install path for the agent
+	InstallPath = "/opt/datadog-agent"
 )
 
 // called by init in config.go, to ensure any os-specific config is done
