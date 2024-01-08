@@ -9,7 +9,6 @@ package runtime
 
 import (
 	"bufio"
-	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -94,7 +93,7 @@ func TestPatchPrintkNewline(t *testing.T) {
 		// the variable output (PID, time, etc)
 		expectedLines := []string{
 			"hi", "123456", "1234567", "12345678", "Goodbye, world!", "even more words a lot of words here should be several instructions",
-			"with args: 2+2=4", "with more args and vars: 1+2=3", "bye",
+			"with args: 2+2=4", "with more args and vars: 1+2=3", "with a function call in the argument: 50", "bye",
 		}
 
 		for _, line := range expectedLines {
@@ -138,6 +137,5 @@ func TestPatchPrintkAllAssets(t *testing.T) {
 	require.NoError(t, err)
 
 	// Some programs might not have log_debug calls, but at least one should
-	fmt.Println("Total patches:", totalPatches)
 	require.NotZero(t, totalPatches)
 }
