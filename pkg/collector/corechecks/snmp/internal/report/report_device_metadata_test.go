@@ -232,7 +232,7 @@ profiles:
             "profile": "f5-big-ip",
             "vendor": "f5",
             "subnet": "127.0.0.0/29",
-			"device_type": "other"
+			"device_type": "load_balancer"
         }
     ],
     "collect_timestamp":1415792726

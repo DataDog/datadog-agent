@@ -891,7 +891,7 @@ profiles:
       "vendor": "f5",
       "subnet": "127.0.0.0/30",
       "serial_number": "a-serial-num",
-	  "device_type": "other"
+	  "device_type": "load_balancer"
     }
   ],
   "interfaces": [
