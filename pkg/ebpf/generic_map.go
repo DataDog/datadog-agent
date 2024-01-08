@@ -51,14 +51,14 @@ var BatchAPISupported = funcs.MemoizeNoError(func() bool {
 
 // GenericMap is a wrapper around ebpf.Map that allows to use generic types.
 // Also includes support for batch iterations
-type GenericMap[K interface{}, V interface{}] struct {
+type GenericMap[K any, V any] struct {
 	m *ebpf.Map
 }
 
 // NewGenericMap creates a new GenericMap with the given spec. Key and Value sizes are automatically
 // inferred from the types of K and V.
 // Important: if the map is a per-cpu map, V must be a slice type
-func NewGenericMap[K interface{}, V interface{}](spec *ebpf.MapSpec) (*GenericMap[K, V], error) {
+func NewGenericMap[K any, V any](spec *ebpf.MapSpec) (*GenericMap[K, V], error) {
 	// Automatic inference of sizes. We assume that K/V are simple types that
 	// can be instantiated with no arguments
 	var kval K
@@ -92,7 +92,7 @@ func NewGenericMap[K interface{}, V interface{}](spec *ebpf.MapSpec) (*GenericMa
 //
 // For now it ensures that per-cpu maps use a slice type for the value.
 // Separate function to allow using it in the different constructors/converters
-func validateValueTypeForMapType[V interface{}](t ebpf.MapType) error {
+func validateValueTypeForMapType[V any](t ebpf.MapType) error {
 	var vval V
 	if isPerCPU(t) && reflect.TypeOf(vval).Kind() != reflect.Slice {
 		return fmt.Errorf("per-cpu maps require a slice type for the value, instead got %T", vval)
@@ -101,7 +101,7 @@ func validateValueTypeForMapType[V interface{}](t ebpf.MapType) error {
 }
 
 // Map creates a new GenericMap from an existing ebpf.Map
-func Map[K interface{}, V interface{}](m *ebpf.Map) (*GenericMap[K, V], error) {
+func Map[K any, V any](m *ebpf.Map) (*GenericMap[K, V], error) {
 	if err := validateValueTypeForMapType[V](m.Type()); err != nil {
 		return nil, err
 	}
@@ -112,7 +112,7 @@ func Map[K interface{}, V interface{}](m *ebpf.Map) (*GenericMap[K, V], error) {
 }
 
 // GetMap gets the generic map with the given name from the manager
-func GetMap[K interface{}, V interface{}](mgr *manager.Manager, name string) (*GenericMap[K, V], error) {
+func GetMap[K any, V any](mgr *manager.Manager, name string) (*GenericMap[K, V], error) {
 	m, _, err := mgr.GetMap(name)
 	if err != nil {
 		return nil, err
@@ -177,7 +177,7 @@ func (g *GenericMap[K, V]) BatchUpdate(keys []K, values []V, opts *ebpf.BatchOpt
 }
 
 // GenericMapIterator is an interface for iterating over a GenericMap
-type GenericMapIterator[K interface{}, V interface{}] interface {
+type GenericMapIterator[K any, V any] interface {
 	// Next fills K and V with the next key/value pair in the map. It returns false if there are no more elements
 	Next(key *K, value *V) bool
 
@@ -242,7 +242,7 @@ func (g *GenericMap[K, V]) IterateWithBatchSize(batchSize int) GenericMapIterato
 }
 
 // genericMapItemIterator is an iterator for a map that returns a single item at a time
-type genericMapItemIterator[K interface{}, V interface{}] struct {
+type genericMapItemIterator[K any, V any] struct {
 	it                           *ebpf.MapIterator
 	valueTypeCanUseUnsafePointer bool
 }
@@ -270,7 +270,7 @@ func (g *genericMapItemIterator[K, V]) Err() error {
 
 // genericMapBatchIterator is an iterator for a map that, under the hood, uses BatchLookup to reduce
 // the number of syscalls
-type genericMapBatchIterator[K interface{}, V interface{}] struct {
+type genericMapBatchIterator[K any, V any] struct {
 	m                            *ebpf.Map        // Map to iterate
 	batchSize                    int              // Number of items to fetch per batch
 	cursor                       ebpf.BatchCursor // Cursor that maintains the state of the iteration
