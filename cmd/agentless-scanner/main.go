@@ -1939,7 +1939,7 @@ func scanLambda(ctx context.Context, scan *scanTask, resultsCh chan scanResult) 
 		}
 	}()
 
-	codePath, err := downloadLambda(ctx, scan, tempDir)
+	codePath, err := downloadAndUnzipLambda(ctx, scan, tempDir)
 	if err != nil {
 		return err
 	}
@@ -1955,7 +1955,7 @@ func scanLambda(ctx context.Context, scan *scanTask, resultsCh chan scanResult) 
 	return nil
 }
 
-func downloadLambda(ctx context.Context, scan *scanTask, tempDir string) (codePath string, err error) {
+func downloadAndUnzipLambda(ctx context.Context, scan *scanTask, tempDir string) (codePath string, err error) {
 	if err := statsd.Count("datadog.agentless_scanner.functions.started", 1.0, tagScan(scan), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}
@@ -2010,6 +2010,7 @@ func downloadLambda(ctx context.Context, scan *scanTask, tempDir string) (codePa
 	}
 
 	archivePath := filepath.Join(tempDir, "code.zip")
+	log.Debugf("%s: creating file %q", scan, archivePath)
 	archiveFile, err := os.OpenFile(archivePath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
 		return "", err
@@ -2022,6 +2023,7 @@ func downloadLambda(ctx context.Context, scan *scanTask, tempDir string) (codePa
 		return "", err
 	}
 
+	log.Debugf("%s: downloading code from %q", scan, lambdaURL)
 	resp, err := cfg.HTTPClient.Do(req)
 	if err != nil {
 		return "", err
@@ -2042,6 +2044,7 @@ func downloadLambda(ctx context.Context, scan *scanTask, tempDir string) (codePa
 		return "", err
 	}
 
+	log.Debugf("%s: extracting code in %q", scan, codePath)
 	uncompressedSize, err := extractLambdaZip(ctx, archivePath, codePath)
 	if err != nil {
 		return "", err
@@ -2058,6 +2061,8 @@ func downloadLambda(ctx context.Context, scan *scanTask, tempDir string) (codePa
 	if err := statsd.Histogram("datadog.agentless_scanner.functions.size_uncompressed", float64(uncompressedSize), tagScan(scan), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}
+
+	log.Debugf("%s: downloaded and extracted code ; compressed_size=%d uncompressed_size=%d", scan, compressedSize, uncompressedSize)
 	return codePath, nil
 }
 
