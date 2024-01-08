@@ -93,7 +93,7 @@ func TestPatchPrintkNewline(t *testing.T) {
 		// the variable output (PID, time, etc)
 		expectedLines := []string{
 			"hi", "123456", "1234567", "12345678", "Goodbye, world!", "even more words a lot of words here should be several instructions",
-			"12", "21", "with args: 2+2=4", "with more args and vars: 1+2=3", "with a function call in the argument: 50", "bye",
+			"12", "21", "with args: 2+2=4", "with more args and vars: 1+2=3", "with a function call in the argument: 70", "bye",
 		}
 
 		for _, line := range expectedLines {

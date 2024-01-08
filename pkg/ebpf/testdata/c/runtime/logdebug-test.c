@@ -5,6 +5,18 @@
 
 char __license[] SEC("license") = "GPL";
 
+int nested_func(int a, int b) {
+    // a = b = 50
+    a += 20; // a = 70
+    b += bpf_get_smp_processor_id() - bpf_get_smp_processor_id(); // Compiler doesn't know this is always zero
+
+    if (a > b) {
+        return a; // 70
+    }
+
+    return b;
+}
+
 // A function that simulates instructions being added in the middle of the log_debug call
 int somefunc(int number) {
     // Call another function
@@ -21,9 +33,10 @@ int somefunc(int number) {
         pid = 0;
     }
 
-    number += pid;
-    number /= 2;
-    number += 10;
+    number += pid; // 80
+    number /= 2; // 40
+    number += 10; // 50
+    number += nested_func(pid, pid); // 70
 
     return pid + number;
 }
