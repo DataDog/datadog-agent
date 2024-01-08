@@ -17,7 +17,6 @@ type dnsFormatter struct {
 	conns     *network.Connections
 	ipc       ipCache
 	domainSet map[string]int
-	seen      map[dns.Key]struct{}
 
 	// Configuration flags
 	queryTypeEnabled  bool
