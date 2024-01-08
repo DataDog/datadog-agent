@@ -531,7 +531,7 @@ func hashMapNumberOfEntries(mp *ebpf.Map) int64 {
 		return -1
 	}
 
-	canUseBatchAPI := true // TODO(gjulianm): Use BatchAPISupported() when merged
+	canUseBatchAPI := false // TODO(gjulianm): Use BatchAPISupported() when merged
 	numElements := 0
 
 	if canUseBatchAPI {
@@ -592,7 +592,7 @@ func hashMapNumberOfEntries(mp *ebpf.Map) int64 {
 	for it.Next(unsafe.Pointer(&key[0]), unsafe.Pointer(&value[0])) {
 		numElements++
 
-		if numElements >= int(mp.MaxEntries()) {
+		if numElements > int(mp.MaxEntries()) {
 			log.Debugf("map %s has more elements than its max entries (%d), not returning a count", mp.String(), mp.MaxEntries())
 			return -1
 		}
