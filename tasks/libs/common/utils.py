@@ -56,21 +56,19 @@ def bin_name(name):
     return name
 
 
-def get_gopath(ctx):
-    gopath = os.environ.get("GOPATH")
-    if not gopath:
-        gopath = ctx.run("go env GOPATH", hide=True).stdout.strip()
+def get_goenv(ctx, var):
+    return ctx.run(f"go env {var}", hide=True).stdout.strip()
 
-    return gopath
+
+def get_gopath(ctx):
+    return get_goenv(ctx, "GOPATH")
 
 
 def get_gobin(ctx):
-    gobin = os.environ.get("GOBIN")
+    gobin = get_goenv(ctx, "GOBIN")
     if not gobin:
-        gobin = ctx.run("go env GOBIN", hide=True).stdout.strip()
-        if not gobin:
-            gopath = get_gopath(ctx)
-            gobin = os.path.join(gopath, "bin")
+        gopath = get_gopath(ctx)
+        gobin = os.path.join(gopath, "bin")
 
     return gobin
 
