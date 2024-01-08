@@ -63,7 +63,8 @@ type TracerStatus struct {
 	Mac_header                      uint16
 	Fl4_offsets                     uint8
 	Fl6_offsets                     uint8
-	Pad_cgo_0                       [4]byte
+	Seen_failure                    uint8
+	Pad_cgo_0                       [3]byte
 }
 
 type State uint8
