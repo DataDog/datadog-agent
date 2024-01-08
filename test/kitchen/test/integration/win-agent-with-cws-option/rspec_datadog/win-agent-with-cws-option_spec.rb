@@ -22,9 +22,9 @@ shared_examples_for 'a Windows Agent with CWS driver installed' do
         end
         it 'has driver files' do
             program_files = safe_program_files
-            expect(File).to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\ddprocmon.cat")
-            expect(File).to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\ddprocmon.sys")
-            expect(File).to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\ddprocmon.inf")
+            expect(File).to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddprocmon.cat")
+            expect(File).to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddprocmon.sys")
+            expect(File).to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddprocmon.inf")
         end
 
         it 'does not have the driver running on install' do
@@ -40,9 +40,9 @@ shared_examples_for 'a Windows Agent with CWS driver installed' do
         end
         it 'does not have driver files' do
             program_files = safe_program_files
-            expect(File).not_to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\ddprocmon.cat")
-            expect(File).not_to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\ddprocmon.sys")
-            expect(File).not_to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\ddprocmon.inf")
+            expect(File).not_to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddprocmon.cat")
+            expect(File).not_to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddprocmon.sys")
+            expect(File).not_to exist("#{program_files}\\DataDog\\Datadog Agent\\bin\\agent\\driver\\ddprocmon.inf")
         end
     end
     
