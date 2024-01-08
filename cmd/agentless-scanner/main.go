@@ -1145,6 +1145,7 @@ func (s *sideScanner) start(ctx context.Context) {
 		defer func() { done <- struct{}{} }()
 		for result := range s.resultsCh {
 			if result.err != nil {
+				log.Errorf("task %s reported a scanning failure: %v", result.scan, result.err)
 				if err := statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, tagFailure(result.scan, result.err), 1.0); err != nil {
 					log.Warnf("failed to send metric: %v", err)
 				}
@@ -1208,7 +1209,7 @@ func (s *sideScanner) start(ctx context.Context) {
 				s.scansInProgressMu.Unlock()
 
 				if err := s.launchScan(ctx, scan); err != nil {
-					log.Errorf("error scanning task %s: %s", scan, err)
+					log.Errorf("task %s could not be setup properly: %v", scan, err)
 				}
 
 				s.scansInProgressMu.Lock()
