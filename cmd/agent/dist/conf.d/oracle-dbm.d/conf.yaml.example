@@ -236,7 +236,8 @@ instances:
   ## WARNING: Running custom queries may result in additional costs or fees assessed by Oracle.
   #    
   # custom_queries:
-  #   - query: SELECT 'foo', 11 FROM dual
+  #   - metric_prefix: oracle.custom_query
+  #     query: SELECT 'foo', 11 FROM dual
   #     columns:
   #     - name: foo
   #       type: tag
