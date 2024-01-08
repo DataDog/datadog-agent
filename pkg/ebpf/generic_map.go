@@ -229,10 +229,6 @@ func (g *GenericMap[K, V]) IterateWithBatchSize(batchSize int) GenericMapIterato
 			valueTypeCanUseUnsafePointer: g.valueTypeCanUseUnsafePointer(),
 		}
 
-		// Do an initial copy of the keys/values slices to avoid allocations
-		it.keysCopy = it.keys
-		it.valuesCopy = it.values
-
 		return it
 	}
 
@@ -277,8 +273,6 @@ type genericMapBatchIterator[K any, V any] struct {
 	cursor                       ebpf.BatchCursor // Cursor that maintains the state of the iteration
 	keys                         []K              // Buffer for storing the keys of the current batch
 	values                       []V              // Buffer for storing the values of the current batch
-	keysCopy                     any              // A pointer to keys of type "any", used to avoid allocations when calling BatchLookup
-	valuesCopy                   any              // Same as keysCopy but for values
 	currentBatchSize             int              // Number of elements in the current batch, as returned by BatchLookup
 	inBatchIndex                 int              // Index of the next element to return in the current batch
 	err                          error            // Last error that happened during iteration
@@ -301,9 +295,7 @@ func (g *genericMapBatchIterator[K, V]) Next(key *K, value *V) bool {
 			return false
 		}
 
-		// Important! If we pass here g.keys/g.values, Go will create a copy of the slice instance
-		// and will generate extra allocations. I am not entirely sure why it is doing that.
-		g.currentBatchSize, g.err = g.m.BatchLookup(&g.cursor, g.keysCopy, g.valuesCopy, nil)
+		g.currentBatchSize, g.err = g.m.BatchLookup(&g.cursor, g.keys, g.values, nil)
 		g.inBatchIndex = 0
 		if g.err != nil && errors.Is(g.err, ebpf.ErrKeyNotExist) {
 			// The lookup API returns ErrKeyNotExist when this is the last batch,

@@ -365,16 +365,24 @@ func TestBatchIterAllocsPerRun(t *testing.T) {
 	batchSize := 10
 
 	it := m.IterateWithBatchSize(batchSize)
+	numElements := uint32(0)
 	allocs := testing.AllocsPerRun(1, func() {
-		it.Next(&k, &v)
+		for it.Next(&k, &v) {
+			numElements++
+		}
 	})
+	require.Equal(t, numsToPut, numElements)
 	assert.EqualValues(t, allocs, 0)
 
 	batchSize = 100
+	numElements = uint32(0)
 	it = m.IterateWithBatchSize(batchSize)
 	allocs = testing.AllocsPerRun(1, func() {
-		it.Next(&k, &v)
+		for it.Next(&k, &v) {
+			numElements++
+		}
 	})
+	require.Equal(t, numsToPut, numElements)
 	assert.EqualValues(t, allocs, 0)
 }
 
