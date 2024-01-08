@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package host contains the definition of the AWS Host environment.
+// Package awshost contains the definition of the AWS Host environment.
 package awshost
 
 import (
