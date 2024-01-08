@@ -38,18 +38,6 @@ func (c *Counter) Add(v int64) {
 	c.value.Add(v)
 }
 
-func (c *Counter) UpdateCounterWithDifference(v int64) {
-	differenceValue := v - c.Get()
-	if v < 0 || differenceValue <= 0 {
-		// Counters are always monotonic, so we don't allow negative numbers. We
-		// could enforce this by using an unsigned type, but that would make the
-		// API a little bit more cumbersome to use.
-		return
-	}
-
-	c.value.Add(differenceValue)
-}
-
 func (c *Counter) base() *metricBase {
 	return c.metricBase
 }
