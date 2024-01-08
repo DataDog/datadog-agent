@@ -63,17 +63,17 @@ func PatchPrintkNewline(m *manager.Manager) error {
 	var errs []error
 
 	for _, p := range progs {
-		_, err := PatchPrintkInstructions(p)
+		_, err := patchPrintkInstructions(p)
 		errs = append(errs, err)
 	}
 
 	return errors.Join(errs...)
 }
 
-// PatchPrintkInstructions patches the instructions of a program to remove the newline character
+// patchPrintkInstructions patches the instructions of a program to remove the newline character
 // It's separated from PatchPrintkNewline so it can be tested independently, also so that we can
 // check how many patches are performed
-func PatchPrintkInstructions(p *ebpf.ProgramSpec) (int, error) {
+func patchPrintkInstructions(p *ebpf.ProgramSpec) (int, error) {
 	var errs []error // list of errors that happened while patching, if any
 	numPatches := 0  // number of patches performed
 

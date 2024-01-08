@@ -9,6 +9,7 @@ package runtime
 
 import (
 	"bufio"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -124,7 +125,7 @@ func TestPatchPrintkAllAssets(t *testing.T) {
 
 			for _, prog := range spec.Programs {
 				t.Run(prog.Name, func(t *testing.T) {
-					patches, err := PatchPrintkInstructions(prog)
+					patches, err := patchPrintkInstructions(prog)
 					require.NoError(t, err)
 					totalPatches += patches
 				})
@@ -137,5 +138,6 @@ func TestPatchPrintkAllAssets(t *testing.T) {
 	require.NoError(t, err)
 
 	// Some programs might not have log_debug calls, but at least one should
+	fmt.Println("Total patches:", totalPatches)
 	require.NotZero(t, totalPatches)
 }
