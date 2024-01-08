@@ -82,6 +82,8 @@ const (
 	maxSnapshotRetries = 3
 	maxAttachRetries   = 10
 
+	maxLambdaUncompressed = 256 * 1024 * 1024
+
 	defaultWorkersCount = 40
 
 	defaultAWSRate          rate.Limit = 20.0
@@ -2029,7 +2031,7 @@ func downloadLambda(ctx context.Context, scan *scanTask, tempDir string) (codePa
 		return "", fmt.Errorf("lambda: bad status: %s", resp.Status)
 	}
 
-	_, err = io.Copy(archiveFile, resp.Body)
+	compressedSize, err := io.Copy(archiveFile, resp.Body)
 	if err != nil {
 		return "", err
 	}
@@ -2040,7 +2042,7 @@ func downloadLambda(ctx context.Context, scan *scanTask, tempDir string) (codePa
 		return "", err
 	}
 
-	err = extractZip(ctx, archivePath, codePath)
+	uncompressedSize, err := extractLambdaZip(ctx, archivePath, codePath)
 	if err != nil {
 		return "", err
 	}
@@ -2050,48 +2052,59 @@ func downloadLambda(ctx context.Context, scan *scanTask, tempDir string) (codePa
 	if err := statsd.Histogram("datadog.agentless_scanner.functions.duration", float64(functionDuration.Milliseconds()), tagScan(scan), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}
+	if err := statsd.Histogram("datadog.agentless_scanner.functions.size_compressed", float64(compressedSize), tagScan(scan), 1.0); err != nil {
+		log.Warnf("failed to send metric: %v", err)
+	}
+	if err := statsd.Histogram("datadog.agentless_scanner.functions.size_uncompressed", float64(uncompressedSize), tagScan(scan), 1.0); err != nil {
+		log.Warnf("failed to send metric: %v", err)
+	}
 	return codePath, nil
 }
 
-func extractZip(ctx context.Context, zipPath, destinationPath string) error {
+func extractLambdaZip(ctx context.Context, zipPath, destinationPath string) (uint64, error) {
 	r, err := zip.OpenReader(zipPath)
 	if err != nil {
-		return fmt.Errorf("extractZip: openreader: %w", err)
+		return 0, fmt.Errorf("extractLambdaZip: openreader: %w", err)
 	}
 	defer r.Close()
 
+	var uncompressed uint64
 	for _, f := range r.File {
 		if ctx.Err() != nil {
-			return ctx.Err()
+			return uncompressed, ctx.Err()
 		}
 		name := filepath.Join("/", f.Name)[1:]
 		dest := filepath.Join(destinationPath, name)
 		destDir := filepath.Dir(dest)
 		if err := os.MkdirAll(destDir, 0700); err != nil {
-			return err
+			return uncompressed, err
 		}
 		if strings.HasSuffix(f.Name, "/") {
 			if err := os.Mkdir(dest, 0700); err != nil {
-				return err
+				return uncompressed, err
 			}
 		} else {
 			reader, err := f.Open()
 			if err != nil {
-				return fmt.Errorf("extractZip: open: %w", err)
+				return uncompressed, fmt.Errorf("extractLambdaZip: open: %w", err)
 			}
 			defer reader.Close()
 			writer, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 			if err != nil {
-				return fmt.Errorf("extractZip: write: %w", err)
+				return uncompressed, fmt.Errorf("extractLambdaZip: write: %w", err)
 			}
 			defer writer.Close()
-			_, err = io.Copy(writer, reader)
+			if uncompressed+f.UncompressedSize64 > maxLambdaUncompressed {
+				return uncompressed, fmt.Errorf("extractLambdaZip: uncompressed size is too big")
+			}
+			n, err := io.Copy(writer, reader)
+			uncompressed += uint64(n)
 			if err != nil {
-				return fmt.Errorf("extractZip: copy: %w", err)
+				return uncompressed, fmt.Errorf("extractLambdaZip: copy: %w", err)
 			}
 		}
 	}
-	return nil
+	return uncompressed, nil
 }
 
 func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, snapshotARN arn.ARN) error {
