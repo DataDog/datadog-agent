@@ -259,19 +259,7 @@ func (s *ECSFargateSuite) SetupSuite() {
 						},
 					},
 				},
-				"log_router": {
-					Cpu:       pulumi.IntPtr(0),
-					User:      pulumi.StringPtr("0"),
-					Name:      pulumi.String("log_router"),
-					Image:     pulumi.String("amazon/aws-for-fluent-bit:latest"),
-					Essential: pulumi.BoolPtr(true),
-					FirelensConfiguration: ecsx.TaskDefinitionFirelensConfigurationArgs{
-						Type: pulumi.String("fluentbit"),
-						Options: pulumi.StringMap{
-							"enable-ecs-log-metadata": pulumi.String("true"),
-						},
-					},
-				},
+				"log_router": *ecsResources.FargateFirelensContainerDefinition(),
 				"cws-instrumentation-init": {
 					Cpu:       pulumi.IntPtr(0),
 					Name:      pulumi.String("cws-instrumentation-init"),
