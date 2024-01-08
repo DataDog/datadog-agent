@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package host contains the definition of the AWS Host environment.
-package host
+package awshost
 
 import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"

@@ -3,91 +3,103 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package logagent
+// Package utils provides shared common functions so different E2E tests suites can use them.
+package utils
 
 import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	componentos "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/stretchr/testify/assert"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+
+	"github.com/DataDog/test-infra-definitions/components/os"
 )
 
-// appendLog appen log with 'content', which is then repeated 'reccurrence' times and verifies log contents.
-func appendLog(s *LinuxFakeintakeSuite, content string, recurrence int) {
+// LogsTestSuite is an interface for the log agent test suite.
+type LogsTestSuite interface {
+	T() *testing.T
+	Env() *environments.Host
+	IsDevMode() bool
+}
+
+// AppendLog appen log with 'content', which is then repeated 'reccurrence' times and verifies log contents.
+func AppendLog(ls LogsTestSuite, content string, recurrence int) {
 	// Determine the OS and set the appropriate log path and command.
 	var logPath, cmd, checkCmd string
-	t := s.T()
+	t := ls.T()
 	t.Helper()
 
-	var os string
-	switch s.Env().RemoteHost.OSFamily {
-	case componentos.WindowsFamily:
-		os = "windows"
+	var osStr string
+	switch ls.Env().RemoteHost.OSFamily {
+	case os.WindowsFamily:
+		osStr = "windows"
 		t.Log("Generating Windows log.")
 		logPath = "C:\\logs\\hello-world.log"
 		cmd = fmt.Sprintf("echo %s > %s", strings.Repeat(content+" ", recurrence), logPath)
 		checkCmd = fmt.Sprintf("Get-Content %s", logPath)
 	default: // Assuming Linux if not Windows.
-		os = "linux"
+		osStr = "linux"
 		t.Log("Generating Linux log.")
 		logPath = "/var/log/hello-world.log"
 		cmd = fmt.Sprintf("echo '%s' | sudo tee -a %s", strings.Repeat(content+" ", recurrence), logPath)
 		checkCmd = fmt.Sprintf("sudo cat %s", logPath)
 	}
 
-	s.EventuallyWithT(func(c *assert.CollectT) {
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		// Generate the log content
-		output, err := s.Env().RemoteHost.Execute(cmd)
+		output, err := ls.Env().RemoteHost.Execute(cmd)
 		if err != nil {
-			assert.FailNowf(c, "Having issue generating %s log with error: %s", os, output)
+			assert.FailNowf(c, "Having issue generating %s log with error: %s", osStr, output)
 		}
 		// Verify the log content locally
-		output, err = s.Env().RemoteHost.Execute(checkCmd)
+		output, err = ls.Env().RemoteHost.Execute(checkCmd)
 		if err != nil {
 			assert.FailNowf(c, "Log content %s not found, instead received:: %s", content, output)
 		}
 		if strings.Contains(output, content) {
-			t.Logf("Finished generating %s log with content: '%s' \n", os, content)
+			t.Logf("Finished generating %s log with content: '%s' \n", osStr, content)
 		}
 	}, 2*time.Minute, 10*time.Second)
 }
 
-// checkLogFile verifies the presence or absence of a log file path
-func checkLogFilePresence(s *LinuxFakeintakeSuite, logPath string) {
-	t := s.T()
+// CheckLogFilePresence verifies the presence or absence of a log file path
+func CheckLogFilePresence(ls LogsTestSuite, logPath string) {
+	t := ls.T()
+	t.Helper()
 
-	switch s.Env().RemoteHost.OSFamily {
-	case componentos.WindowsFamily:
+	switch ls.Env().RemoteHost.OSFamily {
+	case os.WindowsFamily:
 		checkCmd := fmt.Sprintf("Get-Content %s", logPath)
-		_, err := s.Env().RemoteHost.Execute(checkCmd)
+		_, err := ls.Env().RemoteHost.Execute(checkCmd)
 		if err != nil {
 			assert.FailNow(t, "Log File not found")
 		}
 	default: // Assuming Linux if not Windows.
 		checkCmd := fmt.Sprintf("sudo cat %s", logPath)
-		_, err := s.Env().RemoteHost.Execute(checkCmd)
+		_, err := ls.Env().RemoteHost.Execute(checkCmd)
 		if err != nil {
 			assert.FailNow(t, "Log File not found")
 		}
 	}
 }
 
-// checkLogs verifies the presence or absence of logs in the intake based on the expectLogs flag.
-func checkLogs(s *LinuxFakeintakeSuite, service, content string, expectLogs bool) {
-	client := s.Env().FakeIntake.Client()
-	t := s.T()
+// CheckLogs verifies the presence or absence of logs in the intake based on the expectLogs flag.
+func CheckLogs(ls LogsTestSuite, service, content string, expectLogs bool) {
+	client := ls.Env().FakeIntake.Client()
+	t := ls.T()
 	t.Helper()
-	s.EventuallyWithT(func(c *assert.CollectT) {
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		names, err := client.GetLogServiceNames()
 		if !assert.NoErrorf(c, err, "Error found: %s", err) {
 			return
 		}
-
 		if len(names) > 0 {
 			logs, err := client.FilterLogs(service)
 			if !assert.NoErrorf(c, err, "Error found: %s", err) {
@@ -96,11 +108,9 @@ func checkLogs(s *LinuxFakeintakeSuite, service, content string, expectLogs bool
 			if !assert.NotEmpty(c, logs, "No logs with service matching '%s' found, instead got '%s'", service, names) {
 				return
 			}
-
 			logs, err = client.FilterLogs(service, fi.WithMessageMatching(content))
 			intakeLogs := logsToString(logs)
 			assert.NoErrorf(c, err, "Error found: %s", err)
-
 			if expectLogs {
 				t.Logf("Logs from service: '%s' with content: '%s' collected", names, content)
 				assert.NotEmpty(c, logs, "Expected at least 1 log with content: '%s', from service: %s but received %s logs.", content, names, intakeLogs)
@@ -112,12 +122,34 @@ func checkLogs(s *LinuxFakeintakeSuite, service, content string, expectLogs bool
 	}, 2*time.Minute, 10*time.Second)
 }
 
-// cleanUp cleans up any existing log files (only useful when running dev mode/local runs).
-func (s *LinuxFakeintakeSuite) cleanUp() {
-	t := s.T()
+// CleanUp cleans up any existing log files (only useful when running dev mode/local runs).
+func CleanUp(ls LogsTestSuite) {
+	t := ls.T()
+	t.Helper()
+	var checkCmd string
 
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	if ls.IsDevMode() {
+		switch ls.Env().RemoteHost.OSFamily {
+		default: // default is linux
+			ls.Env().RemoteHost.MustExecute("sudo rm -f /var/log/hello-world.log")
+			ls.Env().RemoteHost.MustExecute("sudo rm -f /var/log/hello-world.log.old")
+			checkCmd = "ls /var/log/hello-world.log /var/log/hello-world.log.old 2>/dev/null || echo 'Files do not exist'"
+		case os.WindowsFamily:
+			ls.Env().RemoteHost.MustExecute("if (Test-Path C:\\logs\\hello-world.log) { Remove-Item -Path C:\\logs\\hello-world.log -Force }")
+			ls.Env().RemoteHost.MustExecute("if (Test-Path C:\\logs\\hello-world.log.old) { Remove-Item -Path C:\\logs\\hello-world.log.old -Force }")
+			checkCmd = "if (Test-Path C:\\logs\\hello-world.log) { Get-ChildItem -Path C:\\logs\\hello-world.log } elseif (Test-Path C:\\logs\\hello-world.log.old) { Get-ChildItem -Path C:\\logs\\hello-world.log.old } else { Write-Output 'Files do not exist' }"
+		}
+
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			output, err := ls.Env().RemoteHost.Execute(checkCmd)
+			if assert.NoErrorf(c, err, "Having issue cleaning up log files, retrying... %s", output) {
+				t.Log("Successfully cleaned up log files.")
+			}
+		}, 1*time.Minute, 10*time.Second)
+	}
+
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		err := ls.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 		if assert.NoErrorf(c, err, "Having issue flushing server and resetting aggregators, retrying...") {
 			t.Log("Successfully flushed server and reset aggregators.")
 		}
@@ -132,7 +164,6 @@ func prettyPrintLog(log *aggregator.Log) string {
 		prettyMessage, _ := json.MarshalIndent(messageObj, "", "  ")
 		log.Message = string(prettyMessage)
 	}
-
 	// Marshal the entire log entry
 	logStr, err := json.MarshalIndent(log, "", "  ")
 	if err != nil {

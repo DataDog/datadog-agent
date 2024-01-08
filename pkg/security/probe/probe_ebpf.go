@@ -1939,7 +1939,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 			sig := model.SignalConstants[action.Kill.Signal]
 
 			for _, pid := range pids {
-				if pid == 0 || pid == utils.Getpid() {
+				if pid <= 1 || pid == utils.Getpid() {
 					continue
 				}
 

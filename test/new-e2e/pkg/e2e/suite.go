@@ -215,6 +215,12 @@ func (bs *BaseSuite[Env]) UpdateEnv(newProvisioners ...Provisioner) {
 	bs.reconcileEnv(targetProvisioners)
 }
 
+// IsDevMode returns true if the test suite is running in dev mode.
+// WARNING: IsDevMode should not be used. It's a recipe to get tests working locally but failing in CI.
+func (bs *BaseSuite[Env]) IsDevMode() bool {
+	return bs.params.devMode
+}
+
 func (bs *BaseSuite[Env]) init(options []SuiteOption, self Suite[Env]) {
 	for _, o := range options {
 		o(&bs.params)

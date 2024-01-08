@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	compStatus "github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/process"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -94,7 +95,7 @@ func writeNotRunning(log log.Component, w io.Writer) {
 }
 
 func writeError(log log.Component, w io.Writer, e error) {
-	tpl, err := template.New("").Funcs(render.Textfmap()).Parse(errorMessage)
+	tpl, err := template.New("").Funcs(compStatus.TextFmap()).Parse(errorMessage)
 	if err != nil {
 		_ = log.Error(err)
 	}

@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 
 	//nolint:revive // TODO(AML) Fix revive linter
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
@@ -154,6 +155,8 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		resourcesimpl.Module(),
 		hostimpl.Module(),
 		inventoryagent.Module(),
+		// sysprobeconfig is optionally required by inventoryagent
+		sysprobeconfig.NoneModule(),
 		inventoryhostimpl.Module(),
 	)
 }
