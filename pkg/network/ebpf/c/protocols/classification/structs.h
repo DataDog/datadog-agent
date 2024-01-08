@@ -29,7 +29,7 @@ typedef struct {
     conn_tuple_t tup;
     __u64 tags; // connection tags (i.e TLS library kind)
     char *buffer_ptr; // pointer to the user buffer
-    size_t data_end; // length of the user buffer
+    size_t data_end; // represents the end of the user buffer
     size_t data_off; // current read offset in the user buffer
 } tls_dispatcher_arguments_t;
 
