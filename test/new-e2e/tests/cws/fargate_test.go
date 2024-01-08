@@ -32,10 +32,6 @@ import (
 )
 
 const (
-	// Pulumi exports keys
-	ecsClusterNameKey = "ecs-cluster-name"
-	ecsClusterArnKey  = "ecs-cluster-arn"
-	fgTaskDefArnKey   = "fargate-task-arn"
 	// Tests constants
 	ddHostnamePrefix    = "cws-tests-ecs-fg-task"
 	selfTestsPolicyName = "selftests.policy"
@@ -70,11 +66,8 @@ type ECSFargateSuite struct {
 	stackName string
 	testID    string
 
-	apiClient      *api.Client
-	ddHostname     string
-	ecsClusterArn  string
-	ecsClusterName string
-	fgTaskDefArn   string
+	apiClient  *api.Client
+	ddHostname string
 }
 
 func TestECSFargate(t *testing.T) {
@@ -101,7 +94,7 @@ func (s *ECSFargateSuite) SetupSuite() {
 	selftestsPolicy, err := getPolicyContent(ruleDefs)
 	s.Require().NoError(err)
 
-	_, result, err := infra.GetStackManager().GetStack(s.ctx, s.stackName, nil, func(ctx *pulumi.Context) error {
+	_, _, err = infra.GetStackManager().GetStack(s.ctx, s.stackName, nil, func(ctx *pulumi.Context) error {
 		ddHostname := fmt.Sprintf("%s-%s", ddHostnamePrefix, s.testID)
 		awsEnv, err := awsResources.NewEnvironment(ctx)
 		if err != nil {
@@ -114,10 +107,6 @@ func (s *ECSFargateSuite) SetupSuite() {
 		if err != nil {
 			return err
 		}
-
-		// Export cluster’s properties
-		ctx.Export(ecsClusterNameKey, ecsCluster.Name)
-		ctx.Export(ecsClusterArnKey, ecsCluster.Arn)
 
 		// Associate Fargate capacity provider to the cluster
 		_, err = ecsResources.NewClusterCapacityProvider(awsEnv, "cws-cluster-capacity-provider", ecsCluster.Name, pulumi.StringArray{pulumi.String("FARGATE")})
@@ -304,17 +293,10 @@ func (s *ECSFargateSuite) SetupSuite() {
 			return err
 		}
 
-		// Export task definition's properties
-		ctx.Export(fgTaskDefArnKey, taskDef.TaskDefinition.Arn())
-
 		s.ddHostname = ddHostname
 		return nil
 	}, false)
 	s.Require().NoError(err)
-
-	s.ecsClusterArn = result.Outputs[ecsClusterArnKey].Value.(string)
-	s.ecsClusterName = result.Outputs[ecsClusterNameKey].Value.(string)
-	s.fgTaskDefArn = result.Outputs[fgTaskDefArnKey].Value.(string)
 }
 
 func (s *ECSFargateSuite) TearDownSuite() {
