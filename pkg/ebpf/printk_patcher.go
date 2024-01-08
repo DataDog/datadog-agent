@@ -68,7 +68,7 @@ func PatchPrintkNewline(m *manager.Manager) error {
 
 	for _, p := range progs {
 		for idx, ins := range p.Instructions {
-			if ins.OpCode != callOpCode || ins.Constant != int64(asm.FnTracePrintk) {
+			if !ins.IsBuiltinCall() || ins.Constant != int64(asm.FnTracePrintk) {
 				continue // Not a call to bpf_trace_printk, skip
 			}
 			maxLookback := max(0, idx-100) // For safety, don't look back more than 100 instructions
