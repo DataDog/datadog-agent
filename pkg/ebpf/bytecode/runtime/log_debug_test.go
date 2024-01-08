@@ -90,7 +90,8 @@ func TestPatchPrintkNewline(t *testing.T) {
 		// additional lines or empty lines. We check with "contains" to avoid issues with
 		// the variable output (PID, time, etc)
 		expectedLines := []string{
-			"hi", "123456", "1234567", "12345678", "Goodbye, world!", "even more words a lot of words here should be several instructions", "bye",
+			"hi", "123456", "1234567", "12345678", "Goodbye, world!", "even more words a lot of words here should be several instructions",
+			"with args: 2+2=4", "with more args and vars: 1+2=3", "bye",
 		}
 
 		for _, line := range expectedLines {

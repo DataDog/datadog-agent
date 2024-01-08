@@ -13,6 +13,10 @@ int logdebugtest(struct pt_regs *ctx) {
     log_debug("12345678"); // newline and null character have to go on next word
     log_debug("Goodbye, world!"); // Medium sized, should get several loads. Also newline here falls on a 64-bit boundary
     log_debug("even more words a lot of words here should be several instructions");
+    log_debug("with args: 2+2=%d", 4);
+    int a = 1;
+    int b = 2;
+    log_debug("with more args and vars: %d+%d=%d", a, b, a + b);
     log_debug("bye");
 
     return 0;

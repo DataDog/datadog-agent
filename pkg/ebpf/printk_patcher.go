@@ -69,6 +69,10 @@ func PatchPrintkNewline(m *manager.Manager) error {
 	var errs []error
 
 	for _, p := range progs {
+		// In some cases the compiler might reuse the same instruction for multiple calls to bpf_trace_printk,
+		// keep track of that to avoid errors when we don't find a newline in an instruction we've already patched.
+		patchedInstructionIndexes := make(map[int]bool)
+
 		for idx, ins := range p.Instructions {
 			if !ins.IsBuiltinCall() || ins.Constant != int64(asm.FnTracePrintk) {
 				continue // Not a call to bpf_trace_printk, skip
@@ -120,18 +124,18 @@ func PatchPrintkNewline(m *manager.Manager) error {
 				errs = append(errs, log.Warnf("Could not find stack offset instruction for bpf_trace_printk call %d in %s", idx, p.Name))
 				continue
 			}
-			newlineOffset := int16(stackOffsetIns.Constant + lengthLoadIns.Constant - 1) // -1 because the last character is the null character
+			newlineOffset := int16(stackOffsetIns.Constant + lengthLoadIns.Constant - 2) // -1 because the last character is the null character
 
 			// Now find which store instruction is responsible for putting the newline character on the stack.
-			// We will find all store instructions that copy from R1 to RFP and check that it's changing the string
-			// at the position we expect the newline to be in. After that, we will check the value of the R1 register.
+			// We will find all store instructions that copy to RFP and check that it's changing the string
+			// at the position we expect the newline to be in. After that, we will check the value of the source register.
 			// The instruction we're looking for is something like this:
 			// StXMemDW dst: rfp src: r1 off: -72 imm: 0x0000000000000000
 			stringStoreInsIdx := -1
 			inInstructionOffset := 0
 			for i := idx - 1; i >= maxLookback; i-- {
 				candidate := &p.Instructions[i]
-				if candidate.OpCode.Class() == asm.StXClass && candidate.Src == asm.R1 && candidate.Dst == asm.RFP {
+				if candidate.OpCode.Class() == asm.StXClass && candidate.Dst == asm.RFP {
 					if candidate.OpCode.Size() == asm.InvalidSize {
 						errs = append(errs, log.Warnf("BUG: store instruction %v returned asm.InvalidSize", candidate))
 						continue
@@ -140,12 +144,17 @@ func PatchPrintkNewline(m *manager.Manager) error {
 					minOffset := candidate.Offset
 					maxOffset := minOffset + int16(candidate.OpCode.Size().Sizeof())
 
-					if newlineOffset >= minOffset && newlineOffset <= maxOffset {
+					if newlineOffset >= minOffset && newlineOffset < maxOffset {
 						// We found the store instruction that loads the newline character, exit the loop
 						stringStoreInsIdx = i
 						inInstructionOffset = int(newlineOffset - minOffset)
 						break
 					}
+				} else if candidate.Dst == asm.RFP {
+					// Something is modifying the stack pointer and it's not a load instruction,
+					// we cannot be sure any longer that we're in the same call. Abort this search.
+					errs = append(errs, log.Warnf("Found instruction %v that modifies the stack pointer, aborting search for bpf_trace_printk call %d in %s", candidate, idx, p.Name))
+					break
 				}
 			}
 			if stringStoreInsIdx == -1 {
@@ -153,24 +162,37 @@ func PatchPrintkNewline(m *manager.Manager) error {
 				continue
 			}
 
-			// Now try to find the load instruction that loads the string into the R1 register
+			// Now try to find the load instruction that loads the string into the register
+			// that was used for the store instruction above.
 			// Something like this:  LdImmDW dst: r1 imm: 0x000a363534333231
 			// Note: in hex, the newline character is 0x0a
-			for i := stringStoreInsIdx - 1; i >= maxLookback; i-- {
+			targetReg := p.Instructions[stringStoreInsIdx].Src
+			foundLoadIns := false
+			for i := stringStoreInsIdx - 1; i >= maxLookback && !foundLoadIns; i-- {
 				candidate := &p.Instructions[i]
-				if (candidate.OpCode == movImmOpCode || candidate.OpCode == ldDWImmOpCode) && candidate.Dst == asm.R1 {
+				if (candidate.OpCode == movImmOpCode || candidate.OpCode == ldDWImmOpCode) && candidate.Dst == targetReg {
 					// This is the load instruction that's putting the newline character on the stack
 					// Now we need to patch it to put a null character instead
-					bitOffset := uint64(inInstructionOffset-1) * 8
+					bitOffset := uint64(inInstructionOffset) * 8
 					mask := uint64(0xff) << bitOffset
 					if candidate.Constant&int64(mask) == int64('\n')<<int64(bitOffset) { // Sanity check: don't overwrite anything if it's not a newline
 						candidate.Constant &= int64(^mask) // Set the newline byte to 0
 
 						// We've correctly patched this instruction, reduce the length in one byte and continue looking for more
 						lengthLoadIns.Constant--
+						patchedInstructionIndexes[i] = true // Keep track of which instructions we've patched
+					} else if !patchedInstructionIndexes[i] {
+						// If we've already patched this instruction, don't warn about it again. The compiler
+						// can reuse the same instruction for multiple calls to bpf_trace_printk, and in that case
+						// we only need to patch it once.
+						errs = append(errs, log.Warnf("Instruction %v does not have a newline we can patch for bpf_trace_printk_call %d in %s", candidate, idx, p.Name))
 					}
-					break
+					foundLoadIns = true
 				}
+			}
+			if !foundLoadIns {
+				errs = append(errs, log.Warnf("Could not find load instruction for bpf_trace_printk call %d in %s", idx, p.Name))
+				continue
 			}
 		}
 	}
