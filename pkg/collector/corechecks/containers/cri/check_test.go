@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers/cri"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/cri/crimock"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	criTypes "k8s.io/cri-api/pkg/apis/runtime/v1"
 
@@ -38,7 +37,7 @@ func TestCriCheck(t *testing.T) {
 		"cID100": mock.GetFullSampleContainerEntry(),
 		"cID101": mock.GetFullSampleContainerEntry(),
 	}
-	fakeTagger := fxutil.Test[tagger.Mock](t, tagger.MockModule())
+	fakeTagger := tagger.SetupFakeTagger(t)
 	defer fakeTagger.ResetTagger()
 
 	// Inject mock processor in check

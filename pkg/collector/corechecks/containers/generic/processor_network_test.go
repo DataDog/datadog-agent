@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -22,7 +21,7 @@ func TestNetworkProcessorExtension(t *testing.T) {
 	mockSender := mocksender.NewMockSender("network-extension")
 	mockSender.SetupAcceptAll()
 
-	fakeTagger := fxutil.Test[tagger.Mock](t, tagger.MockModule())
+	fakeTagger := tagger.SetupFakeTagger(t)
 	defer fakeTagger.ResetTagger()
 
 	mockCollector := mock.NewCollector("testCollector")

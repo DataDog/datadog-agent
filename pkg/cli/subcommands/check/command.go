@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
@@ -153,7 +154,13 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				workloadmeta.Module(),
 				apiimpl.Module(),
 				fx.Supply(context.Background()),
-
+				fx.Provide(func(config config.Component) tagger.Params {
+					if pkgconfig.IsCLCRunner() {
+						return tagger.NewCLCRunnerRemoteTaggerParams()
+					}
+					return tagger.NewTaggerParams()
+				}),
+				tagger.Module(),
 				forwarder.Bundle(),
 				inventorychecksimpl.Module(),
 				// inventorychecksimpl depends on a collector and serializer when created to send payload.
@@ -240,6 +247,7 @@ func run(
 	cliParams *cliParams,
 	demultiplexer demultiplexer.Component,
 	wmeta workloadmeta.Component,
+	taggerComp tagger.Component,
 	secretResolver secrets.Component,
 	agentAPI internalAPI.Component,
 	invChecks inventorychecks.Component,
@@ -299,11 +307,11 @@ func run(
 			fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
 			selectedChecks := []string{cliParams.checkName}
 			if cliParams.checkRate {
-				if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, wmeta, demultiplexer, agentAPI); err != nil {
+				if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, wmeta, taggerComp, demultiplexer, agentAPI); err != nil {
 					return fmt.Errorf("while running the jmx check: %v", err)
 				}
 			} else {
-				if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, wmeta, demultiplexer, agentAPI); err != nil {
+				if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, wmeta, taggerComp, demultiplexer, agentAPI); err != nil {
 					return fmt.Errorf("while running the jmx check: %v", err)
 				}
 			}

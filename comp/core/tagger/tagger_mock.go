@@ -9,6 +9,8 @@
 package tagger
 
 import (
+	"testing"
+
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/local"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -50,6 +52,11 @@ func (m *MockTaggerClient) SetTags(entity, source string, low, orch, high, std [
 	if v, ok := m.TaggerClient.defaultTagger.(*local.FakeTagger); ok {
 		v.SetTags(entity, source, low, orch, high, std)
 	}
+}
+
+// SetupFakeTagger calls fxutil.Test to create a mock tagger for testing
+func SetupFakeTagger(t *testing.T) Mock {
+	return fxutil.Test[Mock](t, MockModule())
 }
 
 // ResetTagger resets the tagger

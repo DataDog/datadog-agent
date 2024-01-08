@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestToSnakeCaseConversion(t *testing.T) {
@@ -57,7 +56,7 @@ func TestContainerdCheckGenericPart(t *testing.T) {
 		// Should never been called as we are in the Docker check
 		generic.CreateContainerMeta("docker", "cID101"),
 	}
-	fakeTagger := fxutil.Test[tagger.Mock](t, tagger.MockModule())
+	fakeTagger := tagger.SetupFakeTagger(t)
 	defer fakeTagger.ResetTagger()
 
 	containersStats := map[string]mock.ContainerEntry{

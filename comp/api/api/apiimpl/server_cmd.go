@@ -61,6 +61,7 @@ func startCMDServer(
 	capture replay.Component,
 	serverDebug dogstatsddebug.Component,
 	wmeta workloadmeta.Component,
+	taggerComp tagger.Component,
 	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
 	hostMetadata host.Component,
@@ -91,7 +92,7 @@ func startCMDServer(
 	pb.RegisterAgentServer(s, &server{})
 	pb.RegisterAgentSecureServer(s, &serverSecure{
 		configService: configService,
-		taggerServer:  taggerserver.NewServer(tagger.GetTaggerInstance()),
+		taggerServer:  taggerserver.NewServer(taggerComp),
 		// TODO(components): decide if workloadmetaServer should be componentized itself
 		workloadmetaServer: workloadmetaServer.NewServer(wmeta),
 		dogstatsdServer:    dogstatsdServer,

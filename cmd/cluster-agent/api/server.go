@@ -47,7 +47,7 @@ var (
 )
 
 // StartServer creates the router and starts the HTTP server
-func StartServer(w workloadmeta.Component, senderManager sender.DiagnoseSenderManager) error {
+func StartServer(w workloadmeta.Component, taggerComp tagger.Component, senderManager sender.DiagnoseSenderManager) error {
 	// create the root HTTP router
 	router = mux.NewRouter()
 	apiRouter = router.PathPrefix("/api/v1").Subrouter()
@@ -123,7 +123,7 @@ func StartServer(w workloadmeta.Component, senderManager sender.DiagnoseSenderMa
 
 	grpcSrv := grpc.NewServer(opts...)
 	pb.RegisterAgentSecureServer(grpcSrv, &serverSecure{
-		taggerServer: taggerserver.NewServer(tagger.GetTaggerInstance()),
+		taggerServer: taggerserver.NewServer(taggerComp),
 	})
 
 	timeout := config.Datadog.GetDuration("cluster_agent.server.idle_timeout_seconds") * time.Second

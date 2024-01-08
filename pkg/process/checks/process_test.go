@@ -77,7 +77,7 @@ func mockContainerProvider(t *testing.T) proccontainers.ContainerProvider {
 		workloadmeta.MockModule(),
 	))
 
-	fakeTagger := fxutil.Test[tagger.Mock](t, tagger.MockModule())
+	fakeTagger := tagger.SetupFakeTagger(t)
 	defer fakeTagger.ResetTagger()
 
 	// Finally, container provider

@@ -7,6 +7,7 @@ package common
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"sync"
 
@@ -18,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // GetWorkloadmetaInit provides the InitHelper for workloadmeta so it can be injected as a Param
@@ -29,7 +29,8 @@ func GetWorkloadmetaInit() workloadmeta.InitHelper {
 		// catalog getting instantiated and initialized.
 		sbomScanner, err := scanner.CreateGlobalScanner(config.Datadog)
 		if err != nil {
-			log.Errorf("failed to create SBOM scanner: %s", err)
+			e := fmt.Errorf("failed to create SBOM scanner: %s", err)
+			return e
 		} else if sbomScanner != nil {
 			sbomScanner.Start(ctx)
 		}

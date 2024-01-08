@@ -24,6 +24,7 @@ import (
 
 // Component is the component type.
 type Component interface {
+	// TODO(component): Start method should be removed or migrated to an internal function in favour of fx.Lifecyle.
 	Start(ctx context.Context) error
 	Stop() error
 	Tag(entity string, cardinality collectors.TagCardinality) ([]string, error)

@@ -172,6 +172,7 @@ func run(log log.Component,
 	serverDebug dogstatsddebug.Component,
 	forwarder defaultforwarder.Component,
 	wmeta workloadmeta.Component,
+	taggerComp tagger.Component,
 	rcclient rcclient.Component,
 	_ runner.Component,
 	demultiplexer demultiplexer.Component,
@@ -238,6 +239,7 @@ func run(log log.Component,
 		server,
 		serverDebug,
 		wmeta,
+		taggerComp,
 		rcclient,
 		logsAgent,
 		forwarder,
@@ -279,19 +281,6 @@ func getSharedFxOption() fx.Option {
 		// workloadmeta setup
 		collectors.GetCatalog(),
 		fx.Provide(defaults.DefaultParams),
-		fx.Provide(func(config config.Component) workloadmeta.Params {
-			var agentType workloadmeta.AgentType
-			if flavor.GetFlavor() == flavor.ClusterAgent {
-				agentType = workloadmeta.ClusterAgent
-			} else {
-				agentType = workloadmeta.NodeAgent
-			}
-
-			return workloadmeta.Params{
-				AgentType:  agentType,
-				InitHelper: common.GetWorkloadmetaInit(),
-			}
-		}),
 		workloadmeta.Module(),
 		apiimpl.Module(),
 
@@ -358,6 +347,7 @@ func startAgent(
 	server dogstatsdServer.Component,
 	serverDebug dogstatsddebug.Component,
 	wmeta workloadmeta.Component,
+	taggerComp tagger.Component,
 	rcclient rcclient.Component,
 	logsAgent optional.Option[logsAgent.Component],
 	_ defaultforwarder.Component,
@@ -509,6 +499,7 @@ func startAgent(
 	if err = agentAPI.StartServer(
 		configService,
 		wmeta,
+		taggerComp,
 		logsAgent,
 		demultiplexer,
 	); err != nil {
