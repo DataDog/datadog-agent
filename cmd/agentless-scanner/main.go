@@ -1956,7 +1956,11 @@ func scanLambda(ctx context.Context, scan *scanTask, resultsCh chan scanResult) 
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			log.Error("lambda: could not remove temp directory %q", tempDir)
+		}
+	}()
 
 	codePath, err := downloadLambda(ctx, scan, tempDir)
 	if err != nil {
