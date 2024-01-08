@@ -14,7 +14,7 @@ import (
 )
 
 func TestKernelTelemetryUpdate(t *testing.T) {
-	kTelemetry := newHTTP2KernelTelemetry()
+	kernelTelemetryGroup := newHTTP2KernelTelemetry()
 
 	// Populating values to simulate the eBPF map's HTTP2 telemetry
 	http2Telemetry := HTTP2Telemetry{
@@ -27,7 +27,7 @@ func TestKernelTelemetryUpdate(t *testing.T) {
 		Exceeding_max_frames_to_filter:   40,
 		Path_size_bucket:                 [8]uint64{1, 2, 3, 4, 5, 6, 7, 8},
 	}
-	kTelemetry.update(&HTTP2Telemetry{
+	kernelTelemetryGroup.update(&HTTP2Telemetry{
 		Request_seen:                     5,
 		Response_seen:                    5,
 		End_of_stream:                    10,
@@ -37,7 +37,7 @@ func TestKernelTelemetryUpdate(t *testing.T) {
 		Exceeding_max_frames_to_filter:   40,
 		Path_size_bucket:                 [8]uint64{1, 2, 3, 4, 5, 6, 7, 8},
 	})
-	assertTelemetryEquality(t, &http2Telemetry, kTelemetry)
+	assertTelemetryEquality(t, &http2Telemetry, kernelTelemetryGroup)
 
 	// Increasing the values to simulate more data coming from the eBPF map's HTTP2 telemetry
 	newHTTP2Telemetry := HTTP2Telemetry{
@@ -50,19 +50,19 @@ func TestKernelTelemetryUpdate(t *testing.T) {
 		Exceeding_max_frames_to_filter:   45,
 		Path_size_bucket:                 [8]uint64{2, 3, 4, 5, 6, 7, 8, 9},
 	}
-	kTelemetry.update(&newHTTP2Telemetry)
-	assertTelemetryEquality(t, &newHTTP2Telemetry, kTelemetry)
+	kernelTelemetryGroup.update(&newHTTP2Telemetry)
+	assertTelemetryEquality(t, &newHTTP2Telemetry, kernelTelemetryGroup)
 }
 
-func assertTelemetryEquality(t *testing.T, http2Telemetry *HTTP2Telemetry, kTelemetry *kernelTelemetry) {
-	assert.Equal(t, http2Telemetry.Request_seen, uint64(kTelemetry.http2requests.Get()))
-	assert.Equal(t, http2Telemetry.Response_seen, uint64(kTelemetry.http2responses.Get()))
-	assert.Equal(t, http2Telemetry.End_of_stream, uint64(kTelemetry.endOfStream.Get()))
-	assert.Equal(t, http2Telemetry.End_of_stream_rst, uint64(kTelemetry.endOfStreamRST.Get()))
-	assert.Equal(t, http2Telemetry.Path_exceeds_frame, uint64(kTelemetry.pathExceedsFrame.Get()))
-	assert.Equal(t, http2Telemetry.Exceeding_max_interesting_frames, uint64(kTelemetry.exceedingMaxInterestingFrames.Get()))
-	assert.Equal(t, http2Telemetry.Exceeding_max_frames_to_filter, uint64(kTelemetry.exceedingMaxFramesToFilter.Get()))
-	for i, bucket := range kTelemetry.pathSizeBucket {
+func assertTelemetryEquality(t *testing.T, http2Telemetry *HTTP2Telemetry, kernelTelemetryGroup *kernelTelemetry) {
+	assert.Equal(t, http2Telemetry.Request_seen, uint64(kernelTelemetryGroup.http2requests.Get()))
+	assert.Equal(t, http2Telemetry.Response_seen, uint64(kernelTelemetryGroup.http2responses.Get()))
+	assert.Equal(t, http2Telemetry.End_of_stream, uint64(kernelTelemetryGroup.endOfStream.Get()))
+	assert.Equal(t, http2Telemetry.End_of_stream_rst, uint64(kernelTelemetryGroup.endOfStreamRST.Get()))
+	assert.Equal(t, http2Telemetry.Path_exceeds_frame, uint64(kernelTelemetryGroup.pathExceedsFrame.Get()))
+	assert.Equal(t, http2Telemetry.Exceeding_max_interesting_frames, uint64(kernelTelemetryGroup.exceedingMaxInterestingFrames.Get()))
+	assert.Equal(t, http2Telemetry.Exceeding_max_frames_to_filter, uint64(kernelTelemetryGroup.exceedingMaxFramesToFilter.Get()))
+	for i, bucket := range kernelTelemetryGroup.pathSizeBucket {
 		assert.Equal(t, http2Telemetry.Path_size_bucket[i], uint64(bucket.Get()))
 	}
 }
