@@ -15,29 +15,27 @@ import (
 	"time"
 
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/consumer"
-	"go.opentelemetry.io/collector/model/otlp"
 	"go.opentelemetry.io/collector/pdata/pmetric"
+	collectorreceiver "go.opentelemetry.io/collector/receiver"
+
 	"go.uber.org/zap"
 )
 
 const typeStr = "file"
 
 // NewFactory creates a new OTLP receiver factory.
-func NewFactory() component.ReceiverFactory {
-	return component.NewReceiverFactory(
+func NewFactory() collectorreceiver.Factory {
+	return collectorreceiver.NewFactory(
 		typeStr,
 		createDefaultConfig,
-		component.WithMetricsReceiver(createMetricsReceiver),
+		collectorreceiver.WithMetrics(createMetricsReceiver, component.StabilityLevelAlpha),
 	)
 }
 
-var _ config.Receiver = (*Config)(nil)
-
 // Config of filereceiver.
 type Config struct {
-	config.ReceiverSettings `mapstructure:",squash"`
+	collectorreceiver.CreateSettings `mapstructure:",squash"`
 	// Path of metrics data.
 	Path string `mapstructure:"path"`
 	// LoopConfig is the loop configuration.
@@ -60,14 +58,16 @@ func (cfg *Config) Validate() error {
 	return nil
 }
 
-func createDefaultConfig() config.Receiver {
+func createDefaultConfig() component.Config {
 	return &Config{
-		ReceiverSettings: config.NewReceiverSettings(config.NewComponentID(typeStr)),
-		Loop:             LoopConfig{Enabled: false, Period: 10 * time.Second},
+		CreateSettings: collectorreceiver.CreateSettings{
+			ID: component.NewID(typeStr),
+		},
+		Loop: LoopConfig{Enabled: false, Period: 10 * time.Second},
 	}
 }
 
-var _ component.MetricsReceiver = (*receiver)(nil)
+var _ collectorreceiver.Metrics = (*receiver)(nil)
 
 type receiver struct {
 	config       *Config
@@ -140,14 +140,14 @@ func (r *receiver) Shutdown(context.Context) error {
 
 func createMetricsReceiver(
 	_ context.Context,
-	set component.ReceiverCreateSettings,
-	cfg config.Receiver,
+	set collectorreceiver.CreateSettings,
+	cfg component.Config,
 	consumer consumer.Metrics,
-) (component.MetricsReceiver, error) {
+) (collectorreceiver.Metrics, error) {
 	return &receiver{
 		config:       cfg.(*Config),
 		logger:       set.Logger,
-		unmarshaler:  otlp.NewJSONMetricsUnmarshaler(),
+		unmarshaler:  &pmetric.JSONUnmarshaler{},
 		nextConsumer: consumer,
 		stopCh:       make(chan struct{}),
 	}, nil
