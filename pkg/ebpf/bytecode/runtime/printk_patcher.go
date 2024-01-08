@@ -130,6 +130,9 @@ func patchPrintkInstructions(p *ebpf.ProgramSpec) (int, error) {
 					if candidate.OpCode == addImmOpCode && candidate.Dst == asm.R1 {
 						stackOffsetIns = candidate
 						break
+					} else if candidate.Dst == asm.R1 {
+						errs = append(errs, log.Warnf("Found instruction %v that modifies r1, aborting stack offset search for bpf_trace_printk call %d in %s", candidate, idx, p.Name))
+						break
 					}
 				}
 			}
