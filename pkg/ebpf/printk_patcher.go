@@ -8,7 +8,7 @@
 package ebpf
 
 import (
-	"fmt"
+	"errors"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf/asm"
@@ -60,11 +60,13 @@ func PatchPrintkNewline(m *manager.Manager) error {
 	}
 
 	// Compute some opcodes we'll need
-	callOpCode := asm.Call.Op(asm.ImmSource) // Call to printk always has immediate source
 	movImmOpCode := asm.Mov.Op(asm.ImmSource)
 	ldDWImmOpCode := asm.LoadImmOp(asm.DWord)
 	movRegOpCode := asm.Mov.Op(asm.RegSource)
 	addImmOpCode := asm.Add.Op(asm.ImmSource)
+
+	// list of errors that happened while patching, if any
+	var errs []error
 
 	for _, p := range progs {
 		for idx, ins := range p.Instructions {
@@ -75,8 +77,10 @@ func PatchPrintkNewline(m *manager.Manager) error {
 
 			// We found the call to bpf_trace_printk, now we need to find
 			// the string on the stack and patch it.
-			// For that, find first the second register, which is the second argument
+			// For that, find first the value of the second register, which is the second argument
 			// to the call, which is the length of the string.
+			// Example instruction: MovImm dst: r2 imm: 0x0000000000000009 which
+			// sets the length of the formatting to 9
 			var lengthLoadIns *asm.Instruction
 			for i := idx - 1; i >= maxLookback; i-- {
 				candidate := &p.Instructions[i]
@@ -86,19 +90,23 @@ func PatchPrintkNewline(m *manager.Manager) error {
 				}
 			}
 			if lengthLoadIns == nil {
-				err = log.Warnf("Could not find length load instruction for bpf_trace_printk call %d in %s", idx, p.Name)
+				errs = append(errs, log.Warnf("Could not find length load instruction for bpf_trace_printk call %d in %s", idx, p.Name))
 				continue // Skip this call instruction
 			}
 
 			// Now we have to find in which part the stack is the string being stored
 			// For that we need to find the mov instruction that puts the stack pointer
 			// into r1 and then the add that modifies the stack offset
+			// We are looking for a sequence like this:
+			// MovReg dst: r1 src: rfp                 | Sets r1 to the stack pointer
+			// AddImm dst: r1 imm: 0x-000000000000048  | Adjusts the offset
 			var stackOffsetIns *asm.Instruction
 			for i := idx - 1; i >= maxLookback && stackOffsetIns == nil; i-- {
 				candidate := &p.Instructions[i]
 				if candidate.OpCode == movRegOpCode && candidate.Dst == asm.R1 && candidate.Src == asm.RFP {
 					// Ok, so we found the instruction that loads the stack pointer into r1
 					// From that, advance until we find the add instruction that modifies the stack offset
+					// (the AddImm instruction in the example above)
 					for j := i + 1; j < idx; j++ {
 						candidate = &p.Instructions[j]
 						if candidate.OpCode == addImmOpCode && candidate.Dst == asm.R1 {
@@ -109,19 +117,23 @@ func PatchPrintkNewline(m *manager.Manager) error {
 				}
 			}
 			if stackOffsetIns == nil {
-				err = log.Warnf("Could not find stack offset instruction for bpf_trace_printk call %d in %s", idx, p.Name)
+				errs = append(errs, log.Warnf("Could not find stack offset instruction for bpf_trace_printk call %d in %s", idx, p.Name))
 				continue
 			}
 			newlineOffset := int16(stackOffsetIns.Constant + lengthLoadIns.Constant - 1) // -1 because the last character is the null character
 
-			// Now find which store instruction is responsible for putting the newline character
+			// Now find which store instruction is responsible for putting the newline character on the stack.
+			// We will find all store instructions that copy from R1 to RFP and check that it's changing the string
+			// at the position we expect the newline to be in. After that, we will check the value of the R1 register.
+			// The instruction we're looking for is something like this:
+			// StXMemDW dst: rfp src: r1 off: -72 imm: 0x0000000000000000
 			stringStoreInsIdx := -1
 			inInstructionOffset := 0
 			for i := idx - 1; i >= maxLookback; i-- {
 				candidate := &p.Instructions[i]
 				if candidate.OpCode.Class() == asm.StXClass && candidate.Src == asm.R1 && candidate.Dst == asm.RFP {
 					if candidate.OpCode.Size() == asm.InvalidSize {
-						err = log.Warnf("BUG: store instruction %v returned asm.InvalidSize", candidate)
+						errs = append(errs, log.Warnf("BUG: store instruction %v returned asm.InvalidSize", candidate))
 						continue
 					}
 
@@ -137,19 +149,21 @@ func PatchPrintkNewline(m *manager.Manager) error {
 				}
 			}
 			if stringStoreInsIdx == -1 {
-				err = log.Warnf("Could not find store instruction for bpf_trace_printk call %d in %s", idx, p.Name)
+				errs = append(errs, log.Warnf("Could not find store instruction for bpf_trace_printk call %d in %s", idx, p.Name))
 				continue
 			}
 
 			// Now try to find the load instruction that loads the string into the R1 register
-			// var stringLoadIns *asm.Instruction
+			// Something like this:  LdImmDW dst: r1 imm: 0x000a363534333231
+			// Note: in hex, the newline character is 0x0a
 			for i := stringStoreInsIdx - 1; i >= maxLookback; i-- {
 				candidate := &p.Instructions[i]
 				if (candidate.OpCode == movImmOpCode || candidate.OpCode == ldDWImmOpCode) && candidate.Dst == asm.R1 {
 					// This is the load instruction that's putting the newline character on the stack
-					// (the second to last one, that's why we check <= 9 and not <= 8)
-					mask := uint64(0xff) << (uint64(inInstructionOffset-1) * 8)
-					if candidate.Constant&int64(mask) == int64('\n')<<(uint64(inInstructionOffset-1)*8) {
+					// Now we need to patch it to put a null character instead
+					bitOffset := uint64(inInstructionOffset-1) * 8
+					mask := uint64(0xff) << bitOffset
+					if candidate.Constant&int64(mask) == int64('\n')<<int64(bitOffset) { // Sanity check: don't overwrite anything if it's not a newline
 						candidate.Constant &= int64(^mask) // Set the newline byte to 0
 
 						// We've correctly patched this instruction, reduce the length in one byte and continue looking for more
@@ -161,8 +175,8 @@ func PatchPrintkNewline(m *manager.Manager) error {
 		}
 	}
 
-	if err != nil {
-		return fmt.Errorf("at least one error happened patching printk calls: %v", err)
+	if len(errs) > 0 {
+		return errors.Join(errs...)
 	}
 	return nil
 }
