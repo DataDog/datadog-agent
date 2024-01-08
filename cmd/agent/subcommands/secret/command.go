@@ -9,6 +9,7 @@ package secret
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -16,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -25,6 +25,12 @@ import (
 // cliParams are the command-line arguments for this subcommand
 type cliParams struct {
 	*command.GlobalParams
+
+	// args are the positional command-line arguments
+	args []string
+
+	// cmd is the cobra Command, used to show help
+	cmd *cobra.Command
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -32,12 +38,15 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &cliParams{
 		GlobalParams: globalParams,
 	}
-	secretInfoCommand := &cobra.Command{
-		Use:   "secret",
-		Short: "Print information about decrypted secrets in configuration.",
+
+	cmd := &cobra.Command{
+		Use:   "secret [refresh]",
+		Short: "Display information about or refresh secrets in configuration.",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return fxutil.OneShot(secret,
+			cliParams.cmd = cmd
+			cliParams.args = args
+			return fxutil.OneShot(secretCommand,
 				fx.Supply(cliParams),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
@@ -45,19 +54,29 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		},
 	}
 
-	return []*cobra.Command{secretInfoCommand}
+	return []*cobra.Command{cmd}
 }
 
-func secret(_ log.Component, config config.Component, _ *cliParams) error {
+func secretCommand(config config.Component, cliParams *cliParams) error {
 	if err := util.SetAuthToken(); err != nil {
 		fmt.Println(err)
 		return nil
 	}
 
-	if err := showSecretInfo(config); err != nil {
-		fmt.Println(err)
-		return nil
+	if len(cliParams.args) == 0 {
+		if err := showSecretInfo(config); err != nil {
+			fmt.Println(err)
+		}
+	} else if len(cliParams.args) == 1 && cliParams.args[0] == "refresh" {
+		if err := secretRefresh(config); err != nil {
+			fmt.Println(err)
+		}
+	} else {
+		fmt.Printf("The command arguments must be empty or 'refresh'\n")
+		cliParams.cmd.Help() //nolint:errcheck
+		os.Exit(1)
 	}
+
 	return nil
 }
 
@@ -82,5 +101,29 @@ func showSecretInfo(config config.Component) error {
 	}
 
 	fmt.Println(string(r))
+	return nil
+}
+
+func secretRefresh(config config.Component) error {
+	c := util.GetClient(false)
+	ipcAddress, err := pkgconfig.GetIPCAddress()
+	if err != nil {
+		return err
+	}
+	apiConfigURL := fmt.Sprintf("https://%v:%v/agent/secret/refresh", ipcAddress, config.GetInt("cmd_port"))
+
+	r, err := util.DoGet(c, apiConfigURL, util.LeaveConnectionOpen)
+	if err != nil {
+		var errMap = make(map[string]string)
+		json.Unmarshal(r, &errMap) //nolint:errcheck
+		// If the error has been marshalled into a json object, check it and return it properly
+		if e, found := errMap["error"]; found {
+			return fmt.Errorf("%s", e)
+		}
+
+		return fmt.Errorf("Could not reach agent: %v\nMake sure the agent is running before requesting the runtime configuration and contact support if you continue having issues", err)
+	}
+
+	fmt.Printf("Secrets refresh: %s\n", r)
 	return nil
 }

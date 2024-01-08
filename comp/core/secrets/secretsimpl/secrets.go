@@ -392,6 +392,8 @@ func (r *secretResolver) Refresh() error {
 		return nil
 	}
 
+	log.Info("Refreshing secrets for %d handles", len(newHandles))
+
 	var secretResponse map[string]string
 	var err error
 	if r.fetchHookFunc != nil {
