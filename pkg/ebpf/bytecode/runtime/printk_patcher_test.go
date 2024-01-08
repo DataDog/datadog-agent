@@ -59,10 +59,10 @@ func TestPatchPrintkNewline(t *testing.T) {
 			},
 			MapEditors: make(map[string]*ebpf.Map),
 			ConstantEditors: []manager.ConstantEditor{
-				ddebpf.GetPatchedPrintkEditor(),
+				GetPatchedPrintkEditor(),
 			},
 		}
-		mgr.InstructionPatcher = ddebpf.PatchPrintkNewline
+		mgr.InstructionPatcher = PatchPrintkNewline
 
 		tp, err := tracefs.OpenFile("trace_pipe", os.O_RDONLY, 0)
 		require.NoError(t, err)
@@ -124,7 +124,7 @@ func TestPatchPrintkAllAssets(t *testing.T) {
 
 			for _, prog := range spec.Programs {
 				t.Run(prog.Name, func(t *testing.T) {
-					patches, err := ddebpf.PatchPrintkInstructions(prog)
+					patches, err := PatchPrintkInstructions(prog)
 					require.NoError(t, err)
 					totalPatches += patches
 				})
