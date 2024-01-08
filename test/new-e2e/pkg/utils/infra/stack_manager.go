@@ -334,16 +334,10 @@ func shouldRetryError(err error) bool {
 
 // sendEventToDatadog sends an event to Datadog, it will use the API Key from environment variable DD_API_KEY if present, otherwise it will use the one from SSM Parameter Store
 func sendEventToDatadog(title string, message string, tags []string, logger io.Writer) error {
-
 	apiKey, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.APIKey, "")
 	if err != nil {
 		fmt.Fprintf(logger, "error when getting API key from parameter store: %v", err)
 		return err
-	}
-
-	apiKeyFromEnv, ok := os.LookupEnv("DD_API_KEY")
-	if ok {
-		apiKey = apiKeyFromEnv
 	}
 
 	if apiKey == "" {
