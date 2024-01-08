@@ -334,7 +334,7 @@ func (s *ECSFargateSuite) TearDownSuite() {
 	s.Assert().NoError(err)
 }
 
-func (s *ECSFargateSuite) Test01RulesetLoaded() {
+func (s *ECSFargateSuite) TestRulesetLoaded() {
 	query := fmt.Sprintf("host:%s rule_id:ruleset_loaded @policies.name:%s", s.ddHostname, selfTestsPolicyName)
 	result, err := api.WaitAppLogs(s.apiClient, query)
 	s.Require().NoError(err, "could not get new ruleset_loaded event log")
@@ -343,7 +343,7 @@ func (s *ECSFargateSuite) Test01RulesetLoaded() {
 	s.Require().EqualValues("ruleset_loaded", agentContext["rule_id"], "unexpected agent rule ID")
 }
 
-func (s *ECSFargateSuite) Test02ExecRule() {
+func (s *ECSFargateSuite) TestExecRule() {
 	query := fmt.Sprintf("host:%s rule_id:%s", s.ddHostname, execRuleID)
 	result, err := api.WaitAppLogs(s.apiClient, query)
 	s.Require().NoError(err, "could not get the exec rule event log")
@@ -352,7 +352,7 @@ func (s *ECSFargateSuite) Test02ExecRule() {
 	s.Require().EqualValues(execRuleID, agentContext["rule_id"], "unexpected agent rule ID")
 }
 
-func (s *ECSFargateSuite) Test03OpenRule() {
+func (s *ECSFargateSuite) TestOpenRule() {
 	query := fmt.Sprintf("host:%s rule_id:%s", s.ddHostname, openRuleID)
 	result, err := api.WaitAppLogs(s.apiClient, query)
 	s.Require().NoError(err, "could not get the open rule event log")
