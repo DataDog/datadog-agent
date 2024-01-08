@@ -17,7 +17,7 @@ func TestKernelTelemetryUpdate(t *testing.T) {
 	kernelTelemetryGroup := newHTTP2KernelTelemetry()
 
 	// Populating values to simulate the eBPF map's HTTP2 telemetry
-	http2Telemetry := HTTP2Telemetry{
+	http2Telemetry := &HTTP2Telemetry{
 		Request_seen:                     5,
 		Response_seen:                    5,
 		End_of_stream:                    10,
@@ -27,31 +27,22 @@ func TestKernelTelemetryUpdate(t *testing.T) {
 		Exceeding_max_frames_to_filter:   40,
 		Path_size_bucket:                 [8]uint64{1, 2, 3, 4, 5, 6, 7, 8},
 	}
-	kernelTelemetryGroup.update(&HTTP2Telemetry{
-		Request_seen:                     5,
-		Response_seen:                    5,
-		End_of_stream:                    10,
-		End_of_stream_rst:                11,
-		Path_exceeds_frame:               20,
-		Exceeding_max_interesting_frames: 30,
-		Exceeding_max_frames_to_filter:   40,
-		Path_size_bucket:                 [8]uint64{1, 2, 3, 4, 5, 6, 7, 8},
-	})
-	assertTelemetryEquality(t, &http2Telemetry, kernelTelemetryGroup)
+	kernelTelemetryGroup.update(http2Telemetry)
+	assertTelemetryEquality(t, http2Telemetry, kernelTelemetryGroup)
 
 	// Increasing the values to simulate more data coming from the eBPF map's HTTP2 telemetry
-	newHTTP2Telemetry := HTTP2Telemetry{
-		Request_seen:                     10,
-		Response_seen:                    10,
-		End_of_stream:                    11,
-		End_of_stream_rst:                18,
-		Path_exceeds_frame:               26,
-		Exceeding_max_interesting_frames: 32,
-		Exceeding_max_frames_to_filter:   45,
-		Path_size_bucket:                 [8]uint64{2, 3, 4, 5, 6, 7, 8, 9},
-	}
-	kernelTelemetryGroup.update(&newHTTP2Telemetry)
-	assertTelemetryEquality(t, &newHTTP2Telemetry, kernelTelemetryGroup)
+	// This operation must be performed on the same object (without losing the pointer), as this aligns with
+	// the expected behavior in the code
+	http2Telemetry.Request_seen = 10
+	http2Telemetry.Response_seen = 10
+	http2Telemetry.End_of_stream = 11
+	http2Telemetry.End_of_stream_rst = 18
+	http2Telemetry.Path_exceeds_frame = 26
+	http2Telemetry.Exceeding_max_interesting_frames = 32
+	http2Telemetry.Exceeding_max_frames_to_filter = 42
+	http2Telemetry.Path_size_bucket = [8]uint64{2, 3, 4, 5, 6, 7, 8, 9}
+	kernelTelemetryGroup.update(http2Telemetry)
+	assertTelemetryEquality(t, http2Telemetry, kernelTelemetryGroup)
 }
 
 func assertTelemetryEquality(t *testing.T, http2Telemetry *HTTP2Telemetry, kernelTelemetryGroup *kernelTelemetry) {
