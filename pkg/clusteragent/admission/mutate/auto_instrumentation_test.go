@@ -1574,7 +1574,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			),
 			wantErr: false,
 			setupConfig: func() {
-				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", false)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled_namespaces", []string{"ns"})
 			},
 		},
