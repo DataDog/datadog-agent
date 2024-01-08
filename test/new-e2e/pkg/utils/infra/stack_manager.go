@@ -316,7 +316,6 @@ func runFuncWithRecover(f pulumi.RunFunc) pulumi.RunFunc {
 }
 
 func shouldRetryError(err error) bool {
-
 	// Add here errors that are known to be flakes and that should be retried
 	if strings.Contains(err.Error(), "i/o timeout") {
 		return true
