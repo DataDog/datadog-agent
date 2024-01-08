@@ -108,7 +108,7 @@ func (s *ECSFargateSuite) SetupSuite() {
 				"datadog-agent": {
 					Cpu:   pulumi.IntPtr(0),
 					Name:  pulumi.String("datadog-agent"),
-					Image: pulumi.String(agentComp.DockerAgentFullImagePath(awsEnv.CommonEnvironment, "docker.io/datadog/agent-dev", "safchain-custom-cws-inst-py3")),
+					Image: pulumi.String(agentComp.DockerAgentFullImagePath(awsEnv.CommonEnvironment, "public.ecr.aws/datadog/agent", "7.51.0-rc.1")),
 					Command: pulumi.ToStringArray([]string{
 						"sh",
 						"-c",
@@ -311,7 +311,7 @@ func (s *ECSFargateSuite) TestOpenRule() {
 
 const (
 	cwsInstrumentationFullImagePathParamName = "cwsinstrumentation:fullImagePath"
-	cwsInstrumentationDefaultImagePath       = "docker.io/datadog/cws-instrumentation-dev:safchain-custom-cws-inst"
+	cwsInstrumentationDefaultImagePath       = "public.ecr.aws/datadog/cws-instrumentation:rc"
 )
 
 func getCWSInstrumentationFullImagePath(e *configCommon.CommonEnvironment) string {
