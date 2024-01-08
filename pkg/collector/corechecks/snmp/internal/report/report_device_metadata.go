@@ -33,6 +33,22 @@ const topologyLinkSourceTypeCDP = "cdp"
 const ciscoNetworkProtocolIPv4 = "1"
 const ciscoNetworkProtocolIPv6 = "20"
 
+var supportedDeviceTypes = map[string]bool{
+	"access_point":  true,
+	"firewall":      true,
+	"load_balancer": true,
+	"pdu":           true,
+	"printer":       true,
+	"router":        true,
+	"sd-wan":        true,
+	"sensor":        true,
+	"server":        true,
+	"storage":       true,
+	"switch":        true,
+	"ups":           true,
+	"wlc":           true,
+}
+
 // ReportNetworkDeviceMetadata reports device metadata
 func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus devicemetadata.DeviceStatus, diagnoses []devicemetadata.DiagnosisMetadata) {
 	tags := common.CopyStrings(origTags)
@@ -232,26 +248,14 @@ func getProfileVersion(config *checkconfig.CheckConfig) uint64 {
 
 func getDeviceType(store *metadata.Store) string {
 	deviceType := strings.ToLower(store.GetScalarAsString("device.type"))
-	switch deviceType {
-	case
-		"access_point",
-		"firewall",
-		"load_balancer",
-		"pdu",
-		"printer",
-		"router",
-		"sd-wan",
-		"sensor",
-		"server",
-		"storage",
-		"switch",
-		"ups",
-		"wlc":
-		return deviceType
-	case "":
+	if deviceType == "" {
 		return "other"
 	}
-	log.Debugf("Unsupported device type: %s", deviceType)
+	_, isValidType := supportedDeviceTypes[deviceType]
+	if isValidType {
+		return deviceType
+	}
+	log.Warnf("Unsupported device type: %s", deviceType)
 	return "other"
 }
 
