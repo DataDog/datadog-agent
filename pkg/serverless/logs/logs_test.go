@@ -665,64 +665,69 @@ func TestProcessLogMessageLogsNotEnabled(t *testing.T) {
 }
 
 func TestProcessLogMessagesTimeoutLogFromReportLog(t *testing.T) {
-	logChannel := make(chan *config.ChannelMessage)
-	demux := createDemultiplexer(t)
-	defer demux.Stop(false)
+	for _, enhancedMetricsEnabled := range []bool{true, false} {
+		t.Run(fmt.Sprint(enhancedMetricsEnabled), func(t *testing.T) {
 
-	mockExecutionContext := &executioncontext.ExecutionContext{}
-	lc := &LambdaLogsCollector{
-		arn:                    "my-arn",
-		lastRequestID:          "myRequestID",
-		logsEnabled:            true,
-		enhancedMetricsEnabled: true,
-		out:                    logChannel,
-		extraTags: &Tags{
-			Tags: []string{"tag0:value0,tag1:value1"},
-		},
-		executionContext:    mockExecutionContext,
-		demux:               demux,
-		invocationStartTime: time.Now(),
-		invocationEndTime:   time.Now().Add(10 * time.Millisecond),
-	}
+			logChannel := make(chan *config.ChannelMessage)
+			demux := createDemultiplexer(t)
+			defer demux.Stop(false)
 
-	reportLogMessage := LambdaLogAPIMessage{
-		objectRecord: platformObjectRecord{
-			requestID: "myRequestID",
-			reportLogItem: reportLogMetrics{
-				durationMs:       100.00,
-				billedDurationMs: 100,
-				memorySizeMB:     128,
-				maxMemoryUsedMB:  128,
-				initDurationMs:   50.00,
-			},
-			status: timeoutStatus,
-		},
-		logType:      logTypePlatformReport,
-		stringRecord: "contents to be overwritten",
-	}
+			mockExecutionContext := &executioncontext.ExecutionContext{}
+			lc := &LambdaLogsCollector{
+				arn:                    "my-arn",
+				lastRequestID:          "myRequestID",
+				logsEnabled:            true,
+				enhancedMetricsEnabled: enhancedMetricsEnabled,
+				out:                    logChannel,
+				extraTags: &Tags{
+					Tags: []string{"tag0:value0,tag1:value1"},
+				},
+				executionContext:    mockExecutionContext,
+				demux:               demux,
+				invocationStartTime: time.Now(),
+				invocationEndTime:   time.Now().Add(10 * time.Millisecond),
+			}
 
-	logMessages := []LambdaLogAPIMessage{
-		reportLogMessage,
-	}
+			reportLogMessage := LambdaLogAPIMessage{
+				objectRecord: platformObjectRecord{
+					requestID: "myRequestID",
+					reportLogItem: reportLogMetrics{
+						durationMs:       100.00,
+						billedDurationMs: 100,
+						memorySizeMB:     128,
+						maxMemoryUsedMB:  128,
+						initDurationMs:   50.00,
+					},
+					status: timeoutStatus,
+				},
+				logType:      logTypePlatformReport,
+				stringRecord: "contents to be overwritten",
+			}
 
-	go lc.processLogMessages(logMessages)
+			logMessages := []LambdaLogAPIMessage{
+				reportLogMessage,
+			}
 
-	expectedStringRecord := []string{
-		createStringRecordForReportLog(lc.invocationStartTime, lc.invocationEndTime, &reportLogMessage),
-		createStringRecordForTimeoutLog(&reportLogMessage),
-	}
-	expectedErrors := []bool{false, true}
-	for i := 0; i < len(expectedStringRecord); i++ {
-		select {
-		case received := <-logChannel:
-			assert.NotNil(t, received)
-			assert.Equal(t, "my-arn", received.Lambda.ARN)
-			assert.Equal(t, "myRequestID", received.Lambda.RequestID)
-			assert.Equal(t, expectedStringRecord[i], string(received.Content))
-			assert.Equal(t, expectedErrors[i], received.IsError)
-		case <-time.After(100 * time.Millisecond):
-			assert.Fail(t, "We should have received logs")
-		}
+			go lc.processLogMessages(logMessages)
+
+			expectedStringRecord := []string{
+				createStringRecordForReportLog(lc.invocationStartTime, lc.invocationEndTime, &reportLogMessage),
+				createStringRecordForTimeoutLog(&reportLogMessage),
+			}
+			expectedErrors := []bool{false, true}
+			for i := 0; i < len(expectedStringRecord); i++ {
+				select {
+				case received := <-logChannel:
+					assert.NotNil(t, received)
+					assert.Equal(t, "my-arn", received.Lambda.ARN)
+					assert.Equal(t, "myRequestID", received.Lambda.RequestID)
+					assert.Equal(t, expectedStringRecord[i], string(received.Content))
+					assert.Equal(t, expectedErrors[i], received.IsError)
+				case <-time.After(100 * time.Millisecond):
+					assert.Fail(t, "We should have received logs")
+				}
+			}
+		})
 	}
 }
 

@@ -46,6 +46,25 @@ from .utils import (
     release_entry_for,
 )
 
+
+class GitlabReference(yaml.YAMLObject):
+    def __init__(self, refs):
+        self.refs = refs
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}=(refs={self.refs}'
+
+
+def reference_constructor(loader, node):
+    return GitlabReference(loader.construct_sequence(node))
+
+
+def GitlabYamlLoader():
+    loader = yaml.SafeLoader
+    loader.add_constructor('!reference', reference_constructor)
+    return loader
+
+
 # Tasks to trigger pipelines
 
 
@@ -879,7 +898,7 @@ def update_gitlab_config(file_path, image_tag, test_version):
     """
     with open(file_path, "r") as gl:
         file_content = gl.readlines()
-    gitlab_ci = yaml.safe_load("".join(file_content))
+    gitlab_ci = yaml.load("".join(file_content), Loader=GitlabYamlLoader())
     # TEST_INFRA_DEFINITION_BUILDIMAGE label format differs from other buildimages
     suffixes = [
         name
