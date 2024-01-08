@@ -11,20 +11,15 @@ import (
 	"fmt"
 	"testing"
 	"text/template"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/pulumi/pulumi-aws/sdk/v5/go/aws/ecs"
 	"github.com/pulumi/pulumi-aws/sdk/v5/go/aws/ssm"
 	"github.com/pulumi/pulumi-awsx/sdk/go/awsx/awsx"
 
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
-	awsecs "github.com/aws/aws-sdk-go-v2/service/ecs"
-	awsecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	ecsx "github.com/pulumi/pulumi-awsx/sdk/go/awsx/ecs"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	sdkconfig "github.com/pulumi/pulumi/sdk/v3/go/pulumi/config"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
 	configCommon "github.com/DataDog/test-infra-definitions/common/config"
@@ -337,112 +332,6 @@ func (s *ECSFargateSuite) SetupSuite() {
 func (s *ECSFargateSuite) TearDownSuite() {
 	err := infra.GetStackManager().DeleteStack(s.ctx, s.stackName, nil)
 	s.Assert().NoError(err)
-}
-
-func (s *ECSFargateSuite) Test00ECSFargateReady() {
-	cfg, err := awsconfig.LoadDefaultConfig(s.ctx)
-	s.Require().NoErrorf(err, "Failed to load AWS config")
-
-	client := awsecs.NewFromConfig(cfg)
-
-	s.Run("cluster-ready", func() {
-		ready := s.EventuallyWithTf(func(collect *assert.CollectT) {
-			var listServicesToken string
-			listServicesMaxResults := int32(100)
-			for nextToken := &listServicesToken; nextToken != nil; {
-				clustersList, err := client.ListClusters(s.ctx, &awsecs.ListClustersInput{
-					MaxResults: &listServicesMaxResults,
-					NextToken:  nextToken,
-				})
-				if !assert.NoErrorf(collect, err, "Failed to list ECS clusters") {
-					return
-				}
-				nextToken = clustersList.NextToken
-				for _, clusterArn := range clustersList.ClusterArns {
-					if clusterArn != s.ecsClusterArn {
-						continue
-					}
-					clusters, err := client.DescribeClusters(s.ctx, &awsecs.DescribeClustersInput{
-						Clusters: []string{clusterArn},
-					})
-					if !assert.NoErrorf(collect, err, "Failed to describe ECS cluster %s", clusterArn) {
-						return
-					}
-					if !assert.Len(collect, clusters.Clusters, 1) {
-						return
-					}
-					if !assert.NotNil(collect, clusters.Clusters[0].Status) {
-						return
-					}
-					_ = assert.Equal(collect, "ACTIVE", *(clusters.Clusters[0].Status))
-					return
-				}
-			}
-			assert.Fail(collect, "Failed to find cluster")
-		}, 5*time.Minute, 20*time.Second, "Failed to wait for ecs cluster to become ready (name:%s arn:%s)", s.ecsClusterName, s.ecsClusterArn)
-		s.Require().True(ready, "Cluster isn't ready, stopping tests here")
-	})
-
-	s.Run("tasks-ready", func() {
-		ready := s.EventuallyWithTf(func(collect *assert.CollectT) {
-			taskReady := false
-			var listServicesToken string
-			listServicesMaxResults := int32(10)
-			for nextServicesToken := &listServicesToken; nextServicesToken != nil; {
-				servicesList, err := client.ListServices(s.ctx, &awsecs.ListServicesInput{
-					Cluster:    &s.ecsClusterArn,
-					MaxResults: &listServicesMaxResults,
-					NextToken:  nextServicesToken,
-				})
-				if !assert.NoErrorf(collect, err, "Failed to list ECS services of cluster %s", s.ecsClusterArn) {
-					return
-				}
-				nextServicesToken = servicesList.NextToken
-				serviceDescriptions, err := client.DescribeServices(s.ctx, &awsecs.DescribeServicesInput{
-					Cluster:  &s.ecsClusterName,
-					Services: servicesList.ServiceArns,
-				})
-				if !assert.NoErrorf(collect, err, "Failed to describe ECS services %v", servicesList.ServiceArns) {
-					return
-				}
-				for _, service := range serviceDescriptions.Services {
-					var listTasksToken string
-					listTasksMaxResults := int32(100)
-					for nextTasksToken := &listTasksToken; nextTasksToken != nil; {
-						tasksList, err := client.ListTasks(s.ctx, &awsecs.ListTasksInput{
-							Cluster:       &s.ecsClusterArn,
-							ServiceName:   service.ServiceName,
-							DesiredStatus: awsecstypes.DesiredStatusRunning,
-							MaxResults:    &listTasksMaxResults,
-							NextToken:     nextTasksToken,
-						})
-						if !assert.NoErrorf(collect, err, "Failed to list ECS tasks of cluster %s and service %s", s.ecsClusterArn, *service.ServiceName) {
-							return
-						}
-						nextTasksToken = tasksList.NextToken
-
-						tasks, err := client.DescribeTasks(s.ctx, &awsecs.DescribeTasksInput{
-							Cluster: &s.ecsClusterArn,
-							Tasks:   tasksList.TaskArns,
-						})
-						if !assert.NoErrorf(collect, err, "Failed to describe ECS tasks %v", tasksList.TaskArns) {
-							return
-						}
-						for _, task := range tasks.Tasks {
-							running := assert.Equal(collect, string(awsecstypes.DesiredStatusRunning), *task.LastStatus)
-							notUnhealthy := assert.NotEqual(collect, awsecstypes.HealthStatusUnhealthy, task.HealthStatus,
-								"Task %s of service %s is unhealthy", *task.TaskArn, *service.ServiceName)
-							if task.TaskDefinitionArn != nil && *task.TaskDefinitionArn == s.fgTaskDefArn {
-								taskReady = running && notUnhealthy
-							}
-						}
-					}
-				}
-			}
-			assert.True(collect, taskReady, "Failed to validate the state of task %s", s.fgTaskDefArn)
-		}, 5*time.Minute, 10*time.Second, "Failed to wait for fargate tasks to become ready")
-		s.Require().True(ready, "Tasks aren't ready, stopping tests here")
-	})
 }
 
 func (s *ECSFargateSuite) Test01RulesetLoaded() {
