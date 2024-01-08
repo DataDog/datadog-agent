@@ -32,6 +32,8 @@ metadata:
           MIB: F5-BIGIP-SYSTEM-MIB # optional
           OID: 1.3.6.1.4.1.3375.2.1.3.3.3.0
           name: sysGeneralChassisSerialNum # The system serial number. 26ff4a4d-190e-12ac-d4257ed36ba6
+      type:
+        value: "load_balancer"
 
   interface:
     fields:
@@ -60,4 +62,3 @@ metrics:
   - MIB: F5-BIGIP-SYSTEM-MIB
     OID: 1.3.6.1.4.1.3375.2.1.1.2.1.44.999
     name: oldSyntax
-
