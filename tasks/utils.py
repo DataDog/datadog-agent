@@ -159,8 +159,8 @@ def get_build_flags(
     rtloader_lib, rtloader_headers, rtloader_common_headers = get_rtloader_paths(embedded_path, rtloader_root)
 
     # setting the install path
-    if sys.platform.startswith('linux'):
-        ldflags += f"-X {REPO_PATH}/pkg/config.InstallPath={install_path}"
+    if sys.platform.startswith('linux') and install_path:
+        ldflags += f"-X {REPO_PATH}/pkg/config.InstallPath={install_path} "
 
     # setting python homes in the code
     if python_home_2:
