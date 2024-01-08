@@ -104,6 +104,8 @@ typedef struct {
     __u8 fl4_offsets;
     __u8 fl6_offsets;
 
+    __u8 seen_failure;
+
 } tracer_status_t;
 
 typedef struct {

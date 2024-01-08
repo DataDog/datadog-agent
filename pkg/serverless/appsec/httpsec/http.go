@@ -12,7 +12,6 @@ package httpsec
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"io"
@@ -25,6 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	waf "github.com/DataDog/go-libddwaf/v2"
+	json "github.com/json-iterator/go"
 )
 
 // Monitorer is the interface type expected by the httpsec invocation

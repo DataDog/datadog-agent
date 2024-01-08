@@ -54,7 +54,7 @@ func (a *ActionDefinition) Check() error {
 		}
 	} else if a.Kill != nil {
 		if a.Kill.Signal == "" {
-			a.Kill.Signal = "SIGTERM"
+			return fmt.Errorf("a valid signal has to be specified to the 'kill' action")
 		}
 
 		if _, found := model.SignalConstants[a.Kill.Signal]; !found {

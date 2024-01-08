@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"go.opentelemetry.io/collector/component"
 	exp "go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
@@ -46,15 +47,26 @@ func (f *factory) createLogsExporter(
 ) (exp.Logs, error) {
 	logSource := sources.NewLogSource(logSourceName, &config.LogsConfig{})
 
+	// TODO: Ideally the attributes translator would be created once and reused
+	// across all signals. This would need unifying the logsagent and serializer
+	// exporters into a single exporter.
+	attributesTranslator, err := attributes.NewTranslator(set.TelemetrySettings)
+	if err != nil {
+		return nil, err
+	}
+
+	exporter, err := newExporter(set.TelemetrySettings, logSource, f.logsAgentChannel, attributesTranslator)
+	if err != nil {
+		return nil, err
+	}
+
 	ctx, cancel := context.WithCancel(ctx)
 	// cancel() runs on shutdown
-	pusher := createConsumeLogsFunc(set.TelemetrySettings.Logger, logSource, f.logsAgentChannel)
-
 	return exporterhelper.NewLogsExporter(
 		ctx,
 		set,
 		c,
-		pusher,
+		exporter.ConsumeLogs,
 		exporterhelper.WithShutdown(func(context.Context) error {
 			cancel()
 			return nil

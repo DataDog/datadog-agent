@@ -33,6 +33,12 @@ var (
 	// Tags: rule_id
 	MetricRateLimiterAllow = newRuntimeMetric(".rules.rate_limiter.allow")
 
+	// Rule Suppression metrics
+
+	// MetricRulesSuppressed is the name of the metric used to count the number of events marked as suppressed
+	// Tags: rule_id
+	MetricRulesSuppressed = newRuntimeMetric(".rules.suppressed")
+
 	// Syscall monitoring metrics
 
 	// MetricSyscalls is the name of the metric used to count each syscall executed on the host

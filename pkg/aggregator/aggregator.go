@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/sort"
@@ -140,6 +141,14 @@ var (
 		[]string{"shard"}, "Count the number of dogstatsd contexts in the aggregator")
 	tlmDogstatsdContextsByMtype = telemetry.NewGauge("aggregator", "dogstatsd_contexts_by_mtype",
 		[]string{"shard", "metric_type"}, "Count the number of dogstatsd contexts in the aggregator, by metric type")
+	tlmDogstatsdContextsBytesByMtype = telemetry.NewGauge("aggregator", "dogstatsd_contexts_bytes_by_mtype",
+		[]string{"shard", "metric_type", util.BytesKindTelemetryKey}, "Estimated count of bytes taken by contexts in the aggregator, by metric type")
+	tlmChecksContexts = telemetry.NewGauge("aggregator", "checks_contexts",
+		[]string{"shard"}, "Count the number of checks contexts in the check aggregator")
+	tlmChecksContextsByMtype = telemetry.NewGauge("aggregator", "checks_contexts_by_mtype",
+		[]string{"shard", "metric_type"}, "Count the number of checks contexts in the check aggregator, by metric type")
+	tlmChecksContextsBytesByMtype = telemetry.NewGauge("aggregator", "checks_contexts_bytes_by_mtype",
+		[]string{"shard", "metric_type", util.BytesKindTelemetryKey}, "Estimated count of bytes taken by contexts in the check aggregator, by metric type")
 
 	// Hold series to be added to aggregated series on each flush
 	recurrentSeries     metrics.Series
@@ -908,7 +917,9 @@ func (agg *BufferedAggregator) handleRegisterSampler(id checkid.ID) {
 	agg.checkSamplers[id] = newCheckSampler(
 		config.Datadog.GetInt("check_sampler_bucket_commits_count_expiry"),
 		config.Datadog.GetBool("check_sampler_expire_metrics"),
+		config.Datadog.GetBool("check_sampler_context_metrics"),
 		config.Datadog.GetDuration("check_sampler_stateful_metric_expiration_time"),
 		agg.tagsStore,
+		id,
 	)
 }

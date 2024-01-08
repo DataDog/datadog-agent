@@ -737,13 +737,10 @@ func (w *workloadmeta) notifyChannel(name string, ch chan EventBundle, events []
 	ch <- bundle
 
 	if wait {
-		timer := time.NewTimer(eventBundleChTimeout)
-
 		select {
 		case <-bundle.Ch:
-			timer.Stop()
 			telemetry.NotificationsSent.Inc(name, telemetry.StatusSuccess)
-		case <-timer.C:
+		case <-time.After(eventBundleChTimeout):
 			log.Warnf("collector %q did not close the event bundle channel in time, continuing with downstream collectors. bundle size: %d", name, len(bundle.Events))
 			telemetry.NotificationsSent.Inc(name, telemetry.StatusError)
 		}
