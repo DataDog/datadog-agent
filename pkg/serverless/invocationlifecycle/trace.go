@@ -103,9 +103,35 @@ func (lp *LifecycleProcessor) endExecutionSpan(endDetails *InvocationEndDetails)
 		Meta:     lp.requestHandler.triggerTags,
 		Metrics:  lp.requestHandler.triggerMetrics,
 	}
-
-	setExecutionSpanTags(executionSpan, endDetails.RequestID, endDetails.ColdStart, endDetails.ProactiveInit, endDetails.Runtime)
-	captureLambdaPayload(executionContext, executionSpan, endDetails.ResponseRawPayload)
+	executionSpan.Meta["request_id"] = endDetails.RequestID
+	executionSpan.Meta["cold_start"] = fmt.Sprintf("%t", endDetails.ColdStart)
+	if endDetails.ProactiveInit {
+		executionSpan.Meta["proactive_initialization"] = fmt.Sprintf("%t", endDetails.ProactiveInit)
+	}
+	langMatches := runtimeRegex.FindStringSubmatch(endDetails.Runtime)
+	if len(langMatches) >= 2 {
+		executionSpan.Meta["language"] = langMatches[1]
+	}
+	captureLambdaPayloadEnabled := config.Datadog.GetBool("capture_lambda_payload")
+	if captureLambdaPayloadEnabled {
+		capturePayloadMaxDepth := config.Datadog.GetInt("capture_lambda_payload_max_depth")
+		requestPayloadJSON := make(map[string]interface{})
+		if err := json.Unmarshal(executionContext.requestPayload, &requestPayloadJSON); err != nil {
+			log.Debugf("[lifecycle] Failed to parse request payload: %v", err)
+			executionSpan.Meta["function.request"] = string(executionContext.requestPayload)
+		} else {
+			capturePayloadAsTags(requestPayloadJSON, executionSpan, "function.request", 0, capturePayloadMaxDepth)
+		}
+		if endDetails.ResponseRawPayload != nil {
+			responsePayloadJSON := make(map[string]interface{})
+			if err := json.Unmarshal(endDetails.ResponseRawPayload, &responsePayloadJSON); err != nil {
+				log.Debugf("[lifecycle] Failed to parse response payload: %v", err)
+				executionSpan.Meta["function.response"] = string(endDetails.ResponseRawPayload)
+			} else {
+				capturePayloadAsTags(responsePayloadJSON, executionSpan, "function.response", 0, capturePayloadMaxDepth)
+			}
+		}
+	}
 	if endDetails.IsError {
 		executionSpan.Error = 1
 
@@ -210,29 +236,6 @@ func InjectSpanID(executionContext *ExecutionStartInfo, headers http.Header) {
 	}
 }
 
-func captureLambdaPayload(executionContext *ExecutionStartInfo, executionSpan *pb.Span, responsePayload []byte) {
-	if captureLambdaPayloadEnabled := config.Datadog.GetBool("capture_lambda_payload"); !captureLambdaPayloadEnabled {
-		return
-	}
-	capturePayloadMaxDepth := config.Datadog.GetInt("capture_lambda_payload_max_depth")
-	requestPayloadJSON := make(map[string]interface{})
-	if err := json.Unmarshal(executionContext.requestPayload, &requestPayloadJSON); err != nil {
-		log.Debugf("[lifecycle] Failed to parse request payload: %v", err)
-		executionSpan.Meta["function.request"] = string(executionContext.requestPayload)
-	} else {
-		capturePayloadAsTags(requestPayloadJSON, executionSpan, "function.request", 0, capturePayloadMaxDepth)
-	}
-	if responsePayload != nil {
-		responsePayloadJSON := make(map[string]interface{})
-		if err := json.Unmarshal(responsePayload, &responsePayloadJSON); err != nil {
-			log.Debugf("[lifecycle] Failed to parse response payload: %v", err)
-			executionSpan.Meta["function.response"] = string(responsePayload)
-		} else {
-			capturePayloadAsTags(responsePayloadJSON, executionSpan, "function.response", 0, capturePayloadMaxDepth)
-		}
-	}
-}
-
 func capturePayloadAsTags(value interface{}, targetSpan *pb.Span, key string, depth int, maxDepth int) {
 	if key == "" {
 		return
@@ -294,16 +297,4 @@ func convertJSONToString(payloadJSON interface{}) string {
 		return fmt.Sprintf("%v", payloadJSON)
 	}
 	return string(jsonData)
-}
-
-func setExecutionSpanTags(executionSpan *pb.Span, requestID string, isColdStart bool, isProactiveInit bool, runtime string) {
-	executionSpan.Meta["request_id"] = requestID
-	executionSpan.Meta["cold_start"] = fmt.Sprintf("%t", isColdStart)
-	if isProactiveInit {
-		executionSpan.Meta["proactive_initialization"] = fmt.Sprintf("%t", isProactiveInit)
-	}
-	langMatches := runtimeRegex.FindStringSubmatch(runtime)
-	if len(langMatches) >= 2 {
-		executionSpan.Meta["language"] = langMatches[1]
-	}
 }
