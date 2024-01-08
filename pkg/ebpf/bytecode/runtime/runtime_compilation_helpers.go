@@ -98,8 +98,6 @@ func compileToObjectFile(inFile, outputDir, filename, inHash string, additionalF
 		log.Infof("found previously compiled runtime version of %s", filename)
 		result = compiledOutputFound
 	}
-	f, err := os.Create("/tmp/ddobject")
-	f.WriteString(outputFile)
 
 	err = bytecode.VerifyAssetPermissions(outputFile)
 	if err != nil {
