@@ -129,6 +129,9 @@ type Serializer struct {
 	enableServiceChecksJSONStream bool
 	enableEventsJSONStream        bool
 	enableSketchProtobufStream    bool
+
+	seriesMarshalerBufferContext *marshaler.BufferContext
+	sketchMarshalerBufferContext *marshaler.BufferContext
 }
 
 // NewSerializer returns a new Serializer initialized
@@ -147,6 +150,8 @@ func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder orchestr
 		enableServiceChecksJSONStream: stream.Available && config.Datadog.GetBool("enable_service_checks_stream_payload_serialization"),
 		enableEventsJSONStream:        stream.Available && config.Datadog.GetBool("enable_events_stream_payload_serialization"),
 		enableSketchProtobufStream:    stream.Available && config.Datadog.GetBool("enable_sketch_stream_payload_serialization"),
+		seriesMarshalerBufferContext:  marshaler.NewBufferContext(),
+		sketchMarshalerBufferContext:  marshaler.NewBufferContext(),
 	}
 
 	if !s.enableEvents {
@@ -334,7 +339,7 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	} else if useV1API && !s.enableJSONStream {
 		seriesBytesPayloads, extraHeaders, err = s.serializePayloadJSON(seriesSerializer, true)
 	} else {
-		seriesBytesPayloads, err = seriesSerializer.MarshalSplitCompress(marshaler.NewBufferContext())
+		seriesBytesPayloads, err = seriesSerializer.MarshalSplitCompress(s.seriesMarshalerBufferContext)
 		extraHeaders = protobufExtraHeadersWithCompression
 	}
 
@@ -361,7 +366,7 @@ func (s *Serializer) SendSketch(sketches metrics.SketchesSource) error {
 	}
 	sketchesSerializer := metricsserializer.SketchSeriesList{SketchesSource: sketches}
 	if s.enableSketchProtobufStream {
-		payloads, err := sketchesSerializer.MarshalSplitCompress(marshaler.NewBufferContext())
+		payloads, err := sketchesSerializer.MarshalSplitCompress(s.sketchMarshalerBufferContext)
 		if err != nil {
 			return fmt.Errorf("dropping sketch payload: %v", err)
 		}
