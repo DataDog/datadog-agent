@@ -964,6 +964,14 @@ var (
 		0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00,
 	}
 
+	// http2 request to path /aaa
+	request = []byte{
+		0x00, 0x00, 0x37, 0x01, 0x04, 0x00, 0x00, 0x00, 0x03, 0x41, 0x8a, 0x08, 0x9d, 0x5c, 0x0b, 0x81,
+		0x70, 0xdc, 0x78, 0x0f, 0x0b, 0x83, 0x45, 0x83, 0x60, 0x63, 0x1f, 0x86, 0x5f, 0x8b, 0x1d, 0x75,
+		0xd0, 0x62, 0x0d, 0x26, 0x3d, 0x4c, 0x74, 0x41, 0xea, 0x5c, 0x01, 0x34, 0x50, 0x83, 0x9b, 0xd9,
+		0xab, 0x7a, 0x8d, 0xc4, 0x75, 0xa7, 0x4a, 0x6b, 0x58, 0x94, 0x18, 0xb5, 0x25, 0x81, 0x2e, 0x0f,
+	}
+
 	// data frame & end of stream
 	dataFrame = []byte{
 		0x00, 0x00, 0x04, 0x00, 0x01, 0x00, 0x00, 0x00, 0x03, 0x74, 0x65, 0x73, 0x74,
@@ -975,27 +983,20 @@ type literalType int
 const (
 	caseWithoutIndexing literalType = iota
 	caseNeverIndexed
-	caseDefault
 )
 
 // createHTTP2RequestByCase generates an HTTP/2 request based on the specified case.
 func createHTTP2RequestByCase(requestType literalType) []byte {
-	// http2 request to path /aaa with index 5
-	request := []byte{
-		0x00, 0x00, 0x37, 0x01, 0x04, 0x00, 0x00, 0x00, 0x03, 0x41, 0x8a, 0x08, 0x9d, 0x5c, 0x0b, 0x81,
-		0x70, 0xdc, 0x78, 0x0f, 0x0b, 0x83, 0x45, 0x83, 0x60, 0x63, 0x1f, 0x86, 0x5f, 0x8b, 0x1d, 0x75,
-		0xd0, 0x62, 0x0d, 0x26, 0x3d, 0x4c, 0x74, 0x41, 0xea, 0x5c, 0x01, 0x34, 0x50, 0x83, 0x9b, 0xd9,
-		0xab, 0x7a, 0x8d, 0xc4, 0x75, 0xa7, 0x4a, 0x6b, 0x58, 0x94, 0x18, 0xb5, 0x25, 0x81, 0x2e, 0x0f,
-	}
+	result := make([]byte, len(request))
 	switch requestType {
 	// http2 request to path /aaa without indexing (same as request but with different index changed from 0x45 to 0x05)
 	case caseWithoutIndexing:
-		request[22] = 0x05
+		result[22] = 0x05
 	// http2 request to path /aaa which never indexed (same as request but with different index changed from 0x45 to 0x15)
 	case caseNeverIndexed:
-		request[22] = 0x15
+		result[22] = 0x15
 	}
-	return request
+	return result
 }
 
 // changeStreamIDInFrame changes the streamID in the given frame to the given streamID.
@@ -1024,7 +1025,7 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			// a single program.
 			numberOfSettingFrames: 100,
 			numberOfRequestFrames: 1,
-			requestBuffer:         createHTTP2RequestByCase(caseDefault),
+			requestBuffer:         request,
 			expectedEndpoints: map[http.Key]int{
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
@@ -1038,7 +1039,7 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			// the filtering of subsequent frames will continue using tail calls.
 			numberOfSettingFrames: 130,
 			numberOfRequestFrames: 1,
-			requestBuffer:         createHTTP2RequestByCase(caseDefault),
+			requestBuffer:         request,
 			expectedEndpoints: map[http.Key]int{
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
@@ -1052,7 +1053,7 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			// for 2 filter_frames we do not use more than two tail calls.
 			numberOfSettingFrames: 250,
 			numberOfRequestFrames: 1,
-			requestBuffer:         createHTTP2RequestByCase(caseDefault),
+			requestBuffer:         request,
 			expectedEndpoints:     nil,
 		},
 		{
@@ -1061,7 +1062,7 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			// determines the maximum number of "interesting frames" we can process.
 			numberOfSettingFrames: 0,
 			numberOfRequestFrames: 120,
-			requestBuffer:         createHTTP2RequestByCase(caseDefault),
+			requestBuffer:         request,
 			expectedEndpoints: map[http.Key]int{
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
@@ -1075,7 +1076,7 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			// and validate that we cannot handle more than that limit.
 			numberOfSettingFrames: 0,
 			numberOfRequestFrames: 130,
-			requestBuffer:         createHTTP2RequestByCase(caseDefault),
+			requestBuffer:         request,
 			expectedEndpoints: map[http.Key]int{
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
