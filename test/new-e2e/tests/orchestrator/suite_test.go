@@ -11,14 +11,15 @@ import (
 
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/stretchr/testify/suite"
-	"github.com/zorkian/go-datadog-api"
+	"gopkg.in/yaml.v3"
 	"k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
+	agentmodel "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
 )
 
@@ -27,7 +28,6 @@ var keepStacks = flag.Bool("keep-stacks", false, "Do not destroy the Pulumi stac
 
 func TestMain(m *testing.M) {
 	code := m.Run()
-	fmt.Println("in main")
 	if runner.GetProfile().AllowDevMode() && *keepStacks {
 		fmt.Fprintln(os.Stderr, "Keeping stacks")
 	} else {
@@ -42,28 +42,17 @@ func TestMain(m *testing.M) {
 
 type k8sSuite struct {
 	suite.Suite
-
-	startTime     time.Time
-	endTime       time.Time
-	datadogClient *datadog.Client
-	Fakeintake    *fakeintake.Client
-	clusterName   string
-
-	KubeClusterName             string
-	AgentLinuxHelmInstallName   string
-	AgentWindowsHelmInstallName string
-
-	K8sConfig *restclient.Config
-	K8sClient *kubernetes.Clientset
+	KubeClusterName string
+	Fakeintake      *fakeintake.Client
+	K8sConfig       *restclient.Config
+	K8sClient       *kubernetes.Clientset
 }
 
 func TestKindSuite(t *testing.T) {
-	fmt.Println("in kind suite")
 	suite.Run(t, &k8sSuite{})
 }
 
 func (suite *k8sSuite) SetupSuite() {
-	fmt.Println("in setup")
 	ctx := context.Background()
 
 	stackConfig := runner.ConfigMap{
@@ -81,26 +70,22 @@ func (suite *k8sSuite) SetupSuite() {
 		}
 	}
 	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(ctx, "kind-cluster", stackConfig, Apply, false, nil)
+
+	suite.printKubeConfig(stackOutput)
+
 	if !suite.Assert().NoError(err) {
-		stackName, err := infra.GetStackManager().GetPulumiStackName("kind-cluster")
-		suite.Require().NoError(err)
-		suite.T().Log(dumpKindClusterState(ctx, stackName))
 		if !runner.GetProfile().AllowDevMode() || !*keepStacks {
 			infra.GetStackManager().DeleteStack(ctx, "kind-cluster", nil)
 		}
 		suite.T().FailNow()
 	}
 
+	kubeconfig := stackOutput.Outputs["kubeconfig"].Value.(string)
+
+	suite.KubeClusterName = stackOutput.Outputs["kube-cluster-name"].Value.(string)
+
 	fakeintakeHost := stackOutput.Outputs["fakeintake-host"].Value.(string)
 	suite.Fakeintake = fakeintake.NewClient(fmt.Sprintf("http://%s", fakeintakeHost))
-	suite.KubeClusterName = stackOutput.Outputs["kube-cluster-name"].Value.(string)
-	suite.AgentLinuxHelmInstallName = stackOutput.Outputs["agent-linux-helm-install-name"].Value.(string)
-	suite.AgentWindowsHelmInstallName = "none"
-
-	kubeconfig := stackOutput.Outputs["kubeconfig"].Value.(string)
-	// useful for setting up your local kubeconfig
-	//fmt.Println("LOCAL KUBECONFIG")
-	//fmt.Println(kubeconfig)
 
 	kubeconfigFile := path.Join(suite.T().TempDir(), "kubeconfig")
 	suite.Require().NoError(os.WriteFile(kubeconfigFile, []byte(kubeconfig), 0600))
@@ -109,23 +94,102 @@ func (suite *k8sSuite) SetupSuite() {
 	suite.Require().NoError(err)
 
 	suite.K8sClient = kubernetes.NewForConfigOrDie(suite.K8sConfig)
-
-	suite.clusterName = suite.KubeClusterName
-
-	apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
-	suite.Require().NoError(err)
-	appKey, err := runner.GetProfile().SecretStore().Get(parameters.APPKey)
-	suite.Require().NoError(err)
-	suite.datadogClient = datadog.NewClient(apiKey, appKey)
-
-	suite.startTime = time.Now()
 }
 
 func (suite *k8sSuite) TearDownSuite() {
-	fmt.Println("in teardown")
-	suite.endTime = time.Now()
-	ctx := context.Background()
-	stackName, err := infra.GetStackManager().GetPulumiStackName("kind-cluster")
-	suite.Require().NoError(err)
-	suite.T().Log(dumpKindClusterState(ctx, stackName))
+	suite.summarizeResources()
+	suite.summarizeManifests()
+	fmt.Printf("Link to view resources:\nhttps://ddstaging.datadoghq.com/orchestration/overview/pod?query=tag%%23kube_cluster_name%%3A%s\n", suite.KubeClusterName)
+}
+
+// printKubeConfig prints the command to update the local kubeconfig to point to the kind cluster
+func (suite *k8sSuite) printKubeConfig(stackOutput auto.UpResult) {
+	if out, ok := stackOutput.Outputs["kubeconfig"]; ok {
+		//fmt.Println("LOCAL KUBECONFIG")
+		//fmt.Println(out.Value.(string))
+		var cfg struct {
+			Clusters []struct {
+				Cluster struct {
+					Server string `yaml:"server"`
+				} `yaml:"cluster"`
+			} `yaml:"clusters"`
+			Users []struct {
+				User struct {
+					Cert string `yaml:"client-certificate-data"`
+					Key  string `yaml:"client-key-data"`
+				} `yaml:"user"`
+			} `yaml:"users"`
+		}
+		err := yaml.Unmarshal([]byte(out.Value.(string)), &cfg)
+		if err != nil {
+			fmt.Println("FAILED TO GENERATE: COMMAND TO UPDATE LOCAL KUBECONFIG !!!")
+			fmt.Println(err.Error())
+		} else {
+			var server, cert, key string
+			if len(cfg.Clusters) > 0 {
+				server = cfg.Clusters[0].Cluster.Server
+			}
+			if len(cfg.Users) > 0 {
+				cert = cfg.Users[0].User.Cert
+				key = cfg.Users[0].User.Key
+			}
+			fmt.Println("COMMAND TO UPDATE LOCAL KUBECONFIG")
+			fmt.Printf("cat ~/.kube/config | yq '( .clusters[] | select(.name == \"kind-kind\") ).cluster.server |= \"%s\"' | yq '( .users[] | select(.name == \"kind-kind\") ).user |= {\"client-certificate-data\": \"%s\", \"client-key-data\": \"%s\"}' > ~/.kube/config_updated && mv ~/.kube/config_updated ~/.kube/config\n", server, cert, key)
+		}
+	}
+}
+
+// summarizeResources prints a summary of the resources collected by the fake input
+func (suite *k8sSuite) summarizeResources() {
+	payloads, err := suite.Fakeintake.GetOrchestratorResources(nil)
+	if err != nil {
+		fmt.Println("failed to get manifest resource from intake")
+		return
+	}
+	latest := map[agentmodel.MessageType]map[string]*aggregator.OrchestratorPayload{}
+	for _, p := range payloads {
+		if _, ok := latest[p.Type]; !ok {
+			latest[p.Type] = map[string]*aggregator.OrchestratorPayload{}
+		}
+		existing, ok := latest[p.Type][p.Uid]
+		if !ok || existing.CollectedTime.Before(p.CollectedTime) {
+			latest[p.Type][p.Uid] = p
+		}
+	}
+	fmt.Println("Most recently collected resources:")
+	for typ, resources := range latest {
+		for uid, p := range resources {
+			fmt.Printf(" - type:%d, name:%s, uid:%s, collected:%s\n", typ, p.Name, uid, p.CollectedTime.Format(time.RFC3339))
+		}
+	}
+}
+
+// summarizeManifests prints a summary of the manifests collected by the fake input
+func (suite *k8sSuite) summarizeManifests() {
+	payloads, err := suite.Fakeintake.GetOrchestratorManifests()
+	if err != nil {
+		fmt.Println("failed to get manifest payloads from intake")
+		return
+	}
+	latest := map[agentmodel.MessageType]map[string]*aggregator.OrchestratorManifestPayload{}
+	for _, p := range payloads {
+		if _, ok := latest[p.Type]; !ok {
+			latest[p.Type] = map[string]*aggregator.OrchestratorManifestPayload{}
+		}
+		existing, ok := latest[p.Type][p.Manifest.Uid]
+		if !ok || existing.CollectedTime.Before(p.CollectedTime) {
+			latest[p.Type][p.Manifest.Uid] = p
+		}
+	}
+	fmt.Println("Most recently collected manifests:")
+	for typ, manifs := range latest {
+		for uid, p := range manifs {
+			manif := manifest{}
+			err := yaml.Unmarshal(p.Manifest.Content, &manif)
+			if err != nil {
+				continue // unable to parse manifest content
+			}
+			fmt.Printf(" - type:%d, name:%s, ns:%s, kind:%s, apiVer:%s, uid:%s, collected:%s\n", typ, manif.Metadata.Name, manif.Metadata.Namespace, manif.Kind, manif.ApiVersion, uid, p.CollectedTime.Format(time.RFC3339))
+		}
+	}
 }

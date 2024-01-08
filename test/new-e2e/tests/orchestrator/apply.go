@@ -71,8 +71,25 @@ datadog:
   kubelet:
     tlsVerify: false
   clusterName: "%s"
+  orchestratorExplorer:
+    customResources:
+    - datadoghq.com/v1alpha1/datadogmetrics
 agents:
   useHostNetwork: true
+
+clusterAgent:
+  enabled: true
+  confd:
+    orchestrator.yaml: |-
+      init_config:
+      instances:
+        - collectors:
+          - pods
+          - nodes
+          - deployments
+          - customresourcedefinitions
+          crd_collectors:
+          - datadoghq.com/v1alpha1/datadogmetrics
 `
 
 func deployAgent(ctx *pulumi.Context, awsEnv *awsResources.Environment, kindKubeProvider *kubernetes.Provider) (pulumi.ResourceOption, error) {
@@ -97,7 +114,8 @@ func deployAgent(ctx *pulumi.Context, awsEnv *awsResources.Environment, kindKube
 			ValuesYAML: pulumi.AssetOrArchiveArray{
 				pulumi.NewStringAsset(customValues),
 			},
-			Fakeintake: fakeIntake,
+			Fakeintake:         fakeIntake,
+			EnableOrchestrator: false,
 		}, nil)
 		if err != nil {
 			return nil, err

@@ -17,6 +17,7 @@ import (
 // OrchestratorPayload is a payload type for the orchestrator check
 type OrchestratorPayload struct {
 	Type          agentmodel.MessageType
+	Uid           string
 	Name          string
 	Tags          []string
 	CollectedTime time.Time
@@ -91,6 +92,7 @@ func ParseOrchestratorPayload(payload api.Payload) ([]*OrchestratorPayload, erro
 				CollectedTime:      payload.Timestamp,
 				Pod:                pod,
 				PodParentCollector: body,
+				Uid:                pod.Metadata.Uid,
 				Name:               pod.Metadata.Name,
 				Tags:               append(body.Tags, pod.Tags...),
 			})
@@ -102,6 +104,7 @@ func ParseOrchestratorPayload(payload api.Payload) ([]*OrchestratorPayload, erro
 				CollectedTime:             payload.Timestamp,
 				ReplicaSet:                replicaSet,
 				ReplicaSetParentCollector: body,
+				Uid:                       replicaSet.Metadata.Uid,
 				Name:                      replicaSet.Metadata.Name,
 				Tags:                      append(body.Tags, replicaSet.Tags...),
 			})
@@ -113,6 +116,7 @@ func ParseOrchestratorPayload(payload api.Payload) ([]*OrchestratorPayload, erro
 				CollectedTime:             payload.Timestamp,
 				Deployment:                deployment,
 				DeploymentParentCollector: body,
+				Uid:                       deployment.Metadata.Uid,
 				Name:                      deployment.Metadata.Name,
 				Tags:                      append(body.Tags, deployment.Tags...),
 			})
@@ -124,6 +128,7 @@ func ParseOrchestratorPayload(payload api.Payload) ([]*OrchestratorPayload, erro
 				CollectedTime:          payload.Timestamp,
 				Service:                service,
 				ServiceParentCollector: body,
+				Uid:                    service.Metadata.Uid,
 				Name:                   service.Metadata.Name,
 				Tags:                   append(body.Tags, service.Tags...),
 			})
@@ -135,6 +140,7 @@ func ParseOrchestratorPayload(payload api.Payload) ([]*OrchestratorPayload, erro
 				CollectedTime:       payload.Timestamp,
 				Node:                node,
 				NodeParentCollector: body,
+				Uid:                 node.Metadata.Uid,
 				Name:                node.Metadata.Name,
 				Tags:                append(body.Tags, node.Tags...),
 			})
@@ -155,6 +161,7 @@ func ParseOrchestratorPayload(payload api.Payload) ([]*OrchestratorPayload, erro
 				CollectedTime:            payload.Timestamp,
 				Namespace:                namespace,
 				NamespaceParentCollector: body,
+				Uid:                      namespace.Metadata.Uid,
 				Name:                     namespace.Metadata.Name,
 				Tags:                     append(body.Tags, namespace.Tags...),
 			})
@@ -166,6 +173,7 @@ func ParseOrchestratorPayload(payload api.Payload) ([]*OrchestratorPayload, erro
 				CollectedTime:      payload.Timestamp,
 				Job:                job,
 				JobParentCollector: body,
+				Uid:                job.Metadata.Uid,
 				Name:               job.Metadata.Name,
 				Tags:               append(body.Tags, job.Tags...),
 			})
@@ -177,6 +185,7 @@ func ParseOrchestratorPayload(payload api.Payload) ([]*OrchestratorPayload, erro
 				CollectedTime:          payload.Timestamp,
 				CronJob:                cronJob,
 				CronJobParentCollector: body,
+				Uid:                    cronJob.Metadata.Uid,
 				Name:                   cronJob.Metadata.Name,
 				Tags:                   append(body.Tags, cronJob.Tags...),
 			})
@@ -188,6 +197,7 @@ func ParseOrchestratorPayload(payload api.Payload) ([]*OrchestratorPayload, erro
 				CollectedTime:            payload.Timestamp,
 				DaemonSet:                daemonSet,
 				DaemonSetParentCollector: body,
+				Uid:                      daemonSet.Metadata.Uid,
 				Name:                     daemonSet.Metadata.Name,
 				Tags:                     append(body.Tags, daemonSet.Tags...),
 			})
@@ -199,6 +209,7 @@ func ParseOrchestratorPayload(payload api.Payload) ([]*OrchestratorPayload, erro
 				CollectedTime:              payload.Timestamp,
 				StatefulSet:                statefulSet,
 				StatefulSetParentCollector: body,
+				Uid:                        statefulSet.Metadata.Uid,
 				Name:                       statefulSet.Metadata.Name,
 				Tags:                       append(body.Tags, statefulSet.Tags...),
 			})
@@ -210,6 +221,7 @@ func ParseOrchestratorPayload(payload api.Payload) ([]*OrchestratorPayload, erro
 				CollectedTime:                   payload.Timestamp,
 				PersistentVolume:                persistentVolume,
 				PersistentVolumeParentCollector: body,
+				Uid:                             persistentVolume.Metadata.Uid,
 				Name:                            persistentVolume.Metadata.Name,
 				Tags:                            append(body.Tags, persistentVolume.Tags...),
 			})
@@ -221,6 +233,7 @@ func ParseOrchestratorPayload(payload api.Payload) ([]*OrchestratorPayload, erro
 				CollectedTime:                        payload.Timestamp,
 				PersistentVolumeClaim:                persistentVolumeClaim,
 				PersistentVolumeClaimParentCollector: body,
+				Uid:                                  persistentVolumeClaim.Metadata.Uid,
 				Name:                                 persistentVolumeClaim.Metadata.Name,
 				Tags:                                 append(body.Tags, persistentVolumeClaim.Tags...),
 			})
@@ -232,6 +245,7 @@ func ParseOrchestratorPayload(payload api.Payload) ([]*OrchestratorPayload, erro
 				CollectedTime:       payload.Timestamp,
 				Role:                role,
 				RoleParentCollector: body,
+				Uid:                 role.Metadata.Uid,
 				Name:                role.Metadata.Name,
 				Tags:                append(body.Tags, role.Tags...),
 			})
@@ -243,6 +257,7 @@ func ParseOrchestratorPayload(payload api.Payload) ([]*OrchestratorPayload, erro
 				CollectedTime:              payload.Timestamp,
 				RoleBinding:                roleBinding,
 				RoleBindingParentCollector: body,
+				Uid:                        roleBinding.Metadata.Uid,
 				Name:                       roleBinding.Metadata.Name,
 				Tags:                       append(body.Tags, roleBinding.Tags...),
 			})
@@ -254,6 +269,7 @@ func ParseOrchestratorPayload(payload api.Payload) ([]*OrchestratorPayload, erro
 				CollectedTime:              payload.Timestamp,
 				ClusterRole:                clusterRole,
 				ClusterRoleParentCollector: body,
+				Uid:                        clusterRole.Metadata.Uid,
 				Name:                       clusterRole.Metadata.Name,
 				Tags:                       append(body.Tags, clusterRole.Tags...),
 			})
@@ -265,6 +281,7 @@ func ParseOrchestratorPayload(payload api.Payload) ([]*OrchestratorPayload, erro
 				CollectedTime:                     payload.Timestamp,
 				ClusterRoleBinding:                clusterRoleBinding,
 				ClusterRoleBindingParentCollector: body,
+				Uid:                               clusterRoleBinding.Metadata.Uid,
 				Name:                              clusterRoleBinding.Metadata.Name,
 				Tags:                              append(body.Tags, clusterRoleBinding.Tags...),
 			})
@@ -276,6 +293,7 @@ func ParseOrchestratorPayload(payload api.Payload) ([]*OrchestratorPayload, erro
 				CollectedTime:                 payload.Timestamp,
 				ServiceAccount:                serviceAccount,
 				ServiceAccountParentCollector: body,
+				Uid:                           serviceAccount.Metadata.Uid,
 				Name:                          serviceAccount.Metadata.Name,
 				Tags:                          append(body.Tags, serviceAccount.Tags...),
 			})
@@ -287,6 +305,7 @@ func ParseOrchestratorPayload(payload api.Payload) ([]*OrchestratorPayload, erro
 				CollectedTime:          payload.Timestamp,
 				Ingress:                ingress,
 				IngressParentCollector: body,
+				Uid:                    ingress.Metadata.Uid,
 				Name:                   ingress.Metadata.Name,
 				Tags:                   append(body.Tags, ingress.Tags...),
 			})
@@ -298,6 +317,7 @@ func ParseOrchestratorPayload(payload api.Payload) ([]*OrchestratorPayload, erro
 				CollectedTime:                        payload.Timestamp,
 				VerticalPodAutoscaler:                verticalPodAutoscaler,
 				VerticalPodAutoscalerParentCollector: body,
+				Uid:                                  verticalPodAutoscaler.Metadata.Uid,
 				Name:                                 verticalPodAutoscaler.Metadata.Name,
 				Tags:                                 append(body.Tags, verticalPodAutoscaler.Tags...),
 			})
