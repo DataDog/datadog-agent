@@ -262,13 +262,14 @@ type networkState struct {
 	latestTimeEpoch uint64
 
 	// Network state configuration
-	clientExpiry           time.Duration
-	maxClosedConns         uint32
-	maxClientStats         int
-	maxDNSStats            int
-	maxHTTPStats           int
-	maxKafkaStats          int
-	enableConnectionRollup bool
+	clientExpiry                time.Duration
+	maxClosedConns              uint32
+	maxClientStats              int
+	maxDNSStats                 int
+	maxHTTPStats                int
+	maxKafkaStats               int
+	enableConnectionRollup      bool
+	processEventConsumerEnabled bool
 
 	mergeStatsBuffers [2][]byte
 
@@ -290,7 +291,8 @@ func NewState(clientExpiry time.Duration, maxClosedConns uint32, maxClientStats 
 			make([]byte, ConnectionByteKeyMaxLen),
 			make([]byte, ConnectionByteKeyMaxLen),
 		},
-		localResolver: NewLocalResolver(processEventConsumerEnabled),
+		localResolver:               NewLocalResolver(processEventConsumerEnabled),
+		processEventConsumerEnabled: processEventConsumerEnabled,
 	}
 
 	if ns.enableConnectionRollup && !processEventConsumerEnabled {
@@ -376,7 +378,7 @@ func (ns *networkState) GetDelta(
 		ns.storeDNSStats(dnsStats)
 	}
 
-	aggr := newConnectionAggregator((len(closed)+len(active))/2, ns.enableConnectionRollup, client.dnsStats)
+	aggr := newConnectionAggregator((len(closed)+len(active))/2, ns.enableConnectionRollup, ns.processEventConsumerEnabled, client.dnsStats)
 	active = filterConnections(active, func(c *ConnectionStats) bool {
 		return !aggr.Aggregate(c)
 	})
@@ -1124,29 +1126,33 @@ type aggregationKey struct {
 }
 
 type connectionAggregator struct {
-	conns             map[aggregationKey][]*aggregateConnection
-	buf               []byte
-	dnsStats          dns.StatsByKeyByNameByType
-	enablePortRollups bool
+	conns                       map[aggregationKey][]*aggregateConnection
+	buf                         []byte
+	dnsStats                    dns.StatsByKeyByNameByType
+	enablePortRollups           bool
+	processEventConsumerEnabled bool
 }
 
-func newConnectionAggregator(size int, enablePortRollups bool, dnsStats dns.StatsByKeyByNameByType) *connectionAggregator {
+func newConnectionAggregator(size int, enablePortRollups, processEventConsumerEnabled bool, dnsStats dns.StatsByKeyByNameByType) *connectionAggregator {
 	return &connectionAggregator{
-		conns:             make(map[aggregationKey][]*aggregateConnection, size),
-		buf:               make([]byte, ConnectionByteKeyMaxLen),
-		dnsStats:          dnsStats,
-		enablePortRollups: enablePortRollups,
+		conns:                       make(map[aggregationKey][]*aggregateConnection, size),
+		buf:                         make([]byte, ConnectionByteKeyMaxLen),
+		dnsStats:                    dnsStats,
+		enablePortRollups:           enablePortRollups,
+		processEventConsumerEnabled: processEventConsumerEnabled,
 	}
 }
 
 func (a *connectionAggregator) key(c *ConnectionStats) (key aggregationKey, sportRolledUp, dportRolledUp bool) {
 	key.string = string(c.ByteKey(a.buf))
 	key.direction = c.Direction
-	if c.ContainerID.Source != nil {
-		key.containers.source = *c.ContainerID.Source
-	}
-	if c.ContainerID.Dest != nil {
-		key.containers.dest = *c.ContainerID.Dest
+	if a.processEventConsumerEnabled {
+		if c.ContainerID.Source != nil {
+			key.containers.source = *c.ContainerID.Source
+		}
+		if c.ContainerID.Dest != nil {
+			key.containers.dest = *c.ContainerID.Dest
+		}
 	}
 
 	if !a.enablePortRollups {
