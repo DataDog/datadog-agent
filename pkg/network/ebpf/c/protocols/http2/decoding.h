@@ -255,10 +255,6 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
             current_stream->is_huffman_encoded = dynamic_value->is_huffman_encoded;
             bpf_memcpy(current_stream->request_path, dynamic_value->buffer, HTTP2_MAX_PATH_LEN);
         } else {
-            // We're in new dynamic header or new dynamic header not indexed states.
-            dynamic_value.string_len = current_header->new_dynamic_value_size;
-            dynamic_value.is_huffman_encoded = current_header->is_huffman_encoded;
-
             // create the new dynamic value which will be added to the internal table.
             read_into_buffer_path(dynamic_value.buffer, skb, current_header->new_dynamic_value_offset);
             // If the value is indexed - add it to the dynamic table.
@@ -267,7 +263,6 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
                 dynamic_value.is_huffman_encoded = current_header->is_huffman_encoded;
                 bpf_map_update_elem(&http2_dynamic_table, dynamic_index, &dynamic_value, BPF_ANY);
             }
-            bpf_map_update_elem(&http2_dynamic_table, dynamic_index, &dynamic_value, BPF_ANY);
             current_stream->path_size = current_header->new_dynamic_value_size;
             current_stream->is_huffman_encoded = current_header->is_huffman_encoded;
             bpf_memcpy(current_stream->request_path, dynamic_value.buffer, HTTP2_MAX_PATH_LEN);
