@@ -988,6 +988,7 @@ const (
 // createHTTP2RequestByCase generates an HTTP/2 request based on the specified case.
 func createHTTP2RequestByCase(requestType literalType) []byte {
 	result := make([]byte, len(request))
+	copy(result, request)
 	switch requestType {
 	// http2 request to path /aaa without indexing (same as request but with different index changed from 0x45 to 0x05)
 	case caseWithoutIndexing:
