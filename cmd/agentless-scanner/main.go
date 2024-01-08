@@ -1545,7 +1545,7 @@ func newHTTPClientWithAWSStats(ctx context.Context, region string, assumedRole *
 		rt.role = *assumedRole
 	}
 	return &http.Client{
-		Timeout:   10 * time.Second,
+		Timeout:   10 * time.Minute,
 		Transport: rt,
 	}
 }
