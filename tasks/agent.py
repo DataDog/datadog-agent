@@ -106,6 +106,7 @@ def build(
     flavor=AgentFlavor.base.name,
     development=True,
     skip_assets=False,
+    install_path=None,
     embedded_path=None,
     rtloader_root=None,
     python_home_2=None,
@@ -135,6 +136,7 @@ def build(
 
     ldflags, gcflags, env = get_build_flags(
         ctx,
+        install_path=install_path,
         embedded_path=embedded_path,
         rtloader_root=rtloader_root,
         python_home_2=python_home_2,
