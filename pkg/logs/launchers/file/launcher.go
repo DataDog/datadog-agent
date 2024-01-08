@@ -375,3 +375,7 @@ func CheckProcessTelemetry(stats *util.ProcessFileStats) {
 		ratio*100,
 		stats.OsFileLimit)
 }
+
+func (s *Launcher) GetFileProvider() *fileprovider.FileProvider {
+	return s.fileProvider
+}
