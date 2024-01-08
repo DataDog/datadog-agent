@@ -40,7 +40,7 @@ var hiddenConfigs = []string{
 }
 
 func TestAgentConfigSuite(t *testing.T) {
-	e2e.Run(t, &agentConfigSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithoutFakeIntake())))
+	e2e.Run(t, &agentConfigSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
 }
 
 func getFullConfig(v *agentConfigSuite) map[interface{}]interface{} {
@@ -68,7 +68,7 @@ func (v *agentConfigSuite) TestDefaultConfig() {
 var agentConfiguration []byte
 
 func (v *agentConfigSuite) TestNonDefaultConfig() {
-	v.UpdateEnv(awshost.Provisioner(awshost.WithoutFakeIntake(), awshost.WithAgentOptions(agentparams.WithAgentConfig(string(agentConfiguration)))))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig(string(agentConfiguration)))))
 
 	config := getFullConfig(v)
 

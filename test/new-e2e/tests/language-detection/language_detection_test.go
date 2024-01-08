@@ -44,7 +44,7 @@ func TestLanguageDetectionSuite(t *testing.T) {
 		agentParams = append(agentParams, agentparams.WithVersion(versionStr))
 	}
 
-	e2e.Run(t, &languageDetectionSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithoutFakeIntake(), awshost.WithAgentOptions(agentParams...))))
+	e2e.Run(t, &languageDetectionSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentParams...))))
 }
 
 func (s *languageDetectionSuite) checkDetectedLanguage(command string, language string) {

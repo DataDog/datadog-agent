@@ -23,7 +23,7 @@ type crossPlatformSuite struct {
 }
 
 func TestCrossPlatformSuite(t *testing.T) {
-	e2e.Run(t, &crossPlatformSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithoutFakeIntake())))
+	e2e.Run(t, &crossPlatformSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake()))
 }
 
 func (s *crossPlatformSuite) TestUbuntuOS() {

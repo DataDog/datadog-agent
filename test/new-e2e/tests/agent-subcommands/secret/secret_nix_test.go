@@ -34,7 +34,7 @@ func (v *linuxSecretSuite) TestAgentSecretExecDoesNotExist() {
 }
 
 func (v *linuxSecretSuite) TestAgentSecretChecksExecutablePermissions() {
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig("secret_backend_command: /does/not/exist"))))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig("secret_backend_command: /usr/bin/echo"))))
 
 	output := v.Env().Agent.Client.Secret()
 
@@ -52,8 +52,7 @@ host_aliases:
   - ENC[alias_secret]`
 
 	v.UpdateEnv(
-		awshost.Provisioner(
-			awshost.WithoutFakeIntake(),
+		awshost.ProvisionerNoFakeIntake(
 			awshost.WithAgentOptions(
 				agentparams.WithFile("/tmp/bin/secret.sh", secretScript, false),
 			),
@@ -61,8 +60,7 @@ host_aliases:
 	)
 	v.Env().RemoteHost.MustExecute(`sudo sh -c "chown dd-agent:dd-agent /tmp/bin/secret.sh && chmod 700 /tmp/bin/secret.sh"`)
 	v.UpdateEnv(
-		awshost.Provisioner(
-			awshost.WithoutFakeIntake(),
+		awshost.ProvisionerNoFakeIntake(
 			awshost.WithAgentOptions(
 				agentparams.WithFile("/tmp/bin/secret.sh", secretScript, false),
 				agentparams.WithAgentConfig(config),

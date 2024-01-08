@@ -24,7 +24,7 @@ type agentConfigCheckSuite struct {
 }
 
 func TestAgentConfigCheckSuite(t *testing.T) {
-	e2e.Run(t, &agentConfigCheckSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithoutFakeIntake())))
+	e2e.Run(t, &agentConfigCheckSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake()))
 }
 
 type CheckConfigOutput struct {
@@ -186,7 +186,7 @@ func (v *agentConfigCheckSuite) TestWithBadConfigCheck() {
 	- name: bad yaml formatting via tab
 `
 	integration := agentparams.WithIntegration("http_check.d", config)
-	v.UpdateEnv(awshost.Provisioner(awshost.WithoutFakeIntake(), awshost.WithAgentOptions(integration)))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(integration)))
 
 	output := v.Env().Agent.Client.ConfigCheck()
 
@@ -199,7 +199,7 @@ func (v *agentConfigCheckSuite) TestWithAddedIntegrationsCheck() {
     url: http://some.url.example.com
 `
 	integration := agentparams.WithIntegration("http_check.d", config)
-	v.UpdateEnv(awshost.Provisioner(awshost.WithoutFakeIntake(), awshost.WithAgentOptions(integration)))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(integration)))
 
 	output := v.Env().Agent.Client.ConfigCheck()
 

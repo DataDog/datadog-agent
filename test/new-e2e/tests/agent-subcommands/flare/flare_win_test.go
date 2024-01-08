@@ -18,10 +18,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type windowsFlareSuite baseFlareSuite
+type windowsFlareSuite struct {
+	baseFlareSuite
+}
 
 func TestWindowsFlareSuite(t *testing.T) {
-	t.Parallel()
 	e2e.Run(t, &windowsFlareSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)))))
 }
 

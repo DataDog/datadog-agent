@@ -117,7 +117,7 @@ func ProvisionerNoAgentNoFakeIntake(opts ...ProvisionerOption) e2e.TypedProvisio
 
 // ProvisionerNoFakeIntake wraps Provisioner with hardcoded WithoutFakeIntake option.
 func ProvisionerNoFakeIntake(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Host] {
-	mergedOpts := make([]ProvisionerOption, 0, len(opts)+2)
+	mergedOpts := make([]ProvisionerOption, 0, len(opts)+1)
 	mergedOpts = append(mergedOpts, opts...)
 	mergedOpts = append(mergedOpts, WithoutFakeIntake())
 

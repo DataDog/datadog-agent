@@ -209,7 +209,7 @@ func (v *subcommandSuite) TestDefaultInstallStatus() {
 }
 
 func (v *subcommandSuite) TestFIPSProxyStatus() {
-	v.UpdateEnv(awshost.Provisioner(awshost.WithoutFakeIntake(), awshost.WithAgentOptions(agentparams.WithAgentConfig("fips.enabled: true"))))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig("fips.enabled: true"))))
 
 	expectedSection := expectedSection{
 		name:            `Agent \(.*\)`,

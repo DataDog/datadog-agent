@@ -26,10 +26,11 @@ var systemProbeConfiguration []byte
 //go:embed fixtures/security-agent.yaml
 var securityAgentConfiguration []byte
 
-type linuxFlareSuite baseFlareSuite
+type linuxFlareSuite struct {
+	baseFlareSuite
+}
 
 func TestLinuxFlareSuite(t *testing.T) {
-	t.Parallel()
 	e2e.Run(t, &linuxFlareSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
 }
 
@@ -57,7 +58,7 @@ func (v *linuxFlareSuite) TestFlareWithAllConfiguration() {
 
 	agentOptions := append(withFiles, agentparams.WithAgentConfig(string(agentConfiguration)))
 
-	v.UpdateEnv(awshost.Provisioner(awshost.WithoutFakeIntake(), awshost.WithAgentOptions(agentOptions...)))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentOptions...)))
 
 	flare := requestAgentFlareAndFetchFromFakeIntake(v.T(), v.Env().Agent.Client, v.Env().FakeIntake.Client(), agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
 
