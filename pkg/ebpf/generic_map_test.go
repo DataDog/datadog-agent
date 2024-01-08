@@ -59,6 +59,7 @@ func TestSingleItemIter(t *testing.T) {
 		numElements++
 		foundElements[k] = true
 	}
+	require.NoError(t, it.Err())
 
 	require.Equal(t, len(numsToPut), numElements)
 	for _, num := range numsToPut {
@@ -166,6 +167,7 @@ func TestBatchIterLessItemsThanBatchSize(t *testing.T) {
 		actualNumbers[k] = v
 	}
 
+	require.NoError(t, it.Err())
 	require.Equal(t, expectedNumbers, actualNumbers)
 }
 
@@ -218,7 +220,8 @@ func TestBatchIterWhileUpdated(t *testing.T) {
 		require.LessOrEqual(t, numElements, uint32(maxEntries))
 	}
 
-	// Again, just concerned with exiting the loop and not correctness
+	// Again, just concerned with exiting the loop and not correctness, we don't even
+	// check for no error on end of iteration.
 	require.LessOrEqual(t, numElements, uint32(maxEntries))
 }
 
@@ -264,6 +267,7 @@ func TestIteratePerCPUMaps(t *testing.T) {
 			require.Equal(t, k+uint32(i), entries[i])
 		}
 	}
+	require.NoError(t, it.Err())
 
 	require.Equal(t, len(numsToPut), numElements)
 	for _, num := range numsToPut {

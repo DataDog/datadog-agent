@@ -43,7 +43,7 @@ var BatchAPISupported = funcs.MemoizeNoError(func() bool {
 	// Do a batch update, check the result.
 	// We do an update instead of a lookup because it's more reliable for detection
 	_, err = m.BatchUpdate(keys, values, &ebpf.BatchOptions{ElemFlags: uint64(ebpf.UpdateAny)})
-	if !errors.Is(err, ebpf.ErrNotSupported) {
+	if err != nil && !errors.Is(err, ebpf.ErrNotSupported) {
 		log.Warnf("Unexpected error while testing batch API support: %v", err)
 	}
 	return err == nil
@@ -217,7 +217,6 @@ func (g *GenericMap[K, V]) IterateWithBatchSize(batchSize int) GenericMapIterato
 	}
 	if batchSize > int(g.m.MaxEntries()) {
 		batchSize = int(g.m.MaxEntries())
-		log.Warnf("Batch size %d is larger than the maximum number of entries in the map (%d), using that value instead", batchSize, g.m.MaxEntries())
 	}
 
 	if BatchAPISupported() && !g.isPerCPU() && batchSize > 1 {
