@@ -80,9 +80,6 @@ k8s-e2e-otlp-main:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   tags: ["arch:amd64"]
   before_script:
-    # Setup DD API Key
-    - set +x
-    - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key_org2 --with-decryption --query "Parameter.Value" --out text)
     # Setup AWS Credentials
     - mkdir -p ~/.aws
     - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.agent-qa-profile --with-decryption --query "Parameter.Value" --out text >> ~/.aws/config

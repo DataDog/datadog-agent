@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadog"
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV1"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
@@ -332,13 +333,31 @@ func shouldRetryError(err error) bool {
 	return false
 }
 
+// sendEventToDatadog sends an event to Datadog, it will use the API Key from environment variable DD_API_KEY if present, otherwise it will use the one from SSM Parameter Store
 func sendEventToDatadog(title string, message string, tags []string, logger io.Writer) error {
-	if _, ok := os.LookupEnv("DD_API_KEY"); !ok {
-		fmt.Fprint(logger, "skipping sending event because DD_API_KEY is not present")
+
+	apiKey, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.APIKey, "")
+	if err != nil {
+		fmt.Fprintf(logger, "error when getting API key from parameter store: %v", err)
+		return err
+	}
+
+	apiKeyFromEnv, ok := os.LookupEnv("DD_API_KEY")
+	if ok {
+		apiKey = apiKeyFromEnv
+	}
+
+	if apiKey == "" {
+		fmt.Fprintf(logger, "Skipping sending event because API key is empty")
 		return nil
 	}
 
-	ctx := datadog.NewDefaultContext(context.Background())
+	ctx := context.WithValue(context.Background(), datadog.ContextAPIKeys, map[string]datadog.APIKey{
+		"apiKeyAuth": {
+			Key: apiKey,
+		},
+	})
+
 	configuration := datadog.NewConfiguration()
 	apiClient := datadog.NewAPIClient(configuration)
 	api := datadogV1.NewEventsApi(apiClient)
