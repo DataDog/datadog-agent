@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
+	"go4.org/intern"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
@@ -2345,7 +2346,6 @@ func TestKafkaStatsWithMultipleClients(t *testing.T) {
 }
 
 func TestConnectionRollup(t *testing.T) {
-	strPtr := func(s string) *string { return &s }
 	conns := []ConnectionStats{
 		{
 			// should be rolled up with next connection
@@ -2361,7 +2361,7 @@ func TestConnectionRollup(t *testing.T) {
 			SPortIsEphemeral: EphemeralTrue,
 			Source:           util.AddressFromString("172.29.141.26"),
 			SPort:            50010,
-			ContainerID:      struct{ Source, Dest *string }{strPtr("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f"), nil},
+			ContainerID:      struct{ Source, Dest *intern.Value }{intern.GetByString("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f"), nil},
 			Monotonic: StatCounters{
 				RecvBytes:      342,
 				SentBytes:      156,
@@ -2394,7 +2394,7 @@ func TestConnectionRollup(t *testing.T) {
 			SPortIsEphemeral: EphemeralTrue,
 			Source:           util.AddressFromString("172.29.141.26"),
 			SPort:            49155,
-			ContainerID:      struct{ Source, Dest *string }{Source: strPtr("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
+			ContainerID:      struct{ Source, Dest *intern.Value }{Source: intern.GetByString("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
 			Monotonic: StatCounters{
 				RecvBytes:      314,
 				SentBytes:      128,
@@ -2427,7 +2427,7 @@ func TestConnectionRollup(t *testing.T) {
 			SPortIsEphemeral: EphemeralTrue,
 			Source:           util.AddressFromString("172.29.141.26"),
 			SPort:            52907,
-			ContainerID:      struct{ Source, Dest *string }{Source: strPtr("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
+			ContainerID:      struct{ Source, Dest *intern.Value }{Source: intern.GetByString("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
 			Monotonic: StatCounters{
 				RecvBytes:      306,
 				SentBytes:      120,
@@ -2460,7 +2460,7 @@ func TestConnectionRollup(t *testing.T) {
 			SPortIsEphemeral: EphemeralTrue,
 			Source:           util.AddressFromString("172.29.141.26"),
 			SPort:            52904,
-			ContainerID:      struct{ Source, Dest *string }{Source: strPtr("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
+			ContainerID:      struct{ Source, Dest *intern.Value }{Source: intern.GetByString("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
 			Monotonic: StatCounters{
 				RecvBytes:      288,
 				SentBytes:      118,
@@ -2493,7 +2493,7 @@ func TestConnectionRollup(t *testing.T) {
 			SPortIsEphemeral: EphemeralTrue,
 			Source:           util.AddressFromString("172.29.141.26"),
 			SPort:            37240,
-			ContainerID:      struct{ Source, Dest *string }{Source: strPtr("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
+			ContainerID:      struct{ Source, Dest *intern.Value }{Source: intern.GetByString("4c66f035f6855163dcb6a9e8755b5f81c5f90088cb3938aad617d9992024394f")},
 			Monotonic: StatCounters{
 				RecvBytes:      594,
 				SentBytes:      92,

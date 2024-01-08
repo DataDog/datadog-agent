@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
+	"go4.org/intern"
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -278,7 +279,7 @@ type ConnectionStats struct {
 	IsClosed  bool
 
 	ContainerID struct {
-		Source, Dest *string
+		Source, Dest *intern.Value
 	}
 
 	ProtocolStack protocols.Stack

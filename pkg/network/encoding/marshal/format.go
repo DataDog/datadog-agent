@@ -46,7 +46,7 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 
 	var containerID string
 	if conn.ContainerID.Source != nil {
-		containerID = *conn.ContainerID.Source
+		containerID = conn.ContainerID.Source.Get().(string)
 	}
 
 	builder.SetLaddr(func(w *model.AddrBuilder) {

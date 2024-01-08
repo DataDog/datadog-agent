@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/cihub/seelog"
+	"go4.org/intern"
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -1120,8 +1121,7 @@ type aggregationKey struct {
 	string
 	direction  ConnectionDirection
 	containers struct {
-		source string
-		dest   string
+		source, dest *intern.Value
 	}
 }
 
@@ -1147,12 +1147,8 @@ func (a *connectionAggregator) key(c *ConnectionStats) (key aggregationKey, spor
 	key.string = string(c.ByteKey(a.buf))
 	key.direction = c.Direction
 	if a.processEventConsumerEnabled {
-		if c.ContainerID.Source != nil {
-			key.containers.source = *c.ContainerID.Source
-		}
-		if c.ContainerID.Dest != nil {
-			key.containers.dest = *c.ContainerID.Dest
-		}
+		key.containers.source = c.ContainerID.Source
+		key.containers.dest = c.ContainerID.Dest
 	}
 
 	if !a.enablePortRollups {
