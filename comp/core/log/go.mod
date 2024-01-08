@@ -12,6 +12,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/logs => ../../../pkg/config/logs
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../../pkg/config/model
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../pkg/config/setup
+	github.com/DataDog/datadog-agent/pkg/obfuscate => ../../../pkg/obfuscate
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/trace => ../../../pkg/trace
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../pkg/util/executable
