@@ -197,9 +197,10 @@ func (g *GenericMap[K, V]) isPerCPU() bool {
 	return isPerCPU(g.m.Type())
 }
 
-// Iterate returns an iterator for the map, which transparently chooses between batch and single item
+// Iterate returns an iterator for the map, which transparently chooses between batch and single item if the
+// batch API is not available. Defaults to item-by-item iterator.
 func (g *GenericMap[K, V]) Iterate() GenericMapIterator[K, V] {
-	return g.IterateWithBatchSize(defaultBatchSize)
+	return g.IterateWithBatchSize(1) // Iterate defaults
 }
 
 func (g *GenericMap[K, V]) valueTypeCanUseUnsafePointer() bool {
