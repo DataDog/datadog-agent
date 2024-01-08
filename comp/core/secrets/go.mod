@@ -4,6 +4,7 @@ go 1.21
 
 replace (
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../flare/types
+	github.com/DataDog/datadog-agent/comp/core/telemetry => ../telemetry
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../pkg/util/fxutil
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../../pkg/util/log
