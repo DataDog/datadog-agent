@@ -19,7 +19,6 @@ import (
 
 	ecsx "github.com/pulumi/pulumi-awsx/sdk/go/awsx/ecs"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
-	sdkconfig "github.com/pulumi/pulumi/sdk/v3/go/pulumi/config"
 	"github.com/stretchr/testify/suite"
 
 	configCommon "github.com/DataDog/test-infra-definitions/common/config"
@@ -32,33 +31,13 @@ import (
 )
 
 const (
-	// Tests constants
 	ddHostnamePrefix    = "cws-tests-ecs-fg-task"
 	selfTestsPolicyName = "selftests.policy"
 	execRuleID          = "selftest_exec"
 	openRuleID          = "selftest_open"
 	execFilePath        = "/usr/bin/date"
 	openFilePath        = "/tmp/open.test"
-	// CWSInstrumentationConfig
-	DDCWSInstrumentationNamespace              = "cwsinstrumentation"
-	DDCWSInstrumentationFullImagePathParamName = "fullImagePath"
 )
-
-type ddCWSInstrumentationConfig struct {
-	CWSInstrumentationConfig *sdkconfig.Config
-	*configCommon.CommonEnvironment
-}
-
-func newCWSInstrumentationConfig(e *configCommon.CommonEnvironment) ddCWSInstrumentationConfig {
-	return ddCWSInstrumentationConfig{
-		sdkconfig.New(e.Ctx, DDCWSInstrumentationNamespace),
-		e,
-	}
-}
-
-func (c *ddCWSInstrumentationConfig) getFullImagePath() string {
-	return c.GetStringWithDefault(c.CWSInstrumentationConfig, DDCWSInstrumentationFullImagePathParamName, "docker.io/datadog/cws-instrumentation-dev:safchain-custom-cws-inst")
-}
 
 type ECSFargateSuite struct {
 	suite.Suite
@@ -100,7 +79,6 @@ func (s *ECSFargateSuite) SetupSuite() {
 		if err != nil {
 			return err
 		}
-		cwsCfg := newCWSInstrumentationConfig(awsEnv.CommonEnvironment)
 
 		// Create cluster
 		ecsCluster, err := ecsResources.CreateEcsCluster(awsEnv, "cws-cluster")
@@ -252,7 +230,7 @@ func (s *ECSFargateSuite) SetupSuite() {
 				"cws-instrumentation-init": {
 					Cpu:       pulumi.IntPtr(0),
 					Name:      pulumi.String("cws-instrumentation-init"),
-					Image:     pulumi.String(cwsCfg.getFullImagePath()),
+					Image:     pulumi.String(getCWSInstrumentationFullImagePath(awsEnv.CommonEnvironment)),
 					Essential: pulumi.BoolPtr(false),
 					Command: pulumi.ToStringArray([]string{
 						"/cws-instrumentation",
@@ -329,6 +307,18 @@ func (s *ECSFargateSuite) TestOpenRule() {
 	agentContext, ok := result.Attributes["agent"].(map[string]interface{})
 	s.Require().True(ok, "unexpected agent context")
 	s.Require().EqualValues(openRuleID, agentContext["rule_id"], "unexpected agent rule ID")
+}
+
+const (
+	cwsInstrumentationFullImagePathParamName = "cwsinstrumentation:fullImagePath"
+	cwsInstrumentationDefaultImagePath       = "docker.io/datadog/cws-instrumentation-dev:safchain-custom-cws-inst"
+)
+
+func getCWSInstrumentationFullImagePath(e *configCommon.CommonEnvironment) string {
+	if fullImagePath, ok := e.Ctx.GetConfig(cwsInstrumentationFullImagePathParamName); ok {
+		return fullImagePath
+	}
+	return cwsInstrumentationDefaultImagePath
 }
 
 // testRuleDefinition defines a rule used in a test policy
