@@ -1,4 +1,4 @@
-//go:build linux
+//go:build linux || darwin
 
 package pinger
 
@@ -7,6 +7,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	clientID = "pinger-agent-linux"
 )
 
 type LinuxPinger struct {
@@ -29,7 +33,7 @@ func (p *LinuxPinger) Ping(host string) (*Result, error) {
 		log.Warnf("could not initialize system-probe connection: %v (will only log every 10 minutes)", err)
 		return nil, err
 	}
-	resp, err := tu.GetPing("my-client-id", host) // TODO: create a client ID and pass it here
+	resp, err := tu.GetPing(clientID, host, p.cfg.Count, p.cfg.Interval, p.cfg.Timeout) // TODO: is this okay for client ID?
 	if err != nil {
 		return nil, err
 	}

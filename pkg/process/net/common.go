@@ -163,8 +163,8 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections
 }
 
 // GetPing returns the results of a ping to a host
-func (r *RemoteSysProbeUtil) GetPing(clientID string, host string) ([]byte, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/%s?client_id=%s", pingURL, host, clientID), nil)
+func (r *RemoteSysProbeUtil) GetPing(clientID string, host string, count int, interval time.Duration, timeout time.Duration) ([]byte, error) {
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/%s?client_id=%s&count=%d&interval=%d&timeout=%d", pingURL, host, clientID, count, interval, timeout), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -173,6 +173,13 @@ func (r *RemoteSysProbeUtil) GetPing(clientID string, host string) ([]byte, erro
 	resp, err := r.httpClient.Do(req)
 	if err != nil {
 		return nil, err
+	} else if resp.StatusCode == http.StatusBadRequest {
+		body, err := io.ReadAll(resp.Body)
+		defer resp.Body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("ping request failed: Probe Path %s, url: %s, status code: %d", r.path, pingURL, resp.StatusCode)
+		}
+		return nil, fmt.Errorf("ping request failed: Probe Path %s, url: %s, status code: %d, error: %s", r.path, pingURL, resp.StatusCode, string(body))
 	} else if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("ping request failed: Probe Path %s, url: %s, status code: %d", r.path, pingURL, resp.StatusCode)
 	}

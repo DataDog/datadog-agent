@@ -20,13 +20,13 @@ func RunPing(cfg *Config, host string) (*Result, error) {
 	pinger.Interval = 1 * time.Second
 	pinger.Count = 1
 	pinger.SetPrivileged(cfg.UseRawSocket)
-	if cfg.Timeout != 0 {
+	if cfg.Timeout > 0 {
 		pinger.Timeout = cfg.Timeout
 	}
-	if cfg.Interval != 0 {
+	if cfg.Interval > 0 {
 		pinger.Interval = cfg.Interval
 	}
-	if cfg.Count != 0 {
+	if cfg.Count > 0 {
 		pinger.Count = cfg.Count
 	}
 	err = pinger.Run() // Blocks until finished.

@@ -2,7 +2,9 @@ package modules
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
@@ -15,9 +17,13 @@ import (
 	"google.golang.org/grpc"
 )
 
-type pinger struct {
-	config *pingcheck.Config
-}
+const (
+	countParam    = "count"
+	intervalParam = "interval"
+	timeoutParam  = "timeout"
+)
+
+type pinger struct{}
 
 // Pinger is a factory for NDMs Ping module
 var Pinger = module.Factory{
@@ -43,24 +49,49 @@ func (p *pinger) Register(httpMux *module.Router) error {
 		id := getClientID(req)
 		host := vars["host"]
 
-		// TODO:(ken) read in config from system probe config and/or regular config
-		// read it in once to the pinger struct, pass it down here
+		count, err := getIntParam(countParam, req)
+		if err != nil {
+			log.Errorf("unable to run ping invalid count %s: %s", host, err)
+			w.Write([]byte(fmt.Sprintf("invalid count")))
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		interval, err := getIntParam(intervalParam, req)
+		if err != nil {
+			log.Errorf("unable to run ping invalid interval %s: %s", host, err)
+			w.Write([]byte(fmt.Sprintf("invalid interval")))
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		timeout, err := getIntParam(timeoutParam, req)
+		if err != nil {
+			log.Errorf("unable to run ping invalid timeout %s: %s", host, err)
+			w.Write([]byte(fmt.Sprintf("invalid timeout")))
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
 		cfg := pingcheck.Config{
 			UseRawSocket: true,
+			Interval:     time.Duration(interval),
+			Timeout:      time.Duration(timeout),
+			Count:        count,
 		}
 
 		// Run ping using raw socket
 		result, err := pingcheck.RunPing(&cfg, host)
 		if err != nil {
 			log.Errorf("unable to run ping for host %s: %s", host, err)
-			w.WriteHeader(500)
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
 		resp, err := json.Marshal(result)
 		if err != nil {
 			log.Errorf("unable to marshall ping stats: %s", err)
-			w.WriteHeader(500)
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		_, err = w.Write(resp)
@@ -68,8 +99,8 @@ func (p *pinger) Register(httpMux *module.Router) error {
 			log.Errorf("unable to write ping response: %s", err)
 		}
 
-		count := runCounter.Inc()
-		logPingRequests(host, id, count, start, result)
+		runCount := runCounter.Inc()
+		logPingRequests(host, id, count, interval, timeout, runCount, start)
 	}))
 
 	return nil
@@ -81,13 +112,22 @@ func (p *pinger) RegisterGRPC(_ grpc.ServiceRegistrar) error {
 
 func (p *pinger) Close() {}
 
-func logPingRequests(host string, client string, count uint64, start time.Time, result *pingcheck.Result) {
-	args := []interface{}{host, client, count, time.Since(start), result}
-	msg := "Got request on /ping/%s?client_id=%s (count: %d): retrieved ping in %s: result: %+v"
+func logPingRequests(host string, client string, count int, interval int, timeout int, runCount uint64, start time.Time) {
+	args := []interface{}{host, client, count, interval, timeout, runCount, time.Since(start)}
+	msg := "Got request on /ping/%s?client_id=%s&count=%d&interval=%d&timeout=%d (count: %d): retrieved ping in %s"
 	switch {
 	case count <= 5, count%20 == 0:
 		log.Infof(msg, args...)
 	default:
 		log.Debugf(msg, args...)
 	}
+}
+
+func getIntParam(name string, req *http.Request) (int, error) {
+	// only return an error if the param is present
+	if req.URL.Query().Has(name) {
+		return strconv.Atoi(req.URL.Query().Get(name))
+	}
+
+	return 0, nil
 }
