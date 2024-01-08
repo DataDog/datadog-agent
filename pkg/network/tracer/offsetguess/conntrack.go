@@ -53,7 +53,6 @@ func NewConntrackOffsetGuesser(cfg *config.Config) (OffsetGuesser, error) {
 		return nil, err
 	}
 
-	var offsetIno uint64
 	var tcpv6Enabled, udpv6Enabled uint64
 	for _, c := range consts {
 		switch c.Name {
@@ -62,10 +61,6 @@ func NewConntrackOffsetGuesser(cfg *config.Config) (OffsetGuesser, error) {
 		case "udpv6_enabled":
 			udpv6Enabled = c.Value.(uint64)
 		}
-	}
-
-	if offsetIno == 0 {
-		return nil, fmt.Errorf("ino offset is 0")
 	}
 
 	return &conntrackOffsetGuesser{
@@ -82,7 +77,7 @@ func NewConntrackOffsetGuesser(cfg *config.Config) (OffsetGuesser, error) {
 				// so explicitly disabled, and the manager won't load it
 				{ProbeIdentificationPair: idPair(probes.NetDevQueue)}},
 		},
-		status:       &ConntrackStatus{Offset_ino: offsetIno},
+		status:       &ConntrackStatus{},
 		tcpv6Enabled: tcpv6Enabled,
 		udpv6Enabled: udpv6Enabled,
 	}, nil
@@ -184,6 +179,7 @@ func (c *conntrackOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expec
 
 		if c.status.Netns == expected.netns {
 			c.logAndAdvance(c.status.Offset_netns, GuessNotApplicable)
+			log.Debugf("Successfully guessed %v with offset of %d bytes", "ino", c.status.Offset_ino)
 			return c.setReadyState(mp)
 		}
 		c.status.Offset_ino++

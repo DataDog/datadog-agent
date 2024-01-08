@@ -153,7 +153,6 @@ static __always_inline int guess_offsets(tracer_status_t* status, char* subject)
             new_status.err = 1;
             break;
         }
-        //log_debug("netns: off=%u ino=%u val=%u\n", status->offset_netns, status->offset_ino, possible_netns);
         new_status.netns = possible_netns;
         break;
     case GUESS_RTT:
@@ -369,6 +368,7 @@ static __always_inline int guess_conntrack_offsets(conntrack_status_t* status, c
     // Copy values from status to new_status
     bpf_probe_read_kernel(&new_status, sizeof(conntrack_status_t), status);
     new_status.state = STATE_CHECKED;
+    new_status.err = 0;
     bpf_probe_read_kernel(&new_status.proc.comm, sizeof(proc.comm), proc.comm);
     long ret;
 
@@ -393,8 +393,8 @@ static __always_inline int guess_conntrack_offsets(conntrack_status_t* status, c
         // if we get a kernel fault, it means possible_ct_net
         // is an invalid pointer, signal an error so we can go
         // to the next offset_netns
-        new_status.offset_ino = aligned_offset(subject, status->offset_ino, SIZEOF_NETNS_INO);
-        ret = bpf_probe_read_kernel(&possible_netns, sizeof(possible_netns), ((char*)possible_ct_net) + status->offset_ino);
+        new_status.offset_ino = aligned_offset(subject, status->offset_ino, SIZEOF_CT_NETNS_INO);
+        ret = bpf_probe_read_kernel(&possible_netns, sizeof(possible_netns), ((char*)possible_ct_net) + new_status.offset_ino);
         if (ret == -EFAULT) {
             new_status.err = 1;
             break;

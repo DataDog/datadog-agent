@@ -152,5 +152,6 @@ static const __u8 SIZEOF_SK_BUFF_HEAD = sizeof((void*)0); // char*
 static const __u8 SIZEOF_CT_TUPLE_ORIGIN = sizeof_member(conntrack_status_t, saddr);
 static const __u8 SIZEOF_CT_TUPLE_REPLY = sizeof_member(conntrack_status_t, saddr);
 static const __u8 SIZEOF_CT_NET = sizeof((void*)0); // possible_net_t*
+static const __u8 SIZEOF_CT_NETNS_INO = sizeof_member(conntrack_status_t, netns);
 
 #endif //__OFFSET_GUESS_H
