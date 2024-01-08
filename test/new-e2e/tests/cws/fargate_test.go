@@ -13,6 +13,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/pulumi/pulumi-aws/sdk/v5/go/aws/ecs"
 	"github.com/pulumi/pulumi-aws/sdk/v5/go/aws/ssm"
 	"github.com/pulumi/pulumi-awsx/sdk/go/awsx/awsx"
@@ -85,7 +86,7 @@ func TestECSFargate(t *testing.T) {
 	suite.Run(t, &ECSFargateSuite{
 		ctx:       context.Background(),
 		stackName: "cws-tests-ecs-fg",
-		testID:    randomString(4),
+		testID:    uuid.NewString()[:4],
 	})
 }
 
