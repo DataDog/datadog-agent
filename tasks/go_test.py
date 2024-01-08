@@ -638,7 +638,7 @@ def test(
     )
     govet_flags = '-vet=off'
     gotest_flags = '{verbose} -timeout {timeout}s -short {covermode_opt} {coverprofile} {test_run_arg} {nocache}'
-    cmd = f'gotestsum {gotestsum_flags} {gobuild_flags} {govet_flags} {gotest_flags}'
+    cmd = f'gotestsum {gotestsum_flags} -- {gobuild_flags} {govet_flags} {gotest_flags}'
     args = {
         "go_mod": go_mod,
         "gcflags": gcflags,
