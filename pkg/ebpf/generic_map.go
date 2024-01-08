@@ -199,7 +199,7 @@ func (g *GenericMap[K, V]) isPerCPU() bool {
 
 // Iterate returns an iterator for the map, which transparently chooses between batch and single item
 func (g *GenericMap[K, V]) Iterate() GenericMapIterator[K, V] {
-	return g.IterateWithOptions(defaultBatchSize)
+	return g.IterateWithBatchSize(defaultBatchSize)
 }
 
 func (g *GenericMap[K, V]) valueTypeCanUseUnsafePointer() bool {
@@ -208,10 +208,10 @@ func (g *GenericMap[K, V]) valueTypeCanUseUnsafePointer() bool {
 	return !g.isPerCPU() // PerCPU maps use slices, so we need to pass them directly
 }
 
-// IterateWithOptions returns an iterator for the map, which transparently chooses between batch and single item
+// IterateWithBatchSize returns an iterator for the map, which transparently chooses between batch and single item
 // iterations. This version allows choosing the batch size. Setting the batch size to 1 will force the use of the
 // single item iterator
-func (g *GenericMap[K, V]) IterateWithOptions(batchSize int) GenericMapIterator[K, V] {
+func (g *GenericMap[K, V]) IterateWithBatchSize(batchSize int) GenericMapIterator[K, V] {
 	if batchSize == 0 {
 		batchSize = defaultBatchSize // Default value for batch sizes. Possibly needs more testing to find an optimal default
 	}

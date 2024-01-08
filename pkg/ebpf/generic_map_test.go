@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/cilium/ebpf"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -51,7 +52,7 @@ func TestSingleItemIter(t *testing.T) {
 	numElements := 0
 	foundElements := make(map[uint32]bool)
 
-	it := m.IterateWithOptions(1)
+	it := m.IterateWithBatchSize(1)
 	require.NotNil(t, it)
 	require.IsType(t, &genericMapItemIterator[uint32, uint32]{}, it)
 	for it.Next(&k, &v) {
@@ -87,7 +88,7 @@ func TestBatchIter(t *testing.T) {
 	var v uint32
 	actualNumbers := make([]uint32, numsToPut)
 
-	it := m.IterateWithOptions(10)
+	it := m.IterateWithBatchSize(10)
 	require.NotNil(t, it)
 	require.IsType(t, &genericMapBatchIterator[uint32, uint32]{}, it)
 	for it.Next(&k, &v) {
@@ -122,7 +123,7 @@ func TestBatchIterArray(t *testing.T) {
 	numElements := uint32(0)
 	actualNumbers := make([]uint32, m.Map().MaxEntries())
 
-	it := m.IterateWithOptions(10)
+	it := m.IterateWithBatchSize(10)
 	require.NotNil(t, it)
 	require.IsType(t, &genericMapBatchIterator[uint32, uint32]{}, it)
 	for it.Next(&k, &v) {
@@ -158,7 +159,7 @@ func TestBatchIterLessItemsThanBatchSize(t *testing.T) {
 	var v uint32
 	actualNumbers := make([]uint32, numsToPut)
 
-	it := m.IterateWithOptions(10)
+	it := m.IterateWithBatchSize(10)
 	require.NotNil(t, it)
 	require.IsType(t, &genericMapBatchIterator[uint32, uint32]{}, it)
 	for it.Next(&k, &v) {
@@ -192,7 +193,7 @@ func TestBatchIterWhileUpdated(t *testing.T) {
 	updateEachElements := 25
 	updatesDone := 0
 
-	it := m.IterateWithOptions(10)
+	it := m.IterateWithBatchSize(10)
 	require.NotNil(t, it)
 	require.IsType(t, &genericMapBatchIterator[uint32, uint32]{}, it)
 	for it.Next(&k, &v) {
@@ -304,7 +305,7 @@ func TestIterateWithValueStructs(t *testing.T) {
 		numElements := 0
 		foundElements := make(map[uint32]bool)
 
-		it := m.IterateWithOptions(batchSize)
+		it := m.IterateWithBatchSize(batchSize)
 		require.NotNil(t, it)
 		if singleItem {
 			require.IsType(t, &genericMapItemIterator[uint32, ValueStruct]{}, it)
@@ -359,14 +360,14 @@ func TestBatchIterAllocsPerRun(t *testing.T) {
 	var v uint32
 	batchSize := 10
 
-	it := m.IterateWithOptions(batchSize)
+	it := m.IterateWithBatchSize(batchSize)
 	allocs := testing.AllocsPerRun(1, func() {
 		it.Next(&k, &v)
 	})
 	assert.EqualValues(t, allocs, 0)
 
 	batchSize = 100
-	it = m.IterateWithOptions(batchSize)
+	it = m.IterateWithBatchSize(batchSize)
 	allocs = testing.AllocsPerRun(1, func() {
 		it.Next(&k, &v)
 	})
@@ -402,7 +403,7 @@ func BenchmarkIterate(b *testing.B) {
 				var k uint32
 				var v uint32
 
-				it := m.IterateWithOptions(batchSize)
+				it := m.IterateWithBatchSize(batchSize)
 				for it.Next(&k, &v) {
 				}
 			}
@@ -451,7 +452,7 @@ func TestBatchDelete(t *testing.T) {
 	numElements := uint32(0)
 	foundElements := make(map[uint32]bool)
 
-	it := m.IterateWithOptions(1)
+	it := m.IterateWithBatchSize(1)
 	require.NotNil(t, it)
 	require.IsType(t, &genericMapItemIterator[uint32, uint32]{}, it)
 	for it.Next(&k, &v) {
@@ -492,7 +493,7 @@ func TestBatchUpdate(t *testing.T) {
 	numElements := uint32(0)
 	foundElements := make(map[uint32]bool)
 
-	it := m.IterateWithOptions(1)
+	it := m.IterateWithBatchSize(1)
 	require.NotNil(t, it)
 	require.IsType(t, &genericMapItemIterator[uint32, uint32]{}, it)
 	for it.Next(&k, &v) {
