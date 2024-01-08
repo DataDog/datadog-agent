@@ -18,6 +18,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-api-client-go/v2/api/datadog"
+	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV1"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto/debug"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto/optdestroy"
@@ -260,7 +262,8 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 		}))
 		cancel()
 		if err != nil && shouldRetryError(err) {
-			fmt.Fprintf(logger, "Got error that should be retried during stack up, retrying: %v\n", err)
+			fmt.Fprint(logger, "Got error that should be retried during stack up, retrying")
+			sendEventToDatadog(fmt.Sprintf("[E2E] Stack %s : retrying Pulumi stack up", name), err.Error(), []string{"operation:up"}, logger)
 		} else {
 			ok = true
 		}
@@ -327,6 +330,31 @@ func shouldRetryError(err error) bool {
 	}
 
 	return false
+}
+
+func sendEventToDatadog(title string, message string, tags []string, logger io.Writer) error {
+	if _, ok := os.LookupEnv("DD_API_KEY"); !ok {
+		fmt.Fprint(logger, "skipping sending event because DD_API_KEY is not present")
+		return nil
+	}
+
+	ctx := datadog.NewDefaultContext(context.Background())
+	configuration := datadog.NewConfiguration()
+	apiClient := datadog.NewAPIClient(configuration)
+	api := datadogV1.NewEventsApi(apiClient)
+
+	_, r, err := api.CreateEvent(ctx, datadogV1.EventCreateRequest{
+		Title: title,
+		Text:  message,
+		Tags:  append([]string{"repository:datadog/datadog-agent", "test:new-e2e", "source:pulumi"}, tags...),
+	})
+
+	if err != nil {
+		fmt.Fprintf(logger, "error when calling `EventsApi.CreateEvent`: %v", err)
+		fmt.Fprintf(logger, "Full HTTP response: %v\n", r)
+		return err
+	}
+	return nil
 }
 
 // GetPulumiStackName returns the Pulumi stack name
