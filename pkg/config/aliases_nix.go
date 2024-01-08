@@ -12,7 +12,7 @@ import (
 )
 
 // Aliases to setup package
-const (
+var (
 	DefaultSecurityAgentLogFile = pkgconfigsetup.DefaultSecurityAgentLogFile
 	DefaultProcessAgentLogFile  = pkgconfigsetup.DefaultProcessAgentLogFile
 	DefaultDDAgentBin           = pkgconfigsetup.DefaultDDAgentBin
