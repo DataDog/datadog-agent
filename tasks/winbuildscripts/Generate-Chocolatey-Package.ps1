@@ -68,7 +68,7 @@ try {
     $rep = $req.GetResponse()
     $statusCode = $rep.StatusCode
     $reader = new-object System.IO.StreamReader $rep.GetResponseStream() 
-    $checksum = Get-FileHash -Algorithm SHA256 -InputStream $delReader.ReadToEnd()
+    $checksum = Get-FileHash -Algorithm SHA256 -InputStream $reader.ReadToEnd()
 }
 catch [System.Net.WebException] {
     if ($_.Exception.Status -eq "ProtocolError") {
