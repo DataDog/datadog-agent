@@ -1906,7 +1906,7 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 		}
 		scanStartedAt := time.Now()
 		launchScanner(ctx, resultsCh, scannerOptions{
-			Scanner:     "trivy",
+			Scanner:     "vulns",
 			Scan:        scan,
 			Mode:        "vm",
 			SnapshotARN: &snapshotARN,
@@ -1956,7 +1956,7 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 			switch action {
 			case vulnsHost:
 				launchScanner(ctx, resultsCh, scannerOptions{
-					Scanner:    "trivy",
+					Scanner:    "vulns",
 					Scan:       scan,
 					Mode:       "local",
 					Root:       root,
@@ -1973,7 +1973,7 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 					for _, ctrMnt := range ctrMountPoints {
 						entityID, entityTags := containerTags(ctrMnt)
 						launchScanner(ctx, resultsCh, scannerOptions{
-							Scanner:    "trivy",
+							Scanner:    "vulns",
 							Scan:       scan,
 							Root:       ctrMnt.Path,
 							EntityType: sbommodel.SBOMSourceType_CONTAINER_FILE_SYSTEM,
@@ -2136,7 +2136,7 @@ func scanLambda(ctx context.Context, scan *scanTask, resultsCh chan scanResult) 
 
 	scanStartedAt := time.Now()
 	launchScanner(ctx, resultsCh, scannerOptions{
-		Scanner:    "trivy",
+		Scanner:    "vulns",
 		Scan:       scan,
 		Mode:       "lambda",
 		Root:       codePath,
