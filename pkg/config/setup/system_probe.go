@@ -56,7 +56,7 @@ var (
 	defaultSystemProbeBPFDir = filepath.Join(InstallPath, "embedded/share/system-probe/ebpf")
 
 	// defaultSystemProbeJavaDir is the default path for java agent program
-	defaultSystemProbeJavaDir = filepath.Join(InstallPath, "/embedded/share/system-probe/java")
+	defaultSystemProbeJavaDir = filepath.Join(InstallPath, "embedded/share/system-probe/java")
 )
 
 // InitSystemProbeConfig declares all the configuration values normally read from system-probe.yaml.

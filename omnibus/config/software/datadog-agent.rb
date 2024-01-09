@@ -109,7 +109,7 @@ build do
     # defer compilation step in a block to allow getting the project's build version, which is populated
     # only once the software that the project takes its version from (i.e. `datadog-agent`) has finished building
     platform = windows_arch_i386? ? "x86" : "x64"
-    command "invoke trace-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --arch #{platform} --flavor #{flavor_arg}", :env => env
+    command "invoke trace-agent.build --python-runtimes #{py_runtimes_arg} --install-path=#{install_dir} --major-version #{major_version_arg} --arch #{platform} --flavor #{flavor_arg}", :env => env
 
     if windows_target?
       copy 'bin/trace-agent/trace-agent.exe', "#{install_dir}/bin/agent"
@@ -122,11 +122,11 @@ build do
   if windows_target?
     platform = windows_arch_i386? ? "x86" : "x64"
     # Build the process-agent with the correct go version for windows
-    command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --arch #{platform} --flavor #{flavor_arg}", :env => env
+    command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --install-path=#{install_dir} --major-version #{major_version_arg} --arch #{platform} --flavor #{flavor_arg}", :env => env
 
     copy 'bin/process-agent/process-agent.exe', "#{install_dir}/bin/agent"
   else
-    command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
+    command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
     copy 'bin/process-agent/process-agent', "#{install_dir}/embedded/bin"
   end
 
@@ -140,7 +140,7 @@ build do
       end
     end
   elsif linux_target?
-    command "invoke -e system-probe.build-sysprobe-binary"
+    command "invoke -e system-probe.build-sysprobe-binary --install-path=#{install_dir}"
     copy "bin/system-probe/system-probe", "#{install_dir}/embedded/bin"
   end
 
@@ -153,7 +153,7 @@ build do
   # Security agent
   unless heroku_target?
     if not windows_target? or (ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?)
-      command "invoke -e security-agent.build --major-version #{major_version_arg}", :env => env
+      command "invoke -e security-agent.build --install-path=#{install_dir} --major-version #{major_version_arg}", :env => env
       if windows_target?
         copy 'bin/security-agent/security-agent.exe', "#{install_dir}/bin/agent"
       else

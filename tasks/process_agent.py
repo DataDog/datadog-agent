@@ -21,6 +21,7 @@ def build(
     race=False,
     build_include=None,
     build_exclude=None,
+    install_path=None,
     flavor=AgentFlavor.base.name,
     incremental_build=False,
     major_version='7',
@@ -32,7 +33,12 @@ def build(
     Build the process agent
     """
     flavor = AgentFlavor[flavor]
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes=python_runtimes)
+    ldflags, gcflags, env = get_build_flags(
+        ctx,
+        install_path=install_path,
+        major_version=major_version,
+        python_runtimes=python_runtimes,
+    )
 
     # generate windows resources
     if sys.platform == 'win32':
