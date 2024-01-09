@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package orchestrator
 
 import (
@@ -43,7 +48,7 @@ func (e expectAtLeastOneResource) Assert(suite *k8sSuite) {
 
 type manifest struct {
 	Kind       string `yaml:"kind"`
-	ApiVersion string `yaml:"apiVersion"`
+	APIVersion string `yaml:"apiVersion"`
 	Spec       struct {
 		Group string `yaml:"group"`
 		Names struct {
@@ -78,7 +83,7 @@ func (e expectAtLeastOneManifest) Assert(suite *k8sSuite) {
 			if err != nil {
 				continue // unable to parse manifest content
 			}
-			//fmt.Printf("MANIF %d %d - %s %s - %s %s\n", p.Type, p.Manifest.Type, manif.ApiVersion, manif.Kind, manif.Metadata.Name, manif.Metadata.Namespace)
+			//fmt.Printf("MANIF %d %d - %s %s - %s %s\n", p.Type, p.Manifest.Type, manif.APIVersion, manif.Kind, manif.Metadata.Name, manif.Metadata.Namespace)
 			if p != nil && e.test(p, manif) {
 				fmt.Println("success: " + e.message)
 				return

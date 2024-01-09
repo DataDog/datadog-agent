@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package orchestrator
 
 import (
@@ -151,9 +156,9 @@ func (suite *k8sSuite) summarizeResources() {
 		if _, ok := latest[p.Type]; !ok {
 			latest[p.Type] = map[string]*aggregator.OrchestratorPayload{}
 		}
-		existing, ok := latest[p.Type][p.Uid]
+		existing, ok := latest[p.Type][p.UID]
 		if !ok || existing.CollectedTime.Before(p.CollectedTime) {
-			latest[p.Type][p.Uid] = p
+			latest[p.Type][p.UID] = p
 		}
 	}
 	fmt.Println("Most recently collected resources:")
@@ -189,7 +194,7 @@ func (suite *k8sSuite) summarizeManifests() {
 			if err != nil {
 				continue // unable to parse manifest content
 			}
-			fmt.Printf(" - type:%d, name:%s, ns:%s, kind:%s, apiVer:%s, uid:%s, collected:%s\n", typ, manif.Metadata.Name, manif.Metadata.Namespace, manif.Kind, manif.ApiVersion, uid, p.CollectedTime.Format(time.RFC3339))
+			fmt.Printf(" - type:%d, name:%s, ns:%s, kind:%s, apiVer:%s, uid:%s, collected:%s\n", typ, manif.Metadata.Name, manif.Metadata.Namespace, manif.Kind, manif.APIVersion, uid, p.CollectedTime.Format(time.RFC3339))
 		}
 	}
 }

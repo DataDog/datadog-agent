@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package orchestrator
 
 import (
@@ -60,7 +65,7 @@ func (suite *k8sSuite) TestCRManif() {
 	expectAtLeastOneManifest{
 		test: func(payload *aggregator.OrchestratorManifestPayload, manif manifest) bool {
 			return payload.Type == agentmodel.TypeCollectorManifestCR &&
-				manif.ApiVersion == "datadoghq.com/v1alpha1" &&
+				manif.APIVersion == "datadoghq.com/v1alpha1" &&
 				manif.Kind == "DatadogMetric" &&
 				manif.Metadata.Name == "redis"
 		},
