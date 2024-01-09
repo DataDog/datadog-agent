@@ -31,7 +31,7 @@ func TestMain(m *testing.M) {
 		envs := os.Environ()
 		envs = append(envs, "EBPFLESS=true")
 
-		err := ptracer.StartCWSPtracer(args, envs, setup.DefaultEBPFLessProbeAddr, ptracer.Creds{}, false, true)
+		err := ptracer.StartCWSPtracer(args, envs, setup.DefaultEBPFLessProbeAddr, ptracer.Creds{}, false /* verbose */, true /* async */, false /* disableStats */)
 		if err != nil {
 			fmt.Printf("unable to trace [%v]: %s", args, err)
 			os.Exit(-1)

@@ -15,12 +15,14 @@ import (
 func NewFilterCommand(cl **client.Client) (cmd *cobra.Command) {
 	cmd = &cobra.Command{
 		Use:   "filter",
-		Short: "Filter logs or metrics",
+		Short: "Filter metrics, logs, etc.",
 	}
 
 	cmd.AddCommand(
 		NewFilterLogsCommand(cl),
 		NewFilterMetricsCommand(cl),
+		NewFilterContainerImagesCommand(cl),
+		NewFilterSBOMCommand(cl),
 	)
 
 	return cmd

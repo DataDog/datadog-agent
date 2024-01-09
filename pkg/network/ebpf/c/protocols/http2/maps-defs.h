@@ -23,6 +23,10 @@ BPF_HASH_MAP(http2_in_flight, http2_stream_key_t, http2_stream_t, 0)
    It allows retrieval of both the current offset and the number of iterations that have already been executed. */
 BPF_HASH_MAP(http2_iterations, dispatcher_arguments_t, http2_tail_call_state_t, 0)
 
+/* This map serves the purpose of maintaining the current state of tail calls for each frame.
+   It allows retrieval of both the current offset and the number of iterations that have already been executed. */
+BPF_HASH_MAP(tls_http2_iterations, tls_dispatcher_arguments_t, http2_tail_call_state_t, 0)
+
 /* Allocating an array of headers, to hold all interesting headers from the frame. */
 BPF_PERCPU_ARRAY_MAP(http2_headers_to_process, http2_header_t[HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING], 1)
 

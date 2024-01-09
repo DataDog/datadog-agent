@@ -230,7 +230,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := injectAutoInstruConfig(tt.pod, tt.libsToInject, false)
+			err := injectAutoInstruConfig(tt.pod, tt.libsToInject, false, "")
 			require.False(t, (err != nil) != tt.wantErr)
 			if err != nil {
 				return
@@ -1574,7 +1574,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			),
 			wantErr: false,
 			setupConfig: func() {
-				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", false)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled_namespaces", []string{"ns"})
 			},
 		},

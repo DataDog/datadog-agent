@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/msgpgo"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const metaBucket = "meta"
@@ -36,7 +35,7 @@ type AgentMetadata struct {
 	Version string `json:"version"`
 }
 
-func recreate(path string) (*bbolt.DB, error) {
+func recreate(path string, agentVersion string) (*bbolt.DB, error) {
 	log.Infof("Clear remote configuration database")
 	_, err := os.Stat(path)
 	if err != nil && !os.IsNotExist(err) {
@@ -61,17 +60,17 @@ func recreate(path string) (*bbolt.DB, error) {
 		}
 		return nil, err
 	}
-	return db, addMetadata(db)
+	return db, addMetadata(db, agentVersion)
 }
 
-func addMetadata(db *bbolt.DB) error {
+func addMetadata(db *bbolt.DB, agentVersion string) error {
 	return db.Update(func(tx *bbolt.Tx) error {
 		bucket, err := tx.CreateBucketIfNotExists([]byte(metaBucket))
 		if err != nil {
 			return err
 		}
 		metaData, err := json.Marshal(AgentMetadata{
-			Version: version.AgentVersion,
+			Version: agentVersion,
 		})
 		if err != nil {
 			return err
@@ -80,7 +79,7 @@ func addMetadata(db *bbolt.DB) error {
 	})
 }
 
-func openCacheDB(path string) (*bbolt.DB, error) {
+func openCacheDB(path string, agentVersion string) (*bbolt.DB, error) {
 	db, err := bbolt.Open(path, 0600, &bbolt.Options{
 		Timeout: databaseLockTimeout,
 	})
@@ -88,7 +87,7 @@ func openCacheDB(path string) (*bbolt.DB, error) {
 		if errors.Is(err, bbolt.ErrTimeout) {
 			return nil, fmt.Errorf("rc db is locked. Please check if another instance of the agent is running and using the same `run_path` parameter")
 		}
-		return recreate(path)
+		return recreate(path, agentVersion)
 	}
 
 	metadata := new(AgentMetadata)
@@ -112,13 +111,13 @@ func openCacheDB(path string) (*bbolt.DB, error) {
 	})
 	if err != nil {
 		_ = db.Close()
-		return recreate(path)
+		return recreate(path, agentVersion)
 	}
 
-	if metadata.Version != version.AgentVersion {
+	if metadata.Version != agentVersion {
 		log.Infof("Different agent version detected")
 		_ = db.Close()
-		return recreate(path)
+		return recreate(path, agentVersion)
 	}
 
 	return db, nil
@@ -169,7 +168,7 @@ func getRemoteConfigAuthKeys(apiKey string, rcKey string) (remoteConfigAuthKeys,
 	}, nil
 }
 
-func buildLatestConfigsRequest(hostname string, traceAgentEnv string, orgUUID string, state uptane.TUFVersions, activeClients []*pbgo.Client, products map[data.Product]struct{}, newProducts map[data.Product]struct{}, lastUpdateErr error, clientState []byte) *pbgo.LatestConfigsRequest {
+func buildLatestConfigsRequest(hostname string, agentVersion string, traceAgentEnv string, orgUUID string, state uptane.TUFVersions, activeClients []*pbgo.Client, products map[data.Product]struct{}, newProducts map[data.Product]struct{}, lastUpdateErr error, clientState []byte) *pbgo.LatestConfigsRequest {
 	productsList := make([]data.Product, len(products))
 	i := 0
 	for k := range products {
@@ -189,7 +188,7 @@ func buildLatestConfigsRequest(hostname string, traceAgentEnv string, orgUUID st
 	}
 	return &pbgo.LatestConfigsRequest{
 		Hostname:                     hostname,
-		AgentVersion:                 version.AgentVersion,
+		AgentVersion:                 agentVersion,
 		Products:                     data.ProductListToString(productsList),
 		NewProducts:                  data.ProductListToString(newProductsList),
 		CurrentConfigSnapshotVersion: state.ConfigSnapshot,

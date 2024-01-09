@@ -479,13 +479,13 @@ int test_forkexec(int argc, char **argv) {
             }
             return EXIT_SUCCESS;
         } else if (strcmp(subcmd, "mmap") == 0) {
-            mmap(NULL, 4096, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+            open("/dev/null", O_RDONLY);
             return EXIT_SUCCESS;
         }
     } else if (argc == 1) {
         int child = fork();
         if (child == 0) {
-            mmap(NULL, 4096, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+            open("/dev/null", O_RDONLY);
             return EXIT_SUCCESS;
         } else if (child > 0) {
             wait(NULL);

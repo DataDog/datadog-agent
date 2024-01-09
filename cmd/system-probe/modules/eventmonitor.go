@@ -9,7 +9,7 @@ package modules
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	"github.com/DataDog/datadog-agent/pkg/network/events"
@@ -21,7 +21,7 @@ import (
 
 var eventMonitorModuleConfigNamespaces = []string{"event_monitoring_config", "runtime_security_config"}
 
-func createEventMonitorModule(sysProbeConfig *config.Config) (module.Module, error) {
+func createEventMonitorModule(sysProbeConfig *sysconfigtypes.Config) (module.Module, error) {
 	emconfig := emconfig.NewConfig(sysProbeConfig)
 
 	secconfig, err := secconfig.NewConfig()

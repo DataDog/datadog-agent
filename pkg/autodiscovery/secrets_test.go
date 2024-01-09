@@ -34,7 +34,7 @@ type MockSecretResolver struct {
 
 var _ secrets.Component = (*MockSecretResolver)(nil)
 
-func (m *MockSecretResolver) Configure(_ string, _ []string, _, _ int, _, _ bool) {}
+func (m *MockSecretResolver) Configure(_ string, _ []string, _, _, _ int, _, _ bool) {}
 
 func (m *MockSecretResolver) GetDebugInfo(_ io.Writer) {}
 
@@ -52,7 +52,10 @@ func (m *MockSecretResolver) Resolve(data []byte, origin string) ([]byte, error)
 	return nil, fmt.Errorf("Resolve called with unexpected arguments: data=%s, origin=%s", string(data), origin)
 }
 
-func (m *MockSecretResolver) ResolveWithCallback(_ []byte, _ string, _ secrets.ResolveCallback) error {
+func (m *MockSecretResolver) SubscribeToChanges(_ secrets.SecretChangeCallback) {
+}
+
+func (m *MockSecretResolver) Refresh() error {
 	return nil
 }
 
