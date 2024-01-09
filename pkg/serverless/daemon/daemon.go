@@ -67,7 +67,7 @@ type Daemon struct {
 	LambdaLibraryDetected bool
 
 	// LambdaLibraryStateLock keeps track of whether the Datadog Lambda Library was detected in the environment
-	LambdaLibraryStateLock sync.RWMutex
+	LambdaLibraryStateLock sync.Mutex
 
 	// executionSpanComplete indicates whether the Lambda span has been completed by the Extension
 	executionSpanComplete bool
@@ -447,8 +447,8 @@ func (d *Daemon) setTraceTags(tagMap map[string]string) bool {
 
 // IsLambdaLibraryDetected returns if the Lambda Library is in use
 func (d *Daemon) IsLambdaLibraryDetected() bool {
-	d.LambdaLibraryStateLock.RLock()
-	defer d.LambdaLibraryStateLock.RUnlock()
+	d.LambdaLibraryStateLock.Lock()
+	defer d.LambdaLibraryStateLock.Unlock()
 	return d.LambdaLibraryDetected
 }
 
