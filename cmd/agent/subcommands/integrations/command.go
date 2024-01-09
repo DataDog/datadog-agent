@@ -111,8 +111,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		return fxutil.OneShot(callback,
 			fx.Supply(cliParams),
 			fx.Supply(core.BundleParams{
-				ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath, config.WithConfigMissingOK(true))}),
-			core.Bundle,
+				ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigMissingOK(true))}),
+			core.Bundle(),
 		)
 	}
 

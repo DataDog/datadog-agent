@@ -43,7 +43,7 @@ func (e *encoder) AddArray(k string, v zapcore.ArrayMarshaler) error {
 	return err
 }
 
-func (e *encoder) AddObject(k string, v zapcore.ObjectMarshaler) error { return v.MarshalLogObject(e) }
+func (e *encoder) AddObject(_ string, v zapcore.ObjectMarshaler) error { return v.MarshalLogObject(e) }
 func (e *encoder) AddBinary(k string, v []byte)                        { e.ctx = append(e.ctx, e.fullKey(k), v) }
 func (e *encoder) AddByteString(k string, v []byte)                    { e.ctx = append(e.ctx, e.fullKey(k), string(v)) }
 func (e *encoder) AddBool(k string, v bool)                            { e.ctx = append(e.ctx, e.fullKey(k), v) }

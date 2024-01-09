@@ -83,18 +83,18 @@ func startCompliance(senderManager sender.SenderManager, stopper startstop.Stopp
 	configDir := coreconfig.Datadog.GetString("compliance_config.dir")
 	checkInterval := coreconfig.Datadog.GetDuration("compliance_config.check_interval")
 
-	reporter, err := compliance.NewLogReporter(stopper, "compliance-agent", "compliance", runPath, endpoints, ctx)
+	hname, err := hostname.Get(context.TODO())
+	if err != nil {
+		return err
+	}
+
+	reporter, err := compliance.NewLogReporter(hname, stopper, "compliance-agent", "compliance", runPath, endpoints, ctx)
 	if err != nil {
 		return err
 	}
 
 	runner := runner.NewRunner(senderManager)
 	stopper.Add(runner)
-
-	hname, err := hostname.Get(context.TODO())
-	if err != nil {
-		return err
-	}
 
 	agent := compliance.NewAgent(senderManager, compliance.AgentOptions{
 		ConfigDir:     configDir,
@@ -124,7 +124,7 @@ func startCompliance(senderManager sender.SenderManager, stopper startstop.Stopp
 func wrapKubernetesClient(apiCl *apiserver.APIClient, isLeader func() bool) compliance.KubernetesProvider {
 	return func(ctx context.Context) (dynamic.Interface, discovery.DiscoveryInterface, error) {
 		if isLeader() {
-			return apiCl.DynamicCl, apiCl.DiscoveryCl, nil
+			return apiCl.DynamicCl, apiCl.Cl.Discovery(), nil
 		}
 		return nil, nil, compliance.ErrIncompatibleEnvironment
 	}

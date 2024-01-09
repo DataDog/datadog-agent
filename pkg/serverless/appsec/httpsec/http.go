@@ -12,7 +12,6 @@ package httpsec
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"io"
@@ -24,13 +23,15 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	waf "github.com/DataDog/go-libddwaf/v2"
+	json "github.com/json-iterator/go"
 )
 
 // Monitorer is the interface type expected by the httpsec invocation
 // subprocessor monitoring the given security rules addresses and returning
 // the security events that matched.
 type Monitorer interface {
-	Monitor(addresses map[string]interface{}) (events []byte)
+	Monitor(addresses map[string]any) *waf.Result
 }
 
 // AppSec monitoring context including the full list of monitored HTTP values
@@ -38,6 +39,7 @@ type Monitorer interface {
 // required context to report appsec-related span tags.
 type context struct {
 	requestSourceIP   string
+	requestRoute      *string             // http.route
 	requestClientIP   *string             // http.client_ip
 	requestRawURI     *string             // server.request.uri.raw
 	requestHeaders    map[string][]string // server.request.headers.no_cookies
@@ -49,11 +51,12 @@ type context struct {
 }
 
 // makeContext creates a http monitoring context out of the provided arguments.
-func makeContext(ctx *context, path *string, headers, queryParams map[string][]string, pathParams map[string]string, sourceIP string, rawBody *string, isBodyBase64 bool) {
+func makeContext(ctx *context, route, path *string, headers, queryParams map[string][]string, pathParams map[string]string, sourceIP string, rawBody *string, isBodyBase64 bool) {
 	headers, rawCookies := filterHeaders(headers)
 	cookies := parseCookies(rawCookies)
 	body := parseBody(headers, rawBody, isBodyBase64)
 	*ctx = context{
+		requestRoute:      route,
 		requestSourceIP:   sourceIP,
 		requestRawURI:     path,
 		requestHeaders:    headers,
@@ -107,7 +110,7 @@ func tryParseBody(headers textproto.MIMEHeader, raw string) (body any, err error
 
 	if value := headers.Get("Content-Type"); value == "" {
 		return nil, nil
-	} else {
+	} else { //nolint:revive // TODO(ASM) Fix revive linter
 		mt, p, err := mime.ParseMediaType(value)
 		if err != nil {
 			return nil, err

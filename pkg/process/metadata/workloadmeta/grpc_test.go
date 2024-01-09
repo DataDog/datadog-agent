@@ -29,14 +29,14 @@ import (
 func TestGetGRPCStreamPort(t *testing.T) {
 	t.Run("invalid port", func(t *testing.T) {
 		cfg := config.Mock(t)
-		cfg.Set("process_config.language_detection.grpc_port", "lorem ipsum")
+		cfg.SetWithoutSource("process_config.language_detection.grpc_port", "lorem ipsum")
 
 		assert.Equal(t, config.DefaultProcessEntityStreamPort, getGRPCStreamPort(cfg))
 	})
 
 	t.Run("valid port", func(t *testing.T) {
 		cfg := config.Mock(t)
-		cfg.Set("process_config.language_detection.grpc_port", "1234")
+		cfg.SetWithoutSource("process_config.language_detection.grpc_port", "1234")
 
 		assert.Equal(t, 1234, getGRPCStreamPort(cfg))
 	})
@@ -49,12 +49,12 @@ func TestGetGRPCStreamPort(t *testing.T) {
 
 func TestStartStop(t *testing.T) {
 	cfg := config.Mock(t)
-	fxutil.Test[telemetry.Mock](t, telemetry.MockModule).Reset()
+	fxutil.Test[telemetry.Mock](t, telemetry.MockModule()).Reset()
 
 	extractor := NewWorkloadMetaExtractor(cfg)
 
 	port := testutil.FreeTCPPort(t)
-	cfg.Set("process_config.language_detection.grpc_port", port)
+	cfg.SetWithoutSource("process_config.language_detection.grpc_port", port)
 	srv := NewGRPCServer(config.Mock(t), extractor)
 
 	err := srv.Start()
@@ -83,11 +83,11 @@ func TestStreamServer(t *testing.T) {
 	)
 
 	cfg := config.Mock(t)
-	fxutil.Test[telemetry.Mock](t, telemetry.MockModule).Reset()
+	fxutil.Test[telemetry.Mock](t, telemetry.MockModule()).Reset()
 	extractor := NewWorkloadMetaExtractor(cfg)
 
 	port := testutil.FreeTCPPort(t)
-	cfg.Set("process_config.language_detection.grpc_port", port)
+	cfg.SetWithoutSource("process_config.language_detection.grpc_port", port)
 	srv := NewGRPCServer(cfg, extractor)
 	require.NoError(t, srv.Start())
 	require.NotNil(t, srv.addr)
@@ -163,11 +163,11 @@ func TestStreamServerDropRedundantCacheDiff(t *testing.T) {
 	)
 
 	cfg := config.Mock(t)
-	fxutil.Test[telemetry.Mock](t, telemetry.MockModule).Reset()
+	fxutil.Test[telemetry.Mock](t, telemetry.MockModule()).Reset()
 	extractor := NewWorkloadMetaExtractor(cfg)
 
 	port := testutil.FreeTCPPort(t)
-	cfg.Set("process_config.language_detection.grpc_port", port)
+	cfg.SetWithoutSource("process_config.language_detection.grpc_port", port)
 	srv := NewGRPCServer(cfg, extractor)
 	require.NoError(t, srv.Start())
 	require.NotNil(t, srv.addr)
@@ -339,7 +339,7 @@ func assertSetEvent(t *testing.T, expected, actual *pbgo.ProcessEventSet) {
 
 	assert.Equal(t, expected.Pid, actual.Pid)
 	assert.Equal(t, expected.Nspid, actual.Nspid)
-	assert.Equal(t, expected.ContainerId, actual.ContainerId)
+	assert.Equal(t, expected.ContainerID, actual.ContainerID)
 	assert.Equal(t, expected.CreationTime, actual.CreationTime)
 	if expected.Language != nil {
 		assert.Equal(t, expected.Language.Name, actual.Language.Name)
@@ -368,8 +368,8 @@ func setupGRPCTest(t *testing.T) (*WorkloadMetaExtractor, *GRPCServer, *grpc.Cli
 	cfg := config.Mock(t)
 	port, err := testutil.FindTCPPort()
 	require.NoError(t, err)
-	cfg.Set("process_config.language_detection.grpc_port", port)
-	fxutil.Test[telemetry.Mock](t, telemetry.MockModule).Reset()
+	cfg.SetWithoutSource("process_config.language_detection.grpc_port", port)
+	fxutil.Test[telemetry.Mock](t, telemetry.MockModule()).Reset()
 	extractor := NewWorkloadMetaExtractor(cfg)
 
 	grpcServer := NewGRPCServer(cfg, extractor)

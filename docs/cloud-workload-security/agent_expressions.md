@@ -16,14 +16,14 @@ Cloud Security Management Threats (CSM Threats) first evaluates activity within 
 
 
 {{< code-block lang="javascript" >}}
-<event-type>.<event-attribute> <operator> <value> <event-attribute> ...
+<event-type>.<event-attribute> <operator> <value> [<operator> <event-type>.<event-attribute>] ...
 
 {{< /code-block >}}
 
 Using this format, an example rule looks like this:
 
 {{< code-block lang="javascript" >}}
-open.file.path == "/etc/shadow" && file.path not in ["/usr/sbin/vipw"]
+open.file.path == "/etc/shadow" && process.file.path not in ["/usr/sbin/vipw"]
 
 {{< /code-block >}}
 
@@ -245,6 +245,9 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`process.ancestors.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`process.ancestors.user`](#common-credentials-user-doc) | User of the process |
+| [`process.ancestors.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`process.ancestors.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`process.ancestors.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
 | [`process.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
 | [`process.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
 | [`process.args_options`](#common-process-args_options-doc) | Argument of the process as options |
@@ -383,12 +386,18 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`process.parent.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`process.parent.user`](#common-credentials-user-doc) | User of the process |
+| [`process.parent.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`process.parent.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`process.parent.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
 | [`process.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`process.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`process.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`process.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`process.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`process.user`](#common-credentials-user-doc) | User of the process |
+| [`process.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`process.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`process.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
 
 ### Event `bind`
 
@@ -589,6 +598,9 @@ A process was executed or forked
 | [`exec.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`exec.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`exec.user`](#common-credentials-user-doc) | User of the process |
+| [`exec.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`exec.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`exec.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
 
 ### Event `exit`
 
@@ -670,6 +682,9 @@ A process was terminated
 | [`exit.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`exit.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`exit.user`](#common-credentials-user-doc) | User of the process |
+| [`exit.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`exit.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`exit.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
 
 ### Event `link`
 
@@ -823,6 +838,7 @@ A filesystem was mounted
 | [`mount.fs_type`](#mount-fs_type-doc) | Type of the mounted file system |
 | [`mount.mountpoint.path`](#mount-mountpoint-path-doc) | Path of the mount point |
 | [`mount.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`mount.root.path`](#mount-root-path-doc) | Root path of the mount |
 | [`mount.source.path`](#mount-source-path-doc) | Source path of a bind mount |
 
 ### Event `mprotect`
@@ -945,6 +961,9 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`ptrace.tracee.ancestors.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`ptrace.tracee.ancestors.user`](#common-credentials-user-doc) | User of the process |
+| [`ptrace.tracee.ancestors.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`ptrace.tracee.ancestors.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`ptrace.tracee.ancestors.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
 | [`ptrace.tracee.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
 | [`ptrace.tracee.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
 | [`ptrace.tracee.args_options`](#common-process-args_options-doc) | Argument of the process as options |
@@ -1083,12 +1102,18 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`ptrace.tracee.parent.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`ptrace.tracee.parent.user`](#common-credentials-user-doc) | User of the process |
+| [`ptrace.tracee.parent.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`ptrace.tracee.parent.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`ptrace.tracee.parent.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
 | [`ptrace.tracee.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`ptrace.tracee.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`ptrace.tracee.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`ptrace.tracee.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`ptrace.tracee.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`ptrace.tracee.user`](#common-credentials-user-doc) | User of the process |
+| [`ptrace.tracee.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`ptrace.tracee.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`ptrace.tracee.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
 
 ### Event `removexattr`
 
@@ -1343,6 +1368,9 @@ A signal was sent
 | [`signal.target.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`signal.target.ancestors.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`signal.target.ancestors.user`](#common-credentials-user-doc) | User of the process |
+| [`signal.target.ancestors.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`signal.target.ancestors.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`signal.target.ancestors.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
 | [`signal.target.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
 | [`signal.target.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
 | [`signal.target.args_options`](#common-process-args_options-doc) | Argument of the process as options |
@@ -1481,12 +1509,18 @@ A signal was sent
 | [`signal.target.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`signal.target.parent.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`signal.target.parent.user`](#common-credentials-user-doc) | User of the process |
+| [`signal.target.parent.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`signal.target.parent.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`signal.target.parent.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
 | [`signal.target.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`signal.target.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`signal.target.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`signal.target.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`signal.target.uid`](#common-credentials-uid-doc) | UID of the process |
 | [`signal.target.user`](#common-credentials-user-doc) | User of the process |
+| [`signal.target.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`signal.target.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`signal.target.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
 | [`signal.type`](#signal-type-doc) | Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc) |
 
 ### Event `splice`
@@ -1961,6 +1995,33 @@ Definition: Indicates whether the process is considered a thread (that is, a chi
 
 `*.is_thread` has 11 possible prefixes:
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.k8s_groups` {#common-usersessioncontext-k8s_groups-doc}
+Type: string
+
+Definition: Kubernetes groups of the user that executed the process
+
+`*.k8s_groups` has 11 possible prefixes:
+`exec.user_session` `exit.user_session` `process.ancestors.user_session` `process.parent.user_session` `process.user_session` `ptrace.tracee.ancestors.user_session` `ptrace.tracee.parent.user_session` `ptrace.tracee.user_session` `signal.target.ancestors.user_session` `signal.target.parent.user_session` `signal.target.user_session`
+
+
+### `*.k8s_uid` {#common-usersessioncontext-k8s_uid-doc}
+Type: string
+
+Definition: Kubernetes UID of the user that executed the process
+
+`*.k8s_uid` has 11 possible prefixes:
+`exec.user_session` `exit.user_session` `process.ancestors.user_session` `process.parent.user_session` `process.user_session` `ptrace.tracee.ancestors.user_session` `ptrace.tracee.parent.user_session` `ptrace.tracee.user_session` `signal.target.ancestors.user_session` `signal.target.parent.user_session` `signal.target.user_session`
+
+
+### `*.k8s_username` {#common-usersessioncontext-k8s_username-doc}
+Type: string
+
+Definition: Kubernetes username of the user that executed the process
+
+`*.k8s_username` has 11 possible prefixes:
+`exec.user_session` `exit.user_session` `process.ancestors.user_session` `process.parent.user_session` `process.user_session` `ptrace.tracee.ancestors.user_session` `ptrace.tracee.parent.user_session` `ptrace.tracee.user_session` `signal.target.ancestors.user_session` `signal.target.parent.user_session` `signal.target.user_session`
 
 
 ### `*.length` {#common-string-length-doc}
@@ -2516,6 +2577,13 @@ Definition: Type of the mounted file system
 Type: string
 
 Definition: Path of the mount point
+
+
+
+### `mount.root.path` {#mount-root-path-doc}
+Type: string
+
+Definition: Root path of the mount
 
 
 

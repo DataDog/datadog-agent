@@ -1,6 +1,6 @@
 ${COPYRIGHT_HEADER}
 
-package todoimpl
+package ${COMPONENT_NAME}impl
 
 import (
 	"go.uber.org/fx"
@@ -9,6 +9,8 @@ import (
 )
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-    fx.Provide(/* TODO: provide Component constructor */),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+    	fx.Provide(/* TODO: provide Component constructor */),
+	)
+}

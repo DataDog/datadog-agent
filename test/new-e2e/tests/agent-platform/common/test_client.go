@@ -43,11 +43,21 @@ type Helper interface {
 	GetInstallFolder() string
 	GetConfigFolder() string
 	GetBinaryPath() string
+	GetConfigFileName() string
+	GetServiceName() string
 }
 
 func getServiceManager(vmClient e2eClient.VM) ServiceManager {
 	if _, err := vmClient.ExecuteWithError("command -v systemctl"); err == nil {
 		return svcmanager.NewSystemctlSvcManager(vmClient)
+	}
+
+	if _, err := vmClient.ExecuteWithError("command -v /sbin/initctl"); err == nil {
+		return svcmanager.NewUpstartSvcManager(vmClient)
+	}
+
+	if _, err := vmClient.ExecuteWithError("command -v service"); err == nil {
+		return svcmanager.NewServiceSvcManager(vmClient)
 	}
 	return nil
 }
@@ -56,6 +66,15 @@ func getPackageManager(vmClient e2eClient.VM) PackageManager {
 	if _, err := vmClient.ExecuteWithError("command -v apt"); err == nil {
 		return pkgmanager.NewAptPackageManager(vmClient)
 	}
+
+	if _, err := vmClient.ExecuteWithError("command -v yum"); err == nil {
+		return pkgmanager.NewYumPackageManager(vmClient)
+	}
+
+	if _, err := vmClient.ExecuteWithError("command -v zypper"); err == nil {
+		return pkgmanager.NewZypperPackageManager(vmClient)
+	}
+
 	return nil
 }
 
@@ -132,7 +151,7 @@ func (c *TestClient) GetPythonVersion() (string, error) {
 	ok := false
 	var statusString string
 
-	for try := 0; try < 5 && !ok; try++ {
+	for try := 0; try < 60 && !ok; try++ {
 		status, err := c.AgentClient.StatusWithError(e2eClient.WithArgs([]string{"-j"}))
 		if err == nil {
 			ok = true
@@ -143,6 +162,16 @@ func (c *TestClient) GetPythonVersion() (string, error) {
 
 	err := json.Unmarshal([]byte(statusString), &statusJSON)
 	if err != nil {
+		fmt.Println("Failed to unmarshal status content: ", statusString)
+
+		// TEMPORARY DEBUG: on error print logs from journalctx
+		output, err := c.VMClient.ExecuteWithError("journalctl -u datadog-agent")
+		if err != nil {
+			fmt.Println("Failed to get logs from journalctl, ignoring... ")
+		} else {
+			fmt.Println("Logs from journalctl: ", output)
+		}
+
 		return "", err
 	}
 	pythonVersion := statusJSON["python_version"].(string)

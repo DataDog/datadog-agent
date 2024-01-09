@@ -81,6 +81,7 @@ type CheckEvent struct {
 	ResourceType string                 `json:"resource_type,omitempty"`
 	ResourceID   string                 `json:"resource_id,omitempty"`
 	Container    *CheckContainerMeta    `json:"container,omitempty"`
+	K8SManaged   *string                `json:"k8s_managed,omitempty"`
 	Tags         []string               `json:"tags"`
 	Data         map[string]interface{} `json:"data"`
 
@@ -89,12 +90,13 @@ type CheckEvent struct {
 
 // ResourceLog is the data structure holding a resource configuration data.
 type ResourceLog struct {
-	AgentVersion string      `json:"agent_version,omitempty"`
-	ExpireAt     *time.Time  `json:"expire_at,omitempty"`
-	ResourceType string      `json:"resource_type,omitempty"`
-	ResourceID   string      `json:"resource_id,omitempty"`
-	ResourceData interface{} `json:"resource_data,omitempty"`
-	Tags         []string    `json:"tags"`
+	AgentVersion string              `json:"agent_version,omitempty"`
+	ExpireAt     *time.Time          `json:"expire_at,omitempty"`
+	ResourceType string              `json:"resource_type,omitempty"`
+	ResourceID   string              `json:"resource_id,omitempty"`
+	ResourceData interface{}         `json:"resource_data,omitempty"`
+	Container    *CheckContainerMeta `json:"container,omitempty"`
+	Tags         []string            `json:"tags"`
 }
 
 func (e *CheckEvent) String() string {
@@ -169,6 +171,8 @@ func NewCheckSkipped(
 		AgentVersion: version.AgentVersion,
 		RuleID:       rule.ID,
 		FrameworkID:  benchmark.FrameworkID,
+		ResourceID:   resourceID,
+		ResourceType: resourceType,
 		Evaluator:    evaluator,
 		Result:       CheckSkipped,
 		Data:         map[string]interface{}{"error": skipReason.Error()},

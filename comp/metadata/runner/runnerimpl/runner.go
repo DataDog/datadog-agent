@@ -13,15 +13,16 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"go.uber.org/fx"
 )
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newRunner),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newRunner))
+}
 
 // MetadataProvider is the provider for metadata
 type MetadataProvider func(context.Context) time.Duration
@@ -32,7 +33,7 @@ type runnerImpl struct {
 
 	// providers are the metada providers to run. They're Optional because some of them can be disabled through the
 	// configuration
-	providers []util.Optional[MetadataProvider]
+	providers []optional.Option[MetadataProvider]
 
 	wg       sync.WaitGroup
 	stopChan chan struct{}
@@ -44,28 +45,28 @@ type dependencies struct {
 	Log    log.Component
 	Config config.Component
 
-	Providers []util.Optional[MetadataProvider] `group:"metadata_provider"`
+	Providers []optional.Option[MetadataProvider] `group:"metadata_provider"`
 }
 
 // Provider represents the callback from a metada provider. This is returned by 'NewProvider' helper.
 type Provider struct {
 	fx.Out
 
-	Callback util.Optional[MetadataProvider] `group:"metadata_provider"`
+	Callback optional.Option[MetadataProvider] `group:"metadata_provider"`
 }
 
 // NewEmptyProvider returns a empty provider which is not going to register anything. This is useful for providers that
 // can be enabled/disabled through configuration.
 func NewEmptyProvider() Provider {
 	return Provider{
-		Callback: util.NewNoneOptional[MetadataProvider](),
+		Callback: optional.NewNoneOption[MetadataProvider](),
 	}
 }
 
 // NewProvider registers a new metadata provider by adding a callback to the runner.
 func NewProvider(callback MetadataProvider) Provider {
 	return Provider{
-		Callback: util.NewOptional[MetadataProvider](callback),
+		Callback: optional.NewOption[MetadataProvider](callback),
 	}
 }
 

@@ -2,13 +2,12 @@
 .windows_msi_base:
   stage: package_build
   tags: ["runner:windows-docker", "windowsversion:1809"]
-  needs: ["go_mod_tidy_check", "go_deps", "build_vcpkg_deps"]
+  needs: ["go_mod_tidy_check", "go_deps"]
   script:
     - $ErrorActionPreference = 'Stop'
     - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
     - if (Test-Path omnibus\pkg) { remove-item -recurse -force omnibus\pkg }
     - mkdir omnibus\pkg
-    - $vcpkgBlobSaSUrl = (aws ssm get-parameter --region us-east-1 --name ci.datadog-agent-buildimages.vcpkg_blob_sas_url --with-decryption --query "Parameter.Value" --out text)
     - !reference [.setup_ruby_mirror_win]
     - !reference [.setup_python_mirror_win]
     - >
@@ -34,7 +33,6 @@
       -e S3_OMNIBUS_CACHE_BUCKET="$S3_OMNIBUS_CACHE_BUCKET"
       -e USE_S3_CACHING="$USE_S3_CACHING"
       -e INTEGRATION_WHEELS_CACHE_BUCKET="$INTEGRATION_WHEELS_CACHE_BUCKET"
-      -e VCPKG_BINARY_SOURCES="clear;x-azblob,${vcpkgBlobSaSUrl}"
       -e GO_VERSION_CHECK="true"
       -e BUNDLE_MIRROR__RUBYGEMS__ORG=${BUNDLE_MIRROR__RUBYGEMS__ORG}
       -e PIP_INDEX_URL=${PIP_INDEX_URL}
@@ -58,22 +56,22 @@
 windows_msi_and_bosh_zip_x64-a7:
   extends: .windows_main_agent_base
   rules:
-    !reference [.on_a7]
+    - !reference [.on_a7]
   variables:
     ARCH: "x64"
     AGENT_MAJOR_VERSION: 7
-    PYTHON_RUNTIMES: '3'
+    PYTHON_RUNTIMES: "3"
   before_script:
     - set RELEASE_VERSION $RELEASE_VERSION_7
 
 windows_msi_x64-a6:
   extends: .windows_main_agent_base
   rules:
-    !reference [.on_a6]
+    - !reference [.on_a6]
   variables:
     ARCH: "x64"
     AGENT_MAJOR_VERSION: 6
-    PYTHON_RUNTIMES: '2,3'
+    PYTHON_RUNTIMES: "2,3"
   before_script:
     - set RELEASE_VERSION $RELEASE_VERSION_6
   timeout: 3h
@@ -81,16 +79,15 @@ windows_msi_x64-a6:
 # cloudfoundry IoT build for Windows
 windows_zip_agent_binaries_x64-a7:
   rules:
-    !reference [.on_a7]
+    - !reference [.on_a7]
   stage: package_build
   tags: ["runner:windows-docker", "windowsversion:1809"]
-  needs: ["go_mod_tidy_check", "go_deps", "build_vcpkg_deps"]
+  needs: ["go_mod_tidy_check", "go_deps"]
   variables:
     ARCH: "x64"
     AGENT_MAJOR_VERSION: 7
     OMNIBUS_TARGET: agent_binaries
   before_script:
-    - $vcpkgBlobSaSUrl = (aws ssm get-parameter --region us-east-1 --name ci.datadog-agent-buildimages.vcpkg_blob_sas_url --with-decryption --query "Parameter.Value" --out text)
     - set RELEASE_VERSION $RELEASE_VERSION_7
   script:
     - $ErrorActionPreference = "Stop"
@@ -119,7 +116,6 @@ windows_zip_agent_binaries_x64-a7:
       -e INTEGRATION_WHEELS_CACHE_BUCKET="$INTEGRATION_WHEELS_CACHE_BUCKET"
       -e S3_OMNIBUS_CACHE_BUCKET="$S3_OMNIBUS_CACHE_BUCKET"
       -e USE_S3_CACHING="$USE_S3_CACHING"
-      -e VCPKG_BINARY_SOURCES="clear;x-azblob,${vcpkgBlobSaSUrl}"
       -e BUNDLE_MIRROR__RUBYGEMS__ORG=${BUNDLE_MIRROR__RUBYGEMS__ORG}
       -e PIP_INDEX_URL=${PIP_INDEX_URL}
       486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}

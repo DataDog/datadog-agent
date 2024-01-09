@@ -28,6 +28,7 @@ import (
 
 // RuntimeSecurityAgent represents the main wrapper for the Runtime Security product
 type RuntimeSecurityAgent struct {
+	//nolint:unused // TODO(SEC) Fix unused linter
 	hostname             string
 	reporter             common.RawReporter
 	client               *RuntimeSecurityClient
@@ -74,8 +75,9 @@ func (rsa *RuntimeSecurityAgent) Start(reporter common.RawReporter, endpoints *c
 func (rsa *RuntimeSecurityAgent) Stop() {
 	rsa.cancel()
 	rsa.running.Store(false)
-	rsa.wg.Wait()
 	rsa.client.Close()
+	rsa.wg.Wait()
+
 }
 
 // StartEventListener starts listening for new events from system-probe
@@ -229,6 +231,7 @@ func (rsa *RuntimeSecurityAgent) GetStatus() map[string]interface{} {
 				}
 				base["selfTests"] = selfTests
 			}
+			base["policiesStatus"] = cfStatus.PoliciesStatus
 		}
 	}
 

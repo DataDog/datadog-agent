@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build unix
-// +build unix
 
 // Package model holds model related files
 package model
@@ -23,35 +22,47 @@ func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
 		pc.Ancestor.Release()
 	}
 
+	pc.hasValidLineage = nil
 	pc.Ancestor = parent
 	pc.Parent = &parent.Process
 	parent.Retain()
 }
 
-// HasCompleteLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1
-func (pc *ProcessCacheEntry) HasCompleteLineage() bool {
+func hasValidLineage(pc *ProcessCacheEntry) (bool, error) {
+	var (
+		pid, ppid uint32
+		ctrID     string
+		err       error
+	)
+
 	for pc != nil {
+		if pc.hasValidLineage != nil {
+			return *pc.hasValidLineage, pc.lineageError
+		}
+
+		pid, ppid, ctrID = pc.Pid, pc.PPid, pc.ContainerID
+
+		if pc.IsParentMissing {
+			err = &ErrProcessMissingParentNode{PID: pid, PPID: ppid, ContainerID: ctrID}
+		}
+
 		if pc.Pid == 1 {
-			return true
+			if pc.Ancestor == nil {
+				return err == nil, err
+			}
+			return false, &ErrProcessWrongParentNode{PID: pid, PPID: pc.Ancestor.Pid, ContainerID: ctrID}
 		}
 		pc = pc.Ancestor
 	}
-	return false
+
+	return false, &ErrProcessIncompleteLineage{PID: pid, PPID: ppid, ContainerID: ctrID}
 }
 
 // HasValidLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1 or if a new is having a missing parent
-func (pc *ProcessCacheEntry) HasValidLineage() bool {
-	for pc != nil {
-		if pc.IsParentMissing {
-			return false
-		}
-
-		if pc.Pid == 1 {
-			return true
-		}
-		pc = pc.Ancestor
-	}
-	return false
+func (pc *ProcessCacheEntry) HasValidLineage() (bool, error) {
+	res, err := hasValidLineage(pc)
+	pc.hasValidLineage, pc.lineageError = &res, err
+	return res, err
 }
 
 // Exit a process
@@ -86,6 +97,22 @@ func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 
 	// keep some context
 	copyProcessContext(pc, entry)
+}
+
+// GetContainerPIDs return the pids
+func (pc *ProcessCacheEntry) GetContainerPIDs() []uint32 {
+	var pids []uint32
+
+	for pc != nil {
+		if pc.ContainerID == "" {
+			break
+		}
+		pids = append(pids, pc.Pid)
+
+		pc = pc.Ancestor
+	}
+
+	return pids
 }
 
 // SetParentOfForkChild set the parent of a fork child

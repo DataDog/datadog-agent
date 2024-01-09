@@ -31,6 +31,7 @@ var (
 	evtClearLog              = wevtapi.NewProc("EvtClearLog")
 	evtOpenPublisherMetadata = wevtapi.NewProc("EvtOpenPublisherMetadata")
 	evtFormatMessage         = wevtapi.NewProc("EvtFormatMessage")
+	evtOpenSession           = wevtapi.NewProc("EvtOpenSession")
 
 	// Legacy Event Logging API
 	// https://learn.microsoft.com/en-us/windows/win32/eventlog/using-event-logging
@@ -54,6 +55,7 @@ func New() *API {
 // Must pass the returned handle to EvtClose when finished using the handle.
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtsubscribe
 func (api *API) EvtSubscribe(
+	Session evtapi.EventSessionHandle,
 	SignalEvent evtapi.WaitEventHandle,
 	ChannelPath string,
 	Query string,
@@ -72,7 +74,7 @@ func (api *API) EvtSubscribe(
 
 	// Call API
 	r1, _, lastErr := evtSubscribe.Call(
-		uintptr(0), // TODO: localhost only for now
+		uintptr(Session),
 		uintptr(SignalEvent),
 		uintptr(unsafe.Pointer(channelPath)),
 		uintptr(unsafe.Pointer(query)),
@@ -406,6 +408,28 @@ func (api *API) EvtFormatMessage(
 	Values evtapi.EvtVariantValues, //nolint:revive // TODO fix revive unused-parameter
 	Flags uint) (string, error) {
 
+	// `EvtFormatMessage` has a bug in its size calculations that can cause a crash.
+	//
+	// `BufferUsed` output includes the null term character.
+	// `BufferSize` is compared to the same value written to `BufferUsed`, so
+	// that implies BufferSize should also include the null term character.
+	// However, `EvtFormatMessage` (internal symbol EventRendering::MessageRender)
+	// instead calls `memcpy(Buffer, data, (BufferUsed*2)+2)`, which copies a second
+	// null term char into the buffer
+	// * even if `Buffer` is NULL
+	// * even if the +2 causes the memcpy to exceed the input `BufferSize`
+	// * even if the `BufferSize` and source size are 0.
+	// The source data buffer appears to have three null-term chars, so the source buffer
+	// shouldn't be overrun.
+	// This is particularly problematic because the Microsoft example code and the common
+	// GetSize/Alloc/GetData pattern means our first call passes Buffer=NULL and BufferSize=0.
+	// To fix this we must
+	// * Provide a `DummyBuf` to the first `EvtFormatMessage` call so we can safely
+	//   receive the extra null term char when the output value has size 0.
+	// * Allocate space for BufferUsed+1, but don't include our extra space in
+	//   the BufferSize argument to the second `EvtFormatMessage` call.
+	// DummyBuf must be at least 2 bytes wide.
+	var DummyBuf uint64
 	var BufferUsed uint32
 
 	r1, _, lastErr := evtFormatMessage.Call(
@@ -415,8 +439,8 @@ func (api *API) EvtFormatMessage(
 		uintptr(0),
 		uintptr(0),
 		uintptr(Flags),
-		uintptr(0),
-		uintptr(0),
+		uintptr(0), // Intentionally 0 and not sizeof(DummyBuf)
+		uintptr(unsafe.Pointer(&DummyBuf)),
 		uintptr(unsafe.Pointer(&BufferUsed)))
 	// EvtFormatMessage returns C FALSE (0) on error
 	if r1 == 0 {
@@ -432,7 +456,8 @@ func (api *API) EvtFormatMessage(
 	}
 
 	// Allocate buffer space (BufferUsed is size in characters)
-	Buffer := make([]uint16, BufferUsed)
+	// Allocate an extra character due to EvtFormatMessage bug
+	Buffer := make([]uint16, BufferUsed+1)
 
 	r1, _, lastErr = evtFormatMessage.Call(
 		uintptr(PublisherMetadata),
@@ -441,7 +466,7 @@ func (api *API) EvtFormatMessage(
 		uintptr(0),
 		uintptr(0),
 		uintptr(Flags),
-		uintptr(BufferUsed),
+		uintptr(BufferUsed), // ensure this value is 1 less than we allocate
 		uintptr(unsafe.Pointer(unsafe.SliceData(Buffer))),
 		uintptr(unsafe.Pointer(&BufferUsed)))
 	// EvtFormatMessage returns C FALSE (0) on error
@@ -451,4 +476,60 @@ func (api *API) EvtFormatMessage(
 
 	// Trim Buffer to output size (BufferUsed is size in characters)
 	return windows.UTF16ToString(Buffer[:BufferUsed]), nil
+}
+
+// EvtOpenSession wrapper
+//
+// NOTE:
+// The connection is not made and the creds are not validated at the time of this call.
+// Those operations occur when the session is first used (e.g. EvtSubscribe)
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtopensession
+func (api *API) EvtOpenSession(
+	Server string,
+	User string,
+	Domain string,
+	Password string,
+	Flags uint,
+) (evtapi.EventSessionHandle, error) {
+	server, err := winutil.UTF16PtrOrNilFromString(Server)
+	if err != nil {
+		return evtapi.EventSessionHandle(0), err
+	}
+
+	user, err := winutil.UTF16PtrOrNilFromString(User)
+	if err != nil {
+		return evtapi.EventSessionHandle(0), err
+	}
+
+	domain, err := winutil.UTF16PtrOrNilFromString(Domain)
+	if err != nil {
+		return evtapi.EventSessionHandle(0), err
+	}
+
+	password, err := winutil.UTF16PtrOrNilFromString(Password)
+	if err != nil {
+		return evtapi.EventSessionHandle(0), err
+	}
+
+	login := &EVT_RPC_LOGIN{
+		Server:   server,
+		User:     user,
+		Domain:   domain,
+		Password: password,
+		Flags:    Flags,
+	}
+
+	r1, _, lastErr := evtOpenSession.Call(
+		uintptr(EvtRpcLogin),
+		uintptr(unsafe.Pointer(login)),
+		uintptr(0), // Timeout, reserved, must be zero
+		uintptr(0), // Flags, reserved, must be zero
+	)
+	// EvtOpenSession returns NULL on error
+	if r1 == 0 {
+		return evtapi.EventSessionHandle(0), lastErr
+	}
+
+	return evtapi.EventSessionHandle(r1), nil
 }

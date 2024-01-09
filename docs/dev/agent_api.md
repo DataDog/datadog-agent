@@ -79,5 +79,3 @@ $ curl -s http://localhost:5000/debug/pprof/profile?seconds=60 > ./cpu.out
 # Not documented here
 - non-core agent endpoints (i.e., what do the security, process, and cluster agents expose)
 - GRPC endpoints
-
-

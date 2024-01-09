@@ -22,6 +22,11 @@ type Proxy struct {
 	NoProxy []string `mapstructure:"no_proxy"`
 }
 
+// NotificationReceiver represents the callback type to receive notifications each time the `Set` method is called. The
+// configuration will call each NotificationReceiver registered through the 'OnUpdate' method, therefore
+// 'NotificationReceiver' should not be blocking.
+type NotificationReceiver func(key string)
+
 // Reader is a subset of Config that only allows reading of configuration
 type Reader interface {
 	Get(key string) interface{}
@@ -41,13 +46,18 @@ type Reader interface {
 	GetSizeInBytes(key string) uint
 	GetProxies() *Proxy
 
+	GetSource(key string) Source
+	GetAllSources(key string) []ValueWithSource
+
 	ConfigFileUsed() string
 
 	AllSettings() map[string]interface{}
 	AllSettingsWithoutDefault() map[string]interface{}
+	AllSourceSettingsWithoutDefault(source Source) map[string]interface{}
 	AllKeys() []string
 
 	IsSet(key string) bool
+	IsSetForSource(key string, source Source) bool
 
 	// UnmarshalKey Unmarshal a configuration key into a struct
 	UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error
@@ -72,11 +82,17 @@ type Reader interface {
 
 	// Object returns Reader to config (completes config.Component interface)
 	Object() Reader
+
+	// OnUpdate adds a callback to the list receivers to be called each time a value is change in the configuration
+	// by a call to the 'Set' method. The configuration will sequentially call each receiver.
+	OnUpdate(callback NotificationReceiver)
 }
 
 // Writer is a subset of Config that only allows writing the configuration
 type Writer interface {
-	Set(key string, value interface{})
+	Set(key string, value interface{}, source Source)
+	SetWithoutSource(key string, value interface{})
+	UnsetForSource(key string, source Source)
 	CopyConfig(cfg Config)
 }
 
@@ -105,7 +121,7 @@ type Loader interface {
 	ReadInConfig() error
 	ReadConfig(in io.Reader) error
 	MergeConfig(in io.Reader) error
-	MergeConfigOverride(in io.Reader) error
+	MergeConfigMap(cfg map[string]any) error
 
 	AddConfigPath(in string)
 	SetConfigName(in string)

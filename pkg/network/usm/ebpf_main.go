@@ -10,16 +10,14 @@ package usm
 import (
 	"errors"
 	"fmt"
+	"io"
 	"math"
-	"strings"
 	"time"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
 	"github.com/davecgh/go-spew/spew"
 	"golang.org/x/sys/unix"
-
-	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -35,7 +33,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 var (
@@ -73,16 +73,22 @@ type ebpfProgram struct {
 	cfg                   *config.Config
 	tailCallRouter        []manager.TailCallRoute
 	connectionProtocolMap *ebpf.Map
+	kversion              kernel.Version
 
 	enabledProtocols  []*protocols.ProtocolSpec
 	disabledProtocols []*protocols.ProtocolSpec
 
 	// Used for connection_protocol data expiration
-	mapCleaner *ddebpf.MapCleaner
+	mapCleaner *ddebpf.MapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper]
 	buildMode  buildmode.Type
 }
 
 func newEBPFProgram(c *config.Config, sockFD, connectionProtocolMap *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
+	kversion, err := kernel.HostVersion()
+	if err != nil {
+		log.Warnf("unable to detect kernel version. some features might be disabled: %s", err)
+	}
+
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: protocols.TLSDispatcherProgramsMap},
@@ -112,10 +118,31 @@ func newEBPFProgram(c *config.Config, sockFD, connectionProtocolMap *ebpf.Map, b
 		},
 	}
 
+	if c.CollectTCPv4Conns || c.CollectTCPv6Conns {
+		missing, err := ddebpf.VerifyKernelFuncs("sockfd_lookup_light")
+		if err == nil && len(missing) == 0 {
+			mgr.Probes = append(mgr.Probes, []*manager.Probe{
+				{
+					ProbeIdentificationPair: manager.ProbeIdentificationPair{
+						EBPFFuncName: probes.SockFDLookup,
+						UID:          probeUID,
+					},
+				},
+				{
+					ProbeIdentificationPair: manager.ProbeIdentificationPair{
+						EBPFFuncName: probes.SockFDLookupRet,
+						UID:          probeUID,
+					},
+				},
+			}...)
+		}
+	}
+
 	program := &ebpfProgram{
 		Manager:               errtelemetry.NewManager(mgr, bpfTelemetry),
 		cfg:                   c,
 		connectionProtocolMap: connectionProtocolMap,
+		kversion:              kversion,
 	}
 
 	opensslSpec.Factory = newSSLProgramProtocolFactory(mgr, sockFD, bpfTelemetry)
@@ -170,6 +197,16 @@ func (e *ebpfProgram) Init() error {
 }
 
 func (e *ebpfProgram) Start() error {
+	// Mainly for tests, but possible for other cases as well, we might have a nil (not shared) connection protocol map
+	// between NPM and USM. In such a case we just create our own instance, but we don't modify the
+	// `e.connectionProtocolMap` field.
+	if e.connectionProtocolMap == nil {
+		m, _, err := e.GetMap(probes.ConnectionProtocolMap)
+		if err != nil {
+			return err
+		}
+		e.connectionProtocolMap = m
+	}
 	mapCleaner, err := e.setupMapCleaner()
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
@@ -220,6 +257,7 @@ func (e *ebpfProgram) Close() error {
 		return nil
 	}
 	e.executePerProtocol(e.enabledProtocols, "stop", stopProtocolWrapper, nil)
+	ddebpf.UnregisterTelemetry(e.Manager.Manager)
 	return e.Stop(manager.CleanAll)
 }
 
@@ -323,25 +361,12 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		manager.ConstantEditor{Name: "ephemeral_range_begin", Value: uint64(begin)},
 		manager.ConstantEditor{Name: "ephemeral_range_end", Value: uint64(end)})
 
-	options.ActivatedProbes = []manager.ProbesSelector{
-		&manager.ProbeSelector{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: protocolDispatcherSocketFilterFunction,
-				UID:          probeUID,
-			},
-		},
-		&manager.ProbeSelector{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "kprobe__tcp_sendmsg",
-				UID:          probeUID,
-			},
-		},
-		&manager.ProbeSelector{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "tracepoint__net__netif_receive_skb",
-				UID:          probeUID,
-			},
-		},
+	// Enable event flushes from socket filter programs if possible
+	isDirectFlushSupported := e.kversion >= kernel.VersionCode(5, 4, 0)
+	utils.AddBoolConst(&options, isDirectFlushSupported, "direct_flush_supported")
+
+	for _, p := range e.Manager.Probes {
+		options.ActivatedProbes = append(options.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: p.ProbeIdentificationPair})
 	}
 
 	// Some parts of USM (https capturing, and part of the classification) use `read_conn_tuple`, and has some if
@@ -356,6 +381,12 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	options.TailCallRouter = e.tailCallRouter
 	for _, p := range supported {
 		p.Instance.ConfigureOptions(e.Manager.Manager, &options)
+	}
+	if e.cfg.InternalTelemetryEnabled {
+		for _, pm := range e.PerfMaps {
+			pm.TelemetryEnabled = true
+			ddebpf.ReportPerfMapTelemetry(pm)
+		}
 	}
 
 	// Add excluded functions from disabled protocols
@@ -379,15 +410,6 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		}
 	}
 
-	var undefinedProbes []manager.ProbeIdentificationPair
-	for _, tc := range e.tailCallRouter {
-		undefinedProbes = append(undefinedProbes, tc.ProbeIdentificationPair)
-	}
-
-	e.InstructionPatcher = func(m *manager.Manager) error {
-		return errtelemetry.PatchEBPFTelemetry(m, true, undefinedProbes)
-	}
-
 	err := e.InitWithOptions(buf, options)
 	if err != nil {
 		cleanup()
@@ -403,21 +425,15 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 const connProtoTTL = 3 * time.Minute
 const connProtoCleaningInterval = 5 * time.Minute
 
-func (e *ebpfProgram) setupMapCleaner() (*ddebpf.MapCleaner, error) {
-	mapCleaner, err := ddebpf.NewMapCleaner(e.connectionProtocolMap, new(netebpf.ConnTuple), new(netebpf.ProtocolStackWrapper))
+func (e *ebpfProgram) setupMapCleaner() (*ddebpf.MapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper], error) {
+	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper](e.connectionProtocolMap, 1024)
 	if err != nil {
 		return nil, err
 	}
 
 	ttl := connProtoTTL.Nanoseconds()
-	mapCleaner.Clean(connProtoCleaningInterval, func(now int64, key, val interface{}) bool {
-		protoStack, ok := val.(*netebpf.ProtocolStackWrapper)
-		if !ok {
-			return false
-		}
-
-		updated := int64(protoStack.Updated)
-		return (now - updated) > ttl
+	mapCleaner.Clean(connProtoCleaningInterval, nil, nil, func(now int64, key netebpf.ConnTuple, val netebpf.ProtocolStackWrapper) bool {
+		return (now - int64(val.Updated)) > ttl
 	})
 
 	return mapCleaner, nil
@@ -431,25 +447,22 @@ func getAssetName(module string, debug bool) string {
 	return fmt.Sprintf("%s.o", module)
 }
 
-func (e *ebpfProgram) dumpMapsHandler(_ *manager.Manager, mapName string, currentMap *ebpf.Map) string {
-	var output strings.Builder
-
+func (e *ebpfProgram) dumpMapsHandler(w io.Writer, _ *manager.Manager, mapName string, currentMap *ebpf.Map) {
 	switch mapName {
 	case connectionStatesMap: // maps/connection_states (BPF_MAP_TYPE_HASH), key C.conn_tuple_t, value C.__u32
-		output.WriteString("Map: '" + mapName + "', key: 'C.conn_tuple_t', value: 'C.__u32'\n")
+		io.WriteString(w, "Map: '"+mapName+"', key: 'C.conn_tuple_t', value: 'C.__u32'\n")
 		iter := currentMap.Iterate()
 		var key http.ConnTuple
 		var value uint32
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			output.WriteString(spew.Sdump(key, value))
+			spew.Fdump(w, key, value)
 		}
 
 	default: // Go through enabled protocols in case one of them now how to handle the current map
 		for _, p := range e.enabledProtocols {
-			p.Instance.DumpMaps(&output, mapName, currentMap)
+			p.Instance.DumpMaps(w, mapName, currentMap)
 		}
 	}
-	return output.String()
 }
 
 func (e *ebpfProgram) getProtocolStats() map[protocols.ProtocolType]interface{} {

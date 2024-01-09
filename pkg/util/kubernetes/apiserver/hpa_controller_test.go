@@ -133,6 +133,7 @@ func (h *fakeProcessor) ProcessEMList(metrics []custommetrics.ExternalMetricValu
 	return nil
 }
 
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *fakeProcessor) QueryExternalMetric(queries []string, timeWindow time.Duration) (map[string]autoscalers.Point, error) {
 	return nil, nil
 }
@@ -185,7 +186,7 @@ func makeAnnotations(metricName string, labels map[string]string) map[string]str
 // TestupdateExternalMetrics checks the reconciliation between the local cache and the global store logic
 func TestUpdate(t *testing.T) {
 	mockConfig := config.Mock(t)
-	mockConfig.Set("kube_resources_namespace", "nsfoo")
+	mockConfig.SetWithoutSource("kube_resources_namespace", "nsfoo")
 
 	name := custommetrics.GetConfigmapName()
 	store, client := newFakeConfigMapStore(t, "nsfoo", name, nil)
@@ -299,7 +300,7 @@ func TestUpdate(t *testing.T) {
 // TestAutoscalerController is an integration test of the AutoscalerController
 func TestAutoscalerController(t *testing.T) {
 	mockConfig := config.Mock(t)
-	mockConfig.Set("kube_resources_namespace", "nsfoo")
+	mockConfig.SetWithoutSource("kube_resources_namespace", "nsfoo")
 
 	penTime := (int(time.Now().Unix()) - int(maxAge.Seconds()/2)) * 1000
 	name := custommetrics.GetConfigmapName()

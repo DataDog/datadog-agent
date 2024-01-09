@@ -8,6 +8,7 @@ package agent
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"math"
 	"net/http"
@@ -362,9 +363,10 @@ func TestProcess(t *testing.T) {
 	})
 
 	t.Run("aas", func(t *testing.T) {
+		t.Setenv("APPSVC_RUN_ZIP", "true")
+		t.Setenv("WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED", "false")
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
-		cfg.InAzureAppServices = true
 		ctx, cancel := context.WithCancel(context.Background())
 		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
@@ -384,17 +386,10 @@ func TestProcess(t *testing.T) {
 		}
 
 		for _, chunk := range tp.Chunks {
-			for i, span := range chunk.Spans {
-				if i == 0 {
-					// root span should contain all aas tags
-					for tag := range traceutil.GetAppServicesTags() {
-						assert.Contains(t, span.Meta, tag)
-					}
-				} else {
-					// other spans should only contain site name and type
-					assert.Contains(t, span.Meta, "aas.site.name")
-					assert.Contains(t, span.Meta, "aas.site.type")
-				}
+			for _, span := range chunk.Spans {
+				assert.Contains(t, span.Meta, "aas.resource.id")
+				assert.Contains(t, span.Meta, "aas.site.name")
+				assert.Contains(t, span.Meta, "aas.site.type")
 			}
 		}
 	})
@@ -2249,4 +2244,96 @@ func TestSingleSpanPlusAnalyticsEvents(t *testing.T) {
 	assert.False(t, keep) //The sampling decision was FALSE but the trace itself is marked as not dropped
 	assert.False(t, payload.TraceChunk.DroppedTrace)
 	assert.Equal(t, 1, numEvents)
+}
+
+func TestSetFirstTraceTags(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	traceAgent := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+	root := &pb.Span{
+		Service:  "testsvc",
+		Name:     "parent",
+		TraceID:  1,
+		SpanID:   1,
+		Start:    time.Now().Add(-time.Second).UnixNano(),
+		Duration: time.Millisecond.Nanoseconds(),
+	}
+
+	t.Run("NoConfigNoAction", func(t *testing.T) {
+		traceAgent.setFirstTraceTags(root)
+		_, ok := root.Meta[tagInstallID]
+		assert.False(t, ok)
+		_, ok = root.Meta[tagInstallType]
+		assert.False(t, ok)
+		_, ok = root.Meta[tagInstallTime]
+		assert.False(t, ok)
+	})
+
+	cfg.InstallSignature.InstallID = "be7b577b-00d9-50a4-aa8d-345df57fd6f5"
+	cfg.InstallSignature.InstallType = "manual"
+	cfg.InstallSignature.InstallTime = time.Now().Unix()
+	traceAgent = NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+	t.Run("SettingTagsFromInstallSignature", func(t *testing.T) {
+		traceAgent.setFirstTraceTags(root)
+		assert.Equal(t, cfg.InstallSignature.InstallID, root.Meta[tagInstallID])
+		assert.Equal(t, cfg.InstallSignature.InstallType, root.Meta[tagInstallType])
+		assert.Equal(t, fmt.Sprintf("%v", cfg.InstallSignature.InstallTime), root.Meta[tagInstallTime])
+
+		// Also make sure the tags are only set once per agent instance,
+		// calling setFirstTraceTags on another span by the same agent should have no effect
+		anotherRoot := &pb.Span{
+			Service:  "testsvc",
+			Name:     "parent",
+			TraceID:  1,
+			SpanID:   1,
+			Start:    time.Now().Add(-time.Second).UnixNano(),
+			Duration: time.Millisecond.Nanoseconds(),
+		}
+		traceAgent.setFirstTraceTags(anotherRoot)
+		_, ok := anotherRoot.Meta[tagInstallID]
+		assert.False(t, ok)
+		_, ok = anotherRoot.Meta[tagInstallType]
+		assert.False(t, ok)
+		_, ok = anotherRoot.Meta[tagInstallTime]
+		assert.False(t, ok)
+
+		// However, calling setFirstTraceTags on another span from a different service should set the tags again
+		differentServiceRoot := &pb.Span{
+			Service:  "discombobulator",
+			Name:     "parent",
+			TraceID:  2,
+			SpanID:   2,
+			Start:    time.Now().Add(-time.Second).UnixNano(),
+			Duration: time.Millisecond.Nanoseconds(),
+		}
+		traceAgent.setFirstTraceTags(differentServiceRoot)
+		assert.Equal(t, cfg.InstallSignature.InstallID, differentServiceRoot.Meta[tagInstallID])
+		assert.Equal(t, cfg.InstallSignature.InstallType, differentServiceRoot.Meta[tagInstallType])
+		assert.Equal(t, fmt.Sprintf("%v", cfg.InstallSignature.InstallTime), differentServiceRoot.Meta[tagInstallTime])
+	})
+
+	traceAgent = NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+	t.Run("NotClobberingExistingTags", func(t *testing.T) {
+		timestamp := cfg.InstallSignature.InstallTime - 3600
+		// Make the root span contain some tag values that conflict with what the agent has on record
+		root = &pb.Span{
+			Service:  "testsvc",
+			Name:     "parent",
+			TraceID:  1,
+			SpanID:   1,
+			Start:    time.Now().Add(-time.Second).UnixNano(),
+			Duration: time.Millisecond.Nanoseconds(),
+			Meta: map[string]string{
+				tagInstallType: "k8s_single_step",
+				tagInstallTime: strconv.FormatInt(timestamp, 10),
+			},
+		}
+
+		traceAgent.setFirstTraceTags(root)
+		assert.Equal(t, cfg.InstallSignature.InstallID, root.Meta[tagInstallID])
+		assert.Equal(t, "k8s_single_step", root.Meta[tagInstallType])
+		assert.Equal(t, strconv.FormatInt(timestamp, 10), root.Meta[tagInstallTime])
+	})
 }

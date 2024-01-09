@@ -1,24 +1,25 @@
 module github.com/DataDog/datadog-agent/pkg/config/env
 
-go 1.20
+go 1.21
 
 replace (
 	github.com/DataDog/datadog-agent/pkg/config/model => ../model/
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../util/filesystem/
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../util/log/
+	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../util/scrubber/
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../util/system/socket/
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/model v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/util/log v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/config/model v0.51.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.51.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/log v0.51.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.51.0-rc.1
 	github.com/stretchr/testify v1.8.4
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.49.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.51.0-rc.1 // indirect
 	github.com/DataDog/viper v1.12.0 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
@@ -38,6 +39,7 @@ require (
 	github.com/spf13/jwalterweatherman v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.3 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
+	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/mod v0.8.0 // indirect
 	golang.org/x/sys v0.12.0 // indirect
 	golang.org/x/text v0.3.0 // indirect

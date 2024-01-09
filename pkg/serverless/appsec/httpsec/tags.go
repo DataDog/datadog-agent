@@ -3,15 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(ASM) Fix revive linter
 //nolint:deadcode,unused
 package httpsec
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
 	"strings"
+
+	json "github.com/json-iterator/go"
 
 	"github.com/DataDog/appsec-internal-go/httpsec"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -21,6 +23,7 @@ import (
 const envClientIPHeader = "DD_TRACE_CLIENT_IP_HEADER"
 
 var (
+	//nolint:unused // TODO(ASM) Fix unused linter
 	clientIPHeader string
 
 	defaultIPHeaders = []string{
@@ -81,7 +84,7 @@ func setAppSecEnabledTags(span span) {
 }
 
 // setEventSpanTags sets the security event span tags into the service entry span.
-func setEventSpanTags(span span, events json.RawMessage) error {
+func setEventSpanTags(span span, events []any) error {
 	// Set the appsec event span tag
 	val, err := makeEventsTagValue(events)
 	if err != nil {
@@ -94,10 +97,10 @@ func setEventSpanTags(span span, events json.RawMessage) error {
 }
 
 // Create the value of the security events tag.
-func makeEventsTagValue(events json.RawMessage) (json.RawMessage, error) {
+func makeEventsTagValue(events []any) (json.RawMessage, error) {
 	// Create the structure to use in the `_dd.appsec.json` span tag.
 	v := struct {
-		Triggers json.RawMessage `json:"triggers"`
+		Triggers []any `json:"triggers"`
 	}{Triggers: events}
 	tag, err := json.Marshal(v)
 	if err != nil {
@@ -107,7 +110,7 @@ func makeEventsTagValue(events json.RawMessage) (json.RawMessage, error) {
 }
 
 // setSecurityEventsTags sets the AppSec-specific span tags when security events were found.
-func setSecurityEventsTags(span span, events json.RawMessage, headers, respHeaders map[string][]string) {
+func setSecurityEventsTags(span span, events []any, headers, respHeaders map[string][]string) {
 	if err := setEventSpanTags(span, events); err != nil {
 		log.Errorf("appsec: unexpected error while creating the appsec event tags: %v", err)
 		return
@@ -117,6 +120,17 @@ func setSecurityEventsTags(span span, events json.RawMessage, headers, respHeade
 	}
 	for h, v := range normalizeHTTPHeaders(respHeaders) {
 		span.SetMetaTag("http.response.headers."+h, v)
+	}
+}
+
+// setAPISecurityEventsTags sets the AppSec-specific span tags related to API security schemas
+func setAPISecurityTags(span span, derivatives map[string]any) {
+	for key, val := range derivatives {
+		if rawVal, err := json.Marshal(val); err != nil {
+			log.Errorf("appsec: unexpected error while creating the API security tags: %v", err)
+		} else {
+			span.SetMetaTag(key, string(rawVal))
+		}
 	}
 }
 

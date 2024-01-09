@@ -8,7 +8,6 @@
 package events
 
 import (
-	"encoding/binary"
 	"math"
 	"os"
 	"path/filepath"
@@ -25,7 +24,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	bpftelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -43,12 +41,12 @@ func TestConsumer(t *testing.T) {
 
 	var mux sync.Mutex
 	result := make(map[uint64]int)
-	callback := func(b []byte) {
+	callback := func(events []uint64) {
 		mux.Lock()
 		defer mux.Unlock()
-		// each event is just a uint64
-		n := binary.LittleEndian.Uint64(b)
-		result[n] = +1
+		for _, n := range events {
+			result[n] = +1
+		}
 	}
 
 	consumer, err := NewConsumer("test", program, callback)
@@ -164,9 +162,6 @@ func newEBPFProgram(c *config.Config) (*manager.Manager, error) {
 	}
 
 	Configure("test", m, &options)
-	m.InstructionPatcher = func(m *manager.Manager) error {
-		return bpftelemetry.PatchEBPFTelemetry(m, true, nil)
-	}
 	err = m.InitWithOptions(bc, options)
 	if err != nil {
 		return nil, err

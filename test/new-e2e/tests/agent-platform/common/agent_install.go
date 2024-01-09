@@ -19,7 +19,7 @@ func CheckInstallation(t *testing.T, client *TestClient) {
 
 	t.Run("example config file", func(tt *testing.T) {
 
-		exampleFilePath := client.Helper.GetConfigFolder() + "datadog.yaml.example"
+		exampleFilePath := client.Helper.GetConfigFolder() + fmt.Sprintf("%s.example", client.Helper.GetConfigFileName())
 
 		_, err := client.FileManager.FileExists(exampleFilePath)
 		require.NoError(tt, err, "Example config file should be present")
@@ -42,11 +42,24 @@ func CheckInstallation(t *testing.T, client *TestClient) {
 	})
 }
 
+// CheckInstallationMajorAgentVersion run tests to check the installation of an agent has the correct major version
+func CheckInstallationMajorAgentVersion(t *testing.T, client *TestClient, expectedVersion string) bool {
+	return t.Run("Check datadog-agent status version", func(tt *testing.T) {
+		versionRegexPattern := regexp.MustCompile(`(?m:^Agent \(v([0-9]).*\)$)`)
+		tmpCmd := fmt.Sprintf("sudo %s status", client.Helper.GetBinaryPath())
+		output, err := client.ExecuteWithRetry(tmpCmd)
+		require.NoError(tt, err, "datadog-agent status failed")
+		matchList := versionRegexPattern.FindStringSubmatch(output)
+		require.NotEmpty(tt, matchList, "wasn't able to retrieve datadog-agent version on the following output : %s", output)
+		require.True(tt, matchList[1] == expectedVersion, "Expected datadog-agent version %s got %s", expectedVersion, matchList[0])
+	})
+}
+
 // CheckInstallationInstallScript run tests to check the installation of the agent with the install script
 func CheckInstallationInstallScript(t *testing.T, client *TestClient) {
 
 	t.Run("site config attribute", func(tt *testing.T) {
-		configFilePath := client.Helper.GetConfigFolder() + "datadog.yaml"
+		configFilePath := client.Helper.GetConfigFolder() + client.Helper.GetConfigFileName()
 
 		var configYAML map[string]any
 		config, err := client.FileManager.ReadFile(configFilePath)
@@ -78,15 +91,15 @@ func CheckInstallationInstallScript(t *testing.T, client *TestClient) {
 }
 
 // CheckUninstallation runs check to see if the agent uninstall properly
-func CheckUninstallation(t *testing.T, client *TestClient) {
+func CheckUninstallation(t *testing.T, client *TestClient, packageName string) {
 
 	t.Run("remove the agent", func(tt *testing.T) {
-		_, err := client.PkgManager.Remove("datadog-agent")
+		_, err := client.PkgManager.Remove(packageName)
 		require.NoError(tt, err, "should uninstall the agent")
 	})
 
 	t.Run("no agent process running", func(tt *testing.T) {
-		agentProcesses := []string{"datadog-agent", "system-probe", "security-agent"}
+		agentProcesses := []string{client.Helper.GetServiceName(), "system-probe", "security-agent"}
 		for _, process := range agentProcesses {
 			_, err := client.VMClient.ExecuteWithError(fmt.Sprintf("pgrep -f %s", process))
 			require.Error(tt, err, fmt.Sprintf("process %s should not be running", process))

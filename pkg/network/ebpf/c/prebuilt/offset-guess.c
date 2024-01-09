@@ -99,13 +99,11 @@ static __always_inline int guess_offsets(tracer_status_t* status, char* subject)
         new_status.offset_family = aligned_offset(subject, status->offset_family, SIZEOF_FAMILY);
         bpf_probe_read_kernel(&new_status.family, sizeof(new_status.family), subject + new_status.offset_family);
         break;
-    case GUESS_SPORT:
-        new_status.offset_sport = aligned_offset(subject, status->offset_sport, SIZEOF_SPORT);
-        bpf_probe_read_kernel(&new_status.sport, sizeof(new_status.sport), subject + new_status.offset_sport);
-        break;
     case GUESS_DPORT:
         new_status.offset_dport = aligned_offset(subject, status->offset_dport, SIZEOF_DPORT);
+        new_status.offset_sport = aligned_offset(subject, status->offset_dport+SIZEOF_DPORT, SIZEOF_SPORT);
         bpf_probe_read_kernel(&new_status.dport, sizeof(new_status.dport), subject + new_status.offset_dport);
+        bpf_probe_read_kernel(&new_status.sport, sizeof(new_status.sport), subject + new_status.offset_sport);
         break;
     case GUESS_SADDR_FL4:
         new_status.offset_saddr_fl4 = aligned_offset(subject, status->offset_saddr_fl4, SIZEOF_SADDR_FL4);
@@ -383,10 +381,6 @@ static __always_inline int guess_conntrack_offsets(conntrack_status_t* status, c
     case GUESS_CT_TUPLE_REPLY:
         new_status.offset_reply = aligned_offset(subject, status->offset_reply, SIZEOF_CT_TUPLE_REPLY);
         bpf_probe_read_kernel(&new_status.saddr, sizeof(new_status.saddr), subject + new_status.offset_reply);
-        break;
-    case GUESS_CT_STATUS:
-        new_status.offset_status = aligned_offset(subject, status->offset_status, SIZEOF_CT_STATUS);
-        bpf_probe_read_kernel(&new_status.status, sizeof(new_status.status), subject + new_status.offset_status);
         break;
     case GUESS_CT_NET:
         new_status.offset_netns = aligned_offset(subject, status->offset_netns, SIZEOF_CT_NET);

@@ -31,7 +31,7 @@ namespace WixSetup.Datadog
 
         // Source directories
         private const string InstallerSource = @"C:\opt\datadog-agent";
-        private const string BinSource = @"C:\omnibus-ruby\src\datadog-agent\src\github.com\DataDog\datadog-agent\bin";
+        private const string BinSource = @"C:\opt\datadog-agent\bin";
         private const string EtcSource = @"C:\omnibus-ruby\src\etc\datadog-agent";
 
         private readonly AgentBinaries _agentBinaries;
@@ -58,18 +58,11 @@ namespace WixSetup.Datadog
 
         public Project ConfigureProject()
         {
-            // Conditionally include the PROCMON MSM while it is in active development to make it easier
-            // to build/ship without it.
-            Property cwsProperty = null;
-            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WINDOWS_DDPROCMON_DRIVER")))
-            {
-                cwsProperty = new Property("INSTALL_CWS", "1");
-            }
             var project = new ManagedProject("Datadog Agent",
                 // Use 2 LaunchConditions, one for server versions,
                 // one for client versions.
-                MinimumSupportedWindowsVersion.WindowsServer2012 |
-                MinimumSupportedWindowsVersion.Windows8_1,
+                MinimumSupportedWindowsVersion.WindowsServer2016 |
+                MinimumSupportedWindowsVersion.Windows10,
                 new Property("MsiLogging", "iwearucmop!"),
                 new Property("MSIRESTARTMANAGERCONTROL", "Disable"),
                 new Property("APIKEY")
@@ -97,6 +90,11 @@ namespace WixSetup.Datadog
                 new Property("APPLICATIONDATADIRECTORY")
                 {
                     AttributesDefinition = "Secure=yes",
+                },
+                // Custom WindowsBuild property since MSI caps theirs at 9600
+                new Property("DDAGENT_WINDOWSBUILD")
+                {
+                    AttributesDefinition = "Secure=yes"
                 },
                 // Add a checkbox at the end of the setup to launch the Datadog Agent Manager
                 new LaunchCustomApplicationFromExitDialog(
@@ -128,11 +126,15 @@ namespace WixSetup.Datadog
                 )
                 {
                     Win64 = true
-                },
-                // cwsProperty is conditionally declared above, it is either NULL
-                // or the property indicating that cws is to be included.
-                cwsProperty
+                }
             );
+
+            // Conditionally include the PROCMON MSM while it is in active development to make it easier
+            // to build/ship without it.
+            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WINDOWS_DDPROCMON_DRIVER")))
+            {
+                project.AddProperty(new Property("INSTALL_CWS", "1"));
+            }
 
             // Always generate a new GUID otherwise WixSharp will generate one based on
             // the version
@@ -373,19 +375,6 @@ namespace WixSetup.Datadog
             return new Dir(new Id("DatadogAppRoot"), "%ProgramFiles%\\Datadog", datadogAgentFolder);
         }
 
-        private static PermissionEx DefaultPermissions()
-        {
-            return new PermissionEx
-            {
-                User = "Everyone",
-                ServicePauseContinue = true,
-                ServiceQueryStatus = true,
-                ServiceStart = true,
-                ServiceStop = true,
-                ServiceUserDefinedControl = true
-            };
-        }
-
         private static ServiceInstaller GenerateServiceInstaller(string name, string displayName, string description)
         {
             return new ServiceInstaller
@@ -408,7 +397,6 @@ namespace WixSetup.Datadog
                 RestartServiceDelayInSeconds = 60,
                 ResetPeriodInDays = 0,
                 PreShutdownDelay = 1000 * 60 * 3,
-                PermissionEx = DefaultPermissions(),
                 // Account must be a fully qualified name.
                 Account = "[DDAGENTUSER_PROCESSED_FQ_NAME]",
                 Password = "[DDAGENTUSER_PROCESSED_PASSWORD]"
@@ -443,7 +431,6 @@ namespace WixSetup.Datadog
                 RestartServiceDelayInSeconds = 60,
                 ResetPeriodInDays = 0,
                 PreShutdownDelay = 1000 * 60 * 3,
-                PermissionEx = DefaultPermissions(),
                 Interactive = false,
                 Type = SvcType.ownProcess,
                 // Account must be a fully qualified name.
@@ -572,6 +559,13 @@ namespace WixSetup.Datadog
                     new Files($@"{EtcSource}\extra_package_files\EXAMPLECONFSLOCATION\*")
                 ));
 
+            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WINDOWS_DDPROCMON_DRIVER")))
+            {
+                appData.AddDir(new Dir(new Id("security.d"),
+                                       "runtime-security.d",
+                                       new WixSharp.File($@"{EtcSource}\runtime-security.d\default.policy.example")
+                ));
+            }
             return new Dir(new Id("%CommonAppData%"), appData)
             {
                 Attributes = { { "Name", "CommonAppData" } }

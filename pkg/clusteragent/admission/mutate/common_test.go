@@ -164,63 +164,81 @@ func Test_shouldInject(t *testing.T) {
 		{
 			name:        "mutate unlabelled, no label",
 			pod:         fakePodWithLabel("", ""),
-			setupConfig: func() { mockConfig.Set("admission_controller.mutate_unlabelled", true) },
+			setupConfig: func() { mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", true) },
 			want:        true,
 		},
 		{
 			name:        "mutate unlabelled, label enabled",
 			pod:         fakePodWithLabel("admission.datadoghq.com/enabled", "true"),
-			setupConfig: func() { mockConfig.Set("admission_controller.mutate_unlabelled", true) },
+			setupConfig: func() { mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", true) },
 			want:        true,
 		},
 		{
 			name:        "mutate unlabelled, label disabled",
 			pod:         fakePodWithLabel("admission.datadoghq.com/enabled", "false"),
-			setupConfig: func() { mockConfig.Set("admission_controller.mutate_unlabelled", true) },
+			setupConfig: func() { mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", true) },
 			want:        false,
 		},
 		{
 			name:        "no mutate unlabelled, no label",
 			pod:         fakePodWithLabel("", ""),
-			setupConfig: func() { mockConfig.Set("admission_controller.mutate_unlabelled", false) },
+			setupConfig: func() { mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false) },
 			want:        false,
 		},
 		{
 			name:        "no mutate unlabelled, label enabled",
 			pod:         fakePodWithLabel("admission.datadoghq.com/enabled", "true"),
-			setupConfig: func() { mockConfig.Set("admission_controller.mutate_unlabelled", false) },
+			setupConfig: func() { mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false) },
 			want:        true,
 		},
 		{
 			name:        "no mutate unlabelled, label disabled",
 			pod:         fakePodWithLabel("admission.datadoghq.com/enabled", "false"),
-			setupConfig: func() { mockConfig.Set("admission_controller.mutate_unlabelled", false) },
+			setupConfig: func() { mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false) },
 			want:        false,
 		},
 		{
 			name:        "no mutate unlabelled, label disabled",
 			pod:         fakePodWithLabel("admission.datadoghq.com/enabled", "false"),
-			setupConfig: func() { mockConfig.Set("admission_controller.mutate_unlabelled", false) },
+			setupConfig: func() { mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false) },
 			want:        false,
 		},
 		{
 			name:        "instrumentation on, no label",
 			pod:         fakePodWithNamespaceAndLabel("ns", "", ""),
-			setupConfig: func() { mockConfig.Set("apm_config.instrumentation.enabled", true) },
+			setupConfig: func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true) },
 			want:        true,
 		},
 		{
 			name:        "instrumentation on, label disabled",
 			pod:         fakePodWithNamespaceAndLabel("ns", "admission.datadoghq.com/enabled", "false"),
-			setupConfig: func() { mockConfig.Set("apm_config.instrumentation.enabled", true) },
+			setupConfig: func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true) },
 			want:        false,
 		},
 		{
 			name: "instrumentation on with disabled namespace, no label",
+			pod:  fakePodWithNamespaceAndLabel("ns", "", ""),
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.disabled_namespaces", []string{"ns"})
+			},
+			want: false,
+		},
+		{
+			name: "instrumentation on with disabled namespace, no label",
+			pod:  fakePodWithNamespaceAndLabel("ns", "", ""),
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.disabled_namespaces", []string{"ns2"})
+			},
+			want: true,
+		},
+		{
+			name: "instrumentation on with disabled namespace, disabled label",
 			pod:  fakePodWithNamespaceAndLabel("ns", "admission.datadoghq.com/enabled", "false"),
 			setupConfig: func() {
-				mockConfig.Set("apm_config.instrumentation.enabled", true)
-				mockConfig.Set("apm_config.instrumentation.disabled_namespaces", []string{"ns"})
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.disabled_namespaces", []string{"ns"})
 			},
 			want: false,
 		},
@@ -228,29 +246,29 @@ func Test_shouldInject(t *testing.T) {
 			name: "instrumentation on with disabled namespace, label enabled",
 			pod:  fakePodWithNamespaceAndLabel("ns", "admission.datadoghq.com/enabled", "true"),
 			setupConfig: func() {
-				mockConfig.Set("apm_config.instrumentation.enabled", true)
-				mockConfig.Set("apm_config.instrumentation.disabled_namespaces", []string{"ns"})
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.disabled_namespaces", []string{"ns"})
 			},
 			want: true,
 		},
 		{
 			name:        "instrumentation off, label enabled",
 			pod:         fakePodWithNamespaceAndLabel("ns", "admission.datadoghq.com/enabled", "true"),
-			setupConfig: func() { mockConfig.Set("apm_config.instrumentation.enabled", false) },
+			setupConfig: func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", false) },
 			want:        true,
 		},
 		{
 			name:        "instrumentation off, no label",
 			pod:         fakePodWithNamespaceAndLabel("ns", "", ""),
-			setupConfig: func() { mockConfig.Set("apm_config.instrumentation.enabled", false) },
+			setupConfig: func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", false) },
 			want:        false,
 		},
 		{
 			name: "instrumentation off with enabled namespace, label enabled",
 			pod:  fakePodWithNamespaceAndLabel("ns", "admission.datadoghq.com/enabled", "true"),
 			setupConfig: func() {
-				mockConfig.Set("apm_config.instrumentation.enabled", false)
-				mockConfig.Set("apm_config.instrumentation.enabled_namespaces", []string{"ns"})
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled_namespaces", []string{"ns"})
 			},
 			want: true,
 		},
@@ -258,8 +276,8 @@ func Test_shouldInject(t *testing.T) {
 			name: "instrumentation off with enabled namespace, label disabled",
 			pod:  fakePodWithNamespaceAndLabel("ns", "admission.datadoghq.com/enabled", "false"),
 			setupConfig: func() {
-				mockConfig.Set("apm_config.instrumentation.enabled", false)
-				mockConfig.Set("apm_config.instrumentation.enabled_namespaces", []string{"ns"})
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", false)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled_namespaces", []string{"ns"})
 			},
 			want: false,
 		},
@@ -267,10 +285,45 @@ func Test_shouldInject(t *testing.T) {
 			name: "instrumentation off with enabled namespace, no label",
 			pod:  fakePodWithNamespaceAndLabel("ns", "", ""),
 			setupConfig: func() {
-				mockConfig.Set("apm_config.instrumentation.enabled", false)
-				mockConfig.Set("apm_config.instrumentation.enabled_namespaces", []string{"ns"})
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", false)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled_namespaces", []string{"ns"})
+			},
+			want: false,
+		},
+		{
+			name: "instrumentation on with enabled namespace, no label",
+			pod:  fakePodWithNamespaceAndLabel("ns", "", ""),
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled_namespaces", []string{"ns"})
 			},
 			want: true,
+		},
+		{
+			name: "instrumentation on with enabled other namespace, no label",
+			pod:  fakePodWithNamespaceAndLabel("ns", "", ""),
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled_namespaces", []string{"n2s"})
+			},
+			want: false,
+		},
+		{
+			name: "instrumentation on in kube-system namespace, no label",
+			pod:  fakePodWithNamespaceAndLabel("kube-system", "", ""),
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+			},
+			want: false,
+		},
+		{
+			name: "instrumentation on in default (datadog) namespace, no label",
+			pod:  fakePodWithNamespaceAndLabel("default", "", ""),
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("kube_resources_namespace", "default")
+			},
+			want: false,
 		},
 	}
 	for _, tt := range tests {

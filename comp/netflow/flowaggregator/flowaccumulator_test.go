@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	"github.com/DataDog/datadog-agent/comp/netflow/portrollup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -32,7 +33,7 @@ func setMockTimeNow(newTime time.Time) {
 }
 
 func Test_flowAccumulator_add(t *testing.T) {
-	logger := fxutil.Test[log.Component](t, log.MockModule)
+	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
 	synFlag := uint32(2)
 	ackFlag := uint32(16)
 	synAckFlag := synFlag | ackFlag
@@ -51,6 +52,9 @@ func Test_flowAccumulator_add(t *testing.T) {
 		SrcPort:        2000,
 		DstPort:        80,
 		TCPFlags:       synFlag,
+		AdditionalFields: map[string]any{
+			"custom_field": "test",
+		},
 	}
 	flowA2 := &common.Flow{
 		FlowType:       common.TypeNetFlow9,
@@ -65,6 +69,10 @@ func Test_flowAccumulator_add(t *testing.T) {
 		SrcPort:        2000,
 		DstPort:        80,
 		TCPFlags:       ackFlag,
+		AdditionalFields: map[string]any{
+			"custom_field":   "another_test",
+			"custom_field_2": "second_flow_field",
+		},
 	}
 	flowB1 := &common.Flow{
 		FlowType:       common.TypeNetFlow9,
@@ -98,6 +106,7 @@ func Test_flowAccumulator_add(t *testing.T) {
 	assert.Equal(t, uint64(1234568), wrappedFlowA.flow.StartTimestamp)
 	assert.Equal(t, uint64(1234579), wrappedFlowA.flow.EndTimestamp)
 	assert.Equal(t, synAckFlag, wrappedFlowA.flow.TCPFlags)
+	assert.Equal(t, map[string]any{"custom_field": "test", "custom_field_2": "second_flow_field"}, wrappedFlowA.flow.AdditionalFields) // Keeping first value seen for key `custom_field`
 
 	wrappedFlowB := acc.flows[flowB1.AggregationHash()]
 	assert.Equal(t, []byte{10, 10, 10, 10}, wrappedFlowB.flow.SrcAddr)
@@ -105,7 +114,7 @@ func Test_flowAccumulator_add(t *testing.T) {
 }
 
 func Test_flowAccumulator_portRollUp(t *testing.T) {
-	logger := fxutil.Test[log.Component](t, log.MockModule)
+	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
 	synFlag := uint32(2)
 	ackFlag := uint32(16)
 	synAckFlag := synFlag | ackFlag
@@ -208,7 +217,7 @@ func Test_flowAccumulator_portRollUp(t *testing.T) {
 }
 
 func Test_flowAccumulator_flush(t *testing.T) {
-	logger := fxutil.Test[log.Component](t, log.MockModule)
+	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
 	timeNow = MockTimeNow
 	zeroTime := time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)
 	flushInterval := 60 * time.Second

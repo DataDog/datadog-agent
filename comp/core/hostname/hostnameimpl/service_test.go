@@ -21,10 +21,10 @@ func TestGet(t *testing.T) {
 	t.Cleanup(func() {
 		// erase cache
 		cache.Cache.Delete(cache.BuildAgentKey("hostname"))
-		config.Datadog.Set("hostname", "")
+		config.Datadog.SetWithoutSource("hostname", "")
 	})
-	config.Datadog.Set("hostname", "test-hostname")
-	s := fxutil.Test[hostname.Component](t, Module)
+	config.Datadog.SetWithoutSource("hostname", "test-hostname")
+	s := fxutil.Test[hostname.Component](t, Module())
 	name, err := s.Get(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, "test-hostname", name)
@@ -34,10 +34,10 @@ func TestGetWithProvider(t *testing.T) {
 	t.Cleanup(func() {
 		// erase cache)
 		cache.Cache.Delete(cache.BuildAgentKey("hostname"))
-		config.Datadog.Set("hostname", "")
+		config.Datadog.SetWithoutSource("hostname", "")
 	})
-	config.Datadog.Set("hostname", "test-hostname2")
-	s := fxutil.Test[hostname.Component](t, Module)
+	config.Datadog.SetWithoutSource("hostname", "test-hostname2")
+	s := fxutil.Test[hostname.Component](t, Module())
 	data, err := s.GetWithProvider(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, "test-hostname2", data.Hostname)

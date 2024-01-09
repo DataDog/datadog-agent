@@ -11,8 +11,10 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/languagedetection"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 
 	"github.com/gorilla/mux"
@@ -20,11 +22,20 @@ import (
 )
 
 // InstallLanguageDetectionEndpoints installs language detection endpoints
-func InstallLanguageDetectionEndpoints(r *mux.Router) {
-	r.HandleFunc("/languagedetection", api.WithTelemetryWrapper("postDetectedLanguages", postDetectedLanguages)).Methods("POST")
+func InstallLanguageDetectionEndpoints(r *mux.Router, wmeta workloadmeta.Component) {
+	r.HandleFunc("/languagedetection", api.WithTelemetryWrapper("postDetectedLanguages",
+		func(w http.ResponseWriter, r *http.Request) {
+			postDetectedLanguages(w, r, wmeta)
+		})).Methods("POST")
 }
 
-func postDetectedLanguages(w http.ResponseWriter, r *http.Request) {
+func postDetectedLanguages(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
+	if !config.Datadog.GetBool("language_detection.enabled") {
+		languagedetection.ErrorResponses.Inc()
+		http.Error(w, "Language detection feature is disabled on the cluster agent", http.StatusServiceUnavailable)
+		return
+	}
+
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "Failed to read request body", http.StatusBadRequest)
@@ -43,7 +54,8 @@ func postDetectedLanguages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	lp, err := languagedetection.NewLanguagePatcher()
+	lp, err := languagedetection.NewLanguagePatcher(wmeta)
+
 	if err != nil {
 		http.Error(w, "Failed to get k8s apiserver client", http.StatusInternalServerError)
 		languagedetection.ErrorResponses.Inc()

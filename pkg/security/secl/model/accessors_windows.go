@@ -5,18 +5,13 @@
 // Code generated - DO NOT EDIT.
 
 //go:build windows
-// +build windows
 
 package model
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"net"
 	"reflect"
 )
-
-// Aliases used to avoid compilation error in case of unused imported package
-type NetIP = net.IP
 
 func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 	switch field {
@@ -27,7 +22,6 @@ func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 }
 func (m *Model) GetEventTypes() []eval.EventType {
 	return []eval.EventType{
-		eval.EventType("dns"),
 		eval.EventType("exec"),
 		eval.EventType("exit"),
 	}
@@ -74,10 +68,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.Exec.Process.CmdLine
+				return ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.Exec.Process)
 			},
 			Field:  field,
-			Weight: eval.FunctionWeight,
+			Weight: 200 * eval.HandlerWeight,
 		}, nil
 	case "exec.container.id":
 		return &eval.StringEvaluator{
@@ -169,15 +163,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "exec.tid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ev := ctx.Event.(*Event)
-				return int(ev.Exec.Process.PIDContext.Tid)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "exit.cause":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -191,10 +176,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.Exit.Process.CmdLine
+				return ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.Exit.Process)
 			},
 			Field:  field,
-			Weight: eval.FunctionWeight,
+			Weight: 200 * eval.HandlerWeight,
 		}, nil
 	case "exit.code":
 		return &eval.IntEvaluator{
@@ -295,81 +280,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "exit.tid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ev := ctx.Event.(*Event)
-				return int(ev.Exit.Process.PIDContext.Tid)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "network.destination.ip":
-		return &eval.CIDREvaluator{
-			EvalFnc: func(ctx *eval.Context) net.IPNet {
-				ev := ctx.Event.(*Event)
-				return ev.BaseEvent.NetworkContext.Destination.IPNet
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "network.destination.port":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ev := ctx.Event.(*Event)
-				return int(ev.BaseEvent.NetworkContext.Destination.Port)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "network.l3_protocol":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ev := ctx.Event.(*Event)
-				return int(ev.BaseEvent.NetworkContext.L3Protocol)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "network.l4_protocol":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ev := ctx.Event.(*Event)
-				return int(ev.BaseEvent.NetworkContext.L4Protocol)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "network.size":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ev := ctx.Event.(*Event)
-				return int(ev.BaseEvent.NetworkContext.Size)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "network.source.ip":
-		return &eval.CIDREvaluator{
-			EvalFnc: func(ctx *eval.Context) net.IPNet {
-				ev := ctx.Event.(*Event)
-				return ev.BaseEvent.NetworkContext.Source.IPNet
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "network.source.port":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ev := ctx.Event.(*Event)
-				return int(ev.BaseEvent.NetworkContext.Source.Port)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "process.ancestors.cmdline":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
@@ -378,14 +292,14 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				value := iterator.Front(ctx)
 				for value != nil {
 					element := (*ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.CmdLine
+					result := ev.FieldHandlers.ResolveProcessCmdLine(ev, &element.ProcessContext.Process)
 					results = append(results, result)
 					value = iterator.Next()
 				}
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight: 200 * eval.IteratorWeight,
 		}, nil
 	case "process.ancestors.container.id":
 		return &eval.StringArrayEvaluator{
@@ -594,34 +508,14 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
-	case "process.ancestors.tid":
-		return &eval.IntArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []int {
-				if result, ok := ctx.IntCache[field]; ok {
-					return result
-				}
-				var results []int
-				iterator := &ProcessAncestorsIterator{}
-				value := iterator.Front(ctx)
-				for value != nil {
-					element := (*ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.PIDContext.Tid)
-					results = append(results, result)
-					value = iterator.Next()
-				}
-				ctx.IntCache[field] = results
-				return results
-			}, Field: field,
-			Weight: eval.IteratorWeight,
-		}, nil
 	case "process.cmdline":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.BaseEvent.ProcessContext.Process.CmdLine
+				return ev.FieldHandlers.ResolveProcessCmdLine(ev, &ev.BaseEvent.ProcessContext.Process)
 			},
 			Field:  field,
-			Weight: eval.FunctionWeight,
+			Weight: 200 * eval.HandlerWeight,
 		}, nil
 	case "process.container.id":
 		return &eval.StringEvaluator{
@@ -702,10 +596,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				return ev.BaseEvent.ProcessContext.Parent.CmdLine
+				return ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.BaseEvent.ProcessContext.Parent)
 			},
 			Field:  field,
-			Weight: eval.FunctionWeight,
+			Weight: 200 * eval.HandlerWeight,
 		}, nil
 	case "process.parent.container.id":
 		return &eval.StringEvaluator{
@@ -821,18 +715,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "process.parent.tid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ev := ctx.Event.(*Event)
-				if !ev.BaseEvent.ProcessContext.HasParent() {
-					return 0
-				}
-				return int(ev.BaseEvent.ProcessContext.Parent.PIDContext.Tid)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "process.pid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -847,15 +729,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
 				return int(ev.BaseEvent.ProcessContext.Process.PPid)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.tid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ev := ctx.Event.(*Event)
-				return int(ev.BaseEvent.ProcessContext.Process.PIDContext.Tid)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -880,7 +753,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.file.path.length",
 		"exec.pid",
 		"exec.ppid",
-		"exec.tid",
 		"exit.cause",
 		"exit.cmdline",
 		"exit.code",
@@ -894,14 +766,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.file.path.length",
 		"exit.pid",
 		"exit.ppid",
-		"exit.tid",
-		"network.destination.ip",
-		"network.destination.port",
-		"network.l3_protocol",
-		"network.l4_protocol",
-		"network.size",
-		"network.source.ip",
-		"network.source.port",
 		"process.ancestors.cmdline",
 		"process.ancestors.container.id",
 		"process.ancestors.created_at",
@@ -913,7 +777,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.file.path.length",
 		"process.ancestors.pid",
 		"process.ancestors.ppid",
-		"process.ancestors.tid",
 		"process.cmdline",
 		"process.container.id",
 		"process.created_at",
@@ -934,10 +797,8 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.parent.file.path.length",
 		"process.parent.pid",
 		"process.parent.ppid",
-		"process.parent.tid",
 		"process.pid",
 		"process.ppid",
-		"process.tid",
 	}
 }
 func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
@@ -951,7 +812,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "event.timestamp":
 		return int(ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)), nil
 	case "exec.cmdline":
-		return ev.Exec.Process.CmdLine, nil
+		return ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.Exec.Process), nil
 	case "exec.container.id":
 		return ev.Exec.Process.ContainerID, nil
 	case "exec.created_at":
@@ -972,12 +833,10 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Exec.Process.PIDContext.Pid), nil
 	case "exec.ppid":
 		return int(ev.Exec.Process.PPid), nil
-	case "exec.tid":
-		return int(ev.Exec.Process.PIDContext.Tid), nil
 	case "exit.cause":
 		return int(ev.Exit.Cause), nil
 	case "exit.cmdline":
-		return ev.Exit.Process.CmdLine, nil
+		return ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.Exit.Process), nil
 	case "exit.code":
 		return int(ev.Exit.Code), nil
 	case "exit.container.id":
@@ -1000,22 +859,6 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Exit.Process.PIDContext.Pid), nil
 	case "exit.ppid":
 		return int(ev.Exit.Process.PPid), nil
-	case "exit.tid":
-		return int(ev.Exit.Process.PIDContext.Tid), nil
-	case "network.destination.ip":
-		return ev.BaseEvent.NetworkContext.Destination.IPNet, nil
-	case "network.destination.port":
-		return int(ev.BaseEvent.NetworkContext.Destination.Port), nil
-	case "network.l3_protocol":
-		return int(ev.BaseEvent.NetworkContext.L3Protocol), nil
-	case "network.l4_protocol":
-		return int(ev.BaseEvent.NetworkContext.L4Protocol), nil
-	case "network.size":
-		return int(ev.BaseEvent.NetworkContext.Size), nil
-	case "network.source.ip":
-		return ev.BaseEvent.NetworkContext.Source.IPNet, nil
-	case "network.source.port":
-		return int(ev.BaseEvent.NetworkContext.Source.Port), nil
 	case "process.ancestors.cmdline":
 		var values []string
 		ctx := eval.NewContext(ev)
@@ -1023,7 +866,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
 			element := (*ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.CmdLine
+			result := ev.FieldHandlers.ResolveProcessCmdLine(ev, &element.ProcessContext.Process)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -1148,20 +991,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
-	case "process.ancestors.tid":
-		var values []int
-		ctx := eval.NewContext(ev)
-		iterator := &ProcessAncestorsIterator{}
-		ptr := iterator.Front(ctx)
-		for ptr != nil {
-			element := (*ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.PIDContext.Tid)
-			values = append(values, result)
-			ptr = iterator.Next()
-		}
-		return values, nil
 	case "process.cmdline":
-		return ev.BaseEvent.ProcessContext.Process.CmdLine, nil
+		return ev.FieldHandlers.ResolveProcessCmdLine(ev, &ev.BaseEvent.ProcessContext.Process), nil
 	case "process.container.id":
 		return ev.BaseEvent.ProcessContext.Process.ContainerID, nil
 	case "process.created_at":
@@ -1182,7 +1013,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		if !ev.BaseEvent.ProcessContext.HasParent() {
 			return "", &eval.ErrNotSupported{Field: field}
 		}
-		return ev.BaseEvent.ProcessContext.Parent.CmdLine, nil
+		return ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.BaseEvent.ProcessContext.Parent), nil
 	case "process.parent.container.id":
 		if !ev.BaseEvent.ProcessContext.HasParent() {
 			return "", &eval.ErrNotSupported{Field: field}
@@ -1227,17 +1058,10 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			return 0, &eval.ErrNotSupported{Field: field}
 		}
 		return int(ev.BaseEvent.ProcessContext.Parent.PPid), nil
-	case "process.parent.tid":
-		if !ev.BaseEvent.ProcessContext.HasParent() {
-			return 0, &eval.ErrNotSupported{Field: field}
-		}
-		return int(ev.BaseEvent.ProcessContext.Parent.PIDContext.Tid), nil
 	case "process.pid":
 		return int(ev.BaseEvent.ProcessContext.Process.PIDContext.Pid), nil
 	case "process.ppid":
 		return int(ev.BaseEvent.ProcessContext.Process.PPid), nil
-	case "process.tid":
-		return int(ev.BaseEvent.ProcessContext.Process.PIDContext.Tid), nil
 	}
 	return nil, &eval.ErrFieldNotFound{Field: field}
 }
@@ -1273,8 +1097,6 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exec", nil
 	case "exec.ppid":
 		return "exec", nil
-	case "exec.tid":
-		return "exec", nil
 	case "exit.cause":
 		return "exit", nil
 	case "exit.cmdline":
@@ -1301,22 +1123,6 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exit", nil
 	case "exit.ppid":
 		return "exit", nil
-	case "exit.tid":
-		return "exit", nil
-	case "network.destination.ip":
-		return "dns", nil
-	case "network.destination.port":
-		return "dns", nil
-	case "network.l3_protocol":
-		return "dns", nil
-	case "network.l4_protocol":
-		return "dns", nil
-	case "network.size":
-		return "dns", nil
-	case "network.source.ip":
-		return "dns", nil
-	case "network.source.port":
-		return "dns", nil
 	case "process.ancestors.cmdline":
 		return "*", nil
 	case "process.ancestors.container.id":
@@ -1338,8 +1144,6 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.ancestors.pid":
 		return "*", nil
 	case "process.ancestors.ppid":
-		return "*", nil
-	case "process.ancestors.tid":
 		return "*", nil
 	case "process.cmdline":
 		return "*", nil
@@ -1381,13 +1185,9 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "process.parent.ppid":
 		return "*", nil
-	case "process.parent.tid":
-		return "*", nil
 	case "process.pid":
 		return "*", nil
 	case "process.ppid":
-		return "*", nil
-	case "process.tid":
 		return "*", nil
 	}
 	return "", &eval.ErrFieldNotFound{Field: field}
@@ -1424,8 +1224,6 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "exec.ppid":
 		return reflect.Int, nil
-	case "exec.tid":
-		return reflect.Int, nil
 	case "exit.cause":
 		return reflect.Int, nil
 	case "exit.cmdline":
@@ -1452,22 +1250,6 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "exit.ppid":
 		return reflect.Int, nil
-	case "exit.tid":
-		return reflect.Int, nil
-	case "network.destination.ip":
-		return reflect.Struct, nil
-	case "network.destination.port":
-		return reflect.Int, nil
-	case "network.l3_protocol":
-		return reflect.Int, nil
-	case "network.l4_protocol":
-		return reflect.Int, nil
-	case "network.size":
-		return reflect.Int, nil
-	case "network.source.ip":
-		return reflect.Struct, nil
-	case "network.source.port":
-		return reflect.Int, nil
 	case "process.ancestors.cmdline":
 		return reflect.String, nil
 	case "process.ancestors.container.id":
@@ -1489,8 +1271,6 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "process.ancestors.pid":
 		return reflect.Int, nil
 	case "process.ancestors.ppid":
-		return reflect.Int, nil
-	case "process.ancestors.tid":
 		return reflect.Int, nil
 	case "process.cmdline":
 		return reflect.String, nil
@@ -1532,13 +1312,9 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "process.parent.ppid":
 		return reflect.Int, nil
-	case "process.parent.tid":
-		return reflect.Int, nil
 	case "process.pid":
 		return reflect.Int, nil
 	case "process.ppid":
-		return reflect.Int, nil
-	case "process.tid":
 		return reflect.Int, nil
 	}
 	return reflect.Invalid, &eval.ErrFieldNotFound{Field: field}
@@ -1691,16 +1467,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Exec.Process.PPid = uint32(rv)
 		return nil
-	case "exec.tid":
-		if ev.Exec.Process == nil {
-			ev.Exec.Process = &Process{}
-		}
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.PIDContext.Tid"}
-		}
-		ev.Exec.Process.PIDContext.Tid = uint32(rv)
-		return nil
 	case "exit.cause":
 		rv, ok := value.(int)
 		if !ok {
@@ -1820,65 +1586,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.PPid"}
 		}
 		ev.Exit.Process.PPid = uint32(rv)
-		return nil
-	case "exit.tid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.PIDContext.Tid"}
-		}
-		ev.Exit.Process.PIDContext.Tid = uint32(rv)
-		return nil
-	case "network.destination.ip":
-		rv, ok := value.(net.IPNet)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.Destination.IPNet"}
-		}
-		ev.BaseEvent.NetworkContext.Destination.IPNet = rv
-		return nil
-	case "network.destination.port":
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.Destination.Port"}
-		}
-		ev.BaseEvent.NetworkContext.Destination.Port = uint16(rv)
-		return nil
-	case "network.l3_protocol":
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.L3Protocol"}
-		}
-		ev.BaseEvent.NetworkContext.L3Protocol = uint16(rv)
-		return nil
-	case "network.l4_protocol":
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.L4Protocol"}
-		}
-		ev.BaseEvent.NetworkContext.L4Protocol = uint16(rv)
-		return nil
-	case "network.size":
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.Size"}
-		}
-		ev.BaseEvent.NetworkContext.Size = uint32(rv)
-		return nil
-	case "network.source.ip":
-		rv, ok := value.(net.IPNet)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.Source.IPNet"}
-		}
-		ev.BaseEvent.NetworkContext.Source.IPNet = rv
-		return nil
-	case "network.source.port":
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.Source.Port"}
-		}
-		ev.BaseEvent.NetworkContext.Source.Port = uint16(rv)
 		return nil
 	case "process.ancestors.cmdline":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -2018,19 +1725,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PPid"}
 		}
 		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PPid = uint32(rv)
-		return nil
-	case "process.ancestors.tid":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
-		if ev.BaseEvent.ProcessContext.Ancestor == nil {
-			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
-		}
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.Tid"}
-		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.Tid = uint32(rv)
 		return nil
 	case "process.cmdline":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -2257,19 +1951,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.BaseEvent.ProcessContext.Parent.PPid = uint32(rv)
 		return nil
-	case "process.parent.tid":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
-		if ev.BaseEvent.ProcessContext.Parent == nil {
-			ev.BaseEvent.ProcessContext.Parent = &Process{}
-		}
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.PIDContext.Tid"}
-		}
-		ev.BaseEvent.ProcessContext.Parent.PIDContext.Tid = uint32(rv)
-		return nil
 	case "process.pid":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
@@ -2289,16 +1970,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.PPid"}
 		}
 		ev.BaseEvent.ProcessContext.Process.PPid = uint32(rv)
-		return nil
-	case "process.tid":
-		if ev.BaseEvent.ProcessContext == nil {
-			ev.BaseEvent.ProcessContext = &ProcessContext{}
-		}
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.PIDContext.Tid"}
-		}
-		ev.BaseEvent.ProcessContext.Process.PIDContext.Tid = uint32(rv)
 		return nil
 	}
 	return &eval.ErrFieldNotFound{Field: field}

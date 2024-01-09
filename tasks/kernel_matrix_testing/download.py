@@ -1,4 +1,5 @@
 import filecmp
+import json
 import os
 import platform
 import tempfile
@@ -11,52 +12,21 @@ try:
 except ImportError:
     requests = None
 
-url_base = "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/"
-rootfs_amd64 = {
-    "custom-bullseye.amd64.qcow2",
-    "custom-buster.amd64.qcow2",
-    "jammy-server-cloudimg-amd64.qcow2",
-    "focal-server-cloudimg-amd64.qcow2",
-    "bionic-server-cloudimg-amd64.qcow2",
-    "amzn2-kvm-2.0-amd64-4.14.qcow2",
-    "amzn2-kvm-2.0-amd64-5.4.qcow2",
-    "amzn2-kvm-2.0-amd64-5.10.qcow2",
-    "amzn2-kvm-2.0-amd64-5.15.qcow2",
-    "Fedora-Cloud-Base-35.amd64.qcow2",
-    "Fedora-Cloud-Base-36.amd64.qcow2",
-    "Fedora-Cloud-Base-37.amd64.qcow2",
-    "Fedora-Cloud-Base-38.amd64.qcow2",
-}
+platforms_file = "test/new-e2e/system-probe/config/platforms.json"
+vmconfig_file = "test/new-e2e/system-probe/config/vmconfig.json"
 
-rootfs_arm64 = {
-    "custom-bullseye.arm64.qcow2",
-    "jammy-server-cloudimg-arm64.qcow2",
-    "focal-server-cloudimg-arm64.qcow2",
-    "bionic-server-cloudimg-arm64.qcow2",
-    "amzn2-kvm-2.0-arm64-4.14.qcow2",
-    "amzn2-kvm-2.0-arm64-5.4.qcow2",
-    "amzn2-kvm-2.0-arm64-5.10.qcow2",
-    "amzn2-kvm-2.0-arm64-5.15.qcow2",
-    "Fedora-Cloud-Base-35.arm64.qcow2",
-    "Fedora-Cloud-Base-36.arm64.qcow2",
-    "Fedora-Cloud-Base-37.arm64.qcow2",
-    "Fedora-Cloud-Base-38.arm64.qcow2",
-}
-
-archs_mapping = {
+arch_mapping = {
     "amd64": "x86_64",
     "x86": "x86_64",
     "x86_64": "x86_64",
     "arm64": "arm64",
-    "aarch64": "arm64",
     "arm": "arm64",
-    "local": "local",
+    "aarch64": "arm64",
 }
-karch_mapping = {"x86_64": "x86", "arm64": "arm64"}
 
 
-def requires_update(rootfs_dir, image):
-    sum_url = url_base + image + ".sum"
+def requires_update(url_base, rootfs_dir, image):
+    sum_url = os.path.join(url_base, "master", image + ".sum")
     r = requests.get(sum_url)
     new_sum = r.text.rstrip().split(' ')[0]
     debug(f"[debug] new_sum: {new_sum}")
@@ -73,11 +43,23 @@ def requires_update(rootfs_dir, image):
 
 
 def download_rootfs(ctx, rootfs_dir, backup_dir, revert=False):
+    with open(platforms_file) as f:
+        platforms = json.load(f)
+
+    with open(vmconfig_file) as f:
+        vmconfig_template = json.load(f)
+
+    url_base = platforms["url_base"]
+
+    arch = arch_mapping[platform.machine()]
     to_download = list()
-    if archs_mapping[platform.machine()] == "x86_64":
-        file_ls = rootfs_amd64
-    else:
-        file_ls = rootfs_arm64
+    file_ls = list()
+    for tag in platforms[arch]:
+        path = os.path.basename(platforms[arch][tag])
+        if path.endswith(".xz"):
+            path = path[: -len(".xz")]
+
+        file_ls.append(os.path.basename(path))
 
     # if file does not exist download it.
     for f in file_ls:
@@ -85,11 +67,23 @@ def download_rootfs(ctx, rootfs_dir, backup_dir, revert=False):
         if not os.path.exists(path):
             to_download.append(f)
 
+    disks_to_download = list()
+    for vmset in vmconfig_template["vmsets"]:
+        if vmset["arch"] != arch:
+            continue
+
+        for disk in vmset["disks"]:
+            d = os.path.basename(disk["source"])
+            if not os.path.exists(os.path.join(rootfs_dir, d)):
+                disks_to_download.append(d)
+
     # download and compare hash sums
-    present_files = list(set(file_ls) - set(to_download))
+    present_files = list(set(file_ls) - set(to_download)) + disks_to_download
     for f in present_files:
-        if requires_update(rootfs_dir, f):
+        if requires_update(url_base, rootfs_dir, f):
             debug(f"[debug] updating {f} from S3.")
+            ctx.run(f"rm -f {f}")
+            ctx.run(f"rm -f {f}.sum")
             to_download.append(f)
 
     if len(to_download) == 0:
@@ -102,18 +96,21 @@ def download_rootfs(ctx, rootfs_dir, backup_dir, revert=False):
         with os.fdopen(fd, 'w') as tmp:
             for f in to_download:
                 info(f"[+] {f} needs to be downloaded")
-                # remove this file
-                ctx.run(f"rm -f {os.path.join(rootfs_dir, f)}")
+                xz = ".xz" if f not in disks_to_download else ""
+                filename = f"{f}{xz}"
+                sum_file = f"{f}.sum"
+                # remove this file and sum
+                ctx.run(f"rm -f {os.path.join(rootfs_dir, filename)}")
+                ctx.run(f"rm -f {os.path.join(rootfs_dir, sum_file)}")
                 # download package entry
-                tmp.write(url_base + f + "\n")
+                tmp.write(os.path.join(url_base, "master", filename) + "\n")
                 tmp.write(f" dir={rootfs_dir}\n")
-                tmp.write(f" out={f}\n")
+                tmp.write(f" out={filename}\n")
                 # download sum entry
-                tmp.write(url_base + f"{f}.sum\n")
+                tmp.write(os.path.join(url_base, "master", f"{sum_file}") + "\n")
                 tmp.write(f" dir={rootfs_dir}\n")
-                tmp.write(f" out={f}.sum\n")
+                tmp.write(f" out={sum_file}\n")
             tmp.write("\n")
-
         ctx.run(f"cat {path}")
         res = ctx.run(f"aria2c -i {path} -j {len(to_download)}")
         if not res.ok:
@@ -122,6 +119,13 @@ def download_rootfs(ctx, rootfs_dir, backup_dir, revert=False):
             raise Exit("Failed to download image files")
     finally:
         os.remove(path)
+
+    # extract files
+    res = ctx.run(f"find {rootfs_dir} -name \"*qcow2.xz\" -type f -exec xz -d {{}} \\;")
+    if not res.ok:
+        if revert:
+            revert_rootfs(ctx, rootfs_dir, backup_dir)
+        raise Exit("Failed to extract qcow2 files")
 
     # set permissions
     res = ctx.run(f"find {rootfs_dir} -name \"*qcow*\" -type f -exec chmod 0766 {{}} \\;")
@@ -132,7 +136,7 @@ def download_rootfs(ctx, rootfs_dir, backup_dir, revert=False):
 
 
 def revert_kernel_packages(ctx, kernel_packages_dir, backup_dir):
-    arch = archs_mapping[platform.machine()]
+    arch = arch_mapping[platform.machine()]
     kernel_packages_tar = f"kernel-packages-{arch}.tar"
     ctx.run(f"rm -rf {kernel_packages_dir}/*")
     ctx.run(f"mv {backup_dir}/{kernel_packages_tar} {kernel_packages_dir}")
@@ -140,7 +144,7 @@ def revert_kernel_packages(ctx, kernel_packages_dir, backup_dir):
 
 
 def download_kernel_packages(ctx, kernel_packages_dir, kernel_headers_dir, backup_dir, revert=False):
-    arch = archs_mapping[platform.machine()]
+    arch = arch_mapping[platform.machine()]
     kernel_packages_sum = f"kernel-packages-{arch}.sum"
     kernel_packages_tar = f"kernel-packages-{arch}.tar"
 
@@ -194,7 +198,7 @@ def download_kernel_packages(ctx, kernel_packages_dir, kernel_headers_dir, backu
 
 
 def update_kernel_packages(ctx, kernel_packages_dir, kernel_headers_dir, backup_dir, no_backup):
-    arch = archs_mapping[platform.machine()]
+    arch = arch_mapping[platform.machine()]
     kernel_packages_sum = f"kernel-packages-{arch}.sum"
     kernel_packages_tar = f"kernel-packages-{arch}.tar"
 
@@ -209,7 +213,7 @@ def update_kernel_packages(ctx, kernel_packages_dir, kernel_headers_dir, backup_
 
     # backup kernel-packges
     if not no_backup:
-        karch = karch_mapping[archs_mapping[platform.machine()]]
+        karch = arch_mapping[platform.machine()]
         ctx.run(
             f"find {kernel_packages_dir} -name \"kernel-*.{karch}.pkg.tar.gz\" -type f | rev | cut -d '/' -f 1  | rev > /tmp/package.ls"
         )

@@ -1,4 +1,5 @@
 version: '3'
+name: amqp
 services:
   rabbitmq:
     image: rabbitmq:3-management-alpine

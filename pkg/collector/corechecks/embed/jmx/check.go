@@ -5,6 +5,7 @@
 
 //go:build jmx
 
+//nolint:revive // TODO(AML) Fix revive linter
 package jmx
 
 import (
@@ -15,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -40,7 +42,7 @@ func newJMXCheck(senderManager sender.SenderManager, config integration.Config, 
 		name:      config.Name,
 		id:        checkid.ID(fmt.Sprintf("%v_%x", config.Name, digest)),
 		source:    source,
-		telemetry: utils.IsCheckTelemetryEnabled("jmx"),
+		telemetry: utils.IsCheckTelemetryEnabled("jmx", pkgConfig.Datadog),
 	}
 	check.Configure(senderManager, digest, config.InitConfig, config.MetricConfig, source) //nolint:errcheck
 

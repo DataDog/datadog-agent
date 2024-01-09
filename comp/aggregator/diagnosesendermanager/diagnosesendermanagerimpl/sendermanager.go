@@ -15,16 +15,17 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"go.uber.org/fx"
 )
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newDiagnoseSenderManager),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newDiagnoseSenderManager))
+}
 
 type dependencies struct {
 	fx.In
@@ -33,7 +34,7 @@ type dependencies struct {
 }
 
 type diagnoseSenderManager struct {
-	senderManager util.Optional[sender.SenderManager]
+	senderManager optional.Option[sender.SenderManager]
 	deps          dependencies
 }
 
@@ -58,14 +59,15 @@ func (sender *diagnoseSenderManager) LazyGetSenderManager() (sender.SenderManage
 	opts.FlushInterval = 0
 	opts.DontStartForwarders = true
 	opts.UseNoopEventPlatformForwarder = true
-	opts.UseNoopOrchestratorForwarder = true
 
 	log := sender.deps.Log
 	config := sender.deps.Config
 	forwarder := defaultforwarder.NewDefaultForwarder(config, log, defaultforwarder.NewOptions(config, log, nil))
+	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	senderManager = aggregator.InitAndStartAgentDemultiplexer(
 		log,
 		forwarder,
+		&orchestratorForwarder,
 		opts,
 		hostnameDetected)
 

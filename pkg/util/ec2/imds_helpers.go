@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -24,15 +23,6 @@ var (
 	imdsIPv4        = "/public-ipv4"
 	imdsNetworkMacs = "/network/interfaces/macs"
 )
-
-func registerCloudProviderHostnameID(ctx context.Context) {
-	instanceID, err := getMetadataItemWithMaxLength(ctx, imdsInstanceID, true)
-	log.Debugf("instanceID from IMDSv2 '%s' (error: %v)", instanceID, err)
-
-	if err == nil {
-		inventories.SetHostMetadata(inventories.HostCloudProviderHostID, instanceID)
-	}
-}
 
 func getToken(ctx context.Context) (string, time.Time, error) {
 	tokenLifetime := time.Duration(config.Datadog.GetInt("ec2_metadata_token_lifetime")) * time.Second
@@ -47,8 +37,7 @@ func getToken(ctx context.Context) (string, time.Time, error) {
 			"X-aws-ec2-metadata-token-ttl-seconds": fmt.Sprintf("%d", int(tokenLifetime.Seconds())),
 		},
 		nil,
-		config.Datadog.GetDuration("ec2_metadata_timeout")*time.Millisecond)
-
+		config.Datadog.GetDuration("ec2_metadata_timeout")*time.Millisecond, config.Datadog)
 	if err != nil {
 		return "", time.Now(), err
 	}
@@ -94,7 +83,7 @@ func doHTTPRequest(ctx context.Context, url string, forceIMDSv2 bool) (string, e
 		}
 	}
 
-	res, err := httputils.Get(ctx, url, headers, time.Duration(config.Datadog.GetInt("ec2_metadata_timeout"))*time.Millisecond)
+	res, err := httputils.Get(ctx, url, headers, time.Duration(config.Datadog.GetInt("ec2_metadata_timeout"))*time.Millisecond, config.Datadog)
 	// We don't want to register the source when we force imdsv2
 	if err == nil && !forceIMDSv2 {
 		setCloudProviderSource(source)

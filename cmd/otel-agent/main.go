@@ -17,12 +17,15 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
+	corelogimpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	"github.com/DataDog/datadog-agent/comp/logs"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/otelcol"
@@ -30,8 +33,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"go.uber.org/fx"
 )
@@ -45,7 +48,7 @@ var cfgPath = flag.String("config", "/opt/datadog-agent/etc/datadog.yaml", "agen
 func run(
 	c collector.Component,
 	demux *aggregator.AgentDemultiplexer,
-	logsAgent util.Optional[logsAgent.Component], //nolint:revive // TODO fix unused-parameter
+	logsAgent optional.Option[logsAgent.Component], //nolint:revive // TODO fix unused-parameter
 ) error {
 	// Setup stats telemetry handler
 	if sender, err := demux.GetDefaultSender(); err == nil {
@@ -58,25 +61,26 @@ func run(
 func main() {
 	flag.Parse()
 	err := fxutil.OneShot(run,
-		core.Bundle,
-		forwarder.Bundle,
-		otelcol.Bundle,
-		logs.Bundle,
+		core.Bundle(),
+		forwarder.Bundle(),
+		otelcol.Bundle(),
+		logs.Bundle(),
 		fx.Supply(
 			core.BundleParams{
-				ConfigParams: config.NewAgentParamsWithSecrets(*cfgPath),
-				LogParams:    corelog.ForOneShot(loggerName, "debug", true),
+				ConfigParams: config.NewAgentParams(*cfgPath),
+				SecretParams: secrets.NewEnabledParams(),
+				LogParams:    corelogimpl.ForOneShot(loggerName, "debug", true),
 			},
 		),
 		fx.Provide(newForwarderParams),
-		demultiplexer.Module,
+		demultiplexerimpl.Module(),
+		orchestratorForwarderImpl.Module(),
+		fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
 		fx.Provide(newSerializer),
-		fx.Provide(func(cfg config.Component) demultiplexer.Params {
-			opts := aggregator.DefaultAgentDemultiplexerOptions()
-			opts.EnableNoAggregationPipeline = cfg.GetBool("dogstatsd_no_aggregation_pipeline")
-			opts.UseDogstatsdContextLimiter = true
-			opts.DogstatsdMaxMetricsTags = cfg.GetInt("dogstatsd_max_metrics_tags")
-			return demultiplexer.Params{Options: opts}
+		fx.Provide(func(cfg config.Component) demultiplexerimpl.Params {
+			params := demultiplexerimpl.NewDefaultParams()
+			params.EnableNoAggregationPipeline = cfg.GetBool("dogstatsd_no_aggregation_pipeline")
+			return params
 		}),
 	)
 	if err != nil {

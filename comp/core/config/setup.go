@@ -12,48 +12,48 @@ import (
 	"runtime"
 	"strings"
 
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/viper"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // setupConfig is copied from cmd/agent/common/helpers.go.
-func setupConfig(deps configDependencies) (*config.Warnings, error) {
+func setupConfig(config pkgconfigmodel.Config, deps configDependencies) (*pkgconfigmodel.Warnings, error) {
 	p := deps.getParams()
 
 	confFilePath := p.ConfFilePath
 	configName := p.configName
-	withoutSecrets := !p.configLoadSecrets
 	failOnMissingFile := !p.configMissingOK
 	defaultConfPath := p.defaultConfPath
 
 	if configName != "" {
-		config.Datadog.SetConfigName(configName)
+		config.SetConfigName(configName)
 	}
 
 	// set the paths where a config file is expected
 	if len(confFilePath) != 0 {
 		// if the configuration file path was supplied on the command line,
 		// add that first so it's first in line
-		config.Datadog.AddConfigPath(confFilePath)
+		config.AddConfigPath(confFilePath)
 		// If they set a config file directly, let's try to honor that
 		if strings.HasSuffix(confFilePath, ".yaml") || strings.HasSuffix(confFilePath, ".yml") {
-			config.Datadog.SetConfigFile(confFilePath)
+			config.SetConfigFile(confFilePath)
 		}
 	}
 	if defaultConfPath != "" {
-		config.Datadog.AddConfigPath(defaultConfPath)
+		config.AddConfigPath(defaultConfPath)
 	}
 
 	// load the configuration
 	var err error
-	var warnings *config.Warnings
-
-	if withoutSecrets {
-		warnings, err = config.LoadWithoutSecret()
+	var warnings *pkgconfigmodel.Warnings
+	resolver := deps.getSecretResolver()
+	if resolver == nil {
+		warnings, err = pkgconfigsetup.LoadWithoutSecret(config, pkgconfigsetup.SystemProbe.GetEnvVars())
 	} else {
-		warnings, err = config.Load()
+		warnings, err = pkgconfigsetup.LoadWithSecret(config, resolver, pkgconfigsetup.SystemProbe.GetEnvVars())
 	}
+
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	var e viper.ConfigFileNotFoundError
 	if err != nil && (failOnMissingFile || !errors.As(err, &e) || confFilePath != "") {

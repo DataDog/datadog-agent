@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(PROC) Fix revive linter
 package containers
 
 import (
@@ -11,14 +12,14 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/system"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
@@ -70,12 +71,12 @@ func GetSharedContainerProvider() ContainerProvider {
 // containerProvider provides data about containers usable by process-agent
 type containerProvider struct {
 	metricsProvider metrics.Provider
-	metadataStore   workloadmeta.Store
+	metadataStore   workloadmeta.Component
 	filter          *containers.Filter
 }
 
 // NewContainerProvider returns a ContainerProvider instance
-func NewContainerProvider(provider metrics.Provider, metadataStore workloadmeta.Store, filter *containers.Filter) ContainerProvider {
+func NewContainerProvider(provider metrics.Provider, metadataStore workloadmeta.Component, filter *containers.Filter) ContainerProvider {
 	return &containerProvider{
 		metricsProvider: provider,
 		metadataStore:   metadataStore,
@@ -90,6 +91,7 @@ func NewDefaultContainerProvider() ContainerProvider {
 		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %v", err)
 	}
 
+	// TODO(components): stop relying on globals and use injected components instead whenever possible.
 	return NewContainerProvider(metrics.GetProvider(), workloadmeta.GetGlobalStore(), containerFilter)
 }
 
@@ -97,7 +99,6 @@ func NewDefaultContainerProvider() ContainerProvider {
 func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousContainers map[string]*ContainerRateMetrics) ([]*model.Container, map[string]*ContainerRateMetrics, map[int]string, error) {
 	containersMetadata := p.metadataStore.ListContainersWithFilter(workloadmeta.GetRunningContainers)
 
-	hostCPUCount := float64(system.HostCPUCount())
 	processContainers := make([]*model.Container, 0)
 	rateStats := make(map[string]*ContainerRateMetrics)
 	pidToCid := make(map[int]string)
@@ -144,7 +145,10 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 			previousContainerRates = &NullContainerRates
 		}
 
-		collector := p.metricsProvider.GetCollector(string(container.Runtime))
+		collector := p.metricsProvider.GetCollector(provider.NewRuntimeMetadata(
+			string(container.Runtime),
+			string(container.RuntimeFlavor),
+		))
 		if collector == nil {
 			log.Infof("No metrics collector available for runtime: %s, skipping container: %s", container.Runtime, container.ID)
 			continue
@@ -152,22 +156,25 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 
 		containerStats, err := collector.GetContainerStats(container.Namespace, container.ID, cacheValidity)
 		if err != nil || containerStats == nil {
-			log.Debugf("Container stats for: %+v not available through collector %q, err: %v", container, collector.ID(), err)
+			log.Debugf("Container stats for: %+v not available, err: %v", container, err)
 			// If main container stats are missing, we skip the container
 			continue
 		}
-		computeContainerStats(hostCPUCount, containerStats, previousContainerRates, &outPreviousStats, processContainer)
+		computeContainerStats(container, containerStats, previousContainerRates, &outPreviousStats, processContainer)
 
 		// Building PID to CID mapping for NPM
-		if containerStats.PID != nil {
-			for _, pid := range containerStats.PID.PIDs {
+		pids, err := collector.GetPIDs(container.Namespace, container.ID, cacheValidity)
+		if err == nil && pids != nil {
+			for _, pid := range pids {
 				pidToCid[pid] = container.ID
 			}
+		} else {
+			log.Debugf("PIDs for: %+v not available, err: %v", container, err)
 		}
 
 		containerNetworkStats, err := collector.GetContainerNetworkStats(container.Namespace, container.ID, cacheValidity)
 		if err != nil {
-			log.Debugf("Container network stats for: %+v not available through collector %q, err: %v", container, collector.ID(), err)
+			log.Debugf("Container network stats for: %+v not available, err: %v", container, err)
 		}
 		computeContainerNetworkStats(containerNetworkStats, previousContainerRates, &outPreviousStats, processContainer)
 
@@ -178,7 +185,7 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 	return processContainers, rateStats, pidToCid, nil
 }
 
-func computeContainerStats(hostCPUCount float64, inStats *metrics.ContainerStats, previousStats, outPreviousStats *ContainerRateMetrics, outStats *model.Container) {
+func computeContainerStats(container *workloadmeta.Container, inStats *metrics.ContainerStats, previousStats, outPreviousStats *ContainerRateMetrics, outStats *model.Container) {
 	if inStats == nil {
 		return
 	}
@@ -195,15 +202,18 @@ func computeContainerStats(hostCPUCount float64, inStats *metrics.ContainerStats
 		outPreviousStats.UserCPU = statValue(inStats.CPU.User, -1)
 		outPreviousStats.SystemCPU = statValue(inStats.CPU.System, -1)
 
-		outStats.TotalPct = float32(cpuRatePctValue(outPreviousStats.TotalCPU, previousStats.TotalCPU, hostCPUCount, inStats.Timestamp, previousStats.ContainerStatsTimestamp))
-		outStats.UserPct = float32(cpuRatePctValue(outPreviousStats.UserCPU, previousStats.UserCPU, hostCPUCount, inStats.Timestamp, previousStats.ContainerStatsTimestamp))
-		outStats.SystemPct = float32(cpuRatePctValue(outPreviousStats.SystemCPU, previousStats.SystemCPU, hostCPUCount, inStats.Timestamp, previousStats.ContainerStatsTimestamp))
+		outStats.TotalPct = float32(cpuRatePctValue(outPreviousStats.TotalCPU, previousStats.TotalCPU, inStats.Timestamp, previousStats.ContainerStatsTimestamp))
+		outStats.UserPct = float32(cpuRatePctValue(outPreviousStats.UserCPU, previousStats.UserCPU, inStats.Timestamp, previousStats.ContainerStatsTimestamp))
+		outStats.SystemPct = float32(cpuRatePctValue(outPreviousStats.SystemCPU, previousStats.SystemCPU, inStats.Timestamp, previousStats.ContainerStatsTimestamp))
 		outStats.CpuUsageNs = float32(cpuRateValue(outPreviousStats.TotalCPU, previousStats.TotalCPU, inStats.Timestamp, previousStats.ContainerStatsTimestamp))
 
 		// We only emit limit if it was not defaulted
 		if !inStats.CPU.DefaultedLimit {
 			outStats.CpuLimit = float32(statValue(inStats.CPU.Limit, 0))
 		}
+
+		// Values taken from container manifest
+		outStats.CpuRequest = float32(statValue(container.Resources.CPURequest, 0))
 	}
 
 	if inStats.Memory != nil {
@@ -217,6 +227,11 @@ func computeContainerStats(hostCPUCount float64, inStats *metrics.ContainerStats
 			outStats.MemAccounted = uint64(*inStats.Memory.WorkingSet)
 		} else if inStats.Memory.CommitBytes != nil {
 			outStats.MemAccounted = uint64(*inStats.Memory.CommitBytes)
+		}
+
+		// Values taken from container manifest
+		if container.Resources.MemoryRequest != nil {
+			outStats.MemoryRequest = *container.Resources.MemoryRequest
 		}
 	}
 
@@ -313,7 +328,7 @@ func cpuRateValue(current, previous float64, currentTs, previousTs time.Time) fl
 	return rateValue(current, previous, currentTs, previousTs)
 }
 
-func cpuRatePctValue(current, previous, hostCPUCount float64, currentTs, previousTs time.Time) float64 {
+func cpuRatePctValue(current, previous float64, currentTs, previousTs time.Time) float64 {
 	if current == -1 || previous == -1 {
 		return -1
 	}

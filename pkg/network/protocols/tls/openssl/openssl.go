@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package openssl provides helpers to run openssl servers and clients.
 package openssl
 
 import (
@@ -26,7 +27,7 @@ func RunServerOpenssl(t *testing.T, serverPort string, clientCount int, args ...
 
 	t.Helper()
 	dir, _ := testutil.CurDir()
-	return protocolsUtils.RunDockerServer(t, "openssl-server", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile("ACCEPT"), protocolsUtils.DefaultTimeout)
+	return protocolsUtils.RunDockerServer(t, "openssl-server", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile("ACCEPT"), protocolsUtils.DefaultTimeout, 3)
 }
 
 // RunClientOpenssl launches an openssl client.

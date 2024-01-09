@@ -10,6 +10,7 @@ import (
 
 	global "github.com/DataDog/datadog-agent/cmd/agent/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
@@ -19,8 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/config/settings"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -35,17 +35,15 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 	assert := assert.New(t)
 	var err error
 
-	opts := aggregator.DefaultAgentDemultiplexerOptions()
-	opts.DontStartForwarders = true
 	deps := fxutil.Test[testDeps](t, fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Supply(core.BundleParams{}),
 		fx.Supply(server.Params{
 			Serverless: false,
 		}),
-		dogstatsd.Bundle,
-		defaultforwarder.MockModule,
-		demultiplexer.MockModule,
+		dogstatsd.Bundle(),
+		defaultforwarder.MockModule(),
+		demultiplexerimpl.MockModule(),
 	))
 
 	demux := deps.Demultiplexer
@@ -62,7 +60,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 	// true string
 
-	err = s.Set("true", settings.SourceDefault)
+	err = s.Set("true", model.SourceDefault)
 	assert.Nil(err)
 	assert.Equal(deps.Debug.IsDebugEnabled(), true)
 	v, err := s.Get()
@@ -71,7 +69,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 	// false string
 
-	err = s.Set("false", settings.SourceDefault)
+	err = s.Set("false", model.SourceDefault)
 	assert.Nil(err)
 	assert.Equal(deps.Debug.IsDebugEnabled(), false)
 	v, err = s.Get()
@@ -80,7 +78,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 	// true boolean
 
-	err = s.Set(true, settings.SourceDefault)
+	err = s.Set(true, model.SourceDefault)
 	assert.Nil(err)
 	assert.Equal(deps.Debug.IsDebugEnabled(), true)
 	v, err = s.Get()
@@ -89,7 +87,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 	// false boolean
 
-	err = s.Set(false, settings.SourceDefault)
+	err = s.Set(false, model.SourceDefault)
 	assert.Nil(err)
 	assert.Equal(deps.Debug.IsDebugEnabled(), false)
 	v, err = s.Get()

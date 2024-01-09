@@ -3,11 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(APM) Fix revive linter
 package agent
 
 import (
 	"context"
 	"runtime"
+	"strconv"
+	"sync"
 	"time"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -33,6 +36,12 @@ const (
 	// tagHostname specifies the hostname of the tracer.
 	// DEPRECATED: Tracer hostname is now specified as a TracerPayload field.
 	tagHostname = "_dd.hostname"
+
+	// tagInstallID, tagInstallType, and tagInstallTime are included in the first trace sent by the agent,
+	// and used to track successful onboarding onto APM.
+	tagInstallID   = "_dd.install.id"
+	tagInstallType = "_dd.install.type"
+	tagInstallTime = "_dd.install.time"
 
 	// manualSampling is the value for _dd.p.dm when user sets sampling priority directly in code.
 	manualSampling = "-4"
@@ -80,6 +89,8 @@ type Agent struct {
 
 	// Used to synchronize on a clean exit
 	ctx context.Context
+
+	firstSpanMap sync.Map
 }
 
 // NewAgent returns a new Agent object, ready to be started. It takes a context
@@ -213,9 +224,25 @@ func (a *Agent) loop() {
 func (a *Agent) setRootSpanTags(root *pb.Span) {
 	clientSampleRate := sampler.GetGlobalRate(root)
 	sampler.SetClientRate(root, clientSampleRate)
-	if a.conf.InAzureAppServices {
-		for k, v := range traceutil.GetAppServicesTags() {
-			traceutil.SetMeta(root, k, v)
+}
+
+// setFirstTraceTags sets additional tags on the first trace for each service processed by the agent,
+// so that we can see that the service has successfully onboarded onto APM.
+func (a *Agent) setFirstTraceTags(root *pb.Span) {
+	if a.conf == nil || a.conf.InstallSignature.InstallID == "" || root == nil {
+		return
+	}
+	if _, alreadySeenService := a.firstSpanMap.LoadOrStore(root.Service, true); !alreadySeenService {
+		// The install time and type can also be set on the trace by the tracer,
+		// in which case we do not want the agent to overwrite them.
+		if _, ok := traceutil.GetMeta(root, tagInstallID); !ok {
+			traceutil.SetMeta(root, tagInstallID, a.conf.InstallSignature.InstallID)
+		}
+		if _, ok := traceutil.GetMeta(root, tagInstallType); !ok {
+			traceutil.SetMeta(root, tagInstallType, a.conf.InstallSignature.InstallType)
+		}
+		if _, ok := traceutil.GetMeta(root, tagInstallTime); !ok {
+			traceutil.SetMeta(root, tagInstallTime, strconv.FormatInt(a.conf.InstallSignature.InstallTime, 10))
 		}
 	}
 }
@@ -275,7 +302,6 @@ func (a *Agent) Process(p *api.Payload) {
 		}
 
 		// Extra sanitization steps of the trace.
-		appServicesTags := traceutil.GetAppServicesTags()
 		for _, span := range chunk.Spans {
 			for k, v := range a.conf.GlobalTags {
 				if k == tagOrigin {
@@ -283,10 +309,6 @@ func (a *Agent) Process(p *api.Payload) {
 				} else {
 					traceutil.SetMeta(span, k, v)
 				}
-			}
-			if a.conf.InAzureAppServices {
-				traceutil.SetMeta(span, "aas.site.name", appServicesTags["aas.site.name"])
-				traceutil.SetMeta(span, "aas.site.type", appServicesTags["aas.site.type"])
 			}
 			if a.ModifySpan != nil {
 				a.ModifySpan(chunk, span)
@@ -322,6 +344,11 @@ func (a *Agent) Process(p *api.Payload) {
 		p.ReplaceChunk(i, pt.TraceChunk)
 
 		if !pt.TraceChunk.DroppedTrace {
+			// Now that we know this trace has been sampled,
+			// if this is the first trace we have processed since restart,
+			// set a special set of tags on its root span to track that this
+			// customer has successfully onboarded onto APM.
+			a.setFirstTraceTags(root)
 			sampledChunks.SpanCount += int64(len(pt.TraceChunk.Spans))
 		}
 		sampledChunks.EventCount += int64(numEvents)
@@ -377,6 +404,7 @@ func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span) *traceu
 // The underlying array behind TracePayload.Chunks points to unsampled chunks
 // preventing them from being collected by the GC.
 func newChunksArray(chunks []*pb.TraceChunk) []*pb.TraceChunk {
+	//nolint:revive // TODO(APM) Fix revive linter
 	new := make([]*pb.TraceChunk, len(chunks))
 	copy(new, chunks)
 	return new

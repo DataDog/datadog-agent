@@ -17,6 +17,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 )
 
 // Model describes the data model for the runtime security agent events
@@ -49,7 +50,7 @@ func (m *Model) NewDefaultEventWithType(kind EventType) eval.Event {
 
 // Releasable represents an object than can be released
 type Releasable struct {
-	onReleaseCallback func() `field:"-" json:"-"`
+	onReleaseCallback func() `field:"-"`
 }
 
 // CallReleaseCallback calls the on-release callback
@@ -156,35 +157,36 @@ type NetworkContext struct {
 
 // SpanContext describes a span context
 type SpanContext struct {
-	SpanID  uint64 `field:"_" json:"-"`
-	TraceID uint64 `field:"_" json:"-"`
+	SpanID  uint64 `field:"_"`
+	TraceID uint64 `field:"_"`
 }
 
 // BaseEvent represents an event sent from the kernel
 type BaseEvent struct {
-	ID           string         `field:"-" event:"*"`
-	Type         uint32         `field:"-"`
-	Flags        uint32         `field:"-"`
-	TimestampRaw uint64         `field:"event.timestamp,handler:ResolveEventTimestamp" event:"*"` // SECLDoc[event.timestamp] Definition:`Timestamp of the event`
-	Timestamp    time.Time      `field:"timestamp,opts:getters_only,handler:ResolveEventTime"`
-	Rules        []*MatchedRule `field:"-"`
+	ID           string             `field:"-" event:"*"`
+	Type         uint32             `field:"-"`
+	Flags        uint32             `field:"-"`
+	TimestampRaw uint64             `field:"event.timestamp,handler:ResolveEventTimestamp" event:"*"` // SECLDoc[event.timestamp] Definition:`Timestamp of the event`
+	Timestamp    time.Time          `field:"timestamp,opts:getters_only,handler:ResolveEventTime"`
+	Rules        []*MatchedRule     `field:"-"`
+	Actions      []*ActionTriggered `field:"-"`
+	Origin       string             `field:"-"`
+	Suppressed   bool               `field:"-"`
 
 	// context shared with all events
-	SpanContext            SpanContext            `field:"-" json:"-"`
 	ProcessContext         *ProcessContext        `field:"process" event:"*"`
 	ContainerContext       *ContainerContext      `field:"container" event:"*"`
-	NetworkContext         NetworkContext         `field:"network" event:"dns"`
 	SecurityProfileContext SecurityProfileContext `field:"-"`
 
 	// internal usage
-	PIDContext        PIDContext         `field:"-" json:"-"`
-	ProcessCacheEntry *ProcessCacheEntry `field:"-" json:"-"`
+	PIDContext        PIDContext         `field:"-"`
+	ProcessCacheEntry *ProcessCacheEntry `field:"-"`
 
 	// mark event with having error
-	Error error `field:"-" json:"-"`
+	Error error `field:"-"`
 
 	// field resolution
-	FieldHandlers FieldHandlers `field:"-" json:"-"`
+	FieldHandlers FieldHandlers `field:"-"`
 }
 
 func initMember(member reflect.Value, deja map[string]bool) {
@@ -286,11 +288,6 @@ func (e *Event) RemoveFromFlags(flag uint32) {
 	e.Flags ^= flag
 }
 
-// HasProfile returns true if we found a profile for that event
-func (e *Event) HasProfile() bool {
-	return e.SecurityProfileContext.Name != ""
-}
-
 // GetType returns the event type
 func (e *Event) GetType() string {
 	return EventType(e.Type).String()
@@ -310,6 +307,16 @@ func (e *Event) GetTags() []string {
 		tags = append(tags, e.ContainerContext.Tags...)
 	}
 	return tags
+}
+
+// GetActions returns the triggred actions
+func (e *Event) GetActions() []*ActionTriggered {
+	return e.Actions
+}
+
+// IsSuppressed returns true if the event is suppressed
+func (e *Event) IsSuppressed() bool {
+	return e.Suppressed
 }
 
 // GetWorkloadID returns an ID that represents the workload
@@ -339,12 +346,25 @@ func (e *Event) ResolveProcessCacheEntry() (*ProcessCacheEntry, bool) {
 
 // ResolveEventTime uses the field handler
 func (e *Event) ResolveEventTime() time.Time {
-	return e.FieldHandlers.ResolveEventTime(e)
+	return e.FieldHandlers.ResolveEventTime(e, &e.BaseEvent)
 }
 
 // GetProcessService uses the field handler
 func (e *Event) GetProcessService() string {
 	return e.FieldHandlers.GetProcessService(e)
+}
+
+// UserSessionContext describes the user session context
+// Disclaimer: the `json` tags are used to parse K8s credentials from cws-instrumentation
+type UserSessionContext struct {
+	ID          uint64           `field:"-"`
+	SessionType usersession.Type `field:"-"`
+	Resolved    bool             `field:"-"`
+	// Kubernetes User Session context
+	K8SUsername string              `field:"k8s_username,handler:ResolveK8SUsername" json:"username,omitempty"` // SECLDoc[k8s_username] Definition:`Kubernetes username of the user that executed the process`
+	K8SUID      string              `field:"k8s_uid,handler:ResolveK8SUID" json:"uid,omitempty"`                // SECLDoc[k8s_uid] Definition:`Kubernetes UID of the user that executed the process`
+	K8SGroups   []string            `field:"k8s_groups,handler:ResolveK8SGroups" json:"groups,omitempty"`       // SECLDoc[k8s_groups] Definition:`Kubernetes groups of the user that executed the process`
+	K8SExtra    map[string][]string `json:"extra,omitempty"`
 }
 
 // MatchedRule contains the identification of one rule that has match
@@ -354,6 +374,12 @@ type MatchedRule struct {
 	RuleTags      map[string]string
 	PolicyName    string
 	PolicyVersion string
+}
+
+// ActionTriggered defines a triggered action
+type ActionTriggered struct {
+	Name  string
+	Value string
 }
 
 // NewMatchedRule return a new MatchedRule instance
@@ -418,6 +444,8 @@ const (
 	EventTypeNotConfigured
 	// HashWasRateLimited means that the hash will be tried again later, it was rate limited
 	HashWasRateLimited
+	// HashFailed means that the hashing failed
+	HashFailed
 	// MaxHashState is used for initializations
 	MaxHashState
 )
@@ -432,6 +460,8 @@ const (
 	SHA256
 	// MD5 is used to identify a MD5 hash
 	MD5
+	// SSDEEP is used to identify a SSDEEP hash
+	SSDEEP
 	// MaxHashAlgorithm is used for initializations
 	MaxHashAlgorithm
 )
@@ -444,6 +474,8 @@ func (ha HashAlgorithm) String() string {
 		return "sha256"
 	case MD5:
 		return "md5"
+	case SSDEEP:
+		return "ssdeep"
 	default:
 		return ""
 	}
@@ -455,9 +487,9 @@ var zeroProcessContext ProcessContext
 type ProcessCacheEntry struct {
 	ProcessContext
 
-	refCount  uint64                     `field:"-" json:"-"`
-	onRelease func(_ *ProcessCacheEntry) `field:"-" json:"-"`
-	releaseCb func()                     `field:"-" json:"-"`
+	refCount  uint64                     `field:"-"`
+	onRelease func(_ *ProcessCacheEntry) `field:"-"`
+	releaseCb func()                     `field:"-"`
 }
 
 // IsContainerRoot returns whether this is a top level process in the container ID
@@ -556,7 +588,7 @@ type ExitEvent struct {
 
 // DNSEvent represents a DNS event
 type DNSEvent struct {
-	ID    uint16 `field:"id" json:"-"`                                             // SECLDoc[id] Definition:`[Experimental] the DNS request ID`
+	ID    uint16 `field:"id"`                                                      // SECLDoc[id] Definition:`[Experimental] the DNS request ID`
 	Name  string `field:"question.name,opts:length" op_override:"eval.DNSNameCmp"` // SECLDoc[question.name] Definition:`the queried domain name`
 	Type  uint16 `field:"question.type"`                                           // SECLDoc[question.type] Definition:`a two octet code which specifies the DNS question type` Constants:`DNS qtypes`
 	Class uint16 `field:"question.class"`                                          // SECLDoc[question.class] Definition:`the class looked up by the DNS question` Constants:`DNS qclasses`
@@ -564,36 +596,24 @@ type DNSEvent struct {
 	Count uint16 `field:"question.count"`                                          // SECLDoc[question.count] Definition:`the total count of questions in the DNS request`
 }
 
-// ExtraFieldHandlers handlers not hold by any field
-type ExtraFieldHandlers interface {
+// BaseExtraFieldHandlers handlers not hold by any field
+type BaseExtraFieldHandlers interface {
 	ResolveProcessCacheEntry(ev *Event) (*ProcessCacheEntry, bool)
 	ResolveContainerContext(ev *Event) (*ContainerContext, bool)
-	ResolveEventTime(ev *Event) time.Time
 	GetProcessService(ev *Event) string
-	ResolveHashes(eventType EventType, process *Process, file *FileEvent) []string
 }
 
 // ResolveProcessCacheEntry stub implementation
-func (dfh *DefaultFieldHandlers) ResolveProcessCacheEntry(ev *Event) (*ProcessCacheEntry, bool) {
+func (dfh *DefaultFieldHandlers) ResolveProcessCacheEntry(_ *Event) (*ProcessCacheEntry, bool) {
 	return nil, false
 }
 
 // ResolveContainerContext stub implementation
-func (dfh *DefaultFieldHandlers) ResolveContainerContext(ev *Event) (*ContainerContext, bool) {
+func (dfh *DefaultFieldHandlers) ResolveContainerContext(_ *Event) (*ContainerContext, bool) {
 	return nil, false
 }
 
-// ResolveEventTime stub implementation
-func (dfh *DefaultFieldHandlers) ResolveEventTime(ev *Event) time.Time {
-	return ev.Timestamp
-}
-
 // GetProcessService stub implementation
-func (dfh *DefaultFieldHandlers) GetProcessService(ev *Event) string {
+func (dfh *DefaultFieldHandlers) GetProcessService(_ *Event) string {
 	return ""
-}
-
-// ResolveHashes resolves the hash of the provided file
-func (dfh *DefaultFieldHandlers) ResolveHashes(eventType EventType, process *Process, file *FileEvent) []string {
-	return nil
 }

@@ -37,6 +37,8 @@ func NewEnvironmentListener(Config) (ServiceListener, error) {
 }
 
 // Listen starts the goroutine to detect checks based on environment
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (l *EnvironmentListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 	l.newService = newSvc
 
@@ -126,15 +128,21 @@ func (s *EnvironmentService) GetCheckNames(context.Context) []string {
 }
 
 // HasFilter is not supported
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (s *EnvironmentService) HasFilter(filter containers.FilterType) bool {
 	return false
 }
 
 // GetExtraConfig is not supported
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (s *EnvironmentService) GetExtraConfig(key string) (string, error) {
 	return "", ErrNotSupported
 }
 
 // FilterTemplates does nothing.
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (s *EnvironmentService) FilterTemplates(configs map[string]integration.Config) {
 }

@@ -14,8 +14,10 @@ var defaultFlareFiles = []string{
 	"go-routine-dump.log",
 	"health.yaml",
 	"install_info",
-	"metadata_inventories.json",
-	"metadata_v5.json",
+	"metadata/inventory/host.json",
+	"metadata/inventory/agent.json",
+	"metadata/inventory/checks.json",
+	"metadata/host.json",
 	"permissions.log",
 	"process_agent_runtime_config_dump.yaml",
 	"process-agent_tagger-list.json",
@@ -62,6 +64,15 @@ var defaultFlareFolders = []string{
 	"etc/confd/",
 	"expvar",
 	"logs",
+}
+
+// windowsFiles contains files that are specific to Windows
+var windowsFiles = []string{
+	"typeperf.txt",
+	"lodctr.txt",
+	"counter_strings.txt",
+	"servicestatus.txt",
+	"datadog.reg",
 }
 
 // untestedFiles contains some untested files that needs specific scenario which should be added later.

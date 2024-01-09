@@ -5,6 +5,7 @@
 
 //go:build linux && test
 
+// Package testutil provides utilities for testing the java tracer.
 package testutil
 
 import (
@@ -47,7 +48,7 @@ func RunJavaVersion(t testing.TB, version, class string, testdir string, waitFor
 		"TESTDIR=" + testdir,
 	}
 
-	return protocolsUtils.RunDockerServer(t, version, dir+"/../testdata/docker-compose.yml", env, waitFor, protocolsUtils.DefaultTimeout)
+	return protocolsUtils.RunDockerServer(t, version, dir+"/../testdata/docker-compose.yml", env, waitFor, protocolsUtils.DefaultTimeout, 3)
 }
 
 // FindProcessByCommandLine gets a proc name and part of its command line, and returns all PIDs matched for those conditions.
@@ -97,7 +98,7 @@ func RunJavaVersionAndWaitForRejection(t testing.TB, version, class string, test
 	}
 	configureLoggerForTest(t, &l)
 
-	require.NoError(t, protocolsUtils.RunDockerServer(t, version, dir+"/../testdata/docker-compose.yml", env, waitForCondition, time.Second*15))
+	require.NoError(t, protocolsUtils.RunDockerServer(t, version, dir+"/../testdata/docker-compose.yml", env, waitForCondition, time.Second*15, 3))
 	pids, err := FindProcessByCommandLine("java", class)
 	require.NoError(t, err)
 	require.Lenf(t, pids, 1, "found more process (%d) than expected (1)", len(pids))

@@ -69,7 +69,6 @@ type Resolver struct {
 	statsdClient    statsd.ClientInterface
 	lock            sync.RWMutex
 	mounts          map[uint32]*model.Mount
-	mountToPids     map[uint32]map[uint32]struct{}
 	pidToMounts     map[uint32]map[uint32]*model.Mount
 	minMountID      uint32 // used to find the first userspace visible mount ID
 	redemption      *simplelru.LRU[uint32, *redemptionEntry]
@@ -174,21 +173,15 @@ func (mr *Resolver) delete(mount *model.Mount) {
 				openQueue = append(openQueue, child)
 			}
 		}
+
+		for _, mounts := range mr.pidToMounts {
+			delete(mounts, mount.MountID)
+		}
 	}
 }
 
 func (mr *Resolver) finalize(mount *model.Mount) {
 	delete(mr.mounts, mount.MountID)
-
-	if pids, exists := mr.mountToPids[mount.MountID]; exists {
-		for pid := range pids {
-			if mounts, exists := mr.pidToMounts[pid]; exists {
-				delete(mounts, mount.MountID)
-			}
-		}
-		delete(mr.mountToPids, mount.MountID)
-	}
-
 }
 
 // Delete a mount from the cache
@@ -254,17 +247,7 @@ func (mr *Resolver) DelPid(pid uint32) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	mounts, exists := mr.pidToMounts[pid]
-	if !exists {
-		return
-	}
 	delete(mr.pidToMounts, pid)
-
-	for _, mount := range mounts {
-		if pids, exists := mr.mountToPids[mount.MountID]; exists {
-			delete(pids, pid)
-		}
-	}
 }
 
 func (mr *Resolver) insert(m *model.Mount, pid uint32) {
@@ -410,7 +393,7 @@ func (mr *Resolver) ResolveMountPath(mountID uint32, device uint32, pid uint32, 
 	return mr.resolveMountPath(mountID, device, pid, containerID)
 }
 
-func (mr *Resolver) syncCacheMiss(mountID uint32) {
+func (mr *Resolver) syncCacheMiss() {
 	mr.procMissStats.Inc()
 }
 
@@ -422,7 +405,7 @@ func (mr *Resolver) reSyncCache(mountID uint32, pids []uint32, containerID strin
 	}
 
 	if err := mr.syncCache(mountID, pids); err != nil {
-		mr.syncCacheMiss(mountID)
+		mr.syncCacheMiss()
 		return err
 	}
 
@@ -616,7 +599,6 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Re
 		lock:            sync.RWMutex{},
 		mounts:          make(map[uint32]*model.Mount),
 		pidToMounts:     make(map[uint32]map[uint32]*model.Mount),
-		mountToPids:     make(map[uint32]map[uint32]struct{}),
 		cacheHitsStats:  atomic.NewInt64(0),
 		procHitsStats:   atomic.NewInt64(0),
 		cacheMissStats:  atomic.NewInt64(0),

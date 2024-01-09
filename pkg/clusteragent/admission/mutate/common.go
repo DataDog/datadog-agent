@@ -11,13 +11,17 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/wI2L/jsondiff"
+	"golang.org/x/exp/slices"
+	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
+
+	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	apiServerCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -25,6 +29,7 @@ const (
 )
 
 type mutateFunc func(*corev1.Pod, string, dynamic.Interface) error
+type mutatePodExecFunc func(*corev1.PodExecOptions, string, string, *authenticationv1.UserInfo, dynamic.Interface, kubernetes.Interface) error
 
 // mutate handles mutating pods and encoding and decoding admission
 // requests and responses for the public mutate functions
@@ -44,6 +49,31 @@ func mutate(rawPod []byte, ns string, m mutateFunc, dc dynamic.Interface) ([]byt
 	}
 
 	patch, err := jsondiff.CompareJSON(rawPod, bytes) // TODO: Try to generate the patch at the mutateFunc
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare the JSON patch: %v", err)
+	}
+
+	return json.Marshal(patch)
+}
+
+// mutatePodExecOptions handles mutating PodExecOptions and encoding and decoding admission
+// requests and responses for the public mutate functions
+func mutatePodExecOptions(rawPodExecOptions []byte, name string, ns string, userInfo *authenticationv1.UserInfo, m mutatePodExecFunc, dc dynamic.Interface, apiClient kubernetes.Interface) ([]byte, error) {
+	var exec corev1.PodExecOptions
+	if err := json.Unmarshal(rawPodExecOptions, &exec); err != nil {
+		return nil, fmt.Errorf("failed to decode raw object: %v", err)
+	}
+
+	if err := m(&exec, name, ns, userInfo, dc, apiClient); err != nil {
+		return nil, err
+	}
+
+	bytes, err := json.Marshal(exec)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode the mutated Pod object: %v", err)
+	}
+
+	patch, err := jsondiff.CompareJSON(rawPodExecOptions, bytes) // TODO: Try to generate the patch at the mutateFunc
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare the JSON patch: %v", err)
 	}
@@ -196,25 +226,21 @@ func shouldInject(pod *corev1.Pod) bool {
 }
 
 // isApmInstrumentationEnabled indicates if Single Step Instrumentation is enabled for the namespace in the cluster
-// Single Step Instrumentation is enabled if:
-//   - cluster-wide configuration `apm_config.instrumentation.enabled` is true and the namespace is not excluded via `apm_config.instrumentation.disabled_namespaces`
-//   - cluster-wide configuration `apm_config.instrumentation.enabled` is false and the namespace is included via `apm_config.instrumentation.enabled_namespaces`
 func isApmInstrumentationEnabled(namespace string) bool {
 	apmInstrumentationEnabled := config.Datadog.GetBool("apm_config.instrumentation.enabled")
-	isNsEnabled := apmInstrumentationEnabled
 
+	if !apmInstrumentationEnabled {
+		log.Debugf("APM Instrumentation is disabled")
+		return false
+	}
+
+	return filterNamespace(namespace)
+}
+
+// filterNamespace returns a bool indicating if Single Step Instrumentation on the namespace
+func filterNamespace(ns string) bool {
 	apmEnabledNamespaces := config.Datadog.GetStringSlice("apm_config.instrumentation.enabled_namespaces")
 	apmDisabledNamespaces := config.Datadog.GetStringSlice("apm_config.instrumentation.disabled_namespaces")
-
-	// If Single Step Instrumentation is enabled in the cluster, enabling it in the specific namespaces is redundant
-	if apmInstrumentationEnabled && len(apmEnabledNamespaces) > 0 {
-		log.Warnf("Redundant configuration option `apm_config.instrumentation.enabled_namespaces:%v`", apmEnabledNamespaces)
-	}
-
-	// If Single Step Instrumentation is disabled in the cluster, disabling it in the specific namespaces is redundant
-	if !apmInstrumentationEnabled && len(apmDisabledNamespaces) > 0 {
-		log.Warnf("Redundant configuration option `apm_config.instrumentation.disabled_namespaces:%v`", apmDisabledNamespaces)
-	}
 
 	// apm.instrumentation.enabled_namespaces and apm.instrumentation.disabled_namespaces configuration cannot be set at the same time
 	if len(apmEnabledNamespaces) > 0 && len(apmDisabledNamespaces) > 0 {
@@ -222,23 +248,20 @@ func isApmInstrumentationEnabled(namespace string) bool {
 		return false
 	}
 
-	// Single Step Instrumentation for the namespace can override cluster-wide configuration
-	for _, ns := range apmEnabledNamespaces {
-		if ns == namespace {
-			return true
-		}
-	}
-
-	// Unless kube-system ns is explicitly enabled, always disable Single Step Instrumentation
-	if namespace == namespaceWithAlwaysDisabledInjections {
+	// Always disable Single Step Instrumentation in kube-system and Datadog namespaces
+	if (ns == namespaceWithAlwaysDisabledInjections) || (ns == apiServerCommon.GetResourcesNamespace()) {
 		return false
 	}
 
-	for _, ns := range apmDisabledNamespaces {
-		if ns == namespace {
-			return false
-		}
+	// If apm_config.instrumentation.enabled_namespaces option set, enable Single Step Instrumentation only in listed namespaces
+	if len(apmEnabledNamespaces) > 0 {
+		return slices.Contains[[]string, string](apmEnabledNamespaces, ns)
 	}
 
-	return isNsEnabled
+	// Disable Single Step Instrumentation in all excluded namespaces
+	if slices.Contains[[]string, string](apmDisabledNamespaces, ns) {
+		return false
+	}
+
+	return true
 }

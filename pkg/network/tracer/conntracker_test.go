@@ -34,6 +34,7 @@ const (
 )
 
 func TestConntrackers(t *testing.T) {
+	ebpftest.LogLevel(t, "trace")
 	t.Run("netlink", func(t *testing.T) {
 		runConntrackerTest(t, "netlink", setupNetlinkConntracker)
 	})
@@ -92,10 +93,12 @@ func runConntrackerTest(t *testing.T, name string, createFn func(*testing.T, *co
 	})
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 func setupEBPFConntracker(t *testing.T, cfg *config.Config) (netlink.Conntracker, error) {
 	return NewEBPFConntracker(cfg, nil)
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 func setupNetlinkConntracker(t *testing.T, cfg *config.Config) (netlink.Conntracker, error) {
 	cfg.ConntrackMaxStateSize = 100
 	cfg.ConntrackRateLimit = 500
@@ -125,7 +128,7 @@ func testConntracker(t *testing.T, serverIP, clientIP net.IP, ct netlink.Conntra
 		srv2 := nettestutil.StartServerTCP(t, serverIP, nonNatPort)
 		defer srv2.Close()
 
-		localAddr := nettestutil.PingTCP(t, clientIP, natPort).LocalAddr().(*net.TCPAddr)
+		localAddr := nettestutil.MustPingTCP(t, clientIP, natPort).LocalAddr().(*net.TCPAddr)
 		var trans *network.IPTranslation
 		cs := network.ConnectionStats{
 			Source: util.AddressFromNetIP(localAddr.IP),
@@ -143,7 +146,7 @@ func testConntracker(t *testing.T, serverIP, clientIP net.IP, ct netlink.Conntra
 		assert.Equal(t, util.AddressFromNetIP(serverIP), trans.ReplSrcIP)
 
 		// now dial TCP directly
-		localAddr = nettestutil.PingTCP(t, serverIP, nonNatPort).LocalAddr().(*net.TCPAddr)
+		localAddr = nettestutil.MustPingTCP(t, serverIP, nonNatPort).LocalAddr().(*net.TCPAddr)
 
 		cs = network.ConnectionStats{
 			Source: util.AddressFromNetIP(localAddr.IP),
@@ -164,7 +167,7 @@ func testConntracker(t *testing.T, serverIP, clientIP net.IP, ct netlink.Conntra
 		srv3 := nettestutil.StartServerUDP(t, serverIP, natPort)
 		defer srv3.Close()
 
-		localAddrUDP := nettestutil.PingUDP(t, clientIP, natPort).LocalAddr().(*net.UDPAddr)
+		localAddrUDP := nettestutil.MustPingUDP(t, clientIP, natPort).LocalAddr().(*net.UDPAddr)
 		var trans *network.IPTranslation
 		cs := network.ConnectionStats{
 			Source: util.AddressFromNetIP(localAddrUDP.IP),
@@ -187,7 +190,7 @@ func testConntrackerCrossNamespace(t *testing.T, ct netlink.Conntracker) {
 	ns := netlinktestutil.SetupCrossNsDNAT(t)
 
 	closer := nettestutil.StartServerTCPNs(t, net.ParseIP("2.2.2.4"), 8080, ns)
-	laddr := nettestutil.PingTCP(t, net.ParseIP("2.2.2.4"), 80).LocalAddr().(*net.TCPAddr)
+	laddr := nettestutil.MustPingTCP(t, net.ParseIP("2.2.2.4"), 80).LocalAddr().(*net.TCPAddr)
 	defer closer.Close()
 
 	testNs, err := netns.GetFromName(ns)
@@ -245,7 +248,7 @@ func testConntrackerCrossNamespaceNATonRoot(t *testing.T, ct netlink.Conntracker
 		defer netns.Set(originalNS)
 		defer close(done)
 		netns.Set(testNS)
-		laddr = nettestutil.PingTCP(t, net.ParseIP("3.3.3.3"), 80).LocalAddr().(*net.TCPAddr)
+		laddr = nettestutil.MustPingTCP(t, net.ParseIP("3.3.3.3"), 80).LocalAddr().(*net.TCPAddr)
 	}()
 	<-done
 

@@ -18,11 +18,12 @@ import (
 )
 
 var (
-	hostTagPrefix        = "host:"
-	entityIDTagPrefix    = "dd.internal.entity_id:"
-	entityIDIgnoreValue  = "none"
+	hostTagPrefix       = "host:"
+	entityIDTagPrefix   = "dd.internal.entity_id:"
+	entityIDIgnoreValue = "none"
+	//nolint:revive // TODO(AML) Fix revive linter
 	CardinalityTagPrefix = constants.CardinalityTagPrefix
-	jmxTagPrefix         = "jmx_domain:"
+	jmxCheckNamePrefix   = "dd.internal.jmx_check_name:"
 )
 
 // enrichConfig contains static parameters used in various enrichment
@@ -82,8 +83,10 @@ func extractTagsMetadata(tags []string, originFromUDS string, originFromMsg []by
 		} else if strings.HasPrefix(tag, CardinalityTagPrefix) {
 			cardinality = tag[len(CardinalityTagPrefix):]
 			continue
-		} else if strings.HasPrefix(tag, jmxTagPrefix) {
-			metricSource = metrics.MetricSourceJmxCustom
+		} else if strings.HasPrefix(tag, jmxCheckNamePrefix) {
+			checkName := tag[len(jmxCheckNamePrefix):]
+			metricSource = metrics.JMXCheckNameToMetricSource(checkName)
+			continue
 		}
 		tags[n] = tag
 		n++

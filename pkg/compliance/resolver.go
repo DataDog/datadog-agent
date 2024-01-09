@@ -69,7 +69,7 @@ func DefaultDockerProvider(ctx context.Context) (docker.CommonAPIClient, error) 
 }
 
 // DefaultLinuxAuditProvider returns the default Linux Audit client.
-func DefaultLinuxAuditProvider(ctx context.Context) (LinuxAuditClient, error) { //nolint:revive // TODO fix revive unused-parameter
+func DefaultLinuxAuditProvider(_ context.Context) (LinuxAuditClient, error) {
 	return newLinuxAuditClient()
 }
 
@@ -89,7 +89,7 @@ type ResolverOptions struct {
 
 	// StatsdClient is the statsd client used internally by the compliance
 	// resolver (optional)
-	StatsdClient *statsd.Client
+	StatsdClient statsd.ClientInterface
 
 	DockerProvider
 	KubernetesProvider
@@ -195,13 +195,13 @@ func (r *defaultResolver) ResolveInputs(ctx context.Context, rule *Rule) (Resolv
 	// the resolved inputs.
 	rootPath := r.opts.HostRoot
 	if pid := r.opts.HostRootPID; pid > 0 {
-		containerID, ok := getProcessContainerID(pid)
+		containerID, ok := utils.GetProcessContainerID(pid)
 		if ok {
-			rootPath, ok = getProcessRootPath(pid)
+			rootPath, ok = utils.GetProcessRootPath(pid)
 			if !ok {
 				return nil, fmt.Errorf("could not resolve the root path to run the resolver for container ID=%q", resolvingContext.ContainerID)
 			}
-			resolvingContext.ContainerID = containerID
+			resolvingContext.ContainerID = string(containerID)
 		}
 	}
 
@@ -498,7 +498,7 @@ func (r *defaultResolver) getProcs(ctx context.Context) ([]*process.Process, err
 	return r.procsCache, nil
 }
 
-func (r *defaultResolver) resolveGroup(ctx context.Context, spec InputSpecGroup) (interface{}, error) {
+func (r *defaultResolver) resolveGroup(_ context.Context, spec InputSpecGroup) (interface{}, error) {
 	f, err := os.Open(r.pathNormalizeToHostRoot("/etc/group"))
 	if err != nil {
 		return nil, err
@@ -532,7 +532,7 @@ func (r *defaultResolver) resolveGroup(ctx context.Context, spec InputSpecGroup)
 	return nil, nil
 }
 
-func (r *defaultResolver) resolveAudit(ctx context.Context, spec InputSpecAudit) (interface{}, error) {
+func (r *defaultResolver) resolveAudit(_ context.Context, spec InputSpecAudit) (interface{}, error) {
 	cl := r.linuxAuditCl
 	if cl == nil {
 		return nil, ErrIncompatibleEnvironment

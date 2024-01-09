@@ -11,7 +11,9 @@ import (
 	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -25,16 +27,16 @@ func adjustNetwork(cfg config.Config) {
 	limitMaxInt(cfg, spNS("max_conns_per_message"), maxConnsMessageBatchSize)
 
 	if cfg.GetBool(spNS("disable_tcp")) {
-		cfg.Set(netNS("collect_tcp_v4"), false)
-		cfg.Set(netNS("collect_tcp_v6"), false)
+		cfg.Set(netNS("collect_tcp_v4"), false, model.SourceAgentRuntime)
+		cfg.Set(netNS("collect_tcp_v6"), false, model.SourceAgentRuntime)
 	}
 	if cfg.GetBool(spNS("disable_udp")) {
-		cfg.Set(netNS("collect_udp_v4"), false)
-		cfg.Set(netNS("collect_udp_v6"), false)
+		cfg.Set(netNS("collect_udp_v4"), false, model.SourceAgentRuntime)
+		cfg.Set(netNS("collect_udp_v6"), false, model.SourceAgentRuntime)
 	}
 	if cfg.GetBool(spNS("disable_ipv6")) || !kernel.IsIPv6Enabled() {
-		cfg.Set(netNS("collect_tcp_v6"), false)
-		cfg.Set(netNS("collect_udp_v6"), false)
+		cfg.Set(netNS("collect_tcp_v6"), false, model.SourceAgentRuntime)
+		cfg.Set(netNS("collect_udp_v6"), false, model.SourceAgentRuntime)
 	}
 
 	if runtime.GOOS == "windows" {
@@ -67,7 +69,7 @@ func adjustNetwork(cfg config.Config) {
 	limitMaxInt(cfg, spNS("offset_guess_threshold"), maxOffsetThreshold)
 
 	if !cfg.GetBool(netNS("enable_root_netns")) {
-		cfg.Set(spNS("enable_conntrack_all_namespaces"), false)
+		cfg.Set(spNS("enable_conntrack_all_namespaces"), false, model.SourceAgentRuntime)
 	}
 
 	validateInt(cfg, evNS("network_process", "max_processes_tracked"), defaultMaxProcessesTracked, func(v int) error {
@@ -76,4 +78,9 @@ func adjustNetwork(cfg config.Config) {
 		}
 		return nil
 	})
+
+	if cfg.GetBool(evNS("network_process", "enabled")) && !ProcessEventDataStreamSupported() {
+		log.Warn("disabling process event monitoring as it is not supported for this kernel version")
+		cfg.Set(evNS("network_process", "enabled"), false, model.SourceAgentRuntime)
+	}
 }

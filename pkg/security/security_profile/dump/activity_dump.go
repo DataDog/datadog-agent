@@ -29,7 +29,6 @@ import (
 	adproto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
@@ -141,7 +140,7 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 		ProtobufVersion:   ProtobufVersion,
 		Start:             now,
 		End:               now.Add(adm.config.RuntimeSecurity.ActivityDumpCgroupDumpTimeout),
-		Arch:              probes.RuntimeArch,
+		Arch:              utils.RuntimeArch(),
 	}
 	ad.Host = adm.hostname
 	ad.Source = ActivityDumpSource
@@ -513,11 +512,12 @@ func (ad *ActivityDump) Insert(event *model.Event) {
 		return
 	}
 
-	if ok, err := ad.ActivityTree.Insert(event, activity_tree.Runtime, ad.adm.resolvers); ok && err == nil {
+	if ok, err := ad.ActivityTree.Insert(event, true, activity_tree.Runtime, ad.adm.resolvers); ok && err == nil {
 		// check dump size
 		ad.checkInMemorySize()
 	}
 
+	//nolint:gosimple // TODO(SEC) Fix gosimple linter
 	return
 }
 

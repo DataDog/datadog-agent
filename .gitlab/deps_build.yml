@@ -79,29 +79,10 @@ build_clang_arm64:
   variables:
     ARCH: arm64
 
-build_vcpkg_deps:
-  stage: deps_build
-  tags: ["runner:windows-docker", "windowsversion:1809"]
-  variables:
-    ARCH: "x64"
-  before_script:
-    - $vcpkgBlobSaSUrl = (aws ssm get-parameter --region us-east-1 --name ci.datadog-agent-buildimages.vcpkg_blob_sas_url --with-decryption --query "Parameter.Value" --out text)
-  script:
-    - $ErrorActionPreference = "Stop"
-    - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
-    - if (Test-Path build-out) { remove-item -recurse -force build-out }
-    - >
-      docker run --rm
-      -m 8192M
-      -v "$(Get-Location):c:\mnt"
-      -e VCPKG_BINARY_SOURCES="clear;x-azblob,${vcpkgBlobSaSUrl},readwrite"
-      486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
-      C:\mnt\tasks\winbuildscripts\build_vcpkg_deps.bat
-    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
-
 build_processed_btfhub_archive:
   rules:
-    !reference [.on_scheduled_main_or_manual]
+    - !reference [.except_mergequeue]
+    - !reference [.on_scheduled_main_or_manual]
   stage: deps_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/btf-gen$DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
   tags: ["arch:amd64"]

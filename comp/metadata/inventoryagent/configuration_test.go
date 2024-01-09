@@ -14,7 +14,7 @@ import (
 func TestGetProvidedAgentConfigurationDisable(t *testing.T) {
 	ia := getTestInventoryPayload(t, map[string]any{
 		"inventories_configuration_enabled": false,
-	})
+	}, nil)
 
 	_, err := ia.getProvidedAgentConfiguration()
 	assert.Error(t, err)
@@ -23,7 +23,7 @@ func TestGetProvidedAgentConfigurationDisable(t *testing.T) {
 func TestGetProvidedAgentConfiguration(t *testing.T) {
 	ia := getTestInventoryPayload(t, map[string]any{
 		"inventories_configuration_enabled": true,
-	})
+	}, nil)
 
 	data, err := ia.getProvidedAgentConfiguration()
 	assert.NoError(t, err)
@@ -33,7 +33,7 @@ func TestGetProvidedAgentConfiguration(t *testing.T) {
 func TestGetFullAgentConfigurationDisable(t *testing.T) {
 	ia := getTestInventoryPayload(t, map[string]any{
 		"inventories_configuration_enabled": false,
-	})
+	}, nil)
 
 	_, err := ia.getFullAgentConfiguration()
 	assert.Error(t, err)
@@ -42,9 +42,104 @@ func TestGetFullAgentConfigurationDisable(t *testing.T) {
 func TestGetFullAgentConfiguration(t *testing.T) {
 	ia := getTestInventoryPayload(t, map[string]any{
 		"inventories_configuration_enabled": true,
-	})
+	}, nil)
 
 	data, err := ia.getFullAgentConfiguration()
+	assert.NoError(t, err)
+	assert.NotEmpty(t, data)
+}
+
+func TestGetAgentFileConfigurationDisable(t *testing.T) {
+	ia := getTestInventoryPayload(t, map[string]any{
+		"inventories_configuration_enabled": false,
+	}, nil)
+
+	_, err := ia.getFullAgentConfiguration()
+	assert.Error(t, err)
+}
+
+func TestGetAgentFileConfiguration(t *testing.T) {
+	ia := getTestInventoryPayload(t, map[string]any{
+		"inventories_configuration_enabled": true,
+	}, nil)
+
+	data, err := ia.getAgentFileConfiguration()
+	assert.NoError(t, err)
+	assert.NotEmpty(t, data)
+}
+
+func TestGetAgentEnvVarConfigurationDisable(t *testing.T) {
+	ia := getTestInventoryPayload(t, map[string]any{
+		"inventories_configuration_enabled": false,
+	}, nil)
+
+	_, err := ia.getAgentEnvVarConfiguration()
+	assert.Error(t, err)
+}
+
+func TestGetAgentEnvVarConfiguration(t *testing.T) {
+	ia := getTestInventoryPayload(t, map[string]any{
+		"inventories_configuration_enabled": true,
+	}, nil)
+
+	data, err := ia.getAgentEnvVarConfiguration()
+	assert.NoError(t, err)
+	assert.NotEmpty(t, data)
+}
+
+func TestGetAgentRuntimeConfigurationDisable(t *testing.T) {
+	ia := getTestInventoryPayload(t, map[string]any{
+		"inventories_configuration_enabled": false,
+	}, nil)
+
+	_, err := ia.getAgentRuntimeConfiguration()
+	assert.Error(t, err)
+}
+
+func TestGetAgentRuntimeConfiguration(t *testing.T) {
+	ia := getTestInventoryPayload(t, map[string]any{
+		"inventories_configuration_enabled": true,
+	}, nil)
+
+	data, err := ia.getAgentRuntimeConfiguration()
+	assert.NoError(t, err)
+	assert.NotEmpty(t, data)
+}
+
+func TestGetAgentRemoteConfigurationDisable(t *testing.T) {
+	ia := getTestInventoryPayload(t, map[string]any{
+		"inventories_configuration_enabled": false,
+	}, nil)
+
+	_, err := ia.getAgentRemoteConfiguration()
+	assert.Error(t, err)
+}
+
+func TestGetAgentRemoteConfiguration(t *testing.T) {
+	ia := getTestInventoryPayload(t, map[string]any{
+		"inventories_configuration_enabled": true,
+	}, nil)
+
+	data, err := ia.getAgentRemoteConfiguration()
+	assert.NoError(t, err)
+	assert.NotEmpty(t, data)
+}
+
+func TestGetAgentCliConfigurationDisable(t *testing.T) {
+	ia := getTestInventoryPayload(t, map[string]any{
+		"inventories_configuration_enabled": false,
+	}, nil)
+
+	_, err := ia.getAgentCliConfiguration()
+	assert.Error(t, err)
+}
+
+func TestGetAgentCliConfiguration(t *testing.T) {
+	ia := getTestInventoryPayload(t, map[string]any{
+		"inventories_configuration_enabled": true,
+	}, nil)
+
+	data, err := ia.getAgentCliConfiguration()
 	assert.NoError(t, err)
 	assert.NotEmpty(t, data)
 }
