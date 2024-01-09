@@ -80,6 +80,7 @@ func (t *kernelTelemetry) Log() {
 	log.Debugf("http2 kernel telemetry summary: %s", t.metricGroup.Summary())
 }
 
+// Sub generates a new HTTP2Telemetry object by subtracting the values of this HTTP2Telemetry object from the other
 func (t *HTTP2Telemetry) Sub(other HTTP2Telemetry) *HTTP2Telemetry {
 	return &HTTP2Telemetry{
 		Request_seen:                     t.Request_seen - other.Request_seen,
@@ -89,15 +90,15 @@ func (t *HTTP2Telemetry) Sub(other HTTP2Telemetry) *HTTP2Telemetry {
 		Path_exceeds_frame:               t.Path_exceeds_frame - other.Path_exceeds_frame,
 		Exceeding_max_interesting_frames: t.Exceeding_max_interesting_frames - other.Exceeding_max_interesting_frames,
 		Exceeding_max_frames_to_filter:   t.Exceeding_max_frames_to_filter - other.Exceeding_max_frames_to_filter,
-		Path_size_bucket:                 computeDifferences(t.Path_size_bucket, other.Path_size_bucket),
+		Path_size_bucket:                 computePathSizeBucketDifferences(t.Path_size_bucket, other.Path_size_bucket),
 	}
 }
 
-func computeDifferences(arr1, arr2 [8]uint64) [8]uint64 {
+func computePathSizeBucketDifferences(pathSizeBucket, otherPathSizeBucket [8]uint64) [8]uint64 {
 	var result [8]uint64
 
 	for i := 0; i < 8; i++ {
-		result[i] = arr1[i] - arr2[i]
+		result[i] = pathSizeBucket[i] - otherPathSizeBucket[i]
 	}
 
 	return result
