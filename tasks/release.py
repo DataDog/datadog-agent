@@ -6,6 +6,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 from collections import OrderedDict
 from datetime import date
 from time import sleep
@@ -1413,15 +1414,55 @@ def cleanup(ctx):
 
 
 @task
-def check_omnibus_branches(_):
-    for branch in ['nightly', 'nightly-a7']:
-        omnibus_ruby_version = _get_release_json_value(f'{branch}::OMNIBUS_RUBY_VERSION')
-        omnibus_software_version = _get_release_json_value(f'{branch}::OMNIBUS_SOFTWARE_VERSION')
-        version_re = re.compile(r'(\d+)\.(\d+)\.x')
-        if omnibus_ruby_version != 'datadog-5.5.0' and not version_re.match(omnibus_ruby_version):
-            raise Exit(code=1, message=f'omnibus-ruby version [{omnibus_ruby_version}] is not mergeable')
-        if omnibus_software_version != 'master' and not version_re.match(omnibus_software_version):
-            raise Exit(code=1, message=f'omnibus-software version [{omnibus_software_version}] is not mergeable')
+def check_omnibus_branches(ctx):
+    base_branch = _get_release_json_value('base_branch')
+    if base_branch == 'main':
+        omnibus_ruby_branch = 'datadog-5.5.0'
+        omnibus_software_branch = 'master'
+    else:
+        omnibus_ruby_branch = base_branch
+        omnibus_software_branch = base_branch
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ctx.run(
+            f'git clone --depth=50 https://github.com/datadog/omnibus-ruby --branch {omnibus_ruby_branch} {tmpdir}/omnibus-ruby',
+            hide='stdout',
+        )
+        ctx.run(
+            f'git clone --depth=50 https://github.com/datadog/omnibus-software --branch {omnibus_software_branch} {tmpdir}/omnibus-software',
+            hide='stdout',
+        )
+
+        for branch in ['nightly', 'nightly-a7']:
+            omnibus_ruby_commit = _get_release_json_value(f'{branch}::OMNIBUS_RUBY_VERSION')
+            if (
+                ctx.run(
+                    f'git -C {tmpdir}/omnibus-ruby branch --contains {omnibus_ruby_commit}', warn=True, hide=True
+                ).exited
+                != 0
+            ):
+                raise Exit(
+                    code=1,
+                    message=f'omnibus-ruby commit ({omnibus_ruby_commit}) is not in the expected branch ({omnibus_ruby_branch}). The PR is not mergeable',
+                )
+            else:
+                print(f'Commit {omnibus_ruby_commit} was found in omnibus-ruby branch {omnibus_ruby_branch}')
+            omnibus_software_commit = _get_release_json_value(f'{branch}::OMNIBUS_SOFTWARE_VERSION')
+            if (
+                ctx.run(
+                    f'git -C {tmpdir}/omnibus-software branch --contains {omnibus_software_commit}',
+                    warn=True,
+                    hide=True,
+                ).exited
+                != 0
+            ):
+                raise Exit(
+                    code=1,
+                    message=f'omnibus-software commit ({omnibus_software_commit}) is not in the expected branch ({omnibus_software_branch}). The PR is not mergeable',
+                )
+            else:
+                print(
+                    f'Commit {omnibus_software_commit} was found in omnibus-software branch {omnibus_software_branch}'
+                )
     return True
 
 
