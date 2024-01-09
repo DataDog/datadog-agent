@@ -9,6 +9,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	pingcheck "github.com/DataDog/datadog-agent/pkg/networkdevice/pinger"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -29,7 +30,7 @@ type pinger struct{}
 var Pinger = module.Factory{
 	Name:             config.PingModule,
 	ConfigNamespaces: []string{"ping_config"},
-	Fn: func(cfg *config.Config) (module.Module, error) {
+	Fn: func(cfg *sysconfigtypes.Config) (module.Module, error) {
 		return &pinger{}, nil
 	},
 }
