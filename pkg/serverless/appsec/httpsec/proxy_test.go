@@ -26,7 +26,7 @@ func init() {
 
 func TestProxyLifecycleProcessor(t *testing.T) {
 	t.Setenv("DD_SERVERLESS_APPSEC_ENABLED", "true")
-	lp, err := appsec.New()
+	lp, err := appsec.New(nil)
 	if err != nil {
 		t.Skipf("appsec disabled: %v", err)
 	}
