@@ -672,7 +672,7 @@ require (
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
-	github.com/cloudflare/circl v1.3.3 // indirect
+	github.com/cloudflare/circl v1.3.7 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/ebitengine/purego v0.5.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
@@ -750,7 +750,7 @@ replace (
 replace sigs.k8s.io/controller-runtime v0.11.2 => sigs.k8s.io/controller-runtime v0.15.0
 
 // Fixes CVE-2023-1732, imported by nikos
-replace github.com/cloudflare/circl v1.1.0 => github.com/cloudflare/circl v1.3.3
+replace github.com/cloudflare/circl v1.1.0 => github.com/cloudflare/circl v1.3.7
 
 // Fixes CVE-2023-26054, imported by trivy
 replace github.com/moby/buildkit v0.11.0 => github.com/moby/buildkit v0.11.4
