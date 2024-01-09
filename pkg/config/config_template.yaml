@@ -1161,8 +1161,8 @@ api_key:
   #
   # force_use_tcp: true
 
-  ## @param use_compression - boolean - optional - default: false
-  ## @env DD_LOGS_CONFIG_USE_COMPRESSION - boolean - optional - default: false
+  ## @param use_compression - boolean - optional - default: true
+  ## @env DD_LOGS_CONFIG_USE_COMPRESSION - boolean - optional - default: true
   ## This parameter is available when sending logs with HTTPS. If enabled, the Agent
   ## compresses logs before sending them.
   #
