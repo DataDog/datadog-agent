@@ -26,6 +26,7 @@ import (
 )
 
 var zero uint64
+var tcpv6Enabled, udpv6Enabled bool
 
 // These constants should be in sync with the equivalent definitions in the ebpf program.
 const (
@@ -40,7 +41,7 @@ const (
 	notApplicable = 99999 // An arbitrary large number to indicate that the value should be ignored
 )
 
-var ipv6Variable sync.Once
+var ipv6Config sync.Once
 
 var stateString = map[State]string{
 	StateUninitialized: "uninitialized",
@@ -128,11 +129,9 @@ func enableProbe(enabled map[probes.ProbeFuncName]struct{}, name probes.ProbeFun
 }
 
 func setIpv6Configuration(c *config.Config) (bool, bool) {
-	var tcpv6Enabled, udpv6Enabled bool
-	ipv6Variable.Do(func() {
+	ipv6Config.Do(func() {
 		tcpv6Enabled = c.CollectTCPv6Conns
 		udpv6Enabled = c.CollectUDPv6Conns
-
 		if c.CollectUDPv6Conns {
 			kv, err := kernel.HostVersion()
 			if err != nil {

@@ -1089,18 +1089,6 @@ type tracerOffsets struct {
 	err     error
 }
 
-func boolConst(name string, value bool) manager.ConstantEditor {
-	c := manager.ConstantEditor{
-		Name:  name,
-		Value: uint64(1),
-	}
-	if !value {
-		c.Value = uint64(0)
-	}
-
-	return c
-}
-
 func (o *tracerOffsets) Offsets(cfg *config.Config) ([]manager.ConstantEditor, error) {
 	if o.err != nil {
 		return nil, o.err
@@ -1112,7 +1100,6 @@ func (o *tracerOffsets) Offsets(cfg *config.Config) ([]manager.ConstantEditor, e
 		return nil, o.err
 	}
 	defer offsetBuf.Close()
-
 	return RunOffsetGuessing(cfg, offsetBuf, NewTracerOffsetGuesser)
 }
 
