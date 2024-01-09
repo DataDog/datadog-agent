@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -78,6 +79,12 @@ import (
 
 	"github.com/spf13/cobra"
 )
+
+func init() {
+	// TODO: avoid using gob for IPC when we have a protobuf
+	gob.Register(&sbommodel.SBOMEntity_Cyclonedx{})
+	gob.Register(&sbommodel.SBOMEntity_Error{})
+}
 
 const (
 	scannersFork = false
@@ -217,11 +224,11 @@ type (
 	}
 
 	scanResult struct {
-		scan     *scanTask
-		err      error
-		sbom     *sbommodel.SBOMEntity
-		duration time.Duration
-		findings []*finding
+		Scan     *scanTask
+		Err      error
+		SBOM     *sbommodel.SBOMEntity
+		Duration time.Duration
+		Findings []*finding
 	}
 
 	ebsVolume struct {
@@ -244,7 +251,7 @@ func makeScanTaskID(s *scanTask) string {
 
 func (s scanTask) Dir(name string) string {
 	name = strings.ToLower(name)
-	name = regexp.MustCompile("[^a-z0-9_-]").ReplaceAllString(name, "")
+	name = regexp.MustCompile("[^a-z0-9_.-]").ReplaceAllString(name, "")
 	return filepath.Join(scansRootDir, s.ID, name)
 }
 
@@ -261,7 +268,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "ERROR: %s\n", err)
 		os.Exit(-1)
 	}
-	os.Exit(1)
+	os.Exit(0)
 }
 
 func rootCommand() *cobra.Command {
@@ -332,13 +339,16 @@ func runCommand() *cobra.Command {
 }
 
 func runScannerCommand() *cobra.Command {
+	var sock string
 	cmd := &cobra.Command{
 		Use:   "run-scanner",
 		Short: "Runs a scanner (fork/exec model)",
-		RunE: runWithModules(func(cmd *cobra.Command, args []string) error {
-			return runScannerCmd()
-		}),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runScannerCmd(sock)
+		},
 	}
+	cmd.Flags().StringVar(&sock, "sock", "", "path to unix socket for IPC")
+	cmd.MarkFlagRequired("sock")
 	return cmd
 }
 
@@ -496,24 +506,45 @@ func runCmd(pidfilePath string, poolSize int, allowedScanTypes []string) error {
 	return nil
 }
 
-func runScannerCmd() error {
+func runScannerCmd(sock string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	var opts scannerOptions
+
+	conn, err := net.Dial("unix", sock)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
 	// TODO: use unix socket instead of stdout / stdin
-	dec := gob.NewDecoder(os.Stdin)
-	enc := gob.NewEncoder(os.Stdout)
+	dec := gob.NewDecoder(conn)
+	enc := gob.NewEncoder(conn)
 	if err := dec.Decode(&opts); err != nil {
 		return err
 	}
+
 	resultsCh := make(chan scanResult)
 	go func() {
-		launchScanner(ctx, resultsCh, opts)
+		start := time.Now()
+		switch opts.Scanner {
+		case "vulns":
+			sbom, err := launchScannerTrivy(ctx, opts)
+			resultsCh <- scanResult{Err: err, Scan: opts.Scan, SBOM: sbom, Duration: time.Since(start)}
+		case "malware":
+			findings, err := launchScannerMalware(ctx, opts)
+			resultsCh <- scanResult{Err: err, Scan: opts.Scan, Findings: findings, Duration: time.Since(start)}
+		default:
+			panic("unreachable")
+		}
 		close(resultsCh)
 	}()
+
 	for result := range resultsCh {
-		_ = enc.Encode(result)
+		if err := enc.Encode(result); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -1237,40 +1268,40 @@ func (s *sideScanner) start(ctx context.Context) {
 	go func() {
 		defer func() { done <- struct{}{} }()
 		for result := range s.resultsCh {
-			if result.err != nil {
-				log.Errorf("task %s reported a scanning failure: %v", result.scan, result.err)
-				if err := statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, tagFailure(result.scan, result.err), 1.0); err != nil {
+			if result.Err != nil {
+				log.Errorf("task %s reported a scanning failure: %v", result.Scan, result.Err)
+				if err := statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, tagFailure(result.Scan, result.Err), 1.0); err != nil {
 					log.Warnf("failed to send metric: %v", err)
 				}
 			} else {
-				if result.sbom != nil {
-					if hasResults(result.sbom) {
-						log.Debugf("scan %s finished successfully (took %s)", result.scan, result.duration)
-						if err := statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, tagSuccess(result.scan), 1.0); err != nil {
+				if result.SBOM != nil {
+					if hasResults(result.SBOM) {
+						log.Debugf("scan %s finished successfully (took %s)", result.Scan, result.Duration)
+						if err := statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, tagSuccess(result.Scan), 1.0); err != nil {
 							log.Warnf("failed to send metric: %v", err)
 						}
 					} else {
-						log.Debugf("scan %s finished successfully without results (took %s)", result.scan, result.duration)
-						if err := statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, tagNoResult(result.scan), 1.0); err != nil {
+						log.Debugf("scan %s finished successfully without results (took %s)", result.Scan, result.Duration)
+						if err := statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, tagNoResult(result.Scan), 1.0); err != nil {
 							log.Warnf("failed to send metric: %v", err)
 						}
 					}
-					if err := s.sendSBOM(result.sbom); err != nil {
+					if err := s.sendSBOM(result.SBOM); err != nil {
 						log.Errorf("failed to send SBOM: %v", err)
 					}
 					if s.printResults {
-						fmt.Printf("scanning SBOM result %s (took %s): %s\n", result.scan, result.duration, prototext.Format(result.sbom))
+						fmt.Printf("scanning SBOM result %s (took %s): %s\n", result.Scan, result.Duration, prototext.Format(result.SBOM))
 					}
 				}
-				if result.findings != nil {
-					log.Debugf("sending findings for scan %s", result.scan)
-					if err := statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, tagSuccess(result.scan), 1.0); err != nil {
+				if result.Findings != nil {
+					log.Debugf("sending Findings for scan %s", result.Scan)
+					if err := statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, tagSuccess(result.Scan), 1.0); err != nil {
 						log.Warnf("failed to send metric: %v", err)
 					}
-					s.sendFindings(result.findings)
+					s.sendFindings(result.Findings)
 					if s.printResults {
-						b, _ := json.MarshalIndent(result.findings, "", "  ")
-						fmt.Printf("scanning findings result %s (took %s): %s\n", result.scan, result.duration, string(b))
+						b, _ := json.MarshalIndent(result.Findings, "", "  ")
+						fmt.Printf("scanning findings result %s (took %s): %s\n", result.Scan, result.Duration, string(b))
 					}
 				}
 			}
@@ -1968,7 +1999,7 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 				start := time.Now()
 				ctrMountPoints, err := mountContainers(ctx, scan, root)
 				if err != nil {
-					resultsCh <- scanResult{err: err, scan: scan, duration: time.Since(start)}
+					resultsCh <- scanResult{Err: err, Scan: scan, Duration: time.Since(start)}
 				} else {
 					for _, ctrMnt := range ctrMountPoints {
 						entityID, entityTags := containerTags(ctrMnt)
@@ -2012,6 +2043,23 @@ type scannerOptions struct {
 	EntityTags  []string
 }
 
+func (o scannerOptions) ID() string {
+	h := sha256.New()
+	h.Write([]byte(o.Scanner))
+	h.Write([]byte(o.Root))
+	h.Write([]byte(o.Scan.ID))
+	h.Write([]byte(o.Mode))
+	if o.SnapshotARN != nil {
+		h.Write([]byte(o.SnapshotARN.String()))
+	}
+	h.Write([]byte(strconv.Itoa(int(o.EntityType))))
+	h.Write([]byte(o.EntityID))
+	for _, tag := range o.EntityTags {
+		h.Write([]byte(tag))
+	}
+	return o.Scanner + "-" + hex.EncodeToString(h.Sum(nil)[:8])
+}
+
 func launchScanner(ctx context.Context, resultsCh chan scanResult, opts scannerOptions) {
 	start := time.Now()
 
@@ -2020,54 +2068,67 @@ func launchScanner(ctx context.Context, resultsCh chan scanResult, opts scannerO
 		defer cancel()
 		exe, err := os.Executable()
 		if err != nil {
-			resultsCh <- scanResult{err: err, scan: opts.Scan, duration: time.Since(start)}
+			resultsCh <- scanResult{Err: err, Scan: opts.Scan, Duration: time.Since(start)}
 			return
 		}
 
-		cmd := exec.CommandContext(ctx, exe, "run-scanner")
-		if err := cmd.Start(); err != nil {
-			resultsCh <- scanResult{err: err, scan: opts.Scan, duration: time.Since(start)}
-			return
-		}
-
-		// TODO: use unix socket instead of stdout / stdin
-		w, err := cmd.StdinPipe()
+		sockName := filepath.Join(opts.Scan.Dir(opts.ID() + ".sock"))
+		l, err := net.Listen("unix", sockName)
 		if err != nil {
-			resultsCh <- scanResult{err: err, scan: opts.Scan, duration: time.Since(start)}
+			resultsCh <- scanResult{Err: err, Scan: opts.Scan, Duration: time.Since(start)}
 			return
 		}
-		defer w.Close()
-		r, err := cmd.StdoutPipe()
-		if err != nil {
-			resultsCh <- scanResult{err: err, scan: opts.Scan, duration: time.Since(start)}
-			return
-		}
-		defer r.Close()
+		defer l.Close()
 
-		enc := gob.NewEncoder(w)
-		dec := gob.NewDecoder(r)
-		var result scanResult
-		if err := enc.Encode(opts); err != nil {
-			resultsCh <- scanResult{err: err, scan: opts.Scan, duration: time.Since(start)}
+		ready := make(chan struct{})
+
+		go func() {
+			ready <- struct{}{}
+			conn, err := l.Accept()
+			if err != nil {
+				if errors.Is(err, net.ErrClosed) {
+					return
+				}
+				resultsCh <- scanResult{Err: err, Scan: opts.Scan, Duration: time.Since(start)}
+				return
+			}
+			defer conn.Close()
+			if err != nil {
+				resultsCh <- scanResult{Err: err, Scan: opts.Scan, Duration: time.Since(start)}
+				return
+			}
+
+			enc := gob.NewEncoder(conn)
+			dec := gob.NewDecoder(conn)
+			var result scanResult
+			if err := enc.Encode(opts); err != nil {
+				resultsCh <- scanResult{Err: err, Scan: opts.Scan, Duration: time.Since(start)}
+				return
+			}
+			if err := dec.Decode(&result); err != nil {
+				resultsCh <- scanResult{Err: err, Scan: opts.Scan, Duration: time.Since(start)}
+				return
+			}
+			resultsCh <- result
+		}()
+
+		<-ready
+
+		cmd := exec.CommandContext(ctx, exe, "run-scanner", "--sock", sockName)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			resultsCh <- scanResult{Err: err, Scan: opts.Scan, Duration: time.Since(start)}
 			return
 		}
-		if err := dec.Decode(&result); err != nil {
-			resultsCh <- scanResult{err: err, scan: opts.Scan, duration: time.Since(start)}
-			return
-		}
-		if err := cmd.Wait(); err != nil {
-			resultsCh <- scanResult{err: err, scan: opts.Scan, duration: time.Since(start)}
-			return
-		}
-		resultsCh <- result
 	} else {
 		switch opts.Scanner {
 		case "vulns":
 			sbom, err := launchScannerTrivy(ctx, opts)
-			resultsCh <- scanResult{err: err, scan: opts.Scan, sbom: sbom, duration: time.Since(start)}
+			resultsCh <- scanResult{Err: err, Scan: opts.Scan, SBOM: sbom, Duration: time.Since(start)}
 		case "malware":
 			findings, err := launchScannerMalware(ctx, opts)
-			resultsCh <- scanResult{err: err, scan: opts.Scan, findings: findings, duration: time.Since(start)}
+			resultsCh <- scanResult{Err: err, Scan: opts.Scan, Findings: findings, Duration: time.Since(start)}
 		default:
 			panic("unreachable")
 		}
