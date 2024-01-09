@@ -119,8 +119,7 @@ func deployAgent(ctx *pulumi.Context, awsEnv *awsResources.Environment, kindKube
 			ValuesYAML: pulumi.AssetOrArchiveArray{
 				pulumi.NewStringAsset(customValues),
 			},
-			Fakeintake:         fakeIntake,
-			EnableOrchestrator: false,
+			Fakeintake: fakeIntake,
 		}, nil)
 		if err != nil {
 			return nil, err

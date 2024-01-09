@@ -114,6 +114,12 @@ func NewClient(fakeIntakeURL string) *Client {
 	}
 }
 
+// PayloadFilter is used to filter payloads by name and resource type
+type PayloadFilter struct {
+	Name         string
+	ResourceType agentmodel.MessageType
+}
+
 func (c *Client) getMetrics() error {
 	payloads, err := c.getFakePayloads(metricsEndpoint)
 	if err != nil {
@@ -750,9 +756,4 @@ func (c *Client) RouteStats() (map[string]int, error) {
 	}
 
 	return routes, nil
-}
-
-type PayloadFilter struct {
-	Name         string
-	ResourceType agentmodel.MessageType
 }

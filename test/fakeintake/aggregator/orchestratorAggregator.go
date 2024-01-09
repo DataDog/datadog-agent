@@ -68,6 +68,7 @@ func (p OrchestratorPayload) name() string {
 	return p.Name
 }
 
+// GetTags returns the tags within the payload
 func (p OrchestratorPayload) GetTags() []string {
 	return p.Tags
 }
