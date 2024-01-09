@@ -54,6 +54,7 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 	var err error
 	var compressor *stream.Compressor
 	buf := bufferContext.PrecompressionBuf
+	buf.Reset()
 	ps := molecule.NewProtoStream(buf)
 	payloads := transaction.BytesPayloads{}
 
