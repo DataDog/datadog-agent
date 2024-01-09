@@ -10,6 +10,7 @@ package offsetguess
 import (
 	"fmt"
 	"math"
+	"sync"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -20,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -37,6 +39,8 @@ const (
 
 	notApplicable = 99999 // An arbitrary large number to indicate that the value should be ignored
 )
+
+var ipv6Variable sync.Once
 
 var stateString = map[State]string{
 	StateUninitialized: "uninitialized",
@@ -121,6 +125,27 @@ func idPair(name probes.ProbeFuncName) manager.ProbeIdentificationPair {
 
 func enableProbe(enabled map[probes.ProbeFuncName]struct{}, name probes.ProbeFuncName) {
 	enabled[name] = struct{}{}
+}
+
+func setIpv6Configuration(c *config.Config) (bool, bool) {
+	var tcpv6Enabled, udpv6Enabled bool
+	ipv6Variable.Do(func() {
+		tcpv6Enabled = c.CollectTCPv6Conns
+		udpv6Enabled = c.CollectUDPv6Conns
+
+		if c.CollectUDPv6Conns {
+			kv, err := kernel.HostVersion()
+			if err != nil {
+				return
+			}
+			if kv >= kernel.VersionCode(5, 18, 0) {
+				_cfg := *c
+				_cfg.CollectUDPv6Conns = false
+				c = &_cfg
+			}
+		}
+	})
+	return tcpv6Enabled, udpv6Enabled
 }
 
 func setupOffsetGuesser(guesser OffsetGuesser, config *config.Config, buf bytecode.AssetReader) error {

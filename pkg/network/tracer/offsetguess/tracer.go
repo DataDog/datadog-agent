@@ -725,8 +725,7 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 		cProcName[i] = int8(ch)
 	}
 
-	t.guessUDPv6 = cfg.CollectUDPv6Conns
-	t.guessTCPv6 = cfg.CollectTCPv6Conns
+	t.guessTCPv6, t.guessUDPv6 = setIpv6Configuration(cfg)
 	t.status = &TracerStatus{
 		State: uint64(StateChecking),
 		Proc:  Proc{Comm: cProcName},
@@ -1103,52 +1102,8 @@ func boolConst(name string, value bool) manager.ConstantEditor {
 }
 
 func (o *tracerOffsets) Offsets(cfg *config.Config) ([]manager.ConstantEditor, error) {
-	fromConfig := func(c *config.Config, offsets []manager.ConstantEditor) []manager.ConstantEditor {
-		//nolint:revive // TODO(NET) Fix revive linter
-		var foundTcp, foundUdp bool
-		for o := range offsets {
-			switch offsets[o].Name {
-			case "tcpv6_enabled":
-				offsets[o] = boolConst("tcpv6_enabled", c.CollectTCPv6Conns)
-				foundTcp = true
-			case "udpv6_enabled":
-				offsets[o] = boolConst("udpv6_enabled", c.CollectUDPv6Conns)
-				foundUdp = true
-			}
-			if foundTcp && foundUdp {
-				break
-			}
-		}
-		if !foundTcp {
-			offsets = append(offsets, boolConst("tcpv6_enabled", c.CollectTCPv6Conns))
-		}
-		if !foundUdp {
-			offsets = append(offsets, boolConst("udpv6_enabled", c.CollectUDPv6Conns))
-		}
-
-		return offsets
-	}
-
 	if o.err != nil {
 		return nil, o.err
-	}
-
-	if cfg.CollectUDPv6Conns {
-		kv, err := kernel.HostVersion()
-		if err != nil {
-			return nil, err
-		}
-
-		if kv >= kernel.VersionCode(5, 18, 0) {
-			_cfg := *cfg
-			_cfg.CollectUDPv6Conns = false
-			cfg = &_cfg
-		}
-	}
-
-	if len(o.offsets) > 0 {
-		// already run
-		return fromConfig(cfg, o.offsets), o.err
 	}
 
 	offsetBuf, err := netebpf.ReadOffsetBPFModule(cfg.BPFDir, cfg.BPFDebug)
@@ -1158,8 +1113,7 @@ func (o *tracerOffsets) Offsets(cfg *config.Config) ([]manager.ConstantEditor, e
 	}
 	defer offsetBuf.Close()
 
-	o.offsets, o.err = RunOffsetGuessing(cfg, offsetBuf, NewTracerOffsetGuesser)
-	return fromConfig(cfg, o.offsets), o.err
+	return RunOffsetGuessing(cfg, offsetBuf, NewTracerOffsetGuesser)
 }
 
 func (o *tracerOffsets) Reset() {

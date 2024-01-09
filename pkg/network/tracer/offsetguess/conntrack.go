@@ -48,21 +48,14 @@ type conntrackOffsetGuesser struct {
 
 //nolint:revive // TODO(NET) Fix revive linter
 func NewConntrackOffsetGuesser(cfg *config.Config) (OffsetGuesser, error) {
-	consts, err := TracerOffsets.Offsets(cfg)
-	if err != nil {
-		return nil, err
+	tcpv6Enabled, udpv6Enabled := setIpv6Configuration(cfg)
+	var tcpv6EnabledConst, udpv6EnabledConst uint64
+	if tcpv6Enabled {
+		tcpv6EnabledConst = 1
 	}
-
-	var tcpv6Enabled, udpv6Enabled uint64
-	for _, c := range consts {
-		switch c.Name {
-		case "tcpv6_enabled":
-			tcpv6Enabled = c.Value.(uint64)
-		case "udpv6_enabled":
-			udpv6Enabled = c.Value.(uint64)
-		}
+	if udpv6Enabled {
+		udpv6EnabledConst = 1
 	}
-
 	return &conntrackOffsetGuesser{
 		m: &manager.Manager{
 			Maps: []*manager.Map{
@@ -78,8 +71,8 @@ func NewConntrackOffsetGuesser(cfg *config.Config) (OffsetGuesser, error) {
 				{ProbeIdentificationPair: idPair(probes.NetDevQueue)}},
 		},
 		status:       &ConntrackStatus{},
-		tcpv6Enabled: tcpv6Enabled,
-		udpv6Enabled: udpv6Enabled,
+		tcpv6Enabled: tcpv6EnabledConst,
+		udpv6Enabled: udpv6EnabledConst,
 	}, nil
 }
 
@@ -95,7 +88,7 @@ func (c *conntrackOffsetGuesser) Close() {
 }
 
 //nolint:revive // TODO(NET) Fix revive linter
-func (c *conntrackOffsetGuesser) Probes(cfg *config.Config) (map[probes.ProbeFuncName]struct{}, error) {
+func (c *conntrackOffsetGuesser) Probes(*config.Config) (map[probes.ProbeFuncName]struct{}, error) {
 	p := map[probes.ProbeFuncName]struct{}{}
 	enableProbe(p, probes.ConntrackHashInsert)
 	return p, nil
@@ -280,6 +273,7 @@ func (c *conntrackOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEd
 
 	for _, ns := range nss {
 		var consts []manager.ConstantEditor
+
 		if consts, err = c.runOffsetGuessing(cfg, ns, mp); err == nil {
 			return consts, nil
 		}
