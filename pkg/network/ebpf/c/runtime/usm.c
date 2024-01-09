@@ -171,7 +171,10 @@ int uprobe__crypto_tls_Conn_Write__return(struct pt_regs *ctx) {
     log_debug("[go-tls-write] processing %s\n", call_data_ptr->b_data);
     char *buffer_ptr = (char*)call_data_ptr->b_data;
     bpf_map_delete_elem(&go_tls_write_args, &call_key);
-    tls_process(ctx, t, buffer_ptr, bytes_written, GO);
+    conn_tuple_t copy = *t;
+    normalize_tuple(&copy);
+    flip_tuple(&copy);
+    tls_process(ctx, &copy, buffer_ptr, bytes_written, GO);
     return 0;
 }
 
@@ -269,7 +272,7 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
     // The read tuple should be flipped (compared to the write tuple).
     // tls_process and the appropriate parsers will flip it back if needed.
     conn_tuple_t copy = *t;
-    flip_tuple(&copy);
+    normalize_tuple(&copy);
     tls_process(ctx, &copy, buffer_ptr, bytes_read, GO);
     return 0;
 }
