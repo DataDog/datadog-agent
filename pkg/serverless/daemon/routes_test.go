@@ -330,6 +330,36 @@ func TestStartEndInvocationSpanParenting(t *testing.T) {
 	}
 }
 
+func TestStartEndInvocationIsExecutionSpanComplete(t *testing.T) {
+	assert := assert.New(t)
+	port := testutil.FreeTCPPort(t)
+	d := StartDaemon(fmt.Sprintf("127.0.0.1:%d", port))
+	time.Sleep(100 * time.Millisecond)
+	defer d.Stop()
+
+	m := &mockLifecycleProcessor{}
+	d.InvocationProcessor = m
+
+	client := &http.Client{}
+	body := bytes.NewBuffer([]byte(`{"key": "value"}`))
+	startReq, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/lambda/start-invocation", port), body)
+	assert.Nil(err)
+	startResp, err := client.Do(startReq)
+	assert.Nil(err)
+	startResp.Body.Close()
+	assert.True(m.OnInvokeStartCalled)
+	assert.False(d.IsExecutionSpanComplete())
+
+	body = bytes.NewBuffer([]byte(`{}`))
+	endReq, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/lambda/end-invocation", port), body)
+	assert.Nil(err)
+	endResp, err := client.Do(endReq)
+	assert.Nil(err)
+	endResp.Body.Close()
+	assert.True(m.OnInvokeEndCalled)
+	assert.True(d.IsExecutionSpanComplete())
+}
+
 // Helper function for reading test file
 func getEventFromFile(filename string) string {
 	event, err := os.ReadFile("../trace/testdata/event_samples/" + filename)
