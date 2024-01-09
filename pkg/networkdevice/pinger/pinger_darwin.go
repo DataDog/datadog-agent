@@ -6,7 +6,7 @@ type MacPinger struct {
 	cfg Config
 }
 
-func NewPinger(cfg Config) (Pinger, error) {
+func New(cfg Config) (Pinger, error) {
 	if cfg.UseRawSocket {
 		return nil, ErrRawSocketUnsupported
 	}

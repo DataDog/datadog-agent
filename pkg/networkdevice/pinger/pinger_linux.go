@@ -18,7 +18,7 @@ type LinuxPinger struct {
 	cfg Config
 }
 
-func NewPinger(cfg Config) (Pinger, error) {
+func New(cfg Config) (Pinger, error) {
 	return &LinuxPinger{
 		cfg: cfg,
 	}, nil

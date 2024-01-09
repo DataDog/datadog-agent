@@ -396,7 +396,7 @@ func (d *DeviceCheck) Ping(cfg pinger.Config) (*pinger.Result, error) {
 	} else if runtime.GOOS == "darwin" {
 		cfg.UseRawSocket = false
 	}
-	p, err := pinger.NewPinger(cfg)
+	p, err := pinger.New(cfg)
 	if err != nil {
 		return &pinger.Result{}, err
 	}
