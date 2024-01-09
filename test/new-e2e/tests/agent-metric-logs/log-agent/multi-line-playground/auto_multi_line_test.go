@@ -3,13 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package filetailing
+package logagent
 
 import (
 	_ "embed"
 	"fmt"
 	"os"
-	"regexp"
 	"testing"
 	"time"
 
@@ -87,7 +86,6 @@ func (s *AutoMultiLineSuite) ContainsNewLine() {
 	t.Helper()
 	service := "hello"
 	content := `An error is \nusually an exception that \nhas been caught and not handled.`
-	fmt.Println("content that i am looking for:", content)
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		names, err := client.GetLogServiceNames()
 		if !assert.NoErrorf(c, err, "Error found: %s", err) {
@@ -95,23 +93,8 @@ func (s *AutoMultiLineSuite) ContainsNewLine() {
 		}
 
 		logs, err := client.FilterLogs(service)
-		if !assert.NoErrorf(c, err, "Error found: %s", err) {
-			return
-		}
 		if !assert.NotEmpty(c, logs, "No logs with service matching '%s' found, instead got '%s'", service, names) {
 			return
-		}
-
-		fmt.Println(logsToString(logs), "were all logs found")
-
-		for _, log := range logs {
-			fmt.Println(content)
-			fmt.Println(log.Message)
-			fmt.Println("rz")
-			found, _ := regexp.MatchString(content, log.Message)
-			if found {
-				fmt.Println("rz6300 found")
-			}
 		}
 
 		logs, err = client.FilterLogs(service, fi.WithMessageContaining(content))
@@ -120,6 +103,8 @@ func (s *AutoMultiLineSuite) ContainsNewLine() {
 		}
 		assert.NotEmpty(c, logs, "Expected at least 1 log with content: '%s', from service: %s but received %s logs.", content, names, logs)
 	}, 4*time.Minute, 10*time.Second)
+
+	// utils.CheckLogs(s)
 }
 
 // logsToString converts a slice of logs to a string.

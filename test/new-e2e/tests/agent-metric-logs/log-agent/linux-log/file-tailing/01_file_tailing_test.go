@@ -15,10 +15,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metric-logs/log-agent/utils"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 )
 
 // LinuxFakeintakeSuite defines a test suite for the log agent interacting with a virtual machine and fake intake.
@@ -47,7 +48,7 @@ func TestE2EVMFakeintakeSuite(t *testing.T) {
 	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
 		options = append(options, params.WithDevMode())
 	}
-	e2e.Run(t, s, logsExampleStackDef(), params.WithDevMode())
+	e2e.Run(t, s, logsExampleStackDef(), options...)
 }
 
 func (s *LinuxFakeintakeSuite) BeforeTest(suiteName, testName string) {
