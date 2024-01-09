@@ -1,7 +1,9 @@
+---
 name: Assign Dependabot PRs
 
 on:
   pull_request:
+    types: [opened, reopened]
 
 jobs:
   label_pr:
@@ -10,7 +12,6 @@ jobs:
       pull-requests: write
     env:
       GH_TOKEN: ${{ github.token }}
-      PR_ID: ${{ github.event.number }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -25,4 +26,4 @@ jobs:
           pip install -r requirements.txt
       - name: Add label according to modified dependency
         run: |
-          invoke add-team-label --pr-id $PR_ID
+          invoke add-team-label --pr-id ${{ github.event.number }} --pr-title ${{ github.event.pull_request.title }}

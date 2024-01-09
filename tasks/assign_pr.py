@@ -9,7 +9,7 @@ from tasks.libs.pipeline_notifications import read_owners
 
 
 @task
-def add_team_labels(ctx, pr_id):
+def add_team_labels(ctx, pr_id, pr_title=None):
     """
     Add team labels to a PR based on the changed dependencies
     """
@@ -17,13 +17,16 @@ def add_team_labels(ctx, pr_id):
     codeowners = read_owners(".github/CODEOWNERS")
 
     # Get what was changed according to PR title
-    title_words = ctx.run(f"gh pr view {pr_id} | head -n 1", hide=True).stdout.split()
-    dependency = title_words[2]
+    if pr_title is None:
+        title_words = ctx.run(f"gh pr view {pr_id} | head -n 1", hide=True).stdout.split()[1:]
+    else:
+        title_words = pr_title.split()
+    dependency = title_words[1]
     if "group" in title_words:  # dependabot defines group. Currently dep name is part of the group name
         group_index = title_words.index("group")
         dependency = title_words[group_index - 1]
     import_module = re.compile(rf"^[ \t]*\"{dependency}.*$")
-    folder = f"./{title_words[-1][1:]}" if title_words[-2] == "in" else "."
+    folder = {title_words[-1][1:]} if title_words[-2] == "in" else "."
 
     # Find the responsible person for each file
     owners = []
@@ -32,17 +35,18 @@ def add_team_labels(ctx, pr_id):
             continue
         for file in files:
             file_path = os.path.join(root, file)
-            if "doc" in file_path.casefold():
+            norm_path = os.path.normpath(file_path)
+            if "docs/" in file_path.casefold():
                 continue
             with open(file_path, "r") as f:
                 try:
                     for line in f:
                         if is_go_module(dependency):
                             if import_module.match(line):
-                                owners.extend([owner[1] for owner in codeowners.of(file_path[2:])])
+                                owners.extend([owner[1] for owner in codeowners.of(norm_path)])
                                 break
                         elif dependency in line:
-                            owners.extend([owner[1] for owner in codeowners.of(file_path[2:])])
+                            owners.extend([owner[1] for owner in codeowners.of(norm_path)])
                             break
                 except UnicodeDecodeError:
                     continue
@@ -64,16 +68,30 @@ def add_team_labels(ctx, pr_id):
 
 def is_go_module(module):
     starts = [
+        "cloud.google.com",
+        "code.cloudfoundry.org",
+        "contrib.go.opencensus.io",
+        "dario.cat",
         "github.com",
-        "k8s.io",
+        "go.etcd.io",
+        "go.mongodb.org",
+        "go.opencensus.io",
         "go.opentelemetry.io",
+        "go.uber.org",
+        "go4.org",
         "golang.org",
+        "gomodules.xyz",
+        "gonum.org",
         "google.golang.org",
         "gopkg.in",
         "gotest.tools",
-        "go.uber.org",
+        "honnef.co",
+        "inet.af",
+        "k8s.io",
+        "lukechampine.com",
+        "mellium.im",
+        "modernc.org",
+        "oras.land",
         "sigs.k8s.io",
     ]
-    if any(module.startswith(start) for start in starts):
-        return True
-    return False
+    return any(module.startswith(start) for start in starts)
