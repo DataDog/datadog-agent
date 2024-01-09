@@ -89,7 +89,6 @@ func TestQueryMetrics(t *testing.T) {
 			queryExecutions = r.Executions
 		}
 	}
-	fmt.Printf("exec %+v", c.lastOracleRows)
 	assert.Equal(t, float64(1), statementExecutions, "PL/SQL execution not captured")
 	assert.Equal(t, float64(10), queryExecutions)
 }
