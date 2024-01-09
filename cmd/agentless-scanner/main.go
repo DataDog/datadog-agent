@@ -2105,10 +2105,13 @@ func launchScanner(ctx context.Context, resultsCh chan scanResult, opts scannerO
 		<-ready
 
 		cmd := exec.CommandContext(ctx, exe, "run-scanner", "--sock", sockName)
-		// TODO: log and output forwading
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
+			var errx *exec.ExitError
+			if errors.As(err, &errx) {
+				log.Errorf("%s: execed scanner %q with pid=%d: %v: with output: %s", opts.Scan, opts.Scanner, cmd.Process.Pid, errx, errx.Stderr)
+			} else {
+				log.Errorf("%s: execed scanner %q with pid=%d: %v", opts.Scan, opts.Scanner, cmd.Process.Pid, err)
+			}
 			resultsCh <- scanResult{Err: err, Scan: opts.Scan, Duration: time.Since(start)}
 			return
 		}
