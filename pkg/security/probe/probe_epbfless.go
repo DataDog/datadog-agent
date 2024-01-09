@@ -101,7 +101,10 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 	switch syscallMsg.Type {
 	case ebpfless.SyscallTypeExec:
 		event.Type = uint32(model.ExecEventType)
-		entry := p.Resolvers.ProcessResolver.AddExecEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.Exec.File.Filename, syscallMsg.Exec.Args, syscallMsg.Exec.Envs, cl.containerContext.ID, syscallMsg.Timestamp, syscallMsg.Exec.TTY)
+		entry := p.Resolvers.ProcessResolver.AddExecEntry(
+			process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.Exec.File.Filename,
+			syscallMsg.Exec.Args, syscallMsg.Exec.ArgsTruncated, syscallMsg.Exec.Envs, syscallMsg.Exec.EnvsTruncated,
+			cl.containerContext.ID, syscallMsg.Timestamp, syscallMsg.Exec.TTY)
 		if syscallMsg.Exec.Credentials != nil {
 			entry.Credentials.UID = syscallMsg.Exec.Credentials.UID
 			entry.Credentials.EUID = syscallMsg.Exec.Credentials.EUID
@@ -140,9 +143,76 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 		}
 	case ebpfless.SyscallTypeSetUID:
 		p.Resolvers.ProcessResolver.UpdateUID(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.SetUID.UID, syscallMsg.SetUID.EUID)
+		event.Type = uint32(model.SetuidEventType)
+		event.SetUID.UID = uint32(syscallMsg.SetUID.UID)
+		event.SetUID.EUID = uint32(syscallMsg.SetUID.EUID)
 
 	case ebpfless.SyscallTypeSetGID:
 		p.Resolvers.ProcessResolver.UpdateGID(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.SetGID.GID, syscallMsg.SetGID.EGID)
+		event.Type = uint32(model.SetgidEventType)
+		event.SetGID.GID = uint32(syscallMsg.SetGID.GID)
+		event.SetGID.EGID = uint32(syscallMsg.SetGID.EGID)
+
+	case ebpfless.SyscallTypeSetFSUID:
+		event.Type = uint32(model.SetuidEventType)
+		event.SetUID.FSUID = uint32(syscallMsg.SetFSUID.FSUID)
+
+	case ebpfless.SyscallTypeSetFSGID:
+		event.Type = uint32(model.SetgidEventType)
+		event.SetGID.FSGID = uint32(syscallMsg.SetFSGID.FSGID)
+
+	case ebpfless.SyscallTypeCapset:
+		event.Type = uint32(model.CapsetEventType)
+		event.Capset.CapEffective = syscallMsg.Capset.Effective
+		event.Capset.CapPermitted = syscallMsg.Capset.Permitted
+
+	case ebpfless.SyscallTypeUnlink:
+		event.Type = uint32(model.FileUnlinkEventType)
+		event.Unlink.Retval = syscallMsg.Retval
+		event.Unlink.File.PathnameStr = syscallMsg.Unlink.File.Filename
+		event.Unlink.File.BasenameStr = filepath.Base(syscallMsg.Unlink.File.Filename)
+		event.Unlink.File.MTime = syscallMsg.Unlink.File.MTime
+		event.Unlink.File.CTime = syscallMsg.Unlink.File.CTime
+		event.Unlink.File.Mode = uint16(syscallMsg.Unlink.File.Mode)
+		if syscallMsg.Unlink.File.Credentials != nil {
+			event.Unlink.File.UID = syscallMsg.Unlink.File.Credentials.UID
+			event.Unlink.File.GID = syscallMsg.Unlink.File.Credentials.GID
+		}
+
+	case ebpfless.SyscallTypeRmdir:
+		event.Type = uint32(model.FileRmdirEventType)
+		event.Rmdir.Retval = syscallMsg.Retval
+		event.Rmdir.File.PathnameStr = syscallMsg.Rmdir.File.Filename
+		event.Rmdir.File.BasenameStr = filepath.Base(syscallMsg.Rmdir.File.Filename)
+		event.Rmdir.File.MTime = syscallMsg.Rmdir.File.MTime
+		event.Rmdir.File.CTime = syscallMsg.Rmdir.File.CTime
+		event.Rmdir.File.Mode = uint16(syscallMsg.Rmdir.File.Mode)
+		if syscallMsg.Rmdir.File.Credentials != nil {
+			event.Rmdir.File.UID = syscallMsg.Rmdir.File.Credentials.UID
+			event.Rmdir.File.GID = syscallMsg.Rmdir.File.Credentials.GID
+		}
+
+	case ebpfless.SyscallTypeRename:
+		event.Type = uint32(model.FileRenameEventType)
+		event.Rename.Retval = syscallMsg.Retval
+		event.Rename.Old.PathnameStr = syscallMsg.Rename.OldFile.Filename
+		event.Rename.Old.BasenameStr = filepath.Base(syscallMsg.Rename.OldFile.Filename)
+		event.Rename.Old.MTime = syscallMsg.Rename.OldFile.MTime
+		event.Rename.Old.CTime = syscallMsg.Rename.OldFile.CTime
+		event.Rename.Old.Mode = uint16(syscallMsg.Rename.OldFile.Mode)
+		if syscallMsg.Rename.OldFile.Credentials != nil {
+			event.Rename.Old.UID = syscallMsg.Rename.OldFile.Credentials.UID
+			event.Rename.Old.GID = syscallMsg.Rename.OldFile.Credentials.GID
+		}
+		event.Rename.New.PathnameStr = syscallMsg.Rename.NewFile.Filename
+		event.Rename.New.BasenameStr = filepath.Base(syscallMsg.Rename.NewFile.Filename)
+		event.Rename.New.MTime = syscallMsg.Rename.NewFile.MTime
+		event.Rename.New.CTime = syscallMsg.Rename.NewFile.CTime
+		event.Rename.New.Mode = uint16(syscallMsg.Rename.NewFile.Mode)
+		if syscallMsg.Rename.NewFile.Credentials != nil {
+			event.Rename.New.UID = syscallMsg.Rename.NewFile.Credentials.UID
+			event.Rename.New.GID = syscallMsg.Rename.NewFile.Credentials.GID
+		}
 	}
 
 	// container context

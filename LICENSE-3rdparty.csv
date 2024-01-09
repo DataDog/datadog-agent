@@ -1346,9 +1346,9 @@ core,github.com/pierrec/lz4/v4/internal/lz4block,BSD-3-Clause,"Copyright (c) 201
 core,github.com/pierrec/lz4/v4/internal/lz4errors,BSD-3-Clause,"Copyright (c) 2015, Pierre Curto"
 core,github.com/pierrec/lz4/v4/internal/lz4stream,BSD-3-Clause,"Copyright (c) 2015, Pierre Curto"
 core,github.com/pierrec/lz4/v4/internal/xxh32,BSD-3-Clause,"Copyright (c) 2015, Pierre Curto"
-core,github.com/pjbgf/sha1cd,Apache-2.0,"Copyright 2009 The Go Authors. All rights reserved. | Copyright 2017 Marc Stevens <marc@marc-stevens.nl>, Dan Shumow <danshu@microsoft.com>"
-core,github.com/pjbgf/sha1cd/internal,Apache-2.0,"Copyright 2009 The Go Authors. All rights reserved. | Copyright 2017 Marc Stevens <marc@marc-stevens.nl>, Dan Shumow <danshu@microsoft.com>"
-core,github.com/pjbgf/sha1cd/ubc,Apache-2.0,"Copyright 2009 The Go Authors. All rights reserved. | Copyright 2017 Marc Stevens <marc@marc-stevens.nl>, Dan Shumow <danshu@microsoft.com>"
+core,github.com/pjbgf/sha1cd,Apache-2.0,"Copyright 2009 The Go Authors. All rights reserved. | Copyright 2017 Marc Stevens <marc@marc-stevens.nl>, Dan Shumow <danshu@microsoft.com> | Copyright 2022 Paulo Gomes <pjbgf@linux.com>"
+core,github.com/pjbgf/sha1cd/internal,Apache-2.0,"Copyright 2009 The Go Authors. All rights reserved. | Copyright 2017 Marc Stevens <marc@marc-stevens.nl>, Dan Shumow <danshu@microsoft.com> | Copyright 2022 Paulo Gomes <pjbgf@linux.com>"
+core,github.com/pjbgf/sha1cd/ubc,Apache-2.0,"Copyright 2009 The Go Authors. All rights reserved. | Copyright 2017 Marc Stevens <marc@marc-stevens.nl>, Dan Shumow <danshu@microsoft.com> | Copyright 2022 Paulo Gomes <pjbgf@linux.com>"
 core,github.com/pkg/errors,BSD-2-Clause,"Copyright (c) 2015, Dave Cheney <dave@cheney.net>"
 core,github.com/pmezard/go-difflib/difflib,BSD-3-Clause,"Copyright (c) 2013, Patrick Mezard"
 core,github.com/power-devops/perfstat,MIT,Copyright (c) 2020 Power DevOps
@@ -1446,6 +1446,8 @@ core,github.com/spf13/cobra,Apache-2.0,Copyright © 2013 Steve Francia <spf@spf1
 core,github.com/spf13/jwalterweatherman,MIT,Copyright (c) 2014 Steve Francia
 core,github.com/spf13/pflag,BSD-3-Clause,Copyright (c) 2012 Alex Ogier. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved
 core,github.com/stoewer/go-strcase,MIT,"Copyright (c) 2017, Adrian Stoewer <adrian.stoewer@rz.ifi.lmu.de>"
+core,github.com/stormcat24/protodep,Apache-2.0,Copyright Akinori Yamada
+core,github.com/stormcat24/protodep/pkg/logger,Apache-2.0,Copyright Akinori Yamada
 core,github.com/streadway/amqp,BSD-2-Clause,"Copyright (c) 2012-2019, Sean Treadway, SoundCloud Ltd"
 core,github.com/stretchr/objx,MIT,"Copyright (c) 2014 Stretchr, Inc | Copyright (c) 2017-2018 objx contributors"
 core,github.com/stretchr/testify/assert,MIT,"Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors"
@@ -2976,3 +2978,5 @@ core,sigs.k8s.io/structured-merge-diff/v4/schema,Apache-2.0,Copyright 2017 The K
 core,sigs.k8s.io/structured-merge-diff/v4/typed,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/structured-merge-diff/v4/value,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/yaml,MIT,Copyright 2017 The Kubernetes Authors.
+core,github.com/swaggest/jsonschema-go,MIT,Copyright (c) 2019 swaggest
+core,github.com/swaggest/refl,MIT,Copyright (c) 2020 swaggest

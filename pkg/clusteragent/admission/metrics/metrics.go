@@ -60,10 +60,10 @@ var (
 		telemetry.Options{NoDoubleUnderscoreSep: true},
 	)
 	LibInjectionAttempts = telemetry.NewCounterWithOpts("admission_webhooks", "library_injection_attempts",
-		[]string{"language", "injected", "auto_detected"}, "Number of pod library injection attempts by language.",
+		[]string{"language", "injected", "auto_detected", "injection_type"}, "Number of pod library injection attempts by language and injection type",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	LibInjectionErrors = telemetry.NewCounterWithOpts("admission_webhooks", "library_injection_errors",
-		[]string{"language", "auto_detected"}, "Number of library injection failures by language",
+		[]string{"language", "auto_detected", "injection_type"}, "Number of library injection failures by language and injection type",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	RemoteConfigs = telemetry.NewGaugeWithOpts("admission_webhooks", "rc_provider_configs",
 		[]string{}, "Number of valid remote configurations.",

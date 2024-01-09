@@ -53,7 +53,9 @@ func TestUnlink(t *testing.T) {
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "unlink", event.GetType(), "wrong event type")
-			assert.Equal(t, inode, event.Unlink.File.Inode, "wrong inode")
+			if !test.opts.staticOpts.enableEBPFLess {
+				assert.Equal(t, inode, event.Unlink.File.Inode, "wrong inode")
+			}
 			assertRights(t, event.Unlink.File.Mode, expectedMode)
 			assertNearTime(t, event.Unlink.File.MTime)
 			assertNearTime(t, event.Unlink.File.CTime)
@@ -79,7 +81,9 @@ func TestUnlink(t *testing.T) {
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "unlink", event.GetType(), "wrong event type")
-			assert.Equal(t, inode, event.Unlink.File.Inode, "wrong inode")
+			if !test.opts.staticOpts.enableEBPFLess {
+				assert.Equal(t, inode, event.Unlink.File.Inode, "wrong inode")
+			}
 			assertRights(t, event.Unlink.File.Mode, expectedMode)
 			assertNearTime(t, event.Unlink.File.MTime)
 			assertNearTime(t, event.Unlink.File.CTime)
@@ -98,6 +102,9 @@ func TestUnlink(t *testing.T) {
 	inode = getInode(t, testAtFile)
 
 	t.Run("io_uring", func(t *testing.T) {
+		if test.opts.staticOpts.enableEBPFLess {
+			t.Skip("io_uring not supported")
+		}
 		iour, err := iouring.New(1)
 		if err != nil {
 			if errors.Is(err, unix.ENOTSUP) {

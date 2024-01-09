@@ -51,12 +51,19 @@ const (
 	dynamicTable              = "http2_dynamic_table"
 	dynamicTableCounter       = "http2_dynamic_counter_table"
 	http2IterationsTable      = "http2_iterations"
+	tlsHTTP2IterationsTable   = "tls_http2_iterations"
 	firstFrameHandlerTailCall = "socket__http2_handle_first_frame"
 	filterTailCall            = "socket__http2_filter"
 	headersParserTailCall     = "socket__http2_headers_parser"
 	eosParserTailCall         = "socket__http2_eos_parser"
 	eventStream               = "http2"
 	telemetryMap              = "http2_telemetry"
+
+	tlsFirstFrameTailCall    = "uprobe__http2_tls_handle_first_frame"
+	tlsFilterTailCall        = "uprobe__http2_tls_filter"
+	tlsHeadersParserTailCall = "uprobe__http2_tls_headers_parser"
+	tlsEOSParserTailCall     = "uprobe__http2_tls_eos_parser"
+	tlsTerminationTailCall   = "uprobe__http2_tls_termination"
 )
 
 // Spec is the protocol spec for HTTP/2.
@@ -74,6 +81,9 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			Name: http2IterationsTable,
+		},
+		{
+			Name: tlsHTTP2IterationsTable,
 		},
 		{
 			Name: "http2_headers_to_process",
@@ -115,6 +125,41 @@ var Spec = &protocols.ProtocolSpec{
 			Key:           uint32(protocols.ProgramHTTP2EOSParser),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: eosParserTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramTLSHTTP2FirstFrame),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsFirstFrameTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramTLSHTTP2Filter),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsFilterTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramTLSHTTP2HeaderParser),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsHeadersParserTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramTLSHTTP2EOSParser),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsEOSParserTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramTLSHTTP2Termination),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsTerminationTailCall,
 			},
 		},
 	},
@@ -171,6 +216,10 @@ func (p *Protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 		EditorFlag: manager.EditMaxEntries,
 	}
 	opts.MapSpecEditors[http2IterationsTable] = manager.MapSpecEditor{
+		MaxEntries: mapSizeValue,
+		EditorFlag: manager.EditMaxEntries,
+	}
+	opts.MapSpecEditors[tlsHTTP2IterationsTable] = manager.MapSpecEditor{
 		MaxEntries: mapSizeValue,
 		EditorFlag: manager.EditMaxEntries,
 	}
