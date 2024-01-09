@@ -113,8 +113,11 @@ var (
 )
 
 const (
-	rootMountPrefix = "root-"
-	ctrdMountPrefix = "ctrd-"
+	scansRootDir = "/scans"
+
+	ebsMountPrefix    = "ebs-"
+	ctrdMountPrefix   = "ctrd-"
+	lambdaMountPrefix = "lambda-"
 )
 
 type configType string
@@ -239,10 +242,10 @@ func makeScanTaskID(s *scanTask) string {
 	return string(s.Type) + "-" + hex.EncodeToString(h.Sum(nil)[:8])
 }
 
-func (s scanTask) MountPoint(name string) string {
+func (s scanTask) Dir(name string) string {
 	name = strings.ToLower(name)
 	name = regexp.MustCompile("[^a-z0-9_-]").ReplaceAllString(name, "")
-	return filepath.Join("/scans", s.ID, name)
+	return filepath.Join(scansRootDir, s.ID, name)
 }
 
 func (s scanTask) String() string {
@@ -1159,6 +1162,55 @@ func (s *sideScanner) healthServer(ctx context.Context) error {
 	return srv.ListenAndServe()
 }
 
+func (s *sideScanner) cleanSlate() error {
+	scansDir, err := os.Open(scansRootDir)
+	if os.IsNotExist(err) {
+		if err := os.Mkdir(scansRootDir, 0700); err != nil {
+			return fmt.Errorf("clean slate: could not create directory %q: %w", scansRootDir, err)
+		}
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("clean slate: could not open %q: %w", scansRootDir, err)
+	}
+	scanDirInfo, err := scansDir.Stat()
+	if err != nil {
+		return fmt.Errorf("clean slate: could not stat %q: %w", scansRootDir, err)
+	}
+	if !scanDirInfo.IsDir() {
+		return fmt.Errorf("clean slate: %q already exists and is not a directory: %w", scansRootDir, os.ErrExist)
+	}
+	if scanDirInfo.Mode() != 0700 {
+		if err := os.Chmod(scansRootDir, 0700); err != nil {
+			return fmt.Errorf("clean slate: could not chmod %q: %w", scansRootDir, err)
+		}
+	}
+	scanDirs, err := scansDir.ReadDir(0)
+	if err != nil {
+		return err
+	}
+	for _, scanDir := range scanDirs {
+		name := filepath.Join(scansRootDir, scanDir.Name())
+		if !scanDir.IsDir() {
+			if err := os.Remove(name); err != nil {
+				log.Warnf("clean slate: could not remove file %q", name)
+			}
+		} else {
+			switch {
+			case strings.HasPrefix(scanDir.Name(), lambdaMountPrefix):
+				if err := os.RemoveAll(name); err != nil {
+					log.Warnf("clean slate: could not remove directory %q", name)
+				}
+			case strings.HasPrefix(scanDir.Name(), ebsMountPrefix):
+				// TODO
+			case strings.HasPrefix(scanDir.Name(), ctrdMountPrefix):
+				// TODO
+			}
+		}
+	}
+	return nil
+}
+
 func (s *sideScanner) start(ctx context.Context) {
 	log.Infof("starting agentless-scanner main loop with %d scan workers", s.poolSize)
 	defer log.Infof("stopped agentless-scanner main loop")
@@ -1174,6 +1226,10 @@ func (s *sideScanner) start(ctx context.Context) {
 			log.Warnf("healthServer: %v", err)
 		}
 	}()
+
+	if err := s.cleanSlate(); err != nil {
+		log.Error(err)
+	}
 
 	go s.cleanupProcess(ctx)
 
@@ -2062,17 +2118,18 @@ func nextNBDDevice() string {
 func scanLambda(ctx context.Context, scan *scanTask, resultsCh chan scanResult) error {
 	defer statsd.Flush()
 
-	tempDir, err := os.MkdirTemp("", "aws-lambda")
-	if err != nil {
+	_, resourceID, _ := getARNResource(scan.ARN)
+	lambdaDir := scan.Dir(lambdaMountPrefix + resourceID)
+	if err := os.MkdirAll(lambdaDir, 0700); err != nil {
 		return err
 	}
 	defer func() {
-		if err := os.RemoveAll(tempDir); err != nil {
-			log.Errorf("lambda: could not remove temp directory %q", tempDir)
+		if err := os.RemoveAll(lambdaDir); err != nil {
+			log.Errorf("lambda: could not remove temp directory %q", lambdaDir)
 		}
 	}()
 
-	codePath, err := downloadAndUnzipLambda(ctx, scan, tempDir)
+	codePath, err := downloadAndUnzipLambda(ctx, scan, lambdaDir)
 	if err != nil {
 		return err
 	}
@@ -2098,7 +2155,7 @@ func scanLambda(ctx context.Context, scan *scanTask, resultsCh chan scanResult) 
 	return nil
 }
 
-func downloadAndUnzipLambda(ctx context.Context, scan *scanTask, tempDir string) (codePath string, err error) {
+func downloadAndUnzipLambda(ctx context.Context, scan *scanTask, lambdaDir string) (codePath string, err error) {
 	if err := statsd.Count("datadog.agentless_scanner.functions.started", 1.0, tagScan(scan), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}
@@ -2152,7 +2209,7 @@ func downloadAndUnzipLambda(ctx context.Context, scan *scanTask, tempDir string)
 		return "", fmt.Errorf("lambda: no code location")
 	}
 
-	archivePath := filepath.Join(tempDir, "code.zip")
+	archivePath := filepath.Join(lambdaDir, "code.zip")
 	log.Debugf("%s: creating file %q", scan, archivePath)
 	archiveFile, err := os.OpenFile(archivePath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
@@ -2182,7 +2239,7 @@ func downloadAndUnzipLambda(ctx context.Context, scan *scanTask, tempDir string)
 		return "", err
 	}
 
-	codePath = filepath.Join(tempDir, "code")
+	codePath = filepath.Join(lambdaDir, "code")
 	err = os.Mkdir(codePath, 0700)
 	if err != nil {
 		return "", err
@@ -2479,7 +2536,7 @@ func listDevicePartitions(ctx context.Context, device string, volumeARN *arn.ARN
 func mountDevice(ctx context.Context, scan *scanTask, partitions []devicePartition) ([]string, error) {
 	var mountPoints []string
 	for _, mp := range partitions {
-		mountPoint := scan.MountPoint(fmt.Sprintf("%s-%s", rootMountPrefix, path.Base(mp.devicePath)))
+		mountPoint := scan.Dir(fmt.Sprintf("%s-%s", ebsMountPrefix, path.Base(mp.devicePath)))
 		if err := os.MkdirAll(mountPoint, 0700); err != nil {
 			return nil, fmt.Errorf("could not create mountPoint directory %q: %w", mountPoint, err)
 		}
@@ -2540,7 +2597,7 @@ func cleanupScan(scan *scanTask) {
 		}
 	}
 
-	mountRoot := scan.MountPoint("")
+	mountRoot := scan.Dir("")
 	if mountEntries, err := os.ReadDir(mountRoot); err == nil {
 		var wg sync.WaitGroup
 
@@ -2572,14 +2629,14 @@ func cleanupScan(scan *scanTask) {
 		}
 
 		for _, mountEntry := range mountEntries {
-			if mountEntry.IsDir() && !strings.HasPrefix(mountEntry.Name(), rootMountPrefix) {
+			if mountEntry.IsDir() && !strings.HasPrefix(mountEntry.Name(), ebsMountPrefix) {
 				wg.Add(1)
 				go umount(filepath.Join(mountRoot, mountEntry.Name()))
 			}
 		}
 		for _, mountEntry := range mountEntries {
 			// unmount "root-*" entrypoint last as the other mountpoint may depend on it
-			if mountEntry.IsDir() && strings.HasPrefix(mountEntry.Name(), rootMountPrefix) {
+			if mountEntry.IsDir() && strings.HasPrefix(mountEntry.Name(), ebsMountPrefix) {
 				wg.Add(1)
 				go umount(filepath.Join(mountRoot, mountEntry.Name()))
 			}
