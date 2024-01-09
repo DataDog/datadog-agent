@@ -373,10 +373,8 @@ def test_flavor(
     """
     args["go_build_tags"] = " ".join(build_tags)
 
-    junit_file_flag = ""
     junit_file = f"junit-out-{flavor.name}.xml"
-    if junit_tar:
-        junit_file_flag = "--junitfile " + junit_file
+    junit_file_flag = "--junitfile " + junit_file if junit_tar else ""
     args["junit_file_flag"] = junit_file_flag
 
     def command(test_results, module, module_result):
