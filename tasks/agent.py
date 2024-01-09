@@ -856,7 +856,9 @@ def _send_build_metrics(ctx, overall_duration):
 
 
 def _get_build_images(ctx):
-    tags = ctx.run("grep -E 'DATADOG_AGENT_.*BUILDIMAGES:' .gitlab-ci.yml | cut -d ':' -f 2").stdout
+    # We intentionally include both build images & their test suffixes in the pattern
+    # as a test image and the merged version shouldn't share their cache
+    tags = ctx.run("grep -E 'DATADOG_AGENT_.*BUILDIMAGES' .gitlab-ci.yml | cut -d ':' -f 2", hide='stdout').stdout
     return map(lambda t: t.strip(), tags.splitlines())
 
 
@@ -870,7 +872,6 @@ def _get_environment_for_cache() -> dict:
         key = item[0]
         excluded_prefixes = [
             'AGENT_',
-            'ARTIFACTORY_',
             'ARTIFACTORY_',
             'AWS_',
             'BUILDENV_',
@@ -919,13 +920,20 @@ def _get_environment_for_cache() -> dict:
             "HOSTNAME",
             "HOST_IP",
             "INTEGRATION_WHEELS_CACHE_BUCKET",
+            "IRBRC",
             "KITCHEN_INFRASTRUCTURE_FLAKES_RETRY",
+            "LESSCLOSE",
+            "LESSOPEN",
+            "LC_CTYPE",
+            "LS_COLORS",
             "MACOS_S3_BUCKET",
             "MESSAGE",
             "OLDPWD",
             "PROCESS_S3_BUCKET",
             "PWD",
             "PYTHON_RUNTIMES",
+            "RUN_ALL_BUILDS",
+            "RUN_KITCHEN_TESTS",
             "RUNNER_TEMP_PROJECT_DIR",
             "RUSTC_SHA256",
             "RUST_VERSION",
@@ -951,13 +959,13 @@ def _get_environment_for_cache() -> dict:
             return False
         return True
 
-    return dict(filter(env_filter, os.environ.items()))
+    return dict(filter(env_filter, sorted(os.environ.items())))
 
 
 def _omnibus_compute_cache_key(ctx):
-    h = hashlib.sha1()
     print('Computing cache key')
-    omnibus_last_commit = ctx.run('git log -n 1 --pretty=format:%H omnibus/').stdout
+    h = hashlib.sha1()
+    omnibus_last_commit = ctx.run('git log -n 1 --pretty=format:%H omnibus/', hide='stdout').stdout
     h.update(str.encode(omnibus_last_commit))
     print(f'\tLast omnibus commit is {omnibus_last_commit}')
     buildimages_hash = _get_build_images(ctx)
@@ -968,7 +976,9 @@ def _omnibus_compute_cache_key(ctx):
         print(f'\tUsing environment variable {k} to compute cache key')
         h.update(str.encode(f'{k}={v}'))
     # FIXME: include omnibus-ruby and omnibus-software version once they are pinned
-    return h.hexdigest()
+    cache_key = h.hexdigest()
+    print(f'Cache key: {cache_key}')
+    return cache_key
 
 
 # hardened-runtime needs to be set to False to build on MacOS < 10.13.6, as the -o runtime option is not supported.
@@ -1060,7 +1070,6 @@ def omnibus_build(
         if use_remote_cache:
             cache_state = None
             cache_key = _omnibus_compute_cache_key(ctx)
-            print(f'Cache key: {cache_key}')
             git_cache_url = f"s3://{os.environ['S3_OMNIBUS_CACHE_BUCKET']}/builds/{cache_key}/{remote_cache_name}"
             bundle_path = "/tmp/omnibus-git-cache-bundle"
             with timed(quiet=True) as restore_cache:
