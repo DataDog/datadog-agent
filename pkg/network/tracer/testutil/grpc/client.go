@@ -150,10 +150,10 @@ type Options struct {
 
 // NewClient returns a new gRPC client
 func NewClient(addr string, options Options, withTLS bool) (Client, error) {
-	var gRPCOptions []grpc.DialOption
+	gRPCOptions := []grpc.DialOption{grpc.WithBlock()}
 	creds := grpc.WithTransportCredentials(insecure.NewCredentials())
 	if withTLS {
-		creds = grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{ServerName: "", InsecureSkipVerify: true}))
+		creds = grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{InsecureSkipVerify: true}))
 	}
 	gRPCOptions = append(gRPCOptions, creds)
 
