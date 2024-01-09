@@ -348,7 +348,7 @@ func runScannerCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&sock, "sock", "", "path to unix socket for IPC")
-	cmd.MarkFlagRequired("sock")
+	_ = cmd.MarkFlagRequired("sock")
 	return cmd
 }
 
@@ -526,20 +526,7 @@ func runScannerCmd(sock string) error {
 	}
 
 	resultsCh := make(chan scanResult)
-	go func() {
-		start := time.Now()
-		switch opts.Scanner {
-		case "vulns":
-			sbom, err := launchScannerTrivy(ctx, opts)
-			resultsCh <- scanResult{Err: err, Scan: opts.Scan, SBOM: sbom, Duration: time.Since(start)}
-		case "malware":
-			findings, err := launchScannerMalware(ctx, opts)
-			resultsCh <- scanResult{Err: err, Scan: opts.Scan, Findings: findings, Duration: time.Since(start)}
-		default:
-			panic("unreachable")
-		}
-		close(resultsCh)
-	}()
+	go launchScannerLocally(ctx, resultsCh, opts)
 
 	for result := range resultsCh {
 		if err := enc.Encode(result); err != nil {
@@ -1193,7 +1180,6 @@ func (s *sideScanner) healthServer(ctx context.Context) error {
 	return srv.ListenAndServe()
 }
 
-//nolint:staticcheck
 func (s *sideScanner) cleanSlate() error {
 	scansDir, err := os.Open(scansRootDir)
 	if os.IsNotExist(err) {
@@ -1233,9 +1219,9 @@ func (s *sideScanner) cleanSlate() error {
 				if err := os.RemoveAll(name); err != nil {
 					log.Warnf("clean slate: could not remove directory %q", name)
 				}
-			case strings.HasPrefix(scanDir.Name(), ebsMountPrefix):
+			case strings.HasPrefix(scanDir.Name(), ebsMountPrefix): //nolint:staticcheck
 				// TODO
-			case strings.HasPrefix(scanDir.Name(), ctrdMountPrefix):
+			case strings.HasPrefix(scanDir.Name(), ctrdMountPrefix): //nolint:staticcheck
 				// TODO
 			}
 		}
@@ -2062,9 +2048,8 @@ func (o scannerOptions) ID() string {
 }
 
 func launchScanner(ctx context.Context, resultsCh chan scanResult, opts scannerOptions) {
-	start := time.Now()
-
 	if scannersFork {
+		start := time.Now()
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 		exe, err := os.Executable()
@@ -2116,6 +2101,7 @@ func launchScanner(ctx context.Context, resultsCh chan scanResult, opts scannerO
 		<-ready
 
 		cmd := exec.CommandContext(ctx, exe, "run-scanner", "--sock", sockName)
+		// TODO: log and output forwading
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
@@ -2123,16 +2109,21 @@ func launchScanner(ctx context.Context, resultsCh chan scanResult, opts scannerO
 			return
 		}
 	} else {
-		switch opts.Scanner {
-		case "vulns":
-			sbom, err := launchScannerTrivy(ctx, opts)
-			resultsCh <- scanResult{Err: err, Scan: opts.Scan, SBOM: sbom, Duration: time.Since(start)}
-		case "malware":
-			findings, err := launchScannerMalware(ctx, opts)
-			resultsCh <- scanResult{Err: err, Scan: opts.Scan, Findings: findings, Duration: time.Since(start)}
-		default:
-			panic("unreachable")
-		}
+		launchScannerLocally(ctx, resultsCh, opts)
+	}
+}
+
+func launchScannerLocally(ctx context.Context, resultsCh chan scanResult, opts scannerOptions) {
+	start := time.Now()
+	switch opts.Scanner {
+	case "vulns":
+		sbom, err := launchScannerTrivy(ctx, opts)
+		resultsCh <- scanResult{Err: err, Scan: opts.Scan, SBOM: sbom, Duration: time.Since(start)}
+	case "malware":
+		findings, err := launchScannerMalware(ctx, opts)
+		resultsCh <- scanResult{Err: err, Scan: opts.Scan, Findings: findings, Duration: time.Since(start)}
+	default:
+		panic("unreachable")
 	}
 }
 
