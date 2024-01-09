@@ -264,7 +264,10 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 		cancel()
 		if err != nil && shouldRetryError(err) {
 			fmt.Fprint(logger, "Got error that should be retried during stack up, retrying")
-			sendEventToDatadog(fmt.Sprintf("[E2E] Stack %s : retrying Pulumi stack up", name), err.Error(), []string{"operation:up"}, logger)
+			err := sendEventToDatadog(fmt.Sprintf("[E2E] Stack %s : retrying Pulumi stack up", name), err.Error(), []string{"operation:up"}, logger)
+			if err != nil {
+				fmt.Fprintf(logger, "Got error when sending event to Datadog: %v", err)
+			}
 		} else {
 			ok = true
 		}
@@ -334,7 +337,7 @@ func shouldRetryError(err error) bool {
 
 // sendEventToDatadog sends an event to Datadog, it will use the API Key from environment variable DD_API_KEY if present, otherwise it will use the one from SSM Parameter Store
 func sendEventToDatadog(title string, message string, tags []string, logger io.Writer) error {
-	apiKey, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.APIKey, "")
+	apiKey, err := runner.GetProfile().SecretStore().GetWithDefault(parameters.APIKey, "")
 	if err != nil {
 		fmt.Fprintf(logger, "error when getting API key from parameter store: %v", err)
 		return err
