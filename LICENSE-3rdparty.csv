@@ -1454,6 +1454,8 @@ core,github.com/stretchr/testify/assert,MIT,"Copyright (c) 2012-2020 Mat Ryer, T
 core,github.com/stretchr/testify/mock,MIT,"Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors"
 core,github.com/stretchr/testify/require,MIT,"Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors"
 core,github.com/stretchr/testify/suite,MIT,"Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors"
+core,github.com/swaggest/jsonschema-go,MIT,Copyright (c) 2019 swaggest
+core,github.com/swaggest/refl,MIT,Copyright (c) 2020 swaggest
 core,github.com/syndtr/gocapability/capability,BSD-2-Clause,Copyright 2013 Suryandaru Triandana <syndtr@gmail.com>
 core,github.com/syndtr/goleveldb/leveldb,BSD-2-Clause,Copyright 2012 Suryandaru Triandana <syndtr@gmail.com>
 core,github.com/syndtr/goleveldb/leveldb/cache,BSD-2-Clause,Copyright 2012 Suryandaru Triandana <syndtr@gmail.com>
@@ -1615,7 +1617,6 @@ core,go.opencensus.io/trace/tracestate,Apache-2.0,"Copyright 2018, OpenCensus Au
 core,go.opentelemetry.io/collector/client,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/component,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/component/componenttest,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/collector/config,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config/configauth,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config/configcompression,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config/configgrpc,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2978,5 +2979,3 @@ core,sigs.k8s.io/structured-merge-diff/v4/schema,Apache-2.0,Copyright 2017 The K
 core,sigs.k8s.io/structured-merge-diff/v4/typed,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/structured-merge-diff/v4/value,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/yaml,MIT,Copyright 2017 The Kubernetes Authors.
-core,github.com/swaggest/jsonschema-go,MIT,Copyright (c) 2019 swaggest
-core,github.com/swaggest/refl,MIT,Copyright (c) 2020 swaggest
