@@ -166,20 +166,6 @@ updates:
       interval: weekly
     open-pull-requests-limit: 100
   - package-ecosystem: pip
-    directory: /.circleci
-    labels:
-      - dependencies
-      - python
-      - team/agent-platform
-      - changelog/no-changelog
-      - qa/skip-qa
-      - qa/no-code-change
-      - dev/tooling
-    milestone: 22
-    schedule:
-      interval: monthly
-    open-pull-requests-limit: 100
-  - package-ecosystem: pip
     directory: /test/e2e/cws-tests
     labels:
       - dependencies
