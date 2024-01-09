@@ -19,7 +19,7 @@ type inventoryAgentSuite struct {
 	e2e.Suite[e2e.AgentEnv]
 }
 
-func TestAgentDiagnoseEC2Suite(t *testing.T) {
+func TestInventoryAgentSuite(t *testing.T) {
 	e2e.Run(t, &inventoryAgentSuite{}, e2e.AgentStackDef())
 }
 
