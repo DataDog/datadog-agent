@@ -410,7 +410,7 @@ Please check for typos in the JOBOWNERS file and/or add them to the Github <-> S
 """
 
 
-def generate_failure_messages(project_name: str, failed_jobs: FailedJobs) -> Dict[str, SlackMessage]:
+def generate_failure_messages(project_name: str, failed_jobs: FailedJobs) -> dict[str, SlackMessage]:
     all_teams = "@DataDog/agent-all"
 
     # Generate messages for each team

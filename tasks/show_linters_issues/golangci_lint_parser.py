@@ -133,7 +133,7 @@ def display_result(filtered_lints):
     return output
 
 
-def merge_results(results_per_os_x_arch: Dict[str, str]):
+def merge_results(results_per_os_x_arch: dict[str, str]):
     """
     Merge golangci-lint output
     """
