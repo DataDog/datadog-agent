@@ -8,7 +8,6 @@ import os.path
 import shutil
 import tempfile
 from pathlib import Path
-from typing import List
 
 from invoke.context import Context
 from invoke.exceptions import Exit

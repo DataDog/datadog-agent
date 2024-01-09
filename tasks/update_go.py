@@ -1,5 +1,4 @@
 import re
-from typing import List, Tuple
 
 from invoke import exceptions
 from invoke.context import Context

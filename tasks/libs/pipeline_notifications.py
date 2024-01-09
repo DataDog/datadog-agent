@@ -3,7 +3,6 @@ import os
 import re
 import subprocess
 from collections import defaultdict
-from typing import Dict
 
 from .common.gitlab import Gitlab, get_gitlab_token
 from .types import FailedJobs, Test

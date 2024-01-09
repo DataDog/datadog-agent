@@ -1,9 +1,6 @@
 """
 High level testing tasks
 """
-# TODO: check if we really need the typing import.
-# Recent versions of Python should be able to use dict and list directly in type hints,
-# so we only need to check that we don't run this code with old Python versions.
 
 import abc
 import json
@@ -15,7 +12,6 @@ import sys
 from collections import defaultdict
 from contextlib import contextmanager
 from datetime import datetime
-from typing import Dict, List
 
 from invoke import task
 from invoke.exceptions import Exit

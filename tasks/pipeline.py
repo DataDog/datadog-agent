@@ -6,7 +6,6 @@ import time
 import traceback
 from collections import defaultdict
 from datetime import datetime, timedelta
-from typing import Dict
 
 import yaml
 from invoke import task
