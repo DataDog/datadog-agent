@@ -35,11 +35,11 @@ func GetSSHClient(user, host string, privateKey, privateKeyPassphrase []byte, re
 func getSSHClient(user, host string, privateKey, privateKeyPassphrase []byte) (*ssh.Client, error) {
 	var auth ssh.AuthMethod
 
-	if privateKey != nil {
+	if len(privateKey) > 0 {
 		var privateKeyAuth ssh.Signer
 		var err error
 
-		if privateKeyPassphrase != nil {
+		if len(privateKeyPassphrase) > 0 {
 			privateKeyAuth, err = ssh.ParsePrivateKeyWithPassphrase(privateKey, privateKeyPassphrase)
 		} else {
 			privateKeyAuth, err = ssh.ParsePrivateKey(privateKey)
