@@ -35,6 +35,8 @@ from .trace_agent import integration_tests as trace_integration_tests
 from .utils import DEFAULT_BRANCH, get_build_flags
 
 PROFILE_COV = "coverage.out"
+TMP_PROFILE_COV_PREFIX = "coverage.out.rerun"
+GO_COV_TEST_PATH = "test_with_coverage.sh"
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
 UNIT_TEST_FILE_FORMAT = re.compile(r'[^a-zA-Z0-9_\-]')
 
@@ -367,6 +369,7 @@ def test_flavor(
     junit_tar: str,
     save_result_json: str,
     test_profiler: TestProfiler,
+    coverage_script_template: str,
 ):
     """
     Runs unit tests for given flavor, build tags, and modules.
@@ -379,14 +382,30 @@ def test_flavor(
 
     def command(test_results, module, module_result):
         with ctx.cd(module.full_path()):
+            packages = ' '.join(f"{t}/..." if not t.endswith("/...") else t for t in module.targets)
+
+            # Workaround of https://github.com/gotestyourself/gotestsum/issues/274.
+            # Unit tests reruns rewrite the whole coverage file, making it inaccurate.
+            # We use the --raw-command flag to tell each `go test` iteration to write coverage in a different file.
+            cov_test_path = os.path.join(module.full_path(), GO_COV_TEST_PATH)
+            coverage_script = coverage_script_template.format(packages=packages, **args)
+            with open(cov_test_path, 'w', encoding='utf-8') as f:
+                f.write(coverage_script)
+            os.chmod(cov_test_path, 0o755)
+
             res = ctx.run(
-                cmd.format(
-                    packages=' '.join(f"{t}/..." if not t.endswith("/...") else t for t in module.targets), **args
-                ),
+                command=cmd.format(packages=packages, cov_test_path=cov_test_path, **args),
                 env=env,
                 out_stream=test_profiler,
                 warn=True,
             )
+
+            # Removing the coverage script.
+            ctx.run(f"rm -f {cov_test_path}")
+
+            # Merging the unit tests reruns coverage files, keeping only the merged file.
+            ctx.run(f"gocovmerge {TMP_PROFILE_COV_PREFIX}.* > {PROFILE_COV}")
+            ctx.run(f"rm -f {TMP_PROFILE_COV_PREFIX}.*")
 
         module_result.result_json_path = os.path.join(module.full_path(), GO_TEST_RESULT_TMP_JSON)
 
@@ -631,13 +650,17 @@ def test(
 
     stdlib_build_cmd = 'go build {verbose} -mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" '
     stdlib_build_cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} std cmd'
-    gotestsum_flags = '{junit_file_flag} {json_flag} --format pkgname {rerun_fails} --packages="{packages}"'
+    gotestsum_flags = '{junit_file_flag} {json_flag} --format pkgname {rerun_fails} --packages="{packages}" --raw-command {cov_test_path}'
     gobuild_flags = (
         '-mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" -ldflags="{ldflags}" {build_cpus} {race_opt}'
     )
     govet_flags = '-vet=off'
     gotest_flags = '{verbose} -timeout {timeout}s -short {covermode_opt} {coverprofile} {test_run_arg} {nocache}'
     cmd = f'gotestsum {gotestsum_flags} -- {gobuild_flags} {govet_flags} {gotest_flags}'
+    coverage_script_template = f"""#!/usr/bin/env bash
+set -eu
+go test {gobuild_flags} {govet_flags} {gotest_flags} -json -coverprofile=\"$(mktemp {TMP_PROFILE_COV_PREFIX}.XXXXXXXXXX)\" {{packages}}
+"""
     args = {
         "go_mod": go_mod,
         "gcflags": gcflags,
@@ -679,6 +702,7 @@ def test(
             junit_tar=junit_tar,
             save_result_json=save_result_json,
             test_profiler=test_profiler,
+            coverage_script_template=coverage_script_template,
         )
 
     # Output
