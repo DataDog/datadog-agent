@@ -80,12 +80,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func init() {
-	// TODO: avoid using gob for IPC when we have a protobuf
-	gob.Register(&sbommodel.SBOMEntity_Cyclonedx{})
-	gob.Register(&sbommodel.SBOMEntity_Error{})
-}
-
 const (
 	scannersFork = false
 
@@ -261,14 +255,21 @@ func (s scanTask) String() string {
 
 func main() {
 	flavor.SetFlavor(flavor.AgentlessScanner)
+
+	// This is required to properly encode / decode *sbommodel.SBOMEntity
+	// TODO: add a test to validate the proper encodings / decodings of our scanResult struct
+	gob.Register(&sbommodel.SBOMEntity_Cyclonedx{})
+	gob.Register(&sbommodel.SBOMEntity_Error{})
+
 	cmd := rootCommand()
 	cmd.SilenceErrors = true
 	err := cmd.Execute()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %s\n", err)
 		os.Exit(-1)
+	} else {
+		os.Exit(0)
 	}
-	os.Exit(0)
 }
 
 func rootCommand() *cobra.Command {
