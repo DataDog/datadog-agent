@@ -44,7 +44,8 @@ const (
 	serviceCheckName        = "snmp.can_check"
 	deviceReachableMetric   = "snmp.device.reachable"
 	deviceUnreachableMetric = "snmp.device.unreachable"
-	pingCanConnectMetric    = "ndm.ping" //TODO:(ken) What is the right name/prefix here?
+	pingCanConnectMetric    = "ping.canConnect" //TODO:(ken) What is the right name/prefix here?
+	pingPacketLoss          = "ping.packetLoss"
 	pingAvgRttMetric        = "ndm.avgRtt"
 	deviceHostnamePrefix    = "device:"
 	checkDurationThreshold  = 30 // Thirty seconds
@@ -147,6 +148,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 			log.Infof("%s: ping returned: %+v", d.config.IPAddress, pingResult)
 			d.sender.Gauge(pingAvgRttMetric, float64(pingResult.AvgRtt/time.Millisecond), tags)
 			d.sender.Gauge(pingCanConnectMetric, common.BoolToFloat64(pingResult.CanConnect), tags)
+			d.sender.Gauge(pingPacketLoss, pingResult.PacketLoss, tags)
 		}
 	}
 

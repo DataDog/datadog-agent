@@ -5,6 +5,7 @@ package pinger
 import (
 	"encoding/json"
 
+	dd_config "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -28,12 +29,13 @@ func (p *LinuxPinger) Ping(host string) (*Result, error) {
 		return RunPing(&p.cfg, host)
 	}
 
-	tu, err := net.GetRemoteSystemProbeUtil("/opt/datadog-agent/run/sysprobe.sock") // TODO: read the system probe config here, get the default going
+	tu, err := net.GetRemoteSystemProbeUtil(
+		dd_config.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
 	if err != nil {
 		log.Warnf("could not initialize system-probe connection: %v (will only log every 10 minutes)", err)
 		return nil, err
 	}
-	resp, err := tu.GetPing(clientID, host, p.cfg.Count, p.cfg.Interval, p.cfg.Timeout) // TODO: is this okay for client ID?
+	resp, err := tu.GetPing(clientID, host, p.cfg.Count, p.cfg.Interval, p.cfg.Timeout)
 	if err != nil {
 		return nil, err
 	}

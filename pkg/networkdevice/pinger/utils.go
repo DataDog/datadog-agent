@@ -1,8 +1,6 @@
 package pinger
 
 import (
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	probing "github.com/prometheus-community/pro-bing"
@@ -16,9 +14,9 @@ func RunPing(cfg *Config, host string) (*Result, error) {
 		return &Result{}, err
 	}
 	// Default configurations
-	pinger.Timeout = 3 * time.Second
-	pinger.Interval = 1 * time.Second
-	pinger.Count = 1
+	pinger.Timeout = defaultTimeout
+	pinger.Interval = defaultInterval
+	pinger.Count = defaultCount
 	pinger.SetPrivileged(cfg.UseRawSocket)
 	if cfg.Timeout > 0 {
 		pinger.Timeout = cfg.Timeout
@@ -36,7 +34,8 @@ func RunPing(cfg *Config, host string) (*Result, error) {
 	stats := pinger.Statistics() // get send/receive/duplicate/rtt stats
 
 	return &Result{
-		CanConnect: stats.PacketLoss < 0.50,
+		CanConnect: stats.PacketsRecv > 0,
+		PacketLoss: stats.PacketLoss,
 		AvgRtt:     stats.AvgRtt,
 	}, nil
 }

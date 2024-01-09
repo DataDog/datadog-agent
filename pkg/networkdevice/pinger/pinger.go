@@ -5,6 +5,12 @@ import (
 	"time"
 )
 
+const (
+	defaultCount    = 1
+	defaultInterval = 1 * time.Second
+	defaultTimeout  = 3 * time.Second
+)
+
 var (
 	ErrRawSocketUnsupported = errors.New("raw socket cannot be used with this OS")
 	ErrUDPSocketUnsupported = errors.New("udp socket cannot be used with this OS")
@@ -35,10 +41,11 @@ type (
 	// Result encapsulates the results of a single run
 	// of ping
 	Result struct {
-		// CanConnect indicates if we can connect to the host
-		// TODO:(ken) should this be true only if 1/4 packets is good? Should it be percentage based?
-		// do we start with only a single ping packet?
+		// CanConnect is true if we receive a response from any
+		// of the packets on the host
 		CanConnect bool `json:"can_connect"`
+		// PacketLoss indicates the percentage of packets lost
+		PacketLoss float64 `json:"packet_loss"`
 		// AvgRtt is the average round trip time
 		AvgRtt time.Duration `json:"avg_rtt"`
 	}
