@@ -2024,7 +2024,7 @@ func downloadAndUnzipLambda(ctx context.Context, scan *scanTask, tempDir string)
 		return "", err
 	}
 
-	log.Debugf("%s: downloading code")
+	log.Debugf("%s: downloading code", scan)
 	resp, err := cfg.HTTPClient.Do(req)
 	if err != nil {
 		return "", err
@@ -2034,7 +2034,7 @@ func downloadAndUnzipLambda(ctx context.Context, scan *scanTask, tempDir string)
 		return "", fmt.Errorf("lambda: bad status: %s", resp.Status)
 	}
 
-	log.Debugf("%s: copying code archive to %q", archivePath)
+	log.Debugf("%s: copying code archive to %q", scan, archivePath)
 	compressedSize, err := io.Copy(archiveFile, resp.Body)
 	if err != nil {
 		return "", err
