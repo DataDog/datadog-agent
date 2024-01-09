@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/gob"
 	"encoding/hex"
 	"encoding/json"
 	"encoding/xml"
@@ -79,6 +80,8 @@ import (
 )
 
 const (
+	scannersFork = false
+
 	maxSnapshotRetries = 3
 	maxAttachRetries   = 10
 
@@ -281,6 +284,7 @@ func rootCommand() *cobra.Command {
 	pflags.StringVarP(&globalParams.configFilePath, "config-path", "c", path.Join(commonpath.DefaultConfPath, "datadog.yaml"), "specify the path to agentless-scanner configuration yaml file")
 	pflags.StringVar(&diskModeStr, "disk-mode", string(noAttach), fmt.Sprintf("disk mode used for scanning EBS volumes: %s, %s or %s", volumeAttach, nbdAttach, noAttach))
 	sideScannerCmd.AddCommand(runCommand())
+	sideScannerCmd.AddCommand(runScannerCommand())
 	sideScannerCmd.AddCommand(scanCommand())
 	sideScannerCmd.AddCommand(offlineCommand())
 	sideScannerCmd.AddCommand(attachCommand())
@@ -311,17 +315,28 @@ func runCommand() *cobra.Command {
 		allowedScanTypes []string
 	}
 
-	runCmd := &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "run",
 		Short: "Runs the agentless-scanner",
 		RunE: runWithModules(func(cmd *cobra.Command, args []string) error {
 			return runCmd(runParams.pidfilePath, runParams.poolSize, runParams.allowedScanTypes)
 		}),
 	}
-	runCmd.Flags().StringVarP(&runParams.pidfilePath, "pidfile", "p", "", "path to the pidfile")
-	runCmd.Flags().IntVar(&runParams.poolSize, "workers", defaultWorkersCount, "number of scans running in parallel")
-	runCmd.Flags().StringSliceVar(&runParams.allowedScanTypes, "allowed-scans-type", nil, "lists of allowed scan types (ebs-volume, lambda)")
-	return runCmd
+	cmd.Flags().StringVarP(&runParams.pidfilePath, "pidfile", "p", "", "path to the pidfile")
+	cmd.Flags().IntVar(&runParams.poolSize, "workers", defaultWorkersCount, "number of scans running in parallel")
+	cmd.Flags().StringSliceVar(&runParams.allowedScanTypes, "allowed-scans-type", nil, "lists of allowed scan types (ebs-volume, lambda)")
+	return cmd
+}
+
+func runScannerCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "run-scanner",
+		Short: "Runs a scanner (fork/exec model)",
+		RunE: runWithModules(func(cmd *cobra.Command, args []string) error {
+			return runScannerCmd()
+		}),
+	}
+	return cmd
 }
 
 func scanCommand() *cobra.Command {
@@ -475,6 +490,28 @@ func runCmd(pidfilePath string, poolSize int, allowedScanTypes []string) error {
 		return fmt.Errorf("could not accept configs from Remote Config: %w", err)
 	}
 	scanner.start(ctx)
+	return nil
+}
+
+func runScannerCmd() error {
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	var opts scannerOptions
+	// TODO: use unix socket instead of stdout / stdin
+	dec := gob.NewDecoder(os.Stdin)
+	enc := gob.NewEncoder(os.Stdout)
+	if err := dec.Decode(&opts); err != nil {
+		return err
+	}
+	resultsCh := make(chan scanResult)
+	go func() {
+		launchScanner(ctx, resultsCh, opts)
+		close(resultsCh)
+	}()
+	for result := range resultsCh {
+		_ = enc.Encode(result)
+	}
 	return nil
 }
 
@@ -1811,10 +1848,16 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 				return fmt.Errorf("we can only perform vulns scanning of %q without volume attach", scan)
 			}
 		}
-		ebsclient := ebs.NewFromConfig(cfg)
 		scanStartedAt := time.Now()
-		sbom, err := launchScannerTrivyVM(ctx, scan, ebsclient, snapshotARN)
-		resultsCh <- scanResult{err: err, scan: scan, sbom: sbom, duration: time.Since(scanStartedAt)}
+		launchScanner(ctx, resultsCh, scannerOptions{
+			Scanner:     "trivy",
+			Scan:        scan,
+			Mode:        "vm",
+			SnapshotARN: &snapshotARN,
+			EntityType:  sbommodel.SBOMSourceType_HOST_FILE_SYSTEM,
+			EntityID:    scan.Hostname,
+			EntityTags:  nil,
+		})
 		scanDuration := time.Since(scanStartedAt)
 		if err := statsd.Histogram("datadog.agentless_scanner.scans.duration", float64(scanDuration.Milliseconds()), tagScan(scan), 1.0); err != nil {
 			log.Warnf("failed to send metric: %v", err)
@@ -1856,9 +1899,15 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 		for _, action := range scan.Actions {
 			switch action {
 			case vulnsHost:
-				start := time.Now()
-				sbom, err := launchScannerTrivyLocal(ctx, scan, root, sbommodel.SBOMSourceType_HOST_FILE_SYSTEM, scan.Hostname, nil)
-				resultsCh <- scanResult{err: err, scan: scan, sbom: sbom, duration: time.Since(start)}
+				launchScanner(ctx, resultsCh, scannerOptions{
+					Scanner:    "trivy",
+					Scan:       scan,
+					Mode:       "local",
+					Root:       root,
+					EntityType: sbommodel.SBOMSourceType_HOST_FILE_SYSTEM,
+					EntityID:   scan.Hostname,
+					EntityTags: nil,
+				})
 			case vulnsContainers:
 				start := time.Now()
 				ctrMountPoints, err := mountContainers(ctx, scan, root)
@@ -1867,14 +1916,22 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 				} else {
 					for _, ctrMnt := range ctrMountPoints {
 						entityID, entityTags := containerTags(ctrMnt)
-						sbom, err := launchScannerTrivyLocal(ctx, scan, ctrMnt.Path, sbommodel.SBOMSourceType_CONTAINER_FILE_SYSTEM, entityID, entityTags)
-						resultsCh <- scanResult{err: err, scan: scan, sbom: sbom, duration: time.Since(start)}
+						launchScanner(ctx, resultsCh, scannerOptions{
+							Scanner:    "trivy",
+							Scan:       scan,
+							Root:       ctrMnt.Path,
+							EntityType: sbommodel.SBOMSourceType_CONTAINER_FILE_SYSTEM,
+							EntityID:   entityID,
+							EntityTags: entityTags,
+						})
 					}
 				}
 			case malware:
-				start := time.Now()
-				findings, err := launchScannerMalwareLocal(ctx, scan, root)
-				resultsCh <- scanResult{err: err, scan: scan, findings: findings, duration: time.Since(start)}
+				launchScanner(ctx, resultsCh, scannerOptions{
+					Scanner: "malware",
+					Scan:    scan,
+					Root:    root,
+				})
 			}
 		}
 	}
@@ -1884,6 +1941,81 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 		log.Warnf("failed to send metric: %v", err)
 	}
 	return nil
+}
+
+type scannerOptions struct {
+	Scanner string
+	Scan    *scanTask
+	Root    string
+
+	// Vulns specific
+	Mode        string
+	SnapshotARN *arn.ARN // TODO: deprecate as we remove "vm" mode
+	EntityType  sbommodel.SBOMSourceType
+	EntityID    string
+	EntityTags  []string
+}
+
+func launchScanner(ctx context.Context, resultsCh chan scanResult, opts scannerOptions) {
+	start := time.Now()
+
+	if scannersFork {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		exe, err := os.Executable()
+		if err != nil {
+			resultsCh <- scanResult{err: err, scan: opts.Scan, duration: time.Since(start)}
+			return
+		}
+
+		cmd := exec.CommandContext(ctx, exe, "run-scanner")
+		if err := cmd.Start(); err != nil {
+			resultsCh <- scanResult{err: err, scan: opts.Scan, duration: time.Since(start)}
+			return
+		}
+
+		// TODO: use unix socket instead of stdout / stdin
+		w, err := cmd.StdinPipe()
+		if err != nil {
+			resultsCh <- scanResult{err: err, scan: opts.Scan, duration: time.Since(start)}
+			return
+		}
+		defer w.Close()
+		r, err := cmd.StdoutPipe()
+		if err != nil {
+			resultsCh <- scanResult{err: err, scan: opts.Scan, duration: time.Since(start)}
+			return
+		}
+		defer r.Close()
+
+		enc := gob.NewEncoder(w)
+		dec := gob.NewDecoder(r)
+		var result scanResult
+		if err := enc.Encode(opts); err != nil {
+			resultsCh <- scanResult{err: err, scan: opts.Scan, duration: time.Since(start)}
+			return
+		}
+		if err := dec.Decode(&result); err != nil {
+			resultsCh <- scanResult{err: err, scan: opts.Scan, duration: time.Since(start)}
+			return
+		}
+		if err := cmd.Wait(); err != nil {
+			resultsCh <- scanResult{err: err, scan: opts.Scan, duration: time.Since(start)}
+			return
+		}
+		resultsCh <- result
+	} else {
+		switch opts.Scanner {
+		case "vulns":
+			sbom, err := launchScannerTrivy(ctx, opts)
+			resultsCh <- scanResult{err: err, scan: opts.Scan, sbom: sbom, duration: time.Since(start)}
+		case "malware":
+			findings, err := launchScannerMalware(ctx, opts)
+			resultsCh <- scanResult{err: err, scan: opts.Scan, findings: findings, duration: time.Since(start)}
+		default:
+			panic("unreachable")
+		}
+	}
 }
 
 func attachSnapshotWithNBD(_ context.Context, scan *scanTask, snapshotARN arn.ARN, ebsclient *ebs.Client) error {
@@ -1946,8 +2078,18 @@ func scanLambda(ctx context.Context, scan *scanTask, resultsCh chan scanResult) 
 	}
 
 	scanStartedAt := time.Now()
-	sbom, err := launchScannerTrivyLambda(ctx, scan, codePath)
-	resultsCh <- scanResult{err: err, scan: scan, sbom: sbom, duration: time.Since(scanStartedAt)}
+	launchScanner(ctx, resultsCh, scannerOptions{
+		Scanner:    "trivy",
+		Scan:       scan,
+		Mode:       "lambda",
+		Root:       codePath,
+		EntityType: sbommodel.SBOMSourceType_CI_PIPELINE, // TODO: SBOMSourceType_LAMBDA
+		EntityID:   scan.ARN.String(),
+		EntityTags: []string{
+			"runtime_id:" + scan.ARN.String(),
+			"service_version:TODO", // XXX
+		},
+	})
 
 	scanDuration := time.Since(scanStartedAt)
 	if err := statsd.Histogram("datadog.agentless_scanner.scans.duration", float64(scanDuration.Milliseconds()), tagScan(scan), 1.0); err != nil {
