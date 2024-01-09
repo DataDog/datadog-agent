@@ -307,7 +307,7 @@ def lint_components(_, fix=False):
         current = f.read()
     codeowners = '\n'.join(make_codeowners(current.splitlines(), bundles, components_without_bundle))
     if fix:
-        with open(".github/CODEOWNERS", "w") as f:
+        with open(filename, "w") as f:
             f.write(codeowners)
     elif current != codeowners:
         print(f"** {filename} differs")
