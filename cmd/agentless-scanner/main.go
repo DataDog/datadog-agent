@@ -203,6 +203,7 @@ type (
 
 	scanTask struct {
 		ID       string
+		Time     time.Time
 		Type     scanType
 		ARN      arn.ARN
 		Hostname string
@@ -233,6 +234,8 @@ type (
 
 func makeScanTaskID(s *scanTask) string {
 	h := sha256.New()
+	t, _ := s.Time.MarshalBinary()
+	h.Write(t)
 	h.Write([]byte(s.Type))
 	h.Write([]byte(s.ARN.String()))
 	h.Write([]byte(s.Hostname))
@@ -243,7 +246,7 @@ func makeScanTaskID(s *scanTask) string {
 	return string(s.Type) + "-" + hex.EncodeToString(h.Sum(nil)[:8])
 }
 
-func (s scanTask) Dir(name string) string {
+func (s scanTask) Path(name string) string {
 	name = strings.ToLower(name)
 	name = regexp.MustCompile("[^a-z0-9_.-]").ReplaceAllString(name, "")
 	return filepath.Join(scansRootDir, s.ID, name)
@@ -267,9 +270,8 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %s\n", err)
 		os.Exit(-1)
-	} else {
-		os.Exit(0)
 	}
+	os.Exit(0)
 }
 
 func rootCommand() *cobra.Command {
@@ -969,6 +971,7 @@ func newScanTask(t string, resourceARN, hostname string, actions []string, roles
 			log.Warnf("unknown action type %q", actionRaw)
 		}
 	}
+	scan.Time = time.Now()
 	scan.ID = makeScanTaskID(&scan)
 	scan.CreatedSnapshots = make(map[arn.ARN]*time.Time)
 	return &scan, nil
@@ -2059,7 +2062,7 @@ func launchScanner(ctx context.Context, resultsCh chan scanResult, opts scannerO
 			return
 		}
 
-		sockName := filepath.Join(opts.Scan.Dir(opts.ID() + ".sock"))
+		sockName := filepath.Join(opts.Scan.Path(opts.ID() + ".sock"))
 		l, err := net.Listen("unix", sockName)
 		if err != nil {
 			resultsCh <- scanResult{Err: err, Scan: opts.Scan, Duration: time.Since(start)}
@@ -2173,7 +2176,7 @@ func scanLambda(ctx context.Context, scan *scanTask, resultsCh chan scanResult) 
 	defer statsd.Flush()
 
 	_, resourceID, _ := getARNResource(scan.ARN)
-	lambdaDir := scan.Dir(lambdaMountPrefix + resourceID)
+	lambdaDir := scan.Path(lambdaMountPrefix + resourceID)
 	if err := os.MkdirAll(lambdaDir, 0700); err != nil {
 		return err
 	}
@@ -2590,7 +2593,7 @@ func listDevicePartitions(ctx context.Context, device string, volumeARN *arn.ARN
 func mountDevice(ctx context.Context, scan *scanTask, partitions []devicePartition) ([]string, error) {
 	var mountPoints []string
 	for _, mp := range partitions {
-		mountPoint := scan.Dir(fmt.Sprintf("%s-%s", ebsMountPrefix, path.Base(mp.devicePath)))
+		mountPoint := scan.Path(fmt.Sprintf("%s-%s", ebsMountPrefix, path.Base(mp.devicePath)))
 		if err := os.MkdirAll(mountPoint, 0700); err != nil {
 			return nil, fmt.Errorf("could not create mountPoint directory %q: %w", mountPoint, err)
 		}
@@ -2651,7 +2654,7 @@ func cleanupScan(scan *scanTask) {
 		}
 	}
 
-	mountRoot := scan.Dir("")
+	mountRoot := scan.Path("")
 	if mountEntries, err := os.ReadDir(mountRoot); err == nil {
 		var wg sync.WaitGroup
 
