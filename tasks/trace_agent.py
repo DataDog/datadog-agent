@@ -35,7 +35,7 @@ def build(
         ctx,
         install_path=install_path,
         major_version=major_version,
-        python_runtimes=python_runtimes
+        python_runtimes=python_runtimes,
     )
 
     # generate windows resources

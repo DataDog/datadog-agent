@@ -67,7 +67,7 @@ def build(
         install_path=install_path,
         major_version=major_version,
         python_runtimes='3',
-        static=static
+        static=static,
     )
 
     # TODO use pkg/version for this
