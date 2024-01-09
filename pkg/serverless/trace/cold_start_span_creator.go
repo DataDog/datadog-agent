@@ -46,7 +46,6 @@ type ColdStartSpanCreator struct {
 	initDuration          float64
 	StopChan              chan struct{}
 	initStartTime         time.Time
-	WasColdStart          bool
 }
 
 //nolint:revive // TODO(SERV) Fix revive linter
@@ -115,8 +114,8 @@ func (c *ColdStartSpanCreator) createIfReady() {
 }
 
 func (c *ColdStartSpanCreator) create() {
-	// Prevent infinite loop from SpanModifier call and duplicates from timeout restarts
-	if c.lambdaSpan.Name == spanName || c.WasColdStart {
+	// Prevent infinite loop from SpanModifier call
+	if c.lambdaSpan.Name == spanName {
 		return
 	}
 
