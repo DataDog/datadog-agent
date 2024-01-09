@@ -34,7 +34,7 @@ type ProxyLifecycleProcessor struct {
 	// Parsed invocation event value
 	invocationEvent interface{}
 
-	Demux aggregator.Demultiplexer
+	demux aggregator.Demultiplexer
 }
 
 // NewProxyLifecycleProcessor returns a new httpsec proxy processor monitored with the
@@ -42,7 +42,7 @@ type ProxyLifecycleProcessor struct {
 func NewProxyLifecycleProcessor(appsec Monitorer, demux aggregator.Demultiplexer) *ProxyLifecycleProcessor {
 	return &ProxyLifecycleProcessor{
 		appsec: appsec,
-		Demux:  demux,
+		demux:  demux,
 	}
 }
 
@@ -88,7 +88,7 @@ func (lp *ProxyLifecycleProcessor) OnInvokeStart(startDetails *invocationlifecyc
 	case trigger.LambdaFunctionURLEvent:
 		event = &events.LambdaFunctionURLRequest{}
 	}
-	serverlessMetrics.SendASMInvocationEnhancedMetric(nil, lp.Demux)
+	serverlessMetrics.SendASMInvocationEnhancedMetric(nil, lp.demux)
 
 	if err := json.Unmarshal(payloadBytes, event); err != nil {
 		log.Errorf("appsec: proxy-lifecycle: unexpected lambda event parsing error: %v", err)
