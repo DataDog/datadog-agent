@@ -162,7 +162,7 @@ const (
 
 var defaultActions = []string{
 	string(vulnsHost),
-	string(vulnsContainers),
+	// string(vulnsContainers),
 }
 
 type (
