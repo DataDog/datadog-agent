@@ -1193,6 +1193,7 @@ func (s *sideScanner) healthServer(ctx context.Context) error {
 	return srv.ListenAndServe()
 }
 
+//nolint:staticcheck
 func (s *sideScanner) cleanSlate() error {
 	scansDir, err := os.Open(scansRootDir)
 	if os.IsNotExist(err) {
