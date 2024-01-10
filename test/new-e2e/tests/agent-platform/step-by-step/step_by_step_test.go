@@ -22,7 +22,6 @@ import (
 	helpers "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/helper"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms"
 
-	osComp "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 
 	"github.com/stretchr/testify/require"
@@ -102,7 +101,7 @@ func TestStepByStepScript(t *testing.T) {
 				version = 0
 			}
 
-			osDesc := osComp.NewDescriptorWithArch(osComp.FlavorFromString(*platform), osVers, osComp.ArchitectureFromString(*architecture))
+			osDesc := platforms.BuildOSDescriptor(*platform, *architecture, osVers)
 			vmOpts = append(vmOpts, ec2.WithAMI(platformJSON[*platform][*architecture][osVers], osDesc, osDesc.Architecture))
 
 			e2e.Run(tt,

@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install/installparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms"
 
-	osComp "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 
 	"github.com/stretchr/testify/require"
@@ -69,7 +68,7 @@ func TestUpgradeScript(t *testing.T) {
 			tt.Parallel()
 			tt.Logf("Testing %s", osVers)
 
-			osDesc := osComp.NewDescriptorWithArch(osComp.FlavorFromString(*platform), osVers, osComp.ArchitectureFromString(*architecture))
+			osDesc := platforms.BuildOSDescriptor(*platform, *architecture, osVers)
 			vmOpts = append(vmOpts, ec2.WithAMI(platformJSON[*platform][*architecture][osVers], osDesc, osDesc.Architecture))
 
 			e2e.Run(tt,
