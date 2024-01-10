@@ -70,9 +70,9 @@ def launch_stack(ctx, stack=None, ssh_key="", x86_ami=X86_AMI_ID_SANDBOX, arm_am
 
 
 @task
-def destroy_stack(ctx, stack=None, force=False, ssh_key=""):
+def destroy_stack(ctx, stack=None, pulumi=False, ssh_key=""):
     clean(ctx, stack)
-    stacks.destroy_stack(ctx, stack, force, ssh_key)
+    stacks.destroy_stack(ctx, stack, pulumi, ssh_key)
 
 
 @task
@@ -113,7 +113,7 @@ def update_resources(ctx, no_backup=False):
         raise Exit("[-] Update aborted")
 
     for stack in glob(f"{kmt_os.stacks_dir}/*"):
-        destroy_stack(ctx, stack=os.path.basename(stack), force=True)
+        destroy_stack(ctx, stack=os.path.basename(stack))
 
     update_kernel_packages(ctx, kmt_os.packages_dir, kmt_os.kheaders_dir, kmt_os.backup_dir, no_backup)
     update_rootfs(ctx, kmt_os.rootfs_dir, kmt_os.backup_dir, no_backup)
@@ -128,7 +128,7 @@ def revert_resources(ctx):
         raise Exit("[-] Revert aborted")
 
     for stack in glob(f"{kmt_os.stacks_dir}/*"):
-        destroy_stack(ctx, stack=stack, force=True)
+        destroy_stack(ctx, stack=stack)
 
     revert_kernel_packages(ctx, kmt_os.packages_dir, kmt_os.backup_dir)
     revert_rootfs(ctx, kmt_os.rootfs_dir, kmt_os.backup_dir)
