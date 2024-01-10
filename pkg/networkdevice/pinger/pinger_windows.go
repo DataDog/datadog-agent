@@ -19,7 +19,7 @@ func New(cfg Config) (Pinger, error) {
 	}, nil
 }
 
-func (p *WindowsPinger) Ping(host string) (*probing.Statistics, error) {
+func (p *WindowsPinger) Ping(host string) (*Result, error) {
 	// We set privileged to true, per pro-bing's docs
 	// but it's not actually privileged
 	// https://github.com/prometheus-community/pro-bing#windows
