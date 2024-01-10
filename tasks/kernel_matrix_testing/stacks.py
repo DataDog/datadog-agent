@@ -229,6 +229,10 @@ def destroy_ec2_instances(ctx, stack):
     if len(instance_ids) == 0:
         return
 
+    if len(instance_ids) > 2:
+        error(f"CAREFUL! More than two instance ids returned. Something is wrong: {instance_ids}")
+        raise Exit("Too many instance_ids")
+
     ids = ' '.join(instance_ids)
     res = ctx.run(
         f"aws-vault exec sso-sandbox-account-admin -- aws ec2 terminate-instances --instance-ids {ids}", warn=True
@@ -275,16 +279,16 @@ def destroy_stack_force(ctx, stack):
     )
 
 
-def destroy_stack(ctx, stack, force, ssh_key):
+def destroy_stack(ctx, stack, pulumi, ssh_key):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
     info(f"[*] Destroying stack {stack}")
-    if force:
-        destroy_stack_force(ctx, stack)
-    else:
+    if pulumi:
         destroy_stack_pulumi(ctx, stack, ssh_key)
+    else:
+        destroy_stack_force(ctx, stack)
 
     ctx.run(f"rm -r {get_kmt_os().stacks_dir}/{stack}")
 
