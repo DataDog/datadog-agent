@@ -99,7 +99,11 @@ def make(ctx, install_prefix=None, python_runtimes='3', cmake_options=''):
             raise
 
     with gitlab_section("Build rtloader", collapsed=True):
-        ctx.run(f"cd {rtloader_build_path} && cmake {cmake_args} {get_rtloader_path()}", err_stream=sys.stdout)
+        build_env = os.environ
+        if install_prefix:
+            build_env['PKG_CONFIG_LIBDIR'] = f'{install_prefix}/lib/pkgconfig'
+
+        ctx.run(f"cd {rtloader_build_path} && cmake {cmake_args} {get_rtloader_path()}", err_stream=sys.stdout, env=build_env)
         run_make_command(ctx)
 
 
