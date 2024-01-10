@@ -9,13 +9,11 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/exp/slices"
 
-	sbommodel "github.com/DataDog/agent-payload/v5/sbom"
-	"google.golang.org/protobuf/types/known/timestamppb"
+	cdx "github.com/CycloneDX/cyclonedx-go"
 
 	"github.com/aquasecurity/trivy-db/pkg/db"
 	"github.com/aquasecurity/trivy/pkg/detector/ospkg"
@@ -60,22 +58,21 @@ func getTrivyDisabledAnalyzers(allowedAnalyzers []analyzer.Type) []analyzer.Type
 	return disabledAnalyzers
 }
 
-func launchScannerTrivy(ctx context.Context, opts scannerOptions) (*sbommodel.SBOMEntity, error) {
+func launchScannerTrivy(ctx context.Context, opts scannerOptions) (*cdx.BOM, error) {
 	switch opts.Mode {
 	case "local":
-		return launchScannerTrivyLocal(ctx, opts.Scan, opts.Root, opts.EntityType, opts.EntityID, opts.EntityTags)
+		return launchScannerTrivyLocal(ctx, opts.Scan, opts.Root)
 	case "vm":
-		return launchScannerTrivyVM(ctx, opts.Scan, *opts.SnapshotARN, opts.EntityType, opts.EntityID, opts.EntityTags)
+		return launchScannerTrivyVM(ctx, opts.Scan, *opts.SnapshotARN)
 	case "lambda":
-		return launchScannerTrivyLambda(ctx, opts.Scan, opts.Root, opts.EntityType, opts.EntityID, opts.EntityTags)
+		return launchScannerTrivyLambda(ctx, opts.Scan, opts.Root)
 	default:
 		return nil, fmt.Errorf("unknown vuln scanner mode %q", opts.Mode)
 	}
 }
 
-func launchScannerTrivyLocal(ctx context.Context, scan *scanTask, root string, entityType sbommodel.SBOMSourceType, entityID string, entityTags []string) (*sbommodel.SBOMEntity, error) {
+func launchScannerTrivyLocal(ctx context.Context, scan *scanTask, root string) (*cdx.BOM, error) {
 	trivyCache := newMemoryCache()
-	startTime := time.Now()
 	trivyArtifact, err := trivyartifactlocal.NewArtifact(root, trivyCache, artifact.Option{
 		Offline:           true,
 		NoProgress:        true,
@@ -95,21 +92,10 @@ func launchScannerTrivyLocal(ctx context.Context, scan *scanTask, root string, e
 		return nil, fmt.Errorf("could not create local trivy artifact: %w", err)
 	}
 
-	trivyReport, err := doTrivyScan(ctx, scan, trivyArtifact, trivyCache)
-	if err != nil {
-		return nil, err
-	}
-	duration := time.Since(startTime)
-	return scanSbomEntity(
-		trivyReport,
-		scan,
-		duration,
-		entityType,
-		entityID,
-		entityTags)
+	return doTrivyScan(ctx, scan, trivyArtifact, trivyCache)
 }
 
-func launchScannerTrivyVM(ctx context.Context, scan *scanTask, snapshotARN arn.ARN, entityType sbommodel.SBOMSourceType, entityID string, entityTags []string) (*sbommodel.SBOMEntity, error) {
+func launchScannerTrivyVM(ctx context.Context, scan *scanTask, snapshotARN arn.ARN) (*cdx.BOM, error) {
 	assumedRole := scan.Roles[scan.ARN.AccountID]
 	cfg, err := newAWSConfig(ctx, scan.ARN.Region, assumedRole)
 	if err != nil {
@@ -117,8 +103,6 @@ func launchScannerTrivyVM(ctx context.Context, scan *scanTask, snapshotARN arn.A
 	}
 
 	ebsclient := ebs.NewFromConfig(cfg)
-	startTime := time.Now()
-
 	_, snapshotID, _ := getARNResource(snapshotARN)
 	trivyCache := newMemoryCache()
 	target := "ebs:" + snapshotID
@@ -138,23 +122,10 @@ func launchScannerTrivyVM(ctx context.Context, scan *scanTask, snapshotARN arn.A
 
 	trivyArtifactEBS := trivyArtifact.(*vm.EBS)
 	trivyArtifactEBS.SetEBS(EBSClientWithWalk{ebsclient})
-	trivyReport, err := doTrivyScan(ctx, scan, trivyArtifact, trivyCache)
-	if err != nil {
-		return nil, err
-	}
-	duration := time.Since(startTime)
-	return scanSbomEntity(
-		trivyReport,
-		scan,
-		duration,
-		entityType,
-		entityID,
-		entityTags)
+	return doTrivyScan(ctx, scan, trivyArtifact, trivyCache)
 }
 
-func launchScannerTrivyLambda(ctx context.Context, scan *scanTask, root string, entityType sbommodel.SBOMSourceType, entityID string, entityTags []string) (*sbommodel.SBOMEntity, error) {
-	startTime := time.Now()
-
+func launchScannerTrivyLambda(ctx context.Context, scan *scanTask, root string) (*cdx.BOM, error) {
 	var allowedAnalyzers []analyzer.Type
 	allowedAnalyzers = append(allowedAnalyzers, analyzer.TypeLanguages...)
 	allowedAnalyzers = append(allowedAnalyzers, analyzer.TypeLockfiles...)
@@ -171,22 +142,10 @@ func launchScannerTrivyLambda(ctx context.Context, scan *scanTask, root string, 
 	if err != nil {
 		return nil, fmt.Errorf("unable to create artifact from fs: %w", err)
 	}
-	trivyReport, err := doTrivyScan(ctx, scan, trivyArtifact, trivyCache)
-	if err != nil {
-		return nil, err
-	}
-	duration := time.Since(startTime)
-	return scanSbomEntity(
-		trivyReport,
-		scan,
-		duration,
-		entityType,
-		entityID,
-		entityTags,
-	)
+	return doTrivyScan(ctx, scan, trivyArtifact, trivyCache)
 }
 
-func doTrivyScan(ctx context.Context, scan *scanTask, trivyArtifact artifact.Artifact, trivyCache cache.LocalArtifactCache) (*types.Report, error) {
+func doTrivyScan(ctx context.Context, scan *scanTask, trivyArtifact artifact.Artifact, trivyCache cache.LocalArtifactCache) (*cdx.BOM, error) {
 	trivyDetector := ospkg.Detector{}
 	trivyVulnClient := vulnerability.NewClient(db.Config{})
 	trivyApplier := applier.NewApplier(trivyCache)
@@ -204,29 +163,10 @@ func doTrivyScan(ctx context.Context, scan *scanTask, trivyArtifact artifact.Art
 		return nil, fmt.Errorf("trivy scan failed: %w", err)
 	}
 	log.Debugf("trivy: scan of artifact %s finished successfully", scan)
-	return &trivyReport, nil
-}
-
-func scanSbomEntity(trivyReport *types.Report, scan *scanTask, duration time.Duration, entityType sbommodel.SBOMSourceType, entityID string, entityTags []string) (*sbommodel.SBOMEntity, error) {
 	marshaler := cyclonedx.NewMarshaler("")
-	cyclonedxBOM, err := marshaler.Marshal(*trivyReport)
+	cyclonedxBOM, err := marshaler.Marshal(trivyReport)
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal report to sbom format: %w", err)
 	}
-	return &sbommodel.SBOMEntity{
-		Status: sbommodel.SBOMStatus_SUCCESS,
-		Type:   entityType,
-		Id:     entityID,
-		InUse:  true,
-		DdTags: append([]string{
-			fmt.Sprintf("region:%s", scan.ARN.Region),
-			fmt.Sprintf("account_id:%s", scan.ARN.AccountID),
-		}, entityTags...),
-		GeneratedAt:        timestamppb.New(time.Now()),
-		GenerationDuration: convertDuration(duration),
-		Hash:               "",
-		Sbom: &sbommodel.SBOMEntity_Cyclonedx{
-			Cyclonedx: convertBOM(cyclonedxBOM),
-		},
-	}, nil
+	return cyclonedxBOM, nil
 }

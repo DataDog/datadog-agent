@@ -61,9 +61,10 @@ import (
 	"github.com/aws/smithy-go"
 
 	// DataDog agent: SBOM + proto stuffs
+	cdx "github.com/CycloneDX/cyclonedx-go"
 	sbommodel "github.com/DataDog/agent-payload/v5/sbom"
-	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	// DataDog agent: RC stuffs
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
@@ -81,7 +82,7 @@ import (
 )
 
 const (
-	forkScanners = false
+	forkScanners = true
 
 	maxSnapshotRetries = 3
 	maxAttachRetries   = 10
@@ -221,8 +222,15 @@ type (
 	scanResult struct {
 		Scan     *scanTask
 		Err      error
-		SBOM     *sbommodel.SBOMEntity
 		Duration time.Duration
+
+		// Vulns specific
+		SBOM           *cdx.BOM
+		SBOMEntityType sbommodel.SBOMSourceType
+		SBOMEntityID   string
+		SBOMEntityTags []string
+
+		// Findings specific
 		Findings []*finding
 	}
 )
@@ -1306,11 +1314,13 @@ func (s *sideScanner) start(ctx context.Context) {
 							log.Warnf("failed to send metric: %v", err)
 						}
 					}
-					if err := s.sendSBOM(result.SBOM); err != nil {
+					if err := s.sendSBOM(result); err != nil {
 						log.Errorf("failed to send SBOM: %v", err)
 					}
 					if s.printResults {
-						fmt.Printf("scanning SBOM result %s (took %s): %s\n", result.Scan, result.Duration, prototext.Format(result.SBOM))
+						if bomRaw, err := json.MarshalIndent(result.SBOM, "  ", "  "); err == nil {
+							fmt.Printf("scanning SBOM result %s (took %s):\n%s\n", result.Scan, result.Duration, bomRaw)
+						}
 					}
 				}
 				if result.Findings != nil {
@@ -1423,12 +1433,27 @@ func (s *sideScanner) launchScan(ctx context.Context, scan *scanTask) (err error
 	}
 }
 
-func (s *sideScanner) sendSBOM(entity *sbommodel.SBOMEntity) error {
+func (s *sideScanner) sendSBOM(result scanResult) error {
 	sourceAgent := "agentless-scanner"
 	envVarEnv := pkgconfig.Datadog.GetString("env")
 
-	entity.DdTags = append(entity.DdTags, "agentless_scanner_host:"+s.hostname)
-
+	entity := &sbommodel.SBOMEntity{
+		Status: sbommodel.SBOMStatus_SUCCESS,
+		Type:   result.SBOMEntityType,
+		Id:     result.SBOMEntityID,
+		InUse:  true,
+		DdTags: append([]string{
+			"agentless_scanner_host:" + s.hostname,
+			"region:" + result.Scan.ARN.Region,
+			"account_id:" + result.Scan.ARN.AccountID,
+		}, result.SBOMEntityTags...),
+		GeneratedAt:        timestamppb.New(time.Now()),
+		GenerationDuration: convertDuration(result.Duration),
+		Hash:               "",
+		Sbom: &sbommodel.SBOMEntity_Cyclonedx{
+			Cyclonedx: convertBOM(result.SBOM),
+		},
+	}
 	rawEvent, err := proto.Marshal(&sbommodel.SBOMPayload{
 		Version:  1,
 		Source:   &sourceAgent,
@@ -1956,15 +1981,16 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 			}
 		}
 		scanStartedAt := time.Now()
-		resultsCh <- launchScanner(ctx, scannerOptions{
+		result := launchScanner(ctx, scannerOptions{
 			Scanner:     "vulns",
 			Scan:        scan,
 			Mode:        "vm",
 			SnapshotARN: &snapshotARN,
-			EntityType:  sbommodel.SBOMSourceType_HOST_FILE_SYSTEM,
-			EntityID:    scan.Hostname,
-			EntityTags:  nil,
 		})
+		result.SBOMEntityType = sbommodel.SBOMSourceType_HOST_FILE_SYSTEM
+		result.SBOMEntityID = scan.Hostname
+		result.SBOMEntityTags = nil
+		resultsCh <- result
 		scanDuration := time.Since(scanStartedAt)
 		if err := statsd.Histogram("datadog.agentless_scanner.scans.duration", float64(scanDuration.Milliseconds()), tagScan(scan), 1.0); err != nil {
 			log.Warnf("failed to send metric: %v", err)
@@ -2006,15 +2032,16 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 		for _, action := range scan.Actions {
 			switch action {
 			case vulnsHost:
-				resultsCh <- launchScanner(ctx, scannerOptions{
-					Scanner:    "vulns",
-					Scan:       scan,
-					Mode:       "local",
-					Root:       root,
-					EntityType: sbommodel.SBOMSourceType_HOST_FILE_SYSTEM,
-					EntityID:   scan.Hostname,
-					EntityTags: nil,
+				result := launchScanner(ctx, scannerOptions{
+					Scanner: "vulns",
+					Scan:    scan,
+					Mode:    "local",
+					Root:    root,
 				})
+				result.SBOMEntityType = sbommodel.SBOMSourceType_HOST_FILE_SYSTEM
+				result.SBOMEntityID = scan.Hostname
+				result.SBOMEntityTags = nil
+				resultsCh <- result
 			case vulnsContainers:
 				start := time.Now()
 				ctrMountPoints, err := mountContainers(ctx, scan, root)
@@ -2023,14 +2050,15 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 				} else {
 					for _, ctrMnt := range ctrMountPoints {
 						entityID, entityTags := containerTags(ctrMnt)
-						resultsCh <- launchScanner(ctx, scannerOptions{
-							Scanner:    "vulns",
-							Scan:       scan,
-							Root:       ctrMnt.Path,
-							EntityType: sbommodel.SBOMSourceType_CONTAINER_FILE_SYSTEM,
-							EntityID:   entityID,
-							EntityTags: entityTags,
+						result := launchScanner(ctx, scannerOptions{
+							Scanner: "vulns",
+							Scan:    scan,
+							Root:    ctrMnt.Path,
 						})
+						result.SBOMEntityType = sbommodel.SBOMSourceType_CONTAINER_FILE_SYSTEM
+						result.SBOMEntityID = entityID
+						result.SBOMEntityTags = entityTags
+						resultsCh <- result
 					}
 				}
 			case malware:
@@ -2058,9 +2086,6 @@ type scannerOptions struct {
 	// Vulns specific
 	Mode        string
 	SnapshotARN *arn.ARN // TODO: deprecate as we remove "vm" mode
-	EntityType  sbommodel.SBOMSourceType
-	EntityID    string
-	EntityTags  []string
 }
 
 func (o scannerOptions) ID() string {
@@ -2071,11 +2096,6 @@ func (o scannerOptions) ID() string {
 	h.Write([]byte(o.Mode))
 	if o.SnapshotARN != nil {
 		h.Write([]byte(o.SnapshotARN.String()))
-	}
-	h.Write([]byte(strconv.Itoa(int(o.EntityType))))
-	h.Write([]byte(o.EntityID))
-	for _, tag := range o.EntityTags {
-		h.Write([]byte(tag))
 	}
 	return o.Scanner + "-" + hex.EncodeToString(h.Sum(nil)[:8])
 }
@@ -2142,9 +2162,24 @@ func launchScannerRemotely(ctx context.Context, opts scannerOptions) scanResult 
 
 	stderr := &truncatedWriter{max: 64 * 1024}
 	cmd := exec.CommandContext(ctx, exe, "run-scanner", "--sock", sockName)
+	cmd.Env = []string{
+		"GOMAXPROCS=1",
+	}
 	cmd.Dir = opts.Scan.Path()
 	cmd.Stderr = stderr
-	if err := cmd.Run(); err != nil {
+	if err := cmd.Start(); err != nil {
+		if ctx.Err() != nil {
+			return scanResult{Err: ctx.Err(), Scan: opts.Scan, Duration: time.Since(start)}
+		}
+		return scanResult{Err: err, Scan: opts.Scan, Duration: time.Since(start)}
+	}
+
+	pid := cmd.Process.Pid
+	if err := os.WriteFile(opts.Scan.Path(opts.ID()+".pid"), []byte(strconv.Itoa(pid)), 0600); err != nil {
+		log.Warnf("%s: could not write pid file %d: %v", cmd.Process.Pid, err)
+	}
+
+	if err := cmd.Wait(); err != nil {
 		if ctx.Err() != nil {
 			return scanResult{Err: ctx.Err(), Scan: opts.Scan, Duration: time.Since(start)}
 		}
@@ -2257,18 +2292,19 @@ func scanLambda(ctx context.Context, scan *scanTask, resultsCh chan scanResult) 
 	}
 
 	scanStartedAt := time.Now()
-	resultsCh <- launchScanner(ctx, scannerOptions{
-		Scanner:    "vulns",
-		Scan:       scan,
-		Mode:       "lambda",
-		Root:       codePath,
-		EntityType: sbommodel.SBOMSourceType_CI_PIPELINE, // TODO: SBOMSourceType_LAMBDA
-		EntityID:   scan.ARN.String(),
-		EntityTags: []string{
-			"runtime_id:" + scan.ARN.String(),
-			"service_version:TODO", // XXX
-		},
+	result := launchScanner(ctx, scannerOptions{
+		Scanner: "vulns",
+		Scan:    scan,
+		Mode:    "lambda",
+		Root:    codePath,
 	})
+	result.SBOMEntityType = sbommodel.SBOMSourceType_CI_PIPELINE // TODO: SBOMSourceType_LAMBDA
+	result.SBOMEntityID = scan.ARN.String()
+	result.SBOMEntityTags = []string{
+		"runtime_id:" + scan.ARN.String(),
+		"service_version:TODO", // XXX
+	}
+	resultsCh <- result
 
 	scanDuration := time.Since(scanStartedAt)
 	if err := statsd.Histogram("datadog.agentless_scanner.scans.duration", float64(scanDuration.Milliseconds()), tagScan(scan), 1.0); err != nil {
@@ -2837,11 +2873,10 @@ func ec2ARN(region, accountID string, resourceType resourceType, resourceID stri
 	}
 }
 
-func hasResults(results *sbommodel.SBOMEntity) bool {
-	bom := results.GetCyclonedx()
+func hasResults(bom *cdx.BOM) bool {
 	// We can't use Dependencies > 0, since len(Dependencies) == 1 when there are no components.
 	// See https://github.com/aquasecurity/trivy/blob/main/pkg/sbom/cyclonedx/core/cyclonedx.go
-	return len(bom.Components) > 0
+	return bom.Components != nil && len(*bom.Components) > 0
 }
 
 type awsLimits struct {
