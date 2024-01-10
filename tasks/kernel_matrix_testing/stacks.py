@@ -11,7 +11,7 @@ from .libvirt import (
     delete_volumes,
     pause_domains,
     resource_in_stack,
-    resume_domains
+    resume_domains,
 )
 from .tool import Exit, ask, error, info, warn
 
