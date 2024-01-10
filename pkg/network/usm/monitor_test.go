@@ -1035,7 +1035,15 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			defer monitor.Stop()
 
 			magicFrame := usmhttp2.CreateRawMagicFrame()
-			settingsFrame := usmhttp2.NewSettingFrame(0)
+			// Create a buffer to write the frame into
+			var buf bytes.Buffer
+			framer := http2.NewFramer(&buf, nil)
+			// Write the emtpy SettingsFrame to the buffer using the Framer
+			if err := framer.WriteSettings(http2.Setting{}); err != nil {
+				fmt.Println("Error writing SettingsFrame:", err)
+				return
+			}
+			settingsFrame := buf.Bytes()
 			input := make([]byte, 0, len(magicFrame)+len(settingsFrame))
 			input = append(input, magicFrame...)
 			input = append(input, settingsFrame...)
