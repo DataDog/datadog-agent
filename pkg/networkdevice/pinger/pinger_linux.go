@@ -14,16 +14,23 @@ const (
 	clientID = "pinger-agent-linux"
 )
 
+// LinuxPinger implements the Pinger interface for
+// Linux users
 type LinuxPinger struct {
 	cfg Config
 }
 
+// New creates a LinuxPinger using the passed in
+// config
 func New(cfg Config) (Pinger, error) {
 	return &LinuxPinger{
 		cfg: cfg,
 	}, nil
 }
 
+// Ping takes a host and depending on the config will either
+// directly ping the host sending packets over a UDP socket
+// or a raw socket
 func (p *LinuxPinger) Ping(host string) (*Result, error) {
 	if !p.cfg.UseRawSocket {
 		return RunPing(&p.cfg, host)

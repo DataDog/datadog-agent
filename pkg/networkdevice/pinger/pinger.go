@@ -1,3 +1,4 @@
+// Package pinger implements ICMP ping functionality for the agent
 package pinger
 
 import (
@@ -12,7 +13,11 @@ const (
 )
 
 var (
+	// ErrRawSocketUnsupported is sent when the pinger is configured to use raw sockets
+	// when raw socket based pings are not supported on the system
 	ErrRawSocketUnsupported = errors.New("raw socket cannot be used with this OS")
+	// ErrUDPSocketUnsupported is sent when the pinger is configured to use UDP sockets
+	// when UDP socket based pings are not supported on the system
 	ErrUDPSocketUnsupported = errors.New("udp socket cannot be used with this OS")
 )
 

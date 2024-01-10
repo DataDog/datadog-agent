@@ -4,7 +4,6 @@ package modules
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -55,7 +54,7 @@ func (p *pinger) Register(httpMux *module.Router) error {
 		count, err := getIntParam(countParam, req)
 		if err != nil {
 			log.Errorf("unable to run ping invalid count %s: %s", host, err)
-			w.Write([]byte(fmt.Sprintf("invalid count")))
+			w.Write([]byte("invalid count"))
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
@@ -63,7 +62,7 @@ func (p *pinger) Register(httpMux *module.Router) error {
 		interval, err := getIntParam(intervalParam, req)
 		if err != nil {
 			log.Errorf("unable to run ping invalid interval %s: %s", host, err)
-			w.Write([]byte(fmt.Sprintf("invalid interval")))
+			w.Write([]byte("invalid interval"))
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
@@ -71,7 +70,7 @@ func (p *pinger) Register(httpMux *module.Router) error {
 		timeout, err := getIntParam(timeoutParam, req)
 		if err != nil {
 			log.Errorf("unable to run ping invalid timeout %s: %s", host, err)
-			w.Write([]byte(fmt.Sprintf("invalid timeout")))
+			w.Write([]byte("invalid timeout"))
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
