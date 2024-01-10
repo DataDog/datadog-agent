@@ -15,7 +15,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Commands returns the global params commands
+// Commands returns the run command
 func Commands(global *command.GlobalParams) []*cobra.Command {
 	runCmd := &cobra.Command{
 		Use:   "run",
