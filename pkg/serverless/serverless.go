@@ -142,19 +142,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 			metrics.SendErrorsEnhancedMetric(metricTags, time.Now(), daemon.MetricAgent.Demux)
 
 			if !daemon.IsExecutionSpanComplete() {
-				ecs := daemon.ExecutionContext.GetCurrentState()
-				timeoutDetails := &invocationlifecycle.InvocationEndDetails{
-					RequestID:          ecs.LastRequestID,
-					Runtime:            ecs.Runtime,
-					ColdStart:          coldStartTags.IsColdStart,
-					ProactiveInit:      coldStartTags.IsProactiveInit,
-					EndTime:            time.Now(),
-					IsError:            true,
-					IsTimeout:          true,
-					ResponseRawPayload: nil,
-				}
-				daemon.InvocationProcessor.OnInvokeEnd(timeoutDetails)
-				daemon.SetExecutionSpanComplete(true)
+				finishTimeoutExecutionSpan(daemon, coldStartTags.IsColdStart, coldStartTags.IsProactiveInit)
 			}
 		}
 		err := daemon.ExecutionContext.SaveCurrentExecutionContext()
@@ -230,4 +218,21 @@ func removeQualifierFromArn(functionArn string) string {
 		return strings.Join(functionArnTokens, ":")
 	}
 	return functionArn
+}
+
+func finishTimeoutExecutionSpan(daemon *daemon.Daemon, isColdStart bool, isProactiveInit bool) {
+	ecs := daemon.ExecutionContext.GetCurrentState()
+	timeoutDetails := &invocationlifecycle.InvocationEndDetails{
+		RequestID:          ecs.LastRequestID,
+		Runtime:            ecs.Runtime,
+		ColdStart:          isColdStart,
+		ProactiveInit:      isProactiveInit,
+		EndTime:            time.Now(),
+		IsError:            true,
+		IsTimeout:          true,
+		ResponseRawPayload: nil,
+	}
+	log.Debug("Could not complete the execution span due to a time out. Attempting to finish the span without details from the tracer.")
+	daemon.InvocationProcessor.OnInvokeEnd(timeoutDetails)
+	daemon.SetExecutionSpanComplete(true)
 }
