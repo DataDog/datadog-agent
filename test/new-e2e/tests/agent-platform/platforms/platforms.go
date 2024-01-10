@@ -18,6 +18,7 @@ import (
 //go:embed platforms.json
 var Content []byte
 
+// BuildOSDescriptor builds an os.Descriptor from a platform, architecture and osVersion
 func BuildOSDescriptor(platform, architecture, osVersion string) os.Descriptor {
 	// For some reason, centos is mixing multiple os with different users in AMIs in `platforms.json`
 	// Performing remapping to have the right user for AMI
