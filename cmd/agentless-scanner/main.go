@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net"
 	"net/http"
 	"net/url"
@@ -2176,7 +2177,7 @@ func launchScannerRemotely(ctx context.Context, opts scannerOptions) scanResult 
 
 	pid := cmd.Process.Pid
 	if err := os.WriteFile(opts.Scan.Path(opts.ID()+".pid"), []byte(strconv.Itoa(pid)), 0600); err != nil {
-		log.Warnf("%s: could not write pid file %d: %v", cmd.Process.Pid, err)
+		log.Warnf("%s: could not write pid file %d: %v", opts.Scan, cmd.Process.Pid, err)
 	}
 
 	if err := cmd.Wait(); err != nil {
@@ -2736,6 +2737,8 @@ func cleanupScan(scan *scanTask) {
 	ctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
 	defer cancel()
 
+	scanRoot := scan.Path()
+
 	for snapshotARN, snapshotCreatedAt := range scan.CreatedSnapshots {
 		_, snapshotID, _ := getARNResource(snapshotARN)
 		cfg, err := newAWSConfig(ctx, snapshotARN.Region, scan.Roles[snapshotARN.AccountID])
@@ -2755,8 +2758,8 @@ func cleanupScan(scan *scanTask) {
 		}
 	}
 
-	mountRoot := scan.Path("")
-	if mountEntries, err := os.ReadDir(mountRoot); err == nil {
+	entries, err := os.ReadDir(scanRoot)
+	if err == nil {
 		var wg sync.WaitGroup
 
 		umount := func(mountPoint string) {
@@ -2786,24 +2789,57 @@ func cleanupScan(scan *scanTask) {
 			log.Errorf("%s: could not umount %s: %s: %s", scan, mountPoint, erru, string(umountOutput))
 		}
 
-		for _, mountEntry := range mountEntries {
-			if mountEntry.IsDir() && !strings.HasPrefix(mountEntry.Name(), ebsMountPrefix) {
-				wg.Add(1)
-				go umount(filepath.Join(mountRoot, mountEntry.Name()))
+		var ebsMountPoints []fs.DirEntry
+		var ctrMountPoints []fs.DirEntry
+		var pidFiles []fs.DirEntry
+
+		for _, entry := range entries {
+			if entry.IsDir() {
+				if strings.HasPrefix(entry.Name(), ebsMountPrefix) {
+					ebsMountPoints = append(ebsMountPoints, entry)
+				}
+				if strings.HasPrefix(entry.Name(), ctrdMountPrefix) {
+					ctrMountPoints = append(ctrMountPoints, entry)
+				}
+				if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".pid") {
+					pidFiles = append(pidFiles, entry)
+				}
 			}
 		}
-		for _, mountEntry := range mountEntries {
-			// unmount "root-*" entrypoint last as the other mountpoint may depend on it
-			if mountEntry.IsDir() && strings.HasPrefix(mountEntry.Name(), ebsMountPrefix) {
-				wg.Add(1)
-				go umount(filepath.Join(mountRoot, mountEntry.Name()))
-			}
+		for _, entry := range ctrMountPoints {
+			wg.Add(1)
+			go umount(filepath.Join(scanRoot, entry.Name()))
 		}
 		wg.Wait()
+		// unmount "ebs-*" entrypoint last as the other mountpoint may depend on it
+		for _, entry := range ebsMountPoints {
+			wg.Add(1)
+			go umount(filepath.Join(scanRoot, entry.Name()))
+		}
+		wg.Wait()
+
+		for _, entry := range pidFiles {
+			pidFile, err := os.Open(filepath.Join(scanRoot, entry.Name()))
+			if err != nil {
+				continue
+			}
+			pidRaw, err := io.ReadAll(io.LimitReader(pidFile, 32))
+			if err != nil {
+				pidFile.Close()
+				continue
+			}
+			pidFile.Close()
+			if pid, err := strconv.Atoi(strings.TrimSpace(string(pidRaw))); err == nil {
+				if proc, err := os.FindProcess(pid); err == nil {
+					log.Debugf("%s: killing remaining scanner process with pid %d", scan, pid)
+					_ = proc.Kill()
+				}
+			}
+		}
 	}
 
-	if err := os.RemoveAll(mountRoot); err != nil {
-		log.Errorf("%s: could not cleanup mount root %q", scan, mountRoot)
+	if err := os.RemoveAll(scanRoot); err != nil {
+		log.Errorf("%s: could not cleanup mount root %q", scan, scanRoot)
 	}
 
 	switch scan.DiskMode {
