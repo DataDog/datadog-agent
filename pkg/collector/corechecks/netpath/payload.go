@@ -20,6 +20,7 @@ type Traceroute struct {
 
 type TracerouteV2 struct {
 	TracerouteSource string  `json:"traceroute_source"`
+	PathID           string  `json:"path_id"`
 	Strategy         string  `json:"strategy"`
 	Timestamp        int64   `json:"timestamp"`
 	AgentHost        string  `json:"agent_host"`

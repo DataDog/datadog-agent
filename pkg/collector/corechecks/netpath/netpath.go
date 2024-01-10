@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/google/uuid"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"net"
 	"strconv"
@@ -90,9 +91,11 @@ func (c *Check) traceroute(sender sender.Sender) error {
 	if err != nil {
 		return err
 	}
-	err = c.traceRouteV2(sender, hostHops, hname, destinationHost)
-	if err != nil {
-		return err
+	for i := 0; i < 100; i++ {
+		err = c.traceRouteV2(sender, hostHops, hname, destinationHost)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -129,6 +132,8 @@ func (c *Check) traceRouteV1(sender sender.Sender, hostHops [][]traceroute.Trace
 }
 
 func (c *Check) traceRouteV2(sender sender.Sender, hostHops [][]traceroute.TracerouteHop, hname string, destinationHost string) error {
+	id := uuid.New()
+
 	hops := hostHops[0]
 	var prevHop traceroute.TracerouteHop
 	for _, hop := range hops {
@@ -136,6 +141,7 @@ func (c *Check) traceRouteV2(sender sender.Sender, hostHops [][]traceroute.Trace
 		durationMs := hop.ElapsedTime.Seconds() * 10e3
 		tr := TracerouteV2{
 			TracerouteSource: "netpath_integration",
+			PathID:           id.String(),
 			Strategy:         "hop_per_event",
 			Timestamp:        time.Now().UnixMilli(),
 			AgentHost:        hname,
