@@ -817,6 +817,8 @@ func (t *tracerOffsetGuesser) getConstantEditors() []manager.ConstantEditor {
 		{Name: "offset_sk_buff_sock", Value: t.status.Offset_sk_buff_sock},
 		{Name: "offset_sk_buff_transport_header", Value: t.status.Offset_sk_buff_transport_header},
 		{Name: "offset_sk_buff_head", Value: t.status.Offset_sk_buff_head},
+		{Name: "tcpv6_enabled", Value: t.guessTCPv6},
+		{Name: "udpv6_enabled", Value: t.guessUDPv6},
 	}
 }
 

@@ -138,9 +138,7 @@ func setIpv6Configuration(c *config.Config) (bool, bool) {
 				return
 			}
 			if kv >= kernel.VersionCode(5, 18, 0) {
-				_cfg := *c
-				_cfg.CollectUDPv6Conns = false
-				c = &_cfg
+				udpv6Enabled = false
 			}
 		}
 	})
