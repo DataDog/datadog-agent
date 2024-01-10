@@ -11,14 +11,15 @@ import (
 	"context"
 	"expvar"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname/data"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	configProvider  = "configuration"
-	fargateProvider = "fargate"
+	configProvider  = data.ConfigProvider
+	fargateProvider = data.FargateProvider
 )
 
 var (
@@ -119,16 +120,6 @@ var providerCatalog = []provider{
 		stopIfSuccessful: false,
 		expvarName:       "aws",
 	},
-}
-
-// FromConfiguration returns true if the hostname was found through the configuration file
-func (h Data) FromConfiguration() bool {
-	return h.Provider == configProvider
-}
-
-// FromFargate returns true if the hostname was found through Fargate
-func (h Data) FromFargate() bool {
-	return h.Provider == fargateProvider
 }
 
 func saveHostname(cacheHostnameKey string, hostname string, providerName string) Data {

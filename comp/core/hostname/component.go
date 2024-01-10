@@ -9,7 +9,7 @@ package hostname
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname/data"
 )
 
 // team: agent-shared-components
@@ -19,7 +19,7 @@ type Component interface {
 	// Get returns the host name for the agent.
 	Get(context.Context) (string, error)
 	// GetWithProvider returns the hostname for the Agent and the provider that was use to retrieve it.
-	GetWithProvider(ctx context.Context) (hostname.Data, error)
+	GetWithProvider(ctx context.Context) (data.Data, error)
 	// GetSafe is Get(), but it returns 'unknown host' if anything goes wrong.
 	GetSafe(context.Context) string
 }
