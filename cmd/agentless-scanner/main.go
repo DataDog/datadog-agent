@@ -270,6 +270,7 @@ func main() {
 	cmd := rootCommand()
 	cmd.SilenceErrors = true
 	err := cmd.Execute()
+
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %s\n", err)
 		os.Exit(-1)
@@ -2161,7 +2162,7 @@ func launchScannerRemotely(ctx context.Context, opts scannerOptions) scanResult 
 		}
 	}()
 
-	stderr := &truncatedWriter{max: 64 * 1024}
+	stderr := &truncatedWriter{max: 512 * 1024}
 	cmd := exec.CommandContext(ctx, exe, "run-scanner", "--sock", sockName)
 	cmd.Env = []string{
 		"GOMAXPROCS=1",
@@ -2186,7 +2187,8 @@ func launchScannerRemotely(ctx context.Context, opts scannerOptions) scanResult 
 		}
 		var errx *exec.ExitError
 		if errors.As(err, &errx) {
-			log.Errorf("%s: execed scanner %q with pid=%d: %v: with output: %s", opts.Scan, opts.Scanner, cmd.Process.Pid, errx, stderr)
+			stderrx := strings.ReplaceAll(stderr.String(), "\n", "\\n")
+			log.Errorf("%s: execed scanner %q with pid=%d: %v: with output:%s", opts.Scan, opts.Scanner, cmd.Process.Pid, errx, stderrx)
 		} else {
 			log.Errorf("%s: execed scanner %q: %v", opts.Scan, opts.Scanner, err)
 		}
