@@ -12,7 +12,7 @@ Release Notes
 Prelude
 -------
 
-Release on: 2024-01-10
+Release on: 2024-01-11
 
 
 .. _Release Notes_7.50.3_Bug Fixes:
