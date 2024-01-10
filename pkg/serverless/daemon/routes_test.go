@@ -159,6 +159,30 @@ func TestTraceContext(t *testing.T) {
 	}
 }
 
+func TestHello(t *testing.T) {
+	assert := assert.New(t)
+
+	port := testutil.FreeTCPPort(t)
+	d := StartDaemon(fmt.Sprintf("127.0.0.1:%d", port))
+	time.Sleep(100 * time.Millisecond)
+	defer d.Stop()
+	d.InvocationProcessor = &invocationlifecycle.LifecycleProcessor{
+		ExtraTags:           d.ExtraTags,
+		Demux:               nil,
+		ProcessTrace:        nil,
+		DetectLambdaLibrary: d.IsLambdaLibraryDetected,
+	}
+	client := &http.Client{}
+	body := bytes.NewBuffer([]byte(`{}`))
+	request, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/lambda/hello", port), body)
+	assert.Nil(err)
+	assert.False(d.IsLambdaLibraryDetected())
+	response, err := client.Do(request)
+	assert.Nil(err)
+	response.Body.Close()
+	assert.True(d.IsLambdaLibraryDetected())
+}
+
 func TestStartEndInvocationSpanParenting(t *testing.T) {
 	port := testutil.FreeTCPPort(t)
 	d := StartDaemon(fmt.Sprintf("127.0.0.1:%d", port))
