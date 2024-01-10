@@ -64,23 +64,15 @@ Write-Host "Generating Chocolatey $installMethod package version $agentVersion i
 Write-Host ("Downloading {0}" -f $url)
 $statusCode = -1
 try {
-    $req = [System.Net.WebRequest]::Create($url)
-    $rep = $req.GetResponse()
-    $statusCode = $rep.StatusCode
-    $reader = new-object System.IO.StreamReader $rep.GetResponseStream() 
-    $checksum = Get-FileHash -Algorithm SHA256 -InputStream $reader.ReadToEnd()
+    $tempMsi = "$(Get-Location)\ddagent.msi"
+    Remove-Item $tempMsi -ErrorAction Ignore
+    (New-Object net.webclient).Downloadfile($url, $tempMsi)
+    $checksum = Get-FileHash $tempMsi -Algorithm SHA256
+    Remove-Item $tempMsi
 }
-catch [System.Net.WebException] {
-    if ($_.Exception.Status -eq "ProtocolError") {
-        $statusCode = [int]$_.Exception.Response.StatusCode
-    }
+catch {
+    Write-Error "Could not generate checksum for package $($url): $($_)"
     exit 4
-}
-Write-Host $statusCode
-
-if ($statusCode -ne 200) {
-    Write-Error "Package $($url) doesn't exists yet, make sure it exists before publishing the Chocolatey package !"
-    exit 5
 }
 
 if (!(Test-Path $outputDirectory)) {
