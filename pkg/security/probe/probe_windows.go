@@ -227,6 +227,9 @@ func (p *WindowsProbe) Start() error {
 		err := p.setupEtw()
 		log.Infof("Done StartTracing %v", err)
 	}()
+	if p.pm == nil {
+		return nil
+	}
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
