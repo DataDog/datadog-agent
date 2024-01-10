@@ -259,7 +259,7 @@ def remove_pool_directory(ctx, stack):
         for d in dirs:
             if resource_in_stack(stack, d):
                 rm_path = os.path.join(pools_dir, d)
-                ctx.run(f"sudo rm -r {rm_path}", hide=True)
+                ctx.run(f"sudo rm -r '{rm_path}'", hide=True)
                 info(f"[+] Removed libvirt pool directory {rm_path}")
 
 
