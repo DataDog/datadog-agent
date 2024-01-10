@@ -4,7 +4,15 @@ import os
 
 from .init_kmt import VMCONFIG, check_and_get_stack
 from .kmt_os import get_kmt_os
-from .libvirt import delete_domains, delete_networks, delete_pools, delete_volumes, pause_domains, resume_domains, resource_in_stack
+from .libvirt import (
+    delete_domains,
+    delete_networks,
+    delete_pools,
+    delete_volumes,
+    pause_domains,
+    resource_in_stack,
+    resume_domains
+)
 from .tool import Exit, ask, error, info, warn
 
 try:
@@ -243,6 +251,7 @@ def destroy_ec2_instances(ctx, stack):
         info(f"[+] Instances {ids} terminated.")
 
     return
+
 
 def remove_pool_directory(ctx, stack):
     pools_dir = os.path.join(get_kmt_os().libvirt_dir, "pools")

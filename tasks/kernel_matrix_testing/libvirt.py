@@ -1,6 +1,4 @@
-import os
 from .tool import info
-from .kmt_os import get_kmt_os
 
 
 def resource_in_stack(stack, resource):
