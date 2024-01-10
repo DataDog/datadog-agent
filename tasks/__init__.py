@@ -51,6 +51,7 @@ from .go import (
     lint_licenses,
     reset,
     tidy_all,
+    internal_deps_checker,
 )
 from .go_test import (
     codecov,
@@ -115,6 +116,7 @@ ns.add_task(install_tools)
 ns.add_task(invoke_unit_tests)
 ns.add_task(check_mod_tidy)
 ns.add_task(tidy_all)
+ns.add_task(internal_deps_checker)
 ns.add_task(check_go_version)
 ns.add_task(generate_config)
 ns.add_task(junit_upload)

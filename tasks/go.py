@@ -6,6 +6,7 @@ import glob
 import os
 import shutil
 import textwrap
+import re
 from pathlib import Path
 
 from invoke import task
@@ -88,6 +89,15 @@ def golangci_lint(
     """
     print("WARNING: golangci-lint task is deprecated, please migrate to lint-go task")
     raise Exit(code=1)
+
+@task
+def internal_deps_checker(ctx, formatFile=False):
+    """
+    Check that every required internal dependencies are correctly replaced
+    """
+    extra_params = "--formatFile" if formatFile else ""
+    for mod in DEFAULT_MODULES.values():
+        ctx.run(f"go run ./internal/tools/modformatter/modformatter.go --path={mod.full_path()} {extra_params}")
 
 
 @task
