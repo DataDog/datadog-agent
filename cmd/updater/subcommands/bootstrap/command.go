@@ -17,7 +17,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Commands returns the global params commands
+// Commands returns the bootstrap command
 func Commands(global *command.GlobalParams) []*cobra.Command {
 	var timeout time.Duration
 	bootstrapCmd := &cobra.Command{
