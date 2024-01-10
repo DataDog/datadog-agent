@@ -19,6 +19,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -37,6 +38,8 @@ var (
 		processExecCallbacks: make(map[*ProcessCallback]struct{}, 0),
 		processExitCallbacks: make(map[*ProcessCallback]struct{}, 0),
 	}
+
+	oversizedLogLimit = util.NewLogLimit(10, 10*time.Minute)
 )
 
 // processMonitorTelemetry
@@ -170,7 +173,7 @@ func (pm *ProcessMonitor) handleProcessExec(pid uint32) {
 			continue
 		default:
 			pm.tel.processExecChannelIsFull.Add(1)
-			if log.ShouldLog(seelog.DebugLvl) {
+			if log.ShouldLog(seelog.DebugLvl) && oversizedLogLimit.ShouldLog() {
 				log.Debug("can't send exec callback to callbackRunner, channel is full")
 			}
 		}
@@ -190,7 +193,7 @@ func (pm *ProcessMonitor) handleProcessExit(pid uint32) {
 			continue
 		default:
 			pm.tel.processExitChannelIsFull.Add(1)
-			if log.ShouldLog(seelog.DebugLvl) {
+			if log.ShouldLog(seelog.DebugLvl) && oversizedLogLimit.ShouldLog() {
 				log.Debug("can't send exit callback to callbackRunner, channel is full")
 			}
 		}
