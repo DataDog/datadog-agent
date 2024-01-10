@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
@@ -18,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
+	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 )
 
 // Pipeline processes and sends messages to the backend
@@ -36,9 +38,11 @@ func NewPipeline(outputChan chan *message.Payload,
 	destinationsContext *client.DestinationsContext,
 	diagnosticMessageReceiver diagnostic.MessageReceiver,
 	serverless bool,
-	pipelineID int) *Pipeline {
+	pipelineID int,
+	status statusinterface.StatusInterface,
+	hostname hostnameinterface.HostnameInterface) *Pipeline {
 
-	mainDestinations := getDestinations(endpoints, destinationsContext, pipelineID, serverless)
+	mainDestinations := getDestinations(endpoints, destinationsContext, pipelineID, serverless, status)
 
 	strategyInput := make(chan *message.Message, config.ChanSize)
 	senderInput := make(chan *message.Payload, 1) // Only buffer 1 message since payloads can be large
@@ -61,7 +65,7 @@ func NewPipeline(outputChan chan *message.Payload,
 	logsSender = sender.NewSender(senderInput, outputChan, mainDestinations, config.DestinationPayloadChanSize)
 
 	inputChan := make(chan *message.Message, config.ChanSize)
-	processor := processor.New(inputChan, strategyInput, processingRules, encoder, diagnosticMessageReceiver)
+	processor := processor.New(inputChan, strategyInput, processingRules, encoder, diagnosticMessageReceiver, hostname)
 
 	return &Pipeline{
 		InputChan: inputChan,
@@ -92,7 +96,7 @@ func (p *Pipeline) Flush(ctx context.Context) {
 	p.processor.Flush(ctx) // flush messages in the processor into the sender
 }
 
-func getDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, pipelineID int, serverless bool) *client.Destinations {
+func getDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, pipelineID int, serverless bool, status statusinterface.StatusInterface) *client.Destinations {
 	reliable := []client.Destination{}
 	additionals := []client.Destination{}
 
@@ -108,10 +112,10 @@ func getDestinations(endpoints *config.Endpoints, destinationsContext *client.De
 		return client.NewDestinations(reliable, additionals)
 	}
 	for _, endpoint := range endpoints.GetReliableEndpoints() {
-		reliable = append(reliable, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext, !serverless))
+		reliable = append(reliable, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext, !serverless, status))
 	}
 	for _, endpoint := range endpoints.GetUnReliableEndpoints() {
-		additionals = append(additionals, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext, false))
+		additionals = append(additionals, tcp.NewDestination(endpoint, endpoints.UseProto, destinationsContext, false, status))
 	}
 
 	return client.NewDestinations(reliable, additionals)

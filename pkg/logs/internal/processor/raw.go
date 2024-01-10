@@ -19,7 +19,7 @@ var RawEncoder Encoder = &rawEncoder{}
 
 type rawEncoder struct{}
 
-func (r *rawEncoder) Encode(msg *message.Message) error {
+func (r *rawEncoder) Encode(msg *message.Message, hostname string) error {
 	rendered, err := msg.Render()
 	if err != nil {
 		return fmt.Errorf("can't render the message: %v", err)
@@ -43,7 +43,7 @@ func (r *rawEncoder) Encode(msg *message.Message) error {
 		extraContent = time.Now().UTC().AppendFormat(extraContent, config.DateFormat)
 		extraContent = append(extraContent, ' ')
 
-		extraContent = append(extraContent, []byte(msg.GetHostname())...)
+		extraContent = append(extraContent, []byte(hostname)...)
 		extraContent = append(extraContent, ' ')
 
 		// Service
