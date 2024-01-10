@@ -116,7 +116,7 @@ func fetchStatus(statusURL string) ([]byte, error) {
 }
 
 // getAndWriteStatus calls the status server and writes it to `w`
-func getAndWriteStatus(log log.Component, statusURL string, w io.Writer, options ...status.StatusOption) {
+func getAndWriteStatus(log log.Component, statusURL string, w io.Writer) {
 	body, err := fetchStatus(statusURL)
 	if err != nil {
 		switch err.(type) {
@@ -134,10 +134,6 @@ func getAndWriteStatus(log log.Component, statusURL string, w io.Writer, options
 	if err != nil {
 		writeError(log, w, err)
 		return
-	}
-
-	for _, option := range options {
-		option(&s)
 	}
 
 	statusMap["processAgentStatus"] = s
