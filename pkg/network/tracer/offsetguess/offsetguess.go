@@ -128,7 +128,14 @@ func enableProbe(enabled map[probes.ProbeFuncName]struct{}, name probes.ProbeFun
 	enabled[name] = struct{}{}
 }
 
-func setIpv6Configuration(c *config.Config) (bool, bool) {
+func boolToUint64(in bool) uint64 {
+	if in {
+		return 1
+	}
+	return 0
+}
+
+func getIpv6Configuration(c *config.Config) (bool, bool) {
 	ipv6Config.Do(func() {
 		tcpv6Enabled = c.CollectTCPv6Conns
 		udpv6Enabled = c.CollectUDPv6Conns

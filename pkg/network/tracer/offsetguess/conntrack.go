@@ -48,14 +48,8 @@ type conntrackOffsetGuesser struct {
 
 //nolint:revive // TODO(NET) Fix revive linter
 func NewConntrackOffsetGuesser(cfg *config.Config) (OffsetGuesser, error) {
-	tcpv6Enabled, udpv6Enabled := setIpv6Configuration(cfg)
-	var tcpv6EnabledConst, udpv6EnabledConst uint64
-	if tcpv6Enabled {
-		tcpv6EnabledConst = 1
-	}
-	if udpv6Enabled {
-		udpv6EnabledConst = 1
-	}
+	tcpv6Enabled, udpv6Enabled := getIpv6Configuration(cfg)
+	tcpv6EnabledConst, udpv6EnabledConst := boolToUint64(tcpv6Enabled), boolToUint64(udpv6Enabled)
 	return &conntrackOffsetGuesser{
 		m: &manager.Manager{
 			Maps: []*manager.Map{

@@ -725,7 +725,7 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 		cProcName[i] = int8(ch)
 	}
 
-	t.guessTCPv6, t.guessUDPv6 = setIpv6Configuration(cfg)
+	t.guessTCPv6, t.guessUDPv6 = getIpv6Configuration(cfg)
 	t.status = &TracerStatus{
 		State: uint64(StateChecking),
 		Proc:  Proc{Comm: cProcName},
@@ -792,13 +792,6 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 }
 
 func (t *tracerOffsetGuesser) getConstantEditors() []manager.ConstantEditor {
-	var tcpv6EnabledConst, udpv6EnabledConst uint64
-	if tcpv6Enabled {
-		tcpv6EnabledConst = 1
-	}
-	if udpv6Enabled {
-		udpv6EnabledConst = 1
-	}
 	return []manager.ConstantEditor{
 		{Name: "offset_saddr", Value: t.status.Offset_saddr},
 		{Name: "offset_daddr", Value: t.status.Offset_daddr},
@@ -824,8 +817,8 @@ func (t *tracerOffsetGuesser) getConstantEditors() []manager.ConstantEditor {
 		{Name: "offset_sk_buff_sock", Value: t.status.Offset_sk_buff_sock},
 		{Name: "offset_sk_buff_transport_header", Value: t.status.Offset_sk_buff_transport_header},
 		{Name: "offset_sk_buff_head", Value: t.status.Offset_sk_buff_head},
-		{Name: "tcpv6_enabled", Value: tcpv6EnabledConst},
-		{Name: "udpv6_enabled", Value: udpv6EnabledConst},
+		{Name: "tcpv6_enabled", Value: boolToUint64(t.guessTCPv6)},
+		{Name: "udpv6_enabled", Value: boolToUint64(t.guessUDPv6)},
 	}
 }
 
