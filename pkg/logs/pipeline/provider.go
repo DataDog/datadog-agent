@@ -7,10 +7,9 @@ package pipeline
 
 import (
 	"context"
-
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -45,16 +44,16 @@ type provider struct {
 	serverless bool
 
 	status   statusinterface.StatusInterface
-	hostname hostnameinterface.HostnameInterface
+	hostname hostname.Component
 }
 
 // NewProvider returns a new Provider
-func NewProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, status statusinterface.StatusInterface, hostname hostnameinterface.HostnameInterface) Provider {
+func NewProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, status statusinterface.StatusInterface, hostname hostname.Component) Provider {
 	return newProvider(numberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsContext, false, status, hostname)
 }
 
 // NewServerlessProvider returns a new Provider in serverless mode
-func NewServerlessProvider(numberOfPipelines int, auditor auditor.Auditor, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, status statusinterface.StatusInterface, hostname hostnameinterface.HostnameInterface) Provider {
+func NewServerlessProvider(numberOfPipelines int, auditor auditor.Auditor, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, status statusinterface.StatusInterface, hostname hostname.Component) Provider {
 	return newProvider(numberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, processingRules, endpoints, destinationsContext, true, status, hostname)
 }
 
@@ -63,7 +62,7 @@ func NewMockProvider() Provider {
 	return &provider{}
 }
 
-func newProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, serverless bool, status statusinterface.StatusInterface, hostname hostnameinterface.HostnameInterface) Provider {
+func newProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, serverless bool, status statusinterface.StatusInterface, hostname hostname.Component) Provider {
 	return &provider{
 		numberOfPipelines:         numberOfPipelines,
 		auditor:                   auditor,

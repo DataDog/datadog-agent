@@ -41,6 +41,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/utils => ./pkg/config/utils/
 	github.com/DataDog/datadog-agent/pkg/errors => ./pkg/errors
 	github.com/DataDog/datadog-agent/pkg/gohai => ./pkg/gohai
+	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ./pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/metrics => ./pkg/metrics/
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile => ./pkg/networkdevice/profile
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ./pkg/obfuscate
@@ -63,6 +64,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ./pkg/util/filesystem
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ./pkg/util/fxutil/
 	github.com/DataDog/datadog-agent/pkg/util/grpc => ./pkg/util/grpc/
+	github.com/DataDog/datadog-agent/pkg/util/hostname/data => ./pkg/util/hostname/data/
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ./pkg/util/hostname/validate/
 	github.com/DataDog/datadog-agent/pkg/util/http => ./pkg/util/http/
 	github.com/DataDog/datadog-agent/pkg/util/json => ./pkg/util/json
@@ -85,6 +87,7 @@ require (
 	github.com/CycloneDX/cyclonedx-go v0.7.2
 	github.com/DataDog/appsec-internal-go v1.3.0
 	github.com/DataDog/datadog-agent/pkg/gohai v0.51.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.51.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.51.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.51.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.51.0-rc.1
@@ -625,6 +628,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.51.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.51.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/grpc v0.51.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/hostname/data v0.51.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.51.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/http v0.51.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/json v0.51.0-rc.1

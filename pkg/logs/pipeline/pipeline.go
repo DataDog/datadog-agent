@@ -9,8 +9,7 @@ package pipeline
 import (
 	"context"
 	"fmt"
-
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
@@ -40,7 +39,7 @@ func NewPipeline(outputChan chan *message.Payload,
 	serverless bool,
 	pipelineID int,
 	status statusinterface.StatusInterface,
-	hostname hostnameinterface.HostnameInterface) *Pipeline {
+	hostname hostname.Component) *Pipeline {
 
 	mainDestinations := getDestinations(endpoints, destinationsContext, pipelineID, serverless, status)
 
