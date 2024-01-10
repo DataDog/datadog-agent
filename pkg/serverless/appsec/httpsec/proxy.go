@@ -88,7 +88,9 @@ func (lp *ProxyLifecycleProcessor) OnInvokeStart(startDetails *invocationlifecyc
 	case trigger.LambdaFunctionURLEvent:
 		event = &events.LambdaFunctionURLRequest{}
 	}
-	serverlessMetrics.SendASMInvocationEnhancedMetric(nil, lp.demux)
+	if lp.demux != nil {
+		serverlessMetrics.SendASMInvocationEnhancedMetric(nil, lp.demux)
+	}
 
 	if err := json.Unmarshal(payloadBytes, event); err != nil {
 		log.Errorf("appsec: proxy-lifecycle: unexpected lambda event parsing error: %v", err)
