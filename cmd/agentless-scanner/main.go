@@ -81,7 +81,7 @@ import (
 )
 
 const (
-	scannersFork = false
+	forkScanners = false
 
 	maxSnapshotRetries = 3
 	maxAttachRetries   = 10
@@ -225,11 +225,6 @@ type (
 		Duration time.Duration
 		Findings []*finding
 	}
-
-	ebsVolume struct {
-		Hostname string
-		ARN      arn.ARN
-	}
 )
 
 func makeScanTaskID(s *scanTask) string {
@@ -246,10 +241,14 @@ func makeScanTaskID(s *scanTask) string {
 	return string(s.Type) + "-" + hex.EncodeToString(h.Sum(nil)[:8])
 }
 
-func (s scanTask) Path(name string) string {
-	name = strings.ToLower(name)
-	name = regexp.MustCompile("[^a-z0-9_.-]").ReplaceAllString(name, "")
-	return filepath.Join(scansRootDir, s.ID, name)
+func (s scanTask) Path(names ...string) string {
+	root := filepath.Join(scansRootDir, s.ID)
+	for _, name := range names {
+		name = strings.ToLower(name)
+		name = regexp.MustCompile("[^a-z0-9_.-]").ReplaceAllString(name, "")
+		root = filepath.Join(root, name)
+	}
+	return root
 }
 
 func (s scanTask) String() string {
@@ -258,11 +257,6 @@ func (s scanTask) String() string {
 
 func main() {
 	flavor.SetFlavor(flavor.AgentlessScanner)
-
-	// This is required to properly encode / decode *sbommodel.SBOMEntity
-	// TODO: add a test to validate the proper encodings / decodings of our scanResult struct
-	gob.Register(&sbommodel.SBOMEntity_Cyclonedx{})
-	gob.Register(&sbommodel.SBOMEntity_Error{})
 
 	cmd := rootCommand()
 	cmd.SilenceErrors = true
@@ -357,7 +351,6 @@ func runScannerCommand() *cobra.Command {
 
 func scanCommand() *cobra.Command {
 	var cliArgs struct {
-		ScanType string
 		ARN      string
 		Hostname string
 		SendData bool
@@ -374,7 +367,6 @@ func scanCommand() *cobra.Command {
 			} else {
 				roles := getDefaultRolesMapping()
 				task, err := newScanTask(
-					cliArgs.ScanType,
 					cliArgs.ARN,
 					cliArgs.Hostname,
 					nil,
@@ -395,33 +387,33 @@ func scanCommand() *cobra.Command {
 		}),
 	}
 
-	cmd.Flags().StringVar(&cliArgs.RawScan, "raw-config-data", "", "scan config data in JSON")
-	cmd.Flags().StringVar(&cliArgs.ScanType, "scan-type", "", "scan type")
 	cmd.Flags().StringVar(&cliArgs.ARN, "arn", "", "arn to scan")
-	cmd.Flags().StringVar(&cliArgs.Hostname, "hostname", "", "scan hostname")
-	cmd.MarkFlagsRequiredTogether("arn", "scan-type", "hostname")
-
+	cmd.Flags().StringVar(&cliArgs.Hostname, "hostname", "unknown", "scan hostname")
+	_ = cmd.MarkFlagRequired("arn")
 	return cmd
 }
 
 func offlineCommand() *cobra.Command {
 	var cliArgs struct {
-		poolSize int
-		regions  []string
-		maxScans int
+		poolSize     int
+		regions      []string
+		scanType     string
+		maxScans     int
+		printResults bool
 	}
 	cmd := &cobra.Command{
 		Use:   "offline",
 		Short: "Runs the agentless-scanner in offline mode (server-less mode)",
 		RunE: runWithModules(func(cmd *cobra.Command, args []string) error {
-			return offlineCmd(cliArgs.poolSize, cliArgs.regions, cliArgs.maxScans)
+			return offlineCmd(cliArgs.poolSize, scanType(cliArgs.scanType), cliArgs.regions, cliArgs.maxScans, cliArgs.printResults)
 		}),
 	}
 
-	cmd.Flags().IntVarP(&cliArgs.poolSize, "workers", "", defaultWorkersCount, "number of scans running in parallel")
-	cmd.Flags().StringSliceVarP(&cliArgs.regions, "regions", "", nil, "list of regions to scan (default to all regions)")
-	cmd.Flags().IntVarP(&cliArgs.maxScans, "max-scans", "", 0, "maximum number of scans to perform")
-
+	cmd.Flags().IntVar(&cliArgs.poolSize, "workers", defaultWorkersCount, "number of scans running in parallel")
+	cmd.Flags().StringSliceVar(&cliArgs.regions, "regions", nil, "list of regions to scan (default to all regions)")
+	cmd.Flags().StringVar(&cliArgs.scanType, "scan-type", string(ebsScanType), "scan type (ebs-volume or lambda)")
+	cmd.Flags().IntVar(&cliArgs.maxScans, "max-scans", 0, "maximum number of scans to perform")
+	cmd.Flags().BoolVar(&cliArgs.printResults, "print-results", false, "print scan results to stdout")
 	return cmd
 }
 
@@ -521,22 +513,23 @@ func runScannerCmd(sock string) error {
 	}
 	defer conn.Close()
 
-	// TODO: use unix socket instead of stdout / stdin
 	dec := gob.NewDecoder(conn)
 	enc := gob.NewEncoder(conn)
-	if err := dec.Decode(&opts); err != nil {
-		return err
-	}
+	for {
+		_ = conn.SetReadDeadline(time.Now().Add(4 * time.Second))
+		if err := dec.Decode(&opts); err != nil {
+			if errors.Is(err, net.ErrClosed) || errors.Is(err, io.EOF) {
+				return nil
+			}
+			return err
+		}
 
-	resultsCh := make(chan scanResult)
-	go launchScannerLocally(ctx, resultsCh, opts)
-
-	for result := range resultsCh {
+		result := launchScannerLocally(ctx, opts)
+		_ = conn.SetWriteDeadline(time.Now().Add(4 * time.Second))
 		if err := enc.Encode(result); err != nil {
 			return err
 		}
 	}
-	return nil
 }
 
 func parseDiskMode(diskModeStr string) (diskMode, error) {
@@ -599,7 +592,7 @@ func scanCmd(config scanConfig) error {
 	return nil
 }
 
-func offlineCmd(poolSize int, regions []string, maxScans int) error {
+func offlineCmd(poolSize int, scanType scanType, regions []string, maxScans int, printResults bool) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	defer statsd.Flush()
@@ -670,108 +663,154 @@ func offlineCmd(poolSize int, regions []string, maxScans int) error {
 	if err != nil {
 		return fmt.Errorf("could not initialize agentless-scanner: %w", err)
 	}
+	sidescanner.printResults = printResults
 
-	ctx, cancel := context.WithCancel(ctx)
-	go func() {
-		scans := make([]*scanTask, 0)
-
+	pushEBSVolumes := func(configsCh chan *scanConfig) error {
+		count := 0
 		for _, regionName := range allRegions {
 			if ctx.Err() != nil {
-				return
+				return nil
 			}
 			if regionName == "auto" {
 				regionName = selfRegion
 			}
-			volumesForRegion, err := listEBSVolumesForRegion(ctx, *identity.Account, regionName, roles)
+			cfg, err := newAWSConfig(ctx, regionName, roles[*identity.Account])
 			if err != nil {
-				log.Errorf("could not scan region %q: %v", regionName, err)
-				cancel()
-				return
-			}
-			for _, volume := range volumesForRegion {
-				scan, err := newScanTask(string(ebsScanType), volume.ARN.String(), volume.Hostname, defaultActions, roles, globalParams.diskMode)
 				if err != nil {
-					log.Warnf("could not create scan for volume %s: %v", volume.ARN, err)
-				} else {
-					scans = append(scans, scan)
+					return err
+				}
+			}
+			ec2client := ec2.NewFromConfig(cfg)
+			if err != nil {
+				return err
+			}
+			describeInstancesInput := &ec2.DescribeInstancesInput{}
+			for {
+				instances, err := ec2client.DescribeInstances(ctx, describeInstancesInput)
+				if err != nil {
+					return fmt.Errorf("could not scan region %q for EBS volumes: %w", regionName, err)
+				}
+				for _, reservation := range instances.Reservations {
+					for _, instance := range reservation.Instances {
+						if instance.InstanceId == nil {
+							continue
+						}
+						for _, blockDeviceMapping := range instance.BlockDeviceMappings {
+							if blockDeviceMapping.DeviceName == nil {
+								continue
+							}
+							if blockDeviceMapping.Ebs == nil {
+								continue
+							}
+							if *blockDeviceMapping.DeviceName != *instance.RootDeviceName {
+								continue
+							}
+							if instance.Architecture == ec2types.ArchitectureValuesX8664Mac || instance.Architecture == ec2types.ArchitectureValuesArm64Mac {
+								// Exclude macOS.
+								continue
+							}
+							if instance.Platform == "windows" {
+								// ec2types.PlatformValuesWindows incorrectly spells "Windows".
+								// Exclude Windows.
+								continue
+							}
+							if instance.PlatformDetails != nil && strings.HasPrefix(*instance.PlatformDetails, "Windows") {
+								// Exclude Windows.
+								continue
+							}
+							volumeARN := ec2ARN(regionName, *identity.Account, resourceTypeVolume, *blockDeviceMapping.Ebs.VolumeId)
+							log.Debugf("%s %s %s %s %s", regionName, *instance.InstanceId, volumeARN, *blockDeviceMapping.DeviceName, *instance.PlatformDetails)
+							scan, err := newScanTask(volumeARN.String(), *instance.InstanceId, defaultActions, roles, globalParams.diskMode)
+							if err != nil {
+								return err
+							}
+
+							config := &scanConfig{Type: awsScan, Tasks: []*scanTask{scan}, Roles: roles}
+							select {
+							case configsCh <- config:
+							case <-ctx.Done():
+								return nil
+							}
+							count++
+							if maxScans > 0 && count >= maxScans {
+								return nil
+							}
+						}
+					}
+				}
+				if instances.NextToken == nil {
+					break
+				}
+				describeInstancesInput.NextToken = instances.NextToken
+			}
+		}
+		return nil
+	}
+
+	pushLambdaFunctions := func(configsCh chan *scanConfig) error {
+		count := 0
+		for _, regionName := range regions {
+			if ctx.Err() != nil {
+				return nil
+			}
+			if regionName == "auto" {
+				regionName = selfRegion
+			}
+			cfg, err := newAWSConfig(ctx, regionName, roles[*identity.Account])
+			if err != nil {
+				return fmt.Errorf("could not scan region %q for EBS volumes: %w", regionName, err)
+			}
+			lambdaclient := lambda.NewFromConfig(cfg)
+			var marker *string
+			for {
+				functions, err := lambdaclient.ListFunctions(ctx, &lambda.ListFunctionsInput{
+					Marker: marker,
+				})
+				if err != nil {
+					return fmt.Errorf("could not scan region %q for EBS volumes: %w", regionName, err)
+				}
+				for _, function := range functions.Functions {
+					scan, err := newScanTask(*function.FunctionArn, "", defaultActions, roles, globalParams.diskMode)
+					if err != nil {
+						return fmt.Errorf("could not create scan for lambda %s: %w", *function.FunctionArn, err)
+					}
+					config := &scanConfig{Type: awsScan, Tasks: []*scanTask{scan}, Roles: roles}
+					select {
+					case configsCh <- config:
+					case <-ctx.Done():
+						return nil
+					}
+					count++
+					if maxScans > 0 && count >= maxScans {
+						return nil
+					}
+				}
+				marker = functions.NextMarker
+				if marker == nil {
+					break
 				}
 			}
 		}
+		return nil
+	}
 
-		if maxScans > 0 && len(scans) > maxScans {
-			scans = scans[:maxScans]
+	go func() {
+		defer close(sidescanner.configsCh)
+		var err error
+		if scanType == ebsScanType {
+			err = pushEBSVolumes(sidescanner.configsCh)
+		} else if scanType == lambdaScanType {
+			err = pushLambdaFunctions(sidescanner.configsCh)
+		} else {
+			panic("unreachable")
 		}
-
-		sidescanner.configsCh <- &scanConfig{Type: awsScan, Tasks: scans, Roles: roles}
-		close(sidescanner.configsCh)
+		if err != nil {
+			log.Error(err)
+		}
 	}()
 
 	sidescanner.start(ctx)
 	return nil
-}
-
-func listEBSVolumesForRegion(ctx context.Context, accountID, regionName string, roles rolesMapping) (volumes []ebsVolume, err error) {
-	cfg, err := newAWSConfig(ctx, regionName, roles[accountID])
-	if err != nil {
-		return nil, err
-	}
-
-	ec2client := ec2.NewFromConfig(cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	describeInstancesInput := &ec2.DescribeInstancesInput{}
-
-	for {
-		describeInstancesOutput, err := ec2client.DescribeInstances(ctx, describeInstancesInput)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, reservation := range describeInstancesOutput.Reservations {
-			for _, instance := range reservation.Instances {
-				if instance.InstanceId == nil {
-					continue
-				}
-				for _, blockDeviceMapping := range instance.BlockDeviceMappings {
-					if blockDeviceMapping.DeviceName == nil {
-						continue
-					}
-					if blockDeviceMapping.Ebs == nil {
-						continue
-					}
-					if *blockDeviceMapping.DeviceName != *instance.RootDeviceName {
-						continue
-					}
-					if instance.Architecture == ec2types.ArchitectureValuesX8664Mac || instance.Architecture == ec2types.ArchitectureValuesArm64Mac {
-						// Exclude macOS.
-						continue
-					}
-					if instance.Platform == "windows" {
-						// ec2types.PlatformValuesWindows incorrectly spells "Windows".
-						// Exclude Windows.
-						continue
-					}
-					if instance.PlatformDetails != nil && strings.HasPrefix(*instance.PlatformDetails, "Windows") {
-						// Exclude Windows.
-						continue
-					}
-					volumeARN := ec2ARN(regionName, accountID, resourceTypeVolume, *blockDeviceMapping.Ebs.VolumeId)
-					log.Debugf("%s %s %s %s %s", regionName, *instance.InstanceId, volumeARN, *blockDeviceMapping.DeviceName, *instance.PlatformDetails)
-					volumes = append(volumes, ebsVolume{Hostname: *instance.InstanceId, ARN: volumeARN})
-				}
-			}
-		}
-
-		if describeInstancesOutput.NextToken == nil {
-			break
-		}
-
-		describeInstancesInput.NextToken = describeInstancesOutput.NextToken
-	}
-
-	return
 }
 
 func cleanupCmd(region string, dryRun bool, delay time.Duration) error {
@@ -880,7 +919,7 @@ func attachCmd(snapshotARN arn.ARN, mode diskMode, mount bool) error {
 		mode = nbdAttach
 	}
 
-	scan, err := newScanTask(string(ebsScanType), snapshotARN.String(), "unknown", defaultActions, nil, mode)
+	scan, err := newScanTask(snapshotARN.String(), "unknown", defaultActions, nil, mode)
 	if err != nil {
 		return err
 	}
@@ -924,34 +963,24 @@ func attachCmd(snapshotARN arn.ARN, mode diskMode, mount bool) error {
 	return nil
 }
 
-func newScanTask(t string, resourceARN, hostname string, actions []string, roles rolesMapping, mode diskMode) (*scanTask, error) {
+func newScanTask(resourceARN, hostname string, actions []string, roles rolesMapping, mode diskMode) (*scanTask, error) {
 	var scan scanTask
 	var err error
-	if t == string(hostScanType) {
-		scan.Type = hostScanType
-	} else {
-		scan.ARN, err = parseARN(resourceARN, resourceTypeSnapshot, resourceTypeVolume, resourceTypeFunction)
-		if err != nil {
-			return nil, err
-		}
-		resourceType, _, err := getARNResource(scan.ARN)
-		if err != nil {
-			return nil, err
-		}
-		switch t {
-		case string(ebsScanType):
-			if resourceType != resourceTypeSnapshot && resourceType != resourceTypeVolume {
-				return nil, fmt.Errorf("malformed scan task: unexpected type %q", resourceType)
-			}
-			scan.Type = ebsScanType
-		case string(lambdaScanType):
-			if resourceType != resourceTypeFunction {
-				return nil, fmt.Errorf("malformed scan task: unexpected type %q", resourceType)
-			}
-			scan.Type = lambdaScanType
-		default:
-			return nil, fmt.Errorf("unknown scan type %q", t)
-		}
+	scan.ARN, err = parseARN(resourceARN, resourceTypeSnapshot, resourceTypeVolume, resourceTypeFunction)
+	if err != nil {
+		return nil, err
+	}
+	resourceType, _, err := getARNResource(scan.ARN)
+	if err != nil {
+		return nil, err
+	}
+	switch {
+	case resourceType == resourceTypeSnapshot || resourceType == resourceTypeVolume:
+		scan.Type = ebsScanType
+	case resourceType == resourceTypeFunction:
+		scan.Type = lambdaScanType
+	default:
+		return nil, fmt.Errorf("unsupported resource type %q for scanning", resourceType)
 	}
 	scan.Hostname = hostname
 	scan.Roles = roles
@@ -1005,7 +1034,7 @@ func unmarshalConfig(b []byte) (*scanConfig, error) {
 
 	config.Tasks = make([]*scanTask, 0, len(configRaw.Tasks))
 	for _, rawScan := range configRaw.Tasks {
-		task, err := newScanTask(rawScan.Type, rawScan.ARN, rawScan.Hostname, rawScan.Actions, config.Roles, config.DiskMode)
+		task, err := newScanTask(rawScan.ARN, rawScan.Hostname, rawScan.Actions, config.Roles, config.DiskMode)
 		if err != nil {
 			log.Warnf("dropping malformed task: %v", err)
 			continue
@@ -1927,7 +1956,7 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 			}
 		}
 		scanStartedAt := time.Now()
-		launchScanner(ctx, resultsCh, scannerOptions{
+		resultsCh <- launchScanner(ctx, scannerOptions{
 			Scanner:     "vulns",
 			Scan:        scan,
 			Mode:        "vm",
@@ -1977,7 +2006,7 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 		for _, action := range scan.Actions {
 			switch action {
 			case vulnsHost:
-				launchScanner(ctx, resultsCh, scannerOptions{
+				resultsCh <- launchScanner(ctx, scannerOptions{
 					Scanner:    "vulns",
 					Scan:       scan,
 					Mode:       "local",
@@ -1994,7 +2023,7 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 				} else {
 					for _, ctrMnt := range ctrMountPoints {
 						entityID, entityTags := containerTags(ctrMnt)
-						launchScanner(ctx, resultsCh, scannerOptions{
+						resultsCh <- launchScanner(ctx, scannerOptions{
 							Scanner:    "vulns",
 							Scan:       scan,
 							Root:       ctrMnt.Path,
@@ -2005,7 +2034,7 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 					}
 				}
 			case malware:
-				launchScanner(ctx, resultsCh, scannerOptions{
+				resultsCh <- launchScanner(ctx, scannerOptions{
 					Scanner: "malware",
 					Scan:    scan,
 					Root:    root,
@@ -2051,84 +2080,117 @@ func (o scannerOptions) ID() string {
 	return o.Scanner + "-" + hex.EncodeToString(h.Sum(nil)[:8])
 }
 
-func launchScanner(ctx context.Context, resultsCh chan scanResult, opts scannerOptions) {
-	if scannersFork {
-		start := time.Now()
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
-		exe, err := os.Executable()
-		if err != nil {
-			resultsCh <- scanResult{Err: err, Scan: opts.Scan, Duration: time.Since(start)}
-			return
-		}
-
-		sockName := filepath.Join(opts.Scan.Path(opts.ID() + ".sock"))
-		l, err := net.Listen("unix", sockName)
-		if err != nil {
-			resultsCh <- scanResult{Err: err, Scan: opts.Scan, Duration: time.Since(start)}
-			return
-		}
-		defer l.Close()
-
-		ready := make(chan struct{})
-
-		go func() {
-			ready <- struct{}{}
-			conn, err := l.Accept()
-			if err != nil {
-				if errors.Is(err, net.ErrClosed) {
-					return
-				}
-				resultsCh <- scanResult{Err: err, Scan: opts.Scan, Duration: time.Since(start)}
-				return
-			}
-			defer conn.Close()
-			if err != nil {
-				resultsCh <- scanResult{Err: err, Scan: opts.Scan, Duration: time.Since(start)}
-				return
-			}
-
-			enc := gob.NewEncoder(conn)
-			dec := gob.NewDecoder(conn)
-			var result scanResult
-			if err := enc.Encode(opts); err != nil {
-				resultsCh <- scanResult{Err: err, Scan: opts.Scan, Duration: time.Since(start)}
-				return
-			}
-			if err := dec.Decode(&result); err != nil {
-				resultsCh <- scanResult{Err: err, Scan: opts.Scan, Duration: time.Since(start)}
-				return
-			}
-			resultsCh <- result
-		}()
-
-		<-ready
-
-		cmd := exec.CommandContext(ctx, exe, "run-scanner", "--sock", sockName)
-		if err := cmd.Run(); err != nil {
-			var errx *exec.ExitError
-			if errors.As(err, &errx) {
-				log.Errorf("%s: execed scanner %q with pid=%d: %v: with output: %s", opts.Scan, opts.Scanner, cmd.Process.Pid, errx, errx.Stderr)
-			} else {
-				log.Errorf("%s: execed scanner %q with pid=%d: %v", opts.Scan, opts.Scanner, cmd.Process.Pid, err)
-			}
-			resultsCh <- scanResult{Err: err, Scan: opts.Scan, Duration: time.Since(start)}
-			return
-		}
-	} else {
-		launchScannerLocally(ctx, resultsCh, opts)
+func launchScanner(ctx context.Context, opts scannerOptions) scanResult {
+	if forkScanners {
+		return launchScannerRemotely(ctx, opts)
 	}
+	return launchScannerLocally(ctx, opts)
 }
 
-func launchScannerLocally(ctx context.Context, resultsCh chan scanResult, opts scannerOptions) {
+func launchScannerRemotely(ctx context.Context, opts scannerOptions) scanResult {
+	start := time.Now()
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+
+	exe, err := os.Executable()
+	if err != nil {
+		return scanResult{Err: err, Scan: opts.Scan, Duration: time.Since(start)}
+	}
+
+	sockName := filepath.Join(opts.Scan.Path(opts.ID() + ".sock"))
+
+	l, err := net.Listen("unix", sockName)
+	if err != nil {
+		return scanResult{Err: err, Scan: opts.Scan, Duration: time.Since(start)}
+	}
+	defer l.Close()
+
+	remoteCall := func() (scanResult, error) {
+		var result scanResult
+
+		conn, err := l.Accept()
+		if err != nil {
+			return scanResult{}, err
+		}
+		defer conn.Close()
+
+		deadline, ok := ctx.Deadline()
+		if ok {
+			_ = conn.SetDeadline(deadline)
+		}
+
+		enc := gob.NewEncoder(conn)
+		dec := gob.NewDecoder(conn)
+		if err := enc.Encode(opts); err != nil {
+			return scanResult{}, err
+		}
+		if err := dec.Decode(&result); err != nil {
+			return scanResult{}, err
+		}
+		return result, nil
+	}
+
+	resultsCh := make(chan scanResult, 1)
+	go func() {
+		result, err := remoteCall()
+		if err != nil {
+			resultsCh <- scanResult{Err: err, Scan: opts.Scan, Duration: time.Since(start)}
+		} else {
+			resultsCh <- result
+		}
+	}()
+
+	stderr := &truncatedWriter{max: 64 * 1024}
+	cmd := exec.CommandContext(ctx, exe, "run-scanner", "--sock", sockName)
+	cmd.Dir = opts.Scan.Path()
+	cmd.Stderr = stderr
+	if err := cmd.Run(); err != nil {
+		if ctx.Err() != nil {
+			return scanResult{Err: ctx.Err(), Scan: opts.Scan, Duration: time.Since(start)}
+		}
+		var errx *exec.ExitError
+		if errors.As(err, &errx) {
+			log.Errorf("%s: execed scanner %q with pid=%d: %v: with output: %s", opts.Scan, opts.Scanner, cmd.Process.Pid, errx, stderr)
+		} else {
+			log.Errorf("%s: execed scanner %q: %v", opts.Scan, opts.Scanner, err)
+		}
+		return scanResult{Err: err, Scan: opts.Scan, Duration: time.Since(start)}
+	}
+
+	return <-resultsCh
+}
+
+type truncatedWriter struct {
+	max int
+	buf bytes.Buffer
+}
+
+func (w *truncatedWriter) String() string {
+	return w.buf.String()
+}
+
+func (w *truncatedWriter) Write(b []byte) (n int, err error) {
+	remaining := w.max - len(w.buf.Bytes())
+	if remaining > 0 {
+		if remaining <= len(b) {
+			w.buf.Write(b[:remaining])
+			w.buf.WriteString("... truncated")
+		} else {
+			w.buf.Write(b)
+		}
+	}
+	return len(b), nil
+}
+
+func launchScannerLocally(ctx context.Context, opts scannerOptions) scanResult {
 	start := time.Now()
 	switch opts.Scanner {
 	case "vulns":
 		sbom, err := launchScannerTrivy(ctx, opts)
-		resultsCh <- scanResult{Err: err, Scan: opts.Scan, SBOM: sbom, Duration: time.Since(start)}
+		return scanResult{Err: err, Scan: opts.Scan, SBOM: sbom, Duration: time.Since(start)}
 	case "malware":
 		findings, err := launchScannerMalware(ctx, opts)
-		resultsCh <- scanResult{Err: err, Scan: opts.Scan, Findings: findings, Duration: time.Since(start)}
+		return scanResult{Err: err, Scan: opts.Scan, Findings: findings, Duration: time.Since(start)}
 	default:
 		panic("unreachable")
 	}
@@ -2195,7 +2257,7 @@ func scanLambda(ctx context.Context, scan *scanTask, resultsCh chan scanResult) 
 	}
 
 	scanStartedAt := time.Now()
-	launchScanner(ctx, resultsCh, scannerOptions{
+	resultsCh <- launchScanner(ctx, scannerOptions{
 		Scanner:    "vulns",
 		Scan:       scan,
 		Mode:       "lambda",
