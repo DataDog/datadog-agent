@@ -168,7 +168,7 @@ Resources:
           Sid: GetLambdaDetails
         - Action: lambda:ListFunctions
           Effect: Allow
-          Resource: *
+          Resource: '*'
           Sid: ListLambdas
         - Action: ec2:DescribeInstances
           Effect: Allow
