@@ -250,9 +250,6 @@ int socket__http_filter(struct __sk_buff* skb) {
 
     read_into_buffer_skb((char *)event.http.request_fragment, skb, skb_info.data_off);
     http_process(&event, &skb_info, NO_TAGS);
-    if (is_direct_flush_supported()) {
-        http_batch_flush(skb);
-    }
     return 0;
 }
 
