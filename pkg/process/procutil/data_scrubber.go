@@ -19,7 +19,7 @@ var (
 		"*password*", "*passwd*", "*mysql_pwd*",
 		"*access_token*", "*auth_token*",
 		"*api_key*", "*apikey*",
-		"*secret*", "*credentials*", "stripetoken"}
+		"*secret*", "*credentials*", "stripetoken", "rails"}
 )
 
 const (

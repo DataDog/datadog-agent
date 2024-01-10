@@ -9,18 +9,24 @@ import (
 	"fmt"
 	"time"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	model "github.com/DataDog/agent-payload/v5/process"
-
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+
+const (
+	configDiscoPrefix               = "process_config."
+	configDiscoCustomSensitiveWords = configDiscoPrefix   + "custom_sensitive_words"
+	configDiscoScrubArgs            = configDiscoPrefix   + "scrub_args"
 )
 
 // NewProcessDiscoveryCheck returns an instance of the ProcessDiscoveryCheck.
 func NewProcessDiscoveryCheck(config ddconfig.Reader) *ProcessDiscoveryCheck {
 	return &ProcessDiscoveryCheck{
 		config:    config,
+		scrubber:  procutil.NewDefaultDataScrubber(),
 		userProbe: NewLookupIDProbe(config),
 	}
 }
@@ -32,6 +38,8 @@ type ProcessDiscoveryCheck struct {
 	config ddconfig.Reader
 
 	probe      procutil.Probe
+	// scrubber is a DataScrubber to hide command line sensitive words
+	scrubber *procutil.DataScrubber
 	userProbe  *LookupIdProbe
 	info       *HostInfo
 	initCalled bool
@@ -43,6 +51,9 @@ type ProcessDiscoveryCheck struct {
 func (d *ProcessDiscoveryCheck) Init(syscfg *SysProbeConfig, info *HostInfo, _ bool) error {
 	d.info = info
 	d.initCalled = true
+
+	initDiscoveryScrubber(d.config, d.scrubber)
+
 	d.probe = newProcessProbe(d.config, procutil.WithPermission(syscfg.ProcessModuleEnabled))
 
 	d.maxBatchSize = getMaxBatchSize(d.config)
@@ -161,3 +172,31 @@ func calculateNumCores(info *model.SystemInfo) (numCores int32) {
 
 	return numCores
 }
+
+
+
+func initDiscoveryScrubber(config ddconfig.Reader, scrubber *procutil.DataScrubber) {
+	// Enable/Disable the DataScrubber to obfuscate process args
+	if config.IsSet(configDiscoScrubArgs ) {
+		scrubber.Enabled = config.GetBool(configDiscoScrubArgs )
+	}
+
+	if scrubber.Enabled { // Scrubber is enabled by default when it's created
+		log.Debug("Starting discovery process collection with Scrubber enabled")
+	}
+
+	// A custom word list to enhance the default one used by the DataScrubber
+	if config.IsSet(configDiscoCustomSensitiveWords) {
+		words := config.GetStringSlice(configDiscoCustomSensitiveWords)
+		scrubber.AddCustomSensitiveWords(words)
+		log.Debug("Adding custom sensitives words to Discovery Scrubber:", words)
+		
+	}
+
+	// Strips all process arguments
+	if config.GetBool(configStripProcArgs) {
+		log.Debug("Strip all process arguments enabled")
+		scrubber.StripAllArguments = true
+	}
+}
+
