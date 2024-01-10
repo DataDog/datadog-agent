@@ -26,7 +26,10 @@ import (
 )
 
 const (
-	checkName = "jetson"
+	// Enabled is true if the check is enabled
+	Enabled = true
+	// CheckName is the name of the check
+	CheckName = "jetson"
 
 	// The interval to run tegrastats at, in seconds
 	tegraStatsInterval = 500 * time.Millisecond
@@ -198,12 +201,9 @@ func (c *JetsonCheck) Configure(senderManager sender.SenderManager, integrationC
 	return nil
 }
 
-func jetsonCheckFactory() check.Check {
+// Factory creates a new check instance
+func Factory() check.Check {
 	return &JetsonCheck{
-		CheckBase: core.NewCheckBase(checkName),
+		CheckBase: core.NewCheckBase(CheckName),
 	}
-}
-
-func init() {
-	core.RegisterCheck(checkName, jetsonCheckFactory)
 }

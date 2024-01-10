@@ -25,7 +25,10 @@ import (
 )
 
 const (
-	crashDetectCheckName = "wincrashdetect"
+	// Enabled is true if the check is enabled
+	Enabled = true
+	// CheckName is the name of the check
+	CheckName = "wincrashdetect"
 )
 
 var (
@@ -48,13 +51,10 @@ type WinCrashDetect struct {
 	reporter *crashreport.WinCrashReporter
 }
 
-func init() {
-	core.RegisterCheck(crashDetectCheckName, crashDetectFactory)
-}
-
-func crashDetectFactory() check.Check {
+// Factory creates a new check instance
+func Factory() check.Check {
 	return &WinCrashDetect{
-		CheckBase: core.NewCheckBase(crashDetectCheckName),
+		CheckBase: core.NewCheckBase(CheckName),
 		instance:  &WinCrashConfig{},
 	}
 }
@@ -99,8 +99,8 @@ func (wcd *WinCrashDetect) Run() error {
 	}
 	ev := event.Event{
 		Priority:       event.EventPriorityNormal,
-		SourceTypeName: crashDetectCheckName,
-		EventType:      crashDetectCheckName,
+		SourceTypeName: CheckName,
+		EventType:      CheckName,
 		Title:          formatTitle(crash),
 		Text:           formatText(crash),
 		AlertType:      event.EventAlertTypeError,

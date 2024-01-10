@@ -27,7 +27,10 @@ import (
 )
 
 const (
-	criCheckName  = "cri"
+	// Enabled is true if the check is enabled
+	Enabled = true
+	// CheckName is the name of the check// CheckName
+	CheckName     = "cri"
 	cacheValidity = 2 * time.Second
 )
 
@@ -43,14 +46,10 @@ type CRICheck struct {
 	processor generic.Processor
 }
 
-func init() {
-	core.RegisterCheck(criCheckName, CRIFactory)
-}
-
-// CRIFactory is exported for integration testing
-func CRIFactory() check.Check {
+// Factory is exported for integration testing
+func Factory() check.Check {
 	return &CRICheck{
-		CheckBase: core.NewCheckBase(criCheckName),
+		CheckBase: core.NewCheckBase(CheckName),
 		instance:  &CRIConfig{},
 	}
 }

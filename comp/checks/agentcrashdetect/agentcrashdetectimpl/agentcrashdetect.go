@@ -33,9 +33,10 @@ import (
 )
 
 const (
-	crashDetectCheckName = "agentcrashdetect"
-	maxStartupWarnings   = 20
-	reportedKey          = `lastReported`
+	// CheckName is the name of the check
+	CheckName          = "agentcrashdetect"
+	maxStartupWarnings = 20
+	reportedKey        = `lastReported`
 )
 
 var (
@@ -174,9 +175,9 @@ func newAgentCrashComponent(deps dependencies) agentcrashdetect.Component {
 	instance.tconfig = deps.TConfig.Object()
 	deps.Lifecycle.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			core.RegisterCheck(crashDetectCheckName, func() check.Check {
+			core.RegisterCheck(CheckName, func() check.Check {
 				checkInstance := &AgentCrashDetect{
-					CheckBase:   core.NewCheckBase(crashDetectCheckName),
+					CheckBase:   core.NewCheckBase(CheckName),
 					instance:    &WinCrashConfig{},
 					tconfig:     instance.tconfig,
 					probeconfig: deps.SConfig,

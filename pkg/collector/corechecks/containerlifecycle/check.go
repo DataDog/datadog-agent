@@ -23,14 +23,11 @@ import (
 )
 
 const (
-	checkName           = "container_lifecycle"
+	// CheckName is the name of the check
+	CheckName           = "container_lifecycle"
 	maxChunkSize        = 100
 	defaultPollInterval = 10
 )
-
-func init() {
-	core.RegisterCheck(checkName, CheckFactory)
-}
 
 // Config holds the container_lifecycle check configuration
 type Config struct {
@@ -99,7 +96,7 @@ func (c *Check) Run() error {
 		EventType: workloadmeta.EventTypeUnset,
 	}
 	contEventsCh := c.workloadmetaStore.Subscribe(
-		checkName+"-cont",
+		CheckName+"-cont",
 		workloadmeta.NormalPriority,
 		workloadmeta.NewFilter(&containerFilterParams),
 	)
@@ -110,7 +107,7 @@ func (c *Check) Run() error {
 		EventType: workloadmeta.EventTypeUnset,
 	}
 	podEventsCh := c.workloadmetaStore.Subscribe(
-		checkName+"-pod",
+		CheckName+"-pod",
 		workloadmeta.NormalPriority,
 		workloadmeta.NewFilter(&podFilterParams),
 	)
@@ -146,13 +143,14 @@ func (c *Check) Stop() { close(c.stopCh) }
 // Interval returns 0, it makes container_lifecycle a long-running check
 func (c *Check) Interval() time.Duration { return 0 }
 
-// CheckFactory registers the container_lifecycle check
-func CheckFactory() check.Check {
-	return &Check{
-		CheckBase: core.NewCheckBase(checkName),
-		// TODO(components): stop using globals, rely instead on injected component
-		workloadmetaStore: workloadmeta.GetGlobalStore(),
-		instance:          &Config{},
-		stopCh:            make(chan struct{}),
+// NewFactory returns a new check factory
+func NewFactory(store workloadmeta.Component) func() check.Check {
+	return func() check.Check {
+		return &Check{
+			CheckBase:         core.NewCheckBase(CheckName),
+			workloadmetaStore: store,
+			instance:          &Config{},
+			stopCh:            make(chan struct{}),
+		}
 	}
 }

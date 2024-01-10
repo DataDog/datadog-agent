@@ -19,15 +19,20 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	agentEvent "github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/session"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/subscription"
+	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
+	winevtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows"
+	evtsession "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/session"
+	evtsubscribe "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/subscription"
 
 	"golang.org/x/sys/windows"
 )
 
-const checkName = "win32_event_log"
+const (
+	// Enabled is true if the check is enabled
+	Enabled = true
+	// CheckName is the name of the check
+	CheckName = "win32_event_log"
+)
 
 // The lower cased version of the `API SOURCE ATTRIBUTE` column from the table located here:
 // https://docs.datadoghq.com/integrations/faq/list-of-api-source-attribute-value/
@@ -286,13 +291,10 @@ func (c *Check) Cancel() {
 	}
 }
 
-func checkFactory() agentCheck.Check {
+// Factory creates a new check instance
+func Factory() agentCheck.Check {
 	return &Check{
-		CheckBase: core.NewCheckBase(checkName),
+		CheckBase: core.NewCheckBase(CheckName),
 		evtapi:    winevtapi.New(),
 	}
-}
-
-func init() {
-	core.RegisterCheck(checkName, checkFactory)
 }

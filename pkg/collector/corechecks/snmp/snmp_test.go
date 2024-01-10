@@ -977,10 +977,10 @@ community_string: public
 
 func TestCheckID(t *testing.T) {
 	profile.SetConfdPathAndCleanProfiles()
-	check1 := snmpFactory()
-	check2 := snmpFactory()
-	check3 := snmpFactory()
-	checkSubnet := snmpFactory()
+	check1 := Factory()
+	check2 := Factory()
+	check3 := Factory()
+	checkSubnet := Factory()
 	// language=yaml
 	rawInstanceConfig1 := []byte(`
 ip_address: 1.1.1.1

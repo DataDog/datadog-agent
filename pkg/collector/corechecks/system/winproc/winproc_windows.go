@@ -4,6 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 //go:build windows
 
+//nolint:revive // TODO(PLINT) Fix revive linter
 package winproc
 
 import (
@@ -14,7 +15,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/pdhutil"
 )
 
-const winprocCheckName = "winproc"
+const (
+	// Enabled is true if the check is enabled
+	Enabled = true
+	// CheckName is the name of the check
+	CheckName = "winproc"
+)
 
 type processChk struct {
 	core.CheckBase
@@ -71,12 +77,9 @@ func (c *processChk) Configure(senderManager sender.SenderManager, integrationCo
 	return err
 }
 
-func processCheckFactory() check.Check {
+// Factory creates a new check instance
+func Factory() check.Check {
 	return &processChk{
-		CheckBase: core.NewCheckBase(winprocCheckName),
+		CheckBase: core.NewCheckBase(CheckName),
 	}
-}
-
-func init() {
-	core.RegisterCheck(winprocCheckName, processCheckFactory)
 }

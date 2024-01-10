@@ -9,7 +9,7 @@ package docker
 
 import "gopkg.in/yaml.v2"
 
-// checkName constants used to call ServiceCheck
+// CheckName constants used to call ServiceCheck
 const (
 	DockerServiceUp = "docker.service_up"
 	DockerExit      = "docker.exit"

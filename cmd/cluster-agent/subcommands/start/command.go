@@ -68,7 +68,45 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/record"
+
+	// register core checks
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	corecheckLoader "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/helm"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/kubernetesapiserver"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu/cpu"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/disk"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/io"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/filehandles"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/memory"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/uptime"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
 )
+
+func registerChecks() {
+	// Required checks
+	registerCheck(true, cpu.CheckName, cpu.Factory)
+	registerCheck(true, memory.CheckName, memory.Factory)
+	registerCheck(true, uptime.CheckName, uptime.Factory)
+	registerCheck(true, io.CheckName, io.Factory)
+	registerCheck(true, filehandles.CheckName, filehandles.Factory)
+
+	// Flavor specific checks
+	registerCheck(kubernetesapiserver.Enabled, kubernetesapiserver.CheckName, kubernetesapiserver.Factory)
+	registerCheck(ksm.Enabled, ksm.CheckName, ksm.Factory)
+	registerCheck(helm.Enabled, helm.CheckName, helm.Factory)
+	registerCheck(disk.Enabled, disk.CheckName, disk.Factory)
+	registerCheck(orchestrator.Enabled, orchestrator.CheckName, orchestrator.Factory)
+	registerCheck(winproc.Enabled, winproc.CheckName, winproc.Factory)
+}
+
+func registerCheck(enabled bool, name string, factory func() check.Check) {
+	if enabled {
+		corecheckLoader.RegisterCheck(name, factory)
+	}
+}
 
 // Commands returns a slice of subcommands for the 'cluster-agent' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -270,6 +308,7 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 	common.LoadComponents(demultiplexer, secretResolver, pkgconfig.Datadog.GetString("confd_path"))
 
 	// Set up check collector
+	registerChecks()
 	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll, demultiplexer), true)
 	common.Coll.Start()
 

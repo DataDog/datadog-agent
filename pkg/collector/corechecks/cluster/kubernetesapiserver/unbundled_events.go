@@ -84,7 +84,7 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []e
 			Priority:       event.EventPriorityNormal,
 			Host:           hostInfo.hostname,
 			SourceTypeName: "kubernetes",
-			EventType:      kubernetesAPIServerCheckName,
+			EventType:      CheckName,
 			Ts:             int64(ev.LastTimestamp.Unix()),
 			Tags:           tagsAccumulator.Get(),
 			AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", involvedObject.UID),

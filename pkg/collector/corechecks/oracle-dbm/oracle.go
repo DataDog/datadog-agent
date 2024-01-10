@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+
 	//nolint:revive // TODO(DBM) Fix revive linter
 	_ "github.com/godror/godror"
 	go_version "github.com/hashicorp/go-version"
@@ -53,6 +54,10 @@ const (
 type hostingCode string
 
 const (
+	// Enabled is true if the check is enabled
+	Enabled = true
+	// CheckName is the name of the check
+	CheckName               = common.IntegrationNameScheduler
 	selfManaged hostingCode = "self-managed"
 	rds         hostingCode = "RDS"
 	oci         hostingCode = "OCI"
@@ -349,12 +354,9 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	return nil
 }
 
-func oracleFactory() check.Check {
+// Factory creates a new check instance
+func Factory() check.Check {
 	return &Check{CheckBase: core.NewCheckBaseWithInterval(common.IntegrationNameScheduler, 10*time.Second)}
-}
-
-func init() {
-	core.RegisterCheck(common.IntegrationNameScheduler, oracleFactory)
 }
 
 //nolint:revive // TODO(DBM) Fix revive linter

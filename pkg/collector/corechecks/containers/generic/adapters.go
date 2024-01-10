@@ -21,12 +21,20 @@ type ContainerAccessor interface {
 }
 
 // MetadataContainerAccessor implements ContainerLister interface using Workload meta service
-type MetadataContainerAccessor struct{}
+type MetadataContainerAccessor struct {
+	store workloadmeta.Component
+}
+
+// NewMetadataContainerAccessor returns a new MetadataContainerAccessor
+func NewMetadataContainerAccessor(store workloadmeta.Component) MetadataContainerAccessor {
+	return MetadataContainerAccessor{
+		store: store,
+	}
+}
 
 // ListRunning returns all running containers
 func (l MetadataContainerAccessor) ListRunning() []*workloadmeta.Container {
-	// TODO(components): stop using globals, rely instead on injected component
-	return workloadmeta.GetGlobalStore().ListContainersWithFilter(workloadmeta.GetRunningContainers)
+	return l.store.ListContainersWithFilter(workloadmeta.GetRunningContainers)
 }
 
 // GenericMetricsAdapter implements MetricsAdapter API in a basic way.

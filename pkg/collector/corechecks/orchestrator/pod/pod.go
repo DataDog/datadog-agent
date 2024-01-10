@@ -28,17 +28,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const checkName = "orchestrator_pod"
+// Enabled is true if the check is enabled
+const Enabled = true
+
+// CheckName is the name of the check
+const CheckName = "orchestrator_pod"
 
 var groupID atomic.Int32
 
 func nextGroupID() int32 {
 	groupID.Add(1)
 	return groupID.Load()
-}
-
-func init() {
-	core.RegisterCheck(checkName, PodFactory)
 }
 
 // Check doesn't need additional fields
@@ -51,10 +51,10 @@ type Check struct {
 	config    *oconfig.OrchestratorConfig
 }
 
-// PodFactory returns a new Pod.Check
-func PodFactory() check.Check {
+// Factory returns a new Pod.Check
+func Factory() check.Check {
 	return &Check{
-		CheckBase: core.NewCheckBase(checkName),
+		CheckBase: core.NewCheckBase(CheckName),
 		config:    oconfig.NewDefaultOrchestratorConfig(),
 	}
 }

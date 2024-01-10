@@ -11,12 +11,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 )
 
 func createEvent(count int32, namespace, objname, objkind, objuid, component, hostname, reason, message, typ string, timestamp int64) *v1.Event {
@@ -68,7 +69,7 @@ func TestFormatEvent(t *testing.T) {
 				Title:          "Events from the Pod default/dca-789976f5d7-2ljx6",
 				Priority:       event.EventPriorityNormal,
 				SourceTypeName: "kubernetes",
-				EventType:      kubernetesAPIServerCheckName,
+				EventType:      CheckName,
 				Ts:             timestamp,
 				Host:           nodeName,
 				Tags: []string{
@@ -101,7 +102,7 @@ func TestFormatEvent(t *testing.T) {
 				Title:          "Events from the Pod default/dca-789976f5d7-2ljx6",
 				Priority:       event.EventPriorityNormal,
 				SourceTypeName: "kubernetes",
-				EventType:      kubernetesAPIServerCheckName,
+				EventType:      CheckName,
 				Ts:             timestamp,
 				Host:           nodeName,
 				Tags: []string{
@@ -136,7 +137,7 @@ func TestFormatEvent(t *testing.T) {
 				Title:          "Events from the Pod default/dca-789976f5d7-2ljx6",
 				Priority:       event.EventPriorityNormal,
 				SourceTypeName: "kubernetes",
-				EventType:      kubernetesAPIServerCheckName,
+				EventType:      CheckName,
 				Ts:             timestamp,
 				Host:           fmt.Sprintf("%s-%s", nodeName, clusterName),
 				Tags: []string{

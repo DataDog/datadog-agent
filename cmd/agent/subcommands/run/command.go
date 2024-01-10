@@ -107,40 +107,95 @@ import (
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 
 	// register core checks
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/helm"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/kubernetesapiserver"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containerimage"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containerlifecycle"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/containerd"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/cri"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/docker"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/nvidia/jetson"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/orchestrator/pod"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/sbom"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/filehandles"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/memory"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/uptime"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winkmem"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/systemd"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/telemetry"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/windows_event_log"
+	corecheckLoader "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/helm"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/kubernetesapiserver"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containerimage"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containerlifecycle"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/containerd"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/cri"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/docker"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/oomkill"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/tcpqueuelength"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/apm"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/network"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/ntp"
+	nvidia "github.com/DataDog/datadog-agent/pkg/collector/corechecks/nvidia/jetson"
+	oracle "github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/orchestrator/pod"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/sbom"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu/cpu"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu/load"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/disk"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/io"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/filehandles"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/memory"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/uptime"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winkmem"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/systemd"
+	telemetryCheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/telemetry"
+	windowsEvent "github.com/DataDog/datadog-agent/pkg/collector/corechecks/windows_event_log"
 
 	// register metadata providers
 	_ "github.com/DataDog/datadog-agent/pkg/collector/metadata"
 )
+
+func registerChecks(store workloadmeta.Component) {
+	// Required checks
+	registerCheck(true, cpu.CheckName, cpu.Factory)
+	registerCheck(true, memory.CheckName, memory.Factory)
+	registerCheck(true, uptime.CheckName, uptime.Factory)
+	registerCheck(true, telemetryCheck.CheckName, telemetryCheck.Factory)
+	registerCheck(true, ntp.CheckName, ntp.Factory)
+	registerCheck(true, snmp.CheckName, snmp.Factory)
+	registerCheck(true, io.CheckName, io.Factory)
+	registerCheck(true, filehandles.CheckName, filehandles.Factory)
+	registerCheck(true, containerimage.CheckName, containerimage.NewFactory(store))
+	registerCheck(true, containerlifecycle.CheckName, containerlifecycle.NewFactory(store))
+	registerCheck(true, generic.CheckName, generic.NewFactory(store))
+
+	// Flavor specific checks
+	registerCheck(load.Enabled, load.CheckName, load.Factory)
+	registerCheck(kubernetesapiserver.Enabled, kubernetesapiserver.CheckName, kubernetesapiserver.Factory)
+	registerCheck(ksm.Enabled, ksm.CheckName, ksm.Factory)
+	registerCheck(helm.Enabled, helm.CheckName, helm.Factory)
+	registerCheck(pod.Enabled, pod.CheckName, pod.Factory)
+	registerCheck(containerd.Enabled, containerd.CheckName, containerd.Factory)
+	registerCheck(cri.Enabled, cri.CheckName, cri.Factory)
+	registerCheck(ebpf.Enabled, ebpf.CheckName, ebpf.Factory)
+	registerCheck(oomkill.Enabled, oomkill.CheckName, oomkill.Factory)
+	registerCheck(tcpqueuelength.Enabled, tcpqueuelength.CheckName, tcpqueuelength.Factory)
+	registerCheck(apm.Enabled, apm.CheckName, apm.Factory)
+	registerCheck(process.Enabled, process.CheckName, process.Factory)
+	registerCheck(network.Enabled, network.CheckName, network.Factory)
+	registerCheck(nvidia.Enabled, nvidia.CheckName, nvidia.Factory)
+	registerCheck(oracle.Enabled, oracle.CheckName, oracle.Factory)
+	registerCheck(disk.Enabled, disk.CheckName, disk.Factory)
+	registerCheck(wincrashdetect.Enabled, wincrashdetect.CheckName, wincrashdetect.Factory)
+	registerCheck(winkmem.Enabled, winkmem.CheckName, winkmem.Factory)
+	registerCheck(winproc.Enabled, winproc.CheckName, winproc.Factory)
+	registerCheck(systemd.Enabled, systemd.CheckName, systemd.Factory)
+	registerCheck(windowsEvent.Enabled, windowsEvent.CheckName, windowsEvent.Factory)
+	registerCheck(orchestrator.Enabled, orchestrator.CheckName, orchestrator.Factory)
+	registerCheck(docker.Enabled, docker.CheckName, docker.NewFactory(store))
+	registerCheck(sbom.Enabled, sbom.CheckName, sbom.NewFactory(store))
+	registerCheck(kubelet.Enabled, kubelet.CheckName, kubelet.NewFactory(store))
+}
+
+func registerCheck(enabled bool, name string, factory func() check.Check) {
+	if enabled {
+		corecheckLoader.RegisterCheck(name, factory)
+	}
+}
 
 type cliParams struct {
 	*command.GlobalParams
@@ -568,6 +623,7 @@ func startAgent(
 	check.InitializeInventoryChecksContext(invChecks)
 
 	// Set up check collector
+	registerChecks(wmeta)
 	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll, demultiplexer), true)
 	common.Coll.Start()
 

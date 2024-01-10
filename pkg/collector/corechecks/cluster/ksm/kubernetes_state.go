@@ -21,6 +21,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm/customresources"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 
 	//nolint:revive // TODO(CINT) Fix revive linter
@@ -45,8 +46,11 @@ import (
 )
 
 const (
-	kubeStateMetricsCheckName = "kubernetes_state_core"
-	maximumWaitForAPIServer   = 10 * time.Second
+	// Enabled is true if the check is enabled
+	Enabled = true
+	// CheckName is the name of the check
+	CheckName               = "kubernetes_state_core"
+	maximumWaitForAPIServer = 10 * time.Second
 
 	// createdByKindKey represents the KSM label key created_by_kind
 	createdByKindKey = "created_by_kind"
@@ -194,10 +198,6 @@ var labelRegexp *regexp.Regexp
 
 func init() {
 	labelRegexp = regexp.MustCompile(`[\/]|[\.]|[\-]`)
-}
-
-func init() {
-	core.RegisterCheck(kubeStateMetricsCheckName, KubeStateMetricsFactory)
 }
 
 // Configure prepares the configuration of the KSM check instance
@@ -837,10 +837,10 @@ func (k *KSMCheck) sendTelemetry(s sender.Sender) {
 	}
 }
 
-// KubeStateMetricsFactory returns a new KSMCheck
-func KubeStateMetricsFactory() check.Check {
+// Factory returns a new KSMCheck
+func Factory() check.Check {
 	return newKSMCheck(
-		core.NewCheckBase(kubeStateMetricsCheckName),
+		core.NewCheckBase(CheckName),
 		&KSMConfig{
 			LabelsMapper: make(map[string]string),
 			LabelJoins:   make(map[string]*JoinsConfigWithoutLabelsMapping),
@@ -851,7 +851,7 @@ func KubeStateMetricsFactory() check.Check {
 // KubeStateMetricsFactoryWithParam is used only by test/benchmarks/kubernetes_state
 func KubeStateMetricsFactoryWithParam(labelsMapper map[string]string, labelJoins map[string]*JoinsConfigWithoutLabelsMapping, allStores [][]cache.Store) *KSMCheck {
 	check := newKSMCheck(
-		core.NewCheckBase(kubeStateMetricsCheckName),
+		core.NewCheckBase(CheckName),
 		&KSMConfig{
 			LabelsMapper: labelsMapper,
 			LabelJoins:   labelJoins,
