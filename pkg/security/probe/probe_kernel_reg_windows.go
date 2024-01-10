@@ -30,7 +30,7 @@ const (
 type regObjectPointer uint64
 
 var (
-	fullPathResolver = make(map[regObjectPointer]string, 0)
+	regPathResolver = make(map[regObjectPointer]string, 0)
 	regprefix        = `\REGISTRY`
 )
 
@@ -131,14 +131,14 @@ func parseCreateRegistryKey(e *etw.DDEventRecord) (*createKeyArgs, error) {
 }
 func (cka *createKeyArgs) computeFullPath() {
 
-	// var fullPathResolver map[regObjectPointer]string
+	// var regPathResolver map[regObjectPointer]string
 
 	if strings.HasPrefix(cka.relativeName, regprefix) {
 		cka.computedFullPath = cka.relativeName
-		fullPathResolver[cka.keyObject] = cka.relativeName
+		regPathResolver[cka.keyObject] = cka.relativeName
 		return
 	}
-	if s, ok := fullPathResolver[cka.keyObject]; ok {
+	if s, ok := regPathResolver[cka.keyObject]; ok {
 		cka.computedFullPath = s
 	}
 	var outstr string
@@ -146,13 +146,13 @@ func (cka *createKeyArgs) computeFullPath() {
 		outstr = cka.baseName + "\\" + cka.relativeName
 	} else {
 
-		if s, ok := fullPathResolver[cka.baseObject]; ok {
+		if s, ok := regPathResolver[cka.baseObject]; ok {
 			outstr = s + "\\" + cka.relativeName
 		} else {
 			outstr = "\\" + cka.relativeName
 		}
 	}
-	fullPathResolver[cka.keyObject] = outstr
+	regPathResolver[cka.keyObject] = outstr
 	cka.computedFullPath = outstr
 }
 func (cka *createKeyArgs) string() string {
@@ -190,7 +190,7 @@ func (dka *deleteKeyArgs) string() string {
 	output.WriteString("  PID: " + strconv.Itoa(int(dka.ProcessID)) + "\n")
 	output.WriteString("  Status: " + strconv.Itoa(int(dka.status)) + "\n")
 	output.WriteString("  keyName: " + dka.keyName + "\n")
-	if s, ok := fullPathResolver[dka.keyObject]; ok {
+	if s, ok := regPathResolver[dka.keyObject]; ok {
 		output.WriteString("  resolved path: " + s + "\n")
 	}
 
@@ -249,7 +249,7 @@ func parseSetValueKey(e *etw.DDEventRecord) (*setValueKeyArgs, error) {
 
 	sv.previousData = data[nextOffset : nextOffset+int(sv.previousDataSize)]
 
-	if s, ok := fullPathResolver[sv.keyObject]; ok {
+	if s, ok := regPathResolver[sv.keyObject]; ok {
 		sv.computedFullPath = s
 	}
 
@@ -264,7 +264,7 @@ func (sv *setValueKeyArgs) string() string {
 	output.WriteString("  keyObject: " + strconv.FormatUint(uint64(sv.keyObject), 16) + "\n")
 	output.WriteString("  keyName: " + sv.keyName + "\n")
 	output.WriteString("  valueName: " + sv.valueName + "\n")
-	if s, ok := fullPathResolver[sv.keyObject]; ok {
+	if s, ok := regPathResolver[sv.keyObject]; ok {
 		output.WriteString("  resolved path: " + s + "\n")
 	}
 

@@ -63,6 +63,7 @@ type WindowsProbe struct {
 
 // Init initializes the probe
 func (p *WindowsProbe) Init() error {
+
 	pm, err := procmon.NewWinProcMon(p.onStart, p.onStop, p.onError)
 	if err != nil {
 		return err
@@ -112,7 +113,7 @@ func (p *WindowsProbe) Init() error {
 		*/
 		// try masking on create & create_new_file
 		// given the current requirements, I think we can _probably_ just do create_new_file
-		cfg.MatchAnyKeyword = 0x1080
+		cfg.MatchAnyKeyword = 0x10A0
 	})
 	p.fimSession.ConfigureProvider(p.regguid, func(cfg *etw.ProviderConfiguration) {
 		cfg.TraceLevel = etw.TRACE_LEVEL_VERBOSE
@@ -165,7 +166,9 @@ func (p *WindowsProbe) Setup() error {
 func (p *WindowsProbe) Stop() {
 	_ = p.fimSession.StopTracing()
 	p.fimwg.Wait()
-	p.pm.Stop()
+	if p.pm != nil {
+		p.pm.Stop()
+	}
 }
 
 func (p *WindowsProbe) setupEtw() error {
@@ -177,16 +180,34 @@ func (p *WindowsProbe) setupEtw() error {
 		case etw.DDGUID(p.fileguid):
 			switch e.EventHeader.EventDescriptor.ID {
 			case idCreate:
-				if ca, err := parseCreateArgs(e); err == nil {
-					log.Debugf("Got create on file %s", ca.fileName)
-
-					// at this point we have a filled in createArgs structure
-				}
 			case idCreateNewFile:
 				if ca, err := parseCreateArgs(e); err == nil {
-					log.Infof("Got create new file on file %s", ca.fileName)
+					log.Infof("Got create/create new file on file %s", ca.string())
 
-					// at this point we have a filled in createArgs structure
+				}
+			case idCleanup:
+				fallthrough
+			case idClose:
+				fallthrough
+			case idFlush:
+				// don't fall through
+				if ca, err := parseCleanupArgs(e); err == nil {
+					log.Infof("got id %v args %s", e.EventHeader.EventDescriptor.ID, ca.string())
+					delete(filePathResolver, ca.fileObject)
+				}
+			case idSetInformation:
+				fallthrough
+			case idSetDelete:
+				fallthrough
+			case idRename:
+				fallthrough
+			case idQueryInformation:
+				fallthrough
+			case idFSCTL:
+				fallthrough
+			case idRename29:
+				if sia, err := parseInformationArgs(e); err == nil {
+					log.Infof("got id %v args %s", e.EventHeader.EventDescriptor.ID, sia.string())
 				}
 			}
 
@@ -212,7 +233,7 @@ func (p *WindowsProbe) setupEtw() error {
 			case idRegCloseKey:
 				if dka, err := parseDeleteRegistryKey(e); err == nil {
 					log.Debugf("Got idRegCloseKey %s", dka.string())
-					delete(fullPathResolver, dka.keyObject)
+					delete(regPathResolver, dka.keyObject)
 				}
 			case idQuerySecurityKey:
 				if dka, err := parseDeleteRegistryKey(e); err == nil {
@@ -244,6 +265,9 @@ func (p *WindowsProbe) Start() error {
 		err := p.setupEtw()
 		log.Infof("Done StartTracing %v", err)
 	}()
+	if p.pm == nil {
+		return nil
+	}
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
@@ -354,7 +378,10 @@ func (p *WindowsProbe) Snapshot() error {
 
 // Close the probe
 func (p *WindowsProbe) Close() error {
-	p.pm.Stop()
+	if p.pm != nil {
+		p.pm.Stop()
+	}
+
 	p.cancelFnc()
 	p.wg.Wait()
 	return nil
