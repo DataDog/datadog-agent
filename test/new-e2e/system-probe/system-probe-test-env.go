@@ -246,6 +246,8 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *EnvOpts) (*
 
 	outputs := upResult.Outputs
 	if retryErr != nil {
+		// pulumi does not populate `UpResult` with the stack output if the
+		// update process failed. In this case we must manually fetch the outputs.
 		outputs, err = pulumiStack.Outputs(context.Background())
 		if err != nil {
 			outputs = nil
