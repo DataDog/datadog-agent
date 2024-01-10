@@ -149,54 +149,6 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/collector/metadata"
 )
 
-func registerChecks(store workloadmeta.Component) {
-	// Required checks
-	registerCheck(true, cpu.CheckName, cpu.Factory)
-	registerCheck(true, memory.CheckName, memory.Factory)
-	registerCheck(true, uptime.CheckName, uptime.Factory)
-	registerCheck(true, telemetryCheck.CheckName, telemetryCheck.Factory)
-	registerCheck(true, ntp.CheckName, ntp.Factory)
-	registerCheck(true, snmp.CheckName, snmp.Factory)
-	registerCheck(true, io.CheckName, io.Factory)
-	registerCheck(true, filehandles.CheckName, filehandles.Factory)
-	registerCheck(true, containerimage.CheckName, containerimage.NewFactory(store))
-	registerCheck(true, containerlifecycle.CheckName, containerlifecycle.NewFactory(store))
-	registerCheck(true, generic.CheckName, generic.NewFactory(store))
-
-	// Flavor specific checks
-	registerCheck(load.Enabled, load.CheckName, load.Factory)
-	registerCheck(kubernetesapiserver.Enabled, kubernetesapiserver.CheckName, kubernetesapiserver.Factory)
-	registerCheck(ksm.Enabled, ksm.CheckName, ksm.Factory)
-	registerCheck(helm.Enabled, helm.CheckName, helm.Factory)
-	registerCheck(pod.Enabled, pod.CheckName, pod.Factory)
-	registerCheck(containerd.Enabled, containerd.CheckName, containerd.Factory)
-	registerCheck(cri.Enabled, cri.CheckName, cri.Factory)
-	registerCheck(ebpf.Enabled, ebpf.CheckName, ebpf.Factory)
-	registerCheck(oomkill.Enabled, oomkill.CheckName, oomkill.Factory)
-	registerCheck(tcpqueuelength.Enabled, tcpqueuelength.CheckName, tcpqueuelength.Factory)
-	registerCheck(apm.Enabled, apm.CheckName, apm.Factory)
-	registerCheck(process.Enabled, process.CheckName, process.Factory)
-	registerCheck(network.Enabled, network.CheckName, network.Factory)
-	registerCheck(nvidia.Enabled, nvidia.CheckName, nvidia.Factory)
-	registerCheck(oracle.Enabled, oracle.CheckName, oracle.Factory)
-	registerCheck(disk.Enabled, disk.CheckName, disk.Factory)
-	registerCheck(wincrashdetect.Enabled, wincrashdetect.CheckName, wincrashdetect.Factory)
-	registerCheck(winkmem.Enabled, winkmem.CheckName, winkmem.Factory)
-	registerCheck(winproc.Enabled, winproc.CheckName, winproc.Factory)
-	registerCheck(systemd.Enabled, systemd.CheckName, systemd.Factory)
-	registerCheck(windowsEvent.Enabled, windowsEvent.CheckName, windowsEvent.Factory)
-	registerCheck(orchestrator.Enabled, orchestrator.CheckName, orchestrator.Factory)
-	registerCheck(docker.Enabled, docker.CheckName, docker.NewFactory(store))
-	registerCheck(sbom.Enabled, sbom.CheckName, sbom.NewFactory(store))
-	registerCheck(kubelet.Enabled, kubelet.CheckName, kubelet.NewFactory(store))
-}
-
-func registerCheck(enabled bool, name string, factory func() check.Check) {
-	if enabled {
-		corecheckLoader.RegisterCheck(name, factory)
-	}
-}
-
 type cliParams struct {
 	*command.GlobalParams
 
@@ -715,4 +667,52 @@ func stopAgent(cliParams *cliParams, server dogstatsdServer.Component, demultipl
 
 	pkglog.Info("See ya!")
 	pkglog.Flush()
+}
+
+func registerChecks(store workloadmeta.Component) {
+	// Required checks
+	registerCheck(true, cpu.CheckName, cpu.Factory)
+	registerCheck(true, memory.CheckName, memory.Factory)
+	registerCheck(true, uptime.CheckName, uptime.Factory)
+	registerCheck(true, telemetryCheck.CheckName, telemetryCheck.Factory)
+	registerCheck(true, ntp.CheckName, ntp.Factory)
+	registerCheck(true, snmp.CheckName, snmp.Factory)
+	registerCheck(true, io.CheckName, io.Factory)
+	registerCheck(true, filehandles.CheckName, filehandles.Factory)
+	registerCheck(true, containerimage.CheckName, containerimage.NewFactory(store))
+	registerCheck(true, containerlifecycle.CheckName, containerlifecycle.NewFactory(store))
+	registerCheck(true, generic.CheckName, generic.NewFactory(store))
+
+	// Flavor specific checks
+	registerCheck(load.Enabled, load.CheckName, load.Factory)
+	registerCheck(kubernetesapiserver.Enabled, kubernetesapiserver.CheckName, kubernetesapiserver.Factory)
+	registerCheck(ksm.Enabled, ksm.CheckName, ksm.Factory)
+	registerCheck(helm.Enabled, helm.CheckName, helm.Factory)
+	registerCheck(pod.Enabled, pod.CheckName, pod.Factory)
+	registerCheck(containerd.Enabled, containerd.CheckName, containerd.Factory)
+	registerCheck(cri.Enabled, cri.CheckName, cri.Factory)
+	registerCheck(ebpf.Enabled, ebpf.CheckName, ebpf.Factory)
+	registerCheck(oomkill.Enabled, oomkill.CheckName, oomkill.Factory)
+	registerCheck(tcpqueuelength.Enabled, tcpqueuelength.CheckName, tcpqueuelength.Factory)
+	registerCheck(apm.Enabled, apm.CheckName, apm.Factory)
+	registerCheck(process.Enabled, process.CheckName, process.Factory)
+	registerCheck(network.Enabled, network.CheckName, network.Factory)
+	registerCheck(nvidia.Enabled, nvidia.CheckName, nvidia.Factory)
+	registerCheck(oracle.Enabled, oracle.CheckName, oracle.Factory)
+	registerCheck(disk.Enabled, disk.CheckName, disk.Factory)
+	registerCheck(wincrashdetect.Enabled, wincrashdetect.CheckName, wincrashdetect.Factory)
+	registerCheck(winkmem.Enabled, winkmem.CheckName, winkmem.Factory)
+	registerCheck(winproc.Enabled, winproc.CheckName, winproc.Factory)
+	registerCheck(systemd.Enabled, systemd.CheckName, systemd.Factory)
+	registerCheck(windowsEvent.Enabled, windowsEvent.CheckName, windowsEvent.Factory)
+	registerCheck(orchestrator.Enabled, orchestrator.CheckName, orchestrator.Factory)
+	registerCheck(docker.Enabled, docker.CheckName, docker.NewFactory(store))
+	registerCheck(sbom.Enabled, sbom.CheckName, sbom.NewFactory(store))
+	registerCheck(kubelet.Enabled, kubelet.CheckName, kubelet.NewFactory(store))
+}
+
+func registerCheck(enabled bool, name string, factory func() check.Check) {
+	if enabled {
+		corecheckLoader.RegisterCheck(name, factory)
+	}
 }

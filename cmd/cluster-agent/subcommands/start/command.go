@@ -85,29 +85,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
 )
 
-func registerChecks() {
-	// Required checks
-	registerCheck(true, cpu.CheckName, cpu.Factory)
-	registerCheck(true, memory.CheckName, memory.Factory)
-	registerCheck(true, uptime.CheckName, uptime.Factory)
-	registerCheck(true, io.CheckName, io.Factory)
-	registerCheck(true, filehandles.CheckName, filehandles.Factory)
-
-	// Flavor specific checks
-	registerCheck(kubernetesapiserver.Enabled, kubernetesapiserver.CheckName, kubernetesapiserver.Factory)
-	registerCheck(ksm.Enabled, ksm.CheckName, ksm.Factory)
-	registerCheck(helm.Enabled, helm.CheckName, helm.Factory)
-	registerCheck(disk.Enabled, disk.CheckName, disk.Factory)
-	registerCheck(orchestrator.Enabled, orchestrator.CheckName, orchestrator.Factory)
-	registerCheck(winproc.Enabled, winproc.CheckName, winproc.Factory)
-}
-
-func registerCheck(enabled bool, name string, factory func() check.Check) {
-	if enabled {
-		corecheckLoader.RegisterCheck(name, factory)
-	}
-}
-
 // Commands returns a slice of subcommands for the 'cluster-agent' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	startCmd := &cobra.Command{
@@ -515,4 +492,27 @@ func initializeRemoteConfig(ctx context.Context) (*rcclient.Client, *rcservice.S
 	}
 
 	return rcClient, rcService, nil
+}
+
+func registerChecks() {
+	// Required checks
+	registerCheck(true, cpu.CheckName, cpu.Factory)
+	registerCheck(true, memory.CheckName, memory.Factory)
+	registerCheck(true, uptime.CheckName, uptime.Factory)
+	registerCheck(true, io.CheckName, io.Factory)
+	registerCheck(true, filehandles.CheckName, filehandles.Factory)
+
+	// Flavor specific checks
+	registerCheck(kubernetesapiserver.Enabled, kubernetesapiserver.CheckName, kubernetesapiserver.Factory)
+	registerCheck(ksm.Enabled, ksm.CheckName, ksm.Factory)
+	registerCheck(helm.Enabled, helm.CheckName, helm.Factory)
+	registerCheck(disk.Enabled, disk.CheckName, disk.Factory)
+	registerCheck(orchestrator.Enabled, orchestrator.CheckName, orchestrator.Factory)
+	registerCheck(winproc.Enabled, winproc.CheckName, winproc.Factory)
+}
+
+func registerCheck(enabled bool, name string, factory func() check.Check) {
+	if enabled {
+		corecheckLoader.RegisterCheck(name, factory)
+	}
 }
