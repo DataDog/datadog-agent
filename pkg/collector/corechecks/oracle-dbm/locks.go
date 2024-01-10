@@ -8,11 +8,16 @@
 package oracle
 
 import (
+	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
+	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // 200 in SUBSTR is maximum tag size, see https://docs.datadoghq.com/getting_started/tagging/#define-tags
@@ -39,19 +44,48 @@ const locksQuery122 = `SELECT
 		s.status, c.name`
 
 type locksRowDB struct {
-	Seconds  sql.NullFloat64 `db:"SECONDS"`
-	Sid      sql.NullInt64   `db:"SID"`
+	SID      sql.NullInt64   `db:"SID"`
 	Username sql.NullString  `db:"USERNAME"`
 	Program  sql.NullString  `db:"PROGRAM"`
 	Machine  sql.NullString  `db:"MACHINE"`
 	OsUser   sql.NullString  `db:"OSUSER"`
 	Status   sql.NullString  `db:"STATUS"`
 	Object   sql.NullString  `db:"OBJECT"`
-	PdbName  sql.NullString  `db:"PDB_NAME"`
+	PDBName  sql.NullString  `db:"PDB_NAME"`
+	Seconds  sql.NullFloat64 `db:"SECONDS"`
+}
+
+type oracleLockRow struct {
+	SessionID string `json:"session_id,omitempty"`
+	Username  string `json:"username,omitempty"`
+	Program   string `json:"program,omitempty"`
+	Machine   string `json:"machine,omitempty"`
+	OsUser    string `json:"os_user,omitempty"`
+	Status    string `json:"status,omitempty"`
+	// Format: owner.object:lock_mode:
+	Object               string  `json:"object,omitempty"`
+	PDBName              string  `json:"pdb_name,omitempty"`
+	SecondsInTransaction float64 `json:"seconds_in_transaction,omitempty"`
+}
+
+type metricsPayload struct {
+	Host                  string   `json:"host,omitempty"` // Host is the database hostname, not the agent hostname
+	Kind                  string   `json:"kind,omitempty"`
+	Timestamp             float64  `json:"timestamp,omitempty"`
+	MinCollectionInterval float64  `json:"min_collection_interval,omitempty"`
+	Tags                  []string `json:"tags,omitempty"`
+	AgentVersion          string   `json:"ddagentversion,omitempty"`
+	AgentHostname         string   `json:"ddagenthostname,omitempty"`
+	OracleVersion         string   `json:"oracle_version,omitempty"`
+}
+
+type lockMetricsPayload struct {
+	metricsPayload
+	OracleRows []oracleLockRow `json:"oracle_rows,omitempty"`
 }
 
 func (c *Check) locks() error {
-	if isDbVersionLessThan("12.2") {
+	if isDbVersionLessThan(c, "12.2") {
 		return nil
 	}
 	rows := []locksRowDB{}
@@ -65,35 +99,62 @@ func (c *Check) locks() error {
 	if err != nil {
 		return fmt.Errorf("failed to initialize sender: %w", err)
 	}
+	var oracleRows []oracleLockRow
 	for _, r := range rows {
 		if !r.Seconds.Valid {
 			continue
 		}
-		tags := appendPDBTag(c.tags, r.PdbName)
-		if r.Sid.Valid {
-			tags = append(tags, "sid:"+strconv.FormatInt(r.Sid.Int64, 10))
+		var p oracleLockRow
+		if r.PDBName.Valid {
+			p.PDBName = fmt.Sprintf("%s.%s", c.cdbName, r.PDBName.String)
+		}
+		if r.SID.Valid {
+			p.SessionID = strconv.FormatInt(r.SID.Int64, 10)
 		}
 		if r.Username.Valid {
-			tags = append(tags, "username:"+r.Username.String)
+			p.Username = r.Username.String
 		}
 		if r.Program.Valid {
-			tags = append(tags, "program:"+r.Program.String)
+			p.Program = r.Program.String
 		}
 		if r.Machine.Valid {
-			tags = append(tags, "machine:"+r.Machine.String)
+			p.Machine = r.Machine.String
 		}
 		if r.OsUser.Valid {
-			tags = append(tags, "osuser:"+r.OsUser.String)
+			p.OsUser = r.OsUser.String
 		}
 		if r.Status.Valid {
-			tags = append(tags, "status:"+r.Status.String)
+			p.Status = r.OsUser.String
 		}
 		if r.Object.Valid {
-			tags = append(tags, "objects:"+r.Object.String)
+			p.Object = r.Object.String
 		}
-
-		sender.Gauge(fmt.Sprintf("%s.seconds_in_transaction", common.IntegrationName), r.Seconds.Float64, "", tags)
+		oracleRows = append(oracleRows, p)
 	}
+	hname, _ := hostname.Get(context.TODO())
+	m := metricsPayload{
+		Host:                  c.dbHostname,
+		Kind:                  "lock_metrics",
+		Timestamp:             float64(time.Now().UnixMilli()),
+		MinCollectionInterval: float64(c.config.MinCollectionInterval),
+		Tags:                  c.tags,
+		AgentVersion:          c.agentVersion,
+		AgentHostname:         hname,
+		OracleVersion:         c.dbVersion,
+	}
+	payload := lockMetricsPayload{
+		OracleRows: oracleRows,
+	}
+	payload.metricsPayload = m
+
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal lock metrics payload: %w", err)
+	}
+
+	sender.EventPlatformEvent(payloadBytes, "dbm-metrics")
+	log.Debugf("%s lock metrics payload %s", c.logPrompt, strings.ReplaceAll(string(payloadBytes), "@", "XX"))
+
 	sender.Commit()
 	return nil
 }
