@@ -76,6 +76,7 @@ distributions = {
     "amazon_5.4": "amzn_5.4",
     "amazon_5.10": "amzn_5.10",
     "amzn_4.14": "amzn_4.14",
+    "amzn_414": "amzn_4.14",
     "amzn_5.4": "amzn_5.4",
     "amzn_5.10": "amzn_5.10",
     "amzn_2023": "amzn_2023",

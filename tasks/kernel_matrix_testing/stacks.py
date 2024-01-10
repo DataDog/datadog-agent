@@ -4,7 +4,7 @@ import os
 
 from .init_kmt import VMCONFIG, check_and_get_stack
 from .kmt_os import get_kmt_os
-from .libvirt import delete_domains, delete_networks, delete_pools, delete_volumes, pause_domains, resume_domains
+from .libvirt import delete_domains, delete_networks, delete_pools, delete_volumes, pause_domains, resume_domains, resource_in_stack
 from .tool import Exit, ask, error, info, warn
 
 try:
@@ -244,6 +244,15 @@ def destroy_ec2_instances(ctx, stack):
 
     return
 
+def remove_pool_directory(ctx, stack):
+    pools_dir = os.path.join(get_kmt_os().libvirt_dir, "pools")
+    for _, dirs, _ in os.walk(pools_dir):
+        for d in dirs:
+            if resource_in_stack(stack, d):
+                rm_path = os.path.join(pools_dir, d)
+                ctx.run(f"sudo rm -r {rm_path}", hide=True)
+                info(f"[+] Removed libvirt pool directory {rm_path}")
+
 
 def destroy_stack_force(ctx, stack):
     conn = libvirt.open("qemu:///system")
@@ -252,6 +261,7 @@ def destroy_stack_force(ctx, stack):
     delete_domains(conn, stack)
     delete_volumes(conn, stack)
     delete_pools(conn, stack)
+    remove_pool_directory(ctx, stack)
     delete_networks(conn, stack)
     conn.close()
 
