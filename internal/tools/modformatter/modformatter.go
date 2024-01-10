@@ -46,7 +46,12 @@ func main() {
 		if len(token) < 1 {
 			continue
 		}
-		ReplaceMap[token[0]] = true
+		if token[0] == "replace" {
+			ReplaceMap[token[1]] = true
+		} else {
+			ReplaceMap[token[0]] = true
+		}
+
 	}
 	writeNeeded := false
 	for _, req := range f.Require {
