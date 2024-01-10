@@ -2323,11 +2323,11 @@ api_key:
 #
 # dogstatsd_no_aggregation_pipeline: true
 
-## @param dogstatsd_no_aggregation_pipeline_batch_size - integer - optional - default: 256
-## @env DD_DOGSTATSD_NO_AGGREGATION_PIPELINE_BATCH_SIZE - integer - optional - default: 256
+## @param dogstatsd_no_aggregation_pipeline_batch_size - integer - optional - default: 2048
+## @env DD_DOGSTATSD_NO_AGGREGATION_PIPELINE_BATCH_SIZE - integer - optional - default: 2048
 ## How many metrics maximum in payloads sent by the no-aggregation pipeline to the intake.
 #
-# dogstatsd_no_aggregation_pipeline_batch_size: 256
+# dogstatsd_no_aggregation_pipeline_batch_size: 2048
 
 ## @param statsd_forward_host - string - optional - default: ""
 ## @env DD_STATSD_FORWARD_HOST - string - optional - default: ""
@@ -3273,11 +3273,11 @@ api_key:
 #
 # cri_socket_path: ""
 
-## @param cri_connection_timeout - integer - optional - default: 5
-## @env DD_CRI_CONNECTION_TIMEOUT - integer - optional - default: 5
+## @param cri_connection_timeout - integer - optional - default: 1
+## @env DD_CRI_CONNECTION_TIMEOUT - integer - optional - default: 1
 ## Configure the initial connection timeout in seconds.
 #
-# cri_connection_timeout: 5
+# cri_connection_timeout: 1
 
 ## @param cri_query_timeout - integer - optional - default: 5
 ## @env DD_CRI_QUERY_TIMEOUT - integer - optional - default: 5
@@ -3594,10 +3594,10 @@ api_key:
   #
   # checks: {}
 
-  ## @param version - integer - optional - default: 2
+  ## @param version - integer - optional - default: 1
   ## Version of the openmetrics check to be scheduled by the Prometheus auto-discovery
   #
-  # version: 2
+  # version: 1
 
 {{ end -}}
 {{- if .CloudFoundryBBS }}
