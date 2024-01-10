@@ -2,8 +2,6 @@
 
 package pinger
 
-import probing "github.com/prometheus-community/pro-bing"
-
 // WindowsPinger is a structure for pinging
 // hosts in Windows
 type WindowsPinger struct {
