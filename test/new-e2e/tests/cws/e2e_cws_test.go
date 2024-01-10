@@ -9,7 +9,6 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -19,12 +18,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	cws "github.com/DataDog/datadog-agent/test/new-e2e/tests/cws/lib"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
 )
 
 type agentSuite struct {
@@ -115,7 +115,7 @@ func (a *agentSuite) TestOpenSignal() {
 	require.NoError(a.T(), err, "Could not get APP KEY")
 
 	a.EventuallyWithT(func(c *assert.CollectT) {
-		policies := a.Env().VM.Execute(fmt.Sprintf("DD_APP_KEY=%s DD_API_KEY=%s %s runtime policy download", appKey, apiKey, cws.SecurityAgentPath))
+		policies := a.Env().VM.Execute(fmt.Sprintf("DD_APP_KEY=%s DD_API_KEY=%s %s runtime policy download >| temp.txt && cat temp.txt", appKey, apiKey, cws.SecurityAgentPath))
 		assert.NotEmpty(c, policies, "should not be empty")
 		a.policies = policies
 	}, 5*time.Minute, 10*time.Second)
@@ -124,7 +124,7 @@ func (a *agentSuite) TestOpenSignal() {
 	assert.Contains(a.T(), a.policies, a.desc, "The policies should contain the created rule")
 
 	// Push policies
-	a.Env().VM.Execute(fmt.Sprintf("echo -e %s > temp.txt\nsudo cp temp.txt %s", strconv.Quote(a.policies), cws.PoliciesPath))
+	a.Env().VM.Execute(fmt.Sprintf("sudo cp temp.txt %s", cws.PoliciesPath))
 	a.Env().VM.Execute("rm temp.txt")
 	policiesFile := a.Env().VM.Execute(fmt.Sprintf("cat %s", cws.PoliciesPath))
 	assert.Contains(a.T(), policiesFile, a.desc, "The policies file should contain the created rule")
