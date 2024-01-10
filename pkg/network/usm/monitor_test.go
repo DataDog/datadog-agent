@@ -28,6 +28,7 @@ import (
 
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
+	"golang.org/x/net/http2/hpack"
 
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
@@ -1039,10 +1040,8 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			var buf bytes.Buffer
 			framer := http2.NewFramer(&buf, nil)
 			// Write the emtpy SettingsFrame to the buffer using the Framer
-			if err := framer.WriteSettings(http2.Setting{}); err != nil {
-				fmt.Println("Error writing SettingsFrame:", err)
-				return
-			}
+			err = framer.WriteSettings(http2.Setting{})
+			require.NoError(t, err, "could not write settings frame")
 			settingsFrame := buf.Bytes()
 			input := make([]byte, 0, len(magicFrame)+len(settingsFrame))
 			input = append(input, magicFrame...)
@@ -1060,12 +1059,34 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 				reqInput = append(reqInput, settingsFrame...)
 			}
 
+			var buf2 bytes.Buffer
+			enc := hpack.NewEncoder(&buf2)
+			enc.WriteField(hpack.HeaderField{Name: ":authority", Value: "127.0.0.1:8082"})
+			enc.WriteField(hpack.HeaderField{Name: ":method", Value: "POST"})
+			enc.WriteField(hpack.HeaderField{Name: ":path", Value: "/aaa"})
+			enc.WriteField(hpack.HeaderField{Name: ":scheme", Value: "http"})
+			enc.WriteField(hpack.HeaderField{Name: "content-type", Value: "application/json"})
+			enc.WriteField(hpack.HeaderField{Name: "content-length", Value: "4"})
+			enc.WriteField(hpack.HeaderField{Name: "accept-encoding", Value: "gzip"})
+			enc.WriteField(hpack.HeaderField{Name: "user-agent", Value: "Go-http-client/2.0"})
+
 			// we have to use negative numbers for the stream id.
 			for i := 0; i < tt.numberOfRequestFrames; i++ {
 				buf.Reset()
 				streamID := 2*i + 1
-				reqInput = append(reqInput, usmhttp2.CreateRawRequestFrame(streamID)...)
-				err = framer.WriteData(uint32(streamID), true, []byte("test"))
+				err = framer.WriteHeaders(http2.HeadersFrameParam{
+					StreamID:      uint32(streamID),
+					BlockFragment: buf2.Bytes(),
+					EndStream:     false,
+					EndHeaders:    true,
+				})
+				require.NoError(t, err, "could not write request")
+				requestFrame := buf.Bytes()
+
+				reqInput = append(reqInput, requestFrame...)
+				buf.Reset()
+				err = framer.WriteData(uint32(streamID), true, []byte{})
+				require.NoError(t, err, "could not write data frame")
 				dataFrame := buf.Bytes()
 				reqInput = append(reqInput, dataFrame...)
 			}
