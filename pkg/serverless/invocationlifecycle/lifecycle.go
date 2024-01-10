@@ -287,6 +287,7 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 		lp.processTrace(spans)
 	}
 
+	// We don't submit an error metric on timeouts since it should have already been submitted when the Extension receives a SHUTDOWN event
 	if endDetails.IsError && !endDetails.IsTimeout {
 		serverlessMetrics.SendErrorsEnhancedMetric(
 			lp.ExtraTags.Tags, endDetails.EndTime, lp.Demux,
