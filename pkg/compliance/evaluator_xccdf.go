@@ -361,7 +361,7 @@ func evaluateXCCDFRule(ctx context.Context, hostname string, statsdClient statsd
 		}
 	}
 
-	if statsdClient != nil {
+	if metrics.ExpensiveMetricsEnabled && statsdClient != nil {
 		tags := []string{
 			"rule_id:" + rule.ID,
 			"rule_input_type:xccdf",

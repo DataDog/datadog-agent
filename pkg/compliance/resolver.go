@@ -271,7 +271,8 @@ func (r *defaultResolver) ResolveInputs(ctx context.Context, rule *Rule) (Resolv
 			resolved[tagName] = result
 		}
 
-		if statsdClient := r.opts.StatsdClient; statsdClient != nil && resultType != "constants" {
+		statsdClient := r.opts.StatsdClient
+		if metrics.ExpensiveMetricsEnabled && statsdClient != nil && resultType != "constants" {
 			tags := []string{
 				"rule_id:" + rule.ID,
 				"rule_input_type:" + resultType,

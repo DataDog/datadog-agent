@@ -7,6 +7,9 @@
 package metrics
 
 const (
+	// EnableExpensiveMetrics enables expensive metrics.
+	ExpensiveMetricsEnabled = false
+
 	// MetricInputsHits is the metric name for counting inputs resolution.
 	MetricInputsHits = "datadog.security_agent.compliance.inputs.hits"
 
