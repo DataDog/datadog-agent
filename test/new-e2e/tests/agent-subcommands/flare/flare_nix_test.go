@@ -58,7 +58,7 @@ func (v *linuxFlareSuite) TestFlareWithAllConfiguration() {
 
 	agentOptions := append(withFiles, agentparams.WithAgentConfig(string(agentConfiguration)))
 
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentOptions...)))
+	v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentOptions...)))
 
 	flare := requestAgentFlareAndFetchFromFakeIntake(v.T(), v.Env().Agent.Client, v.Env().FakeIntake.Client(), agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
 

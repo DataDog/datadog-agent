@@ -7,6 +7,8 @@
 package awshost
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
@@ -127,14 +129,18 @@ func ProvisionerNoFakeIntake(opts ...ProvisionerOption) e2e.TypedProvisioner[env
 // Provisioner creates a VM environment with an EC2 VM, an ECS Fargate FakeIntake and a Host Agent configured to talk to each other.
 // FakeIntake and Agent creation can be deactivated by using [WithoutFakeIntake] and [WithoutAgent] options.
 func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Host] {
+	// We need to build params here to be able to use params.name in the provisioner name
 	params := newProvisionerParams()
 	err := optional.ApplyOptions(params, opts)
+	if err != nil {
+		panic(fmt.Errorf("unable to apply ProvisionerOption, err: %w", err))
+	}
 
 	provisioner := e2e.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.Host) error {
-		// We are abusing Pulumi RunFunc error to return our parameter parsing error, in the sake of the slightly simpler API.
-		if err != nil {
-			return err
-		}
+		// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
+		// and it's easy to forget about it, leading to hard to debug issues.
+		params := newProvisionerParams()
+		_ = optional.ApplyOptions(params, opts)
 
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {

@@ -24,7 +24,7 @@ type agentConfigCheckSuite struct {
 }
 
 func TestAgentConfigCheckSuite(t *testing.T) {
-	e2e.Run(t, &agentConfigCheckSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake()))
+	e2e.Run(t, &agentConfigCheckSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
 }
 
 type CheckConfigOutput struct {
