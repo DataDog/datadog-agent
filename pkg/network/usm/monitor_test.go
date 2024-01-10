@@ -1062,9 +1062,12 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 
 			// we have to use negative numbers for the stream id.
 			for i := 0; i < tt.numberOfRequestFrames; i++ {
+				buf.Reset()
 				streamID := 2*i + 1
 				reqInput = append(reqInput, usmhttp2.CreateRawRequestFrame(streamID)...)
-				reqInput = append(reqInput, usmhttp2.CreateRawDataFrame(streamID)...)
+				err = framer.WriteData(uint32(streamID), true, []byte("test"))
+				dataFrame := buf.Bytes()
+				reqInput = append(reqInput, dataFrame...)
 			}
 
 			// Sending the repeated settings with request.
