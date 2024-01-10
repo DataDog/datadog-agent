@@ -6,6 +6,7 @@
 package main
 
 import (
+	"encoding/gob"
 	"time"
 	"unsafe"
 
@@ -13,6 +14,7 @@ import (
 
 	"github.com/CycloneDX/cyclonedx-go"
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
+	sbommodel "github.com/DataDog/agent-payload/v5/sbom"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -31,6 +33,59 @@ func strSliceDeref(in *[]string) []string {
 	}
 
 	return *in
+}
+
+func init() {
+	// This is required to properly encode / decode *sbommodel.SBOMEntity
+	// TODO: add a test to validate the proper encodings / decodings of our scanResult struct
+	gob.Register(&sbommodel.SBOMEntity_Cyclonedx{})
+	gob.Register(&sbommodel.SBOMEntity_Error{})
+	gob.Register(&cyclonedx.Advisory{})
+	gob.Register(&cyclonedx.AffectedVersions{})
+	gob.Register(&cyclonedx.Affects{})
+	gob.Register(&cyclonedx.Commit{})
+	gob.Register(&cyclonedx.Component{})
+	gob.Register(&cyclonedx.Composition{})
+	gob.Register(&cyclonedx.Copyright{})
+	gob.Register(&cyclonedx.DataClassification{})
+	gob.Register(&cyclonedx.Dependency{})
+	gob.Register(&cyclonedx.ExternalReference{})
+	gob.Register(&cyclonedx.Hash{})
+	gob.Register(&cyclonedx.Issue{})
+	gob.Register(&cyclonedx.LicenseChoice{})
+	gob.Register(&cyclonedx.Note{})
+	gob.Register(&cyclonedx.OrganizationalContact{})
+	gob.Register(&cyclonedx.OrganizationalEntity{})
+	gob.Register(&cyclonedx.Patch{})
+	gob.Register(&cyclonedx.Property{})
+	gob.Register(&cyclonedx.Service{})
+	gob.Register(&cyclonedx.Tool{})
+	gob.Register(&cyclonedx.Vulnerability{})
+	gob.Register(&cyclonedx.VulnerabilityRating{})
+	gob.Register(&cyclonedx.VulnerabilityReference{})
+	gob.Register(&cyclonedx_v1_4.Advisory{})
+	gob.Register(&cyclonedx_v1_4.Commit{})
+	gob.Register(&cyclonedx_v1_4.Component{})
+	gob.Register(&cyclonedx_v1_4.Composition{})
+	gob.Register(&cyclonedx_v1_4.DataClassification{})
+	gob.Register(&cyclonedx_v1_4.Dependency{})
+	gob.Register(&cyclonedx_v1_4.EvidenceCopyright{})
+	gob.Register(&cyclonedx_v1_4.ExternalReference{})
+	gob.Register(&cyclonedx_v1_4.Hash{})
+	gob.Register(&cyclonedx_v1_4.Issue{})
+	gob.Register(&cyclonedx_v1_4.LicenseChoice{})
+	gob.Register(&cyclonedx_v1_4.Note{})
+	gob.Register(&cyclonedx_v1_4.OrganizationalContact{})
+	gob.Register(&cyclonedx_v1_4.OrganizationalEntity{})
+	gob.Register(&cyclonedx_v1_4.Patch{})
+	gob.Register(&cyclonedx_v1_4.Property{})
+	gob.Register(&cyclonedx_v1_4.Service{})
+	gob.Register(&cyclonedx_v1_4.Tool{})
+	gob.Register(&cyclonedx_v1_4.Vulnerability{})
+	gob.Register(&cyclonedx_v1_4.VulnerabilityAffectedVersions{})
+	gob.Register(&cyclonedx_v1_4.VulnerabilityAffects{})
+	gob.Register(&cyclonedx_v1_4.VulnerabilityRating{})
+	gob.Register(&cyclonedx_v1_4.VulnerabilityReference{})
 }
 
 type inArrayElement interface {

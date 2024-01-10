@@ -166,6 +166,10 @@ Resources:
           Effect: Allow
           Resource: arn:aws:lambda:*:*:function:*
           Sid: GetLambdaDetails
+        - Action: lambda:ListFunctions
+          Effect: Allow
+          Resource: *
+          Sid: ListLambdas
         - Action: ec2:DescribeInstances
           Effect: Allow
           Resource: '*'
