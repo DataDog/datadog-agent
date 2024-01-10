@@ -689,8 +689,6 @@ func registerChecks(store workloadmeta.Component) {
 	registerCheck(ksm.Enabled, ksm.CheckName, ksm.Factory)
 	registerCheck(helm.Enabled, helm.CheckName, helm.Factory)
 	registerCheck(pod.Enabled, pod.CheckName, pod.Factory)
-	registerCheck(containerd.Enabled, containerd.CheckName, containerd.Factory)
-	registerCheck(cri.Enabled, cri.CheckName, cri.Factory)
 	registerCheck(ebpf.Enabled, ebpf.CheckName, ebpf.Factory)
 	registerCheck(oomkill.Enabled, oomkill.CheckName, oomkill.Factory)
 	registerCheck(tcpqueuelength.Enabled, tcpqueuelength.CheckName, tcpqueuelength.Factory)
@@ -709,6 +707,8 @@ func registerChecks(store workloadmeta.Component) {
 	registerCheck(docker.Enabled, docker.CheckName, docker.NewFactory(store))
 	registerCheck(sbom.Enabled, sbom.CheckName, sbom.NewFactory(store))
 	registerCheck(kubelet.Enabled, kubelet.CheckName, kubelet.NewFactory(store))
+	registerCheck(containerd.Enabled, containerd.CheckName, containerd.NewFactory(store))
+	registerCheck(cri.Enabled, cri.CheckName, cri.NewFactory(store))
 }
 
 func registerCheck(enabled bool, name string, factory func() check.Check) {

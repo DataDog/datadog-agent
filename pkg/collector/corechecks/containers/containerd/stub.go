@@ -8,7 +8,10 @@
 //nolint:revive // TODO(CINT) Fix revive linter
 package containerd
 
-import "github.com/DataDog/datadog-agent/pkg/collector/check"
+import (
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
+)
 
 const (
 	// Enabled is true if the check is enabled
@@ -17,7 +20,7 @@ const (
 	CheckName = "containerd"
 )
 
-// Factory creates a new check instance
-func Factory() check.Check {
+// NewFactory is used to create register the check and initialize it.
+func NewFactory(store workloadmeta.Component) func() check.Check {
 	return nil
 }

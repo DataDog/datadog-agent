@@ -18,6 +18,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -51,6 +52,7 @@ type ContainerdCheck struct {
 	containerFilter *containers.Filter
 	client          cutil.ContainerdItf
 	httpClient      http.Client
+	store           workloadmeta.Component
 }
 
 // ContainerdConfig contains the custom options and configurations set by the user.
@@ -60,11 +62,14 @@ type ContainerdConfig struct {
 	OpenmetricsEndpoint string   `yaml:"openmetrics_endpoint"`
 }
 
-// Factory is used to create register the check and initialize it.
-func Factory() check.Check {
-	return &ContainerdCheck{
-		CheckBase: corechecks.NewCheckBase(CheckName),
-		instance:  &ContainerdConfig{},
+// NewFactory is used to create register the check and initialize it.
+func NewFactory(store workloadmeta.Component) func() check.Check {
+	return func() check.Check {
+		return &ContainerdCheck{
+			CheckBase: corechecks.NewCheckBase(CheckName),
+			instance:  &ContainerdConfig{},
+			store:     store,
+		}
 	}
 }
 
@@ -95,7 +100,7 @@ func (c *ContainerdCheck) Configure(senderManager sender.SenderManager, integrat
 	}
 
 	c.httpClient = http.Client{Timeout: time.Duration(1) * time.Second}
-	c.processor = generic.NewProcessor(metrics.GetProvider(), generic.MetadataContainerAccessor{}, metricsAdapter{}, getProcessorFilter(c.containerFilter))
+	c.processor = generic.NewProcessor(metrics.GetProvider(), generic.MetadataContainerAccessor{}, metricsAdapter{}, getProcessorFilter(c.containerFilter, c.store))
 	c.processor.RegisterExtension("containerd-custom-metrics", &containerdCustomMetricsExtension{})
 	c.subscriber = createEventSubscriber("ContainerdCheck", c.client, cutil.FiltersWithNamespaces(c.instance.ContainerdFilters))
 

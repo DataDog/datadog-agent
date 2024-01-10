@@ -44,13 +44,17 @@ type CRICheck struct {
 	core.CheckBase
 	instance  *CRIConfig
 	processor generic.Processor
+	store     workloadmeta.Component
 }
 
-// Factory is exported for integration testing
-func Factory() check.Check {
-	return &CRICheck{
-		CheckBase: core.NewCheckBase(CheckName),
-		instance:  &CRIConfig{},
+// NewFactory is exported for integration testing
+func NewFactory(store workloadmeta.Component) func() check.Check {
+	return func() check.Check {
+		return &CRICheck{
+			CheckBase: core.NewCheckBase(CheckName),
+			instance:  &CRIConfig{},
+			store:     store,
+		}
 	}
 }
 
@@ -78,7 +82,7 @@ func (c *CRICheck) Configure(senderManager sender.SenderManager, integrationConf
 		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %v", err)
 	}
 
-	c.processor = generic.NewProcessor(metrics.GetProvider(), generic.MetadataContainerAccessor{}, metricsAdapter{}, getProcessorFilter(containerFilter))
+	c.processor = generic.NewProcessor(metrics.GetProvider(), generic.MetadataContainerAccessor{}, metricsAdapter{}, getProcessorFilter(containerFilter, c.store))
 	if c.instance.CollectDisk {
 		c.processor.RegisterExtension("cri-custom-metrics", &criCustomMetricsExtension{criGetter: func() (cri.CRIClient, error) {
 			return cri.GetUtil()
@@ -103,14 +107,14 @@ func (c *CRICheck) runProcessor(sender sender.Sender) error {
 	return c.processor.Run(sender, cacheValidity)
 }
 
-func getProcessorFilter(legacyFilter *containers.Filter) generic.ContainerFilter {
+func getProcessorFilter(legacyFilter *containers.Filter, store workloadmeta.Component) generic.ContainerFilter {
 	// Reject all containers that are not run by Docker
 	return generic.ANDContainerFilter{
 		Filters: []generic.ContainerFilter{
 			generic.FuncContainerFilter(func(container *workloadmeta.Container) bool {
 				return container.Labels[kubernetes.CriContainerNamespaceLabel] == ""
 			}),
-			generic.LegacyContainerFilter{OldFilter: legacyFilter},
+			generic.LegacyContainerFilter{OldFilter: legacyFilter, Store: store},
 		},
 	}
 }

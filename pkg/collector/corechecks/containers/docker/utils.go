@@ -17,12 +17,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
-func getProcessorFilter(legacyFilter *containers.Filter) generic.ContainerFilter {
+func getProcessorFilter(legacyFilter *containers.Filter, store workloadmeta.Component) generic.ContainerFilter {
 	// Reject all containers that are not run by Docker
 	return generic.ANDContainerFilter{
 		Filters: []generic.ContainerFilter{
 			generic.RuntimeContainerFilter{Runtime: workloadmeta.ContainerRuntimeDocker},
-			generic.LegacyContainerFilter{OldFilter: legacyFilter},
+			generic.LegacyContainerFilter{OldFilter: legacyFilter, Store: store},
 		},
 	}
 }
