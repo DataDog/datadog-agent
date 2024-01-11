@@ -191,19 +191,20 @@ def run_functional_tests(ctx, testsuite, verbose=False, testflags='', fentry=Fal
 
 
 @task
-def run_ebpfless_functional_tests(ctx, cws_instrumentation, testsuite, verbose=False, testflags=''):
-    cmd = '{testsuite} -trace {verbose_opt} {testflags} {tests}'
+def run_ebpfless_functional_tests(ctx, testsuite, verbose=False, testflags=''):
+    if not testflags:
+        testflags = "-test.run '^(TestOpen|TestProcess|TimestampVariable|KillAction|TestRmdir|TestUnlink|TestRename)'"
+
+    cmd = '{testsuite} -trace {verbose_opt} {testflags}'
 
     if os.getuid() != 0:
         cmd = 'sudo -E PATH={path} ' + cmd
 
     args = {
-        "cws_instrumentation": cws_instrumentation,
         "testsuite": testsuite,
         "verbose_opt": "-test.v" if verbose else "",
         "testflags": testflags,
         "path": os.environ['PATH'],
-        "tests": "-test.run '^(TestOpen|TestProcess|TimestampVariable|KillAction|TestRmdir|TestUnlink|TestRename)'",
     }
 
     ctx.run(cmd.format(**args))
@@ -510,7 +511,6 @@ def ebpfless_functional_tests(
     testflags='',
     skip_linters=False,
     kernel_release=None,
-    cws_instrumentation='bin/cws-instrumentation/cws-instrumentation',
 ):
     build_functional_tests(
         ctx,
@@ -525,7 +525,6 @@ def ebpfless_functional_tests(
 
     run_ebpfless_functional_tests(
         ctx,
-        cws_instrumentation,
         testsuite=output,
         verbose=verbose,
         testflags=testflags,
