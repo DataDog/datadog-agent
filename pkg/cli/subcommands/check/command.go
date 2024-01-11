@@ -264,6 +264,7 @@ func run(
 
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
 	check.InitializeInventoryChecksContext(invChecks)
+	common.RegisterChecks(wmeta)
 
 	common.LoadComponents(demultiplexer, secretResolver, pkgconfig.Datadog.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())
