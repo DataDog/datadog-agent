@@ -56,6 +56,7 @@ func main() {
 
 	agentCmdBuilder := agents[process]
 	if agentCmdBuilder == nil {
+		fmt.Fprintf(os.Stderr, "Failed to find which agent to use for '%s'\n, falling back to main agent", process)
 		agentCmdBuilder = coreAgentMain
 	}
 
