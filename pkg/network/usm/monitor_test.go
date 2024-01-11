@@ -13,6 +13,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"golang.org/x/net/http2/hpack"
 	"io"
 	"math/rand"
 	"net"
@@ -26,14 +27,12 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
-	"golang.org/x/net/http2/hpack"
-
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
 
 	manager "github.com/DataDog/ebpf-manager"
 
@@ -954,6 +953,17 @@ func writeInput(c net.Conn, input []byte, timeout time.Duration) error {
 	}
 }
 
+var testHeaderFields = []hpack.HeaderField{
+	{Name: ":authority", Value: "127.0.0.1:8082"},
+	{Name: ":method", Value: "POST"},
+	{Name: ":path", Value: "/aaa"},
+	{Name: ":scheme", Value: "http"},
+	{Name: "content-type", Value: "application/json"},
+	{Name: "content-length", Value: "4"},
+	{Name: "accept-encoding", Value: "gzip"},
+	{Name: "user-agent", Value: "Go-http-client/2.0"},
+}
+
 func (s *USMHTTP2Suite) TestRawTraffic() {
 	t := s.T()
 	cfg := networkconfig.New()
@@ -1035,63 +1045,50 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			require.NoError(t, monitor.Start())
 			defer monitor.Stop()
 
-			magicFrame := usmhttp2.CreateRawMagicFrame()
-			// Create a buffer to write the frame into
+			// Create a buffer to write the frame into.
 			var buf bytes.Buffer
 			framer := http2.NewFramer(&buf, nil)
 			// Write the emtpy SettingsFrame to the buffer using the Framer
-			err = framer.WriteSettings(http2.Setting{})
-			require.NoError(t, err, "could not write settings frame")
-			settingsFrame := buf.Bytes()
-			input := make([]byte, 0, len(magicFrame)+len(settingsFrame))
-			input = append(input, magicFrame...)
-			input = append(input, settingsFrame...)
+			require.NoError(t, framer.WriteSettings(http2.Setting{}), "could not write settings frame")
 
 			c, err := net.Dial("tcp", localHostAddress)
 			require.NoError(t, err, "could not dial")
 			defer c.Close()
 
-			// Sending a magic and the settings in the same packet.
-			require.NoError(t, writeInput(c, input, time.Second))
+			// Writing a magic and the settings in the same packet to socket.
+			require.NoError(t, writeInput(c, usmhttp2.ComposeMessage(usmhttp2.MagicFrame, buf.Bytes()), time.Second))
 
-			reqInput := make([]byte, 0, len(settingsFrame)*tt.numberOfSettingFrames+tt.numberOfRequestFrames+tt.numberOfRequestFrames)
+			// Composing a message with the number of setting frames we want to send.
+			reqInput := make([]byte, 0)
 			for i := 0; i < tt.numberOfSettingFrames; i++ {
-				reqInput = append(reqInput, settingsFrame...)
+				reqInput = usmhttp2.ComposeMessage(reqInput, buf.Bytes())
 			}
 
-			var buf2 bytes.Buffer
-			enc := hpack.NewEncoder(&buf2)
-			enc.WriteField(hpack.HeaderField{Name: ":authority", Value: "127.0.0.1:8082"})
-			enc.WriteField(hpack.HeaderField{Name: ":method", Value: "POST"})
-			enc.WriteField(hpack.HeaderField{Name: ":path", Value: "/aaa"})
-			enc.WriteField(hpack.HeaderField{Name: ":scheme", Value: "http"})
-			enc.WriteField(hpack.HeaderField{Name: "content-type", Value: "application/json"})
-			enc.WriteField(hpack.HeaderField{Name: "content-length", Value: "4"})
-			enc.WriteField(hpack.HeaderField{Name: "accept-encoding", Value: "gzip"})
-			enc.WriteField(hpack.HeaderField{Name: "user-agent", Value: "Go-http-client/2.0"})
+			headersFrame, err := usmhttp2.NewHeadersFrameMessage(testHeaderFields)
+			require.NoError(t, err, "could not create headers frame")
 
 			// we have to use negative numbers for the stream id.
 			for i := 0; i < tt.numberOfRequestFrames; i++ {
 				buf.Reset()
 				streamID := 2*i + 1
-				err = framer.WriteHeaders(http2.HeadersFrameParam{
+
+				// Writing the header frames to the buffer using the Framer.
+				require.NoError(t, framer.WriteHeaders(http2.HeadersFrameParam{
 					StreamID:      uint32(streamID),
-					BlockFragment: buf2.Bytes(),
+					BlockFragment: headersFrame,
 					EndStream:     false,
 					EndHeaders:    true,
-				})
-				require.NoError(t, err, "could not write request")
-				requestFrame := buf.Bytes()
+				}), "could not write header frames")
 
-				reqInput = append(reqInput, requestFrame...)
+				reqInput = usmhttp2.ComposeMessage(reqInput, buf.Bytes())
 				buf.Reset()
-				err = framer.WriteData(uint32(streamID), true, []byte{})
-				require.NoError(t, err, "could not write data frame")
-				dataFrame := buf.Bytes()
-				reqInput = append(reqInput, dataFrame...)
+
+				// Writing the data frame to the buffer using the Framer.
+				require.NoError(t, framer.WriteData(uint32(streamID), true, []byte{}),
+					"could not write data frame")
+				reqInput = usmhttp2.ComposeMessage(reqInput, buf.Bytes())
 			}
 
-			// Sending the repeated settings with request.
 			require.NoError(t, writeInput(c, reqInput, time.Second), "could not make request")
 
 			res := make(map[http.Key]int)
