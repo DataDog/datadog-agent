@@ -1,4 +1,4 @@
-import getpass
+import glob
 import json
 import os
 
@@ -38,12 +38,28 @@ def create_stack(ctx, stack=None):
 
 
 def find_ssh_key(ssh_key):
-    user = getpass.getuser()
-    ssh_key_file = f"/home/{user}/.ssh/{ssh_key}"
-    if not os.path.exists(ssh_key_file):
-        raise Exit(f"Could not find file for ssh key {ssh_key}. Looked for {ssh_key_file}")
+    possible_paths = [f"~/.ssh/{ssh_key}", f"~/.ssh/{ssh_key}.pem"]
 
-    return ssh_key_file
+    # Try direct files
+    for path in possible_paths:
+        if os.path.exists(os.path.expanduser(path)):
+            return path
+
+    # Ok, no file found with that name. However, maybe we can identify the key by the key name
+    # that's present in the corresponding pub files
+
+    for pubkey in glob.glob(os.path.expanduser("~/.ssh/*.pub")):
+        privkey = pubkey[:-4]
+        possible_paths.append(privkey)  # Keep track of paths we've checked
+
+        with open(pubkey, "r") as f:
+            parts = f.read().split()
+
+            # Public keys have three "words": key type, public key, name
+            if len(parts) == 3 and parts[2] == ssh_key:
+                return privkey
+
+    raise Exit(f"Could not find file for ssh key {ssh_key}. Looked in {possible_paths}")
 
 
 def remote_vms_in_config(vmconfig):
