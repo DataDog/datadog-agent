@@ -61,17 +61,6 @@ Unattended-Upgrade::Automatic-Reboot-WithUsers "true";
 Unattended-Upgrade::Automatic-Reboot-Time "now";
 EOF
 
-cp /etc/cron.daily/logrotate /etc/cron.hourly/logrotate
-cat <<EOF > /etc/logrotate.d/datadog
-/var/log/datadog/*.log {
-    hourly
-    rotate 12
-    compress
-    missingok
-    notifempty
-}
-EOF
-
 # Activate agentless-scanner logging
 mkdir -p /etc/datadog-agent/conf.d/agentless-scanner.d
 cat <<EOF > /etc/datadog-agent/conf.d/agentless-scanner.d/conf.yaml
