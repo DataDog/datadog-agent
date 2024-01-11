@@ -605,6 +605,7 @@ require (
 	github.com/DataDog/datadog-agent/cmd/agent/common/path v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/comp/core/config v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/comp/core/log v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.51.0-rc.2
