@@ -8,9 +8,9 @@ package checks
 import (
 	"testing"
 
-	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/stretchr/testify/assert"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 

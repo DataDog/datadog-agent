@@ -107,7 +107,8 @@ func (d *ProcessDiscoveryCheck) Run(nextGroupID func() int32, _ *RunOptions) (Ru
 		NumCpus:     calculateNumCores(d.info.SystemInfo),
 		TotalMemory: d.info.SystemInfo.TotalMemory,
 	}
-	procDiscoveryChunks := chunkProcessDiscoveries(pidMapToProcDiscoveries(procs, d.userProbe), d.maxBatchSize)
+
+	procDiscoveryChunks := chunkProcessDiscoveries(pidMapToProcDiscoveries(procs, d.userProbe, d.scrubber), d.maxBatchSize)
 	payload := make([]model.MessageBody, len(procDiscoveryChunks))
 
 	groupID := nextGroupID()
@@ -127,9 +128,13 @@ func (d *ProcessDiscoveryCheck) Run(nextGroupID func() int32, _ *RunOptions) (Ru
 // Cleanup frees any resource held by the ProcessDiscoveryCheck before the agent exits
 func (d *ProcessDiscoveryCheck) Cleanup() {}
 
-func pidMapToProcDiscoveries(pidMap map[int32]*procutil.Process, userProbe *LookupIdProbe) []*model.ProcessDiscovery {
+func pidMapToProcDiscoveries(pidMap map[int32]*procutil.Process, userProbe *LookupIdProbe, scrubber *procutil.DataScrubber) []*model.ProcessDiscovery {
 	pd := make([]*model.ProcessDiscovery, 0, len(pidMap))
+
 	for _, proc := range pidMap {
+
+		proc.Cmdline = scrubber.ScrubProcessCommand(proc)
+
 		pd = append(pd, &model.ProcessDiscovery{
 			Pid:        proc.Pid,
 			NsPid:      proc.NsPid,
@@ -144,7 +149,7 @@ func pidMapToProcDiscoveries(pidMap map[int32]*procutil.Process, userProbe *Look
 
 // chunkProcessDiscoveries split non-container processes into chunks and return a list of chunks
 // This function is patiently awaiting go to support generics, so that we don't need two chunkProcesses functions :)
-func chunkProcessDiscoveries(procs []*model.ProcessDiscovery, size int) [][]*model.ProcessDiscovery {
+func chunkProcessDiscoveries( procs []*model.ProcessDiscovery, size int) [][]*model.ProcessDiscovery {
 	chunkCount := len(procs) / size
 	if chunkCount*size < len(procs) {
 		chunkCount++

@@ -15,7 +15,6 @@ import (
 	"go.uber.org/atomic"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -366,7 +365,7 @@ func (l *CheckRunner) basicRunner(c checks.Check) func() {
 
 		ticker := time.NewTicker(checks.GetInterval(l.config, c.Name()))
 		for {
-			select {
+			select { 
 			case <-ticker.C:
 				realTimeEnabled := l.runRealTime && l.realTimeEnabled.Load()
 				if !c.Realtime() || realTimeEnabled {
