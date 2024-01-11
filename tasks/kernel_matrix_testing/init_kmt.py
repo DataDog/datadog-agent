@@ -49,7 +49,6 @@ def init_kernel_matrix_testing_system(ctx, lite):
     ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd $USER | cut -d ':' -f 1) {kmt_os.libvirt_dir}")
     ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd $USER | cut -d ':' -f 1) {kmt_os.rootfs_dir}")
     ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd $USER | cut -d ':' -f 1) {kmt_os.shared_dir}")
-    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd $USER | cut -d ':' -f 1) {kmt_os.kheaders_dir}")
 
     ## fix libvirt conf
     user = getpass.getuser()
