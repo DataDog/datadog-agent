@@ -44,7 +44,7 @@ func StartCompliance(log log.Component, config config.Component, sysprobeconfig 
 	}
 	stopper.Add(context)
 
-	reporter, err := compliance.NewLogReporter(hostname, stopper, "compliance-agent", "compliance", runPath, endpoints, context)
+	reporter, err := compliance.NewLogReporter(hostname, "compliance-agent", "compliance", runPath, endpoints, context)
 	if err != nil {
 		return nil, err
 	}

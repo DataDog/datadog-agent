@@ -88,7 +88,7 @@ func startCompliance(senderManager sender.SenderManager, stopper startstop.Stopp
 		return err
 	}
 
-	reporter, err := compliance.NewLogReporter(hname, stopper, "compliance-agent", "compliance", runPath, endpoints, ctx)
+	reporter, err := compliance.NewLogReporter(hname, "compliance-agent", "compliance", runPath, endpoints, ctx)
 	if err != nil {
 		return err
 	}
