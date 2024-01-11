@@ -2663,7 +2663,7 @@ func listDevicePartitions(ctx context.Context, device string, volumeARN *arn.ARN
 			continue
 		}
 		for _, part := range blockDevices.BlockDevices[0].Children {
-			if part.FsType == "ext2" || part.FsType == "ext3" || part.FsType == "ext4" || part.FsType == "xfs" {
+			if part.FsType == "btrfs" || part.FsType == "ext2" || part.FsType == "ext3" || part.FsType == "ext4" || part.FsType == "xfs" {
 				partitions = append(partitions, devicePartition{
 					devicePath: part.Path,
 					fsType:     part.FsType,
@@ -2678,7 +2678,7 @@ func listDevicePartitions(ctx context.Context, device string, volumeARN *arn.ARN
 		}
 	}
 	if len(partitions) == 0 {
-		return nil, fmt.Errorf("could not find any ext2, ext3, ext4 or xfs partition in the snapshot %q", volumeARN)
+		return nil, fmt.Errorf("could not find any btrfs, ext2, ext3, ext4 or xfs partition in the snapshot %q", volumeARN)
 	}
 
 	log.Debugf("found %d compatible partitions for device %q", len(partitions), device)
@@ -2695,6 +2695,9 @@ func mountDevice(ctx context.Context, scan *scanTask, partitions []devicePartiti
 
 		fsOptions := "ro,noauto,nodev,noexec,nosuid," // these are generic options supported for all filesystems
 		switch mp.fsType {
+		case "btrfs":
+			// TODO: we could implement support for multiple BTRFS subvolumes in the future.
+			fsOptions += "subvol=/root"
 		case "ext2", "ext3", "ext4":
 			// noload means we do not try to load the journal
 			fsOptions += "noload"
@@ -2703,6 +2706,15 @@ func mountDevice(ctx context.Context, scan *scanTask, partitions []devicePartiti
 			fsOptions += "norecovery,nouuid"
 		default:
 			panic(fmt.Errorf("unsupported filesystem type %s", mp.fsType))
+		}
+
+		// Replace fsid of btrfs partition with randomly generated UUID.
+		if mp.fsType == "btrfs" {
+			log.Debugf("execing btrfstune -f -u %s", mp.devicePath)
+			_, err := exec.CommandContext(ctx, "btrfstune", "-f", "-u", mp.devicePath).CombinedOutput()
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		mountCmd := []string{"-o", fsOptions, "-t", mp.fsType, "--source", mp.devicePath, "--target", mountPoint}
