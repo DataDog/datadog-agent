@@ -80,7 +80,6 @@ type FileProvider struct {
 	selectionMode       selectionStrategy
 	shouldLogErrors     bool
 	reachedNumFileLimit bool
-	allFiles            []string
 }
 
 // NewFileProvider returns a new Provider
@@ -246,7 +245,6 @@ func (p *FileProvider) CollectFiles(source *sources.LogSource) ([]*tailer.File, 
 	_, err := os.Stat(path)
 	switch {
 	case err == nil:
-		p.allFiles = append(p.allFiles, path)
 		return []*tailer.File{
 			tailer.NewFile(path, source, false),
 		}, nil
@@ -267,7 +265,6 @@ func (p *FileProvider) CollectFiles(source *sources.LogSource) ([]*tailer.File, 
 func (p *FileProvider) filesMatchingSource(source *sources.LogSource) ([]*tailer.File, error) {
 	pattern := source.Config.Path
 	paths, err := filepath.Glob(pattern)
-	p.allFiles = append(p.allFiles, paths...)
 	if err != nil {
 		return nil, fmt.Errorf("malformed pattern, could not find any file: %s", pattern)
 	}
@@ -431,9 +428,4 @@ func shouldIgnore(validatePodContainerID bool, file *tailer.File) bool {
 	}
 
 	return false
-}
-
-// GetAllFiles
-func (p *FileProvider) GetAllFiles() []string {
-	return p.allFiles
 }

@@ -9,15 +9,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"time"
 
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -35,8 +36,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
-
-	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 )
 
 const (
@@ -80,6 +79,7 @@ type agent struct {
 	launchers                 *launchers.Launchers
 	health                    *health.Handle
 	diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver
+	flarecontroller           *flareController.FlareController
 
 	// started is true if the logs agent is running
 	started *atomic.Bool
@@ -104,9 +104,10 @@ func newLogsAgent(deps dependencies) provides {
 			inventoryAgent: deps.InventoryAgent,
 			started:        atomic.NewBool(false),
 
-			sources:  sources.NewLogSources(),
-			services: service.NewServices(),
-			tracker:  tailers.NewTailerTracker(),
+			sources:         sources.NewLogSources(),
+			services:        service.NewServices(),
+			tracker:         tailers.NewTailerTracker(),
+			flarecontroller: flareController.NewFlareController(),
 		}
 		deps.Lc.Append(fx.Hook{
 			OnStart: logsAgent.start,
@@ -115,9 +116,8 @@ func newLogsAgent(deps dependencies) provides {
 
 		return provides{
 			Comp:          optional.NewOption[Component](logsAgent),
-			FlareProvider: flaretypes.NewProvider(logsAgent.fillFlare),
+			FlareProvider: flaretypes.NewProvider(logsAgent.flarecontroller.FillFlare),
 		}
-		// return optional.NewOption[Component](logsAgent)
 	}
 
 	deps.Log.Info("logs-agent disabled")
@@ -267,37 +267,4 @@ func (a *agent) GetMessageReceiver() *diagnostic.BufferedMessageReceiver {
 
 func (a *agent) GetPipelineProvider() pipeline.Provider {
 	return a.pipelineProvider
-}
-
-// func (a *agent) FlareProvider() flaretypes.Provider {
-// 	return flaretypes.NewProvider(a.fillFlare)
-// }
-
-func (a *agent) fillFlare(fb flaretypes.FlareBuilder) error {
-	tailers := a.tracker.All()
-
-	for _, tailer := range tailers {
-		fmt.Println(tailer.GetId())
-		fmt.Println(tailer.GetType())
-		fmt.Println(tailer.GetInfo())
-		fmt.Println()
-	}
-
-	fb.AddFileFromFunc("logs_file_permissions.log", func() ([]byte, error) {
-		var files []byte
-
-		for _, tailer := range tailers {
-			if tailer.GetType() == "file" {
-				fi, err := os.Stat(tailer.GetId())
-				if err != nil {
-					return nil, err
-				}
-				files = append(files, []byte(tailer.GetId()+" "+fi.Mode().String()+"\n")...)
-			}
-		}
-
-		return files, nil
-	})
-
-	return nil
 }
