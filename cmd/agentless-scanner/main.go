@@ -1511,7 +1511,7 @@ func listResourcesForCleanup(ctx context.Context, ec2client *ec2.Client, maxTTL 
 			Filters:   cloudResourceTagFilters(),
 		})
 		if err != nil {
-			log.Warnf("could not list volumes created by agentless-scanner: %w", err)
+			log.Warnf("could not list volumes created by agentless-scanner: %v", err)
 			break
 		}
 		for i := range volumes.Volumes {
@@ -1532,7 +1532,7 @@ func listResourcesForCleanup(ctx context.Context, ec2client *ec2.Client, maxTTL 
 			Filters:   cloudResourceTagFilters(),
 		})
 		if err != nil {
-			log.Warnf("could not list snapshots created by agentless-scanner: %w", err)
+			log.Warnf("could not list snapshots created by agentless-scanner: %v", err)
 			break
 		}
 		for i := range snapshots.Snapshots {
