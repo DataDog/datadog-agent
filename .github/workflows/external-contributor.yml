@@ -6,23 +6,16 @@ on:
 
 jobs:
   external-contributor-prs:
-    name: Handle External Contributor PRs
+    name: Handle Fork PRs
     runs-on: ubuntu-latest
+    if: github.event.pull_request.head.repo.full_name != github.repository
     steps:
       - name: Set label on external contributor PRs
-        uses: actions/github-script@v4
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const { data: isMember } = await github.orgs.checkMembershipForUser({
-              org: context.repo.owner,
-              username: context.payload.sender.login
-            })
-            if (!isMember) {
-              await github.issues.addLabels({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                labels: ['community']
-              })
-            }
+        run: gh issue edit "$NUMBER" --add-label "$LABELS" --milestone "$MILESTONE"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.issue.number }}
+          # labels is a comma-separated list of tags
+          LABELS: community,team/triage
+          MILESTONE: Triage
