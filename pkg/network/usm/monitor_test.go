@@ -1048,7 +1048,7 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			// Create a buffer to write the frame into.
 			var buf bytes.Buffer
 			framer := http2.NewFramer(&buf, nil)
-			// Write the emtpy SettingsFrame to the buffer using the Framer
+			// Write the empty SettingsFrame to the buffer using the Framer
 			require.NoError(t, framer.WriteSettings(http2.Setting{}), "could not write settings frame")
 
 			c, err := net.Dial("tcp", localHostAddress)
