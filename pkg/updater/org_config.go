@@ -61,7 +61,7 @@ func (c *OrgConfig) GetPackage(_ context.Context, pkg string, version string) (P
 }
 
 // GetDefaultPackage returns the default version for the given package.
-// The function will block until the catalog and org preferences are received from RC.
+// The function blocks until the catalog and org preferences are received from RC.
 // TODO: Implement with RC support instead of hardcoded files.
 func (c *OrgConfig) GetDefaultPackage(ctx context.Context, pkg string) (Package, error) {
 	var defaults map[string]string
