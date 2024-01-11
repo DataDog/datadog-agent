@@ -1982,9 +1982,8 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 		}
 		scanStartedAt := time.Now()
 		result := launchScanner(ctx, scannerOptions{
-			Scanner:     "vulns",
+			Scanner:     "hostvulns-ebs",
 			Scan:        scan,
-			Mode:        "vm",
 			SnapshotARN: &snapshotARN,
 		})
 		result.SBOMEntityType = sbommodel.SBOMSourceType_HOST_FILE_SYSTEM
@@ -2033,9 +2032,8 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 			switch action {
 			case vulnsHost:
 				result := launchScanner(ctx, scannerOptions{
-					Scanner: "vulns",
+					Scanner: "hostvulns",
 					Scan:    scan,
-					Mode:    "local",
 					Root:    root,
 				})
 				result.SBOMEntityType = sbommodel.SBOMSourceType_HOST_FILE_SYSTEM
@@ -2051,9 +2049,8 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 					for _, ctrMnt := range ctrMountPoints {
 						entityID, entityTags := containerTags(ctrMnt)
 						result := launchScanner(ctx, scannerOptions{
-							Scanner: "vulns",
+							Scanner: "hostvulns",
 							Scan:    scan,
-							Mode:    "local",
 							Root:    ctrMnt.Path,
 						})
 						result.SBOMEntityType = sbommodel.SBOMSourceType_CONTAINER_FILE_SYSTEM
@@ -2085,7 +2082,6 @@ type scannerOptions struct {
 	Root    string
 
 	// Vulns specific
-	Mode        string
 	SnapshotARN *arn.ARN // TODO: deprecate as we remove "vm" mode
 }
 
@@ -2094,7 +2090,6 @@ func (o scannerOptions) ID() string {
 	h.Write([]byte(o.Scanner))
 	h.Write([]byte(o.Root))
 	h.Write([]byte(o.Scan.ID))
-	h.Write([]byte(o.Mode))
 	if o.SnapshotARN != nil {
 		h.Write([]byte(o.SnapshotARN.String()))
 	}
@@ -2221,8 +2216,14 @@ func (w *truncatedWriter) Write(b []byte) (n int, err error) {
 func launchScannerLocally(ctx context.Context, opts scannerOptions) scanResult {
 	start := time.Now()
 	switch opts.Scanner {
-	case "vulns":
-		sbom, err := launchScannerTrivy(ctx, opts)
+	case "hostvulns":
+		sbom, err := launchScannerTrivyLocal(ctx, opts)
+		return scanResult{Err: err, Scan: opts.Scan, SBOM: sbom, Duration: time.Since(start)}
+	case "hostvulns-ebs":
+		sbom, err := launchScannerTrivyVM(ctx, opts)
+		return scanResult{Err: err, Scan: opts.Scan, SBOM: sbom, Duration: time.Since(start)}
+	case "appvulns":
+		sbom, err := launchScannerTrivyLambda(ctx, opts)
 		return scanResult{Err: err, Scan: opts.Scan, SBOM: sbom, Duration: time.Since(start)}
 	case "malware":
 		findings, err := launchScannerMalware(ctx, opts)
@@ -2294,9 +2295,8 @@ func scanLambda(ctx context.Context, scan *scanTask, resultsCh chan scanResult) 
 
 	scanStartedAt := time.Now()
 	result := launchScanner(ctx, scannerOptions{
-		Scanner: "vulns",
+		Scanner: "appvulns",
 		Scan:    scan,
-		Mode:    "lambda",
 		Root:    codePath,
 	})
 	result.SBOMEntityType = sbommodel.SBOMSourceType_CI_PIPELINE // TODO: SBOMSourceType_LAMBDA

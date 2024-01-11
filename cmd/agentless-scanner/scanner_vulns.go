@@ -30,7 +30,6 @@ import (
 	"github.com/aquasecurity/trivy/pkg/scanner/local"
 	"github.com/aquasecurity/trivy/pkg/types"
 	"github.com/aquasecurity/trivy/pkg/vulnerability"
-	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/service/ebs"
 )
 
@@ -58,22 +57,9 @@ func getTrivyDisabledAnalyzers(allowedAnalyzers []analyzer.Type) []analyzer.Type
 	return disabledAnalyzers
 }
 
-func launchScannerTrivy(ctx context.Context, opts scannerOptions) (*cdx.BOM, error) {
-	switch opts.Mode {
-	case "local":
-		return launchScannerTrivyLocal(ctx, opts.Scan, opts.Root)
-	case "vm":
-		return launchScannerTrivyVM(ctx, opts.Scan, *opts.SnapshotARN)
-	case "lambda":
-		return launchScannerTrivyLambda(ctx, opts.Scan, opts.Root)
-	default:
-		return nil, fmt.Errorf("unknown vuln scanner mode %q", opts.Mode)
-	}
-}
-
-func launchScannerTrivyLocal(ctx context.Context, scan *scanTask, root string) (*cdx.BOM, error) {
+func launchScannerTrivyLocal(ctx context.Context, opts scannerOptions) (*cdx.BOM, error) {
 	trivyCache := newMemoryCache()
-	trivyArtifact, err := trivyartifactlocal.NewArtifact(root, trivyCache, artifact.Option{
+	trivyArtifact, err := trivyartifactlocal.NewArtifact(opts.Root, trivyCache, artifact.Option{
 		Offline:           true,
 		NoProgress:        true,
 		DisabledAnalyzers: getTrivyDisabledAnalyzers(analyzer.TypeOSes),
@@ -81,29 +67,29 @@ func launchScannerTrivyLocal(ctx context.Context, scan *scanTask, root string) (
 		SBOMSources:       []string{},
 		DisabledHandlers:  []ftypes.HandlerType{ftypes.UnpackagedPostHandler},
 		OnlyDirs: []string{
-			filepath.Join(root, "etc"),
-			filepath.Join(root, "var/lib/dpkg"),
-			filepath.Join(root, "var/lib/rpm"),
-			filepath.Join(root, "lib/apk"),
+			filepath.Join(opts.Root, "etc"),
+			filepath.Join(opts.Root, "var/lib/dpkg"),
+			filepath.Join(opts.Root, "var/lib/rpm"),
+			filepath.Join(opts.Root, "lib/apk"),
 		},
-		AWSRegion: scan.ARN.Region,
+		AWSRegion: opts.Scan.ARN.Region,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("could not create local trivy artifact: %w", err)
 	}
 
-	return doTrivyScan(ctx, scan, trivyArtifact, trivyCache)
+	return doTrivyScan(ctx, opts.Scan, trivyArtifact, trivyCache)
 }
 
-func launchScannerTrivyVM(ctx context.Context, scan *scanTask, snapshotARN arn.ARN) (*cdx.BOM, error) {
-	assumedRole := scan.Roles[scan.ARN.AccountID]
-	cfg, err := newAWSConfig(ctx, scan.ARN.Region, assumedRole)
+func launchScannerTrivyVM(ctx context.Context, opts scannerOptions) (*cdx.BOM, error) {
+	assumedRole := opts.Scan.Roles[opts.Scan.ARN.AccountID]
+	cfg, err := newAWSConfig(ctx, opts.Scan.ARN.Region, assumedRole)
 	if err != nil {
 		return nil, err
 	}
 
 	ebsclient := ebs.NewFromConfig(cfg)
-	_, snapshotID, _ := getARNResource(snapshotARN)
+	_, snapshotID, _ := getARNResource(*opts.SnapshotARN)
 	trivyCache := newMemoryCache()
 	target := "ebs:" + snapshotID
 	trivyArtifact, err := vm.NewArtifact(target, trivyCache, artifact.Option{
@@ -113,8 +99,13 @@ func launchScannerTrivyVM(ctx context.Context, scan *scanTask, snapshotARN arn.A
 		Slow:              false,
 		SBOMSources:       []string{},
 		DisabledHandlers:  []ftypes.HandlerType{ftypes.UnpackagedPostHandler},
-		OnlyDirs:          []string{"etc", "var/lib/dpkg", "var/lib/rpm", "lib/apk"},
-		AWSRegion:         scan.ARN.Region,
+		OnlyDirs: []string{
+			"etc",
+			"var/lib/dpkg",
+			"var/lib/rpm",
+			"lib/apk",
+		},
+		AWSRegion: opts.Scan.ARN.Region,
 	})
 	if err != nil {
 		return nil, err
@@ -122,27 +113,27 @@ func launchScannerTrivyVM(ctx context.Context, scan *scanTask, snapshotARN arn.A
 
 	trivyArtifactEBS := trivyArtifact.(*vm.EBS)
 	trivyArtifactEBS.SetEBS(EBSClientWithWalk{ebsclient})
-	return doTrivyScan(ctx, scan, trivyArtifact, trivyCache)
+	return doTrivyScan(ctx, opts.Scan, trivyArtifact, trivyCache)
 }
 
-func launchScannerTrivyLambda(ctx context.Context, scan *scanTask, root string) (*cdx.BOM, error) {
+func launchScannerTrivyLambda(ctx context.Context, opts scannerOptions) (*cdx.BOM, error) {
 	var allowedAnalyzers []analyzer.Type
 	allowedAnalyzers = append(allowedAnalyzers, analyzer.TypeLanguages...)
 	allowedAnalyzers = append(allowedAnalyzers, analyzer.TypeLockfiles...)
 	allowedAnalyzers = append(allowedAnalyzers, analyzer.TypeIndividualPkgs...)
 	trivyCache := newMemoryCache()
-	trivyArtifact, err := trivyartifactlocal.NewArtifact(root, trivyCache, artifact.Option{
+	trivyArtifact, err := trivyartifactlocal.NewArtifact(opts.Root, trivyCache, artifact.Option{
 		Offline:           true,
 		NoProgress:        true,
 		DisabledAnalyzers: getTrivyDisabledAnalyzers(allowedAnalyzers),
 		Slow:              true,
 		SBOMSources:       []string{},
-		AWSRegion:         scan.ARN.Region,
+		AWSRegion:         opts.Scan.ARN.Region,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("unable to create artifact from fs: %w", err)
 	}
-	return doTrivyScan(ctx, scan, trivyArtifact, trivyCache)
+	return doTrivyScan(ctx, opts.Scan, trivyArtifact, trivyCache)
 }
 
 func doTrivyScan(ctx context.Context, scan *scanTask, trivyArtifact artifact.Artifact, trivyCache cache.LocalArtifactCache) (*cdx.BOM, error) {
