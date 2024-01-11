@@ -1,7 +1,8 @@
 name: Handle External Contributor PRs
 
 on:
-  pull_request:
+  # run in the context of the base branch, so that it still works in PR from forks
+  pull_request_target:
     types: [opened, reopened]
 
 jobs:
