@@ -10,12 +10,12 @@ import "github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 type mockStatusService struct{}
 
 // AddGlobalWarning keeps track of a warning message to display on the status.
-func (ms *mockStatusService) AddGlobalWarning(key string, warning string) {
+func (ms *mockStatusService) AddGlobalWarning(string, string) {
 }
 
 // RemoveGlobalWarning loses track of a warning message
 // that does not need to be displayed on the status anymore.
-func (ms *mockStatusService) RemoveGlobalWarning(key string) {
+func (ms *mockStatusService) RemoveGlobalWarning(string) {
 }
 
 // NewStatusImpl fetches the status and returns a service wrapping it

@@ -6,11 +6,11 @@
 // Package hostname exposes hostname.Get() as a component.
 package hostname
 
-import (
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
-)
+import "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 
 // team: agent-shared-components
 
 // Component is the component type.
-type Component = hostnameinterface.HostnameInterface
+type Component interface {
+	hostnameinterface.HostnameInterface
+}
