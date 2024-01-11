@@ -138,13 +138,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		secretsimpl.Module(),
 		orchestratorForwarderImpl.Module(),
 		fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
-		fx.Provide(func(config config.Component) tagger.Params {
-			if config.GetBool("dogstatsd_origin_detection") {
-				return tagger.NewTaggerParams()
-			}
-			return tagger.NewFakeTaggerParams()
-		}),
-		tagger.Module(),
+		tagger.OptionalModule(),
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
 		// already migrated components to request it.
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
@@ -176,6 +170,7 @@ func start(
 	server dogstatsdServer.Component,
 	_ defaultforwarder.Component,
 	wmeta optional.Option[workloadmeta.Component],
+	_ optional.Option[tagger.Component],
 	demultiplexer demultiplexer.Component,
 	_ runner.Component,
 	_ resources.Component,

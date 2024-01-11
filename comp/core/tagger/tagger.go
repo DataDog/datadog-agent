@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"go.uber.org/fx"
 )
 
@@ -361,4 +362,40 @@ func (t *TaggerClient) Subscribe(cardinality collectors.TagCardinality) chan []t
 // Unsubscribe calls defaultTagger.Unsubscribe
 func (t *TaggerClient) Unsubscribe(ch chan []types.EntityEvent) {
 	t.defaultTagger.Unsubscribe(ch)
+}
+
+type optionalTaggerDeps struct {
+	fx.In
+
+	Lc     fx.Lifecycle
+	Config configComponent.Component
+	Log    logComp.Component
+	Wmeta  optional.Option[workloadmeta.Component]
+}
+
+// OptionalModule defines the fx options when tagger should be used as an optional
+func OptionalModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(
+			NewOptionalTagger,
+		),
+	)
+}
+
+// NewOptionalTagger returns a tagger component if workloadmeta is available
+func NewOptionalTagger(deps optionalTaggerDeps) optional.Option[Component] {
+	w, ok := deps.Wmeta.Get()
+	if !ok {
+		return optional.NewNoneOption[Component]()
+	}
+	return optional.NewOption[Component](newTaggerClient(dependencies{
+		In:     deps.In,
+		Lc:     deps.Lc,
+		Config: deps.Config,
+		Log:    deps.Log,
+		Wmeta:  w,
+		Params: Params{
+			agentTypeForTagger: LocalTaggerAgent,
+		},
+	}))
 }
