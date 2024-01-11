@@ -125,6 +125,8 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 
 	cfg := s.getConfig()
 	tr := setupTracer(t, cfg)
+	require.NotNil(t, tr.usmMonitor)
+
 	if s.isTLS {
 		require.Eventuallyf(t, func() bool {
 			traced := utils.GetTracedPrograms("go-tls")
@@ -383,7 +385,7 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 				tt.runClients(t, clientCount)
 
 				res := make(map[http.Key]int)
-				require.Eventually(t, func() bool {
+				assert.Eventually(t, func() bool {
 					conns := getConnections(t, tr)
 					for key, stat := range conns.HTTP2 {
 						if key.DstPort == 5050 || key.SrcPort == 5050 {
@@ -417,6 +419,9 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 					return true
 				}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
 			})
+			if t.Failed() && tr.usmMonitor != nil {
+				ebpftest.DumpMapsTestHelper(t, tr.usmMonitor.DumpMaps, "http2_in_flight", "http2_dynamic_table")
+			}
 		}
 	}
 }
@@ -438,7 +443,7 @@ func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 
 	cfg := s.getConfig()
 	tr := setupTracer(t, cfg)
-	require.NoError(t, tr.ebpfTracer.Pause())
+	require.NotNil(t, tr.usmMonitor)
 
 	if s.isTLS {
 		require.Eventuallyf(t, func() bool {
@@ -554,7 +559,7 @@ func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 					return true
 				}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
 
-				if t.Failed() {
+				if t.Failed() && tr.usmMonitor != nil {
 					ebpftest.DumpMapsTestHelper(t, tr.usmMonitor.DumpMaps, "http2_in_flight", "http2_dynamic_table")
 				}
 			})
