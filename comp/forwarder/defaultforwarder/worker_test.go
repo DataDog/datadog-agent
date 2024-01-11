@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -28,7 +29,7 @@ func TestNewWorker(t *testing.T) {
 	lowPrio := make(chan transaction.Transaction)
 	requeue := make(chan transaction.Transaction)
 
-	mockConfig := setupconfig()
+	mockConfig := pkgconfigsetup.Conf()
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{})
 	assert.NotNil(t, w)
@@ -40,7 +41,7 @@ func TestNewNoSSLWorker(t *testing.T) {
 	lowPrio := make(chan transaction.Transaction)
 	requeue := make(chan transaction.Transaction)
 
-	mockConfig := setupconfig()
+	mockConfig := pkgconfigsetup.Conf()
 	mockConfig.SetWithoutSource("skip_ssl_validation", true)
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{})
@@ -52,7 +53,7 @@ func TestWorkerStart(t *testing.T) {
 	lowPrio := make(chan transaction.Transaction)
 	requeue := make(chan transaction.Transaction, 1)
 	sender := &PointSuccessfullySentMock{}
-	mockConfig := setupconfig()
+	mockConfig := pkgconfigsetup.Conf()
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), sender)
 
@@ -89,7 +90,7 @@ func TestWorkerRetry(t *testing.T) {
 	highPrio := make(chan transaction.Transaction)
 	lowPrio := make(chan transaction.Transaction)
 	requeue := make(chan transaction.Transaction, 1)
-	mockConfig := setupconfig()
+	mockConfig := pkgconfigsetup.Conf()
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{})
 
@@ -112,7 +113,7 @@ func TestWorkerRetryBlockedTransaction(t *testing.T) {
 	highPrio := make(chan transaction.Transaction)
 	lowPrio := make(chan transaction.Transaction)
 	requeue := make(chan transaction.Transaction, 1)
-	mockConfig := setupconfig()
+	mockConfig := pkgconfigsetup.Conf()
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{})
 
@@ -135,7 +136,7 @@ func TestWorkerResetConnections(t *testing.T) {
 	highPrio := make(chan transaction.Transaction)
 	lowPrio := make(chan transaction.Transaction)
 	requeue := make(chan transaction.Transaction, 1)
-	mockConfig := setupconfig()
+	mockConfig := pkgconfigsetup.Conf()
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{})
 
@@ -180,7 +181,7 @@ func TestWorkerPurgeOnStop(t *testing.T) {
 	highPrio := make(chan transaction.Transaction, 1)
 	lowPrio := make(chan transaction.Transaction, 1)
 	requeue := make(chan transaction.Transaction, 1)
-	mockConfig := setupconfig()
+	mockConfig := pkgconfigsetup.Conf()
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	w := NewWorker(mockConfig, log, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{})
 	// making stopChan non blocking on insert and closing stopped channel

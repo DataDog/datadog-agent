@@ -15,7 +15,10 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../../pkg/config/model
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../pkg/config/setup
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../pkg/config/utils
+	github.com/DataDog/datadog-agent/pkg/obfuscate => ../../../pkg/obfuscate
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model => ../../../pkg/orchestrator/model
+	github.com/DataDog/datadog-agent/pkg/proto => ../../../pkg/proto/
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../../../pkg/remoteconfig/state
 	github.com/DataDog/datadog-agent/pkg/status/health => ../../../pkg/status/health
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/trace => ../../../pkg/trace
@@ -26,8 +29,10 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../pkg/util/fxutil
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../pkg/util/hostname/validate
 	github.com/DataDog/datadog-agent/pkg/util/http => ../../../pkg/util/http
+	github.com/DataDog/datadog-agent/pkg/util/log => ../../../pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/optional => ../../../pkg/util/optional
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../pkg/util/scrubber
+	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../../pkg/util/system/socket
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../pkg/util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ../../../pkg/version
 
