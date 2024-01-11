@@ -1049,7 +1049,8 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			var buf bytes.Buffer
 			framer := http2.NewFramer(&buf, nil)
 			// Write the empty SettingsFrame to the buffer using the Framer
-			require.NoError(t, framer.WriteSettings(http2.Setting{}), "could not write settings frame")
+			emptySettings := http2.Setting{}
+			require.NoError(t, framer.WriteSettings(emptySettings), "could not write settings frame")
 
 			c, err := net.Dial("tcp", localHostAddress)
 			require.NoError(t, err, "could not dial")
@@ -1058,10 +1059,11 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			// Writing a magic and the settings in the same packet to socket.
 			require.NoError(t, writeInput(c, usmhttp2.ComposeMessage([]byte(http2.ClientPreface), buf.Bytes()), time.Second))
 
+			// zeroing the buffer for start a new message.
+			buf.Reset()
 			// Composing a message with the number of setting frames we want to send.
-			reqInput := make([]byte, 0)
 			for i := 0; i < tt.numberOfSettingFrames; i++ {
-				reqInput = usmhttp2.ComposeMessage(reqInput, buf.Bytes())
+				require.NoError(t, framer.WriteSettings(emptySettings), "could not write settings frame")
 			}
 
 			headersFrame, err := usmhttp2.NewHeadersFrameMessage(testHeaderFields)
@@ -1069,7 +1071,6 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 
 			// we have to use negative numbers for the stream id.
 			for i := 0; i < tt.numberOfRequestFrames; i++ {
-				buf.Reset()
 				streamID := 2*i + 1
 
 				// Writing the header frames to the buffer using the Framer.
@@ -1083,10 +1084,9 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 				// Writing the data frame to the buffer using the Framer.
 				require.NoError(t, framer.WriteData(uint32(streamID), true, []byte{}),
 					"could not write data frame")
-				reqInput = usmhttp2.ComposeMessage(reqInput, buf.Bytes())
 			}
 
-			require.NoError(t, writeInput(c, reqInput, time.Second), "could not make request")
+			require.NoError(t, writeInput(c, buf.Bytes(), time.Second), "could not make request")
 
 			res := make(map[http.Key]int)
 			assert.Eventually(t, func() bool {
