@@ -20,6 +20,6 @@ const (
 	CheckName = "kubelet"
 )
 
-func NewFactory(store workloadmeta.Component) func() check.Check {
+func Factory(store workloadmeta.Component) func() check.Check {
 	return nil
 }

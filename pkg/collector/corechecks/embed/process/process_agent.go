@@ -242,8 +242,8 @@ func (c *ProcessAgentCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 	return nil, nil
 }
 
-// Factory creates a new check instance
-func Factory() check.Check {
+// New creates a new check instance
+func New() check.Check {
 	return &ProcessAgentCheck{
 		stop:     make(chan struct{}),
 		stopDone: make(chan struct{}),

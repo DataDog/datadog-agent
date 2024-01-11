@@ -20,7 +20,7 @@ const (
 	CheckName = "containerd"
 )
 
-// NewFactory is used to create register the check and initialize it.
-func NewFactory(store workloadmeta.Component) func() check.Check {
+// Factory is used to create register the check and initialize it.
+func Factory(store workloadmeta.Component) func() check.Check {
 	return nil
 }

@@ -16,7 +16,7 @@ const (
 	CheckName = "disk"
 )
 
-// Factory creates a new check instance
-func Factory() check.Check {
+// New creates a new check instance
+func New() check.Check {
 	return nil
 }

@@ -20,7 +20,7 @@ const (
 	CheckName = "cri"
 )
 
-// NewFactory creates a new check instance
-func NewFactory(store workloadmeta.Component) func() check.Check {
+// Factory creates a new check instance
+func Factory(store workloadmeta.Component) func() check.Check {
 	return nil
 }

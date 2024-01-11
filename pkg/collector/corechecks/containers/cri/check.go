@@ -47,8 +47,8 @@ type CRICheck struct {
 	store     workloadmeta.Component
 }
 
-// NewFactory is exported for integration testing
-func NewFactory(store workloadmeta.Component) func() check.Check {
+// Factory is exported for integration testing
+func Factory(store workloadmeta.Component) func() check.Check {
 	return func() check.Check {
 		return &CRICheck{
 			CheckBase: core.NewCheckBase(CheckName),

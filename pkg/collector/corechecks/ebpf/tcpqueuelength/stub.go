@@ -17,7 +17,7 @@ const (
 	CheckName = "tcp_queue_length"
 )
 
-// Factory creates a new check instance
-func Factory() check.Check {
+// New creates a new check instance
+func New() check.Check {
 	return nil
 }

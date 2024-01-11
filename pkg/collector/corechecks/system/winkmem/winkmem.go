@@ -60,8 +60,8 @@ type KMemCheck struct {
 	config Config
 }
 
-// Factory creates a new check instance
-func Factory() check.Check {
+// New creates a new check instance
+func New() check.Check {
 	return &KMemCheck{
 		CheckBase: core.NewCheckBase(CheckName),
 	}

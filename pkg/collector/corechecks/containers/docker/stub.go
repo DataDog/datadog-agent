@@ -20,6 +20,6 @@ const (
 	CheckName = "docker"
 )
 
-func NewFactory(_ workloadmeta.Component) func() check.Check {
+func Factory(_ workloadmeta.Component) func() check.Check {
 	return nil
 }

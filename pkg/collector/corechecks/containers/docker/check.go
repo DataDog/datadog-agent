@@ -65,8 +65,8 @@ type DockerCheck struct {
 	eventTransformer eventTransformer
 }
 
-// NewFactory returns a new docker corecheck factory
-func NewFactory(store workloadmeta.Component) func() check.Check {
+// Factory returns a new docker corecheck factory
+func Factory(store workloadmeta.Component) func() check.Check {
 	return func() check.Check {
 		return &DockerCheck{
 			CheckBase: core.NewCheckBase(CheckName),

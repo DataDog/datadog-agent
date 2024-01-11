@@ -86,8 +86,8 @@ func (c *LoadCheck) Configure(senderManager sender.SenderManager, integrationCon
 	return nil
 }
 
-// Factory creates a new check instance
-func Factory() check.Check {
+// New creates a new check instance
+func New() check.Check {
 	return &LoadCheck{
 		CheckBase: core.NewCheckBase(CheckName),
 	}

@@ -62,8 +62,8 @@ type ContainerdConfig struct {
 	OpenmetricsEndpoint string   `yaml:"openmetrics_endpoint"`
 }
 
-// NewFactory is used to create register the check and initialize it.
-func NewFactory(store workloadmeta.Component) func() check.Check {
+// Factory is used to create register the check and initialize it.
+func Factory(store workloadmeta.Component) func() check.Check {
 	return func() check.Check {
 		return &ContainerdCheck{
 			CheckBase: corechecks.NewCheckBase(CheckName),

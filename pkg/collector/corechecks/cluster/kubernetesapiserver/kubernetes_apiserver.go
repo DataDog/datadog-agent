@@ -134,8 +134,8 @@ func NewKubeASCheck(base core.CheckBase, instance *KubeASConfig) *KubeASCheck {
 	}
 }
 
-// Factory returns a new factory
-func Factory() check.Check {
+// New returns a new factory
+func New() check.Check {
 	return NewKubeASCheck(core.NewCheckBase(CheckName), &KubeASConfig{})
 }
 

@@ -143,8 +143,8 @@ func (c *Check) Stop() { close(c.stopCh) }
 // Interval returns 0, it makes container_lifecycle a long-running check
 func (c *Check) Interval() time.Duration { return 0 }
 
-// NewFactory returns a new check factory
-func NewFactory(store workloadmeta.Component) func() check.Check {
+// Factory returns a new check factory
+func Factory(store workloadmeta.Component) func() check.Check {
 	return func() check.Check {
 		return &Check{
 			CheckBase:         core.NewCheckBase(CheckName),

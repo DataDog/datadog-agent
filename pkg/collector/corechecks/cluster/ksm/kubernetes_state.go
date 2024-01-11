@@ -837,8 +837,8 @@ func (k *KSMCheck) sendTelemetry(s sender.Sender) {
 	}
 }
 
-// Factory returns a new KSMCheck
-func Factory() check.Check {
+// New returns a new KSMCheck
+func New() check.Check {
 	return newKSMCheck(
 		core.NewCheckBase(CheckName),
 		&KSMConfig{

@@ -86,8 +86,8 @@ func (cc *checkConfig) Parse(data []byte) error {
 	return yaml.Unmarshal(data, cc)
 }
 
-// Factory creates a new check instance
-func Factory() check.Check {
+// New creates a new check instance
+func New() check.Check {
 	return &HelmCheck{
 		CheckBase:         core.NewCheckBase(CheckName),
 		instance:          &checkConfig{},

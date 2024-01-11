@@ -42,8 +42,8 @@ type ContainerCheck struct {
 	store     workloadmeta.Component
 }
 
-// NewFactory returns a new check factory
-func NewFactory(store workloadmeta.Component) func() check.Check {
+// Factory returns a new check factory
+func Factory(store workloadmeta.Component) func() check.Check {
 	return func() check.Check {
 		return &ContainerCheck{
 			CheckBase: core.NewCheckBase(CheckName),

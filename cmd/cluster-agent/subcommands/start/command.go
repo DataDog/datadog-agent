@@ -496,19 +496,19 @@ func initializeRemoteConfig(ctx context.Context) (*rcclient.Client, *rcservice.S
 
 func registerChecks() {
 	// Required checks
-	registerCheck(true, cpu.CheckName, cpu.Factory)
-	registerCheck(true, memory.CheckName, memory.Factory)
-	registerCheck(true, uptime.CheckName, uptime.Factory)
-	registerCheck(true, io.CheckName, io.Factory)
-	registerCheck(true, filehandles.CheckName, filehandles.Factory)
+	registerCheck(true, cpu.CheckName, cpu.New)
+	registerCheck(true, memory.CheckName, memory.New)
+	registerCheck(true, uptime.CheckName, uptime.New)
+	registerCheck(true, io.CheckName, io.New)
+	registerCheck(true, filehandles.CheckName, filehandles.New)
 
 	// Flavor specific checks
-	registerCheck(kubernetesapiserver.Enabled, kubernetesapiserver.CheckName, kubernetesapiserver.Factory)
-	registerCheck(ksm.Enabled, ksm.CheckName, ksm.Factory)
-	registerCheck(helm.Enabled, helm.CheckName, helm.Factory)
-	registerCheck(disk.Enabled, disk.CheckName, disk.Factory)
-	registerCheck(orchestrator.Enabled, orchestrator.CheckName, orchestrator.Factory)
-	registerCheck(winproc.Enabled, winproc.CheckName, winproc.Factory)
+	registerCheck(kubernetesapiserver.Enabled, kubernetesapiserver.CheckName, kubernetesapiserver.New)
+	registerCheck(ksm.Enabled, ksm.CheckName, ksm.New)
+	registerCheck(helm.Enabled, helm.CheckName, helm.New)
+	registerCheck(disk.Enabled, disk.CheckName, disk.New)
+	registerCheck(orchestrator.Enabled, orchestrator.CheckName, orchestrator.New)
+	registerCheck(winproc.Enabled, winproc.CheckName, winproc.New)
 }
 
 func registerCheck(enabled bool, name string, factory func() check.Check) {

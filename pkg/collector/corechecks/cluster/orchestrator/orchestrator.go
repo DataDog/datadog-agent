@@ -94,8 +94,8 @@ func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance) *
 	}
 }
 
-// Factory returns the orchestrator check
-func Factory() check.Check {
+// New returns the orchestrator check
+func New() check.Check {
 	return newOrchestratorCheck(
 		core.NewCheckBase(CheckName),
 		&OrchestratorInstance{},

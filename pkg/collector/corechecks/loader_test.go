@@ -39,12 +39,12 @@ func TestNewGoCheckLoader(t *testing.T) {
 	}
 }
 
-func testCheckFactory() check.Check {
+func testCheckNew() check.Check {
 	return &TestCheck{}
 }
 
 func TestRegisterCheck(t *testing.T) {
-	RegisterCheck("foo", testCheckFactory)
+	RegisterCheck("foo", testCheckNew)
 	_, found := catalog["foo"]
 	if !found {
 		t.Fatal("Check foo not found in catalog")
@@ -52,7 +52,7 @@ func TestRegisterCheck(t *testing.T) {
 }
 
 func TestLoad(t *testing.T) {
-	RegisterCheck("foo", testCheckFactory)
+	RegisterCheck("foo", testCheckNew)
 
 	// check is in catalog, pass 1 good instance
 	i := []integration.Data{

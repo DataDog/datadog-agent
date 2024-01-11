@@ -77,8 +77,8 @@ func (c *processChk) Configure(senderManager sender.SenderManager, integrationCo
 	return err
 }
 
-// Factory creates a new check instance
-func Factory() check.Check {
+// New creates a new check instance
+func New() check.Check {
 	return &processChk{
 		CheckBase: core.NewCheckBase(CheckName),
 	}

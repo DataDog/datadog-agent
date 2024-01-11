@@ -250,8 +250,8 @@ func (c *APMCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 	return nil, nil
 }
 
-// Factory creates a new check instance
-func Factory() check.Check {
+// New creates a new check instance
+func New() check.Check {
 	return &APMCheck{
 		running:  atomic.NewBool(false),
 		stop:     make(chan struct{}),

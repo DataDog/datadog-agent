@@ -39,8 +39,8 @@ func (c *Check) Run() error {
 	return nil
 }
 
-// Factory creates a new check instance
-func Factory() check.Check {
+// New creates a new check instance
+func New() check.Check {
 	return &Check{
 		CheckBase: core.NewCheckBase(CheckName),
 	}

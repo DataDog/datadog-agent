@@ -19,7 +19,7 @@ const (
 	CheckName = "sbom"
 )
 
-// NewFactory returns a new check factory
-func NewFactory(_ workloadmeta.Component) func() check.Check {
+// Factory returns a new check factory
+func Factory(_ workloadmeta.Component) func() check.Check {
 	return nil
 }

@@ -194,8 +194,8 @@ func (c *Check) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 	return c.singleDeviceCk.GetDiagnoses(), nil
 }
 
-// Factory creates a new check instance
-func Factory() check.Check {
+// New creates a new check instance
+func New() check.Check {
 	return &Check{
 		CheckBase:                  core.NewCheckBase(common.SnmpIntegrationName),
 		sessionFactory:             session.NewGosnmpSession,

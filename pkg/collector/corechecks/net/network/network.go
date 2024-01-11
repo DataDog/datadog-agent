@@ -308,8 +308,8 @@ func (c *NetworkCheck) Configure(senderManager sender.SenderManager, integration
 	return nil
 }
 
-// Factory creates a new check instance
-func Factory() check.Check {
+// New creates a new check instance
+func New() check.Check {
 	return &NetworkCheck{
 		net:       defaultNetworkStats{},
 		CheckBase: core.NewCheckBase(CheckName),

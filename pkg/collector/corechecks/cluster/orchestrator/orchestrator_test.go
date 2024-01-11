@@ -56,7 +56,7 @@ func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
 	vpaClient := vpa.NewSimpleClientset()
 	crdClient := crd.NewSimpleClientset()
 	cl := &apiserver.APIClient{InformerCl: client, VPAInformerClient: vpaClient, CRDInformerClient: crdClient}
-	orchCheck := Factory().(*OrchestratorCheck)
+	orchCheck := New().(*OrchestratorCheck)
 	orchCheck.apiClient = cl
 
 	orchCheck.orchestratorInformerFactory = getOrchestratorInformerFactory(cl)

@@ -44,8 +44,8 @@ type EBPFCheck struct {
 	core.CheckBase
 }
 
-// Factory returns a new check factory
-func Factory() check.Check {
+// New returns a new check factory
+func New() check.Check {
 	return &EBPFCheck{
 		CheckBase: core.NewCheckBase(CheckName),
 		config:    &EBPFCheckConfig{},

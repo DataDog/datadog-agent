@@ -14,8 +14,8 @@ import (
 // CheckName is the name of the check
 const CheckName = "memory"
 
-// Factory creates a new check instance
-func Factory() check.Check {
+// New creates a new check instance
+func New() check.Check {
 	return &Check{
 		CheckBase: core.NewCheckBase(CheckName),
 	}

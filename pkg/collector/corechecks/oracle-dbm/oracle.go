@@ -354,8 +354,8 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	return nil
 }
 
-// Factory creates a new check instance
-func Factory() check.Check {
+// New creates a new check instance
+func New() check.Check {
 	return &Check{CheckBase: core.NewCheckBaseWithInterval(common.IntegrationNameScheduler, 10*time.Second)}
 }
 

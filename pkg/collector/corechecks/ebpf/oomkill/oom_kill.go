@@ -51,8 +51,8 @@ type OOMKillCheck struct {
 	instance *OOMKillConfig
 }
 
-// Factory creates a new check instance
-func Factory() check.Check {
+// New creates a new check instance
+func New() check.Check {
 	return &OOMKillCheck{
 		CheckBase: core.NewCheckBase(CheckName),
 		instance:  &OOMKillConfig{},

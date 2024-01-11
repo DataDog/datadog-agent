@@ -51,8 +51,8 @@ type WinCrashDetect struct {
 	reporter *crashreport.WinCrashReporter
 }
 
-// Factory creates a new check instance
-func Factory() check.Check {
+// New creates a new check instance
+func New() check.Check {
 	return &WinCrashDetect{
 		CheckBase: core.NewCheckBase(CheckName),
 		instance:  &WinCrashConfig{},

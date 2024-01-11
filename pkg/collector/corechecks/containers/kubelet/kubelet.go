@@ -99,8 +99,8 @@ func initProviders(filter *containers.Filter, config *common.KubeletConfig, podU
 	}
 }
 
-// NewFactory returns a new KubeletCheck factory
-func NewFactory(store workloadmeta.Component) func() check.Check {
+// Factory returns a new KubeletCheck factory
+func Factory(store workloadmeta.Component) func() check.Check {
 	return func() check.Check {
 		return NewKubeletCheck(core.NewCheckBase(CheckName), &common.KubeletConfig{}, store)
 	}

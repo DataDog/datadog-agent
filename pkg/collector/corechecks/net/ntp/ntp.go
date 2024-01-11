@@ -242,8 +242,8 @@ func (c *NTPCheck) queryOffset() (float64, error) {
 	return median, nil
 }
 
-// Factory creates a new check instance
-func Factory() check.Check {
+// New creates a new check instance
+func New() check.Check {
 	return &NTPCheck{
 		CheckBase: core.NewCheckBaseWithInterval(CheckName, time.Duration(defaultMinCollectionInterval)*time.Second),
 	}

@@ -51,8 +51,8 @@ type Check struct {
 	config    *oconfig.OrchestratorConfig
 }
 
-// Factory returns a new Pod.Check
-func Factory() check.Check {
+// New returns a new Pod.Check
+func New() check.Check {
 	return &Check{
 		CheckBase: core.NewCheckBase(CheckName),
 		config:    oconfig.NewDefaultOrchestratorConfig(),

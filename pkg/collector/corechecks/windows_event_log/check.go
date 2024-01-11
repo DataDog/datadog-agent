@@ -291,8 +291,8 @@ func (c *Check) Cancel() {
 	}
 }
 
-// Factory creates a new check instance
-func Factory() agentCheck.Check {
+// New creates a new check instance
+func New() agentCheck.Check {
 	return &Check{
 		CheckBase: core.NewCheckBase(CheckName),
 		evtapi:    winevtapi.New(),

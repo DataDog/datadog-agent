@@ -91,8 +91,8 @@ type Check struct {
 	stopCh            chan struct{}
 }
 
-// NewFactory returns a new check factory
-func NewFactory(store workloadmeta.Component) func() check.Check {
+// Factory returns a new check factory
+func Factory(store workloadmeta.Component) func() check.Check {
 	return func() check.Check {
 		return &Check{
 			CheckBase:         core.NewCheckBase(CheckName),
