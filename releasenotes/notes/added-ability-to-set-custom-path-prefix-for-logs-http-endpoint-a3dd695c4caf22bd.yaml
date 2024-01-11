@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    added ability to set a custom path prefix for logs http endpoint
+    Added ability to set a custom path prefix for logs HTTP endpoint.
