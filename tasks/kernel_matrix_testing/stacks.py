@@ -39,7 +39,7 @@ def create_stack(ctx, stack=None):
 
 def find_ssh_key(ssh_key):
     user = getpass.getuser()
-    ssh_key_file = f"/home/{user}/.ssh/{ssh_key}.pem"
+    ssh_key_file = f"/home/{user}/.ssh/{ssh_key}"
     if not os.path.exists(ssh_key_file):
         raise Exit(f"Could not find file for ssh key {ssh_key}. Looked for {ssh_key_file}")
 

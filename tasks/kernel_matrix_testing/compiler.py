@@ -41,4 +41,20 @@ def compiler_running(ctx):
 def build_compiler(ctx):
     ctx.run("docker rm -f $(docker ps -aqf \"name=kmt-compiler\")", warn=True, hide=True)
     ctx.run("docker image rm kmt:compile", warn=True, hide=True)
-    ctx.run("cd ../datadog-agent-buildimages && docker build -f system-probe_x64/Dockerfile -t kmt:compile .")
+
+    docker_build_args = [
+        # Specify platform with --platform, even if we're running in ARM we want x86_64 images
+        # Important because some packages needed by that image are not available in arm builds of debian
+        "--platform",
+        "linux/amd64",
+    ]
+
+    # Add build arguments (such as go version) from go.env
+    with open("../datadog-agent-buildimages/go.env", "r") as f:
+        for line in f:
+            docker_build_args += ["--build-arg", line.strip()]
+
+    docker_build_args_s = " ".join(docker_build_args)
+    ctx.run(
+        f"cd ../datadog-agent-buildimages && docker build {docker_build_args_s} -f system-probe_x64/Dockerfile -t kmt:compile ."
+    )
