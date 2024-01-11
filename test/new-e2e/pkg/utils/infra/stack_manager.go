@@ -18,6 +18,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
+	"github.com/DataDog/datadog-api-client-go/v2/api/datadog"
+	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV1"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto/debug"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto/optdestroy"
@@ -35,6 +38,7 @@ const (
 	stackUpTimeout      = 60 * time.Minute
 	stackDestroyTimeout = 60 * time.Minute
 	stackDeleteTimeout  = 20 * time.Minute
+	stackUpRetry        = 2
 )
 
 var (
@@ -239,9 +243,7 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 		return nil, auto.UpResult{}, err
 	}
 
-	upCtx, cancel := context.WithTimeout(ctx, stackUpTimeout)
 	var loglevel uint = 1
-	defer cancel()
 	var logger io.Writer
 
 	if logWriter == nil {
@@ -250,11 +252,26 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 		logger = logWriter
 	}
 
-	upResult, err := stack.Up(upCtx, optup.ProgressStreams(logger), optup.DebugLogging(debug.LoggingOptions{
-		FlowToPlugins: true,
-		LogLevel:      &loglevel,
-	}))
+	var ok bool
+	var upResult auto.UpResult
 
+	for retry := 0; retry < stackUpRetry && !ok; retry++ {
+		upCtx, cancel := context.WithTimeout(ctx, stackUpTimeout)
+		upResult, err = stack.Up(upCtx, optup.ProgressStreams(logger), optup.DebugLogging(debug.LoggingOptions{
+			FlowToPlugins: true,
+			LogLevel:      &loglevel,
+		}))
+		cancel()
+		if err != nil && shouldRetryError(err) {
+			fmt.Fprint(logger, "Got error that should be retried during stack up, retrying")
+			err := sendEventToDatadog(fmt.Sprintf("[E2E] Stack %s : retrying Pulumi stack up", name), err.Error(), []string{"operation:up"}, logger)
+			if err != nil {
+				fmt.Fprintf(logger, "Got error when sending event to Datadog: %v", err)
+			}
+		} else {
+			ok = true
+		}
+	}
 	return stack, upResult, err
 
 }
@@ -299,6 +316,60 @@ func runFuncWithRecover(f pulumi.RunFunc) pulumi.RunFunc {
 
 		return f(ctx)
 	}
+}
+
+func shouldRetryError(err error) bool {
+	// Add here errors that are known to be flakes and that should be retried
+	if strings.Contains(err.Error(), "i/o timeout") {
+		return true
+	}
+
+	if strings.Contains(err.Error(), "creating EC2 Instance: IdempotentParameterMismatch:") {
+		return true
+	}
+
+	if strings.Contains(err.Error(), "InvalidInstanceID.NotFound") {
+		return true
+	}
+
+	return false
+}
+
+// sendEventToDatadog sends an event to Datadog, it will use the API Key from environment variable DD_API_KEY if present, otherwise it will use the one from SSM Parameter Store
+func sendEventToDatadog(title string, message string, tags []string, logger io.Writer) error {
+	apiKey, err := runner.GetProfile().SecretStore().GetWithDefault(parameters.APIKey, "")
+	if err != nil {
+		fmt.Fprintf(logger, "error when getting API key from parameter store: %v", err)
+		return err
+	}
+
+	if apiKey == "" {
+		fmt.Fprintf(logger, "Skipping sending event because API key is empty")
+		return nil
+	}
+
+	ctx := context.WithValue(context.Background(), datadog.ContextAPIKeys, map[string]datadog.APIKey{
+		"apiKeyAuth": {
+			Key: apiKey,
+		},
+	})
+
+	configuration := datadog.NewConfiguration()
+	apiClient := datadog.NewAPIClient(configuration)
+	api := datadogV1.NewEventsApi(apiClient)
+
+	_, r, err := api.CreateEvent(ctx, datadogV1.EventCreateRequest{
+		Title: title,
+		Text:  message,
+		Tags:  append([]string{"repository:datadog/datadog-agent", "test:new-e2e", "source:pulumi"}, tags...),
+	})
+
+	if err != nil {
+		fmt.Fprintf(logger, "error when calling `EventsApi.CreateEvent`: %v", err)
+		fmt.Fprintf(logger, "Full HTTP response: %v\n", r)
+		return err
+	}
+	return nil
 }
 
 // GetPulumiStackName returns the Pulumi stack name
