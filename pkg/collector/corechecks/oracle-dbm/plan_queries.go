@@ -9,6 +9,7 @@ package oracle
 
 // including sql_id for indexed access
 const planQuery12 = `SELECT /* DD */
+  child_number,
 	timestamp,
 	operation,
 	options,
@@ -46,9 +47,10 @@ const planQuery12 = `SELECT /* DD */
 FROM v$sql_plan_statistics_all s
 WHERE 
   sql_id = :1 AND plan_hash_value = :2 AND con_id = :3
-ORDER BY id, position`
+ORDER BY timestamp desc, child_number, id, position`
 
 const planQuery11 = `SELECT /* DD */
+  child_number,
 	timestamp,
 	operation,
 	options,
@@ -86,4 +88,4 @@ const planQuery11 = `SELECT /* DD */
 FROM v$sql_plan_statistics_all s
 WHERE 
   sql_id = :1 AND plan_hash_value = :2
-ORDER BY id, position`
+ORDER BY timestamp desc, child_number, id, position`
