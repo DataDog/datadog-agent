@@ -61,6 +61,8 @@ func (lp *ProxyLifecycleProcessor) OnInvokeStart(startDetails *invocationlifecyc
 	eventType := trigger.GetEventType(lowercaseEventPayload)
 	if eventType == trigger.Unknown {
 		log.Debugf("appsec: proxy-lifecycle: Failed to extract event type")
+	} else {
+		log.Debugf("appsec: proxy-lifecycle: Extracted event type: %v", eventType)
 	}
 
 	var event interface{}
@@ -206,14 +208,24 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 		)
 
 	case *events.ALBTargetGroupRequest:
+		var sourceIp string
+		// ALB is a "trusted" origin, so we extract the source IP from the X-Forwarded-For header.
+		// ALB also provides headers with fully lower-case names, so we don't have to worry about case.
+		if xff, found := event.MultiValueHeaders["x-forwarded-for"]; found && len(xff) > 0 {
+			sourceIp = xff[0]
+		} else if xff, found := event.Headers["x-forwarded-for"]; found {
+			sourceIp = xff
+		}
 		makeContext(
 			&ctx,
 			nil,
 			&event.Path,
-			event.MultiValueHeaders,
-			event.MultiValueQueryStringParameters,
+			// Depending on how the ALB is configured, headers will be either in MultiValueHeaders or Headers (not both).
+			multiOrSingle(event.MultiValueHeaders, event.Headers),
+			// Depending on how the ALB is configured, query parameters will be either in MultiValueQueryStringParameters or QueryStringParameters (not both).
+			multiOrSingle(event.MultiValueQueryStringParameters, event.QueryStringParameters),
 			nil,
-			"",
+			sourceIp,
 			&event.Body,
 			event.IsBase64Encoded,
 		)
@@ -256,6 +268,19 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 		}
 		setAPISecurityTags(span, res.Derivatives)
 	}
+}
+
+// multiOrSingle picks the first non-nil map, and returns the content formatted
+// as the multi-map.
+func multiOrSingle(multi map[string][]string, single map[string]string) map[string][]string {
+	if multi == nil && single != nil {
+		// There is no multi-map, but there is a single-map, so we'll make a multi-map out of that.
+		multi = make(map[string][]string, len(single))
+		for key, value := range single {
+			multi[key] = []string{value}
+		}
+	}
+	return multi
 }
 
 //nolint:revive // TODO(ASM) Fix revive linter
