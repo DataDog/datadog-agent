@@ -67,7 +67,7 @@ try {
     $tempMsi = "$(Get-Location)\ddagent.msi"
     Remove-Item $tempMsi -ErrorAction Ignore
     (New-Object net.webclient).Downloadfile($url, $tempMsi)
-    $checksum = Get-FileHash $tempMsi -Algorithm SHA256
+    $checksum = (Get-FileHash $tempMsi -Algorithm SHA256).Hash
     Remove-Item $tempMsi
 }
 catch {
