@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package common contains shared functionality for multiple subcommands
-package common
+// Package commonchecks contains shared checks for multiple agent components
+package commonchecks
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"

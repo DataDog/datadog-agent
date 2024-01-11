@@ -81,6 +81,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
+	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
@@ -536,7 +537,7 @@ func startAgent(
 	check.InitializeInventoryChecksContext(invChecks)
 
 	// Set up check collector
-	common.RegisterChecks(wmeta)
+	commonchecks.RegisterChecks(wmeta)
 	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll, demultiplexer), true)
 	common.Coll.Start()
 
