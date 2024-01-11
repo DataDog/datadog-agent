@@ -6,6 +6,7 @@ High level testing tasks
 # so we only need to check that we don't run this code with old Python versions.
 
 import abc
+import glob
 import json
 import operator
 import os
@@ -1190,6 +1191,10 @@ def get_modified_packages(ctx) -> List[GoModule]:
 
         # If the package has been deleted we do not try to run tests
         if not os.path.exists(os.path.dirname(modified_file)):
+            continue
+
+        # If there are no _test.go file in the folder we do not try to run tests
+        if not glob.glob(os.path.dirname(modified_file) + "/*_test.go"):
             continue
 
         relative_target = "./" + os.path.relpath(os.path.dirname(modified_file), best_module_path)
