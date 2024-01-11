@@ -82,6 +82,7 @@ func NewLogReporter(hostname string, sourceName, sourceType, runPath string, end
 	}, nil
 }
 
+// Stop stops the LogReporter
 func (r *LogReporter) Stop() {
 	r.pipelineProvider.Stop()
 	r.auditor.Stop()
