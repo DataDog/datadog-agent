@@ -30,9 +30,12 @@ type pinger struct{}
 // Pinger is a factory for NDMs Ping module
 var Pinger = module.Factory{
 	Name:             config.PingModule,
-	ConfigNamespaces: []string{"ping_config"},
+	ConfigNamespaces: []string{},
 	Fn: func(cfg *sysconfigtypes.Config) (module.Module, error) {
 		return &pinger{}, nil
+	},
+	NeedsEBPF: func() bool {
+		return false
 	},
 }
 
