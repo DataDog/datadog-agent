@@ -2,11 +2,37 @@ import json
 import os
 import subprocess
 import unittest
-from typing import Any, Set
+from typing import Any, Dict, Set
 
-from ..modules import DEFAULT_MODULES
+from ..modules import AGENT_MODULE_PATH_PREFIX, DEFAULT_MODULES
 
-AGENT_MODULE_PATH_PREFIX = "github.com/DataDog/datadog-agent/"
+"""
+Here is an abstract of the go.mod file format:
+
+{
+    "Module": {"Path": "github.com/DataDog/datadog-agent"},
+    "Go": "1.21",
+    "Require": [
+        {"Path": "github.com/DataDog/datadog-agent/pkg/config/logs", "Version": "v0.51.0-rc.2"},
+        {"Path": "k8s.io/kms", "Version": "v0.27.6", "Indirect": true},
+    ],
+    "Exclude": [
+        {"Path": "github.com/knadh/koanf/maps", "Version": "v0.1.1"},
+        {"Path": "github.com/knadh/koanf/providers/confmap", "Version": "v0.1.0"},
+    ],
+    "Replace": [
+        {
+            "Old": {"Path": "github.com/cihub/seelog"},
+            "New": {"Path": "github.com/cihub/seelog", "Version": "v0.0.0-20151216151435-d2c6e5aa9fbf"},
+        },
+        {
+            "Old": {"Path": "github.com/DataDog/datadog-agent/cmd/agent/common/path"},
+            "New": {"Path": "./cmd/agent/common/path/"},
+        },
+    ],
+    "Retract": [{"Low": "v0.9.0", "High": "v0.9.0"}, {"Low": "v0.8.0", "High": "v0.8.0"}],
+}
+"""
 
 
 class TestModules(unittest.TestCase):
@@ -18,9 +44,8 @@ class TestModules(unittest.TestCase):
 
         return json.loads(res.stdout)
 
-    def get_agent_required(self, module: Any) -> Set[str]:
+    def get_agent_required(self, module: Dict) -> Set[str]:
         """Returns the set of required datadog-agent modules"""
-        self.assertIsInstance(module, dict)
         if "Require" not in module:
             return set()
 
@@ -41,9 +66,8 @@ class TestModules(unittest.TestCase):
 
         return results
 
-    def get_agent_replaced(self, module: Any) -> Set[str]:
+    def get_agent_replaced(self, module: Dict) -> Set[str]:
         """Returns the set of replaced datadog-agent modules"""
-        self.assertIsInstance(module, dict)
         if "Replace" not in module:
             return set()
 
@@ -71,6 +95,7 @@ class TestModules(unittest.TestCase):
         for module_path in DEFAULT_MODULES.keys():
             with self.subTest(module_path=module_path):
                 module = self.load_go_mod(module_path)
+                self.assertIsInstance(module, dict)
                 required = self.get_agent_required(module)
                 replaced = self.get_agent_replaced(module)
                 required_not_replaced = required - replaced
