@@ -16,13 +16,13 @@ jobs:
           script: |
             const { data: isMember } = await github.orgs.checkMembershipForUser({
               org: context.repo.owner,
-              username: github.event.pull_request.user.login
+              username: context.payload.sender.login
             })
             if (!isMember) {
               await github.issues.addLabels({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                issue_number: github.event.pull_request.number,
+                issue_number: context.issue.number,
                 labels: ['community']
               })
             }
