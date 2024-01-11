@@ -1,16 +1,17 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build test
+
 package http2
 
 import (
 	"bytes"
 	"fmt"
-	"golang.org/x/net/http2/hpack"
-)
 
-var (
-	// MagicFrame http2 magic
-	MagicFrame = []byte{
-		0x50, 0x52, 0x49, 0x20, 0x2a, 0x20, 0x48, 0x54, 0x54, 0x50, 0x2f, 0x32, 0x2e, 0x30, 0x0d, 0x0a, 0x0d, 0x0a, 0x53, 0x4d, 0x0d, 0x0a, 0x0d, 0x0a,
-	}
+	"golang.org/x/net/http2/hpack"
 )
 
 // NewHeadersFrameMessage creates a new HTTP2 data frame message with the given header fields.

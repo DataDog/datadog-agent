@@ -954,7 +954,7 @@ func writeInput(c net.Conn, input []byte, timeout time.Duration) error {
 }
 
 var testHeaderFields = []hpack.HeaderField{
-	{Name: ":authority", Value: "127.0.0.1:8082"},
+	{Name: ":authority", Value: http2SrvAddr},
 	{Name: ":method", Value: "POST"},
 	{Name: ":path", Value: "/aaa"},
 	{Name: ":scheme", Value: "http"},
@@ -1056,7 +1056,7 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			defer c.Close()
 
 			// Writing a magic and the settings in the same packet to socket.
-			require.NoError(t, writeInput(c, usmhttp2.ComposeMessage(usmhttp2.MagicFrame, buf.Bytes()), time.Second))
+			require.NoError(t, writeInput(c, usmhttp2.ComposeMessage([]byte(http2.ClientPreface), buf.Bytes()), time.Second))
 
 			// Composing a message with the number of setting frames we want to send.
 			reqInput := make([]byte, 0)
@@ -1079,9 +1079,6 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 					EndStream:     false,
 					EndHeaders:    true,
 				}), "could not write header frames")
-
-				reqInput = usmhttp2.ComposeMessage(reqInput, buf.Bytes())
-				buf.Reset()
 
 				// Writing the data frame to the buffer using the Framer.
 				require.NoError(t, framer.WriteData(uint32(streamID), true, []byte{}),
