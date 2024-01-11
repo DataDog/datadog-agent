@@ -13,7 +13,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"golang.org/x/net/http2/hpack"
 	"io"
 	"math/rand"
 	"net"
@@ -33,6 +32,7 @@ import (
 	"github.com/stretchr/testify/suite"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
+	"golang.org/x/net/http2/hpack"
 
 	manager "github.com/DataDog/ebpf-manager"
 
