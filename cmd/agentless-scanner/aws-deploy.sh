@@ -213,7 +213,7 @@ Resources:
           Value: ${STACK_NAME}RootInstance
         - Key: DatadogAgentlessScanner
           Value: "true"
-        - please_keep_my_resource
+        - Key: please_keep_my_resource
           Value: "true"
 EOF
 )
