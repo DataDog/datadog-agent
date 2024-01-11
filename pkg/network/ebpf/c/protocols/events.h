@@ -28,7 +28,7 @@
         return val > 0;                                                                                 \
     }                                                                                                   \
                                                                                                         \
-    static __always_inline void name##_batch_flush(void *ctx) {                                         \
+    static __always_inline void name##_batch_flush(struct pt_regs *ctx) {                               \
         if (!is_##name##_monitoring_enabled()) {                                                        \
             return;                                                                                     \
         }                                                                                               \
@@ -128,16 +128,6 @@ static __always_inline bool __enqueue_event(batch_data_t *batch, void *event, si
     bpf_memcpy(&batch->data[offset], event, event_size);
     batch->len++;
     return true;
-}
-
-// convenience helper function for determining if bpf_perf_event_output helper
-// is available for socket filter programs. this constant is injected via the
-// constant editor during load time and should evaluate to true on hosts running
-// kernel >= 5.4
-static __always_inline bool is_direct_flush_supported() {
-    __u64 val = 0;
-    LOAD_CONSTANT("direct_flush_supported", val);
-    return val > 0;
 }
 
 #define _LOG(protocol, message, args...) \
