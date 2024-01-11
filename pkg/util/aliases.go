@@ -6,7 +6,6 @@
 package util
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/sort"
 )
 
