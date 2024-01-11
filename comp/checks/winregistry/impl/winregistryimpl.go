@@ -108,8 +108,16 @@ type WindowsRegistryCheck struct {
 	integrationLogsDelegate *integrationLogsRegistryDelegate
 }
 
+func createOptionMapping[T any](reflector *jsonschema.Reflector, sourceType jsonschema.SimpleType) {
+	option := jsonschema.Schema{}
+	option.AddType(sourceType)
+	reflector.AddTypeMapping(optional.Option[T]{}, option)
+}
+
 func createSchema() ([]byte, error) {
 	reflector := jsonschema.Reflector{}
+	createOptionMapping[bool](&reflector, jsonschema.Boolean)
+	createOptionMapping[float64](&reflector, jsonschema.Number)
 	schema, err := reflector.Reflect(checkCfg{})
 	if err != nil {
 		return nil, err

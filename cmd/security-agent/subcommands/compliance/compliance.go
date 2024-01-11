@@ -44,11 +44,6 @@ func StartCompliance(log log.Component, config config.Component, sysprobeconfig 
 	}
 	stopper.Add(context)
 
-	reporter, err := compliance.NewLogReporter(hostname, stopper, "compliance-agent", "compliance", runPath, endpoints, context)
-	if err != nil {
-		return nil, err
-	}
-
 	resolverOptions := compliance.ResolverOptions{
 		Hostname:           hostname,
 		HostRoot:           os.Getenv("HOST_ROOT"),
@@ -73,6 +68,7 @@ func StartCompliance(log log.Component, config config.Component, sysprobeconfig 
 		enabledConfigurationsExporters = append(enabledConfigurationsExporters, compliance.DBExporter)
 	}
 
+	reporter := compliance.NewLogReporter(hostname, "compliance-agent", "compliance", runPath, endpoints, context)
 	runner := runner.NewRunner(senderManager)
 	stopper.Add(runner)
 	agent := compliance.NewAgent(senderManager, compliance.AgentOptions{
