@@ -27,6 +27,7 @@ replace (
 	github.com/DataDog/datadog-agent/cmd/agent/common/path => ./cmd/agent/common/path/
 	github.com/DataDog/datadog-agent/comp/core/config => ./comp/core/config/
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ./comp/core/flare/types
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ./comp/core/hostname/hostnameinterface
 	github.com/DataDog/datadog-agent/comp/core/log => ./comp/core/log/
 	github.com/DataDog/datadog-agent/comp/core/secrets => ./comp/core/secrets
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ./comp/core/telemetry/
@@ -64,7 +65,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ./pkg/util/filesystem
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ./pkg/util/fxutil/
 	github.com/DataDog/datadog-agent/pkg/util/grpc => ./pkg/util/grpc/
-	github.com/DataDog/datadog-agent/pkg/util/hostname/data => ./pkg/util/hostname/data/
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ./pkg/util/hostname/validate/
 	github.com/DataDog/datadog-agent/pkg/util/http => ./pkg/util/http/
 	github.com/DataDog/datadog-agent/pkg/util/json => ./pkg/util/json
@@ -599,6 +599,7 @@ require (
 	github.com/DataDog/datadog-agent/cmd/agent/common/path v0.51.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/config v0.51.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.51.0-rc.1
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.51.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/log v0.51.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.51.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.51.0-rc.1
@@ -628,7 +629,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.51.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.51.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/grpc v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/hostname/data v0.51.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.51.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/http v0.51.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/json v0.51.0-rc.1

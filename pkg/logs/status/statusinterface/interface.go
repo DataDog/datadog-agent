@@ -6,6 +6,7 @@
 // Package statusinterface describes status methods required in logs agent modules
 package statusinterface
 
+// StatusInterface is the type for status methods
 type StatusInterface interface {
 	// AddGlobalWarning keeps track of a warning message to display on the status.
 	AddGlobalWarning(key string, warning string)

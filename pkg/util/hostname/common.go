@@ -12,12 +12,12 @@ import (
 	"os"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname/data"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -35,7 +35,7 @@ var (
 )
 
 // Data contains hostname and the hostname provider
-type Data = data.Data
+type Data = hostnameinterface.Data
 
 func fromConfig(ctx context.Context, _ string) (string, error) {
 	configName := config.Datadog.GetString("hostname")

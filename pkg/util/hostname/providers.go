@@ -11,15 +11,15 @@ import (
 	"context"
 	"expvar"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname/data"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	configProvider  = data.ConfigProvider
-	fargateProvider = data.FargateProvider
+	configProvider  = hostnameinterface.ConfigProvider
+	fargateProvider = hostnameinterface.FargateProvider
 )
 
 var (
