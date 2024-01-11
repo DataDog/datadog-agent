@@ -27,7 +27,7 @@ type Params struct {
 }
 
 // NewTaggerParamsForCoreAgent is a constructor function for creating core agent tagger params
-func NewTaggerParamsForCoreAgent(config config.Component) Params {
+func NewTaggerParamsForCoreAgent(_ config.Component) Params {
 	if pkgconfig.IsCLCRunner() {
 		return NewCLCRunnerRemoteTaggerParams()
 	}
