@@ -120,6 +120,7 @@ const (
 
 	ebsMountPrefix    = "ebs-"
 	ctrdMountPrefix   = "ctrd-"
+	dockerMountPrefix = "docker-"
 	lambdaMountPrefix = "lambda-"
 )
 
@@ -2052,6 +2053,7 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 						result := launchScanner(ctx, scannerOptions{
 							Scanner: "vulns",
 							Scan:    scan,
+							Mode:    "local",
 							Root:    ctrMnt.Path,
 						})
 						result.SBOMEntityType = sbommodel.SBOMSourceType_CONTAINER_FILE_SYSTEM
@@ -2739,6 +2741,8 @@ func cleanupScan(scan *scanTask) {
 
 	scanRoot := scan.Path()
 
+	log.Debugf("%s: cleaning up scan data on filesystem", scan)
+
 	for snapshotARN, snapshotCreatedAt := range scan.CreatedSnapshots {
 		_, snapshotID, _ := getARNResource(snapshotARN)
 		cfg, err := newAWSConfig(ctx, snapshotARN.Region, scan.Roles[snapshotARN.AccountID])
@@ -2784,6 +2788,9 @@ func cleanupScan(scan *scanTask) {
 					}
 					continue
 				}
+				if err := os.Remove(mountPoint); err != nil {
+					log.Warnf("%s: could not remove mount point %q: %v", scan, mountPoint, err)
+				}
 				return
 			}
 			log.Errorf("%s: could not umount %s: %s: %s", scan, mountPoint, erru, string(umountOutput))
@@ -2798,7 +2805,7 @@ func cleanupScan(scan *scanTask) {
 				if strings.HasPrefix(entry.Name(), ebsMountPrefix) {
 					ebsMountPoints = append(ebsMountPoints, entry)
 				}
-				if strings.HasPrefix(entry.Name(), ctrdMountPrefix) {
+				if strings.HasPrefix(entry.Name(), ctrdMountPrefix) || strings.HasPrefix(entry.Name(), dockerMountPrefix) {
 					ctrMountPoints = append(ctrMountPoints, entry)
 				}
 				if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".pid") {
@@ -2838,6 +2845,7 @@ func cleanupScan(scan *scanTask) {
 		}
 	}
 
+	log.Debugf("%s: removing folder %q", scan, scanRoot)
 	if err := os.RemoveAll(scanRoot); err != nil {
 		log.Errorf("%s: could not cleanup mount root %q", scan, scanRoot)
 	}
