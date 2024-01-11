@@ -31,8 +31,8 @@ func (tp *TracePayload) GetTags() []string {
 }
 
 // GetCollectedTime returns the time that the payload was received by the fake intake
-func (p *TracePayload) GetCollectedTime() time.Time {
-	return p.collectedTime
+func (tp *TracePayload) GetCollectedTime() time.Time {
+	return tp.collectedTime
 }
 
 // ParseTracePayload parses an api.Payload into a list of TracePayload
