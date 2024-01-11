@@ -105,6 +105,7 @@ func (c *Check) locks() error {
 			continue
 		}
 		var p oracleLockRow
+		p.SecondsInTransaction = r.Seconds.Float64
 		if r.PDBName.Valid {
 			p.PDBName = fmt.Sprintf("%s.%s", c.cdbName, r.PDBName.String)
 		}
