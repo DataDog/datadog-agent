@@ -254,10 +254,7 @@ func reportComplianceEvents(log log.Component, config config.Component, events [
 	if err != nil {
 		return fmt.Errorf("reporter: could not reate log context for compliance: %w", err)
 	}
-	reporter, err := compliance.NewLogReporter(hostnameDetected, "compliance-agent", "compliance", runPath, endpoints, context)
-	if err != nil {
-		return fmt.Errorf("reporter: could not create: %w", err)
-	}
+	reporter := compliance.NewLogReporter(hostnameDetected, "compliance-agent", "compliance", runPath, endpoints, context)
 	defer reporter.Stop()
 	for _, event := range events {
 		reporter.ReportEvent(event)

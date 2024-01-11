@@ -8,7 +8,6 @@ package compliance
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -95,10 +94,7 @@ func eventRun(log log.Component, config config.Component, eventArgs *cliParams) 
 	}
 
 	runPath := config.GetString("compliance_config.run_path")
-	reporter, err := compliance.NewLogReporter(hostnameDetected, eventArgs.sourceName, eventArgs.sourceType, runPath, endpoints, dstContext)
-	if err != nil {
-		return fmt.Errorf("failed to set up compliance log reporter: %w", err)
-	}
+	reporter := compliance.NewLogReporter(hostnameDetected, eventArgs.sourceName, eventArgs.sourceType, runPath, endpoints, dstContext)
 	defer reporter.Stop()
 
 	eventData := make(map[string]interface{})

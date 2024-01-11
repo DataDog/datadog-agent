@@ -37,7 +37,7 @@ type LogReporter struct {
 }
 
 // NewLogReporter instantiates a new log LogReporter
-func NewLogReporter(hostname string, sourceName, sourceType, runPath string, endpoints *config.Endpoints, dstcontext *client.DestinationsContext) (*LogReporter, error) {
+func NewLogReporter(hostname string, sourceName, sourceType, runPath string, endpoints *config.Endpoints, dstcontext *client.DestinationsContext) *LogReporter {
 	health := health.RegisterLiveness(sourceType)
 
 	// setup the auditor
@@ -79,7 +79,7 @@ func NewLogReporter(hostname string, sourceName, sourceType, runPath string, end
 		logChan:          logChan,
 		endpoints:        endpoints,
 		tags:             tags,
-	}, nil
+	}
 }
 
 // Stop stops the LogReporter
