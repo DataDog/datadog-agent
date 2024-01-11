@@ -132,7 +132,7 @@ const (
 type scanType string
 
 const (
-	hostScanType   scanType = "host-scan"
+	hostScanType   scanType = "localhost-scan"
 	ebsScanType    scanType = "ebs-volume"
 	lambdaScanType scanType = "lambda"
 )
@@ -156,6 +156,7 @@ const (
 type resourceType string
 
 const (
+	resourceTypeLocalDir = "localdir"
 	resourceTypeVolume   = "volume"
 	resourceTypeSnapshot = "snapshot"
 	resourceTypeFunction = "function"
@@ -360,45 +361,22 @@ func runScannerCommand() *cobra.Command {
 }
 
 func scanCommand() *cobra.Command {
-	var cliArgs struct {
+	var flags struct {
 		ARN      string
 		Hostname string
-		SendData bool
-		RawScan  string
+		Actions  []string
 	}
 	cmd := &cobra.Command{
 		Use:   "scan",
 		Short: "execute a scan",
 		RunE: runWithModules(func(cmd *cobra.Command, args []string) error {
-			var config *scanConfig
-			var err error
-			if len(cliArgs.RawScan) > 0 {
-				config, err = unmarshalConfig([]byte(cliArgs.RawScan))
-			} else {
-				roles := getDefaultRolesMapping()
-				task, err := newScanTask(
-					cliArgs.ARN,
-					cliArgs.Hostname,
-					nil,
-					roles,
-					globalParams.diskMode)
-				if err != nil {
-					return err
-				}
-				config = &scanConfig{
-					Type:  awsScan,
-					Tasks: []*scanTask{task},
-				}
-			}
-			if err != nil {
-				return err
-			}
-			return scanCmd(*config)
+			return scanCmd(flags.ARN, flags.Hostname, flags.Actions)
 		}),
 	}
 
-	cmd.Flags().StringVar(&cliArgs.ARN, "arn", "", "arn to scan")
-	cmd.Flags().StringVar(&cliArgs.Hostname, "hostname", "unknown", "scan hostname")
+	cmd.Flags().StringVar(&flags.ARN, "arn", "", "arn to scan")
+	cmd.Flags().StringVar(&flags.Hostname, "hostname", "unknown", "scan hostname")
+	cmd.Flags().StringSliceVar(&flags.Actions, "actions", nil, "list of scan actions to perform (malware, vulns or vulnscontainers")
 	_ = cmd.MarkFlagRequired("arn")
 	return cmd
 }
@@ -576,7 +554,7 @@ func getDefaultRolesMapping() rolesMapping {
 	return parseRolesMapping(roles)
 }
 
-func scanCmd(config scanConfig) error {
+func scanCmd(arn, scannedHostname string, actions []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -588,6 +566,12 @@ func scanCmd(config scanConfig) error {
 		hostname = "unknown"
 	}
 
+	roles := getDefaultRolesMapping()
+	task, err := newScanTask(arn, scannedHostname, actions, roles, globalParams.diskMode)
+	if err != nil {
+		return err
+	}
+
 	limits := newAWSLimits(defaultEC2Rate, defaultEBSListBlockRate, defaultEBSGetBlockRate)
 	sidescanner, err := newSideScanner(hostname, limits, 1, nil)
 	if err != nil {
@@ -595,7 +579,10 @@ func scanCmd(config scanConfig) error {
 	}
 	sidescanner.printResults = true
 	go func() {
-		sidescanner.configsCh <- &config
+		sidescanner.configsCh <- &scanConfig{
+			Type:  awsScan,
+			Tasks: []*scanTask{task},
+		}
 		close(sidescanner.configsCh)
 	}()
 	sidescanner.start(ctx)
@@ -976,7 +963,7 @@ func attachCmd(snapshotARN arn.ARN, mode diskMode, mount bool) error {
 func newScanTask(resourceARN, hostname string, actions []string, roles rolesMapping, mode diskMode) (*scanTask, error) {
 	var scan scanTask
 	var err error
-	scan.ARN, err = parseARN(resourceARN, resourceTypeSnapshot, resourceTypeVolume, resourceTypeFunction)
+	scan.ARN, err = parseARN(resourceARN, resourceTypeLocalDir, resourceTypeSnapshot, resourceTypeVolume, resourceTypeFunction)
 	if err != nil {
 		return nil, err
 	}
@@ -985,6 +972,8 @@ func newScanTask(resourceARN, hostname string, actions []string, roles rolesMapp
 		return nil, err
 	}
 	switch {
+	case resourceType == resourceTypeLocalDir:
+		scan.Type = hostScanType
 	case resourceType == resourceTypeSnapshot || resourceType == resourceTypeVolume:
 		scan.Type = ebsScanType
 	case resourceType == resourceTypeFunction:
@@ -1064,7 +1053,7 @@ func parseARN(s string, expectedTypes ...resourceType) (arn.ARN, error) {
 		return arn.ARN{}, err
 	}
 	if len(expectedTypes) > 0 && !slices.Contains(expectedTypes, resType) {
-		return arn.ARN{}, fmt.Errorf("bad arn: expecting on of these resource types %v", expectedTypes)
+		return arn.ARN{}, fmt.Errorf("bad arn: expecting one of these resource types %v but got %s", expectedTypes, resType)
 	}
 	return a, nil
 }
@@ -1079,6 +1068,9 @@ var (
 )
 
 func getARNResource(arn arn.ARN) (resourceType resourceType, resourceID string, err error) {
+	if arn.Partition == "localhost" {
+		return resourceTypeLocalDir, filepath.Join("/", arn.Resource), nil
+	}
 	if !partitionReg.MatchString(arn.Partition) {
 		err = fmt.Errorf("bad arn %q: unexpected partition", arn)
 		return
@@ -1422,10 +1414,15 @@ func (s *sideScanner) launchScan(ctx context.Context, scan *scanTask) (err error
 	}()
 
 	ctx = withAWSLimits(ctx, s.limits)
+
+	if err := os.MkdirAll(scan.Path(), 0700); err != nil {
+		return err
+	}
+
 	defer cleanupScan(scan)
 	switch scan.Type {
 	case hostScanType:
-		return scanRoots(ctx, scan, []string{"/"}, s.resultsCh)
+		return scanRoots(ctx, scan, []string{scan.ARN.Resource}, s.resultsCh)
 	case ebsScanType:
 		return scanEBS(ctx, scan, s.resultsCh)
 	case lambdaScanType:
@@ -2120,7 +2117,6 @@ func launchScannerRemotely(ctx context.Context, opts scannerOptions) scanResult 
 	}
 
 	sockName := filepath.Join(opts.Scan.Path(opts.ID() + ".sock"))
-
 	l, err := net.Listen("unix", sockName)
 	if err != nil {
 		return scanResult{Err: err, Scan: opts.Scan, Duration: time.Since(start)}
