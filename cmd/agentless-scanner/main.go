@@ -832,10 +832,7 @@ func cleanupCmd(region string, dryRun bool, delay time.Duration) error {
 		return err
 	}
 	ec2client := ec2.NewFromConfig(cfg)
-	toBeDeleted, err := listResourcesForCleanup(ctx, ec2client, delay)
-	if err != nil {
-		return err
-	}
+	toBeDeleted := listResourcesForCleanup(ctx, ec2client, delay)
 	if len(toBeDeleted) == 0 {
 		fmt.Printf("no resources found to cleanup\n")
 		return nil
@@ -860,15 +857,7 @@ func (s *sideScanner) cleanup(ctx context.Context, maxTTL time.Duration, region 
 	}
 
 	ec2client := ec2.NewFromConfig(cfg)
-	toBeDeleted, err := listResourcesForCleanup(ctx, ec2client, maxTTL)
-	if err != nil {
-		return err
-	}
-
-	if len(toBeDeleted) == 0 {
-		return nil
-	}
-
+	toBeDeleted := listResourcesForCleanup(ctx, ec2client, maxTTL)
 	cloudResourcesCleanup(ctx, ec2client, toBeDeleted)
 	return nil
 }
@@ -1500,16 +1489,18 @@ func cloudResourceTagFilters() []ec2types.Filter {
 	}
 }
 
-func listResourcesForCleanup(ctx context.Context, ec2client *ec2.Client, maxTTL time.Duration) (map[resourceType][]string, error) {
+func listResourcesForCleanup(ctx context.Context, ec2client *ec2.Client, maxTTL time.Duration) map[resourceType][]string {
 	toBeDeleted := make(map[resourceType][]string)
 	var nextToken *string
+
 	for {
 		volumes, err := ec2client.DescribeVolumes(ctx, &ec2.DescribeVolumesInput{
 			NextToken: nextToken,
 			Filters:   cloudResourceTagFilters(),
 		})
 		if err != nil {
-			return nil, fmt.Errorf("could not list volumes created by agentless-scanner: %w", err)
+			log.Warnf("could not list volumes created by agentless-scanner: %w", err)
+			break
 		}
 		for i := range volumes.Volumes {
 			if volumes.Volumes[i].State == ec2types.VolumeStateAvailable {
@@ -1522,13 +1513,15 @@ func listResourcesForCleanup(ctx context.Context, ec2client *ec2.Client, maxTTL 
 			break
 		}
 	}
+
 	for {
 		snapshots, err := ec2client.DescribeSnapshots(ctx, &ec2.DescribeSnapshotsInput{
 			NextToken: nextToken,
 			Filters:   cloudResourceTagFilters(),
 		})
 		if err != nil {
-			return nil, fmt.Errorf("could not list snapshots created by agentless-scanner: %w", err)
+			log.Warnf("could not list snapshots created by agentless-scanner: %w", err)
+			break
 		}
 		for i := range snapshots.Snapshots {
 			if snapshots.Snapshots[i].State != ec2types.SnapshotStateCompleted {
@@ -1546,7 +1539,7 @@ func listResourcesForCleanup(ctx context.Context, ec2client *ec2.Client, maxTTL 
 			break
 		}
 	}
-	return toBeDeleted, nil
+	return toBeDeleted
 }
 
 func cloudResourcesCleanup(ctx context.Context, ec2client *ec2.Client, toBeDeleted map[resourceType][]string) {
