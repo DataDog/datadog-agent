@@ -29,8 +29,7 @@ func GetWorkloadmetaInit() workloadmeta.InitHelper {
 		// catalog getting instantiated and initialized.
 		sbomScanner, err := scanner.CreateGlobalScanner(config.Datadog)
 		if err != nil {
-			e := fmt.Errorf("failed to create SBOM scanner: %s", err)
-			return e
+			return fmt.Errorf("failed to create SBOM scanner: %s", err)
 		} else if sbomScanner != nil {
 			sbomScanner.Start(ctx)
 		}
