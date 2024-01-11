@@ -5,6 +5,11 @@
 
 package tagger
 
+import (
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+)
+
 // AgentTypeForTagger represents agent types that tagger is used for
 type AgentTypeForTagger uint8
 
@@ -19,6 +24,14 @@ const (
 // Params provides the kind of agent we're instantiating workloadmeta for
 type Params struct {
 	agentTypeForTagger AgentTypeForTagger
+}
+
+// NewTaggerParamsForCoreAgent is a constructor function for creating core agent tagger params
+func NewTaggerParamsForCoreAgent(config config.Component) Params {
+	if pkgconfig.IsCLCRunner() {
+		return NewCLCRunnerRemoteTaggerParams()
+	}
+	return NewTaggerParams()
 }
 
 // NewTaggerParams creates a Params struct with the default LocalTagger type

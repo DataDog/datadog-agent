@@ -137,12 +137,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Provide(func() demultiplexer.Component { return nil }),
 			fx.Provide(func() inventorychecks.Component { return nil }),
 			fx.Provide(func() packagesigning.Component { return nil }),
-			fx.Provide(func(config config.Component) tagger.Params {
-				if pkgconfig.IsCLCRunner() {
-					return tagger.NewCLCRunnerRemoteTaggerParams()
-				}
-				return tagger.NewTaggerParams()
-			}),
+			fx.Provide(tagger.NewTaggerParamsForCoreAgent),
 			tagger.Module(),
 		)
 	}

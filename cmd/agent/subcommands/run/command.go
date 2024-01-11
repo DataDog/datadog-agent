@@ -287,12 +287,7 @@ func getSharedFxOption() fx.Option {
 		dogstatsd.Bundle(),
 		otelcol.Bundle(),
 		rcclient.Module(),
-		fx.Provide(func(config config.Component) tagger.Params {
-			if pkgconfig.IsCLCRunner() {
-				return tagger.NewCLCRunnerRemoteTaggerParams()
-			}
-			return tagger.NewTaggerParams()
-		}),
+		fx.Provide(tagger.NewTaggerParamsForCoreAgent),
 		tagger.Module(),
 
 		// TODO: (components) - some parts of the agent (such as the logs agent) implicitly depend on the global state

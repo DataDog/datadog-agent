@@ -154,12 +154,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				workloadmeta.Module(),
 				apiimpl.Module(),
 				fx.Supply(context.Background()),
-				fx.Provide(func(config config.Component) tagger.Params {
-					if pkgconfig.IsCLCRunner() {
-						return tagger.NewCLCRunnerRemoteTaggerParams()
-					}
-					return tagger.NewTaggerParams()
-				}),
+				fx.Provide(tagger.NewTaggerParamsForCoreAgent),
 				tagger.Module(),
 				forwarder.Bundle(),
 				inventorychecksimpl.Module(),

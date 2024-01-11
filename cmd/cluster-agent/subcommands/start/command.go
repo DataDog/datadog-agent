@@ -126,12 +126,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}), // TODO(components): check what this must be for cluster-agent-cloudfoundry
 				fx.Supply(context.Background()),
 				workloadmeta.Module(),
-				fx.Provide(func(config config.Component) tagger.Params {
-					if pkgconfig.IsCLCRunner() {
-						return tagger.NewCLCRunnerRemoteTaggerParams()
-					}
-					return tagger.NewTaggerParams()
-				}),
+				fx.Provide(tagger.NewTaggerParams),
 				tagger.Module(),
 			)
 		},
