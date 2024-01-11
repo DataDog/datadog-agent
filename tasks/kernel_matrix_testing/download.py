@@ -1,9 +1,7 @@
-import filecmp
 import json
 import os
 import platform
 import tempfile
-from glob import glob
 
 from .tool import Exit, debug, info, warn
 
@@ -42,7 +40,7 @@ def requires_update(url_base, rootfs_dir, image):
     return False
 
 
-def download_rootfs(ctx, rootfs_dir, backup_dir, revert=False):
+def download_rootfs(ctx, rootfs_dir):
     with open(platforms_file) as f:
         platforms = json.load(f)
 
@@ -114,8 +112,6 @@ def download_rootfs(ctx, rootfs_dir, backup_dir, revert=False):
         ctx.run(f"cat {path}")
         res = ctx.run(f"aria2c -i {path} -j {len(to_download)}")
         if not res.ok:
-            if revert:
-                revert_rootfs(ctx, rootfs_dir, backup_dir)
             raise Exit("Failed to download image files")
     finally:
         os.remove(path)
@@ -123,123 +119,15 @@ def download_rootfs(ctx, rootfs_dir, backup_dir, revert=False):
     # extract files
     res = ctx.run(f"find {rootfs_dir} -name \"*qcow2.xz\" -type f -exec xz -d {{}} \\;")
     if not res.ok:
-        if revert:
-            revert_rootfs(ctx, rootfs_dir, backup_dir)
         raise Exit("Failed to extract qcow2 files")
 
     # set permissions
     res = ctx.run(f"find {rootfs_dir} -name \"*qcow*\" -type f -exec chmod 0766 {{}} \\;")
     if not res.ok:
-        if revert:
-            revert_rootfs(ctx, rootfs_dir, backup_dir)
         raise Exit("Failed to set permissions 0766 to rootfs")
 
 
-def revert_kernel_packages(ctx, kernel_packages_dir, backup_dir):
-    arch = arch_mapping[platform.machine()]
-    kernel_packages_tar = f"kernel-packages-{arch}.tar"
-    ctx.run(f"rm -rf {kernel_packages_dir}/*")
-    ctx.run(f"mv {backup_dir}/{kernel_packages_tar} {kernel_packages_dir}")
-    ctx.run(f"tar xvf {kernel_packages_dir}/{kernel_packages_tar} | xargs -i tar xzf {{}}")
-
-
-def download_kernel_packages(ctx, kernel_packages_dir, kernel_headers_dir, backup_dir, revert=False):
-    arch = arch_mapping[platform.machine()]
-    kernel_packages_sum = f"kernel-packages-{arch}.sum"
-    kernel_packages_tar = f"kernel-packages-{arch}.tar"
-
-    # download kernel packages
-    res = ctx.run(
-        f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{kernel_packages_tar} -O {kernel_packages_dir}/{kernel_packages_tar}",
-        warn=True,
-    )
-    if not res.ok:
-        if revert:
-            revert_kernel_packages(ctx, kernel_packages_dir, backup_dir)
-        raise Exit("Failed to download kernel pacakges")
-
-    res = ctx.run(
-        f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{kernel_packages_sum} -O {kernel_packages_dir}/{kernel_packages_sum}",
-        warn=True,
-    )
-    if not res.ok:
-        if revert:
-            revert_kernel_packages(ctx, kernel_packages_dir, backup_dir)
-        raise Exit("Failed to download kernel pacakges checksum")
-
-    # extract pacakges
-    res = ctx.run(f"cd {kernel_packages_dir} && tar xvf {kernel_packages_tar} | xargs -i tar xzf {{}}")
-    if not res.ok:
-        if revert:
-            revert_kernel_packages(ctx, kernel_packages_dir, backup_dir)
-        raise Exit("Failed to extract kernel packages")
-
-    # set permissions
-    packages = glob(f"{kernel_packages_dir}/kernel-v*")
-    for pkg in packages:
-        if not os.path.isdir(pkg):
-            continue
-        # set package dir as rwx for all
-        os.chmod(pkg, 0o766)
-        files = glob(f"{pkg}/*")
-        for f in files:
-            if not os.path.isdir(f):
-                # set all files to rw for all
-                os.chmod(f, 0o666)
-
-    # copy headers
-    res = ctx.run(
-        f"find {kernel_packages_dir} -name 'linux-image-*' -type f | xargs -i cp {{}} {kernel_headers_dir} && find {kernel_packages_dir} -name 'linux-headers-*' -type f | xargs -i cp {{}} {kernel_headers_dir}"
-    )
-    if not res.ok:
-        if revert:
-            revert_kernel_packages(ctx, kernel_packages_dir, backup_dir)
-        raise Exit(f"failed to copy kernel headers to shared dir {kernel_headers_dir}")
-
-
-def update_kernel_packages(ctx, kernel_packages_dir, kernel_headers_dir, backup_dir, no_backup):
-    arch = arch_mapping[platform.machine()]
-    kernel_packages_sum = f"kernel-packages-{arch}.sum"
-    kernel_packages_tar = f"kernel-packages-{arch}.tar"
-
-    ctx.run(
-        f"wget -q https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/{kernel_packages_sum} -O /tmp/{kernel_packages_sum}"
-    )
-
-    current_sum_file = f"{kernel_packages_dir}/{kernel_packages_sum}"
-    if os.path.exists(current_sum_file) and filecmp.cmp(current_sum_file, f"/tmp/{kernel_packages_sum}"):
-        warn("[-] No update required for custom kernel packages")
-        return
-
-    # backup kernel-packges
-    if not no_backup:
-        karch = arch_mapping[platform.machine()]
-        ctx.run(
-            f"find {kernel_packages_dir} -name \"kernel-*.{karch}.pkg.tar.gz\" -type f | rev | cut -d '/' -f 1  | rev > /tmp/package.ls"
-        )
-        ctx.run(f"cd {kernel_packages_dir} && tar -cf {kernel_packages_tar} -T /tmp/package.ls")
-        ctx.run(f"cp {kernel_packages_dir}/{kernel_packages_tar} {backup_dir}")
-        info("[+] Backed up current kernel packages")
-
-    # clean kernel packages directory
-    ctx.run(f"rm -rf {kernel_packages_dir}/*")
-
-    download_kernel_packages(ctx, kernel_packages_dir, kernel_headers_dir, backup_dir, revert=True)
-
-    info("[+] Kernel packages successfully updated")
-
-
-def revert_rootfs(ctx, rootfs_dir, backup_dir):
-    ctx.run(f"rm -f {rootfs_dir}/*")
-    ctx.run(f"find {backup_dir} -name *qcow2 -type f -exec mv {{}} {rootfs_dir}/ \\;")
-
-
-def update_rootfs(ctx, rootfs_dir, backup_dir, no_backup):
-    # backup rootfs
-    if not no_backup:
-        ctx.run(f"find {rootfs_dir} -name *qcow2 -type f -exec cp {{}} {backup_dir}/ \\;")
-        info("[+] Backed up rootfs")
-
-    download_rootfs(ctx, rootfs_dir, backup_dir, revert=True)
+def update_rootfs(ctx, rootfs_dir):
+    download_rootfs(ctx, rootfs_dir)
 
     info("[+] Root filesystem and bootables images updated")
