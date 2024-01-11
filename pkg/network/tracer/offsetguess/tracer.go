@@ -1102,7 +1102,8 @@ func (o *tracerOffsets) Offsets(cfg *config.Config) ([]manager.ConstantEditor, e
 		return nil, o.err
 	}
 	defer offsetBuf.Close()
-	return RunOffsetGuessing(cfg, offsetBuf, NewTracerOffsetGuesser)
+	o.offsets, o.err = RunOffsetGuessing(cfg, offsetBuf, NewTracerOffsetGuesser)
+	return o.offsets, o.err
 }
 
 func (o *tracerOffsets) Reset() {
