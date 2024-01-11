@@ -54,10 +54,9 @@ type ebsBlockDevice struct {
 	ebsclient   *ebs.Client
 	deviceName  string
 	snapshotARN arn.ARN
-
-	srv    net.Listener
-	ctx    context.Context
-	cancel context.CancelFunc
+	srv         net.Listener
+	closed      chan struct{}
+	closing     chan struct{}
 }
 
 func startEBSBlockDevice(id string, ebsclient *ebs.Client, deviceName string, snapshotARN arn.ARN) error {
@@ -66,6 +65,8 @@ func startEBSBlockDevice(id string, ebsclient *ebs.Client, deviceName string, sn
 		ebsclient:   ebsclient,
 		deviceName:  deviceName,
 		snapshotARN: snapshotARN,
+		closed:      make(chan struct{}),
+		closing:     make(chan struct{}),
 	}
 	ebsBlockDevicesMu.Lock()
 	if _, ok := ebsBlockDevices[bd.deviceName]; ok {
@@ -75,9 +76,6 @@ func startEBSBlockDevice(id string, ebsclient *ebs.Client, deviceName string, sn
 	ebsBlockDevices[bd.deviceName] = bd
 	ebsBlockDevicesMu.Unlock()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	bd.cancel = cancel
-	bd.ctx = ctx
 	_, err := os.Stat(bd.deviceName)
 	if err != nil {
 		return fmt.Errorf("ebsblockdevice: could not stat device %q: %w", bd.deviceName, err)
@@ -93,7 +91,7 @@ func startEBSBlockDevice(id string, ebsclient *ebs.Client, deviceName string, sn
 
 func stopEBSBlockDevice(ctx context.Context, deviceName string) {
 	log.Debugf("nbdclient: destroying client for device %q", deviceName)
-	if err := exec.CommandContext(ctx, "nbd-client", "-d", deviceName).Run(); err != nil {
+	if err := exec.CommandContext(ctx, "nbd-client", "-readonly", "-d", deviceName).Run(); err != nil {
 		log.Errorf("nbd-client: %q disconnecting failed: %v", deviceName, err)
 	} else {
 		log.Debugf("nbd-client: %q disconnected", deviceName)
@@ -101,13 +99,10 @@ func stopEBSBlockDevice(ctx context.Context, deviceName string) {
 	ebsBlockDevicesMu.Lock()
 	defer ebsBlockDevicesMu.Unlock()
 	if bd, ok := ebsBlockDevices[deviceName]; ok {
-		bd.cancel()
-		if srv := bd.srv; srv != nil {
-			if err := srv.Close(); err != nil {
-				log.Errorf("nbdserver: %q could not close: %v", deviceName, err)
-			} else {
-				log.Debugf("nbdserver: %q closed successfully ", deviceName)
-			}
+		if err := bd.waitServerClosed(ctx); err != nil {
+			log.Errorf("nbdserver: %q could not close: %v", deviceName, err)
+		} else {
+			log.Debugf("nbdserver: %q closed successfully ", deviceName)
 		}
 		delete(ebsBlockDevices, deviceName)
 	}
@@ -123,7 +118,7 @@ func (bd *ebsBlockDevice) startClient() error {
 		return fmt.Errorf("ebsblockdevice: could not locate 'nbd-client' util binary in PATH: %w", err)
 	}
 	addr := bd.getSocketAddr()
-	cmd := exec.CommandContext(bd.ctx, "nbd-client",
+	cmd := exec.CommandContext(context.Background(), "nbd-client",
 		"-unix", addr, bd.deviceName,
 		"-name", bd.id,
 		"-connections", "5")
@@ -136,9 +131,8 @@ func (bd *ebsBlockDevice) startClient() error {
 }
 
 func (bd *ebsBlockDevice) startServer() error {
-	var lc net.ListenConfig
 	_, snapshotID, _ := getARNResource(bd.snapshotARN)
-	b, err := newEBSBackend(bd.ctx, bd.ebsclient, snapshotID)
+	b, err := newEBSBackend(bd.ebsclient, snapshotID)
 	if err != nil {
 		return fmt.Errorf("ebsblockdevice: could not start backend: %w", err)
 	}
@@ -148,7 +142,7 @@ func (bd *ebsBlockDevice) startServer() error {
 		return fmt.Errorf("ebsblockdevice: socket %q already exists", addr)
 	}
 
-	bd.srv, err = lc.Listen(bd.ctx, "unix", addr)
+	bd.srv, err = net.Listen("unix", addr)
 	if err != nil {
 		return fmt.Errorf("ebsblockdevice: could not list to %q: %w", addr, err)
 	}
@@ -176,6 +170,10 @@ func (bd *ebsBlockDevice) startServer() error {
 
 	log.Infof("nbdserver: %q accepting connections on %q", bd.deviceName, addr)
 	go func() {
+		defer func() {
+			bd.srv.Close()
+			close(bd.closed)
+		}()
 		for {
 			select {
 			case conn := <-addConn:
@@ -189,17 +187,28 @@ func (bd *ebsBlockDevice) startServer() error {
 				log.Debugf("nbdserver: %q client disconnected", bd.deviceName)
 				delete(conns, conn)
 				conn.Close()
-
-			case <-bd.ctx.Done():
-				log.Debugf("nbdserver: %q closing server", bd.deviceName)
-				for conn := range conns {
-					conn.Close()
+				if len(conns) == 0 {
+					return
 				}
-				return
+
+			case <-bd.closing:
+				if len(conns) == 0 {
+					return
+				}
 			}
 		}
 	}()
 	return nil
+}
+
+func (bd *ebsBlockDevice) waitServerClosed(ctx context.Context) error {
+	close(bd.closing)
+	select {
+	case <-bd.closed:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func (bd *ebsBlockDevice) serverHandleConn(conn net.Conn, backend backend.Backend) {
@@ -219,12 +228,13 @@ func (bd *ebsBlockDevice) serverHandleConn(conn net.Conn, backend backend.Backen
 			SupportsMultiConn:  true,
 		})
 	if err != nil {
-		log.Errorf("nbdserver: %q could not handle new connection: %v", bd.deviceName, err)
+		if !errors.Is(err, net.ErrClosed) {
+			log.Errorf("nbdserver: %q could not handle new connection: %v", bd.deviceName, err)
+		}
 	}
 }
 
 type ebsBackend struct {
-	ctx        context.Context
 	ebsclient  *ebs.Client
 	snapshotID string
 
@@ -237,7 +247,7 @@ type ebsBackend struct {
 	size  int64
 }
 
-func newEBSBackend(ctx context.Context, ebsclient *ebs.Client, snapshotID string) (*ebsBackend, error) {
+func newEBSBackend(ebsclient *ebs.Client, snapshotID string) (*ebsBackend, error) {
 	if snapshotID == "" {
 		return nil, fmt.Errorf("ebsblockdevice: missing snapshotID")
 	}
@@ -249,7 +259,6 @@ func newEBSBackend(ctx context.Context, ebsclient *ebs.Client, snapshotID string
 		panic(err)
 	}
 	b := &ebsBackend{
-		ctx:         ctx,
 		ebsclient:   ebsclient,
 		snapshotID:  snapshotID,
 		cache:       cache,
@@ -315,7 +324,7 @@ func (b *ebsBackend) readBlock(blockIndex int32) ([]byte, error) {
 
 func (b *ebsBackend) fetchBlock(blockIndex int32, blockToken string) ([]byte, error) {
 	log.Tracef("fetching block %d", blockIndex)
-	blockOutput, err := b.ebsclient.GetSnapshotBlock(b.ctx, &ebs.GetSnapshotBlockInput{
+	blockOutput, err := b.ebsclient.GetSnapshotBlock(context.Background(), &ebs.GetSnapshotBlockInput{
 		SnapshotId: aws.String(b.snapshotID),
 		BlockIndex: aws.Int32(int32(blockIndex)),
 		BlockToken: aws.String(blockToken),
@@ -335,7 +344,7 @@ func (b *ebsBackend) fetchBlock(blockIndex int32, blockToken string) ([]byte, er
 func (b *ebsBackend) init() error {
 	var nextToken *string
 	for {
-		output, err := b.ebsclient.ListSnapshotBlocks(b.ctx, &ebs.ListSnapshotBlocksInput{
+		output, err := b.ebsclient.ListSnapshotBlocks(context.Background(), &ebs.ListSnapshotBlocksInput{
 			SnapshotId: &b.snapshotID,
 			NextToken:  nextToken,
 		})

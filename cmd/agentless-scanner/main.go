@@ -316,7 +316,9 @@ func runWithModules(run func(cmd *cobra.Command, args []string) error) func(cmd 
 	return func(cmd *cobra.Command, args []string) error {
 		return fxutil.OneShot(
 			func(_ complog.Component, _ compconfig.Component) error {
-				_ = pkgconfig.ChangeLogLevel("debug") // TODO(jinroh): remove this
+				if lvl := pkgconfig.Datadog.GetString("log_level"); lvl == "info" {
+					_ = pkgconfig.ChangeLogLevel("debug") // TODO(jinroh): remove this
+				}
 				return run(cmd, args)
 			},
 			fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
@@ -1202,7 +1204,11 @@ func (s *sideScanner) healthServer(ctx context.Context) error {
 	}()
 
 	log.Infof("Starting health-check server for agentless-scanner on address %q", addr)
-	return srv.ListenAndServe()
+	err := srv.ListenAndServe()
+	if err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+	return nil
 }
 
 func (s *sideScanner) cleanSlate() error {
@@ -1266,7 +1272,9 @@ func (s *sideScanner) start(ctx context.Context) {
 	go func() {
 		err := s.healthServer(ctx)
 		if err != nil {
-			log.Warnf("healthServer: %v", err)
+			if !errors.Is(err, net.ErrClosed) {
+				log.Warnf("healthServer: %v", err)
+			}
 		}
 	}()
 
@@ -1281,7 +1289,9 @@ func (s *sideScanner) start(ctx context.Context) {
 		defer func() { done <- struct{}{} }()
 		for result := range s.resultsCh {
 			if result.Err != nil {
-				log.Errorf("task %s reported a scanning failure: %v", result.Scan, result.Err)
+				if !errors.Is(result.Err, context.Canceled) {
+					log.Errorf("task %s reported a scanning failure: %v", result.Scan, result.Err)
+				}
 				if err := statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, tagFailure(result.Scan, result.Err), 1.0); err != nil {
 					log.Warnf("failed to send metric: %v", err)
 				}
@@ -1347,7 +1357,9 @@ func (s *sideScanner) start(ctx context.Context) {
 				s.scansInProgressMu.Unlock()
 
 				if err := s.launchScan(ctx, scan); err != nil {
-					log.Errorf("task %s could not be setup properly: %v", scan, err)
+					if !errors.Is(err, context.Canceled) {
+						log.Errorf("task %s could not be setup properly: %v", scan, err)
+					}
 				}
 
 				s.scansInProgressMu.Lock()
@@ -2046,7 +2058,7 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 							Scan:    scan,
 							Root:    ctrMnt.Path,
 						})
-						result.SBOMEntityType = sbommodel.SBOMSourceType_CONTAINER_FILE_SYSTEM
+						result.SBOMEntityType = sbommodel.SBOMSourceType_CONTAINER_IMAGE_LAYERS // TODO: sbommodel.SBOMSourceType_CONTAINER_FILE_SYSTEM
 						result.SBOMEntityID = entityID
 						result.SBOMEntityTags = entityTags
 						resultsCh <- result
@@ -2263,7 +2275,7 @@ func nextNBDDevice() string {
 	nbdDeviceName.mu.Lock()
 	defer nbdDeviceName.mu.Unlock()
 	count := nbdDeviceName.count
-	nbdDeviceName.count += 1 % nbdsMax
+	nbdDeviceName.count = (nbdDeviceName.count + 1) % nbdsMax
 	return fmt.Sprintf("/dev/nbd%d", count)
 }
 
@@ -2644,7 +2656,7 @@ func listDevicePartitions(ctx context.Context, device string, volumeARN *arn.ARN
 		}
 	}
 	if foundBlockDevice == nil {
-		return nil, fmt.Errorf("could not find the block device for volume %q", volumeARN)
+		return nil, fmt.Errorf("could not find the block device %s for (volume=%q)", device, volumeARN)
 	}
 
 	var partitions []devicePartition
@@ -2678,7 +2690,7 @@ func listDevicePartitions(ctx context.Context, device string, volumeARN *arn.ARN
 		}
 	}
 	if len(partitions) == 0 {
-		return nil, fmt.Errorf("could not find any btrfs, ext2, ext3, ext4 or xfs partition in the snapshot %q", volumeARN)
+		return nil, fmt.Errorf("could not find any btrfs, ext2, ext3, ext4 or xfs partition in %s (volume = %q)", device, volumeARN)
 	}
 
 	log.Debugf("found %d compatible partitions for device %q", len(partitions), device)
@@ -2688,7 +2700,7 @@ func listDevicePartitions(ctx context.Context, device string, volumeARN *arn.ARN
 func mountDevice(ctx context.Context, scan *scanTask, partitions []devicePartition) ([]string, error) {
 	var mountPoints []string
 	for _, mp := range partitions {
-		mountPoint := scan.Path(fmt.Sprintf("%s-%s", ebsMountPrefix, path.Base(mp.devicePath)))
+		mountPoint := scan.Path(ebsMountPrefix + path.Base(mp.devicePath))
 		if err := os.MkdirAll(mountPoint, 0700); err != nil {
 			return nil, fmt.Errorf("could not create mountPoint directory %q: %w", mountPoint, err)
 		}
@@ -2723,11 +2735,14 @@ func mountDevice(ctx context.Context, scan *scanTask, partitions []devicePartiti
 		var mountOutput []byte
 		var errm error
 		for i := 0; i < 50; i++ {
-			mountOutput, errm = exec.CommandContext(ctx, "mount", mountCmd...).CombinedOutput()
+			// using context.Background() here as we do not want to sigkill
+			// the "mount" command during work.
+			mountOutput, errm = exec.CommandContext(context.Background(), "mount", mountCmd...).CombinedOutput()
 			if errm == nil {
 				break
 			}
 			if !sleepCtx(ctx, 200*time.Millisecond) {
+				errm = ctx.Err()
 				log.Debugf("mount error %#v: %v", mp, errm)
 				break
 			}
@@ -2852,7 +2867,7 @@ func cleanupScan(scan *scanTask) {
 
 	log.Debugf("%s: removing folder %q", scan, scanRoot)
 	if err := os.RemoveAll(scanRoot); err != nil {
-		log.Errorf("%s: could not cleanup mount root %q", scan, scanRoot)
+		log.Errorf("%s: could not cleanup mount root %q: %v", scan, scanRoot, err)
 	}
 
 	switch scan.DiskMode {
@@ -2875,6 +2890,7 @@ func cleanupScan(scan *scanTask) {
 				var errd error
 				for i := 0; i < 50; i++ {
 					if !sleepCtx(ctx, 1*time.Second) {
+						errd = ctx.Err()
 						break
 					}
 					_, errd = ec2client.DeleteVolume(ctx, &ec2.DeleteVolumeInput{
