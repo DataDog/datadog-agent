@@ -9,7 +9,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -31,11 +31,11 @@ type Processor struct {
 	done                      chan struct{}
 	diagnosticMessageReceiver diagnostic.MessageReceiver
 	mu                        sync.Mutex
-	hostname                  hostname.Component
+	hostname                  hostnameinterface.HostnameInterface
 }
 
 // New returns an initialized Processor.
-func New(inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule, encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostname.Component) *Processor {
+func New(inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule, encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.HostnameInterface) *Processor {
 	return &Processor{
 		inputChan:                 inputChan,
 		outputChan:                outputChan, // strategy input

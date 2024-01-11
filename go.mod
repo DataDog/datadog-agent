@@ -42,6 +42,8 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/utils => ./pkg/config/utils/
 	github.com/DataDog/datadog-agent/pkg/errors => ./pkg/errors
 	github.com/DataDog/datadog-agent/pkg/gohai => ./pkg/gohai
+	github.com/DataDog/datadog-agent/pkg/logs/internal/status => ./pkg/logs/internal/status
+	github.com/DataDog/datadog-agent/pkg/logs/metrics => ./pkg/logs/metrics
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ./pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/metrics => ./pkg/metrics/
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile => ./pkg/networkdevice/profile
@@ -73,6 +75,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ./pkg/util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ./pkg/util/scrubber
 	github.com/DataDog/datadog-agent/pkg/util/sort => ./pkg/util/sort/
+	github.com/DataDog/datadog-agent/pkg/util/startstop => ./pkg/util/startstop
 	github.com/DataDog/datadog-agent/pkg/util/statstracker => ./pkg/util/statstracker
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ./pkg/util/system/socket/
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ./pkg/util/testutil
@@ -87,6 +90,8 @@ require (
 	github.com/CycloneDX/cyclonedx-go v0.7.2
 	github.com/DataDog/appsec-internal-go v1.3.0
 	github.com/DataDog/datadog-agent/pkg/gohai v0.51.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/logs/internal/status v0.51.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.51.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.51.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.51.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.51.0-rc.1
@@ -96,6 +101,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.51.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.51.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.51.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/startstop v0.51.0-rc.1
 	github.com/DataDog/datadog-go/v5 v5.4.0
 	// do not update datadog-operator to 1.2.1 because the indirect dependency github.com/DataDog/datadog-api-client-go/v2 v2.15.0 is trigger a huge Go heap memory increase.
 	github.com/DataDog/datadog-operator v1.1.0

@@ -32,7 +32,7 @@ func (a *agent) SetupPipeline(
 ) {
 	health := health.RegisterLiveness("logs-agent")
 
-	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil)
+	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil, a.hostname)
 
 	// setup the a null auditor, not tracking data in any registry
 	a.auditor = auditor.NewNullAuditor()

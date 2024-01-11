@@ -9,8 +9,10 @@ package pipeline
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/core/hostname"
+
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
@@ -39,9 +41,10 @@ func NewPipeline(outputChan chan *message.Payload,
 	serverless bool,
 	pipelineID int,
 	status statusinterface.StatusInterface,
-	hostname hostname.Component) *Pipeline {
+	hostname hostnameinterface.HostnameInterface,
+	cfg pkgconfigmodel.Reader) *Pipeline {
 
-	mainDestinations := getDestinations(endpoints, destinationsContext, pipelineID, serverless, status)
+	mainDestinations := getDestinations(endpoints, destinationsContext, pipelineID, serverless, status, cfg)
 
 	strategyInput := make(chan *message.Message, config.ChanSize)
 	senderInput := make(chan *message.Payload, 1) // Only buffer 1 message since payloads can be large
@@ -95,18 +98,18 @@ func (p *Pipeline) Flush(ctx context.Context) {
 	p.processor.Flush(ctx) // flush messages in the processor into the sender
 }
 
-func getDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, pipelineID int, serverless bool, status statusinterface.StatusInterface) *client.Destinations {
+func getDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, pipelineID int, serverless bool, status statusinterface.StatusInterface, cfg pkgconfigmodel.Reader) *client.Destinations {
 	reliable := []client.Destination{}
 	additionals := []client.Destination{}
 
 	if endpoints.UseHTTP {
 		for i, endpoint := range endpoints.GetReliableEndpoints() {
 			telemetryName := fmt.Sprintf("logs_%d_reliable_%d", pipelineID, i)
-			reliable = append(reliable, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, !serverless, telemetryName))
+			reliable = append(reliable, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, !serverless, telemetryName, cfg))
 		}
 		for i, endpoint := range endpoints.GetUnReliableEndpoints() {
 			telemetryName := fmt.Sprintf("logs_%d_unreliable_%d", pipelineID, i)
-			additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false, telemetryName))
+			additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false, telemetryName, cfg))
 		}
 		return client.NewDestinations(reliable, additionals)
 	}
