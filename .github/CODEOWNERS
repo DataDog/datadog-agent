@@ -243,6 +243,7 @@
 /pkg/api/                               @DataDog/agent-shared-components
 /pkg/aggregator/                        @DataDog/agent-metrics-logs
 /pkg/collector/                         @DataDog/agent-metrics-logs
+/pkg/commonchecks/                      @DataDog/agent-metrics-logs
 /pkg/cli/                               @DataDog/agent-shared-components
 /pkg/cli/subcommands/clusterchecks      @DataDog/container-integrations
 /pkg/dogstatsd/                         @DataDog/agent-metrics-logs
