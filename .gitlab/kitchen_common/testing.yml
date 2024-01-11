@@ -97,6 +97,20 @@
   script:
     - tasks/run-test-kitchen.sh chef-test $AGENT_MAJOR_VERSION
 
+.kitchen_test_upgrade5:
+  script:
+    - tasks/run-test-kitchen.sh upgrade5-test $AGENT_MAJOR_VERSION
+
+.kitchen_test_upgrade6:
+  script:
+    - export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::6")
+    - tasks/run-test-kitchen.sh upgrade6-test $AGENT_MAJOR_VERSION
+
+.kitchen_test_upgrade7:
+  script:
+    - export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::7")
+    - tasks/run-test-kitchen.sh upgrade7-test $AGENT_MAJOR_VERSION
+
 .kitchen_test_process_agent:
   script:
     - tasks/run-test-kitchen.sh process-agent-test $AGENT_MAJOR_VERSION
@@ -145,4 +159,25 @@
     - .kitchen_test_chef
     - .kitchen_datadog_agent_flavor
     - .kitchen_azure_location_north_central_us
+    - .kitchen_ec2_location_us_east_1
+
+.kitchen_test_upgrade5_agent:
+  extends:
+    - .kitchen_test_upgrade5
+    - .kitchen_datadog_agent_flavor
+    - .kitchen_azure_location_central_us
+    - .kitchen_ec2_location_us_east_1
+
+.kitchen_test_upgrade6_agent:
+  extends:
+    - .kitchen_test_upgrade6
+    - .kitchen_datadog_agent_flavor
+    - .kitchen_azure_location_south_central_us
+    - .kitchen_ec2_location_us_east_1
+
+.kitchen_test_upgrade7_agent:
+  extends:
+    - .kitchen_test_upgrade7
+    - .kitchen_datadog_agent_flavor
+    - .kitchen_azure_location_south_central_us
     - .kitchen_ec2_location_us_east_1
