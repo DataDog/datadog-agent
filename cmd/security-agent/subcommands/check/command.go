@@ -42,7 +42,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
 // CliParams needs to be exported because the compliance subcommand is tightly coupled to this subcommand and tests need to be able to access this type.
@@ -250,18 +249,13 @@ func reportComplianceEvents(log log.Component, config config.Component, events [
 	if err != nil {
 		return log.Errorf("Error while getting hostname, exiting: %v", err)
 	}
-
-	stopper := startstop.NewSerialStopper()
-	defer stopper.Stop()
 	runPath := config.GetString("compliance_config.run_path")
 	endpoints, context, err := common.NewLogContextCompliance()
 	if err != nil {
 		return fmt.Errorf("reporter: could not reate log context for compliance: %w", err)
 	}
-	reporter, err := compliance.NewLogReporter(hostnameDetected, stopper, "compliance-agent", "compliance", runPath, endpoints, context)
-	if err != nil {
-		return fmt.Errorf("reporter: could not create: %w", err)
-	}
+	reporter := compliance.NewLogReporter(hostnameDetected, "compliance-agent", "compliance", runPath, endpoints, context)
+	defer reporter.Stop()
 	for _, event := range events {
 		reporter.ReportEvent(event)
 	}

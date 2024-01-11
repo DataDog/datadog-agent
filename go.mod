@@ -89,19 +89,19 @@ require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.7.2
 	github.com/DataDog/appsec-internal-go v1.3.0
-	github.com/DataDog/datadog-agent/pkg/gohai v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/logs/internal/status v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/trace v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/log v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/startstop v0.51.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/gohai v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/logs/internal/status v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/trace v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/startstop v0.51.0-rc.2
 	github.com/DataDog/datadog-go/v5 v5.4.0
 	// do not update datadog-operator to 1.2.1 because the indirect dependency github.com/DataDog/datadog-api-client-go/v2 v2.15.0 is trigger a huge Go heap memory increase.
 	github.com/DataDog/datadog-operator v1.1.0
@@ -602,48 +602,47 @@ require github.com/lorenzosaino/go-sysctl v0.3.1
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/DataDog/agent-payload/v5 v5.0.100
-	github.com/DataDog/datadog-agent/cmd/agent/common/path v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/comp/core/config v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/comp/core/log v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/comp/core/secrets v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/config/env v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/config/logs v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/config/model v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/config/remote v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/config/utils v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/errors v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/metrics v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/networkdevice/profile v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/process/util/api v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/proto v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/status/health v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/tagset v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/telemetry v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/backoff v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/cache v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/common v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/compression v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/grpc v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/http v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/json v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/sort v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/testutil v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/version v0.51.0-rc.1
+	github.com/DataDog/datadog-agent/cmd/agent/common/path v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/comp/core/config v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/comp/core/flare/types v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/comp/core/log v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/comp/core/secrets v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/config/env v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/config/logs v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/config/model v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/config/remote v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/config/utils v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/errors v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/metrics v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/networkdevice/profile v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/process/util/api v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/proto v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/status/health v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/tagset v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/telemetry v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/backoff v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/cache v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/common v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/compression v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/grpc v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/http v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/json v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/sort v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/testutil v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/version v0.51.0-rc.2
 	github.com/DataDog/go-libddwaf/v2 v2.2.2
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.11.0
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
@@ -673,8 +672,8 @@ require (
 	dario.cat/mergo v1.0.0 // indirect
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24 // indirect
 	github.com/AdamKorcz/go-118-fuzz-build v0.0.0-20230306123547-8075edf89bb0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/buf v0.51.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.51.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/buf v0.51.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.51.0-rc.2 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.13.0 // indirect
 	github.com/DataDog/go-sqllexer v0.0.9 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr v1.4.10 // indirect
