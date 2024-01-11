@@ -2714,13 +2714,13 @@ func mountDevice(ctx context.Context, scan *scanTask, partitions []devicePartiti
 			panic(fmt.Errorf("unsupported filesystem type %s", mp.fsType))
 		}
 
-		mountCmd := fmt.Sprint("mount", "-o", fsOptions, "-t", mp.fsType, "--source", mp.devicePath, "--target", mountPoint)
-		log.Debugf("execing %s", mountCmd)
+		mountCmd := []string{"-o", fsOptions, "-t", mp.fsType, "--source", mp.devicePath, "--target", mountPoint}
+		log.Debugf("execing mount %s", mountCmd)
 
 		var mountOutput []byte
 		var errm error
 		for i := 0; i < 50; i++ {
-			mountOutput, errm = exec.CommandContext(ctx, mountCmd).CombinedOutput()
+			mountOutput, errm = exec.CommandContext(ctx, "mount", mountCmd...).CombinedOutput()
 			if errm == nil {
 				break
 			}
