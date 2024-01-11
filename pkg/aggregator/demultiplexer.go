@@ -25,8 +25,6 @@ type Demultiplexer interface {
 	// General
 	// --
 
-	// Run runs all demultiplexer parts
-	Run()
 	// Stop stops the demultiplexer.
 	// Resources are released, the instance should not be used after a call to `Stop()`.
 	Stop(flush bool)
