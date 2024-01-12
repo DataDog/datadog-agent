@@ -184,7 +184,7 @@ func calculateNumCores(info *model.SystemInfo) (numCores int32) {
 
 func initDiscoveryScrubber(config ddconfig.Reader, scrubber *procutil.DataScrubber) {
 	// Enable/Disable the DataScrubber to obfuscate process args
-	if config.IsSet(configDiscoScrubArgs ) {
+	if config.IsSet(configScrubArgs) {
 		scrubber.Enabled = config.GetBool(configDiscoScrubArgs )
 	}
 
