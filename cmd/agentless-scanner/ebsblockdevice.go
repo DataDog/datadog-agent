@@ -101,8 +101,6 @@ func stopEBSBlockDevice(ctx context.Context, deviceName string) {
 	if bd, ok := ebsBlockDevices[deviceName]; ok {
 		if err := bd.waitServerClosed(ctx); err != nil {
 			log.Errorf("nbdserver: %q could not close: %v", deviceName, err)
-		} else {
-			log.Debugf("nbdserver: %q closed successfully ", deviceName)
 		}
 		delete(ebsBlockDevices, deviceName)
 	}
@@ -172,6 +170,7 @@ func (bd *ebsBlockDevice) startServer() error {
 	log.Debugf("nbdserver: %q accepting connections on %q", bd.deviceName, addr)
 	go func() {
 		defer func() {
+			log.Debugf("nbdserver: %q closed successfully", bd.deviceName)
 			bd.srv.Close()
 			close(bd.closed)
 		}()
@@ -185,7 +184,7 @@ func (bd *ebsBlockDevice) startServer() error {
 				}()
 
 			case conn := <-rmvConn:
-				log.Debugf("nbdserver: %q client disconnected", bd.deviceName)
+				log.Tracef("nbdserver: %q client disconnected", bd.deviceName)
 				delete(conns, conn)
 				conn.Close()
 				if len(conns) == 0 {
@@ -208,6 +207,7 @@ func (bd *ebsBlockDevice) waitServerClosed(ctx context.Context) error {
 	case <-bd.closed:
 		return nil
 	case <-ctx.Done():
+		log.Warnf("nbdserver: %q forced to close", bd.deviceName)
 		bd.srv.Close() // forcing close of server
 		return ctx.Err()
 	}
