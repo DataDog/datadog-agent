@@ -208,14 +208,6 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 		)
 
 	case *events.ALBTargetGroupRequest:
-		var sourceIp string
-		// ALB is a "trusted" origin, so we extract the source IP from the X-Forwarded-For header.
-		// ALB also provides headers with fully lower-case names, so we don't have to worry about case.
-		if xff, found := event.MultiValueHeaders["x-forwarded-for"]; found && len(xff) > 0 {
-			sourceIp = xff[0]
-		} else if xff, found := event.Headers["x-forwarded-for"]; found {
-			sourceIp = xff
-		}
 		makeContext(
 			&ctx,
 			nil,
@@ -225,7 +217,7 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 			// Depending on how the ALB is configured, query parameters will be either in MultiValueQueryStringParameters or QueryStringParameters (not both).
 			multiOrSingle(event.MultiValueQueryStringParameters, event.QueryStringParameters),
 			nil,
-			sourceIp,
+			"",
 			&event.Body,
 			event.IsBase64Encoded,
 		)
