@@ -15,22 +15,28 @@ import (
 )
 
 // TracePayload is a payload type for traces
+// It implements PayloadItem
 type TracePayload struct {
 	*pb.AgentPayload
 	collectedTime time.Time
 }
 
+var _ PayloadItem = &TracePayload{}
+
 // name returns the hostname of the agent that produced the payload
+// TracePayload implements PayloadItem
 func (tp *TracePayload) name() string {
 	return tp.HostName
 }
 
 // GetTags is not implemented
+// TracePayload implements PayloadItem
 func (tp *TracePayload) GetTags() []string {
 	return nil
 }
 
 // GetCollectedTime returns the time that the payload was received by the fake intake
+// TracePayload implements PayloadItem
 func (tp *TracePayload) GetCollectedTime() time.Time {
 	return tp.collectedTime
 }
