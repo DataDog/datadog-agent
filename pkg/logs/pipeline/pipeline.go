@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
@@ -36,7 +37,8 @@ func NewPipeline(outputChan chan *message.Payload,
 	destinationsContext *client.DestinationsContext,
 	diagnosticMessageReceiver diagnostic.MessageReceiver,
 	serverless bool,
-	pipelineID int) *Pipeline {
+	pipelineID int,
+	hostname hostnameinterface.HostnameInterface) *Pipeline {
 
 	mainDestinations := getDestinations(endpoints, destinationsContext, pipelineID, serverless)
 
@@ -61,7 +63,7 @@ func NewPipeline(outputChan chan *message.Payload,
 	logsSender = sender.NewSender(senderInput, outputChan, mainDestinations, config.DestinationPayloadChanSize)
 
 	inputChan := make(chan *message.Message, config.ChanSize)
-	processor := processor.New(inputChan, strategyInput, processingRules, encoder, diagnosticMessageReceiver)
+	processor := processor.New(inputChan, strategyInput, processingRules, encoder, diagnosticMessageReceiver, hostname)
 
 	return &Pipeline{
 		InputChan: inputChan,

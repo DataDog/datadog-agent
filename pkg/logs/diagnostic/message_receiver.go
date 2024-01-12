@@ -8,6 +8,7 @@ package diagnostic
 import (
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
@@ -41,9 +42,11 @@ type Filters struct {
 
 // NewBufferedMessageReceiver creates a new MessageReceiver. It takes an optional Formatter as a parameter, and defaults
 // to using logFormatter if not supplied.
-func NewBufferedMessageReceiver(f Formatter) *BufferedMessageReceiver {
+func NewBufferedMessageReceiver(f Formatter, hostname hostnameinterface.HostnameInterface) *BufferedMessageReceiver {
 	if f == nil {
-		f = &logFormatter{}
+		f = &logFormatter{
+			hostname: hostname,
+		}
 	}
 	return &BufferedMessageReceiver{
 		inputChan: make(chan messagePair, config.ChanSize),

@@ -15,6 +15,7 @@ import (
 	"go.uber.org/fx"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
@@ -56,6 +57,7 @@ type dependencies struct {
 	Log            logComponent.Component
 	Config         configComponent.Component
 	InventoryAgent inventoryagent.Component
+	Hostname       hostname.Component
 }
 
 // agent represents the data pipeline that collects, decodes,
@@ -65,6 +67,7 @@ type agent struct {
 	log            logComponent.Component
 	config         pkgConfig.Reader
 	inventoryAgent inventoryagent.Component
+	hostname       hostname.Component
 
 	sources                   *sources.LogSources
 	services                  *service.Services
@@ -92,6 +95,7 @@ func newLogsAgent(deps dependencies) optional.Option[Component] {
 			log:            deps.Log,
 			config:         deps.Config,
 			inventoryAgent: deps.InventoryAgent,
+			hostname:       deps.Hostname,
 			started:        atomic.NewBool(false),
 
 			sources:  sources.NewLogSources(),
