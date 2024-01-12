@@ -8,7 +8,6 @@ package run
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/updater/command"
 
@@ -22,9 +21,7 @@ func Commands(_ *command.GlobalParams) []*cobra.Command {
 		Short: "Runs the updater",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			for range time.NewTicker(5 * time.Second).C {
-				fmt.Println("updater running")
-			}
+			fmt.Println("hey")
 			return nil
 		},
 	}
