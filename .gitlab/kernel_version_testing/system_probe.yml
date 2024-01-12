@@ -88,7 +88,6 @@ pull_test_dockers_arm64:
     - !reference [.wait_for_instances]
     - !reference [.get_instance_ip_by_type]
     - !reference [.setup_ssh_config]
-    - chmod +x $CI_PROJECT_DIR/test/new-e2e/system-probe/test/micro-vm-init.sh
     - scp $CI_PROJECT_DIR/test/new-e2e/system-probe/test/micro-vm-init.sh metal_instance:/opt/kernel-version-testing
     - tar czvf $DD_AGENT_TESTING_DIR/kmt-dockers-$ARCH.tar.gz $DD_AGENT_TESTING_DIR/kmt-dockers-$ARCH
     - scp $DD_AGENT_TESTING_DIR/kmt-dockers-$ARCH.tar.gz metal_instance:/opt/kernel-version-testing
