@@ -17,8 +17,6 @@ import (
 
 type FlareControllerTestSuite struct {
 	suite.Suite
-
-	// fc *FlareController
 }
 
 func getTestFlareController() *FlareController {
