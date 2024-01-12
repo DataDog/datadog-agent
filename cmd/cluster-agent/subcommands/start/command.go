@@ -70,7 +70,7 @@ import (
 	"k8s.io/client-go/tools/record"
 
 	// Core checks
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+
 	corecheckLoader "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/helm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
@@ -496,23 +496,17 @@ func initializeRemoteConfig(ctx context.Context) (*rcclient.Client, *rcservice.S
 
 func registerChecks() {
 	// Required checks
-	registerCheck(true, cpu.CheckName, cpu.New)
-	registerCheck(true, memory.CheckName, memory.New)
-	registerCheck(true, uptime.CheckName, uptime.New)
-	registerCheck(true, io.CheckName, io.New)
-	registerCheck(true, filehandles.CheckName, filehandles.New)
+	corecheckLoader.RegisterCheck(cpu.CheckName, cpu.New)
+	corecheckLoader.RegisterCheck(memory.CheckName, memory.New)
+	corecheckLoader.RegisterCheck(uptime.CheckName, uptime.New)
+	corecheckLoader.RegisterCheck(io.CheckName, io.New)
+	corecheckLoader.RegisterCheck(filehandles.CheckName, filehandles.New)
 
 	// Flavor specific checks
-	registerCheck(kubernetesapiserver.Enabled, kubernetesapiserver.CheckName, kubernetesapiserver.New)
-	registerCheck(ksm.Enabled, ksm.CheckName, ksm.New)
-	registerCheck(helm.Enabled, helm.CheckName, helm.New)
-	registerCheck(disk.Enabled, disk.CheckName, disk.New)
-	registerCheck(orchestrator.Enabled, orchestrator.CheckName, orchestrator.New)
-	registerCheck(winproc.Enabled, winproc.CheckName, winproc.New)
-}
-
-func registerCheck(enabled bool, name string, factory func() check.Check) {
-	if enabled {
-		corecheckLoader.RegisterCheck(name, factory)
-	}
+	corecheckLoader.RegisterCheckIfEnabled(kubernetesapiserver.Enabled, kubernetesapiserver.CheckName, kubernetesapiserver.New)
+	corecheckLoader.RegisterCheckIfEnabled(ksm.Enabled, ksm.CheckName, ksm.New)
+	corecheckLoader.RegisterCheckIfEnabled(helm.Enabled, helm.CheckName, helm.New)
+	corecheckLoader.RegisterCheckIfEnabled(disk.Enabled, disk.CheckName, disk.New)
+	corecheckLoader.RegisterCheckIfEnabled(orchestrator.Enabled, orchestrator.CheckName, orchestrator.New)
+	corecheckLoader.RegisterCheckIfEnabled(winproc.Enabled, winproc.CheckName, winproc.New)
 }

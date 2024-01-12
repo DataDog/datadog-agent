@@ -27,6 +27,13 @@ func RegisterCheck(name string, c CheckFactory) {
 	catalog[name] = c
 }
 
+// RegisterCheckIfEnabled is a helper function to register checks only if they are enabled.
+func RegisterCheckIfEnabled(enabled bool, name string, c CheckFactory) {
+	if enabled {
+		catalog[name] = c
+	}
+}
+
 // GetRegisteredFactoryKeys get the keys for all registered factories
 func GetRegisteredFactoryKeys() []string {
 	factoryKeys := []string{}
