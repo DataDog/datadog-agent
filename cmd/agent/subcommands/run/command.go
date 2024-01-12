@@ -92,6 +92,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
+	collectorStatus "github.com/DataDog/datadog-agent/pkg/status/collector"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	otlpStatus "github.com/DataDog/datadog-agent/pkg/status/otlp"
 	pkgTelemetry "github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -314,6 +315,9 @@ func getSharedFxOption() fx.Option {
 		collectors.GetCatalog(),
 		fx.Provide(defaults.DefaultParams),
 		workloadmeta.Module(),
+		fx.Supply(
+			status.NewInformationProvider(collectorStatus.Provider{}),
+		),
 		statusimpl.Module(),
 		apiimpl.Module(),
 
