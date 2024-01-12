@@ -17,7 +17,7 @@ import (
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newHostnameService))
+		fx.Provide(NewHostnameService))
 }
 
 type service struct{}
@@ -43,7 +43,7 @@ func (hs *service) GetWithProvider(ctx context.Context) (pkghostname.Data, error
 	return pkghostname.GetWithProvider(ctx)
 }
 
-// newHostnameService fetches the hostname and returns a service wrapping it
-func newHostnameService() hostname.Component {
+// NewHostnameService fetches the hostname and returns a service wrapping it
+func NewHostnameService() hostname.Component {
 	return &service{}
 }
