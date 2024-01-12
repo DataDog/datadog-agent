@@ -18,7 +18,7 @@ func (ms *mockStatusService) AddGlobalWarning(string, string) {
 func (ms *mockStatusService) RemoveGlobalWarning(string) {
 }
 
-// NewStatusImpl fetches the status and returns a service wrapping it
+// NewStatusMock returns a mock instance of statusinterface to be used in tests
 func NewStatusMock() statusinterface.StatusInterface {
 	return &mockStatusService{}
 }

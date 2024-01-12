@@ -6,7 +6,10 @@
 package hostnameinterface
 
 const (
-	ConfigProvider  = "configuration"
+	// ConfigProvider is the default provider value from the configuration file
+	ConfigProvider = "configuration"
+
+	// FargateProvider is the default provider value from Fargate
 	FargateProvider = "fargate"
 )
 

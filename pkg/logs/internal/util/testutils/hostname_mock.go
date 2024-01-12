@@ -35,6 +35,7 @@ func (m *mockHostnameService) GetWithProvider(_ context.Context) (hostnameinterf
 	}, nil
 }
 
+// NewHostnameMock returns a mock instance of hostnameinterface to be used in tests
 func NewHostnameMock(name string) hostnameinterface.HostnameInterface {
 	return &mockHostnameService{name}
 }
