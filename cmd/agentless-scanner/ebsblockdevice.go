@@ -168,7 +168,7 @@ func (bd *ebsBlockDevice) startServer() error {
 		}
 	}()
 
-	log.Infof("nbdserver: %q accepting connections on %q", bd.deviceName, addr)
+	log.Debugf("nbdserver: %q accepting connections on %q", bd.deviceName, addr)
 	go func() {
 		defer func() {
 			bd.srv.Close()
@@ -351,7 +351,7 @@ func (b *ebsBackend) init() error {
 		if err != nil {
 			return err
 		}
-		log.Debugf("list blocks %d\n", len(output.Blocks))
+		log.Tracef("list blocks %d\n", len(output.Blocks))
 		if b.index == nil {
 			b.index = make(map[int32]string)
 		}

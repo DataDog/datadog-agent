@@ -1919,7 +1919,7 @@ func newAWSConfig(ctx context.Context, region string, assumedRole *arn.ARN) (aws
 		if err != nil {
 			return aws.Config{}, fmt.Errorf("awsconfig: could not assumerole %q: %w", assumedRole, err)
 		}
-		log.Debugf("aws config: assuming role with arn=%q", *result.Arn)
+		log.Tracef("aws config: assuming role with arn=%q", *result.Arn)
 	}
 
 	awsConfigs[key] = &cfg
@@ -2374,7 +2374,7 @@ func downloadAndUnzipLambda(ctx context.Context, scan *scanTask, lambdaDir strin
 	}
 
 	archivePath := filepath.Join(lambdaDir, "code.zip")
-	log.Debugf("%s: creating file %q", scan, archivePath)
+	log.Tracef("%s: creating file %q", scan, archivePath)
 	archiveFile, err := os.OpenFile(archivePath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
 		return "", err
@@ -2387,7 +2387,7 @@ func downloadAndUnzipLambda(ctx context.Context, scan *scanTask, lambdaDir strin
 		return "", err
 	}
 
-	log.Debugf("%s: downloading code", scan)
+	log.Tracef("%s: downloading code", scan)
 	resp, err := cfg.HTTPClient.Do(req)
 	if err != nil {
 		return "", err
@@ -2397,7 +2397,7 @@ func downloadAndUnzipLambda(ctx context.Context, scan *scanTask, lambdaDir strin
 		return "", fmt.Errorf("lambda: bad status: %s", resp.Status)
 	}
 
-	log.Debugf("%s: copying code archive to %q", scan, archivePath)
+	log.Tracef("%s: copying code archive to %q", scan, archivePath)
 	compressedSize, err := io.Copy(archiveFile, resp.Body)
 	if err != nil {
 		return "", err
@@ -2409,7 +2409,7 @@ func downloadAndUnzipLambda(ctx context.Context, scan *scanTask, lambdaDir strin
 		return "", err
 	}
 
-	log.Debugf("%s: extracting code in %q", scan, codePath)
+	log.Tracef("%s: extracting code in %q", scan, codePath)
 	uncompressedSize, err := extractLambdaZip(ctx, archivePath, codePath)
 	if err != nil {
 		return "", err
@@ -2604,7 +2604,7 @@ func listDevicePartitions(ctx context.Context, device string, volumeARN *arn.ARN
 	var serialNumber *string
 	if volumeARN != nil {
 		_, volumeID, _ := getARNResource(*volumeARN)
-		sn := strings.Replace(volumeID, "-", "", 1) // vol-XXX => volXXX
+		sn := "vol" + strings.TrimPrefix(volumeID, "vol-") // vol-XXX => volXXX
 		serialNumber = &sn
 	}
 
