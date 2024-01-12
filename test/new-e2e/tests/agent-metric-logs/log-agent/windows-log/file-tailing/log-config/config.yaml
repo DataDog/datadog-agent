@@ -1,0 +1,6 @@
+logs:
+  - type: file
+    path: 'C:\logs\hello-world.log'
+    service: hello
+    source: custom_log
+   

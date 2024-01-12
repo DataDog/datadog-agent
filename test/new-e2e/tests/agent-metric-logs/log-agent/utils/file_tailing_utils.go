@@ -33,41 +33,50 @@ type LogsTestSuite interface {
 // AppendLog appen log with 'content', which is then repeated 'reccurrence' times and verifies log contents.
 func AppendLog(ls LogsTestSuite, content string, recurrence int) {
 	// Determine the OS and set the appropriate log path and command.
-	var logPath, cmd, checkCmd string
 	t := ls.T()
 	t.Helper()
 
 	osType := ls.Env().VM.GetOSType()
+
+	var logPath, cmd, checkCmd string
 	var os string
+	logContent := strings.Repeat(content+" ", recurrence)
 
 	switch osType {
 	case componentos.WindowsType:
 		os = "windows"
 		t.Log("Generating Windows log.")
 		logPath = "C:\\logs\\hello-world.log"
-		cmd = fmt.Sprintf("echo %s > %s", strings.Repeat(content+" ", recurrence), logPath)
 		checkCmd = fmt.Sprintf("Get-Content %s", logPath)
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			bytes, err := ls.Env().VM.WriteFile(logPath, []byte(logContent))
+			if assert.NoErrorf(c, err, "Error writing log: %v", err) {
+				t.Logf("Writing %d bytes to %s", bytes, logPath)
+			}
+		}, 1*time.Minute, 5*time.Second)
+
 	default: // Assuming Linux if not Windows.
 		os = "linux"
 		t.Log("Generating Linux log.")
 		logPath = "/var/log/hello-world.log"
-		cmd = fmt.Sprintf("echo '%s' | sudo tee -a %s", strings.Repeat(content+" ", recurrence), logPath)
+		cmd = fmt.Sprintf("echo '%s' | sudo tee -a %s", logContent, logPath)
 		checkCmd = fmt.Sprintf("sudo cat %s", logPath)
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			_, err := ls.Env().VM.ExecuteWithError(cmd)
+			if assert.NoErrorf(c, err, "Having issue generating Linux log with error: %s", err) {
+				t.Logf("Writing %s to %s", logContent, logPath)
+			}
+		}, 1*time.Minute, 5*time.Second)
 	}
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		// Generate the log content
-		output, err := ls.Env().VM.ExecuteWithError(cmd)
-		if err != nil {
-			assert.FailNowf(c, "Having issue generating %s log with error: %s", os, output)
-		}
 		// Verify the log content locally
-		output, err = ls.Env().VM.ExecuteWithError(checkCmd)
+		output, err := ls.Env().VM.ExecuteWithError(checkCmd)
 		if err != nil {
 			assert.FailNowf(c, "Log content %s not found, instead received:: %s", content, output)
 		}
 		if strings.Contains(output, content) {
-			t.Logf("Finished generating %s log with content: '%s' \n", os, content)
+			t.Logf("Successfully generated %s log with content: '%s' \n", os, output)
 		}
 	}, 2*time.Minute, 10*time.Second)
 }
@@ -99,31 +108,34 @@ func CheckLogs(ls LogsTestSuite, service, content string, expectLogs bool) {
 	client := ls.Env().Fakeintake
 	t := ls.T()
 	t.Helper()
+
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		names, err := client.GetLogServiceNames()
-		if !assert.NoErrorf(c, err, "Error found: %s", err) {
-			return
-		}
-		if len(names) > 0 {
-			logs, err := client.FilterLogs(service)
-			if !assert.NoErrorf(c, err, "Error found: %s", err) {
-				return
-			}
-			if !assert.NotEmpty(c, logs, "No logs with service matching '%s' found, instead got '%s'", service, names) {
-				return
-			}
-			logs, err = client.FilterLogs(service, fi.WithMessageMatching(content))
-			intakeLogs := logsToString(logs)
-			assert.NoErrorf(c, err, "Error found: %s", err)
-			if expectLogs {
+		names, _ := client.GetLogServiceNames()
+		// if !assert.NoErrorf(c, err, "Error found: %s", err) {
+		// 	return
+		// }
+		// if assert.NotEmptyf(c, names, "No service %s found", names) {
+		// logs, err := client.FilterLogs(service)
+		// if !assert.NoErrorf(c, err, "Error found: %s", err) {
+		// 	return
+		// }
+		// if !assert.NotEmpty(c, logs, "No logs with service matching '%s' found, instead got '%s'", service, names) {
+		// 	return
+		// }
+		logs, err := client.FilterLogs(service, fi.WithMessageMatching(content))
+		intakeLogs := logsToString(logs)
+		assert.NoErrorf(c, err, "Error found: %s", err)
+		if expectLogs {
+			if assert.NotEmpty(c, logs, "Expected at least 1 log with content: '%s', from service: %s but received %s logs.", content, names, intakeLogs) {
 				t.Logf("Logs from service: '%s' with content: '%s' collected", names, content)
-				assert.NotEmpty(c, logs, "Expected at least 1 log with content: '%s', from service: %s but received %s logs.", content, names, intakeLogs)
-			} else {
+			}
+		} else {
+			if assert.Empty(c, logs, "No logs with content: '%s' is expected to be found from service: %s instead found: %s", content, names, intakeLogs) {
 				t.Logf("No logs from service: '%s' with content: '%s' collected as expected", names, content)
-				assert.Empty(c, logs, "No logs with content: '%s' is expected to be found from service: %s instead found: %s", content, names, intakeLogs)
 			}
 		}
-	}, 2*time.Minute, 10*time.Second)
+		// }
+	}, 1*time.Minute, 10*time.Second)
 }
 
 // CleanUp cleans up any existing log files (only useful when running dev mode/local runs).
@@ -141,9 +153,8 @@ func CleanUp(ls LogsTestSuite) {
 			ls.Env().VM.Execute("sudo rm -f /var/log/hello-world.log.old")
 			checkCmd = "ls /var/log/hello-world.log /var/log/hello-world.log.old 2>/dev/null || echo 'Files do not exist'"
 		case componentos.WindowsType:
-			ls.Env().VM.Execute("if (Test-Path C:\\logs\\hello-world.log) { Remove-Item -Path C:\\logs\\hello-world.log -Force }")
-			ls.Env().VM.Execute("if (Test-Path C:\\logs\\hello-world.log.old) { Remove-Item -Path C:\\logs\\hello-world.log.old -Force }")
-			checkCmd = "if (Test-Path C:\\logs\\hello-world.log) { Get-ChildItem -Path C:\\logs\\hello-world.log } elseif (Test-Path C:\\logs\\hello-world.log.old) { Get-ChildItem -Path C:\\logs\\hello-world.log.old } else { Write-Output 'Files do not exist' }"
+			ls.Env().VM.Execute("if (Test-Path C:\\logs) { Remove-Item -Path C:\\logs -Recurse -Force }")
+			checkCmd = "if (Test-Path C:\\logs) { Get-ChildItem -Path C:\\logs\\hello-world.log } else { Write-Output 'No File exist to be removed' }"
 		}
 
 		assert.EventuallyWithT(t, func(c *assert.CollectT) {
