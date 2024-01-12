@@ -42,8 +42,17 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/utils => ./pkg/config/utils/
 	github.com/DataDog/datadog-agent/pkg/errors => ./pkg/errors
 	github.com/DataDog/datadog-agent/pkg/gohai => ./pkg/gohai
+	github.com/DataDog/datadog-agent/pkg/logs/auditor => ./pkg/logs/auditor
+	github.com/DataDog/datadog-agent/pkg/logs/client => ./pkg/logs/client
+	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ./pkg/logs/diagnostic
+	github.com/DataDog/datadog-agent/pkg/logs/internal/processor => ./pkg/logs/internal/processor
 	github.com/DataDog/datadog-agent/pkg/logs/internal/status => ./pkg/logs/internal/status
+	github.com/DataDog/datadog-agent/pkg/logs/internal/util/testutils => ./pkg/logs/internal/util/testutils
+	github.com/DataDog/datadog-agent/pkg/logs/message => ./pkg/logs/message
 	github.com/DataDog/datadog-agent/pkg/logs/metrics => ./pkg/logs/metrics
+	github.com/DataDog/datadog-agent/pkg/logs/pipeline => ./pkg/logs/pipeline
+	github.com/DataDog/datadog-agent/pkg/logs/sender => ./pkg/logs/sender
+	github.com/DataDog/datadog-agent/pkg/logs/sources => ./pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ./pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/metrics => ./pkg/metrics/
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile => ./pkg/networkdevice/profile
@@ -90,8 +99,17 @@ require (
 	github.com/CycloneDX/cyclonedx-go v0.7.2
 	github.com/DataDog/appsec-internal-go v1.3.0
 	github.com/DataDog/datadog-agent/pkg/gohai v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/logs/auditor v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/logs/client v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/logs/internal/processor v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/internal/status v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/logs/internal/util/testutils v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/logs/message v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/logs/pipeline v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/logs/sender v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/logs/sources v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.51.0-rc.2
@@ -128,7 +146,7 @@ require (
 	github.com/aws/aws-lambda-go v1.37.0
 	github.com/aws/aws-sdk-go v1.46.0 // indirect
 	github.com/beevik/ntp v0.3.0
-	github.com/benbjohnson/clock v1.3.0
+	github.com/benbjohnson/clock v1.3.5
 	github.com/bhmj/jsonslice v0.0.0-20200323023432-92c3edaad8e2
 	github.com/blabber/go-freebsd-sysctl v0.0.0-20201130114544-503969f39d8f
 	github.com/cenkalti/backoff v2.2.1+incompatible
@@ -256,9 +274,9 @@ require (
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
 	golang.org/x/arch v0.6.0
 	golang.org/x/exp v0.0.0-20231214170342-aacd6d4b4611
-	golang.org/x/net v0.19.0
+	golang.org/x/net v0.20.0
 	golang.org/x/sync v0.5.0
-	golang.org/x/sys v0.15.0
+	golang.org/x/sys v0.16.0
 	golang.org/x/text v0.14.0
 	golang.org/x/time v0.3.0
 	golang.org/x/tools v0.16.1
@@ -565,10 +583,10 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.21.0 // indirect
 	go.opentelemetry.io/otel/trace v1.21.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.0.0 // indirect
-	golang.org/x/crypto v0.17.0 // indirect
+	golang.org/x/crypto v0.18.0 // indirect
 	golang.org/x/mod v0.14.0
 	golang.org/x/oauth2 v0.13.0 // indirect
-	golang.org/x/term v0.15.0 // indirect
+	golang.org/x/term v0.16.0 // indirect
 	gonum.org/v1/gonum v0.14.0 // indirect
 	google.golang.org/api v0.149.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
@@ -601,7 +619,7 @@ require github.com/lorenzosaino/go-sysctl v0.3.1
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0
-	github.com/DataDog/agent-payload/v5 v5.0.100
+	github.com/DataDog/agent-payload/v5 v5.0.102
 	github.com/DataDog/datadog-agent/cmd/agent/common/path v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/comp/core/config v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.51.0-rc.2
@@ -640,7 +658,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/json v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.51.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/version v0.51.0-rc.2
@@ -674,6 +691,7 @@ require (
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24 // indirect
 	github.com/AdamKorcz/go-118-fuzz-build v0.0.0-20230306123547-8075edf89bb0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.51.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.51.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.51.0-rc.2 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.13.0 // indirect
 	github.com/DataDog/go-sqllexer v0.0.9 // indirect
