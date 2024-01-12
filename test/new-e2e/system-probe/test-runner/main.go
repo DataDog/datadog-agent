@@ -46,7 +46,7 @@ type testConfig struct {
 }
 
 const (
-	testDirRoot  = "/opt/system-probe-tests"
+	testDirRoot  = "/opt/kernel-version-testing/system-probe-tests"
 	ciVisibility = "/ci-visibility"
 )
 
@@ -73,12 +73,6 @@ func getTimeout(pkg string) time.Duration {
 		}
 	}
 	return to
-}
-
-func pathEmbedded(fullPath, embedded string) bool {
-	normalized := fmt.Sprintf("/%s/", strings.Trim(embedded, "/"))
-
-	return strings.Contains(fullPath, normalized)
 }
 
 func glob(dir, filePattern string, filterFn func(path string) bool) ([]string, error) {
@@ -222,22 +216,6 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 
 	if err := concatenateJsons(jsonDir, jsonOutDir); err != nil {
 		return fmt.Errorf("concat json: %s", err)
-	}
-	return nil
-}
-
-func fixAssetPermissions() error {
-	matches, err := glob(testDirRoot, `.*\.o`, func(path string) bool {
-		return pathEmbedded(path, "pkg/ebpf/bytecode/build")
-	})
-	if err != nil {
-		return fmt.Errorf("glob assets: %s", err)
-	}
-
-	for _, file := range matches {
-		if err := os.Chown(file, 0, 0); err != nil {
-			return fmt.Errorf("chown %s: %s", file, err)
-		}
 	}
 	return nil
 }
