@@ -457,9 +457,9 @@ func formatErrorc(message string, context ...interface{}) error {
 	return errors.New(scrubMessage(msg))
 }
 
-// Log logs a message at the given level, using either bufferFunc (if logging is not yet set up) or
+// log logs a message at the given level, using either bufferFunc (if logging is not yet set up) or
 // logFunc, and treating the variadic args as the message.
-func Log(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(string), v ...interface{}) {
+func log(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(string), v ...interface{}) {
 	l := logger.Load()
 	if l != nil && l.inner != nil && l.shouldLog(logLevel) {
 		s := BuildLogEntry(v...)
@@ -565,7 +565,7 @@ func logContextWithError(logLevel seelog.LogLevel, bufferFunc func(), logFunc fu
 
 // Trace logs at the trace level
 func Trace(v ...interface{}) {
-	Log(seelog.TraceLvl, func() { Trace(v...) }, logger.trace, v...)
+	log(seelog.TraceLvl, func() { Trace(v...) }, logger.trace, v...)
 }
 
 // Tracef logs with format at the trace level
@@ -580,7 +580,7 @@ func TracefStackDepth(depth int, format string, params ...interface{}) {
 		return
 	}
 	msg := fmt.Sprintf(format, params...)
-	Log(seelog.TraceLvl, func() { TraceStackDepth(depth, msg) }, func(s string) {
+	log(seelog.TraceLvl, func() { TraceStackDepth(depth, msg) }, func(s string) {
 		logger.traceStackDepth(s, depth)
 	}, msg)
 }
@@ -605,7 +605,7 @@ func TraceFunc(logFunc func() string) {
 
 // Debug logs at the debug level
 func Debug(v ...interface{}) {
-	Log(seelog.DebugLvl, func() { Debug(v...) }, logger.debug, v...)
+	log(seelog.DebugLvl, func() { Debug(v...) }, logger.debug, v...)
 }
 
 // Debugf logs with format at the debug level
@@ -620,7 +620,7 @@ func DebugfStackDepth(depth int, format string, params ...interface{}) {
 		return
 	}
 	msg := fmt.Sprintf(format, params...)
-	Log(seelog.DebugLvl, func() { DebugStackDepth(depth, msg) }, func(s string) {
+	log(seelog.DebugLvl, func() { DebugStackDepth(depth, msg) }, func(s string) {
 		logger.debugStackDepth(s, depth)
 	}, msg)
 }
@@ -645,7 +645,7 @@ func DebugFunc(logFunc func() string) {
 
 // Info logs at the info level
 func Info(v ...interface{}) {
-	Log(seelog.InfoLvl, func() { Info(v...) }, logger.info, v...)
+	log(seelog.InfoLvl, func() { Info(v...) }, logger.info, v...)
 }
 
 // Infof logs with format at the info level
@@ -660,7 +660,7 @@ func InfofStackDepth(depth int, format string, params ...interface{}) {
 		return
 	}
 	msg := fmt.Sprintf(format, params...)
-	Log(seelog.InfoLvl, func() { InfoStackDepth(depth, msg) }, func(s string) {
+	log(seelog.InfoLvl, func() { InfoStackDepth(depth, msg) }, func(s string) {
 		logger.infoStackDepth(s, depth)
 	}, msg)
 }
@@ -793,7 +793,7 @@ func CriticalFunc(logFunc func() string) {
 
 // InfoStackDepth logs at the info level and the current stack depth plus the additional given one
 func InfoStackDepth(depth int, v ...interface{}) {
-	Log(seelog.InfoLvl, func() { InfoStackDepth(depth, v...) }, func(s string) {
+	log(seelog.InfoLvl, func() { InfoStackDepth(depth, v...) }, func(s string) {
 		logger.infoStackDepth(s, depth)
 	}, v...)
 }
@@ -807,14 +807,14 @@ func WarnStackDepth(depth int, v ...interface{}) error {
 
 // DebugStackDepth logs at the debug level and the current stack depth plus the additional given one and returns an error containing the formated log message
 func DebugStackDepth(depth int, v ...interface{}) {
-	Log(seelog.DebugLvl, func() { DebugStackDepth(depth, v...) }, func(s string) {
+	log(seelog.DebugLvl, func() { DebugStackDepth(depth, v...) }, func(s string) {
 		logger.debugStackDepth(s, depth)
 	}, v...)
 }
 
 // TraceStackDepth logs at the trace level and the current stack depth plus the additional given one and returns an error containing the formated log message
 func TraceStackDepth(depth int, v ...interface{}) {
-	Log(seelog.TraceLvl, func() { TraceStackDepth(depth, v...) }, func(s string) {
+	log(seelog.TraceLvl, func() { TraceStackDepth(depth, v...) }, func(s string) {
 		logger.traceStackDepth(s, depth)
 	}, v...)
 }
@@ -840,7 +840,7 @@ func JMXError(v ...interface{}) error {
 
 // JMXInfo Logs
 func JMXInfo(v ...interface{}) {
-	Log(seelog.InfoLvl, func() { JMXInfo(v...) }, jmxLogger.info, v...)
+	log(seelog.InfoLvl, func() { JMXInfo(v...) }, jmxLogger.info, v...)
 }
 
 // Flush flushes the underlying inner log
