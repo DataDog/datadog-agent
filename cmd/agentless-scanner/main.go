@@ -422,11 +422,11 @@ func attachCommand() *cobra.Command {
 		Short: "Mount the given snapshot into /snapshots/<snapshot-id>/<part> using a network block device",
 		Args:  cobra.ExactArgs(1),
 		RunE: runWithModules(func(cmd *cobra.Command, args []string) error {
-			snapshotARN, err := parseARN(args[0], resourceTypeSnapshot)
+			resourceARN, err := parseARN(args[0], resourceTypeSnapshot, resourceTypeVolume)
 			if err != nil {
 				return err
 			}
-			return attachCmd(snapshotARN, globalParams.diskMode, cliArgs.mount)
+			return attachCmd(resourceARN, globalParams.diskMode, cliArgs.mount)
 		}),
 	}
 
@@ -488,6 +488,9 @@ func runCmd(pidfilePath string, poolSize int, allowedScanTypes []string) error {
 	scanner, err := newSideScanner(hostname, limits, poolSize, allowedScanTypes)
 	if err != nil {
 		return fmt.Errorf("could not initialize agentless-scanner: %w", err)
+	}
+	if err := scanner.cleanSlate(); err != nil {
+		log.Error(err)
 	}
 	if err := scanner.subscribeRemoteConfig(ctx); err != nil {
 		return fmt.Errorf("could not accept configs from Remote Config: %w", err)
@@ -899,11 +902,11 @@ func (s *sideScanner) cleanupProcess(ctx context.Context) {
 	}
 }
 
-func attachCmd(snapshotARN arn.ARN, mode diskMode, mount bool) error {
+func attachCmd(resourceARN arn.ARN, mode diskMode, mount bool) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	cfg, err := newAWSConfig(ctx, snapshotARN.Region, nil)
+	cfg, err := newAWSConfig(ctx, resourceARN.Region, nil)
 	if err != nil {
 		return err
 	}
@@ -912,11 +915,26 @@ func attachCmd(snapshotARN arn.ARN, mode diskMode, mount bool) error {
 		mode = nbdAttach
 	}
 
-	scan, err := newScanTask(snapshotARN.String(), "unknown", defaultActions, nil, mode)
+	scan, err := newScanTask(resourceARN.String(), "unknown", defaultActions, nil, mode)
 	if err != nil {
 		return err
 	}
 	defer cleanupScan(scan)
+
+	resourceType, _, _ := getARNResource(resourceARN)
+	var snapshotARN arn.ARN
+	switch resourceType {
+	case resourceTypeVolume:
+		ec2client := ec2.NewFromConfig(cfg)
+		snapshotARN, err = createSnapshot(ctx, scan, ec2client, resourceARN)
+		if err != nil {
+			return err
+		}
+	case resourceTypeSnapshot:
+		snapshotARN = resourceARN
+	default:
+		panic("unreachable")
+	}
 
 	switch mode {
 	case volumeAttach:
@@ -1338,10 +1356,6 @@ func (s *sideScanner) start(ctx context.Context) {
 			}
 		}
 	}()
-
-	if err := s.cleanSlate(); err != nil {
-		log.Error(err)
-	}
 
 	go s.cleanupProcess(ctx)
 
