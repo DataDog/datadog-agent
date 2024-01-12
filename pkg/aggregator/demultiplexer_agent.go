@@ -6,18 +6,27 @@
 package aggregator
 
 import (
+	"embed"
+	"encoding/json"
 	"errors"
+	"expvar"
 	"fmt"
 	"io"
+	"path"
 	"sync"
 	"time"
 
+	htmlTemplate "html/template"
+	textTemplate "text/template"
+
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -650,4 +659,68 @@ func (d *AgentDemultiplexer) GetDefaultSender() (sender.Sender, error) {
 	}
 
 	return d.senders.GetDefaultSender()
+}
+
+//go:embed status_templates
+var templatesFS embed.FS
+
+func (d *AgentDemultiplexer) getStatusInfo() map[string]interface{} {
+	stats := make(map[string]interface{})
+
+	d.populateStatus(stats)
+
+	return stats
+}
+
+func (d *AgentDemultiplexer) populateStatus(stats map[string]interface{}) {
+	aggregatorStatsJSON := []byte(expvar.Get("aggregator").String())
+	aggregatorStats := make(map[string]interface{})
+	json.Unmarshal(aggregatorStatsJSON, &aggregatorStats) //nolint:errcheck
+	stats["aggregatorStats"] = aggregatorStats
+	s, err := checkstats.TranslateEventPlatformEventTypes(stats["aggregatorStats"])
+	if err != nil {
+		d.log.Debugf("failed to translate event platform event types in aggregatorStats: %s", err.Error())
+	} else {
+		stats["aggregatorStats"] = s
+	}
+}
+
+func (d *AgentDemultiplexer) Name() string {
+	return "Aggregator"
+}
+
+func (d *AgentDemultiplexer) Section() string {
+	return "aggregator"
+}
+
+func (d *AgentDemultiplexer) JSON(stats map[string]interface{}) error {
+	d.populateStatus(stats)
+
+	return nil
+}
+
+func (d *AgentDemultiplexer) Text(buffer io.Writer) error {
+	return renderText(buffer, d.getStatusInfo())
+}
+
+func (d *AgentDemultiplexer) HTML(buffer io.Writer) error {
+	return renderHTML(buffer, d.getStatusInfo())
+}
+
+func renderHTML(buffer io.Writer, data any) error {
+	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "aggregatorHTML.tmpl"))
+	if tmplErr != nil {
+		return tmplErr
+	}
+	t := htmlTemplate.Must(htmlTemplate.New("aggregatorHTML").Funcs(status.HTMLFmap()).Parse(string(tmpl)))
+	return t.Execute(buffer, data)
+}
+
+func renderText(buffer io.Writer, data any) error {
+	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "aggregator.tmpl"))
+	if tmplErr != nil {
+		return tmplErr
+	}
+	t := textTemplate.Must(textTemplate.New("aggregator").Funcs(status.HTMLFmap()).Parse(string(tmpl)))
+	return t.Execute(buffer, data)
 }

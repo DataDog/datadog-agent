@@ -9,16 +9,18 @@ package demultiplexerimpl
 import (
 	"context"
 
+	"go.uber.org/fx"
+
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"go.uber.org/fx"
 )
 
 // Module defines the fx options for this component.
@@ -51,7 +53,8 @@ type provides struct {
 	// implements diagnosesendermanager.Component). This has the nice consequence of preventing having
 	// demultiplexerimpl.Module and diagnosesendermanagerimpl.Module in the same fx.App because there would
 	// be two ways to create diagnosesendermanager.Component.
-	SenderManager diagnosesendermanager.Component
+	SenderManager  diagnosesendermanager.Component
+	StatusProvider status.InformationProvider
 }
 
 func newDemultiplexer(deps dependencies) (provides, error) {
@@ -76,8 +79,9 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 	}
 
 	return provides{
-		Comp:          demultiplexer,
-		SenderManager: demultiplexer,
+		Comp:           demultiplexer,
+		SenderManager:  demultiplexer,
+		StatusProvider: status.NewInformationProvider(demultiplexer),
 	}, nil
 }
 
