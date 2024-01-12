@@ -1680,7 +1680,9 @@ retry:
 				// Wait at least 15 seconds between concurrent volume snapshots.
 				d := 15 * time.Second
 				log.Debugf("snapshot creation rate exceeded for volume %q; retrying after %v (%d/%d)", volumeARN, d, retries, maxSnapshotRetries)
-				sleepCtx(ctx, d)
+				if !sleepCtx(ctx, d) {
+					return arn.ARN{}, ctx.Err()
+				}
 				goto retry
 			}
 		}
@@ -1871,7 +1873,9 @@ func (rt *awsRoundtripStats) RoundTrip(req *http.Request) (*http.Response, error
 			throttled100 = delay > 100*time.Millisecond
 			throttled1000 = delay > 1000*time.Millisecond
 			throttled5000 = delay > 5000*time.Millisecond
-			sleepCtx(req.Context(), delay)
+			if !sleepCtx(req.Context(), delay) {
+				return nil, req.Context().Err()
+			}
 		}
 	}
 	tags := []string{
