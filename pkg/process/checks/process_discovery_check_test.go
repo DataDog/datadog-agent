@@ -11,7 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
 //nolint:revive // TODO(PROC) Fix revive linter
@@ -73,4 +75,64 @@ func TestProcessDiscoveryChunking(t *testing.T) {
 		chunkedProcs := chunkProcessDiscoveries(procs, test.chunkSize)
 		assert.Len(t, chunkedProcs, test.expectedChunks)
 	}
+}
+
+func TestpidMapToProcDiscoveriesScrubbed(t *testing.T) {
+
+	statsTest := &procutil.Stats{
+
+		CreateTime: 2024, 
+		Status: "fine",
+		Nice: 1,
+		OpenFdCount: 1,
+		NumThreads: 1,
+		CPUPercent: nil,
+		CPUTime: nil,
+		MemInfo: nil,
+		MemInfoEx: nil,
+		IOStat: nil,
+		IORateStat: nil,
+		CtxSwitches: nil,
+	}	
+
+	pidMap := map[int32]*procutil.Process{
+
+		1 : &procutil.Process{
+			Pid:      10,
+			Ppid:     99,
+			NsPid:    77,
+			Name:     "test1",
+			Cwd:      "cwd_test",
+			Exe:      "exec_test",
+			Comm:     "comm_test",
+			Cmdline:  []string{"key:838372", "", "", "", ""},
+			Username: "usertest",
+			Uids:     []int32{1, 2, 3, 4, 5, 6},
+			Gids:     []int32{1, 2, 3, 4, 5, 6},
+
+			Stats: statsTest,
+		},	
+	}	
+	
+	
+	var config config.Reader = nil
+
+	scrubber := procutil.NewDefaultDataScrubber()
+	userProbe := NewLookupIDProbe(config)
+
+
+	rsul := pidMapToProcDiscoveries(pidMap, userProbe, scrubber)
+
+	for _, rsul := range rsul {
+		str := rsul.Command.Args
+		scrubbed := "*"
+
+		for i:=0; i<len(str); i++{
+			assert.Equal(t,str,scrubbed)
+
+		}
+	}	
+
+
+
 }
