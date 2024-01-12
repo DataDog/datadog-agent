@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	filetailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
+
 	//nolint:revive // TODO(AML) Fix revive linter
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
 )
@@ -467,6 +468,7 @@ func TestLauncherScanRecentFilesWithRemoval(t *testing.T) {
 			stop:                   make(chan struct{}),
 			validatePodContainerID: false,
 			scanPeriod:             10 * time.Second,
+			flarecontroller:        flareController.NewFlareController(),
 		}
 		launcher.pipelineProvider = mock.NewMockProvider()
 		launcher.registry = auditor.NewRegistry()
