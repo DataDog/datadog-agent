@@ -26,9 +26,6 @@ import (
 
 	digest "github.com/opencontainers/go-digest"
 
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
-
 	bolt "go.etcd.io/bbolt"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -186,12 +183,10 @@ var (
 	bucketKeyMediaType   = []byte("mediatype")
 	bucketKeySize        = []byte("size")
 	bucketKeyImage       = []byte("image")
-	bucketKeyRuntime     = []byte("runtime")
 	bucketKeyName        = []byte("name")
 	bucketKeyParent      = []byte("parent")
 	bucketKeyChildren    = []byte("children")
 	bucketKeyOptions     = []byte("options")
-	bucketKeySpec        = []byte("spec")
 	bucketKeySnapshotKey = []byte("snapshotKey")
 	bucketKeySnapshotter = []byte("snapshotter")
 	bucketKeyTarget      = []byte("target")
@@ -245,17 +240,11 @@ type ctrdContainer struct {
 	Snapshotter string
 	SnapshotKey string
 	Snapshot    *ctrdSnapshot
-	Runtime     struct {
-		Name           string
-		OptionsTypeURL string
-		Options        []byte
-	}
-	Labels    map[string]string
-	ImageName string
-	Image     *ctrdImage
-	Spec      interface{}
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	Labels      map[string]string
+	ImageName   string
+	Image       *ctrdImage
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 func (c ctrdContainer) String() string {
@@ -295,42 +284,19 @@ func ctrdReadMetadata(ctrdRoot string) ([]ctrdContainer, error) {
 	if err != nil || metadbInfo.Size() == 0 {
 		return nil, nil
 	}
-	metadbFd, err := os.Open(metadbPath)
-	if err != nil {
-		return nil, nil
-	}
-	defer ctrdUnflockBoltFd(metadbFd)
-	db, err := bolt.Open(metadbPath, 0600, &bolt.Options{
-		ReadOnly: true,
-		OpenFile: func(_ string, _ int, _ os.FileMode) (*os.File, error) {
-			return metadbFd, nil
-		},
-	})
-	if err != nil {
-		return nil, err
-	}
-	defer db.Close()
-
 	snapshotterDBPath := filepath.Join(ctrdRoot, "io.containerd.snapshotter.v1.overlayfs", "metadata.db")
 	snapshotterDBInfo, err := os.Stat(snapshotterDBPath)
 	if err != nil || snapshotterDBInfo.Size() == 0 {
 		return nil, nil
 	}
-	snapshotterDBFd, err := os.Open(snapshotterDBPath)
-	if err != nil {
-		return nil, nil
-	}
-	snapshotterDB, err := bolt.Open(snapshotterDBPath, 0600, &bolt.Options{
+
+	db, err := bolt.Open(metadbPath, 0600, &bolt.Options{
 		ReadOnly: true,
-		OpenFile: func(_ string, _ int, _ os.FileMode) (*os.File, error) {
-			return snapshotterDBFd, nil
-		},
 	})
-	defer ctrdUnflockBoltFd(snapshotterDBFd)
 	if err != nil {
 		return nil, err
 	}
-	defer snapshotterDB.Close()
+	defer db.Close()
 
 	var namespaces [][]byte
 	if err := db.View(func(tx *bolt.Tx) error {
@@ -482,13 +448,6 @@ func ctrdReadMetadata(ctrdRoot string) ([]ctrdContainer, error) {
 					return errCtrdInvalidState
 				}
 
-				var specPB anypb.Any
-				if err := proto.Unmarshal(bktCtr.Get(bucketKeySpec), &specPB); err != nil {
-					return err
-				}
-				if err := json.Unmarshal(specPB.GetValue(), &container.Spec); err != nil {
-					return err
-				}
 				container.NS = string(ns)
 				container.Name = string(containerName)
 				container.ImageName = string(bktCtr.Get(bucketKeyImage))
@@ -501,15 +460,6 @@ func ctrdReadMetadata(ctrdRoot string) ([]ctrdContainer, error) {
 				}
 				if err := container.UpdatedAt.UnmarshalBinary(bktCtr.Get(bucketKeyUpdatedAt)); err != nil {
 					return err
-				}
-
-				if bktRuntime := bktCtr.Bucket(bucketKeyRuntime); bktRuntime != nil {
-					container.Runtime.Name = string(bktRuntime.Get(bucketKeyName))
-					var options anypb.Any
-					if err := proto.Unmarshal(bktRuntime.Get(bucketKeyOptions), &options); err == nil {
-						container.Runtime.OptionsTypeURL = options.TypeUrl
-						container.Runtime.Options = options.Value
-					}
 				}
 
 				if bktCtrLabels := bktCtr.Bucket(bucketKeyObjectLabels); bktCtrLabels != nil {
@@ -587,6 +537,16 @@ func ctrdReadMetadata(ctrdRoot string) ([]ctrdContainer, error) {
 		return nil, err
 	}
 
+	db.Close()
+
+	snapshotterDB, err := bolt.Open(snapshotterDBPath, 0600, &bolt.Options{
+		ReadOnly: true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer snapshotterDB.Close()
+
 	for _, container := range containers {
 		if err := ctrdFillSapshotBackend(snapshotterDB, container.Snapshot); err != nil {
 			return nil, err
@@ -636,7 +596,7 @@ func ctrdFillSapshotBackend(db *bolt.DB, snapshot *ctrdSnapshot) error {
 			if len(parentKey) == 0 {
 				break
 			}
-			bktSnapshotParent = bktSnaps.Bucket([]byte(parentKey))
+			bktSnapshotParent = bktSnaps.Bucket(parentKey)
 			if bktSnapshotParent == nil {
 				break
 			}
