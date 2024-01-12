@@ -1212,6 +1212,9 @@ func (s *sideScanner) healthServer(ctx context.Context) error {
 }
 
 func (s *sideScanner) cleanSlate() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
 	scansDir, err := os.Open(scansRootDir)
 	if os.IsNotExist(err) {
 		if err := os.Mkdir(scansRootDir, 0700); err != nil {
@@ -1238,6 +1241,9 @@ func (s *sideScanner) cleanSlate() error {
 	if err != nil {
 		return err
 	}
+
+	var ebsMountPoints []string
+	var ctrMountPoints []string
 	for _, scanDir := range scanDirs {
 		name := filepath.Join(scansRootDir, scanDir.Name())
 		if !scanDir.IsDir() {
@@ -1246,17 +1252,68 @@ func (s *sideScanner) cleanSlate() error {
 			}
 		} else {
 			switch {
-			case strings.HasPrefix(scanDir.Name(), lambdaMountPrefix):
+			case strings.HasPrefix(scanDir.Name(), string(lambdaScanType)+"-"):
 				if err := os.RemoveAll(name); err != nil {
 					log.Warnf("clean slate: could not remove directory %q", name)
 				}
-			case strings.HasPrefix(scanDir.Name(), ebsMountPrefix): //nolint:staticcheck
-				// TODO
-			case strings.HasPrefix(scanDir.Name(), ctrdMountPrefix): //nolint:staticcheck
-				// TODO
+			case strings.HasPrefix(scanDir.Name(), string(ebsScanType)):
+				scanDirname := filepath.Join(scansRootDir, scanDir.Name())
+				scanEntries, err := os.ReadDir(scanDirname)
+				if err != nil {
+					log.Errorf("clean slate: %v", err)
+				} else {
+					for _, scanEntry := range scanEntries {
+						switch {
+						case strings.HasPrefix(scanEntry.Name(), ebsMountPrefix):
+							ebsMountPoints = append(ebsMountPoints, filepath.Join(scanDirname, scanEntry.Name()))
+						case strings.HasPrefix(scanEntry.Name(), ctrdMountPrefix) || strings.HasPrefix(scanEntry.Name(), dockerMountPrefix):
+							ctrMountPoints = append(ctrMountPoints, filepath.Join(scanDirname, scanEntry.Name()))
+						}
+					}
+				}
 			}
 		}
 	}
+
+	for _, mountPoint := range ctrMountPoints {
+		log.Warnf("clean slate: unmounting %q", mountPoint)
+		cleanupUmount(ctx, mountPoint)
+	}
+	// unmount "ebs-*" entrypoint last as the other mountpoint may depend on it
+	for _, mountPoint := range ebsMountPoints {
+		log.Warnf("clean slate: unmounting %q", mountPoint)
+		cleanupUmount(ctx, mountPoint)
+	}
+
+	for _, scanDir := range scanDirs {
+		scanDirname := filepath.Join(scansRootDir, scanDir.Name())
+		log.Warnf("clean slate: removing directory %q", scanDirname)
+		if err := os.RemoveAll(scanDirname); err != nil {
+			log.Errorf("clean slate: could not remove directory %q", scanDirname)
+
+		}
+	}
+	var blockDevices struct {
+		BlockDevices []blockDevice `json:"blockdevices"`
+	}
+	lsblkJSON, err := exec.CommandContext(ctx, "lsblk", "--json", "--bytes", "--output", "NAME,SERIAL,PATH,TYPE,FSTYPE").Output()
+	if err == nil {
+		if err := json.Unmarshal(lsblkJSON, &blockDevices); err != nil {
+			log.Warnf("lsblk parsing error: %v", err)
+		} else {
+			for _, bd := range blockDevices.BlockDevices {
+				if strings.HasPrefix(bd.Name, "nbd") && len(bd.Children) > 0 {
+					log.Warnf("clean slate: detaching nbd device %q", bd.Name)
+					if err := exec.CommandContext(ctx, "nbd-client", "-d", path.Join("/dev", bd.Name)).Run(); err != nil {
+						log.Errorf("clean slate: could not detach nbd device %q", bd.Name)
+					}
+				}
+			}
+		}
+	}
+
+	// TODO: detach volumes
+
 	return nil
 }
 
@@ -1313,7 +1370,11 @@ func (s *sideScanner) start(ctx context.Context) {
 					}
 					if s.printResults {
 						if bomRaw, err := json.MarshalIndent(result.SBOM, "  ", "  "); err == nil {
-							fmt.Printf("scanning SBOM result %s (took %s):\n%s\n", result.Scan, result.Duration, bomRaw)
+							fmt.Printf("scanning SBOM result %s (took %s):\n", result.Scan, result.Duration)
+							fmt.Printf("SBOMEntityID: %s\n", result.SBOMEntityID)
+							fmt.Printf("SBOMEntityType: %s\n", result.SBOMEntityType.String())
+							fmt.Printf("SBOMEntityTags: %+q\n", result.SBOMEntityTags)
+							fmt.Printf("%s\n", bomRaw)
 						}
 					}
 				}
@@ -2586,6 +2647,20 @@ type devicePartition struct {
 	fsType     string
 }
 
+type blockDevice struct {
+	Name     string `json:"name"`
+	Serial   string `json:"serial"`
+	Path     string `json:"path"`
+	Type     string `json:"type"`
+	FsType   string `json:"fstype"`
+	Children []struct {
+		Name   string `json:"name"`
+		Path   string `json:"path"`
+		Type   string `json:"type"`
+		FsType string `json:"fstype"`
+	} `json:"children"`
+}
+
 func listDevicePartitions(ctx context.Context, device string, volumeARN *arn.ARN) ([]devicePartition, error) {
 	log.Debugf("listing partition from device %q (volume = %q)", device, volumeARN)
 
@@ -2600,20 +2675,6 @@ func listDevicePartitions(ctx context.Context, device string, volumeARN *arn.ARN
 		_, volumeID, _ := getARNResource(*volumeARN)
 		sn := "vol" + strings.TrimPrefix(volumeID, "vol-") // vol-XXX => volXXX
 		serialNumber = &sn
-	}
-
-	type blockDevice struct {
-		Name     string `json:"name"`
-		Serial   string `json:"serial"`
-		Path     string `json:"path"`
-		Type     string `json:"type"`
-		FsType   string `json:"fstype"`
-		Children []struct {
-			Name   string `json:"name"`
-			Path   string `json:"path"`
-			Type   string `json:"type"`
-			FsType string `json:"fstype"`
-		} `json:"children"`
 	}
 
 	var blockDevices struct {
@@ -2749,6 +2810,35 @@ func mountDevice(ctx context.Context, scan *scanTask, partitions []devicePartiti
 	return mountPoints, nil
 }
 
+func cleanupUmount(ctx context.Context, mountPoint string) {
+	log.Debugf("un-mounting %q", mountPoint)
+	var umountOutput []byte
+	var erru error
+	for i := 0; i < 10; i++ {
+		if _, err := os.Stat(mountPoint); os.IsNotExist(err) {
+			return
+		}
+		umountCmd := exec.CommandContext(ctx, "umount", mountPoint)
+		if umountOutput, erru = umountCmd.CombinedOutput(); erru != nil {
+			// Check for "not mounted" errors that we ignore
+			const MntExFail = 32 // MNT_EX_FAIL
+			if exiterr, ok := erru.(*exec.ExitError); ok && exiterr.ExitCode() == MntExFail && bytes.Contains(umountOutput, []byte("not mounted")) {
+				return
+			}
+			log.Warnf("could not umount %s: %s: %s", mountPoint, erru, string(umountOutput))
+			if !sleepCtx(ctx, 3*time.Second) {
+				return
+			}
+			continue
+		}
+		if err := os.Remove(mountPoint); err != nil {
+			log.Warnf("could not remove mount point %q: %v", mountPoint, err)
+		}
+		return
+	}
+	log.Errorf("could not umount %s: %s: %s", mountPoint, erru, string(umountOutput))
+}
+
 func cleanupScan(scan *scanTask) {
 	ctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
 	defer cancel()
@@ -2782,32 +2872,7 @@ func cleanupScan(scan *scanTask) {
 
 		umount := func(mountPoint string) {
 			defer wg.Done()
-			log.Debugf("%s: un-mounting %s", scan, mountPoint)
-			var umountOutput []byte
-			var erru error
-			for i := 0; i < 10; i++ {
-				if _, err := os.Stat(mountPoint); os.IsNotExist(err) {
-					return
-				}
-				umountCmd := exec.CommandContext(ctx, "umount", mountPoint)
-				if umountOutput, erru = umountCmd.CombinedOutput(); erru != nil {
-					// Check for "not mounted" errors that we ignore
-					const MntExFail = 32 // MNT_EX_FAIL
-					if exiterr, ok := erru.(*exec.ExitError); ok && exiterr.ExitCode() == MntExFail && bytes.Contains(umountOutput, []byte("not mounted")) {
-						return
-					}
-					log.Warnf("%s: could not umount %s: %s: %s", scan, mountPoint, erru, string(umountOutput))
-					if !sleepCtx(ctx, 3*time.Second) {
-						return
-					}
-					continue
-				}
-				if err := os.Remove(mountPoint); err != nil {
-					log.Warnf("%s: could not remove mount point %q: %v", scan, mountPoint, err)
-				}
-				return
-			}
-			log.Errorf("%s: could not umount %s: %s: %s", scan, mountPoint, erru, string(umountOutput))
+			cleanupUmount(ctx, mountPoint)
 		}
 
 		var ebsMountPoints []fs.DirEntry

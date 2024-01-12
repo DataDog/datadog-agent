@@ -14,6 +14,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -54,7 +55,7 @@ func mountContainers(ctx context.Context, scan *scanTask, root string) (mountPoi
 		if err != nil {
 			return nil, err
 		}
-		log.Debugf("%s: found %d containers on %q", scan, len(containers), root)
+		log.Infof("%s: found %d containers from containerd on %q", scan, len(containers), root)
 		for _, ctr := range containers {
 			if ctr.Snapshot.Backend.Kind != kindActive {
 				continue
@@ -90,7 +91,7 @@ func mountContainers(ctx context.Context, scan *scanTask, root string) (mountPoi
 		if err != nil {
 			return nil, err
 		}
-		log.Debugf("%s: found %d containers on %q", scan, len(containers), root)
+		log.Infof("%s: found %d containers from Docker on %q", scan, len(containers), root)
 		for _, ctr := range containers {
 			if !ctr.State.Running {
 				continue
@@ -101,7 +102,7 @@ func mountContainers(ctx context.Context, scan *scanTask, root string) (mountPoi
 			ctrMountName := dockerMountPrefix + ctr.ID
 			ctrLayers, err := dockerLayersPaths(dockerRoot, ctr)
 			if err != nil {
-				log.Errorf("could get container layers %s: %v", ctr, err)
+				log.Errorf("could not get container layers %s: %v", ctr, err)
 				continue
 			}
 			ctrMountPoint, err := mountContainer(ctx, scan, ctrMountName, ctrLayers)
@@ -690,7 +691,7 @@ type dockerContainer struct {
 }
 
 func (c dockerContainer) String() string {
-	return fmt.Sprintf("%s/%s", c.ID, c.Name)
+	return path.Join(c.ID, c.Name)
 }
 
 func dockerReadMetadata(dockerRoot string) ([]dockerContainer, error) {

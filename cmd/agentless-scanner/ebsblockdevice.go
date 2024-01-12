@@ -94,7 +94,7 @@ func stopEBSBlockDevice(ctx context.Context, deviceName string) {
 	if err := exec.CommandContext(ctx, "nbd-client", "-readonly", "-d", deviceName).Run(); err != nil {
 		log.Errorf("nbd-client: %q disconnecting failed: %v", deviceName, err)
 	} else {
-		log.Debugf("nbd-client: %q disconnected", deviceName)
+		log.Tracef("nbd-client: %q disconnected", deviceName)
 	}
 	ebsBlockDevicesMu.Lock()
 	defer ebsBlockDevicesMu.Unlock()
@@ -163,6 +163,7 @@ func (bd *ebsBlockDevice) startServer() error {
 				}
 				log.Warnf("nbdserver: %q could not accept connection: %v", bd.deviceName, err)
 			} else {
+				log.Tracef("nbdserver: client connected")
 				addConn <- conn
 			}
 		}
