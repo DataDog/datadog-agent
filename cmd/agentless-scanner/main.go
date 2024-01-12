@@ -83,8 +83,6 @@ import (
 )
 
 const (
-	forkScanners = true
-
 	maxSnapshotRetries = 3
 	maxAttachRetries   = 10
 
@@ -107,6 +105,7 @@ var (
 	globalParams struct {
 		configFilePath string
 		diskMode       diskMode
+		noForkScanners bool
 	}
 
 	cleanupMaxDuration = 1 * time.Minute
@@ -302,6 +301,7 @@ func rootCommand() *cobra.Command {
 	pflags := sideScannerCmd.PersistentFlags()
 	pflags.StringVarP(&globalParams.configFilePath, "config-path", "c", path.Join(commonpath.DefaultConfPath, "datadog.yaml"), "specify the path to agentless-scanner configuration yaml file")
 	pflags.StringVar(&diskModeStr, "disk-mode", string(noAttach), fmt.Sprintf("disk mode used for scanning EBS volumes: %s, %s or %s", volumeAttach, nbdAttach, noAttach))
+	pflags.BoolVar(&globalParams.noForkScanners, "no-fork-scanners", false, "disable spawning a dedicated process for launching scanners")
 	sideScannerCmd.AddCommand(runCommand())
 	sideScannerCmd.AddCommand(runScannerCommand())
 	sideScannerCmd.AddCommand(scanCommand())
@@ -2102,10 +2102,10 @@ func (o scannerOptions) ID() string {
 }
 
 func launchScanner(ctx context.Context, opts scannerOptions) scanResult {
-	if forkScanners {
-		return launchScannerRemotely(ctx, opts)
+	if globalParams.noForkScanners {
+		return launchScannerLocally(ctx, opts)
 	}
-	return launchScannerLocally(ctx, opts)
+	return launchScannerRemotely(ctx, opts)
 }
 
 func launchScannerRemotely(ctx context.Context, opts scannerOptions) scanResult {
