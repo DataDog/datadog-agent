@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	_ "crypto/sha256"
@@ -41,12 +42,6 @@ type containerMountpoint struct {
 }
 
 func mountContainers(ctx context.Context, scan *scanTask, root string) (mountPoints []containerMountpoint, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("mountContainers panic recovered: %s", r)
-		}
-	}()
-
 	ctrdRoot := filepath.Join(root, "/var/lib/containerd")
 	ctrdRootInfo, err := os.Stat(ctrdRoot)
 	if err == nil && ctrdRootInfo.IsDir() {
@@ -285,14 +280,31 @@ type ctrdSnapshot struct {
 	UpdatedAt time.Time
 }
 
+func ctrdUnflockBoltFd(f *os.File) {
+	for {
+		err := syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+		if err == syscall.EWOULDBLOCK {
+			continue
+		}
+	}
+}
+
 func ctrdReadMetadata(ctrdRoot string) ([]ctrdContainer, error) {
 	metadbPath := filepath.Join(ctrdRoot, "io.containerd.metadata.v1.bolt", "meta.db")
 	metadbInfo, err := os.Stat(metadbPath)
 	if err != nil || metadbInfo.Size() == 0 {
 		return nil, nil
 	}
+	metadbFd, err := os.Open(metadbPath)
+	if err != nil {
+		return nil, nil
+	}
+	defer ctrdUnflockBoltFd(metadbFd)
 	db, err := bolt.Open(metadbPath, 0600, &bolt.Options{
 		ReadOnly: true,
+		OpenFile: func(_ string, _ int, _ os.FileMode) (*os.File, error) {
+			return metadbFd, nil
+		},
 	})
 	if err != nil {
 		return nil, err
@@ -304,9 +316,17 @@ func ctrdReadMetadata(ctrdRoot string) ([]ctrdContainer, error) {
 	if err != nil || snapshotterDBInfo.Size() == 0 {
 		return nil, nil
 	}
+	snapshotterDBFd, err := os.Open(snapshotterDBPath)
+	if err != nil {
+		return nil, nil
+	}
 	snapshotterDB, err := bolt.Open(snapshotterDBPath, 0600, &bolt.Options{
 		ReadOnly: true,
+		OpenFile: func(_ string, _ int, _ os.FileMode) (*os.File, error) {
+			return snapshotterDBFd, nil
+		},
 	})
+	defer ctrdUnflockBoltFd(snapshotterDBFd)
 	if err != nil {
 		return nil, err
 	}
@@ -551,6 +571,7 @@ func ctrdReadMetadata(ctrdRoot string) ([]ctrdContainer, error) {
 							return err
 						}
 					}
+					container.Snapshot = &snapshot
 				default:
 					return fmt.Errorf("unsupported snapshotter %q", container.Snapshotter)
 				}
