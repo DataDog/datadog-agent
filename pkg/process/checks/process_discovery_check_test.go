@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -76,62 +77,48 @@ func TestProcessDiscoveryChunking(t *testing.T) {
 	}
 }
 
-func TestpidMapToProcDiscoveriesScrubbed(t *testing.T) {
+func TestPidMapToProcDiscoveriesScrubbed(t *testing.T) {
+	proc := &procutil.Process{
+		Pid:      10,
+		Ppid:     99,
+		NsPid:    77,
+		Name:     "test1",
+		Cwd:      "cwd_test",
+		Exe:      "exec_test",
+		Comm:     "comm_test",
+		Username: "usertest",
+		Uids:     []int32{1, 2, 3, 4, 5, 6},
+		Gids:     []int32{1, 2, 3, 4, 5, 6},
+		Stats: &procutil.Stats{
+			CreateTime:  2024,
+		},
+	}
 
-	statsTest := &procutil.Stats{
+	testCases := map[string]struct {
+		cmdline  []string
+		expected []string
+	}{
+		"replace sensitive word": {
+			cmdline:  []string{"java", "apikey:838372", "", "", "", ""},
+			expected: []string{"java", "apikey:********", "", "", "", ""},
+		},
+		"no replacements": {
+			cmdline:  []string{"java", "key:838372", "", "", "", ""},
+			expected: []string{"java", "key:838372", "", "", "", ""},
+		},
+	}
 
-		CreateTime: 2024, 
-		Status: "fine",
-		Nice: 1,
-		OpenFdCount: 1,
-		NumThreads: 1,
-		CPUPercent: nil,
-		CPUTime: nil,
-		MemInfo: nil,
-		MemInfoEx: nil,
-		IOStat: nil,
-		IORateStat: nil,
-		CtxSwitches: nil,
-	}	
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			proc.Cmdline = testCase.cmdline
+			pidMap := map[int32]*procutil.Process{
+				1: proc,
+			}
 
-	pidMap := map[int32]*procutil.Process{
-
-		1 : &procutil.Process{
-			Pid:      10,
-			Ppid:     99,
-			NsPid:    77,
-			Name:     "test1",
-			Cwd:      "cwd_test",
-			Exe:      "exec_test",
-			Comm:     "comm_test",
-			Cmdline:  []string{"key:838372", "", "", "", ""},
-			Username: "usertest",
-			Uids:     []int32{1, 2, 3, 4, 5, 6},
-			Gids:     []int32{1, 2, 3, 4, 5, 6},
-
-			Stats: statsTest,
-		},	
-	}	
-	
-	
-	var config config.Reader = nil
-
-	scrubber := procutil.NewDefaultDataScrubber()
-	userProbe := NewLookupIDProbe(config)
-
-
-	rsul := pidMapToProcDiscoveries(pidMap, userProbe, scrubber)
-
-	for _, rsul := range rsul {
-		str := rsul.Command.Args
-		scrubbed := "*"
-
-		for i:=0; i<len(str); i++{
-			assert.Equal(t,str,scrubbed)
-
-		}
-	}	
-
-
-
+			scrubber := procutil.NewDefaultDataScrubber()
+			rsul := pidMapToProcDiscoveries(pidMap, nil, scrubber)
+			require.Len(t, rsul, 1)
+			assert.Equal(t, testCase.expected, rsul[0].Command.Args)
+		})
+	}
 }
