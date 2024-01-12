@@ -10,6 +10,12 @@ import (
 	"context"
 )
 
+// Data contains hostname and the hostname provider
+type Data struct {
+	Hostname string
+	Provider string
+}
+
 // HostnameInterface is the type for hostname methods.
 type HostnameInterface interface {
 	// Get returns the host name for the agent.

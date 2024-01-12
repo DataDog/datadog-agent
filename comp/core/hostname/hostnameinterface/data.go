@@ -15,12 +15,6 @@ const (
 	FargateProvider = "fargate"
 )
 
-// Data contains hostname and the hostname provider
-type Data struct {
-	Hostname string
-	Provider string
-}
-
 // FromConfiguration returns true if the hostname was found through the configuration file
 func (h Data) FromConfiguration() bool {
 	return h.Provider == ConfigProvider
