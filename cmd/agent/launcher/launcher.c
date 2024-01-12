@@ -4,7 +4,7 @@
 #include <unistd.h>
 
 #ifndef DD_AGENT_PATH
-#define DD_AGENT_PATH ""
+#error DD_AGENT_PATH must be defined
 #endif
 
 #ifndef DD_AGENT
@@ -21,7 +21,7 @@ int main(int argc, char **argv) {
     }
 
     if (strlen(DD_AGENT_PATH) == 0) {
-        printf("Cannot determine agent location");
+        fprintf(stderr, "Cannot determine agent location\n");
         exit(1);
     }
 
