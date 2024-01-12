@@ -26,4 +26,5 @@ int main(int argc, char **argv) {
     }
 
     execvp(DD_AGENT_PATH, argv);
+    return 1;
 }
