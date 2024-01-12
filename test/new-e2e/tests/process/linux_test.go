@@ -24,7 +24,7 @@ type linuxTestSuite struct {
 }
 
 func TestLinuxTestSuite(t *testing.T) {
-	e2e.Run(t, &linuxTestSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr)))), e2e.WithDevMode())
+	e2e.Run(t, &linuxTestSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr)))))
 }
 
 func (s *linuxTestSuite) SetupSuite() {
