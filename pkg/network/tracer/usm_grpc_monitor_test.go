@@ -121,7 +121,6 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 
 	srv, cancel := grpc.NewGRPCTLSServer(t, srvAddr, s.isTLS)
 	t.Cleanup(cancel)
-	srv.Run()
 	defaultCtx := context.Background()
 
 	cfg := s.getConfig()
@@ -430,7 +429,6 @@ func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 
 	srv, cancel := grpc.NewGRPCTLSServer(t, srvAddr, s.isTLS)
 	t.Cleanup(cancel)
-	srv.Run()
 	defaultCtx := context.Background()
 
 	// Random string generation is an heavy operation, and it's proportional for the length (30MB)
