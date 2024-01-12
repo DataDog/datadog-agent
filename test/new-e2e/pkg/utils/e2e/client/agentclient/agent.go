@@ -3,11 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package client
-
-import (
-	"time"
-)
+// Package agentclient provides an interface to run Agent commands.
+package agentclient
 
 // Agent is an interface to run Agent command.
 type Agent interface {
@@ -53,9 +50,9 @@ type Agent interface {
 
 	// StatusWithError runs status command and returns a Status struct and error
 	StatusWithError(commandArgs ...AgentArgsOption) (*Status, error)
+}
 
-	// waitForReadyTimeout blocks up to timeout waiting for agent to be ready.
-	// Retries every 100 ms up to timeout.
-	// Returns error on failure.
-	waitForReadyTimeout(timeout time.Duration) error
+// Status contains the Agent status content
+type Status struct {
+	Content string
 }

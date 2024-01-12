@@ -8,54 +8,54 @@ package testinfradefinition
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 
 	"github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/require"
 )
 
 type vmSuite struct {
-	e2e.Suite[e2e.VMEnv]
+	e2e.BaseSuite[environments.Host]
 }
 
 func TestVMSuite(t *testing.T) {
-	e2e.Run(t, &vmSuite{}, e2e.EC2VMStackDef())
+	e2e.Run(t, &vmSuite{})
 }
 
 func (v *vmSuite) TestWithImageName() {
 	requestedAmi := "ami-05fab674de2157a80"
-	v.UpdateEnv(e2e.EC2VMStackDef(
-		ec2params.WithImageName(requestedAmi, os.ARM64Arch, ec2os.AmazonLinuxOS)))
+	v.UpdateEnv(awshost.Provisioner(awshost.WithoutAgent(), awshost.WithEC2InstanceOptions(ec2.WithAMI(requestedAmi, os.AmazonLinux2, os.ARM64Arch))))
 
-	vm := v.Env().VM
+	vm := v.Env().RemoteHost
 	metadata := client.NewEC2Metadata(vm)
 	require.Equal(v.T(), requestedAmi, metadata.Get("ami-id"))
-	require.Equal(v.T(), "aarch64\n", vm.Execute("uname -m"))
-	require.Contains(v.T(), vm.Execute("grep PRETTY_NAME /etc/os-release"), "Amazon Linux")
+	require.Equal(v.T(), "aarch64\n", vm.MustExecute("uname -m"))
+	require.Contains(v.T(), vm.MustExecute("grep PRETTY_NAME /etc/os-release"), "Amazon Linux")
 }
 
 func (v *vmSuite) TestWithInstanceType() {
 	instanceType := "t3.medium"
-	v.UpdateEnv(e2e.EC2VMStackDef(ec2params.WithInstanceType(instanceType)))
+	v.UpdateEnv(awshost.Provisioner(awshost.WithoutAgent(), awshost.WithEC2InstanceOptions(ec2.WithInstanceType(instanceType))))
 
-	vm := v.Env().VM
+	vm := v.Env().RemoteHost
 	metadata := client.NewEC2Metadata(vm)
 	require.Equal(v.T(), instanceType, metadata.Get("instance-type"))
 }
 
 func (v *vmSuite) TestWithArch() {
-	v.UpdateEnv(e2e.EC2VMStackDef(ec2params.WithArch(ec2os.AmazonLinuxOS, os.ARM64Arch)))
-	require.Equal(v.T(), "aarch64\n", v.Env().VM.Execute("uname -m"))
+	v.UpdateEnv(awshost.Provisioner(awshost.WithoutAgent(), awshost.WithEC2InstanceOptions(ec2.WithOSArch(os.DebianDefault, os.ARM64Arch))))
+	require.Equal(v.T(), "aarch64\n", v.Env().RemoteHost.MustExecute("uname -m"))
 }
 
 func (v *vmSuite) TestWithUserdata() {
 	path := "/tmp/test-userdata"
-	v.UpdateEnv(e2e.EC2VMStackDef(ec2params.WithOS(ec2os.AmazonLinuxOS), ec2params.WithUserData("#!/bin/bash\ntouch "+path)))
+	v.UpdateEnv(awshost.Provisioner(awshost.WithoutAgent(), awshost.WithEC2InstanceOptions(ec2.WithUserData("#!/bin/bash\ntouch "+path))))
 
-	output, err := v.Env().VM.ExecuteWithError("ls " + path)
+	output, err := v.Env().RemoteHost.Execute("ls " + path)
 	require.NoError(v.T(), err)
 	require.Equal(v.T(), path+"\n", output)
 }
