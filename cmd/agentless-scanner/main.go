@@ -391,6 +391,7 @@ func offlineCommand() *cobra.Command {
 		poolSize     int
 		regions      []string
 		scanType     string
+		actions      []string
 		maxScans     int
 		printResults bool
 	}
@@ -398,7 +399,7 @@ func offlineCommand() *cobra.Command {
 		Use:   "offline",
 		Short: "Runs the agentless-scanner in offline mode (server-less mode)",
 		RunE: runWithModules(func(cmd *cobra.Command, args []string) error {
-			return offlineCmd(cliArgs.poolSize, scanType(cliArgs.scanType), cliArgs.regions, cliArgs.maxScans, cliArgs.printResults)
+			return offlineCmd(cliArgs.poolSize, scanType(cliArgs.scanType), cliArgs.regions, cliArgs.maxScans, cliArgs.printResults, cliArgs.actions)
 		}),
 	}
 
@@ -407,6 +408,7 @@ func offlineCommand() *cobra.Command {
 	cmd.Flags().StringVar(&cliArgs.scanType, "scan-type", string(ebsScanType), "scan type (ebs-volume or lambda)")
 	cmd.Flags().IntVar(&cliArgs.maxScans, "max-scans", 0, "maximum number of scans to perform")
 	cmd.Flags().BoolVar(&cliArgs.printResults, "print-results", false, "print scan results to stdout")
+	cmd.Flags().StringSliceVar(&cliArgs.actions, "actions", nil, "list of scan actions to perform (malware, vulns or vulnscontainers")
 	return cmd
 }
 
@@ -594,7 +596,7 @@ func scanCmd(arn, scannedHostname string, actions []string) error {
 	return nil
 }
 
-func offlineCmd(poolSize int, scanType scanType, regions []string, maxScans int, printResults bool) error {
+func offlineCmd(poolSize int, scanType scanType, regions []string, maxScans int, printResults bool, actions []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	defer statsd.Flush()
@@ -722,7 +724,7 @@ func offlineCmd(poolSize int, scanType scanType, regions []string, maxScans int,
 							}
 							volumeARN := ec2ARN(regionName, *identity.Account, resourceTypeVolume, *blockDeviceMapping.Ebs.VolumeId)
 							log.Debugf("%s %s %s %s %s", regionName, *instance.InstanceId, volumeARN, *blockDeviceMapping.DeviceName, *instance.PlatformDetails)
-							scan, err := newScanTask(volumeARN.String(), *instance.InstanceId, defaultActions, roles, globalParams.diskMode)
+							scan, err := newScanTask(volumeARN.String(), *instance.InstanceId, actions, roles, globalParams.diskMode)
 							if err != nil {
 								return err
 							}
@@ -772,7 +774,7 @@ func offlineCmd(poolSize int, scanType scanType, regions []string, maxScans int,
 					return fmt.Errorf("could not scan region %q for EBS volumes: %w", regionName, err)
 				}
 				for _, function := range functions.Functions {
-					scan, err := newScanTask(*function.FunctionArn, "", defaultActions, roles, globalParams.diskMode)
+					scan, err := newScanTask(*function.FunctionArn, "", actions, roles, globalParams.diskMode)
 					if err != nil {
 						return fmt.Errorf("could not create scan for lambda %s: %w", *function.FunctionArn, err)
 					}
