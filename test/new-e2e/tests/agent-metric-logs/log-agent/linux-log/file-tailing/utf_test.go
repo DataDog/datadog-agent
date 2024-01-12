@@ -9,11 +9,14 @@ import (
 	_ "embed"
 	"fmt"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
 	fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	e2e "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
 )
@@ -24,99 +27,103 @@ var utfLittleEndianLogConfig []byte
 //go:embed log-config/utf-16-be-log-config.yaml
 var utfBigEndianLogConfig []byte
 
-var service = "utfservice"
+const service = "utfservice"
 
-// UTF defines a test suite for the log agent interacting with a virtual machine and fake intake.
+// UTFSuite defines a test suite for the log agent interacting with a virtual machine and fake intake.
 type UtfSuite struct {
-	e2e.Suite[e2e.FakeIntakeEnv]
-	DevMode bool
+	e2e.BaseSuite[environments.Host]
 }
 
-// TestE2EVMFakeintakeSuite runs the E2E test suite for the log agent with a VM and fake intake.
+// TestUtfSuite runs the E2E test suite for tailing UTF encoded logs
 func TestUtfSuite(t *testing.T) {
 	s := &UtfSuite{}
-	_, s.DevMode = os.LookupEnv("TESTS_E2E_DEVMODE")
-	e2e.Run(t, s, e2e.FakeIntakeStackDef())
+	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
+	options := []e2e.SuiteOption{
+		e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithLogs(), agentparams.WithIntegration("custom_logs.d", logConfig)))),
+	}
+	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
+		options = append(options, e2e.WithDevMode())
+	}
+
+	e2e.Run(t, s, options...)
 }
 
-func (s *UtfSuite) generateUtfLog(endianness, content string) error {
-	utfLogGenerationCommand := fmt.Sprintf(`sudo python3 -c "f = open('/var/log/hello-world-utf.log', 'wb'); t = '%s\n'.encode('utf-16-%s'); f.write(t); f.close()"`, content, endianness)
-	_, err := s.Env().VM.ExecuteWithError(utfLogGenerationCommand)
-	return err
+func (s *UtfSuite) generateUtfLog(endianness, content string) {
+	s.T().Helper()
+	utfLogGenerationCommand := fmt.Sprintf(`sudo python3 -c "f = open('/var/log/hello-world-utf.log', 'ab'); t = '%s\n'.encode('utf-16-%s'); f.write(t); f.close()"`, content, endianness)
+	s.Env().RemoteHost.MustExecute(utfLogGenerationCommand)
 }
 
-func (s *UtfSuite) BeforeTest(_, _ string) {
-	s.Suite.BeforeTest("", "")
+func (s *UtfSuite) BeforeTest(suiteName, testName string) {
+	s.BaseSuite.BeforeTest(suiteName, testName)
+	// flush intake
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+		if assert.NoErrorf(c, err, "Having issues flushing server and resetting aggregators, retrying...") {
+			s.T().Log("Successfully flushed server and reset aggregators.")
+		}
+	}, 1*time.Minute, 10*time.Second)
 
 	// Create a new log file for utf encoded messages
-	s.Env().VM.Execute("sudo touch /var/log/hello-world-utf.log")
-	s.Env().VM.Execute("sudo chmod +r /var/log/hello-world-utf.log")
+	s.Env().RemoteHost.MustExecute("sudo touch /var/log/hello-world-utf.log")
+	s.Env().RemoteHost.MustExecute("sudo chmod +r /var/log/hello-world-utf.log")
+}
+
+func (s *UtfSuite) AfterTest(suiteName, testName string) {
+	s.BaseSuite.AfterTest(suiteName, testName)
+
+	// flush intake
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+		if assert.NoErrorf(c, err, "Having issues flushing server and resetting aggregators, retrying...") {
+			s.T().Log("Successfully flushed server and reset aggregators.")
+		}
+	}, 1*time.Minute, 10*time.Second)
+
+	// delete log file
+	s.Env().RemoteHost.MustExecute("sudo rm /var/log/hello-world-utf.log")
 }
 
 func (s *UtfSuite) TestUtfTailing() {
 	// Run test cases
-	s.Run("UtfLittleEndianCollection", s.UtfLittleEndianCollection)
-	s.Run("UtfBigEndianCollection", s.UtfBigEndianCollection)
+	s.Run("UtfLittleEndianCollection", s.testUtfLittleEndianCollection)
+	s.Run("UtfBigEndianCollection", s.testUtfBigEndianCollection)
 }
 
-func (s *UtfSuite) UtfBigEndianCollection() {
-	s.UpdateEnv(e2e.FakeIntakeStackDef(
-		e2e.WithAgentParams(
-			agentparams.WithLogs(),
-			agentparams.WithIntegration("custom_logs.d", string(utfBigEndianLogConfig)))))
-	t := s.T()
+func (s *UtfSuite) testUtfBigEndianCollection() {
+	agentOptions := []agentparams.Option{
+		agentparams.WithLogs(),
+		agentparams.WithIntegration("custom_logs.d", string(utfBigEndianLogConfig)),
+	}
+	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentOptions...)))
 
 	// generate utf-16-be log
 	content := "big endian sample log"
-	err := s.generateUtfLog("be", content)
-	assert.NoErrorf(t, err, "Unable to generate utf-16-be log, err: %s.", err)
+	s.generateUtfLog("be", content)
 
 	// check that intake has utf-16-be encoded log
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		logs, err := s.Env().Fakeintake.FilterLogs(service, fi.WithMessageMatching(content))
+		logs, err := s.Env().FakeIntake.Client().FilterLogs(service, fi.WithMessageMatching(content))
 		assert.NoErrorf(c, err, "Error found: %s", err)
-		intakeLogs := logsToString(logs)
-		assert.NotEmpty(c, logs, "Expected at least 1 log with content: '%s', but received %s logs.", content, intakeLogs)
-		t.Logf(intakeLogs)
+		assert.NotEmpty(c, logs, "Expected at least 1 log with content: '%s', from service: %s.", content, service)
 	}, 2*time.Minute, 10*time.Second)
-
-	// flush intake
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		err := s.Env().Fakeintake.FlushServerAndResetAggregators()
-		if assert.NoErrorf(c, err, "Having issues flushing server and resetting aggregators, retrying...") {
-			t.Log("Successfully flushed server and reset aggregators.")
-		}
-	}, 1*time.Minute, 10*time.Second)
-
 }
 
-func (s *UtfSuite) UtfLittleEndianCollection() {
-	s.UpdateEnv(e2e.FakeIntakeStackDef(
-		e2e.WithAgentParams(
-			agentparams.WithLogs(),
-			agentparams.WithIntegration("custom_logs.d", string(utfLittleEndianLogConfig)))))
-	t := s.T()
+func (s *UtfSuite) testUtfLittleEndianCollection() {
+	agentOptions := []agentparams.Option{
+		agentparams.WithLogs(),
+		agentparams.WithIntegration("custom_logs.d", string(utfLittleEndianLogConfig)),
+	}
+	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentOptions...)))
 
 	// generate utf-16-le log
 	content := "little endian sample log"
-	err := s.generateUtfLog("le", content)
-	assert.NoErrorf(t, err, "Unable to generate utf-16-le log, err: %s.", err)
+	s.generateUtfLog("le", content)
 
 	// check that intake has utf-16-le encoded log
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		logs, err := s.Env().Fakeintake.FilterLogs(service, fi.WithMessageMatching(content))
+		logs, err := s.Env().FakeIntake.Client().FilterLogs(service, fi.WithMessageMatching(content))
 		assert.NoErrorf(c, err, "Error found: %s", err)
-		intakeLogs := logsToString(logs)
-		assert.NotEmpty(c, logs, "Expected at least 1 log with content: '%s', but received %s logs.", content, intakeLogs)
-		t.Logf(intakeLogs)
+		assert.NotEmpty(c, logs, "Expected at least 1 log with content: '%s', from service: %s.", content, service)
 	}, 2*time.Minute, 10*time.Second)
-
-	// flush intake
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		err := s.Env().Fakeintake.FlushServerAndResetAggregators()
-		if assert.NoErrorf(c, err, "Having issues flushing server and resetting aggregators, retrying...") {
-			t.Log("Successfully flushed server and reset aggregators.")
-		}
-	}, 1*time.Minute, 10*time.Second)
-
 }
