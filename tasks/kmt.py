@@ -1,8 +1,8 @@
 import json
 import os
 import platform
-import re
 import tempfile
+from dataclasses import dataclass
 from glob import glob
 from pathlib import Path
 
@@ -148,26 +148,45 @@ def start_compiler(ctx):
 
 
 class LibvirtDomain:
-    def __init__(self, arch, version):
+    def __init__(self, arch, version, name="", ip=""):
         self.arch = arch
         self.version = version
-        self.name = ""
-        self.ip = ""
+        self.name = name
+        self.ip = ip
         self.runner = None
+        self.is_vm = True
+
+
+@dataclass
+class MetalInstance:
+    name: str
+    arch: str
+    ip: str
+    version: str = ""  # For compatibility
+    is_vm: bool = False
+
+
+def parse_stack_output_line(line):
+    name, ip = line.strip().split(' ')
+    if name.endswith("-instance-ip"):
+        return MetalInstance(name, name.replace('-instance-ip', ''), ip)
+    else:
+        return LibvirtDomain(name.split('-')[0], name.split('-')[1], name, ip)
+
+
+def get_all_instances(stack):
+    stack_outputs = f"{get_kmt_os().stacks_dir}/{stack}/stack.output"
+    with open(stack_outputs, 'r') as f:
+        for line in f:
+            yield parse_stack_output_line(line)
 
 
 def get_domain_name_and_ip(stack, version, arch):
-    stack_outputs = f"{get_kmt_os().stacks_dir}/{stack}/stack.output"
-    with open(stack_outputs, 'r') as f:
-        entries = f.readlines()
-        for entry in entries:
-            match = re.search(f"^.*{arch}-{version}.+\\s+.+$", entry.strip('\n'))
-            if match is None:
-                continue
+    for instance in get_all_instances(stack):
+        if instance.is_vm and instance.arch == arch and instance.version == version:
+            return instance.name, instance.ip
 
-            return match.group(0).split(' ')[0], match.group(0).split(' ')[1]
-
-    raise Exit(f"No entry for ({version}, {arch}) in {stack_outputs}")
+    raise Exit(f"No entry for ({version}, {arch}) in stack {stack}")
 
 
 def build_target_domains(ctx, stack, vms, ssh_key, log_debug):
@@ -187,14 +206,10 @@ def build_target_domains(ctx, stack, vms, ssh_key, log_debug):
 
 
 def get_instance_ip(stack, arch):
-    with open(f"{get_kmt_os().stacks_dir}/{stack}/stack.output", 'r') as f:
-        entries = f.readlines()
-        for entry in entries:
-            if f"{arch}-instance-ip" in entry.split(' ')[0]:
-                name = entry.split()[0].strip('\n')
-                ip = entry.split()[1].strip('\n')
-                info(f"[*] Instance {name} has ip {ip}")
-                return ip
+    for instance in get_all_instances(stack):
+        if not instance.is_vm and instance.arch == arch:
+            info(f"[*] Instance {instance.name} has ip {instance.ip}")
+            return instance.ip
 
 
 @task
@@ -418,41 +433,22 @@ def ssh_config(_, stacks=None, ddvm_rsa="~/dd/ami-builder/scripts/kernel-version
         ):
             continue
 
-        metal_instances = {}
-        vms = []
-
-        with output.open() as f:
-            for line in f:
-                name, ip = line.strip().split(' ')
-
-                if name.endswith("-instance-ip"):  # This is the metal instance
-                    arch = name.replace('-instance-ip', '')
-                    metal_instances[arch] = ip
-                else:  # A VM inside a corresponding metal instance
-                    name_parts = name.split('-')
-                    if len(name_parts) < 2:
-                        raise Exit(f"Invalid machine name {name} in stack {stack}")
-
-                    arch = name_parts[0]
-                    name = name_parts[1]
-                    vms.append((arch, name, ip))
-
-        for arch, ip in metal_instances.items():
-            print(f"Host kmt-{stack_name}-{arch}")
-            print(f"    HostName {ip}")
-            print("    User ubuntu")
-            print("")
-
-        for arch, name, ip in vms:
-            print(f"Host kmt-{stack_name}-{arch}-{name}")
-            print(f"    HostName {ip}")
-            print(f"    ProxyJump kmt-{stack_name}-{arch}")
-            print(f"    IdentityFile {ddvm_rsa}")
-            print("    User root")
-            # Disable host key checking, the IPs of the QEMU machines are reused and we don't want constant
-            # warnings about changed host keys. We need the combination of both options, if we just set
-            # StrictHostKeyChecking to no, it will still check the known hosts file and disable some options
-            # and print out scary warnings if the key doesn't match.
-            print("    UserKnownHostsFile /dev/null")
-            print("    StrictHostKeyChecking accept-new")
-            print("")
+        for instance in get_all_instances(stack.name):
+            if instance.is_vm:
+                print(f"Host kmt-{stack_name}-{instance.arch}-{instance.version}")
+                print(f"    HostName {instance.ip}")
+                print(f"    ProxyJump kmt-{stack_name}-{instance.arch}")
+                print(f"    IdentityFile {ddvm_rsa}")
+                print("    User root")
+                # Disable host key checking, the IPs of the QEMU machines are reused and we don't want constant
+                # warnings about changed host keys. We need the combination of both options, if we just set
+                # StrictHostKeyChecking to no, it will still check the known hosts file and disable some options
+                # and print out scary warnings if the key doesn't match.
+                print("    UserKnownHostsFile /dev/null")
+                print("    StrictHostKeyChecking accept-new")
+                print("")
+            else:
+                print(f"Host kmt-{stack_name}-{instance.arch}")
+                print(f"    HostName {instance.ip}")
+                print("    User ubuntu")
+                print("")
