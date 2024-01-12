@@ -2282,16 +2282,10 @@ func nextNBDDevice() string {
 func scanLambda(ctx context.Context, scan *scanTask, resultsCh chan scanResult) error {
 	defer statsd.Flush()
 
-	_, resourceID, _ := getARNResource(scan.ARN)
-	lambdaDir := scan.Path(lambdaMountPrefix + resourceID)
+	lambdaDir := scan.Path()
 	if err := os.MkdirAll(lambdaDir, 0700); err != nil {
 		return err
 	}
-	defer func() {
-		if err := os.RemoveAll(lambdaDir); err != nil {
-			log.Errorf("lambda: could not remove temp directory %q", lambdaDir)
-		}
-	}()
 
 	codePath, err := downloadAndUnzipLambda(ctx, scan, lambdaDir)
 	if err != nil {
