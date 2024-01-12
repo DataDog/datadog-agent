@@ -268,6 +268,8 @@ func (s scanTask) String() string {
 func main() {
 	flavor.SetFlavor(flavor.AgentlessScanner)
 
+	signal.Ignore(syscall.SIGPIPE)
+
 	cmd := rootCommand()
 	cmd.SilenceErrors = true
 	err := cmd.Execute()
