@@ -531,6 +531,7 @@ def changelog(ctx, new_commit_sha):
 
     commit_range_link = f"https://github.com/DataDog/datadog-agent/compare/{old_commit_sha}..{new_commit_sha}"
     empty_changelog_msg = "No new System Probe related commits in this release :cricket:"
+    no_commits_msg = "No new commits in this release :cricket:"
     slack_message = (
         "The nightly deployment is rolling out to Staging :siren: \n"
         + f"Changelog for <{commit_range_link}|commit range>: `{old_commit_sha}` to `{new_commit_sha}`:\n"
@@ -538,7 +539,7 @@ def changelog(ctx, new_commit_sha):
 
     if old_commit_sha == new_commit_sha:
         print("No new commits found, exiting")
-        slack_message += empty_changelog_msg
+        slack_message += no_commits_msg
         send_slack_message("system-probe-ops", slack_message)
         return
 
