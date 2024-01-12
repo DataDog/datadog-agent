@@ -84,7 +84,7 @@ import (
 
 const (
 	maxSnapshotRetries = 3
-	maxAttachRetries   = 10
+	maxAttachRetries   = 30
 
 	maxLambdaUncompressed = 256 * 1024 * 1024
 
@@ -1318,6 +1318,7 @@ func (s *sideScanner) cleanSlate() error {
 	var blockDevices struct {
 		BlockDevices []blockDevice `json:"blockdevices"`
 	}
+	var attachedVolumeIDs []string
 	lsblkJSON, err := exec.CommandContext(ctx, "lsblk", "--json", "--bytes", "--output", "NAME,SERIAL,PATH,TYPE,FSTYPE").Output()
 	if err == nil {
 		if err := json.Unmarshal(lsblkJSON, &blockDevices); err != nil {
@@ -1327,7 +1328,39 @@ func (s *sideScanner) cleanSlate() error {
 				if strings.HasPrefix(bd.Name, "nbd") && len(bd.Children) > 0 {
 					log.Warnf("clean slate: detaching nbd device %q", bd.Name)
 					if err := exec.CommandContext(ctx, "nbd-client", "-d", path.Join("/dev", bd.Name)).Run(); err != nil {
-						log.Errorf("clean slate: could not detach nbd device %q", bd.Name)
+						log.Errorf("clean slate: could not detach nbd device %q: %v", bd.Name, err)
+					}
+				}
+				if strings.HasPrefix(bd.Serial, "vol") {
+					attachedVolumeIDs = append(attachedVolumeIDs, "vol-"+strings.TrimPrefix(bd.Serial, "vol"))
+				}
+			}
+		}
+	}
+	if len(attachedVolumeIDs) > 0 {
+		self, err := getSelfEC2InstanceIndentity(ctx)
+		if err == nil {
+			cfg, err := newAWSConfig(ctx, self.Region, getDefaultRolesMapping()[self.Region])
+			if err == nil {
+				ec2client := ec2.NewFromConfig(cfg)
+				for _, volumeID := range attachedVolumeIDs {
+					log.Warnf("clean slate: detaching ec2 volume %q", volumeID)
+					if _, err := ec2client.DetachVolume(ctx, &ec2.DetachVolumeInput{
+						Force:    aws.Bool(true),
+						VolumeId: aws.String(volumeID),
+					}); err != nil {
+						log.Errorf("clean slate: could not detach ec2 volume %q: %v", volumeID, err)
+					}
+					for i := 0; i < 50; i++ {
+						if !sleepCtx(ctx, 1*time.Second) {
+							break
+						}
+						if _, errd := ec2client.DeleteVolume(ctx, &ec2.DeleteVolumeInput{
+							VolumeId: aws.String(volumeID),
+						}); errd == nil {
+							log.Debugf("clean slate: volume deleted %q", volumeID)
+							break
+						}
 					}
 				}
 			}
