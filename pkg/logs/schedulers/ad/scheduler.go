@@ -8,7 +8,6 @@ package ad
 
 import (
 	"fmt"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"strings"
 
 	yaml "gopkg.in/yaml.v2"
@@ -17,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/adlistener"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
