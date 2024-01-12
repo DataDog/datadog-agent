@@ -1152,16 +1152,38 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 			case CloneNr:
 				if flags := tracer.ReadArgUint64(regs, 0); flags&uint64(unix.SIGCHLD) == 0 {
 					pc.SetAsThreadOf(process, ppid)
+				} else if parent := pc.Get(ppid); parent != nil {
+					sendSyscallMsg(&ebpfless.SyscallMsg{
+						Type: ebpfless.SyscallTypeFork,
+						Fork: &ebpfless.ForkSyscallMsg{
+							PPID: uint32(parent.Tgid),
+						},
+					})
+				}
+			case Clone3Nr:
+				data, err := tracer.ReadArgData(process.Pid, regs, 0, 8 /*sizeof flags only*/)
+				if err != nil {
 					return
 				}
-				fallthrough
+				if flags := binary.NativeEndian.Uint64(data); flags&uint64(unix.SIGCHLD) == 0 {
+					pc.SetAsThreadOf(process, ppid)
+				} else if parent := pc.Get(ppid); parent != nil {
+					sendSyscallMsg(&ebpfless.SyscallMsg{
+						Type: ebpfless.SyscallTypeFork,
+						Fork: &ebpfless.ForkSyscallMsg{
+							PPID: uint32(parent.Tgid),
+						},
+					})
+				}
 			case ForkNr, VforkNr:
-				sendSyscallMsg(&ebpfless.SyscallMsg{
-					Type: ebpfless.SyscallTypeFork,
-					Fork: &ebpfless.ForkSyscallMsg{
-						PPID: uint32(ppid),
-					},
-				})
+				if parent := pc.Get(ppid); parent != nil {
+					sendSyscallMsg(&ebpfless.SyscallMsg{
+						Type: ebpfless.SyscallTypeFork,
+						Fork: &ebpfless.ForkSyscallMsg{
+							PPID: uint32(parent.Tgid),
+						},
+					})
+				}
 			case FcntlNr:
 				if ret := tracer.ReadRet(regs); ret >= 0 {
 					syscallMsg, exists := process.Nr[nr]
