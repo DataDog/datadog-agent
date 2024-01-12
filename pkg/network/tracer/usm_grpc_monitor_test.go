@@ -124,20 +124,6 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 	defaultCtx := context.Background()
 
 	cfg := s.getConfig()
-	tr := setupTracer(t, cfg)
-	require.NotNil(t, tr.usmMonitor)
-
-	if s.isTLS {
-		require.Eventuallyf(t, func() bool {
-			traced := utils.GetTracedPrograms("go-tls")
-			for _, prog := range traced {
-				if slices.Contains[[]uint32](prog.PIDs, uint32(srv.Process.Pid)) {
-					return true
-				}
-			}
-			return false
-		}, time.Second*15, time.Millisecond*100, "process %v is not traced by gotls", srv.Process.Pid)
-	}
 
 	// c is a stream endpoint
 	// a + b are unary endpoints
@@ -379,6 +365,21 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 					t.Skip("Skipping test due to known issue")
 				}
 
+				tr := setupTracer(t, cfg)
+				require.NotNil(t, tr.usmMonitor)
+
+				if s.isTLS {
+					require.Eventuallyf(t, func() bool {
+						traced := utils.GetTracedPrograms("go-tls")
+						for _, prog := range traced {
+							if slices.Contains[[]uint32](prog.PIDs, uint32(srv.Process.Pid)) {
+								return true
+							}
+						}
+						return false
+					}, time.Second*15, time.Millisecond*100, "process %v is not traced by gotls", srv.Process.Pid)
+				}
+
 				tr.removeClient(clientID)
 				initTracerState(t, tr)
 
@@ -418,10 +419,10 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 
 					return true
 				}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
+				if t.Failed() && tr.usmMonitor != nil {
+					ebpftest.DumpMapsTestHelper(t, tr.usmMonitor.DumpMaps, "http2_in_flight", "http2_dynamic_table")
+				}
 			})
-			if t.Failed() && tr.usmMonitor != nil {
-				ebpftest.DumpMapsTestHelper(t, tr.usmMonitor.DumpMaps, "http2_in_flight", "http2_dynamic_table")
-			}
 		}
 	}
 }
