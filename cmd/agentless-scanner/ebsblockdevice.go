@@ -214,7 +214,7 @@ func (bd *ebsBlockDevice) waitServerClosed(ctx context.Context) error {
 }
 
 func (bd *ebsBlockDevice) serverHandleConn(conn net.Conn, backend backend.Backend) {
-	log.Debugf("nbdserver: %q client connected ", bd.deviceName)
+	log.Tracef("nbdserver: %q client connected ", bd.deviceName)
 	err := server.Handle(conn,
 		[]*server.Export{
 			{
