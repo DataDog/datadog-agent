@@ -33,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 )
@@ -73,7 +72,6 @@ type ebpfProgram struct {
 	cfg                   *config.Config
 	tailCallRouter        []manager.TailCallRoute
 	connectionProtocolMap *ebpf.Map
-	kversion              kernel.Version
 
 	enabledProtocols  []*protocols.ProtocolSpec
 	disabledProtocols []*protocols.ProtocolSpec
@@ -84,11 +82,6 @@ type ebpfProgram struct {
 }
 
 func newEBPFProgram(c *config.Config, sockFD, connectionProtocolMap *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
-	kversion, err := kernel.HostVersion()
-	if err != nil {
-		log.Warnf("unable to detect kernel version. some features might be disabled: %s", err)
-	}
-
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: protocols.TLSDispatcherProgramsMap},
@@ -142,7 +135,6 @@ func newEBPFProgram(c *config.Config, sockFD, connectionProtocolMap *ebpf.Map, b
 		Manager:               errtelemetry.NewManager(mgr, bpfTelemetry),
 		cfg:                   c,
 		connectionProtocolMap: connectionProtocolMap,
-		kversion:              kversion,
 	}
 
 	opensslSpec.Factory = newSSLProgramProtocolFactory(mgr, sockFD, bpfTelemetry)
@@ -360,10 +352,6 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	options.ConstantEditors = append(options.ConstantEditors,
 		manager.ConstantEditor{Name: "ephemeral_range_begin", Value: uint64(begin)},
 		manager.ConstantEditor{Name: "ephemeral_range_end", Value: uint64(end)})
-
-	// Enable event flushes from socket filter programs if possible
-	isDirectFlushSupported := e.kversion >= kernel.VersionCode(5, 4, 0)
-	utils.AddBoolConst(&options, isDirectFlushSupported, "direct_flush_supported")
 
 	for _, p := range e.Manager.Probes {
 		options.ActivatedProbes = append(options.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: p.ProbeIdentificationPair})

@@ -310,13 +310,27 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 	currentChecksDistribution := d.currentDistribution()
 
 	proposedDistribution := newChecksDistribution(currentChecksDistribution.runnerWorkers())
+
+	// First all the checks that are excluded from rebalancing are added to the
+	// same runner where they are currently running.
+	for checkID, check := range currentChecksDistribution.Checks {
+		checkName := checkid.IDToCheckName(checkid.ID(checkID))
+		if _, excluded := d.excludedChecksFromDispatching[checkName]; excluded {
+			proposedDistribution.addCheck(checkID, check.WorkersNeeded, check.Runner)
+		}
+	}
+
+	// Place the checks that are not excluded from rebalancing
 	for _, checkID := range currentChecksDistribution.checksSortedByWorkersNeeded() {
-		proposedDistribution.addToLeastBusy(
-			checkID,
-			currentChecksDistribution.workersNeededForCheck(checkID),
-			currentChecksDistribution.runnerForCheck(checkID),
-			"",
-		)
+		checkName := checkid.IDToCheckName(checkid.ID(checkID))
+		if _, excluded := d.excludedChecksFromDispatching[checkName]; !excluded {
+			proposedDistribution.addToLeastBusy(
+				checkID,
+				currentChecksDistribution.workersNeededForCheck(checkID),
+				currentChecksDistribution.runnerForCheck(checkID),
+				"",
+			)
+		}
 	}
 
 	// We don't calculate the optimal distribution, so it might be worse than
