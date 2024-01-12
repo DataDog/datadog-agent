@@ -71,7 +71,7 @@ try {
     Remove-Item $tempMsi
 }
 catch {
-    Write-Error "Could not generate checksum for package $($url): $($_)"
+    Write-Host "Could not generate checksum for package $($url): $($_)"
     exit 4
 }
 
