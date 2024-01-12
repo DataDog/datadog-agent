@@ -4,6 +4,7 @@ import platform
 import re
 import tempfile
 from glob import glob
+from pathlib import Path
 
 from invoke import task
 
@@ -375,3 +376,83 @@ def clean(ctx, stack=None, container=False, image=False):
         ctx.run("docker rm -f $(docker ps -aqf \"name=kmt-compiler\")")
     if image:
         ctx.run("docker image rm kmt:compile")
+
+
+@task(
+    help={
+        "stacks": "Comma separated list of stacks to generate ssh config for. 'all' to generate for all stacks.",
+        "ddvm_rsa": "Path to the ddvm_rsa file to use for connecting to the VMs. Defaults to the path in the ami-builder repo",
+    }
+)
+def ssh_config(_, stacks=None, ddvm_rsa="~/dd/ami-builder/scripts/kernel-version-testing/files/ddvm_rsa"):
+    """
+    Print the SSH config for the given stacks.
+
+    Recommended usage: inv kmt.ssh-config --stacks=all > ~/.ssh/config-kmt.
+    Then add the following to your ~/.ssh/config:
+            Include ~/.ssh/config-kmt
+
+    This makes it easy to use the SSH config for all stacks whenever you change anything,
+    without worrying about overriding existing configs.
+    """
+    stacks_dir = Path(get_kmt_os().stacks_dir)
+    stacks_to_print = None
+
+    if stacks is not None and stacks != 'all':
+        stacks_to_print = set(stacks.split(','))
+
+    for stack in stacks_dir.iterdir():
+        if not stack.is_dir():
+            continue
+
+        output = stack / "stack.output"
+        if not output.exists():
+            continue  # Invalid/removed stack, ignore it
+
+        stack_name = stack.name.replace('-ddvm', '')
+        if (
+            stacks_to_print is not None
+            and 'all' not in stacks_to_print
+            and stack_name not in stacks_to_print
+            and stack.name not in stacks_to_print
+        ):
+            continue
+
+        metal_instances = {}
+        vms = []
+
+        with output.open() as f:
+            for line in f:
+                name, ip = line.strip().split(' ')
+
+                if name.endswith("-instance-ip"):  # This is the metal instance
+                    arch = name.replace('-instance-ip', '')
+                    metal_instances[arch] = ip
+                else:  # A VM inside a corresponding metal instance
+                    name_parts = name.split('-')
+                    if len(name_parts) < 2:
+                        raise Exit(f"Invalid machine name {name} in stack {stack}")
+
+                    arch = name_parts[0]
+                    name = name_parts[1]
+                    vms.append((arch, name, ip))
+
+        for arch, ip in metal_instances.items():
+            print(f"Host kmt-{stack_name}-{arch}")
+            print(f"    HostName {ip}")
+            print("    User ubuntu")
+            print("")
+
+        for arch, name, ip in vms:
+            print(f"Host kmt-{stack_name}-{arch}-{name}")
+            print(f"    HostName {ip}")
+            print(f"    ProxyJump kmt-{stack_name}-{arch}")
+            print(f"    IdentityFile {ddvm_rsa}")
+            print("    User root")
+            # Disable host key checking, the IPs of the QEMU machines are reused and we don't want constant
+            # warnings about changed host keys. We need the combination of both options, if we just set
+            # StrictHostKeyChecking to no, it will still check the known hosts file and disable some options
+            # and print out scary warnings if the key doesn't match.
+            print("    UserKnownHostsFile /dev/null")
+            print("    StrictHostKeyChecking accept-new")
+            print("")
