@@ -53,7 +53,7 @@ from tasks import (
     trace_agent,
     vscode,
 )
-from tasks.assign_pr import add_team_labels
+from tasks.assign_pr import add_labels_and_reviewers
 from tasks.build_tags import audit_tag_impact, print_default_build_tags
 from tasks.codecov import apply_missing_coverage, codecov, upload_coverage_to_s3
 from tasks.components import lint_components, lint_fxutil_oneshot_test
@@ -144,7 +144,7 @@ ns.add_task(go_fix)
 ns.add_task(build_messagetable)
 ns.add_task(get_impacted_packages)
 ns.add_task(modules.go_work)
-ns.add_task(add_team_labels)
+ns.add_task(add_labels_and_reviewers)
 ns.add_task(get_modified_packages)
 ns.add_task(send_unit_tests_stats)
 # To deprecate
