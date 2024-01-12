@@ -301,10 +301,6 @@ func run() error {
 		return fmt.Errorf("failed to build test configuration: %w", err)
 	}
 
-	if err := fixAssetPermissions(); err != nil {
-		return fmt.Errorf("asset perms: %s", err)
-	}
-
 	if err := os.RemoveAll(ciVisibility); err != nil {
 		return fmt.Errorf("failed to remove contents of %s: %w", ciVisibility, err)
 	}
