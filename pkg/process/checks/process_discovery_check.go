@@ -136,6 +136,8 @@ func pidMapToProcDiscoveries(pidMap map[int32]*procutil.Process, userProbe *Look
 		proc.Cmdline = scrubber.ScrubProcessCommand(proc)
 
 		pd = append(pd, &model.ProcessDiscovery{
+
+			
 			Pid:        proc.Pid,
 			NsPid:      proc.NsPid,
 			Command:    formatCommand(proc),
