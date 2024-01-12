@@ -446,6 +446,7 @@ func (a *apmetwtracerimpl) addPID(pid uint32) error {
 	}
 	err = a.reconfigureProvider()
 	if err != nil {
+		c.Close()
 		delete(a.pids, pid)
 	}
 	return err
