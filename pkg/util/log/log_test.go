@@ -10,12 +10,16 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"reflect"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -498,4 +502,88 @@ func TestStackDepthfLogging(t *testing.T) {
 			assert.Equal(t, tc.expectedToBeCalled, strings.Count(b.String(), "TestStackDepthfLogging"), tc)
 		})
 	}
+}
+
+func mockScrubBytesWithCount(t *testing.T) *atomic.Int32 {
+	oldScrubber := scrubBytesFunc
+	t.Cleanup(func() { scrubBytesFunc = oldScrubber })
+
+	var counter atomic.Int32
+	counterPtr := &counter
+
+	scrubBytesFunc = func(msg []byte) ([]byte, error) {
+		counterPtr.Add(1)
+		return msg, nil
+	}
+
+	return counterPtr
+}
+
+func testFunctionsScrubbingCount(t *testing.T, funcs []any, args []any) {
+	for _, fun := range funcs {
+		valTy := reflect.TypeOf(fun)
+		require.Equal(t, valTy.Kind(), reflect.Func)
+
+		// get the function name to use as test name
+		val := reflect.ValueOf(fun)
+		fun := runtime.FuncForPC(val.Pointer())
+		require.NotNil(t, fun)
+
+		funcName := fun.Name()
+		if _, fname, ok := strings.Cut(funcName, "."); ok {
+			funcName = fname
+		}
+
+		testName := fmt.Sprintf("Scrub Count %s", funcName)
+		t.Run(testName, func(t *testing.T) {
+			// create a slice of reflect.Value from the args
+			reflArgs := make([]reflect.Value, 0, len(args))
+			for _, arg := range args {
+				reflArgs = append(reflArgs, reflect.ValueOf(arg))
+			}
+
+			counter := mockScrubBytesWithCount(t)
+			val.Call(reflArgs)
+			require.Equal(t, 1, int(counter.Load()))
+		})
+	}
+}
+
+func TestLoggerScrubbingCount(t *testing.T) {
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.TraceLvl, "[%LEVEL] %FuncShort: %Msg")
+	require.NoError(t, err)
+	SetupLogger(l, "trace")
+
+	testFunctionsScrubbingCount(
+		t,
+		[]any{Trace, Debug, Info, Warn, Error, Critical},
+		[]any{"a", "b"},
+	)
+	testFunctionsScrubbingCount(
+		t,
+		[]any{Tracef, Debugf, Infof, Warnf, Errorf, Criticalf},
+		[]any{"a %s c", "b"},
+	)
+	testFunctionsScrubbingCount(
+		t,
+		[]any{TracefStackDepth, DebugfStackDepth, InfofStackDepth, WarnfStackDepth, ErrorfStackDepth, CriticalfStackDepth},
+		[]any{1, "a %s c", "b"},
+	)
+	testFunctionsScrubbingCount(
+		t,
+		[]any{Tracec, Debugc, Infoc, Warnc, Errorc, Criticalc},
+		[]any{"a b", "1 %s 3", "2"},
+	)
+	testFunctionsScrubbingCount(
+		t,
+		[]any{TracecStackDepth, DebugcStackDepth, InfocStackDepth, WarncStackDepth, ErrorcStackDepth, CriticalcStackDepth},
+		[]any{"a b", 1, "1 %s 3", "2"},
+	)
+	testFunctionsScrubbingCount(
+		t,
+		[]any{TraceFunc, DebugFunc, InfoFunc, WarnFunc, ErrorFunc, CriticalFunc},
+		[]any{func() string { return "a b" }},
+	)
 }

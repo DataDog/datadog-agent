@@ -46,6 +46,9 @@ var (
 	logsBuffer        = []func(){}
 	bufferMutex       sync.Mutex
 	defaultStackDepth = 3
+
+	// for testing purposes
+	scrubBytesFunc = scrubber.ScrubBytes
 )
 
 // DatadogLogger wrapper structure for seelog
@@ -164,7 +167,7 @@ func (sw *DatadogLogger) unregisterAdditionalLogger(n string) error {
 }
 
 func (sw *DatadogLogger) scrub(s string) string {
-	if scrubbed, err := scrubber.ScrubBytes([]byte(s)); err == nil {
+	if scrubbed, err := scrubBytesFunc([]byte(s)); err == nil {
 		return string(scrubbed)
 	}
 
@@ -420,7 +423,7 @@ func BuildLogEntry(v ...interface{}) string {
 }
 
 func scrubMessage(message string) string {
-	msgScrubbed, err := scrubber.ScrubBytes([]byte(message))
+	msgScrubbed, err := scrubBytesFunc([]byte(message))
 	if err == nil {
 		return string(msgScrubbed)
 	}
