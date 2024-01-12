@@ -46,6 +46,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -218,6 +220,7 @@ func run(log log.Component,
 	_ langDetectionCl.Component,
 	agentAPI internalAPI.Component,
 	_ packagesigning.Component,
+	statusComponent status.Component,
 ) error {
 	defer func() {
 		stopAgent(cliParams, server, demultiplexer, agentAPI)
@@ -277,6 +280,7 @@ func run(log log.Component,
 		invAgent,
 		agentAPI,
 		invChecks,
+		statusComponent,
 	); err != nil {
 		return err
 	}
@@ -310,6 +314,7 @@ func getSharedFxOption() fx.Option {
 		collectors.GetCatalog(),
 		fx.Provide(defaults.DefaultParams),
 		workloadmeta.Module(),
+		statusimpl.Module(),
 		apiimpl.Module(),
 
 		dogstatsd.Bundle(),
@@ -378,6 +383,7 @@ func startAgent(
 	invAgent inventoryagent.Component,
 	agentAPI internalAPI.Component,
 	invChecks inventorychecks.Component,
+	_ status.Component,
 ) error {
 
 	var err error
