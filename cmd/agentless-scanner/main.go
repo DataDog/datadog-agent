@@ -691,7 +691,14 @@ func offlineCmd(poolSize int, scanType scanType, regions []string, maxScans int,
 			if err != nil {
 				return err
 			}
-			describeInstancesInput := &ec2.DescribeInstancesInput{}
+			describeInstancesInput := &ec2.DescribeInstancesInput{
+				Filters: []ec2types.Filter{
+					{
+						Name:   aws.String("instance-state-name"),
+						Values: []string{string(ec2types.InstanceStateNameRunning)},
+					},
+				},
+			}
 			for {
 				instances, err := ec2client.DescribeInstances(ctx, describeInstancesInput)
 				if err != nil {
@@ -700,6 +707,9 @@ func offlineCmd(poolSize int, scanType scanType, regions []string, maxScans int,
 				for _, reservation := range instances.Reservations {
 					for _, instance := range reservation.Instances {
 						if instance.InstanceId == nil {
+							continue
+						}
+						if instance.State.Name != ec2types.InstanceStateNameRunning {
 							continue
 						}
 						for _, blockDeviceMapping := range instance.BlockDeviceMappings {
@@ -1331,7 +1341,7 @@ func (s *sideScanner) cleanSlate() error {
 						log.Errorf("clean slate: could not detach nbd device %q: %v", bd.Name, err)
 					}
 				}
-				if strings.HasPrefix(bd.Serial, "vol") {
+				if strings.HasPrefix(bd.Serial, "vol") && bd.Name != "nvme1n1" {
 					attachedVolumeIDs = append(attachedVolumeIDs, "vol-"+strings.TrimPrefix(bd.Serial, "vol"))
 				}
 			}
