@@ -283,7 +283,7 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners ProvisionerMap) {
 		}
 
 		if err != nil {
-			panic(fmt.Errorf("unable to provision stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err))
+			panic(fmt.Errorf("your stack '%s' provisioning failed, check logs above. Provisioner was %s, failed with err: %v", bs.params.stackName, id, err))
 		}
 
 		resources.Merge(provisionerResources)

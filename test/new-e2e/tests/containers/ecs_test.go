@@ -7,14 +7,14 @@ package containers
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
 	"regexp"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
@@ -51,11 +51,16 @@ func (suite *ecsSuite) SetupSuite() {
 		"ddtestworkload:deploy":                      auto.ConfigValue{Value: "true"},
 	}
 
-	_, stackOutput, err := infra.GetStackManager().GetStack(ctx, "ecs-cluster", stackConfig, ecs.Run, false)
+	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(ctx, "ecs-cluster", stackConfig, ecs.Run, false, nil)
 	suite.Require().NoError(err)
 
-	fakeintakeHost := stackOutput.Outputs["fakeintake-host"].Value.(string)
-	suite.Fakeintake = fakeintake.NewClient(fmt.Sprintf("http://%s", fakeintakeHost))
+	fakeintake := &components.FakeIntake{}
+	fiSerialized, err := json.Marshal(stackOutput.Outputs["dd-Fakeintake-aws-ecs"].Value)
+	suite.Require().NoError(err)
+	suite.Require().NoError(fakeintake.Import(fiSerialized, fakeintake))
+	suite.Require().NoError(fakeintake.Init(suite))
+	suite.Fakeintake = fakeintake.Client()
+
 	suite.ecsClusterName = stackOutput.Outputs["ecs-cluster-name"].Value.(string)
 	suite.clusterName = suite.ecsClusterName
 

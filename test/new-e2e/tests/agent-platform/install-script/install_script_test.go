@@ -80,8 +80,7 @@ func TestInstallScript(t *testing.T) {
 
 			e2e.Run(tt,
 				&installScriptSuite{cwsSupported: cwsSupported},
-				e2e.WithProvisioner(awshost.Provisioner(
-					awshost.WithoutAgent(),
+				e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
 					awshost.WithEC2InstanceOptions(vmOpts...),
 				)),
 				e2e.WithStackName(fmt.Sprintf("install-script-test-%v-%v-%s-%s-%v", os.Getenv("CI_PIPELINE_ID"), osVers, *architecture, *flavor, *majorVersion)),
@@ -158,7 +157,7 @@ func (is *installScriptSuite) DogstatsdAgentTest() {
 	agentClient, err := client.NewHostAgentClient(is.T(), host, false)
 	require.NoError(is.T(), err)
 
-	unixHelper := helpers.NewUnixHelper()
+	unixHelper := helpers.NewUnixDogstatsdHelper()
 	client := common.NewTestClient(is.Env().RemoteHost, agentClient, fileManager, unixHelper)
 
 	install.Unix(is.T(), client, installparams.WithArch(*architecture), installparams.WithFlavor(*flavor))
