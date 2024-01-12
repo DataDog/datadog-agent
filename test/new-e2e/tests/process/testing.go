@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
 
 //go:embed config/process_check.yaml
@@ -29,8 +29,8 @@ var processDiscoveryCheckConfigStr string
 var systemProbeConfigStr string
 
 // assertRunningChecks asserts that the given process agent checks are running on the given VM
-func assertRunningChecks(t *assert.CollectT, vm client.VM, checks []string, withSystemProbe bool, command string) {
-	status := vm.Execute(command)
+func assertRunningChecks(t *assert.CollectT, vm *components.RemoteHost, checks []string, withSystemProbe bool, command string) {
+	status := vm.MustExecute(command)
 	var statusMap struct {
 		ProcessAgentStatus struct {
 			Expvars struct {
