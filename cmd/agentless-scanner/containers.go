@@ -551,10 +551,6 @@ func ctrdReadMetadata(ctrdRoot string) ([]ctrdContainer, error) {
 							return err
 						}
 					}
-					if err := ctrdFillSapshotBackend(snapshotterDB, &snapshot); err != nil {
-						return err
-					}
-					container.Snapshot = &snapshot
 				default:
 					return fmt.Errorf("unsupported snapshotter %q", container.Snapshotter)
 				}
@@ -568,6 +564,12 @@ func ctrdReadMetadata(ctrdRoot string) ([]ctrdContainer, error) {
 		return nil
 	}); err != nil {
 		return nil, err
+	}
+
+	for _, container := range containers {
+		if err := ctrdFillSapshotBackend(snapshotterDB, container.Snapshot); err != nil {
+			return nil, err
+		}
 	}
 
 	return containers, nil
