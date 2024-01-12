@@ -530,8 +530,8 @@ func testFunctionsScrubbingCount(t *testing.T, funcs []any, args []any) {
 		require.NotNil(t, fun)
 
 		funcName := fun.Name()
-		if _, fname, ok := strings.Cut(funcName, "."); ok {
-			funcName = fname
+		if parts := strings.Split(funcName, "/"); len(parts) > 0 {
+			funcName = parts[len(parts)-1]
 		}
 
 		testName := fmt.Sprintf("Scrub Count %s", funcName)
@@ -556,6 +556,7 @@ func TestLoggerScrubbingCount(t *testing.T) {
 	require.NoError(t, err)
 	SetupLogger(l, "trace")
 
+	// package public methods
 	testFunctionsScrubbingCount(
 		t,
 		[]any{Trace, Debug, Info, Warn, Error, Critical},
@@ -585,5 +586,22 @@ func TestLoggerScrubbingCount(t *testing.T) {
 		t,
 		[]any{TraceFunc, DebugFunc, InfoFunc, WarnFunc, ErrorFunc, CriticalFunc},
 		[]any{func() string { return "a b" }},
+	)
+
+	// loggerPointer methods
+	testFunctionsScrubbingCount(
+		t,
+		[]any{logger.trace, logger.debug, logger.info, logger.warn, logger.error, logger.critical},
+		[]any{"a b"},
+	)
+	testFunctionsScrubbingCount(
+		t,
+		[]any{logger.tracef, logger.debugf, logger.infof, logger.warnf, logger.errorf, logger.criticalf},
+		[]any{"a %s c", "b"},
+	)
+	testFunctionsScrubbingCount(
+		t,
+		[]any{logger.traceStackDepth, logger.debugStackDepth, logger.infoStackDepth, logger.warnStackDepth, logger.errorStackDepth, logger.criticalStackDepth},
+		[]any{"a b", 1},
 	)
 }
