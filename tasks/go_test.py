@@ -926,10 +926,12 @@ def lint_milestone(_):
         res = requests.get(f"https://api.github.com/repos/DataDog/datadog-agent/issues/{pr_id}")
         pr = res.json()
         if pr.get("milestone"):
-            print(f"Milestone: {pr['milestone'].get('title', 'NO_TITLE')}")
-            return
+            title = pr['milestone'].get('title', 'NO_TITLE')
+            print(f"Milestone: {title}")
+            if title != "Triage":
+                return
 
-        print(f"PR {pr_url} requires a milestone.")
+        print(f"PR {pr_url} requires a non-Triage milestone.")
         raise Exit(code=1)
 
     # No PR is associated with this build: given that we have the "run only on PRs" setting activated,
