@@ -8,18 +8,26 @@ package server
 import (
 	"bytes"
 	"context"
+	"embed"
+	"encoding/json"
 	"expvar"
 	"fmt"
+	"io"
 	"net"
+	"path"
 	"strings"
 	"sync"
 	"time"
+
+	htmlTemplate "html/template"
+	textTemplate "text/template"
 
 	"go.uber.org/fx"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	logComponentImpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/mapper"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
@@ -72,6 +80,13 @@ type dependencies struct {
 	Debug  serverdebug.Component
 	Replay replay.Component
 	Params Params
+}
+
+type provides struct {
+	fx.Out
+
+	Comp           Component
+	StatusProvider status.InformationProvider
 }
 
 // When the internal telemetry is enabled, used to tag the origin
@@ -190,16 +205,16 @@ func initTelemetry(cfg config.Reader, logger logComponent.Component) {
 // TODO: (components) - remove once serverless is an FX app
 //
 //nolint:revive // TODO(AML) Fix revive linter
-func NewServerlessServer() Component {
+func NewServerlessServer() provides {
 	return newServerCompat(config.Datadog, logComponentImpl.NewTemporaryLoggerWithoutInit(), replay.NewServerlessTrafficCapture(), serverdebugimpl.NewServerlessServerDebug(), true)
 }
 
 // TODO: (components) - merge with newServerCompat once NewServerlessServer is removed
-func newServer(deps dependencies) Component {
+func newServer(deps dependencies) provides {
 	return newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, deps.Params.Serverless)
 }
 
-func newServerCompat(cfg config.Reader, log logComponent.Component, capture replay.Component, debug serverdebug.Component, serverless bool) Component {
+func newServerCompat(cfg config.Reader, log logComponent.Component, capture replay.Component, debug serverdebug.Component, serverless bool) provides {
 	// This needs to be done after the configuration is loaded
 	once.Do(func() { initTelemetry(cfg, log) })
 
@@ -301,7 +316,10 @@ func newServerCompat(cfg config.Reader, log logComponent.Component, capture repl
 			originOptOutEnabled:       cfg.GetBool("dogstatsd_origin_optout_enabled"),
 		},
 	}
-	return s
+	return provides{
+		Comp:           s,
+		StatusProvider: status.NewInformationProvider(s),
+	}
 }
 
 func (s *server) Start(demultiplexer aggregator.Demultiplexer) error {
@@ -784,4 +802,76 @@ func (s *server) parseServiceCheckMessage(parser *parser, message []byte, origin
 	dogstatsdServiceCheckPackets.Add(1)
 	tlmProcessed.Inc("service_checks", "ok", "")
 	return serviceCheck, nil
+}
+
+func (s *server) getStatusInfo() map[string]interface{} {
+	stats := make(map[string]interface{})
+
+	s.populateStatus(stats)
+
+	return stats
+}
+
+func (s *server) populateStatus(stats map[string]interface{}) {
+	if expvar.Get("dogstatsd") != nil {
+		dogstatsdStatsJSON := []byte(expvar.Get("dogstatsd").String())
+		dogstatsdUdsStatsJSON := []byte(expvar.Get("dogstatsd-uds").String())
+		dogstatsdUDPStatsJSON := []byte(expvar.Get("dogstatsd-udp").String())
+		dogstatsdStats := make(map[string]interface{})
+		json.Unmarshal(dogstatsdStatsJSON, &dogstatsdStats) //nolint:errcheck
+		dogstatsdUdsStats := make(map[string]interface{})
+		json.Unmarshal(dogstatsdUdsStatsJSON, &dogstatsdUdsStats) //nolint:errcheck
+		for name, value := range dogstatsdUdsStats {
+			dogstatsdStats["Uds"+name] = value
+		}
+		dogstatsdUDPStats := make(map[string]interface{})
+		json.Unmarshal(dogstatsdUDPStatsJSON, &dogstatsdUDPStats) //nolint:errcheck
+		for name, value := range dogstatsdUDPStats {
+			dogstatsdStats["Udp"+name] = value
+		}
+		stats["dogstatsdStats"] = dogstatsdStats
+	}
+}
+
+//go:embed status_templates
+var templatesFS embed.FS
+
+func (s *server) Name() string {
+	return "Dogstatsd"
+}
+
+func (s *server) Section() string {
+	return "dogstatsd"
+}
+
+func (s *server) JSON(stats map[string]interface{}) error {
+	s.populateStatus(stats)
+
+	return nil
+}
+
+func (s *server) Text(buffer io.Writer) error {
+	return renderText(buffer, s.getStatusInfo())
+}
+
+func (s *server) HTML(buffer io.Writer) error {
+	return renderHTML(buffer, s.getStatusInfo())
+}
+
+func renderHTML(buffer io.Writer, data any) error {
+	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "dogstatsdHTML.tmpl"))
+	if tmplErr != nil {
+		return tmplErr
+	}
+	t := htmlTemplate.Must(htmlTemplate.New("dogstatsdHTML").Funcs(status.HTMLFmap()).Parse(string(tmpl)))
+	return t.Execute(buffer, data)
+}
+
+func renderText(buffer io.Writer, data any) error {
+	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "dogstatsd.tmpl"))
+	if tmplErr != nil {
+		return tmplErr
+	}
+	t := textTemplate.Must(textTemplate.New("dogstatsd").Funcs(status.HTMLFmap()).Parse(string(tmpl)))
+	return t.Execute(buffer, data)
 }

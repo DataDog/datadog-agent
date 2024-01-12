@@ -8,6 +8,7 @@
 package server
 
 import (
+	"bytes"
 	"fmt"
 	"net"
 	"sort"
@@ -1032,4 +1033,43 @@ func requireStart(t *testing.T, s Component, demux aggregator.Demultiplexer) {
 func createDemultiplexer(t *testing.T) demultiplexer.FakeSamplerMock {
 	return fxutil.Test[demultiplexer.FakeSamplerMock](t, logimpl.MockModule(),
 		demultiplexerimpl.FakeSamplerMockModule())
+}
+
+func TestStatusOutPut(t *testing.T) {
+	tests := []struct {
+		name       string
+		assertFunc func(t *testing.T, s *server)
+	}{
+		{"JSON", func(t *testing.T, s *server) {
+			stats := make(map[string]interface{})
+			s.JSON(stats)
+
+			assert.NotEmpty(t, stats)
+		}},
+		{"Text", func(t *testing.T, s *server) {
+			b := new(bytes.Buffer)
+			err := s.Text(b)
+
+			assert.NoError(t, err)
+
+			assert.NotEmpty(t, b.String())
+		}},
+		{"HTML", func(t *testing.T, s *server) {
+			b := new(bytes.Buffer)
+			err := s.HTML(b)
+
+			assert.NoError(t, err)
+
+			assert.NotEmpty(t, b.String())
+		}},
+	}
+
+	deps := fulfillDepsWithConfigOverride(t, make(map[string]interface{}))
+	s := deps.Server.(*server)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.assertFunc(t, s)
+		})
+	}
 }
