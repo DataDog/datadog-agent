@@ -84,9 +84,6 @@ github.com/shibumi/go-pathspec: Copyright (c) 2012 The Go Authors. All rights re
 # https://github.com/acomagu/bufpipe/blob/master/LICENSE
 github.com/acomagu/bufpipe: Copyright (c) 2019 acomagu
 
-# https://github.com/google/renameio/blob/master/doc.go
-github.com/google/renameio: Copyright 2018 Google Inc.
-
 # For Apache projects, copyright is typically in individual source files and
 # not scanned automatically.
 github.com/tklauser/numcpus: Copyright 2018 Tobias Klauser

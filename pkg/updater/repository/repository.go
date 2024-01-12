@@ -38,29 +38,29 @@ type Repository struct {
 	RootPath string
 }
 
-// Status is the status of the repository.
-type Status struct {
+// State is the state of the repository.
+type State struct {
 	Stable     string
 	Experiment string
 }
 
 // HasStable returns true if the repository has a stable package.
-func (s *Status) HasStable() bool {
+func (s *State) HasStable() bool {
 	return s.Stable != ""
 }
 
 // HasExperiment returns true if the repository has an experiment package.
-func (s *Status) HasExperiment() bool {
+func (s *State) HasExperiment() bool {
 	return s.Experiment != ""
 }
 
 // GetStatus returns the status of the repository.
-func (r *Repository) GetStatus() (*Status, error) {
-	repository, err := openRepository(r.RootPath)
+func (r *Repository) GetStatus() (*State, error) {
+	repository, err := readRepository(r.RootPath)
 	if err != nil {
 		return nil, err
 	}
-	return &Status{
+	return &State{
 		Stable:     repository.stable.Target(),
 		Experiment: repository.experiment.Target(),
 	}, nil
@@ -83,7 +83,7 @@ func (r *Repository) Create(name string, stableSourcePath string) error {
 	if err != nil {
 		return fmt.Errorf("could not create packages root directory: %w", err)
 	}
-	repository, err := openRepository(r.RootPath)
+	repository, err := readRepository(r.RootPath)
 	if err != nil {
 		return err
 	}
@@ -94,13 +94,13 @@ func (r *Repository) Create(name string, stableSourcePath string) error {
 	return nil
 }
 
-// SetExperiment moves the given source path to the repository and sets it as the experiment.
+// SetExperiment moves package files from the given source path to the repository and sets it as the experiment.
 //
 // 1. Cleanup the repository.
 // 2. Move the experiment source to the repository.
 // 3. Set the experiment link to the experiment package.
 func (r *Repository) SetExperiment(name string, sourcePath string) error {
-	repository, err := openRepository(r.RootPath)
+	repository, err := readRepository(r.RootPath)
 	if err != nil {
 		return err
 	}
@@ -125,7 +125,7 @@ func (r *Repository) SetExperiment(name string, sourcePath string) error {
 // 3. Delete the experiment link.
 // 4. Cleanup the repository to remove the previous stable package.
 func (r *Repository) PromoteExperiment() error {
-	repository, err := openRepository(r.RootPath)
+	repository, err := readRepository(r.RootPath)
 	if err != nil {
 		return err
 	}
@@ -160,7 +160,7 @@ func (r *Repository) PromoteExperiment() error {
 // 2. Delete the experiment link.
 // 3. Cleanup the repository to remove the previous experiment package.
 func (r *Repository) DeleteExperiment() error {
-	repository, err := openRepository(r.RootPath)
+	repository, err := readRepository(r.RootPath)
 	if err != nil {
 		return err
 	}
@@ -185,14 +185,14 @@ func (r *Repository) DeleteExperiment() error {
 	return nil
 }
 
-type repository struct {
+type repositoryFiles struct {
 	rootPath string
 
 	stable     *link
 	experiment *link
 }
 
-func openRepository(rootPath string) (*repository, error) {
+func readRepository(rootPath string) (*repositoryFiles, error) {
 	stableLink, err := newLink(filepath.Join(rootPath, stableVersionLink))
 	if err != nil {
 		return nil, fmt.Errorf("could not load stable link: %w", err)
@@ -202,14 +202,14 @@ func openRepository(rootPath string) (*repository, error) {
 		return nil, fmt.Errorf("could not load experiment link: %w", err)
 	}
 
-	return &repository{
+	return &repositoryFiles{
 		rootPath:   rootPath,
 		stable:     stableLink,
 		experiment: experimentLink,
 	}, nil
 }
 
-func (r *repository) setExperiment(name string, sourcePath string) error {
+func (r *repositoryFiles) setExperiment(name string, sourcePath string) error {
 	path, err := movePackageFromSource(name, r.rootPath, sourcePath)
 	if err != nil {
 		return fmt.Errorf("could not move experiment source: %w", err)
@@ -217,7 +217,7 @@ func (r *repository) setExperiment(name string, sourcePath string) error {
 	return r.experiment.Set(path)
 }
 
-func (r *repository) setStable(name string, sourcePath string) error {
+func (r *repositoryFiles) setStable(name string, sourcePath string) error {
 	path, err := movePackageFromSource(name, r.rootPath, sourcePath)
 	if err != nil {
 		return fmt.Errorf("could not move stable source: %w", err)
@@ -244,7 +244,7 @@ func movePackageFromSource(packageName string, rootPath string, sourcePath strin
 	return targetPath, nil
 }
 
-func (r *repository) cleanup() error {
+func (r *repositoryFiles) cleanup() error {
 	files, err := os.ReadDir(r.rootPath)
 	if err != nil {
 		return fmt.Errorf("could not read root directory: %w", err)

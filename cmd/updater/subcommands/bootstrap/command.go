@@ -23,7 +23,9 @@ func Commands(global *command.GlobalParams) []*cobra.Command {
 	bootstrapCmd := &cobra.Command{
 		Use:   "bootstrap",
 		Short: "Bootstraps the package with the first version.",
-		Long:  ``,
+		Long: `Installs the first version of the package managed by this updater.
+		This first version is sent remotely to the agent and can be configured from the UI.
+		This command will exit after the first version is installed.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return bootstrap(global.Package, timeout)
 		},
