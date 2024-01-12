@@ -8,6 +8,7 @@ package ad
 
 import (
 	"fmt"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"strings"
 
 	yaml "gopkg.in/yaml.v2"
@@ -16,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/adlistener"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
@@ -145,16 +145,20 @@ func (s *Scheduler) toSources(config integration.Config) ([]*sourcesPkg.LogSourc
 	var configs []*logsConfig.LogsConfig
 	var err error
 
-	switch {
-	case config.Provider == names.File:
+	switch config.Provider {
+	case names.File:
 		// config defined in a file
 		configs, err = logsConfig.ParseYAML(config.LogsConfig)
-	case config.Provider == names.Container,
-		config.Provider == names.Kubernetes,
-		config.Provider == names.KubeContainer,
-		config.Provider == names.RemoteConfig && pkgconfig.Datadog.GetBool("remote_configuration.agent_integrations.allow_log_config_scheduling"):
+	case names.Container, names.Kubernetes, names.KubeContainer:
 		// config attached to a container label or a pod annotation
 		configs, err = logsConfig.ParseJSON(config.LogsConfig)
+	case names.RemoteConfig:
+		if pkgconfig.Datadog.GetBool("remote_configuration.agent_integrations.allow_log_config_scheduling") {
+			// config supplied by remote config
+			configs, err = logsConfig.ParseJSON(config.LogsConfig)
+		} else {
+			log.Warnf("parsing logs config from %v is disabled. You can enable it by setting remote_configuration.agent_integrations.allow_log_config_scheduling to true", names.RemoteConfig)
+		}
 	default:
 		// invalid provider
 		err = fmt.Errorf("parsing logs config from %v is not supported yet", config.Provider)
