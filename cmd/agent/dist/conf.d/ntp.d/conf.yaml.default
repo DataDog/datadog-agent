@@ -22,7 +22,7 @@ instances:
     #   - 2.datadog.pool.ntp.org
     #   - 3.datadog.pool.ntp.org
     #
-    # OR
+    ## FQDN config example
     #
     # hosts:
     #   - <FQDN1.NTP.SERVER>
