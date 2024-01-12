@@ -13,14 +13,21 @@ instances:
     # offset_threshold: 60
 
     ## @param hosts - list of strings - optional - default: ntp host of cloud provider if detected, else <X>.datadog.pool.ntp.org
-    ## List of NTP hosts to connect to, default is the private NTP server of the Cloud Provider if one is detected, otherwise
-    ## `<X>.datadog.pool.ntp.org`, where <X> is a number between 0 and 3.
+    ## List of FQDNs of the NTP hosts/servers to connect to. Default is the private NTP server of the Cloud Provider if one is detected, otherwise
+    ## `<X>.datadog.pool.ntp.org`, where <X> is a number between 0 and 3. If a single NTP Host Server is used, use the 'host' parameter.
     #
     # hosts:
     #   - 0.datadog.pool.ntp.org
     #   - 1.datadog.pool.ntp.org
     #   - 2.datadog.pool.ntp.org
     #   - 3.datadog.pool.ntp.org
+    #
+    # OR
+    #
+    # hosts:
+    #   - <FQDN1.NTP.SERVER>
+    #   - <FQDN2.NTP.SERVER>
+    #   - <FQDN3.NTP.SERVER>
 
     ## @param host - string - optional
     ## Single NTP server hostname or IP address to connect to.
