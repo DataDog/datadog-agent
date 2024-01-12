@@ -860,11 +860,11 @@ def lint_teamassignment(_):
             return
 
         for label in labels:
-            if label.startswith('team/'):
+            if label.startswith('team/') and label != 'team/triage':
                 print(f"Team Assignment: {label}")
                 return
 
-        print(f"PR {pr_url} requires team assignment label (team/...); got labels:")
+        print(f"PR {pr_url} requires non-triage team assignment label (team/...); got labels:")
         for label in labels:
             print(f" {label}")
         raise Exit(code=1)
