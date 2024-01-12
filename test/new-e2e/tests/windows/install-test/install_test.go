@@ -49,6 +49,8 @@ func TestMSI(t *testing.T) {
 	}
 	t.Logf("Using Agent: %#v", agentPackage)
 
+	majorVersion := strings.Split(agentPackage.Version, ".")[0]
+
 	// Set stack name to avoid conflicts with other tests
 	// Include channel if we're not running in a CI pipeline.
 	// E2E auto includes the pipeline ID in the stack name, so we don't need to do that here.
@@ -56,11 +58,11 @@ func TestMSI(t *testing.T) {
 	if agentPackage.PipelineID == "" && agentPackage.Channel != "" {
 		stackNameChannelPart = fmt.Sprintf("-%s", agentPackage.Channel)
 	}
-	opts = append(opts, e2e.WithStackName(fmt.Sprintf("windows-msi-test-v%s-%s%s", agentPackage.Version, agentPackage.Arch, stackNameChannelPart)))
+	opts = append(opts, e2e.WithStackName(fmt.Sprintf("windows-msi-test-v%s-%s%s", majorVersion, agentPackage.Arch, stackNameChannelPart)))
 
 	s := &agentMSISuite{
 		agentPackage: agentPackage,
-		majorVersion: strings.Split(agentPackage.Version, ".")[0],
+		majorVersion: majorVersion,
 	}
 
 	e2e.Run(t, s, opts...)
