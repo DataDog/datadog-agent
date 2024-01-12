@@ -100,7 +100,7 @@ func newStatus(deps dependencies) (status.Component, error) {
 
 	// Header providers are sorted by index
 	// We manually insert the common header provider in the first place after sorting is done
-	sortedHeaderProviders := []status.HeaderProvider
+	sortedHeaderProviders := []status.HeaderProvider{}
 	for _, headerProvider := range deps.HeaderProviders {
 		if _, ok := headerProvider.(status.NoopHeaderProvider); ok {
 			continue
