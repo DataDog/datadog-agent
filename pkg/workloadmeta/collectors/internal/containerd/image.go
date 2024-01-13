@@ -16,8 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/util"
-	"github.com/mohae/deepcopy"
-
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
 	"github.com/containerd/containerd/content"
@@ -284,7 +282,6 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 	repoDigests := c.knownImages.getRepoDigests(imageID)
 
 	sbom := newSBOM
-	var usingExistingSBOM bool
 
 	// We can get "create" events for images that already exist. That happens
 	// when the same image is referenced with different names. For example,
@@ -305,7 +302,6 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 		}
 
 		if sbom == nil && existingImg.SBOM.Status != workloadmeta.Pending {
-			usingExistingSBOM = true
 			sbom = existingImg.SBOM
 		}
 	}
@@ -330,18 +326,15 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 		variant = platforms[0].Variant
 	}
 
-	// SBOMs are generated only once. However, when they are generated it is possible that
-	// not every RepoDigest and RepoTags are attached to the image. In that case, the SBOM
-	// will also miss metadata and will not be re-generated when new metadata is detected.
+	// SBOMs are generated only once. The scanner needs to attach some metadata to the SBOM
+	// but it might not be available when the SBOM is generated or it might also not inject
+	// this metadata if it uses the file-system scanner.
 	// Because this metadata is essential for processing, it is important to inject new metadata
 	// to the existing SBOM. Generating a new SBOM can be a more robust solution but can also be
 	// costly.
 	// Moreover, it is not safe to modify the original SBOM if it is already stored in workloadmeta,
 	// so we create a copy of it. It is costly but shouldn't be called so often.
-	if usingExistingSBOM {
-		sbom = deepcopy.Copy(sbom).(*workloadmeta.SBOM)
-		sbom = util.UpdateSBOMRepoMetadata(sbom, repoTags, repoDigests)
-	}
+	sbom = util.UpdateSBOMRepoMetadata(sbom, repoTags, repoDigests)
 
 	workloadmetaImg := workloadmeta.ContainerImageMetadata{
 		EntityID: workloadmeta.EntityID{

@@ -73,8 +73,8 @@ func Test_UpdateSBOMRepoMetadata(t *testing.T) {
 						Metadata: &cyclonedx.Metadata{
 							Component: &cyclonedx.Component{
 								Properties: &[]cyclonedx.Property{
-									{Name: trivydx.Namespace + trivydx.PropertyRepoTag, Value: "tag2"},
 									{Name: trivydx.Namespace + trivydx.PropertyRepoDigest, Value: "digest2"},
+									{Name: trivydx.Namespace + trivydx.PropertyRepoTag, Value: "tag2"},
 								},
 							},
 						},
@@ -89,10 +89,10 @@ func Test_UpdateSBOMRepoMetadata(t *testing.T) {
 					Metadata: &cyclonedx.Metadata{
 						Component: &cyclonedx.Component{
 							Properties: &[]cyclonedx.Property{
-								{Name: trivydx.Namespace + trivydx.PropertyRepoTag, Value: "tag1"},
-								{Name: trivydx.Namespace + trivydx.PropertyRepoTag, Value: "tag2"},
 								{Name: trivydx.Namespace + trivydx.PropertyRepoDigest, Value: "digest1"},
 								{Name: trivydx.Namespace + trivydx.PropertyRepoDigest, Value: "digest2"},
+								{Name: trivydx.Namespace + trivydx.PropertyRepoTag, Value: "tag1"},
+								{Name: trivydx.Namespace + trivydx.PropertyRepoTag, Value: "tag2"},
 							},
 						},
 					},
@@ -164,7 +164,7 @@ func Test_UpdateSBOMRepoMetadata(t *testing.T) {
 			},
 		},
 		{
-			name: "other properties are not touched",
+			name: "other properties are still there",
 			args: args{
 				sbom: &workloadmeta.SBOM{
 					Status: workloadmeta.Success,
@@ -188,8 +188,8 @@ func Test_UpdateSBOMRepoMetadata(t *testing.T) {
 					Metadata: &cyclonedx.Metadata{
 						Component: &cyclonedx.Component{
 							Properties: &[]cyclonedx.Property{
-								{Name: "prop1", Value: "tag1"},
 								{Name: trivydx.Namespace + trivydx.PropertyRepoDigest, Value: "digest1"},
+								{Name: "prop1", Value: "tag1"},
 							},
 						},
 					},
@@ -200,7 +200,7 @@ func Test_UpdateSBOMRepoMetadata(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := UpdateSBOMRepoMetadata(tt.args.sbom, tt.args.repoTags, tt.args.repoDigests); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("UpdateSBOMRepoMetadata) = %v, want %v", got, tt.want)
+				t.Errorf("UpdateSBOMRepoMetadata) = %v, want %v", got.CycloneDXBOM.Metadata.Component.Properties, tt.want.CycloneDXBOM.Metadata.Component.Properties)
 			}
 		})
 	}
