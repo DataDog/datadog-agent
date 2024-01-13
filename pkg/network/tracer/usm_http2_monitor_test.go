@@ -85,6 +85,8 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 	t := s.T()
 	cfg := networkconfig.New()
 	cfg.EnableHTTP2Monitoring = true
+	cfg.EnableGoTLSSupport = s.isTLS
+	cfg.GoTLSExcludeSelf = s.isTLS
 
 	startH2CServer(t)
 
