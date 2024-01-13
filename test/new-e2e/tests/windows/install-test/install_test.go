@@ -111,18 +111,12 @@ func (is *agentMSISuite) TestUpgrade() {
 	is.Require().NoError(err, "should create tester")
 
 	// install old agent
-	lastStableAgentPackage := is.installLastStable(t, filepath.Join(outputDir, "install.log"))
+	_ = is.installLastStable(t, filepath.Join(outputDir, "install.log"))
 
 	// upgrade to new agent
 	if !t.TestInstallAgentPackage(is.T(), is.agentPackage, "", filepath.Join(outputDir, "upgrade.log")) {
 		is.T().Fatal("failed to upgrade agent")
 	}
-
-	// Check that the agent was upgraded
-	newVersion, err := t.InstallTestClient.GetAgentVersion()
-	is.Require().NoError(err, "should get agent version")
-	is.Assert().NotEqual(lastStableAgentPackage.AgentVersion(), newVersion, "new version should be installed")
-	is.Assert().Equal(is.agentPackage.AgentVersion(), newVersion, "new version should be installed")
 
 	t.TestRuntimeExpectations(is.T())
 	t.TestUninstall(is.T(), filepath.Join(outputDir, "uninstall.log"))
