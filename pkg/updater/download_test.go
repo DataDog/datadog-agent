@@ -9,6 +9,7 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -26,6 +28,8 @@ import (
 const (
 	testAgentFileName        = "agent"
 	testNestedAgentFileName  = "nested/agent2"
+	testLargeFileName        = "large"
+	testLargeFileSize        = 1024 * 1024 * 20 // 20MB
 	testAgentArchiveFileName = "agent.tar.gz"
 	testDownloadDir          = "download"
 )
@@ -39,8 +43,14 @@ func createTestArchive(t *testing.T, dir string) {
 	assert.NoError(t, err)
 	err = os.WriteFile(nestedFilePath, []byte("test"), 0644)
 	assert.NoError(t, err)
+	largeFilePath := path.Join(dir, testLargeFileName)
+	largeFile, err := os.Create(largeFilePath)
+	assert.NoError(t, err)
+	defer largeFile.Close()
+	_, err = io.CopyN(largeFile, rand.Reader, testLargeFileSize)
+	assert.NoError(t, err)
 	archivePath := path.Join(dir, testAgentArchiveFileName)
-	files := []string{testAgentFileName, testNestedAgentFileName}
+	files := []string{testAgentFileName, testNestedAgentFileName, testLargeFileName}
 	out, err := os.Create(archivePath)
 	assert.NoError(t, err)
 	defer out.Close()
@@ -130,6 +140,12 @@ func TestDownload(t *testing.T) {
 	assert.NoError(t, err)
 	assert.FileExists(t, path.Join(downloadPath, testAgentFileName))
 	assert.FileExists(t, path.Join(downloadPath, testNestedAgentFileName))
+	assert.FileExists(t, path.Join(downloadPath, testLargeFileName))
+
+	// ensures the full archive or full individual files are not loaded in memory
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	assert.Less(t, m.TotalAlloc, uint64(testLargeFileSize))
 }
 
 func TestDownloadCheckHash(t *testing.T) {
