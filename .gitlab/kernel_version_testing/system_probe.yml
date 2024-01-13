@@ -139,7 +139,6 @@ upload_dependencies_arm64:
     - pushd $CI_PROJECT_DIR/test/new-e2e/system-probe/test-runner && go build -o $DEPENDENCIES/test-runner && popd
     - pushd $CI_PROJECT_DIR/test/new-e2e/system-probe/test-json-review && go build -o $DEPENDENCIES/test-json-review && popd
     - cp $CI_PROJECT_DIR/test/new-e2e/system-probe/test-runner/files/*.json $DEPENDENCIES/
-    - popd
     # package all the dependencies
     - ls -la $DEPENDENCIES
     - pushd $DD_AGENT_TESTING_DIR/$ARCH
