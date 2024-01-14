@@ -966,7 +966,7 @@ var testHeaderFields = []hpack.HeaderField{
 
 // createMessageWithCustomHeadersFramesCount creates a message with the given number of header frames
 // and optionally ping and window update frames.
-func createMessageWithCustomHeadersFramesCount(t *testing.T, headersCount int, insertPingFrames bool, insertWindowUpdateFrames bool) []byte {
+func createMessageWithCustomHeadersFramesCount(t *testing.T, headersCount int, insertPingFrames, insertWindowUpdateFrames bool) []byte {
 	var buf bytes.Buffer
 	framer := http2.NewFramer(&buf, nil)
 
@@ -1040,7 +1040,8 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			// The objective of this test is to verify that we accurately perform the parsing of frames within
 			// a single program.
 			messageBuilder: func() []byte {
-				return createMessageWithCustomSettingsFrames(t, 100)
+				settingsCount := 100
+				return createMessageWithCustomSettingsFrames(t, settingsCount)
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
@@ -1054,7 +1055,8 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			// The purpose of this test is to validate that when we surpass the limit of HTTP2_MAX_FRAMES_ITERATIONS,
 			// the filtering of subsequent frames will continue using tail calls.
 			messageBuilder: func() []byte {
-				return createMessageWithCustomSettingsFrames(t, 130)
+				settingsCount := 130
+				return createMessageWithCustomSettingsFrames(t, settingsCount)
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
@@ -1068,7 +1070,8 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			// The purpose of this test is to validate that when we surpass the limit of HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER,
 			// for 2 filter_frames we do not use more than two tail calls.
 			messageBuilder: func() []byte {
-				return createMessageWithCustomSettingsFrames(t, 250)
+				settingsCount := 250
+				return createMessageWithCustomSettingsFrames(t, settingsCount)
 			},
 			expectedEndpoints: nil,
 		},
@@ -1077,7 +1080,9 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			// The purpose of this test is to verify our ability to reach the limit set by HTTP2_MAX_FRAMES_ITERATIONS, which
 			// determines the maximum number of "interesting frames" we can process.
 			messageBuilder: func() []byte {
-				return createMessageWithCustomHeadersFramesCount(t, 120, false, false)
+				headersCount := 120
+				insertPingFrames, insertWindowFrames := false, false
+				return createMessageWithCustomHeadersFramesCount(t, headersCount, insertPingFrames, insertWindowFrames)
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
@@ -1091,7 +1096,9 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			// The purpose of this test is to verify our ability to reach the limit set by HTTP2_MAX_FRAMES_ITERATIONS
 			// and validate that we cannot handle more than that limit.
 			messageBuilder: func() []byte {
-				return createMessageWithCustomHeadersFramesCount(t, 130, false, false)
+				headersCount := 130
+				insertPingFrames, insertWindowFrames := false, false
+				return createMessageWithCustomHeadersFramesCount(t, headersCount, insertPingFrames, insertWindowFrames)
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
@@ -1105,7 +1112,9 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			// The purpose of this test is to verify our ability to reach the limit set by HTTP2_MAX_FRAMES_ITERATIONS
 			// and validate that we cannot handle more than that limit.
 			messageBuilder: func() []byte {
-				return createMessageWithCustomHeadersFramesCount(t, 50, true, true)
+				headersCount := 50
+				insertPingFrames, insertWindowFrames := true, true
+				return createMessageWithCustomHeadersFramesCount(t, headersCount, insertPingFrames, insertWindowFrames)
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
