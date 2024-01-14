@@ -1867,6 +1867,19 @@ func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newV
 			} else {
 				iterateValue = modifyValue[elem]
 			}
+		case []string:
+			index, err := strconv.Atoi(elem)
+			if err != nil {
+				return err
+			}
+			if index >= len(modifyValue) {
+				return fmt.Errorf("index out of range %d >= %d", index, len(modifyValue))
+			}
+			if k == len(trailingElements)-1 {
+				modifyValue[index] = fmt.Sprintf("%s", newValue)
+			} else {
+				iterateValue = modifyValue[index]
+			}
 		case []interface{}:
 			index, err := strconv.Atoi(elem)
 			if err != nil {
