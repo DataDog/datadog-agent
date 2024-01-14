@@ -978,68 +978,68 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 		expectedEndpoints       map[http.Key]int
 		insertPingBetweenFrames bool
 	}{
-		//{
-		//	name: "parse_frames tail call using 1 program",
-		//	// The objective of this test is to verify that we accurately perform the parsing of frames within
-		//	// a single program.
-		//	numberOfSettingFrames: 100,
-		//	numberOfRequestFrames: 1,
-		//	expectedEndpoints: map[http.Key]int{
-		//		{
-		//			Path:   http.Path{Content: http.Interner.GetString("/aaa")},
-		//			Method: http.MethodPost,
-		//		}: 1,
-		//	},
-		//},
-		//{
-		//	name: "parse_frames tail call using 2 programs",
-		//	// The purpose of this test is to validate that when we surpass the limit of HTTP2_MAX_FRAMES_ITERATIONS,
-		//	// the filtering of subsequent frames will continue using tail calls.
-		//	numberOfSettingFrames: 130,
-		//	numberOfRequestFrames: 1,
-		//	expectedEndpoints: map[http.Key]int{
-		//		{
-		//			Path:   http.Path{Content: http.Interner.GetString("/aaa")},
-		//			Method: http.MethodPost,
-		//		}: 1,
-		//	},
-		//},
-		//{
-		//	name: "validate frames_filter tail calls limit",
-		//	// The purpose of this test is to validate that when we surpass the limit of HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER,
-		//	// for 2 filter_frames we do not use more than two tail calls.
-		//	numberOfSettingFrames: 250,
-		//	numberOfRequestFrames: 1,
-		//	expectedEndpoints:     nil,
-		//},
-		//{
-		//	name: "validate max interesting frames limit",
-		//	// The purpose of this test is to verify our ability to reach the limit set by HTTP2_MAX_FRAMES_ITERATIONS, which
-		//	// determines the maximum number of "interesting frames" we can process.
-		//	numberOfSettingFrames: 0,
-		//	numberOfRequestFrames: 120,
-		//	expectedEndpoints: map[http.Key]int{
-		//		{
-		//			Path:   http.Path{Content: http.Interner.GetString("/aaa")},
-		//			Method: http.MethodPost,
-		//		}: 120,
-		//	},
-		//},
-		//{
-		//	name: "validate more then limit max interesting frames",
-		//	// The purpose of this test is to verify our ability to reach the limit set by HTTP2_MAX_FRAMES_ITERATIONS
-		//	// and validate that we cannot handle more than that limit.
-		//	numberOfSettingFrames: 0,
-		//	numberOfRequestFrames: 130,
-		//	expectedEndpoints: map[http.Key]int{
-		//		{
-		//			Path:   http.Path{Content: http.Interner.GetString("/aaa")},
-		//			Method: http.MethodPost,
-		//		}: 120,
-		//	},
-		//},
 		{
-			name: "validate PING frame between HEADERS and DATA",
+			name: "parse_frames tail call using 1 program",
+			// The objective of this test is to verify that we accurately perform the parsing of frames within
+			// a single program.
+			numberOfSettingFrames: 100,
+			numberOfRequestFrames: 1,
+			expectedEndpoints: map[http.Key]int{
+				{
+					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
+					Method: http.MethodPost,
+				}: 1,
+			},
+		},
+		{
+			name: "parse_frames tail call using 2 programs",
+			// The purpose of this test is to validate that when we surpass the limit of HTTP2_MAX_FRAMES_ITERATIONS,
+			// the filtering of subsequent frames will continue using tail calls.
+			numberOfSettingFrames: 130,
+			numberOfRequestFrames: 1,
+			expectedEndpoints: map[http.Key]int{
+				{
+					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
+					Method: http.MethodPost,
+				}: 1,
+			},
+		},
+		{
+			name: "validate frames_filter tail calls limit",
+			// The purpose of this test is to validate that when we surpass the limit of HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER,
+			// for 2 filter_frames we do not use more than two tail calls.
+			numberOfSettingFrames: 250,
+			numberOfRequestFrames: 1,
+			expectedEndpoints:     nil,
+		},
+		{
+			name: "validate max interesting frames limit",
+			// The purpose of this test is to verify our ability to reach the limit set by HTTP2_MAX_FRAMES_ITERATIONS, which
+			// determines the maximum number of "interesting frames" we can process.
+			numberOfSettingFrames: 0,
+			numberOfRequestFrames: 120,
+			expectedEndpoints: map[http.Key]int{
+				{
+					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
+					Method: http.MethodPost,
+				}: 120,
+			},
+		},
+		{
+			name: "validate more then limit max interesting frames",
+			// The purpose of this test is to verify our ability to reach the limit set by HTTP2_MAX_FRAMES_ITERATIONS
+			// and validate that we cannot handle more than that limit.
+			numberOfSettingFrames: 0,
+			numberOfRequestFrames: 130,
+			expectedEndpoints: map[http.Key]int{
+				{
+					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
+					Method: http.MethodPost,
+				}: 120,
+			},
+		},
+		{
+			name: "validate PING and WINDOWS_UPDATE frames between HEADERS and DATA",
 			// The purpose of this test is to verify our ability to reach the limit set by HTTP2_MAX_FRAMES_ITERATIONS
 			// and validate that we cannot handle more than that limit.
 			numberOfSettingFrames:   0,
@@ -1098,6 +1098,7 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 
 				if tt.insertPingBetweenFrames {
 					require.NoError(t, framer.WritePing(true, [8]byte{}), "could not write ping frame")
+					require.NoError(t, framer.WriteWindowUpdate(uint32(streamID), 1), "could not write window update frame")
 				}
 
 				// Writing the data frame to the buffer using the Framer.
