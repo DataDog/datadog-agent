@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
-	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -89,6 +88,9 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 	cfg.GoTLSExcludeSelf = s.isTLS
 
 	startH2CServer(t)
+
+	tr := setupTracer(t, cfg)
+	require.NoError(t, tr.ebpfTracer.Pause())
 
 	tests := []struct {
 		name              string
@@ -215,10 +217,10 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			monitor, err := usm.NewMonitor(cfg, nil, nil, nil)
-			require.NoError(t, err)
-			require.NoError(t, monitor.Start())
-			defer monitor.Stop()
+			tr.removeClient(clientID)
+			initTracerState(t, tr)
+			require.NoError(t, tr.ebpfTracer.Resume())
+			t.Cleanup(func() { _ = tr.ebpfTracer.Pause() })
 
 			c, err := net.Dial("tcp", localHostAddress)
 			require.NoError(t, err, "could not dial")
@@ -238,7 +240,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 
 			res := make(map[http.Key]int)
 			assert.Eventually(t, func() bool {
-				stats := monitor.GetProtocolStats()
+				stats := tr.usmMonitor.GetProtocolStats()
 				http2Stats, ok := stats[protocols.HTTP2]
 				if !ok {
 					return false
@@ -281,7 +283,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 						t.Logf("key: %v was not found in res", key.Path.Content.Get())
 					}
 				}
-				ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, "http2_in_flight")
+				ebpftest.DumpMapsTestHelper(t, tr.usmMonitor.DumpMaps, "http2_in_flight")
 			}
 		})
 	}
