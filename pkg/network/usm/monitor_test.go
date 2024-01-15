@@ -964,6 +964,57 @@ var testHeaderFields = []hpack.HeaderField{
 	{Name: "user-agent", Value: "Go-http-client/2.0"},
 }
 
+// createMessageWithCustomHeadersFramesCount creates a message with the given number of header frames
+// and optionally ping and window update frames.
+func createMessageWithCustomHeadersFramesCount(t *testing.T, headersCount int) []byte {
+	var buf bytes.Buffer
+	framer := http2.NewFramer(&buf, nil)
+
+	for i := 0; i < headersCount; i++ {
+		streamID := 2*i + 1
+		headersFrame, err := usmhttp2.NewHeadersFrameMessage(testHeaderFields)
+		require.NoError(t, err, "could not create headers frame")
+
+		// Writing the header frames to the buffer using the Framer.
+		require.NoError(t, framer.WriteHeaders(http2.HeadersFrameParam{
+			StreamID:      uint32(streamID),
+			BlockFragment: headersFrame,
+			EndStream:     false,
+			EndHeaders:    true,
+		}), "could not write header frames")
+
+		// Writing the data frame to the buffer using the Framer.
+		require.NoError(t, framer.WriteData(uint32(streamID), true, []byte{}), "could not write data frame")
+	}
+
+	return buf.Bytes()
+}
+
+// createMessageWithCustomSettingsFrames creates a message with the given number of settings frames.
+func createMessageWithCustomSettingsFrames(t *testing.T, settingsCount int) []byte {
+	var buf bytes.Buffer
+	framer := http2.NewFramer(&buf, nil)
+
+	for i := 0; i < settingsCount; i++ {
+		require.NoError(t, framer.WriteSettings(http2.Setting{}), "could not write settings frame")
+	}
+
+	headersFrame, err := usmhttp2.NewHeadersFrameMessage(testHeaderFields)
+	require.NoError(t, err, "could not create headers frame")
+
+	// Writing the header frames to the buffer using the Framer.
+	require.NoError(t, framer.WriteHeaders(http2.HeadersFrameParam{
+		StreamID:      uint32(1),
+		BlockFragment: headersFrame,
+		EndStream:     false,
+		EndHeaders:    true,
+	}), "could not write header frames")
+
+	// Writing the data frame to the buffer using the Framer.
+	require.NoError(t, framer.WriteData(uint32(1), true, []byte{}), "could not write data frame")
+	return buf.Bytes()
+}
+
 func (s *USMHTTP2Suite) TestRawTraffic() {
 	t := s.T()
 	cfg := networkconfig.New()
@@ -972,17 +1023,18 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 	startH2CServer(t)
 
 	tests := []struct {
-		name                  string
-		numberOfSettingFrames int
-		numberOfRequestFrames int
-		expectedEndpoints     map[http.Key]int
+		name              string
+		messageBuilder    func() []byte
+		expectedEndpoints map[http.Key]int
 	}{
 		{
 			name: "parse_frames tail call using 1 program",
 			// The objective of this test is to verify that we accurately perform the parsing of frames within
 			// a single program.
-			numberOfSettingFrames: 100,
-			numberOfRequestFrames: 1,
+			messageBuilder: func() []byte {
+				settingsCount := 100
+				return createMessageWithCustomSettingsFrames(t, settingsCount)
+			},
 			expectedEndpoints: map[http.Key]int{
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
@@ -994,8 +1046,10 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			name: "parse_frames tail call using 2 programs",
 			// The purpose of this test is to validate that when we surpass the limit of HTTP2_MAX_FRAMES_ITERATIONS,
 			// the filtering of subsequent frames will continue using tail calls.
-			numberOfSettingFrames: 130,
-			numberOfRequestFrames: 1,
+			messageBuilder: func() []byte {
+				settingsCount := 130
+				return createMessageWithCustomSettingsFrames(t, settingsCount)
+			},
 			expectedEndpoints: map[http.Key]int{
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
@@ -1007,16 +1061,20 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			name: "validate frames_filter tail calls limit",
 			// The purpose of this test is to validate that when we surpass the limit of HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER,
 			// for 2 filter_frames we do not use more than two tail calls.
-			numberOfSettingFrames: 250,
-			numberOfRequestFrames: 1,
-			expectedEndpoints:     nil,
+			messageBuilder: func() []byte {
+				settingsCount := 250
+				return createMessageWithCustomSettingsFrames(t, settingsCount)
+			},
+			expectedEndpoints: nil,
 		},
 		{
 			name: "validate max interesting frames limit",
 			// The purpose of this test is to verify our ability to reach the limit set by HTTP2_MAX_FRAMES_ITERATIONS, which
 			// determines the maximum number of "interesting frames" we can process.
-			numberOfSettingFrames: 0,
-			numberOfRequestFrames: 120,
+			messageBuilder: func() []byte {
+				headersCount := 120
+				return createMessageWithCustomHeadersFramesCount(t, headersCount)
+			},
 			expectedEndpoints: map[http.Key]int{
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
@@ -1028,8 +1086,10 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			name: "validate more then limit max interesting frames",
 			// The purpose of this test is to verify our ability to reach the limit set by HTTP2_MAX_FRAMES_ITERATIONS
 			// and validate that we cannot handle more than that limit.
-			numberOfSettingFrames: 0,
-			numberOfRequestFrames: 130,
+			messageBuilder: func() []byte {
+				headersCount := 130
+				return createMessageWithCustomHeadersFramesCount(t, headersCount)
+			},
 			expectedEndpoints: map[http.Key]int{
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
@@ -1045,48 +1105,21 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			require.NoError(t, monitor.Start())
 			defer monitor.Stop()
 
-			// Create a buffer to write the frame into.
-			var buf bytes.Buffer
-			framer := http2.NewFramer(&buf, nil)
-			// Write the empty SettingsFrame to the buffer using the Framer
-			emptySettings := http2.Setting{}
-			require.NoError(t, framer.WriteSettings(emptySettings), "could not write settings frame")
-
 			c, err := net.Dial("tcp", localHostAddress)
 			require.NoError(t, err, "could not dial")
 			defer c.Close()
 
+			// Create a buffer to write the frame into.
+			var buf bytes.Buffer
+			framer := http2.NewFramer(&buf, nil)
+			// Write the empty SettingsFrame to the buffer using the Framer
+			require.NoError(t, framer.WriteSettings(http2.Setting{}), "could not write settings frame")
+
 			// Writing a magic and the settings in the same packet to socket.
 			require.NoError(t, writeInput(c, usmhttp2.ComposeMessage([]byte(http2.ClientPreface), buf.Bytes()), time.Second))
 
-			// zeroing the buffer for start a new message.
-			buf.Reset()
 			// Composing a message with the number of setting frames we want to send.
-			for i := 0; i < tt.numberOfSettingFrames; i++ {
-				require.NoError(t, framer.WriteSettings(emptySettings), "could not write settings frame")
-			}
-
-			headersFrame, err := usmhttp2.NewHeadersFrameMessage(testHeaderFields)
-			require.NoError(t, err, "could not create headers frame")
-
-			// we have to use negative numbers for the stream id.
-			for i := 0; i < tt.numberOfRequestFrames; i++ {
-				streamID := 2*i + 1
-
-				// Writing the header frames to the buffer using the Framer.
-				require.NoError(t, framer.WriteHeaders(http2.HeadersFrameParam{
-					StreamID:      uint32(streamID),
-					BlockFragment: headersFrame,
-					EndStream:     false,
-					EndHeaders:    true,
-				}), "could not write header frames")
-
-				// Writing the data frame to the buffer using the Framer.
-				require.NoError(t, framer.WriteData(uint32(streamID), true, []byte{}),
-					"could not write data frame")
-			}
-
-			require.NoError(t, writeInput(c, buf.Bytes(), time.Second), "could not make request")
+			require.NoError(t, writeInput(c, tt.messageBuilder(), time.Second))
 
 			res := make(map[http.Key]int)
 			assert.Eventually(t, func() bool {
