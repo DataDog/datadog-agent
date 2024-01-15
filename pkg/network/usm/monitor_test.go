@@ -1026,7 +1026,7 @@ func createMessageWithCustomSettingsFrames(t *testing.T, headerFields []hpack.He
 		require.NoError(t, framer.WriteSettings(http2.Setting{}), "could not write settings frame")
 	}
 
-	headersFrame, err := usmhttp2.NewHeadersFrameMessage(headerFields, false)
+	headersFrame, err := usmhttp2.NewHeadersFrameMessage(headerFields)
 	require.NoError(t, err, "could not create headers frame")
 
 	// Writing the header frames to the buffer using the Framer.
