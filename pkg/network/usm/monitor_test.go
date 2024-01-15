@@ -993,13 +993,18 @@ func generateTestHeaderFields(pathNeverIndexed, withoutIndexing bool) []hpack.He
 
 // createMessageWithCustomHeadersFramesCount creates a message with the given number of header frames
 // and optionally ping and window update frames.
-func createMessageWithCustomHeadersFramesCount(t *testing.T, headerFields []hpack.HeaderField, setDynamicTableSize bool, headersCount int) []byte {
+func createMessageWithCustomHeadersFramesCount(t *testing.T, headerFields []hpack.HeaderField, headersCount int, setDynamicTableSize ...bool) []byte {
 	var buf bytes.Buffer
 	framer := http2.NewFramer(&buf, nil)
 
+	changeDynamicTableSize2 := false
+	if len(setDynamicTableSize) > 0 && setDynamicTableSize[0] {
+		changeDynamicTableSize2 = true
+
+	}
 	for i := 0; i < headersCount; i++ {
 		streamID := 2*i + 1
-		headersFrame, err := usmhttp2.NewHeadersFrameMessage(headerFields, setDynamicTableSize)
+		headersFrame, err := usmhttp2.NewHeadersFrameMessage(headerFields, changeDynamicTableSize2)
 		require.NoError(t, err, "could not create headers frame")
 
 		// Writing the header frames to the buffer using the Framer.
@@ -1100,8 +1105,7 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			// determines the maximum number of "interesting frames" we can process.
 			messageBuilder: func() []byte {
 				headersCount := 120
-				setDynamicTableSize := false
-				return createMessageWithCustomHeadersFramesCount(t, testHeaders(), setDynamicTableSize, headersCount)
+				return createMessageWithCustomHeadersFramesCount(t, testHeaders(), headersCount)
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
@@ -1116,8 +1120,7 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			// and validate that we cannot handle more than that limit.
 			messageBuilder: func() []byte {
 				headersCount := 130
-				setDynamicTableSize := false
-				return createMessageWithCustomHeadersFramesCount(t, testHeaders(), setDynamicTableSize, headersCount)
+				return createMessageWithCustomHeadersFramesCount(t, testHeaders(), headersCount)
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
@@ -1134,7 +1137,7 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			messageBuilder: func() []byte {
 				headersCount := 5
 				setDynamicTableSize := true
-				return createMessageWithCustomHeadersFramesCount(t, headersWithoutIndexingPath(), setDynamicTableSize, headersCount)
+				return createMessageWithCustomHeadersFramesCount(t, headersWithoutIndexingPath(), headersCount, setDynamicTableSize)
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
@@ -1150,8 +1153,7 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			// https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.3
 			messageBuilder: func() []byte {
 				headersCount := 5
-				setDynamicTableSize := false
-				return createMessageWithCustomHeadersFramesCount(t, headersWithNeverIndexedPath(), setDynamicTableSize, headersCount)
+				return createMessageWithCustomHeadersFramesCount(t, headersWithNeverIndexedPath(), headersCount)
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
