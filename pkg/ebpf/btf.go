@@ -29,16 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// BTFResult enumerates BTF loading success & failure modes
-type BTFResult int
-
-const (
-	successCustomBTF   BTFResult = 0
-	successEmbeddedBTF BTFResult = 1
-	successDefaultBTF  BTFResult = 2
-	btfNotFound        BTFResult = 3
-)
-
 const btfFlushDelay = 1 * time.Minute
 
 // FlushBTF deletes any cache of loaded BTF data, regardless of how it was sourced.
@@ -58,7 +48,7 @@ type orderedBTFLoader struct {
 	userBTFPath string
 	embeddedDir string
 
-	result         BTFResult
+	result         ebpftelemetry.BTFResult
 	loadFunc       funcs.CachedFunc[btf.Spec]
 	delayedFlusher *time.Timer
 }
@@ -67,7 +57,7 @@ func initBTFLoader(cfg *Config) *orderedBTFLoader {
 	btfLoader := &orderedBTFLoader{
 		userBTFPath: cfg.BTFPath,
 		embeddedDir: filepath.Join(cfg.BPFDir, "co-re", "btf"),
-		result:      btfNotFound,
+		result:      ebpftelemetry.BtfNotFound,
 	}
 	btfLoader.loadFunc = funcs.CacheWithCallback[btf.Spec](btfLoader.get, loadKernelSpec.Flush)
 	btfLoader.delayedFlusher = time.AfterFunc(btfFlushDelay, btfLoader.Flush)
@@ -93,13 +83,13 @@ func (b *orderedBTFLoader) Flush() {
 
 func (b *orderedBTFLoader) get() (*btf.Spec, error) {
 	loaders := []struct {
-		result BTFResult
+		result ebpftelemetry.BTFResult
 		loader btfLoaderFunc
 		desc   string
 	}{
-		{successCustomBTF, b.loadUser, "configured BTF file"},
-		{successDefaultBTF, b.loadKernel, "kernel"},
-		{successEmbeddedBTF, b.loadEmbedded, "embedded collection"},
+		{ebpftelemetry.SuccessCustomBTF, b.loadUser, "configured BTF file"},
+		{ebpftelemetry.SuccessDefaultBTF, b.loadKernel, "kernel"},
+		{ebpftelemetry.SuccessEmbeddedBTF, b.loadEmbedded, "embedded collection"},
 	}
 	var err error
 	var spec *btf.Spec

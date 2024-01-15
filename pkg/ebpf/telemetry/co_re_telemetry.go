@@ -11,16 +11,6 @@ import (
 	"sync"
 )
 
-// COREResult enumerates CO-RE success & failure modes
-type COREResult int
-
-const (
-	// BTFResult comes beforehand
-	AssetReadError COREResult = 4
-	VerifierError  COREResult = 5
-	LoaderError    COREResult = 6
-)
-
 // coreTelemetryByAsset is a global object which is responsible for storing CO-RE telemetry for all ebpf assets
 var coreTelemetryByAsset = make(map[string]COREResult)
 var telemetrymu sync.Mutex
