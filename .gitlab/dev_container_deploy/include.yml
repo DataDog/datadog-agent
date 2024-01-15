@@ -6,3 +6,4 @@
 include:
   - /.gitlab/dev_container_deploy/docker_linux.yml
   - /.gitlab/dev_container_deploy/docker_windows.yml
+  - /.gitlab/dev_container_deploy/fakeintake.yml

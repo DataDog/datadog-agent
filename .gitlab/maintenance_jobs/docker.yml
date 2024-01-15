@@ -1,6 +1,6 @@
 ---
 include:
-  - /.gitlab/docker_common/publish_job_templates.yml
+  - /.gitlab/common/publish_job_templates.yml
 
 #
 # Use these steps to revert the latest tags to a previous release

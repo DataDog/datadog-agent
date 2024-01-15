@@ -1,6 +1,6 @@
 ---
 include:
-  - /.gitlab/docker_common/publish_job_templates.yml
+  - /.gitlab/common/publish_job_templates.yml
 
 #
 # CWS Instrumentation image tagging & manifest publication
@@ -18,18 +18,14 @@ include:
     - export IMG_SOURCES="${IMG_BASE_SRC}-amd64,${IMG_BASE_SRC}-arm64"
     - export IMG_DESTINATIONS="${CWS_INSTRUMENTATION_REPOSITORY}:${VERSION}"
 
-
 deploy_containers-cws-instrumentation-rc:
   extends: .deploy_containers-cws-instrumentation-base
-  rules:
-    !reference [.on_deploy_a7_rc]
+  rules: !reference [.on_deploy_a7_rc]
   variables:
     VERSION: rc
 
-
 deploy_containers-cws-instrumentation-latest:
   extends: .deploy_containers-cws-instrumentation-base
-  rules:
-    !reference [.on_deploy_a7_manual_final]
+  rules: !reference [.on_deploy_a7_manual_final]
   variables:
     VERSION: latest
