@@ -90,11 +90,6 @@ const (
 
 	defaultWorkersCount = 40
 
-	defaultAWSRate          rate.Limit = 20.0
-	defaultEC2Rate          rate.Limit = 20.0
-	defaultEBSListBlockRate rate.Limit = 20.0
-	defaultEBSGetBlockRate  rate.Limit = 400.0
-
 	defaultSelfRegion      = "us-east-1"
 	defaultSnapshotsMaxTTL = 24 * time.Hour
 )
@@ -483,7 +478,7 @@ func runCmd(pidfilePath string, poolSize int, allowedScanTypes []string) error {
 		return fmt.Errorf("could not fetch hostname: %w", err)
 	}
 
-	limits := newAWSLimits(defaultEC2Rate, defaultEBSListBlockRate, defaultEBSGetBlockRate)
+	limits := newAWSLimits(getAWSLimitsOptions())
 
 	scanner, err := newSideScanner(hostname, limits, poolSize, allowedScanTypes)
 	if err != nil {
@@ -582,7 +577,7 @@ func scanCmd(arn, scannedHostname string, actions []string) error {
 		return err
 	}
 
-	limits := newAWSLimits(defaultEC2Rate, defaultEBSListBlockRate, defaultEBSGetBlockRate)
+	limits := newAWSLimits(getAWSLimitsOptions())
 	sidescanner, err := newSideScanner(hostname, limits, 1, nil)
 	if err != nil {
 		return fmt.Errorf("could not initialize agentless-scanner: %w", err)
@@ -665,7 +660,7 @@ func offlineCmd(poolSize int, scanType scanType, regions []string, maxScans int,
 		}
 	}
 
-	limits := newAWSLimits(defaultEC2Rate, defaultEBSListBlockRate, defaultEBSGetBlockRate)
+	limits := newAWSLimits(getAWSLimitsOptions())
 	sidescanner, err := newSideScanner(hostname, limits, poolSize, nil)
 	if err != nil {
 		return fmt.Errorf("could not initialize agentless-scanner: %w", err)
@@ -3068,20 +3063,32 @@ func hasResults(bom *cdx.BOM) bool {
 	return bom.Components != nil && len(*bom.Components) > 0
 }
 
-type awsLimits struct {
-	ec2Rate          rate.Limit
-	ebsListBlockRate rate.Limit
-	ebsGetBlockRate  rate.Limit
-	limitersMu       sync.Mutex
-	limiters         map[string]*rate.Limiter
+type awsLimitsOptions struct {
+	EC2Rate          rate.Limit
+	EBSListBlockRate rate.Limit
+	EBSGetBlockRate  rate.Limit
+	DefaultRate      rate.Limit
 }
 
-func newAWSLimits(ec2Rate, ebsListBlockRate, ebsGetBlockRate rate.Limit) *awsLimits {
+func getAWSLimitsOptions() awsLimitsOptions {
+	return awsLimitsOptions{
+		EC2Rate:          rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_ec2_rate")),
+		EBSListBlockRate: rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_ebs_list_block_rate")),
+		EBSGetBlockRate:  rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_ebs_get_block_rate")),
+		DefaultRate:      rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_default_rate")),
+	}
+}
+
+type awsLimits struct {
+	limitersMu sync.Mutex
+	limiters   map[string]*rate.Limiter
+	opts       awsLimitsOptions
+}
+
+func newAWSLimits(opts awsLimitsOptions) *awsLimits {
 	return &awsLimits{
-		ec2Rate:          ec2Rate,
-		ebsListBlockRate: ebsListBlockRate,
-		ebsGetBlockRate:  ebsGetBlockRate,
-		limiters:         make(map[string]*rate.Limiter),
+		limiters: make(map[string]*rate.Limiter),
+		opts:     opts,
 	}
 }
 
@@ -3097,7 +3104,7 @@ func withAWSLimits(ctx context.Context, limits *awsLimits) context.Context {
 func getAWSLimit(ctx context.Context) *awsLimits {
 	limits := ctx.Value(keyRateLimits)
 	if limits == nil {
-		return newAWSLimits(rate.Inf, rate.Inf, rate.Inf)
+		return newAWSLimits(awsLimitsOptions{})
 	}
 	return limits.(*awsLimits)
 }
@@ -3109,21 +3116,21 @@ func (l *awsLimits) getLimiter(accountID, region, service, action string) *rate.
 		switch {
 		// reference: https://docs.aws.amazon.com/AWSEC2/latest/APIReference/throttling.html#throttling-limits
 		case strings.HasPrefix(action, "Describe"), strings.HasPrefix(action, "Get"):
-			limit = l.ec2Rate
+			limit = l.opts.EC2Rate
 		default:
-			limit = l.ec2Rate / 4.0
+			limit = l.opts.EC2Rate / 4.0
 		}
 	case "ebs":
 		switch action {
 		case "getblock":
-			limit = l.ebsGetBlockRate
+			limit = l.opts.EBSGetBlockRate
 		case "listblocks", "changedblocks":
-			limit = l.ebsListBlockRate
+			limit = l.opts.EBSListBlockRate
 		}
 	case "s3", "imds":
 		limit = 0.0 // no rate limiting
 	default:
-		limit = defaultAWSRate
+		limit = l.opts.DefaultRate
 	}
 	if limit == 0.0 {
 		return nil // no rate limiting

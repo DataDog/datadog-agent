@@ -1230,6 +1230,11 @@ func InitConfig(config Config) {
 
 	// Agentless Scanner
 	config.BindEnvAndSetDefault("agentless_scanner.default_roles", []string{})
+	// Limit rates are per-second
+	config.BindEnvAndSetDefault("agentless_scanner.limits.aws_default_rate", 20.0)
+	config.BindEnvAndSetDefault("agentless_scanner.limits.aws_ec2_rate", 20.0)
+	config.BindEnvAndSetDefault("agentless_scanner.limits.aws_ebs_list_block_rate", 20.0)
+	config.BindEnvAndSetDefault("agentless_scanner.limits.aws_ebs_get_block_rate", 400.0)
 
 	// Serverless Agent
 	config.SetDefault("serverless.enabled", false)
