@@ -68,7 +68,7 @@ var securityAgentConfig string
 func TestAgentSuite(t *testing.T) {
 	e2e.Run(t, &agentSuite{}, e2e.WithProvisioner(
 		awshost.Provisioner(
-			awshost.WithName("cws-e2e-tests"),
+			awshost.WithName("cws-agent-e2e-tests"),
 			awshost.WithAgentOptions(
 				agentparams.WithAgentConfig(agentConfig),
 				agentparams.WithSecurityAgentConfig(securityAgentConfig),

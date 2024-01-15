@@ -22,7 +22,6 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	configCommon "github.com/DataDog/test-infra-definitions/common/config"
-	agentComp "github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	awsResources "github.com/DataDog/test-infra-definitions/resources/aws"
 	ecsResources "github.com/DataDog/test-infra-definitions/resources/aws/ecs"
 
@@ -108,7 +107,7 @@ func (s *ECSFargateSuite) SetupSuite() {
 				"datadog-agent": {
 					Cpu:   pulumi.IntPtr(0),
 					Name:  pulumi.String("datadog-agent"),
-					Image: pulumi.String(agentComp.DockerAgentFullImagePath(awsEnv.CommonEnvironment, "public.ecr.aws/datadog/agent", "7.51.0-rc.1")),
+					Image: pulumi.String(getAgentFullImagePath(awsEnv.CommonEnvironment)),
 					Command: pulumi.ToStringArray([]string{
 						"sh",
 						"-c",
@@ -266,7 +265,7 @@ func (s *ECSFargateSuite) SetupSuite() {
 			return err
 		}
 
-		_, err = ecsResources.FargateService(awsEnv, "cws-service", ecsCluster.Arn, taskDef.TaskDefinition.Arn())
+		_, err = ecsResources.FargateService(awsEnv, "cws-service", ecsCluster.Arn, taskDef.TaskDefinition.Arn(), nil)
 		if err != nil {
 			return err
 		}
@@ -312,6 +311,7 @@ func (s *ECSFargateSuite) TestOpenRule() {
 const (
 	cwsInstrumentationFullImagePathParamName = "cwsinstrumentation:fullImagePath"
 	cwsInstrumentationDefaultImagePath       = "public.ecr.aws/datadog/cws-instrumentation:rc"
+	agentDefaultImagePath                    = "public.ecr.aws/datadog/agent:7.51.0-rc.1"
 )
 
 func getCWSInstrumentationFullImagePath(e *configCommon.CommonEnvironment) string {
@@ -319,6 +319,13 @@ func getCWSInstrumentationFullImagePath(e *configCommon.CommonEnvironment) strin
 		return fullImagePath
 	}
 	return cwsInstrumentationDefaultImagePath
+}
+
+func getAgentFullImagePath(e *configCommon.CommonEnvironment) string {
+	if fullImagePath := e.AgentFullImagePath(); fullImagePath != "" {
+		return fullImagePath
+	}
+	return agentDefaultImagePath
 }
 
 // testRuleDefinition defines a rule used in a test policy
