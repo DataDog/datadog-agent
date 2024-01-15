@@ -30,90 +30,84 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type containerMountpoint struct {
+type container struct {
+	MountName     string
 	ImageName     string
 	ImageDigest   string
 	ContainerName string
-	Path          string
+	Layers        []string
 }
 
-func mountContainers(ctx context.Context, scan *scanTask, root string) (mountPoints []containerMountpoint, err error) {
-	ctrdRoot := filepath.Join(root, "/var/lib/containerd")
+func launchScannerContainers(_ context.Context, opts scannerOptions) ([]*container, error) {
+	var containers []*container
+
+	ctrdRoot := filepath.Join(opts.Root, "/var/lib/containerd")
 	ctrdRootInfo, err := os.Stat(ctrdRoot)
 	if err == nil && ctrdRootInfo.IsDir() {
-		log.Debugf("%s: starting scanning for containerd containers", scan)
-		containers, err := ctrdReadMetadata(ctrdRoot)
+		log.Debugf("%s: starting scanning for containerd containers", opts.Scan)
+		ctrdContainers, err := ctrdReadMetadata(ctrdRoot)
 		if err != nil {
 			return nil, err
 		}
-		log.Infof("%s: found %d containers from containerd on %q", scan, len(containers), root)
-		for _, ctr := range containers {
+		log.Infof("%s: found %d containers from containerd on %q", opts.Scan, len(ctrdContainers), opts.Root)
+		for _, ctr := range ctrdContainers {
 			if ctr.Snapshot.Backend.Kind != kindActive {
 				continue
 			}
 
-			log.Debugf("%s: container %s", scan, ctr)
+			log.Debugf("%s: container %s", opts.Scan, ctr)
 			if ctr.Snapshot == nil {
-				log.Warnf("%s: container %s is active but without an associated snapshot", scan, ctr)
+				log.Warnf("%s: container %s is active but without an associated snapshot", opts.Scan, ctr)
 				continue
 			}
 
-			ctrMountName := fmt.Sprintf("%s%s-%s-%d", ctrdMountPrefix, ctr.NS, ctr.Name, ctr.Snapshot.Backend.ID)
 			ctrLayers := ctrdLayersPaths(ctrdRoot, ctr.Snapshot)
-			ctrMountPoint, err := mountContainer(ctx, scan, ctrMountName, ctrLayers)
-			if err != nil {
-				log.Errorf("%s: could not mount container %s: %v", scan, ctr, err)
-				continue
-			}
-			mountPoints = append(mountPoints, containerMountpoint{
+			ctrMountName := fmt.Sprintf("%s%s-%s-%d", ctrdMountPrefix, ctr.NS, ctr.Name, ctr.Snapshot.Backend.ID)
+			containers = append(containers, &container{
+				MountName:     ctrMountName,
 				ImageName:     ctr.ImageName,
 				ImageDigest:   ctr.Image.Digest.String(),
 				ContainerName: ctr.Name,
-				Path:          ctrMountPoint,
+				Layers:        ctrLayers,
 			})
 		}
 	}
 
-	dockerRoot := filepath.Join(root, "/var/lib/docker")
+	dockerRoot := filepath.Join(opts.Root, "/var/lib/docker")
 	dockerRootInfo, err := os.Stat(dockerRoot)
 	if err == nil && dockerRootInfo.IsDir() {
-		log.Debugf("%s: starting scanning for docker containers", scan)
-		containers, err := dockerReadMetadata(dockerRoot)
+		log.Debugf("%s: starting scanning for docker containers", opts.Scan)
+		dockerContainers, err := dockerReadMetadata(dockerRoot)
 		if err != nil {
 			return nil, err
 		}
-		log.Infof("%s: found %d containers from Docker on %q", scan, len(containers), root)
-		for _, ctr := range containers {
+		log.Infof("%s: found %d containers from Docker on %q", opts.Scan, len(dockerContainers), opts.Root)
+		for _, ctr := range dockerContainers {
 			if !ctr.State.Running {
 				continue
 			}
 
-			log.Debugf("%s: container %s", scan, ctr)
-
+			log.Debugf("%s: container %s", opts.Scan, ctr)
 			ctrMountName := dockerMountPrefix + ctr.ID
 			ctrLayers, err := dockerLayersPaths(dockerRoot, ctr)
 			if err != nil {
 				log.Errorf("could not get container layers %s: %v", ctr, err)
 				continue
 			}
-			ctrMountPoint, err := mountContainer(ctx, scan, ctrMountName, ctrLayers)
-			if err != nil {
-				log.Errorf("could not mount container %s: %v", ctr, err)
-				continue
-			}
-			mountPoints = append(mountPoints, containerMountpoint{
+			containers = append(containers, &container{
+				MountName:     ctrMountName,
 				ImageName:     ctr.Config.Image,
 				ImageDigest:   ctr.Image.String(),
 				ContainerName: ctr.Name,
-				Path:          ctrMountPoint,
+				Layers:        ctrLayers,
 			})
 		}
 	}
 
-	return mountPoints, nil
+	return containers, nil
 }
 
-func containerTags(ctr containerMountpoint) (string, []string) {
+func containerTags(ctr container) (string, []string) {
 	imageNameSplit := strings.SplitN(ctr.ImageName, ":", 2)
 	if len(imageNameSplit) == 1 {
 		imageNameSplit = append(imageNameSplit, "")
@@ -134,20 +128,20 @@ func containerTags(ctr containerMountpoint) (string, []string) {
 	return entityID, entityTags
 }
 
-func mountContainer(ctx context.Context, scan *scanTask, name string, ctrLayers []string) (string, error) {
-	if len(ctrLayers) == 0 {
+func mountContainer(ctx context.Context, scan *scanTask, ctr container) (string, error) {
+	if len(ctr.Layers) == 0 {
 		return "", fmt.Errorf("container without any layer")
 	}
-	if len(ctrLayers) == 1 {
+	if len(ctr.Layers) == 1 {
 		// only one layer, no need to mount anything.
-		return ctrLayers[0], nil
+		return ctr.Layers[0], nil
 	}
-	ctrMountPoint := scan.Path(name)
+	ctrMountPoint := scan.Path(ctr.MountName)
 	if err := os.MkdirAll(ctrMountPoint, 0700); err != nil {
 		return "", fmt.Errorf("could not create container mountPoint directory %q: %w", ctrMountPoint, err)
 	}
 	ctrMountOpts := []string{
-		"-o", "ro,noauto,nodev,noexec,nosuid,index=off," + fmt.Sprintf("lowerdir=%s", strings.Join(ctrLayers, ":")),
+		"-o", "ro,noauto,nodev,noexec,nosuid,index=off," + fmt.Sprintf("lowerdir=%s", strings.Join(ctr.Layers, ":")),
 		"-t", "overlay",
 		"--source", "overlay",
 		"--target", ctrMountPoint,
