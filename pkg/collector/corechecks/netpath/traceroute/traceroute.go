@@ -191,7 +191,7 @@ func Traceroute(dest string, options *TracerouteOptions, c ...chan TracerouteHop
 	ttl := options.FirstHop()
 	retry := 0
 	for {
-		//log.Println("TTL: ", ttl)
+		//log.Println("HopTTL: ", ttl)
 		start := time.Now()
 
 		// Set up the socket to receive inbound packets
@@ -205,7 +205,7 @@ func Traceroute(dest string, options *TracerouteOptions, c ...chan TracerouteHop
 		if err != nil {
 			return result, err
 		}
-		// This sets the current hop TTL
+		// This sets the current hop HopTTL
 		syscall.SetsockoptInt(sendSocket, 0x0, syscall.IP_TTL, ttl)
 		// This sets the timeout to wait for a response from the remote host
 		syscall.SetsockoptTimeval(recvSocket, syscall.SOL_SOCKET, syscall.SO_RCVTIMEO, &tv)

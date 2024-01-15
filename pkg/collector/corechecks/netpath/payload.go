@@ -19,20 +19,25 @@ type Traceroute struct {
 }
 
 type TracerouteV2 struct {
-	TracerouteSource string  `json:"traceroute_source"`
-	PathID           string  `json:"path_id"`
-	Strategy         string  `json:"strategy"`
-	Timestamp        int64   `json:"timestamp"`
-	AgentHost        string  `json:"agent_host"`
-	DestinationHost  string  `json:"destination_host"`
-	TTL              int     `json:"ttl"`
-	IpAddress        string  `json:"ip_address"`
-	PrevHopIpAddress string  `json:"prev_hop_ip_address"`
-	Host             string  `json:"host"`
-	Duration         float64 `json:"duration"`
-	Success          bool    `json:"success"`
-	Message          string  `json:"message"`
-	Team             string  `json:"team"`
+	TracerouteSource string `json:"traceroute_source"`
+	PathID           string `json:"path_id"`
+	Strategy         string `json:"strategy"`
+	Timestamp        int64  `json:"timestamp"`
+	AgentHost        string `json:"agent_host"`
+	DestinationHost  string `json:"destination_host"`
+
+	// HOP
+	HopTTL       int     `json:"hop_ttl"`
+	HopIpAddress string  `json:"hop_ip"`
+	HopHost      string  `json:"hop_host"`
+	HopRtt       float64 `json:"hop_rtt"`
+	HopSuccess   bool    `json:"hop_success"`
+
+	// Prev HOP
+	PrevhopIp string `json:"prevhop_ip"`
+
+	Message string `json:"message"`
+	Team    string `json:"team"`
 }
 
 func NewTraceroute() *Traceroute {

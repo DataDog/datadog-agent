@@ -134,26 +134,39 @@ func (c *Check) traceRouteV1(sender sender.Sender, hostHops [][]traceroute.Trace
 func (c *Check) traceRouteV2(sender sender.Sender, hostHops [][]traceroute.TracerouteHop, hname string, destinationHost string) error {
 	id := uuid.New()
 
+	agent_hostname := hname + "-TEST01"
+
 	hops := hostHops[0]
 	var prevHop traceroute.TracerouteHop
 	for _, hop := range hops {
-		ip := hop.AddressString()
-		durationMs := hop.ElapsedTime.Seconds() * 10e3
+		hopIp := hop.AddressString()
+		hopRtt := hop.ElapsedTime.Seconds() * 10e3
+		var prevHopHost string
+		if hop.TTL == 1 {
+			prevHopHost = agent_hostname
+		} else {
+			prevHopHost = prevHop.AddressString()
+		}
 		tr := TracerouteV2{
 			TracerouteSource: "netpath_integration",
 			PathID:           id.String(),
 			Strategy:         "hop_per_event",
 			Timestamp:        time.Now().UnixMilli(),
-			AgentHost:        hname,
+			AgentHost:        agent_hostname,
 			DestinationHost:  destinationHost,
-			TTL:              hop.TTL,
-			IpAddress:        ip,
-			Host:             hop.HostOrAddressString(),
-			PrevHopIpAddress: prevHop.AddressString(),
-			Duration:         durationMs,
-			Success:          hop.Success,
-			Message:          "my-network-path",
-			Team:             "network-device-monitoring",
+
+			// HOP
+			HopTTL:       hop.TTL,
+			HopIpAddress: hopIp,
+			HopHost:      hop.HostOrAddressString(),
+			HopRtt:       hopRtt,
+			HopSuccess:   hop.Success,
+
+			// Prev HOP
+			PrevhopIp: prevHopHost,
+
+			Message: "my-network-path",
+			Team:    "network-device-monitoring",
 		}
 		tracerouteStr, err := json.MarshalIndent(tr, "", "\t")
 		if err != nil {
@@ -165,9 +178,9 @@ func (c *Check) traceRouteV2(sender sender.Sender, hostHops [][]traceroute.Trace
 		sender.EventPlatformEvent(tracerouteStr, epforwarder.EventTypeNetworkDevicesNetpath)
 		tags := []string{
 			"target_service:" + c.config.TargetService,
-			"agent_host:" + hname,
+			"agent_host:" + agent_hostname,
 			"target:" + destinationHost,
-			"hop_ip_address:" + ip,
+			"hop_ip_address:" + hopIp,
 			"hop_host:" + hop.HostOrAddressString(),
 			"ttl:" + strconv.Itoa(hop.TTL),
 		}
@@ -177,7 +190,7 @@ func (c *Check) traceRouteV2(sender sender.Sender, hostHops [][]traceroute.Trace
 			tags = append(tags, "prev_hop_host:"+prevHop.HostOrAddressString())
 		}
 		log.Infof("[netpath] tags: %s", tags)
-		sender.Gauge("netpath.hop.duration", durationMs, "", CopyStrings(tags))
+		sender.Gauge("netpath.hop.duration", hopRtt, "", CopyStrings(tags))
 		sender.Gauge("netpath.hop.record", float64(1), "", CopyStrings(tags))
 
 		prevHop = hop
