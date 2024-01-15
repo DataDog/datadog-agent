@@ -11,7 +11,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"encoding/gob"
 	"encoding/hex"
 	"encoding/json"
 	"encoding/xml"
@@ -166,20 +165,6 @@ var defaultActions = []string{
 type (
 	rolesMapping map[string]*arn.ARN
 
-	finding struct {
-		AgentVersion string      `json:"agent_version,omitempty"`
-		RuleID       string      `json:"agent_rule_id,omitempty"`
-		RuleVersion  int         `json:"agent_rule_version,omitempty"`
-		FrameworkID  string      `json:"agent_framework_id,omitempty"`
-		Evaluator    string      `json:"evaluator,omitempty"`
-		ExpireAt     *time.Time  `json:"expire_at,omitempty"`
-		Result       string      `json:"result,omitempty"`
-		ResourceType string      `json:"resource_type,omitempty"`
-		ResourceID   string      `json:"resource_id,omitempty"`
-		Tags         []string    `json:"tags"`
-		Data         interface{} `json:"data"`
-	}
-
 	scanConfigRaw struct {
 		Type  string `json:"type"`
 		Tasks []struct {
@@ -200,42 +185,87 @@ type (
 	}
 
 	scanTask struct {
-		ID       string
-		Time     time.Time
-		Type     scanType
-		ARN      arn.ARN
-		Hostname string
-		Actions  []scanAction
-		Roles    rolesMapping
-		DiskMode diskMode
+		ID        string       `json:"ID"`
+		CreatedAt time.Time    `json:"CreatedAt"`
+		StartedAt time.Time    `json:"StartedAt"`
+		Type      scanType     `json:"Type"`
+		ARN       arn.ARN      `json:"ARN"`
+		Hostname  string       `json:"Hostname"`
+		Actions   []scanAction `json:"Actions"`
+		Roles     rolesMapping `json:"Roles"`
+		DiskMode  diskMode     `json:"DiskMode"`
 
 		// Lifecycle metadata of the task
-		CreatedSnapshots        map[arn.ARN]*time.Time
-		AttachedDeviceName      *string
-		AttachedVolumeARN       *arn.ARN
-		AttachedVolumeCreatedAt *time.Time
+		CreatedSnapshots        map[string]*time.Time `json:"CreatedSnapshots"`
+		AttachedDeviceName      *string               `json:"AttachedDeviceName"`
+		AttachedVolumeARN       *arn.ARN              `json:"AttachedVolumeARN"`
+		AttachedVolumeCreatedAt *time.Time            `json:"AttachedVolumeCreatedAt"`
+	}
+
+	scanJSONError struct {
+		err error
 	}
 
 	scanResult struct {
-		Scan     *scanTask
-		Err      error
-		Duration time.Duration
+		Scan *scanTask      `json:"Scan"`
+		Err  *scanJSONError `json:"Err"`
 
-		// Vulns specific
-		SBOM           *cdx.BOM
-		SBOMEntityType sbommodel.SBOMSourceType
-		SBOMEntityID   string
-		SBOMEntityTags []string
+		// Results union
+		Vulns   *scanVulnsResult   `json:"Vulns"`
+		Malware *scanMalwareResult `json:"Malware"`
+	}
 
-		// Findings specific
-		Findings []*finding
+	scanVulnsResult struct {
+		BOM        *cdx.BOM                 `json:"BOM"`
+		SourceType sbommodel.SBOMSourceType `json:"SourceType"`
+		ID         string                   `json:"ID"`
+		Tags       []string                 `json:"Tags"`
+	}
+
+	scanMalwareResult struct {
+		Findings []*scanFinding
+	}
+
+	scanFinding struct {
+		AgentVersion string      `json:"agent_version,omitempty"`
+		RuleID       string      `json:"agent_rule_id,omitempty"`
+		RuleVersion  int         `json:"agent_rule_version,omitempty"`
+		FrameworkID  string      `json:"agent_framework_id,omitempty"`
+		Evaluator    string      `json:"evaluator,omitempty"`
+		ExpireAt     *time.Time  `json:"expire_at,omitempty"`
+		Result       string      `json:"result,omitempty"`
+		ResourceType string      `json:"resource_type,omitempty"`
+		ResourceID   string      `json:"resource_id,omitempty"`
+		Tags         []string    `json:"tags"`
+		Data         interface{} `json:"data"`
 	}
 )
 
+func (e *scanJSONError) Error() string {
+	return e.err.Error()
+}
+
+func (e *scanJSONError) Cause() error {
+	return e.err
+}
+
+func (e *scanJSONError) MashalJSON() ([]byte, error) {
+	return []byte(e.err.Error()), nil
+}
+
+func (e *scanJSONError) UnmarshalJSON(data []byte) error {
+	var msg string
+	if err := json.Unmarshal(data, &msg); err != nil {
+		return err
+	}
+	e.err = errors.New(msg)
+	return nil
+}
+
 func makeScanTaskID(s *scanTask) string {
 	h := sha256.New()
-	t, _ := s.Time.MarshalBinary()
-	h.Write(t)
+	createdAt, _ := s.CreatedAt.MarshalBinary()
+	h.Write(createdAt)
 	h.Write([]byte(s.Type))
 	h.Write([]byte(s.ARN.String()))
 	h.Write([]byte(s.Hostname))
@@ -246,7 +276,11 @@ func makeScanTaskID(s *scanTask) string {
 	return string(s.Type) + "-" + hex.EncodeToString(h.Sum(nil)[:8])
 }
 
-func (s scanTask) Path(names ...string) string {
+func (s *scanTask) ErrResult(err error) scanResult {
+	return scanResult{Scan: s, Err: &scanJSONError{err}}
+}
+
+func (s *scanTask) Path(names ...string) string {
 	root := filepath.Join(scansRootDir, s.ID)
 	for _, name := range names {
 		name = strings.ToLower(name)
@@ -256,7 +290,7 @@ func (s scanTask) Path(names ...string) string {
 	return root
 }
 
-func (s scanTask) String() string {
+func (s *scanTask) String() string {
 	return fmt.Sprintf("%s-%s", s.ID, s.ARN)
 }
 
@@ -506,8 +540,8 @@ func runScannerCmd(sock string) error {
 	}
 	defer conn.Close()
 
-	dec := gob.NewDecoder(conn)
-	enc := gob.NewEncoder(conn)
+	dec := json.NewDecoder(conn)
+	enc := json.NewEncoder(conn)
 	for {
 		_ = conn.SetReadDeadline(time.Now().Add(4 * time.Second))
 		if err := dec.Decode(&opts); err != nil {
@@ -1018,9 +1052,9 @@ func newScanTask(resourceARN, hostname string, actions []string, roles rolesMapp
 			log.Warnf("unknown action type %q", actionRaw)
 		}
 	}
-	scan.Time = time.Now()
+	scan.CreatedAt = time.Now()
 	scan.ID = makeScanTaskID(&scan)
-	scan.CreatedSnapshots = make(map[arn.ARN]*time.Time)
+	scan.CreatedSnapshots = make(map[string]*time.Time)
 	return &scan, nil
 }
 
@@ -1409,14 +1443,14 @@ func (s *sideScanner) start(ctx context.Context) {
 					log.Warnf("failed to send metric: %v", err)
 				}
 			} else {
-				if result.SBOM != nil {
-					if hasResults(result.SBOM) {
-						log.Debugf("scan %s finished successfully (took %s)", result.Scan, result.Duration)
+				if vulns := result.Vulns; vulns != nil {
+					if hasResults(vulns.BOM) {
+						log.Debugf("scan %s finished successfully (took %s)", result.Scan, time.Since(result.Scan.StartedAt))
 						if err := statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, tagSuccess(result.Scan), 1.0); err != nil {
 							log.Warnf("failed to send metric: %v", err)
 						}
 					} else {
-						log.Debugf("scan %s finished successfully without results (took %s)", result.Scan, result.Duration)
+						log.Debugf("scan %s finished successfully without results (took %s)", result.Scan, time.Since(result.Scan.StartedAt))
 						if err := statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, tagNoResult(result.Scan), 1.0); err != nil {
 							log.Warnf("failed to send metric: %v", err)
 						}
@@ -1425,24 +1459,24 @@ func (s *sideScanner) start(ctx context.Context) {
 						log.Errorf("failed to send SBOM: %v", err)
 					}
 					if s.printResults {
-						if bomRaw, err := json.MarshalIndent(result.SBOM, "  ", "  "); err == nil {
-							fmt.Printf("scanning SBOM result %s (took %s):\n", result.Scan, result.Duration)
-							fmt.Printf("SBOMEntityID: %s\n", result.SBOMEntityID)
-							fmt.Printf("SBOMEntityType: %s\n", result.SBOMEntityType.String())
-							fmt.Printf("SBOMEntityTags: %+q\n", result.SBOMEntityTags)
+						if bomRaw, err := json.MarshalIndent(vulns.BOM, "  ", "  "); err == nil {
+							fmt.Printf("scanning SBOM result %s (took %s):\n", result.Scan, time.Since(result.Scan.StartedAt))
+							fmt.Printf("ID: %s\n", vulns.ID)
+							fmt.Printf("SourceType: %s\n", vulns.SourceType.String())
+							fmt.Printf("Tags: %+q\n", vulns.Tags)
 							fmt.Printf("%s\n", bomRaw)
 						}
 					}
 				}
-				if result.Findings != nil {
+				if malware := result.Malware; malware != nil {
 					log.Debugf("sending Findings for scan %s", result.Scan)
 					if err := statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, tagSuccess(result.Scan), 1.0); err != nil {
 						log.Warnf("failed to send metric: %v", err)
 					}
-					s.sendFindings(result.Findings)
+					s.sendFindings(malware.Findings)
 					if s.printResults {
-						b, _ := json.MarshalIndent(result.Findings, "", "  ")
-						fmt.Printf("scanning findings result %s (took %s): %s\n", result.Scan, result.Duration, string(b))
+						b, _ := json.MarshalIndent(malware.Findings, "", "  ")
+						fmt.Printf("scanning findings result %s (took %s): %s\n", result.Scan, time.Since(result.Scan.StartedAt), string(b))
 					}
 				}
 			}
@@ -1538,6 +1572,7 @@ func (s *sideScanner) launchScan(ctx context.Context, scan *scanTask) (err error
 		return err
 	}
 
+	scan.StartedAt = time.Now()
 	defer cleanupScan(scan)
 	switch scan.Type {
 	case hostScanType:
@@ -1552,24 +1587,25 @@ func (s *sideScanner) launchScan(ctx context.Context, scan *scanTask) (err error
 }
 
 func (s *sideScanner) sendSBOM(result scanResult) error {
+	vulns := result.Vulns
 	sourceAgent := "agentless-scanner"
 	envVarEnv := pkgconfig.Datadog.GetString("env")
 
 	entity := &sbommodel.SBOMEntity{
 		Status: sbommodel.SBOMStatus_SUCCESS,
-		Type:   result.SBOMEntityType,
-		Id:     result.SBOMEntityID,
+		Type:   vulns.SourceType,
+		Id:     vulns.ID,
 		InUse:  true,
 		DdTags: append([]string{
 			"agentless_scanner_host:" + s.hostname,
 			"region:" + result.Scan.ARN.Region,
 			"account_id:" + result.Scan.ARN.AccountID,
-		}, result.SBOMEntityTags...),
-		GeneratedAt:        timestamppb.New(time.Now()),
-		GenerationDuration: convertDuration(result.Duration),
+		}, vulns.Tags...),
+		GeneratedAt:        timestamppb.New(result.Scan.StartedAt),
+		GenerationDuration: convertDuration(time.Since(result.Scan.StartedAt)),
 		Hash:               "",
 		Sbom: &sbommodel.SBOMEntity_Cyclonedx{
-			Cyclonedx: convertBOM(result.SBOM),
+			Cyclonedx: convertBOM(vulns.BOM),
 		},
 	}
 	rawEvent, err := proto.Marshal(&sbommodel.SBOMPayload{
@@ -1586,7 +1622,7 @@ func (s *sideScanner) sendSBOM(result scanResult) error {
 	return s.eventForwarder.SendEventPlatformEvent(m, epforwarder.EventTypeContainerSBOM)
 }
 
-func (s *sideScanner) sendFindings(findings []*finding) {
+func (s *sideScanner) sendFindings(findings []*scanFinding) {
 	var tags []string // TODO: tags
 	expireAt := time.Now().Add(24 * time.Hour)
 	for _, finding := range findings {
@@ -1764,7 +1800,7 @@ retry:
 
 	snapshotID := *createSnapshotOutput.SnapshotId
 	snapshotARN := ec2ARN(volumeARN.Region, volumeARN.AccountID, resourceTypeSnapshot, snapshotID)
-	scan.CreatedSnapshots[snapshotARN] = &snapshotCreatedAt
+	scan.CreatedSnapshots[snapshotARN.String()] = &snapshotCreatedAt
 
 	waiter := ec2.NewSnapshotCompletedWaiter(ec2client, func(scwo *ec2.SnapshotCompletedWaiterOptions) {
 		scwo.MinDelay = 1 * time.Second
@@ -2106,18 +2142,18 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 				return fmt.Errorf("we can only perform vulns scanning of %q without volume attach", scan)
 			}
 		}
-		scanStartedAt := time.Now()
 		result := launchScanner(ctx, scannerOptions{
 			Scanner:     "hostvulns-ebs",
 			Scan:        scan,
 			SnapshotARN: &snapshotARN,
 		})
-		result.SBOMEntityType = sbommodel.SBOMSourceType_HOST_FILE_SYSTEM
-		result.SBOMEntityID = scan.Hostname
-		result.SBOMEntityTags = nil
+		if result.Vulns != nil {
+			result.Vulns.SourceType = sbommodel.SBOMSourceType_HOST_FILE_SYSTEM
+			result.Vulns.ID = scan.Hostname
+			result.Vulns.Tags = nil
+		}
 		resultsCh <- result
-		scanDuration := time.Since(scanStartedAt)
-		if err := statsd.Histogram("datadog.agentless_scanner.scans.duration", float64(scanDuration.Milliseconds()), tagScan(scan), 1.0); err != nil {
+		if err := statsd.Histogram("datadog.agentless_scanner.scans.duration", float64(time.Since(scan.StartedAt).Milliseconds()), tagScan(scan), 1.0); err != nil {
 			log.Warnf("failed to send metric: %v", err)
 		}
 		return nil
@@ -2151,8 +2187,6 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 }
 
 func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh chan scanResult) error {
-	scanStartedAt := time.Now()
-
 	for _, root := range roots {
 		for _, action := range scan.Actions {
 			switch action {
@@ -2162,15 +2196,17 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 					Scan:    scan,
 					Root:    root,
 				})
-				result.SBOMEntityType = sbommodel.SBOMSourceType_HOST_FILE_SYSTEM
-				result.SBOMEntityID = scan.Hostname
-				result.SBOMEntityTags = nil
+				if result.Vulns != nil {
+					result.Vulns.SourceType = sbommodel.SBOMSourceType_HOST_FILE_SYSTEM
+					result.Vulns.ID = scan.Hostname
+					result.Vulns.Tags = nil
+
+				}
 				resultsCh <- result
 			case vulnsContainers:
-				start := time.Now()
 				ctrMountPoints, err := mountContainers(ctx, scan, root)
 				if err != nil {
-					resultsCh <- scanResult{Err: err, Scan: scan, Duration: time.Since(start)}
+					resultsCh <- scan.ErrResult(err)
 				} else {
 					for _, ctrMnt := range ctrMountPoints {
 						entityID, entityTags := containerTags(ctrMnt)
@@ -2179,9 +2215,12 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 							Scan:    scan,
 							Root:    ctrMnt.Path,
 						})
-						result.SBOMEntityType = sbommodel.SBOMSourceType_CONTAINER_IMAGE_LAYERS // TODO: sbommodel.SBOMSourceType_CONTAINER_FILE_SYSTEM
-						result.SBOMEntityID = entityID
-						result.SBOMEntityTags = entityTags
+						if result.Vulns != nil {
+							result.Vulns.SourceType = sbommodel.SBOMSourceType_CONTAINER_IMAGE_LAYERS // TODO: sbommodel.SBOMSourceType_CONTAINER_FILE_SYSTEM
+							result.Vulns.ID = entityID
+							result.Vulns.Tags = entityTags
+
+						}
 						resultsCh <- result
 					}
 				}
@@ -2195,8 +2234,7 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 		}
 	}
 
-	scanDuration := time.Since(scanStartedAt)
-	if err := statsd.Histogram("datadog.agentless_scanner.scans.duration", float64(scanDuration.Milliseconds()), tagScan(scan), 1.0); err != nil {
+	if err := statsd.Histogram("datadog.agentless_scanner.scans.duration", float64(time.Since(scan.StartedAt).Milliseconds()), tagScan(scan), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}
 	return nil
@@ -2230,19 +2268,18 @@ func launchScanner(ctx context.Context, opts scannerOptions) scanResult {
 }
 
 func launchScannerRemotely(ctx context.Context, opts scannerOptions) scanResult {
-	start := time.Now()
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 
 	exe, err := os.Executable()
 	if err != nil {
-		return scanResult{Err: err, Scan: opts.Scan, Duration: time.Since(start)}
+		return opts.Scan.ErrResult(err)
 	}
 
 	sockName := filepath.Join(opts.Scan.Path(opts.ID() + ".sock"))
 	l, err := net.Listen("unix", sockName)
 	if err != nil {
-		return scanResult{Err: err, Scan: opts.Scan, Duration: time.Since(start)}
+		return opts.Scan.ErrResult(err)
 	}
 	defer l.Close()
 
@@ -2260,8 +2297,8 @@ func launchScannerRemotely(ctx context.Context, opts scannerOptions) scanResult 
 			_ = conn.SetDeadline(deadline)
 		}
 
-		enc := gob.NewEncoder(conn)
-		dec := gob.NewDecoder(conn)
+		enc := json.NewEncoder(conn)
+		dec := json.NewDecoder(conn)
 		if err := enc.Encode(opts); err != nil {
 			return scanResult{}, err
 		}
@@ -2275,7 +2312,7 @@ func launchScannerRemotely(ctx context.Context, opts scannerOptions) scanResult 
 	go func() {
 		result, err := remoteCall()
 		if err != nil {
-			resultsCh <- scanResult{Err: err, Scan: opts.Scan, Duration: time.Since(start)}
+			resultsCh <- opts.Scan.ErrResult(err)
 		} else {
 			resultsCh <- result
 		}
@@ -2290,9 +2327,9 @@ func launchScannerRemotely(ctx context.Context, opts scannerOptions) scanResult 
 	cmd.Stderr = stderr
 	if err := cmd.Start(); err != nil {
 		if ctx.Err() != nil {
-			return scanResult{Err: ctx.Err(), Scan: opts.Scan, Duration: time.Since(start)}
+			return opts.Scan.ErrResult(ctx.Err())
 		}
-		return scanResult{Err: err, Scan: opts.Scan, Duration: time.Since(start)}
+		return opts.Scan.ErrResult(err)
 	}
 
 	pid := cmd.Process.Pid
@@ -2302,7 +2339,7 @@ func launchScannerRemotely(ctx context.Context, opts scannerOptions) scanResult 
 
 	if err := cmd.Wait(); err != nil {
 		if ctx.Err() != nil {
-			return scanResult{Err: ctx.Err(), Scan: opts.Scan, Duration: time.Since(start)}
+			return opts.Scan.ErrResult(ctx.Err())
 		}
 		var errx *exec.ExitError
 		if errors.As(err, &errx) {
@@ -2311,7 +2348,7 @@ func launchScannerRemotely(ctx context.Context, opts scannerOptions) scanResult 
 		} else {
 			log.Errorf("%s: execed scanner %q: %v", opts.Scan, opts.Scanner, err)
 		}
-		return scanResult{Err: err, Scan: opts.Scan, Duration: time.Since(start)}
+		return opts.Scan.ErrResult(err)
 	}
 
 	return <-resultsCh
@@ -2340,20 +2377,31 @@ func (w *truncatedWriter) Write(b []byte) (n int, err error) {
 }
 
 func launchScannerLocally(ctx context.Context, opts scannerOptions) scanResult {
-	start := time.Now()
 	switch opts.Scanner {
 	case "hostvulns":
-		sbom, err := launchScannerTrivyLocal(ctx, opts)
-		return scanResult{Err: err, Scan: opts.Scan, SBOM: sbom, Duration: time.Since(start)}
+		bom, err := launchScannerTrivyLocal(ctx, opts)
+		if err != nil {
+			return opts.Scan.ErrResult(err)
+		}
+		return scanResult{Scan: opts.Scan, Vulns: &scanVulnsResult{BOM: bom}}
 	case "hostvulns-ebs":
-		sbom, err := launchScannerTrivyVM(ctx, opts)
-		return scanResult{Err: err, Scan: opts.Scan, SBOM: sbom, Duration: time.Since(start)}
+		bom, err := launchScannerTrivyVM(ctx, opts)
+		if err != nil {
+			return opts.Scan.ErrResult(err)
+		}
+		return scanResult{Scan: opts.Scan, Vulns: &scanVulnsResult{BOM: bom}}
 	case "appvulns":
-		sbom, err := launchScannerTrivyLambda(ctx, opts)
-		return scanResult{Err: err, Scan: opts.Scan, SBOM: sbom, Duration: time.Since(start)}
+		bom, err := launchScannerTrivyLambda(ctx, opts)
+		if err != nil {
+			return opts.Scan.ErrResult(err)
+		}
+		return scanResult{Scan: opts.Scan, Vulns: &scanVulnsResult{BOM: bom}}
 	case "malware":
-		findings, err := launchScannerMalware(ctx, opts)
-		return scanResult{Err: err, Scan: opts.Scan, Findings: findings, Duration: time.Since(start)}
+		result, err := launchScannerMalware(ctx, opts)
+		if err != nil {
+			return opts.Scan.ErrResult(err)
+		}
+		return scanResult{Scan: opts.Scan, Malware: &result}
 	default:
 		panic("unreachable")
 	}
@@ -2413,22 +2461,22 @@ func scanLambda(ctx context.Context, scan *scanTask, resultsCh chan scanResult) 
 		return err
 	}
 
-	scanStartedAt := time.Now()
 	result := launchScanner(ctx, scannerOptions{
 		Scanner: "appvulns",
 		Scan:    scan,
 		Root:    codePath,
 	})
-	result.SBOMEntityType = sbommodel.SBOMSourceType_CI_PIPELINE // TODO: SBOMSourceType_LAMBDA
-	result.SBOMEntityID = scan.ARN.String()
-	result.SBOMEntityTags = []string{
-		"runtime_id:" + scan.ARN.String(),
-		"service_version:TODO", // XXX
+	if result.Vulns != nil {
+		result.Vulns.SourceType = sbommodel.SBOMSourceType_CI_PIPELINE // TODO: SBOMSourceType_LAMBDA
+		result.Vulns.ID = scan.ARN.String()
+		result.Vulns.Tags = []string{
+			"runtime_id:" + scan.ARN.String(),
+			"service_version:TODO", // XXX
+		}
 	}
 	resultsCh <- result
 
-	scanDuration := time.Since(scanStartedAt)
-	if err := statsd.Histogram("datadog.agentless_scanner.scans.duration", float64(scanDuration.Milliseconds()), tagScan(scan), 1.0); err != nil {
+	if err := statsd.Histogram("datadog.agentless_scanner.scans.duration", float64(time.Since(scan.StartedAt).Milliseconds()), tagScan(scan), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}
 	return nil
@@ -2460,8 +2508,6 @@ func downloadAndUnzipLambda(ctx context.Context, scan *scanTask, lambdaDir strin
 			}
 		}
 	}()
-
-	functionStartedAt := time.Now()
 
 	assumedRole := scan.Roles[scan.ARN.AccountID]
 	cfg, err := newAWSConfig(ctx, scan.ARN.Region, assumedRole)
@@ -2530,9 +2576,8 @@ func downloadAndUnzipLambda(ctx context.Context, scan *scanTask, lambdaDir strin
 		return "", err
 	}
 
-	functionDuration := time.Since(functionStartedAt)
-	log.Debugf("function retrieved successfully %q (took %s)", scan.ARN, functionDuration)
-	if err := statsd.Histogram("datadog.agentless_scanner.functions.duration", float64(functionDuration.Milliseconds()), tagScan(scan), 1.0); err != nil {
+	log.Debugf("function retrieved successfully %q (took %s)", scan.ARN, time.Since(scan.StartedAt))
+	if err := statsd.Histogram("datadog.agentless_scanner.functions.duration", float64(time.Since(scan.StartedAt).Milliseconds()), tagScan(scan), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}
 	if err := statsd.Histogram("datadog.agentless_scanner.functions.size_compressed", float64(compressedSize), tagScan(scan), 1.0); err != nil {
@@ -2636,7 +2681,7 @@ func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, snapshotARN a
 		}
 		log.Debugf("successfully copied snapshot %q into %q: %q", snapshotARN, self.Region, *copySnapshot.SnapshotId)
 		localSnapshotARN = ec2ARN(self.Region, snapshotARN.AccountID, resourceTypeSnapshot, *copySnapshot.SnapshotId)
-		scan.CreatedSnapshots[localSnapshotARN] = &copySnapshotCreatedAt
+		scan.CreatedSnapshots[localSnapshotARN.String()] = &copySnapshotCreatedAt
 	} else {
 		localSnapshotARN = snapshotARN
 	}
@@ -2907,7 +2952,11 @@ func cleanupScan(scan *scanTask) {
 
 	log.Debugf("%s: cleaning up scan data on filesystem", scan)
 
-	for snapshotARN, snapshotCreatedAt := range scan.CreatedSnapshots {
+	for snapshotARNString, snapshotCreatedAt := range scan.CreatedSnapshots {
+		snapshotARN, err := parseARN(snapshotARNString, resourceTypeSnapshot)
+		if err != nil {
+			continue
+		}
 		_, snapshotID, _ := getARNResource(snapshotARN)
 		cfg, err := newAWSConfig(ctx, snapshotARN.Region, scan.Roles[snapshotARN.AccountID])
 		if err != nil {
