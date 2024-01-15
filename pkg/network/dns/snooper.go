@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/gopacket"
 
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -27,18 +28,18 @@ const (
 
 // Telemetry
 var snooperTelemetry = struct {
-	decodingErrors *telemetry.StatCounterWrapper
-	truncatedPkts  *telemetry.StatCounterWrapper
-	queries        *telemetry.StatCounterWrapper
-	successes      *telemetry.StatCounterWrapper
-	errors         *telemetry.StatCounterWrapper
+	decodingErrors *ebpftelemetry.StatCounterWrapper
+	truncatedPkts  *ebpftelemetry.StatCounterWrapper
+	queries        *ebpftelemetry.StatCounterWrapper
+	successes      *ebpftelemetry.StatCounterWrapper
+	errors         *ebpftelemetry.StatCounterWrapper
 }{
-	telemetry.NewStatCounterWrapper(dnsModuleName, "decoding_errors", []string{}, "Counter measuring the number of decoding errors while processing packets"),
-	telemetry.NewStatCounterWrapper(dnsModuleName, "truncated_pkts", []string{}, "Counter measuring the number of truncated packets while processing"),
+	ebpftelemetry.NewStatCounterWrapper(dnsModuleName, "decoding_errors", []string{}, "Counter measuring the number of decoding errors while processing packets"),
+	ebpftelemetry.NewStatCounterWrapper(dnsModuleName, "truncated_pkts", []string{}, "Counter measuring the number of truncated packets while processing"),
 	// DNS telemetry, values calculated *till* the last tick in pollStats
-	telemetry.NewStatCounterWrapper(dnsModuleName, "queries", []string{}, "Counter measuring the number of packets that are DNS queries in processed packets"),
-	telemetry.NewStatCounterWrapper(dnsModuleName, "successes", []string{}, "Counter measuring the number of successful DNS responses in processed packets"),
-	telemetry.NewStatCounterWrapper(dnsModuleName, "errors", []string{}, "Counter measuring the number of failed DNS responses in processed packets"),
+	ebpftelemetry.NewStatCounterWrapper(dnsModuleName, "queries", []string{}, "Counter measuring the number of packets that are DNS queries in processed packets"),
+	ebpftelemetry.NewStatCounterWrapper(dnsModuleName, "successes", []string{}, "Counter measuring the number of successful DNS responses in processed packets"),
+	ebpftelemetry.NewStatCounterWrapper(dnsModuleName, "errors", []string{}, "Counter measuring the number of failed DNS responses in processed packets"),
 }
 
 var _ ReverseDNS = &socketFilterSnooper{}
