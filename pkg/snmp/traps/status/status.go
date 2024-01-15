@@ -7,9 +7,16 @@
 package status
 
 import (
+	"embed"
 	"encoding/json"
 	"expvar"
+	"io"
+	"path"
 
+	htmlTemplate "html/template"
+	textTemplate "text/template"
+
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 )
 
@@ -87,4 +94,55 @@ func GetStatus() map[string]interface{} {
 	status["metrics"] = metrics
 
 	return status
+}
+
+//go:embed status_templates
+var templatesFS embed.FS
+
+// Provider provides the functionality to populate the status output with the collector information
+type Provider struct{}
+
+// Name returns the name
+func (Provider) Name() string {
+	return "SNMP Traps"
+}
+
+// Section return the section
+func (Provider) Section() string {
+	return "SNMP Traps"
+}
+
+// JSON populates the status map
+func (Provider) JSON(stats map[string]interface{}) error {
+	for key, value := range GetStatus() {
+		stats[key] = value
+	}
+
+	return nil
+}
+
+func (Provider) Text(buffer io.Writer) error {
+	return renderText(buffer, GetStatus())
+}
+
+func (Provider) HTML(buffer io.Writer) error {
+	return renderHTML(buffer, GetStatus())
+}
+
+func renderHTML(buffer io.Writer, data any) error {
+	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "snmpHTML.tmpl"))
+	if tmplErr != nil {
+		return tmplErr
+	}
+	t := htmlTemplate.Must(htmlTemplate.New("snmpHTML").Funcs(status.HTMLFmap()).Parse(string(tmpl)))
+	return t.Execute(buffer, data)
+}
+
+func renderText(buffer io.Writer, data any) error {
+	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "snmp.tmpl"))
+	if tmplErr != nil {
+		return tmplErr
+	}
+	t := textTemplate.Must(textTemplate.New("snmp").Funcs(status.HTMLFmap()).Parse(string(tmpl)))
+	return t.Execute(buffer, data)
 }

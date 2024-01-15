@@ -1,0 +1,6 @@
+{{- if .error }}
+  Error: {{.error}}
+{{- end }}
+{{- range $key, $value := .metrics}}
+  {{formatTitle $key}}: {{humanize $value}}
+{{- end }}

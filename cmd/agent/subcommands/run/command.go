@@ -93,6 +93,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
+	snmpStatus "github.com/DataDog/datadog-agent/pkg/snmp/traps/status"
 	collectorStatus "github.com/DataDog/datadog-agent/pkg/status/collector"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	otlpStatus "github.com/DataDog/datadog-agent/pkg/status/otlp"
@@ -318,10 +319,15 @@ func getSharedFxOption() fx.Option {
 		workloadmeta.Module(),
 		fx.Supply(
 			status.NewInformationProvider(collectorStatus.Provider{}),
-		),
-		fx.Supply(
 			status.NewHeaderInformationProvider(net.Provider{}),
 		),
+		fx.Provide(func(config config.Component) status.InformationProvider {
+			if traps.IsEnabled(config) {
+				return status.NewInformationProvider(snmpStatus.Provider{})
+			} else {
+				return status.NewInformationProvider(status.NoopProvider{})
+			}
+		}),
 		statusimpl.Module(),
 		apiimpl.Module(),
 
