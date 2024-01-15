@@ -18,7 +18,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	_ "crypto/sha256"
@@ -186,7 +185,6 @@ var (
 	bucketKeyName        = []byte("name")
 	bucketKeyParent      = []byte("parent")
 	bucketKeyChildren    = []byte("children")
-	bucketKeyOptions     = []byte("options")
 	bucketKeySnapshotKey = []byte("snapshotKey")
 	bucketKeySnapshotter = []byte("snapshotter")
 	bucketKeyTarget      = []byte("target")
@@ -267,15 +265,6 @@ type ctrdSnapshot struct {
 	}
 	CreatedAt time.Time
 	UpdatedAt time.Time
-}
-
-func ctrdUnflockBoltFd(f *os.File) {
-	for {
-		err := syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
-		if err == syscall.EWOULDBLOCK {
-			continue
-		}
-	}
 }
 
 func ctrdReadMetadata(ctrdRoot string) ([]ctrdContainer, error) {
