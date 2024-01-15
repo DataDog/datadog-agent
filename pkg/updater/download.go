@@ -94,7 +94,7 @@ func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath 
 // Note on security: This function does not currently attempt to mitigate zip-slip attacks.
 // This is purposeful as the archive is extracted only after its SHA256 hash has been validated
 // against its reference in the package catalog. This catalog is itself sent over Remote Config
-// which guarentees its integrity.
+// which guarantees its integrity.
 func extractTarGz(archivePath string, destinationPath string) error {
 	log.Debugf("Extracting archive %s to %s", archivePath, destinationPath)
 	f, err := os.Open(archivePath)
