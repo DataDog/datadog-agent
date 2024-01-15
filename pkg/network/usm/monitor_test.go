@@ -26,13 +26,13 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
-
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
+	"golang.org/x/net/http2/hpack"
 
 	manager "github.com/DataDog/ebpf-manager"
 
@@ -953,41 +953,66 @@ func writeInput(c net.Conn, input []byte, timeout time.Duration) error {
 	}
 }
 
-var (
-	// http2 magic
-	magicFrame = []byte{
-		0x50, 0x52, 0x49, 0x20, 0x2a, 0x20, 0x48, 0x54, 0x54, 0x50, 0x2f, 0x32, 0x2e, 0x30, 0x0d, 0x0a, 0x0d, 0x0a, 0x53, 0x4d, 0x0d, 0x0a, 0x0d, 0x0a,
-	}
-
-	// http2 settings frame
-	settingsFrame = []byte{
-		0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00,
-	}
-
-	// http2 request to path /aaa
-	request = []byte{
-		0x00, 0x00, 0x37, 0x01, 0x04, 0x00, 0x00, 0x00, 0x03, 0x41, 0x8a, 0x08, 0x9d, 0x5c, 0x0b, 0x81,
-		0x70, 0xdc, 0x78, 0x0f, 0x0b, 0x83, 0x45, 0x83, 0x60, 0x63, 0x1f, 0x86, 0x5f, 0x8b, 0x1d, 0x75,
-		0xd0, 0x62, 0x0d, 0x26, 0x3d, 0x4c, 0x74, 0x41, 0xea, 0x5c, 0x01, 0x34, 0x50, 0x83, 0x9b, 0xd9,
-		0xab, 0x7a, 0x8d, 0xc4, 0x75, 0xa7, 0x4a, 0x6b, 0x58, 0x94, 0x18, 0xb5, 0x25, 0x81, 0x2e, 0x0f,
-	}
-
-	// data frame & end of stream
-	dataFrame = []byte{
-		0x00, 0x00, 0x04, 0x00, 0x01, 0x00, 0x00, 0x00, 0x03, 0x74, 0x65, 0x73, 0x74,
-	}
-)
-
-// createRawRequestFrame creates a raw request frame with the given streamID.
-func createRawRequestFrame(streamID int) []byte {
-	binary.BigEndian.PutUint16(request[7:9], uint16(streamID))
-	return request
+var testHeaderFields = []hpack.HeaderField{
+	{Name: ":authority", Value: http2SrvAddr},
+	{Name: ":method", Value: "POST"},
+	{Name: ":path", Value: "/aaa"},
+	{Name: ":scheme", Value: "http"},
+	{Name: "content-type", Value: "application/json"},
+	{Name: "content-length", Value: "4"},
+	{Name: "accept-encoding", Value: "gzip"},
+	{Name: "user-agent", Value: "Go-http-client/2.0"},
 }
 
-// createRawRequestFrame creates a raw request frame with the given streamID.
-func createRawDataFrame(streamID int) []byte {
-	binary.BigEndian.PutUint16(dataFrame[7:9], uint16(streamID))
-	return dataFrame
+// createMessageWithCustomHeadersFramesCount creates a message with the given number of header frames
+// and optionally ping and window update frames.
+func createMessageWithCustomHeadersFramesCount(t *testing.T, headersCount int) []byte {
+	var buf bytes.Buffer
+	framer := http2.NewFramer(&buf, nil)
+
+	for i := 0; i < headersCount; i++ {
+		streamID := 2*i + 1
+		headersFrame, err := usmhttp2.NewHeadersFrameMessage(testHeaderFields)
+		require.NoError(t, err, "could not create headers frame")
+
+		// Writing the header frames to the buffer using the Framer.
+		require.NoError(t, framer.WriteHeaders(http2.HeadersFrameParam{
+			StreamID:      uint32(streamID),
+			BlockFragment: headersFrame,
+			EndStream:     false,
+			EndHeaders:    true,
+		}), "could not write header frames")
+
+		// Writing the data frame to the buffer using the Framer.
+		require.NoError(t, framer.WriteData(uint32(streamID), true, []byte{}), "could not write data frame")
+	}
+
+	return buf.Bytes()
+}
+
+// createMessageWithCustomSettingsFrames creates a message with the given number of settings frames.
+func createMessageWithCustomSettingsFrames(t *testing.T, settingsCount int) []byte {
+	var buf bytes.Buffer
+	framer := http2.NewFramer(&buf, nil)
+
+	for i := 0; i < settingsCount; i++ {
+		require.NoError(t, framer.WriteSettings(http2.Setting{}), "could not write settings frame")
+	}
+
+	headersFrame, err := usmhttp2.NewHeadersFrameMessage(testHeaderFields)
+	require.NoError(t, err, "could not create headers frame")
+
+	// Writing the header frames to the buffer using the Framer.
+	require.NoError(t, framer.WriteHeaders(http2.HeadersFrameParam{
+		StreamID:      uint32(1),
+		BlockFragment: headersFrame,
+		EndStream:     false,
+		EndHeaders:    true,
+	}), "could not write header frames")
+
+	// Writing the data frame to the buffer using the Framer.
+	require.NoError(t, framer.WriteData(uint32(1), true, []byte{}), "could not write data frame")
+	return buf.Bytes()
 }
 
 func (s *USMHTTP2Suite) TestRawTraffic() {
@@ -998,17 +1023,18 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 	startH2CServer(t)
 
 	tests := []struct {
-		name                  string
-		numberOfSettingFrames int
-		numberOfRequestFrames int
-		expectedEndpoints     map[http.Key]int
+		name              string
+		messageBuilder    func() []byte
+		expectedEndpoints map[http.Key]int
 	}{
 		{
 			name: "parse_frames tail call using 1 program",
 			// The objective of this test is to verify that we accurately perform the parsing of frames within
 			// a single program.
-			numberOfSettingFrames: 100,
-			numberOfRequestFrames: 1,
+			messageBuilder: func() []byte {
+				settingsCount := 100
+				return createMessageWithCustomSettingsFrames(t, settingsCount)
+			},
 			expectedEndpoints: map[http.Key]int{
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
@@ -1020,8 +1046,10 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			name: "parse_frames tail call using 2 programs",
 			// The purpose of this test is to validate that when we surpass the limit of HTTP2_MAX_FRAMES_ITERATIONS,
 			// the filtering of subsequent frames will continue using tail calls.
-			numberOfSettingFrames: 130,
-			numberOfRequestFrames: 1,
+			messageBuilder: func() []byte {
+				settingsCount := 130
+				return createMessageWithCustomSettingsFrames(t, settingsCount)
+			},
 			expectedEndpoints: map[http.Key]int{
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
@@ -1033,16 +1061,20 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			name: "validate frames_filter tail calls limit",
 			// The purpose of this test is to validate that when we surpass the limit of HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER,
 			// for 2 filter_frames we do not use more than two tail calls.
-			numberOfSettingFrames: 250,
-			numberOfRequestFrames: 1,
-			expectedEndpoints:     nil,
+			messageBuilder: func() []byte {
+				settingsCount := 250
+				return createMessageWithCustomSettingsFrames(t, settingsCount)
+			},
+			expectedEndpoints: nil,
 		},
 		{
 			name: "validate max interesting frames limit",
 			// The purpose of this test is to verify our ability to reach the limit set by HTTP2_MAX_FRAMES_ITERATIONS, which
 			// determines the maximum number of "interesting frames" we can process.
-			numberOfSettingFrames: 0,
-			numberOfRequestFrames: 120,
+			messageBuilder: func() []byte {
+				headersCount := 120
+				return createMessageWithCustomHeadersFramesCount(t, headersCount)
+			},
 			expectedEndpoints: map[http.Key]int{
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
@@ -1054,8 +1086,10 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			name: "validate more then limit max interesting frames",
 			// The purpose of this test is to verify our ability to reach the limit set by HTTP2_MAX_FRAMES_ITERATIONS
 			// and validate that we cannot handle more than that limit.
-			numberOfSettingFrames: 0,
-			numberOfRequestFrames: 130,
+			messageBuilder: func() []byte {
+				headersCount := 130
+				return createMessageWithCustomHeadersFramesCount(t, headersCount)
+			},
 			expectedEndpoints: map[http.Key]int{
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
@@ -1071,31 +1105,21 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			require.NoError(t, monitor.Start())
 			defer monitor.Stop()
 
-			input := make([]byte, 0, len(magicFrame)+len(settingsFrame))
-			input = append(input, magicFrame...)
-			input = append(input, settingsFrame...)
-
 			c, err := net.Dial("tcp", localHostAddress)
 			require.NoError(t, err, "could not dial")
 			defer c.Close()
 
-			// Sending a magic and the settings in the same packet.
-			require.NoError(t, writeInput(c, input, time.Second))
+			// Create a buffer to write the frame into.
+			var buf bytes.Buffer
+			framer := http2.NewFramer(&buf, nil)
+			// Write the empty SettingsFrame to the buffer using the Framer
+			require.NoError(t, framer.WriteSettings(http2.Setting{}), "could not write settings frame")
 
-			reqInput := make([]byte, 0, len(settingsFrame)*tt.numberOfSettingFrames+tt.numberOfRequestFrames+tt.numberOfRequestFrames)
-			for i := 0; i < tt.numberOfSettingFrames; i++ {
-				reqInput = append(reqInput, settingsFrame...)
-			}
+			// Writing a magic and the settings in the same packet to socket.
+			require.NoError(t, writeInput(c, usmhttp2.ComposeMessage([]byte(http2.ClientPreface), buf.Bytes()), time.Second))
 
-			// we have to use negative numbers for the stream id.
-			for i := 0; i < tt.numberOfRequestFrames; i++ {
-				streamID := 2*i + 1
-				reqInput = append(reqInput, createRawRequestFrame(streamID)...)
-				reqInput = append(reqInput, createRawDataFrame(streamID)...)
-			}
-
-			// Sending the repeated settings with request.
-			require.NoError(t, writeInput(c, reqInput, time.Second), "could not make request")
+			// Composing a message with the number of setting frames we want to send.
+			require.NoError(t, writeInput(c, tt.messageBuilder(), time.Second))
 
 			res := make(map[http.Key]int)
 			assert.Eventually(t, func() bool {
