@@ -14,7 +14,6 @@ import (
 
 	"golang.org/x/sys/windows"
 
-	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -73,7 +72,7 @@ var HandleTelemetry = struct {
 	httpTxnNoLatency      telemetry.Gauge
 	httpTxnBatchedOnRead  telemetry.Gauge
 
-	ReadPacketsSkipped *ebpftelemetry.StatGaugeWrapper
+	ReadPacketsSkipped *telemetry.StatGaugeWrapper
 	readsRequested     telemetry.Gauge
 	readsCompleted     telemetry.Gauge
 	readsCancelled     telemetry.Gauge
@@ -116,7 +115,7 @@ var HandleTelemetry = struct {
 	telemetry.NewGauge(handleModuleName, "txn_zero_latency", []string{}, "Gauge measuring number of http transactions computed zero latency"),
 	telemetry.NewGauge(handleModuleName, "txn_batched_on_read", []string{}, "Gauge measuring number of http transactions computed zero latency"),
 
-	ebpftelemetry.NewStatGaugeWrapper(handleModuleName, "read_packets_skipped", []string{}, "Gauge measuring the number of read packets skipped"),
+	telemetry.NewStatGaugeWrapper(handleModuleName, "read_packets_skipped", []string{}, "Gauge measuring the number of read packets skipped"),
 	telemetry.NewGauge(handleModuleName, "reads_requested", []string{}, "Gauge measuring the number of reads requested"),
 	telemetry.NewGauge(handleModuleName, "reads_completed", []string{}, "Gauge measuring the number of reads completed"),
 	telemetry.NewGauge(handleModuleName, "reads_cancelled", []string{}, "Gauge measuring the number of reads_cancelled"),
