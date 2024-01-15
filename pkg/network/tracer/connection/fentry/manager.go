@@ -9,12 +9,12 @@
 package fentry
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	manager "github.com/DataDog/ebpf-manager"
 )
 
