@@ -176,13 +176,14 @@ func (ic *inventorychecksImpl) GetInstanceMetadata(instanceID string) map[string
 
 func (ic *inventorychecksImpl) getPayload() marshaler.JSONMarshaler {
 	payloadData := make(checksMetadata)
+	invChecksEnabled := ic.conf.GetBool("inventories_checks_configuration_enabled")
 
 	if coll, isSet := ic.coll.Get(); isSet {
 		foundInCollector := map[string]struct{}{}
 
 		coll.MapOverChecks(func(checks []check.Info) {
 			for _, c := range checks {
-				cm := check.GetMetadata(c, ic.conf.GetBool("inventories_checks_configuration_enabled"))
+				cm := check.GetMetadata(c, invChecksEnabled)
 
 				if checkData, found := ic.data[string(c.ID())]; found {
 					for key, val := range checkData.metadata {
@@ -208,7 +209,7 @@ func (ic *inventorychecksImpl) getPayload() marshaler.JSONMarshaler {
 	}
 
 	logsMetadata := make(map[string][]metadata)
-	if sources, isSet := ic.sources.Get(); isSet {
+	if sources, isSet := ic.sources.Get(); isSet && invChecksEnabled {
 		if sources != nil {
 			for _, logSource := range sources.GetSources() {
 				if _, found := logsMetadata[logSource.Name]; !found {
