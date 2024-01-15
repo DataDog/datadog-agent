@@ -8,6 +8,7 @@ package main
 import (
 	"context"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,12 +17,13 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
-	_ "crypto/sha256"
-	_ "crypto/sha512"
+	"crypto/sha256"
+	_ "crypto/sha512" // required by go-digest
 
 	digest "github.com/opencontainers/go-digest"
 
@@ -32,8 +34,8 @@ import (
 
 type container struct {
 	MountName     string
-	ImageName     string
-	ImageDigest   string
+	ImageName     string // public.ecr.aws/datadog/agent:7-rc
+	ImageDigest   string // sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409
 	ContainerName string
 	Layers        []string
 }
@@ -676,6 +678,9 @@ func dockerReadMetadata(dockerRoot string) ([]dockerContainer, error) {
 	for _, ctrSum := range ctrSums {
 		var ctr dockerContainer
 		cfgPath := filepath.Join(dockerRoot, "containers", cleanPath(ctrSum), "config.v2.json")
+		if _, err := os.Stat(cfgPath); os.IsNotExist(err) {
+			continue
+		}
 		cfgData, err := readFileLimit(cfgPath, maxFileSize)
 		if err != nil {
 			return nil, err
@@ -707,6 +712,32 @@ func dockerLayersPaths(dockerRoot string, ctr dockerContainer) ([]string, error)
 		return nil, fmt.Errorf("unsupported docker container driver %q", ctr.Driver)
 	}
 
+	var layers []string
+	var chainID string
+	for _, d := range ctr.ImageManifest.RootFS.DiffIDs {
+		if err := d.Validate(); err != nil {
+			return nil, err
+		}
+		if d.Algorithm() != "sha256" {
+			return nil, fmt.Errorf("docker: unsupported diffID digest algorithm %q", d.Algorithm())
+		}
+		if chainID == "" {
+			chainID = d.String()
+		} else {
+			sum := sha256.New()
+			sum.Write([]byte(chainID))
+			sum.Write([]byte(" "))
+			sum.Write([]byte(d.String()))
+			chainID = "sha256:" + hex.EncodeToString(sum.Sum(nil))
+		}
+		cacheIDPath := filepath.Join(dockerRoot, "image/overlay2/layerdb", "sha256", strings.TrimPrefix(chainID, "sha256:"), "cache-id")
+		cacheIDData, err := readFileLimit(cacheIDPath, 256)
+		if err != nil {
+			return nil, err
+		}
+		layers = append(layers, dockerLayerPath(dockerRoot, cacheIDData))
+	}
+
 	mountsPath := filepath.Join(dockerRoot, "image/overlay2/layerdb/mounts", cleanPath(ctr.ID))
 	mountIDPath := filepath.Join(mountsPath, "mount-id")
 	mountIDData, err := readFileLimit(mountIDPath, 256)
@@ -720,22 +751,12 @@ func dockerLayersPaths(dockerRoot string, ctr dockerContainer) ([]string, error)
 		return nil, err
 	}
 
-	var layers []string
-	layers = append(layers, dockerLayerPath(dockerRoot, mountIDData))
 	if len(initIDData) > 0 {
 		layers = append(layers, dockerLayerPath(dockerRoot, initIDData))
 	}
-	for _, d := range ctr.ImageManifest.RootFS.DiffIDs {
-		if err := d.Validate(); err != nil {
-			return nil, err
-		}
-		cacheIDPath := filepath.Join(dockerRoot, "image/overlay2/layerdb", d.Algorithm().String(), d.Encoded(), "cache-id")
-		cacheIDData, err := readFileLimit(cacheIDPath, 256)
-		if err != nil {
-			return nil, err
-		}
-		layers = append(layers, dockerLayerPath(dockerRoot, cacheIDData))
-	}
+	layers = append(layers, dockerLayerPath(dockerRoot, mountIDData))
+
+	slices.Reverse(layers)
 	return layers, nil
 }
 
