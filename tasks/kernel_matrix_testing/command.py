@@ -25,7 +25,7 @@ class CommandRunner:
                 print_failed(res.stderr)
                 raise Exit("command failed")
 
-    def sync_source(self, source, target):
+    def copy(self, source, target):
         sync_source(self.ctx, source, target, self.vm.remote_ip, self.remote_ssh_key, self.vm.ip, self.vm.arch)
 
 

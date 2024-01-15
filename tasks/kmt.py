@@ -294,7 +294,7 @@ def prepare(ctx, vms, stack=None, arch=None, ssh_key="", rebuild_deps=False, pac
 
         for d in domains:
             d.runner.run_cmd(f"/root/fetch_dependencies.sh {platform.machine()}", allow_fail=True, verbose=True)
-            d.runner.sync_source(
+            d.runner.copy(
                 "./test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg",
                 "/opt/system-probe-tests",
             )
@@ -338,7 +338,7 @@ def test(ctx, vms, stack=None, packages="", run=None, retry=2, rebuild_deps=Fals
         tmp.flush()
 
         for d in domains:
-            d.runner.sync_source(f"{tmp.name}", "/tmp")
+            d.runner.copy(f"{tmp.name}", "/tmp")
             d.runner.run_cmd(f"bash /micro-vm-init.sh {retry} {tmp.name}", verbose=True)
 
 
@@ -371,8 +371,8 @@ def build(ctx, vms, stack=None, ssh_key="", rebuild_deps=False, verbose=False):
     )
     docker_exec(ctx, f"tar cf /datadog-agent/kmt-deps/{stack}/shared.tar {EMBEDDED_SHARE_DIR}")
     for d in domains:
-        d.runner.sync_source("./bin/system-probe", "/root")
-        d.runner.sync_source(f"kmt-deps/{stack}/shared.tar", "/")
+        d.runner.copy("./bin/system-probe", "/root")
+        d.runner.copy(f"kmt-deps/{stack}/shared.tar", "/")
         d.runner.run_cmd("tar xf /shared.tar -C /")
         info(f"[+] system-probe built for {d.name}")
 
