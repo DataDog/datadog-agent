@@ -149,45 +149,6 @@ type cliParams struct {
 	pidfilePath string
 }
 
-// Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-	cliParams := &cliParams{
-		GlobalParams: globalParams,
-	}
-	runE := func(*cobra.Command, []string) error {
-		// TODO: once the agent is represented as a component, and not a function (run),
-		// this will use `fxutil.Run` instead of `fxutil.OneShot`.
-		return fxutil.OneShot(run,
-			fx.Supply(cliParams),
-			fx.Supply(core.BundleParams{
-				ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath),
-				SecretParams:         secrets.NewEnabledParams(),
-				SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
-				LogParams:            logimpl.ForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
-			}),
-			getSharedFxOption(),
-			getPlatformModules(),
-		)
-	}
-
-	runCmd := &cobra.Command{
-		Use:   "run",
-		Short: "Run the Agent",
-		Long:  `Runs the agent in the foreground`,
-		RunE:  runE,
-	}
-	runCmd.Flags().StringVarP(&cliParams.pidfilePath, "pidfile", "p", "", "path to the pidfile")
-
-	startCmd := &cobra.Command{
-		Use:        "start",
-		Deprecated: "Use \"run\" instead to start the Agent",
-		RunE:       runE,
-	}
-	startCmd.Flags().StringVarP(&cliParams.pidfilePath, "pidfile", "p", "", "path to the pidfile")
-
-	return []*cobra.Command{startCmd, runCmd}
-}
-
 // run starts the main loop.
 //
 // This is exported because it also used from the deprecated `agent start` command.
