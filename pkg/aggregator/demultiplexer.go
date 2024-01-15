@@ -24,10 +24,6 @@ import (
 type Demultiplexer interface {
 	// General
 	// --
-
-	// Stop stops the demultiplexer.
-	// Resources are released, the instance should not be used after a call to `Stop()`.
-	Stop(flush bool)
 	// Serializer returns the serializer used by the Demultiplexer instance.
 	Serializer() serializer.MetricSerializer
 

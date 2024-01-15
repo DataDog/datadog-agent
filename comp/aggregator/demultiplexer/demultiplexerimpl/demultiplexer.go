@@ -29,6 +29,7 @@ func Module() fxutil.Module {
 
 type dependencies struct {
 	fx.In
+	Lc                    fx.Lifecycle
 	Log                   log.Component
 	SharedForwarder       defaultforwarder.Component
 	OrchestratorForwarder orchestratorforwarder.Component
@@ -74,6 +75,10 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 	demultiplexer := demultiplexer{
 		AgentDemultiplexer: agentDemultiplexer,
 	}
+	deps.Lc.Append(fx.Hook{OnStop: func(ctx context.Context) error {
+		agentDemultiplexer.Stop(true)
+		return nil
+	}})
 
 	return provides{
 		Comp:          demultiplexer,

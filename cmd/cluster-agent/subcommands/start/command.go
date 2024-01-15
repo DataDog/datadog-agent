@@ -402,7 +402,6 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 
 	close(stopCh)
 
-	demultiplexer.Stop(true)
 	if err := metricsServer.Shutdown(context.Background()); err != nil {
 		pkglog.Errorf("Error shutdowning metrics server on port %d: %v", metricsPort, err)
 	}
