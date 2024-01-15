@@ -1454,6 +1454,8 @@ core,github.com/stretchr/testify/assert,MIT,"Copyright (c) 2012-2020 Mat Ryer, T
 core,github.com/stretchr/testify/mock,MIT,"Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors"
 core,github.com/stretchr/testify/require,MIT,"Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors"
 core,github.com/stretchr/testify/suite,MIT,"Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors"
+core,github.com/swaggest/jsonschema-go,MIT,Copyright (c) 2019 swaggest
+core,github.com/swaggest/refl,MIT,Copyright (c) 2020 swaggest
 core,github.com/syndtr/gocapability/capability,BSD-2-Clause,Copyright 2013 Suryandaru Triandana <syndtr@gmail.com>
 core,github.com/syndtr/goleveldb/leveldb,BSD-2-Clause,Copyright 2012 Suryandaru Triandana <syndtr@gmail.com>
 core,github.com/syndtr/goleveldb/leveldb/cache,BSD-2-Clause,Copyright 2012 Suryandaru Triandana <syndtr@gmail.com>
@@ -2030,6 +2032,7 @@ core,google.golang.org/grpc/internal/metadata,Apache-2.0,Copyright 2014 gRPC aut
 core,google.golang.org/grpc/internal/pretty,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/resolver,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/resolver/dns,Apache-2.0,Copyright 2014 gRPC authors.
+core,google.golang.org/grpc/internal/resolver/dns/internal,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/resolver/passthrough,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/resolver/unix,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/serviceconfig,Apache-2.0,Copyright 2014 gRPC authors.
@@ -2041,6 +2044,7 @@ core,google.golang.org/grpc/keepalive,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/metadata,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/peer,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/resolver,Apache-2.0,Copyright 2014 gRPC authors.
+core,google.golang.org/grpc/resolver/dns,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/resolver/manual,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/serviceconfig,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/stats,Apache-2.0,Copyright 2014 gRPC authors.
@@ -2978,5 +2982,3 @@ core,sigs.k8s.io/structured-merge-diff/v4/schema,Apache-2.0,Copyright 2017 The K
 core,sigs.k8s.io/structured-merge-diff/v4/typed,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/structured-merge-diff/v4/value,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/yaml,MIT,Copyright 2017 The Kubernetes Authors.
-core,github.com/swaggest/jsonschema-go,MIT,Copyright (c) 2019 swaggest
-core,github.com/swaggest/refl,MIT,Copyright (c) 2020 swaggest
