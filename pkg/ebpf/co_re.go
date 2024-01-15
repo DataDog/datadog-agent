@@ -109,13 +109,13 @@ func (c *coreAssetLoader) reportTelemetry(assetName string, result ebpftelemetry
 	// capacity should match number of tags
 	tags := make([]string, 0, 6)
 	tags = append(tags, platform, platformVersion, kernelVersion, arch, assetName)
-	if BTFResult(result) < btfNotFound {
-		switch BTFResult(result) {
-		case successCustomBTF:
+	if ebpftelemetry.BTFResult(result) < ebpftelemetry.BtfNotFound {
+		switch ebpftelemetry.BTFResult(result) {
+		case ebpftelemetry.SuccessCustomBTF:
 			tags = append(tags, "custom")
-		case successEmbeddedBTF:
+		case ebpftelemetry.SuccessEmbeddedBTF:
 			tags = append(tags, "embedded")
-		case successDefaultBTF:
+		case ebpftelemetry.SuccessDefaultBTF:
 			tags = append(tags, "default")
 		default:
 			return
@@ -124,7 +124,7 @@ func (c *coreAssetLoader) reportTelemetry(assetName string, result ebpftelemetry
 		return
 	}
 
-	if BTFResult(result) == btfNotFound {
+	if ebpftelemetry.BTFResult(result) == ebpftelemetry.BtfNotFound {
 		tags = append(tags, "btf_not_found")
 	} else {
 		switch result {
