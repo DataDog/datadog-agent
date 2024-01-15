@@ -31,7 +31,7 @@ func (t *Tailer) DidRotate() (bool, error) {
 
 	fi1, err := f.Stat()
 	if err != nil {
-		return false, fmt.Errorf("stat %s: %s", f.Name(), err)
+		return false, fmt.Errorf("stat %q: %w", f.Name(), err)
 	}
 
 	fi2, err := t.osFile.Stat()
