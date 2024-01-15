@@ -260,7 +260,7 @@ func (e *scanJSONError) Error() string {
 	return e.err.Error()
 }
 
-func (e *scanJSONError) Cause() error {
+func (e *scanJSONError) Unwrap() error {
 	return e.err
 }
 
@@ -2932,9 +2932,9 @@ func mountDevice(ctx context.Context, scan *scanTask, partitions []devicePartiti
 			}
 			if !sleepCtx(ctx, 200*time.Millisecond) {
 				errm = ctx.Err()
-				log.Debugf("mount error %#v: %v", mp, errm)
 				break
 			}
+			log.Debugf("mount error %#v: %v", mp, errm)
 		}
 		if errm != nil {
 			return nil, fmt.Errorf("could not mount into target=%q device=%q output=%q: %w", mountPoint, mp.devicePath, string(mountOutput), errm)
