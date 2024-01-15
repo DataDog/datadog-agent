@@ -24,7 +24,7 @@ import (
 func (t *Tailer) DidRotate() (bool, error) {
 	f, err := filesystem.OpenShared(t.osFile.Name())
 	if err != nil {
-		return false, fmt.Errorf("open %s: %s", t.osFile.Name(), err)
+		return false, fmt.Errorf("open %q: %w", t.osFile.Name(), err)
 	}
 	defer f.Close()
 	lastReadOffset := t.lastReadOffset.Load()
