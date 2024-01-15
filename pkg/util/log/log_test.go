@@ -518,34 +518,18 @@ func mockScrubBytesWithCount(t *testing.T) *atomic.Int32 {
 	return counterPtr
 }
 
-func testFunctionsScrubbingCount(t *testing.T, funcs []any, args []any) {
-	for _, fun := range funcs {
-		valTy := reflect.TypeOf(fun)
-		require.Equal(t, valTy.Kind(), reflect.Func)
-
-		// get the function name to use as test name
-		val := reflect.ValueOf(fun)
-		fun := runtime.FuncForPC(val.Pointer())
-		require.NotNil(t, fun)
-
-		funcName := fun.Name()
-		if parts := strings.Split(funcName, "/"); len(parts) > 0 {
-			funcName = parts[len(parts)-1]
-		}
-
-		testName := fmt.Sprintf("Scrub Count %s", funcName)
-		t.Run(testName, func(t *testing.T) {
-			// create a slice of reflect.Value from the args
-			reflArgs := make([]reflect.Value, 0, len(args))
-			for _, arg := range args {
-				reflArgs = append(reflArgs, reflect.ValueOf(arg))
-			}
-
-			counter := mockScrubBytesWithCount(t)
-			val.Call(reflArgs)
-			require.Equal(t, 1, int(counter.Load()))
-		})
+func getFuncName(val reflect.Value) (string, error) {
+	fun := runtime.FuncForPC(val.Pointer())
+	if fun == nil {
+		return "", fmt.Errorf("cannot get function name for %v", val)
 	}
+
+	funcName := fun.Name()
+	if parts := strings.Split(funcName, "."); len(parts) > 0 {
+		funcName = parts[len(parts)-1]
+	}
+
+	return funcName, nil
 }
 
 func TestLoggerScrubbingCount(t *testing.T) {
@@ -555,52 +539,84 @@ func TestLoggerScrubbingCount(t *testing.T) {
 	require.NoError(t, err)
 	SetupLogger(l, "trace")
 
-	// package public methods
-	testFunctionsScrubbingCount(
-		t,
-		[]any{Trace, Debug, Info, Warn, Error, Critical},
-		[]any{"a", "b"},
-	)
-	testFunctionsScrubbingCount(
-		t,
-		[]any{Tracef, Debugf, Infof, Warnf, Errorf, Criticalf},
-		[]any{"a %s c", "b"},
-	)
-	testFunctionsScrubbingCount(
-		t,
-		[]any{TracefStackDepth, DebugfStackDepth, InfofStackDepth, WarnfStackDepth, ErrorfStackDepth, CriticalfStackDepth},
-		[]any{1, "a %s c", "b"},
-	)
-	testFunctionsScrubbingCount(
-		t,
-		[]any{Tracec, Debugc, Infoc, Warnc, Errorc, Criticalc},
-		[]any{"a b", "1 %s 3", "2"},
-	)
-	testFunctionsScrubbingCount(
-		t,
-		[]any{TracecStackDepth, DebugcStackDepth, InfocStackDepth, WarncStackDepth, ErrorcStackDepth, CriticalcStackDepth},
-		[]any{"a b", 1, "1 %s 3", "2"},
-	)
-	testFunctionsScrubbingCount(
-		t,
-		[]any{TraceFunc, DebugFunc, InfoFunc, WarnFunc, ErrorFunc, CriticalFunc},
-		[]any{func() string { return "a b" }},
-	)
+	testCases := []struct {
+		name  string
+		funcs []any
+		args  []any
+	}{
+		// package public methods
+		{
+			"public functions basic",
+			[]any{Trace, Debug, Info, Warn, Error, Critical},
+			[]any{"a", "b"},
+		},
+		{
+			"public functions with format",
+			[]any{Tracef, Debugf, Infof, Warnf, Errorf, Criticalf},
+			[]any{"a %s c", "b"},
+		},
+		{
+			"public functions with format and stack depth",
+			[]any{TracefStackDepth, DebugfStackDepth, InfofStackDepth, WarnfStackDepth, ErrorfStackDepth, CriticalfStackDepth},
+			[]any{1, "a %s c", "b"},
+		},
+		{
+			"public functions with context",
+			[]any{Tracec, Debugc, Infoc, Warnc, Errorc, Criticalc},
+			[]any{"a b", "1 %s 3", "2"},
+		},
+		{
+			"public functions with context and stack depth",
+			[]any{TracecStackDepth, DebugcStackDepth, InfocStackDepth, WarncStackDepth, ErrorcStackDepth, CriticalcStackDepth},
+			[]any{"a b", 1, "1 %s 3", "2"},
+		},
+		{
+			"public functions with anonymous function",
+			[]any{TraceFunc, DebugFunc, InfoFunc, WarnFunc, ErrorFunc, CriticalFunc},
+			[]any{func() string { return "a b" }},
+		},
+		// loggerPointer methods
+		{
+			"loggerPointer methods basic",
+			[]any{logger.trace, logger.debug, logger.info, logger.warn, logger.error, logger.critical},
+			[]any{"a b"},
+		},
+		{
+			"loggerPointer methods with format",
+			[]any{logger.tracef, logger.debugf, logger.infof, logger.warnf, logger.errorf, logger.criticalf},
+			[]any{"a %s c", "b"},
+		},
+		{
+			"loggerPointer methods with stack depth",
+			[]any{logger.traceStackDepth, logger.debugStackDepth, logger.infoStackDepth, logger.warnStackDepth, logger.errorStackDepth, logger.criticalStackDepth},
+			[]any{"a b", 1},
+		},
+	}
 
-	// loggerPointer methods
-	testFunctionsScrubbingCount(
-		t,
-		[]any{logger.trace, logger.debug, logger.info, logger.warn, logger.error, logger.critical},
-		[]any{"a b"},
-	)
-	testFunctionsScrubbingCount(
-		t,
-		[]any{logger.tracef, logger.debugf, logger.infof, logger.warnf, logger.errorf, logger.criticalf},
-		[]any{"a %s c", "b"},
-	)
-	testFunctionsScrubbingCount(
-		t,
-		[]any{logger.traceStackDepth, logger.debugStackDepth, logger.infoStackDepth, logger.warnStackDepth, logger.errorStackDepth, logger.criticalStackDepth},
-		[]any{"a b", 1},
-	)
+	for _, tc := range testCases {
+		t.Run("scrub count "+tc.name, func(t *testing.T) {
+			for _, fun := range tc.funcs {
+				val := reflect.ValueOf(fun)
+				funcName, err := getFuncName(val)
+				if !assert.NoError(t, err) {
+					continue
+				}
+
+				valTy := reflect.TypeOf(fun)
+				if !assert.Equalf(t, valTy.Kind(), reflect.Func, "expected %s to be a function", funcName) {
+					continue
+				}
+
+				// create a slice of reflect.Value from the args
+				reflArgs := make([]reflect.Value, 0, len(tc.args))
+				for _, arg := range tc.args {
+					reflArgs = append(reflArgs, reflect.ValueOf(arg))
+				}
+
+				counter := mockScrubBytesWithCount(t)
+				val.Call(reflArgs)
+				assert.Equalf(t, 1, int(counter.Load()), "expected %s to call scrubBytesFunc once", funcName)
+			}
+		})
+	}
 }
