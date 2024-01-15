@@ -264,8 +264,8 @@ func (e *scanJSONError) Unwrap() error {
 	return e.err
 }
 
-func (e *scanJSONError) MashalJSON() ([]byte, error) {
-	return []byte(e.err.Error()), nil
+func (e *scanJSONError) MarshalJSON() ([]byte, error) {
+	return json.Marshal(e.err.Error())
 }
 
 func (e *scanJSONError) UnmarshalJSON(data []byte) error {
