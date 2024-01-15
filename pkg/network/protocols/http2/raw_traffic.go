@@ -10,14 +10,17 @@ package http2
 import (
 	"bytes"
 	"fmt"
-
 	"golang.org/x/net/http2/hpack"
 )
+
+const DynamicTableSize = 100
 
 // NewHeadersFrameMessage creates a new HTTP2 data frame message with the given header fields.
 func NewHeadersFrameMessage(headerFields []hpack.HeaderField) ([]byte, error) {
 	var buf bytes.Buffer
 	enc := hpack.NewEncoder(&buf)
+	// we set the max dynamic table size to 100 to be able to test different cases of literal header parsing.
+	enc.SetMaxDynamicTableSizeLimit(DynamicTableSize)
 
 	for _, value := range headerFields {
 		if err := enc.WriteField(value); err != nil {
