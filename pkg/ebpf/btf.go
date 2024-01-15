@@ -23,6 +23,7 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -76,12 +77,12 @@ func initBTFLoader(cfg *Config) *orderedBTFLoader {
 type btfLoaderFunc func() (*btf.Spec, error)
 
 // Get returns BTF for the running kernel
-func (b *orderedBTFLoader) Get() (*btf.Spec, COREResult, error) {
+func (b *orderedBTFLoader) Get() (*btf.Spec, ebpftelemetry.COREResult, error) {
 	spec, err := b.loadFunc.Do()
 	if spec != nil {
 		b.delayedFlusher.Reset(btfFlushDelay)
 	}
-	return spec, COREResult(b.result), err
+	return spec, ebpftelemetry.COREResult(b.result), err
 }
 
 // Flush deletes any cached BTF

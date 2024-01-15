@@ -10,7 +10,6 @@ package filter
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"reflect"
 	"syscall"
 	"time"
@@ -21,6 +20,7 @@ import (
 	"github.com/google/gopacket/layers"
 	"golang.org/x/net/bpf"
 
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -28,15 +28,15 @@ const telemetryModuleName = "network_tracer__dns"
 
 // Telemetry
 var packetSourceTelemetry = struct {
-	polls     *telemetry.StatCounterWrapper
-	processed *telemetry.StatCounterWrapper
-	captured  *telemetry.StatCounterWrapper
-	dropped   *telemetry.StatCounterWrapper
+	polls     *ebpftelemetry.StatCounterWrapper
+	processed *ebpftelemetry.StatCounterWrapper
+	captured  *ebpftelemetry.StatCounterWrapper
+	dropped   *ebpftelemetry.StatCounterWrapper
 }{
-	telemetry.NewStatCounterWrapper(telemetryModuleName, "polled_packets", []string{}, "Counter measuring the number of polled packets"),
-	telemetry.NewStatCounterWrapper(telemetryModuleName, "processed_packets", []string{}, "Counter measuring the number of processed packets"),
-	telemetry.NewStatCounterWrapper(telemetryModuleName, "captured_packets", []string{}, "Counter measuring the number of captured packets"),
-	telemetry.NewStatCounterWrapper(telemetryModuleName, "dropped_packets", []string{}, "Counter measuring the number of dropped packets"),
+	ebpftelemetry.NewStatCounterWrapper(telemetryModuleName, "polled_packets", []string{}, "Counter measuring the number of polled packets"),
+	ebpftelemetry.NewStatCounterWrapper(telemetryModuleName, "processed_packets", []string{}, "Counter measuring the number of processed packets"),
+	ebpftelemetry.NewStatCounterWrapper(telemetryModuleName, "captured_packets", []string{}, "Counter measuring the number of captured packets"),
+	ebpftelemetry.NewStatCounterWrapper(telemetryModuleName, "dropped_packets", []string{}, "Counter measuring the number of dropped packets"),
 }
 
 // AFPacketSource provides a RAW_SOCKET attached to an eBPF SOCKET_FILTER
