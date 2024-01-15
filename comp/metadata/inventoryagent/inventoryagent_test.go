@@ -6,11 +6,14 @@
 package inventoryagent
 
 import (
+	"bytes"
 	"fmt"
 	"testing"
 	"time"
 
 	"go.uber.org/fx"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
@@ -23,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/stretchr/testify/assert"
 )
 
 func getTestInventoryPayload(t *testing.T, confOverrides map[string]any, sysprobeConfOverrides map[string]any) *inventoryagent {
@@ -250,4 +252,54 @@ func TestConfigRefresh(t *testing.T) {
 	assert.False(t, ia.RefreshTriggered())
 	pkgconfig.Datadog.Set("inventories_max_interval", 10*time.Minute, pkgconfigmodel.SourceAgentRuntime)
 	assert.True(t, ia.RefreshTriggered())
+}
+
+func TestStatusHeaderProvider(t *testing.T) {
+	ret := newInventoryAgentProvider(
+		fxutil.Test[dependencies](
+			t,
+			logimpl.MockModule(),
+			config.MockModule(),
+			fx.Replace(config.MockParams{Overrides: nil}),
+			sysprobeconfigimpl.MockModule(),
+			fx.Replace(sysprobeconfigimpl.MockParams{Overrides: nil}),
+			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
+		),
+	)
+
+	headerStatusProvider := ret.StatusHeaderProvider.Provider
+
+	tests := []struct {
+		name       string
+		assertFunc func(t *testing.T)
+	}{
+		{"JSON", func(t *testing.T) {
+			stats := make(map[string]interface{})
+			headerStatusProvider.JSON(stats)
+
+			assert.NotEmpty(t, stats)
+		}},
+		{"Text", func(t *testing.T) {
+			b := new(bytes.Buffer)
+			err := headerStatusProvider.Text(b)
+
+			assert.NoError(t, err)
+
+			assert.NotEmpty(t, b.String())
+		}},
+		{"HTML", func(t *testing.T) {
+			b := new(bytes.Buffer)
+			err := headerStatusProvider.HTML(b)
+
+			assert.NoError(t, err)
+
+			assert.NotEmpty(t, b.String())
+		}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.assertFunc(t)
+		})
+	}
 }
