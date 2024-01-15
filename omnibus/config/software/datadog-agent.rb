@@ -112,8 +112,6 @@ build do
   end
 
   if not bundled_agents.include? "trace-agent"
-    # defer compilation step in a block to allow getting the project's build version, which is populated
-    # only once the software that the project takes its version from (i.e. `datadog-agent`) has finished building
     platform = windows_arch_i386? ? "x86" : "x64"
     command "invoke trace-agent.build --python-runtimes #{py_runtimes_arg} --install-path=#{install_dir} --major-version #{major_version_arg} --arch #{platform} --flavor #{flavor_arg}", :env => env
   end
