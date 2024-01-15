@@ -88,7 +88,7 @@ type InitConfig struct {
 	UseDeviceIDAsHostname        Boolean                           `yaml:"use_device_id_as_hostname"`
 	MinCollectionInterval        int                               `yaml:"min_collection_interval"`
 	Namespace                    string                            `yaml:"namespace"`
-	PingConfig                   PingConfig                        `yaml:"ping"`
+	PingConfig                   snmpintegration.PingConfig        `yaml:"ping"`
 	DetectMetricsEnabled         Boolean                           `yaml:"experimental_detect_metrics_enabled"`
 	DetectMetricsRefreshInterval int                               `yaml:"experimental_detect_metrics_refresh_interval"`
 }
@@ -115,7 +115,7 @@ type InstanceConfig struct {
 	CollectDeviceMetadata *Boolean                            `yaml:"collect_device_metadata"`
 	CollectTopology       *Boolean                            `yaml:"collect_topology"`
 	UseDeviceIDAsHostname *Boolean                            `yaml:"use_device_id_as_hostname"`
-	PingConfig            PingConfig                          `yaml:"ping"`
+	PingConfig            snmpintegration.PingConfig          `yaml:"ping"`
 
 	// ExtraTags is a workaround to pass tags from snmp listener to snmp integration via AD template
 	// (see cmd/agent/dist/conf.d/snmp.d/auto_conf.yaml) that only works with strings.
@@ -154,26 +154,6 @@ type InstanceConfig struct {
 	// `interface_configs` option is not supported by SNMP corecheck autodiscovery (`network_address`)
 	// it's only supported for single device instance (`ip_address`)
 	InterfaceConfigs InterfaceConfigs `yaml:"interface_configs"`
-}
-
-type PingConfig struct {
-	Linux struct {
-		UseRawSocket *Boolean `yaml:"use_raw_socket"`
-	} `yaml:"linux"`
-	Enabled  *Boolean `yaml:"enabled"`
-	Interval *Number  `yaml:"interval"`
-	Timeout  *Number  `yaml:"timeout"`
-	Count    *Number  `yaml:"count"`
-}
-
-type ParsedPingConfig struct {
-	Linux struct {
-		UseRawSocket bool
-	}
-	Enabled  bool
-	Interval time.Duration
-	Timeout  time.Duration
-	Count    int
 }
 
 // CheckConfig holds config needed for an integration instance to run

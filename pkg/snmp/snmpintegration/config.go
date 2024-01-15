@@ -14,3 +14,16 @@ type InterfaceConfig struct {
 	OutSpeed   uint64   `mapstructure:"out_speed" yaml:"out_speed" json:"out_speed"`       // outbound speed override in bps
 	Tags       []string `mapstructure:"tags" yaml:"tags" json:"tags"`                      // interface tags
 }
+
+// PingConfig encapsulates the configuration for ping
+type PingConfig struct {
+	Linux    PingLinuxConfig `mapstructure:"linux" yaml:"linux" json:"linux"`
+	Enabled  *bool           `mapstructure:"enabled" yaml:"enabled" json:"enabled"`
+	Interval *int            `mapstructure:"interval" yaml:"interval" json:"interval"`
+	Timeout  *int            `mapstructure:"timeout" yaml:"timeout" json:"timeout"`
+	Count    *int            `mapstructure:"count" yaml:"count" json:"count"`
+}
+
+type PingLinuxConfig struct {
+	UseRawSocket *bool `mapstructure:"use_raw_socket" yaml:"use_raw_socket" json:"use_raw_socket"`
+}
