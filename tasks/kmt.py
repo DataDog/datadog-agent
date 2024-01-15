@@ -13,13 +13,7 @@ from .kernel_matrix_testing.command import CommandRunner
 from .kernel_matrix_testing.compiler import build_compiler as build_cc
 from .kernel_matrix_testing.compiler import compiler_running, docker_exec
 from .kernel_matrix_testing.compiler import start_compiler as start_cc
-from .kernel_matrix_testing.download import (
-    arch_mapping,
-    revert_kernel_packages,
-    revert_rootfs,
-    update_kernel_packages,
-    update_rootfs,
-)
+from .kernel_matrix_testing.download import arch_mapping, update_rootfs
 from .kernel_matrix_testing.init_kmt import check_and_get_stack, init_kernel_matrix_testing_system
 from .kernel_matrix_testing.kmt_os import get_kmt_os
 from .kernel_matrix_testing.tool import Exit, ask, info, warn
@@ -106,7 +100,7 @@ def init(ctx, lite=False):
 
 
 @task
-def update_resources(ctx, no_backup=False):
+def update_resources(ctx):
     kmt_os = get_kmt_os()
 
     warn("Updating resource dependencies will delete all running stacks.")
@@ -116,25 +110,7 @@ def update_resources(ctx, no_backup=False):
     for stack in glob(f"{kmt_os.stacks_dir}/*"):
         destroy_stack(ctx, stack=os.path.basename(stack))
 
-    update_kernel_packages(ctx, kmt_os.packages_dir, kmt_os.kheaders_dir, kmt_os.backup_dir, no_backup)
-    update_rootfs(ctx, kmt_os.rootfs_dir, kmt_os.backup_dir, no_backup)
-
-
-@task
-def revert_resources(ctx):
-    kmt_os = get_kmt_os()
-
-    warn("Reverting resource dependencies will delete all running stacks.")
-    if ask("are you sure you want to revert to backups? (y/n)").lower() != "y":
-        raise Exit("[-] Revert aborted")
-
-    for stack in glob(f"{kmt_os.stacks_dir}/*"):
-        destroy_stack(ctx, stack=stack)
-
-    revert_kernel_packages(ctx, kmt_os.packages_dir, kmt_os.backup_dir)
-    revert_rootfs(ctx, kmt_os.rootfs_dir, kmt_os.backup_dir)
-
-    info("[+] Reverted successfully")
+    update_rootfs(ctx, kmt_os.rootfs_dir)
 
 
 @task
