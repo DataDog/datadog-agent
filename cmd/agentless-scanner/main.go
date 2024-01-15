@@ -147,6 +147,16 @@ const (
 	noAttach     diskMode = "no-attach"
 )
 
+type scannerName string
+
+const (
+	scannerNameHostVulns    scannerName = "hostvulns"
+	scannerNameHostVulnsEBS scannerName = "hostvulns-ebs"
+	scannerNameAppVulns     scannerName = "appvulns"
+	scannerNameContainers   scannerName = "containers"
+	scannerNameMalware      scannerName = "malware"
+)
+
 type resourceType string
 
 const (
@@ -2148,7 +2158,7 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 			}
 		}
 		result := launchScanner(ctx, scannerOptions{
-			Scanner:     "hostvulns-ebs",
+			Scanner:     scannerNameHostVulnsEBS,
 			Scan:        scan,
 			SnapshotARN: &snapshotARN,
 		})
@@ -2197,7 +2207,7 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 			switch action {
 			case vulnsHost:
 				result := launchScanner(ctx, scannerOptions{
-					Scanner: "hostvulns",
+					Scanner: scannerNameHostVulns,
 					Scan:    scan,
 					Root:    root,
 				})
@@ -2209,7 +2219,7 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 				resultsCh <- result
 			case vulnsContainers:
 				ctrResult := launchScanner(ctx, scannerOptions{
-					Scanner: "containers",
+					Scanner: scannerNameContainers,
 					Scan:    scan,
 					Root:    root,
 				})
@@ -2224,7 +2234,7 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 							continue
 						}
 						result := launchScanner(ctx, scannerOptions{
-							Scanner: "hostvulns",
+							Scanner: scannerNameHostVulns,
 							Scan:    scan,
 							Root:    mountPoint,
 						})
@@ -2239,7 +2249,7 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 				}
 			case malware:
 				resultsCh <- launchScanner(ctx, scannerOptions{
-					Scanner: "malware",
+					Scanner: scannerNameMalware,
 					Scan:    scan,
 					Root:    root,
 				})
@@ -2254,7 +2264,7 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 }
 
 type scannerOptions struct {
-	Scanner string
+	Scanner scannerName
 	Scan    *scanTask
 	Root    string
 
@@ -2270,7 +2280,7 @@ func (o scannerOptions) ID() string {
 	if o.SnapshotARN != nil {
 		h.Write([]byte(o.SnapshotARN.String()))
 	}
-	return o.Scanner + "-" + hex.EncodeToString(h.Sum(nil)[:8])
+	return string(o.Scanner) + "-" + hex.EncodeToString(h.Sum(nil)[:8])
 }
 
 func launchScanner(ctx context.Context, opts scannerOptions) scanResult {
@@ -2391,31 +2401,31 @@ func (w *truncatedWriter) Write(b []byte) (n int, err error) {
 
 func launchScannerLocally(ctx context.Context, opts scannerOptions) scanResult {
 	switch opts.Scanner {
-	case "hostvulns":
+	case scannerNameHostVulns:
 		bom, err := launchScannerTrivyLocal(ctx, opts)
 		if err != nil {
 			return opts.Scan.ErrResult(err)
 		}
 		return scanResult{Scan: opts.Scan, Vulns: &scanVulnsResult{BOM: bom}}
-	case "hostvulns-ebs":
+	case scannerNameHostVulnsEBS:
 		bom, err := launchScannerTrivyVM(ctx, opts)
 		if err != nil {
 			return opts.Scan.ErrResult(err)
 		}
 		return scanResult{Scan: opts.Scan, Vulns: &scanVulnsResult{BOM: bom}}
-	case "appvulns":
+	case scannerNameAppVulns:
 		bom, err := launchScannerTrivyLambda(ctx, opts)
 		if err != nil {
 			return opts.Scan.ErrResult(err)
 		}
 		return scanResult{Scan: opts.Scan, Vulns: &scanVulnsResult{BOM: bom}}
-	case "containers":
+	case scannerNameContainers:
 		containers, err := launchScannerContainers(ctx, opts)
 		if err != nil {
 			return opts.Scan.ErrResult(err)
 		}
 		return scanResult{Scan: opts.Scan, Containers: &scanContainerResult{Containers: containers}}
-	case "malware":
+	case scannerNameMalware:
 		result, err := launchScannerMalware(ctx, opts)
 		if err != nil {
 			return opts.Scan.ErrResult(err)
@@ -2481,7 +2491,7 @@ func scanLambda(ctx context.Context, scan *scanTask, resultsCh chan scanResult) 
 	}
 
 	result := launchScanner(ctx, scannerOptions{
-		Scanner: "appvulns",
+		Scanner: scannerNameAppVulns,
 		Scan:    scan,
 		Root:    codePath,
 	})
