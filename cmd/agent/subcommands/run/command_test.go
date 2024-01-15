@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/comp/agents/core/coreimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -33,8 +34,8 @@ func TestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(newGlobalParamsTest(t)),
 		[]string{"run"},
-		run,
-		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
+		coreimpl.Run,
+		func(cliParams *coreimpl.CliParams, coreParams core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, true, secretParams.Enabled)
 		})
 	workloadmeta.SetGlobalStore(nil)
@@ -53,9 +54,9 @@ func TestCommandPidfile(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(newGlobalParamsTest(t)),
 		[]string{"run", "--pidfile", "/pid/file"},
-		run,
-		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
-			require.Equal(t, "/pid/file", cliParams.pidfilePath)
+		coreimpl.Run,
+		func(cliParams *coreimpl.CliParams, coreParams core.BundleParams, secretParams secrets.Params) {
+			require.Equal(t, "/pid/file", cliParams.PidfilePath)
 			require.Equal(t, true, secretParams.Enabled)
 		})
 	workloadmeta.SetGlobalStore(nil)

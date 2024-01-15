@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package run implements 'agent run' (and deprecated 'agent start').
-package run
+// Package coreimpl implements the core Agent
+package coreimpl
 
 import (
 	"context"
@@ -19,8 +19,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/spf13/cobra"
-	"go.uber.org/fx"
 	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
@@ -30,49 +28,33 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	global "github.com/DataDog/datadog-agent/cmd/agent/dogstatsd"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
-	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	"github.com/DataDog/datadog-agent/cmd/manager"
+	"github.com/DataDog/datadog-agent/comp/agents/core/coreimpl/internal/clcrunnerapi"
 
 	// checks implemented as components
 
 	// core components
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
-	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
-	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client"
-	langDetectionClimpl "github.com/DataDog/datadog-agent/comp/languagedetection/client/clientimpl"
-	"github.com/DataDog/datadog-agent/comp/logs"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
-	"github.com/DataDog/datadog-agent/comp/metadata"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
-	"github.com/DataDog/datadog-agent/comp/ndmtmp"
-	"github.com/DataDog/datadog-agent/comp/netflow"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
-	"github.com/DataDog/datadog-agent/comp/otelcol"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
@@ -95,7 +77,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	pkgcommon "github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
@@ -142,17 +123,18 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/collector/metadata"
 )
 
-type cliParams struct {
+// CliParams contains the parameters passed to the agent at startup.
+type CliParams struct {
 	*command.GlobalParams
 
-	// pidfilePath contains the value of the --pidfile flag.
-	pidfilePath string
+	// PidfilePath contains the value of the --pidfile flag.
+	PidfilePath string
 }
 
-// run starts the main loop.
+// Run starts the main loop.
 //
 // This is exported because it also used from the deprecated `agent start` command.
-func run(log log.Component,
+func Run(log log.Component,
 	_ config.Component,
 	flare flare.Component,
 	telemetry telemetry.Component,
@@ -166,7 +148,7 @@ func run(log log.Component,
 	_ runner.Component,
 	demultiplexer demultiplexer.Component,
 	sharedSerializer serializer.MetricSerializer,
-	cliParams *cliParams,
+	cliParams *CliParams,
 	logsAgent optional.Option[logsAgent.Component],
 	otelcollector otelcollector.Component,
 	_ host.Component,
@@ -245,7 +227,7 @@ func run(log log.Component,
 
 // startAgent Initializes the agent process
 func startAgent(
-	cliParams *cliParams,
+	cliParams *CliParams,
 	log log.Component,
 	flare flare.Component,
 	telemetry telemetry.Component,
@@ -340,12 +322,12 @@ func startAgent(
 		log.Debugf("Health check listening on port %d", healthPort)
 	}
 
-	if cliParams.pidfilePath != "" {
-		err = pidfile.WritePID(cliParams.pidfilePath)
+	if cliParams.PidfilePath != "" {
+		err = pidfile.WritePID(cliParams.PidfilePath)
 		if err != nil {
 			return log.Errorf("Error while writing PID file, exiting: %v", err)
 		}
-		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), cliParams.pidfilePath)
+		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), cliParams.PidfilePath)
 	}
 
 	err = manager.ConfigureAutoExit(ctx, pkgconfig.Datadog)
@@ -499,11 +481,11 @@ func startAgent(
 
 // StopAgentWithDefaults is a temporary way for other packages to use stopAgent.
 func StopAgentWithDefaults(server dogstatsdServer.Component, demultiplexer demultiplexer.Component, agentAPI internalAPI.Component) {
-	stopAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, server, demultiplexer, agentAPI)
+	stopAgent(&CliParams{GlobalParams: &command.GlobalParams{}}, server, demultiplexer, agentAPI)
 }
 
 // stopAgent Tears down the agent process
-func stopAgent(cliParams *cliParams, server dogstatsdServer.Component, demultiplexer demultiplexer.Component, agentAPI internalAPI.Component) {
+func stopAgent(cliParams *CliParams, server dogstatsdServer.Component, demultiplexer demultiplexer.Component, agentAPI internalAPI.Component) {
 	// retrieve the agent health before stopping the components
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
 	health, err := health.GetReadyNonBlocking()
@@ -537,7 +519,7 @@ func stopAgent(cliParams *cliParams, server dogstatsdServer.Component, demultipl
 	gui.StopGUIServer()
 	profiler.Stop()
 
-	os.Remove(cliParams.pidfilePath)
+	os.Remove(cliParams.PidfilePath)
 
 	// gracefully shut down any component
 	_, cancel := pkgcommon.GetMainCtxCancel()
