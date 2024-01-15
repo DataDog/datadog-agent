@@ -4,10 +4,9 @@ from .tool import Exit, error, info
 
 
 class CommandRunner:
-    def __init__(self, ctx, local, vm, remote_ip, remote_ssh_key, log_debug):
+    def __init__(self, ctx, local, vm, log_debug):
         self.local = local
-        self.remote_ip = remote_ip
-        self.remote_ssh_key = ssh_key_to_path(remote_ssh_key)
+        self.remote_ssh_key = ssh_key_to_path(vm.remote_ssh_key)
         self.vm = vm
         self.ctx = ctx
         self.log_debug = log_debug
@@ -18,7 +17,7 @@ class CommandRunner:
         if self.vm.arch == "local":
             res = run_cmd_local(self.ctx, cmd, self.vm.ip, log_debug)
         else:
-            res = run_cmd_remote(self.ctx, cmd, self.remote_ip, self.vm.ip, self.remote_ssh_key, log_debug)
+            res = run_cmd_remote(self.ctx, cmd, self.vm.remote_ip, self.vm.ip, self.remote_ssh_key, log_debug)
 
         if not res.ok:
             error(f"[-] Failed: {self.vm.ip} -> {cmd}")
@@ -26,28 +25,13 @@ class CommandRunner:
                 print_failed(res.stderr)
                 raise Exit("command failed")
 
-    def copy_files(self, path, dest=None):
-        if self.vm.arch == "local" and dest is None:
-            self.ctx.run(f"cp {path} {get_kmt_os().shared_dir}")
-        elif self.vm.arch == "local" and dest is not None:
-            self.ctx.run(
-                f"scp -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa {path} root@{self.vm.ip}:{dest}"
-            )
-        else:
-            if self.remote_ssh_key == "" or self.remote_ip == "":
-                raise Exit("remote ssh key and remote ip are required to run command on remote VMs")
-            self.run_cmd(
-                f"scp -o StrictHostKeyChecking=no -i {self.remote_ssh_key} {path} ubuntu@{self.remote_ip}:/opt/kernel-version-testing/",
-                False,
-            )
-
     def sync_source(self, source, target):
-        sync_source(self.ctx, source, target, self.remote_ip, self.remote_ssh_key, self.vm.ip, self.vm.arch)
+        sync_source(self.ctx, source, target, self.vm.remote_ip, self.remote_ssh_key, self.vm.ip, self.vm.arch)
 
 
 def sync_source(ctx, source, target, instance_ip, ssh_key, ip, arch):
     kmt_dir = get_kmt_os().kmt_dir
-    vm_copy = f"rsync -e \\\"ssh -o StrictHostKeyChecking=no -i {kmt_dir}/ddvm_rsa\\\" --chmod=F644 --chown=root:root -rt --exclude='.git*' --filter=':- .gitignore' ./ root@{ip}:{target}"
+    vm_copy = f"rsync -e \\\"ssh -o StrictHostKeyChecking=no -i {kmt_dir}/ddvm_rsa\\\" -p --chown=root:root -rt --exclude='.git*' --filter=':- .gitignore' ./ root@{ip}:{target}"
     if arch == "local":
         ctx.run(
             f"rsync -e \"ssh -o StrictHostKeyChecking=no -i {kmt_dir}/ddvm_rsa\" -p --chown=root:root -rt --exclude='.git*' --filter=':- .gitignore' {source} root@{ip}:{target}"
