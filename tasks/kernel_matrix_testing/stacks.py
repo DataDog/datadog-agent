@@ -258,8 +258,8 @@ def destroy_ec2_instances(ctx, stack):
 
 
 def destroy_stack_force(ctx, stack):
-    stack_dir = f"{get_kmt_os().stacks_dir}/{stack}"
-    vm_config = f"{stack_dir}/{VMCONFIG}"
+    stack_dir = os.path.join(get_kmt_os().stacks_dir, stack)
+    vm_config = os.path.join(stack_dir, VMCONFIG)
 
     if local_vms_in_config(vm_config):
         conn = libvirt.open("qemu:///system")
