@@ -58,15 +58,15 @@ func UpdateSBOMRepoMetadata(sbom *workloadmeta.SBOM, repoTags, repoDigests []str
 
 // propertiesEqualsValues function compares the existing properties with the new values
 func propertiesEqualsValues(properties []cyclonedx.Property, newValues []string, propertyKeyType string) bool {
-	existingValuesMap := make(map[string]bool)
+	existingValuesMap := make(map[string]struct{})
 	for _, prop := range properties {
 		if prop.Name == propertyKeyType {
-			existingValuesMap[prop.Value] = true
+			existingValuesMap[prop.Value] = struct{}{}
 		}
 	}
 
 	for _, newValue := range newValues {
-		if !existingValuesMap[newValue] {
+		if _, found := existingValuesMap[newValue]; !found {
 			return false
 		}
 	}
