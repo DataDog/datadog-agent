@@ -997,14 +997,14 @@ func createMessageWithCustomHeadersFramesCount(t *testing.T, headerFields []hpac
 	var buf bytes.Buffer
 	framer := http2.NewFramer(&buf, nil)
 
-	changeDynamicTableSize2 := false
+	changeDynamicTableSize := false
 	if len(setDynamicTableSize) > 0 && setDynamicTableSize[0] {
-		changeDynamicTableSize2 = true
+		changeDynamicTableSize = true
 
 	}
 	for i := 0; i < headersCount; i++ {
 		streamID := 2*i + 1
-		headersFrame, err := usmhttp2.NewHeadersFrameMessage(headerFields, changeDynamicTableSize2)
+		headersFrame, err := usmhttp2.NewHeadersFrameMessage(headerFields, changeDynamicTableSize)
 		require.NoError(t, err, "could not create headers frame")
 
 		// Writing the header frames to the buffer using the Framer.
