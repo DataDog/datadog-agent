@@ -106,15 +106,15 @@ func cleanProperties(properties []cyclonedx.Property) []cyclonedx.Property {
 
 // Append new values to the properties that were not already present
 func appendProperties(properties []cyclonedx.Property, newValues []string, propertyKeyType string) []cyclonedx.Property {
-	existingValues := make(map[string]bool)
+	existingValues := make(map[string]struct{})
 	for _, prop := range properties {
 		if prop.Name == propertyKeyType {
-			existingValues[prop.Value] = true
+			existingValues[prop.Value] = struct{}{}
 		}
 	}
 
 	for _, newValue := range newValues {
-		if !existingValues[newValue] {
+		if _, found := existingValues[newValue]; !found {
 			prop := cdxProperty(propertyKeyType, newValue)
 			properties = append(properties, prop)
 		}

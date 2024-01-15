@@ -610,9 +610,10 @@ func (c *collector) getImageMetadata(ctx context.Context, imageID string, newSBO
 		}
 	}
 
-	// The CycloneDX should contain the RepoTags and RepoDigests but the scanner might not be able to do it.
-	// For example, if we use the scanner from filesystem or if the `imgMeta` object does not contain all the
-	// metadata when it is sent
+	// The CycloneDX should contain the RepoTags and RepoDigests but the scanner might
+	// not be able to inject them. For example, if we use the scanner from filesystem or
+	// if the `imgMeta` object does not contain all the metadata when it is sent.
+	// We add them here to make sure they are present.
 	sbom = util.UpdateSBOMRepoMetadata(sbom, imgInspect.RepoTags, imgInspect.RepoDigests)
 
 	return &workloadmeta.ContainerImageMetadata{

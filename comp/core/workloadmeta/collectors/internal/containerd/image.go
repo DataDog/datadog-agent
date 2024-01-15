@@ -310,9 +310,9 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 		}
 	}
 
-	// The CycloneDX should contain the RepoTags and RepoDigests but the scanner might not be able to do it.
-	// For example, if we use the scanner from filesystem or if the `imgMeta` object does not contain all the
-	// metadata when it is sent.
+	// The CycloneDX should contain the RepoTags and RepoDigests but the scanner might
+	// not be able to inject them. For example, if we use the scanner from filesystem or
+	// if the `imgMeta` object does not contain all the metadata when it is sent.
 	// We add them here to make sure they are present.
 	wlmImage.SBOM = util.UpdateSBOMRepoMetadata(wlmImage.SBOM, wlmImage.RepoTags, wlmImage.RepoDigests)
 
