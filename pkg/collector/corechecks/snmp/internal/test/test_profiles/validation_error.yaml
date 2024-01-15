@@ -1,7 +1,5 @@
 # Profile for F5 BIG-IP devices
 #
-extends:
-  - does_not_exist.yaml
 
 device:
   vendor: "f5"

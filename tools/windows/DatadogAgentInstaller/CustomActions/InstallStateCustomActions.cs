@@ -1,4 +1,5 @@
 using System;
+using System.Security.Principal;
 using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
@@ -143,8 +144,8 @@ namespace Datadog.CustomActions
                 var currentBuild = subkey.GetValue("CurrentBuild");
                 if (currentBuild != null)
                 {
-                    _session["WindowsBuild"] = subkey.GetValue("CurrentBuild").ToString();
-                    _session.Log($"WindowsBuild: {_session["WindowsBuild"]}");
+                    _session["DDAGENT_WINDOWSBUILD"] = subkey.GetValue("CurrentBuild").ToString();
+                    _session.Log($"WindowsBuild: {_session["DDAGENT_WINDOWSBUILD"]}");
                 }
             }
             else
@@ -198,6 +199,100 @@ namespace Datadog.CustomActions
         public static ActionResult WriteInstallState(Session session)
         {
             return new InstallStateCustomActions(new SessionWrapper(session)).WriteInstallState();
+        }
+
+
+        /// <summary>
+        /// Uninstall CA that removes the changes from the WriteInstallState CA
+        /// </summary>
+        /// <remarks>
+        /// If these registry values are not removed then MSI won't remove the key.
+        /// </remarks>
+        public ActionResult UninstallWriteInstallState()
+        {
+            try
+            {
+                using var subkey =
+                    _registryServices.OpenRegistryKey(Registries.LocalMachine, Constants.DatadogAgentRegistryKey,
+                        writable: true);
+                if (subkey == null)
+                {
+                    // registry key does not exist, nothing to do
+                    _session.Log(
+                        $"Registry key HKLM\\{Constants.DatadogAgentRegistryKey} does not exist, there are no values to remove.");
+                    return ActionResult.Success;
+                }
+
+                foreach (var value in new[]
+                         {
+                             "installedDomain",
+                             "installedUser"
+                         })
+                {
+                    try
+                    {
+                        subkey.DeleteValue(value);
+                    }
+                    catch (Exception e)
+                    {
+                        // Don't print stack trace as it may be seen as a terminal error by readers of the log.
+                        _session.Log($"Warning, cannot removing registry value: {e.Message}");
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Warning, could not access registry key {Constants.DatadogAgentRegistryKey}: {e}");
+                // This step can fail without failing the un-installation.
+            }
+
+            return ActionResult.Success;
+        }
+
+        [CustomAction]
+        public static ActionResult UninstallWriteInstallState(Session session)
+        {
+            return new InstallStateCustomActions(new SessionWrapper(session)).UninstallWriteInstallState();
+        }
+
+        public static SecurityIdentifier GetPreviousAgentUser(ISession session, IRegistryServices registryServices, INativeMethods nativeMethods)
+        {
+            try
+            {
+                using var subkey =
+                    registryServices.OpenRegistryKey(Registries.LocalMachine, Constants.DatadogAgentRegistryKey);
+                if (subkey == null)
+                {
+                    throw new Exception("Datadog registry key does not exist");
+                }
+                var domain = subkey.GetValue("installedDomain")?.ToString();
+                var user = subkey.GetValue("installedUser")?.ToString();
+                if (string.IsNullOrEmpty(domain) || string.IsNullOrEmpty(user))
+                {
+                    throw new Exception("Agent user information is not in registry");
+                }
+
+                var accountName = $"{domain}\\{user}";
+                session.Log($"Found agent user information in registry {accountName}");
+                var userFound = nativeMethods.LookupAccountName(accountName,
+                    out _,
+                    out _,
+                    out var securityIdentifier,
+                    out _);
+                if (!userFound || securityIdentifier == null)
+                {
+                    throw new Exception($"Could not find account for user {accountName}.");
+                }
+
+                session.Log($"Found previous agent user {accountName} ({securityIdentifier})");
+                return securityIdentifier;
+            }
+            catch (Exception e)
+            {
+                session.Log($"Could not find previous agent user: {e}");
+            }
+
+            return null;
         }
     }
 }

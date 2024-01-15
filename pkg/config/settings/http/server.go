@@ -13,7 +13,8 @@ import (
 	"github.com/gorilla/mux"
 	"gopkg.in/yaml.v2"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -24,23 +25,24 @@ var Server = struct {
 	GetFullDatadogConfig     func(...string) http.HandlerFunc
 	GetFullSystemProbeConfig func(...string) http.HandlerFunc
 	GetValue                 http.HandlerFunc
+	GetValueWithSources      http.HandlerFunc
 	SetValue                 http.HandlerFunc
 	ListConfigurable         http.HandlerFunc
 }{
-	GetFullDatadogConfig:     getGlobalFullConfig(ddconfig.Datadog),
-	GetFullSystemProbeConfig: getGlobalFullConfig(ddconfig.SystemProbe),
+	GetFullDatadogConfig:     getGlobalFullConfig(config.Datadog),
+	GetFullSystemProbeConfig: getGlobalFullConfig(config.SystemProbe),
 	GetValue:                 getConfigValue,
 	SetValue:                 setConfigValue,
 	ListConfigurable:         listConfigurableSettings,
 }
 
-func getGlobalFullConfig(cfg ddconfig.Config) func(...string) http.HandlerFunc {
+func getGlobalFullConfig(cfg config.Config) func(...string) http.HandlerFunc {
 	return func(namespaces ...string) http.HandlerFunc {
 		return getFullConfig(cfg, namespaces...)
 	}
 }
 
-func getFullConfig(cfg ddconfig.Config, namespaces ...string) http.HandlerFunc {
+func getFullConfig(cfg config.Config, namespaces ...string) http.HandlerFunc {
 	requiresUniqueNs := len(namespaces) == 1 && namespaces[0] != ""
 	requiresAllNamespaces := len(namespaces) == 0
 
@@ -128,7 +130,13 @@ func getConfigValue(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	body, err := json.Marshal(map[string]interface{}{"value": val})
+
+	resp := map[string]interface{}{"value": val}
+	if r.URL.Query().Get("sources") == "true" {
+		resp["sources_value"] = config.Datadog.GetAllSources(setting)
+	}
+
+	body, err := json.Marshal(resp)
 	if err != nil {
 		log.Errorf("Unable to marshal runtime setting value response: %s", err)
 		body, _ := json.Marshal(map[string]string{"error": err.Error()})
@@ -145,7 +153,7 @@ func setConfigValue(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	value := html.UnescapeString(r.Form.Get("value"))
 
-	if err := settings.SetRuntimeSetting(setting, value, settings.SourceCLI); err != nil {
+	if err := settings.SetRuntimeSetting(setting, value, model.SourceCLI); err != nil {
 		body, _ := json.Marshal(map[string]string{"error": err.Error()})
 		switch err.(type) {
 		case *settings.SettingNotFoundError:

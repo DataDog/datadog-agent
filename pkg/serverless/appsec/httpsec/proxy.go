@@ -7,15 +7,16 @@ package httpsec
 
 import (
 	"bytes"
-	"encoding/json"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trigger"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/aws/aws-lambda-go/events"
+	json "github.com/json-iterator/go"
 )
 
 // ProxyLifecycleProcessor is an implementation of the invocationlifecycle.InvocationProcessor
@@ -40,6 +41,7 @@ func NewProxyLifecycleProcessor(appsec Monitorer) *ProxyLifecycleProcessor {
 	}
 }
 
+//nolint:revive // TODO(ASM) Fix revive linter
 func (lp *ProxyLifecycleProcessor) GetExecutionInfo() *invocationlifecycle.ExecutionStartInfo {
 	return nil // not used in the runtime api proxy case
 }
@@ -64,7 +66,7 @@ func (lp *ProxyLifecycleProcessor) OnInvokeStart(startDetails *invocationlifecyc
 	var event interface{}
 	switch eventType {
 	default:
-		log.Debug("appsec: proxy-lifecycle: ignoring unsupported lambda event type %s", eventType)
+		log.Debugf("appsec: proxy-lifecycle: ignoring unsupported lambda event type %v", eventType)
 		return
 	case trigger.APIGatewayEvent:
 		event = &events.APIGatewayProxyRequest{}
@@ -72,6 +74,10 @@ func (lp *ProxyLifecycleProcessor) OnInvokeStart(startDetails *invocationlifecyc
 		event = &events.APIGatewayV2HTTPRequest{}
 	case trigger.APIGatewayWebsocketEvent:
 		event = &events.APIGatewayWebsocketProxyRequest{}
+	case trigger.APIGatewayLambdaAuthorizerTokenEvent:
+		event = &events.APIGatewayCustomAuthorizerRequest{}
+	case trigger.APIGatewayLambdaAuthorizerRequestParametersEvent:
+		event = &events.APIGatewayCustomAuthorizerRequestTypeRequest{}
 	case trigger.ALBEvent:
 		event = &events.ALBTargetGroupRequest{}
 	case trigger.LambdaFunctionURLEvent:
@@ -94,12 +100,26 @@ func (lp *ProxyLifecycleProcessor) OnInvokeEnd(_ *invocationlifecycle.Invocation
 	// So the final appsec monitoring logic moved to the SpanModifier instead and we use it as "invocation end" event.
 }
 
+//nolint:revive // TODO(ASM) Fix revive linter
 func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.TraceChunk, s *pb.Span) {
-	// Add appsec tags to the aws lambda function service entry span
+	// Add relevant standalone tags to the chunk (TODO: remove per span tagging once backend handles chunk tags)
+	if config.IsStandalone() {
+		if chunk.Tags == nil {
+			chunk.Tags = make(map[string]string)
+		}
+		chunk.Tags["_dd.apm.enabled"] = "0"
+		// By the spec, only the service entry span needs to be tagged.
+		// We play it safe by tagging everything in case the service entry span gets changed by the agent
+		for _, s := range chunk.Spans {
+			(*spanWrapper)(s).SetMetricsTag("_dd.apm.enabled", 0)
+		}
+	}
 	if s.Name != "aws.lambda" || s.Type != "serverless" {
 		return
 	}
+	//nolint:revive // TODO(ASM) Fix revive linter
 	currentReqId := s.Meta["request_id"]
+	//nolint:revive // TODO(ASM) Fix revive linter
 	if spanReqId := lastReqId; currentReqId != spanReqId {
 		log.Debugf("appsec: ignoring service entry span with an unexpected request id: expected `%s` but got `%s`", currentReqId, spanReqId)
 		return
@@ -122,56 +142,93 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 	case *events.APIGatewayProxyRequest:
 		makeContext(
 			&ctx,
+			&event.Resource,
 			&event.Path,
 			event.MultiValueHeaders,
 			event.MultiValueQueryStringParameters,
 			event.PathParameters,
 			event.RequestContext.Identity.SourceIP,
 			&event.Body,
+			event.IsBase64Encoded,
 		)
 
 	case *events.APIGatewayV2HTTPRequest:
 		makeContext(
 			&ctx,
+			&event.RouteKey,
 			&event.RawPath,
 			toMultiValueMap(event.Headers),
 			toMultiValueMap(event.QueryStringParameters),
 			event.PathParameters,
 			event.RequestContext.HTTP.SourceIP,
 			&event.Body,
+			event.IsBase64Encoded,
 		)
 
 	case *events.APIGatewayWebsocketProxyRequest:
 		makeContext(
 			&ctx,
+			&event.Resource,
 			&event.Path,
 			event.MultiValueHeaders,
 			event.MultiValueQueryStringParameters,
 			event.PathParameters,
 			event.RequestContext.Identity.SourceIP,
 			&event.Body,
+			event.IsBase64Encoded,
+		)
+
+	case *events.APIGatewayCustomAuthorizerRequest:
+		makeContext(
+			&ctx,
+			nil,
+			nil,
+			// NOTE: The header name could have been different (depends on API GW configuration)
+			map[string][]string{"Authorization": {event.AuthorizationToken}},
+			nil,
+			nil,
+			"", // Not provided by API Gateway
+			nil,
+			false,
+		)
+
+	case *events.APIGatewayCustomAuthorizerRequestTypeRequest:
+		makeContext(
+			&ctx,
+			&event.Resource,
+			&event.Path,
+			event.MultiValueHeaders,
+			event.MultiValueQueryStringParameters,
+			event.PathParameters,
+			event.RequestContext.Identity.SourceIP,
+			nil,
+			false,
 		)
 
 	case *events.ALBTargetGroupRequest:
 		makeContext(
 			&ctx,
+			nil,
 			&event.Path,
 			event.MultiValueHeaders,
 			event.MultiValueQueryStringParameters,
 			nil,
 			"",
 			&event.Body,
+			event.IsBase64Encoded,
 		)
 
 	case *events.LambdaFunctionURLRequest:
 		makeContext(
 			&ctx,
+			nil,
 			&event.RawPath,
 			toMultiValueMap(event.Headers),
 			toMultiValueMap(event.QueryStringParameters),
 			nil,
 			event.RequestContext.HTTP.SourceIP,
 			&event.Body,
+			event.IsBase64Encoded,
 		)
 	}
 
@@ -191,12 +248,17 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 		log.Debug("appsec: missing span tag http.status_code")
 	}
 
-	if events := lp.appsec.Monitor(ctx.toAddresses()); len(events) > 0 {
-		setSecurityEventsTags(span, events, reqHeaders, nil)
+	if res := lp.appsec.Monitor(ctx.toAddresses()); res.HasEvents() {
+		setSecurityEventsTags(span, res.Events, reqHeaders, nil)
 		chunk.Priority = int32(sampler.PriorityUserKeep)
+		if ctx.requestRoute != nil {
+			span.SetMetaTag("http.route", *ctx.requestRoute)
+		}
+		setAPISecurityTags(span, res.Derivatives)
 	}
 }
 
+//nolint:revive // TODO(ASM) Fix revive linter
 type ExecutionContext interface {
 	LastRequestID() string
 }
@@ -219,10 +281,16 @@ func (lp *ProxyLifecycleProcessor) WrapSpanModifier(ctx ExecutionContext, modify
 type spanWrapper pb.Span
 
 func (s *spanWrapper) SetMetaTag(tag string, value string) {
+	if s.Meta == nil {
+		s.Meta = make(map[string]string)
+	}
 	s.Meta[tag] = value
 }
 
 func (s *spanWrapper) SetMetricsTag(tag string, value float64) {
+	if s.Metrics == nil {
+		s.Metrics = make(map[string]float64)
+	}
 	s.Metrics[tag] = value
 }
 

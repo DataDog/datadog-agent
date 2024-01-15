@@ -2,28 +2,32 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-
+//
+//nolint:revive // TODO(APM) Fix revive linter
 package run
 
 import (
 	"context"
-	"os"
-	"os/signal"
-	"syscall"
+	"errors"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	corelogimpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	"github.com/DataDog/datadog-agent/comp/trace"
+	"github.com/DataDog/datadog-agent/comp/trace/agent"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-type contextSupplier struct {
-	ctx context.Context
-}
 
 // MakeCommand returns the run subcommand for the 'trace-agent' command.
 func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Command {
@@ -35,7 +39,7 @@ func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Com
 		Long:  `The Datadog trace-agent aggregates, samples, and forwards traces to datadog submitted by tracers loaded into your application.`,
 		RunE: func(*cobra.Command, []string) error {
 			cliParams.GlobalParams = globalParamsGetter()
-			return runTraceAgent(cliParams, cliParams.ConfPath)
+			return runTraceAgentCommand(cliParams, cliParams.ConfPath)
 		},
 	}
 
@@ -49,40 +53,48 @@ func setParamFlags(cmd *cobra.Command, cliParams *RunParams) {
 	cmd.PersistentFlags().StringVarP(&cliParams.CPUProfile, "cpu-profile", "l", "",
 		"enables CPU profiling and specifies profile path.")
 	cmd.PersistentFlags().StringVarP(&cliParams.MemProfile, "mem-profile", "m", "",
-		"enables memory profiling and specifies profilh.")
+		"enables memory profiling and specifies profile.")
 
 	setOSSpecificParamFlags(cmd, cliParams)
 }
 
-func runFx(ctx context.Context, cliParams *RunParams, defaultConfPath string) error {
+func runTraceAgentProcess(ctx context.Context, cliParams *RunParams, defaultConfPath string) error {
 	if cliParams.ConfPath == "" {
 		cliParams.ConfPath = defaultConfPath
 	}
-	return fxutil.OneShot(Run,
-		fx.Supply(&contextSupplier{ctx: ctx}),
-		fx.Supply(cliParams),
-		config.Module,
-		fx.Supply(coreconfig.NewAgentParamsWithSecrets(cliParams.ConfPath)),
-		coreconfig.Module,
+	err := fxutil.Run(
+		// ctx is required to be supplied from here, as Windows needs to inject its own context
+		// to allow the agent to work as a service.
+		fx.Provide(func() context.Context { return ctx }), // fx.Supply(ctx) fails with a missing type error.
+		fx.Supply(coreconfig.NewAgentParams(cliParams.ConfPath)),
+		secretsimpl.Module(),
+		fx.Supply(secrets.NewEnabledParams()),
+		coreconfig.Module(),
+		fx.Provide(func() corelogimpl.Params {
+			return corelogimpl.ForDaemon("TRACE", "apm_config.log_file", config.DefaultLogFilePath)
+		}),
+		corelogimpl.TraceModule(),
+		// setup workloadmeta
+		collectors.GetCatalog(),
+		fx.Supply(workloadmeta.Params{
+			AgentType:  workloadmeta.NodeAgent,
+			InitHelper: common.GetWorkloadmetaInit(),
+		}),
+		workloadmeta.Module(),
+		statsd.Module(),
+		fx.Invoke(func(_ config.Component) {}),
+		// Required to avoid cyclic imports.
+		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
+		fx.Supply(&agent.Params{
+			CPUProfile:  cliParams.CPUProfile,
+			MemProfile:  cliParams.MemProfile,
+			PIDFilePath: cliParams.PIDFilePath,
+		}),
+		trace.Bundle(),
+		fx.Invoke(func(_ agent.Component) {}),
 	)
-}
-
-// handleSignal closes a channel to exit cleanly from routines
-func handleSignal(onSignal func()) {
-	sigChan := make(chan os.Signal, 10)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGPIPE)
-	for signo := range sigChan {
-		switch signo {
-		case syscall.SIGINT, syscall.SIGTERM:
-			log.Infof("received signal %d (%v)", signo, signo)
-			onSignal()
-			return
-		case syscall.SIGPIPE:
-			// By default systemd redirects the stdout to journald. When journald is stopped or crashes we receive a SIGPIPE signal.
-			// Go ignores SIGPIPE signals unless it is when stdout or stdout is closed, in this case the agent is stopped.
-			// We never want the agent to stop upon receiving SIGPIPE, so we intercept the SIGPIPE signals and just discard them.
-		default:
-			log.Warnf("unhandled signal %d (%v)", signo, signo)
-		}
+	if err != nil && errors.Is(err, agent.ErrAgentDisabled) {
+		return nil
 	}
+	return err
 }

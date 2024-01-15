@@ -20,6 +20,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// Consider multibyte charactersets where a single special character can take several bytes
+const maxFullTextWithSafetyMargin = 3500
+
 // ActivitySnapshot is a payload containing database activity samples. It is parsed from the intake payload.
 // easyjson:json
 type ActivitySnapshot struct {
@@ -31,159 +34,7 @@ type ActivitySnapshot struct {
 	OracleActivityRows []OracleActivityRow `json:"oracle_activity,omitempty"`
 }
 
-const ACTIVITY_QUERY = `SELECT /* DD_ACTIVITY_SAMPLING */
-	SYSDATE as now,
-	sid,
-	serial#,
-	username,
-	status,
-    osuser,
-    process, 
-    machine,
-	port,
-    program,
-    type,
-    sql_id,
-	force_matching_signature,
-    sql_plan_hash_value,
-    sql_exec_start,
-	sql_address,
-	op_flags,
-	prev_sql_id,
-	prev_force_matching_signature,
-    prev_sql_plan_hash_value,
-    prev_sql_exec_start,
-	prev_sql_address,
-    module,
-    action,
-    client_info,
-    logon_time,
-    client_identifier,
-    CASE WHEN blocking_session_status = 'VALID' THEN
-	  blocking_instance
-	ELSE
-	  null
-	END blocking_instance,
-    CASE WHEN blocking_session_status = 'VALID' THEN
-		blocking_session
-	ELSE
-		null
-	END blocking_session,
-	CASE WHEN final_blocking_session_status = 'VALID' THEN
-    	final_blocking_instance
-	ELSE
-		null
-	END final_blocking_instance,
-	CASE WHEN final_blocking_session_status = 'VALID' THEN
-    	final_blocking_session
-	ELSE
-		null
-	END final_blocking_session,
-    CASE WHEN state = 'WAITING' THEN
-		event
-	ELSE
-		'CPU'
-	END event,
-	CASE WHEN state = 'WAITING' THEN
-    	wait_class
-	ELSE
-		'CPU'
-	END wait_class,
-	wait_time_micro,
-	sql_fulltext,
-	prev_sql_fulltext,
-	pdb_name,
-	command_name
-FROM sys.dd_session
-WHERE 
-	( sql_text NOT LIKE '%DD_ACTIVITY_SAMPLING%' OR sql_text is NULL ) 
-	AND (
-		NOT (state = 'WAITING' AND wait_class = 'Idle')
-		OR state = 'WAITING' AND event = 'fbar timer' AND type = 'USER'
-	)
-	AND status = 'ACTIVE'`
-
-const ACTIVITY_QUERY_DIRECT = `SELECT /* DD_ACTIVITY_SAMPLING */
-s.sid,
-s.serial#,
-s.username,
-s.status,
-s.osuser,
-s.process,
-s.machine,
-s.port,
-s.program,
-s.type,
-s.sql_id,
-sq.force_matching_signature as force_matching_signature,
-sq.plan_hash_value sql_plan_hash_value,
-s.sql_exec_start,
-s.sql_address,
-s.prev_sql_id,
-sq_prev.plan_hash_value prev_sql_plan_hash_value,
-s.prev_exec_start as prev_sql_exec_start,
-sq_prev.force_matching_signature as prev_force_matching_signature,
-s.prev_sql_addr prev_sql_address,
-s.module,
-s.action,
-s.client_info,
-s.logon_time,
-s.client_identifier,
-CASE WHEN blocking_session_status = 'VALID' THEN
-blocking_instance
-ELSE
-null
-END blocking_instance,
-CASE WHEN blocking_session_status = 'VALID' THEN
-  blocking_session
-ELSE
-  null
-END blocking_session,
-CASE WHEN final_blocking_session_status = 'VALID' THEN
-  final_blocking_instance
-ELSE
-  null
-END final_blocking_instance,
-CASE WHEN final_blocking_session_status = 'VALID' THEN
-  final_blocking_session
-ELSE
-  null
-END final_blocking_session,
-CASE WHEN state = 'WAITING' THEN
-  event
-ELSE
-  'CPU'
-END event,
-CASE WHEN state = 'WAITING' THEN
-  wait_class
-ELSE
-  'CPU'
-END wait_class,
-s.wait_time_micro,
-c.name as pdb_name,
-sq.sql_fulltext as sql_fulltext,
-sq_prev.sql_fulltext as prev_sql_fulltext,
-comm.command_name
-FROM
-v$session s,
-v$sql sq,
-v$sql sq_prev,
-v$containers c,
-v$sqlcommand comm
-WHERE
-sq.sql_id(+)   = s.sql_id
-AND sq.child_number(+) = s.sql_child_number
-AND sq_prev.sql_id(+)   = s.prev_sql_id
-AND sq_prev.child_number(+) = s.prev_child_number
-AND ( sq.sql_text NOT LIKE '%DD_ACTIVITY_SAMPLING%' OR sq.sql_text is NULL ) 
-AND (
-	NOT (state = 'WAITING' AND wait_class = 'Idle')
-	OR state = 'WAITING' AND event = 'fbar timer' AND type = 'USER'
-)
-AND status = 'ACTIVE'
-AND s.con_id = c.con_id(+)
-AND s.command = comm.command_type(+)`
-
+//nolint:revive // TODO(DBM) Fix revive linter
 type RowMetadata struct {
 	Commands       []string `json:"dd_commands,omitempty"`
 	Tables         []string `json:"dd_tables,omitempty"`
@@ -200,6 +51,7 @@ type Metadata struct {
 	DDAgentVersion string  `json:"ddagentversion,omitempty"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type OracleSQLRow struct {
 	SQLID                  string `json:"sql_id,omitempty"`
 	ForceMatchingSignature uint64 `json:"force_matching_signature,omitempty"`
@@ -207,6 +59,7 @@ type OracleSQLRow struct {
 	SQLExecStart           string `json:"sql_exec_start,omitempty"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type OracleActivityRow struct {
 	Now           string `json:"now"`
 	SessionID     uint64 `json:"sid,omitempty"`
@@ -242,6 +95,7 @@ type OracleActivityRow struct {
 	RowMetadata
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type OracleActivityRowDB struct {
 	Now                        string         `db:"NOW"`
 	SessionID                  uint64         `db:"SID"`
@@ -283,11 +137,11 @@ type OracleActivityRowDB struct {
 	CommandName                sql.NullString `db:"COMMAND_NAME"`
 }
 
+// Converts sql types to Go native types
 func (c *Check) getSQLRow(SQLID sql.NullString, forceMatchingSignature *string, SQLPlanHashValue *uint64, SQLExecStart sql.NullString) (OracleSQLRow, error) {
 	SQLRow := OracleSQLRow{}
 	if SQLID.Valid {
 		SQLRow.SQLID = SQLID.String
-		c.statementsFilter.SQLIDs[SQLID.String] = 1
 	} else {
 		SQLRow.SQLID = ""
 		return SQLRow, nil
@@ -298,7 +152,6 @@ func (c *Check) getSQLRow(SQLID sql.NullString, forceMatchingSignature *string, 
 			return SQLRow, fmt.Errorf("failed converting force_matching_signature to uint64 %w", err)
 		}
 		SQLRow.ForceMatchingSignature = forceMatchingSignatureUint64
-		c.statementsFilter.ForceMatchingSignatures[*forceMatchingSignature] = 1
 	} else {
 		SQLRow.ForceMatchingSignature = 0
 	}
@@ -311,29 +164,26 @@ func (c *Check) getSQLRow(SQLID sql.NullString, forceMatchingSignature *string, 
 	return SQLRow, nil
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 func (c *Check) SampleSession() error {
 	start := time.Now()
-
-	if c.statementsFilter.SQLIDs == nil {
-		c.statementsFilter.SQLIDs = make(map[string]int)
-	}
-	if c.statementsFilter.ForceMatchingSignatures == nil {
-		c.statementsFilter.ForceMatchingSignatures = make(map[string]int)
-	}
-	if c.statementsCache.SQLIDs == nil {
-		c.statementsCache.SQLIDs = make(map[string]StatementsCacheData)
-	}
-	if c.statementsCache.forceMatchingSignatures == nil {
-		c.statementsCache.forceMatchingSignatures = make(map[string]StatementsCacheData)
-	}
 
 	var sessionRows []OracleActivityRow
 	sessionSamples := []OracleActivityRowDB{}
 	var activityQuery string
-	if c.isRDS || c.isOracleCloud {
-		activityQuery = ACTIVITY_QUERY_DIRECT
+	maxSQLTextLength := maxFullTextWithSafetyMargin
+	if c.hostingType == selfManaged {
+		if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion) {
+			activityQuery = activityQueryOnView12
+		} else {
+			activityQuery = activityQueryOnView11
+		}
 	} else {
-		activityQuery = ACTIVITY_QUERY
+		activityQuery = activityQueryDirect
+	}
+
+	if c.config.QuerySamples.IncludeAllSessions {
+		activityQuery = fmt.Sprintf("%s %s", activityQuery, " OR 1=1")
 	}
 
 	err := selectWrapper(c, &sessionSamples, activityQuery)
@@ -387,7 +237,7 @@ func (c *Check) SampleSession() error {
 		previousSQL := false
 		sqlCurrentSQL, err := c.getSQLRow(sample.SQLID, sample.ForceMatchingSignature, sample.SQLPlanHashValue, sample.SQLExecStart)
 		if err != nil {
-			log.Errorf("error getting SQL row %s", err)
+			log.Errorf("%s error getting SQL row %s", c.logPrompt, err)
 		}
 
 		var sqlPrevSQL OracleSQLRow
@@ -396,7 +246,7 @@ func (c *Check) SampleSession() error {
 		} else {
 			sqlPrevSQL, err = c.getSQLRow(sample.PrevSQLID, sample.PrevForceMatchingSignature, sample.PrevSQLPlanHashValue, sample.PrevSQLExecStart)
 			if err != nil {
-				log.Errorf("error getting SQL row %s", err)
+				log.Errorf("%s error getting SQL row %s", c.logPrompt, err)
 			}
 			if sqlPrevSQL.SQLID != "" {
 				sessionRow.OracleSQLRow = sqlPrevSQL
@@ -447,40 +297,54 @@ func (c *Check) SampleSession() error {
 		obfuscate := true
 		var hasRealSQLText bool
 		if sample.Statement.Valid && sample.Statement.String != "" && !previousSQL {
+			// If we captured the statement, we are assigning the value
 			statement = sample.Statement.String
 			hasRealSQLText = true
-		} else if previousSQL {
-			if sample.PrevSQLFullText.Valid && sample.PrevSQLFullText.String != "" {
-				statement = sample.PrevSQLFullText.String
-			} else {
-				/* The case where we got the previous sql but not the text. Happens when
-				 * a cursor with a short living explain plan was evicted from the shared pool.
-				 * We'll search for the text of a different cursor of the same SQL.
-				 */
-				err = c.db.Get(&statement, "SELECT sql_fulltext FROM v$sqlstats WHERE sql_id = :1 AND rownum=1", sqlPrevSQL.SQLID)
-				if err != nil {
-					log.Errorf("sql_text for the previous statement: %s", err)
-				}
-				if statement != "" {
-					hasRealSQLText = true
-				}
-			}
+		} else if previousSQL && sample.PrevSQLFullText.Valid && sample.PrevSQLFullText.String != "" {
+			statement = sample.PrevSQLFullText.String
+			hasRealSQLText = true
 		} else if (sample.OpFlags & 8) == 8 {
 			statement = "LOG ON/LOG OFF"
 			obfuscate = false
 		} else if commandName != "" {
 			statement = commandName
-			//obfuscate = false
 		} else if sessionType == "BACKGROUND" {
 			statement = program
-			// The program name can contain an IP address
-			//obfuscate = false
+			obfuscate = false
 		} else if sample.Module.Valid && sample.Module.String == "DBMS_SCHEDULER" {
 			statement = sample.Module.String
 			obfuscate = false
 		} else {
-			log.Warnf("activity sql text empty for %#v \n", sample)
+			log.Debugf("activity sql text empty for %#v \n", sample)
 		}
+
+		if hasRealSQLText {
+			/*
+			 * If the statement length is maxSQLTextLength characters, we are assuming that the statement was truncated,
+			 * so we are trying to fetch it complete. The full statement is stored in a LOB, so we are calling
+			 * getFullSQLText which doesn't leak PGA memory
+			 */
+			if len(statement) == maxSQLTextLength {
+				var fetchedStatement string
+				err = getFullSQLText(c, &fetchedStatement, "sql_id", sessionRow.SQLID)
+				if err != nil {
+					log.Warnf("%s failed to fetch full sql text for the current sql_id: %s", c.logPrompt, err)
+				}
+				if fetchedStatement != "" {
+					statement = fetchedStatement
+				}
+			}
+		} else {
+			if (sample.OpFlags & 128) == 128 {
+				statement = fmt.Sprintf("%s IN HARD PARSE", statement)
+			} else if (sample.OpFlags & 16) == 16 {
+				statement = fmt.Sprintf("%s IN PARSE", statement)
+			}
+			if (sample.OpFlags & 65536) == 65536 {
+				statement = fmt.Sprintf("%s IN CURSOR CLOSING", statement)
+			}
+		}
+
 		if statement != "" && obfuscate {
 			obfuscatedStatement, err := c.GetObfuscatedStatement(o, statement)
 			sessionRow.Statement = obfuscatedStatement.Statement
@@ -490,23 +354,6 @@ func (c *Check) SampleSession() error {
 				sessionRow.Comments = obfuscatedStatement.Comments
 				sessionRow.QuerySignature = obfuscatedStatement.QuerySignature
 			}
-			if hasRealSQLText {
-				if sessionRow.OracleSQLRow.ForceMatchingSignature != 0 {
-					c.statementsCache.forceMatchingSignatures[strconv.FormatUint(sessionRow.OracleSQLRow.ForceMatchingSignature, 10)] = StatementsCacheData{
-						statement:      obfuscatedStatement.Statement,
-						querySignature: obfuscatedStatement.QuerySignature,
-						commands:       obfuscatedStatement.Commands,
-						tables:         obfuscatedStatement.Tables,
-					}
-				} else if sessionRow.OracleSQLRow.SQLID != "" {
-					c.statementsCache.SQLIDs[sessionRow.OracleSQLRow.SQLID] = StatementsCacheData{
-						statement:      obfuscatedStatement.Statement,
-						querySignature: obfuscatedStatement.QuerySignature,
-						commands:       obfuscatedStatement.Commands,
-						tables:         obfuscatedStatement.Tables,
-					}
-				}
-			}
 		} else {
 			sessionRow.Statement = statement
 			sessionRow.QuerySignature = common.GetQuerySignature(statement)
@@ -514,6 +361,13 @@ func (c *Check) SampleSession() error {
 
 		if sample.PdbName.Valid {
 			sessionRow.PdbName = sample.PdbName.String
+		}
+		if sessionRow.PdbName == "" {
+			if c.multitenant {
+				sessionRow.PdbName = "CDB$ROOT"
+			} else {
+				sessionRow.PdbName = c.cdbName
+			}
 		}
 		sessionRow.CdbName = c.cdbName
 		sessionRows = append(sessionRows, sessionRow)
@@ -534,15 +388,15 @@ func (c *Check) SampleSession() error {
 
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
-		log.Errorf("Error marshalling activity payload: %s", err)
+		log.Errorf("%s Error marshalling activity payload: %s", c.logPrompt, err)
 		return err
 	}
 
-	log.Tracef("Activity payload %s", strings.ReplaceAll(string(payloadBytes), "@", "XX"))
+	log.Debugf("%s Activity payload %s", c.logPrompt, strings.ReplaceAll(string(payloadBytes), "@", "XX"))
 
 	sender, err := c.GetSender()
 	if err != nil {
-		log.Errorf("GetSender SampleSession %s", string(payloadBytes))
+		log.Errorf("%s GetSender SampleSession %s", c.logPrompt, string(payloadBytes))
 		return err
 	}
 	sender.EventPlatformEvent(payloadBytes, "dbm-activity")

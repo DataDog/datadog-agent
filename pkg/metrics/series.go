@@ -107,7 +107,7 @@ func (serie *Serie) PopulateDeviceField() {
 		return
 	}
 	// make a copy of the tags array. Otherwise the underlying array won't have
-	// the device tag for the Nth iteration (N>1), and the deice field will
+	// the device tag for the Nth iteration (N>1), and the device field will
 	// be lost
 	filteredTags := make([]string, 0, serie.Tags.Len())
 
@@ -184,8 +184,8 @@ func (series *Series) Append(serie *Serie) {
 
 // MarshalStrings converts the timeseries to a sorted slice of string slices
 func (series Series) MarshalStrings() ([]string, [][]string) {
-	var headers = []string{"Metric", "Type", "Timestamp", "Value", "Tags"}
-	var payload = make([][]string, len(series))
+	headers := []string{"Metric", "Type", "Timestamp", "Value", "Tags"}
+	payload := make([][]string, len(series))
 
 	for _, serie := range series {
 		payload = append(payload, []string{

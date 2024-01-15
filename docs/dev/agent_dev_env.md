@@ -1,5 +1,8 @@
 # Development Environments
 
+## Windows
+To build the agent on Windows, see [datadog-agent-buildimages](https://github.com/DataDog/datadog-agent-buildimages/tree/main/windows).
+
 ## Linux and MacOS
 
 ### Python
@@ -9,35 +12,26 @@ development files to be available in the dev env. The Agent can embed Python2
 and/or Python3, you will need development files for all versions you want to
 support.
 
-If you're on OSX/macOS, installing Python 2.7 and/or 3.8 with [Homebrew](https://brew.sh)
+If you're on OSX/macOS, installing Python 2.7 and/or 3.9 with [Homebrew](https://brew.sh)
 brings along all the development files needed:
 
 **Please note that not using Python versions explicitly supported, you may have
 problems running the built Agent's Python checks, especially if using a virtualenv.
-At this time, only Python 3.8 is confirmed to work as expected in the development
+At this time, only Python 3.9 is confirmed to work as expected in the development
 environment.**
 ```
 brew install python@2
-brew install python@3.8
+brew install python@3.9
 ```
 
 On Linux, depending on the distribution, you might need to explicitly install
 the development files, for example on Ubuntu:
 ```
 sudo apt-get install python2.7-dev
-sudo apt-get install python3.8-dev
+sudo apt-get install python3.9-dev
 ```
 
-On Windows, install Python 2.7 and/or 3.8 via the [official installer](https://www.python.org/downloads/).
-
-#### Additional Windows Tools
-You will also need the Visual Studio for [Visual Studio for Python installer](http://aka.ms/vcpython27)
-
-Download the [gcc toolchain](http://win-builds.org/).
-- From the graphical package manager, select and install the needed libraries, leave the default (select all) if you're unsure.
-- Make sure to select `x86_64`.
-- Add installation folder to the `%PATH%`.
-
+On Windows, install Python 2.7 and/or 3.9 via the [official installer](https://www.python.org/downloads/).
 
 #### Python Dependencies
 
@@ -65,7 +59,7 @@ Agent's search path for Python check packages using the `PYTHONPATH` variable (y
 must have the [pre-requisite core integration packages installed](https://datadoghq.dev/integrations-core/setup/)
 though).
 ```sh
-PYTHONPATH="./venv/lib/python3.8/site-packages:$PYTHONPATH" ./agent run ...
+PYTHONPATH="./venv/lib/python3.9/site-packages:$PYTHONPATH" ./agent run ...
 ```
 
 See also some notes in [./checks](./checks) about running custom python checks.
@@ -90,19 +84,14 @@ also any additional python dependencies our development workflow may require,
 at their expected versions.
 It will also pull other handy development tools/deps (`reno`, or `docker`).
 
-Tasks are usually parameterized and Invoke comes with some default values that
-are used in the official build. Such values are listed in the `invoke.yaml`
-file at the root of this repo and can be overridden by setting `INVOKE_*` env
-variables (see Invoke docs for more details).
-
 ### Golang
 
-You must [install Golang](https://golang.org/doc/install) version `1.20.7` or
+You must [install Golang](https://golang.org/doc/install) version `1.21.5` or
 higher. Make sure that `$GOPATH/bin` is in your `$PATH` otherwise `invoke`
 cannot use any additional tool it might need.
 
 **Please note that versions of Golang that aren't an exact match to the version
-specified in our build images (see e.g. [here](https://github.com/DataDog/datadog-agent/blob/main/.circleci/images/builder/Dockerfile#L1))
+specified in our build images (see e.g. [here](https://github.com/DataDog/datadog-agent-buildimages/blob/main/circleci/Dockerfile#L42))
 may not be able to build the agent and/or the [rtloader](https://github.com/DataDog/datadog-agent/tree/main/rtloader)
 binary properly.**
 

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package ast holds ast related files
 package ast
 
 import (
@@ -16,11 +17,13 @@ import (
 	"github.com/alecthomas/participle/lexer/ebnf"
 )
 
+// ParsingContext defines a parsing context
 type ParsingContext struct {
 	ruleParser  *participle.Parser
 	macroParser *participle.Parser
 }
 
+// NewParsingContext returns a new parsing context
 func NewParsingContext() *ParsingContext {
 	seclLexer := lexer.Must(ebnf.New(`
 Comment = ("#" | "//") { "\u0000"…"\uffff"-"\n" } .
@@ -171,6 +174,7 @@ type BitOperation struct {
 	Next  *BitOperation `parser:"@@ ]"`
 }
 
+// ArithmeticOperation describes an arithmetic operation
 type ArithmeticOperation struct {
 	Pos lexer.Position
 
@@ -178,6 +182,7 @@ type ArithmeticOperation struct {
 	Rest  []*ArithmeticElement `parser:"[ @@ { @@ } ]"`
 }
 
+// ArithmeticElement defines an arithmetic element
 type ArithmeticElement struct {
 	Op      string        `parser:"@( \"+\" | \"-\" )"`
 	Operand *BitOperation `parser:"@@"`

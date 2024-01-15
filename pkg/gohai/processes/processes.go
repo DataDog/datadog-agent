@@ -11,17 +11,11 @@ import (
 	"time"
 )
 
+// limit is the number of processes to collect by default
 const limit = 20
 
-// Processes is the Collector type of the processes package.
-type Processes struct{}
-
-const name = "processes"
-
-// Name returns the name of the package
-func (processes *Processes) Name() string {
-	return name
-}
+// Info represents a list of process groups
+type Info []ProcessGroup
 
 // ProcessGroup represents the information about a single process group
 type ProcessGroup struct {
@@ -41,8 +35,8 @@ type ProcessGroup struct {
 	Pids []int32
 }
 
-// Get returns a list of process groups information or an error
-func Get() ([]ProcessGroup, error) {
+// CollectInfo returns a list of process groups information or an error
+func CollectInfo() (Info, error) {
 	return getProcessGroups(limit)
 }
 
@@ -50,15 +44,10 @@ func Get() ([]ProcessGroup, error) {
 // compatible with the legacy "processes" resource check.
 type ProcessField [7]interface{}
 
-// Collect collects the processes information.
+// AsJSON collects the processes information.
 // Returns an object which can be converted to a JSON or an error if nothing could be collected.
 // Tries to collect as much information as possible.
-func (processes *Processes) Collect() (interface{}, error) {
-	processGroups, err := Get()
-	if err != nil {
-		return nil, err
-	}
-
+func (processGroups Info) AsJSON() (interface{}, []string, error) {
 	snapData := make([]ProcessField, len(processGroups))
 
 	for i, processGroup := range processGroups {
@@ -74,5 +63,8 @@ func (processes *Processes) Collect() (interface{}, error) {
 		snapData[i] = processField
 	}
 
-	return []interface{}{time.Now().Unix(), snapData}, nil
+	// with the current implementation no warning can be returned
+	warnings := []string{}
+
+	return []interface{}{time.Now().Unix(), snapData}, warnings, nil
 }

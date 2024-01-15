@@ -5,6 +5,9 @@ golang_deps_diff:
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
+  rules: # this should only run on dev branches
+    - !reference [ .except_main_or_release_branch ]
+    - when: on_success
   needs: ["go_deps"]
   before_script:
     - source /root/.bashrc
@@ -20,7 +23,25 @@ golang_deps_commenter:
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/pr-commenter:2
   tags: ["arch:amd64"]
+  rules: # this should only run on dev branches
+    - !reference [ .except_main_or_release_branch ]
+    - when: on_success
   needs: ["golang_deps_diff"]
-  script:
+  script: # ignore error message about no PR, because it happens for dev branches without PRs
     - echo "${CI_COMMIT_REF_NAME}"
-    - pr-commenter --for-pr="${CI_COMMIT_REF_NAME}" --header="Go Package Import Differences" --infile deps-report.md
+    - |
+      set +e
+      out=$(pr-commenter --for-pr="${CI_COMMIT_REF_NAME}" --header="Go Package Import Differences" --infile deps-report.md 2>&1)
+      exitcode=$?
+      set -e
+      if [ -n "${out}" ]; then
+        if [ $exitcode -eq 0 ]; then
+          echo $out
+        else
+          echo $out >&2
+        fi
+      fi
+      if [ "${out}" != "${out/invalid request: no pr found for this commit}" ]; then
+        exit 0
+      fi
+      exit $exitcode

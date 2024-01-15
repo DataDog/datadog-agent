@@ -33,6 +33,7 @@ const (
 	ocilOcilElement                  = "ocil"
 )
 
+// Document contains all the returned informations of an openscap evaluation.
 type Document struct {
 	Type constants.DocumentType `json:"-"`
 	*cdf.Benchmark
@@ -44,6 +45,7 @@ type Document struct {
 	*inter.Ocil
 }
 
+// ReadDocument takes an io.Reader and return a Document or error if failed.
 func ReadDocument(r io.Reader) (*Document, error) {
 	d := xml.NewDecoder(r)
 	for {

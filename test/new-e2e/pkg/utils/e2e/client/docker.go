@@ -11,8 +11,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent/docker"
-	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/components/remote"
 	"github.com/docker/cli/cli/connhelper"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
@@ -20,39 +19,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var _ clientService[docker.ClientData] = (*Docker)(nil)
-
 // A Docker client that is connected to an [docker.Deamon].
 //
 // [docker.Deamon]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent/docker#Deamon
 type Docker struct {
-	agent *AgentCommandRunner
-	*UpResultDeserializer[docker.ClientData]
-	t                  *testing.T
-	client             *client.Client
-	agentContainerName string
-	os                 os.OS
+	t      *testing.T
+	client *client.Client
 }
 
 // NewDocker creates a new instance of Docker
-func NewDocker(daemon *docker.Daemon) *Docker {
-	dockerInstance := &Docker{
-		agentContainerName: daemon.GetAgentContainerName(),
-		os:                 daemon.GetOS(),
-	}
-	dockerInstance.UpResultDeserializer = NewUpResultDeserializer[docker.ClientData](daemon, dockerInstance)
-	return dockerInstance
-}
+func NewDocker(t *testing.T, host remote.HostOutput) (*Docker, error) {
+	deamonURL := fmt.Sprintf("ssh://%v@%v", host.Username, host.Address)
 
-//lint:ignore U1000 Ignore unused function as this function is call using reflection
-func (docker *Docker) initService(t *testing.T, data *docker.ClientData) error {
-	docker.t = t
-
-	deamonURL := fmt.Sprintf("ssh://%v@%v:22", data.Connection.User, data.Connection.Host)
 	helper, err := connhelper.GetConnectionHelperWithSSHOpts(deamonURL, []string{"-o", "StrictHostKeyChecking no"})
-
 	if err != nil {
-		return fmt.Errorf("cannot connect to docker %v: %v", deamonURL, err)
+		return nil, fmt.Errorf("cannot connect to docker %v: %v", deamonURL, err)
 	}
 
 	opts := []client.Opt{
@@ -60,11 +41,15 @@ func (docker *Docker) initService(t *testing.T, data *docker.ClientData) error {
 		client.WithAPIVersionNegotiation(),
 	}
 
-	docker.client, err = client.NewClientWithOpts(opts...)
-	if docker.agentContainerName != "" {
-		docker.agent = newAgentCommandRunner(t, docker.executeAgentCmdWithError)
+	client, err := client.NewClientWithOpts(opts...)
+	if err != nil {
+		return nil, fmt.Errorf("cannot create docker client: %v", err)
 	}
-	return err
+
+	return &Docker{
+		t:      t,
+		client: client,
+	}, nil
 }
 
 // ExecuteCommand executes a command on containerName and returns the output.
@@ -118,22 +103,4 @@ func (docker *Docker) ExecuteCommandStdoutStdErr(containerName string, commands 
 // [docker client]: https://pkg.go.dev/github.com/docker/docker/client
 func (docker *Docker) GetClient() *client.Client {
 	return docker.client
-}
-
-// GetAgentContainerName gets the agent container name
-func (docker *Docker) GetAgentContainerName() string {
-	require.NotEmptyf(docker.t, docker.agentContainerName, "agent container not found")
-	return docker.agentContainerName
-}
-
-// GetAgentCommandRunner gets a runner that provides high level methods to run Agent commands.
-func (docker *Docker) GetAgentCommandRunner() *AgentCommandRunner {
-	require.NotNilf(docker.t, docker.agent, "there is no agent installed on this docker instance")
-	return docker.agent
-}
-
-func (docker *Docker) executeAgentCmdWithError(commands []string) (string, error) {
-	wholeCommands := []string{"agent"}
-	wholeCommands = append(wholeCommands, commands...)
-	return docker.ExecuteCommandWithErr(docker.GetAgentContainerName(), wholeCommands...)
 }

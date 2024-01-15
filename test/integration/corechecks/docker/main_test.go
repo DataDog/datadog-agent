@@ -14,8 +14,12 @@ import (
 	"time"
 
 	log "github.com/cihub/seelog"
+	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	compcfg "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -23,10 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
-
-	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
 )
 
 var (
@@ -56,6 +58,7 @@ docker_env_as_tags:
 var (
 	sender      *mocksender.MockSender
 	dockerCheck check.Check
+	fxApp       *fx.App
 )
 
 func TestMain(m *testing.M) {
@@ -108,12 +111,23 @@ func setup() error {
 	}
 	config.SetFeaturesNoCleanup(config.Docker)
 
-	store := workloadmeta.CreateGlobalStore(workloadmeta.NodeAgentCatalog)
-	store.Start(context.Background())
+	// Note: workloadmeta will be started by fx with the App
+	var store workloadmeta.Component
+	fxApp, store, err = fxutil.TestApp[workloadmeta.Component](fx.Options(
+		fx.Supply(compcfg.NewAgentParams(
+			"", compcfg.WithConfigMissingOK(true))),
+		compcfg.Module(),
+		fx.Supply(logimpl.ForOneShot("TEST", "info", false)),
+		logimpl.Module(),
+		fx.Supply(workloadmeta.NewParams()),
+		collectors.GetCatalog(),
+		workloadmeta.Module(),
+	))
+	workloadmeta.SetGlobalStore(store)
 
 	// Setup tagger
 	tagger.SetDefaultTagger(local.NewTagger(store))
-	tagger.Init(context.Background())
+	tagger.Init(context.TODO())
 
 	// Start compose recipes
 	for projectName, file := range defaultCatalog.composeFilesByProjects {
@@ -141,7 +155,7 @@ func doRun(m *testing.M) int {
 	// Setup docker check
 	dockerCfg := integration.Data(dockerCfgString)
 	dockerInitCfg := integration.Data("")
-	dockerCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, dockerCfg, dockerInitCfg, "test")
+	dockerCheck.Configure(sender.GetSenderManager(), integration.FakeConfigHash, dockerCfg, dockerInitCfg, "test")
 
 	dockerCheck.Run()
 	return m.Run()
@@ -152,6 +166,8 @@ func tearOffAndExit(exitcode int) {
 	if *skipCleanup {
 		os.Exit(exitcode)
 	}
+
+	_ = fxApp.Stop(context.TODO())
 
 	// Stop compose recipes, ignore errors
 	for projectName, file := range defaultCatalog.composeFilesByProjects {

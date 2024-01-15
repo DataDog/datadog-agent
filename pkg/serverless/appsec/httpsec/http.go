@@ -11,16 +11,27 @@
 package httpsec
 
 import (
-	"encoding/json"
+	"encoding/base64"
+	"encoding/xml"
+	"fmt"
+	"io"
+	"mime"
+	"mime/multipart"
 	"net/http"
+	"net/textproto"
+	"net/url"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	waf "github.com/DataDog/go-libddwaf/v2"
+	json "github.com/json-iterator/go"
 )
 
 // Monitorer is the interface type expected by the httpsec invocation
 // subprocessor monitoring the given security rules addresses and returning
 // the security events that matched.
 type Monitorer interface {
-	Monitor(addresses map[string]interface{}) (events []byte)
+	Monitor(addresses map[string]any) *waf.Result
 }
 
 // AppSec monitoring context including the full list of monitored HTTP values
@@ -28,6 +39,7 @@ type Monitorer interface {
 // required context to report appsec-related span tags.
 type context struct {
 	requestSourceIP   string
+	requestRoute      *string             // http.route
 	requestClientIP   *string             // http.client_ip
 	requestRawURI     *string             // server.request.uri.raw
 	requestHeaders    map[string][]string // server.request.headers.no_cookies
@@ -39,11 +51,12 @@ type context struct {
 }
 
 // makeContext creates a http monitoring context out of the provided arguments.
-func makeContext(ctx *context, path *string, headers, queryParams map[string][]string, pathParams map[string]string, sourceIP string, rawBody *string) {
+func makeContext(ctx *context, route, path *string, headers, queryParams map[string][]string, pathParams map[string]string, sourceIP string, rawBody *string, isBodyBase64 bool) {
 	headers, rawCookies := filterHeaders(headers)
 	cookies := parseCookies(rawCookies)
-	body := parseBody(headers, rawBody)
+	body := parseBody(headers, rawBody, isBodyBase64)
 	*ctx = context{
+		requestRoute:      route,
 		requestSourceIP:   sourceIP,
 		requestRawURI:     path,
 		requestHeaders:    headers,
@@ -54,35 +67,125 @@ func makeContext(ctx *context, path *string, headers, queryParams map[string][]s
 	}
 }
 
-func parseBody(headers map[string][]string, rawBody *string) (body interface{}) {
+// parseBody attempts to parse the payload found in rawBody according to the presentation headers. Returns nil if the
+// request body could not be parsed (either due to an error, or because no suitable parsing strategy is implemented).
+func parseBody(headers map[string][]string, rawBody *string, isBodyBase64 bool) any {
 	if rawBody == nil {
 		return nil
 	}
 
-	rawStr := *rawBody
-	if rawStr == "" {
-		return rawStr
-	}
-	raw := []byte(*rawBody)
-
-	var ct string
-	if values, ok := headers["content-type"]; !ok {
-		return rawStr
-	} else if len(values) > 1 {
-		return rawStr
-	} else {
-		ct = values[0]
-	}
-
-	switch ct {
-	case "application/json":
-		if err := json.Unmarshal(raw, &body); err != nil {
-			return rawStr
+	bodyDecoded := *rawBody
+	if isBodyBase64 {
+		rawBodyDecoded, err := base64.StdEncoding.DecodeString(bodyDecoded)
+		if err != nil {
+			log.Errorf("cannot decode '%s' from base64: %v", bodyDecoded, err)
+			return nil
 		}
-		return body
+
+		bodyDecoded = string(rawBodyDecoded)
+	}
+
+	// textproto.MIMEHeader normalizes the header names, so we don't have to worry about text case.
+	mimeHeaders := make(textproto.MIMEHeader, len(headers))
+	for key, values := range headers {
+		for _, value := range values {
+			mimeHeaders.Add(key, value)
+		}
+	}
+
+	result, err := tryParseBody(mimeHeaders, bodyDecoded)
+	if err != nil {
+		log.Warnf("unable to parse request body: %v", err)
+		return nil
+	}
+
+	return result
+}
+
+// / tryParseBody attempts to parse the raw data in raw according to the headers. Returns an error if parsing
+// / fails, and a nil body if no parsing strategy was found.
+func tryParseBody(headers textproto.MIMEHeader, raw string) (body any, err error) {
+	var mediaType string
+	var params map[string]string
+
+	if value := headers.Get("Content-Type"); value == "" {
+		return nil, nil
+	} else { //nolint:revive // TODO(ASM) Fix revive linter
+		mt, p, err := mime.ParseMediaType(value)
+		if err != nil {
+			return nil, err
+		}
+		mediaType = mt
+		params = p
+	}
+
+	switch mediaType {
+	case "application/json", "application/vnd.api+json":
+		if err := json.Unmarshal([]byte(raw), &body); err != nil {
+			return nil, err
+		}
+		return body, nil
+
+	case "application/x-www-form-urlencoded":
+		values, err := url.ParseQuery(raw)
+		if err != nil {
+			return nil, err
+		}
+		return map[string][]string(values), nil
+
+	case "application/xml", "text/xml":
+		var value xmlMap
+		if err := xml.Unmarshal([]byte(raw), &value); err != nil {
+			return nil, err
+		}
+		// Unwrap the value to avoid surfacing our implementation details out
+		return map[string]any(value), nil
+
+	case "multipart/form-data":
+		boundary, ok := params["boundary"]
+		if !ok {
+			return nil, fmt.Errorf("cannot parse a multipart/form-data payload without a boundary")
+		}
+		mr := multipart.NewReader(strings.NewReader(raw), boundary)
+
+		data := make(map[string]any)
+		for {
+			part, err := mr.NextPart()
+			if err != nil {
+				if err == io.EOF {
+					break
+				}
+				return nil, err
+			}
+			defer part.Close()
+
+			partData := make(map[string]any, 2)
+
+			partRawBody, err := io.ReadAll(part)
+			if err != nil {
+				return nil, err
+			}
+			partBody, err := tryParseBody(map[string][]string(part.Header), string(partRawBody))
+			if err != nil {
+				log.Debugf("failed to parse multipart/form-data part: %v", err)
+				partData["data"] = nil
+			} else {
+				partData["data"] = partBody
+			}
+
+			if filename := part.FileName(); filename != "" {
+				partData["filename"] = filename
+			}
+
+			data[part.FormName()] = partData
+		}
+		return data, nil
+
+	case "text/plain":
+		return raw, nil
 
 	default:
-		return rawStr
+		return nil, nil
 	}
 }
 
@@ -171,4 +274,68 @@ func toMultiValueMap(m map[string]string) map[string][]string {
 		res[k] = []string{v}
 	}
 	return res
+}
+
+// xmlMap is used to parse XML documents into a schema-agnostic format (essentially, a `map[string]any`).
+type xmlMap map[string]any
+
+// UnmarshalXML implements custom parsing from XML documents into a map-based generic format, because encoding/xml does
+// not provide a built-in unmarshal to map (any data that does not fit an `xml` tagged field, or that does not fit the
+// shape of that field, is silently ignored).
+func (m *xmlMap) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
+	var children []any
+out:
+	for {
+		token, err := d.Token()
+		if err != nil {
+			return err
+		}
+
+		switch token := token.(type) {
+		case xml.StartElement:
+			var child xmlMap
+			if err := child.UnmarshalXML(d, token); err != nil {
+				return err
+			}
+			// Unwrap so we don't surface our implementation details out to the world...
+			children = append(children, map[string]any(child))
+		case xml.EndElement:
+			if token.Name.Local != start.Name.Local || token.Name.Space != start.Name.Space {
+				return fmt.Errorf("unexpected end of element %s", token.Name.Local)
+			}
+			break out
+		case xml.CharData:
+			str := strings.TrimSpace(string(token))
+			if str != "" {
+				children = append(children, str)
+			}
+		case xml.Comment:
+			str := strings.TrimSpace(string(token))
+			children = append(children, map[string]string{"#": str})
+		case xml.ProcInst:
+			children = append(children, map[string]any{"?": map[string]string{
+				"target":      token.Target,
+				"instruction": string(token.Inst),
+			}})
+		case xml.Directive:
+			children = append(children, map[string]any{"!": string(token)})
+		default:
+			return fmt.Errorf("not implemented: %T", token)
+		}
+	}
+
+	element := map[string]any{"children": children}
+	if start.Name.Space != "" {
+		element[":ns"] = start.Name.Space
+	}
+	for _, attr := range start.Attr {
+		prefix := ""
+		if attr.Name.Space != "" {
+			prefix = attr.Name.Space + ":"
+		}
+		element[fmt.Sprintf("@%s%s", prefix, attr.Name.Local)] = attr.Value
+	}
+
+	*m = xmlMap{start.Name.Local: element}
+	return nil
 }

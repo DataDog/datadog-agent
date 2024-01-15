@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -25,10 +26,17 @@ import (
 type cliParams struct {
 	GlobalParams
 
+	// source enables detailed information about each source and its value
+	source bool
+
 	// args are the positional command line args
 	args []string
 }
 
+// GlobalParams contains the values of agent-global Cobra flags.
+//
+// A pointer to this type is passed to SubcommandFactory's, but its contents
+// are not valid until Cobra calls the subcommand's Run or RunE function.
 type GlobalParams struct {
 	ConfFilePath   string
 	ConfigName     string
@@ -51,9 +59,9 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			return fxutil.OneShot(callback,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName)),
-					LogParams:    log.LogForOneShot(globalParams.LoggerName, "off", true)}),
-				core.Bundle,
+					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName)),
+					LogParams:    logimpl.ForOneShot(globalParams.LoggerName, "off", true)}),
+				core.Bundle(),
 			)
 		}
 	}
@@ -87,11 +95,12 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 		RunE:  oneShotRunE(getConfigValue),
 	}
 	cmd.AddCommand(getCmd)
+	getCmd.Flags().BoolVarP(&cliParams.source, "source", "s", false, "print every source and its value")
 
 	return cmd
 }
 
-func showRuntimeConfiguration(log log.Component, config config.Component, cliParams *cliParams) error {
+func showRuntimeConfiguration(_ log.Component, _ config.Component, cliParams *cliParams) error {
 	err := util.SetAuthToken()
 	if err != nil {
 		return err
@@ -112,7 +121,7 @@ func showRuntimeConfiguration(log log.Component, config config.Component, cliPar
 	return nil
 }
 
-func listRuntimeConfigurableValue(log log.Component, config config.Component, cliParams *cliParams) error {
+func listRuntimeConfigurableValue(_ log.Component, _ config.Component, cliParams *cliParams) error {
 	err := util.SetAuthToken()
 	if err != nil {
 		return err
@@ -138,7 +147,7 @@ func listRuntimeConfigurableValue(log log.Component, config config.Component, cl
 	return nil
 }
 
-func setConfigValue(log log.Component, config config.Component, cliParams *cliParams) error {
+func setConfigValue(_ log.Component, _ config.Component, cliParams *cliParams) error {
 	if len(cliParams.args) != 2 {
 		return fmt.Errorf("exactly two parameters are required: the setting name and its value")
 	}
@@ -167,7 +176,7 @@ func setConfigValue(log log.Component, config config.Component, cliParams *cliPa
 	return nil
 }
 
-func getConfigValue(log log.Component, config config.Component, cliParams *cliParams) error {
+func getConfigValue(_ log.Component, _ config.Component, cliParams *cliParams) error {
 	if len(cliParams.args) != 1 {
 		return fmt.Errorf("a single setting name must be specified")
 	}
@@ -182,12 +191,28 @@ func getConfigValue(log log.Component, config config.Component, cliParams *cliPa
 		return err
 	}
 
-	value, err := c.Get(cliParams.args[0])
+	resp, err := c.GetWithSources(cliParams.args[0])
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("%s is set to: %v\n", cliParams.args[0], value)
+	fmt.Printf("%s is set to: %v\n", cliParams.args[0], resp["value"])
+
+	if cliParams.source {
+		sourcesVal, ok := resp["sources_value"].([]interface{})
+		if !ok {
+			return fmt.Errorf("failed to cast sources_value to []map[interface{}]interface{}")
+		}
+
+		fmt.Printf("sources and their value:\n")
+		for _, sourceVal := range sourcesVal {
+			sourceVal, ok := sourceVal.(map[string]interface{})
+			if !ok {
+				return fmt.Errorf("failed to cast sourceVal to map[string]interface{}")
+			}
+			fmt.Printf("  %s: %v\n", sourceVal["Source"], sourceVal["Value"])
+		}
+	}
 
 	return nil
 }

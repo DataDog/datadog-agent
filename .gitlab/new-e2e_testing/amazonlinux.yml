@@ -1,0 +1,174 @@
+
+.new-e2e_os_amazonlinux:
+  variables:
+    E2E_PLATFORM: amazonlinux
+
+.new-e2e_amazonlinux_a6_x86_64:
+  variables:
+    E2E_ARCH: x86_64
+    E2E_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15,amazonlinux2023"
+    E2E_CWS_SUPPORTED_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15,amazonlinux2023"
+    E2E_BRANCH_OSVERS: "amazonlinux2023"
+  needs: ["deploy_rpm_testing-a6_x64"]
+
+.new-e2e_amazonlinux_a6_arm64:
+  variables:
+    E2E_ARCH: arm64
+    E2E_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15,amazonlinux2023"
+    E2E_CWS_SUPPORTED_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15,amazonlinux2023"
+    E2E_BRANCH_OSVERS: "amazonlinux2023"
+  needs: ["deploy_rpm_testing-a6_arm64"]
+
+.new-e2e_amazonlinux_a7_x86_64:
+  variables:
+    E2E_ARCH: x86_64
+    E2E_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15,amazonlinux2023"
+    E2E_CWS_SUPPORTED_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15,amazonlinux2023"
+    E2E_BRANCH_OSVERS: "amazonlinux2023"
+  needs: ["deploy_rpm_testing-a7_x64"]
+
+.new-e2e_amazonlinux_a7_arm64:
+  variables:
+    E2E_ARCH: arm64
+    E2E_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15,amazonlinux2023"
+    E2E_CWS_SUPPORTED_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15,amazonlinux2023"
+    E2E_BRANCH_OSVERS: "amazonlinux2023"
+  needs: ["deploy_rpm_testing-a7_arm64"]
+
+new-e2e-agent-platform-install-script-amazonlinux-a6-x86_64:
+  stage: kitchen_testing
+  extends:
+    - .new_e2e_template
+    - .new-e2e_install_script
+    - .new-e2e_os_amazonlinux
+    - .new-e2e_amazonlinux_a6_x86_64
+    - .new-e2e_agent_a6
+  variables:
+    FLAVOR: datadog-agent
+
+new-e2e-agent-platform-install-script-amazonlinux-a6-arm64:
+  stage: kitchen_testing
+  extends:
+    - .new_e2e_template
+    - .new-e2e_install_script
+    - .new-e2e_os_amazonlinux
+    - .new-e2e_amazonlinux_a6_arm64
+    - .new-e2e_agent_a6
+  variables:
+    FLAVOR: datadog-agent
+
+new-e2e-agent-platform-install-script-amazonlinux-a7-x64:
+  stage: kitchen_testing
+  extends:
+    - .new_e2e_template
+    - .new-e2e_install_script
+    - .new-e2e_os_amazonlinux
+    - .new-e2e_amazonlinux_a7_x86_64
+    - .new-e2e_agent_a7
+  rules:
+    !reference [.on_default_new-e2e_tests_a7]
+  variables:
+    FLAVOR: datadog-agent
+
+new-e2e-agent-platform-install-script-amazonlinux-a7-arm64:
+  stage: kitchen_testing
+  extends:
+    - .new_e2e_template
+    - .new-e2e_install_script
+    - .new-e2e_os_amazonlinux
+    - .new-e2e_amazonlinux_a7_arm64
+    - .new-e2e_agent_a7
+  rules:
+    !reference [.on_all_new-e2e_tests_a7]
+  variables:
+    FLAVOR: datadog-agent
+
+
+new-e2e-agent-platform-step-by-step-amazonlinux-a6-x86_64:
+  stage: kitchen_testing
+  extends:
+    - .new_e2e_template
+    - .new-e2e_step_by_step
+    - .new-e2e_os_amazonlinux
+    - .new-e2e_amazonlinux_a6_x86_64
+    - .new-e2e_agent_a6
+  rules:
+    !reference [.on_deploy_a6]
+  variables:
+    FLAVOR: datadog-agent
+
+new-e2e-agent-platform-step-by-step-amazonlinux-a6-arm64:
+  stage: kitchen_testing
+  extends:
+    - .new_e2e_template
+    - .new-e2e_step_by_step
+    - .new-e2e_os_amazonlinux
+    - .new-e2e_amazonlinux_a6_arm64
+    - .new-e2e_agent_a6
+  rules:
+    !reference [.on_deploy_a6]
+  variables:
+    FLAVOR: datadog-agent
+
+new-e2e-agent-platform-step-by-step-amazonlinux-a7-x64:
+  stage: kitchen_testing
+  extends:
+    - .new_e2e_template
+    - .new-e2e_step_by_step
+    - .new-e2e_os_amazonlinux
+    - .new-e2e_amazonlinux_a7_x86_64
+    - .new-e2e_agent_a7
+  rules:
+    !reference [.on_deploy_a7]
+  variables:
+    FLAVOR: datadog-agent
+
+new-e2e-agent-platform-step-by-step-amazonlinux-a7-arm64:
+  stage: kitchen_testing
+  extends:
+    - .new_e2e_template
+    - .new-e2e_step_by_step
+    - .new-e2e_os_amazonlinux
+    - .new-e2e_amazonlinux_a7_arm64
+    - .new-e2e_agent_a7
+  rules:
+    !reference [.on_deploy_a7]
+  variables:
+    FLAVOR: datadog-agent
+
+new-e2e-agent-platform-install-script-upgrade7-amazonlinux-x64:
+  stage: kitchen_testing
+  extends:
+    - .new_e2e_template
+    - .new-e2e_script_upgrade7
+    - .new-e2e_os_amazonlinux
+    - .new-e2e_amazonlinux_a7_x86_64
+    - .new-e2e_agent_a7
+  variables:
+    FLAVOR: datadog-agent
+
+new-e2e-agent-platform-install-script-upgrade6-amazonlinux-x64:
+  stage: kitchen_testing
+  extends:
+    - .new_e2e_template
+    - .new-e2e_script_upgrade6
+    - .new-e2e_os_amazonlinux
+    - .new-e2e_amazonlinux_a6_x86_64
+    - .new-e2e_agent_a6
+  variables:
+    FLAVOR: datadog-agent
+
+new-e2e-agent-platform-install-script-upgrade7-amazonlinux-iot-agent-x64:
+  stage: kitchen_testing
+  extends:
+    - .new_e2e_template
+    - .new-e2e_script_upgrade7
+    - .new-e2e_os_amazonlinux
+    - .new-e2e_amazonlinux_a7_x86_64
+    - .new-e2e_agent_a7
+  variables:
+    FLAVOR: datadog-iot-agent
+  parallel:
+    matrix:
+      - START_MAJOR_VERSION: [7]
+        END_MAJOR_VERSION: [7]

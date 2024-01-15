@@ -8,10 +8,11 @@
 package dns
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
-	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -30,14 +31,17 @@ const (
 	// This const limits the maximum size of the state map. Benchmark results show that allocated space is less than 3MB
 	// for 10000 entries.
 	maxStateMapSize = 10000
+
+	// See WaitForDomain
+	waitForDomainTimeout = 5 * time.Second
 )
 
 var statsTelemetry = struct {
-	processedStats *ebpftelemetry.StatCounterWrapper
-	droppedStats   *ebpftelemetry.StatCounterWrapper
+	processedStats telemetry.Counter
+	droppedStats   telemetry.Counter
 }{
-	ebpftelemetry.NewStatCounterWrapper(dnsStatKeeperModuleName, "processed_stats", []string{}, "Counter measuring the number of processed DNS stats"),
-	ebpftelemetry.NewStatCounterWrapper(dnsStatKeeperModuleName, "dropped_stats", []string{}, "Counter measuring the number of dropped DNS stats"),
+	telemetry.NewCounter(dnsStatKeeperModuleName, "processed_stats", []string{}, "Counter measuring the number of processed DNS stats"),
+	telemetry.NewCounter(dnsStatKeeperModuleName, "dropped_stats", []string{}, "Counter measuring the number of dropped DNS stats"),
 }
 
 type dnsPacketInfo struct {
@@ -156,7 +160,6 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 		statsTelemetry.processedStats.Inc()
 	}
 
-	// Note: time.Duration in the agent version of go (1.12.9) does not have the Microseconds method.
 	if latency > uint64(d.expirationPeriod.Microseconds()) {
 		byqtype.Timeouts++
 	} else {
@@ -181,6 +184,36 @@ func (d *dnsStatKeeper) GetAndResetAllStats() StatsByKeyByNameByType {
 	d.processedStats = 0
 	d.droppedStats = 0
 	return ret
+}
+
+func (d *dnsStatKeeper) WaitForDomain(domain string) error {
+
+	tick := time.NewTicker(10 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		select {
+		case <-time.After(waitForDomainTimeout):
+			return fmt.Errorf("domain %v did not appear within %v", domain, waitForDomainTimeout)
+		case <-tick.C:
+			if d.hasDomain(domain) {
+				return nil
+			}
+		}
+	}
+}
+
+func (d *dnsStatKeeper) hasDomain(domain string) bool {
+	d.mux.Lock()
+	defer d.mux.Unlock()
+	for _, statsByTypeByHost := range d.stats {
+		for host := range statsByTypeByHost {
+			if host.Get() == domain {
+				return true
+			}
+		}
+
+	}
+	return false
 }
 
 // Snapshot returns a deep copy of all DNS stats.
@@ -226,7 +259,8 @@ func (d *dnsStatKeeper) removeExpiredStates(earliestTs time.Time) {
 			}
 			bytype, ok := allStats[v.question]
 			if !ok {
-				if statsTelemetry.processedStats.Load() >= d.maxStats {
+				if d.processedStats >= d.maxStats {
+					d.droppedStats++
 					statsTelemetry.droppedStats.Inc()
 					continue
 				}
@@ -234,6 +268,7 @@ func (d *dnsStatKeeper) removeExpiredStates(earliestTs time.Time) {
 			}
 			stats, ok := bytype[v.qtype]
 			if !ok {
+				d.processedStats++
 				statsTelemetry.processedStats.Inc()
 				stats.CountByRcode = make(map[uint32]uint32)
 			}

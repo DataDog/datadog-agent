@@ -3,10 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package config holds config related files
 package config
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -45,6 +47,8 @@ type RuntimeSecurityConfig struct {
 	PolicyMonitorEnabled bool
 	// PolicyMonitorPerRuleEnabled enabled per-rule policy monitoring
 	PolicyMonitorPerRuleEnabled bool
+	// PolicyMonitorReportInternalPolicies enable internal policies monitoring
+	PolicyMonitorReportInternalPolicies bool
 	// SocketPath is the path to the socket that is used to communicate with the security agent
 	SocketPath string
 	// EventServerBurst defines the maximum burst of events that can be sent over the grpc server
@@ -68,8 +72,8 @@ type RuntimeSecurityConfig struct {
 	// HostServiceName string
 	HostServiceName string
 
-	// AgentMonitoringEvents determines if the monitoring events of the agent should be sent to Datadog
-	CustomEventEnabled bool
+	// InternalMonitoringEnabled determines if the monitoring events of the agent should be sent to Datadog
+	InternalMonitoringEnabled bool
 
 	// ActivityDumpEnabled defines if the activity dump manager should be enabled
 	ActivityDumpEnabled bool
@@ -115,6 +119,10 @@ type RuntimeSecurityConfig struct {
 	ActivityDumpSyscallMonitorPeriod time.Duration
 	// ActivityDumpMaxDumpCountPerWorkload defines the maximum amount of dumps that the agent should send for a workload
 	ActivityDumpMaxDumpCountPerWorkload int
+	// ActivityDumpWorkloadDenyList defines the list of workloads for which we shouldn't generate dumps. Workloads should
+	// be provided as strings in the following format "{image_name}:[{image_tag}|*]". If "*" is provided instead of a
+	// specific image tag, then the entry will match any workload with the input {image_name} regardless of their tag.
+	ActivityDumpWorkloadDenyList []string
 	// ActivityDumpTagRulesEnabled enable the tagging of nodes with matched rules (only for rules having the tag ruleset:threat_score)
 	ActivityDumpTagRulesEnabled bool
 	// ActivityDumpSilentWorkloadsDelay defines the minimum amount of time to wait before the activity dump manager will start tracing silent workloads
@@ -140,6 +148,8 @@ type RuntimeSecurityConfig struct {
 	SecurityProfileRCEnabled bool
 	// SecurityProfileDNSMatchMaxDepth defines the max depth of subdomain to be matched for DNS anomaly detection (0 to match everything)
 	SecurityProfileDNSMatchMaxDepth int
+	// SecurityProfileAutoSuppressionEnabled do not send event if part of a profile
+	SecurityProfileAutoSuppressionEnabled bool
 
 	// AnomalyDetectionEventTypes defines the list of events that should be allowed to generate anomaly detections
 	AnomalyDetectionEventTypes []model.EventType
@@ -169,6 +179,10 @@ type RuntimeSecurityConfig struct {
 	// AnomalyDetectionTagRulesEnabled defines if the events that triggered anomaly detections should be tagged with the
 	// rules they might have matched.
 	AnomalyDetectionTagRulesEnabled bool
+	// AnomalyDetectionSilentRuleEventsEnabled do not send rule event if also part of an anomaly event
+	AnomalyDetectionSilentRuleEventsEnabled bool
+	// AnomalyDetectionEnabled defines if we should send anomaly detection events
+	AnomalyDetectionEnabled bool
 
 	// SBOMResolverEnabled defines if the SBOM resolver should be enabled
 	SBOMResolverEnabled bool
@@ -190,6 +204,14 @@ type RuntimeSecurityConfig struct {
 	HashResolverEventTypes []model.EventType
 	// HashResolverCacheSize defines the number of hashes to keep in cache
 	HashResolverCacheSize int
+
+	// UserSessionsCacheSize defines the size of the User Sessions cache size
+	UserSessionsCacheSize int
+
+	// EBPFLessEnabled enables the ebpfless probe
+	EBPFLessEnabled bool
+	// EBPFLessSocket defines the socket used for the communication between system-probe and the ebpfless source
+	EBPFLessSocket string
 }
 
 // Config defines a security config
@@ -234,19 +256,20 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		SelfTestEnabled:            coreconfig.SystemProbe.GetBool("runtime_security_config.self_test.enabled"),
 		SelfTestSendReport:         coreconfig.SystemProbe.GetBool("runtime_security_config.self_test.send_report"),
-		RemoteConfigurationEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.remote_configuration.enabled"),
+		RemoteConfigurationEnabled: isRemoteConfigEnabled(),
 
 		// policy & ruleset
-		PoliciesDir:                 coreconfig.SystemProbe.GetString("runtime_security_config.policies.dir"),
-		WatchPoliciesDir:            coreconfig.SystemProbe.GetBool("runtime_security_config.policies.watch_dir"),
-		PolicyMonitorEnabled:        coreconfig.SystemProbe.GetBool("runtime_security_config.policies.monitor.enabled"),
-		PolicyMonitorPerRuleEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.policies.monitor.per_rule_enabled"),
+		PoliciesDir:                         coreconfig.SystemProbe.GetString("runtime_security_config.policies.dir"),
+		WatchPoliciesDir:                    coreconfig.SystemProbe.GetBool("runtime_security_config.policies.watch_dir"),
+		PolicyMonitorEnabled:                coreconfig.SystemProbe.GetBool("runtime_security_config.policies.monitor.enabled"),
+		PolicyMonitorPerRuleEnabled:         coreconfig.SystemProbe.GetBool("runtime_security_config.policies.monitor.per_rule_enabled"),
+		PolicyMonitorReportInternalPolicies: coreconfig.SystemProbe.GetBool("runtime_security_config.policies.monitor.report_internal_policies"),
 
 		LogPatterns: coreconfig.SystemProbe.GetStringSlice("runtime_security_config.log_patterns"),
 		LogTags:     coreconfig.SystemProbe.GetStringSlice("runtime_security_config.log_tags"),
 
 		// custom events
-		CustomEventEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.agent_monitoring_events"),
+		InternalMonitoringEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.internal_monitoring.enabled"),
 
 		// activity dump
 		ActivityDumpEnabled:                   coreconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.enabled"),
@@ -268,6 +291,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		ActivityDumpTagRulesEnabled:           coreconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.tag_rules.enabled"),
 		ActivityDumpSilentWorkloadsDelay:      coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.silent_workloads.delay"),
 		ActivityDumpSilentWorkloadsTicker:     coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.silent_workloads.ticker"),
+		ActivityDumpWorkloadDenyList:          coreconfig.SystemProbe.GetStringSlice("runtime_security_config.activity_dump.workload_deny_list"),
 		// activity dump dynamic fields
 		ActivityDumpMaxDumpSize: func() int {
 			mds := coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.max_dump_size")
@@ -291,13 +315,14 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		HashResolverCacheSize:      coreconfig.SystemProbe.GetInt("runtime_security_config.hash_resolver.cache_size"),
 
 		// security profiles
-		SecurityProfileEnabled:          coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.enabled"),
-		SecurityProfileDir:              coreconfig.SystemProbe.GetString("runtime_security_config.security_profile.dir"),
-		SecurityProfileWatchDir:         coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.watch_dir"),
-		SecurityProfileCacheSize:        coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.cache_size"),
-		SecurityProfileMaxCount:         coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.max_count"),
-		SecurityProfileRCEnabled:        coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.remote_configuration.enabled"),
-		SecurityProfileDNSMatchMaxDepth: coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.dns_match_max_depth"),
+		SecurityProfileEnabled:                coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.enabled"),
+		SecurityProfileDir:                    coreconfig.SystemProbe.GetString("runtime_security_config.security_profile.dir"),
+		SecurityProfileWatchDir:               coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.watch_dir"),
+		SecurityProfileCacheSize:              coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.cache_size"),
+		SecurityProfileMaxCount:               coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.max_count"),
+		SecurityProfileRCEnabled:              coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.remote_configuration.enabled"),
+		SecurityProfileDNSMatchMaxDepth:       coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.dns_match_max_depth"),
+		SecurityProfileAutoSuppressionEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.auto_suppression.enabled"),
 
 		// anomaly detection
 		AnomalyDetectionEventTypes:                   parseEventTypeStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),
@@ -310,6 +335,15 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		AnomalyDetectionRateLimiterNumKeys:           coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.anomaly_detection.rate_limiter.num_keys"),
 		AnomalyDetectionRateLimiterNumEventsAllowed:  coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.anomaly_detection.rate_limiter.num_events_allowed"),
 		AnomalyDetectionTagRulesEnabled:              coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.anomaly_detection.tag_rules.enabled"),
+		AnomalyDetectionSilentRuleEventsEnabled:      coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.anomaly_detection.silent_rule_events.enabled"),
+		AnomalyDetectionEnabled:                      coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.anomaly_detection.enabled"),
+
+		// User Sessions
+		UserSessionsCacheSize: coreconfig.SystemProbe.GetInt("runtime_security_config.user_sessions.cache_size"),
+
+		// ebpf less
+		EBPFLessEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.ebpfless.enabled"),
+		EBPFLessSocket:  coreconfig.SystemProbe.GetString("runtime_security_config.ebpfless.socket"),
 	}
 
 	if err := rsConfig.sanitize(); err != nil {
@@ -322,6 +356,22 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 // IsRuntimeEnabled returns true if any feature is enabled. Has to be applied in config package too
 func (c *RuntimeSecurityConfig) IsRuntimeEnabled() bool {
 	return c.RuntimeEnabled || c.FIMEnabled
+}
+
+// If RC is globally enabled, RC is enabled for CWS, unless the CWS-specific RC value is explicitly set to false
+func isRemoteConfigEnabled() bool {
+	// This value defaults to true
+	rcEnabledInSysprobeConfig := coreconfig.SystemProbe.GetBool("runtime_security_config.remote_configuration.enabled")
+
+	if !rcEnabledInSysprobeConfig {
+		return false
+	}
+
+	if coreconfig.IsRemoteConfigEnabled(coreconfig.Datadog) {
+		return true
+	}
+
+	return false
 }
 
 // GetAnomalyDetectionMinimumStablePeriod returns the minimum stable period for a given event type
@@ -436,6 +486,14 @@ func parseHashAlgorithmStringSlice(algorithms []string) []model.HashAlgorithm {
 		}
 	}
 	return output
+}
+
+// GetFamilyAddress returns the address famility to use for system-probe <-> security-agent communication
+func GetFamilyAddress(path string) (string, string) {
+	if strings.HasPrefix(path, "/") {
+		return "unix", path
+	}
+	return "tcp", path
 }
 
 var (

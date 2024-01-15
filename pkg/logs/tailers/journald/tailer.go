@@ -19,10 +19,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/journald"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -45,17 +47,28 @@ type Tailer struct {
 	}
 	stop chan struct{}
 	done chan struct{}
+	// processRawMessage indicates if we want to process and send the whole structured log message
+	// instead of on the logs content.
+	processRawMessage bool
 }
 
 // NewTailer returns a new tailer.
-func NewTailer(source *sources.LogSource, outputChan chan *message.Message, journal Journal) *Tailer {
+func NewTailer(source *sources.LogSource, outputChan chan *message.Message, journal Journal, processRawMessage bool) *Tailer {
+	if len(source.Config.ProcessingRules) > 0 && processRawMessage {
+		log.Warn("The logs processing rules currently apply to the raw journald JSON-structured log. These rules can now be applied to the message content only, and we plan to make this the default behavior in the future.")
+		log.Warn("In order to immediately switch to this new behavior, set 'process_raw_message' to 'false' in your logs integration config and adapt your processing rules accordingly.")
+		log.Warn("Please contact Datadog support for more information.")
+		telemetry.GetStatsTelemetryProvider().Gauge(processor.UnstructuredProcessingMetricName, 1, []string{"tailer:journald"})
+	}
+
 	return &Tailer{
-		decoder:    decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), journald.New(), framer.NoFraming, nil, status.NewInfoRegistry()),
-		source:     source,
-		outputChan: outputChan,
-		journal:    journal,
-		stop:       make(chan struct{}, 1),
-		done:       make(chan struct{}, 1),
+		decoder:           decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), noop.New(), framer.NoFraming, nil, status.NewInfoRegistry()),
+		source:            source,
+		outputChan:        outputChan,
+		journal:           journal,
+		stop:              make(chan struct{}, 1),
+		done:              make(chan struct{}, 1),
+		processRawMessage: processRawMessage,
 	}
 }
 
@@ -174,7 +187,7 @@ func (t *Tailer) setup() error {
 
 func (t *Tailer) forwardMessages() {
 	for decodedMessage := range t.decoder.OutputChan {
-		if len(decodedMessage.Content) > 0 {
+		if len(decodedMessage.GetContent()) > 0 {
 			t.outputChan <- decodedMessage
 		}
 	}
@@ -185,11 +198,26 @@ func (t *Tailer) forwardMessages() {
 func (t *Tailer) seek(cursor string) error {
 	mode, _ := config.TailingModeFromString(t.source.Config.TailingMode)
 
+	seekHead := func() error {
+		if err := t.journal.SeekHead(); err != nil {
+			return err
+		}
+		_, err := t.journal.Next() // SeekHead must be followed by Next
+		return err
+	}
+	seekTail := func() error {
+		if err := t.journal.SeekTail(); err != nil {
+			return err
+		}
+		_, err := t.journal.Previous() // SeekTail must be followed by Previous
+		return err
+	}
+
 	if mode == config.ForceBeginning {
-		return t.journal.SeekHead()
+		return seekHead()
 	}
 	if mode == config.ForceEnd {
-		return t.journal.SeekTail()
+		return seekTail()
 	}
 
 	// If a position is not forced from the config, try the cursor
@@ -205,9 +233,9 @@ func (t *Tailer) seek(cursor string) error {
 
 	// If there is no cursor and an option is not forced, use the config setting
 	if mode == config.Beginning {
-		return t.journal.SeekHead()
+		return seekHead()
 	}
-	return t.journal.SeekTail()
+	return seekTail()
 }
 
 // tail tails the journal until a message stop is received.
@@ -242,15 +270,29 @@ func (t *Tailer) tail() {
 			if t.shouldDrop(entry) {
 				continue
 			}
+
+			structuredContent, jsonMarshaled := t.getContent(entry)
+			var msg *message.Message
+			if t.processRawMessage {
+				msg = message.NewMessage(
+					jsonMarshaled,
+					t.getOrigin(entry),
+					t.getStatus(entry),
+					time.Now().UnixNano(),
+				)
+			} else {
+				msg = message.NewStructuredMessage(
+					&structuredContent,
+					t.getOrigin(entry),
+					t.getStatus(entry),
+					time.Now().UnixNano(),
+				)
+			}
+
 			select {
 			case <-t.stop:
 				return
-			case t.decoder.InputChan <- message.NewMessage(
-				t.getContent(entry),
-				t.getOrigin(entry),
-				t.getStatus(entry),
-				time.Now().UnixNano(),
-			):
+			case t.decoder.InputChan <- msg:
 			}
 		}
 	}
@@ -290,8 +332,14 @@ func (t *Tailer) shouldDrop(entry *sdjournal.JournalEntry) bool {
 	return false
 }
 
-// getContent returns all the fields of the entry as a json-string,
-// remapping "MESSAGE" into "message" and bundling all the other keys in a "journald" attribute.
+// getContent transforms the given journal entry into two usable data struct:
+// one being a structured log message, the second one being the old marshaled
+// format used for an unstrucutred message.
+// Note that for the former, we would not need to marshal the data, but it still
+// needed for now to compute the amount of bytes read for the source telemetry.
+//
+// In the marshaled data, "MESSAGE" is remapped into "message" and
+// all the other keys are accessible in a "journald" attribute.
 // ex:
 //   - journal-entry:
 //     {
@@ -307,24 +355,34 @@ func (t *Tailer) shouldDrop(entry *sdjournal.JournalEntry) bool {
 //     ...
 //     }
 //     }
-func (t *Tailer) getContent(entry *sdjournal.JournalEntry) []byte {
-	payload := make(map[string]interface{})
+//
+// This method is modifying the original map from the entry to avoid a copy.
+func (t *Tailer) getContent(entry *sdjournal.JournalEntry) (message.BasicStructuredContent, []byte) {
+	payload := message.BasicStructuredContent{
+		Data: make(map[string]interface{}),
+	}
 	fields := entry.Fields
-	if message, exists := fields[sdjournal.SD_JOURNAL_FIELD_MESSAGE]; exists {
-		payload["message"] = message
-		delete(fields, sdjournal.SD_JOURNAL_FIELD_MESSAGE)
-	}
-	payload["journald"] = fields
+	var msg string
+	var exists bool
 
-	content, err := json.Marshal(payload)
+	// remap systemd "MESSAGE" key into the internal "message" representation
+	if msg, exists = fields[sdjournal.SD_JOURNAL_FIELD_MESSAGE]; exists {
+		payload.SetContent([]byte(msg))
+		delete(fields, sdjournal.SD_JOURNAL_FIELD_MESSAGE) // remove it from the root structure
+	}
+	payload.Data["journald"] = fields
+
+	jsonMarshaled, err := json.Marshal(payload.Data)
 	if err != nil {
+		log.Error("can't marshal journald tailed log", err)
+		// if we're running with the old behavior,
 		// ensure the message has some content if the json encoding failed
-		value, _ := entry.Fields[sdjournal.SD_JOURNAL_FIELD_MESSAGE]
-		content = []byte(value)
+		if t.processRawMessage {
+			jsonMarshaled = []byte(msg)
+		}
 	}
-	t.source.BytesRead.Add(int64(len(content)))
-
-	return content
+	t.source.BytesRead.Add(int64(len(jsonMarshaled)))
+	return payload, jsonMarshaled
 }
 
 // getOrigin returns the message origin computed from the journal entry

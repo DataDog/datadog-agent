@@ -9,7 +9,6 @@ This directory contains docs, guides and resources to better use this repo.
  to build the Datadog Agent themselves and should start reading this guide.
  * [DogStatsD](dogstatsd/README.md) user documentation.
  * [Datadog Cluster Agent](cluster-agent/README.md) user documentation.
- * [Proposals](proposals/README.md): design docs and proposals.
 
 The Docker images have their own additional documentation:
 

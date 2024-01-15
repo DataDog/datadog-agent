@@ -1,15 +1,16 @@
 [
   {
+    "distributions": null,
+    "dogsketches": [],
     "metric": "aws.lambda.enhanced.billed_duration",
-    "distributions": null,
     "tags": [
-      "account_id:425362996713",
+      "account_id:############",
       "architecture:XXX",
-      "aws_account:425362996713",
+      "aws_account:############",
       "cold_start:false",
       "dd_extension_version:123",
       "env:integration-tests-env",
-      "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-node",
+      "function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-error-node",
       "functionname:integration-tests-extension-XXXXXX-error-node",
       "memorysize:1024",
       "region:eu-west-1",
@@ -21,20 +22,20 @@
       "tagc:valuec",
       "tagd:valued",
       "version:integration-tests-version"
-    ],
-    "dogsketches": []
+    ]
   },
   {
+    "distributions": null,
+    "dogsketches": [],
     "metric": "aws.lambda.enhanced.billed_duration",
-    "distributions": null,
     "tags": [
-      "account_id:425362996713",
+      "account_id:############",
       "architecture:XXX",
-      "aws_account:425362996713",
-      "cold_start:false",
+      "aws_account:############",
+      "cold_start:true",
       "dd_extension_version:123",
       "env:integration-tests-env",
-      "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-node",
+      "function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-error-node",
       "functionname:integration-tests-extension-XXXXXX-error-node",
       "memorysize:1024",
       "region:eu-west-1",
@@ -46,20 +47,20 @@
       "tagc:valuec",
       "tagd:valued",
       "version:integration-tests-version"
-    ],
-    "dogsketches": []
+    ]
   },
   {
+    "distributions": null,
+    "dogsketches": [],
     "metric": "aws.lambda.enhanced.duration",
-    "distributions": null,
     "tags": [
-      "account_id:425362996713",
+      "account_id:############",
       "architecture:XXX",
-      "aws_account:425362996713",
+      "aws_account:############",
       "cold_start:false",
       "dd_extension_version:123",
       "env:integration-tests-env",
-      "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-node",
+      "function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-error-node",
       "functionname:integration-tests-extension-XXXXXX-error-node",
       "memorysize:1024",
       "region:eu-west-1",
@@ -71,20 +72,20 @@
       "tagc:valuec",
       "tagd:valued",
       "version:integration-tests-version"
-    ],
-    "dogsketches": []
+    ]
   },
   {
+    "distributions": null,
+    "dogsketches": [],
     "metric": "aws.lambda.enhanced.duration",
-    "distributions": null,
     "tags": [
-      "account_id:425362996713",
+      "account_id:############",
       "architecture:XXX",
-      "aws_account:425362996713",
-      "cold_start:false",
+      "aws_account:############",
+      "cold_start:true",
       "dd_extension_version:123",
       "env:integration-tests-env",
-      "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-node",
+      "function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-error-node",
       "functionname:integration-tests-extension-XXXXXX-error-node",
       "memorysize:1024",
       "region:eu-west-1",
@@ -96,21 +97,21 @@
       "tagc:valuec",
       "tagd:valued",
       "version:integration-tests-version"
-    ],
-    "dogsketches": []
+    ]
   },
   {
+    "distributions": null,
+    "dogsketches": [],
     "metric": "aws.lambda.enhanced.errors",
-    "distributions": null,
     "tags": [
-      "account_id:425362996713",
+      "account_id:############",
       "architecture:XXX",
-      "aws_account:425362996713",
+      "aws_account:############",
       "cold_start:false",
       "datadog_lambda:vX.X.X",
       "dd_extension_version:123",
       "env:integration-tests-env",
-      "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-node",
+      "function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-error-node",
       "functionname:integration-tests-extension-XXXXXX-error-node",
       "memorysize:1024",
       "region:eu-west-1",
@@ -122,21 +123,21 @@
       "tagc:valuec",
       "tagd:valued",
       "version:integration-tests-version"
-    ],
-    "dogsketches": []
+    ]
   },
   {
-    "metric": "aws.lambda.enhanced.errors",
     "distributions": null,
+    "dogsketches": [],
+    "metric": "aws.lambda.enhanced.errors",
     "tags": [
-      "account_id:425362996713",
+      "account_id:############",
       "architecture:XXX",
-      "aws_account:425362996713",
+      "aws_account:############",
       "cold_start:true",
       "datadog_lambda:vX.X.X",
       "dd_extension_version:123",
       "env:integration-tests-env",
-      "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-node",
+      "function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-error-node",
       "functionname:integration-tests-extension-XXXXXX-error-node",
       "memorysize:1024",
       "region:eu-west-1",
@@ -148,20 +149,20 @@
       "tagc:valuec",
       "tagd:valued",
       "version:integration-tests-version"
-    ],
-    "dogsketches": []
+    ]
   },
   {
-    "metric": "aws.lambda.enhanced.estimated_cost",
     "distributions": null,
+    "dogsketches": [],
+    "metric": "aws.lambda.enhanced.estimated_cost",
     "tags": [
-      "account_id:425362996713",
+      "account_id:############",
       "architecture:XXX",
-      "aws_account:425362996713",
+      "aws_account:############",
       "cold_start:false",
       "dd_extension_version:123",
       "env:integration-tests-env",
-      "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-node",
+      "function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-error-node",
       "functionname:integration-tests-extension-XXXXXX-error-node",
       "memorysize:1024",
       "region:eu-west-1",
@@ -173,20 +174,20 @@
       "tagc:valuec",
       "tagd:valued",
       "version:integration-tests-version"
-    ],
-    "dogsketches": []
+    ]
   },
   {
-    "metric": "aws.lambda.enhanced.estimated_cost",
     "distributions": null,
+    "dogsketches": [],
+    "metric": "aws.lambda.enhanced.estimated_cost",
     "tags": [
-      "account_id:425362996713",
+      "account_id:############",
       "architecture:XXX",
-      "aws_account:425362996713",
-      "cold_start:false",
+      "aws_account:############",
+      "cold_start:true",
       "dd_extension_version:123",
       "env:integration-tests-env",
-      "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-node",
+      "function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-error-node",
       "functionname:integration-tests-extension-XXXXXX-error-node",
       "memorysize:1024",
       "region:eu-west-1",
@@ -198,20 +199,20 @@
       "tagc:valuec",
       "tagd:valued",
       "version:integration-tests-version"
-    ],
-    "dogsketches": []
+    ]
   },
   {
+    "distributions": null,
+    "dogsketches": [],
     "metric": "aws.lambda.enhanced.init_duration",
-    "distributions": null,
     "tags": [
-      "account_id:425362996713",
+      "account_id:############",
       "architecture:XXX",
-      "aws_account:425362996713",
-      "cold_start:false",
+      "aws_account:############",
+      "cold_start:true",
       "dd_extension_version:123",
       "env:integration-tests-env",
-      "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-node",
+      "function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-error-node",
       "functionname:integration-tests-extension-XXXXXX-error-node",
       "memorysize:1024",
       "region:eu-west-1",
@@ -223,20 +224,20 @@
       "tagc:valuec",
       "tagd:valued",
       "version:integration-tests-version"
-    ],
-    "dogsketches": []
+    ]
   },
   {
-    "metric": "aws.lambda.enhanced.invocations",
     "distributions": null,
+    "dogsketches": [],
+    "metric": "aws.lambda.enhanced.invocations",
     "tags": [
-      "account_id:425362996713",
+      "account_id:############",
       "architecture:XXX",
-      "aws_account:425362996713",
+      "aws_account:############",
       "cold_start:false",
       "dd_extension_version:123",
       "env:integration-tests-env",
-      "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-node",
+      "function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-error-node",
       "functionname:integration-tests-extension-XXXXXX-error-node",
       "init_type:on-demand",
       "memorysize:1024",
@@ -249,20 +250,20 @@
       "tagc:valuec",
       "tagd:valued",
       "version:integration-tests-version"
-    ],
-    "dogsketches": []
+    ]
   },
   {
-    "metric": "aws.lambda.enhanced.invocations",
     "distributions": null,
+    "dogsketches": [],
+    "metric": "aws.lambda.enhanced.invocations",
     "tags": [
-      "account_id:425362996713",
+      "account_id:############",
       "architecture:XXX",
-      "aws_account:425362996713",
+      "aws_account:############",
       "cold_start:true",
       "dd_extension_version:123",
       "env:integration-tests-env",
-      "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-node",
+      "function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-error-node",
       "functionname:integration-tests-extension-XXXXXX-error-node",
       "init_type:on-demand",
       "memorysize:1024",
@@ -275,20 +276,20 @@
       "tagc:valuec",
       "tagd:valued",
       "version:integration-tests-version"
-    ],
-    "dogsketches": []
+    ]
   },
   {
+    "distributions": null,
+    "dogsketches": [],
     "metric": "aws.lambda.enhanced.max_memory_used",
-    "distributions": null,
     "tags": [
-      "account_id:425362996713",
+      "account_id:############",
       "architecture:XXX",
-      "aws_account:425362996713",
+      "aws_account:############",
       "cold_start:false",
       "dd_extension_version:123",
       "env:integration-tests-env",
-      "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-node",
+      "function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-error-node",
       "functionname:integration-tests-extension-XXXXXX-error-node",
       "memorysize:1024",
       "region:eu-west-1",
@@ -300,20 +301,20 @@
       "tagc:valuec",
       "tagd:valued",
       "version:integration-tests-version"
-    ],
-    "dogsketches": []
+    ]
   },
   {
+    "distributions": null,
+    "dogsketches": [],
     "metric": "aws.lambda.enhanced.max_memory_used",
-    "distributions": null,
     "tags": [
-      "account_id:425362996713",
+      "account_id:############",
       "architecture:XXX",
-      "aws_account:425362996713",
-      "cold_start:false",
+      "aws_account:############",
+      "cold_start:true",
       "dd_extension_version:123",
       "env:integration-tests-env",
-      "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-node",
+      "function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-error-node",
       "functionname:integration-tests-extension-XXXXXX-error-node",
       "memorysize:1024",
       "region:eu-west-1",
@@ -325,20 +326,20 @@
       "tagc:valuec",
       "tagd:valued",
       "version:integration-tests-version"
-    ],
-    "dogsketches": []
+    ]
   },
   {
+    "distributions": null,
+    "dogsketches": [],
     "metric": "aws.lambda.enhanced.memorysize",
-    "distributions": null,
     "tags": [
-      "account_id:425362996713",
+      "account_id:############",
       "architecture:XXX",
-      "aws_account:425362996713",
+      "aws_account:############",
       "cold_start:false",
       "dd_extension_version:123",
       "env:integration-tests-env",
-      "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-node",
+      "function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-error-node",
       "functionname:integration-tests-extension-XXXXXX-error-node",
       "memorysize:1024",
       "region:eu-west-1",
@@ -350,20 +351,20 @@
       "tagc:valuec",
       "tagd:valued",
       "version:integration-tests-version"
-    ],
-    "dogsketches": []
+    ]
   },
   {
+    "distributions": null,
+    "dogsketches": [],
     "metric": "aws.lambda.enhanced.memorysize",
-    "distributions": null,
     "tags": [
-      "account_id:425362996713",
+      "account_id:############",
       "architecture:XXX",
-      "aws_account:425362996713",
-      "cold_start:false",
+      "aws_account:############",
+      "cold_start:true",
       "dd_extension_version:123",
       "env:integration-tests-env",
-      "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-node",
+      "function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-error-node",
       "functionname:integration-tests-extension-XXXXXX-error-node",
       "memorysize:1024",
       "region:eu-west-1",
@@ -375,20 +376,20 @@
       "tagc:valuec",
       "tagd:valued",
       "version:integration-tests-version"
-    ],
-    "dogsketches": []
+    ]
   },
   {
+    "distributions": null,
+    "dogsketches": [],
     "metric": "aws.lambda.enhanced.post_runtime_duration",
-    "distributions": null,
     "tags": [
-      "account_id:425362996713",
+      "account_id:############",
       "architecture:XXX",
-      "aws_account:425362996713",
+      "aws_account:############",
       "cold_start:false",
       "dd_extension_version:123",
       "env:integration-tests-env",
-      "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-node",
+      "function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-error-node",
       "functionname:integration-tests-extension-XXXXXX-error-node",
       "memorysize:1024",
       "region:eu-west-1",
@@ -400,20 +401,20 @@
       "tagc:valuec",
       "tagd:valued",
       "version:integration-tests-version"
-    ],
-    "dogsketches": []
+    ]
   },
   {
+    "distributions": null,
+    "dogsketches": [],
     "metric": "aws.lambda.enhanced.post_runtime_duration",
-    "distributions": null,
     "tags": [
-      "account_id:425362996713",
+      "account_id:############",
       "architecture:XXX",
-      "aws_account:425362996713",
-      "cold_start:false",
+      "aws_account:############",
+      "cold_start:true",
       "dd_extension_version:123",
       "env:integration-tests-env",
-      "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-node",
+      "function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-error-node",
       "functionname:integration-tests-extension-XXXXXX-error-node",
       "memorysize:1024",
       "region:eu-west-1",
@@ -425,20 +426,20 @@
       "tagc:valuec",
       "tagd:valued",
       "version:integration-tests-version"
-    ],
-    "dogsketches": []
+    ]
   },
   {
+    "distributions": null,
+    "dogsketches": [],
     "metric": "aws.lambda.enhanced.produced_bytes",
-    "distributions": null,
     "tags": [
-      "account_id:425362996713",
+      "account_id:############",
       "architecture:XXX",
-      "aws_account:425362996713",
+      "aws_account:############",
       "cold_start:false",
       "dd_extension_version:123",
       "env:integration-tests-env",
-      "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-node",
+      "function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-error-node",
       "functionname:integration-tests-extension-XXXXXX-error-node",
       "memorysize:1024",
       "region:eu-west-1",
@@ -450,20 +451,20 @@
       "tagc:valuec",
       "tagd:valued",
       "version:integration-tests-version"
-    ],
-    "dogsketches": []
+    ]
   },
   {
+    "distributions": null,
+    "dogsketches": [],
     "metric": "aws.lambda.enhanced.produced_bytes",
-    "distributions": null,
     "tags": [
-      "account_id:425362996713",
+      "account_id:############",
       "architecture:XXX",
-      "aws_account:425362996713",
+      "aws_account:############",
       "cold_start:true",
       "dd_extension_version:123",
       "env:integration-tests-env",
-      "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-node",
+      "function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-error-node",
       "functionname:integration-tests-extension-XXXXXX-error-node",
       "memorysize:1024",
       "region:eu-west-1",
@@ -475,20 +476,20 @@
       "tagc:valuec",
       "tagd:valued",
       "version:integration-tests-version"
-    ],
-    "dogsketches": []
+    ]
   },
   {
+    "distributions": null,
+    "dogsketches": [],
     "metric": "aws.lambda.enhanced.response_duration",
-    "distributions": null,
     "tags": [
-      "account_id:425362996713",
+      "account_id:############",
       "architecture:XXX",
-      "aws_account:425362996713",
+      "aws_account:############",
       "cold_start:false",
       "dd_extension_version:123",
       "env:integration-tests-env",
-      "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-node",
+      "function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-error-node",
       "functionname:integration-tests-extension-XXXXXX-error-node",
       "memorysize:1024",
       "region:eu-west-1",
@@ -500,20 +501,20 @@
       "tagc:valuec",
       "tagd:valued",
       "version:integration-tests-version"
-    ],
-    "dogsketches": []
+    ]
   },
   {
+    "distributions": null,
+    "dogsketches": [],
     "metric": "aws.lambda.enhanced.response_duration",
-    "distributions": null,
     "tags": [
-      "account_id:425362996713",
+      "account_id:############",
       "architecture:XXX",
-      "aws_account:425362996713",
+      "aws_account:############",
       "cold_start:true",
       "dd_extension_version:123",
       "env:integration-tests-env",
-      "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-node",
+      "function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-error-node",
       "functionname:integration-tests-extension-XXXXXX-error-node",
       "memorysize:1024",
       "region:eu-west-1",
@@ -525,20 +526,20 @@
       "tagc:valuec",
       "tagd:valued",
       "version:integration-tests-version"
-    ],
-    "dogsketches": []
+    ]
   },
   {
-    "metric": "aws.lambda.enhanced.response_latency",
     "distributions": null,
+    "dogsketches": [],
+    "metric": "aws.lambda.enhanced.response_latency",
     "tags": [
-      "account_id:425362996713",
+      "account_id:############",
       "architecture:XXX",
-      "aws_account:425362996713",
+      "aws_account:############",
       "cold_start:false",
       "dd_extension_version:123",
       "env:integration-tests-env",
-      "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-node",
+      "function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-error-node",
       "functionname:integration-tests-extension-XXXXXX-error-node",
       "memorysize:1024",
       "region:eu-west-1",
@@ -550,20 +551,20 @@
       "tagc:valuec",
       "tagd:valued",
       "version:integration-tests-version"
-    ],
-    "dogsketches": []
+    ]
   },
   {
-    "metric": "aws.lambda.enhanced.response_latency",
     "distributions": null,
+    "dogsketches": [],
+    "metric": "aws.lambda.enhanced.response_latency",
     "tags": [
-      "account_id:425362996713",
+      "account_id:############",
       "architecture:XXX",
-      "aws_account:425362996713",
+      "aws_account:############",
       "cold_start:true",
       "dd_extension_version:123",
       "env:integration-tests-env",
-      "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-node",
+      "function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-error-node",
       "functionname:integration-tests-extension-XXXXXX-error-node",
       "memorysize:1024",
       "region:eu-west-1",
@@ -575,20 +576,20 @@
       "tagc:valuec",
       "tagd:valued",
       "version:integration-tests-version"
-    ],
-    "dogsketches": []
+    ]
   },
   {
-    "metric": "aws.lambda.enhanced.runtime_duration",
     "distributions": null,
+    "dogsketches": [],
+    "metric": "aws.lambda.enhanced.runtime_duration",
     "tags": [
-      "account_id:425362996713",
+      "account_id:############",
       "architecture:XXX",
-      "aws_account:425362996713",
+      "aws_account:############",
       "cold_start:false",
       "dd_extension_version:123",
       "env:integration-tests-env",
-      "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-node",
+      "function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-error-node",
       "functionname:integration-tests-extension-XXXXXX-error-node",
       "memorysize:1024",
       "region:eu-west-1",
@@ -600,20 +601,20 @@
       "tagc:valuec",
       "tagd:valued",
       "version:integration-tests-version"
-    ],
-    "dogsketches": []
+    ]
   },
   {
-    "metric": "aws.lambda.enhanced.runtime_duration",
     "distributions": null,
+    "dogsketches": [],
+    "metric": "aws.lambda.enhanced.runtime_duration",
     "tags": [
-      "account_id:425362996713",
+      "account_id:############",
       "architecture:XXX",
-      "aws_account:425362996713",
+      "aws_account:############",
       "cold_start:true",
       "dd_extension_version:123",
       "env:integration-tests-env",
-      "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-node",
+      "function_arn:arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-error-node",
       "functionname:integration-tests-extension-XXXXXX-error-node",
       "memorysize:1024",
       "region:eu-west-1",
@@ -625,7 +626,6 @@
       "tagc:valuec",
       "tagd:valued",
       "version:integration-tests-version"
-    ],
-    "dogsketches": []
+    ]
   }
 ]

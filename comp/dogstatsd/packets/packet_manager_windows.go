@@ -20,7 +20,7 @@ type PacketManager struct {
 }
 
 // NewPacketManagerFromConfig creates a PacketManager from the relevant config settings.
-func NewPacketManagerFromConfig(packetOut chan Packets, sharedPacketPoolManager *PoolManager, cfg config.ConfigReader) *PacketManager {
+func NewPacketManagerFromConfig(packetOut chan Packets, sharedPacketPoolManager *PoolManager, cfg config.Reader) *PacketManager {
 	bufferSize := cfg.GetInt("dogstatsd_buffer_size")
 	packetsBufferSize := cfg.GetInt("dogstatsd_packet_buffer_size")
 	flushTimeout := cfg.GetDuration("dogstatsd_packet_buffer_flush_timeout")
@@ -36,7 +36,7 @@ func NewPacketManager(
 	packetOut chan Packets,
 	sharedPacketPoolManager *PoolManager) *PacketManager {
 
-	packetsBuffer := NewBuffer(uint(packetsBufferSize), flushTimeout, packetOut)
+	packetsBuffer := NewBuffer(uint(packetsBufferSize), flushTimeout, packetOut, "named_pipe")
 
 	return &PacketManager{
 		bufferSize:      bufferSize,

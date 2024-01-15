@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package approver holds approver related files
 package approver
 
 import (
@@ -21,28 +22,28 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
-// ApproverStats is used to collect kernel space metrics about approvers. Stats about added approvers are sent from userspace.
-type ApproverStats struct {
+// Stats is used to collect kernel space metrics about approvers. Stats about added approvers are sent from userspace.
+type Stats struct {
 	EventApprovedByBasename uint64
 	EventApprovedByFlag     uint64
 }
 
-// ApproverMonitor defines an approver monitor
-type ApproverMonitor struct {
+// Monitor defines an approver monitor
+type Monitor struct {
 	statsdClient      statsd.ClientInterface
 	stats             [2]*lib.Map
 	bufferSelector    *lib.Map
-	statsZero         []ApproverStats
+	statsZero         []Stats
 	activeStatsBuffer uint32
 	numCPU            int
 }
 
 // SendStats send stats
-func (d *ApproverMonitor) SendStats() error {
+func (d *Monitor) SendStats() error {
 	buffer := d.stats[1-d.activeStatsBuffer]
 	iterator := buffer.Iterate()
-	statsAcrossAllCPUs := make([]ApproverStats, d.numCPU)
-	statsByEventType := make([]ApproverStats, model.LastApproverEventType)
+	statsAcrossAllCPUs := make([]Stats, d.numCPU)
+	statsByEventType := make([]Stats, model.LastApproverEventType)
 
 	var eventType uint32
 	for iterator.Next(&eventType, &statsAcrossAllCPUs) {
@@ -84,16 +85,16 @@ func (d *ApproverMonitor) SendStats() error {
 	return d.bufferSelector.Put(ebpf.BufferSelectorApproverMonitorKey, d.activeStatsBuffer)
 }
 
-// NewApproverMonitor returns a new ApproverMonitor
-func NewApproverMonitor(manager *manager.Manager, statsdClient statsd.ClientInterface) (*ApproverMonitor, error) {
+// NewApproverMonitor returns a new Monitor
+func NewApproverMonitor(manager *manager.Manager, statsdClient statsd.ClientInterface) (*Monitor, error) {
 	numCPU, err := utils.NumCPU()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't fetch the host CPU count: %w", err)
 	}
 
-	monitor := &ApproverMonitor{
+	monitor := &Monitor{
 		statsdClient: statsdClient,
-		statsZero:    make([]ApproverStats, numCPU),
+		statsZero:    make([]Stats, numCPU),
 		numCPU:       numCPU,
 	}
 

@@ -24,23 +24,6 @@
   # TODO: understand why they fail more often than Linux jobs on network errors.
   retry: 2
 
-.kitchen_os_windows_old:
-  extends:
-    - .kitchen_azure_x64
-  variables:
-    KITCHEN_PLATFORM: "windows"
-    KITCHEN_OSVERS: "win2012,win2012r2"
-  before_script:  # Note: if you are changing this, remember to also change .kitchen_test_windows_installer, which has a copy of this with less TEST_PLATFORMS defined.
-    - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
-    - cd $DD_AGENT_TESTING_DIR
-    - tasks/kitchen_setup.sh
-  # Windows kitchen tests are slower and more fragile (lots of WinRM::WinRMAuthorizationError and/or execution expired errors)
-  # Give them one more chance before failing.
-  # TODO: understand why they fail more often than Linux jobs on network errors.
-  retry: 2
-  # Kitchen tests on old OSes fail due a Rubygems API deprecation: https://blog.rubygems.org/2023/04/07/dependency-api-deprecation-delayed.html
-  allow_failure: true
-
 # Kitchen: tests
 # --------------
 
@@ -49,7 +32,7 @@
     - .kitchen_azure_x64
   variables:
     KITCHEN_PLATFORM: "windows"
-    KITCHEN_OSVERS: "win2012r2"
+    KITCHEN_OSVERS: "win2016"
   before_script:  # Use a smaller set of TEST_PLATFORMS than .kitchen_os_windows
     - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
     - cd $DD_AGENT_TESTING_DIR
@@ -57,36 +40,33 @@
   script:
     - export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION")
     - tasks/run-test-kitchen.sh windows-install-test $AGENT_MAJOR_VERSION
-  # Rollback tests fail on OG installer
-  allow_failure: true
-
-# Base test for Next Gen installer - only difference with the standard one
-# is that we override the WINDOWS_AGENT_FILE name.
-.kitchen_test_ng_windows_installer:
-  extends:
-    - .kitchen_test_windows_installer
-  script:
-    - export WINDOWS_AGENT_FILE=datadog-agent-ng-$(cd ../.. && inv agent.version --url-safe --major-version $AGENT_MAJOR_VERSION)-1-x86_64
-    - export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION")
-    - export NG_INSTALLER=true
-    - echo $WINDOWS_AGENT_FILE
-    - tasks/run-test-kitchen.sh windows-install-test $AGENT_MAJOR_VERSION
   allow_failure: false
 
-# Base test for Next Gen installer with NPM - only difference with the standard one
-# is that we override the WINDOWS_AGENT_FILE name.
-.kitchen_test_ng_windows_npm_driver_base:
+.kitchen_test_windows_cws_base:
   extends:
     - .kitchen_azure_x64
   before_script:  # test all of the kernels to make sure the driver loads and runs properly
-    - export WINDOWS_AGENT_FILE=datadog-agent-ng-$(inv agent.version --url-safe --major-version $AGENT_MAJOR_VERSION)-1-x86_64
     - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
     - if [ $AGENT_MAJOR_VERSION == "7" ]; then export RELEASE_VERSION=$RELEASE_VERSION_7; else export RELEASE_VERSION=$RELEASE_VERSION_6; fi
+    - export WINDOWS_DDPROCMON_DRIVER=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDPROCMON_DRIVER")
+    - export WINDOWS_DDPROCMON_VERSION=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDPROCMON_VERSION")
+    - export WINDOWS_DDPROCMON_SHASUM=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDPROCMON_SHASUM")
+
     - export WINDOWS_DDNPM_DRIVER=$(inv release.get-release-json-value "$RELEASE_VERSION::WINDOWS_DDNPM_DRIVER")
     - cd $DD_AGENT_TESTING_DIR
     - tasks/kitchen_setup.sh
   script:
-    - tasks/run-test-kitchen.sh windows-npmdriver $AGENT_MAJOR_VERSION
+    - tasks/run-test-kitchen.sh windows-cwsinstall $AGENT_MAJOR_VERSION
+
+.kitchen_test_windows_cws:
+  extends:
+    - .kitchen_test_windows_cws_base
+  variables:
+    KITCHEN_PLATFORM: "windows"
+    KITCHEN_OSVERS: "win2016,win2019,win2019cn,win2022"
+    DEFAULT_KITCHEN_OSVERS: "win2022"
+
+
 
 .kitchen_test_windows_npm_driver_base:
   extends:
@@ -100,23 +80,6 @@
   script:
     - tasks/run-test-kitchen.sh windows-npmdriver $AGENT_MAJOR_VERSION
 
-.kitchen_test_windows_old_npm_driver:
-  extends:
-    - .kitchen_test_windows_npm_driver_base
-  variables:
-    KITCHEN_PLATFORM: "windows"
-    KITCHEN_OSVERS: "win2012r2"
-  # Kitchen tests on old OSes fail due a Rubygems API deprecation: https://blog.rubygems.org/2023/04/07/dependency-api-deprecation-delayed.html
-  allow_failure: true
-
-.kitchen_test_ng_windows_npm_driver:
-  extends:
-    - .kitchen_test_ng_windows_npm_driver_base
-  variables:
-    KITCHEN_PLATFORM: "windows"
-    KITCHEN_OSVERS: "win2016,win2019,win2019cn,win2022"
-    DEFAULT_KITCHEN_OSVERS: "win2022"
-
 .kitchen_test_windows_npm_driver:
   extends:
     - .kitchen_test_windows_npm_driver_base
@@ -124,25 +87,6 @@
     KITCHEN_PLATFORM: "windows"
     KITCHEN_OSVERS: "win2016,win2019,win2019cn,win2022"
     DEFAULT_KITCHEN_OSVERS: "win2022"
-
-# Base test for Next Gen installer with NPM - only difference with the standard one
-# is that we override the WINDOWS_AGENT_FILE name.
-.kitchen_test_ng_windows_npm_installer:
-  extends:
-    - .kitchen_azure_x64
-  variables:
-    KITCHEN_PLATFORM: "windows"
-    KITCHEN_OSVERS: "win2016"
-  before_script:  # Use only 2016 and 2019 for testing that we upgrade properly and don't install the driver when not specified
-    - export WINDOWS_AGENT_FILE=datadog-agent-ng-$(inv agent.version --url-safe --major-version $AGENT_MAJOR_VERSION)-1-x86_64
-    - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
-    - if [ $AGENT_MAJOR_VERSION == "7" ]; then export RELEASE_VERSION=$RELEASE_VERSION_7; else export RELEASE_VERSION=$RELEASE_VERSION_6; fi
-    - export WINDOWS_DDNPM_DRIVER=$(inv release.get-release-json-value "$RELEASE_VERSION::WINDOWS_DDNPM_DRIVER")
-    - cd $DD_AGENT_TESTING_DIR
-    - tasks/kitchen_setup.sh
-  script:
-    - export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION")
-    - tasks/run-test-kitchen.sh windows-npm-test $AGENT_MAJOR_VERSION
 
 .kitchen_test_windows_npm_installer:
   extends:
@@ -163,39 +107,15 @@
 # Kitchen: Test types (test suite * agent flavor + azure location)
 # -------------------------------
 
-.kitchen_test_ng_windows_installer_agent:
-  extends:
-    - .kitchen_test_ng_windows_installer
-    - .kitchen_datadog_agent_flavor
-    - .kitchen_azure_location_north_central_us
-
 .kitchen_test_windows_installer_agent:
   extends:
     - .kitchen_test_windows_installer
     - .kitchen_datadog_agent_flavor
     - .kitchen_azure_location_north_central_us
 
-.kitchen_test_windows_old_installer_driver:
-  extends:
-    - .kitchen_test_windows_old_npm_driver
-    - .kitchen_datadog_agent_flavor
-    - .kitchen_azure_location_north_central_us
-
-.kitchen_test_ng_windows_installer_driver:
-  extends:
-    - .kitchen_test_ng_windows_npm_driver
-    - .kitchen_datadog_agent_flavor
-    - .kitchen_azure_location_north_central_us
-
 .kitchen_test_windows_installer_driver:
   extends:
     - .kitchen_test_windows_npm_driver
-    - .kitchen_datadog_agent_flavor
-    - .kitchen_azure_location_north_central_us
-
-.kitchen_test_ng_windows_installer_npm:
-  extends:
-    - .kitchen_test_ng_windows_npm_installer
     - .kitchen_datadog_agent_flavor
     - .kitchen_azure_location_north_central_us
 
@@ -214,44 +134,19 @@
     - .kitchen_os_windows
   needs: ["deploy_windows_testing-a6"]
 
-.kitchen_scenario_windows_old_a6:
-  extends:
-    - .kitchen_agent_a6
-    - .kitchen_os_windows_old
-  needs: ["deploy_windows_testing-a6"]
-
 .kitchen_scenario_windows_a7:
   extends:
     - .kitchen_agent_a7
     - .kitchen_os_windows
   needs: ["deploy_windows_testing-a7"]
 
-.kitchen_scenario_windows_old_a7:
-  extends:
-    - .kitchen_agent_a7
-    - .kitchen_os_windows_old
-  needs: ["deploy_windows_testing-a7"]
-
 # Kitchen: final test matrix (test types * scenarios)
 # ----------------------------------------------
-
-kitchen_windows_ng_installer_npm_install_scenarios-a7:
-  extends:
-    - .kitchen_scenario_windows_a7
-    - .kitchen_test_ng_windows_installer_npm
 
 kitchen_windows_installer_npm_install_scenarios-a7:
   extends:
     - .kitchen_scenario_windows_a7
     - .kitchen_test_windows_installer_npm
-
-kitchen_windows_ng_installer_npm_driver-a7:
-  # Run NPM driver installer test on branches, on a reduced number of platforms
-  rules:
-    !reference [.on_default_kitchen_tests_a7]
-  extends:
-    - .kitchen_scenario_windows_a7
-    - .kitchen_test_ng_windows_installer_driver
 
 kitchen_windows_installer_npm_driver-a7:
   # Run NPM driver installer test on branches, on a reduced number of platforms
@@ -261,39 +156,19 @@ kitchen_windows_installer_npm_driver-a7:
     - .kitchen_scenario_windows_a7
     - .kitchen_test_windows_installer_driver
 
-kitchen_windows_old_installer_npm_driver-a7:
-  extends:
-    - .kitchen_scenario_windows_a7
-    - .kitchen_test_windows_old_installer_driver
-
 kitchen_windows_installer_agent-a6:
   extends:
     - .kitchen_scenario_windows_a6
     - .kitchen_test_windows_installer_agent
-
-kitchen_windows_ng_installer_agent-a6:
-  extends:
-    - .kitchen_scenario_windows_a6
-    - .kitchen_test_ng_windows_installer_agent
 
 kitchen_windows_installer_agent-a7:
   extends:
     - .kitchen_scenario_windows_a7
     - .kitchen_test_windows_installer_agent
 
-kitchen_windows_ng_installer_agent-a7:
-  extends:
-    - .kitchen_scenario_windows_a7
-    - .kitchen_test_ng_windows_installer_agent
-
 kitchen_windows_chef_agent-a6:
   extends:
     - .kitchen_scenario_windows_a6
-    - .kitchen_test_chef_agent
-
-kitchen_windows_old_chef_agent-a6:
-  extends:
-    - .kitchen_scenario_windows_old_a6
     - .kitchen_test_chef_agent
 
 kitchen_windows_chef_agent-a7:
@@ -304,19 +179,9 @@ kitchen_windows_chef_agent-a7:
     - .kitchen_scenario_windows_a7
     - .kitchen_test_chef_agent
 
-kitchen_windows_old_chef_agent-a7:
-  extends:
-    - .kitchen_scenario_windows_old_a7
-    - .kitchen_test_chef_agent
-
 kitchen_windows_upgrade5_agent-a6:
   extends:
     - .kitchen_scenario_windows_a6
-    - .kitchen_test_upgrade5_agent
-
-kitchen_windows_old_upgrade5_agent-a6:
-  extends:
-    - .kitchen_scenario_windows_old_a6
     - .kitchen_test_upgrade5_agent
 
 kitchen_windows_upgrade5_agent-a7:
@@ -324,19 +189,9 @@ kitchen_windows_upgrade5_agent-a7:
     - .kitchen_scenario_windows_a7
     - .kitchen_test_upgrade5_agent
 
-kitchen_windows_old_upgrade5_agent-a7:
-  extends:
-    - .kitchen_scenario_windows_old_a7
-    - .kitchen_test_upgrade5_agent
-
 kitchen_windows_upgrade6_agent-a6:
   extends:
     - .kitchen_scenario_windows_a6
-    - .kitchen_test_upgrade6_agent
-
-kitchen_windows_old_upgrade6_agent-a6:
-  extends:
-    - .kitchen_scenario_windows_old_a6
     - .kitchen_test_upgrade6_agent
 
 kitchen_windows_upgrade6_agent-a7:
@@ -344,19 +199,9 @@ kitchen_windows_upgrade6_agent-a7:
     - .kitchen_scenario_windows_a7
     - .kitchen_test_upgrade6_agent
 
-kitchen_windows_old_upgrade6_agent-a7:
-  extends:
-    - .kitchen_scenario_windows_old_a7
-    - .kitchen_test_upgrade6_agent
-
 kitchen_windows_upgrade7_agent-a7:
   extends:
     - .kitchen_scenario_windows_a7
-    - .kitchen_test_upgrade7_agent
-
-kitchen_windows_old_upgrade7_agent-a7:
-  extends:
-    - .kitchen_scenario_windows_old_a7
     - .kitchen_test_upgrade7_agent
 
 kitchen_windows_process_agent-a7:
@@ -366,3 +211,11 @@ kitchen_windows_process_agent-a7:
   extends:
     - .kitchen_scenario_windows_a7
     - .kitchen_test_process_agent
+
+kitchen_windows_installer_cws-a7:
+  # Run NPM driver installer test on branches, on a reduced number of platforms
+  rules:
+    !reference [.on_default_kitchen_tests_a7]
+  extends:
+    - .kitchen_scenario_windows_a7
+    - .kitchen_test_windows_cws

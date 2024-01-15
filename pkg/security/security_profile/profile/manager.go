@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package profile holds profile related files
 package profile
 
 import (
@@ -31,7 +32,7 @@ import (
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
+	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -80,7 +81,7 @@ func (efr EventFilteringProfileState) toTag() string {
 type EventFilteringResult uint8
 
 const (
-	// Not applicable, for profil NoProfile and ProfileAtMaxSize state
+	// NA not applicable for profil NoProfile and ProfileAtMaxSize state
 	NA EventFilteringResult = iota
 	// InProfile is used to count the events that matched a profile
 	InProfile
@@ -120,7 +121,7 @@ type ActivityDumpManager interface {
 type SecurityProfileManager struct {
 	config              *config.Config
 	statsdClient        statsd.ClientInterface
-	resolvers           *resolvers.Resolvers
+	resolvers           *resolvers.EBPFResolvers
 	providers           []Provider
 	activityDumpManager ActivityDumpManager
 
@@ -136,32 +137,13 @@ type SecurityProfileManager struct {
 	cacheHit         *atomic.Uint64
 	cacheMiss        *atomic.Uint64
 
-	eventFiltering map[eventFilteringEntry]*atomic.Uint64
-	pathsReducer   *activity_tree.PathsReducer
+	eventFiltering        map[eventFilteringEntry]*atomic.Uint64
+	pathsReducer          *activity_tree.PathsReducer
+	onLocalStorageCleanup func(files []string)
 }
 
 // NewSecurityProfileManager returns a new instance of SecurityProfileManager
-func NewSecurityProfileManager(config *config.Config, statsdClient statsd.ClientInterface, resolvers *resolvers.Resolvers, manager *manager.Manager) (*SecurityProfileManager, error) {
-	var providers []Provider
-
-	// instantiate directory provider
-	if len(config.RuntimeSecurity.SecurityProfileDir) != 0 {
-		dirProvider, err := NewDirectoryProvider(config.RuntimeSecurity.SecurityProfileDir, config.RuntimeSecurity.SecurityProfileWatchDir)
-		if err != nil {
-			return nil, fmt.Errorf("couldn't instantiate a new security profile directory provider: %w", err)
-		}
-		providers = append(providers, dirProvider)
-	}
-
-	// instantiate remote-config provider
-	if config.RuntimeSecurity.RemoteConfigurationEnabled && config.RuntimeSecurity.SecurityProfileRCEnabled {
-		rcProvider, err := rconfig.NewRCProfileProvider()
-		if err != nil {
-			return nil, fmt.Errorf("couldn't instantiate a new security profile remote-config provider: %w", err)
-		}
-		providers = append(providers, rcProvider)
-	}
-
+func NewSecurityProfileManager(config *config.Config, statsdClient statsd.ClientInterface, resolvers *resolvers.EBPFResolvers, manager *manager.Manager) (*SecurityProfileManager, error) {
 	profileCache, err := simplelru.NewLRU[cgroupModel.WorkloadSelector, *SecurityProfile](config.RuntimeSecurity.SecurityProfileCacheSize, nil)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create security profile cache: %w", err)
@@ -180,7 +162,6 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 	m := &SecurityProfileManager{
 		config:                     config,
 		statsdClient:               statsdClient,
-		providers:                  providers,
 		manager:                    manager,
 		securityProfileMap:         securityProfileMap,
 		securityProfileSyscallsMap: securityProfileSyscallsMap,
@@ -192,6 +173,32 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 		eventFiltering:             make(map[eventFilteringEntry]*atomic.Uint64),
 		pathsReducer:               activity_tree.NewPathsReducer(),
 	}
+
+	// instantiate directory provider
+	if len(config.RuntimeSecurity.SecurityProfileDir) != 0 {
+		// override the status if autosuppression is enabled
+		var status model.Status
+		if config.RuntimeSecurity.SecurityProfileAutoSuppressionEnabled {
+			status = model.AnomalyDetection | model.AutoSuppression
+		}
+
+		dirProvider, err := NewDirectoryProvider(config.RuntimeSecurity.SecurityProfileDir, config.RuntimeSecurity.SecurityProfileWatchDir, status)
+		if err != nil {
+			return nil, fmt.Errorf("couldn't instantiate a new security profile directory provider: %w", err)
+		}
+		m.providers = append(m.providers, dirProvider)
+		m.onLocalStorageCleanup = dirProvider.OnLocalStorageCleanup
+	}
+
+	// instantiate remote-config provider
+	if config.RuntimeSecurity.RemoteConfigurationEnabled && config.RuntimeSecurity.SecurityProfileRCEnabled {
+		rcProvider, err := rconfig.NewRCProfileProvider()
+		if err != nil {
+			return nil, fmt.Errorf("couldn't instantiate a new security profile remote-config provider: %w", err)
+		}
+		m.providers = append(m.providers, rcProvider)
+	}
+
 	m.initMetricsMap()
 
 	// register the manager to the provider(s)
@@ -199,6 +206,13 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 		p.SetOnNewProfileCallback(m.OnNewProfileEvent)
 	}
 	return m, nil
+}
+
+// OnLocalStorageCleanup performs the necessary cleanup when the Activity Dump Manager local storage cleans up an entry
+func (m *SecurityProfileManager) OnLocalStorageCleanup(files []string) {
+	if m.onLocalStorageCleanup != nil {
+		m.onLocalStorageCleanup(files)
+	}
 }
 
 func (m *SecurityProfileManager) initMetricsMap() {
@@ -411,6 +425,8 @@ func (m *SecurityProfileManager) OnCGroupDeletedEvent(workload *cgroupModel.Cach
 func (m *SecurityProfileManager) ShouldDeleteProfile(profile *SecurityProfile) {
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
+	m.pendingCacheLock.Lock()
+	defer m.pendingCacheLock.Unlock()
 	profile.Lock()
 	defer profile.Unlock()
 
@@ -440,8 +456,6 @@ func (m *SecurityProfileManager) ShouldDeleteProfile(profile *SecurityProfile) {
 	}
 
 	// add profile in cache
-	m.pendingCacheLock.Lock()
-	defer m.pendingCacheLock.Unlock()
 	m.pendingCache.Add(profile.selector, profile)
 }
 
@@ -462,6 +476,9 @@ func (m *SecurityProfileManager) OnNewProfileEvent(selector cgroupModel.Workload
 		return
 	}
 
+	m.pendingCacheLock.Lock()
+	defer m.pendingCacheLock.Unlock()
+
 	profile.Lock()
 	defer profile.Unlock()
 	profile.loadedInKernel = false
@@ -478,8 +495,6 @@ func (m *SecurityProfileManager) OnNewProfileEvent(selector cgroupModel.Workload
 
 	if !ok {
 		// insert in cache and leave
-		m.pendingCacheLock.Lock()
-		defer m.pendingCacheLock.Unlock()
 		m.pendingCache.Add(selector, profile)
 		return
 	}
@@ -511,8 +526,18 @@ func (m *SecurityProfileManager) incrementEventFilteringStat(eventType model.Eve
 
 // SendStats sends metrics about the Security Profile manager
 func (m *SecurityProfileManager) SendStats() error {
+	// Send metrics for profile provider first to prevent a deadlock with the call to "dp.onNewProfileCallback" on
+	// "m.profilesLock"
+	for _, provider := range m.providers {
+		if err := provider.SendStats(m.statsdClient); err != nil {
+			return err
+		}
+	}
+
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
+	m.pendingCacheLock.Lock()
+	defer m.pendingCacheLock.Unlock()
 
 	profileStats := make(map[model.Status]map[bool]float64)
 	for _, profile := range m.profiles {
@@ -524,7 +549,7 @@ func (m *SecurityProfileManager) SendStats() error {
 		if profileStats[profile.Status] == nil {
 			profileStats[profile.Status] = make(map[bool]float64)
 		}
-		profileStats[profile.Status][profile.loadedInKernel] += 1
+		profileStats[profile.Status][profile.loadedInKernel]++
 	}
 
 	for status, counts := range profileStats {
@@ -541,8 +566,6 @@ func (m *SecurityProfileManager) SendStats() error {
 		}
 	}
 
-	m.pendingCacheLock.Lock()
-	defer m.pendingCacheLock.Unlock()
 	if val := float64(m.pendingCache.Len()); val > 0 {
 		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileCacheLen, val, []string{}, 1.0); err != nil {
 			return fmt.Errorf("couldn't send MetricSecurityProfileCacheLen: %w", err)
@@ -588,7 +611,7 @@ func (m *SecurityProfileManager) loadProfile(profile *SecurityProfile) error {
 
 	// push kernel space filters
 	if err := m.securityProfileSyscallsMap.Put(profile.profileCookie, profile.generateSyscallsFilters()); err != nil {
-		return fmt.Errorf("couldn't push syscalls filter: %w", err)
+		return fmt.Errorf("couldn't push syscalls filter (check map size limit ?): %w", err)
 	}
 
 	// TODO: load generated programs
@@ -612,7 +635,7 @@ func (m *SecurityProfileManager) unloadProfile(profile *SecurityProfile) {
 // linkProfile (thread unsafe) updates the kernel space mapping between a workload and its profile
 func (m *SecurityProfileManager) linkProfile(profile *SecurityProfile, workload *cgroupModel.CacheEntry) {
 	if err := m.securityProfileMap.Put([]byte(workload.ID), profile.generateKernelSecurityProfileDefinition()); err != nil {
-		seclog.Errorf("couldn't link workload %s (selector: %s) with profile %s: %v", workload.ID, workload.WorkloadSelector.String(), profile.Metadata.Name, err)
+		seclog.Errorf("couldn't link workload %s (selector: %s) with profile %s (check map size limit ?): %v", workload.ID, workload.WorkloadSelector.String(), profile.Metadata.Name, err)
 		return
 	}
 	seclog.Infof("workload %s (selector: %s) successfully linked to profile %s", workload.ID, workload.WorkloadSelector.String(), profile.Metadata.Name)
@@ -625,11 +648,12 @@ func (m *SecurityProfileManager) unlinkProfile(profile *SecurityProfile, workloa
 	}
 
 	if err := m.securityProfileMap.Delete([]byte(workload.ID)); err != nil {
-		seclog.Errorf("couldn't unlink workload %s with profile %s: %v", workload.WorkloadSelector.String(), profile.Metadata.Name, err)
+		seclog.Errorf("couldn't unlink workload %s (selector: %s) with profile %s: %v", workload.ID, workload.WorkloadSelector.String(), profile.Metadata.Name, err)
 	}
 	seclog.Infof("workload %s (selector: %s) successfully unlinked from profile %s", workload.ID, workload.WorkloadSelector.String(), profile.Metadata.Name)
 }
 
+// LookupEventInProfiles lookups event in profiles
 func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	// ignore events with an error
 	if event.Error != nil {
@@ -676,7 +700,14 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 		return
 	case StableEventType:
 		// check if the event is in its profile
-		found, err := profile.ActivityTree.Contains(event, activity_tree.ProfileDrift, m.resolvers)
+		// and if this is not an exec event, check if we can benefit of the occasion to add missing processes
+		insertMissingProcesses := false
+		if event.GetEventType() != model.ExecEventType {
+			if execState := m.getEventTypeState(profile, event, model.ExecEventType); execState == AutoLearning || execState == WorkloadWarmup {
+				insertMissingProcesses = true
+			}
+		}
+		found, err := profile.ActivityTree.Contains(event, insertMissingProcesses, activity_tree.ProfileDrift, m.resolvers)
 		if err != nil {
 			// ignore, evaluation failed
 			m.incrementEventFilteringStat(event.GetEventType(), NoProfile, NA)
@@ -694,82 +725,39 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 
 // tryAutolearn tries to autolearn the input event. It returns the profile state: stable, unstable, autolearning or workloadwarmup
 func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *model.Event) EventFilteringProfileState {
-	var nodeType activity_tree.NodeGenerationType
-	var profileState EventFilteringProfileState
-
 	profile.eventTypeStateLock.Lock()
 	defer profile.eventTypeStateLock.Unlock()
-	eventState, ok := profile.eventTypeState[event.GetEventType()]
-	if !ok {
-		eventState = &EventTypeState{
-			lastAnomalyNano: profile.loadedNano,
-			state:           NoProfile,
-		}
-		profile.eventTypeState[event.GetEventType()] = eventState
-	} else if eventState.state == UnstableEventType {
-		// If for the given event type we already are on UnstableEventType, just return
-		// (once reached, this state is immutable)
-		m.incrementEventFilteringStat(event.GetEventType(), UnstableEventType, NA)
-		return UnstableEventType
-	}
 
-	// check if we are at the beginning of a workload lifetime
-	if event.ResolveEventTime().Sub(time.Unix(0, int64(event.ContainerContext.CreatedAt))) < m.config.RuntimeSecurity.AnomalyDetectionWorkloadWarmupPeriod {
-		nodeType = activity_tree.WorkloadWarmup
-		profileState = WorkloadWarmup
-	} else {
-		// If for the given event type we already are on StableEventType (and outside of the warmup period), just return
-		if eventState.state == StableEventType {
-			return StableEventType
-		}
-
-		// did we reached the stable state time limit ?
-		if time.Duration(event.TimestampRaw-eventState.lastAnomalyNano) >= m.config.RuntimeSecurity.GetAnomalyDetectionMinimumStablePeriod(event.GetEventType()) {
-			eventState.state = StableEventType
-			// call the activity dump manager to stop dumping workloads from the current profile selector
-			if m.activityDumpManager != nil {
-				m.activityDumpManager.StopDumpsWithSelector(profile.selector)
-			}
-			return StableEventType
-		}
-
-		// did we reached the unstable time limit ?
-		if time.Duration(event.TimestampRaw-profile.loadedNano) >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileTimeThreshold {
-			eventState.state = UnstableEventType
-			return UnstableEventType
-		}
-
+	profileState := m.getEventTypeState(profile, event, event.GetEventType())
+	var nodeType activity_tree.NodeGenerationType
+	if profileState == AutoLearning {
 		nodeType = activity_tree.ProfileDrift
-		profileState = AutoLearning
-	}
-
-	// check if the unstable size limit was reached
-	if profile.ActivityTree.Stats.ApproximateSize() >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileSizeThreshold {
-		// for each event type we want to reach either the StableEventType or UnstableEventType states, even
-		// if we already reach the AnomalyDetectionUnstableProfileSizeThreshold. That's why we have to keep
-		// rearming the lastAnomalyNano timer based on if it's something new or not.
-		found, err := profile.ActivityTree.Contains(event, nodeType, m.resolvers)
-		if err != nil {
-			m.incrementEventFilteringStat(event.GetEventType(), NoProfile, NA)
-			return NoProfile
-		} else if !found {
-			eventState.lastAnomalyNano = event.TimestampRaw
-		} else if profileState == WorkloadWarmup {
-			// if it's NOT something's new AND we are on container warmup period, just pretend
-			// we are in learning/warmup phase (as we know, this event is already present on the profile)
-			return WorkloadWarmup
-		}
-		return ProfileAtMaxSize
+	} else if profileState == WorkloadWarmup {
+		nodeType = activity_tree.WorkloadWarmup
+	} else {
+		return profileState
 	}
 
 	// here we are either in AutoLearning or WorkloadWarmup
 	// try to insert the event in the profile
-	newEntry, err := profile.ActivityTree.Insert(event, nodeType, m.resolvers)
+
+	// defines if we want or not to insert missing processes
+	insertMissingProcesses := false
+	if event.GetEventType() == model.ExecEventType {
+		insertMissingProcesses = true
+	} else if execState := m.getEventTypeState(profile, event, model.ExecEventType); execState == AutoLearning || execState == WorkloadWarmup {
+		insertMissingProcesses = true
+	}
+
+	newEntry, err := profile.ActivityTree.Insert(event, insertMissingProcesses, nodeType, m.resolvers)
 	if err != nil {
 		m.incrementEventFilteringStat(event.GetEventType(), NoProfile, NA)
 		return NoProfile
 	} else if newEntry {
-		eventState.lastAnomalyNano = event.TimestampRaw
+		eventState, ok := profile.eventTypeState[event.GetEventType()]
+		if ok { // should always be the case
+			eventState.lastAnomalyNano = event.TimestampRaw
+		}
 		m.incrementEventFilteringStat(event.GetEventType(), profileState, NotInProfile)
 	} else { // no newEntry
 		m.incrementEventFilteringStat(event.GetEventType(), profileState, InProfile)
@@ -814,7 +802,7 @@ func (m *SecurityProfileManager) SaveSecurityProfile(params *api.SecurityProfile
 	}
 
 	p := m.GetProfile(selector)
-	if p == nil {
+	if p == nil || p.Status == 0 || p.ActivityTree == nil {
 		return &api.SecurityProfileSaveMessage{
 			Error: "security profile not found",
 		}, nil
@@ -858,6 +846,7 @@ func (m *SecurityProfileManager) FetchSilentWorkloads() map[cgroupModel.Workload
 
 	for selector, profile := range m.profiles {
 		profile.Lock()
+		//nolint:gosimple // TODO(SEC) Fix gosimple linter
 		if profile.loadedInKernel == false {
 			out[selector] = profile.Instances
 		}
@@ -865,4 +854,79 @@ func (m *SecurityProfileManager) FetchSilentWorkloads() map[cgroupModel.Workload
 	}
 
 	return out
+}
+
+func (m *SecurityProfileManager) getEventTypeState(profile *SecurityProfile, event *model.Event, eventType model.EventType) EventFilteringProfileState {
+	// eventTypeStateLock already locked here
+
+	var nodeType activity_tree.NodeGenerationType
+	var profileState EventFilteringProfileState
+
+	eventState, ok := profile.eventTypeState[eventType]
+	if !ok {
+		eventState = &EventTypeState{
+			lastAnomalyNano: profile.loadedNano,
+			state:           NoProfile,
+		}
+		profile.eventTypeState[eventType] = eventState
+	} else if eventState.state == UnstableEventType {
+		// If for the given event type we already are on UnstableEventType, just return
+		// (once reached, this state is immutable)
+		if eventType == event.GetEventType() { // increment stat only once for each event
+			m.incrementEventFilteringStat(eventType, UnstableEventType, NA)
+		}
+		return UnstableEventType
+	}
+
+	// check if we are at the beginning of a workload lifetime
+	if event.ResolveEventTime().Sub(time.Unix(0, int64(event.ContainerContext.CreatedAt))) < m.config.RuntimeSecurity.AnomalyDetectionWorkloadWarmupPeriod {
+		nodeType = activity_tree.WorkloadWarmup
+		profileState = WorkloadWarmup
+	} else {
+		// If for the given event type we already are on StableEventType (and outside of the warmup period), just return
+		if eventState.state == StableEventType {
+			return StableEventType
+		}
+
+		if eventType == event.GetEventType() { // update the stable/unstable states only for the event event type
+			// did we reached the stable state time limit ?
+			if time.Duration(event.TimestampRaw-eventState.lastAnomalyNano) >= m.config.RuntimeSecurity.GetAnomalyDetectionMinimumStablePeriod(eventType) {
+				eventState.state = StableEventType
+				// call the activity dump manager to stop dumping workloads from the current profile selector
+				if m.activityDumpManager != nil {
+					m.activityDumpManager.StopDumpsWithSelector(profile.selector)
+				}
+				return StableEventType
+			}
+
+			// did we reached the unstable time limit ?
+			if time.Duration(event.TimestampRaw-profile.loadedNano) >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileTimeThreshold {
+				eventState.state = UnstableEventType
+				return UnstableEventType
+			}
+		}
+
+		nodeType = activity_tree.ProfileDrift
+		profileState = AutoLearning
+	}
+
+	// check if the unstable size limit was reached, but only for the event event type
+	if eventType == event.GetEventType() && profile.ActivityTree.Stats.ApproximateSize() >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileSizeThreshold {
+		// for each event type we want to reach either the StableEventType or UnstableEventType states, even
+		// if we already reach the AnomalyDetectionUnstableProfileSizeThreshold. That's why we have to keep
+		// rearming the lastAnomalyNano timer based on if it's something new or not.
+		found, err := profile.ActivityTree.Contains(event, false /*insertMissingProcesses*/, nodeType, m.resolvers)
+		if err != nil {
+			m.incrementEventFilteringStat(eventType, NoProfile, NA)
+			return NoProfile
+		} else if !found {
+			eventState.lastAnomalyNano = event.TimestampRaw
+		} else if profileState == WorkloadWarmup {
+			// if it's NOT something's new AND we are on container warmup period, just pretend
+			// we are in learning/warmup phase (as we know, this event is already present on the profile)
+			return WorkloadWarmup
+		}
+		return ProfileAtMaxSize
+	}
+	return profileState
 }

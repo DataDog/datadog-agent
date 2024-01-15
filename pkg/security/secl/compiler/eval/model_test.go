@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package eval holds eval related files
 package eval
 
 import (
@@ -165,7 +166,7 @@ func (m *testModel) GetIterator(field Field) (Iterator, error) {
 	return nil, &ErrIteratorNotSupported{Field: field}
 }
 
-func (m *testModel) GetEvaluator(field Field, regID RegisterID) (Evaluator, error) {
+func (m *testModel) GetEvaluator(field Field, _ RegisterID) (Evaluator, error) {
 	switch field {
 
 	case "network.ip":

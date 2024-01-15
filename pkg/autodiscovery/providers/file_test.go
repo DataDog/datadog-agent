@@ -18,7 +18,7 @@ import (
 
 func TestCollect(t *testing.T) {
 	ctx := context.Background()
-	config.Datadog.Set("ignore_autoconf", []string{"ignored"})
+	config.Datadog.SetWithoutSource("ignore_autoconf", []string{"ignored"})
 	paths := []string{"tests", "foo/bar"}
 	ResetReader(paths)
 	provider := NewFileConfigProvider()

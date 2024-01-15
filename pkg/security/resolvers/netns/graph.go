@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package netns holds netns related files
 package netns
 
 import (

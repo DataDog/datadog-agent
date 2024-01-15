@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"runtime"
 	"sync"
 	"syscall"
@@ -43,7 +44,6 @@ type Tracer struct {
 	reverseDNS      dns.ReverseDNS
 	usmMonitor      usm.Monitor
 
-	activeBuffer *network.ConnectionBuffer
 	closedBuffer *network.ConnectionBuffer
 	connLock     sync.Mutex
 
@@ -94,7 +94,6 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		stopChan:        make(chan struct{}),
 		timerInterval:   defaultPollInterval,
 		state:           state,
-		activeBuffer:    network.NewConnectionBuffer(defaultBufferSize, minBufferSize),
 		closedBuffer:    network.NewConnectionBuffer(defaultBufferSize, minBufferSize),
 		reverseDNS:      reverseDNS,
 		usmMonitor:      newUSMMonitor(config, di.GetHandle()),
@@ -153,7 +152,12 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.connLock.Lock()
 	defer t.connLock.Unlock()
 
-	_, err := t.driverInterface.GetOpenConnectionStats(t.activeBuffer, func(c *network.ConnectionStats) bool {
+	defer func() {
+		t.closedBuffer.Reset()
+	}()
+
+	buffer := network.ClientPool.Get(clientID)
+	_, err := t.driverInterface.GetOpenConnectionStats(buffer.ConnectionBuffer, func(c *network.ConnectionStats) bool {
 		return !t.shouldSkipConnection(c)
 	})
 	if err != nil {
@@ -165,7 +169,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving closed connections from driver: %w", err)
 	}
-	activeConnStats := t.activeBuffer.Connections()
+	activeConnStats := buffer.Connections()
 	closedConnStats := t.closedBuffer.Connections()
 
 	// check for expired clients in the state
@@ -180,29 +184,29 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), nil)
 	}
 
-	t.activeBuffer.Reset()
-	t.closedBuffer.Reset()
-
 	ips := make(map[util.Address]struct{}, len(delta.Conns)/2)
 	for _, conn := range delta.Conns {
 		ips[conn.Source] = struct{}{}
 		ips[conn.Dest] = struct{}{}
 	}
-	names := t.reverseDNS.Resolve(ips)
-	telemetryDelta := t.state.GetTelemetryDelta(clientID, t.getConnTelemetry())
-	return &network.Connections{
-		BufferedData:  delta.BufferedData,
-		HTTP:          delta.HTTP,
-		DNS:           names,
-		DNSStats:      delta.DNSStats,
-		ConnTelemetry: telemetryDelta,
-	}, nil
+
+	buffer.Assign(delta.Conns)
+	conns := network.NewConnections(buffer)
+	conns.DNS = t.reverseDNS.Resolve(ips)
+	conns.ConnTelemetry = t.state.GetTelemetryDelta(clientID, t.getConnTelemetry())
+	conns.HTTP = delta.HTTP
+	conns.DNSStats = delta.DNSStats
+	return conns, nil
 }
 
 // RegisterClient registers the client
 func (t *Tracer) RegisterClient(clientID string) error {
 	t.state.RegisterClient(clientID)
 	return nil
+}
+
+func (t *Tracer) removeClient(clientID string) {
+	t.state.RemoveClient(clientID)
 }
 
 func (t *Tracer) getConnTelemetry() map[network.ConnTelemetryType]int64 {
@@ -234,27 +238,35 @@ func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 }
 
 // DebugEBPFMaps is not implemented on this OS for Tracer
-func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) {
-	return "", ebpf.ErrNotImplemented
+//
+//nolint:revive // TODO(WKIT) Fix revive linter
+func (t *Tracer) DebugEBPFMaps(_ io.Writer, _ ...string) error {
+	return ebpf.ErrNotImplemented
 }
 
 // DebugCachedConntrack is not implemented on this OS for Tracer
+//
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (t *Tracer) DebugCachedConntrack(ctx context.Context) (interface{}, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 
 // DebugHostConntrack is not implemented on this OS for Tracer
+//
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 
 // DebugDumpProcessCache is not implemented on this OS for Tracer
+//
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 
 func newUSMMonitor(c *config.Config, dh driver.Handle) usm.Monitor {
-	if !c.EnableHTTPMonitoring && !c.EnableHTTPSMonitoring {
+	if !c.EnableHTTPMonitoring && !c.EnableNativeTLSMonitoring {
 		return nil
 	}
 	log.Infof("http monitoring has been enabled")

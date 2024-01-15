@@ -183,9 +183,12 @@
               {{- range $check,$instances := .checks.initialized_checks }}
                 {{ $check -}}<br>
                 {{- range $instance := $instances }}
-                  {{- range $k,$v := $instance }}
-                      {{ $k }} : {{ $v }}<br>
-                  {{- end -}}
+                    instance_name: {{ .instance_name }}<br>
+                    metric_count: {{ .metric_count }}<br>
+                    service_check_count: {{ .service_check_count }}<br>
+                    message: {{ .message }}<br>
+                    status: {{ .status }}<br>
+                    <br>
                 {{- end -}}
               {{- end }}
             {{- end -}}
@@ -265,24 +268,23 @@
           </span>
         {{- end}}
       {{- end -}}
-      {{/* The subsection `On-disk storage` is not inside `{{- with .forwarderStats -}}` as it need to access `.config` */}}
-      <span class="stat_subtitle">On-disk storage</span>
-      <span class="stat_subdata">
-      {{- if .config.forwarder_storage_max_size_in_bytes }}
-        {{- if .forwarderStats.FileStorage.CurrentSizeInBytes }}
-        Disk usage in bytes: {{ .forwarderStats.FileStorage.CurrentSizeInBytes }}<br>
-        Number of files: {{ .forwarderStats.FileStorage.FilesCount }}<br>
-        Number of files dropped: {{ .forwarderStats.FileStorage.FilesRemovedCount }}<br>
-        Deserialization errors count: {{ .forwarderStats.FileStorage.DeserializeErrorsCount }}<br>
-        Outdated files removed at startup: {{ .forwarderStats.RemovalPolicy.OutdatedFilesCount }}<br>
-        {{- else }}
-        Enabled, not in-use.<br>
-        {{- end}}
-      {{- else }}
-        On-disk storage is disabled. Configure `forwarder_storage_max_size_in_bytes` to enable it.<br>
-      {{- end}}
-      </span>
       {{- with .forwarderStats -}}
+        <span class="stat_subtitle">On-disk storage</span>
+        <span class="stat_subdata">
+        {{- if .forwarder_storage_max_size_in_bytes }}
+          {{- if .FileStorage.CurrentSizeInBytes }}
+          Disk usage in bytes: {{ .FileStorage.CurrentSizeInBytes }}<br>
+          Number of files: {{ .FileStorage.FilesCount }}<br>
+          Number of files dropped: {{ .FileStorage.FilesRemovedCount }}<br>
+          Deserialization errors count: {{ .FileStorage.DeserializeErrorsCount }}<br>
+          Outdated files removed at startup: {{ .RemovalPolicy.OutdatedFilesCount }}<br>
+          {{- else }}
+          Enabled, not in-use.<br>
+          {{- end}}
+        {{- else }}
+          On-disk storage is disabled. Configure `forwarder_storage_max_size_in_bytes` to enable it.<br>
+        {{- end}}
+        </span>
         {{- if .APIKeyStatus}}
           <span class="stat_subtitle">API Keys Status</span>
           <span class="stat_subdata">
@@ -290,7 +292,7 @@
               {{$key}}: {{$value}}<br>
             {{- end -}}
           </span>
-        {{- end}}        
+        {{- end}}
         {{- if .APIKeyFailure}}
           <span class="stat_subtitle">API Keys Errors</span>
           <span class="stat_subdata">
@@ -476,24 +478,116 @@
     </span>
   </div>
 
-  <div class="stat" id="apmStats">
-    <span class="stat_title">APM</span>
-    <span class="stat_data">Loading...</span>
-  </div>
-
   <div class="stat">
-    <span class="stat_title">SNMP Traps</span>
+    <span class="stat_title">APM</span>
     <span class="stat_data">
-      {{- with .snmpTrapsStats -}}
+      {{- with .apmStats -}}
         {{- if .error }}
+          Not running or unreachable on localhost:{{.port}}<br>
           Error: {{.error}}<br>
+        {{- else}}
+          Status: Running<br>
+          Pid: {{.pid}}<br>
+          Uptime: {{.uptime}} seconds<br>
+          Mem alloc: {{humanize .memstats.Alloc}} bytes<br>
+          Hostname: {{.config.Hostname}}<br>
+          Receiver: {{.config.ReceiverHost}}:{{.config.ReceiverPort}}<br>
+          Endpoints:
+          <span class="stat_subdata">
+            {{- range $i, $e := .config.Endpoints}}
+              {{ $e.Host }}<br />
+            {{- end }}
+          </span>
+          <span class="stat_subtitle">Receiver (previous minute)</span>
+          <span class="stat_subdata">
+            {{- if eq (len .receiver) 0}}
+              No traces received in the previous minute.<br>
+            {{ else }}
+              {{ range $i, $ts := .receiver }}
+                From {{if $ts.Lang}}{{ $ts.Lang }} {{ $ts.LangVersion }} ({{ $ts.Interpreter }}), client {{ $ts.TracerVersion }}{{else}}unknown clients{{end}}
+                <span class="stat_subdata">
+                  Traces received: {{ $ts.TracesReceived }} ({{ humanize $ts.TracesBytes }} bytes)<br>
+                  Spans received: {{ $ts.SpansReceived }}
+                  {{ with $ts.WarnString }}
+                    <br>WARNING: {{ . }}</br>
+                  {{ end }}
+                </span>
+              {{ end }}
+            {{ end }}
+
+            {{range $key, $value := .ratebyservice_filtered -}}
+              {{- if eq $key "service:,env:" -}}
+                Default priority sampling rate: {{percent $value}}%
+              {{- else}}
+                Priority sampling rate for '{{ $key }}': {{percent $value}}%
+              {{- end}}
+            {{- end }}
+          </span>
+          <span class="stat_subtitle">Writer (previous minute)</span>
+          <span class="stat_subdata">
+            Traces: {{.trace_writer.Payloads}} payloads, {{.trace_writer.Traces}} traces, {{.trace_writer.Events}} events, {{humanize .trace_writer.Bytes}} bytes<br>
+            {{- if gt .trace_writer.Errors 0.0}}WARNING: Traces API errors (1 min): {{.trace_writer.Errors}}{{end}}
+            Stats: {{.stats_writer.Payloads}} payloads, {{.stats_writer.StatsBuckets}} stats buckets, {{humanize .stats_writer.Bytes}} bytes<br>
+            {{- if gt .stats_writer.Errors 0.0}}WARNING: Stats API errors (1 min): {{.stats_writer.Errors}}{{end}}
+          </span>
         {{- end }}
-        {{- range $key, $value := .metrics}}
-          {{formatTitle $key}}: {{humanize $value}}<br>
-        {{- end }}
-      {{- end -}}
+      {{ end }}
     </span>
   </div>
+
+  {{- with .snmpTrapsStats -}}
+    <div class="stat">
+      <span class="stat_title">SNMP Traps</span>
+      <span class="stat_data">
+          {{- if .error }}
+            Error: {{.error}}<br>
+          {{- end }}
+          {{- range $key, $value := .metrics}}
+            {{formatTitle $key}}: {{humanize $value}}<br>
+          {{- end }}
+      </span>
+    </div>
+  {{- end -}}
+
+  {{- with .netflowStats -}}
+    <div class="stat">
+      <span class="stat_title">NetFlow</span>
+      <span class="stat_data">
+          Total Listeners: {{.TotalListeners}}
+          <br>Open Listeners: {{.OpenListeners}}
+          <br>Closed Listeners: {{.ClosedListeners}}
+          {{ if .OpenListeners }}
+          <span class="stat_subtitle">Open Listener Details</span>
+          {{- range $index, $NetflowListenerStatus := .WorkingListenerDetails }}
+          BindHost: {{$NetflowListenerStatus.Config.BindHost}}
+          <br>FlowType: {{$NetflowListenerStatus.Config.FlowType}}
+          <br>Port: {{$NetflowListenerStatus.Config.Port}}
+          <br>Workers: {{$NetflowListenerStatus.Config.Workers}}
+          <br>Namespace: {{$NetflowListenerStatus.Config.Namespace}}
+          <br>Flows Received: {{$NetflowListenerStatus.FlowCount}}
+          <br>
+          <br>
+          {{- end }}
+          {{ end }}
+          <br>
+          {{ if .ClosedListeners }}
+          <br>
+          <span class="stat_subtitle">Closed Listener Details</span>
+          {{- range $index, $NetflowListenerStatus := .ClosedListenerDetails }}
+          BindHost: {{$NetflowListenerStatus.Config.BindHost}}
+          <br>FlowType: {{$NetflowListenerStatus.Config.FlowType}}
+          <br>Port: {{$NetflowListenerStatus.Config.Port}}
+          <br>Workers: {{$NetflowListenerStatus.Config.Workers}}
+          <br>Namespace: {{$NetflowListenerStatus.Config.Namespace}}
+          <br>Error: {{$NetflowListenerStatus.Error}}
+          <br>
+          <br>
+          {{- end }}
+          {{ end }}
+      </span>
+    </div>
+  {{- end -}}
+
 
   <div class="stat">
     <span class="stat_title">Remote Configuration</span>

@@ -4,7 +4,6 @@
 // Copyright 2014-present Datadog, Inc.
 
 //go:build !android
-// +build !android
 
 // Package platform regroups collecting information about the platform
 package platform

@@ -1,33 +1,30 @@
 #!/bin/bash
+set -eEuxo pipefail
 
-set -eo xtrace
-
-GOVERSION=$1
-RETRY_COUNT=$2
-ARCH=$3
-RUNNER_CMD="$(shift 3; echo "$*")"
-
-KITCHEN_DOCKERS=/kitchen-docker
+retry_count=$1
+pkgs_run_config_file=$2
+docker_dir=/kmt-docker
 
 # Add provisioning steps here !
-## Set go version correctly
-eval $(gimme "$GOVERSION")
 ## Start docker
 systemctl start docker
 ## Load docker images
-[ -d $KITCHEN_DOCKERS ] && find $KITCHEN_DOCKERS -maxdepth 1 -type f -exec docker load -i {} \;
-
+if [[ -d "${docker_dir}" ]]; then
+  find "${docker_dir}" -maxdepth 1 -type f -exec docker load -i {} \;
+fi
 # VM provisioning end !
 
 # Start tests
-IP=$(ip route get 8.8.8.8 | grep -Po '(?<=(src ))(\S+)')
-rm -rf /ci-visibility
+code=0
+/test-runner -retry "${retry_count}" -packages-run-config "${pkgs_run_config_file}" || code=$?
 
-CODE=0
-/test-runner -retry $RETRY_COUNT $RUNNER_CMD || CODE=$?
+if [[ -f "/job_env.txt" ]]; then
+    cp /job_env.txt /ci-visibility/junit/
+else
+    echo "job_env.txt not found. Continuing without it."
+fi
 
-pushd /ci-visibility
-tar czvf testjson.tar.gz testjson
-tar czvf junit.tar.gz junit
+tar -C /ci-visibility/testjson -czvf /ci-visibility/testjson.tar.gz .
+tar -C /ci-visibility/junit -czvf /ci-visibility/junit.tar.gz .
 
-exit $CODE
+exit ${code}

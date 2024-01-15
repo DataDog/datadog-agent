@@ -11,15 +11,24 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	workloadmetatesting "github.com/DataDog/datadog-agent/pkg/workloadmeta/testing"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestProcessEvents(t *testing.T) {
-	store := workloadmetatesting.NewStore()
+	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		config.MockModule(),
+		logimpl.MockModule(),
+		collectors.GetCatalog(),
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModuleV2(),
+	))
 
 	cp := &ContainerConfigProvider{
 		workloadmetaStore: store,
@@ -287,6 +296,35 @@ func TestGenerateConfig(t *testing.T) {
 			expectedErr: nil,
 		},
 		{
+			name: "Custom check ID with Init Container",
+			entity: &workloadmeta.KubernetesPod{
+				EntityMeta: workloadmeta.EntityMeta{
+					Annotations: map[string]string{
+						"ad.datadoghq.com/nginx.check.id":            "nginx-custom",
+						"ad.datadoghq.com/nginx-custom.check_names":  "[\"http_check\"]",
+						"ad.datadoghq.com/nginx-custom.init_configs": "[{}]",
+						"ad.datadoghq.com/nginx-custom.instances":    "[{\"name\": \"Other service\", \"url\": \"http://%%host_external%%\", \"timeout\": 1}]",
+					},
+				},
+				InitContainers: []workloadmeta.OrchestratorContainer{
+					{
+						Name: "nginx",
+						ID:   "4ac8352d70bf1",
+					},
+				},
+			},
+			expectedConfigs: []integration.Config{
+				{
+					Name:          "http_check",
+					ADIdentifiers: []string{"docker://4ac8352d70bf1"},
+					InitConfig:    integration.Data("{}"),
+					Instances:     []integration.Data{integration.Data("{\"name\":\"Other service\",\"timeout\":1,\"url\":\"http://%%host_external%%\"}")},
+					Source:        "container:docker://4ac8352d70bf1",
+				},
+			},
+			expectedErr: nil,
+		},
+		{
 			name: "Non-duplicate errors",
 			entity: &workloadmeta.KubernetesPod{
 				EntityMeta: workloadmeta.EntityMeta{
@@ -368,13 +406,22 @@ func TestGenerateConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config.Datadog.Set("logs_config.container_collect_all", tt.containerCollectAll)
-			defer config.Datadog.Set("logs_config.container_collect_all", false)
 
-			store := workloadmetatesting.NewStore()
+			overrides := map[string]interface{}{
+				"logs_config.container_collect_all": tt.containerCollectAll,
+			}
+
+			store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+				config.MockModule(),
+				logimpl.MockModule(),
+				fx.Replace(config.MockParams{Overrides: overrides}),
+				collectors.GetCatalog(),
+				fx.Supply(workloadmeta.NewParams()),
+				workloadmeta.MockModuleV2(),
+			))
 
 			if pod, ok := tt.entity.(*workloadmeta.KubernetesPod); ok {
-				for _, c := range pod.Containers {
+				for _, c := range pod.GetAllContainers() {
 					store.Set(&workloadmeta.Container{
 						EntityID: workloadmeta.EntityID{
 							Kind: workloadmeta.KindContainer,

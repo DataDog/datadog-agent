@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"strings"
 	"time"
 	"unsafe"
 
@@ -19,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	checkbase "github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
@@ -38,7 +40,14 @@ char *getStringAddr(char **array, unsigned int idx);
 */
 import "C"
 
+const (
+	// Keep this pattern in sync with SkipInstanceError in integrations-core
+	skipInstanceErrorPattern = "The integration refused to load the check configuration, it may be too old or too new."
+)
+
 // PythonCheck represents a Python check, implements `Check` interface
+//
+//nolint:revive // TODO(AML) Fix revive linter
 type PythonCheck struct {
 	senderManager  sender.SenderManager
 	id             checkid.ID
@@ -70,7 +79,7 @@ func NewPythonCheck(senderManager sender.SenderManager, name string, class *C.rt
 		class:         class,
 		interval:      defaults.DefaultCheckInterval,
 		lastWarnings:  []error{},
-		telemetry:     utils.IsCheckTelemetryEnabled(name),
+		telemetry:     utils.IsCheckTelemetryEnabled(name, config.Datadog),
 	}
 	runtime.SetFinalizer(pyCheck, pythonCheckFinalizer)
 
@@ -181,6 +190,8 @@ func (c *PythonCheck) GetWarnings() []error {
 }
 
 // getPythonWarnings grabs the last warnings from the python check
+//
+//nolint:revive // TODO(AML) Fix revive linter
 func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
 	/**
 	This function is run with the GIL locked by runCheck
@@ -211,6 +222,8 @@ func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
 }
 
 // Configure the Python check from YAML data
+//
+//nolint:revive // TODO(AML) Fix revive linter
 func (c *PythonCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	// Generate check ID
 	c.id = checkid.BuildID(c.String(), integrationConfigDigest, data, initConfig)
@@ -276,6 +289,10 @@ func (c *PythonCheck) Configure(senderManager sender.SenderManager, integrationC
 	var rtLoaderError error
 	if res == 0 {
 		rtLoaderError = getRtLoaderError()
+		if rtLoaderError != nil && strings.Contains(rtLoaderError.Error(), skipInstanceErrorPattern) {
+			return fmt.Errorf("%w: %w", checkbase.ErrSkipCheckInstance, rtLoaderError)
+		}
+
 		log.Warnf("could not get a '%s' check instance with the new api: %s", c.ModuleName, rtLoaderError)
 		log.Warn("trying to instantiate the check with the old api, passing agentConfig to the constructor")
 
@@ -290,10 +307,14 @@ func (c *PythonCheck) Configure(senderManager sender.SenderManager, integrationC
 
 		res := C.get_check_deprecated(rtloader, c.class, cInitConfig, cInstance, cAgentConfig, cCheckID, cCheckName, &check)
 		if res == 0 {
-			if rtLoaderError != nil {
-				return fmt.Errorf("could not invoke '%s' python check constructor. New constructor API returned:\n%sDeprecated constructor API returned:\n%s", c.ModuleName, rtLoaderError, getRtLoaderError())
+			rtLoaderDeprecatedCheckError := getRtLoaderError()
+			if strings.Contains(rtLoaderDeprecatedCheckError.Error(), skipInstanceErrorPattern) {
+				return fmt.Errorf("%w: %w", checkbase.ErrSkipCheckInstance, rtLoaderDeprecatedCheckError)
 			}
-			return fmt.Errorf("could not invoke '%s' python check constructor: %s", c.ModuleName, getRtLoaderError())
+			if rtLoaderError != nil {
+				return fmt.Errorf("could not invoke '%s' python check constructor. New constructor API returned:\n%wDeprecated constructor API returned:\n%w", c.ModuleName, rtLoaderError, rtLoaderDeprecatedCheckError)
+			}
+			return fmt.Errorf("could not invoke '%s' python check constructor: %w", c.ModuleName, rtLoaderDeprecatedCheckError)
 		}
 		log.Warnf("passing `agentConfig` to the constructor is deprecated, please use the `get_config` function from the 'datadog_agent' package (%s).", c.ModuleName)
 	}
@@ -306,9 +327,8 @@ func (c *PythonCheck) Configure(senderManager sender.SenderManager, integrationC
 		log.Errorf("failed to retrieve a sender for check %s: %s", string(c.id), err)
 	} else {
 		s.FinalizeCheckServiceTag()
+		s.SetNoIndex(commonOptions.NoIndex)
 	}
-
-	s.SetNoIndex(commonOptions.NoIndex)
 
 	c.initConfig = string(initConfig)
 	c.instanceConfig = string(data)

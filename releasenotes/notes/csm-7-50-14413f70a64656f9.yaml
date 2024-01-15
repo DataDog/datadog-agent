@@ -1,0 +1,11 @@
+---
+features:
+  - |
+    CWS: Ability to send a signal to a process when a rule was triggered.
+    CWS: Add Kubernetes user session context to events, in particular the username, UID and groups of the user that ran the commands remotely.
+
+enhancements:
+  - |
+    CWS: Support for Ubuntu 23.10.
+    CWS: Reduce memory usage of ring buffer on machines with more than 64 CPU cores.
+    CSPM: Move away from libapt to run Debian packages compliance checks.

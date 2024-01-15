@@ -3,21 +3,18 @@
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
 # Copyright 2016-present Datadog, Inc.
 
-require './lib/cmake.rb'
-
 name 'openscap'
-default_version '1.3.8'
+default_version '1.3.9'
 
 license "LGPL-3.0-or-later"
 license_file "COPYING"
 
-version("1.3.8") { source sha256: "d4bf0dd35e7f595f34a440ebf4234df24faa2602c302b96c43274dbb317803b3" }
+version("1.3.9") { source sha256: "2d8450b6b6ef068991e1292cd3989e8a1d81f2bcda0a2644dcb2943c2de1a20d" }
 
 ship_source_offer true
 
 source url: "https://github.com/OpenSCAP/openscap/releases/download/#{version}/openscap-#{version}.tar.gz"
 
-dependency 'apt'
 dependency 'attr'
 dependency 'bzip2'
 dependency 'curl'
@@ -28,7 +25,7 @@ dependency 'libselinux'
 dependency 'libsepol'
 dependency 'libxslt'
 dependency 'libyaml'
-dependency 'pcre'
+dependency 'pcre2'
 dependency 'popt'
 dependency 'rpm'
 dependency 'util-linux'
@@ -39,21 +36,31 @@ relative_path "openscap-#{version}"
 build do
   env = with_standard_compiler_flags(with_embedded_path)
 
-  # Fixes since release 1.3.8
-  patch source: "0005-Fix-leak-of-filename-in-oval_agent_new_session.patch", env: env
-  patch source: "0006-Fix-leak-of-item-in-probe_item_collect.patch", env: env
+  # Fixes since release 1.3.9
+  patch source: "0005-Fix-partition-probe-for-PCRE2.patch", env: env
+  patch source: "0006-Implement-xccdf_session_get_rule_results-function-in.patch", env: env
+  patch source: "0007-Be-able-to-delete-temporary-files-on-a-different-mou.patch", env: env
+  patch source: "0009-Use-the-OSCAP_PCRE_ERR_NOMATCH.patch", env: env
+  patch source: "0010-Implement-xccdf_session_result_reset-function-in-XCC.patch", env: env
+  patch source: "0011-Fix-memory-leaks-reported-by-Coverity.patch", env: env
+  patch source: "0012-Fix-deadlocks-reported-by-Coverity.patch", env: env
+  patch source: "0013-Fix-out-of-bounds-access-reported-by-Coverity.patch", env: env
+  patch source: "0014-Fix-incorrect-expressions-reported-by-Coverity.patch", env: env
+  patch source: "0015-Fix-uninitialized-variables-reported-by-Coverity.patch", env: env
+  patch source: "0016-Fix-incorrect-openscap-cpe-oval-result-filename.patch", env: env
+  patch source: "0041-Fix-probe_reset.patch", env: env
+  patch source: "0043-Fix-various-issues-reported-by-Coverity.patch", env: env
+  patch source: "0046-Rewrite-dpkginfo-probe-without-using-APT.patch", env: env
 
-  patch source: "get_results_from_session.patch", env: env # add a function to retrieve results from session
-  patch source: "session_result_reset.patch", env: env # add a function to reset results from session
-  patch source: "session_reset_syschar.patch", env: env # also reset system characteristics
   patch source: "010_perlpm_install_fix.patch", env: env # fix build of perl bindings
-  patch source: "dpkginfo-cacheconfig.patch", env: env # work around incomplete pkgcache path
-  patch source: "dpkginfo-init.patch", env: env # fix memory leak of pkgcache in dpkginfo probe
   patch source: "fsdev-ignore-host.patch", env: env # ignore /host directory in fsdev probe
   patch source: "systemd-dbus-address.patch", env: env # fix dbus address in systemd probe
   patch source: "rpm-verbosity-err.patch", env: env # decrease rpmlog verbosity level to ERR
   patch source: "session-print-syschar.patch", env: env # add a function to print system characteristics
   patch source: "memusage-cgroup.patch", env: env # consider cgroup when determining memory usage
+  patch source: "dpkginfo-status-fix.patch", env: env # fix parsing of status in dpkginfo probe
+
+  patch source: "oval_probe_session_reset.patch", env: env # use oval_probe_session_reset instead of oval_probe_session_reinit
 
   patch source: "oscap-io.patch", env: env # add new oscap-io tool
 
@@ -65,10 +72,10 @@ build do
   cmake_options = [
     "-DENABLE_PERL=OFF",
     "-DENABLE_PYTHON3=OFF",
+    "-DWITH_PCRE2=ON",
+    "-DENABLE_TESTS=OFF",
     "-DACL_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
     "-DACL_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libacl.so",
-    "-DAPTPKG_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
-    "-DAPTPKG_LIBRARIES:FILEPATH=#{install_dir}/embedded/lib/libapt-pkg.so",
     "-DBLKID_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
     "-DBLKID_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libblkid.so",
     "-DBZIP2_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
@@ -90,8 +97,8 @@ build do
     "-DOPENSSL_CRYPTO_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libcrypto.so",
     "-DOPENSSL_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
     "-DOPENSSL_SSL_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libssl.so",
-    "-DPCRE_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
-    "-DPCRE_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libpcre.so",
+    "-DPCRE2_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
+    "-DPCRE2_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libpcre2-8.so",
     "-DPOPT_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
     "-DPOPT_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libpopt.so",
     "-DPYTHON_INCLUDE_DIR:PATH=#{install_dir}/embedded/include/python3.8",

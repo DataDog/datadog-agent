@@ -37,12 +37,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
-const InterfaceLocalMulticastIPv6 = "ff01::1"
-const listenIPv4 = "127.0.0.2"
-
 const (
+	// InterfaceLocalMulticastIPv6 is a destination IPv6 address used for offset guessing
+	InterfaceLocalMulticastIPv6 = "ff01::1"
+	listenIPv4                  = "127.0.0.2"
+
 	tcpGetSockOptKProbeNotCalled uint64 = 0
 	tcpGetSockOptKProbeCalled    uint64 = 1
+	netNsDefaultOffsetBytes             = 48
 )
 
 var tcpKprobeCalledString = map[uint64]string{
@@ -57,6 +59,7 @@ type tracerOffsetGuesser struct {
 	guessUDPv6 bool
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 func NewTracerOffsetGuesser() (OffsetGuesser, error) {
 	return &tracerOffsetGuesser{
 		m: &manager.Manager{
@@ -263,6 +266,10 @@ func uint32ArrayFromIPv6(ip net.IP) (addr [4]uint32, err error) {
 	return
 }
 
+// IPv6LinkLocalPrefix is only exposed for testing purposes
+var IPv6LinkLocalPrefix = "fe80::"
+
+//nolint:revive // TODO(NET) Fix revive linter
 func GetIPv6LinkLocalAddress() ([]*net.UDPAddr, error) {
 	ints, err := net.Interfaces()
 	if err != nil {
@@ -279,7 +286,7 @@ func GetIPv6LinkLocalAddress() ([]*net.UDPAddr, error) {
 			continue
 		}
 		for _, a := range addrs {
-			if strings.HasPrefix(a.String(), "fe80::") && !strings.HasPrefix(i.Name, "dummy") {
+			if strings.HasPrefix(a.String(), IPv6LinkLocalPrefix) && !strings.HasPrefix(i.Name, "dummy") {
 				// this address *may* have CIDR notation
 				if ar, _, err := net.ParseCIDR(a.String()); err == nil {
 					udpAddrs = append(udpAddrs, &net.UDPAddr{IP: ar, Zone: i.Name})
@@ -314,23 +321,43 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 		time.Sleep(10 * time.Millisecond)
 		return nil
 	}
+
+	var overlapped bool
 	switch GuessWhat(t.status.What) {
 	case GuessSAddr:
+		t.status.Offset_saddr, overlapped = skipOverlaps(t.status.Offset_saddr, t.sockRanges())
+		if overlapped {
+			// adjusted offset from eBPF overlapped with another field, we need to check new offset
+			break
+		}
+
 		if t.status.Saddr == expected.saddr {
 			t.logAndAdvance(t.status.Offset_saddr, GuessDAddr)
 			break
 		}
 		t.status.Offset_saddr++
-		t.status.Saddr = expected.saddr
+		t.status.Offset_saddr, _ = skipOverlaps(t.status.Offset_saddr, t.sockRanges())
 	case GuessDAddr:
+		t.status.Offset_daddr, overlapped = skipOverlaps(t.status.Offset_daddr, t.sockRanges())
+		if overlapped {
+			// adjusted offset from eBPF overlapped with another field, we need to check new offset
+			break
+		}
+
 		if t.status.Daddr == expected.daddr {
 			t.logAndAdvance(t.status.Offset_daddr, GuessDPort)
 			break
 		}
 		t.status.Offset_daddr++
-		t.status.Daddr = expected.daddr
+		t.status.Offset_daddr, _ = skipOverlaps(t.status.Offset_daddr, t.sockRanges())
 	case GuessDPort:
-		if t.status.Dport == htons(expected.dport) {
+		t.status.Offset_dport, overlapped = skipOverlaps(t.status.Offset_dport, t.sockRanges())
+		if overlapped {
+			// adjusted offset from eBPF overlapped with another field, we need to check new offset
+			break
+		}
+
+		if t.status.Dport == htons(expected.dport) && t.status.Sport == expected.sport {
 			t.logAndAdvance(t.status.Offset_dport, GuessFamily)
 			// we know the family ((struct __sk_common)->skc_family) is
 			// after the skc_dport field, so we start from there
@@ -338,27 +365,35 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 			break
 		}
 		t.status.Offset_dport++
+		t.status.Offset_sport++
+		t.status.Offset_dport, _ = skipOverlaps(t.status.Offset_dport, t.sockRanges())
+		t.status.Offset_sport, _ = skipOverlaps(t.status.Offset_sport, t.sockRanges())
 	case GuessFamily:
+		t.status.Offset_family, overlapped = skipOverlaps(t.status.Offset_family, t.sockRanges())
+		if overlapped {
+			// adjusted offset from eBPF overlapped with another field, we need to check new offset
+			break
+		}
+
 		if t.status.Family == expected.family {
-			t.logAndAdvance(t.status.Offset_family, GuessSPort)
-			// we know the sport ((struct inet_sock)->inet_sport) is
-			// after the family field, so we start from there
-			t.status.Offset_sport = t.status.Offset_family
+			t.logAndAdvance(t.status.Offset_family, GuessSAddrFl4)
 			break
 		}
 		t.status.Offset_family++
-	case GuessSPort:
-		if t.status.Sport == htons(expected.sport) {
-			t.logAndAdvance(t.status.Offset_sport, GuessSAddrFl4)
+		t.status.Offset_family, _ = skipOverlaps(t.status.Offset_family, t.sockRanges())
+	case GuessSAddrFl4:
+		t.status.Offset_saddr_fl4, overlapped = skipOverlaps(t.status.Offset_saddr_fl4, t.flowI4Ranges())
+		if overlapped {
+			// adjusted offset from eBPF overlapped with another field, we need to check new offset
 			break
 		}
-		t.status.Offset_sport++
-	case GuessSAddrFl4:
+
 		if t.status.Saddr_fl4 == expected.saddrFl4 {
 			t.logAndAdvance(t.status.Offset_saddr_fl4, GuessDAddrFl4)
 			break
 		}
 		t.status.Offset_saddr_fl4++
+		t.status.Offset_saddr_fl4, _ = skipOverlaps(t.status.Offset_saddr_fl4, t.flowI4Ranges())
 		if t.status.Offset_saddr_fl4 >= threshold {
 			// Let's skip all other flowi4 fields
 			t.logAndAdvance(notApplicable, t.flowi6EntryState())
@@ -366,45 +401,73 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 			break
 		}
 	case GuessDAddrFl4:
+		t.status.Offset_daddr_fl4, overlapped = skipOverlaps(t.status.Offset_daddr_fl4, t.flowI4Ranges())
+		if overlapped {
+			// adjusted offset from eBPF overlapped with another field, we need to check new offset
+			break
+		}
+
 		if t.status.Daddr_fl4 == expected.daddrFl4 {
 			t.logAndAdvance(t.status.Offset_daddr_fl4, GuessSPortFl4)
 			break
 		}
 		t.status.Offset_daddr_fl4++
+		t.status.Offset_daddr_fl4, _ = skipOverlaps(t.status.Offset_daddr_fl4, t.flowI4Ranges())
 		if t.status.Offset_daddr_fl4 >= threshold {
 			t.logAndAdvance(notApplicable, t.flowi6EntryState())
 			t.status.Fl4_offsets = disabled
 			break
 		}
 	case GuessSPortFl4:
+		t.status.Offset_sport_fl4, overlapped = skipOverlaps(t.status.Offset_sport_fl4, t.flowI4Ranges())
+		if overlapped {
+			// adjusted offset from eBPF overlapped with another field, we need to check new offset
+			break
+		}
+
 		if t.status.Sport_fl4 == htons(expected.sportFl4) {
 			t.logAndAdvance(t.status.Offset_sport_fl4, GuessDPortFl4)
 			break
 		}
 		t.status.Offset_sport_fl4++
+		t.status.Offset_sport_fl4, _ = skipOverlaps(t.status.Offset_sport_fl4, t.flowI4Ranges())
 		if t.status.Offset_sport_fl4 >= threshold {
 			t.logAndAdvance(notApplicable, t.flowi6EntryState())
 			t.status.Fl4_offsets = disabled
 			break
 		}
 	case GuessDPortFl4:
+		t.status.Offset_dport_fl4, overlapped = skipOverlaps(t.status.Offset_dport_fl4, t.flowI4Ranges())
+		if overlapped {
+			// adjusted offset from eBPF overlapped with another field, we need to check new offset
+			break
+		}
+
 		if t.status.Dport_fl4 == htons(expected.dportFl4) {
 			t.logAndAdvance(t.status.Offset_dport_fl4, t.flowi6EntryState())
 			t.status.Fl4_offsets = enabled
 			break
 		}
 		t.status.Offset_dport_fl4++
+		t.status.Offset_dport_fl4, _ = skipOverlaps(t.status.Offset_dport_fl4, t.flowI4Ranges())
 		if t.status.Offset_dport_fl4 >= threshold {
 			t.logAndAdvance(notApplicable, t.flowi6EntryState())
 			t.status.Fl4_offsets = disabled
 			break
 		}
 	case GuessSAddrFl6:
+		t.status.Offset_saddr_fl6, overlapped = skipOverlaps(t.status.Offset_saddr_fl6, t.flowI6Ranges())
+		if overlapped {
+			// adjusted offset from eBPF overlapped with another field, we need to check new offset
+			break
+		}
+
 		if compareIPv6(t.status.Saddr_fl6, expected.saddrFl6) {
 			t.logAndAdvance(t.status.Offset_saddr_fl6, GuessDAddrFl6)
 			break
 		}
 		t.status.Offset_saddr_fl6++
+		t.status.Offset_saddr_fl6, _ = skipOverlaps(t.status.Offset_saddr_fl6, t.flowI6Ranges())
 		if t.status.Offset_saddr_fl6 >= threshold {
 			// Let's skip all other flowi6 fields
 			t.logAndAdvance(notApplicable, GuessNetNS)
@@ -412,52 +475,95 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 			break
 		}
 	case GuessDAddrFl6:
+		t.status.Offset_daddr_fl6, overlapped = skipOverlaps(t.status.Offset_daddr_fl6, t.flowI6Ranges())
+		if overlapped {
+			// adjusted offset from eBPF overlapped with another field, we need to check new offset
+			break
+		}
+
 		if compareIPv6(t.status.Daddr_fl6, expected.daddrFl6) {
 			t.logAndAdvance(t.status.Offset_daddr_fl6, GuessSPortFl6)
 			break
 		}
 		t.status.Offset_daddr_fl6++
+		t.status.Offset_daddr_fl6, _ = skipOverlaps(t.status.Offset_daddr_fl6, t.flowI6Ranges())
 		if t.status.Offset_daddr_fl6 >= threshold {
 			t.logAndAdvance(notApplicable, GuessNetNS)
 			t.status.Fl6_offsets = disabled
 			break
 		}
 	case GuessSPortFl6:
+		t.status.Offset_sport_fl6, overlapped = skipOverlaps(t.status.Offset_sport_fl6, t.flowI6Ranges())
+		if overlapped {
+			// adjusted offset from eBPF overlapped with another field, we need to check new offset
+			break
+		}
+
 		if t.status.Sport_fl6 == htons(expected.sportFl6) {
 			t.logAndAdvance(t.status.Offset_sport_fl6, GuessDPortFl6)
 			break
 		}
 		t.status.Offset_sport_fl6++
+		t.status.Offset_sport_fl6, _ = skipOverlaps(t.status.Offset_sport_fl6, t.flowI6Ranges())
 		if t.status.Offset_sport_fl6 >= threshold {
 			t.logAndAdvance(notApplicable, GuessNetNS)
 			t.status.Fl6_offsets = disabled
 			break
 		}
 	case GuessDPortFl6:
+		t.status.Offset_dport_fl6, overlapped = skipOverlaps(t.status.Offset_dport_fl6, t.flowI6Ranges())
+		if overlapped {
+			// adjusted offset from eBPF overlapped with another field, we need to check new offset
+			break
+		}
+
 		if t.status.Dport_fl6 == htons(expected.dportFl6) {
 			t.logAndAdvance(t.status.Offset_dport_fl6, GuessNetNS)
 			t.status.Fl6_offsets = enabled
 			break
 		}
 		t.status.Offset_dport_fl6++
+		t.status.Offset_dport_fl6, _ = skipOverlaps(t.status.Offset_dport_fl6, t.flowI6Ranges())
 		if t.status.Offset_dport_fl6 >= threshold {
 			t.logAndAdvance(notApplicable, GuessNetNS)
 			t.status.Fl6_offsets = disabled
 			break
 		}
+	// This case guesses for both the net namespace struct and the inode field within it
 	case GuessNetNS:
+		t.status.Offset_netns, overlapped = skipOverlaps(t.status.Offset_netns, t.sockRanges())
+		if overlapped {
+			// adjusted offset from eBPF overlapped with another field, we need to check new offset
+			break
+		}
+
+		// compare the netns INO to the expected (usually the root NS of this machine)
 		if t.status.Netns == expected.netns {
 			t.logAndAdvance(t.status.Offset_netns, GuessRTT)
 			log.Debugf("Successfully guessed %v with offset of %d bytes", "ino", t.status.Offset_ino)
 			break
 		}
 		t.status.Offset_ino++
-		// go to the next offset_netns if we get an error
+		// go to the next offset_netns if we get an error in kernelspace or if we pass the threshold
 		if t.status.Err != 0 || t.status.Offset_ino >= threshold {
 			t.status.Offset_ino = 0
-			t.status.Offset_netns++
+			// if we have already seen a failure, we need to increment the offset_netns otherwise set it to offset_family
+			if t.status.Seen_failure != 0 {
+				t.status.Offset_netns++
+			} else {
+				t.status.Offset_netns = t.status.Offset_family
+				t.status.Seen_failure = 1
+			}
+			t.status.Offset_netns, _ = skipOverlaps(t.status.Offset_netns, t.sockRanges())
 		}
 	case GuessRTT:
+		t.status.Offset_rtt, overlapped = skipOverlaps(t.status.Offset_rtt, t.sockRanges())
+		if overlapped {
+			t.status.Offset_rtt_var = t.status.Offset_rtt + 4
+			// adjusted offset from eBPF overlapped with another field, we need to check new offset
+			break
+		}
+
 		// For more information on the bit shift operations see:
 		// https://elixir.bootlin.com/linux/v4.6/source/net/ipv4/tcp.c#L2686
 		if t.status.Rtt>>3 == expected.rtt && t.status.Rtt_var>>2 == expected.rttVar {
@@ -469,10 +575,10 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 		// rtt -> srtt_us
 		// rtt_var -> mdev_us
 		t.status.Offset_rtt++
+		t.status.Offset_rtt, _ = skipOverlaps(t.status.Offset_rtt, t.sockRanges())
 		t.status.Offset_rtt_var = t.status.Offset_rtt + 4
-
 	case GuessSocketSK:
-		if t.status.Sport_via_sk == htons(expected.sport) && t.status.Dport_via_sk == htons(expected.dport) {
+		if t.status.Sport_via_sk == expected.sport && t.status.Dport_via_sk == htons(expected.dport) {
 			// if we are on kernel version < 4.7, net_dev_queue tracepoint will not be activated, and thus we should skip
 			// the guessing for `struct sk_buff`
 			next := GuessSKBuffSock
@@ -497,13 +603,27 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 			break
 		}
 		t.status.Offset_socket_sk++
+		// no overlaps because only field offset from `struct socket`
 	case GuessSKBuffSock:
-		if t.status.Sport_via_sk_via_sk_buf == htons(expected.sportFl4) && t.status.Dport_via_sk_via_sk_buf == htons(expected.dportFl4) {
+		t.status.Offset_sk_buff_sock, overlapped = skipOverlaps(t.status.Offset_sk_buff_sock, t.skBuffRanges())
+		if overlapped {
+			// adjusted offset from eBPF overlapped with another field, we need to check new offset
+			break
+		}
+
+		if t.status.Sport_via_sk_via_sk_buf == expected.sportFl4 && t.status.Dport_via_sk_via_sk_buf == htons(expected.dportFl4) {
 			t.logAndAdvance(t.status.Offset_sk_buff_sock, GuessSKBuffTransportHeader)
 			break
 		}
 		t.status.Offset_sk_buff_sock++
+		t.status.Offset_sk_buff_sock, _ = skipOverlaps(t.status.Offset_sk_buff_sock, t.skBuffRanges())
 	case GuessSKBuffTransportHeader:
+		t.status.Offset_sk_buff_transport_header, overlapped = skipOverlaps(t.status.Offset_sk_buff_transport_header, t.skBuffRanges())
+		if overlapped {
+			// adjusted offset from eBPF overlapped with another field, we need to check new offset
+			break
+		}
+
 		networkDiffFromMac := t.status.Network_header - t.status.Mac_header
 		transportDiffFromNetwork := t.status.Transport_header - t.status.Network_header
 		if networkDiffFromMac == 14 && transportDiffFromNetwork == 20 {
@@ -511,18 +631,32 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 			break
 		}
 		t.status.Offset_sk_buff_transport_header++
+		t.status.Offset_sk_buff_transport_header, _ = skipOverlaps(t.status.Offset_sk_buff_transport_header, t.skBuffRanges())
 	case GuessSKBuffHead:
+		t.status.Offset_sk_buff_head, overlapped = skipOverlaps(t.status.Offset_sk_buff_head, t.skBuffRanges())
+		if overlapped {
+			// adjusted offset from eBPF overlapped with another field, we need to check new offset
+			break
+		}
+
 		if t.status.Sport_via_sk_via_sk_buf == htons(expected.sportFl4) && t.status.Dport_via_sk_via_sk_buf == htons(expected.dportFl4) {
 			if !t.guessTCPv6 && !t.guessUDPv6 {
 				t.logAndAdvance(t.status.Offset_sk_buff_head, GuessNotApplicable)
 				return t.setReadyState(mp)
-			} else {
+			} else { //nolint:revive // TODO(NET) Fix revive linter
 				t.logAndAdvance(t.status.Offset_sk_buff_head, GuessDAddrIPv6)
 				break
 			}
 		}
 		t.status.Offset_sk_buff_head++
+		t.status.Offset_sk_buff_head, _ = skipOverlaps(t.status.Offset_sk_buff_head, t.skBuffRanges())
 	case GuessDAddrIPv6:
+		t.status.Offset_daddr_ipv6, overlapped = skipOverlaps(t.status.Offset_daddr_ipv6, t.sockRanges())
+		if overlapped {
+			// adjusted offset from eBPF overlapped with another field, we need to check new offset
+			break
+		}
+
 		if compareIPv6(t.status.Daddr_ipv6, expected.daddrIPv6) {
 			t.logAndAdvance(t.status.Offset_daddr_ipv6, GuessNotApplicable)
 			// at this point, we've guessed all the offsets we need,
@@ -530,6 +664,7 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 			return t.setReadyState(mp)
 		}
 		t.status.Offset_daddr_ipv6++
+		t.status.Offset_daddr_ipv6, _ = skipOverlaps(t.status.Offset_daddr_ipv6, t.sockRanges())
 	default:
 		return fmt.Errorf("unexpected field to guess: %v", whatString[GuessWhat(t.status.What)])
 	}
@@ -602,9 +737,10 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 	t.guessUDPv6 = cfg.CollectUDPv6Conns
 	t.guessTCPv6 = cfg.CollectTCPv6Conns
 	t.status = &TracerStatus{
-		State: uint64(StateChecking),
-		Proc:  Proc{Comm: cProcName},
-		What:  uint64(GuessSAddr),
+		State:        uint64(StateChecking),
+		Proc:         Proc{Comm: cProcName},
+		What:         uint64(GuessSAddr),
+		Offset_netns: netNsDefaultOffsetBytes,
 	}
 
 	// if we already have the offsets, just return
@@ -890,6 +1026,8 @@ func acceptHandler(l net.Listener) {
 // responsible for the V4 offset guessing in kernel-space and 2) using it we can obtain
 // in user-space TCP socket information such as RTT and use it for setting the expected
 // values in the `fieldValues` struct.
+//
+//nolint:revive // TODO(NET) Fix revive linter
 func TcpGetInfo(conn net.Conn) (*unix.TCPInfo, error) {
 	tcpConn, ok := conn.(*net.TCPConn)
 	if !ok {
@@ -954,6 +1092,7 @@ func newUDPServer(addr string) (string, func(), error) {
 	return ln.LocalAddr().String(), doneFn, nil
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 var TracerOffsets tracerOffsets
 
 type tracerOffsets struct {
@@ -975,6 +1114,7 @@ func boolConst(name string, value bool) manager.ConstantEditor {
 
 func (o *tracerOffsets) Offsets(cfg *config.Config) ([]manager.ConstantEditor, error) {
 	fromConfig := func(c *config.Config, offsets []manager.ConstantEditor) []manager.ConstantEditor {
+		//nolint:revive // TODO(NET) Fix revive linter
 		var foundTcp, foundUdp bool
 		for o := range offsets {
 			switch offsets[o].Name {

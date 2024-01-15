@@ -21,11 +21,12 @@ import (
 )
 
 func changeLogLevel(level string) error {
-	if Logger == nil {
+	l := logger.Load()
+	if l == nil {
 		return errors.New("cannot set log-level: logger not initialized")
 	}
 
-	return Logger.changeLogLevel(level)
+	return l.changeLogLevel(level)
 }
 
 // createExtraTextContext defines custom formatter for context logging on tests.
@@ -54,7 +55,7 @@ func TestBasicLogging(t *testing.T) {
 	assert.Nil(t, err)
 
 	SetupLogger(l, "debug")
-	assert.NotNil(t, Logger)
+	assert.NotNil(t, logger.Load())
 
 	Tracef("%s", "foo")
 	Debugf("%s", "foo")
@@ -104,8 +105,7 @@ func TestBasicLogging(t *testing.T) {
 func TestLogBuffer(t *testing.T) {
 	// reset buffer state
 	logsBuffer = []func(){}
-	bufferLogsBeforeInit = true
-	Logger = nil
+	logger.Store(nil)
 
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
@@ -121,7 +121,7 @@ func TestLogBuffer(t *testing.T) {
 	Criticalf("%s", "foo")
 
 	SetupLogger(l, "debug")
-	assert.NotNil(t, Logger)
+	assert.NotNil(t, logger.Load())
 
 	w.Flush()
 
@@ -131,8 +131,7 @@ func TestLogBuffer(t *testing.T) {
 func TestLogBufferWithContext(t *testing.T) {
 	// reset buffer state
 	logsBuffer = []func(){}
-	bufferLogsBeforeInit = true
-	Logger = nil
+	logger.Store(nil)
 
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
@@ -148,7 +147,7 @@ func TestLogBufferWithContext(t *testing.T) {
 	Criticalc("baz", "number", 1, "str", "hello")
 
 	SetupLogger(l, "debug")
-	assert.NotNil(t, Logger)
+	assert.NotNil(t, logger.Load())
 	w.Flush()
 
 	// Trace will not be logged, Error and Critical will directly be logged to Stderr
@@ -177,7 +176,7 @@ func TestCredentialScrubbingLogging(t *testing.T) {
 	assert.Nil(t, err)
 
 	SetupLogger(l, "info")
-	assert.NotNil(t, Logger)
+	assert.NotNil(t, logger.Load())
 
 	Info("don't tell anyone: ", "SECRET")
 	Infof("this is a SECRET password: %s", "hunter2")
@@ -201,7 +200,7 @@ func TestExtraLogging(t *testing.T) {
 	assert.Nil(t, err)
 
 	SetupLogger(l, "info")
-	assert.NotNil(t, Logger)
+	assert.NotNil(t, logger.Load())
 
 	err = RegisterAdditionalLogger("extra", lA)
 	assert.Nil(t, err)

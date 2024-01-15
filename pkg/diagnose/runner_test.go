@@ -6,9 +6,10 @@
 package diagnose
 
 import (
-	"regexp"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 
 	"github.com/stretchr/testify/assert"
@@ -16,16 +17,16 @@ import (
 
 func TestDiagnoseAllBasicRegAndRunNoDiagnoses(t *testing.T) {
 
-	diagnosis.Register("TestDiagnoseAllBasicRegAndRunNoDiagnoses", func(cfg diagnosis.Config) []diagnosis.Diagnosis {
+	diagnosis.Register("TestDiagnoseAllBasicRegAndRunNoDiagnoses", func(cfg diagnosis.Config, _ sender.DiagnoseSenderManager) []diagnosis.Diagnosis {
 		return nil
 	})
 
-	re, _ := regexp.Compile("TestDiagnoseAllBasicRegAndRunNoDiagnoses")
 	diagCfg := diagnosis.Config{
-		Include:  []*regexp.Regexp{re},
+		Include:  []string{"TestDiagnoseAllBasicRegAndRunNoDiagnoses"},
 		RunLocal: true,
 	}
-	diagnoses, err := Run(diagCfg)
+	senderManager := aggregator.NewNoOpSenderManager()
+	diagnoses, err := Run(diagCfg, senderManager)
 	assert.NoError(t, err)
 	assert.Len(t, diagnoses, 0)
 }
@@ -51,34 +52,33 @@ func TestDiagnoseAllBasicRegAndRunSomeDiagnosis(t *testing.T) {
 		},
 	}
 
-	diagnosis.Register("TestDiagnoseAllBasicRegAndRunSomeDiagnosis-a", func(cfg diagnosis.Config) []diagnosis.Diagnosis {
+	diagnosis.Register("TestDiagnoseAllBasicRegAndRunSomeDiagnosis-a", func(cfg diagnosis.Config, _ sender.DiagnoseSenderManager) []diagnosis.Diagnosis {
 		return inDiagnoses
 	})
 
-	diagnosis.Register("TestDiagnoseAllBasicRegAndRunSomeDiagnosis-b", func(cfg diagnosis.Config) []diagnosis.Diagnosis {
+	diagnosis.Register("TestDiagnoseAllBasicRegAndRunSomeDiagnosis-b", func(cfg diagnosis.Config, _ sender.DiagnoseSenderManager) []diagnosis.Diagnosis {
 		return inDiagnoses
 	})
 
 	// Include and run
-	reInclude, _ := regexp.Compile("TestDiagnoseAllBasicRegAndRunSomeDiagnosis")
 	diagCfgInclude := diagnosis.Config{
-		Include:  []*regexp.Regexp{reInclude},
+		Include:  []string{"TestDiagnoseAllBasicRegAndRunSomeDiagnosis"},
 		RunLocal: true,
 	}
-	outSuitesDiagnosesInclude, err := Run(diagCfgInclude)
+	senderManager := aggregator.NewNoOpSenderManager()
+	outSuitesDiagnosesInclude, err := Run(diagCfgInclude, senderManager)
 	assert.NoError(t, err)
 	assert.Len(t, outSuitesDiagnosesInclude, 2)
 	assert.Equal(t, outSuitesDiagnosesInclude[0].SuiteDiagnoses, inDiagnoses)
 	assert.Equal(t, outSuitesDiagnosesInclude[1].SuiteDiagnoses, inDiagnoses)
 
 	// Include and Exclude and run
-	reExclude, _ := regexp.Compile("TestDiagnoseAllBasicRegAndRunSomeDiagnosis-a")
 	diagCfgIncludeExclude := diagnosis.Config{
-		Include:  []*regexp.Regexp{reInclude},
-		Exclude:  []*regexp.Regexp{reExclude},
+		Include:  []string{"TestDiagnoseAllBasicRegAndRunSomeDiagnosis"},
+		Exclude:  []string{"TestDiagnoseAllBasicRegAndRunSomeDiagnosis-a"},
 		RunLocal: true,
 	}
-	outSuitesDiagnosesIncludeExclude, err := Run(diagCfgIncludeExclude)
+	outSuitesDiagnosesIncludeExclude, err := Run(diagCfgIncludeExclude, senderManager)
 	assert.NoError(t, err)
 	assert.Len(t, outSuitesDiagnosesIncludeExclude, 1)
 	assert.Equal(t, outSuitesDiagnosesIncludeExclude[0].SuiteDiagnoses, inDiagnoses)

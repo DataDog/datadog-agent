@@ -5,6 +5,7 @@
 
 //go:build functionaltests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -26,7 +27,8 @@ func TestSECLRuleFilter(t *testing.T) {
 		Code:         kernel.Kernel5_9,
 	}
 
-	m := rulesmodule.NewRuleFilterModel()
+	m, err := rulesmodule.NewRuleFilterModel("")
+	assert.NoError(t, err)
 	m.Version = kv
 	seclRuleFilter := rules.NewSECLRuleFilter(m)
 

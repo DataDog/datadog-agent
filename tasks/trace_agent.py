@@ -1,7 +1,7 @@
 import os
 import sys
 
-from invoke import task
+from invoke import Exit, task
 
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .flavor import AgentFlavor
@@ -78,6 +78,9 @@ def integration_tests(ctx, install_deps=False, race=False, go_mod="mod"):
     """
     Run integration tests for trace agent
     """
+    if sys.platform == 'win32':
+        raise Exit(message='trace-agent integration tests are not supported on Windows', code=0)
+
     if install_deps:
         deps(ctx)
 
@@ -89,42 +92,6 @@ def integration_tests(ctx, install_deps=False, race=False, go_mod="mod"):
 
 
 @task
-def cross_compile(ctx, tag=""):
-    """
-    Cross-compiles the trace-agent binaries. Use the "--tag=X" argument to specify build tag.
-    """
-    if not tag:
-        print("Argument --tag=<version> is required.")
-        return
-
-    print(f"Building tag {tag}...")
-
-    env = {
-        "V": tag,
-    }
-
-    ctx.run("git checkout $V", env=env)
-    ctx.run("mkdir -p ./bin/trace-agent/$V", env=env)
-    ctx.run("go generate -mod=mod ./pkg/trace/info", env=env)
-    ctx.run("go get -u github.com/karalabe/xgo")
-    ctx.run(
-        "xgo -dest=bin/trace-agent/$V -go=1.11 -out=trace-agent-$V -targets=windows-6.1/amd64,linux/amd64,darwin-10.11/amd64 ./cmd/trace-agent",
-        env=env,
-    )
-    ctx.run(
-        "mv ./bin/trace-agent/$V/trace-agent-$V-windows-6.1-amd64.exe ./bin/trace-agent/$V/trace-agent-$V-windows-amd64.exe",
-        env=env,
-    )
-    ctx.run(
-        "mv ./bin/trace-agent/$V/trace-agent-$V-darwin-10.11-amd64 ./bin/trace-agent/$V/trace-agent-$V-darwin-amd64 ",
-        env=env,
-    )
-    ctx.run("git checkout -")
-
-    print(f"Done! Binaries are located in ./bin/trace-agent/{tag}")
-
-
-@task
 def benchmarks(ctx, bench, output="./trace-agent.benchmarks.out"):
     """
     Runs the benchmarks. Use "--bench=X" to specify benchmarks to run. Use the "--output=X" argument to specify where to output results.
@@ -133,4 +100,4 @@ def benchmarks(ctx, bench, output="./trace-agent.benchmarks.out"):
         print("Argument --bench=<bench_regex> is required.")
         return
     with ctx.cd("./pkg/trace"):
-        ctx.run(f"go test -run=XXX -bench \"{bench}\" -benchmem -count 10 -benchtime 2s ./... | tee {output}")
+        ctx.run(f"go test -run=XXX -bench \"{bench}\" -benchmem -count 1 -benchtime 2s ./... | tee {output}")

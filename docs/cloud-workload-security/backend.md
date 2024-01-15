@@ -221,6 +221,14 @@ CSM Threats logs have the following JSON schema:
                     },
                     "type": "array",
                     "description": "The list of rules that the event matched (only valid in the context of an anomaly)"
+                },
+                "origin": {
+                    "type": "string",
+                    "description": "Origin of the event"
+                },
+                "suppressed": {
+                    "type": "boolean",
+                    "description": "True if the event has been suppressed"
                 }
             },
             "additionalProperties": false,
@@ -644,37 +652,48 @@ CSM Threats logs have the following JSON schema:
         "MountEvent": {
             "properties": {
                 "mp": {
-                    "$ref": "#/$defs/File"
+                    "$ref": "#/$defs/File",
+                    "description": "Mount point file information"
                 },
                 "root": {
-                    "$ref": "#/$defs/File"
+                    "$ref": "#/$defs/File",
+                    "description": "Root file information"
                 },
                 "mount_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Mount ID of the new mount"
                 },
                 "parent_mount_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Mount ID of the parent mount"
                 },
                 "bind_src_mount_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Mount ID of the source of a bind mount"
                 },
                 "device": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Device associated with the file"
                 },
                 "fs_type": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Filesystem type"
                 },
                 "mountpoint.path": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Mount point path"
                 },
                 "source.path": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Mount source path"
                 },
                 "mountpoint.path_error": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Mount point path error"
                 },
                 "source.path_error": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Mount source path error"
                 }
             },
             "additionalProperties": false,
@@ -833,6 +852,10 @@ CSM Threats logs have the following JSON schema:
                     "$ref": "#/$defs/ProcessCredentials",
                     "description": "Credentials associated with the process"
                 },
+                "user_session": {
+                    "$ref": "#/$defs/UserSessionContext",
+                    "description": "Context of the user session for this event"
+                },
                 "executable": {
                     "$ref": "#/$defs/File",
                     "description": "File information of the executable"
@@ -956,6 +979,10 @@ CSM Threats logs have the following JSON schema:
                 "credentials": {
                     "$ref": "#/$defs/ProcessCredentials",
                     "description": "Credentials associated with the process"
+                },
+                "user_session": {
+                    "$ref": "#/$defs/UserSessionContext",
+                    "description": "Context of the user session for this event"
                 },
                 "executable": {
                     "$ref": "#/$defs/File",
@@ -1257,14 +1284,76 @@ CSM Threats logs have the following JSON schema:
             "additionalProperties": false,
             "type": "object",
             "description": "UserContextSerializer serializes a user context to JSON"
+        },
+        "UserSessionContext": {
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "description": "Unique identifier of the user session on the host"
+                },
+                "session_type": {
+                    "type": "string",
+                    "description": "Type of the user session"
+                },
+                "k8s_username": {
+                    "type": "string",
+                    "description": "Username of the Kubernetes \"kubectl exec\" session"
+                },
+                "k8s_uid": {
+                    "type": "string",
+                    "description": "UID of the Kubernetes \"kubectl exec\" session"
+                },
+                "k8s_groups": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Groups of the Kubernetes \"kubectl exec\" session"
+                },
+                "k8s_extra": {
+                    "additionalProperties": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    },
+                    "type": "object",
+                    "description": "Extra of the Kubernetes \"kubectl exec\" session"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "UserSessionContextSerializer serializes the user session context to JSON"
         }
     },
     "properties": {
         "evt": {
             "$ref": "#/$defs/EventContext"
         },
+        "date": {
+            "type": "string",
+            "format": "date-time"
+        },
         "file": {
             "$ref": "#/$defs/FileEvent"
+        },
+        "exit": {
+            "$ref": "#/$defs/ExitEvent"
+        },
+        "process": {
+            "$ref": "#/$defs/ProcessContext"
+        },
+        "container": {
+            "$ref": "#/$defs/ContainerContext"
+        },
+        "network": {
+            "$ref": "#/$defs/NetworkContext"
+        },
+        "dd": {
+            "$ref": "#/$defs/DDContext"
+        },
+        "security_profile": {
+            "$ref": "#/$defs/SecurityProfileContext"
         },
         "selinux": {
             "$ref": "#/$defs/SELinuxEvent"
@@ -1293,14 +1382,8 @@ CSM Threats logs have the following JSON schema:
         "dns": {
             "$ref": "#/$defs/DNSEvent"
         },
-        "network": {
-            "$ref": "#/$defs/NetworkContext"
-        },
         "bind": {
             "$ref": "#/$defs/BindEvent"
-        },
-        "exit": {
-            "$ref": "#/$defs/ExitEvent"
         },
         "mount": {
             "$ref": "#/$defs/MountEvent"
@@ -1310,22 +1393,6 @@ CSM Threats logs have the following JSON schema:
         },
         "usr": {
             "$ref": "#/$defs/UserContext"
-        },
-        "process": {
-            "$ref": "#/$defs/ProcessContext"
-        },
-        "dd": {
-            "$ref": "#/$defs/DDContext"
-        },
-        "container": {
-            "$ref": "#/$defs/ContainerContext"
-        },
-        "security_profile": {
-            "$ref": "#/$defs/SecurityProfileContext"
-        },
-        "date": {
-            "type": "string",
-            "format": "date-time"
         }
     },
     "additionalProperties": false,
@@ -1338,7 +1405,14 @@ CSM Threats logs have the following JSON schema:
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `evt` | $ref | Please see [EventContext](#eventcontext) |
+| `date` | string |  |
 | `file` | $ref | Please see [FileEvent](#fileevent) |
+| `exit` | $ref | Please see [ExitEvent](#exitevent) |
+| `process` | $ref | Please see [ProcessContext](#processcontext) |
+| `container` | $ref | Please see [ContainerContext](#containercontext) |
+| `network` | $ref | Please see [NetworkContext](#networkcontext) |
+| `dd` | $ref | Please see [DDContext](#ddcontext) |
+| `security_profile` | $ref | Please see [SecurityProfileContext](#securityprofilecontext) |
 | `selinux` | $ref | Please see [SELinuxEvent](#selinuxevent) |
 | `bpf` | $ref | Please see [BPFEvent](#bpfevent) |
 | `mmap` | $ref | Please see [MMapEvent](#mmapevent) |
@@ -1348,17 +1422,10 @@ CSM Threats logs have the following JSON schema:
 | `signal` | $ref | Please see [SignalEvent](#signalevent) |
 | `splice` | $ref | Please see [SpliceEvent](#spliceevent) |
 | `dns` | $ref | Please see [DNSEvent](#dnsevent) |
-| `network` | $ref | Please see [NetworkContext](#networkcontext) |
 | `bind` | $ref | Please see [BindEvent](#bindevent) |
-| `exit` | $ref | Please see [ExitEvent](#exitevent) |
 | `mount` | $ref | Please see [MountEvent](#mountevent) |
 | `anomaly_detection_syscall` | $ref | Please see [AnomalyDetectionSyscallEvent](#anomalydetectionsyscallevent) |
 | `usr` | $ref | Please see [UserContext](#usercontext) |
-| `process` | $ref | Please see [ProcessContext](#processcontext) |
-| `dd` | $ref | Please see [DDContext](#ddcontext) |
-| `container` | $ref | Please see [ContainerContext](#containercontext) |
-| `security_profile` | $ref | Please see [SecurityProfileContext](#securityprofilecontext) |
-| `date` | string |  |
 
 ## `AnomalyDetectionSyscallEvent`
 
@@ -1699,6 +1766,14 @@ CSM Threats logs have the following JSON schema:
             },
             "type": "array",
             "description": "The list of rules that the event matched (only valid in the context of an anomaly)"
+        },
+        "origin": {
+            "type": "string",
+            "description": "Origin of the event"
+        },
+        "suppressed": {
+            "type": "boolean",
+            "description": "True if the event has been suppressed"
         }
     },
     "additionalProperties": false,
@@ -1715,6 +1790,8 @@ CSM Threats logs have the following JSON schema:
 | `outcome` | Event outcome |
 | `async` | True if the event was asynchronous |
 | `matched_rules` | The list of rules that the event matched (only valid in the context of an anomaly) |
+| `origin` | Origin of the event |
+| `suppressed` | True if the event has been suppressed |
 
 
 ## `ExitEvent`
@@ -2311,37 +2388,48 @@ CSM Threats logs have the following JSON schema:
 {
     "properties": {
         "mp": {
-            "$ref": "#/$defs/File"
+            "$ref": "#/$defs/File",
+            "description": "Mount point file information"
         },
         "root": {
-            "$ref": "#/$defs/File"
+            "$ref": "#/$defs/File",
+            "description": "Root file information"
         },
         "mount_id": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Mount ID of the new mount"
         },
         "parent_mount_id": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Mount ID of the parent mount"
         },
         "bind_src_mount_id": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Mount ID of the source of a bind mount"
         },
         "device": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Device associated with the file"
         },
         "fs_type": {
-            "type": "string"
+            "type": "string",
+            "description": "Filesystem type"
         },
         "mountpoint.path": {
-            "type": "string"
+            "type": "string",
+            "description": "Mount point path"
         },
         "source.path": {
-            "type": "string"
+            "type": "string",
+            "description": "Mount source path"
         },
         "mountpoint.path_error": {
-            "type": "string"
+            "type": "string",
+            "description": "Mount point path error"
         },
         "source.path_error": {
-            "type": "string"
+            "type": "string",
+            "description": "Mount source path error"
         }
     },
     "additionalProperties": false,
@@ -2357,6 +2445,19 @@ CSM Threats logs have the following JSON schema:
 
 {{< /code-block >}}
 
+| Field | Description |
+| ----- | ----------- |
+| `mp` | Mount point file information |
+| `root` | Root file information |
+| `mount_id` | Mount ID of the new mount |
+| `parent_mount_id` | Mount ID of the parent mount |
+| `bind_src_mount_id` | Mount ID of the source of a bind mount |
+| `device` | Device associated with the file |
+| `fs_type` | Filesystem type |
+| `mountpoint.path` | Mount point path |
+| `source.path` | Mount source path |
+| `mountpoint.path_error` | Mount point path error |
+| `source.path_error` | Mount source path error |
 
 | References |
 | ---------- |
@@ -2566,6 +2667,10 @@ CSM Threats logs have the following JSON schema:
             "$ref": "#/$defs/ProcessCredentials",
             "description": "Credentials associated with the process"
         },
+        "user_session": {
+            "$ref": "#/$defs/UserSessionContext",
+            "description": "Context of the user session for this event"
+        },
         "executable": {
             "$ref": "#/$defs/File",
             "description": "File information of the executable"
@@ -2648,6 +2753,7 @@ CSM Threats logs have the following JSON schema:
 | `exec_time` | Exec time of the process |
 | `exit_time` | Exit time of the process |
 | `credentials` | Credentials associated with the process |
+| `user_session` | Context of the user session for this event |
 | `executable` | File information of the executable |
 | `interpreter` | File information of the interpreter |
 | `container` | Container context |
@@ -2664,6 +2770,7 @@ CSM Threats logs have the following JSON schema:
 | References |
 | ---------- |
 | [ProcessCredentials](#processcredentials) |
+| [UserSessionContext](#usersessioncontext) |
 | [File](#file) |
 | [File](#file) |
 | [ContainerContext](#containercontext) |
@@ -2732,6 +2839,10 @@ CSM Threats logs have the following JSON schema:
         "credentials": {
             "$ref": "#/$defs/ProcessCredentials",
             "description": "Credentials associated with the process"
+        },
+        "user_session": {
+            "$ref": "#/$defs/UserSessionContext",
+            "description": "Context of the user session for this event"
         },
         "executable": {
             "$ref": "#/$defs/File",
@@ -2826,6 +2937,7 @@ CSM Threats logs have the following JSON schema:
 | `exec_time` | Exec time of the process |
 | `exit_time` | Exit time of the process |
 | `credentials` | Credentials associated with the process |
+| `user_session` | Context of the user session for this event |
 | `executable` | File information of the executable |
 | `interpreter` | File information of the interpreter |
 | `container` | Container context |
@@ -2844,6 +2956,7 @@ CSM Threats logs have the following JSON schema:
 | References |
 | ---------- |
 | [ProcessCredentials](#processcredentials) |
+| [UserSessionContext](#usersessioncontext) |
 | [File](#file) |
 | [File](#file) |
 | [ContainerContext](#containercontext) |
@@ -3214,6 +3327,63 @@ CSM Threats logs have the following JSON schema:
 | ----- | ----------- |
 | `id` | User name |
 | `group` | Group name |
+
+
+## `UserSessionContext`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "id": {
+            "type": "string",
+            "description": "Unique identifier of the user session on the host"
+        },
+        "session_type": {
+            "type": "string",
+            "description": "Type of the user session"
+        },
+        "k8s_username": {
+            "type": "string",
+            "description": "Username of the Kubernetes \"kubectl exec\" session"
+        },
+        "k8s_uid": {
+            "type": "string",
+            "description": "UID of the Kubernetes \"kubectl exec\" session"
+        },
+        "k8s_groups": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "Groups of the Kubernetes \"kubectl exec\" session"
+        },
+        "k8s_extra": {
+            "additionalProperties": {
+                "items": {
+                    "type": "string"
+                },
+                "type": "array"
+            },
+            "type": "object",
+            "description": "Extra of the Kubernetes \"kubectl exec\" session"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "description": "UserSessionContextSerializer serializes the user session context to JSON"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `id` | Unique identifier of the user session on the host |
+| `session_type` | Type of the user session |
+| `k8s_username` | Username of the Kubernetes "kubectl exec" session |
+| `k8s_uid` | UID of the Kubernetes "kubectl exec" session |
+| `k8s_groups` | Groups of the Kubernetes "kubectl exec" session |
+| `k8s_extra` | Extra of the Kubernetes "kubectl exec" session |
 
 
 

@@ -5,13 +5,15 @@
 
 //go:build linux
 
-package activity_tree
+// Package activitytree holds activitytree related files
+package activitytree
 
 import (
 	"regexp"
 	"strconv"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/security/common/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -141,7 +143,7 @@ func getPathsReducerPatterns() []PatternReducer {
 			},
 		},
 		{
-			Pattern: regexp.MustCompile(model.ContainerIDPatternStr), // container ID
+			Pattern: regexp.MustCompile(containerutils.ContainerIDPatternStr), // container ID
 			Callback: func(ctx *callbackContext) {
 				start, end := ctx.getGroup(0)
 				ctx.replaceBy(start, end, "*")

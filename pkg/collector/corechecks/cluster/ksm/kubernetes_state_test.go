@@ -543,6 +543,158 @@ func TestProcessMetrics(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:   "node nvidia gpu capacity",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), LabelJoins: defaultLabelJoins()},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_node_status_capacity": {
+					{
+						Type: "*v1.Node",
+						Name: "kube_node_status_capacity",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"node": "nodename", "resource": "nvidia_com_gpu", "unit": "integer"},
+								Val:    4,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet: []ksmstore.DDMetricsFam{
+				{
+					Name:        "kube_node_info",
+					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"node": "nodename", "container_runtime_version": "docker://19.3.15", "kernel_version": "5.4.109+", "kubelet_version": "v1.18.20-gke.901", "os_image": "Container-Optimized OS from Google"}}},
+				},
+			},
+			metricTransformers: defaultMetricTransformers(),
+			expected: []metricsExpected{
+				{
+					name:     "kubernetes_state.node.gpu_capacity",
+					val:      4,
+					tags:     []string{"node:nodename", "resource:nvidia_com_gpu", "unit:integer", "container_runtime_version:docker://19.3.15", "kernel_version:5.4.109+", "kubelet_version:v1.18.20-gke.901", "os_image:Container-Optimized OS from Google"},
+					hostname: "nodename",
+				},
+				{
+					name: "kubernetes_state.node.gpu_capacity.total",
+					val:  4,
+					tags: []string{},
+				},
+			},
+		},
+		{
+			name:   "node amd gpu capacity",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), LabelJoins: defaultLabelJoins()},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_node_status_capacity": {
+					{
+						Type: "*v1.Node",
+						Name: "kube_node_status_capacity",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"node": "nodename", "resource": "amd_com_gpu", "unit": "integer"},
+								Val:    4,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet: []ksmstore.DDMetricsFam{
+				{
+					Name:        "kube_node_info",
+					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"node": "nodename", "container_runtime_version": "docker://19.3.15", "kernel_version": "5.4.109+", "kubelet_version": "v1.18.20-gke.901", "os_image": "Container-Optimized OS from Google"}}},
+				},
+			},
+			metricTransformers: defaultMetricTransformers(),
+			expected: []metricsExpected{
+				{
+					name:     "kubernetes_state.node.gpu_capacity",
+					val:      4,
+					tags:     []string{"node:nodename", "resource:amd_com_gpu", "unit:integer", "container_runtime_version:docker://19.3.15", "kernel_version:5.4.109+", "kubelet_version:v1.18.20-gke.901", "os_image:Container-Optimized OS from Google"},
+					hostname: "nodename",
+				},
+				{
+					name: "kubernetes_state.node.gpu_capacity.total",
+					val:  4,
+					tags: []string{},
+				},
+			},
+		},
+		{
+			name:   "node intel gpu capacity",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), LabelJoins: defaultLabelJoins()},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_node_status_capacity": {
+					{
+						Type: "*v1.Node",
+						Name: "kube_node_status_capacity",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"node": "nodename", "resource": "gpu_intel_com_i915", "unit": "integer"},
+								Val:    4,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet: []ksmstore.DDMetricsFam{
+				{
+					Name:        "kube_node_info",
+					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"node": "nodename", "container_runtime_version": "docker://19.3.15", "kernel_version": "5.4.109+", "kubelet_version": "v1.18.20-gke.901", "os_image": "Container-Optimized OS from Google"}}},
+				},
+			},
+			metricTransformers: defaultMetricTransformers(),
+			expected: []metricsExpected{
+				{
+					name:     "kubernetes_state.node.gpu_capacity",
+					val:      4,
+					tags:     []string{"node:nodename", "resource:gpu_intel_com_i915", "unit:integer", "container_runtime_version:docker://19.3.15", "kernel_version:5.4.109+", "kubelet_version:v1.18.20-gke.901", "os_image:Container-Optimized OS from Google"},
+					hostname: "nodename",
+				},
+				{
+					name: "kubernetes_state.node.gpu_capacity.total",
+					val:  4,
+					tags: []string{},
+				},
+			},
+		},
+		{
+			name:   "node nvidia mig capacity",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), LabelJoins: defaultLabelJoins()},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_node_status_capacity": {
+					{
+						Type: "*v1.Node",
+						Name: "kube_node_status_capacity",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"node": "nodename", "resource": "nvidia_com_mig_2c_4g_20gb", "unit": "integer"},
+								Val:    4,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet: []ksmstore.DDMetricsFam{
+				{
+					Name:        "kube_node_info",
+					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"node": "nodename", "container_runtime_version": "docker://19.3.15", "kernel_version": "5.4.109+", "kubelet_version": "v1.18.20-gke.901", "os_image": "Container-Optimized OS from Google"}}},
+				},
+			},
+			metricTransformers: defaultMetricTransformers(),
+			expected: []metricsExpected{
+				{
+					name:     "kubernetes_state.node.gpu_capacity",
+					val:      4,
+					tags:     []string{"node:nodename", "resource:nvidia_com_mig_2c_4g_20gb", "unit:integer", "container_runtime_version:docker://19.3.15", "kernel_version:5.4.109+", "kubelet_version:v1.18.20-gke.901", "os_image:Container-Optimized OS from Google", "mig_profile:2c-4g-20gb"},
+					hostname: "nodename",
+				},
+				{
+					name: "kubernetes_state.node.gpu_capacity.total",
+					val:  4,
+					tags: []string{},
+				},
+			},
+		},
 	}
 	for _, test := range tests {
 		kubeStateMetricsCheck := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), test.config)
@@ -776,25 +928,23 @@ func TestSendTelemetry(t *testing.T) {
 				{
 					name:     "kubernetes_state.telemetry.metrics.count.total",
 					val:      5,
-					tags:     []string{"kube_cluster_name:foo"},
 					hostname: "",
 				},
 				{
 					name:     "kubernetes_state.telemetry.metrics.count",
 					val:      2,
-					tags:     []string{"kube_cluster_name:foo", "resource_name:baz"},
+					tags:     []string{"resource_name:baz"},
 					hostname: "",
 				},
 				{
 					name:     "kubernetes_state.telemetry.metrics.count",
 					val:      3,
-					tags:     []string{"kube_cluster_name:foo", "resource_name:bar"},
+					tags:     []string{"resource_name:bar"},
 					hostname: "",
 				},
 				{
 					name:     "kubernetes_state.telemetry.unknown_metrics.count",
 					val:      1,
-					tags:     []string{"kube_cluster_name:foo"},
 					hostname: "",
 				},
 			},
@@ -979,14 +1129,15 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 			wantHostname: "",
 		},
 		{
-			name: "add check instance tags",
+			// instance tags are added in the sender by `initTags`. They do not need to be provided as arguments in sender functions.
+			name: "do not add check instance tags",
 			config: &KSMConfig{
 				Tags: []string{"instance:tag"},
 			},
 			args: args{
 				labels: map[string]string{"foo_label": "foo_value"},
 			},
-			wantTags:     []string{"foo_label:foo_value", "instance:tag"},
+			wantTags:     []string{"foo_label:foo_value"},
 			wantHostname: "",
 		},
 		{
@@ -1313,6 +1464,12 @@ func TestKSMCheck_mergeAnnotationsAsTags(t *testing.T) {
 			extra:    nil,
 			expected: map[string]map[string]string{"pod": {"common_key": "in_val"}},
 		},
+		{
+			name:     "conf nil values",
+			conf:     map[string]map[string]string{"job": nil, "deployment": nil, "statefulset": nil, "daemonset": nil},
+			extra:    defaultAnnotationsAsTags(),
+			expected: defaultAnnotationsAsTags(),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1488,7 +1645,7 @@ func TestKSMCheckInitTags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			conf := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-			conf.Set("tags", tt.tagsInConfig)
+			conf.SetWithoutSource("tags", tt.tagsInConfig)
 
 			k := &KSMCheck{
 				instance:            tt.fields.instance,

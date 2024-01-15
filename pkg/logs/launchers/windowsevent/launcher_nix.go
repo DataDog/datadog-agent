@@ -5,9 +5,27 @@
 
 //go:build !windows
 
+// Package windowsevent is not supported on non-windows platforms
 package windowsevent
 
-// EnumerateChannels does nothing
-func EnumerateChannels() ([]string, error) {
-	return nil, nil
+import (
+	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
+	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
+)
+
+// Launcher is a stub for non-windows platforms
+type Launcher struct{}
+
+// Start is a stub for non-windows platforms
+func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) { //nolint:revive // TODO fix revive unused-parameter
+}
+
+// Stop is a stub for non-windows platforms
+func (l *Launcher) Stop() {}
+
+// NewLauncher is a stub for non-windows platforms
+func NewLauncher() *Launcher {
+	return &Launcher{}
 }

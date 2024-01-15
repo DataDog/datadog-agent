@@ -6,6 +6,7 @@
 package corechecks
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -61,6 +62,9 @@ func (gl *GoCheckLoader) Load(senderManger sender.SenderManager, config integrat
 
 	c = factory()
 	if err := c.Configure(senderManger, config.FastDigest(), instance, config.InitConfig, config.Source); err != nil {
+		if errors.Is(err, check.ErrSkipCheckInstance) {
+			return c, err
+		}
 		log.Errorf("core.loader: could not configure check %s: %s", c, err)
 		msg := fmt.Sprintf("Could not configure check %s: %s", c, err)
 		return c, fmt.Errorf(msg)
@@ -74,7 +78,7 @@ func (gl *GoCheckLoader) String() string {
 }
 
 func init() {
-	factory := func() (check.Loader, error) {
+	factory := func(sender.SenderManager) (check.Loader, error) {
 		return NewGoCheckLoader()
 	}
 

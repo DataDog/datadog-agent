@@ -1,0 +1,96 @@
+
+# Rule to make job manual when running deploy pipelines, or automatic and on success on RC pipelines
+.manual_on_deploy_auto_on_rc:
+  - if: $BUCKET_BRANCH != "beta" && $BUCKET_BRANCH != "stable"
+    when: manual
+    allow_failure: true
+    variables:
+      AGENT_REPOSITORY: agent-dev
+      DSD_REPOSITORY: dogstatsd-dev
+      IMG_REGISTRIES: dev
+  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/ && $FORCE_MANUAL != "true"
+    when: on_success
+    variables:
+      AGENT_REPOSITORY: agent
+      DSD_REPOSITORY: dogstatsd
+      IMG_REGISTRIES: public
+  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/ && $FORCE_MANUAL == "true"
+    when: manual
+    allow_failure: true
+    variables:
+      AGENT_REPOSITORY: agent
+      DSD_REPOSITORY: dogstatsd
+      IMG_REGISTRIES: public
+  - when: manual
+    allow_failure: true
+    variables:
+      AGENT_REPOSITORY: agent
+      DSD_REPOSITORY: dogstatsd
+      IMG_REGISTRIES: public
+
+# Rule for job that are triggered on_success on RC pipelines
+.on_rc:
+  - if: $FORCE_MANUAL == "true" && $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
+    when: manual
+    variables:
+      AGENT_REPOSITORY: agent
+      DSD_REPOSITORY: dogstatsd
+      IMG_REGISTRIES: public
+  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
+    when: on_success
+    variables:
+      AGENT_REPOSITORY: agent
+      DSD_REPOSITORY: dogstatsd
+      IMG_REGISTRIES: public
+
+# Rule for job that can be triggered manually on final build, deploy to prod repository on stable branch deploy, else to dev repository
+.on_final:
+  - if: $BUCKET_BRANCH == "beta"
+    when: never
+  - if: $BUCKET_BRANCH != "beta" && $BUCKET_BRANCH != "stable"
+    when: manual
+    allow_failure: true
+    variables:
+      AGENT_REPOSITORY: agent-dev
+      DSD_REPOSITORY: dogstatsd-dev
+      IMG_REGISTRIES: dev
+  - when: manual
+    allow_failure: true
+    variables:
+      AGENT_REPOSITORY: agent
+      DSD_REPOSITORY: dogstatsd
+      IMG_REGISTRIES: public
+
+# Rule to deploy to our internal repository, on stable branch deploy
+.on_internal_final:
+  - if: $BUCKET_BRANCH == "beta"
+    when: never
+  - if: $BUCKET_BRANCH != "beta" && $BUCKET_BRANCH != "stable"
+    when: never
+  - when: manual
+    allow_failure: true
+    variables:
+      AGENT_REPOSITORY: ci/datadog-agent/agent-release
+      CLUSTER_AGENT_REPOSITORY: ci/datadog-agent/cluster-agent-release
+      DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
+      CWS_INSTRUMENTATION_REPOSITORY: ci/datadog-agent/cws-instrumentation-release
+      IMG_REGISTRIES: internal-aws-ddbuild
+
+# Rule to deploy to our internal repository on RC
+.on_internal_rc:
+  - if: $FORCE_MANUAL == "true" && $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
+    when: manual
+    variables:
+      AGENT_REPOSITORY: ci/datadog-agent/agent-release
+      CLUSTER_AGENT_REPOSITORY: ci/datadog-agent/cluster-agent-release
+      DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
+      CWS_INSTRUMENTATION_REPOSITORY: ci/datadog-agent/cws-instrumentation-release
+      IMG_REGISTRIES: internal-aws-ddbuild
+  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
+    when: on_success
+    variables:
+      AGENT_REPOSITORY: ci/datadog-agent/agent-release
+      CLUSTER_AGENT_REPOSITORY: ci/datadog-agent/cluster-agent-release
+      DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
+      CWS_INSTRUMENTATION_REPOSITORY: ci/datadog-agent/cws-instrumentation-release
+      IMG_REGISTRIES: internal-aws-ddbuild

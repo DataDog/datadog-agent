@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"time"
 
-	v1 "github.com/containerd/cgroups/stats/v1"
+	v1 "github.com/containerd/cgroups/v3/cgroup1/stats"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -59,8 +59,10 @@ func getMemoryStatsCgroupV1(memStat *v1.MemoryStat) *provider.ContainerMemStats 
 	}
 
 	res := provider.ContainerMemStats{
-		RSS:   pointer.Ptr(float64(memStat.RSS)),
-		Cache: pointer.Ptr(float64(memStat.Cache)),
+		RSS:        pointer.Ptr(float64(memStat.RSS)),
+		Cache:      pointer.Ptr(float64(memStat.Cache)),
+		Pgfault:    pointer.Ptr(float64(memStat.PgFault)),
+		Pgmajfault: pointer.Ptr(float64(memStat.PgMajFault)),
 	}
 
 	if memStat.Usage != nil {

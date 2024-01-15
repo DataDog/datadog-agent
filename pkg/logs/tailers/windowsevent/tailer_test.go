@@ -1,70 +1,387 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2023-present Datadog, Inc.
+
+//go:build windows
 
 package windowsevent
 
 import (
+	"fmt"
+	"os/exec"
 	"testing"
+	"time"
 
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/cihub/seelog"
+
+	"github.com/cenkalti/backoff"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
+
+	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/test"
 )
 
-func TestToMessage(t *testing.T) {
-	source := sources.NewLogSource("", &config.LogsConfig{})
-	tailer := NewTailer(source, &Config{ChannelPath: "System"}, nil)
-	evt1 := `<Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'><System><Provider Name='Service Control Manager' Guid='{555908d1-a6d7-4695-8e1e-26931d2012f4}' EventSourceName='Service Control Manager'/><EventID Qualifiers='16384'>7036</EventID><Version>0</Version><Level>4</Level><Task>0</Task><Opcode>0</Opcode><Keywords>0x8080000000000000</Keywords><TimeCreated SystemTime='2013-08-22T14:51:44.205667300Z'/><EventRecordID>2</EventRecordID><Correlation/><Execution ProcessID='516' ThreadID='1792'/><Channel>System</Channel><Computer>windows-n7iefg2</Computer><Security/></System><EventData><Data Name='param1'>Windows Event Log</Data><Data Name='param2'>stopped</Data><Binary>4500760065006E0074004C006F0067002F0031000000</Binary></EventData></Event>`
-	expected1 := `{"Event":{"EventData":{"Binary":"EventLog/1","Data":{"param1":"Windows Event Log","param2":"stopped"}},"System":{"Channel":"System","Computer":"windows-n7iefg2","Correlation":"","EventID":"7036","EventIDQualifier":"16384","EventRecordID":"2","Execution":{"ProcessID":"516","ThreadID":"1792"},"Keywords":"0x8080000000000000","Level":"4","Opcode":"0","Provider":{"EventSourceName":"Service Control Manager","Guid":"{555908d1-a6d7-4695-8e1e-26931d2012f4}","Name":"Service Control Manager"},"Security":"","Task":"0","TimeCreated":{"SystemTime":"2013-08-22T14:51:44.205667300Z"},"Version":"0"},"xmlns":"http://schemas.microsoft.com/win/2004/08/events/event"}}`
-	actual, _ := tailer.toMessage(richEventFromXML(evt1))
-	assert.Equal(t, expected1, string(actual.Content))
+type ReadEventsSuite struct {
+	suite.Suite
 
-	// Without <Data></Data>
-	evt2 := `<Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'><System><Provider Name='Service Control Manager' Guid='{555908d1-a6d7-4695-8e1e-26931d2012f4}' EventSourceName='Service Control Manager'/><EventID Qualifiers='16384'>7036</EventID><Version>0</Version><Level>4</Level><Task>0</Task><Opcode>0</Opcode><Keywords>0x8080000000000000</Keywords><TimeCreated SystemTime='2013-08-22T14:51:44.205667300Z'/><EventRecordID>2</EventRecordID><Correlation/><Execution ProcessID='516' ThreadID='1792'/><Channel>System</Channel><Computer>windows-n7iefg2</Computer><Security/></System><EventData><Binary>4500760065006E0074004C006F0067002F0031000000</Binary></EventData></Event>`
-	expected2 := `{"Event":{"EventData":{"Binary":"EventLog/1"},"System":{"Channel":"System","Computer":"windows-n7iefg2","Correlation":"","EventID":"7036","EventIDQualifier":"16384","EventRecordID":"2","Execution":{"ProcessID":"516","ThreadID":"1792"},"Keywords":"0x8080000000000000","Level":"4","Opcode":"0","Provider":{"EventSourceName":"Service Control Manager","Guid":"{555908d1-a6d7-4695-8e1e-26931d2012f4}","Name":"Service Control Manager"},"Security":"","Task":"0","TimeCreated":{"SystemTime":"2013-08-22T14:51:44.205667300Z"},"Version":"0"},"xmlns":"http://schemas.microsoft.com/win/2004/08/events/event"}}`
-	actual, _ = tailer.toMessage(richEventFromXML(evt2))
-	assert.Equal(t, expected2, string(actual.Content))
+	channelPath string
+	eventSource string
 
-	// Without <Binary></Binary>
-	evt3 := `<Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'><System><Provider Name='Service Control Manager' Guid='{555908d1-a6d7-4695-8e1e-26931d2012f4}' EventSourceName='Service Control Manager'/><EventID Qualifiers='16384'>7036</EventID><Version>0</Version><Level>4</Level><Task>0</Task><Opcode>0</Opcode><Keywords>0x8080000000000000</Keywords><TimeCreated SystemTime='2013-08-22T14:51:44.205667300Z'/><EventRecordID>2</EventRecordID><Correlation/><Execution ProcessID='516' ThreadID='1792'/><Channel>System</Channel><Computer>windows-n7iefg2</Computer><Security/></System><EventData><Data Name='param1'>Windows Event Log</Data><Data Name='param2'>stopped</Data></EventData></Event>`
-	expected3 := `{"Event":{"EventData":{"Data":{"param1":"Windows Event Log","param2":"stopped"}},"System":{"Channel":"System","Computer":"windows-n7iefg2","Correlation":"","EventID":"7036","EventIDQualifier":"16384","EventRecordID":"2","Execution":{"ProcessID":"516","ThreadID":"1792"},"Keywords":"0x8080000000000000","Level":"4","Opcode":"0","Provider":{"EventSourceName":"Service Control Manager","Guid":"{555908d1-a6d7-4695-8e1e-26931d2012f4}","Name":"Service Control Manager"},"Security":"","Task":"0","TimeCreated":{"SystemTime":"2013-08-22T14:51:44.205667300Z"},"Version":"0"},"xmlns":"http://schemas.microsoft.com/win/2004/08/events/event"}}`
-	actual, _ = tailer.toMessage(richEventFromXML(evt3))
-	assert.Equal(t, expected3, string(actual.Content))
-
-	// With #text in the text field: it should not be replaced
-	evt4 := `<Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'><System><Provider Name='Service Control Manager' Guid='{555908d1-a6d7-4695-8e1e-26931d2012f4}' EventSourceName='Service Control Manager'/><EventID Qualifiers='16384'>#text</EventID><Version>0</Version><Level>4</Level><Task>0</Task><Opcode>0</Opcode><Keywords>0x8080000000000000</Keywords><TimeCreated SystemTime='2013-08-22T14:51:44.205667300Z'/><EventRecordID>2</EventRecordID><Correlation/><Execution ProcessID='516' ThreadID='1792'/><Channel>System</Channel><Computer>windows-n7iefg2</Computer><Security/></System><EventData><Data Name='param1'>Windows Event Log</Data><Data Name='param2'>stopped</Data></EventData></Event>`
-	expected4 := `{"Event":{"EventData":{"Data":{"param1":"Windows Event Log","param2":"stopped"}},"System":{"Channel":"System","Computer":"windows-n7iefg2","Correlation":"","EventID":"#text","EventIDQualifier":"16384","EventRecordID":"2","Execution":{"ProcessID":"516","ThreadID":"1792"},"Keywords":"0x8080000000000000","Level":"4","Opcode":"0","Provider":{"EventSourceName":"Service Control Manager","Guid":"{555908d1-a6d7-4695-8e1e-26931d2012f4}","Name":"Service Control Manager"},"Security":"","Task":"0","TimeCreated":{"SystemTime":"2013-08-22T14:51:44.205667300Z"},"Version":"0"},"xmlns":"http://schemas.microsoft.com/win/2004/08/events/event"}}`
-	actual, _ = tailer.toMessage(richEventFromXML(evt4))
-	assert.Equal(t, expected4, string(actual.Content))
-
-	// With {"#text":"something"} in the text field: it should not be replaced
-	evt5 := `<Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'><System><Provider Name='Service Control Manager' Guid='{555908d1-a6d7-4695-8e1e-26931d2012f4}' EventSourceName='Service Control Manager'/><EventID Qualifiers='16384'>{"#text":"something"}</EventID><Version>0</Version><Level>4</Level><Task>0</Task><Opcode>0</Opcode><Keywords>0x8080000000000000</Keywords><TimeCreated SystemTime='2013-08-22T14:51:44.205667300Z'/><EventRecordID>2</EventRecordID><Correlation/><Execution ProcessID='516' ThreadID='1792'/><Channel>System</Channel><Computer>windows-n7iefg2</Computer><Security/></System><EventData><Data Name='param1'>Windows Event Log</Data><Data Name='param2'>stopped</Data></EventData></Event>`
-	expected5 := `{"Event":{"EventData":{"Data":{"param1":"Windows Event Log","param2":"stopped"}},"System":{"Channel":"System","Computer":"windows-n7iefg2","Correlation":"","EventID":"{\"#text\":\"something\"}","EventIDQualifier":"16384","EventRecordID":"2","Execution":{"ProcessID":"516","ThreadID":"1792"},"Keywords":"0x8080000000000000","Level":"4","Opcode":"0","Provider":{"EventSourceName":"Service Control Manager","Guid":"{555908d1-a6d7-4695-8e1e-26931d2012f4}","Name":"Service Control Manager"},"Security":"","Task":"0","TimeCreated":{"SystemTime":"2013-08-22T14:51:44.205667300Z"},"Version":"0"},"xmlns":"http://schemas.microsoft.com/win/2004/08/events/event"}}`
-	actual, _ = tailer.toMessage(richEventFromXML(evt5))
-	assert.Equal(t, expected5, string(actual.Content))
-
-	// Test value map render (e.g. level:4 -> level:Warning)
-	evt6 := `<Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'><System><Provider Name='Service Control Manager' Guid='{555908d1-a6d7-4695-8e1e-26931d2012f4}' EventSourceName='Service Control Manager'/><EventID Qualifiers='16384'>7036</EventID><Version>0</Version><Level>4</Level><Task>0</Task><Opcode>0</Opcode><Keywords>0x8080000000000000</Keywords><TimeCreated SystemTime='2013-08-22T14:51:44.205667300Z'/><EventRecordID>2</EventRecordID><Correlation/><Execution ProcessID='516' ThreadID='1792'/><Channel>System</Channel><Computer>windows-n7iefg2</Computer><Security/></System><EventData><Data Name='param1'>Windows Event Log</Data><Data Name='param2'>stopped</Data><Binary>4500760065006E0074004C006F0067002F0031000000</Binary></EventData></Event>`
-	expected6 := `{"Event":{"EventData":{"Binary":"EventLog/1","Data":{"param1":"Windows Event Log","param2":"stopped"}},"System":{"Channel":"System","Computer":"windows-n7iefg2","Correlation":"","EventID":"7036","EventIDQualifier":"16384","EventRecordID":"2","Execution":{"ProcessID":"516","ThreadID":"1792"},"Keywords":"0x8080000000000000","Level":"4","Opcode":"OpCode","Provider":{"EventSourceName":"Service Control Manager","Guid":"{555908d1-a6d7-4695-8e1e-26931d2012f4}","Name":"Service Control Manager"},"Security":"","Task":"taskName","TimeCreated":{"SystemTime":"2013-08-22T14:51:44.205667300Z"},"Version":"0"},"xmlns":"http://schemas.microsoft.com/win/2004/08/events/event"},"level":"Warning","message":"Some message"}`
-	richEvt := &richEvent{
-		xmlEvent: evt6,
-		message:  "Some message",
-		task:     "taskName",
-		opcode:   "OpCode",
-		level:    "Warning",
-	}
-	actual, _ = tailer.toMessage(richEvt)
-	assert.Equal(t, expected6, string(actual.Content))
-
-	// Test an event without EventID Qualifiers attribute
-	evt7 := `<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event"><System><Provider Name="Microsoft-Windows-WindowsUpdateClient" Guid="{945a8954-c147-4acd-923f-40c45405a658}" /><EventID>19</EventID><Version>1</Version><Level>4</Level><Task>1</Task><Opcode>13</Opcode><Keywords>0x8000000000000018</Keywords><TimeCreated SystemTime="2022-09-30T13:44:36.6772228Z" /><EventRecordID>1868</EventRecordID><Correlation /><Execution ProcessID="11216" ThreadID="11400" /><Channel>System</Channel><Computer>DESKTOP-U86BVDJ</Computer><Security UserID="S-1-5-18" /></System><EventData><Data Name="updateTitle">Security Intelligence Update for Microsoft Defender Antivirus - KB2267602 (Version 1.375.1243.0)</Data><Data Name="updateGuid">{23315d09-c6f2-4cb7-8b40-869952c28480}</Data><Data Name="updateRevisionNumber">200</Data><Data Name="serviceGuid">{9482f4b4-e343-43b6-b170-9a65bc822c77}</Data></EventData></Event>`
-	expected7 := `{"Event":{"EventData":{"Data":{"serviceGuid":"{9482f4b4-e343-43b6-b170-9a65bc822c77}","updateGuid":"{23315d09-c6f2-4cb7-8b40-869952c28480}","updateRevisionNumber":"200","updateTitle":"Security Intelligence Update for Microsoft Defender Antivirus - KB2267602 (Version 1.375.1243.0)"}},"System":{"Channel":"System","Computer":"DESKTOP-U86BVDJ","Correlation":"","EventID":"19","EventRecordID":"1868","Execution":{"ProcessID":"11216","ThreadID":"11400"},"Keywords":"0x8000000000000018","Level":"4","Opcode":"13","Provider":{"Guid":"{945a8954-c147-4acd-923f-40c45405a658}","Name":"Microsoft-Windows-WindowsUpdateClient"},"Security":{"UserID":"S-1-5-18"},"Task":"1","TimeCreated":{"SystemTime":"2022-09-30T13:44:36.6772228Z"},"Version":"1"},"xmlns":"http://schemas.microsoft.com/win/2004/08/events/event"}}`
-	actual, _ = tailer.toMessage(richEventFromXML(evt7))
-	assert.Equal(t, expected7, string(actual.Content))
+	testAPI   string
+	numEvents uint
+	ti        eventlog_test.APITester
 }
 
-func richEventFromXML(xml string) *richEvent {
-	return &richEvent{xmlEvent: xml}
+func TestReadEventsSuite(t *testing.T) {
+	testerNames := eventlog_test.GetEnabledAPITesters()
+
+	for _, tiName := range testerNames {
+		if tiName != "Windows" {
+			t.Skip("test interface not implemented")
+		}
+		t.Run(fmt.Sprintf("%sAPI", tiName), func(t *testing.T) {
+			var s ReadEventsSuite
+			s.channelPath = "dd-test-channel-logtailer"
+			s.eventSource = "dd-test-source-logtailer"
+			s.numEvents = 100
+			s.testAPI = tiName
+			suite.Run(t, &s)
+		})
+	}
+}
+
+func (s *ReadEventsSuite) SetupSuite() {
+	// Enable logger
+	if false {
+		pkglog.SetupLogger(seelog.Default, "debug")
+	}
+
+	s.ti = eventlog_test.GetAPITesterByName(s.testAPI, s.T())
+}
+
+func (s *ReadEventsSuite) SetupTest() {
+	err := s.ti.InstallChannel(s.channelPath)
+	s.Require().NoError(err)
+	s.T().Cleanup(func() {
+		s.ti.RemoveChannel(s.channelPath)
+	})
+	err = s.ti.InstallSource(s.channelPath, s.eventSource)
+	s.Require().NoError(err)
+	s.T().Cleanup(func() {
+		s.ti.RemoveSource(s.channelPath, s.eventSource)
+	})
+	err = s.ti.API().EvtClearLog(s.channelPath)
+	s.Require().NoError(err)
+}
+
+func newtailer(evtapi evtapi.API, tailerconfig *Config, bookmark string, msgChan chan *message.Message) (*Tailer, error) {
+	source := sources.NewLogSource("", &logconfig.LogsConfig{})
+
+	tailer := NewTailer(evtapi, source, tailerconfig, msgChan)
+	tailer.Start(bookmark)
+	err := backoff.Retry(func() error {
+		if source.Status.IsSuccess() {
+			return nil
+		} else if source.Status.IsError() {
+			return fmt.Errorf(source.Status.GetError())
+		}
+		return fmt.Errorf("start pending")
+	}, backoff.NewConstantBackOff(50*time.Millisecond))
+	if err != nil {
+		return nil, fmt.Errorf("failed to start tailer: %w", err)
+	}
+	return tailer, nil
+}
+
+func (s *ReadEventsSuite) TestReadEvents() {
+	config := Config{
+		ChannelPath: s.channelPath,
+	}
+	msgChan := make(chan *message.Message)
+	tailer, err := newtailer(s.ti.API(), &config, "", msgChan)
+	s.Require().NoError(err)
+	s.T().Cleanup(func() {
+		tailer.Stop()
+	})
+
+	err = s.ti.GenerateEvents(s.eventSource, s.numEvents)
+	s.Require().NoError(err)
+
+	totalEvents := uint(0)
+	for i := uint(0); i < s.numEvents; i++ {
+		msg := <-msgChan
+		s.Require().NotEmpty(msg.GetContent(), "Message must not be empty")
+		totalEvents++
+	}
+	s.Require().Equal(s.numEvents, totalEvents, "Received %d/%d events", totalEvents, s.numEvents)
+}
+
+func (s *ReadEventsSuite) TestCustomQuery() {
+	query := fmt.Sprintf(`
+<QueryList>
+  <Query Id="0" Path="%s">
+    <Select Path="%s">*[System[Provider[@Name='%s'] and (Level=4 or Level=0) and (EventID=1000)]]</Select>
+  </Query>
+</QueryList>
+`, s.channelPath, s.channelPath, s.eventSource)
+	config := Config{
+		ChannelPath: s.channelPath,
+		Query:       query,
+	}
+	msgChan := make(chan *message.Message)
+	tailer, err := newtailer(s.ti.API(), &config, "", msgChan)
+	s.Require().NoError(err)
+	s.T().Cleanup(func() {
+		tailer.Stop()
+	})
+
+	err = s.ti.GenerateEvents(s.eventSource, s.numEvents)
+	s.Require().NoError(err)
+
+	totalEvents := uint(0)
+	for i := uint(0); i < s.numEvents; i++ {
+		msg := <-msgChan
+		s.Require().NotEmpty(msg.GetContent(), "Message must not be empty")
+		totalEvents++
+	}
+	s.Require().Equal(s.numEvents, totalEvents, "Received %d/%d events", totalEvents, s.numEvents)
+}
+
+func (s *ReadEventsSuite) TestRecoverFromBrokenSubscription() {
+	// TODO: https://datadoghq.atlassian.net/browse/WINA-480
+	s.T().Skip("WINA-480: Skipping flaky test")
+
+	// create tailer and ensure events can be read
+	config := Config{
+		ChannelPath: s.channelPath,
+	}
+	msgChan := make(chan *message.Message)
+	tailer, err := newtailer(s.ti.API(), &config, "", msgChan)
+	s.Require().NoError(err)
+	s.T().Cleanup(func() {
+		tailer.Stop()
+	})
+
+	err = s.ti.GenerateEvents(s.eventSource, s.numEvents)
+	s.Require().NoError(err)
+
+	totalEvents := uint(0)
+	for i := uint(0); i < s.numEvents; i++ {
+		msg := <-msgChan
+		s.Require().NotEmpty(msg.GetContent(), "Message must not be empty")
+		totalEvents++
+	}
+	s.Require().Equal(s.numEvents, totalEvents, "Received %d/%d events", totalEvents, s.numEvents)
+
+	// stop the EventLog service and assert the tailer detects the error
+	cmd := exec.Command("powershell.exe", "-Command", "Stop-Service", "EventLog", "-Force")
+	out, err := cmd.CombinedOutput()
+	s.T().Cleanup(func() {
+		// ensure service is started at end of this test
+		cmd = exec.Command("powershell.exe", "-Command", "Start-Service", "EventLog")
+		out, err = cmd.CombinedOutput()
+	})
+	require.NoError(s.T(), err, "Failed to stop EventLog service %s", out)
+
+	err = backoff.Retry(func() error {
+		if tailer.source.Status.IsSuccess() {
+			return fmt.Errorf("tailer is still running")
+		} else if tailer.source.Status.IsError() {
+			return nil
+		}
+		return fmt.Errorf("start pending")
+	}, backoff.NewConstantBackOff(50*time.Millisecond))
+	s.Require().NoError(err, "tailer should catch the error and update the source status")
+	fmt.Println(tailer.source.Status.GetError())
+
+	// start the EventLog service and assert the tailer resumes from the previous error
+	cmd = exec.Command("powershell.exe", "-Command", "Start-Service", "EventLog")
+	out, err = cmd.CombinedOutput()
+	require.NoError(s.T(), err, "Failed to start EventLog service %s", out)
+
+	err = backoff.Retry(func() error {
+		if tailer.source.Status.IsSuccess() {
+			return nil
+		} else if tailer.source.Status.IsError() {
+			return fmt.Errorf(tailer.source.Status.GetError())
+		}
+		return fmt.Errorf("start pending")
+	}, backoff.NewConstantBackOff(50*time.Millisecond))
+	s.Require().NoError(err, "tailer should auto restart after an error is resolved")
+
+	// ensure the tailer can receive events again
+	err = s.ti.GenerateEvents(s.eventSource, s.numEvents)
+	s.Require().NoError(err)
+
+	totalEvents = uint(0)
+	for i := uint(0); i < s.numEvents; i++ {
+		msg := <-msgChan
+		s.Require().NotEmpty(msg.GetContent(), "Message must not be empty")
+		totalEvents++
+	}
+	s.Require().Equal(s.numEvents, totalEvents, "Received %d/%d events", totalEvents, s.numEvents)
+}
+
+func (s *ReadEventsSuite) TestBookmarkNewTailer() {
+	// create a new tailer and read some events to create a bookmark
+	config := Config{
+		ChannelPath: s.channelPath,
+	}
+	msgChan := make(chan *message.Message)
+	tailer, err := newtailer(s.ti.API(), &config, "", msgChan)
+	s.Require().NoError(err)
+	s.T().Cleanup(func() {
+		tailer.Stop()
+	})
+
+	err = s.ti.GenerateEvents(s.eventSource, s.numEvents)
+	s.Require().NoError(err)
+
+	bookmark := ""
+	totalEvents := uint(0)
+	for i := uint(0); i < s.numEvents; i++ {
+		msg := <-msgChan
+		s.Require().NotEmpty(msg.GetContent(), "Message must not be empty")
+		totalEvents++
+		bookmark = msg.Origin.Offset
+	}
+	s.Require().Equal(s.numEvents, totalEvents, "Received %d/%d events", totalEvents, s.numEvents)
+	// we are done with the original tailer now
+	tailer.Stop()
+
+	// add some new events to the log
+	// the tailer should resume from the bookmark and see these events even though
+	// it wasn't running at the time they were generated
+	err = s.ti.GenerateEvents(s.eventSource, s.numEvents)
+	s.Require().NoError(err)
+
+	// create a new tailer, and provide it the bookmark from the previous run
+	msgChan = make(chan *message.Message)
+	tailer, err = newtailer(s.ti.API(), &config, bookmark, msgChan)
+	s.Require().NoError(err)
+
+	totalEvents = uint(0)
+	for i := uint(0); i < s.numEvents; i++ {
+		msg := <-msgChan
+		s.Require().NotEmpty(msg.GetContent(), "Message must not be empty")
+		totalEvents++
+	}
+	s.Require().Equal(s.numEvents, totalEvents, "Received %d/%d events", totalEvents, s.numEvents)
+
+	// if tailer started from bookmark correctly, there should only be s.numEvents
+}
+
+func BenchmarkReadEvents(b *testing.B) {
+	numEvents := []uint{10, 100, 1000, 10000}
+	testerNames := eventlog_test.GetEnabledAPITesters()
+
+	for _, tiName := range testerNames {
+		for _, v := range numEvents {
+			b.Run(fmt.Sprintf("%sAPI/%d", tiName, v), func(b *testing.B) {
+				if tiName == "Fake" {
+					b.Skip("Fake API does not implement EvtRenderValues")
+				}
+				channelPath := "dd-test-channel-logtailer"
+				eventSource := "dd-test-source-logtailer"
+				query := "*"
+				numEvents := v
+				testAPI := "Windows"
+
+				ti := eventlog_test.GetAPITesterByName(testAPI, b)
+				err := ti.InstallChannel(channelPath)
+				require.NoError(b, err)
+				b.Cleanup(func() {
+					ti.RemoveChannel(channelPath)
+				})
+				err = ti.InstallSource(channelPath, eventSource)
+				require.NoError(b, err)
+				b.Cleanup(func() {
+					ti.RemoveSource(channelPath, eventSource)
+				})
+				err = ti.API().EvtClearLog(channelPath)
+				require.NoError(b, err)
+
+				config := Config{
+					ChannelPath: channelPath,
+					Query:       query,
+				}
+				msgChan := make(chan *message.Message)
+				tailer, err := newtailer(ti.API(), &config, "", msgChan)
+				require.NoError(b, err)
+				b.Cleanup(func() {
+					tailer.Stop()
+				})
+
+				b.ResetTimer()
+				totalEvents := uint(0)
+				for i := 0; i < b.N; i++ {
+					b.StopTimer()
+					err = ti.API().EvtClearLog(channelPath)
+					require.NoError(b, err)
+					err = ti.GenerateEvents(eventSource, numEvents)
+					require.NoError(b, err)
+					b.StartTimer()
+
+					for i := uint(0); i < numEvents; i++ {
+						msg := <-msgChan
+						require.NotEmpty(b, msg.GetContent(), "Message must not be empty")
+						totalEvents++
+					}
+				}
+
+				elapsed := b.Elapsed()
+				b.Logf("%.2f events/s (%.3fs)", float64(totalEvents)/elapsed.Seconds(), elapsed.Seconds())
+
+			})
+		}
+	}
+}
+
+func TestTailerCompareUnstructuredAndStructured(t *testing.T) {
+	assert := assert.New(t)
+	sourceV1 := sources.NewLogSource("", &logconfig.LogsConfig{})
+	tailerV1 := NewTailer(nil, sourceV1, &Config{ChannelPath: "System"}, nil)
+	tailerV1.config.ProcessRawMessage = true
+
+	sourceV2 := sources.NewLogSource("", &logconfig.LogsConfig{})
+	tailerV2 := NewTailer(nil, sourceV2, &Config{ChannelPath: "System"}, nil)
+	tailerV2.config.ProcessRawMessage = false
+
+	for _, testCase := range testData {
+		ev1 := &richEvent{
+			xmlEvent: testCase[0],
+			message:  "some content in the message",
+			task:     "rdTaskName",
+			opcode:   "OpCode",
+			level:    "Warning",
+		}
+		ev2 := &richEvent{
+			xmlEvent: testCase[0],
+			message:  "some content in the message",
+			task:     "rdTaskName",
+			opcode:   "OpCode",
+			level:    "Warning",
+		}
+
+		messagev1, err1 := tailerV1.toMessage(ev1)
+		messagev2, err2 := tailerV2.toMessage(ev2)
+
+		assert.NoError(err1)
+		assert.NoError(err2)
+
+		rendered1, err1 := messagev1.Render()
+		rendered2, err2 := messagev2.Render()
+
+		assert.NoError(err1)
+		assert.NoError(err2)
+
+		assert.Equal(rendered1, rendered2)
+	}
 }

@@ -8,6 +8,7 @@ package status
 import (
 	"expvar"
 	"strings"
+	"sync"
 
 	"go.uber.org/atomic"
 
@@ -28,12 +29,18 @@ const (
 )
 
 var (
+	// globalsLock prevents the builder, warnings and errors variables
+	// (not objects behind them, they have their own locks) from data
+	// races between reads in Add* and Get, and writes in Init and
+	// Clear.
+	globalsLock sync.RWMutex
+
 	builder  *Builder
 	warnings *config.Messages
 	errors   *config.Messages
 
-	// CurrentTransport is the current transport used by logs-agent, i.e TCP or HTTP
-	CurrentTransport Transport
+	// currentTransport is the current transport used by logs-agent, i.e TCP or HTTP
+	currentTransport Transport
 )
 
 // Source provides some information about a logs source.
@@ -46,7 +53,9 @@ type Source struct {
 	Info          map[string][]string    `json:"info"`
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 type Tailer struct {
+	//nolint:revive // TODO(AML) Fix revive linter
 	Id   string              `json:"id"`
 	Type string              `json:"type"`
 	Info map[string][]string `json:"info"`
@@ -71,8 +80,27 @@ type Status struct {
 	UseHTTP          bool              `json:"use_http"`
 }
 
+// SetCurrentTransport sets the current transport used by the log agent.
+func SetCurrentTransport(t Transport) {
+	globalsLock.Lock()
+	defer globalsLock.Unlock()
+
+	currentTransport = t
+}
+
+// GetCurrentTransport returns the current transport used by the log agent.
+func GetCurrentTransport() Transport {
+	globalsLock.Lock()
+	defer globalsLock.Unlock()
+
+	return currentTransport
+}
+
 // Init instantiates the builder that builds the status on the fly.
 func Init(isRunning *atomic.Bool, endpoints *config.Endpoints, sources *sources.LogSources, tracker *tailers.TailerTracker, logExpVars *expvar.Map) {
+	globalsLock.Lock()
+	defer globalsLock.Unlock()
+
 	warnings = config.NewMessages()
 	errors = config.NewMessages()
 	builder = NewBuilder(isRunning, endpoints, sources, tracker, warnings, errors, logExpVars)
@@ -80,6 +108,9 @@ func Init(isRunning *atomic.Bool, endpoints *config.Endpoints, sources *sources.
 
 // Clear clears the status which means it needs to be initialized again to be used.
 func Clear() {
+	globalsLock.Lock()
+	defer globalsLock.Unlock()
+
 	builder = nil
 	warnings = nil
 	errors = nil
@@ -87,6 +118,9 @@ func Clear() {
 
 // Get returns the status of the logs-agent computed on the fly.
 func Get(verbose bool) Status {
+	globalsLock.RLock()
+	defer globalsLock.RUnlock()
+
 	if builder == nil {
 		return Status{
 			IsRunning: false,
@@ -97,6 +131,9 @@ func Get(verbose bool) Status {
 
 // AddGlobalWarning keeps track of a warning message to display on the status.
 func AddGlobalWarning(key string, warning string) {
+	globalsLock.RLock()
+	defer globalsLock.RUnlock()
+
 	if warnings != nil {
 		warnings.AddMessage(key, warning)
 	}
@@ -105,6 +142,9 @@ func AddGlobalWarning(key string, warning string) {
 // RemoveGlobalWarning loses track of a warning message
 // that does not need to be displayed on the status anymore.
 func RemoveGlobalWarning(key string) {
+	globalsLock.RLock()
+	defer globalsLock.RUnlock()
+
 	if warnings != nil {
 		warnings.RemoveMessage(key)
 	}
@@ -112,6 +152,9 @@ func RemoveGlobalWarning(key string) {
 
 // AddGlobalError an error message for the status display (errors will stop the agent)
 func AddGlobalError(key string, errorMessage string) {
+	globalsLock.RLock()
+	defer globalsLock.RUnlock()
+
 	if errors != nil {
 		errors.AddMessage(key, errorMessage)
 	}

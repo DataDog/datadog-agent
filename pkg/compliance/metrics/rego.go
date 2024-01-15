@@ -21,7 +21,9 @@ var (
 	registeredCounters   map[string]telemetry.Counter
 )
 
-func NewRegoTelemetry() *regoTelemetry {
+// NewRegoTelemetry returns a opa/metrics.Metrics interface to monitor rego's
+// performance.
+func NewRegoTelemetry() opametrics.Metrics {
 	return &regoTelemetry{
 		inner:      opametrics.New(),
 		counters:   make(map[string]*regoCounter),

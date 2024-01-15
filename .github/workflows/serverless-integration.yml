@@ -12,11 +12,14 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         architecture: [amd64, arm64]
+        suite: [metric, log, trace, appsec, proxy]
+    name: ${{ matrix.suite }} on ${{ matrix.architecture }}
     steps:
       - name: Checkout datadog-agent repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: go/src/github.com/DataDog/datadog-agent
 
@@ -26,10 +29,10 @@ jobs:
           node-version: 14
 
       - name: Install Serverless Framework
-        run: sudo yarn global add serverless@^3.7.9 --prefix /usr/local
+        run: sudo yarn global add serverless@^3.36.0 --prefix /usr/local
 
       - name: Checkout the datadog-lambda-extension repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: DataDog/datadog-lambda-extension
           path: go/src/github.com/DataDog/datadog-lambda-extension
@@ -44,6 +47,12 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
+      - name: Create raw logs directory
+        id: rawlogs
+        run: |-
+          DIR=$(mktemp -d)
+          echo "dir=${DIR}" >> $GITHUB_OUTPUT
+
       - name: Run tests if AWS credentials are available
         id: test
         uses: nick-fields/retry@v2
@@ -51,18 +60,17 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.SERVERLESS_AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.SERVERLESS_AWS_SECRET_ACCESS_KEY }}
         with:
-          timeout_minutes: 30
+          timeout_minutes: 45
           max_attempts: 2
           command: |
-            export RAWLOGS_DIR=$(mktemp -d)
-            echo "rawlogs=$RAWLOGS_DIR" >> $GITHUB_OUTPUT
+            RAWLOGS_DIR="${{ steps.rawlogs.outputs.dir }}/${{ matrix.architecture }}"
             cd go/src/github.com/DataDog/datadog-agent
             ARCHITECTURE=${{ matrix.architecture }} RAWLOGS_DIR=$RAWLOGS_DIR \
-                ./test/integration/serverless/run.sh
+                ./test/integration/serverless/run.sh ${{ matrix.suite }}
 
       - name: Archive raw logs
         if: always()
         uses: actions/upload-artifact@v3
         with:
           name: rawlogs
-          path: ${{ steps.test.outputs.rawlogs }}
+          path: ${{ steps.rawlogs.outputs.dir }}

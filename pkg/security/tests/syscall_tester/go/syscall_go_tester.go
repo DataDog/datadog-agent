@@ -5,6 +5,7 @@
 
 //go:build syscalltesters
 
+// Package main holds main related files
 package main
 
 import (
@@ -15,12 +16,20 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/syndtr/gocapability/capability"
+	authenticationv1 "k8s.io/api/authentication/v1"
+
+	"github.com/DataDog/datadog-agent/cmd/cws-instrumentation/subcommands/injectcmd"
+
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usersessions"
 )
 
 var (
-	bpfLoad            bool
-	bpfClone           bool
-	capsetProcessCreds bool
+	bpfLoad               bool
+	bpfClone              bool
+	capsetProcessCreds    bool
+	k8sUserSession        bool
+	userSessionExecutable string
+	userSessionOpenPath   string
 )
 
 //go:embed ebpf_probe.o
@@ -81,10 +90,57 @@ func CapsetTest() error {
 	return threadCapabilities.Apply(capability.CAPS)
 }
 
+func K8SUserSessionTest(executable string, openPath string) error {
+	cmd := []string{executable, "--reference", "/etc/passwd"}
+	if len(openPath) > 0 {
+		cmd = append(cmd, openPath)
+	}
+
+	// prepare K8S user session context
+	data, err := usersessions.PrepareK8SUserSessionContext(&authenticationv1.UserInfo{
+		Username: "qwerty.azerty@datadoghq.com",
+		UID:      "azerty.qwerty@datadoghq.com",
+		Groups: []string{
+			"ABCABCABCABCABCABCABCABCABCABCABCABCABCABCABCABCABCABCABCABCABCABCABCABCABCABCABCABCABCABC",
+			"DEFDEFDEFDEFDEFDEFDEFDEFDEFDEFDEFDEFDEFDEFDEFDEFDEFDEFDEFDEFDEFDEFDEFDEFDEFDEFDEFDEFDEFDEF",
+		},
+		Extra: map[string]authenticationv1.ExtraValue{
+			"my_first_extra_values": []string{
+				"GHIGHIGHIGHIGHIGHIGHIGHIGHIGHIGHIGHIGHIGHIGHIGHIGHIGHIGHIGHIGHIGHIGHIGHIGHIGHIGHIGHIGHIGHI",
+				"JKLJKLJKLJKLJKLJKLJKLJKLJKLJKLJKLJKLJKLJKLJKLJKLJKLJKLJKLJKLJKLJKLJKLJKLJKLJKLJKLJKLJKLJKL",
+			},
+			"my_second_extra_values": []string{
+				"MNOMNOMNOMNOMNOMNOMNOMNOMNOMNOMNOMNOMNOMNOMNOMNOMNOMNOMNOMNOMNOMNOMNOMNOMNOMNOMNOMNOMNOMNO",
+				"PQRPQRPQRPQRPQRPQRPQRPQRPQRPQRPQRPQRPQRPQRPQRPQRPQRPQRPQRPQRPQRPQRPQRPQRPQRPQRPQRPQRPQRPQR",
+				"UVWUVWUVWUVWUVWUVWUVWUVWUVWUVWUVWUVWUVWUVWUVWUVWUVWUVWUVWUVWUVWUVWUVWUVWUVWUVWUVWUVWUVWUVW",
+				"XYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZ",
+			},
+		},
+	}, 1024)
+	if err != nil {
+		return err
+	}
+
+	if err := injectcmd.InjectUserSessionCmd(
+		cmd,
+		&injectcmd.InjectCliParams{
+			SessionType: "k8s",
+			Data:        string(data),
+		},
+	); err != nil {
+		return fmt.Errorf("couldn't run InjectUserSessionCmd: %w", err)
+	}
+
+	return nil
+}
+
 func main() {
 	flag.BoolVar(&bpfLoad, "load-bpf", false, "load the eBPF progams")
 	flag.BoolVar(&bpfClone, "clone-bpf", false, "clone maps")
 	flag.BoolVar(&capsetProcessCreds, "process-credentials-capset", false, "capset test content")
+	flag.BoolVar(&k8sUserSession, "k8s-user-session", false, "user session test")
+	flag.StringVar(&userSessionExecutable, "user-session-executable", "", "executable used for the user session test")
+	flag.StringVar(&userSessionOpenPath, "user-session-open-path", "", "file used for the user session test")
 
 	flag.Parse()
 
@@ -96,6 +152,12 @@ func main() {
 
 	if capsetProcessCreds {
 		if err := CapsetTest(); err != nil {
+			panic(err)
+		}
+	}
+
+	if k8sUserSession {
+		if err := K8SUserSessionTest(userSessionExecutable, userSessionOpenPath); err != nil {
 			panic(err)
 		}
 	}

@@ -3,12 +3,13 @@ import os
 import re
 import subprocess
 from collections import defaultdict
+from typing import Dict
 
 from .common.gitlab import Gitlab, get_gitlab_token
-from .types import FailedJobType, Test
+from .types import FailedJobs, Test
 
 DEFAULT_SLACK_CHANNEL = "#agent-platform"
-DEFAULT_JIRA_PROJECT = "AGENTR"
+DEFAULT_JIRA_PROJECT = "AGNTR"
 DATADOG_AGENT_GITHUB_ORG_URL = "https://github.com/DataDog"
 # Map keys in lowercase
 GITHUB_SLACK_MAP = {
@@ -26,11 +27,12 @@ GITHUB_SLACK_MAP = {
     "@datadog/metrics-aggregation": "#metrics-aggregation",
     "@datadog/serverless": "#serverless-agent",
     "@datadog/remote-config": "#remote-config-monitoring",
+    "@datadog/fleet": "#fleet-automation",
     "@datadog/agent-all": "#datadog-agent-pipelines",
     "@datadog/ebpf-platform": "#ebpf-platform-ops",
     "@datadog/networks": "#network-performance-monitoring",
     "@datadog/universal-service-monitoring": "#universal-service-monitoring",
-    "@datadog/windows-agent": "#windows-agent",
+    "@datadog/windows-agent": "#windows-agent-ops",
     "@datadog/windows-kernel-integrations": "#windows-kernel-integrations",
     "@datadog/opentelemetry": "#opentelemetry-ops",
     "@datadog/agent-e2e-testing": "#agent-testing-and-qa",
@@ -41,38 +43,41 @@ GITHUB_SLACK_MAP = {
     "@datadog/database-monitoring": "#database-monitoring",
     "@datadog/agent-cspm": "#k9-cspm-ops",
     "@datadog/telemetry-and-analytics": "#instrumentation-telemetry",
+    "@datadog/asm-go": "#k9-asm-library-go",
 }
 
 GITHUB_JIRA_MAP = {
-    "@datadog/agent-platform": "AP",
+    "@datadog/agent-platform": "APL",
     "@datadog/documentation": "DOCS",
-    "@datadog/container-integrations": "CONT",
-    "@datadog/platform-integrations": "PINT",
+    "@datadog/container-integrations": "CONTINT",
+    "@datadog/platform-integrations": "PLINT",
     "@datadog/agent-security": "SEC",
     "@datadog/agent-apm": "AIT",
-    "@datadog/network-device-monitoring": "NDM",
-    "@datadog/processes": "PROC",
-    "@datadog/agent-metrics-logs": "AML",
-    "@datadog/agent-shared-components": "ASC",
+    "@datadog/network-device-monitoring": "NDMII",
+    "@datadog/processes": "PROCS",
+    "@datadog/agent-metrics-logs": "AMLII",
+    "@datadog/agent-shared-components": "ASCII",
     "@datadog/container-app": "CAP",
     "@datadog/metrics-aggregation": "AGGR",
-    "@datadog/serverless": "SLS",
-    "@datadog/remote-config": "RCM",
+    "@datadog/serverless": "SVLS",
+    "@datadog/remote-config": "RC",
+    "@datadog/fleet": "RC",
     "@datadog/agent-all": DEFAULT_JIRA_PROJECT,
     "@datadog/ebpf-platform": "EBPF",
     "@datadog/networks": "NPM",
-    "@datadog/universal-service-monitoring": "USMO",
-    "@datadog/windows-agent": "WA",
-    "@datadog/windows-kernel-integrations": "WKIT",
+    "@datadog/universal-service-monitoring": "USMON",
+    "@datadog/windows-agent": "WINA",
+    "@datadog/windows-kernel-integrations": "WKINT",
     "@datadog/opentelemetry": "OTEL",
-    "@datadog/agent-e2e-testing": "AETT",
+    "@datadog/agent-e2e-testing": "APL",
     "@datadog/software-integrity-and-trust": "SINT",
     "@datadog/single-machine-performance": "SMP",
-    "@datadog/agent-integrations": "AIT",
+    "@datadog/agent-integrations": "AI",
     "@datadog/debugger": "DEBUG",
-    "@datadog/database-monitoring": "DBM",
+    "@datadog/database-monitoring": "DBMON",
     "@datadog/agent-cspm": "SEC",
     "@datadog/telemetry-and-analytics": DEFAULT_JIRA_PROJECT,
+    "@datadog/asm-go": "APPSEC",
 }
 
 
@@ -129,28 +134,26 @@ def get_failed_tests(project_name, job, owners_file=".github/CODEOWNERS"):
     return failed_tests.values()
 
 
-def find_job_owners(failed_jobs, owners_file=".gitlab/JOBOWNERS"):
+def find_job_owners(failed_jobs: FailedJobs, owners_file: str = ".gitlab/JOBOWNERS") -> Dict[str, FailedJobs]:
     owners = read_owners(owners_file)
-    owners_to_notify = defaultdict(list)
+    owners_to_notify = defaultdict(FailedJobs)
 
-    for job in failed_jobs:
-        # Exclude jobs that failed due to infrastructure failures
-        if job["failure_type"] == FailedJobType.INFRA_FAILURE:
-            continue
+    for job in failed_jobs.all_non_infra_failures():
         job_owners = owners.of(job["name"])
         # job_owners is a list of tuples containing the type of owner (eg. USERNAME, TEAM) and the name of the owner
         # eg. [('TEAM', '@DataDog/agent-platform')]
 
         for kind, owner in job_owners:
             if kind == "TEAM":
-                owners_to_notify[owner].append(job)
+                owners_to_notify[owner].add_failed_job(job)
 
     return owners_to_notify
 
 
 def base_message(header, state):
     project_title = os.getenv("CI_PROJECT_TITLE")
-    commit_title = os.getenv("CI_COMMIT_TITLE")
+    # commit_title needs a default string value, otherwise the re.search line below crashes
+    commit_title = os.getenv("CI_COMMIT_TITLE", "")
     pipeline_url = os.getenv("CI_PIPELINE_URL")
     pipeline_id = os.getenv("CI_PIPELINE_ID")
     commit_ref_name = os.getenv("CI_COMMIT_REF_NAME")

@@ -7,6 +7,7 @@
 
 //go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers -build_tags linux $GOFILE
 
+// Package dump holds dump related files
 package dump
 
 import (
@@ -28,13 +29,12 @@ import (
 	adproto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
+	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -95,7 +95,7 @@ type ActivityDump struct {
 
 	// Load config
 	LoadConfig       *model.ActivityDumpLoadConfig `json:"-"`
-	LoadConfigCookie uint32                        `json:"-"`
+	LoadConfigCookie uint64                        `json:"-"`
 }
 
 // NewActivityDumpLoadConfig returns a new instance of ActivityDumpLoadConfig
@@ -140,7 +140,7 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 		ProtobufVersion:   ProtobufVersion,
 		Start:             now,
 		End:               now.Add(adm.config.RuntimeSecurity.ActivityDumpCgroupDumpTimeout),
-		Arch:              probes.RuntimeArch,
+		Arch:              utils.RuntimeArch(),
 	}
 	ad.Host = adm.hostname
 	ad.Source = ActivityDumpSource
@@ -287,7 +287,7 @@ func (ad *ActivityDump) computeInMemorySize() int64 {
 }
 
 // SetLoadConfig set the load config of the current activity dump
-func (ad *ActivityDump) SetLoadConfig(cookie uint32, config model.ActivityDumpLoadConfig) {
+func (ad *ActivityDump) SetLoadConfig(cookie uint64, config model.ActivityDumpLoadConfig) {
 	ad.LoadConfig = &config
 	ad.LoadConfigCookie = cookie
 
@@ -307,7 +307,7 @@ func (ad *ActivityDump) SetTimeout(timeout time.Duration) {
 // updateTracedPid traces a pid in kernel space
 func (ad *ActivityDump) updateTracedPid(pid uint32) {
 	// start by looking up any existing entry
-	var cookie uint32
+	var cookie uint64
 	if ad.adm != nil { // it could be nil when running unit tests
 		_ = ad.adm.tracedPIDsMap.Lookup(pid, &cookie)
 		if cookie != ad.LoadConfigCookie {
@@ -354,7 +354,7 @@ func (ad *ActivityDump) MatchesSelector(entry *model.ProcessCacheEntry) bool {
 
 // IsEventTypeValid returns true if the provided event type is traced by the activity dump
 func (ad *ActivityDump) IsEventTypeValid(event model.EventType) bool {
-	return slices.Contains[model.EventType](ad.LoadConfig.TracedEventTypes, event)
+	return slices.Contains(ad.LoadConfig.TracedEventTypes, event)
 }
 
 // NewProcessNodeCallback is a callback function used to propagate the fact that a new process node was added to the
@@ -512,11 +512,12 @@ func (ad *ActivityDump) Insert(event *model.Event) {
 		return
 	}
 
-	if ok, err := ad.ActivityTree.Insert(event, activity_tree.Runtime, ad.adm.resolvers); ok && err == nil {
+	if ok, err := ad.ActivityTree.Insert(event, true, activity_tree.Runtime, ad.adm.resolvers); ok && err == nil {
 		// check dump size
 		ad.checkInMemorySize()
 	}
 
+	//nolint:gosimple // TODO(SEC) Fix gosimple linter
 	return
 }
 
@@ -534,12 +535,12 @@ func (ad *ActivityDump) GetImageNameTag() (string, string) {
 
 	var imageName, imageTag string
 	for _, tag := range ad.Tags {
-		if tag_name, tag_value, valid := strings.Cut(tag, ":"); valid {
-			switch tag_name {
+		if tagName, tagValue, valid := strings.Cut(tag, ":"); valid {
+			switch tagName {
 			case "image_name":
-				imageName = tag_value
+				imageName = tagValue
 			case "image_tag":
-				imageTag = tag_value
+				imageTag = tagValue
 			}
 		}
 	}
@@ -867,6 +868,7 @@ func (ad *ActivityDump) DecodeProfileProtobuf(reader io.Reader) error {
 	return nil
 }
 
+// DecodeJSON decodes JSON to an activity dump
 func (ad *ActivityDump) DecodeJSON(reader io.Reader) error {
 	ad.Lock()
 	defer ad.Unlock()

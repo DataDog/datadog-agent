@@ -42,14 +42,14 @@ func NewDatadogClient() (DatadogClient, error) {
 
 // NewDatadogSingleClient generates a new client to query metrics from Datadog
 func newDatadogSingleClient() (*datadog.Client, error) {
-	apiKey := config.SanitizeAPIKey(config.Datadog.GetString("external_metrics_provider.api_key"))
+	apiKey := utils.SanitizeAPIKey(config.Datadog.GetString("external_metrics_provider.api_key"))
 	if apiKey == "" {
-		apiKey = config.SanitizeAPIKey(config.Datadog.GetString("api_key"))
+		apiKey = utils.SanitizeAPIKey(config.Datadog.GetString("api_key"))
 	}
 
-	appKey := config.SanitizeAPIKey(config.Datadog.GetString("external_metrics_provider.app_key"))
+	appKey := utils.SanitizeAPIKey(config.Datadog.GetString("external_metrics_provider.app_key"))
 	if appKey == "" {
-		appKey = config.SanitizeAPIKey(config.Datadog.GetString("app_key"))
+		appKey = utils.SanitizeAPIKey(config.Datadog.GetString("app_key"))
 	}
 
 	// DATADOG_HOST used to be the only way to set the external metrics
@@ -70,7 +70,7 @@ func newDatadogSingleClient() (*datadog.Client, error) {
 	log.Infof("Initialized the Datadog Client for HPA with endpoint %q", endpoint)
 
 	client := datadog.NewClient(apiKey, appKey)
-	client.HttpClient.Transport = httputils.CreateHTTPTransport()
+	client.HttpClient.Transport = httputils.CreateHTTPTransport(config.Datadog)
 	client.RetryTimeout = 3 * time.Second
 	client.ExtraHeader["User-Agent"] = "Datadog-Cluster-Agent"
 	client.SetBaseUrl(endpoint)
@@ -119,7 +119,7 @@ func newDatadogFallbackClient(endpoints []config.Endpoint) (*datadogFallbackClie
 	}
 	for _, endpoint := range endpoints {
 		client := datadog.NewClient(endpoint.APIKey, endpoint.APPKey)
-		client.HttpClient.Transport = httputils.CreateHTTPTransport()
+		client.HttpClient.Transport = httputils.CreateHTTPTransport(config.Datadog)
 		client.RetryTimeout = 3 * time.Second
 		client.ExtraHeader["User-Agent"] = "Datadog-Cluster-Agent"
 		client.SetBaseUrl(endpoint.URL)

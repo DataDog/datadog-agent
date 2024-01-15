@@ -24,7 +24,7 @@ func TestProcessHTTPTransactions(t *testing.T) {
 	cfg := config.New()
 	cfg.MaxHTTPStatsBuffered = 1000
 	tel := NewTelemetry("http")
-	sk := NewStatkeeper(cfg, tel)
+	sk := NewStatkeeper(cfg, tel, NewIncompleteBuffer(cfg, tel))
 
 	srcString := "1.1.1.1"
 	dstString := "2.2.2.2"
@@ -49,7 +49,7 @@ func TestProcessHTTPTransactions(t *testing.T) {
 	assert.Equal(t, 0, len(sk.stats))
 	assert.Equal(t, numPaths, len(stats))
 	for key, stats := range stats {
-		assert.Equal(t, "/testpath", key.Path.Content[:9])
+		assert.Equal(t, "/testpath", key.Path.Content.Get()[:9])
 		for i := 0; i < 5; i++ {
 			s := stats.Data[uint16((i+1)*100)]
 			require.NotNil(t, s)
@@ -67,10 +67,44 @@ func TestProcessHTTPTransactions(t *testing.T) {
 	}
 }
 
+func BenchmarkProcessHTTPTransactions(b *testing.B) {
+	cfg := config.New()
+	cfg.MaxHTTPStatsBuffered = 100000
+	tel := NewTelemetry("http")
+	sk := NewStatkeeper(cfg, tel, NewIncompleteBuffer(cfg, tel))
+
+	srcString := "1.1.1.1"
+	dstString := "2.2.2.2"
+	sourceIP := util.AddressFromString(srcString)
+	sourcePort := 1234
+	destIP := util.AddressFromString(dstString)
+	destPort := 8080
+
+	const numPaths = 10000
+	const uniqPaths = 50
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for p := 0; p < numPaths; p++ {
+			b.StopTimer()
+			//we use subset of unique endpoints, but those will occur over and over again like in regular target application
+			path := "/testpath/blablabla/dsadas/isdaasd/asdasadsadasd" + strconv.Itoa(p%uniqPaths)
+			//we simulate different conn tuples by increasing the port number
+			newSourcePort := sourcePort + (p % 30)
+			statusCode := (i%5 + 1) * 100
+			latency := time.Duration(i%5+1) * time.Millisecond
+			tx := generateIPv4HTTPTransaction(sourceIP, destIP, newSourcePort, destPort, path, statusCode, latency)
+			b.StartTimer()
+			sk.Process(tx)
+		}
+	}
+	b.StopTimer()
+}
+
 func BenchmarkProcessSameConn(b *testing.B) {
 	cfg := &config.Config{MaxHTTPStatsBuffered: 1000}
 	tel := NewTelemetry("http")
-	sk := NewStatkeeper(cfg, tel)
+	sk := NewStatkeeper(cfg, tel, NewIncompleteBuffer(cfg, tel))
 	tx := generateIPv4HTTPTransaction(
 		util.AddressFromString("1.1.1.1"),
 		util.AddressFromString("2.2.2.2"),
@@ -104,7 +138,7 @@ func TestPathProcessing(t *testing.T) {
 		c.HTTPReplaceRules = rules
 
 		tel := NewTelemetry("http")
-		return NewStatkeeper(c, tel)
+		return NewStatkeeper(c, tel, NewIncompleteBuffer(cfg, tel))
 	}
 
 	t.Run("reject rule", func(t *testing.T) {
@@ -126,7 +160,7 @@ func TestPathProcessing(t *testing.T) {
 
 		require.Len(t, stats, 1)
 		for key := range stats {
-			assert.Equal(t, "/foobar", key.Path.Content)
+			assert.Equal(t, "/foobar", key.Path.Content.Get())
 		}
 	})
 
@@ -151,7 +185,7 @@ func TestPathProcessing(t *testing.T) {
 
 		require.Len(t, stats, 1)
 		for key, metrics := range stats {
-			assert.Equal(t, "/prefix/users/?", key.Path.Content)
+			assert.Equal(t, "/prefix/users/?", key.Path.Content.Get())
 			s := metrics.Data[uint16(statusCode)]
 			require.NotNil(t, s)
 			assert.Equal(t, 3, s.Count)
@@ -182,7 +216,7 @@ func TestPathProcessing(t *testing.T) {
 
 		require.Len(t, stats, 1)
 		for key, metrics := range stats {
-			assert.Equal(t, "/users/?/payment/?", key.Path.Content)
+			assert.Equal(t, "/users/?/payment/?", key.Path.Content.Get())
 			s := metrics.Data[uint16(statusCode)]
 			require.NotNil(t, s)
 			assert.Equal(t, 2, s.Count)
@@ -196,7 +230,7 @@ func TestHTTPCorrectness(t *testing.T) {
 		cfg.MaxHTTPStatsBuffered = 1000
 		libtelemetry.Clear()
 		tel := NewTelemetry("http")
-		sk := NewStatkeeper(cfg, tel)
+		sk := NewStatkeeper(cfg, tel, NewIncompleteBuffer(cfg, tel))
 		tx := generateIPv4HTTPTransaction(
 			util.AddressFromString("1.1.1.1"),
 			util.AddressFromString("2.2.2.2"),
@@ -220,7 +254,7 @@ func TestHTTPCorrectness(t *testing.T) {
 		cfg.MaxHTTPStatsBuffered = 1000
 		libtelemetry.Clear()
 		tel := NewTelemetry("http")
-		sk := NewStatkeeper(cfg, tel)
+		sk := NewStatkeeper(cfg, tel, NewIncompleteBuffer(cfg, tel))
 		tx := generateIPv4HTTPTransaction(
 			util.AddressFromString("1.1.1.1"),
 			util.AddressFromString("2.2.2.2"),
@@ -245,7 +279,7 @@ func TestHTTPCorrectness(t *testing.T) {
 		cfg.MaxHTTPStatsBuffered = 1000
 		libtelemetry.Clear()
 		tel := NewTelemetry("http")
-		sk := NewStatkeeper(cfg, tel)
+		sk := NewStatkeeper(cfg, tel, NewIncompleteBuffer(cfg, tel))
 		tx := generateIPv4HTTPTransaction(
 			util.AddressFromString("1.1.1.1"),
 			util.AddressFromString("2.2.2.2"),
@@ -269,7 +303,7 @@ func TestHTTPCorrectness(t *testing.T) {
 		cfg.MaxHTTPStatsBuffered = 1000
 		libtelemetry.Clear()
 		tel := NewTelemetry("http")
-		sk := NewStatkeeper(cfg, tel)
+		sk := NewStatkeeper(cfg, tel, NewIncompleteBuffer(cfg, tel))
 		tx := generateIPv4HTTPTransaction(
 			util.AddressFromString("1.1.1.1"),
 			util.AddressFromString("2.2.2.2"),

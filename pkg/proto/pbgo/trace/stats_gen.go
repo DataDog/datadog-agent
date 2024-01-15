@@ -102,17 +102,30 @@ func (z *ClientGroupedStats) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "TopLevelHits")
 				return
 			}
-		case "PeerService":
-			z.PeerService, err = dc.ReadString()
-			if err != nil {
-				err = msgp.WrapError(err, "PeerService")
-				return
-			}
 		case "SpanKind":
 			z.SpanKind, err = dc.ReadString()
 			if err != nil {
 				err = msgp.WrapError(err, "SpanKind")
 				return
+			}
+		case "PeerTags":
+			var zb0002 uint32
+			zb0002, err = dc.ReadArrayHeader()
+			if err != nil {
+				err = msgp.WrapError(err, "PeerTags")
+				return
+			}
+			if cap(z.PeerTags) >= int(zb0002) {
+				z.PeerTags = (z.PeerTags)[:zb0002]
+			} else {
+				z.PeerTags = make([]string, zb0002)
+			}
+			for za0001 := range z.PeerTags {
+				z.PeerTags[za0001], err = dc.ReadString()
+				if err != nil {
+					err = msgp.WrapError(err, "PeerTags", za0001)
+					return
+				}
 			}
 		default:
 			err = dc.Skip()
@@ -258,16 +271,6 @@ func (z *ClientGroupedStats) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "TopLevelHits")
 		return
 	}
-	// write "PeerService"
-	err = en.Append(0xab, 0x50, 0x65, 0x65, 0x72, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65)
-	if err != nil {
-		return
-	}
-	err = en.WriteString(z.PeerService)
-	if err != nil {
-		err = msgp.WrapError(err, "PeerService")
-		return
-	}
 	// write "SpanKind"
 	err = en.Append(0xa8, 0x53, 0x70, 0x61, 0x6e, 0x4b, 0x69, 0x6e, 0x64)
 	if err != nil {
@@ -277,6 +280,23 @@ func (z *ClientGroupedStats) EncodeMsg(en *msgp.Writer) (err error) {
 	if err != nil {
 		err = msgp.WrapError(err, "SpanKind")
 		return
+	}
+	// write "PeerTags"
+	err = en.Append(0xa8, 0x50, 0x65, 0x65, 0x72, 0x54, 0x61, 0x67, 0x73)
+	if err != nil {
+		return
+	}
+	err = en.WriteArrayHeader(uint32(len(z.PeerTags)))
+	if err != nil {
+		err = msgp.WrapError(err, "PeerTags")
+		return
+	}
+	for za0001 := range z.PeerTags {
+		err = en.WriteString(z.PeerTags[za0001])
+		if err != nil {
+			err = msgp.WrapError(err, "PeerTags", za0001)
+			return
+		}
 	}
 	return
 }
@@ -324,12 +344,15 @@ func (z *ClientGroupedStats) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "TopLevelHits"
 	o = append(o, 0xac, 0x54, 0x6f, 0x70, 0x4c, 0x65, 0x76, 0x65, 0x6c, 0x48, 0x69, 0x74, 0x73)
 	o = msgp.AppendUint64(o, z.TopLevelHits)
-	// string "PeerService"
-	o = append(o, 0xab, 0x50, 0x65, 0x65, 0x72, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65)
-	o = msgp.AppendString(o, z.PeerService)
 	// string "SpanKind"
 	o = append(o, 0xa8, 0x53, 0x70, 0x61, 0x6e, 0x4b, 0x69, 0x6e, 0x64)
 	o = msgp.AppendString(o, z.SpanKind)
+	// string "PeerTags"
+	o = append(o, 0xa8, 0x50, 0x65, 0x65, 0x72, 0x54, 0x61, 0x67, 0x73)
+	o = msgp.AppendArrayHeader(o, uint32(len(z.PeerTags)))
+	for za0001 := range z.PeerTags {
+		o = msgp.AppendString(o, z.PeerTags[za0001])
+	}
 	return
 }
 
@@ -429,17 +452,30 @@ func (z *ClientGroupedStats) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "TopLevelHits")
 				return
 			}
-		case "PeerService":
-			z.PeerService, bts, err = msgp.ReadStringBytes(bts)
-			if err != nil {
-				err = msgp.WrapError(err, "PeerService")
-				return
-			}
 		case "SpanKind":
 			z.SpanKind, bts, err = msgp.ReadStringBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "SpanKind")
 				return
+			}
+		case "PeerTags":
+			var zb0002 uint32
+			zb0002, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "PeerTags")
+				return
+			}
+			if cap(z.PeerTags) >= int(zb0002) {
+				z.PeerTags = (z.PeerTags)[:zb0002]
+			} else {
+				z.PeerTags = make([]string, zb0002)
+			}
+			for za0001 := range z.PeerTags {
+				z.PeerTags[za0001], bts, err = msgp.ReadStringBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "PeerTags", za0001)
+					return
+				}
 			}
 		default:
 			bts, err = msgp.Skip(bts)
@@ -455,7 +491,10 @@ func (z *ClientGroupedStats) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *ClientGroupedStats) Msgsize() (s int) {
-	s = 1 + 8 + msgp.StringPrefixSize + len(z.Service) + 5 + msgp.StringPrefixSize + len(z.Name) + 9 + msgp.StringPrefixSize + len(z.Resource) + 15 + msgp.Uint32Size + 5 + msgp.StringPrefixSize + len(z.Type) + 7 + msgp.StringPrefixSize + len(z.DBType) + 5 + msgp.Uint64Size + 7 + msgp.Uint64Size + 9 + msgp.Uint64Size + 10 + msgp.BytesPrefixSize + len(z.OkSummary) + 13 + msgp.BytesPrefixSize + len(z.ErrorSummary) + 11 + msgp.BoolSize + 13 + msgp.Uint64Size + 12 + msgp.StringPrefixSize + len(z.PeerService) + 9 + msgp.StringPrefixSize + len(z.SpanKind)
+	s = 1 + 8 + msgp.StringPrefixSize + len(z.Service) + 5 + msgp.StringPrefixSize + len(z.Name) + 9 + msgp.StringPrefixSize + len(z.Resource) + 15 + msgp.Uint32Size + 5 + msgp.StringPrefixSize + len(z.Type) + 7 + msgp.StringPrefixSize + len(z.DBType) + 5 + msgp.Uint64Size + 7 + msgp.Uint64Size + 9 + msgp.Uint64Size + 10 + msgp.BytesPrefixSize + len(z.OkSummary) + 13 + msgp.BytesPrefixSize + len(z.ErrorSummary) + 11 + msgp.BoolSize + 13 + msgp.Uint64Size + 9 + msgp.StringPrefixSize + len(z.SpanKind) + 9 + msgp.ArrayHeaderSize
+	for za0001 := range z.PeerTags {
+		s += msgp.StringPrefixSize + len(z.PeerTags[za0001])
+	}
 	return
 }
 
@@ -1349,6 +1388,12 @@ func (z *StatsPayload) DecodeMsg(dc *msgp.Reader) (err error) {
 				err = msgp.WrapError(err, "ClientComputed")
 				return
 			}
+		case "SplitPayload":
+			z.SplitPayload, err = dc.ReadBool()
+			if err != nil {
+				err = msgp.WrapError(err, "SplitPayload")
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -1363,8 +1408,8 @@ func (z *StatsPayload) DecodeMsg(dc *msgp.Reader) (err error) {
 // EncodeMsg implements msgp.Encodable
 func (z *StatsPayload) EncodeMsg(en *msgp.Writer) (err error) {
 	// omitempty: check for empty values
-	zb0001Len := uint32(5)
-	var zb0001Mask uint8 /* 5 bits */
+	zb0001Len := uint32(6)
+	var zb0001Mask uint8 /* 6 bits */
 	if z.Stats == nil {
 		zb0001Len--
 		zb0001Mask |= 0x4
@@ -1443,6 +1488,16 @@ func (z *StatsPayload) EncodeMsg(en *msgp.Writer) (err error) {
 		err = msgp.WrapError(err, "ClientComputed")
 		return
 	}
+	// write "SplitPayload"
+	err = en.Append(0xac, 0x53, 0x70, 0x6c, 0x69, 0x74, 0x50, 0x61, 0x79, 0x6c, 0x6f, 0x61, 0x64)
+	if err != nil {
+		return
+	}
+	err = en.WriteBool(z.SplitPayload)
+	if err != nil {
+		err = msgp.WrapError(err, "SplitPayload")
+		return
+	}
 	return
 }
 
@@ -1450,8 +1505,8 @@ func (z *StatsPayload) EncodeMsg(en *msgp.Writer) (err error) {
 func (z *StatsPayload) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 	// omitempty: check for empty values
-	zb0001Len := uint32(5)
-	var zb0001Mask uint8 /* 5 bits */
+	zb0001Len := uint32(6)
+	var zb0001Mask uint8 /* 6 bits */
 	if z.Stats == nil {
 		zb0001Len--
 		zb0001Mask |= 0x4
@@ -1489,6 +1544,9 @@ func (z *StatsPayload) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "ClientComputed"
 	o = append(o, 0xae, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x43, 0x6f, 0x6d, 0x70, 0x75, 0x74, 0x65, 0x64)
 	o = msgp.AppendBool(o, z.ClientComputed)
+	// string "SplitPayload"
+	o = append(o, 0xac, 0x53, 0x70, 0x6c, 0x69, 0x74, 0x50, 0x61, 0x79, 0x6c, 0x6f, 0x61, 0x64)
+	o = msgp.AppendBool(o, z.SplitPayload)
 	return
 }
 
@@ -1564,6 +1622,12 @@ func (z *StatsPayload) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "ClientComputed")
 				return
 			}
+		case "SplitPayload":
+			z.SplitPayload, bts, err = msgp.ReadBoolBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "SplitPayload")
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -1586,6 +1650,6 @@ func (z *StatsPayload) Msgsize() (s int) {
 			s += z.Stats[za0001].Msgsize()
 		}
 	}
-	s += 13 + msgp.StringPrefixSize + len(z.AgentVersion) + 15 + msgp.BoolSize
+	s += 13 + msgp.StringPrefixSize + len(z.AgentVersion) + 15 + msgp.BoolSize + 13 + msgp.BoolSize
 	return
 }

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package mocksender
 
 import (
@@ -10,25 +12,41 @@ import (
 
 	"github.com/stretchr/testify/mock"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+
+	//nolint:revive // TODO(AML) Fix revive linter
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // NewMockSender initiates the aggregator and returns a
 // functional mocked Sender for testing
 func NewMockSender(id checkid.ID) *MockSender {
-	mockSender := new(MockSender)
+	return NewMockSenderWithSenderManager(id, CreateDefaultDemultiplexer())
+}
 
+// CreateDefaultDemultiplexer creates a default demultiplexer for testing
+func CreateDefaultDemultiplexer() *aggregator.AgentDemultiplexer {
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = 1 * time.Hour
 	opts.DontStartForwarders = true
-	log := log.NewTemporaryLoggerWithoutInit()
+	log := logimpl.NewTemporaryLoggerWithoutInit()
 	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog, log, forwarder.NewOptions(config.Datadog, log, nil))
-	mockSender.senderManager = aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, opts, "")
+	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
+	return aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, "")
+
+}
+
+// NewMockSenderWithSenderManager returns a functional mocked Sender for testing
+func NewMockSenderWithSenderManager(id checkid.ID, senderManager sender.SenderManager) *MockSender {
+	mockSender := new(MockSender)
+
+	mockSender.senderManager = senderManager
 	SetSender(mockSender, id)
 
 	return mockSender
@@ -45,13 +63,14 @@ type MockSender struct {
 	senderManager sender.SenderManager
 }
 
-func (m *MockSender) SetSenderManager(senderManager sender.SenderManager) {
-	m.senderManager = senderManager
+// GetSenderManager returns the instance of sender.SenderManager
+func (m *MockSender) GetSenderManager() sender.SenderManager {
+	return m.senderManager
 }
 
 // SetupAcceptAll sets mock expectations to accept any call in the Sender interface
 func (m *MockSender) SetupAcceptAll() {
-	metricCalls := []string{"Rate", "Count", "MonotonicCount", "Counter", "Histogram", "Historate", "Gauge"}
+	metricCalls := []string{"Rate", "Count", "MonotonicCount", "Counter", "Histogram", "Historate", "Gauge", "Distribution"}
 	for _, call := range metricCalls {
 		m.On(call,
 			mock.AnythingOfType("string"),   // Metric
@@ -95,6 +114,11 @@ func (m *MockSender) SetupAcceptAll() {
 	m.On("FinalizeCheckServiceTag").Return()
 	m.On("SetNoIndex").Return()
 	m.On("Commit").Return()
+	m.On("OrchestratorMetadata",
+		mock.AnythingOfType("[]process.MessageBody"),
+		mock.AnythingOfType("string"),
+		mock.AnythingOfType("int"),
+	).Return()
 }
 
 // ResetCalls makes the mock forget previous calls

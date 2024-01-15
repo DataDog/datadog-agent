@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package server implements a gRPC server that streams Tagger entities.
 package server
 
 import (
@@ -26,10 +27,12 @@ const (
 	streamKeepAliveInterval = 9 * time.Minute
 )
 
+// Server is a grpc server that streams tagger entities
 type Server struct {
 	tagger tagger.Tagger
 }
 
+// NewServer returns a new Server
 func NewServer(t tagger.Tagger) *Server {
 	return &Server{
 		tagger: t,
@@ -112,6 +115,8 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 }
 
 // TaggerFetchEntity fetches an entity from the Tagger with the desired cardinality tags.
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (s *Server) TaggerFetchEntity(ctx context.Context, in *pb.FetchEntityRequest) (*pb.FetchEntityResponse, error) {
 	if in.Id == nil {
 		return nil, status.Errorf(codes.InvalidArgument, `missing "id" parameter`)

@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func testGroupId(groupID int32) func() int32 {
 	return func() int32 {
 		return groupID
@@ -27,7 +28,7 @@ func TestProcessDiscoveryCheck(t *testing.T) {
 	}()
 
 	maxBatchSize := 10
-	getMaxBatchSize = func(config.ConfigReader) int { return maxBatchSize }
+	getMaxBatchSize = func(config.Reader) int { return maxBatchSize }
 
 	check := NewProcessDiscoveryCheck(config.Mock(t))
 	check.Init(
@@ -38,6 +39,7 @@ func TestProcessDiscoveryCheck(t *testing.T) {
 				TotalMemory: 0,
 			},
 		},
+		true,
 	)
 
 	// Test check runs without error

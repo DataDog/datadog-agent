@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(PROC) Fix revive linter
 package headers
 
 const (
@@ -30,4 +31,6 @@ const (
 	ZSTDContentEncoding = "zstd"
 	// RequestIDHeader contains a unique identifier per payloads being sent to the intake servers
 	RequestIDHeader = "X-DD-Request-ID"
+	// AgentStartTime contains the timestamp that the agent was started
+	AgentStartTime = "X-DD-Agent-Start-Time"
 )

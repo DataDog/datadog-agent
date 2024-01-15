@@ -1,0 +1,81 @@
+From cb8d27d0507b3fa760d973724e2c84db375a6be5 Mon Sep 17 00:00:00 2001
+From: David du Colombier <djc@datadoghq.com>
+Date: Wed, 25 Oct 2023 11:32:00 +0200
+Subject: [PATCH 43/44] Fix various issues reported by Coverity
+
+ - oval_sexp_to_sysitem: null pointer derefrence
+ - probe_worker: insecure chroot
+ - inetlisteningservers_probe_main: uninitialized memory
+ - rpmverifypackage_additem: invalid type in argument to printf format specifier
+---
+ src/OVAL/oval_sexp.c                                    | 2 ++
+ src/OVAL/probes/probe/worker.c                          | 6 +++---
+ src/OVAL/probes/unix/linux/inetlisteningservers_probe.c | 4 ++++
+ src/OVAL/probes/unix/linux/rpmverifypackage_probe.c     | 2 +-
+ 4 files changed, 10 insertions(+), 4 deletions(-)
+
+diff --git a/src/OVAL/oval_sexp.c b/src/OVAL/oval_sexp.c
+index cb2bdbffd..3c9d62555 100644
+--- a/src/OVAL/oval_sexp.c
++++ b/src/OVAL/oval_sexp.c
+@@ -965,6 +965,8 @@ static struct oval_sysitem *oval_sexp_to_sysitem(struct oval_syschar_model *mode
+         } else {
+ 		family = item_name;
+ 		char *endptr = strchr(family, ':');
++		if (endptr == NULL)
++			goto cleanup;
+ 		*endptr = '\0';
+ 		name = endptr + 1;
+ 		endptr = strrchr(name, '_');
+diff --git a/src/OVAL/probes/probe/worker.c b/src/OVAL/probes/probe/worker.c
+index cedb339d2..fddc1b396 100644
+--- a/src/OVAL/probes/probe/worker.c
++++ b/src/OVAL/probes/probe/worker.c
+@@ -1021,13 +1021,13 @@ SEXP_t *probe_worker(probe_t *probe, SEAP_msg_t *msg_in, int *ret)
+ 				dE("open(\".\") failed: %s", strerror(errno));
+ 				return NULL;
+ 			}
+-			if (chdir(rootdir) != 0) {
+-				dE("chdir failed: %s", strerror(errno));
+-			}
+ 
+ 			if (chroot(rootdir) != 0) {
+ 				dE("chroot failed: %s", strerror(errno));
+ 			}
++			if (chdir("/") != 0) {
++				dE("chdir failed: %s", strerror(errno));
++			}
+ 			/* NOTE: We're running in a different root directory.
+ 			 * Unless /proc, /sys are somehow emulated for the new
+ 			 * environment, they are not relevant and so are other
+diff --git a/src/OVAL/probes/unix/linux/inetlisteningservers_probe.c b/src/OVAL/probes/unix/linux/inetlisteningservers_probe.c
+index c600f0c9e..f3de85d88 100644
+--- a/src/OVAL/probes/unix/linux/inetlisteningservers_probe.c
++++ b/src/OVAL/probes/unix/linux/inetlisteningservers_probe.c
+@@ -559,6 +559,10 @@ int inetlisteningservers_probe_main(probe_ctx *ctx, void *arg)
+ 
+         object = probe_ctx_getobject(ctx);
+ 	struct server_info *req = malloc(sizeof(struct server_info));
++	if (req == NULL)
++		return 0;
++	memset(req, 0, sizeof(*req));
++
+ 	req->protocol_ent = probe_obj_getent(object, "protocol", 1);
+ 	if (req->protocol_ent == NULL) {
+ 		err = PROBE_ENOVAL;
+diff --git a/src/OVAL/probes/unix/linux/rpmverifypackage_probe.c b/src/OVAL/probes/unix/linux/rpmverifypackage_probe.c
+index 87a912407..90d053aaa 100644
+--- a/src/OVAL/probes/unix/linux/rpmverifypackage_probe.c
++++ b/src/OVAL/probes/unix/linux/rpmverifypackage_probe.c
+@@ -428,7 +428,7 @@ static int rpmverifypackage_additem(probe_ctx *ctx, struct rpmverify_res *res)
+ 		SEXP_free(value);
+ 	}
+ 	if (res->vflags & VERIFY_SCRIPT) {
+-		dD("VERIFY_SCRIPT %d", res->vresults & VERIFY_SCRIPT);
++		dD("VERIFY_SCRIPT %lu", res->vresults & VERIFY_SCRIPT);
+ 		value = probe_entval_from_cstr(OVAL_DATATYPE_BOOLEAN, (res->vresults & VERIFY_SCRIPT ? "1" : "0"), 1);
+ 		probe_item_ent_add(item, "verification_script_successful", NULL, value);
+ 		SEXP_free(value);
+-- 
+2.34.1
+

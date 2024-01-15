@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package helm implements the Helm cluster check.
 package helm
 
 import (
@@ -30,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 const (
@@ -118,7 +120,6 @@ func (hc *HelmCheck) Configure(senderManager sender.SenderManager, integrationCo
 
 	hc.setSharedInformerFactory(apiClient)
 	hc.startTS = time.Now()
-
 	hc.informersStopCh = make(chan struct{})
 
 	return nil
@@ -168,6 +169,7 @@ func (hc *HelmCheck) Run() error {
 	return nil
 }
 
+// Cancel cancels the check
 func (hc *HelmCheck) Cancel() {
 	close(hc.informersStopCh)
 }
@@ -203,13 +205,11 @@ func (hc *HelmCheck) setupInformers() error {
 }
 
 func (hc *HelmCheck) setSharedInformerFactory(apiClient *apiserver.APIClient) {
-	hc.informerFactory = informers.NewSharedInformerFactoryWithOptions(
-		apiClient.Cl,
-		hc.getInformersResyncPeriod(),
+	hc.informerFactory = apiClient.GetInformerWithOptions(
+		pointer.Ptr(hc.getInformersResyncPeriod()),
 		informers.WithTweakListOptions(func(opts *metav1.ListOptions) {
 			opts.LabelSelector = labelSelector
-		}),
-	)
+		}))
 }
 
 func (hc *HelmCheck) allTags(release *release, storageDriver helmStorage, includeRevision bool) []string {

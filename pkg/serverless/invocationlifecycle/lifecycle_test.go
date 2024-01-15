@@ -11,8 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/logs"
@@ -30,8 +31,7 @@ func TestGenerateEnhancedErrorMetricOnInvocationEnd(t *testing.T) {
 	}
 	mockProcessTrace := func(*api.Payload) {}
 	mockDetectLambdaLibrary := func() bool { return true }
-	log := fxutil.Test[log.Component](t, log.MockModule)
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	demux := createDemultiplexer(t)
 
 	endInvocationTime := time.Now()
 	endDetails := InvocationEndDetails{EndTime: endInvocationTime, IsError: true}
@@ -61,8 +61,7 @@ func TestStartExecutionSpanNoLambdaLibrary(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	log := fxutil.Test[log.Component](t, log.MockModule)
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	demux := createDemultiplexer(t)
 	mockProcessTrace := func(*api.Payload) {}
 	mockDetectLambdaLibrary := func() bool { return false }
 
@@ -96,8 +95,7 @@ func TestStartExecutionSpanWithLambdaLibrary(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	log := fxutil.Test[log.Component](t, log.MockModule)
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	demux := createDemultiplexer(t)
 	mockProcessTrace := func(*api.Payload) {}
 	mockDetectLambdaLibrary := func() bool { return true }
 
@@ -126,8 +124,7 @@ func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	log := fxutil.Test[log.Component](t, log.MockModule)
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	demux := createDemultiplexer(t)
 	mockDetectLambdaLibrary := func() bool { return false }
 
 	var tracePayload *api.Payload
@@ -175,8 +172,7 @@ func TestEndExecutionSpanWithLambdaLibrary(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	log := fxutil.Test[log.Component](t, log.MockModule)
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	demux := createDemultiplexer(t)
 	mockDetectLambdaLibrary := func() bool { return true }
 
 	var tracePayload *api.Payload
@@ -208,6 +204,61 @@ func TestEndExecutionSpanWithLambdaLibrary(t *testing.T) {
 	assert.Equal(t, (*api.Payload)(nil), tracePayload)
 }
 
+func TestEndExecutionSpanWithTraceMetadata(t *testing.T) {
+	t.Setenv(functionNameEnvVar, "TestFunction")
+
+	extraTags := &logs.Tags{
+		Tags: []string{"functionname:test-function"},
+	}
+	demux := createDemultiplexer(t)
+	mockDetectLambdaLibrary := func() bool { return false }
+
+	var tracePayload *api.Payload
+	mockProcessTrace := func(payload *api.Payload) {
+		tracePayload = payload
+	}
+	startInvocationTime := time.Now()
+	duration := 1 * time.Second
+	endInvocationTime := startInvocationTime.Add(duration)
+	endDetails := InvocationEndDetails{
+		EndTime:    endInvocationTime,
+		IsError:    true,
+		RequestID:  "test-request-id",
+		ErrorMsg:   "custom exception",
+		ErrorType:  "Exception",
+		ErrorStack: "exception",
+	}
+	samplingPriority := sampler.SamplingPriority(1)
+
+	testProcessor := LifecycleProcessor{
+		ExtraTags:           extraTags,
+		ProcessTrace:        mockProcessTrace,
+		DetectLambdaLibrary: mockDetectLambdaLibrary,
+		Demux:               demux,
+		requestHandler: &RequestHandler{
+			executionInfo: &ExecutionStartInfo{
+				startTime:        startInvocationTime,
+				TraceID:          123,
+				SpanID:           1,
+				parentID:         3,
+				SamplingPriority: samplingPriority,
+			},
+			triggerTags: make(map[string]string),
+		},
+	}
+	testProcessor.OnInvokeEnd(&endDetails)
+	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+
+	assert.Equal(t, "aws.lambda", executionSpan.Name)
+	assert.Equal(t, "aws.lambda", executionSpan.Service)
+	assert.Equal(t, "TestFunction", executionSpan.Resource)
+	assert.Equal(t, "serverless", executionSpan.Type)
+	assert.Equal(t, int32(1), executionSpan.Error)
+	assert.Equal(t, "custom exception", executionSpan.Meta["error.msg"])
+	assert.Equal(t, "Exception", executionSpan.Meta["error.type"])
+	assert.Equal(t, "exception", executionSpan.Meta["error.stack"])
+}
+
 func TestCompleteInferredSpanWithStartTime(t *testing.T) {
 	t.Setenv(functionNameEnvVar, "TestFunction")
 	t.Setenv("DD_SERVICE", "mock-lambda-service")
@@ -215,8 +266,7 @@ func TestCompleteInferredSpanWithStartTime(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	log := fxutil.Test[log.Component](t, log.MockModule)
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	demux := createDemultiplexer(t)
 	mockDetectLambdaLibrary := func() bool { return false }
 
 	var tracePayload *api.Payload
@@ -261,7 +311,9 @@ func TestCompleteInferredSpanWithStartTime(t *testing.T) {
 
 	testProcessor.OnInvokeEnd(&endDetails)
 
-	completedInferredSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	spans := tracePayload.TracerPayload.Chunks[0].Spans
+	assert.Equal(t, 2, len(spans))
+	completedInferredSpan := spans[1]
 	httpStatusCode := testProcessor.GetInferredSpan().Span.GetMeta()["http.status_code"]
 	peerService := testProcessor.GetInferredSpan().Span.GetMeta()["peer.service"]
 	assert.NotNil(t, httpStatusCode)
@@ -275,8 +327,7 @@ func TestCompleteInferredSpanWithOutStartTime(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	log := fxutil.Test[log.Component](t, log.MockModule)
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	demux := createDemultiplexer(t)
 	mockDetectLambdaLibrary := func() bool { return false }
 
 	var tracePayload *api.Payload
@@ -340,6 +391,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayRest(t *testing.T) {
 	assert.Equal(t, map[string]string{
 		"function_trigger.event_source_arn": "arn:aws:apigateway:us-east-1::/restapis/1234567890/stages/prod",
 		"http.method":                       "POST",
+		"http.route":                        "/{proxy+}",
 		"http.url":                          "70ixmpl4fl.execute-api.us-east-2.amazonaws.com",
 		"http.url_details.path":             "/prod/path/to/resource",
 		"http.useragent":                    "Custom User Agent String",
@@ -361,8 +413,7 @@ func TestTriggerTypesLifecycleEventForAPIGateway5xxResponse(t *testing.T) {
 	mockProcessTrace := func(payload *api.Payload) {
 		tracePayload = payload
 	}
-	log := fxutil.Test[log.Component](t, log.MockModule)
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	demux := createDemultiplexer(t)
 	defer demux.Stop(false)
 
 	testProcessor := &LifecycleProcessor{
@@ -386,6 +437,7 @@ func TestTriggerTypesLifecycleEventForAPIGateway5xxResponse(t *testing.T) {
 		"cold_start":                        "false",
 		"function_trigger.event_source_arn": "arn:aws:apigateway:us-east-1::/restapis/1234567890/stages/prod",
 		"http.method":                       "POST",
+		"http.route":                        "/{proxy+}",
 		"http.url":                          "70ixmpl4fl.execute-api.us-east-2.amazonaws.com",
 		"http.url_details.path":             "/prod/path/to/resource",
 		"http.useragent":                    "Custom User Agent String",
@@ -431,6 +483,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayNonProxy(t *testing.T) {
 		"cold_start":                        "false",
 		"function_trigger.event_source_arn": "arn:aws:apigateway:us-east-1::/restapis/lgxbo6a518/stages/dev",
 		"http.method":                       "GET",
+		"http.route":                        "/http/get",
 		"http.url":                          "lgxbo6a518.execute-api.sa-east-1.amazonaws.com",
 		"http.url_details.path":             "/dev/http/get",
 		"http.useragent":                    "curl/7.64.1",
@@ -454,8 +507,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayNonProxy5xxResponse(t *testing.T
 	mockProcessTrace := func(payload *api.Payload) {
 		tracePayload = payload
 	}
-	log := fxutil.Test[log.Component](t, log.MockModule)
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	demux := createDemultiplexer(t)
 	defer demux.Stop(false)
 
 	testProcessor := &LifecycleProcessor{
@@ -479,6 +531,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayNonProxy5xxResponse(t *testing.T
 		"cold_start":                        "false",
 		"function_trigger.event_source_arn": "arn:aws:apigateway:us-east-1::/restapis/lgxbo6a518/stages/dev",
 		"http.method":                       "GET",
+		"http.route":                        "/http/get",
 		"http.url":                          "lgxbo6a518.execute-api.sa-east-1.amazonaws.com",
 		"http.url_details.path":             "/dev/http/get",
 		"request_id":                        "test-request-id",
@@ -543,8 +596,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayWebsocket5xxResponse(t *testing.
 	mockProcessTrace := func(payload *api.Payload) {
 		tracePayload = payload
 	}
-	log := fxutil.Test[log.Component](t, log.MockModule)
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	demux := createDemultiplexer(t)
 	defer demux.Stop(false)
 
 	testProcessor := &LifecycleProcessor{
@@ -630,8 +682,7 @@ func TestTriggerTypesLifecycleEventForALB5xxResponse(t *testing.T) {
 	mockProcessTrace := func(payload *api.Payload) {
 		tracePayload = payload
 	}
-	log := fxutil.Test[log.Component](t, log.MockModule)
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	demux := createDemultiplexer(t)
 	defer demux.Stop(false)
 
 	testProcessor := &LifecycleProcessor{
@@ -872,8 +923,9 @@ func TestTriggerTypesLifecycleEventForSNSSQS(t *testing.T) {
 		IsError:   false,
 	})
 
-	snsSpan := testProcessor.requestHandler.inferredSpans[1].Span
-	sqsSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	spans := tracePayload.TracerPayload.Chunks[0].Spans
+	assert.Equal(t, 3, len(spans))
+	snsSpan, sqsSpan := spans[1], spans[2]
 	// These IDs are B64 decoded from the snssqs.json event sample's _datadog MessageAttribute
 	expectedTraceID := uint64(1728904347387697031)
 	expectedParentID := uint64(353722510835624345)
@@ -916,8 +968,9 @@ func TestTriggerTypesLifecycleEventForSNSSQSNoDdContext(t *testing.T) {
 		IsError:   false,
 	})
 
-	snsSpan := testProcessor.requestHandler.inferredSpans[1].Span
-	sqsSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	spans := tracePayload.TracerPayload.Chunks[0].Spans
+	assert.Equal(t, 3, len(spans))
+	snsSpan, sqsSpan := spans[1], spans[2]
 	expectedTraceID := uint64(0)
 	expectedParentID := uint64(0)
 
@@ -959,7 +1012,9 @@ func TestTriggerTypesLifecycleEventForSQSNoDdContext(t *testing.T) {
 		IsError:   false,
 	})
 
-	sqsSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	spans := tracePayload.TracerPayload.Chunks[0].Spans
+	assert.Equal(t, 2, len(spans))
+	sqsSpan := spans[1]
 	expectedTraceID := uint64(0)
 	expectedParentID := uint64(0)
 
@@ -1001,4 +1056,8 @@ func getEventFromFile(filename string) []byte {
 	buf.Write(event)
 	buf.WriteString("0")
 	return buf.Bytes()
+}
+
+func createDemultiplexer(t *testing.T) demultiplexer.FakeSamplerMock {
+	return fxutil.Test[demultiplexer.FakeSamplerMock](t, logimpl.MockModule(), demultiplexerimpl.FakeSamplerMockModule())
 }

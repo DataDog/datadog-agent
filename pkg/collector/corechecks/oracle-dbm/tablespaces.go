@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 )
 
-const QUERY = `SELECT
+const tablespaceQuery12 = `SELECT
   c.name pdb_name,
   t.tablespace_name tablespace_name,
   NVL(m.used_space * t.block_size, 0) used,
@@ -26,6 +26,18 @@ FROM
 WHERE
   m.tablespace_name(+) = t.tablespace_name and c.con_id(+) = t.con_id`
 
+const tablespaceQuery11 = `SELECT
+  t.tablespace_name tablespace_name,
+  NVL(m.used_space * t.block_size, 0) used,
+  NVL(m.tablespace_size * t.block_size, 0) size_,
+  NVL(m.used_percent, 0) in_use,
+  NVL2(m.used_space, 0, 1) offline_
+FROM
+  dba_tablespace_usage_metrics m, dba_tablespaces t
+WHERE
+  m.tablespace_name(+) = t.tablespace_name`
+
+//nolint:revive // TODO(DBM) Fix revive linter
 type RowDB struct {
 	PdbName        sql.NullString `db:"PDB_NAME"`
 	TablespaceName string         `db:"TABLESPACE_NAME"`
@@ -35,9 +47,16 @@ type RowDB struct {
 	Offline        float64        `db:"OFFLINE_"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 func (c *Check) Tablespaces() error {
 	rows := []RowDB{}
-	err := selectWrapper(c, &rows, QUERY)
+	var tablespaceQuery string
+	if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion) {
+		tablespaceQuery = tablespaceQuery12
+	} else {
+		tablespaceQuery = tablespaceQuery11
+	}
+	err := selectWrapper(c, &rows, tablespaceQuery)
 	if err != nil {
 		return fmt.Errorf("failed to collect tablespace info: %w", err)
 	}

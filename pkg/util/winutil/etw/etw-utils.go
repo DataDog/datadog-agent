@@ -3,22 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build windows && npm
+//go:build windows
 
 package etw
 
 import (
 	"bytes"
 	"fmt"
-	"net/netip"
 	"reflect"
 	"strconv"
 	"time"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
-
-	"github.com/DataDog/datadog-agent/pkg/network/driver"
 )
 
 /*
@@ -108,8 +105,8 @@ func VerbToMethod(verb uint32) uint32 {
 	return verb2method[verb]
 }
 
-// HttpVerbToStr converts the integer verb type to a human readable string
-func HttpVerbToStr(httVerb uint32) string {
+// HTTPVerbToStr converts the integer verb type to a human readable string
+func HTTPVerbToStr(httVerb uint32) string {
 	if httVerb >= httpVerbMaximum {
 		return "<UNKNOWN>"
 	}
@@ -138,8 +135,8 @@ func HttpVerbToStr(httVerb uint32) string {
 	}[httVerb]
 }
 
-// HttpMethodToStr converts the integer representation of the method to string
-func HttpMethodToStr(httpMethod uint32) string {
+// HTTPMethodToStr converts the integer representation of the method to string
+func HTTPMethodToStr(httpMethod uint32) string {
 	if httpMethod >= methodMaximum {
 		return "<UNKNOWN>"
 	}
@@ -164,6 +161,7 @@ func HttpMethodToStr(httpMethod uint32) string {
 // 	return binary.LittleEndian.Uint16(arr[:])
 // }
 
+// GoBytes is similar to C.GoBytes but reuses the original buffer instead of making a copy
 func GoBytes(data unsafe.Pointer, len int) []byte {
 	// It could be as simple and safe as
 	// 		C.GoBytes(edata, len))
@@ -174,7 +172,7 @@ func GoBytes(data unsafe.Pointer, len int) []byte {
 	// then built-in method
 
 	var slice []byte
-	sliceHdr := (*reflect.SliceHeader)((unsafe.Pointer(&slice)))
+	sliceHdr := (*reflect.SliceHeader)((unsafe.Pointer(&slice))) //nolint:staticcheck // TODO (WINA) fix reflect.SliceHeader has been deprecated: Use unsafe.Slice or unsafe.SliceData instead
 	sliceHdr.Cap = int(len)
 	sliceHdr.Len = int(len)
 	sliceHdr.Data = uintptr(data)
@@ -209,8 +207,8 @@ func convertWindowsString(winput []uint8) string {
 	return windows.UTF16ToString(p)
 }
 
-// FormatGuid converts a guid structure to a go string
-func FormatGuid(guid DDGUID) string {
+// FormatGUID converts a guid structure to a go string
+func FormatGUID(guid DDGUID) string {
 	return fmt.Sprintf("{%08X-%04X-%04X-%02X%02X%02X%02X%02X%02X%02X%02X}",
 		guid.Data1, guid.Data2, guid.Data3,
 		guid.Data4[0], guid.Data4[1], guid.Data4[2], guid.Data4[3],
@@ -250,7 +248,7 @@ func FormatUnixTime(t uint64) string {
 	return tm.Format("01/02/2006 03:04:05.000000 pm")
 }
 
-// ParuseUnicodeString takes a slice of bytes and converts it to a string
+// ParseUnicodeString takes a slice of bytes and converts it to a string
 func ParseUnicodeString(data []byte, offset int) (val string, nextOffset int, valFound bool, foundTermZeroIdx int) {
 	termZeroIdx := bytesIndexOfDoubleZero(data[offset:])
 	var lenString int
@@ -273,7 +271,7 @@ func ParseUnicodeString(data []byte, offset int) (val string, nextOffset int, va
 }
 
 //nolint:deadcode
-func parseAsciiString(data []byte, offset int) (val string, nextOffset int, valFound bool, foundTermZeroIdx int) {
+func parseASCIIString(data []byte, offset int) (val string, nextOffset int, valFound bool, foundTermZeroIdx int) {
 	singleZeroSlice := []byte{0}
 	termZeroIdx := bytes.Index(data[offset:], singleZeroSlice)
 	if termZeroIdx == -1 || termZeroIdx == 0 {
@@ -284,7 +282,7 @@ func parseAsciiString(data []byte, offset int) (val string, nextOffset int, valF
 }
 
 //nolint:deadcode
-func skipAsciiString(data []byte, offset int) (nextOffset int, valFound bool, foundTermZeroIdx int) {
+func skipASCIIString(data []byte, offset int) (nextOffset int, valFound bool, foundTermZeroIdx int) {
 	singleZeroSlice := []byte{0}
 	termZeroIdx := bytes.Index(data[offset:], singleZeroSlice)
 	if termZeroIdx == -1 || termZeroIdx == 0 {
@@ -292,38 +290,4 @@ func skipAsciiString(data []byte, offset int) (nextOffset int, valFound bool, fo
 	}
 
 	return (offset + termZeroIdx + 1), true, (offset + termZeroIdx + 1)
-}
-
-func ip4format(ip [16]uint8) string {
-	ipObj := netip.AddrFrom4(*(*[4]byte)(ip[:4]))
-	return ipObj.String()
-}
-
-func ip6format(ip [16]uint8) string {
-	ipObj := netip.AddrFrom16(ip)
-	return ipObj.String()
-}
-
-func ipAndPortFromTup(tup driver.ConnTupleType, local bool) ([16]uint8, uint16) {
-	if local {
-		return tup.LocalAddr, tup.LocalPort
-	} else {
-		return tup.RemoteAddr, tup.RemotePort
-	}
-}
-
-// IpFormat takes a binary ip representation and returns a string type
-func IpFormat(tup driver.ConnTupleType, local bool) string {
-	ip, port := ipAndPortFromTup(tup, local)
-
-	if tup.Family == 2 {
-		// IPv4
-		return fmt.Sprintf("%v:%v", ip4format(ip), port)
-	} else if tup.Family == 23 {
-		// IPv6
-		return fmt.Sprintf("[%v]:%v", ip6format(ip), port)
-	} else {
-		// everything else
-		return "<UNKNOWN>"
-	}
 }

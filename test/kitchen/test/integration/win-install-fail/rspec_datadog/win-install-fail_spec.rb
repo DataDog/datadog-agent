@@ -38,8 +38,5 @@ describe 'dd-agent-win-install-fail' do
   # The installer no longer deletes the user on uninstall and is transitioning away from managing user accounts.
   # Therefore we should instead check that it did create a ddagentuser account for now, and in the future check 
   # that it did not create a ddagentuser account.
-  it_behaves_like 'a device with a ddagentuser' if is_ng_installer
-
-  # Keep the old behavior for the old installer for now.
-  it_behaves_like 'a device without a ddagentuser' unless is_ng_installer
+  it_behaves_like 'a device with a ddagentuser'
 end

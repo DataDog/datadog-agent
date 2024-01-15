@@ -1,0 +1,39 @@
+---
+.integration_tests_windows_base:
+  stage: integration_test
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  needs: ["go_deps", "go_tools_deps"]
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  before_script:
+    - $vcpkgBlobSaSUrl = (aws ssm get-parameter --region us-east-1 --name ci.datadog-agent-buildimages.vcpkg_blob_sas_url --with-decryption --query "Parameter.Value" --out text)
+  script:
+    - $ErrorActionPreference = "Stop"
+    - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
+    # we pass in CI_JOB_URL and CI_JOB_NAME so that they can be added to additional tags
+    # inside JUNIT_TAR and then later used by datadog-ci
+    - !reference [.setup_python_mirror_win]
+    - >
+      docker run --rm
+      -m 16384M
+      -v "$(Get-Location):c:\mnt"
+      -e CI_JOB_URL="${CI_JOB_URL}"
+      -e CI_JOB_NAME="${CI_JOB_NAME}"
+      -e CI_PIPELINE_ID="${CI_PIPELINE_ID}"
+      -e CI_PROJECT_NAME="${CI_PROJECT_NAME}"
+      -e AWS_NETWORKING=true
+      -e PY_RUNTIMES="$PYTHON_RUNTIMES"
+      -e GOMODCACHE="c:\modcache"
+      -e JUNIT_TAR="c:\mnt\junit-${CI_JOB_NAME}.tgz"
+      -e VCPKG_BINARY_SOURCES="clear;x-azblob,${vcpkgBlobSaSUrl}"
+      -e PIP_INDEX_URL=${PIP_INDEX_URL}
+      486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
+      c:\mnt\tasks\winbuildscripts\integrationtests.bat
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+
+integration_tests_windows-x64:
+  extends: .integration_tests_windows_base
+  variables:
+    PYTHON_RUNTIMES: 3
+    ARCH: "x64"

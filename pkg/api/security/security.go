@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package security implements cryptographic certificates and auth token
 package security
 
 import (
@@ -17,6 +18,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -67,6 +69,11 @@ func CertTemplate() (*x509.Certificate, error) {
 
 // GenerateRootCert generates a root certificate
 func GenerateRootCert(hosts []string, bits int) (cert *x509.Certificate, certPEM []byte, rootKey *rsa.PrivateKey, err error) {
+	// print the caller to identify what is calling this function
+	if _, file, line, ok := runtime.Caller(1); ok {
+		log.Infof("[%s:%d] Generating root certificate for hosts %v", file, line, strings.Join(hosts, ", "))
+	}
+
 	rootCertTmpl, err := CertTemplate()
 	if err != nil {
 		return
@@ -130,6 +137,10 @@ func fetchAuthToken(tokenCreationAllowed bool) (string, error) {
 
 	// Create a new token if it doesn't exist and if permitted by calling func
 	if _, e := os.Stat(authTokenFile); os.IsNotExist(e) && tokenCreationAllowed {
+		// print the caller to identify what is calling this function
+		if _, file, line, ok := runtime.Caller(2); ok {
+			log.Infof("[%s:%d] Creating a new authentication token", file, line)
+		}
 		key := make([]byte, authTokenMinimalLen)
 		_, e = rand.Read(key)
 		if e != nil {
@@ -233,6 +244,7 @@ func validateAuthToken(authToken string) error {
 
 // writes auth token(s) to a file with the same permissions as datadog.yaml
 func saveAuthToken(token, tokenPath string) error {
+	log.Infof("Saving a new authentication token in %s", tokenPath)
 	if err := os.WriteFile(tokenPath, []byte(token), 0o600); err != nil {
 		return err
 	}
@@ -247,6 +259,6 @@ func saveAuthToken(token, tokenPath string) error {
 		return err
 	}
 
-	log.Infof("Wrote auth token")
+	log.Infof("Wrote auth token in %s", tokenPath)
 	return nil
 }

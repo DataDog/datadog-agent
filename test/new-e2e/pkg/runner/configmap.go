@@ -21,6 +21,8 @@ const (
 	AgentAPIKey = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentAPIKeyParamName
 	// AgentAPPKey pulumi config paramater name
 	AgentAPPKey = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentAPPKeyParamName
+	// AgentPipelineID pulumi config parameter name
+	AgentPipelineID = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentPipelineID
 
 	// InfraEnvironmentVariables pulumi config paramater name
 	InfraEnvironmentVariables = commonconfig.DDInfraConfigNamespace + ":" + commonconfig.DDInfraEnvironment
@@ -34,6 +36,8 @@ const (
 	AWSPublicKeyPath = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDinfraDefaultPublicKeyPath
 	// AWSPrivateKeyPath pulumi config paramater name
 	AWSPrivateKeyPath = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDInfraDefaultPrivateKeyPath
+	// AWSPrivateKeyPassword pulumi config paramater name
+	AWSPrivateKeyPassword = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDInfraDefaultPrivateKeyPassword
 )
 
 // ConfigMap type alias to auto.ConfigMap
@@ -109,6 +113,10 @@ func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap,
 	if err != nil {
 		return nil, err
 	}
+	err = SetConfigMapFromParameter(profile.ParamStore(), cm, parameters.PipelineID, AgentPipelineID)
+	if err != nil {
+		return nil, err
+	}
 	// Secret parameters from profile store
 	err = SetConfigMapFromSecret(profile.SecretStore(), cm, parameters.APIKey, AgentAPIKey)
 	if err != nil {
@@ -118,6 +126,11 @@ func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap,
 	if err != nil {
 		return nil, err
 	}
+	err = SetConfigMapFromSecret(profile.SecretStore(), cm, parameters.PrivateKeyPassword, AWSPrivateKeyPassword)
+	if err != nil {
+		return nil, err
+	}
+
 	// Merge with scenario variables
 	cm.Merge(scenarioConfig)
 

@@ -8,31 +8,31 @@
 package flare
 
 import (
-	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 )
 
-func addSystemProbePlatformSpecificEntries(fb flarehelpers.FlareBuilder) {}
+func addSystemProbePlatformSpecificEntries(_ flaretypes.FlareBuilder) {}
 
-func getLinuxKernelSymbols(fb flarehelpers.FlareBuilder) error {
+func getLinuxKernelSymbols(_ flaretypes.FlareBuilder) error {
 	return nil
 }
 
-func getLinuxKprobeEvents(fb flarehelpers.FlareBuilder) error {
+func getLinuxKprobeEvents(_ flaretypes.FlareBuilder) error {
 	return nil
 }
 
-func getLinuxDmesg(fb flarehelpers.FlareBuilder) error {
+func getLinuxDmesg(_ flaretypes.FlareBuilder) error {
 	return nil
 }
 
-func getLinuxPid1MountInfo(fb flarehelpers.FlareBuilder) error {
+func getLinuxPid1MountInfo(_ flaretypes.FlareBuilder) error {
 	return nil
 }
 
-func getLinuxTracingAvailableEvents(fb flarehelpers.FlareBuilder) error {
+func getLinuxTracingAvailableEvents(_ flaretypes.FlareBuilder) error {
 	return nil
 }
 
-func getLinuxTracingAvailableFilterFunctions(fb flarehelpers.FlareBuilder) error {
+func getLinuxTracingAvailableFilterFunctions(_ flaretypes.FlareBuilder) error {
 	return nil
 }

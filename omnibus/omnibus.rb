@@ -3,6 +3,8 @@
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
 # Copyright 2016-present Datadog, Inc.
 
+require "./lib/project_extension.rb"
+
 if ENV["WINDOWS_BUILD_32_BIT"]
     windows_arch :x86
 else

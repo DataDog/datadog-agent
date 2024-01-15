@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package kernel holds kernel related files
 package kernel
 
 import (
@@ -16,7 +17,9 @@ import (
 
 	"github.com/acobaugh/osrelease"
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/features"
+	"github.com/cilium/ebpf/link"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
@@ -94,6 +97,10 @@ var (
 	Kernel6_2 = kernel.VersionCode(6, 2, 0)
 	// Kernel6_3 is the KernelVersion representation of kernel version 6.3
 	Kernel6_3 = kernel.VersionCode(6, 3, 0)
+	// Kernel6_5 is the KernelVersion representation of kernel version 6.5
+	Kernel6_5 = kernel.VersionCode(6, 5, 0)
+	// Kernel6_6 is the KernelVersion representation of kernel version 6.6
+	Kernel6_6 = kernel.VersionCode(6, 6, 0)
 )
 
 // Version defines a kernel version helper
@@ -298,4 +305,43 @@ func (k *Version) HavePIDLinkStruct() bool {
 // HaveLegacyPipeInodeInfoStruct returns whether the kernel uses the legacy pipe_inode_info struct
 func (k *Version) HaveLegacyPipeInodeInfoStruct() bool {
 	return k.Code != 0 && k.Code < Kernel5_5
+}
+
+// HaveFentrySupport returns whether the kernel supports fentry probes
+func (k *Version) HaveFentrySupport() bool {
+	if features.HaveProgramType(ebpf.Tracing) != nil {
+		return false
+	}
+
+	spec := &ebpf.ProgramSpec{
+		Type:       ebpf.Tracing,
+		AttachType: ebpf.AttachTraceFEntry,
+		AttachTo:   "vfs_open",
+		Instructions: asm.Instructions{
+			asm.LoadImm(asm.R0, 0, asm.DWord),
+			asm.Return(),
+		},
+	}
+	prog, err := ebpf.NewProgramWithOptions(spec, ebpf.ProgramOptions{
+		LogDisabled: true,
+	})
+	if err != nil {
+		return false
+	}
+	defer prog.Close()
+
+	link, err := link.AttachTracing(link.TracingOptions{
+		Program: prog,
+	})
+	if err != nil {
+		return false
+	}
+	defer link.Close()
+
+	return true
+}
+
+// SupportBPFSendSignal returns true if the eBPF function bpf_send_signal is available
+func (k *Version) SupportBPFSendSignal() bool {
+	return k.Code != 0 && k.Code >= Kernel5_3
 }

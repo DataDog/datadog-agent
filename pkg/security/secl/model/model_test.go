@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package model holds model related files
 package model
 
 import (
@@ -118,6 +119,7 @@ func TestPathValidation(t *testing.T) {
 
 func TestSetFieldValue(t *testing.T) {
 	var readOnlyError *eval.ErrFieldReadOnly
+	var fieldNotSupportedError *eval.ErrNotSupported
 
 	event := NewDefaultEvent()
 	for _, field := range event.GetFields() {
@@ -132,15 +134,14 @@ func TestSetFieldValue(t *testing.T) {
 			if err != nil {
 				if errors.As(err, &readOnlyError) {
 					continue
-				} else {
-					t.Error(err)
 				}
-			}
-			if err = event.SetFieldValue(field, "aaa"); err != nil && !errors.As(err, &readOnlyError) {
 				t.Error(err)
 			}
 			value, err := event.GetFieldValue(field)
 			if err != nil {
+				if errors.As(err, &fieldNotSupportedError) {
+					continue
+				}
 				t.Errorf("unable to get the expected `%s` value: %v", field, err)
 			}
 			switch v := value.(type) {
@@ -160,12 +161,14 @@ func TestSetFieldValue(t *testing.T) {
 			if err != nil {
 				if errors.As(err, &readOnlyError) {
 					continue
-				} else {
-					t.Error(err)
 				}
+				t.Error(err)
 			}
 			value, err := event.GetFieldValue(field)
 			if err != nil {
+				if errors.As(err, &fieldNotSupportedError) {
+					continue
+				}
 				t.Errorf("unable to get the expected `%s` value: %v", field, err)
 			}
 			switch v := value.(type) {
@@ -185,12 +188,14 @@ func TestSetFieldValue(t *testing.T) {
 			if err != nil {
 				if errors.As(err, &readOnlyError) {
 					continue
-				} else {
-					t.Error(err)
 				}
+				t.Error(err)
 			}
 			value, err := event.GetFieldValue(field)
 			if err != nil {
+				if errors.As(err, &fieldNotSupportedError) {
+					continue
+				}
 				t.Errorf("unable to get the expected `%s` value: %v", field, err)
 			}
 			switch v := value.(type) {

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 func adjustSecurity(cfg config.Config) {
@@ -17,13 +18,23 @@ func adjustSecurity(cfg config.Config) {
 		return time.Duration(cfg.GetInt(secNS("activity_dump.cgroup_dump_timeout"))) * time.Minute
 	})
 
+	deprecateCustom(
+		cfg,
+		secNS("runtime_security_config.security_profile.anomaly_detection.auto_suppression.enabled"),
+		secNS("runtime_security_config.security_profile.auto_suppression.enabled"),
+		func(cfg config.Config) interface{} {
+			// convert old auto suppression parameter to the new one
+			return cfg.GetBool(secNS("runtime_security_config.security_profile.anomaly_detection.auto_suppression.enabled"))
+		},
+	)
+
 	if cfg.GetBool(secNS("enabled")) {
 		// if runtime is enabled then we force fim
-		cfg.Set(secNS("fim_enabled"), true)
+		cfg.Set(secNS("fim_enabled"), true, model.SourceAgentRuntime)
 	} else {
 		// if runtime is disabled then we force disable activity dumps and security profiles
-		cfg.Set(secNS("activity_dump.enabled"), false)
-		cfg.Set(secNS("security_profile.enabled"), false)
+		cfg.Set(secNS("activity_dump.enabled"), false, model.SourceAgentRuntime)
+		cfg.Set(secNS("security_profile.enabled"), false, model.SourceAgentRuntime)
 	}
 
 	// further adjustments done in RuntimeSecurityConfig.sanitize

@@ -40,7 +40,8 @@ else
     fi
 fi
 
-curl -Lo ./kind "https://kind.sigs.k8s.io/dl/$(curl -s -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/kubernetes-sigs/kind/releases | jq -r '.[0].tag_name')/kind-linux-$arch"
+kind_version="$(curl -s -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/kubernetes-sigs/kind/releases | jq -r '.[0].tag_name')"
+curl -Lo ./kind "https://kind.sigs.k8s.io/dl/${kind_version:=v0.20.0}/kind-linux-$arch"
 sudo install kind /usr/local/bin/kind
 
 

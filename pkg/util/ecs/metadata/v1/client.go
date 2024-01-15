@@ -5,6 +5,7 @@
 
 //go:build docker
 
+// Package v1 provides an ECS client for v1 of API.
 package v1
 
 import (
@@ -29,6 +30,7 @@ const (
 	taskMetadataPath = "/tasks"
 )
 
+// Client is an interface for ECS metadata v1 API clients.
 type Client interface {
 	GetInstance(context.Context) (*Instance, error)
 	GetTasks(context.Context) ([]Task, error)

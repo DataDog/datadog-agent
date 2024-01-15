@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package modules is all the module definitions for system-probe
 package modules
 
 import (
@@ -23,8 +24,9 @@ var All = []module.Factory{
 	Process,
 	DynamicInstrumentation,
 	LanguageDetectionModule,
+	ComplianceModule,
 }
 
-func inactivityEventLog(duration time.Duration) {
+func inactivityEventLog(_ time.Duration) {
 
 }

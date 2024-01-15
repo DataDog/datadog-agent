@@ -12,7 +12,7 @@ import (
 )
 
 // SetupCoreDump enables core dumps and sets the core dump size limit based on configuration
-func SetupCoreDump(cfg config.ConfigReader) error {
+func SetupCoreDump(cfg config.Reader) error {
 	if cfg.GetBool("go_core_dump") {
 		return fmt.Errorf("Not supported on Windows")
 	}

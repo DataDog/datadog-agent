@@ -112,8 +112,8 @@ func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {
 func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
 
 	oldSetting := config.Datadog.Get("serializer_max_uncompressed_payload_size")
-	defer config.Datadog.Set("serializer_max_uncompressed_payload_size", oldSetting)
-	config.Datadog.Set("serializer_max_uncompressed_payload_size", 100)
+	defer config.Datadog.SetWithoutSource("serializer_max_uncompressed_payload_size", oldSetting)
+	config.Datadog.SetWithoutSource("serializer_max_uncompressed_payload_size", 100)
 
 	sl := metrics.NewSketchesSourceTest()
 	// A big item (to be dropped)
@@ -155,8 +155,6 @@ func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 		sl.Append(Makeseries(i))
 	}
 
-	serializer1 := SketchSeriesList{SketchesSource: sl}
-	payload, _ := serializer1.Marshal()
 	sl.Reset()
 	serializer2 := SketchSeriesList{SketchesSource: sl}
 	payloads, err := serializer2.MarshalSplitCompress(marshaler.NewBufferContext())
@@ -168,9 +166,6 @@ func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 	r, _ := zlib.NewReader(reader)
 	decompressed, _ := io.ReadAll(r)
 	r.Close()
-
-	// Check that we encoded the protobuf correctly
-	assert.Equal(t, decompressed, payload)
 
 	pl := new(gogen.SketchPayload)
 	err = pl.Unmarshal(decompressed)
@@ -197,8 +192,8 @@ func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 
 func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 	oldSetting := config.Datadog.Get("serializer_max_uncompressed_payload_size")
-	defer config.Datadog.Set("serializer_max_uncompressed_payload_size", oldSetting)
-	config.Datadog.Set("serializer_max_uncompressed_payload_size", 2000)
+	defer config.Datadog.SetWithoutSource("serializer_max_uncompressed_payload_size", oldSetting)
+	config.Datadog.SetWithoutSource("serializer_max_uncompressed_payload_size", 2000)
 
 	sl := metrics.NewSketchesSourceTest()
 

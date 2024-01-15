@@ -5,6 +5,7 @@
 
 //go:build linux_bpf
 
+//nolint:revive // TODO(NET) Fix revive linter
 package offsetguess
 
 import (
@@ -28,8 +29,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// sizeof(struct nf_conntrack_tuple), see https://github.com/torvalds/linux/blob/master/include/net/netfilter/nf_conntrack_tuple.h
-const sizeofNfConntrackTuple = 40
+const (
+	// sizeof(struct nf_conntrack_tuple), see https://github.com/torvalds/linux/blob/master/include/net/netfilter/nf_conntrack_tuple.h
+	sizeofNfConntrackTuple = 40
+
+	// sizeof(struct nf_conntrack_tuple_hash), see https://github.com/torvalds/linux/blob/master/include/net/netfilter/nf_conntrack_tuple.h
+	sizeofNfConntrackTupleHash = 56
+)
+
+var localIPv4 = net.ParseIP("127.0.0.3")
 
 type conntrackOffsetGuesser struct {
 	m            *manager.Manager
@@ -38,6 +46,7 @@ type conntrackOffsetGuesser struct {
 	udpv6Enabled uint64
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 func NewConntrackOffsetGuesser(cfg *config.Config) (OffsetGuesser, error) {
 	consts, err := TracerOffsets.Offsets(cfg)
 	if err != nil {
@@ -92,6 +101,7 @@ func (c *conntrackOffsetGuesser) Close() {
 	}
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 func (c *conntrackOffsetGuesser) Probes(cfg *config.Config) (map[probes.ProbeFuncName]struct{}, error) {
 	p := map[probes.ProbeFuncName]struct{}{}
 	enableProbe(p, probes.ConntrackHashInsert)
@@ -102,7 +112,6 @@ func (c *conntrackOffsetGuesser) getConstantEditors() []manager.ConstantEditor {
 	return []manager.ConstantEditor{
 		{Name: "offset_ct_origin", Value: c.status.Offset_origin},
 		{Name: "offset_ct_reply", Value: c.status.Offset_reply},
-		{Name: "offset_ct_status", Value: c.status.Offset_status},
 		{Name: "offset_ct_netns", Value: c.status.Offset_netns},
 		{Name: "offset_ct_ino", Value: c.status.Offset_ino},
 		{Name: "tcpv6_enabled", Value: c.tcpv6Enabled},
@@ -113,6 +122,8 @@ func (c *conntrackOffsetGuesser) getConstantEditors() []manager.ConstantEditor {
 // checkAndUpdateCurrentOffset checks the value for the current offset stored
 // in the eBPF map against the expected value, incrementing the offset if it
 // doesn't match, or going to the next field to guess if it does
+//
+//nolint:revive // TODO(NET) Fix revive linter
 func (c *conntrackOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected *fieldValues, maxRetries *int, threshold uint64) error {
 	// get the updated map value so we can check if the current offset is
 	// the right one
@@ -129,38 +140,58 @@ func (c *conntrackOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expec
 		time.Sleep(10 * time.Millisecond)
 		return nil
 	}
+	var overlapped bool
 	switch GuessWhat(c.status.What) {
 	case GuessCtTupleOrigin:
+		c.status.Offset_origin, overlapped = skipOverlaps(c.status.Offset_origin, c.nfConnRanges())
+		if overlapped {
+			log.Tracef("offset %v overlaps with another field, skipping", whatString[GuessWhat(c.status.What)])
+			// adjusted offset from eBPF overlapped with another field, we need to check new offset
+			break
+		}
+
 		if c.status.Saddr == expected.saddr {
 			// the reply tuple comes always after the origin tuple
 			c.status.Offset_reply = c.status.Offset_origin + sizeofNfConntrackTuple
 			c.logAndAdvance(c.status.Offset_origin, GuessCtTupleReply)
 			break
 		}
+		log.Tracef("%v %d does not match expected %d, incrementing offset %d",
+			whatString[GuessWhat(c.status.What)], c.status.Saddr, expected.saddr, c.status.Offset_origin)
 		c.status.Offset_origin++
-		c.status.Saddr = expected.saddr
+		c.status.Offset_origin, _ = skipOverlaps(c.status.Offset_origin, c.nfConnRanges())
 	case GuessCtTupleReply:
+		c.status.Offset_reply, overlapped = skipOverlaps(c.status.Offset_reply, c.nfConnRanges())
+		if overlapped {
+			log.Tracef("offset %v overlaps with another field, skipping", whatString[GuessWhat(c.status.What)])
+			// adjusted offset from eBPF overlapped with another field, we need to check new offset
+			break
+		}
+
 		if c.status.Saddr == expected.daddr {
-			c.logAndAdvance(c.status.Offset_reply, GuessCtStatus)
+			c.logAndAdvance(c.status.Offset_reply, GuessCtNet)
 			break
 		}
+		log.Tracef("%v %d does not match expected %d, incrementing offset %d",
+			whatString[GuessWhat(c.status.What)], c.status.Saddr, expected.daddr, c.status.Offset_reply)
 		c.status.Offset_reply++
-		c.status.Saddr = expected.saddr
-	case GuessCtStatus:
-		if c.status.Status == expected.ctStatus {
-			c.status.Offset_netns = c.status.Offset_status + 1
-			c.logAndAdvance(c.status.Offset_status, GuessCtNet)
+		c.status.Offset_reply, _ = skipOverlaps(c.status.Offset_reply, c.nfConnRanges())
+	case GuessCtNet:
+		c.status.Offset_netns, overlapped = skipOverlaps(c.status.Offset_netns, c.nfConnRanges())
+		if overlapped {
+			log.Tracef("offset %v overlaps with another field, skipping", whatString[GuessWhat(c.status.What)])
+			// adjusted offset from eBPF overlapped with another field, we need to check new offset
 			break
 		}
-		c.status.Offset_status++
-		c.status.Status = expected.ctStatus
-	case GuessCtNet:
+
 		if c.status.Netns == expected.netns {
 			c.logAndAdvance(c.status.Offset_netns, GuessNotApplicable)
 			return c.setReadyState(mp)
 		}
+		log.Tracef("%v %d does not match expected %d, incrementing offset %d",
+			whatString[GuessWhat(c.status.What)], c.status.Netns, expected.netns, c.status.Offset_netns)
 		c.status.Offset_netns++
-		c.status.Netns = expected.netns
+		c.status.Offset_netns, _ = skipOverlaps(c.status.Offset_netns, c.nfConnRanges())
 	default:
 		return fmt.Errorf("unexpected field to guess: %v", whatString[GuessWhat(c.status.What)])
 	}
@@ -339,7 +370,18 @@ func (e *conntrackEventGenerator) Generate(status GuessWhat, expected *fieldValu
 		}
 		var err error
 		err = kernel.WithNS(e.ns, func() error {
-			e.udpConn, err = net.DialTimeout("udp4", e.udpAddr, 500*time.Millisecond)
+			// we use a dialer instance to override the local
+			// address to use with the udp connection. this is
+			// because on kernel 4.4 using the default loopback
+			// (127.0.0.1) address sometimes results in an
+			// incorrect match for the source address, resulting
+			// in an incorrect offset for ct_origin
+			d := net.Dialer{
+				Timeout:   500 * time.Millisecond,
+				LocalAddr: &net.UDPAddr{IP: localIPv4},
+			}
+
+			e.udpConn, err = d.Dial("udp4", e.udpAddr)
 			if err != nil {
 				return err
 			}
@@ -365,9 +407,6 @@ func (e *conntrackEventGenerator) populateUDPExpectedValues(expected *fieldValue
 
 	expected.saddr = saddr
 	expected.daddr = daddr
-	// IPS_CONFIRMED | IPS_SRC_NAT_DONE | IPS_DST_NAT_DONE
-	// see https://elixir.bootlin.com/linux/v5.19.17/source/include/uapi/linux/netfilter/nf_conntrack_common.h#L42
-	expected.ctStatus = 0x188
 	expected.netns, err = kernel.GetCurrentIno()
 	if err != nil {
 		return err

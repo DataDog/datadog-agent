@@ -77,8 +77,8 @@ func TestMarshalJSON(t *testing.T) {
 
 	mockConfig := config.Mock(t)
 	oldName := mockConfig.GetString("hostname")
-	defer mockConfig.Set("hostname", oldName)
-	mockConfig.Set("hostname", "test-hostname")
+	defer mockConfig.SetWithoutSource("hostname", oldName)
+	mockConfig.SetWithoutSource("hostname", "test-hostname")
 
 	payload, err := events.MarshalJSON()
 	assert.Nil(t, err)
@@ -97,8 +97,8 @@ func TestMarshalJSONOmittedFields(t *testing.T) {
 
 	mockConfig := config.Mock(t)
 	oldName := mockConfig.GetString("hostname")
-	defer mockConfig.Set("hostname", oldName)
-	mockConfig.Set("hostname", "test-hostname")
+	defer mockConfig.SetWithoutSource("hostname", oldName)
+	mockConfig.SetWithoutSource("hostname", "test-hostname")
 
 	payload, err := events.MarshalJSON()
 	assert.Nil(t, err)
@@ -163,8 +163,8 @@ func TestPayloadsEvents(t *testing.T) {
 func TestEventsSeveralPayloadsCreateSingleMarshaler(t *testing.T) {
 	events := createEvents("3", "3", "2", "2", "1", "1")
 
-	config.Datadog.Set("serializer_max_payload_size", 500)
-	defer config.Datadog.Set("serializer_max_payload_size", nil)
+	config.Datadog.SetWithoutSource("serializer_max_payload_size", 500)
+	defer config.Datadog.SetWithoutSource("serializer_max_payload_size", nil)
 
 	expectedPayloads, err := events.MarshalJSON()
 	assert.NoError(t, err)
@@ -177,8 +177,8 @@ func TestEventsSeveralPayloadsCreateSingleMarshaler(t *testing.T) {
 func TestEventsSeveralPayloadsCreateMarshalersBySourceType(t *testing.T) {
 	events := createEvents("3", "3", "2", "2", "1", "1")
 
-	config.Datadog.Set("serializer_max_payload_size", 300)
-	defer config.Datadog.Set("serializer_max_payload_size", nil)
+	config.Datadog.SetWithoutSource("serializer_max_payload_size", 300)
+	defer config.Datadog.SetWithoutSource("serializer_max_payload_size", nil)
 
 	expectedPayloads, err := events.MarshalJSON()
 	assert.NoError(t, err)

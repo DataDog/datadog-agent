@@ -5,10 +5,12 @@
 
 //go:build (linux && !linux_bpf) || (windows && !npm) || (!linux && !windows)
 
+//nolint:revive // TODO(NET) Fix revive linter
 package tracer
 
 import (
 	"context"
+	"io"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -32,7 +34,7 @@ func (t *Tracer) GetActiveConnections(_ string) (*network.Connections, error) {
 }
 
 // RegisterClient registers the client
-func (t *Tracer) RegisterClient(clientID string) error {
+func (t *Tracer) RegisterClient(clientID string) error { //nolint:revive // TODO fix revive unused-parameter
 	return ebpf.ErrNotImplemented
 }
 
@@ -42,7 +44,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 }
 
 // DebugNetworkState is not implemented on this OS for Tracer
-func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, error) {
+func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, error) { //nolint:revive // TODO fix revive unused-parameter
 	return nil, ebpf.ErrNotImplemented
 }
 
@@ -52,21 +54,21 @@ func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 }
 
 // DebugEBPFMaps is not implemented on this OS for Tracer
-func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) {
-	return "", ebpf.ErrNotImplemented
+func (t *Tracer) DebugEBPFMaps(_ io.Writer, _ ...string) error {
+	return ebpf.ErrNotImplemented
 }
 
 // DebugCachedConntrack is not implemented on this OS for Tracer
-func (t *Tracer) DebugCachedConntrack(ctx context.Context) (interface{}, error) {
+func (t *Tracer) DebugCachedConntrack(context.Context) (interface{}, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 
 // DebugHostConntrack is not implemented on this OS for Tracer
-func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
+func (t *Tracer) DebugHostConntrack(context.Context) (interface{}, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 
 // DebugDumpProcessCache is not implemented on this OS for Tracer
-func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error) {
+func (t *Tracer) DebugDumpProcessCache(context.Context) (interface{}, error) {
 	return nil, ebpf.ErrNotImplemented
 }

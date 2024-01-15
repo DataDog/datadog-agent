@@ -17,19 +17,18 @@ int hook_security_inode_setattr(ctx_t *ctx) {
 
     u64 param1 = CTX_PARM1(ctx);
     u64 param2 = CTX_PARM2(ctx);
-    u64 param3 = CTX_PARM3(ctx);
 
     struct dentry *dentry;
     struct iattr *iattr;
     if (security_have_usernamespace_first_arg()) {
         dentry = (struct dentry *)param2;
-        iattr = (struct iattr *)param3;
+        iattr = (struct iattr *)CTX_PARM3(ctx);
     } else {
         dentry = (struct dentry *)param1;
         iattr = (struct iattr *)param2;
     }
 
-    fill_file_metadata(dentry, &syscall->setattr.file.metadata);
+    fill_file(dentry, &syscall->setattr.file);
 
     if (iattr != NULL) {
         int valid;
@@ -48,6 +47,11 @@ int hook_security_inode_setattr(ctx_t *ctx) {
     }
 
     if (syscall->setattr.file.path_key.ino) {
+        return 0;
+    }
+
+    if (is_non_mountable_dentry(dentry)) {
+        pop_syscall_with(security_inode_predicate);
         return 0;
     }
 

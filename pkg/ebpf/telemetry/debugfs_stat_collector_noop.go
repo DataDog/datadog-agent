@@ -3,21 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !linux_bpf
-
-//revive:disable:package-comments
-package telemetry
+package ebpf
 
 import "github.com/prometheus/client_golang/prometheus"
 
-type DebugFsStatCollector struct{}
-
-func NewDebugFsStatCollector() *DebugFsStatCollector {
-	return &DebugFsStatCollector{}
-}
+// NoopDebugFsStatCollector implements the prometheus Collector interface but does nothing
+type NoopDebugFsStatCollector struct{}
 
 // Describe returns all descriptions of the collector
-func (c *DebugFsStatCollector) Describe(chan<- *prometheus.Desc) {}
+func (c *NoopDebugFsStatCollector) Describe(chan<- *prometheus.Desc) {}
 
 // Collect returns the current state of all metrics of the collector
-func (c *DebugFsStatCollector) Collect(chan<- prometheus.Metric) {}
+func (c *NoopDebugFsStatCollector) Collect(chan<- prometheus.Metric) {}

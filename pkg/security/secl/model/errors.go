@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package model holds model related files
 package model
 
 import (
@@ -35,4 +36,67 @@ type ErrInvalidKeyPath struct {
 
 func (e *ErrInvalidKeyPath) Error() string {
 	return fmt.Sprintf("invalid inode/mountID couple: %d/%d", e.Inode, e.MountID)
+}
+
+// ErrProcessMissingParentNode used when the lineage is incorrect in term of pid/ppid
+type ErrProcessMissingParentNode struct {
+	PID         uint32
+	PPID        uint32
+	ContainerID string
+}
+
+func (e *ErrProcessMissingParentNode) Error() string {
+	return fmt.Sprintf("parent node missing: PID(%d), PPID(%d), ID(%s)", e.PID, e.PPID, e.ContainerID)
+}
+
+// ErrProcessWrongParentNode used when the lineage is correct in term of pid/ppid but an exec parent is missing
+type ErrProcessWrongParentNode struct {
+	PID         uint32
+	PPID        uint32
+	ContainerID string
+}
+
+func (e *ErrProcessWrongParentNode) Error() string {
+	return fmt.Sprintf("wrong parent node: PID(%d), PPID(%d), ID(%s)", e.PID, e.PPID, e.ContainerID)
+}
+
+// ErrProcessIncompleteLineage used when the lineage is incorrect in term of pid/ppid
+type ErrProcessIncompleteLineage struct {
+	PID         uint32
+	PPID        uint32
+	ContainerID string
+}
+
+func (e *ErrProcessIncompleteLineage) Error() string {
+	return fmt.Sprintf("parent node missing: PID(%d), PPID(%d), ID(%s)", e.PID, e.PPID, e.ContainerID)
+}
+
+// ErrNoProcessContext defines an error for event without process context
+type ErrNoProcessContext struct {
+	Err error
+}
+
+// Error implements the error interface
+func (e *ErrNoProcessContext) Error() string {
+	return e.Err.Error()
+}
+
+// Unwrap implements the error interface
+func (e *ErrNoProcessContext) Unwrap() error {
+	return e.Err
+}
+
+// ErrProcessBrokenLineage returned when a process lineage is broken
+type ErrProcessBrokenLineage struct {
+	Err error
+}
+
+// Unwrap implements the error interface
+func (e *ErrProcessBrokenLineage) Unwrap() error {
+	return e.Err
+}
+
+// Error implements the error interface
+func (e *ErrProcessBrokenLineage) Error() string {
+	return fmt.Sprintf("broken process lineage: %v", e.Err)
 }

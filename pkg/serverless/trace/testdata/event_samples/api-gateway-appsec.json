@@ -3,7 +3,7 @@
     "resource": "/{proxy+}",
     "path": "/path/to/resource/../../../../../database.yml.sqlite3",
     "httpMethod": "POST",
-    "isBase64Encoded": true,
+    "isBase64Encoded": false,
     "queryStringParameters": {
         "stage": "appscan_fingerprint"
     },

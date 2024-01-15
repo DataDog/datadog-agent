@@ -3,124 +3,130 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
+//go:build linux_bpf
 
 package java
 
 import (
 	"os"
-	"strings"
+	"path/filepath"
 	"syscall"
 	"testing"
 	"time"
 
-	"github.com/DataDog/gopsutil/process"
 	"github.com/stretchr/testify/require"
 
+	javatestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/java/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-func findJustWait(t *testing.T) (retpid int) {
-	fn := func(pid int) error {
-		proc, err := process.NewProcess(int32(pid))
-		if err != nil {
-			return nil // ignore process that didn't exist anymore
-		}
-
-		name, err := proc.Name()
-		if err == nil && name == "java" {
-			cmdline, err := proc.Cmdline()
-			if err == nil && strings.Contains(cmdline, "JustWait") {
-				retpid = pid
-			}
-		}
-		return nil
-	}
-
-	err := kernel.WithAllProcs(kernel.ProcFSRoot(), fn)
-	if err != nil {
-		t.Fatalf("%v\n", err)
-	}
-	return retpid
-}
-
 func testInject(t *testing.T, prefix string) {
 	go func() {
-		o, err := testutil.RunCommand(prefix + "java -cp testdata JustWait")
+		o, err := testutil.RunCommand(prefix + "java -cp testdata Wait JustWait")
 		if err != nil {
 			t.Logf("%v\n", err)
 		}
 		t.Log(o)
 	}()
-	time.Sleep(time.Second) // give a chance to spawn java
 
-	pid := findJustWait(t)
-	require.NotEqual(t, pid, 0, "Can't find java JustWait process")
-	t.Log(pid)
+	var pids []int
+	var err error
+	require.Eventually(t, func() bool {
+		pids, err = javatestutil.FindProcessByCommandLine("java", "JustWait")
+		return len(pids) == 1
+	}, time.Second*5, time.Millisecond*100)
+	require.NoError(t, err)
 
-	defer func() {
-		process, _ := os.FindProcess(pid)
-		process.Signal(syscall.SIGKILL)
-		time.Sleep(200 * time.Millisecond) // give a chance to the process to give his report/output
-	}()
+	t.Cleanup(func() {
+		process, err := os.FindProcess(pids[0])
+		if err != nil {
+			return
+		}
+		_ = process.Signal(syscall.SIGKILL)
+		_, _ = process.Wait()
+	})
 
 	tfile, err := os.CreateTemp("", "TestAgentLoaded.agentmain.*")
 	require.NoError(t, err)
-	tfile.Close()
-	os.Remove(tfile.Name())
-	defer os.Remove(tfile.Name())
-
+	require.NoError(t, tfile.Close())
+	require.NoError(t, os.Remove(tfile.Name()))
 	// equivalent to jattach <pid> load instrument false testdata/TestAgentLoaded.jar=<tempfile>
-	err = InjectAgent(pid, "testdata/TestAgentLoaded.jar", "testfile="+tfile.Name())
-	require.NoError(t, err)
-
-	time.Sleep((MINIMUM_JAVA_AGE_TO_ATTACH_MS + 200) * time.Millisecond) // wait java process to be old enough to be injected
-
-	// check if agent was loaded
-	_, err = os.Stat(tfile.Name())
-	require.NoError(t, err)
-
-	t.Log("=== Test Success ===")
+	require.NoError(t, InjectAgent(pids[0], filepath.Join("testdata", "TestAgentLoaded.jar"), "testfile="+tfile.Name()))
+	require.Eventually(t, func() bool {
+		_, err = os.Stat(tfile.Name())
+		return err == nil
+	}, time.Second*15, time.Millisecond*100)
 }
 
 // We test injection on a java hotspot running
 //
 //	o on the host
 //	o in the container, _simulated_ by running java in his own PID namespace
-func TestInject(t *testing.T) {
+func runTestInject(t *testing.T) {
 	currKernelVersion, err := kernel.HostVersion()
-	if err != nil {
-		t.Skip("Can't detect kernel version on this platform")
-	}
-	pre410Kernel := currKernelVersion < kernel.VersionCode(4, 1, 0)
-	if pre410Kernel {
-		t.Skip("Kernel < 4.1.0 are not supported as /proc/pid/status doesn't report NSpid")
+	require.NoError(t, err)
+	if currKernelVersion < kernel.VersionCode(4, 14, 0) {
+		t.Skip("Java TLS injection tests can run only on USM supported machines.")
 	}
 
 	javaVersion, err := testutil.RunCommand("java -version")
-	if err != nil {
-		t.Fatal("java is not installed", javaVersion, err)
-	}
-	t.Log(javaVersion)
+	require.NoErrorf(t, err, "java is not installed")
+	t.Logf("java version %v", javaVersion)
 
 	t.Run("host", func(t *testing.T) {
 		testInject(t, "")
 	})
-	if t.Failed() {
-		t.Fatal("host failed")
-	}
 
-	t.Run("PIDnamespace", func(t *testing.T) {
+	t.Run("PID namespace", func(t *testing.T) {
 		p := "unshare -p --fork "
 		_, err = testutil.RunCommand(p + "id")
 		if err != nil {
 			t.Skipf("unshare not supported on this platform %s", err)
 		}
 
-		// running the tagert process in a new PID namespace
-		// and testing if the test/plaform give enough permission to do that
+		// running the target process in a new PID namespace
+		// and testing if the test/platform give enough permission to do that
 		testInject(t, p)
 	})
+}
 
+func TestInject(t *testing.T) {
+	runTestInject(t)
+}
+
+func TestInjectInReadOnlyFS(t *testing.T) {
+	curDir, err := os.Getwd()
+	require.NoError(t, err)
+	rodir := filepath.Join(curDir, "rodir")
+
+	err = os.Mkdir(rodir, 0766)
+	require.NoError(t, err)
+	defer func() {
+		err = os.RemoveAll(rodir)
+		if err != nil {
+			t.Log(err)
+		}
+	}()
+
+	err = syscall.Mount(curDir, rodir, "auto", syscall.MS_BIND|syscall.MS_RDONLY, "")
+	require.NoError(t, err)
+	err = syscall.Mount("none", rodir, "", syscall.MS_RDONLY|syscall.MS_REMOUNT|syscall.MS_BIND, "")
+	require.NoError(t, err)
+	defer func() {
+		// without the sleep the unmount fails with a 'resource busy' error
+		time.Sleep(1 * time.Second)
+		err = syscall.Unmount(rodir, 0)
+		if err != nil {
+			t.Log(err)
+		}
+	}()
+
+	err = os.Chdir(rodir)
+	require.NoError(t, err)
+
+	runTestInject(t)
+
+	err = os.Chdir(curDir)
+	require.NoError(t, err)
 }

@@ -18,9 +18,9 @@ import (
 	"unsafe"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
+	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -41,6 +41,7 @@ func toBytes(l *libPath) []byte {
 	return l.Buf[:l.Len]
 }
 
+// Rule is a rule to match against a shared library path
 type Rule struct {
 	Re           *regexp.Regexp
 	RegisterCB   func(utils.FilePath) error
@@ -63,7 +64,8 @@ type Watcher struct {
 	libMatches *telemetry.Counter
 }
 
-func NewWatcher(cfg *config.Config, bpfTelemetry *ebpftelemetry.EBPFTelemetry, rules ...Rule) (*Watcher, error) {
+// NewWatcher creates a new Watcher instance
+func NewWatcher(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry, rules ...Rule) (*Watcher, error) {
 	ebpfProgram := newEBPFProgram(cfg, bpfTelemetry)
 	err := ebpfProgram.Init()
 	if err != nil {
@@ -85,6 +87,7 @@ func NewWatcher(cfg *config.Config, bpfTelemetry *ebpftelemetry.EBPFTelemetry, r
 	}, nil
 }
 
+// Stop the Watcher
 func (w *Watcher) Stop() {
 	if w == nil {
 		return

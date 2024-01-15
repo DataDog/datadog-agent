@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(APM) Fix revive linter
 package main
 
 import (
@@ -10,12 +11,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/command"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
-const defaultLogFile = "/var/log/datadog/trace-agent.log"
-
 func main() {
+	flavor.SetFlavor(flavor.TraceAgent)
+
 	os.Args = command.FixDeprecatedFlags(os.Args, os.Stdout)
 
-	os.Exit(runcmd.Run(command.MakeRootCommand(defaultLogFile)))
+	os.Exit(runcmd.Run(command.MakeRootCommand()))
 }

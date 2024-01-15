@@ -32,6 +32,7 @@ func processContainerStats(containerID string, stats interface{}) (*provider.Con
 	return getContainerdStatsWindows(windowsMetrics), nil
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func processContainerNetworkStats(containerID string, stats interface{}) (*provider.ContainerNetworkStats, error) {
 	// Not available on Windows
 	return nil, nil
@@ -43,7 +44,7 @@ func getContainerdStatsWindows(windowsStats *wstats.WindowsContainerStatistics) 
 	}
 
 	return &provider.ContainerStats{
-		Timestamp: windowsStats.Timestamp,
+		Timestamp: windowsStats.Timestamp.AsTime(),
 		CPU:       getContainerdCPUStatsWindows(windowsStats.Processor),
 		Memory:    getContainerdMemoryStatsWindows(windowsStats.Memory),
 		IO:        getContainerdIOStatsWindows(windowsStats.Storage),

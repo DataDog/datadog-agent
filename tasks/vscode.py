@@ -32,7 +32,7 @@ def set_buildtags(
     """
     flavor = AgentFlavor[flavor]
 
-    if target not in build_tags[flavor].keys():
+    if target not in build_tags[flavor]:
         print("Must choose a valid target.  Valid targets are: \n")
         print(f'{", ".join(build_tags[flavor].keys())} \n')
         return
@@ -74,7 +74,7 @@ def setup_devcontainer(
     Generate or Modify devcontainer settings file for this project.
     """
     flavor = AgentFlavor[flavor]
-    if target not in build_tags[flavor].keys():
+    if target not in build_tags[flavor]:
         print("Must choose a valid target.  Valid targets are: \n")
         print(f'{", ".join(build_tags[flavor].keys())} \n')
         return
@@ -122,10 +122,25 @@ def setup_devcontainer(
                 "go.goroot": "/usr/local/go",
                 "go.buildTags": local_build_tags,
                 "go.testTags": local_build_tags,
+                "go.lintTool": "golangci-lint",
+                "go.lintOnSave": "file",
+                "go.lintFlags": [
+                    "--build-tags",
+                    local_build_tags,
+                    "--config",
+                    "/workspaces/datadog-agent/.golangci.yml",
+                ],
+                "[go]": {
+                    "editor.formatOnSave": True,
+                },
+                "gopls": {"formatting.local": "github.com/DataDog/datadog-agent"},
             },
             "extensions": ["golang.Go"],
         }
     }
+    devcontainer[
+        "postStartCommand"
+    ] = "git config --global --add safe.directory /workspaces/datadog-agent && invoke install-tools && invoke deps"
 
     with open(fullpath, "w") as sf:
         json.dump(devcontainer, sf, indent=4, sort_keys=False, separators=(',', ': '))

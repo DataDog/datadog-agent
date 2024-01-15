@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -19,16 +20,15 @@ type ProfilingRuntimeSetting struct {
 	SettingName string
 	Service     string
 
-	Config       config.ConfigReaderWriter
+	Config       config.ReaderWriter
 	ConfigPrefix string
-	source       Source
 }
 
+// NewProfilingRuntimeSetting returns a new ProfilingRuntimeSetting
 func NewProfilingRuntimeSetting(settingName string, service string) *ProfilingRuntimeSetting {
 	return &ProfilingRuntimeSetting{
 		SettingName: settingName,
 		Service:     service,
-		source:      SourceDefault,
 	}
 }
 
@@ -49,7 +49,7 @@ func (l *ProfilingRuntimeSetting) Name() string {
 
 // Get returns the current value of the runtime setting
 func (l *ProfilingRuntimeSetting) Get() (interface{}, error) {
-	var cfg config.ConfigReaderWriter = config.Datadog
+	var cfg config.ReaderWriter = config.Datadog
 	if l.Config != nil {
 		cfg = l.Config
 	}
@@ -57,7 +57,7 @@ func (l *ProfilingRuntimeSetting) Get() (interface{}, error) {
 }
 
 // Set changes the value of the runtime setting
-func (l *ProfilingRuntimeSetting) Set(v interface{}, source Source) error {
+func (l *ProfilingRuntimeSetting) Set(v interface{}, source model.Source) error {
 	var profile bool
 	var err error
 
@@ -74,7 +74,7 @@ func (l *ProfilingRuntimeSetting) Set(v interface{}, source Source) error {
 		return fmt.Errorf("Unsupported type for profile runtime setting: %v", err)
 	}
 
-	var cfg config.ConfigReaderWriter = config.Datadog
+	var cfg config.ReaderWriter = config.Datadog
 	if l.Config != nil {
 		cfg = l.Config
 	}
@@ -111,20 +111,16 @@ func (l *ProfilingRuntimeSetting) Set(v interface{}, source Source) error {
 			WithGoroutineProfile: cfg.GetBool(l.ConfigPrefix + "internal_profiling.enable_goroutine_stacktraces"),
 			WithDeltaProfiles:    cfg.GetBool(l.ConfigPrefix + "internal_profiling.delta_profiles"),
 			Tags:                 tags,
+			CustomAttributes:     cfg.GetStringSlice(l.ConfigPrefix + "internal_profiling.custom_attributes"),
 		}
 		err := profiling.Start(settings)
 		if err == nil {
-			cfg.Set(l.ConfigPrefix+"internal_profiling.enabled", true)
+			cfg.Set(l.ConfigPrefix+"internal_profiling.enabled", true, source)
 		}
 	} else {
 		profiling.Stop()
-		cfg.Set(l.ConfigPrefix+"internal_profiling.enabled", false)
+		cfg.Set(l.ConfigPrefix+"internal_profiling.enabled", false, source)
 	}
 
-	l.source = source
 	return nil
-}
-
-func (l *ProfilingRuntimeSetting) GetSource() Source {
-	return l.source
 }

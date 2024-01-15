@@ -3,32 +3,31 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
+// Package provider defines the Provider interface which allows to get metrics
+// collectors for the different container runtimes supported (Docker,
+// containerd, etc.).
 package provider
 
 import (
+	"context"
 	"errors"
-	"sort"
 	"sync"
-	"time"
 
-	"go.uber.org/atomic"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
+// Runtime is a typed string for supported container runtimes
+type Runtime string
+
 // Known container runtimes
 const (
-	RuntimeNameDocker     string = "docker"
-	RuntimeNameContainerd string = "containerd"
-	RuntimeNameCRIO       string = "cri-o"
-	RuntimeNameGarden     string = "garden"
-	RuntimeNamePodman     string = "podman"
-	RuntimeNameECSFargate string = "ecsfargate"
-)
-
-const (
-	minRetryInterval = 2 * time.Second
+	RuntimeNameDocker     Runtime = "docker"
+	RuntimeNameContainerd Runtime = "containerd"
+	RuntimeNameCRIO       Runtime = "cri-o"
+	RuntimeNameGarden     Runtime = "garden"
+	RuntimeNamePodman     Runtime = "podman"
+	RuntimeNameECSFargate Runtime = "ecsfargate"
 )
 
 var (
@@ -49,72 +48,96 @@ var (
 
 	// AllLinuxRuntimes lists all runtimes available on Linux
 	// nolint: deadcode, unused
-	AllLinuxRuntimes = []string{
+	AllLinuxRuntimes = []Runtime{
 		RuntimeNameDocker,
 		RuntimeNameContainerd,
 		RuntimeNameCRIO,
 		RuntimeNameGarden,
 		RuntimeNamePodman,
+		RuntimeNameECSFargate,
 	}
 
 	// AllWindowsRuntimes lists all runtimes available on Windows
 	// nolint: deadcode, unused
-	AllWindowsRuntimes = []string{
+	AllWindowsRuntimes = []Runtime{
 		RuntimeNameDocker,
 		RuntimeNameContainerd,
+		RuntimeNameECSFargate,
 	}
 )
 
+// RuntimeFlavor is a typed string for supported container runtime flavors
+type RuntimeFlavor string
+
+// Known container runtime flavors
+const (
+	RuntimeFlavorDefault RuntimeFlavor = ""
+	RuntimeFlavorKata    RuntimeFlavor = "kata"
+)
+
+// RuntimeMetadata contains the runtime flavor and runtime name
+type RuntimeMetadata struct {
+	flavor  RuntimeFlavor
+	runtime Runtime
+}
+
+// NewRuntimeMetadata returns a new RuntimeMetadata
+func NewRuntimeMetadata(runtime, flavor string) RuntimeMetadata {
+	return RuntimeMetadata{
+		flavor:  RuntimeFlavor(flavor),
+		runtime: Runtime(runtime),
+	}
+}
+
+// String returns the runtime compose.
+func (r *RuntimeMetadata) String() string {
+	if r.flavor != "" {
+		return string(r.runtime) + "-" + string(r.flavor)
+	}
+
+	return string(r.runtime)
+}
+
 // Provider interface allows to mock the metrics provider
 type Provider interface {
-	GetCollector(runtime string) Collector
+	GetCollector(RuntimeMetadata) Collector
 	GetMetaCollector() MetaCollector
-	RegisterCollector(collectorMeta CollectorMetadata)
 }
 
-type collectorFactory func() (Collector, error)
-
-// CollectorMetadata contains the characteristics of a collector to be registered with RegisterCollector
-type CollectorMetadata struct {
-	ID            string
-	Priority      int // lowest gets higher priority (0 more prioritary than 1)
-	Runtimes      []string
-	Factory       collectorFactory
-	DelegateCache bool
-}
-
-type collectorReference struct {
-	id        string
-	priority  int
-	collector Collector
-}
+var (
+	metricsProvider     *GenericProvider
+	initMetricsProvider sync.Once
+)
 
 // GenericProvider offers an interface to retrieve a metrics collector
 type GenericProvider struct {
-	collectors              map[string]CollectorMetadata // key is catalogEntry.id
-	collectorsLock          sync.Mutex
-	effectiveCollectors     map[string]*collectorReference // key is runtime
-	effectiveCollectorsList []*collectorReference
-	effectiveLock           sync.RWMutex
-	lastRetryTimestamp      time.Time
-	remainingCandidates     *atomic.Uint32
-	metaCollector           MetaCollector
+	collectors    map[RuntimeMetadata]*collectorImpl
+	cache         *Cache
+	metaCollector *metaCollector
 }
-
-var metricsProvider = newProvider()
 
 // GetProvider returns the metrics provider singleton
 func GetProvider() Provider {
+	initMetricsProvider.Do(func() {
+		metricsProvider = newProvider()
+	})
+
 	return metricsProvider
 }
 
 func newProvider() *GenericProvider {
 	provider := &GenericProvider{
-		collectors:          make(map[string]CollectorMetadata),
-		effectiveCollectors: make(map[string]*collectorReference),
-		remainingCandidates: atomic.NewUint32(0),
+		cache:         NewCache(cacheGCInterval),
+		metaCollector: newMetaCollector(),
 	}
-	provider.metaCollector = newMetaCollector(provider.getCollectors)
+	if env.IsServerless() {
+		// TODO: quick fix to unblock some Serverless test.
+		// Serverless doesn't rely on the provider collector,
+		// so we avoid running the provider.collectorsUpdatedCallback.
+		// a proper fix should be to not register the collector if we are in the serveless agent.
+		return provider
+	}
+	registry.run(context.TODO(), provider.cache, provider.collectorsUpdatedCallback)
 
 	return provider
 }
@@ -122,9 +145,13 @@ func newProvider() *GenericProvider {
 // GetCollector returns the best collector for given runtime.
 // The best collector may change depending on other collectors availability.
 // You should not cache the result from this function.
-func (mp *GenericProvider) GetCollector(runtime string) Collector {
-	mp.retryCollectors(minRetryInterval)
-	return mp.getCollector(runtime)
+func (mp *GenericProvider) GetCollector(r RuntimeMetadata) Collector {
+	// we can't return mp.collectors[runtime] directly because it will return a typed nil
+	if runtime, found := mp.collectors[r]; found {
+		return runtime
+	}
+
+	return nil
 }
 
 // GetMetaCollector returns the meta collector.
@@ -132,100 +159,15 @@ func (mp *GenericProvider) GetMetaCollector() MetaCollector {
 	return mp.metaCollector
 }
 
-// RegisterCollector registers a collector
-func (mp *GenericProvider) RegisterCollector(collectorMeta CollectorMetadata) {
-	mp.collectorsLock.Lock()
-	defer mp.collectorsLock.Unlock()
-
-	mp.collectors[collectorMeta.ID] = collectorMeta
-	mp.remainingCandidates.Store(uint32(len(mp.collectors)))
-}
-
-func (mp *GenericProvider) getCollector(runtime string) Collector {
-	mp.effectiveLock.RLock()
-	defer mp.effectiveLock.RUnlock()
-
-	if entry, found := mp.effectiveCollectors[runtime]; found {
-		return entry.collector
+func (mp *GenericProvider) collectorsUpdatedCallback(collectorsCatalog CollectorCatalog) {
+	// Update local collectors
+	newCollectors := make(map[RuntimeMetadata]*collectorImpl, len(collectorsCatalog))
+	for runtime, collectors := range collectorsCatalog {
+		newCollectors[runtime] = fromCollectors(collectors)
 	}
 
-	return nil
-}
+	mp.collectors = newCollectors
 
-func (mp *GenericProvider) getCollectors() []*collectorReference {
-	mp.retryCollectors(minRetryInterval)
-	return mp.effectiveCollectorsList
-}
-
-func (mp *GenericProvider) retryCollectors(cacheValidity time.Duration) {
-	if mp.remainingCandidates.Load() == 0 {
-		return
-	}
-
-	mp.collectorsLock.Lock()
-	defer mp.collectorsLock.Unlock()
-
-	currentTime := time.Now()
-
-	// Only refresh if last attempt is too old (incl. processing time)
-	if currentTime.Sub(mp.lastRetryTimestamp) < cacheValidity {
-		return
-	}
-
-	mp.lastRetryTimestamp = currentTime
-
-	for _, collectorEntry := range mp.collectors {
-		collector, err := collectorEntry.Factory()
-		if err == nil {
-			if collectorEntry.DelegateCache {
-				collector = NewCollectorCache(collector)
-			}
-
-			mp.updateEffectiveCollectors(collector, collectorEntry)
-			delete(mp.collectors, collectorEntry.ID)
-		} else {
-			if errors.Is(err, ErrPermaFail) {
-				delete(mp.collectors, collectorEntry.ID)
-				log.Debugf("Metrics collector: %s went into PermaFail, removed from candidates", collectorEntry.ID)
-			}
-		}
-	}
-
-	mp.remainingCandidates.Store(uint32(len(mp.collectors)))
-}
-
-func (mp *GenericProvider) updateEffectiveCollectors(newCollector Collector, newCollectorDesc CollectorMetadata) {
-	mp.effectiveLock.Lock()
-	defer mp.effectiveLock.Unlock()
-
-	newRef := collectorReference{
-		id:        newCollectorDesc.ID,
-		priority:  newCollectorDesc.Priority,
-		collector: newCollector,
-	}
-
-	for _, runtime := range newCollectorDesc.Runtimes {
-		currentCollector := mp.effectiveCollectors[runtime]
-		if currentCollector == nil {
-			log.Infof("Using metrics collector: %s for runtime: %s", newRef.id, runtime)
-			mp.effectiveCollectors[runtime] = &newRef
-		} else if currentCollector.priority > newCollectorDesc.Priority { // do not replace on same priority to favor consistency
-			log.Infof("Replaced old collector: %s by new collector: %s for runtime: %s", currentCollector.id, newRef.id, runtime)
-			mp.effectiveCollectors[runtime] = &newRef
-		}
-	}
-
-	// Compute unique, ordered list of collectors to be used by metaCollector
-	uniqueCollectors := make(map[string]struct{})
-	var effectiveCollectorsList []*collectorReference
-	for _, collector := range mp.effectiveCollectors {
-		if _, found := uniqueCollectors[collector.id]; !found {
-			uniqueCollectors[collector.id] = struct{}{}
-			effectiveCollectorsList = append(effectiveCollectorsList, collector)
-		}
-	}
-	sort.Slice(effectiveCollectorsList, func(i, j int) bool {
-		return effectiveCollectorsList[i].priority < effectiveCollectorsList[j].priority
-	})
-	mp.effectiveCollectorsList = effectiveCollectorsList
+	// Update metacollectors
+	mp.metaCollector.collectorsUpdatedCallback(collectorsCatalog)
 }

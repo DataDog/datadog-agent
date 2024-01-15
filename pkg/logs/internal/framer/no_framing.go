@@ -9,6 +9,8 @@ package framer
 type noFramingMatcher struct{}
 
 // FindFrame considers the given bytes buffer as one full frame.
+//
+//nolint:revive // TODO(AML) Fix revive linter
 func (m *noFramingMatcher) FindFrame(buf []byte, seen int) ([]byte, int) {
 	return buf, len(buf)
 }

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux || windows
+
 package network
 
 import (
@@ -22,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
+	"github.com/DataDog/datadog-agent/pkg/network/slice"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -131,7 +134,7 @@ func TestRemoveConnections(t *testing.T) {
 	assert.Equal(t, 0, len(conns))
 
 	conns = state.GetDelta(clientID, latestEpochTime(), []ConnectionStats{conn}, nil, nil).Conns
-	assert.Equal(t, 1, len(conns))
+	require.Equal(t, 1, len(conns))
 	assert.Equal(t, conn, conns[0])
 
 	client := state.clients[clientID]
@@ -192,6 +195,258 @@ func TestRetrieveClosedConnection(t *testing.T) {
 		// It should no more have connections stored
 		conns = state.GetDelta(clientID, latestEpochTime(), nil, nil, nil).Conns
 		assert.Equal(t, 0, len(conns))
+	})
+}
+
+func TestDropEmptyConnections(t *testing.T) {
+	conn := ConnectionStats{
+		Pid:    123,
+		Type:   TCP,
+		Family: AFINET,
+		Source: util.AddressFromString("127.0.0.1"),
+		Dest:   util.AddressFromString("127.0.0.1"),
+		SPort:  31890,
+		DPort:  80,
+		Monotonic: StatCounters{
+			SentBytes:   12345,
+			RecvBytes:   6789,
+			Retransmits: 2,
+		},
+		Last: StatCounters{
+			SentBytes:   12345,
+			RecvBytes:   6789,
+			Retransmits: 2,
+		},
+		IntraHost: true,
+		Cookie:    1,
+	}
+
+	clientID := "1"
+
+	t.Run("drop empty connection", func(t *testing.T) {
+		//drop empty even though it's sent first
+		state := newDefaultState()
+		state.maxClosedConns = 1
+		state.RegisterClient(clientID)
+
+		state.storeClosedConnections([]ConnectionStats{{}})
+
+		state.storeClosedConnections([]ConnectionStats{conn})
+
+		conns := state.clients[clientID].closed.conns
+		_, ok := state.clients[clientID].closed.byCookie[0]
+
+		assert.Equal(t, 1, len(conns))
+		assert.Equal(t, []ConnectionStats{conn}, conns)
+		assert.False(t, ok)
+
+	})
+	t.Run("drop incoming empty connection", func(t *testing.T) {
+		//drop incoming empty connection when conn is full
+		state := newDefaultState()
+		state.maxClosedConns = 1
+		state.RegisterClient(clientID)
+
+		state.storeClosedConnections([]ConnectionStats{conn})
+
+		state.storeClosedConnections([]ConnectionStats{{}})
+
+		conns := state.clients[clientID].closed.conns
+		_, ok := state.clients[clientID].closed.byCookie[0]
+
+		assert.Equal(t, 1, len(conns))
+		assert.Equal(t, []ConnectionStats{conn}, conns)
+		assert.False(t, ok)
+
+	})
+	t.Run("drop incoming connection when conns full", func(t *testing.T) {
+		// drop incoming non-empty conn when conns is full
+		state := newDefaultState()
+		state.maxClosedConns = 1
+		state.RegisterClient(clientID)
+
+		state.storeClosedConnections([]ConnectionStats{conn})
+
+		conn2 := conn
+		conn2.Cookie = 2
+		state.storeClosedConnections([]ConnectionStats{conn2})
+
+		conns := state.clients[clientID].closed.conns
+		_, ok := state.clients[clientID].closed.byCookie[2]
+
+		assert.Equal(t, 1, len(conns))
+		assert.Equal(t, []ConnectionStats{conn}, conns)
+		assert.False(t, ok)
+
+	})
+	t.Run("replace empty connection with non-empty", func(t *testing.T) {
+		state := newDefaultState()
+		state.maxClosedConns = 5
+		state.RegisterClient(clientID)
+
+		state.storeClosedConnections([]ConnectionStats{{}})
+		state.storeClosedConnections([]ConnectionStats{conn})
+
+		emptyconn := ConnectionStats{}
+		emptyconn.Cookie = 2
+		state.storeClosedConnections([]ConnectionStats{emptyconn})
+
+		conns := state.clients[clientID].closed.conns
+
+		// Check that the emptyConn is at the last index
+		assert.Equal(t, []ConnectionStats{conn, {}, emptyconn}, conns)
+
+		// Send non-empty connection with same cookie
+		conn2 := conn
+		conn2.Cookie = 2
+		conn2.LastUpdateEpoch = 100
+		state.storeClosedConnections([]ConnectionStats{conn2})
+
+		// Check that the index changed
+		conns = state.clients[clientID].closed.conns
+		assert.Equal(t, []ConnectionStats{conn, conn2, {}}, conns)
+	})
+
+	t.Run("replace non-empty connection with empty", func(t *testing.T) {
+		state := newDefaultState()
+		state.maxClosedConns = 5
+		state.RegisterClient(clientID)
+
+		state.storeClosedConnections([]ConnectionStats{{}})
+		state.storeClosedConnections([]ConnectionStats{conn})
+
+		// Send non-empty connection
+		conn2 := conn
+		conn2.Cookie = 2
+		state.storeClosedConnections([]ConnectionStats{conn2})
+
+		conns := state.clients[clientID].closed.conns
+
+		// Check that it's stored correctly
+		assert.Equal(t, []ConnectionStats{conn, conn2, {}}, conns)
+
+		// Send empty connection with same cookie
+		emptyconn := ConnectionStats{}
+		emptyconn.Cookie = 2
+		emptyconn.LastUpdateEpoch = 100
+		state.storeClosedConnections([]ConnectionStats{emptyconn})
+
+		// Check that the index stayed the same
+		conns = state.clients[clientID].closed.conns
+		assert.Equal(t, 3, len(conns))
+		assert.Equal(t, []ConnectionStats{conn, conn2, {}}, conns)
+	})
+	t.Run("Replace with latest", func(t *testing.T) {
+		state := newDefaultState()
+		state.maxClosedConns = 5
+		state.RegisterClient(clientID)
+
+		state.storeClosedConnections([]ConnectionStats{{}})
+		state.storeClosedConnections([]ConnectionStats{conn})
+
+		// Send non-empty connection
+		conn2 := conn
+		conn2.Cookie = 2
+		conn2.LastUpdateEpoch = 100
+		state.storeClosedConnections([]ConnectionStats{conn2})
+
+		conns := state.clients[clientID].closed.conns
+
+		// Check that it's stored correctly
+		assert.Equal(t, []ConnectionStats{conn, conn2, {}}, conns)
+
+		// Send empty connection with same cookie
+		emptyconn := ConnectionStats{}
+		emptyconn.Cookie = 2
+		state.storeClosedConnections([]ConnectionStats{emptyconn})
+
+		// Check that the index stayed the same
+		conns = state.clients[clientID].closed.conns
+		assert.Equal(t, 3, len(conns))
+		assert.Equal(t, []ConnectionStats{conn, conn2, {}}, conns)
+	})
+	t.Run("Replace at index", func(t *testing.T) {
+		state := newDefaultState()
+		state.maxClosedConns = 5
+		state.RegisterClient(clientID)
+
+		state.storeClosedConnections([]ConnectionStats{{}})
+		state.storeClosedConnections([]ConnectionStats{conn})
+
+		// Send non-empty connection
+		conn2 := conn
+		conn2.Cookie = 2
+		state.storeClosedConnections([]ConnectionStats{conn2})
+
+		conns := state.clients[clientID].closed.conns
+
+		// Check that it's stored correctly
+		assert.Equal(t, []ConnectionStats{conn, conn2, {}}, conns)
+
+		// Send empty second connection with same cookie
+		conn3 := conn
+		conn3.Cookie = 2
+		conn3.LastUpdateEpoch = 300
+		conn3.Pid = 300
+		conn3.Last = StatCounters{
+			SentBytes:   22222,
+			RecvBytes:   3333,
+			Retransmits: 4,
+		}
+		state.storeClosedConnections([]ConnectionStats{conn3})
+
+		// Check that the index stayed the same
+		conns = state.clients[clientID].closed.conns
+		assert.Equal(t, 3, len(conns))
+		assert.Equal(t, []ConnectionStats{conn, conn3, {}}, conns)
+	})
+	t.Run("insert empty connection at end", func(t *testing.T) {
+		state := newDefaultState()
+		state.maxClosedConns = 5
+		state.RegisterClient(clientID)
+
+		state.storeClosedConnections([]ConnectionStats{conn})
+		state.storeClosedConnections([]ConnectionStats{{}})
+
+		conns := state.clients[clientID].closed.conns
+		emptyConnStart := state.clients[clientID].closed.emptyStart
+
+		// Check that it's stored correctly
+		assert.Equal(t, []ConnectionStats{conn, {}}, conns)
+		assert.Equal(t, emptyConnStart, 1)
+	})
+	t.Run("insert conn before empty connections", func(t *testing.T) {
+		state := newDefaultState()
+		state.maxClosedConns = 5
+		state.RegisterClient(clientID)
+
+		state.storeClosedConnections([]ConnectionStats{{}})
+		state.storeClosedConnections([]ConnectionStats{conn})
+
+		conns := state.clients[clientID].closed.conns
+		emptyConnStart := state.clients[clientID].closed.emptyStart
+
+		// Check that it's stored correctly
+		assert.Equal(t, []ConnectionStats{conn, {}}, conns)
+		assert.Equal(t, emptyConnStart, 1)
+	})
+	t.Run("insert non-empty conn at the end", func(t *testing.T) {
+		state := newDefaultState()
+		state.maxClosedConns = 5
+		state.RegisterClient(clientID)
+
+		state.storeClosedConnections([]ConnectionStats{conn})
+
+		conn2 := conn
+		conn2.Cookie = 2
+		state.storeClosedConnections([]ConnectionStats{conn2})
+
+		conns := state.clients[clientID].closed.conns
+		emptyConnStart := state.clients[clientID].closed.emptyStart
+
+		// Check that it's stored correctly
+		assert.Equal(t, []ConnectionStats{conn, conn2}, conns)
+		assert.Equal(t, emptyConnStart, 2)
 	})
 }
 
@@ -455,7 +710,7 @@ func TestLastStatsForClosedConnection(t *testing.T) {
 	assert.Equal(t, conn2.Monotonic.Retransmits, conns[0].Monotonic.Retransmits)
 }
 
-func TestRaceConditions(t *testing.T) {
+func TestRaceConditions(t *testing.T) { //nolint:revive // TODO fix revive unused-parameter
 	nClients := 10
 
 	// Generate random conns
@@ -654,9 +909,9 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		conn2.LastUpdateEpoch = latestEpochTime()
 		// Retrieve the connections
 		conns = state.GetDelta(client, latestEpochTime(), []ConnectionStats{conn2}, nil, nil).Conns
-		require.Len(t, conns, 2)
-		assert.EqualValues(t, uint64(1), conns[0].Last.SentBytes)
-		assert.EqualValues(t, uint64(2), conns[0].Monotonic.SentBytes)
+		require.Len(t, conns, 1)
+		assert.EqualValues(t, uint64(2), conns[0].Last.SentBytes)
+		assert.EqualValues(t, uint64(3), conns[0].Monotonic.SentBytes)
 		// should not hold on to active connection stats
 		assert.Len(t, state.clients["c"].stats, 1)
 		assert.Contains(t, state.clients["c"].stats, conn2.Cookie)
@@ -710,11 +965,9 @@ func TestSameKeyEdgeCases(t *testing.T) {
 
 		// Second get, we should have monotonic and last stats = 5
 		conns = state.GetDelta(client, latestEpochTime(), cs, nil, nil).Conns
-		require.Equal(t, 2, len(conns))
-		assert.Equal(t, 3, int(conns[0].Monotonic.SentBytes))
-		assert.Equal(t, 3, int(conns[0].Last.SentBytes))
-		assert.Equal(t, 2, int(conns[1].Monotonic.SentBytes))
-		assert.Equal(t, 2, int(conns[1].Last.SentBytes))
+		require.Equal(t, 1, len(conns))
+		assert.Equal(t, 5, int(conns[0].Monotonic.SentBytes))
+		assert.Equal(t, 5, int(conns[0].Last.SentBytes))
 		// should not hold on to closed connection stats
 		assert.Len(t, state.clients["c"].stats, 1)
 		assert.Contains(t, state.clients["c"].stats, conn2.Cookie)
@@ -733,11 +986,9 @@ func TestSameKeyEdgeCases(t *testing.T) {
 
 		// Third get, we should have monotonic = 6 and last stats = 4
 		conns = state.GetDelta(client, latestEpochTime(), cs, nil, nil).Conns
-		assert.Equal(t, 2, len(conns))
-		assert.Equal(t, 5, int(conns[0].Monotonic.SentBytes))
-		assert.Equal(t, 3, int(conns[0].Last.SentBytes))
-		assert.Equal(t, 1, int(conns[1].Monotonic.SentBytes))
-		assert.Equal(t, 1, int(conns[1].Last.SentBytes))
+		require.Equal(t, 1, len(conns))
+		assert.Equal(t, 6, int(conns[0].Monotonic.SentBytes))
+		assert.Equal(t, 4, int(conns[0].Last.SentBytes))
 		// should not hold on to closed connection stats
 		assert.Len(t, state.clients["c"].stats, 1)
 		assert.Contains(t, state.clients["c"].stats, conn3.Cookie)
@@ -864,11 +1115,9 @@ func TestSameKeyEdgeCases(t *testing.T) {
 
 		// Second get, for client c we should have monotonic and last stats = 5
 		conns = state.GetDelta(client, latestEpochTime(), cs, nil, nil).Conns
-		assert.Equal(t, 2, len(conns))
-		assert.Equal(t, 3, int(conns[0].Monotonic.SentBytes))
-		assert.Equal(t, 3, int(conns[0].Last.SentBytes))
-		assert.Equal(t, 2, int(conns[1].Monotonic.SentBytes))
-		assert.Equal(t, 2, int(conns[1].Last.SentBytes))
+		require.Equal(t, 1, len(conns))
+		assert.Equal(t, 5, int(conns[0].Monotonic.SentBytes))
+		assert.Equal(t, 5, int(conns[0].Last.SentBytes))
 		assert.Len(t, state.clients["c"].stats, 1)
 		assert.Contains(t, state.clients["c"].stats, conn2.Cookie)
 
@@ -899,11 +1148,9 @@ func TestSameKeyEdgeCases(t *testing.T) {
 
 		// Third get, for client c, we should have monotonic = 6 and last stats = 4
 		conns = state.GetDelta(client, latestEpochTime(), cs, nil, nil).Conns
-		assert.Equal(t, 2, len(conns))
-		assert.Equal(t, 5, int(conns[0].Monotonic.SentBytes))
-		assert.Equal(t, 3, int(conns[0].Last.SentBytes))
-		assert.Equal(t, 1, int(conns[1].Monotonic.SentBytes))
-		assert.Equal(t, 1, int(conns[1].Last.SentBytes))
+		require.Equal(t, 1, len(conns))
+		assert.Equal(t, 6, int(conns[0].Monotonic.SentBytes))
+		assert.Equal(t, 4, int(conns[0].Last.SentBytes))
 		assert.Len(t, state.clients["c"].stats, 1)
 		assert.Contains(t, state.clients["c"].stats, conn3.Cookie)
 
@@ -914,11 +1161,9 @@ func TestSameKeyEdgeCases(t *testing.T) {
 
 		// 4th get, for client d, we should have monotonic = 7 and last stats = 4
 		conns = state.GetDelta(clientD, latestEpochTime(), cs, nil, nil).Conns
-		assert.Equal(t, 2, len(conns))
-		assert.Equal(t, 5, int(conns[0].Monotonic.SentBytes))
-		assert.Equal(t, 2, int(conns[0].Last.SentBytes))
-		assert.Equal(t, 2, int(conns[1].Monotonic.SentBytes))
-		assert.Equal(t, 2, int(conns[1].Last.SentBytes))
+		require.Equal(t, 1, len(conns))
+		assert.Equal(t, 7, int(conns[0].Monotonic.SentBytes))
+		assert.Equal(t, 4, int(conns[0].Last.SentBytes))
 		assert.Len(t, state.clients["d"].stats, 1)
 		assert.Contains(t, state.clients["d"].stats, conn3.Cookie)
 
@@ -1041,11 +1286,9 @@ func TestSameKeyEdgeCases(t *testing.T) {
 
 		// Second get, for client c we should have monotonic and last stats = 5
 		conns = state.GetDelta(client, latestEpochTime(), cs, nil, nil).Conns
-		assert.Equal(t, 2, len(conns))
-		assert.Equal(t, 3, int(conns[0].Monotonic.SentBytes))
-		assert.Equal(t, 3, int(conns[0].Last.SentBytes))
-		assert.Equal(t, 2, int(conns[1].Monotonic.SentBytes))
-		assert.Equal(t, 2, int(conns[1].Last.SentBytes))
+		require.Equal(t, 1, len(conns))
+		assert.Equal(t, 5, int(conns[0].Monotonic.SentBytes))
+		assert.Equal(t, 5, int(conns[0].Last.SentBytes))
 		assert.Len(t, state.clients["c"].stats, 1)
 		assert.Contains(t, state.clients["c"].stats, conn2.Cookie)
 
@@ -1402,7 +1645,7 @@ func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 		DPort:  80,
 	}
 
-	key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, "/testpath", true, http.MethodGet)
+	key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, []byte("/testpath"), true, http.MethodGet)
 
 	httpStats := make(map[http.Key]*http.RequestStats)
 	httpStats[key] = http.NewRequestStats(aggregateByStatusCode)
@@ -1440,7 +1683,7 @@ func testHTTP2Stats(t *testing.T, aggregateByStatusCode bool) {
 	}
 
 	getStats := func(path string) map[protocols.ProtocolType]interface{} {
-		key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, path, true, http.MethodGet)
+		key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, []byte(path), true, http.MethodGet)
 
 		http2Stats := make(map[http.Key]*http.RequestStats)
 		http2Stats[key] = http.NewRequestStats(aggregateByStatusCode)
@@ -1482,7 +1725,7 @@ func testHTTPStatsWithMultipleClients(t *testing.T, aggregateByStatusCode bool) 
 
 	getStats := func(path string) map[protocols.ProtocolType]interface{} {
 		httpStats := make(map[http.Key]*http.RequestStats)
-		key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, path, true, http.MethodGet)
+		key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, []byte(path), true, http.MethodGet)
 		httpStats[key] = http.NewRequestStats(aggregateByStatusCode)
 
 		usmStats := make(map[protocols.ProtocolType]interface{})
@@ -1554,7 +1797,7 @@ func testHTTP2StatsWithMultipleClients(t *testing.T, aggregateByStatusCode bool)
 
 	getStats := func(path string) map[protocols.ProtocolType]interface{} {
 		http2Stats := make(map[http.Key]*http.RequestStats)
-		key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, path, true, http.MethodGet)
+		key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, []byte(path), true, http.MethodGet)
 		http2Stats[key] = http.NewRequestStats(aggregateByStatusCode)
 
 		usmStats := make(map[protocols.ProtocolType]interface{})
@@ -1770,7 +2013,7 @@ func TestDetermineConnectionIntraHost(t *testing.T) {
 		conns = append(conns, te.conn)
 	}
 	state := newDefaultState()
-	state.determineConnectionIntraHost(conns)
+	state.determineConnectionIntraHost(slice.NewChain(conns))
 	for i, te := range tests {
 		if i >= len(conns) {
 			assert.Failf(t, "missing connection for %s", te.name)
@@ -1785,6 +2028,101 @@ func TestDetermineConnectionIntraHost(t *testing.T) {
 				assert.NotNil(t, c.IPTranslation, "name: %s, conn: %+v", te.name, c)
 			}
 		}
+	}
+}
+
+func TestIntraHostFixDirection(t *testing.T) {
+	tests := []struct {
+		name      string
+		conn      ConnectionStats
+		direction ConnectionDirection
+	}{
+		{
+			name: "outgoing both non-ephemeral",
+			conn: ConnectionStats{
+				IntraHost: true,
+				Source:    util.AddressFromString("1.1.1.1"),
+				Dest:      util.AddressFromString("1.1.1.1"),
+				SPort:     123,
+				DPort:     456,
+				Direction: OUTGOING,
+			},
+			direction: OUTGOING,
+		},
+		{
+			name: "outgoing non ephemeral to ephemeral",
+			conn: ConnectionStats{
+				IntraHost: true,
+				Source:    util.AddressFromString("1.1.1.1"),
+				Dest:      util.AddressFromString("1.1.1.1"),
+				SPort:     123,
+				DPort:     49612,
+				Direction: OUTGOING,
+			},
+			direction: INCOMING,
+		},
+		{
+			name: "outgoing ephemeral to non ephemeral",
+			conn: ConnectionStats{
+				IntraHost: true,
+				Source:    util.AddressFromString("1.1.1.1"),
+				Dest:      util.AddressFromString("1.1.1.1"),
+				SPort:     49612,
+				DPort:     123,
+				Direction: OUTGOING,
+			},
+			direction: OUTGOING,
+		},
+		{
+			name: "incoming udp non ephemeral to ephemeral",
+			conn: ConnectionStats{
+				Type:      UDP,
+				IntraHost: true,
+				Source:    util.AddressFromString("1.1.1.1"),
+				Dest:      util.AddressFromString("1.1.1.1"),
+				SPort:     49612,
+				DPort:     123,
+				Direction: INCOMING,
+			},
+			direction: OUTGOING,
+		},
+		{
+			name: "incoming udp ephemeral to non ephemeral",
+			conn: ConnectionStats{
+				Type:      UDP,
+				IntraHost: true,
+				Source:    util.AddressFromString("1.1.1.1"),
+				Dest:      util.AddressFromString("1.1.1.1"),
+				SPort:     123,
+				DPort:     49612,
+				Direction: INCOMING,
+			},
+			direction: INCOMING,
+		},
+		{
+			name: "incoming tcp non ephemeral to ephemeral",
+			conn: ConnectionStats{
+				Type:      TCP,
+				IntraHost: true,
+				Source:    util.AddressFromString("1.1.1.1"),
+				Dest:      util.AddressFromString("1.1.1.1"),
+				SPort:     49612,
+				DPort:     123,
+				Direction: INCOMING,
+			},
+			direction: INCOMING,
+		},
+	}
+
+	for _, te := range tests {
+		t.Run(te.name, func(t *testing.T) {
+			conns := []ConnectionStats{te.conn}
+
+			state := newDefaultState()
+			state.determineConnectionIntraHost(slice.NewChain(conns))
+
+			assert.Equal(t, te.direction, conns[0].Direction)
+		})
 	}
 }
 
@@ -2004,6 +2342,58 @@ func TestKafkaStatsWithMultipleClients(t *testing.T) {
 	// Verify that the third client also accumulated both Kafka stats
 	delta = state.GetDelta(client3, latestEpochTime(), nil, nil, getStats("my-topic2"))
 	assert.Len(t, delta.Kafka, 2)
+}
+
+func TestFilterConnections(t *testing.T) {
+	t.Run("filter", func(t *testing.T) {
+		var conns []ConnectionStats
+		for i := 0; i < 100; i++ {
+			conns = append(conns, ConnectionStats{Monotonic: StatCounters{SentBytes: uint64(i)}})
+		}
+
+		var kept []ConnectionStats
+		conns = filterConnections(conns, func(c *ConnectionStats) bool {
+			if rand.Int()%2 == 0 {
+				// keep
+				kept = append(kept, *c)
+				return true
+			}
+
+			return false
+		})
+
+		require.Len(t, kept, len(conns))
+		for i := 0; i < len(kept); i++ {
+			assert.Equal(t, kept[i], conns[i])
+			assert.Equal(t, &kept[i], &conns[i])
+		}
+	})
+
+	t.Run("stable pointer", func(t *testing.T) {
+		var conns []ConnectionStats
+		for i := 0; i < 100; i++ {
+			conns = append(conns, ConnectionStats{Monotonic: StatCounters{SentBytes: uint64(i)}})
+		}
+
+		var kept []ConnectionStats
+		var keptPtrs []*ConnectionStats
+		conns = filterConnections(conns, func(c *ConnectionStats) bool {
+			if rand.Int()%2 == 0 {
+				// keep
+				kept = append(kept, *c)
+				keptPtrs = append(keptPtrs, c)
+				return true
+			}
+
+			return false
+		})
+
+		for i := 0; i < len(keptPtrs); i++ {
+			assert.Equal(t, *keptPtrs[i], kept[i])
+			assert.Equal(t, keptPtrs[i], &conns[i])
+			assert.Equal(t, kept[i], conns[i])
+		}
+	})
 }
 
 func generateRandConnections(n int) []ConnectionStats {

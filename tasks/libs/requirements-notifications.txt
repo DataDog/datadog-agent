@@ -1,5 +1,7 @@
 # codeowners pinned to a version that works with Python 3.6, which is the
 # Python version in the slack-notifier image
-invoke==1.7.1
+invoke==2.2.0
 codeowners==0.1.4; python_version < '3.7'
 codeowners==0.6.0; python_version >= '3.7'
+requests==2.31.0
+PyYAML==6.0.1

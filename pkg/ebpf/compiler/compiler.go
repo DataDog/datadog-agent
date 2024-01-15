@@ -5,6 +5,7 @@
 
 //go:build linux_bpf
 
+// Package compiler is the runtime compiler for eBPF
 package compiler
 
 import (
@@ -91,12 +92,14 @@ func CompileToObjectFile(inFile, outputFile string, cflags []string, headerDirs 
 	return nil
 }
 
+// WithStdin assigns the provided io.Reader as Stdin for the command
 func WithStdin(in io.Reader) func(*exec.Cmd) {
 	return func(c *exec.Cmd) {
 		c.Stdin = in
 	}
 }
 
+// WithStdout assigns the provided io.Writer as Stdout for the command
 func WithStdout(out io.Writer) func(*exec.Cmd) {
 	return func(c *exec.Cmd) {
 		c.Stdout = out

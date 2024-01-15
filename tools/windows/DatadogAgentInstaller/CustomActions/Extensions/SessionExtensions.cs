@@ -47,9 +47,13 @@ namespace Datadog.CustomActions.Extensions
         public static string Property(this ISession session, string name)
         {
             if (session.IsActive())
+            {
                 return session[name];
+            }
             else
+            {
                 return (session.CustomActionData.ContainsKey(name) ? session.CustomActionData[name] : "");
+            }
         }
     }
 }

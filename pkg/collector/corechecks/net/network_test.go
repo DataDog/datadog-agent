@@ -37,11 +37,15 @@ type fakeNetworkStats struct {
 }
 
 // IOCounters returns the inner values of counterStats and counterStatsError
+//
+//nolint:revive // TODO(PLINT) Fix revive linter
 func (n *fakeNetworkStats) IOCounters(pernic bool) ([]net.IOCountersStat, error) {
 	return n.counterStats, n.counterStatsError
 }
 
 // ProtoCounters returns the inner values of counterStats and counterStatsError
+//
+//nolint:revive // TODO(PLINT) Fix revive linter
 func (n *fakeNetworkStats) ProtoCounters(protocols []string) ([]net.ProtoCountersStat, error) {
 	return n.protoCountersStats, n.protoCountersStatsError
 }
@@ -67,7 +71,7 @@ func (n *fakeNetworkStats) NetstatTCPExtCounters() (map[string]int64, error) {
 
 func TestDefaultConfiguration(t *testing.T) {
 	check := NetworkCheck{}
-	check.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, []byte(``), []byte(``), "test")
+	check.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, []byte(``), []byte(``), "test")
 
 	assert.Equal(t, false, check.config.instance.CollectConnectionState)
 	assert.Equal(t, []string(nil), check.config.instance.ExcludedInterfaces)
@@ -83,7 +87,7 @@ excluded_interfaces:
     - lo0
 excluded_interface_re: "eth.*"
 `)
-	err := check.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := check.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 
 	assert.Nil(t, err)
 	assert.Equal(t, true, check.config.instance.CollectConnectionState)
@@ -272,10 +276,9 @@ func TestNetworkCheck(t *testing.T) {
 collect_connection_state: true
 `)
 
-	err := networkCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
-	assert.Nil(t, err)
-
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	assert.Nil(t, err)
 
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -392,9 +395,8 @@ excluded_interfaces:
     - lo0
 `)
 
-	networkCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
-
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -472,10 +474,9 @@ func TestExcludedInterfacesRe(t *testing.T) {
 excluded_interface_re: "eth[0-9]"
 `)
 
-	err := networkCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
-	assert.Nil(t, err)
-
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	assert.Nil(t, err)
 
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()

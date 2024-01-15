@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -26,7 +27,7 @@ func init() {
 
 func TestMinBackoffFactorValid(t *testing.T) {
 	mockConfig := config.Mock(t)
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	e := newBlockedEndpoints(mockConfig, log)
 
 	policy, ok := e.backoffPolicy.(*backoff.ExpBackoffPolicy)
@@ -36,14 +37,14 @@ func TestMinBackoffFactorValid(t *testing.T) {
 	assert.Equal(t, float64(2), defaultValue)
 
 	// Verify configuration updates global var
-	mockConfig.Set("forwarder_backoff_factor", 4)
+	mockConfig.SetWithoutSource("forwarder_backoff_factor", 4)
 	e = newBlockedEndpoints(mockConfig, log)
 	policy, ok = e.backoffPolicy.(*backoff.ExpBackoffPolicy)
 	assert.True(t, ok)
 	assert.Equal(t, float64(4), policy.MinBackoffFactor)
 
 	// Verify invalid values recover gracefully
-	mockConfig.Set("forwarder_backoff_factor", 1.5)
+	mockConfig.SetWithoutSource("forwarder_backoff_factor", 1.5)
 	e = newBlockedEndpoints(mockConfig, log)
 	policy, ok = e.backoffPolicy.(*backoff.ExpBackoffPolicy)
 	assert.True(t, ok)
@@ -52,7 +53,7 @@ func TestMinBackoffFactorValid(t *testing.T) {
 
 func TestBaseBackoffTimeValid(t *testing.T) {
 	mockConfig := config.Mock(t)
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	e := newBlockedEndpoints(mockConfig, log)
 
 	policy, ok := e.backoffPolicy.(*backoff.ExpBackoffPolicy)
@@ -63,14 +64,14 @@ func TestBaseBackoffTimeValid(t *testing.T) {
 	assert.Equal(t, float64(2), defaultValue)
 
 	// Verify configuration updates global var
-	mockConfig.Set("forwarder_backoff_base", 4)
+	mockConfig.SetWithoutSource("forwarder_backoff_base", 4)
 	e = newBlockedEndpoints(mockConfig, log)
 	policy, ok = e.backoffPolicy.(*backoff.ExpBackoffPolicy)
 	assert.True(t, ok)
 	assert.Equal(t, float64(4), policy.BaseBackoffTime)
 
 	// Verify invalid values recover gracefully
-	mockConfig.Set("forwarder_backoff_base", 0)
+	mockConfig.SetWithoutSource("forwarder_backoff_base", 0)
 	e = newBlockedEndpoints(mockConfig, log)
 	policy, ok = e.backoffPolicy.(*backoff.ExpBackoffPolicy)
 	assert.True(t, ok)
@@ -79,7 +80,7 @@ func TestBaseBackoffTimeValid(t *testing.T) {
 
 func TestMaxBackoffTimeValid(t *testing.T) {
 	mockConfig := config.Mock(t)
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	e := newBlockedEndpoints(mockConfig, log)
 
 	policy, ok := e.backoffPolicy.(*backoff.ExpBackoffPolicy)
@@ -90,14 +91,14 @@ func TestMaxBackoffTimeValid(t *testing.T) {
 	assert.Equal(t, float64(64), defaultValue)
 
 	// Verify configuration updates global var
-	mockConfig.Set("forwarder_backoff_max", 128)
+	mockConfig.SetWithoutSource("forwarder_backoff_max", 128)
 	e = newBlockedEndpoints(mockConfig, log)
 	policy, ok = e.backoffPolicy.(*backoff.ExpBackoffPolicy)
 	assert.True(t, ok)
 	assert.Equal(t, float64(128), policy.MaxBackoffTime)
 
 	// Verify invalid values recover gracefully
-	mockConfig.Set("forwarder_backoff_max", 0)
+	mockConfig.SetWithoutSource("forwarder_backoff_max", 0)
 	e = newBlockedEndpoints(mockConfig, log)
 	policy, ok = e.backoffPolicy.(*backoff.ExpBackoffPolicy)
 	assert.True(t, ok)
@@ -106,7 +107,7 @@ func TestMaxBackoffTimeValid(t *testing.T) {
 
 func TestRecoveryIntervalValid(t *testing.T) {
 	mockConfig := config.Mock(t)
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	e := newBlockedEndpoints(mockConfig, log)
 
 	policy, ok := e.backoffPolicy.(*backoff.ExpBackoffPolicy)
@@ -119,21 +120,21 @@ func TestRecoveryIntervalValid(t *testing.T) {
 	assert.Equal(t, false, recoveryReset)
 
 	// Verify configuration updates global var
-	mockConfig.Set("forwarder_recovery_interval", 1)
+	mockConfig.SetWithoutSource("forwarder_recovery_interval", 1)
 	e = newBlockedEndpoints(mockConfig, log)
 	policy, ok = e.backoffPolicy.(*backoff.ExpBackoffPolicy)
 	assert.True(t, ok)
 	assert.Equal(t, 1, policy.RecoveryInterval)
 
 	// Verify invalid values recover gracefully
-	mockConfig.Set("forwarder_recovery_interval", 0)
+	mockConfig.SetWithoutSource("forwarder_recovery_interval", 0)
 	e = newBlockedEndpoints(mockConfig, log)
 	policy, ok = e.backoffPolicy.(*backoff.ExpBackoffPolicy)
 	assert.True(t, ok)
 	assert.Equal(t, defaultValue, policy.RecoveryInterval)
 
 	// Verify reset error count
-	mockConfig.Set("forwarder_recovery_reset", true)
+	mockConfig.SetWithoutSource("forwarder_recovery_reset", true)
 	e = newBlockedEndpoints(mockConfig, log)
 	policy, ok = e.backoffPolicy.(*backoff.ExpBackoffPolicy)
 	assert.True(t, ok)
@@ -143,7 +144,7 @@ func TestRecoveryIntervalValid(t *testing.T) {
 // Test we increase delay on average
 func TestGetBackoffDurationIncrease(t *testing.T) {
 	mockConfig := config.Mock(t)
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	e := newBlockedEndpoints(mockConfig, log)
 	previousBackoffDuration := time.Duration(0) * time.Second
 	backoffIncrease := 0
@@ -171,7 +172,7 @@ func TestGetBackoffDurationIncrease(t *testing.T) {
 
 func TestMaxGetBackoffDuration(t *testing.T) {
 	mockConfig := config.Mock(t)
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	e := newBlockedEndpoints(mockConfig, log)
 	backoffDuration := e.getBackoffDuration(100)
 
@@ -183,7 +184,7 @@ func TestMaxGetBackoffDuration(t *testing.T) {
 
 func TestMaxErrors(t *testing.T) {
 	mockConfig := config.Mock(t)
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	e := newBlockedEndpoints(mockConfig, log)
 	previousBackoffDuration := time.Duration(0) * time.Second
 	attempts := 0
@@ -209,7 +210,7 @@ func TestMaxErrors(t *testing.T) {
 
 func TestBlock(t *testing.T) {
 	mockConfig := config.Mock(t)
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	e := newBlockedEndpoints(mockConfig, log)
 
 	e.close("test")
@@ -221,7 +222,7 @@ func TestBlock(t *testing.T) {
 
 func TestMaxBlock(t *testing.T) {
 	mockConfig := config.Mock(t)
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	e := newBlockedEndpoints(mockConfig, log)
 	e.close("test")
 	e.errorPerEndpoint["test"].nbError = 1000000
@@ -242,7 +243,7 @@ func TestMaxBlock(t *testing.T) {
 
 func TestUnblock(t *testing.T) {
 	mockConfig := config.Mock(t)
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	e := newBlockedEndpoints(mockConfig, log)
 
 	e.close("test")
@@ -262,7 +263,7 @@ func TestUnblock(t *testing.T) {
 
 func TestMaxUnblock(t *testing.T) {
 	mockConfig := config.Mock(t)
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	e := newBlockedEndpoints(mockConfig, log)
 
 	e.close("test")
@@ -277,7 +278,7 @@ func TestMaxUnblock(t *testing.T) {
 
 func TestUnblockUnknown(t *testing.T) {
 	mockConfig := config.Mock(t)
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	e := newBlockedEndpoints(mockConfig, log)
 
 	e.recover("test")
@@ -287,7 +288,7 @@ func TestUnblockUnknown(t *testing.T) {
 
 func TestIsBlock(t *testing.T) {
 	mockConfig := config.Mock(t)
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	e := newBlockedEndpoints(mockConfig, log)
 
 	assert.False(t, e.isBlock("test"))
@@ -301,7 +302,7 @@ func TestIsBlock(t *testing.T) {
 
 func TestIsBlockTiming(t *testing.T) {
 	mockConfig := config.Mock(t)
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	e := newBlockedEndpoints(mockConfig, log)
 
 	// setting an old close
@@ -315,7 +316,7 @@ func TestIsBlockTiming(t *testing.T) {
 
 func TestIsblockUnknown(t *testing.T) {
 	mockConfig := config.Mock(t)
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	e := newBlockedEndpoints(mockConfig, log)
 
 	assert.False(t, e.isBlock("test"))

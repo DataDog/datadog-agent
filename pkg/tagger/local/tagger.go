@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package local implements a local Tagger.
 package local
 
 import (
@@ -10,8 +11,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -28,7 +29,7 @@ type Tagger struct {
 	sync.RWMutex
 
 	tagStore      *tagstore.TagStore
-	workloadStore workloadmeta.Store
+	workloadStore workloadmeta.Component
 	collector     *collectors.WorkloadMetaCollector
 
 	ctx    context.Context
@@ -38,7 +39,7 @@ type Tagger struct {
 // NewTagger returns an allocated tagger. You still have to run Init() once the
 // config package is ready. You are probably looking for tagger.Tag() using
 // the global instance instead of creating your own.
-func NewTagger(workloadStore workloadmeta.Store) *Tagger {
+func NewTagger(workloadStore workloadmeta.Component) *Tagger {
 	return &Tagger{
 		tagStore:      tagstore.NewTagStore(),
 		workloadStore: workloadStore,
@@ -114,6 +115,8 @@ func (t *Tagger) GetEntity(entityID string) (*types.Entity, error) {
 }
 
 // List the content of the tagger
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (t *Tagger) List(cardinality collectors.TagCardinality) tagger_api.TaggerListResponse {
 	return t.tagStore.List()
 }

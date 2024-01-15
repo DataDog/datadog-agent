@@ -30,10 +30,11 @@ import (
 	"github.com/samber/lo"
 	"golang.org/x/xerrors"
 
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 )
 
-const CONTAINERD_COLLECTOR = "containerd"
+// ContainerdCollector defines the conttainerd collector name
+const ContainerdCollector = "containerd"
 
 // Code ported from https://github.com/aquasecurity/trivy/blob/2206e008ea6e5f4e5c1aa7bc8fc77dae7041de6a/pkg/fanal/image/daemon/containerd.go
 type familiarNamed string
@@ -94,7 +95,7 @@ func convertContainerdImage(ctx context.Context, client *containerd.Client, imgM
 
 	return &image{
 		name:    img.Name(),
-		opener:  imageOpener(ctx, CONTAINERD_COLLECTOR, ref.String(), f, imageWriter(client, img)),
+		opener:  imageOpener(ctx, ContainerdCollector, ref.String(), f, imageWriter(client, img)),
 		inspect: insp,
 		history: history,
 	}, cleanup, nil

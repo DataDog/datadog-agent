@@ -25,7 +25,7 @@ const (
 )
 
 // NewContainerCheck returns an instance of the ContainerCheck.
-func NewContainerCheck(config ddconfig.ConfigReader) *ContainerCheck {
+func NewContainerCheck(config ddconfig.Reader) *ContainerCheck {
 	return &ContainerCheck{
 		config: config,
 	}
@@ -35,7 +35,7 @@ func NewContainerCheck(config ddconfig.ConfigReader) *ContainerCheck {
 type ContainerCheck struct {
 	sync.Mutex
 
-	config ddconfig.ConfigReader
+	config ddconfig.Reader
 
 	hostInfo          *HostInfo
 	containerProvider proccontainers.ContainerProvider
@@ -48,7 +48,7 @@ type ContainerCheck struct {
 }
 
 // Init initializes a ContainerCheck instance.
-func (c *ContainerCheck) Init(_ *SysProbeConfig, info *HostInfo) error {
+func (c *ContainerCheck) Init(_ *SysProbeConfig, info *HostInfo, _ bool) error {
 	c.containerProvider = proccontainers.GetSharedContainerProvider()
 	c.hostInfo = info
 
@@ -85,6 +85,8 @@ func (c *ContainerCheck) ShouldSaveLastRun() bool { return true }
 
 // Run runs the ContainerCheck to collect a list of running ctrList and the
 // stats for each container.
+//
+//nolint:revive // TODO(PROC) Fix revive linter
 func (c *ContainerCheck) Run(nextGroupID func() int32, options *RunOptions) (RunResult, error) {
 	c.Lock()
 	defer c.Unlock()

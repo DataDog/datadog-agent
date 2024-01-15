@@ -12,9 +12,6 @@ import (
 	"time"
 )
 
-// FileSystem implements the Collector interface, providing information about mounted filesystems.
-type FileSystem struct{}
-
 // MountInfo represents a mounted filesystem.
 type MountInfo struct {
 	// Name is the name of the mounted filesystem.
@@ -25,26 +22,17 @@ type MountInfo struct {
 	MountedOn string `json:"mounted_on"`
 }
 
+// Info represents a list of mounted filesystems.
+type Info []MountInfo
+
 var (
 	timeout = 2 * time.Second
 	// ErrTimeoutExceeded represents a timeout error
 	ErrTimeoutExceeded = errors.New("timeout exceeded")
 )
 
-const name = "filesystem"
-
-// Name returns the name of the package
-func (fs *FileSystem) Name() string {
-	return name
-}
-
-// Collect returns the list of mounted filesystems as an object which can be used to generate a JSON
-func (fs *FileSystem) Collect() (interface{}, error) {
-	mounts, err := Get()
-	if err != nil {
-		return nil, err
-	}
-
+// AsJSON returns an interface which can be marshalled to a JSON and contains the value of non-errored fields.
+func (mounts Info) AsJSON() (interface{}, []string, error) {
 	results := make([]interface{}, len(mounts))
 	for idx, mount := range mounts {
 		tmpMount := mount
@@ -55,11 +43,14 @@ func (fs *FileSystem) Collect() (interface{}, error) {
 		}
 	}
 
-	return results, nil
+	// with the current implementation no warning can be returned
+	warnings := []string{}
+
+	return results, warnings, nil
 }
 
-// Get returns the list of mounted filesystems
-func Get() ([]MountInfo, error) {
+// CollectInfo returns the list of mounted filesystems
+func CollectInfo() (Info, error) {
 	return getWithTimeout(timeout, getFileSystemInfo)
 }
 

@@ -6,11 +6,12 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
 
-	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // Logs source types
@@ -45,6 +46,7 @@ type LogsConfig struct {
 	ExcludePaths []string `mapstructure:"exclude_paths" json:"exclude_paths"`   // File
 	TailingMode  string   `mapstructure:"start_position" json:"start_position"` // File
 
+	//nolint:revive // TODO(AML) Fix revive linter
 	ConfigId           string   `mapstructure:"config_id" json:"config_id"`                   // Journald
 	IncludeSystemUnits []string `mapstructure:"include_units" json:"include_units"`           // Journald
 	ExcludeSystemUnits []string `mapstructure:"exclude_units" json:"exclude_units"`           // Journald
@@ -81,6 +83,8 @@ type LogsConfig struct {
 	SourceCategory  string
 	Tags            []string
 	ProcessingRules []*ProcessingRule `mapstructure:"log_processing_rules" json:"log_processing_rules"`
+	// ProcessRawMessage is used to process the raw message instead of only the content part of the message.
+	ProcessRawMessage *bool `mapstructure:"process_raw_message" json:"process_raw_message"`
 
 	AutoMultiLine               *bool   `mapstructure:"auto_multi_line_detection" json:"auto_multi_line_detection"`
 	AutoMultiLineSampleSize     int     `mapstructure:"auto_multi_line_sample_size" json:"auto_multi_line_sample_size"`
@@ -142,6 +146,12 @@ func (c *LogsConfig) Dump(multiline bool) string {
 	fmt.Fprintf(&b, ws("SourceCategory: %#v,"), c.SourceCategory)
 	fmt.Fprintf(&b, ws("Tags: %#v,"), c.Tags)
 	fmt.Fprintf(&b, ws("ProcessingRules: %#v,"), c.ProcessingRules)
+	if c.ProcessRawMessage != nil {
+		fmt.Fprintf(&b, ws("ProcessRawMessage: %t,"), *c.ProcessRawMessage)
+	} else {
+		fmt.Fprint(&b, ws("ProcessRawMessage: nil,"))
+	}
+	fmt.Fprintf(&b, ws("ShouldProcessRawMessage(): %#v,"), c.ShouldProcessRawMessage())
 	if c.AutoMultiLine != nil {
 		fmt.Fprintf(&b, ws("AutoMultiLine: %t,"), *c.AutoMultiLine)
 	} else {
@@ -150,6 +160,39 @@ func (c *LogsConfig) Dump(multiline bool) string {
 	fmt.Fprintf(&b, ws("AutoMultiLineSampleSize: %d,"), c.AutoMultiLineSampleSize)
 	fmt.Fprintf(&b, ws("AutoMultiLineMatchThreshold: %f}"), c.AutoMultiLineMatchThreshold)
 	return b.String()
+}
+
+// PublicJSON serialize the structure to make sure we only export fields that can be relevant to customers.
+// This is used to send the logs config to the backend as part of the metadata payload.
+func (c *LogsConfig) PublicJSON() ([]byte, error) {
+	// Export only fields that are explicitly documented in the public documentation
+	return json.Marshal(&struct {
+		Type            string            `json:"type,omitempty"`
+		Port            int               `json:"port,omitempty"`           // Network
+		Path            string            `json:"path,omitempty"`           // File, Journald
+		Encoding        string            `json:"encoding,omitempty"`       // File
+		ExcludePaths    []string          `json:"exclude_paths,omitempty"`  // File
+		TailingMode     string            `json:"start_position,omitempty"` // File
+		ChannelPath     string            `json:"channel_path,omitempty"`   // Windows Event
+		Service         string            `json:"service,omitempty"`
+		Source          string            `json:"source,omitempty"`
+		Tags            []string          `json:"tags,omitempty"`
+		ProcessingRules []*ProcessingRule `json:"log_processing_rules,omitempty"`
+		AutoMultiLine   *bool             `json:"auto_multi_line_detection,omitempty"`
+	}{
+		Type:            c.Type,
+		Port:            c.Port,
+		Path:            c.Path,
+		Encoding:        c.Encoding,
+		ExcludePaths:    c.ExcludePaths,
+		TailingMode:     c.TailingMode,
+		ChannelPath:     c.ChannelPath,
+		Service:         c.Service,
+		Source:          c.Source,
+		Tags:            c.Tags,
+		ProcessingRules: c.ProcessingRules,
+		AutoMultiLine:   c.AutoMultiLine,
+	})
 }
 
 // TailingMode type
@@ -235,11 +278,26 @@ func (c *LogsConfig) validateTailingMode() error {
 // AutoMultiLineEnabled determines whether auto multi line detection is enabled for this config,
 // considering both the agent-wide logs_config.auto_multi_line_detection and any config for this
 // particular log source.
-func (c *LogsConfig) AutoMultiLineEnabled(coreConfig pkgConfig.ConfigReader) bool {
+func (c *LogsConfig) AutoMultiLineEnabled(coreConfig pkgconfigmodel.Reader) bool {
 	if c.AutoMultiLine != nil {
 		return *c.AutoMultiLine
 	}
 	return coreConfig.GetBool("logs_config.auto_multi_line_detection")
+}
+
+// ShouldProcessRawMessage returns if the raw message should be processed instead
+// of only the message content.
+// This is tightly linked to how messages are transmitted through the pipeline.
+// If returning true, tailers using structured message (journald, windowsevents)
+// will fall back to original behavior of sending the whole message (e.g. JSON
+// for journald) for post-processing.
+// Otherwise, the message content is extracted from the structured message and
+// only this part is post-processed and sent to the intake.
+func (c *LogsConfig) ShouldProcessRawMessage() bool {
+	if c.ProcessRawMessage != nil {
+		return *c.ProcessRawMessage
+	}
+	return true // default behaviour when nothing's been configured
 }
 
 // ContainsWildcard returns true if the path contains any wildcard character

@@ -26,15 +26,6 @@ REM copy resulting packages to expected location for collection by gitlab.
 if not exist c:\mnt\omnibus\pkg\ mkdir c:\mnt\omnibus\pkg\ || exit /b 5
 copy %BUILD_ROOT%\datadog-agent\omnibus\pkg\* c:\mnt\omnibus\pkg\ || exit /b 6
 
-REM copy wixpdb file for debugging purposes
-if exist \omnibus-ruby\pkg\*.wixpdb copy \omnibus-ruby\pkg\*.wixpdb c:\mnt\omnibus\pkg\ || exit /b 7
-
-REM copy customaction pdb file for debugging purposes
-if exist \omnibus-ruby\pkg\*.pdb copy \omnibus-ruby\pkg\*.pdb c:\mnt\omnibus\pkg\ || exit /b 8
-
-REM copy Next Gen installer
-if exist %BUILD_ROOT%\datadog-agent\tools\windows\DatadogAgentInstaller\WixSetup\*.msi copy %BUILD_ROOT%\datadog-agent\tools\windows\DatadogAgentInstaller\WixSetup\*.msi c:\mnt\omnibus\pkg\ || exit /b 8
-
 REM show output binary directories (for debugging)
 dir C:\opt\datadog-agent\bin\agent\
 

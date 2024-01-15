@@ -5,6 +5,7 @@
 
 //go:build functionaltests || stresstests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -36,12 +37,14 @@ const (
 	start
 )
 
+// FileGenerator defines a file generator
 type FileGenerator struct {
 	rootPath string
 	contexts map[string]*FileGeneratorContext
 	wg       sync.WaitGroup
 }
 
+// NewFileGenerator returns a new file generator
 func NewFileGenerator(rootPath string) (*FileGenerator, error) {
 	if err := os.MkdirAll(rootPath, 0755); err != nil {
 		return nil, err
@@ -52,6 +55,7 @@ func NewFileGenerator(rootPath string) (*FileGenerator, error) {
 	}, nil
 }
 
+// FileGeneratorConfig defines a file generator config
 type FileGeneratorConfig struct {
 	id           string
 	TestDuration time.Duration
@@ -73,11 +77,13 @@ type FileGeneratorConfig struct {
 	// Chown  bool
 }
 
+// FileStat defines stat
 type FileStat struct {
 	path string
 	ino  uint64
 }
 
+// EstimatedResult defines estimated result
 type EstimatedResult struct {
 	FileCreation int64
 	FileAccess   int64
@@ -89,6 +95,7 @@ type EstimatedResult struct {
 	EventSent             int64
 }
 
+// Print print the result
 func (es *EstimatedResult) Print() {
 	fmt.Printf("  == Done:\n")
 	fmt.Printf("  File creation: %d\n", es.FileCreation)
@@ -111,6 +118,7 @@ func (es *EstimatedResult) add(es2 *EstimatedResult) {
 	es.FileDeletion += es2.FileDeletion
 }
 
+// FileGeneratorContext defines a file generator context
 type FileGeneratorContext struct {
 	config              FileGeneratorConfig
 	rootPath            string
@@ -153,6 +161,7 @@ func (fg *FileGenerator) newFileGeneratorContext(config FileGeneratorConfig) *Fi
 	}
 }
 
+// Printf the context
 func (fgc *FileGeneratorContext) Printf(format string, a ...any) {
 	if fgc.config.Debug {
 		fmt.Printf(format, a...)
@@ -277,7 +286,6 @@ func (fgc *FileGeneratorContext) doSomething() {
 			fgc.unlinkFile()
 		}
 	}
-	return
 }
 
 func (fgc *FileGeneratorContext) mountParentWordDir() {
@@ -341,7 +349,7 @@ func (fgc *FileGeneratorContext) start(wg *sync.WaitGroup) {
 		defer fgc.unmountWordDir()
 		remountTicker := time.NewTicker(fgc.config.RemountEvery)
 
-		var testEnd *time.Time = nil
+		var testEnd *time.Time
 		started := false
 		fgc.resetFirstStates()
 		for {
@@ -361,7 +369,7 @@ func (fgc *FileGeneratorContext) start(wg *sync.WaitGroup) {
 					testEnd = &t
 					started = true
 				}
-			case _ = <-remountTicker.C:
+			case <-remountTicker.C:
 				if fgc.parentMountPoint != "" {
 					fgc.unmountParentWordDir()
 				} else {
@@ -380,16 +388,18 @@ func (fgc *FileGeneratorContext) start(wg *sync.WaitGroup) {
 	}()
 }
 
+// PrepareFileGenerator prepare the file generator
 func (fg *FileGenerator) PrepareFileGenerator(config FileGeneratorConfig) error {
 	ctx := fg.newFileGeneratorContext(config)
 	if fg.contexts[config.id] != nil {
-		return errors.New("Context ID already present.")
+		return errors.New("context ID already present")
 	}
 	fg.contexts[config.id] = ctx
 	ctx.start(&fg.wg)
 	return nil
 }
 
+// Start the file generator
 func (fg *FileGenerator) Start() error {
 	if len(fg.contexts) == 0 {
 		return errors.New("no prepared contexts")
@@ -401,6 +411,7 @@ func (fg *FileGenerator) Start() error {
 	return nil
 }
 
+// Wait for the result
 func (fg *FileGenerator) Wait() (*EstimatedResult, error) {
 	if len(fg.contexts) == 0 {
 		return nil, errors.New("no running contexts")

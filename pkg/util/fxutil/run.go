@@ -16,6 +16,10 @@ import (
 // This differs from fx.App#Run in that it returns errors instead of exiting
 // the process.
 func Run(opts ...fx.Option) error {
+	if fxAppTestOverride != nil {
+		return fxAppTestOverride(func() {}, opts)
+	}
+
 	opts = append(opts, FxLoggingOption())
 	// Temporarily increase timeout for all fxutil.Run calls until we can better characterize our
 	// start time requirements. Prepend to opts so individual calls can override the timeout.

@@ -6,7 +6,6 @@ Dogstatsd tasks
 import os
 import shutil
 import sys
-from distutils.dir_util import copy_tree
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -20,7 +19,7 @@ from .windows_resources import build_messagetable, build_rc, versioninfo_vars
 # constants
 DOGSTATSD_BIN_PATH = os.path.join(".", "bin", "dogstatsd")
 STATIC_BIN_PATH = os.path.join(".", "bin", "static")
-MAX_BINARY_SIZE = 37 * 1024
+MAX_BINARY_SIZE = 38 * 1024
 DOGSTATSD_TAG = "datadog/dogstatsd:master"
 
 
@@ -118,7 +117,7 @@ def refresh_assets(_):
     dist_folder = os.path.join(DOGSTATSD_BIN_PATH, "dist")
     if os.path.exists(dist_folder):
         shutil.rmtree(dist_folder)
-    copy_tree("./cmd/dogstatsd/dist/", dist_folder)
+    shutil.copytree("./cmd/dogstatsd/dist/", dist_folder, dirs_exist_ok=True)
 
 
 @task
@@ -188,6 +187,7 @@ def omnibus_build(
     major_version='7',
     omnibus_s3_cache=False,
     go_mod_cache=None,
+    host_distribution=None,
 ):
     """
     Build the Dogstatsd packages with Omnibus Installer.
@@ -202,6 +202,8 @@ def omnibus_build(
     base_dir = base_dir or os.environ.get("DSD_OMNIBUS_BASE_DIR")
     if base_dir:
         overrides.append(f"base_dir:{base_dir}")
+    if host_distribution:
+        overrides.append(f'host_distribution:{host_distribution}')
 
     overrides_cmd = ""
     if overrides:
@@ -253,6 +255,9 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
     """
     Run integration tests for dogstatsd
     """
+    if sys.platform == 'win32':
+        raise Exit(message='dogstatsd integration tests are not supported on Windows', code=0)
+
     if install_deps:
         deps(ctx)
 

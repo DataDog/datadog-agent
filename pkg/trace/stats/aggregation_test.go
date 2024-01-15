@@ -54,62 +54,124 @@ func TestGetStatusCode(t *testing.T) {
 }
 
 func TestNewAggregation(t *testing.T) {
+	peerTags := []string{"db.instance", "db.system", "peer.service"}
+	peerSvcOnlyHash := uint64(3430395298086625290)
+	peerTagsHash := uint64(9894752672193411515)
 	for _, tt := range []struct {
-		in               *pb.Span
-		enablePeerSvcAgg bool
-		res              Aggregation
+		name              string
+		in                *pb.Span
+		enablePeerTagsAgg bool
+		resAgg            Aggregation
+		resPeerTags       []string
 	}{
 		{
+			"nil case, peer tag aggregation disabled",
 			&pb.Span{},
 			false,
 			Aggregation{},
+			nil,
 		},
 		{
+			"nil case, peer tag aggregation enabled",
 			&pb.Span{},
 			true,
 			Aggregation{},
+			nil,
 		},
 		{
+			"peer tag aggregation disabled even though peer.service is present",
 			&pb.Span{
 				Service: "a",
-				Meta:    map[string]string{"peer.service": "remote-service"},
+				Meta:    map[string]string{"span.kind": "client", "peer.service": "remote-service"},
 			},
 			false,
+			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client"}},
+			nil,
+		},
+		{
+			"peer tags aggregation enabled, but span.kind != (client, producer)",
+			&pb.Span{
+				Service: "a",
+				Meta:    map[string]string{"span.kind": "", "peer.service": "remote-service"},
+			},
+			true,
 			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a"}},
+			nil,
 		},
 		{
+			"peer tags aggregation enabled, span.kind == client",
 			&pb.Span{
 				Service: "a",
-				Meta:    map[string]string{"peer.service": "remote-service"},
+				Meta:    map[string]string{"span.kind": "client", "peer.service": "remote-service"},
 			},
 			true,
-			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", PeerService: "remote-service"}},
+			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client", PeerTagsHash: peerSvcOnlyHash}},
+			[]string{"peer.service:remote-service"},
 		},
 		{
+			"peer tags aggregation enabled, span.kind == producer",
 			&pb.Span{
-				Service:  "service",
-				Name:     "operation",
-				Resource: "resource",
-				Meta: map[string]string{
-					"span.kind":        "client",
-					"peer.service":     "remote-service",
-					"http.status_code": "200",
-				},
+				Service: "a",
+				Meta:    map[string]string{"span.kind": "producer", "peer.service": "remote-service"},
 			},
 			true,
-			Aggregation{
-				BucketsAggregationKey: BucketsAggregationKey{
-					Service:     "service",
-					Name:        "operation",
-					PeerService: "remote-service",
-					Resource:    "resource",
-					SpanKind:    "client",
-					StatusCode:  200,
-					Synthetics:  false,
-				},
+			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "producer", PeerTagsHash: peerSvcOnlyHash}},
+			[]string{"peer.service:remote-service"},
+		},
+		{
+			"peer tags aggregation enabled and multiple peer tags match",
+			&pb.Span{
+				Service: "a",
+				Meta:    map[string]string{"span.kind": "client", "field1": "val1", "peer.service": "remote-service", "db.instance": "i-1234", "db.system": "postgres"},
 			},
+			true,
+			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client", PeerTagsHash: peerTagsHash}},
+			[]string{"db.instance:i-1234", "db.system:postgres", "peer.service:remote-service"},
+		},
+		{
+			"peer tags aggregation enabled but all peer tags are empty",
+			&pb.Span{
+				Service: "a",
+				Meta:    map[string]string{"span.kind": "client", "field1": "val1", "peer.service": "", "db.instance": "", "db.system": ""},
+			},
+			true,
+			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client", PeerTagsHash: 0}},
+			nil,
+		},
+		{
+			"peer tags aggregation enabled but some peer tags are empty",
+			&pb.Span{
+				Service: "a",
+				Meta:    map[string]string{"span.kind": "client", "field1": "val1", "peer.service": "remote-service", "db.instance": "", "db.system": ""},
+			},
+			true,
+			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client", PeerTagsHash: peerSvcOnlyHash}},
+			[]string{"peer.service:remote-service"},
 		},
 	} {
-		assert.Equal(t, tt.res, NewAggregationFromSpan(tt.in, "", PayloadAggregationKey{}, tt.enablePeerSvcAgg))
+		agg, et := NewAggregationFromSpan(tt.in, "", PayloadAggregationKey{}, tt.enablePeerTagsAgg, peerTags)
+		assert.Equal(t, tt.resAgg, agg, tt.name)
+		assert.Equal(t, tt.resPeerTags, et, tt.name)
+	}
+}
+
+func TestSpanKindIsConsumerOrProducer(t *testing.T) {
+	type testCase struct {
+		input string
+		res   bool
+	}
+	for _, tc := range []testCase{
+		{"client", true},
+		{"producer", true},
+		{"CLIENT", true},
+		{"PRODUCER", true},
+		{"cLient", true},
+		{"pRoducer", true},
+		{"server", false},
+		{"consumer", false},
+		{"internal", false},
+		{"", false},
+	} {
+		assert.Equal(t, tc.res, clientOrProducer(tc.input))
 	}
 }

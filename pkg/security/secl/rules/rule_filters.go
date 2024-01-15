@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package rules holds rules related files
 package rules
 
 import (
@@ -119,7 +120,7 @@ func (r *SECLRuleFilter) IsRuleAccepted(rule *RuleDefinition) (bool, error) {
 
 	evalOpts := &eval.Opts{}
 	evalOpts.
-		WithConstants(model.SECLConstants)
+		WithConstants(model.BooleanConstants)
 
 	evaluator, err := eval.NewRuleEvaluator(astRule, r.model, evalOpts)
 	if err != nil {

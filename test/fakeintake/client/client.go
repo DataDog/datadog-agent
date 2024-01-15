@@ -39,38 +39,76 @@
 package client
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
+
+	"github.com/cenkalti/backoff/v4"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
+	"github.com/DataDog/datadog-agent/test/fakeintake/client/flare"
 )
 
+const (
+	metricsEndpoint            = "/api/v2/series"
+	checkRunsEndpoint          = "/api/v1/check_run"
+	logsEndpoint               = "/api/v2/logs"
+	connectionsEndpoint        = "/api/v1/connections"
+	processesEndpoint          = "/api/v1/collector"
+	containersEndpoint         = "/api/v1/container"
+	processDiscoveryEndpoint   = "/api/v1/discovery"
+	containerImageEndpoint     = "/api/v2/contimage"
+	containerLifecycleEndpoint = "/api/v2/contlcycle"
+	sbomEndpoint               = "/api/v2/sbom"
+	flareEndpoint              = "/support/flare"
+)
+
+// ErrNoFlareAvailable is returned when no flare is available
+var ErrNoFlareAvailable = errors.New("no flare available")
+
+//nolint:revive // TODO(APL) Fix revive linter
 type Client struct {
 	fakeIntakeURL string
 
-	metricAggregator   aggregator.MetricAggregator
-	checkRunAggregator aggregator.CheckRunAggregator
-	logAggregator      aggregator.LogAggregator
+	metricAggregator             aggregator.MetricAggregator
+	checkRunAggregator           aggregator.CheckRunAggregator
+	logAggregator                aggregator.LogAggregator
+	connectionAggregator         aggregator.ConnectionsAggregator
+	processAggregator            aggregator.ProcessAggregator
+	containerAggregator          aggregator.ContainerAggregator
+	processDiscoveryAggregator   aggregator.ProcessDiscoveryAggregator
+	containerImageAggregator     aggregator.ContainerImageAggregator
+	containerLifecycleAggregator aggregator.ContainerLifecycleAggregator
+	sbomAggregator               aggregator.SBOMAggregator
 }
 
 // NewClient creates a new fake intake client
 // fakeIntakeURL: the host of the fake Datadog intake server
 func NewClient(fakeIntakeURL string) *Client {
 	return &Client{
-		fakeIntakeURL:      strings.TrimSuffix(fakeIntakeURL, "/"),
-		metricAggregator:   aggregator.NewMetricAggregator(),
-		checkRunAggregator: aggregator.NewCheckRunAggregator(),
-		logAggregator:      aggregator.NewLogAggregator(),
+		fakeIntakeURL:                strings.TrimSuffix(fakeIntakeURL, "/"),
+		metricAggregator:             aggregator.NewMetricAggregator(),
+		checkRunAggregator:           aggregator.NewCheckRunAggregator(),
+		logAggregator:                aggregator.NewLogAggregator(),
+		connectionAggregator:         aggregator.NewConnectionsAggregator(),
+		processAggregator:            aggregator.NewProcessAggregator(),
+		containerAggregator:          aggregator.NewContainerAggregator(),
+		processDiscoveryAggregator:   aggregator.NewProcessDiscoveryAggregator(),
+		containerImageAggregator:     aggregator.NewContainerImageAggregator(),
+		containerLifecycleAggregator: aggregator.NewContainerLifecycleAggregator(),
+		sbomAggregator:               aggregator.NewSBOMAggregator(),
 	}
 }
 
 func (c *Client) getMetrics() error {
-	payloads, err := c.getFakePayloads("/api/v2/series")
+	payloads, err := c.getFakePayloads(metricsEndpoint)
 	if err != nil {
 		return err
 	}
@@ -78,7 +116,7 @@ func (c *Client) getMetrics() error {
 }
 
 func (c *Client) getCheckRuns() error {
-	payloads, err := c.getFakePayloads("/api/v1/check_run")
+	payloads, err := c.getFakePayloads(checkRunsEndpoint)
 	if err != nil {
 		return err
 	}
@@ -86,25 +124,86 @@ func (c *Client) getCheckRuns() error {
 }
 
 func (c *Client) getLogs() error {
-	payloads, err := c.getFakePayloads("/api/v2/logs")
+	payloads, err := c.getFakePayloads(logsEndpoint)
 	if err != nil {
 		return err
 	}
 	return c.logAggregator.UnmarshallPayloads(payloads)
 }
 
-func (c *Client) getFakePayloads(endpoint string) (rawPayloads []api.Payload, err error) {
-	resp, err := http.Get(fmt.Sprintf("%s/fakeintake/payloads?endpoint=%s", c.fakeIntakeURL, endpoint))
+func (c *Client) getConnections() error {
+	payloads, err := c.getFakePayloads(connectionsEndpoint)
 	if err != nil {
-		return nil, err
+		return err
+	}
+	return c.connectionAggregator.UnmarshallPayloads(payloads)
+}
+
+func (c *Client) getProcesses() error {
+	payloads, err := c.getFakePayloads(processesEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.processAggregator.UnmarshallPayloads(payloads)
+}
+
+func (c *Client) getContainers() error {
+	payloads, err := c.getFakePayloads(containersEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.containerAggregator.UnmarshallPayloads(payloads)
+}
+
+func (c *Client) getProcessDiscoveries() error {
+	payloads, err := c.getFakePayloads(processDiscoveryEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.processDiscoveryAggregator.UnmarshallPayloads(payloads)
+}
+
+func (c *Client) getContainerImages() error {
+	payloads, err := c.getFakePayloads(containerImageEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.containerImageAggregator.UnmarshallPayloads(payloads)
+}
+
+func (c *Client) getContainerLifecycleEvents() error {
+	payloads, err := c.getFakePayloads(containerLifecycleEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.containerLifecycleAggregator.UnmarshallPayloads(payloads)
+}
+
+func (c *Client) getSBOMs() error {
+	payloads, err := c.getFakePayloads(sbomEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.sbomAggregator.UnmarshallPayloads(payloads)
+}
+
+// GetLatestFlare queries the Fake Intake to fetch flares that were sent by a Datadog Agent and returns the latest flare as a Flare struct
+// TODO: handle multiple flares / flush when returning latest flare
+func (c *Client) GetLatestFlare() (flare.Flare, error) {
+	payloads, err := c.getFakePayloads(flareEndpoint)
+	if err != nil {
+		return flare.Flare{}, err
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("error querying fake payloads, status code %s", resp.Status)
+	if len(payloads) == 0 {
+		return flare.Flare{}, ErrNoFlareAvailable
 	}
 
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
+	return flare.ParseRawFlare(payloads[len(payloads)-1])
+}
+
+func (c *Client) getFakePayloads(endpoint string) (rawPayloads []api.Payload, err error) {
+	body, err := c.get(fmt.Sprintf("fakeintake/payloads?endpoint=%s", endpoint))
 	if err != nil {
 		return nil, err
 	}
@@ -130,6 +229,28 @@ func (c *Client) GetServerHealth() error {
 	return nil
 }
 
+// ConfigureOverride sets a response override on the fakeintake server
+func (c *Client) ConfigureOverride(override api.ResponseOverride) error {
+	route := fmt.Sprintf("%s/fakeintake/configure/override", c.fakeIntakeURL)
+
+	buf := new(bytes.Buffer)
+	err := json.NewEncoder(buf).Encode(override)
+	if err != nil {
+		return err
+	}
+
+	resp, err := http.Post(route, "application/json", buf)
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("error code %v", resp.StatusCode)
+	}
+	return nil
+}
+
 func (c *Client) getMetric(name string) ([]*aggregator.MetricSeries, error) {
 	err := c.getMetrics()
 	if err != nil {
@@ -146,7 +267,7 @@ type MatchOpt[P aggregator.PayloadItem] func(payload P) (bool, error)
 func (c *Client) GetMetricNames() ([]string, error) {
 	err := c.getMetrics()
 	if err != nil {
-		return []string{}, nil
+		return nil, err
 	}
 	return c.metricAggregator.GetNames(), nil
 }
@@ -215,6 +336,8 @@ func WithMetricValueLowerThan(maxValue float64) MatchOpt[*aggregator.MetricSerie
 }
 
 // WithMetricValueLowerThan filters metrics with values higher than `minValue`
+//
+//nolint:revive // TODO(APL) Fix revive linter
 func WithMetricValueHigherThan(minValue float64) MatchOpt[*aggregator.MetricSeries] {
 	return func(metric *aggregator.MetricSeries) (bool, error) {
 		for _, point := range metric.Points {
@@ -237,10 +360,12 @@ func (c *Client) getLog(service string) ([]*aggregator.Log, error) {
 
 // GetLogNames fetches fakeintake on `/api/v2/logs` endpoint and returns
 // all received log service names
+//
+//nolint:revive // TODO(APL) Fix revive linter
 func (c *Client) GetLogServiceNames() ([]string, error) {
 	err := c.getLogs()
 	if err != nil {
-		return []string{}, nil
+		return nil, err
 	}
 	return c.logAggregator.GetNames(), nil
 }
@@ -304,13 +429,15 @@ func WithMessageMatching(pattern string) MatchOpt[*aggregator.Log] {
 func (c *Client) GetCheckRunNames() ([]string, error) {
 	err := c.getCheckRuns()
 	if err != nil {
-		return []string{}, nil
+		return nil, err
 	}
 	return c.checkRunAggregator.GetNames(), nil
 }
 
 // FilterLogs fetches fakeintake on `/api/v1/check_run` endpoint, unpackage payloads and returns
 // checks matching `name`
+//
+//nolint:revive // TODO(APL) Fix revive linter
 func (c *Client) GetCheckRun(name string) ([]*aggregator.CheckRun, error) {
 	err := c.getCheckRuns()
 	if err != nil {
@@ -343,4 +470,222 @@ func (c *Client) flushPayloads() error {
 		return fmt.Errorf("error code %v", resp.StatusCode)
 	}
 	return nil
+}
+
+// GetConnections fetches fakeintake on `/api/v1/connections` endpoint and returns
+// all received connections
+func (c *Client) GetConnections() (conns *aggregator.ConnectionsAggregator, err error) {
+	err = c.getConnections()
+	if err != nil {
+		return nil, err
+	}
+	return &c.connectionAggregator, nil
+}
+
+// GetConnectionsNames fetches fakeintake on `/api/v1/connections` endpoint and returns
+// all received connections from hostname+network_id
+func (c *Client) GetConnectionsNames() ([]string, error) {
+	err := c.getConnections()
+	if err != nil {
+		return []string{}, err
+	}
+	return c.connectionAggregator.GetNames(), nil
+}
+
+// URL returns the client's URL
+func (c *Client) URL() string {
+	return c.fakeIntakeURL
+}
+
+// GetProcesses fetches fakeintake on `/api/v1/collector` endpoint and returns
+// all received process payloads
+func (c *Client) GetProcesses() ([]*aggregator.ProcessPayload, error) {
+	err := c.getProcesses()
+	if err != nil {
+		return nil, err
+	}
+
+	var procs []*aggregator.ProcessPayload
+	for _, name := range c.processAggregator.GetNames() {
+		procs = append(procs, c.processAggregator.GetPayloadsByName(name)...)
+	}
+
+	return procs, nil
+}
+
+// GetContainers fetches fakeintake on `/api/v1/container` endpoint and returns
+// all received container payloads
+func (c *Client) GetContainers() ([]*aggregator.ContainerPayload, error) {
+	err := c.getContainers()
+	if err != nil {
+		return nil, err
+	}
+
+	var containers []*aggregator.ContainerPayload
+	for _, name := range c.containerAggregator.GetNames() {
+		containers = append(containers, c.containerAggregator.GetPayloadsByName(name)...)
+	}
+
+	return containers, nil
+}
+
+// GetProcessDiscoveries fetches fakeintake on `/api/v1/discovery` endpoint and returns
+// all received process discovery payloads
+func (c *Client) GetProcessDiscoveries() ([]*aggregator.ProcessDiscoveryPayload, error) {
+	err := c.getProcessDiscoveries()
+	if err != nil {
+		return nil, err
+	}
+
+	var discs []*aggregator.ProcessDiscoveryPayload
+	for _, name := range c.processDiscoveryAggregator.GetNames() {
+		discs = append(discs, c.processDiscoveryAggregator.GetPayloadsByName(name)...)
+	}
+
+	return discs, nil
+}
+
+func (c *Client) getContainerImage(name string) ([]*aggregator.ContainerImagePayload, error) {
+	if err := c.getContainerImages(); err != nil {
+		return nil, err
+	}
+	return c.containerImageAggregator.GetPayloadsByName(name), nil
+}
+
+// GetContainerImageNames fetches fakeintake on `/api/v2/contimage` endpoint and returns
+// all received container image names
+func (c *Client) GetContainerImageNames() ([]string, error) {
+	if err := c.getContainerImages(); err != nil {
+		return nil, err
+	}
+	return c.containerImageAggregator.GetNames(), nil
+}
+
+// FilterContainerImages fetches fakeintake on `/api/v2/contimage` endpoint and returns
+// container images matching `name` and any [MatchOpt](#MatchOpt) options
+func (c *Client) FilterContainerImages(name string, options ...MatchOpt[*aggregator.ContainerImagePayload]) ([]*aggregator.ContainerImagePayload, error) {
+	images, err := c.getContainerImage(name)
+	if err != nil {
+		return nil, err
+	}
+	// apply filters one after the other
+	filteredImages := []*aggregator.ContainerImagePayload{}
+	for _, image := range images {
+		matchCount := 0
+		for _, matchOpt := range options {
+			isMatch, err := matchOpt(image)
+			if err != nil {
+				return nil, err
+			}
+			if !isMatch {
+				break
+			}
+			matchCount++
+		}
+		if matchCount == len(options) {
+			filteredImages = append(filteredImages, image)
+		}
+	}
+	return filteredImages, nil
+}
+
+// GetContainerLifecycleEvents fetches fakeintake on `/api/v2/contlcycle` endpoint and returns
+// all received container lifecycle payloads
+func (c *Client) GetContainerLifecycleEvents() ([]*aggregator.ContainerLifecyclePayload, error) {
+	if err := c.getContainerLifecycleEvents(); err != nil {
+		return nil, err
+	}
+
+	var events []*aggregator.ContainerLifecyclePayload
+	for _, name := range c.containerLifecycleAggregator.GetNames() {
+		events = append(events, c.containerLifecycleAggregator.GetPayloadsByName(name)...)
+	}
+
+	return events, nil
+}
+
+func (c *Client) getSBOM(id string) ([]*aggregator.SBOMPayload, error) {
+	if err := c.getSBOMs(); err != nil {
+		return nil, err
+	}
+	return c.sbomAggregator.GetPayloadsByName(id), nil
+}
+
+// GetSBOMIDs fetches fakeintake on `/api/v2/sbom` endpoint and returns
+// all received SBOM IDs
+func (c *Client) GetSBOMIDs() ([]string, error) {
+	if err := c.getSBOMs(); err != nil {
+		return nil, err
+	}
+	return c.sbomAggregator.GetNames(), nil
+}
+
+// FilterSBOMs fetches fakeintake on `/api/v2/sbom` endpoint and returns
+// SBOMs matching `id` and any [MatchOpt](#MatchOpt) options
+func (c *Client) FilterSBOMs(id string, options ...MatchOpt[*aggregator.SBOMPayload]) ([]*aggregator.SBOMPayload, error) {
+	sboms, err := c.getSBOM(id)
+	if err != nil {
+		return nil, err
+	}
+	// apply filters one after the other
+	filteredSBOMs := []*aggregator.SBOMPayload{}
+	for _, sbom := range sboms {
+		matchCount := 0
+		for _, matchOpt := range options {
+			isMatch, err := matchOpt(sbom)
+			if err != nil {
+				return nil, err
+			}
+			if !isMatch {
+				break
+			}
+			matchCount++
+		}
+		if matchCount == len(options) {
+			filteredSBOMs = append(filteredSBOMs, sbom)
+		}
+	}
+	return filteredSBOMs, nil
+}
+
+func (c *Client) get(route string) ([]byte, error) {
+	var body []byte
+	err := backoff.Retry(func() error {
+		tmpResp, err := http.Get(fmt.Sprintf("%s/%s", c.fakeIntakeURL, route))
+		if err != nil {
+			return err
+		}
+		defer tmpResp.Body.Close()
+		if tmpResp.StatusCode != http.StatusOK {
+			return fmt.Errorf("Expected %d got %d", http.StatusOK, tmpResp.StatusCode)
+		}
+		body, err = io.ReadAll(tmpResp.Body)
+		return err
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), 4))
+	return body, err
+}
+
+// RouteStats queries the routestats fakeintake endpoint to get statistics about each route.
+// It only returns statistics about endpoint which store some payloads.
+func (c *Client) RouteStats() (map[string]int, error) {
+	body, err := c.get("fakeintake/routestats")
+	if err != nil {
+		return nil, err
+	}
+
+	var routestats api.APIFakeIntakeRouteStatsGETResponse
+	err = json.Unmarshal(body, &routestats)
+	if err != nil {
+		return nil, err
+	}
+
+	routes := map[string]int{}
+	for endpoint, stats := range routestats.Routes {
+		// the count of a given endpoint can be zero when old payloads are periodically removed
+		if stats.Count != 0 {
+			routes[endpoint] = stats.Count
+		}
+	}
+
+	return routes, nil
 }

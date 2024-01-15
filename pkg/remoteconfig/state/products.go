@@ -6,22 +6,27 @@
 package state
 
 var validProducts = map[string]struct{}{
-	ProductAgentConfig: {},
-	ProductAgentTask:   {},
-	ProductAPMSampling: {},
-	ProductCWSDD:       {},
-	ProductCWSCustom:   {},
-	ProductCWSProfiles: {},
-	ProductASM:         {},
-	ProductASMFeatures: {},
-	ProductASMDD:       {},
-	ProductASMData:     {},
-	ProductAPMTracing:  {},
+	ProductAgentConfig:       {},
+	ProductAgentTask:         {},
+	ProductAgentIntegrations: {},
+	ProductAPMSampling:       {},
+	ProductCWSDD:             {},
+	ProductCWSCustom:         {},
+	ProductCWSProfiles:       {},
+	ProductASM:               {},
+	ProductASMFeatures:       {},
+	ProductASMDD:             {},
+	ProductASMData:           {},
+	ProductAPMTracing:        {},
+	ProductTesting1:          {},
+	ProductTesting2:          {},
 }
 
 const (
 	// ProductAgentConfig is to receive agent configurations, like the log level
 	ProductAgentConfig = "AGENT_CONFIG"
+	// ProductAgentIntegrations is to receive integrations to schedule
+	ProductAgentIntegrations = "AGENT_INTEGRATIONS"
 	// ProductAgentTask is to receive agent task instruction, like a flare
 	ProductAgentTask = "AGENT_TASK"
 	// ProductAPMSampling is the apm sampling product
@@ -42,4 +47,8 @@ const (
 	ProductASMData = "ASM_DATA"
 	// ProductAPMTracing is the apm tracing product
 	ProductAPMTracing = "APM_TRACING"
+	// ProductTesting1 is a product used for testing remote config
+	ProductTesting1 = "TESTING1"
+	// ProductTesting2 is a product used for testing remote config
+	ProductTesting2 = "TESTING2"
 )

@@ -5,6 +5,7 @@
 
 //go:build !linux
 
+// Package dump holds dump related files
 package dump
 
 import (
@@ -20,7 +21,7 @@ import (
 type ActivityDumpStorageManager struct{}
 
 // PersistRaw is defined for unsupported platforms
-func (manager *ActivityDumpStorageManager) PersistRaw(requests []config.StorageRequest, ad *ActivityDump, raw *bytes.Buffer) error {
+func (manager *ActivityDumpStorageManager) PersistRaw(_ []config.StorageRequest, _ *ActivityDump, _ *bytes.Buffer) error {
 	return nil
 }
 
@@ -28,7 +29,7 @@ func (manager *ActivityDumpStorageManager) PersistRaw(requests []config.StorageR
 func (manager *ActivityDumpStorageManager) SendTelemetry() {}
 
 // NewSecurityAgentStorageManager returns a new instance of ActivityDumpStorageManager
-func NewSecurityAgentStorageManager(senderManager sender.SenderManager) (*ActivityDumpStorageManager, error) {
+func NewSecurityAgentStorageManager(_ sender.SenderManager) (*ActivityDumpStorageManager, error) {
 	return nil, fmt.Errorf("the activity dump manager is unsupported on this platform")
 }
 
@@ -43,6 +44,6 @@ func (ad *ActivityDump) GetImageNameTag() (string, string) {
 }
 
 // NewActivityDumpFromMessage returns a new ActivityDump from a SecurityActivityDumpMessage
-func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, error) {
+func NewActivityDumpFromMessage(_ *api.ActivityDumpMessage) (*ActivityDump, error) {
 	return nil, fmt.Errorf("activity dumps are unsupported on this platform")
 }

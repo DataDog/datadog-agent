@@ -3,12 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package grpc provides a gRPC client that fits the gRPC server.
 package grpc
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
-	"google.golang.org/grpc/examples/route_guide/routeguide"
 	"io"
 	"math/rand"
 	"net"
@@ -16,8 +17,10 @@ import (
 
 	pbStream "github.com/pahanini/go-grpc-bidirectional-streaming-example/src/proto"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	pb "google.golang.org/grpc/examples/helloworld/helloworld"
+	"google.golang.org/grpc/examples/route_guide/routeguide"
 )
 
 const (
@@ -56,7 +59,6 @@ func (c *Client) HandleStream(ctx context.Context, numberOfMessages int32) error
 				sendErr = err
 				return
 			}
-			time.Sleep(time.Millisecond * 10)
 		}
 	}()
 
@@ -90,6 +92,8 @@ func (c *Client) HandleStream(ctx context.Context, numberOfMessages int32) error
 	}
 	return nil
 }
+
+// GetFeature activates the GetFeature RPC.
 func (c *Client) GetFeature(ctx context.Context, long, lat int32) error {
 	_, err := c.routeGuideClient.GetFeature(ctx, &routeguide.Point{
 		Latitude:  lat,
@@ -98,6 +102,7 @@ func (c *Client) GetFeature(ctx context.Context, long, lat int32) error {
 	return err
 }
 
+// ListFeatures activates the ListFeatures RPC.
 func (c *Client) ListFeatures(ctx context.Context, longLo, latLo, longHi, latHi int32) error {
 	stream, err := c.routeGuideClient.ListFeatures(ctx, &routeguide.Rectangle{
 		Lo: &routeguide.Point{
@@ -144,10 +149,14 @@ type Options struct {
 }
 
 // NewClient returns a new gRPC client
-func NewClient(addr string, options Options) (Client, error) {
-	gRPCOptions := []grpc.DialOption{
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+func NewClient(addr string, options Options, withTLS bool) (Client, error) {
+	gRPCOptions := []grpc.DialOption{grpc.WithBlock()}
+	creds := grpc.WithTransportCredentials(insecure.NewCredentials())
+	if withTLS {
+		creds = grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{InsecureSkipVerify: true}))
 	}
+	gRPCOptions = append(gRPCOptions, creds)
+
 	if options.CustomDialer != nil {
 		gRPCOptions = append(gRPCOptions, grpc.WithContextDialer(func(ctx context.Context, addr string) (net.Conn, error) {
 			return options.CustomDialer.DialContext(ctx, "tcp", addr)

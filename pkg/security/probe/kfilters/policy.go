@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-
+// Package kfilters holds kfilters related files
 package kfilters
 
 import (
@@ -64,6 +63,7 @@ func (f PolicyFlag) MarshalJSON() ([]byte, error) {
 	return json.Marshal(flags)
 }
 
+// StringArray returns the policy flags as a string array
 func (f PolicyFlag) StringArray() []string {
 	var flags []string
 	if f&PolicyFlagBasename != 0 {

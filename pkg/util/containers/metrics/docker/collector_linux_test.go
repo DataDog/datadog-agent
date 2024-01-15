@@ -190,7 +190,7 @@ func Test_convertIOStats(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.Remove(dir + "/diskstats")
 
-	config.Datadog.Set("container_proc_root", dir)
+	config.Datadog.SetWithoutSource("container_proc_root", dir)
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

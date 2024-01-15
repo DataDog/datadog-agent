@@ -394,8 +394,8 @@ func TestMarshalSplitCompress(t *testing.T) {
 func TestMarshalSplitCompressPointsLimit(t *testing.T) {
 	mockConfig := config.Mock(t)
 	oldMax := mockConfig.GetInt("serializer_max_series_points_per_payload")
-	defer mockConfig.Set("serializer_max_series_points_per_payload", oldMax)
-	mockConfig.Set("serializer_max_series_points_per_payload", 100)
+	defer mockConfig.SetWithoutSource("serializer_max_series_points_per_payload", oldMax)
+	mockConfig.SetWithoutSource("serializer_max_series_points_per_payload", 100)
 
 	// ten series, each with 50 points, so two should fit in each payload
 	series := makeSeries(10, 50)
@@ -408,8 +408,8 @@ func TestMarshalSplitCompressPointsLimit(t *testing.T) {
 func TestMarshalSplitCompressPointsLimitTooBig(t *testing.T) {
 	mockConfig := config.Mock(t)
 	oldMax := mockConfig.GetInt("serializer_max_series_points_per_payload")
-	defer mockConfig.Set("serializer_max_series_points_per_payload", oldMax)
-	mockConfig.Set("serializer_max_series_points_per_payload", 1)
+	defer mockConfig.SetWithoutSource("serializer_max_series_points_per_payload", oldMax)
+	mockConfig.SetWithoutSource("serializer_max_series_points_per_payload", 1)
 
 	series := makeSeries(1, 2)
 	payloads, err := series.MarshalSplitCompress(marshaler.NewBufferContext())

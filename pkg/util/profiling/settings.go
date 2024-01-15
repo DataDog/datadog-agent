@@ -40,6 +40,8 @@ type Settings struct {
 	WithDeltaProfiles bool
 	// Tags are the additional tags to attach to profiles.
 	Tags []string
+	// CustomAttributes names of goroutine labels to use as custom attributes in Datadog Profiling UI
+	CustomAttributes []string
 }
 
 func (settings *Settings) String() string {
@@ -64,5 +66,8 @@ func (settings *Settings) applyDefaults() {
 
 	if settings.Tags == nil {
 		settings.Tags = []string{}
+	}
+	if settings.CustomAttributes == nil {
+		settings.CustomAttributes = []string{}
 	}
 }

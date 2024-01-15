@@ -14,10 +14,8 @@
 # limitations under the License.
 #
 
-require './lib/cmake.rb'
-
 name "zstd"
-default_version "1.5.2"
+default_version "1.5.5"
 
 license "BSD"
 license_file "LICENSE"
@@ -25,7 +23,7 @@ skip_transitive_dependency_licensing true
 
 dependency "libarchive"
 
-version("1.5.2") { source sha256: "7c42d56fac126929a6a85dbc73ff1db2411d04f104fae9bdea51305663a83fd0" }
+version("1.5.5") { source sha256: "9c4396cc829cfae319a6e2615202e82aad41372073482fce286fac78646d3ee4" }
 
 source url: "https://github.com/facebook/zstd/releases/download/v#{version}/zstd-#{version}.tar.gz"
 
@@ -40,8 +38,8 @@ build do
 
   cmake_options = [
     "-DZSTD_BUILD_PROGRAMS=OFF",
-    "-DENABLE_STATIC=ON",
-    "-DENABLE_SHARED=OFF",
+    "-DZSTD_BUILD_STATIC=OFF",
+    "-DZSTD_BUILD_SHARED=ON",
   ]
 
   cmake(*cmake_options, env: env, cwd: cmake_build_dir, prefix: "#{install_dir}/embedded")

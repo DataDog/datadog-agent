@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -23,6 +24,7 @@ func (lo LoaderOne) Name() string {
 	return "loader_one"
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (lo LoaderOne) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
 	var c check.Check
 	return c, nil
@@ -34,6 +36,7 @@ func (lt LoaderTwo) Name() string {
 	return "loader_two"
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (lt LoaderTwo) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
 	var c check.Check
 	return c, nil
@@ -45,6 +48,7 @@ func (lt *LoaderThree) Name() string {
 	return "loader_three"
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (lt *LoaderThree) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
 	var c check.Check
 	return c, nil
@@ -52,17 +56,17 @@ func (lt *LoaderThree) Load(senderManager sender.SenderManager, config integrati
 
 func TestLoaderCatalog(t *testing.T) {
 	l1 := LoaderOne{}
-	factory1 := func() (check.Loader, error) { return l1, nil }
+	factory1 := func(sender.SenderManager) (check.Loader, error) { return l1, nil }
 	l2 := LoaderTwo{}
-	factory2 := func() (check.Loader, error) { return l2, nil }
+	factory2 := func(sender.SenderManager) (check.Loader, error) { return l2, nil }
 	var l3 *LoaderThree
-	factory3 := func() (check.Loader, error) { return l3, errors.New("error") }
+	factory3 := func(sender.SenderManager) (check.Loader, error) { return l3, errors.New("error") }
 
 	RegisterLoader(20, factory1)
 	RegisterLoader(10, factory2)
 	RegisterLoader(30, factory3)
-
-	require.Len(t, LoaderCatalog(), 2)
-	assert.Equal(t, l1, LoaderCatalog()[1])
-	assert.Equal(t, l2, LoaderCatalog()[0])
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	require.Len(t, LoaderCatalog(senderManager), 2)
+	assert.Equal(t, l1, LoaderCatalog(senderManager)[1])
+	assert.Equal(t, l2, LoaderCatalog(senderManager)[0])
 }

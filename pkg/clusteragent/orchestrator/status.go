@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+//nolint:revive // TODO(CAPP) Fix revive linter
 package orchestrator
 
 import (
@@ -17,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
+	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
@@ -126,7 +128,7 @@ func setCacheInformationDCAMode(status map[string]interface{}) {
 	cacheStats := make(map[string]stats)
 
 	// get cache efficiency
-	for _, node := range orchestrator.NodeTypes() {
+	for _, node := range pkgorchestratormodel.NodeTypes() {
 		if value, found := orchestrator.KubernetesResourceCache.Get(orchestrator.BuildStatsKey(node)); found {
 			orcStats := value.(orchestrator.CheckStats)
 			totalMiss := cacheMiss[orcStats.String()]

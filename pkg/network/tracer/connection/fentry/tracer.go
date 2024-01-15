@@ -17,27 +17,25 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
-	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
-	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/features"
 )
 
 const probeUID = "net"
 
+//nolint:revive // TODO(NET) Fix revive linter
 var ErrorNotSupported = errors.New("fentry tracer is only supported on Fargate")
 
 // LoadTracer loads a new tracer
-func LoadTracer(config *config.Config, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler) (*manager.Manager, func(), error) {
+func LoadTracer(config *config.Config, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler, bpfTelemetry *errtelemetry.EBPFTelemetry) (*manager.Manager, func(), error) {
 	if !fargate.IsFargateInstance() {
 		return nil, nil, ErrorNotSupported
 	}
 
-	m := &manager.Manager{}
-	err := ddebpf.LoadCOREAsset(&config.Config, netebpf.ModuleFileName("tracer-fentry", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
+	m := errtelemetry.NewManager(&manager.Manager{}, bpfTelemetry)
+	err := ddebpf.LoadCOREAsset(netebpf.ModuleFileName("tracer-fentry", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
 		o.RLimit = mgrOpts.RLimit
 		o.MapSpecEditors = mgrOpts.MapSpecEditors
 		o.ConstantEditors = mgrOpts.ConstantEditors
@@ -48,29 +46,7 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, perfHandlerTCP *
 			return fmt.Errorf("invalid probe configuration: %v", err)
 		}
 
-		initManager(m, config, perfHandlerTCP)
-
-		// Replace ebpf telemetry maps with Percpu maps if kernel supports
-		if features.HaveMapType(ebpf.PerCPUHash) == nil {
-			if mgrOpts.MapSpecEditors == nil {
-				mgrOpts.MapSpecEditors = make(map[string]manager.MapSpecEditor)
-			}
-			mgrOpts.MapSpecEditors[probes.MapErrTelemetryMap] = manager.MapSpecEditor{
-				Type:       ebpf.PerCPUHash,
-				EditorFlag: manager.EditType,
-			}
-			mgrOpts.MapSpecEditors[probes.HelperErrTelemetryMap] = manager.MapSpecEditor{
-				Type:       ebpf.PerCPUHash,
-				EditorFlag: manager.EditType,
-			}
-		}
-
-		if err := ebpftelemetry.ActivateBPFTelemetry(m, nil); err != nil {
-			return fmt.Errorf("could not activate ebpf telemetry: %w", err)
-		}
-
-		telemetryMapKeys := ebpftelemetry.BuildTelemetryKeys(m)
-		o.ConstantEditors = append(o.ConstantEditors, telemetryMapKeys...)
+		initManager(m, perfHandlerTCP, config)
 
 		file, err := os.Stat("/proc/self/ns/pid")
 
@@ -114,5 +90,5 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, perfHandlerTCP *
 		return nil, nil, err
 	}
 
-	return m, nil, nil
+	return m.Manager, nil, nil
 }

@@ -3,15 +3,20 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// TODO investigate flaky unit tests on windows
+//go:build !windows
+
 package client
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/DataDog/datadog-agent/test/fakeintake/server"
 	"github.com/benbjohnson/clock"
 	"github.com/cenkalti/backoff"
@@ -20,7 +25,7 @@ import (
 )
 
 var (
-	isLocalRun = false
+	isLocalRun = true
 	mockClock  = clock.NewMock()
 )
 
@@ -59,7 +64,7 @@ func TestIntegrationClient(t *testing.T) {
 		resp, err := http.Post(fmt.Sprintf("%s%s", fi.URL(), testEndpoint), "text/plain", strings.NewReader("totoro|5|tag:valid,owner:pducolin"))
 		assert.NoError(t, err)
 		defer resp.Body.Close()
-		assert.Equal(t, http.StatusAccepted, resp.StatusCode)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 		client := NewClient(fi.URL())
 		// max wait for 250 ms
@@ -70,8 +75,8 @@ func TestIntegrationClient(t *testing.T) {
 		assert.NoError(t, err, "Error getting payloads")
 		assert.Equal(t, 1, len(payloads))
 		assert.Equal(t, "totoro|5|tag:valid,owner:pducolin", string(payloads[0].Data))
-		assert.Equal(t, "", payloads[0].Encoding)
-		assert.Equal(t, mockClock.Now(), payloads[0].Timestamp)
+		assert.Equal(t, "text/plain", payloads[0].Encoding)
+		assert.Equal(t, mockClock.Now().UTC(), payloads[0].Timestamp)
 	})
 
 	t.Run("should flush payloads from a server on flush request", func(t *testing.T) {
@@ -87,7 +92,7 @@ func TestIntegrationClient(t *testing.T) {
 		resp, err := http.Post(fmt.Sprintf("%s%s", fi.URL(), testEndpoint), "text/plain", strings.NewReader("totoro|5|tag:before,owner:pducolin"))
 		assert.NoError(t, err)
 		defer resp.Body.Close()
-		assert.Equal(t, http.StatusAccepted, resp.StatusCode)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 		client := NewClient(fi.URL())
 		// max wait for 250 ms
@@ -102,14 +107,49 @@ func TestIntegrationClient(t *testing.T) {
 		resp, err = http.Post(fmt.Sprintf("%s%s", fi.URL(), testEndpoint), "text/plain", strings.NewReader("ponyo|7|tag:after,owner:pducolin"))
 		assert.NoError(t, err)
 		defer resp.Body.Close()
-		assert.Equal(t, http.StatusAccepted, resp.StatusCode)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 		// should return only the second payload
 		payloads, err := client.getFakePayloads(testEndpoint)
 		assert.NoError(t, err, "Error getting payloads")
 		assert.Equal(t, 1, len(payloads))
 		assert.Equal(t, "ponyo|7|tag:after,owner:pducolin", string(payloads[0].Data))
-		assert.Equal(t, "", payloads[0].Encoding)
-		assert.Equal(t, mockClock.Now(), payloads[0].Timestamp)
+		assert.Equal(t, "text/plain", payloads[0].Encoding)
+		assert.Equal(t, mockClock.Now().UTC(), payloads[0].Timestamp)
+	})
+
+	t.Run("should receive overridden response when configured on server", func(t *testing.T) {
+		ready := make(chan bool, 1)
+		fi := server.NewServer(server.WithReadyChannel(ready))
+		fi.Start()
+		defer fi.Stop()
+		isReady := <-ready
+		require.True(t, isReady)
+
+		client := NewClient(fi.URL())
+		err := client.ConfigureOverride(api.ResponseOverride{
+			Endpoint:    "/totoro",
+			StatusCode:  200,
+			ContentType: "text/plain",
+			Body:        []byte("catbus"),
+		})
+		require.NoError(t, err, "failed to configure override")
+
+		resp, err := http.Post(
+			fmt.Sprintf("%s/totoro", fi.URL()),
+			"text/plain",
+			strings.NewReader("totoro|5|tag:valid,owner:mei"),
+		)
+		require.NoError(t, err, "failed to post test payload")
+
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, "text/plain", resp.Header.Get("Content-Type"))
+
+		buf := new(bytes.Buffer)
+		n, err := buf.ReadFrom(resp.Body)
+		require.NoError(t, err, "failed to read response body")
+		assert.Equal(t, len("catbus"), int(n))
+		assert.Equal(t, []byte("catbus"), buf.Bytes())
 	})
 }

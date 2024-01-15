@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGet(t *testing.T) {
-	processes, err := Get()
+func TestCollectInfo(t *testing.T) {
+	processes, err := CollectInfo()
 	require.NoError(t, err)
 
 	require.NotEmpty(t, processes)
@@ -39,8 +39,11 @@ func TestGet(t *testing.T) {
 	}
 }
 
-func TestCollect(t *testing.T) {
-	result, err := new(Processes).Collect()
+func TestAsJSON(t *testing.T) {
+	info, err := CollectInfo()
+	require.NoError(t, err)
+
+	result, _, err := info.AsJSON()
 	require.NoError(t, err)
 
 	marshalled, err := json.Marshal(result)

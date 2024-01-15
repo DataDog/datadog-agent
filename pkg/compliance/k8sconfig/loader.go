@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package k8sconfig is a compliance submodule that is able to parse the
+// Kubernetes components configurations and export it as a log.
 package k8sconfig
 
 import (
@@ -15,6 +17,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -26,7 +29,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const version = "202305"
+const version = "202312"
 
 const (
 	k8sManifestsDir   = "/etc/kubernetes/manifests"
@@ -76,13 +79,6 @@ func (l *loader) load(ctx context.Context, loadProcesses procsLoader) (string, *
 	node.Manifests.KubeScheduler = l.loadConfigFileMeta(filepath.Join(k8sManifestsDir, "kube-scheduler.yaml"))
 	node.Manifests.Etcd = l.loadConfigFileMeta(filepath.Join(k8sManifestsDir, "etcd.yaml"))
 
-	if eksMeta := l.loadConfigFileMeta("/etc/eks/release"); eksMeta != nil {
-		node.ManagedEnvironment = &K8sManagedEnvConfig{
-			Name:     "eks",
-			Metadata: eksMeta.Content,
-		}
-	}
-
 	for _, proc := range loadProcesses(ctx) {
 		switch proc.name {
 		case "etcd":
@@ -95,6 +91,7 @@ func (l *loader) load(ctx context.Context, loadProcesses procsLoader) (string, *
 			node.Components.KubeScheduler = l.newK8sKubeSchedulerConfig(proc.flags)
 		case "kubelet":
 			node.Components.Kubelet = l.newK8sKubeletConfig(proc.flags)
+			node.ManagedEnvironment = l.detectManagedEnvironment(proc.flags, node.Components.Kubelet)
 		case "kube-proxy":
 			node.Components.KubeProxy = l.newK8sKubeProxyConfig(proc.flags)
 		}
@@ -105,11 +102,82 @@ func (l *loader) load(ctx context.Context, loadProcesses procsLoader) (string, *
 	}
 
 	resourceType := "kubernetes_worker_node"
-	if node.Components.KubeApiserver != nil {
+	if managedEnv := node.ManagedEnvironment; managedEnv != nil {
+		switch managedEnv.Name {
+		case "eks":
+			resourceType = "aws_eks_worker_node"
+		case "gke":
+			resourceType = "gcp_gke_worker_node"
+		case "aks":
+			resourceType = "azure_aks_worker_node"
+		}
+	} else if node.Components.KubeApiserver != nil ||
+		node.Components.Etcd != nil ||
+		node.Components.KubeControllerManager != nil ||
+		node.Components.KubeScheduler != nil {
 		resourceType = "kubernetes_master_node"
 	}
 
 	return resourceType, &node
+}
+
+func (l *loader) detectManagedEnvironment(flags map[string]string, kubelet *K8sKubeletConfig) *K8sManagedEnvConfig {
+	nodeLabels, ok := flags["--node-labels"]
+	if ok {
+		for _, label := range strings.Split(nodeLabels, ",") {
+			label = strings.TrimSpace(label)
+			switch {
+			case strings.HasPrefix(label, "cloud.google.com/gke"):
+				return &K8sManagedEnvConfig{
+					Name: "gke",
+				}
+			case strings.HasPrefix(label, "eks.amazonaws.com/"):
+				env := &K8sManagedEnvConfig{
+					Name: "eks",
+				}
+				eksMeta := l.loadConfigFileMeta("/etc/eks/release")
+				if eksMeta != nil {
+					env.Metadata = eksMeta.Content
+				}
+				return env
+			case strings.HasPrefix(label, "kubernetes.azure.com/"):
+				return &K8sManagedEnvConfig{
+					Name: "aks",
+				}
+			}
+		}
+	}
+	if kubelet != nil && kubelet.Kubeconfig != nil && kubelet.Kubeconfig.Kubeconfig != nil {
+		// If we did not find any node-label with clear indication, we check
+		// for the kubelet's kubeconfig server to see if it uses a managed
+		// control-plane. This may be useful for custom images like
+		// Bottlerocket running in EKS for instance.
+		for _, cluster := range kubelet.Kubeconfig.Kubeconfig.Clusters {
+			if clusterURL, err := url.Parse(cluster.Server); err == nil {
+				switch {
+				case strings.HasSuffix(clusterURL.Hostname(), ".eks.amazonaws.com"):
+					return &K8sManagedEnvConfig{
+						Name: "eks",
+					}
+				case strings.HasSuffix(clusterURL.Hostname(), ".azmk8s.io"):
+					return &K8sManagedEnvConfig{
+						Name: "aks",
+					}
+				}
+			}
+		}
+		// For GKE, if we did not find any node-label, we check for the exec
+		// command of the kubeconfig, relying on the gke-exec-auth-plugin
+		// binary.
+		for _, user := range kubelet.Kubeconfig.Kubeconfig.Users {
+			if strings.HasSuffix(user.Exec.Command, "gke-exec-auth-plugin") {
+				return &K8sManagedEnvConfig{
+					Name: "gke",
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func (l *loader) loadMeta(name string, loadContent bool) (string, os.FileInfo, []byte, bool) {
@@ -129,6 +197,7 @@ func (l *loader) loadMeta(name string, loadContent bool) (string, os.FileInfo, [
 		if err != nil {
 			l.pushError(err)
 		} else {
+			defer f.Close()
 			b, err = io.ReadAll(io.LimitReader(f, maxSize))
 			if err != nil {
 				l.pushError(err)
@@ -190,6 +259,38 @@ func (l *loader) loadConfigFileMeta(name string) *K8sConfigFileMeta {
 		Mode:    uint32(info.Mode()),
 		Content: content,
 	}
+}
+
+func (l *loader) getConfigFromPath(meta *K8sConfigFileMeta, path string) (map[string]interface{}, string, bool) {
+	if meta == nil || meta.Content == nil {
+		return nil, "", false
+	}
+	content, ok := meta.Content.(map[string]interface{})
+	if !ok {
+		return nil, "", false
+	}
+	fields := strings.Split(path, ".")
+	if len(fields) == 0 {
+		return nil, "", false
+	}
+	if len(fields) > 1 {
+		for _, field := range fields[:len(fields)-1] {
+			content, ok = content[field].(map[string]interface{})
+			if !ok {
+				return nil, "", false
+			}
+		}
+	}
+	return content, fields[len(fields)-1], true
+}
+
+func (l *loader) configFileMetaHasField(meta *K8sConfigFileMeta, path string) bool {
+	content, lastField, ok := l.getConfigFromPath(meta, path)
+	if ok {
+		_, hasField := content[lastField]
+		return hasField
+	}
+	return false
 }
 
 func (l *loader) loadKubeletConfigFileMeta(name string) *K8sConfigFileMeta {
@@ -294,7 +395,7 @@ func (l *loader) loadKeyFileMeta(name string) *K8sKeyFileMeta {
 
 // https://github.com/kubernetes/kubernetes/blob/ad18954259eae3db51bac2274ed4ca7304b923c4/cmd/kubeadm/test/kubeconfig/util.go#L77-L87
 func (l *loader) loadCertFileMeta(name string) *K8sCertFileMeta {
-	name, info, certData, ok := l.loadMeta(name, true)
+	fullpath, info, certData, ok := l.loadMeta(name, true)
 	if !ok {
 		return nil
 	}
@@ -306,7 +407,7 @@ func (l *loader) loadCertFileMeta(name string) *K8sCertFileMeta {
 	meta.User = utils.GetFileUser(info)
 	meta.Group = utils.GetFileGroup(info)
 	meta.Mode = uint32(info.Mode())
-	dir := filepath.Dir(name)
+	dir := filepath.Dir(fullpath)
 	if dirInfo, err := os.Stat(dir); err == nil {
 		meta.DirMode = uint32(dirInfo.Mode())
 		meta.DirUser = utils.GetFileUser(dirInfo)
@@ -414,13 +515,18 @@ func (l *loader) loadKubeconfigMeta(name string) *K8sKubeconfigMeta {
 		if clientKeyFile := user.User.ClientKey; clientKeyFile != "" {
 			clientKey = l.loadKeyFileMeta(clientKeyFile)
 		}
-		content.Users[user.Name] = &K8sKubeconfigUser{
+		userTgt := &K8sKubeconfigUser{
 			UseToken:          user.User.TokenFile != "" || user.User.Token != "",
 			UsePassword:       user.User.Password != "",
-			Exec:              user.User.Exec,
 			ClientCertificate: clientCert,
 			ClientKey:         clientKey,
 		}
+		if exec := user.User.Exec; exec != nil {
+			userTgt.Exec.APIVersion = exec.APIVersion
+			userTgt.Exec.Command = exec.Command
+			userTgt.Exec.Args = exec.Args
+		}
+		content.Users[user.Name] = userTgt
 	}
 	for _, context := range source.Contexts {
 		content.Contexts[context.Name] = &K8sKubeconfigContext{
@@ -491,40 +597,53 @@ func (l *loader) pushError(err error) {
 	}
 }
 
-func (l *loader) parseBool(v string) bool {
+func (l *loader) parseBool(v string) *bool {
 	if v == "" {
-		return true
+		return nil
 	}
 	b, err := strconv.ParseBool(v)
 	if err != nil {
 		l.pushError(err)
+		return nil
 	}
-	return b
+	return &b
 }
 
 //nolint:unused,deadcode
-func (l *loader) parseFloat(v string) float64 {
+func (l *loader) parseFloat(v string) *float64 {
+	if v == "" {
+		return nil
+	}
 	f, err := strconv.ParseFloat(v, 64)
 	if err != nil {
 		l.pushError(err)
+		return nil
 	}
-	return f
+	return &f
 }
 
-func (l *loader) parseInt(v string) int {
+func (l *loader) parseInt(v string) *int {
+	if v == "" {
+		return nil
+	}
 	i, err := strconv.Atoi(v)
 	if err != nil {
 		l.pushError(err)
+		return nil
 	}
-	return i
+	return &i
 }
 
-func (l *loader) parseDuration(v string) time.Duration {
+func (l *loader) parseDuration(v string) *time.Duration {
+	if v == "" {
+		return nil
+	}
 	d, err := time.ParseDuration(v)
 	if err != nil {
 		l.pushError(err)
+		return nil
 	}
-	return d
+	return &d
 }
 
 func buildProc(name string, cmdline []string) proc {

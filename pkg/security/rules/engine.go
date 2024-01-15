@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-
+// Package rules holds rules related files
 package rules
 
 import (
@@ -12,10 +11,9 @@ import (
 	json "encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"os/signal"
+	"runtime"
+	"strconv"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -28,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
+	"github.com/DataDog/datadog-agent/pkg/security/rules/monitor"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -37,10 +36,13 @@ import (
 )
 
 const (
+	// ProbeEvaluationRuleSetTagValue defines the probe evaluation rule-set tag value
 	ProbeEvaluationRuleSetTagValue = "probe_evaluation"
-	ThreatScoreRuleSetTagValue     = "threat_score"
+	// ThreatScoreRuleSetTagValue defines the threat-score rule-set tag value
+	ThreatScoreRuleSetTagValue = "threat_score"
 )
 
+// RuleEngine defines a rule engine
 type RuleEngine struct {
 	sync.RWMutex
 	config                    *config.RuntimeSecurityConfig
@@ -55,17 +57,19 @@ type RuleEngine struct {
 	policyProviders           []rules.PolicyProvider
 	policyLoader              *rules.PolicyLoader
 	policyOpts                rules.PolicyLoaderOpts
-	policyMonitor             *PolicyMonitor
-	sighupChan                chan os.Signal
+	policyMonitor             *monitor.PolicyMonitor
 	statsdClient              statsd.ClientInterface
 	eventSender               events.EventSender
 	rulesetListeners          []rules.RuleSetListener
 }
 
+// APIServer defines the API server
 type APIServer interface {
-	Apply([]string)
+	ApplyRuleIDs([]rules.RuleID)
+	ApplyPolicyStates([]*monitor.PolicyState)
 }
 
+// NewRuleEngine returns a new rule engine
 func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurityConfig, probe *probe.Probe, rateLimiter *events.RateLimiter, apiServer APIServer, sender events.EventSender, statsdClient statsd.ClientInterface, rulesetListeners ...rules.RuleSetListener) (*RuleEngine, error) {
 	engine := &RuleEngine{
 		probe:                     probe,
@@ -74,24 +78,36 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 		eventSender:               sender,
 		rateLimiter:               rateLimiter,
 		reloading:                 atomic.NewBool(false),
-		policyMonitor:             NewPolicyMonitor(evm.StatsdClient, config.PolicyMonitorPerRuleEnabled),
+		policyMonitor:             monitor.NewPolicyMonitor(evm.StatsdClient, config.PolicyMonitorPerRuleEnabled),
 		currentRuleSet:            new(atomic.Value),
 		currentThreatScoreRuleSet: new(atomic.Value),
 		policyLoader:              rules.NewPolicyLoader(),
-		sighupChan:                make(chan os.Signal, 1),
 		statsdClient:              statsdClient,
 		rulesetListeners:          rulesetListeners,
 	}
 
 	// register as event handler
-	if err := probe.AddEventHandler(model.UnknownEventType, engine); err != nil {
+	if err := probe.AddFullAccessEventHandler(engine); err != nil {
 		return nil, err
 	}
+
+	engine.policyProviders = engine.gatherDefaultPolicyProviders()
 
 	return engine, nil
 }
 
-func (e *RuleEngine) Start(ctx context.Context, wg *sync.WaitGroup) error {
+func getOrigin(cfg *config.RuntimeSecurityConfig) string {
+	if runtime.GOOS == "linux" {
+		if cfg.EBPFLessEnabled {
+			return "ebpfless"
+		}
+		return "ebpf"
+	}
+	return ""
+}
+
+// Start the rule engine
+func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *sync.WaitGroup) error {
 	// monitor policies
 	if e.config.PolicyMonitorEnabled {
 		e.policyMonitor.Start(ctx)
@@ -114,7 +130,10 @@ func (e *RuleEngine) Start(ctx context.Context, wg *sync.WaitGroup) error {
 		ruleFilters = append(ruleFilters, agentVersionFilter)
 	}
 
-	ruleFilterModel := NewRuleFilterModel()
+	ruleFilterModel, err := NewRuleFilterModel(getOrigin(e.config))
+	if err != nil {
+		return fmt.Errorf("failed to create rule filter: %w", err)
+	}
 	seclRuleFilter := rules.NewSECLRuleFilter(ruleFilterModel)
 	macroFilters = append(macroFilters, seclRuleFilter)
 	ruleFilters = append(ruleFilters, seclRuleFilter)
@@ -124,18 +143,15 @@ func (e *RuleEngine) Start(ctx context.Context, wg *sync.WaitGroup) error {
 		RuleFilters:  ruleFilters,
 	}
 
-	policyProviders := e.gatherPolicyProviders()
-	if err := e.LoadPolicies(policyProviders, true); err != nil {
-		return fmt.Errorf("failed to load policies: %s", err)
+	if err := e.LoadPolicies(e.policyProviders, true); err != nil {
+		return fmt.Errorf("failed to load policies: %w", err)
 	}
-
-	signal.Notify(e.sighupChan, syscall.SIGHUP)
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 
-		for range e.sighupChan {
+		for range reloadChan {
 			if err := e.ReloadPolicies(); err != nil {
 				seclog.Errorf("failed to reload policies: %s", err)
 			}
@@ -185,6 +201,40 @@ func (e *RuleEngine) Start(ctx context.Context, wg *sync.WaitGroup) error {
 			}
 		}
 	}()
+
+	// Sending an heartbeat event every minute
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		// 5 heartbeats with a period of 1 min, after that we move the period to 10 min
+		// if the policies change we go back to 5 beats every 1 min
+
+		heartbeatTicker := time.NewTicker(1 * time.Minute)
+		defer heartbeatTicker.Stop()
+
+		heartBeatCounter := 5
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-e.policyLoader.NewPolicyReady():
+				heartBeatCounter = 5
+				heartbeatTicker.Reset(1 * time.Minute)
+				// we report a heartbeat anyway
+				e.policyMonitor.ReportHeartbeatEvent(e.eventSender)
+			case <-heartbeatTicker.C:
+				e.policyMonitor.ReportHeartbeatEvent(e.eventSender)
+				if heartBeatCounter > 0 {
+					heartBeatCounter--
+					if heartBeatCounter == 0 {
+						heartbeatTicker.Reset(10 * time.Minute)
+					}
+				}
+			}
+		}
+	}()
 	return nil
 }
 
@@ -195,8 +245,15 @@ func (e *RuleEngine) ReloadPolicies() error {
 	return e.LoadPolicies(e.policyProviders, true)
 }
 
+// AddPolicyProvider add a provider
+func (e *RuleEngine) AddPolicyProvider(provider rules.PolicyProvider) {
+	e.Lock()
+	defer e.Unlock()
+	e.policyProviders = append(e.policyProviders, provider)
+}
+
 // LoadPolicies loads the policies
-func (e *RuleEngine) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoadedReport bool) error {
+func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedReport bool) error {
 	seclog.Infof("load policies")
 
 	e.Lock()
@@ -206,7 +263,7 @@ func (e *RuleEngine) LoadPolicies(policyProviders []rules.PolicyProvider, sendLo
 	defer e.reloading.Store(false)
 
 	// load policies
-	e.policyLoader.SetProviders(policyProviders)
+	e.policyLoader.SetProviders(providers)
 
 	evaluationSet, err := e.probe.NewEvaluationSet(e.getEventTypeEnabled(), []string{ProbeEvaluationRuleSetTagValue, ThreatScoreRuleSetTagValue})
 	if err != nil {
@@ -220,7 +277,6 @@ func (e *RuleEngine) LoadPolicies(policyProviders []rules.PolicyProvider, sendLo
 
 	// update current policies related module attributes
 	e.policiesVersions = getPoliciesVersions(evaluationSet)
-	e.policyProviders = policyProviders
 
 	// notify listeners
 	if e.rulesLoaded != nil {
@@ -251,13 +307,17 @@ func (e *RuleEngine) LoadPolicies(policyProviders []rules.PolicyProvider, sendLo
 	}
 
 	if probeEvaluationRuleSet != nil {
-		e.currentRuleSet.Store(probeEvaluationRuleSet)
-		ruleIDs = append(ruleIDs, probeEvaluationRuleSet.ListRuleIDs()...)
-
 		// analyze the ruleset, push probe evaluation rule sets to the kernel and generate the policy report
 		report, err := e.probe.ApplyRuleSet(probeEvaluationRuleSet)
 		if err != nil {
 			return err
+		}
+
+		e.currentRuleSet.Store(probeEvaluationRuleSet)
+		ruleIDs = append(ruleIDs, probeEvaluationRuleSet.ListRuleIDs()...)
+
+		if err := e.probe.FlushDiscarders(); err != nil {
+			return fmt.Errorf("failed to flush discarders: %w", err)
 		}
 
 		content, _ := json.Marshal(report)
@@ -268,18 +328,26 @@ func (e *RuleEngine) LoadPolicies(policyProviders []rules.PolicyProvider, sendLo
 
 	}
 
-	e.apiServer.Apply(ruleIDs)
+	policies := monitor.NewPoliciesState(evaluationSet.RuleSets, loadErrs, e.config.PolicyMonitorReportInternalPolicies)
+	e.notifyAPIServer(ruleIDs, policies)
 
 	if sendLoadedReport {
-		ReportRuleSetLoaded(e.eventSender, e.statsdClient, evaluationSet.RuleSets, loadErrs)
-		e.policyMonitor.SetPolicies(evaluationSet.GetPolicies(), loadErrs)
+		monitor.ReportRuleSetLoaded(e.eventSender, e.statsdClient, policies)
+		e.policyMonitor.SetPolicies(policies)
 	}
 
 	return nil
 }
 
-func (e *RuleEngine) gatherPolicyProviders() []rules.PolicyProvider {
+func (e *RuleEngine) notifyAPIServer(ruleIDs []rules.RuleID, policies []*monitor.PolicyState) {
+	e.apiServer.ApplyRuleIDs(ruleIDs)
+	e.apiServer.ApplyPolicyStates(policies)
+}
+
+func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {
 	var policyProviders []rules.PolicyProvider
+
+	policyProviders = append(policyProviders, NewBundledPolicyProvider(e.config))
 
 	// add remote config as config provider if enabled.
 	if e.config.RemoteConfigurationEnabled {
@@ -301,11 +369,6 @@ func (e *RuleEngine) gatherPolicyProviders() []rules.PolicyProvider {
 	return policyProviders
 }
 
-// GetPolicyProviders returns the active policy providers
-func (e *RuleEngine) GetPolicyProviders() []rules.PolicyProvider {
-	return e.policyProviders
-}
-
 // EventDiscarderFound is called by the ruleset when a new discarder discovered
 func (e *RuleEngine) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
 	if e.reloading.Load() {
@@ -324,14 +387,39 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 		return false
 	}
 
+	ev.Suppressed = false
+	if e.config.SecurityProfileAutoSuppressionEnabled &&
+		ev.SecurityProfileContext.Status.IsEnabled(model.AutoSuppression) &&
+		ev.IsInProfile() {
+		if val, ok := rule.Definition.GetTag("allow_autosuppression"); ok {
+			if b, err := strconv.ParseBool(val); err == nil && b {
+				ev.Suppressed = true
+			}
+		}
+	}
+
+	if !ev.Suppressed {
+		e.probe.HandleActions(rule, event)
+	}
+
+	if rule.Definition.Silent {
+		return false
+	}
+
 	// ensure that all the fields are resolved before sending
 	ev.FieldHandlers.ResolveContainerID(ev, ev.ContainerContext)
 	ev.FieldHandlers.ResolveContainerTags(ev, ev.ContainerContext)
 	ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.ContainerContext)
 
-	if ev.ContainerContext.ID != "" && (e.config.ActivityDumpTagRulesEnabled || e.config.AnomalyDetectionTagRulesEnabled) {
+	if ev.ContainerContext.ID != "" && (e.config.ActivityDumpTagRulesEnabled || e.config.AnomalyDetectionTagRulesEnabled) && !ev.Suppressed {
 		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Definition.ID, rule.Definition.Version, rule.Definition.Tags, rule.Definition.Policy.Name, rule.Definition.Policy.Version))
 	}
+
+	// do not send event if a anomaly detection event will be sent
+	if e.config.AnomalyDetectionSilentRuleEventsEnabled && ev.IsAnomalyDetectionEvent() {
+		return false
+	}
+
 	if val, ok := rule.Definition.GetTag("ruleset"); ok && val == "threat_score" {
 		return false // if the triggered rule is only meant to tag secdumps, dont send it
 	}
@@ -349,10 +437,8 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 	return true
 }
 
+// Stop stops the rule engine
 func (e *RuleEngine) Stop() {
-	signal.Stop(e.sighupChan)
-	close(e.sighupChan)
-
 	for _, provider := range e.policyProviders {
 		_ = provider.Close()
 	}
@@ -440,30 +526,28 @@ func (e *RuleEngine) HandleEvent(event *model.Event) {
 	}
 
 	if ruleSet := e.GetRuleSet(); ruleSet != nil {
-		if (event.SecurityProfileContext.Status.IsEnabled(model.AutoSuppression) && event.IsInProfile()) || !ruleSet.Evaluate(event) {
+		if !ruleSet.Evaluate(event) {
 			ruleSet.EvaluateDiscarders(event)
 		}
 	}
 }
 
+// StopEventCollector stops the event collector
 func (e *RuleEngine) StopEventCollector() []rules.CollectedEvent {
 	return e.GetRuleSet().StopEventCollector()
 }
 
 func logLoadingErrors(msg string, m *multierror.Error) {
-	var errorLevel bool
 	for _, err := range m.Errors {
 		if rErr, ok := err.(*rules.ErrRuleLoad); ok {
-			if !errors.Is(rErr.Err, rules.ErrEventTypeNotEnabled) {
-				errorLevel = true
+			if !errors.Is(rErr.Err, rules.ErrEventTypeNotEnabled) && !errors.Is(rErr.Err, rules.ErrRuleAgentFilter) {
+				seclog.Errorf(msg, rErr.Error())
+			} else {
+				seclog.Warnf(msg, rErr.Error())
 			}
+		} else {
+			seclog.Errorf(msg, err.Error())
 		}
-	}
-
-	if errorLevel {
-		seclog.Errorf(msg, m.Error())
-	} else {
-		seclog.Warnf(msg, m.Error())
 	}
 }
 

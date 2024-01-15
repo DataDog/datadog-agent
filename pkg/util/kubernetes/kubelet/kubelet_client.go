@@ -68,7 +68,12 @@ func newForConfig(config kubeletClientConfig, timeout time.Duration) (*kubeletCl
 	if config.caPath != "" {
 		tlsConfig.RootCAs, err = kubernetes.GetCertificateAuthority(config.caPath)
 		if err != nil {
-			return nil, err
+			// Ignore failure in retrieving root CA as kubelet_tls_verify=false make the RootCAs parameter un-used.
+			if tlsConfig.InsecureSkipVerify {
+				log.Debugf("Failed to retrieve root certificate authority from path %s: %s. Ignoring error as kubelet_tls_verify=false", config.caPath, err)
+			} else {
+				return nil, err
+			}
 		}
 	}
 

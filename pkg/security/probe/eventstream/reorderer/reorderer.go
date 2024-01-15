@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package reorderer holds reorderer related files
 package reorderer
 
 import (
@@ -74,7 +75,7 @@ func (h *reOrdererHeap) greater(i, j int) bool {
 	return h.heap[i].timestamp > h.heap[j].timestamp
 }
 
-func (h *reOrdererHeap) up(node *reOrdererNode, i int, metric *ReOrdererMetric) {
+func (h *reOrdererHeap) up(i int, metric *Metric) {
 	var parent int
 	for {
 		parent = (i - 1) / 2
@@ -87,7 +88,7 @@ func (h *reOrdererHeap) up(node *reOrdererNode, i int, metric *ReOrdererMetric) 
 	}
 }
 
-func (h *reOrdererHeap) down(i int, n int, metric *ReOrdererMetric) {
+func (h *reOrdererHeap) down(i int, n int, metric *Metric) {
 	var left, right, largest int
 	for {
 		left = 2*i + 1
@@ -107,7 +108,7 @@ func (h *reOrdererHeap) down(i int, n int, metric *ReOrdererMetric) {
 	}
 }
 
-func (h *reOrdererHeap) enqueue(record *perf.Record, tm uint64, generation uint64, metric *ReOrdererMetric) {
+func (h *reOrdererHeap) enqueue(record *perf.Record, tm uint64, generation uint64, metric *Metric) {
 	node := h.pool.alloc()
 	node.timestamp = tm
 	node.record = record
@@ -116,10 +117,10 @@ func (h *reOrdererHeap) enqueue(record *perf.Record, tm uint64, generation uint6
 	metric.TotalOp++
 
 	h.heap = append(h.heap, node)
-	h.up(node, len(h.heap)-1, metric)
+	h.up(len(h.heap)-1, metric)
 }
 
-func (h *reOrdererHeap) dequeue(handler func(record *perf.Record), generation uint64, metric *ReOrdererMetric, opts *ReOrdererOpts) {
+func (h *reOrdererHeap) dequeue(handler func(record *perf.Record), generation uint64, metric *Metric, opts *Opts) {
 	var n, i int
 	var node *reOrdererNode
 
@@ -155,8 +156,8 @@ func (h *reOrdererHeap) dequeue(handler func(record *perf.Record), generation ui
 	}
 }
 
-// ReOrdererOpts options to pass when creating a new instance of ReOrderer
-type ReOrdererOpts struct {
+// Opts options to pass when creating a new instance of ReOrderer
+type Opts struct {
 	QueueSize       uint64        // size of the chan where the perf data are pushed
 	Rate            time.Duration // delay between two time based iterations
 	Retention       uint64        // bucket to keep before dequeueing
@@ -164,14 +165,14 @@ type ReOrdererOpts struct {
 	HeapShrinkDelta int           // delta between cap and len between releasing heap array
 }
 
-func (r *ReOrdererMetric) zero() {
+func (r *Metric) zero() {
 	// keep size of avoid overflow between queue/dequeue
 	r.TotalDepth = 0
 	r.TotalOp = 0
 }
 
-// ReOrdererMetric holds reordering metrics
-type ReOrdererMetric struct {
+// Metric holds reordering metrics
+type Metric struct {
 	TotalOp    uint64
 	TotalDepth uint64
 	QueueSize  uint64
@@ -184,9 +185,9 @@ type ReOrderer struct {
 	handler     func(*perf.Record)
 	heap        *reOrdererHeap
 	extractInfo QuickInfoExtractor // timestamp
-	opts        ReOrdererOpts
-	metric      ReOrdererMetric
-	Metrics     chan ReOrdererMetric
+	opts        Opts
+	metric      Metric
+	Metrics     chan Metric
 	generation  uint64
 }
 
@@ -247,7 +248,7 @@ func (r *ReOrderer) Start(wg *sync.WaitGroup) {
 }
 
 // HandleEvent handle event form perf ring
-func (r *ReOrderer) HandleEvent(record *perf.Record, perfMap *manager.PerfMap, manager *manager.Manager) {
+func (r *ReOrderer) HandleEvent(record *perf.Record, _ *manager.PerfMap, _ *manager.Manager) {
 	select {
 	case r.queue <- record:
 		return
@@ -258,7 +259,7 @@ func (r *ReOrderer) HandleEvent(record *perf.Record, perfMap *manager.PerfMap, m
 
 // QuickInfo represents the info quickly extractable from an event, that can be used for reordering
 type QuickInfo struct {
-	Cpu       uint64
+	CPU       uint64
 	Timestamp uint64
 }
 
@@ -266,7 +267,7 @@ type QuickInfo struct {
 type QuickInfoExtractor = func(record *perf.Record) (QuickInfo, error)
 
 // NewReOrderer returns a new ReOrderer
-func NewReOrderer(ctx context.Context, handler func(record *perf.Record), extractInfo QuickInfoExtractor, opts ReOrdererOpts) *ReOrderer {
+func NewReOrderer(ctx context.Context, handler func(record *perf.Record), extractInfo QuickInfoExtractor, opts Opts) *ReOrderer {
 	return &ReOrderer{
 		ctx:     ctx,
 		queue:   make(chan *perf.Record, opts.QueueSize),
@@ -276,7 +277,7 @@ func NewReOrderer(ctx context.Context, handler func(record *perf.Record), extrac
 		},
 		extractInfo: extractInfo,
 		opts:        opts,
-		Metrics:     make(chan ReOrdererMetric, 10),
+		Metrics:     make(chan Metric, 10),
 		generation:  opts.Retention * 2, // start with retention to avoid direct dequeue at start
 	}
 }

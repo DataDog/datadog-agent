@@ -12,11 +12,13 @@ import (
 	"sort"
 )
 
+// CheckStatus represents the status of a check
 type CheckStatus struct {
 	WorkersNeeded float64
 	Runner        string
 }
 
+// RunnerStatus represents the status of a check runner
 type RunnerStatus struct {
 	Workers     int
 	WorkersUsed float64
@@ -57,13 +59,19 @@ func newChecksDistribution(workersPerRunner map[string]int) checksDistribution {
 // leastBusyRunner returns the runner with the lowest utilization. If there are
 // several options, it gives preference to preferredRunner. If preferredRunner
 // is not among the runners with the lowest utilization, it gives precedence to
-// the runner with the lowest number of checks deployed.
-func (distribution *checksDistribution) leastBusyRunner(preferredRunner string) string {
+// the runner with the lowest number of checks deployed. excludeRunner can be set
+// to avoid assigning a check to a specific runner.
+func (distribution *checksDistribution) leastBusyRunner(preferredRunner string, excludeRunner string) string {
 	leastBusyRunner := ""
 	minUtilization := 0.0
 	numChecksLeastBusyRunner := 0
 
 	for runnerName, runnerStatus := range distribution.Runners {
+		// Allow exclusion of a runner from selection
+		if runnerName == excludeRunner {
+			continue
+		}
+
 		runnerUtilization := runnerStatus.utilization()
 		runnerNumChecks := runnerStatus.NumChecks
 
@@ -82,8 +90,8 @@ func (distribution *checksDistribution) leastBusyRunner(preferredRunner string) 
 	return leastBusyRunner
 }
 
-func (distribution *checksDistribution) addToLeastBusy(checkID string, workersNeeded float64, preferredRunner string) {
-	leastBusy := distribution.leastBusyRunner(preferredRunner)
+func (distribution *checksDistribution) addToLeastBusy(checkID string, workersNeeded float64, preferredRunner string, excludeRunner string) {
+	leastBusy := distribution.leastBusyRunner(preferredRunner, excludeRunner)
 	if leastBusy == "" {
 		return
 	}
@@ -100,7 +108,7 @@ func (distribution *checksDistribution) addCheck(checkID string, workersNeeded f
 	runnerInfo, runnerExists := distribution.Runners[runner]
 	if runnerExists {
 		runnerInfo.WorkersUsed += workersNeeded
-		runnerInfo.NumChecks += 1
+		runnerInfo.NumChecks++
 	} else {
 		distribution.Runners[runner] = &RunnerStatus{
 			WorkersUsed: workersNeeded,
@@ -175,7 +183,7 @@ func (distribution *checksDistribution) numEmptyRunners() int {
 
 	for _, runnerStatus := range distribution.Runners {
 		if runnerStatus.NumChecks == 0 {
-			empty += 1
+			empty++
 		}
 	}
 
@@ -187,7 +195,7 @@ func (distribution *checksDistribution) numRunnersWithHighUtilization() int {
 
 	for _, runnerStatus := range distribution.Runners {
 		if runnerStatus.utilization() > 0.8 {
-			withHighUtilization += 1
+			withHighUtilization++
 		}
 	}
 

@@ -10,12 +10,12 @@ import re
 import sys
 import time
 from subprocess import check_output
+from types import SimpleNamespace
 
 from invoke import task
 from invoke.exceptions import Exit
 
 from .libs.common.color import color_message
-from .libs.common.remote_api import APIError
 
 # constants
 DEFAULT_BRANCH = "main"
@@ -23,7 +23,7 @@ GITHUB_ORG = "DataDog"
 REPO_NAME = "datadog-agent"
 GITHUB_REPO_NAME = f"{GITHUB_ORG}/{REPO_NAME}"
 REPO_PATH = f"github.com/{GITHUB_REPO_NAME}"
-ALLOWED_REPO_NON_NIGHTLY_BRANCHES = {"stable", "beta", "none"}
+ALLOWED_REPO_NON_NIGHTLY_BRANCHES = {"dev", "stable", "beta", "none"}
 ALLOWED_REPO_NIGHTLY_BRANCHES = {"nightly", "oldnightly"}
 ALLOWED_REPO_ALL_BRANCHES = ALLOWED_REPO_NON_NIGHTLY_BRANCHES.union(ALLOWED_REPO_NIGHTLY_BRANCHES)
 if sys.platform == "darwin":
@@ -121,6 +121,7 @@ def get_build_flags(
     python_home_3=None,
     major_version='7',
     python_runtimes='3',
+    headless_mode=False,
 ):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
@@ -164,18 +165,22 @@ def get_build_flags(
 
     # If we're not building with both Python, we want to force the use of DefaultPython
     if not has_both_python(python_runtimes):
-        ldflags += f"-X {REPO_PATH}/pkg/config.ForceDefaultPython=true "
+        ldflags += f"-X {REPO_PATH}/pkg/config/setup.ForceDefaultPython=true "
 
-    ldflags += f"-X {REPO_PATH}/pkg/config.DefaultPython={get_default_python(python_runtimes)} "
+    ldflags += f"-X {REPO_PATH}/pkg/config/setup.DefaultPython={get_default_python(python_runtimes)} "
 
     # adding rtloader libs and headers to the env
     if rtloader_lib:
-        print(
-            f"--- Setting rtloader paths to lib:{','.join(rtloader_lib)} | header:{rtloader_headers} | common headers:{rtloader_common_headers}"
-        )
+        if not headless_mode:
+            print(
+                f"--- Setting rtloader paths to lib:{','.join(rtloader_lib)} | header:{rtloader_headers} | common headers:{rtloader_common_headers}"
+            )
         env['DYLD_LIBRARY_PATH'] = os.environ.get('DYLD_LIBRARY_PATH', '') + f":{':'.join(rtloader_lib)}"  # OSX
         env['LD_LIBRARY_PATH'] = os.environ.get('LD_LIBRARY_PATH', '') + f":{':'.join(rtloader_lib)}"  # linux
         env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + f" -L{' -L '.join(rtloader_lib)}"
+
+    if sys.platform == 'win32':
+        env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + ' -Wl,--allow-multiple-definition'
 
     extra_cgo_flags = " -Werror -Wno-deprecated-declarations"
     if rtloader_headers:
@@ -360,16 +365,28 @@ def cache_version(ctx, git_sha_length=7, prefix=None):
             ctx, git_sha_length, prefix, major_version_hint=maj_version
         )
         packed_data[maj_version] = [version, pre, commits_since_version, git_sha, pipeline_id]
-    packed_data["nightly"] = is_allowed_repo_nightly_branch(os.getenv("BUCKET_BRANCH"))
+    bucket_branch = os.getenv("BUCKET_BRANCH")
+    packed_data["nightly"] = is_allowed_repo_nightly_branch(bucket_branch)
+    packed_data["dev"] = bucket_branch == "dev"
     with open(AGENT_VERSION_CACHE_NAME, "w") as file:
         json.dump(packed_data, file, indent=4)
 
 
 def get_version(
-    ctx, include_git=False, url_safe=False, git_sha_length=7, prefix=None, major_version='7', include_pipeline_id=False
+    ctx,
+    url_safe=False,
+    git_sha_length=7,
+    prefix=None,
+    major_version='7',
+    include_pipeline_id=False,
+    pipeline_id=None,
+    include_git=False,
+    include_pre=True,
 ):
     version = ""
-    pipeline_id = os.getenv("CI_PIPELINE_ID")
+    if pipeline_id is None:
+        pipeline_id = os.getenv("CI_PIPELINE_ID")
+
     project_name = os.getenv("CI_PROJECT_NAME")
     try:
         agent_version_cache_file_exist = os.path.exists(AGENT_VERSION_CACHE_NAME)
@@ -386,24 +403,28 @@ def get_version(
                 cache_data = json.load(file)
 
             version, pre, commits_since_version, git_sha, pipeline_id = cache_data[major_version]
-            is_nightly = cache_data["nightly"]
+            # Dev's versions behave the same as nightly
+            is_nightly = cache_data["nightly"] or cache_data["dev"]
 
-            if pre:
+            if pre and include_pre:
                 version = f"{version}-{pre}"
     except (IOError, json.JSONDecodeError, IndexError) as e:
         # If a cache file is found but corrupted we ignore it.
-        print(f"Error while recovering the version from {AGENT_VERSION_CACHE_NAME}: {e}")
+        print(f"Error while recovering the version from {AGENT_VERSION_CACHE_NAME}: {e}", file=sys.stderr)
         version = ""
     # If we didn't load the cache
     if not version:
-        print("[WARN] Agent version cache file hasn't been loaded !")
+        if pipeline_id:
+            # only log this warning in CI
+            print("[WARN] Agent version cache file hasn't been loaded !", file=sys.stderr)
         # we only need the git info for the non omnibus builds, omnibus includes all this information by default
         version, pre, commits_since_version, git_sha, pipeline_id = query_version(
             ctx, git_sha_length, prefix, major_version_hint=major_version
         )
-
-        is_nightly = is_allowed_repo_nightly_branch(os.getenv("BUCKET_BRANCH"))
-        if pre:
+        # Dev's versions behave the same as nightly
+        bucket_branch = os.getenv("BUCKET_BRANCH")
+        is_nightly = is_allowed_repo_nightly_branch(bucket_branch) or bucket_branch == "dev"
+        if pre and include_pre:
             version = f"{version}-{pre}"
 
     if not commits_since_version and is_nightly and include_git:
@@ -513,7 +534,7 @@ def check_clean_branch_state(ctx, github, branch):
             code=1,
         )
 
-    if check_upstream_branch(github, branch):
+    if github.get_branch(branch) is not None:
         raise Exit(
             color_message(
                 f"The branch {branch} already exists upstream. Please remove it before trying again.",
@@ -543,28 +564,15 @@ def check_local_branch(ctx, branch):
     return matching_branch != "0"
 
 
-def check_upstream_branch(github, branch):
-    """
-    Checks if the given branch already exists in the upstream repository
-    """
-    try:
-        github_branch = github.get_branch(branch)
-    except APIError as e:
-        if e.status_code == 404:
-            return False
-        raise e
-
-    # Return True if the branch exists
-    return github_branch and github_branch.get('name', False)
-
-
 @contextlib.contextmanager
-def timed(name=""):
+def timed(name="", quiet=False):
     """Context manager that prints how long it took"""
     start = time.time()
+    res = SimpleNamespace()
     print(f"{name}")
     try:
-        yield
+        yield res
     finally:
-        end = time.time()
-        print(f"{name} completed in {end-start:.2f}s")
+        res.duration = time.time() - start
+        if not quiet:
+            print(f"{name} completed in {res.duration:.2f}s")

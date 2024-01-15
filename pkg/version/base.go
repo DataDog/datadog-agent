@@ -3,11 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// This module should be updated at every release
-
+// Package version defines the version of the agent
 package version
 
-// AgentVersion contains the version of the Agent
+// AgentVersion contains the version of the Agent.
+// It is populated at build time using build flags, see get_version_ldflags in tasks/utils.py
 var AgentVersion string
 
 // Commit is populated with the short commit hash from which the Agent was built

@@ -1,4 +1,5 @@
 version: '3'
+name: java
 services:
   java:
     image: ${IMAGE_VERSION}
@@ -13,4 +14,4 @@ services:
         soft: 1024
         hard: 524288
     volumes:
-      - ./:/v:z
+      - ${TESTDIR}:/v:z

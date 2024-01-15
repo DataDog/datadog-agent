@@ -14,58 +14,22 @@
     - printf -- "$RPM_GPG_KEY" | gpg --import --batch
     - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name $RPM_SIGNING_PASSPHRASE_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
     - set -x
+    - tar -xf $CI_PROJECT_DIR/sysprobe-build-outputs.tar.xz
     - mkdir -p /tmp/system-probe
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/system-probe.${PACKAGE_ARCH} /tmp/system-probe/system-probe
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/tracer.o.${PACKAGE_ARCH} /tmp/system-probe/tracer.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/tracer-debug.o.${PACKAGE_ARCH} /tmp/system-probe/tracer-debug.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/offset-guess.o.${PACKAGE_ARCH} /tmp/system-probe/offset-guess.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/offset-guess-debug.o.${PACKAGE_ARCH} /tmp/system-probe/offset-guess-debug.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/usm.o.${PACKAGE_ARCH} /tmp/system-probe/usm.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/usm-debug.o.${PACKAGE_ARCH} /tmp/system-probe/usm-debug.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/shared-libraries.o.${PACKAGE_ARCH} /tmp/system-probe/shared-libraries.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/shared-libraries-debug.o.${PACKAGE_ARCH} /tmp/system-probe/shared-libraries-debug.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/dns.o.${PACKAGE_ARCH} /tmp/system-probe/dns.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/dns-debug.o.${PACKAGE_ARCH} /tmp/system-probe/dns-debug.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/conntrack.o.${PACKAGE_ARCH} /tmp/system-probe/conntrack.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/conntrack-debug.o.${PACKAGE_ARCH} /tmp/system-probe/conntrack-debug.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/runtime-security.o.${PACKAGE_ARCH} /tmp/system-probe/runtime-security.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/runtime-security-syscall-wrapper.o.${PACKAGE_ARCH} /tmp/system-probe/runtime-security-syscall-wrapper.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/runtime-security-fentry.o.${PACKAGE_ARCH} /tmp/system-probe/runtime-security-fentry.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/runtime-security-offset-guesser.o.${PACKAGE_ARCH} /tmp/system-probe/runtime-security-offset-guesser.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/oom-kill-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/oom-kill-co-re.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/tcp-queue-length-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/tcp-queue-length-co-re.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/ebpf-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/ebpf-co-re.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/ebpf-debug-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/ebpf-debug-co-re.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/tracer-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/tracer-co-re.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/tracer-debug-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/tracer-debug-co-re.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/tracer-fentry-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/tracer-fentry-co-re.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/tracer-fentry-debug-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/tracer-fentry-debug-co-re.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/usm-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/usm-co-re.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/usm-debug-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/usm-debug-co-re.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/shared-libraries-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/shared-libraries-co-re.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/shared-libraries-debug-co-re.o.${PACKAGE_ARCH} /tmp/system-probe/shared-libraries-debug-co-re.o
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/tracer.c.${PACKAGE_ARCH} /tmp/system-probe/tracer.c
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/usm.c.${PACKAGE_ARCH} /tmp/system-probe/usm.c
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/shared-libraries.c.${PACKAGE_ARCH} /tmp/system-probe/shared-libraries.c
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/runtime-security.c.${PACKAGE_ARCH} /tmp/system-probe/runtime-security.c
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/conntrack.c.${PACKAGE_ARCH} /tmp/system-probe/conntrack.c
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/oom-kill.c.${PACKAGE_ARCH} /tmp/system-probe/oom-kill.c
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/tcp-queue-length.c.${PACKAGE_ARCH} /tmp/system-probe/tcp-queue-length.c
     - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/clang-$CLANG_LLVM_VER.${PACKAGE_ARCH} /tmp/system-probe/clang-bpf
     - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/llc-$CLANG_LLVM_VER.${PACKAGE_ARCH} /tmp/system-probe/llc-bpf
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/minimized-btfs-${PACKAGE_ARCH}.tar.xz /tmp/system-probe/minimized-btfs.tar.xz
-    - chmod 0644 /tmp/system-probe/*.o
-    - chmod 0744 /tmp/system-probe/system-probe /tmp/system-probe/clang-bpf /tmp/system-probe/llc-bpf
+    - cp $CI_PROJECT_DIR/minimized-btfs.tar.xz /tmp/system-probe/minimized-btfs.tar.xz
+    - chmod 0744 /tmp/system-probe/clang-bpf /tmp/system-probe/llc-bpf
     # use --skip-deps since the deps are installed by `before_script`
-    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe
+    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe ${OMNIBUS_TASK_EXTRA_PARAMS}
     - ls -la $OMNIBUS_PACKAGE_DIR
     # Copy to a different directory to avoid collisions if a job downloads both the RPM and SUSE RPM artifacts
     - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && cp $OMNIBUS_PACKAGE_DIR/* $OMNIBUS_PACKAGE_DIR_SUSE
     - !reference [.upload_sbom_artifacts]
   variables:
-    KUBERNETES_CPU_REQUEST: 8
-    KUBERNETES_MEMORY_REQUEST: "16Gi"
-    KUBERNETES_MEMORY_LIMIT: "16Gi"
+    KUBERNETES_CPU_REQUEST: 16
+    KUBERNETES_MEMORY_REQUEST: "32Gi"
+    KUBERNETES_MEMORY_LIMIT: "32Gi"
   artifacts:
     expire_in: 2 weeks
     paths:
@@ -75,14 +39,20 @@
 agent_suse-x64-a6:
   extends: .agent_build_common_suse_rpm
   rules:
-    !reference [.on_a6]
+    - !reference [.on_a6]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  needs: ["go_mod_tidy_check", "build_system-probe-x64", "go_deps", "generate_minimized_btfs_x64"]
+  needs:
+    [
+      "go_mod_tidy_check",
+      "build_system-probe-x64",
+      "go_deps",
+      "generate_minimized_btfs_x64",
+    ]
   variables:
     AGENT_MAJOR_VERSION: 6
-    PYTHON_RUNTIMES: '2,3'
+    PYTHON_RUNTIMES: "2,3"
     PACKAGE_ARCH: amd64
   before_script:
     - source /root/.bashrc
@@ -92,22 +62,55 @@ agent_suse-x64-a6:
 agent_suse-x64-a7:
   extends: .agent_build_common_suse_rpm
   rules:
-    !reference [.on_a7]
+    - !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  needs: ["go_mod_tidy_check", "build_system-probe-x64", "go_deps", "generate_minimized_btfs_x64"]
+  needs:
+    [
+      "go_mod_tidy_check",
+      "build_system-probe-x64",
+      "go_deps",
+      "generate_minimized_btfs_x64",
+    ]
   variables:
     AGENT_MAJOR_VERSION: 7
-    PYTHON_RUNTIMES: '3'
+    PYTHON_RUNTIMES: "3"
     PACKAGE_ARCH: amd64
+  before_script:
+    - source /root/.bashrc
+    - export RELEASE_VERSION=$RELEASE_VERSION_7
+
+# build Agent package for suse-arm64
+# This is a bit hackish and mostly mimics the CentOS7/arm64 build
+agent_suse-arm64-a7:
+  extends: .agent_build_common_suse_rpm
+  rules:
+    - !reference [.on_all_builds_a7]
+    - !reference [.on_omnibus_change]
+    - !reference [.on_go-version_change]
+  stage: package_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["arch:arm64"]
+  needs:
+    [
+      "go_mod_tidy_check",
+      "build_system-probe-arm64",
+      "go_deps",
+      "generate_minimized_btfs_arm64",
+    ]
+  variables:
+    AGENT_MAJOR_VERSION: 7
+    PYTHON_RUNTIMES: "3"
+    PACKAGE_ARCH: arm64
+    OMNIBUS_TASK_EXTRA_PARAMS: "--host-distribution=suse"
   before_script:
     - source /root/.bashrc
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
 iot_agent_suse-x64:
   rules:
-    !reference [.on_a7]
+    - !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -144,7 +147,7 @@ iot_agent_suse-x64:
 
 dogstatsd_suse-x64:
   rules:
-    !reference [.on_a7]
+    - !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]

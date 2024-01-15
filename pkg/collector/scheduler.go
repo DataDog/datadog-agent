@@ -11,6 +11,9 @@ import (
 	"strings"
 	"sync"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -50,21 +53,21 @@ func init() {
 type CheckScheduler struct {
 	configToChecks map[string][]checkid.ID // cache the ID of checks we load for each config
 	loaders        []check.Loader
-	collector      *Collector
+	collector      Collector
 	senderManager  sender.SenderManager
 	m              sync.RWMutex
 }
 
 // InitCheckScheduler creates and returns a check scheduler
-func InitCheckScheduler(collector *Collector, senderManager sender.SenderManager) *CheckScheduler {
+func InitCheckScheduler(collector Collector, senderManager sender.SenderManager) *CheckScheduler {
 	checkScheduler = &CheckScheduler{
 		collector:      collector,
 		senderManager:  senderManager,
 		configToChecks: make(map[string][]checkid.ID),
-		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog())),
+		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager))),
 	}
 	// add the check loaders
-	for _, loader := range loaders.LoaderCatalog() {
+	for _, loader := range loaders.LoaderCatalog(senderManager) {
 		checkScheduler.AddLoader(loader)
 		log.Debugf("Added %s to Check Scheduler", loader)
 	}
@@ -220,7 +223,8 @@ func GetChecksByNameForConfigs(checkName string, configs []integration.Config) [
 		return checks
 	}
 	// try to also match `FooCheck` if `foo` was passed
-	titleCheck := fmt.Sprintf("%s%s", strings.Title(checkName), "Check")
+	titled := cases.Title(language.English, cases.NoLower).String(checkName)
+	titleCheck := fmt.Sprintf("%s%s", titled, "Check")
 
 	for _, c := range checkScheduler.GetChecksFromConfigs(configs, false) {
 		if checkName == c.String() || titleCheck == c.String() {

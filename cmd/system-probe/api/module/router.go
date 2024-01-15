@@ -6,7 +6,9 @@
 package module
 
 import (
+	"context"
 	"net/http"
+	"runtime/pprof"
 	"sync"
 
 	"github.com/gorilla/mux"
@@ -18,13 +20,15 @@ type Router struct {
 	mux            sync.Mutex
 	handlerByRoute map[string]func(http.ResponseWriter, *http.Request)
 	router         *mux.Router
+	labels         pprof.LabelSet
 }
 
 // NewRouter returns a new Router
-func NewRouter(mux *mux.Router) *Router {
+func NewRouter(namespace string, parent *mux.Router) *Router {
 	return &Router{
 		handlerByRoute: make(map[string]func(http.ResponseWriter, *http.Request)),
-		router:         mux,
+		router:         parent.PathPrefix("/" + namespace).Subrouter(),
+		labels:         pprof.Labels("module", namespace),
 	}
 }
 
@@ -46,6 +50,8 @@ func (r *Router) HandleFunc(path string, responseWriter func(http.ResponseWriter
 		r.mux.Lock()
 		handlerFn := r.handlerByRoute[path]
 		r.mux.Unlock()
-		handlerFn(w, req)
+		pprof.Do(req.Context(), r.labels, func(_ context.Context) {
+			handlerFn(w, req)
+		})
 	})
 }

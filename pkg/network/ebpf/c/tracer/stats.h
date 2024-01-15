@@ -57,6 +57,38 @@ static __always_inline void update_conn_state(conn_tuple_t *t, conn_stats_ts_t *
     }
 }
 
+// this function marks the protocol stack object with the connection direction
+//
+// *how is the connection direction determined?*
+//
+// Basically we compare the src-side of the normalized USM tuple (which should
+// contain the client port), with the source port of the TCP *socket* (here
+// supplied as part the `pre_norm_tuple` argument). If they match, we mark the
+// protocol stack with FLAG_CLIENT_SIDE, otherwise we mark it with
+// FLAG_SERVER_SIDE.
+//
+// *why do we do that?*
+//
+// We do this to mitigate a race condition that may arise in the context of
+// localhost traffic when deleting the protocol_stack_t entry. This means that
+// we're pretty much only interested in the case where a protocol stack is
+// annothed with *both* FLAG_SERVER_SIDE and FLAG_CLIENT_SIDE. For more context
+// refer to classification/shared-tracer-maps.h
+//
+// *what if there is something wrong with the USM normalization?*
+//
+// This doesn't matter in our case. Even if FLAG_SERVER_SIDE and
+// FLAG_CLIENT_SIDE are flipped, all we care about is the case where both flags
+// are present.
+static __always_inline void mark_protocol_direction(conn_tuple_t *pre_norm_tuple, conn_tuple_t *norm_tuple, protocol_stack_t *protocol_stack) {
+    if (pre_norm_tuple->sport == norm_tuple->sport) {
+        set_protocol_flag(protocol_stack, FLAG_CLIENT_SIDE);
+        return;
+    }
+
+    set_protocol_flag(protocol_stack, FLAG_SERVER_SIDE);
+}
+
 static __always_inline void update_protocol_classification_information(conn_tuple_t *t, conn_stats_ts_t *stats) {
     if (is_fully_classified(&stats->protocol_stack)) {
         return;
@@ -71,6 +103,7 @@ static __always_inline void update_protocol_classification_information(conn_tupl
 
     protocol_stack_t *protocol_stack = __get_protocol_stack(&conn_tuple_copy);
     set_protocol_flag(protocol_stack, FLAG_NPM_ENABLED);
+    mark_protocol_direction(t, &conn_tuple_copy, protocol_stack);
     merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
 
     conn_tuple_t *cached_skb_conn_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple_copy);
@@ -81,7 +114,25 @@ static __always_inline void update_protocol_classification_information(conn_tupl
     conn_tuple_copy = *cached_skb_conn_tup_ptr;
     protocol_stack = __get_protocol_stack(&conn_tuple_copy);
     set_protocol_flag(protocol_stack, FLAG_NPM_ENABLED);
+    mark_protocol_direction(t, &conn_tuple_copy, protocol_stack);
     merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
+}
+
+static __always_inline void determine_connection_direction(conn_tuple_t *t, conn_stats_ts_t *conn_stats) {
+    if (conn_stats->direction != CONN_DIRECTION_UNKNOWN) {
+        return;
+    }
+
+    u32 *port_count = NULL;
+    port_binding_t pb = {};
+    pb.port = t->sport;
+    pb.netns = t->netns;
+    if (t->metadata & CONN_TYPE_TCP) {
+        port_count = bpf_map_lookup_elem(&port_bindings, &pb);
+    } else {
+        port_count = bpf_map_lookup_elem(&udp_port_bindings, &pb);
+    }
+    conn_stats->direction = (port_count != NULL && *port_count > 0) ? CONN_DIRECTION_INCOMING : CONN_DIRECTION_OUTGOING;
 }
 
 // update_conn_stats update the connection metadata : protocol, tags, timestamp, direction, packets, bytes sent and received
@@ -121,17 +172,8 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
 
     if (dir != CONN_DIRECTION_UNKNOWN) {
         val->direction = dir;
-    } else if (val->direction == CONN_DIRECTION_UNKNOWN) {
-        u32 *port_count = NULL;
-        port_binding_t pb = {};
-        pb.port = t->sport;
-        pb.netns = t->netns;
-        if (t->metadata & CONN_TYPE_TCP) {
-            port_count = bpf_map_lookup_elem(&port_bindings, &pb);
-        } else {
-            port_count = bpf_map_lookup_elem(&udp_port_bindings, &pb);
-        }
-        val->direction = (port_count != NULL && *port_count > 0) ? CONN_DIRECTION_INCOMING : CONN_DIRECTION_OUTGOING;
+    } else {
+        determine_connection_direction(t, val);
     }
 }
 

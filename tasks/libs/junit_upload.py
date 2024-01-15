@@ -78,20 +78,14 @@ def split_junitxml(xml_path, codeowners, output_dir):
     return list(output_xmls), flavor
 
 
-def upload_junitxmls(output_dir, owners, flavor, xmlfile_name, additional_tags=None, job_url="", job_env=None):
+def upload_junitxmls(output_dir, owners, flavor, xmlfile_name, process_env, additional_tags=None):
     """
     Upload all per-team split JUnit XMLs from given directory.
     """
     processes = []
-    process_env = os.environ.copy()
-    if job_url:
-        print(f"CI_JOB_URL={job_url}")
-        process_env["CI_JOB_URL"] = job_url
-    if job_env:
-        print("\n".join(f"{k}={v}" for k, v in job_env.items()))
-        process_env.update(job_env)
 
     for owner in owners:
+        junit_file_path = os.path.join(output_dir, owner + ".xml")
         codeowner = CODEOWNERS_ORG_PREFIX + owner
         slack_channel = GITHUB_SLACK_MAP.get(codeowner.lower(), DEFAULT_SLACK_CHANNEL)[1:]
         jira_project = GITHUB_JIRA_MAP.get(codeowner.lower(), DEFAULT_JIRA_PROJECT)[0:]
@@ -117,7 +111,7 @@ def upload_junitxmls(output_dir, owners, flavor, xmlfile_name, additional_tags=N
 
         if additional_tags:
             args.extend(additional_tags)
-        args.append(os.path.join(output_dir, owner + ".xml"))
+        args.append(junit_file_path)
         processes.append(subprocess.Popen(DATADOG_CI_COMMAND + args, bufsize=-1, env=process_env))
     for process in processes:
         exit_code = process.wait()
@@ -136,7 +130,10 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
 
     # handle weird kitchen bug where it places the tarball in a subdirectory of the same name
     if os.path.isdir(junit_tgz):
-        junit_tgz = os.path.join(junit_tgz, os.path.basename(junit_tgz))
+        tmp_tgz = os.path.join(junit_tgz, os.path.basename(junit_tgz))
+        if not os.path.isfile(tmp_tgz):
+            tmp_tgz = os.path.join(junit_tgz, "junit.tar.gz")
+        junit_tgz = tmp_tgz
 
     xmlcounts = {}
     with tempfile.TemporaryDirectory() as unpack_dir:
@@ -149,23 +146,7 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
         if os.path.exists(tagsfile):
             with open(tagsfile) as tf:
                 tags = tf.read().split()
-        # read job url (see comment in produce_junit_tar)
-        job_url = None
-        urlfile = os.path.join(unpack_dir, JOB_URL_FILE_NAME)
-        if os.path.exists(urlfile):
-            with open(urlfile) as jf:
-                job_url = jf.read()
-
-        job_env = {}
-        envfile = os.path.join(unpack_dir, JOB_ENV_FILE_NAME)
-        if os.path.exists(envfile):
-            with open(envfile) as jf:
-                for line in jf:
-                    if not line.strip():
-                        continue
-                    key, val = line.strip().split('=', 1)
-                    job_env[key] = val
-
+        process_env = _update_environ(unpack_dir)
         # for each unpacked xml file, split it and submit all parts
         # NOTE: recursive=True is necessary for "**" to unpack into 0-n dirs, not just 1
         xmls = 0
@@ -176,17 +157,47 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
             xmls += 1
             with tempfile.TemporaryDirectory() as output_dir:
                 written_owners, flavor = split_junitxml(xmlfile, codeowners, output_dir)
-                upload_junitxmls(output_dir, written_owners, flavor, xmlfile.split("/")[-1], tags, job_url, job_env)
+                upload_junitxmls(output_dir, written_owners, flavor, xmlfile.split("/")[-1], process_env, tags)
         xmlcounts[junit_tgz] = xmls
 
     empty_tgzs = []
     for tgz, count in xmlcounts.items():
         print(f"Submitted results for {count} JUnit XML files from {tgz}")
-        if count == 0:
+        if count == 0 and not tgz.endswith(
+            "-fast.tgz"
+        ):  # *-fast.tgz contains only tests related to the modified code, they can be empty
             empty_tgzs.append(tgz)
 
     if empty_tgzs:
         raise Exit(f"No JUnit XML files for upload found in: {', '.join(empty_tgzs)}")
+
+
+def _update_environ(unpack_dir):
+    """
+    Add job_url and job_env to current env if any, for the junit upload command
+    """
+    process_env = os.environ.copy()
+    # read job url (see comment in produce_junit_tar)
+    job_url = None
+    urlfile = os.path.join(unpack_dir, JOB_URL_FILE_NAME)
+    if os.path.exists(urlfile):
+        with open(urlfile) as jf:
+            job_url = jf.read()
+        print(f"CI_JOB_URL={job_url}")
+        process_env["CI_JOB_URL"] = job_url
+
+    job_env = {}
+    envfile = os.path.join(unpack_dir, JOB_ENV_FILE_NAME)
+    if os.path.exists(envfile):
+        with open(envfile) as jf:
+            for line in jf:
+                if not line.strip():
+                    continue
+                key, val = line.strip().split('=', 1)
+                job_env[key] = val
+        print("\n".join(f"{k}={v}" for k, v in job_env.items()))
+        process_env.update(job_env)
+    return process_env
 
 
 def _normalize_architecture(architecture):

@@ -3,17 +3,23 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package agent holds agent related files
 package agent
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
+	"runtime"
+	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials/insecure"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 )
 
@@ -182,14 +188,24 @@ func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
 		return nil, errors.New("runtime_security_config.socket must be set")
 	}
 
+	family, _ := config.GetFamilyAddress(socketPath)
+	if runtime.GOOS == "windows" && family == "unix" {
+		return nil, fmt.Errorf("unix sockets are not supported on Windows")
+	}
+
 	conn, err := grpc.Dial(
 		socketPath,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(grpc.CallContentSubtype(api.VTProtoCodecName)),
 		grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) {
-			return net.Dial("unix", url)
+			return net.Dial(family, url)
 		}),
-	)
+		grpc.WithConnectParams(grpc.ConnectParams{
+			Backoff: backoff.Config{
+				BaseDelay: time.Second,
+				MaxDelay:  time.Second,
+			},
+		}))
 	if err != nil {
 		return nil, err
 	}

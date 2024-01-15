@@ -40,7 +40,7 @@ var instanceIDFetcher = cachedfetch.Fetcher{
 		}
 
 		endpoint := metadataURL + "/opc/v2/instance/id"
-		res, err := httputils.Get(ctx, endpoint, map[string]string{"Authorization": "Bearer Oracle"}, timeout)
+		res, err := httputils.Get(ctx, endpoint, map[string]string{"Authorization": "Bearer Oracle"}, timeout, config.Datadog)
 		if err != nil {
 			return nil, fmt.Errorf("Oracle HostAliases: unable to query metadata endpoint: %s", err)
 		}

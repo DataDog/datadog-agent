@@ -62,7 +62,7 @@ int hook_vfs_unlink(ctx_t *ctx) {
     // we resolve all the information before the file is actually removed
     syscall->unlink.dentry = dentry;
     set_file_inode(dentry, &syscall->unlink.file, 1);
-    fill_file_metadata(dentry, &syscall->unlink.file.metadata);
+    fill_file(dentry, &syscall->unlink.file);
 
     if (filter_syscall(syscall, unlink_approvers)) {
         return mark_as_discarded(syscall);

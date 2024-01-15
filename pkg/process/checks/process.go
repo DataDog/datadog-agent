@@ -39,16 +39,11 @@ const (
 )
 
 // NewProcessCheck returns an instance of the ProcessCheck.
-func NewProcessCheck(config ddconfig.ConfigReader) *ProcessCheck {
+func NewProcessCheck(config ddconfig.Reader) *ProcessCheck {
 	check := &ProcessCheck{
 		config:        config,
 		scrubber:      procutil.NewDefaultDataScrubber(),
-		lookupIdProbe: NewLookupIdProbe(config),
-	}
-
-	if workloadmeta.Enabled(config) {
-		check.workloadMetaExtractor = workloadmeta.NewWorkloadMetaExtractor(ddconfig.SystemProbe)
-		check.workloadMetaServer = workloadmeta.NewGRPCServer(config, check.workloadMetaExtractor)
+		lookupIdProbe: NewLookupIDProbe(config),
 	}
 
 	return check
@@ -57,6 +52,7 @@ func NewProcessCheck(config ddconfig.ConfigReader) *ProcessCheck {
 var errEmptyCPUTime = errors.New("empty CPU time information returned")
 
 const (
+	//nolint:revive // TODO(PROC) Fix revive linter
 	ProcessDiscoveryHint int32 = 1 << iota // 1
 )
 
@@ -64,7 +60,7 @@ const (
 // for live and running processes. The instance will store some state between
 // checks that will be used for rates, cpu calculations, etc.
 type ProcessCheck struct {
-	config ddconfig.ConfigReader
+	config ddconfig.Reader
 
 	probe procutil.Probe
 	// scrubber is a DataScrubber to hide command line sensitive words
@@ -103,6 +99,7 @@ type ProcessCheck struct {
 	lastConnRates     *atomic.Pointer[ProcessConnRates]
 	connRatesReceiver subscriptions.Receiver[ProcessConnRates]
 
+	//nolint:revive // TODO(PROC) Fix revive linter
 	lookupIdProbe *LookupIdProbe
 
 	extractors []metadata.Extractor
@@ -112,7 +109,7 @@ type ProcessCheck struct {
 }
 
 // Init initializes the singleton ProcessCheck.
-func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo) error {
+func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool) error {
 	p.hostInfo = info
 	p.sysProbeConfig = syscfg
 	p.probe = newProcessProbe(p.config, procutil.WithPermission(syscfg.ProcessModuleEnabled))
@@ -142,11 +139,13 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo) error {
 
 	p.initConnRates()
 
-	if workloadmeta.Enabled(p.config) {
+	if !oneShot && workloadmeta.Enabled(p.config) {
+		p.workloadMetaExtractor = workloadmeta.NewWorkloadMetaExtractor(ddconfig.SystemProbe)
+		p.workloadMetaServer = workloadmeta.NewGRPCServer(p.config, p.workloadMetaExtractor)
 		err = p.workloadMetaServer.Start()
 		if err != nil {
-			_ = log.Error("Failed to start the workloadmeta process entity gRPC server:", err)
-		} else {
+			return log.Error("Failed to start the workloadmeta process entity gRPC server:", err)
+		} else { //nolint:revive // TODO(PROC) Fix revive linter
 			p.extractors = append(p.extractors, p.workloadMetaExtractor)
 		}
 	}
@@ -429,6 +428,7 @@ func fmtProcesses(
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
 	connRates ProcessConnRates,
+	//nolint:revive // TODO(PROC) Fix revive linter
 	lookupIdProbe *LookupIdProbe,
 ) map[string][]*model.Process {
 	procsByCtr := make(map[string][]*model.Process)
@@ -628,7 +628,7 @@ func mergeProcWithSysprobeStats(pids []int32, procs map[int32]*procutil.Process,
 	}
 }
 
-func initScrubber(config ddconfig.ConfigReader, scrubber *procutil.DataScrubber) {
+func initScrubber(config ddconfig.Reader, scrubber *procutil.DataScrubber) {
 	// Enable/Disable the DataScrubber to obfuscate process args
 	if config.IsSet(configScrubArgs) {
 		scrubber.Enabled = config.GetBool(configScrubArgs)
@@ -652,7 +652,7 @@ func initScrubber(config ddconfig.ConfigReader, scrubber *procutil.DataScrubber)
 	}
 }
 
-func initDisallowList(config ddconfig.ConfigReader) []*regexp.Regexp {
+func initDisallowList(config ddconfig.Reader) []*regexp.Regexp {
 	var disallowList []*regexp.Regexp
 	// A list of regex patterns that will exclude a process if matched.
 	if config.IsSet(configDisallowList) {

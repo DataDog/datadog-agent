@@ -18,7 +18,7 @@ namespace CustomActions.Tests.ProcessUserCustomActions
         public ProcessUserCustomActionsTestSetup()
         {
             WithLocalSystem();
-            
+
             // By default computers are not domain-joined
             NativeMethods.Setup(n => n.IsDomainController()).Returns(false);
             NativeMethods.Setup(n => n.IsReadOnlyDomainController()).Returns(false);

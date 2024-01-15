@@ -110,7 +110,7 @@ func NewListenerConfig() (ListenerConfig, error) {
 	)
 	// Set defaults before unmarshalling
 	snmpConfig.CollectDeviceMetadata = true
-	snmpConfig.CollectTopology = false // TODO: Set this to `true` when GA
+	snmpConfig.CollectTopology = true
 	if err := coreconfig.Datadog.UnmarshalKey("snmp_listener", &snmpConfig, opt); err != nil {
 		return snmpConfig, err
 	}

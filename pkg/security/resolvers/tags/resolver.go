@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package tags holds tags related files
 package tags
 
 import (
@@ -24,7 +25,7 @@ type Tagger interface {
 
 type nullTagger struct{}
 
-func (n *nullTagger) Init(context.Context) error {
+func (n *nullTagger) Init(_ context.Context) error {
 	return nil
 }
 
@@ -32,7 +33,7 @@ func (n *nullTagger) Stop() error {
 	return nil
 }
 
-func (n *nullTagger) Tag(entity string, cardinality collectors.TagCardinality) ([]string, error) {
+func (n *nullTagger) Tag(_ string, _ collectors.TagCardinality) ([]string, error) {
 	return nil, nil
 }
 

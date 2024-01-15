@@ -1,5 +1,5 @@
-#ifndef JAVA_MAPS_H
-#define JAVA_MAPS_H
+#ifndef __JAVA_MAPS_H
+#define __JAVA_MAPS_H
 
 #include "bpf_helpers.h"
 #include "map-defs.h"
@@ -24,4 +24,4 @@ BPF_HASH_MAP(java_conn_tuple_by_peer, connection_by_peer_key_t, conn_tuple_t, 1)
 */
 BPF_PROG_ARRAY(java_tls_erpc_handlers, MAX_MESSAGE_TYPE)
 
-#endif // JAVA_MAPS_H
+#endif // __JAVA_MAPS_H

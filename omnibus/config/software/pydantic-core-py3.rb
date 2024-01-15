@@ -19,7 +19,7 @@ build do
 
   patch :source => "pydantic-core-build-for-manylinux1.patch"
 
-  if windows?
+  if windows_target?
     pip = "#{windows_safe_path(python_3_embedded)}\\Scripts\\pip.exe"
   else
     pip = "#{install_dir}/embedded/bin/pip3"

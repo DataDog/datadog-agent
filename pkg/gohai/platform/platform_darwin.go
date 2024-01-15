@@ -6,6 +6,7 @@
 package platform
 
 import (
+	"errors"
 	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
@@ -47,7 +48,9 @@ func processIsTranslated() (bool, error) {
 
 	if err == nil {
 		return ret == 1, nil
-	} else if err.(unix.Errno) == unix.ENOENT {
+	}
+
+	if errors.Is(err, unix.ENOENT) {
 		return false, nil
 	}
 	return false, err

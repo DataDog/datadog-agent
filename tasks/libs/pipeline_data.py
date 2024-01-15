@@ -1,10 +1,10 @@
 import re
 
 from .common.gitlab import Gitlab, get_gitlab_token
-from .types import FailedJobReason, FailedJobType
+from .types import FailedJobReason, FailedJobs, FailedJobType
 
 
-def get_failed_jobs(project_name, pipeline_id):
+def get_failed_jobs(project_name: str, pipeline_id: str) -> FailedJobs:
     """
     Retrieves the list of failed jobs for a given pipeline id in a given project.
     """
@@ -25,7 +25,7 @@ def get_failed_jobs(project_name, pipeline_id):
 
     # There, we now have the following map:
     # job name -> list of jobs with that name, including at least one failed job
-    final_failed_jobs = []
+    processed_failed_jobs = FailedJobs()
     for job_name, jobs in failed_jobs.items():
         # We sort each list per creation date
         jobs.sort(key=lambda x: x["created_at"])
@@ -48,10 +48,10 @@ def get_failed_jobs(project_name, pipeline_id):
         }
 
         # Also exclude jobs allowed to fail
-        if final_status["status"] == "failed" and not final_status["allow_failure"]:
-            final_failed_jobs.append(final_status)
+        if final_status["status"] == "failed" and should_report_job(job_name, final_status["allow_failure"]):
+            processed_failed_jobs.add_failed_job(final_status)
 
-    return final_failed_jobs
+    return processed_failed_jobs
 
 
 infra_failure_logs = [
@@ -130,3 +130,12 @@ def truncate_job_name(job_name, max_char_per_job=48):
     # We also want to avoid it being too long
     truncated_job_name = truncated_job_name[:max_char_per_job]
     return truncated_job_name
+
+
+# Those jobs have `allow_failure: true` but still need to be included
+# in failure reports
+jobs_allowed_to_fail_but_need_report = [re.compile(r'kitchen_test_security_agent.*')]
+
+
+def should_report_job(job_name, allow_failure):
+    return not allow_failure or any(pattern.fullmatch(job_name) for pattern in jobs_allowed_to_fail_but_need_report)

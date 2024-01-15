@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package probe holds probe related files
 package probe
 
 import (
@@ -29,7 +30,7 @@ func TestIsParentDiscarder(t *testing.T) {
 
 	var evalOpts eval.Opts
 	evalOpts.
-		WithConstants(model.SECLConstants).
+		WithConstants(model.SECLConstants()).
 		WithLegacyFields(model.SECLLegacyFields).
 		WithVariables(model.SECLVariables)
 
@@ -227,7 +228,7 @@ func TestIsGrandParentDiscarder(t *testing.T) {
 
 	var evalOpts eval.Opts
 	evalOpts.
-		WithConstants(model.SECLConstants).
+		WithConstants(model.SECLConstants()).
 		WithLegacyFields(model.SECLLegacyFields)
 
 	var opts rules.Opts
@@ -345,9 +346,9 @@ type testEventListener struct {
 	fields map[eval.Field]int
 }
 
-func (l *testEventListener) RuleMatch(rule *rules.Rule, event eval.Event) bool { return true }
+func (l *testEventListener) RuleMatch(_ *rules.Rule, _ eval.Event) bool { return true }
 
-func (l *testEventListener) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
+func (l *testEventListener) EventDiscarderFound(_ *rules.RuleSet, _ eval.Event, field eval.Field, _ eval.EventType) {
 	if l.fields == nil {
 		l.fields = make(map[eval.Field]int)
 	}
@@ -359,7 +360,7 @@ func TestIsDiscarderOverride(t *testing.T) {
 
 	var evalOpts eval.Opts
 	evalOpts.
-		WithConstants(model.SECLConstants).
+		WithConstants(model.SECLConstants()).
 		WithLegacyFields(model.SECLLegacyFields)
 
 	var opts rules.Opts
@@ -406,7 +407,7 @@ func BenchmarkParentDiscarder(b *testing.B) {
 
 	var evalOpts eval.Opts
 	evalOpts.
-		WithConstants(model.SECLConstants).
+		WithConstants(model.SECLConstants()).
 		WithLegacyFields(model.SECLLegacyFields)
 
 	var opts rules.Opts

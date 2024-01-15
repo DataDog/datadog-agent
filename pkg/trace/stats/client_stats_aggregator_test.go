@@ -54,7 +54,6 @@ func payloadWithCounts(ts time.Time, k BucketsAggregationKey, hits, errors, dura
 				Stats: []*proto.ClientGroupedStats{
 					{
 						Service:        k.Service,
-						PeerService:    k.PeerService,
 						Name:           k.Name,
 						SpanKind:       k.SpanKind,
 						Resource:       k.Resource,
@@ -244,8 +243,8 @@ func TestFuzzCountFields(t *testing.T) {
 	assert := assert.New(t)
 	for i := 0; i < 30; i++ {
 		a := newTestAggregator()
-		// Ensure that peer.service aggregation is on. Some tests may expect non-empty values for peer.service.
-		a.peerSvcAggregation = true
+		// Ensure that peer tags aggregation is on. Some tests may expect non-empty values the peer tags.
+		a.peerTagsAggregation = true
 		payloadTime := time.Now().Truncate(bucketDuration)
 		merge1 := getTestStatsWithStart(payloadTime)
 
@@ -267,13 +266,13 @@ func TestFuzzCountFields(t *testing.T) {
 			if s == nil {
 				continue
 			}
-			actual = append(actual, s)
+			expected = append(expected, s)
 		}
 		for _, s := range aggCounts.Stats[0].Stats[0].Stats {
 			if s == nil {
 				continue
 			}
-			expected = append(expected, s)
+			actual = append(actual, s)
 		}
 
 		assert.ElementsMatch(pb.PbToStringSlice(expected), pb.PbToStringSlice(actual))
@@ -367,79 +366,43 @@ func TestCountAggregation(t *testing.T) {
 	}
 }
 
-func TestCountAggregationPeerService(t *testing.T) {
-	assert := assert.New(t)
+func TestCountAggregationPeerTags(t *testing.T) {
+	peerTags := []string{"db.instance:a", "db.system:b", "peer.service:remote-service"}
 	type tt struct {
-		k                BucketsAggregationKey
-		res              *proto.ClientGroupedStats
-		name             string
-		enablePeerSvcAgg bool
+		k                 BucketsAggregationKey
+		res               *proto.ClientGroupedStats
+		name              string
+		enablePeerTagsAgg bool
 	}
+	// The fnv64a hash of the peerTags var.
+	peerTagsHash := uint64(8580633704111928789)
 	tts := []tt{
 		{
-			BucketsAggregationKey{Service: "s"},
-			&proto.ClientGroupedStats{Service: "s"},
-			"service",
+			BucketsAggregationKey{Service: "s", Name: "test.op"},
+			&proto.ClientGroupedStats{Service: "s", Name: "test.op"},
+			"peer tags aggregation disabled",
 			false,
 		},
 		{
-			BucketsAggregationKey{Name: "n"},
-			&proto.ClientGroupedStats{Name: "n"},
-			"name",
-			false,
-		},
-		{
-			BucketsAggregationKey{Resource: "r"},
-			&proto.ClientGroupedStats{Resource: "r"},
-			"resource",
-			false,
-		},
-		{
-			BucketsAggregationKey{Type: "t"},
-			&proto.ClientGroupedStats{Type: "t"},
-			"resource",
-			false,
-		},
-		{
-			BucketsAggregationKey{Synthetics: true},
-			&proto.ClientGroupedStats{Synthetics: true},
-			"synthetics",
-			false,
-		},
-		{
-			BucketsAggregationKey{StatusCode: 10},
-			&proto.ClientGroupedStats{HTTPStatusCode: 10},
-			"status",
-			false,
-		},
-		{
-			BucketsAggregationKey{Service: "s", PeerService: "remote-service"},
-			&proto.ClientGroupedStats{Service: "s", PeerService: ""},
-			"peer.service disabled",
-			false,
-		},
-		{
-			BucketsAggregationKey{Service: "s", PeerService: "remote-service"},
-			&proto.ClientGroupedStats{Service: "s", PeerService: "remote-service"},
-			"peer.service enabled",
+			BucketsAggregationKey{Service: "s", PeerTagsHash: peerTagsHash},
+			&proto.ClientGroupedStats{Service: "s", PeerTags: peerTags},
+			"peer tags aggregation enabled",
 			true,
-		},
-		{
-			BucketsAggregationKey{SpanKind: "client"},
-			&proto.ClientGroupedStats{SpanKind: "client"},
-			"span.kind",
-			false,
 		},
 	}
 	for _, tc := range tts {
 		t.Run(tc.name, func(t *testing.T) {
+			assert := assert.New(t)
 			a := newTestAggregator()
-			a.peerSvcAggregation = tc.enablePeerSvcAgg
+			a.peerTagsAggregation = tc.enablePeerTagsAgg
 			testTime := time.Unix(time.Now().Unix(), 0)
 
 			c1 := payloadWithCounts(testTime, tc.k, 11, 7, 100)
 			c2 := payloadWithCounts(testTime, tc.k, 27, 2, 300)
 			c3 := payloadWithCounts(testTime, tc.k, 5, 10, 3)
+			c1.Stats[0].Stats[0].PeerTags = peerTags
+			c2.Stats[0].Stats[0].PeerTags = peerTags
+			c3.Stats[0].Stats[0].PeerTags = peerTags
 			keyDefault := BucketsAggregationKey{}
 			cDefault := payloadWithCounts(testTime, keyDefault, 0, 2, 4)
 
@@ -476,20 +439,23 @@ func TestCountAggregationPeerService(t *testing.T) {
 	}
 }
 
-func TestNewBucketAggregationKeyPeerService(t *testing.T) {
+func TestNewBucketAggregationKeyPeerTags(t *testing.T) {
+	// The hash of "peer.service:remote-service".
+	peerTagsHash := uint64(3430395298086625290)
 	t.Run("disabled", func(t *testing.T) {
 		assert := assert.New(t)
-		r := newBucketAggregationKey(&proto.ClientGroupedStats{Service: "a", PeerService: "remote-test"}, false)
+		r := newBucketAggregationKey(&proto.ClientGroupedStats{Service: "a", PeerTags: []string{"peer.service:remote-service"}}, false)
 		assert.Equal(BucketsAggregationKey{Service: "a"}, r)
 	})
 	t.Run("enabled", func(t *testing.T) {
 		assert := assert.New(t)
-		r := newBucketAggregationKey(&proto.ClientGroupedStats{Service: "a", PeerService: "remote-test"}, true)
-		assert.Equal(BucketsAggregationKey{Service: "a", PeerService: "remote-test"}, r)
+		r := newBucketAggregationKey(&proto.ClientGroupedStats{Service: "a", PeerTags: []string{"peer.service:remote-service"}}, true)
+		assert.Equal(BucketsAggregationKey{Service: "a", PeerTagsHash: peerTagsHash}, r)
 	})
 }
 
 func deepCopy(p *proto.ClientStatsPayload) *proto.ClientStatsPayload {
+	//nolint:revive // TODO(APM) Fix revive linter
 	new := &proto.ClientStatsPayload{
 		Hostname:         p.GetHostname(),
 		Env:              p.GetEnv(),
@@ -511,6 +477,7 @@ func deepCopyStatsBucket(s []*proto.ClientStatsBucket) []*proto.ClientStatsBucke
 	if s == nil {
 		return nil
 	}
+	//nolint:revive // TODO(APM) Fix revive linter
 	new := make([]*proto.ClientStatsBucket, len(s))
 	for i, b := range s {
 		new[i] = &proto.ClientStatsBucket{
@@ -527,6 +494,7 @@ func deepCopyGroupedStats(s []*proto.ClientGroupedStats) []*proto.ClientGroupedS
 	if s == nil {
 		return nil
 	}
+	//nolint:revive // TODO(APM) Fix revive linter
 	new := make([]*proto.ClientGroupedStats, len(s))
 	for i, b := range s {
 		if b == nil {
@@ -546,8 +514,8 @@ func deepCopyGroupedStats(s []*proto.ClientGroupedStats) []*proto.ClientGroupedS
 			Duration:       b.GetDuration(),
 			Synthetics:     b.GetSynthetics(),
 			TopLevelHits:   b.GetTopLevelHits(),
-			PeerService:    b.GetPeerService(),
 			SpanKind:       b.GetSpanKind(),
+			PeerTags:       b.GetPeerTags(),
 		}
 		if b.OkSummary != nil {
 			new[i].OkSummary = make([]byte, len(b.OkSummary))
@@ -559,4 +527,55 @@ func deepCopyGroupedStats(s []*proto.ClientGroupedStats) []*proto.ClientGroupedS
 		}
 	}
 	return new
+}
+
+func TestNewClientStatsAggregatorPeerAggregation(t *testing.T) {
+	t.Run("nothing enabled", func(t *testing.T) {
+		assert := assert.New(t)
+		cfg := config.AgentConfig{
+			BucketInterval: time.Duration(testBucketInterval),
+			AgentVersion:   "0.99.0",
+			DefaultEnv:     "env",
+			Hostname:       "hostname",
+		}
+		a := NewClientStatsAggregator(&cfg, nil)
+		assert.False(a.peerTagsAggregation)
+	})
+	t.Run("deprecated peer service flag set", func(t *testing.T) {
+		assert := assert.New(t)
+		cfg := config.AgentConfig{
+			BucketInterval:         time.Duration(testBucketInterval),
+			AgentVersion:           "0.99.0",
+			DefaultEnv:             "env",
+			Hostname:               "hostname",
+			PeerServiceAggregation: true,
+		}
+		a := NewClientStatsAggregator(&cfg, nil)
+		assert.True(a.peerTagsAggregation)
+	})
+	t.Run("peer tags aggregation flag", func(t *testing.T) {
+		assert := assert.New(t)
+		cfg := config.AgentConfig{
+			BucketInterval:      time.Duration(testBucketInterval),
+			AgentVersion:        "0.99.0",
+			DefaultEnv:          "env",
+			Hostname:            "hostname",
+			PeerTagsAggregation: true,
+		}
+		a := NewClientStatsAggregator(&cfg, nil)
+		assert.True(a.peerTagsAggregation)
+	})
+	t.Run("deprecated peer service flag set + new peer tags aggregation flag", func(t *testing.T) {
+		assert := assert.New(t)
+		cfg := config.AgentConfig{
+			BucketInterval:         time.Duration(testBucketInterval),
+			AgentVersion:           "0.99.0",
+			DefaultEnv:             "env",
+			Hostname:               "hostname",
+			PeerServiceAggregation: true,
+			PeerTagsAggregation:    true,
+		}
+		a := NewClientStatsAggregator(&cfg, nil)
+		assert.True(a.peerTagsAggregation)
+	})
 }

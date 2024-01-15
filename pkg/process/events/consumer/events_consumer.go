@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(PROC) Fix revive linter
 package consumer
 
 import (
@@ -13,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -54,10 +56,12 @@ func NewProcessConsumer(evm *eventmonitor.EventMonitor) (*ProcessConsumer, error
 	return p, nil
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (p *ProcessConsumer) Start() error {
 	return nil
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (p *ProcessConsumer) Stop() {
 }
 
@@ -66,6 +70,7 @@ func (p *ProcessConsumer) ID() string {
 	return "PROCESS"
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (p *ProcessConsumer) SendStats() {
 	if count := p.expiredEvents.Swap(0); count > 0 {
 		if err := p.statsdClient.Count(metrics.MetricProcessEventsServerExpired, count, []string{}, 1.0); err != nil {
@@ -75,8 +80,12 @@ func (p *ProcessConsumer) SendStats() {
 }
 
 // HandleEvent implement the event monitor EventHandler interface
-func (p *ProcessConsumer) HandleEvent(event *smodel.Event) {
-	e := p.newProcessEvent(event)
+func (p *ProcessConsumer) HandleEvent(event any) {
+	e, ok := event.(*model.ProcessEvent)
+	if !ok {
+		log.Errorf("Event is not a Process Lifecycle Event")
+		return
+	}
 
 	data, err := e.MarshalMsg(nil)
 	if err != nil {

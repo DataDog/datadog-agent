@@ -5,17 +5,18 @@
 
 //go:build !docker
 
+//nolint:revive // TODO(CINT) Fix revive linter
 package docker
 
 import "context"
 
 // GetHostname returns the hostname for docker
-func GetHostname(ctx context.Context) (string, error) {
+func GetHostname(context.Context) (string, error) {
 	return "", ErrDockerNotCompiled
 }
 
 // GetTags returns tags that are automatically added to metrics and events on a
 // host that is running docker.
-func GetTags(ctx context.Context) ([]string, error) {
+func GetTags(context.Context) ([]string, error) {
 	return []string{}, nil
 }

@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package model holds model related files
 package model
 
 import (
@@ -19,7 +20,7 @@ import (
 )
 
 var (
-	ErrNoImageProvided = errors.New("no image name provided")
+	ErrNoImageProvided = errors.New("no image name provided") // ErrNoImageProvided is returned when no image name is provided
 )
 
 // WorkloadSelector is a selector used to uniquely indentify the image of a workload
@@ -48,6 +49,9 @@ func (ws *WorkloadSelector) IsReady() bool {
 
 // Match returns true if the input selector matches the current selector
 func (ws *WorkloadSelector) Match(selector WorkloadSelector) bool {
+	if ws.Tag == "*" || selector.Tag == "*" {
+		return ws.Image == selector.Image
+	}
 	return ws.Image == selector.Image && ws.Tag == selector.Tag
 }
 
@@ -122,6 +126,17 @@ func (cgce *CacheEntry) SetTags(tags []string) {
 	cgce.WorkloadSelector.Tag = utils.GetTagValue("image_tag", tags)
 	if len(cgce.WorkloadSelector.Image) != 0 && len(cgce.WorkloadSelector.Tag) == 0 {
 		cgce.WorkloadSelector.Tag = "latest"
+	}
+}
+
+// GetWorkloadSelectorCopy returns a copy of the workload selector of this cgroup
+func (cgce *CacheEntry) GetWorkloadSelectorCopy() *WorkloadSelector {
+	cgce.Lock()
+	defer cgce.Unlock()
+
+	return &WorkloadSelector{
+		Image: cgce.WorkloadSelector.Image,
+		Tag:   cgce.WorkloadSelector.Tag,
 	}
 }
 

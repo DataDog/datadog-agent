@@ -19,6 +19,7 @@ func newSCMReader() *scmReader {
 	return &scmReader{}
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (s *scmReader) getServiceInfo(pid uint64) (*WindowsServiceInfo, error) {
 	return nil, fmt.Errorf("scm service info is only available on windows")
 }

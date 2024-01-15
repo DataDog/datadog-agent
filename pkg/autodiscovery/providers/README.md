@@ -71,3 +71,7 @@ The `ETCDConfigProvider` reads the check configs from etcd.
 ### `ZookeeperConfigProvider`
 
 The `ZookeeperConfigProvider` reads the check configs from zookeeper.
+
+### `RemoteConfigProvider`
+
+The `RemoteConfigProvider` reads the check configs from remote-config.

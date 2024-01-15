@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	dd_conf "github.com/DataDog/datadog-agent/pkg/config"
+	//nolint:revive // TODO(AML) Fix revive linter
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
@@ -20,41 +21,41 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// defaultContentLenLimit represents the max size for a line,
-// if a line is bigger than this limit, it will be truncated.
-const defaultContentLenLimit = 256 * 1000
-
-// NewInput returns a new input.
+// NewInput returns a new decoder input.
+// A decoder input is an unstructured message of raw bytes as the content.
+// Some of the tailers using this are the file tailers and socket tailers
+// as these logs don't have any structure, they're just raw bytes log.
+// See message.Message / message.MessageContent comment for more information.
 func NewInput(content []byte) *message.Message {
-	return &message.Message{
-		Content:            content,
-		IngestionTimestamp: time.Now().UnixNano(),
-	}
+	return message.NewMessage(content, nil, "", time.Now().UnixNano())
 }
 
-// NewMessage returns a new output.
+// NewMessage returns a new encoded message.
 func NewMessage(content []byte, status string, rawDataLen int, readTimestamp string) *message.Message {
-	return &message.Message{
-		Content:            content,
+	msg := message.Message{
+		MessageContent: message.MessageContent{
+			State: message.StateEncoded,
+		},
 		Status:             status,
 		RawDataLen:         rawDataLen,
 		IngestionTimestamp: time.Now().UnixNano(),
-
 		ParsingExtra: message.ParsingExtra{
 			Timestamp: readTimestamp,
 		},
 	}
+	msg.SetContent(content)
+	return &msg
 }
 
 // Decoder translates a sequence of byte buffers (such as from a file or a
 // network socket) into log messages.
 //
-// Decoder is structured as an actor with InputChan of type *decoder.Input and
-// OutputChan of type *decoder.Message.
+// Decoder is structured as an actor receiving messages on `InputChan` and
+// writing its output in `OutputChan`
 //
 // The Decoder's run() takes data from InputChan, uses a Framer to break it into frames.
-// The LineBreaker passes that data to a LineParser, which uses a Parser to convert it to
-// parsers.Message, converts that to decoder.Message, and passes that to the LineHandler.
+// The Framer passes that data to a LineParser, which uses a Parser to parse it and
+// to pass it to the LineHander.
 //
 // The LineHandler processes the messages it as necessary (as single lines,
 // multiple lines, or auto-detecting the two), and sends the result to the
@@ -100,7 +101,7 @@ func syncSourceInfo(source *sources.ReplaceableSource, lh *MultiLineHandler) {
 func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Parser, framing framer.Framing, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry) *Decoder {
 	inputChan := make(chan *message.Message)
 	outputChan := make(chan *message.Message)
-	lineLimit := defaultContentLenLimit
+	lineLimit := config.MaxMessageSizeBytes(pkgConfig.Datadog)
 	detectedPattern := &DetectedPattern{}
 
 	outputFn := func(m *message.Message) { outputChan <- m }
@@ -219,13 +220,13 @@ func (d *Decoder) run() {
 	}()
 	for {
 		select {
-		case data, isOpen := <-d.InputChan:
+		case msg, isOpen := <-d.InputChan:
 			if !isOpen {
 				// InputChan has been closed, no more lines are expected
 				return
 			}
 
-			d.framer.Process(data)
+			d.framer.Process(msg)
 
 		case <-d.lineParser.flushChan():
 			log.Debug("Flushing line parser because the flush timeout has been reached.")

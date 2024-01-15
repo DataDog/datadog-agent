@@ -8,6 +8,9 @@
     - $S3_CP_CMD $CI_PROJECT_DIR/$CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $S3_ARTIFACTS_URI/datadog-cluster-agent.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/Dockerfiles/cluster-agent/datadog-cluster.yaml $S3_ARTIFACTS_URI/datadog-cluster.yaml
     - $S3_CP_CMD $CI_PROJECT_DIR/Dockerfiles/cluster-agent/security-agent-policies $S3_ARTIFACTS_URI/security-agent-policies --recursive
+  variables:
+    KUBERNETES_MEMORY_REQUEST: "8Gi"
+    KUBERNETES_MEMORY_LIMIT: "8Gi"
 
 cluster_agent-build_amd64:
   extends: .cluster_agent-build_common
@@ -25,7 +28,7 @@ cluster_agent-build_amd64:
 cluster_agent-build_arm64:
   extends: .cluster_agent-build_common
   rules:
-    !reference [.on_tag_or_a7_all_builds]
+    !reference [.on_tag_or_a7]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
   needs: ["go_mod_tidy_check", "go_deps"]

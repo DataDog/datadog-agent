@@ -4,7 +4,6 @@
 // Copyright 2014-present Datadog, Inc.
 
 //go:build linux || darwin
-// +build linux darwin
 
 // Package gops extracts the information on running processes from gopsutil
 package gops
@@ -38,27 +37,25 @@ func GetProcesses() ([]*ProcessInfo, error) {
 
 	virtMemStat, err := mem.VirtualMemory()
 	if err != nil {
-		err = fmt.Errorf("error fetching system memory stats: %w", err)
-		return nil, err
+		return nil, fmt.Errorf("error fetching system memory stats: %w", err)
 	}
 	totalMem := float64(virtMemStat.Total)
 
 	pids, err := process.Pids()
 	if err != nil {
-		err = fmt.Errorf("error fetching PIDs: %w", err)
-		return nil, err
+		return nil, fmt.Errorf("error fetching PIDs: %w", err)
 	}
 
 	for _, pid := range pids {
 		p, err := process.NewProcess(pid)
 		if err != nil {
 			// an error can occur here only if the process has disappeared,
-			log.Debugf("Process with pid %d disappeared while scanning: %w", pid, err)
+			log.Debugf("Process with pid %d disappeared while scanning: %s", pid, err)
 			continue
 		}
 		processInfo, err := newProcessInfo(p, totalMem)
 		if err != nil {
-			log.Debugf("Error fetching info for pid %d: %w", pid, err)
+			log.Debugf("Error fetching info for pid %d: %s", pid, err)
 			continue
 		}
 

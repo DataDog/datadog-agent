@@ -19,6 +19,9 @@ var (
 )
 
 // Serializer transforms a batch of messages into a payload.
+// It is the one rendering the messages (i.e. either directly using
+// raw []byte data from unstructured messages or turning structured
+// messages into []byte data).
 type Serializer interface {
 	Serialize(messages []*message.Message) []byte
 }
@@ -38,7 +41,7 @@ func (s *lineSerializer) Serialize(messages []*message.Message) []byte {
 		if i > 0 {
 			buffer.WriteByte('\n')
 		}
-		buffer.Write(message.Content)
+		buffer.Write(message.GetContent())
 	}
 	return buffer.Bytes()
 }
@@ -57,7 +60,7 @@ func (s *arraySerializer) Serialize(messages []*message.Message) []byte {
 		if i > 0 {
 			buffer.WriteByte(',')
 		}
-		buffer.Write(message.Content)
+		buffer.Write(message.GetContent())
 	}
 	buffer.WriteByte(']')
 	return buffer.Bytes()

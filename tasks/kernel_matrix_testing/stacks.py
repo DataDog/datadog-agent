@@ -2,7 +2,8 @@ import getpass
 import json
 import os
 
-from .init_kmt import KMT_STACKS_DIR, VMCONFIG, check_and_get_stack
+from .init_kmt import VMCONFIG, check_and_get_stack
+from .kmt_os import get_kmt_os
 from .libvirt import delete_domains, delete_networks, delete_pools, delete_volumes, pause_domains, resume_domains
 from .tool import Exit, ask, error, info, warn
 
@@ -11,25 +12,25 @@ try:
 except ImportError:
     libvirt = None
 
-X86_INSTANCE_TYPE = "m5.metal"
-ARM_INSTANCE_TYPE = "m6g.metal"
+X86_INSTANCE_TYPE = "m5d.metal"
+ARM_INSTANCE_TYPE = "m6gd.metal"
 
 
 def stack_exists(stack):
-    return os.path.exists(f"{KMT_STACKS_DIR}/{stack}")
+    return os.path.exists(f"{get_kmt_os().stacks_dir}/{stack}")
 
 
 def vm_config_exists(stack):
-    return os.path.exists(f"{KMT_STACKS_DIR}/{stack}/{VMCONFIG}")
+    return os.path.exists(f"{get_kmt_os().stacks_dir}/{stack}/{VMCONFIG}")
 
 
 def create_stack(ctx, stack=None):
-    if not os.path.exists(f"{KMT_STACKS_DIR}"):
+    if not os.path.exists(f"{get_kmt_os().stacks_dir}"):
         raise Exit("Kernel matrix testing environment not correctly setup. Run 'inv kmt.init'.")
 
     stack = check_and_get_stack(stack)
 
-    stack_dir = f"{KMT_STACKS_DIR}/{stack}"
+    stack_dir = f"{get_kmt_os().stacks_dir}/{stack}"
     if os.path.exists(stack_dir):
         raise Exit(f"Stack {stack} already exists")
 
@@ -115,7 +116,7 @@ def launch_stack(ctx, stack, ssh_key, x86_ami, arm_ami):
     if not vm_config_exists(stack):
         raise Exit(f"No {VMCONFIG} for stack {stack}. Refer to 'inv kmt.gen-config --help'")
 
-    stack_dir = f"{KMT_STACKS_DIR}/{stack}"
+    stack_dir = f"{get_kmt_os().stacks_dir}/{stack}"
     vm_config = f"{stack_dir}/{VMCONFIG}"
 
     ssh_key.rstrip(".pem")
@@ -142,15 +143,19 @@ def launch_stack(ctx, stack, ssh_key, x86_ami, arm_ami):
     prefix = ""
     local = ""
     if remote_vms_in_config(vm_config):
-        prefix = "aws-vault exec sandbox-account-admin --"
+        prefix = "aws-vault exec sso-sandbox-account-admin --"
 
     if local_vms_in_config(vm_config):
         check_env(ctx)
         local = "--local"
 
+    provision = ""
+    if remote_vms_in_config(vm_config):
+        provision = "--provision"
+
     env_vars = ' '.join(env)
     ctx.run(
-        f"{env_vars} {prefix} inv -e system-probe.start-microvms --instance-type-x86={X86_INSTANCE_TYPE} --instance-type-arm={ARM_INSTANCE_TYPE} --x86-ami-id={x86_ami} --arm-ami-id={arm_ami} --ssh-key-name={ssh_key} --infra-env=aws/sandbox --vmconfig={vm_config} --stack-name={stack} {local}"
+        f"{env_vars} {prefix} inv -e system-probe.start-microvms {provision} --instance-type-x86={X86_INSTANCE_TYPE} --instance-type-arm={ARM_INSTANCE_TYPE} --x86-ami-id={x86_ami} --arm-ami-id={arm_ami} --ssh-key-name={ssh_key} --infra-env=aws/sandbox --vmconfig={vm_config} --stack-name={stack} {local}"
     )
 
     info(f"[+] Stack {stack} successfully setup")
@@ -165,7 +170,7 @@ def destroy_stack_pulumi(ctx, stack, ssh_key):
 
     ctx.run(ssh_add_cmd)
 
-    stack_dir = f"{KMT_STACKS_DIR}/{stack}"
+    stack_dir = f"{get_kmt_os().stacks_dir}/{stack}"
     env = [
         "PULUMI_CONFIG_PASSPHRASE=1234",
         f"LibvirtSSHKeyX86={stack_dir}/libvirt_rsa-x86_64",
@@ -176,7 +181,7 @@ def destroy_stack_pulumi(ctx, stack, ssh_key):
     vm_config = f"{stack_dir}/{VMCONFIG}"
     prefix = ""
     if remote_vms_in_config(vm_config):
-        prefix = "aws-vault exec sandbox-account-admin --"
+        prefix = "aws-vault exec sso-sandbox-account-admin --"
 
     env_vars = ' '.join(env)
     ctx.run(
@@ -190,7 +195,7 @@ def is_ec2_ip_entry(entry):
 
 def ec2_instance_ids(ctx, ip_list):
     ip_addresses = ','.join(ip_list)
-    list_instances_cmd = f"aws-vault exec sandbox-account-admin -- aws ec2 describe-instances --filter \"Name=private-ip-address,Values={ip_addresses}\" \"Name=tag:team,Values=ebpf-platform\" --query 'Reservations[].Instances[].InstanceId' --output text"
+    list_instances_cmd = f"aws-vault exec sso-sandbox-account-admin -- aws ec2 describe-instances --filter \"Name=private-ip-address,Values={ip_addresses}\" \"Name=tag:team,Values=ebpf-platform\" --query 'Reservations[].Instances[].InstanceId' --output text"
 
     res = ctx.run(list_instances_cmd, warn=True)
     if not res.ok:
@@ -201,7 +206,7 @@ def ec2_instance_ids(ctx, ip_list):
 
 
 def destroy_ec2_instances(ctx, stack):
-    stack_output = os.path.join(KMT_STACKS_DIR, stack, "stack.outputs")
+    stack_output = os.path.join(get_kmt_os().stacks_dir, stack, "stack.output")
     if not os.path.exists(stack_output):
         warn(f"[-] File {stack_output} not found")
         return
@@ -226,7 +231,7 @@ def destroy_ec2_instances(ctx, stack):
 
     ids = ' '.join(instance_ids)
     res = ctx.run(
-        f"aws-vault exec sandbox-account-admin -- aws ec2 terminate-instances --instance-ids {ids}", warn=True
+        f"aws-vault exec sso-sandbox-account-admin -- aws ec2 terminate-instances --instance-ids {ids}", warn=True
     )
     if not res.ok:
         error(f"[-] Failed to terminate instances {ids}. Use console to terminate instances")
@@ -281,7 +286,7 @@ def destroy_stack(ctx, stack, force, ssh_key):
     else:
         destroy_stack_pulumi(ctx, stack, ssh_key)
 
-    ctx.run(f"rm -r {KMT_STACKS_DIR}/{stack}")
+    ctx.run(f"rm -r {get_kmt_os().stacks_dir}/{stack}")
 
 
 def pause_stack(stack=None):

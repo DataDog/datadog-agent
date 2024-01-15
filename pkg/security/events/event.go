@@ -5,18 +5,32 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package events holds events related files
 package events
 
-import "github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+import (
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+)
 
 // AgentContext serializes the agent context to JSON
 // easyjson:json
 type AgentContext struct {
-	RuleID        string `json:"rule_id"`
-	RuleVersion   string `json:"rule_version,omitempty"`
-	PolicyName    string `json:"policy_name,omitempty"`
-	PolicyVersion string `json:"policy_version,omitempty"`
-	Version       string `json:"version,omitempty"`
+	RuleID        string              `json:"rule_id"`
+	RuleVersion   string              `json:"rule_version,omitempty"`
+	RuleActions   []RuleActionContext `json:"rule_actions,omitempty"`
+	PolicyName    string              `json:"policy_name,omitempty"`
+	PolicyVersion string              `json:"policy_version,omitempty"`
+	Version       string              `json:"version,omitempty"`
+	OS            string              `json:"os,omitempty"`
+	Arch          string              `json:"arch,omitempty"`
+}
+
+// RuleActionContext describes context of a rule action
+// easyjson:json
+type RuleActionContext struct {
+	Name   string `json:"name"`
+	Signal string `json:"signal"`
 }
 
 // Signal - Rule event wrapper used to send an event to the backend
@@ -31,6 +45,8 @@ type Event interface {
 	GetWorkloadID() string
 	GetTags() []string
 	GetType() string
+	GetActions() []*model.ActionTriggered
+	IsSuppressed() bool
 }
 
 // EventSender defines an event sender

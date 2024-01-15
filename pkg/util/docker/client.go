@@ -5,6 +5,7 @@
 
 //go:build docker
 
+// Package docker provides a Docker client.
 package docker
 
 import (

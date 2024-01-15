@@ -19,6 +19,8 @@ const (
 	ExtraResourcesTags StoreKey = "extra_resources_tags"
 	// KeyPairName config file parameter name
 	KeyPairName StoreKey = "key_pair_name"
+	// PrivateKeyPassword config file parameter name
+	PrivateKeyPassword StoreKey = "private_key_password"
 	// PrivateKeyPath config file parameter name
 	PrivateKeyPath StoreKey = "private_key_path"
 	// Profile config file parameter name
@@ -31,4 +33,6 @@ const (
 	SkipDeleteOnFailure StoreKey = "skip_delete_on_failure"
 	// StackParameters config file parameter name
 	StackParameters StoreKey = "stack_params"
+	// PipelineID config file parameter name
+	PipelineID StoreKey = "pipeline_id"
 )

@@ -9,7 +9,7 @@ package http
 
 import (
 	"fmt"
-	"strings"
+	"io"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
@@ -22,6 +22,7 @@ import (
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -31,18 +32,21 @@ type protocol struct {
 	cfg            *config.Config
 	telemetry      *Telemetry
 	statkeeper     *StatKeeper
-	mapCleaner     *ddebpf.MapCleaner
-	eventsConsumer *events.Consumer
+	mapCleaner     *ddebpf.MapCleaner[netebpf.ConnTuple, EbpfTx]
+	eventsConsumer *events.Consumer[EbpfEvent]
 }
 
 const (
-	inFlightMap    = "http_in_flight"
-	filterTailCall = "socket__http_filter"
-	eventStream    = "http"
+	inFlightMap            = "http_in_flight"
+	filterTailCall         = "socket__http_filter"
+	tlsProcessTailCall     = "uprobe__http_process"
+	tlsTerminationTailCall = "uprobe__http_termination"
+	eventStream            = "http"
 )
 
+// Spec is the protocol spec for the HTTP protocol.
 var Spec = &protocols.ProtocolSpec{
-	Factory: newHttpProtocol,
+	Factory: newHTTPProtocol,
 	Maps: []*manager.Map{
 		{Name: inFlightMap},
 	},
@@ -54,10 +58,25 @@ var Spec = &protocols.ProtocolSpec{
 				EBPFFuncName: filterTailCall,
 			},
 		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramTLSHTTPProcess),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsProcessTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramTLSHTTPTermination),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsTerminationTailCall,
+			},
+		},
 	},
 }
 
-func newHttpProtocol(cfg *config.Config) (protocols.Protocol, error) {
+// newHTTPProtocol returns a new HTTP protocol.
+func newHTTPProtocol(cfg *config.Config) (protocols.Protocol, error) {
 	if !cfg.EnableHTTPMonitoring {
 		return nil, nil
 	}
@@ -90,8 +109,7 @@ func (p *protocol) Name() string {
 // We also configure the http event stream with the manager and its options.
 func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
 	opts.MapSpecEditors[inFlightMap] = manager.MapSpecEditor{
-		Type:       ebpf.Hash,
-		MaxEntries: p.cfg.MaxTrackedConnections,
+		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
 	utils.EnableOption(opts, "http_monitoring_enabled")
@@ -109,7 +127,7 @@ func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
 		return
 	}
 
-	p.statkeeper = NewStatkeeper(p.cfg, p.telemetry)
+	p.statkeeper = NewStatkeeper(p.cfg, p.telemetry, NewIncompleteBuffer(p.cfg, p.telemetry))
 	p.eventsConsumer.Start()
 
 	return
@@ -135,22 +153,24 @@ func (p *protocol) Stop(_ *manager.Manager) {
 	}
 }
 
-func (p *protocol) DumpMaps(output *strings.Builder, mapName string, currentMap *ebpf.Map) {
+func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 	if mapName == inFlightMap { // maps/http_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value httpTX
-		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'httpTX'\n")
+		io.WriteString(w, "Map: '"+mapName+"', key: 'ConnTuple', value: 'httpTX'\n")
 		iter := currentMap.Iterate()
 		var key netebpf.ConnTuple
-		var value Transaction
+		var value EbpfTx
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			output.WriteString(spew.Sdump(key, value))
+			spew.Fdump(w, key, value)
 		}
 	}
 }
 
-func (p *protocol) processHTTP(data []byte) {
-	tx := (*EbpfTx)(unsafe.Pointer(&data[0]))
-	p.telemetry.Count(tx)
-	p.statkeeper.Process(tx)
+func (p *protocol) processHTTP(events []EbpfEvent) {
+	for i := range events {
+		tx := &events[i]
+		p.telemetry.Count(tx)
+		p.statkeeper.Process(tx)
+	}
 }
 
 func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
@@ -159,24 +179,19 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 		log.Errorf("error getting http_in_flight map: %s", err)
 		return
 	}
-	mapCleaner, err := ddebpf.NewMapCleaner(httpMap, new(netebpf.ConnTuple), new(EbpfTx))
+	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, EbpfTx](httpMap, 1024)
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
 	}
 
 	ttl := p.cfg.HTTPIdleConnectionTTL.Nanoseconds()
-	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, func(now int64, key, val interface{}) bool {
-		httpTxn, ok := val.(*EbpfTx)
-		if !ok {
-			return false
-		}
-
-		if updated := int64(httpTxn.ResponseLastSeen()); updated > 0 {
+	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, nil, nil, func(now int64, key netebpf.ConnTuple, val EbpfTx) bool {
+		if updated := int64(val.Response_last_seen); updated > 0 {
 			return (now - updated) > ttl
 		}
 
-		started := int64(httpTxn.RequestStarted())
+		started := int64(val.Request_started)
 		return started > 0 && (now-started) > ttl
 	})
 
@@ -192,4 +207,9 @@ func (p *protocol) GetStats() *protocols.ProtocolStats {
 		Type:  protocols.HTTP,
 		Stats: p.statkeeper.GetAndResetAllStats(),
 	}
+}
+
+// IsBuildModeSupported returns always true, as http module is supported by all modes.
+func (*protocol) IsBuildModeSupported(buildmode.Type) bool {
+	return true
 }

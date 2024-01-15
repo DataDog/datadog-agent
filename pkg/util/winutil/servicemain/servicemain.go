@@ -5,12 +5,15 @@
 
 //go:build windows
 
+// Package servicemain provides Windows Service application helpers
 package servicemain
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 	"unsafe"
@@ -22,6 +25,33 @@ import (
 	"golang.org/x/sys/windows/svc"
 )
 
+const (
+	// DefaultHardStopTimeout is a default value. See Service.HardStopTimeout for details.
+	DefaultHardStopTimeout = 15 * time.Second
+	// EnvHardStopTimeoutOverride is an environment variable that a user can set
+	// to override DefaultHardStopTimeout.
+	EnvHardStopTimeoutOverride = "DD_WINDOWS_SERVICE_STOP_TIMEOUT_SECONDS"
+)
+
+// DefaultSettings provides default values to Service implementations when embedded
+type DefaultSettings struct{}
+
+// HardStopTimeout provides a default hard stop timeout for Service implementations,
+// and allows a user to override the default by setting the DD_WINDOWS_SERVICE_STOP_TIMEOUT_SECONDS
+// environment variable.
+func (s *DefaultSettings) HardStopTimeout() time.Duration {
+	timeString, found := os.LookupEnv(EnvHardStopTimeoutOverride)
+	if !found {
+		return DefaultHardStopTimeout
+	}
+	timeValue, err := strconv.Atoi(timeString)
+	if err != nil {
+		return DefaultHardStopTimeout
+	}
+	return time.Duration(timeValue) * time.Second
+}
+
+// Service defines the interface that applications should implement to run as Windows Services
 type Service interface {
 	// Name() returns the string to be used as the source for event log records.
 	Name() string
@@ -36,18 +66,41 @@ type Service interface {
 	// Run() implements all application logic and is run when the service status is SERVICE_RUNNING.
 	//
 	// The provided context is cancellable. Run() must monitor ctx.Done() and return as soon as possible
-	// when it is set. There is no standard time limit, it is up to the program performing the service stop.
-	// The Services.msc snap-in has a 125 second limit, if the operating system is rebooting there is a 20 second limit.
-	// https://learn.microsoft.com/en-us/windows/win32/services/service-control-handler-function
+	// when it is set. If Run() does not return after the context is set the process will exit after
+	// the duration returned by HardStopTimeout()
 	//
 	// The service will exit when Run() returns. Run() must return for the service status to be be updated to SERVICE_STOPPED.
 	// If the process exits without setting SERVICE_STOPPED, Service Control Manager (SCM) will treat
 	// this as an unexpected exit and enter failure/recovery, regardless of the process exit code.
 	// https://learn.microsoft.com/en-us/windows/win32/api/winsvc/ns-winsvc-service_failure_actionsa
 	Run(ctx context.Context) error
+
+	// Most platforms send SIGKILL if the service does not respond to the initial SIGTERM
+	// within a set amount of time. The set amount of time differs between platforms but
+	// is usually also configurable
+	// - upstart: 5 seconds
+	// - systemd: 90 seconds
+	// However, on Windows most service manager tools let the process stay running if it does not stop,
+	// with different timeouts, and there is no standard way to configure a timeout.
+	// - PowerShell Restart-Service: (no kill) error after 30 seconds for dependent services
+	//                               (no kill) no timeout for a single service
+	// - net stop: (no kill) error after 20 seconds
+	// - sc stop: does not wait/block
+	// - Services.msc: (no kill) error after 125 seconds
+	// - Host/OS shutdown: shutdown after 20 seconds
+	// https://learn.microsoft.com/en-us/windows/win32/services/service-control-handler-function
+	//
+	// This means that on Windows if our service hangs on stop then it may need to be force killed
+	// by the user, and may cause uninstall to fail. CM tools like our Ansible plugin use Restart-Service,
+	// when the configuration changes so it is troublesome for the user if Restart-Service fails.
+	//
+	// It seems useful to keep this timeout under the commonly used Windows tools error timeouts, so
+	// we set it that way for now. However our primary requirement is it be less than the Agent
+	// installer timeout (3 minutes).
+	HardStopTimeout() time.Duration
 }
 
-// Return ErrCleanStopAfterInit from Service.Init() to report SERVICE_RUNNING and then exit without error after
+// ErrCleanStopAfterInit should be returned from Service.Init() to report SERVICE_RUNNING and then exit without error after
 // a delay. See runTimeExitGate for more information on why the delay is necessary.
 //
 // Example use case, the service detects that it is not configured and wishes to stop running, but does not want
@@ -181,6 +234,8 @@ func (s *controlHandler) eventlog(msgnum uint32, arg string) {
 // golang.org/x/sys/windows/svc contains the actual control handler callback and status handle, and communicates with
 // our Execute() function via the provided channels.
 // https://learn.microsoft.com/en-us/windows/win32/services/service-status-transitions
+//
+//nolint:revive // TODO(WINA) Fix revive linter
 func (s *controlHandler) Execute(args []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (ssec bool, errno uint32) {
 
 	// first thing we must do is inform SCM that we are SERVICE_START_PENDING.
@@ -219,21 +274,42 @@ func (s *controlHandler) Execute(args []string, r <-chan svc.ChangeRequest, chan
 		changes <- svc.Status{State: svc.StopPending}
 	}()
 
+	// context for Run()
 	ctx, cancelfunc := context.WithCancel(context.Background())
 	defer cancelfunc()
+	// context for exit timeout
+	cleanExitCtx, cancelCleanExit := context.WithCancel(context.Background())
+	defer cancelCleanExit()
 
 	// goroutine to handle service control requests
 	// https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nc-winsvc-lphandler_function
-	go s.controlHandlerLoop(cancelfunc, r, changes)
+	go s.controlHandlerLoop(cancelfunc, cancelCleanExit, r, changes)
 
 	// Now that we are in SERVICE_RUNNING state, start the exit gate timer.
 	exitGate := runTimeExitGate()
 
 	if executeRun {
-		// Run the actual agent/service
-		err = s.service.Run(ctx)
-		if err != nil {
-			s.eventlog(messagestrings.MSG_SERVICE_FAILED, err.Error())
+		err = nil
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			// Run the actual agent/service
+			err = s.service.Run(ctx)
+			if err != nil {
+				s.eventlog(messagestrings.MSG_SERVICE_FAILED, err.Error())
+			}
+		}()
+		select {
+		case <-done:
+			if err != nil {
+				// since exitGate is meant to avoid an error, if we are returning
+				// with an error then we can skip the exitGate.
+				return
+			}
+		case <-cleanExitCtx.Done():
+			s.eventlog(messagestrings.MSG_SERVICE_FAILED, "service did not cleanly shutdown in a timely manner, hard stopping service")
+			// since exitGate is meant to avoid an error, if we are returning
+			// with an error then we can skip the exitGate.
 			return
 		}
 	}
@@ -246,7 +322,7 @@ func (s *controlHandler) Execute(args []string, r <-chan svc.ChangeRequest, chan
 	return
 }
 
-func (s *controlHandler) controlHandlerLoop(cancelFunc context.CancelFunc, r <-chan svc.ChangeRequest, changes chan<- svc.Status) {
+func (s *controlHandler) controlHandlerLoop(cancelFunc context.CancelFunc, cancelCleanExit context.CancelFunc, r <-chan svc.ChangeRequest, changes chan<- svc.Status) {
 	for c := range r {
 		switch c.Cmd {
 		case svc.Interrogate:
@@ -260,10 +336,21 @@ func (s *controlHandler) controlHandlerLoop(cancelFunc context.CancelFunc, r <-c
 			s.eventlog(messagestrings.MSG_RECEIVED_STOP_SVC_COMMAND, s.service.Name())
 			cancelFunc()
 			// We set SERVICE_STOP_PENDING, so SCM won't send anymore control requests
+			// Start our exit timeout timer
+			go s.terminateProcessOnTimeout(cancelCleanExit)
 			return
 		default:
 			// unexpected control
 			s.eventlog(messagestrings.MSG_UNEXPECTED_CONTROL_REQUEST, fmt.Sprintf("%d", c.Cmd))
 		}
 	}
+}
+
+// Does not directly call os.Exit/TerminateProcess.
+// We cancel a context that causes controlHandler.Execute to return and cause the service
+// to properly shutdown (from Windows perspective), which eventually returns to main to exit.
+// Any shutdown operations the Agent may be in the middle of will be abruptly halted, like with a SIGKILL.
+func (s *controlHandler) terminateProcessOnTimeout(cancelCleanExit context.CancelFunc) {
+	<-time.After(time.Duration(s.service.HardStopTimeout()))
+	cancelCleanExit()
 }

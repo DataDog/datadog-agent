@@ -5,6 +5,7 @@
 
 //go:build apm && !windows && !linux
 
+//nolint:revive // TODO(APM) Fix revive linter
 package embed
 
 import (
@@ -89,7 +90,7 @@ func (c *APMCheck) run() error {
 	hname, _ := hostname.Get(context.TODO())
 
 	env := os.Environ()
-	env = append(env, fmt.Sprintf("DD_API_KEY=%s", config.SanitizeAPIKey(config.Datadog.GetString("api_key"))))
+	env = append(env, fmt.Sprintf("DD_API_KEY=%s", utils.SanitizeAPIKey(config.Datadog.GetString("api_key"))))
 	env = append(env, fmt.Sprintf("DD_HOSTNAME=%s", hname))
 	env = append(env, fmt.Sprintf("DD_DOGSTATSD_PORT=%s", config.Datadog.GetString("dogstatsd_port")))
 	env = append(env, fmt.Sprintf("DD_LOG_LEVEL=%s", config.Datadog.GetString("log_level")))
@@ -145,6 +146,8 @@ func (c *APMCheck) run() error {
 }
 
 // Configure the APMCheck
+//
+//nolint:revive // TODO(APM) Fix revive linter
 func (c *APMCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	var checkConf apmCheckConf
 	if err := yaml.Unmarshal(data, &checkConf); err != nil {
@@ -179,7 +182,7 @@ func (c *APMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	}
 
 	c.source = source
-	c.telemetry = utils.IsCheckTelemetryEnabled("apm")
+	c.telemetry = utils.IsCheckTelemetryEnabled("apm", config.Datadog)
 	c.initConfig = string(initConfig)
 	c.instanceConfig = string(data)
 	return nil

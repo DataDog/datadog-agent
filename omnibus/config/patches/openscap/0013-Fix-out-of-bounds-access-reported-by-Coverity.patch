@@ -1,0 +1,26 @@
+From c9cd9c1eaae7cf29fa9c391346d8bbcc202893bb Mon Sep 17 00:00:00 2001
+From: David du Colombier <djc@datadoghq.com>
+Date: Wed, 20 Sep 2023 12:15:57 +0200
+Subject: [PATCH 13/16] Fix out-of-bounds access reported by Coverity
+
+---
+ src/OVAL/probes/probe/worker.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/src/OVAL/probes/probe/worker.c b/src/OVAL/probes/probe/worker.c
+index fe9e6aa72..cedb339d2 100644
+--- a/src/OVAL/probes/probe/worker.c
++++ b/src/OVAL/probes/probe/worker.c
+@@ -219,6 +219,9 @@ static int probe_varref_create_ctx(const SEXP_t *probe_in, SEXP_t *varrefs, stru
+ 	ent_cnt = SEXP_number_getu_32(r1 = SEXP_list_nth(varrefs, 3));
+ 	SEXP_free(r1);
+ 
++	if (ent_cnt == UINT32_MAX)
++		return -1;
++
+ 	struct probe_varref_ctx *ctx = malloc(sizeof(struct probe_varref_ctx));
+ 	ctx->pi2 = SEXP_softref((SEXP_t *)probe_in);
+ 	ctx->ent_cnt = ent_cnt;
+-- 
+2.34.1
+

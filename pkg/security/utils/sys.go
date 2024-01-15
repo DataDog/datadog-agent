@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package utils holds utils related files
 package utils
 
 import (

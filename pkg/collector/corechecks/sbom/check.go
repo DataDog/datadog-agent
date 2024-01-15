@@ -11,15 +11,16 @@ import (
 	"errors"
 	"time"
 
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
@@ -37,50 +38,58 @@ type Config struct {
 	NewSBOMMaxLatencySeconds        int `yaml:"new_sbom_max_latency_seconds"`
 	ContainerPeriodicRefreshSeconds int `yaml:"periodic_refresh_seconds"`
 	HostPeriodicRefreshSeconds      int `yaml:"host_periodic_refresh_seconds"`
+	HostHeartbeatValiditySeconds    int `yaml:"host_heartbeat_validity_seconds"`
 }
 
 type configValueRange struct {
-	min      int
-	max      int
-	default_ int
+	min          int
+	max          int
+	defaultValue int
 }
 
 var /* const */ (
 	chunkSizeValueRange = &configValueRange{
-		min:      1,
-		max:      100,
-		default_: 1,
+		min:          1,
+		max:          100,
+		defaultValue: 1,
 	}
 
 	newSBOMMaxLatencySecondsValueRange = &configValueRange{
-		min:      1,   // 1 s
-		max:      300, // 5 min
-		default_: 30,  // 30 s
+		min:          1,   // 1 seconds
+		max:          300, // 5 min
+		defaultValue: 30,  // 30 seconds
 	}
 
 	containerPeriodicRefreshSecondsValueRange = &configValueRange{
-		min:      60,     // 1 min
-		max:      604800, // 1 week
-		default_: 3600,   // 1h
+		min:          60,     // 1 min
+		max:          604800, // 1 week
+		defaultValue: 3600,   // 1 hour
 	}
 
 	hostPeriodicRefreshSecondsValueRange = &configValueRange{
-		min:      60,        // 1 min
-		max:      604800,    // 1 week
-		default_: 3600 * 24, // 1h
+		min:          60,     // 1 min
+		max:          604800, // 1 week
+		defaultValue: 3600,   // 1 hour
+	}
+
+	hostHeartbeatValiditySeconds = &configValueRange{
+		min:          60,        // 1 min
+		max:          604800,    // 1 week
+		defaultValue: 3600 * 24, // 1 day
 	}
 )
 
-func validateValue(val *int, range_ *configValueRange) {
+func validateValue(val *int, valueRange *configValueRange) {
 	if *val == 0 {
-		*val = range_.default_
-	} else if *val < range_.min {
-		*val = range_.min
-	} else if *val > range_.max {
-		*val = range_.max
+		*val = valueRange.defaultValue
+	} else if *val < valueRange.min {
+		*val = valueRange.min
+	} else if *val > valueRange.max {
+		*val = valueRange.max
 	}
 }
 
+// Parse parses the configuration
 func (c *Config) Parse(data []byte) error {
 	if err := yaml.Unmarshal(data, c); err != nil {
 		return err
@@ -90,6 +99,7 @@ func (c *Config) Parse(data []byte) error {
 	validateValue(&c.NewSBOMMaxLatencySeconds, newSBOMMaxLatencySecondsValueRange)
 	validateValue(&c.ContainerPeriodicRefreshSeconds, containerPeriodicRefreshSecondsValueRange)
 	validateValue(&c.HostPeriodicRefreshSeconds, hostPeriodicRefreshSecondsValueRange)
+	validateValue(&c.HostHeartbeatValiditySeconds, hostHeartbeatValiditySeconds)
 
 	return nil
 }
@@ -97,7 +107,7 @@ func (c *Config) Parse(data []byte) error {
 // Check reports SBOM
 type Check struct {
 	core.CheckBase
-	workloadmetaStore workloadmeta.Store
+	workloadmetaStore workloadmeta.Component
 	instance          *Config
 	processor         *processor
 	sender            sender.Sender
@@ -107,7 +117,8 @@ type Check struct {
 // CheckFactory registers the sbom check
 func CheckFactory() check.Check {
 	return &Check{
-		CheckBase:         core.NewCheckBase(checkName),
+		CheckBase: core.NewCheckBase(checkName),
+		// TODO)components): stop using global and rely instead on injected workloadmeta component.
 		workloadmetaStore: workloadmeta.GetGlobalStore(),
 		instance:          &Config{},
 		stopCh:            make(chan struct{}),
@@ -136,8 +147,13 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	c.sender = sender
 	sender.SetNoIndex(true)
 
-	c.processor, err = newProcessor(c.workloadmetaStore, sender, c.instance.ChunkSize, time.Duration(c.instance.NewSBOMMaxLatencySeconds)*time.Second, ddConfig.Datadog.GetBool("sbom.host.enabled"))
-	if err != nil {
+	if c.processor, err = newProcessor(
+		c.workloadmetaStore,
+		sender,
+		c.instance.ChunkSize,
+		time.Duration(c.instance.NewSBOMMaxLatencySeconds)*time.Second,
+		ddConfig.Datadog.GetBool("sbom.host.enabled"),
+		time.Duration(c.instance.HostHeartbeatValiditySeconds)*time.Second); err != nil {
 		return err
 	}
 
@@ -149,21 +165,27 @@ func (c *Check) Run() error {
 	log.Infof("Starting long-running check %q", c.ID())
 	defer log.Infof("Shutting down long-running check %q", c.ID())
 
+	filterParams := workloadmeta.FilterParams{
+		Kinds: []workloadmeta.Kind{
+			workloadmeta.KindContainerImageMetadata,
+			workloadmeta.KindContainer,
+		},
+		Source:    workloadmeta.SourceAll,
+		EventType: workloadmeta.EventTypeAll,
+	}
+
 	imgEventsCh := c.workloadmetaStore.Subscribe(
 		checkName,
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(
-			[]workloadmeta.Kind{
-				workloadmeta.KindContainerImageMetadata,
-				workloadmeta.KindContainer,
-			},
-			workloadmeta.SourceAll,
-			workloadmeta.EventTypeAll,
-		),
+		workloadmeta.NewFilter(&filterParams),
 	)
 
-	// Trigger an initial scan on host
-	c.processor.processHostRefresh()
+	// Trigger an initial scan on host. This channel is buffered to avoid blocking the scanner
+	// if the processor is not ready to receive the result yet. This channel should not be closed,
+	// it is sent as part of every scan request. When the main context terminates, both references will
+	// be dropped and the scanner will be garbage collected.
+	hostSbomChan := make(chan sbom.ScanResult, 1)
+	c.processor.triggerHostScan(hostSbomChan)
 
 	c.sendUsageMetrics()
 
@@ -176,18 +198,23 @@ func (c *Check) Run() error {
 	metricTicker := time.NewTicker(metricPeriod)
 	defer metricTicker.Stop()
 
+	defer c.processor.stop()
 	for {
 		select {
-		case eventBundle := <-imgEventsCh:
+		case eventBundle, ok := <-imgEventsCh:
+			if !ok {
+				return nil
+			}
 			c.processor.processContainerImagesEvents(eventBundle)
 		case <-containerPeriodicRefreshTicker.C:
 			c.processor.processContainerImagesRefresh(c.workloadmetaStore.ListImages())
 		case <-hostPeriodicRefreshTicker.C:
-			c.processor.processHostRefresh()
+			c.processor.triggerHostScan(hostSbomChan)
+		case scanResult := <-hostSbomChan:
+			c.processor.processHostScanResult(scanResult)
 		case <-metricTicker.C:
 			c.sendUsageMetrics()
 		case <-c.stopCh:
-			c.processor.stop()
 			return nil
 		}
 	}

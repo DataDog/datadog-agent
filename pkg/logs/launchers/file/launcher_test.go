@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	filetailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
+	//nolint:revive // TODO(AML) Fix revive linter
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
 )
 
@@ -87,7 +88,7 @@ func (suite *LauncherTestSuite) TestLauncherStartsTailers() {
 	_, err := suite.testFile.WriteString("hello world\n")
 	suite.Nil(err)
 	msg := <-suite.outputChan
-	suite.Equal("hello world", string(msg.Content))
+	suite.Equal("hello world", string(msg.GetContent()))
 }
 
 func (suite *LauncherTestSuite) TestLauncherScanWithoutLogRotation() {
@@ -102,7 +103,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithoutLogRotation() {
 	_, err = suite.testFile.WriteString("hello world\n")
 	suite.Nil(err)
 	msg = <-suite.outputChan
-	suite.Equal("hello world", string(msg.Content))
+	suite.Equal("hello world", string(msg.GetContent()))
 
 	s.scan()
 	newTailer, _ = s.tailers.Get(getScanKey(suite.testPath, suite.source))
@@ -112,7 +113,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithoutLogRotation() {
 	_, err = suite.testFile.WriteString("hello again\n")
 	suite.Nil(err)
 	msg = <-suite.outputChan
-	suite.Equal("hello again", string(msg.Content))
+	suite.Equal("hello again", string(msg.GetContent()))
 }
 
 func (suite *LauncherTestSuite) TestLauncherScanWithLogRotation() {
@@ -126,7 +127,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotation() {
 	_, err = suite.testFile.WriteString("hello world\n")
 	suite.Nil(err)
 	msg = <-suite.outputChan
-	suite.Equal("hello world", string(msg.Content))
+	suite.Equal("hello world", string(msg.GetContent()))
 
 	tailer, _ = s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	os.Rename(suite.testPath, suite.testRotatedPath)
@@ -139,7 +140,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotation() {
 	_, err = f.WriteString("hello again\n")
 	suite.Nil(err)
 	msg = <-suite.outputChan
-	suite.Equal("hello again", string(msg.Content))
+	suite.Equal("hello again", string(msg.GetContent()))
 }
 
 func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationCopyTruncate() {
@@ -153,7 +154,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationCopyTruncate() {
 	_, err = suite.testFile.WriteString("hello world\n")
 	suite.Nil(err)
 	msg = <-suite.outputChan
-	suite.Equal("hello world", string(msg.Content))
+	suite.Equal("hello world", string(msg.GetContent()))
 
 	suite.Nil(suite.testFile.Truncate(0))
 	_, err = suite.testFile.Seek(0, 0)
@@ -170,7 +171,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationCopyTruncate() {
 	suite.True(tailer != newTailer)
 
 	msg = <-suite.outputChan
-	suite.Equal("third", string(msg.Content))
+	suite.Equal("third", string(msg.GetContent()))
 }
 
 func (suite *LauncherTestSuite) TestLauncherScanWithFileRemovedAndCreated() {
@@ -250,9 +251,9 @@ func TestLauncherScanStartNewTailer(t *testing.T) {
 		launcher.scan()
 		assert.Equal(t, 1, launcher.tailers.Count())
 		msg = <-outputChan
-		assert.Equal(t, "hello", string(msg.Content))
+		assert.Equal(t, "hello", string(msg.GetContent()))
 		msg = <-outputChan
-		assert.Equal(t, "world", string(msg.Content))
+		assert.Equal(t, "world", string(msg.GetContent()))
 	}
 }
 
@@ -291,13 +292,13 @@ func TestLauncherWithConcurrentContainerTailer(t *testing.T) {
 	assert.Nil(t, err)
 
 	msg := <-outputChan
-	assert.Equal(t, "Once", string(msg.Content))
+	assert.Equal(t, "Once", string(msg.GetContent()))
 	msg = <-outputChan
-	assert.Equal(t, "Upon", string(msg.Content))
+	assert.Equal(t, "Upon", string(msg.GetContent()))
 	msg = <-outputChan
-	assert.Equal(t, "A", string(msg.Content))
+	assert.Equal(t, "A", string(msg.GetContent()))
 	msg = <-outputChan
-	assert.Equal(t, "Time", string(msg.Content))
+	assert.Equal(t, "Time", string(msg.GetContent()))
 
 	// Add a second source, same file, different container ID, tailing twice the same file is supported in that case
 	launcher.addSource(secondSource)
@@ -343,13 +344,13 @@ func TestLauncherTailFromTheBeginning(t *testing.T) {
 		assert.Nil(t, err)
 
 		msg := <-outputChan
-		assert.Equal(t, "Once", string(msg.Content))
+		assert.Equal(t, "Once", string(msg.GetContent()))
 		msg = <-outputChan
-		assert.Equal(t, "Upon", string(msg.Content))
+		assert.Equal(t, "Upon", string(msg.GetContent()))
 		msg = <-outputChan
-		assert.Equal(t, "A", string(msg.Content))
+		assert.Equal(t, "A", string(msg.GetContent()))
 		msg = <-outputChan
-		assert.Equal(t, "Time", string(msg.Content))
+		assert.Equal(t, "Time", string(msg.GetContent()))
 	}
 }
 

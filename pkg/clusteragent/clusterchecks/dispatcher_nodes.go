@@ -158,7 +158,7 @@ func (d *dispatcher) expireNodes() {
 				// Requires https://github.com/prometheus/client_golang/pull/1013
 				for k, v := range d.store.idToDigest {
 					if v == digest {
-						configsInfo.Delete(name, string(k), le.JoinLeaderValue)
+						configsInfo.Delete(name, config.Name, string(k), le.JoinLeaderValue)
 					}
 				}
 			}
@@ -216,15 +216,17 @@ func (d *dispatcher) updateRunnersStats() {
 			continue
 		}
 		node.Lock()
-		for id, checkStats := range stats {
+		for idStr, checkStats := range stats {
+			id := checkid.ID(idStr)
+
 			// Stats contain info about all the running checks on a node
 			// Node checks must be filtered from Cluster Checks
 			// so they can be included in calculating node Agent busyness and excluded from rebalancing decisions.
-			if _, found := d.store.idToDigest[checkid.ID(id)]; found {
+			if _, found := d.store.idToDigest[id]; found {
 				// Cluster check detected (exists in the Cluster Agent checks store)
 				log.Tracef("Check %s running on node %s is a cluster check", id, node.name)
 				checkStats.IsClusterCheck = true
-				stats[id] = checkStats
+				stats[idStr] = checkStats
 			}
 		}
 		node.clcRunnerStats = stats

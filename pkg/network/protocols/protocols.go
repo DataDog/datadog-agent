@@ -8,15 +8,20 @@
 package protocols
 
 import (
-	"strings"
+	"io"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 )
 
-const ProtocolDispatcherProgramsMap = "protocols_progs"
+// Programs maps used for tail calls
+const (
+	ProtocolDispatcherProgramsMap = "protocols_progs"
+	TLSDispatcherProgramsMap      = "tls_process_progs"
+)
 
 // Protocol is the interface that represents a protocol supported by USM.
 //
@@ -45,7 +50,7 @@ type Protocol interface {
 
 	// DumpMaps dumps the content of the map represented by mapName &
 	// currentMap, if it used by the eBPF program, to output.
-	DumpMaps(output *strings.Builder, mapName string, currentMap *ebpf.Map)
+	DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 
 	// Name returns the protocol name.
 	Name() string
@@ -53,6 +58,9 @@ type Protocol interface {
 	// GetStats returns the latest monitoring stats from a protocol
 	// implementation.
 	GetStats() *ProtocolStats
+
+	// IsBuildModeSupported return true is the given build mode is supported by this protocol.
+	IsBuildModeSupported(buildmode.Type) bool
 }
 
 // ProtocolStats is a "tuple" struct that represents monitoring data from a
@@ -63,9 +71,13 @@ type ProtocolStats struct {
 	Stats interface{}
 }
 
+// ProtocolFactory is a function that creates a Protocol.
 type ProtocolFactory func(*config.Config) (Protocol, error)
+
+// ProtocolSpec represents a protocol specification.
 type ProtocolSpec struct {
 	Factory   ProtocolFactory
+	Instance  Protocol
 	Maps      []*manager.Map
 	Probes    []*manager.Probe
 	TailCalls []manager.TailCallRoute

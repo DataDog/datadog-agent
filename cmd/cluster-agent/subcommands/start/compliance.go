@@ -11,6 +11,7 @@ import (
 	"context"
 	"os"
 
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -82,7 +83,7 @@ func startCompliance(senderManager sender.SenderManager, stopper startstop.Stopp
 	configDir := coreconfig.Datadog.GetString("compliance_config.dir")
 	checkInterval := coreconfig.Datadog.GetDuration("compliance_config.check_interval")
 
-	reporter, err := compliance.NewLogReporter(stopper, "compliance-agent", "compliance", runPath, endpoints, ctx)
+	hname, err := hostname.Get(context.TODO())
 	if err != nil {
 		return err
 	}
@@ -90,11 +91,7 @@ func startCompliance(senderManager sender.SenderManager, stopper startstop.Stopp
 	runner := runner.NewRunner(senderManager)
 	stopper.Add(runner)
 
-	hname, err := hostname.Get(context.TODO())
-	if err != nil {
-		return err
-	}
-
+	reporter := compliance.NewLogReporter(hname, "compliance-agent", "compliance", runPath, endpoints, ctx)
 	agent := compliance.NewAgent(senderManager, compliance.AgentOptions{
 		ConfigDir:     configDir,
 		Reporter:      reporter,
@@ -107,7 +104,7 @@ func startCompliance(senderManager sender.SenderManager, stopper startstop.Stopp
 			HostRoot:           os.Getenv("HOST_ROOT"),
 			DockerProvider:     compliance.DefaultDockerProvider,
 			LinuxAuditProvider: compliance.DefaultLinuxAuditProvider,
-			KubernetesProvider: wrapKubernetesClient(apiCl.DynamicCl, isLeader),
+			KubernetesProvider: wrapKubernetesClient(apiCl, isLeader),
 		},
 	})
 	err = agent.Start()
@@ -120,11 +117,11 @@ func startCompliance(senderManager sender.SenderManager, stopper startstop.Stopp
 	return nil
 }
 
-func wrapKubernetesClient(client dynamic.Interface, isLeader func() bool) compliance.KubernetesProvider {
-	return func(ctx context.Context) (dynamic.Interface, error) {
+func wrapKubernetesClient(apiCl *apiserver.APIClient, isLeader func() bool) compliance.KubernetesProvider {
+	return func(ctx context.Context) (dynamic.Interface, discovery.DiscoveryInterface, error) {
 		if isLeader() {
-			return client, nil
+			return apiCl.DynamicCl, apiCl.Cl.Discovery(), nil
 		}
-		return nil, compliance.ErrIncompatibleEnvironment
+		return nil, nil, compliance.ErrIncompatibleEnvironment
 	}
 }

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package profiling interacts with internal profiling
 package profiling
 
 import (
@@ -65,6 +66,14 @@ func Start(settings Settings) error {
 	}
 	if settings.BlockProfileRate > 0 {
 		options = append(options, profiler.BlockProfileRate(settings.BlockProfileRate))
+	}
+
+	if len(settings.CustomAttributes) > 0 {
+		customContextTags := make([]string, len(settings.CustomAttributes))
+		for _, customAttribute := range settings.CustomAttributes {
+			customContextTags = append(customContextTags, "ddprof.custom_ctx:"+customAttribute)
+		}
+		options = append(options, profiler.WithTags(customContextTags...))
 	}
 
 	err := profiler.Start(options...)

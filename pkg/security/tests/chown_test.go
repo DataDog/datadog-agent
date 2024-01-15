@@ -5,6 +5,7 @@
 
 //go:build functionaltests && !386
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -45,7 +46,7 @@ func TestChown(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}

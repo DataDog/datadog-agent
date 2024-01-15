@@ -3,12 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package config holds config related files
 package config
 
 import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -18,6 +20,7 @@ const (
 	evNS = "event_monitoring_config"
 )
 
+// Config defines the config
 type Config struct {
 	// SocketPath is the path to the socket that is used to communicate with the security agent and process agent
 	SocketPath string
@@ -33,7 +36,7 @@ type Config struct {
 }
 
 // NewConfig creates a config for the event monitoring module
-func NewConfig(spConfig *config.Config) *Config {
+func NewConfig(spConfig *sysconfigtypes.Config) *Config {
 	return &Config{
 		// event server
 		SocketPath:       coreconfig.SystemProbe.GetString(join(evNS, "socket")),

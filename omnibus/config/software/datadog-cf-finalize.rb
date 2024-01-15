@@ -20,7 +20,7 @@ build do
     # TODO too many things done here, should be split
     block do
         # Conf files
-        if windows?
+        if windows_target?
             ## this section creates the parallel `bin` directory structure for the Windows
             ## CF build pack.  None of the files created here will end up in the binary
             ## (MSI) distribution.
@@ -30,14 +30,14 @@ build do
             mkdir cf_bin_root_bin
             mkdir "#{cf_bin_root_bin}/agent"
 
-            copy "#{cf_source_root}/agent/agent.exe", "#{cf_bin_root_bin}"
-            copy "#{cf_source_root}/agent/libdatadog-agent-three.dll", "#{cf_bin_root_bin}"
+            copy "#{install_dir}/bin/agent/agent.exe", "#{cf_bin_root_bin}"
+            copy "#{install_dir}/bin/agent/libdatadog-agent-three.dll", "#{cf_bin_root_bin}"
             if with_python_runtime? "2"
-                copy "#{cf_source_root}/agent/libdatadog-agent-two.dll", "#{cf_bin_root_bin}"
+                copy "#{install_dir}/bin/agent/libdatadog-agent-two.dll", "#{cf_bin_root_bin}"
             end
 
-            copy "#{cf_source_root}/agent/process-agent.exe", "#{cf_bin_root_bin}/agent"
-            copy "#{cf_source_root}/agent/trace-agent.exe", "#{cf_bin_root_bin}/agent"
+            copy "#{install_dir}/bin/agent/process-agent.exe", "#{cf_bin_root_bin}/agent"
+            copy "#{install_dir}/bin/agent/trace-agent.exe", "#{cf_bin_root_bin}/agent"
         end
     end
 end

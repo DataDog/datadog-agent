@@ -140,15 +140,19 @@ func (p *perfBatchManager) extractBatchInto(buffer *network.ConnectionBuffer, b 
 		switch i {
 		case 0:
 			ct = b.C0
+			//nolint:gosimple // TODO(NET) Fix gosimple linter
 			break
 		case 1:
 			ct = b.C1
+			//nolint:gosimple // TODO(NET) Fix gosimple linter
 			break
 		case 2:
 			ct = b.C2
+			//nolint:gosimple // TODO(NET) Fix gosimple linter
 			break
 		case 3:
 			ct = b.C3
+			//nolint:gosimple // TODO(NET) Fix gosimple linter
 			break
 		default:
 			panic("batch size is out of sync")

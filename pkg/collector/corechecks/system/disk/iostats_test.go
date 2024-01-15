@@ -98,6 +98,7 @@ func SwapMemory() (*mem.SwapMemoryStat, error) {
 	}, nil
 }
 
+//nolint:revive // TODO(PLINT) Fix revive linter
 func sampler(samples []map[string]disk.IOCountersStat, names ...string) (map[string]disk.IOCountersStat, error) {
 	idx := sampleIdx
 	sampleIdx++
@@ -105,11 +106,12 @@ func sampler(samples []map[string]disk.IOCountersStat, names ...string) (map[str
 	return ioSamples[idx], nil
 }
 
+//nolint:revive // TODO(PLINT) Fix revive linter
 func TestIOCheckDM(t *testing.T) {
 	ioCounters = ioSamplerDM
 	swapMemory = SwapMemory
 	ioCheck := new(IOCheck)
-	ioCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	ioCheck.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 
 	mock := mocksender.NewMockSender(ioCheck.ID())
 
@@ -135,9 +137,8 @@ func TestIOCheck(t *testing.T) {
 	ioCounters = ioSampler
 	swapMemory = SwapMemory
 	ioCheck := new(IOCheck)
-	ioCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
-
 	mock := mocksender.NewMockSender(ioCheck.ID())
+	ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 
 	expectedRates := 2
 	expectedGauges := 0
@@ -203,9 +204,8 @@ func TestIOCheckBlacklist(t *testing.T) {
 	ioCounters = ioSampler
 	swapMemory = SwapMemory
 	ioCheck := new(IOCheck)
-	ioCheck.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
-
 	mock := mocksender.NewMockSender(ioCheck.ID())
+	ioCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 
 	expectedRates := 0
 	expectedGauges := 0

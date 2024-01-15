@@ -5,7 +5,8 @@
 
 //go:build linux
 
-package activity_tree
+// Package activitytree holds activitytree related files
+package activitytree
 
 import (
 	"time"
@@ -16,8 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-// ActivityTreeToProto encodes an activity tree to its protobuf representation
-func ActivityTreeToProto(at *ActivityTree) []*adproto.ProcessActivityNode {
+// ToProto encodes an activity tree to its protobuf representation
+func ToProto(at *ActivityTree) []*adproto.ProcessActivityNode {
 	out := make([]*adproto.ProcessActivityNode, 0, len(at.ProcessNodes))
 
 	for _, node := range at.ProcessNodes {
@@ -80,7 +81,7 @@ func processNodeToProto(p *model.Process) *adproto.ProcessInfo {
 		Pid:         p.Pid,
 		Tid:         p.Tid,
 		Ppid:        p.PPid,
-		Cookie:      p.Cookie,
+		Cookie64:    p.Cookie,
 		IsThread:    p.IsThread,
 		IsExecChild: p.IsExecChild,
 		File:        fileEventToProto(&p.FileEvent),
@@ -96,7 +97,7 @@ func processNodeToProto(p *model.Process) *adproto.ProcessInfo {
 
 		Credentials: credentialsToProto(&p.Credentials),
 
-		Args:          copyAndEscape(p.ScrubbedArgv),
+		Args:          copyAndEscape(p.Argv),
 		Argv0:         escape(p.Argv0),
 		ArgsTruncated: p.ArgsTruncated,
 

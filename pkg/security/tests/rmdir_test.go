@@ -5,6 +5,7 @@
 
 //go:build functionaltests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -28,7 +29,7 @@ func TestRmdir(t *testing.T) {
 		Expression: `rmdir.file.path in ["{{.Root}}/test-rmdir", "{{.Root}}/test-unlink-rmdir"] && rmdir.file.uid == 0 && rmdir.file.gid == 0`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +58,9 @@ func TestRmdir(t *testing.T) {
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "rmdir", event.GetType(), "wrong event type")
-			assert.Equal(t, inode, event.Rmdir.File.Inode, "wrong inode")
+			if !test.opts.staticOpts.enableEBPFLess {
+				assert.Equal(t, inode, event.Rmdir.File.Inode, "wrong inode")
+			}
 			assertRights(t, event.Rmdir.File.Mode, expectedMode, "wrong initial mode")
 			assertNearTime(t, event.Rmdir.File.MTime)
 			assertNearTime(t, event.Rmdir.File.CTime)
@@ -87,7 +90,9 @@ func TestRmdir(t *testing.T) {
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "rmdir", event.GetType(), "wrong event type")
-			assert.Equal(t, inode, event.Rmdir.File.Inode, "wrong inode")
+			if !test.opts.staticOpts.enableEBPFLess {
+				assert.Equal(t, inode, event.Rmdir.File.Inode, "wrong inode")
+			}
 			assertRights(t, event.Rmdir.File.Mode, expectedMode, "wrong initial mode")
 			assertNearTime(t, event.Rmdir.File.MTime)
 			assertNearTime(t, event.Rmdir.File.CTime)
@@ -98,6 +103,9 @@ func TestRmdir(t *testing.T) {
 	})
 
 	t.Run("unlinkat-io_uring", func(t *testing.T) {
+		if test.opts.staticOpts.enableEBPFLess {
+			t.Skip("io_uring not supported")
+		}
 		testDir, _, err := test.Path("test-unlink-rmdir")
 		if err != nil {
 			t.Fatal(err)
@@ -169,7 +177,7 @@ func TestRmdirInvalidate(t *testing.T) {
 		Expression: `rmdir.file.path =~ "{{.Root}}/test-rmdir-*"`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}

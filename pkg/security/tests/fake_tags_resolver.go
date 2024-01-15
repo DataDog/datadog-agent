@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -18,14 +19,14 @@ import (
 
 // This fake resolver will give a different image_name for each different container ID
 
-// Resolver represents a cache resolver
+// FakeResolver represents a fake cache resolver
 type FakeResolver struct {
 	sync.Mutex
 	containerIDs []string
 }
 
 // Start the resolver
-func (t *FakeResolver) Start(ctx context.Context) error {
+func (t *FakeResolver) Start(_ context.Context) error {
 	return nil
 }
 
@@ -64,12 +65,12 @@ func NewFakeResolver() tags.Resolver {
 
 // This fake resolver will allways give the same image_name, no matter the container ID
 
-// Resolver represents a cache resolver
+// FakeMonoResolver represents a fake mono resolver
 type FakeMonoResolver struct {
 }
 
 // Start the resolver
-func (t *FakeMonoResolver) Start(ctx context.Context) error {
+func (t *FakeMonoResolver) Start(_ context.Context) error {
 	return nil
 }
 

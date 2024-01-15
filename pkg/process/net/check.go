@@ -5,6 +5,7 @@
 
 //go:build linux
 
+//nolint:revive // TODO(PROC) Fix revive linter
 package net
 
 import (
@@ -14,8 +15,10 @@ import (
 	"net/http"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
+	ebpfcheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck/model"
+	oomkill "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/oomkill/model"
+	tcpqueuelength "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model"
 )
 
 const (
@@ -23,7 +26,7 @@ const (
 )
 
 // GetCheck returns the check output of the specified module
-func (r *RemoteSysProbeUtil) GetCheck(module sysconfig.ModuleName) (interface{}, error) {
+func (r *RemoteSysProbeUtil) GetCheck(module sysconfigtypes.ModuleName) (interface{}, error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf(checksURL, module), nil)
 	if err != nil {
 		return nil, err
@@ -44,14 +47,14 @@ func (r *RemoteSysProbeUtil) GetCheck(module sysconfig.ModuleName) (interface{},
 	}
 
 	if module == sysconfig.TCPQueueLengthTracerModule {
-		var stats probe.TCPQueueLengthStats
+		var stats tcpqueuelength.TCPQueueLengthStats
 		err = json.Unmarshal(body, &stats)
 		if err != nil {
 			return nil, err
 		}
 		return stats, nil
 	} else if module == sysconfig.OOMKillProbeModule {
-		var stats []probe.OOMKillStats
+		var stats []oomkill.OOMKillStats
 		err = json.Unmarshal(body, &stats)
 		if err != nil {
 			return nil, err
@@ -66,5 +69,5 @@ func (r *RemoteSysProbeUtil) GetCheck(module sysconfig.ModuleName) (interface{},
 		return stats, nil
 	}
 
-	return nil, fmt.Errorf("Invalid check name: %s", module)
+	return nil, fmt.Errorf("invalid check name: %s", module)
 }

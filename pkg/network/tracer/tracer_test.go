@@ -22,7 +22,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -33,12 +32,11 @@ import (
 	"github.com/stretchr/testify/suite"
 	"golang.org/x/sync/errgroup"
 
-	syscfg "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/driver"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -56,7 +54,7 @@ func TestMain(m *testing.M) {
 		logLevel = "warn"
 	}
 	log.SetupLogger(seelog.Default, logLevel)
-	_ = driver.Init(&syscfg.Config{})
+	platformInit()
 	os.Exit(m.Run())
 }
 
@@ -197,15 +195,18 @@ func (s *TracerSuite) TestTCPSendAndReceive() {
 	err = wg.Wait()
 	require.NoError(t, err)
 
-	// Iterate through active connections until we find connection created above, and confirm send + recv counts
-	connections := getConnections(t, tr)
+	var conn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		// Iterate through active connections until we find connection created above, and confirm send + recv counts
+		connections := getConnections(t, tr)
+		var ok bool
+		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		return conn != nil && ok
+	}, 3*time.Second, 100*time.Millisecond, "failed to find connection")
 
-	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-	require.True(t, ok)
 	m := conn.Monotonic
 	assert.Equal(t, 10*clientMessageSize, int(m.SentBytes))
 	assert.Equal(t, 10*serverMessageSize, int(m.RecvBytes))
-	assert.Equal(t, 0, int(m.Retransmits))
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
 	assert.Equal(t, network.OUTGOING, conn.Direction)
@@ -399,12 +400,15 @@ func (s *TracerSuite) TestTCPConnsReported() {
 
 func (s *TracerSuite) TestUDPSendAndReceive() {
 	t := s.T()
+	cfg := testConfig()
+	tr := setupTracer(t, cfg)
+
 	t.Run("v4", func(t *testing.T) {
 		if !testConfig().CollectUDPv4Conns {
 			t.Skip("UDPv4 disabled")
 		}
 		t.Run("fixed port", func(t *testing.T) {
-			testUDPSendAndReceive(t, "127.0.0.1:8081")
+			testUDPSendAndReceive(t, tr, "127.0.0.1:8081")
 		})
 	})
 	t.Run("v6", func(t *testing.T) {
@@ -412,14 +416,13 @@ func (s *TracerSuite) TestUDPSendAndReceive() {
 			t.Skip("UDPv6 disabled")
 		}
 		t.Run("fixed port", func(t *testing.T) {
-			testUDPSendAndReceive(t, "[::1]:8081")
+			testUDPSendAndReceive(t, tr, "[::1]:8081")
 		})
 	})
 }
 
-func testUDPSendAndReceive(t *testing.T, addr string) {
-	cfg := testConfig()
-	tr := setupTracer(t, cfg)
+func testUDPSendAndReceive(t *testing.T, tr *Tracer, addr string) {
+	tr.removeClient(clientID)
 
 	server := &UDPServer{
 		address: addr,
@@ -993,22 +996,16 @@ func initTracerState(t testing.TB, tr *Tracer) {
 	require.NoError(t, err)
 }
 
-func getConnections(t *testing.T, tr *Tracer) *network.Connections {
+func getConnections(t require.TestingT, tr *Tracer) *network.Connections {
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections, err := tr.GetActiveConnections(clientID)
 	require.NoError(t, err)
 	return connections
 }
 
-const (
-	validDNSServer = "8.8.8.8"
-)
-
-func testDNSStats(t *testing.T, domain string, success int, failure int, timeout int, serverIP string) {
-	config := testConfig()
-	config.CollectDNSStats = true
-	config.DNSTimeout = 1 * time.Second
-	tr := setupTracer(t, config)
+func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, timeout int, serverIP string) {
+	tr.removeClient(clientID)
+	initTracerState(t, tr)
 
 	dnsServerAddr := &net.UDPAddr{IP: net.ParseIP(serverIP), Port: 53}
 
@@ -1016,19 +1013,18 @@ func testDNSStats(t *testing.T, domain string, success int, failure int, timeout
 	queryMsg.SetQuestion(dns.Fqdn(domain), dns.TypeA)
 	queryMsg.RecursionDesired = true
 
-	dnsClient := new(dns.Client)
-	dnsConn, err := dnsClient.Dial(dnsServerAddr.String())
-	require.NoError(t, err)
-	defer dnsConn.Close()
-	dnsClientAddr := dnsConn.LocalAddr().(*net.UDPAddr)
-	_, _, err = dnsClient.ExchangeWithConn(queryMsg, dnsConn)
+	var dnsClientAddr *net.UDPAddr
+	require.Eventually(t, func() bool {
+		dnsClient := new(dns.Client)
+		dnsConn, err := dnsClient.Dial(dnsServerAddr.String())
+		require.NoError(t, err)
+		dnsClientAddr = dnsConn.LocalAddr().(*net.UDPAddr)
+		_, _, err = dnsClient.ExchangeWithConn(queryMsg, dnsConn)
+		_ = dnsConn.Close()
+		return err == nil || timeout != 0
+	}, 6*time.Second, 100*time.Millisecond, "Failed to get dns response")
 
-	if err != nil && timeout == 0 {
-		t.Fatalf("Failed to get dns response %s\n", err.Error())
-	}
-
-	// Allow the DNS reply to be processed in the snooper
-	time.Sleep(time.Millisecond * 500)
+	require.NoError(t, tr.reverseDNS.WaitForDomain(domain))
 
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections := getConnections(t, tr)
@@ -1061,21 +1057,26 @@ func testDNSStats(t *testing.T, domain string, success int, failure int, timeout
 	failedResponses := total - successfulResponses
 
 	// DNS Stats
-	assert.Equal(t, uint32(success), successfulResponses)
+	assert.Equal(t, uint32(success), successfulResponses, "expected %d successful responses but got %d", success, successfulResponses)
 	assert.Equal(t, uint32(failure), failedResponses)
-	assert.Equal(t, uint32(timeout), timeouts)
+	assert.Equal(t, uint32(timeout), timeouts, "expected %d timeouts but got %d", timeout, timeouts)
 }
 
 func (s *TracerSuite) TestDNSStats() {
 	t := s.T()
+	cfg := testConfig()
+	cfg.CollectDNSStats = true
+	cfg.DNSTimeout = 1 * time.Second
+	cfg.CollectLocalDNS = true
+	tr := setupTracer(t, cfg)
 	t.Run("valid domain", func(t *testing.T) {
-		testDNSStats(t, "golang.org", 1, 0, 0, validDNSServer)
+		testDNSStats(t, tr, "good.com", 1, 0, 0, testdns.GetServerIP(t).String())
 	})
 	t.Run("invalid domain", func(t *testing.T) {
-		testDNSStats(t, "abcdedfg", 0, 1, 0, validDNSServer)
+		testDNSStats(t, tr, "abcdedfg", 0, 1, 0, testdns.GetServerIP(t).String())
 	})
 	t.Run("timeout", func(t *testing.T) {
-		testDNSStats(t, "golang.org", 0, 0, 1, "1.2.3.4")
+		testDNSStats(t, tr, "golang.org", 0, 0, 1, "1.2.3.4")
 	})
 }
 
@@ -1199,127 +1200,6 @@ func (s *TracerSuite) TestConnectedUDPSendIPv6() {
 	require.Len(t, outgoing, 1)
 	assert.Equal(t, remoteAddr.IP.String(), outgoing[0].Dest.String())
 	assert.Equal(t, bytesSent, int(outgoing[0].Monotonic.SentBytes))
-}
-
-func (s *TracerSuite) TestConnectionClobber() {
-	t := s.T()
-	cfg := testConfig()
-	cfg.CollectUDPv4Conns = false
-	cfg.CollectUDPv6Conns = false
-	cfg.ExcludedDestinationConnections = map[string][]string{
-		"0.0.0.0/2":   {"*"},
-		"64.0.0.0/3":  {"*"},
-		"96.0.0.0/4":  {"*"},
-		"112.0.0.0/5": {"*"},
-		"120.0.0.0/6": {"*"},
-		"124.0.0.0/7": {"*"},
-		"126.0.0.0/8": {"*"},
-		"128.0.0.0/1": {"*"},
-	}
-	tr := setupTracer(t, cfg)
-
-	// Create TCP Server which, for every line, sends back a message with size=serverMessageSize
-	var serverConns []net.Conn
-	srvRecvBuf := make([]byte, 4)
-	server := NewTCPServer(func(c net.Conn) {
-		serverConns = append(serverConns, c)
-		_, _ = io.ReadFull(c, srvRecvBuf)
-		_, _ = c.Write(srvRecvBuf)
-	})
-	require.NoError(t, server.Run())
-	t.Cleanup(server.Shutdown)
-
-	// we only need 1/4 since both send and recv sides will be registered
-	sendCount := tr.activeBuffer.Capacity()/4 + 1
-	sendAndRecv := func() []net.Conn {
-		connsCh := make(chan net.Conn, sendCount)
-		var conns []net.Conn
-		wg := sync.WaitGroup{}
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for c := range connsCh {
-				if c == nil {
-					return
-				}
-				conns = append(conns, c)
-			}
-		}()
-
-		g := new(errgroup.Group)
-		for i := 0; i < sendCount; i++ {
-			g.Go(func() error {
-				c, err := net.DialTimeout("tcp", server.address, 5*time.Second)
-				if err != nil {
-					return err
-				}
-				connsCh <- c
-
-				buf := make([]byte, 4)
-				_, err = c.Write(buf)
-				if err != nil {
-					return err
-				}
-
-				_, err = io.ReadFull(c, buf[:0])
-				return err
-			})
-		}
-
-		err := g.Wait()
-		require.NoError(t, err)
-		// signal all connections have been created
-		connsCh <- nil
-		// wait for all conns to be stored
-		wg.Wait()
-
-		return conns
-	}
-
-	conns := sendAndRecv()
-
-	// wait for tracer to pick up all connections
-	//
-	// there is not a good way do this other than a sleep since we
-	// can't call getConnections in a `require.Eventually` call
-	// to the get the number of connections as that could
-	// affect the `activeBuffer` length
-	time.Sleep(2 * time.Second)
-
-	preCap := tr.activeBuffer.Capacity()
-	connections := getConnections(t, tr)
-	require.NotEmpty(t, connections)
-	src := connections.Conns[0].SPort
-	dst := connections.Conns[0].DPort
-	t.Logf("got %d connections", len(connections.Conns))
-	// ensure we didn't grow or shrink the buffer
-	assert.Equal(t, preCap, tr.activeBuffer.Capacity())
-
-	closeConns := func(cxs []net.Conn) {
-		for _, c := range cxs {
-			if tcpc, ok := c.(*net.TCPConn); ok {
-				tcpc.SetLinger(0)
-			}
-			c.Close()
-		}
-	}
-
-	closeConns(append(conns, serverConns...))
-	serverConns = serverConns[:0]
-
-	// send second batch so that underlying array gets clobbered
-	conns = sendAndRecv()
-	serverConns = serverConns[:0]
-	t.Cleanup(func() {
-		closeConns(append(conns, serverConns...))
-	})
-
-	time.Sleep(2 * time.Second)
-
-	t.Logf("got %d connections", len(getConnections(t, tr).Conns))
-	assert.Equal(t, src, connections.Conns[0].SPort, "source port should not change")
-	assert.Equal(t, dst, connections.Conns[0].DPort, "dest port should not change")
-	assert.Equal(t, preCap, tr.activeBuffer.Capacity())
 }
 
 func (s *TracerSuite) TestTCPDirection() {

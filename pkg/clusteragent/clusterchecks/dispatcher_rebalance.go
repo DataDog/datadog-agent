@@ -171,9 +171,9 @@ func (d *dispatcher) moveCheck(src, dest, checkID string) error {
 	return nil
 }
 
-func (d *dispatcher) rebalance() []types.RebalanceResponse {
+func (d *dispatcher) rebalance(force bool) []types.RebalanceResponse {
 	if config.Datadog.GetBool("cluster_checks.rebalance_with_utilization") {
-		return d.rebalanceUsingUtilization()
+		return d.rebalanceUsingUtilization(force)
 	}
 
 	return d.rebalanceUsingBusyness()
@@ -298,7 +298,7 @@ func (d *dispatcher) rebalanceUsingBusyness() []types.RebalanceResponse {
 // checks are not very costly. They're ignored by this function.
 // - It can't predict the execution time of checks that are running for the
 // first time. This could become a problem for checks that take too long.
-func (d *dispatcher) rebalanceUsingUtilization() []types.RebalanceResponse {
+func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResponse {
 	// Collect CLC runners stats and update cache before rebalancing
 	d.updateRunnersStats()
 
@@ -310,12 +310,27 @@ func (d *dispatcher) rebalanceUsingUtilization() []types.RebalanceResponse {
 	currentChecksDistribution := d.currentDistribution()
 
 	proposedDistribution := newChecksDistribution(currentChecksDistribution.runnerWorkers())
+
+	// First all the checks that are excluded from rebalancing are added to the
+	// same runner where they are currently running.
+	for checkID, check := range currentChecksDistribution.Checks {
+		checkName := checkid.IDToCheckName(checkid.ID(checkID))
+		if _, excluded := d.excludedChecksFromDispatching[checkName]; excluded {
+			proposedDistribution.addCheck(checkID, check.WorkersNeeded, check.Runner)
+		}
+	}
+
+	// Place the checks that are not excluded from rebalancing
 	for _, checkID := range currentChecksDistribution.checksSortedByWorkersNeeded() {
-		proposedDistribution.addToLeastBusy(
-			checkID,
-			currentChecksDistribution.workersNeededForCheck(checkID),
-			currentChecksDistribution.runnerForCheck(checkID),
-		)
+		checkName := checkid.IDToCheckName(checkid.ID(checkID))
+		if _, excluded := d.excludedChecksFromDispatching[checkName]; !excluded {
+			proposedDistribution.addToLeastBusy(
+				checkID,
+				currentChecksDistribution.workersNeededForCheck(checkID),
+				currentChecksDistribution.runnerForCheck(checkID),
+				"",
+			)
+		}
 	}
 
 	// We don't calculate the optimal distribution, so it might be worse than
@@ -325,20 +340,28 @@ func (d *dispatcher) rebalanceUsingUtilization() []types.RebalanceResponse {
 	currentUtilizationStdDev := currentChecksDistribution.utilizationStdDev()
 	proposedUtilizationStdDev := proposedDistribution.utilizationStdDev()
 	minPercImprovement := config.Datadog.GetInt("cluster_checks.rebalance_min_percentage_improvement")
-	if !rebalanceIsWorthIt(currentChecksDistribution, proposedDistribution, minPercImprovement) {
-		log.Debugf("Didn't find a distribution better enough so that rescheduling checks is worth it (current utilization stddev: %.3f, found utilization stddev: %.3f)",
-			currentUtilizationStdDev, proposedUtilizationStdDev)
-		setPredictedUtilization(currentChecksDistribution)
-		return nil
+
+	if force || rebalanceIsWorthIt(currentChecksDistribution, proposedDistribution, minPercImprovement) {
+
+		jsonDistribution, _ := json.Marshal(proposedDistribution)
+
+		if force {
+			log.Infof("Forcing rebalance proposed distribution for the cluster checks. Utilization stdDev of proposed distribution: %.3f. StdDev of current distribution: %.3f. Proposed distribution: %s",
+				proposedUtilizationStdDev, currentUtilizationStdDev, jsonDistribution)
+		} else {
+			log.Infof("Found a better distribution for the cluster checks. Utilization stdDev of proposed distribution: %.3f. StdDev of current distribution: %.3f. Proposed distribution: %s",
+				proposedUtilizationStdDev, currentUtilizationStdDev, jsonDistribution)
+		}
+
+		setPredictedUtilization(proposedDistribution)
+
+		return d.applyDistribution(proposedDistribution, currentChecksDistribution)
 	}
 
-	jsonDistribution, _ := json.Marshal(proposedDistribution)
-	log.Infof("Found a better distribution for the cluster checks. Utilization stdDev of proposed distribution: %.3f. StdDev of current distribution: %.3f. Proposed distribution: %s",
-		proposedUtilizationStdDev, currentUtilizationStdDev, jsonDistribution)
-
-	setPredictedUtilization(proposedDistribution)
-
-	return d.applyDistribution(proposedDistribution, currentChecksDistribution)
+	log.Debugf("Didn't find a distribution better enough so that rescheduling checks is worth it (current utilization stddev: %.3f, found utilization stddev: %.3f)",
+		currentUtilizationStdDev, proposedUtilizationStdDev)
+	setPredictedUtilization(currentChecksDistribution)
+	return nil
 }
 
 func (d *dispatcher) currentDistribution() checksDistribution {
@@ -355,15 +378,12 @@ func (d *dispatcher) currentDistribution() checksDistribution {
 
 	for nodeName, nodeStoreInfo := range d.store.nodes {
 		for checkID, stats := range nodeStoreInfo.clcRunnerStats {
-			digest, found := d.store.idToDigest[checkid.ID(checkID)]
-			if !found { // Not a cluster check
+			if !stats.IsClusterCheck {
 				continue
 			}
 
 			minCollectionInterval := defaults.DefaultCheckInterval
-
-			conf := d.store.digestToConfig[digest]
-
+			conf := d.store.digestToConfig[d.store.idToDigest[checkid.ID(checkID)]]
 			if len(conf.Instances) > 0 {
 				commonOptions := integration.CommonInstanceConfig{}
 				err := yaml.Unmarshal(conf.Instances[0], &commonOptions)

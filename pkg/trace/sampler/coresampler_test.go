@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+//nolint:revive // TODO(APM) Fix revive linter
 func TestSamplerAccessRace(t *testing.T) {
 	s := newSampler(1, 2, nil)
 	var wg sync.WaitGroup

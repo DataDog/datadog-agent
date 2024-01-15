@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package tests implements the unit tests for pkg/compliance.
 package tests
 
 import (
@@ -10,7 +11,7 @@ import (
 )
 
 func TestBase(t *testing.T) {
-	b := NewTestBench(t)
+	b := newTestBench(t)
 	defer b.Run()
 
 	b.AddRule("BadYamlSuiteInput").

@@ -11,31 +11,62 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestObfuscateMemcached(t *testing.T) {
+func TestObfuscateMemcachedKeepCommand(t *testing.T) {
 	for _, tt := range []struct {
-		in, out string
+		in, out     string
+		keepCommand bool
 	}{
 		{
 			"set mykey 0 60 5\r\nvalue",
 			"set mykey 0 60 5",
+			true,
 		},
 		{
 			"get mykey",
 			"get mykey",
+			true,
 		},
 		{
 			"add newkey 0 60 5\r\nvalue",
 			"add newkey 0 60 5",
+			true,
 		},
 		{
 			"add newkey 0 60 5\r\nvalue",
 			"add newkey 0 60 5",
+			true,
 		},
 		{
 			"decr mykey 5",
 			"decr mykey 5",
+			true,
+		},
+		{
+			"set mykey 0 60 5\r\nvalue",
+			"",
+			false,
+		},
+		{
+			"get mykey",
+			"",
+			false,
+		},
+		{
+			"get", // this is invalid, but it shouldn't crash
+			"",
+			false,
+		},
+		{
+			"get\r\nvalue", // this is invalid, but it shouldn't crash
+			"",
+			false,
 		},
 	} {
-		assert.Equal(t, tt.out, NewObfuscator(Config{}).ObfuscateMemcachedString(tt.in))
+		t.Run(tt.in, func(t *testing.T) {
+			assert.Equal(t, tt.out, NewObfuscator(Config{Memcached: MemcachedConfig{
+				Enabled:     true,
+				KeepCommand: tt.keepCommand,
+			}}).ObfuscateMemcachedString(tt.in))
+		})
 	}
 }

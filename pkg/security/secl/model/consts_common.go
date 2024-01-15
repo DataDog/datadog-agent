@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package model holds model related files
 package model
 
 import (
@@ -12,9 +13,11 @@ import (
 	"math/bits"
 	"sort"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 
 	lru "github.com/hashicorp/golang-lru/v2"
 )
@@ -56,7 +59,7 @@ const (
 	// EventFlagsActivityDumpSample an AD sample
 	EventFlagsActivityDumpSample
 
-	// InProfile true if the event was found in a profile
+	// EventFlagsSecurityProfileInProfile true if the event was found in a profile
 	EventFlagsSecurityProfileInProfile
 )
 
@@ -538,13 +541,16 @@ var (
 		"CLASS_ANY":    255,
 	}
 
-	// SECLConstants are constants supported in runtime security agent rules
-	// generate_constants:SecL constants,SecL constants are the supported generic SecL constants.
-	SECLConstants = map[string]interface{}{
+	// BooleanConstants holds the evaluator for boolean constants
+	// generate_constants:Boolean constants,Boolean constants are the supported boolean constants.
+	BooleanConstants = map[string]interface{}{
 		// boolean
 		"true":  &eval.BoolEvaluator{Value: true},
 		"false": &eval.BoolEvaluator{Value: false},
 	}
+
+	// seclConstants are constants supported in runtime security agent rules
+	seclConstants = map[string]interface{}{}
 
 	// L3ProtocolConstants is the list of supported L3 protocols
 	// generate_constants:L3 protocols,L3 protocols are the supported Layer 3 protocols.
@@ -714,7 +720,7 @@ const (
 
 func initOpenConstants() {
 	for k, v := range openFlagsConstants {
-		SECLConstants[k] = &eval.IntEvaluator{Value: v}
+		seclConstants[k] = &eval.IntEvaluator{Value: v}
 	}
 
 	for k, v := range openFlagsConstants {
@@ -724,35 +730,35 @@ func initOpenConstants() {
 
 func initFileModeConstants() {
 	for k, v := range fileModeConstants {
-		SECLConstants[k] = &eval.IntEvaluator{Value: v}
+		seclConstants[k] = &eval.IntEvaluator{Value: v}
 		fileModeStrings[v] = k
 	}
 }
 
 func initInodeModeConstants() {
 	for k, v := range inodeModeConstants {
-		SECLConstants[k] = &eval.IntEvaluator{Value: v}
+		seclConstants[k] = &eval.IntEvaluator{Value: v}
 		inodeModeStrings[v] = k
 	}
 }
 
 func initUnlinkConstanst() {
 	for k, v := range unlinkFlagsConstants {
-		SECLConstants[k] = &eval.IntEvaluator{Value: v}
+		seclConstants[k] = &eval.IntEvaluator{Value: v}
 		unlinkFlagsStrings[v] = k
 	}
 }
 
 func initErrorConstants() {
 	for k, v := range errorConstants {
-		SECLConstants[k] = &eval.IntEvaluator{Value: v}
+		seclConstants[k] = &eval.IntEvaluator{Value: v}
 	}
 }
 
 func initKernelCapabilityConstants() {
 	for k, v := range KernelCapabilityConstants {
 		if bits.UintSize == 64 || v < math.MaxInt32 {
-			SECLConstants[k] = &eval.IntEvaluator{Value: int(v)}
+			seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
 		}
 		kernelCapabilitiesStrings[v] = k
 	}
@@ -760,35 +766,35 @@ func initKernelCapabilityConstants() {
 
 func initBPFCmdConstants() {
 	for k, v := range BPFCmdConstants {
-		SECLConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
 		bpfCmdStrings[uint32(v)] = k
 	}
 }
 
 func initBPFHelperFuncConstants() {
 	for k, v := range BPFHelperFuncConstants {
-		SECLConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
 		bpfHelperFuncStrings[uint32(v)] = k
 	}
 }
 
 func initBPFMapTypeConstants() {
 	for k, v := range BPFMapTypeConstants {
-		SECLConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
 		bpfMapTypeStrings[uint32(v)] = k
 	}
 }
 
 func initBPFProgramTypeConstants() {
 	for k, v := range BPFProgramTypeConstants {
-		SECLConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
 		bpfProgramTypeStrings[uint32(v)] = k
 	}
 }
 
 func initBPFAttachTypeConstants() {
 	for k, v := range BPFAttachTypeConstants {
-		SECLConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
 		bpfAttachTypeStrings[uint32(v)] = k
 	}
 }
@@ -799,7 +805,7 @@ func initPtraceConstants() {
 	}
 
 	for k, v := range ptraceConstants {
-		SECLConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
 	}
 
 	for k, v := range ptraceConstants {
@@ -809,7 +815,7 @@ func initPtraceConstants() {
 
 func initVMConstants() {
 	for k, v := range vmConstants {
-		SECLConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
 	}
 
 	for k, v := range vmConstants {
@@ -819,7 +825,7 @@ func initVMConstants() {
 
 func initProtConstansts() {
 	for k, v := range protConstants {
-		SECLConstants[k] = &eval.IntEvaluator{Value: v}
+		seclConstants[k] = &eval.IntEvaluator{Value: v}
 	}
 
 	for k, v := range protConstants {
@@ -833,7 +839,7 @@ func initMMapFlagsConstants() {
 	}
 
 	for k, v := range mmapFlagConstants {
-		SECLConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
 	}
 
 	for k, v := range mmapFlagConstants {
@@ -842,53 +848,53 @@ func initMMapFlagsConstants() {
 }
 
 func initSignalConstants() {
-	for k, v := range signalConstants {
-		SECLConstants[k] = &eval.IntEvaluator{Value: v}
+	for k, v := range SignalConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: v}
 	}
 
-	for k, v := range signalConstants {
+	for k, v := range SignalConstants {
 		signalStrings[v] = k
 	}
 }
 
 func initPipeBufFlagConstants() {
 	for k, v := range PipeBufFlagConstants {
-		SECLConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
 		pipeBufFlagStrings[int(v)] = k
 	}
 }
 
 func initDNSQClassConstants() {
 	for k, v := range DNSQClassConstants {
-		SECLConstants[k] = &eval.IntEvaluator{Value: v}
+		seclConstants[k] = &eval.IntEvaluator{Value: v}
 		dnsQClassStrings[uint32(v)] = k
 	}
 }
 
 func initDNSQTypeConstants() {
 	for k, v := range DNSQTypeConstants {
-		SECLConstants[k] = &eval.IntEvaluator{Value: v}
+		seclConstants[k] = &eval.IntEvaluator{Value: v}
 		dnsQTypeStrings[uint32(v)] = k
 	}
 }
 
 func initL3ProtocolConstants() {
 	for k, v := range L3ProtocolConstants {
-		SECLConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
 		l3ProtocolStrings[v] = k
 	}
 }
 
 func initL4ProtocolConstants() {
 	for k, v := range L4ProtocolConstants {
-		SECLConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
 		l4ProtocolStrings[v] = k
 	}
 }
 
 func initAddressFamilyConstants() {
 	for k, v := range addressFamilyConstants {
-		SECLConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
 	}
 
 	for k, v := range addressFamilyConstants {
@@ -898,16 +904,23 @@ func initAddressFamilyConstants() {
 
 func initExitCauseConstants() {
 	for k, v := range exitCauseConstants {
-		SECLConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
 		exitCauseStrings[v] = k
 	}
 }
 
 func initBPFMapNamesConstants() {
-	SECLConstants["CWS_MAP_NAMES"] = &eval.StringArrayEvaluator{Values: bpfMapNames}
+	seclConstants["CWS_MAP_NAMES"] = &eval.StringArrayEvaluator{Values: bpfMapNames}
+}
+
+func initBoolConstants() {
+	for k, v := range BooleanConstants {
+		seclConstants[k] = v
+	}
 }
 
 func initConstants() {
+	initBoolConstants()
 	initErrorConstants()
 	initOpenConstants()
 	initFileModeConstants()
@@ -932,6 +945,7 @@ func initConstants() {
 	initAddressFamilyConstants()
 	initExitCauseConstants()
 	initBPFMapNamesConstants()
+	usersession.InitUserSessionTypes()
 }
 
 func bitmaskToStringArray(bitmask int, intToStrMap map[int]string) []string {
@@ -1058,8 +1072,18 @@ func (f RetValError) String() string {
 
 var capsStringArrayCache *lru.Cache[KernelCapability, []string]
 
+var constantsInitialized sync.Once
+
+// SECLConstants returns the constants supported in runtime security agent rules,
+// initializing these constants during the first call
+func SECLConstants() map[string]interface{} {
+	constantsInitialized.Do(func() {
+		initConstants()
+	})
+	return seclConstants
+}
+
 func init() {
-	initConstants()
 	capsStringArrayCache, _ = lru.New[KernelCapability, []string](4)
 }
 

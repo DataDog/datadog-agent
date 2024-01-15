@@ -5,7 +5,6 @@
 # include:
 #   - /.gitlab/kitchen_common/testing.yml
 
-
 # Kitchen: OSes
 # -------------
 
@@ -78,96 +77,17 @@ kitchen_debian_install_script_agent-a6_arm64:
     - .kitchen_scenario_debian_a6_arm64
     - .kitchen_test_install_script_agent
 
-kitchen_debian_install_script_agent-a7_x64:
-  # Run install script test on branches, on a reduced number of platforms
-  rules:
-    !reference [.on_default_kitchen_tests_a7]
-  extends:
-    - .kitchen_os_with_cws
-    - .kitchen_scenario_debian_a7_x64
-    - .kitchen_test_install_script_agent
-
-kitchen_debian_install_script_agent-a7_arm64:
-  rules:
-    !reference [.on_all_kitchen_builds_a7]
-  extends:
-    - .kitchen_os_with_cws
-    - .kitchen_scenario_debian_a7_arm64
-    - .kitchen_test_install_script_agent
-
-kitchen_debian_install_script_iot_agent-a7:
-  extends:
-    - .kitchen_scenario_debian_a7_x64
-    - .kitchen_test_install_script_iot_agent
-
 kitchen_debian_install_script_heroku_agent-a6:
   extends:
     - .kitchen_scenario_debian_a6_x64
     - .kitchen_test_install_script_heroku_agent
 
-kitchen_debian_install_script_heroku_agent-a7:
-  extends:
-    - .kitchen_scenario_debian_a7_x64
-    - .kitchen_test_install_script_heroku_agent
-
-kitchen_debian_install_script_dogstatsd-a7:
-  extends:
-    - .kitchen_scenario_debian_a7_x64
-    - .kitchen_test_install_script_dogstatsd
-
 # We only want to run step-by-step tests on deploy pipelines,
 # which is why they have a different rule (if_deploy_6/7)
 
-kitchen_debian_step_by_step_agent-a6:
-  extends:
-    - .kitchen_os_with_cws
-    - .kitchen_scenario_debian_a6_x64
-    - .kitchen_test_step_by_step_agent
-  rules:
-    !reference [.on_deploy_a6]
-
-kitchen_debian_step_by_step_agent-a7:
-  extends:
-    - .kitchen_os_with_cws
-    - .kitchen_scenario_debian_a7_x64
-    - .kitchen_test_step_by_step_agent
-  rules:
-    !reference [.on_deploy_a7]
-
-kitchen_debian_upgrade5_agent-a6:
-  extends:
-    - .kitchen_scenario_debian_a6_x64
-    - .kitchen_test_upgrade5_agent
-
-kitchen_debian_upgrade5_agent-a7:
-  extends:
-    - .kitchen_scenario_debian_a7_x64
-    - .kitchen_test_upgrade5_agent
-
-kitchen_debian_upgrade6_agent-a6:
-  extends:
-    - .kitchen_os_with_cws
-    - .kitchen_scenario_debian_a6_x64
-    - .kitchen_test_upgrade6_agent
-
-kitchen_debian_upgrade6_agent-a7:
-  extends:
-    - .kitchen_os_with_cws
-    - .kitchen_scenario_debian_a7_x64
-    - .kitchen_test_upgrade6_agent
-
-kitchen_debian_upgrade7_agent-a7:
-  extends:
-    - .kitchen_os_with_cws
-    - .kitchen_scenario_debian_a7_x64
-    - .kitchen_test_upgrade7_agent
-
-kitchen_debian_upgrade7_iot_agent-a7:
-  extends:
-    - .kitchen_scenario_debian_a7_x64
-    - .kitchen_test_upgrade7_iot_agent
-
 kitchen_debian_process_agent-a7:
+  rules:
+    - !reference [.on_default_kitchen_tests_a7]
   variables:
     KITCHEN_OSVERS: "debian-11"
     DEFAULT_KITCHEN_OSVERS: "debian-11"

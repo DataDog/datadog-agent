@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package rules holds rules related files
 package rules
 
 import (
@@ -18,7 +19,7 @@ var (
 	// ErrRuleWithoutExpression is returned when there is no expression
 	ErrRuleWithoutExpression = errors.New("no rule expression")
 
-	// ErrRuleWithoutExpression is returned when there is no expression
+	// ErrRuleIDPattern is returned when there is no expression
 	ErrRuleIDPattern = errors.New("rule ID pattern error")
 
 	// ErrRuleWithoutEvent is returned when no event type was inferred from the rule
@@ -170,4 +171,14 @@ type ErrRuleSyntax struct {
 
 func (e *ErrRuleSyntax) Error() string {
 	return fmt.Sprintf("syntax error `%v`", e.Err)
+}
+
+// ErrActionFilter is on filter definition error
+type ErrActionFilter struct {
+	Expression string
+	Err        error
+}
+
+func (e ErrActionFilter) Error() string {
+	return fmt.Sprintf("filter `%s` error: %s", e.Expression, e.Err)
 }

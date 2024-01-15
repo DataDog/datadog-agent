@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package rules holds rules related files
 package rules
 
 import (
@@ -155,7 +156,7 @@ func TestActionSetVariable(t *testing.T) {
 		Rules: []*RuleDefinition{{
 			ID:         "test_rule",
 			Expression: `open.file.path == "/tmp/test"`,
-			Actions: []ActionDefinition{{
+			Actions: []*ActionDefinition{{
 				Set: &SetDefinition{
 					Name:  "var1",
 					Value: true,
@@ -292,7 +293,7 @@ func TestActionSetVariableConflict(t *testing.T) {
 		Rules: []*RuleDefinition{{
 			ID:         "test_rule",
 			Expression: `open.file.path == "/tmp/test"`,
-			Actions: []ActionDefinition{{
+			Actions: []*ActionDefinition{{
 				Set: &SetDefinition{
 					Name:  "var1",
 					Value: true,
@@ -513,7 +514,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			Rules: []*RuleDefinition{{
 				ID:         "test_rule",
 				Expression: `open.file.path == "/tmp/test"`,
-				Actions: []ActionDefinition{{
+				Actions: []*ActionDefinition{{
 					Set: &SetDefinition{
 						Name:  "var1",
 						Value: []string{"abc"},
@@ -535,7 +536,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			Rules: []*RuleDefinition{{
 				ID:         "test_rule",
 				Expression: `open.file.path == "/tmp/test"`,
-				Actions: []ActionDefinition{{
+				Actions: []*ActionDefinition{{
 					Set: &SetDefinition{
 						Name:  "var1",
 						Value: []bool{true},
@@ -560,7 +561,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			Rules: []*RuleDefinition{{
 				ID:         "test_rule",
 				Expression: `open.file.path == "/tmp/test"`,
-				Actions: []ActionDefinition{{
+				Actions: []*ActionDefinition{{
 					Set: &SetDefinition{
 						Name:  "var1",
 						Value: []interface{}{"string", true},
@@ -585,7 +586,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			Rules: []*RuleDefinition{{
 				ID:         "test_rule",
 				Expression: `open.file.path == "/tmp/test"`,
-				Actions: []ActionDefinition{{
+				Actions: []*ActionDefinition{{
 					Set: &SetDefinition{
 						Name:  "var1",
 						Value: nil,
@@ -606,7 +607,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			Rules: []*RuleDefinition{{
 				ID:         "test_rule",
 				Expression: `open.file.path == "/tmp/test"`,
-				Actions: []ActionDefinition{{
+				Actions: []*ActionDefinition{{
 					Set: &SetDefinition{
 						Name:   "var1",
 						Value:  []string{"abc"},
@@ -638,7 +639,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			Rules: []*RuleDefinition{{
 				ID:         "test_rule",
 				Expression: `open.file.path == "/tmp/test"`,
-				Actions: []ActionDefinition{{
+				Actions: []*ActionDefinition{{
 					Set: &SetDefinition{
 						Name:  "var1",
 						Field: "open.file.path",
@@ -669,7 +670,7 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			Rules: []*RuleDefinition{{
 				ID:         "test_rule",
 				Expression: `open.file.path == "/tmp/test"`,
-				Actions: []ActionDefinition{{
+				Actions: []*ActionDefinition{{
 					Set: &SetDefinition{
 						Name:   "var1",
 						Field:  "open.file.path",

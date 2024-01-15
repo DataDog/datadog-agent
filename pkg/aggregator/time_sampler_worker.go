@@ -6,6 +6,7 @@
 package aggregator
 
 import (
+	"io"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
@@ -36,9 +37,16 @@ type timeSamplerWorker struct {
 	flushChan chan flushTrigger
 	// use this chan to stop the timeSamplerWorker
 	stopChan chan struct{}
+	// channel to trigger interactive dump of the context resolver
+	dumpChan chan dumpTrigger
 
 	// tagsStore shard used to store tag slices for this worker
 	tagsStore *tags.Store
+}
+
+type dumpTrigger struct {
+	dest io.Writer
+	done chan error
 }
 
 func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, bufferSize int,
@@ -55,6 +63,7 @@ func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, buf
 		samplesChan: make(chan []metrics.MetricSample, bufferSize),
 		stopChan:    make(chan struct{}),
 		flushChan:   make(chan flushTrigger),
+		dumpChan:    make(chan dumpTrigger),
 
 		tagsStore: tagsStore,
 	}
@@ -67,13 +76,16 @@ func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, buf
 // If we want to move to a design where we can flush while we are processing samples,
 // we could consider implementing double-buffering or locking for every sample reception.
 func (w *timeSamplerWorker) run() {
+	shard := w.sampler.idString
+
 	for {
+		tlmChannelSize.Set(float64(len(w.samplesChan)), shard)
 		select {
 		case <-w.stopChan:
 			return
 		case ms := <-w.samplesChan:
 			aggregatorDogstatsdMetricSample.Add(int64(len(ms)))
-			tlmProcessed.Add(float64(len(ms)), "dogstatsd_metrics")
+			tlmProcessed.Add(float64(len(ms)), shard, "dogstatsd_metrics")
 			t := timeNowNano()
 			for i := 0; i < len(ms); i++ {
 				w.sampler.sample(&ms[i], t)
@@ -82,6 +94,8 @@ func (w *timeSamplerWorker) run() {
 		case trigger := <-w.flushChan:
 			w.triggerFlush(trigger)
 			w.tagsStore.Shrink()
+		case trigger := <-w.dumpChan:
+			trigger.done <- w.sampler.dumpContexts(trigger.dest)
 		}
 	}
 }
@@ -93,4 +107,10 @@ func (w *timeSamplerWorker) stop() {
 func (w *timeSamplerWorker) triggerFlush(trigger flushTrigger) {
 	w.sampler.flush(float64(trigger.time.Unix()), trigger.seriesSink, trigger.sketchesSink)
 	trigger.blockChan <- struct{}{}
+}
+
+func (w *timeSamplerWorker) dumpContexts(dest io.Writer) error {
+	done := make(chan error)
+	w.dumpChan <- dumpTrigger{dest: dest, done: done}
+	return <-done
 }

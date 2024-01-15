@@ -20,8 +20,7 @@ const (
 	inetCskListenStop = "inet_csk_listen_stop_enter"
 
 	// tcpConnect traces the connect() system call
-	tcpConnect       = "tcp_connect"
-	tcpConnectReturn = "tcp_connect_exit"
+	tcpConnect = "tcp_connect"
 	// tcpFinishConnect traces tcp_finish_connect() kernel function. This is
 	// used to know when a TCP connection switches to the ESTABLISHED state
 	tcpFinishConnect = "tcp_finish_connect"
@@ -46,9 +45,11 @@ const (
 	udpSendMsgReturn        = "udp_sendmsg_exit"
 	udpSendSkb              = "kprobe__udp_send_skb"
 
-	skbFreeDatagramLocked   = "skb_free_datagram_locked"
+	skbFreeDatagramLocked = "skb_free_datagram_locked"
+	//nolint:revive // TODO(NET) Fix revive linter
 	__skbFreeDatagramLocked = "__skb_free_datagram_locked"
-	skbConsumeUdp           = "skb_consume_udp"
+	//nolint:revive // TODO(NET) Fix revive linter
+	skbConsumeUdp = "skb_consume_udp"
 
 	udpv6RecvMsg              = "udpv6_recvmsg"
 	udpv6RecvMsgReturn        = "udpv6_recvmsg_exit"
@@ -80,9 +81,6 @@ const (
 	inetBindRet = "inet_bind_exit"
 	// inet6BindRet traces the bind() syscall for IPv6
 	inet6BindRet = "inet6_bind_exit"
-
-	// sockFDLookupRet is the kretprobe used for mapping socket FDs to kernel sock structs
-	sockFDLookupRet = "sockfd_lookup_light_exit"
 )
 
 var programs = map[string]struct{}{
@@ -92,12 +90,10 @@ var programs = map[string]struct{}{
 	inetBindRet:               {},
 	inetCskAcceptReturn:       {},
 	inetCskListenStop:         {},
-	sockFDLookupRet:           {}, // TODO: not available on certain kernels, will have to one or more hooks to get equivalent functionality; affects HTTPS monitoring (OpenSSL/GnuTLS/GoTLS)
 	tcpRecvMsgReturn:          {},
 	tcpClose:                  {},
 	tcpCloseReturn:            {},
 	tcpConnect:                {},
-	tcpConnectReturn:          {},
 	tcpFinishConnect:          {},
 	tcpRetransmit:             {},
 	tcpRetransmitRet:          {},
@@ -146,7 +142,6 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, tcpClose)
 		enableProgram(enabled, tcpCloseReturn)
 		enableProgram(enabled, tcpConnect)
-		enableProgram(enabled, tcpConnectReturn)
 		enableProgram(enabled, tcpFinishConnect)
 		enableProgram(enabled, inetCskAcceptReturn)
 		enableProgram(enabled, inetCskListenStop)

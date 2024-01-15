@@ -95,5 +95,5 @@ namespace WixSetup
             UsesProperties = properties;
             return this;
         }
-     }
+    }
 }

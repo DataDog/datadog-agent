@@ -8,43 +8,14 @@
 .build_sysprobe_artifacts:
   # kitchen prepare also builds object files
   - inv -e system-probe.kitchen-prepare --ci
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/tracer.o $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer.o
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/tracer-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer-debug.o
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/offset-guess.o $CI_PROJECT_DIR/.tmp/binary-ebpf/offset-guess.o
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/offset-guess-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/offset-guess-debug.o
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/usm.o $CI_PROJECT_DIR/.tmp/binary-ebpf/usm.o
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/usm-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/usm-debug.o
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/shared-libraries.o $CI_PROJECT_DIR/.tmp/binary-ebpf/shared-libraries.o
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/shared-libraries-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/shared-libraries-debug.o
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/dns.o $CI_PROJECT_DIR/.tmp/binary-ebpf/dns.o
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/dns-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/dns-debug.o
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/conntrack.o $CI_PROJECT_DIR/.tmp/binary-ebpf/conntrack.o
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/conntrack-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/conntrack-debug.o
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/usm-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/usm-debug.o
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/usm.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/usm.o
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/shared-libraries-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/shared-libraries-debug.o
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/shared-libraries.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/shared-libraries.o
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/oom-kill.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/oom-kill.o
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/tcp-queue-length.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/tcp-queue-length.o
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/tracer-fentry.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/tracer-fentry.o
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/tracer-fentry-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/tracer-fentry-debug.o
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/tracer.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/tracer.o
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/tracer-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re/tracer-debug.o
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/tracer.c $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer.c
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/usm.c $CI_PROJECT_DIR/.tmp/binary-ebpf/usm.c
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/shared-libraries.c $CI_PROJECT_DIR/.tmp/binary-ebpf/shared-libraries.c
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/runtime-security.c $CI_PROJECT_DIR/.tmp/binary-ebpf/runtime-security.c
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/conntrack.c $CI_PROJECT_DIR/.tmp/binary-ebpf/conntrack.c
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/oom-kill.c $CI_PROJECT_DIR/.tmp/binary-ebpf/oom-kill.c
-  - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/tcp-queue-length.c $CI_PROJECT_DIR/.tmp/binary-ebpf/tcp-queue-length.c
 
 # Run tests for eBPF code
 .tests_linux_ebpf:
   stage: source_test
   needs: ["go_deps", "go_tools_deps"]
   variables:
-    KUBERNETES_MEMORY_REQUEST: "6Gi"
-    KUBERNETES_MEMORY_LIMIT: "12Gi"
+    KUBERNETES_MEMORY_REQUEST: "16Gi"
+    KUBERNETES_MEMORY_LIMIT: "16Gi"
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
@@ -54,8 +25,6 @@
     - invoke -e lint-go --build system-probe-unit-tests --cpus 4 --targets ./pkg
     - invoke -e security-agent.run-ebpf-unit-tests --verbose
     - invoke -e lint-go --targets=./pkg/security/tests --cpus 4 --build-tags="functionaltests stresstests trivy containerd linux_bpf ebpf_bindata" --arch=$TASK_ARCH
-  variables:
-    KUBERNETES_MEMORY_LIMIT: "8Gi"
 
 .tests_windows_sysprobe:
   stage: source_test
@@ -102,16 +71,17 @@ tests_ebpf_arm64:
 
 .prepare_ebpf_functional_tests:
   stage: source_test
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs: ["go_deps"]
   artifacts:
     when: always
     paths:
-      - $CI_PROJECT_DIR/.tmp/binary-ebpf
       - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files
       - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files
   before_script:
     - !reference [.retrieve_linux_go_deps]
-    - mkdir -p $CI_PROJECT_DIR/.tmp/binary-ebpf/co-re
     - inv -e install-tools
     - !reference [.retrieve_sysprobe_deps]
   script:
@@ -136,6 +106,9 @@ prepare_ebpf_functional_tests_x64:
 
 tests_windows_sysprobe_x64:
   extends: .tests_windows_sysprobe
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   variables:
     PYTHON_RUNTIMES: 3
     ARCH: "x64"

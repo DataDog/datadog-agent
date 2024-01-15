@@ -89,32 +89,35 @@ func TestReceiverRequestBodyLength(t *testing.T) {
 
 	// Before going further, make sure receiver is started
 	// since it's running in another goroutine
-	for i := 0; i < 10; i++ {
+	serverReady := false
+	for i := 0; i < 100; i++ {
 		var client http.Client
 
 		body := bytes.NewBufferString("[]")
 		req, err := http.NewRequest("POST", url, body)
-		assert.Nil(err)
+		assert.NoError(err)
 
 		resp, err := client.Do(req)
 		if err == nil {
 			resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {
+				serverReady = true
 				break
 			}
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
 
+	assert.True(serverReady)
 	testBody := func(expectedStatus int, bodyData string) {
 		var client http.Client
 
 		body := bytes.NewBufferString(bodyData)
 		req, err := http.NewRequest("POST", url, body)
-		assert.Nil(err)
+		assert.NoError(err)
 
 		resp, err := client.Do(req)
-		assert.Nil(err)
+		assert.NoError(err)
 		assert.Equal(expectedStatus, resp.StatusCode)
 		resp.Body.Close()
 	}

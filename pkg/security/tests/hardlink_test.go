@@ -5,6 +5,7 @@
 
 //go:build functionaltests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -28,7 +29,7 @@ func runHardlinkTests(t *testing.T, opts testOpts) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, opts)
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(opts))
 	if err != nil {
 		t.Fatal(err)
 	}

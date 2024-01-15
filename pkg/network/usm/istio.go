@@ -37,22 +37,7 @@ var istioProbes = []manager.ProbesSelector{
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: sslConnectProbe,
-				},
-			},
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: sslConnectRetprobe,
-				},
-			},
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: sslSetBioProbe,
-				},
-			},
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: sslSetFDProbe,
 				},
 			},
 			&manager.ProbeSelector{
@@ -123,13 +108,14 @@ func newIstioMonitor(c *config.Config, mgr *manager.Manager) *istioMonitor {
 		return nil
 	}
 
+	procRoot := kernel.ProcFSRoot()
 	return &istioMonitor{
 		registry: utils.NewFileRegistry("istio"),
-		procRoot: kernel.ProcFSRoot(),
+		procRoot: procRoot,
 		done:     make(chan struct{}),
 
 		// Callbacks
-		registerCB:   addHooks(mgr, istioProbes),
+		registerCB:   addHooks(mgr, procRoot, istioProbes),
 		unregisterCB: removeHooks(mgr, istioProbes),
 	}
 }

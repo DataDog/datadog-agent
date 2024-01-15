@@ -5,6 +5,7 @@
 
 //go:build linux_bpf || (windows && npm)
 
+// Package tracer contains implementation for NPM's tracer.
 package tracer
 
 import (
@@ -117,7 +118,6 @@ const (
 	amqpPort     = "5672"
 	httpPort     = "8080"
 	httpsPort    = "8443"
-	tcpPort      = "9999"
 	http2Port    = "9090"
 	grpcPort     = "9091"
 	kafkaPort    = "9092"
@@ -126,14 +126,10 @@ const (
 	fetchAPIKey   = 1
 
 	produceMaxSupportedVersion = 8
-	produceMaxVersion          = 9
 	produceMinSupportedVersion = 1
-	produceMinVersion          = 0
 
 	fetchMaxSupportedVersion = 11
-	fetchMaxVersion          = 13
 	fetchMinSupportedVersion = 0
-	fetchMinVersion          = 0
 )
 
 func testProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
@@ -209,15 +205,10 @@ func testKafkaProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 	}
 
 	kafkaTeardown := func(t *testing.T, ctx testContext) {
-		if _, ok := ctx.extras["client"]; !ok {
-			return
-		}
-		client := ctx.extras["client"].(*kafka.Client)
-		defer client.Client.Close()
-		for k, value := range ctx.extras {
-			if strings.HasPrefix(k, "topic_name") {
-				// We're in the teardown phase, and deleting the topic name is a best effort operation. Therefore, we can ignore any errors that may occur.
-				_ = client.DeleteTopic(value.(string))
+		for key, val := range ctx.extras {
+			if strings.HasSuffix(key, "client") {
+				client := val.(*kafka.Client)
+				client.Client.Close()
 			}
 		}
 	}
@@ -340,63 +331,84 @@ func testKafkaProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 		},
 	}
 
-	// Adding produce tests in different versions
-	for i := int16(produceMinVersion); i <= produceMaxVersion; i++ {
-		version := kversion.V3_4_0()
-		expectedStack := &protocols.Stack{
-			Application: protocols.Kafka,
-		}
-
-		if i < produceMinSupportedVersion || i > produceMaxSupportedVersion {
-			expectedStack.Application = protocols.Unknown
-		}
-
-		version.SetMaxKeyVersion(produceAPIKey, i)
-		tests = append(tests, protocolClassificationAttributes{
-			name: fmt.Sprintf("produce - version %d", i),
-			context: testContext{
-				serverPort:    kafkaPort,
-				targetAddress: targetAddress,
-				serverAddress: serverAddress,
-				extras: map[string]interface{}{
-					"topic_name": getTopicName(),
-				},
-			},
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				client, err := kafka.NewClient(kafka.Options{
-					ServerAddress: ctx.targetAddress,
-					Dialer:        defaultDialer,
-					CustomOptions: []kgo.Opt{kgo.MaxVersions(version)},
-				})
-				require.NoError(t, err)
-				ctx.extras["client"] = client
-				require.NoError(t, client.CreateTopic(ctx.extras["topic_name"].(string)))
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				client := ctx.extras["client"].(*kafka.Client)
-				record := &kgo.Record{Topic: ctx.extras["topic_name"].(string), Value: []byte("Hello Kafka!")}
-				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
-				defer cancel()
-				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
-			},
-			validation: validateProtocolConnection(expectedStack),
-			teardown:   kafkaTeardown,
-		})
+	versions := []struct {
+		produceVersion int16
+		fetchVersion   int16
+	}{
+		{
+			produceVersion: 0,
+			fetchVersion:   0,
+		},
+		{
+			produceVersion: 1,
+			fetchVersion:   1,
+		},
+		{
+			produceVersion: 2,
+			fetchVersion:   2,
+		},
+		{
+			produceVersion: 3,
+			fetchVersion:   3,
+		},
+		{
+			produceVersion: 4,
+			fetchVersion:   4,
+		},
+		{
+			produceVersion: 5,
+			fetchVersion:   5,
+		},
+		{
+			produceVersion: 6,
+			fetchVersion:   6,
+		},
+		{
+			produceVersion: 7,
+			fetchVersion:   7,
+		},
+		{
+			produceVersion: 8,
+			fetchVersion:   8,
+		},
+		{
+			produceVersion: 9,
+			fetchVersion:   9,
+		},
+		{
+			produceVersion: 9,
+			fetchVersion:   10,
+		},
+		{
+			produceVersion: 9,
+			fetchVersion:   11,
+		},
+		{
+			produceVersion: 9,
+			fetchVersion:   12,
+		},
+		{
+			produceVersion: 9,
+			fetchVersion:   13,
+		},
 	}
-	// Adding fetch tests in different versions
-	for i := int16(fetchMinVersion); i < fetchMaxVersion; i++ {
-		expectedStack := &protocols.Stack{
-			Application: protocols.Kafka,
-		}
+	for _, pair := range versions {
+		produceExpectedStack := &protocols.Stack{Application: protocols.Kafka}
+		fetchExpectedStack := &protocols.Stack{Application: protocols.Kafka}
 
-		if i < fetchMinSupportedVersion || i > fetchMaxSupportedVersion {
-			expectedStack.Application = protocols.Unknown
+		if pair.produceVersion < produceMinSupportedVersion || pair.produceVersion > produceMaxSupportedVersion {
+			produceExpectedStack.Application = protocols.Unknown
+		}
+		if pair.fetchVersion < fetchMinSupportedVersion || pair.fetchVersion > fetchMaxSupportedVersion {
+			fetchExpectedStack.Application = protocols.Unknown
 		}
 
 		version := kversion.V3_4_0()
-		version.SetMaxKeyVersion(fetchAPIKey, i)
+		version.SetMaxKeyVersion(produceAPIKey, pair.produceVersion)
+		version.SetMaxKeyVersion(fetchAPIKey, pair.fetchVersion)
+
 		tests = append(tests, protocolClassificationAttributes{
-			name: fmt.Sprintf("fetch - sanity version %d", i),
+			name: fmt.Sprintf("fetch (v%d); produce (v%d)", pair.fetchVersion, pair.produceVersion),
 			context: testContext{
 				serverPort:    kafkaPort,
 				targetAddress: targetAddress,
@@ -406,28 +418,40 @@ func testKafkaProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				},
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				client, err := kafka.NewClient(kafka.Options{
+				produceClient, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
 					Dialer:        defaultDialer,
 					CustomOptions: []kgo.Opt{kgo.MaxVersions(version), kgo.ConsumeTopics(ctx.extras["topic_name"].(string))},
 				})
 				require.NoError(t, err)
-				ctx.extras["client"] = client
-				require.NoError(t, client.CreateTopic(ctx.extras["topic_name"].(string)))
-				record := &kgo.Record{Topic: ctx.extras["topic_name"].(string), Value: []byte("Hello Kafka!")}
-				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
-				defer cancel()
-				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
+				fetchClient, err := kafka.NewClient(kafka.Options{
+					ServerAddress: ctx.targetAddress,
+					Dialer:        defaultDialer,
+					CustomOptions: []kgo.Opt{kgo.MaxVersions(version), kgo.ConsumeTopics(ctx.extras["topic_name"].(string))},
+				})
+				require.NoError(t, err)
+				ctx.extras["produce_client"] = produceClient
+				ctx.extras["fetch_client"] = fetchClient
+				require.NoError(t, produceClient.CreateTopic(ctx.extras["topic_name"].(string)))
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				client := ctx.extras["client"].(*kafka.Client)
-				fetches := client.Client.PollFetches(context.Background())
+				produceClient := ctx.extras["produce_client"].(*kafka.Client)
+				record := &kgo.Record{Topic: ctx.extras["topic_name"].(string), Value: []byte("Hello Kafka!")}
+				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+				require.NoError(t, produceClient.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
+				cancel()
+
+				validateProtocolConnection(produceExpectedStack)
+				tr.removeClient(clientID)
+				initTracerState(t, tr)
+				fetchClient := ctx.extras["fetch_client"].(*kafka.Client)
+				fetches := fetchClient.Client.PollFetches(context.Background())
 				require.Empty(t, fetches.Errors())
 				records := fetches.Records()
 				require.Len(t, records, 1)
 				require.Equal(t, ctx.extras["topic_name"].(string), records[0].Topic)
 			},
-			validation: validateProtocolConnection(expectedStack),
+			validation: validateProtocolConnection(fetchExpectedStack),
 			teardown:   kafkaTeardown,
 		})
 	}
@@ -1426,7 +1450,8 @@ func testHTTPProtocolClassification(t *testing.T, tr *Tracer, clientHost, target
 					ReadTimeout:  time.Second,
 					WriteTimeout: time.Second,
 				}
-				srv.SetKeepAlivesEnabled(false)
+				// Temporary change, without it the protocol classification is flaky.
+				srv.SetKeepAlivesEnabled(true)
 				go func() {
 					_ = srv.Serve(ln)
 				}()
@@ -1461,6 +1486,8 @@ func testHTTPProtocolClassification(t *testing.T, tr *Tracer, clientHost, target
 }
 
 func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+	skipIfNotLinux(t, testContext{})
+
 	defaultDialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{
 			IP:   net.ParseIP(clientHost),
@@ -1475,7 +1502,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 	http2ServerAddress := net.JoinHostPort(serverHost, http2Port)
 	http2TargetAddress := net.JoinHostPort(targetHost, http2Port)
 
-	grpcServer, err := grpc.NewServer(grpcServerAddress)
+	grpcServer, err := grpc.NewServer(grpcServerAddress, false)
 	require.NoError(t, err)
 	grpcServer.Run()
 	t.Cleanup(grpcServer.Stop)
@@ -1529,35 +1556,67 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 			name:    "http2 traffic using gRPC - unary call",
 			context: grpcContext,
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				skipIfNotLinux(t, ctx)
-
 				c, err := grpc.NewClient(ctx.targetAddress, grpc.Options{
 					CustomDialer: defaultDialer,
-				})
+				}, false)
 				require.NoError(t, err)
 				defer c.Close()
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 				defer cancel()
 				require.NoError(t, c.HandleUnary(timedContext, "test"))
 			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP2, Api: protocols.GRPC}),
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP2, API: protocols.GRPC}),
 		},
 		{
 			name:    "http2 traffic using gRPC - stream call",
 			context: grpcContext,
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				skipIfNotLinux(t, ctx)
-
 				c, err := grpc.NewClient(ctx.targetAddress, grpc.Options{
 					CustomDialer: defaultDialer,
-				})
+				}, false)
 				require.NoError(t, err)
 				defer c.Close()
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 				defer cancel()
 				require.NoError(t, c.HandleStream(timedContext, 5))
 			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP2, Api: protocols.GRPC}),
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP2, API: protocols.GRPC}),
+		},
+		{
+			// This test checks if the classifier can properly skip literal
+			// headers that are not useful to determine if gRPC is used.
+			name: "http2 traffic using gRPC - irrelevant literal headers",
+			context: testContext{
+				serverPort:    http2Port,
+				serverAddress: http2ServerAddress,
+				targetAddress: http2TargetAddress,
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client := &nethttp.Client{
+					Transport: &http2.Transport{
+						AllowHTTP: true,
+						DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
+							return net.Dial(network, addr)
+						},
+					},
+				}
+
+				req, err := nethttp.NewRequest("POST", "http://"+ctx.targetAddress, bytes.NewReader([]byte("test")))
+				require.NoError(t, err)
+
+				// Add some literal headers that needs to be skipped by the
+				// classifier. Also adding a grpc content-type to emulate grpc
+				// traffic
+				req.Header.Add("someheader", "somevalue")
+				req.Header.Add("Content-type", "application/grpc")
+				req.Header.Add("someotherheader", "someothervalue")
+
+				resp, err := client.Do(req)
+				require.NoError(t, err)
+
+				resp.Body.Close()
+			},
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP2, API: protocols.GRPC}),
 		},
 	}
 	for _, tt := range tests {
@@ -1578,8 +1637,6 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 		server, ok := ctx.extras["server"].(*TCPServer)
 		if ok {
 			server.Shutdown()
-			// Giving time for the port to be free again.
-			time.Sleep(time.Second)
 		}
 	}
 
@@ -1587,9 +1644,9 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 		{
 			name: "tcp client without sending data",
 			context: testContext{
-				serverPort:    tcpPort,
-				serverAddress: net.JoinHostPort(serverHost, tcpPort),
-				targetAddress: net.JoinHostPort(targetHost, tcpPort),
+				serverPort:    "10001",
+				serverAddress: net.JoinHostPort(serverHost, "10001"),
+				targetAddress: net.JoinHostPort(targetHost, "10001"),
 				extras:        map[string]interface{}{},
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
@@ -1612,9 +1669,9 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 		{
 			name: "tcp client with sending random data",
 			context: testContext{
-				serverPort:    tcpPort,
-				serverAddress: net.JoinHostPort(serverHost, tcpPort),
-				targetAddress: net.JoinHostPort(targetHost, tcpPort),
+				serverPort:    "10002",
+				serverAddress: net.JoinHostPort(serverHost, "10002"),
+				targetAddress: net.JoinHostPort(targetHost, "10002"),
 				extras:        map[string]interface{}{},
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
@@ -1636,7 +1693,7 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 				require.NoError(t, err)
 				defer c.Close()
 				c.Write([]byte("hello\n"))
-				io.ReadAll(c)
+				io.Copy(io.Discard, c)
 			},
 			teardown:   teardown,
 			validation: validateProtocolConnection(&protocols.Stack{}),
@@ -1646,9 +1703,9 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 			// with the first protocol we've found.
 			name: "mixed protocols",
 			context: testContext{
-				serverPort:    tcpPort,
-				serverAddress: net.JoinHostPort(serverHost, tcpPort),
-				targetAddress: net.JoinHostPort(targetHost, tcpPort),
+				serverPort:    "10003",
+				serverAddress: net.JoinHostPort(serverHost, "10003"),
+				targetAddress: net.JoinHostPort(targetHost, "10003"),
 				extras:        map[string]interface{}{},
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
@@ -1656,8 +1713,12 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 					defer c.Close()
 
 					r := bufio.NewReader(c)
-					input, err := r.ReadBytes(byte('\n'))
-					if err == nil {
+					for {
+						// The server reads up to a marker, in our case `$`.
+						input, err := r.ReadBytes(byte('$'))
+						if err != nil {
+							return
+						}
 						c.Write(input)
 					}
 				})
@@ -1670,11 +1731,21 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 				c, err := defaultDialer.DialContext(timedContext, "tcp", ctx.targetAddress)
 				require.NoError(t, err)
 				defer c.Close()
-				c.Write([]byte("GET /200/foobar HTTP/1.1\n"))
-				io.ReadAll(c)
-				// http2 prefix.
-				c.Write([]byte("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"))
-				io.ReadAll(c)
+				// The server reads up to a marker, in our case `$`.
+				httpInput := []byte("GET /200/foobar HTTP/1.1\n$")
+				http2Input := []byte("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n$")
+				for _, input := range [][]byte{httpInput, http2Input} {
+					// Calling write multiple times to increase chances for classification.
+					_, err = c.Write(input)
+					require.NoError(t, err)
+
+					// This is an echo server, we expect to get the same buffer as we sent, so the output buffer
+					// has the same length of the input.
+					output := make([]byte, len(input))
+					_, err = c.Read(output)
+					require.NoError(t, err)
+					require.Equal(t, input, output)
+				}
 			},
 			teardown:   teardown,
 			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP}),
@@ -1724,7 +1795,7 @@ func waitForConnectionsWithProtocol(t *testing.T, tr *Tracer, targetAddr, server
 			t.Log(conns)
 		}
 		return !failed
-	}, 5*time.Second, 500*time.Millisecond, "could not find incoming or outgoing connections")
+	}, 5*time.Second, 100*time.Millisecond, "could not find incoming or outgoing connections")
 	if failed {
 		t.Logf("incoming=%+v outgoing=%+v", incoming, outgoing)
 	}

@@ -3,17 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-
+// Package api holds api related files
 package api
 
 import (
+	"strconv"
+
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"strconv"
 )
 
+// FromProtoToKFiltersRuleSetReport transforms a proto to a kfilter rule set report
 func (protoRuleSetReport *RuleSetReportMessage) FromProtoToKFiltersRuleSetReport() *kfilters.ApplyRuleSetReport {
 	policies := make(map[eval.EventType]*kfilters.PolicyReport)
 
@@ -34,6 +35,7 @@ func (protoRuleSetReport *RuleSetReportMessage) FromProtoToKFiltersRuleSetReport
 	return wholeReport
 }
 
+// FromProtoToKFiltersApprovers transforms a proto to a kfilter approvers
 func (protoApprovers *Approvers) FromProtoToKFiltersApprovers() *rules.Approvers {
 	approvers := make(rules.Approvers)
 
@@ -59,7 +61,7 @@ func (protoApprovers *Approvers) FromProtoToKFiltersApprovers() *rules.Approvers
 	return &approvers
 }
 
-// ToEventTypePolicyMessage returns a pointer to a PolicyMessage
+// FromKFiltersToProtoRuleSetReport returns a pointer to a PolicyMessage
 func FromKFiltersToProtoRuleSetReport(ruleSetReport *kfilters.ApplyRuleSetReport) *RuleSetReportMessage {
 	var eventTypePolicy []*EventTypePolicy
 
@@ -79,6 +81,7 @@ func FromKFiltersToProtoRuleSetReport(ruleSetReport *kfilters.ApplyRuleSetReport
 	}
 }
 
+// FromKFiltersToProtoApprovers transforms a kfilter to a proto approvers
 func FromKFiltersToProtoApprovers(approvers rules.Approvers) *Approvers {
 	protoApprovers := new(Approvers)
 

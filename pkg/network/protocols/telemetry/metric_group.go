@@ -14,6 +14,12 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
+// largeGroupThreshold represents the maximum group size for which zero values
+// get reported in the `Summary()` message. For group sizes greater than this,
+// we omit metrics with zero values from the generated string to reduce the
+// verbosity of logs.
+const largeGroupThreshold = 5
+
 // MetricGroup provides a convenient constructor for a group with metrics
 // sharing the same namespace and group of tags.
 // Note the usage of this API is entirely optional; I'm only adding this here
@@ -21,7 +27,7 @@ import (
 type MetricGroup struct {
 	mux        sync.Mutex
 	namespace  string
-	commonTags sets.String
+	commonTags sets.Set[string]
 	metrics    []metric
 
 	// used for the purposes of building the Summary() string
@@ -33,7 +39,7 @@ type MetricGroup struct {
 func NewMetricGroup(namespace string, commonTags ...string) *MetricGroup {
 	return &MetricGroup{
 		namespace:  namespace,
-		commonTags: sets.NewString(commonTags...),
+		commonTags: sets.New(commonTags...),
 		then:       time.Now(),
 	}
 }
@@ -47,7 +53,7 @@ func (mg *MetricGroup) NewCounter(name string, tags ...string) *Counter {
 
 	m := NewCounter(
 		name,
-		append(mg.commonTags.List(), tags...)...,
+		append(sets.List(mg.commonTags), tags...)...,
 	)
 
 	mg.mux.Lock()
@@ -66,7 +72,7 @@ func (mg *MetricGroup) NewGauge(name string, tags ...string) *Gauge {
 
 	m := NewGauge(
 		name,
-		append(mg.commonTags.List(), tags...)...,
+		append(sets.List(mg.commonTags), tags...)...,
 	)
 
 	mg.mux.Lock()
@@ -97,15 +103,23 @@ func (mg *MetricGroup) Summary() string {
 
 	valueDeltas := mg.deltas.GetState("")
 	var b strings.Builder
+	tooManyMetrics := len(mg.metrics) > largeGroupThreshold
 	for i, metric := range mg.metrics {
 		_, name := splitName(metric)
 		v := valueDeltas.ValueFor(metric)
+
+		// Skip metrics with a *delta* value of zero
+		// This aims to reduce the verbosity of log entries by excluding
+		// events that either happen very rarely or belong to features that are disabled
+		if tooManyMetrics && v == 0 {
+			continue
+		}
 
 		uniqueTags := metric.base().tags.Difference(mg.commonTags)
 		if uniqueTags.Len() > 0 {
 			// if the metric has tags print them but excluding the ones that are
 			// common to the metric group
-			b.WriteString(fmt.Sprintf("%s%v=%d", name, uniqueTags.List(), v))
+			b.WriteString(fmt.Sprintf("%s%v=%d", name, sets.List(uniqueTags), v))
 		} else {
 			b.WriteString(fmt.Sprintf("%s=%d", name, v))
 		}
@@ -120,5 +134,9 @@ func (mg *MetricGroup) Summary() string {
 		}
 	}
 	mg.then = now
+	if b.Len() == 0 {
+		return "n/a"
+	}
+
 	return b.String()
 }

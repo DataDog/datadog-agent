@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 )
 
 // makeInfoHandler returns a new handler for handling the discovery endpoint.
@@ -26,14 +26,14 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		}
 	}
 	type reducedObfuscationConfig struct {
-		ElasticSearch        bool                          `json:"elastic_search"`
-		Mongo                bool                          `json:"mongo"`
-		SQLExecPlan          bool                          `json:"sql_exec_plan"`
-		SQLExecPlanNormalize bool                          `json:"sql_exec_plan_normalize"`
-		HTTP                 config.HTTPObfuscationConfig  `json:"http"`
-		RemoveStackTraces    bool                          `json:"remove_stack_traces"`
-		Redis                config.RedisObfuscationConfig `json:"redis"`
-		Memcached            bool                          `json:"memcached"`
+		ElasticSearch        bool                      `json:"elastic_search"`
+		Mongo                bool                      `json:"mongo"`
+		SQLExecPlan          bool                      `json:"sql_exec_plan"`
+		SQLExecPlanNormalize bool                      `json:"sql_exec_plan_normalize"`
+		HTTP                 obfuscate.HTTPConfig      `json:"http"`
+		RemoveStackTraces    bool                      `json:"remove_stack_traces"`
+		Redis                obfuscate.RedisConfig     `json:"redis"`
+		Memcached            obfuscate.MemcachedConfig `json:"memcached"`
 	}
 	type reducedConfig struct {
 		DefaultEnv             string                        `json:"default_env"`
@@ -59,7 +59,7 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		oconf.HTTP = o.HTTP
 		oconf.RemoveStackTraces = o.RemoveStackTraces
 		oconf.Redis = o.Redis
-		oconf.Memcached = o.Memcached.Enabled
+		oconf.Memcached = o.Memcached
 	}
 	txt, err := json.MarshalIndent(struct {
 		Version          string        `json:"version"`

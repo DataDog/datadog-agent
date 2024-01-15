@@ -21,18 +21,13 @@ build do
   license "BSD-style"
   license_file "https://raw.githubusercontent.com/krb5/krb5/master/NOTICE"
 
-  cmd = ["./configure",
-         "--without-keyutils", # this would require additional deps/system deps, disable it
+  configure_options = ["--without-keyutils", # this would require additional deps/system deps, disable it
          "--without-system-verto", # do not prefer libverto from the system, if installed
          "--without-libedit", # we don't want to link with libraries outside of the install dir
-         "--disable-static",
-         "--prefix=#{install_dir}/embedded"].join(" ")
-  env = {
-    "LDFLAGS" => "-L#{install_dir}/embedded/lib -I#{install_dir}/embedded/include",
-    "CFLAGS" => "-L#{install_dir}/embedded/lib -I#{install_dir}/embedded/include",
-    "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
-  }
-  command cmd, :env => env
+         "--disable-static"
+  ]
+  env = with_standard_compiler_flags(with_embedded_path)
+  configure(*configure_options, :env => env)
   command "make -j #{workers}", :env => { "LD_RUN_PATH" => "#{install_dir}/embedded/lib" }
   command "make install", :env => { "LD_RUN_PATH" => "#{install_dir}/embedded/lib" }
 

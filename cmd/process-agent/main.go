@@ -5,6 +5,7 @@
 
 //go:build !windows
 
+//nolint:revive // TODO(PROC) Fix revive linter
 package main
 
 import (

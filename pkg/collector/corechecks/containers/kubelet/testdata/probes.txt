@@ -2,8 +2,8 @@
 # TYPE prober_probe_total counter
 prober_probe_total{container="agent",namespace="default",pod="datadog",pod_uid="2e4619c2-15e1-4a2f-8b27-f1bb9d57b957",probe_type="Liveness",result="successful"} 3
 prober_probe_total{container="agent",namespace="default",pod="datadog",pod_uid="2e4619c2-15e1-4a2f-8b27-f1bb9d57b957",probe_type="Readiness",result="successful"} 3
-prober_probe_total{container="calico-node",namespace="kube-system",pod="calico-node-9qkw7",pod_uid="6daeeb11-1f06-4d07-ac39-7df7aad8ae86",probe_type="Liveness",result="successful"} 1.686306e+06
-prober_probe_total{container="calico-node",namespace="kube-system",pod="calico-node-9qkw7",pod_uid="6daeeb11-1f06-4d07-ac39-7df7aad8ae86",probe_type="Readiness",result="failed"} 180
+prober_probe_total{container="calico-node",namespace="kube-system",pod="calico-node-9qkw7",probe_type="Liveness",result="successful"} 1.686306e+06
+prober_probe_total{container_name="calico-node",namespace="kube-system",pod_name="calico-node-9qkw7",pod_uid="6daeeb11-1f06-4d07-ac39-7df7aad8ae86",probe_type="Readiness",result="failed"} 180
 prober_probe_total{container="calico-node",namespace="kube-system",pod="calico-node-9qkw7",pod_uid="6daeeb11-1f06-4d07-ac39-7df7aad8ae86",probe_type="Liveness",result="failed"} 100
 prober_probe_total{container="calico-node",namespace="kube-system",pod="calico-node-9qkw7",pod_uid="6daeeb11-1f06-4d07-ac39-7df7aad8ae86",probe_type="Readiness",result="successful"} 1.686127e+06
 prober_probe_total{container="dnsmasq",namespace="kube-system",pod="kube-dns-c598bd956-wgf4n",pod_uid="03bc86a4-c87a-4537-9b0f-17e52cfd3162",probe_type="Liveness",result="successful"} 1.686298e+06

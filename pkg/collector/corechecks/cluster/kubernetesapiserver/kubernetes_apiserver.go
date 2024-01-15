@@ -5,6 +5,8 @@
 
 //go:build kubeapiserver
 
+// Package kubernetesapiserver implements the Kubernetes API Server cluster
+// check.
 package kubernetesapiserver
 
 import (

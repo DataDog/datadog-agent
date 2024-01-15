@@ -18,30 +18,36 @@ type StatGaugeWrapper struct {
 	gauge telemetry.Gauge
 }
 
+// Inc increments the Gauge value.
 func (sgw *StatGaugeWrapper) Inc() {
 	sgw.stat.Inc()
 	sgw.gauge.Inc()
 }
 
+// Dec decrements the Gauge value.
 func (sgw *StatGaugeWrapper) Dec() {
 	sgw.stat.Dec()
 	sgw.gauge.Dec()
 }
 
+// Add adds the value to the Gauge value.
 func (sgw *StatGaugeWrapper) Add(v int64) {
 	sgw.stat.Add(v)
 	sgw.gauge.Add(float64(v))
 }
 
+// Set stores the value for the given tags.
 func (sgw *StatGaugeWrapper) Set(v int64) {
 	sgw.stat.Store(v)
 	sgw.gauge.Set(float64(v))
 }
 
+// Load atomically loads the wrapped value.
 func (sgw *StatGaugeWrapper) Load() int64 {
 	return sgw.stat.Load()
 }
 
+// NewStatGaugeWrapper returns a new StatGaugeWrapper
 func NewStatGaugeWrapper(subsystem string, statName string, tags []string, description string) *StatGaugeWrapper {
 	return &StatGaugeWrapper{
 		stat:  atomic.NewInt64(0),

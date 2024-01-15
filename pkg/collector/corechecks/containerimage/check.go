@@ -3,21 +3,22 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+// Package containerimage implements the container image check.
 package containerimage
 
 import (
 	"errors"
 	"time"
 
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
@@ -36,41 +37,42 @@ type Config struct {
 }
 
 type configValueRange struct {
-	min      int
-	max      int
-	default_ int
+	min          int
+	max          int
+	defaultValue int
 }
 
 var /* const */ (
 	chunkSizeValueRange = &configValueRange{
-		min:      1,
-		max:      100,
-		default_: 10,
+		min:          1,
+		max:          100,
+		defaultValue: 10,
 	}
 
 	newImagesMaxLatencySecondsValueRange = &configValueRange{
-		min:      1,   // 1 s
-		max:      300, // 5 min
-		default_: 30,  // 30 s
+		min:          1,   // 1 s
+		max:          300, // 5 min
+		defaultValue: 30,  // 30 s
 	}
 
 	periodicRefreshSecondsValueRange = &configValueRange{
-		min:      60,    // 1 min
-		max:      86400, // 1 day
-		default_: 300,   // 5 min
+		min:          60,    // 1 min
+		max:          86400, // 1 day
+		defaultValue: 300,   // 5 min
 	}
 )
 
-func validateValue(val *int, range_ *configValueRange) {
+func validateValue(val *int, valueRange *configValueRange) {
 	if *val == 0 {
-		*val = range_.default_
-	} else if *val < range_.min {
-		*val = range_.min
-	} else if *val > range_.max {
-		*val = range_.max
+		*val = valueRange.defaultValue
+	} else if *val < valueRange.min {
+		*val = valueRange.min
+	} else if *val > valueRange.max {
+		*val = valueRange.max
 	}
 }
 
+// Parse parses the configuration
 func (c *Config) Parse(data []byte) error {
 	if err := yaml.Unmarshal(data, c); err != nil {
 		return err
@@ -86,7 +88,7 @@ func (c *Config) Parse(data []byte) error {
 // Check reports container images
 type Check struct {
 	core.CheckBase
-	workloadmetaStore workloadmeta.Store
+	workloadmetaStore workloadmeta.Component
 	instance          *Config
 	processor         *processor
 	stopCh            chan struct{}
@@ -95,7 +97,8 @@ type Check struct {
 // CheckFactory registers the container_image check
 func CheckFactory() check.Check {
 	return &Check{
-		CheckBase:         core.NewCheckBase(checkName),
+		CheckBase: core.NewCheckBase(checkName),
+		// TODO)components): stop using global and rely instead on injected workloadmeta component.
 		workloadmetaStore: workloadmeta.GetGlobalStore(),
 		instance:          &Config{},
 		stopCh:            make(chan struct{}),
@@ -131,26 +134,30 @@ func (c *Check) Run() error {
 	log.Infof("Starting long-running check %q", c.ID())
 	defer log.Infof("Shutting down long-running check %q", c.ID())
 
+	filterParams := workloadmeta.FilterParams{
+		Kinds:     []workloadmeta.Kind{workloadmeta.KindContainerImageMetadata},
+		Source:    workloadmeta.SourceAll,
+		EventType: workloadmeta.EventTypeSet, // We don’t care about images removal because we just have to wait for them to expire on BE side once we stopped refreshing them periodically.
+	}
 	imgEventsCh := c.workloadmetaStore.Subscribe(
 		checkName,
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(
-			[]workloadmeta.Kind{workloadmeta.KindContainerImageMetadata},
-			workloadmeta.SourceAll,
-			workloadmeta.EventTypeSet, // We don’t care about images removal because we just have to wait for them to expire on BE side once we stopped refreshing them periodically.
-		),
+		workloadmeta.NewFilter(&filterParams),
 	)
 
 	imgRefreshTicker := time.NewTicker(time.Duration(c.instance.PeriodicRefreshSeconds) * time.Second)
 
+	defer c.processor.stop()
 	for {
 		select {
-		case eventBundle := <-imgEventsCh:
+		case eventBundle, ok := <-imgEventsCh:
+			if !ok {
+				return nil
+			}
 			c.processor.processEvents(eventBundle)
 		case <-imgRefreshTicker.C:
 			c.processor.processRefresh(c.workloadmetaStore.ListImages())
 		case <-c.stopCh:
-			c.processor.stop()
 			return nil
 		}
 	}

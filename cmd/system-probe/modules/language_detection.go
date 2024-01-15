@@ -12,32 +12,47 @@ import (
 	"io"
 	"net/http"
 
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	"github.com/DataDog/datadog-agent/pkg/languagedetection"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	languageDetectionProto "github.com/DataDog/datadog-agent/pkg/proto/pbgo/languagedetection"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// LanguageDetectionModule is the language detection module factory
 var LanguageDetectionModule = module.Factory{
 	Name:             config.LanguageDetectionModule,
 	ConfigNamespaces: []string{"language_detection"},
-	Fn: func(cfg *config.Config) (module.Module, error) {
-		return languageDetectionModule{}, nil
+	Fn: func(cfg *sysconfigtypes.Config) (module.Module, error) {
+		return &languageDetectionModule{
+			languageDetector: privileged.NewLanguageDetector(),
+		}, nil
+	},
+	NeedsEBPF: func() bool {
+		return false
 	},
 }
 
-type languageDetectionModule struct{}
+type languageDetectionModule struct {
+	languageDetector privileged.LanguageDetector
+}
 
-func (l languageDetectionModule) GetStats() map[string]interface{} {
+func (l *languageDetectionModule) GetStats() map[string]interface{} {
 	return nil
 }
 
-func (l languageDetectionModule) Register(router *module.Router) error {
-	router.HandleFunc("/detect", detectLanguage)
+func (l *languageDetectionModule) Register(router *module.Router) error {
+	router.HandleFunc("/detect", l.detectLanguage)
+	return nil
+}
+
+// RegisterGRPC register to system probe gRPC server
+func (l *languageDetectionModule) RegisterGRPC(_ grpc.ServiceRegistrar) error {
 	return nil
 }
 
@@ -46,7 +61,7 @@ func (l languageDetectionModule) Register(router *module.Router) error {
 // This API currently does not hold any resources over its lifetime, so there is no need to release any resources when the
 // module is closed.
 
-func (l languageDetectionModule) Close() {}
+func (l *languageDetectionModule) Close() {}
 
 func toDetectLanguageResponse(langs []languagemodels.Language) *languageDetectionProto.DetectLanguageResponse {
 	resp := &languageDetectionProto.DetectLanguageResponse{
@@ -66,7 +81,7 @@ func handleError(writer http.ResponseWriter, status int, err error) {
 	writer.WriteHeader(status)
 }
 
-func detectLanguage(writer http.ResponseWriter, request *http.Request) {
+func (l *languageDetectionModule) detectLanguage(writer http.ResponseWriter, request *http.Request) {
 	b, err := io.ReadAll(request.Body)
 	if err != nil {
 		handleError(writer, http.StatusInternalServerError, fmt.Errorf("read request body: %v", err))
@@ -85,7 +100,7 @@ func detectLanguage(writer http.ResponseWriter, request *http.Request) {
 		procs = append(procs, proc)
 	}
 
-	resp := toDetectLanguageResponse(languagedetection.DetectWithPrivileges(procs))
+	resp := toDetectLanguageResponse(l.languageDetector.DetectWithPrivileges(procs))
 	b, err = proto.Marshal(resp)
 	if err != nil {
 		handleError(writer, http.StatusInternalServerError, fmt.Errorf("seralize response: %v", err))

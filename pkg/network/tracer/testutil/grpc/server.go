@@ -19,8 +19,12 @@ import (
 	"github.com/golang/protobuf/proto"
 	pbStream "github.com/pahanini/go-grpc-bidirectional-streaming-example/src/proto"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 	pb "google.golang.org/grpc/examples/helloworld/helloworld"
 	"google.golang.org/grpc/examples/route_guide/routeguide"
+
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 )
 
 // Server is used to implement helloworld.GreeterServer.
@@ -220,16 +224,36 @@ func serialize(point *routeguide.Point) string {
 }
 
 // NewServer returns a new instance of the gRPC server.
-func NewServer(addr string) (*Server, error) {
+func NewServer(addr string, enableTLS bool) (*Server, error) {
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, err
 	}
 
+	creds := insecure.NewCredentials()
+	if enableTLS {
+		crtPath, keyPath, err := testutil.GetCertsPaths()
+		if err != nil {
+			return nil, err
+		}
+		creds, err = credentials.NewServerTLSFromFile(crtPath, keyPath)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	server := NewServerWithoutBind(grpc.Creds(creds))
+	server.lis = lis
+	server.Address = lis.Addr().String()
+
+	return server, nil
+}
+
+// NewServerWithoutBind returns a new instance of the gRPC server.
+func NewServerWithoutBind(opts ...grpc.ServerOption) *Server {
+	opts = append(opts, grpc.MaxRecvMsgSize(100*1024*1024), grpc.MaxSendMsgSize(100*1024*1024))
 	server := &Server{
-		Address:    lis.Addr().String(),
-		grpcSrv:    grpc.NewServer(grpc.MaxRecvMsgSize(100*1024*1024), grpc.MaxSendMsgSize(100*1024*1024)),
-		lis:        lis,
+		grpcSrv:    grpc.NewServer(opts...),
 		routeNotes: make(map[string][]*routeguide.RouteNote),
 	}
 
@@ -238,13 +262,20 @@ func NewServer(addr string) (*Server, error) {
 	routeguide.RegisterRouteGuideServer(server.grpcSrv, server)
 	pbStream.RegisterMathServer(server.grpcSrv, server)
 
-	return server, nil
+	return server
 }
 
+// GetGRPCServer returns the gRPC server.
+func (s *Server) GetGRPCServer() *grpc.Server {
+	return s.grpcSrv
+}
+
+// Stop stops the gRPC server.
 func (s *Server) Stop() {
 	s.grpcSrv.Stop()
 }
 
+// Run starts the gRPC server.
 func (s *Server) Run() {
 	go func() {
 		if err := s.grpcSrv.Serve(s.lis); err != nil {

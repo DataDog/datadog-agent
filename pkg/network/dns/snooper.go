@@ -59,6 +59,10 @@ type socketFilterSnooper struct {
 	translation *translation
 }
 
+func (s *socketFilterSnooper) WaitForDomain(domain string) error {
+	return s.statKeeper.WaitForDomain(domain)
+}
+
 // packetSource reads raw packet data
 type packetSource interface {
 	// VisitPackets reads all new raw packets that are available, invoking the given callback for each packet.

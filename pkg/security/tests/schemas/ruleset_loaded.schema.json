@@ -24,8 +24,10 @@
                 "source": {
                     "type": "string",
                     "enum": [
+                        "bundled",
                         "file",
-                        "remote-config"
+                        "remote-config",
+                        "self-test"
                     ]
                 },
                 "name": {

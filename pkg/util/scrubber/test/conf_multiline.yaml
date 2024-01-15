@@ -19,3 +19,9 @@ second_token: >
   123465749798
 
 third_token: 123465749798
+fourth_token: True
+
+multi_token:
+  - a
+  - b
+  - c

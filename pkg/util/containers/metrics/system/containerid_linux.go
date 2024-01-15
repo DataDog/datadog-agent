@@ -17,7 +17,7 @@ import (
 const (
 	selfMountInfoPath       = "/proc/self/mountinfo"
 	containerdSandboxPrefix = "sandboxes"
-	cIDRegexp               = `([^\s/]+)/(` + cgroups.ContainerRegexpStr + `)/[\S]*hostname`
+	cIDRegexp               = `.*/([^\s/]+)/(` + cgroups.ContainerRegexpStr + `)/[\S]*hostname`
 )
 
 var cIDMountInfoRegexp = regexp.MustCompile(cIDRegexp)
@@ -25,9 +25,9 @@ var cIDMountInfoRegexp = regexp.MustCompile(cIDRegexp)
 func getSelfContainerID(hostCgroupNamespace bool, cgroupVersion int, cgroupBaseController string) (string, error) {
 	if cgroupVersion == 1 || hostCgroupNamespace {
 		return cgroups.IdentiferFromCgroupReferences("/proc", cgroups.SelfCgroupIdentifier, cgroupBaseController, cgroups.ContainerFilter)
-	} else {
-		return parseMountinfo(selfMountInfoPath)
 	}
+
+	return parseMountinfo(selfMountInfoPath)
 }
 
 // Parsing /proc/self/mountinfo is not always reliable in Kubernetes+containerd (at least)

@@ -4,7 +4,6 @@
 // Copyright 2014-present Datadog, Inc.
 
 //go:build linux && !arm64
-// +build linux,!arm64
 
 package cpu
 

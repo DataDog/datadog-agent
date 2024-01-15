@@ -10,36 +10,6 @@
 #include <uapi/linux/tcp.h>
 #include <uapi/linux/ip.h>
 
-#define sizeof_member(T, m) sizeof(((T*)0)->m)
-
-static const __u8 SIZEOF_SADDR = sizeof_member(tracer_status_t, saddr);
-static const __u8 SIZEOF_DADDR = sizeof_member(tracer_status_t, daddr);
-static const __u8 SIZEOF_FAMILY = sizeof_member(tracer_status_t, family);
-static const __u8 SIZEOF_SPORT = sizeof_member(tracer_status_t, sport);
-static const __u8 SIZEOF_DPORT = sizeof_member(tracer_status_t, dport);
-static const __u8 SIZEOF_NETNS = sizeof((void*)0); // possible_net_t*
-static const __u8 SIZEOF_NETNS_INO = sizeof_member(tracer_status_t, netns);
-static const __u8 SIZEOF_RTT = sizeof_member(tracer_status_t, rtt);
-static const __u8 SIZEOF_RTT_VAR = sizeof_member(tracer_status_t, rtt_var);
-static const __u8 SIZEOF_DADDR_IPV6 = sizeof_member(tracer_status_t, daddr_ipv6) / 4;
-static const __u8 SIZEOF_SADDR_FL4 = sizeof_member(tracer_status_t, saddr_fl4);
-static const __u8 SIZEOF_DADDR_FL4 = sizeof_member(tracer_status_t, daddr_fl4);
-static const __u8 SIZEOF_SPORT_FL4 = sizeof_member(tracer_status_t, sport_fl4);
-static const __u8 SIZEOF_DPORT_FL4 = sizeof_member(tracer_status_t, dport_fl4);
-static const __u8 SIZEOF_SADDR_FL6 = sizeof_member(tracer_status_t, saddr_fl6) / 4;
-static const __u8 SIZEOF_DADDR_FL6 = sizeof_member(tracer_status_t, daddr_fl6) / 4;
-static const __u8 SIZEOF_SPORT_FL6 = sizeof_member(tracer_status_t, sport_fl6);
-static const __u8 SIZEOF_DPORT_FL6 = sizeof_member(tracer_status_t, dport_fl6);
-static const __u8 SIZEOF_SOCKET_SK = sizeof((void*)0); // char*
-static const __u8 SIZEOF_SK_BUFF_SOCK = sizeof((void*)0); // char*
-static const __u8 SIZEOF_SK_BUFF_TRANSPORT_HEADER = sizeof_member(tracer_status_t, transport_header);
-static const __u8 SIZEOF_SK_BUFF_HEAD = sizeof((void*)0); // char*
-
-static const __u8 SIZEOF_CT_TUPLE_ORIGIN = sizeof_member(conntrack_status_t, saddr);
-static const __u8 SIZEOF_CT_TUPLE_REPLY = sizeof_member(conntrack_status_t, saddr);
-static const __u8 SIZEOF_CT_STATUS = sizeof_member(conntrack_status_t, status);
-static const __u8 SIZEOF_CT_NET = sizeof((void*)0); // possible_net_t*
-
 // aligned_offset returns an offset that when added to
 // p, would produce an address that is mod size (aligned).
 //
@@ -129,13 +99,11 @@ static __always_inline int guess_offsets(tracer_status_t* status, char* subject)
         new_status.offset_family = aligned_offset(subject, status->offset_family, SIZEOF_FAMILY);
         bpf_probe_read_kernel(&new_status.family, sizeof(new_status.family), subject + new_status.offset_family);
         break;
-    case GUESS_SPORT:
-        new_status.offset_sport = aligned_offset(subject, status->offset_sport, SIZEOF_SPORT);
-        bpf_probe_read_kernel(&new_status.sport, sizeof(new_status.sport), subject + new_status.offset_sport);
-        break;
     case GUESS_DPORT:
         new_status.offset_dport = aligned_offset(subject, status->offset_dport, SIZEOF_DPORT);
+        new_status.offset_sport = aligned_offset(subject, status->offset_dport+SIZEOF_DPORT, SIZEOF_SPORT);
         bpf_probe_read_kernel(&new_status.dport, sizeof(new_status.dport), subject + new_status.offset_dport);
+        bpf_probe_read_kernel(&new_status.sport, sizeof(new_status.sport), subject + new_status.offset_sport);
         break;
     case GUESS_SADDR_FL4:
         new_status.offset_saddr_fl4 = aligned_offset(subject, status->offset_saddr_fl4, SIZEOF_SADDR_FL4);
@@ -413,10 +381,6 @@ static __always_inline int guess_conntrack_offsets(conntrack_status_t* status, c
     case GUESS_CT_TUPLE_REPLY:
         new_status.offset_reply = aligned_offset(subject, status->offset_reply, SIZEOF_CT_TUPLE_REPLY);
         bpf_probe_read_kernel(&new_status.saddr, sizeof(new_status.saddr), subject + new_status.offset_reply);
-        break;
-    case GUESS_CT_STATUS:
-        new_status.offset_status = aligned_offset(subject, status->offset_status, SIZEOF_CT_STATUS);
-        bpf_probe_read_kernel(&new_status.status, sizeof(new_status.status), subject + new_status.offset_status);
         break;
     case GUESS_CT_NET:
         new_status.offset_netns = aligned_offset(subject, status->offset_netns, SIZEOF_CT_NET);

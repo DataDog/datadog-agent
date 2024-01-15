@@ -5,6 +5,7 @@
 
 //go:build functionaltests
 
+// Package tests holds tests related files
 package tests
 
 import (
@@ -29,7 +30,7 @@ func TestContainerCreatedAt(t *testing.T) {
 			Expression: `container.id != "" && container.created_at > 3s && open.file.path == "{{.Root}}/test-open-delay"`,
 		},
 	}
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +93,7 @@ func TestContainerScopedVariable(t *testing.T) {
 		{
 			ID:         "test_container_set_scoped_variable",
 			Expression: `open.file.path == "/tmp/test-open"`,
-			Actions: []rules.ActionDefinition{{
+			Actions: []*rules.ActionDefinition{{
 				Set: &rules.SetDefinition{
 					Name:  "var1",
 					Value: true,
@@ -105,7 +106,7 @@ func TestContainerScopedVariable(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}

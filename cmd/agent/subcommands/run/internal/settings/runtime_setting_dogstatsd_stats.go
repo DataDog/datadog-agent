@@ -8,21 +8,21 @@ package settings
 import (
 	"fmt"
 
-	dogstatsdDebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 )
 
 // DsdStatsRuntimeSetting wraps operations to change the collection of dogstatsd stats at runtime.
 type DsdStatsRuntimeSetting struct {
-	ServerDebug dogstatsdDebug.Component
-	source      settings.Source
+	ServerDebug dogstatsddebug.Component
 }
 
-func NewDsdStatsRuntimeSetting(serverDebug dogstatsdDebug.Component) *DsdStatsRuntimeSetting {
+// NewDsdStatsRuntimeSetting creates a new instance of DsdStatsRuntimeSetting
+func NewDsdStatsRuntimeSetting(serverDebug dogstatsddebug.Component) *DsdStatsRuntimeSetting {
 	return &DsdStatsRuntimeSetting{
 		ServerDebug: serverDebug,
-		source:      settings.SourceDefault,
 	}
 }
 
@@ -47,7 +47,7 @@ func (s *DsdStatsRuntimeSetting) Get() (interface{}, error) {
 }
 
 // Set changes the value of the runtime setting
-func (s *DsdStatsRuntimeSetting) Set(v interface{}, source settings.Source) error {
+func (s *DsdStatsRuntimeSetting) Set(v interface{}, source model.Source) error {
 	var newValue bool
 	var err error
 
@@ -57,11 +57,6 @@ func (s *DsdStatsRuntimeSetting) Set(v interface{}, source settings.Source) erro
 
 	s.ServerDebug.SetMetricStatsEnabled(newValue)
 
-	config.Datadog.Set("dogstatsd_metrics_stats_enable", newValue)
-	s.source = source
+	config.Datadog.Set("dogstatsd_metrics_stats_enable", newValue, source)
 	return nil
-}
-
-func (s *DsdStatsRuntimeSetting) GetSource() settings.Source {
-	return s.source
 }

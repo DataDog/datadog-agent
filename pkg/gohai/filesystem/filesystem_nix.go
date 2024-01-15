@@ -22,7 +22,7 @@ type fsInfoGetter func(*mountinfo.Info) (uint64, error)
 func sizeKB(mount *mountinfo.Info) (uint64, error) {
 	var statfs unix.Statfs_t
 	if err := unix.Statfs(mount.Mountpoint, &statfs); err != nil {
-		return 0, fmt.Errorf("statfs %s: %v", mount.Source, err)
+		return 0, fmt.Errorf("statfs %s: %w", mount.Source, err)
 	}
 
 	sizeKB := statfs.Blocks * uint64(statfs.Bsize) / 1024
@@ -62,15 +62,15 @@ func getFileSystemInfo() ([]MountInfo, error) {
 //
 // This behavior is inspired by what df does
 // https://github.com/coreutils/coreutils/blob/73ba9f71e159d48d8fa490096aa4b8b7cc27ae5a/src/df.c#L775-L797
-func replaceDev(old, new MountInfo) bool {
-	if strings.ContainsRune(new.Name, '/') && !strings.ContainsRune(old.Name, '/') {
+func replaceDev(oldMount, newMount MountInfo) bool {
+	if strings.ContainsRune(newMount.Name, '/') && !strings.ContainsRune(oldMount.Name, '/') {
 		return true
 	}
-	if len(old.MountedOn) > len(new.MountedOn) {
+	if len(oldMount.MountedOn) > len(newMount.MountedOn) {
 		return true
 	}
 
-	return old.Name != new.Name && old.MountedOn == new.MountedOn
+	return oldMount.Name != newMount.Name && oldMount.MountedOn == newMount.MountedOn
 }
 
 // getFileSystemInfoWithMounts is an internal method to help testing with test mounts and mocking syscalls
@@ -94,7 +94,7 @@ func getFileSystemInfoWithMounts(initialMounts []*mountinfo.Info, sizeKB, dev fs
 
 		sizeKB, err := sizeKB(mount)
 		if err != nil {
-			log.Info(err)
+			log.Debug(err)
 			continue
 		}
 
@@ -111,7 +111,7 @@ func getFileSystemInfoWithMounts(initialMounts []*mountinfo.Info, sizeKB, dev fs
 
 		dev, err := dev(mount)
 		if err != nil {
-			log.Info(err)
+			log.Debug(err)
 			continue
 		}
 

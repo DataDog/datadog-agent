@@ -4,7 +4,8 @@ on:
   push:
     branches:
       - main
-      - 7.[0-9][0-9].x
+      - "[0-9]+.[0-9]+.x"
+      - mq-working-branch-*
   pull_request:
 
 concurrency:
@@ -16,28 +17,28 @@ jobs:
     runs-on: windows-2022 # https://github.com/actions/virtual-environments/blob/main/images/win/Windows2019-Readme.md
     steps:
       - name: Checkout datadog-agent repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0 #needed for 'git describe' to work
 
       - name: Install python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.8.10'
+          python-version: "3.9.5"
+          cache: "pip"
+      - run: |
+          python -m pip install -r requirements.txt
+          If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
 
       - name: Install go
         uses: actions/setup-go@v3
         with:
-          go-version-file: '.go-version'
+          go-version-file: ".go-version"
 
       - name: Set up runner
         run: |
           $ErrorActionPreference = 'Stop';
           # install dependencies
-          # The Codecov Python uploader was deprecated on Feb 1, 2022 and disappeared from PyPi on Apr 12, 2023.
-          # python -m pip install codecov
-          python -m pip install -r requirements.txt
-          If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
           inv -e install-tools
           If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
           inv -e deps
@@ -54,7 +55,7 @@ jobs:
           powershell.exe -Command ./tasks/winbuildscripts/pre-go-build.ps1
           # FIXME: skipping rtloader tests because they fail with a DLL-not-found error
           # inv -e rtloader.test
-          inv -e test --skip-linters --rerun-fails=2 --python-runtimes 3 --coverage --profile --python-home-3=$pythonLocation
+          inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --profile --python-home-3=$pythonLocation --timeout=600
 
       - name: Upload Codecov results
         uses: codecov/codecov-action@v3

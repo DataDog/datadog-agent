@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    APM: OTLP: Add support for custom container tags via resource attributes prefixed by `datadog.container.tag.*`.
+fixes:
+  - |
+    APM: OTLP: Only extract DD container tags from resource attributes. Previously, container tags were also extracted from span attributes.
+  - |
+    APM: OTLP: Only add container tags in tag `_dd.tags.container`. Previously, container tags were also added as span tags.

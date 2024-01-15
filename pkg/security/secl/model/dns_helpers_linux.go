@@ -4,8 +4,8 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build unix
-// +build unix
 
+// Package model holds model related files
 package model
 
 import (
@@ -25,7 +25,8 @@ var (
 	ErrDNSNameMalformatted = errors.New("dns name mal-formatted")
 )
 
-const DNS_PREALLOC_SIZE = 256
+// DNSPreallocSize defines DNS pre-alloc size
+const DNSPreallocSize = 256
 
 func decodeDNSName(raw []byte) (string, error) {
 	var (
@@ -36,7 +37,7 @@ func decodeDNSName(raw []byte) (string, error) {
 		err     error
 	)
 
-	rep.Grow(DNS_PREALLOC_SIZE)
+	rep.Grow(DNSPreallocSize)
 
 LOOP:
 	for i < rawLen {

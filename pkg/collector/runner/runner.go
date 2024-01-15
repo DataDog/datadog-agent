@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package runner
 
 import (
@@ -172,7 +173,7 @@ func (r *Runner) UpdateNumWorkers(numChecks int64) {
 // Stop closes the pending channel so all workers will exit their loop and terminate
 // All publishers to the pending channel need to have stopped before Stop is called
 func (r *Runner) Stop() {
-	if !r.isRunning.CAS(true, false) {
+	if !r.isRunning.CompareAndSwap(true, false) {
 		log.Debugf("Runner %d already stopped, nothing to do here...", r.id)
 		return
 	}

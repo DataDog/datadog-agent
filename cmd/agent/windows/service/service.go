@@ -5,6 +5,7 @@
 
 //go:build windows
 
+// Package service implements the Windows Service for the core agent
 package service
 
 import (
@@ -12,14 +13,17 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	runcmd "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain"
 )
 
 type service struct {
+	servicemain.DefaultSettings
 	errChan <-chan error
 	ctxChan chan context.Context
 }
 
-func NewWindowsService() *service {
+// NewWindowsService returns the service entry  for the core agent
+func NewWindowsService() servicemain.Service {
 	return &service{}
 }
 

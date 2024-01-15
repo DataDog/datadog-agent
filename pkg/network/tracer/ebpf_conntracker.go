@@ -22,7 +22,6 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/features"
-	libnetlink "github.com/mdlayher/netlink"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sys/unix"
 
@@ -93,13 +92,7 @@ func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelem
 		return nil, fmt.Errorf("ebpf conntracker is disabled")
 	}
 
-	// dial the netlink layer aim to load nf_conntrack_netlink and nf_conntrack kernel modules
-	// eBPF conntrack require nf_conntrack symbols
-	conn, err := libnetlink.Dial(unix.NETLINK_NETFILTER, nil)
-	if err == nil {
-		conn.Close()
-	}
-
+	var err error
 	var buf bytecode.AssetReader
 	if cfg.EnableRuntimeCompiler {
 		buf, err = ebpfConntrackerRCCreator(cfg)
@@ -125,21 +118,9 @@ func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelem
 
 	defer buf.Close()
 
-	var mapErr *ebpf.Map
-	var helperErr *ebpf.Map
-	if bpfTelemetry != nil {
-		mapErr = bpfTelemetry.MapErrMap
-		helperErr = bpfTelemetry.HelperErrMap
-	}
-
-	m, err := getManager(cfg, buf, mapErr, helperErr, constants)
+	m, err := getManager(cfg, buf, bpfTelemetry, constants)
 	if err != nil {
 		return nil, err
-	}
-	if bpfTelemetry != nil {
-		if err := bpfTelemetry.RegisterEBPFTelemetry(m); err != nil {
-			return nil, fmt.Errorf("could not register ebpf telemetry: %v", err)
-		}
 	}
 
 	err = m.Start()
@@ -410,8 +391,8 @@ func (e *ebpfConntracker) Collect(ch chan<- prometheus.Metric) {
 	}
 }
 
-func getManager(cfg *config.Config, buf io.ReaderAt, mapErrTelemetryMap, helperErrTelemetryMap *ebpf.Map, constants []manager.ConstantEditor) (*manager.Manager, error) {
-	mgr := &manager.Manager{
+func getManager(cfg *config.Config, buf io.ReaderAt, bpfTelemetry *nettelemetry.EBPFTelemetry, constants []manager.ConstantEditor) (*manager.Manager, error) {
+	mgr := nettelemetry.NewManager(&manager.Manager{
 		Maps: []*manager.Map{
 			{Name: probes.ConntrackMap},
 			{Name: probes.ConntrackTelemetryMap},
@@ -432,18 +413,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, mapErrTelemetryMap, helperE
 				MatchFuncName: "^ctnetlink_fill_info(\\.constprop\\.0)?$",
 			},
 		},
-	}
-
-	currKernelVersion, err := kernel.HostVersion()
-	if err != nil {
-		return nil, errors.New("failed to detect kernel version")
-	}
-	activateBPFTelemetry := currKernelVersion >= kernel.VersionCode(4, 14, 0)
-	mgr.InstructionPatcher = func(m *manager.Manager) error {
-		return nettelemetry.PatchEBPFTelemetry(m, activateBPFTelemetry, []manager.ProbeIdentificationPair{})
-	}
-
-	telemetryMapKeys := nettelemetry.BuildTelemetryKeys(mgr)
+	}, bpfTelemetry)
 
 	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
 	if cfg.AttachKprobesWithKprobeEventsABI {
@@ -472,9 +442,9 @@ func getManager(cfg *config.Config, buf io.ReaderAt, mapErrTelemetryMap, helperE
 			Max: math.MaxUint64,
 		},
 		MapSpecEditors: map[string]manager.MapSpecEditor{
-			probes.ConntrackMap: {Type: ebpf.Hash, MaxEntries: uint32(cfg.ConntrackMaxStateSize), EditorFlag: manager.EditMaxEntries},
+			probes.ConntrackMap: {MaxEntries: uint32(cfg.ConntrackMaxStateSize), EditorFlag: manager.EditMaxEntries},
 		},
-		ConstantEditors:           append(telemetryMapKeys, constants...),
+		ConstantEditors:           constants,
 		DefaultKprobeAttachMethod: kprobeAttachMethod,
 		MapEditors:                make(map[string]*ebpf.Map),
 		VerifierOptions: ebpf.CollectionOptions{
@@ -490,19 +460,12 @@ func getManager(cfg *config.Config, buf io.ReaderAt, mapErrTelemetryMap, helperE
 		me.EditorFlag |= manager.EditType
 	}
 
-	if mapErrTelemetryMap != nil {
-		opts.MapEditors[probes.MapErrTelemetryMap] = mapErrTelemetryMap
-	}
-	if helperErrTelemetryMap != nil {
-		opts.MapEditors[probes.HelperErrTelemetryMap] = helperErrTelemetryMap
-	}
-
 	err = mgr.InitWithOptions(buf, opts)
 	if err != nil {
 		return nil, err
 	}
-	ebpfcheck.AddNameMappings(mgr, "npm_conntracker")
-	return mgr, nil
+	ebpfcheck.AddNameMappings(mgr.Manager, "npm_conntracker")
+	return mgr.Manager, nil
 }
 
 func getPrebuiltConntracker(cfg *config.Config) (bytecode.AssetReader, []manager.ConstantEditor, error) {

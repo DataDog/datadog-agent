@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package tc holds tc related files
 package tc
 
 import (
@@ -31,12 +32,14 @@ type NetDeviceKey struct {
 	NetworkDirection manager.TrafficType
 }
 
+// Resolver defines a TC resolver
 type Resolver struct {
 	sync.RWMutex
 	config   *config.Config
 	programs map[NetDeviceKey]*manager.Probe
 }
 
+// NewResolver returns a TC resolver
 func NewResolver(config *config.Config) *Resolver {
 	return &Resolver{
 		config:   config,
@@ -44,6 +47,7 @@ func NewResolver(config *config.Config) *Resolver {
 	}
 }
 
+// SendTCProgramsStats sends TC programs stats
 func (tcr *Resolver) SendTCProgramsStats(statsdClient statsd.ClientInterface) {
 	tcr.RLock()
 	defer tcr.RUnlock()
@@ -53,6 +57,7 @@ func (tcr *Resolver) SendTCProgramsStats(statsdClient statsd.ClientInterface) {
 	}
 }
 
+// SelectTCProbes selects TC probes
 func (tcr *Resolver) SelectTCProbes() manager.ProbesSelector {
 	tcr.RLock()
 	defer tcr.RUnlock()
@@ -117,7 +122,7 @@ func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice,
 	return combinedErr.ErrorOrNil()
 }
 
-// flushNetworkNamespace thread unsafe version of FlushNetworkNamespace
+// FlushNetworkNamespaceID flushes network ID
 func (tcr *Resolver) FlushNetworkNamespaceID(namespaceID uint32, m *manager.Manager) {
 	tcr.Lock()
 	defer tcr.Unlock()
@@ -160,6 +165,7 @@ func (tcr *Resolver) FlushInactiveProbes(m *manager.Manager, isLazy func(string)
 	return probesCountNoLazyDeletion
 }
 
+// ResolveNetworkDeviceIfName resolves network device name
 func (tcr *Resolver) ResolveNetworkDeviceIfName(ifIndex, netNS uint32) (string, bool) {
 	tcr.RLock()
 	defer tcr.RUnlock()

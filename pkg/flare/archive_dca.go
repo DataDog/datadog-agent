@@ -15,16 +15,22 @@ import (
 	"path/filepath"
 
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/status"
+	clusteragentStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent"
+	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// ProfileData maps (pprof) profile names to the profile data
+type ProfileData map[string][]byte
+
 // CreateDCAArchive packages up the files
-func CreateDCAArchive(local bool, distPath, logFilePath string) (string, error) {
+func CreateDCAArchive(local bool, distPath, logFilePath string, pdata ProfileData, senderManager sender.DiagnoseSenderManager) (string, error) {
 	fb, err := flarehelpers.NewFlareBuilder(local)
 	if err != nil {
 		return "", err
@@ -35,18 +41,18 @@ func CreateDCAArchive(local bool, distPath, logFilePath string) (string, error) 
 		"dist": filepath.Join(distPath, "conf.d"),
 	}
 
-	createDCAArchive(fb, confSearchPaths, logFilePath)
+	createDCAArchive(fb, confSearchPaths, logFilePath, pdata, senderManager)
 	return fb.Save()
 }
 
-func createDCAArchive(fb flarehelpers.FlareBuilder, confSearchPaths map[string]string, logFilePath string) {
+func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]string, logFilePath string, pdata ProfileData, senderManager sender.DiagnoseSenderManager) {
 	// If the request against the API does not go through we don't collect the status log.
 	if fb.IsLocal() {
 		fb.AddFile("local", nil)
 	} else {
 		// The Status will be unavailable unless the agent is running.
 		// Only zip it up if the agent is running
-		err := fb.AddFileFromFunc("cluster-agent-status.log", status.GetAndFormatDCAStatus)
+		err := fb.AddFileFromFunc("cluster-agent-status.log", clusteragentStatus.GetAndFormatStatus)
 		if err != nil {
 			log.Errorf("Error getting the status of the DCA, %q", err)
 			return
@@ -55,11 +61,11 @@ func createDCAArchive(fb flarehelpers.FlareBuilder, confSearchPaths map[string]s
 
 	getLogFiles(fb, logFilePath)
 	getConfigFiles(fb, confSearchPaths)
-	getClusterAgentConfigCheck(fb)   //nolint:errcheck
-	getExpVar(fb)                    //nolint:errcheck
-	getMetadataMap(fb)               //nolint:errcheck
-	getClusterAgentClusterChecks(fb) //nolint:errcheck
-	getClusterAgentDiagnose(fb)      //nolint:errcheck
+	getClusterAgentConfigCheck(fb)             //nolint:errcheck
+	getExpVar(fb)                              //nolint:errcheck
+	getMetadataMap(fb)                         //nolint:errcheck
+	getClusterAgentClusterChecks(fb)           //nolint:errcheck
+	getClusterAgentDiagnose(fb, senderManager) //nolint:errcheck
 	fb.AddFileFromFunc("agent-daemonset.yaml", getAgentDaemonSet)
 	fb.AddFileFromFunc("cluster-agent-deployment.yaml", getClusterAgentDeployment)
 	fb.AddFileFromFunc("helm-values.yaml", getHelmValues)
@@ -67,6 +73,7 @@ func createDCAArchive(fb flarehelpers.FlareBuilder, confSearchPaths map[string]s
 	fb.AddFileFromFunc("telemetry.log", QueryDCAMetrics)
 	fb.AddFileFromFunc("tagger-list.json", getDCATaggerList)
 	fb.AddFileFromFunc("workload-list.log", getDCAWorkloadList)
+	getPerformanceProfileDCA(fb, pdata)
 
 	if config.Datadog.GetBool("external_metrics_provider.enabled") {
 		getHPAStatus(fb) //nolint:errcheck
@@ -83,7 +90,7 @@ func QueryDCAMetrics() ([]byte, error) {
 	return io.ReadAll(r.Body)
 }
 
-func getMetadataMap(fb flarehelpers.FlareBuilder) error {
+func getMetadataMap(fb flaretypes.FlareBuilder) error {
 	metaList := apiv1.NewMetadataResponse()
 	cl, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -101,7 +108,7 @@ func getMetadataMap(fb flarehelpers.FlareBuilder) error {
 		return log.Errorf("Error while marshalling the cluster level metadata: %q", err)
 	}
 
-	str, err := status.FormatMetadataMapCLI(metaBytes)
+	str, err := render.FormatMetadataMapCLI(metaBytes)
 	if err != nil {
 		return log.Errorf("Error while rendering the cluster level metadata: %q", err)
 	}
@@ -109,7 +116,7 @@ func getMetadataMap(fb flarehelpers.FlareBuilder) error {
 	return fb.AddFile("cluster-agent-metadatamapper.log", []byte(str))
 }
 
-func getClusterAgentClusterChecks(fb flarehelpers.FlareBuilder) error {
+func getClusterAgentClusterChecks(fb flaretypes.FlareBuilder) error {
 	var b bytes.Buffer
 
 	writer := bufio.NewWriter(&b)
@@ -119,7 +126,7 @@ func getClusterAgentClusterChecks(fb flarehelpers.FlareBuilder) error {
 	return fb.AddFile("clusterchecks.log", b.Bytes())
 }
 
-func getHPAStatus(fb flarehelpers.FlareBuilder) error {
+func getHPAStatus(fb flaretypes.FlareBuilder) error {
 	stats := make(map[string]interface{})
 	apiCl, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -132,7 +139,7 @@ func getHPAStatus(fb flarehelpers.FlareBuilder) error {
 		return log.Errorf("Error while marshalling the cluster level metadata: %q", err)
 	}
 
-	str, err := status.FormatHPAStatus(statsBytes)
+	str, err := render.FormatHPAStatus(statsBytes)
 	if err != nil {
 		return log.Errorf("Could not collect custommetricsprovider.log: %s", err)
 	}
@@ -140,7 +147,7 @@ func getHPAStatus(fb flarehelpers.FlareBuilder) error {
 	return fb.AddFile("custommetricsprovider.log", []byte(str))
 }
 
-func getClusterAgentConfigCheck(fb flarehelpers.FlareBuilder) error {
+func getClusterAgentConfigCheck(fb flaretypes.FlareBuilder) error {
 	var b bytes.Buffer
 
 	writer := bufio.NewWriter(&b)
@@ -150,11 +157,11 @@ func getClusterAgentConfigCheck(fb flarehelpers.FlareBuilder) error {
 	return fb.AddFile("config-check.log", b.Bytes())
 }
 
-func getClusterAgentDiagnose(fb flarehelpers.FlareBuilder) error {
+func getClusterAgentDiagnose(fb flaretypes.FlareBuilder, senderManager sender.DiagnoseSenderManager) error {
 	var b bytes.Buffer
 
 	writer := bufio.NewWriter(&b)
-	GetClusterAgentDiagnose(writer) //nolint:errcheck
+	GetClusterAgentDiagnose(writer, senderManager) //nolint:errcheck
 	writer.Flush()
 
 	return fb.AddFile("diagnose.log", b.Bytes())
@@ -178,4 +185,10 @@ func getDCAWorkloadList() ([]byte, error) {
 	}
 
 	return getWorkloadList(fmt.Sprintf("https://%v:%v/workload-list?verbose=true", ipcAddress, config.Datadog.GetInt("cluster_agent.cmd_port")))
+}
+
+func getPerformanceProfileDCA(fb flaretypes.FlareBuilder, pdata ProfileData) {
+	for name, data := range pdata {
+		fb.AddFileWithoutScrubbing(filepath.Join("profiles", name), data)
+	}
 }

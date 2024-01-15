@@ -122,7 +122,11 @@ var endpoints = []Endpoint{
 	},
 	{
 		Pattern: "/debugger/v1/input",
-		Handler: func(r *HTTPReceiver) http.Handler { return r.debuggerProxyHandler() },
+		Handler: func(r *HTTPReceiver) http.Handler { return r.debuggerLogsProxyHandler() },
+	},
+	{
+		Pattern: "/debugger/v1/diagnostics",
+		Handler: func(r *HTTPReceiver) http.Handler { return r.debuggerDiagnosticsProxyHandler() },
 	},
 	{
 		Pattern: "/symdb/v1/input",
@@ -135,5 +139,9 @@ var endpoints = []Endpoint{
 	{
 		Pattern: "/dogstatsd/v2/proxy",
 		Handler: func(r *HTTPReceiver) http.Handler { return r.dogstatsdProxyHandler() },
+	},
+	{
+		Pattern: "/tracer_flare/v1",
+		Handler: func(r *HTTPReceiver) http.Handler { return r.tracerFlareHandler() },
 	},
 }

@@ -8,16 +8,17 @@ package generic
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	taggerUtils "github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
@@ -60,19 +61,6 @@ func (p *Processor) Run(sender sender.Sender, cacheValidity time.Duration) error
 		return nil
 	}
 
-	collectorsCache := make(map[workloadmeta.ContainerRuntime]metrics.Collector)
-	getCollector := func(runtime workloadmeta.ContainerRuntime) metrics.Collector {
-		if collector, found := collectorsCache[runtime]; found {
-			return collector
-		}
-
-		collector := p.metricsProvider.GetCollector(string(runtime))
-		if collector != nil {
-			collectorsCache[runtime] = collector
-		}
-		return collector
-	}
-
 	// Extensions: PreProcess hook
 	for _, extension := range p.extensions {
 		extension.PreProcess(p.sendMetric, sender)
@@ -92,7 +80,10 @@ func (p *Processor) Run(sender sender.Sender, cacheValidity time.Duration) error
 		}
 		tags = p.metricsAdapter.AdaptTags(tags, container)
 
-		collector := getCollector(container.Runtime)
+		collector := p.metricsProvider.GetCollector(provider.NewRuntimeMetadata(
+			string(container.Runtime),
+			string(container.RuntimeFlavor),
+		))
 		if collector == nil {
 			log.Warnf("Collector not found for container: %v, metrics will ne missing", container)
 			continue
@@ -100,7 +91,7 @@ func (p *Processor) Run(sender sender.Sender, cacheValidity time.Duration) error
 
 		containerStats, err := collector.GetContainerStats(container.Namespace, container.ID, cacheValidity)
 		if err != nil {
-			log.Debugf("Container stats for: %v not available through collector %q, err: %v", container, collector.ID(), err)
+			log.Debugf("Container stats for: %v not available, err: %v", container, err)
 			continue
 		}
 
@@ -113,7 +104,7 @@ func (p *Processor) Run(sender sender.Sender, cacheValidity time.Duration) error
 		if err == nil {
 			p.sendMetric(sender.Gauge, "container.pid.open_files", pointer.UIntPtrToFloatPtr(openFiles), tags)
 		} else {
-			log.Debugf("OpenFiles count for: %v not available through collector %q, err: %v", container, collector.ID(), err)
+			log.Debugf("OpenFiles count for: %v not available, err: %v", container, err)
 		}
 
 		// TODO: Implement container stats. We currently don't have enough information from Metadata service to do it.
@@ -169,8 +160,10 @@ func (p *Processor) processContainer(sender sender.Sender, tags []string, contai
 		p.sendMetric(sender.Gauge, "container.memory.working_set", containerStats.Memory.PrivateWorkingSet, tags) // Windows
 		p.sendMetric(sender.Gauge, "container.memory.commit", containerStats.Memory.CommitBytes, tags)
 		p.sendMetric(sender.Gauge, "container.memory.commit.peak", containerStats.Memory.CommitPeakBytes, tags)
-		p.sendMetric(sender.Gauge, "container.memory.peak", containerStats.Memory.Peak, tags)
+		p.sendMetric(sender.Gauge, "container.memory.usage.peak", containerStats.Memory.Peak, tags)
 		p.sendMetric(sender.Rate, "container.memory.partial_stall", containerStats.Memory.PartialStallTime, tags)
+		p.sendMetric(sender.MonotonicCount, "container.memory.page_faults", containerStats.Memory.Pgfault, tags)
+		p.sendMetric(sender.MonotonicCount, "container.memory.major_page_faults", containerStats.Memory.Pgmajfault, tags)
 	}
 
 	if containerStats.IO != nil {

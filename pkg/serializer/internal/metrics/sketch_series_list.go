@@ -67,6 +67,7 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 	// const sketchDistributions = 3
 	const sketchTags = 4
 	const sketchDogsketches = 7
+	const sketchMetadata = 8
 	// const distributionTs = 1
 	// const distributionCnt = 2
 	// const distributionMin = 3
@@ -85,6 +86,30 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 	const dogsketchSum = 6
 	const dogsketchK = 7
 	const dogsketchN = 8
+
+	const sketchMetadataOrigin = 1
+	//         |------| 'Metadata' message
+	//                 |-----| 'origin' field index
+	const sketchMetadataOriginMetricType = 3
+	//         |------| 'Metadata' message
+	//                 |----| 'origin' message
+	//                       |--------| 'metric_type' field index
+	const metryTypeNotIndexed = 9
+	//    |-----------------| 'metric_type_agent_hidden' field index
+
+	const sketchMetadataOriginOriginProduct = 4
+	//                 |----|  'Origin' message
+	//                       |-----------| 'origin_product' field index
+	const sketchMetadataOriginOriginCategory = 5
+	//                 |----|  'Origin' message
+	//                       |-----------| 'origin_category' field index
+	const sketchMetadataOriginOriginService = 6
+	//                 |----|  'Origin' message
+	//                       |-----------| 'origin_service' field index
+	const serieMetadataOriginOriginProductAgentType = 10
+	//                 |----|  'Origin' message
+	//                       |-----------| 'OriginProduct' enum
+	//                                    |-------| 'Agent' enum value
 
 	// the backend accepts payloads up to specific compressed / uncompressed
 	// sizes, but prefers small uncompressed payloads.
@@ -216,6 +241,28 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 					return err
 				}
 			}
+			err = ps.Embedded(sketchMetadata, func(ps *molecule.ProtoStream) error {
+				return ps.Embedded(sketchMetadataOrigin, func(ps *molecule.ProtoStream) error {
+					if ss.NoIndex {
+						err = ps.Int32(sketchMetadataOriginMetricType, metryTypeNotIndexed)
+						if err != nil {
+							return err
+						}
+					}
+					err = ps.Int32(sketchMetadataOriginOriginProduct, serieMetadataOriginOriginProductAgentType)
+					if err != nil {
+						return err
+					}
+					err = ps.Int32(sketchMetadataOriginOriginCategory, metricSourceToOriginCategory(ss.Source))
+					if err != nil {
+						return err
+					}
+					return ps.Int32(sketchMetadataOriginOriginService, metricSourceToOriginService(ss.Source))
+				})
+			})
+			if err != nil {
+				return err
+			}
 
 			return nil
 		})
@@ -330,6 +377,7 @@ func (sl SketchSeriesList) SplitPayload(times int) ([]marshaler.AbstractMarshale
 	return sketches.SplitPayload(times)
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 type SketchSeriesSlice []*metrics.SketchSeries
 
 // SplitPayload breaks the payload into times number of pieces

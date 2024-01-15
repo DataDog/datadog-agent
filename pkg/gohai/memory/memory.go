@@ -15,7 +15,7 @@ type Info struct {
 	// TotalBytes is the total memory for the host in byte
 	TotalBytes utils.Value[uint64] `json:"total"`
 	// SwapTotalBytes is the swap memory size in kilobyte (Unix only)
-	SwapTotalKb utils.Value[uint64] `json:"swap_total" unit:"kb"`
+	SwapTotalKb utils.Value[uint64] `json:"swap_total" unit:"kB"`
 }
 
 // CollectInfo returns an Info struct with every field initialized either to a value or an error.

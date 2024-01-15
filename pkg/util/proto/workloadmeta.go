@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 var emptyTimestampUnix = new(time.Time).Unix()
@@ -80,7 +80,7 @@ func protoContainerFromWorkloadmetaContainer(container *workloadmeta.Container) 
 		pbContainerPorts = append(pbContainerPorts, toProtoContainerPort(&port))
 	}
 
-	protoEntityID, err := toProtoEntityIdFromContainer(container)
+	protoEntityID, err := toProtoEntityIDFromContainer(container)
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +123,7 @@ func toProtoEventType(eventType workloadmeta.EventType) (pb.WorkloadmetaEventTyp
 	return pb.WorkloadmetaEventType_EVENT_TYPE_ALL, fmt.Errorf("unknown event type: %d", eventType)
 }
 
-func toProtoEntityIdFromContainer(container *workloadmeta.Container) (*pb.WorkloadmetaEntityId, error) {
+func toProtoEntityIDFromContainer(container *workloadmeta.Container) (*pb.WorkloadmetaEntityId, error) {
 	protoKind, err := toProtoKind(container.Kind)
 	if err != nil {
 		return nil, err
@@ -255,7 +255,7 @@ func toProtoContainerHealth(health workloadmeta.ContainerHealth) (pb.ContainerHe
 }
 
 func protoKubernetesPodFromWorkloadmetaKubernetesPod(kubernetesPod *workloadmeta.KubernetesPod) (*pb.KubernetesPod, error) {
-	protoEntityID, err := toProtoEntityIdFromKubernetesPod(kubernetesPod)
+	protoEntityID, err := toProtoEntityIDFromKubernetesPod(kubernetesPod)
 	if err != nil {
 		return nil, err
 	}
@@ -270,11 +270,17 @@ func protoKubernetesPodFromWorkloadmetaKubernetesPod(kubernetesPod *workloadmeta
 		protoOrchestratorContainers = append(protoOrchestratorContainers, toProtoOrchestratorContainer(container))
 	}
 
+	var protoInitContainers []*pb.OrchestratorContainer
+	for _, container := range kubernetesPod.InitContainers {
+		protoInitContainers = append(protoInitContainers, toProtoOrchestratorContainer(container))
+	}
+
 	return &pb.KubernetesPod{
 		EntityId:                   protoEntityID,
 		EntityMeta:                 toProtoEntityMetaFromKubernetesPod(kubernetesPod),
 		Owners:                     protoKubernetesPodOwners,
 		PersistentVolumeClaimNames: kubernetesPod.PersistentVolumeClaimNames,
+		InitContainers:             protoInitContainers,
 		Containers:                 protoOrchestratorContainers,
 		Ready:                      kubernetesPod.Ready,
 		Phase:                      kubernetesPod.Phase,
@@ -295,7 +301,7 @@ func toProtoEntityMetaFromKubernetesPod(kubernetesPod *workloadmeta.KubernetesPo
 	}
 }
 
-func toProtoEntityIdFromKubernetesPod(kubernetesPod *workloadmeta.KubernetesPod) (*pb.WorkloadmetaEntityId, error) {
+func toProtoEntityIDFromKubernetesPod(kubernetesPod *workloadmeta.KubernetesPod) (*pb.WorkloadmetaEntityId, error) {
 	protoKind, err := toProtoKind(kubernetesPod.Kind)
 	if err != nil {
 		return nil, err
@@ -324,7 +330,7 @@ func toProtoOrchestratorContainer(container workloadmeta.OrchestratorContainer) 
 }
 
 func protoECSTaskFromWorkloadmetaECSTask(ecsTask *workloadmeta.ECSTask) (*pb.ECSTask, error) {
-	protoEntityID, err := toProtoEntityIdFromECSTask(ecsTask)
+	protoEntityID, err := toProtoEntityIDFromECSTask(ecsTask)
 	if err != nil {
 		return nil, err
 	}
@@ -363,7 +369,7 @@ func toProtoEntityMetaFromECSTask(ecsTask *workloadmeta.ECSTask) *pb.EntityMeta 
 	}
 }
 
-func toProtoEntityIdFromECSTask(ecsTask *workloadmeta.ECSTask) (*pb.WorkloadmetaEntityId, error) {
+func toProtoEntityIDFromECSTask(ecsTask *workloadmeta.ECSTask) (*pb.WorkloadmetaEntityId, error) {
 	protoKind, err := toProtoKind(ecsTask.Kind)
 	if err != nil {
 		return nil, err
@@ -392,7 +398,11 @@ func toProtoLaunchType(launchType workloadmeta.ECSLaunchType) (pb.ECSLaunchType,
 func WorkloadmetaFilterFromProtoFilter(protoFilter *pb.WorkloadmetaFilter) (*workloadmeta.Filter, error) {
 	if protoFilter == nil {
 		// Return filter that subscribes to everything
-		return workloadmeta.NewFilter(nil, workloadmeta.SourceAll, workloadmeta.EventTypeAll), nil
+		filterParams := workloadmeta.FilterParams{
+			Source:    workloadmeta.SourceAll,
+			EventType: workloadmeta.EventTypeAll,
+		}
+		return workloadmeta.NewFilter(&filterParams), nil
 	}
 
 	var kinds []workloadmeta.Kind
@@ -416,7 +426,12 @@ func WorkloadmetaFilterFromProtoFilter(protoFilter *pb.WorkloadmetaFilter) (*wor
 		return nil, err
 	}
 
-	return workloadmeta.NewFilter(kinds, source, eventType), nil
+	filterParams := workloadmeta.FilterParams{
+		Kinds:     kinds,
+		Source:    source,
+		EventType: eventType,
+	}
+	return workloadmeta.NewFilter(&filterParams), nil
 }
 
 // WorkloadmetaEventFromProtoEvent converts the given protobuf workloadmeta event into a workloadmeta.Event
@@ -508,7 +523,7 @@ func toWorkloadmetaEventType(protoEventType pb.WorkloadmetaEventType) (workloadm
 }
 
 func toWorkloadmetaContainer(protoContainer *pb.Container) (*workloadmeta.Container, error) {
-	entityId, err := toWorkloadmetaEntityID(protoContainer.EntityId)
+	entityID, err := toWorkloadmetaEntityID(protoContainer.EntityId)
 	if err != nil {
 		return nil, err
 	}
@@ -529,7 +544,7 @@ func toWorkloadmetaContainer(protoContainer *pb.Container) (*workloadmeta.Contai
 	}
 
 	return &workloadmeta.Container{
-		EntityID:      entityId,
+		EntityID:      entityID,
 		EntityMeta:    toWorkloadmetaEntityMeta(protoContainer.EntityMeta),
 		EnvVars:       protoContainer.EnvVars,
 		Hostname:      protoContainer.Hostname,
@@ -670,7 +685,7 @@ func toWorkloadmetaContainerHealth(protoContainerHealth pb.ContainerHealth) (wor
 }
 
 func toWorkloadmetaKubernetesPod(protoKubernetesPod *pb.KubernetesPod) (*workloadmeta.KubernetesPod, error) {
-	entityId, err := toWorkloadmetaEntityID(protoKubernetesPod.EntityId)
+	entityID, err := toWorkloadmetaEntityID(protoKubernetesPod.EntityId)
 	if err != nil {
 		return nil, err
 	}
@@ -686,7 +701,7 @@ func toWorkloadmetaKubernetesPod(protoKubernetesPod *pb.KubernetesPod) (*workloa
 	}
 
 	return &workloadmeta.KubernetesPod{
-		EntityID:                   entityId,
+		EntityID:                   entityID,
 		EntityMeta:                 toWorkloadmetaEntityMeta(protoKubernetesPod.EntityMeta),
 		Owners:                     owners,
 		PersistentVolumeClaimNames: protoKubernetesPod.PersistentVolumeClaimNames,
@@ -718,7 +733,7 @@ func toWorkloadmetaOrchestratorContainer(protoOrchestratorContainer *pb.Orchestr
 }
 
 func toWorkloadmetaECSTask(protoECSTask *pb.ECSTask) (*workloadmeta.ECSTask, error) {
-	entityId, err := toWorkloadmetaEntityID(protoECSTask.EntityId)
+	entityID, err := toWorkloadmetaEntityID(protoECSTask.EntityId)
 	if err != nil {
 		return nil, err
 	}
@@ -734,7 +749,7 @@ func toWorkloadmetaECSTask(protoECSTask *pb.ECSTask) (*workloadmeta.ECSTask, err
 	}
 
 	return &workloadmeta.ECSTask{
-		EntityID:              entityId,
+		EntityID:              entityID,
 		EntityMeta:            toWorkloadmetaEntityMeta(protoECSTask.EntityMeta),
 		Tags:                  protoECSTask.Tags,
 		ContainerInstanceTags: protoECSTask.ContainerInstanceTags,
