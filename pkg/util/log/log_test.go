@@ -508,8 +508,7 @@ func mockScrubBytesWithCount(t *testing.T) *atomic.Int32 {
 	oldScrubber := scrubBytesFunc
 	t.Cleanup(func() { scrubBytesFunc = oldScrubber })
 
-	var counter atomic.Int32
-	counterPtr := &counter
+	counterPtr := atomic.NewInt32(0)
 
 	scrubBytesFunc = func(msg []byte) ([]byte, error) {
 		counterPtr.Add(1)
