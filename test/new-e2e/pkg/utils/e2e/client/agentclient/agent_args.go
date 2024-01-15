@@ -3,28 +3,21 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package client
+package agentclient
 
-// agentArgs contains the arguments for the Agent commands.
+// AgentArgs contains the arguments for the Agent commands.
 // Its value is populated using the functional options pattern.
-type agentArgs struct {
+type AgentArgs struct {
 	Args []string
 }
 
 // AgentArgsOption is an optional function parameter type for Agent arguments
-type AgentArgsOption = func(*agentArgs)
+type AgentArgsOption = func(*AgentArgs) error
 
 // WithArgs sets the Agent arguments
 func WithArgs(args []string) AgentArgsOption {
-	return func(a *agentArgs) {
+	return func(a *AgentArgs) error {
 		a.Args = args
+		return nil
 	}
-}
-
-func newAgentArgs(commandArgs ...AgentArgsOption) *agentArgs {
-	args := &agentArgs{}
-	for _, argsFunc := range commandArgs {
-		argsFunc(args)
-	}
-	return args
 }

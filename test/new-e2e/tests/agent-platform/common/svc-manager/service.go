@@ -9,23 +9,22 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
 
 // ServiceSvcManager struct for Service service manager
 type ServiceSvcManager struct {
-	vmClient client.VM
+	host *components.RemoteHost
 }
 
 // NewServiceSvcManager return service service manager
-func NewServiceSvcManager(vmClient client.VM) *ServiceSvcManager {
-	return &ServiceSvcManager{vmClient}
+func NewServiceSvcManager(host *components.RemoteHost) *ServiceSvcManager {
+	return &ServiceSvcManager{host: host}
 }
 
 // Status returns status from service
 func (s *ServiceSvcManager) Status(service string) (string, error) {
-	status, err := s.vmClient.ExecuteWithError(fmt.Sprintf("service %s status", service))
-
+	status, err := s.host.Execute(fmt.Sprintf("service %s status", service))
 	if err != nil {
 		return status, err
 	}
@@ -39,15 +38,15 @@ func (s *ServiceSvcManager) Status(service string) (string, error) {
 
 // Stop executes stop command from service
 func (s *ServiceSvcManager) Stop(service string) (string, error) {
-	return s.vmClient.ExecuteWithError(fmt.Sprintf("sudo service %s stop", service))
+	return s.host.Execute(fmt.Sprintf("sudo service %s stop", service))
 }
 
 // Start executes start command from service
 func (s *ServiceSvcManager) Start(service string) (string, error) {
-	return s.vmClient.ExecuteWithError(fmt.Sprintf("sudo service %s start", service))
+	return s.host.Execute(fmt.Sprintf("sudo service %s start", service))
 }
 
 // Restart executes restart command from service
 func (s *ServiceSvcManager) Restart(service string) (string, error) {
-	return s.vmClient.ExecuteWithError(fmt.Sprintf("sudo service %s restart", service))
+	return s.host.Execute(fmt.Sprintf("sudo service %s restart", service))
 }
