@@ -211,8 +211,9 @@ type (
 		Err  *scanJSONError `json:"Err"`
 
 		// Results union
-		Vulns   *scanVulnsResult   `json:"Vulns"`
-		Malware *scanMalwareResult `json:"Malware"`
+		Vulns      *scanVulnsResult     `json:"Vulns"`
+		Malware    *scanMalwareResult   `json:"Malware"`
+		Containers *scanContainerResult `json:"Containers"`
 	}
 
 	scanVulnsResult struct {
@@ -220,6 +221,10 @@ type (
 		SourceType sbommodel.SBOMSourceType `json:"SourceType"`
 		ID         string                   `json:"ID"`
 		Tags       []string                 `json:"Tags"`
+	}
+
+	scanContainerResult struct {
+		Containers []*container `json:"MountPoints"`
 	}
 
 	scanMalwareResult struct {
@@ -2200,27 +2205,35 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 					result.Vulns.SourceType = sbommodel.SBOMSourceType_HOST_FILE_SYSTEM
 					result.Vulns.ID = scan.Hostname
 					result.Vulns.Tags = nil
-
 				}
 				resultsCh <- result
 			case vulnsContainers:
-				ctrMountPoints, err := mountContainers(ctx, scan, root)
-				if err != nil {
-					resultsCh <- scan.ErrResult(err)
+				ctrResult := launchScanner(ctx, scannerOptions{
+					Scanner: "containers",
+					Scan:    scan,
+					Root:    root,
+				})
+				if ctrResult.Err != nil {
+					resultsCh <- ctrResult
 				} else {
-					for _, ctrMnt := range ctrMountPoints {
-						entityID, entityTags := containerTags(ctrMnt)
+					for _, ctr := range ctrResult.Containers.Containers {
+						entityID, entityTags := containerTags(*ctr)
+						mountPoint, err := mountContainer(ctx, scan, *ctr)
+						if err != nil {
+							resultsCh <- scan.ErrResult(err)
+							continue
+						}
 						result := launchScanner(ctx, scannerOptions{
 							Scanner: "hostvulns",
 							Scan:    scan,
-							Root:    ctrMnt.Path,
+							Root:    mountPoint,
 						})
 						if result.Vulns != nil {
 							result.Vulns.SourceType = sbommodel.SBOMSourceType_CONTAINER_IMAGE_LAYERS // TODO: sbommodel.SBOMSourceType_CONTAINER_FILE_SYSTEM
 							result.Vulns.ID = entityID
 							result.Vulns.Tags = entityTags
-
 						}
+						cleanupUmount(ctx, mountPoint)
 						resultsCh <- result
 					}
 				}
@@ -2396,6 +2409,12 @@ func launchScannerLocally(ctx context.Context, opts scannerOptions) scanResult {
 			return opts.Scan.ErrResult(err)
 		}
 		return scanResult{Scan: opts.Scan, Vulns: &scanVulnsResult{BOM: bom}}
+	case "containers":
+		containers, err := launchScannerContainers(ctx, opts)
+		if err != nil {
+			return opts.Scan.ErrResult(err)
+		}
+		return scanResult{Scan: opts.Scan, Containers: &scanContainerResult{Containers: containers}}
 	case "malware":
 		result, err := launchScannerMalware(ctx, opts)
 		if err != nil {
