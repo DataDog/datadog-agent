@@ -18,6 +18,28 @@ def arch_to_windres_target(
         raise Exception(f"Unsupported architecture: {arch}")
 
 
+def build_windows_resources(
+    ctx,
+    rc_in_file_path: str,
+    major_version: str = '7',
+    python_runtimes: str = '3',
+    arch: str = "x64",
+    rc_out_file_path: str = None,
+):
+    """
+    Build the common MESSAGETABLE shared between Agent binaries, then build the rc file for the given binary.
+    """
+    build_messagetable(ctx, arch=arch)
+    vars = versioninfo_vars(ctx, major_version=major_version, python_runtimes=python_runtimes, arch=arch)
+    build_rc(
+        ctx,
+        rc_file=rc_in_file_path,
+        arch=arch,
+        vars=vars,
+        out=rc_out_file_path,
+    )
+
+
 @task
 def build_messagetable(
     ctx,

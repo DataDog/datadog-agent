@@ -7,7 +7,7 @@ from .build_tags import filter_incompatible_tags, get_build_tags, get_default_bu
 from .flavor import AgentFlavor
 from .go import deps
 from .utils import REPO_PATH, bin_name, get_build_flags
-from .windows_resources import build_messagetable, build_rc, versioninfo_vars
+from .windows_resources import build_windows_resources
 
 BIN_PATH = os.path.join(".", "bin", "trace-agent")
 
@@ -37,14 +37,13 @@ def build(
         if arch == "x86":
             env["GOARCH"] = "386"
 
-        build_messagetable(ctx, arch=arch)
-        vars = versioninfo_vars(ctx, major_version=major_version, python_runtimes=python_runtimes, arch=arch)
-        build_rc(
+        build_windows_resources(
             ctx,
-            "cmd/trace-agent/windows/resources/trace-agent.rc",
+            major_version=major_version,
+            python_runtimes=python_runtimes,
             arch=arch,
-            vars=vars,
-            out="cmd/trace-agent/rsrc.syso",
+            rc_in_file_path="cmd/trace-agent/windows/resources/trace-agent.rc",
+            rc_out_file_path="cmd/trace-agent/rsrc.syso",
         )
 
     build_include = (
