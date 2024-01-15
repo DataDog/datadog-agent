@@ -258,14 +258,18 @@ def destroy_ec2_instances(ctx, stack):
 
 
 def destroy_stack_force(ctx, stack):
-    conn = libvirt.open("qemu:///system")
-    if not conn:
-        raise Exit("destroy_stack_force: Failed to open connection to qemu:///system")
-    delete_domains(conn, stack)
-    delete_volumes(conn, stack)
-    delete_pools(conn, stack)
-    delete_networks(conn, stack)
-    conn.close()
+    stack_dir = f"{get_kmt_os().stacks_dir}/{stack}"
+    vm_config = f"{stack_dir}/{VMCONFIG}"
+
+    if local_vms_in_config(vm_config):
+        conn = libvirt.open("qemu:///system")
+        if not conn:
+            raise Exit("destroy_stack_force: Failed to open connection to qemu:///system")
+        delete_domains(conn, stack)
+        delete_volumes(conn, stack)
+        delete_pools(conn, stack)
+        delete_networks(conn, stack)
+        conn.close()
 
     destroy_ec2_instances(ctx, stack)
 
