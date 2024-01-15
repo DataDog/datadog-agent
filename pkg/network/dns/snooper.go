@@ -8,13 +8,13 @@
 package dns
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"sync"
 	"time"
 
 	"github.com/google/gopacket"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )

@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	telemetry2 "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"net/http"
 	_ "net/http/pprof" // activate pprof profiling
 	"os"
@@ -291,7 +292,7 @@ func startSystemProbe(cliParams *cliParams, log log.Component, statsd compstatsd
 	if isValidPort(cfg.DebugPort) {
 		if cfg.TelemetryEnabled {
 			http.Handle("/telemetry", telemetry.Handler())
-			telemetry.RegisterCollector(ebpf.NewDebugFsStatCollector())
+			telemetry.RegisterCollector(telemetry2.NewDebugFsStatCollector())
 			if pc := ebpf.NewPerfUsageCollector(); pc != nil {
 				telemetry.RegisterCollector(pc)
 			}

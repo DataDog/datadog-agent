@@ -9,6 +9,7 @@ package tracer
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"math"
 	"net"
 	"time"
@@ -19,7 +20,6 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -33,17 +33,17 @@ const (
 
 // Telemetry
 var gatewayLookupTelemetry = struct {
-	subnetCacheSize    *nettelemetry.StatGaugeWrapper
-	subnetCacheMisses  *nettelemetry.StatCounterWrapper
-	subnetCacheLookups *nettelemetry.StatCounterWrapper
-	subnetLookups      *nettelemetry.StatCounterWrapper
-	subnetLookupErrors *nettelemetry.StatCounterWrapper
+	subnetCacheSize    *telemetry.StatGaugeWrapper
+	subnetCacheMisses  *telemetry.StatCounterWrapper
+	subnetCacheLookups *telemetry.StatCounterWrapper
+	subnetLookups      *telemetry.StatCounterWrapper
+	subnetLookupErrors *telemetry.StatCounterWrapper
 }{
-	nettelemetry.NewStatGaugeWrapper(gatewayLookupModuleName, "subnet_cache_size", []string{}, "Counter measuring the size of the subnet cache"),
-	nettelemetry.NewStatCounterWrapper(gatewayLookupModuleName, "subnet_cache_misses", []string{}, "Counter measuring the number of subnet cache misses"),
-	nettelemetry.NewStatCounterWrapper(gatewayLookupModuleName, "subnet_cache_lookups", []string{}, "Counter measuring the number of subnet cache lookups"),
-	nettelemetry.NewStatCounterWrapper(gatewayLookupModuleName, "subnet_lookups", []string{}, "Counter measuring the number of subnet lookups"),
-	nettelemetry.NewStatCounterWrapper(gatewayLookupModuleName, "subnet_lookup_errors", []string{}, "Counter measuring the number of subnet lookup errors"),
+	telemetry.NewStatGaugeWrapper(gatewayLookupModuleName, "subnet_cache_size", []string{}, "Counter measuring the size of the subnet cache"),
+	telemetry.NewStatCounterWrapper(gatewayLookupModuleName, "subnet_cache_misses", []string{}, "Counter measuring the number of subnet cache misses"),
+	telemetry.NewStatCounterWrapper(gatewayLookupModuleName, "subnet_cache_lookups", []string{}, "Counter measuring the number of subnet cache lookups"),
+	telemetry.NewStatCounterWrapper(gatewayLookupModuleName, "subnet_lookups", []string{}, "Counter measuring the number of subnet lookups"),
+	telemetry.NewStatCounterWrapper(gatewayLookupModuleName, "subnet_lookup_errors", []string{}, "Counter measuring the number of subnet lookup errors"),
 }
 
 type gatewayLookup struct {

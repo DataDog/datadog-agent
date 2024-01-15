@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	telemetry2 "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"io"
 	"sync"
 	"time"
@@ -61,13 +62,13 @@ const tracerModuleName = "network_tracer"
 var tracerTelemetry = struct {
 	skippedConns         telemetry.Counter
 	expiredTCPConns      telemetry.Counter
-	closedConns          *nettelemetry.StatCounterWrapper
+	closedConns          *telemetry2.StatCounterWrapper
 	connStatsMapSize     telemetry.Gauge
 	payloadSizePerClient telemetry.Gauge
 }{
 	telemetry.NewCounter(tracerModuleName, "skipped_conns", []string{"ip_proto"}, "Counter measuring skipped connections"),
 	telemetry.NewCounter(tracerModuleName, "expired_tcp_conns", []string{}, "Counter measuring expired TCP connections"),
-	nettelemetry.NewStatCounterWrapper(tracerModuleName, "closed_conns", []string{"ip_proto"}, "Counter measuring closed TCP connections"),
+	telemetry2.NewStatCounterWrapper(tracerModuleName, "closed_conns", []string{"ip_proto"}, "Counter measuring closed TCP connections"),
 	telemetry.NewGauge(tracerModuleName, "conn_stats_map_size", []string{}, "Gauge measuring the size of the active connections map"),
 	telemetry.NewGauge(tracerModuleName, "payload_conn_count", []string{"client_id", "ip_proto"}, "Gauge measuring the number of connections in the system-probe payload"),
 }

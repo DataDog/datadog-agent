@@ -10,9 +10,9 @@ package driver
 import (
 	"encoding/binary"
 	"fmt"
+	nettelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"unsafe"
 
-	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 
 	"golang.org/x/sys/windows"

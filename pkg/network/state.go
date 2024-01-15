@@ -8,6 +8,7 @@ package network
 import (
 	"bytes"
 	"fmt"
+	nettelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"strconv"
 	"sync"
 	"time"
@@ -19,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/network/slice"
-	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
