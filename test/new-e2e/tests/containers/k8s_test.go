@@ -44,7 +44,7 @@ type k8sSuite struct {
 	AgentWindowsHelmInstallName string
 
 	K8sConfig *restclient.Config
-	K8sClient *kubernetes.Clientset
+	K8sClient kubernetes.Interface
 }
 
 func (suite *k8sSuite) SetupSuite() {
@@ -104,7 +104,6 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 
 	suite.Run("agent pods are ready and not restarting", func() {
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
-
 			linuxNodes, err := suite.K8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{
 				LabelSelector: fields.OneTermEqualSelector("kubernetes.io/os", "linux").String(),
 			})
