@@ -69,7 +69,6 @@ func removeExtraLines(lines []string, consecutiveLineNumber int) []string {
 			lineCounter = 0
 		}
 		if lineCounter > consecutiveLineNumber {
-			fmt.Printf("line id : %d\n", idx)
 			indexList = append(indexList, idx)
 		}
 	}
@@ -89,6 +88,7 @@ func formatModFile(content string) string {
 	inRep := false
 	lines := strings.Split(content, "\n")
 	totalRemovedLines := 0
+	// Parse required and replaced dependencies
 	for idx, line := range strings.Split(content, "\n") {
 		if inReq {
 
@@ -100,7 +100,6 @@ func formatModFile(content string) string {
 				requiredDeps = append(requiredDeps, line)
 			}
 		} else if inRep {
-
 			lines = deleteElement(lines, idx-totalRemovedLines)
 			totalRemovedLines += 1
 			if strings.Contains(line, ")") {
@@ -117,7 +116,6 @@ func formatModFile(content string) string {
 			} else {
 				replaceDeps = append(replaceDeps, strings.Join(parts[1:], " "))
 			}
-
 		} else if strings.HasPrefix(line, "require") {
 			parts := strings.Split(line, " ")
 			lines = deleteElement(lines, idx-totalRemovedLines)
@@ -159,7 +157,7 @@ func main() {
 		return module.CanonicalVersion(v), nil
 	})
 
-	// Store every dependencies already replaced in the go.mod file
+	// Store every dependency already replaced in the go.mod file
 	ReplaceMap := make(map[string]bool)
 	for i := 0; i < len(f.Replace); i += 1 {
 		token := f.Replace[i].Syntax.Token
