@@ -249,7 +249,7 @@ func (p *WindowsProbe) NewEvent() *model.Event {
 }
 
 // HandleActions executes the actions of a triggered rule
-func (p *WindowsProbe) HandleActions(_ *rules.Rule, _ eval.Event) {}
+func (p *WindowsProbe) HandleActions(_ *eval.Context, _ *rules.Rule) {}
 
 // AddDiscarderPushedCallback add a callback to the list of func that have to be called when a discarder is pushed to kernel
 func (p *WindowsProbe) AddDiscarderPushedCallback(_ DiscarderPushedCallback) {}

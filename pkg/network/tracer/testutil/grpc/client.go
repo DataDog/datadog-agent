@@ -8,8 +8,8 @@ package grpc
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
-	"google.golang.org/grpc/examples/route_guide/routeguide"
 	"io"
 	"math/rand"
 	"net"
@@ -17,8 +17,10 @@ import (
 
 	pbStream "github.com/pahanini/go-grpc-bidirectional-streaming-example/src/proto"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	pb "google.golang.org/grpc/examples/helloworld/helloworld"
+	"google.golang.org/grpc/examples/route_guide/routeguide"
 )
 
 const (
@@ -147,10 +149,14 @@ type Options struct {
 }
 
 // NewClient returns a new gRPC client
-func NewClient(addr string, options Options) (Client, error) {
-	gRPCOptions := []grpc.DialOption{
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+func NewClient(addr string, options Options, withTLS bool) (Client, error) {
+	gRPCOptions := []grpc.DialOption{grpc.WithBlock()}
+	creds := grpc.WithTransportCredentials(insecure.NewCredentials())
+	if withTLS {
+		creds = grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{InsecureSkipVerify: true}))
 	}
+	gRPCOptions = append(gRPCOptions, creds)
+
 	if options.CustomDialer != nil {
 		gRPCOptions = append(gRPCOptions, grpc.WithContextDialer(func(ctx context.Context, addr string) (net.Conn, error) {
 			return options.CustomDialer.DialContext(ctx, "tcp", addr)

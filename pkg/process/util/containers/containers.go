@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -144,7 +145,10 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 			previousContainerRates = &NullContainerRates
 		}
 
-		collector := p.metricsProvider.GetCollector(string(container.Runtime))
+		collector := p.metricsProvider.GetCollector(provider.NewRuntimeMetadata(
+			string(container.Runtime),
+			string(container.RuntimeFlavor),
+		))
 		if collector == nil {
 			log.Infof("No metrics collector available for runtime: %s, skipping container: %s", container.Runtime, container.ID)
 			continue

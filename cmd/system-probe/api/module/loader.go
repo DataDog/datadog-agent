@@ -17,7 +17,7 @@ import (
 	"github.com/gorilla/mux"
 	"google.golang.org/grpc"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -25,9 +25,9 @@ var l *loader
 
 func init() {
 	l = &loader{
-		modules: make(map[config.ModuleName]Module),
-		errors:  make(map[config.ModuleName]error),
-		routers: make(map[config.ModuleName]*Router),
+		modules: make(map[sysconfigtypes.ModuleName]Module),
+		errors:  make(map[sysconfigtypes.ModuleName]error),
+		routers: make(map[sysconfigtypes.ModuleName]*Router),
 	}
 }
 
@@ -37,11 +37,11 @@ func init() {
 // * Module telemetry consolidation;
 type loader struct {
 	sync.Mutex
-	modules map[config.ModuleName]Module
-	errors  map[config.ModuleName]error
+	modules map[sysconfigtypes.ModuleName]Module
+	errors  map[sysconfigtypes.ModuleName]error
 	stats   map[string]interface{}
-	cfg     *config.Config
-	routers map[config.ModuleName]*Router
+	cfg     *sysconfigtypes.Config
+	routers map[sysconfigtypes.ModuleName]*Router
 	closed  bool
 }
 
@@ -53,7 +53,7 @@ func (l *loader) forEachModule(fn func(name string, mod Module)) {
 	}
 }
 
-func withModule(name config.ModuleName, fn func()) {
+func withModule(name sysconfigtypes.ModuleName, fn func()) {
 	pprof.Do(context.Background(), pprof.Labels("module", string(name)), func(_ context.Context) {
 		fn()
 	})
@@ -63,7 +63,7 @@ func withModule(name config.ModuleName, fn func()) {
 // * Initialization using the provided Factory;
 // * Registering the HTTP endpoints of each module;
 // * Register the gRPC server;
-func Register(cfg *config.Config, httpMux *mux.Router, grpcServer *grpc.Server, factories []Factory) error {
+func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, grpcServer *grpc.Server, factories []Factory) error {
 	var enabledModulesFactories []Factory
 	for _, factory := range factories {
 		if !cfg.ModuleIsEnabled(factory.Name) {
@@ -235,7 +235,7 @@ func updateStats() {
 
 type systemProbeGRPCServer struct {
 	sr grpc.ServiceRegistrar
-	ns config.ModuleName
+	ns sysconfigtypes.ModuleName
 }
 
 func (s *systemProbeGRPCServer) RegisterService(desc *grpc.ServiceDesc, impl interface{}) {

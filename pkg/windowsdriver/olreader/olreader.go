@@ -126,9 +126,8 @@ func (olr *OverlappedReader) Read() error {
 				// the completion port was closed.  time to go home
 				return
 			}
-			//nolint:gosimple // TODO(WKIT) Fix gosimple linter
-			var buf *readbuffer
-			buf = (*readbuffer)(unsafe.Pointer(ol))
+
+			buf := (*readbuffer)(unsafe.Pointer(ol))
 			data := buf.data[:bytesRead]
 
 			olr.cb.OnData(data)
@@ -162,7 +161,7 @@ func (olr *OverlappedReader) initiateReads() error {
 			// cleanbuffers was called.  But ensure pointer is valid
 			return fmt.Errorf("Invalid buffer for read")
 		}
-		err := windows.ReadFile(olr.h, buf.data[:], nil, &(buf.ol))
+		err := windows.ReadFile(olr.h, buf.data[:], nil, &buf.ol)
 		if err != nil && err != windows.ERROR_IO_PENDING {
 			return fmt.Errorf("Failed to initiate read %v", err)
 		}

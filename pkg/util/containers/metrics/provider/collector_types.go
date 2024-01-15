@@ -38,6 +38,13 @@ type ContainerIDForPIDRetriever interface {
 	GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error)
 }
 
+// ContainerIDForInodeRetriever interface
+type ContainerIDForInodeRetriever interface {
+	// GetContainerIDForInode ContainerIDForInode returns a container ID for given Inode.
+	// ("", nil) will be returned if no error but the containerd ID was not found.
+	GetContainerIDForInode(inode uint64, cacheValidity time.Duration) (string, error)
+}
+
 // SelfContainerIDRetriever interface
 type SelfContainerIDRetriever interface {
 	// GetSelfContainerID returns the container ID for current container.
@@ -56,5 +63,6 @@ type Collector interface {
 // MetaCollector is a special collector that uses all available collectors, by priority order.
 type MetaCollector interface {
 	ContainerIDForPIDRetriever
+	ContainerIDForInodeRetriever
 	SelfContainerIDRetriever
 }

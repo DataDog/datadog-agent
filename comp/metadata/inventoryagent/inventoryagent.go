@@ -18,14 +18,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -60,19 +61,21 @@ func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
 type inventoryagent struct {
 	util.InventoryPayload
 
-	log      log.Component
-	conf     config.Component
-	m        sync.Mutex
-	data     agentMetadata
-	hostname string
+	log          log.Component
+	conf         config.Component
+	sysprobeConf optional.Option[sysprobeconfig.Component]
+	m            sync.Mutex
+	data         agentMetadata
+	hostname     string
 }
 
 type dependencies struct {
 	fx.In
 
-	Log        log.Component
-	Config     config.Component
-	Serializer serializer.MetricSerializer
+	Log            log.Component
+	Config         config.Component
+	SysProbeConfig optional.Option[sysprobeconfig.Component]
+	Serializer     serializer.MetricSerializer
 }
 
 type provides struct {
@@ -86,10 +89,11 @@ type provides struct {
 func newInventoryAgentProvider(deps dependencies) provides {
 	hname, _ := hostname.Get(context.Background())
 	ia := &inventoryagent{
-		conf:     deps.Config,
-		log:      deps.Log,
-		hostname: hname,
-		data:     make(agentMetadata),
+		conf:         deps.Config,
+		sysprobeConf: deps.SysProbeConfig,
+		log:          deps.Log,
+		hostname:     hname,
+		data:         make(agentMetadata),
 	}
 	ia.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ia.getPayload, "agent.json")
 
@@ -124,6 +128,14 @@ func (ia *inventoryagent) initData() {
 			return rv
 		}
 		return []string{}
+	}
+
+	// if system probe configuration was loaded we use it, if not we default to false
+	getBoolSysProbe := func(key string) bool { return false }
+	getIntSysProbe := func(key string) int { return 0 }
+	if sysprobeConf, isset := ia.sysprobeConf.Get(); isset {
+		getBoolSysProbe = func(key string) bool { return sysprobeConf.GetBool(key) }
+		getIntSysProbe = func(key string) int { return sysprobeConf.GetInt(key) }
 	}
 
 	tool := "undefined"
@@ -168,15 +180,15 @@ func (ia *inventoryagent) initData() {
 	ia.data["feature_cspm_host_benchmarks_enabled"] = ia.conf.GetBool("compliance_config.host_benchmarks.enabled")
 	ia.data["feature_apm_enabled"] = ia.conf.GetBool("apm_config.enabled")
 	ia.data["feature_imdsv2_enabled"] = ia.conf.GetBool("ec2_prefer_imdsv2")
-	ia.data["feature_dynamic_instrumentation_enabled"] = pkgconfig.SystemProbe.GetBool("dynamic_instrumentation.enabled")
+	ia.data["feature_dynamic_instrumentation_enabled"] = getBoolSysProbe("dynamic_instrumentation.enabled")
 	ia.data["feature_remote_configuration_enabled"] = ia.conf.GetBool("remote_configuration.enabled")
 
 	ia.data["feature_container_images_enabled"] = ia.conf.GetBool("container_image.enabled")
 
-	ia.data["feature_cws_enabled"] = pkgconfig.SystemProbe.GetBool("runtime_security_config.enabled")
-	ia.data["feature_cws_network_enabled"] = pkgconfig.SystemProbe.GetBool("event_monitoring_config.network.enabled")
-	ia.data["feature_cws_security_profiles_enabled"] = pkgconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.enabled")
-	ia.data["feature_cws_remote_config_enabled"] = pkgconfig.SystemProbe.GetBool("runtime_security_config.remote_configuration.enabled")
+	ia.data["feature_cws_enabled"] = getBoolSysProbe("runtime_security_config.enabled")
+	ia.data["feature_cws_network_enabled"] = getBoolSysProbe("event_monitoring_config.network.enabled")
+	ia.data["feature_cws_security_profiles_enabled"] = getBoolSysProbe("runtime_security_config.activity_dump.enabled")
+	ia.data["feature_cws_remote_config_enabled"] = getBoolSysProbe("runtime_security_config.remote_configuration.enabled")
 
 	ia.data["feature_csm_vm_containers_enabled"] = ia.conf.GetBool("sbom.enabled") && ia.conf.GetBool("container_image.enabled") && ia.conf.GetBool("sbom.container_image.enabled")
 	ia.data["feature_csm_vm_hosts_enabled"] = ia.conf.GetBool("sbom.enabled") && ia.conf.GetBool("sbom.host.enabled")
@@ -185,35 +197,35 @@ func (ia *inventoryagent) initData() {
 	ia.data["feature_process_language_detection_enabled"] = ia.conf.GetBool("language_detection.enabled")
 	ia.data["feature_processes_container_enabled"] = ia.conf.GetBool("process_config.container_collection.enabled")
 
-	ia.data["feature_networks_enabled"] = pkgconfig.SystemProbe.GetBool("network_config.enabled")
-	ia.data["feature_networks_http_enabled"] = pkgconfig.SystemProbe.GetBool("service_monitoring_config.enable_http_monitoring")
-	ia.data["feature_networks_https_enabled"] = pkgconfig.SystemProbe.GetBool("service_monitoring_config.tls.native.enabled")
+	ia.data["feature_networks_enabled"] = getBoolSysProbe("network_config.enabled")
+	ia.data["feature_networks_http_enabled"] = getBoolSysProbe("service_monitoring_config.enable_http_monitoring")
+	ia.data["feature_networks_https_enabled"] = getBoolSysProbe("service_monitoring_config.tls.native.enabled")
 
-	ia.data["feature_usm_enabled"] = pkgconfig.SystemProbe.GetBool("service_monitoring_config.enabled")
-	ia.data["feature_usm_kafka_enabled"] = pkgconfig.SystemProbe.GetBool("data_streams_config.enabled")
-	ia.data["feature_usm_java_tls_enabled"] = pkgconfig.SystemProbe.GetBool("service_monitoring_config.tls.java.enabled")
-	ia.data["feature_usm_http2_enabled"] = pkgconfig.SystemProbe.GetBool("service_monitoring_config.enable_http2_monitoring")
-	ia.data["feature_usm_istio_enabled"] = pkgconfig.SystemProbe.GetBool("service_monitoring_config.tls.istio.enabled")
-	ia.data["feature_usm_http_by_status_code_enabled"] = pkgconfig.SystemProbe.GetBool("service_monitoring_config.enable_http_stats_by_status_code")
-	ia.data["feature_usm_go_tls_enabled"] = pkgconfig.SystemProbe.GetBool("service_monitoring_config.tls.go.enabled")
+	ia.data["feature_usm_enabled"] = getBoolSysProbe("service_monitoring_config.enabled")
+	ia.data["feature_usm_kafka_enabled"] = getBoolSysProbe("data_streams_config.enabled")
+	ia.data["feature_usm_java_tls_enabled"] = getBoolSysProbe("service_monitoring_config.tls.java.enabled")
+	ia.data["feature_usm_http2_enabled"] = getBoolSysProbe("service_monitoring_config.enable_http2_monitoring")
+	ia.data["feature_usm_istio_enabled"] = getBoolSysProbe("service_monitoring_config.tls.istio.enabled")
+	ia.data["feature_usm_http_by_status_code_enabled"] = getBoolSysProbe("service_monitoring_config.enable_http_stats_by_status_code")
+	ia.data["feature_usm_go_tls_enabled"] = getBoolSysProbe("service_monitoring_config.tls.go.enabled")
 
-	ia.data["feature_tcp_queue_length_enabled"] = pkgconfig.SystemProbe.GetBool("system_probe_config.enable_tcp_queue_length")
-	ia.data["feature_oom_kill_enabled"] = pkgconfig.SystemProbe.GetBool("system_probe_config.enable_oom_kill")
-	ia.data["feature_windows_crash_detection_enabled"] = pkgconfig.SystemProbe.GetBool("windows_crash_detection.enabled")
+	ia.data["feature_tcp_queue_length_enabled"] = getBoolSysProbe("system_probe_config.enable_tcp_queue_length")
+	ia.data["feature_oom_kill_enabled"] = getBoolSysProbe("system_probe_config.enable_oom_kill")
+	ia.data["feature_windows_crash_detection_enabled"] = getBoolSysProbe("windows_crash_detection.enabled")
 
-	ia.data["system_probe_core_enabled"] = pkgconfig.SystemProbe.GetBool("system_probe_config.enable_co_re")
-	ia.data["system_probe_runtime_compilation_enabled"] = pkgconfig.SystemProbe.GetBool("system_probe_config.enable_runtime_compiler")
-	ia.data["system_probe_kernel_headers_download_enabled"] = pkgconfig.SystemProbe.GetBool("system_probe_config.enable_kernel_header_download")
-	ia.data["system_probe_prebuilt_fallback_enabled"] = pkgconfig.SystemProbe.GetBool("system_probe_config.allow_precompiled_fallback")
-	ia.data["system_probe_telemetry_enabled"] = pkgconfig.SystemProbe.GetBool("system_probe_config.telemetry_enabled")
-	ia.data["system_probe_max_connections_per_message"] = pkgconfig.SystemProbe.GetInt("system_probe_config.max_conns_per_message")
-	ia.data["system_probe_track_tcp_4_connections"] = pkgconfig.SystemProbe.GetBool("network_config.collect_tcp_v4")
-	ia.data["system_probe_track_tcp_6_connections"] = pkgconfig.SystemProbe.GetBool("network_config.collect_tcp_v6")
-	ia.data["system_probe_track_udp_4_connections"] = pkgconfig.SystemProbe.GetBool("network_config.collect_udp_v4")
-	ia.data["system_probe_track_udp_6_connections"] = pkgconfig.SystemProbe.GetBool("network_config.collect_udp_v6")
-	ia.data["system_probe_protocol_classification_enabled"] = pkgconfig.SystemProbe.GetBool("network_config.enable_protocol_classification")
-	ia.data["system_probe_gateway_lookup_enabled"] = pkgconfig.SystemProbe.GetBool("network_config.enable_gateway_lookup")
-	ia.data["system_probe_root_namespace_enabled"] = pkgconfig.SystemProbe.GetBool("network_config.enable_root_netns")
+	ia.data["system_probe_core_enabled"] = getBoolSysProbe("system_probe_config.enable_co_re")
+	ia.data["system_probe_runtime_compilation_enabled"] = getBoolSysProbe("system_probe_config.enable_runtime_compiler")
+	ia.data["system_probe_kernel_headers_download_enabled"] = getBoolSysProbe("system_probe_config.enable_kernel_header_download")
+	ia.data["system_probe_prebuilt_fallback_enabled"] = getBoolSysProbe("system_probe_config.allow_precompiled_fallback")
+	ia.data["system_probe_telemetry_enabled"] = getBoolSysProbe("system_probe_config.telemetry_enabled")
+	ia.data["system_probe_max_connections_per_message"] = getIntSysProbe("system_probe_config.max_conns_per_message")
+	ia.data["system_probe_track_tcp_4_connections"] = getBoolSysProbe("network_config.collect_tcp_v4")
+	ia.data["system_probe_track_tcp_6_connections"] = getBoolSysProbe("network_config.collect_tcp_v6")
+	ia.data["system_probe_track_udp_4_connections"] = getBoolSysProbe("network_config.collect_udp_v4")
+	ia.data["system_probe_track_udp_6_connections"] = getBoolSysProbe("network_config.collect_udp_v6")
+	ia.data["system_probe_protocol_classification_enabled"] = getBoolSysProbe("network_config.enable_protocol_classification")
+	ia.data["system_probe_gateway_lookup_enabled"] = getBoolSysProbe("network_config.enable_gateway_lookup")
+	ia.data["system_probe_root_namespace_enabled"] = getBoolSysProbe("network_config.enable_root_netns")
 }
 
 // Set updates a metadata value in the payload. The given value will be stored in the cache without being copied. It is

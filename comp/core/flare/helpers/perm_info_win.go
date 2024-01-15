@@ -36,19 +36,14 @@ type filePermsInfo struct {
 	err  error
 }
 
+//nolint:revive
 const (
-	//nolint:revive // TODO(ASC) Fix revive linter
-	DD_FILE_READ = (windows.FILE_READ_DATA | windows.FILE_READ_ATTRIBUTES | windows.FILE_READ_EA)
-	//nolint:revive // TODO(ASC) Fix revive linter
-	DD_FILE_WRITE = (windows.FILE_WRITE_DATA | windows.FILE_WRITE_ATTRIBUTES | windows.FILE_WRITE_EA | windows.FILE_APPEND_DATA)
-	//nolint:revive // TODO(ASC) Fix revive linter
-	DD_FILE_READ_EXEC = (DD_FILE_READ | windows.FILE_EXECUTE)
-	//nolint:revive // TODO(ASC) Fix revive linter
+	DD_FILE_READ            = (windows.FILE_READ_DATA | windows.FILE_READ_ATTRIBUTES | windows.FILE_READ_EA)
+	DD_FILE_WRITE           = (windows.FILE_WRITE_DATA | windows.FILE_WRITE_ATTRIBUTES | windows.FILE_WRITE_EA | windows.FILE_APPEND_DATA)
+	DD_FILE_READ_EXEC       = (DD_FILE_READ | windows.FILE_EXECUTE)
 	DD_FILE_READ_EXEC_WRITE = (DD_FILE_READ_EXEC | DD_FILE_WRITE)
-	//nolint:revive // TODO(ASC) Fix revive linter
-	DD_FILE_MODIFY = (DD_FILE_READ_EXEC_WRITE | windows.DELETE)
-	//nolint:revive // TODO(ASC) Fix revive linter
-	DD_FILE_FULL = (windows.STANDARD_RIGHTS_REQUIRED | windows.SYNCHRONIZE | 0x1FF)
+	DD_FILE_MODIFY          = (DD_FILE_READ_EXEC_WRITE | windows.DELETE)
+	DD_FILE_FULL            = (windows.STANDARD_RIGHTS_REQUIRED | windows.SYNCHRONIZE | 0x1FF)
 )
 
 func getFileDacl(fileName string) (*winutil.ACL, winutil.ACL_SIZE_INFORMATION, error) {

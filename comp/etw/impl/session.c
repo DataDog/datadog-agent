@@ -43,7 +43,7 @@ ULONG DDEnableTrace(
     if (PIDCount > 0)
     {
         eventFilterDescriptors[0].Ptr  = (ULONGLONG)PIDs;
-        eventFilterDescriptors[0].Size = (ULONG)(sizeof(PIDCount) * PIDCount);
+        eventFilterDescriptors[0].Size = (ULONG)(sizeof(PIDs[0]) * PIDCount);
         eventFilterDescriptors[0].Type = EVENT_FILTER_TYPE_PID;
 
         enableParameters.FilterDescCount++;

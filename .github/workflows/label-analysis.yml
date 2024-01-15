@@ -1,0 +1,49 @@
+---
+name: "Label analysis"
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+      - "[0-9]+.[0-9]+.x"
+
+jobs:
+  team-label:
+    if: github.triggering_actor != 'dd-devflow[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Run PR check for team assignment label
+        env:
+          BRANCH_NAME: ${{ github.ref_name }}
+          PR_ID: ${{ github.event.pull_request.number }}
+        run: |
+          inv -e lint-teamassignment
+  skip-qa:
+    if: github.triggering_actor != 'dd-devflow[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Run PR check for QA labels
+        env:
+          BRANCH_NAME: ${{ github.ref_name }}
+          PR_ID: ${{ github.event.pull_request.number }}
+        run: |
+          inv -e lint-skip-qa

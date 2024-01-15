@@ -69,7 +69,7 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 		deps.Log,
 		deps.SharedForwarder,
 		deps.OrchestratorForwarder,
-		deps.Params.Options,
+		deps.Params.AgentDemultiplexerOptions,
 		hostnameDetected)
 	demultiplexer := demultiplexer{
 		AgentDemultiplexer: agentDemultiplexer,

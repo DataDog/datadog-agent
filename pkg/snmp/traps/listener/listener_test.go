@@ -105,7 +105,7 @@ func TestServerV3(t *testing.T) {
 	_, trapListener, status := listenerTestSetup(t, config)
 	defer trapListener.Stop()
 
-	sendTestV3Trap(t, config, &gosnmp.UsmSecurityParameters{
+	sendTestV3Trap(t, config, gosnmp.AuthPriv, &gosnmp.UsmSecurityParameters{
 		UserName:                 "user",
 		AuthoritativeEngineID:    "foobarbaz",
 		AuthenticationPassphrase: "password",
@@ -118,6 +118,97 @@ func TestServerV3(t *testing.T) {
 	assertVariables(t, packet)
 }
 
+var users = []config.UserV3{
+	{Username: "user", AuthKey: "password", AuthProtocol: "sha", PrivKey: "password", PrivProtocol: "aes"},
+	{Username: "user2", AuthKey: "password2", AuthProtocol: "md5", PrivKey: "password", PrivProtocol: "des"},
+	{Username: "user2", AuthKey: "password2", AuthProtocol: "sha", PrivKey: "password", PrivProtocol: "aes"},
+	{Username: "user3", AuthKey: "password", AuthProtocol: "sha"},
+}
+
+func TestServerV3MultipleCredentials(t *testing.T) {
+	tests := []struct {
+		name      string
+		msgFlags  gosnmp.SnmpV3MsgFlags
+		secParams *gosnmp.UsmSecurityParameters
+	}{
+		{"user AuthPriv SHA/AES succeeds",
+			gosnmp.AuthPriv,
+			&gosnmp.UsmSecurityParameters{
+				UserName:                 "user",
+				AuthoritativeEngineID:    "foobarbaz",
+				AuthenticationPassphrase: "password",
+				AuthenticationProtocol:   gosnmp.SHA,
+				PrivacyPassphrase:        "password",
+				PrivacyProtocol:          gosnmp.AES,
+			},
+		},
+		{"user2 (multiple entries) AuthPriv MD5/DES succeeds",
+			gosnmp.AuthPriv,
+			&gosnmp.UsmSecurityParameters{
+				UserName:                 "user",
+				AuthoritativeEngineID:    "foobarbaz",
+				AuthenticationPassphrase: "password",
+				AuthenticationProtocol:   gosnmp.SHA,
+				PrivacyPassphrase:        "password",
+				PrivacyProtocol:          gosnmp.AES,
+			},
+		},
+		{"user2 (multiple entries) AuthPriv SHA/AES succeeds",
+			gosnmp.AuthPriv,
+			&gosnmp.UsmSecurityParameters{
+				UserName:                 "user",
+				AuthoritativeEngineID:    "foobarbaz",
+				AuthenticationPassphrase: "password",
+				AuthenticationProtocol:   gosnmp.SHA,
+				PrivacyPassphrase:        "password",
+				PrivacyProtocol:          gosnmp.AES,
+			},
+		},
+		{"user3 AuthNoPriv SHA succeeds",
+			gosnmp.AuthNoPriv,
+			&gosnmp.UsmSecurityParameters{
+				UserName:                 "user",
+				AuthoritativeEngineID:    "foobarbaz",
+				AuthenticationPassphrase: "password",
+				AuthenticationProtocol:   gosnmp.SHA,
+				PrivacyPassphrase:        "password",
+				PrivacyProtocol:          gosnmp.AES,
+			},
+		},
+	}
+	serverPort, err := ndmtestutils.GetFreePort()
+	require.NoError(t, err)
+
+	config := &config.TrapsConfig{Port: serverPort, Users: users}
+	_, trapListener, status := listenerTestSetup(t, config)
+	defer trapListener.Stop()
+
+	for _, test := range tests {
+		sendTestV3Trap(t, config, test.msgFlags, test.secParams)
+		packet, err := receivePacket(t, trapListener, defaultTimeout, status)
+		require.NoError(t, err)
+		assertVariables(t, packet)
+	}
+}
+
+func TestServerV3BadCredentialsWithMultipleUsers(t *testing.T) {
+	serverPort, err := ndmtestutils.GetFreePort()
+	require.NoError(t, err)
+	config := &config.TrapsConfig{Port: serverPort, Users: users}
+	_, trapListener, _ := listenerTestSetup(t, config)
+	defer trapListener.Stop()
+
+	sendTestV3Trap(t, config, gosnmp.AuthPriv, &gosnmp.UsmSecurityParameters{
+		UserName:                 "user2",
+		AuthoritativeEngineID:    "foobarbaz",
+		AuthenticationPassphrase: "password2",
+		AuthenticationProtocol:   gosnmp.SHA,
+		PrivacyPassphrase:        "wrong_password",
+		PrivacyProtocol:          gosnmp.AES,
+	})
+	assertNoPacketReceived(t, trapListener)
+}
+
 func TestServerV3BadCredentials(t *testing.T) {
 	serverPort, err := ndmtestutils.GetFreePort()
 	require.NoError(t, err)
@@ -126,7 +217,7 @@ func TestServerV3BadCredentials(t *testing.T) {
 	_, trapListener, _ := listenerTestSetup(t, config)
 	defer trapListener.Stop()
 
-	sendTestV3Trap(t, config, &gosnmp.UsmSecurityParameters{
+	sendTestV3Trap(t, config, gosnmp.AuthPriv, &gosnmp.UsmSecurityParameters{
 		UserName:                 "user",
 		AuthoritativeEngineID:    "foobarbaz",
 		AuthenticationPassphrase: "password",

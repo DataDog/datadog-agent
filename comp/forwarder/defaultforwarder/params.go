@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
-//nolint:revive // TODO(ASC) Fix revive linter
+// Params contains the parameters to create a forwarder.
 type Params struct {
 	UseNoopForwarder bool
 	// TODO: (components) When the code of the forwarder will be
@@ -21,12 +21,12 @@ type Params struct {
 	Options *Options
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
+// NewParams initializes a new Params struct
 func NewParams(config config.Component, log log.Component) Params {
 	return Params{Options: NewOptions(config, log, getMultipleEndpoints(config, log))}
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
+// NewParamsWithResolvers initializes a new Params struct with resolvers
 func NewParamsWithResolvers(config config.Component, log log.Component) Params {
 	keysPerDomain := getMultipleEndpoints(config, log)
 	return Params{Options: NewOptionsWithResolvers(config, log, resolver.NewSingleDomainResolvers(keysPerDomain))}

@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: gcr.io/datadoghq/agent-circleci-runner:v25544446-409bfb32
+      - image: gcr.io/datadoghq/agent-circleci-runner:v25937664-dd22a18f
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -125,33 +125,6 @@ jobs:
       - run:
           command: inv -e lint-releasenote
           name: run PR check for release note
-
-  team_label:
-    <<: *job_template
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          command: inv -e lint-teamassignment
-          name: run PR check for team assignment labels
-
-  skip_qa:
-    <<: *job_template
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          command: inv -e lint-skip-qa
-          name: run PR check for skip-qa labels
-
-  milestone:
-    <<: *job_template
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          command: inv -e lint-milestone
-          name: run PR check for milestone assignment
 
   go_linting:
     <<: *job_template
@@ -303,27 +276,6 @@ workflows:
           requires:
             - dependencies
       - release_note:
-          filters:
-            branches:
-              ignore:
-                - main
-          requires:
-            - dependencies
-      - team_label:
-          filters:
-            branches:
-              ignore:
-                - main
-          requires:
-            - dependencies
-      - skip_qa:
-          filters:
-            branches:
-              ignore:
-                - main
-          requires:
-            - dependencies
-      - milestone:
           filters:
             branches:
               ignore:

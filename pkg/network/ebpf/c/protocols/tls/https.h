@@ -55,7 +55,13 @@ static __always_inline void classify_decrypted_payload(protocol_stack_t *stack, 
 }
 
 static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, void *buffer_ptr, size_t len, __u64 tags) {
-    protocol_stack_t *stack = get_protocol_stack(t);
+    conn_tuple_t final_tuple = {0};
+    conn_tuple_t normalized_tuple = *t;
+    normalize_tuple(&normalized_tuple);
+    normalized_tuple.pid = 0;
+    normalized_tuple.netns = 0;
+
+    protocol_stack_t *stack = get_protocol_stack(&normalized_tuple);
     if (!stack) {
         return;
     }
@@ -69,13 +75,18 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
         }
         read_into_user_buffer_classification(request_fragment, buffer_ptr);
 
-        classify_decrypted_payload(stack, t, request_fragment, len);
+        classify_decrypted_payload(stack, &normalized_tuple, request_fragment, len);
         protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
     }
     tls_prog_t prog;
     switch (protocol) {
     case PROTOCOL_HTTP:
         prog = TLS_HTTP_PROCESS;
+        final_tuple = normalized_tuple;
+        break;
+    case PROTOCOL_HTTP2:
+        prog = TLS_HTTP2_FIRST_FRAME;
+        final_tuple = *t;
         break;
     default:
         return;
@@ -86,15 +97,24 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
         log_debug("dispatcher failed to save arguments for tls tail call");
         return;
     }
-    bpf_memset(args, 0, sizeof(tls_dispatcher_arguments_t));
-    bpf_memcpy(&args->tup, t, sizeof(conn_tuple_t));
-    args->buffer_ptr = buffer_ptr;
-    args->tags = tags;
+    *args = (tls_dispatcher_arguments_t){
+        .tup = final_tuple,
+        .tags = tags,
+        .buffer_ptr = buffer_ptr,
+        .data_end = len,
+        .data_off = 0,
+    };
     bpf_tail_call_compat(ctx, &tls_process_progs, prog);
 }
 
 static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t) {
-    protocol_stack_t *stack = get_protocol_stack(t);
+    conn_tuple_t final_tuple = {0};
+    conn_tuple_t normalized_tuple = *t;
+    normalize_tuple(&normalized_tuple);
+    normalized_tuple.pid = 0;
+    normalized_tuple.netns = 0;
+
+    protocol_stack_t *stack = get_protocol_stack(&normalized_tuple);
     if (!stack) {
         return;
     }
@@ -104,6 +124,11 @@ static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t) {
     switch (protocol) {
     case PROTOCOL_HTTP:
         prog = TLS_HTTP_TERMINATION;
+        final_tuple = normalized_tuple;
+        break;
+    case PROTOCOL_HTTP2:
+        prog = TLS_HTTP2_TERMINATION;
+        final_tuple = *t;
         break;
     default:
         return;
@@ -116,7 +141,7 @@ static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t) {
         return;
     }
     bpf_memset(args, 0, sizeof(tls_dispatcher_arguments_t));
-    bpf_memcpy(&args->tup, t, sizeof(conn_tuple_t));
+    bpf_memcpy(&args->tup, &final_tuple, sizeof(conn_tuple_t));
     bpf_tail_call_compat(ctx, &tls_process_progs, prog);
 }
 
@@ -158,21 +183,7 @@ static __always_inline conn_tuple_t* tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgi
         return NULL;
     }
 
-    // Set the `.netns` and `.pid` values to always be 0.
-    // They can't be sourced from inside `read_conn_tuple_skb`,
-    // which is used elsewhere to produce the same `conn_tuple_t` value from a `struct __sk_buff*` value,
-    // so we ensure it is always 0 here so that both paths produce the same `conn_tuple_t` value.
-    // `netns` is not used in the userspace program part that binds http information to `ConnectionStats`,
-    // so this is isn't a problem.
-    t.netns = 0;
-    t.pid = 0;
-
     bpf_memcpy(&ssl_sock->tup, &t, sizeof(conn_tuple_t));
-
-    if (!is_ephemeral_port(ssl_sock->tup.sport)) {
-        flip_tuple(&ssl_sock->tup);
-    }
-
     return &ssl_sock->tup;
 }
 
@@ -194,9 +205,6 @@ static __always_inline void map_ssl_ctx_to_sock(struct sock *skp) {
     if (!read_conn_tuple(&ssl_sock.tup, skp, pid_tgid, CONN_TYPE_TCP)) {
         return;
     }
-    ssl_sock.tup.netns = 0;
-    ssl_sock.tup.pid = 0;
-    normalize_tuple(&ssl_sock.tup);
 
     // copy map value to stack. required for older kernels
     void *ssl_ctx = *ssl_ctx_map_val;

@@ -170,6 +170,7 @@ type RuleState struct {
 	Status     string            `json:"status"`
 	Message    string            `json:"message,omitempty"`
 	Tags       map[string]string `json:"tags,omitempty"`
+	Actions    []RuleAction      `json:"actions,omitempty"`
 }
 
 // PolicyState is used to report policy was loaded
@@ -179,6 +180,31 @@ type PolicyState struct {
 	Version string       `json:"version"`
 	Source  string       `json:"source"`
 	Rules   []*RuleState `json:"rules"`
+}
+
+// RuleAction is used to report policy was loaded
+// easyjson:json
+type RuleAction struct {
+	Filter *string         `json:"filter,omitempty"`
+	Set    *RuleSetAction  `json:"set,omitempty"`
+	Kill   *RuleKillAction `json:"kill,omitempty"`
+}
+
+// RuleSetAction is used to report 'set' action
+// easyjson:json
+type RuleSetAction struct {
+	Name   string      `json:"name,omitempty"`
+	Value  interface{} `json:"value,omitempty"`
+	Field  string      `json:"field,omitempty"`
+	Append bool        `json:"append,omitempty"`
+	Scope  string      `json:"scope,omitempty"`
+}
+
+// RuleKillAction is used to report the 'kill' action
+// easyjson:json
+type RuleKillAction struct {
+	Signal string `json:"signal,omitempty"`
+	Scope  string `json:"scope,omitempty"`
 }
 
 // RulesetLoadedEvent is used to report that a new ruleset was loaded
@@ -216,7 +242,7 @@ func PolicyStateFromRuleDefinition(def *rules.RuleDefinition) *PolicyState {
 
 // RuleStateFromDefinition returns a rule state based on the rule definition
 func RuleStateFromDefinition(def *rules.RuleDefinition, status string, message string) *RuleState {
-	return &RuleState{
+	ruleState := &RuleState{
 		ID:         def.ID,
 		Version:    def.Version,
 		Expression: def.Expression,
@@ -224,6 +250,28 @@ func RuleStateFromDefinition(def *rules.RuleDefinition, status string, message s
 		Message:    message,
 		Tags:       def.Tags,
 	}
+
+	for _, action := range def.Actions {
+		ruleAction := RuleAction{Filter: action.Filter}
+		switch {
+		case action.Kill != nil:
+			ruleAction.Kill = &RuleKillAction{
+				Scope:  action.Kill.Scope,
+				Signal: action.Kill.Signal,
+			}
+		case action.Set != nil:
+			ruleAction.Set = &RuleSetAction{
+				Name:   action.Set.Name,
+				Value:  action.Set.Value,
+				Field:  action.Set.Field,
+				Append: action.Set.Append,
+				Scope:  string(action.Set.Scope),
+			}
+		}
+		ruleState.Actions = append(ruleState.Actions, ruleAction)
+	}
+
+	return ruleState
 }
 
 // NewPoliciesState returns the states of policies and rules

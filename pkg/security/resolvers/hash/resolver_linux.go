@@ -18,6 +18,7 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/glaslos/ssdeep"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"go.uber.org/atomic"
 	"golang.org/x/exp/slices"
@@ -189,6 +190,8 @@ func (resolver *Resolver) getHashFunction(algorithm model.HashAlgorithm) hash.Ha
 		return sha256.New()
 	case model.MD5:
 		return md5.New()
+	case model.SSDEEP:
+		return ssdeep.New()
 	default:
 		return nil
 	}
@@ -313,7 +316,17 @@ func (resolver *Resolver) hash(eventType model.EventType, process *model.Process
 		if hashStr = algorithm.String(); len(hashStr) > 0 {
 			hashStr += ":"
 		}
-		hashStr += hex.EncodeToString(hashers[i].(hash.Hash).Sum(nil))
+		if algorithm == model.SSDEEP {
+			digest := hashers[i].(hash.Hash).Sum(nil)
+			if len(digest) == 0 {
+				// we failed to compute the digest
+				resolver.hashMiss[eventType][model.HashFailed].Inc()
+				continue
+			}
+			hashStr += string(digest)
+		} else {
+			hashStr += hex.EncodeToString(hashers[i].(hash.Hash).Sum(nil))
+		}
 
 		file.Hashes = append(file.Hashes, hashStr)
 		resolver.hashCount[eventType][algorithm].Inc()

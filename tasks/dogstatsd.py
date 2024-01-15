@@ -6,7 +6,6 @@ Dogstatsd tasks
 import os
 import shutil
 import sys
-from distutils.dir_util import copy_tree
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -118,7 +117,7 @@ def refresh_assets(_):
     dist_folder = os.path.join(DOGSTATSD_BIN_PATH, "dist")
     if os.path.exists(dist_folder):
         shutil.rmtree(dist_folder)
-    copy_tree("./cmd/dogstatsd/dist/", dist_folder)
+    shutil.copytree("./cmd/dogstatsd/dist/", dist_folder, dirs_exist_ok=True)
 
 
 @task

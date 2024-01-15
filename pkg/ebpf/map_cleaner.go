@@ -139,21 +139,19 @@ func (mc *MapCleaner[K, V]) cleanWithBatches(nowTS int64, shouldClean func(nowTS
 			break
 		}
 	}
+
+	var deletionError error
 	if len(keysToDelete) > 0 {
-		count, err := mc.emap.BatchDelete(keysToDelete, nil)
-		if err != nil {
-			log.Debugf("failed to delete map entries: %v", err)
-			return
-		}
-		deletedCount += count
+		deletedCount, deletionError = mc.emap.BatchDelete(keysToDelete, nil)
 	}
 
 	elapsed := time.Since(now)
 	log.Debugf(
-		"finished cleaning map=%s entries_checked=%d entries_deleted=%d elapsed=%s",
+		"finished cleaning map=%s entries_checked=%d entries_deleted=%d deletion_error='%v' elapsed=%s",
 		mc.emap,
 		totalCount,
 		deletedCount,
+		deletionError,
 		elapsed,
 	)
 }

@@ -44,7 +44,7 @@ func (p *processor) start(ctx context.Context, pollInterval time.Duration) {
 
 // processEvents handles workloadmeta events, supports pods and container unset events.
 func (p *processor) processEvents(evBundle workloadmeta.EventBundle) {
-	close(evBundle.Ch)
+	evBundle.Acknowledge()
 
 	log.Tracef("Processing %d events", len(evBundle.Events))
 

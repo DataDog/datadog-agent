@@ -60,19 +60,6 @@ static __always_inline conn_tuple_t* conn_tup_from_tls_conn(tls_offsets_data_t* 
         return NULL;
     }
 
-    // Set the `.netns` and `.pid` values to always be 0.
-    // They can't be sourced from inside `read_conn_tuple_skb`,
-    // which is used elsewhere to produce the same `conn_tuple_t` value from a `struct __sk_buff*` value,
-    // so we ensure it is always 0 here so that both paths produce the same `conn_tuple_t` value.
-    // `netns` is not used in the userspace program part that binds http information to `ConnectionStats`,
-    // so this is isn't a problem.
-    conn_tuple.netns = 0;
-    conn_tuple.pid = 0;
-
-    if (!is_ephemeral_port(conn_tuple.sport)) {
-        flip_tuple(&conn_tuple);
-    }
-
     bpf_map_update_elem(&conn_tup_by_go_tls_conn, &conn, &conn_tuple, BPF_ANY);
     return bpf_map_lookup_elem(&conn_tup_by_go_tls_conn, &conn);
 }

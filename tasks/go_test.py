@@ -840,8 +840,8 @@ def lint_teamassignment(_):
     """
     Make sure PRs are assigned a team label
     """
-    branch = os.environ.get("CIRCLE_BRANCH")
-    pr_url = os.environ.get("CIRCLE_PULL_REQUEST")
+    branch = os.environ.get("BRANCH_NAME")
+    pr_url = os.environ.get("PR_ID")
 
     if branch == DEFAULT_BRANCH:
         print(f"Running on {DEFAULT_BRANCH}, skipping check for team assignment.")
@@ -880,8 +880,8 @@ def lint_skip_qa(_):
     """
     Ensure that when qa/skip-qa is used, we have one of [qa/done , qa/no-code-change]. Error if not valid.
     """
-    branch = os.environ.get("CIRCLE_BRANCH")
-    pr_url = os.environ.get("CIRCLE_PULL_REQUEST")
+    branch = os.environ.get("BRANCH_NAME")
+    pr_url = os.environ.get("PR_ID")
 
     if branch == DEFAULT_BRANCH:
         print(f"Running on {DEFAULT_BRANCH}, skipping check for skip-qa label.")
@@ -913,8 +913,8 @@ def lint_milestone(_):
     """
     Make sure PRs are assigned a milestone
     """
-    branch = os.environ.get("CIRCLE_BRANCH")
-    pr_url = os.environ.get("CIRCLE_PULL_REQUEST")
+    branch = os.environ.get("BRANCH_NAME")
+    pr_url = os.environ.get("PR_ID")
 
     if branch == DEFAULT_BRANCH:
         print(f"Running on {DEFAULT_BRANCH}, skipping check for milestone.")

@@ -6,41 +6,35 @@ package installscript
 
 import (
 	"flag"
+	"testing"
 
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
-
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/agent"
 
-	"testing"
+	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 )
 
-var (
-	devMode = flag.Bool("devmode", false, "enable devmode")
-)
+var devMode = flag.Bool("devmode", false, "enable devmode")
 
 type agentMSISuite struct {
-	e2e.Suite[e2e.VMEnv]
+	e2e.BaseSuite[environments.Host]
 }
 
 func TestMSI(t *testing.T) {
-	var opts []func(*params.Params)
-
+	opts := []e2e.SuiteOption{e2e.WithProvisioner(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault))))}
 	if *devMode {
-		opts = append(opts, params.WithDevMode())
+		opts = append(opts, e2e.WithDevMode())
 	}
 
-	e2e.Run(t,
-		&agentMSISuite{},
-		e2e.EC2VMStackDef(ec2params.WithOS(ec2os.WindowsOS)),
-		opts...)
+	e2e.Run(t, &agentMSISuite{}, opts...)
 }
 
 func (is *agentMSISuite) TestInstallAgent() {
-	vm := is.Env().VM
+	vm := is.Env().RemoteHost
 
 	msi := `https://s3.amazonaws.com/ddagent-windows-stable/datadog-agent-7-latest.amd64.msi`
 	is.Run("install the agent", func() {

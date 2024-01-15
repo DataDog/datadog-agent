@@ -48,8 +48,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{secretInfoCommand}
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func secret(log log.Component, config config.Component, cliParams *cliParams) error {
+func secret(_ log.Component, config config.Component, _ *cliParams) error {
 	if err := util.SetAuthToken(); err != nil {
 		fmt.Println(err)
 		return nil

@@ -11,7 +11,6 @@ import re
 import shutil
 import sys
 import tempfile
-from distutils.dir_util import copy_tree
 
 from invoke import task
 from invoke.exceptions import Exit, ParseError
@@ -225,8 +224,8 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
     os.mkdir(dist_folder)
 
     if "python" in build_tags:
-        copy_tree("./cmd/agent/dist/checks/", os.path.join(dist_folder, "checks"))
-        copy_tree("./cmd/agent/dist/utils/", os.path.join(dist_folder, "utils"))
+        shutil.copytree("./cmd/agent/dist/checks/", os.path.join(dist_folder, "checks"), dirs_exist_ok=True)
+        shutil.copytree("./cmd/agent/dist/utils/", os.path.join(dist_folder, "utils"), dirs_exist_ok=True)
         shutil.copy("./cmd/agent/dist/config.py", os.path.join(dist_folder, "config.py"))
     if not flavor.is_iot():
         shutil.copy("./cmd/agent/dist/dd-agent", os.path.join(dist_folder, "dd-agent"))
@@ -241,14 +240,14 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
 
     for check in AGENT_CORECHECKS if not flavor.is_iot() else IOT_AGENT_CORECHECKS:
         check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
-        copy_tree(f"./cmd/agent/dist/conf.d/{check}.d/", check_dir)
+        shutil.copytree(f"./cmd/agent/dist/conf.d/{check}.d/", check_dir, dirs_exist_ok=True)
 
     ## add additional windows-only corechecks, only on windows. Otherwise the check loader
     ## on linux will throw an error because the module is not found, but the config is.
     if sys.platform == 'win32':
         for check in WINDOWS_CORECHECKS:
             check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
-            copy_tree(f"./cmd/agent/dist/conf.d/{check}.d/", check_dir)
+            shutil.copytree(f"./cmd/agent/dist/conf.d/{check}.d/", check_dir, dirs_exist_ok=True)
 
     if "apm" in build_tags:
         shutil.copy("./cmd/agent/dist/conf.d/apm.yaml.default", os.path.join(dist_folder, "conf.d/apm.yaml.default"))
@@ -258,9 +257,9 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
             os.path.join(dist_folder, "conf.d/process_agent.yaml.default"),
         )
 
-    copy_tree("./cmd/agent/gui/views", os.path.join(dist_folder, "views"))
+    shutil.copytree("./cmd/agent/gui/views", os.path.join(dist_folder, "views"), dirs_exist_ok=True)
     if development:
-        copy_tree("./dev/dist/", dist_folder)
+        shutil.copytree("./dev/dist/", dist_folder, dirs_exist_ok=True)
 
 
 @task
@@ -615,6 +614,9 @@ def get_omnibus_env(
     # otherwise, ohai detect the number of CPU on the host and run the make jobs with all the CPU.
     if os.environ.get('KUBERNETES_CPU_REQUEST'):
         env['OMNIBUS_WORKERS_OVERRIDE'] = str(int(os.environ.get('KUBERNETES_CPU_REQUEST')) + 1)
+    # Forward the DEPLOY_AGENT variable so that we can use a higher compression level for deployed artifacts
+    if os.environ.get('DEPLOY_AGENT'):
+        env['DEPLOY_AGENT'] = os.environ.get('DEPLOY_AGENT')
 
     return env
 
@@ -655,7 +657,7 @@ def omnibus_run_task(
         ctx.run(cmd.format(**args), env=env)
 
 
-def bundle_install_omnibus(ctx, gem_path=None, env=None):
+def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
     with ctx.cd("omnibus"):
         # make sure bundle install starts from a clean state
         try:
@@ -666,7 +668,22 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None):
         cmd = "bundle install"
         if gem_path:
             cmd += f" --path {gem_path}"
-        ctx.run(cmd, env=env)
+
+        for trial in range(max_try):
+            res = ctx.run(cmd, env=env, warn=True)
+            if res.ok:
+                return
+            if not should_retry_bundle_install(res):
+                return
+            print(f"Retrying bundle install, attempt {trial + 1}/{max_try}")
+
+
+def should_retry_bundle_install(res):
+    # We sometimes get a Net::HTTPNotFound error when fetching the
+    # license-scout gem. This is a transient error, so we retry the bundle install
+    if "Net::HTTPNotFound:" in res.stderr:
+        return True
+    return False
 
 
 # hardened-runtime needs to be set to False to build on MacOS < 10.13.6, as the -o runtime option is not supported.
@@ -699,6 +716,7 @@ def omnibus_build(
     """
     Build the Agent packages with Omnibus Installer.
     """
+
     flavor = AgentFlavor[flavor]
     if not skip_deps:
         with timed(quiet=True) as deps_elapsed:

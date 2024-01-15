@@ -8,6 +8,7 @@ package server
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
@@ -62,7 +63,7 @@ func newStringInterner(maxSize int, internerID int) *stringInterner {
 		id:      fmt.Sprintf("interner_%d", internerID),
 		maxSize: maxSize,
 		telemetry: siTelemetry{
-			enabled: utils.IsTelemetryEnabled(),
+			enabled: utils.IsTelemetryEnabled(config.Datadog),
 		},
 	}
 

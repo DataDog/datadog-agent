@@ -15,7 +15,9 @@ import (
 	"io"
 	"net"
 	"path/filepath"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/vmihailenco/msgpack/v5"
 	"google.golang.org/grpc"
@@ -36,13 +38,16 @@ import (
 )
 
 type client struct {
-	conn   net.Conn
-	probe  *EBPFLessProbe
-	seqNum uint64
+	conn             net.Conn
+	probe            *EBPFLessProbe
+	seqNum           uint64
+	nsID             uint64
+	containerContext *ebpfless.ContainerContext
+	entrypointArgs   []string
 }
 
 type clientMsg struct {
-	ebpfless.SyscallMsg
+	ebpfless.Message
 	*client
 }
 
@@ -68,60 +73,171 @@ type EBPFLessProbe struct {
 	clients       map[net.Conn]*client
 }
 
-func (p *EBPFLessProbe) handleClientMsg(msg *clientMsg) {
-	syscallMsg := &msg.SyscallMsg
-	if msg.client.seqNum != syscallMsg.SeqNum {
-		seclog.Errorf("communication out of sync %d vs %d", msg.client.seqNum, syscallMsg.SeqNum)
+func (p *EBPFLessProbe) handleClientMsg(cl *client, msg *ebpfless.Message) {
+	if cl.seqNum != msg.SeqNum {
+		seclog.Errorf("communication out of sync %d vs %d", cl.seqNum, msg.SeqNum)
 	}
-	msg.client.seqNum++
+	cl.seqNum++
 
+	switch msg.Type {
+	case ebpfless.MessageTypeHello:
+		if cl.nsID == 0 {
+			cl.nsID = msg.Hello.NSID
+			cl.containerContext = msg.Hello.ContainerContext
+			cl.entrypointArgs = msg.Hello.EntrypointArgs
+			if cl.containerContext != nil {
+				seclog.Infof("tracing started for container ID [%s] (Name: [%s]) with entrypoint %q", cl.containerContext.ID, cl.containerContext.Name, cl.entrypointArgs)
+			}
+		}
+	case ebpfless.MessageTypeSyscall:
+		p.handleSyscallMsg(cl, msg.Syscall)
+	}
+}
+
+func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.SyscallMsg) {
 	event := p.zeroEvent()
-	event.NSID = syscallMsg.NSID
+	event.NSID = cl.nsID
 
 	switch syscallMsg.Type {
 	case ebpfless.SyscallTypeExec:
 		event.Type = uint32(model.ExecEventType)
-		entry := p.Resolvers.ProcessResolver.AddExecEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: syscallMsg.NSID}, syscallMsg.Exec.Filename, syscallMsg.Exec.Args, syscallMsg.Exec.Envs, syscallMsg.ContainerContext.ID)
-
+		entry := p.Resolvers.ProcessResolver.AddExecEntry(
+			process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.Exec.File.Filename,
+			syscallMsg.Exec.Args, syscallMsg.Exec.ArgsTruncated, syscallMsg.Exec.Envs, syscallMsg.Exec.EnvsTruncated,
+			cl.containerContext.ID, syscallMsg.Timestamp, syscallMsg.Exec.TTY)
 		if syscallMsg.Exec.Credentials != nil {
 			entry.Credentials.UID = syscallMsg.Exec.Credentials.UID
 			entry.Credentials.EUID = syscallMsg.Exec.Credentials.EUID
 			entry.Credentials.GID = syscallMsg.Exec.Credentials.GID
 			entry.Credentials.EGID = syscallMsg.Exec.Credentials.EGID
 		}
-
 		event.Exec.Process = &entry.Process
+		event.Exec.FileEvent.CTime = syscallMsg.Exec.File.CTime
+		event.Exec.FileEvent.MTime = syscallMsg.Exec.File.MTime
+		event.Exec.FileEvent.Mode = uint16(syscallMsg.Exec.File.Mode)
+		if syscallMsg.Exec.File.Credentials != nil {
+			event.Exec.FileEvent.UID = syscallMsg.Exec.File.Credentials.UID
+			event.Exec.FileEvent.GID = syscallMsg.Exec.File.Credentials.GID
+		}
 	case ebpfless.SyscallTypeFork:
 		event.Type = uint32(model.ForkEventType)
-		p.Resolvers.ProcessResolver.AddForkEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: syscallMsg.NSID}, syscallMsg.Fork.PPID)
+		p.Resolvers.ProcessResolver.AddForkEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.Fork.PPID, syscallMsg.Timestamp)
 	case ebpfless.SyscallTypeOpen:
 		event.Type = uint32(model.FileOpenEventType)
-		event.Open.Retval = syscallMsg.Retval
-		event.Open.File.PathnameStr = syscallMsg.Open.Filename
-		event.Open.File.BasenameStr = filepath.Base(syscallMsg.Open.Filename)
-		event.Open.Flags = syscallMsg.Open.Flags
+		if strings.HasPrefix(syscallMsg.Open.Filename, "memfd:") {
+			event.Open.File.PathnameStr = ""
+			event.Open.File.BasenameStr = syscallMsg.Open.Filename
+		} else {
+			event.Open.File.PathnameStr = syscallMsg.Open.Filename
+			event.Open.File.BasenameStr = filepath.Base(syscallMsg.Open.Filename)
+		}
+		event.Open.File.MTime = syscallMsg.Open.MTime
+		event.Open.File.CTime = syscallMsg.Open.CTime
+		event.Open.File.Mode = uint16(syscallMsg.Open.Mode)
 		event.Open.Mode = syscallMsg.Open.Mode
+		event.Open.Flags = syscallMsg.Open.Flags
+		event.Open.Retval = syscallMsg.Retval
+		if syscallMsg.Open.Credentials != nil {
+			event.Open.File.UID = syscallMsg.Open.Credentials.UID
+			event.Open.File.GID = syscallMsg.Open.Credentials.GID
+		}
 	case ebpfless.SyscallTypeSetUID:
-		p.Resolvers.ProcessResolver.UpdateUID(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: syscallMsg.NSID}, syscallMsg.SetUID.UID, syscallMsg.SetUID.EUID)
+		p.Resolvers.ProcessResolver.UpdateUID(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.SetUID.UID, syscallMsg.SetUID.EUID)
+		event.Type = uint32(model.SetuidEventType)
+		event.SetUID.UID = uint32(syscallMsg.SetUID.UID)
+		event.SetUID.EUID = uint32(syscallMsg.SetUID.EUID)
 
 	case ebpfless.SyscallTypeSetGID:
-		p.Resolvers.ProcessResolver.UpdateGID(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: syscallMsg.NSID}, syscallMsg.SetGID.GID, syscallMsg.SetGID.EGID)
+		p.Resolvers.ProcessResolver.UpdateGID(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.SetGID.GID, syscallMsg.SetGID.EGID)
+		event.Type = uint32(model.SetgidEventType)
+		event.SetGID.GID = uint32(syscallMsg.SetGID.GID)
+		event.SetGID.EGID = uint32(syscallMsg.SetGID.EGID)
+
+	case ebpfless.SyscallTypeSetFSUID:
+		event.Type = uint32(model.SetuidEventType)
+		event.SetUID.FSUID = uint32(syscallMsg.SetFSUID.FSUID)
+
+	case ebpfless.SyscallTypeSetFSGID:
+		event.Type = uint32(model.SetgidEventType)
+		event.SetGID.FSGID = uint32(syscallMsg.SetFSGID.FSGID)
+
+	case ebpfless.SyscallTypeCapset:
+		event.Type = uint32(model.CapsetEventType)
+		event.Capset.CapEffective = syscallMsg.Capset.Effective
+		event.Capset.CapPermitted = syscallMsg.Capset.Permitted
+
+	case ebpfless.SyscallTypeUnlink:
+		event.Type = uint32(model.FileUnlinkEventType)
+		event.Unlink.Retval = syscallMsg.Retval
+		event.Unlink.File.PathnameStr = syscallMsg.Unlink.File.Filename
+		event.Unlink.File.BasenameStr = filepath.Base(syscallMsg.Unlink.File.Filename)
+		event.Unlink.File.MTime = syscallMsg.Unlink.File.MTime
+		event.Unlink.File.CTime = syscallMsg.Unlink.File.CTime
+		event.Unlink.File.Mode = uint16(syscallMsg.Unlink.File.Mode)
+		if syscallMsg.Unlink.File.Credentials != nil {
+			event.Unlink.File.UID = syscallMsg.Unlink.File.Credentials.UID
+			event.Unlink.File.GID = syscallMsg.Unlink.File.Credentials.GID
+		}
+
+	case ebpfless.SyscallTypeRmdir:
+		event.Type = uint32(model.FileRmdirEventType)
+		event.Rmdir.Retval = syscallMsg.Retval
+		event.Rmdir.File.PathnameStr = syscallMsg.Rmdir.File.Filename
+		event.Rmdir.File.BasenameStr = filepath.Base(syscallMsg.Rmdir.File.Filename)
+		event.Rmdir.File.MTime = syscallMsg.Rmdir.File.MTime
+		event.Rmdir.File.CTime = syscallMsg.Rmdir.File.CTime
+		event.Rmdir.File.Mode = uint16(syscallMsg.Rmdir.File.Mode)
+		if syscallMsg.Rmdir.File.Credentials != nil {
+			event.Rmdir.File.UID = syscallMsg.Rmdir.File.Credentials.UID
+			event.Rmdir.File.GID = syscallMsg.Rmdir.File.Credentials.GID
+		}
+
+	case ebpfless.SyscallTypeRename:
+		event.Type = uint32(model.FileRenameEventType)
+		event.Rename.Retval = syscallMsg.Retval
+		event.Rename.Old.PathnameStr = syscallMsg.Rename.OldFile.Filename
+		event.Rename.Old.BasenameStr = filepath.Base(syscallMsg.Rename.OldFile.Filename)
+		event.Rename.Old.MTime = syscallMsg.Rename.OldFile.MTime
+		event.Rename.Old.CTime = syscallMsg.Rename.OldFile.CTime
+		event.Rename.Old.Mode = uint16(syscallMsg.Rename.OldFile.Mode)
+		if syscallMsg.Rename.OldFile.Credentials != nil {
+			event.Rename.Old.UID = syscallMsg.Rename.OldFile.Credentials.UID
+			event.Rename.Old.GID = syscallMsg.Rename.OldFile.Credentials.GID
+		}
+		event.Rename.New.PathnameStr = syscallMsg.Rename.NewFile.Filename
+		event.Rename.New.BasenameStr = filepath.Base(syscallMsg.Rename.NewFile.Filename)
+		event.Rename.New.MTime = syscallMsg.Rename.NewFile.MTime
+		event.Rename.New.CTime = syscallMsg.Rename.NewFile.CTime
+		event.Rename.New.Mode = uint16(syscallMsg.Rename.NewFile.Mode)
+		if syscallMsg.Rename.NewFile.Credentials != nil {
+			event.Rename.New.UID = syscallMsg.Rename.NewFile.Credentials.UID
+			event.Rename.New.GID = syscallMsg.Rename.NewFile.Credentials.GID
+		}
 	}
 
 	// container context
-	event.ContainerContext.ID = syscallMsg.ContainerContext.ID
-	event.ContainerContext.CreatedAt = syscallMsg.ContainerContext.CreatedAt
+	event.ContainerContext.ID = cl.containerContext.ID
+	event.ContainerContext.CreatedAt = cl.containerContext.CreatedAt
 	event.ContainerContext.Tags = []string{
-		"image_name:" + syscallMsg.ContainerContext.Name,
-		"image_tag:" + syscallMsg.ContainerContext.Tag,
+		"image_name:" + cl.containerContext.ImageShortName,
+		"image_tag:" + cl.containerContext.ImageTag,
 	}
 
 	// use ProcessCacheEntry process context as process context
-	event.ProcessCacheEntry = p.Resolvers.ProcessResolver.Resolve(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: syscallMsg.NSID})
+	event.ProcessCacheEntry = p.Resolvers.ProcessResolver.Resolve(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID})
 	if event.ProcessCacheEntry == nil {
 		event.ProcessCacheEntry = model.NewPlaceholderProcessCacheEntry(syscallMsg.PID, syscallMsg.PID, false)
 	}
 	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
+
+	if syscallMsg.Type == ebpfless.SyscallTypeExit {
+		event.Type = uint32(model.ExitEventType)
+		event.ProcessContext.ExitTime = time.Unix(0, int64(syscallMsg.Timestamp))
+		event.Exit.Process = &event.ProcessCacheEntry.Process
+		event.Exit.Cause = uint32(syscallMsg.Exit.Cause)
+		event.Exit.Code = syscallMsg.Exit.Code
+		defer p.Resolvers.ProcessResolver.DeleteEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, event.ProcessContext.ExitTime)
+	}
 
 	p.DispatchEvent(event)
 }
@@ -168,7 +284,7 @@ func (p *EBPFLessProbe) Close() error {
 	return nil
 }
 
-func (p *EBPFLessProbe) readSyscallMsg(conn net.Conn, msg *ebpfless.SyscallMsg) error {
+func (p *EBPFLessProbe) readMsg(conn net.Conn, msg *ebpfless.Message) error {
 	sizeBuf := make([]byte, 4)
 
 	n, err := conn.Read(sizeBuf)
@@ -198,6 +314,13 @@ func (p *EBPFLessProbe) readSyscallMsg(conn net.Conn, msg *ebpfless.SyscallMsg) 
 	return msgpack.Unmarshal(p.buf[0:n], msg)
 }
 
+// GetClientsCount returns the number of connected clients
+func (p *EBPFLessProbe) GetClientsCount() int {
+	p.Lock()
+	defer p.Unlock()
+	return len(p.clients)
+}
+
 func (p *EBPFLessProbe) handleNewClient(conn net.Conn, ch chan clientMsg) {
 	client := &client{
 		conn:  conn,
@@ -215,7 +338,8 @@ func (p *EBPFLessProbe) handleNewClient(conn net.Conn, ch chan clientMsg) {
 			client: client,
 		}
 		for {
-			if err := p.readSyscallMsg(conn, &msg.SyscallMsg); err != nil {
+			msg.Reset()
+			if err := p.readMsg(conn, &msg.Message); err != nil {
 				if errors.Is(err, io.EOF) {
 					seclog.Debugf("connection closed by client: %v", conn.RemoteAddr())
 				} else {
@@ -225,6 +349,10 @@ func (p *EBPFLessProbe) handleNewClient(conn net.Conn, ch chan clientMsg) {
 				p.Lock()
 				delete(p.clients, conn)
 				p.Unlock()
+
+				if client.containerContext != nil {
+					seclog.Infof("tracing stopped for container ID [%s] (Name: [%s])", client.containerContext.ID, client.containerContext.Name)
+				}
 
 				return
 			}
@@ -267,7 +395,7 @@ func (p *EBPFLessProbe) Start() error {
 
 	go func() {
 		for msg := range ch {
-			p.handleClientMsg(&msg)
+			p.handleClientMsg(msg.client, &msg.Message)
 		}
 	}()
 
@@ -316,7 +444,7 @@ func (p *EBPFLessProbe) ApplyRuleSet(_ *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 }
 
 // HandleActions handles the rule actions
-func (p *EBPFLessProbe) HandleActions(_ *rules.Rule, _ eval.Event) {}
+func (p *EBPFLessProbe) HandleActions(_ *eval.Context, _ *rules.Rule) {}
 
 // NewEvent returns a new event
 func (p *EBPFLessProbe) NewEvent() *model.Event {
