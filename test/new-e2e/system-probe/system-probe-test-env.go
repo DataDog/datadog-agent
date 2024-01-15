@@ -11,7 +11,9 @@ package systemprobe
 import (
 	"context"
 	_ "embed" // embed files used in this scenario
+	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -97,7 +99,7 @@ func outputsToFile(output auto.OutputMap) error {
 		switch v := value.Value.(type) {
 		case string:
 			if _, err := f.WriteString(fmt.Sprintf("%s %s\n", key, v)); err != nil {
-				return fmt.Errorf("write string: %s", err)
+				return fmt.Errorf("failed to write string to file %q: %v", stackOutputs, err)
 			}
 		default:
 		}
@@ -211,18 +213,19 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *EnvOpts) (*
 	}
 
 	var upResult auto.UpResult
+	var pulumiStack *auto.Stack
 	ctx := context.Background()
 	currentAZ := 0 // PrimaryAZ
 	b := retry.NewConstant(3 * time.Second)
 	// Retry 4 times. This allows us to cycle through all AZs, and handle libvirt
 	// connection issues in the worst case.
 	b = retry.WithMaxRetries(4, b)
-	if retryErr := retry.Do(ctx, b, func(_ context.Context) error {
+	retryErr := retry.Do(ctx, b, func(_ context.Context) error {
 		if az := getAvailabilityZone(opts.InfraEnv, currentAZ); az != "" {
 			config["ddinfra:aws/defaultSubnets"] = auto.ConfigValue{Value: az}
 		}
 
-		_, upResult, err = stackManager.GetStackNoDeleteOnFailure(systemProbeTestEnv.context, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
+		pulumiStack, upResult, err = stackManager.GetStackNoDeleteOnFailure(systemProbeTestEnv.context, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
 			if err := microvms.Run(ctx); err != nil {
 				return fmt.Errorf("setup micro-vms in remote instance: %w", err)
 			}
@@ -239,13 +242,24 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *EnvOpts) (*
 		}
 
 		return nil
-	}); retryErr != nil {
-		return nil, fmt.Errorf("failed to create stack: %w", retryErr)
-	}
+	})
 
-	err = outputsToFile(upResult.Outputs)
+	outputs := upResult.Outputs
+	if retryErr != nil {
+		// pulumi does not populate `UpResult` with the stack output if the
+		// update process failed. In this case we must manually fetch the outputs.
+		outputs, err = pulumiStack.Outputs(context.Background())
+		if err != nil {
+			outputs = nil
+			log.Printf("failed to get stack outputs: %v", err)
+		}
+	}
+	err = outputsToFile(outputs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to write stack output to file: %w", err)
+		err = fmt.Errorf("failed to write stack output to file: %w", err)
+	}
+	if retryErr != nil {
+		return nil, errors.Join(fmt.Errorf("failed to create stack: %w", retryErr), err)
 	}
 
 	systemProbeTestEnv.StackOutput = upResult

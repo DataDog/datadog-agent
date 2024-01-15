@@ -49,6 +49,7 @@ const (
 	RenameNr         = 82  // RenameNr defines the syscall ID for amd64
 	RenameAtNr       = 264 // RenameAtNr defines the syscall ID for amd64
 	RenameAt2Nr      = 316 // RenameAt2Nr defines the syscall ID for amd64
+	Clone3Nr         = 435 // Clone3Nr defines the syscall ID for amd64
 
 	ptraceFlags = 0 |
 		syscall.PTRACE_O_TRACEVFORK |
