@@ -124,13 +124,15 @@ def start_compiler(ctx):
 
 
 class LibvirtDomain:
-    def __init__(self, arch, version, name="", ip=""):
+    def __init__(self, arch, version, name="", ip="", remote_ssh_key="", remote_ip=""):
         self.arch = arch
         self.version = version
         self.name = name
         self.ip = ip
         self.runner = None
         self.is_vm = True
+        self.remote_ssh_key = remote_ssh_key
+        self.remote_ip = remote_ip
 
 
 @dataclass
@@ -249,7 +251,7 @@ def prepare(ctx, vms, stack=None, arch=None, ssh_key="", rebuild_deps=False, pac
     domains = build_target_domains(ctx, stack, vms, ssh_key, verbose)
 
     constrain_pkgs = ""
-    if not rebuild_deps or (not os.path.isfile(f"kmt-deps/{stack}/dependencies-{arch}.tar.gz")):
+    if not rebuild_deps:
         constrain_pkgs = f"--packages={packages}"
 
     docker_exec(
