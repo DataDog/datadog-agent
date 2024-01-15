@@ -42,6 +42,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	taggerserver "github.com/DataDog/datadog-agent/pkg/tagger/server"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
+	utilhttp "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
@@ -120,6 +121,11 @@ func startCMDServer(
 	// create the REST HTTP router
 	agentMux := gorilla.NewRouter()
 	checkMux := gorilla.NewRouter()
+
+	// Add some observability in the API server
+	agentMux.Use(utilhttp.LogResponseHandler(cmdServerName))
+	checkMux.Use(utilhttp.LogResponseHandler(cmdServerName))
+
 	// Validate token for every request
 	agentMux.Use(validateToken)
 	checkMux.Use(validateToken)
