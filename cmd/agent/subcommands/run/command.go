@@ -84,6 +84,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
@@ -317,6 +318,9 @@ func getSharedFxOption() fx.Option {
 		workloadmeta.Module(),
 		fx.Supply(
 			status.NewInformationProvider(collectorStatus.Provider{}),
+		),
+		fx.Supply(
+			status.NewHeaderInformationProvider(net.Provider{}),
 		),
 		statusimpl.Module(),
 		apiimpl.Module(),
