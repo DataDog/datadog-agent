@@ -196,10 +196,11 @@ def build_target_domains(ctx, stack, vms, ssh_key, log_debug):
         for vm in vmset.vms:
             d = LibvirtDomain(vmset.arch, vm.version)
             d.name, d.ip = get_domain_name_and_ip(stack, vm.version, vmset.arch)
-            d.runner = CommandRunner(ctx, vmset.arch == "local", d, "", ssh_key, log_debug)
             if vmset.arch != "local":
                 d.remote_ssh_key = ssh_key
                 d.remote_ip = get_instance_ip(stack, vmset.arch)
+
+            d.runner = CommandRunner(ctx, vmset.arch == "local", d, log_debug)
             domains.append(d)
 
     return domains
@@ -210,28 +211,6 @@ def get_instance_ip(stack, arch):
         if not instance.is_vm and instance.arch == arch:
             info(f"[*] Instance {instance.name} has ip {instance.ip}")
             return instance.ip
-
-
-@task
-def sync(ctx, vms, stack=None, ssh_key="", verbose=False):
-    stack = check_and_get_stack(stack)
-    if not stacks.stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
-
-    domains = build_target_domains(ctx, stack, vms, ssh_key, verbose)
-
-    info("[*] VMs to sync")
-    for d in domains:
-        info(f"    Syncing VM {d.name} with ip {d.ip}")
-
-    if ask("Do you want to sync? (y/n)").lower() != "y":
-        warn("[-] Sync aborted !")
-        return
-
-    info("[*] Beginning sync...")
-
-    for d in domains:
-        d.runner.sync_source("./", "/datadog-agent")
 
 
 TOOLS_PATH = '/datadog-agent/internal/tools'
@@ -258,6 +237,20 @@ def full_arch(arch):
     if arch == "local":
         return arch_mapping[platform.machine()]
     return arch
+
+
+def move_to_shared_directory(ctx, stack, path, arch, ssh_key):
+    if arch == "local":
+        ctx.run(f"cp {path} {get_kmt_os().shared_dir}")
+        return
+
+    for instance in get_all_instances(stack):
+        if instance.is_vm or not (instance.arch == arch):
+            continue
+
+        ctx.run(
+            f"rsync -e \"ssh -o StrictHostKeyChecking=no -i {ssh_key}\" -p -rt --exclude='.git*' --filter=':- .gitignore' {path} ubuntu@{instance.ip}:{get_kmt_os().shared_dir}"
+        )
 
 
 @task
@@ -294,8 +287,12 @@ def prepare(ctx, vms, stack=None, arch=None, ssh_key="", rebuild_deps=False, pac
             f"./test/new-e2e/system-probe/test/setup-microvm-deps.sh {stack} {os.getuid()} {os.getgid()} {platform.machine()}",
             run_dir="/datadog-agent",
         )
+
+        archs = set([d.arch for d in domains])
+        for arch in archs:
+            move_to_shared_directory(ctx, stack, f"kmt-deps/{stack}/dependencies-{full_arch(arch)}.tar.gz", arch, ssh_key)
+
         for d in domains:
-            d.runner.copy_files(f"kmt-deps/{stack}/dependencies-{full_arch(d.arch)}.tar.gz")
             d.runner.run_cmd(f"/root/fetch_dependencies.sh {platform.machine()}", allow_fail=True, verbose=True)
             d.runner.sync_source(
                 "./test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg",
@@ -341,7 +338,7 @@ def test(ctx, vms, stack=None, packages="", run=None, retry=2, rebuild_deps=Fals
         tmp.flush()
 
         for d in domains:
-            d.runner.copy_files(f"{tmp.name}", "/tmp")
+            d.runner.sync_source(f"{tmp.name}", "/tmp")
             d.runner.run_cmd(f"bash /micro-vm-init.sh {retry} {tmp.name}", verbose=True)
 
 
@@ -361,8 +358,12 @@ def build(ctx, vms, stack=None, ssh_key="", rebuild_deps=False, verbose=False):
             f"./test/new-e2e/system-probe/test/setup-microvm-deps.sh {stack} {os.getuid()} {os.getgid()} {platform.machine()}",
             run_dir="/datadog-agent",
         )
+
+        archs = set([d.arch for d in domains])
+        for arch in archs:
+            move_to_shared_directory(ctx, stack, f"kmt-deps/{stack}/dependencies-{full_arch(arch)}.tar.gz", arch, ssh_key)
+
         for d in domains:
-            d.runner.copy_files(f"kmt-deps/{stack}/dependencies-{full_arch(d.arch)}.tar.gz")
             d.runner.run_cmd(f"/root/fetch_dependencies.sh {arch_mapping[platform.machine()]}")
 
     docker_exec(
