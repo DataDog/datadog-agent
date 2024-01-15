@@ -15,11 +15,12 @@ import (
 
 	"github.com/spf13/cast"
 
+	"github.com/hashicorp/go-multierror"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/log"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/hashicorp/go-multierror"
 )
 
 // MacroID represents the ID of a macro

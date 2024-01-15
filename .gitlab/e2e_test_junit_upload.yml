@@ -56,6 +56,24 @@ e2e_test_junit_upload:
     - new-e2e-agent-platform-step-by-step-amazonlinux-a6-arm64
     - new-e2e-agent-platform-step-by-step-amazonlinux-a7-x64
     - new-e2e-agent-platform-step-by-step-amazonlinux-a7-arm64
+    - new-e2e-agent-platform-install-script-upgrade7-amazonlinux-x64
+    - new-e2e-agent-platform-install-script-upgrade6-amazonlinux-x64
+    - new-e2e-agent-platform-install-script-upgrade7-amazonlinux-iot-agent-x64
+    - new-e2e-agent-platform-install-script-upgrade6-centos-x86_64
+    - new-e2e-agent-platform-install-script-upgrade7-centos-x86_64
+    - new-e2e-agent-platform-install-script-upgrade7-centos-iot-agent-x86_64
+    - new-e2e-agent-platform-install-script-upgrade7-centos-fips-iot-agent-x86_64
+    - new-e2e-agent-platform-install-script-upgrade6-centos-fips-x86_64
+    - new-e2e-agent-platform-install-script-upgrade7-centos-fips-x86_64
+    - new-e2e-agent-platform-install-script-upgrade7-debian-x86_64
+    - new-e2e-agent-platform-install-script-upgrade6-debian-x86_64
+    - new-e2e-agent-platform-install-script-upgrade7-debian-iot-agent-x86_64
+    - new-e2e-agent-platform-install-script-upgrade7-suse-x86_64
+    - new-e2e-agent-platform-install-script-upgrade6-suse-x86_64
+    - new-e2e-agent-platform-install-script-upgrade7-suse-iot-agent-x86_64
+    - new-e2e-agent-platform-install-script-upgrade7-ubuntu-x86_64
+    - new-e2e-agent-platform-install-script-upgrade6-ubuntu-x86_64
+    - new-e2e-agent-platform-install-script-upgrade7-ubuntu-iot-agent-x86_64
     - new-e2e-npm-main
     - new-e2e-aml-main
     - new-e2e-process-main

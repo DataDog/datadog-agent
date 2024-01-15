@@ -58,6 +58,9 @@ default:
       - stuck_or_timeout_failure
       - unknown_failure
       - api_failure
+      - scheduler_failure
+      - stale_schedule
+      - data_integrity_failure
 
 stages:
   - .pre
@@ -160,23 +163,23 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v25641302-c1f86354
+  DATADOG_AGENT_BUILDIMAGES: v25937664-dd22a18f
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v25641302-c1f86354
+  DATADOG_AGENT_WINBUILDIMAGES: v25937664-dd22a18f
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v25641302-c1f86354
+  DATADOG_AGENT_ARMBUILDIMAGES: v25937664-dd22a18f
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v25641302-c1f86354
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v25937664-dd22a18f
   DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v25641302-c1f86354
+  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v25937664-dd22a18f
   DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v25641302-c1f86354
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v25937664-dd22a18f
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v25641302-c1f86354
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v25937664-dd22a18f
   # To use images from test-infra-definitions dev branches, set the SUFFIX variable to -dev
   # and check the job creating the image to make sure you have the right SHA prefix
   TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 1c2911bf4b31
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: a9f0b41a7576
   DATADOG_AGENT_BUILDERS: v22276738-b36b132
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -1010,3 +1013,17 @@ workflow:
 
 .if_run_e2e_tests:
   - <<: *if_run_e2e
+
+.on_omnibus_change:
+  - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
+  - changes:
+      paths:
+        - omnibus/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+
+.on_go-version_change:
+  - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
+  - changes:
+      paths:
+        - .go-version
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916

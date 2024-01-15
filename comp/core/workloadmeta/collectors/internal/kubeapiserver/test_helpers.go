@@ -63,9 +63,7 @@ func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, 
 	read := assert.Eventually(t, func() bool {
 		select {
 		case bundle = <-ch:
-			if bundle.Ch != nil {
-				close(bundle.Ch)
-			}
+			bundle.Acknowledge()
 			if len(bundle.Events) == 0 {
 				return false
 			}
@@ -80,9 +78,7 @@ func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, 
 	// Retrieving the resource in an event bundle
 	if !read {
 		bundle = <-ch
-		if bundle.Ch != nil {
-			close(bundle.Ch)
-		}
+		bundle.Acknowledge()
 	}
 
 	// nil the bundle's Ch so we can

@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 
 	//nolint:revive // TODO(AML) Fix revive linter
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
@@ -43,7 +44,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	metadatarunnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -144,16 +144,19 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 			return demuxInstance.Serializer()
 		}),
 		fx.Provide(func(config config.Component) demultiplexerimpl.Params {
-			opts := aggregator.DefaultAgentDemultiplexerOptions()
-			opts.UseEventPlatformForwarder = false
-			opts.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
-			return demultiplexerimpl.Params{Options: opts, ContinueOnMissingHostname: true}
+			params := demultiplexerimpl.NewDefaultParams()
+			params.UseEventPlatformForwarder = false
+			params.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
+			params.ContinueOnMissingHostname = true
+			return params
 		}),
 		fx.Supply(resourcesimpl.Disabled()),
 		metadatarunnerimpl.Module(),
 		resourcesimpl.Module(),
 		hostimpl.Module(),
 		inventoryagent.Module(),
+		// sysprobeconfig is optionally required by inventoryagent
+		sysprobeconfig.NoneModule(),
 		inventoryhostimpl.Module(),
 	)
 }

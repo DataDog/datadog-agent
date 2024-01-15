@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/msgpgo"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 type mockAPI struct {
@@ -37,7 +36,8 @@ type mockAPI struct {
 }
 
 const (
-	httpError = "api: simulated HTTP error"
+	httpError    = "api: simulated HTTP error"
+	agentVersion = "9.9.9"
 )
 
 func (m *mockAPI) Fetch(ctx context.Context, request *pbgo.LatestConfigsRequest) (*pbgo.LatestConfigsResponse, error) {
@@ -184,7 +184,7 @@ func newTestService(t *testing.T, api *mockAPI, uptane *mockUptane, clock clock.
 	baseRawURL := "https://localhost"
 	traceAgentEnv := getTraceAgentDefaultEnv(cfg)
 	mockTelemetryReporter := newMockRcTelemetryReporter()
-	service, err := NewService(cfg, "abc", baseRawURL, "localhost", mockTelemetryReporter, WithTraceAgentEnv(traceAgentEnv))
+	service, err := NewService(cfg, "abc", baseRawURL, "localhost", mockTelemetryReporter, agentVersion, WithTraceAgentEnv(traceAgentEnv))
 	require.NoError(t, err)
 	t.Cleanup(func() { service.Stop() })
 	service.api = api
@@ -205,7 +205,7 @@ func TestServiceBackoffFailure(t *testing.T) {
 
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
-		AgentVersion:                 version.AgentVersion,
+		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
 		CurrentConfigRootVersion:     0,
 		CurrentDirectorRootVersion:   0,
@@ -230,7 +230,7 @@ func TestServiceBackoffFailure(t *testing.T) {
 	// Sending the http error too
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
-		AgentVersion:                 version.AgentVersion,
+		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
 		CurrentConfigRootVersion:     0,
 		CurrentDirectorRootVersion:   0,
@@ -284,7 +284,7 @@ func TestServiceBackoffFailureRecovery(t *testing.T) {
 	api = &mockAPI{}
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
-		AgentVersion:                 version.AgentVersion,
+		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
 		CurrentConfigRootVersion:     0,
 		CurrentDirectorRootVersion:   0,
@@ -412,7 +412,7 @@ func TestService(t *testing.T) {
 	}
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
-		AgentVersion:                 version.AgentVersion,
+		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
 		CurrentConfigRootVersion:     0,
 		CurrentDirectorRootVersion:   0,
@@ -492,7 +492,7 @@ func TestService(t *testing.T) {
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
-		AgentVersion:                 version.AgentVersion,
+		AgentVersion:                 agentVersion,
 		CurrentConfigRootVersion:     1,
 		CurrentConfigSnapshotVersion: 2,
 		CurrentDirectorRootVersion:   4,
@@ -600,7 +600,7 @@ func TestServiceClientPredicates(t *testing.T) {
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
-		AgentVersion:                 version.AgentVersion,
+		AgentVersion:                 agentVersion,
 		CurrentConfigRootVersion:     0,
 		CurrentConfigSnapshotVersion: 0,
 		CurrentDirectorRootVersion:   0,
@@ -644,7 +644,7 @@ func TestServiceGetRefreshIntervalNone(t *testing.T) {
 	lastConfigResponse := &pbgo.LatestConfigsResponse{}
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
-		AgentVersion:                 version.AgentVersion,
+		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
 		CurrentConfigRootVersion:     0,
 		CurrentDirectorRootVersion:   0,
@@ -681,7 +681,7 @@ func TestServiceGetRefreshIntervalValid(t *testing.T) {
 	lastConfigResponse := &pbgo.LatestConfigsResponse{}
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
-		AgentVersion:                 version.AgentVersion,
+		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
 		CurrentConfigRootVersion:     0,
 		CurrentDirectorRootVersion:   0,
@@ -718,7 +718,7 @@ func TestServiceGetRefreshIntervalTooSmall(t *testing.T) {
 	lastConfigResponse := &pbgo.LatestConfigsResponse{}
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
-		AgentVersion:                 version.AgentVersion,
+		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
 		CurrentConfigRootVersion:     0,
 		CurrentDirectorRootVersion:   0,
@@ -755,7 +755,7 @@ func TestServiceGetRefreshIntervalTooBig(t *testing.T) {
 	lastConfigResponse := &pbgo.LatestConfigsResponse{}
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
-		AgentVersion:                 version.AgentVersion,
+		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
 		CurrentConfigRootVersion:     0,
 		CurrentDirectorRootVersion:   0,
@@ -795,7 +795,7 @@ func TestServiceGetRefreshIntervalNoOverrideAllowed(t *testing.T) {
 	lastConfigResponse := &pbgo.LatestConfigsResponse{}
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
-		AgentVersion:                 version.AgentVersion,
+		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
 		CurrentConfigRootVersion:     0,
 		CurrentDirectorRootVersion:   0,
@@ -872,7 +872,7 @@ func TestConfigExpiration(t *testing.T) {
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
-		AgentVersion:                 version.AgentVersion,
+		AgentVersion:                 agentVersion,
 		CurrentConfigRootVersion:     0,
 		CurrentConfigSnapshotVersion: 0,
 		CurrentDirectorRootVersion:   0,

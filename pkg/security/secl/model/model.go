@@ -171,6 +171,7 @@ type BaseEvent struct {
 	Rules        []*MatchedRule     `field:"-"`
 	Actions      []*ActionTriggered `field:"-"`
 	Origin       string             `field:"-"`
+	Suppressed   bool               `field:"-"`
 
 	// context shared with all events
 	ProcessContext         *ProcessContext        `field:"process" event:"*"`
@@ -313,6 +314,11 @@ func (e *Event) GetActions() []*ActionTriggered {
 	return e.Actions
 }
 
+// IsSuppressed returns true if the event is suppressed
+func (e *Event) IsSuppressed() bool {
+	return e.Suppressed
+}
+
 // GetWorkloadID returns an ID that represents the workload
 func (e *Event) GetWorkloadID() string {
 	return e.SecurityProfileContext.Name
@@ -438,6 +444,8 @@ const (
 	EventTypeNotConfigured
 	// HashWasRateLimited means that the hash will be tried again later, it was rate limited
 	HashWasRateLimited
+	// HashFailed means that the hashing failed
+	HashFailed
 	// MaxHashState is used for initializations
 	MaxHashState
 )
@@ -452,6 +460,8 @@ const (
 	SHA256
 	// MD5 is used to identify a MD5 hash
 	MD5
+	// SSDEEP is used to identify a SSDEEP hash
+	SSDEEP
 	// MaxHashAlgorithm is used for initializations
 	MaxHashAlgorithm
 )
@@ -464,6 +474,8 @@ func (ha HashAlgorithm) String() string {
 		return "sha256"
 	case MD5:
 		return "md5"
+	case SSDEEP:
+		return "ssdeep"
 	default:
 		return ""
 	}

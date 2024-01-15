@@ -85,39 +85,6 @@ kitchen_debian_install_script_heroku_agent-a6:
 # We only want to run step-by-step tests on deploy pipelines,
 # which is why they have a different rule (if_deploy_6/7)
 
-kitchen_debian_upgrade5_agent-a6:
-  extends:
-    - .kitchen_scenario_debian_a6_x64
-    - .kitchen_test_upgrade5_agent
-
-kitchen_debian_upgrade5_agent-a7:
-  extends:
-    - .kitchen_scenario_debian_a7_x64
-    - .kitchen_test_upgrade5_agent
-
-kitchen_debian_upgrade6_agent-a6:
-  extends:
-    - .kitchen_os_with_cws
-    - .kitchen_scenario_debian_a6_x64
-    - .kitchen_test_upgrade6_agent
-
-kitchen_debian_upgrade6_agent-a7:
-  extends:
-    - .kitchen_os_with_cws
-    - .kitchen_scenario_debian_a7_x64
-    - .kitchen_test_upgrade6_agent
-
-kitchen_debian_upgrade7_agent-a7:
-  extends:
-    - .kitchen_os_with_cws
-    - .kitchen_scenario_debian_a7_x64
-    - .kitchen_test_upgrade7_agent
-
-kitchen_debian_upgrade7_iot_agent-a7:
-  extends:
-    - .kitchen_scenario_debian_a7_x64
-    - .kitchen_test_upgrade7_iot_agent
-
 kitchen_debian_process_agent-a7:
   rules:
     - !reference [.on_default_kitchen_tests_a7]

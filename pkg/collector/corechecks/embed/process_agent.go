@@ -185,7 +185,7 @@ func (c *ProcessAgentCheck) Configure(senderManager sender.SenderManager, integr
 	}
 
 	c.source = source
-	c.telemetry = utils.IsCheckTelemetryEnabled("process_agent")
+	c.telemetry = utils.IsCheckTelemetryEnabled("process_agent", config.Datadog)
 	c.initConfig = string(initConfig)
 	c.instanceConfig = string(data)
 	return nil

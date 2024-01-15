@@ -1161,8 +1161,8 @@ api_key:
   #
   # force_use_tcp: true
 
-  ## @param use_compression - boolean - optional - default: false
-  ## @env DD_LOGS_CONFIG_USE_COMPRESSION - boolean - optional - default: false
+  ## @param use_compression - boolean - optional - default: true
+  ## @env DD_LOGS_CONFIG_USE_COMPRESSION - boolean - optional - default: true
   ## This parameter is available when sending logs with HTTPS. If enabled, the Agent
   ## compresses logs before sending them.
   #
@@ -1582,17 +1582,17 @@ api_key:
 
   ## @param trace_buffer - integer - optional - default: 0
   ## @env DD_APM_TRACE_BUFFER - integer - optional - default: 0
-  ## 
+  ##
   ## WARNING: Do not use this config. It is here for debugging and
   ## as a temporary fix in certain load scenarios. Setting this
   ## results in a performance deterioration and an increase in memory
   ## usage when the Trace Agent is under load. This config may be
   ## removed in a future version.
-  ## 
+  ##
   ## Specifies the number of trace payloads to buffer after decoding.
   ## Traces can be buffered when receiving traces faster than the
   ## processor can process them.
-  ## 
+  ##
   #
   # trace_buffer: 0
 
@@ -3915,8 +3915,8 @@ api_key:
 
     ## @param resource_attributes_as_tags - boolean - optional - default: false
     ## @env DD_OTLP_CONFIG_METRICS_RESOURCE_ATTRIBUTES_AS_TAGS - boolean - optional - default: false
-    ## Set to true to add resource attributes of a metric to its metric tags. Please note that any of 
-    ## the subset of resource attributes in this list https://docs.datadoghq.com/opentelemetry/guide/semantic_mapping/ 
+    ## Set to true to add resource attributes of a metric to its metric tags. Please note that any of
+    ## the subset of resource attributes in this list https://docs.datadoghq.com/opentelemetry/guide/semantic_mapping/
     ## are converted to Datadog conventions and set to to metric tags whether this option is enabled or not.
     #
     # resource_attributes_as_tags: false

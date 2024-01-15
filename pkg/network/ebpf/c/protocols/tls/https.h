@@ -55,7 +55,13 @@ static __always_inline void classify_decrypted_payload(protocol_stack_t *stack, 
 }
 
 static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, void *buffer_ptr, size_t len, __u64 tags) {
-    protocol_stack_t *stack = get_protocol_stack(t);
+    conn_tuple_t final_tuple = {0};
+    conn_tuple_t normalized_tuple = *t;
+    normalize_tuple(&normalized_tuple);
+    normalized_tuple.pid = 0;
+    normalized_tuple.netns = 0;
+
+    protocol_stack_t *stack = get_protocol_stack(&normalized_tuple);
     if (!stack) {
         return;
     }
@@ -69,20 +75,18 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
         }
         read_into_user_buffer_classification(request_fragment, buffer_ptr);
 
-        classify_decrypted_payload(stack, t, request_fragment, len);
+        classify_decrypted_payload(stack, &normalized_tuple, request_fragment, len);
         protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
     }
     tls_prog_t prog;
     switch (protocol) {
     case PROTOCOL_HTTP:
         prog = TLS_HTTP_PROCESS;
-        // HTTP implementation relies on the assumption of having a normalized tuple (as we're sharing implementation
-        // with the socket_filter program).
-        normalize_tuple(t);
-        // HTTP implementation relies on the assumption of not having pid and netns (as we're sharing implementation
-        // with the socket_filter program which does not have access to such fields).
-        t->pid = 0;
-        t->netns = 0;
+        final_tuple = normalized_tuple;
+        break;
+    case PROTOCOL_HTTP2:
+        prog = TLS_HTTP2_FIRST_FRAME;
+        final_tuple = *t;
         break;
     default:
         return;
@@ -93,15 +97,24 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
         log_debug("dispatcher failed to save arguments for tls tail call\n");
         return;
     }
-    bpf_memset(args, 0, sizeof(tls_dispatcher_arguments_t));
-    bpf_memcpy(&args->tup, t, sizeof(conn_tuple_t));
-    args->buffer_ptr = buffer_ptr;
-    args->tags = tags;
+    *args = (tls_dispatcher_arguments_t){
+        .tup = final_tuple,
+        .tags = tags,
+        .buffer_ptr = buffer_ptr,
+        .data_end = len,
+        .data_off = 0,
+    };
     bpf_tail_call_compat(ctx, &tls_process_progs, prog);
 }
 
 static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t) {
-    protocol_stack_t *stack = get_protocol_stack(t);
+    conn_tuple_t final_tuple = {0};
+    conn_tuple_t normalized_tuple = *t;
+    normalize_tuple(&normalized_tuple);
+    normalized_tuple.pid = 0;
+    normalized_tuple.netns = 0;
+
+    protocol_stack_t *stack = get_protocol_stack(&normalized_tuple);
     if (!stack) {
         return;
     }
@@ -111,13 +124,11 @@ static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t) {
     switch (protocol) {
     case PROTOCOL_HTTP:
         prog = TLS_HTTP_TERMINATION;
-        // HTTP implementation relies on the assumption of having a normalized tuple (as we're sharing implementation
-        // with the socket_filter program).
-        normalize_tuple(t);
-        // HTTP implementation relies on the assumption of not having pid and netns (as we're sharing implementation
-        // with the socket_filter program which does not have access to such fields).
-        t->pid = 0;
-        t->netns = 0;
+        final_tuple = normalized_tuple;
+        break;
+    case PROTOCOL_HTTP2:
+        prog = TLS_HTTP2_TERMINATION;
+        final_tuple = *t;
         break;
     default:
         return;
@@ -130,7 +141,7 @@ static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t) {
         return;
     }
     bpf_memset(args, 0, sizeof(tls_dispatcher_arguments_t));
-    bpf_memcpy(&args->tup, t, sizeof(conn_tuple_t));
+    bpf_memcpy(&args->tup, &final_tuple, sizeof(conn_tuple_t));
     bpf_tail_call_compat(ctx, &tls_process_progs, prog);
 }
 

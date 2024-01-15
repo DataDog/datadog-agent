@@ -3,13 +3,14 @@ name: "Label analysis"
 
 on:
   pull_request:
-    types: [opened, labeled, unlabeled]
+    types: [opened, synchronize, reopened]
     branches:
       - main
       - "[0-9]+.[0-9]+.x"
 
 jobs:
   team-label:
+    if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,6 +29,7 @@ jobs:
         run: |
           inv -e lint-teamassignment
   skip-qa:
+    if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 )
 
 func unsetEnvForTest(t *testing.T, env string) {
@@ -424,8 +425,6 @@ func TestProxy(t *testing.T) {
 			config := Conf()
 			config.SetWithoutSource("use_proxy_for_cloud_metadata", c.proxyForCloudMetadata)
 
-			// Viper.MergeConfigOverride, which is used when secrets is enabled, will silently fail if a
-			// config file is never set.
 			path := t.TempDir()
 			configPath := filepath.Join(path, "empty_conf.yaml")
 			os.WriteFile(configPath, nil, 0600)
@@ -1099,4 +1098,210 @@ func TestProxyLoadedFromConfigFileAndEnvVars(t *testing.T) {
 
 	assert.Equal(t, proxyHTTPEnvVar, proxyHTTPConfig)
 	assert.Equal(t, proxyHTTPSEnvVar, proxyHTTPSConfig)
+}
+
+var testExampleConf = []byte(`
+secret_backend_command: some command
+additional_endpoints:
+  https://url1.com:
+    - first
+    - second
+  https://url2.eu:
+    - third
+process_config:
+  additional_endpoints:
+    https://url1.com:
+      - fourth
+      - fifth
+    https://url2.eu:
+      - sixth
+`)
+
+func TestConfigAssignAtPath(t *testing.T) {
+	// CircleCI sets NO_PROXY, so unset it for this test
+	unsetEnvForTest(t, "NO_PROXY")
+
+	config := Conf()
+	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
+	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
+	os.WriteFile(configPath, testExampleConf, 0600)
+	config.SetConfigFile(configPath)
+
+	_, err := LoadCustom(config, "unit_test", optional.NewNoneOption[secrets.Component](), nil)
+	assert.NoError(t, err)
+
+	err = configAssignAtPath(config, []string{"secret_backend_command"}, "different")
+	assert.NoError(t, err)
+
+	err = configAssignAtPath(config, []string{"additional_endpoints", "https://url1.com", "1"}, "changed")
+	assert.NoError(t, err)
+
+	err = configAssignAtPath(config, []string{"process_config", "additional_endpoints", "https://url2.eu", "0"}, "modified")
+	assert.NoError(t, err)
+
+	expectedYaml := `additional_endpoints:
+  https://url1.com:
+  - first
+  - changed
+  https://url2.eu:
+  - third
+process_config:
+  additional_endpoints:
+    https://url1.com:
+    - fourth
+    - fifth
+    https://url2.eu:
+    - modified
+secret_backend_command: different
+use_proxy_for_cloud_metadata: true
+`
+	yamlConf, err := yaml.Marshal(config.AllSettingsWithoutDefault())
+	assert.NoError(t, err)
+	yamlText := string(yamlConf)
+	assert.Equal(t, expectedYaml, yamlText)
+
+	err = configAssignAtPath(config, []string{"0"}, "invalid")
+	assert.Error(t, err)
+	assert.Equal(t, err.Error(), "unknown config setting '[0]'")
+
+	err = configAssignAtPath(config, []string{"additional_endpoints", "https://url1.com", "5"}, "invalid")
+	assert.Error(t, err)
+	assert.Equal(t, err.Error(), "index out of range 5 >= 2")
+}
+
+var testSimpleConf = []byte(`secret_backend_command: some command
+secret_backend_arguments:
+- ENC[pass1]
+`)
+
+func TestConfigAssignAtPathSimple(t *testing.T) {
+	// CircleCI sets NO_PROXY, so unset it for this test
+	unsetEnvForTest(t, "NO_PROXY")
+
+	config := Conf()
+	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
+	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
+	os.WriteFile(configPath, testSimpleConf, 0600)
+	config.SetConfigFile(configPath)
+
+	_, err := LoadCustom(config, "unit_test", optional.NewNoneOption[secrets.Component](), nil)
+	assert.NoError(t, err)
+
+	err = configAssignAtPath(config, []string{"secret_backend_arguments", "0"}, "password1")
+	assert.NoError(t, err)
+
+	expectedYaml := `secret_backend_arguments:
+- password1
+secret_backend_command: some command
+use_proxy_for_cloud_metadata: true
+`
+	yamlConf, err := yaml.Marshal(config.AllSettingsWithoutDefault())
+	assert.NoError(t, err)
+	yamlText := string(yamlConf)
+	assert.Equal(t, expectedYaml, yamlText)
+}
+
+func TestConfigMustMatchOrigin(t *testing.T) {
+	// CircleCI sets NO_PROXY, so unset it for this test
+	unsetEnvForTest(t, "NO_PROXY")
+
+	testMinimalConf := []byte(`apm_config:
+  apm_dd_url: ENC[some_url]
+secret_backend_command: command
+use_proxy_for_cloud_metadata: true
+`)
+
+	testMinimalDiffConf := []byte(`apm_config:
+  apm_dd_url: ENC[diff_url]
+secret_backend_command: command
+use_proxy_for_cloud_metadata: true
+`)
+
+	expectedYaml := `apm_config:
+  apm_dd_url: first_value
+secret_backend_command: command
+use_proxy_for_cloud_metadata: true
+`
+	expectedDiffYaml := `apm_config:
+  apm_dd_url: second_value
+secret_backend_command: command
+use_proxy_for_cloud_metadata: true
+`
+
+	config := Conf()
+	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
+	os.WriteFile(configPath, testMinimalConf, 0600)
+	config.SetConfigFile(configPath)
+
+	resolver := secretsimpl.NewMock()
+	resolver.SetBackendCommand("command")
+	resolver.SetFetchHookFunc(func(handles []string) (map[string]string, error) {
+		return map[string]string{
+			"some_url": "first_value",
+			"diff_url": "second_value",
+		}, nil
+	})
+
+	_, err := LoadCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
+	assert.NoError(t, err)
+
+	yamlConf, err := yaml.Marshal(config.AllSettingsWithoutDefault())
+	assert.NoError(t, err)
+	assert.Equal(t, expectedYaml, string(yamlConf))
+
+	// use resolver to modify a 2nd config with a different origin
+	diffYaml, err := resolver.Resolve(testMinimalDiffConf, "diff_test")
+	assert.NoError(t, err)
+	assert.Equal(t, expectedDiffYaml, string(diffYaml))
+
+	// verify that the original config was not changed because origin is different
+	yamlConf, err = yaml.Marshal(config.AllSettingsWithoutDefault())
+	assert.NoError(t, err)
+	assert.Equal(t, expectedYaml, string(yamlConf))
+
+	// use resolver again, but with the original origin now
+	diffYaml, err = resolver.Resolve(testMinimalDiffConf, "unit_test")
+	assert.NoError(t, err)
+	assert.Equal(t, expectedDiffYaml, string(diffYaml))
+
+	// now the original config was modified because of the origin match
+	yamlConf, err = yaml.Marshal(config.AllSettingsWithoutDefault())
+	assert.NoError(t, err)
+	assert.Equal(t, expectedDiffYaml, string(yamlConf))
+}
+
+func TestConfigAssignAtPathForIntMapKeys(t *testing.T) {
+	// CircleCI sets NO_PROXY, so unset it for this test
+	unsetEnvForTest(t, "NO_PROXY")
+
+	// Even if a map is using keys that looks like stringified ints, calling
+	// configAssignAtPath will still work correctly
+	var testIntKeysConf = []byte(`
+additional_endpoints:
+  0: apple
+  1: banana
+  2: carrot
+`)
+	config := Conf()
+	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
+	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
+	os.WriteFile(configPath, testIntKeysConf, 0600)
+	config.SetConfigFile(configPath)
+
+	_, err := LoadCustom(config, "unit_test", optional.NewNoneOption[secrets.Component](), nil)
+	assert.NoError(t, err)
+
+	err = configAssignAtPath(config, []string{"additional_endpoints", "2"}, "cherry")
+	assert.NoError(t, err)
+
+	expectedYaml := `additional_endpoints:
+  "0": apple
+  "1": banana
+  "2": cherry
+use_proxy_for_cloud_metadata: true
+`
+	yamlConf, err := yaml.Marshal(config.AllSettingsWithoutDefault())
+	assert.NoError(t, err)
+	yamlText := string(yamlConf)
+	assert.Equal(t, expectedYaml, yamlText)
 }

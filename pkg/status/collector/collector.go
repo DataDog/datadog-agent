@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2023-present Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // Package collector fetch information needed to render the 'collector' section of the status page.
 // This will, in time, be migrated to the collector package/comp.
@@ -10,6 +10,10 @@ package collector
 import (
 	"encoding/json"
 	"expvar"
+	"io"
+
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/pkg/status/render"
 )
 
 // GetStatusInfo retrives collector information
@@ -87,4 +91,40 @@ func PopulateStatus(stats map[string]interface{}) {
 		}
 	}
 	stats["inventories"] = checkMetadata
+}
+
+// Provider provides the functionality to populate the status output with the collector information
+type Provider struct{}
+
+// Name returns the name
+func (Provider) Name() string {
+	return "Collector"
+}
+
+// Section return the section
+func (Provider) Section() string {
+	return status.CollectorSection
+}
+
+// JSON populates the status map
+func (Provider) JSON(stats map[string]interface{}) error {
+	PopulateStatus(stats)
+
+	return nil
+}
+
+// Text populates the status buffer with the human readbable version
+func (Provider) Text(buffer io.Writer) error {
+	return render.ParseTemplate(buffer, "/collector.tmpl", GetStatusInfo())
+}
+
+// HTML populates the status buffer with the HTML version
+func (Provider) HTML(buffer io.Writer) error {
+	return render.ParseHTMLTemplate(buffer, "/collectorHTML.tmpl", GetStatusInfo())
+}
+
+// TextWithData allows to render the human reaadable version with custom data
+// This is a hack only needed for the agent check subcommand
+func (Provider) TextWithData(buffer io.Writer, data any) error {
+	return render.ParseTemplate(buffer, "/collector.tmpl", data)
 }

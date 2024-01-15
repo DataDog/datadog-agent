@@ -25,10 +25,12 @@ import (
 // Returns the command executed and a callback to start sending requests.
 func NewGoTLSClient(t *testing.T, serverAddr string, numRequests int, enableHTTP2 bool) (*exec.Cmd, func()) {
 	clientBin := buildGoTLSClientBin(t)
-	args := []string{clientBin, serverAddr, strconv.Itoa(numRequests)}
+	args := []string{clientBin}
 	if enableHTTP2 {
 		args = append(args, "-http2")
 	}
+	// We're using the `flag` library, which requires the flags to be right after the binary name, and before positional arguments.
+	args = append(args, serverAddr, strconv.Itoa(numRequests))
 
 	timedCtx, cancel := context.WithTimeout(context.Background(), time.Second*60)
 	commandLine := strings.Join(args, " ")

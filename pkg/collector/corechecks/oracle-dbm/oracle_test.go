@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/config"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
@@ -46,13 +45,6 @@ func TestConnection(t *testing.T) {
 	err = db.Ping()
 	assert.NoError(t, err)
 
-}
-
-func demuxOpts() aggregator.AgentDemultiplexerOptions {
-	opts := aggregator.DefaultAgentDemultiplexerOptions()
-	opts.FlushInterval = 1 * time.Hour
-	opts.DontStartForwarders = true
-	return opts
 }
 
 func connectToDB(driver string) (*sqlx.DB, error) {

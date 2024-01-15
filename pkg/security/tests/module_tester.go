@@ -344,6 +344,7 @@ var commonCfgDir string
 type onRuleHandler func(*model.Event, *rules.Rule)
 type onProbeEventHandler func(*model.Event)
 type onCustomSendEventHandler func(*rules.Rule, *events.CustomEvent)
+type onSendEventHandler func(*rules.Rule, *model.Event)
 type onDiscarderPushedHandler func(event eval.Event, field eval.Field, eventType eval.EventType) bool
 
 type eventHandlers struct {
@@ -351,6 +352,7 @@ type eventHandlers struct {
 	onRuleMatch       onRuleHandler
 	onProbeEvent      onProbeEventHandler
 	onCustomSendEvent onCustomSendEventHandler
+	onSendEvent       onSendEventHandler
 	onDiscarderPushed onDiscarderPushedHandler
 }
 
@@ -1169,6 +1171,10 @@ func (tm *testModule) SendEvent(rule *rules.Rule, event events.Event, _ func() [
 		if tm.eventHandlers.onCustomSendEvent != nil {
 			tm.eventHandlers.onCustomSendEvent(rule, ev)
 		}
+	case *model.Event:
+		if tm.eventHandlers.onSendEvent != nil {
+			tm.eventHandlers.onSendEvent(rule, ev)
+		}
 	}
 }
 
@@ -1540,6 +1546,50 @@ func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb 
 	}
 }
 
+func (tm *testModule) GetEventSent(tb testing.TB, action func() error, cb func(rule *rules.Rule, event *model.Event) bool, timeout time.Duration, ruleID eval.RuleID) error {
+	tb.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	message := make(chan ActionMessage, 1)
+
+	tm.RegisterSendEventHandler(func(rule *rules.Rule, event *model.Event) {
+		if rule.ID != ruleID {
+			return
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		case msg := <-message:
+			switch msg {
+			case Continue:
+				if cb(rule, event) {
+					cancel()
+				} else {
+					message <- Continue
+				}
+			case Skip:
+				cancel()
+			}
+		}
+	})
+	defer tm.RegisterSendEventHandler(nil)
+
+	if err := action(); err != nil {
+		message <- Skip
+		return err
+	}
+	message <- Continue
+
+	select {
+	case <-time.After(timeout):
+		return tm.NewTimeoutError()
+	case <-ctx.Done():
+		return nil
+	}
+}
+
 func (tm *testModule) RegisterProbeEventHandler(cb onProbeEventHandler) {
 	tm.eventHandlers.Lock()
 	tm.eventHandlers.onProbeEvent = cb
@@ -1549,6 +1599,12 @@ func (tm *testModule) RegisterProbeEventHandler(cb onProbeEventHandler) {
 func (tm *testModule) RegisterCustomSendEventHandler(cb onCustomSendEventHandler) {
 	tm.eventHandlers.Lock()
 	tm.eventHandlers.onCustomSendEvent = cb
+	tm.eventHandlers.Unlock()
+}
+
+func (tm *testModule) RegisterSendEventHandler(cb onSendEventHandler) {
+	tm.eventHandlers.Lock()
+	tm.eventHandlers.onSendEvent = cb
 	tm.eventHandlers.Unlock()
 }
 

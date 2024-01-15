@@ -31,7 +31,7 @@ jobs:
         go-file: [.go-version, pkg/gohai/go.mod]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions/setup-go@v3
         with:
           go-version-file: ${{ matrix.go-file }}

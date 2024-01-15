@@ -14,51 +14,6 @@
     - export DOCKER_REGISTRY_PWD=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
     - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key --with-decryption --query "Parameter.Value" --out text)
 
-k8s-e2e-dev:
-  extends: .k8s_e2e_template
-  rules: !reference [.on_dev_branch_manual]
-  # Note: pupernetes-dev requires the below jobs to work. However,
-  # we can't explicitly define the dependencies because a job cannot depend on other manual jobs.
-  # Adding the following lines would result in pipelines remaining in a "Running" state forever,
-  # as the pupernetes-dev job waits for manual jobs that may never be triggered.
-  # needs:
-  #   - dev_branch_docker_hub-a6
-  #   - dev_branch_docker_hub-a7
-  # We still want to make the job available as soon as possible. In this case, since it's manual
-  # and requires other manual jobs, it's reasonable make it available from the beginning and let
-  # engineers trigger the correct sequence of jobs when needed.
-  needs: []
-  script:
-    - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py2 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG} --argo-workflow=default
-    - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG} --argo-workflow=default
-
-k8s-e2e-main:
-  extends: .k8s_e2e_template
-  allow_failure: true # temporary while investigating
-  rules: !reference [.on_main]
-  # needs:
-  #   - dev_master-a6
-  #   - dev_master-a7
-  script:
-    - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py2 --dca-image=datadog/cluster-agent-dev:master --argo-workflow=default
-    - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py3 --dca-image=datadog/cluster-agent-dev:master --argo-workflow=default
-
-k8s-e2e-tags-6:
-  extends: .k8s_e2e_template
-  rules: !reference [.on_deploy_stable_or_beta_repo_branch_a6_manual]
-  script:
-    - AGENT_VERSION=$(inv agent.version --major-version 6)
-    - DCA_VERSION=$(inv -e cluster-agent.version)
-    - inv -e e2e-tests --agent-image=datadog/agent:${AGENT_VERSION} --dca-image=datadog/cluster-agent:${DCA_VERSION} --argo-workflow=default
-
-k8s-e2e-tags-7:
-  extends: .k8s_e2e_template
-  rules: !reference [.on_deploy_stable_or_beta_repo_branch_a7_manual]
-  script:
-    - AGENT_VERSION=$(inv agent.version --major-version 7)
-    - DCA_VERSION=$(inv -e cluster-agent.version)
-    - inv -e e2e-tests --agent-image=datadog/agent:${AGENT_VERSION} --dca-image=datadog/cluster-agent:${DCA_VERSION} --argo-workflow=default
-
 .k8s-e2e-cws-cspm-init:
   - set +x
   - export DATADOG_AGENT_SITE=datadoghq.com
@@ -107,7 +62,7 @@ k8s-e2e-cspm-main:
 k8s-e2e-otlp-dev:
   extends: .k8s_e2e_template
   rules: !reference [.on_dev_branch_manual]
-  needs: [] # See note on k8s-e2e-dev above
+  needs: [] # we can't explicitly define the dependencies because a job cannot depend on other manual jobs.
   script:
     - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG} --argo-workflow=otlp
 
@@ -197,7 +152,7 @@ new-e2e-agent-shared-components-dev:
   rules:
     - !reference [.if_run_e2e_tests]
     - !reference [.on_dev_branch_manual]
-  needs: ["deploy_deb_testing-a7_x64"]
+  needs: ["deploy_deb_testing-a7_x64", "deploy_windows_testing-a7"]
   variables:
     TARGETS: ./tests/agent-shared-components
     TEAM: agent-shared-components
@@ -205,7 +160,7 @@ new-e2e-agent-shared-components-dev:
 new-e2e-agent-shared-components-main:
   extends: .new_e2e_template
   rules: !reference [.on_main_and_no_skip_e2e]
-  needs: ["deploy_deb_testing-a7_x64"]
+  needs: ["deploy_deb_testing-a7_x64", "deploy_windows_testing-a7"]
   variables:
     TARGETS: ./tests/agent-shared-components
     TEAM: agent-shared-components
@@ -228,7 +183,7 @@ new-e2e-agent-subcommands-dev:
   rules:
     - !reference [.if_run_e2e_tests]
     - !reference [.on_dev_branch_manual]
-  needs: ["deploy_deb_testing-a7_x64"]
+  needs: ["deploy_deb_testing-a7_x64", "deploy_windows_testing-a7"]
   variables:
     TARGETS: ./tests/agent-subcommands
     TEAM: agent-shared-components
@@ -237,7 +192,7 @@ new-e2e-agent-subcommands-dev:
 new-e2e-agent-subcommands-main:
   extends: .new_e2e_template
   rules: !reference [.on_main_and_no_skip_e2e]
-  needs: ["deploy_deb_testing-a7_x64"]
+  needs: ["deploy_deb_testing-a7_x64", "deploy_windows_testing-a7"]
   variables:
     TARGETS: ./tests/agent-subcommands
     TEAM: agent-shared-components
@@ -250,7 +205,7 @@ new-e2e-language-detection-dev:
   rules:
     - !reference [.if_run_e2e_tests]
     - !reference [.on_dev_branch_manual]
-  needs: ["deploy_deb_testing-a7_x64"]
+  needs: ["deploy_deb_testing-a7_x64", "deploy_windows_testing-a7"]
   variables:
     TARGETS: ./tests/language-detection
     TEAM: processes
@@ -267,7 +222,7 @@ new-e2e-npm-dev:
   rules:
     - !reference [.if_run_e2e_tests]
     - !reference [.on_dev_branch_manual]
-  needs: ["deploy_deb_testing-a7_x64"]
+  needs: ["deploy_deb_testing-a7_x64", "deploy_windows_testing-a7"]
   variables:
     TARGETS: ./tests/npm
 
@@ -284,7 +239,7 @@ new-e2e-aml-dev:
   rules:
     - !reference [.if_run_e2e_tests]
     - !reference [.on_dev_branch_manual]
-  needs: ["deploy_deb_testing-a7_x64"]
+  needs: ["deploy_deb_testing-a7_x64", "deploy_windows_testing-a7"]
   variables:
     TARGETS: ./tests/agent-metric-logs
     TEAM: agent-metric-logs
@@ -301,7 +256,7 @@ new-e2e-cws-dev:
   rules:
     - !reference [.if_run_e2e_tests]
     - !reference [.on_dev_branch_manual]
-  needs: ["deploy_deb_testing-a7_x64"]
+  needs: ["deploy_deb_testing-a7_x64", "deploy_windows_testing-a7"]
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
@@ -322,7 +277,7 @@ new-e2e-process-dev:
   rules:
     - !reference [.if_run_e2e_tests]
     - !reference [.on_dev_branch_manual]
-  needs: ["deploy_deb_testing-a7_x64"]
+  needs: ["deploy_deb_testing-a7_x64", "deploy_windows_testing-a7"]
   variables:
     TARGETS: ./tests/process
     TEAM: processes

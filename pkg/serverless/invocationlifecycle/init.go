@@ -6,10 +6,11 @@
 package invocationlifecycle
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
+
+	json "github.com/json-iterator/go"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"

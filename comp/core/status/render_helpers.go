@@ -37,8 +37,6 @@ func HTMLFmap() htemplate.FuncMap {
 		htmlFuncMap = htemplate.FuncMap{
 			"doNotEscape":        doNotEscape,
 			"lastError":          lastError,
-			"lastErrorTraceback": func(s string) htemplate.HTML { return doNotEscape(lastErrorTraceback(s)) },
-			"lastErrorMessage":   func(s string) htemplate.HTML { return doNotEscape(lastErrorMessage(s)) },
 			"configError":        configError,
 			"printDashes":        PrintDashes,
 			"formatUnixTime":     formatUnixTime,
@@ -47,7 +45,6 @@ func HTMLFmap() htemplate.FuncMap {
 			"toUnsortedList":     toUnsortedList,
 			"formatTitle":        formatTitle,
 			"add":                add,
-			"status":             status,
 			"redText":            redText,
 			"yellowText":         yellowText,
 			"greenText":          greenText,
@@ -55,6 +52,10 @@ func HTMLFmap() htemplate.FuncMap {
 			"version":            getVersion,
 			"percent":            func(v float64) string { return fmt.Sprintf("%02.1f", v*100) },
 			"complianceResult":   complianceResult,
+			"lastErrorTraceback": lastErrorTracebackHTML,
+			"lastErrorMessage":   lastErrorMessageHTML,
+			"pythonLoaderError":  pythonLoaderErrorHTML,
+			"status":             statusHTML,
 		}
 	})
 	return htmlFuncMap
@@ -126,22 +127,34 @@ func lastErrorMessage(value string) string {
 }
 
 // formatUnixTime formats the unix time to make it more readable
-func formatUnixTime(unixTime int64) string {
+func formatUnixTime(unixTime any) string {
 	// Initially treat given unixTime is in nanoseconds
-	t := time.Unix(0, int64(unixTime))
-	// If year returned 1970, assume unixTime actually in seconds
-	if t.Year() == time.Unix(0, 0).Year() {
-		t = time.Unix(int64(unixTime), 0)
+	parseFunction := func(value int64) string {
+		t := time.Unix(0, value)
+		// If year returned 1970, assume unixTime actually in seconds
+		if t.Year() == time.Unix(0, 0).Year() {
+			t = time.Unix(value, 0)
+		}
+
+		_, tzoffset := t.Zone()
+		result := t.Format(timeFormat)
+		if tzoffset != 0 {
+			result += " / " + t.UTC().Format(timeFormat)
+		}
+		msec := t.UnixNano() / int64(time.Millisecond)
+		result += " (" + strconv.Itoa(int(msec)) + ")"
+
+		return result
 	}
 
-	_, tzoffset := t.Zone()
-	result := t.Format(timeFormat)
-	if tzoffset != 0 {
-		result += " / " + t.UTC().Format(timeFormat)
+	switch v := unixTime.(type) {
+	case int64:
+		return parseFunction(v)
+	case float64:
+		return parseFunction(int64(v))
+	default:
+		return fmt.Sprintf("Invalid time parameter %T", v)
 	}
-	msec := t.UnixNano() / int64(time.Millisecond)
-	result += " (" + strconv.Itoa(int(msec)) + ")"
-	return result
 }
 
 // PrintDashes repeats the pattern (dash) for the length of s
@@ -283,4 +296,49 @@ func getVersion(instances map[string]interface{}) string {
 		return str
 	}
 	return ""
+}
+
+func pythonLoaderErrorHTML(value string) htemplate.HTML {
+	value = htemplate.HTMLEscapeString(value)
+
+	value = strings.Replace(value, "\n", "<br>", -1)
+	value = strings.Replace(value, "  ", "&nbsp;&nbsp;&nbsp;", -1)
+	return htemplate.HTML(value)
+}
+
+func lastErrorTracebackHTML(value string) htemplate.HTML {
+	var lastErrorArray []map[string]string
+
+	err := json.Unmarshal([]byte(value), &lastErrorArray)
+	if err != nil || len(lastErrorArray) == 0 {
+		return htemplate.HTML("No traceback")
+	}
+
+	traceback := htemplate.HTMLEscapeString(lastErrorArray[0]["traceback"])
+
+	traceback = strings.Replace(traceback, "\n", "<br>", -1)
+	traceback = strings.Replace(traceback, "  ", "&nbsp;&nbsp;&nbsp;", -1)
+
+	return htemplate.HTML(traceback)
+}
+
+func lastErrorMessageHTML(value string) htemplate.HTML {
+	var lastErrorArray []map[string]string
+	err := json.Unmarshal([]byte(value), &lastErrorArray)
+	if err == nil && len(lastErrorArray) > 0 {
+		if msg, ok := lastErrorArray[0]["message"]; ok {
+			value = msg
+		}
+	}
+	return htemplate.HTML(htemplate.HTMLEscapeString(value))
+}
+
+func statusHTML(check map[string]interface{}) htemplate.HTML {
+	if check["LastError"].(string) != "" {
+		return htemplate.HTML("[<span class=\"error\">ERROR</span>]")
+	}
+	if len(check["LastWarnings"].([]interface{})) != 0 {
+		return htemplate.HTML("[<span class=\"warning\">WARNING</span>]")
+	}
+	return htemplate.HTML("[<span class=\"ok\">OK</span>]")
 }

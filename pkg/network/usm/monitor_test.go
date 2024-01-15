@@ -10,6 +10,7 @@ package usm
 import (
 	"bytes"
 	"crypto/tls"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -25,13 +26,13 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
-
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
+	"golang.org/x/net/http2/hpack"
 
 	manager "github.com/DataDog/ebpf-manager"
 
@@ -61,9 +62,10 @@ const (
 	kb = 1024
 	mb = 1024 * kb
 
-	http2SrvAddr    = "http://127.0.0.1:8082"
-	http2SrvPortStr = ":8082"
-	http2SrvPort    = 8082
+	localHostAddress = "127.0.0.1:8082"
+	http2SrvAddr     = "http://" + localHostAddress
+	http2SrvPortStr  = ":8082"
+	http2SrvPort     = 8082
 )
 
 var (
@@ -808,10 +810,7 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 							t.Logf("key: %v was not found in res", key.Path.Content.Get())
 						}
 					}
-					err := monitor.DumpMaps(&ebpftest.TestLogWriter{T: t}, "http2_in_flight")
-					if err != nil {
-						t.Logf("failed dumping http2_in_flight: %s", err)
-					}
+					ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, "http2_in_flight")
 				}
 			})
 		}
@@ -915,6 +914,264 @@ func (s *USMHTTP2Suite) TestHTTP2KernelTelemetry() {
 	}
 }
 
+// writeInput writes the given input to the socket and reads the response.
+// Presently, the timeout is configured to one second for all readings.
+// In case of encountered issues, increasing this duration might be necessary.
+func writeInput(c net.Conn, input []byte, timeout time.Duration) error {
+	_, err := c.Write(input)
+	if err != nil {
+		return err
+	}
+	frame := make([]byte, 9)
+	// Since we don't know when to stop reading from the socket, we set a timeout.
+	c.SetReadDeadline(time.Now().Add(timeout))
+	for {
+		// Read the frame header.
+		_, err := c.Read(frame)
+		if err != nil {
+			// we want to stop reading from the socket when we encounter an i/o timeout.
+			if strings.Contains(err.Error(), "i/o timeout") {
+				return nil
+			}
+			return err
+		}
+		// Calculate frame length.
+		frameLength := int(binary.BigEndian.Uint32(append([]byte{0}, frame[:3]...)))
+		if frameLength == 0 {
+			continue
+		}
+		// Read the frame payload.
+		payload := make([]byte, frameLength)
+		_, err = c.Read(payload)
+		if err != nil {
+			// we want to stop reading from the socket when we encounter an i/o timeout.
+			if strings.Contains(err.Error(), "i/o timeout") {
+				return nil
+			}
+			return err
+		}
+	}
+}
+
+var testHeaderFields = []hpack.HeaderField{
+	{Name: ":authority", Value: http2SrvAddr},
+	{Name: ":method", Value: "POST"},
+	{Name: ":path", Value: "/aaa"},
+	{Name: ":scheme", Value: "http"},
+	{Name: "content-type", Value: "application/json"},
+	{Name: "content-length", Value: "4"},
+	{Name: "accept-encoding", Value: "gzip"},
+	{Name: "user-agent", Value: "Go-http-client/2.0"},
+}
+
+// createMessageWithCustomHeadersFramesCount creates a message with the given number of header frames
+// and optionally ping and window update frames.
+func createMessageWithCustomHeadersFramesCount(t *testing.T, headersCount int) []byte {
+	var buf bytes.Buffer
+	framer := http2.NewFramer(&buf, nil)
+
+	for i := 0; i < headersCount; i++ {
+		streamID := 2*i + 1
+		headersFrame, err := usmhttp2.NewHeadersFrameMessage(testHeaderFields)
+		require.NoError(t, err, "could not create headers frame")
+
+		// Writing the header frames to the buffer using the Framer.
+		require.NoError(t, framer.WriteHeaders(http2.HeadersFrameParam{
+			StreamID:      uint32(streamID),
+			BlockFragment: headersFrame,
+			EndStream:     false,
+			EndHeaders:    true,
+		}), "could not write header frames")
+
+		// Writing the data frame to the buffer using the Framer.
+		require.NoError(t, framer.WriteData(uint32(streamID), true, []byte{}), "could not write data frame")
+	}
+
+	return buf.Bytes()
+}
+
+// createMessageWithCustomSettingsFrames creates a message with the given number of settings frames.
+func createMessageWithCustomSettingsFrames(t *testing.T, settingsCount int) []byte {
+	var buf bytes.Buffer
+	framer := http2.NewFramer(&buf, nil)
+
+	for i := 0; i < settingsCount; i++ {
+		require.NoError(t, framer.WriteSettings(http2.Setting{}), "could not write settings frame")
+	}
+
+	headersFrame, err := usmhttp2.NewHeadersFrameMessage(testHeaderFields)
+	require.NoError(t, err, "could not create headers frame")
+
+	// Writing the header frames to the buffer using the Framer.
+	require.NoError(t, framer.WriteHeaders(http2.HeadersFrameParam{
+		StreamID:      uint32(1),
+		BlockFragment: headersFrame,
+		EndStream:     false,
+		EndHeaders:    true,
+	}), "could not write header frames")
+
+	// Writing the data frame to the buffer using the Framer.
+	require.NoError(t, framer.WriteData(uint32(1), true, []byte{}), "could not write data frame")
+	return buf.Bytes()
+}
+
+func (s *USMHTTP2Suite) TestRawTraffic() {
+	t := s.T()
+	cfg := networkconfig.New()
+	cfg.EnableHTTP2Monitoring = true
+
+	startH2CServer(t)
+
+	tests := []struct {
+		name              string
+		messageBuilder    func() []byte
+		expectedEndpoints map[http.Key]int
+	}{
+		{
+			name: "parse_frames tail call using 1 program",
+			// The objective of this test is to verify that we accurately perform the parsing of frames within
+			// a single program.
+			messageBuilder: func() []byte {
+				settingsCount := 100
+				return createMessageWithCustomSettingsFrames(t, settingsCount)
+			},
+			expectedEndpoints: map[http.Key]int{
+				{
+					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
+					Method: http.MethodPost,
+				}: 1,
+			},
+		},
+		{
+			name: "parse_frames tail call using 2 programs",
+			// The purpose of this test is to validate that when we surpass the limit of HTTP2_MAX_FRAMES_ITERATIONS,
+			// the filtering of subsequent frames will continue using tail calls.
+			messageBuilder: func() []byte {
+				settingsCount := 130
+				return createMessageWithCustomSettingsFrames(t, settingsCount)
+			},
+			expectedEndpoints: map[http.Key]int{
+				{
+					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
+					Method: http.MethodPost,
+				}: 1,
+			},
+		},
+		{
+			name: "validate frames_filter tail calls limit",
+			// The purpose of this test is to validate that when we surpass the limit of HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER,
+			// for 2 filter_frames we do not use more than two tail calls.
+			messageBuilder: func() []byte {
+				settingsCount := 250
+				return createMessageWithCustomSettingsFrames(t, settingsCount)
+			},
+			expectedEndpoints: nil,
+		},
+		{
+			name: "validate max interesting frames limit",
+			// The purpose of this test is to verify our ability to reach the limit set by HTTP2_MAX_FRAMES_ITERATIONS, which
+			// determines the maximum number of "interesting frames" we can process.
+			messageBuilder: func() []byte {
+				headersCount := 120
+				return createMessageWithCustomHeadersFramesCount(t, headersCount)
+			},
+			expectedEndpoints: map[http.Key]int{
+				{
+					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
+					Method: http.MethodPost,
+				}: 120,
+			},
+		},
+		{
+			name: "validate more then limit max interesting frames",
+			// The purpose of this test is to verify our ability to reach the limit set by HTTP2_MAX_FRAMES_ITERATIONS
+			// and validate that we cannot handle more than that limit.
+			messageBuilder: func() []byte {
+				headersCount := 130
+				return createMessageWithCustomHeadersFramesCount(t, headersCount)
+			},
+			expectedEndpoints: map[http.Key]int{
+				{
+					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
+					Method: http.MethodPost,
+				}: 120,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			monitor, err := NewMonitor(cfg, nil, nil, nil)
+			require.NoError(t, err)
+			require.NoError(t, monitor.Start())
+			defer monitor.Stop()
+
+			c, err := net.Dial("tcp", localHostAddress)
+			require.NoError(t, err, "could not dial")
+			defer c.Close()
+
+			// Create a buffer to write the frame into.
+			var buf bytes.Buffer
+			framer := http2.NewFramer(&buf, nil)
+			// Write the empty SettingsFrame to the buffer using the Framer
+			require.NoError(t, framer.WriteSettings(http2.Setting{}), "could not write settings frame")
+
+			// Writing a magic and the settings in the same packet to socket.
+			require.NoError(t, writeInput(c, usmhttp2.ComposeMessage([]byte(http2.ClientPreface), buf.Bytes()), time.Second))
+
+			// Composing a message with the number of setting frames we want to send.
+			require.NoError(t, writeInput(c, tt.messageBuilder(), time.Second))
+
+			res := make(map[http.Key]int)
+			assert.Eventually(t, func() bool {
+				stats := monitor.GetProtocolStats()
+				http2Stats, ok := stats[protocols.HTTP2]
+				if !ok {
+					return false
+				}
+				http2StatsTyped := http2Stats.(map[http.Key]*http.RequestStats)
+				for key, stat := range http2StatsTyped {
+					if key.DstPort == http2SrvPort || key.SrcPort == http2SrvPort {
+						count := stat.Data[200].Count
+						newKey := http.Key{
+							Path:   http.Path{Content: key.Path.Content},
+							Method: key.Method,
+						}
+						if _, ok := res[newKey]; !ok {
+							res[newKey] = count
+						} else {
+							res[newKey] += count
+						}
+					}
+				}
+
+				if len(res) != len(tt.expectedEndpoints) {
+					return false
+				}
+
+				for key, endpointCount := range res {
+					_, ok := tt.expectedEndpoints[key]
+					if !ok {
+						return false
+					}
+					if endpointCount > tt.expectedEndpoints[key] {
+						return false
+					}
+				}
+
+				return true
+			}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
+			if t.Failed() {
+				for key := range tt.expectedEndpoints {
+					if _, ok := res[key]; !ok {
+						t.Logf("key: %v was not found in res", key.Path.Content.Get())
+					}
+				}
+				ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, "http2_in_flight")
+			}
+		})
+	}
+}
+
 func getClientsArray(t *testing.T, size int) []*nethttp.Client {
 	t.Helper()
 
@@ -1001,10 +1258,7 @@ func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp
 	}, 3*time.Second, time.Millisecond*100, "connection not found")
 
 	if t.Failed() {
-		err := monitor.DumpMaps(&ebpftest.TestLogWriter{T: t}, "http_in_flight")
-		if err != nil {
-			t.Logf("failed dumping http_in_flight: %s", err)
-		}
+		ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, "http_in_flight")
 
 		for reqIndex, exists := range requestsExist {
 			if !exists {

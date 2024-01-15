@@ -35,11 +35,15 @@ func TestFindContainerID(t *testing.T) {
 		},
 		{ // with prefix/suffix
 			input:  "prefixaAbBcCdDeEfF2345678901234567890123456789012345678901234567890123suffix",
-			output: "aAbBcCdDeEfF2345678901234567890123456789012345678901234567890123",
+			output: "",
 		},
 		{ // multiple
 			input:  "prefixaAbBcCdDeEfF2345678901234567890123456789012345678901234567890123-0123456789012345678901234567890123456789012345678901234567890123-9999999999999999999999999999999999999999999999999999999999999999suffix",
-			output: "aAbBcCdDeEfF2345678901234567890123456789012345678901234567890123",
+			output: "",
+		},
+		{ // path reducer test
+			input:  "/var/run/docker/overlay2/47c1f1930c1831f2359c6d276912c583be1cda5924233cf273022b91763a20f7/merged/etc/passwd",
+			output: "47c1f1930c1831f2359c6d276912c583be1cda5924233cf273022b91763a20f7",
 		},
 		{ // GARDEN
 			input:  "01234567-0123-4567-890a-bcde",
@@ -51,23 +55,23 @@ func TestFindContainerID(t *testing.T) {
 		},
 		{ // GARDEN with prefix / suffix
 			input:  "prefix01234567-0123-4567-890a-bcdesuffix",
-			output: "01234567-0123-4567-890a-bcde",
+			output: "",
+		},
+		{ // Some random path which could match garden format
+			input:  "/user.slice/user-1000.slice/user@1000.service/apps.slice/apps-org.gnome.Terminal.slice/vte-spawn-f9176c6a-2a34-4ce2-86af-60d16888ed8e.scope",
+			output: "",
 		},
 		{ // ECS
 			input:  "0123456789aAbBcCdDeEfF0123456789-0123456789",
 			output: "0123456789aAbBcCdDeEfF0123456789-0123456789",
 		},
-		{ // ECS double with first having a bad format
-			input:  "0123456789aAbBcCdDeEfF0123456789-abcdef6789/0123456789aAbBcCdDeEfF0123456789-0123456789",
-			output: "0123456789aAbBcCdDeEfF0123456789-0123456789",
-		},
 		{ // ECS as present in proc
-			input:  "/proc/0123456789aAbBcCdDeEfF0123456789-0123456789",
+			input:  "/docker/0123456789aAbBcCdDeEfF0123456789-0123456789",
 			output: "0123456789aAbBcCdDeEfF0123456789-0123456789",
 		},
 		{ // ECS with prefix / suffix
 			input:  "prefix0123456789aAbBcCdDeEfF0123456789-0123456789suffix",
-			output: "0123456789aAbBcCdDeEfF0123456789-0123456789",
+			output: "",
 		},
 	}
 

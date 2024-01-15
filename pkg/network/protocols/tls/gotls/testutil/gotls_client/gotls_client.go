@@ -15,8 +15,6 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-
-	"golang.org/x/net/http2"
 )
 
 func main() {
@@ -34,21 +32,15 @@ func main() {
 		log.Fatalf("invalid value %q for number of requests", args[1])
 	}
 
-	var transport http.RoundTripper
-	transport = &http.Transport{
-		ForceAttemptHTTP2: false,
-		TLSNextProto:      make(map[string]func(authority string, c *tls.Conn) http.RoundTripper),
+	transport := &http.Transport{
+		ForceAttemptHTTP2: *useHTTP2,
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: true,
 		},
 	}
 
-	if *useHTTP2 {
-		transport = &http2.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
-			},
-		}
+	if !*useHTTP2 {
+		transport.TLSNextProto = make(map[string]func(string, *tls.Conn) http.RoundTripper)
 	}
 
 	client := http.Client{

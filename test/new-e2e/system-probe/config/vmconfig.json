@@ -7,93 +7,11 @@
             "recipe": "distro-x86_64",
             "arch": "x86_64",
             "console_type": "file",
-            "kernels": [
-                {
-                    "dir": "xenial-server-cloudimg-x86_64.qcow2",
-                    "tag": "ubuntu_16.04",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/xenial-server-cloudimg-x86_64.qcow2.xz"
-                },
-                {
-                    "dir": "bionic-server-cloudimg-x86_64.qcow2",
-                    "tag": "ubuntu_18.04",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/bionic-server-cloudimg-x86_64.qcow2.xz"
-                },
-                {
-                    "dir": "focal-server-cloudimg-x86_64.qcow2",
-                    "tag": "ubuntu_20.04",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/focal-server-cloudimg-x86_64.qcow2.xz"
-                },
-                {
-                    "dir": "jammy-server-cloudimg-x86_64.qcow2",
-                    "tag": "ubuntu_22.04",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/jammy-server-cloudimg-x86_64.qcow2.xz"
-                },
-                {
-                    "dir": "mantic-server-cloudimg-x86_64.qcow2",
-                    "tag": "ubuntu_23.10",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/mantic-server-cloudimg-x86_64.qcow2.xz"
-                },
-                {
-                    "dir": "amzn2-kvm-2.0-x86_64-4.14.qcow2",
-                    "tag": "amzn_4.14",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/amzn2-kvm-2.0-x86_64-4.14.qcow2.xz"
-                },
-                {
-                    "dir": "amzn2-kvm-2.0-x86_64-5.4.qcow2",
-                    "tag": "amzn_5.4",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/amzn2-kvm-2.0-x86_64-5.4.qcow2.xz"
-                },
-                {
-                    "dir": "amzn2-kvm-2.0-x86_64-5.10.qcow2",
-                    "tag": "amzn_5.10",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/amzn2-kvm-2.0-x86_64-5.10.qcow2.xz"
-                },
-                {
-                    "dir": "Fedora-Cloud-Base-37.x86_64.qcow2",
-                    "tag": "fedora_37",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/Fedora-Cloud-Base-37.x86_64.qcow2.xz"
-                },
-                {
-                    "dir": "Fedora-Cloud-Base-38.x86_64.qcow2",
-                    "tag": "fedora_38",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/Fedora-Cloud-Base-38.x86_64.qcow2.xz"
-                },
-                {
-                    "dir": "debian-10-generic-x86_64.qcow2",
-                    "tag": "debian_10",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/debian-10-generic-x86_64.qcow2.xz"
-                },
-                {
-                    "dir": "debian-11-generic-x86_64.qcow2",
-                    "tag": "debian_11",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/debian-11-generic-x86_64.qcow2.xz"
-                },
-                {
-                    "dir": "debian-12-generic-x86_64.qcow2",
-                    "tag": "debian_12",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/debian-12-generic-x86_64.qcow2.xz"
-                },
-                {
-                    "dir": "centos-7.9-x86_64.qcow2",
-                    "tag": "centos_79",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/centos-7.9-x86_64.qcow2.xz"
-                },
-                {
-                    "dir": "centos-8-x86_64.qcow2",
-                    "tag": "centos_8",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/centos-8-x86_64.qcow2.xz"
-                }
-            ],
-            "vcpu": [
-                4
-            ],
-            "memory": [
-                8192
-            ],
+            "kernels": [],
             "disks": [
                 {
                     "mount_point": "/mnt/docker",
-                    "source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/docker-x86_64.qcow2",
+                    "source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/docker-x86_64.qcow2.xz",
                     "target": "/home/kernel-version-testing/docker-x86_64.qcow2",
                     "type": "default"
                 }
@@ -106,89 +24,12 @@
             "recipe": "distro-arm64",
             "arch": "arm64",
             "console_type": "file",
-            "kernels": [
-                {
-                    "dir": "bionic-server-cloudimg-arm64.qcow2",
-                    "tag": "ubuntu_18.04",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/bionic-server-cloudimg-arm64.qcow2.xz"
-                },
-                {
-                    "dir": "focal-server-cloudimg-arm64.qcow2",
-                    "tag": "ubuntu_20.04",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/focal-server-cloudimg-arm64.qcow2.xz"
-                },
-                {
-                    "dir": "jammy-server-cloudimg-arm64.qcow2",
-                    "tag": "ubuntu_22.04",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/jammy-server-cloudimg-arm64.qcow2.xz"
-                },
-                {
-                    "dir": "mantic-server-cloudimg-arm64.qcow2",
-                    "tag": "ubuntu_23.10",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/mantic-server-cloudimg-arm64.qcow2.xz"
-                },
-                {
-                    "dir": "amzn2-kvm-2.0-arm64-4.14.qcow2",
-                    "tag": "amzn_4.14",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/amzn2-kvm-2.0-arm64-4.14.qcow2.xz"
-                },
-                {
-                    "dir": "amzn2-kvm-2.0-arm64-5.4.qcow2",
-                    "tag": "amzn_5.4",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/amzn2-kvm-2.0-arm64-5.4.qcow2.xz"
-                },
-                {
-                    "dir": "amzn2-kvm-2.0-arm64-5.10.qcow2",
-                    "tag": "amzn_5.10",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/amzn2-kvm-2.0-arm64-5.10.qcow2.xz"
-                },
-                {
-                    "dir": "Fedora-Cloud-Base-37.arm64.qcow2",
-                    "tag": "fedora_37",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/Fedora-Cloud-Base-37.arm64.qcow2.xz"
-                },
-                {
-                    "dir": "Fedora-Cloud-Base-38.arm64.qcow2",
-                    "tag": "fedora_38",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/Fedora-Cloud-Base-38.arm64.qcow2.xz"
-                },
-                {
-                    "dir": "debian-10-generic-arm64.qcow2",
-                    "tag": "debian_10",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/debian-10-generic-arm64.qcow2.xz-test-only"
-                },
-                {
-                    "dir": "debian-11-generic-arm64.qcow2",
-                    "tag": "debian_11",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/debian-11-generic-arm64.qcow2.xz-test-only"
-                },
-                {
-                    "dir": "debian-12-generic-arm64.qcow2",
-                    "tag": "debian_12",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/debian-12-generic-arm64.qcow2.xz"
-                },
-                {
-                    "dir": "centos-7.9-arm64.qcow2",
-                    "tag": "centos_79",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/centos-7.9-arm64.qcow2.xz"
-                },
-                {
-                    "dir": "centos-8-arm64.qcow2",
-                    "tag": "centos_8",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/centos-8-arm64.qcow2.xz"
-                }
-            ],
+            "kernels": [],
             "machine": "virt",
-            "vcpu": [
-                4
-            ],
-            "memory": [
-                8192
-            ],
             "disks": [
                 {
                     "mount_point": "/mnt/docker",
-                    "source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/docker-arm64.qcow2",
+                    "source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/docker-arm64.qcow2.xz",
                     "target": "/home/kernel-version-testing/docker-arm64.qcow2",
                     "type": "default"
                 }
