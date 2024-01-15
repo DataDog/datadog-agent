@@ -22,7 +22,7 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/gorilla/mux"
 
-	v1 "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi/v1"
+	v1 "github.com/DataDog/datadog-agent/comp/agents/core/coreimpl/internal/clcrunnerapi/v1"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"

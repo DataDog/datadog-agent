@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 //go:build windows
 
-package run
+package coreimpl
 
 import (
 	"fmt"
