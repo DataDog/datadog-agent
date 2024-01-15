@@ -1211,6 +1211,10 @@ def get_modified_packages(ctx) -> List[GoModule]:
     # Clean up duplicated paths to reduce Go test cmd length
     for module in modules_to_test:
         modules_to_test[module].targets = clean_nested_paths(modules_to_test[module].targets)
+        if (
+            len(modules_to_test[module].targets) >= 150
+        ):  # With more packages we can reach the limit of the command line length on Windows
+            modules_to_test[module].targets = DEFAULT_MODULES[module].targets
 
     print("Running tests for the following modules:")
     for module in modules_to_test:
