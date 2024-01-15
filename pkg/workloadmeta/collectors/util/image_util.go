@@ -9,11 +9,13 @@
 package util
 
 import (
+	"sort"
+
 	"github.com/CycloneDX/cyclonedx-go"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	trivydx "github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 	"github.com/mohae/deepcopy"
-	"sort"
+
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
