@@ -143,6 +143,6 @@ func renderText(buffer io.Writer, data any) error {
 	if tmplErr != nil {
 		return tmplErr
 	}
-	t := textTemplate.Must(textTemplate.New("snmp").Funcs(status.HTMLFmap()).Parse(string(tmpl)))
+	t := textTemplate.Must(textTemplate.New("snmp").Funcs(status.TextFmap()).Parse(string(tmpl)))
 	return t.Execute(buffer, data)
 }
