@@ -159,12 +159,12 @@ func (c *Check) traceRouteV2(sender sender.Sender, hostHops [][]traceroute.Trace
 			DestinationHost:  destinationHost,
 
 			// HOP
-			HopTTL:     hopTTL,
-			HopID:      hopID,
-			HopIp:      hopIp,
-			HopHost:    hop.HostOrAddressString(),
-			HopRtt:     hopRtt,
-			HopSuccess: hop.Success,
+			HopTTL:      hopTTL,
+			HopID:       hopID,
+			HopIp:       hopIp,
+			HopHostname: hop.HostOrAddressString(),
+			HopRtt:      hopRtt,
+			HopSuccess:  hop.Success,
 
 			// Prev HOP
 			PrevhopID: prevhopID,
