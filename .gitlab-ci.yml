@@ -940,7 +940,7 @@ workflow:
         - test/kitchen/test/integration/security-agent-test/**/*
         - test/kitchen/test/integration/security-agent-stress/**/*
         - .gitlab/functional_test/security_agent.yml
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.51.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
     allow_failure: true
@@ -968,7 +968,7 @@ workflow:
         - test/new-e2e-utils/**/*
         - test/new-e2e/go.mod
         - tasks/system_probe.py
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.51.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
     allow_failure: true
