@@ -33,7 +33,7 @@ from .libs.datadog_api import create_count, send_metrics
 from .libs.junit_upload import add_flavor_to_junitxml, junit_upload_from_tgz, produce_junit_tar, repack_macos_junit_tar
 from .modules import DEFAULT_MODULES, GoModule
 from .trace_agent import integration_tests as trace_integration_tests
-from .utils import DEFAULT_BRANCH, get_build_flags
+from .utils import DEFAULT_BRANCH, clean_nested_paths, get_build_flags
 
 PROFILE_COV = "coverage.out"
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
@@ -1207,6 +1207,10 @@ def get_modified_packages(ctx) -> List[GoModule]:
                 modules_to_test[best_module_path].targets.append(relative_target)
         else:
             modules_to_test[best_module_path] = GoModule(best_module_path, targets=[relative_target])
+
+    # Clean up duplicated paths to reduce Go test cmd length
+    for module in modules_to_test:
+        modules_to_test[module].targets = clean_nested_paths(modules_to_test[module].targets)
 
     print("Running tests for the following modules:")
     for module in modules_to_test:

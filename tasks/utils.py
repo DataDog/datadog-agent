@@ -576,3 +576,22 @@ def timed(name="", quiet=False):
         res.duration = time.time() - start
         if not quiet:
             print(f"{name} completed in {res.duration:.2f}s")
+
+
+def clean_nested_paths(paths: list[str]) -> list[str]:
+    """
+    Clean a list of paths by removing paths that are included in other paths.
+
+    Example:
+    >>> clean_nested_paths(["./pkg/utils/toto", "./pkg/utils/", "./pkg", "./toto/pkg", "./pkg/utils/tata"])
+    ["./pkg", "./toto/pkg"]
+    """
+    # sort the paths by length, so that the longest paths are at the beginning
+    paths.sort(key=len, reverse=True)
+    cleaned_paths = []
+    for path in paths:
+        # if the path is already included in another path, skip it
+        if any(path.startswith(cleaned_path) for cleaned_path in cleaned_paths):
+            continue
+        cleaned_paths.append(path)
+    return cleaned_paths
