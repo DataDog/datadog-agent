@@ -1,3 +1,5 @@
+import sys
+
 from tasks.kernel_matrix_testing.tool import info
 
 
@@ -28,11 +30,14 @@ def start_compiler(ctx):
         "docker run -d --restart always --name kmt-compiler --mount type=bind,source=./,target=/datadog-agent kmt:compile sleep \"infinity\""
     )
 
-    uid = ctx.run("getent passwd $USER | cut -d ':' -f 3").stdout.rstrip()
-    gid = ctx.run("getent group $USER | cut -d ':' -f 3").stdout.rstrip()
+    uid = ctx.run("id -u").stdout.rstrip()
+    gid = ctx.run("id -g").stdout.rstrip()
     docker_exec(ctx, f"getent group {gid} || groupadd -f -g {gid} compiler", user="root")
     docker_exec(ctx, f"getent passwd {uid} || useradd -m -u {uid} -g {gid} compiler", user="root")
-    docker_exec(ctx, f"chown {uid}:{gid} /datadog-agent && chown -R {uid}:{gid} /datadog-agent", user="root")
+
+    if sys.platform != "darwin":  # No need to change permissions in MacOS
+        docker_exec(ctx, f"chown {uid}:{gid} /datadog-agent && chown -R {uid}:{gid} /datadog-agent", user="root")
+
     docker_exec(ctx, "apt install sudo", user="root")
     docker_exec(ctx, "usermod -aG sudo compiler && echo 'compiler ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers", user="root")
     docker_exec(ctx, f"install -d -m 0777 -o {uid} -g {uid} /go", user="root")
