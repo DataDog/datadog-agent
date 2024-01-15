@@ -37,4 +37,4 @@ class Linux:
 
 
 class MacOS:
-    stacks_dir = "/Users/guillermo.julian/kernel-version-testing/stacks/"
+    pass
