@@ -15,7 +15,7 @@ import (
 )
 
 func init() {
-	registerAgent("system-probe", func() *cobra.Command {
+	registerAgent([]string{"system-probe"}, func() *cobra.Command {
 		rootCmd := sysprobecommand.MakeCommand(sysprobesubcommands.SysprobeSubcommands())
 		sysprobecommand.SetDefaultCommandIfNonePresent(rootCmd)
 		return rootCmd

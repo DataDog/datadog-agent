@@ -22,8 +22,10 @@ import (
 
 var agents = map[string]func() *cobra.Command{}
 
-func registerAgent(name string, getCommand func() *cobra.Command) {
-	agents[name] = getCommand
+func registerAgent(names []string, getCommand func() *cobra.Command) {
+	for _, name := range names {
+		agents[name] = getCommand
+	}
 }
 
 func coreAgentMain() *cobra.Command {
@@ -31,7 +33,7 @@ func coreAgentMain() *cobra.Command {
 }
 
 func init() {
-	registerAgent("agent", coreAgentMain)
+	registerAgent([]string{"agent", "datadog-agent", "dd-agent"}, coreAgentMain)
 }
 
 func main() {
@@ -56,7 +58,7 @@ func main() {
 
 	agentCmdBuilder := agents[process]
 	if agentCmdBuilder == nil {
-		fmt.Fprintf(os.Stderr, "Failed to find which agent to use for '%s'\n, falling back to main agent", process)
+		fmt.Fprintf(os.Stderr, "Invoked as '%s', acting as main Agent.\n", process)
 		agentCmdBuilder = coreAgentMain
 	}
 
