@@ -18,8 +18,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
-	"github.com/mohae/deepcopy"
-
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
@@ -583,7 +581,6 @@ func (c *collector) getImageMetadata(ctx context.Context, imageID string, newSBO
 	)
 
 	sbom := newSBOM
-	var usingExistingSBOM bool
 	// We can get "create" events for images that already exist. That happens
 	// when the same image is referenced with different names. For example,
 	// datadog/agent:latest and datadog/agent:7 might refer to the same image.
@@ -604,7 +601,6 @@ func (c *collector) getImageMetadata(ctx context.Context, imageID string, newSBO
 
 		if sbom == nil && existingImg.SBOM.Status != workloadmeta.Pending {
 			sbom = existingImg.SBOM
-			usingExistingSBOM = true
 		}
 	}
 
@@ -614,18 +610,11 @@ func (c *collector) getImageMetadata(ctx context.Context, imageID string, newSBO
 		}
 	}
 
-	// SBOMs are generated only once. However, when they are generated it is possible that
-	// not every RepoDigest and RepoTags are attached to the image. In that case, the SBOM
-	// will also miss metadata and will not be re-generated when new metadata is detected.
-	// Because this metadata is essential for processing, it is important to inject new metadata
-	// to the existing SBOM. Generating a new SBOM can be a more robust solution but can also be
-	// costly.
-	// Moreover, it is not safe to modify the original SBOM if it is already stored in workloadmeta,
-	// so we create a copy of it. It is costly but shouldn't be called so often.
-	if usingExistingSBOM {
-		sbom = deepcopy.Copy(sbom).(*workloadmeta.SBOM)
-		sbom = util.UpdateSBOMRepoMetadata(sbom, imgInspect.RepoTags, imgInspect.RepoDigests)
-	}
+	// The CycloneDX should contain the RepoTags and RepoDigests but the scanner might
+	// not be able to inject them. For example, if we use the scanner from filesystem or
+	// if the `imgMeta` object does not contain all the metadata when it is sent.
+	// We add them here to make sure they are present.
+	sbom = util.UpdateSBOMRepoMetadata(sbom, imgInspect.RepoTags, imgInspect.RepoDigests)
 
 	return &workloadmeta.ContainerImageMetadata{
 		EntityID: workloadmeta.EntityID{

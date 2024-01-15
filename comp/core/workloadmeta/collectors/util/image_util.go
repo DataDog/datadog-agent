@@ -9,9 +9,14 @@
 package util
 
 import (
+	"golang.org/x/exp/slices"
+	"sort"
+
 	"github.com/CycloneDX/cyclonedx-go"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	trivydx "github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
+	"github.com/mohae/deepcopy"
+
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 )
 
 const (
@@ -19,8 +24,8 @@ const (
 	repoDigestPropertyKey = trivydx.Namespace + trivydx.PropertyRepoDigest
 )
 
-// UpdateSBOMRepoMetadata updates entered SBOM with new metadata properties if the initial SBOM status was successful
-// and there are new repoTags and repoDigests missing in the SBOM. It returns the updated SBOM.
+// UpdateSBOMRepoMetadata finds if the repo tags and repo digests are present in the SBOM and updates them if not.
+// It returns a copy of the SBOM with the updated properties if they were not already present.
 func UpdateSBOMRepoMetadata(sbom *workloadmeta.SBOM, repoTags, repoDigests []string) *workloadmeta.SBOM {
 	if sbom == nil ||
 		sbom.Status != workloadmeta.Success ||
@@ -32,18 +37,52 @@ func UpdateSBOMRepoMetadata(sbom *workloadmeta.SBOM, repoTags, repoDigests []str
 	}
 
 	properties := *sbom.CycloneDXBOM.Metadata.Component.Properties
-	properties = removeOldRepoProperties(properties)
+	mismatched := !propertiesEqualsValues(properties, repoTags, repoTagPropertyKey) || !propertiesEqualsValues(properties, repoDigests, repoDigestPropertyKey)
 
-	properties = appendRepoProperties(properties, repoTags, repoTagPropertyKey)
-	properties = appendRepoProperties(properties, repoDigests, repoDigestPropertyKey)
+	if mismatched {
+		sbom = deepcopy.Copy(sbom).(*workloadmeta.SBOM)
+		newProperties := *sbom.CycloneDXBOM.Metadata.Component.Properties
+		newProperties = cleanProperties(newProperties)
 
-	sbom.CycloneDXBOM.Metadata.Component.Properties = &properties
+		newProperties = appendProperties(newProperties, repoTags, repoTagPropertyKey)
+		newProperties = appendProperties(newProperties, repoDigests, repoDigestPropertyKey)
+
+		// Sort properties to ensure consistent ordering for tests
+		sort.Slice(newProperties, func(i, j int) bool {
+			return newProperties[i].Name < newProperties[j].Name || newProperties[i].Value < newProperties[j].Value
+		})
+		sbom.CycloneDXBOM.Metadata.Component.Properties = &newProperties
+	}
 
 	return sbom
 }
 
-// removeOldRepoProperties returns an array without repodigests and repoTags
-func removeOldRepoProperties(properties []cyclonedx.Property) []cyclonedx.Property {
+// propertiesEqualsValues function compares the existing properties with the new values
+func propertiesEqualsValues(properties []cyclonedx.Property, newValues []string, propertyKeyType string) bool {
+	existingValuesMap := make(map[string]struct{})
+	for _, prop := range properties {
+		if prop.Name == propertyKeyType {
+			existingValuesMap[prop.Value] = struct{}{}
+		}
+	}
+
+	for _, newValue := range newValues {
+		if _, found := existingValuesMap[newValue]; !found {
+			return false
+		}
+	}
+
+	for existingValue := range existingValuesMap {
+		if !slices.Contains(newValues, existingValue) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// Remove properties from the list that are present in the mismatched map
+func cleanProperties(properties []cyclonedx.Property) []cyclonedx.Property {
 	res := make([]cyclonedx.Property, 0, len(properties))
 
 	for _, prop := range properties {
@@ -56,11 +95,20 @@ func removeOldRepoProperties(properties []cyclonedx.Property) []cyclonedx.Proper
 	return res
 }
 
-// appendRepoProperties function updates the slice of properties
-func appendRepoProperties(properties []cyclonedx.Property, repoValues []string, propertyKeyType string) []cyclonedx.Property {
-	for _, repoValue := range repoValues {
-		prop := cdxProperty(propertyKeyType, repoValue)
-		properties = append(properties, prop)
+// Append new values to the properties that were not already present
+func appendProperties(properties []cyclonedx.Property, newValues []string, propertyKeyType string) []cyclonedx.Property {
+	existingValues := make(map[string]struct{})
+	for _, prop := range properties {
+		if prop.Name == propertyKeyType {
+			existingValues[prop.Value] = struct{}{}
+		}
+	}
+
+	for _, newValue := range newValues {
+		if _, found := existingValues[newValue]; !found {
+			prop := cdxProperty(propertyKeyType, newValue)
+			properties = append(properties, prop)
+		}
 	}
 	return properties
 }
