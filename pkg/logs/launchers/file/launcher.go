@@ -155,6 +155,7 @@ func (s *Launcher) scan() {
 		if isTailed {
 			didRotate, err := tailer.DidRotate()
 			if err != nil {
+				log.Debugf("failed to detect log rotation: %s", err)
 				continue
 			}
 			if didRotate {
