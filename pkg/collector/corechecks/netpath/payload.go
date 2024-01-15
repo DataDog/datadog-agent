@@ -27,14 +27,15 @@ type TracerouteV2 struct {
 	DestinationHost  string `json:"destination_host"`
 
 	// HOP
-	HopTTL       int     `json:"hop_ttl"`
-	HopIpAddress string  `json:"hop_ip"`
-	HopHost      string  `json:"hop_host"`
-	HopRtt       float64 `json:"hop_rtt"`
-	HopSuccess   bool    `json:"hop_success"`
+	HopID      string  `json:"hop_id"`
+	HopTTL     int     `json:"hop_ttl"`
+	HopIp      string  `json:"hop_ip"`
+	HopHost    string  `json:"hop_host"`
+	HopRtt     float64 `json:"hop_rtt"`
+	HopSuccess bool    `json:"hop_success"`
 
 	// Prev HOP
-	PrevhopIp string `json:"prevhop_ip"`
+	PrevhopID string `json:"prevhop_id"`
 
 	Message string `json:"message"`
 	Team    string `json:"team"`

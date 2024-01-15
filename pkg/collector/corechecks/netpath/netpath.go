@@ -19,7 +19,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"net"
-	"strconv"
 	"sync"
 	"time"
 
@@ -132,38 +131,43 @@ func (c *Check) traceRouteV1(sender sender.Sender, hostHops [][]traceroute.Trace
 }
 
 func (c *Check) traceRouteV2(sender sender.Sender, hostHops [][]traceroute.TracerouteHop, hname string, destinationHost string) error {
-	id := uuid.New()
+	pathID := uuid.New()
 
-	agent_hostname := hname + "-TEST01"
+	agentHostname := hname + "-TEST01"
 
 	hops := hostHops[0]
-	var prevHop traceroute.TracerouteHop
+	var prevhopID string
 	for _, hop := range hops {
 		hopIp := hop.AddressString()
-		hopRtt := hop.ElapsedTime.Seconds() * 10e3
-		var prevHopHost string
-		if hop.TTL == 1 {
-			prevHopHost = agent_hostname
+		hopTTL := hop.TTL
+		var hopID string
+		if hopIp == "0.0.0.0" {
+			hopID = fmt.Sprintf("hop:%s-%s-%d", agentHostname, destinationHost, hopTTL)
 		} else {
-			prevHopHost = prevHop.AddressString()
+			hopID = "ip:" + hopIp
+		}
+		hopRtt := hop.ElapsedTime.Seconds() * 10e3
+		if hopTTL == 1 {
+			prevhopID = "agent:" + agentHostname
 		}
 		tr := TracerouteV2{
 			TracerouteSource: "netpath_integration",
-			PathID:           id.String(),
 			Strategy:         "hop_per_event",
+			PathID:           pathID.String(),
 			Timestamp:        time.Now().UnixMilli(),
-			AgentHost:        agent_hostname,
+			AgentHost:        agentHostname,
 			DestinationHost:  destinationHost,
 
 			// HOP
-			HopTTL:       hop.TTL,
-			HopIpAddress: hopIp,
-			HopHost:      hop.HostOrAddressString(),
-			HopRtt:       hopRtt,
-			HopSuccess:   hop.Success,
+			HopTTL:     hopTTL,
+			HopID:      hopID,
+			HopIp:      hopIp,
+			HopHost:    hop.HostOrAddressString(),
+			HopRtt:     hopRtt,
+			HopSuccess: hop.Success,
 
 			// Prev HOP
-			PrevhopIp: prevHopHost,
+			PrevhopID: prevhopID,
 
 			Message: "my-network-path",
 			Team:    "network-device-monitoring",
@@ -176,24 +180,23 @@ func (c *Check) traceRouteV2(sender sender.Sender, hostHops [][]traceroute.Trace
 		log.Infof("traceroute: %s", string(tracerouteStr))
 
 		sender.EventPlatformEvent(tracerouteStr, epforwarder.EventTypeNetworkDevicesNetpath)
-		tags := []string{
-			"target_service:" + c.config.TargetService,
-			"agent_host:" + agent_hostname,
-			"target:" + destinationHost,
-			"hop_ip_address:" + hopIp,
-			"hop_host:" + hop.HostOrAddressString(),
-			"ttl:" + strconv.Itoa(hop.TTL),
-		}
-		if prevHop.TTL > 0 {
-			prevIp := prevHop.AddressString()
-			tags = append(tags, "prev_hop_ip_address:"+prevIp)
-			tags = append(tags, "prev_hop_host:"+prevHop.HostOrAddressString())
-		}
-		log.Infof("[netpath] tags: %s", tags)
-		sender.Gauge("netpath.hop.duration", hopRtt, "", CopyStrings(tags))
-		sender.Gauge("netpath.hop.record", float64(1), "", CopyStrings(tags))
+		//tags := []string{
+		//	"target_service:" + c.config.TargetService,
+		//	"agent_host:" + agentHostname,
+		//	"target:" + destinationHost,
+		//	"hop_ip_address:" + hopIp,
+		//	"hop_host:" + hop.HostOrAddressString(),
+		//	"ttl:" + strconv.Itoa(hopTTL),
+		//}
+		//if prevhopID != "" {
+		//	tags = append(tags, "prev_hop_ip_address:"+prevhopID)
+		//	tags = append(tags, "prev_hop_host:"+prevhopID)
+		//}
+		//log.Infof("[netpath] tags: %s", tags)
+		//sender.Gauge("netpath.hop.duration", hopRtt, "", CopyStrings(tags))
+		//sender.Gauge("netpath.hop.record", float64(1), "", CopyStrings(tags))
 
-		prevHop = hop
+		prevhopID = hopID
 	}
 
 	return nil
