@@ -1,3 +1,6 @@
+from tasks.kernel_matrix_testing.tool import info
+
+
 def compiler_built(ctx):
     res = ctx.run("docker images kmt:compile | grep -v REPOSITORY | grep kmt", warn=True)
     return res.ok
@@ -6,6 +9,10 @@ def compiler_built(ctx):
 def docker_exec(ctx, cmd, user="compiler", verbose=True, run_dir=None):
     if run_dir:
         cmd = f"cd {run_dir} && {cmd}"
+
+    if not compiler_running(ctx):
+        info("[*] Compiler not running, starting it...")
+        start_compiler(ctx)
 
     ctx.run(f"docker exec -u {user} -i kmt-compiler bash -c \"{cmd}\"", hide=(not verbose))
 
