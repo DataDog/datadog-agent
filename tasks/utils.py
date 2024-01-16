@@ -591,7 +591,14 @@ def clean_nested_paths(paths: list[str]) -> list[str]:
     cleaned_paths = []
     for path in paths:
         # if the path is already included in another path, skip it
-        if len(cleaned_paths) == 0 or not path.startswith(cleaned_paths[-1]):
+        if len(cleaned_paths) == 0:
             cleaned_paths.append(path)
+        else:
+            last_clean_path_splitted = cleaned_paths[-1].split("/")
+            path_splitted = path.split("/")
+            for idx, element in enumerate(last_clean_path_splitted):
+                if idx >= len(path_splitted) or element != path_splitted[idx]:
+                    cleaned_paths.append(path)
+                    break
 
     return cleaned_paths
