@@ -13,6 +13,7 @@ ExecStart=<%= install_dir %>/embedded/bin/agentless-scanner run -c <%= etc_dir %
 # it is also supported to have it here.
 StartLimitInterval=10
 StartLimitBurst=5
+TimeoutStopSec=60
 
 [Install]
 WantedBy=multi-user.target
