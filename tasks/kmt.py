@@ -7,14 +7,12 @@ from pathlib import Path
 
 from invoke import task
 
-
-from .kernel_matrix_testing.infra import build_infrastructure
-
 from .kernel_matrix_testing import stacks, vmconfig
 from .kernel_matrix_testing.compiler import build_compiler as build_cc
 from .kernel_matrix_testing.compiler import compiler_running, docker_exec
 from .kernel_matrix_testing.compiler import start_compiler as start_cc
 from .kernel_matrix_testing.download import arch_mapping, update_rootfs
+from .kernel_matrix_testing.infra import build_infrastructure
 from .kernel_matrix_testing.init_kmt import check_and_get_stack, init_kernel_matrix_testing_system
 from .kernel_matrix_testing.kmt_os import get_kmt_os
 from .kernel_matrix_testing.tool import Exit, ask, info, warn
@@ -167,7 +165,7 @@ def full_arch(arch):
 
 
 @task
-def prepare(ctx, vms, stack=None, arch=None, ssh_key=None, rebuild_deps=False, packages="", verbose=False):
+def prepare(ctx, vms, stack=None, arch=None, ssh_key=None, rebuild_deps=False, packages="", verbose=True):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
@@ -209,7 +207,7 @@ def prepare(ctx, vms, stack=None, arch=None, ssh_key=None, rebuild_deps=False, p
             instance.copy_to_all_vms(ctx, f"kmt-deps/{stack}/dependencies-{full_arch(instance.arch)}.tar.gz")
 
         for d in domains:
-            d.run_cmd(ctx, f"/root/fetch_dependencies.sh {platform.machine()}", allow_fail=True, verbose=True)
+            d.run_cmd(ctx, f"/root/fetch_dependencies.sh {platform.machine()}", allow_fail=True, verbose=verbose)
             d.copy(
                 ctx,
                 "./test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg",
@@ -235,7 +233,7 @@ def build_run_config(run, packages):
 
 
 @task
-def test(ctx, vms, stack=None, packages="", run=None, retry=2, rebuild_deps=False, ssh_key=None, verbose=False):
+def test(ctx, vms, stack=None, packages="", run=None, retry=2, rebuild_deps=False, ssh_key=None, verbose=True):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
@@ -257,11 +255,11 @@ def test(ctx, vms, stack=None, packages="", run=None, retry=2, rebuild_deps=Fals
 
         for d in domains:
             d.copy(ctx, f"{tmp.name}", "/tmp")
-            d.run_cmd(ctx, f"bash /micro-vm-init.sh {retry} {tmp.name}", verbose=True)
+            d.run_cmd(ctx, f"bash /micro-vm-init.sh {retry} {tmp.name}", verbose=verbose)
 
 
 @task
-def build(ctx, vms, stack=None, ssh_key=None, rebuild_deps=False, verbose=False):
+def build(ctx, vms, stack=None, ssh_key=None, rebuild_deps=False, verbose=True):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
@@ -295,7 +293,7 @@ def build(ctx, vms, stack=None, ssh_key=None, rebuild_deps=False, verbose=False)
     for d in domains:
         d.copy(ctx, "./bin/system-probe", "/root")
         d.copy(ctx, f"kmt-deps/{stack}/shared.tar", "/")
-        d.run_cmd(ctx, "tar xf /shared.tar -C /")
+        d.run_cmd(ctx, "tar xf /shared.tar -C /", verbose=verbose)
         info(f"[+] system-probe built for {d.name} @ /root")
 
 

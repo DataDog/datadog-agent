@@ -1,16 +1,15 @@
-import os
 import json
+import os
 
-from .stacks import ask_for_ssh
 from .kmt_os import get_kmt_os
-from .stacks import find_ssh_key
+from .stacks import ask_for_ssh, find_ssh_key
 from .tool import Exit, error
 
 
 class LocalCommandRunner:
     @staticmethod
     def run_cmd(ctx, _, cmd, allow_fail, verbose):
-        res = ctx.run(cmd.format(proxy_cmd=""))
+        res = ctx.run(cmd.format(proxy_cmd=""), hide=(not verbose))
         if not res.ok:
             error(f"[-] Failed: {cmd}")
             if allow_fail:
@@ -29,7 +28,8 @@ class RemoteCommandRunner:
         res = ctx.run(
             cmd.format(
                 proxy_cmd=f"-o ProxyCommand='ssh -o StrictHostKeyChecking=no -i {instance.ssh_key} -W %h:%p ubuntu@{instance.ip}'"
-            )
+            ),
+            hide=(not verbose),
         )
         if not res.ok:
             error(f"[-] Failed: {cmd}")
