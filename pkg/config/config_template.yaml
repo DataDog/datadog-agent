@@ -1167,8 +1167,8 @@ api_key:
   #
   # force_use_tcp: true
 
-  ## @param use_compression - boolean - optional - default: false
-  ## @env DD_LOGS_CONFIG_USE_COMPRESSION - boolean - optional - default: false
+  ## @param use_compression - boolean - optional - default: true
+  ## @env DD_LOGS_CONFIG_USE_COMPRESSION - boolean - optional - default: true
   ## This parameter is available when sending logs with HTTPS. If enabled, the Agent
   ## compresses logs before sending them.
   #
@@ -1588,17 +1588,17 @@ api_key:
 
   ## @param trace_buffer - integer - optional - default: 0
   ## @env DD_APM_TRACE_BUFFER - integer - optional - default: 0
-  ## 
+  ##
   ## WARNING: Do not use this config. It is here for debugging and
   ## as a temporary fix in certain load scenarios. Setting this
   ## results in a performance deterioration and an increase in memory
   ## usage when the Trace Agent is under load. This config may be
   ## removed in a future version.
-  ## 
+  ##
   ## Specifies the number of trace payloads to buffer after decoding.
   ## Traces can be buffered when receiving traces faster than the
   ## processor can process them.
-  ## 
+  ##
   #
   # trace_buffer: 0
 
@@ -2329,11 +2329,11 @@ api_key:
 #
 # dogstatsd_no_aggregation_pipeline: true
 
-## @param dogstatsd_no_aggregation_pipeline_batch_size - integer - optional - default: 256
-## @env DD_DOGSTATSD_NO_AGGREGATION_PIPELINE_BATCH_SIZE - integer - optional - default: 256
+## @param dogstatsd_no_aggregation_pipeline_batch_size - integer - optional - default: 2048
+## @env DD_DOGSTATSD_NO_AGGREGATION_PIPELINE_BATCH_SIZE - integer - optional - default: 2048
 ## How many metrics maximum in payloads sent by the no-aggregation pipeline to the intake.
 #
-# dogstatsd_no_aggregation_pipeline_batch_size: 256
+# dogstatsd_no_aggregation_pipeline_batch_size: 2048
 
 ## @param statsd_forward_host - string - optional - default: ""
 ## @env DD_STATSD_FORWARD_HOST - string - optional - default: ""
@@ -3279,11 +3279,11 @@ api_key:
 #
 # cri_socket_path: ""
 
-## @param cri_connection_timeout - integer - optional - default: 5
-## @env DD_CRI_CONNECTION_TIMEOUT - integer - optional - default: 5
+## @param cri_connection_timeout - integer - optional - default: 1
+## @env DD_CRI_CONNECTION_TIMEOUT - integer - optional - default: 1
 ## Configure the initial connection timeout in seconds.
 #
-# cri_connection_timeout: 5
+# cri_connection_timeout: 1
 
 ## @param cri_query_timeout - integer - optional - default: 5
 ## @env DD_CRI_QUERY_TIMEOUT - integer - optional - default: 5
@@ -3600,10 +3600,10 @@ api_key:
   #
   # checks: {}
 
-  ## @param version - integer - optional - default: 2
+  ## @param version - integer - optional - default: 1
   ## Version of the openmetrics check to be scheduled by the Prometheus auto-discovery
   #
-  # version: 2
+  # version: 1
 
 {{ end -}}
 {{- if .CloudFoundryBBS }}
@@ -3921,8 +3921,8 @@ api_key:
 
     ## @param resource_attributes_as_tags - boolean - optional - default: false
     ## @env DD_OTLP_CONFIG_METRICS_RESOURCE_ATTRIBUTES_AS_TAGS - boolean - optional - default: false
-    ## Set to true to add resource attributes of a metric to its metric tags. Please note that any of 
-    ## the subset of resource attributes in this list https://docs.datadoghq.com/opentelemetry/guide/semantic_mapping/ 
+    ## Set to true to add resource attributes of a metric to its metric tags. Please note that any of
+    ## the subset of resource attributes in this list https://docs.datadoghq.com/opentelemetry/guide/semantic_mapping/
     ## are converted to Datadog conventions and set to to metric tags whether this option is enabled or not.
     #
     # resource_attributes_as_tags: false

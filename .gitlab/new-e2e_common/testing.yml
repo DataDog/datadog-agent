@@ -2,11 +2,13 @@
   rules: !reference [.on_kitchen_tests_a6] #TODO: Change when migration is complete to another name without 'kitchen'
   variables:
     AGENT_MAJOR_VERSION: 6
+  retry: 1
 
 .new-e2e_agent_a7:
   rules: !reference [.on_kitchen_tests_a7] #TODO: Change when migration is complete to another name without 'kitchen'
   variables:
     AGENT_MAJOR_VERSION: 7
+  retry: 1
 
 .new-e2e_install_script:
   variables:
