@@ -21,9 +21,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/resolver"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -49,7 +50,7 @@ var (
 )
 
 func TestNewDefaultForwarder(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigsetup.Conf()
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(keysPerDomains)))
 
@@ -81,7 +82,7 @@ func TestFeature(t *testing.T) {
 }
 
 func TestStart(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigsetup.Conf()
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(monoKeysDomains)))
 	err := forwarder.Start()
@@ -95,23 +96,20 @@ func TestStart(t *testing.T) {
 }
 
 func TestStopWithoutPurgingTransaction(t *testing.T) {
-	forwarderTimeout := config.Datadog.GetDuration("forwarder_stop_timeout")
-	defer func() { config.Datadog.SetWithoutSource("forwarder_stop_timeout", forwarderTimeout) }()
-	config.Datadog.SetWithoutSource("forwarder_stop_timeout", 0)
+	mockConfig := pkgconfigsetup.Conf()
+	mockConfig.SetWithoutSource("forwarder_stop_timeout", 0)
 
-	testStop(t)
+	testStop(t, mockConfig)
 }
 
 func TestStopWithPurgingTransaction(t *testing.T) {
-	forwarderTimeout := config.Datadog.GetDuration("forwarder_stop_timeout")
-	defer func() { config.Datadog.SetWithoutSource("forwarder_stop_timeout", forwarderTimeout) }()
-	config.Datadog.SetWithoutSource("forwarder_stop_timeout", 1)
+	mockConfig := pkgconfigsetup.Conf()
+	mockConfig.SetWithoutSource("forwarder_stop_timeout", 1)
 
-	testStop(t)
+	testStop(t, mockConfig)
 }
 
-func testStop(t *testing.T) {
-	mockConfig := config.Mock(t)
+func testStop(t *testing.T, mockConfig pkgconfigmodel.Config) {
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(keysPerDomains)))
 	assert.Equal(t, Stopped, forwarder.State())
@@ -128,7 +126,7 @@ func testStop(t *testing.T) {
 }
 
 func TestSubmitIfStopped(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigsetup.Conf()
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(monoKeysDomains)))
 
@@ -144,7 +142,7 @@ func TestSubmitIfStopped(t *testing.T) {
 }
 
 func TestCreateHTTPTransactions(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigsetup.Conf()
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(keysPerDomains)))
 	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "foo"}
@@ -177,7 +175,7 @@ func TestCreateHTTPTransactions(t *testing.T) {
 }
 
 func TestCreateHTTPTransactionsWithMultipleDomains(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigsetup.Conf()
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(keysWithMultipleDomains)))
 	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "foo"}
@@ -218,7 +216,7 @@ func TestCreateHTTPTransactionsWithDifferentResolvers(t *testing.T) {
 	additionalResolver := resolver.NewMultiDomainResolver("datadog.vector", []string{"api-key-4"})
 	additionalResolver.RegisterAlternateDestination("diversion.domain", "diverted_name", resolver.Vector)
 	resolvers["datadog.vector"] = additionalResolver
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigsetup.Conf()
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolvers))
 	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "diverted_name"}
@@ -262,7 +260,7 @@ func TestCreateHTTPTransactionsWithOverrides(t *testing.T) {
 	r := resolver.NewMultiDomainResolver(testDomain, []string{"api-key-1"})
 	r.RegisterAlternateDestination("observability_pipelines_worker.tld", "diverted", resolver.Vector)
 	resolvers[testDomain] = r
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigsetup.Conf()
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolvers))
 
@@ -287,7 +285,7 @@ func TestCreateHTTPTransactionsWithOverrides(t *testing.T) {
 }
 
 func TestArbitraryTagsHTTPHeader(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigsetup.Conf()
 	mockConfig.SetWithoutSource("allow_arbitrary_tags", true)
 
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
@@ -302,7 +300,7 @@ func TestArbitraryTagsHTTPHeader(t *testing.T) {
 }
 
 func TestSendHTTPTransactions(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigsetup.Conf()
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(keysPerDomains)))
 	endpoint := transaction.Endpoint{Route: "/api/foo", Name: "foo"}
@@ -322,7 +320,7 @@ func TestSendHTTPTransactions(t *testing.T) {
 }
 
 func TestSubmitV1Intake(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigsetup.Conf()
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(monoKeysDomains)))
 	forwarder.Start()
@@ -363,7 +361,7 @@ func TestForwarderEndtoEnd(t *testing.T) {
 		requests.Inc()
 		w.WriteHeader(http.StatusOK)
 	}))
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigsetup.Conf()
 	mockConfig.SetWithoutSource("dd_url", ts.URL)
 
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
@@ -419,7 +417,7 @@ func TestTransactionEventHandlers(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer ts.Close()
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigsetup.Conf()
 	mockConfig.SetWithoutSource("dd_url", ts.URL)
 
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
@@ -474,7 +472,7 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigsetup.Conf()
 	mockConfig.SetWithoutSource("dd_url", ts.URL)
 
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
@@ -525,7 +523,7 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigsetup.Conf()
 	mockConfig.SetWithoutSource("dd_url", ts.URL)
 
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
@@ -572,7 +570,7 @@ func TestProcessLikePayloadResponseTimeout(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer ts.Close()
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigsetup.Conf()
 	responseTimeout := defaultResponseTimeout
 
 	defaultResponseTimeout = 5 * time.Second
@@ -626,14 +624,13 @@ func TestHighPriorityTransaction(t *testing.T) {
 		}
 	}))
 
-	config.Datadog.SetWithoutSource("forwarder_backoff_max", 0.5)
-	defer config.Datadog.SetWithoutSource("forwarder_backoff_max", nil)
+	mockConfig := pkgconfigsetup.Conf()
+	mockConfig.SetWithoutSource("forwarder_backoff_max", 0.5)
 
 	oldFlushInterval := flushInterval
 	flushInterval = 500 * time.Millisecond
 	defer func() { flushInterval = oldFlushInterval }()
 
-	mockConfig := config.Mock(t)
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	f := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(map[string][]string{ts.URL: {"api_key1"}})))
 
@@ -670,7 +667,7 @@ func TestCustomCompletionHandler(t *testing.T) {
 	defer srv.Close()
 
 	// Point agent configuration to it
-	cfg := config.Mock(t)
+	cfg := pkgconfigsetup.Conf()
 	cfg.SetWithoutSource("dd_url", srv.URL)
 
 	// Now let's create a Forwarder with a custom HTTPCompletionHandler set to it
@@ -679,7 +676,7 @@ func TestCustomCompletionHandler(t *testing.T) {
 	var handler transaction.HTTPCompletionHandler = func(transaction *transaction.HTTPTransaction, statusCode int, body []byte, err error) {
 		done <- struct{}{}
 	}
-	mockConfig := config.Mock(t)
+	mockConfig := pkgconfigsetup.Conf()
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	options := NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(map[string][]string{
 		srv.URL: {"api_key1"},

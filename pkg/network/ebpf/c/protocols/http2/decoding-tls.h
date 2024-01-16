@@ -28,8 +28,8 @@ static __always_inline bool tls_read_hpack_int_with_given_current_char(tls_dispa
     // parse one additional byte. The max value that can be parsed is
     // `(2^max_number_for_bits - 1) + 127`.
     __u64 next_char = 0;
-    if (bpf_probe_read_user(&next_char, sizeof(__u8), info->buffer_ptr + info->off) >= 0 && (next_char & 128) == 0) {
-        info->off++;
+    if (bpf_probe_read_user(&next_char, sizeof(__u8), info->buffer_ptr + info->data_off) >= 0 && (next_char & 128) == 0) {
+        info->data_off++;
         *out = current_char_as_number + (next_char & 127);
         return true;
     }
@@ -52,10 +52,10 @@ static __always_inline bool tls_read_hpack_int_with_given_current_char(tls_dispa
 // otherwise.
 static __always_inline bool tls_read_hpack_int(tls_dispatcher_arguments_t *info, __u64 max_number_for_bits, __u64 *out, bool *is_huffman_encoded) {
     __u64 current_char_as_number = 0;
-    if (bpf_probe_read_user(&current_char_as_number, sizeof(__u8), info->buffer_ptr + info->off) < 0) {
+    if (bpf_probe_read_user(&current_char_as_number, sizeof(__u8), info->buffer_ptr + info->data_off) < 0) {
         return false;
     }
-    info->off++;
+    info->data_off++;
     // We are only interested in the first bit of the first byte, which indicates if it is huffman encoded or not.
     // See: https://datatracker.ietf.org/doc/html/rfc7541#appendix-B for more details on huffman code.
     *is_huffman_encoded = (current_char_as_number & 128) > 0;
@@ -77,7 +77,7 @@ static __always_inline bool tls_parse_field_literal(tls_dispatcher_arguments_t *
 
     // The header name is new and inserted in the dynamic table - we skip the new value.
     if (index == 0) {
-        info->off += str_len;
+        info->data_off += str_len;
         str_len = 0;
         // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
         // At this point the huffman code is not interesting due to the fact that we already read the string length,
@@ -105,7 +105,7 @@ static __always_inline bool tls_parse_field_literal(tls_dispatcher_arguments_t *
         goto end;
     }
 
-    if (info->off + str_len > info->len) {
+    if (info->data_off + str_len > info->data_end) {
         __sync_fetch_and_add(&http2_tel->path_exceeds_frame, 1);
         goto end;
     }
@@ -116,7 +116,7 @@ static __always_inline bool tls_parse_field_literal(tls_dispatcher_arguments_t *
     } else {
         headers_to_process->type = kNewDynamicHeaderNotIndexed;
     }
-    headers_to_process->new_dynamic_value_offset = info->off;
+    headers_to_process->new_dynamic_value_offset = info->data_off;
     headers_to_process->new_dynamic_value_size = str_len;
     headers_to_process->is_huffman_encoded = is_huffman_encoded;
     // If the string len (`str_len`) is in the range of [0, HTTP2_MAX_PATH_LEN], and we don't exceed packet boundaries
@@ -124,7 +124,7 @@ static __always_inline bool tls_parse_field_literal(tls_dispatcher_arguments_t *
     // and we're increasing the counter. In any other case, we're not increasing the counter.
     *interesting_headers_counter += (str_len > 0 && str_len <= HTTP2_MAX_PATH_LEN);
 end:
-    info->off += str_len;
+    info->data_off += str_len;
     return true;
 }
 
@@ -136,8 +136,8 @@ static __always_inline __u8 tls_filter_relevant_headers(tls_dispatcher_arguments
     __u8 current_ch;
     __u8 interesting_headers = 0;
     http2_header_t *current_header;
-    const __u32 frame_end = info->off + frame_length;
-    const __u32 end = frame_end < info->len + 1 ? frame_end : info->len + 1;
+    const __u32 frame_end = info->data_off + frame_length;
+    const __u32 end = frame_end < info->data_end + 1 ? frame_end : info->data_end + 1;
     bool is_indexed = false;
     bool is_literal = false;
     bool is_dynamic_table_update = false;
@@ -151,11 +151,11 @@ static __always_inline __u8 tls_filter_relevant_headers(tls_dispatcher_arguments
 
 #pragma unroll(HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING)
     for (__u8 headers_index = 0; headers_index < HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING; ++headers_index) {
-        if (info->off >= end) {
+        if (info->data_off >= end) {
             break;
         }
-        bpf_probe_read_user(&current_ch, sizeof(current_ch), info->buffer_ptr + info->off);
-        info->off++;
+        bpf_probe_read_user(&current_ch, sizeof(current_ch), info->buffer_ptr + info->data_off);
+        info->data_off++;
 
         // To determine the size of the dynamic table update, we read an integer representation byte by byte.
         // We continue reading bytes until we encounter a byte without the Most Significant Bit (MSB) set,
@@ -294,9 +294,9 @@ static __always_inline void tls_process_headers_frame(tls_dispatcher_arguments_t
 static __always_inline void tls_skip_preface(tls_dispatcher_arguments_t *info) {
     char preface[HTTP2_MARKER_SIZE];
     bpf_memset((char *)preface, 0, HTTP2_MARKER_SIZE);
-    read_into_user_buffer_http2_preface(preface, info->buffer_ptr + info->off);
+    read_into_user_buffer_http2_preface(preface, info->buffer_ptr + info->data_off);
     if (is_http2_preface(preface, HTTP2_MARKER_SIZE)) {
-        info->off += HTTP2_MARKER_SIZE;
+        info->data_off += HTTP2_MARKER_SIZE;
     }
 }
 // The function is trying to read the remaining of a split frame header. We have the first part in
@@ -307,28 +307,28 @@ static __always_inline void tls_fix_header_frame(tls_dispatcher_arguments_t *inf
     // Verifier is unhappy with a single call to `bpf_skb_load_bytes` with a variable length (although checking boundaries)
     switch (frame_state->remainder) {
     case 1:
-        bpf_probe_read_user(out + HTTP2_FRAME_HEADER_SIZE - 1, 1, info->buffer_ptr + info->off);
+        bpf_probe_read_user(out + HTTP2_FRAME_HEADER_SIZE - 1, 1, info->buffer_ptr + info->data_off);
         break;
     case 2:
-        bpf_probe_read_user(out + HTTP2_FRAME_HEADER_SIZE - 2, 2, info->buffer_ptr + info->off);
+        bpf_probe_read_user(out + HTTP2_FRAME_HEADER_SIZE - 2, 2, info->buffer_ptr + info->data_off);
         break;
     case 3:
-        bpf_probe_read_user(out + HTTP2_FRAME_HEADER_SIZE - 3, 3, info->buffer_ptr + info->off);
+        bpf_probe_read_user(out + HTTP2_FRAME_HEADER_SIZE - 3, 3, info->buffer_ptr + info->data_off);
         break;
     case 4:
-        bpf_probe_read_user(out + HTTP2_FRAME_HEADER_SIZE - 4, 4, info->buffer_ptr + info->off);
+        bpf_probe_read_user(out + HTTP2_FRAME_HEADER_SIZE - 4, 4, info->buffer_ptr + info->data_off);
         break;
     case 5:
-        bpf_probe_read_user(out + HTTP2_FRAME_HEADER_SIZE - 5, 5, info->buffer_ptr + info->off);
+        bpf_probe_read_user(out + HTTP2_FRAME_HEADER_SIZE - 5, 5, info->buffer_ptr + info->data_off);
         break;
     case 6:
-        bpf_probe_read_user(out + HTTP2_FRAME_HEADER_SIZE - 6, 6, info->buffer_ptr + info->off);
+        bpf_probe_read_user(out + HTTP2_FRAME_HEADER_SIZE - 6, 6, info->buffer_ptr + info->data_off);
         break;
     case 7:
-        bpf_probe_read_user(out + HTTP2_FRAME_HEADER_SIZE - 7, 7, info->buffer_ptr + info->off);
+        bpf_probe_read_user(out + HTTP2_FRAME_HEADER_SIZE - 7, 7, info->buffer_ptr + info->data_off);
         break;
     case 8:
-        bpf_probe_read_user(out + HTTP2_FRAME_HEADER_SIZE - 8, 8, info->buffer_ptr + info->off);
+        bpf_probe_read_user(out + HTTP2_FRAME_HEADER_SIZE - 8, 8, info->buffer_ptr + info->data_off);
         break;
     }
     return;
@@ -338,14 +338,14 @@ static __always_inline bool tls_get_first_frame(tls_dispatcher_arguments_t *info
     // No state, try reading a frame.
     if (frame_state == NULL) {
         // Checking we have enough bytes in the packet to read a frame header.
-        if (info->off + HTTP2_FRAME_HEADER_SIZE > info->len) {
+        if (info->data_off + HTTP2_FRAME_HEADER_SIZE > info->data_end) {
             // Not enough bytes, cannot read frame, so we have 0 interesting frames in that packet.
             return false;
         }
 
         // Reading frame, and ensuring the frame is valid.
-        read_into_user_buffer_http2_frame_header((char *)current_frame, info->buffer_ptr + info->off);
-        info->off += HTTP2_FRAME_HEADER_SIZE;
+        read_into_user_buffer_http2_frame_header((char *)current_frame, info->buffer_ptr + info->data_off);
+        info->data_off += HTTP2_FRAME_HEADER_SIZE;
         if (!format_http2_frame_header(current_frame)) {
             // Frame is not valid, so we have 0 interesting frames in that packet.
             return false;
@@ -368,7 +368,7 @@ static __always_inline bool tls_get_first_frame(tls_dispatcher_arguments_t *info
     if (frame_state->header_length > 0) {
         tls_fix_header_frame(info, (char *)current_frame, frame_state);
         if (format_http2_frame_header(current_frame)) {
-            info->off += frame_state->remainder;
+            info->data_off += frame_state->remainder;
             frame_state->remainder = 0;
             return true;
         }
@@ -378,28 +378,28 @@ static __always_inline bool tls_get_first_frame(tls_dispatcher_arguments_t *info
     }
 
     // Checking if we can read a frame header.
-    if (info->off + HTTP2_FRAME_HEADER_SIZE <= info->len) {
-        read_into_user_buffer_http2_frame_header((char *)current_frame, info->buffer_ptr + info->off);
+    if (info->data_off + HTTP2_FRAME_HEADER_SIZE <= info->data_end) {
+        read_into_user_buffer_http2_frame_header((char *)current_frame, info->buffer_ptr + info->data_off);
         if (format_http2_frame_header(current_frame)) {
             // We successfully read a valid frame.
-            info->off += HTTP2_FRAME_HEADER_SIZE;
+            info->data_off += HTTP2_FRAME_HEADER_SIZE;
             return true;
         }
     }
 
     // We failed to read a frame, if we have a remainder trying to consume it and read the following frame.
     if (frame_state->remainder > 0) {
-        info->off += frame_state->remainder;
+        info->data_off += frame_state->remainder;
         // The remainders "ends" the current packet. No interesting frames were found.
-        if (info->off == info->len) {
+        if (info->data_off == info->data_end) {
             frame_state->remainder = 0;
             return false;
         }
         reset_frame(current_frame);
-        read_into_user_buffer_http2_frame_header((char *)current_frame, info->buffer_ptr + info->off);
+        read_into_user_buffer_http2_frame_header((char *)current_frame, info->buffer_ptr + info->data_off);
         if (format_http2_frame_header(current_frame)) {
             frame_state->remainder = 0;
-            info->off += HTTP2_FRAME_HEADER_SIZE;
+            info->data_off += HTTP2_FRAME_HEADER_SIZE;
             return true;
         }
     }
@@ -430,12 +430,12 @@ static __always_inline void tls_find_relevant_frames(tls_dispatcher_arguments_t 
 #pragma unroll(HTTP2_MAX_FRAMES_TO_FILTER)
     for (; iteration < HTTP2_MAX_FRAMES_TO_FILTER; ++iteration) {
         // Checking we can read HTTP2_FRAME_HEADER_SIZE from the skb.
-        if (info->off + HTTP2_FRAME_HEADER_SIZE > info->len) {
+        if (info->data_off + HTTP2_FRAME_HEADER_SIZE > info->data_end) {
             break;
         }
 
-        read_into_user_buffer_http2_frame_header((char *)&current_frame, info->buffer_ptr + info->off);
-        info->off += HTTP2_FRAME_HEADER_SIZE;
+        read_into_user_buffer_http2_frame_header((char *)&current_frame, info->buffer_ptr + info->data_off);
+        info->data_off += HTTP2_FRAME_HEADER_SIZE;
         if (!format_http2_frame_header(&current_frame)) {
             break;
         }
@@ -447,10 +447,10 @@ static __always_inline void tls_find_relevant_frames(tls_dispatcher_arguments_t 
         is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
         if (iteration_value->frames_count < HTTP2_MAX_FRAMES_ITERATIONS && (is_headers_or_rst_frame || is_data_end_of_stream)) {
             iteration_value->frames_array[iteration_value->frames_count].frame = current_frame;
-            iteration_value->frames_array[iteration_value->frames_count].offset = info->off;
+            iteration_value->frames_array[iteration_value->frames_count].offset = info->data_off;
             iteration_value->frames_count++;
         }
-        info->off += current_frame.length;
+        info->data_off += current_frame.length;
 
         // If we have found enough interesting frames, we can stop iterating.
         if (iteration_value->frames_count >= HTTP2_MAX_FRAMES_ITERATIONS) {
@@ -459,7 +459,7 @@ static __always_inline void tls_find_relevant_frames(tls_dispatcher_arguments_t 
     }
 
     // Checking we can read HTTP2_FRAME_HEADER_SIZE from the skb - if we can, update telemetry to indicate we have
-    if ((iteration == HTTP2_MAX_FRAMES_TO_FILTER) && (info->off + HTTP2_FRAME_HEADER_SIZE <= info->len)) {
+    if ((iteration == HTTP2_MAX_FRAMES_TO_FILTER) && (info->data_off + HTTP2_FRAME_HEADER_SIZE <= info->data_end)) {
         __sync_fetch_and_add(&http2_tel->exceeding_max_frames_to_filter, 1);
     }
 
@@ -545,16 +545,16 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
     bool is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
     if (is_headers_or_rst_frame || is_data_end_of_stream) {
         iteration_value->frames_array[0].frame = current_frame;
-        iteration_value->frames_array[0].offset = dispatcher_args_copy.off;
+        iteration_value->frames_array[0].offset = dispatcher_args_copy.data_off;
         iteration_value->frames_count = 1;
     }
-    dispatcher_args_copy.off += current_frame.length;
+    dispatcher_args_copy.data_off += current_frame.length;
     // We're exceeding the packet boundaries, so we have a remainder.
-    if (dispatcher_args_copy.off > dispatcher_args_copy.len) {
+    if (dispatcher_args_copy.data_off > dispatcher_args_copy.data_end) {
         frame_header_remainder_t new_frame_state = { 0 };
 
         // Saving the remainder.
-        new_frame_state.remainder = dispatcher_args_copy.off - dispatcher_args_copy.len;
+        new_frame_state.remainder = dispatcher_args_copy.data_off - dispatcher_args_copy.data_end;
         // We did find an interesting frame (as frames_count == 1), so we cache the current frame and waiting for the
         // next call.
         if (iteration_value->frames_count == 1) {
@@ -568,7 +568,7 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
     }
     // Overriding the off field of the cached args. The next prog will start from the offset of the next valid
     // frame.
-    args->off = dispatcher_args_copy.off;
+    args->data_off = dispatcher_args_copy.data_off;
     bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_FILTER);
     return 0;
 }
@@ -608,17 +608,17 @@ int uprobe__http2_tls_filter(struct pt_regs *ctx) {
     tls_find_relevant_frames(&dispatcher_args_copy, iteration_value, http2_tel);
 
     frame_header_remainder_t new_frame_state = { 0 };
-    if (dispatcher_args_copy.off > dispatcher_args_copy.len) {
+    if (dispatcher_args_copy.data_off > dispatcher_args_copy.data_end) {
         // We have a remainder
-        new_frame_state.remainder = dispatcher_args_copy.off - dispatcher_args_copy.len;
+        new_frame_state.remainder = dispatcher_args_copy.data_off - dispatcher_args_copy.data_end;
         bpf_map_update_elem(&http2_remainder, &dispatcher_args_copy.tup, &new_frame_state, BPF_ANY);
-    } else if (dispatcher_args_copy.off < dispatcher_args_copy.len && dispatcher_args_copy.off + HTTP2_FRAME_HEADER_SIZE > dispatcher_args_copy.len) {
+    } else if (dispatcher_args_copy.data_off < dispatcher_args_copy.data_end && dispatcher_args_copy.data_off + HTTP2_FRAME_HEADER_SIZE > dispatcher_args_copy.data_end) {
         // We have a frame header remainder
-        new_frame_state.remainder = HTTP2_FRAME_HEADER_SIZE - (dispatcher_args_copy.len - dispatcher_args_copy.off);
+        new_frame_state.remainder = HTTP2_FRAME_HEADER_SIZE - (dispatcher_args_copy.data_end - dispatcher_args_copy.data_off);
         bpf_memset(new_frame_state.buf, 0, HTTP2_FRAME_HEADER_SIZE);
     #pragma unroll(HTTP2_FRAME_HEADER_SIZE)
         for (__u32 iteration = 0; iteration < HTTP2_FRAME_HEADER_SIZE && new_frame_state.remainder + iteration < HTTP2_FRAME_HEADER_SIZE; ++iteration) {
-            bpf_probe_read_user(new_frame_state.buf + iteration, 1, dispatcher_args_copy.buffer_ptr + dispatcher_args_copy.off + iteration);
+            bpf_probe_read_user(new_frame_state.buf + iteration, 1, dispatcher_args_copy.buffer_ptr + dispatcher_args_copy.data_off + iteration);
         }
         new_frame_state.header_length = HTTP2_FRAME_HEADER_SIZE - new_frame_state.remainder;
         bpf_map_update_elem(&http2_remainder, &dispatcher_args_copy.tup, &new_frame_state, BPF_ANY);
@@ -630,7 +630,7 @@ int uprobe__http2_tls_filter(struct pt_regs *ctx) {
 
     // We have found interesting headers, we hand them over to the headers
     // parser.
-    dispatcher_args_copy.off = args->off;
+    dispatcher_args_copy.data_off = args->data_off;
     if (bpf_map_update_elem(&tls_http2_iterations, &dispatcher_args_copy, iteration_value, BPF_NOEXIST) >= 0) {
         // We managed to cache the iteration_value in the tls_http2_iterations map.
         bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_HEADERS_PARSER);
@@ -709,7 +709,7 @@ int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
         if (current_stream == NULL) {
             continue;
         }
-        dispatcher_args_copy.off = current_frame.offset;
+        dispatcher_args_copy.data_off = current_frame.offset;
         tls_process_headers_frame(&dispatcher_args_copy, current_stream, &http2_ctx->dynamic_index, &current_frame.frame, http2_tel);
     }
 
@@ -724,7 +724,7 @@ int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
 
 delete_iteration:
     // restoring the original value.
-    dispatcher_args_copy.off = args->off;
+    dispatcher_args_copy.data_off = args->data_off;
     bpf_map_delete_elem(&tls_http2_iterations, &dispatcher_args_copy);
 
     return 0;
