@@ -100,7 +100,11 @@ func (p *Resolver) AddNewEntry(pid uint32, ppid uint32, file string, commandLine
 	e := p.processCacheEntryPool.Get()
 	e.PIDContext.Pid = pid
 	e.PPid = ppid
-	processHandle := procutil.OpenProcessHandle(int32(pid))
+	processHandle, err := procutil.OpenProcessHandle(int32(pid))
+	if err != nil {
+		log.Debugf("Couldn't get the process handle %v ", err)
+
+	}
 	username, err := procutil.GetUsernameForProcess(processHandle)
 	if err != nil {
 		log.Debugf("Couldn't get process username %v %v", pid, err)
