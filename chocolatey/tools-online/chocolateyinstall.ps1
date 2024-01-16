@@ -7,6 +7,8 @@ $packageArgs = @{
   fileType      = 'msi'
   # Note: Url is replaced at build time with the full URL to the MSI
   url64bit      = $__url_from_ci__
+  checksum64    = $__checksum_from_ci__
+  checksumType  = 'sha256'
   softwareName  = 'Datadog Agent'
   silentArgs    = "/qn /norestart /l*v `"$($env:TEMP)\$($packageName).$($env:chocolateyPackageVersion).MsiInstall.log`""
   validExitCodes= @(0, 3010, 1641)
