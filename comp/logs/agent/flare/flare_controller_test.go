@@ -10,18 +10,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 )
-
-type FlareControllerTestSuite struct {
-	suite.Suite
-}
-
-func getTestFlareController() *FlareController {
-	return NewFlareController()
-}
 
 func TestFillFlare(t *testing.T) {
 	file, err := os.Create("test.log")
@@ -30,7 +21,7 @@ func TestFillFlare(t *testing.T) {
 	assert.Nil(t, err)
 
 	f := helpers.NewFlareBuilderMock(t, false)
-	fc := getTestFlareController()
+	fc := NewFlareController()
 
 	fc.SetAllFiles([]string{file.Name()})
 
@@ -40,7 +31,7 @@ func TestFillFlare(t *testing.T) {
 }
 
 func TestAllFiles(t *testing.T) {
-	fc := getTestFlareController()
+	fc := NewFlareController()
 
 	fc.SetAllFiles([]string{"file1", "file2", "file3"})
 	assert.Equal(t, fc.allFiles, []string{"file1", "file2", "file3"})

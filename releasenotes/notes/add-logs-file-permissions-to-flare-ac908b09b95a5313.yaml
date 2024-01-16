@@ -10,4 +10,4 @@ enhancements:
   - |
     The logs agent now creates a file in the flare called
     ``logs_file_permissions.log`` that lists every file and
-    that file's permissions that the logs agent has looked at.
+    that file's permissions that the logs agent can detect.
