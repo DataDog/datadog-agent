@@ -12,6 +12,7 @@ import (
 	"encoding/binary"
 	"net"
 	nethttp "net/http"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -32,10 +33,11 @@ import (
 )
 
 const (
-	localHostAddress = "127.0.0.1:8082"
-	http2SrvAddr     = "http://" + localHostAddress
-	http2SrvPortStr  = ":8082"
-	http2SrvPort     = 8082
+	srvPort = 8082
+)
+
+var (
+	authority = net.JoinHostPort("127.0.0.1", strconv.Itoa(srvPort))
 )
 
 type usmHTTP2Suite struct {
@@ -222,7 +224,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			require.NoError(t, tr.ebpfTracer.Resume())
 			t.Cleanup(func() { _ = tr.ebpfTracer.Pause() })
 
-			c, err := net.Dial("tcp", localHostAddress)
+			c, err := net.Dial("tcp", authority)
 			require.NoError(t, err, "could not dial")
 			defer c.Close()
 
@@ -247,7 +249,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				}
 				http2StatsTyped := http2Stats.(map[http.Key]*http.RequestStats)
 				for key, stat := range http2StatsTyped {
-					if key.DstPort == http2SrvPort || key.SrcPort == http2SrvPort {
+					if key.DstPort == srvPort || key.SrcPort == srvPort {
 						count := stat.Data[200].Count
 						newKey := http.Key{
 							Path:   http.Path{Content: key.Path.Content},
@@ -355,7 +357,7 @@ func generateTestHeaderFields(pathNeverIndexed, withoutIndexing bool) []hpack.He
 	}
 
 	return []hpack.HeaderField{
-		{Name: ":authority", Value: http2SrvAddr},
+		{Name: ":authority", Value: authority},
 		{Name: ":method", Value: "POST"},
 		pathHeaderField,
 		{Name: ":scheme", Value: "http"},
@@ -475,7 +477,7 @@ func startH2CServer(t *testing.T) {
 	t.Helper()
 
 	srv := &nethttp.Server{
-		Addr: http2SrvPortStr,
+		Addr: authority,
 		Handler: h2c.NewHandler(nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
 			w.WriteHeader(200)
 			w.Write([]byte("test"))
@@ -486,7 +488,7 @@ func startH2CServer(t *testing.T) {
 	err := http2.ConfigureServer(srv, nil)
 	require.NoError(t, err)
 
-	l, err := net.Listen("tcp", http2SrvPortStr)
+	l, err := net.Listen("tcp", authority)
 	require.NoError(t, err, "could not create listening socket")
 
 	go func() {
