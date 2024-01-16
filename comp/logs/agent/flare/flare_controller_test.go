@@ -24,22 +24,19 @@ func getTestFlareController() *FlareController {
 }
 
 func TestFillFlare(t *testing.T) {
-	var fileName string
-	createFile := func(name string) {
-		file, err := os.Create(name)
-		assert.Nil(t, err)
-		fileName = file.Name()
-	}
-	createFile("1.log")
+	file, err := os.Create("test.log")
+	assert.Nil(t, err)
+	fi, err := os.Stat(file.Name())
+	assert.Nil(t, err)
 
 	f := helpers.NewFlareBuilderMock(t, false)
 	fc := getTestFlareController()
 
-	fc.SetAllFiles([]string{fileName})
+	fc.SetAllFiles([]string{file.Name()})
 
 	fc.FillFlare(f.Fb)
 	f.AssertFileExists("logs_file_permissions.log")
-	f.AssertFileContent("1.log -rw-r--r--", "logs_file_permissions.log")
+	f.AssertFileContent(file.Name()+" "+fi.Mode().String(), "logs_file_permissions.log")
 }
 
 func TestAllFiles(t *testing.T) {
