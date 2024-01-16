@@ -1,0 +1,65 @@
+{{ if .JMXStartupError.LastError }}
+  JMX startup errors
+  ==================
+    Error: {{ .JMXStartupError.LastError }}
+    Date: {{ formatUnixTime .JMXStartupError.Timestamp }}
+{{ end -}}
+{{ with .JMXStatus }}
+  Information
+  ==================
+  {{- range $k,$v := .Info }}
+    {{ $k }} : {{ $v }}
+  {{- end }}
+  {{- if .Errors }}
+    Socket errors: {{ .Errors }}
+  {{- end }}
+  {{- if and (not .Timestamp) (not .ChecksStatus) }}
+  no JMX status available
+  {{- else }}
+  Initialized checks
+  ==================
+    {{- if (not .ChecksStatus.InitializedChecks)}}
+    no checks
+    {{ else }}
+      {{- range $check,$instances := .ChecksStatus.InitializedChecks }}
+    {{ $check -}}
+        {{- range $instance := $instances }}
+    - instance_name: {{ .instance_name }}
+      metric_count: {{ .metric_count }}
+      service_check_count: {{ .service_check_count }}
+      message: {{ .message }}
+      status: {{ .status }}
+        {{- end -}}
+      {{- end }}
+    {{- end }}
+  Failed checks
+  =============
+    {{- if (not .ChecksStatus.FailedChecks)}}
+    no checks
+    {{ else }}
+      {{- range $check,$instances := .ChecksStatus.FailedChecks }}
+    {{ $check }}
+        {{- range $instance := $instances }}
+          {{- range $k,$v := $instance }}
+      {{ $k }} : {{ $v }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+
+  Internal JMXFetch Telemetry
+  ===========================
+    {{- if .ChecksStatus.InitializedChecks }}
+      {{- range $check,$instances := .checks.initialized_checks }}
+        {{- range $instance := $instances }}
+    - instance_name: {{ .instance_name }}
+      instance_bean_count: {{ .instance_bean_count }}
+      instance_attribute_count: {{ .instance_attribute_count }}
+      instance_metric_count: {{ .instance_metric_count }}
+      instance_wildcard_domain_query_count: {{ .instance_wildcard_domain_query_count }}
+      instance_bean_match_ratio: {{ .instance_bean_match_ratio }}
+          {{- end -}}
+      {{- end }}
+    {{- end }}
+{{- end }}
