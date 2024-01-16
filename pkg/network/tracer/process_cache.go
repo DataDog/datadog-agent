@@ -89,7 +89,7 @@ func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error)
 
 	var err error
 	pc.cache, err = lru.NewWithEvict(maxProcs, func(_ processCacheKey, p *events.Process) {
-		log.Debugf("evicting process %+v", p)
+		log.TraceFunc(func() string { return fmt.Sprintf("evicting process %+v", p) })
 		//nolint:gosimple // TODO(NET) Fix gosimple linter
 		pl, _ := pc.cacheByPid[p.Pid]
 		if pl = pl.remove(p); len(pl) == 0 {
@@ -184,7 +184,7 @@ func (pc *processCache) Trim() {
 		if now > v.Expiry {
 			// Remove will call the evict callback which will
 			// delete from the cacheByPid map
-			log.DebugFunc(func() string {
+			log.TraceFunc(func() string {
 				return fmt.Sprintf("trimming process %+v", v)
 			})
 			pc.cache.Remove(processCacheKey{pid: v.Pid, startTime: v.StartTime})
@@ -234,17 +234,17 @@ func (pc *processCache) Get(pid uint32, ts int64) (*events.Process, bool) {
 	pc.Lock()
 	defer pc.Unlock()
 
-	log.Debugf("looking up pid %d", pid)
+	log.TraceFunc(func() string { return fmt.Sprintf("looking up pid %d", pid) })
 
 	pl := pc.cacheByPid[pid]
 	if closest := pl.closest(ts); closest != nil {
 		closest.Expiry = time.Now().Add(defaultExpiry).Unix()
 		pc.cache.Get(processCacheKey{pid: closest.Pid, startTime: closest.StartTime})
-		log.Debugf("found entry for pid %d: %+v", pid, closest)
+		log.TraceFunc(func() string { return fmt.Sprintf("found entry for pid %d: %+v", pid, closest) })
 		return closest, true
 	}
 
-	log.Debugf("entry not found for process %d", pid)
+	log.TraceFunc(func() string { return fmt.Sprintf("entry not found for process %d", pid) })
 	return nil, false
 }
 
