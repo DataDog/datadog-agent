@@ -15,10 +15,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/ebpf-manager/tracefs"
 
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -344,9 +345,10 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	addTag("version", p.Env("DD_VERSION"))
 	addTag("service", p.Env("DD_SERVICE"))
 
-	containerID := p.ContainerID.Get().(string)
-	if containerID != "" {
-		c.ContainerID = &containerID
+	if p.ContainerID != nil {
+		if containerID := p.ContainerID.Get().(string); containerID != "" {
+			c.ContainerID = &containerID
+		}
 	}
 }
 
