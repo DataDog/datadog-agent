@@ -7,20 +7,20 @@
 package agent
 
 import (
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 )
 
 // GetDatadogAgentProductCode returns the product code GUID for the Datadog Agent
-func GetDatadogAgentProductCode(client client.VM) (string, error) {
-	return windows.GetProductCodeByName(client, "Datadog Agent")
+func GetDatadogAgentProductCode(host *components.RemoteHost) (string, error) {
+	return windows.GetProductCodeByName(host, "Datadog Agent")
 }
 
 // UninstallAgent uninstalls the Datadog Agent
-func UninstallAgent(client client.VM, logPath string) error {
-	product, err := GetDatadogAgentProductCode(client)
+func UninstallAgent(host *components.RemoteHost, logPath string) error {
+	product, err := GetDatadogAgentProductCode(host)
 	if err != nil {
 		return err
 	}
-	return windows.UninstallMSI(client, product, logPath)
+	return windows.UninstallMSI(host, product, logPath)
 }

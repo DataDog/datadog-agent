@@ -181,13 +181,13 @@ Example:
 #### curl
 
 ```bash
-curl ${SERVICE_IP}/fakeintake/payloads/?endpoint={post_endpoint_path}
+curl ${SERVICE_IP}/fakeintake/payloads?endpoint={post_endpoint_path}
 ```
 
 Example:
 
 ```bash
-curl ${SERVICE_IP}/fakeintake/payloads/?endpoint=/api/V2/series
+curl ${SERVICE_IP}/fakeintake/payloads?endpoint=/api/V2/series
 ```
 
 #### Jupyter Notebook
