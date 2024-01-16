@@ -86,7 +86,7 @@ var (
 	sshKeyArm    = getEnv("LibvirtSSHKeyARM", "/tmp/libvirt_rsa-arm64")
 
 	stackOutputs    = filepath.Join(ciProjectDir, "stack.output")
-	kmtStackJsonKey = "kmt-stack"
+	kmtStackJSONKey = "kmt-stack"
 )
 
 func outputsToFile(output auto.OutputMap) error {
