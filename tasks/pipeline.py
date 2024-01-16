@@ -547,6 +547,21 @@ def changelog(ctx, new_commit_sha):
     if not old_commit_sha:
         print("Old commit sha not found, exiting")
         return
+
+    commit_range_link = f"https://github.com/DataDog/datadog-agent/compare/{old_commit_sha}..{new_commit_sha}"
+    empty_changelog_msg = "No new System Probe related commits in this release :cricket:"
+    no_commits_msg = "No new commits in this release :cricket:"
+    slack_message = (
+        "The nightly deployment is rolling out to Staging :siren: \n"
+        + f"Changelog for <{commit_range_link}|commit range>: `{old_commit_sha}` to `{new_commit_sha}`:\n"
+    )
+
+    if old_commit_sha == new_commit_sha:
+        print("No new commits found, exiting")
+        slack_message += no_commits_msg
+        send_slack_message("system-probe-ops", slack_message)
+        return
+
     print(f"Generating changelog for commit range {old_commit_sha} to {new_commit_sha}")
     commits = ctx.run(f"git log {old_commit_sha}..{new_commit_sha} --pretty=format:%h", hide=True).stdout.split("\n")
     owners = read_owners(".github/CODEOWNERS")
@@ -573,11 +588,6 @@ def changelog(ctx, new_commit_sha):
         time.sleep(1)  # necessary to prevent slack/sdm API rate limits
         messages.append(f"{message_link} {author_handle}")
 
-    commit_range_link = f"https://github.com/DataDog/datadog-agent/compare/{old_commit_sha}..{new_commit_sha}"
-    slack_message = (
-        "The nightly deployment is rolling out to Staging :siren: \n"
-        + f"Changelog for <{commit_range_link}|commit range>: `{old_commit_sha}` to `{new_commit_sha}`:\n"
-    )
     if messages:
         slack_message += (
             "\n".join(messages) + "\n:wave: Authors, please check the "
@@ -587,7 +597,7 @@ def changelog(ctx, new_commit_sha):
             "&tpl_var_cluster_name%5B5%5D=lagaffe&tpl_var_datacenter%5B0%5D=%2A|dashboard> for issues"
         )
     else:
-        slack_message += "No new System Probe related commits in this release :cricket:"
+        slack_message += empty_changelog_msg
 
     print(f"Posting message to slack: \n {slack_message}")
     send_slack_message("system-probe-ops", slack_message)
