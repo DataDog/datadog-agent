@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/agent"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/check"
+	apiutils "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -42,7 +43,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	taggerserver "github.com/DataDog/datadog-agent/pkg/tagger/server"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
-	utilhttp "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
@@ -123,8 +123,8 @@ func startCMDServer(
 	checkMux := gorilla.NewRouter()
 
 	// Add some observability in the API server
-	agentMux.Use(utilhttp.LogResponseHandler(cmdServerName))
-	checkMux.Use(utilhttp.LogResponseHandler(cmdServerName))
+	agentMux.Use(apiutils.LogResponseHandler(cmdServerName))
+	checkMux.Use(apiutils.LogResponseHandler(cmdServerName))
 
 	// Validate token for every request
 	agentMux.Use(validateToken)

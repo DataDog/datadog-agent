@@ -12,8 +12,8 @@ import (
 	"time"
 
 	configendpoint "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/config"
+	apiutils "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	utilhttp "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 const ipcServerName string = "IPC API Server"
@@ -27,7 +27,7 @@ func startIPCServer(ipcServerAddr string, tlsConfig *tls.Config) (err error) {
 	}
 
 	configEndpointMux := configendpoint.GetConfigEndpointMuxCore()
-	configEndpointMux.Use(utilhttp.LogResponseHandler(ipcServerName))
+	configEndpointMux.Use(apiutils.LogResponseHandler(ipcServerName))
 	configEndpointMux.Use(validateToken)
 	ipcMux := http.NewServeMux()
 	ipcMux.Handle(

@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package http
+// Package utils implements utility functions for the API servers
+package utils
 
 import (
 	"net/http"
