@@ -13,7 +13,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/log v0.51.0-rc.2
 	github.com/stretchr/testify v1.8.4
-	github.com/urfave/negroni v1.0.0
 	golang.org/x/net v0.19.0
 )
 
