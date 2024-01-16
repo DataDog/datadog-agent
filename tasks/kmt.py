@@ -126,7 +126,7 @@ def start_compiler(ctx):
     start_cc(ctx)
 
 
-def filter_target_domains(ctx, vms, infra):
+def filter_target_domains(vms, infra):
     vmsets = vmconfig.build_vmsets(vmconfig.build_normalized_vm_def_set(vms), [])
     domains = list()
     for vmset in vmsets:
@@ -182,7 +182,7 @@ def prepare(ctx, vms, stack=None, arch=None, ssh_key=None, rebuild_deps=False, p
     download_gotestsum(ctx)
 
     infra = build_infrastructure(stack, ssh_key)
-    domains = filter_target_domains(ctx, vms, infra)
+    domains = filter_target_domains(vms, infra)
 
     constrain_pkgs = ""
     if not rebuild_deps:
@@ -241,7 +241,7 @@ def test(ctx, vms, stack=None, packages="", run=None, retry=2, rebuild_deps=Fals
     prepare(ctx, stack=stack, vms=vms, ssh_key=ssh_key, rebuild_deps=rebuild_deps, packages=packages)
 
     infra = build_infrastructure(stack, ssh_key)
-    domains = filter_target_domains(ctx, vms, infra)
+    domains = filter_target_domains(vms, infra)
     if run is not None and packages is None:
         raise Exit("Package must be provided when specifying test")
     pkgs = packages.split(",")
@@ -268,7 +268,7 @@ def build(ctx, vms, stack=None, ssh_key=None, rebuild_deps=False, verbose=True):
         ctx.run(f"mkdir -p kmt-deps/{stack}")
 
     infra = build_infrastructure(stack, ssh_key)
-    domains = filter_target_domains(ctx, vms, infra)
+    domains = filter_target_domains(vms, infra)
     if rebuild_deps:
         docker_exec(
             ctx,
