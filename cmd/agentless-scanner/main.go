@@ -1438,9 +1438,7 @@ func (s *sideScanner) start(ctx context.Context) {
 	go func() {
 		err := s.healthServer(ctx)
 		if err != nil {
-			if !errors.Is(err, http.ErrServerClosed) {
-				log.Warnf("healthServer: %v", err)
-			}
+			log.Warnf("healthServer: %v", err)
 		}
 	}()
 

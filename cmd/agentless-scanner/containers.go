@@ -672,12 +672,19 @@ func dockerReadMetadata(dockerRoot string) ([]dockerContainer, error) {
 		referencesByID: make(map[digest.Digest]map[string]reference.Named),
 	}
 
-	reposData, err := readFileLimit(filepath.Join(dockerRoot, "image/overlay2/repositories.json"), maxFileSize)
+	entries, err := os.ReadDir(filepath.Join(dockerRoot, "containers"))
 	if err != nil {
 		return nil, err
 	}
-	if err := json.Unmarshal(reposData, &repos); err != nil {
-		return nil, err
+
+	if len(entries) > 0 {
+		reposData, err := readFileLimit(filepath.Join(dockerRoot, "image/overlay2/repositories.json"), maxFileSize)
+		if err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(reposData, &repos); err != nil {
+			return nil, err
+		}
 	}
 
 	// We need to do reverse lookup from what is stored on disk in repositories.json. Let's inverse the map.
@@ -694,11 +701,6 @@ func dockerReadMetadata(dockerRoot string) ([]dockerContainer, error) {
 			}
 			repos.referencesByID[refID][refStr] = ref
 		}
-	}
-
-	entries, err := os.ReadDir(filepath.Join(dockerRoot, "containers"))
-	if err != nil {
-		return nil, err
 	}
 
 	ctrSums := make([]string, 0, len(entries))
