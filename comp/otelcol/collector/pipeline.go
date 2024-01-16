@@ -9,11 +9,17 @@ package collector
 
 import (
 	"context"
+	"embed"
+	"io"
+	"path"
+
+	textTemplate "text/template"
 
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	logsagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
@@ -50,6 +56,13 @@ type dependencies struct {
 
 	// InventoryAgent require the inventory metadata payload, allowing otelcol to add data to it.
 	InventoryAgent inventoryagent.Component
+}
+
+type provides struct {
+	fx.Out
+
+	Comp           Component
+	StatusProvider status.InformationProvider
 }
 
 type collector struct {
@@ -101,6 +114,71 @@ func (c *collector) Status() otlp.CollectorStatus {
 }
 
 // newPipeline creates a new Component for this module and returns any errors on failure.
-func newPipeline(deps dependencies) (Component, error) {
-	return &collector{deps: deps}, nil
+func newPipeline(deps dependencies) (provides, error) {
+	collector := &collector{deps: deps}
+
+	return provides{
+		Comp:           collector,
+		StatusProvider: status.NewInformationProvider(collector),
+	}, nil
+}
+
+//go:embed status_templates
+var templatesFS embed.FS
+
+func (c *collector) getStatusInfo() map[string]interface{} {
+	stats := make(map[string]interface{})
+
+	c.populateStatus(stats)
+
+	return stats
+}
+
+func (c *collector) populateStatus(stats map[string]interface{}) {
+	otlpStatus := make(map[string]interface{})
+	otlpIsEnabled := otlp.IsEnabled(c.deps.Config)
+
+	var otlpCollectorStatus otlp.CollectorStatus
+
+	if otlpIsEnabled {
+		otlpCollectorStatus = c.Status()
+	} else {
+		otlpCollectorStatus = otlp.CollectorStatus{Status: "Not running", ErrorMessage: ""}
+	}
+	otlpStatus["otlpStatus"] = otlpIsEnabled
+	otlpStatus["otlpCollectorStatus"] = otlpCollectorStatus.Status
+	otlpStatus["otlpCollectorStatusErr"] = otlpCollectorStatus.ErrorMessage
+
+	stats["otlp"] = otlpStatus
+}
+
+func (c *collector) Name() string {
+	return "OTLP"
+}
+
+func (c *collector) Section() string {
+	return "OTLP"
+}
+
+func (c *collector) JSON(_ bool, stats map[string]interface{}) error {
+	c.populateStatus(stats)
+
+	return nil
+}
+
+func (c *collector) Text(_ bool, buffer io.Writer) error {
+	return renderText(buffer, c.getStatusInfo())
+}
+
+func (c *collector) HTML(_ bool, _ io.Writer) error {
+	return nil
+}
+
+func renderText(buffer io.Writer, data any) error {
+	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "otlp.tmpl"))
+	if tmplErr != nil {
+		return tmplErr
+	}
+	t := textTemplate.Must(textTemplate.New("otlp").Funcs(status.TextFmap()).Parse(string(tmpl)))
+	return t.Execute(buffer, data)
 }
