@@ -22,6 +22,7 @@ import (
 
 	_ "crypto/sha256"
 	_ "crypto/sha512"
+	"github.com/docker/distribution/reference"
 	digest "github.com/opencontainers/go-digest"
 
 	bolt "go.etcd.io/bbolt"
@@ -95,8 +96,8 @@ func launchScannerContainers(_ context.Context, opts scannerOptions) ([]*contain
 			}
 			containers = append(containers, &container{
 				MountName:     ctrMountName,
-				ImageName:     ctr.Config.Image,
-				ImageDigest:   ctr.Image.String(),
+				ImageName:     ctr.ImageName,
+				ImageDigest:   ctr.ImageDigest.String(),
 				ContainerName: ctr.Name,
 				Layers:        ctrLayers,
 			})
@@ -630,7 +631,6 @@ type dockerImage struct {
 		Type    string          `json:"type"`
 		DiffIDs []digest.Digest `json:"diff_ids"`
 	} `json:"rootfs"`
-	Variant string `json:"variant"`
 }
 
 type dockerContainer struct {
@@ -641,6 +641,7 @@ type dockerContainer struct {
 		StartedAt  time.Time `json:"StartedAt"`
 		FinishedAt time.Time `json:"FinishedAt"`
 	} `json:"State"`
+
 	Config struct {
 		Hostname string              `json:"Hostname"`
 		Image    string              `json:"Image"`
@@ -648,11 +649,14 @@ type dockerContainer struct {
 		Labels   map[string]string   `json:"Labels"`
 	} `json:"Config"`
 
-	Image         digest.Digest `json:"Image"`
-	ImageManifest *dockerImage  `json:"-"`
-	Name          string        `json:"Name"`
-	Driver        string        `json:"Driver"`
-	OS            string        `json:"OS"`
+	Image  digest.Digest `json:"Image"`
+	Name   string        `json:"Name"`
+	Driver string        `json:"Driver"`
+	OS     string        `json:"OS"`
+
+	ImageManifest *dockerImage  `json:"_ImageManifest"` // XXX
+	ImageName     string        `json:"_ImageName"`     // XXX
+	ImageDigest   digest.Digest `json:"_ImageDigest"`   // XXX
 }
 
 func (c dockerContainer) String() string {
@@ -660,6 +664,38 @@ func (c dockerContainer) String() string {
 }
 
 func dockerReadMetadata(dockerRoot string) ([]dockerContainer, error) {
+	const maxFileSize = 2 * 1024 * 1024
+	repos := struct {
+		Repositories   map[string]map[string]digest.Digest `json:"Repositories"`
+		referencesByID map[digest.Digest]map[string]reference.Named
+	}{
+		referencesByID: make(map[digest.Digest]map[string]reference.Named),
+	}
+
+	reposData, err := readFileLimit(filepath.Join(dockerRoot, "image/overlay2/repositories.json"), maxFileSize)
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(reposData, &repos); err != nil {
+		return nil, err
+	}
+
+	// We need to do reverse lookup from what is stored on disk in repositories.json. Let's inverse the map.
+	// reference: https://github.com/moby/moby/blob/3eba4216e085be3b5c62c2e10317183485d006d7/reference/store.go#L331-L343
+	for _, repo := range repos.Repositories {
+		for refStr, refID := range repo {
+			ref, err := reference.ParseNormalizedNamed(refStr)
+			if err != nil {
+				// Should never happen
+				continue
+			}
+			if repos.referencesByID[refID] == nil {
+				repos.referencesByID[refID] = make(map[string]reference.Named)
+			}
+			repos.referencesByID[refID][refStr] = ref
+		}
+	}
+
 	entries, err := os.ReadDir(filepath.Join(dockerRoot, "containers"))
 	if err != nil {
 		return nil, err
@@ -670,7 +706,6 @@ func dockerReadMetadata(dockerRoot string) ([]dockerContainer, error) {
 		ctrSums = append(ctrSums, entry.Name())
 	}
 
-	const maxFileSize = 2 * 1024 * 1024
 	var containers []dockerContainer
 	for _, ctrSum := range ctrSums {
 		var ctr dockerContainer
@@ -688,6 +723,19 @@ func dockerReadMetadata(dockerRoot string) ([]dockerContainer, error) {
 		if err := ctr.Image.Validate(); err != nil {
 			return nil, err
 		}
+
+		refs, ok := repos.referencesByID[ctr.Image]
+		if ok {
+			for _, ref := range refs {
+				if refC, ok := ref.(reference.Canonical); ok && ctr.ImageDigest == "" {
+					ctr.ImageDigest = refC.Digest()
+				}
+				if _, ok := ref.(reference.NamedTagged); ok && ctr.ImageName == "" {
+					ctr.ImageName = ref.String()
+				}
+			}
+		}
+
 		var img dockerImage
 		imagePath := filepath.Join(dockerRoot, "image/overlay2/imagedb/content", ctr.Image.Algorithm().String(), ctr.Image.Encoded())
 		imageData, err := readFileLimit(imagePath, maxFileSize)
