@@ -80,7 +80,7 @@ type Config struct {
 	// InterfaceConfigs is a map of IP to a list of snmpintegration.InterfaceConfig
 	InterfaceConfigs map[string][]snmpintegration.InterfaceConfig `mapstructure:"interface_configs"`
 
-	PingConfig snmpintegration.PingConfig `mapstructure:ping`
+	PingConfig snmpintegration.PingConfig `mapstructure:"ping"`
 
 	// Legacy
 	NetworkLegacy      string `mapstructure:"network"`
