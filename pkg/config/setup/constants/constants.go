@@ -3,13 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package util
+// Package constants holds constants
+package constants
 
-// NamedPipe interface to NamedPipes (multi-platform)
-type NamedPipe interface {
-	Open() error
-	Ready() bool
-	Read(b []byte) (int, error)
-	Write(b []byte) (int, error)
-	Close() error
-}
+const (
+	// DefaultEBPFLessProbeAddr defines the default ebpfless probe address
+	DefaultEBPFLessProbeAddr = "localhost:5678"
+)
