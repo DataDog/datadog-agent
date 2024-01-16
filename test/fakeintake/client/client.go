@@ -69,6 +69,7 @@ const (
 	sbomEndpoint               = "/api/v2/sbom"
 	flareEndpoint              = "/support/flare"
 	tracesEndpoint             = "/api/v0.2/traces"
+	apmStatsEndpoint           = "/api/v0.2/stats"
 )
 
 // ErrNoFlareAvailable is returned when no flare is available
@@ -89,6 +90,7 @@ type Client struct {
 	containerLifecycleAggregator aggregator.ContainerLifecycleAggregator
 	sbomAggregator               aggregator.SBOMAggregator
 	traceAggregator              aggregator.TraceAggregator
+	apmStatsAggregator           aggregator.APMStatsAggregator
 }
 
 // NewClient creates a new fake intake client
@@ -107,6 +109,7 @@ func NewClient(fakeIntakeURL string) *Client {
 		containerLifecycleAggregator: aggregator.NewContainerLifecycleAggregator(),
 		sbomAggregator:               aggregator.NewSBOMAggregator(),
 		traceAggregator:              aggregator.NewTraceAggregator(),
+		apmStatsAggregator:           aggregator.NewAPMStatsAggregator(),
 	}
 }
 
@@ -196,6 +199,14 @@ func (c *Client) getTraces() error {
 		return err
 	}
 	return c.traceAggregator.UnmarshallPayloads(payloads)
+}
+
+func (c *Client) getAPMStats() error {
+	payloads, err := c.getFakePayloads(apmStatsEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.apmStatsAggregator.UnmarshallPayloads(payloads)
 }
 
 // GetLatestFlare queries the Fake Intake to fetch flares that were sent by a Datadog Agent and returns the latest flare as a Flare struct
@@ -712,4 +723,17 @@ func (c *Client) GetTraces() ([]*aggregator.TracePayload, error) {
 		traces = append(traces, c.traceAggregator.GetPayloadsByName(name)...)
 	}
 	return traces, nil
+}
+
+// GetAPMStats fetches fakeintake on /api/v0.2/stats endpoint and returns all received apm stats payloads
+func (c *Client) GetAPMStats() ([]*aggregator.APMStatsPayload, error) {
+	err := c.getAPMStats()
+	if err != nil {
+		return nil, err
+	}
+	var stats []*aggregator.APMStatsPayload
+	for _, name := range c.apmStatsAggregator.GetNames() {
+		stats = append(stats, c.apmStatsAggregator.GetPayloadsByName(name)...)
+	}
+	return stats, nil
 }

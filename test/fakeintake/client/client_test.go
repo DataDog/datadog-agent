@@ -47,6 +47,9 @@ var apiV2SBOM []byte
 //go:embed fixtures/api_v02_trace_response
 var apiV02Trace []byte
 
+//go:embed fixtures/api_v02_apm_stats_response
+var apiV02APMStats []byte
+
 func TestClient(t *testing.T) {
 	t.Run("getFakePayloads should properly format the request", func(t *testing.T) {
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -462,5 +465,17 @@ func TestClient(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, client.traceAggregator.ContainsPayloadName("dev.host"))
 		assert.False(t, client.traceAggregator.ContainsPayloadName("not.found"))
+	})
+
+	t.Run("getAPMStats", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write(apiV02APMStats)
+		}))
+		defer ts.Close()
+		client := NewClient(ts.URL)
+		err := client.getAPMStats()
+		require.NoError(t, err)
+		assert.True(t, client.apmStatsAggregator.ContainsPayloadName("dev.host"))
+		assert.False(t, client.apmStatsAggregator.ContainsPayloadName("not.found"))
 	})
 }
