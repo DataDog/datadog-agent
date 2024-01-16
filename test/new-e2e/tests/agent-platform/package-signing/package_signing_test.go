@@ -11,21 +11,26 @@ import (
 	"os"
 	"regexp"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
-var osVersion = flag.String("osversion", "", "os to test, eg debian or redhat")
+var (
+	osVersion = flag.String("osversion", "", "platform/os version (debian-11)")
+)
 
 type packageSigningTestSuite struct {
-	e2e.Suite[e2e.AgentEnv]
+	e2e.BaseSuite[environments.Host]
 	osName string
 }
 
@@ -58,40 +63,39 @@ type Repository struct {
 
 func TestPackageSigningComponent(t *testing.T) {
 
-	e2eOSMapping := map[string]ec2os.Type{
-		"debian":      ec2os.DebianOS,
-		"ubuntu":      ec2os.UbuntuOS,
-		"centos":      ec2os.CentOS,
-		"amazonlinux": ec2os.AmazonLinuxOS,
-		"redhat":      ec2os.RedHatOS,
-		"rhel":        ec2os.RedHatOS,
-		"sles":        ec2os.SuseOS,
-		"fedora":      ec2os.FedoraOS,
-		"suse":        ec2os.SuseOS,
-		"rocky":       ec2os.RockyLinux,
-	}
+	platformJSON := map[string]map[string]map[string]string{}
+	err := json.Unmarshal(platforms.Content, &platformJSON)
+	require.NoErrorf(t, err, "failed to umarshall platform file: %v", err)
 
-	var testedOS ec2os.Type
 	nonAlpha := regexp.MustCompile("[^a-zA-Z]")
-	rawOS := nonAlpha.ReplaceAllString(*osVersion, "")
-	if value, ok := e2eOSMapping[rawOS]; ok {
-		testedOS = value
-	} else {
-		t.Fatalf("OS %s not supported", *osVersion)
+	platform := nonAlpha.ReplaceAllString(*osVersion, "")
+	if platform == "sles" {
+		platform = "suse"
 	}
+	architecture := "x86_64"
+	if platformJSON[platform][architecture][*osVersion] == "" {
+		// Fail if the image is not defined instead of silently running with default Ubuntu AMI
+		t.Fatalf("No image found for %s %s %s", platform, architecture, *osVersion)
+	}
+	ami := platformJSON[platform][architecture][*osVersion]
 
-	t.Run(fmt.Sprintf("Test package signing on %s\n", rawOS), func(tt *testing.T) {
+	t.Run(fmt.Sprintf("Test package signing on %s\n", platform), func(tt *testing.T) {
 		tt.Parallel()
-		e2e.Run[e2e.AgentEnv](tt,
-			&packageSigningTestSuite{osName: rawOS},
-			e2e.AgentStackDef(e2e.WithAgentParams(agentparams.WithPipeline(os.Getenv("CI_PIPELINE_ID"), "x86_64")), e2e.WithVMParams(ec2params.WithOS(testedOS))),
-			params.WithStackName(fmt.Sprintf("pkgSigning-%s-%s", rawOS, os.Getenv("CI_PIPELINE_ID"))),
+		osDesc := platforms.BuildOSDescriptor(platform, architecture, *osVersion)
+		e2e.Run(tt,
+			&packageSigningTestSuite{osName: platform},
+			e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
+				awshost.WithEC2InstanceOptions(ec2.WithAMI(ami, osDesc, osDesc.Architecture)),
+				awshost.WithAgentOptions(agentparams.WithPipeline(os.Getenv("CI_PIPELINE_ID"))),
+			)),
+			//e2e.WithAgentParams(agentparams.WithPipeline(os.Getenv("CI_PIPELINE_ID"), "x86_64")), e2e.WithVMParams(ec2params.WithOS(testedOS))),
+			e2e.WithStackName(fmt.Sprintf("pkgSigning-%s-%s", platform, os.Getenv("CI_PIPELINE_ID"))),
 		)
 	})
 }
 
 func (is *packageSigningTestSuite) TestPackageSigning() {
-	diagnose := is.Env().Agent.Diagnose(client.WithArgs([]string{"show-metadata", "package-signing"}))
+	diagnose := is.Env().Agent.Client.Diagnose(agentclient.WithArgs([]string{"show-metadata", "package-signing"}))
 	t := is.T()
 	t.Log(diagnose)
 	var payload Payload
