@@ -362,7 +362,7 @@ kernel_matrix_testing_setup_env_x64:
     - echo "CI_JOB_NAME=${CI_JOB_NAME}" >> $DD_AGENT_TESTING_DIR/job_env.txt
     - echo "CI_JOB_STAGE=${CI_JOB_STAGE}" >> $DD_AGENT_TESTING_DIR/job_env.txt
   script:
-    - INSTANCE_IP=$(jq --exit-status --arg ARCH $ARCH -r ".[$ARCH].ip" $CI_PROJECT_DIR/stack.output)
+    - INSTANCE_IP=$(jq --exit-status --arg ARCH $ARCH -r '.[$ARCH].ip' $CI_PROJECT_DIR/stack.output)
     - !reference [.shared_filters_and_queries]
     - RUNNING_INSTANCES=$(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_PIPELINE "Name=private-ip-address,Values=$INSTANCE_IP" --output text --query $QUERY_INSTANCE_IDS | wc -l )
     - |
