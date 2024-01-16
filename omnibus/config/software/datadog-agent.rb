@@ -143,13 +143,15 @@ build do
       if windows_target?
         ## don't bother with system probe build on x86.
         command "invoke -e system-probe.build --windows"
-        copy 'bin/system-probe/system-probe.exe', "#{install_dir}/bin/agent"
       elsif linux_target?
         command "invoke -e system-probe.build-sysprobe-binary --install-path=#{install_dir}"
-        copy "bin/system-probe/system-probe", "#{install_dir}/embedded/bin"
       end
-    else
-      link "#{install_dir}/bin/agent/agent", "#{install_dir}/embedded/bin/system-probe"
+    end
+
+    if windows_target?
+      copy 'bin/system-probe/system-probe.exe', "#{install_dir}/bin/agent"
+    elsif linux_target?
+      copy "bin/system-probe/system-probe", "#{install_dir}/embedded/bin"
     end
   end
 
