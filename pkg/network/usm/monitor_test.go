@@ -991,19 +991,38 @@ func generateTestHeaderFields(pathNeverIndexed, withoutIndexing bool) []hpack.He
 	}
 }
 
-// createMessageWithCustomHeadersFramesCountWithIndexedPath creates a message with the given number of header frames but
-// path frame header with key that is index 4 and not 5 as usual.
-func createMessageWithCustomHeadersFramesCountWithIndexedKey(t *testing.T, headerFields []hpack.HeaderField, headersCount int) []byte {
+// removeHeaderFieldByKey removes the header field with the given key from the given header fields.
+func removeHeaderFieldByKey(headerFields []hpack.HeaderField, keyToRemove string) []hpack.HeaderField {
+	for i := 0; i < len(headerFields); i++ {
+		if headerFields[i].Name == keyToRemove {
+			// Remove the element by modifying the slice in-place
+			headerFields = append(headerFields[:i], headerFields[i+1:]...)
+			break
+		}
+	}
+
+	return headerFields
+}
+
+// createHeadersWithIndexedPathKey creates a message with the given number of header frames but the
+// path frame header key 4 and not 5 as usual.
+func createHeadersWithIndexedPathKey(t *testing.T, headerFields []hpack.HeaderField, headersCount int) []byte {
 	var buf bytes.Buffer
 	framer := http2.NewFramer(&buf, nil)
+	// pathHeaderField is the hex representation of the path /aaa with index 4.
+	pathHeaderField := []byte{0x44, 0x83, 0x60, 0x63, 0x1f}
+
+	// we remove the header field with key ":path" so that we will not have two header fields.
+	headerFields = removeHeaderFieldByKey(headerFields, ":path")
 
 	for i := 0; i < headersCount; i++ {
 		streamID := 2*i + 1
 		headersFrame, err := usmhttp2.NewHeadersFrameMessage(headerFields)
 		require.NoError(t, err, "could not create headers frame")
 
-		// change the index of the path to be 4 instead of 5.
-		headersFrame[18] = 0x44
+		// we are adding the path header field with index 4, we need to do it on the byte slice and not on the headerFields
+		// due to the fact that when we create a header field it would be with index 5.
+		headersFrame = append(pathHeaderField, headersFrame...)
 
 		// Writing the header frames to the buffer using the Framer.
 		require.NoError(t, framer.WriteHeaders(http2.HeadersFrameParam{
@@ -1196,7 +1215,7 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			// The purpose of this test is to verify our ability to identify paths with index 4.
 			messageBuilder: func() []byte {
 				headersCount := 5
-				return createMessageWithCustomHeadersFramesCountWithIndexedKey(t, testHeaders(), headersCount)
+				return createHeadersWithIndexedPathKey(t, testHeaders(), headersCount)
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
