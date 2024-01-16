@@ -16,6 +16,7 @@ import (
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -58,6 +59,13 @@ type dependencies struct {
 	InventoryAgent inventoryagent.Component
 }
 
+type provides struct {
+	fx.Out
+
+	Comp           optional.Option[Component]
+	StatusProvider statusComponent.InformationProvider
+}
+
 // agent represents the data pipeline that collects, decodes,
 // processes and sends logs to the backend.  See the package README for
 // a description of its operation.
@@ -82,7 +90,7 @@ type agent struct {
 	started *atomic.Bool
 }
 
-func newLogsAgent(deps dependencies) optional.Option[Component] {
+func newLogsAgent(deps dependencies) provides {
 	if deps.Config.GetBool("logs_enabled") || deps.Config.GetBool("log_enabled") {
 		if deps.Config.GetBool("log_enabled") {
 			deps.Log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
@@ -103,11 +111,17 @@ func newLogsAgent(deps dependencies) optional.Option[Component] {
 			OnStop:  logsAgent.stop,
 		})
 
-		return optional.NewOption[Component](logsAgent)
+		return provides{
+			Comp:           optional.NewOption[Component](logsAgent),
+			StatusProvider: statusComponent.NewInformationProvider(logsAgent),
+		}
 	}
 
 	deps.Log.Info("logs-agent disabled")
-	return optional.NewNoneOption[Component]()
+	return provides{
+		Comp:           optional.NewNoneOption[Component](),
+		StatusProvider: statusComponent.NoopInformationProvider(),
+	}
 }
 
 func (a *agent) start(context.Context) error {
