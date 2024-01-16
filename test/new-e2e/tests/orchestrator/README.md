@@ -17,7 +17,7 @@ inv new-e2e-tests.run --targets=./tests/orchestrator
 You can supply `--keep-stacks` to keep the pulumi stacks after the tests are done. This will allow you to use inspect
 the test K8S cluster via kubectl/k9s.
 
-You can supply `--replace-stacks` to destroy any existing infra before the test is setup.
+You can supply `--extra-flags "--replace-stacks"` to destroy any existing infra before the test is setup.
 
 ## `kubectl`/`k9s`
 
