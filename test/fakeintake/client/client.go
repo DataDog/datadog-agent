@@ -114,7 +114,7 @@ func NewClient(fakeIntakeURL string) *Client {
 		containerLifecycleAggregator:   aggregator.NewContainerLifecycleAggregator(),
 		sbomAggregator:                 aggregator.NewSBOMAggregator(),
 		traceAggregator:                aggregator.NewTraceAggregator(),
-		apmStatsAggregator:           aggregator.NewAPMStatsAggregator(),
+		apmStatsAggregator:             aggregator.NewAPMStatsAggregator(),
 		orchestratorAggregator:         aggregator.NewOrchestratorAggregator(),
 		orchestratorManifestAggregator: aggregator.NewOrchestratorManifestAggregator(),
 	}
