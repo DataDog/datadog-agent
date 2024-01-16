@@ -88,8 +88,11 @@ def stack(ctx, stack=None):
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
-    ctx.run(f"cat {get_kmt_os().stacks_dir}/{stack}/stack.output")
-
+    infrastructure = build_infrastructure(ctx, stack)
+    for instance in infrastructure.values():
+        print(instance)
+        for vm in instance.microvms:
+            print(f"  {vm}")
 
 @task
 def ls(_, distro=False, custom=False):
