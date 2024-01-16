@@ -7,6 +7,7 @@ package filetailing
 
 import (
 	_ "embed"
+	"fmt"
 	"os"
 	"strconv"
 	"testing"
@@ -22,13 +23,13 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 )
 
-//go:embed log-config/auto-multi-line-config.yaml
+//go:embed log-config/automulti.yaml
 var agentAutoMultiLineConfig string
 
-//go:embed scripts/python-multi-line-logger.sh
+//go:embed scripts/multi-logger.sh
 var pythonScript string
 
-//go:embed scripts/random-logger-service.sh
+//go:embed scripts/logger-service.sh
 var randomLogger string
 
 type AutoMultiLineSuite struct {
@@ -95,6 +96,9 @@ func (s *AutoMultiLineSuite) ContainsLogWithNewLines() {
 
 		// Auto Multiline is working if the log message contains the complete log contents with newlines
 		logs, err := client.FilterLogs(service, fi.WithMessageContaining(content))
+		for _, log := range logs {
+			fmt.Println(log.Message, log.Tags)
+		}
 		if !assert.NoErrorf(c, err, "Error found: %s", err) {
 			return
 		}
