@@ -50,8 +50,8 @@ func TestUnixTransparentParentProxy(t *testing.T) {
 }
 
 func TestTLSUnixTransparentParentProxy(t *testing.T) {
-	const remoteServerAddr = "127.0.0.1:5555"
-	const unixPath = "/tmp/transparent2.sock"
+	const remoteServerAddr = "127.0.0.1:5556"
+	const unixPath = "/tmp/transparent-tls.sock"
 
 	// Start the proxy server.
 	_, cancel := NewExternalUnixTransparentProxyServer(t, unixPath, remoteServerAddr, true)
@@ -72,5 +72,6 @@ func TestTLSUnixTransparentParentProxy(t *testing.T) {
 	require.NoError(t, WaitForConnectionReady(unixPath))
 	response, err := client.Get("http://unix/status/201")
 	require.NoError(t, err)
+	defer response.Body.Close()
 	require.Equal(t, 201, response.StatusCode)
 }

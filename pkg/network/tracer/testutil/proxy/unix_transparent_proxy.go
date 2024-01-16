@@ -25,7 +25,9 @@ import (
 )
 
 const (
-	defaultDialTimeout = 15 * time.Second
+	defaultDialTimeout      = 15 * time.Second
+	connectionRetries       = 30
+	connectionRetryInterval = 100 * time.Millisecond
 )
 
 // UnixTransparentProxyServer is a proxy server that listens on a unix socket, and forwards all incoming and outgoing traffic
@@ -89,7 +91,7 @@ func (p *UnixTransparentProxyServer) Run() error {
 
 // Stop stops the proxy server.
 func (p *UnixTransparentProxyServer) Stop() {
-	defer p.clearOldSocket()
+	defer func() { _ = p.clearOldSocket() }()
 
 	_ = p.ln.Close()
 	p.wg.Wait()
@@ -105,15 +107,15 @@ func (p *UnixTransparentProxyServer) WaitUntilServerIsReady() {
 // WaitForConnectionReady blocks until the server is ready to accept connections.
 // meant for external servers.
 func WaitForConnectionReady(unixSocket string) error {
-	for i := 0; i < 30; i++ {
+	for i := 0; i < connectionRetries; i++ {
 		_, err := net.DialTimeout("unix", unixSocket, time.Second)
 		if err == nil {
 			return nil
 		}
-		time.Sleep(time.Millisecond * 100)
+		time.Sleep(connectionRetryInterval)
 	}
 
-	return fmt.Errorf("could not connect %q after 30 retries", unixSocket)
+	return fmt.Errorf("could not connect %q after %d retries (after %v)", unixSocket, connectionRetries, connectionRetryInterval*connectionRetries)
 }
 
 // handleConnection handles a new connection, by forwarding all traffic to the remote address.
@@ -141,7 +143,7 @@ func (p *UnixTransparentProxyServer) handleConnection(unixSocketConn net.Conn) {
 
 	streamConn := func(dst io.Writer, src io.Reader) {
 		defer streamWait.Done()
-		io.Copy(dst, src)
+		_, _ = io.Copy(dst, src)
 	}
 
 	go streamConn(remoteConn, unixSocketConn)

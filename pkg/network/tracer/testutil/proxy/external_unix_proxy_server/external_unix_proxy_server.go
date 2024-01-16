@@ -8,11 +8,12 @@ package main
 
 import (
 	"flag"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/proxy"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/proxy"
 )
 
 func main() {

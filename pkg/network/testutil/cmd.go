@@ -10,7 +10,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -65,8 +64,6 @@ func StartCommandCtx(ctx context.Context, cmd string) (*exec.Cmd, io.WriteCloser
 	args := strings.Split(cmd, " ")
 	c := exec.CommandContext(ctx, args[0], args[1:]...)
 	clientInput, err := c.StdinPipe()
-	c.Stdout = os.Stdout
-	c.Stderr = os.Stdout
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not get command %s standard input: %w", c, err)
 	}
