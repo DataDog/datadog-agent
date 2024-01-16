@@ -106,11 +106,6 @@ func StopCLCRunnerServer() {
 	}
 }
 
-// ServerCLCRunnerAddress returns the server address.
-func ServerCLCRunnerAddress() *net.TCPAddr {
-	return clcListener.Addr().(*net.TCPAddr)
-}
-
 func validateCLCRunnerToken(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := util.ValidateDCARequest(w, r); err != nil {
