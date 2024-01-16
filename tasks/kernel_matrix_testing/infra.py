@@ -89,18 +89,13 @@ class HostInstance:
         self.runner.move_to_shared_directory(ctx, self, path)
 
     def __repr__(self):
-        return f"<Instance> {self.ip} {self.arch}"
+        return f"<HostInstance> {self.ip} {self.arch}"
 
 
 def build_infrastructure(ctx, stack, remote_ssh_key=None):
     stack_outputs = os.path.join(get_kmt_os().stacks_dir, stack, "stack.output")
     with open(stack_outputs, 'r') as f:
-        data = f.read().rstrip().split('\n')
-
-    for line in data:
-        identifier, value = line.split(' ')
-        if identifier == "kmt-stack":
-            infra_map = json.loads(value)
+        infra_map = json.load(f)
 
     infra = dict()
     for arch in infra_map:
