@@ -32,7 +32,12 @@ func NewGRPCTLSServer(t *testing.T, addr string, useTLS bool) (*exec.Cmd, contex
 	c, _, err := nettestutil.StartCommandCtx(cancelCtx, commandLine)
 
 	require.NoError(t, err)
-	return c, cancel
+	return c, func() {
+		cancel()
+		if c.Process != nil {
+			_, _ = c.Process.Wait()
+		}
+	}
 }
 
 const (

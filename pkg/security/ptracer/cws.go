@@ -119,6 +119,34 @@ func handleOpenAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, re
 	return fillFileMetadata(filename, msg.Open, disableStats)
 }
 
+func handleOpenAt2(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
+	fd := tracer.ReadArgInt32(regs, 0)
+
+	filename, err := tracer.ReadArgString(process.Pid, regs, 1)
+	if err != nil {
+		return err
+	}
+
+	filename, err = getFullPathFromFd(process, filename, fd)
+	if err != nil {
+		return err
+	}
+
+	howData, err := tracer.ReadArgData(process.Pid, regs, 2, 16 /*sizeof uint64 + sizeof uint64*/) // flags, mode
+	if err != nil {
+		return err
+	}
+
+	msg.Type = ebpfless.SyscallTypeOpen
+	msg.Open = &ebpfless.OpenSyscallMsg{
+		Filename: filename,
+		Flags:    uint32(binary.NativeEndian.Uint64(howData[:8])),
+		Mode:     uint32(binary.NativeEndian.Uint64(howData[8:16])),
+	}
+
+	return fillFileMetadata(filename, msg.Open, disableStats)
+}
+
 func handleOpen(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
 	filename, err := tracer.ReadArgString(process.Pid, regs, 0)
 	if err != nil {
@@ -750,7 +778,7 @@ func checkEntryPoint(path string) (string, error) {
 }
 
 func isAcceptedRetval(retval int64) bool {
-	return retval < 0 && retval != -int64(syscall.EACCES) && retval != -int64(syscall.EPERM)
+	return retval >= 0 || retval == -int64(syscall.EACCES) || retval == -int64(syscall.EPERM)
 }
 
 func initConn(probeAddr string, nbAttempts uint) (net.Conn, error) {
@@ -961,8 +989,14 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 					logErrorf("unable to handle open: %v", err)
 					return
 				}
-			case OpenatNr, Openat2Nr:
+			case OpenatNr:
 				if err := handleOpenAt(tracer, process, syscallMsg, regs, disableStats); err != nil {
+					logErrorf("unable to handle openat: %v", err)
+					return
+				}
+
+			case Openat2Nr:
+				if err := handleOpenAt2(tracer, process, syscallMsg, regs, disableStats); err != nil {
 					logErrorf("unable to handle openat: %v", err)
 					return
 				}
@@ -1128,8 +1162,8 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 					return
 				}
 				handleNameToHandleAtRet(tracer, process, syscallMsg, regs)
-			case OpenNr, OpenatNr, CreatNr, OpenByHandleAtNr, MemfdCreateNr:
-				if ret := tracer.ReadRet(regs); !isAcceptedRetval(ret) {
+			case OpenNr, OpenatNr, Openat2Nr, CreatNr, OpenByHandleAtNr, MemfdCreateNr:
+				if ret := tracer.ReadRet(regs); isAcceptedRetval(ret) {
 					syscallMsg, exists := process.Nr[nr]
 					if !exists || syscallMsg.Open == nil {
 						return
@@ -1152,16 +1186,38 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 			case CloneNr:
 				if flags := tracer.ReadArgUint64(regs, 0); flags&uint64(unix.SIGCHLD) == 0 {
 					pc.SetAsThreadOf(process, ppid)
+				} else if parent := pc.Get(ppid); parent != nil {
+					sendSyscallMsg(&ebpfless.SyscallMsg{
+						Type: ebpfless.SyscallTypeFork,
+						Fork: &ebpfless.ForkSyscallMsg{
+							PPID: uint32(parent.Tgid),
+						},
+					})
+				}
+			case Clone3Nr:
+				data, err := tracer.ReadArgData(process.Pid, regs, 0, 8 /*sizeof flags only*/)
+				if err != nil {
 					return
 				}
-				fallthrough
+				if flags := binary.NativeEndian.Uint64(data); flags&uint64(unix.SIGCHLD) == 0 {
+					pc.SetAsThreadOf(process, ppid)
+				} else if parent := pc.Get(ppid); parent != nil {
+					sendSyscallMsg(&ebpfless.SyscallMsg{
+						Type: ebpfless.SyscallTypeFork,
+						Fork: &ebpfless.ForkSyscallMsg{
+							PPID: uint32(parent.Tgid),
+						},
+					})
+				}
 			case ForkNr, VforkNr:
-				sendSyscallMsg(&ebpfless.SyscallMsg{
-					Type: ebpfless.SyscallTypeFork,
-					Fork: &ebpfless.ForkSyscallMsg{
-						PPID: uint32(ppid),
-					},
-				})
+				if parent := pc.Get(ppid); parent != nil {
+					sendSyscallMsg(&ebpfless.SyscallMsg{
+						Type: ebpfless.SyscallTypeFork,
+						Fork: &ebpfless.ForkSyscallMsg{
+							PPID: uint32(parent.Tgid),
+						},
+					})
+				}
 			case FcntlNr:
 				if ret := tracer.ReadRet(regs); ret >= 0 {
 					syscallMsg, exists := process.Nr[nr]
