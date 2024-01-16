@@ -94,6 +94,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	snmpStatus "github.com/DataDog/datadog-agent/pkg/snmp/traps/status"
+	clusteragentStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent"
 	collectorStatus "github.com/DataDog/datadog-agent/pkg/status/collector"
 	endpointsStatus "github.com/DataDog/datadog-agent/pkg/status/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -328,6 +329,13 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(func(config config.Component) status.InformationProvider {
 			if traps.IsEnabled(config) {
 				return status.NewInformationProvider(snmpStatus.Provider{})
+			} else {
+				return status.NewInformationProvider(status.NoopProvider{})
+			}
+		}),
+		fx.Provide(func(config config.Component) status.InformationProvider {
+			if config.GetBool("cluster_agent.enabled") || config.GetBool("cluster_checks.enabled") {
+				return status.NewInformationProvider(clusteragentStatus.Provider{})
 			} else {
 				return status.NewInformationProvider(status.NoopProvider{})
 			}
