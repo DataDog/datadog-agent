@@ -8,7 +8,6 @@ import os.path
 import shutil
 import tempfile
 from pathlib import Path
-from typing import List
 
 from invoke.context import Context
 from invoke.exceptions import Exit
@@ -206,8 +205,8 @@ def _clean_stacks(ctx: Context):
         _remove_stack(ctx, stack)
 
 
-def _get_existing_stacks(ctx: Context) -> List[str]:
-    e2e_stacks: List[str] = []
+def _get_existing_stacks(ctx: Context) -> list[str]:
+    e2e_stacks: list[str] = []
     output = ctx.run("PULUMI_SKIP_UPDATE_CHECK=true pulumi stack ls --all --project e2elocal --json", hide=True)
     if output is None or not output:
         return []

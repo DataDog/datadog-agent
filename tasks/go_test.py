@@ -1,9 +1,6 @@
 """
 High level testing tasks
 """
-# TODO: check if we really need the typing import.
-# Recent versions of Python should be able to use dict and list directly in type hints,
-# so we only need to check that we don't run this code with old Python versions.
 
 import abc
 import json
@@ -15,7 +12,6 @@ import sys
 from collections import defaultdict
 from contextlib import contextmanager
 from datetime import datetime
-from typing import Dict, List
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -154,7 +150,7 @@ def invoke_unit_tests(ctx):
 
 
 def test_core(
-    modules: List[GoModule],
+    modules: list[GoModule],
     flavor: AgentFlavor,
     module_class: GoModule,
     operation_name: str,
@@ -293,9 +289,9 @@ class ModuleTestResult(ModuleResult):
 
 def lint_flavor(
     ctx,
-    modules: List[GoModule],
+    modules: list[GoModule],
     flavor: AgentFlavor,
-    build_tags: List[str],
+    build_tags: list[str],
     arch: str,
     rtloader_root: bool,
     concurrency: int,
@@ -332,10 +328,10 @@ def lint_flavor(
 
 def build_stdlib(
     ctx,
-    build_tags: List[str],
+    build_tags: list[str],
     cmd: str,
-    env: Dict[str, str],
-    args: Dict[str, str],
+    env: dict[str, str],
+    args: dict[str, str],
     test_profiler: TestProfiler,
 ):
     """
@@ -358,11 +354,11 @@ def build_stdlib(
 def test_flavor(
     ctx,
     flavor: AgentFlavor,
-    build_tags: List[str],
-    modules: List[GoModule],
+    build_tags: list[str],
+    modules: list[GoModule],
     cmd: str,
-    env: Dict[str, str],
-    args: Dict[str, str],
+    env: dict[str, str],
+    args: dict[str, str],
     junit_tar: str,
     save_result_json: str,
     test_profiler: TestProfiler,
@@ -418,7 +414,7 @@ def test_flavor(
 def coverage_flavor(
     ctx,
     flavor: AgentFlavor,
-    modules: List[GoModule],
+    modules: list[GoModule],
 ):
     """
     Prints the code coverage of all modules for the given flavor.
@@ -436,7 +432,7 @@ def coverage_flavor(
 def codecov_flavor(
     ctx,
     flavor: AgentFlavor,
-    modules: List[GoModule],
+    modules: list[GoModule],
 ):
     """
     Uploads coverage data of all modules for the given flavor.
@@ -487,7 +483,7 @@ def process_input_args(input_module, input_targets, input_flavors, headless_mode
     return modules, flavors
 
 
-def process_module_results(module_results: Dict[str, Dict[str, List[ModuleResult]]]):
+def process_module_results(module_results: dict[str, dict[str, list[ModuleResult]]]):
     """
     Expects results in the format:
     {
@@ -1151,7 +1147,7 @@ def junit_macos_repack(_, infile, outfile):
 
 
 @task
-def get_modified_packages(ctx) -> List[GoModule]:
+def get_modified_packages(ctx) -> list[GoModule]:
     modified_files = get_modified_files(ctx)
     modified_go_files = [
         f"./{file}" for file in modified_files if file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum")
