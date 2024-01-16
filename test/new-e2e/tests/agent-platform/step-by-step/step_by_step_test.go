@@ -8,67 +8,52 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
-	filemanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/file-manager"
-	helpers "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/helper"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms"
-	e2eOs "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
-	"github.com/stretchr/testify/require"
 	"os"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
+	filemanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/file-manager"
+	helpers "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/helper"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms"
+
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+
+	"github.com/stretchr/testify/require"
 )
 
-var osVersion = flag.String("osversion", "", "os version to test")
-var platform = flag.String("platform", "", "platform to test")
-var cwsSupportedOsVersion = flag.String("cws-supported-osversion", "", "list of os where CWS is supported")
-var architecture = flag.String("arch", "", "architecture to test (x86_64, arm64))")
-var flavorName = flag.String("flavor", "datadog-agent", "package flavor to install")
-var majorVersion = flag.String("major-version", "7", "major version to test (6, 7)")
+var (
+	osVersion             = flag.String("osversion", "", "os version to test")
+	platform              = flag.String("platform", "", "platform to test")
+	cwsSupportedOsVersion = flag.String("cws-supported-osversion", "", "list of os where CWS is supported")
+	architecture          = flag.String("arch", "", "architecture to test (x86_64, arm64))")
+	flavorName            = flag.String("flavor", "datadog-agent", "package flavor to install")
+	majorVersion          = flag.String("major-version", "7", "major version to test (6, 7)")
+)
 
 type stepByStepSuite struct {
-	e2e.Suite[e2e.VMEnv]
+	e2e.BaseSuite[environments.Host]
+
 	osVersion    float64
 	cwsSupported bool
 }
 
-func ExecuteWithoutError(t *testing.T, client *common.TestClient, cmd string, args ...any) {
+func ExecuteWithoutError(_ *testing.T, client *common.TestClient, cmd string, args ...any) {
 	var finalCmd string
 	if len(args) > 0 {
 		finalCmd = fmt.Sprintf(cmd, args...)
 	} else {
 		finalCmd = cmd
 	}
-	_, err := client.VMClient.ExecuteWithError(finalCmd)
-	require.NoError(t, err)
+	client.Host.MustExecute(finalCmd)
 }
 
 func TestStepByStepScript(t *testing.T) {
-	osMapping := map[string]ec2os.Type{
-		"debian":      ec2os.DebianOS,
-		"ubuntu":      ec2os.UbuntuOS,
-		"centos":      ec2os.CentOS,
-		"amazonlinux": ec2os.AmazonLinuxOS,
-		"redhat":      ec2os.RedHatOS,
-		"rhel":        ec2os.RedHatOS,
-		"sles":        ec2os.SuseOS,
-		"windows":     ec2os.WindowsOS,
-		"fedora":      ec2os.FedoraOS,
-		"suse":        ec2os.SuseOS,
-		"rocky":       ec2os.RockyLinux,
-	}
-
-	archMapping := map[string]e2eOs.Architecture{
-		"x86_64": e2eOs.AMD64Arch,
-		"arm64":  e2eOs.ARM64Arch,
-	}
-
 	platformJSON := map[string]map[string]map[string]string{}
 
 	err := json.Unmarshal(platforms.Content, &platformJSON)
@@ -76,10 +61,16 @@ func TestStepByStepScript(t *testing.T) {
 
 	osVersions := strings.Split(*osVersion, ",")
 	cwsSupportedOsVersionList := strings.Split(*cwsSupportedOsVersion, ",")
-	fmt.Println("Parsed platform json file: ", platformJSON)
+
+	t.Log("Parsed platform json file: ", platformJSON)
+
 	for _, osVers := range osVersions {
-		vmOpts := []ec2params.Option{}
 		osVers := osVers
+		if platformJSON[*platform][*architecture][osVers] == "" {
+			// Fail if the image is not defined instead of silently running with default Ubuntu AMI
+			t.Fatalf("No image found for %s %s %s", *platform, *architecture, osVers)
+		}
+
 		cwsSupported := false
 		for _, cwsSupportedOs := range cwsSupportedOsVersionList {
 			if cwsSupportedOs == osVers {
@@ -87,16 +78,14 @@ func TestStepByStepScript(t *testing.T) {
 			}
 		}
 
-		var testOsType ec2os.Type
-		for osName, osType := range osMapping {
-			if strings.Contains(osVers, osName) {
-				testOsType = osType
-			}
+		vmOpts := []ec2.VMOption{}
+		if instanceType, ok := os.LookupEnv("E2E_OVERRIDE_INSTANCE_TYPE"); ok {
+			vmOpts = append(vmOpts, ec2.WithInstanceType(instanceType))
 		}
 
 		t.Run(fmt.Sprintf("test step by step on %s %s", osVers, *architecture), func(tt *testing.T) {
 			tt.Parallel()
-			fmt.Printf("Testing %s", osVers)
+			tt.Logf("Testing %s", osVers)
 			slice := strings.Split(osVers, "-")
 			var version float64
 			if len(slice) == 2 {
@@ -111,22 +100,27 @@ func TestStepByStepScript(t *testing.T) {
 			} else {
 				version = 0
 			}
-			vmOpts = append(vmOpts, ec2params.WithImageName(platformJSON[*platform][*architecture][osVers], archMapping[*architecture], testOsType))
-			if instanceType, ok := os.LookupEnv("E2E_OVERRIDE_INSTANCE_TYPE"); ok {
-				vmOpts = append(vmOpts, ec2params.WithInstanceType(instanceType))
-			}
-			e2e.Run(tt, &stepByStepSuite{cwsSupported: cwsSupported, osVersion: version}, e2e.EC2VMStackDef(vmOpts...), params.WithStackName(fmt.Sprintf("step-by-step-test-%v-%v-%s-%s", os.Getenv("CI_PIPELINE_ID"), osVers, *architecture, *majorVersion)))
+
+			osDesc := platforms.BuildOSDescriptor(*platform, *architecture, osVers)
+			vmOpts = append(vmOpts, ec2.WithAMI(platformJSON[*platform][*architecture][osVers], osDesc, osDesc.Architecture))
+
+			e2e.Run(tt,
+				&stepByStepSuite{cwsSupported: cwsSupported, osVersion: version},
+				e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
+					awshost.WithEC2InstanceOptions(vmOpts...),
+				)),
+				e2e.WithStackName(fmt.Sprintf("step-by-step-test-%v-%v-%s-%s", os.Getenv("CI_PIPELINE_ID"), osVers, *architecture, *majorVersion)),
+			)
 		})
 	}
 }
 
 func (is *stepByStepSuite) TestStepByStep() {
-	fileManager := filemanager.NewUnixFileManager(is.Env().VM)
+	fileManager := filemanager.NewUnixFileManager(is.Env().RemoteHost)
 	unixHelper := helpers.NewUnixHelper()
-	vm := is.Env().VM.(*client.PulumiStackVM)
-	agentClient, err := client.NewAgentClient(is.T(), vm, vm.GetOS(), false)
+	agentClient, err := client.NewHostAgentClient(is.T(), is.Env().RemoteHost, false)
 	require.NoError(is.T(), err)
-	VMclient := common.NewTestClient(is.Env().VM, agentClient, fileManager, unixHelper)
+	VMclient := common.NewTestClient(is.Env().RemoteHost, agentClient, fileManager, unixHelper)
 
 	if *platform == "debian" || *platform == "ubuntu" {
 		is.StepByStepDebianTest(VMclient)
@@ -138,7 +132,6 @@ func (is *stepByStepSuite) TestStepByStep() {
 	}
 	is.ConfigureAndRunAgentService(VMclient)
 	is.CheckStepByStepAgentInstallation(VMclient)
-
 }
 
 func (is *stepByStepSuite) ConfigureAndRunAgentService(VMclient *common.TestClient) {
@@ -172,10 +165,10 @@ func (is *stepByStepSuite) CheckStepByStepAgentInstallation(VMclient *common.Tes
 }
 
 func (is *stepByStepSuite) StepByStepDebianTest(VMclient *common.TestClient) {
-	var aptTrustedDKeyring = "/etc/apt/trusted.gpg.d/datadog-archive-keyring.gpg"
-	var aptUsrShareKeyring = "/usr/share/keyrings/datadog-archive-keyring.gpg"
-	var aptrepo = "[signed-by=/usr/share/keyrings/datadog-archive-keyring.gpg] http://apttesting.datad0g.com/"
-	var aptrepoDist = fmt.Sprintf("pipeline-%s-a%s-%s", os.Getenv("CI_PIPELINE_ID"), *majorVersion, *architecture)
+	aptTrustedDKeyring := "/etc/apt/trusted.gpg.d/datadog-archive-keyring.gpg"
+	aptUsrShareKeyring := "/usr/share/keyrings/datadog-archive-keyring.gpg"
+	aptrepo := "[signed-by=/usr/share/keyrings/datadog-archive-keyring.gpg] http://apttesting.datad0g.com/"
+	aptrepoDist := fmt.Sprintf("pipeline-%s-a%s-%s", os.Getenv("CI_PIPELINE_ID"), *majorVersion, *architecture)
 	fileManager := VMclient.FileManager
 	var err error
 
@@ -210,16 +203,16 @@ func (is *stepByStepSuite) StepByStepRhelTest(VMclient *common.TestClient) {
 	} else {
 		arch = *architecture
 	}
-	var yumrepo = fmt.Sprintf("http://yumtesting.datad0g.com/testing/pipeline-%s-a%s/%s/%s/",
+	yumrepo := fmt.Sprintf("http://yumtesting.datad0g.com/testing/pipeline-%s-a%s/%s/%s/",
 		os.Getenv("CI_PIPELINE_ID"), *majorVersion, *majorVersion, arch)
 	fileManager := VMclient.FileManager
 	var err error
 
-	var protocol = "https"
+	protocol := "https"
 	if is.osVersion < 6 {
 		protocol = "http"
 	}
-	var repogpgcheck = "1"
+	repogpgcheck := "1"
 	if is.osVersion < 8.2 {
 		repogpgcheck = "0"
 	}
@@ -252,7 +245,7 @@ func (is *stepByStepSuite) StepByStepSuseTest(VMclient *common.TestClient) {
 		arch = *architecture
 	}
 
-	var suseRepo = fmt.Sprintf("http://yumtesting.datad0g.com/suse/testing/pipeline-%s-a%s/%s/%s/",
+	suseRepo := fmt.Sprintf("http://yumtesting.datad0g.com/suse/testing/pipeline-%s-a%s/%s/%s/",
 		os.Getenv("CI_PIPELINE_ID"), *majorVersion, *majorVersion, arch)
 	fileManager := VMclient.FileManager
 	var err error

@@ -61,7 +61,7 @@ func (suite *kindSuite) SetupSuite() {
 	kubeconfig := stackOutput.Outputs["kubeconfig"].Value.(string)
 
 	kubeconfigFile := path.Join(suite.T().TempDir(), "kubeconfig")
-	suite.Require().NoError(os.WriteFile(kubeconfigFile, []byte(kubeconfig), 0600))
+	suite.Require().NoError(os.WriteFile(kubeconfigFile, []byte(kubeconfig), 0o600))
 
 	suite.K8sConfig, err = clientcmd.BuildConfigFromFlags("", kubeconfigFile)
 	suite.Require().NoError(err)
