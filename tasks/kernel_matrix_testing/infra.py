@@ -6,12 +6,13 @@ from .kmt_os import get_kmt_os
 from .stacks import find_ssh_key
 from .tool import Exit, error
 
+
 class LocalCommandRunner:
     @staticmethod
     def run_cmd(ctx, _, cmd, allow_fail, verbose):
         res = ctx.run(cmd.format(proxy_cmd=""))
         if not res.ok:
-            error(f"[-] Failed: {self.vm.ip} -> {cmd}")
+            error(f"[-] Failed: {cmd}")
             if allow_fail:
                 return
             print_failed(res.stderr)
@@ -25,9 +26,13 @@ class LocalCommandRunner:
 class RemoteCommandRunner:
     @staticmethod
     def run_cmd(ctx, instance, cmd, allow_fail, verbose):
-        res = ctx.run(cmd.format(proxy_cmd=f"-o ProxyCommand='ssh -o StrictHostKeyChecking=no -i {instance.ssh_key} -W %h:%p ubuntu@{instance.ip}'"))
+        res = ctx.run(
+            cmd.format(
+                proxy_cmd=f"-o ProxyCommand='ssh -o StrictHostKeyChecking=no -i {instance.ssh_key} -W %h:%p ubuntu@{instance.ip}'"
+            )
+        )
         if not res.ok:
-            error(f"[-] Failed: {self.vm.ip} -> {cmd}")
+            error(f"[-] Failed: {cmd}")
             if allow_fail:
                 return
             print_failed(res.stderr)
@@ -74,6 +79,7 @@ class LibvirtDomain:
     def __repr__(self):
         return f"<LibvirtDomain> {self.name} {self.ip}"
 
+
 class HostInstance:
     def __init__(self, ip, arch, ssh_key):
         self.ip = ip
@@ -92,7 +98,7 @@ class HostInstance:
         return f"<HostInstance> {self.ip} {self.arch}"
 
 
-def build_infrastructure(ctx, stack, remote_ssh_key=None):
+def build_infrastructure(stack, remote_ssh_key=None):
     stack_outputs = os.path.join(get_kmt_os().stacks_dir, stack, "stack.output")
     with open(stack_outputs, 'r') as f:
         infra_map = json.load(f)
@@ -104,11 +110,13 @@ def build_infrastructure(ctx, stack, remote_ssh_key=None):
                 raise Exit("No ssh key provided. Pass with '--ssh-key=<key-name>'")
 
         key = None
-        if remote_ssh_key != None:
+        if remote_ssh_key is not None:
             key = ssh_key_to_path(remote_ssh_key)
         instance = HostInstance(infra_map[arch]["ip"], arch, key)
         for vm in infra_map[arch]["microvms"]:
-            instance.add_microvm(LibvirtDomain(vm["ip"], vm["id"], vm["tag"], vm["vmset-tags"], vm["ssh-key-path"], instance))
+            instance.add_microvm(
+                LibvirtDomain(vm["ip"], vm["id"], vm["tag"], vm["vmset-tags"], vm["ssh-key-path"], instance)
+            )
 
         infra[arch] = instance
 

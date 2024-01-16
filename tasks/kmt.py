@@ -2,7 +2,6 @@ import json
 import os
 import platform
 import tempfile
-from dataclasses import dataclass
 from glob import glob
 from pathlib import Path
 
@@ -83,16 +82,17 @@ def resume_stack(_, stack=None):
 
 
 @task
-def stack(ctx, stack=None):
+def stack(_, stack=None):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
-    infrastructure = build_infrastructure(ctx, stack)
+    infrastructure = build_infrastructure(stack)
     for instance in infrastructure.values():
         print(instance)
         for vm in instance.microvms:
             print(f"  {vm}")
+
 
 @task
 def ls(_, distro=False, custom=False):
@@ -183,7 +183,7 @@ def prepare(ctx, vms, stack=None, arch=None, ssh_key=None, rebuild_deps=False, p
 
     download_gotestsum(ctx)
 
-    infra = build_infrastructure(ctx, stack, ssh_key)
+    infra = build_infrastructure(stack, ssh_key)
     domains = filter_target_domains(ctx, vms, infra)
 
     constrain_pkgs = ""
@@ -242,7 +242,7 @@ def test(ctx, vms, stack=None, packages="", run=None, retry=2, rebuild_deps=Fals
 
     prepare(ctx, stack=stack, vms=vms, ssh_key=ssh_key, rebuild_deps=rebuild_deps, packages=packages)
 
-    infra = build_infrastructure(ctx, stack, ssh_key)
+    infra = build_infrastructure(stack, ssh_key)
     domains = filter_target_domains(ctx, vms, infra)
     if run is not None and packages is None:
         raise Exit("Package must be provided when specifying test")
@@ -269,7 +269,7 @@ def build(ctx, vms, stack=None, ssh_key=None, rebuild_deps=False, verbose=False)
     if not os.path.exists(f"kmt-deps/{stack}"):
         ctx.run(f"mkdir -p kmt-deps/{stack}")
 
-    infra = build_infrastructure(ctx, stack, ssh_key)
+    infra = build_infrastructure(stack, ssh_key)
     domains = filter_target_domains(ctx, vms, infra)
     if rebuild_deps:
         docker_exec(
@@ -356,7 +356,7 @@ def ssh_config(_, stacks=None, ddvm_rsa="~/dd/ami-builder/scripts/kernel-version
         ):
             continue
 
-        for _, instance in build_infrastructure(ctx, stack, remote_ssh_key=""):
+        for _, instance in build_infrastructure(stack, remote_ssh_key=""):
             print(f"Host kmt-{stack_name}-{instance.arch}")
             print(f"    HostName {instance.ip}")
             print("    User ubuntu")
