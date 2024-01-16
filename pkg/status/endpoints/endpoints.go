@@ -7,6 +7,14 @@
 package endpoints
 
 import (
+	"embed"
+	"io"
+	"path"
+
+	htmlTemplate "html/template"
+	textTemplate "text/template"
+
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
@@ -31,4 +39,61 @@ func PopulateStatus(stats map[string]interface{}) {
 		endpointsInfos[endpoint] = keys
 	}
 	stats["endpointsInfos"] = endpointsInfos
+}
+
+// Provider provides the functionality to populate the status output with the collector information
+type Provider struct{}
+
+//go:embed status_templates
+var templatesFS embed.FS
+
+// Name returns the name
+func (Provider) Name() string {
+	return "Endpoints"
+}
+
+// Section return the section
+func (Provider) Section() string {
+	return "endpoints"
+}
+
+// JSON populates the status map
+func (Provider) JSON(verbose bool, stats map[string]interface{}) error {
+	PopulateStatus(stats)
+
+	return nil
+}
+
+func (Provider) Text(_ bool, buffer io.Writer) error {
+	return renderText(buffer, getStatusInfo())
+}
+
+func (Provider) HTML(_ bool, buffer io.Writer) error {
+	return renderHTML(buffer, getStatusInfo())
+}
+
+func renderHTML(buffer io.Writer, data any) error {
+	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "endpointsHTML.tmpl"))
+	if tmplErr != nil {
+		return tmplErr
+	}
+	t := htmlTemplate.Must(htmlTemplate.New("endpointsHTML").Funcs(status.HTMLFmap()).Parse(string(tmpl)))
+	return t.Execute(buffer, data)
+}
+
+func renderText(buffer io.Writer, data any) error {
+	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "endpoints.tmpl"))
+	if tmplErr != nil {
+		return tmplErr
+	}
+	t := textTemplate.Must(textTemplate.New("endpoints").Funcs(status.TextFmap()).Parse(string(tmpl)))
+	return t.Execute(buffer, data)
+}
+
+func getStatusInfo() map[string]interface{} {
+	stats := make(map[string]interface{})
+
+	PopulateStatus(stats)
+
+	return stats
 }
