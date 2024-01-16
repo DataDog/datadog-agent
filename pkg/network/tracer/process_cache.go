@@ -158,7 +158,7 @@ func (pc *processCache) processEvent(entry *events.Process) *events.Process {
 	}
 
 	// entry is acceptable if:
-	// 1. it has a container ID
+	// 1. it has a container ID; or
 	// 2. we are not filtering on env vars or at least one of the env vars is present
 	if entry.ContainerID != nil ||
 		len(pc.filteredEnvs) == 0 ||
