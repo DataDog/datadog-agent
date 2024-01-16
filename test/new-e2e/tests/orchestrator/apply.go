@@ -8,29 +8,28 @@ package orchestrator
 import (
 	"fmt"
 
+	"github.com/pulumi/pulumi-kubernetes/sdk/v3/go/kubernetes"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+
 	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/redis"
 	dogstatsdstandalone "github.com/DataDog/test-infra-definitions/components/datadog/dogstatsd-standalone"
-	ddfakeintake "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
+	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
 	localKubernetes "github.com/DataDog/test-infra-definitions/components/kubernetes"
-	awsResources "github.com/DataDog/test-infra-definitions/resources/aws"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake/fakeintakeparams"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2vm"
-
-	"github.com/pulumi/pulumi-kubernetes/sdk/v3/go/kubernetes"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	resAws "github.com/DataDog/test-infra-definitions/resources/aws"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
 )
 
 // Apply creates a kind cluster, deploys the datadog agent, and installs various workloads for testing
 func Apply(ctx *pulumi.Context) error {
-	awsEnv, kindKubeProvider, err := createCluster(ctx)
+	awsEnv, kindCluster, kindKubeProvider, err := createCluster(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create kind cluster: %w", err)
 	}
 
-	agentDependency, err := deployAgent(ctx, awsEnv, kindKubeProvider)
+	agentDependency, err := deployAgent(ctx, awsEnv, kindCluster, kindKubeProvider)
 	if err != nil {
 		return fmt.Errorf("failed to deploy agent to cluster: %w", err)
 	}
@@ -45,30 +44,40 @@ func Apply(ctx *pulumi.Context) error {
 	return nil
 }
 
-func createCluster(ctx *pulumi.Context) (*awsResources.Environment, *kubernetes.Provider, error) {
-	vm, err := ec2vm.NewUnixEc2VM(ctx)
+func createCluster(ctx *pulumi.Context) (*resAws.Environment, *localKubernetes.Cluster, *kubernetes.Provider, error) {
+	awsEnv, err := resAws.NewEnvironment(ctx)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	awsEnv := vm.Infra.GetAwsEnvironment()
 
-	kubeConfigCommand, kubeConfig, err := localKubernetes.NewKindCluster(vm.UnixVM, awsEnv.CommonNamer.ResourceName("kind"), "amd64", awsEnv.KubernetesVersion())
+	vm, err := ec2.NewVM(awsEnv, "kind")
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
+	}
+	if err := vm.Export(ctx, nil); err != nil {
+		return nil, nil, nil, err
+	}
+
+	kindCluster, err := localKubernetes.NewKindCluster(*awsEnv.CommonEnvironment, vm, awsEnv.CommonNamer.ResourceName("kind"), awsEnv.KubernetesVersion())
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if err := kindCluster.Export(ctx, nil); err != nil {
+		return nil, nil, nil, err
 	}
 
 	// Export cluster’s properties
-	ctx.Export("kubeconfig", kubeConfig)
+	ctx.Export("kubeconfig", kindCluster.KubeConfig)
 
 	// Building Kubernetes provider
 	kindKubeProvider, err := kubernetes.NewProvider(ctx, awsEnv.Namer.ResourceName("k8s-provider"), &kubernetes.ProviderArgs{
 		EnableServerSideApply: pulumi.BoolPtr(true),
-		Kubeconfig:            kubeConfig,
-	}, utils.PulumiDependsOn(kubeConfigCommand))
+		Kubeconfig:            kindCluster.KubeConfig,
+	})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	return &awsEnv, kindKubeProvider, nil
+	return &awsEnv, kindCluster, kindKubeProvider, nil
 }
 
 const agentCustomValuesFmt = `
@@ -97,13 +106,21 @@ clusterAgent:
           - datadoghq.com/v1alpha1/datadogmetrics
 `
 
-func deployAgent(ctx *pulumi.Context, awsEnv *awsResources.Environment, kindKubeProvider *kubernetes.Provider) (pulumi.ResourceOption, error) {
+func deployAgent(ctx *pulumi.Context, awsEnv *resAws.Environment, cluster *localKubernetes.Cluster, kindKubeProvider *kubernetes.Provider) (pulumi.ResourceOption, error) {
 	var agentDependency pulumi.ResourceOption
 
-	var fakeIntake *ddfakeintake.ConnectionExporter
-	var err error
+	var fakeIntake *fakeintakeComp.Fakeintake
 	if awsEnv.GetCommonEnvironment().AgentUseFakeintake() {
-		if fakeIntake, err = aws.NewEcsFakeintake(*awsEnv, fakeintakeparams.WithLoadBalancer()); err != nil {
+		fakeIntakeOptions := []fakeintake.Option{}
+		if awsEnv.GetCommonEnvironment().InfraShouldDeployFakeintakeWithLB() {
+			fakeIntakeOptions = append(fakeIntakeOptions, fakeintake.WithLoadBalancer())
+		}
+
+		var err error
+		if fakeIntake, err = fakeintake.NewECSFargateInstance(*awsEnv, cluster.Name(), fakeIntakeOptions...); err != nil {
+			return nil, err
+		}
+		if err := fakeIntake.Export(awsEnv.Ctx, nil); err != nil {
 			return nil, err
 		}
 	}
