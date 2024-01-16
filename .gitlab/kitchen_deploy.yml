@@ -113,9 +113,8 @@ deploy_deb_testing-a6_arm64:
 
 deploy_deb_testing-a7_x64:
   rules:
-    - !reference [.except_mergequeue]
-    - !reference [.must_a7]
-    - !reference [.on_success_except_no_tests_no_deploy]
+    - !reference [.except_no_tests_no_deploy]
+    - !reference [.on_a7]
   extends:
     - .deploy_deb_testing-a7
   needs: ["agent_deb-x64-a7", "agent_heroku_deb-x64-a7", "iot_agent_deb-x64", "dogstatsd_deb-x64", "lint_linux-x64", "tests_deb-x64-py3"]
@@ -147,9 +146,8 @@ deploy_deb_testing-a7_arm64:
 
 deploy_deb_testing-u7_arm64:
   rules:
-    - !reference [.except_mergequeue]
-    - !reference [.must_a7]
-    - !reference [.on_success_except_no_tests_no_deploy]
+    - !reference [.except_no_tests_no_deploy]
+    - !reference [.on_a7]
   extends:
     - .deploy_deb_testing-u7
   needs: ["updater_deb-arm64", "lint_linux-arm64"]
@@ -206,9 +204,8 @@ deploy_rpm_testing-a6_arm64:
 
 deploy_rpm_testing-a7_x64:
   rules:
-    - !reference [.except_mergequeue]
-    - !reference [.must_a7]
-    - !reference [.on_success_except_no_tests_no_deploy]
+    - !reference [.except_no_tests_no_deploy]
+    - !reference [.on_a7]
   extends:
     - .deploy_rpm_testing-a7
   needs: ["agent_rpm-x64-a7", "iot_agent_rpm-x64", "dogstatsd_rpm-x64", "lint_linux-x64", "tests_rpm-x64-py3"]
@@ -247,9 +244,8 @@ deploy_suse_rpm_testing_x64-a6:
 
 deploy_suse_rpm_testing_x64-a7:
   rules:
-    - !reference [.except_mergequeue]
-    - !reference [.must_a7]
-    - !reference [.on_success_except_no_tests_no_deploy]
+    - !reference [.except_no_tests_no_deploy]
+    - !reference [.on_a7]
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["arch:amd64"]
@@ -296,9 +292,8 @@ deploy_windows_testing-a6:
 
 deploy_windows_testing-a7:
   rules:
-    - !reference [.except_mergequeue]
-    - !reference [.must_a7]
-    - !reference [.on_success_except_no_tests_no_deploy]
+    - !reference [.except_no_tests_no_deploy]
+    - !reference [.on_a7]
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["arch:amd64"]

@@ -352,14 +352,6 @@ workflow:
 # Any job in the pipeline either runs (with when: on_success) in all pipelines, or follows one of the below rule blocks.
 #
 
-.must_a6:
-  - <<: *if_not_version_6
-    when: never
-
-.must_a7:
-  - <<: *if_not_version_7
-    when: never
-
 .manual:
   - <<: *if_mergequeue
     when: never
@@ -790,10 +782,9 @@ workflow:
     when: never
   - when: on_success
 
-.on_success_except_no_tests_no_deploy:
+except_no_tests_no_deploy:
   - if: $RUN_KITCHEN_TESTS == "false" && $DEPLOY_AGENT == "false" && $RUN_E2E_TESTS == "false"
     when: never
-  - when: on_success
 
 .on_a6_except_deploy:
   - <<: *if_not_version_6
