@@ -24,13 +24,13 @@
   error: {{.hostnameStats.errors.all}}
 {{- end }}
 
-{{- if .hostinfo }}
+{{ if .hostinfo }}
 Host Info
 =========
+
 {{- range $name, $value := .hostinfo -}}
   {{- if and (ne $name "hostname") (ne $name "hostid") ($value) }}
   {{$name}}: {{if eq $name "bootTime" }}{{ formatUnixTime $value }}{{ else }}{{if eq $name "uptime" }}{{ humanizeDuration $value "s"}}{{ else }}{{ $value }}{{ end }}{{ end }}
   {{- end }}
 {{- end }}
-{{- end }}
-
+{{ end }}

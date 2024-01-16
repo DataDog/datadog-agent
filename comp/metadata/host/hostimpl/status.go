@@ -18,6 +18,8 @@ import (
 	textTemplate "text/template"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
+
+	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 )
 
 //go:embed status_templates
@@ -59,6 +61,11 @@ func (h *host) populateStatus(stats map[string]interface{}) {
 	hostTags = append(hostTags, payload.HostTags.System...)
 	hostTags = append(hostTags, payload.HostTags.GoogleCloudPlatform...)
 	stats["hostTags"] = hostTags
+	hostinfo := utils.GetInformation()
+	hostinfoMap := make(map[string]interface{})
+	hostinfoBytes, _ := json.Marshal(hostinfo)
+	json.Unmarshal(hostinfoBytes, &hostinfoMap) //nolint:errcheck
+	stats["hostinfo"] = hostinfoMap
 }
 
 func (h *host) JSON(stats map[string]interface{}) error {
