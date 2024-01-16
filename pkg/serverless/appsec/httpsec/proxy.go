@@ -8,9 +8,11 @@ package httpsec
 import (
 	"bytes"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
+	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trigger"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -31,13 +33,16 @@ type ProxyLifecycleProcessor struct {
 
 	// Parsed invocation event value
 	invocationEvent interface{}
+
+	demux aggregator.Demultiplexer
 }
 
 // NewProxyLifecycleProcessor returns a new httpsec proxy processor monitored with the
 // given Monitorer.
-func NewProxyLifecycleProcessor(appsec Monitorer) *ProxyLifecycleProcessor {
+func NewProxyLifecycleProcessor(appsec Monitorer, demux aggregator.Demultiplexer) *ProxyLifecycleProcessor {
 	return &ProxyLifecycleProcessor{
 		appsec: appsec,
+		demux:  demux,
 	}
 }
 
@@ -82,6 +87,9 @@ func (lp *ProxyLifecycleProcessor) OnInvokeStart(startDetails *invocationlifecyc
 		event = &events.ALBTargetGroupRequest{}
 	case trigger.LambdaFunctionURLEvent:
 		event = &events.LambdaFunctionURLRequest{}
+	}
+	if lp.demux != nil {
+		serverlessMetrics.SendASMInvocationEnhancedMetric(nil, lp.demux)
 	}
 
 	if err := json.Unmarshal(payloadBytes, event); err != nil {
