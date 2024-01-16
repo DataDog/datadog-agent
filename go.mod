@@ -30,6 +30,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/log => ./comp/core/log/
 	github.com/DataDog/datadog-agent/comp/core/secrets => ./comp/core/secrets
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ./comp/core/telemetry/
+	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ./comp/forwarder/defaultforwarder
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ./comp/logs/agent/config
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ./pkg/aggregator/ckey/
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ./pkg/collector/check/defaults
@@ -599,6 +600,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/log v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.51.0-rc.2

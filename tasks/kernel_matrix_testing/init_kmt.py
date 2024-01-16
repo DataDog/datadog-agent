@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 
 from .compiler import build_compiler
-from .download import download_kernel_packages, download_rootfs
+from .download import download_rootfs
 from .kmt_os import get_kmt_os
 from .tool import info
 
@@ -46,12 +46,10 @@ def init_kernel_matrix_testing_system(ctx, lite):
     user = getpass.getuser()
     ctx.run(f"{sudo} install -d -m 0755 -g {kmt_os.libvirt_group} -o {user} {kmt_os.kmt_dir}")
     ctx.run(f"{sudo} install -d -m 0755 -g {kmt_os.libvirt_group} -o {user} {kmt_os.packages_dir}")
-    ctx.run(f"{sudo} install -d -m 0755 -g {kmt_os.libvirt_group} -o {user} {kmt_os.backup_dir}")
     ctx.run(f"{sudo} install -d -m 0755 -g {kmt_os.libvirt_group} -o {user} {kmt_os.stacks_dir}")
     ctx.run(f"{sudo} install -d -m 0755 -g {kmt_os.libvirt_group} -o {user} {kmt_os.libvirt_dir}")
     ctx.run(f"{sudo} install -d -m 0755 -g {kmt_os.libvirt_group} -o {user} {kmt_os.rootfs_dir}")
     ctx.run(f"{sudo} install -d -m 0755 -g {kmt_os.libvirt_group} -o {user} {kmt_os.shared_dir}")
-    ctx.run(f"{sudo} install -d -m 0755 -g {kmt_os.libvirt_group} -o {user} {kmt_os.kheaders_dir}")
 
     if not lite:
         ## fix libvirt conf
@@ -63,9 +61,9 @@ def init_kernel_matrix_testing_system(ctx, lite):
 
         kmt_os.restart_libvirtd(ctx, sudo)
 
-        # download dependencies
-        download_rootfs(ctx, kmt_os.rootfs_dir, kmt_os.backup_dir)
-        download_kernel_packages(ctx, kmt_os.packages_dir, kmt_os.kheaders_dir, kmt_os.backup_dir)
+    # download dependencies
+    if not lite:
+        download_rootfs(ctx, kmt_os.rootfs_dir)
         gen_ssh_key(ctx, kmt_os.kmt_dir)
 
     # build docker compile image
