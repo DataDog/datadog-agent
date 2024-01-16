@@ -53,17 +53,17 @@ func (Provider) populateStatus(stats map[string]interface{}) {
 }
 
 // JSON populates the status map
-func (p Provider) JSON(stats map[string]interface{}) error {
+func (p Provider) JSON(verbose bool, stats map[string]interface{}) error {
 	p.populateStatus(stats)
 
 	return nil
 }
 
-func (p Provider) Text(buffer io.Writer) error {
+func (p Provider) Text(verbose bool, buffer io.Writer) error {
 	return renderText(buffer, p.getStatusInfo())
 }
 
-func (p Provider) HTML(buffer io.Writer) error {
+func (p Provider) HTML(verbose bool, buffer io.Writer) error {
 	return renderHTML(buffer, p.getStatusInfo())
 }
 

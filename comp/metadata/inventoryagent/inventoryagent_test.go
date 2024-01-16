@@ -275,13 +275,13 @@ func TestStatusHeaderProvider(t *testing.T) {
 	}{
 		{"JSON", func(t *testing.T) {
 			stats := make(map[string]interface{})
-			headerStatusProvider.JSON(stats)
+			headerStatusProvider.JSON(false, stats)
 
 			assert.NotEmpty(t, stats)
 		}},
 		{"Text", func(t *testing.T) {
 			b := new(bytes.Buffer)
-			err := headerStatusProvider.Text(b)
+			err := headerStatusProvider.Text(false, b)
 
 			assert.NoError(t, err)
 
@@ -289,7 +289,7 @@ func TestStatusHeaderProvider(t *testing.T) {
 		}},
 		{"HTML", func(t *testing.T) {
 			b := new(bytes.Buffer)
-			err := headerStatusProvider.HTML(b)
+			err := headerStatusProvider.HTML(false, b)
 
 			assert.NoError(t, err)
 

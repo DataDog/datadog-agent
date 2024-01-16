@@ -40,17 +40,17 @@ func (a *agent) populateStatus(stats map[string]interface{}) {
 	stats["logsStats"] = logsStatus.Get(false)
 }
 
-func (a *agent) JSON(stats map[string]interface{}) error {
+func (a *agent) JSON(verbose bool, stats map[string]interface{}) error {
 	a.populateStatus(stats)
 
 	return nil
 }
 
-func (a *agent) Text(buffer io.Writer) error {
+func (a *agent) Text(verbose bool, buffer io.Writer) error {
 	return renderText(buffer, a.getStatusInfo())
 }
 
-func (a *agent) HTML(buffer io.Writer) error {
+func (a *agent) HTML(verbose bool, buffer io.Writer) error {
 	return renderHTML(buffer, a.getStatusInfo())
 }
 

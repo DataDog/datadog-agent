@@ -1042,13 +1042,13 @@ func TestStatusOutPut(t *testing.T) {
 	}{
 		{"JSON", func(t *testing.T, s *server) {
 			stats := make(map[string]interface{})
-			s.JSON(stats)
+			s.JSON(false, stats)
 
 			assert.NotEmpty(t, stats)
 		}},
 		{"Text", func(t *testing.T, s *server) {
 			b := new(bytes.Buffer)
-			err := s.Text(b)
+			err := s.Text(false, b)
 
 			assert.NoError(t, err)
 
@@ -1056,7 +1056,7 @@ func TestStatusOutPut(t *testing.T) {
 		}},
 		{"HTML", func(t *testing.T, s *server) {
 			b := new(bytes.Buffer)
-			err := s.HTML(b)
+			err := s.HTML(false, b)
 
 			assert.NoError(t, err)
 

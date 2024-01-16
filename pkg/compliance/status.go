@@ -68,17 +68,17 @@ func populateStatus(stats map[string]interface{}) {
 }
 
 // JSON populates the status map
-func (Provider) JSON(stats map[string]interface{}) error {
+func (Provider) JSON(_ bool, stats map[string]interface{}) error {
 	populateStatus(stats)
 
 	return nil
 }
 
-func (Provider) Text(buffer io.Writer) error {
+func (Provider) Text(_ bool, buffer io.Writer) error {
 	return renderText(buffer, getStatus())
 }
 
-func (Provider) HTML(buffer io.Writer) error {
+func (Provider) HTML(_ bool, buffer io.Writer) error {
 	return nil
 }
 

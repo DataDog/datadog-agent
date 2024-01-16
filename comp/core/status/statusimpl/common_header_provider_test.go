@@ -13,11 +13,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestCommonHeaderProviderIndex(t *testing.T) {
@@ -44,7 +45,7 @@ func TestCommonHeaderProviderJSON(t *testing.T) {
 
 	provider := newCommonHeaderProvider(config)
 	stats := map[string]interface{}{}
-	provider.JSON(stats)
+	provider.JSON(false, stats)
 
 	assert.Equal(t, version.AgentVersion, stats["version"])
 	assert.Equal(t, agentFlavor, stats["flavor"])
@@ -72,7 +73,7 @@ func TestCommonHeaderProviderText(t *testing.T) {
 	provider := newCommonHeaderProvider(config)
 
 	buffer := new(bytes.Buffer)
-	provider.Text(buffer)
+	provider.Text(false, buffer)
 
 	expectedTextOutput := fmt.Sprintf(`  Status date: 2018-01-05 11:25:15 UTC (1515151515000)
   Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
@@ -108,7 +109,7 @@ func TestCommonHeaderProviderHTML(t *testing.T) {
 	provider := newCommonHeaderProvider(config)
 
 	buffer := new(bytes.Buffer)
-	provider.HTML(buffer)
+	provider.HTML(false, buffer)
 
 	// We have to do this strings replacement because html/temaplte escapes the `+` sign
 	// https://github.com/golang/go/issues/42506

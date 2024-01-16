@@ -40,17 +40,17 @@ func (p Provider) getStatusInfo() map[string]interface{} {
 }
 
 // JSON populates the status map
-func (p Provider) JSON(stats map[string]interface{}) error {
+func (p Provider) JSON(_ bool, stats map[string]interface{}) error {
 	PopulateStatus(stats)
 
 	return nil
 }
 
-func (p Provider) Text(buffer io.Writer) error {
+func (p Provider) Text(_ bool, buffer io.Writer) error {
 	return renderText(buffer, p.getStatusInfo())
 }
 
-func (p Provider) HTML(buffer io.Writer) error {
+func (p Provider) HTML(_ bool, buffer io.Writer) error {
 	return renderHTML(buffer, p.getStatusInfo())
 }
 

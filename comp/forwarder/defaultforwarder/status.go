@@ -53,17 +53,17 @@ func (s statusProvider) Section() string {
 	return "forwarder"
 }
 
-func (s statusProvider) JSON(stats map[string]interface{}) error {
+func (s statusProvider) JSON(_ bool, stats map[string]interface{}) error {
 	s.populateStatus(stats)
 
 	return nil
 }
 
-func (s statusProvider) Text(buffer io.Writer) error {
+func (s statusProvider) Text(_ bool, buffer io.Writer) error {
 	return renderText(buffer, s.getStatusInfo())
 }
 
-func (s statusProvider) HTML(buffer io.Writer) error {
+func (s statusProvider) HTML(_ bool, buffer io.Writer) error {
 	return renderHTML(buffer, s.getStatusInfo())
 }
 

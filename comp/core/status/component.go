@@ -32,9 +32,9 @@ type Provider interface {
 	// Section is used to group the status providers.
 	// When displaying the Text output the section is render as a header
 	Section() string
-	JSON(stats map[string]interface{}) error
-	Text(buffer io.Writer) error
-	HTML(buffer io.Writer) error
+	JSON(verbose bool, stats map[string]interface{}) error
+	Text(verbose bool, buffer io.Writer) error
+	HTML(verbose bool, buffer io.Writer) error
 }
 
 // HeaderProvider interface
@@ -43,9 +43,9 @@ type HeaderProvider interface {
 	Index() int
 	// When displaying the Text output the name is render as a header
 	Name() string
-	JSON(stats map[string]interface{}) error
-	Text(buffer io.Writer) error
-	HTML(buffer io.Writer) error
+	JSON(verbose bool, stats map[string]interface{}) error
+	Text(verbose bool, buffer io.Writer) error
+	HTML(verbose bool, buffer io.Writer) error
 }
 
 // InformationProvider stores the Provider instance
@@ -70,13 +70,13 @@ func (p NoopProvider) Name() string {
 func (p NoopProvider) Section() string {
 	return ""
 }
-func (p NoopProvider) JSON(_ map[string]interface{}) error {
+func (p NoopProvider) JSON(_ bool, _ map[string]interface{}) error {
 	return nil
 }
-func (p NoopProvider) Text(_ io.Writer) error {
+func (p NoopProvider) Text(_ bool, _ io.Writer) error {
 	return nil
 }
-func (p NoopProvider) HTML(_ io.Writer) error {
+func (p NoopProvider) HTML(_ bool, _ io.Writer) error {
 	return nil
 }
 
@@ -88,13 +88,13 @@ func (p NoopHeaderProvider) Name() string {
 func (p NoopHeaderProvider) Index() int {
 	return 0
 }
-func (p NoopHeaderProvider) JSON(_ map[string]interface{}) error {
+func (p NoopHeaderProvider) JSON(_ bool, _ map[string]interface{}) error {
 	return nil
 }
-func (p NoopHeaderProvider) Text(_ io.Writer) error {
+func (p NoopHeaderProvider) Text(_ bool, _ io.Writer) error {
 	return nil
 }
-func (p NoopHeaderProvider) HTML(_ io.Writer) error {
+func (p NoopHeaderProvider) HTML(_ bool, _ io.Writer) error {
 	return nil
 }
 

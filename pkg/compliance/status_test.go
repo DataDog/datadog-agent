@@ -21,13 +21,13 @@ func TestStatus(t *testing.T) {
 	}{
 		{"JSON", func(t *testing.T) {
 			stats := make(map[string]interface{})
-			provider.JSON(stats)
+			provider.JSON(false, stats)
 
 			assert.NotEmpty(t, stats)
 		}},
 		{"Text", func(t *testing.T) {
 			b := new(bytes.Buffer)
-			err := provider.Text(b)
+			err := provider.Text(false, b)
 
 			assert.NoError(t, err)
 
@@ -35,7 +35,7 @@ func TestStatus(t *testing.T) {
 		}},
 		{"HTML", func(t *testing.T) {
 			b := new(bytes.Buffer)
-			err := provider.HTML(b)
+			err := provider.HTML(false, b)
 
 			assert.NoError(t, err)
 

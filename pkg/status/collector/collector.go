@@ -107,19 +107,19 @@ func (Provider) Section() string {
 }
 
 // JSON populates the status map
-func (Provider) JSON(stats map[string]interface{}) error {
+func (Provider) JSON(verbose bool, stats map[string]interface{}) error {
 	PopulateStatus(stats)
 
 	return nil
 }
 
 // Text populates the status buffer with the human readbable version
-func (Provider) Text(buffer io.Writer) error {
+func (Provider) Text(verbose bool, buffer io.Writer) error {
 	return render.ParseTemplate(buffer, "/collector.tmpl", GetStatusInfo())
 }
 
 // HTML populates the status buffer with the HTML version
-func (Provider) HTML(buffer io.Writer) error {
+func (Provider) HTML(verbose bool, buffer io.Writer) error {
 	return render.ParseHTMLTemplate(buffer, "/collectorHTML.tmpl", GetStatusInfo())
 }
 

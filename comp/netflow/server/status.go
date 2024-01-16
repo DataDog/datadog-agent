@@ -34,7 +34,7 @@ func (Provider) Section() string {
 }
 
 // JSON populates the status map
-func (Provider) JSON(stats map[string]interface{}) error {
+func (Provider) JSON(_ bool, stats map[string]interface{}) error {
 	status := GetStatus()
 
 	var statusMap map[string]interface{}
@@ -57,11 +57,11 @@ func (Provider) JSON(stats map[string]interface{}) error {
 	return nil
 }
 
-func (Provider) Text(buffer io.Writer) error {
+func (Provider) Text(_ bool, buffer io.Writer) error {
 	return renderText(buffer, GetStatus())
 }
 
-func (Provider) HTML(buffer io.Writer) error {
+func (Provider) HTML(_ bool, buffer io.Writer) error {
 	return renderHTML(buffer, GetStatus())
 }
 

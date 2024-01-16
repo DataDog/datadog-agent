@@ -68,17 +68,17 @@ func (h *host) populateStatus(stats map[string]interface{}) {
 	stats["hostinfo"] = hostinfoMap
 }
 
-func (h *host) JSON(stats map[string]interface{}) error {
+func (h *host) JSON(_ bool, stats map[string]interface{}) error {
 	h.populateStatus(stats)
 
 	return nil
 }
 
-func (h *host) Text(buffer io.Writer) error {
+func (h *host) Text(_ bool, buffer io.Writer) error {
 	return renderText(buffer, h.getStatusInfo())
 }
 
-func (h *host) HTML(buffer io.Writer) error {
+func (h *host) HTML(_ bool, buffer io.Writer) error {
 	return renderHTML(buffer, h.getStatusInfo())
 }
 

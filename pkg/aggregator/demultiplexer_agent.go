@@ -693,17 +693,17 @@ func (d *AgentDemultiplexer) Section() string {
 	return "aggregator"
 }
 
-func (d *AgentDemultiplexer) JSON(stats map[string]interface{}) error {
+func (d *AgentDemultiplexer) JSON(_ bool, stats map[string]interface{}) error {
 	d.populateStatus(stats)
 
 	return nil
 }
 
-func (d *AgentDemultiplexer) Text(buffer io.Writer) error {
+func (d *AgentDemultiplexer) Text(_ bool, buffer io.Writer) error {
 	return renderText(buffer, d.getStatusInfo())
 }
 
-func (d *AgentDemultiplexer) HTML(buffer io.Writer) error {
+func (d *AgentDemultiplexer) HTML(_ bool, buffer io.Writer) error {
 	return renderHTML(buffer, d.getStatusInfo())
 }
 

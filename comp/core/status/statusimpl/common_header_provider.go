@@ -42,7 +42,7 @@ func (h *headerProvider) Name() string {
 	return h.name
 }
 
-func (h *headerProvider) JSON(stats map[string]interface{}) error {
+func (h *headerProvider) JSON(_ bool, stats map[string]interface{}) error {
 	for k, v := range h.data {
 		stats[k] = v
 	}
@@ -50,7 +50,7 @@ func (h *headerProvider) JSON(stats map[string]interface{}) error {
 	return nil
 }
 
-func (h *headerProvider) Text(buffer io.Writer) error {
+func (h *headerProvider) Text(_ bool, buffer io.Writer) error {
 	tmpl, tmplErr := templatesFS.ReadFile(path.Join("templates", "text.tmpl"))
 	if tmplErr != nil {
 		return tmplErr
@@ -59,7 +59,7 @@ func (h *headerProvider) Text(buffer io.Writer) error {
 	return t.Execute(buffer, h.data)
 }
 
-func (h *headerProvider) HTML(buffer io.Writer) error {
+func (h *headerProvider) HTML(_ bool, buffer io.Writer) error {
 	tmpl, tmplErr := templatesFS.ReadFile(path.Join("templates", "html.tmpl"))
 	if tmplErr != nil {
 		return tmplErr

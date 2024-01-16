@@ -154,13 +154,13 @@ func TestStatusOutPut(t *testing.T) {
 	}{
 		{"JSON", func(a *AgentDemultiplexer) {
 			stats := make(map[string]interface{})
-			a.JSON(stats)
+			a.JSON(false, stats)
 
 			require.NotEmpty(stats)
 		}},
 		{"Text", func(a *AgentDemultiplexer) {
 			b := new(bytes.Buffer)
-			err := a.Text(b)
+			err := a.Text(false, b)
 
 			require.NoError(err)
 
@@ -168,7 +168,7 @@ func TestStatusOutPut(t *testing.T) {
 		}},
 		{"HTML", func(a *AgentDemultiplexer) {
 			b := new(bytes.Buffer)
-			err := a.HTML(b)
+			err := a.HTML(false, b)
 
 			require.NoError(err)
 

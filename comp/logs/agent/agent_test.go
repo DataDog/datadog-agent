@@ -262,13 +262,13 @@ func (suite *AgentTestSuite) TestStatusOut() {
 	}{
 		{"JSON", func(t *testing.T) {
 			stats := make(map[string]interface{})
-			headerProvider.JSON(stats)
+			headerProvider.JSON(false, stats)
 
 			assert.NotEmpty(t, stats)
 		}},
 		{"Text", func(t *testing.T) {
 			b := new(bytes.Buffer)
-			err := headerProvider.Text(b)
+			err := headerProvider.Text(false, b)
 
 			assert.NoError(t, err)
 
@@ -276,7 +276,7 @@ func (suite *AgentTestSuite) TestStatusOut() {
 		}},
 		{"HTML", func(t *testing.T) {
 			b := new(bytes.Buffer)
-			err := headerProvider.HTML(b)
+			err := headerProvider.HTML(false, b)
 
 			assert.NoError(t, err)
 

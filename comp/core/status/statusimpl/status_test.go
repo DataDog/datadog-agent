@@ -15,14 +15,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 )
 
 type mockProvider struct {
@@ -42,7 +43,7 @@ func (m mockProvider) Section() string {
 	return m.section
 }
 
-func (m mockProvider) JSON(stats map[string]interface{}) error {
+func (m mockProvider) JSON(_ bool, stats map[string]interface{}) error {
 	if m.returnError {
 		return fmt.Errorf("JSON error")
 	}
@@ -54,7 +55,7 @@ func (m mockProvider) JSON(stats map[string]interface{}) error {
 	return nil
 }
 
-func (m mockProvider) Text(buffer io.Writer) error {
+func (m mockProvider) Text(_ bool, buffer io.Writer) error {
 	if m.returnError {
 		return fmt.Errorf("Text error")
 	}
@@ -63,7 +64,7 @@ func (m mockProvider) Text(buffer io.Writer) error {
 	return err
 }
 
-func (m mockProvider) HTML(buffer io.Writer) error {
+func (m mockProvider) HTML(_ bool, buffer io.Writer) error {
 	if m.returnError {
 		return fmt.Errorf("HTML error")
 	}
@@ -89,7 +90,7 @@ func (m mockHeaderProvider) Name() string {
 	return m.name
 }
 
-func (m mockHeaderProvider) JSON(stats map[string]interface{}) error {
+func (m mockHeaderProvider) JSON(_ bool, stats map[string]interface{}) error {
 	if m.returnError {
 		return fmt.Errorf("JSON error")
 	}
@@ -101,7 +102,7 @@ func (m mockHeaderProvider) JSON(stats map[string]interface{}) error {
 	return nil
 }
 
-func (m mockHeaderProvider) Text(buffer io.Writer) error {
+func (m mockHeaderProvider) Text(_ bool, buffer io.Writer) error {
 	if m.returnError {
 		return fmt.Errorf("Text error")
 	}
@@ -110,7 +111,7 @@ func (m mockHeaderProvider) Text(buffer io.Writer) error {
 	return err
 }
 
-func (m mockHeaderProvider) HTML(buffer io.Writer) error {
+func (m mockHeaderProvider) HTML(_ bool, buffer io.Writer) error {
 	if m.returnError {
 		return fmt.Errorf("HTML error")
 	}

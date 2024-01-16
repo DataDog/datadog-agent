@@ -10,8 +10,9 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestJSON(t *testing.T) {
@@ -21,7 +22,7 @@ func TestJSON(t *testing.T) {
 	}
 
 	status := make(map[string]interface{})
-	provider.JSON(status)
+	provider.JSON(false, status)
 
 	jsonString, err := json.Marshal(status)
 	assert.NoError(t, err)
@@ -42,7 +43,7 @@ func TestJSONWith_forwarder_storage_max_size_in_bytes(t *testing.T) {
 	}
 
 	status := make(map[string]interface{})
-	provider.JSON(status)
+	provider.JSON(false, status)
 
 	stats := status["forwarderStats"].(map[string]interface{})
 
@@ -57,7 +58,7 @@ func TestText(t *testing.T) {
 	}
 
 	b := new(bytes.Buffer)
-	provider.Text(b)
+	provider.Text(false, b)
 
 	assert.NotEqual(t, "", b.String())
 }
@@ -70,7 +71,7 @@ func TestHTML(t *testing.T) {
 	}
 
 	b := new(bytes.Buffer)
-	provider.HTML(b)
+	provider.HTML(false, b)
 
 	assert.NotEqual(t, "", b.String())
 }
