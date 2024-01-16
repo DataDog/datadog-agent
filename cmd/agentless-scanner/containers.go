@@ -8,7 +8,6 @@ package main
 import (
 	"context"
 	"encoding/binary"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,14 +16,12 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
 
-	"crypto/sha256"
-	_ "crypto/sha512" // required by go-digest
-
+	_ "crypto/sha256"
+	_ "crypto/sha512"
 	digest "github.com/opencontainers/go-digest"
 
 	bolt "go.etcd.io/bbolt"
@@ -713,27 +710,24 @@ func dockerLayersPaths(dockerRoot string, ctr dockerContainer) ([]string, error)
 	}
 
 	var layers []string
-	var chainID string
+	var chainID digest.Digest
 	for _, d := range ctr.ImageManifest.RootFS.DiffIDs {
 		if err := d.Validate(); err != nil {
-			return nil, err
-		}
-		if d.Algorithm() != "sha256" {
-			return nil, fmt.Errorf("docker: unsupported diffID digest algorithm %q", d.Algorithm())
+			return nil, fmt.Errorf("docker: invalid root-fs diff-id %q: %w", d, err)
 		}
 		if chainID == "" {
-			chainID = d.String()
+			chainID = d
 		} else {
-			sum := sha256.New()
+			sum := d.Algorithm().Hash()
 			sum.Write([]byte(chainID))
 			sum.Write([]byte(" "))
-			sum.Write([]byte(d.String()))
-			chainID = "sha256:" + hex.EncodeToString(sum.Sum(nil))
+			sum.Write([]byte(d))
+			chainID = digest.NewDigest(d.Algorithm(), sum)
 		}
-		cacheIDPath := filepath.Join(dockerRoot, "image/overlay2/layerdb", "sha256", strings.TrimPrefix(chainID, "sha256:"), "cache-id")
+		cacheIDPath := filepath.Join(dockerRoot, "image/overlay2/layerdb", string(chainID.Algorithm()), chainID.Hex(), "cache-id")
 		cacheIDData, err := readFileLimit(cacheIDPath, 256)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("docker: could not read cache ID layer for diff ID %q: %w", d.String(), err)
 		}
 		layers = append(layers, dockerLayerPath(dockerRoot, cacheIDData))
 	}
@@ -748,7 +742,7 @@ func dockerLayersPaths(dockerRoot string, ctr dockerContainer) ([]string, error)
 	initIDPath := filepath.Join(mountsPath, cleanPath(ctr.ID), "init-id")
 	initIDData, err := readFileLimit(initIDPath, 256)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return nil, err
+		return nil, fmt.Errorf("docker: could not read init ID layer for container %q: %w", ctr, err)
 	}
 
 	if len(initIDData) > 0 {
@@ -756,7 +750,11 @@ func dockerLayersPaths(dockerRoot string, ctr dockerContainer) ([]string, error)
 	}
 	layers = append(layers, dockerLayerPath(dockerRoot, mountIDData))
 
-	slices.Reverse(layers)
+	// reverse the layers since we built it from the bottom-up to construct the
+	// chain IDs from the root diff IDS.
+	for i, j := 0, len(layers)-1; i < j; i, j = i+1, j-1 {
+		layers[i], layers[j] = layers[j], layers[i]
+	}
 	return layers, nil
 }
 
