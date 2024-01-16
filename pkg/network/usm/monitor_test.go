@@ -1006,7 +1006,7 @@ func removeHeaderFieldByKey(headerFields []hpack.HeaderField, keyToRemove string
 
 // createHeadersWithIndexedPathKey creates a message with the given number of header frames but the
 // path frame header key 4 and not 5 as usual.
-func createHeadersWithIndexedPathKey(t *testing.T, headerFields []hpack.HeaderField, headersCount int) []byte {
+func createHeadersWithIndexedPathKey(t *testing.T, headerFields []hpack.HeaderField, headerFramesCount int) []byte {
 	var buf bytes.Buffer
 	framer := http2.NewFramer(&buf, nil)
 	// pathHeaderField is the hex representation of the path /aaa with index 4.
@@ -1014,15 +1014,15 @@ func createHeadersWithIndexedPathKey(t *testing.T, headerFields []hpack.HeaderFi
 
 	// we remove the header field with key ":path" so that we will not have two header fields.
 	headerFields = removeHeaderFieldByKey(headerFields, ":path")
+	headersFrame, err := usmhttp2.NewHeadersFrameMessage(headerFields)
+	require.NoError(t, err, "could not create headers frame")
 
-	for i := 0; i < headersCount; i++ {
+	// we are adding the path header field with index 4, we need to do it on the byte slice and not on the headerFields
+	// due to the fact that when we create a header field it would be with index 5.
+	headersFrame = append(pathHeaderField, headersFrame...)
+
+	for i := 0; i < headerFramesCount; i++ {
 		streamID := 2*i + 1
-		headersFrame, err := usmhttp2.NewHeadersFrameMessage(headerFields)
-		require.NoError(t, err, "could not create headers frame")
-
-		// we are adding the path header field with index 4, we need to do it on the byte slice and not on the headerFields
-		// due to the fact that when we create a header field it would be with index 5.
-		headersFrame = append(pathHeaderField, headersFrame...)
 
 		// Writing the header frames to the buffer using the Framer.
 		require.NoError(t, framer.WriteHeaders(http2.HeadersFrameParam{
@@ -1041,7 +1041,7 @@ func createHeadersWithIndexedPathKey(t *testing.T, headerFields []hpack.HeaderFi
 
 // createMessageWithCustomHeadersFramesCount creates a message with the given number of header frames
 // and optionally ping and window update frames.
-func createMessageWithCustomHeadersFramesCount(t *testing.T, headerFields []hpack.HeaderField, headersCount int, setDynamicTableSize ...bool) []byte {
+func createMessageWithCustomHeadersFramesCount(t *testing.T, headerFields []hpack.HeaderField, headerFramesCount int, setDynamicTableSize ...bool) []byte {
 	var buf bytes.Buffer
 	framer := http2.NewFramer(&buf, nil)
 
@@ -1050,10 +1050,11 @@ func createMessageWithCustomHeadersFramesCount(t *testing.T, headerFields []hpac
 		changeDynamicTableSize = true
 
 	}
-	for i := 0; i < headersCount; i++ {
+	headersFrame, err := usmhttp2.NewHeadersFrameMessage(headerFields, changeDynamicTableSize)
+	require.NoError(t, err, "could not create headers frame")
+
+	for i := 0; i < headerFramesCount; i++ {
 		streamID := 2*i + 1
-		headersFrame, err := usmhttp2.NewHeadersFrameMessage(headerFields, changeDynamicTableSize)
-		require.NoError(t, err, "could not create headers frame")
 
 		// Writing the header frames to the buffer using the Framer.
 		require.NoError(t, framer.WriteHeaders(http2.HeadersFrameParam{
@@ -1071,11 +1072,11 @@ func createMessageWithCustomHeadersFramesCount(t *testing.T, headerFields []hpac
 }
 
 // createMessageWithCustomSettingsFrames creates a message with the given number of settings frames.
-func createMessageWithCustomSettingsFrames(t *testing.T, headerFields []hpack.HeaderField, settingsCount int) []byte {
+func createMessageWithCustomSettingsFrames(t *testing.T, headerFields []hpack.HeaderField, settingsFramesCount int) []byte {
 	var buf bytes.Buffer
 	framer := http2.NewFramer(&buf, nil)
 
-	for i := 0; i < settingsCount; i++ {
+	for i := 0; i < settingsFramesCount; i++ {
 		require.NoError(t, framer.WriteSettings(http2.Setting{}), "could not write settings frame")
 	}
 
@@ -1112,8 +1113,8 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			// The objective of this test is to verify that we accurately perform the parsing of frames within
 			// a single program.
 			messageBuilder: func() []byte {
-				settingsCount := 100
-				return createMessageWithCustomSettingsFrames(t, testHeaders(), settingsCount)
+				settingsFramesCount := 100
+				return createMessageWithCustomSettingsFrames(t, testHeaders(), settingsFramesCount)
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
@@ -1127,8 +1128,8 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			// The purpose of this test is to validate that when we surpass the limit of HTTP2_MAX_FRAMES_ITERATIONS,
 			// the filtering of subsequent frames will continue using tail calls.
 			messageBuilder: func() []byte {
-				settingsCount := 130
-				return createMessageWithCustomSettingsFrames(t, testHeaders(), settingsCount)
+				settingsFramesCount := 130
+				return createMessageWithCustomSettingsFrames(t, testHeaders(), settingsFramesCount)
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
@@ -1142,8 +1143,8 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			// The purpose of this test is to validate that when we surpass the limit of HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER,
 			// for 2 filter_frames we do not use more than two tail calls.
 			messageBuilder: func() []byte {
-				settingsCount := 250
-				return createMessageWithCustomSettingsFrames(t, testHeaders(), settingsCount)
+				settingsFramesCount := 250
+				return createMessageWithCustomSettingsFrames(t, testHeaders(), settingsFramesCount)
 			},
 			expectedEndpoints: nil,
 		},
@@ -1152,8 +1153,8 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			// The purpose of this test is to verify our ability to reach the limit set by HTTP2_MAX_FRAMES_ITERATIONS, which
 			// determines the maximum number of "interesting frames" we can process.
 			messageBuilder: func() []byte {
-				headersCount := 120
-				return createMessageWithCustomHeadersFramesCount(t, testHeaders(), headersCount)
+				headerFramesCount := 120
+				return createMessageWithCustomHeadersFramesCount(t, testHeaders(), headerFramesCount)
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
@@ -1167,8 +1168,8 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			// The purpose of this test is to verify our ability to reach the limit set by HTTP2_MAX_FRAMES_ITERATIONS
 			// and validate that we cannot handle more than that limit.
 			messageBuilder: func() []byte {
-				headersCount := 130
-				return createMessageWithCustomHeadersFramesCount(t, testHeaders(), headersCount)
+				headerFramesCount := 130
+				return createMessageWithCustomHeadersFramesCount(t, testHeaders(), headerFramesCount)
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
@@ -1183,9 +1184,9 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			// Literal Header Field without Indexing (0b0000xxxx: top four bits are 0000)
 			// https://httpwg.org/specs/rfc7541.html#rfc.section.C.2.2
 			messageBuilder: func() []byte {
-				headersCount := 5
+				headerFramesCount := 5
 				setDynamicTableSize := true
-				return createMessageWithCustomHeadersFramesCount(t, headersWithoutIndexingPath(), headersCount, setDynamicTableSize)
+				return createMessageWithCustomHeadersFramesCount(t, headersWithoutIndexingPath(), headerFramesCount, setDynamicTableSize)
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
@@ -1200,8 +1201,8 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			// Literal Header Field never Indexed (0b0001xxxx: top four bits are 0001)
 			// https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.3
 			messageBuilder: func() []byte {
-				headersCount := 5
-				return createMessageWithCustomHeadersFramesCount(t, headersWithNeverIndexedPath(), headersCount)
+				headerFramesCount := 5
+				return createMessageWithCustomHeadersFramesCount(t, headersWithNeverIndexedPath(), headerFramesCount)
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
@@ -1214,8 +1215,8 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			name: "validate path with index 4",
 			// The purpose of this test is to verify our ability to identify paths with index 4.
 			messageBuilder: func() []byte {
-				headersCount := 5
-				return createHeadersWithIndexedPathKey(t, testHeaders(), headersCount)
+				headerFramesCount := 5
+				return createHeadersWithIndexedPathKey(t, testHeaders(), headerFramesCount)
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
