@@ -28,30 +28,30 @@ func (a *agent) Section() string {
 	return "Logs Agent"
 }
 
-func (a *agent) getStatusInfo() map[string]interface{} {
+func (a *agent) getStatusInfo(verbose bool) map[string]interface{} {
 	stats := make(map[string]interface{})
 
-	a.populateStatus(stats)
+	a.populateStatus(verbose, stats)
 
 	return stats
 }
 
-func (a *agent) populateStatus(stats map[string]interface{}) {
-	stats["logsStats"] = logsStatus.Get(false)
+func (a *agent) populateStatus(verbose bool, stats map[string]interface{}) {
+	stats["logsStats"] = logsStatus.Get(verbose)
 }
 
 func (a *agent) JSON(verbose bool, stats map[string]interface{}) error {
-	a.populateStatus(stats)
+	a.populateStatus(verbose, stats)
 
 	return nil
 }
 
 func (a *agent) Text(verbose bool, buffer io.Writer) error {
-	return renderText(buffer, a.getStatusInfo())
+	return renderText(buffer, a.getStatusInfo(verbose))
 }
 
 func (a *agent) HTML(verbose bool, buffer io.Writer) error {
-	return renderHTML(buffer, a.getStatusInfo())
+	return renderHTML(buffer, a.getStatusInfo(verbose))
 }
 
 func renderHTML(buffer io.Writer, data any) error {
