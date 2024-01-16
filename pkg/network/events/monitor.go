@@ -113,17 +113,21 @@ func (h *eventHandlerWrapper) Copy(ev *model.Event) any {
 		}
 
 		envs := ev.GetProcessEnvp()
-
-		return &Process{
-			Pid:         ev.GetProcessPid(),
-			ContainerID: intern.GetByString(ev.GetContainerId()),
-			StartTime:   processStartTime.UnixNano(),
+		p := &Process{
+			Pid:       ev.GetProcessPid(),
+			StartTime: processStartTime.UnixNano(),
 			Envs: model.FilterEnvs(envs, map[string]bool{
 				"DD_SERVICE": true,
 				"DD_VERSION": true,
 				"DD_ENV":     true,
 			}),
 		}
+
+		if cid := ev.GetContainerId(); cid != "" {
+			p.ContainerID = intern.GetByString(cid)
+		}
+
+		return p
 	}
 
 	return nil

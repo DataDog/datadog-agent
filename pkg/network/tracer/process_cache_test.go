@@ -46,7 +46,7 @@ func TestProcessCacheProcessEvent(t *testing.T) {
 		{envs: []string{ddVersion, ddService}, filter: defaultFilteredEnvs, filtered: []string{ddVersion, ddService}},
 		{envs: []string{ddService, ddVersion, ddEnv}, filter: defaultFilteredEnvs, filtered: defaultFilteredEnvs},
 		{envs: []string{ddService, ddVersion, ddEnv, "foo=bar"}, filter: defaultFilteredEnvs, filtered: defaultFilteredEnvs},
-		{envs: []string{"foo"}, filter: defaultFilteredEnvs, filtered: []string{}},
+		{envs: []string{"foo=bar"}, filter: defaultFilteredEnvs, filtered: []string{}},
 		{envs: []string{ddEnv}},
 		{envs: []string{ddVersion}},
 		{envs: []string{ddService}},
