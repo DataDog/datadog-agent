@@ -411,6 +411,7 @@
 /pkg/network/protocols/http/etw_*.go            @DataDog/windows-kernel-integrations
 /pkg/network/protocols/http/*_windows*.go       @DataDog/windows-kernel-integrations
 /pkg/network/tracer/*classification*.go         @DataDog/universal-service-monitoring
+/pkg/network/tracer/testutil/http2/             @DataDog/universal-service-monitoring
 /pkg/network/tracer/testutil/grpc/              @DataDog/universal-service-monitoring
 /pkg/network/tracer/testutil/prefetch_file/     @DataDog/universal-service-monitoring
 /pkg/network/tracer/*usm*.go                    @DataDog/universal-service-monitoring
