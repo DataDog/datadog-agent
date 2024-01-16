@@ -63,11 +63,11 @@ type Updater struct {
 // NewUpdater returns a new Updater.
 func NewUpdater(orgConfig *OrgConfig, pkg string) (*Updater, error) {
 	repository := repository.Repository{RootPath: path.Join(defaultRepositoryPath, pkg)}
-	status, err := repository.GetStatus()
+	state, err := repository.GetState()
 	if err != nil {
-		return nil, fmt.Errorf("could not get repository status: %w", err)
+		return nil, fmt.Errorf("could not get repository state: %w", err)
 	}
-	if !status.HasStable() {
+	if !state.HasStable() {
 		return nil, fmt.Errorf("attempt to create an updater for a package that has not been bootstrapped with a stable version")
 	}
 	return &Updater{

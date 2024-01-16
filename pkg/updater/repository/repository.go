@@ -54,8 +54,8 @@ func (s *State) HasExperiment() bool {
 	return s.Experiment != ""
 }
 
-// GetStatus returns the status of the repository.
-func (r *Repository) GetStatus() (*State, error) {
+// GetState returns the state of the repository.
+func (r *Repository) GetState() (*State, error) {
 	repository, err := readRepository(r.RootPath)
 	if err != nil {
 		return nil, err
