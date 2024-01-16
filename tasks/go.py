@@ -90,6 +90,7 @@ def golangci_lint(
     print("WARNING: golangci-lint task is deprecated, please migrate to lint-go task")
     raise Exit(code=1)
 
+
 @task
 def internal_deps_checker(ctx, formatFile=False):
     """
