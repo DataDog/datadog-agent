@@ -13,18 +13,20 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 )
 
-// WindowsSvcManager struct for Windows service manager (SCM)
-type WindowsSvcManager struct {
+// Windows struct for Windows service manager (SCM)
+type Windows struct {
 	host *components.RemoteHost
 }
 
-// NewWindowsSvcManager returns Windows service manager
-func NewWindowsSvcManager(host *components.RemoteHost) *WindowsSvcManager {
-	return &WindowsSvcManager{host}
+var _ ServiceManager = &Windows{}
+
+// NewWindows returns Windows service manager
+func NewWindows(host *components.RemoteHost) *Windows {
+	return &Windows{host}
 }
 
 // Status returns status from service
-func (s *WindowsSvcManager) Status(service string) (string, error) {
+func (s *Windows) Status(service string) (string, error) {
 	status, err := windows.GetServiceStatus(s.host, service)
 	if err != nil {
 		return status, err
@@ -40,16 +42,16 @@ func (s *WindowsSvcManager) Status(service string) (string, error) {
 }
 
 // Stop executes stop command from service
-func (s *WindowsSvcManager) Stop(service string) (string, error) {
+func (s *Windows) Stop(service string) (string, error) {
 	return "", windows.StopService(s.host, service)
 }
 
 // Start executes start command from service
-func (s *WindowsSvcManager) Start(service string) (string, error) {
+func (s *Windows) Start(service string) (string, error) {
 	return "", windows.StartService(s.host, service)
 }
 
 // Restart executes restart command from service
-func (s *WindowsSvcManager) Restart(service string) (string, error) {
+func (s *Windows) Restart(service string) (string, error) {
 	return "", windows.RestartService(s.host, service)
 }

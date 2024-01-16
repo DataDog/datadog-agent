@@ -3,14 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package helper implement interfaces to get some information that can be OS specific
 package helper
 
 // Unix implement helper function for Unix distributions
 type Unix struct{}
 
-// NewUnixHelper create a new instance of Unix helper
-func NewUnixHelper() *Unix { return &Unix{} }
+var _ Helper = &Unix{}
+
+// NewUnix create a new instance of Unix helper
+func NewUnix() *Unix { return &Unix{} }
 
 // GetInstallFolder return the install folder path
 func (u *Unix) GetInstallFolder() string { return "/opt/datadog-agent/" }
@@ -42,8 +43,10 @@ func (u *Unix) AgentProcesses() []string {
 // UnixDogstatsd implement helper function for Dogstatsd on Unix distributions
 type UnixDogstatsd struct{}
 
-// NewUnixDogstatsdHelper create a new instance of Unix helper for dogstatsd
-func NewUnixDogstatsdHelper() *UnixDogstatsd { return &UnixDogstatsd{} }
+var _ Helper = &UnixDogstatsd{}
+
+// NewUnixDogstatsd create a new instance of Unix helper for dogstatsd
+func NewUnixDogstatsd() *UnixDogstatsd { return &UnixDogstatsd{} }
 
 // GetInstallFolder return the install folder path
 func (u *UnixDogstatsd) GetInstallFolder() string { return "/opt/datadog-dogstatsd/" }

@@ -3,11 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package helper implement interfaces to get some information that can be OS specific
 package helper
 
 // Windows implement helper function for Windows distributions
 type Windows struct{}
+
+var _ Helper = &Windows{}
 
 // NewWindowsHelper create a new instance of Windows helper
 func NewWindowsHelper() *Windows { return &Windows{} }

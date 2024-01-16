@@ -8,7 +8,6 @@ package common
 import (
 	"encoding/json"
 	"fmt"
-	"io/fs"
 	"strings"
 	"time"
 
@@ -27,63 +26,32 @@ import (
 	"testing"
 )
 
-// ServiceManager generic interface
-type ServiceManager interface {
-	Status(service string) (string, error)
-	Start(service string) (string, error)
-	Stop(service string) (string, error)
-	Restart(service string) (string, error)
-}
-
-// PackageManager generic interface
-type PackageManager interface {
-	Remove(pkg string) (string, error)
-}
-
-// FileManager generic interface
-type FileManager interface {
-	ReadFile(path string) ([]byte, error)
-	ReadDir(path string) ([]fs.DirEntry, error)
-	FileExists(path string) (bool, error)
-	WriteFile(path string, content []byte) (int64, error)
-}
-
-// Helper generic interface
-type Helper interface {
-	GetInstallFolder() string
-	GetConfigFolder() string
-	GetBinaryPath() string
-	GetConfigFileName() string
-	GetServiceName() string
-	AgentProcesses() []string
-}
-
-func getServiceManager(host *components.RemoteHost) ServiceManager {
+func getServiceManager(host *components.RemoteHost) svcmanager.ServiceManager {
 	if _, err := host.Execute("command -v systemctl"); err == nil {
-		return svcmanager.NewSystemctlSvcManager(host)
+		return svcmanager.NewSystemctl(host)
 	}
 
 	if _, err := host.Execute("command -v /sbin/initctl"); err == nil {
-		return svcmanager.NewUpstartSvcManager(host)
+		return svcmanager.NewUpstart(host)
 	}
 
 	if _, err := host.Execute("command -v service"); err == nil {
-		return svcmanager.NewServiceSvcManager(host)
+		return svcmanager.NewService(host)
 	}
 	return nil
 }
 
-func getPackageManager(host *components.RemoteHost) PackageManager {
+func getPackageManager(host *components.RemoteHost) pkgmanager.PackageManager {
 	if _, err := host.Execute("command -v apt"); err == nil {
-		return pkgmanager.NewAptPackageManager(host)
+		return pkgmanager.NewApt(host)
 	}
 
 	if _, err := host.Execute("command -v yum"); err == nil {
-		return pkgmanager.NewYumPackageManager(host)
+		return pkgmanager.NewYum(host)
 	}
 
 	if _, err := host.Execute("command -v zypper"); err == nil {
-		return pkgmanager.NewZypperPackageManager(host)
+		return pkgmanager.NewZypper(host)
 	}
 
 	return nil
@@ -93,14 +61,14 @@ func getPackageManager(host *components.RemoteHost) PackageManager {
 type TestClient struct {
 	Host        *components.RemoteHost
 	AgentClient agentclient.Agent
-	Helper      Helper
-	FileManager FileManager
-	SvcManager  ServiceManager
-	PkgManager  PackageManager
+	Helper      helpers.Helper
+	FileManager filemanager.FileManager
+	SvcManager  svcmanager.ServiceManager
+	PkgManager  pkgmanager.PackageManager
 }
 
 // NewTestClient create a an ExtendedClient from VMClient and AgentCommandRunner, includes svcManager and pkgManager to write agent-platform tests
-func NewTestClient(host *components.RemoteHost, agentClient agentclient.Agent, fileManager FileManager, helper Helper) *TestClient {
+func NewTestClient(host *components.RemoteHost, agentClient agentclient.Agent, fileManager filemanager.FileManager, helper helpers.Helper) *TestClient {
 	svcManager := getServiceManager(host)
 	pkgManager := getPackageManager(host)
 	return &TestClient{
@@ -224,7 +192,7 @@ func NewWindowsTestClient(t *testing.T, host *components.RemoteHost) *TestClient
 
 	helper := helpers.NewWindowsHelper()
 	client := NewTestClient(host, agentClient, fileManager, helper)
-	client.SvcManager = svcmanager.NewWindowsSvcManager(host)
+	client.SvcManager = svcmanager.NewWindows(host)
 
 	return client
 }

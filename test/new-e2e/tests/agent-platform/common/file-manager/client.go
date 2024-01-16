@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package filemanager implement interfaces to run install-script tests
 package filemanager
 
 import (
@@ -16,6 +15,8 @@ import (
 type RemoteHost struct {
 	host *components.RemoteHost
 }
+
+var _ FileManager = &RemoteHost{}
 
 // NewRemoteHost create a new file manager using components.RemoteHost
 // Note: The file operations will be restricted to the permissions of the client connection user

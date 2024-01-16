@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package filemanager implement interfaces to run install-script tests
 package filemanager
 
 import (
@@ -19,8 +18,10 @@ type Unix struct {
 	host *components.RemoteHost
 }
 
-// NewUnixFileManager create a new unix file manager
-func NewUnixFileManager(host *components.RemoteHost) *Unix {
+var _ FileManager = &Unix{}
+
+// NewUnix create a new unix file manager
+func NewUnix(host *components.RemoteHost) *Unix {
 	return &Unix{host: host}
 }
 

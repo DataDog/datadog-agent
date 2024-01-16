@@ -113,11 +113,11 @@ func (is *installScriptSuite) testUninstall(client *common.TestClient, flavor st
 
 func (is *installScriptSuite) AgentTest(flavor string) {
 	host := is.Env().RemoteHost
-	fileManager := filemanager.NewUnixFileManager(host)
+	fileManager := filemanager.NewUnix(host)
 	agentClient, err := client.NewHostAgentClient(is.T(), host, false)
 	require.NoError(is.T(), err)
 
-	unixHelper := helpers.NewUnixHelper()
+	unixHelper := helpers.NewUnix()
 	client := common.NewTestClient(is.Env().RemoteHost, agentClient, fileManager, unixHelper)
 
 	install.Unix(is.T(), client, installparams.WithArch(*architecture), installparams.WithFlavor(flavor), installparams.WithMajorVersion(*majorVersion))
@@ -143,11 +143,11 @@ func (is *installScriptSuite) AgentTest(flavor string) {
 
 func (is *installScriptSuite) IotAgentTest() {
 	host := is.Env().RemoteHost
-	fileManager := filemanager.NewUnixFileManager(host)
+	fileManager := filemanager.NewUnix(host)
 	agentClient, err := client.NewHostAgentClient(is.T(), host, false)
 	require.NoError(is.T(), err)
 
-	unixHelper := helpers.NewUnixHelper()
+	unixHelper := helpers.NewUnix()
 	client := common.NewTestClient(is.Env().RemoteHost, agentClient, fileManager, unixHelper)
 
 	install.Unix(is.T(), client, installparams.WithArch(*architecture), installparams.WithFlavor(*flavor))
@@ -164,11 +164,11 @@ func (is *installScriptSuite) IotAgentTest() {
 
 func (is *installScriptSuite) DogstatsdAgentTest() {
 	host := is.Env().RemoteHost
-	fileManager := filemanager.NewUnixFileManager(host)
+	fileManager := filemanager.NewUnix(host)
 	agentClient, err := client.NewHostAgentClient(is.T(), host, false)
 	require.NoError(is.T(), err)
 
-	unixHelper := helpers.NewUnixDogstatsdHelper()
+	unixHelper := helpers.NewUnixDogstatsd()
 	client := common.NewTestClient(is.Env().RemoteHost, agentClient, fileManager, unixHelper)
 
 	install.Unix(is.T(), client, installparams.WithArch(*architecture), installparams.WithFlavor(*flavor))
