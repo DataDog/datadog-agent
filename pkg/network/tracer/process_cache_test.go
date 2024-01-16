@@ -71,7 +71,7 @@ func TestProcessCacheProcessEvent(t *testing.T) {
 				entry.Envs = values
 
 				p := pc.processEvent(entry)
-				if entry.ContainerID == nil && len(te.filter) > 0 && len(te.filtered) == 0 {
+				if (entry.ContainerID == nil || entry.ContainerID.Get().(string) == "") && len(te.filter) > 0 && len(te.filtered) == 0 {
 					assert.Nil(t, p)
 				} else {
 					assert.NotNil(t, p)
@@ -104,6 +104,15 @@ func TestProcessCacheProcessEvent(t *testing.T) {
 		entry := events.Process{
 			Pid:         1234,
 			ContainerID: intern.GetByString("container"),
+		}
+
+		testFunc(t, &entry)
+	})
+
+	t.Run("empty container id", func(t *testing.T) {
+		entry := events.Process{
+			Pid:         1234,
+			ContainerID: intern.GetByString(""),
 		}
 
 		testFunc(t, &entry)

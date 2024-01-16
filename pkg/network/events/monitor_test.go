@@ -98,7 +98,8 @@ func TestEventHandlerWrapperCopy(t *testing.T) {
 		evHandler := &eventHandlerWrapper{}
 		p := evHandler.Copy(ev)
 		require.IsType(t, &Process{}, p, "Copy should return a *events.Process")
-		assert.Nil(t, p.(*Process).ContainerID, "container ID should be nil")
+		assert.NotNil(t, p.(*Process).ContainerID, "container ID should not be nil")
+		assert.Empty(t, p.(*Process).ContainerID.Get().(string), "container ID should be empty")
 	})
 
 }
