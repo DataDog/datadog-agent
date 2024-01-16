@@ -9,6 +9,7 @@
 package util
 
 import (
+	"golang.org/x/exp/slices"
 	"sort"
 
 	"github.com/CycloneDX/cyclonedx-go"
@@ -72,22 +73,12 @@ func propertiesEqualsValues(properties []cyclonedx.Property, newValues []string,
 	}
 
 	for existingValue := range existingValuesMap {
-		if !contains(newValues, existingValue) {
+		if !slices.Contains(newValues, existingValue) {
 			return false
 		}
 	}
 
 	return true
-}
-
-// contains is a helper function to check if the slice contains the string value
-func contains(slice []string, value string) bool {
-	for _, item := range slice {
-		if item == value {
-			return true
-		}
-	}
-	return false
 }
 
 // Remove properties from the list that are present in the mismatched map
