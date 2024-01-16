@@ -217,7 +217,7 @@ func (c *TestClient) ExecuteWithRetry(cmd string) (string, error) {
 
 // NewWindowsTestClient create a TestClient for Windows VM
 func NewWindowsTestClient(t *testing.T, host *components.RemoteHost) *TestClient {
-	fileManager := filemanager.NewClientFileManager(host)
+	fileManager := filemanager.NewRemoteHost(host)
 
 	agentClient, err := client.NewHostAgentClient(t, host, false)
 	require.NoError(t, err)
@@ -243,7 +243,7 @@ func RunningAgentProcesses(client *TestClient) ([]string, error) {
 
 // AgentProcessIsRunning returns true if the agent process is running
 func AgentProcessIsRunning(client *TestClient, processName string) bool {
-	running, err := process.IsProcessRunning(client.Host, processName)
+	running, err := process.IsRunning(client.Host, processName)
 	return running && err == nil
 }
 

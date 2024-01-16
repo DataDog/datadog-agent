@@ -61,6 +61,7 @@ func HasValidDatadogCodeSignature(host *components.RemoteHost, path string) erro
 // TestValidDatadogCodeSignatures verifies that the files at the given paths are validly signed by the Datadog Code Signing certificate
 // This test is skipped if the verify_code_signature parameter is set to false.
 func TestValidDatadogCodeSignatures(t *testing.T, host *components.RemoteHost, paths []string) bool {
+	t.Helper()
 	return t.Run("code signatures", func(t *testing.T) {
 		verify, _ := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.VerifyCodeSignature, true)
 
@@ -78,6 +79,7 @@ func TestValidDatadogCodeSignatures(t *testing.T, host *components.RemoteHost, p
 
 // TestAgentVersion compares the major.minor.patch-prefix parts of two agent versions
 func TestAgentVersion(t *testing.T, expected string, actual string) bool {
+	t.Helper()
 	return t.Run("agent version", func(t *testing.T) {
 		// regex to get major.minor.build parts
 		expectedVersion, err := version.New(expected, "")

@@ -14,8 +14,8 @@ import (
 	componentos "github.com/DataDog/test-infra-definitions/components/os"
 )
 
-// IsProcessRunning returns true if process is running
-func IsProcessRunning(host *components.RemoteHost, process string) (bool, error) {
+// IsRunning returns true if process is running
+func IsRunning(host *components.RemoteHost, process string) (bool, error) {
 	os := host.OSFamily
 	if os == componentos.LinuxFamily {
 		return isProcessRunningUnix(host, process)

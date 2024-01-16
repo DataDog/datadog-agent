@@ -12,33 +12,33 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
 
-// Client implement filemanager interface for VMs
-type Client struct {
+// RemoteHost implement filemanager interface using components.RemoteHost
+type RemoteHost struct {
 	host *components.RemoteHost
 }
 
-// NewClientFileManager create a new file manager using the client
-// Note: The file operations will be restricted to the permissions of the client user
-func NewClientFileManager(host *components.RemoteHost) *Client {
-	return &Client{host: host}
+// NewRemoteHost create a new file manager using components.RemoteHost
+// Note: The file operations will be restricted to the permissions of the client connection user
+func NewRemoteHost(host *components.RemoteHost) *RemoteHost {
+	return &RemoteHost{host: host}
 }
 
 // FileExists check if the file exists, return an error if it does not
-func (u *Client) FileExists(path string) (bool, error) {
+func (u *RemoteHost) FileExists(path string) (bool, error) {
 	return u.host.FileExists(path)
 }
 
 // ReadFile read the content of the file, return error if the file do not exists
-func (u *Client) ReadFile(path string) ([]byte, error) {
+func (u *RemoteHost) ReadFile(path string) ([]byte, error) {
 	return u.host.ReadFile(path)
 }
 
 // ReadDir returns list of directory entries in path
-func (u *Client) ReadDir(path string) ([]fs.DirEntry, error) {
+func (u *RemoteHost) ReadDir(path string) ([]fs.DirEntry, error) {
 	return u.host.ReadDir(path)
 }
 
 // WriteFile write content to the file
-func (u *Client) WriteFile(path string, content []byte) (int64, error) {
+func (u *RemoteHost) WriteFile(path string, content []byte) (int64, error) {
 	return u.host.WriteFile(path, content)
 }
