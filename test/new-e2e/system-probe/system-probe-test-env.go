@@ -85,7 +85,8 @@ var (
 	sshKeyX86    = getEnv("LibvirtSSHKeyX86", "/tmp/libvirt_rsa-x86_64")
 	sshKeyArm    = getEnv("LibvirtSSHKeyARM", "/tmp/libvirt_rsa-arm64")
 
-	stackOutputs = filepath.Join(ciProjectDir, "stack.output")
+	stackOutputs    = filepath.Join(ciProjectDir, "stack.output")
+	kmtStackJsonKey = "kmt-stack"
 )
 
 func outputsToFile(output auto.OutputMap) error {
@@ -96,9 +97,14 @@ func outputsToFile(output auto.OutputMap) error {
 	defer f.Close()
 
 	for key, value := range output {
+		// we only want the json output representing KMT's
+		// infrastructure saved to the output file.
+		if key != kmtStackJsonKey {
+			continue
+		}
 		switch v := value.Value.(type) {
 		case string:
-			if _, err := f.WriteString(fmt.Sprintf("%s %s\n", key, v)); err != nil {
+			if _, err := f.WriteString(fmt.Sprintf("%s\n", v)); err != nil {
 				return fmt.Errorf("failed to write string to file %q: %v", stackOutputs, err)
 			}
 		default:
