@@ -8,18 +8,24 @@ package containerutils
 
 import (
 	"regexp"
+	"strings"
 )
 
-// ContainerIDPatternStr defines the regexp used to match container IDs
+// StrictContainerIDPatternStr defines the regexp used to match container IDs
 // ([0-9a-fA-F]{64}) is standard container id used pretty much everywhere
 // ([0-9a-fA-F]{32}-[0-9]{10}) is container id used by AWS ECS
 // ([0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){4}) is container id used by Garden
-var ContainerIDPatternStr = "([0-9a-fA-F]{64})|([0-9a-fA-F]{32}-[0-9]{10})|([0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){4})"
+var StrictContainerIDPatternStr = "^(([0-9a-fA-F]{64})|([0-9a-fA-F]{32}-[0-9]{10})|([0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){4}))$"
+var strictContainerIDPattern = regexp.MustCompilePOSIX(StrictContainerIDPatternStr)
 
-// containerIDPattern is the pattern of a container ID
-var containerIDPattern = regexp.MustCompile(ContainerIDPatternStr)
+// WildContainerIDPatternStr is a bit more loose and match within a path string like "/docker/<containerID>"
+var WildContainerIDPatternStr = "(([0-9a-fA-F]{64})|([0-9a-fA-F]{32}-[0-9]{10})|([0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){4}))"
+var wildContainerIDPattern = regexp.MustCompilePOSIX(WildContainerIDPatternStr)
 
 // FindContainerID extracts the first sub string that matches the pattern of a container ID
 func FindContainerID(s string) string {
-	return containerIDPattern.FindString(s)
+	if strings.Contains(s, "docker") {
+		return wildContainerIDPattern.FindString(s)
+	}
+	return strictContainerIDPattern.FindString(s)
 }

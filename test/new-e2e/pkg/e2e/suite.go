@@ -204,15 +204,16 @@ func (bs *BaseSuite[Env]) UpdateEnv(newProvisioners ...Provisioner) {
 	targetProvisioners := make(ProvisionerMap, len(newProvisioners))
 	for _, provisioner := range newProvisioners {
 		if _, found := uniqueIDs[provisioner.ID()]; found {
-			bs.T().Errorf("Multiple providers with same id found, provisioner with id %s already exists", provisioner.ID())
-			bs.T().FailNow()
+			panic(fmt.Errorf("Multiple providers with same id found, provisioner with id %s already exists", provisioner.ID()))
 		}
 
 		uniqueIDs[provisioner.ID()] = struct{}{}
 		targetProvisioners[provisioner.ID()] = provisioner
 	}
 
-	bs.reconcileEnv(targetProvisioners)
+	if err := bs.reconcileEnv(targetProvisioners); err != nil {
+		panic(err)
+	}
 }
 
 // IsDevMode returns true if the test suite is running in dev mode.
@@ -243,10 +244,10 @@ func (bs *BaseSuite[Env]) init(options []SuiteOption, self Suite[Env]) {
 	bs.originalProvisioners = bs.params.provisioners
 }
 
-func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners ProvisionerMap) {
+func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners ProvisionerMap) error {
 	if reflect.DeepEqual(bs.currentProvisioners, targetProvisioners) {
 		bs.T().Logf("No change in provisioners, skipping environment update")
-		return
+		return nil
 	}
 
 	logger := newTestLogger(bs.T())
@@ -255,14 +256,14 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners ProvisionerMap) {
 
 	newEnv, newEnvFields, newEnvValues, err := bs.createEnv()
 	if err != nil {
-		panic(fmt.Errorf("unable to create new env: %T for stack: %s, err: %v", newEnv, bs.params.stackName, err))
+		return fmt.Errorf("unable to create new env: %T for stack: %s, err: %v", newEnv, bs.params.stackName, err)
 	}
 
 	// Check for removed provisioners, we need to call delete on them first
 	for id, provisioner := range bs.currentProvisioners {
 		if _, found := targetProvisioners[id]; !found {
 			if err := provisioner.Destroy(ctx, bs.params.stackName, logger); err != nil {
-				panic(fmt.Errorf("unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err))
+				return fmt.Errorf("unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err)
 			}
 		}
 	}
@@ -279,11 +280,11 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners ProvisionerMap) {
 		case UntypedProvisioner:
 			provisionerResources, err = pType.Provision(ctx, bs.params.stackName, logger)
 		default:
-			panic(fmt.Errorf("provisioner of type %T does not implement UntypedProvisioner nor TypedProvisioner", provisioner))
+			return fmt.Errorf("provisioner of type %T does not implement UntypedProvisioner nor TypedProvisioner", provisioner)
 		}
 
 		if err != nil {
-			panic(fmt.Errorf("unable to provision stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err))
+			return fmt.Errorf("your stack '%s' provisioning failed, check logs above. Provisioner was %s, failed with err: %v", bs.params.stackName, id, err)
 		}
 
 		resources.Merge(provisionerResources)
@@ -292,13 +293,13 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners ProvisionerMap) {
 	// Env is taken as parameter as some fields may have keys set by Env pulumi program.
 	err = bs.buildEnvFromResources(resources, newEnvFields, newEnvValues)
 	if err != nil {
-		panic(fmt.Errorf("unable to build env: %T from resources for stack: %s, err: %v", newEnv, bs.params.stackName, err))
+		return fmt.Errorf("unable to build env: %T from resources for stack: %s, err: %v", newEnv, bs.params.stackName, err)
 	}
 
 	// If env implements Initializable, we call Init
 	if initializable, ok := any(newEnv).(Initializable); ok {
 		if err := initializable.Init(bs); err != nil {
-			panic(fmt.Errorf("failed to init environment, err: %v", err))
+			return fmt.Errorf("failed to init environment, err: %v", err)
 		}
 	}
 
@@ -306,6 +307,7 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners ProvisionerMap) {
 	// We need top copy provisioners to protect against external modifications
 	bs.currentProvisioners = copyProvisioners(targetProvisioners)
 	bs.env = newEnv
+	return nil
 }
 
 func (bs *BaseSuite[Env]) createEnv() (*Env, []reflect.StructField, []reflect.Value, error) {
@@ -428,7 +430,10 @@ func (bs *BaseSuite[Env]) providerContext(opTimeout time.Duration) (context.Cont
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 func (bs *BaseSuite[Env]) SetupSuite() {
 	// Do the initial provisioning
-	bs.reconcileEnv(bs.originalProvisioners)
+	// In `SetupSuite` we cannot fail as `TearDownSuite` will not be called otherwise.
+	// Meaning that stack clean up may not be called.
+	// We should `reconcileEnv` here, but currently removed for this reason.
+	// Provisioning is done in `BeforeTest` instead, the first test will support the provisioning time and failures.
 }
 
 // BeforeTest is executed right before the test starts and receives the suite and test names as input.
@@ -439,7 +444,11 @@ func (bs *BaseSuite[Env]) SetupSuite() {
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 func (bs *BaseSuite[Env]) BeforeTest(string, string) {
 	// Reset provisioners to original provisioners
-	bs.reconcileEnv(bs.originalProvisioners)
+	// In `Test` scope we can `panic`, it will be recovered and `AfterTest` will be called.
+	// Next tests will be called as well
+	if err := bs.reconcileEnv(bs.originalProvisioners); err != nil {
+		panic(err)
+	}
 }
 
 // AfterTest is executed right after the test finishes and receives the suite and test names as input.
