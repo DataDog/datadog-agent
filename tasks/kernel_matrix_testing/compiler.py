@@ -39,6 +39,11 @@ def compiler_running(ctx):
 
 
 def build_compiler(ctx):
+    go_build_args = ctx.run(
+        "cat ../datadog-agent-buildimages/go.env | sed -e 's/^/--build-arg /' | tr '\n' ' '"
+    ).stdout.splitlines()[0]
     ctx.run("docker rm -f $(docker ps -aqf \"name=kmt-compiler\")", warn=True, hide=True)
     ctx.run("docker image rm kmt:compile", warn=True, hide=True)
-    ctx.run("cd ../datadog-agent-buildimages && docker build -f system-probe_x64/Dockerfile -t kmt:compile .")
+    ctx.run(
+        f"cd ../datadog-agent-buildimages && docker build {go_build_args} -f system-probe_x64/Dockerfile -t kmt:compile ."
+    )

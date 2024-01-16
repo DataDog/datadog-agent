@@ -9,23 +9,22 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
 
 // UpstartSvcManager is a service manager for upstart
 type UpstartSvcManager struct {
-	vmClient client.VM
+	host *components.RemoteHost
 }
 
 // NewUpstartSvcManager return upstart service manager
-func NewUpstartSvcManager(vmClient client.VM) *UpstartSvcManager {
-	return &UpstartSvcManager{vmClient}
+func NewUpstartSvcManager(host *components.RemoteHost) *UpstartSvcManager {
+	return &UpstartSvcManager{host}
 }
 
 // Status returns status from upstart
 func (s *UpstartSvcManager) Status(service string) (string, error) {
-	status, err := s.vmClient.ExecuteWithError("sudo /sbin/initctl status " + service)
-
+	status, err := s.host.Execute("sudo /sbin/initctl status " + service)
 	if err != nil {
 		return status, err
 	}
@@ -38,15 +37,15 @@ func (s *UpstartSvcManager) Status(service string) (string, error) {
 
 // Stop executes stop command from upstart
 func (s *UpstartSvcManager) Stop(service string) (string, error) {
-	return s.vmClient.ExecuteWithError("sudo /sbin/initctl stop " + service)
+	return s.host.Execute("sudo /sbin/initctl stop " + service)
 }
 
 // Start executes start command from upstart
 func (s *UpstartSvcManager) Start(service string) (string, error) {
-	return s.vmClient.ExecuteWithError("sudo /sbin/initctl start " + service)
+	return s.host.Execute("sudo /sbin/initctl start " + service)
 }
 
 // Restart executes restart command from upstart
 func (s *UpstartSvcManager) Restart(service string) (string, error) {
-	return s.vmClient.ExecuteWithError("sudo /sbin/initctl restart " + service)
+	return s.host.Execute("sudo /sbin/initctl restart " + service)
 }

@@ -257,7 +257,7 @@ func runAgent() {
 	go func() {
 		defer wg.Done()
 		var err error
-		appsecProxyProcessor, err = appsec.New()
+		appsecProxyProcessor, err = appsec.New(serverlessDaemon.MetricAgent.Demux)
 		if err != nil {
 			log.Error("appsec: could not start: ", err)
 		}

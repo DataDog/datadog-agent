@@ -44,7 +44,7 @@ type handledError struct {
 	action      int
 }
 
-var errors = []handledError{
+var handledErrorsLs = []handledError{
 	// Retry if we failed to dial libvirt.
 	// Libvirt daemon on the server occasionally drops the connection established
 	// by the 'Provider'. If this happens we retry the stack to connect again.
@@ -99,7 +99,7 @@ func errorMetric(errType string) datadogV2.MetricPayload {
 
 func handleScenarioFailure(err error, changeRetryState func(handledError)) error {
 	errStr := err.Error()
-	for _, e := range errors {
+	for _, e := range handledErrorsLs {
 		if !strings.Contains(errStr, e.errorString) {
 			continue
 		}

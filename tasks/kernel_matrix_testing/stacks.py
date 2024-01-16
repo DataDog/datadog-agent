@@ -4,7 +4,15 @@ import os
 
 from .init_kmt import VMCONFIG, check_and_get_stack
 from .kmt_os import get_kmt_os
-from .libvirt import delete_domains, delete_networks, delete_pools, delete_volumes, pause_domains, resume_domains
+from .libvirt import (
+    delete_domains,
+    delete_networks,
+    delete_pools,
+    delete_volumes,
+    pause_domains,
+    resource_in_stack,
+    resume_domains,
+)
 from .tool import Exit, ask, error, info, warn
 
 try:
@@ -229,6 +237,10 @@ def destroy_ec2_instances(ctx, stack):
     if len(instance_ids) == 0:
         return
 
+    if len(instance_ids) > 2:
+        error(f"CAREFUL! More than two instance ids returned. Something is wrong: {instance_ids}")
+        raise Exit("Too many instance_ids")
+
     ids = ' '.join(instance_ids)
     res = ctx.run(
         f"aws-vault exec sso-sandbox-account-admin -- aws ec2 terminate-instances --instance-ids {ids}", warn=True
@@ -241,6 +253,16 @@ def destroy_ec2_instances(ctx, stack):
     return
 
 
+def remove_pool_directory(ctx, stack):
+    pools_dir = os.path.join(get_kmt_os().libvirt_dir, "pools")
+    for _, dirs, _ in os.walk(pools_dir):
+        for d in dirs:
+            if resource_in_stack(stack, d):
+                rm_path = os.path.join(pools_dir, d)
+                ctx.run(f"sudo rm -r '{rm_path}'", hide=True)
+                info(f"[+] Removed libvirt pool directory {rm_path}")
+
+
 def destroy_stack_force(ctx, stack):
     conn = libvirt.open("qemu:///system")
     if not conn:
@@ -248,6 +270,7 @@ def destroy_stack_force(ctx, stack):
     delete_domains(conn, stack)
     delete_volumes(conn, stack)
     delete_pools(conn, stack)
+    remove_pool_directory(ctx, stack)
     delete_networks(conn, stack)
     conn.close()
 
@@ -275,16 +298,16 @@ def destroy_stack_force(ctx, stack):
     )
 
 
-def destroy_stack(ctx, stack, force, ssh_key):
+def destroy_stack(ctx, stack, pulumi, ssh_key):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
     info(f"[*] Destroying stack {stack}")
-    if force:
-        destroy_stack_force(ctx, stack)
-    else:
+    if pulumi:
         destroy_stack_pulumi(ctx, stack, ssh_key)
+    else:
+        destroy_stack_force(ctx, stack)
 
     ctx.run(f"rm -r {get_kmt_os().stacks_dir}/{stack}")
 

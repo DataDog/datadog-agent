@@ -614,6 +614,9 @@ def get_omnibus_env(
     # otherwise, ohai detect the number of CPU on the host and run the make jobs with all the CPU.
     if os.environ.get('KUBERNETES_CPU_REQUEST'):
         env['OMNIBUS_WORKERS_OVERRIDE'] = str(int(os.environ.get('KUBERNETES_CPU_REQUEST')) + 1)
+    # Forward the DEPLOY_AGENT variable so that we can use a higher compression level for deployed artifacts
+    if os.environ.get('DEPLOY_AGENT'):
+        env['DEPLOY_AGENT'] = os.environ.get('DEPLOY_AGENT')
 
     return env
 
