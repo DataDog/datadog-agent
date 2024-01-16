@@ -30,7 +30,7 @@ func deleteElement(slice []string, index int) []string {
 }
 
 // Append all dependency of a prefix (replace, required) into the lines of the formatted go.mod
-func appendDeps(lines []string, deps []string, prefix string) []string {
+func appendDeps(lines []string, deps []string, prefix string, validationKeyWord string, validationEffect bool) []string {
 	size := len(lines)
 	if size < 1 {
 		return lines
@@ -41,7 +41,7 @@ func appendDeps(lines []string, deps []string, prefix string) []string {
 		dep := fmt.Sprintf("%s (", prefix)
 		lines = append(lines, dep)
 		for _, element := range deps {
-			if len(element) < 1 {
+			if len(element) < 1 || strings.Contains(element, validationKeyWord) == validationEffect {
 				continue
 			}
 			prefixStr := ""
@@ -55,7 +55,6 @@ func appendDeps(lines []string, deps []string, prefix string) []string {
 	}
 
 	return lines
-
 }
 
 // Clean the file from repetitive new lines
@@ -129,11 +128,12 @@ func formatModFile(content string) string {
 	}
 
 	// Generate Formatted lines
-	lines = appendDeps(lines, replaceDeps, "replace")
-	lines = appendDeps(lines, requiredDeps, "require")
+	lines = appendDeps(lines, replaceDeps, "replace", "", false)
+	lines = appendDeps(lines, requiredDeps, "require", "// indirect", true)
+	lines = appendDeps(lines, requiredDeps, "require", "// indirect", false)
 
 	// Remove leftover new lines
-	lines = removeExtraLines(lines, 2)
+	lines = removeExtraLines(lines, 1)
 
 	// join lines into string
 	return strings.Join(lines, "\n")
