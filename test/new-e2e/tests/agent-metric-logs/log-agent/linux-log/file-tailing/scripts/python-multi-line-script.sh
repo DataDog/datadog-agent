@@ -15,10 +15,11 @@ logging.basicConfig(filename=args.log_filename, format='%(asctime)s | %(levelnam
 
 log_count = 0
 while True:
-    if random.uniform(0, 1):
+    # Single line log for first 60 logs and then 50% chance for either single or multi-line
+    if log_count <= 60 or random.randint(0,1):
         logging.debug('This is a debug log that shows a log that can be ignored.')
     else:
-        logging.error('An error is \nusually an exception that \nhas been caught and not handled.')
+        logging.error('An error is\nusually an exception that\nhas been caught and not handled.')
     sleep(1)
     log_count += 1
 EOF

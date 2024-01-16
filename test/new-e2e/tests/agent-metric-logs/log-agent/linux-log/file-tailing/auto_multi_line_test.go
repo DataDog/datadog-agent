@@ -9,7 +9,7 @@ import (
 	_ "embed"
 	"fmt"
 	"os"
-	"regexp"
+	"strconv"
 	"testing"
 	"time"
 
@@ -17,10 +17,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	e2e "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 )
 
 //go:embed log-config/auto-multi-line-config.yaml
@@ -32,23 +32,22 @@ var pythonScript string
 //go:embed scripts/random-logger-service.sh
 var randomLogger string
 
-//go:embed log-config/config.yaml
-var logConfig string
-
 type AutoMultiLineSuite struct {
-	e2e.Suite[e2e.FakeIntakeEnv]
+	e2e.BaseSuite[environments.Host]
 	DevMode bool
 }
 
 func TestAutoMultiLineSuite(t *testing.T) {
 	s := &AutoMultiLineSuite{}
-	_, s.DevMode = os.LookupEnv("TESTS_E2E_DEVMODE")
-	e2e.Run(t, s, e2e.FakeIntakeStackDef(
-		e2e.WithAgentParams(
-			agentparams.WithLogs(),
-			agentparams.WithAgentConfig(agentAutoMultiLineConfig),
-			agentparams.WithIntegration("custom_logs.d", string(logConfig)))),
-		params.WithDevMode())
+	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
+	options := []e2e.SuiteOption{
+		e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithLogs(), agentparams.WithAgentConfig(agentAutoMultiLineConfig), agentparams.WithIntegration("custom_logs.d", logConfig)))),
+	}
+	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
+		options = append(options, e2e.WithDevMode())
+	}
+
+	e2e.Run(t, s, options...)
 }
 
 func (s *AutoMultiLineSuite) TestAutoMultiLine() {
@@ -57,76 +56,48 @@ func (s *AutoMultiLineSuite) TestAutoMultiLine() {
 
 func (s *AutoMultiLineSuite) ContainsNewLine() {
 	t := s.T()
-	vm := s.Env().VM
 
 	fmt.Println(agentAutoMultiLineConfig)
 
-	s.Env().VM.Execute("sudo touch /var/log/hello-world.log")
-	s.Env().VM.Execute("sudo chmod +r /var/log/hello-world.log && echo true")
+	s.Env().RemoteHost.Execute("sudo touch /var/log/hello-world.log")
+	s.Env().RemoteHost.Execute("sudo chmod +r /var/log/hello-world.log && echo true")
 
-	_, err := vm.ExecuteWithError(pythonScript)
+	_, err := s.Env().RemoteHost.Execute(pythonScript)
 	require.NoError(t, err, "Failed to generate log generation script ")
 
 	// Create multi-line log generation service
 	logger_service := string(randomLogger)
-	_, err = vm.ExecuteWithError(logger_service)
+	_, err = s.Env().RemoteHost.Execute(logger_service)
 	require.NoError(t, err, "Failed to create multi-line log generation service ")
 
-	_, err = vm.ExecuteWithError("sudo systemctl daemon-reload")
+	_, err = s.Env().RemoteHost.Execute("sudo systemctl daemon-reload")
 	require.NoError(t, err, "Failed to reload service")
 
 	// Start multi-linelog generation service
-	_, err = vm.ExecuteWithError("sudo systemctl enable --now random-logger.service")
+	_, err = s.Env().RemoteHost.Execute("sudo systemctl enable --now random-logger.service")
 	require.NoError(t, err, "Failed to enable service")
 
 	// Restart agent
-	_, err = vm.ExecuteWithError("sudo service datadog-agent restart")
+	_, err = s.Env().RemoteHost.Execute("sudo service datadog-agent restart")
 	require.NoError(t, err, "Failed to restart the agent")
 
-	client := s.Env().Fakeintake
+	client := s.Env().FakeIntake.Client()
 	t.Helper()
 	service := "hello"
-	content := `An error is \nusually an exception that \nhas been caught and not handled.`
-	fmt.Println("content that i am looking for:", content)
+	content := `An error is\nusually an exception that\nhas been caught and not handled.`
+
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		names, err := client.GetLogServiceNames()
 		if !assert.NoErrorf(c, err, "Error found: %s", err) {
 			return
 		}
 
-		logs, err := client.FilterLogs(service)
-		if !assert.NoErrorf(c, err, "Error found: %s", err) {
-			return
-		}
-		if !assert.NotEmpty(c, logs, "No logs with service matching '%s' found, instead got '%s'", service, names) {
-			return
-		}
-
-		fmt.Println(logsToString(logs), "were all logs found")
-
-		for _, log := range logs {
-			fmt.Println(content)
-			fmt.Println(log.Message)
-			fmt.Println("rz")
-			found, _ := regexp.MatchString(content, log.Message)
-			if found {
-				fmt.Println("rz6300 found")
-			}
-		}
-
-		logs, err = client.FilterLogs(service, fi.WithMessageContaining(content))
+		logs, err := client.FilterLogs(service, fi.WithMessageContaining(content))
 		if !assert.NoErrorf(c, err, "Error found: %s", err) {
 			return
 		}
 		assert.NotEmpty(c, logs, "Expected at least 1 log with content: '%s', from service: %s but received %s logs.", content, names, logs)
-	}, 4*time.Minute, 10*time.Second)
-}
+	}, 2*time.Minute, 10*time.Second)
 
-// logsToString converts a slice of logs to a string.
-func logsToString(logs []*aggregator.Log) []string {
-	var logsStrings []string
-	for _, log := range logs {
-		logsStrings = append(logsStrings, log.Message)
-	}
-	return logsStrings
+	fmt.Println("done!")
 }
