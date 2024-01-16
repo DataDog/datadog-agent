@@ -221,8 +221,8 @@ func (pc *processCache) add(p *events.Process) {
 	if evicted := pc.cache.Add(processCacheKey{pid: p.Pid, startTime: p.StartTime}, p); evicted {
 		processCacheTelemetry.cacheEvicts.Inc()
 	}
-	//nolint:gosimple // TODO(NET) Fix gosimple linter
-	pl, _ := pc.cacheByPid[p.Pid]
+
+	pl := pc.cacheByPid[p.Pid]
 	pc.cacheByPid[p.Pid] = pl.update(p)
 }
 
