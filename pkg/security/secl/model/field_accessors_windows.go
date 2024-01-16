@@ -196,6 +196,17 @@ func (ev *Event) GetExecPpid() uint32 {
 	return ev.Exec.Process.PPid
 }
 
+// GetExecUser returns the value of the field, resolving if necessary
+func (ev *Event) GetExecUser() string {
+	if ev.GetEventType().String() != "exec" {
+		return ""
+	}
+	if ev.Exec.Process == nil {
+		return ""
+	}
+	return ev.Exec.Process.User
+}
+
 // GetExitCause returns the value of the field, resolving if necessary
 func (ev *Event) GetExitCause() uint32 {
 	if ev.GetEventType().String() != "exit" {
@@ -364,6 +375,17 @@ func (ev *Event) GetExitPpid() uint32 {
 		return uint32(0)
 	}
 	return ev.Exit.Process.PPid
+}
+
+// GetExitUser returns the value of the field, resolving if necessary
+func (ev *Event) GetExitUser() string {
+	if ev.GetEventType().String() != "exit" {
+		return ""
+	}
+	if ev.Exit.Process == nil {
+		return ""
+	}
+	return ev.Exit.Process.User
 }
 
 // GetProcessAncestorsCmdline returns the value of the field, resolving if necessary
@@ -612,6 +634,27 @@ func (ev *Event) GetProcessAncestorsPpid() []uint32 {
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
 		result := element.ProcessContext.Process.PPid
+		values = append(values, result)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
+// GetProcessAncestorsUser returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessAncestorsUser() []string {
+	if ev.BaseEvent.ProcessContext == nil {
+		return []string{}
+	}
+	if ev.BaseEvent.ProcessContext.Ancestor == nil {
+		return []string{}
+	}
+	var values []string
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := element.ProcessContext.Process.User
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -876,6 +919,20 @@ func (ev *Event) GetProcessParentPpid() uint32 {
 	return ev.BaseEvent.ProcessContext.Parent.PPid
 }
 
+// GetProcessParentUser returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessParentUser() string {
+	if ev.BaseEvent.ProcessContext == nil {
+		return ""
+	}
+	if ev.BaseEvent.ProcessContext.Parent == nil {
+		return ""
+	}
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return ""
+	}
+	return ev.BaseEvent.ProcessContext.Parent.User
+}
+
 // GetProcessPid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessPid() uint32 {
 	if ev.BaseEvent.ProcessContext == nil {
@@ -890,6 +947,14 @@ func (ev *Event) GetProcessPpid() uint32 {
 		return uint32(0)
 	}
 	return ev.BaseEvent.ProcessContext.Process.PPid
+}
+
+// GetProcessUser returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessUser() string {
+	if ev.BaseEvent.ProcessContext == nil {
+		return ""
+	}
+	return ev.BaseEvent.ProcessContext.Process.User
 }
 
 // GetTimestamp returns the value of the field, resolving if necessary

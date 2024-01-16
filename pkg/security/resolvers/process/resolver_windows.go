@@ -100,6 +100,13 @@ func (p *Resolver) AddNewEntry(pid uint32, ppid uint32, file string, commandLine
 	e := p.processCacheEntryPool.Get()
 	e.PIDContext.Pid = pid
 	e.PPid = ppid
+	processHandle := procutil.OpenProcessHandle(pid)
+	username, err := procutil.GetUsernameForProcess(processHandle)
+	if err != nil {
+		log.Debugf("Couldn't get process username %v %v", pid, err)
+	} else {
+		e.Process.User = username
+	}
 
 	e.Process.CmdLine = utils.NormalizePath(commandLine)
 	e.Process.FileEvent.PathnameStr = utils.NormalizePath(file)

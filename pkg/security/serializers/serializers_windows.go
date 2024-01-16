@@ -29,6 +29,8 @@ type ProcessSerializer struct {
 	Pid uint32 `json:"pid,omitempty"`
 	// Parent Process ID
 	PPid *uint32 `json:"ppid,omitempty"`
+	// User of Process
+	User string `json:"user,omitempty"`
 	// Exec time of the process
 	ExecTime *utils.EasyjsonTime `json:"exec_time,omitempty"`
 	// Exit time of the process
@@ -68,6 +70,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 
 		Pid:        ps.Pid,
 		PPid:       getUint32Pointer(&ps.PPid),
+		User:       ps.User,
 		Executable: newFileSerializer(&ps.FileEvent, e),
 		CmdLine:    e.FieldHandlers.ResolveProcessCmdLineScrubbed(e, ps),
 	}
