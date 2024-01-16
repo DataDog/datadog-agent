@@ -145,24 +145,7 @@ func (s *ECSFargateSuite) SetupSuite() {
 						Interval:    pulumi.IntPtr(30),
 						Timeout:     pulumi.IntPtr(5),
 					},
-					LogConfiguration: ecsx.TaskDefinitionLogConfigurationArgs{
-						LogDriver: pulumi.String("awsfirelens"),
-						Options: pulumi.StringMap{
-							"Name":           pulumi.String("datadog"),
-							"Host":           pulumi.String("http-intake.logs.datadoghq.com"),
-							"TLS":            pulumi.String("on"),
-							"dd_service":     pulumi.String(ddHostnamePrefix),
-							"dd_source":      pulumi.String("datadog-agent"),
-							"dd_message_key": pulumi.String("log"),
-							"provider":       pulumi.String("ecs"),
-						},
-						SecretOptions: ecsx.TaskDefinitionSecretArray{
-							ecsx.TaskDefinitionSecretArgs{
-								Name:      pulumi.String("apikey"),
-								ValueFrom: apiKeyParam.Name,
-							},
-						},
-					},
+					LogConfiguration: ecsResources.GetFirelensLogConfiguration(pulumi.String("datadog-agent"), pulumi.String(ddHostnamePrefix), apiKeyParam.Name),
 				},
 				"ubuntu-with-tracer": {
 					Cpu:       pulumi.IntPtr(0),
@@ -206,26 +189,8 @@ func (s *ECSFargateSuite) SetupSuite() {
 							ReadOnly:      pulumi.Bool(true),
 						},
 					},
-					LogConfiguration: ecsx.TaskDefinitionLogConfigurationArgs{
-						LogDriver: pulumi.String("awsfirelens"),
-						Options: pulumi.StringMap{
-							"Name":           pulumi.String("datadog"),
-							"Host":           pulumi.String("http-intake.logs.datadoghq.com"),
-							"TLS":            pulumi.String("on"),
-							"dd_service":     pulumi.String(ddHostnamePrefix),
-							"dd_source":      pulumi.String("ubuntu-with-tracer"),
-							"dd_message_key": pulumi.String("log"),
-							"provider":       pulumi.String("ecs"),
-						},
-						SecretOptions: ecsx.TaskDefinitionSecretArray{
-							ecsx.TaskDefinitionSecretArgs{
-								Name:      pulumi.String("apikey"),
-								ValueFrom: apiKeyParam.Name,
-							},
-						},
-					},
+					LogConfiguration: ecsResources.GetFirelensLogConfiguration(pulumi.String("ubuntu-with-tracer"), pulumi.String(ddHostnamePrefix), apiKeyParam.Name),
 				},
-				"log_router": *ecsResources.FargateFirelensContainerDefinition(),
 				"cws-instrumentation-init": {
 					Cpu:       pulumi.IntPtr(0),
 					Name:      pulumi.String("cws-instrumentation-init"),
@@ -244,7 +209,9 @@ func (s *ECSFargateSuite) SetupSuite() {
 							ReadOnly:      pulumi.Bool(false),
 						},
 					},
+					LogConfiguration: ecsResources.GetFirelensLogConfiguration(pulumi.String("cws-instrumentation-init"), pulumi.String(ddHostnamePrefix), apiKeyParam.Name),
 				},
+				"log_router": *ecsResources.FargateFirelensContainerDefinition(),
 			},
 			Cpu:    pulumi.StringPtr("2048"),
 			Memory: pulumi.StringPtr("4096"),
