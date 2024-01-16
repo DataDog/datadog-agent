@@ -1,0 +1,3 @@
+logs_config:
+  auto_multi_line_detection: true
+  auto_multi_line_default_match_threshold: 0.3
