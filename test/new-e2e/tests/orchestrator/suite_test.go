@@ -7,6 +7,7 @@ package orchestrator
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -24,6 +25,7 @@ import (
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
 )
@@ -89,8 +91,12 @@ func (suite *k8sSuite) SetupSuite() {
 
 	suite.KubeClusterName = stackOutput.Outputs["kube-cluster-name"].Value.(string)
 
-	fakeintakeHost := stackOutput.Outputs["fakeintake-host"].Value.(string)
-	suite.Fakeintake = fakeintake.NewClient(fmt.Sprintf("http://%s", fakeintakeHost))
+	var fakeintake components.FakeIntake
+	fiSerialized, err := json.Marshal(stackOutput.Outputs["dd-Fakeintake-aws-kind"].Value)
+	suite.Require().NoError(err)
+	suite.Require().NoError(fakeintake.Import(fiSerialized, &fakeintake))
+	suite.Require().NoError(fakeintake.Init(suite))
+	suite.Fakeintake = fakeintake.Client()
 
 	kubeconfigFile := path.Join(suite.T().TempDir(), "kubeconfig")
 	suite.Require().NoError(os.WriteFile(kubeconfigFile, []byte(kubeconfig), 0600))
