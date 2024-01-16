@@ -225,17 +225,7 @@ def build(
         if not os.path.exists(os.path.dirname(bundled_agent_bin)):
             os.mkdir(os.path.dirname(bundled_agent_bin))
 
-        if build == "system-probe":
-            # system-probe is a special case here as there is a SElinux context
-            # applied to it. When using a launcher, the `exec` syscall will cause
-            # the transition from `system_probe_t` to `unconfined_t`.
-            if os.path.exists(bundled_agent_bin):
-                if os.path.islink(bundled_agent_bin):
-                    continue
-                os.unlink(bundled_agent_bin)
-            os.symlink(agent_fullpath, bundled_agent_bin)
-        else:
-            create_launcher(ctx, build, agent_fullpath, bundled_agent_bin)
+        create_launcher(ctx, build, agent_fullpath, bundled_agent_bin)
 
     render_config(
         ctx,
