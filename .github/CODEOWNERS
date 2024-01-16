@@ -413,6 +413,7 @@
 /pkg/network/tracer/*classification*.go         @DataDog/universal-service-monitoring
 /pkg/network/tracer/testutil/grpc/              @DataDog/universal-service-monitoring
 /pkg/network/tracer/testutil/prefetch_file/     @DataDog/universal-service-monitoring
+/pkg/network/tracer/testutil/proxy/              @DataDog/universal-service-monitoring
 /pkg/network/tracer/*usm*.go                    @DataDog/universal-service-monitoring
 /pkg/network/tracer/*_windows*.go               @DataDog/windows-kernel-integrations
 /pkg/network/usm/                       @DataDog/universal-service-monitoring
