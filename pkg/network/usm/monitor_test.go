@@ -1071,6 +1071,36 @@ func createMessageWithCustomHeadersFramesCount(t *testing.T, headerFields []hpac
 	return buf.Bytes()
 }
 
+// createMessageWithPingAndWindowUpdate creates a message with the given number of header frames
+// and inserts PING and WINDOWS_UPDATE frames between the HEADERS and DATA frames.
+func createMessageWithPingAndWindowUpdate(t *testing.T, headerFields []hpack.HeaderField, headerFramesCount int) []byte {
+	var buf bytes.Buffer
+	framer := http2.NewFramer(&buf, nil)
+
+	headersFrame, err := usmhttp2.NewHeadersFrameMessage(headerFields)
+	require.NoError(t, err, "could not create headers frame")
+
+	for i := 0; i < headerFramesCount; i++ {
+		streamID := 2*i + 1
+
+		// Writing the header frames to the buffer using the Framer.
+		require.NoError(t, framer.WriteHeaders(http2.HeadersFrameParam{
+			StreamID:      uint32(streamID),
+			BlockFragment: headersFrame,
+			EndStream:     false,
+			EndHeaders:    true,
+		}), "could not write header frames")
+
+		require.NoError(t, framer.WritePing(true, [8]byte{}), "could not write ping frame")
+		require.NoError(t, framer.WriteWindowUpdate(uint32(streamID), 1), "could not write window update frame")
+
+		// Writing the data frame to the buffer using the Framer.
+		require.NoError(t, framer.WriteData(uint32(streamID), true, []byte{}), "could not write data frame")
+	}
+
+	return buf.Bytes()
+}
+
 // createMessageWithCustomSettingsFrames creates a message with the given number of settings frames.
 func createMessageWithCustomSettingsFrames(t *testing.T, headerFields []hpack.HeaderField, settingsFramesCount int) []byte {
 	var buf bytes.Buffer
@@ -1217,6 +1247,20 @@ func (s *USMHTTP2Suite) TestRawTraffic() {
 			messageBuilder: func() []byte {
 				headerFramesCount := 5
 				return createHeadersWithIndexedPathKey(t, testHeaders(), headerFramesCount)
+			},
+			expectedEndpoints: map[http.Key]int{
+				{
+					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
+					Method: http.MethodPost,
+				}: 5,
+			},
+		},
+		{
+			name: "validate PING and WINDOWS_UPDATE frames between HEADERS and DATA",
+			// The purpose of this test is to verify our ability to process PING and WINDOWS_UPDATE frames between HEADERS and DATA.
+			messageBuilder: func() []byte {
+				headerFramesCount := 5
+				return createMessageWithPingAndWindowUpdate(t, testHeaders(), headerFramesCount)
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
