@@ -9,9 +9,11 @@ package tracer
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"net"
 	nethttp "net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -28,12 +30,16 @@ import (
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/proxy"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const (
-	srvPort = 8082
+	srvPort  = 8082
+	unixPath = "/tmp/transparent.sock"
 )
 
 var (
@@ -89,13 +95,45 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 	cfg.EnableGoTLSSupport = s.isTLS
 	cfg.GoTLSExcludeSelf = s.isTLS
 
-	startH2CServer(t)
+	// Start local server
+	cleanup, err := startH2CServer(authority, s.isTLS)
+	require.NoError(t, err)
+	t.Cleanup(cleanup)
+
+	// Start the proxy server.
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	t.Cleanup(cancel)
 
 	tr := setupTracer(t, cfg)
 	require.NoError(t, tr.ebpfTracer.Pause())
 
+	// The server runs asynchronously, so we need to wait for it to be ready. It can take a couple of seconds, for it to
+	// be ready. Also, it takes a couple of seconds to the tracer to start, so we place the "wait" for the server here,
+	// to reduce the time we need to wait for the server to be ready.
+	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
+
+	if s.isTLS {
+		require.Eventuallyf(t, func() bool {
+			traced := utils.GetTracedPrograms("go-tls")
+			for _, prog := range traced {
+				if slices.Contains[[]uint32](prog.PIDs, uint32(proxyProcess.Process.Pid)) {
+					return true
+				}
+			}
+			return false
+		}, time.Second*5, time.Millisecond*100, "process %v is not traced by gotls", proxyProcess.Process.Pid)
+	}
+
+	getTLSNumber := func(numberWithoutTLS, numberWithTLS int, isTLS bool) int {
+		if isTLS {
+			return numberWithTLS
+		}
+		return numberWithoutTLS
+	}
+
 	tests := []struct {
 		name              string
+		skip              bool
 		messageBuilder    func() []byte
 		expectedEndpoints map[http.Key]int
 	}{
@@ -128,30 +166,33 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					Method: http.MethodPost,
 				}: 1,
 			},
+			// Currently we don't have a way to test it as TLS version does not have the ability to run 2 tail calls
+			// for filtering frames (will be fixed in USMON-684)
+			skip: s.isTLS,
 		},
 		{
 			name: "validate frames_filter tail calls limit",
 			// The purpose of this test is to validate that when we surpass the limit of HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER,
 			// for 2 filter_frames we do not use more than two tail calls.
 			messageBuilder: func() []byte {
-				settingsFramesCount := 250
+				settingsFramesCount := getTLSNumber(241, 121, s.isTLS)
 				return createMessageWithCustomSettingsFrames(t, testHeaders(), settingsFramesCount)
 			},
 			expectedEndpoints: nil,
 		},
 		{
-			name: "validate max interesting frames limit",
+			name: "guy validate max interesting frames limit",
 			// The purpose of this test is to verify our ability to reach the limit set by HTTP2_MAX_FRAMES_ITERATIONS, which
 			// determines the maximum number of "interesting frames" we can process.
 			messageBuilder: func() []byte {
-				headerFramesCount := 120
+				headerFramesCount := getTLSNumber(120, 60, s.isTLS)
 				return createMessageWithCustomHeadersFramesCount(t, testHeaders(), headerFramesCount)
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
 					Method: http.MethodPost,
-				}: 120,
+				}: getTLSNumber(120, 60, s.isTLS),
 			},
 		},
 		{
@@ -159,14 +200,14 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// The purpose of this test is to verify our ability to reach the limit set by HTTP2_MAX_FRAMES_ITERATIONS
 			// and validate that we cannot handle more than that limit.
 			messageBuilder: func() []byte {
-				headerFramesCount := 130
+				headerFramesCount := getTLSNumber(130, 61, s.isTLS)
 				return createMessageWithCustomHeadersFramesCount(t, testHeaders(), headerFramesCount)
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
 					Method: http.MethodPost,
-				}: 120,
+				}: getTLSNumber(120, 60, s.isTLS),
 			},
 		},
 		{
@@ -219,12 +260,16 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.skip {
+				t.Skip("skipping test")
+			}
+
 			tr.removeClient(clientID)
 			initTracerState(t, tr)
 			require.NoError(t, tr.ebpfTracer.Resume())
 			t.Cleanup(func() { _ = tr.ebpfTracer.Pause() })
 
-			c, err := net.Dial("tcp", authority)
+			c, err := net.Dial("unix", unixPath)
 			require.NoError(t, err, "could not dial")
 			defer c.Close()
 
@@ -272,7 +317,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					if !ok {
 						return false
 					}
-					if endpointCount > tt.expectedEndpoints[key] {
+					if endpointCount != tt.expectedEndpoints[key] {
 						return false
 					}
 				}
@@ -473,9 +518,7 @@ func createMessageWithCustomSettingsFrames(t *testing.T, headerFields []hpack.He
 	return buf.Bytes()
 }
 
-func startH2CServer(t *testing.T) {
-	t.Helper()
-
+func startH2CServer(address string, isTLS bool) (func(), error) {
 	srv := &nethttp.Server{
 		Addr: authority,
 		Handler: h2c.NewHandler(nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
@@ -485,16 +528,26 @@ func startH2CServer(t *testing.T) {
 		IdleTimeout: 2 * time.Second,
 	}
 
-	err := http2.ConfigureServer(srv, nil)
-	require.NoError(t, err)
+	if err := http2.ConfigureServer(srv, nil); err != nil {
+		return nil, err
+	}
 
-	l, err := net.Listen("tcp", authority)
-	require.NoError(t, err, "could not create listening socket")
+	l, err := net.Listen("tcp", address)
+	if err != nil {
+		return nil, err
+	}
 
-	go func() {
-		srv.Serve(l)
-		require.NoErrorf(t, err, "could not start HTTP2 server")
-	}()
+	if isTLS {
+		cert, key, err := testutil.GetCertsPaths()
+		if err != nil {
+			return nil, err
+		}
+		go srv.ServeTLS(l, cert, key)
+	} else {
+		go srv.Serve(l)
+	}
 
-	t.Cleanup(func() { srv.Close() })
+	return func() {
+		_ = srv.Shutdown(context.Background())
+	}, nil
 }
