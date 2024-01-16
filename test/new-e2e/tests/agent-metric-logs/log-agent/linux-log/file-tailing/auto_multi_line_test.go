@@ -66,8 +66,8 @@ func (s *AutoMultiLineSuite) BeforeTest(suiteName, testName string) {
 	require.NoError(t, err, "Failed to generate log generation script ")
 
 	// Create multi-line log generation service
-	logger_service := string(randomLogger)
-	_, err = s.Env().RemoteHost.Execute(logger_service)
+	loggerService := string(randomLogger)
+	_, err = s.Env().RemoteHost.Execute(loggerService)
 	require.NoError(t, err, "Failed to create multi-line log generation service ")
 
 	_, err = s.Env().RemoteHost.Execute("sudo systemctl daemon-reload")
