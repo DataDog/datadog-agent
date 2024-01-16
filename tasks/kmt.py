@@ -12,7 +12,6 @@ from invoke import task
 from .kernel_matrix_testing.infra import build_infrastructure
 
 from .kernel_matrix_testing import stacks, vmconfig
-from .kernel_matrix_testing.command import CommandRunner
 from .kernel_matrix_testing.compiler import build_compiler as build_cc
 from .kernel_matrix_testing.compiler import compiler_running, docker_exec
 from .kernel_matrix_testing.compiler import start_compiler as start_cc
@@ -294,7 +293,7 @@ def build(ctx, vms, stack=None, ssh_key=None, rebuild_deps=False, verbose=False)
         d.copy(ctx, "./bin/system-probe", "/root")
         d.copy(ctx, f"kmt-deps/{stack}/shared.tar", "/")
         d.run_cmd(ctx, "tar xf /shared.tar -C /")
-        info(f"[+] system-probe built for {d.name}")
+        info(f"[+] system-probe built for {d.name} @ /root")
 
 
 @task
