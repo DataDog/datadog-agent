@@ -18,74 +18,28 @@ import (
 	"testing"
 )
 
-var allowFlakeFailure = flag.Bool("allow-flake-failure", false, "allow flake tests failures")
+const flakyTestMessage = "flakytest: this is a known flaky test"
+
 var skipFlake = flag.Bool("skip-flake", false, "skip tests labeled as flakes")
 
-type allowflakeTesting struct {
-	testing.TB
-}
-
-// Wrap wraps a testing.TB to allow flaky tests to fail or skip them.
-func Wrap(t testing.TB) testing.TB {
-	// skip flake takes precedence over allow flake failure
-	if shouldAllowFlake() && shouldSkipFlake() {
-		t.Log("skip flake and allow flake failure are both set, skip flake takes precedence")
-	}
+// Mark test as a known flaky.
+// If any of skip-flake flag or GO_TEST_SKIP_FLAKE environment variable is set, the test will be skipped.
+// Otherwise test will be retried on failure.
+func Mark(t testing.TB) {
+	t.Helper()
 	if shouldSkipFlake() {
-		t.Skip("skip test marked as flake")
-		return t
+		t.Skip("flakytest: skip known flaky test")
+		return
 	}
-	if shouldAllowFlake() {
-		t.Log("🟡 allow flake failure")
-		return &allowflakeTesting{t}
-	}
-	return t
-}
-
-func shouldAllowFlake() bool {
-	if *allowFlakeFailure {
-		return true
-	}
-	if os.Getenv("ALLOW_FLAKE_FAILURE") == "true" {
-		return true
-	}
-	return false
+	t.Log(flakyTestMessage)
 }
 
 func shouldSkipFlake() bool {
 	if *skipFlake {
 		return true
 	}
-	if os.Getenv("SKIP_FLAKE") == "true" {
+	if os.Getenv("GO_TEST_SKIP_FLAKE") == "true" {
 		return true
 	}
 	return false
-}
-
-func (t *allowflakeTesting) Error(args ...any) {
-	t.Log(args...)
-	t.Skip("allowing error - test marked as flake")
-}
-
-func (t *allowflakeTesting) Errorf(format string, args ...any) {
-	t.Logf(format, args...)
-	t.Skip("allowing error - test marked as flake")
-}
-
-func (t *allowflakeTesting) Fail() {
-	t.Skip("allowing failure - test marked as flake")
-}
-
-func (t *allowflakeTesting) FailNow() {
-	t.Skip("allowing failure - test marked as flake")
-}
-
-func (t *allowflakeTesting) Fatal(args ...any) {
-	t.Log(args...)
-	t.Skip("allowing fatal - test marked as flake")
-}
-
-func (t *allowflakeTesting) Fatalf(format string, args ...any) {
-	t.Logf(format, args...)
-	t.Skip("allowing fatal - test marked as flake")
 }
