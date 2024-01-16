@@ -38,6 +38,7 @@ from .utils import DEFAULT_BRANCH, clean_nested_paths, get_build_flags
 PROFILE_COV = "coverage.out"
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
 UNIT_TEST_FILE_FORMAT = re.compile(r'[^a-zA-Z0-9_\-]')
+WINDOWS_MAX_PACKAGES_NUMBER = 150
 
 
 class TestProfiler:
@@ -1194,7 +1195,7 @@ def get_modified_packages(ctx) -> List[GoModule]:
             continue
 
         # If there are no _test.go file in the folder we do not try to run tests
-        if not glob.glob(os.path.dirname(modified_file) + "/*_test.go"):
+        if not glob.glob(os.path.join(os.path.dirname(modified_file), "**/*_test.go"), recursive=True):
             continue
 
         relative_target = "./" + os.path.relpath(os.path.dirname(modified_file), best_module_path)
@@ -1212,7 +1213,7 @@ def get_modified_packages(ctx) -> List[GoModule]:
     for module in modules_to_test:
         modules_to_test[module].targets = clean_nested_paths(modules_to_test[module].targets)
         if (
-            len(modules_to_test[module].targets) >= 150
+            len(modules_to_test[module].targets) >= WINDOWS_MAX_PACKAGES_NUMBER
         ):  # With more packages we can reach the limit of the command line length on Windows
             modules_to_test[module].targets = DEFAULT_MODULES[module].targets
 
