@@ -10,6 +10,7 @@ import tempfile
 from pathlib import Path
 from typing import List
 
+import yaml
 from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
@@ -158,9 +159,10 @@ def run(
     help={
         'locks': 'Cleans up lock files, default True',
         'stacks': 'Cleans up local stack state, default False',
+        'output': 'Cleans up local test output directory, default False',
     },
 )
-def clean(ctx, locks=True, stacks=False):
+def clean(ctx, locks=True, stacks=False, output=False):
     """
     Clean any environment created with invoke tasks or e2e tests
     By default removes only lock files.
@@ -177,6 +179,45 @@ def clean(ctx, locks=True, stacks=False):
     if stacks:
         _clean_stacks(ctx)
 
+    if output:
+        _clean_output()
+
+def _get_home_dir():
+    # TODO: Go os.UserHomeDir() uses a different algorithm than Python Path.home()
+    #       so a different directory may be returned in some cases.
+    return Path.home()
+
+def _load_test_infra_config():
+    with open(_get_home_dir().joinpath(".test_infra_config.yaml")) as f:
+        config = yaml.safe_load(f)
+    return config
+
+def _get_test_output_dir():
+    config = _load_test_infra_config()
+    # default is $HOME/e2e-output
+    default_output_dir = _get_home_dir().joinpath("e2e-output")
+    # read config option, if not set use default
+    configParams = config.get("configParams", {})
+    output_dir = configParams.get("outputDir", default_output_dir)
+    return Path(output_dir)
+
+def _clean_output():
+    output_dir = _get_test_output_dir()
+    print(f"🧹 Clean up output directory {output_dir}")
+
+    if not output_dir.exists():
+        # nothing to do if output directory does not exist
+        return
+
+    if not output_dir.is_dir():
+        raise Exit(message=f"e2e-output directory {output_dir} is not a directory, aborting", code=1)
+
+    # sanity check to avoid deleting the wrong directory, e2e-output should only contain directories
+    for entry in output_dir.iterdir():
+        if not entry.is_dir():
+            raise Exit(message=f"e2e-output directory {output_dir} contains more than just directories, aborting", code=1)
+
+    shutil.rmtree(output_dir)
 
 def _clean_locks():
     print("🧹 Clean up lock files")
