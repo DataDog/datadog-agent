@@ -108,7 +108,10 @@ def build_infrastructure(ctx, stack, remote_ssh_key=None):
             if ask_for_ssh():
                 raise Exit("No ssh key provided. Pass with '--ssh-key=<key-name>'")
 
-        instance = HostInstance(infra_map[arch]["ip"], arch, ssh_key_to_path(remote_ssh_key))
+        key = None
+        if remote_ssh_key != None:
+            key = ssh_key_to_path(remote_ssh_key)
+        instance = HostInstance(infra_map[arch]["ip"], arch, key)
         for vm in infra_map[arch]["microvms"]:
             instance.add_microvm(LibvirtDomain(vm["ip"], vm["id"], vm["tag"], vm["vmset-tags"], vm["ssh-key-path"], instance))
 
