@@ -569,7 +569,9 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
     // Overriding the off field of the cached args. The next prog will start from the offset of the next valid
     // frame.
     args->data_off = dispatcher_args_copy.data_off;
-    bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_FILTER);
+    if (iteration_value->frames_count == 1) {
+        bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_FILTER);
+    }
     return 0;
 }
 
