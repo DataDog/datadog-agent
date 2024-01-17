@@ -103,13 +103,13 @@ func (p *Resolver) AddNewEntry(pid uint32, ppid uint32, file string, commandLine
 	processHandle, err := procutil.OpenProcessHandle(int32(pid))
 	if err != nil {
 		log.Debugf("Couldn't get the process handle %v ", err)
-
-	}
-	username, err := procutil.GetUsernameForProcess(processHandle)
-	if err != nil {
-		log.Debugf("Couldn't get process username %v %v", pid, err)
 	} else {
-		e.Process.User = username
+		username, err := procutil.GetUsernameForProcess(processHandle)
+		if err != nil {
+			log.Debugf("Couldn't get process username %v %v", pid, err)
+		} else {
+			e.Process.User = username
+		}
 	}
 
 	e.Process.CmdLine = utils.NormalizePath(commandLine)
