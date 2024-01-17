@@ -8,6 +8,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../../comp/forwarder/defaultforwarder
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ../../comp/forwarder/orchestrator/orchestratorinterface
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../aggregator/ckey
+	github.com/DataDog/datadog-agent/pkg/comp/core/secrets => ../../comp/core/secrets
 	github.com/DataDog/datadog-agent/pkg/config/model => ../config/model
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../config/setup/
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../config/utils/
@@ -20,9 +21,18 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../util/backoff/
 	github.com/DataDog/datadog-agent/pkg/util/common => ../util/common
 	github.com/DataDog/datadog-agent/pkg/util/compression => ../util/compression
+	github.com/DataDog/datadog-agent/pkg/util/executable => ../util/executable/
+	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../util/filesystem/
+	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../util/fxutil/
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../util/hostname/validate
 	github.com/DataDog/datadog-agent/pkg/util/http => ../util/http
 	github.com/DataDog/datadog-agent/pkg/util/json => ../util/json
 	github.com/DataDog/datadog-agent/pkg/util/log => ../util/log
+	github.com/DataDog/datadog-agent/pkg/util/optional => ../util/optional/
+	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../util/scrubber/
+	github.com/DataDog/datadog-agent/pkg/util/sort => ../util/sort/
+	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../util/system/socket/
+	github.com/DataDog/datadog-agent/pkg/util/winutil => ../util/winutil/
 	github.com/DataDog/datadog-agent/pkg/version => ../version/
 
 )
