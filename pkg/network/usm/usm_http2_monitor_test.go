@@ -146,7 +146,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// The purpose of this test is to validate that when we surpass the limit of HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER,
 			// for 2 filter_frames we do not use more than two tail calls.
 			messageBuilder: func() []byte {
-				settingsFramesCount := getTLSNumber(241, 121, s.isTLS)
+				settingsFramesCount := getTLSNumber(241, 241, s.isTLS)
 				return createMessageWithCustomSettingsFrames(t, testHeaders(), settingsFramesCount)
 			},
 			expectedEndpoints: nil,

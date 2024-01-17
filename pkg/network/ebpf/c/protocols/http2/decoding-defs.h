@@ -23,8 +23,8 @@
 // This represents a limit on the number of tail calls that can be executed within the frames_filter program.
 // The number of frames to parse is determined by HTTP2_MAX_FRAMES_ITERATIONS, resulting in a total defined as:
 // HTTP2_MAX_FRAMES_ITERATIONS * HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER (for tail call 0-1)
-#define HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER 2
-#define HTTP2_MAX_FRAMES_TO_FILTER  120
+#define HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER 1
+#define HTTP2_MAX_FRAMES_TO_FILTER 240
 
 // Represents the maximum number of frames we'll process in a single tail call in `uprobe__http2_tls_headers_parser` program.
 #define HTTP2_TLS_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL 10
