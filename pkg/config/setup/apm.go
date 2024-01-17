@@ -79,7 +79,7 @@ func setupAPM(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("apm_config.instrumentation.enabled", false, "DD_APM_INSTRUMENTATION_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.instrumentation.enabled_namespaces", []string{}, "DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES")
 	config.BindEnvAndSetDefault("apm_config.instrumentation.disabled_namespaces", []string{}, "DD_APM_INSTRUMENTATION_DISABLED_NAMESPACES")
-	config.BindEnv("apm_config.instrumentation.lib_versions", "DD_APM_INSTRUMENTATION_LIB_VERSIONS")
+	config.BindEnvAndSetDefault("apm_config.instrumentation.lib_versions", map[string]string{}, "DD_APM_INSTRUMENTATION_LIB_VERSIONS")
 
 	config.BindEnv("apm_config.max_catalog_services", "DD_APM_MAX_CATALOG_SERVICES")
 	config.BindEnv("apm_config.receiver_timeout", "DD_APM_RECEIVER_TIMEOUT")

@@ -18,23 +18,22 @@ from invoke.exceptions import Exit, ParseError
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .flavor import AgentFlavor
 from .go import deps
-from .process_agent import build as process_agent_build
-from .rtloader import clean as rtloader_clean
-from .rtloader import install as rtloader_install
-from .rtloader import make as rtloader_make
-from .ssm import get_pfx_pass, get_signing_cert
-from .trace_agent import build as trace_agent_build
-from .utils import (
+from .libs.common.utils import (
     REPO_PATH,
     bin_name,
     cache_version,
-    generate_config,
     get_build_flags,
     get_version,
     has_both_python,
     load_release_versions,
     timed,
 )
+from .process_agent import build as process_agent_build
+from .rtloader import clean as rtloader_clean
+from .rtloader import install as rtloader_install
+from .rtloader import make as rtloader_make
+from .ssm import get_pfx_pass, get_signing_cert
+from .trace_agent import build as trace_agent_build
 from .windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 # constants
@@ -614,6 +613,9 @@ def get_omnibus_env(
     # otherwise, ohai detect the number of CPU on the host and run the make jobs with all the CPU.
     if os.environ.get('KUBERNETES_CPU_REQUEST'):
         env['OMNIBUS_WORKERS_OVERRIDE'] = str(int(os.environ.get('KUBERNETES_CPU_REQUEST')) + 1)
+    # Forward the DEPLOY_AGENT variable so that we can use a higher compression level for deployed artifacts
+    if os.environ.get('DEPLOY_AGENT'):
+        env['DEPLOY_AGENT'] = os.environ.get('DEPLOY_AGENT')
 
     return env
 
@@ -1097,3 +1099,18 @@ def upload_integration_to_cache(ctx, python, bucket, branch, integrations_dir, b
     print(f"Caching wheel {target_name}")
     # NOTE: on Windows, the awscli is usually in program files, so we have the executable
     ctx.run(f"\"{awscli}\" s3 cp {wheel_path} s3://{bucket}/{target_name} --acl public-read")
+
+
+@task()
+def generate_config(ctx, build_type, output_file, env=None):
+    """
+    Generates the datadog.yaml configuration file.
+    """
+    args = {
+        "go_file": "./pkg/config/render_config.go",
+        "build_type": build_type,
+        "template_file": "./pkg/config/config_template.yaml",
+        "output_file": output_file,
+    }
+    cmd = "go run {go_file} {build_type} {template_file} {output_file}"
+    return ctx.run(cmd.format(**args), env=env or {})
