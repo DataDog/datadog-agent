@@ -15,6 +15,7 @@ package flake
 import (
 	"flag"
 	"os"
+	"strconv"
 	"testing"
 )
 
@@ -38,8 +39,9 @@ func shouldSkipFlake() bool {
 	if *skipFlake {
 		return true
 	}
-	if os.Getenv("GO_TEST_SKIP_FLAKE") == "true" {
-		return true
+	shouldSkipFlakeVar, err := strconv.ParseBool(os.Getenv("GO_TEST_SKIP_FLAKE"))
+	if err != nil {
+		return shouldSkipFlakeVar
 	}
 	return false
 }
