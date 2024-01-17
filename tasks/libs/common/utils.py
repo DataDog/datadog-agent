@@ -3,19 +3,18 @@ Miscellaneous functions, no tasks here
 """
 
 
-import contextlib
 import json
 import os
 import re
 import sys
 import time
+from contextlib import contextmanager
 from subprocess import check_output
 from types import SimpleNamespace
 
-from invoke import task
 from invoke.exceptions import Exit
 
-from .libs.common.color import color_message
+from .color import color_message
 
 # constants
 DEFAULT_BRANCH = "main"
@@ -482,21 +481,6 @@ def load_release_versions(_, target_version):
     raise Exception(f"Could not find '{target_version}' version in release.json")
 
 
-@task()
-def generate_config(ctx, build_type, output_file, env=None):
-    """
-    Generates the datadog.yaml configuration file.
-    """
-    args = {
-        "go_file": "./pkg/config/render_config.go",
-        "build_type": build_type,
-        "template_file": "./pkg/config/config_template.yaml",
-        "output_file": output_file,
-    }
-    cmd = "go run {go_file} {build_type} {template_file} {output_file}"
-    return ctx.run(cmd.format(**args), env=env or {})
-
-
 ##
 ## release.json entry mapping functions
 ##
@@ -564,7 +548,7 @@ def check_local_branch(ctx, branch):
     return matching_branch != "0"
 
 
-@contextlib.contextmanager
+@contextmanager
 def timed(name="", quiet=False):
     """Context manager that prints how long it took"""
     start = time.time()
@@ -576,3 +560,15 @@ def timed(name="", quiet=False):
         res.duration = time.time() - start
         if not quiet:
             print(f"{name} completed in {res.duration:.2f}s")
+
+
+@contextmanager
+def environ(env):
+    original_environ = os.environ.copy()
+    os.environ.update(env)
+    yield
+    for var in env:
+        if var in original_environ:
+            os.environ[var] = original_environ[var]
+        else:
+            os.environ.pop(var)

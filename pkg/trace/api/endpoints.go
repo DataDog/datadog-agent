@@ -118,7 +118,11 @@ var endpoints = []Endpoint{
 	},
 	{
 		Pattern: "/evp_proxy/v3/",
-		Handler: func(r *HTTPReceiver) http.Handler { return r.evpProxyHandler(2) },
+		Handler: func(r *HTTPReceiver) http.Handler { return r.evpProxyHandler(3) },
+	},
+	{
+		Pattern: "/evp_proxy/v4/",
+		Handler: func(r *HTTPReceiver) http.Handler { return r.evpProxyHandler(4) },
 	},
 	{
 		Pattern: "/debugger/v1/input",

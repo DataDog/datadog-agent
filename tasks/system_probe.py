@@ -17,10 +17,9 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .build_tags import UNIT_TEST_TAGS, get_default_build_tags
-from .go_test import environ
 from .libs.common.color import color_message
+from .libs.common.utils import REPO_PATH, bin_name, environ, get_build_flags, get_gobin, get_version_numeric_only
 from .libs.ninja_syntax import NinjaWriter
-from .utils import REPO_PATH, bin_name, get_build_flags, get_gobin, get_version_numeric_only
 from .windows_resources import MESSAGESTRINGS_MC_PATH, arch_to_windres_target
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")

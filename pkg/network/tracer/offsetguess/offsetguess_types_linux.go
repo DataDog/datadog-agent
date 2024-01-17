@@ -85,7 +85,6 @@ type ConntrackStatus struct {
 	Offset_status uint64
 	Offset_netns  uint64
 	Offset_ino    uint64
-	Err           uint64
 	Saddr         uint32
 	Netns         uint32
 }
