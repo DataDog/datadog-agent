@@ -100,6 +100,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
 	otlpStatus "github.com/DataDog/datadog-agent/pkg/status/otlp"
+	systemprobeStatus "github.com/DataDog/datadog-agent/pkg/status/systemprobe"
 	pkgTelemetry "github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	pkgcommon "github.com/DataDog/datadog-agent/pkg/util/common"
@@ -336,6 +337,15 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(func(config config.Component) status.InformationProvider {
 			if config.GetBool("cluster_agent.enabled") || config.GetBool("cluster_checks.enabled") {
 				return status.NewInformationProvider(clusteragentStatus.Provider{})
+			} else {
+				return status.NewInformationProvider(status.NoopProvider{})
+			}
+		}),
+		fx.Provide(func() status.InformationProvider {
+			if pkgconfig.SystemProbe.GetBool("system_probe_config.enabled") {
+				return status.NewInformationProvider(systemprobeStatus.Provider{
+					SocketPath: pkgconfig.SystemProbe.GetString("system_probe_config.sysprobe_socket"),
+				})
 			} else {
 				return status.NewInformationProvider(status.NoopProvider{})
 			}

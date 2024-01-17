@@ -61,7 +61,7 @@ func GetStatus(verbose bool, invAgent inventoryagent.Component) (map[string]inte
 	}
 
 	if config.SystemProbe.GetBool("system_probe_config.enabled") {
-		stats["systemProbeStats"] = systemprobe.GetStatus(config.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
+		systemprobe.GetStatus(stats, config.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
 	}
 
 	stats["processAgentStatus"] = processagent.GetStatus()
