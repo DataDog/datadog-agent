@@ -267,7 +267,10 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			tr.removeClient(clientID)
 			initTracerState(t, tr)
 			require.NoError(t, tr.ebpfTracer.Resume())
-			t.Cleanup(func() { _ = tr.ebpfTracer.Pause() })
+			t.Cleanup(func() {
+				_ = tr.ebpfTracer.Pause()
+				_ = usmhttp2.Spec.Instance.(*usmhttp2.Protocol).CleanMaps()
+			})
 
 			c, err := net.Dial("unix", unixPath)
 			require.NoError(t, err, "could not dial")

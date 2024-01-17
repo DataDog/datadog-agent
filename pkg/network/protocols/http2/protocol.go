@@ -97,6 +97,15 @@ var Spec = &protocols.ProtocolSpec{
 		{
 			Name: "http2_ctx_heap",
 		},
+		{
+			Name: "http2_remainder",
+		},
+		{
+			Name: "http2_scratch_buffer",
+		},
+		{
+			Name: telemetryMap,
+		},
 	},
 	TailCalls: []manager.TailCallRoute{
 		{
@@ -407,4 +416,26 @@ func (p *Protocol) GetHTTP2KernelTelemetry() (*HTTP2Telemetry, error) {
 		return nil, err
 	}
 	return http2Telemetry, nil
+}
+
+// CleanMaps cleans all the maps used by the protocol
+func (p *Protocol) CleanMaps() error {
+	for _, specMap := range Spec.Maps {
+		mapInstance, _, _ := p.mgr.GetMap(specMap.Name)
+		if mapInstance == nil {
+			continue
+		}
+		iterator := mapInstance.Iterate()
+		var key, value interface{}
+		for {
+			if !iterator.Next(&key, &value) {
+				break
+			}
+			if err := mapInstance.Delete(key); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }

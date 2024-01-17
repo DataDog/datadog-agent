@@ -381,6 +381,9 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 
 				tr.removeClient(clientID)
 				initTracerState(t, tr)
+				t.Cleanup(func() {
+					_ = http2.Spec.Instance.(*http2.Protocol).CleanMaps()
+				})
 
 				tt.runClients(t, clientCount)
 
