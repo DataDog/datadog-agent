@@ -35,6 +35,7 @@ github_labels = ["team/agent-shared-components"]
 exclude_members = [
   "sgnn7",
   "truthbk",
+  "cmourot",
 ]
 
 [teams."Agent Platform"]

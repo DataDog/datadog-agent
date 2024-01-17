@@ -366,7 +366,6 @@ func sendEventToDatadog(title string, message string, tags []string, logger io.W
 		Text:  message,
 		Tags:  append([]string{"repository:datadog/datadog-agent", "test:new-e2e", "source:pulumi"}, tags...),
 	})
-
 	if err != nil {
 		fmt.Fprintf(logger, "error when calling `EventsApi.CreateEvent`: %v", err)
 		fmt.Fprintf(logger, "Full HTTP response: %v\n", r)

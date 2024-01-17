@@ -2,7 +2,7 @@ from .tool import info
 
 
 def resource_in_stack(stack, resource):
-    return stack in resource
+    return f"-{stack}" in resource
 
 
 def get_resources_in_stack(stack, list_fn):

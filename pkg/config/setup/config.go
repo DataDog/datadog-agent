@@ -252,6 +252,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("integration_check_status_enabled", false)
 	config.BindEnvAndSetDefault("enable_metadata_collection", true)
 	config.BindEnvAndSetDefault("enable_gohai", true)
+	config.BindEnvAndSetDefault("enable_signing_metadata_collection", true)
 	config.BindEnvAndSetDefault("check_runners", int64(4))
 	config.BindEnvAndSetDefault("check_cancel_timeout", 500*time.Millisecond)
 	config.BindEnvAndSetDefault("auth_token_file_path", "")
@@ -288,6 +289,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.enabled", false)
 	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.allow_list", defaultAllowedRCIntegrations)
 	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.block_list", []string{})
+	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.allow_log_config_scheduling", false)
 
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
@@ -1010,6 +1012,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("cluster_checks.clc_runners_port", 5005)
 	config.BindEnvAndSetDefault("cluster_checks.exclude_checks", []string{})
 	config.BindEnvAndSetDefault("cluster_checks.exclude_checks_from_dispatching", []string{})
+	config.BindEnvAndSetDefault("cluster_checks.rebalance_period", 10*time.Minute)
 
 	// Cluster check runner
 	config.BindEnvAndSetDefault("clc_runner_enabled", false)
