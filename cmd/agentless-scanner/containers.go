@@ -505,11 +505,11 @@ func ctrdReadMetadata(ctrdRoot string) ([]ctrdContainer, error) {
 						}
 					}
 					container.Snapshot = &snapshot
+					containers = append(containers, container)
 				default:
-					return fmt.Errorf("unsupported snapshotter %q", container.Snapshotter)
+					log.Warnf("containerd: unsupported snapshotter %q for container %s", container.Snapshotter, container)
 				}
 
-				containers = append(containers, container)
 				return nil
 			}); err != nil {
 				return err
@@ -665,42 +665,10 @@ func (c dockerContainer) String() string {
 
 func dockerReadMetadata(dockerRoot string) ([]dockerContainer, error) {
 	const maxFileSize = 2 * 1024 * 1024
-	repos := struct {
-		Repositories   map[string]map[string]digest.Digest `json:"Repositories"`
-		referencesByID map[digest.Digest]map[string]reference.Named
-	}{
-		referencesByID: make(map[digest.Digest]map[string]reference.Named),
-	}
 
 	entries, err := os.ReadDir(filepath.Join(dockerRoot, "containers"))
 	if err != nil {
 		return nil, err
-	}
-
-	if len(entries) > 0 {
-		reposData, err := readFileLimit(filepath.Join(dockerRoot, "image/overlay2/repositories.json"), maxFileSize)
-		if err != nil {
-			return nil, err
-		}
-		if err := json.Unmarshal(reposData, &repos); err != nil {
-			return nil, err
-		}
-	}
-
-	// We need to do reverse lookup from what is stored on disk in repositories.json. Let's inverse the map.
-	// reference: https://github.com/moby/moby/blob/3eba4216e085be3b5c62c2e10317183485d006d7/reference/store.go#L331-L343
-	for _, repo := range repos.Repositories {
-		for refStr, refID := range repo {
-			ref, err := reference.ParseNormalizedNamed(refStr)
-			if err != nil {
-				// Should never happen
-				continue
-			}
-			if repos.referencesByID[refID] == nil {
-				repos.referencesByID[refID] = make(map[string]reference.Named)
-			}
-			repos.referencesByID[refID][refStr] = ref
-		}
 	}
 
 	ctrSums := make([]string, 0, len(entries))
@@ -726,18 +694,6 @@ func dockerReadMetadata(dockerRoot string) ([]dockerContainer, error) {
 			return nil, err
 		}
 
-		refs, ok := repos.referencesByID[ctr.Image]
-		if ok {
-			for _, ref := range refs {
-				if refC, ok := ref.(reference.Canonical); ok && ctr.ImageDigest == "" {
-					ctr.ImageDigest = refC.Digest()
-				}
-				if _, ok := ref.(reference.NamedTagged); ok && ctr.ImageName == "" {
-					ctr.ImageName = ref.String()
-				}
-			}
-		}
-
 		var img dockerImage
 		imagePath := filepath.Join(dockerRoot, "image/overlay2/imagedb/content", ctr.Image.Algorithm().String(), ctr.Image.Encoded())
 		imageData, err := readFileLimit(imagePath, maxFileSize)
@@ -748,17 +704,65 @@ func dockerReadMetadata(dockerRoot string) ([]dockerContainer, error) {
 			return nil, err
 		}
 		ctr.ImageManifest = &img
-		containers = append(containers, ctr)
+		if ctr.Driver == "overlay2" {
+			containers = append(containers, ctr)
+		} else {
+			log.Infof("docker: driver %q not supported for containers %s", ctr.Driver, ctr)
+		}
+	}
+
+	if len(containers) > 0 {
+		repos := struct {
+			Repositories   map[string]map[string]digest.Digest `json:"Repositories"`
+			referencesByID map[digest.Digest]map[string]reference.Named
+		}{
+			referencesByID: make(map[digest.Digest]map[string]reference.Named),
+		}
+
+		reposData, err := readFileLimit(filepath.Join(dockerRoot, "image/overlay2/repositories.json"), maxFileSize)
+		if err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(reposData, &repos); err != nil {
+			return nil, err
+		}
+
+		// We need to do reverse lookup from what is stored on disk in repositories.json. Let's inverse the map.
+		// reference: https://github.com/moby/moby/blob/3eba4216e085be3b5c62c2e10317183485d006d7/reference/store.go#L331-L343
+		for _, repo := range repos.Repositories {
+			for refStr, refID := range repo {
+				ref, err := reference.ParseNormalizedNamed(refStr)
+				if err != nil {
+					// Should never happen
+					continue
+				}
+				if repos.referencesByID[refID] == nil {
+					repos.referencesByID[refID] = make(map[string]reference.Named)
+				}
+				repos.referencesByID[refID][refStr] = ref
+			}
+		}
+
+		for i := range containers {
+			ctr := &containers[i]
+			refs, ok := repos.referencesByID[ctr.Image]
+			if ok {
+				for _, ref := range refs {
+					if refC, ok := ref.(reference.Canonical); ok && ctr.ImageDigest == "" {
+						ctr.ImageDigest = refC.Digest()
+					}
+					if _, ok := ref.(reference.NamedTagged); ok && ctr.ImageName == "" {
+						ctr.ImageName = ref.String()
+					}
+				}
+			}
+		}
 	}
 
 	return containers, nil
 }
 
 func dockerLayersPaths(dockerRoot string, ctr dockerContainer) ([]string, error) {
-	if ctr.Driver != "overlay2" {
-		return nil, fmt.Errorf("unsupported docker container driver %q", ctr.Driver)
-	}
-
 	var layers []string
 	var chainID digest.Digest
 	for _, d := range ctr.ImageManifest.RootFS.DiffIDs {
