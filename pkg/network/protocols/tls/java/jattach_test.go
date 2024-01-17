@@ -109,7 +109,7 @@ func TestInject(t *testing.T) {
 func TestInjectInReadOnlyFS(t *testing.T) {
 	curDir, err := os.Getwd()
 	require.NoError(t, err)
-	rodir := filepath.Join(t.TempDir(), "rodir")
+	rodir := filepath.Join("/", "tmp", "rodir")
 
 	err = os.Mkdir(rodir, 0766)
 	require.NoError(t, err)
