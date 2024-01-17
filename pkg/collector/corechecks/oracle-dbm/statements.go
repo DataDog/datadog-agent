@@ -228,7 +228,7 @@ type PlanDefinition struct {
 	Depth            int64   `json:"depth"`
 	Position         int64   `json:"position"`
 	SearchColumns    int64   `json:"search_columns,omitempty"`
-	Cost             float64 `json:"cost,omitempty"`
+	Cost             float64 `json:"cost"`
 	Cardinality      float64 `json:"cardinality,omitempty"`
 	Bytes            float64 `json:"bytes,omitempty"`
 	PartitionStart   string  `json:"partition_start,omitempty"`
