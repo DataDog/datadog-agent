@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	e2eClient "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	"github.com/stretchr/testify/require"
 )
 
@@ -28,7 +28,7 @@ func CheckAgentBehaviour(t *testing.T, client *TestClient) {
 		var statusOutputJSON map[string]any
 		result := false
 		for try := 0; try < 5 && !result; try++ {
-			err := json.Unmarshal([]byte(client.AgentClient.Status(e2eClient.WithArgs([]string{"-j"})).Content), &statusOutputJSON)
+			err := json.Unmarshal([]byte(client.AgentClient.Status(agentclient.WithArgs([]string{"-j"})).Content), &statusOutputJSON)
 			require.NoError(tt, err)
 			if runnerStats, ok := statusOutputJSON["runnerStats"]; ok {
 				runnerStatsMap := runnerStats.(map[string]any)
@@ -69,7 +69,6 @@ func CheckDogstatdAgentBehaviour(t *testing.T, client *TestClient) {
 		_, err := client.FileManager.FileExists(fmt.Sprintf("%s/%s", client.Helper.GetConfigFolder(), "dogstatsd.yaml"))
 		require.NoError(tt, err, "dogstatsd config file should be present")
 	})
-
 }
 
 // CheckAgentStops runs tests to check the agent can stop properly
@@ -90,7 +89,7 @@ func CheckAgentStops(t *testing.T, client *TestClient) {
 	t.Run("no running processes", func(tt *testing.T) {
 		agentProcesses := []string{"datadog-agent", "system-probe", "security-agent"}
 		for _, process := range agentProcesses {
-			_, err := client.VMClient.ExecuteWithError(fmt.Sprintf("pgrep -f %s", process))
+			_, err := client.Host.Execute(fmt.Sprintf("pgrep -f %s", process))
 			require.Error(tt, err, fmt.Sprintf("process %s should not be running", process))
 		}
 	})
@@ -117,7 +116,7 @@ func CheckDogstatsdAgentStops(t *testing.T, client *TestClient) {
 	t.Run("no running processes", func(tt *testing.T) {
 		dogstatsdProcesses := []string{"datadog-dogstatsd"}
 		for _, process := range dogstatsdProcesses {
-			_, err := client.VMClient.ExecuteWithError(fmt.Sprintf("pgrep -f %s", process))
+			_, err := client.Host.Execute(fmt.Sprintf("pgrep -f %s", process))
 			require.Error(tt, err, fmt.Sprintf("process %s should not be running", process))
 		}
 	})
@@ -133,7 +132,6 @@ func CheckDogstatsdAgentStops(t *testing.T, client *TestClient) {
 
 // CheckAgentRestarts runs tests to check the agent can restart properly
 func CheckAgentRestarts(t *testing.T, client *TestClient) {
-
 	t.Run("start when stopped", func(tt *testing.T) {
 		// If the agent is not stopped yet, stop it
 		if _, err := client.SvcManager.Status("datadog-agent"); err == nil {
@@ -165,7 +163,6 @@ func CheckAgentRestarts(t *testing.T, client *TestClient) {
 
 // CheckDogstatsdAgentRestarts runs tests to check the agent can restart properly
 func CheckDogstatsdAgentRestarts(t *testing.T, client *TestClient) {
-
 	t.Run("restart when stopped", func(tt *testing.T) {
 		// If the agent is not stopped yet, stop it
 		if _, err := client.SvcManager.Status("datadog-dogstatsd"); err == nil {
@@ -252,7 +249,6 @@ func CheckApmDisabled(t *testing.T, client *TestClient) {
 // CheckCWSBehaviour runs tests to check the agent behave correctly when CWS is enabled
 func CheckCWSBehaviour(t *testing.T, client *TestClient) {
 	t.Run("enable CWS and restarts", func(tt *testing.T) {
-
 		err := client.SetConfig(client.Helper.GetConfigFolder()+"system-probe.yaml", "runtime_security_config.enabled", "true")
 		require.NoError(tt, err)
 		err = client.SetConfig(client.Helper.GetConfigFolder()+"security-agent.yaml", "runtime_security_config.enabled", "true")
@@ -265,16 +261,15 @@ func CheckCWSBehaviour(t *testing.T, client *TestClient) {
 	t.Run("security-agent is running", func(tt *testing.T) {
 		var err error
 		require.Eventually(tt, func() bool {
-			_, err = client.VMClient.ExecuteWithError("pgrep -f security-agent")
+			_, err = client.Host.Execute("pgrep -f security-agent")
 			return err == nil
 		}, 1*time.Minute, 500*time.Millisecond, "security-agent should be running ", err)
-
 	})
 
 	t.Run("system-probe is running", func(tt *testing.T) {
 		var err error
 		require.Eventually(tt, func() bool {
-			_, err = client.VMClient.ExecuteWithError("pgrep -f system-probe")
+			_, err = client.Host.Execute("pgrep -f system-probe")
 			return err == nil
 		}, 1*time.Minute, 500*time.Millisecond, "system-probe should be running ", err)
 	})
@@ -283,7 +278,7 @@ func CheckCWSBehaviour(t *testing.T, client *TestClient) {
 		var statusOutputJSON map[string]any
 		var result bool
 		for try := 0; try < 10 && !result; try++ {
-			status, err := client.VMClient.ExecuteWithError("sudo /opt/datadog-agent/embedded/bin/security-agent status -j")
+			status, err := client.Host.Execute("sudo /opt/datadog-agent/embedded/bin/security-agent status -j")
 			if err == nil {
 				statusLines := strings.Split(status, "\n")
 				status = strings.Join(statusLines[1:], "\n")

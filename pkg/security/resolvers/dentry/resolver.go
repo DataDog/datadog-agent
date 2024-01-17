@@ -329,12 +329,14 @@ func computeFilenameFromParts(parts []string) string {
 		return "/"
 	}
 
-	var builder strings.Builder
-
 	// pre-allocation
+	prealloc := 0
 	for _, part := range parts {
-		builder.Grow(len(part) + 1)
+		prealloc += len(part) + 1
 	}
+
+	var builder strings.Builder
+	builder.Grow(prealloc)
 
 	// reverse iteration
 	for i := 0; i < len(parts); i++ {
