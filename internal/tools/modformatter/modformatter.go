@@ -29,7 +29,7 @@ func deleteElement(slice []string, index int) []string {
 	return append(slice[:index], slice[index+1:]...)
 }
 
-// Append all dependency of a prefix (replace, required) into the lines of the formatted go.mod
+// Append all matching dependency of a prefix (replace, required) into the lines of the formatted go.mod
 func appendDeps(lines []string, deps []string, prefix string, validationKeyWord string, validationEffect bool) []string {
 	size := len(lines)
 	if size < 1 {
@@ -90,7 +90,6 @@ func formatModFile(content string) string {
 	// Parse required and replaced dependencies
 	for idx, line := range strings.Split(content, "\n") {
 		if inReq {
-
 			lines = deleteElement(lines, idx-totalRemovedLines)
 			totalRemovedLines += 1
 			if strings.Contains(line, ")") {
@@ -199,7 +198,6 @@ func main() {
 				if err != nil {
 					log.Fatal(err)
 				}
-				fmt.Printf("%s has been formatted !\n", modFilePath)
 			}
 		}
 	}
@@ -215,6 +213,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+		fmt.Printf("%s has been formatted !\n", modFilePath)
 	}
 
 }

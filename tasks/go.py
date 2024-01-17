@@ -6,7 +6,6 @@ import glob
 import os
 import shutil
 import textwrap
-import re
 from pathlib import Path
 
 from invoke import task
