@@ -53,8 +53,6 @@ github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.51.0-rc.2 h1:lG8c2Clq
 github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.51.0-rc.2/go.mod h1:Vc+snp0Bey4MrrJyiV2tVxxJb6BmLomPvN1RgAvjGaQ=
 github.com/DataDog/datadog-agent/pkg/trace v0.51.0-rc.2 h1:MeiOAIy+R+x1G+Qk/YC2+s4Si5KP4NCAR6XJ9etXWKg=
 github.com/DataDog/datadog-agent/pkg/trace v0.51.0-rc.2/go.mod h1:/7q3SMOAqtKayFwr/5Sp2LLpu39lyZgV9eFp9lAZGC4=
-github.com/DataDog/datadog-agent/pkg/version v0.51.0-rc.2 h1:RiNoo0x4lV4+KUJ4yjpi5cWm4cCei2djkXw9Nhi1hSc=
-github.com/DataDog/datadog-agent/pkg/version v0.51.0-rc.2/go.mod h1:GZeu662YYuY3HAG8tnThsvkIbD/98lFW9Szv7hCr//E=
 github.com/DataDog/datadog-go/v5 v5.1.1 h1:JLZ6s2K1pG2h9GkvEvMdEGqMDyVLEAccdX5TltWcLMU=
 github.com/DataDog/datadog-go/v5 v5.1.1/go.mod h1:KhiYb2Badlv9/rofz+OznKoEF5XKTonWyhx5K83AP8E=
 github.com/DataDog/go-sqllexer v0.0.9 h1:Cx2Cu1S0hfj4coCCA8hzjM9+UNFRkcu1avIV//RU5Qw=
