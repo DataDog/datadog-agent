@@ -1,0 +1,2 @@
+service_monitoring_config:
+  enable_kafka_monitoring: true
