@@ -42,8 +42,6 @@ func TestE2EVMFakeintakeSuite(t *testing.T) {
 		e2e.WithProvisioner(awshost.Provisioner(
 			awshost.WithEC2InstanceOptions(ec2.WithOS(testos.WindowsDefault)),
 			awshost.WithAgentOptions(
-				agentparams.WithVersion("7.50.3"),
-				agentparams.WithAgentConfig("log_level: debug"),
 				agentparams.WithLogs(),
 				agentparams.WithIntegration("custom_logs.d", logConfig)))),
 	}
