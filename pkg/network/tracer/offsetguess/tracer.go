@@ -44,6 +44,7 @@ const (
 
 	tcpGetSockOptKProbeNotCalled uint64 = 0
 	tcpGetSockOptKProbeCalled    uint64 = 1
+	netNsDefaultOffsetBytes             = 48
 )
 
 var tcpKprobeCalledString = map[uint64]string{
@@ -528,6 +529,7 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 			t.status.Fl6_offsets = disabled
 			break
 		}
+	// This case guesses for both the net namespace struct and the inode field within it
 	case GuessNetNS:
 		t.status.Offset_netns, overlapped = skipOverlaps(t.status.Offset_netns, t.sockRanges())
 		if overlapped {
@@ -535,16 +537,23 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 			break
 		}
 
+		// compare the netns INO to the expected (usually the root NS of this machine)
 		if t.status.Netns == expected.netns {
 			t.logAndAdvance(t.status.Offset_netns, GuessRTT)
 			log.Debugf("Successfully guessed %v with offset of %d bytes", "ino", t.status.Offset_ino)
 			break
 		}
 		t.status.Offset_ino++
-		// go to the next offset_netns if we get an error
+		// go to the next offset_netns if we get an error in kernelspace or if we pass the threshold
 		if t.status.Err != 0 || t.status.Offset_ino >= threshold {
 			t.status.Offset_ino = 0
-			t.status.Offset_netns++
+			// if we have already seen a failure, we need to increment the offset_netns otherwise set it to offset_family
+			if t.status.Seen_failure != 0 {
+				t.status.Offset_netns++
+			} else {
+				t.status.Offset_netns = t.status.Offset_family
+				t.status.Seen_failure = 1
+			}
 			t.status.Offset_netns, _ = skipOverlaps(t.status.Offset_netns, t.sockRanges())
 		}
 	case GuessRTT:
@@ -727,9 +736,10 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 
 	t.guessTCPv6, t.guessUDPv6 = getIpv6Configuration(cfg)
 	t.status = &TracerStatus{
-		State: uint64(StateChecking),
-		Proc:  Proc{Comm: cProcName},
-		What:  uint64(GuessSAddr),
+		State:        uint64(StateChecking),
+		Proc:         Proc{Comm: cProcName},
+		What:         uint64(GuessSAddr),
+		Offset_netns: netNsDefaultOffsetBytes,
 	}
 
 	// if we already have the offsets, just return

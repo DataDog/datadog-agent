@@ -1035,16 +1035,10 @@ func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, tim
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, dnsServerAddr.Port, int(conn.DPort))
 
-	dnsKey, ok := network.DNSKey(conn)
-	require.True(t, ok)
-
-	dnsStats, ok := connections.DNSStats[dnsKey]
-	require.True(t, ok)
-
 	var total uint32
 	var successfulResponses uint32
 	var timeouts uint32
-	for _, byDomain := range dnsStats {
+	for _, byDomain := range conn.DNSStats {
 		for _, byQueryType := range byDomain {
 			successfulResponses += byQueryType.CountByRcode[uint32(0)]
 			timeouts += byQueryType.Timeouts

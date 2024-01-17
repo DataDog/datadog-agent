@@ -84,6 +84,10 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
         prog = TLS_HTTP_PROCESS;
         final_tuple = normalized_tuple;
         break;
+    case PROTOCOL_HTTP2:
+        prog = TLS_HTTP2_FIRST_FRAME;
+        final_tuple = *t;
+        break;
     default:
         return;
     }
@@ -93,10 +97,13 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
         log_debug("dispatcher failed to save arguments for tls tail call\n");
         return;
     }
-    bpf_memset(args, 0, sizeof(tls_dispatcher_arguments_t));
-    bpf_memcpy(&args->tup, &final_tuple, sizeof(conn_tuple_t));
-    args->buffer_ptr = buffer_ptr;
-    args->tags = tags;
+    *args = (tls_dispatcher_arguments_t){
+        .tup = final_tuple,
+        .tags = tags,
+        .buffer_ptr = buffer_ptr,
+        .data_end = len,
+        .data_off = 0,
+    };
     bpf_tail_call_compat(ctx, &tls_process_progs, prog);
 }
 
@@ -118,6 +125,10 @@ static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t) {
     case PROTOCOL_HTTP:
         prog = TLS_HTTP_TERMINATION;
         final_tuple = normalized_tuple;
+        break;
+    case PROTOCOL_HTTP2:
+        prog = TLS_HTTP2_TERMINATION;
+        final_tuple = *t;
         break;
     default:
         return;

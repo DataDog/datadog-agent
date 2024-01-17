@@ -8,23 +8,26 @@ package inventory
 import (
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
 
 type inventoryAgentSuite struct {
-	e2e.Suite[e2e.AgentEnv]
+	e2e.BaseSuite[environments.Host]
 }
 
-func TestAgentDiagnoseEC2Suite(t *testing.T) {
-	e2e.Run(t, &inventoryAgentSuite{}, e2e.AgentStackDef())
+func TestInventoryAgentSuite(t *testing.T) {
+	e2e.Run(t, &inventoryAgentSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
 }
 
 func (v *inventoryAgentSuite) TestInventoryDefaultConfig() {
-	inventory := v.Env().Agent.Diagnose(client.WithArgs([]string{"show-metadata", "inventory-agent"}))
+	inventory := v.Env().Agent.Client.Diagnose(agentclient.WithArgs([]string{"show-metadata", "inventory-agent"}))
 	assert.Contains(v.T(), inventory, `"feature_apm_enabled": true`)
 	assert.Contains(v.T(), inventory, `"feature_logs_enabled": false`)
 	assert.Contains(v.T(), inventory, `"feature_process_enabled": false`)
@@ -35,12 +38,13 @@ func (v *inventoryAgentSuite) TestInventoryDefaultConfig() {
 }
 
 func (v *inventoryAgentSuite) TestInventoryAllEnabled() {
-
 	agentConfig := `logs_enabled: true
 process_config:
   enabled: true
   process_collection:
-    enabled: true`
+    enabled: true
+compliance_config:
+  enabled: true`
 
 	systemProbeConfiguration := `runtime_security_config:
   enabled: true
@@ -49,18 +53,14 @@ service_monitoring_config:
 network_config:
   enabled: true`
 
-	securityAgentConfiguration := `compliance_config:
-  enabled: true`
-
 	agentOptions := []agentparams.Option{
 		agentparams.WithAgentConfig(string(agentConfig)),
 		agentparams.WithSystemProbeConfig(string(systemProbeConfiguration)),
-		agentparams.WithSecurityAgentConfig(string(securityAgentConfiguration)),
 	}
 
-	v.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(agentOptions...)))
+	v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentOptions...)))
 
-	inventory := v.Env().Agent.Diagnose(client.WithArgs([]string{"show-metadata", "inventory-agent"}))
+	inventory := v.Env().Agent.Client.Diagnose(agentclient.WithArgs([]string{"show-metadata", "inventory-agent"}))
 	assert.Contains(v.T(), inventory, `"feature_apm_enabled": true`)
 	assert.Contains(v.T(), inventory, `"feature_logs_enabled": true`)
 	assert.Contains(v.T(), inventory, `"feature_process_enabled": true`)
