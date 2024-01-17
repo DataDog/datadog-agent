@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"time"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 )
@@ -38,16 +39,28 @@ func (fc *FlareController) FillFlare(fb flaretypes.FlareBuilder) error {
 	}
 	fb.AddFileFromFunc("logs_file_permissions.log", func() ([]byte, error) {
 		var writer []byte
+		var fileInfo string
+		// Timer to prevent function from running too long in the event that the
+		// agent detects a long time to os.Stat() the files it detects
+		timer := time.NewTimer(15 * time.Second)
 
 		for _, file := range fc.allFiles {
-			fi, err := os.Stat(file)
-			var fileInfo string
-			if err != nil {
-				fileInfo = fmt.Sprintf("%s %s\n", fi.Name(), err.Error())
-			} else {
-				fileInfo = fmt.Sprintf("%s %s\n", fi.Name(), fi.Mode().String())
+
+			select {
+			case t := <-timer.C:
+				fileInfo = fmt.Sprintf("Timed out on %s while getting file permissions\n", t)
+				writer = append(writer, []byte(fileInfo)...)
+				return writer, nil
+			default:
+				fi, err := os.Stat(file)
+				if err != nil {
+					fileInfo = fmt.Sprintf("%s %s\n", fi.Name(), err.Error())
+				} else {
+					fileInfo = fmt.Sprintf("%s %s\n", fi.Name(), fi.Mode().String())
+				}
+				writer = append(writer, []byte(fileInfo)...)
 			}
-			writer = append(writer, []byte(fileInfo)...)
+
 		}
 
 		return writer, nil
