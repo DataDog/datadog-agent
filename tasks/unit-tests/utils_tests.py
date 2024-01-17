@@ -1,6 +1,6 @@
 import unittest
 
-from tasks.utils import clean_nested_paths
+from tasks.libs.common.utils import clean_nested_paths
 
 
 class TestUtils(unittest.TestCase):
