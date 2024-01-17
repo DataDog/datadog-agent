@@ -259,13 +259,10 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_grpc(s
     // The GRPC classification program can be called without a prior
     // classification of HTTP2, which is a precondition.
     protocol_t app_layer_proto = get_protocol_from_stack(protocol_stack, LAYER_APPLICATION);
-    if (app_layer_proto != PROTOCOL_HTTP2) {
-        goto next_program;
+    if (app_layer_proto == PROTOCOL_HTTP2) {
+        classify_grpc(usm_ctx, protocol_stack, skb, &usm_ctx->skb_info);
     }
 
-    classify_grpc(usm_ctx, protocol_stack, skb, &usm_ctx->skb_info);
-
-next_program:
     classification_next_program(skb, usm_ctx);
 }
 

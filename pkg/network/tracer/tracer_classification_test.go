@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/amqp"
+	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	protocolsmongo "github.com/DataDog/datadog-agent/pkg/network/protocols/mongo"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/mysql"
@@ -1783,19 +1784,13 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 
 				buf := new(bytes.Buffer)
 				framer := http2.NewFramer(buf, nil)
-
-				hdrBuf := new(bytes.Buffer)
-				enc := hpack.NewEncoder(hdrBuf)
-
-				for _, h := range testHeaderFields {
-					err := enc.WriteField(h)
-					require.NoError(t, err)
-				}
+				rawHdrs, err := usmhttp2.NewHeadersFrameMessage(testHeaderFields)
+				require.NoError(t, err)
 
 				// Writing the header frames to the buffer using the Framer.
 				require.NoError(t, framer.WriteHeaders(http2.HeadersFrameParam{
 					StreamID:      uint32(1),
-					BlockFragment: hdrBuf.Bytes(),
+					BlockFragment: rawHdrs,
 					EndStream:     true,
 					EndHeaders:    true,
 				}))
