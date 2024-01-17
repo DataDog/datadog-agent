@@ -31,10 +31,12 @@ func (Provider) Section() string {
 	return "jmx fetch"
 }
 
-func (p Provider) getStatusInfo() map[string]interface{} {
+func (p Provider) getStatusInfo(verbose bool) map[string]interface{} {
 	stats := make(map[string]interface{})
 
 	PopulateStatus(stats)
+
+	stats["verbose"] = verbose
 
 	return stats
 }
@@ -46,12 +48,12 @@ func (p Provider) JSON(_ bool, stats map[string]interface{}) error {
 	return nil
 }
 
-func (p Provider) Text(_ bool, buffer io.Writer) error {
-	return renderText(buffer, p.getStatusInfo())
+func (p Provider) Text(verbose bool, buffer io.Writer) error {
+	return renderText(buffer, p.getStatusInfo(verbose))
 }
 
 func (p Provider) HTML(_ bool, buffer io.Writer) error {
-	return renderHTML(buffer, p.getStatusInfo())
+	return renderHTML(buffer, p.getStatusInfo(false))
 }
 
 func renderHTML(buffer io.Writer, data any) error {
