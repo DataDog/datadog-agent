@@ -34,7 +34,6 @@ from .trace_agent import integration_tests as trace_integration_tests
 
 PROFILE_COV = "coverage.out"
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
-UNIT_TEST_FILE_FORMAT = re.compile(r'[^a-zA-Z0-9_\-]')
 WINDOWS_MAX_PACKAGES_NUMBER = 150
 
 
