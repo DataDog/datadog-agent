@@ -212,22 +212,6 @@ func CheckAgentPython(t *testing.T, client *TestClient, version string) {
 	})
 }
 
-// ReadJournalCtl returns the output of journalctl with an optional grep pattern
-func ReadJournalCtl(t *testing.T, client *TestClient, grepPattern string) string {
-	var cmd string
-	if grepPattern != "" {
-		cmd = fmt.Sprintf("journalctl | grep '%s'", grepPattern)
-	} else {
-		cmd = "journalctl"
-	}
-	t.Logf("Error encountered, getting the output of %s", cmd)
-	journalCtlOutput, journalCtlErr := client.Host.Execute(cmd)
-	if journalCtlErr != nil {
-		t.Log("Skipping, journalctl failed to run")
-	}
-	return journalCtlOutput
-}
-
 // CheckApmEnabled runs tests to check the agent behave properly with APM enabled
 func CheckApmEnabled(t *testing.T, client *TestClient) {
 	t.Run("port bound apm enabled", func(tt *testing.T) {
