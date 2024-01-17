@@ -99,6 +99,7 @@ var (
 	globalParams struct {
 		configFilePath string
 		diskMode       diskMode
+		defaultActions []string
 		noForkScanners bool
 	}
 
@@ -166,11 +167,6 @@ const (
 	resourceTypeFunction = "function"
 	resourceTypeRole     = "role"
 )
-
-var defaultActions = []string{
-	string(vulnsHost),
-	// string(vulnsContainers),
-}
 
 type (
 	rolesMapping map[string]*arn.ARN
@@ -348,6 +344,7 @@ func rootCommand() *cobra.Command {
 	pflags.StringVarP(&globalParams.configFilePath, "config-path", "c", path.Join(commonpath.DefaultConfPath, "datadog.yaml"), "specify the path to agentless-scanner configuration yaml file")
 	pflags.StringVar(&diskModeStr, "disk-mode", string(noAttach), fmt.Sprintf("disk mode used for scanning EBS volumes: %s, %s or %s", volumeAttach, nbdAttach, noAttach))
 	pflags.BoolVar(&globalParams.noForkScanners, "no-fork-scanners", false, "disable spawning a dedicated process for launching scanners")
+	pflags.StringSliceVar(&globalParams.defaultActions, "actions", []string{string(vulnsHost)}, "disable spawning a dedicated process for launching scanners")
 	sideScannerCmd.AddCommand(runCommand())
 	sideScannerCmd.AddCommand(runScannerCommand())
 	sideScannerCmd.AddCommand(scanCommand())
@@ -413,7 +410,6 @@ func scanCommand() *cobra.Command {
 	var flags struct {
 		ARN      string
 		Hostname string
-		Actions  []string
 	}
 	cmd := &cobra.Command{
 		Use:   "scan",
@@ -423,13 +419,12 @@ func scanCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return scanCmd(resourceARN, flags.Hostname, flags.Actions)
+			return scanCmd(resourceARN, flags.Hostname, globalParams.defaultActions)
 		}),
 	}
 
 	cmd.Flags().StringVar(&flags.ARN, "arn", "", "arn to scan")
 	cmd.Flags().StringVar(&flags.Hostname, "hostname", "unknown", "scan hostname")
-	cmd.Flags().StringSliceVar(&flags.Actions, "actions", nil, "list of scan actions to perform (malware, vulns or vulnscontainers")
 	_ = cmd.MarkFlagRequired("arn")
 	return cmd
 }
@@ -439,7 +434,6 @@ func offlineCommand() *cobra.Command {
 		poolSize     int
 		regions      []string
 		scanType     string
-		actions      []string
 		maxScans     int
 		printResults bool
 	}
@@ -447,7 +441,7 @@ func offlineCommand() *cobra.Command {
 		Use:   "offline",
 		Short: "Runs the agentless-scanner in offline mode (server-less mode)",
 		RunE: runWithModules(func(cmd *cobra.Command, args []string) error {
-			return offlineCmd(cliArgs.poolSize, scanType(cliArgs.scanType), cliArgs.regions, cliArgs.maxScans, cliArgs.printResults, cliArgs.actions)
+			return offlineCmd(cliArgs.poolSize, scanType(cliArgs.scanType), cliArgs.regions, cliArgs.maxScans, cliArgs.printResults, globalParams.defaultActions)
 		}),
 	}
 
@@ -456,7 +450,6 @@ func offlineCommand() *cobra.Command {
 	cmd.Flags().StringVar(&cliArgs.scanType, "scan-type", string(ebsScanType), "scan type (ebs-volume or lambda)")
 	cmd.Flags().IntVar(&cliArgs.maxScans, "max-scans", 0, "maximum number of scans to perform")
 	cmd.Flags().BoolVar(&cliArgs.printResults, "print-results", false, "print scan results to stdout")
-	cmd.Flags().StringSliceVar(&cliArgs.actions, "actions", nil, "list of scan actions to perform (malware, vulns or vulnscontainers")
 	return cmd
 }
 
@@ -496,9 +489,9 @@ func cleanupCommand() *cobra.Command {
 			return cleanupCmd(cliArgs.region, cliArgs.dryRun, cliArgs.delay)
 		}),
 	}
-	cmd.Flags().StringVarP(&cliArgs.region, "region", "", "us-east-1", "AWS region")
-	cmd.Flags().BoolVarP(&cliArgs.dryRun, "dry-run", "", false, "dry run")
-	cmd.Flags().DurationVarP(&cliArgs.delay, "delay", "", 0, "delete snapshot older than delay")
+	cmd.Flags().StringVar(&cliArgs.region, "region", "us-east-1", "AWS region")
+	cmd.Flags().BoolVar(&cliArgs.dryRun, "dry-run", false, "dry run")
+	cmd.Flags().DurationVar(&cliArgs.delay, "delay", 0, "delete snapshot older than delay")
 	return cmd
 }
 
@@ -973,7 +966,7 @@ func attachCmd(resourceARN arn.ARN, mode diskMode, mount bool) error {
 		mode = nbdAttach
 	}
 
-	scan, err := newScanTask(resourceARN.String(), "unknown", defaultActions, nil, mode)
+	scan, err := newScanTask(resourceARN.String(), "unknown", nil, nil, mode)
 	if err != nil {
 		return err
 	}
@@ -1057,7 +1050,7 @@ func newScanTask(resourceARN, hostname string, actions []string, roles rolesMapp
 	scan.Roles = roles
 	scan.DiskMode = mode
 	if actions == nil {
-		actions = defaultActions
+		actions = globalParams.defaultActions
 	}
 	for _, actionRaw := range actions {
 		switch actionRaw {
