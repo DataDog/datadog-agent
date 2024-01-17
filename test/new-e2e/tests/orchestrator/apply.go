@@ -6,6 +6,7 @@
 package orchestrator
 
 import (
+	_ "embed"
 	"fmt"
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v3/go/kubernetes"
@@ -21,6 +22,9 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
 )
+
+//go:embed agent_values.yaml
+var agentCustomValuesFmt string
 
 // Apply creates a kind cluster, deploys the datadog agent, and installs various workloads for testing
 func Apply(ctx *pulumi.Context) error {
@@ -79,32 +83,6 @@ func createCluster(ctx *pulumi.Context) (*resAws.Environment, *localKubernetes.C
 	}
 	return &awsEnv, kindCluster, kindKubeProvider, nil
 }
-
-const agentCustomValuesFmt = `
-datadog:
-  kubelet:
-    tlsVerify: false
-  clusterName: "%s"
-  orchestratorExplorer:
-    customResources:
-    - datadoghq.com/v1alpha1/datadogmetrics
-agents:
-  useHostNetwork: true
-
-clusterAgent:
-  enabled: true
-  confd:
-    orchestrator.yaml: |-
-      init_config:
-      instances:
-        - collectors:
-          - pods
-          - nodes
-          - deployments
-          - customresourcedefinitions
-          crd_collectors:
-          - datadoghq.com/v1alpha1/datadogmetrics
-`
 
 func deployAgent(ctx *pulumi.Context, awsEnv *resAws.Environment, cluster *localKubernetes.Cluster, kindKubeProvider *kubernetes.Provider) (pulumi.ResourceOption, error) {
 	var agentDependency pulumi.ResourceOption
