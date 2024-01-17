@@ -60,17 +60,19 @@ func (Provider) Section() string {
 }
 
 // JSON populates the status map
-func (p Provider) JSON(verbose bool, stats map[string]interface{}) error {
+func (p Provider) JSON(_ bool, stats map[string]interface{}) error {
 	GetStatus(stats, p.SocketPath)
 
 	return nil
 }
 
+// Text renders the text output
 func (p Provider) Text(_ bool, buffer io.Writer) error {
 	return renderText(buffer, p.getStatusInfo())
 }
 
-func (p Provider) HTML(_ bool, buffer io.Writer) error {
+// HTML renders the html output
+func (p Provider) HTML(_ bool, _ io.Writer) error {
 	return nil
 }
 

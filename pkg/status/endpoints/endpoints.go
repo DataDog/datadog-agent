@@ -41,7 +41,7 @@ func PopulateStatus(stats map[string]interface{}) {
 	stats["endpointsInfos"] = endpointsInfos
 }
 
-// Provider provides the functionality to populate the status output with the collector information
+// Provider provides the functionality to populate the status output
 type Provider struct{}
 
 //go:embed status_templates
@@ -58,16 +58,18 @@ func (Provider) Section() string {
 }
 
 // JSON populates the status map
-func (Provider) JSON(verbose bool, stats map[string]interface{}) error {
+func (Provider) JSON(_ bool, stats map[string]interface{}) error {
 	PopulateStatus(stats)
 
 	return nil
 }
 
+// Text renders the text output
 func (Provider) Text(_ bool, buffer io.Writer) error {
 	return renderText(buffer, getStatusInfo())
 }
 
+// HTML renders the html output
 func (Provider) HTML(_ bool, buffer io.Writer) error {
 	return renderHTML(buffer, getStatusInfo())
 }

@@ -844,17 +844,17 @@ func (s *server) Section() string {
 	return "dogstatsd"
 }
 
-func (s *server) JSON(verbose bool, stats map[string]interface{}) error {
+func (s *server) JSON(_ bool, stats map[string]interface{}) error {
 	s.populateStatus(stats)
 
 	return nil
 }
 
-func (s *server) Text(verbose bool, buffer io.Writer) error {
+func (s *server) Text(_ bool, buffer io.Writer) error {
 	return renderText(buffer, s.getStatusInfo())
 }
 
-func (s *server) HTML(verbose bool, buffer io.Writer) error {
+func (s *server) HTML(_ bool, buffer io.Writer) error {
 	return renderHTML(buffer, s.getStatusInfo())
 }
 

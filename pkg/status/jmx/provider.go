@@ -19,7 +19,7 @@ import (
 //go:embed status_templates
 var templatesFS embed.FS
 
-// Provider provides the functionality to populate the status output with the collector information
+// Provider provides the functionality to populate the status output
 type Provider struct{}
 
 // Name returns the name
@@ -27,6 +27,7 @@ func (Provider) Name() string {
 	return "JMX"
 }
 
+// Section return the section
 func (Provider) Section() string {
 	return "jmx fetch"
 }
@@ -48,10 +49,12 @@ func (p Provider) JSON(_ bool, stats map[string]interface{}) error {
 	return nil
 }
 
+// Text renders the text output
 func (p Provider) Text(verbose bool, buffer io.Writer) error {
 	return renderText(buffer, p.getStatusInfo(verbose))
 }
 
+// HTML renders the html output
 func (p Provider) HTML(_ bool, buffer io.Writer) error {
 	return renderHTML(buffer, p.getStatusInfo(false))
 }

@@ -27,7 +27,7 @@ func (ia *inventoryagent) Index() int {
 	return 3
 }
 
-func (ia *inventoryagent) JSON(verbose bool, stats map[string]interface{}) error {
+func (ia *inventoryagent) JSON(_ bool, stats map[string]interface{}) error {
 	for k, v := range ia.Get() {
 		stats[k] = v
 	}
@@ -35,11 +35,11 @@ func (ia *inventoryagent) JSON(verbose bool, stats map[string]interface{}) error
 	return nil
 }
 
-func (ia *inventoryagent) Text(verbose bool, buffer io.Writer) error {
+func (ia *inventoryagent) Text(_ bool, buffer io.Writer) error {
 	return renderText(buffer, ia.Get())
 }
 
-func (ia *inventoryagent) HTML(verbose bool, buffer io.Writer) error {
+func (ia *inventoryagent) HTML(_ bool, buffer io.Writer) error {
 	return renderHTML(buffer, ia.Get())
 }
 

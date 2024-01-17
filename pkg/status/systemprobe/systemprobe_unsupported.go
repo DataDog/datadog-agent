@@ -17,4 +17,5 @@ func GetStatus(stats map[string]interface{}, _ string) {
 	}
 }
 
+// Provider provides the functionality to populate the status output
 type Provider status.NoopProvider

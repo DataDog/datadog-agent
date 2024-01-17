@@ -59,7 +59,7 @@ func GetDCAStatus(stats map[string]interface{}) {
 	stats["clusterAgentStatus"] = clusterAgentDetails
 }
 
-// Provider provides the functionality to populate the status output with the collector information
+// Provider provides the functionality to populate the status output
 type Provider struct{}
 
 //go:embed status_templates
@@ -76,17 +76,19 @@ func (Provider) Section() string {
 }
 
 // JSON populates the status map
-func (Provider) JSON(verbose bool, stats map[string]interface{}) error {
+func (Provider) JSON(_ bool, stats map[string]interface{}) error {
 	GetDCAStatus(stats)
 
 	return nil
 }
 
+// Text renders the text output
 func (Provider) Text(_ bool, buffer io.Writer) error {
 	return renderText(buffer, getStatusInfo())
 }
 
-func (Provider) HTML(_ bool, buffer io.Writer) error {
+// HTML renders the html output
+func (Provider) HTML(_ bool, _ io.Writer) error {
 	return nil
 }
 

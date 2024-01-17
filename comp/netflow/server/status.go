@@ -20,7 +20,7 @@ import (
 //go:embed status_templates
 var templatesFS embed.FS
 
-// Provider provides the functionality to populate the status output with the collector information
+// Provider provides the functionality to populate the status output
 type Provider struct{}
 
 // Name returns the name
@@ -57,10 +57,12 @@ func (Provider) JSON(_ bool, stats map[string]interface{}) error {
 	return nil
 }
 
+// Text renders the text output
 func (Provider) Text(_ bool, buffer io.Writer) error {
 	return renderText(buffer, GetStatus())
 }
 
+// HTML renders the html output
 func (Provider) HTML(_ bool, buffer io.Writer) error {
 	return renderHTML(buffer, GetStatus())
 }

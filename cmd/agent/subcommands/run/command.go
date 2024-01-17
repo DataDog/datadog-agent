@@ -132,7 +132,6 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/nvidia/jetson"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/orchestrator/pod"
@@ -329,42 +328,31 @@ func getSharedFxOption() fx.Option {
 			status.NewInformationProvider(jmxStatus.Provider{}),
 			status.NewInformationProvider(endpointsStatus.Provider{}),
 		),
-		fx.Provide(func(config config.Component) status.InformationProvider {
+		fx.Provide(func(config config.Component) []status.InformationProvider {
+			statusProviders := []status.InformationProvider{}
+
 			if traps.IsEnabled(config) {
-				return status.NewInformationProvider(snmpStatus.Provider{})
-			} else {
-				return status.NewInformationProvider(status.NoopProvider{})
+				statusProviders = append(statusProviders, status.NewInformationProvider(snmpStatus.Provider{}))
 			}
-		}),
-		fx.Provide(func(config config.Component) status.InformationProvider {
 			if config.GetBool("cluster_agent.enabled") || config.GetBool("cluster_checks.enabled") {
-				return status.NewInformationProvider(clusteragentStatus.Provider{})
-			} else {
-				return status.NewInformationProvider(status.NoopProvider{})
+				statusProviders = append(statusProviders, status.NewInformationProvider(clusteragentStatus.Provider{}))
 			}
-		}),
-		fx.Provide(func() status.InformationProvider {
+
 			if pkgconfig.SystemProbe.GetBool("system_probe_config.enabled") {
-				return status.NewInformationProvider(systemprobeStatus.Provider{
+				statusProviders = append(statusProviders, status.NewInformationProvider(systemprobeStatus.Provider{
 					SocketPath: pkgconfig.SystemProbe.GetString("system_probe_config.sysprobe_socket"),
-				})
-			} else {
-				return status.NewInformationProvider(status.NoopProvider{})
+				}))
 			}
-		}),
-		fx.Provide(func() status.InformationProvider {
+
 			if !pkgconfig.Datadog.GetBool("no_proxy_nonexact_match") {
-				return status.NewInformationProvider(httpproxyStatus.Provider{})
-			} else {
-				return status.NewInformationProvider(status.NoopProvider{})
+				statusProviders = append(statusProviders, status.NewInformationProvider(httpproxyStatus.Provider{}))
 			}
-		}),
-		fx.Provide(func() status.InformationProvider {
+
 			if pkgconfig.IsContainerized() {
-				return status.NewInformationProvider(autodiscoveryStatus.Provider{})
-			} else {
-				return status.NewInformationProvider(status.NoopProvider{})
+				statusProviders = append(statusProviders, status.NewInformationProvider(autodiscoveryStatus.Provider{}))
 			}
+
+			return statusProviders
 		}),
 		statusimpl.Module(),
 		apiimpl.Module(),

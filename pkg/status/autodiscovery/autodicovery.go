@@ -31,6 +31,7 @@ func PopulateStatus(stats map[string]interface{}) {
 //go:embed status_templates
 var templatesFS embed.FS
 
+// Provider provides the functionality to populate the status output
 type Provider struct{}
 
 func (p Provider) getStatusInfo() map[string]interface{} {
@@ -41,25 +42,30 @@ func (p Provider) getStatusInfo() map[string]interface{} {
 	return stats
 }
 
+// Name returns the name
 func (p Provider) Name() string {
 	return "Autodiscovery"
 }
 
+// Section return the section
 func (p Provider) Section() string {
 	return "Autodiscovery"
 }
 
+// JSON populates the status map
 func (p Provider) JSON(_ bool, stats map[string]interface{}) error {
 	PopulateStatus(stats)
 
 	return nil
 }
 
+// Text renders the text output
 func (p Provider) Text(_ bool, buffer io.Writer) error {
 	return renderText(buffer, p.getStatusInfo())
 }
 
-func (p Provider) HTML(_ bool, buffer io.Writer) error {
+// HTML renders the html output
+func (p Provider) HTML(_ bool, _ io.Writer) error {
 	return nil
 }
 

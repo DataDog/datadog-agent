@@ -22,4 +22,5 @@ func GetDCAStatus(_ map[string]interface{}) {
 	log.Info("Not implemented")
 }
 
+// Provider provides the functionality to populate the status output
 type Provider status.NoopProvider

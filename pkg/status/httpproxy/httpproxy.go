@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package httpproxy implements the status provider interface
 package httpproxy
 
 import (
@@ -19,6 +20,7 @@ import (
 //go:embed status_templates
 var templatesFS embed.FS
 
+// Provider provides the functionality to populate the status output
 type Provider struct{}
 
 func (p Provider) getStatusInfo() map[string]interface{} {
@@ -36,24 +38,29 @@ func (p Provider) populateStatus(stats map[string]interface{}) {
 	stats["NoProxyChanged"] = httputils.GetProxyIgnoredWarnings()
 }
 
+// Name returns the name
 func (p Provider) Name() string {
 	return "Transport Proxy Warnings"
 }
 
+// Section return the section
 func (p Provider) Section() string {
 	return "Transport Proxy Warnings"
 }
 
+// JSON populates the status map
 func (p Provider) JSON(_ bool, stats map[string]interface{}) error {
 	p.populateStatus(stats)
 
 	return nil
 }
 
+// Text renders the text output
 func (p Provider) Text(_ bool, buffer io.Writer) error {
 	return renderText(buffer, p.getStatusInfo())
 }
 
+// HTML renders the html output
 func (p Provider) HTML(_ bool, buffer io.Writer) error {
 	return renderHTML(buffer, p.getStatusInfo())
 }

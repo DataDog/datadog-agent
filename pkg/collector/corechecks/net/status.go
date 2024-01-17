@@ -21,7 +21,7 @@ import (
 //go:embed status_templates
 var templatesFS embed.FS
 
-// Provider provides the functionality to populate the status output with the collector information
+// Provider provides the functionality to populate the status output
 type Provider struct{}
 
 // Name returns the name
@@ -53,17 +53,19 @@ func (Provider) populateStatus(stats map[string]interface{}) {
 }
 
 // JSON populates the status map
-func (p Provider) JSON(verbose bool, stats map[string]interface{}) error {
+func (p Provider) JSON(_ bool, stats map[string]interface{}) error {
 	p.populateStatus(stats)
 
 	return nil
 }
 
-func (p Provider) Text(verbose bool, buffer io.Writer) error {
+// Text renders the text output
+func (p Provider) Text(_ bool, buffer io.Writer) error {
 	return renderText(buffer, p.getStatusInfo())
 }
 
-func (p Provider) HTML(verbose bool, buffer io.Writer) error {
+// HTML renders the html output
+func (p Provider) HTML(_ bool, buffer io.Writer) error {
 	return renderHTML(buffer, p.getStatusInfo())
 }
 

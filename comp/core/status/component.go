@@ -62,38 +62,60 @@ type HeaderInformationProvider struct {
 	Provider HeaderProvider `group:"header_status"`
 }
 
+// NoopProvider implements the InformationProvider interface
+// This provides is ignored by the status component
 type NoopProvider struct{}
 
+// Name returns the name
 func (p NoopProvider) Name() string {
 	return ""
 }
+
+// Section return the section
 func (p NoopProvider) Section() string {
 	return ""
 }
+
+// JSON populates the status map
 func (p NoopProvider) JSON(_ bool, _ map[string]interface{}) error {
 	return nil
 }
+
+// Text renders the text output
 func (p NoopProvider) Text(_ bool, _ io.Writer) error {
 	return nil
 }
+
+// HTML renders the html output
 func (p NoopProvider) HTML(_ bool, _ io.Writer) error {
 	return nil
 }
 
+// NoopHeaderProvider implements the HeaderProvider interface
+// This provides is ignored by the status component
 type NoopHeaderProvider struct{}
 
+// Name returns the name
 func (p NoopHeaderProvider) Name() string {
 	return ""
 }
+
+// Index return index
 func (p NoopHeaderProvider) Index() int {
 	return 0
 }
+
+// JSON populates the status map
 func (p NoopHeaderProvider) JSON(_ bool, _ map[string]interface{}) error {
 	return nil
 }
+
+// Text renders the text output
 func (p NoopHeaderProvider) Text(_ bool, _ io.Writer) error {
 	return nil
 }
+
+// HTML renders the html output
 func (p NoopHeaderProvider) HTML(_ bool, _ io.Writer) error {
 	return nil
 }

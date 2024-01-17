@@ -685,24 +685,29 @@ func (d *AgentDemultiplexer) populateStatus(stats map[string]interface{}) {
 	}
 }
 
+// Name returns the name
 func (d *AgentDemultiplexer) Name() string {
 	return "Aggregator"
 }
 
+// Section return the section
 func (d *AgentDemultiplexer) Section() string {
 	return "aggregator"
 }
 
+// JSON populates the status map
 func (d *AgentDemultiplexer) JSON(_ bool, stats map[string]interface{}) error {
 	d.populateStatus(stats)
 
 	return nil
 }
 
+// Text renders the text output
 func (d *AgentDemultiplexer) Text(_ bool, buffer io.Writer) error {
 	return renderText(buffer, d.getStatusInfo())
 }
 
+// HTML renders the html output
 func (d *AgentDemultiplexer) HTML(_ bool, buffer io.Writer) error {
 	return renderHTML(buffer, d.getStatusInfo())
 }
