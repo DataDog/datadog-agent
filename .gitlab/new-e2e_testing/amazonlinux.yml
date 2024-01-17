@@ -86,6 +86,7 @@ new-e2e-agent-platform-package-signing-amazonlinux-a6-x86_64:
     - .new_e2e_template
     - .new-e2e_amazonlinux_a7_x86_64
     - .new-e2e_package_signing
+  rules: !reference [.on_default_new-e2e_tests_a7]
 
 new-e2e-agent-platform-step-by-step-amazonlinux-a6-x86_64:
   stage: kitchen_testing
