@@ -88,7 +88,7 @@ type InitConfig struct {
 	UseDeviceIDAsHostname        Boolean                           `yaml:"use_device_id_as_hostname"`
 	MinCollectionInterval        int                               `yaml:"min_collection_interval"`
 	Namespace                    string                            `yaml:"namespace"`
-	PingConfig                   snmpintegration.PingConfig        `yaml:"ping"`
+	PingConfig                   snmpintegration.PackedPingConfig  `yaml:"ping"`
 	DetectMetricsEnabled         Boolean                           `yaml:"experimental_detect_metrics_enabled"`
 	DetectMetricsRefreshInterval int                               `yaml:"experimental_detect_metrics_refresh_interval"`
 }
@@ -115,7 +115,7 @@ type InstanceConfig struct {
 	CollectDeviceMetadata *Boolean                            `yaml:"collect_device_metadata"`
 	CollectTopology       *Boolean                            `yaml:"collect_topology"`
 	UseDeviceIDAsHostname *Boolean                            `yaml:"use_device_id_as_hostname"`
-	PingConfig            snmpintegration.PingConfig          `yaml:"ping"`
+	PingConfig            snmpintegration.PackedPingConfig    `yaml:"ping"`
 
 	// ExtraTags is a workaround to pass tags from snmp listener to snmp integration via AD template
 	// (see cmd/agent/dist/conf.d/snmp.d/auto_conf.yaml) that only works with strings.
