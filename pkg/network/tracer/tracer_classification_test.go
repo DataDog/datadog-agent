@@ -1763,6 +1763,8 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 				extras:        map[string]interface{}{},
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
+				skipIfNotLinux(t, ctx)
+
 				server := NewTCPServerOnAddress(ctx.serverAddress, func(c net.Conn) {})
 				ctx.extras["server"] = server
 				require.NoError(t, server.Run())

@@ -39,3 +39,7 @@ func testProtocolClassificationInner(t *testing.T, params protocolClassification
 	params.postTracerSetup(t, params.context)
 	params.validation(t, params.context, tr)
 }
+
+func writeInput(_ net.Conn, _ []byte, _ time.Duration) error {
+	return nil
+}
