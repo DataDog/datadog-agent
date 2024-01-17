@@ -211,17 +211,14 @@ func (p *Probe) sendEventToSpecificEventTypeHandlers(event *model.Event) {
 
 func traceEvent(fmt string, marshaller func() ([]byte, model.EventType, error)) {
 	if !seclog.DefaultLogger.IsTracing() {
-		seclog.Debugf("------trace1")
 		return
 	}
 
 	eventJSON, eventType, err := marshaller()
 	if err != nil {
 		seclog.DefaultLogger.TraceTagf(eventType, fmt, err)
-		seclog.Debugf("------trace Error ---- : %v", err)
 		return
 	}
-	seclog.Debugf("------trace success ---- : %v", string(eventJSON))
 
 	seclog.DefaultLogger.TraceTagf(eventType, fmt, string(eventJSON))
 }
