@@ -41,15 +41,6 @@ func (b *BoundPort) PID() int {
 	return b.pid
 }
 
-// IsPortBound returns true if the port is bound
-func IsPortBound(host *components.RemoteHost, port int) (bool, error) {
-	out, err := host.Execute(fmt.Sprintf("(Get-NetTCPConnection -LocalPort %d -State Listen -ErrorAction SilentlyContinue) -ne $null", port))
-	if err != nil {
-		return false, err
-	}
-	return !strings.EqualFold(strings.TrimSpace(out), "False"), nil
-}
-
 // ListBoundPorts returns a list of bound ports
 func ListBoundPorts(host *components.RemoteHost) ([]*BoundPort, error) {
 	out, err := host.Execute(`Get-NetTCPConnection -State Listen | Foreach-Object {

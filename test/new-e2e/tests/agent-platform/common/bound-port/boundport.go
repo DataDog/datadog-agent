@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 	componentos "github.com/DataDog/test-infra-definitions/components/os"
 )
 
@@ -46,17 +45,6 @@ func (b *boundPort) Process() string {
 
 func (b *boundPort) PID() int {
 	return b.pid
-}
-
-// IsPortBound returns true if the port is bound
-func IsPortBound(host *components.RemoteHost, port int) (bool, error) {
-	os := host.OSFamily
-	if os == componentos.LinuxFamily {
-		return isPortBoundUnix(host, port)
-	} else if os == componentos.WindowsFamily {
-		return windows.IsPortBound(host, port)
-	}
-	return false, fmt.Errorf("unsupported OS type: %v", os)
 }
 
 // BoundPorts returns a list of ports that are bound on the host

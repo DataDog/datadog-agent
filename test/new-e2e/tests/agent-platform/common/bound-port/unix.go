@@ -11,21 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
 
-func isPortBoundUnix(host *components.RemoteHost, port int) (bool, error) {
-	netstatCmd := "sudo netstat -lntp | grep %v"
-	if _, err := host.Execute("command -v netstat"); err != nil {
-		netstatCmd = "sudo ss -lntp | grep %v"
-	}
-
-	_, err := host.Execute(fmt.Sprintf(netstatCmd, port))
-	// TODO: distinguish grep not matching vs some other error
-	if err != nil {
-		return false, nil
-	}
-
-	return true, nil
-}
-
 func boundPortsUnix(host *components.RemoteHost) ([]BoundPort, error) {
 	if _, err := host.Execute("command -v netstat"); err == nil {
 		out, err := host.Execute("sudo netstat -lntp")

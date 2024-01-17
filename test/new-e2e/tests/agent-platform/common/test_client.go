@@ -20,11 +20,16 @@ import (
 	pkgmanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/pkg-manager"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/process"
 	svcmanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/svc-manager"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
 	"testing"
 )
+
+type tHelper interface {
+	Helper()
+}
 
 func getServiceManager(host *components.RemoteHost) svcmanager.ServiceManager {
 	if _, err := host.Execute("command -v systemctl"); err == nil {
@@ -215,34 +220,42 @@ func AgentProcessIsRunning(client *TestClient, processName string) bool {
 	return running && err == nil
 }
 
-// PortBoundByPID returns the info about the port bound by a given PID
-func PortBoundByPID(client *TestClient, port int, pid int) (boundport.BoundPort, error) {
+// AssertPortBoundByService accepts a port and a service name and returns true if the port is bound by the service
+func AssertPortBoundByService(t assert.TestingT, client *TestClient, port int, service string) (boundport.BoundPort, bool) {
+	if h, ok := t.(tHelper); ok {
+		h.Helper()
+	}
+
+	// TODO: might need to map service name to process name, this is working right now though
+	pids, err := process.FindPID(client.Host, service)
+	if !assert.NoError(t, err) {
+		return nil, false
+	}
+	if !assert.NotEmpty(t, pids, "service %s should be running", service) {
+		return nil, false
+	}
+
+	boundPort, err := GetBoundPort(client, port)
+	if !assert.NoError(t, err) {
+		return nil, false
+	}
+	if !assert.NotNil(t, boundPort, "port %d should be bound", port) {
+		return nil, false
+	}
+	if !assert.Containsf(t, pids, boundPort.PID(), "port %#v should be bound by service %s", boundPort, service) {
+		return boundPort, false
+	}
+	return boundPort, true
+}
+
+// GetBoundPort returns a port that is bound on the host, or nil if the port is not bound
+func GetBoundPort(client *TestClient, port int) (boundport.BoundPort, error) {
 	ports, err := boundport.BoundPorts(client.Host)
 	if err != nil {
 		return nil, err
 	}
 	for _, boundPort := range ports {
-		if boundPort.PID() == pid && boundPort.LocalPort() == port {
-			return boundPort, nil
-		}
-	}
-	return nil, nil
-}
-
-// PortBoundByService returns info about the port bound by a given service
-func PortBoundByService(client *TestClient, port int, service string) (boundport.BoundPort, error) {
-	// TODO: might need to map service name to process name, this is working right now though
-	pids, err := process.FindPID(client.Host, service)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, pid := range pids {
-		boundPort, err := PortBoundByPID(client, port, pid)
-		if err != nil {
-			return nil, err
-		}
-		if boundPort != nil {
+		if boundPort.LocalPort() == port {
 			return boundPort, nil
 		}
 	}

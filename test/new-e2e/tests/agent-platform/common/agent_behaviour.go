@@ -240,18 +240,14 @@ func CheckApmEnabled(t *testing.T, client *TestClient) {
 		require.NoError(tt, err)
 
 		var boundPort boundport.BoundPort
-		if !assert.Eventually(tt, func() bool {
-			boundPort, err = PortBoundByService(client, 8126, "trace-agent")
-			if err != nil {
-				t.Log(err)
-				return false
-			}
-			return boundPort != nil
+		if !assert.EventuallyWithT(tt, func(c *assert.CollectT) {
+			boundPort, _ = AssertPortBoundByService(c, client, 8126, "trace-agent")
 		}, 1*time.Minute, 500*time.Millisecond) {
+			err := fmt.Errorf("port 8126 should be bound when APM is enabled")
 			if err != nil && client.Host.OSFamily == componentos.LinuxFamily {
-				err = fmt.Errorf("%w: %s", err, ReadJournalCtl(t, client, "trace-agent\\|datadog-agent-trace"))
+				err = fmt.Errorf("%w\n%s", err, ReadJournalCtl(t, client, "trace-agent\\|datadog-agent-trace"))
 			}
-			t.Fatalf("port 8126 should be bound when APM is enabled: %v", err)
+			t.Fatalf(err.Error())
 		}
 
 		require.EqualValues(t, "127.0.0.1", boundPort.LocalAddress(), "trace-agent should only be listening locally")
@@ -269,9 +265,9 @@ func CheckApmDisabled(t *testing.T, client *TestClient) {
 		_, err = client.SvcManager.Restart(client.Helper.GetServiceName())
 		require.NoError(tt, err)
 
-		bound, err := boundport.IsPortBound(client.Host, 8126)
+		bound, err := GetBoundPort(client, 8126)
 		require.NoError(tt, err)
-		require.False(tt, bound, "port should not be bound when apm is manually disabled")
+		require.Nil(tt, bound, "port should not be bound when apm is manually disabled")
 	})
 }
 
