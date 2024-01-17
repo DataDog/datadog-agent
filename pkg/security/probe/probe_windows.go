@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
@@ -78,6 +77,7 @@ func (p *WindowsProbe) Start() error {
 
 		for {
 			var pce *model.ProcessCacheEntry
+			var err error
 			ev := p.zeroEvent()
 			var pidToCleanup uint32
 
@@ -91,15 +91,15 @@ func (p *WindowsProbe) Start() error {
 					continue
 				}
 
-				log.Tracef("Received start %v", start)
+				log.Debugf("Received start %v", start)
 
-				ppid, err := procutil.GetParentPid(pid)
-				if err != nil {
-					log.Errorf("unable to resolve parent pid %v", err)
-					continue
-				}
+				// TODO
+				// handle new fields
+				// CreatingPRocessId
+				// CreatingThreadId
+				// OwnerSidString
 
-				pce, err = p.Resolvers.ProcessResolver.AddNewEntry(pid, ppid, start.ImageFile, start.CmdLine)
+				pce, err = p.Resolvers.ProcessResolver.AddNewEntry(pid, uint32(start.PPid), start.ImageFile, start.CmdLine)
 				if err != nil {
 					log.Errorf("error in resolver %v", err)
 					continue

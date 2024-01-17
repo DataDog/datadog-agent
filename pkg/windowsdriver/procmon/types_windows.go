@@ -3,14 +3,14 @@
 
 package procmon
 
-const Signature = 0xdd0100000002
+const Signature = 0xdd0100000004
 
 const (
 	ProcmonStartIOCTL = 0x222006
 	ProcmonStopIOCTL  = 0x22200a
 	ProcmonStatsIOCTL = 0x22200e
 
-	ProcmonSignature = 0xdd0100000002
+	ProcmonSignature = 0xdd0100000004
 )
 
 const (
@@ -31,8 +31,13 @@ type DDProcessNotification struct {
 	Size              uint64
 	ProcessId         uint64
 	NotifyType        uint64
+	ParentProcessId   uint64
+	CreatingProcessId uint64
+	CreatingThreadId  uint64
 	ImageFileLen      uint64
 	ImageFileOffset   uint64
 	CommandLineLen    uint64
 	CommandLineOffset uint64
+	SidLen            uint64
+	SidOffset         uint64
 }
