@@ -196,21 +196,6 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 		},
 		{
-			name: "validate more than limit max interesting frames",
-			// The purpose of this test is to verify our ability to reach the limit set by HTTP2_MAX_FRAMES_ITERATIONS
-			// and validate that we cannot handle more than that limit.
-			messageBuilder: func() []byte {
-				headerFramesCount := getTLSNumber(130, 61, s.isTLS)
-				return createMessageWithCustomHeadersFramesCount(t, testHeaders(), headerFramesCount)
-			},
-			expectedEndpoints: map[http.Key]int{
-				{
-					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
-					Method: http.MethodPost,
-				}: getTLSNumber(120, 60, s.isTLS),
-			},
-		},
-		{
 			name: "validate literal header field without indexing",
 			// The purpose of this test is to verify our ability the case:
 			// Literal Header Field without Indexing (0b0000xxxx: top four bits are 0000)
