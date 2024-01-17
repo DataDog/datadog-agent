@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
+
 //go:build windows
 
 package eventlog_test
@@ -68,11 +69,15 @@ func (ti *FakeAPITester) GenerateEvents(channelName string, numEvents uint) erro
 }
 
 // StartEventLogService is TODO for the fake API
-func (ti *FakeAPITester) StartEventLogService(t *testing.T) {
+func (ti *FakeAPITester) StartEventLogService(
+	t *testing.T, //nolint:revive // TODO(WINA) fix revive unused-parameter
+) {
 	panic("not implemented")
 }
 
 // KillEventLogService is TODO for the fake API
-func (ti *FakeAPITester) KillEventLogService(t *testing.T) {
+func (ti *FakeAPITester) KillEventLogService(
+	t *testing.T, //nolint:revive // TODO(WINA) fix revive unused-parameter
+) {
 	panic("not implemented")
 }
