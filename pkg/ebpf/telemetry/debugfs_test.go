@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const testProfile = "../testdata/kprobe_profile"
+const testProfile = "./testdata/kprobe_profile"
 
 func TestReadKprobeProfile(t *testing.T) {
 	m, err := readKprobeProfile(testProfile)
