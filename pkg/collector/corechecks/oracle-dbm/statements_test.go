@@ -98,7 +98,7 @@ func TestUInt64Binding(t *testing.T) {
 	chk.dbmEnabled = true
 	chk.config.QueryMetrics.Enabled = true
 
-	chk.config.InstanceConfig.InstantClient = false
+	chk.config.InstanceConfig.OracleClient = false
 
 	type RowsStruct struct {
 		N                      int    `db:"N"`
@@ -114,7 +114,7 @@ func TestUInt64Binding(t *testing.T) {
 		var driver string
 		if tnsAlias == "" {
 			driver = common.GoOra
-			chk.config.InstanceConfig.InstantClient = false
+			chk.config.InstanceConfig.OracleClient = false
 		} else {
 			driver = common.Godror
 		}

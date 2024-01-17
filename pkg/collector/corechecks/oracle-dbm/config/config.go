@@ -128,6 +128,7 @@ type InstanceConfig struct {
 	LogUnobfuscatedQueries             bool                   `yaml:"log_unobfuscated_queries"`
 	ObfuscatorOptions                  obfuscate.SQLConfig    `yaml:"obfuscator_options"`
 	InstantClient                      bool                   `yaml:"instant_client"`
+	OracleClient                       bool                   `yaml:"oracle_client"`
 	ReportedHostname                   string                 `yaml:"reported_hostname"`
 	QuerySamples                       QuerySamplesConfig     `yaml:"query_samples"`
 	QueryMetrics                       QueryMetricsConfig     `yaml:"query_metrics"`
@@ -232,6 +233,15 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		} else {
 			instance.Port = 1521
 		}
+	}
+
+	/*
+	 * `instant_client` is deprecated but still supported to avoid a breaking change
+	 * `oracle_client` is a more appropriate naming because besides Instant Client
+	 * the Agent can be used with an Oracle software home.
+	 */
+	if instance.InstantClient {
+		instance.OracleClient = true
 	}
 
 	c := &CheckConfig{
