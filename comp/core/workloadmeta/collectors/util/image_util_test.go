@@ -9,7 +9,7 @@
 package util
 
 import (
-	"gotest.tools/assert"
+	"reflect"
 	"sort"
 	"testing"
 
@@ -216,7 +216,9 @@ func Test_UpdateSBOMRepoMetadata(t *testing.T) {
 					return props[i].Name < props[j].Name
 				})
 			}
-			assert.DeepEqual(t, got, tt.want)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("UpdateSBOMRepoMetadata) = %v, want %v", got, tt.want)
+			}
 		})
 	}
 }
