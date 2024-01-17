@@ -914,8 +914,8 @@ payload_size: %d
 						channelPath, batchCount))
 
 					// read the log b.N times
+					b.StopTimer()
 					b.ResetTimer()
-					startTime := time.Now()
 					totalEvents := uint(0)
 					for i := 0; i < b.N; i++ {
 						// create tmpdir to store bookmark
@@ -926,15 +926,16 @@ payload_size: %d
 						require.NoError(b, err)
 						sender.On("Commit").Return()
 						senderEventCall := sender.On("Event", mock.Anything)
-						// read all the events
+						// start check and read all the events
+						b.StartTimer()
 						totalEvents += countEvents(check, senderEventCall, v)
+						b.StopTimer()
 						// clean shutdown the check and reset the mock sender expecations
 						check.Cancel()
 						resetSender(sender)
 					}
 
-					// TODO: Use b.Elapsed in go1.20
-					elapsed := time.Since(startTime)
+					elapsed := b.Elapsed()
 					b.Logf("%.2f events/s (%.3fs) N=%d", float64(totalEvents)/elapsed.Seconds(), elapsed.Seconds(), b.N)
 					benchmarkTotalEvents += totalEvents
 				})
