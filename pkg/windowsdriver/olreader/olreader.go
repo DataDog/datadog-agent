@@ -24,10 +24,12 @@ import (
 
 	"golang.org/x/sys/windows"
 )
+
 const (
-	// this error isn't in the windows package for some reason
-	ERROR_INVALID_PARAMETER windows.Errno = 87
+	// ERROR_INVALID_PARAMETER this error isn't in the windows package for some reason
+	ERROR_INVALID_PARAMETER windows.Errno = 87 //nolint:revive // use windows error naming convention
 )
+
 // This is the type that an overlapped read returns -- the overlapped object, which must be passed back to the kernel after reading
 // followed by a predictably sized chunk of bytes
 type readbuffer struct {
@@ -126,9 +128,9 @@ func (olr *OverlappedReader) Read() error {
 					// this should never occur. It means that we supplied a buffer
 					// too short for even the structure header.
 					olr.cb.OnError(err)
-					return					
+					return
 				}
-				if err != syscall.Errno(syscall.ERROR_INSUFFICIENT_BUFFER){
+				if err != syscall.Errno(syscall.ERROR_INSUFFICIENT_BUFFER) {
 					// if we get this error, there will still be at least
 					// the structure header.  In any other case, fail out
 					olr.cb.OnError(err)

@@ -57,6 +57,11 @@ const (
 	procmonNumBufs = 50
 )
 
+var (
+	// signature
+	procmonSignature = ProcmonSignature
+)
+
 //nolint:revive // TODO(WKIT) Fix revive linter
 func NewWinProcMon(onStart chan *ProcessStartNotification, onStop chan *ProcessStopNotification, onError chan bool) (*WinProcmon, error) {
 
@@ -109,8 +114,8 @@ func (wp *WinProcmon) Stop() {
 	// do, we're on our way out.  Closing the handle will ultimately cause the same cleanup
 	// to happen.
 	_ = wp.reader.Ioctl(ProcmonStopIOCTL,
-		nil, // inBuffer
-		0,
+		(*byte)(unsafe.Pointer(&procmonSignature)), // inBuffer
+		uint32(unsafe.Sizeof(procmonSignature)),
 		nil,
 		0,
 		nil,
@@ -129,8 +134,8 @@ func (wp *WinProcmon) Start() error {
 	// this will initiate the driver actually sending things up
 	// start grabbing notifications
 	err = wp.reader.Ioctl(ProcmonStartIOCTL,
-		nil, // inBuffer
-		0,
+		(*byte)(unsafe.Pointer(&procmonSignature)), // inBuffer
+		uint32(unsafe.Sizeof(procmonSignature)),
 		nil,
 		0,
 		nil,
