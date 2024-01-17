@@ -7,7 +7,14 @@
 package autodiscovery
 
 import (
+	"embed"
+	"io"
+	"path"
+
+	textTemplate "text/template"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
@@ -19,4 +26,48 @@ func PopulateStatus(stats map[string]interface{}) {
 		stats["adConfigErrors"] = common.AC.GetAutodiscoveryErrors()
 	}
 	stats["filterErrors"] = containers.GetFilterErrors()
+}
+
+//go:embed status_templates
+var templatesFS embed.FS
+
+type Provider struct{}
+
+func (p Provider) getStatusInfo() map[string]interface{} {
+	stats := make(map[string]interface{})
+
+	PopulateStatus(stats)
+
+	return stats
+}
+
+func (p Provider) Name() string {
+	return "Autodiscovery"
+}
+
+func (p Provider) Section() string {
+	return "Autodiscovery"
+}
+
+func (p Provider) JSON(_ bool, stats map[string]interface{}) error {
+	PopulateStatus(stats)
+
+	return nil
+}
+
+func (p Provider) Text(_ bool, buffer io.Writer) error {
+	return renderText(buffer, p.getStatusInfo())
+}
+
+func (p Provider) HTML(_ bool, buffer io.Writer) error {
+	return nil
+}
+
+func renderText(buffer io.Writer, data any) error {
+	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "autodiscovery.tmpl"))
+	if tmplErr != nil {
+		return tmplErr
+	}
+	t := textTemplate.Must(textTemplate.New("autodiscovery").Funcs(status.TextFmap()).Parse(string(tmpl)))
+	return t.Execute(buffer, data)
 }

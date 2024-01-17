@@ -94,6 +94,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	snmpStatus "github.com/DataDog/datadog-agent/pkg/snmp/traps/status"
+	autodiscoveryStatus "github.com/DataDog/datadog-agent/pkg/status/autodiscovery"
 	clusteragentStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent"
 	collectorStatus "github.com/DataDog/datadog-agent/pkg/status/collector"
 	endpointsStatus "github.com/DataDog/datadog-agent/pkg/status/endpoints"
@@ -354,6 +355,13 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(func() status.InformationProvider {
 			if !pkgconfig.Datadog.GetBool("no_proxy_nonexact_match") {
 				return status.NewInformationProvider(httpproxyStatus.Provider{})
+			} else {
+				return status.NewInformationProvider(status.NoopProvider{})
+			}
+		}),
+		fx.Provide(func() status.InformationProvider {
+			if pkgconfig.IsContainerized() {
+				return status.NewInformationProvider(autodiscoveryStatus.Provider{})
 			} else {
 				return status.NewInformationProvider(status.NoopProvider{})
 			}
