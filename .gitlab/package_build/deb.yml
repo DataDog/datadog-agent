@@ -199,8 +199,8 @@ agent_deb-arm64-a7:
     - !reference [.upload_sbom_artifacts]
   variables:
     KUBERNETES_CPU_REQUEST: 8
-    KUBERNETES_MEMORY_REQUEST: "24Gi"
-    KUBERNETES_MEMORY_LIMIT: "24Gi"
+    KUBERNETES_MEMORY_REQUEST: "32Gi"
+    KUBERNETES_MEMORY_LIMIT: "32Gi"
   artifacts:
     expire_in: 2 weeks
     paths:
