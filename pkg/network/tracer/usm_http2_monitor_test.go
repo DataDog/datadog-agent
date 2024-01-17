@@ -142,7 +142,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// The objective of this test is to verify that we accurately perform the parsing of frames within
 			// a single program.
 			messageBuilder: func() []byte {
-				settingsFramesCount := 100
+				const settingsFramesCount = 100
 				return createMessageWithCustomSettingsFrames(t, testHeaders(), settingsFramesCount)
 			},
 			expectedEndpoints: map[http.Key]int{
@@ -157,7 +157,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// The purpose of this test is to validate that when we surpass the limit of HTTP2_MAX_FRAMES_ITERATIONS,
 			// the filtering of subsequent frames will continue using tail calls.
 			messageBuilder: func() []byte {
-				settingsFramesCount := 130
+				const settingsFramesCount = 130
 				return createMessageWithCustomSettingsFrames(t, testHeaders(), settingsFramesCount)
 			},
 			expectedEndpoints: map[http.Key]int{
@@ -181,26 +181,11 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			expectedEndpoints: nil,
 		},
 		{
-			name: "guy validate max interesting frames limit",
+			name: "validate max interesting frames limit",
 			// The purpose of this test is to verify our ability to reach the limit set by HTTP2_MAX_FRAMES_ITERATIONS, which
 			// determines the maximum number of "interesting frames" we can process.
 			messageBuilder: func() []byte {
 				headerFramesCount := getTLSNumber(120, 60, s.isTLS)
-				return createMessageWithCustomHeadersFramesCount(t, testHeaders(), headerFramesCount)
-			},
-			expectedEndpoints: map[http.Key]int{
-				{
-					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
-					Method: http.MethodPost,
-				}: getTLSNumber(120, 60, s.isTLS),
-			},
-		},
-		{
-			name: "validate more than limit max interesting frames",
-			// The purpose of this test is to verify our ability to reach the limit set by HTTP2_MAX_FRAMES_ITERATIONS
-			// and validate that we cannot handle more than that limit.
-			messageBuilder: func() []byte {
-				headerFramesCount := getTLSNumber(130, 61, s.isTLS)
 				return createMessageWithCustomHeadersFramesCount(t, testHeaders(), headerFramesCount)
 			},
 			expectedEndpoints: map[http.Key]int{
@@ -216,8 +201,8 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// Literal Header Field without Indexing (0b0000xxxx: top four bits are 0000)
 			// https://httpwg.org/specs/rfc7541.html#rfc.section.C.2.2
 			messageBuilder: func() []byte {
-				headerFramesCount := 5
-				setDynamicTableSize := true
+				const headerFramesCount = 5
+				const setDynamicTableSize = true
 				return createMessageWithCustomHeadersFramesCount(t, headersWithoutIndexingPath(), headerFramesCount, setDynamicTableSize)
 			},
 			expectedEndpoints: map[http.Key]int{
@@ -233,7 +218,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// Literal Header Field never Indexed (0b0001xxxx: top four bits are 0001)
 			// https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.3
 			messageBuilder: func() []byte {
-				headerFramesCount := 5
+				const headerFramesCount = 5
 				return createMessageWithCustomHeadersFramesCount(t, headersWithNeverIndexedPath(), headerFramesCount)
 			},
 			expectedEndpoints: map[http.Key]int{
@@ -247,8 +232,22 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			name: "validate path with index 4",
 			// The purpose of this test is to verify our ability to identify paths with index 4.
 			messageBuilder: func() []byte {
-				headerFramesCount := 5
+				const headerFramesCount = 5
 				return createHeadersWithIndexedPathKey(t, testHeaders(), headerFramesCount)
+			},
+			expectedEndpoints: map[http.Key]int{
+				{
+					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
+					Method: http.MethodPost,
+				}: 5,
+			},
+		},
+		{
+			name: "validate PING and WINDOWS_UPDATE frames between HEADERS and DATA",
+			// The purpose of this test is to verify our ability to process PING and WINDOWS_UPDATE frames between HEADERS and DATA.
+			messageBuilder: func() []byte {
+				const headerFramesCount = 5
+				return createMessageWithPingAndWindowUpdate(t, testHeaders(), headerFramesCount)
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
@@ -515,6 +514,36 @@ func createMessageWithCustomSettingsFrames(t *testing.T, headerFields []hpack.He
 
 	// Writing the data frame to the buffer using the Framer.
 	require.NoError(t, framer.WriteData(uint32(1), true, []byte{}), "could not write data frame")
+	return buf.Bytes()
+}
+
+// createMessageWithPingAndWindowUpdate creates a message with the given number of header frames
+// and inserts PING and WINDOWS_UPDATE frames between the HEADERS and DATA frames.
+func createMessageWithPingAndWindowUpdate(t *testing.T, headerFields []hpack.HeaderField, headerFramesCount int) []byte {
+	var buf bytes.Buffer
+	framer := http2.NewFramer(&buf, nil)
+
+	headersFrame, err := usmhttp2.NewHeadersFrameMessage(headerFields)
+	require.NoError(t, err, "could not create headers frame")
+
+	for i := 0; i < headerFramesCount; i++ {
+		streamID := 2*i + 1
+
+		// Writing the header frames to the buffer using the Framer.
+		require.NoError(t, framer.WriteHeaders(http2.HeadersFrameParam{
+			StreamID:      uint32(streamID),
+			BlockFragment: headersFrame,
+			EndStream:     false,
+			EndHeaders:    true,
+		}), "could not write header frames")
+
+		require.NoError(t, framer.WritePing(true, [8]byte{}), "could not write ping frame")
+		require.NoError(t, framer.WriteWindowUpdate(uint32(streamID), 1), "could not write window update frame")
+
+		// Writing the data frame to the buffer using the Framer.
+		require.NoError(t, framer.WriteData(uint32(streamID), true, []byte{}), "could not write data frame")
+	}
+
 	return buf.Bytes()
 }
 

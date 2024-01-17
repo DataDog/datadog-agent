@@ -236,6 +236,7 @@
 /comp/core/workloadmeta @DataDog/container-integrations
 /comp/dogstatsd/statsd @DataDog/agent-shared-components
 /comp/forwarder/orchestrator @DataDog/agent-metrics-logs
+/comp/metadata/packagesigning @DataDog/agent-platform
 # END COMPONENTS
 
 # pkg
@@ -345,6 +346,7 @@
 /pkg/serializer/                        @DataDog/agent-metrics-logs
 /pkg/tagger/                            @DataDog/container-integrations
 /pkg/tagset/                            @DataDog/agent-shared-components
+/pkg/updater/                           @DataDog/fleet
 /pkg/util/                              @DataDog/agent-shared-components
 /pkg/util/aggregatingqueue              @DataDog/container-integrations
 /pkg/util/cloudproviders/cloudfoundry/  @DataDog/platform-integrations
