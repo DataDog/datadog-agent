@@ -548,8 +548,9 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
     // Overriding the data_off field of the cached skb_info. The next prog will start from the offset of the next valid
     // frame.
     args->skb_info.data_off = dispatcher_args_copy.skb_info.data_off;
-
-    bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2_FRAME_FILTER);
+    if (iteration_value->frames_count == 1) {
+        bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2_FRAME_FILTER);
+    }
     return 0;
 }
 
