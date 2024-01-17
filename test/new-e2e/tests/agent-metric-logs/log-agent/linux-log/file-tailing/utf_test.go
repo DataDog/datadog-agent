@@ -29,7 +29,7 @@ var utfBigEndianLogConfig []byte
 
 const service = "utfservice"
 
-// UTFSuite defines a test suite for the log agent interacting with a virtual machine and fake intake.
+// UTFSuite defines a test suite for the log agent tailing UTF encoded logs
 type UtfSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
