@@ -78,6 +78,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	tarceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/statusimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
@@ -354,6 +355,7 @@ func getSharedFxOption() fx.Option {
 
 			return statusProviders
 		}),
+		tarceagentStatusImpl.Module(),
 		statusimpl.Module(),
 		apiimpl.Module(),
 
