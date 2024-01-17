@@ -33,7 +33,9 @@ type PingLinuxConfig struct {
 	UseRawSocket *bool `mapstructure:"use_raw_socket" yaml:"use_raw_socket" json:"use_raw_socket"`
 }
 
-func (pc *PingConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+type PackedPingConfig PingConfig
+
+func (pc *PackedPingConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var pingCfg PingConfig
 	err := unmarshal(&pingCfg)
 	// Needed for autodiscovery case where the passed config will be a string
@@ -50,6 +52,6 @@ func (pc *PingConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		}
 	}
 
-	*pc = pingCfg
+	*pc = PackedPingConfig(pingCfg)
 	return nil
 }

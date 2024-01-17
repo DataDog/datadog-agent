@@ -8,7 +8,7 @@ import (
 )
 
 func Test_PingConfig_UnmarshalYAML(t *testing.T) {
-	// trueVal := true
+	//trueVal := true
 	// //falseVal := false
 	// twoVal := 2
 	// threeVal := 3
@@ -16,15 +16,15 @@ func Test_PingConfig_UnmarshalYAML(t *testing.T) {
 	tests := []struct {
 		name          string
 		data          []byte
-		result        PingConfig
+		result        PackedPingConfig
 		expectedError string
 	}{
 		{
 			name: "empty ping config",
 			data: []byte(`
-enabled: true
+""
 `),
-			result: PingConfig{},
+			result: PackedPingConfig{},
 		},
 		// 		{
 		// 			name: "ping config as yaml struct",
@@ -95,7 +95,7 @@ enabled: true
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			myStruct := PingConfig{}
+			myStruct := PackedPingConfig{}
 			err := yaml.Unmarshal(tt.data, &myStruct)
 			assert.Equal(t, tt.result, myStruct)
 			if tt.expectedError != "" {
