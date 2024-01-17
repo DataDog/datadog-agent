@@ -121,6 +121,8 @@
 /.gitlab/functional_test/regression_detector.yml     @DataDog/single-machine-performance
 /.gitlab/functional_test/workload_checks.yml         @DataDog/single-machine-performance
 
+/.gitlab/new-e2e_testing/windows.yml                 @DataDog/agent-platform @DataDog/windows-agent
+
 /chocolatey/                            @DataDog/windows-agent
 
 /cmd/                                   @DataDog/agent-shared-components
