@@ -261,7 +261,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			name: "validate PING and WINDOWS_UPDATE frames between HEADERS and DATA",
 			// The purpose of this test is to verify our ability to process PING and WINDOWS_UPDATE frames between HEADERS and DATA.
 			messageBuilder: func() []byte {
-				headerFramesCount := 5
+				const headerFramesCount = 5
 				return createMessageWithPingAndWindowUpdate(t, testHeaders(), headerFramesCount)
 			},
 			expectedEndpoints: map[http.Key]int{
