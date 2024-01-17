@@ -3,13 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !linux_bpf
+//go:build test
 
-package ebpf
+package packagesigning
 
-import "github.com/prometheus/client_golang/prometheus"
-
-// NewDebugFsStatCollector creates a DebugFsStatCollector
-func NewDebugFsStatCollector() prometheus.Collector {
-	return &NoopDebugFsStatCollector{}
+// Mock implements mock-specific methods for the packagesigning component.
+type Mock interface {
+	Component
 }

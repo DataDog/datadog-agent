@@ -22,6 +22,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install -r tasks/libs/requirements-github.txt
       - name: Run PR check for team assignment label
         env:
           BRANCH_NAME: ${{ github.ref_name }}
@@ -41,6 +42,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install -r tasks/libs/requirements-github.txt
       - name: Run PR check for QA labels
         env:
           BRANCH_NAME: ${{ github.ref_name }}

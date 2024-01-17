@@ -252,6 +252,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("integration_check_status_enabled", false)
 	config.BindEnvAndSetDefault("enable_metadata_collection", true)
 	config.BindEnvAndSetDefault("enable_gohai", true)
+	config.BindEnvAndSetDefault("enable_signing_metadata_collection", true)
 	config.BindEnvAndSetDefault("check_runners", int64(4))
 	config.BindEnvAndSetDefault("check_cancel_timeout", 500*time.Millisecond)
 	config.BindEnvAndSetDefault("auth_token_file_path", "")

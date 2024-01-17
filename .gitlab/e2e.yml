@@ -260,8 +260,6 @@ new-e2e-cws-dev:
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
-  # Temporary, until we manage to stabilize those tests.
-  allow_failure: true
 
 new-e2e-cws-main:
   extends: .new_e2e_template
@@ -269,8 +267,6 @@ new-e2e-cws-main:
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
-  # Temporary, until we manage to stabilize those tests.
-  allow_failure: true
 
 new-e2e-process-dev:
   extends: .new_e2e_template

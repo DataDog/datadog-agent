@@ -15,6 +15,15 @@ from invoke.exceptions import Exit
 from .libs.common.color import color_message
 from .libs.common.github_api import GithubAPI
 from .libs.common.gitlab import Gitlab, get_gitlab_bot_token, get_gitlab_token
+from .libs.common.utils import (
+    DEFAULT_BRANCH,
+    GITHUB_REPO_NAME,
+    check_clean_branch_state,
+    get_all_allowed_repo_branches,
+    is_allowed_repo_branch,
+    nightly_entry_for,
+    release_entry_for,
+)
 from .libs.datadog_api import create_count, send_metrics
 from .libs.pipeline_data import get_failed_jobs
 from .libs.pipeline_notifications import (
@@ -36,15 +45,6 @@ from .libs.pipeline_tools import (
     wait_for_pipeline,
 )
 from .libs.types import FailedJobs, SlackMessage, TeamMessage
-from .utils import (
-    DEFAULT_BRANCH,
-    GITHUB_REPO_NAME,
-    check_clean_branch_state,
-    get_all_allowed_repo_branches,
-    is_allowed_repo_branch,
-    nightly_entry_for,
-    release_entry_for,
-)
 
 
 class GitlabReference(yaml.YAMLObject):

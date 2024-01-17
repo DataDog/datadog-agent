@@ -733,6 +733,12 @@ api_key:
 #
 # enable_gohai: true
 
+## @param enable_signing_metadata_collection - boolean - optional - default: true
+## @env DD_ENABLE_SIGNING_METADATA - boolean - optional - default: true
+## Enable the Linux package signing medatada collection.
+#
+# enable_signing_metadata_collection: true
+
 ## @param server_timeout - integer - optional - default: 30
 ## @env DD_SERVER_TIMEOUT - integer - optional - default: 30
 ## IPC api server timeout in seconds.

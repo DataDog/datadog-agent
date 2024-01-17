@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package ebpf
+// Package telemetry provides types and functions for kernel telemetry collected by eBPF programs.
+package telemetry
 
 import "github.com/prometheus/client_golang/prometheus"
 

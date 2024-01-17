@@ -2,6 +2,7 @@ import os
 
 from invoke import Exit, task
 
+from .libs.common.utils import DEFAULT_BRANCH
 from .libs.github_actions_tools import (
     download_artifacts,
     download_with_retry,
@@ -11,7 +12,6 @@ from .libs.github_actions_tools import (
     trigger_macos_workflow,
 )
 from .release import _get_release_json_value
-from .utils import DEFAULT_BRANCH
 
 
 def _trigger_macos_workflow(release, destination=None, retry_download=0, retry_interval=0, **kwargs):
