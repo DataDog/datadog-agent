@@ -83,15 +83,13 @@ func TestQueryMetrics(t *testing.T) {
 	var statementExecutions float64
 	var queryExecutions float64
 	for _, r := range c.lastOracleRows {
-		// null in PL/SQL block is falsely  obfuscated to ?
-		if r.QueryHash == "7wm4bk66d7zbj" {
+		if r.SQLText == testStatement {
 			statementExecutions = r.Executions
 		} else if r.SQLText == "select ? from dual" {
 			queryExecutions = r.Executions
 		}
 	}
-
-	assert.Equal(t, float64(1), statementExecutions)
+	assert.Equal(t, float64(1), statementExecutions, "PL/SQL execution not captured")
 	assert.Equal(t, float64(10), queryExecutions)
 }
 
