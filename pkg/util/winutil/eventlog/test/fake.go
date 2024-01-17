@@ -9,6 +9,8 @@ package eventlog_test
 import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/fake"
+
+	"testing"
 )
 
 const (
@@ -63,4 +65,14 @@ func (ti *FakeAPITester) RemoveSource(channel string, source string) error {
 // GenerateEvents creates numEvents new event records
 func (ti *FakeAPITester) GenerateEvents(channelName string, numEvents uint) error {
 	return ti.eventlogapi.GenerateEvents(channelName, numEvents)
+}
+
+// StartEventLogService is TODO for the fake API
+func (ti *FakeAPITester) StartEventLogService(t *testing.T) {
+	panic("not implemented")
+}
+
+// KillEventLogService is TODO for the fake API
+func (ti *FakeAPITester) KillEventLogService(t *testing.T) {
+	panic("not implemented")
 }

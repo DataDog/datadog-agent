@@ -9,7 +9,6 @@ package evtlog
 
 import (
 	"fmt"
-	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -232,9 +231,6 @@ start: oldest
 
 // Test that the check can detect and recover from a broken subscription
 func (s *GetEventsTestSuite) TestRecoverFromBrokenSubscription() {
-	// TODO: https://datadoghq.atlassian.net/browse/WINA-480
-	s.T().Skip("WINA-480: Skipping flaky test")
-
 	// Put events in the log
 	err := s.ti.GenerateEvents(s.eventSource, s.numEvents)
 	require.NoError(s.T(), err)
@@ -255,9 +251,9 @@ start: oldest
 	// remove the source/channel to break the subscription
 	s.ti.RemoveSource(s.channelPath, s.eventSource)
 	s.ti.RemoveChannel(s.channelPath)
-	cmd := exec.Command("powershell.exe", "-Command", "Restart-Service", "EventLog", "-Force")
-	out, err := cmd.CombinedOutput()
-	require.NoError(s.T(), err, "Failed to restart EventLog service %s", out)
+	// Must restart eventlog service for removal to take effect
+	s.ti.KillEventLogService(s.T())
+	s.ti.StartEventLogService(s.T())
 
 	// check run should return an error
 	err = check.Run()
