@@ -123,11 +123,13 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
     // For more context refer to the comments in `delete_protocol_stack`
     stack->flags |= FLAG_USM_ENABLED;
 
-    // TODO: consider adding early return if `is_layer_known(stack, LAYER_ENCRYPTION)`
-
     protocol_t cur_fragment_protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
+    protocol_t encryption_layer = get_protocol_from_stack(stack, LAYER_ENCRYPTION);
     if (tcp_termination) {
         dispatcher_delete_protocol_stack(&skb_tup, stack);
+    } else if (encryption_layer == PROTOCOL_TLS) {
+        // If we have a TLS connection and we're not in the middle of a TCP termination, we can skip the packet.
+        return;
     }
 
     if (cur_fragment_protocol == PROTOCOL_UNKNOWN) {
