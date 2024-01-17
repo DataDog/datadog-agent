@@ -488,7 +488,7 @@ Datadog Cluster Agent
 SNMP Traps
 ==========
   Packets: 0
-  Packets Auth Errors: 0
+  Packets Unknown Community String: 0
 =============
 Autodiscovery
 =============
