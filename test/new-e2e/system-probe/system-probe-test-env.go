@@ -99,7 +99,7 @@ func outputsToFile(output auto.OutputMap) error {
 	for key, value := range output {
 		// we only want the json output representing KMT's
 		// infrastructure saved to the output file.
-		if key != kmtStackJsonKey {
+		if key != kmtStackJSONKey {
 			continue
 		}
 		switch v := value.Value.(type) {
