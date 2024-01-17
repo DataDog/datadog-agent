@@ -6,6 +6,7 @@
   - FILTER_PIPELINE="Name=tag:pipeline-id,Values=${CI_PIPELINE_ID}"
   - FILTER_ARCH="Name=tag:arch,Values=${ARCH}"
   - FILTER_INSTANCE_TYPE="Name=tag:instance-type,Values=${INSTANCE_TYPE}"
+  - FILTER_TEST_COMPONENT="Name=tag:test-component,Values=${TEST_COMPONENT}"
   - QUERY_INSTANCE_IDS='Reservations[*].Instances[*].InstanceId'
   - QUERY_PRIVATE_IPS='Reservations[*].Instances[*].PrivateIpAddress'
 
@@ -13,14 +14,14 @@
   - !reference [.shared_filters_and_queries]
   - |
     COUNTER=0
-    while [[ $(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_STATE $FILTER_PIPELINE  --output text --query $QUERY_INSTANCE_IDS  | wc -l ) != "2" && $COUNTER -le 40 ]]; do COUNTER=$[$COUNTER +1]; echo "[${COUNTER}] Waiting for instances"; sleep 30; done
+    while [[ $(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_STATE $FILTER_PIPELINE $FILTER_TEST_COMPONENT --output text --query $QUERY_INSTANCE_IDS  | wc -l ) != "2" && $COUNTER -le 40 ]]; do COUNTER=$[$COUNTER +1]; echo "[${COUNTER}] Waiting for instances"; sleep 30; done
     # check that 2 instances are ready, or fail
-    if [ $(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_STATE $FILTER_PIPELINE --output text --query $QUERY_INSTANCE_IDS | wc -l) -ne "2" ]; then
+    if [ $(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_STATE $FILTER_PIPELINE $FILTER_TEST_COMPONENT --output text --query $QUERY_INSTANCE_IDS | wc -l) -ne "2" ]; then
         echo "Both instances NOT found"
         "false"
     fi
     echo "Both Instances found"
-    INSTANCE_IDS=$(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_STATE $FILTER_PIPELINE --output text --query $QUERY_INSTANCE_IDS | tr '\n' ' ')
+    INSTANCE_IDS=$(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_STATE $FILTER_PIPELINE $FILTER_TEST_COMPONENT --output text --query $QUERY_INSTANCE_IDS | tr '\n' ' ')
     aws ec2 wait instance-status-ok --instance-ids $INSTANCE_IDS
     sleep 10
 
@@ -34,7 +35,7 @@
 
 # needs variables: ARCH, INSTANCE_TYPE
 .get_instance_ip_by_type:
-  - INSTANCE_IP=$(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_STATE $FILTER_PIPELINE "Name=instance-type,Values=${INSTANCE_TYPE}" --output text --query $QUERY_PRIVATE_IPS)
+  - INSTANCE_IP=$(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_STATE $FILTER_PIPELINE $FILTER_TEST_COMPONENT "Name=instance-type,Values=${INSTANCE_TYPE}" --output text --query $QUERY_PRIVATE_IPS)
   - echo "$ARCH-instance-ip" $INSTANCE_IP
 
 # needs variables: INSTANCE_IP, AWS_EC2_SSH_KEY_FILE
@@ -116,24 +117,6 @@ pull_test_dockers_arm64:
     KMT_DOCKERS: $DD_AGENT_TESTING_DIR/kmt-dockers-$ARCH
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
 
-upload_dependencies_x64:
-  extends:
-    - .package_dependencies
-  needs: ["pull_test_dockers_x64"]
-  variables:
-    ARCHIVE_NAME: dependencies-x86_64.tar.gz
-    ARCH: amd64
-    INSTANCE_TYPE: m5d.metal
-
-upload_dependencies_arm64:
-  extends:
-    - .package_dependencies
-  needs: ["pull_test_dockers_arm64"]
-  variables:
-    ARCHIVE_NAME: dependencies-arm64.tar.gz
-    ARCH: arm64
-    INSTANCE_TYPE: m6gd.metal
-
 # -- BTF
 .upload_minimized_btfs:
   stage: kernel_matrix_testing_prepare
@@ -166,24 +149,6 @@ upload_dependencies_arm64:
     DEPENDENCIES: $DD_AGENT_TESTING_DIR/$ARCH/btfs
     BTF_DIR: opt/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
-
-upload_minimized_btfs_x64:
-  extends:
-    - .upload_minimized_btfs
-  needs: ["generate_minimized_btfs_x64"]
-  variables:
-    ARCHIVE_NAME: btfs-x86_64.tar.gz
-    ARCH: x86_64
-    INSTANCE_TYPE: m5d.metal
-
-upload_minimized_btfs_arm64:
-  extends:
-    - .upload_minimized_btfs
-  needs: ["generate_minimized_btfs_arm64"]
-  variables:
-    ARCHIVE_NAME: btfs-arm64.tar.gz
-    ARCH: arm64
-    INSTANCE_TYPE: m6gd.metal
 
 # -- Environment setup
 .kernel_matrix_testing_setup_env:
@@ -239,26 +204,6 @@ upload_minimized_btfs_arm64:
       - $CI_PROJECT_DIR/libvirt
       - $VMCONFIG_FILE
 
-kernel_matrix_testing_setup_env_arm64:
-  extends:
-    - .kernel_matrix_testing_setup_env
-  variables:
-    INSTANCE_TYPE: "m6gd.metal"
-    INSTANCE_TYPE_ARG: "--instance-type-arm=$INSTANCE_TYPE"
-    ARCH: arm64
-    AMI_ID_ARG: "--arm-ami-id=$KERNEL_MATRIX_TESTING_ARM_AMI_ID"
-    LibvirtSSHKey: $CI_PROJECT_DIR/libvirt_rsa-arm
-
-kernel_matrix_testing_setup_env_x64:
-  extends:
-    - .kernel_matrix_testing_setup_env
-  variables:
-    INSTANCE_TYPE: "m5d.metal"
-    INSTANCE_TYPE_ARG: "--instance-type-x86=$INSTANCE_TYPE"
-    ARCH: x86_64
-    AMI_ID_ARG: "--x86-ami-id=$KERNEL_MATRIX_TESTING_X86_AMI_ID"
-    LibvirtSSHKey: $CI_PROJECT_DIR/libvirt_rsa-x86
-
 .kernel_matrix_testing_cleanup:
   stage: kernel_matrix_testing_cleanup
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
@@ -281,8 +226,8 @@ kernel_matrix_testing_cleanup_arm64:
   extends:
     - .kernel_matrix_testing_cleanup
   needs:
-    - kernel_matrix_testing_setup_env_arm64
-    - kernel_matrix_testing_run_tests_arm64
+    - kernel_matrix_testing_setup_env_system_probe_arm64
+    - kernel_matrix_testing_run_system_probe_tests_arm64
   variables:
     ARCH: arm64
     INSTANCE_TYPE: "m6gd.metal"
@@ -291,8 +236,8 @@ kernel_matrix_testing_cleanup_x64:
   extends:
     - .kernel_matrix_testing_cleanup
   needs:
-    - kernel_matrix_testing_setup_env_x64
-    - kernel_matrix_testing_run_tests_x64
+    - kernel_matrix_testing_setup_env_system_probe_x64
+    - kernel_matrix_testing_run_system_probe_tests_x64
   variables:
     ARCH: x86_64
     INSTANCE_TYPE: "m5d.metal"
