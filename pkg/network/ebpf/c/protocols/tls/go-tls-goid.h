@@ -39,10 +39,7 @@ static __always_inline int read_goroutine_id_from_tls(goroutine_id_metadata_t* m
         return 1;
     }
     void* goroutine_id_ptr = (void*) (g_addr + m->goroutine_id_offset);
-    if (bpf_probe_read(dest, sizeof(int64_t), goroutine_id_ptr)) {
-        return 1;
-    }
-    return 0;
+    return bpf_probe_read_user(dest, sizeof(int64_t), goroutine_id_ptr) < 0;
 }
 
 static __always_inline int read_goroutine_id_from_register(struct pt_regs *ctx, goroutine_id_metadata_t* m, int64_t* dest) {
@@ -56,7 +53,7 @@ static __always_inline int read_goroutine_id_from_register(struct pt_regs *ctx, 
     }
 
     uint64_t runtime_g_ptr = 0;
-    if (bpf_probe_read(&runtime_g_ptr, sizeof(int64_t), reg_ptr)) {
+    if (bpf_probe_read_kernel(&runtime_g_ptr, sizeof(int64_t), reg_ptr) < 0) {
         return 1;
     }
 

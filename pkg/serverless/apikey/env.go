@@ -24,6 +24,9 @@ func getSecretEnvVars(envVars []string, kmsFunc decryptFunc, smFunc decryptFunc)
 		if !ok {
 			continue
 		}
+		if len(envVal) == 0 {
+			continue
+		}
 		if strings.HasSuffix(envKey, kmsKeySuffix) {
 			log.Debugf("Decrypting %v", envVar)
 			secretVal, err := kmsFunc(envVal)
@@ -69,7 +72,7 @@ func setSecretsFromEnv(envVars []string) {
 }
 
 // HandleEnv sets the API key from environment variables
-func HandleEnv() {
+func HandleEnv() error {
 	// API key reading
 	// ---------------
 
@@ -88,6 +91,7 @@ func HandleEnv() {
 		// we're not reporting the error to AWS because we don't want the function
 		// execution to be stopped. TODO(remy): discuss with AWS if there is way
 		// of reporting non-critical init errors.
-		log.Error("No API key configured")
+		return log.Error("No API key configured")
 	}
+	return nil
 }

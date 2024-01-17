@@ -8,7 +8,6 @@ package marshal
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
@@ -18,7 +17,6 @@ type dnsFormatter struct {
 	conns     *network.Connections
 	ipc       ipCache
 	domainSet map[string]int
-	seen      map[dns.Key]struct{}
 
 	// Configuration flags
 	queryTypeEnabled  bool
@@ -30,30 +28,12 @@ func newDNSFormatter(conns *network.Connections, ipc ipCache) *dnsFormatter {
 		conns:             conns,
 		ipc:               ipc,
 		domainSet:         make(map[string]int),
-		seen:              make(map[dns.Key]struct{}),
 		queryTypeEnabled:  config.SystemProbe.GetBool("network_config.enable_dns_by_querytype"),
 		dnsDomainsEnabled: config.SystemProbe.GetBool("system_probe_config.collect_dns_domains"),
 	}
 }
 
 func (f *dnsFormatter) FormatConnectionDNS(nc network.ConnectionStats, builder *model.ConnectionBuilder) {
-	key, ok := network.DNSKey(&nc)
-	if !ok {
-		return
-	}
-
-	// Avoid overcounting stats in the context of PID collisions
-	if _, seen := f.seen[key]; seen {
-		return
-	}
-
-	// Retrieve DNS information for this particular connection
-	stats, ok := f.conns.DNSStats[key]
-	if !ok {
-		return
-	}
-	f.seen[key] = struct{}{}
-
 	var (
 		dnsCountByRcode        map[uint32]uint32
 		dnsSuccessfulResponses uint32
@@ -66,7 +46,7 @@ func (f *dnsFormatter) FormatConnectionDNS(nc network.ConnectionStats, builder *
 	if !f.dnsDomainsEnabled {
 		var total uint32
 		dnsCountByRcode = make(map[uint32]uint32)
-		for _, byType := range stats {
+		for _, byType := range nc.DNSStats {
 			for _, typeStats := range byType {
 				dnsSuccessfulResponses += typeStats.CountByRcode[network.DNSResponseCodeNoError]
 				dnsTimeouts += typeStats.Timeouts
@@ -95,10 +75,10 @@ func (f *dnsFormatter) FormatConnectionDNS(nc network.ConnectionStats, builder *
 	builder.SetDnsFailedResponses(dnsFailedResponses)
 
 	if f.queryTypeEnabled {
-		formatDNSStatsByDomainByQueryType(builder, stats, f.domainSet)
+		formatDNSStatsByDomainByQueryType(builder, nc.DNSStats, f.domainSet)
 	} else {
 		//// downconvert to simply by domain
-		formatDNSStatsByDomain(builder, stats, f.domainSet)
+		formatDNSStatsByDomain(builder, nc.DNSStats, f.domainSet)
 	}
 }
 

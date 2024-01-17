@@ -15,7 +15,7 @@ from invoke.exceptions import Exit
 from .build_tags import get_build_tags, get_default_build_tags
 from .cluster_agent_helpers import build_common, clean_common, refresh_assets_common, version_common
 from .go import deps
-from .utils import load_release_versions
+from .libs.common.utils import load_release_versions
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "datadog-cluster-agent")

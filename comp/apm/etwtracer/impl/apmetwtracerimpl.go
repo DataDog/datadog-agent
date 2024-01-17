@@ -434,18 +434,22 @@ func (a *apmetwtracerimpl) stop(_ context.Context) error {
 }
 
 func (a *apmetwtracerimpl) addPID(pid uint32) error {
+	if len(a.pids) >= MAX_EVENT_FILTER_PID_COUNT {
+		return fmt.Errorf("too many processes registered")
+	}
 	c, err := winio.DialPipe(fmt.Sprintf(clientNamedPipePath, pid), nil)
 	if err != nil {
 		return err
 	}
-
-	if len(a.pids) > MAX_EVENT_FILTER_PID_COUNT {
-		return fmt.Errorf("too many processes registered")
-	}
 	a.pids[pid] = pidContext{
 		conn: c,
 	}
-	return a.reconfigureProvider()
+	err = a.reconfigureProvider()
+	if err != nil {
+		c.Close()
+		delete(a.pids, pid)
+	}
+	return err
 }
 
 func (a *apmetwtracerimpl) removePID(pid uint32) error {
