@@ -9,12 +9,10 @@
 package util
 
 import (
-	"golang.org/x/exp/slices"
-	"sort"
-
 	"github.com/CycloneDX/cyclonedx-go"
 	trivydx "github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 	"github.com/mohae/deepcopy"
+	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 )
@@ -47,10 +45,6 @@ func UpdateSBOMRepoMetadata(sbom *workloadmeta.SBOM, repoTags, repoDigests []str
 		newProperties = appendProperties(newProperties, repoTags, repoTagPropertyKey)
 		newProperties = appendProperties(newProperties, repoDigests, repoDigestPropertyKey)
 
-		// Sort properties to ensure consistent ordering for tests
-		sort.Slice(newProperties, func(i, j int) bool {
-			return newProperties[i].Name < newProperties[j].Name || newProperties[i].Value < newProperties[j].Value
-		})
 		sbom.CycloneDXBOM.Metadata.Component.Properties = &newProperties
 	}
 

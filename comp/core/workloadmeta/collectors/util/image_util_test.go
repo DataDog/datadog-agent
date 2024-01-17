@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-//go:build trivy && test
+//go:build trivy
 
 // Package util contains utility functions for image metadata collection
 package util
 
 import (
-	"reflect"
+	"gotest.tools/assert"
+	"sort"
 	"testing"
 
 	"github.com/CycloneDX/cyclonedx-go"
@@ -124,8 +125,8 @@ func Test_UpdateSBOMRepoMetadata(t *testing.T) {
 					Metadata: &cyclonedx.Metadata{
 						Component: &cyclonedx.Component{
 							Properties: &[]cyclonedx.Property{
-								{Name: trivydx.Namespace + trivydx.PropertyRepoTag, Value: "tag1"},
 								{Name: trivydx.Namespace + trivydx.PropertyRepoDigest, Value: "digest1"},
+								{Name: trivydx.Namespace + trivydx.PropertyRepoTag, Value: "tag1"},
 							},
 						},
 					},
@@ -172,8 +173,8 @@ func Test_UpdateSBOMRepoMetadata(t *testing.T) {
 						Metadata: &cyclonedx.Metadata{
 							Component: &cyclonedx.Component{
 								Properties: &[]cyclonedx.Property{
-									{Name: "prop1", Value: "tag1"},
 									{Name: trivydx.Namespace + trivydx.PropertyRepoTag, Value: "tag1"},
+									{Name: "prop1", Value: "tag1"},
 									{Name: trivydx.Namespace + trivydx.PropertyRepoDigest, Value: "digest1"},
 								},
 							},
@@ -199,9 +200,23 @@ func Test_UpdateSBOMRepoMetadata(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := UpdateSBOMRepoMetadata(tt.args.sbom, tt.args.repoTags, tt.args.repoDigests); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("UpdateSBOMRepoMetadata) = %v, want %v", got.CycloneDXBOM.Metadata.Component.Properties, tt.want.CycloneDXBOM.Metadata.Component.Properties)
+
+			got := UpdateSBOMRepoMetadata(tt.args.sbom, tt.args.repoTags, tt.args.repoDigests)
+			if got != nil &&
+				got.CycloneDXBOM != nil &&
+				got.CycloneDXBOM.Metadata != nil &&
+				got.CycloneDXBOM.Metadata.Component != nil &&
+				got.CycloneDXBOM.Metadata.Component.Properties != nil {
+				// Sort properties to ensure consistent ordering for tests
+				props := *got.CycloneDXBOM.Metadata.Component.Properties
+				sort.Slice(props, func(i, j int) bool {
+					if props[i].Name == props[j].Name {
+						return props[i].Value < props[j].Value
+					}
+					return props[i].Name < props[j].Name
+				})
 			}
+			assert.DeepEqual(t, got, tt.want)
 		})
 	}
 }
