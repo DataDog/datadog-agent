@@ -215,7 +215,18 @@ func CheckAgentPython(t *testing.T, client *TestClient, version string) {
 func CheckApmEnabled(t *testing.T, client *TestClient) {
 	t.Run("port bound apm enabled", func(tt *testing.T) {
 		err := client.CheckPortBound(8126)
-		require.NoError(tt, err, "port 8196 should be bound when APM is enabled")
+
+		var journalCtlOutput string
+		var journalCtlErr error
+
+		if err != nil {
+			t.Log("Error with trace-agent, getting the output of journalctl -u datadog-agent-trace")
+			journalCtlOutput, journalCtlErr = client.Host.Execute("journalctl | grep 'trace-agent\\|datadog-agent-trace'")
+			if journalCtlErr != nil {
+				t.Log("Skipping, journalctl failed to run")
+			}
+		}
+		require.NoErrorf(tt, err, "port 8126 of trace-agent should be bound when APM is enabled:\n %s", journalCtlOutput)
 	})
 }
 
