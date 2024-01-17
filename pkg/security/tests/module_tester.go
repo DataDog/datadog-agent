@@ -157,6 +157,7 @@ runtime_security_config:
     dir: {{ .SecurityProfileDir }}
     watch_dir: {{ .SecurityProfileWatchDir }}
     anomaly_detection:
+      enabled: true
       default_minimum_stable_period: {{.AnomalyDetectionDefaultMinimumStablePeriod}}
       minimum_stable_period:
         exec: {{.AnomalyDetectionMinimumStablePeriodExec}}
@@ -2518,31 +2519,4 @@ func (tm *testModule) GetADSelector(dumpID *activityDumpIdentifier) (*cgroupMode
 
 	selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", ad.Tags), utils.GetTagValue("image_tag", ad.Tags))
 	return &selector, err
-}
-
-func (tm *testModule) SetProfileStatus(selector *cgroupModel.WorkloadSelector, newStatus model.Status) error {
-	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
-	if !ok {
-		return errors.New("not supported")
-	}
-
-	managers := p.GetProfileManagers()
-	if managers == nil {
-		return errors.New("no manager")
-	}
-
-	spm := managers.GetSecurityProfileManager()
-	if spm == nil {
-		return errors.New("No security profile manager")
-	}
-
-	profile := spm.GetProfile(*selector)
-	if profile == nil || profile.Status == 0 {
-		return errors.New("No profile found for given selector")
-	}
-
-	profile.Lock()
-	profile.Status = newStatus
-	profile.Unlock()
-	return nil
 }
