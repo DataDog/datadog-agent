@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package ebpf
+package telemetry
 
 import (
 	"testing"
@@ -14,13 +14,13 @@ import (
 )
 
 func TestCORETelemetry(t *testing.T) {
-	storeCORETelemetryForAsset("exampleAsset1", COREResult(successCustomBTF))
-	storeCORETelemetryForAsset("exampleAsset2", verifierError)
+	StoreCORETelemetryForAsset("exampleAsset1", COREResult(SuccessCustomBTF))
+	StoreCORETelemetryForAsset("exampleAsset2", VerifierError)
 
 	actual := GetCORETelemetryByAsset()
 	expected := map[string]int32{
-		"exampleAsset1": int32(successCustomBTF),
-		"exampleAsset2": int32(verifierError),
+		"exampleAsset1": int32(SuccessCustomBTF),
+		"exampleAsset2": int32(VerifierError),
 	}
 
 	assert.Equal(t, expected, actual)

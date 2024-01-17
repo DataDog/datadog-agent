@@ -42,7 +42,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	spconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
@@ -1354,7 +1354,7 @@ func (tm *testModule) NewTimeoutError() ErrTimeout {
 
 	msg.WriteString("timeout, details: ")
 	msg.WriteString(GetEBPFStatusMetrics(tm.probe))
-	msg.WriteString(spew.Sdump(ddebpf.GetProbeStats()))
+	msg.WriteString(spew.Sdump(ebpftelemetry.GetProbeStats()))
 
 	events := tm.ruleEngine.StopEventCollector()
 	if len(events) != 0 {
