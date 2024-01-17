@@ -10,7 +10,7 @@
     - inv -e rtloader.format --raise-if-changed
     - inv -e rtloader.test
   # Placeholder script, overridden by .linux_tests when running all go tests
-  script: [ "# Skipping go tests" ]
+  script: ["# Skipping go tests"]
 
 .linux_tests:
   stage: source_test
@@ -45,6 +45,17 @@
     reports:
       junit: "**/junit-out-*.xml"
 
+.upload_junit_source:
+  - source /root/.bashrc && conda activate $CONDA_ENV
+  # Upload generated junit files
+  - export DATADOG_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
+  - for f in junit-*.tgz; do inv -e junit-upload --tgz-path $f; done
+
+.linux_tests_with_upload:
+  extends: .linux_tests
+  after_script:
+    - !reference [.upload_junit_source]
+
 .linux_lint:
   stage: source_test
   needs: ["go_deps", "go_tools_deps"]
@@ -74,16 +85,16 @@ tests_deb-x64-py2:
     - !reference [.except_disable_unit_tests]
     - !reference [.on_a6]
   variables:
-    PYTHON_RUNTIMES: '2'
+    PYTHON_RUNTIMES: "2"
     CONDA_ENV: ddpy2
 
 tests_deb-x64-py3:
   extends:
     - .rtloader_tests
-    - .linux_tests
+    - .linux_tests_with_upload
     - .linux_x64
   variables:
-    PYTHON_RUNTIMES: '3'
+    PYTHON_RUNTIMES: "3"
     CONDA_ENV: ddpy3
 
 lint_linux-x64:
@@ -93,53 +104,53 @@ lint_linux-x64:
 tests_flavor_iot_deb-x64:
   extends:
     - .rtloader_tests
-    - .linux_tests
+    - .linux_tests_with_upload
     - .linux_x64
   variables:
-    PYTHON_RUNTIMES: '3'
+    PYTHON_RUNTIMES: "3"
     CONDA_ENV: ddpy3
-    FLAVORS: '--flavors iot'
+    FLAVORS: "--flavors iot"
 
 lint_flavor_iot_linux-x64:
   extends:
     - .linux_lint
     - .linux_x64
   variables:
-    FLAVORS: '--flavors iot'
+    FLAVORS: "--flavors iot"
 
 tests_flavor_dogstatsd_deb-x64:
   extends:
     - .rtloader_tests
-    - .linux_tests
+    - .linux_tests_with_upload
     - .linux_x64
   variables:
-    PYTHON_RUNTIMES: '3'
+    PYTHON_RUNTIMES: "3"
     CONDA_ENV: ddpy3
-    FLAVORS: '--flavors dogstatsd'
+    FLAVORS: "--flavors dogstatsd"
 
 lint_flavor_dogstatsd_linux-x64:
   extends:
     - .linux_lint
     - .linux_x64
   variables:
-    FLAVORS: '--flavors dogstatsd'
+    FLAVORS: "--flavors dogstatsd"
 
 tests_flavor_heroku_deb-x64:
   extends:
     - .rtloader_tests
-    - .linux_tests
+    - .linux_tests_with_upload
     - .linux_x64
   variables:
-    PYTHON_RUNTIMES: '3'
+    PYTHON_RUNTIMES: "3"
     CONDA_ENV: ddpy3
-    FLAVORS: '--flavors heroku'
+    FLAVORS: "--flavors heroku"
 
 lint_flavor_heroku_linux-x64:
   extends:
     - .linux_lint
     - .linux_x64
   variables:
-    FLAVORS: '--flavors heroku'
+    FLAVORS: "--flavors heroku"
 
 # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
 # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
@@ -152,21 +163,20 @@ tests_rpm-x64-py2:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64_testing$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
-    PYTHON_RUNTIMES: '2'
+    PYTHON_RUNTIMES: "2"
     CONDA_ENV: ddpy2
-    EXTRA_OPTS: '--build-exclude=systemd'
+    EXTRA_OPTS: "--build-exclude=systemd"
 
 tests_rpm-x64-py3:
   extends:
     - .rtloader_tests
-    - .linux_tests
+    - .linux_tests_with_upload
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64_testing$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
-    PYTHON_RUNTIMES: '3'
+    PYTHON_RUNTIMES: "3"
     CONDA_ENV: ddpy3
-    EXTRA_OPTS: '--build-exclude=systemd'
-
+    EXTRA_OPTS: "--build-exclude=systemd"
 
 tests_deb-arm64-py2:
   extends: .rtloader_tests
@@ -176,7 +186,7 @@ tests_deb-arm64-py2:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
   variables:
-    PYTHON_RUNTIMES: '2'
+    PYTHON_RUNTIMES: "2"
     CONDA_ENV: ddpy2
 
 tests_deb-arm64-py3:
@@ -186,7 +196,7 @@ tests_deb-arm64-py3:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
   variables:
-    PYTHON_RUNTIMES: '3'
+    PYTHON_RUNTIMES: "3"
     CONDA_ENV: ddpy3
 
 lint_linux-arm64:
@@ -203,7 +213,7 @@ tests_rpm-arm64-py2:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
   variables:
-    PYTHON_RUNTIMES: '2'
+    PYTHON_RUNTIMES: "2"
     CONDA_ENV: ddpy2
 
 tests_rpm-arm64-py3:
@@ -213,7 +223,7 @@ tests_rpm-arm64-py3:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
   variables:
-    PYTHON_RUNTIMES: '3'
+    PYTHON_RUNTIMES: "3"
     CONDA_ENV: ddpy3
 
 # Check consistency of go.mod file with project imports
