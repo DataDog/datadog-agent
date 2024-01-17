@@ -33,6 +33,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
+	"golang.org/x/net/http2/hpack"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -1749,6 +1750,65 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 			},
 			teardown:   teardown,
 			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP}),
+		},
+		{
+			// This test checks than we are not classification a connection as
+			// carrying gRPC traffic without a prior classification as HTTP2.
+			name: "GRPC without prior HTTP2 classification",
+			context: testContext{
+				serverPort:    http2Port,
+				serverAddress: net.JoinHostPort(serverHost, http2Port),
+				targetAddress: net.JoinHostPort(targetHost, http2Port),
+				extras:        map[string]interface{}{},
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				server := NewTCPServerOnAddress(ctx.serverAddress, func(c net.Conn) {})
+				ctx.extras["server"] = server
+				require.NoError(t, server.Run())
+				t.Cleanup(server.Shutdown)
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				// The gRPC classification is based on having only POST requests,
+				// and having "application/grpc" as a content-type.
+				var testHeaderFields = []hpack.HeaderField{
+					{Name: ":authority", Value: "http://127.0.0.0.1:" + http2Port},
+					{Name: ":method", Value: "POST"},
+					{Name: ":path", Value: "/aaa"},
+					{Name: ":scheme", Value: "http"},
+					{Name: "content-type", Value: "application/grpc"},
+					{Name: "content-length", Value: "4"},
+					{Name: "accept-encoding", Value: "gzip"},
+					{Name: "user-agent", Value: "Go-http-client/2.0"},
+				}
+
+				buf := new(bytes.Buffer)
+				framer := http2.NewFramer(buf, nil)
+
+				hdrBuf := new(bytes.Buffer)
+				enc := hpack.NewEncoder(hdrBuf)
+
+				for _, h := range testHeaderFields {
+					err := enc.WriteField(h)
+					require.NoError(t, err)
+				}
+
+				// Writing the header frames to the buffer using the Framer.
+				require.NoError(t, framer.WriteHeaders(http2.HeadersFrameParam{
+					StreamID:      uint32(1),
+					BlockFragment: hdrBuf.Bytes(),
+					EndStream:     true,
+					EndHeaders:    true,
+				}))
+
+				// Writing the data frame to the buffer using the Framer.
+				require.NoError(t, framer.WriteData(uint32(1), true, []byte{}), "could not write data frame")
+
+				c, err := net.Dial("tcp", ctx.targetAddress)
+				require.NoError(t, err)
+				require.NoError(t, writeInput(c, buf.Bytes(), time.Second))
+			},
+			teardown:   nil,
+			validation: validateProtocolConnection(&protocols.Stack{}),
 		},
 	}
 	for _, tt := range tests {
