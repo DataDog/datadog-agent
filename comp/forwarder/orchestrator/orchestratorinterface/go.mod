@@ -106,7 +106,7 @@ require (
 	github.com/stretchr/testify v1.8.4 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
 	go.opentelemetry.io/otel v1.21.0 // indirect
-	go.opentelemetry.io/otel/exporters/prometheus v0.42.0 // indirect
+	go.opentelemetry.io/otel/exporters/prometheus v0.44.1-0.20231201153405-6027c1ae76f2 // indirect
 	go.opentelemetry.io/otel/metric v1.21.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.21.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.21.0 // indirect
