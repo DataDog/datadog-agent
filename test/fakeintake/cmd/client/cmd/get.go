@@ -30,6 +30,7 @@ func NewGetCommand(cl **client.Client) (cmd *cobra.Command) {
 		NewGetProcessesCommand(cl),
 		NewGetSBOMCommand(cl),
 		NewGetTracesCommand(cl),
+		NewGetAPMStatsCommand(cl),
 	)
 
 	return cmd
