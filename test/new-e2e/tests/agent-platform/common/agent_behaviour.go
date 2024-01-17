@@ -221,7 +221,7 @@ func CheckApmEnabled(t *testing.T, client *TestClient) {
 
 		if err != nil {
 			t.Log("Error with trace-agent, getting the output of journalctl -u datadog-agent-trace")
-			journalCtlOutput, journalCtlErr = client.VMClient.ExecuteWithError("journalctl | grep 'trace-agent\\|datadog-agent-trace'")
+			journalCtlOutput, journalCtlErr = client.Host.Execute("journalctl | grep 'trace-agent\\|datadog-agent-trace'")
 			if journalCtlErr != nil {
 				t.Log("Skipping, journalctl failed to run")
 			}
