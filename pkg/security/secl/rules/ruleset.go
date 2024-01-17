@@ -626,7 +626,7 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 
 	bucket, exists := rs.eventRuleBuckets[eventType]
 	if !exists {
-		seclog.Debugf("-----eventRuleBuckets not exists %v", bucket)
+		seclog.Debugf("-----eventRuleBuckets not exists %v", eventType)
 		return false
 	}
 
