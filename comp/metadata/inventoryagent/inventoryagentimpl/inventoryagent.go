@@ -256,6 +256,9 @@ func (ia *inventoryagent) Set(name string, value interface{}) {
 }
 
 func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
+	ia.m.Lock()
+	defer ia.m.Unlock()
+
 	// Create a static copy of agentMetadata for the payload
 	data := make(agentMetadata)
 	for k, v := range ia.data {
@@ -293,6 +296,9 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 
 // Get returns a copy of the agent metadata. Useful to be incorporated in the status page.
 func (ia *inventoryagent) Get() map[string]interface{} {
+	ia.m.Lock()
+	defer ia.m.Unlock()
+
 	data := map[string]interface{}{}
 	for k, v := range ia.data {
 		data[k] = v
