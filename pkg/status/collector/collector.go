@@ -8,12 +8,16 @@
 package collector
 
 import (
+	"embed"
 	"encoding/json"
 	"expvar"
 	"io"
+	"path"
+
+	htmlTemplate "html/template"
+	textTemplate "text/template"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/pkg/status/render"
 )
 
 // GetStatusInfo retrives collector information
@@ -93,6 +97,9 @@ func PopulateStatus(stats map[string]interface{}) {
 	stats["inventories"] = checkMetadata
 }
 
+//go:embed status_templates
+var templatesFS embed.FS
+
 // Provider provides the functionality to populate the status output with the collector information
 type Provider struct{}
 
@@ -115,16 +122,34 @@ func (Provider) JSON(_ bool, stats map[string]interface{}) error {
 
 // Text populates the status buffer with the human readbable version
 func (Provider) Text(_ bool, buffer io.Writer) error {
-	return render.ParseTemplate(buffer, "/collector.tmpl", GetStatusInfo())
+	return renderText(buffer, GetStatusInfo())
 }
 
 // HTML populates the status buffer with the HTML version
 func (Provider) HTML(_ bool, buffer io.Writer) error {
-	return render.ParseHTMLTemplate(buffer, "/collectorHTML.tmpl", GetStatusInfo())
+	return renderHTML(buffer, GetStatusInfo())
 }
 
 // TextWithData allows to render the human reaadable version with custom data
 // This is a hack only needed for the agent check subcommand
 func (Provider) TextWithData(buffer io.Writer, data any) error {
-	return render.ParseTemplate(buffer, "/collector.tmpl", data)
+	return renderText(buffer, data)
+}
+
+func renderHTML(buffer io.Writer, data any) error {
+	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "collectorHTML.tmpl"))
+	if tmplErr != nil {
+		return tmplErr
+	}
+	t := htmlTemplate.Must(htmlTemplate.New("collectorHTML").Funcs(status.HTMLFmap()).Parse(string(tmpl)))
+	return t.Execute(buffer, data)
+}
+
+func renderText(buffer io.Writer, data any) error {
+	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "collector.tmpl"))
+	if tmplErr != nil {
+		return tmplErr
+	}
+	t := textTemplate.Must(textTemplate.New("collector").Funcs(status.TextFmap()).Parse(string(tmpl)))
+	return t.Execute(buffer, data)
 }
