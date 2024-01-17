@@ -177,11 +177,11 @@ Resources:
         - Action: ec2:DescribeInstances
           Effect: Allow
           Resource: '*'
-          Sid: DatadogAgentlessScannerOfflineMode
+          Sid: DatadogAgentlessScannerOfflineModeLambdas
         - Action: ec2:DescribeRegions
           Effect: Allow
           Resource: '*'
-          Sid: DatadogAgentlessScannerOfflineMode
+          Sid: DatadogAgentlessScannerOfflineModeRegions
         - Action: ec2:DescribeVolumes
           Effect: Allow
           Resource: '*'
