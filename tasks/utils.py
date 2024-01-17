@@ -578,7 +578,7 @@ def timed(name="", quiet=False):
             print(f"{name} completed in {res.duration:.2f}s")
 
 
-def clean_nested_paths(paths: list[str]) -> list[str]:
+def clean_nested_paths(paths):
     """
     Clean a list of paths by removing paths that are included in other paths.
 
