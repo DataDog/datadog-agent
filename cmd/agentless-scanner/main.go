@@ -419,7 +419,11 @@ func scanCommand() *cobra.Command {
 		Use:   "scan",
 		Short: "execute a scan",
 		RunE: runWithModules(func(cmd *cobra.Command, args []string) error {
-			return scanCmd(flags.ARN, flags.Hostname, flags.Actions)
+			resourceARN, err := humanParseARN(flags.ARN)
+			if err != nil {
+				return err
+			}
+			return scanCmd(resourceARN, flags.Hostname, flags.Actions)
 		}),
 	}
 
@@ -466,7 +470,7 @@ func attachCommand() *cobra.Command {
 		Short: "Mount the given snapshot into /snapshots/<snapshot-id>/<part> using a network block device",
 		Args:  cobra.ExactArgs(1),
 		RunE: runWithModules(func(cmd *cobra.Command, args []string) error {
-			resourceARN, err := parseARN(args[0], resourceTypeSnapshot, resourceTypeVolume)
+			resourceARN, err := humanParseARN(args[0], resourceTypeSnapshot, resourceTypeVolume)
 			if err != nil {
 				return err
 			}
@@ -608,7 +612,7 @@ func getDefaultRolesMapping() rolesMapping {
 	return parseRolesMapping(roles)
 }
 
-func scanCmd(arn, scannedHostname string, actions []string) error {
+func scanCmd(resourceARN arn.ARN, scannedHostname string, actions []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -621,7 +625,7 @@ func scanCmd(arn, scannedHostname string, actions []string) error {
 	}
 
 	roles := getDefaultRolesMapping()
-	task, err := newScanTask(arn, scannedHostname, actions, roles, globalParams.diskMode)
+	task, err := newScanTask(resourceARN.String(), scannedHostname, actions, roles, globalParams.diskMode)
 	if err != nil {
 		return err
 	}
@@ -1124,6 +1128,32 @@ func parseARN(s string, expectedTypes ...resourceType) (arn.ARN, error) {
 		return arn.ARN{}, fmt.Errorf("bad arn: expecting one of these resource types %v but got %s", expectedTypes, resType)
 	}
 	return a, nil
+}
+
+func humanParseARN(s string, expectedTypes ...resourceType) (arn.ARN, error) {
+	if strings.HasPrefix(s, "arn:") {
+		return parseARN(s, expectedTypes...)
+	}
+	self, err := getSelfEC2InstanceIndentity(context.TODO())
+	if err != nil {
+		return arn.ARN{}, err
+	}
+	a := arn.ARN{
+		Partition: "aws",
+		Region:    self.Region,
+		AccountID: self.AccountID,
+		Resource:  s,
+	}
+	if strings.HasPrefix(s, "/") && fs.ValidPath(s) {
+		a.Partition = "localhost"
+	} else if strings.HasPrefix(s, "vol-") || strings.HasPrefix(s, "snap-") {
+		a.Service = "ec2"
+	} else if strings.HasPrefix(s, "function:") {
+		a.Service = "lambda"
+	} else {
+		return arn.ARN{}, fmt.Errorf("unable to parse resource: expecting an ARN for %v", expectedTypes)
+	}
+	return parseARN(a.String(), expectedTypes...)
 }
 
 var (
