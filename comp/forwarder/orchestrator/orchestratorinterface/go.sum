@@ -39,14 +39,6 @@ dmitri.shuralyov.com/gpu/mtl v0.0.0-20190408044501-666a987793e9/go.mod h1:H6x//7
 github.com/BurntSushi/toml v0.3.1 h1:WXkYYl6Yr3qBf1K79EBnL4mak0OimBfB0XUf9Vl28OQ=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
-github.com/DataDog/datadog-agent/cmd/agent/common/path v0.51.0-rc.2 h1:k7quK7Nk4q8UKHYfXzH5F8beZbm64/koL0QgX6M0HMs=
-github.com/DataDog/datadog-agent/cmd/agent/common/path v0.51.0-rc.2/go.mod h1:R2OQin8PNzv0r73boYfFcqdkIWU3qvgJFtDtBSYe4tI=
-github.com/DataDog/datadog-agent/comp/core/flare/types v0.51.0-rc.2 h1:ZkaW23KeBQ0FxG8FXztOCYeJL1P47URfrWZkaFRjZ0Q=
-github.com/DataDog/datadog-agent/comp/core/flare/types v0.51.0-rc.2/go.mod h1:h0h6cm8eqb1JnuqHMCdTir+c4IUlOUnOy6xrmvhQXOY=
-github.com/DataDog/datadog-agent/pkg/config/logs v0.51.0-rc.2 h1:/5nHCfOWvvkorn1MfNB296szAP5go2GD4U5uYNYCl70=
-github.com/DataDog/datadog-agent/pkg/config/logs v0.51.0-rc.2/go.mod h1:+YhjBlFyjfIg7mwKV53ZvDf3RLk1+uaacNzKlSIHM1I=
-github.com/DataDog/datadog-agent/pkg/obfuscate v0.51.0-rc.2 h1:9UFyYxw4koiMVHJfJqkbnbwJ25pghk/hJEOwJmgDggQ=
-github.com/DataDog/datadog-agent/pkg/obfuscate v0.51.0-rc.2/go.mod h1:Ai57GjsZUn9AOo4L9ZOdu5uTuGaAxXMh0kin544Lgw0=
 github.com/DataDog/datadog-agent/pkg/proto v0.51.0-rc.2 h1:7J+tqK3bWfOXZlLtHcvasokWQVq7UAKtrXTZMQgSYi0=
 github.com/DataDog/datadog-agent/pkg/proto v0.51.0-rc.2/go.mod h1:wjr5YlVvGip6VmAGzHrdBaGUu1LaA9B6gHvInm5kHiY=
 github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.51.0-rc.2 h1:lG8c2Clqdy7GlgdJUL6H5scTx7VofNZPunSodyoODpo=
