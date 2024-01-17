@@ -54,8 +54,6 @@ type Process struct {
 
 	PPid uint32 `field:"ppid"` // SECLDoc[ppid] Definition:`Parent process ID`
 
-	User string `field:"user"` // SECLDoc[user] Definition:`User`
-
 	ArgsEntry *ArgsEntry `field:"-"`
 	EnvsEntry *EnvsEntry `field:"-"`
 
