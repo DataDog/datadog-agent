@@ -255,7 +255,7 @@ func CheckApmDisabled(t *testing.T, client *TestClient) {
 		// PowerShell Restart-Service may restart trace-agent if it was already running, and
 		// trace-agent will run for a bit before exiting.
 		require.Eventually(tt, func() bool {
-			return AgentProcessIsRunning(client, "trace-agent")
+			return !AgentProcessIsRunning(client, "trace-agent")
 		}, 1*time.Minute, 500*time.Millisecond, "trace-agent should not be running ", err)
 	})
 }
