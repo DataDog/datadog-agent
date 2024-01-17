@@ -176,6 +176,7 @@ func (t *Tester) snapshotSystemfiles(tt *testing.T, remotePath string) error {
 		`C:\Windows\servicing\`,
 		`c:\Windows\System32\catroot2\`,
 		`c:\windows\System32\config\`,
+		`c:\windows\System32\sru\`,
 		`C:\Windows\ServiceProfiles\NetworkService\AppData\Local\Microsoft\Windows\DeliveryOptimization\Logs\`,
 		`C:\Windows\ServiceProfiles\NetworkService\AppData\Local\Microsoft\Windows\DeliveryOptimization\Cache\`,
 		`C:\Windows\SoftwareDistribution\DataStore\Logs\`,
@@ -208,7 +209,7 @@ func (t *Tester) snapshotSystemfiles(tt *testing.T, remotePath string) error {
 func (t *Tester) testDoesNotChangeSystemFiles(tt *testing.T) bool {
 	return tt.Run("does not remove system files", func(tt *testing.T) {
 		// Diff the two files on the remote host, selecting missing items
-		cmd := fmt.Sprintf(`Compare-Object -ReferenceObject (Get-Content "%s") -DifferenceObject (Get-Content "%s") | Where-Object -Property SideIndicator -EQ '<=' | Select -ExpandProperty InputObject | Select -ExpandProperty PSPath`, t.beforeInstallSystemDirListPath, t.afterUninstallSystemDirListPath)
+		cmd := fmt.Sprintf(`Compare-Object -ReferenceObject (Get-Content "%s") -DifferenceObject (Get-Content "%s") | Where-Object -Property SideIndicator -EQ '<=' | Select -ExpandProperty InputObject`, t.beforeInstallSystemDirListPath, t.afterUninstallSystemDirListPath)
 		output, err := t.host.Execute(cmd)
 		require.NoError(tt, err, "should compare system files")
 		output = strings.TrimSpace(output)
