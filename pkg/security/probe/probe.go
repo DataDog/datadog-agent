@@ -221,7 +221,7 @@ func traceEvent(fmt string, marshaller func() ([]byte, model.EventType, error)) 
 		seclog.Debugf("------trace Error ---- : %v", err)
 		return
 	}
-	seclog.Debugf("------trace success ---- : %v", string(EventJSON))
+	seclog.Debugf("------trace success ---- : %v", string(eventJSON))
 
 	seclog.DefaultLogger.TraceTagf(eventType, fmt, string(eventJSON))
 }
