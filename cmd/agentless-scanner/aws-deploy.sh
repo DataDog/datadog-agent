@@ -178,6 +178,10 @@ Resources:
           Effect: Allow
           Resource: '*'
           Sid: DatadogAgentlessScannerOfflineMode
+        - Action: ec2:DescribeRegions
+          Effect: Allow
+          Resource: '*'
+          Sid: DatadogAgentlessScannerOfflineMode
         - Action: ec2:DescribeVolumes
           Effect: Allow
           Resource: '*'
