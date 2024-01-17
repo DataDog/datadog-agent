@@ -16,4 +16,5 @@ update_rc_build_links:
     - set +x
     - export ATLASSIAN_PASSWORD=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.jira_read_api_token --with-decryption --query "Parameter.Value" --out text)
     - export ATLASSIAN_USERNAME=robot-jira-agentplatform@datadoghq.com
+    - set -x
     - inv -e release.update-build-links ${CI_COMMIT_REF_SLUG}

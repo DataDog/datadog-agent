@@ -90,7 +90,7 @@ def trigger_agent_pipeline(
     kitchen_tests=False,
     e2e_tests=False,
     rc_build=False,
-    rc_k8s_deployments=True,
+    rc_k8s_deployments=False,
 ):
     """
     Trigger a pipeline on the datadog-agent repositories. Multiple options are available:

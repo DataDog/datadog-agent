@@ -252,7 +252,7 @@ def run(
 
     Release Candidate related flags:
     Use --rc-build to mark the build as Release Candidate.
-    Use --rc-k8s-deployments to trigger a child pipeline that will deploy Release Candidate build to staging k8s clusters (only with --rc-build)
+    Use --rc-k8s-deployments to trigger a child pipeline that will deploy Release Candidate build to staging k8s clusters.
 
     By default, the nightly release.json entries (nightly and nightly-a7) are used.
     Use the --use-release-entries option to use the release-a6 and release-a7 release.json entries instead.
