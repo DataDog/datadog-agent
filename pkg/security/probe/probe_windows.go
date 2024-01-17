@@ -111,7 +111,7 @@ func (p *WindowsProbe) Start() error {
 					// potential actions
 					// - just log/count the error and keep going
 					// - restart underlying procmon with larger buffer size, at least if error keeps occurring
-					log.Warnf("insufficient buffer size %v", start.RequiredSize);
+					log.Warnf("insufficient buffer size %v", start.RequiredSize)
 
 				}
 
