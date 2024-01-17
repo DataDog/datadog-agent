@@ -1479,6 +1479,8 @@ def update_build_links(_ctx, new_version):
     for key in patterns:
         body = body.replace(key, patterns[key])
 
+    print(color_message(f"Updating QA Build links page with {new_version}", "bold"))
+
     try:
         confluence.update_page(BUILD_LINKS_PAGE_ID, title, body=body)
     except ApiError as e:
@@ -1489,6 +1491,7 @@ def update_build_links(_ctx, new_version):
             ),
             code=1,
         )
+    print(color_message("Build links page updated", "green"))
 
 
 def _create_build_links_patterns(current_version, new_version):
