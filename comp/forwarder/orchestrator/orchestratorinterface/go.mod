@@ -42,6 +42,14 @@ replace (
 
 require github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.0.0-00010101000000-000000000000
 
+// Internal deps fix version
+replace (
+	github.com/cihub/seelog => github.com/cihub/seelog v0.0.0-20151216151435-d2c6e5aa9fbf // v2.6
+	github.com/coreos/go-systemd => github.com/coreos/go-systemd v0.0.0-20180202092358-40e2722dffea
+	github.com/spf13/cast => github.com/DataDog/cast v1.3.1-0.20190301154711-1ee8c8bd14a3
+	github.com/ugorji/go => github.com/ugorji/go v1.1.7
+)
+
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.51.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log v0.0.0-00010101000000-000000000000 // indirect
