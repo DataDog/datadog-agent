@@ -98,6 +98,7 @@ import (
 	collectorStatus "github.com/DataDog/datadog-agent/pkg/status/collector"
 	endpointsStatus "github.com/DataDog/datadog-agent/pkg/status/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	httpproxyStatus "github.com/DataDog/datadog-agent/pkg/status/httpproxy"
 	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
 	otlpStatus "github.com/DataDog/datadog-agent/pkg/status/otlp"
 	systemprobeStatus "github.com/DataDog/datadog-agent/pkg/status/systemprobe"
@@ -346,6 +347,13 @@ func getSharedFxOption() fx.Option {
 				return status.NewInformationProvider(systemprobeStatus.Provider{
 					SocketPath: pkgconfig.SystemProbe.GetString("system_probe_config.sysprobe_socket"),
 				})
+			} else {
+				return status.NewInformationProvider(status.NoopProvider{})
+			}
+		}),
+		fx.Provide(func() status.InformationProvider {
+			if !pkgconfig.Datadog.GetBool("no_proxy_nonexact_match") {
+				return status.NewInformationProvider(httpproxyStatus.Provider{})
 			} else {
 				return status.NewInformationProvider(status.NoopProvider{})
 			}
