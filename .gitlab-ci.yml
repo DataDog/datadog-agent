@@ -291,7 +291,7 @@ variables:
 .if_not_e2e: &if_not_e2e
   if: $RUN_KITCHEN_TESTS == "false"
 
-.if_auto_e2e: &if_run_e2e
+.if_auto_e2e: &if_auto_e2e
   if: $RUN_E2E_TESTS == "auto"
 
 .if_disable_e2e: &if_disable_e2e
