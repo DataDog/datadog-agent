@@ -77,6 +77,7 @@ func (p *WindowsProbe) Start() error {
 
 		for {
 			var pce *model.ProcessCacheEntry
+			var err error
 			ev := p.zeroEvent()
 			var pidToCleanup uint32
 
@@ -98,7 +99,7 @@ func (p *WindowsProbe) Start() error {
 				// CreatingThreadId
 				// OwnerSidString
 
-				pce, err := p.Resolvers.ProcessResolver.AddNewEntry(pid, uint32(start.PPid), start.ImageFile, start.CmdLine)
+				pce, err = p.Resolvers.ProcessResolver.AddNewEntry(pid, uint32(start.PPid), start.ImageFile, start.CmdLine)
 				if err != nil {
 					log.Errorf("error in resolver %v", err)
 					continue
