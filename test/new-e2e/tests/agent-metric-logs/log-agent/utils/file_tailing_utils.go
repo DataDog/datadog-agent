@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
@@ -46,15 +47,13 @@ func AppendLog(ls LogsTestSuite, content string, recurrence int) {
 		t.Log("Generating Windows log.")
 		logPath = "C:\\logs\\hello-world.log"
 
-		// cmd := fmt.Sprintf("echo %s | Out-File -Encoding utf8 -FilePath %s -Append", logContent, logPath)
 		// Unless a log line is newline terminated, the log agent will not pick it up. This is a known behavior.
 		logContent = strings.ReplaceAll(logContent, "\n", "\r\n")
 
-		checkCmd = fmt.Sprintf("Get-Content %s", logPath)
+		checkCmd = fmt.Sprintf("type %s", logPath)
 		assert.EventuallyWithT(t, func(c *assert.CollectT) {
 			// WriteFile instead of echo since echo introduce encoding into the file.
 			bytes, err := ls.Env().RemoteHost.WriteFile(logPath, []byte(logContent))
-			// _, err := ls.Env().RemoteHost.Execute(cmd)
 			if assert.NoErrorf(c, err, "Error writing log: %v", err) {
 				t.Logf("Writing %d bytes to %s", bytes, logPath)
 			}
@@ -81,7 +80,7 @@ func AppendLog(ls LogsTestSuite, content string, recurrence int) {
 			assert.FailNowf(c, "Log content %s not found, instead received:: %s", content, output)
 		}
 		if strings.Contains(output, content) {
-			t.Logf("Finished generating %s log with content: '%s' \n", osStr, content)
+			t.Logf("Finished generating %s log with content: '%s' \n", osStr, output)
 		}
 	}, 2*time.Minute, 10*time.Second)
 }
@@ -155,6 +154,20 @@ func CleanUp(ls LogsTestSuite) {
 			ls.Env().RemoteHost.MustExecute("sudo rm -f /var/log/hello-world.log.old")
 			checkCmd = "ls /var/log/hello-world.log /var/log/hello-world.log.old 2>/dev/null || echo 'Files do not exist'"
 		case os.WindowsFamily:
+			if ls.IsDevMode() {
+				// Removing registry.json in DevMode because when the VM is reused, the agent would try to resume the file offset but the tests would truncate the log files.
+				t.Logf("Turning off agent")
+				_, err := ls.Env().RemoteHost.Execute("& \"$env:ProgramFiles\\Datadog\\Datadog Agent\\bin\\agent.exe\" stopservice")
+				require.NoError(t, err, "Unable to stop the agent")
+
+				t.Logf("Removing registry.json")
+				err = ls.Env().RemoteHost.RemoveAll("C:\\ProgramData\\Datadog\\run")
+				require.NoError(t, err, "Unable to remove agent registry ")
+
+				t.Logf("Turning on agent")
+				_, err = ls.Env().RemoteHost.Execute("& \"$env:ProgramFiles\\Datadog\\Datadog Agent\\bin\\agent.exe\" start-service")
+				require.NoError(t, err, "Unable to start the agent")
+			}
 			ls.Env().RemoteHost.Execute("if (Test-Path C:\\logs) { Remove-Item -Path C:\\logs -Recurse -Force }")
 			checkCmd = "if (Test-Path C:\\logs) { Get-ChildItem -Path C:\\logs\\hello-world.log } else { Write-Output 'No File exist to be removed' }"
 		}

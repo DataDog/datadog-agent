@@ -7,7 +7,6 @@ package windowsfiletailing
 
 import (
 	_ "embed"
-	"strings"
 	"testing"
 	"time"
 
@@ -58,14 +57,6 @@ func (s *WindowsFakeintakeSuite) BeforeTest(suiteName, testName string) {
 	// Flush server and reset aggregators before the test is ran
 	utils.CleanUp(s)
 
-	s.T().Logf("turning off agent")
-	s.Env().RemoteHost.Execute("& '$env:ProgramFiles\\Datadog\\Datadog Agent\\bin\\agent.exe' stopservice")
-	s.T().Logf("Removing runs directory")
-	s.Env().RemoteHost.RemoveAll("C:\\ProgramData\\Datadog\\runs")
-	time.Sleep(1 * time.Second)
-	s.T().Logf("turning on agent")
-	s.Env().RemoteHost.Execute("& '$env:ProgramFiles\\Datadog\\Datadog Agent\\bin\\agent.exe' start-service")
-
 	// Ensure no logs are present in fakeintake before testing starts
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		logs, err := s.Env().FakeIntake.Client().FilterLogs("hello")
@@ -84,14 +75,6 @@ func (s *WindowsFakeintakeSuite) TearDownSuite() {
 	// Flush server and reset aggregators after the test is ran
 	utils.CleanUp(s)
 
-	s.T().Logf("Turning off agent")
-	s.Env().RemoteHost.Execute("& '$env:ProgramFiles\\Datadog\\Datadog Agent\\bin\\agent.exe' stopservice")
-	s.T().Logf("Removing runs directory")
-	s.Env().RemoteHost.RemoveAll("C:\\ProgramData\\Datadog\\runs")
-	time.Sleep(1 * time.Second)
-	s.T().Logf("Turning on agent")
-	s.Env().RemoteHost.Execute("& '$env:ProgramFiles\\Datadog\\Datadog Agent\\bin\\agent.exe' start-service")
-
 	s.BaseSuite.TearDownSuite()
 }
 
@@ -104,11 +87,11 @@ func (s *WindowsFakeintakeSuite) TestWindowsLogTailing() {
 	// Given the agent configured to collect logs from a log file that has no read permissions,
 	// When new log line is generated inside the log file.
 	// Then the agent fail to collects the log line.
-	// s.Run("LogCollectionNoPermission", s.LogNoPermission)
+	s.Run("LogCollectionNoPermission", s.LogNoPermission)
 	// Given the agent configured to collect logs from a log file with reading permissions,
 	// When new log line is generated inside the log file.
 	// Then the agent collects the log line and forward it to the intake.
-	// s.Run("LogCollectionAfterPermission", s.LogCollectionAfterPermission)
+	s.Run("LogCollectionAfterPermission", s.LogCollectionAfterPermission)
 	// Given the agent configured to collect logs from a log file without reading permissions and new log line actively generating,
 	// When read permission is granted
 	// Then the agent collects the log line and forward it to the intake.
@@ -129,13 +112,13 @@ func (s *WindowsFakeintakeSuite) LogCollection() {
 	require.NoError(t, err, "Unable to create a new log file.")
 
 	// Adjust permissions of new log file before log generation
-	_, err = s.Env().RemoteHost.Execute("icacls C:\\logs\\hello-world.log /grant:r *S-1-1-0:F")
+	_, err = s.Env().RemoteHost.Execute("icacls C:\\logs\\hello-world.log /grant ddagentuser:R")
 	assert.NoError(t, err, "Unable to adjust permissions for the log file 'C:\\logs\\hello-world.log '.")
 
 	t.Logf("Permissions granted for new log file.")
 
 	// Generate log
-	utils.AppendLog(s, "hello-world", 10)
+	utils.AppendLog(s, "hello-world", 1)
 
 	// Check intake for new logs
 	utils.CheckLogs(s, "hello", "hello-world", true)
@@ -146,14 +129,11 @@ func (s *WindowsFakeintakeSuite) LogNoPermission() {
 	t := s.T()
 	utils.CheckLogFilePresence(s, logPath)
 
-	// Allow on only write permission to the log file so the agent cannot tail it
-	_, err := s.Env().RemoteHost.Execute("icacls C:\\logs\\hello-world.log /deny *S-1-1-0:F")
-	assert.NoError(t, err, "Unable to adjust permissions for the log file 'C:\\logs\\hello-world.log '.")
+	// Revoke read permission from ddagentuser to the ls
+	_, err := s.Env().RemoteHost.Execute("icacls C:\\logs\\hello-world.log /deny ddagentuser:R")
+	assert.NoError(t, err, "Unable to adjust permissions for the log file 'C:\\logs\\hello-world.log'")
 	t.Logf("Read permissions revoked")
-	// In Linux, file permissions are checked at the time of file opening, not during subsequent read or write operations
-	// => If the agent has already successfully opened a file for reading, it can continue to read from that file even if the read permissions are later removed
-	// => Restart the agent to force it to reopen the file
-	s.Env().RemoteHost.Execute("& \"$env:ProgramFiles\\Datadog\\Datadog Agent\\bin\\agent.exe\" restart-service")
+
 	// Generate logs and check the intake for no new logs because of revoked permissions
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		agentReady := s.Env().Agent.Client.IsReady()
@@ -175,7 +155,7 @@ func (s *WindowsFakeintakeSuite) LogCollectionAfterPermission() {
 	utils.AppendLog(s, "hello-after-permission-world", 1)
 
 	// Grant read permission
-	_, err := s.Env().RemoteHost.Execute("icacls C:\\logs\\hello-world.log /grant:r *S-1-1-0:F")
+	_, err := s.Env().RemoteHost.Execute("icacls C:\\logs\\hello-world.log /grant ddagentuser:R")
 	assert.NoError(t, err, "Unable to adjust permissions for the log file 'C:\\logs\\hello-world.log '.")
 	t.Logf("Permissions granted for log file.")
 
@@ -193,7 +173,7 @@ func (s *WindowsFakeintakeSuite) LogCollectionBeforePermission() {
 	t.Logf("Permissions reset to default.")
 
 	// Grant read permission
-	_, err = s.Env().RemoteHost.Execute("icacls C:\\logs\\hello-world.log /grant:r *S-1-1-0:F")
+	_, err = s.Env().RemoteHost.Execute("icacls C:\\logs\\hello-world.log /grant ddagentuser:R")
 	assert.NoError(t, err, "Unable to adjust permissions for the log file 'C:\\logs\\hello-world.log '.")
 	t.Logf("Permissions granted.")
 	// Wait for the agent to tail the log file since there is a delay between permissions being granted and the agent tailing the log file
@@ -212,16 +192,16 @@ func (s *WindowsFakeintakeSuite) LogRecreateRotation() {
 
 	// Rotate the log file and check if the agent is tailing the new log file.
 	// Delete and Recreate file rotation
-	output, err := s.Env().RemoteHost.Execute("umask 022")
-	assert.NoError(t, err, "Failed to set umask")
-
-	// Rotate the log file
-	s.Env().RemoteHost.Execute("sudo mv C:\\logs\\hello-world.log  C:\\logs\\hello-world.log .old && sudo touch C:\\logs\\hello-world.log ")
+	s.Env().RemoteHost.Execute("Rename-Item -Path C:\\logs\\hello-world.log -NewName hello-world.log.old ")
+	s.Env().RemoteHost.Execute("New-Item -Path C:\\logs\\hello-world.log -ItemType File ")
 
 	// Verify the old log file's existence after rotation
-	_, err = s.Env().RemoteHost.Execute("ls C:\\logs\\hello-world.log .old")
+	_, err := s.Env().RemoteHost.Execute("ls C:\\logs\\hello-world.log.old")
 	assert.NoError(t, err, "Failed to find the old log file after rotation")
-	assert.Equal(t, "true", strings.TrimSpace(output), "Unable to adjust permissions for the log file 'C:\\logs\\hello-world.log '.")
+
+	// Adjust permissions of new log file before log generation
+	_, err = s.Env().RemoteHost.Execute("icacls C:\\logs\\hello-world.log /grant ddagentuser:R")
+	assert.NoError(t, err, "Unable to adjust permissions for the log file 'C:\\logs\\hello-world.log '.")
 	t.Logf("Permissions granted for new log file.")
 
 	// Generate new logs
