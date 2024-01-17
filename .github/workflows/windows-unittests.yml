@@ -55,7 +55,7 @@ jobs:
           powershell.exe -Command ./tasks/winbuildscripts/pre-go-build.ps1
           # FIXME: skipping rtloader tests because they fail with a DLL-not-found error
           # inv -e rtloader.test
-          inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --profile --python-home-3=$pythonLocation --timeout=600
+          inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --profile --python-home-3=$pythonLocation --timeout=600 --skip-flakes
 
       - name: Upload Codecov results
         uses: codecov/codecov-action@v3
