@@ -7,6 +7,8 @@ package windowsfiletailing
 
 import (
 	_ "embed"
+	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -35,7 +37,7 @@ var logPath = "C:\\logs\\hello-world.log"
 // TestE2EVMFakeintakeSuite runs the E2E test suite for the log agent with a VM and fake intake.
 func TestE2EVMFakeintakeSuite(t *testing.T) {
 	s := &WindowsFakeintakeSuite{}
-	// devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
+	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(
 			awshost.WithEC2InstanceOptions(ec2.WithOS(testos.WindowsDefault)),
@@ -46,9 +48,9 @@ func TestE2EVMFakeintakeSuite(t *testing.T) {
 				agentparams.WithIntegration("custom_logs.d", logConfig)))),
 	}
 
-	// if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
-	options = append(options, e2e.WithDevMode())
-	// }
+	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
+		options = append(options, e2e.WithDevMode())
+	}
 	e2e.Run(t, s, options...)
 }
 
@@ -95,11 +97,11 @@ func (s *WindowsFakeintakeSuite) TestWindowsLogTailing() {
 	// Given the agent configured to collect logs from a log file without reading permissions and new log line actively generating,
 	// When read permission is granted
 	// Then the agent collects the log line and forward it to the intake.
-	// s.Run("LogCollectionBeforePermission", s.LogCollectionBeforePermission)
+	s.Run("LogCollectionBeforePermission", s.LogCollectionBeforePermission)
 	// Given the agent configured to collect logs from a specific log file
 	// When the log file is rotated
 	// Then the agent successfully collects the log line
-	// s.Run("LogRecreateRotation", s.LogRecreateRotation)
+	s.Run("LogRecreateRotation", s.LogRecreateRotation)
 }
 func (s *WindowsFakeintakeSuite) LogCollection() {
 	t := s.T()

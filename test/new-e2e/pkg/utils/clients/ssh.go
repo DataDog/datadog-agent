@@ -249,6 +249,30 @@ func WriteFile(client *ssh.Client, path string, content []byte) (int64, error) {
 	return io.Copy(f, reader)
 }
 
+// AppendFile append content to the file and returns the number of bytes appened and error if any
+func AppendFile(client *ssh.Client, path string, content []byte) (int64, error) {
+	sftpClient, err := sftp.NewClient(client)
+	if err != nil {
+		return 0, err
+	}
+	defer sftpClient.Close()
+
+	// Open the file in append mode and create it if it doesn't exist
+	f, err := sftpClient.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY)
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+
+	reader := bytes.NewReader(content)
+	written, err := io.Copy(f, reader)
+	if err != nil {
+		return 0, err
+	}
+
+	return written, nil
+}
+
 // ReadDir returns list of directory entries in path
 func ReadDir(client *ssh.Client, path string) ([]fs.DirEntry, error) {
 	sftpClient, err := sftp.NewClient(client)

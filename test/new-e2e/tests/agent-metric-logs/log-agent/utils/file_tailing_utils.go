@@ -52,8 +52,8 @@ func AppendLog(ls LogsTestSuite, content string, recurrence int) {
 
 		checkCmd = fmt.Sprintf("type %s", logPath)
 		assert.EventuallyWithT(t, func(c *assert.CollectT) {
-			// WriteFile instead of echo since echo introduce encoding into the file.
-			bytes, err := ls.Env().RemoteHost.WriteFile(logPath, []byte(logContent))
+			// AppendFile instead of echo since echo introduce encoding into the file.
+			bytes, err := ls.Env().RemoteHost.AppendFile(logPath, []byte(logContent))
 			if assert.NoErrorf(c, err, "Error writing log: %v", err) {
 				t.Logf("Writing %d bytes to %s", bytes, logPath)
 			}
@@ -80,7 +80,7 @@ func AppendLog(ls LogsTestSuite, content string, recurrence int) {
 			assert.FailNowf(c, "Log content %s not found, instead received:: %s", content, output)
 		}
 		if strings.Contains(output, content) {
-			t.Logf("Finished generating %s log with content: '%s' \n", osStr, output)
+			t.Logf("Finished generating %s log, log file's content is now: \n '%s' \n", osStr, output)
 		}
 	}, 2*time.Minute, 10*time.Second)
 }
