@@ -15,23 +15,23 @@ import (
 )
 
 // IsRunning returns true if process is running
-func IsRunning(host *components.RemoteHost, process string) (bool, error) {
+func IsRunning(host *components.RemoteHost, processName string) (bool, error) {
 	os := host.OSFamily
 	if os == componentos.LinuxFamily {
-		return isProcessRunningUnix(host, process)
+		return isProcessRunningUnix(host, processName)
 	} else if os == componentos.WindowsFamily {
-		return windows.IsProcessRunning(host, process)
+		return windows.IsProcessRunning(host, processName)
 	}
 	return false, fmt.Errorf("unsupported OS type: %v", os)
 }
 
-// FindPID returns list of PIDs that match process
-func FindPID(host *components.RemoteHost, process string) ([]int, error) {
+// FindPID returns list of PIDs that match processName
+func FindPID(host *components.RemoteHost, processName string) ([]int, error) {
 	os := host.OSFamily
 	if os == componentos.LinuxFamily {
-		return findPIDUnix(host, process)
+		return findPIDUnix(host, processName)
 	} else if os == componentos.WindowsFamily {
-		return windows.FindPID(host, process)
+		return windows.FindPID(host, processName)
 	}
 	return nil, fmt.Errorf("unsupported OS type: %v", os)
 }

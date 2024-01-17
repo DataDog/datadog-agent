@@ -13,16 +13,16 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
 
-func isProcessRunningUnix(host *components.RemoteHost, process string) (bool, error) {
-	_, err := host.Execute(fmt.Sprintf("pgrep -f %s", process))
+func isProcessRunningUnix(host *components.RemoteHost, processName string) (bool, error) {
+	_, err := host.Execute(fmt.Sprintf("pgrep -f %s", processName))
 	if err != nil {
 		return false, err
 	}
 	return true, nil
 }
 
-func findPIDUnix(host *components.RemoteHost, process string) ([]int, error) {
-	out, err := host.Execute(fmt.Sprintf("pgrep -f '%s'", process))
+func findPIDUnix(host *components.RemoteHost, processName string) ([]int, error) {
+	out, err := host.Execute(fmt.Sprintf("pgrep -f '%s'", processName))
 	if err != nil {
 		return nil, err
 	}
