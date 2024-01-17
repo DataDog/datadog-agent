@@ -75,7 +75,7 @@ stages:
   - package_deps_build
   - kernel_matrix_testing_prepare
   - kernel_matrix_testing_system_probe
-  - kernel_matrix_testing_security
+  - kernel_matrix_testing_security_agent
   - kernel_matrix_testing_cleanup
   - integration_test
   - benchmarks
