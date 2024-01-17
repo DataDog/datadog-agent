@@ -81,12 +81,8 @@ func (p *WindowsProbe) Start() error {
 			var err error
 			ev := p.zeroEvent()
 			var pidToCleanup uint32
-			log.Debugf("---------WindowsProbe------------  %v", p)
-			start2 := <-p.onStart
-			log.Debugf("---------ProcessStartNotification------------  %v", start2)
 			select {
 			case <-p.ctx.Done():
-				log.Debugf("---- ctx done ---------")
 				return
 
 			case <-p.onError:
