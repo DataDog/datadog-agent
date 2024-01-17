@@ -236,6 +236,7 @@
 /comp/core/workloadmeta @DataDog/container-integrations
 /comp/dogstatsd/statsd @DataDog/agent-shared-components
 /comp/forwarder/orchestrator @DataDog/agent-metrics-logs
+/comp/metadata/packagesigning @DataDog/agent-platform
 # END COMPONENTS
 
 # pkg
