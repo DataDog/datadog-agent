@@ -33,6 +33,10 @@ func TestFindContainerID(t *testing.T) {
 			input:  "/docker/aAbBcCdDeEfF2345678901234567890123456789012345678901234567890123",
 			output: "aAbBcCdDeEfF2345678901234567890123456789012345678901234567890123",
 		},
+		{ // another version proc based
+			input:  "/kubepods.slice/kubepods-pod48d25824_cbe2_4fdc_9928_5bb49e05473d.slice/cri-containerd-c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad.scope",
+			output: "c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad",
+		},
 		{ // with prefix/suffix
 			input:  "prefixaAbBcCdDeEfF2345678901234567890123456789012345678901234567890123suffix",
 			output: "",

@@ -24,7 +24,7 @@ var wildContainerIDPattern = regexp.MustCompilePOSIX(WildContainerIDPatternStr)
 
 // FindContainerID extracts the first sub string that matches the pattern of a container ID
 func FindContainerID(s string) string {
-	if strings.Contains(s, "docker") {
+	if strings.Contains(s, "/docker/") || strings.Contains(s, "/kubepods.slice/") {
 		return wildContainerIDPattern.FindString(s)
 	}
 	return strictContainerIDPattern.FindString(s)
