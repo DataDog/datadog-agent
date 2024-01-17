@@ -65,14 +65,6 @@ func TestAgentSuite(t *testing.T) {
 
 func (a *agentSuite) SetupSuite() {
 	a.BaseSuite.SetupSuite()
-
-	// Create temporary directory
-	tempDir := a.Env().RemoteHost.MustExecute("mktemp -d")
-	a.dirname = strings.TrimSuffix(tempDir, "\n")
-	a.filename = fmt.Sprintf("%s/secret", a.dirname)
-	a.testID = uuid.NewString()[:4]
-	a.desc = fmt.Sprintf("e2e test rule %s", a.testID)
-	a.agentRuleName = fmt.Sprintf("new_e2e_agent_rule_%s", a.testID)
 	a.apiClient = cws.NewAPIClient()
 }
 
@@ -88,6 +80,14 @@ func (a *agentSuite) TearDownSuite() {
 }
 
 func (a *agentSuite) TestOpenSignal() {
+	// Create temporary directory
+	tempDir := a.Env().RemoteHost.MustExecute("mktemp -d")
+	a.dirname = strings.TrimSuffix(tempDir, "\n")
+	a.filename = fmt.Sprintf("%s/secret", a.dirname)
+	a.testID = uuid.NewString()[:4]
+	a.desc = fmt.Sprintf("e2e test rule %s", a.testID)
+	a.agentRuleName = fmt.Sprintf("new_e2e_agent_rule_%s", a.testID)
+
 	// Create CWS Agent rule
 	rule := fmt.Sprintf("open.file.path == \"%s\"", a.filename)
 	res, err := a.apiClient.CreateCWSAgentRule(a.agentRuleName, a.desc, rule)

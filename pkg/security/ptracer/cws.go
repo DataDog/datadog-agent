@@ -9,7 +9,6 @@
 package ptracer
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -237,22 +236,10 @@ func handleNameToHandleAtRet(tracer *Tracer, process *Process, msg *ebpfless.Sys
 	if err != nil {
 		return
 	}
-	var handleBytes uint32
-	var handleType int32
-	buf := bytes.NewReader(pFileHandleData[:4])
-	err = binary.Read(buf, native.Endian, &handleBytes)
-	if err != nil {
-		return
-	}
-	buf = bytes.NewReader(pFileHandleData[4:8])
-	err = binary.Read(buf, native.Endian, &handleType)
-	if err != nil {
-		return
-	}
 
 	key := fileHandleKey{
-		handleBytes: handleBytes,
-		handleType:  handleType,
+		handleBytes: binary.BigEndian.Uint32(pFileHandleData[:4]),
+		handleType:  int32(binary.BigEndian.Uint32(pFileHandleData[4:8])),
 	}
 	process.Res.FileHandleCache[key] = &fileHandleVal{
 		pathName: msg.Open.Filename,
@@ -264,22 +251,10 @@ func handleOpenByHandleAt(tracer *Tracer, process *Process, msg *ebpfless.Syscal
 	if err != nil {
 		return err
 	}
-	var handleBytes uint32
-	var handleType int32
-	buf := bytes.NewReader(pFileHandleData[:4])
-	err = binary.Read(buf, native.Endian, &handleBytes)
-	if err != nil {
-		return err
-	}
-	buf = bytes.NewReader(pFileHandleData[4:8])
-	err = binary.Read(buf, native.Endian, &handleType)
-	if err != nil {
-		return err
-	}
 
 	key := fileHandleKey{
-		handleBytes: handleBytes,
-		handleType:  handleType,
+		handleBytes: binary.BigEndian.Uint32(pFileHandleData[:4]),
+		handleType:  int32(binary.BigEndian.Uint32(pFileHandleData[4:8])),
 	}
 	val, ok := process.Res.FileHandleCache[key]
 	if !ok {
@@ -700,47 +675,20 @@ func handleClose(tracer *Tracer, process *Process, _ *ebpfless.SyscallMsg, regs 
 }
 
 func handleCapset(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
-	pCaps, err := tracer.ReadArgData(process.Pid, regs, 1, 24 /*sizeof uint32 x3 x2*/)
+	pCapsData, err := tracer.ReadArgData(process.Pid, regs, 1, 24 /*sizeof uint32 x3 x2*/)
 	if err != nil {
 		return err
 	}
-	var (
-		tmp       uint32
-		effective uint64
-		permitted uint64
-	)
 
 	// extract low bytes of effective caps
-	buf := bytes.NewReader(pCaps[:4])
-	err = binary.Read(buf, native.Endian, &tmp)
-	if err != nil {
-		return err
-	}
-	effective = uint64(tmp)
-	// extract high bytes of effective caps
-	buf = bytes.NewReader(pCaps[12:16])
-	err = binary.Read(buf, native.Endian, &tmp)
-	if err != nil {
-		return err
-	}
-	// merge them together
-	effective |= uint64(tmp) << 32
+	effective := uint64(binary.NativeEndian.Uint32(pCapsData[0:4]))
+	// extract high bytes of effective caps, merge them together
+	effective |= uint64(binary.NativeEndian.Uint32(pCapsData[12:16])) << 32
 
 	// extract low bytes of permitted caps
-	buf = bytes.NewReader(pCaps[4:8])
-	err = binary.Read(buf, native.Endian, &tmp)
-	if err != nil {
-		return err
-	}
-	permitted = uint64(tmp)
-	// extract high bytes of permitted caps
-	buf = bytes.NewReader(pCaps[16:20])
-	err = binary.Read(buf, native.Endian, &tmp)
-	if err != nil {
-		return err
-	}
-	// merge them together
-	permitted |= uint64(tmp) << 32
+	permitted := uint64(binary.NativeEndian.Uint32(pCapsData[4:8]))
+	// extract high bytes of permitted caps,  merge them together
+	permitted |= uint64(binary.NativeEndian.Uint32(pCapsData[16:20])) << 32
 
 	msg.Type = ebpfless.SyscallTypeCapset
 	msg.Capset = &ebpfless.CapsetSyscallMsg{

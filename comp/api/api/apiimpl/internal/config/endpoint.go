@@ -33,7 +33,7 @@ type configEndpoint struct {
 	successExpvar      expvar.Map
 	unauthorizedExpvar expvar.Map
 	unsetExpvar        expvar.Map
-	failedExpvar       expvar.Map
+	errorsExpvar       expvar.Map
 }
 
 func (c *configEndpoint) serveHTTP(w http.ResponseWriter, r *http.Request) {
@@ -75,7 +75,7 @@ func getConfigEndpoint(cfg config.Reader, authorizedConfigPaths authorizedSet, e
 		"success":      &configEndpoint.successExpvar,
 		"unauthorized": &configEndpoint.unauthorizedExpvar,
 		"unset":        &configEndpoint.unsetExpvar,
-		"failed":       &configEndpoint.failedExpvar,
+		"errors":       &configEndpoint.errorsExpvar,
 	} {
 		configEndpoint.expvars.Set(name, expv)
 	}
@@ -109,7 +109,7 @@ func (c *configEndpoint) getConfigValueAsJSON(r *http.Request) ([]byte, int, err
 
 	body, err := json.Marshal(value)
 	if err != nil {
-		c.failedExpvar.Add(path, 1)
+		c.errorsExpvar.Add(path, 1)
 		return nil, http.StatusInternalServerError, fmt.Errorf("could not marshal config value of '%s': %v", path, err)
 	}
 

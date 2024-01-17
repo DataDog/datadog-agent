@@ -62,6 +62,12 @@ The payload is a JSON dict with the following fields
     data). On `ec2` Nitro instances, this contains the EC2 instance ID. This was introduced in `7.41.0`/`6.41.0`.
   - `dmi_board_vendor` - **string**: the DMI board vendor (Unix only, empty string on Windows or if we can't read the
     data). On `ec2` Nitro instances, this might equal "Amazon EC2". This was introduced in `7.41.0`/`6.41.0`.
+  - `linux_package_signing_enabled` - **boolean**: is true if package signing is enabled on the host
+    - It checks the presence of `no-debsig` in `/etc/dpkg/dpkg.cfg` for hosts relying on APT as package manager.
+    - It checks the value of `gpgcheck` in the `[main]` repo file definition for distributions using YUM, DNF
+      or ZYPPER as package manager.
+  - `rpm_global_repo_gpg_check_enabled` - **boolean**: reflects the value of `repo_gpgcheck` in the `[main]` repo file
+    of hosts relying on YUM, DNF or ZYPPER as package manager
 
 ## Example Payload
 
@@ -98,7 +104,9 @@ Here an example of an inventory payload:
         "hypervisor_guest_uuid": "ec24ce06-9ac4-42df-9c10-14772aeb06d7",
         "dmi_product_uuid": "ec24ce06-9ac4-42df-9c10-14772aeb06d7",
         "dmi_board_asset_tag": "i-abcedf",
-        "dmi_board_vendor": "Amazon EC2"
+        "dmi_board_vendor": "Amazon EC2",
+        "linux_package_signing_enabled": true,
+        "rpm_global_repo_gpg_check_enabled": false
     },
     "hostname": "my-host",
     "timestamp": 1631281754507358895
