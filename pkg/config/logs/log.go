@@ -259,7 +259,7 @@ func (s *logWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-const tlsHandshakeErrorPrefix = "http: TLS handshake error"
+const tlsHandshakeErrorKeyword = "http: TLS handshake error"
 
 // tlsHandshakeErrorWriter writes TLS handshake errors to log with
 // debug level, to avoid flooding of tls handshake errors.
@@ -281,7 +281,7 @@ func NewTLSHandshakeErrorWriter(additionalDepth int, logLevel seelog.LogLevel) (
 
 // Write writes TLS handshake errors to log with debug level.
 func (t *tlsHandshakeErrorWriter) Write(p []byte) (n int, err error) {
-	if strings.HasPrefix(string(p), tlsHandshakeErrorPrefix) {
+	if strings.Contains(string(p), tlsHandshakeErrorKeyword) {
 		log.DebugStackDepth(2, strings.TrimSpace(string(p)))
 		return len(p), nil
 	}
