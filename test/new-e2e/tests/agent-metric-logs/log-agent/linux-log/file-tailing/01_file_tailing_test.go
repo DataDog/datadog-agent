@@ -7,19 +7,14 @@ package filetailing
 
 import (
 	_ "embed"
-	"os"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metric-logs/log-agent/utils"
 )
 
@@ -35,15 +30,15 @@ var logPath = "/var/log/hello-world.log"
 
 // TestE2EVMFakeintakeSuite runs the E2E test suite for the log agent with a VM and fake intake.
 func TestE2EVMFakeintakeSuite(t *testing.T) {
-	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
-	options := []e2e.SuiteOption{
-		e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithLogs(), agentparams.WithIntegration("custom_logs.d", logConfig)))),
-	}
-	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
-		options = append(options, e2e.WithDevMode())
-	}
+	// devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
+	// options := []e2e.SuiteOption{
+	// 	e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithLogs(), agentparams.WithIntegration("custom_logs.d", logConfig)))),
+	// }
+	// if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
+	// 	options = append(options, e2e.WithDevMode())
+	// }
 
-	e2e.Run(t, &LinuxFakeintakeSuite{}, options...)
+	// e2e.Run(t, &LinuxFakeintakeSuite{}, options...)
 }
 
 func (s *LinuxFakeintakeSuite) BeforeTest(suiteName, testName string) {

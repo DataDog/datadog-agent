@@ -21,10 +21,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-//go:embed log-config/utf-16-le-log-config.yaml
+//go:embed log-config/utf-16-le.yaml
 var utfLittleEndianLogConfig []byte
 
-//go:embed log-config/utf-16-be-log-config.yaml
+//go:embed log-config/utf-16-be.yaml
 var utfBigEndianLogConfig []byte
 
 const service = "utfservice"
@@ -46,12 +46,6 @@ func TestUtfSuite(t *testing.T) {
 	}
 
 	e2e.Run(t, s, options...)
-}
-
-func (s *UtfSuite) generateUtfLog(endianness, content string) {
-	s.T().Helper()
-	utfLogGenerationCommand := fmt.Sprintf(`sudo python3 -c "f = open('/var/log/hello-world-utf.log', 'ab'); t = '%s\n'.encode('utf-16-%s'); f.write(t); f.close()"`, content, endianness)
-	s.Env().RemoteHost.MustExecute(utfLogGenerationCommand)
 }
 
 func (s *UtfSuite) BeforeTest(suiteName, testName string) {
@@ -126,4 +120,10 @@ func (s *UtfSuite) testUtfLittleEndianCollection() {
 		assert.NoErrorf(c, err, "Error found: %s", err)
 		assert.NotEmpty(c, logs, "Expected at least 1 log with content: '%s', from service: %s.", content, service)
 	}, 2*time.Minute, 10*time.Second)
+}
+
+func (s *UtfSuite) generateUtfLog(endianness, content string) {
+	s.T().Helper()
+	utfLogGenerationCommand := fmt.Sprintf(`sudo python3 -c "f = open('/var/log/hello-world-utf.log', 'ab'); t = '%s\n'.encode('utf-16-%s'); f.write(t); f.close()"`, content, endianness)
+	s.Env().RemoteHost.MustExecute(utfLogGenerationCommand)
 }
