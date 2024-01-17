@@ -205,6 +205,7 @@ variables:
   CLANG_LLVM_VER: 12.0.1
   KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-00e807c0351f270b7"
   KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-0be4fd85ce146ab3b"
+  RUN_E2E_TESTS: "manual"  # Should be "auto", "manual", "off" it will change the trigger condition for new-e2e tests on branch != main
 
 #
 # Condition mixins for simplification of rules
@@ -290,11 +291,11 @@ variables:
 .if_not_e2e: &if_not_e2e
   if: $RUN_KITCHEN_TESTS == "false"
 
-.if_run_e2e: &if_run_e2e
-  if: $RUN_E2E_TESTS == "true"
+.if_auto_e2e: &if_run_e2e
+  if: $RUN_E2E_TESTS == "auto"
 
 .if_disable_e2e: &if_disable_e2e
-  if: $RUN_E2E_TESTS == "false"
+  if: $RUN_E2E_TESTS == "off"
 
 .if_deploy_on_beta_repo_branch: &if_deploy_on_beta_repo_branch
   if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta"
@@ -783,7 +784,7 @@ workflow:
   - when: on_success
 
 except_no_tests_no_deploy:
-  - if: $RUN_KITCHEN_TESTS == "false" && $DEPLOY_AGENT == "false" && $RUN_E2E_TESTS == "false"
+  - if: $RUN_KITCHEN_TESTS == "false" && $DEPLOY_AGENT == "false" && $RUN_E2E_TESTS == "off"
     when: never
 
 .on_a6_except_deploy:
@@ -1019,9 +1020,9 @@ except_no_tests_no_deploy:
     when: never
 
 .if_run_e2e_tests:
-  - <<: *if_run_e2e
   - <<: *if_disable_e2e
     when: never
+  - <<: *if_auto_e2e
 
 .on_omnibus_change:
   - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
