@@ -10,4 +10,5 @@ include:
   - /.gitlab/functional_test/system_probe_windows.yml
   - /.gitlab/kernel_version_testing/common.yml
   - /.gitlab/kernel_version_testing/system_probe.yml
+  - /.gitlab/kernel_version_testing/security_agent.yml
   - /.gitlab/functional_test_sysprobe/system_probe.yml
