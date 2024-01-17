@@ -1,5 +1,5 @@
 # post_rc_build stage
-# Contains jobs to trigger a pipeline in our k8s-datadog-agent-ops repo to deploy release candidate build
+# Contains jobs that automate post-build Release Candidate tasks
 ---
 update_rc_build_links:
   stage: post_rc_build
