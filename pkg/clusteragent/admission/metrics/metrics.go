@@ -80,4 +80,7 @@ var (
 	PatchErrors = telemetry.NewCounterWithOpts("admission_webhooks", "patcher_errors",
 		[]string{}, "Number of patch errors.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
+	TLSHandshakeErrors = telemetry.NewCounterWithOpts("admission_webhooks", "tls_handshake_errors",
+		[]string{}, "Number of tls handshake errors.",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
 )

@@ -24,6 +24,11 @@ var (
 		[]string{"handler", "status", "forwarded"}, "Poll duration distribution by config provider (in seconds).",
 		prometheus.DefBuckets,
 		telemetry.Options{NoDoubleUnderscoreSep: true})
+
+	// TLSHandshakeErrors counts the number of requests dropped due to TLS handshake errors
+	TLSHandshakeErrors = telemetry.NewCounterWithOpts("", "api_server_tls_handshake_errors",
+		[]string{}, "Number of tls handshake errors from cluster-agent http api server.",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
 )
 
 // TelemetryHandler provides a http handler and emits requests telemetry for it.
