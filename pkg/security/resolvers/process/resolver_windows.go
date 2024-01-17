@@ -111,7 +111,7 @@ func (p *Resolver) AddNewEntry(pid uint32, ppid uint32, file string, commandLine
 			e.Process.User = username
 		}
 	}
-
+	log.Debugf("------------- username : %v", e.Process.User)
 	e.Process.CmdLine = utils.NormalizePath(commandLine)
 	e.Process.FileEvent.PathnameStr = utils.NormalizePath(file)
 	e.Process.FileEvent.BasenameStr = filepath.Base(e.Process.FileEvent.PathnameStr)
