@@ -89,7 +89,8 @@ def trigger_agent_pipeline(
     all_builds=False,
     kitchen_tests=False,
     e2e_tests=False,
-    rc_k8s_deployments=False,
+    rc_build=False,
+    rc_k8s_deployments=True,
 ):
     """
     Trigger a pipeline on the datadog-agent repositories. Multiple options are available:
@@ -130,6 +131,9 @@ def trigger_agent_pipeline(
 
     if branch is not None:
         args["BUCKET_BRANCH"] = branch
+
+    if rc_build:
+        args["RC_BUILD"] = "true"
 
     if rc_k8s_deployments:
         args["RC_K8S_DEPLOYMENTS"] = "true"

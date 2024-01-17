@@ -1231,6 +1231,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=Fal
         major_versions=major_versions,
         repo_branch="beta",
         deploy=True,
+        rc_build=True,
         rc_k8s_deployments=k8s_deployments,
     )
 
