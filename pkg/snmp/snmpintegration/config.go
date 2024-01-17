@@ -6,6 +6,11 @@
 //nolint:revive // TODO(NDM) Fix revive linter
 package snmpintegration
 
+import (
+	"encoding/json"
+	"fmt"
+)
+
 // InterfaceConfig interface related configs (e.g. interface speed override)
 type InterfaceConfig struct {
 	MatchField string   `mapstructure:"match_field" yaml:"match_field" json:"match_field"` // e.g. name, index
@@ -26,4 +31,25 @@ type PingConfig struct {
 
 type PingLinuxConfig struct {
 	UseRawSocket *bool `mapstructure:"use_raw_socket" yaml:"use_raw_socket" json:"use_raw_socket"`
+}
+
+func (pc *PingConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var pingCfg PingConfig
+	err := unmarshal(&pingCfg)
+	// Needed for autodiscovery case where the passed config will be a string
+	if err != nil {
+		var pingCfgJSON string
+		if err = unmarshal(&pingCfgJSON); err != nil {
+			return fmt.Errorf("cannot unmarshal to string: %s", err)
+		}
+		if pingCfgJSON == "" {
+			return nil
+		}
+		if err = json.Unmarshal([]byte(pingCfgJSON), &pingCfg); err != nil {
+			return fmt.Errorf("cannot unmarshal json to snmpintegration.PingConfig: %s", err)
+		}
+	}
+
+	*pc = pingCfg
+	return nil
 }

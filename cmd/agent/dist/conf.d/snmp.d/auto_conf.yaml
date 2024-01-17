@@ -145,4 +145,4 @@ instances:
     ## From snmp_listener, the value is a string of json content
     ## Example: `{enabled: true, timeout: 4000, interval: 500, count: 3, linux: {use_raw_socket: true}}`
     #
-    ping: "%%extra_ping_config%%"
+    ping: "%%extra_ping%%"
