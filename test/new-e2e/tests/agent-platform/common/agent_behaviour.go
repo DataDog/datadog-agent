@@ -256,7 +256,7 @@ func CheckApmEnabled(t *testing.T, client *TestClient) {
 
 // CheckApmDisabled runs tests to check the agent behave properly when APM is disabled
 func CheckApmDisabled(t *testing.T, client *TestClient) {
-	t.Run("port not bound when disabled", func(tt *testing.T) {
+	t.Run("trace-agent not running when disabled", func(tt *testing.T) {
 		configFilePath := client.Helper.GetConfigFolder() + client.Helper.GetConfigFileName()
 
 		err := client.SetConfig(configFilePath, "apm_config.enabled", "false")
@@ -265,9 +265,14 @@ func CheckApmDisabled(t *testing.T, client *TestClient) {
 		_, err = client.SvcManager.Restart(client.Helper.GetServiceName())
 		require.NoError(tt, err)
 
-		bound, err := GetBoundPort(client, 8126)
-		require.NoError(tt, err)
-		require.Nil(tt, bound, "port should not be bound when apm is manually disabled")
+		// On Linux, trace-agent will be started by the service manager and then exit
+		// after a bit if it is not enabled.
+		// On Windows, datadog-agent won't start trace-agent if it is not enabled, however
+		// PowerShell Restart-Service may restart trace-agent if it was already running, and
+		// trace-agent will run for a bit before exiting.
+		require.Eventually(tt, func() bool {
+			return AgentProcessIsRunning(client, "trace-agent")
+		}, 1*time.Minute, 500*time.Millisecond, "trace-agent should not be running ", err)
 	})
 }
 
