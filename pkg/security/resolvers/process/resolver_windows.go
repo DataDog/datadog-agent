@@ -70,7 +70,7 @@ func NewResolver(_ *config.Config, statsdClient statsd.ClientInterface, scrubber
 	p.processCacheEntryPool = NewProcessCacheEntryPool(func() { p.cacheSize.Dec() })
 
 	// create a cache for the username resolution
-	cache, err := lru.New[string, *EntryCache](userResolutionCacheSize)
+	cache, err := lru.New[string, string](userResolutionCacheSize)
 	if err != nil {
 		return nil, err
 	}
@@ -278,19 +278,21 @@ func (p *Resolver) GetUser(ownerSidString string) (name string) {
 		return username
 	}
 
-	if !p.userLookupLimiter.Allow() {
+	if !p.userLookupLimiter.Allow(1) {
 		// If the username was not already resolved but the limit is hit, return an empty string
 		return ""
 	}
 	// The limit is not hit and we need to resolve the username
-	var res string
-	sid := windows.StringToSid(OwnerSidString)
-	user, domain, _, _ := sid.LookupAccount("")
-	if nil != err {
-		res = ""
-	} else {
-		res = domain + "\\" + user
+	sid, err := windows.StringToSid(ownerSidString)
+	if err != nil {
+		p.usersCache.Add(ownerSidString, "")
+		return ""
 	}
-	p.usersCache.Add(ownerSidString, res)
-	return res
+	user, domain, _, err := sid.LookupAccount("")
+	if err != nil {
+		p.usersCache.Add(ownerSidString, "")
+		return ""
+	}
+	p.usersCache.Add(ownerSidString, domain+"\\"+user)
+	return domain + "\\" + user
 }
