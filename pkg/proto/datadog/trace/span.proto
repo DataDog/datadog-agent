@@ -61,5 +61,5 @@ message Span {
     map<string, bytes> meta_struct = 13;
     // span_links represents a collection of links, where each link defines a causal relationship between two spans.
     // @gotags: json:"span_links,omitempty" msg:"span_links,omitempty"
-    repeated SpanLink span_links = 14;
+    repeated SpanLink spanLinks = 14;
 }
