@@ -8,13 +8,13 @@ package manager
 import (
 	"regexp"
 
-	"github.com/DataDog/gopsutil/process"
+	"github.com/shirou/gopsutil/v3/process"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type processes map[int32]*process.FilledProcess
+type processes map[int32]string
 
 var (
 	defaultRegexps = []*regexp.Regexp{
@@ -25,7 +25,20 @@ var (
 )
 
 func fetchProcesses() (processes, error) {
-	return process.AllProcesses()
+	ps, err := process.Processes()
+	if err != nil {
+		return nil, err
+	}
+
+	procs := make(processes)
+	for _, p := range ps {
+		name, err := p.Name()
+		if err != nil {
+			return nil, err
+		}
+		procs[p.Pid] = name
+	}
+	return procs, nil
 }
 
 type noProcessExit struct {
@@ -62,16 +75,16 @@ func (s *noProcessExit) check() bool {
 		return false
 	}
 
-	for _, p := range processes {
+	for pid, name := range processes {
 		isExcluded := false
 		for _, r := range s.excludedProcesses {
-			if isExcluded = r.MatchString(p.Name); isExcluded {
+			if isExcluded = r.MatchString(name); isExcluded {
 				break
 			}
 		}
 
 		if !isExcluded {
-			log.Debugf("Processes preventing autoexit: p: %d - %s", p.Pid, p.Name)
+			log.Debugf("Processes preventing autoexit: p: %d - %s", pid, name)
 			return false
 		}
 	}
