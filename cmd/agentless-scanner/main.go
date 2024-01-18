@@ -2954,10 +2954,17 @@ func mountDevice(ctx context.Context, scan *scanTask, partitions []devicePartiti
 			panic(fmt.Errorf("unsupported filesystem type %s", mp.fsType))
 		}
 
-		// Replace fsid of btrfs partition with randomly generated UUID.
 		if mp.fsType == "btrfs" {
+			// Replace fsid of btrfs partition with randomly generated UUID.
 			log.Debugf("execing btrfstune -f -u %s", mp.devicePath)
 			_, err := exec.CommandContext(ctx, "btrfstune", "-f", "-u", mp.devicePath).CombinedOutput()
+			if err != nil {
+				return nil, err
+			}
+
+			// Clear the tree log, to prevent "failed to read log tree" warning, which leads to "open_ctree failed" error.
+			log.Debugf("execing btrfs rescue zero-log %s", mp.devicePath)
+			_, err = exec.CommandContext(ctx, "btrfs", "rescue", "zero-log", mp.devicePath).CombinedOutput()
 			if err != nil {
 				return nil, err
 			}
