@@ -948,13 +948,6 @@ func (ns *networkState) DumpState(clientID string) map[string]interface{} {
 	return data
 }
 
-func isSNAT(c *ConnectionStats) bool {
-	return c.Direction == INCOMING &&
-		c.IPTranslation != nil &&
-		(c.IPTranslation.ReplDstIP.Compare(c.Source.Addr) != 0 ||
-			c.IPTranslation.ReplDstPort != c.SPort)
-}
-
 func isDNAT(c *ConnectionStats) bool {
 	return c.Direction == OUTGOING &&
 		c.IPTranslation != nil &&
@@ -963,6 +956,29 @@ func isDNAT(c *ConnectionStats) bool {
 }
 
 func (ns *networkState) determineConnectionIntraHost(connections slice.Chain[ConnectionStats]) {
+	type connKey struct {
+		Address util.Address
+		Port    uint16
+		Type    ConnectionType
+	}
+
+	newConnKey := func(connStat *ConnectionStats, useRAddrAsKey bool) connKey {
+		key := connKey{Type: connStat.Type}
+		if useRAddrAsKey {
+			if connStat.IPTranslation == nil {
+				key.Address = connStat.Dest
+				key.Port = connStat.DPort
+			} else {
+				key.Address = connStat.IPTranslation.ReplSrcIP
+				key.Port = connStat.IPTranslation.ReplSrcPort
+			}
+		} else {
+			key.Address = connStat.Source
+			key.Port = connStat.SPort
+		}
+		return key
+	}
+
 	type dnatKey struct {
 		src, dst     util.Address
 		sport, dport uint16
@@ -970,16 +986,10 @@ func (ns *networkState) determineConnectionIntraHost(connections slice.Chain[Con
 	}
 
 	dnats := make(map[dnatKey]struct{}, connections.Len()/2)
-	lAddrs := make(map[util.Address]struct{})
+	lAddrs := make(map[connKey]struct{}, connections.Len())
 	connections.Iterate(func(_ int, conn *ConnectionStats) {
-		source := conn.Source
-		if isSNAT(conn) {
-			source = conn.IPTranslation.ReplDstIP
-		}
-
-		if !source.IsLoopback() {
-			lAddrs[conn.Source] = struct{}{}
-		}
+		k := newConnKey(conn, false)
+		lAddrs[k] = struct{}{}
 
 		if isDNAT(conn) {
 			dnats[dnatKey{
@@ -994,18 +1004,13 @@ func (ns *networkState) determineConnectionIntraHost(connections slice.Chain[Con
 
 	// do not use range value here since it will create a copy of the ConnectionStats object
 	connections.Iterate(func(_ int, conn *ConnectionStats) {
-		if !conn.IntraHost {
-			if conn.Source == conn.Dest ||
-				(conn.Source.IsLoopback() && conn.Dest.IsLoopback()) ||
-				(conn.IPTranslation != nil && conn.IPTranslation.ReplSrcIP.IsLoopback()) {
-				conn.IntraHost = true
-			} else if _, ok := lAddrs[conn.Source]; ok {
-				if conn.IPTranslation == nil {
-					_, conn.IntraHost = lAddrs[conn.Dest]
-				} else {
-					_, conn.IntraHost = lAddrs[conn.IPTranslation.ReplSrcIP]
-				}
-			}
+		if conn.Source == conn.Dest ||
+			(conn.Source.IsLoopback() && conn.Dest.IsLoopback()) ||
+			(conn.IPTranslation != nil && conn.IPTranslation.ReplSrcIP.IsLoopback()) {
+			conn.IntraHost = true
+		} else {
+			keyWithRAddr := newConnKey(conn, true)
+			_, conn.IntraHost = lAddrs[keyWithRAddr]
 		}
 
 		switch conn.Direction {
