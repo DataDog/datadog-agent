@@ -56,6 +56,7 @@ func formatUser(fp *procutil.Process, uidProbe *LookupIdProbe) *model.ProcessUse
 
 func formatCPUTimes(fp *procutil.Stats, t2, t1 *procutil.CPUTimesStat, syst2, syst1 cpu.TimesStat) *model.CPUStat {
 	numCPU := float64(hostCPUCount())
+	// nolint: staticcheck
 	deltaSys := syst2.Total() - syst1.Total()
 	return &model.CPUStat{
 		LastCpu:    "cpu",
