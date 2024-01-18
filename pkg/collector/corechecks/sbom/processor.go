@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/config"
+
 	//nolint:revive // TODO(CINT) Fix revive linter
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
@@ -295,6 +296,13 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 			}
 		}
 
+		repoDigests := make([]string, 0, len(img.RepoDigests))
+		for _, repoDigest := range img.RepoDigests {
+			if strings.HasPrefix(repoDigest, repo+"@sha256:") {
+				repoDigests = append(repoDigests, strings.SplitN(repoDigest, "@sha256:", 2)[1])
+			}
+		}
+
 		// Because we split a single image entity into different payloads if it has several repo digests,
 		// me must re-compute `image_id`, `image_name`, `short_image` and `image_tag` tags.
 		ddTags2 := make([]string, 0, len(ddTags))
@@ -316,11 +324,12 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 		}
 
 		sbom := &model.SBOMEntity{
-			Type:     model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
-			Id:       id,
-			DdTags:   ddTags2,
-			RepoTags: repoTags,
-			InUse:    inUse,
+			Type:        model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
+			Id:          id,
+			DdTags:      ddTags2,
+			RepoTags:    repoTags,
+			RepoDigests: repoDigests,
+			InUse:       inUse,
 		}
 
 		switch img.SBOM.Status {
