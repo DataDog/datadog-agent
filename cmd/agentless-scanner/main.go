@@ -3350,27 +3350,27 @@ func newAWSLimits(opts awsLimitsOptions) *awsLimits {
 }
 
 // TODO: get rid of using context to pass these around.
-var (
-	keyAWSLimits = struct{}{}
-	keyAWSWaiter = struct{}{}
+type (
+	keyAWSLimits struct{}
+	keyAWSWaiter struct{}
 )
 
 func withAWSLimits(ctx context.Context, limits *awsLimits) context.Context {
 	if limits != nil {
-		return context.WithValue(ctx, keyAWSLimits, limits)
+		return context.WithValue(ctx, keyAWSLimits{}, limits)
 	}
 	return ctx
 }
 
 func withAWSWaiter(ctx context.Context, waiter *awsWaiter) context.Context {
 	if waiter != nil {
-		return context.WithValue(ctx, keyAWSWaiter, waiter)
+		return context.WithValue(ctx, keyAWSWaiter{}, waiter)
 	}
 	return ctx
 }
 
 func getAWSLimit(ctx context.Context) *awsLimits {
-	limits := ctx.Value(keyAWSLimits)
+	limits := ctx.Value(keyAWSLimits{})
 	if limits == nil {
 		return newAWSLimits(awsLimitsOptions{})
 	}
@@ -3378,7 +3378,7 @@ func getAWSLimit(ctx context.Context) *awsLimits {
 }
 
 func getAWSWaiter(ctx context.Context) *awsWaiter {
-	waiter := ctx.Value(keyAWSWaiter)
+	waiter := ctx.Value(keyAWSWaiter{})
 	if waiter == nil {
 		return &awsWaiter{}
 	}
