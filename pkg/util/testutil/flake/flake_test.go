@@ -17,7 +17,6 @@ import (
 type mockTesting struct {
 	*testing.T
 
-	mutex          sync.RWMutex
 	skipCallCount  int
 	errorCallCount int
 	logs           []any
@@ -30,37 +29,25 @@ func newMockTesting(t *testing.T) *mockTesting {
 }
 
 func (mt *mockTesting) Skip(_ ...any) {
-	func() {
-		mt.mutex.Lock()
-		defer mt.mutex.Unlock()
-		mt.skipCallCount++
-	}()
+	mt.skipCallCount++
 	// implement testing.T.Skip() call to runtime.Goexit()
 	// to mock the behavior of testing.T.Skip()
 	runtime.Goexit()
 }
 
 func (mt *mockTesting) Errorf(_ string, _ ...any) {
-	mt.mutex.Lock()
-	defer mt.mutex.Unlock()
 	mt.errorCallCount++
 }
 
 func (mt *mockTesting) SkipCount() int {
-	mt.mutex.RLock()
-	defer mt.mutex.RUnlock()
 	return mt.skipCallCount
 }
 
 func (mt *mockTesting) ErrorCount() int {
-	mt.mutex.RLock()
-	defer mt.mutex.RUnlock()
 	return mt.errorCallCount
 }
 
 func (mt *mockTesting) Log(args ...any) {
-	mt.mutex.Lock()
-	defer mt.mutex.Unlock()
 	mt.logs = append(mt.logs, args)
 }
 
@@ -97,12 +84,8 @@ func wrapAndRunFlakyTest(t *mockTesting) {
 		defer wg.Done()
 		Mark(t)
 		for i := 0; i < 100; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				coin := flipCoin()
-				assert.Equal(t, "heads", coin)
-			}()
+			coin := flipCoin()
+			assert.Equal(t, "heads", coin)
 		}
 	}()
 	wg.Wait()
