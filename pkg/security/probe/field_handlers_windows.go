@@ -83,7 +83,7 @@ func (fh *FieldHandlers) ResolveProcessCmdLineScrubbed(_ *model.Event, e *model.
 	return fh.resolvers.ProcessResolver.GetProcessCmdLineScrubbed(e)
 }
 
-// ResolveUser resolves the user of the process
+// ResolveUser resolves the user name
 func (fh *FieldHandlers) ResolveUser(_ *model.Event, process *model.Process) string {
 	return fh.resolvers.ProcessResolver.GetUser(process.OwnerSidString)
 }

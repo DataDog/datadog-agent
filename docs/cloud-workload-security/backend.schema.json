@@ -799,7 +799,7 @@
         },
         "user": {
           "type": "string",
-          "description": "User of the process"
+          "description": "User name"
         },
         "group": {
           "type": "string",
@@ -927,7 +927,7 @@
         },
         "user": {
           "type": "string",
-          "description": "User of the process"
+          "description": "User name"
         },
         "group": {
           "type": "string",

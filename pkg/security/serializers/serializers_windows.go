@@ -41,7 +41,7 @@ type ProcessSerializer struct {
 	CmdLine string `json:"cmdline,omitempty"`
 	// User's sid
 	OwnerSidString string `json:"user_sid,omitempty"`
-	// User of the process
+	// User name
 	User string `json:"user,omitempty"`
 }
 

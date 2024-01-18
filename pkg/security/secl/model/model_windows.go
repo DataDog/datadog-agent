@@ -61,7 +61,7 @@ type Process struct {
 	CmdLineScrubbed string `field:"cmdline_scrubbed,handler:ResolveProcessCmdLineScrubbed,weight:500,opts:getters_only"`
 
 	OwnerSidString string `field:"user_sid"`                 // SECLDoc[user_sid] Definition:`Sid of the user of the process`
-	User           string `field:"user,handler:ResolveUser"` // SECLDoc[user] Definition:`User of the process`
+	User           string `field:"user,handler:ResolveUser"` // SECLDoc[user] Definition:`User name`
 
 	Envs []string `field:"envs,handler:ResolveProcessEnvs,weight:100"` // SECLDoc[envs] Definition:`Environment variable names of the process`
 	Envp []string `field:"envp,handler:ResolveProcessEnvp,weight:100"` // SECLDoc[envp] Definition:`Environment variables of the process`                                                                                                                         // SECLDoc[envp] Definition:`Environment variables of the process`
