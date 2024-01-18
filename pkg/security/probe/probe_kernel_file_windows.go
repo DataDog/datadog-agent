@@ -70,7 +70,7 @@ var (
 type createArgs struct {
 	irp              uint64            // actually a pointer
 	fileObject       fileObjectPointer // pointer
-	threadid         uint64            // actually a pointer
+	threadID         uint64            // actually a pointer
 	createOptions    uint32
 	createAttributes uint32
 	shareAccess      uint32
@@ -82,7 +82,7 @@ func parseCreateArgs(e *etw.DDEventRecord) (*createArgs, error) {
 	data := unsafe.Slice((*byte)(e.UserData), uint64(e.UserDataLength))
 	if e.EventHeader.EventDescriptor.Version == 0 {
 		ca.irp = binary.LittleEndian.Uint64(data[0:8])
-		ca.threadid = binary.LittleEndian.Uint64(data[8:16])
+		ca.threadID = binary.LittleEndian.Uint64(data[8:16])
 		ca.fileObject = fileObjectPointer(binary.LittleEndian.Uint64(data[16:24]))
 		ca.createOptions = binary.LittleEndian.Uint32(data[24:28])
 		ca.createAttributes = binary.LittleEndian.Uint32(data[28:32])
@@ -93,7 +93,7 @@ func parseCreateArgs(e *etw.DDEventRecord) (*createArgs, error) {
 
 		ca.irp = binary.LittleEndian.Uint64(data[0:8])
 		ca.fileObject = fileObjectPointer(binary.LittleEndian.Uint64(data[8:16]))
-		ca.threadid = uint64(binary.LittleEndian.Uint32(data[16:20]))
+		ca.threadID = uint64(binary.LittleEndian.Uint32(data[16:20]))
 		ca.createOptions = binary.LittleEndian.Uint32(data[20:24])
 		ca.createAttributes = binary.LittleEndian.Uint32(data[24:38])
 		ca.shareAccess = binary.LittleEndian.Uint32(data[28:32])
@@ -110,7 +110,7 @@ func parseCreateArgs(e *etw.DDEventRecord) (*createArgs, error) {
 func (ca *createArgs) string() string {
 	var output strings.Builder
 
-	output.WriteString("  Create TID: " + strconv.Itoa(int(ca.threadid)) + "\n")
+	output.WriteString("  Create TID: " + strconv.Itoa(int(ca.threadID)) + "\n")
 	output.WriteString("         Name: " + ca.fileName + "\n")
 	return output.String()
 }
@@ -137,7 +137,7 @@ func (ca *createArgs) string() string {
 
 type setInformationArgs struct {
 	irp        uint64
-	threadId   uint64
+	threadID   uint64
 	fileObject fileObjectPointer
 	fileKey    uint64
 	extraInfo  uint64
@@ -151,7 +151,7 @@ func parseInformationArgs(e *etw.DDEventRecord) (*setInformationArgs, error) {
 
 	if e.EventHeader.EventDescriptor.Version == 0 {
 		sia.irp = binary.LittleEndian.Uint64(data[0:8])
-		sia.threadId = binary.LittleEndian.Uint64(data[8:16])
+		sia.threadID = binary.LittleEndian.Uint64(data[8:16])
 		sia.fileObject = fileObjectPointer(binary.LittleEndian.Uint64(data[16:24]))
 		sia.fileKey = binary.LittleEndian.Uint64(data[24:32])
 		sia.extraInfo = binary.LittleEndian.Uint64(data[32:40])
@@ -161,7 +161,7 @@ func parseInformationArgs(e *etw.DDEventRecord) (*setInformationArgs, error) {
 		sia.fileObject = fileObjectPointer(binary.LittleEndian.Uint64(data[8:16]))
 		sia.fileKey = binary.LittleEndian.Uint64(data[16:24])
 		sia.extraInfo = binary.LittleEndian.Uint64(data[24:32])
-		sia.threadId = uint64(binary.LittleEndian.Uint32(data[32:36]))
+		sia.threadID = uint64(binary.LittleEndian.Uint32(data[32:36]))
 		sia.infoClass = binary.LittleEndian.Uint32(data[36:40])
 	} else {
 		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
@@ -175,7 +175,7 @@ func parseInformationArgs(e *etw.DDEventRecord) (*setInformationArgs, error) {
 func (sia *setInformationArgs) string() string {
 	var output strings.Builder
 
-	output.WriteString("  SIA TID: " + strconv.Itoa(int(sia.threadId)) + "\n")
+	output.WriteString("  SIA TID: " + strconv.Itoa(int(sia.threadID)) + "\n")
 	output.WriteString("      Name: " + sia.fileName + "\n")
 	output.WriteString("      InfoClass: " + strconv.FormatUint(uint64(sia.infoClass), 16) + "\n")
 	return output.String()
@@ -185,7 +185,7 @@ func (sia *setInformationArgs) string() string {
 /*
 	<template tid="CleanupArgs">
       <data name="Irp" inType="win:Pointer"/>
-      <data name="ThreadId" inType="win:Pointer"/>
+      <data name="threadID" inType="win:Pointer"/>
       <data name="FileObject" inType="win:Pointer"/>
       <data name="FileKey" inType="win:Pointer"/>
      </template>
@@ -200,7 +200,7 @@ func (sia *setInformationArgs) string() string {
 
 type cleanupArgs struct {
 	irp        uint64
-	threadId   uint64
+	threadID   uint64
 	fileObject fileObjectPointer
 	fileKey    uint64
 	fileName   string
@@ -212,7 +212,7 @@ func parseCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, error) {
 
 	if e.EventHeader.EventDescriptor.Version == 0 {
 		ca.irp = binary.LittleEndian.Uint64(data[0:8])
-		ca.threadId = binary.LittleEndian.Uint64(data[8:16])
+		ca.threadID = binary.LittleEndian.Uint64(data[8:16])
 		ca.fileObject = fileObjectPointer(binary.LittleEndian.Uint64(data[16:24]))
 		ca.fileKey = binary.LittleEndian.Uint64(data[24:32])
 
@@ -220,7 +220,7 @@ func parseCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, error) {
 		ca.irp = binary.LittleEndian.Uint64(data[0:8])
 		ca.fileObject = fileObjectPointer(binary.LittleEndian.Uint64(data[8:16]))
 		ca.fileKey = binary.LittleEndian.Uint64(data[16:24])
-		ca.threadId = uint64(binary.LittleEndian.Uint32(data[24:28]))
+		ca.threadID = uint64(binary.LittleEndian.Uint32(data[24:28]))
 	} else {
 		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
 	}
@@ -234,7 +234,7 @@ func parseCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, error) {
 func (ca *cleanupArgs) string() string {
 	var output strings.Builder
 
-	output.WriteString("  CLEANUP: TID: " + strconv.Itoa(int(ca.threadId)) + "\n")
+	output.WriteString("  CLEANUP: TID: " + strconv.Itoa(int(ca.threadID)) + "\n")
 	output.WriteString("           Name: " + ca.fileName + "\n")
 	return output.String()
 

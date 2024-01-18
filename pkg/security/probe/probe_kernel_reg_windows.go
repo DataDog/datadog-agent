@@ -31,7 +31,7 @@ type regObjectPointer uint64
 
 var (
 	regPathResolver = make(map[regObjectPointer]string, 0)
-	regprefix        = `\REGISTRY`
+	regprefix       = `\REGISTRY`
 )
 
 /*
