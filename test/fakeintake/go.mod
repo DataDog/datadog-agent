@@ -2,6 +2,10 @@ module github.com/DataDog/datadog-agent/test/fakeintake
 
 go 1.21
 
+replace (
+	github.com/DataDog/datadog-agent/pkg/proto => ../../pkg/proto
+)
+
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.100
 	github.com/DataDog/datadog-agent/pkg/proto v0.50.2
