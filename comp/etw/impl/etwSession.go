@@ -92,8 +92,8 @@ func (e *etwSession) DisableProvider(providerGUID windows.GUID) error {
 	return ret
 }
 
-//export etwCompCallbackC
-func etwCompCallbackC(eventRecord C.PEVENT_RECORD) {
+//export ddEtwCallbackC
+func ddEtwCallbackC(eventRecord C.PEVENT_RECORD) {
 	handle := cgo.Handle(eventRecord.UserContext)
 	eventInfo := (*etw.DDEventRecord)(unsafe.Pointer(eventRecord))
 	handle.Value().(etw.EventCallback)(eventInfo)
