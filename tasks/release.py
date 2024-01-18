@@ -1422,47 +1422,26 @@ def check_omnibus_branches(ctx):
     else:
         omnibus_ruby_branch = base_branch
         omnibus_software_branch = base_branch
-    with tempfile.TemporaryDirectory() as tmpdir:
-        ctx.run(
-            f'git clone --depth=50 https://github.com/datadog/omnibus-ruby --branch {omnibus_ruby_branch} {tmpdir}/omnibus-ruby',
-            hide='stdout',
-        )
-        ctx.run(
-            f'git clone --depth=50 https://github.com/datadog/omnibus-software --branch {omnibus_software_branch} {tmpdir}/omnibus-software',
-            hide='stdout',
-        )
 
-        for branch in ['nightly', 'nightly-a7']:
-            omnibus_ruby_commit = _get_release_json_value(f'{branch}::OMNIBUS_RUBY_VERSION')
-            if (
-                ctx.run(
-                    f'git -C {tmpdir}/omnibus-ruby branch --contains {omnibus_ruby_commit}', warn=True, hide=True
-                ).exited
-                != 0
-            ):
-                raise Exit(
-                    code=1,
-                    message=f'omnibus-ruby commit ({omnibus_ruby_commit}) is not in the expected branch ({omnibus_ruby_branch}). The PR is not mergeable',
-                )
-            else:
-                print(f'Commit {omnibus_ruby_commit} was found in omnibus-ruby branch {omnibus_ruby_branch}')
-            omnibus_software_commit = _get_release_json_value(f'{branch}::OMNIBUS_SOFTWARE_VERSION')
-            if (
-                ctx.run(
-                    f'git -C {tmpdir}/omnibus-software branch --contains {omnibus_software_commit}',
-                    warn=True,
-                    hide=True,
-                ).exited
-                != 0
-            ):
-                raise Exit(
-                    code=1,
-                    message=f'omnibus-software commit ({omnibus_software_commit}) is not in the expected branch ({omnibus_software_branch}). The PR is not mergeable',
-                )
-            else:
-                print(
-                    f'Commit {omnibus_software_commit} was found in omnibus-software branch {omnibus_software_branch}'
-                )
+    def _check_commit_in_repo(repo_name, branch, release_json_field):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ctx.run(
+                f'git clone --depth=50 https://github.com/DataDog/{repo_name} --branch {branch} {tmpdir}/{repo_name}',
+                hide='stdout',
+            )
+            for version in ['nightly', 'nightly-a7']:
+                commit = _get_release_json_value(f'{version}::{release_json_field}')
+                if ctx.run(f'git -C {tmpdir}/{repo_name} branch --contains {commit}', warn=True, hide=True).exited != 0:
+                    raise Exit(
+                        code=1,
+                        message=f'{repo_name} commit ({commit}) is not in the expected branch ({branch}). The PR is not mergeable',
+                    )
+                else:
+                    print(f'[{version}] Commit {commit} was found in {repo_name} branch {branch}')
+
+    _check_commit_in_repo('omnibus-ruby', omnibus_ruby_branch, 'OMNIBUS_RUBY_VERSION')
+    _check_commit_in_repo('omnibus-software', omnibus_software_branch, 'OMNIBUS_SOFTWARE_VERSION')
+
     return True
 
 
