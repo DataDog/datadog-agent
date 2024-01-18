@@ -19,8 +19,8 @@ third_party_licenses "../LICENSE-3rdparty.csv"
 
 homepage 'http://www.datadoghq.com'
 
-if ENV.has_key?("KUBERNETES_CPU_REQUEST")
-  COMPRESSION_THREADS = ENV["KUBERNETES_CPU_REQUEST"].to_i
+if ENV.has_key?("OMNIBUS_WORKERS_OVERRIDE")
+  COMPRESSION_THREADS = ENV["OMNIBUS_WORKERS_OVERRIDE"].to_i
 else
   COMPRESSION_THREADS = 1
 end

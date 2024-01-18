@@ -21,8 +21,6 @@ var (
 	// PyChecksPath holds the path to the python checks from integrations-core shipped with the agent
 	PyChecksPath = filepath.Join(_here, "..", "checks.d")
 	distPath     string
-	// ViewsPath holds the path to the folder containing the GUI support files
-	viewsPath string
 )
 
 var (
@@ -84,17 +82,4 @@ func GetDistPath() string {
 		distPath = filepath.Join(s, `bin/agent/dist`)
 	}
 	return distPath
-}
-
-// GetViewsPath returns the fully qualified path to the GUI's 'views' directory
-func GetViewsPath() string {
-	if len(viewsPath) == 0 {
-		var s string
-		if s = getInstallPath(); s == "" {
-			return ""
-		}
-		viewsPath = filepath.Join(s, "bin", "agent", "dist", "views")
-		log.Debugf("ViewsPath is now %s", viewsPath)
-	}
-	return viewsPath
 }
