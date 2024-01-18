@@ -190,6 +190,7 @@ func TestHashMapNumberOfEntries(t *testing.T) {
 			ValueSize:  4,
 		})
 		require.NoError(t, err)
+		t.Cleanup(func() { _ = m.Close() })
 
 		for i := uint32(0); i < filledEntries; i++ {
 			require.NoError(t, m.Put(&i, &i))
@@ -219,6 +220,7 @@ func TestHashMapNumberOfEntriesNoExtraAllocations(t *testing.T) {
 				ValueSize:  4,
 			})
 			require.NoError(t, err)
+			t.Cleanup(func() { _ = m.Close() })
 
 			for i := uint32(0); i < filledEntries; i++ {
 				require.NoError(t, m.Put(&i, &i))
@@ -244,6 +246,7 @@ func TestLRUHashMapNumberOfEntries(t *testing.T) {
 		ValueSize:  4,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = m.Close() })
 
 	for i := uint32(0); i < filledEntries; i++ {
 		require.NoError(t, m.Put(&i, &i))
@@ -271,11 +274,13 @@ func TestHashMapNumberOfEntriesHashOfMaps(t *testing.T) {
 		InnerMap:   innerSpec,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = m.Close() })
 
 	for i := uint32(0); i < filledEntries; i++ {
 		innerMap, err := ebpf.NewMap(innerSpec)
 		require.NoError(t, err)
 		require.NoError(t, m.Put(&i, innerMap))
+		t.Cleanup(func() { _ = innerMap.Close() })
 	}
 
 	require.Equal(t, int64(filledEntries), hashMapNumberOfEntries(m))
@@ -306,6 +311,7 @@ func TestHashMapNumberOfEntriesMapTypeSupport(t *testing.T) {
 			InnerMap:   innerMap,
 		})
 		require.NoError(t, err)
+		t.Cleanup(func() { _ = m.Close() })
 		require.Equal(t, expectedReturn, hashMapNumberOfEntries(m))
 	}
 
