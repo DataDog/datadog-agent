@@ -58,9 +58,6 @@ func TestPatchPrintkNewline(t *testing.T) {
 				Max: math.MaxUint64,
 			},
 			MapEditors: make(map[string]*ebpf.Map),
-			ConstantEditors: []manager.ConstantEditor{
-				GetPatchedPrintkEditor(),
-			},
 		}
 		mgr.InstructionPatcher = PatchPrintkNewline
 
