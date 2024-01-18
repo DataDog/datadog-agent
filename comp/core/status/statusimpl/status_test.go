@@ -15,14 +15,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/status"
-	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 type mockProvider struct {
@@ -120,14 +120,18 @@ func (m mockHeaderProvider) HTML(buffer io.Writer) error {
 }
 
 var (
-	humanReadbaleFlavor = flavor.GetHumanReadableFlavor()
-	agentVersion        = version.AgentVersion
-	pid                 = os.Getpid()
-	goVersion           = runtime.Version()
-	arch                = runtime.GOARCH
-	agentFlavor         = flavor.GetFlavor()
-	testTitle           = fmt.Sprintf("%s (v%s)", humanReadbaleFlavor, agentVersion)
+	agentVersion = version.AgentVersion
+	pid          = os.Getpid()
+	goVersion    = runtime.Version()
+	arch         = runtime.GOARCH
+	agentFlavor  = "Agent test"
+	testTitle    = fmt.Sprintf("%s (v%s)", agentFlavor, agentVersion)
 )
+
+var agentParams = status.Params{
+	Flavor:        agentFlavor,
+	PythonVersion: "n/a",
+}
 
 var testTextHeader = fmt.Sprintf(`%s
 %s
@@ -141,13 +145,14 @@ func TestGetStatus(t *testing.T) {
 
 	defer func() {
 		nowFunc = time.Now
-		startTimeProvider = pkgConfig.StartTime
+		startTimeProvider = pkgconfigsetup.StartTime
 		os.Setenv("TZ", originalTZ)
 	}()
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
 		fx.Supply(
+			agentParams,
 			status.NewInformationProvider(mockProvider{
 				data: map[string]interface{}{
 					"foo": "bar",
@@ -357,13 +362,14 @@ func TestGetStatusDoNotRenderHeaderIfNoProviders(t *testing.T) {
 
 	defer func() {
 		nowFunc = time.Now
-		startTimeProvider = pkgConfig.StartTime
+		startTimeProvider = pkgconfigsetup.StartTime
 		os.Setenv("TZ", originalTZ)
 	}()
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
 		fx.Supply(
+			agentParams,
 			status.NewInformationProvider(mockProvider{
 				data: map[string]interface{}{
 					"foo": "bar",
@@ -415,13 +421,14 @@ func TestGetStatusWithErrors(t *testing.T) {
 
 	defer func() {
 		nowFunc = time.Now
-		startTimeProvider = pkgConfig.StartTime
+		startTimeProvider = pkgconfigsetup.StartTime
 		os.Setenv("TZ", originalTZ)
 	}()
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
 		fx.Supply(
+			agentParams,
 			status.NewInformationProvider(mockProvider{
 				section:     "error section",
 				name:        "a",
@@ -470,7 +477,7 @@ func TestGetStatusWithErrors(t *testing.T) {
   Go Version: %s
   Python Version: n/a
   Build arch: %s
-  Agent flavor: agent
+  Agent flavor: Agent test
   Log Level: info
 
 =========
@@ -513,6 +520,7 @@ func TestGetStatusBySection(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
 		fx.Supply(
+			agentParams,
 			status.NewInformationProvider(mockProvider{
 				data: map[string]interface{}{
 					"foo": "bar",
@@ -662,13 +670,14 @@ func TestGetStatusBySectionsWithErrors(t *testing.T) {
 
 	defer func() {
 		nowFunc = time.Now
-		startTimeProvider = pkgConfig.StartTime
+		startTimeProvider = pkgconfigsetup.StartTime
 		os.Setenv("TZ", originalTZ)
 	}()
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
 		fx.Supply(
+			agentParams,
 			status.NewInformationProvider(mockProvider{
 				returnError: true,
 				section:     "error section",
@@ -761,7 +770,7 @@ Status render errors
   Go Version: %s
   Python Version: n/a
   Build arch: %s
-  Agent flavor: agent
+  Agent flavor: Agent test
   Log Level: info
 
 ====================
