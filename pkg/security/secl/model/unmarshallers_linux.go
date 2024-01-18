@@ -9,6 +9,7 @@ package model
 import (
 	"encoding/binary"
 	"fmt"
+	"math/bits"
 	"strings"
 	"time"
 
@@ -711,15 +712,18 @@ func parseSHA1Tag(data []byte) string {
 }
 
 func parseHelpers(helpers []uint64) []uint32 {
-	var rep []uint32
-	var add bool
-
 	if len(helpers) < 3 {
-		return rep
+		return nil
 	}
 
+	var popcnt int
+	for _, h := range helpers {
+		popcnt += bits.OnesCount64(h)
+	}
+	rep := make([]uint32, 0, popcnt)
+
 	for i := 0; i < 192; i++ {
-		add = false
+		add := false
 		if i < 64 {
 			if helpers[0]&(1<<i) == (1 << i) {
 				add = true
