@@ -546,7 +546,7 @@ func hashMapNumberOfEntries(mp *ebpf.Map) int64 {
 		// pass arguments, but it's not a big amount of code.
 		keys := make([]byte, mp.KeySize()*mp.MaxEntries())
 		values := make([]byte, mp.ValueSize()*mp.MaxEntries())
-		cursor := make([]byte, mp.KeySize(), 4)
+		cursor := make([]byte, mp.KeySize())
 
 		const BpfMapLookupBatchCommandCode = uint32(24)
 		type MapLookupBatchAttr struct {
