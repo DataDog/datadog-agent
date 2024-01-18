@@ -53,11 +53,13 @@ typedef struct _dd_procmon_stats {
     uint64_t            missedNotifications;
     uint64_t            allocationFailures;
     uint64_t            workItemFailures;
+    uint64_t            readBufferToSmallErrors;
 
 } DD_PROCMON_STATS;
 
 typedef struct _dd_process_notification {
     uint64_t            size;  // total size of structure.
+    uint64_t            sizeNeeded;  // total size required to get structure.
     uint64_t            ProcessId;
     uint64_t            NotifyType; // as type DD_NOTIFY_TYPE
     // all below here only valid when NotifyType == DD_NOTIFY_START
