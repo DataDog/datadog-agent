@@ -971,6 +971,34 @@ def finish(ctx, major_versions="6,7"):
     # Update internal module dependencies
     update_modules(ctx, str(new_version))
 
+    # Step 3: branch out, commit change, push branch
+
+    final_branch = f"{new_version}-final"
+
+    print(color_message(f"Branching out to {final_branch}", "bold"))
+    ctx.run(f"git checkout -b {final_branch}")
+
+    print(color_message("Committing release.json and Go modules updates", "bold"))
+    print(
+        color_message(
+            "If commit signing is enabled, you will have to make sure the commit gets properly signed.", "bold"
+        )
+    )
+    ctx.run("git add release.json")
+    ctx.run("git ls-files . | grep 'go.mod$' | xargs git add")
+
+    ok = try_git_command(
+        ctx, f"git commit -m 'Final updates for release.json and Go modules for {new_version} release'"
+    )
+    if not ok:
+        raise Exit(
+            color_message(
+                f"Could not create commit. Please commit manually, push the {final_branch} branch and then open a PR against {final_branch}.",
+                "red",
+            ),
+            code=1,
+        )
+
 
 @task(help={'upstream': "Remote repository name (default 'origin')"})
 def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin"):
