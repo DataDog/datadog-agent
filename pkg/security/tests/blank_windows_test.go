@@ -3,16 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && functionaltests
+//go:build windows && functionaltests
 
 // Package tests holds tests related files
 package tests
 
-import "testing"
+import (
+	"testing"
 
-func TestEnv(t *testing.T) {
-	if testEnvironment != "" && testEnvironment != HostEnvironment && testEnvironment != DockerEnvironment {
-		t.Error("invalid environment")
-		return
-	}
+	"github.com/stretchr/testify/assert"
+)
+
+func TestThatWindowsCanRunATest(t *testing.T) {
+	assert.Equal(t, 2, 2)
 }
