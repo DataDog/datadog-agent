@@ -575,7 +575,6 @@ func hashMapNumberOfEntries(mp *ebpf.Map) int64 {
 		// the elements so it should return ENOENT in normal operation
 		if errno != 0 && errno != unix.ENOENT {
 			log.Debugf("error iterating map %s: %s", mp.String(), errno)
-			fmt.Printf("no luck: %s\n", errno)
 			return -1
 		}
 
