@@ -1797,9 +1797,6 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 					EndHeaders:    true,
 				}))
 
-				// Writing the data frame to the buffer using the Framer.
-				require.NoError(t, framer.WriteData(uint32(1), true, []byte{}), "could not write data frame")
-
 				c, err := net.Dial("tcp", ctx.targetAddress)
 				require.NoError(t, err)
 				require.NoError(t, writeInput(c, buf.Bytes(), time.Second))

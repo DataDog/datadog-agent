@@ -40,6 +40,9 @@ func testProtocolClassificationInner(t *testing.T, params protocolClassification
 	params.validation(t, params.context, tr)
 }
 
-func writeInput(_ net.Conn, _ []byte, _ time.Duration) error {
+// This dummy implementation of writeInput is needed for the gRPC classification
+// raw payload test to build on Windows. We don't need an actual implementation
+// as the test will be skipped on Windows.
+func writeInput(net.Conn, []byte, time.Duration) error {
 	return nil
 }
