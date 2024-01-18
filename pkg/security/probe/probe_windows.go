@@ -128,7 +128,7 @@ func (p *WindowsProbe) Start() error {
 					// TODO this shouldn't happen
 					continue
 				}
-				log.Infof("Received stop %v", stop)
+				log.Debugf("Received stop %v", stop)
 
 				pce = p.Resolvers.ProcessResolver.GetEntry(pid)
 				pidToCleanup = pid
