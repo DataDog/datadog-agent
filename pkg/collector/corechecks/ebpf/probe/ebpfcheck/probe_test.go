@@ -177,6 +177,7 @@ func testConfig() *ddebpf.Config {
 }
 
 func TestHashMapNumberOfEntries(t *testing.T) {
+	ebpftest.RequireKernelVersion(t, minimumKernelVersion)
 	maxEntries := uint32(1000)
 	filledEntries := uint32(500)
 
@@ -196,6 +197,7 @@ func TestHashMapNumberOfEntries(t *testing.T) {
 }
 
 func TestHashMapNumberOfEntriesNoExtraAllocations(t *testing.T) {
+	ebpftest.RequireKernelVersion(t, minimumKernelVersion)
 	entriesToTest := []uint32{10, 100, 1000, 10000}
 	maxAllocs := 6.0
 
@@ -225,6 +227,7 @@ func TestHashMapNumberOfEntriesNoExtraAllocations(t *testing.T) {
 }
 
 func TestLRUHashMapNumberOfEntries(t *testing.T) {
+	ebpftest.RequireKernelVersion(t, minimumKernelVersion)
 	maxEntries := uint32(1000)
 	filledEntries := uint32(500)
 
