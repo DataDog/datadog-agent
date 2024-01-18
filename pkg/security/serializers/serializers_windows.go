@@ -75,7 +75,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 		Executable:     newFileSerializer(&ps.FileEvent, e),
 		CmdLine:        e.FieldHandlers.ResolveProcessCmdLineScrubbed(e, ps),
 		OwnerSidString: ps.OwnerSidString,
-		User:           e.FieldHandlers.ResolverUser(e, ps),
+		User:           e.FieldHandlers.ResolveUser(e, ps),
 	}
 
 	if len(ps.ContainerID) != 0 {
