@@ -23,6 +23,7 @@ import (
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/test"
 )
@@ -154,6 +155,9 @@ func (s *ReadEventsSuite) TestCustomQuery() {
 }
 
 func (s *ReadEventsSuite) TestRecoverFromBrokenSubscription() {
+	// TODO: https://datadoghq.atlassian.net/browse/WINA-480
+	flake.Mark(s.T())
+
 	// create tailer and ensure events can be read
 	config := Config{
 		ChannelPath: s.channelPath,

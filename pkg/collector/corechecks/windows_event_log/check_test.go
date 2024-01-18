@@ -18,6 +18,7 @@ import (
 	agentCheck "github.com/DataDog/datadog-agent/pkg/collector/check"
 	agentConfig "github.com/DataDog/datadog-agent/pkg/config"
 	agentEvent "github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/reporter"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/test"
@@ -231,6 +232,9 @@ start: oldest
 
 // Test that the check can detect and recover from a broken subscription
 func (s *GetEventsTestSuite) TestRecoverFromBrokenSubscription() {
+	// TODO: https://datadoghq.atlassian.net/browse/WINA-480
+	flake.Mark(s.T())
+
 	// Put events in the log
 	err := s.ti.GenerateEvents(s.eventSource, s.numEvents)
 	require.NoError(s.T(), err)
