@@ -929,49 +929,71 @@ workflow:
 .on_testing_cleanup:
   - <<: *if_testing_cleanup
 
+.security_agent_change_paths: &security_agent_change_paths
+  - pkg/ebpf/**/*
+  - pkg/security/**/*
+  - pkg/eventmonitor/**/*
+  - test/kitchen/site-cookbooks/dd-security-agent-check/**/*
+  - test/kitchen/test/integration/security-agent-test/**/*
+  - test/kitchen/test/integration/security-agent-stress/**/*
+  - .gitlab/functional_test/security_agent.yml
+  - .gitlab/kernel_version_testing/security_agent.yml
+  - .gitlab/kernel_version_testing/common.yml
+
 .on_security_agent_changes_or_manual:
   - <<: *if_main_branch
     allow_failure: true
   - <<: *if_mergequeue
     when: never
   - changes:
-      paths:
-        - pkg/ebpf/**/*
-        - pkg/security/**/*
-        - pkg/eventmonitor/**/*
-        - test/kitchen/site-cookbooks/dd-security-agent-check/**/*
-        - test/kitchen/test/integration/security-agent-test/**/*
-        - test/kitchen/test/integration/security-agent-stress/**/*
-        - .gitlab/functional_test/security_agent.yml
+      paths: *security_agent_change_paths
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
     allow_failure: true
+
+.system_probe_change_paths: &system_probe_change_paths
+  - pkg/collector/corechecks/ebpf/**/*
+  - pkg/ebpf/**/*
+  - pkg/network/**/*
+  - pkg/process/monitor/*
+  - pkg/util/kernel/**/*
+  - test/kitchen/site-cookbooks/dd-system-probe-check/**/*
+  - test/kitchen/test/integration/system-probe-test/**/*
+  - test/kitchen/test/integration/win-sysprobe-test/**/*
+  - .gitlab/functional_test/system_probe_windows.yml
+  - .gitlab/functional_test_sysprobe/system_probe.yml
+  - .gitlab/kernel_version_testing/system_probe.yml
+  - .gitlab/kernel_version_testing/common.yml
+  - test/new-e2e/system-probe/**/*
+  - test/new-e2e/scenarios/system-probe/**/*
+  - test/new-e2e/runner/**/*
+  - test/new-e2e-utils/**/*
+  - test/new-e2e/go.mod
+  - tasks/system_probe.py
 
 .on_system_probe_changes_or_manual:
   - <<: *if_main_branch
   - <<: *if_mergequeue
     when: never
   - changes:
-      paths:
-        - pkg/collector/corechecks/ebpf/**/*
-        - pkg/ebpf/**/*
-        - pkg/network/**/*
-        - pkg/process/monitor/*
-        - pkg/util/kernel/**/*
-        - test/kitchen/site-cookbooks/dd-system-probe-check/**/*
-        - test/kitchen/test/integration/system-probe-test/**/*
-        - test/kitchen/test/integration/win-sysprobe-test/**/*
-        - .gitlab/functional_test/system_probe_windows.yml
-        - .gitlab/functional_test_sysprobe/system_probe.yml
-        - .gitlab/kernel_version_testing/system_probe.yml
-        - test/new-e2e/system-probe/**/*
-        - test/new-e2e/scenarios/system-probe/**/*
-        - test/new-e2e/runner/**/*
-        - test/new-e2e-utils/**/*
-        - test/new-e2e/go.mod
-        - tasks/system_probe.py
+      paths: *system_probe_change_paths
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
+  - when: manual
+    allow_failure: true
+
+.on_any_kmt_test_component_or_manual:
+  - <<: *if_main_branch
+  - <<: *if_mergequeue
+    when: never
+  - changes:
+      paths: *system_probe_change_paths
+      compare_to: main
+    when: on_success
+  - changes:
+      paths: *security_agent_change_paths
+      compare_to: main
     when: on_success
   - when: manual
     allow_failure: true

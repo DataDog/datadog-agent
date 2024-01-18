@@ -57,7 +57,7 @@
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   needs: []
   tags: ["arch:amd64"]
-  rules: !reference [.on_system_probe_changes_or_manual]
+  rules: !reference [.on_any_kmt_test_component_or_manual]
   stage: kernel_matrix_testing_prepare
   script:
     # DockerHub login for build to limit rate limit when pulling base images
@@ -89,7 +89,6 @@ pull_test_dockers_arm64:
   stage: kernel_matrix_testing_prepare
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   allow_failure: true
-  rules: !reference [.on_system_probe_changes_or_manual]
   before_script:
     - !reference [.kernel_matrix_testing_new_profile]
     - !reference [.write_ssh_key_file]
@@ -122,7 +121,6 @@ pull_test_dockers_arm64:
   stage: kernel_matrix_testing_prepare
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:amd64"]
-  rules: !reference [.on_system_probe_changes_or_manual]
   allow_failure: true
   script:
     # Build dependencies directory
@@ -155,7 +153,6 @@ pull_test_dockers_arm64:
   extends:
     - .kitchen_ec2_location_us_east_1
   stage: kernel_matrix_testing_prepare
-  rules: !reference [.on_system_probe_changes_or_manual]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   needs: ["go_deps", "go_tools_deps"]
   tags: ["arch:amd64"]
@@ -209,35 +206,14 @@ pull_test_dockers_arm64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   when: always
   tags: ["arch:amd64"]
-  rules: !reference [.on_system_probe_changes_or_manual]
   before_script:
     - !reference [.kernel_matrix_testing_new_profile]
   script:
     - !reference [.shared_filters_and_queries]
-    - aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_PIPELINE $FILTER_ARCH $FILTER_INSTANCE_TYPE --output json --query $QUERY_INSTANCE_IDS | tee -a instance.json
+    - aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_PIPELINE $FILTER_ARCH $FILTER_INSTANCE_TYPE $FILTER_TEST_COMPONENT --output json --query $QUERY_INSTANCE_IDS | tee -a instance.json
     - INSTANCE_ID="$(jq -r '.[0][0]' < instance.json)"
     - echo ${INSTANCE_ID}
     - |
       if [[ "${INSTANCE_ID}" != "" ]] && [[ "${INSTANCE_ID}" != "null" ]]; then
         aws ec2 terminate-instances --instance-ids "${INSTANCE_ID}"
       fi
-
-kernel_matrix_testing_cleanup_arm64:
-  extends:
-    - .kernel_matrix_testing_cleanup
-  needs:
-    - kernel_matrix_testing_setup_env_system_probe_arm64
-    - kernel_matrix_testing_run_system_probe_tests_arm64
-  variables:
-    ARCH: arm64
-    INSTANCE_TYPE: "m6gd.metal"
-
-kernel_matrix_testing_cleanup_x64:
-  extends:
-    - .kernel_matrix_testing_cleanup
-  needs:
-    - kernel_matrix_testing_setup_env_system_probe_x64
-    - kernel_matrix_testing_run_system_probe_tests_x64
-  variables:
-    ARCH: x86_64
-    INSTANCE_TYPE: "m5d.metal"
