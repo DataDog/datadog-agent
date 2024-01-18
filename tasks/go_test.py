@@ -144,7 +144,7 @@ def test_flavor(
         # Merging the unit tests reruns coverage files, keeping only the merged file.
         ctx.run(f"gocovmerge {TMP_PROFILE_COV_PREFIX}.* > {PROFILE_COV}")
         for f in os.listdir('.'):
-            if f.startswith(TMP_PROFILE_COV_PREFIX + "."):
+            if f.startswith(f"{TMP_PROFILE_COV_PREFIX}."):
                 os.remove(f)
 
         module_result.result_json_path = os.path.join(module.full_path(), GO_TEST_RESULT_TMP_JSON)
