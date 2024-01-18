@@ -234,7 +234,6 @@ func (p *Resolver) Snapshot() {
 		e.Process.FileEvent.PathnameStr = utils.NormalizePath(proc.Exe)
 		e.Process.FileEvent.BasenameStr = filepath.Base(e.Process.FileEvent.PathnameStr)
 		e.ExecTime = time.Unix(0, proc.Stats.CreateTime*int64(time.Millisecond))
-
 		entries = append(entries, e)
 
 		log.Tracef("PID %d  %d PPID %d\n", pid, proc.Pid, proc.Ppid)
@@ -289,10 +288,9 @@ func (p *Resolver) GetUser(ownerSidString string) (name string) {
 	user, domain, _, _ := sid.LookupAccount("")
 	if nil != err {
 		res = ""
-	}
-	else{
+	} else {
 		res = domain + "\\" + user
-	} 
+	}
 	p.usersCache.Add(ownerSidString, res)
 	return res
 }
