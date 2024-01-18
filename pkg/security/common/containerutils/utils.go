@@ -8,18 +8,41 @@ package containerutils
 
 import (
 	"regexp"
+	"strings"
 )
 
 // ContainerIDPatternStr defines the regexp used to match container IDs
-// ([0-9a-fA-F]{64}) is standard container id used pretty much everywhere
-// ([0-9a-fA-F]{32}-[0-9]{10}) is container id used by AWS ECS
-// ([0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){4}) is container id used by Garden
+// ([0-9a-fA-F]{64}) is standard container id used pretty much everywhere, lenght: 64
+// ([0-9a-fA-F]{32}-[0-9]{10}) is container id used by AWS ECS, lenght: 43
+// ([0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){4}) is container id used by Garden, lenght: 28
 var ContainerIDPatternStr = "([0-9a-fA-F]{64})|([0-9a-fA-F]{32}-[0-9]{10})|([0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){4})"
-
-// containerIDPattern is the pattern of a container ID
 var containerIDPattern = regexp.MustCompile(ContainerIDPatternStr)
+
+var containerIDCoreChars = "0123456789abcdefABCDEF"
 
 // FindContainerID extracts the first sub string that matches the pattern of a container ID
 func FindContainerID(s string) string {
-	return containerIDPattern.FindString(s)
+	match := containerIDPattern.FindIndex([]byte(s))
+	if match == nil {
+		return ""
+	}
+
+	// ensure the found containerID is delimited by charaters other than a-zA-Z0-9, or that
+	// it starts or/and ends the initial string
+
+	// first, check what's before
+	if match[0] != 0 {
+		previousChar := string(s[match[0]-1])
+		if strings.ContainsAny(previousChar, containerIDCoreChars) {
+			return ""
+		}
+	}
+	// then, check what's after
+	if match[1] < len(s) {
+		nextChar := string(s[match[1]])
+		if strings.ContainsAny(nextChar, containerIDCoreChars) {
+			return ""
+		}
+	}
+	return s[match[0]:match[1]]
 }
