@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -120,16 +121,16 @@ func (m mockHeaderProvider) HTML(buffer io.Writer) error {
 }
 
 var (
-	agentVersion = version.AgentVersion
-	pid          = os.Getpid()
-	goVersion    = runtime.Version()
-	arch         = runtime.GOARCH
-	agentFlavor  = "Agent test"
-	testTitle    = fmt.Sprintf("%s (v%s)", agentFlavor, agentVersion)
+	humanReadbaleFlavor = flavor.GetHumanReadableFlavor()
+	agentVersion        = version.AgentVersion
+	pid                 = os.Getpid()
+	goVersion           = runtime.Version()
+	arch                = runtime.GOARCH
+	agentFlavor         = flavor.GetFlavor()
+	testTitle           = fmt.Sprintf("%s (v%s)", humanReadbaleFlavor, agentVersion)
 )
 
 var agentParams = status.Params{
-	Flavor:        agentFlavor,
 	PythonVersion: "n/a",
 }
 
@@ -477,7 +478,7 @@ func TestGetStatusWithErrors(t *testing.T) {
   Go Version: %s
   Python Version: n/a
   Build arch: %s
-  Agent flavor: Agent test
+  Agent flavor: agent
   Log Level: info
 
 =========
@@ -770,7 +771,7 @@ Status render errors
   Go Version: %s
   Python Version: n/a
   Build arch: %s
-  Agent flavor: Agent test
+  Agent flavor: agent
   Log Level: info
 
 ====================

@@ -27,7 +27,6 @@ type Component interface {
 
 // Params store configurable options for the status component
 type Params struct {
-	Flavor        string
 	PythonVersion string
 }
 

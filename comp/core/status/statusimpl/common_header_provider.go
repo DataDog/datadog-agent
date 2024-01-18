@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -71,7 +72,7 @@ func newCommonHeaderProvider(params status.Params, config config.Component) stat
 
 	data := map[string]interface{}{}
 	data["version"] = version.AgentVersion
-	data["flavor"] = params.Flavor
+	data["flavor"] = flavor.GetFlavor()
 	data["conf_file"] = config.ConfigFileUsed()
 	data["pid"] = os.Getpid()
 	data["go_version"] = runtime.Version()
@@ -84,7 +85,7 @@ func newCommonHeaderProvider(params status.Params, config config.Component) stat
 
 	return &headerProvider{
 		data:                   data,
-		name:                   fmt.Sprintf("%s (v%s)", params.Flavor, data["version"]),
+		name:                   fmt.Sprintf("%s (v%s)", flavor.GetHumanReadableFlavor(), data["version"]),
 		textTemplatesFunctions: status.TextFmap(),
 		htmlTemplatesFunctions: status.HTMLFmap(),
 	}
