@@ -260,6 +260,8 @@
 /pkg/status/templates/trace-agent.tmpl  @DataDog/agent-apm
 /pkg/status/templates/process-agent.tmpl    @DataDog/processes
 /pkg/telemetry/                         @DataDog/agent-shared-components
+/pkg/telemetry/stat_gauge_wrapper.go    @DataDog/ebpf-platform
+/pkg/telemetry/stat_counter_wrapper.go  @DataDog/ebpf-platform
 /pkg/version/                           @DataDog/agent-shared-components
 /pkg/obfuscate/                         @DataDog/agent-apm
 /pkg/trace/                             @DataDog/agent-apm
@@ -421,7 +423,6 @@
 /pkg/network/tracer/*usm*.go                    @DataDog/universal-service-monitoring
 /pkg/network/tracer/*_windows*.go               @DataDog/windows-kernel-integrations
 /pkg/network/usm/                       @DataDog/universal-service-monitoring
-/pkg/network/telemetry/                 @DataDog/ebpf-platform
 /pkg/ebpf/                              @DataDog/ebpf-platform
 /pkg/ebpf/bytecode/runtime/conntrack.go @DataDog/Networks @DataDog/universal-service-monitoring
 /pkg/ebpf/bytecode/runtime/usm.go       @DataDog/Networks @DataDog/universal-service-monitoring
