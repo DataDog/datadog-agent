@@ -18,8 +18,9 @@ import (
 // FlareController is a type that contains information needed to insert into a
 // flare from the logs agent.
 type FlareController struct {
-	mu       sync.Mutex
-	allFiles []string
+	mu           sync.Mutex
+	allFiles     []string
+	journalFiles []string
 }
 
 // NewFlareController creates a new FlareController
@@ -75,4 +76,12 @@ func (fc *FlareController) SetAllFiles(files []string) {
 	defer fc.mu.Unlock()
 
 	fc.allFiles = files
+}
+
+// SetAllJournalFiles assigns the journalFiles parameter of FlareController
+func (fc *FlareController) SetAllJournalFiles(files []string) {
+	fc.mu.Lock()
+	defer fc.mu.Unlock()
+
+	fc.journalFiles = files
 }

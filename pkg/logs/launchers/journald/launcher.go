@@ -10,6 +10,7 @@ package journald
 
 import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -42,19 +43,21 @@ type Launcher struct {
 	tailers          map[string]*tailer.Tailer
 	stop             chan struct{}
 	journalFactory   tailer.JournalFactory
+	fc               *flareController.FlareController
 }
 
 // NewLauncher returns a new Launcher.
-func NewLauncher() *Launcher {
-	return NewLauncherWithFactory(&SDJournalFactory{})
+func NewLauncher(fc *flareController.FlareController) *Launcher {
+	return NewLauncherWithFactory(&SDJournalFactory{}, fc)
 }
 
 // NewLauncherWithFactory returns a new Launcher.
-func NewLauncherWithFactory(journalFactory tailer.JournalFactory) *Launcher {
+func NewLauncherWithFactory(journalFactory tailer.JournalFactory, fc *flareController.FlareController) *Launcher {
 	return &Launcher{
 		tailers:        make(map[string]*tailer.Tailer),
 		stop:           make(chan struct{}),
 		journalFactory: journalFactory,
+		fc:             fc,
 	}
 }
 
@@ -70,9 +73,12 @@ func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvid
 
 // run starts new tailers.
 func (l *Launcher) run() {
+	var allJournalSources []string
+
 	for {
 		select {
 		case source := <-l.sources:
+			allJournalSources = append(allJournalSources, tailer.Identifier(source.Config))
 			identifier := tailer.Identifier(source.Config)
 			if _, exists := l.tailers[identifier]; exists {
 				log.Warn(identifier, " is already tailed. Use config_id to tail the same journal more than once")
@@ -84,6 +90,8 @@ func (l *Launcher) run() {
 			} else {
 				l.tailers[identifier] = tailer
 			}
+
+			l.fc.SetAllJournalFiles(allJournalSources)
 		case <-l.stop:
 			return
 		}
