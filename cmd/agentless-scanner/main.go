@@ -33,7 +33,6 @@ import (
 	"syscall"
 	"time"
 
-	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 
 	// DataDog agent: config stuffs
@@ -1115,7 +1114,14 @@ func parseARN(s string, expectedTypes ...resourceType) (arn.ARN, error) {
 	if err != nil {
 		return arn.ARN{}, err
 	}
-	if len(expectedTypes) > 0 && !slices.Contains(expectedTypes, resType) {
+	isExpected := len(expectedTypes) == 0
+	for _, t := range expectedTypes {
+		if t == resType {
+			isExpected = true
+			break
+		}
+	}
+	if !isExpected {
 		return arn.ARN{}, fmt.Errorf("bad arn: expecting one of these resource types %v but got %s", expectedTypes, resType)
 	}
 	return a, nil
