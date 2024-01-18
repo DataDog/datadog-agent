@@ -50,9 +50,6 @@ type SecurityProfile struct {
 	// Instances is the list of workload instances to witch the profile should apply
 	Instances []*cgroupModel.CacheEntry
 
-	// Status is the status of the profile
-	Status model.Status
-
 	// Version is the version of a Security Profile
 	Version string
 
@@ -106,13 +103,6 @@ func (p *SecurityProfile) generateSyscallsFilters() [64]byte {
 			output[syscall/8] |= 1 << (syscall % 8)
 		}
 	}
-	return output
-}
-
-func (p *SecurityProfile) generateKernelSecurityProfileDefinition() [16]byte {
-	var output [16]byte
-	model.ByteOrder.PutUint64(output[0:8], p.profileCookie)
-	model.ByteOrder.PutUint32(output[8:12], uint32(p.Status))
 	return output
 }
 
@@ -177,7 +167,6 @@ func (p *SecurityProfile) ToSecurityProfileMessage(timeResolver *timeResolver.Re
 			Tag:  p.selector.Tag,
 		},
 		ProfileCookie: p.profileCookie,
-		Status:        p.Status.String(),
 		Version:       p.Version,
 		Metadata: &api.MetadataMessage{
 			Name: p.Metadata.Name,

@@ -27,7 +27,7 @@ type testCase struct {
 
 type expvals struct {
 	Success      map[string]int `json:"success"`
-	Failed       map[string]int `json:"failed"`
+	Errors       map[string]int `json:"errors"`
 	Unauthorized map[string]int `json:"unauthorized"`
 	Unset        map[string]int `json:"unset"`
 }
@@ -112,7 +112,7 @@ func checkExpvars(t *testing.T, beforeVars, afterVars expvals, configName string
 	case http.StatusForbidden:
 		beforeVars.Unauthorized[configName]++
 	case http.StatusInternalServerError:
-		beforeVars.Failed[configName]++
+		beforeVars.Errors[configName]++
 	default:
 		t.Fatalf("unexpected status: %d", expectedStatus)
 	}

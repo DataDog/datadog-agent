@@ -113,6 +113,20 @@ instances:
 		},
 	}
 
+	testMultiUsageConf = []byte(`instances:
+- password: ENC[pass1]
+  user: test
+- password: ENC[pass1]
+  user: test2
+`)
+
+	testMultiUsageConfResolved = []byte(`instances:
+- password: password1
+  user: test
+- password: password1
+  user: test2
+`)
+
 	testConfDash = []byte(`---
 some_encoded_password: ENC[pass1]
 keys_with_dash_string_value:
@@ -273,6 +287,26 @@ func TestResolveSecretError(t *testing.T) {
 
 	_, err := resolver.Resolve(testConf, "test")
 	require.NotNil(t, err)
+}
+
+func TestResolveDoestSendDuplicates(t *testing.T) {
+	resolver := newEnabledSecretResolver()
+	resolver.backendCommand = "some_command"
+
+	// test configuration has handle "pass1" appear twice, but fetch should only get one handle
+	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
+		if len(secrets) > 1 {
+			return nil, fmt.Errorf("duplicate handles found: %v", secrets)
+		}
+		return map[string]string{
+			"pass1": "password1",
+		}, nil
+	}
+
+	// test configuration should still resolve correctly even though handle appears more than once
+	resolved, err := resolver.Resolve(testMultiUsageConf, "test")
+	require.NoError(t, err)
+	require.Equal(t, testMultiUsageConfResolved, resolved)
 }
 
 func TestResolve(t *testing.T) {

@@ -11,9 +11,20 @@ from subprocess import check_output
 from invoke import task
 from invoke.exceptions import Exit
 
+from .agent import generate_config
 from .build_tags import get_default_build_tags
 from .go import run_golangci_lint
-from .go_test import environ
+from .libs.common.utils import (
+    REPO_PATH,
+    bin_name,
+    environ,
+    get_build_flags,
+    get_git_branch_name,
+    get_git_commit,
+    get_go_version,
+    get_gopath,
+    get_version,
+)
 from .libs.ninja_syntax import NinjaWriter
 from .process_agent import TempDir
 from .system_probe import (
@@ -22,17 +33,6 @@ from .system_probe import (
     check_for_ninja,
     ninja_define_ebpf_compiler,
     ninja_define_exe_compiler,
-)
-from .utils import (
-    REPO_PATH,
-    bin_name,
-    generate_config,
-    get_build_flags,
-    get_git_branch_name,
-    get_git_commit,
-    get_go_version,
-    get_gopath,
-    get_version,
 )
 from .windows_resources import build_messagetable, build_rc, versioninfo_vars
 

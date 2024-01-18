@@ -260,12 +260,11 @@ func (r *secretResolver) Resolve(data []byte, origin string) ([]byte, error) {
 
 	// First we collect all new handles in the config
 	newHandles := []string{}
-	haveSecret := false
+	foundSecrets := map[string]struct{}{}
 
 	w := &walker{
 		resolver: func(path []string, value string) (string, error) {
 			if ok, handle := isEnc(value); ok {
-				haveSecret = true
 				// Check if we already know this secret
 				if secretValue, ok := r.cache[handle]; ok {
 					log.Debugf("Secret '%s' was retrieved from cache", handle)
@@ -275,10 +274,14 @@ func (r *secretResolver) Resolve(data []byte, origin string) ([]byte, error) {
 					for _, sub := range r.subscriptions {
 						sub(handle, origin, path, secretValue, secretValue)
 					}
-
+					foundSecrets[handle] = struct{}{}
 					return secretValue, nil
 				}
-				newHandles = append(newHandles, handle)
+				// only add handle to newHandles list if it wasn't seen yet
+				if _, ok := foundSecrets[handle]; !ok {
+					newHandles = append(newHandles, handle)
+				}
+				foundSecrets[handle] = struct{}{}
 				return value, nil
 			}
 			return value, nil
@@ -290,7 +293,7 @@ func (r *secretResolver) Resolve(data []byte, origin string) ([]byte, error) {
 	}
 
 	// the configuration does not contain any secrets
-	if !haveSecret {
+	if len(foundSecrets) == 0 {
 		return data, nil
 	}
 

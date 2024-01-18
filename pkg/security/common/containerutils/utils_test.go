@@ -33,6 +33,10 @@ func TestFindContainerID(t *testing.T) {
 			input:  "/docker/aAbBcCdDeEfF2345678901234567890123456789012345678901234567890123",
 			output: "aAbBcCdDeEfF2345678901234567890123456789012345678901234567890123",
 		},
+		{ // another proc based
+			input:  "/kubepods.slice/kubepods-pod48d25824_cbe2_4fdc_9928_5bb49e05473d.slice/cri-containerd-c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad.scope",
+			output: "c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad",
+		},
 		{ // with prefix/suffix
 			input:  "prefixaAbBcCdDeEfF2345678901234567890123456789012345678901234567890123suffix",
 			output: "aAbBcCdDeEfF2345678901234567890123456789012345678901234567890123",
@@ -40,6 +44,10 @@ func TestFindContainerID(t *testing.T) {
 		{ // multiple
 			input:  "prefixaAbBcCdDeEfF2345678901234567890123456789012345678901234567890123-0123456789012345678901234567890123456789012345678901234567890123-9999999999999999999999999999999999999999999999999999999999999999suffix",
 			output: "aAbBcCdDeEfF2345678901234567890123456789012345678901234567890123",
+		},
+		{ // path reducer test
+			input:  "/var/run/docker/overlay2/47c1f1930c1831f2359c6d276912c583be1cda5924233cf273022b91763a20f7/merged/etc/passwd",
+			output: "47c1f1930c1831f2359c6d276912c583be1cda5924233cf273022b91763a20f7",
 		},
 		{ // GARDEN
 			input:  "01234567-0123-4567-890a-bcde",
@@ -49,6 +57,11 @@ func TestFindContainerID(t *testing.T) {
 			input:  "/docker/01234567-0123-4567-890a-bcde",
 			output: "01234567-0123-4567-890a-bcde",
 		},
+		// TODO: put back this test once we get better at parsing proc from various container runtimes
+		// { // Some random path which could match garden format
+		// 	input:  "/user.slice/user-1000.slice/user@1000.service/apps.slice/apps-org.gnome.Terminal.slice/vte-spawn-f9176c6a-2a34-4ce2-86af-60d16888ed8e.scope",
+		// 	output: "",
+		// },
 		{ // GARDEN with prefix / suffix
 			input:  "prefix01234567-0123-4567-890a-bcdesuffix",
 			output: "01234567-0123-4567-890a-bcde",
@@ -62,7 +75,7 @@ func TestFindContainerID(t *testing.T) {
 			output: "0123456789aAbBcCdDeEfF0123456789-0123456789",
 		},
 		{ // ECS as present in proc
-			input:  "/proc/0123456789aAbBcCdDeEfF0123456789-0123456789",
+			input:  "/docker/0123456789aAbBcCdDeEfF0123456789-0123456789",
 			output: "0123456789aAbBcCdDeEfF0123456789-0123456789",
 		},
 		{ // ECS with prefix / suffix

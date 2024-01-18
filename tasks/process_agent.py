@@ -8,7 +8,7 @@ from invoke.exceptions import Exit
 
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .flavor import AgentFlavor
-from .utils import REPO_PATH, bin_name, get_build_flags
+from .libs.common.utils import REPO_PATH, bin_name, get_build_flags
 from .windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 BIN_DIR = os.path.join(".", "bin", "process-agent")
