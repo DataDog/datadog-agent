@@ -1407,12 +1407,10 @@ func (s *sideScanner) cleanSlate() error {
 	if blockDevices, err := listBlockDevices(ctx); err == nil {
 		for _, bd := range blockDevices {
 			if strings.HasPrefix(bd.Name, "nbd") || strings.HasPrefix(bd.Serial, "vol") {
-				for _, child := range bd.Children {
-					if child.Type == "lvm" {
-						log.Warnf("clean slate: detaching volume group %q for block device %q", child.Path, bd.Name)
-						if err := exec.Command("dmsetup", "remove", child.Path).Run(); err != nil {
-							log.Errorf("clean slate: could not detach virtual group from dev mapper: %v", err)
-						}
+				for _, child := range bd.getChildrenType("lvm") {
+					log.Warnf("clean slate: detaching volume group %q for block device %q", child.Path, bd.Name)
+					if err := exec.Command("dmsetup", "remove", child.Path).Run(); err != nil {
+						log.Errorf("clean slate: could not detach virtual group %q on block device %q from dev mapper: %v", child.Path, bd.Name, err)
 					}
 				}
 			}
@@ -2821,18 +2819,35 @@ type devicePartition struct {
 }
 
 type blockDevice struct {
-	Name     string `json:"name"`
-	Serial   string `json:"serial"`
-	Path     string `json:"path"`
-	Type     string `json:"type"`
-	FsType   string `json:"fstype"`
-	Children []struct {
-		Name        string   `json:"name"`
-		Path        string   `json:"path"`
-		Type        string   `json:"type"`
-		FsType      string   `json:"fstype"`
-		Mountpoints []string `json:"mountpoints"`
-	} `json:"children"`
+	Name        string         `json:"name"`
+	Serial      string         `json:"serial"`
+	Path        string         `json:"path"`
+	Type        string         `json:"type"`
+	FsType      string         `json:"fstype"`
+	Mountpoints []string       `json:"mountpoints"`
+	Children    []*blockDevice `json:"children"`
+}
+
+func (bd blockDevice) getChildrenType(t string) []blockDevice {
+	var bds []blockDevice
+	bd.recurse(func(child blockDevice) {
+		if child.Type == t {
+			for _, b := range bds {
+				if b.Path == child.Path {
+					return
+				}
+			}
+			bds = append(bds, child)
+		}
+	})
+	return bds
+}
+
+func (bd blockDevice) recurse(cb func(blockDevice)) {
+	for _, child := range bd.Children {
+		child.recurse(cb)
+	}
+	cb(bd)
 }
 
 func listBlockDevices(ctx context.Context, deviceName ...string) ([]blockDevice, error) {
@@ -3123,12 +3138,9 @@ func cleanupScan(scan *scanTask) {
 	if scan.AttachedDeviceName != nil {
 		blockDevices, err := listBlockDevices(ctx, *scan.AttachedDeviceName)
 		if err == nil && len(blockDevices) == 1 {
-			bd := blockDevices[0]
-			for _, child := range bd.Children {
-				if child.Type == "lvm" {
-					if err := exec.Command("dmsetup", "remove", child.Path).Run(); err != nil {
-						log.Errorf("could remove logical device %q from block device %q: %v", child.Path, bd.Name, err)
-					}
+			for _, child := range blockDevices[0].getChildrenType("lvm") {
+				if err := exec.Command("dmsetup", "remove", child.Path).Run(); err != nil {
+					log.Errorf("could not remove logical device %q from block device %q: %v", child.Path, child.Name, err)
 				}
 			}
 		}
