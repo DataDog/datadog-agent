@@ -2944,7 +2944,9 @@ func mountDevice(ctx context.Context, scan *scanTask, partitions []devicePartiti
 		case "btrfs":
 			// TODO: we could implement support for multiple BTRFS subvolumes in the future.
 			fsOptions += "subvol=/root"
-		case "ext2", "ext3", "ext4":
+		case "ext2":
+			// nothing
+		case "ext3", "ext4":
 			// noload means we do not try to load the journal
 			fsOptions += "noload"
 		case "xfs":
