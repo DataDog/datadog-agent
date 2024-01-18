@@ -14,6 +14,8 @@ build do
   mkdir "#{install_dir}/embedded/share/system-probe/ebpf"
   mkdir "#{install_dir}/embedded/share/system-probe/ebpf/runtime"
   mkdir "#{install_dir}/embedded/share/system-probe/ebpf/co-re"
+  # ensure previous agent version extracted BTFs are removed
+  delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/btf"
   mkdir "#{install_dir}/embedded/share/system-probe/ebpf/co-re/btf"
   mkdir "#{install_dir}/embedded/share/system-probe/java"
 

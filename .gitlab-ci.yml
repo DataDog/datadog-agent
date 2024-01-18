@@ -48,7 +48,8 @@ include:
   - /.gitlab/functional_test/common.yml
   - /.gitlab/benchmarks/benchmarks.yml
   - /.gitlab/benchmarks/macrobenchmarks.yml
-  - /.gitlab/rc_kubernetes_deploy.yml
+  - /.gitlab/rc_jobs/rc_kubernetes_deploy.yml
+  - /.gitlab/rc_jobs/post_rc_tasks.yml
 
 default:
   retry:
@@ -102,6 +103,7 @@ stages:
   - functional_test_cleanup
   - functional_test_junit_upload
   - internal_kubernetes_deploy
+  - post_rc_build
   - check_merge
   - notify
 
@@ -169,7 +171,7 @@ variables:
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
   DATADOG_AGENT_ARMBUILDIMAGES: v26473479-2dfb49af
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v26473479-2dfb49af
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v26563980-7cd1bd3a
   DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES_SUFFIX: ""
   DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v26473479-2dfb49af
   DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
@@ -179,7 +181,7 @@ variables:
   # To use images from test-infra-definitions dev branches, set the SUFFIX variable to -dev
   # and check the job creating the image to make sure you have the right SHA prefix
   TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: a3eeafb2f827
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: d3e7838354a5
   DATADOG_AGENT_BUILDERS: v22276738-b36b132
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
