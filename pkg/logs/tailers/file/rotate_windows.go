@@ -8,6 +8,8 @@
 package file
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -19,15 +21,14 @@ import (
 func (t *Tailer) DidRotate() (bool, error) {
 	f, err := filesystem.OpenShared(t.fullpath)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("open %q: %w", t.osFile.Name(), err)
 	}
 	defer f.Close()
 	offset := t.lastReadOffset.Load()
 
 	st, err := f.Stat()
 	if err != nil {
-		log.Debugf("Error calling stat() on file %v", err)
-		return false, err
+		return false, fmt.Errorf("stat %q: %w", f.Name(), err)
 	}
 
 	// It is important to gather these values in this order, as both the file

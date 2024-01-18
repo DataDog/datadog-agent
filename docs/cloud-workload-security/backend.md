@@ -1202,10 +1202,6 @@ CSM Threats logs have the following JSON schema:
                     "type": "string",
                     "description": "Name of the security profile"
                 },
-                "status": {
-                    "type": "string",
-                    "description": "Status defines in which state the security profile was when the event was triggered"
-                },
                 "version": {
                     "type": "string",
                     "description": "Version of the profile in use"
@@ -1222,7 +1218,6 @@ CSM Threats logs have the following JSON schema:
             "type": "object",
             "required": [
                 "name",
-                "status",
                 "version",
                 "tags"
             ],
@@ -3192,10 +3187,6 @@ CSM Threats logs have the following JSON schema:
             "type": "string",
             "description": "Name of the security profile"
         },
-        "status": {
-            "type": "string",
-            "description": "Status defines in which state the security profile was when the event was triggered"
-        },
         "version": {
             "type": "string",
             "description": "Version of the profile in use"
@@ -3212,7 +3203,6 @@ CSM Threats logs have the following JSON schema:
     "type": "object",
     "required": [
         "name",
-        "status",
         "version",
         "tags"
     ],
@@ -3224,7 +3214,6 @@ CSM Threats logs have the following JSON schema:
 | Field | Description |
 | ----- | ----------- |
 | `name` | Name of the security profile |
-| `status` | Status defines in which state the security profile was when the event was triggered |
 | `version` | Version of the profile in use |
 | `tags` | List of tags associated to this profile |
 
