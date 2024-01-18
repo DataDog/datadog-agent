@@ -194,6 +194,7 @@ DEFAULT_MODULES = {
     "pkg/util/common": GoModule("pkg/util/common", independent=True),
     "pkg/util/compression": GoModule("pkg/util/compression", independent=True),
     "pkg/util/executable": GoModule("pkg/util/executable", independent=True),
+    "pkg/util/flavor": GoModule("pkg/util/flavor", independent=True),
     "pkg/util/filesystem": GoModule("pkg/util/filesystem", independent=True),
     "pkg/util/fxutil": GoModule("pkg/util/fxutil", independent=True),
     "pkg/util/buf": GoModule("pkg/util/buf", independent=True),
