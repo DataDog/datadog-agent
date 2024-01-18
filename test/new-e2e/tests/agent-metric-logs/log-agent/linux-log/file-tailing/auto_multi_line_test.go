@@ -25,6 +25,7 @@ import (
 //go:embed log-config/automulti.yaml
 var agentAutoMultiLineConfig string
 
+const service = "hello"
 const singleLineLog = "This is a single line log"
 const multiLineLog = "This is\na multi\nline log"
 
@@ -52,7 +53,9 @@ func (s *AutoMultiLineSuite) TestAutoMultiLine() {
 
 func (s *AutoMultiLineSuite) prePopulate() {
 	var message string
+
 	// auto_multi_line_detection uses the first 500 logs to detect a pattern
+	// Alternate between sending single line logs and multi line logs
 	for i := 0; i < 700; i++ {
 		timestamp := time.Now().Format(time.RFC3339)
 		if i%2 == 0 {
@@ -71,6 +74,7 @@ func (s *AutoMultiLineSuite) BeforeTest(suiteName, testName string) {
 	s.Env().RemoteHost.Execute("sudo touch /var/log/hello-world.log")
 	s.Env().RemoteHost.Execute("sudo chmod +r /var/log/hello-world.log")
 
+	// Generate some logs for auto_multi_line_detection to kick in
 	s.prePopulate()
 }
 
@@ -82,7 +86,8 @@ func (s *AutoMultiLineSuite) AfterTest(suiteName, testName string) {
 
 func (s *AutoMultiLineSuite) ContainsLogWithNewLines() {
 	client := s.Env().FakeIntake.Client()
-	service := "hello"
+
+	// Raw string since '\n' literal will be in the log.Message
 	content := `This is\na multi\nline log`
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
@@ -96,6 +101,7 @@ func (s *AutoMultiLineSuite) ContainsLogWithNewLines() {
 		if !assert.NoErrorf(c, err, "Error found: %s", err) {
 			return
 		}
+
 		assert.NotEmpty(c, logs, "Expected at least 1 log with content: '%s', from service: %s but received %s logs.", content, names, logs)
 	}, 2*time.Minute, 10*time.Second)
 }
