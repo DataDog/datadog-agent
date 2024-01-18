@@ -5,14 +5,12 @@
 
 //go:build linux_bpf
 
-package tracer
+package usm
 
 import (
 	"bytes"
-	"context"
 	"encoding/binary"
 	"net"
-	nethttp "net/http"
 	"strconv"
 	"strings"
 	"testing"
@@ -22,18 +20,15 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
 	"golang.org/x/net/http2/hpack"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	gotlsutils "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/proxy"
-	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -238,7 +233,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				t.Skip("skipping test")
 			}
 
-			usmMonitor, err := usm.NewMonitor(cfg, nil, nil, nil)
+			usmMonitor, err := NewMonitor(cfg, nil, nil, nil)
 			require.NoError(t, err)
 			require.NoError(t, usmMonitor.Start())
 			t.Cleanup(usmMonitor.Stop)
@@ -524,38 +519,4 @@ func createMessageWithPingAndWindowUpdate(t *testing.T, headerFields []hpack.Hea
 	}
 
 	return buf.Bytes()
-}
-
-func startH2CServer(address string, isTLS bool) (func(), error) {
-	srv := &nethttp.Server{
-		Addr: authority,
-		Handler: h2c.NewHandler(nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
-			w.WriteHeader(200)
-			w.Write([]byte("test"))
-		}), &http2.Server{}),
-		IdleTimeout: 2 * time.Second,
-	}
-
-	if err := http2.ConfigureServer(srv, nil); err != nil {
-		return nil, err
-	}
-
-	l, err := net.Listen("tcp", address)
-	if err != nil {
-		return nil, err
-	}
-
-	if isTLS {
-		cert, key, err := testutil.GetCertsPaths()
-		if err != nil {
-			return nil, err
-		}
-		go srv.ServeTLS(l, cert, key)
-	} else {
-		go srv.Serve(l)
-	}
-
-	return func() {
-		_ = srv.Shutdown(context.Background())
-	}, nil
 }

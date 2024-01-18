@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package tracer
+package usm
 
 import (
 	"context"
@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	gotlsutils "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
-	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -82,7 +81,7 @@ func TestGRPCScenarios(t *testing.T) {
 	}
 }
 
-func getClientsArray(t *testing.T, size int, withTLS bool) ([]*grpc.Client, func()) {
+func getGRPCClientsArray(t *testing.T, size int, withTLS bool) ([]*grpc.Client, func()) {
 	res := make([]*grpc.Client, size)
 	for i := 0; i < size; i++ {
 		client, err := grpc.NewClient(srvAddr, grpc.Options{}, withTLS)
@@ -95,15 +94,6 @@ func getClientsArray(t *testing.T, size int, withTLS bool) ([]*grpc.Client, func
 			res[i].Close()
 		}
 	}
-}
-
-func getClientsIndex(index, totalCount int) int {
-	return index % totalCount
-}
-
-type captureRange struct {
-	lower int
-	upper int
 }
 
 func (s *usmGRPCSuite) getConfig() *config.Config {
@@ -133,7 +123,7 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 		{
 			name: "simple unary - multiple requests",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients, cleanup := getClientsArray(t, clientsCount, s.isTLS)
+				clients, cleanup := getGRPCClientsArray(t, clientsCount, s.isTLS)
 				defer cleanup()
 				for i := 0; i < 1000; i++ {
 					client := clients[getClientsIndex(i, clientsCount)]
@@ -153,7 +143,7 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 		{
 			name: "unary, a->b->a",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients, cleanup := getClientsArray(t, clientsCount, s.isTLS)
+				clients, cleanup := getGRPCClientsArray(t, clientsCount, s.isTLS)
 				defer cleanup()
 				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleUnary(defaultCtx, "first"))
 				require.NoError(t, clients[getClientsIndex(1, clientsCount)].GetFeature(defaultCtx, -746143763, 407838351))
@@ -179,7 +169,7 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 		{
 			name: "unary, a->b->a->b",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients, cleanup := getClientsArray(t, clientsCount, s.isTLS)
+				clients, cleanup := getGRPCClientsArray(t, clientsCount, s.isTLS)
 				defer cleanup()
 				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleUnary(defaultCtx, "first"))
 				require.NoError(t, clients[getClientsIndex(1, clientsCount)].GetFeature(defaultCtx, -746143763, 407838351))
@@ -206,7 +196,7 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 		{
 			name: "unary, a->b->b->a",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients, cleanup := getClientsArray(t, clientsCount, s.isTLS)
+				clients, cleanup := getGRPCClientsArray(t, clientsCount, s.isTLS)
 				defer cleanup()
 				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleUnary(defaultCtx, "first"))
 				require.NoError(t, clients[getClientsIndex(1, clientsCount)].GetFeature(defaultCtx, -746143763, 407838351))
@@ -233,7 +223,7 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 		{
 			name: "stream, c",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients, cleanup := getClientsArray(t, clientsCount, s.isTLS)
+				clients, cleanup := getGRPCClientsArray(t, clientsCount, s.isTLS)
 				defer cleanup()
 				for i := 0; i < 25; i++ {
 					client := clients[getClientsIndex(i, clientsCount)]
@@ -253,7 +243,7 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 		{
 			name: "mixed, c->b->c->b",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients, cleanup := getClientsArray(t, clientsCount, s.isTLS)
+				clients, cleanup := getGRPCClientsArray(t, clientsCount, s.isTLS)
 				defer cleanup()
 				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleStream(defaultCtx, 10))
 				require.NoError(t, clients[getClientsIndex(1, clientsCount)].HandleUnary(defaultCtx, "first"))
@@ -280,7 +270,7 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 		{
 			name: "500 headers -> b -> 500 headers -> b",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients, cleanup := getClientsArray(t, clientsCount, s.isTLS)
+				clients, cleanup := getGRPCClientsArray(t, clientsCount, s.isTLS)
 				defer cleanup()
 				ctxWithoutHeaders := context.Background()
 				ctxWithHeaders := context.Background()
@@ -317,7 +307,7 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 		{
 			name: "duplicated headers -> b -> duplicated headers -> b",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients, cleanup := getClientsArray(t, clientsCount, s.isTLS)
+				clients, cleanup := getGRPCClientsArray(t, clientsCount, s.isTLS)
 				defer cleanup()
 				ctxWithoutHeaders := context.Background()
 				ctxWithHeaders := context.Background()
@@ -392,7 +382,7 @@ func (s *usmGRPCSuite) TestLargeBodiesGRPCScenarios() {
 		{
 			name: "request with large body (30MB)",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients, cleanup := getClientsArray(t, clientsCount, s.isTLS)
+				clients, cleanup := getGRPCClientsArray(t, clientsCount, s.isTLS)
 				defer cleanup()
 				longRandomString[0] = '0' + rune(clientsCount)
 				for i := 0; i < 5; i++ {
@@ -413,7 +403,7 @@ func (s *usmGRPCSuite) TestLargeBodiesGRPCScenarios() {
 		{
 			name: "request with large body (5MB) -> b -> request with large body (5MB) -> b",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients, cleanup := getClientsArray(t, clientsCount, s.isTLS)
+				clients, cleanup := getGRPCClientsArray(t, clientsCount, s.isTLS)
 				defer cleanup()
 				longRandomString[3] = '0' + rune(clientsCount)
 
@@ -452,7 +442,7 @@ func (s *usmGRPCSuite) TestLargeBodiesGRPCScenarios() {
 
 func (s *usmGRPCSuite) testGRPCScenarios(t *testing.T, srvPID int, runClientCallback func(*testing.T, int), expectedEndpoints map[http.Key]captureRange, clientCount int) {
 	cfg := s.getConfig()
-	usmMonitor, err := usm.NewMonitor(cfg, nil, nil, nil)
+	usmMonitor, err := NewMonitor(cfg, nil, nil, nil)
 	require.NoError(t, err)
 	require.NoError(t, usmMonitor.Start())
 	t.Cleanup(usmMonitor.Stop)
