@@ -180,27 +180,54 @@ func TestHashMapNumberOfEntries(t *testing.T) {
 	ebpftest.RequireKernelVersion(t, minimumKernelVersion)
 	err := rlimit.RemoveMemlock()
 	require.NoError(t, err)
+	maxEntries := uint32(50)
 
-	maxEntries := uint32(1000)
-	testWithEntryCount := func(t *testing.T, filledEntries uint32) {
+	testWithEntryCount := func(t *testing.T, mapType ebpf.MapType, filledEntries uint32) {
+		var innerMapSpec *ebpf.MapSpec
+		if mapType == ebpf.HashOfMaps {
+			innerMapSpec = &ebpf.MapSpec{
+				Type:       ebpf.Hash,
+				MaxEntries: uint32(20),
+				KeySize:    4,
+				ValueSize:  4,
+			}
+		}
+
 		m, err := ebpf.NewMap(&ebpf.MapSpec{
-			Type:       ebpf.Hash,
+			Type:       mapType,
 			MaxEntries: uint32(maxEntries),
 			KeySize:    4,
 			ValueSize:  4,
+			InnerMap:   innerMapSpec,
 		})
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = m.Close() })
 
 		for i := uint32(0); i < filledEntries; i++ {
-			require.NoError(t, m.Put(&i, &i))
+			if mapType == ebpf.HashOfMaps {
+				innerMap, err := ebpf.NewMap(innerMapSpec)
+				require.NoError(t, err)
+				t.Cleanup(func() { _ = innerMap.Close() })
+				require.NoError(t, m.Put(&i, innerMap))
+			} else {
+				require.NoError(t, m.Put(&i, &i))
+			}
 		}
 
 		require.Equal(t, int64(filledEntries), hashMapNumberOfEntries(m))
 	}
-	t.Run("EmptyMap", func(t *testing.T) { testWithEntryCount(t, 0) })
-	t.Run("HalfFullMap", func(t *testing.T) { testWithEntryCount(t, maxEntries/2) })
-	t.Run("FullMap", func(t *testing.T) { testWithEntryCount(t, maxEntries) })
+
+	mapTypes := []ebpf.MapType{ebpf.Hash, ebpf.LRUHash, ebpf.HashOfMaps}
+	for _, mapType := range mapTypes {
+		t.Run(mapType.String(), func(t *testing.T) {
+			t.Run("EmptyMap", func(t *testing.T) { testWithEntryCount(t, mapType, 0) })
+			t.Run("HalfFullMap", func(t *testing.T) { testWithEntryCount(t, mapType, maxEntries/2) })
+
+			if mapType != ebpf.LRUHash { // LRUHash starts vacating entries even when it's not 100% full, cannot test this case
+				t.Run("FullMap", func(t *testing.T) { testWithEntryCount(t, mapType, maxEntries) })
+			}
+		})
+	}
 }
 
 func TestHashMapNumberOfEntriesNoExtraAllocations(t *testing.T) {
@@ -232,58 +259,6 @@ func TestHashMapNumberOfEntriesNoExtraAllocations(t *testing.T) {
 			require.LessOrEqual(t, allocs, maxAllocs)
 		})
 	}
-}
-
-func TestLRUHashMapNumberOfEntries(t *testing.T) {
-	ebpftest.RequireKernelVersion(t, minimumKernelVersion)
-	maxEntries := uint32(1000)
-	filledEntries := uint32(500)
-
-	m, err := ebpf.NewMap(&ebpf.MapSpec{
-		Type:       ebpf.LRUHash,
-		MaxEntries: uint32(maxEntries),
-		KeySize:    4,
-		ValueSize:  4,
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = m.Close() })
-
-	for i := uint32(0); i < filledEntries; i++ {
-		require.NoError(t, m.Put(&i, &i))
-	}
-
-	require.Equal(t, int64(filledEntries), hashMapNumberOfEntries(m))
-}
-
-func TestHashMapNumberOfEntriesHashOfMaps(t *testing.T) {
-	ebpftest.RequireKernelVersion(t, minimumKernelVersion)
-	maxEntries := uint32(1000)
-	filledEntries := uint32(2)
-
-	innerSpec := &ebpf.MapSpec{
-		Type:       ebpf.Hash,
-		MaxEntries: uint32(20),
-		KeySize:    4,
-		ValueSize:  4,
-	}
-	m, err := ebpf.NewMap(&ebpf.MapSpec{
-		Type:       ebpf.HashOfMaps,
-		MaxEntries: uint32(maxEntries),
-		KeySize:    4,
-		ValueSize:  4,
-		InnerMap:   innerSpec,
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = m.Close() })
-
-	for i := uint32(0); i < filledEntries; i++ {
-		innerMap, err := ebpf.NewMap(innerSpec)
-		require.NoError(t, err)
-		require.NoError(t, m.Put(&i, innerMap))
-		t.Cleanup(func() { _ = innerMap.Close() })
-	}
-
-	require.Equal(t, int64(filledEntries), hashMapNumberOfEntries(m))
 }
 
 func TestHashMapNumberOfEntriesMapTypeSupport(t *testing.T) {
