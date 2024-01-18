@@ -152,7 +152,7 @@ func MergeWithOverwrite(tags map[string]string, overwritingTags map[string]strin
 
 // BuildTagsFromMap builds an array of tag based on map of tags
 func BuildTagsFromMap(tags map[string]string) []string {
-	tagsMap := buildTags(tags, []string{traceOriginMetadataKey, computeStatsKey})
+	tagsMap := buildTags(tags, []string{traceOriginMetadataKey})
 	return MapToArray(tagsMap)
 }
 
