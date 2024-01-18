@@ -46,6 +46,9 @@ type tlsSuite struct {
 
 func TestTLSSuite(t *testing.T) {
 	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
+		if !http.TLSSupported(config.New()) {
+			t.Skip("TLS not supported for this setup")
+		}
 		suite.Run(t, new(tlsSuite))
 	})
 }
