@@ -221,19 +221,21 @@ func TestDetectedNewLanguages(t *testing.T) {
 			Kind: workloadmeta.KindKubernetesDeployment,
 			ID:   "default/dummy",
 		},
-		ContainerLanguages: map[string][]languagemodels.Language{
-			"container-1": {
-				{
-					Name:    "go",
-					Version: "1.2",
+		InjectableLanguages: workloadmeta.Languages{
+			ContainerLanguages: map[string][]languagemodels.Language{
+				"container-1": {
+					{
+						Name:    "go",
+						Version: "1.2",
+					},
 				},
 			},
-		},
-		InitContainerLanguages: map[string][]languagemodels.Language{
-			"container-2": {
-				{
-					Name:    "java",
-					Version: "18",
+			InitContainerLanguages: map[string][]languagemodels.Language{
+				"container-2": {
+					{
+						Name:    "java",
+						Version: "18",
+					},
 				},
 			},
 		},
