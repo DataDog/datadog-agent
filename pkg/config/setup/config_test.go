@@ -1169,6 +1169,38 @@ use_proxy_for_cloud_metadata: true
 	assert.Equal(t, err.Error(), "index out of range 5 >= 2")
 }
 
+var testSimpleConf = []byte(`secret_backend_command: some command
+secret_backend_arguments:
+- ENC[pass1]
+`)
+
+func TestConfigAssignAtPathSimple(t *testing.T) {
+	// CircleCI sets NO_PROXY, so unset it for this test
+	unsetEnvForTest(t, "NO_PROXY")
+
+	config := Conf()
+	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
+	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
+	os.WriteFile(configPath, testSimpleConf, 0600)
+	config.SetConfigFile(configPath)
+
+	_, err := LoadCustom(config, "unit_test", optional.NewNoneOption[secrets.Component](), nil)
+	assert.NoError(t, err)
+
+	err = configAssignAtPath(config, []string{"secret_backend_arguments", "0"}, "password1")
+	assert.NoError(t, err)
+
+	expectedYaml := `secret_backend_arguments:
+- password1
+secret_backend_command: some command
+use_proxy_for_cloud_metadata: true
+`
+	yamlConf, err := yaml.Marshal(config.AllSettingsWithoutDefault())
+	assert.NoError(t, err)
+	yamlText := string(yamlConf)
+	assert.Equal(t, expectedYaml, yamlText)
+}
+
 func TestConfigMustMatchOrigin(t *testing.T) {
 	// CircleCI sets NO_PROXY, so unset it for this test
 	unsetEnvForTest(t, "NO_PROXY")

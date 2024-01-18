@@ -41,6 +41,7 @@ const (
 	UnlinkatNr       = 35  // UnlinkatNr defines the syscall ID for arm64
 	RenameAtNr       = 38  // RenameAtNr defines the syscall ID for arm64
 	RenameAt2Nr      = 276 // RenameAt2Nr defines the syscall ID for arm64
+	Clone3Nr         = 435 // Clone3Nr defines the syscall ID for amd64
 
 	OpenNr   = -1 // OpenNr not available on arm64
 	ForkNr   = -2 // ForkNr not available on arm64
