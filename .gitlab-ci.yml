@@ -899,7 +899,6 @@ except_no_tests_no_deploy:
     when: never
   - <<: *if_not_version_7
     when: never
-  - <<: *if_run_e2e
   - <<: *if_kitchen
   - <<: *if_default_kitchen
     variables:
