@@ -5,19 +5,21 @@
 
 package pkgmanager
 
-import "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+import (
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+)
 
 // ZypperPackageManager is a package manager for zypper
 type ZypperPackageManager struct {
-	vmClient client.VM
+	host *components.RemoteHost
 }
 
 // NewZypperPackageManager return zypper package manager
-func NewZypperPackageManager(vmClient client.VM) *ZypperPackageManager {
-	return &ZypperPackageManager{vmClient: vmClient}
+func NewZypperPackageManager(host *components.RemoteHost) *ZypperPackageManager {
+	return &ZypperPackageManager{host: host}
 }
 
 // Remove executes remove command from zypper
 func (s *ZypperPackageManager) Remove(pkg string) (string, error) {
-	return s.vmClient.ExecuteWithError("sudo zypper remove -y " + pkg)
+	return s.host.Execute("sudo zypper remove -y " + pkg)
 }

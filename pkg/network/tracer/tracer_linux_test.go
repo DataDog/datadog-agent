@@ -41,6 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	rc "github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
@@ -1714,7 +1715,7 @@ func (s *TracerSuite) TestKprobeAttachWithKprobeEvents() {
 	cmd := []string{"curl", "-k", "-o/dev/null", "example.com"}
 	exec.Command(cmd[0], cmd[1:]...).Run()
 
-	stats := ddebpf.GetProbeStats()
+	stats := ebpftelemetry.GetProbeStats()
 	require.NotNil(t, stats)
 
 	//nolint:revive // TODO(NET) Fix revive linter

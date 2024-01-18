@@ -260,8 +260,6 @@ new-e2e-cws-dev:
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
-  # Temporary, until we manage to stabilize those tests.
-  allow_failure: true
 
 new-e2e-cws-main:
   extends: .new_e2e_template
@@ -269,8 +267,6 @@ new-e2e-cws-main:
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
-  # Temporary, until we manage to stabilize those tests.
-  allow_failure: true
 
 new-e2e-process-dev:
   extends: .new_e2e_template
@@ -288,6 +284,7 @@ new-e2e-process-main:
   variables:
     TARGETS: ./tests/process
     TEAM: processes
+  allow_failure: true #TODO: Remove when https://github.com/DataDog/datadog-agent/pull/22113 is merged
 #   ^    If you create a new job here that extends `.new_e2e_template`,
 #  /!\   do not forget to add it in the `dependencies` statement of the
 # /___\  `e2e_test_junit_upload` job in the `.gitlab/e2e_test_junit_upload.yml` file
