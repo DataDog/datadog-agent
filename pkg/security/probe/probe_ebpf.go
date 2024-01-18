@@ -410,9 +410,7 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event) {
 
 	// handle anomaly detections
 	if event.IsAnomalyDetectionEvent() {
-		if event.IsKernelSpaceAnomalyDetectionEvent() {
-			p.profileManagers.securityProfileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, event.ContainerContext), &event.SecurityProfileContext)
-		}
+		p.profileManagers.securityProfileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, event.ContainerContext), &event.SecurityProfileContext)
 		if p.config.RuntimeSecurity.AnomalyDetectionEnabled {
 			p.sendAnomalyDetection(event)
 		}
