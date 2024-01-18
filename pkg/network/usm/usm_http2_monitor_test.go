@@ -68,7 +68,7 @@ func TestHTTP2Scenarios(t *testing.T) {
 		},
 	} {
 		ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, tc.name, func(t *testing.T) {
-			if tc.isTLS && !gotlsutils.GoTLSSupported(&config.Config{}) {
+			if tc.isTLS && !gotlsutils.GoTLSSupported(config.New()) {
 				t.Skip("GoTLS not supported for this setup")
 			}
 
