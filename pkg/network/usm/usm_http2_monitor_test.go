@@ -54,27 +54,28 @@ func TestHTTP2Scenarios(t *testing.T) {
 		t.Skipf("HTTP2 monitoring can not run on kernel before %v", usmhttp2.MinimumKernelVersion)
 	}
 
-	for _, tc := range []struct {
-		name  string
-		isTLS bool
-	}{
-		{
-			name:  "without TLS",
-			isTLS: false,
-		},
-		{
-			name:  "with TLS",
-			isTLS: true,
-		},
-	} {
-		ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, tc.name, func(t *testing.T) {
+	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
+		for _, tc := range []struct {
+			name  string
+			isTLS bool
+		}{
+			{
+				name:  "without TLS",
+				isTLS: false,
+			},
+			{
+				name:  "with TLS",
+				isTLS: true,
+			},
+		} {
 			if tc.isTLS && !gotlsutils.GoTLSSupported(config.New()) {
 				t.Skip("GoTLS not supported for this setup")
 			}
-
-			suite.Run(t, &usmHTTP2Suite{isTLS: tc.isTLS})
-		})
-	}
+			t.Run(tc.name, func(t *testing.T) {
+				suite.Run(t, &usmHTTP2Suite{isTLS: tc.isTLS})
+			})
+		}
+	})
 }
 
 func (s *usmHTTP2Suite) TestRawTraffic() {
