@@ -16,9 +16,9 @@ from invoke.tasks import task
 
 from .flavor import AgentFlavor
 from .go_test import test_flavor
-from .libs.junit_upload import produce_junit_tar
+from .libs.common.utils import REPO_PATH, get_git_commit
+from .libs.junit_upload_core import produce_junit_tar
 from .modules import DEFAULT_MODULES
-from .utils import REPO_PATH, get_git_commit
 
 
 @task(

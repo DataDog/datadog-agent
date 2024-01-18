@@ -8,8 +8,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .build_tags import get_default_build_tags
-from .system_probe import CURRENT_ARCH
-from .utils import (
+from .libs.common.utils import (
     REPO_PATH,
     bin_name,
     get_build_flags,
@@ -18,6 +17,7 @@ from .utils import (
     get_go_version,
     get_version,
 )
+from .system_probe import CURRENT_ARCH
 
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "cws-instrumentation", bin_name("cws-instrumentation"))
