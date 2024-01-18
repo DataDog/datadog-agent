@@ -48,11 +48,6 @@ var (
 
 	stackManager     *StackManager
 	initStackManager sync.Once
-
-	// Sets the log level for Pulumi operations
-	// Be careful setting this value, as it can expose sensitive information in the logs.
-	// https://www.pulumi.com/docs/support/troubleshooting/#verbose-logging
-	pulumiLogLevel = flag.Int("pulumi-log-level", 1, "Pulumi log level")
 )
 
 // StackManager handles
@@ -246,7 +241,15 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 		return nil, auto.UpResult{}, err
 	}
 
-	var loglevel uint = uint(*pulumiLogLevel)
+	logLevel, err := profile.ParamStore().GetIntWithDefault(parameters.PulumiLogLevel, 1)
+	if err != nil {
+		return nil, auto.UpResult{}, err
+	}
+	pulumiLogLevel := uint(logLevel)
+	pulumiLogToStdErr, err := profile.ParamStore().GetBoolWithDefault(parameters.PulumiLogToStdErr, false)
+	if err != nil {
+		return nil, auto.UpResult{}, err
+	}
 	var logger io.Writer
 
 	if logWriter == nil {
@@ -262,7 +265,8 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 		upCtx, cancel := context.WithTimeout(ctx, stackUpTimeout)
 		upResult, err = stack.Up(upCtx, optup.ProgressStreams(logger), optup.DebugLogging(debug.LoggingOptions{
 			FlowToPlugins: true,
-			LogLevel:      &loglevel,
+			LogLevel:      &pulumiLogLevel,
+			LogToStdErr:   pulumiLogToStdErr,
 		}))
 		cancel()
 		if err != nil && shouldRetryError(err) {

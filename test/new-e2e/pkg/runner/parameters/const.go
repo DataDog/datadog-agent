@@ -39,4 +39,8 @@ const (
 	VerifyCodeSignature StoreKey = "verify_code_signature"
 	// OutputDir config file parameter name
 	OutputDir StoreKey = "output_dir"
+	// PulumiLogLevel config file parameter name
+	PulumiLogLevel StoreKey = "pulumi_log_level"
+	// PulumiLogToStdErr config file parameter name
+	PulumiLogToStdErr StoreKey = "pulumi_log_to_stderr"
 )
