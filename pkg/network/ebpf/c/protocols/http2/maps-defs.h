@@ -53,4 +53,10 @@ BPF_PERCPU_ARRAY_MAP(http2_ctx_heap, http2_ctx_t, 1)
  */
 BPF_ARRAY_MAP(http2_telemetry, http2_telemetry_t, 1)
 
+// A perf buffer to send http2 paths to the user mode LRU datastore.
+BPF_PERF_EVENT_ARRAY_MAP(http2_dynamic_table_perf_buffer, __u32)
+
+// This map acts as a heap for dynamic table values to be sent on the perf buffer.
+BPF_PERCPU_ARRAY_MAP(http2_dynamic_table_heap, dynamic_table_value_t, 1)
+
 #endif
