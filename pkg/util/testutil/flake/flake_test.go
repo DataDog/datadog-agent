@@ -7,6 +7,7 @@ package flake
 
 import (
 	"math/rand"
+	"runtime"
 	"sync"
 	"testing"
 
@@ -34,7 +35,9 @@ func (mt *mockTesting) Skip(_ ...any) {
 		defer mt.mutex.Unlock()
 		mt.skipCallCount++
 	}()
-	mt.SkipNow()
+	// implement testing.T.Skip() call to runtime.Goexit()
+	// to mock the behavior of testing.T.Skip()
+	runtime.Goexit()
 }
 
 func (mt *mockTesting) Errorf(_ string, _ ...any) {
@@ -71,8 +74,6 @@ func TestFlake(t *testing.T) {
 		mt := newMockTesting(t)
 		skipFlake = &trueValue
 		wrapAndRunFlakyTest(mt)
-		assert.True(t, mt.Skipped())
-		assert.False(t, mt.Failed())
 		assert.Equal(t, mt.SkipCount(), 1)
 		assert.Equal(t, 0, mt.ErrorCount())
 	})
