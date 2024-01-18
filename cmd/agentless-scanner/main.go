@@ -374,21 +374,19 @@ func runWithModules(run func(cmd *cobra.Command, args []string) error) func(cmd 
 
 func runCommand() *cobra.Command {
 	var runParams struct {
-		pidfilePath      string
-		poolSize         int
-		allowedScanTypes []string
+		pidfilePath string
+		poolSize    int
 	}
 
 	cmd := &cobra.Command{
 		Use:   "run",
 		Short: "Runs the agentless-scanner",
 		RunE: runWithModules(func(cmd *cobra.Command, args []string) error {
-			return runCmd(runParams.pidfilePath, runParams.poolSize, runParams.allowedScanTypes)
+			return runCmd(runParams.pidfilePath, runParams.poolSize)
 		}),
 	}
 	cmd.Flags().StringVarP(&runParams.pidfilePath, "pidfile", "p", "", "path to the pidfile")
 	cmd.Flags().IntVar(&runParams.poolSize, "workers", defaultWorkersCount, "number of scans running in parallel")
-	cmd.Flags().StringSliceVar(&runParams.allowedScanTypes, "allowed-scans-type", nil, "lists of allowed scan types (ebs-volume, lambda)")
 	return cmd
 }
 
@@ -506,7 +504,7 @@ func initStatsdClient() {
 	}
 }
 
-func runCmd(pidfilePath string, poolSize int, allowedScanTypes []string) error {
+func runCmd(pidfilePath string, poolSize int) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -526,7 +524,7 @@ func runCmd(pidfilePath string, poolSize int, allowedScanTypes []string) error {
 
 	limits := newAWSLimits(getAWSLimitsOptions())
 
-	scanner, err := newSideScanner(hostname, limits, poolSize, allowedScanTypes)
+	scanner, err := newSideScanner(hostname, limits, poolSize)
 	if err != nil {
 		return fmt.Errorf("could not initialize agentless-scanner: %w", err)
 	}
@@ -624,7 +622,7 @@ func scanCmd(resourceARN arn.ARN, scannedHostname string, actions []string) erro
 	}
 
 	limits := newAWSLimits(getAWSLimitsOptions())
-	sidescanner, err := newSideScanner(hostname, limits, 1, nil)
+	sidescanner, err := newSideScanner(hostname, limits, 1)
 	if err != nil {
 		return fmt.Errorf("could not initialize agentless-scanner: %w", err)
 	}
@@ -707,7 +705,7 @@ func offlineCmd(poolSize int, scanType scanType, regions []string, maxScans int,
 	}
 
 	limits := newAWSLimits(getAWSLimitsOptions())
-	sidescanner, err := newSideScanner(hostname, limits, poolSize, nil)
+	sidescanner, err := newSideScanner(hostname, limits, poolSize)
 	if err != nil {
 		return fmt.Errorf("could not initialize agentless-scanner: %w", err)
 	}
@@ -1226,7 +1224,6 @@ type sideScanner struct {
 	eventForwarder   epforwarder.EventPlatformForwarder
 	findingsReporter *LogReporter
 	rcClient         *remote.Client
-	allowedScanTypes []string
 	limits           *awsLimits
 	printResults     bool
 
@@ -1241,7 +1238,7 @@ type sideScanner struct {
 	resultsCh chan scanResult
 }
 
-func newSideScanner(hostname string, limits *awsLimits, poolSize int, allowedScanTypes []string) (*sideScanner, error) {
+func newSideScanner(hostname string, limits *awsLimits, poolSize int) (*sideScanner, error) {
 	eventForwarder := epforwarder.NewEventPlatformForwarder()
 	findingsReporter, err := newFindingsReporter()
 	if err != nil {
@@ -1257,7 +1254,6 @@ func newSideScanner(hostname string, limits *awsLimits, poolSize int, allowedSca
 		eventForwarder:   eventForwarder,
 		findingsReporter: findingsReporter,
 		rcClient:         rcClient,
-		allowedScanTypes: allowedScanTypes,
 		limits:           limits,
 
 		scansInProgress: make(map[arn.ARN]struct{}),
@@ -1571,9 +1567,6 @@ func (s *sideScanner) start(ctx context.Context) {
 				}
 
 				for _, scan := range config.Tasks {
-					if len(s.allowedScanTypes) > 0 && !slices.Contains(s.allowedScanTypes, string(scan.Type)) {
-						continue
-					}
 					select {
 					case <-ctx.Done():
 						return
