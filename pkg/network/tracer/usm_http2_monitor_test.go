@@ -13,7 +13,6 @@ import (
 	"encoding/binary"
 	"net"
 	nethttp "net/http"
-	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -33,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/proxy"
-	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -113,15 +111,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
 	if s.isTLS {
-		require.Eventuallyf(t, func() bool {
-			traced := utils.GetTracedPrograms("go-tls")
-			for _, prog := range traced {
-				if slices.Contains[[]uint32](prog.PIDs, uint32(proxyProcess.Process.Pid)) {
-					return true
-				}
-			}
-			return false
-		}, time.Second*5, time.Millisecond*100, "process %v is not traced by gotls", proxyProcess.Process.Pid)
+		waitForGoTLSHook(t, proxyProcess.Process.Pid)
 	}
 
 	getTLSNumber := func(numberWithoutTLS, numberWithTLS int, isTLS bool) int {
