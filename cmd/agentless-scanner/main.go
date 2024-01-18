@@ -621,19 +621,19 @@ func scanCmd(resourceARN arn.ARN, scannedHostname string, actions []string) erro
 	}
 
 	limits := newAWSLimits(getAWSLimitsOptions())
-	sidescanner, err := newSideScanner(hostname, limits, 1)
+	scanner, err := newSideScanner(hostname, limits, 1)
 	if err != nil {
 		return fmt.Errorf("could not initialize agentless-scanner: %w", err)
 	}
-	sidescanner.printResults = true
+	scanner.printResults = true
 	go func() {
-		sidescanner.configsCh <- &scanConfig{
+		scanner.configsCh <- &scanConfig{
 			Type:  awsScan,
 			Tasks: []*scanTask{task},
 		}
-		close(sidescanner.configsCh)
+		close(scanner.configsCh)
 	}()
-	sidescanner.start(ctx)
+	scanner.start(ctx)
 	return nil
 }
 
@@ -704,11 +704,14 @@ func offlineCmd(poolSize int, scanType scanType, regions []string, maxScans int,
 	}
 
 	limits := newAWSLimits(getAWSLimitsOptions())
-	sidescanner, err := newSideScanner(hostname, limits, poolSize)
+	scanner, err := newSideScanner(hostname, limits, poolSize)
 	if err != nil {
 		return fmt.Errorf("could not initialize agentless-scanner: %w", err)
 	}
-	sidescanner.printResults = printResults
+	if err := scanner.cleanSlate(); err != nil {
+		log.Error(err)
+	}
+	scanner.printResults = printResults
 
 	pushEBSVolumes := func(configsCh chan *scanConfig) error {
 		count := 0
@@ -850,12 +853,12 @@ func offlineCmd(poolSize int, scanType scanType, regions []string, maxScans int,
 	}
 
 	go func() {
-		defer close(sidescanner.configsCh)
+		defer close(scanner.configsCh)
 		var err error
 		if scanType == ebsScanType {
-			err = pushEBSVolumes(sidescanner.configsCh)
+			err = pushEBSVolumes(scanner.configsCh)
 		} else if scanType == lambdaScanType {
-			err = pushLambdaFunctions(sidescanner.configsCh)
+			err = pushLambdaFunctions(scanner.configsCh)
 		} else {
 			panic("unreachable")
 		}
@@ -864,7 +867,7 @@ func offlineCmd(poolSize int, scanType scanType, regions []string, maxScans int,
 		}
 	}()
 
-	sidescanner.start(ctx)
+	scanner.start(ctx)
 	return nil
 }
 
@@ -1231,6 +1234,7 @@ type sideScanner struct {
 	findingsReporter *LogReporter
 	rcClient         *remote.Client
 	limits           *awsLimits
+	waiter           *awsWaiter
 	printResults     bool
 
 	regionsCleanupMu sync.Mutex
@@ -1261,6 +1265,7 @@ func newSideScanner(hostname string, limits *awsLimits, poolSize int) (*sideScan
 		findingsReporter: findingsReporter,
 		rcClient:         rcClient,
 		limits:           limits,
+		waiter:           &awsWaiter{},
 
 		scansInProgress: make(map[arn.ARN]struct{}),
 
@@ -1617,6 +1622,7 @@ func (s *sideScanner) launchScan(ctx context.Context, scan *scanTask) (err error
 	}()
 
 	ctx = withAWSLimits(ctx, s.limits)
+	ctx = withAWSWaiter(ctx, s.waiter)
 
 	if err := os.MkdirAll(scan.Path(), 0700); err != nil {
 		return err
@@ -1852,10 +1858,8 @@ retry:
 	snapshotARN := ec2ARN(volumeARN.Region, volumeARN.AccountID, resourceTypeSnapshot, snapshotID)
 	scan.CreatedSnapshots[snapshotARN.String()] = &snapshotCreatedAt
 
-	waiter := ec2.NewSnapshotCompletedWaiter(ec2client, func(scwo *ec2.SnapshotCompletedWaiterOptions) {
-		scwo.MinDelay = 1 * time.Second
-	})
-	err = waiter.Wait(ctx, &ec2.DescribeSnapshotsInput{SnapshotIds: []string{snapshotID}}, 10*time.Minute)
+	waiter := getAWSWaiter(ctx)
+	err = <-waiter.wait(ctx, snapshotARN, ec2client)
 	if err == nil {
 		snapshotDuration := time.Since(snapshotCreatedAt)
 		log.Debugf("volume snapshotting of %q finished successfully %q (took %s)", volumeARN, snapshotID, snapshotDuration)
@@ -2735,16 +2739,14 @@ func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, snapshotARN a
 		if err != nil {
 			return fmt.Errorf("could not copy snapshot %q to %q: %w", snapshotARN, self.Region, err)
 		}
+		localSnapshotARN = ec2ARN(self.Region, snapshotARN.AccountID, resourceTypeSnapshot, *copySnapshot.SnapshotId)
 		log.Debugf("waiting for copy of snapshot %q into %q as %q", snapshotARN, self.Region, *copySnapshot.SnapshotId)
-		waiter := ec2.NewSnapshotCompletedWaiter(remoteEC2Client, func(scwo *ec2.SnapshotCompletedWaiterOptions) {
-			scwo.MinDelay = 1 * time.Second
-		})
-		err = waiter.Wait(ctx, &ec2.DescribeSnapshotsInput{SnapshotIds: []string{*copySnapshot.SnapshotId}}, 10*time.Minute)
+		waiter := getAWSWaiter(ctx)
+		err = <-waiter.wait(ctx, localSnapshotARN, remoteEC2Client)
 		if err != nil {
 			return fmt.Errorf("could not finish copying %q to %q as %q: %w", snapshotARN, self.Region, *copySnapshot.SnapshotId, err)
 		}
 		log.Debugf("successfully copied snapshot %q into %q: %q", snapshotARN, self.Region, *copySnapshot.SnapshotId)
-		localSnapshotARN = ec2ARN(self.Region, snapshotARN.AccountID, resourceTypeSnapshot, *copySnapshot.SnapshotId)
 		scan.CreatedSnapshots[localSnapshotARN.String()] = &copySnapshotCreatedAt
 	} else {
 		localSnapshotARN = snapshotARN
@@ -3193,6 +3195,127 @@ func getAWSLimitsOptions() awsLimitsOptions {
 	}
 }
 
+type awsWaiter struct {
+	sync.Mutex
+	subs map[string]map[string][]chan error
+}
+
+func (w *awsWaiter) wait(ctx context.Context, snapshotARN arn.ARN, ec2client *ec2.Client) <-chan error {
+	w.Lock()
+	defer w.Unlock()
+	region := snapshotARN.Region
+	if w.subs == nil {
+		w.subs = make(map[string]map[string][]chan error)
+	}
+	if w.subs[region] == nil {
+		w.subs[region] = make(map[string][]chan error)
+	}
+	_, resourceID, _ := getARNResource(snapshotARN)
+	ch := make(chan error, 1)
+	subs := w.subs[region]
+	subs[resourceID] = append(subs[resourceID], ch)
+	if len(subs) == 1 {
+		go w.loop(ctx, region, ec2client)
+	}
+	return ch
+}
+
+func (w *awsWaiter) abort(region string, err error) {
+	w.Lock()
+	defer w.Unlock()
+	for _, chs := range w.subs[region] {
+		for _, ch := range chs {
+			ch <- err
+		}
+	}
+	w.subs[region] = nil
+}
+
+func (w *awsWaiter) loop(ctx context.Context, region string, ec2client *ec2.Client) {
+	const (
+		tickerInterval  = 5 * time.Second
+		snapshotTimeout = 15 * time.Minute
+	)
+
+	ticker := time.NewTicker(tickerInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+		case <-ctx.Done():
+			w.abort(region, ctx.Err())
+			return
+		}
+
+		w.Lock()
+		snapshotIDs := make([]string, 0, len(w.subs[region]))
+		for snapshotID := range w.subs[region] {
+			snapshotIDs = append(snapshotIDs, snapshotID)
+		}
+		w.Unlock()
+
+		if len(snapshotIDs) == 0 {
+			return
+		}
+
+		// TODO: could we rely on ListSnapshotBlocks instead of
+		// DescribeSnapshots as a "fast path" to not consume precious quotas ?
+		output, err := ec2client.DescribeSnapshots(context.TODO(), &ec2.DescribeSnapshotsInput{
+			SnapshotIds: snapshotIDs,
+		})
+		if err != nil {
+			w.abort(region, err)
+			return
+		}
+
+		snapshots := make(map[string]ec2types.Snapshot, len(output.Snapshots))
+		for _, snap := range output.Snapshots {
+			snapshots[*snap.SnapshotId] = snap
+		}
+
+		w.Lock()
+		subs := w.subs[region]
+		noError := errors.New("")
+		for _, snapshotID := range snapshotIDs {
+			var errp error
+			snap, ok := snapshots[snapshotID]
+			if !ok {
+				errp = fmt.Errorf("snapshot %q does not exist", *snap.SnapshotId)
+			} else {
+				switch snap.State {
+				case ec2types.SnapshotStatePending:
+					if elapsed := time.Since(*snap.StartTime); elapsed > snapshotTimeout {
+						errp = fmt.Errorf("snapshot %q creation timed out (started at %s)", *snap.SnapshotId, *snap.StartTime)
+					}
+				case ec2types.SnapshotStateRecoverable:
+					errp = fmt.Errorf("snapshot %q in recoverable state", *snap.SnapshotId)
+				case ec2types.SnapshotStateRecovering:
+					errp = fmt.Errorf("snapshot %q in recovering state", *snap.SnapshotId)
+				case ec2types.SnapshotStateError:
+					msg := fmt.Sprintf("snapshot %q failed", *snap.SnapshotId)
+					if snap.StateMessage != nil {
+						msg += ": " + *snap.StateMessage
+					}
+					errp = fmt.Errorf(msg)
+				case ec2types.SnapshotStateCompleted:
+					errp = noError
+				}
+			}
+			if errp != nil {
+				for _, ch := range subs[*snap.SnapshotId] {
+					if errp == noError {
+						ch <- nil
+					} else {
+						ch <- errp
+					}
+				}
+				delete(subs, *snap.SnapshotId)
+			}
+		}
+		w.Unlock()
+	}
+}
+
 type awsLimits struct {
 	limitersMu sync.Mutex
 	limiters   map[string]*rate.Limiter
@@ -3206,21 +3329,40 @@ func newAWSLimits(opts awsLimitsOptions) *awsLimits {
 	}
 }
 
-var keyRateLimits = struct{}{}
+// TODO: get rid of using context to pass these around.
+var (
+	keyAWSLimits = struct{}{}
+	keyAWSWaiter = struct{}{}
+)
 
 func withAWSLimits(ctx context.Context, limits *awsLimits) context.Context {
 	if limits != nil {
-		return context.WithValue(ctx, keyRateLimits, limits)
+		return context.WithValue(ctx, keyAWSLimits, limits)
+	}
+	return ctx
+}
+
+func withAWSWaiter(ctx context.Context, waiter *awsWaiter) context.Context {
+	if waiter != nil {
+		return context.WithValue(ctx, keyAWSWaiter, waiter)
 	}
 	return ctx
 }
 
 func getAWSLimit(ctx context.Context) *awsLimits {
-	limits := ctx.Value(keyRateLimits)
+	limits := ctx.Value(keyAWSLimits)
 	if limits == nil {
 		return newAWSLimits(awsLimitsOptions{})
 	}
 	return limits.(*awsLimits)
+}
+
+func getAWSWaiter(ctx context.Context) *awsWaiter {
+	waiter := ctx.Value(keyAWSWaiter)
+	if waiter == nil {
+		return &awsWaiter{}
+	}
+	return waiter.(*awsWaiter)
 }
 
 func (l *awsLimits) getLimiter(accountID, region, service, action string) *rate.Limiter {
