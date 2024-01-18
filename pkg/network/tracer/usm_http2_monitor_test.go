@@ -26,12 +26,15 @@ import (
 	"golang.org/x/net/http2/hpack"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
+	gotlsutils "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/proxy"
+	"github.com/DataDog/datadog-agent/pkg/network/usm"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -70,15 +73,8 @@ func TestHTTP2Scenarios(t *testing.T) {
 		},
 	} {
 		ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, tc.name, func(t *testing.T) {
-			if tc.isTLS {
-				if !goTLSSupported() {
-					t.Skip("GoTLS not supported for this setup")
-				}
-
-				if skipFedora(t) {
-					// GoTLS fails consistently in CI on Fedora 36,37
-					t.Skip("TestHTTP2Scenarios fails on this OS consistently")
-				}
+			if tc.isTLS && !gotlsutils.GoTLSSupported(&config.Config{}) {
+				t.Skip("GoTLS not supported for this setup")
 			}
 
 			suite.Run(t, &usmHTTP2Suite{isTLS: tc.isTLS})
@@ -88,7 +84,7 @@ func TestHTTP2Scenarios(t *testing.T) {
 
 func (s *usmHTTP2Suite) TestRawTraffic() {
 	t := s.T()
-	cfg := networkconfig.New()
+	cfg := config.New()
 	cfg.EnableHTTP2Monitoring = true
 	cfg.EnableGoTLSSupport = s.isTLS
 	cfg.GoTLSExcludeSelf = s.isTLS
@@ -101,18 +97,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 	// Start the proxy server.
 	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
 	t.Cleanup(cancel)
-
-	tr := setupTracer(t, cfg)
-	require.NoError(t, tr.ebpfTracer.Pause())
-
-	// The server runs asynchronously, so we need to wait for it to be ready. It can take a couple of seconds, for it to
-	// be ready. Also, it takes a couple of seconds to the tracer to start, so we place the "wait" for the server here,
-	// to reduce the time we need to wait for the server to be ready.
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
-
-	if s.isTLS {
-		waitForGoTLSHook(t, proxyProcess.Process.Pid)
-	}
 
 	getTLSNumber := func(numberWithoutTLS, numberWithTLS int, isTLS bool) int {
 		if isTLS {
@@ -203,7 +188,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 		},
 		{
-			name: "validate literal header field never indexed",
+			name: "guy validate literal header field never indexed",
 			// The purpose of this test is to verify our ability the case:
 			// Literal Header Field never Indexed (0b0001xxxx: top four bits are 0001)
 			// https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.3
@@ -219,7 +204,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 		},
 		{
-			name: "validate path with index 4",
+			name: "guy validate path with index 4",
 			// The purpose of this test is to verify our ability to identify paths with index 4.
 			messageBuilder: func() []byte {
 				const headerFramesCount = 5
@@ -253,10 +238,14 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				t.Skip("skipping test")
 			}
 
-			tr.removeClient(clientID)
-			initTracerState(t, tr)
-			require.NoError(t, tr.ebpfTracer.Resume())
-			t.Cleanup(func() { _ = tr.ebpfTracer.Pause() })
+			usmMonitor, err := usm.NewMonitor(cfg, nil, nil, nil)
+			require.NoError(t, err)
+			require.NoError(t, usmMonitor.Start())
+			t.Cleanup(usmMonitor.Stop)
+			t.Cleanup(utils.ResetDebugger)
+			if s.isTLS {
+				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+			}
 
 			c, err := net.Dial("unix", unixPath)
 			require.NoError(t, err, "could not dial")
@@ -276,7 +265,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 
 			res := make(map[http.Key]int)
 			assert.Eventually(t, func() bool {
-				stats := tr.usmMonitor.GetProtocolStats()
+				stats := usmMonitor.GetProtocolStats()
 				http2Stats, ok := stats[protocols.HTTP2]
 				if !ok {
 					return false
@@ -319,7 +308,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 						t.Logf("key: %v was not found in res", key.Path.Content.Get())
 					}
 				}
-				ebpftest.DumpMapsTestHelper(t, tr.usmMonitor.DumpMaps, "http2_in_flight")
+				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, "http2_in_flight")
 			}
 		})
 	}
