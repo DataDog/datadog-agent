@@ -148,8 +148,6 @@ func (wp *WinProcmon) Start() error {
 
 //nolint:revive // TODO(WKIT) Fix revive linter
 func decodeStruct(data []uint8, sz uint32) (start *ProcessStartNotification, stop *ProcessStopNotification) {
-	start = nil
-	stop = nil
 	if unsafe.Sizeof(DDProcessNotification{}.Size) > uintptr(sz) {
 		return nil, nil
 	}
