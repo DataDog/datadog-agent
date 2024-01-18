@@ -510,10 +510,8 @@ func (e *RuleEngine) SetRulesetLoadedCallback(cb func(es *rules.EvaluationSet, e
 
 // HandleEvent is called by the probe when an event arrives from the kernel
 func (e *RuleEngine) HandleEvent(event *model.Event) {
-	seclog.Debugf("------in HandleEvent")
 	// event already marked with an error, skip it
 	if event.Error != nil {
-		seclog.Debugf("---- event.Error")
 		return
 	}
 
@@ -528,7 +526,6 @@ func (e *RuleEngine) HandleEvent(event *model.Event) {
 
 	if ruleSet := e.GetRuleSet(); ruleSet != nil {
 		if !ruleSet.Evaluate(event) {
-			seclog.Debugf("---- event discarded")
 			ruleSet.EvaluateDiscarders(event)
 		}
 	}

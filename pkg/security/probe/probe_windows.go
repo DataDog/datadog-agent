@@ -81,6 +81,7 @@ func (p *WindowsProbe) Start() error {
 			var err error
 			ev := p.zeroEvent()
 			var pidToCleanup uint32
+
 			select {
 			case <-p.ctx.Done():
 				return
