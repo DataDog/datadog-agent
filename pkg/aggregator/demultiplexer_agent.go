@@ -124,7 +124,7 @@ type dataOutputs struct {
 // In the future, goroutines will be started for the event platform forwarder and/or orchestrator forwarder.
 func InitAndStartAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forwarder, orchestratorForwarder orchestratorforwarder.Component, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
 	demux := initAgentDemultiplexer(log, sharedForwarder, orchestratorForwarder, options, hostname)
-	go demux.Run()
+	go demux.run()
 	return demux
 }
 
@@ -261,8 +261,8 @@ func (d *AgentDemultiplexer) AddAgentStartupTelemetry(agentVersion string) {
 	}
 }
 
-// Run runs all demultiplexer parts
-func (d *AgentDemultiplexer) Run() {
+// run runs all demultiplexer parts
+func (d *AgentDemultiplexer) run() {
 	if !d.options.DontStartForwarders {
 		d.log.Debugf("Starting forwarders")
 

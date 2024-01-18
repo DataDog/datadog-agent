@@ -82,7 +82,7 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 	demux := initAgentDemultiplexer(log, NewForwarderTest(log), &orchestratorForwarder, opts, "")
 	demux.statsd.noAggStreamWorker.serializer = mockSerializer // the no agg pipeline will use our mocked serializer
 
-	go demux.Run()
+	go demux.run()
 
 	batch := testDemuxSamples(t)
 
