@@ -78,6 +78,8 @@ e2e_test_junit_upload:
     - new-e2e-aml-main
     - new-e2e-process-main
     - new-e2e-cws-main
+    - new-e2e-windows-agent-msi-windows-server-a6-x86_64
+    - new-e2e-windows-agent-msi-windows-server-a7-x86_64
     - new-e2e-orchestrator-main
 
   script:
