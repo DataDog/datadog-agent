@@ -103,7 +103,6 @@ func (p *WindowsProbe) Start() error {
 				// handle new fields
 				// CreatingPRocessId
 				// CreatingThreadId
-				// OwnerSidString
 				if start.RequiredSize != 0 {
 					// in this case, the command line and/or the image file might not be filled in
 					// depending upon how much space was needed.
