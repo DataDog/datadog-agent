@@ -3381,8 +3381,6 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers21(
 		switch key {
 		case "name":
 			out.Name = string(in.String())
-		case "status":
-			out.Status = string(in.String())
 		case "version":
 			out.Version = string(in.String())
 		case "tags":
@@ -3426,11 +3424,6 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers21(
 		const prefix string = ",\"name\":"
 		out.RawString(prefix[1:])
 		out.String(string(in.Name))
-	}
-	{
-		const prefix string = ",\"status\":"
-		out.RawString(prefix)
-		out.String(string(in.Status))
 	}
 	{
 		const prefix string = ",\"version\":"
