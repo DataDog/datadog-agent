@@ -15,7 +15,6 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -26,11 +25,8 @@ import (
 //go:embed log-config/automulti.yaml
 var agentAutoMultiLineConfig string
 
-//go:embed scripts/multi-logger.sh
-var pythonScript string
-
-//go:embed scripts/logger-service.sh
-var randomLogger string
+const singleLineLog = "This is a single line log"
+const multiLineLog = "This is\na multi\nline log"
 
 type AutoMultiLineSuite struct {
 	e2e.BaseSuite[environments.Host]
@@ -54,39 +50,40 @@ func (s *AutoMultiLineSuite) TestAutoMultiLine() {
 	s.Run("AutoMultiLine", s.ContainsLogWithNewLines)
 }
 
+func (s *AutoMultiLineSuite) prePopulate() {
+	var message string
+	// auto_multi_line_detection uses the first 500 logs to detect a pattern
+	for i := 0; i < 700; i++ {
+		timestamp := time.Now().Format(time.RFC3339)
+		if i%2 == 0 {
+			message = fmt.Sprintf("%s | %s", timestamp, singleLineLog)
+		} else {
+			message = fmt.Sprintf("%s | %s", timestamp, multiLineLog)
+		}
+		cmd := fmt.Sprintf("echo '%s' | sudo tee -a %s", message, logPath)
+		s.Env().RemoteHost.MustExecute(cmd)
+	}
+}
+
 func (s *AutoMultiLineSuite) BeforeTest(suiteName, testName string) {
 	s.BaseSuite.BeforeTest(suiteName, testName)
-
-	t := s.T()
 
 	s.Env().RemoteHost.Execute("sudo touch /var/log/hello-world.log")
 	s.Env().RemoteHost.Execute("sudo chmod +r /var/log/hello-world.log")
 
-	// Create python script for multi-line logging
-	_, err := s.Env().RemoteHost.Execute(pythonScript)
-	require.NoError(t, err, "Failed to generate log generation script ")
+	s.prePopulate()
+}
 
-	// Create multi-line log generation service
-	loggerService := string(randomLogger)
-	_, err = s.Env().RemoteHost.Execute(loggerService)
-	require.NoError(t, err, "Failed to create multi-line log generation service ")
+func (s *AutoMultiLineSuite) AfterTest(suiteName, testName string) {
+	s.BaseSuite.AfterTest(suiteName, testName)
 
-	_, err = s.Env().RemoteHost.Execute("sudo systemctl daemon-reload")
-	require.NoError(t, err, "Failed to reload service")
-
-	// Start multi-linelog generation service
-	_, err = s.Env().RemoteHost.Execute("sudo systemctl enable --now random-logger.service")
-	require.NoError(t, err, "Failed to enable service")
-
-	// Restart agent
-	_, err = s.Env().RemoteHost.Execute("sudo service datadog-agent restart")
-	require.NoError(t, err, "Failed to restart the agent")
+	s.Env().RemoteHost.Execute("sudo rm /var/log/hello-world.log")
 }
 
 func (s *AutoMultiLineSuite) ContainsLogWithNewLines() {
 	client := s.Env().FakeIntake.Client()
 	service := "hello"
-	content := `An error is\nusually an exception that\nhas been caught and not handled.`
+	content := `This is\na multi\nline log`
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		names, err := client.GetLogServiceNames()
@@ -96,9 +93,6 @@ func (s *AutoMultiLineSuite) ContainsLogWithNewLines() {
 
 		// Auto Multiline is working if the log message contains the complete log contents with newlines
 		logs, err := client.FilterLogs(service, fi.WithMessageContaining(content))
-		for _, log := range logs {
-			fmt.Println(log.Message, log.Tags)
-		}
 		if !assert.NoErrorf(c, err, "Error found: %s", err) {
 			return
 		}
