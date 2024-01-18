@@ -2,9 +2,7 @@ module github.com/DataDog/datadog-agent/test/fakeintake
 
 go 1.21
 
-replace (
-	github.com/DataDog/datadog-agent/pkg/proto => ../../pkg/proto
-)
+replace github.com/DataDog/datadog-agent/pkg/proto => ../../pkg/proto
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.100
@@ -41,6 +39,6 @@ require (
 	github.com/prometheus/procfs v0.11.1 // indirect
 	github.com/rogpeppe/go-internal v1.10.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	golang.org/x/sys v0.11.0 // indirect
+	golang.org/x/sys v0.15.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
