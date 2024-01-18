@@ -13,6 +13,7 @@ deploy_containers-a6:
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     BUCKET_BRANCH: $BUCKET_BRANCH
+    DDR_WORKFLOW_ID: $DDR_WORKFLOW_ID
   trigger:
     include: .gitlab/deploy_containers/deploy_containers_a6.yml
 
@@ -24,10 +25,11 @@ deploy_containers-a6-on-failure:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     BUCKET_BRANCH: $BUCKET_BRANCH
     FORCE_MANUAL: "true"
+    DDR_WORKFLOW_ID: $DDR_WORKFLOW_ID
   trigger:
     include: .gitlab/deploy_containers/deploy_containers_a6.yml
 
-  
+
 deploy_containers-a7:
   stage: deploy_containers
   rules:
@@ -35,6 +37,7 @@ deploy_containers-a7:
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     BUCKET_BRANCH: $BUCKET_BRANCH
+    DDR_WORKFLOW_ID: $DDR_WORKFLOW_ID
   trigger:
     include: .gitlab/deploy_containers/deploy_containers_a7.yml
 
@@ -47,5 +50,6 @@ deploy_containers-a7-on-failure:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     BUCKET_BRANCH: $BUCKET_BRANCH
     FORCE_MANUAL: "true"
+    DDR_WORKFLOW_ID: $DDR_WORKFLOW_ID
   trigger:
     include: .gitlab/deploy_containers/deploy_containers_a7.yml
