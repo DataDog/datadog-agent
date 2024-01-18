@@ -5,6 +5,7 @@ High level testing tasks
 # Recent versions of Python should be able to use dict and list directly in type hints,
 # so we only need to check that we don't run this code with old Python versions.
 
+import glob
 import json
 import operator
 import os
@@ -24,7 +25,7 @@ from .cluster_agent import integration_tests as dca_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
 from .flavor import AgentFlavor
 from .libs.common.color import color_message
-from .libs.common.utils import get_build_flags
+from .libs.common.utils import clean_nested_paths, get_build_flags
 from .libs.datadog_api import create_count, send_metrics
 from .libs.junit_upload_core import add_flavor_to_junitxml, produce_junit_tar
 from .modules import DEFAULT_MODULES, GoModule
@@ -33,6 +34,7 @@ from .trace_agent import integration_tests as trace_integration_tests
 
 PROFILE_COV = "coverage.out"
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
+WINDOWS_MAX_PACKAGES_NUMBER = 150
 
 
 class TestProfiler:
@@ -494,6 +496,10 @@ def get_modified_packages(ctx) -> List[GoModule]:
         if not os.path.exists(os.path.dirname(modified_file)):
             continue
 
+        # If there are no _test.go file in the folder we do not try to run tests
+        if not glob.glob(os.path.join(os.path.dirname(modified_file), "**/*_test.go"), recursive=True):
+            continue
+
         relative_target = "./" + os.path.relpath(os.path.dirname(modified_file), best_module_path)
 
         if best_module_path in modules_to_test:
@@ -504,6 +510,14 @@ def get_modified_packages(ctx) -> List[GoModule]:
                 modules_to_test[best_module_path].targets.append(relative_target)
         else:
             modules_to_test[best_module_path] = GoModule(best_module_path, targets=[relative_target])
+
+    # Clean up duplicated paths to reduce Go test cmd length
+    for module in modules_to_test:
+        modules_to_test[module].targets = clean_nested_paths(modules_to_test[module].targets)
+        if (
+            len(modules_to_test[module].targets) >= WINDOWS_MAX_PACKAGES_NUMBER
+        ):  # With more packages we can reach the limit of the command line length on Windows
+            modules_to_test[module].targets = DEFAULT_MODULES[module].targets
 
     print("Running tests for the following modules:")
     for module in modules_to_test:
