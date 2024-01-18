@@ -39,6 +39,10 @@ type ProcessSerializer struct {
 	Container *ContainerContextSerializer `json:"container,omitempty"`
 	// Command line arguments
 	CmdLine string `json:"cmdline,omitempty"`
+	// User's sid
+	OwnerSidString string `json:"user_sid,omitempty"`
+	// User of the process
+	User string `json:"user,omitempty"`
 }
 
 // FileEventSerializer serializes a file event to JSON
@@ -66,10 +70,12 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 		ExecTime: getTimeIfNotZero(ps.ExecTime),
 		ExitTime: getTimeIfNotZero(ps.ExitTime),
 
-		Pid:        ps.Pid,
-		PPid:       getUint32Pointer(&ps.PPid),
-		Executable: newFileSerializer(&ps.FileEvent, e),
-		CmdLine:    e.FieldHandlers.ResolveProcessCmdLineScrubbed(e, ps),
+		Pid:            ps.Pid,
+		PPid:           getUint32Pointer(&ps.PPid),
+		Executable:     newFileSerializer(&ps.FileEvent, e),
+		CmdLine:        e.FieldHandlers.ResolveProcessCmdLineScrubbed(e, ps),
+		OwnerSidString: ps.OwnerSidString,
+		User:           e.FieldHandlers.ResolverUser(e, ps),
 	}
 
 	if len(ps.ContainerID) != 0 {

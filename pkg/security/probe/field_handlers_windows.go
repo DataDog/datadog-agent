@@ -82,3 +82,8 @@ func (fh *FieldHandlers) GetProcessService(ev *model.Event) string {
 func (fh *FieldHandlers) ResolveProcessCmdLineScrubbed(_ *model.Event, e *model.Process) string {
 	return fh.resolvers.ProcessResolver.GetProcessCmdLineScrubbed(e)
 }
+
+// ResolveUser resolves the user of the process
+func (fh *FieldHandlers) ResolveUser(_ *model.Event, process *model.Process) string {
+	return fh.resolvers.ProcessResolver.GetUser(process.OwnerSidString)
+}

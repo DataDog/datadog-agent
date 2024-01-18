@@ -115,7 +115,7 @@ func (p *WindowsProbe) Start() error {
 
 				}
 
-				pce, err = p.Resolvers.ProcessResolver.AddNewEntry(pid, uint32(start.PPid), start.ImageFile, start.CmdLine)
+				pce, err = p.Resolvers.ProcessResolver.AddNewEntry(pid, uint32(start.PPid), start.ImageFile, start.CmdLine, start.OwnerSidString)
 				if err != nil {
 					log.Errorf("error in resolver %v", err)
 					continue

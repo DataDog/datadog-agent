@@ -14,6 +14,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sys/windows"
+
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -96,27 +98,15 @@ func (p *Resolver) DeleteEntry(pid uint32, exitTime time.Time) {
 }
 
 // AddNewEntry add a new process entry to the cache
-func (p *Resolver) AddNewEntry(pid uint32, ppid uint32, file string, commandLine string) (*model.ProcessCacheEntry, error) {
+func (p *Resolver) AddNewEntry(pid uint32, ppid uint32, file string, commandLine string, OwnerSidString string) (*model.ProcessCacheEntry, error) {
 	e := p.processCacheEntryPool.Get()
 	e.PIDContext.Pid = pid
 	e.PPid = ppid
-	processHandle, err := procutil.OpenProcessHandle(int32(pid))
-	if err != nil {
-		log.Debugf("Couldn't get the process handle %v ", err)
-	} else {
-		username, err := procutil.GetUsernameForProcess(processHandle)
-		if err != nil {
-			log.Debugf("Couldn't get process username %v %v", pid, err)
-		} else {
-			e.Process.User = username
-		}
-	}
-	log.Debugf("------------- username : %v", e.Process.User)
 	e.Process.CmdLine = utils.NormalizePath(commandLine)
 	e.Process.FileEvent.PathnameStr = utils.NormalizePath(file)
 	e.Process.FileEvent.BasenameStr = filepath.Base(e.Process.FileEvent.PathnameStr)
 	e.ExecTime = time.Now()
-
+	e.Process.OwnerSidString = OwnerSidString
 	p.insertEntry(e)
 
 	return e, nil
@@ -255,4 +245,14 @@ func (p *Resolver) Snapshot() {
 	for _, e := range entries {
 		p.insertEntry(e)
 	}
+}
+
+// GetUser returns the username
+func (p *Resolver) GetUser(ownerSidString string) (name string, err error) {
+	sid = windows.StringToSid(OwnerSidString)
+	user, domain, _, err = sid.LookupAccount("")
+	if nil != err {
+		return "", err
+	}
+	return domain + "\\" + user, err
 }
