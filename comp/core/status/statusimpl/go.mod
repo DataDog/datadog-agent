@@ -4,9 +4,21 @@ go 1.21
 
 replace (
 	github.com/DataDog/datadog-agent/comp/core/config => ../../config
+	github.com/DataDog/datadog-agent/comp/core/secrets => ../../secrets
 	github.com/DataDog/datadog-agent/comp/core/status => ../.
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../pkg/collector/check/defaults
+	github.com/DataDog/datadog-agent/pkg/config/env => ../../../../pkg/config/env
+	github.com/DataDog/datadog-agent/pkg/config/model => ../../../../pkg/config/model
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../pkg/config/setup
+	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../../pkg/util/executable
+	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../../../pkg/util/filesystem
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../../pkg/util/fxutil
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../../pkg/util/hostname/validate
+	github.com/DataDog/datadog-agent/pkg/util/log => ../../../../pkg/util/log
+	github.com/DataDog/datadog-agent/pkg/util/optional => ../../../../pkg/util/optional
+	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../../pkg/util/scrubber
+	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../../../pkg/util/system/socket
+	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../pkg/util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ../../../../pkg/version
 )
 
@@ -17,7 +29,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/version v0.0.0-00010101000000-000000000000
 	github.com/stretchr/testify v1.8.4
-	go.uber.org/fx v1.20.1
+	go.uber.org/fx v1.18.2
 	golang.org/x/text v0.14.0
 )
 
