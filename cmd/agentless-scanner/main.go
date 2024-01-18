@@ -1139,8 +1139,12 @@ func humanParseARN(s string, expectedTypes ...resourceType) (arn.ARN, error) {
 	}
 	if strings.HasPrefix(s, "/") && fs.ValidPath(s) {
 		a.Partition = "localhost"
-	} else if strings.HasPrefix(s, "vol-") || strings.HasPrefix(s, "snap-") {
+	} else if strings.HasPrefix(s, "vol-") {
 		a.Service = "ec2"
+		a.Resource = "volume/" + a.Resource
+	} else if strings.HasPrefix(s, "snap-") {
+		a.Service = "ec2"
+		a.Resource = "snapshot/" + a.Resource
 	} else if strings.HasPrefix(s, "function:") {
 		a.Service = "lambda"
 	} else {
