@@ -148,7 +148,7 @@ func (k *Probe) Close() {
 func (k *Probe) GetAndFlush() (results []model.OOMKillStats) {
 	var pid uint32
 	var stat C.struct_oom_stats
-	it := k.oomMap.IterateWithOptions(ebpf.IteratorOptions{ForceSingleItem: true}) // This specific case doesn't work with batch iterations, force single item
+	it := k.oomMap.Iterate()
 	for it.Next(&pid, &stat) {
 		results = append(results, convertStats(stat))
 	}

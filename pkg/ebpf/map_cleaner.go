@@ -155,7 +155,7 @@ func (mc *MapCleaner[K, V]) cleanWithoutBatches(nowTS int64, shouldClean func(no
 	var val V
 	totalCount, deletedCount := 0, 0
 
-	entries := mc.emap.IterateWithOptions(IteratorOptions{ForceSingleItem: true})
+	entries := mc.emap.Iterate()
 	for entries.Next(&key, &val) {
 		totalCount++
 		if !shouldClean(nowTS, key, val) {
