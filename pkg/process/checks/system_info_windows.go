@@ -50,15 +50,7 @@ func CollectSystemInfo() (*model.SystemInfo, error) {
 	modelName := cpuInfo.Model.ValueOrDefault()
 	for i := uint64(0); i < physCount; i++ {
 		cpus = append(cpus, &model.CPUInfo{
-			Number:     int32(i),
-			Vendor:     vendor,
-			Family:     family,
-			Model:      modelName,
-			PhysicalId: "",
-			CoreId:     "",
-			Cores:      int32(logicalCountPerPhys),
-			Mhz:        int64(clockSpeed),
-			CacheSize:  int32(l2Cache),
+			Cores: int32(logicalCountPerPhys),
 		})
 	}
 

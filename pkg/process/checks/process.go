@@ -110,13 +110,6 @@ type ProcessCheck struct {
 
 // Init initializes the singleton ProcessCheck.
 func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool) error {
-	cpus := make([]*model.CPUInfo, 0, len(info.SystemInfo.Cpus))
-	for _, c := range info.SystemInfo.Cpus {
-		cpus = append(cpus, &model.CPUInfo{
-			Cores: c.Cores,
-		})
-	}
-	info.SystemInfo.Cpus = cpus
 	p.hostInfo = info
 	p.sysProbeConfig = syscfg
 	p.probe = newProcessProbe(p.config, procutil.WithPermission(syscfg.ProcessModuleEnabled))

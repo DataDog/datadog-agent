@@ -41,13 +41,6 @@ type ProcessDiscoveryCheck struct {
 
 // Init initializes the ProcessDiscoveryCheck. It is a runtime error to call Run without first having called Init.
 func (d *ProcessDiscoveryCheck) Init(syscfg *SysProbeConfig, info *HostInfo, _ bool) error {
-	cpus := make([]*model.CPUInfo, 0, len(info.SystemInfo.Cpus))
-	for _, c := range info.SystemInfo.Cpus {
-		cpus = append(cpus, &model.CPUInfo{
-			Cores: c.Cores,
-		})
-	}
-	info.SystemInfo.Cpus = cpus
 	d.info = info
 	d.initCalled = true
 	d.probe = newProcessProbe(d.config, procutil.WithPermission(syscfg.ProcessModuleEnabled))
