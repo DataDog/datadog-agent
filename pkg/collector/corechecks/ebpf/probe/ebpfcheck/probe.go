@@ -532,7 +532,7 @@ func hashMapNumberOfEntries(mp *ebpf.Map) int64 {
 	}
 
 	numElements := 0
-	if ddebpf.BatchAPISupported() {
+	if ddebpf.BatchAPISupported() && mp.Type() != ebpf.HashOfMaps { // HashOfMaps doesn't work with batch API
 		// Here we duplicate a bit the code from cilium/ebpf to use the batch API
 		// in our own way, because the way it's coded there it cannot be used with
 		// key sizes that are only known at runtime.
