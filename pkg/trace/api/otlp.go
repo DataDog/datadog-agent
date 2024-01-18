@@ -519,8 +519,17 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	for k, v := range rattr {
 		setMetaOTLP(span, k, v)
 	}
+
+	spanKind := spanKindName(in.Kind())
+	if spanKind == "server" || spanKind == "consumer" {
+		traceutil.SetTopLevel(span, true)
+	}
+	if spanKind == "client" || spanKind == "producer" {
+		traceutil.SetMeasured(span, true)
+	}
+
 	setMetaOTLP(span, "otel.trace_id", hex.EncodeToString(traceID[:]))
-	setMetaOTLP(span, "span.kind", spanKindName(in.Kind()))
+	setMetaOTLP(span, "span.kind", spanKind)
 	if _, ok := span.Meta["version"]; !ok {
 		if ver := rattr[string(semconv.AttributeServiceVersion)]; ver != "" {
 			setMetaOTLP(span, "version", ver)
