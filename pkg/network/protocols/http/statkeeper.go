@@ -79,25 +79,24 @@ func (h *StatKeeper) Process(tx Transaction) {
 }
 
 // GetAndResetAllStats returns all the stats and resets the internal state.
-func (h *StatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
-	h.mux.Lock()
-	for _, tx := range h.incomplete.Flush(time.Now()) {
-		h.add(tx)
-	}
+func (h *StatKeeper) GetAndResetAllStats() (stats map[Key]*RequestStats) {
+	var previousAggregationState *utils.ConnectionAggregator
+	func() {
+		h.mux.Lock()
+		defer h.mux.Unlock()
 
-	// Rotate stats
-	stats := h.stats
-	h.stats = make(map[Key]*RequestStats)
+		for _, tx := range h.incomplete.Flush(time.Now()) {
+			h.add(tx)
+		}
 
 	// Rotate ConnectionAggregator
 	var aggregator *utils.ConnectionAggregator
 	if h.connectionAggregator != nil {
 		aggregator = h.connectionAggregator
 		h.connectionAggregator = utils.NewConnectionAggregator()
-	}
-	h.mux.Unlock()
+	}()
 
-	h.clearEphemeralPorts(aggregator, stats)
+	h.clearEphemeralPorts(previousAggregationState, stats)
 	return stats
 }
 

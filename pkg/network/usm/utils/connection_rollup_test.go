@@ -10,9 +10,10 @@ package utils
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestRollupKey(t *testing.T) {
@@ -58,6 +59,7 @@ func TestRollupKey(t *testing.T) {
 		// In this case both keys are preserved, which wouldn't trigger a rollup
 		assert.Equal(t, c1, t1)
 		assert.Equal(t, c2, t2)
+		assert.NotEqual(t, c1, c2)
 	})
 
 	t.Run("same IPs, different ephemeral ports", func(t *testing.T) {
