@@ -66,7 +66,6 @@ func (gl *GoCheckLoader) Load(senderManger sender.SenderManager, config integrat
 			return c, err
 		}
 		log.Errorf("core.loader: could not configure check %s: %s", c, err)
-		log.Errorf("KEN TEST: HERE'S THE CONFIG: %+v", config)
 		msg := fmt.Sprintf("Could not configure check %s: %s", c, err)
 		return c, fmt.Errorf(msg)
 	}

@@ -8,11 +8,11 @@ import (
 )
 
 func Test_PingConfig_UnmarshalYAML(t *testing.T) {
-	//trueVal := true
-	// //falseVal := false
-	// twoVal := 2
-	// threeVal := 3
-	// fourVal := 4
+	trueVal := true
+	falseVal := false
+	twoVal := 2
+	threeVal := 3
+	fourVal := 4
 	tests := []struct {
 		name          string
 		data          []byte
@@ -26,72 +26,72 @@ func Test_PingConfig_UnmarshalYAML(t *testing.T) {
 `),
 			result: PackedPingConfig{},
 		},
-		// 		{
-		// 			name: "ping config as yaml struct",
-		// 			data: []byte(`
-		// enabled: true
-		// linux:
-		//   use_raw_socket: true
-		// interval: 2
-		// timeout: 3
-		// count: 4
-		// `),
-		// 			result: PingConfig{
-		// 				Enabled: &trueVal,
-		// 				Linux: PingLinuxConfig{
-		// 					UseRawSocket: &trueVal,
-		// 				},
-		// 				Interval: &twoVal,
-		// 				Timeout:  &threeVal,
-		// 				Count:    &fourVal,
-		// 			},
-		// 		},
-		// 		{
-		// 			name: "ping config as json string all null",
-		// 			data: []byte(`
-		// ping: '{linux:{use_raw_socket:null},enabled:null,interval:null,timeout:null,count:null}'
-		// `),
-		// 			result: PingConfig{},
-		// 		},
-		// 		{
-		// 			name: "ping config as json string",
-		// 			data: []byte(`
-		// ping: '{linux:{use_raw_socket:false},enabled:true,interval:4,timeout:2,count:3}'
-		// `),
-		// 			result: PingConfig{
-		// 				Linux: PingLinuxConfig{
-		// 					UseRawSocket: &falseVal,
-		// 				},
-		// 				Enabled:  &trueVal,
-		// 				Interval: &fourVal,
-		// 				Timeout:  &twoVal,
-		// 				Count:    &threeVal,
-		// 			},
-		// 		},
-		// 		{
-		// 			name: "invalid json",
-		// 			data: []byte(`
-		// ping: '{'
-		// `),
-		// 			result:        PingConfig{},
-		// 			expectedError: "cannot unmarshall json to PingConfig: unexpected end of JSON input",
-		// 		},
-		// 		{
-		// 			name: "invalid overall yaml",
-		// 			data: []byte(`
-		// ping: {
-		// `),
-		// 			result:        PingConfig{},
-		// 			expectedError: "yaml: line 2: did not find expected node content",
-		// 		},
-		// 		{
-		// 			name: "invalid ping yaml",
-		// 			data: []byte(`
-		// ping: []
-		// `),
-		// 			result:        PingConfig{},
-		// 			expectedError: "cannot unmarshall to string: yaml: unmarshal errors",
-		// 		},
+		{
+			name: "ping config as yaml struct",
+			data: []byte(`
+enabled: true
+linux:
+  use_raw_socket: true
+interval: 2
+timeout: 3
+count: 4
+`),
+			result: PackedPingConfig{
+				Enabled: &trueVal,
+				Linux: PingLinuxConfig{
+					UseRawSocket: &trueVal,
+				},
+				Interval: &twoVal,
+				Timeout:  &threeVal,
+				Count:    &fourVal,
+			},
+		},
+		{
+			name: "ping config as json string all null",
+			data: []byte(`
+'{"linux":{"use_raw_socket":null},"enabled":null,"interval":null,"timeout":null,"count":null}'
+`),
+			result: PackedPingConfig{},
+		},
+		{
+			name: "ping config as json string",
+			data: []byte(`
+'{"linux":{"use_raw_socket":false},"enabled":true,"interval":4,"timeout":2,"count":3}'
+`),
+			result: PackedPingConfig{
+				Linux: PingLinuxConfig{
+					UseRawSocket: &falseVal,
+				},
+				Enabled:  &trueVal,
+				Interval: &fourVal,
+				Timeout:  &twoVal,
+				Count:    &threeVal,
+			},
+		},
+		{
+			name: "invalid json",
+			data: []byte(`
+'{'
+`),
+			result:        PackedPingConfig{},
+			expectedError: "cannot unmarshal json to snmpintegration.PingConfig: unexpected end of JSON input",
+		},
+		{
+			name: "invalid overall yaml",
+			data: []byte(`
+{
+`),
+			result:        PackedPingConfig{},
+			expectedError: "yaml: line 2: did not find expected node content",
+		},
+		{
+			name: "invalid ping yaml",
+			data: []byte(`
+[]
+`),
+			result:        PackedPingConfig{},
+			expectedError: "cannot unmarshal to string: yaml: unmarshal errors:\n  line 2: cannot unmarshal !!seq into string",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -168,6 +168,8 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 			d.sender.Gauge(pingCanConnectMetric, common.BoolToFloat64(pingResult.CanConnect), tags)
 			d.sender.Gauge(pingPacketLoss, pingResult.PacketLoss, tags)
 		}
+	} else {
+		log.Infof("PING DISABLED FOR HOST: %s, tags: %+v, ping enabled: %t, ping config: %+v", d.config.IPAddress, tags, d.config.PingEnabled, d.config.PingConfig)
 	}
 
 	if d.config.CollectDeviceMetadata {

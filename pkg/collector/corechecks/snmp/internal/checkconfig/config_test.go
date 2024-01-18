@@ -1935,6 +1935,77 @@ interface_configs: '[{"match_field":"name","match_value":"eth0","in_speed":25,"o
 	}
 }
 
+func Test_buildConfig_PingConfig(t *testing.T) {
+	trueVal := true
+	falseVal := false
+	sixVal := 6
+	fiveVal := 5
+	fourVal := 4
+	tests := []struct {
+		name               string
+		rawInstanceConfig  []byte
+		rawInitConfig      []byte
+		expectedPingConfig snmpintegration.PackedPingConfig
+		expectedErr        string
+	}{
+		{
+			name: "ping config as yaml",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+ping:
+  enabled: true
+  linux:
+    use_raw_socket: false
+  timeout: 6
+  interval: 5
+  count: 4
+`),
+			// language=yaml
+			rawInitConfig: []byte(``),
+			expectedPingConfig: snmpintegration.PackedPingConfig{
+				Enabled: &trueVal,
+				Linux: snmpintegration.PingLinuxConfig{
+					UseRawSocket: &falseVal,
+				},
+				Interval: &fiveVal,
+				Timeout:  &sixVal,
+				Count:    &fourVal,
+			},
+		},
+		{
+			name: "interface config as json string",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+ping: '{"linux":{"use_raw_socket":false},"enabled":true,"interval":4,"timeout":5,"count":6}'
+`),
+			// language=yaml
+			rawInitConfig: []byte(``),
+			expectedPingConfig: snmpintegration.PackedPingConfig{
+				Linux: snmpintegration.PingLinuxConfig{
+					UseRawSocket: &falseVal,
+				},
+				Enabled:  &trueVal,
+				Interval: &fourVal,
+				Timeout:  &fiveVal,
+				Count:    &sixVal,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config, err := NewCheckConfig(tt.rawInstanceConfig, tt.rawInitConfig)
+			if tt.expectedErr != "" {
+				assert.EqualError(t, err, tt.expectedErr)
+			} else {
+				assert.Equal(t, *tt.expectedPingConfig.Enabled, config.PingEnabled)
+				assert.Equal(t, *tt.expectedPingConfig.Linux.UseRawSocket, config.PingConfig.UseRawSocket)
+			}
+		})
+	}
+}
+
 func TestCheckConfig_DiscoveryDigest(t *testing.T) {
 	baseCaseHash := DeviceDigest("a1d0f0237ee2fe8f")
 	tests := []struct {
