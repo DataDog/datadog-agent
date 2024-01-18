@@ -158,6 +158,14 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 			delete(s.Meta, "http.status_code")
 		}
 	}
+
+	if len(s.SpanLinks) > 0 {
+		for _, link := range s.SpanLinks {
+			for k, v := range link.Attributes {
+				link.Attributes[k] = traceutil.NormalizeTagValue(v)
+			}
+		}
+	}
 	return nil
 }
 
