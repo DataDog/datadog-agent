@@ -99,12 +99,12 @@ Number of secrets resolved: 3
 Secrets handle resolved:
 
 - 'pass1':
-	used in 'test' configuration in entry 'instances/password'
+	used in 'test' configuration in entry 'instances/0/password'
 - 'pass2':
-	used in 'test' configuration in entry 'instances/password'
-	used in 'test2' configuration in entry 'instances/password'
+	used in 'test' configuration in entry 'instances/1/password'
+	used in 'test2' configuration in entry 'instances/1/password'
 - 'pass3':
-	used in 'test2' configuration in entry 'instances/password'
+	used in 'test2' configuration in entry 'instances/0/password'
 `
 
 	assert.Equal(t, expectedResult, buffer.String())
@@ -141,12 +141,12 @@ Number of secrets resolved: 3
 Secrets handle resolved:
 
 - 'pass1':
-	used in 'test' configuration in entry 'instances/password'
+	used in 'test' configuration in entry 'instances/0/password'
 - 'pass2':
-	used in 'test' configuration in entry 'instances/password'
-	used in 'test2' configuration in entry 'instances/password'
+	used in 'test' configuration in entry 'instances/1/password'
+	used in 'test2' configuration in entry 'instances/1/password'
 - 'pass3':
-	used in 'test2' configuration in entry 'instances/password'
+	used in 'test2' configuration in entry 'instances/0/password'
 `
 
 	assert.Equal(t, expectedResult, buffer.String())

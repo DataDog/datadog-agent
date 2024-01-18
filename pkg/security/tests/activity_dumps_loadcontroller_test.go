@@ -29,7 +29,7 @@ func TestActivityDumpsLoadControllerTimeout(t *testing.T) {
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
-	if !IsDedicatedNode(dedicatedADNodeForTestsEnv) {
+	if !IsDedicatedNodeForAD() {
 		t.Skip("Skip test when not run in dedicated env")
 	}
 
@@ -92,7 +92,7 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
-	if !IsDedicatedNode(dedicatedADNodeForTestsEnv) {
+	if !IsDedicatedNodeForAD() {
 		t.Skip("Skip test when not run in dedicated env")
 	}
 
@@ -145,7 +145,7 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 		}
 		t.Run(testName, func(t *testing.T) {
 			// add all event types to the dump
-			test.addAllEventTypesOnDump(dockerInstance, dump, syscallTester)
+			test.addAllEventTypesOnDump(dockerInstance, syscallTester)
 			time.Sleep(time.Second * 3)
 			// trigger reducer
 			test.triggerLoadControllerReducer(dockerInstance, dump)
@@ -180,7 +180,7 @@ func TestActivityDumpsLoadControllerRateLimiter(t *testing.T) {
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
-	if !IsDedicatedNode(dedicatedADNodeForTestsEnv) {
+	if !IsDedicatedNodeForAD() {
 		t.Skip("Skip test when not run in dedicated env")
 	}
 

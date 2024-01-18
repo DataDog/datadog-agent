@@ -18,9 +18,8 @@ from invoke.exceptions import Exit
 
 from .build_tags import UNIT_TEST_TAGS, get_default_build_tags
 from .libs.common.color import color_message
+from .libs.common.utils import REPO_PATH, bin_name, environ, get_build_flags, get_gobin, get_version_numeric_only
 from .libs.ninja_syntax import NinjaWriter
-from .test import environ
-from .utils import REPO_PATH, bin_name, get_build_flags, get_gobin, get_version_numeric_only
 from .windows_resources import MESSAGESTRINGS_MC_PATH, arch_to_windres_target
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
@@ -379,7 +378,7 @@ def ninja_cgo_type_files(nw, windows):
                 "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/protocols/kafka/types.h",
             ],
-            "pkg/network/telemetry/telemetry_types.go": [
+            "pkg/ebpf/telemetry/types.go": [
                 "pkg/ebpf/c/telemetry_types.h",
             ],
             "pkg/network/tracer/offsetguess/offsetguess_types.go": [
@@ -797,12 +796,12 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False, pack
         if pkg.endswith("java"):
             shutil.copy(os.path.join(pkg, "agent-usm.jar"), os.path.join(target_path, "agent-usm.jar"))
 
-        for gobin in ["gotls_client", "fmapper", "prefetch_file"]:
+        for gobin in ["gotls_client", "grpc_external_server", "external_unix_proxy_server", "fmapper", "prefetch_file"]:
             src_file_path = os.path.join(pkg, f"{gobin}.go")
             if not windows and os.path.isdir(pkg) and os.path.isfile(src_file_path):
                 binary_path = os.path.join(target_path, gobin)
                 with chdir(pkg):
-                    ctx.run(f"go build -o {binary_path} -ldflags=\"-extldflags '-static'\" {gobin}.go")
+                    ctx.run(f"go build -o {binary_path} -tags=\"test\" -ldflags=\"-extldflags '-static'\" {gobin}.go")
 
     gopath = os.getenv("GOPATH")
     copy_files = [

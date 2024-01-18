@@ -6,6 +6,6 @@
 package common
 
 const (
-	//nolint:revive // TODO(EBPF) Fix revive linter
+	// DefaultLogFile is the default path to the system-probe log file
 	DefaultLogFile = "c:\\programdata\\datadog\\logs\\system-probe.log"
 )

@@ -103,7 +103,7 @@ type ProviderConfiguration struct {
 	MatchAllKeyword uint64
 
 	// PIDs allow filtering by PIDs if non-empty
-	PIDs []uint64
+	PIDs []uint32
 }
 
 // ProviderConfigurationFunc is a function used to configure a provider

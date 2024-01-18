@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/custommetrics"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -37,7 +38,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
@@ -94,13 +94,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					params.Options.DisableAPIKeyChecking = true
 					return params
 				}),
-				demultiplexer.Module(),
+				demultiplexerimpl.Module(),
 				orchestratorForwarderImpl.Module(),
 				fx.Supply(orchestratorForwarderImpl.NewDefaultParams()),
-				fx.Provide(func() demultiplexer.Params {
-					opts := aggregator.DefaultAgentDemultiplexerOptions()
-					opts.UseEventPlatformForwarder = false
-					return demultiplexer.Params{Options: opts}
+				fx.Provide(func() demultiplexerimpl.Params {
+					params := demultiplexerimpl.NewDefaultParams()
+					params.UseEventPlatformForwarder = false
+					return params
 				}),
 				// setup workloadmeta
 				collectors.GetCatalog(),
@@ -161,7 +161,7 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 	}()
 
 	// Setup healthcheck port
-	var healthPort = pkgconfig.Datadog.GetInt("health_port")
+	healthPort := pkgconfig.Datadog.GetInt("health_port")
 	if healthPort > 0 {
 		err := healthprobe.Serve(mainCtx, healthPort)
 		if err != nil {
@@ -231,15 +231,13 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "datadog-cluster-agent"})
 
 	ctx := apiserver.ControllerContext{
-		InformerFactory:    apiCl.InformerFactory,
-		WPAClient:          apiCl.WPAClient,
-		WPAInformerFactory: apiCl.WPAInformerFactory,
-		DDClient:           apiCl.DDClient,
-		DDInformerFactory:  apiCl.DynamicInformerFactory,
-		Client:             apiCl.Cl,
-		IsLeaderFunc:       le.IsLeader,
-		EventRecorder:      eventRecorder,
-		StopCh:             stopCh,
+		InformerFactory:        apiCl.InformerFactory,
+		DynamicClient:          apiCl.DynamicInformerCl,
+		DynamicInformerFactory: apiCl.DynamicInformerFactory,
+		Client:                 apiCl.InformerCl,
+		IsLeaderFunc:           le.IsLeader,
+		EventRecorder:          eventRecorder,
+		StopCh:                 stopCh,
 	}
 
 	if aggErr := apiserver.StartControllers(ctx); aggErr != nil {
@@ -343,7 +341,6 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 			SecretInformers:     apiCl.CertificateSecretInformerFactory,
 			WebhookInformers:    apiCl.WebhookConfigInformerFactory,
 			Client:              apiCl.Cl,
-			DiscoveryClient:     apiCl.DiscoveryCl,
 			StopCh:              stopCh,
 		}
 
@@ -418,7 +415,7 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 
 // initRuntimeSettings builds the map of runtime Cluster Agent settings configurable at runtime.
 func initRuntimeSettings() error {
-	if err := commonsettings.RegisterRuntimeSetting(commonsettings.NewLogLevelRuntimeSetting(nil)); err != nil {
+	if err := commonsettings.RegisterRuntimeSetting(commonsettings.NewLogLevelRuntimeSetting()); err != nil {
 		return err
 	}
 

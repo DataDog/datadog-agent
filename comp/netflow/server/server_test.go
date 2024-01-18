@@ -19,7 +19,7 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
@@ -68,7 +68,7 @@ var testOptions = fx.Options(
 	forwarderimpl.MockModule(),
 	hostnameimpl.MockModule(),
 	logimpl.MockModule(),
-	demultiplexer.MockModule(),
+	demultiplexerimpl.MockModule(),
 	defaultforwarder.MockModule(),
 	config.MockModule(),
 	fx.Invoke(func(lc fx.Lifecycle, c Component) {

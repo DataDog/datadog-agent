@@ -21,10 +21,10 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/netflow/config"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -44,21 +44,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
-//nolint:unused // TODO(NDM) Fix unused linter
-func demuxOpts() aggregator.AgentDemultiplexerOptions {
-	opts := aggregator.DefaultAgentDemultiplexerOptions()
-	opts.FlushInterval = 1 * time.Hour
-	opts.DontStartForwarders = true
-	return opts
-}
-
 type deps struct {
 	fx.In
 	Demultiplexer demultiplexer.Mock
 }
 
 func createDeps(t *testing.T) deps {
-	return fxutil.Test[deps](t, demultiplexer.MockModule(), defaultforwarder.MockModule(), config.MockModule(), logimpl.MockModule())
+	return fxutil.Test[deps](t, demultiplexerimpl.MockModule(), defaultforwarder.MockModule(), config.MockModule(), logimpl.MockModule())
 }
 
 func Test_Run_simpleCase(t *testing.T) {

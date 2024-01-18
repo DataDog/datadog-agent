@@ -605,7 +605,7 @@ func TestSubscribe(t *testing.T) {
 			actual := []EventBundle{}
 			go func() {
 				for bundle := range ch {
-					close(bundle.Ch)
+					bundle.Acknowledge()
 
 					// nil the bundle's Ch so we can
 					// deep-equal just the events later
@@ -1227,7 +1227,7 @@ func TestResetProcesses(t *testing.T) {
 
 			go func() {
 				for bundle := range ch {
-					close(bundle.Ch)
+					bundle.Acknowledge()
 
 					// nil the bundle's Ch so we can deep-equal just the events
 					// later
@@ -1427,7 +1427,7 @@ func TestReset(t *testing.T) {
 			var actualEventsReceived []EventBundle
 			go func() {
 				for bundle := range ch {
-					close(bundle.Ch)
+					bundle.Acknowledge()
 
 					// nil the bundle's Ch so we can deep-equal just the events
 					// later

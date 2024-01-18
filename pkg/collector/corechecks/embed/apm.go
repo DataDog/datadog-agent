@@ -182,7 +182,7 @@ func (c *APMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	}
 
 	c.source = source
-	c.telemetry = utils.IsCheckTelemetryEnabled("apm")
+	c.telemetry = utils.IsCheckTelemetryEnabled("apm", config.Datadog)
 	c.initConfig = string(initConfig)
 	c.instanceConfig = string(data)
 	return nil

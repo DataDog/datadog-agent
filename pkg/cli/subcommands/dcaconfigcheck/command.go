@@ -59,7 +59,6 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func run(log log.Component, config config.Component, cliParams *cliParams) error {
+func run(_ log.Component, _ config.Component, cliParams *cliParams) error {
 	return flare.GetClusterAgentConfigCheck(color.Output, cliParams.verbose)
 }

@@ -47,7 +47,8 @@ type Component interface {
 	// for messages on this channel.
 	Subscribe(name string, priority SubscriberPriority, filter *Filter) chan EventBundle
 
-	// Unsubscribe reverses the effect of Subscribe.
+	// Unsubscribe closes the EventBundle channel. Note that it will emit a zero-value event.
+	// Thus, it is important to check that the channel is not closed.
 	Unsubscribe(ch chan EventBundle)
 
 	// GetContainer returns metadata about a container.  It fetches the entity

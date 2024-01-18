@@ -6,7 +6,6 @@
 package settings
 
 import (
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	pkgconfiglogs "github.com/DataDog/datadog-agent/pkg/config/logs"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -17,16 +16,12 @@ import (
 type LogLevelRuntimeSetting struct {
 	Config    config.ReaderWriter
 	ConfigKey string
-	// invAgent is a temporary dependency until the configuration is capable of sending it's own notification upon
-	// a value being set.
-	invAgent inventoryagent.Component
 }
 
 // NewLogLevelRuntimeSetting returns a new LogLevelRuntimeSetting
-func NewLogLevelRuntimeSetting(invAgent inventoryagent.Component) *LogLevelRuntimeSetting {
+func NewLogLevelRuntimeSetting() *LogLevelRuntimeSetting {
 	return &LogLevelRuntimeSetting{
 		ConfigKey: "log_level",
-		invAgent:  invAgent,
 	}
 }
 
@@ -72,9 +67,5 @@ func (l *LogLevelRuntimeSetting) Set(v interface{}, source model.Source) error {
 		cfg = l.Config
 	}
 	cfg.Set(key, level, source)
-	// we trigger a new inventory metadata payload since the configuration was updated by the user.
-	if l.invAgent != nil {
-		l.invAgent.Refresh()
-	}
 	return nil
 }

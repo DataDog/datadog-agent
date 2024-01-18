@@ -10,7 +10,8 @@ package ptracer
 
 import (
 	"bytes"
-	"os"
+	"encoding/binary"
+	"fmt"
 	"runtime"
 	"syscall"
 
@@ -50,9 +51,16 @@ type Tracer struct {
 	info *arch.Info
 }
 
+// Creds defines credentials
+type Creds struct {
+	UID *uint32
+	GID *uint32
+}
+
 // Opts defines syscall filters
 type Opts struct {
 	Syscalls []string
+	Creds    Creds
 }
 
 func processVMReadv(pid int, addr uintptr, data []byte) (int, error) {
@@ -82,6 +90,34 @@ func (t *Tracer) readString(pid int, ptr uint64) (string, error) {
 		return "", nil
 	}
 	return string(data[:n]), nil
+}
+
+func (t *Tracer) readInt32(pid int, ptr uint64) (int32, error) {
+	data := make([]byte, 4)
+
+	_, err := processVMReadv(pid, uintptr(ptr), data)
+	if err != nil {
+		return 0, err
+	}
+
+	// []byte to int32
+	buf := bytes.NewReader(data)
+	var val int32
+	err = binary.Read(buf, native.Endian, &val)
+	if err != nil {
+		return 0, err
+	}
+	return val, nil
+}
+
+func (t *Tracer) readData(pid int, ptr uint64, size uint) ([]byte, error) {
+	data := make([]byte, size)
+
+	_, err := processVMReadv(pid, uintptr(ptr), data)
+	if err != nil {
+		return []byte{}, err
+	}
+	return data, nil
 }
 
 // PeekString peeks and returns a string from a pid at a given addr ptr
@@ -122,6 +158,18 @@ func (t *Tracer) ReadArgInt64(regs syscall.PtraceRegs, arg int) int64 {
 // ReadArgInt32 reads the regs and returns the wanted arg as int32
 func (t *Tracer) ReadArgInt32(regs syscall.PtraceRegs, arg int) int32 {
 	return int32(t.argToRegValue(regs, arg))
+}
+
+// ReadArgInt32Ptr reads the regs and returns the wanted arg as int32
+func (t *Tracer) ReadArgInt32Ptr(pid int, regs syscall.PtraceRegs, arg int) (int32, error) {
+	ptr := t.argToRegValue(regs, arg)
+	return t.readInt32(pid, ptr)
+}
+
+// ReadArgData reads the regs and returns the wanted arg as byte array
+func (t *Tracer) ReadArgData(pid int, regs syscall.PtraceRegs, arg int, size uint) ([]byte, error) {
+	ptr := t.argToRegValue(regs, arg)
+	return t.readData(pid, ptr, size)
 }
 
 // ReadArgUint32 reads the regs and returns the wanted arg as uint32
@@ -174,7 +222,7 @@ func (t *Tracer) ReadArgStringArray(pid int, regs syscall.PtraceRegs, arg int) (
 }
 
 // Trace traces a process
-func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs)) error {
+func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs, waitStatus *syscall.WaitStatus)) error {
 	var waitStatus syscall.WaitStatus
 
 	if err := syscall.PtraceCont(t.PID, 0); err != nil {
@@ -189,11 +237,11 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 			break
 		}
 
-		if waitStatus.Exited() || waitStatus.Signaled() {
+		if waitStatus.Exited() || waitStatus.CoreDump() || waitStatus.Signaled() {
 			if pid == t.PID {
 				break
 			}
-			cb(CallbackExitType, ExitNr, pid, 0, regs)
+			cb(CallbackExitType, ExitNr, pid, 0, regs, &waitStatus)
 			continue
 		}
 
@@ -214,14 +262,14 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 			switch waitStatus.TrapCause() {
 			case syscall.PTRACE_EVENT_CLONE, syscall.PTRACE_EVENT_FORK, syscall.PTRACE_EVENT_VFORK:
 				if npid, err := syscall.PtraceGetEventMsg(pid); err == nil {
-					cb(CallbackPostType, nr, int(npid), pid, regs)
+					cb(CallbackPostType, nr, int(npid), pid, regs, nil)
 				}
 			case unix.PTRACE_EVENT_SECCOMP:
 				switch nr {
-				case ForkNr, VforkNr, CloneNr:
+				case ForkNr, VforkNr, CloneNr, Clone3Nr:
 					// already handled
 				default:
-					cb(CallbackPreType, nr, pid, 0, regs)
+					cb(CallbackPreType, nr, pid, 0, regs, nil)
 
 					// force a ptrace syscall in order to get to return value
 					if err := syscall.PtraceSyscall(pid, 0); err != nil {
@@ -230,16 +278,16 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 				}
 			default:
 				switch nr {
-				case ForkNr, VforkNr, CloneNr:
+				case ForkNr, VforkNr, CloneNr, Clone3Nr:
 					// already handled
 				case ExecveNr, ExecveatNr:
 					// does not return on success, thus ret value stay at syscall.ENOSYS
 					if ret := -t.ReadRet(regs); ret == int64(syscall.ENOSYS) {
-						cb(CallbackPostType, nr, pid, 0, regs)
+						cb(CallbackPostType, nr, pid, 0, regs, nil)
 					}
 				default:
 					if ret := -t.ReadRet(regs); ret != int64(syscall.ENOSYS) {
-						cb(CallbackPostType, nr, pid, 0, regs)
+						cb(CallbackPostType, nr, pid, 0, regs, nil)
 					}
 				}
 			}
@@ -289,8 +337,7 @@ func traceFilterProg(opts Opts) (*syscall.SockFprog, error) {
 }
 
 // NewTracer returns a tracer
-func NewTracer(path string, args []string, opts Opts) (*Tracer, error) {
-
+func NewTracer(path string, args []string, envs []string, opts Opts) (*Tracer, error) {
 	info, err := arch.GetInfo("")
 	if err != nil {
 		return nil, err
@@ -298,24 +345,24 @@ func NewTracer(path string, args []string, opts Opts) (*Tracer, error) {
 
 	prog, err := traceFilterProg(opts)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to compile bpf prog: %w", err)
 	}
 
 	runtime.LockOSThread()
 
-	pid, err := forkExec(path, args, os.Environ(), prog)
+	pid, err := forkExec(path, args, envs, opts.Creds, prog)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to execute `%s`: %w", path, err)
 	}
 
 	var wstatus syscall.WaitStatus
 	if _, err = syscall.Wait4(pid, &wstatus, 0, nil); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to call wait4 on `%s`: %w", path, err)
 	}
 
 	err = syscall.PtraceSetOptions(pid, ptraceFlags)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to ptrace `%s`, please verify the capabilities: %w", path, err)
 	}
 
 	return &Tracer{

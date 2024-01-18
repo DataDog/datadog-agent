@@ -21,7 +21,7 @@ import (
 type StatKeeper struct {
 	mux                         sync.Mutex
 	stats                       map[Key]*RequestStats
-	incomplete                  *incompleteBuffer
+	incomplete                  IncompleteBuffer
 	maxEntries                  int
 	quantizer                   *URLQuantizer
 	telemetry                   *Telemetry
@@ -37,7 +37,7 @@ type StatKeeper struct {
 }
 
 // NewStatkeeper returns a new StatKeeper.
-func NewStatkeeper(c *config.Config, telemetry *Telemetry) *StatKeeper {
+func NewStatkeeper(c *config.Config, telemetry *Telemetry, incompleteBuffer IncompleteBuffer) *StatKeeper {
 	var quantizer *URLQuantizer
 	// For now we're only enabling path quantization for HTTP/1 traffic
 	if c.EnableUSMQuantization && telemetry.protocol == "http" {
@@ -46,7 +46,7 @@ func NewStatkeeper(c *config.Config, telemetry *Telemetry) *StatKeeper {
 
 	return &StatKeeper{
 		stats:                       make(map[Key]*RequestStats),
-		incomplete:                  newIncompleteBuffer(c, telemetry),
+		incomplete:                  incompleteBuffer,
 		maxEntries:                  c.MaxHTTPStatsBuffered,
 		quantizer:                   quantizer,
 		replaceRules:                c.HTTPReplaceRules,

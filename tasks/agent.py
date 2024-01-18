@@ -11,32 +11,29 @@ import re
 import shutil
 import sys
 import tempfile
-from distutils.dir_util import copy_tree
 
 from invoke import task
 from invoke.exceptions import Exit, ParseError
 
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
-from .docker_tasks import pull_base_images
 from .flavor import AgentFlavor
 from .go import deps
-from .process_agent import build as process_agent_build
-from .rtloader import clean as rtloader_clean
-from .rtloader import install as rtloader_install
-from .rtloader import make as rtloader_make
-from .ssm import get_pfx_pass, get_signing_cert
-from .trace_agent import build as trace_agent_build
-from .utils import (
+from .libs.common.utils import (
     REPO_PATH,
     bin_name,
     cache_version,
-    generate_config,
     get_build_flags,
     get_version,
     has_both_python,
     load_release_versions,
     timed,
 )
+from .process_agent import build as process_agent_build
+from .rtloader import clean as rtloader_clean
+from .rtloader import install as rtloader_install
+from .rtloader import make as rtloader_make
+from .ssm import get_pfx_pass, get_signing_cert
+from .trace_agent import build as trace_agent_build
 from .windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 # constants
@@ -74,6 +71,7 @@ AGENT_CORECHECKS = [
 
 WINDOWS_CORECHECKS = [
     "agentcrashdetect",
+    "windows_registry",
     "winkmem",
     "wincrashdetect",
 ]
@@ -225,8 +223,8 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
     os.mkdir(dist_folder)
 
     if "python" in build_tags:
-        copy_tree("./cmd/agent/dist/checks/", os.path.join(dist_folder, "checks"))
-        copy_tree("./cmd/agent/dist/utils/", os.path.join(dist_folder, "utils"))
+        shutil.copytree("./cmd/agent/dist/checks/", os.path.join(dist_folder, "checks"), dirs_exist_ok=True)
+        shutil.copytree("./cmd/agent/dist/utils/", os.path.join(dist_folder, "utils"), dirs_exist_ok=True)
         shutil.copy("./cmd/agent/dist/config.py", os.path.join(dist_folder, "config.py"))
     if not flavor.is_iot():
         shutil.copy("./cmd/agent/dist/dd-agent", os.path.join(dist_folder, "dd-agent"))
@@ -241,14 +239,14 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
 
     for check in AGENT_CORECHECKS if not flavor.is_iot() else IOT_AGENT_CORECHECKS:
         check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
-        copy_tree(f"./cmd/agent/dist/conf.d/{check}.d/", check_dir)
+        shutil.copytree(f"./cmd/agent/dist/conf.d/{check}.d/", check_dir, dirs_exist_ok=True)
 
     ## add additional windows-only corechecks, only on windows. Otherwise the check loader
     ## on linux will throw an error because the module is not found, but the config is.
     if sys.platform == 'win32':
         for check in WINDOWS_CORECHECKS:
             check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
-            copy_tree(f"./cmd/agent/dist/conf.d/{check}.d/", check_dir)
+            shutil.copytree(f"./cmd/agent/dist/conf.d/{check}.d/", check_dir, dirs_exist_ok=True)
 
     if "apm" in build_tags:
         shutil.copy("./cmd/agent/dist/conf.d/apm.yaml.default", os.path.join(dist_folder, "conf.d/apm.yaml.default"))
@@ -258,9 +256,9 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
             os.path.join(dist_folder, "conf.d/process_agent.yaml.default"),
         )
 
-    copy_tree("./cmd/agent/gui/views", os.path.join(dist_folder, "views"))
+    shutil.copytree("./cmd/agent/gui/views", os.path.join(dist_folder, "views"), dirs_exist_ok=True)
     if development:
-        copy_tree("./dev/dist/", dist_folder)
+        shutil.copytree("./dev/dist/", dist_folder, dirs_exist_ok=True)
 
 
 @task
@@ -314,7 +312,7 @@ def system_tests(_):
 
 
 @task
-def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_tests=False, signed_pull=True):
+def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_tests=False, tag=None, push=False):
     """
     Build the docker image
     """
@@ -336,9 +334,11 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_
         raise Exit(code=1)
     latest_file = max(list_of_files, key=os.path.getctime)
     shutil.copy2(latest_file, build_context)
-    # Pull base image with content trust enabled
-    pull_base_images(ctx, dockerfile_path, signed_pull)
-    common_build_opts = f"-t {AGENT_TAG} -f {dockerfile_path}"
+
+    if tag is None:
+        tag = AGENT_TAG
+
+    common_build_opts = f"-t {tag} -f {dockerfile_path}"
     if python_version not in BOTH_VERSIONS:
         common_build_opts = f"{common_build_opts} --build-arg PYTHON_VERSION={python_version}"
 
@@ -348,6 +348,9 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_
 
     # Build with the release target
     ctx.run(f"docker build {common_build_opts} --platform linux/{arch} --target release {build_context}")
+    if push:
+        ctx.run(f"docker push {tag}")
+
     ctx.run(f"rm {build_context}/{deb_glob}")
 
 
@@ -610,6 +613,9 @@ def get_omnibus_env(
     # otherwise, ohai detect the number of CPU on the host and run the make jobs with all the CPU.
     if os.environ.get('KUBERNETES_CPU_REQUEST'):
         env['OMNIBUS_WORKERS_OVERRIDE'] = str(int(os.environ.get('KUBERNETES_CPU_REQUEST')) + 1)
+    # Forward the DEPLOY_AGENT variable so that we can use a higher compression level for deployed artifacts
+    if os.environ.get('DEPLOY_AGENT'):
+        env['DEPLOY_AGENT'] = os.environ.get('DEPLOY_AGENT')
 
     return env
 
@@ -650,7 +656,7 @@ def omnibus_run_task(
         ctx.run(cmd.format(**args), env=env)
 
 
-def bundle_install_omnibus(ctx, gem_path=None, env=None):
+def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
     with ctx.cd("omnibus"):
         # make sure bundle install starts from a clean state
         try:
@@ -661,7 +667,22 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None):
         cmd = "bundle install"
         if gem_path:
             cmd += f" --path {gem_path}"
-        ctx.run(cmd, env=env)
+
+        for trial in range(max_try):
+            res = ctx.run(cmd, env=env, warn=True)
+            if res.ok:
+                return
+            if not should_retry_bundle_install(res):
+                return
+            print(f"Retrying bundle install, attempt {trial + 1}/{max_try}")
+
+
+def should_retry_bundle_install(res):
+    # We sometimes get a Net::HTTPNotFound error when fetching the
+    # license-scout gem. This is a transient error, so we retry the bundle install
+    if "Net::HTTPNotFound:" in res.stderr:
+        return True
+    return False
 
 
 # hardened-runtime needs to be set to False to build on MacOS < 10.13.6, as the -o runtime option is not supported.
@@ -694,6 +715,7 @@ def omnibus_build(
     """
     Build the Agent packages with Omnibus Installer.
     """
+
     flavor = AgentFlavor[flavor]
     if not skip_deps:
         with timed(quiet=True) as deps_elapsed:
@@ -759,31 +781,6 @@ def omnibus_build(
         print(f"Deps:    {deps_elapsed.duration}")
     print(f"Bundle:  {bundle_elapsed.duration}")
     print(f"Omnibus: {omnibus_elapsed.duration}")
-
-
-@task
-def build_dep_tree(ctx, git_ref=""):
-    """
-    Generates a file representing the Golang dependency tree in the current
-    directory. Use the "--git-ref=X" argument to specify which tag you would like
-    to target otherwise current repo state will be used.
-    """
-    saved_branch = None
-    if git_ref:
-        print(f"Tag {git_ref} specified. Checking out the branch...")
-
-        result = ctx.run("git rev-parse --abbrev-ref HEAD", hide='stdout')
-        saved_branch = result.stdout
-
-        ctx.run(f"git checkout {git_ref}")
-    else:
-        print("No tag specified. Using the current state of repository.")
-
-    try:
-        ctx.run("go run tools/dep_tree_resolver/go_deps.go")
-    finally:
-        if saved_branch:
-            ctx.run(f"git checkout {saved_branch}", hide='stdout')
 
 
 @task
@@ -1077,3 +1074,18 @@ def upload_integration_to_cache(ctx, python, bucket, branch, integrations_dir, b
     print(f"Caching wheel {target_name}")
     # NOTE: on Windows, the awscli is usually in program files, so we have the executable
     ctx.run(f"\"{awscli}\" s3 cp {wheel_path} s3://{bucket}/{target_name} --acl public-read")
+
+
+@task()
+def generate_config(ctx, build_type, output_file, env=None):
+    """
+    Generates the datadog.yaml configuration file.
+    """
+    args = {
+        "go_file": "./pkg/config/render_config.go",
+        "build_type": build_type,
+        "template_file": "./pkg/config/config_template.yaml",
+        "output_file": output_file,
+    }
+    cmd = "go run {go_file} {build_type} {template_file} {output_file}"
+    return ctx.run(cmd.format(**args), env=env or {})

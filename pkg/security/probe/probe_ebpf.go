@@ -410,9 +410,7 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event) {
 
 	// handle anomaly detections
 	if event.IsAnomalyDetectionEvent() {
-		if event.IsKernelSpaceAnomalyDetectionEvent() {
-			p.profileManagers.securityProfileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, event.ContainerContext), &event.SecurityProfileContext)
-		}
+		p.profileManagers.securityProfileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, event.ContainerContext), &event.SecurityProfileContext)
 		if p.config.RuntimeSecurity.AnomalyDetectionEnabled {
 			p.sendAnomalyDetection(event)
 		}
@@ -1909,11 +1907,17 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 }
 
 // HandleActions handles the rule actions
-func (p *EBPFProbe) HandleActions(rule *rules.Rule, event eval.Event) {
-	ev := event.(*model.Event)
+func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
+	ev := ctx.Event.(*model.Event)
+
 	for _, action := range rule.Definition.Actions {
+		if !action.IsAccepted(ctx) {
+
+			continue
+		}
+
 		switch {
-		case action.InternalCallbackDefinition != nil && rule.ID == events.RefreshUserCacheRuleID:
+		case action.InternalCallback != nil && rule.ID == events.RefreshUserCacheRuleID:
 			_ = p.RefreshUserCache(ev.ContainerContext.ID)
 
 		case action.Kill != nil:
@@ -1933,7 +1937,7 @@ func (p *EBPFProbe) HandleActions(rule *rules.Rule, event eval.Event) {
 			sig := model.SignalConstants[action.Kill.Signal]
 
 			for _, pid := range pids {
-				if pid == 0 || pid == utils.Getpid() {
+				if pid <= 1 || pid == utils.Getpid() {
 					continue
 				}
 
@@ -1949,6 +1953,11 @@ func (p *EBPFProbe) HandleActions(rule *rules.Rule, event eval.Event) {
 					seclog.Warnf("failed to kill process %d: %s", pid, err)
 				}
 			}
+
+			ev.Actions = append(ev.Actions, &model.ActionTriggered{
+				Name:  rules.KillAction,
+				Value: action.Kill.Signal,
+			})
 		}
 	}
 }

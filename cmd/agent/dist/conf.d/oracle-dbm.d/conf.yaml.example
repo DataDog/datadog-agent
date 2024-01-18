@@ -85,179 +85,167 @@ instances:
 
   ## @param reported_hostname - string - optional
   ## Set the reported hostname for this instance. This value overrides the hostname detected by the Agent
-
-  ## Configure collection of database sysmetrics
   #
-  # sysmetrics:
-
-      ## @param enabled - boolean - optional - default: true
-      ## Enable collection of database sysmetrics
-      #
-      # enabled: true
-
-  ## Configure collection of tablespace usage
-  #
-  # tablespaces:
-
-      ## @param enabled - boolean - optional - default: true
-      ## Enable collection of tablespace usage
-      #
-      # enabled: true
-
-  ## Configure collection of process memory usage
-  #
-  # processes:
-
-      ## @param enabled - boolean - optional - default: true
-      ## Enable collection of process memory usage
-      #
-      # enabled: true
+  # reported_hostname: <REPORTED_HOSTNAME>
 
   ## @param dbm - boolean - optional - default: false
   ## Set to `true` to enable Database Monitoring.
   #
   # dbm: false
 
+  ## @param tags - list of strings - optional
+  ## A list of tags to attach to every metric and service check emitted by this instance.
+  ##
+  ## Learn more about tagging at https://docs.datadoghq.com/tagging
+  #
+  # tags:
+  #   - <KEY_1>:<VALUE_1>
+  #   - <KEY_2>:<VALUE_2>
+
   ## Configure collection of query samples
   #
   # query_samples:
 
-      ## @param enabled - boolean - optional - default: true
-      ## Enable collection of query samples. Requires `dbm: true`.
-      #
-      # enabled: true
+    ## @param enabled - boolean - optional - default: true
+    ## Enable collection of query samples. Requires `dbm: true`.
+    #
+    # enabled: true
 
   ## Configure collection of query metrics
   #
   # query_metrics:
 
-      ## @param enabled - boolean - optional - default: true
-      ## Enable collection of query metrics. Requires enabled query samples.
-      #
-      # enabled: true
+    ## @param enabled - boolean - optional - default: true
+    ## Enable collection of query metrics. Requires enabled query samples.
+    #
+    # enabled: true
 
-      ## Configure query metrics collection for Datadog agent statements
-      #
-      # include_datadog_queries: false
-  
   ## Configure collection of execution plans
   #
   # execution_plans:
 
-      ## @param enabled - boolean - optional - default: true
-      ## Enable collection of execution plans. Requires query metrics.
-      #
-      # enabled: true
+    ## @param enabled - boolean - optional - default: true
+    ## Enable collection of execution plans. Requires query metrics.
+    #
+    # enabled: true
+
+  ## Configure collection of shared memory usage
+  #
+  # shared_memory:
+
+    ## @param enabled - boolean - optional - default: true. Requires `dbm: true`.
+    ## Enable collection of database shared memory usages
+    #
+    # enabled: true
+
+  ## Configure collection of database sysmetrics
+  #
+  # sysmetrics:
+
+    ## @param enabled - boolean - optional - default: true
+    ## Enable collection of database sysmetrics
+    #
+    # enabled: true
+
+  ## Configure collection of tablespace usage
+  #
+  # tablespaces:
+
+    ## @param enabled - boolean - optional - default: true
+    ## Enable collection of tablespace usage
+    #
+    # enabled: true
+
+  ## Configure collection of process memory usage
+  #
+  # processes:
+
+    ## @param enabled - boolean - optional - default: true
+    ## Enable collection of process memory usage
+    #
+    # enabled: true
 
   ## Configure how the SQL obfuscator behaves.
   ## Note: This option only applies when `dbm` is enabled.
   #
   # obfuscator_options:
 
-      ## @param replace_digits - boolean - optional - default: false
-      ## Set to `true` to replace digits in identifiers and table names with question marks in your SQL statements.
-      ## Note: This option also applies to extracted tables using `collect_tables`.
-      #
-      # replace_digits: false
-
-      ## @param collect_metadata - boolean - optional - default: true
-      ## Set to `false` to disable the collection of metadata in your SQL statements.
-      ## Metadata includes things such as tables, commands, and comments.
-      #
-      # collect_metadata: true
-
-      ## @param collect_tables - boolean - optional - default: true
-      ## Set to `false` to disable the collection of tables in your SQL statements.
-      ## Requires `collect_metadata: true`.
-      #
-      # collect_tables: true
-
-      ## @param collect_commands - boolean - optional - default: true
-      ## Set to `false` to disable the collection of commands in your SQL statements.
-      ## Requires `collect_metadata: true`.
-      ##
-      ## Examples: SELECT, UPDATE, DELETE, etc.
-      #
-      # collect_commands: true
-
-      ## @param collect_comments - boolean - optional - default: true
-      ## Set to `false` to disable the collection of comments in your SQL statements.
-      ## Requires `collect_metadata: true`.
-      #
-      # collect_comments: true
-
-    ## Configure collection of shared memory usage
+    ## @param replace_digits - boolean - optional - default: false
+    ## Set to `true` to replace digits in identifiers and table names with question marks in your SQL statements.
+    ## Note: This option also applies to extracted tables using `collect_tables`.
     #
-    # shared_memory:
+    # replace_digits: false
 
-        ## @param enabled - boolean - optional - default: true. Requires `dbm: true`.
-        ## Enable collection of database shared memory usages
-        #
-        # enabled: true
+    ## @param collect_metadata - boolean - optional - default: true
+    ## Set to `false` to disable the collection of metadata in your SQL statements.
+    ## Metadata includes things such as tables, commands, and comments.
+    #
+    # collect_metadata: true
 
-    ## @param use_global_custom_queries - string - optional - default: 'true'
-    ## How `global_custom_queries` should be used for this instance. There are 3 options:
+    ## @param collect_tables - boolean - optional - default: true
+    ## Set to `false` to disable the collection of tables in your SQL statements.
+    ## Requires `collect_metadata: true`.
+    #
+    # collect_tables: true
+
+    ## @param collect_commands - boolean - optional - default: true
+    ## Set to `false` to disable the collection of commands in your SQL statements.
+    ## Requires `collect_metadata: true`.
     ##
-    ## 1. true - `global_custom_queries` override `custom_queries`.
-    ## 2. false - `custom_queries` override `global_custom_queries`.
-    ## 3. extend - `global_custom_queries` are used in addition to any `custom_queries`.
+    ## Examples: SELECT, UPDATE, DELETE, etc.
     #
-    # use_global_custom_queries: 'true'
+    # collect_commands: true
 
-    ## @param tags - list of strings - optional
-    ## A list of tags to attach to every metric and service check emitted by this instance.
-    ##
-    ## Learn more about tagging at https://docs.datadoghq.com/tagging
+    ## @param collect_comments - boolean - optional - default: true
+    ## Set to `false` to disable the collection of comments in your SQL statements.
+    ## Requires `collect_metadata: true`.
     #
-    # tags:
-    #   - <KEY_1>:<VALUE_1>
-    #   - <KEY_2>:<VALUE_2>
+    # collect_comments: true
 
-    ## @param custom_queries - list of mappings - optional
-    ## Each query must have 2 fields, and can have a third optional field:
-    ##
-    ## 1. metric_prefix - Each metric starts with the chosen prefix.
-    ## 2. query - The SQL to execute. It can be a simple statement or a multi-line script.
-    ##            Use the pipe `|` if you require a multi-line script.
-    ## 3. columns - The list representing each column, ordered sequentially from left to right.
-    ##              The number of columns must equal the number of columns returned in the query.
-    ##              There are 2 required pieces of data:
-    ##                a. name - The suffix to append to `metric_prefix` to form
-    ##                          the full metric name. If `type` is `tag`, this column is
-    ##                          considered a tag and applied to every
-    ##                          metric collected by this particular query.
-    ##                b. type - The submission method (gauge, monotonic_count, etc.).
-    ##                          This can also be set to `tag` to tag each metric in the row
-    ##                          with the name and value of the item in this column. You can
-    ##                          use the `count` type to perform aggregation for queries that
-    ##                          return multiple rows with the same or no tags.
-    ##              Columns without a name are ignored. To skip a column, enter:
-    ##                - {}
-    ## 4. tags (optional) - A list of tags to apply to each metric.
-    #
-    custom_queries:
-      - metric_prefix: oracle.custom_query.table_events
-        query: SELECT program, COUNT(*) FROM table_events GROUP BY program
-        columns:
-        - name: foo
-          type: tag
-        - name: total
-          type: gauge
-        tags:
-        - tag1:value1
+  ## @param use_global_custom_queries - string - optional - default: 'true'
+  ## How `global_custom_queries` should be used for this instance. There are 3 options:
+  ##
+  ## 1. true - `global_custom_queries` override `custom_queries`.
+  ## 2. false - `custom_queries` override `global_custom_queries`.
+  ## 3. extend - `global_custom_queries` are used in addition to any `custom_queries`.
+  #
+  # use_global_custom_queries: 'true'
 
-    ## WARNING: Running custom queries may result in additional costs or fees assessed by Oracle.
-    
-    # custom_queries:
-    #   - query: SELECT foo, COUNT(*) FROM table.events GROUP BY foo
-    #     columns:
-    #     - name: foo
-    #       type: tag
-    #     - name: event.total
-    #       type: gauge
-    #     tags:
-    #     - test:tag_value_1
-    #     pdb: <MYPDB>
+  ## @param custom_queries - list of mappings - optional
+  ## Each query must have 2 fields, and can have a third optional field:
+  ##
+  ## 1. metric_prefix - Each metric starts with the chosen prefix.
+  ## 2. query - The SQL to execute. It can be a simple statement or a multi-line script.
+  ##            Use the pipe `|` if you require a multi-line script.
+  ## 3. columns - The list representing each column, ordered sequentially from left to right.
+  ##              The number of columns must equal the number of columns returned in the query.
+  ##              There are 2 required pieces of data:
+  ##                a. name - The suffix to append to `metric_prefix` to form
+  ##                          the full metric name. If `type` is `tag`, this column is
+  ##                          considered a tag and applied to every
+  ##                          metric collected by this particular query.
+  ##                b. type - The submission method (gauge, monotonic_count, etc.).
+  ##                          This can also be set to `tag` to tag each metric in the row
+  ##                          with the name and value of the item in this column. You can
+  ##                          use the `count` type to perform aggregation for queries that
+  ##                          return multiple rows with the same or no tags.
+  ##              Columns without a name are ignored. To skip a column, enter:
+  ##                - {}
+  ## 4. tags (optional) - A list of tags to apply to each metric.
+  #
+  ## WARNING: Running custom queries may result in additional costs or fees assessed by Oracle.
+  #    
+  # custom_queries:
+  #   - metric_prefix: oracle.custom_query
+  #     query: SELECT 'foo', 11 FROM dual
+  #     columns:
+  #     - name: foo
+  #       type: tag
+  #     - name: event.total
+  #       type: gauge
+  #     tags:
+  #     - test:tag_value_1
+  #     pdb: <MYPDB>
 
   ## Start an SQL trace for Agent queries. This feature is only meant for Agent troubleshooting, and 
   ## should normally be switched off.
@@ -265,22 +253,22 @@ instances:
   #
   # agent_sql_trace:
 
-      ## @param enabled - boolean - optional - default: false
-      ## Enable SQL trace
-      #
-      # enabled: false
+    ## @param enabled - boolean - optional - default: false
+    ## Enable SQL trace
+    #
+    # enabled: false
 
-      ## @param enabled - boolean - optional - default: false
-      ## include bind variables in trace
-      #
-      # binds: false
+    ## @param enabled - boolean - optional - default: false
+    ## include bind variables in trace
+    #
+    # binds: false
 
-      ## @param enabled - boolean - optional - default: false
-      ## include wait events in trace
-      #
-      # waits: false
+    ## @param enabled - boolean - optional - default: false
+    ## include wait events in trace
+    #
+    # waits: false
 
-      ## @param enabled - int - optional - default: 10
-      ## Limit the number of traced check executions to avoid filling the file system.
-      #
-      # traced_runs: 10
+    ## @param enabled - int - optional - default: 10
+    ## Limit the number of traced check executions to avoid filling the file system.
+    #
+    # traced_runs: 10

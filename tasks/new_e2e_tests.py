@@ -15,10 +15,10 @@ from invoke.exceptions import Exit
 from invoke.tasks import task
 
 from .flavor import AgentFlavor
-from .libs.junit_upload import produce_junit_tar
+from .go_test import test_flavor
+from .libs.common.utils import REPO_PATH, get_git_commit
+from .libs.junit_upload_core import produce_junit_tar
 from .modules import DEFAULT_MODULES
-from .test import test_flavor
-from .utils import REPO_PATH, get_git_commit
 
 
 @task(
@@ -48,6 +48,8 @@ def run(
     flavor="",
     major_version="",
     cws_supported_osversion="",
+    src_agent_version="",
+    dest_agent_version="",
     keep_stacks=False,
     cache=False,
     junit_tar="",
@@ -93,7 +95,7 @@ def run(
         test_run_arg = f"-run {test_run_name}"
 
     cmd = f'gotestsum --format {gotestsum_format} '
-    cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags "{go_build_tags}" {nocache} {run} {skip} {coverage_opt} {test_run_arg} -args {osversion} {platform} {major_version} {arch} {flavor} {cws_supported_osversion} {keep_stacks}'
+    cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags "{go_build_tags}" {nocache} {run} {skip} {coverage_opt} {test_run_arg} -args {osversion} {platform} {major_version} {arch} {flavor} {cws_supported_osversion} {src_agent_version} {dest_agent_version} {keep_stacks}'
 
     args = {
         "go_mod": "mod",
@@ -114,6 +116,8 @@ def run(
         "cws_supported_osversion": f"-cws-supported-osversion {cws_supported_osversion}"
         if cws_supported_osversion
         else '',
+        "src_agent_version": f"-src-agent-version {src_agent_version}" if src_agent_version else '',
+        "dest_agent_version": f"-dest-agent-version {dest_agent_version}" if dest_agent_version else '',
         "keep_stacks": '-keep-stacks' if keep_stacks else '',
     }
 
@@ -179,18 +183,13 @@ def _clean_locks():
     lock_dir = os.path.join(Path.home(), ".pulumi", "locks")
 
     for entry in os.listdir(Path(lock_dir)):
-        subdir = os.path.join(lock_dir, entry)
-        if os.path.isdir(subdir):
-            for filename in os.listdir(Path(subdir)):
-                path = os.path.join(subdir, filename)
-                if os.path.isfile(path) and filename.endswith(".json"):
-                    os.remove(path)
-                    print(f"🗑️ Deleted lock: {path}")
-                elif os.path.isdir(path):
-                    shutil.rmtree(path)
-        elif os.path.isfile(subdir) and entry.endswith(".json"):
-            os.remove(subdir)
-            print(f"🗑️ Deleted lock: {subdir}")
+        path = os.path.join(lock_dir, entry)
+        if os.path.isdir(path):
+            shutil.rmtree(path)
+            print(f"🗑️  Deleted lock: {path}")
+        elif os.path.isfile(path) and entry.endswith(".json"):
+            os.remove(path)
+            print(f"🗑️  Deleted lock: {path}")
 
 
 def _clean_stacks(ctx: Context):

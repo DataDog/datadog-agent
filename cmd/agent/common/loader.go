@@ -65,9 +65,7 @@ func GetWorkloadmetaInit() workloadmeta.InitHelper {
 	})
 }
 
-var (
-	collectorOnce sync.Once
-)
+var collectorOnce sync.Once
 
 // LoadCollector instantiate the collector and init the global state 'Coll'.
 //
@@ -77,7 +75,7 @@ func LoadCollector(senderManager sender.SenderManager) collector.Collector {
 	collectorOnce.Do(func() {
 		// create the Collector instance and start all the components
 		// NOTICE: this will also setup the Python environment, if available
-		Coll = collector.NewCollector(senderManager, GetPythonPaths()...)
+		Coll = collector.NewCollector(senderManager, config.Datadog.GetDuration("check_cancel_timeout"), GetPythonPaths()...)
 	})
 	return Coll
 }
@@ -85,7 +83,6 @@ func LoadCollector(senderManager sender.SenderManager) collector.Collector {
 // LoadComponents configures several common Agent components:
 // tagger, collector, scheduler and autodiscovery
 func LoadComponents(senderManager sender.SenderManager, secretResolver secrets.Component, confdPath string) {
-
 	confSearchPaths := []string{
 		confdPath,
 		filepath.Join(path.GetDistPath(), "conf.d"),

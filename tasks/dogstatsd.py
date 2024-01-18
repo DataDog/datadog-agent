@@ -6,15 +6,15 @@ Dogstatsd tasks
 import os
 import shutil
 import sys
-from distutils.dir_util import copy_tree
 
 from invoke import task
 from invoke.exceptions import Exit
 
+from .agent import bundle_install_omnibus
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .flavor import AgentFlavor
 from .go import deps
-from .utils import REPO_PATH, bin_name, get_build_flags, get_root, get_version, load_release_versions
+from .libs.common.utils import REPO_PATH, bin_name, get_build_flags, get_root, get_version, load_release_versions
 from .windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 # constants
@@ -118,7 +118,7 @@ def refresh_assets(_):
     dist_folder = os.path.join(DOGSTATSD_BIN_PATH, "dist")
     if os.path.exists(dist_folder):
         shutil.rmtree(dist_folder)
-    copy_tree("./cmd/dogstatsd/dist/", dist_folder)
+    shutil.copytree("./cmd/dogstatsd/dist/", dist_folder, dirs_exist_ok=True)
 
 
 @task
@@ -221,12 +221,9 @@ def omnibus_build(
         include_pipeline_id=True,
     )
 
-    with ctx.cd("omnibus"):
-        cmd = "bundle install"
-        if gem_path:
-            cmd += f" --path {gem_path}"
-        ctx.run(cmd, env=env)
+    bundle_install_omnibus(ctx, gem_path=gem_path, env=env)
 
+    with ctx.cd("omnibus"):
         omnibus = "bundle exec omnibus.bat" if sys.platform == 'win32' else "bundle exec omnibus"
         cmd = "{omnibus} build dogstatsd --log-level={log_level} {populate_s3_cache} {overrides}"
         args = {"omnibus": omnibus, "log_level": log_level, "overrides": overrides_cmd, "populate_s3_cache": ""}

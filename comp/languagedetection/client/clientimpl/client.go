@@ -175,7 +175,10 @@ func (c *client) run() {
 
 	for {
 		select {
-		case eventBundle := <-eventCh:
+		case eventBundle, ok := <-eventCh:
+			if !ok {
+				return
+			}
 			c.handleEvent(eventBundle)
 		case <-cleanupProcessesWithoutPodCleanupTicker.C:
 			c.cleanUpProcesssesWithoutPod(time.Now())
@@ -197,7 +200,7 @@ func (c *client) cleanUpProcesssesWithoutPod(now time.Time) {
 
 // handleEvent handles events from workloadmeta
 func (c *client) handleEvent(evBundle workloadmeta.EventBundle) {
-	close(evBundle.Ch)
+	evBundle.Acknowledge()
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	c.logger.Tracef("Processing %d events", len(evBundle.Events))

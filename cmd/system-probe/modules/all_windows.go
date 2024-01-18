@@ -5,7 +5,7 @@
 
 //go:build windows
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// Package modules is all the module definitions for system-probe
 package modules
 
 import (

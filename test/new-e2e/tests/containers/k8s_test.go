@@ -22,6 +22,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	restclient "k8s.io/client-go/rest"
@@ -43,7 +44,7 @@ type k8sSuite struct {
 	AgentWindowsHelmInstallName string
 
 	K8sConfig *restclient.Config
-	K8sClient *kubernetes.Clientset
+	K8sClient kubernetes.Interface
 }
 
 func (suite *k8sSuite) SetupSuite() {
@@ -103,7 +104,6 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 
 	suite.Run("agent pods are ready and not restarting", func() {
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
-
 			linuxNodes, err := suite.K8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{
 				LabelSelector: fields.OneTermEqualSelector("kubernetes.io/os", "linux").String(),
 			})
@@ -689,6 +689,192 @@ func (suite *k8sSuite) TestPrometheus() {
 			},
 		},
 	})
+}
+
+func (suite *k8sSuite) TestAdmissionController() {
+	ctx := context.Background()
+
+	// Delete the pod to ensure it is recreated after the admission controller is deployed
+	err := suite.K8sClient.CoreV1().Pods("workload-mutated").DeleteCollection(ctx, metav1.DeleteOptions{}, metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", "mutated").String(),
+	})
+	suite.Require().NoError(err)
+
+	// Wait for the fresh pod to be created
+	var pod corev1.Pod
+	suite.Require().EventuallyWithTf(func(c *assert.CollectT) {
+		pods, err := suite.K8sClient.CoreV1().Pods("workload-mutated").List(ctx, metav1.ListOptions{
+			LabelSelector: fields.OneTermEqualSelector("app", "mutated").String(),
+		})
+		if !assert.NoError(c, err) {
+			return
+		}
+		if !assert.Len(c, pods.Items, 1) {
+			return
+		}
+		pod = pods.Items[0]
+	}, 2*time.Minute, 10*time.Second, "Failed to witness the creation of a pod in workload-mutated")
+
+	suite.Require().Len(pod.Spec.Containers, 1)
+
+	// Assert injected env vars
+	env := make(map[string]string)
+	for _, envVar := range pod.Spec.Containers[0].Env {
+		env[envVar.Name] = envVar.Value
+	}
+
+	if suite.Contains(env, "DD_DOGSTATSD_URL") {
+		suite.Equal("unix:///var/run/datadog/dsd.socket", env["DD_DOGSTATSD_URL"])
+	}
+	if suite.Contains(env, "DD_TRACE_AGENT_URL") {
+		suite.Equal("unix:///var/run/datadog/apm.socket", env["DD_TRACE_AGENT_URL"])
+	}
+	suite.Contains(env, "DD_ENTITY_ID")
+	if suite.Contains(env, "DD_ENV") {
+		suite.Equal("e2e", env["DD_ENV"])
+	}
+	if suite.Contains(env, "DD_SERVICE") {
+		suite.Equal("mutated", env["DD_SERVICE"])
+	}
+	if suite.Contains(env, "DD_VERSION") {
+		suite.Equal("v0.0.1", env["DD_VERSION"])
+	}
+
+	// Assert injected volumes and mounts
+	hostPathVolumes := make(map[string]*corev1.HostPathVolumeSource)
+	for _, volume := range pod.Spec.Volumes {
+		if volume.HostPath != nil {
+			hostPathVolumes[volume.Name] = volume.HostPath
+		}
+	}
+
+	if suite.Contains(hostPathVolumes, "datadog") {
+		suite.Equal("/var/run/datadog", hostPathVolumes["datadog"].Path)
+	}
+
+	volumeMounts := make(map[string]string)
+	for _, volumeMount := range pod.Spec.Containers[0].VolumeMounts {
+		volumeMounts[volumeMount.Name] = volumeMount.MountPath
+	}
+
+	if suite.Contains(volumeMounts, "datadog") {
+		suite.Equal("/var/run/datadog", volumeMounts["datadog"])
+	}
+}
+
+func (suite *k8sSuite) TestContainerImage() {
+	suite.EventuallyWithTf(func(c *assert.CollectT) {
+		images, err := suite.Fakeintake.FilterContainerImages("ghcr.io/datadog/apps-nginx-server")
+		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+		if !assert.NoErrorf(c, err, "Failed to query fake intake") {
+			return
+		}
+		// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+		if !assert.NotEmptyf(c, images, "No container_image yet") {
+			return
+		}
+
+		expectedTags := []*regexp.Regexp{
+			regexp.MustCompile(`^architecture:(amd|arm)64$`),
+			regexp.MustCompile(`^git\.commit\.sha:`),
+			regexp.MustCompile(`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`),
+			regexp.MustCompile(`^image_id:ghcr\.io/datadog/apps-nginx-server@sha256:`),
+			regexp.MustCompile(`^image_name:ghcr\.io/datadog/apps-nginx-server$`),
+			regexp.MustCompile(`^image_tag:main$`),
+			regexp.MustCompile(`^os_name:linux$`),
+			regexp.MustCompile(`^short_image:apps-nginx-server$`),
+		}
+		err = assertTags(images[len(images)-1].GetTags(), expectedTags)
+		assert.NoErrorf(c, err, "Tags mismatch")
+	}, 2*time.Minute, 10*time.Second, "Failed finding the container image payload")
+}
+
+func (suite *k8sSuite) TestSBOM() {
+	suite.EventuallyWithTf(func(c *assert.CollectT) {
+		sbomIDs, err := suite.Fakeintake.GetSBOMIDs()
+		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+		if !assert.NoErrorf(c, err, "Failed to query fake intake") {
+			return
+		}
+
+		var sbomID string
+		for _, id := range sbomIDs {
+			if strings.HasPrefix(id, "ghcr.io/datadog/apps-nginx-server") {
+				sbomID = id
+				break
+			}
+		}
+		// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+		if !assert.NotEmptyf(c, sbomID, "No SBOM for ghcr.io/datadog/apps-nginx-server yet") {
+			return
+		}
+
+		images, err := suite.Fakeintake.FilterSBOMs(sbomID)
+		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+		if !assert.NoErrorf(c, err, "Failed to query fake intake") {
+			return
+		}
+		// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+		if !assert.NotEmptyf(c, images, "No SBOM yet") {
+			return
+		}
+
+		expectedTags := []*regexp.Regexp{
+			regexp.MustCompile(`^architecture:(amd|arm)64$`),
+			regexp.MustCompile(`^git\.commit\.sha:`),
+			regexp.MustCompile(`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`),
+			regexp.MustCompile(`^image_id:ghcr\.io/datadog/apps-nginx-server@sha256:`),
+			regexp.MustCompile(`^image_name:ghcr\.io/datadog/apps-nginx-server$`),
+			regexp.MustCompile(`^image_tag:main$`),
+			regexp.MustCompile(`^os_name:linux$`),
+			regexp.MustCompile(`^short_image:apps-nginx-server$`),
+		}
+		err = assertTags(images[len(images)-1].GetTags(), expectedTags)
+		assert.NoErrorf(c, err, "Tags mismatch")
+	}, 2*time.Minute, 10*time.Second, "Failed finding the container image payload")
+}
+
+func (suite *k8sSuite) TestContainerLifecycleEvents() {
+	var nginxPod corev1.Pod
+
+	suite.Require().EventuallyWithTf(func(c *assert.CollectT) {
+		pods, err := suite.K8sClient.CoreV1().Pods("workload-nginx").List(context.Background(), metav1.ListOptions{
+			LabelSelector: fields.OneTermEqualSelector("app", "nginx").String(),
+		})
+		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+		if !assert.NoErrorf(c, err, "Failed to list nginx pods") {
+			return
+		}
+		if !assert.NotEmptyf(c, pods, "Failed to find an nginx pod") {
+			return
+		}
+
+		nginxPod = pods.Items[0]
+	}, 1*time.Minute, 10*time.Second, "Failed to find an nginx pod")
+
+	err := suite.K8sClient.CoreV1().Pods("workload-nginx").Delete(context.Background(), nginxPod.Name, metav1.DeleteOptions{})
+	suite.Require().NoError(err)
+
+	suite.EventuallyWithTf(func(c *assert.CollectT) {
+		events, err := suite.Fakeintake.GetContainerLifecycleEvents()
+		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+		if !assert.NoErrorf(c, err, "Failed to query fake intake") {
+			return
+		}
+
+		foundPodEvent := false
+
+		for _, event := range events {
+			if podEvent := event.GetPod(); podEvent != nil {
+				if types.UID(podEvent.GetPodUID()) == nginxPod.UID {
+					foundPodEvent = true
+					break
+				}
+			}
+		}
+
+		assert.Truef(c, foundPodEvent, "Failed to find the pod lifecycle event")
+	}, 2*time.Minute, 10*time.Second, "Failed to find the container lifecycle events")
 }
 
 func (suite *k8sSuite) testHPA(namespace, deployment string) {

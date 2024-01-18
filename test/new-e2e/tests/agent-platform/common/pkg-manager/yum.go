@@ -6,20 +6,20 @@
 package pkgmanager
 
 import (
-	e2eClient "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
 
 // YumPackageManager struct for the Yum package manager
 type YumPackageManager struct {
-	vmClient e2eClient.VM
+	host *components.RemoteHost
 }
 
 // NewYumPackageManager return yum package manager
-func NewYumPackageManager(vmClient e2eClient.VM) *YumPackageManager {
-	return &YumPackageManager{vmClient: vmClient}
+func NewYumPackageManager(host *components.RemoteHost) *YumPackageManager {
+	return &YumPackageManager{host: host}
 }
 
 // Remove executes remove command from yum
 func (s *YumPackageManager) Remove(pkg string) (string, error) {
-	return s.vmClient.ExecuteWithError("sudo yum remove -y " + pkg)
+	return s.host.Execute("sudo yum remove -y " + pkg)
 }

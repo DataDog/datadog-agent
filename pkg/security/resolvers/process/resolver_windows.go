@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -100,8 +101,8 @@ func (p *Resolver) AddNewEntry(pid uint32, ppid uint32, file string, commandLine
 	e.PIDContext.Pid = pid
 	e.PPid = ppid
 
-	e.Process.CmdLine = commandLine
-	e.Process.FileEvent.PathnameStr = file
+	e.Process.CmdLine = utils.NormalizePath(commandLine)
+	e.Process.FileEvent.PathnameStr = utils.NormalizePath(file)
 	e.Process.FileEvent.BasenameStr = filepath.Base(e.Process.FileEvent.PathnameStr)
 	e.ExecTime = time.Now()
 
@@ -149,18 +150,21 @@ func (p *Resolver) GetEnvp(pr *model.Process) []string {
 // GetProcessCmdLineScrubbed returns the scrubbed cmdline
 func (p *Resolver) GetProcessCmdLineScrubbed(pr *model.Process) string {
 	if pr.ScrubbedCmdLineResolved {
-		return pr.CmdLine
+		return pr.CmdLineScrubbed
 	}
+
+	pr.CmdLineScrubbed = pr.CmdLine
 
 	if p.scrubber != nil && len(pr.CmdLine) > 0 {
 		// replace with the scrubbed version
 		scrubbed, _ := p.scrubber.ScrubCommand([]string{pr.CmdLine})
 		if len(scrubbed) > 0 {
-			pr.CmdLine = strings.Join(scrubbed, " ")
+			pr.CmdLineScrubbed = strings.Join(scrubbed, " ")
 		}
 	}
+	pr.ScrubbedCmdLineResolved = true
 
-	return pr.CmdLine
+	return pr.CmdLineScrubbed
 }
 
 // getCacheSize returns the cache size of the process resolver
@@ -202,8 +206,8 @@ func (p *Resolver) Snapshot() {
 		e.PIDContext.Pid = Pid(pid)
 		e.PPid = Pid(proc.Ppid)
 
-		e.Process.CmdLine = strings.Join(proc.GetCmdline(), " ")
-		e.Process.FileEvent.PathnameStr = proc.Exe
+		e.Process.CmdLine = utils.NormalizePath(strings.Join(proc.GetCmdline(), " "))
+		e.Process.FileEvent.PathnameStr = utils.NormalizePath(proc.Exe)
 		e.Process.FileEvent.BasenameStr = filepath.Base(e.Process.FileEvent.PathnameStr)
 		e.ExecTime = time.Unix(0, proc.Stats.CreateTime*int64(time.Millisecond))
 

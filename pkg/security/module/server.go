@@ -18,6 +18,7 @@ import (
 
 	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
+	"github.com/DataDog/datadog-agent/pkg/security/rules/monitor"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -62,15 +63,17 @@ type APIServer struct {
 	expiredEvents     map[rules.RuleID]*atomic.Int64
 	expiredDumps      *atomic.Int64
 	//nolint:unused // TODO(SEC) Fix unused linter
-	limiter      *events.StdLimiter
-	statsdClient statsd.ClientInterface
-	probe        *sprobe.Probe
-	queueLock    sync.Mutex
-	queue        []*pendingMsg
-	retention    time.Duration
-	cfg          *config.RuntimeSecurityConfig
-	selfTester   *selftests.SelfTester
-	cwsConsumer  *CWSConsumer
+	limiter            *events.StdLimiter
+	statsdClient       statsd.ClientInterface
+	probe              *sprobe.Probe
+	queueLock          sync.Mutex
+	queue              []*pendingMsg
+	retention          time.Duration
+	cfg                *config.RuntimeSecurityConfig
+	selfTester         *selftests.SelfTester
+	cwsConsumer        *CWSConsumer
+	policiesStatusLock sync.RWMutex
+	policiesStatus     []*api.PolicyStatus
 
 	stopChan chan struct{}
 	stopper  startstop.Stopper
@@ -261,9 +264,13 @@ func (a *APIServer) GetConfig(_ context.Context, _ *api.GetConfigParams) (*api.S
 // SendEvent forwards events sent by the runtime security module to Datadog
 func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func() []string, service string) {
 	var ruleActions []events.RuleActionContext
-	for _, action := range rule.Definition.Actions {
-		if action.Kill != nil {
-			ruleActions = append(ruleActions, events.RuleActionContext{Name: "kill", Signal: action.Kill.Signal})
+
+	if !e.IsSuppressed() {
+		// report only kill action for now
+		for _, action := range e.GetActions() {
+			if action.Name == rules.KillAction {
+				ruleActions = append(ruleActions, events.RuleActionContext{Name: action.Name, Signal: action.Value})
+			}
 		}
 	}
 
@@ -418,14 +425,38 @@ func (a *APIServer) GetRuleSetReport(_ context.Context, _ *api.GetRuleSetReportP
 	}, nil
 }
 
-// Apply a rule set
-func (a *APIServer) Apply(ruleIDs []rules.RuleID) {
+// ApplyRuleIDs the rule ids
+func (a *APIServer) ApplyRuleIDs(ruleIDs []rules.RuleID) {
 	a.expiredEventsLock.Lock()
 	defer a.expiredEventsLock.Unlock()
 
 	a.expiredEvents = make(map[rules.RuleID]*atomic.Int64)
 	for _, id := range ruleIDs {
 		a.expiredEvents[id] = atomic.NewInt64(0)
+	}
+}
+
+// ApplyPolicyStates the policy states
+func (a *APIServer) ApplyPolicyStates(policies []*monitor.PolicyState) {
+	a.policiesStatusLock.Lock()
+	defer a.policiesStatusLock.Unlock()
+
+	a.policiesStatus = []*api.PolicyStatus{}
+	for _, policy := range policies {
+		entry := api.PolicyStatus{
+			Name:   policy.Name,
+			Source: policy.Source,
+		}
+
+		for _, rule := range policy.Rules {
+			entry.Status = append(entry.Status, &api.RuleStatus{
+				ID:     rule.ID,
+				Status: rule.Status,
+				Error:  rule.Message,
+			})
+		}
+
+		a.policiesStatus = append(a.policiesStatus, &entry)
 	}
 }
 

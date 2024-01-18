@@ -32,12 +32,12 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	"github.com/DataDog/datadog-agent/cmd/manager"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 
 	// checks implemented as components
 
 	// core components
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -51,15 +51,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-
-	//nolint:revive // TODO(ASC) Fix revive linter
-	pkgforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client"
 	langDetectionClimpl "github.com/DataDog/datadog-agent/comp/languagedetection/client/clientimpl"
@@ -70,13 +68,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
+	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp"
 	"github.com/DataDog/datadog-agent/comp/netflow"
+	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
@@ -194,32 +193,31 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 //
 // This is exported because it also used from the deprecated `agent start` command.
 func run(log log.Component,
-	//nolint:revive // TODO(ASC) Fix revive linter
-	config config.Component,
+	_ config.Component,
 	flare flare.Component,
 	telemetry telemetry.Component,
 	sysprobeconfig sysprobeconfig.Component,
 	server dogstatsdServer.Component,
-	capture replay.Component,
+	_ replay.Component,
 	serverDebug dogstatsddebug.Component,
 	forwarder defaultforwarder.Component,
 	wmeta workloadmeta.Component,
 	rcclient rcclient.Component,
-	//nolint:revive // TODO(ASC) Fix revive linter
-	metadataRunner runner.Component,
+	_ runner.Component,
 	demultiplexer demultiplexer.Component,
 	sharedSerializer serializer.MetricSerializer,
 	cliParams *cliParams,
 	logsAgent optional.Option[logsAgent.Component],
 	otelcollector otelcollector.Component,
-	hostMetadata host.Component,
+	_ host.Component,
 	invAgent inventoryagent.Component,
-	invHost inventoryhost.Component,
-	secretResolver secrets.Component,
+	_ inventoryhost.Component,
+	_ secrets.Component,
 	invChecks inventorychecks.Component,
 	_ netflowServer.Component,
 	_ langDetectionCl.Component,
 	agentAPI internalAPI.Component,
+	_ packagesigning.Component,
 ) error {
 	defer func() {
 		stopAgent(cliParams, server, demultiplexer, agentAPI)
@@ -256,7 +254,7 @@ func run(log log.Component,
 	sigpipeCh := make(chan os.Signal, 1)
 	signal.Notify(sigpipeCh, syscall.SIGPIPE)
 	go func() {
-		//nolint:revive // TODO(ASC) Fix revive linter
+		//nolint:revive
 		for range sigpipeCh {
 			// do nothing
 		}
@@ -268,7 +266,6 @@ func run(log log.Component,
 		telemetry,
 		sysprobeconfig,
 		server,
-		capture,
 		serverDebug,
 		wmeta,
 		rcclient,
@@ -277,10 +274,7 @@ func run(log log.Component,
 		sharedSerializer,
 		otelcollector,
 		demultiplexer,
-		hostMetadata,
 		invAgent,
-		invHost,
-		secretResolver,
 		agentAPI,
 		invChecks,
 	); err != nil {
@@ -308,25 +302,13 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(func(config config.Component, log log.Component) defaultforwarder.Params {
 			params := defaultforwarder.NewParams(config, log)
 			// Enable core agent specific features like persistence-to-disk
-			params.Options.EnabledFeatures = pkgforwarder.SetFeature(params.Options.EnabledFeatures, pkgforwarder.CoreFeatures)
+			params.Options.EnabledFeatures = defaultforwarder.SetFeature(params.Options.EnabledFeatures, defaultforwarder.CoreFeatures)
 			return params
 		}),
 
 		// workloadmeta setup
 		collectors.GetCatalog(),
-		fx.Provide(func(config config.Component) workloadmeta.Params {
-			var agentType workloadmeta.AgentType
-			if flavor.GetFlavor() == flavor.ClusterAgent {
-				agentType = workloadmeta.ClusterAgent
-			} else {
-				agentType = workloadmeta.NodeAgent
-			}
-
-			return workloadmeta.Params{
-				AgentType:  agentType,
-				InitHelper: common.GetWorkloadmetaInit(),
-			}
-		}),
+		fx.Provide(defaults.DefaultParams),
 		workloadmeta.Module(),
 		apiimpl.Module(),
 
@@ -356,12 +338,12 @@ func getSharedFxOption() fx.Option {
 		metadata.Bundle(),
 		// injecting the aggregator demultiplexer to FX until we migrate it to a proper component. This allows
 		// other already migrated components to request it.
-		fx.Provide(func(config config.Component) demultiplexer.Params {
-			opts := aggregator.DefaultAgentDemultiplexerOptions()
-			opts.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
-			return demultiplexer.Params{Options: opts}
+		fx.Provide(func(config config.Component) demultiplexerimpl.Params {
+			params := demultiplexerimpl.NewDefaultParams()
+			params.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
+			return params
 		}),
-		demultiplexer.Module(),
+		demultiplexerimpl.Module(),
 		orchestratorForwarderImpl.Module(),
 		fx.Supply(orchestratorForwarderImpl.NewDefaultParams()),
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
@@ -383,24 +365,17 @@ func startAgent(
 	log log.Component,
 	flare flare.Component,
 	telemetry telemetry.Component,
-	//nolint:revive // TODO(ASC) Fix revive linter
-	sysprobeconfig sysprobeconfig.Component,
+	_ sysprobeconfig.Component,
 	server dogstatsdServer.Component,
-	capture replay.Component,
 	serverDebug dogstatsddebug.Component,
 	wmeta workloadmeta.Component,
 	rcclient rcclient.Component,
 	logsAgent optional.Option[logsAgent.Component],
-	//nolint:revive // TODO(ASC) Fix revive linter
-	sharedForwarder defaultforwarder.Component,
-	//nolint:revive // TODO(ASC) Fix revive linter
-	sharedSerializer serializer.MetricSerializer,
+	_ defaultforwarder.Component,
+	_ serializer.MetricSerializer,
 	otelcollector otelcollector.Component,
 	demultiplexer demultiplexer.Component,
-	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
-	invHost inventoryhost.Component,
-	secretResolver secrets.Component,
 	agentAPI internalAPI.Component,
 	invChecks inventorychecks.Component,
 ) error {
@@ -448,7 +423,7 @@ func startAgent(
 	}
 
 	// init settings that can be changed at runtime
-	if err := initRuntimeSettings(serverDebug, invAgent); err != nil {
+	if err := initRuntimeSettings(serverDebug); err != nil {
 		log.Warnf("Can't initiliaze the runtime settings: %v", err)
 	}
 
@@ -544,19 +519,9 @@ func startAgent(
 	// start the cmd HTTP server
 	if err = agentAPI.StartServer(
 		configService,
-		flare,
-		server,
-		capture,
-		serverDebug,
 		wmeta,
 		logsAgent,
 		demultiplexer,
-		hostMetadata,
-		invAgent,
-		demultiplexer,
-		invHost,
-		secretResolver,
-		invChecks,
 	); err != nil {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}

@@ -17,6 +17,7 @@ $Env:PATH="$UT_BUILD_ROOT\dev\lib;$Env:GOPATH\bin;$Env:Python3_ROOT_DIR;$Env:Pyt
 
 & $Env:Python3_ROOT_DIR\python.exe -m pip install PyYAML==5.3.1
 
+& pip install -r tasks/libs/requirements-github.txt
 & inv -e invoke-unit-tests
 
 if ($LASTEXITCODE -ne 0) {
@@ -43,7 +44,7 @@ if ($Env:TARGET_ARCH -eq "x86") {
 mkdir  .\bin\agent
 
 # Generate the datadog.yaml config file to be used in integration tests
-& inv -e generate-config --build-type="agent-py2py3" --output-file="./datadog.yaml"
+& inv -e agent.generate-config --build-type="agent-py2py3" --output-file="./datadog.yaml"
 
 # NG installer unit tests
 if ($Env:DEBUG_CUSTOMACTION) {

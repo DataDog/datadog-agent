@@ -25,6 +25,7 @@ core,code.cloudfoundry.org/garden/transport,Apache-2.0,"Copyright (c) 2016-Prese
 core,code.cloudfoundry.org/lager,Apache-2.0,"Copyright (c) 2016-Present CloudFoundry.org Foundation, Inc. All Rights Reserved."
 core,code.cloudfoundry.org/tlsconfig,Apache-2.0,"Copyright (c) 2016-Present CloudFoundry.org Foundation, Inc. All Rights Reserved."
 core,contrib.go.opencensus.io/exporter/prometheus,Apache-2.0,"Copyright 2020, OpenCensus Authors"
+core,dario.cat/mergo,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2013 Dario Castañé. All rights reserved
 core,github.com/AdaLogics/go-fuzz-headers,Apache-2.0,AdamKorcz <44787359+AdamKorcz@users.noreply.github.com>|AdamKorcz <adam@adalogics.com>|Sebastiaan van Stijn <github@gone.nl>|AdaLogics <48351493+AdaLogics@users.noreply.github.com>|Kazuyoshi Kato <kato.kazuyoshi@gmail.com>
 core,github.com/AdamKorcz/go-118-fuzz-build/testing,Apache-2.0,AdamKorcz <adam@adalogics.com>|AdamKorcz <44787359+AdamKorcz@users.noreply.github.com>|John Howard <howardjohn@google.com>|Kazuyoshi Kato <katokazu@amazon.com>|Khaled Yakdan <yakdan@code-intelligence.de>|AdamKorcz <Adam@adalogics.com>|Sebastiaan van Stijn <thaJeztah@users.noreply.github.com>
 core,github.com/AlekSi/pointer,MIT,Copyright (c) 2015 Alexey Palazhchenko
@@ -199,7 +200,6 @@ core,github.com/ProtonMail/go-crypto/openpgp/packet,BSD-3-Clause,Copyright (c) 2
 core,github.com/ProtonMail/go-crypto/openpgp/s2k,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/StackExchange/wmi,MIT,Copyright (c) 2013 Stack Exchange
 core,github.com/acobaugh/osrelease,BSD-3-Clause,Copyright 2017 Andrew Cobaugh
-core,github.com/acomagu/bufpipe,MIT,Copyright (c) 2019 acomagu
 core,github.com/agext/levenshtein,Apache-2.0,Copyright 2016 ALRUX Inc
 core,github.com/agnivade/levenshtein,MIT,Copyright (c) 2015 Agniva De Sarker
 core,github.com/alecthomas/participle,MIT,Copyright (C) 2017 Alec Thomas
@@ -394,7 +394,6 @@ core,github.com/aquasecurity/trivy/pkg/vulnerability,Apache-2.0,Copyright 2019-2
 core,github.com/aquasecurity/trivy/rpc/cache,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/rpc/common,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
 core,github.com/aquasecurity/trivy/rpc/scanner,Apache-2.0,Copyright 2019-2020 Aqua Security Software Ltd
-core,github.com/arduino/go-apt-client,Apache-2.0,Copyright (C) 2017  Arduino AG (http://www.arduino.cc/)
 core,github.com/armon/go-metrics,MIT,Copyright (c) 2013 Armon Dadgar
 core,github.com/asaskevich/govalidator,MIT,Copyright (c) 2014-2020 Alex Saskevich
 core,github.com/avast/retry-go/v4,MIT,Copyright (c) 2017 Avast
@@ -639,6 +638,7 @@ core,github.com/containerd/containerd/namespaces,Apache-2.0,"Copyright 2012-2015
 core,github.com/containerd/containerd/oci,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/pkg/cap,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/pkg/cleanup,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/pkg/deprecation,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/pkg/dialer,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/pkg/epoch,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/pkg/kmutex,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
@@ -669,6 +669,7 @@ core,github.com/containerd/containerd/sandbox,Apache-2.0,"Copyright 2012-2015 Do
 core,github.com/containerd/containerd/sandbox/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/services,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/services/introspection,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/services/warning,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/snapshots,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/snapshots/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/tracing,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
@@ -676,6 +677,7 @@ core,github.com/containerd/containerd/version,Apache-2.0,"Copyright 2012-2015 Do
 core,github.com/containerd/continuity/fs,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/continuity/sysx,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/fifo,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/log,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/stargz-snapshotter/estargz,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/stargz-snapshotter/estargz/errorutil,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/ttrpc,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
@@ -770,6 +772,7 @@ core,github.com/felixge/httpsnoop,MIT,Copyright (c) 2016 Felix Geisendörfer (fe
 core,github.com/freddierice/go-losetup,MIT,Copyright (c) 2017 Freddie Rice
 core,github.com/fsnotify/fsnotify,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved. | Copyright (c) 2012-2019 fsnotify Authors. All rights reserved.
 core,github.com/ghodss/yaml,MIT,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2014 Sam Ghods
+core,github.com/glaslos/ssdeep,MIT,"Copyright (c) 2015, Arbo von Monkiewitsch All rights reserved | Copyright (c) 2017 Lukas Rist"
 core,github.com/go-delve/delve/pkg/dwarf/godwarf,MIT,Copyright (c) 2014 Derek Parker
 core,github.com/go-delve/delve/pkg/dwarf/loclist,MIT,Copyright (c) 2014 Derek Parker
 core,github.com/go-delve/delve/pkg/dwarf/op,MIT,Copyright (c) 2014 Derek Parker
@@ -788,6 +791,7 @@ core,github.com/go-git/go-billy/v5/osfs,Apache-2.0,Copyright 2017 Sourced Techno
 core,github.com/go-git/go-billy/v5/util,Apache-2.0,Copyright 2017 Sourced Technologies S.L
 core,github.com/go-git/go-git/v5,Apache-2.0,"Copyright 2018 Sourced Technologies, S.L"
 core,github.com/go-git/go-git/v5/config,Apache-2.0,"Copyright 2018 Sourced Technologies, S.L"
+core,github.com/go-git/go-git/v5/internal/path_util,Apache-2.0,"Copyright 2018 Sourced Technologies, S.L"
 core,github.com/go-git/go-git/v5/internal/revision,Apache-2.0,"Copyright 2018 Sourced Technologies, S.L"
 core,github.com/go-git/go-git/v5/internal/url,Apache-2.0,"Copyright 2018 Sourced Technologies, S.L"
 core,github.com/go-git/go-git/v5/plumbing,Apache-2.0,"Copyright 2018 Sourced Technologies, S.L"
@@ -802,6 +806,7 @@ core,github.com/go-git/go-git/v5/plumbing/format/index,Apache-2.0,"Copyright 201
 core,github.com/go-git/go-git/v5/plumbing/format/objfile,Apache-2.0,"Copyright 2018 Sourced Technologies, S.L"
 core,github.com/go-git/go-git/v5/plumbing/format/packfile,Apache-2.0,"Copyright 2018 Sourced Technologies, S.L"
 core,github.com/go-git/go-git/v5/plumbing/format/pktline,Apache-2.0,"Copyright 2018 Sourced Technologies, S.L"
+core,github.com/go-git/go-git/v5/plumbing/hash,Apache-2.0,"Copyright 2018 Sourced Technologies, S.L"
 core,github.com/go-git/go-git/v5/plumbing/object,Apache-2.0,"Copyright 2018 Sourced Technologies, S.L"
 core,github.com/go-git/go-git/v5/plumbing/protocol/packp,Apache-2.0,"Copyright 2018 Sourced Technologies, S.L"
 core,github.com/go-git/go-git/v5/plumbing/protocol/packp/capability,Apache-2.0,"Copyright 2018 Sourced Technologies, S.L"
@@ -828,6 +833,8 @@ core,github.com/go-git/go-git/v5/utils/merkletrie/filesystem,Apache-2.0,"Copyrig
 core,github.com/go-git/go-git/v5/utils/merkletrie/index,Apache-2.0,"Copyright 2018 Sourced Technologies, S.L"
 core,github.com/go-git/go-git/v5/utils/merkletrie/internal/frame,Apache-2.0,"Copyright 2018 Sourced Technologies, S.L"
 core,github.com/go-git/go-git/v5/utils/merkletrie/noder,Apache-2.0,"Copyright 2018 Sourced Technologies, S.L"
+core,github.com/go-git/go-git/v5/utils/sync,Apache-2.0,"Copyright 2018 Sourced Technologies, S.L"
+core,github.com/go-git/go-git/v5/utils/trace,Apache-2.0,"Copyright 2018 Sourced Technologies, S.L"
 core,github.com/go-ini/ini,Apache-2.0,Copyright 2014 Unknwon
 core,github.com/go-kit/log,MIT,Copyright (c) 2021 Go kit
 core,github.com/go-kit/log/level,MIT,Copyright (c) 2021 Go kit
@@ -1175,7 +1182,7 @@ core,github.com/masahiro331/go-xfs-filesystem/xfs/utils,Apache-2.0,Copyright (c)
 core,github.com/mattn/go-colorable,MIT,Copyright (c) 2016 Yasuhiro Matsumoto
 core,github.com/mattn/go-isatty,MIT,Copyright (c) Yasuhiro MATSUMOTO <mattn.jp@gmail.com>
 core,github.com/mattn/go-runewidth,MIT,Copyright (c) 2016 Yasuhiro Matsumoto
-core,github.com/matttproud/golang_protobuf_extensions/pbutil,Apache-2.0,Copyright 2012 Matt T. Proud (matt.proud@gmail.com)
+core,github.com/matttproud/golang_protobuf_extensions/v2/pbutil,Apache-2.0,Copyright 2012 Matt T. Proud (matt.proud@gmail.com)
 core,github.com/mdlayher/netlink,MIT,Copyright (C) 2016-2022 Matt Layher
 core,github.com/mdlayher/netlink/nlenc,MIT,Copyright (C) 2016-2022 Matt Layher
 core,github.com/mdlayher/socket,MIT,Copyright (C) 2021 Matt Layher
@@ -1338,6 +1345,9 @@ core,github.com/pierrec/lz4/v4/internal/lz4block,BSD-3-Clause,"Copyright (c) 201
 core,github.com/pierrec/lz4/v4/internal/lz4errors,BSD-3-Clause,"Copyright (c) 2015, Pierre Curto"
 core,github.com/pierrec/lz4/v4/internal/lz4stream,BSD-3-Clause,"Copyright (c) 2015, Pierre Curto"
 core,github.com/pierrec/lz4/v4/internal/xxh32,BSD-3-Clause,"Copyright (c) 2015, Pierre Curto"
+core,github.com/pjbgf/sha1cd,Apache-2.0,"Copyright 2009 The Go Authors. All rights reserved. | Copyright 2017 Marc Stevens <marc@marc-stevens.nl>, Dan Shumow <danshu@microsoft.com> | Copyright 2022 Paulo Gomes <pjbgf@linux.com>"
+core,github.com/pjbgf/sha1cd/internal,Apache-2.0,"Copyright 2009 The Go Authors. All rights reserved. | Copyright 2017 Marc Stevens <marc@marc-stevens.nl>, Dan Shumow <danshu@microsoft.com> | Copyright 2022 Paulo Gomes <pjbgf@linux.com>"
+core,github.com/pjbgf/sha1cd/ubc,Apache-2.0,"Copyright 2009 The Go Authors. All rights reserved. | Copyright 2017 Marc Stevens <marc@marc-stevens.nl>, Dan Shumow <danshu@microsoft.com> | Copyright 2022 Paulo Gomes <pjbgf@linux.com>"
 core,github.com/pkg/errors,BSD-2-Clause,"Copyright (c) 2015, Dave Cheney <dave@cheney.net>"
 core,github.com/pmezard/go-difflib/difflib,BSD-3-Clause,"Copyright (c) 2013, Patrick Mezard"
 core,github.com/power-devops/perfstat,MIT,Copyright (c) 2020 Power DevOps
@@ -1409,6 +1419,7 @@ core,github.com/sijms/go-ora/v2/network/security,MIT,Copyright (c) 2020 Samy Sul
 core,github.com/sijms/go-ora/v2/network/security/md4,MIT,Copyright (c) 2020 Samy Sultan
 core,github.com/sijms/go-ora/v2/trace,MIT,Copyright (c) 2020 Samy Sultan
 core,github.com/sirupsen/logrus,MIT,Copyright (c) 2014 Simon Eskildsen
+core,github.com/skeema/knownhosts,Apache-2.0,Copyright 2023 Skeema LLC and the Skeema Knownhosts authors | copyright 2023 Skeema LLC and the Skeema Knownhosts authors**
 core,github.com/skydive-project/go-debouncer,Apache-2.0,"Copyright (C) 2018 Red Hat, Inc."
 core,github.com/smira/go-ftp-protocol/protocol,MIT,Copyright (c) 2014 Andrey Smirnov
 core,github.com/smira/go-xz,MIT,Copyright (c) 2015 Andrey Smirnov
@@ -1434,12 +1445,16 @@ core,github.com/spf13/cobra,Apache-2.0,Copyright © 2013 Steve Francia <spf@spf1
 core,github.com/spf13/jwalterweatherman,MIT,Copyright (c) 2014 Steve Francia
 core,github.com/spf13/pflag,BSD-3-Clause,Copyright (c) 2012 Alex Ogier. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved
 core,github.com/stoewer/go-strcase,MIT,"Copyright (c) 2017, Adrian Stoewer <adrian.stoewer@rz.ifi.lmu.de>"
+core,github.com/stormcat24/protodep,Apache-2.0,Copyright Akinori Yamada
+core,github.com/stormcat24/protodep/pkg/logger,Apache-2.0,Copyright Akinori Yamada
 core,github.com/streadway/amqp,BSD-2-Clause,"Copyright (c) 2012-2019, Sean Treadway, SoundCloud Ltd"
 core,github.com/stretchr/objx,MIT,"Copyright (c) 2014 Stretchr, Inc | Copyright (c) 2017-2018 objx contributors"
 core,github.com/stretchr/testify/assert,MIT,"Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors"
 core,github.com/stretchr/testify/mock,MIT,"Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors"
 core,github.com/stretchr/testify/require,MIT,"Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors"
 core,github.com/stretchr/testify/suite,MIT,"Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors"
+core,github.com/swaggest/jsonschema-go,MIT,Copyright (c) 2019 swaggest
+core,github.com/swaggest/refl,MIT,Copyright (c) 2020 swaggest
 core,github.com/syndtr/gocapability/capability,BSD-2-Clause,Copyright 2013 Suryandaru Triandana <syndtr@gmail.com>
 core,github.com/syndtr/goleveldb/leveldb,BSD-2-Clause,Copyright 2012 Suryandaru Triandana <syndtr@gmail.com>
 core,github.com/syndtr/goleveldb/leveldb/cache,BSD-2-Clause,Copyright 2012 Suryandaru Triandana <syndtr@gmail.com>
@@ -1601,7 +1616,6 @@ core,go.opencensus.io/trace/tracestate,Apache-2.0,"Copyright 2018, OpenCensus Au
 core,go.opentelemetry.io/collector/client,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/component,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/component/componenttest,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/collector/config,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config/configauth,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config/configcompression,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config/configgrpc,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1671,6 +1685,7 @@ core,go.opentelemetry.io/collector/receiver/otlpreceiver/internal/logs,Apache-2.
 core,go.opentelemetry.io/collector/receiver/otlpreceiver/internal/metrics,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/receiver/otlpreceiver/internal/trace,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/receiver/receiverhelper,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/receiver/receivertest,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/semconv/v1.17.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/semconv/v1.18.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/semconv/v1.6.1,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1685,6 +1700,7 @@ core,go.opentelemetry.io/collector/service/internal/status,Apache-2.0,Copyright 
 core,go.opentelemetry.io/collector/service/internal/zpages,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/pipelines,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/telemetry,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/contrib/config,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1699,7 +1715,6 @@ core,go.opentelemetry.io/otel/bridge/opencensus/internal/oc2otel,Apache-2.0,Copy
 core,go.opentelemetry.io/otel/bridge/opencensus/internal/ocmetric,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/bridge/opencensus/internal/otel2oc,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/codes,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/otel/exporters/otlp/otlpmetric,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc/internal/envconfig,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1747,10 +1762,8 @@ core,go.opentelemetry.io/otel/sdk/resource,Apache-2.0,Copyright The OpenTelemetr
 core,go.opentelemetry.io/otel/sdk/trace,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk/trace/tracetest,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/internal,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/otel/semconv/internal/v2,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.12.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.17.0,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/otel/semconv/v1.17.0/httpconv,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.21.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/trace,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/trace/embedded,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1859,6 +1872,8 @@ core,golang.org/x/oauth2/authhandler,BSD-3-Clause,Copyright (c) 2009 The Go Auth
 core,golang.org/x/oauth2/clientcredentials,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/oauth2/google,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/oauth2/google/internal/externalaccount,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,golang.org/x/oauth2/google/internal/externalaccountauthorizeduser,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,golang.org/x/oauth2/google/internal/stsexchange,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/oauth2/internal,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/oauth2/jws,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/oauth2/jwt,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
@@ -1952,9 +1967,7 @@ core,google.golang.org/appengine/internal/datastore,Apache-2.0,Copyright 2011 Go
 core,google.golang.org/appengine/internal/log,Apache-2.0,Copyright 2011 Google Inc. All rights reserved.
 core,google.golang.org/appengine/internal/modules,Apache-2.0,Copyright 2011 Google Inc. All rights reserved.
 core,google.golang.org/appengine/internal/remote_api,Apache-2.0,Copyright 2011 Google Inc. All rights reserved.
-core,google.golang.org/appengine/internal/socket,Apache-2.0,Copyright 2011 Google Inc. All rights reserved.
 core,google.golang.org/appengine/internal/urlfetch,Apache-2.0,Copyright 2011 Google Inc. All rights reserved.
-core,google.golang.org/appengine/socket,Apache-2.0,Copyright 2011 Google Inc. All rights reserved.
 core,google.golang.org/appengine/urlfetch,Apache-2.0,Copyright 2011 Google Inc. All rights reserved.
 core,google.golang.org/genproto/googleapis/api,Apache-2.0,Copyright 2015 Google LLC
 core,google.golang.org/genproto/googleapis/api/annotations,Apache-2.0,Copyright 2015 Google LLC
@@ -2017,6 +2030,7 @@ core,google.golang.org/grpc/internal/metadata,Apache-2.0,Copyright 2014 gRPC aut
 core,google.golang.org/grpc/internal/pretty,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/resolver,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/resolver/dns,Apache-2.0,Copyright 2014 gRPC authors.
+core,google.golang.org/grpc/internal/resolver/dns/internal,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/resolver/passthrough,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/resolver/unix,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/serviceconfig,Apache-2.0,Copyright 2014 gRPC authors.
@@ -2028,6 +2042,7 @@ core,google.golang.org/grpc/keepalive,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/metadata,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/peer,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/resolver,Apache-2.0,Copyright 2014 gRPC authors.
+core,google.golang.org/grpc/resolver/dns,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/resolver/manual,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/serviceconfig,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/stats,Apache-2.0,Copyright 2014 gRPC authors.

@@ -17,12 +17,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -43,9 +45,10 @@ type checksMetadata map[string][]metadata
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
-	Hostname  string                `json:"hostname"`
-	Timestamp int64                 `json:"timestamp"`
-	Metadata  map[string][]metadata `json:"check_metadata"`
+	Hostname     string                `json:"hostname"`
+	Timestamp    int64                 `json:"timestamp"`
+	Metadata     map[string][]metadata `json:"check_metadata"`
+	LogsMetadata map[string][]metadata `json:"logs_metadata"`
 }
 
 // MarshalJSON serialization a Payload to JSON
@@ -77,6 +80,7 @@ type inventorychecksImpl struct {
 	log      log.Component
 	conf     config.Component
 	coll     optional.Option[collector.Collector]
+	sources  optional.Option[*sources.LogSources]
 	hostname string
 }
 
@@ -87,6 +91,7 @@ type dependencies struct {
 	Config     config.Component
 	Serializer serializer.MetricSerializer
 	Coll       optional.Option[collector.Collector]
+	LogAgent   optional.Option[logagent.Component]
 }
 
 type provides struct {
@@ -103,10 +108,11 @@ func newInventoryChecksProvider(deps dependencies) provides {
 		conf:     deps.Config,
 		log:      deps.Log,
 		coll:     deps.Coll,
+		sources:  optional.NewNoneOption[*sources.LogSources](),
 		hostname: hname,
 		data:     map[string]instanceMetadata{},
 	}
-	ic.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ic.getPayload, "host.json")
+	ic.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ic.getPayload, "checks.json")
 
 	// We want to be notified when the collector add or removed a check.
 	// TODO: (component) - This entire metadata provider should be part of the collector. Once the collector is a
@@ -114,6 +120,10 @@ func newInventoryChecksProvider(deps dependencies) provides {
 
 	if coll, isSet := ic.coll.Get(); isSet {
 		coll.AddEventReceiver(func(_ checkid.ID, _ collector.EventType) { ic.Refresh() })
+	}
+
+	if logAgent, isSet := deps.LogAgent.Get(); isSet {
+		ic.sources.Set(logAgent.GetSources())
 	}
 
 	return provides{
@@ -166,13 +176,14 @@ func (ic *inventorychecksImpl) GetInstanceMetadata(instanceID string) map[string
 
 func (ic *inventorychecksImpl) getPayload() marshaler.JSONMarshaler {
 	payloadData := make(checksMetadata)
+	invChecksEnabled := ic.conf.GetBool("inventories_checks_configuration_enabled")
 
 	if coll, isSet := ic.coll.Get(); isSet {
 		foundInCollector := map[string]struct{}{}
 
 		coll.MapOverChecks(func(checks []check.Info) {
 			for _, c := range checks {
-				cm := check.GetMetadata(c, ic.conf.GetBool("inventories_checks_configuration_enabled"))
+				cm := check.GetMetadata(c, invChecksEnabled)
 
 				if checkData, found := ic.data[string(c.ID())]; found {
 					for key, val := range checkData.metadata {
@@ -197,9 +208,42 @@ func (ic *inventorychecksImpl) getPayload() marshaler.JSONMarshaler {
 		}
 	}
 
+	logsMetadata := make(map[string][]metadata)
+	if sources, isSet := ic.sources.Get(); isSet && invChecksEnabled {
+		if sources != nil {
+			for _, logSource := range sources.GetSources() {
+				if _, found := logsMetadata[logSource.Name]; !found {
+					logsMetadata[logSource.Name] = []metadata{}
+				}
+
+				parsedJSON, err := logSource.Config.PublicJSON()
+				if err != nil {
+					ic.log.Debugf("could not parse log configuration for source metadata %s: %v", logSource.Name, err)
+					continue
+				}
+
+				tags := logSource.Config.Tags
+				if tags == nil {
+					tags = []string{}
+				}
+				logsMetadata[logSource.Name] = append(logsMetadata[logSource.Name], metadata{
+					"config": string(parsedJSON),
+					"state": map[string]string{
+						"error":  logSource.Status.GetError(),
+						"status": logSource.Status.String(),
+					},
+					"service": logSource.Config.Service,
+					"source":  logSource.Config.Source,
+					"tags":    tags,
+				})
+			}
+		}
+	}
+
 	return &Payload{
-		Hostname:  ic.hostname,
-		Timestamp: time.Now().UnixNano(),
-		Metadata:  payloadData,
+		Hostname:     ic.hostname,
+		Timestamp:    time.Now().UnixNano(),
+		Metadata:     payloadData,
+		LogsMetadata: logsMetadata,
 	}
 }

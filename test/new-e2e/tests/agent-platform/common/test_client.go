@@ -11,7 +11,8 @@ import (
 	"strings"
 	"time"
 
-	e2eClient "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	pkgmanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/pkg-manager"
 	svcmanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/svc-manager"
 	"gopkg.in/yaml.v2"
@@ -47,32 +48,32 @@ type Helper interface {
 	GetServiceName() string
 }
 
-func getServiceManager(vmClient e2eClient.VM) ServiceManager {
-	if _, err := vmClient.ExecuteWithError("command -v systemctl"); err == nil {
-		return svcmanager.NewSystemctlSvcManager(vmClient)
+func getServiceManager(host *components.RemoteHost) ServiceManager {
+	if _, err := host.Execute("command -v systemctl"); err == nil {
+		return svcmanager.NewSystemctlSvcManager(host)
 	}
 
-	if _, err := vmClient.ExecuteWithError("command -v /sbin/initctl"); err == nil {
-		return svcmanager.NewUpstartSvcManager(vmClient)
+	if _, err := host.Execute("command -v /sbin/initctl"); err == nil {
+		return svcmanager.NewUpstartSvcManager(host)
 	}
 
-	if _, err := vmClient.ExecuteWithError("command -v service"); err == nil {
-		return svcmanager.NewServiceSvcManager(vmClient)
+	if _, err := host.Execute("command -v service"); err == nil {
+		return svcmanager.NewServiceSvcManager(host)
 	}
 	return nil
 }
 
-func getPackageManager(vmClient e2eClient.VM) PackageManager {
-	if _, err := vmClient.ExecuteWithError("command -v apt"); err == nil {
-		return pkgmanager.NewAptPackageManager(vmClient)
+func getPackageManager(host *components.RemoteHost) PackageManager {
+	if _, err := host.Execute("command -v apt"); err == nil {
+		return pkgmanager.NewAptPackageManager(host)
 	}
 
-	if _, err := vmClient.ExecuteWithError("command -v yum"); err == nil {
-		return pkgmanager.NewYumPackageManager(vmClient)
+	if _, err := host.Execute("command -v yum"); err == nil {
+		return pkgmanager.NewYumPackageManager(host)
 	}
 
-	if _, err := vmClient.ExecuteWithError("command -v zypper"); err == nil {
-		return pkgmanager.NewZypperPackageManager(vmClient)
+	if _, err := host.Execute("command -v zypper"); err == nil {
+		return pkgmanager.NewZypperPackageManager(host)
 	}
 
 	return nil
@@ -80,8 +81,8 @@ func getPackageManager(vmClient e2eClient.VM) PackageManager {
 
 // TestClient contain the Agent Env and SvcManager and PkgManager for tests
 type TestClient struct {
-	VMClient    e2eClient.VM
-	AgentClient e2eClient.Agent
+	Host        *components.RemoteHost
+	AgentClient agentclient.Agent
 	Helper      Helper
 	FileManager FileManager
 	SvcManager  ServiceManager
@@ -89,11 +90,11 @@ type TestClient struct {
 }
 
 // NewTestClient create a an ExtendedClient from VMClient and AgentCommandRunner, includes svcManager and pkgManager to write agent-platform tests
-func NewTestClient(vmClient e2eClient.VM, agentClient e2eClient.Agent, fileManager FileManager, helper Helper) *TestClient {
-	svcManager := getServiceManager(vmClient)
-	pkgManager := getPackageManager(vmClient)
+func NewTestClient(host *components.RemoteHost, agentClient agentclient.Agent, fileManager FileManager, helper Helper) *TestClient {
+	svcManager := getServiceManager(host)
+	pkgManager := getPackageManager(host)
 	return &TestClient{
-		VMClient:    vmClient,
+		Host:        host,
 		AgentClient: agentClient,
 		Helper:      helper,
 		FileManager: fileManager,
@@ -105,7 +106,7 @@ func NewTestClient(vmClient e2eClient.VM, agentClient e2eClient.Agent, fileManag
 // CheckPortBound check if the port is currently bound, use netstat or ss
 func (c *TestClient) CheckPortBound(port int) error {
 	netstatCmd := "sudo netstat -lntp | grep %v"
-	if _, err := c.VMClient.ExecuteWithError("command -v netstat"); err != nil {
+	if _, err := c.Host.Execute("command -v netstat"); err != nil {
 		netstatCmd = "sudo ss -lntp | grep %v"
 	}
 
@@ -151,8 +152,8 @@ func (c *TestClient) GetPythonVersion() (string, error) {
 	ok := false
 	var statusString string
 
-	for try := 0; try < 5 && !ok; try++ {
-		status, err := c.AgentClient.StatusWithError(e2eClient.WithArgs([]string{"-j"}))
+	for try := 0; try < 60 && !ok; try++ {
+		status, err := c.AgentClient.StatusWithError(agentclient.WithArgs([]string{"-j"}))
 		if err == nil {
 			ok = true
 			statusString = status.Content
@@ -162,6 +163,16 @@ func (c *TestClient) GetPythonVersion() (string, error) {
 
 	err := json.Unmarshal([]byte(statusString), &statusJSON)
 	if err != nil {
+		fmt.Println("Failed to unmarshal status content: ", statusString)
+
+		// TEMPORARY DEBUG: on error print logs from journalctx
+		output, err := c.Host.Execute("journalctl -u datadog-agent")
+		if err != nil {
+			fmt.Println("Failed to get logs from journalctl, ignoring... ")
+		} else {
+			fmt.Println("Logs from journalctl: ", output)
+		}
+
 		return "", err
 	}
 	pythonVersion := statusJSON["python_version"].(string)
@@ -177,7 +188,7 @@ func (c *TestClient) ExecuteWithRetry(cmd string) (string, error) {
 	var output string
 
 	for try := 0; try < 5 && !ok; try++ {
-		output, err = c.VMClient.ExecuteWithError(cmd)
+		output, err = c.Host.Execute(cmd)
 		if err == nil {
 			ok = true
 		}
@@ -185,5 +196,4 @@ func (c *TestClient) ExecuteWithRetry(cmd string) (string, error) {
 	}
 
 	return output, err
-
 }

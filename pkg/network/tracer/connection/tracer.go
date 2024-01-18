@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"hash"
+	"io"
 	"math"
 	"sync"
 	"time"
@@ -28,12 +29,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/fentry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -73,7 +74,7 @@ type Tracer interface {
 	// An individual tracer implementation may choose which maps to expose via this function.
 	GetMap(string) *ebpf.Map
 	// DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.
-	DumpMaps(maps ...string) (string, error)
+	DumpMaps(w io.Writer, maps ...string) error
 	// Type returns the type of the underlying ebpf tracer that is currently loaded
 	Type() TracerType
 
@@ -107,7 +108,7 @@ var ConnTracerTelemetry = struct {
 	UdpSendsMissed *prometheus.Desc
 	//nolint:revive // TODO(NET) Fix revive linter
 	UdpDroppedConns *prometheus.Desc
-	PidCollisions   *nettelemetry.StatCounterWrapper
+	PidCollisions   *telemetry.StatCounterWrapper
 	iterationDups   telemetry.Counter
 	iterationAborts telemetry.Counter
 
@@ -134,7 +135,7 @@ var ConnTracerTelemetry = struct {
 	prometheus.NewDesc(connTracerModuleName+"__udp_sends_processed", "Counter measuring the number of processed UDP sends in EBPF", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__udp_sends_missed", "Counter measuring failures to process UDP sends in EBPF", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__udp_dropped_conns", "Counter measuring the number of dropped UDP connections in the EBPF map", nil, nil),
-	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
+	telemetry.NewStatCounterWrapper(connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_dups", []string{}, "Counter measuring the number of connections iterated more than once"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_aborts", []string{}, "Counter measuring how many times ebpf iteration of connection map was aborted"),
 	atomic.NewInt64(0),
@@ -170,7 +171,7 @@ type tracer struct {
 }
 
 // NewTracer creates a new tracer
-func NewTracer(config *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry) (Tracer, error) {
+func NewTracer(config *config.Config, bpfTelemetry *ebpftelemetry.EBPFTelemetry) (Tracer, error) {
 	mgrOptions := manager.Options{
 		// Extend RLIMIT_MEMLOCK (8) size
 		// On some systems, the default for RLIMIT_MEMLOCK may be as low as 64 bytes.
@@ -554,8 +555,8 @@ func (t *tracer) Collect(ch chan<- prometheus.Metric) {
 }
 
 // DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.
-func (t *tracer) DumpMaps(maps ...string) (string, error) {
-	return t.m.DumpMaps(maps...)
+func (t *tracer) DumpMaps(w io.Writer, maps ...string) error {
+	return t.m.DumpMaps(w, maps...)
 }
 
 // Type returns the type of the underlying ebpf tracer that is currently loaded

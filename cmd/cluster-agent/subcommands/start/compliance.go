@@ -88,14 +88,10 @@ func startCompliance(senderManager sender.SenderManager, stopper startstop.Stopp
 		return err
 	}
 
-	reporter, err := compliance.NewLogReporter(hname, stopper, "compliance-agent", "compliance", runPath, endpoints, ctx)
-	if err != nil {
-		return err
-	}
-
 	runner := runner.NewRunner(senderManager)
 	stopper.Add(runner)
 
+	reporter := compliance.NewLogReporter(hname, "compliance-agent", "compliance", runPath, endpoints, ctx)
 	agent := compliance.NewAgent(senderManager, compliance.AgentOptions{
 		ConfigDir:     configDir,
 		Reporter:      reporter,
@@ -124,7 +120,7 @@ func startCompliance(senderManager sender.SenderManager, stopper startstop.Stopp
 func wrapKubernetesClient(apiCl *apiserver.APIClient, isLeader func() bool) compliance.KubernetesProvider {
 	return func(ctx context.Context) (dynamic.Interface, discovery.DiscoveryInterface, error) {
 		if isLeader() {
-			return apiCl.DynamicCl, apiCl.DiscoveryCl, nil
+			return apiCl.DynamicCl, apiCl.Cl.Discovery(), nil
 		}
 		return nil, nil, compliance.ErrIncompatibleEnvironment
 	}

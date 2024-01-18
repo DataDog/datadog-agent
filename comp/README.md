@@ -84,6 +84,10 @@ Package log implements a component to handle logging internal to the agent.
 
 Package secrets decodes secret values by invoking the configured executable command
 
+### [comp/core/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/status)
+
+Package status displays information about the agent.
+
 ### [comp/core/sysprobeconfig](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/sysprobeconfig)
 
 *Datadog Team*: ebpf-platform
@@ -143,7 +147,7 @@ Package forwarder implements the "forwarder" bundle
 
 ### [comp/forwarder/defaultforwarder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder)
 
-Package defaultForwarder implements a component to send payloads to the backend
+Package defaultforwarder implements a component to send payloads to the backend
 
 ### [comp/forwarder/orchestrator](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/orchestrator)
 
@@ -193,6 +197,12 @@ Package inventorychecks implements a component to generate the 'check_metadata' 
 ### [comp/metadata/inventoryhost](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/inventoryhost)
 
 Package inventoryhost exposes the interface for the component to generate the 'host_metadata' metadata payload for inventory.
+
+### [comp/metadata/packagesigning](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/packagesigning)
+
+*Datadog Team*: agent-platform
+
+Package packagesigning implements a component to generate the 'signing' metadata payload for DD inventory (REDAPL).
 
 ### [comp/metadata/resources](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/resources)
 

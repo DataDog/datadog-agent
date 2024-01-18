@@ -7,49 +7,20 @@ package secretsimpl
 
 import (
 	"fmt"
-
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"slices"
+	"strconv"
 )
-
-type resolverCallback func([]string, string) (string, error)
 
 type walker struct {
 	// resolver is called to fetch the value of a handle
-	resolver resolverCallback
-	// notifier is called each time a key from the YAML is updated. This is used by ResolveWithCallback.
-	//
-	// When a slice is updated, this will be called once with the final slice content.
-	notifier secrets.ResolveCallback
-
-	// notificationPending is true when a notification needs to be send. See documentation for ResolveCallback for
-	// more information.
-	notificationPending bool
-}
-
-// notify calls the 'notifier' callback with the current path in the yaml and its value. If the notifier returns true,
-// the notification was acknowledged. If false if returned we set 'notificationPending' to true which will retrigger the
-// notification on the parent node in the yamlPath.
-func (w *walker) notify(yamlPath []string, value any) {
-	if w.notifier != nil {
-		if !w.notifier(yamlPath, value) {
-			// notification was refuse, will retry from the parent type.
-			w.notificationPending = true
-		}
-	}
+	resolver func(path []string, value string) (string, error)
 }
 
 // string handles string types, calling the resolver and returning the value to replace the original string with.
-//
-// 'shouldNotify' should be set to false when the string is contained in a slice as we want to send a single
-// notification per slice and not 1 per item in it.
-func (w *walker) string(yamlPath []string, value string, shouldNotify bool) (string, error) {
-	newValue, err := w.resolver(yamlPath, value)
+func (w *walker) string(text string, yamlPath []string) (string, error) {
+	newValue, err := w.resolver(yamlPath, text)
 	if err != nil {
-		return value, err
-	}
-
-	if shouldNotify && value != newValue {
-		w.notify(yamlPath, newValue)
+		return text, err
 	}
 	return newValue, err
 }
@@ -57,31 +28,27 @@ func (w *walker) string(yamlPath []string, value string, shouldNotify bool) (str
 // slice handles slice types, the walker will recursively explore each element of the slice continuing its search for
 // strings to replace.
 func (w *walker) slice(currentSlice []interface{}, yamlPath []string) error {
-	var shouldNotify bool
 	for idx, k := range currentSlice {
+
+		// clone the path to avoid modifying it, caller still needs to use it
+		path := append(slices.Clone(yamlPath), strconv.Itoa(idx))
+
 		switch v := k.(type) {
 		case string:
-			if newValue, err := w.string(yamlPath, v, false); err == nil {
-				if v != newValue {
-					currentSlice[idx] = newValue
-					shouldNotify = true
-				}
-			} else {
+			newValue, err := w.string(v, path)
+			if err != nil {
 				return err
 			}
+			currentSlice[idx] = newValue
 		case map[interface{}]interface{}:
-			if err := w.hash(v, yamlPath); err != nil {
+			if err := w.hash(v, path); err != nil {
 				return err
 			}
 		case []interface{}:
-			if err := w.slice(v, yamlPath); err != nil {
+			if err := w.slice(v, path); err != nil {
 				return err
 			}
 		}
-	}
-	// for slice we notify once with the final values
-	if shouldNotify || w.notificationPending {
-		w.notify(yamlPath, currentSlice)
 	}
 	return nil
 }
@@ -97,7 +64,7 @@ func (w *walker) hash(currentMap map[interface{}]interface{}, yamlPath []string)
 
 		switch v := currentMap[configKey].(type) {
 		case string:
-			if newValue, err := w.string(path, v, true); err == nil {
+			if newValue, err := w.string(v, path); err == nil {
 				currentMap[configKey] = newValue
 			} else {
 				return err
@@ -112,21 +79,12 @@ func (w *walker) hash(currentMap map[interface{}]interface{}, yamlPath []string)
 			}
 		}
 	}
-	if w.notificationPending {
-		w.notify(yamlPath, currentMap)
-	}
 	return nil
 }
 
 // walk recursively explores a loaded YAML in search for string values to replace. For each string the 'resolver' will
 // be called allowing it to overwrite the string value.
-//
-// Each time a value is changed by 'resolver' a notification is sent using the 'notifier' callback.
 func (w *walker) walk(data *interface{}) error {
-	// In case all notification are refused by the 'notifier' callback we clear the state to be ready for the next
-	// call to 'walk'.
-	defer func() { w.notificationPending = false }()
-
 	switch v := (*data).(type) {
 	case map[interface{}]interface{}:
 		return w.hash(v, nil)

@@ -1447,6 +1447,35 @@ service_monitoring_config:
 	})
 }
 
+func TestUSMTLSGoExcludeSelf(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  tls:
+    go:
+      exclude_self: false
+`)
+		require.False(t, cfg.GoTLSExcludeSelf)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_GO_EXCLUDE_SELF", "false")
+
+		cfg := New()
+
+		require.False(t, cfg.GoTLSExcludeSelf)
+	})
+
+	t.Run("Not disabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+		// Default value.
+		require.True(t, cfg.GoTLSExcludeSelf)
+	})
+}
+
 func TestProcessServiceInference(t *testing.T) {
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)

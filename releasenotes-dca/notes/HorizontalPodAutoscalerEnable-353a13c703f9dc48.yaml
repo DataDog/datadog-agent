@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Enable Horizontal Pod Autoscaler collection for the Orchestrator by default

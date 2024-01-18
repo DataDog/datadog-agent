@@ -8,6 +8,7 @@ package packets
 import (
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
@@ -41,7 +42,7 @@ func NewPool(bufferSize int) *Pool {
 			},
 		},
 		// telemetry
-		tlmEnabled: utils.IsTelemetryEnabled(),
+		tlmEnabled: utils.IsTelemetryEnabled(config.Datadog),
 	}
 }
 

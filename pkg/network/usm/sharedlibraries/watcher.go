@@ -18,9 +18,9 @@ import (
 	"unsafe"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
-	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -65,7 +65,7 @@ type Watcher struct {
 }
 
 // NewWatcher creates a new Watcher instance
-func NewWatcher(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry, rules ...Rule) (*Watcher, error) {
+func NewWatcher(cfg *config.Config, bpfTelemetry *ebpftelemetry.EBPFTelemetry, rules ...Rule) (*Watcher, error) {
 	ebpfProgram := newEBPFProgram(cfg, bpfTelemetry)
 	err := ebpfProgram.Init()
 	if err != nil {

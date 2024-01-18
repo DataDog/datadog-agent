@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
 	dcav1 "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -36,7 +37,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
@@ -69,13 +69,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				core.Bundle(),
 				forwarder.Bundle(),
 				fx.Provide(defaultforwarder.NewParamsWithResolvers),
-				demultiplexer.Module(),
+				demultiplexerimpl.Module(),
 				orchestratorForwarderImpl.Module(),
 				fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
-				fx.Provide(func() demultiplexer.Params {
-					opts := aggregator.DefaultAgentDemultiplexerOptions()
-					opts.UseEventPlatformForwarder = false
-					return demultiplexer.Params{Options: opts}
+				fx.Provide(func() demultiplexerimpl.Params {
+					params := demultiplexerimpl.NewDefaultParams()
+					params.UseEventPlatformForwarder = false
+					return params
 				}),
 				// setup workloadmeta
 				collectors.GetCatalog(),

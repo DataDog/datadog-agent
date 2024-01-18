@@ -38,54 +38,93 @@
     paths:
       - $OMNIBUS_PACKAGE_DIR
 
+.updater_build_common_deb:
+  script:
+    - source /root/.bashrc
+    - !reference [.setup_ruby_mirror_linux]
+    - !reference [.retrieve_linux_go_deps]
+    - echo "About to build for $RELEASE_VERSION"
+    # remove artifacts from previous pipelines that may come from the cache
+    - rm -rf $OMNIBUS_PACKAGE_DIR/*
+    # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
+    # Thus, we move the artifacts at the end in a gitlab-friendly dir.
+    - *setup_deb_signing_key
+    - inv -e updater.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod"
+    - ls -la $OMNIBUS_PACKAGE_DIR
+    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-updater_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
+    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-updater-dbg_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DBG_DEB
+    - !reference [.upload_sbom_artifacts]
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR
+
 agent_deb-x64-a6:
   extends: .agent_build_common_deb
   rules:
-    !reference [.on_a6]
+    - !reference [.on_a6]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  needs: ["go_mod_tidy_check", "build_system-probe-x64", "go_deps", "generate_minimized_btfs_x64"]
+  needs:
+    [
+      "go_mod_tidy_check",
+      "build_system-probe-x64",
+      "go_deps",
+      "generate_minimized_btfs_x64",
+    ]
   variables:
     AGENT_MAJOR_VERSION: 6
-    PYTHON_RUNTIMES: '2,3'
+    PYTHON_RUNTIMES: "2,3"
     PACKAGE_ARCH: amd64
-    DESTINATION_DEB: 'datadog-agent_6_amd64.deb'
-    DESTINATION_DBG_DEB: 'datadog-agent-dbg_6_amd64.deb'
+    DESTINATION_DEB: "datadog-agent_6_amd64.deb"
+    DESTINATION_DBG_DEB: "datadog-agent-dbg_6_amd64.deb"
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_6
 
 agent_deb-x64-a7:
   extends: .agent_build_common_deb
   rules:
-    !reference [.on_a7]
+    - !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  needs: ["go_mod_tidy_check", "build_system-probe-x64", "go_deps", "generate_minimized_btfs_x64"]
+  needs:
+    [
+      "go_mod_tidy_check",
+      "build_system-probe-x64",
+      "go_deps",
+      "generate_minimized_btfs_x64",
+    ]
   variables:
     AGENT_MAJOR_VERSION: 7
-    PYTHON_RUNTIMES: '3'
+    PYTHON_RUNTIMES: "3"
     PACKAGE_ARCH: amd64
-    DESTINATION_DEB: 'datadog-agent_7_amd64.deb'
-    DESTINATION_DBG_DEB: 'datadog-agent-dbg_7_amd64.deb'
+    DESTINATION_DEB: "datadog-agent_7_amd64.deb"
+    DESTINATION_DBG_DEB: "datadog-agent-dbg_7_amd64.deb"
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
 agent_deb-x64-a7-auto:
   extends: .agent_build_common_deb
   rules:
-    !reference [.on_a7]
+    - !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  needs: ["go_mod_tidy_check", "build_system-probe-x64", "go_deps", "generate_minimized_btfs_x64"]
+  needs:
+    [
+      "go_mod_tidy_check",
+      "build_system-probe-x64",
+      "go_deps",
+      "generate_minimized_btfs_x64",
+    ]
   variables:
     AGENT_MAJOR_VERSION: 7
-    PYTHON_RUNTIMES: '3'
+    PYTHON_RUNTIMES: "3"
     PACKAGE_ARCH: amd64
-    DESTINATION_DEB: 'datadog-agent_7_amd64.deb'
-    DESTINATION_DBG_DEB: 'datadog-agent-dbg_7_amd64.deb'
+    DESTINATION_DEB: "datadog-agent_7_auto_amd64.deb"
+    DESTINATION_DBG_DEB: "datadog-agent-dbg_7_auto_amd64.deb"
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
     - export INSTALL_DIR=/opt/datadog/agents/$RELEASE_VERSION_7
@@ -93,34 +132,48 @@ agent_deb-x64-a7-auto:
 agent_deb-arm64-a6:
   extends: .agent_build_common_deb
   rules:
-    !reference [.on_all_builds_a6]
+    - !reference [.on_all_builds_a6]
+    - !reference [.on_omnibus_change]
+    - !reference [.on_go-version_change]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["arch:arm64"]
-  needs: ["go_mod_tidy_check", "build_system-probe-arm64", "go_deps", "generate_minimized_btfs_arm64"]
+  needs:
+    [
+      "go_mod_tidy_check",
+      "build_system-probe-arm64",
+      "go_deps",
+      "generate_minimized_btfs_arm64",
+    ]
   variables:
     AGENT_MAJOR_VERSION: 6
-    PYTHON_RUNTIMES: '2,3'
+    PYTHON_RUNTIMES: "2,3"
     PACKAGE_ARCH: arm64
-    DESTINATION_DEB: 'datadog-agent_6_arm64.deb'
-    DESTINATION_DBG_DEB: 'datadog-agent-dbg_6_arm64.deb'
+    DESTINATION_DEB: "datadog-agent_6_arm64.deb"
+    DESTINATION_DBG_DEB: "datadog-agent-dbg_6_arm64.deb"
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_6
 
 agent_deb-arm64-a7:
   extends: .agent_build_common_deb
   rules:
-    !reference [.on_a7]
+    - !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["arch:arm64"]
-  needs: ["go_mod_tidy_check", "build_system-probe-arm64", "go_deps", "generate_minimized_btfs_arm64"]
+  needs:
+    [
+      "go_mod_tidy_check",
+      "build_system-probe-arm64",
+      "go_deps",
+      "generate_minimized_btfs_arm64",
+    ]
   variables:
     AGENT_MAJOR_VERSION: 7
-    PYTHON_RUNTIMES: '3'
+    PYTHON_RUNTIMES: "3"
     PACKAGE_ARCH: arm64
-    DESTINATION_DEB: 'datadog-agent_7_arm64.deb'
-    DESTINATION_DBG_DEB: 'datadog-agent-dbg_7_arm64.deb'
+    DESTINATION_DEB: "datadog-agent_7_arm64.deb"
+    DESTINATION_DBG_DEB: "datadog-agent-dbg_7_arm64.deb"
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
@@ -146,8 +199,8 @@ agent_deb-arm64-a7:
     - !reference [.upload_sbom_artifacts]
   variables:
     KUBERNETES_CPU_REQUEST: 8
-    KUBERNETES_MEMORY_REQUEST: "16Gi"
-    KUBERNETES_MEMORY_LIMIT: "16Gi"
+    KUBERNETES_MEMORY_REQUEST: "32Gi"
+    KUBERNETES_MEMORY_LIMIT: "32Gi"
   artifacts:
     expire_in: 2 weeks
     paths:
@@ -156,31 +209,35 @@ agent_deb-arm64-a7:
 iot_agent_deb-x64:
   extends: .iot_agent_build_common_deb
   rules:
-    !reference [.on_a7]
+    - !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
     PACKAGE_ARCH: amd64
-    DESTINATION_DEB: 'datadog-iot-agent_7_amd64.deb'
+    DESTINATION_DEB: "datadog-iot-agent_7_amd64.deb"
 
 iot_agent_deb-arm64:
   extends: .iot_agent_build_common_deb
   rules:
-    !reference [.on_all_builds_a7]
+    - !reference [.on_all_builds_a7]
+    - !reference [.on_omnibus_change]
+    - !reference [.on_go-version_change]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["arch:arm64"]
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
     PACKAGE_ARCH: arm64
-    DESTINATION_DEB: 'datadog-iot-agent_7_arm64.deb'
+    DESTINATION_DEB: "datadog-iot-agent_7_arm64.deb"
 
 iot_agent_deb-armhf:
   extends: .iot_agent_build_common_deb
   rules:
-    !reference [.on_all_builds_a7]
+    - !reference [.on_all_builds_a7]
+    - !reference [.on_omnibus_change]
+    - !reference [.on_go-version_change]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_armhf$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   # Run with platform:arm64 since no platform:armhf exists and arm64 should be backwards compatible
@@ -188,11 +245,11 @@ iot_agent_deb-armhf:
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
     PACKAGE_ARCH: armhf
-    DESTINATION_DEB: 'datadog-iot-agent_7_armhf.deb'
+    DESTINATION_DEB: "datadog-iot-agent_7_armhf.deb"
 
 dogstatsd_deb-x64:
   rules:
-    !reference [.on_a7]
+    - !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -220,7 +277,9 @@ dogstatsd_deb-x64:
 
 dogstatsd_deb-arm64:
   rules:
-    !reference [.on_all_builds_a7]
+    - !reference [.on_all_builds_a7]
+    - !reference [.on_omnibus_change]
+    - !reference [.on_go-version_change]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["arch:arm64"]
@@ -245,16 +304,32 @@ dogstatsd_deb-arm64:
     paths:
       - $OMNIBUS_PACKAGE_DIR
 
+updater_deb-arm64:
+  extends: .updater_build_common_deb
+  rules:
+    !reference [.on_a7]
+  stage: package_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["arch:arm64"]
+  needs: ["go_mod_tidy_check", "go_deps", "generate_minimized_btfs_arm64"]
+  variables:
+    AGENT_MAJOR_VERSION: 7
+    PACKAGE_ARCH: arm64
+    DESTINATION_DEB: 'datadog-updater_7_arm64.deb'
+    DESTINATION_DBG_DEB: 'datadog-updater-dbg_7_arm64.deb'
+  before_script:
+    - export RELEASE_VERSION=$RELEASE_VERSION_7
+
 agent_heroku_deb-x64-a6:
   extends: agent_deb-x64-a6
   variables:
-    DESTINATION_DEB: 'datadog-heroku-agent_6_amd64.deb'
-    DESTINATION_DBG_DEB: 'datadog-heroku-agent-dbg_6_amd64.deb'
+    DESTINATION_DEB: "datadog-heroku-agent_6_amd64.deb"
+    DESTINATION_DBG_DEB: "datadog-heroku-agent-dbg_6_amd64.deb"
     FLAVOR: heroku
 
 agent_heroku_deb-x64-a7:
   extends: agent_deb-x64-a7
   variables:
-    DESTINATION_DEB: 'datadog-heroku-agent_7_amd64.deb'
-    DESTINATION_DBG_DEB: 'datadog-heroku-agent-dbg_7_amd64.deb'
+    DESTINATION_DEB: "datadog-heroku-agent_7_amd64.deb"
+    DESTINATION_DBG_DEB: "datadog-heroku-agent-dbg_7_amd64.deb"
     FLAVOR: heroku

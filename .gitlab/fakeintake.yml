@@ -6,6 +6,7 @@
 build_fakeintake:
   stage: binary_build
   rules:
+    - !reference [.except_mergequeue]
     - <<: *on_fakeintake_changes
   needs: []
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES

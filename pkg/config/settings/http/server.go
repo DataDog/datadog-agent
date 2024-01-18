@@ -14,8 +14,6 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	//nolint:revive // TODO(ASC) Fix revive linter
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -31,20 +29,20 @@ var Server = struct {
 	SetValue                 http.HandlerFunc
 	ListConfigurable         http.HandlerFunc
 }{
-	GetFullDatadogConfig:     getGlobalFullConfig(ddconfig.Datadog),
-	GetFullSystemProbeConfig: getGlobalFullConfig(ddconfig.SystemProbe),
+	GetFullDatadogConfig:     getGlobalFullConfig(config.Datadog),
+	GetFullSystemProbeConfig: getGlobalFullConfig(config.SystemProbe),
 	GetValue:                 getConfigValue,
 	SetValue:                 setConfigValue,
 	ListConfigurable:         listConfigurableSettings,
 }
 
-func getGlobalFullConfig(cfg ddconfig.Config) func(...string) http.HandlerFunc {
+func getGlobalFullConfig(cfg config.Config) func(...string) http.HandlerFunc {
 	return func(namespaces ...string) http.HandlerFunc {
 		return getFullConfig(cfg, namespaces...)
 	}
 }
 
-func getFullConfig(cfg ddconfig.Config, namespaces ...string) http.HandlerFunc {
+func getFullConfig(cfg config.Config, namespaces ...string) http.HandlerFunc {
 	requiresUniqueNs := len(namespaces) == 1 && namespaces[0] != ""
 	requiresAllNamespaces := len(namespaces) == 0
 

@@ -21,9 +21,6 @@ type flareResponseBody struct {
 	Error  string `json:"error,omitempty"`
 }
 
-// defaultResponse is the default response returned by the fakeintake server
-var defaultResponse httpResponse
-
 func getConnectionsResponse() []byte {
 	clStatus := &agentmodel.CollectorStatus{
 		ActiveClients: 1,
@@ -49,17 +46,29 @@ func getConnectionsResponse() []byte {
 
 // newResponseOverrides creates and returns a map of URL paths to HTTP responses populated with
 // static custom response overrides
-func newResponseOverrides() map[string]httpResponse {
-	return map[string]httpResponse{
-		"/support/flare": updateResponseFromData(httpResponse{
-			statusCode:  http.StatusOK,
-			contentType: "application/json",
-			data:        flareResponseBody{CaseID: 0, Error: ""},
-		}),
-		"/api/v1/connections": updateResponseFromData(httpResponse{
-			statusCode:  http.StatusOK,
-			contentType: "application/x-protobuf",
-			data:        getConnectionsResponse(),
-		}),
+func newResponseOverrides() map[string]map[string]httpResponse {
+	return map[string]map[string]httpResponse{
+		http.MethodPost: {
+			"/api/v1/connections": updateResponseFromData(httpResponse{
+				statusCode:  http.StatusOK,
+				contentType: "application/x-protobuf",
+				data:        getConnectionsResponse(),
+			}),
+		},
+		http.MethodGet:     {},
+		http.MethodConnect: {},
+		http.MethodDelete:  {},
+		http.MethodHead: {
+			// Datadog Agent sends a HEAD request to avoid redirect issue before sending the actual flare
+			"/support/flare": updateResponseFromData(httpResponse{
+				statusCode:  http.StatusOK,
+				contentType: "application/json",
+				data:        flareResponseBody{},
+			}),
+		},
+		http.MethodOptions: {},
+		http.MethodPatch:   {},
+		http.MethodPut:     {},
+		http.MethodTrace:   {},
 	}
 }
