@@ -168,7 +168,9 @@ func CleanUp(ls LogsTestSuite) {
 				_, err = ls.Env().RemoteHost.Execute("& \"$env:ProgramFiles\\Datadog\\Datadog Agent\\bin\\agent.exe\" start-service")
 				require.NoError(t, err, "Unable to start the agent")
 			}
-			ls.Env().RemoteHost.Execute("if (Test-Path C:\\logs) { Remove-Item -Path C:\\logs -Recurse -Force }")
+			_, err := ls.Env().RemoteHost.Execute("if (Test-Path C:\\logs) { Remove-Item -Path C:\\logs -Recurse -Force }")
+			require.NoError(t, err, "Unable to remove windows log file")
+
 			checkCmd = "if (Test-Path C:\\logs) { Get-ChildItem -Path C:\\logs\\hello-world.log } else { Write-Output 'No File exist to be removed' }"
 		}
 
