@@ -78,12 +78,13 @@ func (l *Launcher) run() {
 	for {
 		select {
 		case source := <-l.sources:
-			allJournalSources = append(allJournalSources, tailer.Identifier(source.Config))
 			identifier := tailer.Identifier(source.Config)
 			if _, exists := l.tailers[identifier]; exists {
 				log.Warn(identifier, " is already tailed. Use config_id to tail the same journal more than once")
 				continue
 			}
+
+			allJournalSources = append(allJournalSources, tailer.Identifier(source.Config))
 			tailer, err := l.setupTailer(source)
 			if err != nil {
 				log.Warn("Could not set up journald tailer: ", err)
