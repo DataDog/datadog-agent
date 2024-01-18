@@ -182,7 +182,7 @@ func createEtwSession(name string) (*etwSession, error) {
 	if err != nil {
 		return nil, fmt.Errorf("incorrect session name; %w", err)
 	}
-	sessionNameSize := (len(utf16SessionName) + 1) * 2 // 2 is sizeof uint16
+	sessionNameSize := (len(utf16SessionName)) * 2 // 2 is sizeof uint16
 	bufSize := int(unsafe.Sizeof(C.EVENT_TRACE_PROPERTIES{})) + sessionNameSize
 	propertiesBuf := make([]byte, bufSize)
 

@@ -71,7 +71,10 @@ func (p *WindowsProbe) Init() error {
 	p.pm = pm
 
 	etwSessionName := "SystemProbeFIM_ETW"
-	etwcomp := etwimpl.NewETWSessionWithoutInit()
+	etwcomp, err := etwimpl.NewEtw()
+	if err != nil {
+		return err
+	}
 	p.fimSession, err = etwcomp.NewSession(etwSessionName)
 	if err != nil {
 		return err
