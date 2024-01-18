@@ -2972,7 +2972,6 @@ func mountDevice(ctx context.Context, scan *scanTask, partitions []devicePartiti
 				errm = ctx.Err()
 				break
 			}
-			log.Debugf("mount error %#v: %v", mp, errm)
 		}
 		if errm != nil {
 			return nil, fmt.Errorf("could not mount into target=%q device=%q output=%q: %w", mountPoint, mp.devicePath, string(mountOutput), errm)
