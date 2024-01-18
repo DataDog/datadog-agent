@@ -1402,7 +1402,7 @@ func (s *sideScanner) cleanSlate() error {
 		BlockDevices []blockDevice `json:"blockdevices"`
 	}
 	var attachedVolumeIDs []string
-	lsblkJSON, err := exec.CommandContext(ctx, "lsblk", "--json", "--bytes", "--output", "NAME,SERIAL,PATH,TYPE,FSTYPE").Output()
+	lsblkJSON, err := exec.CommandContext(ctx, "lsblk", "--json", "--bytes", "--output", "NAME,SERIAL,PATH,TYPE,FSTYPE,MOUNTPOINTS").Output()
 	if err == nil {
 		if err := json.Unmarshal(lsblkJSON, &blockDevices); err != nil {
 			log.Warnf("lsblk parsing error: %v", err)
@@ -1414,8 +1414,19 @@ func (s *sideScanner) cleanSlate() error {
 						log.Errorf("clean slate: could not detach nbd device %q: %v", bd.Name, err)
 					}
 				}
-				if strings.HasPrefix(bd.Serial, "vol") && bd.Name != "nvme1n1" {
-					attachedVolumeIDs = append(attachedVolumeIDs, "vol-"+strings.TrimPrefix(bd.Serial, "vol"))
+				if strings.HasPrefix(bd.Serial, "vol") {
+					isScan := false
+					// TODO: we could maybe rely on the output of lsblk to do our cleanup instead
+					for _, child := range bd.Children {
+						for _, mountpoint := range child.Mountpoints {
+							if strings.HasPrefix(mountpoint, scansRootDir+"/") {
+								isScan = true
+							}
+						}
+					}
+					if isScan {
+						attachedVolumeIDs = append(attachedVolumeIDs, "vol-"+strings.TrimPrefix(bd.Serial, "vol"))
+					}
 				}
 			}
 		}
@@ -2812,10 +2823,11 @@ type blockDevice struct {
 	Type     string `json:"type"`
 	FsType   string `json:"fstype"`
 	Children []struct {
-		Name   string `json:"name"`
-		Path   string `json:"path"`
-		Type   string `json:"type"`
-		FsType string `json:"fstype"`
+		Name        string   `json:"name"`
+		Path        string   `json:"path"`
+		Type        string   `json:"type"`
+		FsType      string   `json:"fstype"`
+		Mountpoints []string `json:"mountpoints"`
 	} `json:"children"`
 }
 
@@ -2844,7 +2856,7 @@ func listDevicePartitions(ctx context.Context, device string, volumeARN *arn.ARN
 		if !sleepCtx(ctx, 500*time.Millisecond) {
 			break
 		}
-		lsblkJSON, err := exec.CommandContext(ctx, "lsblk", "--json", "--bytes", "--output", "NAME,SERIAL,PATH,TYPE,FSTYPE").Output()
+		lsblkJSON, err := exec.CommandContext(ctx, "lsblk", "--json", "--bytes", "--output", "NAME,SERIAL,PATH,TYPE,FSTYPE,MOUNTPOINTS").Output()
 		if err != nil {
 			return nil, err
 		}
@@ -2875,7 +2887,7 @@ func listDevicePartitions(ctx context.Context, device string, volumeARN *arn.ARN
 	var partitions []devicePartition
 	for i := 0; i < 5; i++ {
 		_, _ = exec.CommandContext(ctx, "udevadm", "settle", "--timeout=1").CombinedOutput()
-		lsblkJSON, err := exec.CommandContext(ctx, "lsblk", foundBlockDevice.Path, "--json", "--bytes", "--output", "NAME,SERIAL,PATH,TYPE,FSTYPE").Output()
+		lsblkJSON, err := exec.CommandContext(ctx, "lsblk", foundBlockDevice.Path, "--json", "--bytes", "--output", "NAME,SERIAL,PATH,TYPE,FSTYPE,MOUNTPOINTS").Output()
 		if err != nil {
 			return nil, err
 		}
