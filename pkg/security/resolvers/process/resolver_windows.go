@@ -26,10 +26,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	lru "github.com/hashicorp/golang-lru/v2"
 )
 
 // Pid PID type
 type Pid = uint32
+
+const (
+	numberAllowedUserResolution = 5
+	userResolutionCacheSize     = 64
+)
 
 // Resolver defines a resolver
 type Resolver struct {
@@ -43,6 +50,10 @@ type Resolver struct {
 	cacheSize *atomic.Int64
 
 	processCacheEntryPool *Pool
+
+	//user lookup cache and rate limiter
+	usersCache        *lru.Cache[string, string]
+	userLookupLimiter *utils.Limiter[uint64]
 }
 
 // NewResolver returns a new process resolver
@@ -58,6 +69,18 @@ func NewResolver(_ *config.Config, statsdClient statsd.ClientInterface, scrubber
 
 	p.processCacheEntryPool = NewProcessCacheEntryPool(func() { p.cacheSize.Dec() })
 
+	// create a cache for the username resolution
+	cache, err := lru.New[string, *EntryCache](userResolutionCacheSize)
+	if err != nil {
+		return nil, err
+	}
+	p.usersCache = cache
+	// create a rate limiter that numberAllowedUserResolution
+	limiter, err := utils.NewLimiter[uint64](1, numberAllowedUserResolution, time.Second)
+	if err != nil {
+		return nil, err
+	}
+	p.userLookupLimiter = limiter
 	return p, nil
 }
 
@@ -248,11 +271,28 @@ func (p *Resolver) Snapshot() {
 }
 
 // GetUser returns the username
-func (p *Resolver) GetUser(ownerSidString string) (name string, err error) {
-	sid = windows.StringToSid(OwnerSidString)
-	user, domain, _, err = sid.LookupAccount("")
-	if nil != err {
-		return "", err
+func (p *Resolver) GetUser(ownerSidString string) (name string) {
+
+	username, found := p.usersCache.Get(ownerSidString)
+	if found {
+		// If username was already resolved
+		return username
 	}
-	return domain + "\\" + user, err
+
+	if !p.userLookupLimiter.Allow() {
+		// If the username was not already resolved but the limit is hit, return an empty string
+		return ""
+	}
+	// The limit is not hit and we need to resolve the username
+	var res string
+	sid := windows.StringToSid(OwnerSidString)
+	user, domain, _, _ := sid.LookupAccount("")
+	if nil != err {
+		res = ""
+	}
+	else{
+		res = domain + "\\" + user
+	} 
+	p.usersCache.Add(ownerSidString, res)
+	return res
 }
