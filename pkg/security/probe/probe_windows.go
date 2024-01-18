@@ -121,8 +121,6 @@ func (p *WindowsProbe) Start() error {
 				}
 				ev.Type = uint32(model.ExecEventType)
 				ev.Exec.Process = &pce.Process
-				log.Debugf("---------EV: %v", ev)
-
 			case stop := <-p.onStop:
 				pid := process.Pid(stop.Pid)
 				if pid == 0 {
@@ -143,7 +141,6 @@ func (p *WindowsProbe) Start() error {
 			}
 
 			if pce == nil {
-				log.Debugf("---------pce is nil------")
 				continue
 			}
 
