@@ -219,7 +219,7 @@ static __always_inline __u8 tls_filter_relevant_headers(tls_dispatcher_arguments
 
 // tls_process_headers processes the headers that were filtered in
 // tls_filter_relevant_headers, looking for requests path, status code, and method.
-static __always_inline void tls_process_headers(struct pt_regs *ctx, tls_dispatcher_arguments_t *info, dynamic_table_index_t *dynamic_index, dynamic_table_value_t *dynamic_table_value, http2_stream_t *current_stream, http2_header_t *headers_to_process, __u8 interesting_headers, http2_telemetry_t *http2_tel) {
+static __always_inline void tls_process_headers(struct pt_regs *ctx, tls_dispatcher_arguments_t *info, dynamic_table_value_t *dynamic_table_value, http2_stream_t *current_stream, http2_header_t *headers_to_process, __u8 interesting_headers, http2_telemetry_t *http2_tel) {
     // http2_interesting_dynamic_table_set is a set, thus we don't care about the values of the entries, but for
     // the existence of them. Thus, we have a dummy value.
     bool dummy_value = true;
@@ -256,10 +256,10 @@ static __always_inline void tls_process_headers(struct pt_regs *ctx, tls_dispatc
             continue;
         }
 
-        dynamic_index->index = current_header->index;
+        dynamic_table_value->key.index = current_header->index;
         current_stream->path_index = current_header->index;
         if (current_header->type == kExistingDynamicHeader) {
-            dynamic_table_entry_t *dynamic_value = bpf_map_lookup_elem(&http2_dynamic_table, dynamic_index);
+            dynamic_table_entry_t *dynamic_value = bpf_map_lookup_elem(&http2_dynamic_table, &dynamic_table_value->key);
             if (dynamic_value == NULL) {
                 break;
             }
@@ -274,7 +274,7 @@ static __always_inline void tls_process_headers(struct pt_regs *ctx, tls_dispatc
                 dynamic_value.string_len = current_header->new_dynamic_value_size;
                 dynamic_value.is_huffman_encoded = current_header->is_huffman_encoded;
                 bpf_memcpy(dynamic_value.buffer, dynamic_table_value->buf, HTTP2_MAX_PATH_LEN);
-                bpf_map_update_elem(&http2_dynamic_table, dynamic_index, &dynamic_value, BPF_ANY);
+                bpf_map_update_elem(&http2_dynamic_table, &dynamic_table_value->key, &dynamic_value, BPF_ANY);
 
                 dynamic_table_value->key.index = current_header->index;
                 dynamic_table_value->string_len = current_header->new_dynamic_value_size;
@@ -285,12 +285,12 @@ static __always_inline void tls_process_headers(struct pt_regs *ctx, tls_dispatc
             current_stream->is_huffman_encoded = current_header->is_huffman_encoded;
             bpf_memcpy(current_stream->request_path, dynamic_value.buffer, HTTP2_MAX_PATH_LEN);
 
-            bpf_map_update_elem(&http2_interesting_dynamic_table_set, dynamic_index, &dummy_value, BPF_ANY);
+            bpf_map_update_elem(&http2_interesting_dynamic_table_set, &dynamic_table_value->key, &dummy_value, BPF_ANY);
         }
     }
 }
 
-static __always_inline void tls_process_headers_frame(struct pt_regs *ctx, tls_dispatcher_arguments_t *info, http2_stream_t *current_stream, dynamic_table_index_t *dynamic_index, dynamic_table_value_t *dynamic_table_value, http2_frame_t *current_frame_header, http2_telemetry_t *http2_tel) {
+static __always_inline void tls_process_headers_frame(struct pt_regs *ctx, tls_dispatcher_arguments_t *info, http2_stream_t *current_stream, dynamic_table_value_t *dynamic_table_value, http2_frame_t *current_frame_header, http2_telemetry_t *http2_tel) {
     const __u32 zero = 0;
 
     // Allocating an array of headers, to hold all interesting headers from the frame.
@@ -300,8 +300,8 @@ static __always_inline void tls_process_headers_frame(struct pt_regs *ctx, tls_d
     }
     bpf_memset(headers_to_process, 0, HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING * sizeof(http2_header_t));
 
-    __u8 interesting_headers = tls_filter_relevant_headers(info, dynamic_index, headers_to_process, current_frame_header->length, http2_tel);
-    tls_process_headers(ctx, info, dynamic_index, dynamic_table_value, current_stream, headers_to_process, interesting_headers, http2_tel);
+    __u8 interesting_headers = tls_filter_relevant_headers(info, &dynamic_table_value->key, headers_to_process, current_frame_header->length, http2_tel);
+    tls_process_headers(ctx, info, dynamic_table_value, current_stream, headers_to_process, interesting_headers, http2_tel);
 }
 
 // tls_skip_preface is a helper function to check for the HTTP2 magic sent at the beginning
@@ -705,7 +705,6 @@ int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
     bpf_memset(http2_ctx, 0, sizeof(http2_ctx_t));
     http2_ctx->http2_stream_key.tup = dispatcher_args_copy.tup;
     normalize_tuple(&http2_ctx->http2_stream_key.tup);
-    http2_ctx->dynamic_index.tup = dispatcher_args_copy.tup;
     dynamic_table_value->key.tup = dispatcher_args_copy.tup;
 
     http2_stream_t *current_stream = NULL;
@@ -732,7 +731,7 @@ int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
             continue;
         }
         dispatcher_args_copy.data_off = current_frame.offset;
-        tls_process_headers_frame(ctx, &dispatcher_args_copy, current_stream, &http2_ctx->dynamic_index, dynamic_table_value, &current_frame.frame, http2_tel);
+        tls_process_headers_frame(ctx, &dispatcher_args_copy, current_stream, dynamic_table_value, &current_frame.frame, http2_tel);
     }
 
     if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS &&
