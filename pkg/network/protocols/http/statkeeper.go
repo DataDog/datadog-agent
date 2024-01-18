@@ -89,10 +89,17 @@ func (h *StatKeeper) GetAndResetAllStats() (stats map[Key]*RequestStats) {
 			h.add(tx)
 		}
 
-	// Rotate ConnectionAggregator
-	var aggregator *utils.ConnectionAggregator
-	if h.connectionAggregator != nil {
-		aggregator = h.connectionAggregator
+		// Rotate stats
+		stats = h.stats
+		h.stats = make(map[Key]*RequestStats)
+
+		// Rotate ConnectionAggregator
+		if h.connectionAggregator == nil {
+			// Feature not enabled
+			return
+		}
+
+		previousAggregationState = h.connectionAggregator
 		h.connectionAggregator = utils.NewConnectionAggregator()
 	}()
 
