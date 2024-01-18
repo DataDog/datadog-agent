@@ -4,7 +4,7 @@
   variables:
     TARGETS: ./tests/windows/install-test
     TEAM: windows-agent
-    EXTRA_PARAMS: --run TestMSI/TestUpgrade
+    EXTRA_PARAMS: --run 'TestMSI/Agent*/TestUpgrade$'
   script:
     # LAST_STABLE_VERSION is used for upgrade test
     - export LAST_STABLE_VERSION=$(invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION")
