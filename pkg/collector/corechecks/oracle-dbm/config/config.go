@@ -242,6 +242,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	 */
 	if instance.InstantClient {
 		instance.OracleClient = true
+		log.Warn("The config parameter instance_client is deprecated and will be removed in future versions. Please use oracle_client instead.")
 	}
 
 	c := &CheckConfig{
