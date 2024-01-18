@@ -1753,8 +1753,8 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP}),
 		},
 		{
-			// This test checks than we are not classification a connection as
-			// carrying gRPC traffic without a prior classification as HTTP2.
+			// This test checks that we are not classifying a connection as
+			// gRPC traffic without a prior classification as HTTP2.
 			name: "GRPC without prior HTTP2 classification",
 			context: testContext{
 				serverPort:    http2Port,
@@ -1774,7 +1774,7 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 				// The gRPC classification is based on having only POST requests,
 				// and having "application/grpc" as a content-type.
 				var testHeaderFields = []hpack.HeaderField{
-					{Name: ":authority", Value: "http://127.0.0.0.1:" + http2Port},
+					{Name: ":authority", Value: "127.0.0.0.1:" + http2Port},
 					{Name: ":method", Value: "POST"},
 					{Name: ":path", Value: "/aaa"},
 					{Name: ":scheme", Value: "http"},
@@ -1799,6 +1799,7 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 
 				c, err := net.Dial("tcp", ctx.targetAddress)
 				require.NoError(t, err)
+				defer c.Close()
 				require.NoError(t, writeInput(c, buf.Bytes(), time.Second))
 			},
 			teardown:   nil,
