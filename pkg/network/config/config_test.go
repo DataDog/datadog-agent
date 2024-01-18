@@ -230,9 +230,10 @@ func TestEnableHTTP2Monitoring(t *testing.T) {
 func TestEnableKafkaMonitoring(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableKafka.yaml")
-		require.NoError(t, err)
-		cfg := New()
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  enable_kafka_monitoring: true
+`)
 
 		assert.True(t, cfg.EnableKafkaMonitoring)
 	})
