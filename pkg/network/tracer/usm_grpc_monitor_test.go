@@ -43,7 +43,7 @@ func randStringRunes(n int) []rune {
 	return b
 }
 
-type USMgRPCSuite struct {
+type usmGRPCSuite struct {
 	suite.Suite
 	isTLS bool
 }
@@ -57,30 +57,34 @@ func TestGRPCScenarios(t *testing.T) {
 
 	rand.Seed(time.Now().UnixNano())
 
-	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "without TLS", func(t *testing.T) {
-		grpcSuite := &USMgRPCSuite{
+	for _, tc := range []struct {
+		name  string
+		isTLS bool
+	}{
+		{
+			name:  "without TLS",
 			isTLS: false,
-		}
-
-		suite.Run(t, grpcSuite)
-	})
-
-	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}, "with TLS", func(t *testing.T) {
-		if !goTLSSupported() {
-			t.Skip("GoTLS not supported for this setup")
-		}
-
-		// TODO fix TestHTTPGoTLSAttachProbes on these Fedora versions
-		if skipFedora(t) {
-			// TestHTTPGoTLSAttachProbes fails consistently in CI on Fedora 36,37
-			t.Skip("TestHTTPGoTLSAttachProbes fails on this OS consistently")
-		}
-		grpcSuite := &USMgRPCSuite{
+		},
+		{
+			name:  "with TLS",
 			isTLS: true,
-		}
+		},
+	} {
+		ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, tc.name, func(t *testing.T) {
+			if tc.isTLS {
+				if !goTLSSupported() {
+					t.Skip("GoTLS not supported for this setup")
+				}
 
-		suite.Run(t, grpcSuite)
-	})
+				if skipFedora(t) {
+					// GoTLS fails consistently in CI on Fedora 36,37
+					t.Skip("TestHTTP2Scenarios fails on this OS consistently")
+				}
+			}
+
+			suite.Run(t, &usmGRPCSuite{isTLS: tc.isTLS})
+		})
+	}
 }
 
 func getClientsArray(t *testing.T, size int, withTLS bool) ([]*grpc.Client, func()) {
@@ -107,7 +111,7 @@ type captureRange struct {
 	upper int
 }
 
-func (s *USMgRPCSuite) getConfig() *config.Config {
+func (s *usmGRPCSuite) getConfig() *config.Config {
 	cfg := config.New()
 	cfg.EnableHTTP2Monitoring = true
 	cfg.EnableGoTLSSupport = s.isTLS
@@ -116,7 +120,7 @@ func (s *USMgRPCSuite) getConfig() *config.Config {
 	return cfg
 }
 
-func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
+func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 	t := s.T()
 
 	srv, cancel := grpc.NewGRPCTLSServer(t, srvAddr, s.isTLS)
@@ -128,15 +132,7 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 	require.NotNil(t, tr.usmMonitor)
 
 	if s.isTLS {
-		require.Eventuallyf(t, func() bool {
-			traced := utils.GetTracedPrograms("go-tls")
-			for _, prog := range traced {
-				if slices.Contains[[]uint32](prog.PIDs, uint32(srv.Process.Pid)) {
-					return true
-				}
-			}
-			return false
-		}, time.Second*15, time.Millisecond*100, "process %v is not traced by gotls", srv.Process.Pid)
+		waitForGoTLSHook(t, srv.Process.Pid)
 	}
 
 	// c is a stream endpoint
@@ -378,55 +374,13 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 				if tt.expectedError {
 					t.Skip("Skipping test due to known issue")
 				}
-
-				tr.removeClient(clientID)
-				initTracerState(t, tr)
-
-				tt.runClients(t, clientCount)
-
-				res := make(map[http.Key]int)
-				assert.Eventually(t, func() bool {
-					conns := getConnections(t, tr)
-					for key, stat := range conns.HTTP2 {
-						if key.DstPort == 5050 || key.SrcPort == 5050 {
-							count := stat.Data[200].Count
-							newKey := http.Key{
-								Path:   http.Path{Content: key.Path.Content},
-								Method: key.Method,
-							}
-							if _, ok := res[newKey]; !ok {
-								res[newKey] = count
-							} else {
-								res[newKey] += count
-							}
-						}
-					}
-
-					if len(res) != len(tt.expectedEndpoints) {
-						return false
-					}
-
-					for key, count := range res {
-						val, ok := tt.expectedEndpoints[key]
-						if !ok {
-							return false
-						}
-						if val.lower > count || val.upper < count {
-							return false
-						}
-					}
-
-					return true
-				}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
+				testGRPCScenarios(t, tr, tt.runClients, tt.expectedEndpoints, clientCount)
 			})
-			if t.Failed() && tr.usmMonitor != nil {
-				ebpftest.DumpMapsTestHelper(t, tr.usmMonitor.DumpMaps, "http2_in_flight", "http2_dynamic_table")
-			}
 		}
 	}
 }
 
-func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
+func (s *usmGRPCSuite) TestLargeBodiesGRPCScenarios() {
 	t := s.T()
 	if s.isTLS {
 		t.Skip("Skipping TestLargeBodiesGRPCScenarios for TLS due to flakiness")
@@ -446,15 +400,7 @@ func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 	require.NotNil(t, tr.usmMonitor)
 
 	if s.isTLS {
-		require.Eventuallyf(t, func() bool {
-			traced := utils.GetTracedPrograms("go-tls")
-			for _, prog := range traced {
-				if slices.Contains[[]uint32](prog.PIDs, uint32(srv.Process.Pid)) {
-					return true
-				}
-			}
-			return false
-		}, time.Second*15, time.Millisecond*100, "process %v is not traced by gotls", srv.Process.Pid)
+		waitForGoTLSHook(t, srv.Process.Pid)
 	}
 
 	// c is a stream endpoint
@@ -519,50 +465,65 @@ func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 		for _, clientCount := range []int{1, 2, 5} {
 			testNameSuffix := fmt.Sprintf("-different clients - %v", clientCount)
 			t.Run(tt.name+testNameSuffix, func(t *testing.T) {
-				tr.removeClient(clientID)
-				initTracerState(t, tr)
-
-				tt.runClients(t, clientCount)
-
-				res := make(map[http.Key]int)
-				assert.Eventually(t, func() bool {
-					conns := getConnections(t, tr)
-					for key, stat := range conns.HTTP2 {
-						if key.DstPort == 5050 || key.SrcPort == 5050 {
-							count := stat.Data[200].Count
-							newKey := http.Key{
-								Path:   http.Path{Content: key.Path.Content},
-								Method: key.Method,
-							}
-							if _, ok := res[newKey]; !ok {
-								res[newKey] = count
-							} else {
-								res[newKey] += count
-							}
-						}
-					}
-
-					if len(res) != len(tt.expectedEndpoints) {
-						return false
-					}
-
-					for key, count := range res {
-						valRange, ok := tt.expectedEndpoints[key]
-						if !ok {
-							return false
-						}
-						if count < valRange.lower || count > valRange.upper {
-							return false
-						}
-					}
-
-					return true
-				}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
-
-				if t.Failed() && tr.usmMonitor != nil {
-					ebpftest.DumpMapsTestHelper(t, tr.usmMonitor.DumpMaps, "http2_in_flight", "http2_dynamic_table")
-				}
+				testGRPCScenarios(t, tr, tt.runClients, tt.expectedEndpoints, clientCount)
 			})
 		}
 	}
+}
+
+func testGRPCScenarios(t *testing.T, tr *Tracer, runClientCallback func(*testing.T, int), expectedEndpoints map[http.Key]captureRange, clientCount int) {
+	tr.removeClient(clientID)
+	initTracerState(t, tr)
+
+	runClientCallback(t, clientCount)
+
+	res := make(map[http.Key]int)
+	assert.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+		for key, stat := range conns.HTTP2 {
+			if key.DstPort == 5050 || key.SrcPort == 5050 {
+				count := stat.Data[200].Count
+				newKey := http.Key{
+					Path:   http.Path{Content: key.Path.Content},
+					Method: key.Method,
+				}
+				if _, ok := res[newKey]; !ok {
+					res[newKey] = count
+				} else {
+					res[newKey] += count
+				}
+			}
+		}
+
+		if len(res) != len(expectedEndpoints) {
+			return false
+		}
+
+		for key, count := range res {
+			valRange, ok := expectedEndpoints[key]
+			if !ok {
+				return false
+			}
+			if count < valRange.lower || count > valRange.upper {
+				return false
+			}
+		}
+
+		return true
+	}, time.Second*5, time.Millisecond*100, "%v != %v", res, expectedEndpoints)
+	if t.Failed() {
+		ebpftest.DumpMapsTestHelper(t, tr.usmMonitor.DumpMaps, "http2_in_flight", "http2_dynamic_table")
+	}
+}
+
+func waitForGoTLSHook(t *testing.T, pid int) {
+	require.Eventuallyf(t, func() bool {
+		traced := utils.GetTracedPrograms("go-tls")
+		for _, prog := range traced {
+			if slices.Contains[[]uint32](prog.PIDs, uint32(pid)) {
+				return true
+			}
+		}
+		return false
+	}, time.Second*15, time.Millisecond*100, "process %v is not traced by gotls", pid)
 }

@@ -7,15 +7,13 @@ package telemetry
 
 import (
 	"go.uber.org/atomic"
-
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 // StatGaugeWrapper is a convenience type that allows for migrating telemetry to
 // prometheus Gauges while continuing to make the underlying values available for reading
 type StatGaugeWrapper struct {
 	stat  *atomic.Int64
-	gauge telemetry.Gauge
+	gauge Gauge
 }
 
 // Inc increments the Gauge value.
@@ -51,6 +49,6 @@ func (sgw *StatGaugeWrapper) Load() int64 {
 func NewStatGaugeWrapper(subsystem string, statName string, tags []string, description string) *StatGaugeWrapper {
 	return &StatGaugeWrapper{
 		stat:  atomic.NewInt64(0),
-		gauge: telemetry.NewGauge(subsystem, statName, tags, description),
+		gauge: NewGauge(subsystem, statName, tags, description),
 	}
 }
