@@ -120,6 +120,13 @@ typedef struct {
 } dynamic_table_index_t;
 
 typedef struct {
+    char buf[HTTP2_MAX_PATH_LEN] __attribute__((aligned(8)));
+    dynamic_table_index_t key;
+    __u8 string_len;
+    bool is_huffman_encoded;
+} dynamic_table_value_t;
+
+typedef struct {
     conn_tuple_t tup;
     __u32 stream_id;
 } http2_stream_key_t;
