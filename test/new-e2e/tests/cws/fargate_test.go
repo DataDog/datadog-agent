@@ -8,6 +8,7 @@ package cws
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"testing"
 	"text/template"
 
@@ -183,7 +184,7 @@ func TestECSFargate(t *testing.T) {
 					"cws-instrumentation-init": {
 						Cpu:       pulumi.IntPtr(0),
 						Name:      pulumi.String("cws-instrumentation-init"),
-						Image:     pulumi.String(getCWSInstrumentationFullImagePath(awsEnv.CommonEnvironment)),
+						Image:     pulumi.String(getCWSInstrumentationFullImagePath()),
 						Essential: pulumi.BoolPtr(false),
 						Command: pulumi.ToStringArray([]string{
 							"/cws-instrumentation",
@@ -268,8 +269,8 @@ const (
 	agentDefaultImagePath                    = "public.ecr.aws/datadog/agent:7.51.0-rc.1"
 )
 
-func getCWSInstrumentationFullImagePath(e *configCommon.CommonEnvironment) string {
-	if fullImagePath, ok := e.Ctx.GetConfig(cwsInstrumentationFullImagePathParamName); ok {
+func getCWSInstrumentationFullImagePath() string {
+	if fullImagePath := os.Getenv("CWS_INSTRUMENTATION_FULLIMAGEPATH"); fullImagePath != "" {
 		return fullImagePath
 	}
 	return cwsInstrumentationDefaultImagePath

@@ -89,7 +89,6 @@ k8s-e2e-otlp-main:
     - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.ssh_key_rsa --with-decryption --query "Parameter.Value" --out text > $E2E_PRIVATE_KEY_PATH
     # Use S3 backend
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
-    - export CI_JOB_NAME="${OVERRIDE_CI_JOB_NAME:-$CI_JOB_NAME}"
   variables:
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
@@ -261,12 +260,11 @@ new-e2e-cws-dev:
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
+    CWS_INSTRUMENTATION_FULLIMAGEPATH: 669783387624.dkr.ecr.us-east-1.amazonaws.com/cws-instrumentation:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
   parallel:
     matrix:
-      - OVERRIDE_CI_JOB_NAME: new-e2e-cws-agent-dev
-        EXTRA_PARAMS: --run TestAgentSuite
-      - OVERRIDE_CI_JOB_NAME: new-e2e-cws-fargate-dev
-        EXTRA_PARAMS: -c cwsinstrumentation:fullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/cws-instrumentation:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA} --run TestECSFargate
+      - EXTRA_PARAMS: --run TestAgentSuite
+      - EXTRA_PARAMS: --run TestECSFargate
 
 new-e2e-cws-main:
   extends: .new_e2e_template
@@ -274,12 +272,11 @@ new-e2e-cws-main:
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
+    CWS_INSTRUMENTATION_FULLIMAGEPATH: 669783387624.dkr.ecr.us-east-1.amazonaws.com/cws-instrumentation:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
   parallel:
     matrix:
-      - OVERRIDE_CI_JOB_NAME: new-e2e-cws-agent-main
-        EXTRA_PARAMS: --run TestAgentSuite
-      - OVERRIDE_CI_JOB_NAME: new-e2e-cws-fargate-main
-        EXTRA_PARAMS: -c cwsinstrumentation:fullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/cws-instrumentation:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA} --run TestECSFargate
+      - EXTRA_PARAMS: --run TestAgentSuite
+      - EXTRA_PARAMS: --run TestECSFargate
 
 new-e2e-process-dev:
   extends: .new_e2e_template
