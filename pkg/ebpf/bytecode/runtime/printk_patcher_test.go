@@ -34,6 +34,14 @@ func TestPatchPrintkNewline(t *testing.T) {
 	kernelVersion, err := ebpfkernel.NewKernelVersion()
 	require.NoError(t, err)
 
+	// Check that tracing is on, if it's off we might try to enable it
+	tracingOn, err := os.ReadFile("/sys/kernel/debug/tracing/tracing_on")
+	if err == nil && strings.TrimSpace(string(tracingOn)) != "1" { // Try to continue with the tests even if we cannot read the tracing file
+		if err := os.WriteFile("/sys/kernel/debug/tracing/tracing_on", []byte("1"), 0); err != nil {
+			t.Skipf("Cannot enable tracing: %s", err)
+		}
+	}
+
 	if kernelVersion.IsAmazonLinuxKernel() || kernelVersion.IsRH7Kernel() || kernelVersion.IsRH8Kernel() {
 		t.Skip("Skipping test on Amazon Linux and RedHat kernels due to backports")
 	}
