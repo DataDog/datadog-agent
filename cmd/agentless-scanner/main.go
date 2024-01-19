@@ -223,9 +223,10 @@ type (
 	}
 
 	scannerOptions struct {
-		Scanner scannerName `json:"Scanner"`
-		Scan    *scanTask   `json:"Scan"`
-		Root    string      `json:"Root"`
+		Scanner   scannerName `json:"Scanner"`
+		Scan      *scanTask   `json:"Scan"`
+		Root      string      `json:"Root"`
+		StartedAt time.Time   `jons:"StartedAt"`
 
 		// Vulns specific
 		SnapshotARN *arn.ARN `json:"SnapshotARN"` // TODO: deprecate as we remove "vm" mode
@@ -1522,14 +1523,14 @@ func (s *sideScanner) start(ctx context.Context) {
 					log.Warnf("failed to send metric: %v", err)
 				}
 			} else {
-				log.Debugf("%s: scanner %s finished successfully (took %s)", result.Scan, result.Scanner, time.Since(result.Scan.StartedAt))
+				log.Debugf("%s: scanner %s finished successfully (took %s)", result.Scan, result.Scanner, time.Since(result.StartedAt))
 				if vulns := result.Vulns; vulns != nil {
 					if hasResults(vulns.BOM) {
 						if err := statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, tagSuccess(result.Scan), 1.0); err != nil {
 							log.Warnf("failed to send metric: %v", err)
 						}
 					} else {
-						log.Debugf("%s: scanner %s finished successfully without results (took %s)", result.Scan, result.Scanner, time.Since(result.Scan.StartedAt))
+						log.Debugf("%s: scanner %s finished successfully without results (took %s)", result.Scan, result.Scanner, time.Since(result.StartedAt))
 						if err := statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, tagNoResult(result.Scan), 1.0); err != nil {
 							log.Warnf("failed to send metric: %v", err)
 						}
@@ -1539,7 +1540,7 @@ func (s *sideScanner) start(ctx context.Context) {
 					}
 					if s.printResults {
 						if bomRaw, err := json.MarshalIndent(vulns.BOM, "  ", "  "); err == nil {
-							fmt.Printf("scanning SBOM result %s (took %s):\n", result.Scan, time.Since(result.Scan.StartedAt))
+							fmt.Printf("scanning SBOM result %s (took %s):\n", result.Scan, time.Since(result.StartedAt))
 							fmt.Printf("ID: %s\n", vulns.ID)
 							fmt.Printf("SourceType: %s\n", vulns.SourceType.String())
 							fmt.Printf("Tags: %+q\n", vulns.Tags)
@@ -1555,7 +1556,7 @@ func (s *sideScanner) start(ctx context.Context) {
 					s.sendFindings(malware.Findings)
 					if s.printResults {
 						b, _ := json.MarshalIndent(malware.Findings, "", "  ")
-						fmt.Printf("scanning malware result %s (took %s): %s\n", result.Scan, time.Since(result.Scan.StartedAt), string(b))
+						fmt.Printf("scanning malware result %s (took %s): %s\n", result.Scan, time.Since(result.StartedAt), string(b))
 					}
 				}
 			}
@@ -1678,8 +1679,8 @@ func (s *sideScanner) sendSBOM(result scanResult) error {
 			"region:" + result.Scan.ARN.Region,
 			"account_id:" + result.Scan.ARN.AccountID,
 		}, vulns.Tags...),
-		GeneratedAt:        timestamppb.New(result.Scan.StartedAt),
-		GenerationDuration: convertDuration(time.Since(result.Scan.StartedAt)),
+		GeneratedAt:        timestamppb.New(result.StartedAt),
+		GenerationDuration: convertDuration(time.Since(result.StartedAt)),
 		Hash:               "",
 		Sbom: &sbommodel.SBOMEntity_Cyclonedx{
 			Cyclonedx: convertBOM(vulns.BOM),
@@ -2221,6 +2222,7 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 			Scanner:     scannerNameHostVulnsEBS,
 			Scan:        scan,
 			SnapshotARN: &snapshotARN,
+			StartedAt:   time.Now(),
 		})
 		if result.Vulns != nil {
 			result.Vulns.SourceType = sbommodel.SBOMSourceType_HOST_FILE_SYSTEM
@@ -2228,7 +2230,7 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 			result.Vulns.Tags = nil
 		}
 		resultsCh <- result
-		if err := statsd.Histogram("datadog.agentless_scanner.scans.duration", float64(time.Since(scan.StartedAt).Milliseconds()), tagScan(scan), 1.0); err != nil {
+		if err := statsd.Histogram("datadog.agentless_scanner.scans.duration", float64(time.Since(result.StartedAt).Milliseconds()), tagScan(scan), 1.0); err != nil {
 			log.Warnf("failed to send metric: %v", err)
 		}
 		return nil
@@ -2267,9 +2269,10 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 			switch action {
 			case vulnsHost:
 				result := launchScanner(ctx, scannerOptions{
-					Scanner: scannerNameHostVulns,
-					Scan:    scan,
-					Root:    root,
+					Scanner:   scannerNameHostVulns,
+					Scan:      scan,
+					Root:      root,
+					StartedAt: time.Now(),
 				})
 				if result.Vulns != nil {
 					result.Vulns.SourceType = sbommodel.SBOMSourceType_HOST_FILE_SYSTEM
@@ -2279,9 +2282,10 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 				resultsCh <- result
 			case vulnsContainers:
 				opts := scannerOptions{
-					Scanner: scannerNameContainers,
-					Scan:    scan,
-					Root:    root,
+					Scanner:   scannerNameContainers,
+					Scan:      scan,
+					Root:      root,
+					StartedAt: time.Now(),
 				}
 				ctrResult := launchScanner(ctx, opts)
 				if ctrResult.Err != nil {
@@ -2295,9 +2299,10 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 							continue
 						}
 						result := launchScanner(ctx, scannerOptions{
-							Scanner: scannerNameHostVulns,
-							Scan:    scan,
-							Root:    mountPoint,
+							Scanner:   scannerNameHostVulns,
+							Scan:      scan,
+							Root:      mountPoint,
+							StartedAt: time.Now(),
 						})
 						if result.Vulns != nil {
 							result.Vulns.SourceType = sbommodel.SBOMSourceType_CONTAINER_IMAGE_LAYERS // TODO: sbommodel.SBOMSourceType_CONTAINER_FILE_SYSTEM
@@ -2319,9 +2324,10 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 				}
 			case malware:
 				resultsCh <- launchScanner(ctx, scannerOptions{
-					Scanner: scannerNameMalware,
-					Scan:    scan,
-					Root:    root,
+					Scanner:   scannerNameMalware,
+					Scan:      scan,
+					Root:      root,
+					StartedAt: time.Now(),
 				})
 			}
 		}
@@ -2536,9 +2542,10 @@ func scanLambda(ctx context.Context, scan *scanTask, resultsCh chan scanResult) 
 	}
 
 	result := launchScanner(ctx, scannerOptions{
-		Scanner: scannerNameAppVulns,
-		Scan:    scan,
-		Root:    codePath,
+		Scanner:   scannerNameAppVulns,
+		Scan:      scan,
+		Root:      codePath,
+		StartedAt: time.Now(),
 	})
 	if result.Vulns != nil {
 		result.Vulns.SourceType = sbommodel.SBOMSourceType_CI_PIPELINE // TODO: SBOMSourceType_LAMBDA
