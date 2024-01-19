@@ -10,7 +10,7 @@ package events
 import (
 	"sync"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	ebpfutil "github.com/DataDog/datadog-agent/pkg/ebpf/util"
 )
 
 var batchPool = sync.Pool{
@@ -22,13 +22,13 @@ var batchPool = sync.Pool{
 type batchReader struct {
 	sync.Mutex
 	numCPUs    int
-	batchMap   *ddebpf.GenericMap[batchKey, batch]
+	batchMap   *ebpfutil.GenericMap[batchKey, batch]
 	offsets    *offsetManager
 	workerPool *workerPool
 	stopped    bool
 }
 
-func newBatchReader(offsetManager *offsetManager, batchMap *ddebpf.GenericMap[batchKey, batch], numCPUs int) (*batchReader, error) {
+func newBatchReader(offsetManager *offsetManager, batchMap *ebpfutil.GenericMap[batchKey, batch], numCPUs int) (*batchReader, error) {
 	// initialize eBPF maps
 	batch := new(batch)
 	for i := 0; i < numCPUs; i++ {

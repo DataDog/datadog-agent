@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package ebpf
+package util
 
 import (
 	"fmt"

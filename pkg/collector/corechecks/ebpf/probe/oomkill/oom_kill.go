@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
+	ebpfutil "github.com/DataDog/datadog-agent/pkg/ebpf/util"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -41,7 +42,7 @@ const oomMapName = "oom_stats"
 // Probe is the eBPF side of the OOM Kill check
 type Probe struct {
 	m      *manager.Manager
-	oomMap *ebpf.GenericMap[uint32, C.struct_oom_stats]
+	oomMap *ebpfutil.GenericMap[uint32, C.struct_oom_stats]
 }
 
 // NewProbe creates a [Probe]
@@ -124,7 +125,7 @@ func startOOMKillProbe(buf bytecode.AssetReader, managerOptions manager.Options)
 		return nil, fmt.Errorf("failed to start manager: %w", err)
 	}
 
-	oomMap, err := ebpf.GetMap[uint32, C.struct_oom_stats](m, oomMapName)
+	oomMap, err := ebpfutil.GetMap[uint32, C.struct_oom_stats](m, oomMapName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get map '%s': %w", oomMapName, err)
 	}

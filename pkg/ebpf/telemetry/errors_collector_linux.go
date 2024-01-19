@@ -22,7 +22,7 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	ebpfutil "github.com/DataDog/datadog-agent/pkg/ebpf/util"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -59,8 +59,8 @@ var helperNames = map[int]string{
 // are registered to have their telemetry collected.
 type EBPFTelemetry struct {
 	mtx          sync.Mutex
-	mapErrMap    *ddebpf.GenericMap[uint64, MapErrTelemetry]
-	helperErrMap *ddebpf.GenericMap[uint64, HelperErrTelemetry]
+	mapErrMap    *ebpfutil.GenericMap[uint64, MapErrTelemetry]
+	helperErrMap *ebpfutil.GenericMap[uint64, HelperErrTelemetry]
 	mapKeys      map[string]uint64
 	probeKeys    map[string]uint64
 }
@@ -84,10 +84,10 @@ func (b *EBPFTelemetry) populateMapsWithKeys(m *manager.Manager) error {
 
 	// first manager to call will populate the maps
 	if b.mapErrMap == nil {
-		b.mapErrMap, _ = ddebpf.GetMap[uint64, MapErrTelemetry](m, probes.MapErrTelemetryMap)
+		b.mapErrMap, _ = ebpfutil.GetMap[uint64, MapErrTelemetry](m, probes.MapErrTelemetryMap)
 	}
 	if b.helperErrMap == nil {
-		b.helperErrMap, _ = ddebpf.GetMap[uint64, HelperErrTelemetry](m, probes.HelperErrTelemetryMap)
+		b.helperErrMap, _ = ebpfutil.GetMap[uint64, HelperErrTelemetry](m, probes.HelperErrTelemetryMap)
 	}
 
 	if err := b.initializeMapErrTelemetryMap(m.Maps); err != nil {

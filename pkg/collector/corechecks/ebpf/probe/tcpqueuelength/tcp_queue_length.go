@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
+	ebpfutil "github.com/DataDog/datadog-agent/pkg/ebpf/util"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -36,7 +37,7 @@ const (
 // Tracer is the eBPF side of the TCP Queue Length check
 type Tracer struct {
 	m        *manager.Manager
-	statsMap *ebpf.GenericMap[StructStatsKey, StructStatsValue]
+	statsMap *ebpfutil.GenericMap[StructStatsKey, []StructStatsValue]
 }
 
 // NewTracer creates a [Tracer]
@@ -88,7 +89,7 @@ func startTCPQueueLengthProbe(buf bytecode.AssetReader, managerOptions manager.O
 		return nil, fmt.Errorf("failed to start manager: %w", err)
 	}
 
-	statsMap, err := ebpf.GetMap[StructStatsKey, StructStatsValue](m, statsMapName)
+	statsMap, err := ebpfutil.GetMap[StructStatsKey, []StructStatsValue](m, statsMapName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get map '%s': %w", statsMapName, err)
 	}
@@ -121,7 +122,7 @@ func (t *Tracer) GetAndFlush() model.TCPQueueLengthStats {
 	var statsKey StructStatsKey
 	var keys []StructStatsKey
 	statsValue := make([]StructStatsValue, nbCpus)
-	it := t.statsMap.IteratePerCPU()
+	it := t.statsMap.Iterate()
 	for it.Next(&statsKey, &statsValue) {
 		cgroupName := string(statsKey.Cgroup[:])
 		max := model.TCPQueueLengthStatsValue{}
