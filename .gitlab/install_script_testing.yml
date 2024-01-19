@@ -10,7 +10,8 @@ test_install_script:
     - export TESTING_APT_URL=$DEB_TESTING_S3_BUCKET
     - export TESTING_YUM_URL=$RPM_TESTING_S3_BUCKET
     - export TEST_PIPELINE_ID=$CI_PIPELINE_ID
-    - inv pipeline.trigger-child-pipeline --project-name "DataDog/agent-linux-install-script" --git-ref "main" --variables "TESTING_APT_URL,TESTING_YUM_URL,TEST_PIPELINE_ID,DDR_WORKFLOW_ID"
+    - inv pipeline.trigger-child-pipeline --project-name "DataDog/agent-linux-install-script" --git-ref "main" \
+      --variables "TESTING_APT_URL,TESTING_YUM_URL,TEST_PIPELINE_ID,APPS,BAZEL_TARGET,DDR,DDR_WORKFLOW_ID,TARGET_ENV,DYNAMIC_BUILD_RENDER_TARGET,DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
   needs: ["deploy_deb_testing-a6_x64", "deploy_rpm_testing-a6_x64", "deploy_deb_testing-a7_x64", "deploy_rpm_testing-a7_x64"]
   rules:
     !reference [.on_deploy]
