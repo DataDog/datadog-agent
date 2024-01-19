@@ -396,7 +396,7 @@ workflow:
 .on_main:
   - <<: *if_main_branch
     variables:
-      GO_TEST_SKIP_FLAKE: false
+      GO_TEST_SKIP_FLAKE: "false"
 
 .on_main_manual:
   - <<: *if_main_branch
