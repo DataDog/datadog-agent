@@ -44,7 +44,7 @@ var _ e2e.Initializable = &RemoteHost{}
 // Init is called by e2e test Suite after the component is provisioned.
 func (h *RemoteHost) Init(ctx e2e.Context) error {
 	h.context = ctx
-	return h.ReconnectSSH()
+	return h.reconnectSSH()
 }
 
 // Execute executes a command and returns an error if any.
@@ -61,7 +61,7 @@ func (h *RemoteHost) Execute(command string, options ...ExecuteOption) (string, 
 	output, err = clients.ExecuteCommand(h.client, cmd)
 
 	if err != nil && strings.Contains(err.Error(), "failed to create session:") {
-		err = h.ReconnectSSH()
+		err = h.reconnectSSH()
 		if err != nil {
 			return "", err
 		}
@@ -143,9 +143,9 @@ func (h *RemoteHost) RemoveAll(path string) error {
 	return clients.RemoveAll(h.client, path)
 }
 
-// ReconnectSSH recreate the SSH connection to the VM. Should be used only after VM reboot to restore the SSH connection.
+// reconnectSSH recreate the SSH connection to the VM. Should be used only after VM reboot to restore the SSH connection.
 // Returns an error if the VM is not reachable after retries.
-func (h *RemoteHost) ReconnectSSH() error {
+func (h *RemoteHost) reconnectSSH() error {
 	h.context.T().Logf("connecting to remote VM at %s@%s", h.Username, h.Address)
 
 	if h.client != nil {
