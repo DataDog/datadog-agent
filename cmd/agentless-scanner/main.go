@@ -2304,7 +2304,16 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 							result.Vulns.ID = entityID
 							result.Vulns.Tags = entityTags
 						}
-						cleanupUmount(ctx, mountPoint)
+
+						// We cleanup overlays as we go instead of acumulating
+						// them. However the cleanupScan routine also cleans
+						// up any leftover. We do not rely on the parent ctx
+						// as we still want to clean these mounts even for a
+						// canceled/timeouted context.
+						cleanupctx, abort := context.WithTimeout(context.Background(), 5*time.Second)
+						cleanupUmount(cleanupctx, mountPoint)
+						abort()
+
 						resultsCh <- result
 					}
 				}
