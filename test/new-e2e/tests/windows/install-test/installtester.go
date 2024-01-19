@@ -215,6 +215,8 @@ func (t *Tester) testDoesNotChangeSystemFiles(tt *testing.T) bool {
 		output, err := t.host.Execute(cmd)
 		require.NoError(tt, err, "should compare system files")
 		output = strings.TrimSpace(output)
+		// Log the output if it's not empty so we have a record of what changed.
+		// Normally require.Empty would log this but flake.Mark might Skip the test before its called.
 		if output != "" {
 			tt.Logf("should not remove system files: %s", output)
 		}
