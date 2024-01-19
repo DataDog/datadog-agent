@@ -102,7 +102,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			agentAPI internalAPI.Component,
 		) error {
 
-			defer StopAgentWithDefaults(server, demultiplexer, agentAPI)
+			defer StopAgentWithDefaults(server, agentAPI)
 
 			err := startAgent(
 				&cliParams{GlobalParams: &command.GlobalParams{}},
