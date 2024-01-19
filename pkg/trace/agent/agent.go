@@ -131,7 +131,8 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 
 // Run starts routers routines and individual pieces then stop them when the exit order is received.
 func (a *Agent) Run() {
-	timing.Start()
+	timing.Start(metrics.Client)
+	defer timing.Stop()
 	for _, starter := range []interface{ Start() }{
 		a.Receiver,
 		a.Concentrator,
@@ -219,7 +220,6 @@ func (a *Agent) loop() {
 	} {
 		stopper.Stop()
 	}
-	timing.Stop()
 }
 
 // setRootSpanTags sets up any necessary tags on the root span.

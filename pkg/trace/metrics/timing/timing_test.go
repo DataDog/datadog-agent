@@ -15,20 +15,16 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 )
 
 func TestTiming(t *testing.T) {
 	assert := assert.New(t)
 	Stop() // https://github.com/DataDog/datadog-agent/issues/13934
-	defer func(old metrics.StatsClient) { metrics.SetClient(old) }(metrics.Client)
 	stats := &teststatsd.Client{}
 
 	t.Run("report", func(t *testing.T) {
-		stats.Reset()
-		metrics.SetClient(stats)
-		set := newSet()
+		set := newSet(stats)
 		set.Since("counter1", time.Now().Add(-2*time.Second))
 		set.Since("counter1", time.Now().Add(-3*time.Second))
 		set.report()
@@ -45,8 +41,7 @@ func TestTiming(t *testing.T) {
 
 	t.Run("autoreport", func(t *testing.T) {
 		stats.Reset()
-		metrics.SetClient(stats)
-		set := newSet()
+		set := newSet(stats)
 		set.Since("counter1", time.Now().Add(-1*time.Second))
 		set.autoreport(time.Millisecond)
 		if runtime.GOOS == "windows" {
@@ -58,15 +53,14 @@ func TestTiming(t *testing.T) {
 	})
 
 	t.Run("panic", func(t *testing.T) {
-		Start()
+		Start(stats)
 		Stop()
 		Stop()
 	})
 
 	t.Run("race", func(t *testing.T) {
 		stats.Reset()
-		metrics.SetClient(stats)
-		set := newSet()
+		set := newSet(stats)
 		var wg sync.WaitGroup
 		for i := 0; i < 150; i++ {
 			wg.Add(1)

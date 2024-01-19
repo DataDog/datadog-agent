@@ -29,8 +29,6 @@ var (
 // Since records the duration for the given metric name as time passed since start.
 // It uses the default set which is reported at 10 second intervals.
 func Since(name string, start time.Time) {
-	m.Lock()
-	defer m.Unlock()
 	if defaultSet == nil {
 		log.Error("Timing hasn't been initialized, trace-agent metrics will be missing")
 		return
@@ -38,13 +36,9 @@ func Since(name string, start time.Time) {
 	defaultSet.Since(name, start)
 }
 
-var m = sync.Mutex{}
-
 // Start initializes autoreporting of timing metrics.
-func Start() {
-	m.Lock()
-	defer m.Unlock()
-	defaultSet = newSet()
+func Start(statsd metrics.StatsClient) {
+	defaultSet = newSet(statsd)
 	defaultSet.autoreport(autoreportInterval)
 }
 
@@ -52,8 +46,6 @@ func Start() {
 // metrics. It can be useful to call when the program exits to ensure everything is
 // submitted.
 func Stop() {
-	m.Lock()
-	defer m.Unlock()
 	if defaultSet == nil {
 		return
 	}
@@ -61,8 +53,12 @@ func Stop() {
 }
 
 // newSet returns a new, ready to use Set.
-func newSet() *set {
-	return &set{c: make(map[string]*counter), close: make(chan struct{})}
+func newSet(statsd metrics.StatsClient) *set {
+	return &set{
+		c:      make(map[string]*counter),
+		close:  make(chan struct{}),
+		statsd: statsd,
+	}
 }
 
 // Set represents a set of metrics that can be used for timing. Use NewSet to initialize
@@ -73,6 +69,7 @@ type set struct {
 	close     chan struct{}
 	startOnce sync.Once
 	stopOnce  sync.Once
+	statsd    metrics.StatsClient
 }
 
 // autoreport enables autoreporting of the Set at the given interval. It returns a
@@ -133,7 +130,7 @@ func (s *set) report() {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, c := range s.c {
-		c.flush()
+		c.flush(s.statsd)
 	}
 }
 
@@ -167,13 +164,13 @@ func (c *counter) add(v float64) {
 	c.mu.RUnlock()
 }
 
-func (c *counter) flush() {
+func (c *counter) flush(statsd metrics.StatsClient) {
 	c.mu.Lock()
 	count := c.count.Swap(0)
 	sum := c.sum.Swap(0)
 	max := c.max.Swap(0)
 	c.mu.Unlock()
-	metrics.Count(c.name+".count", int64(count), nil, 1)
-	metrics.Gauge(c.name+".max", max, nil, 1)
-	metrics.Gauge(c.name+".avg", sum/count, nil, 1)
+	statsd.Count(c.name+".count", int64(count), nil, 1)
+	statsd.Gauge(c.name+".max", max, nil, 1)
+	statsd.Gauge(c.name+".avg", sum/count, nil, 1)
 }

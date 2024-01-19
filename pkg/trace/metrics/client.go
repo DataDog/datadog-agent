@@ -6,7 +6,6 @@
 package metrics
 
 import (
-	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -21,23 +20,12 @@ type StatsClient interface {
 	Flush() error
 }
 
-var m sync.Mutex
-
-// SetClient sets the global Statsd client.
-func SetClient(client StatsClient) {
-	m.Lock()
-	defer m.Unlock()
-	Client = client
-}
-
 // Client is a global Statsd client. When a client is configured via Configure,
 // that becomes the new global Statsd client in the package.
 var Client StatsClient = (*statsd.Client)(nil)
 
 // Gauge calls Gauge on the global Client, if set.
 func Gauge(name string, value float64, tags []string, rate float64) error {
-	m.Lock()
-	defer m.Unlock()
 	if Client == nil {
 		return nil // no-op
 	}
@@ -46,8 +34,6 @@ func Gauge(name string, value float64, tags []string, rate float64) error {
 
 // Count calls Count on the global Client, if set.
 func Count(name string, value int64, tags []string, rate float64) error {
-	m.Lock()
-	defer m.Unlock()
 	if Client == nil {
 		return nil // no-op
 	}
@@ -56,8 +42,6 @@ func Count(name string, value int64, tags []string, rate float64) error {
 
 // Histogram calls Histogram on the global Client, if set.
 func Histogram(name string, value float64, tags []string, rate float64) error {
-	m.Lock()
-	defer m.Unlock()
 	if Client == nil {
 		return nil // no-op
 	}
@@ -66,8 +50,6 @@ func Histogram(name string, value float64, tags []string, rate float64) error {
 
 // Timing calls Timing on the global Client, if set.
 func Timing(name string, value time.Duration, tags []string, rate float64) error {
-	m.Lock()
-	defer m.Unlock()
 	if Client == nil {
 		return nil // no-op
 	}
@@ -76,8 +58,6 @@ func Timing(name string, value time.Duration, tags []string, rate float64) error
 
 // Flush flushes any pending metrics to the agent.
 func Flush() error {
-	m.Lock()
-	defer m.Unlock()
 	if Client == nil {
 		return nil // no-op
 	}
