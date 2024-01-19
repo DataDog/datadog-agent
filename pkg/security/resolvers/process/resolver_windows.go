@@ -14,8 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/sys/windows"
-
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -26,17 +24,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	lru "github.com/hashicorp/golang-lru/v2"
 )
 
 // Pid PID type
 type Pid = uint32
-
-const (
-	numberAllowedUserResolution = 5
-	userResolutionCacheSize     = 64
-)
 
 // Resolver defines a resolver
 type Resolver struct {
@@ -50,10 +41,6 @@ type Resolver struct {
 	cacheSize *atomic.Int64
 
 	processCacheEntryPool *Pool
-
-	//user lookup cache and rate limiter
-	usersCache        *lru.Cache[string, string]
-	userLookupLimiter *utils.Limiter[uint64]
 }
 
 // NewResolver returns a new process resolver
@@ -69,18 +56,6 @@ func NewResolver(_ *config.Config, statsdClient statsd.ClientInterface, scrubber
 
 	p.processCacheEntryPool = NewProcessCacheEntryPool(func() { p.cacheSize.Dec() })
 
-	// create a cache for the username resolution
-	cache, err := lru.New[string, string](userResolutionCacheSize)
-	if err != nil {
-		return nil, err
-	}
-	p.usersCache = cache
-	// create a rate limiter that numberAllowedUserResolution
-	limiter, err := utils.NewLimiter[uint64](1, numberAllowedUserResolution, time.Second)
-	if err != nil {
-		return nil, err
-	}
-	p.userLookupLimiter = limiter
 	return p, nil
 }
 
@@ -267,32 +242,4 @@ func (p *Resolver) Snapshot() {
 	for _, e := range entries {
 		p.insertEntry(e)
 	}
-}
-
-// GetUser returns the username
-func (p *Resolver) GetUser(ownerSidString string) (name string) {
-
-	username, found := p.usersCache.Get(ownerSidString)
-	if found {
-		// If username was already resolved
-		return username
-	}
-
-	if !p.userLookupLimiter.Allow(1) {
-		// If the username was not already resolved but the limit is hit, return an empty string
-		return ""
-	}
-	// The limit is not hit and we need to resolve the username
-	sid, err := windows.StringToSid(ownerSidString)
-	if err != nil {
-		p.usersCache.Add(ownerSidString, "")
-		return ""
-	}
-	user, domain, _, err := sid.LookupAccount("")
-	if err != nil {
-		p.usersCache.Add(ownerSidString, "")
-		return ""
-	}
-	p.usersCache.Add(ownerSidString, domain+"\\"+user)
-	return domain + "\\" + user
 }
