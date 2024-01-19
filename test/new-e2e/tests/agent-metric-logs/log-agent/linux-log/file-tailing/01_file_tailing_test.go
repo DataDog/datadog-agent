@@ -49,7 +49,7 @@ func TestE2EVMFakeintakeSuite(t *testing.T) {
 func (s *LinuxFakeintakeSuite) BeforeTest(suiteName, testName string) {
 	s.BaseSuite.BeforeTest(suiteName, testName)
 	// Flush server and reset aggregators before the test is ran
-	utils.CleanUp(s)
+	utils.CleanUp(s, logPath)
 
 	// Ensure no logs are present in fakeintake before testing starts
 	s.EventuallyWithT(func(c *assert.CollectT) {
@@ -67,7 +67,7 @@ func (s *LinuxFakeintakeSuite) BeforeTest(suiteName, testName string) {
 
 func (s *LinuxFakeintakeSuite) TearDownSuite() {
 	// Flush server and reset aggregators after the test is ran
-	utils.CleanUp(s)
+	utils.CleanUp(s, logPath)
 	s.BaseSuite.TearDownSuite()
 }
 
@@ -108,7 +108,7 @@ func (s *LinuxFakeintakeSuite) LogCollection() {
 
 	// t.Logf("Permissions granted for new log file.")
 	// Generate log
-	utils.AppendLog(s, "hello-world", 1)
+	utils.AppendLog(s, logPath, "hello-world", 1)
 
 	// Check intake for new logs
 	utils.CheckLogs(s, "hello", "hello-world", true)
@@ -133,7 +133,7 @@ func (s *LinuxFakeintakeSuite) LogNoPermission() {
 		agentReady := s.Env().Agent.Client.IsReady()
 		if assert.Truef(c, agentReady, "Agent is not ready after restart") {
 			// Generate log
-			utils.AppendLog(s, "access-denied", 1)
+			utils.AppendLog(s, logPath, "access-denied", 1)
 			// Check intake for new logs
 			utils.CheckLogs(s, "hello", "access-denied", false)
 		}
@@ -145,7 +145,7 @@ func (s *LinuxFakeintakeSuite) LogCollectionAfterPermission() {
 	utils.CheckLogFilePresence(s, logPath)
 
 	// Generate logs
-	utils.AppendLog(s, "hello-after-permission-world", 1)
+	utils.AppendLog(s, logPath, "hello-after-permission-world", 1)
 
 	// Grant read permission
 	output, err := s.Env().RemoteHost.Execute("sudo chmod +r /var/log/hello-world.log && echo true")
@@ -175,7 +175,7 @@ func (s *LinuxFakeintakeSuite) LogCollectionBeforePermission() {
 	time.Sleep(1000 * time.Millisecond)
 
 	// Generate logs
-	utils.AppendLog(s, "access-granted", 1)
+	utils.AppendLog(s, logPath, "access-granted", 1)
 
 	// Check intake for new logs
 	utils.CheckLogs(s, "hello", "access-granted", true)
@@ -199,7 +199,7 @@ func (s *LinuxFakeintakeSuite) LogRecreateRotation() {
 	t.Logf("Permissions granted for new log file.")
 
 	// Generate new logs
-	utils.AppendLog(s, "hello-world-new-content", 1)
+	utils.AppendLog(s, logPath, "hello-world-new-content", 1)
 
 	// Check intake for new logs
 	utils.CheckLogs(s, "hello", "hello-world-new-content", true)

@@ -30,9 +30,9 @@ type LogsTestSuite interface {
 }
 
 // AppendLog appen log with 'content', which is then repeated 'reccurrence' times and verifies log contents.
-func AppendLog(ls LogsTestSuite, content string, recurrence int) {
+func AppendLog(ls LogsTestSuite, logPath, content string, recurrence int) {
 	// Determine the OS and set the appropriate log path and command.
-	var logPath, cmd, checkCmd string
+	var cmd, checkCmd string
 	t := ls.T()
 	t.Helper()
 
@@ -41,13 +41,11 @@ func AppendLog(ls LogsTestSuite, content string, recurrence int) {
 	case os.WindowsFamily:
 		osStr = "windows"
 		t.Log("Generating Windows log.")
-		logPath = "C:\\logs\\hello-world.log"
 		cmd = fmt.Sprintf("echo %s > %s", strings.Repeat(content+" ", recurrence), logPath)
 		checkCmd = fmt.Sprintf("Get-Content %s", logPath)
 	default: // Assuming Linux if not Windows.
 		osStr = "linux"
 		t.Log("Generating Linux log.")
-		logPath = "/var/log/hello-world.log"
 		cmd = fmt.Sprintf("echo '%s' | sudo tee -a %s", strings.Repeat(content+" ", recurrence), logPath)
 		checkCmd = fmt.Sprintf("sudo cat %s", logPath)
 	}
@@ -123,7 +121,7 @@ func CheckLogs(ls LogsTestSuite, service, content string, expectLogs bool) {
 }
 
 // CleanUp cleans up any existing log files (only useful when running dev mode/local runs).
-func CleanUp(ls LogsTestSuite) {
+func CleanUp(ls LogsTestSuite, logPath string) {
 	t := ls.T()
 	t.Helper()
 	var checkCmd string
@@ -131,13 +129,13 @@ func CleanUp(ls LogsTestSuite) {
 	if ls.IsDevMode() {
 		switch ls.Env().RemoteHost.OSFamily {
 		default: // default is linux
-			ls.Env().RemoteHost.MustExecute("sudo rm -f /var/log/hello-world.log")
-			ls.Env().RemoteHost.MustExecute("sudo rm -f /var/log/hello-world.log.old")
-			checkCmd = "ls /var/log/hello-world.log /var/log/hello-world.log.old 2>/dev/null || echo 'Files do not exist'"
+			ls.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo rm -f %s", logPath))
+			ls.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo rm -f /var/log/%s.old", logPath))
+			checkCmd = fmt.Sprintf("ls %s %s.old 2>/dev/null || echo 'Files do not exist'", logPath, logPath)
 		case os.WindowsFamily:
-			ls.Env().RemoteHost.MustExecute("if (Test-Path C:\\logs\\hello-world.log) { Remove-Item -Path C:\\logs\\hello-world.log -Force }")
-			ls.Env().RemoteHost.MustExecute("if (Test-Path C:\\logs\\hello-world.log.old) { Remove-Item -Path C:\\logs\\hello-world.log.old -Force }")
-			checkCmd = "if (Test-Path C:\\logs\\hello-world.log) { Get-ChildItem -Path C:\\logs\\hello-world.log } elseif (Test-Path C:\\logs\\hello-world.log.old) { Get-ChildItem -Path C:\\logs\\hello-world.log.old } else { Write-Output 'Files do not exist' }"
+			ls.Env().RemoteHost.MustExecute(fmt.Sprintf("if (Test-Path C:\\logs\\%s) { Remove-Item -Path C:\\logs\\%s -Force }", logPath, logPath))
+			ls.Env().RemoteHost.MustExecute(fmt.Sprintf("if (Test-Path C:\\logs\\%s.old) { Remove-Item -Path C:\\logs\\%s.old -Force }", logPath, logPath))
+			checkCmd = fmt.Sprintf("if (Test-Path C:\\logs\\%s) { Get-ChildItem -Path C:\\logs\\%s } elseif (Test-Path C:\\logs\\%s.old) { Get-ChildItem -Path C:\\logs\\%s.old } else { Write-Output 'Files do not exist' }", logPath, logPath, logPath, logPath)
 		}
 
 		assert.EventuallyWithT(t, func(c *assert.CollectT) {
