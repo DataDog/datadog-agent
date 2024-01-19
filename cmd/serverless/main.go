@@ -271,6 +271,7 @@ func runAgent() {
 		TraceAgent:           serverlessDaemon.TraceAgent,
 		StopChan:             make(chan struct{}),
 		ColdStartSpanId:      coldStartSpanId,
+		ColdStartRequestID:   serverlessDaemon.ExecutionContext.GetCurrentState().ColdstartRequestID,
 	}
 
 	log.Debug("Starting ColdStartSpanCreator")

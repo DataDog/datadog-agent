@@ -264,6 +264,65 @@ func TestColdStartSpanCreatorNotColdStart(t *testing.T) {
 	assert.Equal(t, true, timedOut)
 }
 
+func TestColdStartSpanCreatorColdStartExists(t *testing.T) {
+	setupTraceAgentTest(t)
+
+	cfg := config.New()
+	cfg.GlobalTags = map[string]string{}
+	cfg.Endpoints[0].APIKey = "test"
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector())
+	traceAgent := &ServerlessTraceAgent{
+		ta: agnt,
+	}
+	coldStartDuration := 50.0 // Given in millis
+	lambdaSpanChan := make(chan *pb.Span)
+	lambdaInitMetricChan := make(chan *serverlessLog.LambdaInitMetric)
+	initReportStartTime := time.Now().Add(-1 * time.Second)
+	lambdaInitMetricDuration := &serverlessLog.LambdaInitMetric{
+		InitDurationTelemetry: coldStartDuration,
+	}
+	lambdaInitMetricStartTime := &serverlessLog.LambdaInitMetric{
+		InitStartTime: initReportStartTime,
+	}
+	stopChan := make(chan struct{})
+	coldStartSpanID := random.Random.Uint64()
+	coldStartSpanCreator := &ColdStartSpanCreator{
+		TraceAgent:           traceAgent,
+		LambdaSpanChan:       lambdaSpanChan,
+		LambdaInitMetricChan: lambdaInitMetricChan,
+		ColdStartSpanId:      coldStartSpanID,
+		StopChan:             stopChan,
+		ColdStartRequestID:   "test",
+	}
+
+	coldStartSpanCreator.Run()
+	defer coldStartSpanCreator.Stop()
+
+	lambdaSpan := &pb.Span{
+		Service:  "aws.lambda",
+		Name:     "aws.lambda",
+		Start:    time.Now().Unix(),
+		TraceID:  random.Random.Uint64(),
+		SpanID:   random.Random.Uint64(),
+		ParentID: random.Random.Uint64(),
+		Duration: 500,
+	}
+	lambdaSpanChan <- lambdaSpan
+	lambdaInitMetricChan <- lambdaInitMetricDuration
+	lambdaInitMetricChan <- lambdaInitMetricStartTime
+	timeout := time.After(time.Millisecond)
+	timedOut := false
+	select {
+	case ss := <-traceAgent.ta.TraceWriter.In:
+		t.Fatalf("created a coldstart span when we should have passed, %v", ss)
+	case <-timeout:
+		timedOut = true
+	}
+	assert.Equal(t, true, timedOut)
+}
+
 func TestColdStartSpanCreatorCreateValidProvisionedConcurrency(t *testing.T) {
 	setupTraceAgentTest(t)
 
