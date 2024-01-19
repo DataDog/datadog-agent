@@ -305,12 +305,8 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 			tagContainersTags: payloadTags.String(),
 		}
 	}
-	select {
-	case o.out <- &p:
-		// success
-	default:
-		log.Warn("Payload in channel full. Dropped 1 payload.")
-	}
+
+	o.out <- &p
 	return src
 }
 
