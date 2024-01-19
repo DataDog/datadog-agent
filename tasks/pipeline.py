@@ -477,6 +477,10 @@ def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True):
 
     # Fill the environment variables to pass to the child pipeline.
     for v in variables.split(','):
+        # An empty string or a terminal ',' will yield an empty string which
+        # we don't need to bother with
+        if not v:
+            continue
         if v not in os.environ:
             print(
                 color_message(
