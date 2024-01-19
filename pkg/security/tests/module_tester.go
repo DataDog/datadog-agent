@@ -1001,8 +1001,11 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.cmdWrapper = cmdWrapper
 		testMod.t = t
 		testMod.opts.dynamicOpts = opts.dynamicOpts
-		if testMod.tracePipe, err = testMod.startTracing(); err != nil {
-			return testMod, err
+
+		if !opts.staticOpts.enableEBPFLess {
+			if testMod.tracePipe, err = testMod.startTracing(); err != nil {
+				return testMod, err
+			}
 		}
 
 		if opts.staticOpts.preStartCallback != nil {
@@ -1111,8 +1114,10 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		opts.staticOpts.preStartCallback(testMod)
 	}
 
-	if testMod.tracePipe, err = testMod.startTracing(); err != nil {
-		return nil, err
+	if !opts.staticOpts.enableEBPFLess {
+		if testMod.tracePipe, err = testMod.startTracing(); err != nil {
+			return nil, err
+		}
 	}
 
 	if opts.staticOpts.snapshotRuleMatchHandler != nil {
