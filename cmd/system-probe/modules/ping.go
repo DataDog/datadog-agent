@@ -22,8 +22,6 @@ const (
 	countParam    = "count"
 	intervalParam = "interval"
 	timeoutParam  = "timeout"
-
-	defaultPingConcurrencyLimit = 10
 )
 
 type pinger struct{}
