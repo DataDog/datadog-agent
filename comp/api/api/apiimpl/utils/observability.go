@@ -8,6 +8,7 @@ package utils
 
 import (
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -48,7 +49,14 @@ func logResponseHandler(serverName string, getLogFunc func(int) logFunc) mux.Mid
 			code := lrw.Status()
 			logFunc := getLogFunc(code)
 
-			logFunc(logFormat, serverName, r.Method, r.RequestURI, r.RemoteAddr, duration, code)
+			var path string
+			// can't use r.URL.Path because http.StripPrefix could have been used
+			if reqURL, err := url.ParseRequestURI(r.RequestURI); err == nil {
+				path = reqURL.Path
+			} else {
+				path = "<invalid url>" // redacted in case it contained sensitive information
+			}
+			logFunc(logFormat, serverName, r.Method, path, r.RemoteAddr, duration, code)
 		})
 	}
 }

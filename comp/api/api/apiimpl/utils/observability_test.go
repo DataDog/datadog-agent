@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -48,55 +49,60 @@ func TestLogResponseHandlerLogging(t *testing.T) {
 	serverName := "TestServer"
 
 	testCases := []struct {
-		statusCode int
-		method     string
-		uri        string
-		remoteAddr string
-		duration   time.Duration
+		statusCode  int
+		method      string
+		url         string
+		remoteAddr  string
+		duration    time.Duration
+		stripPrefix string
 	}{
 		{
 			statusCode: http.StatusContinue,
 			method:     "GET",
-			uri:        "/test/",
+			url:        "http://agent.host/test/",
 			duration:   time.Nanosecond,
 			remoteAddr: "myhost:1234",
 		},
 		{
 			statusCode: http.StatusOK,
 			method:     "POST",
-			uri:        "/test/2",
+			url:        "http://agent.host/test/2",
 			duration:   time.Microsecond,
 			remoteAddr: "myotherhost:12345",
 		},
 		{
-			statusCode: http.StatusMovedPermanently,
-			method:     "PUT",
-			uri:        "/test/3",
-			duration:   time.Millisecond,
-			remoteAddr: "anotherhost",
+			statusCode:  http.StatusMovedPermanently,
+			method:      "PUT",
+			url:         "http://agent.host/test/3",
+			duration:    time.Millisecond,
+			remoteAddr:  "anotherhost",
+			stripPrefix: "/test",
 		},
 		{
 			statusCode: http.StatusBadRequest,
 			method:     "DELETE",
-			uri:        "/test/4",
+			url:        "http://agent.host/test/4?myvalue=0&mysecret=qwertyuiop&myothervalue=1",
 			duration:   time.Second,
 			remoteAddr: "yetanotherhost",
 		},
 		{
-			statusCode: http.StatusInternalServerError,
-			method:     "PATCH",
-			uri:        "/test/5",
-			duration:   500 * time.Millisecond,
-			remoteAddr: "lasthost",
+			statusCode:  http.StatusInternalServerError,
+			method:      "PATCH",
+			url:         "http://agent.host/test/5?secret=1234567890",
+			duration:    500 * time.Millisecond,
+			remoteAddr:  "lasthost",
+			stripPrefix: "/test",
 		},
 	}
 
 	for _, tt := range testCases {
-		name := fmt.Sprintf(logFormat, serverName, tt.method, tt.uri, tt.remoteAddr, tt.duration, tt.statusCode)
+		ttURL, err := url.Parse(tt.url)
+		require.NoError(t, err)
+
+		name := fmt.Sprintf(logFormat, serverName, tt.method, ttURL.Path, tt.remoteAddr, tt.duration, tt.statusCode)
 		t.Run(name, func(t *testing.T) {
-			req := httptest.NewRequest(tt.method, tt.uri, nil)
+			req := httptest.NewRequest(tt.method, tt.url, nil)
 			req.RemoteAddr = tt.remoteAddr
-			rr := httptest.NewRecorder()
 
 			var getLogFuncCalls int
 			getLogFunc := func(int) logFunc {
@@ -107,7 +113,7 @@ func TestLogResponseHandlerLogging(t *testing.T) {
 
 					assert.EqualValues(t, serverName, args[0])
 					assert.EqualValues(t, tt.method, args[1])
-					assert.EqualValues(t, tt.uri, args[2])
+					assert.EqualValues(t, ttURL.Path, args[2])
 					assert.EqualValues(t, tt.remoteAddr, args[3])
 					assert.LessOrEqual(t, tt.duration, args[4])
 					assert.EqualValues(t, tt.statusCode, args[5])
@@ -119,11 +125,13 @@ func TestLogResponseHandlerLogging(t *testing.T) {
 				w.WriteHeader(tt.statusCode)
 			})
 
-			middleware := logResponseHandler(serverName, getLogFunc)
-			handler := middleware(next)
+			logHandler := logResponseHandler(serverName, getLogFunc)
+			handler := http.StripPrefix(tt.stripPrefix, logHandler(next))
+
+			rr := httptest.NewRecorder()
 			handler.ServeHTTP(rr, req)
 
-			assert.Equal(t, 1, getLogFuncCalls)
+			require.Equal(t, 1, getLogFuncCalls)
 		})
 	}
 }
