@@ -41,8 +41,8 @@ func CollectSystemInfo() (*model.SystemInfo, error) {
 	if physCount == 0 {
 		return nil, fmt.Errorf("Returned zero physical processors")
 	}
+	cpus := make([]*model.CPUInfo, 0)
 	logicalCountPerPhys := logicalCount / physCount
-	cpus := make([]*model.CPUInfo, 0, len(cpuInfo))
 	for i := uint64(0); i < physCount; i++ {
 		cpus = append(cpus, &model.CPUInfo{
 			Cores: int32(logicalCountPerPhys),
