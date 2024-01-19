@@ -22,6 +22,9 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/os"
 )
 
+const LinuxLogsFolderPath = "/var/log/e2e_test_logs"
+const WindowsLogsFolderPath = "C:\\logs\\e2e_test_logs"
+
 // LogsTestSuite is an interface for the log agent test suite.
 type LogsTestSuite interface {
 	T() *testing.T
@@ -29,8 +32,8 @@ type LogsTestSuite interface {
 	IsDevMode() bool
 }
 
-// AppendLog appen log with 'content', which is then repeated 'reccurrence' times and verifies log contents.
-func AppendLog(ls LogsTestSuite, logPath, content string, recurrence int) {
+// AppendLog append log with 'content', which is then repeated 'reccurrence' times and verifies log contents.
+func AppendLog(ls LogsTestSuite, logFile, content string, recurrence int) {
 	// Determine the OS and set the appropriate log path and command.
 	var cmd, checkCmd string
 	t := ls.T()
@@ -41,13 +44,13 @@ func AppendLog(ls LogsTestSuite, logPath, content string, recurrence int) {
 	case os.WindowsFamily:
 		osStr = "windows"
 		t.Log("Generating Windows log.")
-		cmd = fmt.Sprintf("echo %s > %s", strings.Repeat(content+" ", recurrence), logPath)
-		checkCmd = fmt.Sprintf("Get-Content %s", logPath)
+		cmd = fmt.Sprintf("echo %s > %s\\%s", strings.Repeat(content+" ", recurrence), WindowsLogsFolderPath, logFile)
+		checkCmd = fmt.Sprintf("Get-Content %s\\%s", WindowsLogsFolderPath, logFile)
 	default: // Assuming Linux if not Windows.
 		osStr = "linux"
 		t.Log("Generating Linux log.")
-		cmd = fmt.Sprintf("echo '%s' | sudo tee -a %s", strings.Repeat(content+" ", recurrence), logPath)
-		checkCmd = fmt.Sprintf("sudo cat %s", logPath)
+		cmd = fmt.Sprintf("echo '%s' | sudo tee -a %s/%s", strings.Repeat(content+" ", recurrence), LinuxLogsFolderPath, logFile)
+		checkCmd = fmt.Sprintf("sudo cat %s/%s", LinuxLogsFolderPath, logFile)
 	}
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -68,19 +71,19 @@ func AppendLog(ls LogsTestSuite, logPath, content string, recurrence int) {
 }
 
 // CheckLogFilePresence verifies the presence or absence of a log file path
-func CheckLogFilePresence(ls LogsTestSuite, logPath string) {
+func CheckLogFilePresence(ls LogsTestSuite, logFile string) {
 	t := ls.T()
 	t.Helper()
 
 	switch ls.Env().RemoteHost.OSFamily {
 	case os.WindowsFamily:
-		checkCmd := fmt.Sprintf("Get-Content %s", logPath)
+		checkCmd := fmt.Sprintf("Get-Content %s\\%s", WindowsLogsFolderPath, logFile)
 		_, err := ls.Env().RemoteHost.Execute(checkCmd)
 		if err != nil {
 			assert.FailNow(t, "Log File not found")
 		}
 	default: // Assuming Linux if not Windows.
-		checkCmd := fmt.Sprintf("sudo cat %s", logPath)
+		checkCmd := fmt.Sprintf("sudo cat %s/%s", LinuxLogsFolderPath, logFile)
 		_, err := ls.Env().RemoteHost.Execute(checkCmd)
 		if err != nil {
 			assert.FailNow(t, "Log File not found")
@@ -121,7 +124,7 @@ func CheckLogs(ls LogsTestSuite, service, content string, expectLogs bool) {
 }
 
 // CleanUp cleans up any existing log files (only useful when running dev mode/local runs).
-func CleanUp(ls LogsTestSuite, logPath string) {
+func CleanUp(ls LogsTestSuite) {
 	t := ls.T()
 	t.Helper()
 	var checkCmd string
@@ -129,13 +132,11 @@ func CleanUp(ls LogsTestSuite, logPath string) {
 	if ls.IsDevMode() {
 		switch ls.Env().RemoteHost.OSFamily {
 		default: // default is linux
-			ls.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo rm -f %s", logPath))
-			ls.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo rm -f /var/log/%s.old", logPath))
-			checkCmd = fmt.Sprintf("ls %s %s.old 2>/dev/null || echo 'Files do not exist'", logPath, logPath)
+			ls.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo rm -rf %s", LinuxLogsFolderPath))
+			checkCmd = fmt.Sprintf("ls %s 2>/dev/null || echo 'Files do not exist'", LinuxLogsFolderPath)
 		case os.WindowsFamily:
-			ls.Env().RemoteHost.MustExecute(fmt.Sprintf("if (Test-Path C:\\logs\\%s) { Remove-Item -Path C:\\logs\\%s -Force }", logPath, logPath))
-			ls.Env().RemoteHost.MustExecute(fmt.Sprintf("if (Test-Path C:\\logs\\%s.old) { Remove-Item -Path C:\\logs\\%s.old -Force }", logPath, logPath))
-			checkCmd = fmt.Sprintf("if (Test-Path C:\\logs\\%s) { Get-ChildItem -Path C:\\logs\\%s } elseif (Test-Path C:\\logs\\%s.old) { Get-ChildItem -Path C:\\logs\\%s.old } else { Write-Output 'Files do not exist' }", logPath, logPath, logPath, logPath)
+			ls.Env().RemoteHost.MustExecute(fmt.Sprintf("if (Test-Path %s) { Remove-Item -Path %s -Force }", WindowsLogsFolderPath, WindowsLogsFolderPath))
+			checkCmd = fmt.Sprintf("if (Test-Path %s) { Get-ChildItem -Path %s } else { Write-Output 'Files do not exist' }", WindowsLogsFolderPath, WindowsLogsFolderPath)
 		}
 
 		assert.EventuallyWithT(t, func(c *assert.CollectT) {
