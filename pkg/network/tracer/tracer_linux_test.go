@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"math/rand"
 	"net"
 	"net/netip"
 	"os"
@@ -47,6 +46,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
+	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
@@ -468,7 +468,7 @@ func (s *TracerSuite) TestConntrackDelays() {
 
 	// The random port is necessary to avoid flakiness in the test. Running the the test multiple
 	// times can fail if binding to the same port since Conntrack might not emit NEW events for the same tuple
-	port := 5430 + rand.Intn(100)
+	port := nettestutil.GetRandOpenPort(t)
 	server := NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", port), func(c net.Conn) {
 		wg.Add(1)
 		defer wg.Done()
@@ -506,7 +506,7 @@ func (s *TracerSuite) TestTranslationBindingRegression() {
 	tr := setupTracer(t, testConfig())
 
 	// Setup TCP server
-	port := 5430 + rand.Intn(100)
+	port := nettestutil.GetRandOpenPort(t)
 	server := NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", port), func(c net.Conn) {
 		wg.Add(1)
 		defer wg.Done()
@@ -563,7 +563,7 @@ func (s *TracerSuite) TestUnconnectedUDPSendIPv6() {
 	linkLocal, err := offsetguess.GetIPv6LinkLocalAddress()
 	require.NoError(t, err)
 
-	remotePort := rand.Int()%5000 + 15000
+	remotePort := nettestutil.GetRandOpenPort(t)
 	remoteAddr := &net.UDPAddr{IP: net.ParseIP(offsetguess.InterfaceLocalMulticastIPv6), Port: remotePort}
 	conn, err := net.ListenUDP("udp6", linkLocal[0])
 	require.NoError(t, err)
@@ -1306,7 +1306,7 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 
 	tr := setupTracer(t, cfg)
 
-	port := rand.Intn(32768) + 32768
+	port := nettestutil.GetRandOpenPort(t)
 	createReuseServer := func(port int) *UDPServer {
 		return &UDPServer{
 			network: udpnet,

@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -1150,7 +1151,7 @@ func (s *TracerSuite) TestUnconnectedUDPSendIPv4() {
 	cfg := testConfig()
 	tr := setupTracer(t, cfg)
 
-	remotePort := rand.Int()%5000 + 15000
+	remotePort := nettestutil.GetRandOpenPort(t)
 	remoteAddr := &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: remotePort}
 	// Use ListenUDP instead of DialUDP to create a "connectionless" UDP connection
 	conn, err := net.ListenUDP("udp4", nil)
@@ -1177,7 +1178,7 @@ func (s *TracerSuite) TestConnectedUDPSendIPv6() {
 	}
 	tr := setupTracer(t, cfg)
 
-	remotePort := rand.Int()%5000 + 15000
+	remotePort := nettestutil.GetRandOpenPort(t)
 	remoteAddr := &net.UDPAddr{IP: net.IPv6loopback, Port: remotePort}
 	conn, err := net.DialUDP("udp6", nil, remoteAddr)
 	require.NoError(t, err)
