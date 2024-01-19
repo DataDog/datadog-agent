@@ -24,6 +24,7 @@ import (
 func validateToken(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := util.Validate(w, r); err != nil {
+			log.Warnf("invalid auth token for %s request to %s: %s", r.Method, r.RequestURI, err)
 			return
 		}
 		next.ServeHTTP(w, r)

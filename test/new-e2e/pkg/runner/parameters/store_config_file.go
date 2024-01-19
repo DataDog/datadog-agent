@@ -34,8 +34,9 @@ type Config struct {
 
 // ConfigParams instance contains config relayed parameters
 type ConfigParams struct {
-	AWS   AWS   `yaml:"aws"`
-	Agent Agent `yaml:"agent"`
+	AWS       AWS    `yaml:"aws"`
+	Agent     Agent  `yaml:"agent"`
+	OutputDir string `yaml:"outputDir"`
 }
 
 // AWS instance contains AWS related parameters
@@ -50,8 +51,9 @@ type AWS struct {
 
 // Agent instance contains agent related parameters
 type Agent struct {
-	APIKey string `yaml:"apiKey"`
-	APPKey string `yaml:"appKey"`
+	APIKey              string `yaml:"apiKey"`
+	APPKey              string `yaml:"appKey"`
+	VerifyCodeSignature string `yaml:"verifyCodeSignature"`
 }
 
 var _ valueStore = &configFileValueStore{}
@@ -121,6 +123,10 @@ func (s configFileValueStore) get(key StoreKey) (string, error) {
 		if s.config.ConfigParams.AWS.TeamTag != "" {
 			value = "team:" + s.config.ConfigParams.AWS.TeamTag
 		}
+	case VerifyCodeSignature:
+		value = s.config.ConfigParams.Agent.VerifyCodeSignature
+	case OutputDir:
+		value = s.config.ConfigParams.OutputDir
 	}
 
 	if value == "" {

@@ -158,8 +158,8 @@ github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 h1:EbzDX8HPk5uE2FsJYx
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
 github.com/DataDog/netlink v1.0.1-0.20230703150631-f11d5ab05838 h1:GNfmQQwU/MJmw/EzKOG6Ap2zHn+psQ/WeDakcPeLC+U=
 github.com/DataDog/netlink v1.0.1-0.20230703150631-f11d5ab05838/go.mod h1:twkDnbuQxJYemMlGd4JFIcuhgX83tXhKS2B/PRMpOho=
-github.com/DataDog/nikos v1.12.2 h1:5tRh0gmI6Wso+VafSoOOlleeBgIENxQDHsasnnfHPKM=
-github.com/DataDog/nikos v1.12.2/go.mod h1:xH/0f0T7jlX5iHyyXw1ZMMJ89kmCCXhTmJ7H318Bp7o=
+github.com/DataDog/nikos v1.12.3 h1:PdlleMH+0oJBWmuxbquwCkhzFd7wpKX24vRTg8fc7B0=
+github.com/DataDog/nikos v1.12.3/go.mod h1:xH/0f0T7jlX5iHyyXw1ZMMJ89kmCCXhTmJ7H318Bp7o=
 github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.11.0 h1:4ifgkQU0qHxrCE5axRmI4AaJYZLj95VEVxIbXlIPLUg=
 github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.11.0/go.mod h1:Tk2wwdBgWeSvDPtrGGyym8CdVWSuphiToGc/tRvFoNQ=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.11.0 h1:qaqPqVPoiW8p9/RYaF5m7qt47+jSv6bXXeP9XM7UbfA=
@@ -909,6 +909,8 @@ github.com/gorilla/websocket v1.4.0/go.mod h1:E7qHFY5m1UJ88s3WnNqhKjPHQ0heANvMoA
 github.com/gorilla/websocket v1.4.2/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
 github.com/gorilla/websocket v1.5.0 h1:PPwGk2jz7EePpoHN/+ClbZu8SPxiqlu12wZP/3sWmnc=
 github.com/gorilla/websocket v1.5.0/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
+github.com/gosnmp/gosnmp v1.37.1-0.20240115134726-db0c09337869 h1:MphZl80DUq02iPzdDxVffuUD1V24UH6UtmEY6FX+/M4=
+github.com/gosnmp/gosnmp v1.37.1-0.20240115134726-db0c09337869/go.mod h1:GDH9vNqpsD7f2HvZhKs5dlqSEcAS6s6Qp099oZRCR+M=
 github.com/gosuri/uitable v0.0.4 h1:IG2xLKRvErL3uhY6e1BylFzG+aJiwQviDDTfOKeKTpY=
 github.com/gosuri/uitable v0.0.4/go.mod h1:tKR86bXuXPZazfOTG1FIzvjIdXzd0mo4Vtn16vt0PJo=
 github.com/gregjones/httpcache v0.0.0-20180305231024-9cad4c3443a7 h1:pdN6V1QBWetyv/0+wjACpqVH+eVULgEjkurDLq3goeM=
@@ -1743,8 +1745,6 @@ github.com/zclconf/go-cty v1.13.0 h1:It5dfKTTZHe9aeppbNOda3mN7Ag7sg6QkBNm6TkyFa0
 github.com/zclconf/go-cty v1.13.0/go.mod h1:YKQzy/7pZ7iq2jNFzy5go57xdxdWoLLpaEp4u238AE0=
 github.com/zclconf/go-cty-yaml v1.0.2 h1:dNyg4QLTrv2IfJpm7Wtxi55ed5gLGOlPrZ6kMd51hY0=
 github.com/zclconf/go-cty-yaml v1.0.2/go.mod h1:IP3Ylp0wQpYm50IHK8OZWKMu6sPJIUgKa8XhiVHura0=
-github.com/zoedt/gosnmp v0.0.0-20231218153121-83a06ce65d5a h1:6VhH5g5QFIfRqEqFuvtSfkIAKv4cMz7nXxcnjf9sigM=
-github.com/zoedt/gosnmp v0.0.0-20231218153121-83a06ce65d5a/go.mod h1:GDH9vNqpsD7f2HvZhKs5dlqSEcAS6s6Qp099oZRCR+M=
 github.com/zorkian/go-datadog-api v2.30.0+incompatible h1:R4ryGocppDqZZbnNc5EDR8xGWF/z/MxzWnqTUijDQes=
 github.com/zorkian/go-datadog-api v2.30.0+incompatible/go.mod h1:PkXwHX9CUQa/FpB9ZwAD45N1uhCW4MT/Wj7m36PbKss=
 go.etcd.io/bbolt v1.3.2/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=

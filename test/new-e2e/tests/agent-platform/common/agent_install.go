@@ -29,7 +29,10 @@ func CheckInstallation(t *testing.T, client *TestClient) {
 		_, err := client.FileManager.FileExists(binaryPath)
 		require.NoError(tt, err, "datadog-agent binary should be present")
 	})
+}
 
+// CheckSigningKeys ensures datadog-signing-keys package is installed
+func CheckSigningKeys(t *testing.T, client *TestClient) {
 	t.Run("datadog-signing-keys package", func(tt *testing.T) {
 		if _, err := client.Host.Execute("dpkg --version"); err != nil {
 			tt.Skip()
@@ -86,24 +89,18 @@ func CheckInstallationInstallScript(t *testing.T, client *TestClient) {
 }
 
 // CheckUninstallation runs check to see if the agent uninstall properly
-func CheckUninstallation(t *testing.T, client *TestClient, packageName string) {
-	t.Run("remove the agent", func(tt *testing.T) {
-		_, err := client.PkgManager.Remove(packageName)
-		require.NoError(tt, err, "should uninstall the agent")
-	})
+func CheckUninstallation(t *testing.T, client *TestClient) {
 
-	t.Run("no agent process running", func(tt *testing.T) {
-		agentProcesses := []string{client.Helper.GetServiceName(), "system-probe", "security-agent"}
-		for _, process := range agentProcesses {
-			_, err := client.Host.Execute(fmt.Sprintf("pgrep -f %s", process))
-			require.Error(tt, err, fmt.Sprintf("process %s should not be running", process))
-		}
+	t.Run("no running processes", func(tt *testing.T) {
+		running, err := RunningAgentProcesses(client)
+		require.NoError(tt, err)
+		require.Empty(tt, running, "no agent process should be running")
 	})
 
 	t.Run("remove install directory", func(tt *testing.T) {
 		installFolderPath := client.Helper.GetInstallFolder()
 
-		foundFiles, err := client.FileManager.FindFileInFolder(installFolderPath)
-		require.Error(tt, err, "should not find anything in install folder, found: ", foundFiles)
+		entries, err := client.FileManager.ReadDir(installFolderPath)
+		require.Error(tt, err, "should not find anything in install folder, found %v dir entries ", len(entries))
 	})
 }

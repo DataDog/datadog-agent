@@ -35,4 +35,8 @@ const (
 	StackParameters StoreKey = "stack_params"
 	// PipelineID config file parameter name
 	PipelineID StoreKey = "pipeline_id"
+	// VerifyCodeSignature config file parameter name
+	VerifyCodeSignature StoreKey = "verify_code_signature"
+	// OutputDir config file parameter name
+	OutputDir StoreKey = "output_dir"
 )

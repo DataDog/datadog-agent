@@ -9,6 +9,7 @@ from invoke import Context, task
 from tasks.libs.common.color import color_message
 
 FORBIDDEN_CODECOV_FLAG_CHARS = re.compile(r'[^\w\.\-]')
+AGENT_MODULE_PATH_PREFIX = "github.com/DataDog/datadog-agent/"
 
 
 class GoModule:
@@ -59,7 +60,6 @@ class GoModule:
         """
         Computes the list of github.com/DataDog/datadog-agent/ dependencies of the module.
         """
-        prefix = "github.com/DataDog/datadog-agent/"
         base_path = os.getcwd()
         mod_parser_path = os.path.join(base_path, "internal", "tools", "modparser")
 
@@ -68,7 +68,7 @@ class GoModule:
 
         try:
             output = subprocess.check_output(
-                ["go", "run", ".", "-path", os.path.join(base_path, self.path), "-prefix", prefix],
+                ["go", "run", ".", "-path", os.path.join(base_path, self.path), "-prefix", AGENT_MODULE_PATH_PREFIX],
                 cwd=mod_parser_path,
             ).decode("utf-8")
         except subprocess.CalledProcessError as e:
@@ -76,7 +76,7 @@ class GoModule:
             raise e
 
         # Remove github.com/DataDog/datadog-agent/ from each line
-        return [line[len(prefix) :] for line in output.strip().splitlines()]
+        return [line[len(AGENT_MODULE_PATH_PREFIX) :] for line in output.strip().splitlines()]
 
     # FIXME: Change when Agent 6 and Agent 7 releases are decoupled
     def tag(self, agent_version):
@@ -121,7 +121,7 @@ class GoModule:
         >>> [mod.import_path for mod in mods]
         ["github.com/DataDog/datadog-agent", "github.com/DataDog/datadog-agent/pkg/util/log"]
         """
-        path = "github.com/DataDog/datadog-agent"
+        path = AGENT_MODULE_PATH_PREFIX.removesuffix('/')
         if self.path != ".":
             path += "/" + self.path
         return path
