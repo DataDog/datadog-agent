@@ -9,17 +9,19 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
 
-// YumPackageManager struct for the Yum package manager
-type YumPackageManager struct {
+// Yum struct for the Yum package manager
+type Yum struct {
 	host *components.RemoteHost
 }
 
-// NewYumPackageManager return yum package manager
-func NewYumPackageManager(host *components.RemoteHost) *YumPackageManager {
-	return &YumPackageManager{host: host}
+var _ PackageManager = &Yum{}
+
+// NewYum return yum package manager
+func NewYum(host *components.RemoteHost) *Yum {
+	return &Yum{host: host}
 }
 
 // Remove executes remove command from yum
-func (s *YumPackageManager) Remove(pkg string) (string, error) {
+func (s *Yum) Remove(pkg string) (string, error) {
 	return s.host.Execute("sudo yum remove -y " + pkg)
 }

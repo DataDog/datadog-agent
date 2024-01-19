@@ -562,6 +562,32 @@ def timed(name="", quiet=False):
             print(f"{name} completed in {res.duration:.2f}s")
 
 
+def clean_nested_paths(paths):
+    """
+    Clean a list of paths by removing paths that are included in other paths.
+
+    Example:
+    >>> clean_nested_paths(["./pkg/utils/toto", "./pkg/utils/", "./pkg", "./toto/pkg", "./pkg/utils/tata"])
+    ["./pkg", "./toto/pkg"]
+    """
+    # sort the paths by length, so that the longest paths are at the beginning
+    paths.sort()
+    cleaned_paths = []
+    for path in paths:
+        # if the path is already included in another path, skip it
+        if len(cleaned_paths) == 0:
+            cleaned_paths.append(path)
+        else:
+            last_clean_path_splitted = cleaned_paths[-1].split("/")
+            path_splitted = path.split("/")
+            for idx, element in enumerate(last_clean_path_splitted):
+                if idx >= len(path_splitted) or element != path_splitted[idx]:
+                    cleaned_paths.append(path)
+                    break
+
+    return cleaned_paths
+
+
 @contextmanager
 def environ(env):
     original_environ = os.environ.copy()

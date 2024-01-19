@@ -10,7 +10,6 @@ package webhook
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 
@@ -22,24 +21,6 @@ import (
 type fixture struct {
 	t      *testing.T //nolint:structcheck
 	client *fake.Clientset
-}
-
-// waitOnActions can be used to wait for controller to start watching
-// resources effectively and handling objects before returning it.
-// Otherwise tests will start making assertions before the reconciliation is done.
-func (f *fixture) waitOnActions() {
-	lastChange := time.Now()
-	lastCount := 0
-	for {
-		time.Sleep(1 * time.Second)
-		count := len(f.client.Actions())
-		if count > lastCount {
-			lastChange = time.Now()
-			lastCount = count
-		} else if time.Since(lastChange) > 2*time.Second {
-			return
-		}
-	}
 }
 
 func (f *fixture) populateSecretsCache(secrets ...*corev1.Secret) {

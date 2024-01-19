@@ -227,8 +227,6 @@ class GithubAPI:
             - A token from macOS keychain
             - A fake login user/password to reach public repositories
         """
-        if public_repo:
-            return Auth.Login("user", "password")
         if "GITHUB_TOKEN" in os.environ:
             return Auth.Token(os.environ["GITHUB_TOKEN"])
         if "GITHUB_APP_ID" in os.environ and "GITHUB_KEY_B64" in os.environ:
@@ -245,6 +243,8 @@ class GithubAPI:
                     raise Exit(message='No usable installation found', code=1)
                 installation_id = installations[0]
             return appAuth.get_installation_auth(int(installation_id))
+        if public_repo:
+            return Auth.Login("user", "password")
         if platform.system() == "Darwin":
             try:
                 output = (

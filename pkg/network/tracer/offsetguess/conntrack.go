@@ -47,28 +47,8 @@ type conntrackOffsetGuesser struct {
 
 //nolint:revive // TODO(NET) Fix revive linter
 func NewConntrackOffsetGuesser(cfg *config.Config) (OffsetGuesser, error) {
-	consts, err := TracerOffsets.Offsets(cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	var offsetIno uint64
-	var tcpv6Enabled, udpv6Enabled uint64
-	for _, c := range consts {
-		switch c.Name {
-		case "offset_ino":
-			offsetIno = c.Value.(uint64)
-		case "tcpv6_enabled":
-			tcpv6Enabled = c.Value.(uint64)
-		case "udpv6_enabled":
-			udpv6Enabled = c.Value.(uint64)
-		}
-	}
-
-	if offsetIno == 0 {
-		return nil, fmt.Errorf("ino offset is 0")
-	}
-
+	tcpv6Enabled, udpv6Enabled := getIpv6Configuration(cfg)
+	tcpv6EnabledConst, udpv6EnabledConst := boolToUint64(tcpv6Enabled), boolToUint64(udpv6Enabled)
 	return &conntrackOffsetGuesser{
 		m: &manager.Manager{
 			Maps: []*manager.Map{
@@ -83,9 +63,9 @@ func NewConntrackOffsetGuesser(cfg *config.Config) (OffsetGuesser, error) {
 				// so explicitly disabled, and the manager won't load it
 				{ProbeIdentificationPair: idPair(probes.NetDevQueue)}},
 		},
-		status:       &ConntrackStatus{Offset_ino: offsetIno},
-		tcpv6Enabled: tcpv6Enabled,
-		udpv6Enabled: udpv6Enabled,
+		status:       &ConntrackStatus{},
+		tcpv6Enabled: tcpv6EnabledConst,
+		udpv6Enabled: udpv6EnabledConst,
 	}, nil
 }
 
@@ -101,7 +81,7 @@ func (c *conntrackOffsetGuesser) Close() {
 }
 
 //nolint:revive // TODO(NET) Fix revive linter
-func (c *conntrackOffsetGuesser) Probes(cfg *config.Config) (map[probes.ProbeFuncName]struct{}, error) {
+func (c *conntrackOffsetGuesser) Probes(*config.Config) (map[probes.ProbeFuncName]struct{}, error) {
 	p := map[probes.ProbeFuncName]struct{}{}
 	enableProbe(p, probes.ConntrackHashInsert)
 	return p, nil
@@ -183,12 +163,17 @@ func (c *conntrackOffsetGuesser) checkAndUpdateCurrentOffset(mp *ddebpf.GenericM
 
 		if c.status.Netns == expected.netns {
 			c.logAndAdvance(c.status.Offset_netns, GuessNotApplicable)
+			log.Debugf("Successfully guessed %v with offset of %d bytes", "ino", c.status.Offset_ino)
 			return c.setReadyState(mp)
 		}
+		c.status.Offset_ino++
 		log.Tracef("%v %d does not match expected %d, incrementing offset %d",
 			whatString[GuessWhat(c.status.What)], c.status.Netns, expected.netns, c.status.Offset_netns)
-		c.status.Offset_netns++
-		c.status.Offset_netns, _ = skipOverlaps(c.status.Offset_netns, c.nfConnRanges())
+		if c.status.Err != 0 || c.status.Offset_ino >= threshold {
+			c.status.Offset_ino = 0
+			c.status.Offset_netns++
+			c.status.Offset_netns, _ = skipOverlaps(c.status.Offset_netns, c.nfConnRanges())
+		}
 	default:
 		return fmt.Errorf("unexpected field to guess: %v", whatString[GuessWhat(c.status.What)])
 	}
@@ -279,6 +264,7 @@ func (c *conntrackOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEd
 
 	for _, ns := range nss {
 		var consts []manager.ConstantEditor
+
 		if consts, err = c.runOffsetGuessing(cfg, ns, mp); err == nil {
 			return consts, nil
 		}

@@ -48,7 +48,8 @@ include:
   - /.gitlab/functional_test/common.yml
   - /.gitlab/benchmarks/benchmarks.yml
   - /.gitlab/benchmarks/macrobenchmarks.yml
-  - /.gitlab/rc_kubernetes_deploy.yml
+  - /.gitlab/rc_jobs/rc_kubernetes_deploy.yml
+  - /.gitlab/rc_jobs/post_rc_tasks.yml
 
 default:
   retry:
@@ -102,6 +103,7 @@ stages:
   - functional_test_cleanup
   - functional_test_junit_upload
   - internal_kubernetes_deploy
+  - post_rc_build
   - check_merge
   - notify
 
@@ -179,7 +181,7 @@ variables:
   # To use images from test-infra-definitions dev branches, set the SUFFIX variable to -dev
   # and check the job creating the image to make sure you have the right SHA prefix
   TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 8e2ea3fd1fe7
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: f69f46f8ca43
   DATADOG_AGENT_BUILDERS: v22276738-b36b132
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -940,6 +942,21 @@ workflow:
         - test/kitchen/test/integration/security-agent-test/**/*
         - test/kitchen/test/integration/security-agent-stress/**/*
         - .gitlab/functional_test/security_agent.yml
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
+  - when: manual
+    allow_failure: true
+
+.on_windows_installer_changes_or_manual:
+  - <<: *if_main_branch
+  - <<: *if_mergequeue
+    when: never
+  - changes:
+      paths:
+        - tools/windows/DatadogAgentInstaller/**/*
+        - .gitlab/new-e2e_testing/windows.yml
+        - test/new-e2e/tests/windows/install-test/**/*
+        - tasks/msi.py
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual

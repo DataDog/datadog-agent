@@ -166,19 +166,6 @@ kitchen_windows_installer_agent-a7:
     - .kitchen_scenario_windows_a7
     - .kitchen_test_windows_installer_agent
 
-kitchen_windows_chef_agent-a6:
-  extends:
-    - .kitchen_scenario_windows_a6
-    - .kitchen_test_chef_agent
-
-kitchen_windows_chef_agent-a7:
-  # Run chef test on branches, on a reduced number of platforms
-  rules:
-    !reference [.on_default_kitchen_tests_a7]
-  extends:
-    - .kitchen_scenario_windows_a7
-    - .kitchen_test_chef_agent
-
 kitchen_windows_upgrade5_agent-a6:
   extends:
     - .kitchen_scenario_windows_a6

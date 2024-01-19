@@ -128,9 +128,10 @@ func TestFullConfig(t *testing.T) {
 	assert.Equal(t, gosnmp.UserSecurityModel, params.SecurityModel)
 	assert.Equal(t, &gosnmp.UsmSecurityParameters{AuthoritativeEngineID: expectedEngineID}, params.SecurityParameters)
 
-	table := gosnmp.NewSnmpV3SecurityParametersTable()
+	table := gosnmp.NewSnmpV3SecurityParametersTable(params.Logger)
 	for _, usmUser := range usmUsers {
-		table.Add(usmUser.UserName, usmUser)
+		err := table.Add(usmUser.UserName, usmUser)
+		assert.Nil(t, err)
 	}
 	var usmConfigTests = []struct {
 		name       string
