@@ -11,7 +11,6 @@
             "duration": null,
             "error": 0,
             "meta": {
-              "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
               "_dd.p.dm": "-9",
               "account_id": "############",
@@ -58,7 +57,6 @@
             "duration": null,
             "error": 0,
             "meta": {
-              "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
               "account_id": "############",
               "architecture": "XXX",
@@ -134,7 +132,6 @@
             "duration": null,
             "error": 0,
             "meta": {
-              "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
               "_dd.p.dm": "-9",
               "account_id": "############",
@@ -181,7 +178,6 @@
             "duration": null,
             "error": 0,
             "meta": {
-              "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
               "account_id": "############",
               "architecture": "XXX",
