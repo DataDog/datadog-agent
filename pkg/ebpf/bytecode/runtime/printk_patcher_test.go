@@ -42,12 +42,11 @@ func TestPatchPrintkNewline(t *testing.T) {
 		}
 	}
 
-	if kernelVersion.IsAmazonLinuxKernel() || kernelVersion.IsRH7Kernel() || kernelVersion.IsRH8Kernel() {
-		t.Skip("Skipping test on Amazon Linux and RedHat kernels due to backports")
-	}
-
 	if kernelVersion.Code <= ebpfkernel.Kernel5_9 {
 		t.Skip("Skipping test on older kernels, instruction patching not used there")
+	}
+	if kernelVersion.IsDebianKernel() && kernelVersion.Code <= ebpfkernel.Kernel5_10 {
+		t.Skip("Tracing not available, cannot test")
 	}
 
 	ebpftest.TestBuildMode(t, ebpftest.RuntimeCompiled, "", func(t *testing.T) {
