@@ -213,6 +213,8 @@ func TestGetStatus(t *testing.T) {
 `,
 				index: 2,
 			}),
+			status.NoopInformationProvider(),
+			status.NoopHeaderInformationProvider(),
 		),
 	))
 

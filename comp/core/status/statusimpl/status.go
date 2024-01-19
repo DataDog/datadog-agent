@@ -87,10 +87,6 @@ func newStatus(deps dependencies) (status.Component, error) {
 	// Providers of each section are sort alphabetically by name
 	sortedProvidersBySection := map[string][]status.Provider{}
 	for _, provider := range deps.Providers {
-		if _, ok := provider.(status.NoopProvider); ok {
-			continue
-		}
-
 		providers := sortedProvidersBySection[provider.Section()]
 		sortedProvidersBySection[provider.Section()] = append(providers, provider)
 	}
@@ -102,10 +98,6 @@ func newStatus(deps dependencies) (status.Component, error) {
 	// We manually insert the common header provider in the first place after sorting is done
 	sortedHeaderProviders := []status.HeaderProvider{}
 	for _, headerProvider := range deps.HeaderProviders {
-		if _, ok := headerProvider.(status.NoopHeaderProvider); ok {
-			continue
-		}
-
 		sortedHeaderProviders = append(sortedHeaderProviders, headerProvider)
 	}
 
@@ -155,27 +147,32 @@ func (s *statusImplementation) GetStatus(format string, verbose bool) ([]byte, e
 		var b = new(bytes.Buffer)
 
 		for _, sc := range s.sortedHeaderProviders {
-			printHeader(b, sc.Name())
-			newLine(b)
+			name := sc.Name()
+			if len(name) > 0 {
+				printHeader(b, name)
+				newLine(b)
 
-			if err := sc.Text(verbose, b); err != nil {
-				errors = append(errors, err)
+				if err := sc.Text(verbose, b); err != nil {
+					errors = append(errors, err)
+				}
+
+				newLine(b)
 			}
-
-			newLine(b)
 		}
 
 		for _, section := range s.sortedSectionNames {
-			printHeader(b, section)
-			newLine(b)
+			if len(section) > 0 {
+				printHeader(b, section)
+				newLine(b)
 
-			for _, provider := range s.sortedProvidersBySection[section] {
-				if err := provider.Text(verbose, b); err != nil {
-					errors = append(errors, err)
+				for _, provider := range s.sortedProvidersBySection[section] {
+					if err := provider.Text(verbose, b); err != nil {
+						errors = append(errors, err)
+					}
 				}
-			}
 
-			newLine(b)
+				newLine(b)
+			}
 		}
 		if len(errors) > 0 {
 			if err := renderErrors(b, errors); err != nil {
