@@ -11,11 +11,11 @@ from subprocess import check_output
 from invoke import task
 from invoke.exceptions import Exit
 
-from .agent import build as agent_build
-from .agent import generate_config
-from .build_tags import get_default_build_tags
-from .go import run_golangci_lint
-from .libs.common.utils import (
+from tasks.agent import build as agent_build
+from tasks.agent import generate_config
+from tasks.build_tags import get_default_build_tags
+from tasks.go import run_golangci_lint
+from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
     environ,
@@ -26,16 +26,16 @@ from .libs.common.utils import (
     get_gopath,
     get_version,
 )
-from .libs.ninja_syntax import NinjaWriter
-from .process_agent import TempDir
-from .system_probe import (
+from tasks.libs.ninja_syntax import NinjaWriter
+from tasks.process_agent import TempDir
+from tasks.system_probe import (
     CURRENT_ARCH,
     build_cws_object_files,
     check_for_ninja,
     ninja_define_ebpf_compiler,
     ninja_define_exe_compiler,
 )
-from .windows_resources import build_messagetable, build_rc, versioninfo_vars
+from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent"))

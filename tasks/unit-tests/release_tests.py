@@ -5,8 +5,8 @@ from unittest import mock
 
 from invoke.exceptions import Exit
 
-from .. import release
-from ..libs.version import Version
+from tasks import release
+from tasks.libs.version import Version
 
 
 def mocked_github_requests_get(*args, **_kwargs):
@@ -428,7 +428,3 @@ class TestCreateBuildLinksPatterns(unittest.TestCase):
         self.assertEqual(patterns[".50.0-rc.1"], ".51.1-rc.2")
         self.assertEqual(patterns[".50.0-rc-1"], ".51.1-rc-2")
         self.assertEqual(patterns[".50.0~rc.1"], ".51.1~rc.2")
-
-
-if __name__ == '__main__':
-    unittest.main()
