@@ -349,14 +349,16 @@ def test(
     govet_flags = '-vet=off'
     gotest_flags = '{verbose} -timeout {timeout}s -short {covermode_opt} {coverprofile} {test_run_arg} {nocache}'
     cmd = f'gotestsum {gotestsum_flags} -- {gobuild_flags} {govet_flags} {gotest_flags}'
-    coverage_script_template = (
-        f"""#!/usr/bin/env bash
+    if coverage:
+        if platform.system() == 'Windows':
+            coverage_script_template = "go test {gobuild_flags} {govet_flags} {gotest_flags} -json -coverprofile=\"$(mktemp {TMP_PROFILE_COV_PREFIX}.XXXXXXXXXX)\" {{packages}}"
+        else:
+            coverage_script_template = f"""#!/usr/bin/env bash
 set -eu
 go test {gobuild_flags} {govet_flags} {gotest_flags} -json -coverprofile=\"$(mktemp {TMP_PROFILE_COV_PREFIX}.XXXXXXXXXX)\" {{packages}}
 """
-        if coverage
-        else ""
-    )
+    else:
+        coverage_script_template = ""
     args = {
         "go_mod": go_mod,
         "gcflags": gcflags,
