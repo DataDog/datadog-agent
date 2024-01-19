@@ -168,7 +168,7 @@ func (a *agentSuite) TestOpenSignal() {
 	// Check app signal
 	signal, err := api.WaitAppSignal(a.apiClient, fmt.Sprintf("host:cws-new-e2e-test-host @workflow.rule.id:%s", a.signalRuleID))
 	require.NoError(a.T(), err)
-	assert.Contains(a.T(), signal.Tags, fmt.Sprintf("rule_id:%s", strings.ToLower(a.agentRuleName)), "unable to find agent_rule_name tag")
+	assert.Contains(a.T(), signal.Tags, fmt.Sprintf("rule_id:%s", strings.ToLower(a.agentRuleName)), "unable to find rule_id tag")
 	agentContext = signal.Attributes["agent"].(map[string]interface{})
 	assert.Contains(a.T(), agentContext["rule_id"], a.agentRuleName, "unable to find tag")
 }
