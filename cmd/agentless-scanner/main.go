@@ -301,7 +301,7 @@ func (s *scanTask) Path(names ...string) string {
 }
 
 func (s *scanTask) String() string {
-	return fmt.Sprintf("%s-%s", s.ID, s.ARN)
+	return fmt.Sprintf("%s[%s]", s.ID, s.ARN)
 }
 
 func main() {
@@ -510,7 +510,7 @@ func runCmd(pidfilePath string, poolSize int) error {
 	if pidfilePath != "" {
 		err := pidfile.WritePID(pidfilePath)
 		if err != nil {
-			return log.Errorf("Error while writing PID file, exiting: %v", err)
+			return log.Errorf("could not write PID file, exiting: %v", err)
 		}
 		defer os.Remove(pidfilePath)
 		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), pidfilePath)
@@ -1001,9 +1001,9 @@ func attachCmd(resourceARN arn.ARN, mode diskMode, mount bool) error {
 		panic("unreachable")
 	}
 
-	partitions, err := listDevicePartitions(ctx, *scan.AttachedDeviceName, scan.AttachedVolumeARN)
+	partitions, err := listDevicePartitions(ctx, scan)
 	if err != nil {
-		log.Errorf("error could list paritions (device is still available on %q): %v", *scan.AttachedDeviceName, err)
+		log.Errorf("could list paritions (device is still available on %q): %v", *scan.AttachedDeviceName, err)
 	} else {
 		for _, part := range partitions {
 			fmt.Println(part.devicePath, part.fsType)
@@ -1011,7 +1011,7 @@ func attachCmd(resourceARN arn.ARN, mode diskMode, mount bool) error {
 		if mount {
 			mountPoints, err := mountDevice(ctx, scan, partitions)
 			if err != nil {
-				log.Errorf("error could not mount (device is still available on %q): %v", *scan.AttachedDeviceName, err)
+				log.Errorf("could not mount (device is still available on %q): %v", *scan.AttachedDeviceName, err)
 			} else {
 				fmt.Println()
 				for _, mountPoint := range mountPoints {
@@ -1495,7 +1495,7 @@ func (s *sideScanner) start(ctx context.Context) {
 		for result := range s.resultsCh {
 			if result.Err != nil {
 				if !errors.Is(result.Err, context.Canceled) {
-					log.Errorf("task %s reported a scanning failure: %v", result.Scan, result.Err)
+					log.Errorf("%s: reported a scanning failure: %v", result.Scan, result.Err)
 				}
 				if err := statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, tagFailure(result.Scan, result.Err), 1.0); err != nil {
 					log.Warnf("failed to send metric: %v", err)
@@ -1503,18 +1503,18 @@ func (s *sideScanner) start(ctx context.Context) {
 			} else {
 				if vulns := result.Vulns; vulns != nil {
 					if hasResults(vulns.BOM) {
-						log.Debugf("scan %s finished successfully (took %s)", result.Scan, time.Since(result.Scan.StartedAt))
+						log.Debugf("%s: finished successfully (took %s)", result.Scan, time.Since(result.Scan.StartedAt))
 						if err := statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, tagSuccess(result.Scan), 1.0); err != nil {
 							log.Warnf("failed to send metric: %v", err)
 						}
 					} else {
-						log.Debugf("scan %s finished successfully without results (took %s)", result.Scan, time.Since(result.Scan.StartedAt))
+						log.Debugf("%s: finished successfully without results (took %s)", result.Scan, time.Since(result.Scan.StartedAt))
 						if err := statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, tagNoResult(result.Scan), 1.0); err != nil {
 							log.Warnf("failed to send metric: %v", err)
 						}
 					}
 					if err := s.sendSBOM(result); err != nil {
-						log.Errorf("failed to send SBOM: %v", err)
+						log.Errorf("%s: failed to send SBOM: %v", result.Scan, err)
 					}
 					if s.printResults {
 						if bomRaw, err := json.MarshalIndent(vulns.BOM, "  ", "  "); err == nil {
@@ -1527,10 +1527,10 @@ func (s *sideScanner) start(ctx context.Context) {
 					}
 				}
 				if malware := result.Malware; malware != nil {
-					log.Debugf("sending Findings for scan %s", result.Scan)
 					if err := statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, tagSuccess(result.Scan), 1.0); err != nil {
 						log.Warnf("failed to send metric: %v", err)
 					}
+					log.Debugf("%s: sending findings", result.Scan)
 					s.sendFindings(malware.Findings)
 					if s.printResults {
 						b, _ := json.MarshalIndent(malware.Findings, "", "  ")
@@ -1567,7 +1567,7 @@ func (s *sideScanner) start(ctx context.Context) {
 
 				if err := s.launchScan(ctx, scan); err != nil {
 					if !errors.Is(err, context.Canceled) {
-						log.Errorf("task %s could not be setup properly: %v", scan, err)
+						log.Errorf("%s: could not be setup properly: %v", scan, err)
 					}
 				}
 
@@ -1802,7 +1802,7 @@ func createSnapshot(ctx context.Context, scan *scanTask, ec2client *ec2.Client, 
 	if err := statsd.Count("datadog.agentless_scanner.snapshots.started", 1.0, tagScan(scan), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}
-	log.Debugf("starting volume snapshotting %q", volumeARN)
+	log.Debugf("%s: starting volume snapshotting %q", scan, volumeARN)
 
 	retries := 0
 retry:
@@ -1825,7 +1825,7 @@ retry:
 				// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/errors-overview.html
 				// Wait at least 15 seconds between concurrent volume snapshots.
 				d := 15 * time.Second
-				log.Debugf("snapshot creation rate exceeded for volume %q; retrying after %v (%d/%d)", volumeARN, d, retries, maxSnapshotRetries)
+				log.Debugf("%s: snapshot creation rate exceeded for volume %q; retrying after %v (%d/%d)", scan, volumeARN, d, retries, maxSnapshotRetries)
 				if !sleepCtx(ctx, d) {
 					return arn.ARN{}, ctx.Err()
 				}
@@ -1833,7 +1833,7 @@ retry:
 			}
 		}
 		if isRateExceededError {
-			log.Debugf("snapshot creation rate exceeded for volume %q; skipping)", volumeARN)
+			log.Debugf("%s: snapshot creation rate exceeded for volume %q; skipping)", scan, volumeARN)
 		}
 	}
 	if err != nil {
@@ -1862,7 +1862,7 @@ retry:
 	err = <-waiter.wait(ctx, snapshotARN, ec2client)
 	if err == nil {
 		snapshotDuration := time.Since(snapshotCreatedAt)
-		log.Debugf("volume snapshotting of %q finished successfully %q (took %s)", volumeARN, snapshotID, snapshotDuration)
+		log.Debugf("%s: volume snapshotting of %q finished successfully %q (took %s)", scan, volumeARN, snapshotID, snapshotDuration)
 		if err := statsd.Histogram("datadog.agentless_scanner.snapshots.duration", float64(snapshotDuration.Milliseconds()), tagScan(scan), 1.0); err != nil {
 			log.Warnf("failed to send metric: %v", err)
 		}
@@ -2227,7 +2227,7 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 		panic("unreachable")
 	}
 
-	partitions, err := listDevicePartitions(ctx, *scan.AttachedDeviceName, scan.AttachedVolumeARN)
+	partitions, err := listDevicePartitions(ctx, scan)
 	if err != nil {
 		return err
 	}
@@ -2644,7 +2644,7 @@ func downloadAndUnzipLambda(ctx context.Context, scan *scanTask, lambdaDir strin
 		return "", err
 	}
 
-	log.Debugf("function retrieved successfully %q (took %s)", scan.ARN, time.Since(scan.StartedAt))
+	log.Debugf("%s: function retrieved successfully (took %s)", scan, time.Since(scan.StartedAt))
 	if err := statsd.Histogram("datadog.agentless_scanner.functions.duration", float64(time.Since(scan.StartedAt).Milliseconds()), tagScan(scan), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}
@@ -2728,7 +2728,7 @@ func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, snapshotARN a
 
 	var localSnapshotARN arn.ARN
 	if snapshotARN.Region != self.Region {
-		log.Debugf("copying snapshot %q into %q", snapshotARN, self.Region)
+		log.Debugf("%s: copying snapshot %q into %q", scan, snapshotARN, self.Region)
 		copySnapshotCreatedAt := time.Now()
 		copySnapshot, err := remoteEC2Client.CopySnapshot(ctx, &ec2.CopySnapshotInput{
 			SourceRegion: aws.String(snapshotARN.Region),
@@ -2740,13 +2740,13 @@ func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, snapshotARN a
 			return fmt.Errorf("could not copy snapshot %q to %q: %w", snapshotARN, self.Region, err)
 		}
 		localSnapshotARN = ec2ARN(self.Region, snapshotARN.AccountID, resourceTypeSnapshot, *copySnapshot.SnapshotId)
-		log.Debugf("waiting for copy of snapshot %q into %q as %q", snapshotARN, self.Region, *copySnapshot.SnapshotId)
+		log.Debugf("%s: waiting for copy of snapshot %q into %q as %q", scan, snapshotARN, self.Region, *copySnapshot.SnapshotId)
 		waiter := getAWSWaiter(ctx)
 		err = <-waiter.wait(ctx, localSnapshotARN, remoteEC2Client)
 		if err != nil {
 			return fmt.Errorf("could not finish copying %q to %q as %q: %w", snapshotARN, self.Region, *copySnapshot.SnapshotId, err)
 		}
-		log.Debugf("successfully copied snapshot %q into %q: %q", snapshotARN, self.Region, *copySnapshot.SnapshotId)
+		log.Debugf("%s: successfully copied snapshot %q into %q: %q", scan, snapshotARN, self.Region, *copySnapshot.SnapshotId)
 		scan.CreatedSnapshots[localSnapshotARN.String()] = &copySnapshotCreatedAt
 	} else {
 		localSnapshotARN = snapshotARN
@@ -2771,7 +2771,7 @@ func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, snapshotARN a
 	}
 	locaEC2Client := ec2.NewFromConfig(localAWSCfg)
 
-	log.Debugf("creating new volume for snapshot %q in az %q", localSnapshotARN, self.AvailabilityZone)
+	log.Debugf("%s: creating new volume for snapshot %q in az %q", scan, localSnapshotARN, self.AvailabilityZone)
 	_, localSnapshotID, _ := getARNResource(localSnapshotARN)
 	volume, err := locaEC2Client.CreateVolume(ctx, &ec2.CreateVolumeInput{
 		VolumeType:        ec2types.VolumeTypeGp2,
@@ -2784,7 +2784,7 @@ func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, snapshotARN a
 	}
 
 	device := nextDeviceName()
-	log.Debugf("attaching volume %q into device %q", *volume.VolumeId, device)
+	log.Debugf("%s: attaching volume %q into device %q", scan, *volume.VolumeId, device)
 	var errAttach error
 	for i := 0; i < maxAttachRetries; i++ {
 		_, errAttach = locaEC2Client.AttachVolume(ctx, &ec2.AttachVolumeInput{
@@ -2793,11 +2793,11 @@ func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, snapshotARN a
 			Device:     aws.String(device),
 		})
 		if errAttach == nil {
-			log.Debugf("volume attached successfully %q device=%s", *volume.VolumeId, device)
+			log.Debugf("%s: volume attached successfully %q device=%s", scan, *volume.VolumeId, device)
 			break
 		}
 		d := 1 * time.Second
-		log.Debugf("couldn't attach volume %q into device %q; retrying after %v (%d/%d)", *volume.VolumeId, device, d, i+1, maxAttachRetries)
+		log.Debugf("%s: couldn't attach volume %q into device %q; retrying after %v (%d/%d)", scan, *volume.VolumeId, device, d, i+1, maxAttachRetries)
 		if !sleepCtx(ctx, d) {
 			break
 		}
@@ -2867,8 +2867,9 @@ func listBlockDevices(ctx context.Context, deviceName ...string) ([]blockDevice,
 	return blockDevices.BlockDevices, nil
 }
 
-func listDevicePartitions(ctx context.Context, device string, volumeARN *arn.ARN) ([]devicePartition, error) {
-	log.Debugf("listing partition from device %q (volume = %q)", device, volumeARN)
+func listDevicePartitions(ctx context.Context, scan *scanTask) ([]devicePartition, error) {
+	device, volumeARN := *scan.AttachedDeviceName, scan.AttachedVolumeARN
+	log.Debugf("%s: listing partition from device %q (volume = %q)", scan, device, volumeARN)
 
 	// NOTE(jinroh): we identified that on some Linux kernel the device path
 	// may not be the expected one (passed to AttachVolume). The kernel may
@@ -2942,7 +2943,7 @@ func listDevicePartitions(ctx context.Context, device string, volumeARN *arn.ARN
 		return nil, fmt.Errorf("could not find any btrfs, ext2, ext3, ext4 or xfs partition in %s (volume = %q)", device, volumeARN)
 	}
 
-	log.Debugf("found %d compatible partitions for device %q", len(partitions), device)
+	log.Debugf("%s: found %d compatible partitions for device %q", scan, len(partitions), device)
 	return partitions, nil
 }
 
@@ -2973,14 +2974,14 @@ func mountDevice(ctx context.Context, scan *scanTask, partitions []devicePartiti
 
 		if mp.fsType == "btrfs" {
 			// Replace fsid of btrfs partition with randomly generated UUID.
-			log.Debugf("execing btrfstune -f -u %s", mp.devicePath)
+			log.Debugf("%s: execing btrfstune -f -u %s", scan, mp.devicePath)
 			_, err := exec.CommandContext(ctx, "btrfstune", "-f", "-u", mp.devicePath).CombinedOutput()
 			if err != nil {
 				return nil, err
 			}
 
 			// Clear the tree log, to prevent "failed to read log tree" warning, which leads to "open_ctree failed" error.
-			log.Debugf("execing btrfs rescue zero-log %s", mp.devicePath)
+			log.Debugf("%s: execing btrfs rescue zero-log %s", scan, mp.devicePath)
 			_, err = exec.CommandContext(ctx, "btrfs", "rescue", "zero-log", mp.devicePath).CombinedOutput()
 			if err != nil {
 				return nil, err
@@ -2988,7 +2989,7 @@ func mountDevice(ctx context.Context, scan *scanTask, partitions []devicePartiti
 		}
 
 		mountCmd := []string{"-o", fsOptions, "-t", mp.fsType, "--source", mp.devicePath, "--target", mountPoint}
-		log.Debugf("execing mount %s", mountCmd)
+		log.Debugf("%s: execing mount %s", scan, mountCmd)
 
 		var mountOutput []byte
 		var errm error
@@ -3057,16 +3058,16 @@ func cleanupScan(scan *scanTask) {
 		_, snapshotID, _ := getARNResource(snapshotARN)
 		cfg, err := newAWSConfig(ctx, snapshotARN.Region, scan.Roles[snapshotARN.AccountID])
 		if err != nil {
-			log.Errorf("could not create local aws config: %v", err)
+			log.Errorf("%s: could not create local aws config: %v", scan, err)
 		} else {
 			ec2client := ec2.NewFromConfig(cfg)
-			log.Debugf("deleting snapshot %q", snapshotID)
+			log.Debugf("%s: deleting snapshot %q", scan, snapshotID)
 			if _, err := ec2client.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{
 				SnapshotId: aws.String(snapshotID),
 			}); err != nil {
-				log.Warnf("could not delete snapshot %s: %v", snapshotID, err)
+				log.Warnf("%s: could not delete snapshot %s: %v", scan, snapshotID, err)
 			} else {
-				log.Debugf("snapshot deleted %s", snapshotID)
+				log.Debugf("%s: snapshot deleted %s", scan, snapshotID)
 				statsResourceTTL(resourceTypeSnapshot, scan, *snapshotCreatedAt)
 			}
 		}
@@ -3140,7 +3141,7 @@ func cleanupScan(scan *scanTask) {
 		if err == nil && len(blockDevices) == 1 {
 			for _, child := range blockDevices[0].getChildrenType("lvm") {
 				if err := exec.Command("dmsetup", "remove", child.Path).Run(); err != nil {
-					log.Errorf("could not remove logical device %q from block device %q: %v", child.Path, child.Name, err)
+					log.Errorf("%s: could not remove logical device %q from block device %q: %v", scan, child.Path, child.Name, err)
 				}
 			}
 		}
@@ -3152,15 +3153,15 @@ func cleanupScan(scan *scanTask) {
 			_, volumeID, _ := getARNResource(*scan.AttachedVolumeARN)
 			cfg, err := newAWSConfig(ctx, volumeARN.Region, scan.Roles[volumeARN.AccountID])
 			if err != nil {
-				log.Errorf("could not create local aws config: %v", err)
+				log.Errorf("%s: could not create local aws config: %v", scan, err)
 			} else {
 				ec2client := ec2.NewFromConfig(cfg)
-				log.Debugf("detaching volume %q", volumeID)
+				log.Debugf("%s: detaching volume %q", scan, volumeID)
 				if _, err := ec2client.DetachVolume(ctx, &ec2.DetachVolumeInput{
 					Force:    aws.Bool(true),
 					VolumeId: aws.String(volumeID),
 				}); err != nil {
-					log.Warnf("could not detach volume %s: %v", volumeID, err)
+					log.Warnf("%s: could not detach volume %s: %v", scan, volumeID, err)
 				}
 
 				var errd error
@@ -3173,12 +3174,12 @@ func cleanupScan(scan *scanTask) {
 						VolumeId: aws.String(volumeID),
 					})
 					if errd == nil {
-						log.Debugf("volume deleted %q", volumeID)
+						log.Debugf("%s: volume deleted %q", scan, volumeID)
 						break
 					}
 				}
 				if errd != nil {
-					log.Warnf("could not delete volume %q: %v", volumeID, errd)
+					log.Warnf("%s: could not delete volume %q: %v", scan, volumeID, errd)
 				} else {
 					statsResourceTTL(resourceTypeVolume, scan, *scan.AttachedVolumeCreatedAt)
 				}
