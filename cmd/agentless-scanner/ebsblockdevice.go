@@ -90,7 +90,7 @@ func startEBSBlockDevice(id string, ebsclient *ebs.Client, deviceName string, sn
 }
 
 func stopEBSBlockDevice(ctx context.Context, deviceName string) {
-	log.Debugf("nbdclient: destroying client for device %q", deviceName)
+	log.Debugf("nbdclient: disconnecting client for device %q", deviceName)
 	if err := exec.CommandContext(ctx, "nbd-client", "-readonly", "-d", deviceName).Run(); err != nil {
 		log.Errorf("nbd-client: %q disconnecting failed: %v", deviceName, err)
 	} else {
