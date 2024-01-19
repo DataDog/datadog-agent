@@ -9,8 +9,6 @@ package ptracer
 
 import (
 	"syscall"
-
-	"golang.org/x/sys/unix"
 )
 
 const (
@@ -51,12 +49,6 @@ const (
 	UnlinkNr = -6 // UnlinkNr not available on arm64
 	RmdirNr  = -7 // RmdirNr not available on arm64
 	RenameNr = -8 // RenameNr not available on arm64
-
-	ptraceFlags = 0 |
-		syscall.PTRACE_O_TRACECLONE |
-		syscall.PTRACE_O_TRACEEXEC |
-		syscall.PTRACE_O_TRACESYSGOOD |
-		unix.PTRACE_O_TRACESECCOMP
 )
 
 var (
