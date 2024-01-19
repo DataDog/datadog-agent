@@ -197,13 +197,7 @@ func (tx *ebpfTXWrapper) String() string {
 	output.WriteString("http2.ebpfTx{")
 	output.WriteString(fmt.Sprintf("[%s] [%s ⇄ %s] ", tx.family(), tx.sourceEndpoint(), tx.destEndpoint()))
 	output.WriteString(" Method: '" + tx.Method().String() + "', ")
-	fullBufferSize := len(tx.Stream.Request_path)
-	if tx.Stream.Is_huffman_encoded {
-		// If the path is huffman encoded, then the path is compressed (with an upper bound to compressed size of maxHTTP2Path)
-		// thus, we need more room for the decompressed path, therefore using 2*maxHTTP2Path.
-		fullBufferSize = 2 * maxHTTP2Path
-	}
-	buf := make([]byte, fullBufferSize)
+	buf := make([]byte, 2*maxHTTP2Path)
 	path, ok := tx.Path(buf)
 	if ok {
 		output.WriteString("Path: '" + string(path) + "'")

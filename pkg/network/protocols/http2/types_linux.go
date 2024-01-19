@@ -42,11 +42,8 @@ type http2Stream struct {
 	Path_index            uint64
 	Response_status_code  uint16
 	Request_method        uint8
-	Path_size             uint8
 	Request_end_of_stream bool
-	Is_huffman_encoded    bool
-	Pad_cgo_0             [2]byte
-	Request_path          [160]uint8
+	Pad_cgo_0             [4]byte
 }
 type EbpfTx struct {
 	Tuple  connTuple
