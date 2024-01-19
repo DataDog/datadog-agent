@@ -636,12 +636,10 @@ def test(
             build_tags.append(BUNDLE_TAG)
 
     args = get_common_test_args(build_tags, failfast)
-    args["output_params"] = (f"-c -o {output_path}" if output_path else "",)
-    args["run"] = (f"-run {run}" if run else "",)
-    args["go"] = ("go",)
-    args["sudo"] = (
-        "sudo -E " if not windows and not output_path and not is_root() else "",
-    )
+    args["output_params"] = f"-c -o {output_path}" if output_path else ""
+    args["run"] = f"-run {run}" if run else ""
+    args["go"] = "go"
+    args["sudo"] = "sudo -E " if not windows and not output_path and not is_root() else ""
 
     _, _, env = get_build_flags(ctx)
     env["DD_SYSTEM_PROBE_BPF_DIR"] = EMBEDDED_SHARE_DIR
