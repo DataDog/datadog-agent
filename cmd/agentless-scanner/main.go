@@ -1429,7 +1429,7 @@ func (s *sideScanner) cleanSlate() error {
 		}
 	}
 	var attachedVolumeIDs []string
-	if blockDevices, err := listBlockDevices(ctx); err == nil {
+	if blockDevices, err := listBlockDevices(); err == nil {
 		for _, bd := range blockDevices {
 			if strings.HasPrefix(bd.Name, "nbd") || strings.HasPrefix(bd.Serial, "vol") {
 				for _, child := range bd.getChildrenType("lvm") {
@@ -2510,44 +2510,81 @@ func launchScannerLocally(ctx context.Context, opts scannerOptions) scanResult {
 }
 
 func attachSnapshotWithNBD(_ context.Context, scan *scanTask, snapshotARN arn.ARN, ebsclient *ebs.Client) error {
-	device := nextNBDDevice()
+	device, ok := nextNBDDevice()
+	if !ok {
+		return fmt.Errorf("could not find non busy NBD block device")
+	}
 	err := startEBSBlockDevice(scan.ID, ebsclient, device, snapshotARN)
 	scan.AttachedDeviceName = &device
 	return err
 }
 
 // reference: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/device_naming.html
-var deviceName struct {
-	mu   sync.Mutex
-	name string
-}
-
-func nextDeviceName() string {
-	deviceName.mu.Lock()
-	defer deviceName.mu.Unlock()
-	// loops from "aa" to "dz"
-	if deviceName.name == "" || deviceName.name == "dz" {
-		deviceName.name = "aa"
-	} else if strings.HasSuffix(deviceName.name, "z") {
-		deviceName.name = fmt.Sprintf("%ca", deviceName.name[0]+1)
-	} else {
-		deviceName.name = fmt.Sprintf("%c%c", deviceName.name[0], deviceName.name[1]+1)
-	}
-	return fmt.Sprintf("/dev/xvd%s", deviceName.name)
-}
-
-var nbdDeviceName struct {
+var xenDeviceName struct {
 	mu    sync.Mutex
 	count int
 }
 
-func nextNBDDevice() string {
-	const nbdsMax = 128
+var nbdDeviceName struct {
+	mu      sync.Mutex
+	count   int
+	nbdsMax *int
+}
+
+func nextXenDevice() (string, bool) {
+	xenDeviceName.mu.Lock()
+	defer xenDeviceName.mu.Unlock()
+
+	// loops from "xvdaa" to "xvddz"
+	const xenMax = ('d' - 'a' + 1) * 26
+	count := xenDeviceName.count
+	for i := 0; i <= xenMax; i++ {
+		count = (count + 1) % xenMax
+		dev := 'a' + uint8(count/26)
+		rst := 'a' + uint8(count%26)
+		bdPath := fmt.Sprintf("/dev/xvd%c%c", dev, rst)
+		// TODO: just like for NBD devices, we should ensure that the
+		// associated device is not already busy. However on ubuntu AMIs there
+		// is no udev rule making the proper symlink from /dev/xvdxx device to
+		// the /dev/nvmex created block device on volume attach.
+		return bdPath, true
+	}
+	return "", false
+}
+
+func nextNBDDevice() (string, bool) {
 	nbdDeviceName.mu.Lock()
 	defer nbdDeviceName.mu.Unlock()
+
+	// Init phase: counting the number of nbd devices created.
+	if nbdDeviceName.nbdsMax == nil {
+		bds, _ := filepath.Glob("/dev/nbd*")
+		bdsCount := len(bds)
+		nbdDeviceName.nbdsMax = &bdsCount
+	}
+
+	nbdsMax := *nbdDeviceName.nbdsMax
+	if nbdsMax == 0 {
+		log.Error("could not locate any NBD block device in /dev")
+		return "", false
+	}
+
 	count := nbdDeviceName.count
-	nbdDeviceName.count = (nbdDeviceName.count + 1) % nbdsMax
-	return fmt.Sprintf("/dev/nbd%d", count)
+	for i := 1; i <= nbdsMax; i++ {
+		count = (count + i) % nbdsMax
+		// From man 2 open: O_EXCL: ... on Linux 2.6 and later, O_EXCL can be
+		// used without  O_CREAT  if pathname refers to  a block device.  If
+		// the block device is in use by the system (e.g., mounted), open()
+		// fails with the error EBUSY.
+		bdPath := fmt.Sprintf("/dev/nbd%d", count)
+		f, err := os.OpenFile(bdPath, os.O_RDONLY|os.O_EXCL, 0600)
+		if err == nil {
+			f.Close()
+			nbdDeviceName.count = count
+			return bdPath, true
+		}
+	}
+	return "", false
 }
 
 func scanLambda(ctx context.Context, scan *scanTask, resultsCh chan scanResult) error {
@@ -2818,7 +2855,10 @@ func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, snapshotARN a
 		return fmt.Errorf("could not create volume from snapshot: %s", err)
 	}
 
-	device := nextDeviceName()
+	device, ok := nextXenDevice()
+	if !ok {
+		return fmt.Errorf("could not find non busy XEN block device")
+	}
 	log.Debugf("%s: attaching volume %q into device %q", scan, *volume.VolumeId, device)
 	var errAttach error
 	for i := 0; i < maxAttachRetries; i++ {
@@ -2885,14 +2925,14 @@ func (bd blockDevice) recurse(cb func(blockDevice)) {
 	cb(bd)
 }
 
-func listBlockDevices(ctx context.Context, deviceName ...string) ([]blockDevice, error) {
+func listBlockDevices(deviceName ...string) ([]blockDevice, error) {
 	var blockDevices struct {
 		BlockDevices []blockDevice `json:"blockdevices"`
 	}
-	_, _ = exec.CommandContext(ctx, "udevadm", "settle", "--timeout=1").CombinedOutput()
+	_, _ = exec.Command("udevadm", "settle", "--timeout=1").CombinedOutput()
 	lsblkArgs := []string{"--json", "--bytes", "--output", "NAME,SERIAL,PATH,TYPE,FSTYPE,MOUNTPOINTS"}
 	lsblkArgs = append(lsblkArgs, deviceName...)
-	lsblkJSON, err := exec.CommandContext(ctx, "lsblk", lsblkArgs...).Output()
+	lsblkJSON, err := exec.Command("lsblk", lsblkArgs...).Output()
 	if err != nil {
 		return nil, fmt.Errorf("lsblk exited with error: %w", err)
 	}
@@ -2924,7 +2964,7 @@ func listDevicePartitions(ctx context.Context, scan *scanTask) ([]devicePartitio
 		if !sleepCtx(ctx, 500*time.Millisecond) {
 			break
 		}
-		blockDevices, err := listBlockDevices(ctx)
+		blockDevices, err := listBlockDevices()
 		if err != nil {
 			log.Warn(err)
 			continue
@@ -2951,7 +2991,7 @@ func listDevicePartitions(ctx context.Context, scan *scanTask) ([]devicePartitio
 
 	var partitions []devicePartition
 	for i := 0; i < 5; i++ {
-		blockDevices, err := listBlockDevices(ctx, foundBlockDevice.Path)
+		blockDevices, err := listBlockDevices(foundBlockDevice.Path)
 		if err != nil {
 			log.Warn(err)
 			continue
@@ -3172,7 +3212,7 @@ func cleanupScan(scan *scanTask) {
 	}
 
 	if scan.AttachedDeviceName != nil {
-		blockDevices, err := listBlockDevices(ctx, *scan.AttachedDeviceName)
+		blockDevices, err := listBlockDevices(*scan.AttachedDeviceName)
 		if err == nil && len(blockDevices) == 1 {
 			for _, child := range blockDevices[0].getChildrenType("lvm") {
 				if err := exec.Command("dmsetup", "remove", child.Path).Run(); err != nil {
