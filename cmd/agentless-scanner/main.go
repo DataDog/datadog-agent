@@ -2874,7 +2874,7 @@ func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, snapshotARN a
 		d := 1 * time.Second
 		log.Debugf("%s: couldn't attach volume %q into device %q; retrying after %v (%d/%d)", scan, *volume.VolumeId, device, d, i+1, maxAttachRetries)
 		if !sleepCtx(ctx, d) {
-			break
+			return ctx.Err()
 		}
 	}
 	if errAttach != nil {
@@ -2962,7 +2962,7 @@ func listDevicePartitions(ctx context.Context, scan *scanTask) ([]devicePartitio
 	var foundBlockDevice *blockDevice
 	for i := 0; i < 120; i++ {
 		if !sleepCtx(ctx, 500*time.Millisecond) {
-			break
+			return nil, ctx.Err()
 		}
 		blockDevices, err := listBlockDevices()
 		if err != nil {
@@ -3011,7 +3011,7 @@ func listDevicePartitions(ctx context.Context, scan *scanTask) ([]devicePartitio
 			break
 		}
 		if !sleepCtx(ctx, 100*time.Millisecond) {
-			break
+			return nil, ctx.Err()
 		}
 	}
 	if len(partitions) == 0 {
