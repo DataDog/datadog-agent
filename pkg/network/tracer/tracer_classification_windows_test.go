@@ -8,7 +8,9 @@
 package tracer
 
 import (
+	"net"
 	"testing"
+	"time"
 )
 
 func TestProtocolClassification(t *testing.T) {
