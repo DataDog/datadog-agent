@@ -12,10 +12,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
-	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
+	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote"
+
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -23,8 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 var bufferPool = sync.Pool{
@@ -32,6 +35,14 @@ var bufferPool = sync.Pool{
 		return new(bytes.Buffer)
 	},
 }
+
+type ServiceEnvKey struct {
+	Service string
+	Env     string
+}
+
+var serviceEnvTracingEnabled = map[ServiceEnvKey]bool{}
+var servEnvMapMutex = sync.Mutex{}
 
 func getBuffer() *bytes.Buffer {
 	buffer := bufferPool.Get().(*bytes.Buffer)
@@ -76,7 +87,7 @@ func ConfigHandler(r *api.HTTPReceiver, client rcclient.ConfigUpdater, cfg *conf
 			}
 			configsRequest.Client.ClientTracer.Tags = append(configsRequest.Client.ClientTracer.Tags, getContainerTags(req, cfg, cidProvider)...)
 		}
-		cfg, err := client.ClientGetConfigs(req.Context(), &configsRequest)
+		cfgResponse, err := client.ClientGetConfigs(req.Context(), &configsRequest)
 		if err != nil {
 			if e, ok := status.FromError(err); ok {
 				switch e.Code() {
@@ -89,12 +100,47 @@ func ConfigHandler(r *api.HTTPReceiver, client rcclient.ConfigUpdater, cfg *conf
 			http.Error(w, err.Error(), statusCode)
 			return
 		}
-		if cfg == nil {
+		if cfgResponse == nil {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 
-		content, err := json.Marshal(cfg)
+		// POC: can we pull out target info from APM_TRACING config updates
+		// TODO: we only want to look at CONFIRMED APM_TRACING files
+		if len(cfgResponse.TargetFiles) > 0 {
+			tcu := TracingConfigUpdate{}
+			err := json.Unmarshal(cfgResponse.TargetFiles[0].Raw, &tcu)
+			if err != nil {
+				log.Errorf("ANDREW POC: failed to unmarshal tracing config update %v", err)
+			} else {
+				// TODO: Is this the right service or should we be looking in the tcu.LibConfig?
+				// TODO: how do we subscribe to a different target (us) for "host level" configuration
+				var senvConfigs []ServiceEnvConfig
+				updatedSenv := ServiceEnvKey{Service: tcu.ServiceTarget.Service, Env: tcu.ServiceTarget.Env}
+
+				servEnvMapMutex.Lock()
+				serviceEnvTracingEnabled[updatedSenv] = tcu.LibConfig.TracingEnabled
+				for senv, tracingEnabled := range serviceEnvTracingEnabled {
+					senvConfigs = append(senvConfigs, ServiceEnvConfig{Service: senv.Service, Env: senv.Env, TracingEnabled: tracingEnabled})
+				}
+				servEnvMapMutex.Unlock()
+
+				configFile, err := json.Marshal(TracingEnabledConfig{TracingEnabled: true, ServiceEnvConfigs: senvConfigs})
+				if err != nil {
+					panic(err) //todo: should be impossible?
+				}
+
+				fileLocation := "DD_SINGLE_STEP_CONFIG_DATA.json"
+				err = os.WriteFile(fileLocation, configFile, 0666)
+				if err != nil {
+					log.Errorf("failed to write single step config data file: %v", err)
+				} else {
+					log.Infof("WE DID ITTTTTTTTTTTTTTTTTTTTTTTTTTTTTT THE FILE WAS WRITTEN AT %s", fileLocation)
+				}
+			}
+		}
+
+		content, err := json.Marshal(cfgResponse)
 		if err != nil {
 			statusCode = http.StatusInternalServerError
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -103,6 +149,33 @@ func ConfigHandler(r *api.HTTPReceiver, client rcclient.ConfigUpdater, cfg *conf
 		w.Write(content)
 
 	})
+}
+
+type ServiceEnvConfig struct {
+	Service        string `json:"service"`
+	Env            string `json:"env"`
+	TracingEnabled bool   `json:"tracing_enabled"`
+}
+
+type TracingEnabledConfig struct {
+	TracingEnabled    bool               `json:"tracing_enabled"`
+	ServiceEnvConfigs []ServiceEnvConfig `json:"service_env_configs"`
+}
+
+type TracingConfigUpdate struct {
+	Id            string `json:"id"`
+	Revision      int64  `json:"revision"`
+	SchemaVersion string `json:"schema_version"`
+	Action        string `json:"action"`
+	LibConfig     struct {
+		ServiceName    string `json:"service_name"`
+		Env            string `json:"env"`
+		TracingEnabled bool   `json:"tracing_enabled"`
+	} `json:"lib_config"`
+	ServiceTarget struct {
+		Service string `json:"service"`
+		Env     string `json:"env"`
+	} `json:"service_target"`
 }
 
 func getContainerTags(req *http.Request, cfg *config.AgentConfig, provider api.IDProvider) []string {
