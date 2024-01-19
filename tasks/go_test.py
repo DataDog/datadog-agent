@@ -107,6 +107,7 @@ def test_flavor(
     junit_tar: str,
     save_result_json: str,
     test_profiler: TestProfiler,
+    coverage: bool,
     coverage_script_template: str,
 ):
     """
@@ -121,15 +122,16 @@ def test_flavor(
     def command(test_results, module, module_result):
         with ctx.cd(module.full_path()):
             packages = ' '.join(f"{t}/..." if not t.endswith("/...") else t for t in module.targets)
-
-            # Workaround of https://github.com/gotestyourself/gotestsum/issues/274.
-            # Unit tests reruns rewrite the whole coverage file, making it inaccurate.
-            # We use the --raw-command flag to tell each `go test` iteration to write coverage in a different file.
             cov_test_path = os.path.join(module.full_path(), GO_COV_TEST_PATH)
-            coverage_script = coverage_script_template.format(packages=packages, **args)
-            with open(cov_test_path, 'w', encoding='utf-8') as f:
-                f.write(coverage_script)
-            os.chmod(cov_test_path, 0o755)
+
+            if coverage:
+                # Workaround of https://github.com/gotestyourself/gotestsum/issues/274.
+                # Unit tests reruns rewrite the whole coverage file, making it inaccurate.
+                # We use the --raw-command flag to tell each `go test` iteration to write coverage in a different file.
+                coverage_script = coverage_script_template.format(packages=packages, **args)
+                with open(cov_test_path, 'w', encoding='utf-8') as f:
+                    f.write(coverage_script)
+                os.chmod(cov_test_path, 0o755)
 
             res = ctx.run(
                 command=cmd.format(packages=packages, cov_test_path=cov_test_path, **args),
@@ -138,14 +140,14 @@ def test_flavor(
                 warn=True,
             )
 
-        # Removing the coverage script.
-        os.remove(cov_test_path)
-
-        # Merging the unit tests reruns coverage files, keeping only the merged file.
-        ctx.run(f"gocovmerge {TMP_PROFILE_COV_PREFIX}.* > {PROFILE_COV}")
-        for f in os.listdir('.'):
-            if f.startswith(f"{TMP_PROFILE_COV_PREFIX}."):
-                os.remove(f)
+        if coverage:
+            # Removing the coverage script.
+            os.remove(cov_test_path)
+            # Merging the unit tests reruns coverage files, keeping only the merged file.
+            ctx.run(f"gocovmerge {TMP_PROFILE_COV_PREFIX}.* > {PROFILE_COV}")
+            for f in os.listdir('.'):
+                if f.startswith(f"{TMP_PROFILE_COV_PREFIX}."):
+                    os.remove(f)
 
         module_result.result_json_path = os.path.join(module.full_path(), GO_TEST_RESULT_TMP_JSON)
 
@@ -337,17 +339,24 @@ def test(
 
     stdlib_build_cmd = 'go build {verbose} -mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" '
     stdlib_build_cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} std cmd'
-    gotestsum_flags = '{junit_file_flag} {json_flag} --format pkgname {rerun_fails} --packages="{packages}" --raw-command {cov_test_path}'
+    rerun_coverage_fix = '--raw-command {cov_test_path}' if coverage else ""
+    gotestsum_flags = (
+        '{junit_file_flag} {json_flag} --format pkgname {rerun_fails} --packages="{packages}" ' + rerun_coverage_fix
+    )
     gobuild_flags = (
         '-mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" -ldflags="{ldflags}" {build_cpus} {race_opt}'
     )
     govet_flags = '-vet=off'
     gotest_flags = '{verbose} -timeout {timeout}s -short {covermode_opt} {coverprofile} {test_run_arg} {nocache}'
     cmd = f'gotestsum {gotestsum_flags} -- {gobuild_flags} {govet_flags} {gotest_flags}'
-    coverage_script_template = f"""#!/usr/bin/env bash
+    coverage_script_template = (
+        f"""#!/usr/bin/env bash
 set -eu
 go test {gobuild_flags} {govet_flags} {gotest_flags} -json -coverprofile=\"$(mktemp {TMP_PROFILE_COV_PREFIX}.XXXXXXXXXX)\" {{packages}}
 """
+        if coverage
+        else ""
+    )
     args = {
         "go_mod": go_mod,
         "gcflags": gcflags,
@@ -389,6 +398,7 @@ go test {gobuild_flags} {govet_flags} {gotest_flags} -json -coverprofile=\"$(mkt
             junit_tar=junit_tar,
             save_result_json=save_result_json,
             test_profiler=test_profiler,
+            coverage=coverage,
             coverage_script_template=coverage_script_template,
         )
 
