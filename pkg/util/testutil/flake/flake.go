@@ -37,7 +37,7 @@ func shouldSkipFlake() bool {
 		return true
 	}
 	shouldSkipFlakeVar, err := strconv.ParseBool(os.Getenv("GO_TEST_SKIP_FLAKE"))
-	if err != nil {
+	if err == nil {
 		return shouldSkipFlakeVar
 	}
 	return false
