@@ -39,15 +39,15 @@ func NewResolvers(config *config.Config, statsdClient statsd.ClientInterface, sc
 		return nil, err
 	}
 
-	userGroupResolver, err: = usergroup.NewResolver()
+	userGroupResolver, err := usergroup.NewResolver()
 	if err != nil {
 		return nil, err
 	}
 
 	resolvers := &Resolvers{
-		ProcessResolver: processResolver,
-		TagsResolver:    tagsResolver,
-		UserSessions:    userSessionsResolver,
+		ProcessResolver:   processResolver,
+		TagsResolver:      tagsResolver,
+		UserSessions:      userSessionsResolver,
 		UserGroupResolver: userGroupResolver,
 	}
 	return resolvers, nil
