@@ -24,10 +24,10 @@ from .libs.common.utils import (
     environ,
     get_build_flags,
     get_common_test_args,
-    set_runtime_comp_env,
-    set_co_re_env,
     get_gobin,
     get_version_numeric_only,
+    set_co_re_env,
+    set_runtime_comp_env,
 )
 from .libs.ninja_syntax import NinjaWriter
 from .windows_resources import MESSAGESTRINGS_MC_PATH, arch_to_windres_target
