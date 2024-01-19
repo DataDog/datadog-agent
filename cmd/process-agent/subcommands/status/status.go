@@ -116,7 +116,7 @@ func fetchStatus(statusURL string) ([]byte, error) {
 }
 
 // getAndWriteStatus calls the status server and writes it to `w`
-func getAndWriteStatus(log log.Component, statusURL string, w io.Writer, options ...status.StatusOption) {
+func getAndWriteStatus(log log.Component, statusURL string, w io.Writer) {
 	body, err := fetchStatus(statusURL)
 	if err != nil {
 		switch err.(type) {
@@ -128,27 +128,20 @@ func getAndWriteStatus(log log.Component, statusURL string, w io.Writer, options
 		return
 	}
 
-	// If options to override the status are provided, we need to deserialize and serialize it again
-	if len(options) > 0 {
-		var s status.Status
-		err = json.Unmarshal(body, &s)
-		if err != nil {
-			writeError(log, w, err)
-			return
-		}
+	statusMap := map[string]interface{}{}
+	var s status.Status
+	err = json.Unmarshal(body, &s)
+	if err != nil {
+		writeError(log, w, err)
+		return
+	}
 
-		for _, option := range options {
-			option(&s)
-		}
+	statusMap["processAgentStatus"] = s
 
-		status := map[string]interface{}{}
-		status["processAgentStatus"] = s
-
-		body, err = json.Marshal(status)
-		if err != nil {
-			writeError(log, w, err)
-			return
-		}
+	body, err = json.Marshal(statusMap)
+	if err != nil {
+		writeError(log, w, err)
+		return
 	}
 
 	stats, err := render.FormatProcessAgentStatus(body)

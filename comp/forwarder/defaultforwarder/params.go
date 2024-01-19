@@ -8,8 +8,7 @@ package defaultforwarder
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/resolver"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
@@ -32,9 +31,9 @@ func NewParamsWithResolvers(config config.Component, log log.Component) Params {
 	return Params{Options: NewOptionsWithResolvers(config, log, resolver.NewSingleDomainResolvers(keysPerDomain))}
 }
 
-func getMultipleEndpoints(_ config.Component, log log.Component) map[string][]string {
+func getMultipleEndpoints(config config.Component, log log.Component) map[string][]string {
 	// Inject the config to make sure we can call GetMultipleEndpoints.
-	keysPerDomain, err := utils.GetMultipleEndpoints(pkgconfig.Datadog)
+	keysPerDomain, err := utils.GetMultipleEndpoints(config)
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
 	}

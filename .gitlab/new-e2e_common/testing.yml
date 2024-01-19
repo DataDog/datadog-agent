@@ -1,14 +1,14 @@
 .new-e2e_agent_a6:
-  rules:
-    !reference [.on_kitchen_tests_a6] #TODO: Change when migration is complete to another name without 'kitchen'
+  rules: !reference [.on_kitchen_tests_a6] #TODO: Change when migration is complete to another name without 'kitchen'
   variables:
     AGENT_MAJOR_VERSION: 6
+  retry: 1
 
 .new-e2e_agent_a7:
-  rules:
-    !reference [.on_kitchen_tests_a7] #TODO: Change when migration is complete to another name without 'kitchen'
+  rules: !reference [.on_kitchen_tests_a7] #TODO: Change when migration is complete to another name without 'kitchen'
   variables:
     AGENT_MAJOR_VERSION: 7
+  retry: 1
 
 .new-e2e_install_script:
   variables:
@@ -22,6 +22,12 @@
     TEAM: agent-platform
     EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --cws-supported-osversion $E2E_CWS_SUPPORTED_OSVERS --major-version $AGENT_MAJOR_VERSION --arch $E2E_ARCH --flavor $FLAVOR
 
+.new-e2e_package_signing:
+  variables:
+    TARGETS: ./tests/agent-platform/package-signing
+    TEAM: agent-platform
+    EXTRA_PARAMS: --osversion $E2E_BRANCH_OSVERS
+    
 .new-e2e_script_upgrade6:
   variables:
     TARGETS: ./tests/agent-platform/upgrade

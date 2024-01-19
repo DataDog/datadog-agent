@@ -23,9 +23,12 @@ class GithubAPI:
     """
 
     BASE_URL = "https://api.github.com"
+    SKIP_QA = "qa/skip-qa"
+    SKIP_QA_REASONS = ["qa/done", "qa/no-code-change"]
+    SKIP_QA_LABELS = [SKIP_QA] + SKIP_QA_REASONS
 
-    def __init__(self, repository=""):
-        self._auth = self._chose_auth()
+    def __init__(self, repository="", public_repo=False):
+        self._auth = self._chose_auth(public_repo)
         self._github = Github(auth=self._auth)
         self._repository = self._github.get_repo(repository)
 
@@ -73,6 +76,60 @@ class GithubAPI:
             if milestone.title == milestone_name:
                 return milestone
         return None
+
+    def get_team_assignment_labels(self, pull_number):
+        """
+        Returns the team assignment labels for a given PR, and whether the team assignment should be checked.
+        Filters the team/triage label
+        """
+        pr = self._repository.get_pull(int(pull_number))
+        labels = [label.name for label in pr.get_labels()]
+        if any(skip_label in labels for skip_label in self.SKIP_QA_LABELS):
+            return False, []
+        return True, [
+            team_label for team_label in labels if team_label.startswith("team/") and "triage" not in team_label
+        ]
+
+    def is_qa_skip_ok(self, pull_number):
+        """
+        Check if labels are ok for skipping QA
+        """
+        pr = self._repository.get_pull(int(pull_number))
+        labels = [label.name for label in pr.get_labels()]
+        if self.SKIP_QA in labels and not any(skip_label in labels for skip_label in self.SKIP_QA_REASONS):
+            return False
+        return True
+
+    def get_pr_milestone(self, pull_number):
+        """
+        Returns the milestone for a given PR
+        """
+        pr = self._repository.get_pull(int(pull_number))
+        return pr.milestone.title if pr.milestone else None
+
+    def is_release_note_needed(self, pull_number):
+        """
+        Check if labels are ok for skipping QA
+        """
+        pr = self._repository.get_pull(int(pull_number))
+        labels = [label.name for label in pr.get_labels()]
+        if "changelog/no-changelog" in labels:
+            return False
+        return True
+
+    def contains_release_note(self, pull_number):
+        """
+        Look in modified files for a release note
+        """
+        pr = self._repository.get_pull(int(pull_number))
+        for file in pr.get_files():
+            if (
+                file.filename.startswith("releasenotes/notes/")
+                or file.filename.startswith("releasenotes-dca/notes/")
+                or file.filename.startswith("releasenotes-installscript/notes")
+            ):
+                return True
+        return False
 
     def get_pulls(self, milestone=None, labels=None):
         if milestone is None:
@@ -161,13 +218,14 @@ class GithubAPI:
         release = self._repository.get_latest_release()
         return release.title
 
-    def _chose_auth(self):
+    def _chose_auth(self, public_repo):
         """
         Attempt to find a working authentication, in order:
             - Personal access token through GITHUB_TOKEN environment variable
             - An app token through the GITHUB_APP_ID & GITHUB_KEY_B64 environment
               variables (can also use GITHUB_INSTALLATION_ID to save a request)
             - A token from macOS keychain
+            - A fake login user/password to reach public repositories
         """
         if "GITHUB_TOKEN" in os.environ:
             return Auth.Token(os.environ["GITHUB_TOKEN"])
@@ -185,6 +243,8 @@ class GithubAPI:
                     raise Exit(message='No usable installation found', code=1)
                 installation_id = installations[0]
             return appAuth.get_installation_auth(int(installation_id))
+        if public_repo:
+            return Auth.Login("user", "password")
         if platform.system() == "Darwin":
             try:
                 output = (

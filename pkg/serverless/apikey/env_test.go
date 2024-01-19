@@ -6,15 +6,24 @@
 package apikey
 
 import (
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGetSecretEnvVars(t *testing.T) {
-	var getFunc = func(string) (string, error) {
-		return "DECRYPTED_VAL", nil
+var getFunc = func(string) (string, error) {
+	return "DECRYPTED_VAL", nil
+}
+
+var mockSetSecretsFromEnv = func(t *testing.T, testEnvVars []string) {
+	for envKey, envVal := range getSecretEnvVars(testEnvVars, getFunc, getFunc) {
+		t.Setenv(envKey, strings.TrimSpace(envVal))
 	}
+}
+
+func TestGetSecretEnvVars(t *testing.T) {
 	testEnvVars := []string{
 		"TEST1=VAL1",
 		"TEST2=",
@@ -31,6 +40,38 @@ func TestGetSecretEnvVars(t *testing.T) {
 	assert.Equal(t, map[string]string{
 		"TEST_KMS":   "DECRYPTED_VAL",
 		"TEST_SM":    "DECRYPTED_VAL",
-		"DD_API_KEY": "DECRYPTED_VAL",
+		apiKeyEnvVar: "DECRYPTED_VAL",
 	}, decryptedEnvVars)
+}
+
+func TestDDApiKey(t *testing.T) {
+	t.Setenv(apiKeyEnvVar, "abc")
+	assert.NoError(t, HandleEnv())
+}
+
+func TestHasDDApiKeySecretArn(t *testing.T) {
+	t.Setenv(apiKeySecretManagerEnvVar, "abc")
+	mockSetSecretsFromEnv(t, os.Environ())
+	assert.NoError(t, HandleEnv())
+}
+
+func TestHasDDKmsApiKeyEncrypted(t *testing.T) {
+	t.Setenv(apiKeyKmsEncryptedEnvVar, "abc")
+	mockSetSecretsFromEnv(t, os.Environ())
+	assert.NoError(t, HandleEnv())
+}
+
+func TestHasDDKmsApiKey(t *testing.T) {
+	t.Setenv(apiKeyKmsEnvVar, "abc")
+	mockSetSecretsFromEnv(t, os.Environ())
+	assert.NoError(t, HandleEnv())
+}
+
+func TestHasNoKeys(t *testing.T) {
+	t.Setenv(apiKeyKmsEncryptedEnvVar, "")
+	t.Setenv(apiKeySecretManagerEnvVar, "")
+	t.Setenv(apiKeyKmsEnvVar, "")
+	t.Setenv(apiKeyEnvVar, "")
+	mockSetSecretsFromEnv(t, os.Environ())
+	assert.Error(t, HandleEnv())
 }
