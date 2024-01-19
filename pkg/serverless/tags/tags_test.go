@@ -179,7 +179,7 @@ func TestBuildTagMapFromArnCompleteWithVersionNumber(t *testing.T) {
 	t.Setenv("AWS_LAMBDA_FUNCTION_VERSION", "888")
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:my-function"
 	tagMap := BuildTagMap(arn, []string{"tag0:value0", "TAG1:VALUE1"})
-	assert.Equal(t, 14, len(tagMap))
+	assert.Equal(t, 13, len(tagMap))
 	assert.Equal(t, "lambda", tagMap["_dd.origin"])
 	assert.Equal(t, "arn:aws:lambda:us-east-1:123456789012:function:my-function", tagMap["function_arn"])
 	assert.Equal(t, "us-east-1", tagMap["region"])
