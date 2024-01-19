@@ -8,6 +8,7 @@ package components
 import (
 	"fmt"
 	"io/fs"
+	"net"
 	"os"
 	"strings"
 	"time"
@@ -141,6 +142,10 @@ func (h *RemoteHost) Remove(path string) error {
 // Returns an error if the directory does not exist.
 func (h *RemoteHost) RemoveAll(path string) error {
 	return clients.RemoveAll(h.client, path)
+}
+
+func (h *RemoteHost) DialRemotePort(port uint16) (net.Conn, error) {
+	return h.client.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", port))
 }
 
 // reconnectSSH recreate the SSH connection to the VM. Should be used only after VM reboot to restore the SSH connection.
