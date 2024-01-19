@@ -107,8 +107,8 @@ def test_flavor(
     junit_tar: str,
     save_result_json: str,
     test_profiler: TestProfiler,
-    coverage: bool,
-    coverage_script_template: str,
+    coverage: bool = False,
+    coverage_script_template: str = "",
 ):
     """
     Runs unit tests for given flavor, build tags, and modules.
