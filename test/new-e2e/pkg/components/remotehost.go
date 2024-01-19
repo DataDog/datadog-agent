@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -27,7 +28,7 @@ import (
 const (
 	// Waiting for only 10s as we expect remote to be ready when provisioning
 	sshRetryInterval = 2 * time.Second
-	sshMaxRetries    = 5
+	sshMaxRetries    = 20
 )
 
 // RemoteHost represents a remote host
@@ -48,16 +49,28 @@ func (h *RemoteHost) Init(ctx e2e.Context) error {
 
 // Execute executes a command and returns an error if any.
 func (h *RemoteHost) Execute(command string, options ...ExecuteOption) (string, error) {
+	var err error
+	var output string
+
 	params, err := optional.MakeParams(options...)
 	if err != nil {
 		return "", err
 	}
-	cmd := h.buildEnvVariables(command, params.EnvVariables)
 
-	output, err := clients.ExecuteCommand(h.client, cmd)
+	cmd := h.buildEnvVariables(command, params.EnvVariables)
+	output, err = clients.ExecuteCommand(h.client, cmd)
+
+	if err != nil && strings.Contains(err.Error(), "failed to create session:") {
+		err = h.ReconnectSSH()
+		if err != nil {
+			return "", err
+		}
+		output, err = clients.ExecuteCommand(h.client, cmd)
+	}
 	if err != nil {
 		return "", fmt.Errorf("%v: %v", output, err)
 	}
+
 	return output, nil
 }
 
