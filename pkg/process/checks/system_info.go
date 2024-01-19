@@ -34,7 +34,7 @@ func CollectSystemInfo() (*model.SystemInfo, error) {
 	cpus := make([]*model.CPUInfo, 0, len(cpuInfo))
 	for _, c := range cpuInfo {
 		cpus = append(cpus, &model.CPUInfo{
-			Cores:      c.Cores,
+			Cores: c.Cores,
 		})
 	}
 
