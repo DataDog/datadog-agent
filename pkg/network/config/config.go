@@ -265,6 +265,9 @@ type Config struct {
 
 	// EnableUSMQuantization enables endpoint quantization for USM programs
 	EnableUSMQuantization bool
+
+	// RingbufferEnabled specifies whether the ringbuffer is enabled or not
+	RingbufferEnabled bool
 }
 
 func join(pieces ...string) string {

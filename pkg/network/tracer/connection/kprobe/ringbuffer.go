@@ -13,6 +13,7 @@ import (
 	"sync"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf/ringbuf"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream"
@@ -24,6 +25,7 @@ import (
 type RingBuffer struct {
 	ringBuffer *manager.RingBuffer
 	handler    func(int, []byte)
+	recordPool *sync.Pool
 }
 
 // Init the ring buffer
@@ -34,6 +36,9 @@ func (rb *RingBuffer) Init(mgr *manager.Manager, config *config.Config) error {
 	}
 
 	rb.ringBuffer.RingBufferOptions = manager.RingBufferOptions{
+		RecordGetter: func() *ringbuf.Record {
+			return rb.recordPool.Get().(*ringbuf.Record)
+		},
 		DataHandler: rb.handleEvent,
 	}
 
@@ -52,7 +57,7 @@ func (rb *RingBuffer) Init(mgr *manager.Manager, config *config.Config) error {
 }
 
 // Start the event stream.
-func (rb *RingBuffer) Start(wg *sync.WaitGroup) error {
+func (rb *RingBuffer) Start() error {
 	return rb.ringBuffer.Start()
 }
 
@@ -73,7 +78,7 @@ func (rb *RingBuffer) Resume() error {
 	return nil
 }
 
-// New returns a new ring buffer based event stream.
+// New returns a new ring buffer based closed connection stream.
 func New(handler func(int, []byte)) *RingBuffer {
 	return &RingBuffer{
 		handler: handler,

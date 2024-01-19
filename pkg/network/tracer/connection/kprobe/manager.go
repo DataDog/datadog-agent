@@ -11,15 +11,13 @@ import (
 	"os"
 	"strings"
 
-	ebpfCore "github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/features"
-
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 const (
@@ -73,7 +71,7 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.UDPSendPageReturn,
 }
 
-func initManager(mgr *ebpftelemetry.Manager, closedHandler *ebpf.PerfHandler, runtimeTracer bool, cfg *config.Config) error {
+func initManager(mgr *ebpftelemetry.Manager, closedHandler *ebpf.PerfHandler, ringHandlerTCP *ebpf.RingHandler, runtimeTracer bool, ringbufferSupported bool, cfg *config.Config) error {
 	mgr.Maps = []*manager.Map{
 		{Name: probes.ConnMap},
 		{Name: probes.TCPStatsMap},
@@ -99,12 +97,25 @@ func initManager(mgr *ebpftelemetry.Manager, closedHandler *ebpf.PerfHandler, ru
 		{Name: probes.ClassificationProgsMap},
 		{Name: probes.TCPCloseProgsMap},
 	}
-	if features.HaveMapType(ebpfCore.RingBuf) == nil {
-		mgr.RingBuffers = []*manager.RingBuffer{
-			{
-				Map: manager.Map{Name: probes.ConnCloseEventMapRing},
+	if ringbufferSupported {
+		rb := &manager.RingBuffer{
+			Map: manager.Map{Name: probes.ConnCloseEventMapRing},
+			RingBufferOptions: manager.RingBufferOptions{
+				RecordHandler:    ringHandlerTCP.RecordHandler,
+				TelemetryEnabled: cfg.InternalTelemetryEnabled,
 			},
 		}
+		numCPU, err := utils.NumCPU()
+		if err != nil {
+			numCPU = 1
+		}
+
+		if numCPU <= 16 {
+			rb.RingBufferOptions.RingBufferSize = 8 * 256 * os.Getpagesize()
+		}
+		rb.RingBufferOptions.RingBufferSize = 16 * 256 * os.Getpagesize()
+		mgr.RingBuffers = []*manager.RingBuffer{rb}
+		ebpf.ReportRingBufferTelemetry(rb)
 	} else {
 		pm := &manager.PerfMap{
 			Map: manager.Map{Name: probes.ConnCloseEventMapPerf},

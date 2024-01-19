@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 )
 
-func initManager(mgr *ebpftelemetry.Manager, closedHandler *ebpf.PerfHandler, cfg *config.Config) {
+func initManager(mgr *ebpftelemetry.Manager, closedHandler *ebpf.PerfHandler, ringHandlerTCP *ebpf.RingHandler, cfg *config.Config) {
 	mgr.Maps = []*manager.Map{
 		{Name: probes.ConnMap},
 		{Name: probes.TCPStatsMap},
@@ -44,6 +44,7 @@ func initManager(mgr *ebpftelemetry.Manager, closedHandler *ebpf.PerfHandler, cf
 			Map: manager.Map{Name: probes.ConnCloseEventMapRing},
 			RingBufferOptions: manager.RingBufferOptions{
 				RingBufferSize: 16 * 256 * os.Getpagesize(),
+				RecordGetter:   ringHandlerTCP.RecordGetter,
 			},
 		}
 		mgr.RingBuffers = []*manager.RingBuffer{rb}
