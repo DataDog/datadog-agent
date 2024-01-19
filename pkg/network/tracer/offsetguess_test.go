@@ -21,9 +21,9 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	ebpfutil "github.com/DataDog/datadog-agent/pkg/ebpf/util"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
@@ -273,7 +273,7 @@ func testOffsetGuess(t *testing.T) {
 	_, err = unix.GetsockoptByte(int(f.Fd()), unix.IPPROTO_TCP, unix.TCP_INFO)
 	require.NoError(t, err)
 
-	mp, err := ddebpf.GetMap[offsetT, uint64](mgr, "offsets")
+	mp, err := ebpfutil.GetMap[offsetT, uint64](mgr, "offsets")
 	require.NoError(t, err)
 
 	kv, err := kernel.HostVersion()

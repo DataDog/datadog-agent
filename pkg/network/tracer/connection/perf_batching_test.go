@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	ebpfutil "github.com/DataDog/datadog-agent/pkg/ebpf/util"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 )
@@ -172,7 +172,8 @@ func newTestBatchManager(t *testing.T) *perfBatchManager {
 	require.NoError(t, err)
 	t.Cleanup(func() { m.Close() })
 
-	gm := ddebpf.Map[uint32, netebpf.Batch](m)
+	gm, err := ebpfutil.Map[uint32, netebpf.Batch](m)
+	require.NoError(t, err)
 	mgr, err := newPerfBatchManager(gm, numTestCPUs)
 	require.NoError(t, err)
 	return mgr
