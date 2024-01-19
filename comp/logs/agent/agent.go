@@ -65,6 +65,7 @@ type provides struct {
 	fx.Out
 
 	Comp           optional.Option[Component]
+	FlareProvider  flaretypes.Provider
 	StatusProvider statusComponent.InformationProvider
 }
 
@@ -91,13 +92,6 @@ type agent struct {
 
 	// started is true if the logs agent is running
 	started *atomic.Bool
-}
-
-type provides struct {
-	fx.Out
-
-	Comp          optional.Option[Component]
-	FlareProvider flaretypes.Provider
 }
 
 func newLogsAgent(deps dependencies) provides {
