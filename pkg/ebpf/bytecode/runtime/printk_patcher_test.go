@@ -105,10 +105,13 @@ func TestPatchPrintkNewline(t *testing.T) {
 			"12", "21", "with args: 2+2=4", "with more args and vars: 1+2=3", "with a function call in the argument: 70", "bye",
 		}
 
+		foundLines := []string{}
+
 		for _, line := range expectedLines {
 			actualLine, err := traceReader.ReadString('\n')
+			foundLines = append(foundLines, actualLine)
 			require.NoError(t, err)
-			require.Contains(t, actualLine, line)
+			require.Contains(t, actualLine, line, "line %s not found in output, all lines until now:\n%s", line, strings.Join(foundLines, ""))
 		}
 	})
 }
