@@ -24,12 +24,24 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 )
 
 //go:generate $GOPATH/bin/include_headers pkg/ebpf/testdata/c/runtime/logdebug-test.c pkg/ebpf/bytecode/build/runtime/logdebug-test.c pkg/ebpf/c pkg/network/ebpf/c/runtime pkg/network/ebpf/c
 //go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/logdebug-test.c pkg/ebpf/bytecode/runtime/logdebug-test.go runtime
 
 func TestPatchPrintkNewline(t *testing.T) {
+	kernelVersion, err := ebpfkernel.NewKernelVersion()
+	require.NoError(t, err)
+
+	if kernelVersion.IsAmazonLinuxKernel() || kernelVersion.IsRH7Kernel() || kernelVersion.IsRH8Kernel() {
+		t.Skip("Skipping test on Amazon Linux and RedHat kernels due to backports")
+	}
+
+	if kernelVersion.Code <= ebpfkernel.Kernel5_9 {
+		t.Skip("Skipping test on older kernels, instruction patching not used there")
+	}
+
 	ebpftest.TestBuildMode(t, ebpftest.RuntimeCompiled, "", func(t *testing.T) {
 		cfg := ddebpf.NewConfig()
 		require.NotNil(t, cfg)
