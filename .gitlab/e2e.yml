@@ -305,9 +305,9 @@ new-e2e-orchestrator-main:
   extends: .new_e2e_template
   rules: !reference [.on_main_and_no_skip_e2e]
   needs:
-    - qa_branch_agent
-    - qa_branch_dca
-    - qa_branch_dogstatsd
+    - qa_main_agent
+    - qa_main_dca
+    - qa_main_dogstatsd
   variables:
     TARGETS: ./tests/orchestrator
     TEAM: container-app
