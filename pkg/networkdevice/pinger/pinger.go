@@ -7,8 +7,8 @@ import (
 )
 
 const (
-	defaultCount    = 1
-	defaultInterval = 1 * time.Second
+	defaultCount    = 2
+	defaultInterval = 20 * time.Millisecond
 	defaultTimeout  = 3 * time.Second
 )
 

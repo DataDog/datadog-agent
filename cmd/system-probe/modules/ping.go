@@ -11,7 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	pingcheck "github.com/DataDog/datadog-agent/pkg/networkdevice/pinger"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gorilla/mux"
@@ -23,6 +22,8 @@ const (
 	countParam    = "count"
 	intervalParam = "interval"
 	timeoutParam  = "timeout"
+
+	defaultPingConcurrencyLimit = 10
 )
 
 type pinger struct{}
@@ -48,7 +49,7 @@ func (p *pinger) GetStats() map[string]interface{} {
 func (p *pinger) Register(httpMux *module.Router) error {
 	var runCounter = atomic.NewUint64(0)
 
-	httpMux.HandleFunc("/ping/{host}", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
+	httpMux.HandleFunc("/ping/{host}", func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
 		vars := mux.Vars(req)
 		id := getClientID(req)
@@ -106,7 +107,7 @@ func (p *pinger) Register(httpMux *module.Router) error {
 
 		runCount := runCounter.Inc()
 		logPingRequests(host, id, count, interval, timeout, runCount, start)
-	}))
+	})
 
 	return nil
 }

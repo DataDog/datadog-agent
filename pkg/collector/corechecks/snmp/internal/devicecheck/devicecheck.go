@@ -157,19 +157,19 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 
 	// Get a system appropriate ping check
 	if d.config.PingEnabled {
-		log.Infof("ATTEMPTING TO RUN PING FOR HOST: %s, tags: %+v", d.config.IPAddress, tags)
+		log.Tracef("SNMP attempting to run ping for host: %s, tags: %+v", d.config.IPAddress, tags)
 		pingResult, err := d.Ping(d.config.PingConfig)
 		if err != nil {
 			log.Errorf("%s: failed to ping device: %s", d.config.IPAddress, err.Error())
-			d.sender.Gauge(pingCanConnectMetric, float64(0.0), tags)
+			//d.diagnoses.Add("error", "SNMP_FAILED_TO_PING_DEVICE", "Agent encountered an error when pinging this network device. Check agent logs for more details.")
 		} else {
-			log.Infof("%s: ping returned: %+v", d.config.IPAddress, pingResult)
+			log.Debugf("%s: ping returned: %+v", d.config.IPAddress, pingResult)
 			d.sender.Gauge(pingAvgRttMetric, float64(pingResult.AvgRtt/time.Millisecond), tags)
 			d.sender.Gauge(pingCanConnectMetric, common.BoolToFloat64(pingResult.CanConnect), tags)
 			d.sender.Gauge(pingPacketLoss, pingResult.PacketLoss, tags)
 		}
 	} else {
-		log.Infof("PING DISABLED FOR HOST: %s, tags: %+v, ping enabled: %t, ping config: %+v", d.config.IPAddress, tags, d.config.PingEnabled, d.config.PingConfig)
+		log.Tracef("%s: SNMP ping disabled for host", d.config.IPAddress)
 	}
 
 	if d.config.CollectDeviceMetadata {
