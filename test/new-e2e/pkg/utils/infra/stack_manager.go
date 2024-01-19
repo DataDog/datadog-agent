@@ -176,6 +176,24 @@ func (sm *StackManager) Cleanup(ctx context.Context) []error {
 	return errors
 }
 
+func (sm *StackManager) getLoggingOptions() (debug.LoggingOptions, error) {
+	logLevel, err := runner.GetProfile().ParamStore().GetIntWithDefault(parameters.PulumiLogLevel, 1)
+	if err != nil {
+		return debug.LoggingOptions{}, err
+	}
+	pulumiLogLevel := uint(logLevel)
+	pulumiLogToStdErr, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.PulumiLogToStdErr, false)
+	if err != nil {
+		return debug.LoggingOptions{}, err
+	}
+
+	return debug.LoggingOptions{
+		FlowToPlugins: true,
+		LogLevel:      &pulumiLogLevel,
+		LogToStdErr:   pulumiLogToStdErr,
+	}, nil
+}
+
 func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *auto.Stack, logWriter io.Writer) error {
 	if stack == nil {
 		return fmt.Errorf("unable to find stack, skipping deletion of: %s", stackID)
@@ -183,6 +201,10 @@ func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *
 
 	destroyContext, cancel := context.WithTimeout(ctx, stackDestroyTimeout)
 
+	loggingOptions, err := sm.getLoggingOptions()
+	if err != nil {
+		return err
+	}
 	var logger io.Writer
 
 	if logWriter == nil {
@@ -190,9 +212,7 @@ func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *
 	} else {
 		logger = logWriter
 	}
-	_, err := stack.Destroy(destroyContext, optdestroy.ProgressStreams(logger), optdestroy.DebugLogging(debug.LoggingOptions{
-		FlowToPlugins: true,
-	}))
+	_, err = stack.Destroy(destroyContext, optdestroy.ProgressStreams(logger), optdestroy.DebugLogging(loggingOptions))
 	cancel()
 	if err != nil {
 		return err
@@ -241,12 +261,7 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 		return nil, auto.UpResult{}, err
 	}
 
-	logLevel, err := profile.ParamStore().GetIntWithDefault(parameters.PulumiLogLevel, 1)
-	if err != nil {
-		return nil, auto.UpResult{}, err
-	}
-	pulumiLogLevel := uint(logLevel)
-	pulumiLogToStdErr, err := profile.ParamStore().GetBoolWithDefault(parameters.PulumiLogToStdErr, false)
+	loggingOptions, err := sm.getLoggingOptions()
 	if err != nil {
 		return nil, auto.UpResult{}, err
 	}
@@ -263,11 +278,7 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 
 	for retry := 0; retry < stackUpRetry && !ok; retry++ {
 		upCtx, cancel := context.WithTimeout(ctx, stackUpTimeout)
-		upResult, err = stack.Up(upCtx, optup.ProgressStreams(logger), optup.DebugLogging(debug.LoggingOptions{
-			FlowToPlugins: true,
-			LogLevel:      &pulumiLogLevel,
-			LogToStdErr:   pulumiLogToStdErr,
-		}))
+		upResult, err = stack.Up(upCtx, optup.ProgressStreams(logger), optup.DebugLogging(loggingOptions))
 		cancel()
 		if err != nil && shouldRetryError(err) {
 			fmt.Fprint(logger, "Got error that should be retried during stack up, retrying")
