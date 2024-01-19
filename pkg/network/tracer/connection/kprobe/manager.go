@@ -12,12 +12,14 @@ import (
 	"strings"
 
 	manager "github.com/DataDog/ebpf-manager"
+	cebpf "github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -97,25 +99,42 @@ func initManager(mgr *ebpftelemetry.Manager, closedHandler *ebpf.PerfHandler, ri
 		{Name: probes.ClassificationProgsMap},
 		{Name: probes.TCPCloseProgsMap},
 	}
+	log.Debugf("adamk Loading conn_close_event_map")
 	if ringbufferSupported {
-		rb := &manager.RingBuffer{
-			Map: manager.Map{Name: probes.ConnCloseEventMapRing},
-			RingBufferOptions: manager.RingBufferOptions{
-				RecordHandler:    ringHandlerTCP.RecordHandler,
-				TelemetryEnabled: cfg.InternalTelemetryEnabled,
-			},
+		log.Debugf("adamk Loading conn_close_event_map RingBuf")
+		options := manager.RingBufferOptions{
+			ErrChan:          ringHandlerTCP.ErrorChannel,
+			RecordGetter:     ringHandlerTCP.RecordGetter,
+			RecordHandler:    ringHandlerTCP.RecordHandler,
+			TelemetryEnabled: cfg.InternalTelemetryEnabled,
 		}
 		numCPU, err := utils.NumCPU()
 		if err != nil {
 			numCPU = 1
 		}
-
 		if numCPU <= 16 {
-			rb.RingBufferOptions.RingBufferSize = 8 * 256 * os.Getpagesize()
+			options.RingBufferSize = 8 * 256 * os.Getpagesize()
 		}
-		rb.RingBufferOptions.RingBufferSize = 16 * 256 * os.Getpagesize()
-		mgr.RingBuffers = []*manager.RingBuffer{rb}
-		ebpf.ReportRingBufferTelemetry(rb)
+		options.RingBufferSize = 16 * 256 * os.Getpagesize()
+		log.Debugf("adamk Loading conn_close_event_map RingBuf options %v", options)
+		rb2, err := mgr.NewRingBuffer(&cebpf.MapSpec{Name: probes.ConnCloseEventMapRing}, manager.MapOptions{}, options)
+		rb2Info, err := rb2.Info()
+		log.Debugf("adamk rb2 %v", rb2Info)
+		if err != nil {
+			log.Debugf("adamk Loading conn_close_event_map failed: %v", err)
+		}
+		log.Debugf("adamk Loading conn_close_event_map RingBuf")
+		//rb := &manager.RingBuffer{
+		//	Map: manager.Map{Name: probes.ConnCloseEventMapRing},
+		//	RingBufferOptions: manager.RingBufferOptions{
+		//		RecordHandler:    ringHandlerTCP.RecordHandler,
+		//		TelemetryEnabled: cfg.InternalTelemetryEnabled,
+		//	},
+		//}
+		log.Debugf("adamk Loading conn_close_event_map RingBuf done")
+
+		//mgr.RingBuffers = []*manager.RingBuffer{rb2}
+		//ebpf.ReportRingBufferTelemetry(rb2)
 	} else {
 		pm := &manager.PerfMap{
 			Map: manager.Map{Name: probes.ConnCloseEventMapPerf},

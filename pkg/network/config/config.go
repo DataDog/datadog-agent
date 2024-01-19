@@ -317,6 +317,8 @@ func New() *Config {
 
 		ProtocolClassificationEnabled: cfg.GetBool(join(netNS, "enable_protocol_classification")),
 
+		RingbufferEnabled: cfg.GetBool(join(netNS, "enable_ringbuffers")),
+
 		EnableHTTPMonitoring:      cfg.GetBool(join(smNS, "enable_http_monitoring")),
 		EnableHTTP2Monitoring:     cfg.GetBool(join(smNS, "enable_http2_monitoring")),
 		EnableNativeTLSMonitoring: cfg.GetBool(join(smNS, "tls", "native", "enabled")),

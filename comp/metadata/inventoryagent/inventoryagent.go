@@ -224,6 +224,7 @@ func (ia *inventoryagent) initData() {
 	ia.data["system_probe_track_udp_4_connections"] = getBoolSysProbe("network_config.collect_udp_v4")
 	ia.data["system_probe_track_udp_6_connections"] = getBoolSysProbe("network_config.collect_udp_v6")
 	ia.data["system_probe_protocol_classification_enabled"] = getBoolSysProbe("network_config.enable_protocol_classification")
+	ia.data["system_probe_ringbuffers_enabled"] = getBoolSysProbe("network_config.enable_ringbuffers")
 	ia.data["system_probe_gateway_lookup_enabled"] = getBoolSysProbe("network_config.enable_gateway_lookup")
 	ia.data["system_probe_root_namespace_enabled"] = getBoolSysProbe("network_config.enable_root_netns")
 }

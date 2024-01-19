@@ -18,7 +18,7 @@ import (
 // RingHandler wraps an eBPF ring buffer
 type RingHandler struct {
 	DataChannel  chan *RingDataEvent
-	LostChannel  chan uint64
+	ErrorChannel chan error
 	RecordGetter func() *ringbuf.Record
 	once         sync.Once
 	closed       bool
@@ -45,8 +45,8 @@ var eventPool = sync.Pool{
 // NewRingHandler creates a RingHandler
 func NewRingHandler(dataChannelSize int) *RingHandler {
 	return &RingHandler{
-		DataChannel: make(chan *RingDataEvent, dataChannelSize),
-		LostChannel: make(chan uint64, 10),
+		DataChannel:  make(chan *RingDataEvent, dataChannelSize),
+		ErrorChannel: make(chan error, 10),
 		RecordGetter: func() *ringbuf.Record {
 			return eventPool.Get().(*ringbuf.Record)
 		},
@@ -54,11 +54,11 @@ func NewRingHandler(dataChannelSize int) *RingHandler {
 }
 
 // LostHandler is the callback intended to be used when configuring RingMapOptions
-func (c *RingHandler) LostHandler(_ int, lostCount uint64, _ *manager.RingBuffer, _ *manager.Manager) {
+func (c *RingHandler) LostHandler(_ int, errorCount error, _ *manager.RingBuffer, _ *manager.Manager) {
 	if c.closed {
 		return
 	}
-	c.LostChannel <- lostCount
+	c.ErrorChannel <- errorCount
 }
 
 // RecordHandler is the callback intended to be used when configuring RingMapOptions
@@ -75,6 +75,6 @@ func (c *RingHandler) Stop() {
 	c.once.Do(func() {
 		c.closed = true
 		close(c.DataChannel)
-		close(c.LostChannel)
+		close(c.ErrorChannel)
 	})
 }

@@ -110,6 +110,9 @@ func ClassificationSupported(config *config.Config) bool {
 }
 
 func RingbufferSupported(config *config.Config) bool {
+	log.Debugf("adamk RingbufferSupported?")
+	log.Debugf("adamk HaveMapType ebpf.RingBuf? %v", features.HaveMapType(ebpf.RingBuf) == nil)
+	log.Debugf("adamk config.RingbufferEnabled? %v", config.RingbufferEnabled)
 	return (features.HaveMapType(ebpf.RingBuf) == nil) && config.RingbufferEnabled
 }
 
