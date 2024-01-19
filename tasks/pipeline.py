@@ -477,6 +477,13 @@ def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True):
 
     # Fill the environment variables to pass to the child pipeline.
     for v in variables.split(','):
+        if v not in os.environ:
+            print(
+                color_message(
+                    f"WARNING: attempting to pass undefined variable \"{v}\" to downstream pipeline", "orange"
+                )
+            )
+            continue
         data['variables'][v] = os.environ[v]
 
     print(
