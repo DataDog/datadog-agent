@@ -124,7 +124,7 @@ kernel_matrix_testing_setup_env_security_agent_x64:
     GOTESTSUM: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/gotestsum
     TEST2JSON: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/test2json
     SECURITY_AGENT_TESTS: opt/system-probe-tests
-    KITCHEN_TESTS: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/tests
+    KITCHEN_TESTS: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/tests
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
     TEST_COMPONENT: security-agent
   artifacts:
