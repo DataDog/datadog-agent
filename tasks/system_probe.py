@@ -18,7 +18,17 @@ from invoke.exceptions import Exit
 
 from .build_tags import UNIT_TEST_TAGS, get_default_build_tags
 from .libs.common.color import color_message
-from .libs.common.utils import REPO_PATH, bin_name, environ, get_build_flags, get_gobin, get_version_numeric_only
+from .libs.common.utils import (
+    REPO_PATH,
+    bin_name,
+    environ,
+    get_build_flags,
+    get_common_test_args,
+    set_runtime_comp_env,
+    set_co_re_env,
+    get_gobin,
+    get_version_numeric_only,
+)
 from .libs.ninja_syntax import NinjaWriter
 from .windows_resources import MESSAGESTRINGS_MC_PATH, arch_to_windres_target
 
@@ -625,25 +635,20 @@ def test(
         if bundle_ebpf:
             build_tags.append(BUNDLE_TAG)
 
-    args = {
-        "build_tags": ",".join(build_tags),
-        "output_params": f"-c -o {output_path}" if output_path else "",
-        "run": f"-run {run}" if run else "",
-        "failfast": "-failfast" if failfast else "",
-        "go": "go",
-        "sudo": "sudo -E " if not windows and not output_path and not is_root() else "",
-    }
+    args = get_common_test_args(build_tags, failfast)
+    args["output_params"] = (f"-c -o {output_path}" if output_path else "",)
+    args["run"] = (f"-run {run}" if run else "",)
+    args["go"] = ("go",)
+    args["sudo"] = (
+        "sudo -E " if not windows and not output_path and not is_root() else "",
+    )
 
     _, _, env = get_build_flags(ctx)
-    env['DD_SYSTEM_PROBE_BPF_DIR'] = EMBEDDED_SHARE_DIR
+    env["DD_SYSTEM_PROBE_BPF_DIR"] = EMBEDDED_SHARE_DIR
     if runtime_compiled:
-        env['DD_ENABLE_RUNTIME_COMPILER'] = "true"
-        env['DD_ALLOW_PRECOMPILED_FALLBACK'] = "false"
-        env['DD_ENABLE_CO_RE'] = "false"
+        set_runtime_comp_env(env)
     elif co_re:
-        env['DD_ENABLE_CO_RE'] = "true"
-        env['DD_ALLOW_RUNTIME_COMPILED_FALLBACK'] = "false"
-        env['DD_ALLOW_PRECOMPILED_FALLBACK'] = "false"
+        set_co_re_env(env)
 
     go_root = os.getenv("GOROOT")
     if go_root:
@@ -712,26 +717,19 @@ def test_debug(
         if bundle_ebpf:
             build_tags.append(BUNDLE_TAG)
 
-    args = {
-        "build_tags": ",".join(build_tags),
-        "run": run,
-        "failfast": "-failfast" if failfast else "",
-        "dlv": "dlv",
-        "sudo": "sudo -E " if not windows and not is_root() else "",
-    }
+    args = get_common_test_args(build_tags, failfast)
+    args["run"] = run
+    args["dlv"] = "dlv"
+    args["sudo"] = "sudo -E " if not windows and not is_root() else ""
+    args["dir"] = package
 
     _, _, env = get_build_flags(ctx)
     env["DD_SYSTEM_PROBE_BPF_DIR"] = EMBEDDED_SHARE_DIR
     if runtime_compiled:
-        env["DD_ENABLE_RUNTIME_COMPILER"] = "true"
-        env["DD_ALLOW_PRECOMPILED_FALLBACK"] = "false"
-        env["DD_ENABLE_CO_RE"] = "false"
+        set_runtime_comp_env(env)
     elif co_re:
-        env["DD_ENABLE_CO_RE"] = "true"
-        env["DD_ALLOW_RUNTIME_COMPILED_FALLBACK"] = "false"
-        env["DD_ALLOW_PRECOMPILED_FALLBACK"] = "false"
+        set_co_re_env(env)
 
-    args["dir"] = package
     cmd = '{sudo}{dlv} test {dir} --build-flags="-mod=mod -v {failfast} -tags={build_tags}" -- -test.run {run}'
     ctx.run(cmd.format(**args), env=env, pty=True, warn=True)
 
