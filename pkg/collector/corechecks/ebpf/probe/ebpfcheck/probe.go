@@ -568,12 +568,45 @@ func hashMapNumberOfEntriesWithBatch(mp *ebpf.Map) (int64, error) {
 	// ENOENT to indicate it is the last batch. In this case, we want a single batch with all
 	// the elements so it should return ENOENT in normal operation
 	if errno != 0 && errno != unix.ENOENT {
-		err := log.Warnf("error iterating map %s: %s", mp.String(), errno)
-		return 0, err
+		return -1, fmt.Errorf("error iterating map %s: %s", mp.String(), errno)
 	}
 
 	// The syscall modifies this field with the number of elements returned
 	return int64(attr.Count), nil
+}
+
+func hashMapNumberOfEntriesWithIteration(mp *ebpf.Map) (int64, error) {
+	numElements := int64(0)
+	maxEntries := int64(mp.MaxEntries())
+	var cursor any
+
+	for numElements <= maxEntries {
+		var err error
+		if cursor == nil {
+			// Allocate the cursor the first time
+			cursor = make([]byte, mp.KeySize())
+			// Pass nil as the current key to signal that we start at the beginning of the map
+			err = mp.NextKey(nil, cursor)
+		} else {
+			// Normal operation, get the next key to the one we have
+			err = mp.NextKey(cursor, cursor)
+		}
+
+		if err != nil {
+			if errors.Is(err, ebpf.ErrKeyNotExist) {
+				// we reached the end of the map
+				break
+			}
+			return -1, err
+		}
+
+		numElements++
+	}
+
+	if numElements > maxEntries {
+		return -1, fmt.Errorf("map %s has more elements than its max entries (%d), not returning a count", mp.String(), mp.MaxEntries())
+	}
+	return numElements, nil
 }
 
 func hashMapNumberOfEntries(mp *ebpf.Map) int64 {
@@ -581,32 +614,17 @@ func hashMapNumberOfEntries(mp *ebpf.Map) int64 {
 		return -1
 	}
 
-	numElements := 0
+	var numElements int64
+	var err error
 	if ddebpf.BatchAPISupported() && mp.Type() != ebpf.HashOfMaps { // HashOfMaps doesn't work with batch API
-		num, err := hashMapNumberOfEntriesWithBatch(mp)
-		if err != nil {
-			return -1
-		}
-		return num
+		numElements, err = hashMapNumberOfEntriesWithBatch(mp)
+	} else {
+		numElements, err = hashMapNumberOfEntriesWithIteration(mp)
 	}
-
-	key := make([]byte, mp.KeySize())
-	value := make([]byte, mp.ValueSize())
-
-	it := mp.Iterate()
-	for it.Next(unsafe.Pointer(&key[0]), unsafe.Pointer(&value[0])) {
-		numElements++
-
-		if numElements > int(mp.MaxEntries()) {
-			log.Debugf("map %s has more elements than its max entries (%d), not returning a count", mp.String(), mp.MaxEntries())
-			return -1
-		}
-	}
-
-	if it.Err() != nil {
-		log.Debugf("error iterating map %s: %s", mp.String(), it.Err())
+	if err != nil {
+		log.Debugf("error getting number of elements for map %s: %s", mp.String(), err)
 		return -1
 	}
 
-	return int64(numElements)
+	return numElements
 }

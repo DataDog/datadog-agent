@@ -214,6 +214,21 @@ func TestHashMapNumberOfEntries(t *testing.T) {
 			}
 		}
 
+		if ddebpf.BatchAPISupported() && mapType != ebpf.HashOfMaps {
+			t.Run("BatchAPI", func(t *testing.T) {
+				num, err := hashMapNumberOfEntriesWithBatch(m)
+				require.NoError(t, err)
+				require.Equal(t, int64(filledEntries), num)
+			})
+		}
+
+		t.Run("Iteration", func(t *testing.T) {
+			num, err := hashMapNumberOfEntriesWithIteration(m)
+			require.NoError(t, err)
+			require.Equal(t, int64(filledEntries), num)
+		})
+
+		// Test the complete function just in case
 		require.Equal(t, int64(filledEntries), hashMapNumberOfEntries(m))
 	}
 
@@ -253,10 +268,28 @@ func TestHashMapNumberOfEntriesNoExtraAllocations(t *testing.T) {
 				require.NoError(t, m.Put(&i, &i))
 			}
 
-			allocs := testing.AllocsPerRun(10, func() {
-				hashMapNumberOfEntries(m)
+			t.Run("Iteration", func(t *testing.T) {
+				allocs := testing.AllocsPerRun(10, func() {
+					hashMapNumberOfEntriesWithIteration(m)
+				})
+				require.LessOrEqual(t, allocs, maxAllocs)
 			})
-			require.LessOrEqual(t, allocs, maxAllocs)
+
+			if ddebpf.BatchAPISupported() {
+				t.Run("Batch", func(t *testing.T) {
+					allocs := testing.AllocsPerRun(10, func() {
+						hashMapNumberOfEntriesWithIteration(m)
+					})
+					require.LessOrEqual(t, allocs, maxAllocs)
+				})
+			}
+
+			t.Run("MainFunction", func(t *testing.T) {
+				allocs := testing.AllocsPerRun(10, func() {
+					hashMapNumberOfEntries(m)
+				})
+				require.LessOrEqual(t, allocs, maxAllocs)
+			})
 		})
 	}
 }
