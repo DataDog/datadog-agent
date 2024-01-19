@@ -37,13 +37,18 @@ from tasks.system_probe import (
 )
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
+is_windows = sys.platform == "win32"
+
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent"))
 CI_PROJECT_DIR = os.environ.get("CI_PROJECT_DIR", ".")
 KITCHEN_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "kitchen"))
+#if is_windows:
+#  KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-security-agent-check", "files", "default")
+#else:
 KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-security-agent-check", "files")
 STRESS_TEST_SUITE = "stresssuite"
-is_windows = sys.platform == "win32"
+
 
 @task(iterable=["build_tags"])
 def build(
@@ -380,7 +385,6 @@ def build_functional_tests(
             kernel_release=kernel_release,
             debug=debug,
         )
-
     
         build_embed_syscall_tester(ctx)
 
@@ -842,7 +846,7 @@ def kitchen_prepare(ctx, windows=is_windows, skip_linters=False):
     out_binary = "testsuite"
     if windows:
         out_binary = "testsuite.exe"
-        
+
     testsuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "tests", out_binary)
     build_functional_tests(
         ctx,
