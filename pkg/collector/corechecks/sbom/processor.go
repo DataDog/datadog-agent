@@ -299,8 +299,13 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 		repoDigests := make([]string, 0, len(img.RepoDigests))
 		for _, repoDigest := range img.RepoDigests {
 			if strings.HasPrefix(repoDigest, repo+"@sha256:") {
-				repoDigests = append(repoDigests, strings.SplitN(repoDigest, "@sha256:", 2)[1])
+				repoDigests = append(repoDigests, repoDigest)
 			}
+		}
+
+		if len(repoDigests) == 0 {
+			log.Errorf("The image %s has no repo digest for repo %s", img.ID, repo)
+			continue
 		}
 
 		// Because we split a single image entity into different payloads if it has several repo digests,
