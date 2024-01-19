@@ -174,12 +174,12 @@ def send_rate_limit_info_datadog(_, pipeline_id):
     from .libs.common.github_api import GithubAPI
 
     gh = GithubAPI('DataDog/datadog-agent')
-    print(gh.get_rate_limit_info())
+    rate_limit_info = gh.get_rate_limit_info()
+    print(f"Remaining rate limit: {rate_limit_info[0]}/{rate_limit_info[1]}")
     metric = create_count(
         metric_name='github.rate_limit.remaining',
         timestamp=int(time.time()),
-        value=gh.get_rate_limit_info()[0],
+        value=rate_limit_info[0],
         tags=['source:github', 'repository:datadog-agent', f'pipeline_id:{pipeline_id}'],
     )
     send_metrics([metric])
-    # gh.send_rate_limit_info_datadog()
