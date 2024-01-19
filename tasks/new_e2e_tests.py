@@ -52,6 +52,7 @@ def run(
     src_agent_version="",
     dest_agent_version="",
     keep_stacks=False,
+    extra_flags="",
     cache=False,
     junit_tar="",
     coverage=False,
@@ -96,7 +97,7 @@ def run(
         test_run_arg = f"-run {test_run_name}"
 
     cmd = f'gotestsum --format {gotestsum_format} '
-    cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags "{go_build_tags}" {nocache} {run} {skip} {coverage_opt} {test_run_arg} -args {osversion} {platform} {major_version} {arch} {flavor} {cws_supported_osversion} {src_agent_version} {dest_agent_version} {keep_stacks}'
+    cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags "{go_build_tags}" {nocache} {run} {skip} {coverage_opt} {test_run_arg} -args {osversion} {platform} {major_version} {arch} {flavor} {cws_supported_osversion} {src_agent_version} {dest_agent_version} {keep_stacks} {extra_flags}'
 
     args = {
         "go_mod": "mod",
@@ -120,6 +121,7 @@ def run(
         "src_agent_version": f"-src-agent-version {src_agent_version}" if src_agent_version else '',
         "dest_agent_version": f"-dest-agent-version {dest_agent_version}" if dest_agent_version else '',
         "keep_stacks": '-keep-stacks' if keep_stacks else '',
+        "extra_flags": extra_flags,
     }
 
     test_res = test_flavor(

@@ -287,7 +287,33 @@ new-e2e-process-main:
   variables:
     TARGETS: ./tests/process
     TEAM: processes
+
+new-e2e-orchestrator-dev:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.if_run_e2e_tests]
+    - !reference [.on_dev_branch_manual]
+  needs:
+    - qa_branch_agent
+    - qa_branch_dca
+    - qa_branch_dogstatsd
+  variables:
+    TARGETS: ./tests/orchestrator
+    TEAM: container-app
+
+new-e2e-orchestrator-main:
+  extends: .new_e2e_template
+  rules: !reference [.on_main_and_no_skip_e2e]
+  needs:
+    - qa_branch_agent
+    - qa_branch_dca
+    - qa_branch_dogstatsd
+  variables:
+    TARGETS: ./tests/orchestrator
+    TEAM: container-app
+
   allow_failure: true #TODO: Remove when https://github.com/DataDog/datadog-agent/pull/22113 is merged
+
 #   ^    If you create a new job here that extends `.new_e2e_template`,
 #  /!\   do not forget to add it in the `dependencies` statement of the
 # /___\  `e2e_test_junit_upload` job in the `.gitlab/e2e_test_junit_upload.yml` file

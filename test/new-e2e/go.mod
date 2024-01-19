@@ -179,7 +179,7 @@ require (
 	github.com/pulumi/pulumi-command/sdk v0.9.2 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v3 v3.6.1 // indirect
 	github.com/pulumi/pulumi-eks/sdk v1.0.4 // indirect
-	github.com/pulumi/pulumi-kubernetes/sdk/v3 v3.30.2 // indirect
+	github.com/pulumi/pulumi-kubernetes/sdk/v3 v3.30.2
 	github.com/pulumi/pulumi-libvirt/sdk v0.4.0 // indirect
 	// pulumi-random v4.14.0 uses GO 1.21:
 	// https://github.com/pulumi/pulumi-random/blob/v4.14.0/sdk/go.mod#L3
