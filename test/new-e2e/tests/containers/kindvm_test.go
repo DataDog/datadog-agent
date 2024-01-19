@@ -61,7 +61,8 @@ func (suite *kindSuite) SetupSuite() {
 	suite.Require().NoError(err)
 	suite.Require().NoError(kubeCluster.Import(kubeSerialized, &kubeCluster))
 	suite.Require().NoError(kubeCluster.Init(suite))
-	suite.KubeClusterName = kubeCluster.ClusterName
+	suite.KubeClusterName, err = infra.GetStackManager().GetPulumiStackName("kind-cluster")
+	suite.Require().NoError(err)
 	suite.K8sClient = kubeCluster.Client()
 	suite.K8sConfig, err = clientcmd.RESTConfigFromKubeConfig([]byte(kubeCluster.KubeConfig))
 	suite.Require().NoError(err)
