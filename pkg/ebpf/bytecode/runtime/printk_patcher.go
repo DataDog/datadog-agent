@@ -175,8 +175,7 @@ func patchPrintkInstructions(p *ebpf.ProgramSpec) (int, error) {
 				if candidate.Constant&int64(mask) == int64('\n')<<int64(bitOffset) { // Sanity check: don't overwrite anything if it's not a newline
 					candidate.Constant &= int64(^mask) // Set the newline byte to 0
 
-					// We've correctly patched this instruction, reduce the length in one byte and continue looking for more
-					lengthLoadIns.Constant--
+					// We've correctly patched this instruction, continue looking for more
 					patchedInstructionIndexes[i] = true // Keep track of which instructions we've patched
 					numPatches++
 				} else if !patchedInstructionIndexes[i] {
