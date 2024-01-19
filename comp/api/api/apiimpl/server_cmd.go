@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/agent"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/check"
+	apiutils "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -124,6 +125,11 @@ func startCMDServer(
 	// create the REST HTTP router
 	agentMux := gorilla.NewRouter()
 	checkMux := gorilla.NewRouter()
+
+	// Add some observability in the API server
+	agentMux.Use(apiutils.LogResponseHandler(cmdServerName))
+	checkMux.Use(apiutils.LogResponseHandler(cmdServerName))
+
 	// Validate token for every request
 	agentMux.Use(validateToken)
 	checkMux.Use(validateToken)

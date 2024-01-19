@@ -15,9 +15,11 @@ import (
 	"go.uber.org/fx"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -85,9 +87,17 @@ type agent struct {
 	launchers                 *launchers.Launchers
 	health                    *health.Handle
 	diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver
+	flarecontroller           *flareController.FlareController
 
 	// started is true if the logs agent is running
 	started *atomic.Bool
+}
+
+type provides struct {
+	fx.Out
+
+	Comp          optional.Option[Component]
+	FlareProvider flaretypes.Provider
 }
 
 func newLogsAgent(deps dependencies) provides {
@@ -102,9 +112,10 @@ func newLogsAgent(deps dependencies) provides {
 			inventoryAgent: deps.InventoryAgent,
 			started:        atomic.NewBool(false),
 
-			sources:  sources.NewLogSources(),
-			services: service.NewServices(),
-			tracker:  tailers.NewTailerTracker(),
+			sources:         sources.NewLogSources(),
+			services:        service.NewServices(),
+			tracker:         tailers.NewTailerTracker(),
+			flarecontroller: flareController.NewFlareController(),
 		}
 		deps.Lc.Append(fx.Hook{
 			OnStart: logsAgent.start,
@@ -114,6 +125,7 @@ func newLogsAgent(deps dependencies) provides {
 		return provides{
 			Comp:           optional.NewOption[Component](logsAgent),
 			StatusProvider: statusComponent.NewInformationProvider(logsAgent),
+			FlareProvider:  flaretypes.NewProvider(logsAgent.flarecontroller.FillFlare),
 		}
 	}
 

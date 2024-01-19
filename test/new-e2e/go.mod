@@ -7,13 +7,16 @@ go 1.21
 // TODO: Implement hard check in CI
 
 replace (
+	github.com/DataDog/datadog-agent/pkg/proto => ../../pkg/proto
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../pkg/util/pointer
+	github.com/DataDog/datadog-agent/pkg/version => ../../pkg/version
 	github.com/DataDog/datadog-agent/test/fakeintake => ../fakeintake
 )
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.100
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/version v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/test/fakeintake v0.51.0-rc.2
 	github.com/DataDog/datadog-api-client-go v1.16.0
 	github.com/DataDog/datadog-api-client-go/v2 v2.15.0
@@ -22,7 +25,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20240115091817-a9f0b41a7576
+	github.com/DataDog/test-infra-definitions v0.0.0-20240118142854-f69f46f8ca43
 	github.com/aws/aws-sdk-go-v2 v1.24.0
 	github.com/aws/aws-sdk-go-v2/config v1.25.10
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.138.1
@@ -79,7 +82,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.2.9 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.10.9 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.16.9 // indirect
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.47.5 // indirect
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.47.6
 	github.com/aws/aws-sdk-go-v2/service/sso v1.18.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.21.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.26.1 // indirect
@@ -207,7 +210,7 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa // indirect
 	golang.org/x/mod v0.14.0 // indirect
-	golang.org/x/net v0.18.0 // indirect
+	golang.org/x/net v0.19.0 // indirect
 	golang.org/x/oauth2 v0.11.0 // indirect
 	golang.org/x/sync v0.5.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
