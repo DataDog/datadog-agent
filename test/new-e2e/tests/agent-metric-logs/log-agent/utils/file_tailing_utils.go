@@ -22,7 +22,10 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/os"
 )
 
+// LinuxLogsFolderPath is the folder where log files will be stored for Linux tests
 const LinuxLogsFolderPath = "/var/log/e2e_test_logs"
+
+// WindowsLogFolderPath is the folder where log files will be stored for Windows tests
 const WindowsLogsFolderPath = "C:\\logs\\e2e_test_logs"
 
 // LogsTestSuite is an interface for the log agent test suite.
