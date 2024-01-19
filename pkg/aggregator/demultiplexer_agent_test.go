@@ -8,7 +8,6 @@
 package aggregator
 
 import (
-	"bytes"
 	"fmt"
 	"testing"
 	"time"
@@ -142,48 +141,5 @@ func TestMetricSampleTypeConversion(t *testing.T) {
 			require.False(supported, fmt.Sprintf("Metric type %s should be not supported", test.metricType.String()))
 		}
 		require.Equal(test.apiMetricType, rv, fmt.Sprintf("Wrong conversion for %s", test.metricType.String()))
-	}
-}
-
-func TestStatusOutPut(t *testing.T) {
-	require := require.New(t)
-
-	tests := []struct {
-		name       string
-		assertFunc func(a *AgentDemultiplexer)
-	}{
-		{"JSON", func(a *AgentDemultiplexer) {
-			stats := make(map[string]interface{})
-			a.JSON(false, stats)
-
-			require.NotEmpty(stats)
-		}},
-		{"Text", func(a *AgentDemultiplexer) {
-			b := new(bytes.Buffer)
-			err := a.Text(false, b)
-
-			require.NoError(err)
-
-			require.NotEmpty(b.String())
-		}},
-		{"HTML", func(a *AgentDemultiplexer) {
-			b := new(bytes.Buffer)
-			err := a.HTML(false, b)
-
-			require.NoError(err)
-
-			require.NotEmpty(b.String())
-		}},
-	}
-
-	opts := demuxTestOptions()
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
-	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
-	demux := initAgentDemultiplexer(log, NewForwarderTest(log), &orchestratorForwarder, opts, "")
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			test.assertFunc(demux)
-		})
 	}
 }

@@ -11,10 +11,7 @@ import (
 	"embed"
 	"fmt"
 	"io"
-	"path"
 	"time"
-
-	textTemplate "text/template"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -93,21 +90,12 @@ func (Provider) JSON(_ bool, stats map[string]interface{}) error {
 
 // Text renders the text output
 func (Provider) Text(_ bool, buffer io.Writer) error {
-	return renderText(buffer, getStatusInfo())
+	return status.RenderText(templatesFS, "clusteragent.tmpl", buffer, getStatusInfo())
 }
 
 // HTML renders the html output
-func (Provider) HTML(_ bool, _ io.Writer) error {
+func (Provider) HTML(_ bool, buffer io.Writer) error {
 	return nil
-}
-
-func renderText(buffer io.Writer, data any) error {
-	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "clusteragent.tmpl"))
-	if tmplErr != nil {
-		return tmplErr
-	}
-	t := textTemplate.Must(textTemplate.New("clusteragent").Funcs(status.TextFmap()).Parse(string(tmpl)))
-	return t.Execute(buffer, data)
 }
 
 func getStatusInfo() map[string]interface{} {

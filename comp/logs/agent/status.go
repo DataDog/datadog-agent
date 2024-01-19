@@ -8,10 +8,6 @@ package agent
 import (
 	"embed"
 	"io"
-	"path"
-
-	htmlTemplate "html/template"
-	textTemplate "text/template"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	logsStatus "github.com/DataDog/datadog-agent/pkg/logs/status"
@@ -47,27 +43,9 @@ func (a *agent) JSON(verbose bool, stats map[string]interface{}) error {
 }
 
 func (a *agent) Text(verbose bool, buffer io.Writer) error {
-	return renderText(buffer, a.getStatusInfo(verbose))
+	return status.RenderText(templatesFS, "logsagent.tmpl", buffer, a.getStatusInfo(verbose))
 }
 
 func (a *agent) HTML(verbose bool, buffer io.Writer) error {
-	return renderHTML(buffer, a.getStatusInfo(verbose))
-}
-
-func renderHTML(buffer io.Writer, data any) error {
-	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "logsagentHTML.tmpl"))
-	if tmplErr != nil {
-		return tmplErr
-	}
-	t := htmlTemplate.Must(htmlTemplate.New("logsagentHTML").Funcs(status.HTMLFmap()).Parse(string(tmpl)))
-	return t.Execute(buffer, data)
-}
-
-func renderText(buffer io.Writer, data any) error {
-	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "logsagent.tmpl"))
-	if tmplErr != nil {
-		return tmplErr
-	}
-	t := textTemplate.Must(textTemplate.New("logsagent").Funcs(status.TextFmap()).Parse(string(tmpl)))
-	return t.Execute(buffer, data)
+	return status.RenderHTML(templatesFS, "logsagentHTML.tmpl", buffer, a.getStatusInfo(verbose))
 }

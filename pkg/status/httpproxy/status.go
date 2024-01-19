@@ -8,10 +8,7 @@ package httpproxy
 
 import (
 	"embed"
-	htmlTemplate "html/template"
 	"io"
-	"path"
-	textTemplate "text/template"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -67,28 +64,10 @@ func (p Provider) JSON(_ bool, stats map[string]interface{}) error {
 
 // Text renders the text output
 func (p Provider) Text(_ bool, buffer io.Writer) error {
-	return renderText(buffer, p.getStatusInfo())
+	return status.RenderText(templatesFS, "http.tmpl", buffer, p.getStatusInfo())
 }
 
 // HTML renders the html output
 func (p Provider) HTML(_ bool, buffer io.Writer) error {
-	return renderHTML(buffer, p.getStatusInfo())
-}
-
-func renderHTML(buffer io.Writer, data any) error {
-	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "httpHTML.tmpl"))
-	if tmplErr != nil {
-		return tmplErr
-	}
-	t := htmlTemplate.Must(htmlTemplate.New("httpHTML").Funcs(status.HTMLFmap()).Parse(string(tmpl)))
-	return t.Execute(buffer, data)
-}
-
-func renderText(buffer io.Writer, data any) error {
-	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "http.tmpl"))
-	if tmplErr != nil {
-		return tmplErr
-	}
-	t := textTemplate.Must(textTemplate.New("http").Funcs(status.TextFmap()).Parse(string(tmpl)))
-	return t.Execute(buffer, data)
+	return status.RenderHTML(templatesFS, "httpHTML.tmpl", buffer, p.getStatusInfo())
 }

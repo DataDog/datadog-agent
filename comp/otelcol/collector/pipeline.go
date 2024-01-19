@@ -9,11 +9,6 @@ package collector
 
 import (
 	"context"
-	"embed"
-	"io"
-	"path"
-
-	textTemplate "text/template"
 
 	"go.uber.org/fx"
 
@@ -121,64 +116,4 @@ func newPipeline(deps dependencies) (provides, error) {
 		Comp:           collector,
 		StatusProvider: status.NewInformationProvider(collector),
 	}, nil
-}
-
-//go:embed status_templates
-var templatesFS embed.FS
-
-func (c *collector) getStatusInfo() map[string]interface{} {
-	stats := make(map[string]interface{})
-
-	c.populateStatus(stats)
-
-	return stats
-}
-
-func (c *collector) populateStatus(stats map[string]interface{}) {
-	otlpStatus := make(map[string]interface{})
-	otlpIsEnabled := otlp.IsEnabled(c.deps.Config)
-
-	var otlpCollectorStatus otlp.CollectorStatus
-
-	if otlpIsEnabled {
-		otlpCollectorStatus = c.Status()
-	} else {
-		otlpCollectorStatus = otlp.CollectorStatus{Status: "Not running", ErrorMessage: ""}
-	}
-	otlpStatus["otlpStatus"] = otlpIsEnabled
-	otlpStatus["otlpCollectorStatus"] = otlpCollectorStatus.Status
-	otlpStatus["otlpCollectorStatusErr"] = otlpCollectorStatus.ErrorMessage
-
-	stats["otlp"] = otlpStatus
-}
-
-func (c *collector) Name() string {
-	return "OTLP"
-}
-
-func (c *collector) Section() string {
-	return "OTLP"
-}
-
-func (c *collector) JSON(_ bool, stats map[string]interface{}) error {
-	c.populateStatus(stats)
-
-	return nil
-}
-
-func (c *collector) Text(_ bool, buffer io.Writer) error {
-	return renderText(buffer, c.getStatusInfo())
-}
-
-func (c *collector) HTML(_ bool, _ io.Writer) error {
-	return nil
-}
-
-func renderText(buffer io.Writer, data any) error {
-	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "otlp.tmpl"))
-	if tmplErr != nil {
-		return tmplErr
-	}
-	t := textTemplate.Must(textTemplate.New("otlp").Funcs(status.TextFmap()).Parse(string(tmpl)))
-	return t.Execute(buffer, data)
 }

@@ -13,9 +13,6 @@ import (
 	"encoding/json"
 	"expvar"
 	"io"
-	"path"
-
-	textTemplate "text/template"
 
 	statusComp "github.com/DataDog/datadog-agent/comp/core/status"
 )
@@ -76,19 +73,10 @@ func (Provider) JSON(_ bool, stats map[string]interface{}) error {
 
 // Text renders the text output
 func (Provider) Text(_ bool, buffer io.Writer) error {
-	return renderText(buffer, getStatus())
+	return statusComp.RenderText(templatesFS, "compliance.tmpl", buffer, getStatus())
 }
 
 // HTML renders the html output
 func (Provider) HTML(_ bool, _ io.Writer) error {
 	return nil
-}
-
-func renderText(buffer io.Writer, data any) error {
-	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "compliance.tmpl"))
-	if tmplErr != nil {
-		return tmplErr
-	}
-	t := textTemplate.Must(textTemplate.New("snmp").Funcs(statusComp.TextFmap()).Parse(string(tmpl)))
-	return t.Execute(buffer, data)
 }

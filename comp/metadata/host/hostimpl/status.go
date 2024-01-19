@@ -12,10 +12,6 @@ import (
 	"encoding/json"
 	"expvar"
 	"io"
-	"path"
-
-	htmlTemplate "html/template"
-	textTemplate "text/template"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
 
@@ -75,27 +71,9 @@ func (h *host) JSON(_ bool, stats map[string]interface{}) error {
 }
 
 func (h *host) Text(_ bool, buffer io.Writer) error {
-	return renderText(buffer, h.getStatusInfo())
+	return status.RenderText(templatesFS, "host.tmpl", buffer, h.getStatusInfo())
 }
 
 func (h *host) HTML(_ bool, buffer io.Writer) error {
-	return renderHTML(buffer, h.getStatusInfo())
-}
-
-func renderHTML(buffer io.Writer, data any) error {
-	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "hostHTML.tmpl"))
-	if tmplErr != nil {
-		return tmplErr
-	}
-	t := htmlTemplate.Must(htmlTemplate.New("hostHTML").Funcs(status.HTMLFmap()).Parse(string(tmpl)))
-	return t.Execute(buffer, data)
-}
-
-func renderText(buffer io.Writer, data any) error {
-	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "host.tmpl"))
-	if tmplErr != nil {
-		return tmplErr
-	}
-	t := textTemplate.Must(textTemplate.New("host").Funcs(status.TextFmap()).Parse(string(tmpl)))
-	return t.Execute(buffer, data)
+	return status.RenderHTML(templatesFS, "hostHTML.tmpl", buffer, h.getStatusInfo())
 }

@@ -12,12 +12,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"path"
 	"sync"
 
 	"go.uber.org/fx"
-
-	textTemplate "text/template"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -121,19 +118,10 @@ func (s statusProvider) JSON(_ bool, stats map[string]interface{}) error {
 
 // Text renders the text output
 func (s statusProvider) Text(_ bool, buffer io.Writer) error {
-	return renderText(buffer, s.getStatusInfo())
+	return status.RenderText(templatesFS, "processagent.tmpl", buffer, s.getStatusInfo())
 }
 
 // HTML renders the html output
 func (s statusProvider) HTML(_ bool, _ io.Writer) error {
 	return nil
-}
-
-func renderText(buffer io.Writer, data any) error {
-	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "processagent.tmpl"))
-	if tmplErr != nil {
-		return tmplErr
-	}
-	t := textTemplate.Must(textTemplate.New("processagent").Funcs(status.TextFmap()).Parse(string(tmpl)))
-	return t.Execute(buffer, data)
 }

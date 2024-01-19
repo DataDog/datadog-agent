@@ -12,13 +12,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"path"
 	"sync"
 
 	"go.uber.org/fx"
-
-	htmlTemplate "html/template"
-	textTemplate "text/template"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -129,28 +125,10 @@ func (s statusProvider) JSON(_ bool, stats map[string]interface{}) error {
 
 // Text renders the text output
 func (s statusProvider) Text(_ bool, buffer io.Writer) error {
-	return renderText(buffer, s.getStatusInfo())
+	return status.RenderText(templatesFS, "traceagent.tmpl", buffer, s.getStatusInfo())
 }
 
 // HTML renders the html output
 func (s statusProvider) HTML(_ bool, buffer io.Writer) error {
-	return renderHTML(buffer, s.getStatusInfo())
-}
-
-func renderHTML(buffer io.Writer, data any) error {
-	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "traceagentHTML.tmpl"))
-	if tmplErr != nil {
-		return tmplErr
-	}
-	t := htmlTemplate.Must(htmlTemplate.New("traceagentHTML").Funcs(status.HTMLFmap()).Parse(string(tmpl)))
-	return t.Execute(buffer, data)
-}
-
-func renderText(buffer io.Writer, data any) error {
-	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "traceagent.tmpl"))
-	if tmplErr != nil {
-		return tmplErr
-	}
-	t := textTemplate.Must(textTemplate.New("traceagent").Funcs(status.TextFmap()).Parse(string(tmpl)))
-	return t.Execute(buffer, data)
+	return status.RenderHTML(templatesFS, "traceagentHTML.tmpl", buffer, s.getStatusInfo())
 }

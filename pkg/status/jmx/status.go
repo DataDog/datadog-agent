@@ -8,10 +8,6 @@ package jmx
 import (
 	"embed"
 	"io"
-	"path"
-
-	htmlTemplate "html/template"
-	textTemplate "text/template"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
 )
@@ -51,28 +47,10 @@ func (p Provider) JSON(_ bool, stats map[string]interface{}) error {
 
 // Text renders the text output
 func (p Provider) Text(verbose bool, buffer io.Writer) error {
-	return renderText(buffer, p.getStatusInfo(verbose))
+	return status.RenderText(templatesFS, "jmx.tmpl", buffer, p.getStatusInfo(verbose))
 }
 
 // HTML renders the html output
 func (p Provider) HTML(_ bool, buffer io.Writer) error {
-	return renderHTML(buffer, p.getStatusInfo(false))
-}
-
-func renderHTML(buffer io.Writer, data any) error {
-	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "jmxHTML.tmpl"))
-	if tmplErr != nil {
-		return tmplErr
-	}
-	t := htmlTemplate.Must(htmlTemplate.New("jmxHTML").Funcs(status.HTMLFmap()).Parse(string(tmpl)))
-	return t.Execute(buffer, data)
-}
-
-func renderText(buffer io.Writer, data any) error {
-	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "jmx.tmpl"))
-	if tmplErr != nil {
-		return tmplErr
-	}
-	t := textTemplate.Must(textTemplate.New("jmx").Funcs(status.TextFmap()).Parse(string(tmpl)))
-	return t.Execute(buffer, data)
+	return status.RenderHTML(templatesFS, "jmxHTML.tmpl", buffer, p.getStatusInfo(false))
 }

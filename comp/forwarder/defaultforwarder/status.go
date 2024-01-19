@@ -9,11 +9,8 @@ import (
 	"embed"
 	"encoding/json"
 	"expvar"
-	htmlTemplate "html/template"
 	"io"
-	"path"
 	"strconv"
-	textTemplate "text/template"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -60,27 +57,9 @@ func (s statusProvider) JSON(_ bool, stats map[string]interface{}) error {
 }
 
 func (s statusProvider) Text(_ bool, buffer io.Writer) error {
-	return renderText(buffer, s.getStatusInfo())
+	return status.RenderText(templatesFS, "forwarder.tmpl", buffer, s.getStatusInfo())
 }
 
 func (s statusProvider) HTML(_ bool, buffer io.Writer) error {
-	return renderHTML(buffer, s.getStatusInfo())
-}
-
-func renderHTML(buffer io.Writer, data any) error {
-	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "forwarderHTML.tmpl"))
-	if tmplErr != nil {
-		return tmplErr
-	}
-	t := htmlTemplate.Must(htmlTemplate.New("forwarderHTML").Funcs(status.HTMLFmap()).Parse(string(tmpl)))
-	return t.Execute(buffer, data)
-}
-
-func renderText(buffer io.Writer, data any) error {
-	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "forwarder.tmpl"))
-	if tmplErr != nil {
-		return tmplErr
-	}
-	t := textTemplate.Must(textTemplate.New("forwarder").Funcs(status.TextFmap()).Parse(string(tmpl)))
-	return t.Execute(buffer, data)
+	return status.RenderHTML(templatesFS, "forwarderHTML.tmpl", buffer, s.getStatusInfo())
 }

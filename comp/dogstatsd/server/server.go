@@ -14,13 +14,9 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"path"
 	"strings"
 	"sync"
 	"time"
-
-	htmlTemplate "html/template"
-	textTemplate "text/template"
 
 	"go.uber.org/fx"
 
@@ -851,27 +847,9 @@ func (s *server) JSON(_ bool, stats map[string]interface{}) error {
 }
 
 func (s *server) Text(_ bool, buffer io.Writer) error {
-	return renderText(buffer, s.getStatusInfo())
+	return status.RenderText(templatesFS, "dogstatsd.tmpl", buffer, s.getStatusInfo())
 }
 
 func (s *server) HTML(_ bool, buffer io.Writer) error {
-	return renderHTML(buffer, s.getStatusInfo())
-}
-
-func renderHTML(buffer io.Writer, data any) error {
-	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "dogstatsdHTML.tmpl"))
-	if tmplErr != nil {
-		return tmplErr
-	}
-	t := htmlTemplate.Must(htmlTemplate.New("dogstatsdHTML").Funcs(status.HTMLFmap()).Parse(string(tmpl)))
-	return t.Execute(buffer, data)
-}
-
-func renderText(buffer io.Writer, data any) error {
-	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "dogstatsd.tmpl"))
-	if tmplErr != nil {
-		return tmplErr
-	}
-	t := textTemplate.Must(textTemplate.New("dogstatsd").Funcs(status.TextFmap()).Parse(string(tmpl)))
-	return t.Execute(buffer, data)
+	return status.RenderHTML(templatesFS, "dogstatsdHTML.tmpl", buffer, s.getStatusInfo())
 }

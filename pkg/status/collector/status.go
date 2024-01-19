@@ -12,10 +12,6 @@ import (
 	"encoding/json"
 	"expvar"
 	"io"
-	"path"
-
-	htmlTemplate "html/template"
-	textTemplate "text/template"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
 )
@@ -120,36 +116,18 @@ func (Provider) JSON(_ bool, stats map[string]interface{}) error {
 	return nil
 }
 
-// Text populates the status buffer with the human readbable version
+// Text renders the text output
 func (Provider) Text(_ bool, buffer io.Writer) error {
-	return renderText(buffer, GetStatusInfo())
+	return status.RenderText(templatesFS, "collector.tmpl", buffer, GetStatusInfo())
 }
 
-// HTML populates the status buffer with the HTML version
+// HTML renders the html output
 func (Provider) HTML(_ bool, buffer io.Writer) error {
-	return renderHTML(buffer, GetStatusInfo())
+	return status.RenderHTML(templatesFS, "collectorHTML.tmpl", buffer, GetStatusInfo())
 }
 
 // TextWithData allows to render the human reaadable version with custom data
 // This is a hack only needed for the agent check subcommand
 func (Provider) TextWithData(buffer io.Writer, data any) error {
-	return renderText(buffer, data)
-}
-
-func renderHTML(buffer io.Writer, data any) error {
-	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "collectorHTML.tmpl"))
-	if tmplErr != nil {
-		return tmplErr
-	}
-	t := htmlTemplate.Must(htmlTemplate.New("collectorHTML").Funcs(status.HTMLFmap()).Parse(string(tmpl)))
-	return t.Execute(buffer, data)
-}
-
-func renderText(buffer io.Writer, data any) error {
-	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "collector.tmpl"))
-	if tmplErr != nil {
-		return tmplErr
-	}
-	t := textTemplate.Must(textTemplate.New("collector").Funcs(status.TextFmap()).Parse(string(tmpl)))
-	return t.Execute(buffer, data)
+	return status.RenderText(templatesFS, "collector.tmpl", buffer, data)
 }

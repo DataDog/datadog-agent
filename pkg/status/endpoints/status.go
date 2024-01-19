@@ -9,10 +9,6 @@ package endpoints
 import (
 	"embed"
 	"io"
-	"path"
-
-	htmlTemplate "html/template"
-	textTemplate "text/template"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -66,30 +62,12 @@ func (Provider) JSON(_ bool, stats map[string]interface{}) error {
 
 // Text renders the text output
 func (Provider) Text(_ bool, buffer io.Writer) error {
-	return renderText(buffer, getStatusInfo())
+	return status.RenderText(templatesFS, "endpoints.tmpl", buffer, getStatusInfo())
 }
 
 // HTML renders the html output
 func (Provider) HTML(_ bool, buffer io.Writer) error {
-	return renderHTML(buffer, getStatusInfo())
-}
-
-func renderHTML(buffer io.Writer, data any) error {
-	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "endpointsHTML.tmpl"))
-	if tmplErr != nil {
-		return tmplErr
-	}
-	t := htmlTemplate.Must(htmlTemplate.New("endpointsHTML").Funcs(status.HTMLFmap()).Parse(string(tmpl)))
-	return t.Execute(buffer, data)
-}
-
-func renderText(buffer io.Writer, data any) error {
-	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "endpoints.tmpl"))
-	if tmplErr != nil {
-		return tmplErr
-	}
-	t := textTemplate.Must(textTemplate.New("endpoints").Funcs(status.TextFmap()).Parse(string(tmpl)))
-	return t.Execute(buffer, data)
+	return status.RenderHTML(templatesFS, "endpointsHTML.tmpl", buffer, getStatusInfo())
 }
 
 func getStatusInfo() map[string]interface{} {

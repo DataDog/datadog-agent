@@ -9,9 +9,6 @@ package autodiscovery
 import (
 	"embed"
 	"io"
-	"path"
-
-	textTemplate "text/template"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -70,19 +67,10 @@ func (p Provider) JSON(_ bool, stats map[string]interface{}) error {
 
 // Text renders the text output
 func (p Provider) Text(_ bool, buffer io.Writer) error {
-	return renderText(buffer, p.getStatusInfo())
+	return status.RenderText(templatesFS, "autodiscovery.tmpl", buffer, p.getStatusInfo())
 }
 
 // HTML renders the html output
-func (p Provider) HTML(_ bool, _ io.Writer) error {
+func (p Provider) HTML(_ bool, buffer io.Writer) error {
 	return nil
-}
-
-func renderText(buffer io.Writer, data any) error {
-	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "autodiscovery.tmpl"))
-	if tmplErr != nil {
-		return tmplErr
-	}
-	t := textTemplate.Must(textTemplate.New("autodiscovery").Funcs(status.TextFmap()).Parse(string(tmpl)))
-	return t.Execute(buffer, data)
 }

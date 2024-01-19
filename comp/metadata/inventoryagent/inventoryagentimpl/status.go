@@ -8,10 +8,6 @@ package inventoryagentimpl
 import (
 	"embed"
 	"io"
-	"path"
-
-	htmlTemplate "html/template"
-	textTemplate "text/template"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
 )
@@ -19,14 +15,17 @@ import (
 //go:embed status_templates
 var templatesFS embed.FS
 
+// Name renders the name
 func (ia *inventoryagent) Name() string {
 	return "metadata"
 }
 
+// Index renders the index
 func (ia *inventoryagent) Index() int {
 	return 3
 }
 
+// JSON populates the status map
 func (ia *inventoryagent) JSON(_ bool, stats map[string]interface{}) error {
 	for k, v := range ia.Get() {
 		stats[k] = v
@@ -35,28 +34,12 @@ func (ia *inventoryagent) JSON(_ bool, stats map[string]interface{}) error {
 	return nil
 }
 
+// Text renders the text output
 func (ia *inventoryagent) Text(_ bool, buffer io.Writer) error {
-	return renderText(buffer, ia.Get())
+	return status.RenderText(templatesFS, "inventory.tmpl", buffer, ia.Get())
 }
 
+// HTML renders the html output
 func (ia *inventoryagent) HTML(_ bool, buffer io.Writer) error {
-	return renderHTML(buffer, ia.Get())
-}
-
-func renderHTML(buffer io.Writer, data any) error {
-	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "inventoryHTML.tmpl"))
-	if tmplErr != nil {
-		return tmplErr
-	}
-	t := htmlTemplate.Must(htmlTemplate.New("inventoryHTML").Funcs(status.HTMLFmap()).Parse(string(tmpl)))
-	return t.Execute(buffer, data)
-}
-
-func renderText(buffer io.Writer, data any) error {
-	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "inventory.tmpl"))
-	if tmplErr != nil {
-		return tmplErr
-	}
-	t := textTemplate.Must(textTemplate.New("inventory").Funcs(status.TextFmap()).Parse(string(tmpl)))
-	return t.Execute(buffer, data)
+	return status.RenderHTML(templatesFS, "inventoryHTML.tmpl", buffer, ia.Get())
 }

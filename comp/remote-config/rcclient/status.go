@@ -10,10 +10,6 @@ import (
 	"encoding/json"
 	"expvar"
 	"io"
-	"path"
-
-	htmlTemplate "html/template"
-	textTemplate "text/template"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -50,42 +46,29 @@ func (rc rcClient) getStatusInfo() map[string]interface{} {
 	return stats
 }
 
+// Name returns the name
 func (rc rcClient) Name() string {
 	return "Remote Configuration"
 }
 
+// Section return the section
 func (rc rcClient) Section() string {
 	return "Remote Configuration"
 }
 
+// JSON populates the status map
 func (rc rcClient) JSON(_ bool, stats map[string]interface{}) error {
 	PopulateStatus(stats)
 
 	return nil
 }
 
+// Text renders the text output
 func (rc rcClient) Text(_ bool, buffer io.Writer) error {
-	return renderText(buffer, rc.getStatusInfo())
+	return status.RenderText(templatesFS, "remoteconfiguration.tmpl", buffer, rc.getStatusInfo())
 }
 
+// HTML renders the html output
 func (rc rcClient) HTML(_ bool, buffer io.Writer) error {
-	return renderHTML(buffer, rc.getStatusInfo())
-}
-
-func renderHTML(buffer io.Writer, data any) error {
-	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "remoteconfigurationHTML.tmpl"))
-	if tmplErr != nil {
-		return tmplErr
-	}
-	t := htmlTemplate.Must(htmlTemplate.New("remoteconfigurationHTML").Funcs(status.HTMLFmap()).Parse(string(tmpl)))
-	return t.Execute(buffer, data)
-}
-
-func renderText(buffer io.Writer, data any) error {
-	tmpl, tmplErr := templatesFS.ReadFile(path.Join("status_templates", "remoteconfiguration.tmpl"))
-	if tmplErr != nil {
-		return tmplErr
-	}
-	t := textTemplate.Must(textTemplate.New("remoteconfiguration").Funcs(status.TextFmap()).Parse(string(tmpl)))
-	return t.Execute(buffer, data)
+	return status.RenderHTML(templatesFS, "remoteconfigurationHTML.tmpl", buffer, rc.getStatusInfo())
 }
