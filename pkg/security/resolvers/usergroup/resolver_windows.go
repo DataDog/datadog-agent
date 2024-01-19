@@ -46,7 +46,7 @@ func NewResolver() (*Resolver, error) {
 		return nil, err
 	}
 	r.userLookupLimiter = limiter
-	return p, nil
+	return r, nil
 }
 
 // GetUser returns the username
@@ -58,7 +58,7 @@ func (r *Resolver) GetUser(ownerSidString string) (name string) {
 		return username
 	}
 
-	if !p.userLookupLimiter.Allow(1) {
+	if !r.userLookupLimiter.Allow(1) {
 		// If the username was not already resolved but the limit is hit, return an empty string
 		return ""
 	}
