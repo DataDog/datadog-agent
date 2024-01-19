@@ -92,8 +92,8 @@ func BenchmarkIsBlacklistedConnectionIPv4(b *testing.B) {
 	sourceList := ParseConnectionFilters(testSourceFilters)
 	destList := ParseConnectionFilters(testDestinationFilters)
 	addrs := randIPv4(6)
-	sourcePort := nettestutil.GetRandOpenPort(b)
-	destPort := nettestutil.GetRandOpenPort(b)
+	sourcePort := nettestutil.GetOpenPort(b)
+	destPort := nettestutil.GetOpenPort(b)
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -110,8 +110,8 @@ func BenchmarkIsBlacklistedConnectionIPv6(b *testing.B) {
 	sourceList := ParseConnectionFilters(testSourceFilters)
 	destList := ParseConnectionFilters(testDestinationFilters)
 	addrs := randIPv6(6)
-	sourcePort := nettestutil.GetRandOpenPort(b)
-	destPort := nettestutil.GetRandOpenPort(b)
+	sourcePort := nettestutil.GetOpenPort(b)
+	destPort := nettestutil.GetOpenPort(b)
 
 	b.ResetTimer()
 	b.ReportAllocs()

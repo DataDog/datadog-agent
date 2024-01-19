@@ -719,8 +719,8 @@ func TestRaceConditions(t *testing.T) { //nolint:revive // TODO fix revive unuse
 	genConns := func(n uint32) []ConnectionStats {
 		conns := make([]ConnectionStats, 0, n)
 		for i := uint32(0); i < n; i++ {
-			sourcePort := nettestutil.GetRandOpenPort(t)
-			destPort := nettestutil.GetRandOpenPort(t)
+			sourcePort := nettestutil.GetOpenPort(t)
+			destPort := nettestutil.GetOpenPort(t)
 			conns = append(conns, ConnectionStats{
 				Pid:    1 + i,
 				Type:   TCP,
@@ -2463,8 +2463,8 @@ func TestDNSPIDCollision(t *testing.T) {
 func generateRandConnections(t testing.TB, n int) []ConnectionStats {
 	cs := make([]ConnectionStats, 0, n)
 	for i := 0; i < n; i++ {
-		sourcePort := nettestutil.GetRandOpenPort(t)
-		destPort := nettestutil.GetRandOpenPort(t)
+		sourcePort := nettestutil.GetOpenPort(t)
+		destPort := nettestutil.GetOpenPort(t)
 		cs = append(cs, ConnectionStats{
 			Pid:    123,
 			Type:   TCP,

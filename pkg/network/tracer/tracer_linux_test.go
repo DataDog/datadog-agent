@@ -467,7 +467,7 @@ func (s *TracerSuite) TestConntrackDelays() {
 
 	// The random port is necessary to avoid flakiness in the test. Running the the test multiple
 	// times can fail if binding to the same port since Conntrack might not emit NEW events for the same tuple
-	port := testutil.GetRandOpenPort(t)
+	port := testutil.GetOpenPort(t)
 	server := NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", port), func(c net.Conn) {
 		wg.Add(1)
 		defer wg.Done()
@@ -505,7 +505,7 @@ func (s *TracerSuite) TestTranslationBindingRegression() {
 	tr := setupTracer(t, testConfig())
 
 	// Setup TCP server
-	port := testutil.GetRandOpenPort(t)
+	port := testutil.GetOpenPort(t)
 	server := NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", port), func(c net.Conn) {
 		wg.Add(1)
 		defer wg.Done()
@@ -562,7 +562,7 @@ func (s *TracerSuite) TestUnconnectedUDPSendIPv6() {
 	linkLocal, err := offsetguess.GetIPv6LinkLocalAddress()
 	require.NoError(t, err)
 
-	remotePort := testutil.GetRandOpenPort(t)
+	remotePort := testutil.GetOpenPort(t)
 	remoteAddr := &net.UDPAddr{IP: net.ParseIP(offsetguess.InterfaceLocalMulticastIPv6), Port: remotePort}
 	conn, err := net.ListenUDP("udp6", linkLocal[0])
 	require.NoError(t, err)
@@ -1305,7 +1305,7 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 
 	tr := setupTracer(t, cfg)
 
-	port := testutil.GetRandOpenPort(t)
+	port := testutil.GetOpenPort(t)
 	createReuseServer := func(port int) *UDPServer {
 		return &UDPServer{
 			network: udpnet,

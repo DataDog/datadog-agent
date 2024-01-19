@@ -7,9 +7,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// GetRandOpenPort lets the OS pick an open port and
+// GetOpenPort lets the OS pick an open port and
 // returns it
-func GetRandOpenPort(t testing.TB) int {
+func GetOpenPort(t testing.TB) int {
 	l, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
 	defer func() { _ = l.Close() }()
