@@ -8,6 +8,7 @@ package main
 
 import (
 	"archive/zip"
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/sha256"
@@ -81,6 +82,8 @@ import (
 )
 
 const (
+	loggerName = "AGENTLESSSCANER"
+
 	maxSnapshotRetries = 3
 	maxAttachRetries   = 30
 
@@ -386,7 +389,7 @@ func runWithModules(run func(cmd *cobra.Command, args []string) error) func(cmd 
 				return run(cmd, args)
 			},
 			fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
-			fx.Supply(complog.ForDaemon("AGENTLESSSCANER", "log_file", pkgconfig.DefaultAgentlessScannerLogFile)),
+			fx.Supply(complog.ForDaemon(loggerName, "log_file", pkgconfig.DefaultAgentlessScannerLogFile)),
 			complog.Module,
 			compconfig.Module,
 		)
@@ -416,9 +419,9 @@ func runScannerCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "run-scanner",
 		Short: "Runs a scanner (fork/exec model)",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: runWithModules(func(cmd *cobra.Command, args []string) error {
 			return runScannerCmd(sock)
-		},
+		}),
 	}
 	cmd.Flags().StringVar(&sock, "sock", "", "path to unix socket for IPC")
 	_ = cmd.MarkFlagRequired("sock")
@@ -2396,15 +2399,34 @@ func launchScannerRemotely(ctx context.Context, opts scannerOptions) scanResult 
 	cmd := exec.CommandContext(ctx, exe, "run-scanner", "--sock", sockName)
 	cmd.Env = []string{
 		"GOMAXPROCS=1",
+		"DD_LOG_FILE=" + opts.Scan.Path(fmt.Sprintf("scanner-%s.log", opts.ID())),
 	}
 	cmd.Dir = opts.Scan.Path()
 	cmd.Stderr = stderr
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return opts.ErrResult(err)
+	}
+
 	if err := cmd.Start(); err != nil {
 		if ctx.Err() != nil {
 			return opts.ErrResult(ctx.Err())
 		}
 		return opts.ErrResult(err)
 	}
+
+	go func() {
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			line := scanner.Text()
+			// should start with "XXXX-XX-XX XX:XX:XX UTC | AGENTLESSSCANER |"
+			if len(line) > 24 && strings.HasPrefix(line[24:], "| "+loggerName+" |") {
+				fmt.Println(line)
+			} else {
+				log.Warnf("%s: scanner %q malformed stdout: %s", opts.Scan, opts.ID(), line)
+			}
+		}
+	}()
 
 	pid := cmd.Process.Pid
 	if err := os.WriteFile(opts.Scan.Path(opts.ID()+".pid"), []byte(strconv.Itoa(pid)), 0600); err != nil {
