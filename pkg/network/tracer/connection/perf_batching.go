@@ -176,8 +176,11 @@ func (p *perfBatchManager) cleanupExpiredState(now time.Time) {
 
 func newConnBatchManager(mgr *manager.Manager) (*perfBatchManager, error) {
 	connCloseEventMap, _, err := mgr.GetMap(probes.ConnCloseEventMap)
-	if err != nil || connCloseEventMap == nil {
+	if err != nil {
 		return nil, fmt.Errorf("unable to get map %s: %s", probes.ConnCloseEventMap, err)
+	}
+	if connCloseEventMap == nil {
+		return nil, fmt.Errorf("unable to get map %s: cannot find a map with that name", probes.ConnCloseEventMap)
 	}
 
 	connCloseMap, err := ebpfutil.GetMap[uint32, netebpf.Batch](mgr, probes.ConnCloseBatchMap)
