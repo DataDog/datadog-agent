@@ -77,6 +77,7 @@ import (
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
+	processagentStatusImpl "github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	tarceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/statusimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
@@ -356,6 +357,7 @@ func getSharedFxOption() fx.Option {
 			return statusProviders
 		}),
 		tarceagentStatusImpl.Module(),
+		processagentStatusImpl.Module(),
 		statusimpl.Module(),
 		apiimpl.Module(),
 
