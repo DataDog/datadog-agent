@@ -149,7 +149,6 @@ func TestCollection(t *testing.T) {
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModuleV2(),
 	))
-	mockServerStore.Start(context.TODO())
 	server := &serverSecure{workloadmetaServer: server.NewServer(mockServerStore)}
 
 	// gRPC server
