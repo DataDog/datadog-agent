@@ -28,6 +28,8 @@ import (
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 )
 
+const configMapsLeasesResourceLock = "configmapsleases"
+
 func makeLeaderLease(name, namespace, leaderIdentity string, leaseDuration int) *coordinationv1.Lease {
 	duration := int32(leaseDuration)
 	acquiretime := metav1.NewMicroTime(time.Now())
@@ -95,7 +97,7 @@ func TestNewLeaseAcquiring(t *testing.T) {
 	}{
 		{
 			name:     "ConfigMap",
-			lockType: rl.ConfigMapsLeasesResourceLock,
+			lockType: configMapsLeasesResourceLock,
 		},
 		{
 			name:     "Lease",
@@ -121,7 +123,7 @@ func TestNewLeaseAcquiring(t *testing.T) {
 
 			// Specific lease checks
 			switch tt.lockType {
-			case rl.ConfigMapsLeasesResourceLock:
+			case configMapsLeasesResourceLock:
 				_, err := client.CoreV1().ConfigMaps("default").Get(context.TODO(), leaseName, metav1.GetOptions{})
 				require.True(t, errors.IsNotFound(err))
 			case rl.LeasesResourceLock:
@@ -134,7 +136,7 @@ func TestNewLeaseAcquiring(t *testing.T) {
 
 			// Specific lease checks
 			switch tt.lockType {
-			case rl.ConfigMapsLeasesResourceLock:
+			case configMapsLeasesResourceLock:
 				newCm, err := client.CoreV1().ConfigMaps("default").Get(context.TODO(), leaseName, metav1.GetOptions{})
 				require.NoError(t, err)
 				require.Equal(t, newCm.Name, leaseName)
@@ -151,7 +153,7 @@ func TestNewLeaseAcquiring(t *testing.T) {
 
 			// Specific lease checks
 			switch tt.lockType {
-			case rl.ConfigMapsLeasesResourceLock:
+			case configMapsLeasesResourceLock:
 				Cm, err := client.CoreV1().ConfigMaps("default").Get(context.TODO(), leaseName, metav1.GetOptions{})
 				require.NoError(t, err)
 				require.Contains(t, Cm.Annotations[rl.LeaderElectionRecordAnnotationKey], "\"leaderTransitions\":1")
@@ -181,7 +183,7 @@ func TestSubscribe(t *testing.T) {
 	}{
 		{
 			"subscribe_config_map",
-			rl.ConfigMapsLeasesResourceLock,
+			configMapsLeasesResourceLock,
 			func(client *fake.Clientset) error {
 				_, err := client.CoreV1().ConfigMaps("default").Get(context.TODO(), leaseName, metav1.GetOptions{})
 				t.Logf("2 %v", err)
@@ -209,7 +211,7 @@ func TestSubscribe(t *testing.T) {
 				coreClient:      client.CoreV1(),
 				coordClient:     client.CoordinationV1(),
 				leaderMetric:    &dummyGauge{},
-				lockType:        rl.ConfigMapsLeasesResourceLock,
+				lockType:        configMapsLeasesResourceLock,
 			}
 
 			notif1 := le.Subscribe()
@@ -272,7 +274,7 @@ func TestGetLeaderIPFollower_ConfigMap(t *testing.T) {
 		coreClient:      client.CoreV1(),
 		coordClient:     client.CoordinationV1(),
 		leaderMetric:    &dummyGauge{},
-		lockType:        rl.ConfigMapsLeasesResourceLock,
+		lockType:        configMapsLeasesResourceLock,
 	}
 
 	// Create leader-election configmap with current node as follower

@@ -12,11 +12,12 @@ import (
 	"github.com/CycloneDX/cyclonedx-go"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	trivydx "github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
+	trivydxcore "github.com/aquasecurity/trivy/pkg/sbom/cyclonedx/core"
 )
 
 const (
-	repoTagPropertyKey    = trivydx.Namespace + trivydx.PropertyRepoTag
-	repoDigestPropertyKey = trivydx.Namespace + trivydx.PropertyRepoDigest
+	repoTagPropertyKey    = trivydxcore.Namespace + trivydx.PropertyRepoTag
+	repoDigestPropertyKey = trivydxcore.Namespace + trivydx.PropertyRepoDigest
 )
 
 // UpdateSBOMRepoMetadata updates entered SBOM with new metadata properties if the initial SBOM status was successful
