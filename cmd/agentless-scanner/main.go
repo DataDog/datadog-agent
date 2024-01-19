@@ -212,13 +212,23 @@ type (
 	}
 
 	scanResult struct {
-		Scan *scanTask      `json:"Scan"`
-		Err  *scanJSONError `json:"Err"`
+		scannerOptions
+
+		Err *scanJSONError `json:"Err"`
 
 		// Results union
 		Vulns      *scanVulnsResult     `json:"Vulns"`
 		Malware    *scanMalwareResult   `json:"Malware"`
 		Containers *scanContainerResult `json:"Containers"`
+	}
+
+	scannerOptions struct {
+		Scanner scannerName `json:"Scanner"`
+		Scan    *scanTask   `json:"Scan"`
+		Root    string      `json:"Root"`
+
+		// Vulns specific
+		SnapshotARN *arn.ARN `json:"SnapshotARN"` // TODO: deprecate as we remove "vm" mode
 	}
 
 	scanVulnsResult struct {
@@ -272,6 +282,21 @@ func (e *scanJSONError) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func (o scannerOptions) ErrResult(err error) scanResult {
+	return scanResult{scannerOptions: o, Err: &scanJSONError{err}}
+}
+
+func (o scannerOptions) ID() string {
+	h := sha256.New()
+	h.Write([]byte(o.Scanner))
+	h.Write([]byte(o.Root))
+	h.Write([]byte(o.Scan.ID))
+	if o.SnapshotARN != nil {
+		h.Write([]byte(o.SnapshotARN.String()))
+	}
+	return string(o.Scanner) + "-" + hex.EncodeToString(h.Sum(nil)[:8])
+}
+
 func makeScanTaskID(s *scanTask) string {
 	h := sha256.New()
 	createdAt, _ := s.CreatedAt.MarshalBinary()
@@ -284,10 +309,6 @@ func makeScanTaskID(s *scanTask) string {
 		h.Write([]byte(action))
 	}
 	return string(s.Type) + "-" + hex.EncodeToString(h.Sum(nil)[:8])
-}
-
-func (s *scanTask) ErrResult(err error) scanResult {
-	return scanResult{Scan: s, Err: &scanJSONError{err}}
 }
 
 func (s *scanTask) Path(names ...string) string {
@@ -1495,20 +1516,20 @@ func (s *sideScanner) start(ctx context.Context) {
 		for result := range s.resultsCh {
 			if result.Err != nil {
 				if !errors.Is(result.Err, context.Canceled) {
-					log.Errorf("%s: reported a scanning failure: %v", result.Scan, result.Err)
+					log.Errorf("%s: %s scanner reported a failure: %v", result.Scan, result.Scanner, result.Err)
 				}
 				if err := statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, tagFailure(result.Scan, result.Err), 1.0); err != nil {
 					log.Warnf("failed to send metric: %v", err)
 				}
 			} else {
+				log.Debugf("%s: scanner %s finished successfully (took %s)", result.Scan, result.Scanner, time.Since(result.Scan.StartedAt))
 				if vulns := result.Vulns; vulns != nil {
 					if hasResults(vulns.BOM) {
-						log.Debugf("%s: finished successfully (took %s)", result.Scan, time.Since(result.Scan.StartedAt))
 						if err := statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, tagSuccess(result.Scan), 1.0); err != nil {
 							log.Warnf("failed to send metric: %v", err)
 						}
 					} else {
-						log.Debugf("%s: finished successfully without results (took %s)", result.Scan, time.Since(result.Scan.StartedAt))
+						log.Debugf("%s: scanner %s finished successfully without results (took %s)", result.Scan, result.Scanner, time.Since(result.Scan.StartedAt))
 						if err := statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, tagNoResult(result.Scan), 1.0); err != nil {
 							log.Warnf("failed to send metric: %v", err)
 						}
@@ -1534,7 +1555,7 @@ func (s *sideScanner) start(ctx context.Context) {
 					s.sendFindings(malware.Findings)
 					if s.printResults {
 						b, _ := json.MarshalIndent(malware.Findings, "", "  ")
-						fmt.Printf("scanning findings result %s (took %s): %s\n", result.Scan, time.Since(result.Scan.StartedAt), string(b))
+						fmt.Printf("scanning malware result %s (took %s): %s\n", result.Scan, time.Since(result.Scan.StartedAt), string(b))
 					}
 				}
 			}
@@ -2257,11 +2278,12 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 				}
 				resultsCh <- result
 			case vulnsContainers:
-				ctrResult := launchScanner(ctx, scannerOptions{
+				opts := scannerOptions{
 					Scanner: scannerNameContainers,
 					Scan:    scan,
 					Root:    root,
-				})
+				}
+				ctrResult := launchScanner(ctx, opts)
 				if ctrResult.Err != nil {
 					resultsCh <- ctrResult
 				} else {
@@ -2269,7 +2291,7 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 						entityID, entityTags := containerTags(*ctr)
 						mountPoint, err := mountContainer(ctx, scan, *ctr)
 						if err != nil {
-							resultsCh <- scan.ErrResult(err)
+							resultsCh <- opts.ErrResult(err)
 							continue
 						}
 						result := launchScanner(ctx, scannerOptions{
@@ -2302,26 +2324,6 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 	return nil
 }
 
-type scannerOptions struct {
-	Scanner scannerName
-	Scan    *scanTask
-	Root    string
-
-	// Vulns specific
-	SnapshotARN *arn.ARN // TODO: deprecate as we remove "vm" mode
-}
-
-func (o scannerOptions) ID() string {
-	h := sha256.New()
-	h.Write([]byte(o.Scanner))
-	h.Write([]byte(o.Root))
-	h.Write([]byte(o.Scan.ID))
-	if o.SnapshotARN != nil {
-		h.Write([]byte(o.SnapshotARN.String()))
-	}
-	return string(o.Scanner) + "-" + hex.EncodeToString(h.Sum(nil)[:8])
-}
-
 func launchScanner(ctx context.Context, opts scannerOptions) scanResult {
 	if globalParams.noForkScanners {
 		return launchScannerLocally(ctx, opts)
@@ -2335,22 +2337,22 @@ func launchScannerRemotely(ctx context.Context, opts scannerOptions) scanResult 
 
 	exe, err := os.Executable()
 	if err != nil {
-		return opts.Scan.ErrResult(err)
+		return opts.ErrResult(err)
 	}
 
 	sockName := filepath.Join(opts.Scan.Path(opts.ID() + ".sock"))
 	l, err := net.Listen("unix", sockName)
 	if err != nil {
-		return opts.Scan.ErrResult(err)
+		return opts.ErrResult(err)
 	}
 	defer l.Close()
 
-	remoteCall := func() (scanResult, error) {
+	remoteCall := func() scanResult {
 		var result scanResult
 
 		conn, err := l.Accept()
 		if err != nil {
-			return scanResult{}, err
+			return opts.ErrResult(err)
 		}
 		defer conn.Close()
 
@@ -2362,22 +2364,17 @@ func launchScannerRemotely(ctx context.Context, opts scannerOptions) scanResult 
 		enc := json.NewEncoder(conn)
 		dec := json.NewDecoder(conn)
 		if err := enc.Encode(opts); err != nil {
-			return scanResult{}, err
+			return opts.ErrResult(err)
 		}
 		if err := dec.Decode(&result); err != nil {
-			return scanResult{}, err
+			return opts.ErrResult(err)
 		}
-		return result, nil
+		return result
 	}
 
 	resultsCh := make(chan scanResult, 1)
 	go func() {
-		result, err := remoteCall()
-		if err != nil {
-			resultsCh <- opts.Scan.ErrResult(err)
-		} else {
-			resultsCh <- result
-		}
+		resultsCh <- remoteCall()
 	}()
 
 	stderr := &truncatedWriter{max: 512 * 1024}
@@ -2389,9 +2386,9 @@ func launchScannerRemotely(ctx context.Context, opts scannerOptions) scanResult 
 	cmd.Stderr = stderr
 	if err := cmd.Start(); err != nil {
 		if ctx.Err() != nil {
-			return opts.Scan.ErrResult(ctx.Err())
+			return opts.ErrResult(ctx.Err())
 		}
-		return opts.Scan.ErrResult(err)
+		return opts.ErrResult(err)
 	}
 
 	pid := cmd.Process.Pid
@@ -2401,7 +2398,7 @@ func launchScannerRemotely(ctx context.Context, opts scannerOptions) scanResult 
 
 	if err := cmd.Wait(); err != nil {
 		if ctx.Err() != nil {
-			return opts.Scan.ErrResult(ctx.Err())
+			return opts.ErrResult(ctx.Err())
 		}
 		var errx *exec.ExitError
 		if errors.As(err, &errx) {
@@ -2410,7 +2407,7 @@ func launchScannerRemotely(ctx context.Context, opts scannerOptions) scanResult 
 		} else {
 			log.Errorf("%s: execed scanner %q: %v", opts.Scan, opts.Scanner, err)
 		}
-		return opts.Scan.ErrResult(err)
+		return opts.ErrResult(err)
 	}
 
 	return <-resultsCh
@@ -2443,33 +2440,33 @@ func launchScannerLocally(ctx context.Context, opts scannerOptions) scanResult {
 	case scannerNameHostVulns:
 		bom, err := launchScannerTrivyLocal(ctx, opts)
 		if err != nil {
-			return opts.Scan.ErrResult(err)
+			return opts.ErrResult(err)
 		}
-		return scanResult{Scan: opts.Scan, Vulns: &scanVulnsResult{BOM: bom}}
+		return scanResult{scannerOptions: opts, Vulns: &scanVulnsResult{BOM: bom}}
 	case scannerNameHostVulnsEBS:
 		bom, err := launchScannerTrivyVM(ctx, opts)
 		if err != nil {
-			return opts.Scan.ErrResult(err)
+			return opts.ErrResult(err)
 		}
-		return scanResult{Scan: opts.Scan, Vulns: &scanVulnsResult{BOM: bom}}
+		return scanResult{scannerOptions: opts, Vulns: &scanVulnsResult{BOM: bom}}
 	case scannerNameAppVulns:
 		bom, err := launchScannerTrivyLambda(ctx, opts)
 		if err != nil {
-			return opts.Scan.ErrResult(err)
+			return opts.ErrResult(err)
 		}
-		return scanResult{Scan: opts.Scan, Vulns: &scanVulnsResult{BOM: bom}}
+		return scanResult{scannerOptions: opts, Vulns: &scanVulnsResult{BOM: bom}}
 	case scannerNameContainers:
 		containers, err := launchScannerContainers(ctx, opts)
 		if err != nil {
-			return opts.Scan.ErrResult(err)
+			return opts.ErrResult(err)
 		}
-		return scanResult{Scan: opts.Scan, Containers: &scanContainerResult{Containers: containers}}
+		return scanResult{scannerOptions: opts, Containers: &scanContainerResult{Containers: containers}}
 	case scannerNameMalware:
 		result, err := launchScannerMalware(ctx, opts)
 		if err != nil {
-			return opts.Scan.ErrResult(err)
+			return opts.ErrResult(err)
 		}
-		return scanResult{Scan: opts.Scan, Malware: &result}
+		return scanResult{scannerOptions: opts, Malware: &result}
 	default:
 		panic("unreachable")
 	}
