@@ -91,9 +91,11 @@ kernel_matrix_testing_setup_env_security_agent_x64:
     - mkdir junit
     - mkdir testjson
     - mkdir pkgjson
-    # copy system probe tests
+    # copy tests
     - mkdir -p $SECURITY_AGENT_TESTS
     - cp -R $KITCHEN_TESTS $SECURITY_AGENT_TESTS
+    - mkdir -p $SECURITY_AGENT_EBPF_BYTECODE
+    - cp -rv $EBPF_OBJECT_FILES/* $SECURITY_AGENT_EBPF_BYTECODE
     - pushd $CI_PROJECT_DIR/test/new-e2e/system-probe/test-runner && go build -o $DEPENDENCIES/test-runner && popd
     - pushd $CI_PROJECT_DIR/test/new-e2e/system-probe/test-json-review && go build -o $DEPENDENCIES/test-json-review && popd
     - cp $CI_PROJECT_DIR/test/new-e2e/system-probe/test-runner/files/*.json $DEPENDENCIES/
@@ -125,6 +127,8 @@ kernel_matrix_testing_setup_env_security_agent_x64:
     TEST2JSON: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/test2json
     SECURITY_AGENT_TESTS: opt/system-probe-tests
     KITCHEN_TESTS: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/tests
+    EBPF_OBJECT_FILES: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/ebpf_bytecode
+    SECURITY_AGENT_EBPF_BYTECODE: opt/system-probe-tests/pkg/ebpf/bytecode
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
     TEST_COMPONENT: security-agent
   artifacts:
