@@ -26,14 +26,14 @@ func TestTiming(t *testing.T) {
 	Stop() // https://github.com/DataDog/datadog-agent/issues/13934
 	defer func(old metrics.StatsClient) { metrics.Client = old }(metrics.Client)
 	metrics.Client = stats
-	stopReport = defaultSet.Autoreport(AutoreportInterval)
+	Start()
 
 	t.Run("report", func(t *testing.T) {
 		stats.Reset()
-		set := NewSet()
+		set := newSet()
 		set.Since("counter1", time.Now().Add(-2*time.Second))
 		set.Since("counter1", time.Now().Add(-3*time.Second))
-		set.Report()
+		set.report()
 
 		calls := stats.CountCalls
 		assert.Equal(1, len(calls))
@@ -47,27 +47,27 @@ func TestTiming(t *testing.T) {
 
 	t.Run("autoreport", func(t *testing.T) {
 		stats.Reset()
-		set := NewSet()
+		set := newSet()
 		set.Since("counter1", time.Now().Add(-1*time.Second))
-		stop := set.Autoreport(time.Millisecond)
+		set.autoreport(time.Millisecond)
 		if runtime.GOOS == "windows" {
 			time.Sleep(5 * time.Second)
 		}
-		time.Sleep(10 * time.Millisecond)
-		stop()
+		time.Sleep(100 * time.Millisecond)
+		Stop()
 		assert.True(len(stats.CountCalls) > 1)
 	})
 
 	t.Run("panic", func(t *testing.T) {
-		set := NewSet()
-		stop := set.Autoreport(time.Millisecond)
-		stop()
-		stop()
+		set := newSet()
+		set.autoreport(time.Millisecond)
+		Stop()
+		Stop()
 	})
 
 	t.Run("race", func(t *testing.T) {
 		stats.Reset()
-		set := NewSet()
+		set := newSet()
 		var wg sync.WaitGroup
 		for i := 0; i < 150; i++ {
 			wg.Add(1)
@@ -81,7 +81,7 @@ func TestTiming(t *testing.T) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				set.Report()
+				set.report()
 			}()
 		}
 		wg.Wait()
