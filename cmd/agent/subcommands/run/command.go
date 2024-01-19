@@ -329,33 +329,12 @@ func getSharedFxOption() fx.Option {
 			status.NewHeaderInformationProvider(net.Provider{}),
 			status.NewInformationProvider(jmxStatus.Provider{}),
 			status.NewInformationProvider(endpointsStatus.Provider{}),
+			status.NewInformationProvider(snmpStatus.GetProvider()),
+			status.NewInformationProvider(clusteragentStatus.GetProvider()),
+			status.NewInformationProvider(systemprobeStatus.GetProvider()),
+			status.NewInformationProvider(httpproxyStatus.GetProvider()),
+			status.NewInformationProvider(autodiscoveryStatus.GetProvider()),
 		),
-		fx.Provide(func(config config.Component) []status.InformationProvider {
-			statusProviders := []status.InformationProvider{}
-
-			if traps.IsEnabled(config) {
-				statusProviders = append(statusProviders, status.NewInformationProvider(snmpStatus.Provider{}))
-			}
-			if config.GetBool("cluster_agent.enabled") || config.GetBool("cluster_checks.enabled") {
-				statusProviders = append(statusProviders, status.NewInformationProvider(clusteragentStatus.Provider{}))
-			}
-
-			if pkgconfig.SystemProbe.GetBool("system_probe_config.enabled") {
-				statusProviders = append(statusProviders, status.NewInformationProvider(systemprobeStatus.Provider{
-					SocketPath: pkgconfig.SystemProbe.GetString("system_probe_config.sysprobe_socket"),
-				}))
-			}
-
-			if !pkgconfig.Datadog.GetBool("no_proxy_nonexact_match") {
-				statusProviders = append(statusProviders, status.NewInformationProvider(httpproxyStatus.Provider{}))
-			}
-
-			if pkgconfig.IsContainerized() {
-				statusProviders = append(statusProviders, status.NewInformationProvider(autodiscoveryStatus.Provider{}))
-			}
-
-			return statusProviders
-		}),
 		tarceagentStatusImpl.Module(),
 		processagentStatusImpl.Module(),
 		statusimpl.Module(),

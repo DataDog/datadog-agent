@@ -33,21 +33,15 @@ func newForwarder(dep dependencies) provides {
 
 // NewForwarder returns a new forwarder component.
 func NewForwarder(config config.Component, log log.Component, params Params) provides {
-	var forwarder Component
-	var provider status.InformationProvider
-
 	if params.UseNoopForwarder {
-		forwarder = NoopForwarder{}
-		provider = status.NoopInformationProvider()
-	} else {
-		forwarder = NewDefaultForwarder(config, log, params.Options)
-		provider = status.NewInformationProvider(statusProvider{
-			config: config,
-		})
+		return provides{
+			Comp:           NoopForwarder{},
+			StatusProvider: status.NoopInformationProvider(),
+		}
 	}
 	return provides{
-		Comp:           forwarder,
-		StatusProvider: provider,
+		Comp:           NewDefaultForwarder(config, log, params.Options),
+		StatusProvider: status.NewInformationProvider(statusProvider{config: config}),
 	}
 }
 

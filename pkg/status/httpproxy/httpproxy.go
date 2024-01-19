@@ -14,6 +14,7 @@ import (
 	textTemplate "text/template"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
@@ -22,6 +23,15 @@ var templatesFS embed.FS
 
 // Provider provides the functionality to populate the status output
 type Provider struct{}
+
+// GetProvider if no_proxy_nonexact_match is disabled returns status.Provider otherwise returns NoopProvider
+func GetProvider() status.Provider {
+	if !config.Datadog.GetBool("no_proxy_nonexact_match") {
+		return Provider{}
+	}
+
+	return status.NoopProvider{}
+}
 
 func (p Provider) getStatusInfo() map[string]interface{} {
 	stats := make(map[string]interface{})

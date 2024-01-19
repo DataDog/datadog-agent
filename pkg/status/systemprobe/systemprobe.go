@@ -17,6 +17,7 @@ import (
 	textTemplate "text/template"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 )
 
@@ -44,6 +45,17 @@ func GetStatus(stats map[string]interface{}, socketPath string) {
 // Provider provides the functionality to populate the status output
 type Provider struct {
 	SocketPath string
+}
+
+// GetProvider if system probe is enabled returns status.Provider otherwise returns NoopProvider
+func GetProvider() status.Provider {
+	if config.SystemProbe.GetBool("system_probe_config.enabled") {
+		return Provider{
+			SocketPath: config.SystemProbe.GetString("system_probe_config.sysprobe_socket"),
+		}
+	}
+
+	return status.NoopProvider{}
 }
 
 //go:embed status_templates

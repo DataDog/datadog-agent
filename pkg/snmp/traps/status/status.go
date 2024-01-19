@@ -17,6 +17,7 @@ import (
 	textTemplate "text/template"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 )
 
@@ -101,6 +102,15 @@ var templatesFS embed.FS
 
 // Provider provides the functionality to populate the status output
 type Provider struct{}
+
+// GetProvider if snamp traps is enabled returns status.Provider otherwise returns NoopProvider
+func GetProvider() status.Provider {
+	if config.Datadog.GetBool("network_devices.snmp_traps.enabled") {
+		return Provider{}
+	}
+
+	return status.NoopProvider{}
+}
 
 // Name returns the name
 func (Provider) Name() string {

@@ -17,6 +17,7 @@ import (
 	textTemplate "text/template"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 )
@@ -41,6 +42,7 @@ func getLeaderElectionDetails() map[string]string {
 // GetDCAStatus collect the DCA agent information and return it in a map
 func GetDCAStatus(stats map[string]interface{}) {
 	clusterAgentDetails := make(map[string]string)
+	stats["clusterAgentStatus"] = clusterAgentDetails
 
 	dcaCl, err := clusteragent.GetClusterAgentClient()
 	if err != nil {
@@ -55,12 +57,19 @@ func GetDCAStatus(stats map[string]interface{}) {
 		return
 	}
 	clusterAgentDetails["Version"] = ver.String()
-
-	stats["clusterAgentStatus"] = clusterAgentDetails
 }
 
 // Provider provides the functionality to populate the status output
 type Provider struct{}
+
+// GetProvider if cluster agent is enabled returns status.Provider otherwise returns NoopProvider
+func GetProvider() status.Provider {
+	if config.Datadog.GetBool("cluster_agent.enabled") || config.Datadog.GetBool("cluster_checks.enabled") {
+		return Provider{}
+	}
+
+	return status.NoopProvider{}
+}
 
 //go:embed status_templates
 var templatesFS embed.FS

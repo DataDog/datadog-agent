@@ -34,6 +34,15 @@ var templatesFS embed.FS
 // Provider provides the functionality to populate the status output
 type Provider struct{}
 
+// GetProvider if agent is running in a container environment returns status.Provider otherwise returns NoopProvider
+func GetProvider() status.Provider {
+	if config.IsContainerized() {
+		return Provider{}
+	}
+
+	return status.NoopProvider{}
+}
+
 func (p Provider) getStatusInfo() map[string]interface{} {
 	stats := make(map[string]interface{})
 
