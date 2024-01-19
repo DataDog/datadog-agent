@@ -1,6 +1,6 @@
 ---
 schema-version: v2
-dd-service: datadog-agent
+dd-service: datadog-agent-nightly
 
 extensions:
   datadoghq.com/sdp:
