@@ -256,6 +256,7 @@ def test(
     go_mod="mod",
     junit_tar="",
     only_modified_packages=False,
+    skip_flakes=False,
 ):
     """
     Run go tests on the given module and targets.
@@ -271,7 +272,6 @@ def test(
         inv test --targets=./pkg/collector/check,./pkg/aggregator --race
         inv test --module=. --race
     """
-
     modules_results_per_phase = defaultdict(dict)
 
     sanitize_env_vars()
@@ -319,7 +319,7 @@ def test(
     stdlib_build_cmd = 'go build {verbose} -mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" '
     stdlib_build_cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} std cmd'
     cmd = 'gotestsum {junit_file_flag} {json_flag} --format pkgname {rerun_fails} --packages="{packages}" -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
-    cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache} {test_run_arg}'
+    cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache} {test_run_arg} {skip_flakes}'
     args = {
         "go_mod": go_mod,
         "gcflags": gcflags,
@@ -335,6 +335,7 @@ def test(
         # Used to print failed tests at the end of the go test command
         "json_flag": f'--jsonfile "{GO_TEST_RESULT_TMP_JSON}" ',
         "rerun_fails": f"--rerun-fails={rerun_fails}" if rerun_fails else "",
+        "skip_flakes": "--skip-flake" if skip_flakes else "",
     }
 
     # Test

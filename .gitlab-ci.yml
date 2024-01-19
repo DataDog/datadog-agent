@@ -181,7 +181,7 @@ variables:
   # To use images from test-infra-definitions dev branches, set the SUFFIX variable to -dev
   # and check the job creating the image to make sure you have the right SHA prefix
   TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: d3e7838354a5
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: f69f46f8ca43
   DATADOG_AGENT_BUILDERS: v22276738-b36b132
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -207,6 +207,8 @@ variables:
   CLANG_LLVM_VER: 12.0.1
   KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-00e807c0351f270b7"
   KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-0be4fd85ce146ab3b"
+  # skip known flaky tests by default
+  GO_TEST_SKIP_FLAKE: "true"
 
 #
 # Condition mixins for simplification of rules
@@ -393,6 +395,8 @@ workflow:
 
 .on_main:
   - <<: *if_main_branch
+    variables:
+      GO_TEST_SKIP_FLAKE: "false"
 
 .on_main_manual:
   - <<: *if_main_branch
