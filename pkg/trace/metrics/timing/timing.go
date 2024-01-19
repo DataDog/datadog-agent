@@ -20,7 +20,7 @@ import (
 )
 
 // autoreportInterval specifies the interval at which the default set reports.
-const autoreportInterval = 10 * time.Second
+var autoreportInterval = 10 * time.Second
 
 var (
 	defaultSet *set
@@ -29,6 +29,8 @@ var (
 // Since records the duration for the given metric name as time passed since start.
 // It uses the default set which is reported at 10 second intervals.
 func Since(name string, start time.Time) {
+	m.Lock()
+	defer m.Unlock()
 	if defaultSet == nil {
 		log.Error("Timing hasn't been initialized, trace-agent metrics will be missing")
 		return
@@ -36,8 +38,12 @@ func Since(name string, start time.Time) {
 	defaultSet.Since(name, start)
 }
 
+var m = sync.Mutex{}
+
 // Start initializes autoreporting of timing metrics.
 func Start() {
+	m.Lock()
+	defer m.Unlock()
 	defaultSet = newSet()
 	defaultSet.autoreport(autoreportInterval)
 }
@@ -46,6 +52,8 @@ func Start() {
 // metrics. It can be useful to call when the program exits to ensure everything is
 // submitted.
 func Stop() {
+	m.Lock()
+	defer m.Unlock()
 	if defaultSet == nil {
 		return
 	}
