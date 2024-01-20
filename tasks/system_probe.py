@@ -546,11 +546,13 @@ def build_sysprobe_binary(
     go_mod="mod",
     arch=CURRENT_ARCH,
     binary=BIN_PATH,
+    install_path=None,
     bundle_ebpf=False,
     strip_binary=False,
 ):
     ldflags, gcflags, env = get_build_flags(
         ctx,
+        install_path=install_path,
         major_version=major_version,
         python_runtimes=python_runtimes,
     )
