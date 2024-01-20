@@ -184,7 +184,7 @@ func newTestService(t *testing.T, api *mockAPI, uptane *mockUptane, clock clock.
 	baseRawURL := "https://localhost"
 	traceAgentEnv := getTraceAgentDefaultEnv(cfg)
 	mockTelemetryReporter := newMockRcTelemetryReporter()
-	service, err := NewService(cfg, "abc", baseRawURL, "localhost", mockTelemetryReporter, agentVersion, WithTraceAgentEnv(traceAgentEnv))
+	service, err := NewService(cfg, "abc", baseRawURL, "localhost", []string{"dogo_state:hungry"}, mockTelemetryReporter, agentVersion, WithTraceAgentEnv(traceAgentEnv))
 	require.NoError(t, err)
 	t.Cleanup(func() { service.Stop() })
 	service.api = api
