@@ -10,10 +10,24 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/cmd/updater/command"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/pkg/updater"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"go.uber.org/fx"
+
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/spf13/cobra"
 )
+
+type cliParams struct {
+	command.GlobalParams
+}
 
 // Commands returns the run command
 func Commands(global *command.GlobalParams) []*cobra.Command {
@@ -22,18 +36,35 @@ func Commands(global *command.GlobalParams) []*cobra.Command {
 		Short: "Runs the updater",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return run(global.Package)
+			return runFxWrapper(&cliParams{
+				GlobalParams: *global,
+			}, run)
 		},
 	}
 	return []*cobra.Command{runCmd}
 }
 
-func run(pkg string) error {
+func runFxWrapper(params *cliParams, fct interface{}) error {
+	return fxutil.Run(
+		fx.Supply(params),
+		fx.Supply(core.BundleParams{
+			ConfigParams:         config.NewAgentParams(params.GlobalParams.ConfFilePath),
+			SecretParams:         secrets.NewEnabledParams(),
+			SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
+			LogParams:            logimpl.ForDaemon("UPDATER", "updater.log_file", pkgconfig.DefaultUpdaterLogFile),
+		}),
+		core.Bundle(),
+		fx.Invoke(fct),
+	)
+}
+
+func run(_ log.Component, _ config.Component, params *cliParams) error {
+	fmt.Println(pkgconfig.Datadog.GetString("log_level"))
 	orgConfig, err := updater.NewOrgConfig()
 	if err != nil {
 		return fmt.Errorf("could not create org config: %w", err)
 	}
-	u, err := updater.NewUpdater(orgConfig, pkg)
+	u, err := updater.NewUpdater(orgConfig, params.Package)
 	if err != nil {
 		return fmt.Errorf("could not create updater: %w", err)
 	}

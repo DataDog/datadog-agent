@@ -54,7 +54,7 @@ Datadog Updater updates your agents based on requests received from the Datadog 
 	}
 
 	agentCmd.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "cfgpath", "c", "", "path to directory containing updater.yaml")
-	agentCmd.PersistentFlags().StringVarP(&globalParams.Package, "package", "p", "", "package to update")
+	agentCmd.PersistentFlags().StringVarP(&globalParams.Package, "package", "P", "", "package to update")
 	agentCmd.PersistentFlags().StringVarP(&globalParams.RepositoriesDir, "repositories", "d", "/opt/datadog-packages", "path to directory containing repositories")
 	_ = agentCmd.MarkFlagRequired("package")
 
