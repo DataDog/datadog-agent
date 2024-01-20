@@ -122,6 +122,7 @@ func setupProcesses(config pkgconfigmodel.Config) {
 	})
 	procBindEnvAndSetDefault(config, "process_config.container_collection.enabled", true)
 	procBindEnvAndSetDefault(config, "process_config.process_collection.enabled", false)
+	procBindEnvAndSetDefault(config, "process_config.go_memlimit_pct", 0.95)
 
 	config.BindEnv("process_config.process_dd_url",
 		"DD_PROCESS_CONFIG_PROCESS_DD_URL",

@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"os"
 	"runtime"
-	"runtime/debug"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/manager"
@@ -126,26 +125,12 @@ func runAgentSidekicks(ctx context.Context, cfg config.Component, wmeta workload
 	log.Infof("Trace Agent final GOMAXPROCS: %v", runtime.GOMAXPROCS(0))
 
 	// prepare go runtime
-	cgmem, err := agentrt.SetGoMemLimit(coreconfig.IsContainerized())
+	err = agentrt.RunMemoryLimiter(ctx, agentrt.MemoryLimiterArgs{
+		LimitPct:  tracecfg.GoMemLimitPct,
+		MaxMemory: uint64(tracecfg.MaxMemory),
+	})
 	if err != nil {
-		log.Infof("Couldn't set Go memory limit from cgroup: %s", err)
-	}
-	if cgmem == 0 {
-		// memory limit not set from cgroups
-		if lim, ok := os.LookupEnv("GOMEMLIMIT"); ok {
-			log.Infof("GOMEMLIMIT manually set to: %v", lim)
-		} else if tracecfg.MaxMemory > 0 {
-			// We have apm_config.max_memory, and no cgroup memory limit is in place.
-			//log.Infof("apm_config.max_memory: %vMiB", int64(tracecfg.MaxMemory)/(1024*1024))
-			finalmem := int64(tracecfg.MaxMemory * 0.9)
-			debug.SetMemoryLimit(finalmem)
-			log.Infof("apm_config.max_memory set to: %vMiB. Setting GOMEMLIMIT to 90%% of max: %vMiB", int64(tracecfg.MaxMemory)/(1024*1024), finalmem/(1024*1024))
-		} else {
-			// There are no memory constraints
-			log.Infof("GOMEMLIMIT unconstrained.")
-		}
-	} else {
-		log.Infof("Memory constrained by cgroup. GOMEMLIMIT is: %vMiB", cgmem/(1024*1024))
+		log.Infof("Running memory limiter failed with: %v", err)
 	}
 
 	log.Infof("Trace agent running on host %s", tracecfg.Hostname)

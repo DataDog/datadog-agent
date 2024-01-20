@@ -44,7 +44,6 @@ import (
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	processstatsd "github.com/DataDog/datadog-agent/pkg/process/statsd"
-	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -99,9 +98,6 @@ func run(log log.Component, _ config.Component, statsd compstatsd.Component, tel
 	defer func() {
 		stopSystemProbe(cliParams)
 	}()
-
-	// prepare go runtime
-	ddruntime.SetMaxProcs()
 
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
@@ -232,6 +228,9 @@ func startSystemProbe(cliParams *cliParams, log log.Component, statsd compstatsd
 	var ctx context.Context
 	ctx, common.MainCtxCancel = context.WithCancel(context.Background())
 	cfg := sysprobeconfig.SysProbeObject()
+
+	// prepare go runtime
+	setupRuntime(ctx)
 
 	log.Infof("starting system-probe v%v", version.AgentVersion)
 
