@@ -7,8 +7,10 @@
 package run
 
 import (
+	"context"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/updater/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -16,8 +18,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/updater"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"go.uber.org/fx"
 
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -58,8 +62,17 @@ func runFxWrapper(params *cliParams, fct interface{}) error {
 	)
 }
 
-func run(_ log.Component, _ config.Component, params *cliParams) error {
-	fmt.Println(pkgconfig.Datadog.GetString("log_level"))
+func run(log log.Component, _ config.Component, params *cliParams) error {
+	hostnameDetected, err := hostname.Get(context.TODO())
+	if err != nil {
+		return fmt.Errorf("could not get hostname: %w", err)
+	}
+	log.Infof("Hostname is: %s", hostnameDetected)
+	configService, err := initRemoteConfig(hostnameDetected)
+	if err != nil {
+		return fmt.Errorf("could not init remote config: %w", err)
+	}
+	defer configService.Stop()
 	orgConfig, err := updater.NewOrgConfig()
 	if err != nil {
 		return fmt.Errorf("could not create org config: %w", err)
@@ -73,4 +86,13 @@ func run(_ log.Component, _ config.Component, params *cliParams) error {
 		return fmt.Errorf("could not create local API: %w", err)
 	}
 	return api.Serve()
+}
+
+func initRemoteConfig(hostname string) (*service.Service, error) {
+	configService, err := common.NewRemoteConfigService(hostname)
+	if err != nil {
+		return nil, fmt.Errorf("could not create remote config service: %w", err)
+	}
+	configService.Start(context.Background())
+	return configService, nil
 }
