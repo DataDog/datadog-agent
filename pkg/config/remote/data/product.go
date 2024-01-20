@@ -19,6 +19,8 @@ const (
 	ProductCWSProfile Product = "CWS_SECURITY_PROFILES"
 	// ProductAPMTracing is the apm tracing product
 	ProductAPMTracing Product = "APM_TRACING"
+	// ProductLiveDebugging is the dynamic instrumentation product
+	ProductLiveDebugging = "LIVE_DEBUGGING"
 	// ProductTesting1 is a testing product
 	ProductTesting1 Product = "TESTING1"
 	// ProductAgentTask is to receive agent task instruction, like a flare

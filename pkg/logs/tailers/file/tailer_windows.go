@@ -92,6 +92,9 @@ func (t *Tailer) readAvailable() (int, error) {
 			return bytes, err
 		}
 
+		// record these bytes as having been read
+		t.lastReadOffset.Add(int64(n))
+
 		// First, try to send the data to the decoder, but only wait for
 		// windowsOpenFileTimeout.  This short-term blocking send allows this
 		// component to hold a file open over any short-term blockages in the
@@ -113,9 +116,6 @@ func (t *Tailer) readAvailable() (int, error) {
 			// blocking send to the decoder
 			t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
 		}
-
-		// record these bytes as having been read
-		t.lastReadOffset.Add(int64(n))
 	}
 }
 

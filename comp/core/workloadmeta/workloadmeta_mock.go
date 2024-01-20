@@ -280,6 +280,22 @@ func (w *workloadMetaMock) Notify(events []CollectorEvent) {
 	w.notifiedEvents = append(w.notifiedEvents, events...)
 }
 
+// Push pushes events from an external source into workloadmeta store
+// This mock implementation does not check the event types
+func (w *workloadMetaMock) Push(source Source, events ...Event) error {
+	collectorEvents := make([]CollectorEvent, len(events))
+	for index, event := range events {
+		collectorEvents[index] = CollectorEvent{
+			Type:   event.Type,
+			Source: source,
+			Entity: event.Entity,
+		}
+	}
+
+	w.Notify(collectorEvents)
+	return nil
+}
+
 // GetNotifiedEvents returns all registered notification events.
 func (w *workloadMetaMock) GetNotifiedEvents() []CollectorEvent {
 	w.mu.RLock()

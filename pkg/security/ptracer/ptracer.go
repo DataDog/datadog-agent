@@ -266,7 +266,7 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 				}
 			case unix.PTRACE_EVENT_SECCOMP:
 				switch nr {
-				case ForkNr, VforkNr, CloneNr:
+				case ForkNr, VforkNr, CloneNr, Clone3Nr:
 					// already handled
 				default:
 					cb(CallbackPreType, nr, pid, 0, regs, nil)
@@ -278,7 +278,7 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 				}
 			default:
 				switch nr {
-				case ForkNr, VforkNr, CloneNr:
+				case ForkNr, VforkNr, CloneNr, Clone3Nr:
 					// already handled
 				case ExecveNr, ExecveatNr:
 					// does not return on success, thus ret value stay at syscall.ENOSYS
