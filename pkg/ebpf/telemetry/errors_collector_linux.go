@@ -14,7 +14,7 @@ import (
 )
 
 type EbpfErrorsCollector struct {
-	EBPFTelemetry
+	*EBPFTelemetry
 }
 
 // NewEbpfErrorsCollector initializes a new Collector object for ebpf helper and map operations errors
@@ -24,7 +24,7 @@ func NewEbpfErrorsCollector() prometheus.Collector {
 		return nil
 	}
 	return &EbpfErrorsCollector{
-		EBPFTelemetry{
+		&EBPFTelemetry{
 			mapKeys:   make(map[string]uint64),
 			probeKeys: make(map[string]uint64),
 		},
