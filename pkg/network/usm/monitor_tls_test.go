@@ -37,6 +37,7 @@ import (
 	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	javatestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/java/testutil"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
+	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 )
 
@@ -225,29 +226,11 @@ func generateTemporaryFile(t *testing.T) string {
 }
 
 func buildPrefetchFileBin(t *testing.T) string {
-	const srcPath = "prefetch_file"
-	const binaryPath = "testutil/prefetch_file/prefetch_file"
-
-	t.Helper()
-
-	cur, err := testutil.CurDir()
+	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
-
-	binary := fmt.Sprintf("%s/%s", cur, binaryPath)
-	// If there is a compiled binary already, skip the compilation.
-	// Meant for the CI.
-	if _, err = os.Stat(binary); err == nil {
-		return binary
-	}
-
-	srcDir := fmt.Sprintf("%s/testutil/%s", cur, srcPath)
-
-	c := exec.Command("go", "build", "-buildvcs=false", "-a", "-ldflags=-extldflags '-static'", "-o", binary, srcDir)
-	out, err := c.CombinedOutput()
-	t.Log(c, string(out))
-	require.NoError(t, err, "could not build test binary: %s\noutput: %s", err, string(out))
-
-	return binary
+	serverBin, err := usmtestutil.BuildUnixTransparentProxyServer(filepath.Join(curDir, "testutil"), "prefetch_file")
+	require.NoError(t, err)
+	return serverBin
 }
 
 func prefetchLib(t *testing.T, filenames ...string) *exec.Cmd {
