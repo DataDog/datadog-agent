@@ -159,12 +159,6 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 	}()
 
 	tr.bpfTelemetry = ebpftelemetry.NewEBPFTelemetry()
-	if tr.bpfTelemetry != nil {
-		coretelemetry.GetCompatComponent().RegisterCollector(tr.bpfTelemetry)
-	} else {
-		log.Debug("eBPF telemetry not supported")
-	}
-
 	tr.ebpfTracer, err = connection.NewTracer(cfg, tr.bpfTelemetry)
 	if err != nil {
 		return nil, err
@@ -374,9 +368,6 @@ func (t *Tracer) Stop() {
 		events.UnregisterHandler(t.processCache)
 		t.processCache.Stop()
 		coretelemetry.GetCompatComponent().UnregisterCollector(t.processCache)
-	}
-	if t.bpfTelemetry != nil {
-		coretelemetry.GetCompatComponent().UnregisterCollector(t.bpfTelemetry)
 	}
 }
 
