@@ -230,6 +230,8 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 		{
 			name: "validate RST_STREAM cancel err code",
 			// The purpose of this test is to validate that when a cancel error code is sent, we will not count the request.
+			// We are sending 10 requests, and 5 of them will contain RST_STREAM with a cancel error code.Therefore, we expect to
+			// capture five valid requests.
 			messageBuilder: func() []byte {
 				const headerFramesCount = 10
 				const rstCancelFramesCount = 5
