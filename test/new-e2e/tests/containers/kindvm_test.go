@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
@@ -68,6 +69,8 @@ func (suite *kindSuite) SetupSuite() {
 
 	suite.AgentLinuxHelmInstallName = stackOutput.Outputs["agent-linux-helm-install-name"].Value.(string)
 	suite.AgentWindowsHelmInstallName = "none"
+
+	time.Sleep(5 * time.Minute)
 
 	suite.k8sSuite.SetupSuite()
 }

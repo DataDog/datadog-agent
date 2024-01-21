@@ -64,6 +64,8 @@ func (suite *ecsSuite) SetupSuite() {
 	suite.ecsClusterName = stackOutput.Outputs["ecs-cluster-name"].Value.(string)
 	suite.clusterName = suite.ecsClusterName
 
+	time.Sleep(5 * time.Minute)
+
 	suite.baseSuite.SetupSuite()
 }
 
