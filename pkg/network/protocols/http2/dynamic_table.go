@@ -17,6 +17,7 @@ import (
 	"unsafe"
 
 	"github.com/cilium/ebpf"
+	"go.uber.org/atomic"
 
 	manager "github.com/DataDog/ebpf-manager"
 
@@ -50,7 +51,7 @@ type DynamicTable struct {
 	wg sync.WaitGroup
 	// datastore is the datastore used to store the dynamic table entries
 	datastore     map[netebpf.ConnTuple]*CyclicMap[uint64, string]
-	datastoreSize int
+	datastoreSize atomic.Int64
 	// kernelMap is the kernel map (`http2_interesting_dynamic_table_set`) used to store the dynamic table entries
 	kernelMap *ebpf.Map
 	// perfHandler is the perf handler used to receive new paths from the kernel
@@ -153,7 +154,7 @@ func (dt *DynamicTable) setupDynamicTableMapCleaner(mgr *manager.Manager, cfg *c
 				if _, ok := dt.datastore[conn]; !ok {
 					continue
 				}
-				dt.datastoreSize -= dt.datastore[conn].Len()
+				dt.datastoreSize.Sub(int64(dt.datastore[conn].Len()))
 				delete(dt.datastore, conn)
 			}
 			dt.mux.Unlock()
@@ -182,7 +183,11 @@ func (dt *DynamicTable) resolvePath(connTuple netebpf.ConnTuple, index uint64) (
 	if !ok {
 		return "", false
 	}
-	return cyclicMap.Get(index)
+	res, ok := cyclicMap.Get(index)
+	if !ok {
+		return "", false
+	}
+	return res, ok
 }
 
 // addPath adds a new path to the dynamic table and the string.
@@ -191,15 +196,20 @@ func (dt *DynamicTable) addPath(key http2DynamicTableIndex, path string) {
 	dt.mux.Lock()
 	defer dt.mux.Unlock()
 	if _, ok := dt.datastore[key.Tup]; !ok {
+		currentTup := key.Tup
 		dt.datastore[key.Tup] = NewCyclicMap[uint64, string](100, func(index uint64, _ string) {
-			if err := dt.kernelMap.Delete(unsafe.Pointer(&key)); err != nil {
-				log.Errorf("error deleting entry from the kernel map: %s", err)
+			dt.datastoreSize.Dec()
+			if err := dt.kernelMap.Delete(unsafe.Pointer(&http2DynamicTableIndex{
+				Index: index,
+				Tup:   currentTup,
+			})); err != nil {
+				log.Errorf("error deleting entry from the kernel map: %s; %v", err, key)
 			}
 		})
 	}
 
 	// Check total length - if it's too long, we'll evict the oldest entry.
-	if dt.datastoreSize > dt.userModeDynamicTableSize {
+	if dt.datastoreSize.Load() >= int64(dt.userModeDynamicTableSize) {
 		maxCyclicMapSize := 0
 		var maxCyclicMap *CyclicMap[uint64, string]
 		for _, cyclicMap := range dt.datastore {
@@ -209,13 +219,12 @@ func (dt *DynamicTable) addPath(key http2DynamicTableIndex, path string) {
 			}
 		}
 		maxCyclicMap.RemoveOldest()
-		dt.datastoreSize--
 	}
 
 	// Adding the new path to the dynamic table and the string.
 	// This may trigger an eviction in the LRU datastore, and maybe remove the evicted entry from the kernel map.
 	dt.datastore[key.Tup].Add(key.Index, path)
-	dt.datastoreSize++
+	dt.datastoreSize.Inc()
 
 	// Although it is done by the kernel as well, the kernel may fail if the map is full (eviction happens in userspace),
 	// thus, we do it here as well to avoid losing entries.
