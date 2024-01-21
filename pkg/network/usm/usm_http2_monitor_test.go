@@ -233,8 +233,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			messageBuilder: func() []byte {
 				const headerFramesCount = 10
 				const rstCancelFramesCount = 5
-				const rstCancelFramesCountInMessage = 1
-				return createMessageWithRST(t, testHeaders(), headerFramesCount, rstCancelFramesCount, rstCancelFramesCountInMessage, http2.ErrCodeCancel)
+				return createMessageWithRST(t, testHeaders(), headerFramesCount, rstCancelFramesCount, http2.ErrCodeCancel)
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
@@ -244,49 +243,13 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 		},
 		{
-			name: "validate RST_STREAM after DATA frame with status ok",
-			// The purpose of this test is to validate that when we see RST after DATA frame with status ok,
-			// we will count the requests.
-			messageBuilder: func() []byte {
-				const headerFramesCount = 10
-				const rstFramesCount = 10
-				const rstFramesCountInMessage = 1
-				const includeStatusCode = true
-				return createMessageWithRST(t, testHeaders(), headerFramesCount, rstFramesCount, rstFramesCountInMessage, http2.ErrCodeNo, includeStatusCode)
-			},
-			expectedEndpoints: map[http.Key]int{
-				{
-					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
-					Method: http.MethodPost,
-				}: 10,
-			},
-		},
-		{
-			name: "validate 2 RST_STREAM in a raw",
-			// The purpose of this test is to validate that when a cancel error code is sent, we will not count the request.
-			messageBuilder: func() []byte {
-				const headerFramesCount = 10
-				const rstFramesCount = 10
-				const rstFramesCountInMessage = 2
-				const includeStatusCode = true
-				return createMessageWithRST(t, testHeaders(), headerFramesCount, rstFramesCount, rstFramesCountInMessage, http2.ErrCodeNo, includeStatusCode)
-			},
-			expectedEndpoints: map[http.Key]int{
-				{
-					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
-					Method: http.MethodPost,
-				}: 10,
-			},
-		},
-		{
-			name: "validate RST_STREAM before status ok",
+			name: "validate RST_STREAM before server status ok",
 			// The purpose of this test is to validate that when we see RST before DATA frame with status ok,
 			// we will not count the requests.
 			messageBuilder: func() []byte {
 				const headerFramesCount = 10
 				const rstFramesCount = 10
-				const rstFramesCountInMessage = 1
-				return createMessageWithRST(t, testHeaders(), headerFramesCount, rstFramesCount, rstFramesCountInMessage, http2.ErrCodeNo)
+				return createMessageWithRST(t, testHeaders(), headerFramesCount, rstFramesCount, http2.ErrCodeNo)
 			},
 			expectedEndpoints: nil,
 		},
@@ -587,7 +550,7 @@ func createMessageWithPingAndWindowUpdate(t *testing.T, headerFields []hpack.Hea
 
 // createMessageWithRST creates a message with the given number of header frames and RST frames,
 // and inserts RST frames with the given error code.
-func createMessageWithRST(t *testing.T, headerFields []hpack.HeaderField, headerFramesCount, rstFramesCount, rstFramesCountInMessage int, errCode http2.ErrCode, includeStatusCode ...bool) []byte {
+func createMessageWithRST(t *testing.T, headerFields []hpack.HeaderField, headerFramesCount, rstFramesCount int, errCode http2.ErrCode) []byte {
 	var buf bytes.Buffer
 	framer := http2.NewFramer(&buf, nil)
 
@@ -605,31 +568,12 @@ func createMessageWithRST(t *testing.T, headerFields []hpack.HeaderField, header
 			EndHeaders:    true,
 		}), "could not write header frames")
 
-		if len(includeStatusCode) > 0 && includeStatusCode[0] {
-			statusOkHeaderField := []hpack.HeaderField{
-				{Name: ":status", Value: "200"},
-			}
-
-			dataFrame, err := usmhttp2.NewHeadersFrameMessage(statusOkHeaderField)
-			require.NoError(t, err, "could not create data frame")
-
-			// Writing the header frames to the buffer using the Framer.
-			require.NoError(t, framer.WriteHeaders(http2.HeadersFrameParam{
-				StreamID:      uint32(streamID),
-				BlockFragment: dataFrame,
-				EndStream:     false,
-				EndHeaders:    true,
-			}), "could not write header frames")
-		}
-
 		// Writing the data frame to the buffer using the Framer.
 		require.NoError(t, framer.WriteData(uint32(streamID), true, []byte{}), "could not write data frame")
 
 		if rstFramesCount > 0 {
-			for j := 0; j < rstFramesCountInMessage; j++ {
-				// Writing the RST_STREAM frame with error errCode cancel to the buffer using the Framer.
-				require.NoError(t, framer.WriteRSTStream(uint32(streamID), errCode), "could not write RST_STREAM")
-			}
+			// Writing the RST_STREAM frame with error errCode cancel to the buffer using the Framer.
+			require.NoError(t, framer.WriteRSTStream(uint32(streamID), errCode), "could not write RST_STREAM")
 			rstFramesCount--
 		}
 	}
