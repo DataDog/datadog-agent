@@ -5,14 +5,12 @@
 
 //go:build linux_bpf
 
-package tracer
+package usm
 
 import (
 	"bytes"
-	"context"
 	"encoding/binary"
 	"net"
-	nethttp "net/http"
 	"strconv"
 	"strings"
 	"testing"
@@ -22,16 +20,16 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
 	"golang.org/x/net/http2/hpack"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
+	gotlsutils "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/proxy"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -56,39 +54,33 @@ func TestHTTP2Scenarios(t *testing.T) {
 		t.Skipf("HTTP2 monitoring can not run on kernel before %v", usmhttp2.MinimumKernelVersion)
 	}
 
-	for _, tc := range []struct {
-		name  string
-		isTLS bool
-	}{
-		{
-			name:  "without TLS",
-			isTLS: false,
-		},
-		{
-			name:  "with TLS",
-			isTLS: true,
-		},
-	} {
-		ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, tc.name, func(t *testing.T) {
-			if tc.isTLS {
-				if !goTLSSupported() {
-					t.Skip("GoTLS not supported for this setup")
-				}
-
-				if skipFedora(t) {
-					// GoTLS fails consistently in CI on Fedora 36,37
-					t.Skip("TestHTTP2Scenarios fails on this OS consistently")
-				}
+	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
+		for _, tc := range []struct {
+			name  string
+			isTLS bool
+		}{
+			{
+				name:  "without TLS",
+				isTLS: false,
+			},
+			{
+				name:  "with TLS",
+				isTLS: true,
+			},
+		} {
+			if tc.isTLS && !gotlsutils.GoTLSSupported(t, config.New()) {
+				t.Skip("GoTLS not supported for this setup")
 			}
-
-			suite.Run(t, &usmHTTP2Suite{isTLS: tc.isTLS})
-		})
-	}
+			t.Run(tc.name, func(t *testing.T) {
+				suite.Run(t, &usmHTTP2Suite{isTLS: tc.isTLS})
+			})
+		}
+	})
 }
 
 func (s *usmHTTP2Suite) TestRawTraffic() {
 	t := s.T()
-	cfg := networkconfig.New()
+	cfg := config.New()
 	cfg.EnableHTTP2Monitoring = true
 	cfg.EnableGoTLSSupport = s.isTLS
 	cfg.GoTLSExcludeSelf = s.isTLS
@@ -101,18 +93,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 	// Start the proxy server.
 	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
 	t.Cleanup(cancel)
-
-	tr := setupTracer(t, cfg)
-	require.NoError(t, tr.ebpfTracer.Pause())
-
-	// The server runs asynchronously, so we need to wait for it to be ready. It can take a couple of seconds, for it to
-	// be ready. Also, it takes a couple of seconds to the tracer to start, so we place the "wait" for the server here,
-	// to reduce the time we need to wait for the server to be ready.
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
-
-	if s.isTLS {
-		waitForGoTLSHook(t, proxyProcess.Process.Pid)
-	}
 
 	getTLSNumber := func(numberWithoutTLS, numberWithTLS int, isTLS bool) int {
 		if isTLS {
@@ -253,10 +234,14 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				t.Skip("skipping test")
 			}
 
-			tr.removeClient(clientID)
-			initTracerState(t, tr)
-			require.NoError(t, tr.ebpfTracer.Resume())
-			t.Cleanup(func() { _ = tr.ebpfTracer.Pause() })
+			usmMonitor, err := NewMonitor(cfg, nil, nil, nil)
+			require.NoError(t, err)
+			require.NoError(t, usmMonitor.Start())
+			t.Cleanup(usmMonitor.Stop)
+			t.Cleanup(utils.ResetDebugger)
+			if s.isTLS {
+				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+			}
 
 			c, err := net.Dial("unix", unixPath)
 			require.NoError(t, err, "could not dial")
@@ -276,7 +261,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 
 			res := make(map[http.Key]int)
 			assert.Eventually(t, func() bool {
-				stats := tr.usmMonitor.GetProtocolStats()
+				stats := usmMonitor.GetProtocolStats()
 				http2Stats, ok := stats[protocols.HTTP2]
 				if !ok {
 					return false
@@ -319,7 +304,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 						t.Logf("key: %v was not found in res", key.Path.Content.Get())
 					}
 				}
-				ebpftest.DumpMapsTestHelper(t, tr.usmMonitor.DumpMaps, "http2_in_flight")
+				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, "http2_in_flight")
 			}
 		})
 	}
@@ -535,38 +520,4 @@ func createMessageWithPingAndWindowUpdate(t *testing.T, headerFields []hpack.Hea
 	}
 
 	return buf.Bytes()
-}
-
-func startH2CServer(address string, isTLS bool) (func(), error) {
-	srv := &nethttp.Server{
-		Addr: authority,
-		Handler: h2c.NewHandler(nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
-			w.WriteHeader(200)
-			w.Write([]byte("test"))
-		}), &http2.Server{}),
-		IdleTimeout: 2 * time.Second,
-	}
-
-	if err := http2.ConfigureServer(srv, nil); err != nil {
-		return nil, err
-	}
-
-	l, err := net.Listen("tcp", address)
-	if err != nil {
-		return nil, err
-	}
-
-	if isTLS {
-		cert, key, err := testutil.GetCertsPaths()
-		if err != nil {
-			return nil, err
-		}
-		go srv.ServeTLS(l, cert, key)
-	} else {
-		go srv.Serve(l)
-	}
-
-	return func() {
-		_ = srv.Shutdown(context.Background())
-	}, nil
 }

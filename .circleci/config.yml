@@ -101,6 +101,8 @@ jobs:
           name: run unit tests
           no_output_timeout: 20m
           command: inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --race --profile --cpus 8
+          environment:
+            GO_TEST_SKIP_FLAKE: "true"
       - run:
           name: upload code coverage results
           # Never fail on coverage upload

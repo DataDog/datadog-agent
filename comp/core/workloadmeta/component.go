@@ -129,6 +129,10 @@ type Component interface {
 	// - EventTypeUnset: one for each entity that exists in the store but is not
 	// present in newEntities.
 	Reset(newEntities []Entity, source Source)
+
+	// Push allows external sources to push events to the metadata store.
+	// Only EventTypeSet and EventTypeUnset event types are allowed.
+	Push(source Source, events ...Event) error
 }
 
 // Module defines the fx options for this component.

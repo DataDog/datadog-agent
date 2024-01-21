@@ -901,7 +901,7 @@
   "snmpTrapsStats": {
     "metrics": {
       "Packets": 0,
-      "PacketsAuthErrors": 0
+      "PacketsUnknownCommunityString": 0
     }
   },
   "systemProbeStats": {
