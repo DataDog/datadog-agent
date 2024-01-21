@@ -9,6 +9,7 @@ package usm
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -61,7 +62,6 @@ const (
 
 	localHostAddress = "127.0.0.1:8082"
 	http2SrvAddr     = "http://" + localHostAddress
-	http2SrvPortStr  = ":8082"
 	http2SrvPort     = 8082
 )
 
@@ -545,7 +545,9 @@ func (s *USMHTTP2Suite) TestHTTP2DynamicTableCleanup() {
 	cfg.EnableHTTP2Monitoring = true
 	cfg.HTTP2DynamicTableMapCleanerInterval = 5 * time.Second
 
-	startH2CServer(t)
+	cleanup, err := startH2CServer(localHostAddress, false)
+	require.NoError(t, err)
+	t.Cleanup(cleanup)
 
 	monitor, err := NewMonitor(cfg, nil, nil, nil)
 	require.NoError(t, err)
@@ -609,7 +611,9 @@ func (s *USMHTTP2Suite) TestHTTP2ManyDifferentPaths() {
 	cfg := networkconfig.New()
 	cfg.EnableHTTP2Monitoring = true
 
-	startH2CServer(t)
+	cleanup, err := startH2CServer(localHostAddress, false)
+	require.NoError(t, err)
+	t.Cleanup(cleanup)
 
 	monitor, err := NewMonitor(cfg, nil, nil, nil)
 	require.NoError(t, err)
@@ -684,7 +688,9 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 	cfg := networkconfig.New()
 	cfg.EnableHTTP2Monitoring = true
 
-	startH2CServer(t)
+	cleanup, err := startH2CServer(localHostAddress, false)
+	require.NoError(t, err)
+	t.Cleanup(cleanup)
 
 	tests := []struct {
 		name              string
@@ -838,7 +844,9 @@ func (s *USMHTTP2Suite) TestHTTP2KernelTelemetry() {
 	cfg := networkconfig.New()
 	cfg.EnableHTTP2Monitoring = true
 
-	startH2CServer(t)
+	cleanup, err := startH2CServer(localHostAddress, false)
+	require.NoError(t, err)
+	t.Cleanup(cleanup)
 
 	tests := []struct {
 		name              string
@@ -922,11 +930,9 @@ func getClientsArray(t *testing.T, size int) []*nethttp.Client {
 	return res
 }
 
-func startH2CServer(t *testing.T) {
-	t.Helper()
-
+func startH2CServer(address string, isTLS bool) (func(), error) {
 	srv := &nethttp.Server{
-		Addr: http2SrvPortStr,
+		Addr: authority,
 		Handler: h2c.NewHandler(nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
 			w.WriteHeader(200)
 			w.Write([]byte("test"))
@@ -934,18 +940,28 @@ func startH2CServer(t *testing.T) {
 		IdleTimeout: 2 * time.Second,
 	}
 
-	err := http2.ConfigureServer(srv, nil)
-	require.NoError(t, err)
+	if err := http2.ConfigureServer(srv, nil); err != nil {
+		return nil, err
+	}
 
-	l, err := net.Listen("tcp", http2SrvPortStr)
-	require.NoError(t, err, "could not create listening socket")
+	l, err := net.Listen("tcp", address)
+	if err != nil {
+		return nil, err
+	}
 
-	go func() {
-		srv.Serve(l)
-		require.NoErrorf(t, err, "could not start HTTP2 server")
-	}()
+	if isTLS {
+		cert, key, err := testutil.GetCertsPaths()
+		if err != nil {
+			return nil, err
+		}
+		go srv.ServeTLS(l, cert, key)
+	} else {
+		go srv.Serve(l)
+	}
 
-	t.Cleanup(func() { srv.Close() })
+	return func() {
+		_ = srv.Shutdown(context.Background())
+	}, nil
 }
 
 func newH2CClient(t *testing.T) *nethttp.Client {

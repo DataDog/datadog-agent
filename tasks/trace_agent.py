@@ -20,6 +20,7 @@ def build(
     build_include=None,
     build_exclude=None,
     flavor=AgentFlavor.base.name,
+    install_path=None,
     major_version='7',
     python_runtimes='3',
     arch="x64",
@@ -30,7 +31,12 @@ def build(
     """
 
     flavor = AgentFlavor[flavor]
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes=python_runtimes)
+    ldflags, gcflags, env = get_build_flags(
+        ctx,
+        install_path=install_path,
+        major_version=major_version,
+        python_runtimes=python_runtimes,
+    )
 
     # generate windows resources
     if sys.platform == 'win32':
