@@ -12,9 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"go.uber.org/atomic"
-
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/gopsutil/cpu"
+	"go.uber.org/atomic"
+	
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
@@ -26,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/subscriptions"
-	"github.com/DataDog/gopsutil/cpu"
 )
 
 const (
@@ -635,7 +635,7 @@ func initScrubber(config ddconfig.Reader, scrubber *procutil.DataScrubber) {
 	}
 
 	if scrubber.Enabled { // Scrubber is enabled by default when it's created
-		log.Debug("Starting discovery process collection with Discovery Scrubber enabled")
+		log.Debug("Starting process collection with Scrubber enabled")
 	}
 
 	// A custom word list to enhance the default one used by the DataScrubber
