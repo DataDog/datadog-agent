@@ -37,7 +37,6 @@ type ProcessDiscoveryCheck struct {
 	userProbe  *LookupIdProbe
 	info       *HostInfo
 	initCalled bool
-
 	maxBatchSize int
 }
 
