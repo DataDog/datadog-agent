@@ -90,7 +90,7 @@ func TestPidMapToProcDiscoveriesScrubbed(t *testing.T) {
 		Uids:     []int32{1, 2, 3, 4, 5, 6},
 		Gids:     []int32{1, 2, 3, 4, 5, 6},
 		Stats: &procutil.Stats{
-			CreateTime:  2024,
+			CreateTime:  1705688277,
 		},
 	}
 
@@ -99,12 +99,12 @@ func TestPidMapToProcDiscoveriesScrubbed(t *testing.T) {
 		expected []string
 	}{
 		"replace sensitive word": {
-			cmdline:  []string{"java", "apikey:838372", "", "", "", ""},
-			expected: []string{"java", "apikey:********", "", "", "", ""},
+			cmdline:  []string{"java", "apikey:838372"},
+			expected: []string{"java", "apikey:********"},
 		},
 		"no replacements": {
-			cmdline:  []string{"java", "key:838372", "", "", "", ""},
-			expected: []string{"java", "key:838372", "", "", "", ""},
+			cmdline:  []string{"java", "key:838372"},
+			expected: []string{"java", "key:838372"},
 		},
 	}
 
