@@ -72,7 +72,7 @@ func TestGRPCScenarios(t *testing.T) {
 				isTLS: true,
 			},
 		} {
-			if tc.isTLS && !gotlsutils.GoTLSSupported(config.New()) {
+			if tc.isTLS && !gotlsutils.GoTLSSupported(t, config.New()) {
 				t.Skip("GoTLS not supported for this setup")
 			}
 			t.Run(tc.name, func(t *testing.T) {
