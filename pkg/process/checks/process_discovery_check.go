@@ -9,12 +9,11 @@ import (
 	"fmt"
 	"time"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	model "github.com/DataDog/agent-payload/v5/process"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
 
 // NewProcessDiscoveryCheck returns an instance of the ProcessDiscoveryCheck.
 func NewProcessDiscoveryCheck(config ddconfig.Reader) *ProcessDiscoveryCheck {
@@ -31,12 +30,12 @@ func NewProcessDiscoveryCheck(config ddconfig.Reader) *ProcessDiscoveryCheck {
 type ProcessDiscoveryCheck struct {
 	config ddconfig.Reader
 
-	probe      procutil.Probe
+	probe procutil.Probe
 	// scrubber is a DataScrubber to hide command line sensitive words
-	scrubber *procutil.DataScrubber
-	userProbe  *LookupIdProbe
-	info       *HostInfo
-	initCalled bool
+	scrubber     *procutil.DataScrubber
+	userProbe    *LookupIdProbe
+	info         *HostInfo
+	initCalled   bool
 	maxBatchSize int
 }
 
@@ -130,7 +129,6 @@ func pidMapToProcDiscoveries(pidMap map[int32]*procutil.Process, userProbe *Look
 
 		pd = append(pd, &model.ProcessDiscovery{
 
-			
 			Pid:        proc.Pid,
 			NsPid:      proc.NsPid,
 			Command:    formatCommand(proc),
@@ -144,7 +142,7 @@ func pidMapToProcDiscoveries(pidMap map[int32]*procutil.Process, userProbe *Look
 
 // chunkProcessDiscoveries split non-container processes into chunks and return a list of chunks
 // This function is patiently awaiting go to support generics, so that we don't need two chunkProcesses functions :)
-func chunkProcessDiscoveries( procs []*model.ProcessDiscovery, size int) [][]*model.ProcessDiscovery {
+func chunkProcessDiscoveries(procs []*model.ProcessDiscovery, size int) [][]*model.ProcessDiscovery {
 	chunkCount := len(procs) / size
 	if chunkCount*size < len(procs) {
 		chunkCount++
@@ -172,6 +170,3 @@ func calculateNumCores(info *model.SystemInfo) (numCores int32) {
 
 	return numCores
 }
-
-
-

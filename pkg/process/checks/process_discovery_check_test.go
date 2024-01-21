@@ -90,7 +90,7 @@ func TestPidMapToProcDiscoveriesScrubbed(t *testing.T) {
 		Uids:     []int32{1, 2, 3, 4, 5, 6},
 		Gids:     []int32{1, 2, 3, 4, 5, 6},
 		Stats: &procutil.Stats{
-			CreateTime:  1705688277,
+			CreateTime: 1705688277,
 		},
 	}
 
