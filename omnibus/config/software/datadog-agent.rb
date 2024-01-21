@@ -68,13 +68,13 @@ build do
     command "inv -e rtloader.clean"
     command "inv -e rtloader.make --python-runtimes #{py_runtimes_arg} --install-prefix \"#{windows_safe_path(python_2_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\"\" --arch #{platform}", :env => env
     command "mv rtloader/bin/*.dll  #{install_dir}/bin/agent/"
-    command "inv -e agent.build --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --embedded-path=#{install_dir}/embedded --arch #{platform} #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env
+    command "inv -e agent.build --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --arch #{platform} #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env
     command "inv -e systray.build --major-version #{major_version_arg} --rebuild --arch #{platform}", env: env
   else
     command "inv -e rtloader.clean"
     command "inv -e rtloader.make --python-runtimes #{py_runtimes_arg} --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0 -I#{install_dir}/embedded/include\" -DCMAKE_C_FLAGS:=\"-I#{install_dir}/embedded/include\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER'", :env => env
     command "inv -e rtloader.install"
-    command "inv -e agent.build --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded --flavor #{flavor_arg}", env: env
+    command "inv -e agent.build --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded --flavor #{flavor_arg}", env: env
   end
 
   if osx_target?
@@ -109,7 +109,7 @@ build do
     # defer compilation step in a block to allow getting the project's build version, which is populated
     # only once the software that the project takes its version from (i.e. `datadog-agent`) has finished building
     platform = windows_arch_i386? ? "x86" : "x64"
-    command "invoke trace-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --arch #{platform} --flavor #{flavor_arg}", :env => env
+    command "invoke trace-agent.build --python-runtimes #{py_runtimes_arg} --install-path=#{install_dir} --major-version #{major_version_arg} --arch #{platform} --flavor #{flavor_arg}", :env => env
 
     if windows_target?
       copy 'bin/trace-agent/trace-agent.exe', "#{install_dir}/bin/agent"
@@ -122,11 +122,11 @@ build do
   if windows_target?
     platform = windows_arch_i386? ? "x86" : "x64"
     # Build the process-agent with the correct go version for windows
-    command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --arch #{platform} --flavor #{flavor_arg}", :env => env
+    command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --install-path=#{install_dir} --major-version #{major_version_arg} --arch #{platform} --flavor #{flavor_arg}", :env => env
 
     copy 'bin/process-agent/process-agent.exe', "#{install_dir}/bin/agent"
   else
-    command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
+    command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
     copy 'bin/process-agent/process-agent', "#{install_dir}/embedded/bin"
   end
 
@@ -140,7 +140,7 @@ build do
       end
     end
   elsif linux_target?
-    command "invoke -e system-probe.build-sysprobe-binary"
+    command "invoke -e system-probe.build-sysprobe-binary --install-path=#{install_dir}"
     copy "bin/system-probe/system-probe", "#{install_dir}/embedded/bin"
   end
 
@@ -153,7 +153,7 @@ build do
   # Security agent
   unless heroku_target?
     if not windows_target? or (ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?)
-      command "invoke -e security-agent.build --major-version #{major_version_arg}", :env => env
+      command "invoke -e security-agent.build --install-path=#{install_dir} --major-version #{major_version_arg}", :env => env
       if windows_target?
         copy 'bin/security-agent/security-agent.exe', "#{install_dir}/bin/agent"
       else

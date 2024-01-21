@@ -114,6 +114,7 @@ def get_build_flags(
     ctx,
     static=False,
     prefix=None,
+    install_path=None,
     embedded_path=None,
     rtloader_root=None,
     python_home_2=None,
@@ -155,6 +156,10 @@ def get_build_flags(
         raise Exit("unable to locate embedded path please check your setup or set --embedded-path")
 
     rtloader_lib, rtloader_headers, rtloader_common_headers = get_rtloader_paths(embedded_path, rtloader_root)
+
+    # setting the install path
+    if sys.platform.startswith('linux') and install_path:
+        ldflags += f"-X {REPO_PATH}/pkg/config.InstallPath={install_path} "
 
     # setting python homes in the code
     if python_home_2:
