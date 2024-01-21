@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"slices"
 	"time"
 	"unsafe"
 
@@ -311,11 +312,36 @@ func (e *ebpfProgram) configureManagerWithSupportedProtocols(protocols []*protoc
 		e.tailCallRouter = append(e.tailCallRouter, spec.TailCalls...)
 	}
 	return func() {
-		for _, spec := range protocols {
-			e.Maps = e.Maps[:len(e.Maps)-len(spec.Maps)]
-			e.Probes = e.Probes[:len(e.Probes)-len(spec.Probes)]
-			e.tailCallRouter = e.tailCallRouter[:len(e.tailCallRouter)-len(spec.TailCalls)]
-		}
+		e.Maps = slices.DeleteFunc(e.Maps, func(m *manager.Map) bool {
+			for _, spec := range protocols {
+				for _, specMap := range spec.Maps {
+					if m.Name == specMap.Name {
+						return true
+					}
+				}
+			}
+			return false
+		})
+		e.Probes = slices.DeleteFunc(e.Probes, func(p *manager.Probe) bool {
+			for _, spec := range protocols {
+				for _, probe := range spec.Probes {
+					if p.EBPFFuncName == probe.EBPFFuncName {
+						return true
+					}
+				}
+			}
+			return false
+		})
+		e.tailCallRouter = slices.DeleteFunc(e.tailCallRouter, func(tc manager.TailCallRoute) bool {
+			for _, spec := range protocols {
+				for _, tailCall := range spec.TailCalls {
+					if tc.ProbeIdentificationPair.EBPFFuncName == tailCall.ProbeIdentificationPair.EBPFFuncName {
+						return true
+					}
+				}
+			}
+			return false
+		})
 	}
 }
 
