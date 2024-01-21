@@ -13,6 +13,8 @@ import (
 	"unsafe"
 )
 
+// EbpfErrorsCollector implements the prometheus Collector interface
+// for collecting statistics about errors of ebpf helpers and ebpf maps operations.
 type EbpfErrorsCollector struct {
 	*EBPFTelemetry
 }
