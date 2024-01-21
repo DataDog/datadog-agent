@@ -184,7 +184,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 		},
 		{
-			name: "guy validate literal header field never indexed",
+			name: "validate literal header field never indexed",
 			// The purpose of this test is to verify our ability the case:
 			// Literal Header Field never Indexed (0b0001xxxx: top four bits are 0001)
 			// https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.3
@@ -200,7 +200,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 		},
 		{
-			name: "guy validate path with index 4",
+			name: "validate path with index 4",
 			// The purpose of this test is to verify our ability to identify paths with index 4.
 			messageBuilder: func() []byte {
 				const headerFramesCount = 5

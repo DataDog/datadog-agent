@@ -62,7 +62,6 @@ const (
 
 	localHostAddress = "127.0.0.1:8082"
 	http2SrvAddr     = "http://" + localHostAddress
-	http2SrvPortStr  = ":8082"
 	http2SrvPort     = 8082
 )
 
