@@ -623,9 +623,9 @@ func (s *USMHTTP2Suite) TestHTTP2ManyDifferentPaths() {
 
 	const (
 		repetitionsPerRequest = 2
-		batchSize             = 500
+		batchSize             = 100
 		// Should be bigger than the length of the http2_interesting_dynamic_table_set which is 1024
-		batches          = 4
+		batches          = 20
 		numberOfRequests = batches * batchSize
 	)
 	// Ensuring any future test won't pass "accidentally" as we miscalculated the number of requests.
@@ -677,6 +677,9 @@ func (s *USMHTTP2Suite) TestHTTP2ManyDifferentPaths() {
 			if v, ok := seenRequests[fmt.Sprintf("/test-%d", pathIndex)]; !ok || v < repetitionsPerRequest {
 				t.Logf("path: /test-%d should have %d occurrences but instead has %d", pathIndex, repetitionsPerRequest, v)
 			}
+		}
+		if t.Failed() {
+			t.FailNow()
 		}
 	}
 }
