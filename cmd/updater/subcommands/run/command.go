@@ -7,23 +7,18 @@
 package run
 
 import (
-	"context"
-	"fmt"
-
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/updater/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/updater"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/updater/localapi"
+	updatercomp "github.com/DataDog/datadog-agent/comp/updater/updater"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/spf13/cobra"
@@ -50,7 +45,6 @@ func Commands(global *command.GlobalParams) []*cobra.Command {
 
 func runFxWrapper(params *cliParams, fct interface{}) error {
 	return fxutil.Run(
-		fx.Supply(params),
 		fx.Supply(core.BundleParams{
 			ConfigParams:         config.NewAgentParams(params.GlobalParams.ConfFilePath),
 			SecretParams:         secrets.NewEnabledParams(),
@@ -58,41 +52,15 @@ func runFxWrapper(params *cliParams, fct interface{}) error {
 			LogParams:            logimpl.ForDaemon("UPDATER", "updater.log_file", pkgconfig.DefaultUpdaterLogFile),
 		}),
 		core.Bundle(),
+		fx.Supply(updatercomp.Options{
+			Package: params.Package,
+		}),
+		updatercomp.Module(),
+		localapi.Module(),
 		fx.Invoke(fct),
 	)
 }
 
-func run(log log.Component, _ config.Component, params *cliParams) error {
-	hostnameDetected, err := hostname.Get(context.TODO())
-	if err != nil {
-		return fmt.Errorf("could not get hostname: %w", err)
-	}
-	log.Infof("Hostname is: %s", hostnameDetected)
-	configService, err := initRemoteConfig(hostnameDetected)
-	if err != nil {
-		return fmt.Errorf("could not init remote config: %w", err)
-	}
-	defer configService.Stop()
-	orgConfig, err := updater.NewOrgConfig()
-	if err != nil {
-		return fmt.Errorf("could not create org config: %w", err)
-	}
-	u, err := updater.NewUpdater(orgConfig, params.Package)
-	if err != nil {
-		return fmt.Errorf("could not create updater: %w", err)
-	}
-	api, err := updater.NewLocalAPI(u)
-	if err != nil {
-		return fmt.Errorf("could not create local API: %w", err)
-	}
-	return api.Serve()
-}
-
-func initRemoteConfig(hostname string) (*service.Service, error) {
-	configService, err := common.NewRemoteConfigService(hostname)
-	if err != nil {
-		return nil, fmt.Errorf("could not create remote config service: %w", err)
-	}
-	configService.Start(context.Background())
-	return configService, nil
+func run(updater *updater.Updater, localAPI *updater.LocalAPI) error {
+	return localAPI.Serve()
 }
