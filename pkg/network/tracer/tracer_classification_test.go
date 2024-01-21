@@ -1723,6 +1723,14 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				_, err = c.Write(usmhttp2.ComposeMessage([]byte(http2.ClientPreface), buf.Bytes()))
 				require.NoError(t, err)
 				buf.Reset()
+				c.SetReadDeadline(time.Now().Add(defaultTimeout))
+				frameReader := http2.NewFramer(nil, c)
+				for {
+					_, err := frameReader.ReadFrame()
+					if err != nil {
+						break
+					}
+				}
 
 				rawHdrs, err := usmhttp2.NewHeadersFrameMessage(testHeaderFields)
 				require.NoError(t, err)
@@ -1737,6 +1745,14 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 
 				_, err = c.Write(buf.Bytes())
 				require.NoError(t, err)
+				c.SetReadDeadline(time.Now().Add(defaultTimeout))
+				frameReader = http2.NewFramer(nil, c)
+				for {
+					_, err := frameReader.ReadFrame()
+					if err != nil {
+						break
+					}
+				}
 			},
 			teardown: func(t *testing.T, ctx testContext) {
 				ctx.extras["server"].(*TCPServer).Shutdown()
