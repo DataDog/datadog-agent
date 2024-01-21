@@ -1671,7 +1671,8 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				c, err := net.Dial("tcp", ctx.targetAddress)
 				require.NoError(t, err)
 				defer c.Close()
-				require.NoError(t, writeInput(c, buf.Bytes(), time.Second))
+				_, err = c.Write(buf.Bytes())
+				require.NoError(t, err)
 			},
 			teardown: func(t *testing.T, ctx testContext) {
 				ctx.extras["server"].(*TCPServer).Shutdown()
@@ -1719,7 +1720,8 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				defer c.Close()
 
 				// Writing a magic and the settings in the same packet to socket.
-				require.NoError(t, writeInput(c, usmhttp2.ComposeMessage([]byte(http2.ClientPreface), buf.Bytes()), time.Second))
+				_, err = c.Write(usmhttp2.ComposeMessage([]byte(http2.ClientPreface), buf.Bytes()))
+				require.NoError(t, err)
 				buf.Reset()
 
 				rawHdrs, err := usmhttp2.NewHeadersFrameMessage(testHeaderFields)
@@ -1733,7 +1735,8 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 					EndHeaders:    true,
 				}))
 
-				require.NoError(t, writeInput(c, buf.Bytes(), time.Second))
+				_, err = c.Write(buf.Bytes())
+				require.NoError(t, err)
 			},
 			teardown: func(t *testing.T, ctx testContext) {
 				ctx.extras["server"].(*TCPServer).Shutdown()
