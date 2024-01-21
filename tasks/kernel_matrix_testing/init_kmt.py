@@ -43,20 +43,23 @@ def init_kernel_matrix_testing_system(ctx, lite):
     kmt_os = get_kmt_os()
 
     sudo = "sudo" if not is_root() else ""
-    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd $USER | cut -d ':' -f 1) {kmt_os.kmt_dir}")
-    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd $USER | cut -d ':' -f 1) {kmt_os.packages_dir}")
-    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd $USER | cut -d ':' -f 1) {kmt_os.stacks_dir}")
-    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd $USER | cut -d ':' -f 1) {kmt_os.libvirt_dir}")
-    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd $USER | cut -d ':' -f 1) {kmt_os.rootfs_dir}")
-    ctx.run(f"{sudo} install -d -m 0755 -g libvirt -o $(getent passwd $USER | cut -d ':' -f 1) {kmt_os.shared_dir}")
-
-    ## fix libvirt conf
     user = getpass.getuser()
-    ctx.run(f"{sudo} sed --in-place 's/#security_driver = \"selinux\"/security_driver = \"none\"/' {kmt_os.qemu_conf}")
-    ctx.run(f"{sudo} sed --in-place 's/#user = \"root\"/user = \"{user}\"/' {kmt_os.qemu_conf}")
-    ctx.run(f"{sudo} sed --in-place 's/#group = \"root\"/group = \"kvm\"/' {kmt_os.qemu_conf}")
+    ctx.run(f"{sudo} install -d -m 0755 -g {kmt_os.libvirt_group} -o {user} {kmt_os.kmt_dir}")
+    ctx.run(f"{sudo} install -d -m 0755 -g {kmt_os.libvirt_group} -o {user} {kmt_os.packages_dir}")
+    ctx.run(f"{sudo} install -d -m 0755 -g {kmt_os.libvirt_group} -o {user} {kmt_os.stacks_dir}")
+    ctx.run(f"{sudo} install -d -m 0755 -g {kmt_os.libvirt_group} -o {user} {kmt_os.libvirt_dir}")
+    ctx.run(f"{sudo} install -d -m 0755 -g {kmt_os.libvirt_group} -o {user} {kmt_os.rootfs_dir}")
+    ctx.run(f"{sudo} install -d -m 0755 -g {kmt_os.libvirt_group} -o {user} {kmt_os.shared_dir}")
 
-    kmt_os.restart_libvirtd(ctx, sudo)
+    if not lite:
+        ## fix libvirt conf
+        ctx.run(
+            f"{sudo} sed --in-place 's/#security_driver = \"selinux\"/security_driver = \"none\"/' {kmt_os.qemu_conf}"
+        )
+        ctx.run(f"{sudo} sed --in-place 's/#user = \"root\"/user = \"{user}\"/' {kmt_os.qemu_conf}")
+        ctx.run(f"{sudo} sed --in-place 's/#group = \"root\"/group = \"kvm\"/' {kmt_os.qemu_conf}")
+
+        kmt_os.restart_libvirtd(ctx, sudo)
 
     # download dependencies
     if not lite:

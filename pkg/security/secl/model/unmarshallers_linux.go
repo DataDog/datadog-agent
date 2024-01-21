@@ -9,6 +9,7 @@ package model
 import (
 	"encoding/binary"
 	"fmt"
+	"math/bits"
 	"strings"
 	"time"
 
@@ -691,22 +692,38 @@ func (p *BPFProgram) UnmarshalBinary(data []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	for _, b := range data[56:64] {
-		p.Tag += fmt.Sprintf("%x", b)
-	}
+	p.Tag = parseSHA1Tag(data[56:64])
 	return 64, nil
 }
 
-func parseHelpers(helpers []uint64) []uint32 {
-	var rep []uint32
-	var add bool
-
-	if len(helpers) < 3 {
-		return rep
+// parseSHA1Tag parses the short sha1 digest from the kernel event
+func parseSHA1Tag(data []byte) string {
+	if len(data) != 8 {
+		return ""
 	}
 
+	var builder strings.Builder
+	builder.Grow(16)
+
+	for _, b := range data {
+		builder.WriteString(fmt.Sprintf("%02x", b))
+	}
+	return builder.String()
+}
+
+func parseHelpers(helpers []uint64) []uint32 {
+	if len(helpers) < 3 {
+		return nil
+	}
+
+	var popcnt int
+	for _, h := range helpers {
+		popcnt += bits.OnesCount64(h)
+	}
+	rep := make([]uint32, 0, popcnt)
+
 	for i := 0; i < 192; i++ {
-		add = false
+		add := false
 		if i < 64 {
 			if helpers[0]&(1<<i) == (1 << i) {
 				add = true

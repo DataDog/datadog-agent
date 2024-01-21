@@ -186,10 +186,4 @@ enum selinux_event_kind_t {
     SELINUX_BOOL_COMMIT_EVENT_KIND,
 };
 
-enum security_profile_state {
-    SECURITY_PROFILE_UNKNOWN,
-    SECURITY_PROFILE_ALERT,
-    SECURITY_PROFILE_KILL,
-};
-
 #endif

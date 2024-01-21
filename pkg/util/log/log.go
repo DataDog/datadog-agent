@@ -154,18 +154,6 @@ func (sw *DatadogLogger) registerAdditionalLogger(n string, l seelog.LoggerInter
 	return nil
 }
 
-func (sw *DatadogLogger) unregisterAdditionalLogger(n string) error {
-	sw.l.Lock()
-	defer sw.l.Unlock()
-
-	if sw.extra == nil {
-		return errors.New("logger not fully initialized, additional logging unavailable")
-	}
-
-	delete(sw.extra, n)
-	return nil
-}
-
 func (sw *DatadogLogger) scrub(s string) string {
 	if scrubbed, err := scrubBytesFunc([]byte(s)); err == nil {
 		return string(scrubbed)
@@ -874,16 +862,6 @@ func RegisterAdditionalLogger(n string, li seelog.LoggerInterface) error {
 	}
 
 	return errors.New("cannot register: logger not initialized")
-}
-
-// UnregisterAdditionalLogger unregisters additional logger with name n
-func UnregisterAdditionalLogger(n string) error {
-	l := logger.Load()
-	if l != nil && l.inner != nil {
-		return l.unregisterAdditionalLogger(n)
-	}
-
-	return errors.New("cannot unregister: logger not initialized")
 }
 
 // ShouldLog returns whether a given log level should be logged by the default logger

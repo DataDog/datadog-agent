@@ -51,24 +51,28 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 
+	agentmodel "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/DataDog/datadog-agent/test/fakeintake/client/flare"
 )
 
 const (
-	metricsEndpoint            = "/api/v2/series"
-	checkRunsEndpoint          = "/api/v1/check_run"
-	logsEndpoint               = "/api/v2/logs"
-	connectionsEndpoint        = "/api/v1/connections"
-	processesEndpoint          = "/api/v1/collector"
-	containersEndpoint         = "/api/v1/container"
-	processDiscoveryEndpoint   = "/api/v1/discovery"
-	containerImageEndpoint     = "/api/v2/contimage"
-	containerLifecycleEndpoint = "/api/v2/contlcycle"
-	sbomEndpoint               = "/api/v2/sbom"
-	flareEndpoint              = "/support/flare"
-	tracesEndpoint             = "/api/v0.2/traces"
+	metricsEndpoint              = "/api/v2/series"
+	checkRunsEndpoint            = "/api/v1/check_run"
+	logsEndpoint                 = "/api/v2/logs"
+	connectionsEndpoint          = "/api/v1/connections"
+	processesEndpoint            = "/api/v1/collector"
+	containersEndpoint           = "/api/v1/container"
+	processDiscoveryEndpoint     = "/api/v1/discovery"
+	containerImageEndpoint       = "/api/v2/contimage"
+	containerLifecycleEndpoint   = "/api/v2/contlcycle"
+	sbomEndpoint                 = "/api/v2/sbom"
+	flareEndpoint                = "/support/flare"
+	tracesEndpoint               = "/api/v0.2/traces"
+	apmStatsEndpoint             = "/api/v0.2/stats"
+	orchestratorEndpoint         = "/api/v2/orch"
+	orchestratorManifestEndpoint = "/api/v2/orchmanif"
 )
 
 // ErrNoFlareAvailable is returned when no flare is available
@@ -78,36 +82,48 @@ var ErrNoFlareAvailable = errors.New("no flare available")
 type Client struct {
 	fakeIntakeURL string
 
-	metricAggregator             aggregator.MetricAggregator
-	checkRunAggregator           aggregator.CheckRunAggregator
-	logAggregator                aggregator.LogAggregator
-	connectionAggregator         aggregator.ConnectionsAggregator
-	processAggregator            aggregator.ProcessAggregator
-	containerAggregator          aggregator.ContainerAggregator
-	processDiscoveryAggregator   aggregator.ProcessDiscoveryAggregator
-	containerImageAggregator     aggregator.ContainerImageAggregator
-	containerLifecycleAggregator aggregator.ContainerLifecycleAggregator
-	sbomAggregator               aggregator.SBOMAggregator
-	traceAggregator              aggregator.TraceAggregator
+	metricAggregator               aggregator.MetricAggregator
+	checkRunAggregator             aggregator.CheckRunAggregator
+	logAggregator                  aggregator.LogAggregator
+	connectionAggregator           aggregator.ConnectionsAggregator
+	processAggregator              aggregator.ProcessAggregator
+	containerAggregator            aggregator.ContainerAggregator
+	processDiscoveryAggregator     aggregator.ProcessDiscoveryAggregator
+	containerImageAggregator       aggregator.ContainerImageAggregator
+	containerLifecycleAggregator   aggregator.ContainerLifecycleAggregator
+	sbomAggregator                 aggregator.SBOMAggregator
+	traceAggregator                aggregator.TraceAggregator
+	apmStatsAggregator             aggregator.APMStatsAggregator
+	orchestratorAggregator         aggregator.OrchestratorAggregator
+	orchestratorManifestAggregator aggregator.OrchestratorManifestAggregator
 }
 
 // NewClient creates a new fake intake client
 // fakeIntakeURL: the host of the fake Datadog intake server
 func NewClient(fakeIntakeURL string) *Client {
 	return &Client{
-		fakeIntakeURL:                strings.TrimSuffix(fakeIntakeURL, "/"),
-		metricAggregator:             aggregator.NewMetricAggregator(),
-		checkRunAggregator:           aggregator.NewCheckRunAggregator(),
-		logAggregator:                aggregator.NewLogAggregator(),
-		connectionAggregator:         aggregator.NewConnectionsAggregator(),
-		processAggregator:            aggregator.NewProcessAggregator(),
-		containerAggregator:          aggregator.NewContainerAggregator(),
-		processDiscoveryAggregator:   aggregator.NewProcessDiscoveryAggregator(),
-		containerImageAggregator:     aggregator.NewContainerImageAggregator(),
-		containerLifecycleAggregator: aggregator.NewContainerLifecycleAggregator(),
-		sbomAggregator:               aggregator.NewSBOMAggregator(),
-		traceAggregator:              aggregator.NewTraceAggregator(),
+		fakeIntakeURL:                  strings.TrimSuffix(fakeIntakeURL, "/"),
+		metricAggregator:               aggregator.NewMetricAggregator(),
+		checkRunAggregator:             aggregator.NewCheckRunAggregator(),
+		logAggregator:                  aggregator.NewLogAggregator(),
+		connectionAggregator:           aggregator.NewConnectionsAggregator(),
+		processAggregator:              aggregator.NewProcessAggregator(),
+		containerAggregator:            aggregator.NewContainerAggregator(),
+		processDiscoveryAggregator:     aggregator.NewProcessDiscoveryAggregator(),
+		containerImageAggregator:       aggregator.NewContainerImageAggregator(),
+		containerLifecycleAggregator:   aggregator.NewContainerLifecycleAggregator(),
+		sbomAggregator:                 aggregator.NewSBOMAggregator(),
+		traceAggregator:                aggregator.NewTraceAggregator(),
+		apmStatsAggregator:             aggregator.NewAPMStatsAggregator(),
+		orchestratorAggregator:         aggregator.NewOrchestratorAggregator(),
+		orchestratorManifestAggregator: aggregator.NewOrchestratorManifestAggregator(),
 	}
+}
+
+// PayloadFilter is used to filter payloads by name and resource type
+type PayloadFilter struct {
+	Name         string
+	ResourceType agentmodel.MessageType
 }
 
 func (c *Client) getMetrics() error {
@@ -196,6 +212,30 @@ func (c *Client) getTraces() error {
 		return err
 	}
 	return c.traceAggregator.UnmarshallPayloads(payloads)
+}
+
+func (c *Client) getOrchestratorResources() error {
+	payloads, err := c.getFakePayloads(orchestratorEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.orchestratorAggregator.UnmarshallPayloads(payloads)
+}
+
+func (c *Client) getOrchestratorManifests() error {
+	payloads, err := c.getFakePayloads(orchestratorManifestEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.orchestratorManifestAggregator.UnmarshallPayloads(payloads)
+}
+
+func (c *Client) getAPMStats() error {
+	payloads, err := c.getFakePayloads(apmStatsEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.apmStatsAggregator.UnmarshallPayloads(payloads)
 }
 
 // GetLatestFlare queries the Fake Intake to fetch flares that were sent by a Datadog Agent and returns the latest flare as a Flare struct
@@ -659,6 +699,45 @@ func (c *Client) FilterSBOMs(id string, options ...MatchOpt[*aggregator.SBOMPayl
 	return filteredSBOMs, nil
 }
 
+// GetOrchestratorResources fetches fakeintake on `/api/v2/orch` endpoint and returns
+// all received process payloads
+func (c *Client) GetOrchestratorResources(filter *PayloadFilter) ([]*aggregator.OrchestratorPayload, error) {
+	err := c.getOrchestratorResources()
+	if err != nil {
+		return nil, err
+	}
+
+	var orchs []*aggregator.OrchestratorPayload
+	for _, name := range c.orchestratorAggregator.GetNames() {
+		if filter != nil && filter.Name != "" && filter.Name != name {
+			continue
+		}
+		for _, payload := range c.orchestratorAggregator.GetPayloadsByName(name) {
+			if filter != nil && filter.ResourceType != 0 && filter.ResourceType != payload.Type {
+				continue
+			}
+			orchs = append(orchs, payload)
+		}
+	}
+	return orchs, nil
+}
+
+// GetOrchestratorManifests fetches fakeintake on `/api/v2/orchmanif` endpoint and returns
+// all received process payloads
+func (c *Client) GetOrchestratorManifests() ([]*aggregator.OrchestratorManifestPayload, error) {
+	err := c.getOrchestratorManifests()
+	if err != nil {
+		return nil, err
+	}
+
+	var manifs []*aggregator.OrchestratorManifestPayload
+	for _, name := range c.orchestratorManifestAggregator.GetNames() {
+		manifs = append(manifs, c.orchestratorManifestAggregator.GetPayloadsByName(name)...)
+	}
+
+	return manifs, nil
+}
+
 func (c *Client) get(route string) ([]byte, error) {
 	var body []byte
 	err := backoff.Retry(func() error {
@@ -712,4 +791,17 @@ func (c *Client) GetTraces() ([]*aggregator.TracePayload, error) {
 		traces = append(traces, c.traceAggregator.GetPayloadsByName(name)...)
 	}
 	return traces, nil
+}
+
+// GetAPMStats fetches fakeintake on /api/v0.2/stats endpoint and returns all received apm stats payloads
+func (c *Client) GetAPMStats() ([]*aggregator.APMStatsPayload, error) {
+	err := c.getAPMStats()
+	if err != nil {
+		return nil, err
+	}
+	var stats []*aggregator.APMStatsPayload
+	for _, name := range c.apmStatsAggregator.GetNames() {
+		stats = append(stats, c.apmStatsAggregator.GetPayloadsByName(name)...)
+	}
+	return stats, nil
 }
