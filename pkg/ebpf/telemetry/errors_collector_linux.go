@@ -21,7 +21,7 @@ type EbpfErrorsCollector struct {
 func NewEbpfErrorsCollector() prometheus.Collector {
 	if supported, _ := ebpfTelemetrySupported(); !supported {
 		log.Debug("ebpf errors collector not supported")
-		return &NoopEbpfErrorsCollector{}
+		return nil
 	}
 	return &EbpfErrorsCollector{
 		EBPFTelemetry{
