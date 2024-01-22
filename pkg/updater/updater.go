@@ -25,10 +25,11 @@ const (
 
 // Install installs the default version for the given package.
 // It is purposefully not part of the updater to avoid misuse.
-func Install(ctx context.Context, orgConfig *OrgConfig, pkg string) error {
+func Install(ctx context.Context, rc *RemoteConfig, pkg string) error {
 	log.Infof("Updater: Installing default version of package %s", pkg)
 	downloader := newDownloader(http.DefaultClient)
 	repository := &repository.Repository{RootPath: path.Join(defaultRepositoryPath, pkg)}
+	orgConfig := newOrgConfig(rc)
 	firstPackage, err := orgConfig.GetDefaultPackage(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not get default package: %w", err)
@@ -55,13 +56,13 @@ type Updater struct {
 	m              sync.Mutex
 	pkg            string
 	repositoryPath string
-	orgConfig      *OrgConfig
+	orgConfig      *orgConfig
 	repository     *repository.Repository
 	downloader     *downloader
 }
 
 // NewUpdater returns a new Updater.
-func NewUpdater(orgConfig *OrgConfig, pkg string) (*Updater, error) {
+func NewUpdater(rc *RemoteConfig, pkg string) (*Updater, error) {
 	repository := repository.Repository{RootPath: path.Join(defaultRepositoryPath, pkg)}
 	state, err := repository.GetState()
 	if err != nil {
@@ -73,7 +74,7 @@ func NewUpdater(orgConfig *OrgConfig, pkg string) (*Updater, error) {
 	return &Updater{
 		pkg:            pkg,
 		repositoryPath: defaultRepositoryPath,
-		orgConfig:      orgConfig,
+		orgConfig:      newOrgConfig(rc),
 		repository:     &repository,
 		downloader:     newDownloader(http.DefaultClient),
 	}, nil

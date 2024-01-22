@@ -31,17 +31,14 @@ type Options struct {
 type Params struct {
 	fx.In
 
-	Log     log.Component
-	Config  config.Component
-	Options Options
+	Log          log.Component
+	Config       config.Component
+	RemoteConfig *updater.RemoteConfig
+	Options      Options
 }
 
 func newUpdaterComponent(params Params) (*updater.Updater, error) {
-	orgConfig, err := updater.NewOrgConfig()
-	if err != nil {
-		return nil, fmt.Errorf("could not create org config: %w", err)
-	}
-	updater, err := updater.NewUpdater(orgConfig, params.Options.Package)
+	updater, err := updater.NewUpdater(params.RemoteConfig, params.Options.Package)
 	if err != nil {
 		return nil, fmt.Errorf("could not create updater: %w", err)
 	}

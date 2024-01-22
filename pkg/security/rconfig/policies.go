@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -58,7 +57,7 @@ func NewRCPolicyProvider() (*RCPolicyProvider, error) {
 
 	c, err := client.NewGRPCClient(ipcAddress, config.GetIPCPort(), security.FetchAuthToken,
 		client.WithAgent(agentName, agentVersion.String()),
-		client.WithProducts([]data.Product{data.ProductCWSDD, data.ProductCWSCustom}),
+		client.WithProducts(state.ProductCWSDD, state.ProductCWSCustom),
 		client.WithPollInterval(securityAgentRCPollInterval),
 		client.WithDirectorRootOverride(config.Datadog.GetString("remote_configuration.director_root")),
 	)

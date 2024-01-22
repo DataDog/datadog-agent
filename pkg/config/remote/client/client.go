@@ -20,7 +20,6 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -155,12 +154,9 @@ func NewUnverifiedGRPCClient(ipcAddress string, cmdPort string, authTokenFetcher
 }
 
 // WithProducts specifies the product lists
-func WithProducts(products []data.Product) func(opts *Options) {
+func WithProducts(products ...string) func(opts *Options) {
 	return func(opts *Options) {
-		opts.products = make([]string, len(products))
-		for i, product := range products {
-			opts.products[i] = string(product)
-		}
+		opts.products = products
 	}
 }
 

@@ -7,6 +7,8 @@
 package run
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/cmd/updater/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -18,6 +20,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/updater/localapi"
+	updaterrccomp "github.com/DataDog/datadog-agent/comp/updater/rc"
 	updatercomp "github.com/DataDog/datadog-agent/comp/updater/updater"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 
@@ -44,7 +47,9 @@ func Commands(global *command.GlobalParams) []*cobra.Command {
 }
 
 func runFxWrapper(params *cliParams, fct interface{}) error {
+	ctx := context.Background()
 	return fxutil.Run(
+		fx.Provide(func() context.Context { return ctx }),
 		fx.Supply(core.BundleParams{
 			ConfigParams:         config.NewAgentParams(params.GlobalParams.ConfFilePath),
 			SecretParams:         secrets.NewEnabledParams(),
@@ -55,6 +60,7 @@ func runFxWrapper(params *cliParams, fct interface{}) error {
 		fx.Supply(updatercomp.Options{
 			Package: params.Package,
 		}),
+		updaterrccomp.Module(),
 		updatercomp.Module(),
 		localapi.Module(),
 		fx.Invoke(fct),

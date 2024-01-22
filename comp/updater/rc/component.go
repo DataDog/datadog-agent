@@ -6,11 +6,13 @@
 package rc
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/updater"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"go.uber.org/fx"
 )
 
@@ -19,21 +21,25 @@ import (
 // Module is the fx module for the updater rc client.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newLocalAPIComponent),
+		fx.Provide(newRemoteConfigComponent),
 	)
 }
 
 type Params struct {
 	fx.In
 
-	Updater *updater.Updater
-	Log     log.Component
+	Ctx context.Context
+	Log log.Component
 }
 
-func newLocalAPIComponent(params Params) (*updater.LocalAPI, error) {
-	localAPI, err := updater.NewLocalAPI(params.Updater)
+func newRemoteConfigComponent(params Params) (*updater.RemoteConfig, error) {
+	hostname, err := hostname.Get(params.Ctx)
 	if err != nil {
-		return nil, fmt.Errorf("could not create local API: %w", err)
+		return nil, fmt.Errorf("could not get hostname: %w", err)
 	}
-	return localAPI, nil
+	rc, err := updater.NewRemoteConfig(hostname)
+	if err != nil {
+		return nil, fmt.Errorf("could not create remote config: %w", err)
+	}
+	return rc, nil
 }

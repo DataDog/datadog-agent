@@ -47,9 +47,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	rcservice "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -467,7 +467,7 @@ func initializeRemoteConfig(ctx context.Context) (*rcclient.Client, *rcservice.S
 	rcClient, err := rcclient.NewClient(rcService,
 		rcclient.WithAgent("cluster-agent", version.AgentVersion),
 		rcclient.WithCluster(clusterName, clusterID),
-		rcclient.WithProducts([]data.Product{data.ProductAPMTracing}),
+		rcclient.WithProducts(state.ProductAPMTracing),
 		rcclient.WithPollInterval(5*time.Second),
 		rcclient.WithDirectorRootOverride(pkgconfig.Datadog.GetString("remote_configuration.director_root")),
 	)
