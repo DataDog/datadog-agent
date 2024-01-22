@@ -290,13 +290,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 
 			res := make(map[http.Key]int)
 			assert.Eventually(t, func() bool {
-				stats := usmMonitor.GetProtocolStats()
-				http2Stats, ok := stats[protocols.HTTP2]
-				if !ok {
-					return false
-				}
-				http2StatsTyped := http2Stats.(map[http.Key]*http.RequestStats)
-				for key, stat := range http2StatsTyped {
+				for key, stat := range getHTTPLikeProtocolStats(usmMonitor, protocols.HTTP2) {
 					if key.DstPort == srvPort || key.SrcPort == srvPort {
 						count := stat.Data[200].Count
 						newKey := http.Key{
