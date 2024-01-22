@@ -1,16 +1,14 @@
 <Include>
   <Dialog Id="DDAgentUserDlg" Width="370" Height="270" Title="!(loc.DDAgentUserDialog_Title)">
 
-    <Control Id="InfoLabel" Type="Hyperlink" X="20" Y="52" Width="330" Height="40" >
-	  <Text>!(loc.DDAgentUserDialogInfoLabel)</Text>
-    </Control>
-
     <!-- Username and Password fields
-           Sets the same property as the command line options
-             - DDAGENTUSER_NAME
-             - DDAGENTUSER_PASSWORD
-           If the properties are set on the command line, the controls will be pre-filled
-      -->
+         Sets the same property as the command line options
+           - DDAGENTUSER_NAME
+           - DDAGENTUSER_PASSWORD
+         If the properties are set on the command line, the controls will be pre-filled.
+         Even though the InfoLabel comes first on the dialog, we list the controls here
+         first so that they receive focus first when the dialog is opened.
+    -->
     <Control Id="EnterUserName" Type="Text" Height="15" Width="320" X="20" Y="95"
              Text="!(loc.DDAgentUserDialogUserNameLabel)" />
     <Control Id="UserNameFromDefault" Type="Edit" Height="15" Width="320" X="20" Y="111"
@@ -20,6 +18,7 @@
     <Control Id="PasswordFromDefault" Type="Edit" Height="15" Width="320" X="20" Y="159"
              Password="yes"
              Property="DDAGENTUSER_PASSWORD" />
+
 
     <!-- back button -->
     <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17"
@@ -35,6 +34,11 @@
     <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes"
                Text="Cancel">
       <Publish Event="EndDialog" Value="Exit">1</Publish>
+    </Control>
+
+    <!-- The InfoLabel is listed last so that its tab order is after the buttons and before the edit controls. -->
+    <Control Id="InfoLabel" Type="Hyperlink" X="20" Y="52" Width="330" Height="40" >
+	  <Text>!(loc.DDAgentUserDialogInfoLabel)</Text>
     </Control>
 
     <!-- Title + Banner -->
