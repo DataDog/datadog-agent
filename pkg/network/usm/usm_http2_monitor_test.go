@@ -311,12 +311,17 @@ var http2UniquePaths = []string{
 
 func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 	t := s.T()
-	cfg := config.New()
-	cfg.EnableHTTP2Monitoring = true
+	cfg := s.getCfg()
 
-	cleanup, err := startH2CServer(localHostAddress, false)
+	// Start local server
+	cleanup, err := startH2CServer(authority, s.isTLS)
 	require.NoError(t, err)
 	t.Cleanup(cleanup)
+
+	// Start the proxy server.
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	t.Cleanup(cancel)
+	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
 	tests := []struct {
 		name              string
@@ -326,7 +331,7 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 		{
 			name: "Fill each bucket",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients := getClientsArray(t, clientsCount)
+				clients := getHTTP2UnixClientArray(clientsCount, unixPath)
 				for _, path := range http2UniquePaths {
 					client := clients[getClientsIndex(1, clientsCount)]
 					req, err := client.Post(http2SrvAddr+"/"+path, "application/json", bytes.NewReader([]byte("test")))
@@ -346,10 +351,10 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			monitor, err := NewMonitor(cfg, nil, nil, nil)
-			require.NoError(t, err)
-			require.NoError(t, monitor.Start())
-			defer monitor.Stop()
+			setupUSMTLSMonitor(t, cfg)
+			if s.isTLS {
+				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+			}
 
 			tt.runClients(t, 1)
 
