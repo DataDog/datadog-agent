@@ -42,6 +42,11 @@ func TestEC2VMSuite(t *testing.T) {
 	e2e.Run(t, s, e2eParams...)
 }
 
+// SetupSuite run before all the tests in the suite have been run.
+func (v *ec2VMSuite) SetupSuite() {
+	v.BaseSuite.SetupSuite()
+}
+
 // TestFakeIntakeNPM Validate the agent can communicate with the (fake) backend and send connections every 30 seconds
 //   - looking for 1 host to send CollectorConnections payload to the fakeintake
 //   - looking for 3 payloads and check if the last 2 have a span of 30s +/- 500ms
