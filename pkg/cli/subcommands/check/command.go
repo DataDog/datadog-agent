@@ -178,6 +178,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				}),
 
 				fx.Supply(
+					status.Params{},
 					status.NewInformationProvider(statuscollector.Provider{}),
 				),
 				statusimpl.Module(),

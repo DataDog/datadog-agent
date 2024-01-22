@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	timeresolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -96,7 +97,7 @@ type Tracer struct {
 
 	processCache *processCache
 
-	timeResolver *TimeResolver
+	timeResolver *timeresolver.Resolver
 }
 
 // NewTracer creates a Tracer
@@ -195,7 +196,7 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 		coretelemetry.GetCompatComponent().RegisterCollector(tr.processCache)
 		events.RegisterHandler(tr.processCache)
 
-		if tr.timeResolver, err = NewTimeResolver(); err != nil {
+		if tr.timeResolver, err = timeresolver.NewResolver(); err != nil {
 			return nil, fmt.Errorf("could not create time resolver: %w", err)
 		}
 	}
@@ -286,7 +287,6 @@ func newReverseDNS(c *config.Config) dns.ReverseDNS {
 //nolint:revive // TODO(NET) Fix revive linter
 func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 	var rejected int
-	_ = t.timeResolver.Sync()
 	for i := range connections {
 		cs := &connections[i]
 		if t.shouldSkipConnection(cs) {
@@ -320,7 +320,7 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	c.ContainerID = nil
 
 	ts := t.timeResolver.ResolveMonotonicTimestamp(c.LastUpdateEpoch)
-	p, ok := t.processCache.Get(c.Pid, int64(ts))
+	p, ok := t.processCache.Get(c.Pid, ts.UnixNano())
 	if !ok {
 		return
 	}
@@ -530,7 +530,6 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 	}
 
 	activeConnections = activeBuffer.Connections()
-	_ = t.timeResolver.Sync()
 	for i := range activeConnections {
 		activeConnections[i].IPTranslation = t.conntracker.GetTranslationForConn(activeConnections[i])
 		// do gateway resolution only on active connections outside

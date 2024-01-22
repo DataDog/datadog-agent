@@ -218,6 +218,12 @@ class GithubAPI:
         release = self._repository.get_latest_release()
         return release.title
 
+    def get_rate_limit_info(self):
+        """
+        Gets the current rate limit info.
+        """
+        return self._github.rate_limiting
+
     def _chose_auth(self, public_repo):
         """
         Attempt to find a working authentication, in order:
