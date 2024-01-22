@@ -24,7 +24,6 @@ import (
 
 type ec2VMSuite struct {
 	e2e.BaseSuite[environments.Host]
-	DevMode bool
 }
 
 // TestEC2VMSuite will validate running the agent on a single EC2 VM
@@ -42,9 +41,13 @@ func TestEC2VMSuite(t *testing.T) {
 	e2e.Run(t, s, e2eParams...)
 }
 
-// SetupSuite run before all the tests in the suite have been run.
-func (v *ec2VMSuite) SetupSuite() {
-	v.BaseSuite.SetupSuite()
+// BeforeTest will be called before each test
+func (v *ec2VMSuite) BeforeTest(suiteName, testName string) {
+	v.BaseSuite.BeforeTest(suiteName, testName)
+	// default is to reset the current state of the fakeintake aggregators
+	if !v.BaseSuite.IsDevMode() {
+		v.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	}
 }
 
 // TestFakeIntakeNPM Validate the agent can communicate with the (fake) backend and send connections every 30 seconds
@@ -52,11 +55,6 @@ func (v *ec2VMSuite) SetupSuite() {
 //   - looking for 3 payloads and check if the last 2 have a span of 30s +/- 500ms
 func (v *ec2VMSuite) TestFakeIntakeNPM() {
 	t := v.T()
-
-	// default is to reset the current state of the fakeintake aggregators
-	if !v.DevMode {
-		v.Env().FakeIntake.Client().FlushServerAndResetAggregators()
-	}
 
 	targetHostnameNetID := ""
 	// looking for 1 host to send CollectorConnections payload to the fakeintake
@@ -98,11 +96,6 @@ func (v *ec2VMSuite) TestFakeIntakeNPM() {
 // with some basic checks, like IPs/Ports present, DNS query has been captured, ...
 func (v *ec2VMSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
 	t := v.T()
-
-	// default is to reset the current state of the fakeintake aggregators
-	if !v.DevMode {
-		v.Env().FakeIntake.Client().FlushServerAndResetAggregators()
-	}
 
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		// generate connections
