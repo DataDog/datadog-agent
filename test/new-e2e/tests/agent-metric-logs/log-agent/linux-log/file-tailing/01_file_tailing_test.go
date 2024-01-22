@@ -169,7 +169,7 @@ func (s *LinuxFakeintakeSuite) LogCollectionBeforePermission() {
 	// Reset log file permissions to default before testing
 	output, err := s.Env().RemoteHost.Execute(fmt.Sprintf("sudo chmod 644 %s && echo true", logFilePath))
 	assert.NoErrorf(t, err, "Unable to adjust back to default permissions, err: %s.", err)
-	assert.Equal(t, "true", strings.TrimSpace(output), fmt.Sprintf("Unable to adjust back to default permissions for the log file '%s'.", logFilePath))
+	assert.Equalf(t, "true", strings.TrimSpace(output), "Unable to adjust back to default permissions for the log file '%s'.", logFilePath)
 	t.Logf("Permissions reset to default.")
 	// Grant read permission
 	output, err = s.Env().RemoteHost.Execute(fmt.Sprintf("sudo chmod +r %s && echo true", logFilePath))
@@ -200,7 +200,7 @@ func (s *LinuxFakeintakeSuite) LogRecreateRotation() {
 	// Verify the old log file's existence after rotation
 	_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("ls %s.old", logFilePath))
 	assert.NoError(t, err, "Failed to find the old log file after rotation")
-	assert.Equal(t, "true", strings.TrimSpace(output), fmt.Sprintf("Unable to adjust permissions for the log file '%s'.", logFilePath))
+	assert.Equalf(t, "true", strings.TrimSpace(output), "Unable to adjust permissions for the log file '%s'.", logFilePath)
 	t.Logf("Permissions granted for new log file.")
 
 	// Generate new logs
