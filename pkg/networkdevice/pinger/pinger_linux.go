@@ -44,7 +44,7 @@ func (p *LinuxPinger) Ping(host string) (*Result, error) {
 	tu, err := net.GetRemoteSystemProbeUtil(
 		dd_config.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
 	if err != nil {
-		log.Warnf("could not initialize system-probe connection: %v (will only log every 10 minutes)", err)
+		log.Warnf("could not initialize system-probe connection: %s", err.Error())
 		return nil, err
 	}
 	resp, err := tu.GetPing(clientID, host, p.cfg.Count, p.cfg.Interval, p.cfg.Timeout)
