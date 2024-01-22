@@ -15,6 +15,7 @@ from . import (
     diff,
     docker_tasks,
     dogstatsd,
+    ebpf,
     emacs,
     epforwarder,
     fakeintake,
@@ -119,6 +120,7 @@ ns.add_collection(bench)
 ns.add_collection(trace_agent)
 ns.add_collection(docker_tasks, "docker")
 ns.add_collection(dogstatsd)
+ns.add_collection(ebpf)
 ns.add_collection(emacs)
 ns.add_collection(epforwarder)
 ns.add_collection(msi)
