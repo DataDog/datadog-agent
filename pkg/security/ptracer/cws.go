@@ -12,7 +12,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	golog "log"
 	"net"
 	"os"
 	"os/exec"
@@ -778,15 +777,9 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 		return err
 	}
 
-	logErrorf := golog.Printf
-	logDebugf := func(fmt string, args ...any) {}
-	if verbose {
-		logDebugf = func(fmt string, args ...any) {
-			golog.Printf(fmt, args...)
-		}
-	}
+	logger := Logger{verbose}
 
-	logDebugf("Run %s %v [%s]", entry, args, os.Getenv("DD_CONTAINER_ID"))
+	logger.Debugf("Run %s %v [%s]", entry, args, os.Getenv("DD_CONTAINER_ID"))
 
 	var (
 		client      net.Conn
@@ -795,7 +788,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 	)
 
 	if probeAddr != "" {
-		logDebugf("connection to system-probe...")
+		logger.Debugf("connection to system-probe...")
 		if async {
 			go func() {
 				client, err = initConn(probeAddr, 600)
@@ -803,7 +796,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 					return
 				}
 				clientReady <- true
-				logDebugf("connection to system-probe initiated!")
+				logger.Debugf("connection to system-probe initiated!")
 			}()
 		} else {
 			client, err = initConn(probeAddr, 120)
@@ -811,13 +804,13 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 				return err
 			}
 			clientReady <- true
-			logDebugf("connection to system-probe initiated!")
+			logger.Debugf("connection to system-probe initiated!")
 		}
 	}
 
 	containerID, err := getCurrentProcContainerID()
 	if err != nil {
-		logErrorf("Retrieve container ID from proc failed: %v\n", err)
+		logger.Errorf("Retrieve container ID from proc failed: %v\n", err)
 	}
 	containerCtx, err := newContainerContext(containerID)
 	if err != nil {
@@ -827,6 +820,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 	opts := Opts{
 		Syscalls: PtracedSyscalls,
 		Creds:    creds,
+		Logger:   logger,
 	}
 
 	tracer, err := NewTracer(entry, args, envs, opts)
@@ -873,12 +867,12 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 			msg.SeqNum = seq
 
 			if probeAddr != "" {
-				logDebugf("sending message: %s", msg)
+				logger.Debugf("sending message: %s", msg)
 				if err := sendMsg(client, msg); err != nil {
-					logDebugf("%v", err)
+					logger.Debugf("%v", err)
 				}
 			} else {
-				logDebugf("sending message: %s", msg)
+				logger.Debugf("sending message: %s", msg)
 			}
 			seq++
 		}
@@ -888,7 +882,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 		select {
 		case msgChan <- msg:
 		default:
-			logErrorf("unable to send message")
+			logger.Errorf("unable to send message")
 		}
 	}
 
@@ -934,37 +928,37 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 			switch nr {
 			case OpenNr:
 				if err := handleOpen(tracer, process, syscallMsg, regs, disableStats); err != nil {
-					logErrorf("unable to handle open: %v", err)
+					logger.Errorf("unable to handle open: %v", err)
 					return
 				}
 			case OpenatNr:
 				if err := handleOpenAt(tracer, process, syscallMsg, regs, disableStats); err != nil {
-					logErrorf("unable to handle openat: %v", err)
+					logger.Errorf("unable to handle openat: %v", err)
 					return
 				}
 			case Openat2Nr:
 				if err := handleOpenAt2(tracer, process, syscallMsg, regs, disableStats); err != nil {
-					logErrorf("unable to handle openat: %v", err)
+					logger.Errorf("unable to handle openat: %v", err)
 					return
 				}
 			case CreatNr:
 				if err = handleCreat(tracer, process, syscallMsg, regs, disableStats); err != nil {
-					logErrorf("unable to handle creat: %v", err)
+					logger.Errorf("unable to handle creat: %v", err)
 					return
 				}
 			case NameToHandleAtNr:
 				if err = handleNameToHandleAt(tracer, process, syscallMsg, regs); err != nil {
-					logErrorf("unable to handle name_to_handle_at: %v", err)
+					logger.Errorf("unable to handle name_to_handle_at: %v", err)
 					return
 				}
 			case OpenByHandleAtNr:
 				if err = handleOpenByHandleAt(tracer, process, syscallMsg, regs, disableStats); err != nil {
-					logErrorf("unable to handle open_by_handle_at: %v", err)
+					logger.Errorf("unable to handle open_by_handle_at: %v", err)
 					return
 				}
 			case ExecveNr:
 				if err = handleExecve(tracer, process, syscallMsg, regs, disableStats); err != nil {
-					logErrorf("unable to handle execve: %v", err)
+					logger.Errorf("unable to handle execve: %v", err)
 					return
 				}
 
@@ -998,7 +992,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 				}
 			case ExecveatNr:
 				if err = handleExecveAt(tracer, process, syscallMsg, regs, disableStats); err != nil {
-					logErrorf("unable to handle execveat: %v", err)
+					logger.Errorf("unable to handle execveat: %v", err)
 					return
 				}
 
@@ -1010,87 +1004,87 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 				_ = handleFcntl(tracer, process, syscallMsg, regs)
 			case DupNr, Dup2Nr, Dup3Nr:
 				if err = handleDup(tracer, process, syscallMsg, regs); err != nil {
-					logErrorf("unable to handle dup: %v", err)
+					logger.Errorf("unable to handle dup: %v", err)
 					return
 				}
 			case ChdirNr:
 				if err = handleChdir(tracer, process, syscallMsg, regs); err != nil {
-					logErrorf("unable to handle chdir: %v", err)
+					logger.Errorf("unable to handle chdir: %v", err)
 					return
 				}
 			case FchdirNr:
 				if err = handleFchdir(tracer, process, syscallMsg, regs); err != nil {
-					logErrorf("unable to handle fchdir: %v", err)
+					logger.Errorf("unable to handle fchdir: %v", err)
 					return
 				}
 			case SetuidNr:
 				if err = handleSetuid(tracer, process, syscallMsg, regs); err != nil {
-					logErrorf("unable to handle fchdir: %v", err)
+					logger.Errorf("unable to handle fchdir: %v", err)
 					return
 				}
 			case SetgidNr:
 				if err = handleSetgid(tracer, process, syscallMsg, regs); err != nil {
-					logErrorf("unable to handle fchdir: %v", err)
+					logger.Errorf("unable to handle fchdir: %v", err)
 					return
 				}
 			case SetreuidNr, SetresuidNr:
 				if err = handleSetreuid(tracer, process, syscallMsg, regs); err != nil {
-					logErrorf("unable to handle fchdir: %v", err)
+					logger.Errorf("unable to handle fchdir: %v", err)
 					return
 				}
 			case SetregidNr, SetresgidNr:
 				if err = handleSetregid(tracer, process, syscallMsg, regs); err != nil {
-					logErrorf("unable to handle fchdir: %v", err)
+					logger.Errorf("unable to handle fchdir: %v", err)
 					return
 				}
 			case SetfsuidNr:
 				if err = handleSetfsuid(tracer, process, syscallMsg, regs); err != nil {
-					logErrorf("unable to handle fchdir: %v", err)
+					logger.Errorf("unable to handle fchdir: %v", err)
 					return
 				}
 			case SetfsgidNr:
 				if err = handleSetfsgid(tracer, process, syscallMsg, regs); err != nil {
-					logErrorf("unable to handle fchdir: %v", err)
+					logger.Errorf("unable to handle fchdir: %v", err)
 					return
 				}
 			case CloseNr:
 				if err = handleClose(tracer, process, syscallMsg, regs); err != nil {
-					logErrorf("unable to handle close: %v", err)
+					logger.Errorf("unable to handle close: %v", err)
 					return
 				}
 			case MemfdCreateNr:
 				if err = handleMemfdCreate(tracer, process, syscallMsg, regs); err != nil {
-					logErrorf("unable to handle memfd_create: %v", err)
+					logger.Errorf("unable to handle memfd_create: %v", err)
 					return
 				}
 			case CapsetNr:
 				if err = handleCapset(tracer, process, syscallMsg, regs); err != nil {
-					logErrorf("unable to handle capset: %v", err)
+					logger.Errorf("unable to handle capset: %v", err)
 					return
 				}
 			case UnlinkNr:
 				if err := handleUnlink(tracer, process, syscallMsg, regs, disableStats); err != nil {
-					logErrorf("unable to handle unlink: %v", err)
+					logger.Errorf("unable to handle unlink: %v", err)
 					return
 				}
 			case UnlinkatNr:
 				if err := handleUnlinkat(tracer, process, syscallMsg, regs, disableStats); err != nil {
-					logErrorf("unable to handle unlinkat: %v", err)
+					logger.Errorf("unable to handle unlinkat: %v", err)
 					return
 				}
 			case RmdirNr:
 				if err := handleRmdir(tracer, process, syscallMsg, regs, disableStats); err != nil {
-					logErrorf("unable to handle rmdir: %v", err)
+					logger.Errorf("unable to handle rmdir: %v", err)
 					return
 				}
 			case RenameNr:
 				if err := handleRename(tracer, process, syscallMsg, regs, disableStats); err != nil {
-					logErrorf("unable to handle rename: %v", err)
+					logger.Errorf("unable to handle rename: %v", err)
 					return
 				}
 			case RenameAtNr, RenameAt2Nr:
 				if err := handleRenameAt(tracer, process, syscallMsg, regs, disableStats); err != nil {
-					logErrorf("unable to handle renameat: %v", err)
+					logger.Errorf("unable to handle renameat: %v", err)
 					return
 				}
 			}
