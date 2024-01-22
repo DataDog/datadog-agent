@@ -16,7 +16,7 @@ require (
 	github.com/prometheus/client_golang v1.17.0
 	github.com/spf13/cobra v1.8.0
 	github.com/stretchr/testify v1.8.4
-	github.com/tinylib/msgp v1.1.8
+	github.com/tinylib/msgp v1.1.9
 	google.golang.org/protobuf v1.31.0
 )
 
