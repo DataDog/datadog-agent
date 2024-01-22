@@ -9,8 +9,10 @@ package usm
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/binary"
 	"net"
+	nethttp "net/http"
 	"strconv"
 	"strings"
 	"testing"
@@ -331,6 +333,23 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			}
 		})
 	}
+}
+
+// getHTTP2UnixClientArray creates an array of http2 clients over a unix socket.
+func getHTTP2UnixClientArray(size int, unixPath string) []*nethttp.Client {
+	res := make([]*nethttp.Client, size)
+	for i := 0; i < size; i++ {
+		res[i] = &nethttp.Client{
+			Transport: &http2.Transport{
+				AllowHTTP: true,
+				DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
+					return net.Dial("unix", unixPath)
+				},
+			},
+		}
+	}
+
+	return res
 }
 
 // writeInput writes the given input to the socket and reads the response.
