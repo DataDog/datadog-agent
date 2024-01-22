@@ -144,7 +144,8 @@ namespace CustomActions.Tests.ProcessUserCustomActions
 
         [Theory]
         [AutoData]
-        public void ProcessDdAgentUserCredentials_With_Agent_User_Equal_Current_User_With_Allow_Flag(string userDomain, string userName)
+        public void ProcessDdAgentUserCredentials_With_Agent_User_Equal_Current_User_With_Allow_Flag(string userDomain,
+            string userName)
         {
             Test.Session
                 .Setup(session => session["ALLOW_CURRENT_USER"]).Returns("true");
@@ -190,6 +191,59 @@ namespace CustomActions.Tests.ProcessUserCustomActions
                 .Contain("DDAGENTUSER_PROCESSED_FQ_NAME", "NT AUTHORITY\\SYSTEM").And
                 .Contain(kvp => kvp.Key == "DDAGENTUSER_RESET_PASSWORD" && string.IsNullOrEmpty(kvp.Value)).And
                 .Contain(kvp => kvp.Key == "DDAGENTUSER_PROCESSED_PASSWORD" && string.IsNullOrEmpty(kvp.Value));
+        }
+
+        [Theory]
+        [AutoData]
+        public void ProcessDdAgentUserCredentials_With_Agent_User_Equal_Current_User_On_Upgrade_Same_User(
+            string userDomain, string userName)
+        {
+            var userSID = new SecurityIdentifier("S-1-0-5");
+            Test.WithLocalUser(userDomain, userName, SID_NAME_USE.SidTypeUser, userSID)
+                .WithCurrentUser(userName, userSID)
+                .WithPreviousAgentUser(userDomain, userName);
+
+            Test.Session
+                .Setup(session => session["DDAGENTUSER_NAME"]).Returns($"{userDomain}\\{userName}");
+
+            Test.Create()
+                .ProcessDdAgentUserCredentials()
+                .Should()
+                .Be(ActionResult.Success);
+
+            Test.Properties.Should()
+                .Contain("DDAGENTUSER_FOUND", "true").And
+                .Contain("DDAGENTUSER_SID", userSID.ToString()).And
+                .Contain("DDAGENTUSER_PROCESSED_NAME", userName).And
+                .Contain("DDAGENTUSER_PROCESSED_DOMAIN", userDomain);
+        }
+
+        [Theory]
+        [AutoData]
+        public void ProcessDdAgentUserCredentials_With_Agent_User_Equal_Current_User_On_Upgrade_Change_User(
+            string userDomain, string userName)
+        {
+            var previousAgentUserName = "previousAgentUser";
+            var previousAgentUserDomain = Environment.MachineName;
+            var previousAgentUserSID = new SecurityIdentifier("S-1-0-6");
+            var userSID = new SecurityIdentifier("S-1-0-5");
+            Test.WithLocalUser(userDomain, userName, SID_NAME_USE.SidTypeUser, userSID)
+                .WithLocalUser(previousAgentUserDomain, previousAgentUserName, SID_NAME_USE.SidTypeUser,
+                    previousAgentUserSID)
+                .WithCurrentUser(userName, userSID)
+                .WithPreviousAgentUser(previousAgentUserDomain, previousAgentUserName);
+
+            Test.Session
+                .Setup(session => session["DDAGENTUSER_NAME"]).Returns($"{userDomain}\\{userName}");
+
+            Test.Create()
+                .ProcessDdAgentUserCredentials()
+                .Should()
+                .Be(ActionResult.Failure);
+
+            Test.Properties.Should()
+                .Contain("DDAGENTUSER_FOUND", "true").And
+                .Contain("DDAGENTUSER_SID", userSID.ToString());
         }
     }
 }

@@ -1,7 +1,7 @@
-using System;
 using System.DirectoryServices.ActiveDirectory;
 using System.Security.Principal;
 using AutoFixture;
+using Datadog.CustomActions;
 using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
 using Moq;
@@ -14,6 +14,7 @@ namespace CustomActions.Tests.ProcessUserCustomActions
 
         public Mock<INativeMethods> NativeMethods { get; } = new();
         public Mock<IServiceController> ServiceController { get; } = new();
+        public Mock<IRegistryServices> RegistryServices { get; } = new();
 
         public ProcessUserCustomActionsTestSetup()
         {
@@ -31,7 +32,8 @@ namespace CustomActions.Tests.ProcessUserCustomActions
             return new Datadog.CustomActions.ProcessUserCustomActions(
                 Session.Object,
                 NativeMethods.Object,
-                ServiceController.Object
+                ServiceController.Object,
+                RegistryServices.Object
             );
         }
 
@@ -237,6 +239,19 @@ namespace CustomActions.Tests.ProcessUserCustomActions
                         user = userName;
                         sid = userSID;
                     }));
+
+            return this;
+        }
+
+        public ProcessUserCustomActionsTestSetup WithPreviousAgentUser(
+            string userDomain,
+            string userName)
+        {
+            var mockRegKey = _fixture.Create<Mock<IRegistryKey>>();
+            RegistryServices.Setup(
+                r => r.OpenRegistryKey(Registries.LocalMachine, Constants.DatadogAgentRegistryKey)).Returns(mockRegKey.Object);
+            mockRegKey.Setup(r => r.GetValue("installedDomain")).Returns(userDomain);
+            mockRegKey.Setup(r => r.GetValue("installedUser")).Returns(userName);
 
             return this;
         }
