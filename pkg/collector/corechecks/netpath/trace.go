@@ -3,12 +3,13 @@ package netpath
 import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/netpath/traceroute"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"sort"
 	"strings"
 )
 
 func getHops(options traceroute.TracerouteOptions, times int, err error, host string) [][]traceroute.TracerouteHop {
-	fmt.Printf("options %+v\n\n", options)
+	log.Debugf("options %+v\n\n", options)
 	allhops := [][]traceroute.TracerouteHop{}
 	for i := 0; i < times; i++ {
 		hops := []traceroute.TracerouteHop{}
@@ -29,7 +30,7 @@ func getHops(options traceroute.TracerouteOptions, times int, err error, host st
 		//time.Sleep(50 * time.Millisecond)
 		_, err = traceroute.Traceroute(host, &options, c)
 		if err != nil {
-			fmt.Printf("Error: %s", err)
+			log.Debugf("Error: %s", err)
 		}
 		allhops = append(allhops, hops)
 	}
@@ -100,8 +101,8 @@ func printHop(hop traceroute.TracerouteHop) {
 		hostOrAddr = hop.Host
 	}
 	if hop.Success {
-		fmt.Printf("%-3d %v (%v)  %v\n", hop.TTL, hostOrAddr, addr, hop.ElapsedTime)
+		log.Debugf("%-3d %v (%v)  %v\n", hop.TTL, hostOrAddr, addr, hop.ElapsedTime)
 	} else {
-		fmt.Printf("%-3d *\n", hop.TTL)
+		log.Debugf("%-3d *\n", hop.TTL)
 	}
 }

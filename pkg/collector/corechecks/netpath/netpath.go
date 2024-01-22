@@ -101,7 +101,7 @@ func (c *Check) traceroute(sender sender.Sender) error {
 		return nil
 	}
 
-	fmt.Printf("traceroute to %v (%v), %v hops max, %v byte packets\n", destinationHost, ipAddr, options.MaxHops(), options.PacketSize())
+	log.Debugf("traceroute to %v (%v), %v hops max, %v byte packets\n", destinationHost, ipAddr, options.MaxHops(), options.PacketSize())
 
 	hostHops := getHops(options, times, err, destinationHost)
 	if len(hostHops) == 0 {
@@ -146,7 +146,7 @@ func (c *Check) traceRouteV1(sender sender.Sender, hostHops [][]traceroute.Trace
 		return err
 	}
 
-	log.Infof("traceroute: %s", tracerouteStr)
+	log.Debugf("traceroute: %s", tracerouteStr)
 
 	sender.EventPlatformEvent(tracerouteStr, epforwarder.EventTypeNetworkDevicesNetpath)
 	return nil
@@ -199,7 +199,7 @@ func (c *Check) traceRouteV2(sender sender.Sender, hostHops [][]traceroute.Trace
 			return err
 		}
 
-		log.Infof("traceroute: %s", string(tracerouteStr))
+		log.Debugf("traceroute: %s", string(tracerouteStr))
 
 		sender.EventPlatformEvent(tracerouteStr, epforwarder.EventTypeNetworkDevicesNetpath)
 		//tags := []string{
@@ -214,7 +214,7 @@ func (c *Check) traceRouteV2(sender sender.Sender, hostHops [][]traceroute.Trace
 		//	tags = append(tags, "prev_hop_ip_address:"+prevhopID)
 		//	tags = append(tags, "prev_hop_host:"+prevhopID)
 		//}
-		//log.Infof("[netpath] tags: %s", tags)
+		//log.Debugf("[netpath] tags: %s", tags)
 		//sender.Gauge("netpath.hop.duration", hopRtt, "", CopyStrings(tags))
 		//sender.Gauge("netpath.hop.record", float64(1), "", CopyStrings(tags))
 
