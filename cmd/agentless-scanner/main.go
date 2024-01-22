@@ -1939,10 +1939,10 @@ type awsRoundtripStats struct {
 	role      arn.ARN
 }
 
-func newHTTPClientWithAWSStats(ctx context.Context, region string, assumedRole *arn.ARN) *http.Client {
+func newHTTPClientWithAWSStats(region string, assumedRole *arn.ARN, limits *awsLimits) *http.Client {
 	rt := &awsRoundtripStats{
 		region: region,
-		limits: getAWSLimit(ctx),
+		limits: limits,
 		transport: &http.Transport{
 			DisableKeepAlives:   false,
 			IdleConnTimeout:     10 * time.Second,
@@ -2138,7 +2138,8 @@ func newAWSConfig(ctx context.Context, region string, assumedRole *arn.ARN) (aws
 		return *cfg, nil
 	}
 
-	httpClient := newHTTPClientWithAWSStats(ctx, region, assumedRole)
+	limits := getAWSLimit(ctx)
+	httpClient := newHTTPClientWithAWSStats(region, assumedRole, limits)
 	cfg, err := config.LoadDefaultConfig(ctx,
 		config.WithRegion(region),
 		config.WithHTTPClient(httpClient),
