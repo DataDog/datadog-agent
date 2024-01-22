@@ -2534,23 +2534,23 @@ func attachSnapshotWithNBD(_ context.Context, scan *scanTask, snapshotARN arn.AR
 
 // reference: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/device_naming.html
 var xenDeviceName struct {
-	mu    sync.Mutex
+	sync.Mutex
 	count int
 }
 
 var nbdDeviceName struct {
-	mu      sync.Mutex
+	sync.Mutex
 	count   int
 	nbdsMax *int
 }
 
 func nextXenDevice() (string, bool) {
-	xenDeviceName.mu.Lock()
-	defer xenDeviceName.mu.Unlock()
+	xenDeviceName.Lock()
+	defer xenDeviceName.Unlock()
 
 	// loops from "xvdaa" to "xvddz"
 	const xenMax = ('d' - 'a' + 1) * 26
-	count := (xenDeviceName.count + 1) % xenMax
+	count := xenDeviceName.count % xenMax
 	dev := 'a' + uint8(count/26)
 	rst := 'a' + uint8(count%26)
 	bdPath := fmt.Sprintf("/dev/xvd%c%c", dev, rst)
@@ -2558,13 +2558,13 @@ func nextXenDevice() (string, bool) {
 	// associated device is not already busy. However on ubuntu AMIs there
 	// is no udev rule making the proper symlink from /dev/xvdxx device to
 	// the /dev/nvmex created block device on volume attach.
-	xenDeviceName.count = count
+	xenDeviceName.count = (count + 1) % xenMax
 	return bdPath, true
 }
 
 func nextNBDDevice() (string, bool) {
-	nbdDeviceName.mu.Lock()
-	defer nbdDeviceName.mu.Unlock()
+	nbdDeviceName.Lock()
+	defer nbdDeviceName.Unlock()
 
 	// Init phase: counting the number of nbd devices created.
 	if nbdDeviceName.nbdsMax == nil {
@@ -2579,9 +2579,8 @@ func nextNBDDevice() (string, bool) {
 		return "", false
 	}
 
-	count := nbdDeviceName.count
-	for i := 1; i <= nbdsMax; i++ {
-		count = (count + i) % nbdsMax
+	for i := 0; i < nbdsMax; i++ {
+		count := (nbdDeviceName.count + i) % nbdsMax
 		// From man 2 open: O_EXCL: ... on Linux 2.6 and later, O_EXCL can be
 		// used without  O_CREAT  if pathname refers to  a block device.  If
 		// the block device is in use by the system (e.g., mounted), open()
@@ -2590,7 +2589,7 @@ func nextNBDDevice() (string, bool) {
 		f, err := os.OpenFile(bdPath, os.O_RDONLY|os.O_EXCL, 0600)
 		if err == nil {
 			f.Close()
-			nbdDeviceName.count = count
+			nbdDeviceName.count = (count + 1) % nbdsMax
 			return bdPath, true
 		}
 	}
