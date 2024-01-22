@@ -8,24 +8,51 @@ package containers
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+
+	"fmt"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/kindvm"
-
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/stretchr/testify/suite"
 	"k8s.io/client-go/tools/clientcmd"
+	"strings"
 )
 
 type kindSuite struct {
 	k8sSuite
+	k8sVersion string
+	stackName  string
 }
 
 func TestKindSuite(t *testing.T) {
-	suite.Run(t, &kindSuite{})
+	stackConfigFromEnv := os.Getenv("E2E_STACK_PARAMS")
+
+	if strings.Contains(stackConfigFromEnv, "ddinfra:kubernetesVersion") {
+		// If kubernetes version is already specified in cli, run suite only for specified version
+		suite.Run(t, &kindSuite{})
+	} else {
+		var KubeVersions []string
+
+		versions := os.Getenv("KUBERNETES_VERSIONS")
+		if versions != "" {
+			KubeVersions = strings.Split(versions, ",")
+		} else {
+			KubeVersions = []string{"1.27", "1.23", "1.20", "1.19"}
+		}
+
+		for _, version := range KubeVersions {
+			version := version
+			t.Run("TestKind_"+version, func(t *testing.T) {
+				t.Parallel()
+				suite.Run(t, &kindSuite{k8sVersion: version})
+			})
+		}
+	}
 }
 
 func (suite *kindSuite) SetupSuite() {
@@ -38,13 +65,24 @@ func (suite *kindSuite) SetupSuite() {
 		"dddogstatsd:deploy":    auto.ConfigValue{Value: "true"},
 	}
 
-	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(ctx, "kind-cluster", stackConfig, kindvm.Run, false, nil)
+	suite.stackName = "kind-stack"
+
+	if suite.k8sVersion != "" {
+		stackConfig.Merge(runner.ConfigMap{
+			"ddinfra:kubernetesVersion": auto.ConfigValue{Value: suite.k8sVersion},
+		})
+
+		suite.stackName = fmt.Sprintf("kind-%s", strings.ReplaceAll(suite.k8sVersion, ".", "-"))
+	}
+
+	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(ctx, suite.stackName, stackConfig, kindvm.Run, false, nil)
 	if !suite.Assert().NoError(err) {
-		stackName, err := infra.GetStackManager().GetPulumiStackName("kind-cluster")
+		_, err := infra.GetStackManager().GetPulumiStackName(suite.stackName)
 		suite.Require().NoError(err)
-		suite.T().Log(dumpKindClusterState(ctx, stackName))
+		suite.T().Log(dumpKindClusterState(ctx, suite.stackName))
 		if !runner.GetProfile().AllowDevMode() || !*keepStacks {
-			infra.GetStackManager().DeleteStack(ctx, "kind-cluster", nil)
+
+			infra.GetStackManager().DeleteStack(ctx, suite.stackName, nil)
 		}
 		suite.T().FailNow()
 	}
@@ -76,7 +114,7 @@ func (suite *kindSuite) TearDownSuite() {
 	suite.k8sSuite.TearDownSuite()
 
 	ctx := context.Background()
-	stackName, err := infra.GetStackManager().GetPulumiStackName("kind-cluster")
+	stackName, err := infra.GetStackManager().GetPulumiStackName(suite.stackName)
 	suite.Require().NoError(err)
 	suite.T().Log(dumpKindClusterState(ctx, stackName))
 }
