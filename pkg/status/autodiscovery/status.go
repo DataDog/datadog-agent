@@ -71,6 +71,6 @@ func (p Provider) Text(_ bool, buffer io.Writer) error {
 }
 
 // HTML renders the html output
-func (p Provider) HTML(_ bool, buffer io.Writer) error {
+func (p Provider) HTML(_ bool, _ io.Writer) error {
 	return nil
 }

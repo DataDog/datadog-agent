@@ -67,6 +67,6 @@ func (c *collector) Text(_ bool, buffer io.Writer) error {
 }
 
 // HTML renders the html output
-func (c *collector) HTML(_ bool, buffer io.Writer) error {
+func (c *collector) HTML(_ bool, _ io.Writer) error {
 	return nil
 }

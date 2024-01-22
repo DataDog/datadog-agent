@@ -25,7 +25,7 @@ import (
 func TestCommonHeaderProviderIndex(t *testing.T) {
 	config := fxutil.Test[config.Component](t, config.MockModule())
 
-	provider := newCommonHeaderProvider(agentParams, config)
+	provider := newCommonHeaderProvider(agentParams, agentParams, config)
 
 	assert.Equal(t, 0, provider.Index())
 }
@@ -44,7 +44,7 @@ func TestCommonHeaderProviderJSON(t *testing.T) {
 
 	config := fxutil.Test[config.Component](t, config.MockModule())
 
-	provider := newCommonHeaderProvider(agentParams, config)
+	provider := newCommonHeaderProvider(agentParams, agentParams, config)
 	stats := map[string]interface{}{}
 	provider.JSON(false, stats)
 
@@ -74,7 +74,7 @@ func TestCommonHeaderProviderText(t *testing.T) {
 
 	config := fxutil.Test[config.Component](t, config.MockModule())
 
-	provider := newCommonHeaderProvider(agentParams, config)
+	provider := newCommonHeaderProvider(agentParams, agentParams, config)
 
 	buffer := new(bytes.Buffer)
 	provider.Text(false, buffer)
@@ -120,7 +120,7 @@ func TestCommonHeaderProviderTextWithFipsInformation(t *testing.T) {
 		fx.Replace(config.MockParams{Overrides: overrides}),
 	))
 
-	provider := newCommonHeaderProvider(config)
+	provider := newCommonHeaderProvider(agentParams, config)
 
 	buffer := new(bytes.Buffer)
 	provider.Text(false, buffer)

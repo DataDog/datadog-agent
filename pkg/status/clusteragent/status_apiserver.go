@@ -94,7 +94,7 @@ func (Provider) Text(_ bool, buffer io.Writer) error {
 }
 
 // HTML renders the html output
-func (Provider) HTML(_ bool, buffer io.Writer) error {
+func (Provider) HTML(_ bool, _ io.Writer) error {
 	return nil
 }
 

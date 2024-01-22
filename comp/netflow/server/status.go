@@ -30,7 +30,39 @@ func (Provider) Section() string {
 }
 
 // JSON populates the status map
-func (Provider) JSON(_ bool, stats map[string]interface{}) error {
+func (p Provider) JSON(_ bool, stats map[string]interface{}) error {
+	err := p.getStatus(stats)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Text renders the text output
+func (p Provider) Text(_ bool, buffer io.Writer) error {
+	data, err := p.populateStatus()
+
+	if err != nil {
+		return err
+	}
+
+	return status.RenderText(templatesFS, "netflow.tmpl", buffer, data)
+}
+
+// HTML renders the html output
+func (p Provider) HTML(_ bool, buffer io.Writer) error {
+	data, err := p.populateStatus()
+
+	if err != nil {
+		return err
+	}
+
+	return status.RenderHTML(templatesFS, "netflowHTML.tmpl", buffer, data)
+}
+
+func (p Provider) getStatus(stats map[string]interface{}) error {
 	status := GetStatus()
 
 	var statusMap map[string]interface{}
@@ -46,19 +78,15 @@ func (Provider) JSON(_ bool, stats map[string]interface{}) error {
 		return err
 	}
 
-	for key, value := range statusMap {
-		stats[key] = value
-	}
+	stats["netflowStats"] = statusMap
 
 	return nil
 }
 
-// Text renders the text output
-func (Provider) Text(_ bool, buffer io.Writer) error {
-	return status.RenderText(templatesFS, "netflow.tmpl", buffer, GetStatus())
-}
+func (p Provider) populateStatus() (map[string]interface{}, error) {
+	stats := make(map[string]interface{})
 
-// HTML renders the html output
-func (Provider) HTML(_ bool, buffer io.Writer) error {
-	return status.RenderHTML(templatesFS, "netflowHTML.tmpl", buffer, GetStatus())
+	err := p.getStatus(stats)
+
+	return stats, err
 }

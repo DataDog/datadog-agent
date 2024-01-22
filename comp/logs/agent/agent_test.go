@@ -234,7 +234,7 @@ func (suite *AgentTestSuite) TestStatusProvider() {
 			deps := fxutil.Test[dependencies](suite.T(), fx.Options(
 				core.MockBundle(),
 				fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
-				inventoryagent.MockModule(),
+				inventoryagentimpl.MockModule(),
 			))
 
 			provides := newLogsAgent(deps)
@@ -250,7 +250,7 @@ func (suite *AgentTestSuite) TestStatusOut() {
 	deps := fxutil.Test[dependencies](suite.T(), fx.Options(
 		core.MockBundle(),
 		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
-		inventoryagent.MockModule(),
+		inventoryagentimpl.MockModule(),
 	))
 
 	provides := newLogsAgent(deps)
