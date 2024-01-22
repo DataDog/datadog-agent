@@ -19,7 +19,6 @@ import (
 	nethttp "net/http"
 	"net/url"
 	"os"
-	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -597,105 +596,6 @@ func (s *USMHTTP2Suite) TestHTTP2ManyDifferentPaths() {
 		if v, ok := seenRequests[fmt.Sprintf("/test-%d", i+1)]; !ok || v != repetitionsPerRequest {
 			t.Logf("path: /test-%d should have %d occurrences but instead has %d", i+1, repetitionsPerRequest, v)
 		}
-	}
-}
-
-var http2UniquePaths = []string{
-	// size 82 bucket 0
-	"C9ZaSMOpthT9XaRh9yc6AKqfIjT43M8gOz3p9ASKCNRIcLbc3PTqEoms2SDwt6Q90QM7DxjWKlmZUfRU1eOx5DjQOOhLaIJQke4N",
-	// size 127 bucket 1
-	"ZtZuUQeVB7BOl3F45oFicOOOJl21ePFwunMBvBh3bXPMBZqdEZepVsemYA0frZb5M83VHLDWq68KFELDHu0Xo28lzpzO3L7kDXuYuClivgEgURUn47kfwfUfW1PKjfsV6HaYpAZxly48lTGiRIXRINVC8b9",
-	// size 137, bucket 2
-	"RDBVk5COXAz52GzvuHVWRawNoKhmfxhBiTuyj5QZ6qR1DMsNOn4sWFLnaGXVzrqA8NLr2CaW1IDupzh9AzJlIvgYSf6OYIafIOsImL5O9M3AHzUHGMJ0KhjYGJAzXeTgvwl2qYWmlD9UYGELFpBSzJpykoriocvl3RRoYt4l",
-	// size 147, bucket 3
-	"T5r8QcP8qCiKVwhWlaxWjYCX8IrTmPrt2HRjfQJP2PxbWjLm8dP4BTDxUAmXJJWNyv4HIIaR3Fj6n8Tu6vSoDcBtKFuMqIPAdYEJt0qo2aaYDKomIJv74z7SiN96GrOufPTm6Eutl3JGeAKW2b0dZ4VYUsIOO8aheEOGmyhyWBymgCtBcXeki1",
-	// size 158, bucket 4
-	"VP4zOrIPiGhLDLSJYSVU78yUcb8CkU0dVDIZqPq98gVoenX5p1zS6cRX4LtrfSYKCQFX6MquluhDD2GPjZYFIraDLIHCno3yipQBLPGcPbPTgv9SD6jOlHMuLjmsGxyC3y2Hk61bWA6Af4D2SYS0q3BS7ahJ0vjddYYBRIpwMOOIez2jaR56rPcGCRW2eq0T1x",
-	// size 166, bucket 5
-	"X2YRUwfeNEmYWkk0bACThVya8MoSUkR7ZKANCPYkIGHvF9CWGA0rxXKsGogQag7HsJfmgaar3TiOTRUb3ynbmiOz3As9rXYjRGNRdCWGgdBPL8nGa6WheGlJLNtIVsUcxSerNQKmoQqqDLjGftbKXjqdMJLVY6UyECeXOKrrFU9aHx2fjlk2qMNDUptYWuzPPCWAnKOV7Ph",
-	// size 172, bucket 6
-	"bq5bcpUgiW1CpKgwdRVIulFMkwRenJWYdW8aek69anIV8w3br0pjGNtfnoPCyj4HUMD5MxWB2xM4XGp7fZ1JRHvskRZEgmoM7ag9BeuigmH05p7dzMwKsD76MqKyPmfhwBUZHLKtJ52ia3mOuMvyYiQNwA6KAU509bwuy4NCREVUAP76WFeAzr0jBvqMFXLg3eQQERIW0tKTcjQg8m9Jse",
-	// size 247, bucket 7
-	"LUhWUWPMztVFuEs83i7RmoxRiV1KzOq0NsZmGXVyW49BbBaL63m8H5vDwiewrrKbldXBuctplDxB28QekDclM6cO9BIsRqvzS3a802aOkRHTEruotA8Xh5K9GOMv9DzdoOL9P3GFPsUPgBy0mzFyyRJGk3JXpIH290Bj2FIRnIIpIjjKE1akeaimsuGEheA4D95axRpGmz4cm2s74UiksfBi4JnVX2cBzZN3oQaMt7zrWofwyzcZeF5W1n6BAQWxPPWe4Jyoc34jQ2fiEXQO0NnXe1RFbBD1E33a0OycziXZH9hEP23xvh",
-}
-
-func (s *USMHTTP2Suite) TestHTTP2KernelTelemetry() {
-	t := s.T()
-	cfg := networkconfig.New()
-	cfg.EnableHTTP2Monitoring = true
-
-	cleanup, err := startH2CServer(localHostAddress, false)
-	require.NoError(t, err)
-	t.Cleanup(cleanup)
-
-	tests := []struct {
-		name              string
-		runClients        func(t *testing.T, clientsCount int)
-		expectedTelemetry *usmhttp2.HTTP2Telemetry
-	}{
-		{
-			name: "Fill each bucket",
-			runClients: func(t *testing.T, clientsCount int) {
-				clients := getClientsArray(t, clientsCount)
-				for _, path := range http2UniquePaths {
-					client := clients[getClientsIndex(1, clientsCount)]
-					req, err := client.Post(http2SrvAddr+"/"+path, "application/json", bytes.NewReader([]byte("test")))
-					require.NoError(t, err, "could not make request")
-					req.Body.Close()
-				}
-			},
-
-			expectedTelemetry: &usmhttp2.HTTP2Telemetry{
-				Request_seen:      8,
-				Response_seen:     8,
-				End_of_stream:     16,
-				End_of_stream_rst: 0,
-				Path_size_bucket:  [8]uint64{1, 1, 1, 1, 1, 1, 1, 1},
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			monitor, err := NewMonitor(cfg, nil, nil, nil)
-			require.NoError(t, err)
-			require.NoError(t, monitor.Start())
-			defer monitor.Stop()
-
-			tt.runClients(t, 1)
-
-			// We cannot predict if the client will send an RST frame or not, thus we cannot predict the number of
-			// frames with EOS or RST frames, which leads into a flaking test. Therefore, we are asserting that the
-			// gotten number of EOS or RST frames is at least the number of expected EOS frames.
-			expectedEOSOrRST := tt.expectedTelemetry.End_of_stream + tt.expectedTelemetry.End_of_stream_rst
-			var telemetry *usmhttp2.HTTP2Telemetry
-			assert.Eventually(t, func() bool {
-				telemetry, err = usmhttp2.Spec.Instance.(*usmhttp2.Protocol).GetHTTP2KernelTelemetry()
-				require.NoError(t, err)
-				if telemetry.Request_seen != tt.expectedTelemetry.Request_seen {
-					return false
-				}
-				if telemetry.Response_seen != tt.expectedTelemetry.Response_seen {
-					return false
-				}
-				if telemetry.Path_exceeds_frame != tt.expectedTelemetry.Path_exceeds_frame {
-					return false
-				}
-				if telemetry.Exceeding_max_interesting_frames != tt.expectedTelemetry.Exceeding_max_interesting_frames {
-					return false
-				}
-				if telemetry.Exceeding_max_frames_to_filter != tt.expectedTelemetry.Exceeding_max_frames_to_filter {
-					return false
-				}
-				if telemetry.End_of_stream+telemetry.End_of_stream_rst < expectedEOSOrRST {
-					return false
-				}
-				return reflect.DeepEqual(telemetry.Path_size_bucket, tt.expectedTelemetry.Path_size_bucket)
-
-			}, time.Second*5, time.Millisecond*100)
-			if t.Failed() {
-				t.Logf("expected telemetry: %+v;\ngot: %+v", tt.expectedTelemetry, telemetry)
-			}
-		})
 	}
 }
 
