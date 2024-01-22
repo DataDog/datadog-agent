@@ -23,7 +23,6 @@ const (
 	spNS                         = "system_probe_config"
 	netNS                        = "network_config"
 	smNS                         = "service_monitoring_config"
-	dsNS                         = "data_streams_config"
 	evNS                         = "event_monitoring_config"
 	smjtNS                       = smNS + ".tls.java"
 	diNS                         = "dynamic_instrumentation"
@@ -223,6 +222,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(smNS, "tls", "go", "exclude_self"), true)
 
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_http2_monitoring"), false)
+	cfg.BindEnvAndSetDefault(join(smNS, "enable_kafka_monitoring"), false)
 	cfg.BindEnvAndSetDefault(join(smNS, "tls", "istio", "enabled"), false)
 	cfg.BindEnvAndSetDefault(join(smjtNS, "enabled"), false)
 	cfg.BindEnvAndSetDefault(join(smjtNS, "debug"), false)
@@ -297,9 +297,6 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	// Default value (30) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
 	cfg.BindEnv(join(spNS, "http_idle_connection_ttl_in_s"))
 	cfg.BindEnv(join(smNS, "http_idle_connection_ttl_in_s"))
-
-	// data streams
-	cfg.BindEnvAndSetDefault(join(dsNS, "enabled"), false, "DD_SYSTEM_PROBE_DATA_STREAMS_ENABLED")
 
 	// event monitoring
 	cfg.BindEnvAndSetDefault(join(evNS, "process", "enabled"), false, "DD_SYSTEM_PROBE_EVENT_MONITORING_PROCESS_ENABLED")
