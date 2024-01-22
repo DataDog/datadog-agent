@@ -6,11 +6,8 @@
 // Package status implements the core status component information provider interface
 package status
 
-import (
-	"github.com/DataDog/datadog-agent/comp/core/status"
-)
-
-// team: agent-apm
+// team: processes
 
 // Component is the status interface.
-type Component status.InformationProvider
+type Component interface {
+}

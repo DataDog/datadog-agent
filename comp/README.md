@@ -311,6 +311,10 @@ Package rtcontainercheck implements a component to handle realtime Container dat
 
 Package runner implements a component to run data collection checks in the Process Agent.
 
+### [comp/process/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/status)
+
+Package status implements the core status component information provider interface
+
 ### [comp/process/submitter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/submitter)
 
 Package submitter implements a component to submit collected data in the Process Agent to
@@ -350,3 +354,7 @@ Package trace implements the "trace" bundle, providing components for the Trace 
 
 Package config implements a component to handle trace-agent configuration.  This
 component temporarily wraps pkg/trace/config.
+
+### [comp/trace/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/status)
+
+Package status implements the core status component information provider interface

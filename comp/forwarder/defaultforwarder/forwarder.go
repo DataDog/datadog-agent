@@ -32,6 +32,8 @@ func newForwarder(dep dependencies) provides {
 }
 
 // NewForwarder returns a new forwarder component.
+//
+//nolint:revive
 func NewForwarder(config config.Component, log log.Component, params Params) provides {
 	if params.UseNoopForwarder {
 		return provides{
