@@ -689,6 +689,8 @@ def get_omnibus_env(
     # Forward the DEPLOY_AGENT variable so that we can use a higher compression level for deployed artifacts
     if os.environ.get('DEPLOY_AGENT'):
         env['DEPLOY_AGENT'] = os.environ.get('DEPLOY_AGENT')
+    if 'PACKAGE_ARCH' in os.environ:
+        env['PACKAGE_ARCH'] = os.environ.get('PACKAGE_ARCH')
 
     return env
 
