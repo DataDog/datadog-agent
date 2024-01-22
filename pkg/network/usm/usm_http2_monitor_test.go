@@ -89,24 +89,28 @@ func TestHTTP2Scenarios(t *testing.T) {
 	})
 }
 
-func (s *USMHTTP2Suite) TestHTTP2DynamicTableCleanup() {
+func (s *usmHTTP2Suite) TestHTTP2DynamicTableCleanup() {
 	t := s.T()
-	cfg := config.New()
-	cfg.EnableHTTP2Monitoring = true
+	cfg := s.getCfg()
 	cfg.HTTP2DynamicTableMapCleanerInterval = 5 * time.Second
 
-	cleanup, err := startH2CServer(localHostAddress, false)
+	// Start local server
+	cleanup, err := startH2CServer(authority, s.isTLS)
 	require.NoError(t, err)
 	t.Cleanup(cleanup)
 
-	monitor, err := NewMonitor(cfg, nil, nil, nil)
-	require.NoError(t, err)
-	require.NoError(t, monitor.Start())
-	defer monitor.Stop()
+	// Start the proxy server.
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	t.Cleanup(cancel)
+	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
-	numberOfRequests := usmhttp2.HTTP2TerminatedBatchSize
-	clients := getClientsArray(t, 2)
-	for i := 0; i < numberOfRequests; i++ {
+	monitor := setupUSMTLSMonitor(t, cfg)
+	if s.isTLS {
+		utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+	}
+
+	clients := getHTTP2UnixClientArray(2, unixPath)
+	for i := 0; i < usmhttp2.HTTP2TerminatedBatchSize; i++ {
 		req, err := clients[i%2].Post(fmt.Sprintf("%s/test-%d", http2SrvAddr, i+1), "application/json", bytes.NewReader([]byte("test")))
 		require.NoError(t, err, "could not make request")
 		req.Body.Close()
@@ -115,20 +119,14 @@ func (s *USMHTTP2Suite) TestHTTP2DynamicTableCleanup() {
 	matches := PrintableInt(0)
 
 	require.Eventuallyf(t, func() bool {
-		stats := monitor.GetProtocolStats()
-		http2Stats, ok := stats[protocols.HTTP2]
-		if !ok {
-			return false
-		}
-		http2StatsTyped := http2Stats.(map[http.Key]*http.RequestStats)
-		for key, stat := range http2StatsTyped {
+		for key, stat := range getHTTPLikeProtocolStats(monitor, protocols.HTTP2) {
 			if (key.DstPort == http2SrvPort || key.SrcPort == http2SrvPort) && key.Method == http.MethodPost && strings.HasPrefix(key.Path.Content.Get(), "/test") {
 				matches.Add(stat.Data[200].Count)
 			}
 		}
 
-		return matches.Load() == numberOfRequests
-	}, time.Second*10, time.Millisecond*100, "%v != %v", &matches, numberOfRequests)
+		return matches.Load() == usmhttp2.HTTP2TerminatedBatchSize
+	}, time.Second*10, time.Millisecond*100, "%v != %v", &matches, usmhttp2.HTTP2TerminatedBatchSize)
 
 	for _, client := range clients {
 		client.CloseIdleConnections()
