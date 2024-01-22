@@ -119,7 +119,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					writeMultiMessage(t, settingsFramesCount, framer.writeSettings).
 					writeHeaders(t, getStreamID(1), testHeaders()).
 					writeData(t, getStreamID(1), true, []byte{}).
-					Bytes()
+					bytes()
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
@@ -139,7 +139,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					writeMultiMessage(t, settingsFramesCount, framer.writeSettings).
 					writeHeaders(t, getStreamID(1), testHeaders()).
 					writeData(t, getStreamID(1), true, []byte{}).
-					Bytes()
+					bytes()
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
@@ -162,7 +162,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					writeMultiMessage(t, settingsFramesCount, framer.writeSettings).
 					writeHeaders(t, getStreamID(1), testHeaders()).
 					writeData(t, getStreamID(1), true, []byte{}).
-					Bytes()
+					bytes()
 			},
 			expectedEndpoints: nil,
 		},
@@ -179,7 +179,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 						writeHeaders(t, streamID, testHeaders()).
 						writeData(t, streamID, true, []byte{})
 				}
-				return framer.Bytes()
+				return framer.bytes()
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
@@ -203,7 +203,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 						writeHeaders(t, streamID, headersWithoutIndexingPath(), setDynamicTableSize).
 						writeData(t, streamID, true, []byte{})
 				}
-				return framer.Bytes()
+				return framer.bytes()
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
@@ -226,7 +226,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 						writeHeaders(t, streamID, headersWithNeverIndexedPath()).
 						writeData(t, streamID, true, []byte{})
 				}
-				return framer.Bytes()
+				return framer.bytes()
 
 			},
 			expectedEndpoints: map[http.Key]int{
@@ -257,7 +257,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 						writeRawHeaders(t, streamID, headersFrame).
 						writeData(t, streamID, true, []byte{})
 				}
-				return framer.Bytes()
+				return framer.bytes()
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
@@ -282,7 +282,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 						writeData(t, streamID, true, []byte{})
 				}
 
-				return framer.Bytes()
+				return framer.bytes()
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
@@ -310,7 +310,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 						rstFramesCount--
 					}
 				}
-				return framer.Bytes()
+				return framer.bytes()
 			},
 			expectedEndpoints: map[http.Key]int{
 				{
@@ -332,7 +332,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 						writeHeaders(t, streamID, testHeaders(), false).
 						writeData(t, streamID, true, []byte{}).writeRSTStream(t, streamID, http2.ErrCodeNo)
 				}
-				return framer.Bytes()
+				return framer.bytes()
 			},
 			expectedEndpoints: nil,
 		},
@@ -533,7 +533,7 @@ func (f *framer) writeMultiMessage(t *testing.T, count int, cb func(t *testing.T
 	return f
 }
 
-func (f *framer) Bytes() []byte {
+func (f *framer) bytes() []byte {
 	return f.buf.Bytes()
 }
 
@@ -566,7 +566,6 @@ func (f *framer) writeRawHeaders(t *testing.T, streamID uint32, headerFrames []b
 	require.NoError(t, f.framer.WriteHeaders(http2.HeadersFrameParam{
 		StreamID:      streamID,
 		BlockFragment: headerFrames,
-		EndStream:     false,
 		EndHeaders:    true,
 	}), "could not write header frames")
 	return f
@@ -583,7 +582,6 @@ func (f *framer) writeHeaders(t *testing.T, streamID uint32, headerFields []hpac
 	require.NoError(t, f.framer.WriteHeaders(http2.HeadersFrameParam{
 		StreamID:      streamID,
 		BlockFragment: headersFrame,
-		EndStream:     false,
 		EndHeaders:    true,
 	}), "could not write header frames")
 	return f
