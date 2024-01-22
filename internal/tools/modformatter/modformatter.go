@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-// Package independent-lint checks a go.mod file at a given path specified by the -path argument
+// Package modformatter checks a go.mod file at a given path specified by the -path argument
 // to ensure that it does not import the list of modules specified by the -deny argument. If
 // the module is found, it exits with status code 1 and logs an error.
 package main
@@ -83,25 +83,25 @@ func removeExtraLines(lines []string, consecutiveLineNumber int) []string {
 func formatModFile(content string) string {
 	var requiredDeps []string
 	var replaceDeps []string
-	inReq := false
-	inRep := false
+	inRequire := false
+	inReplace := false
 	lines := strings.Split(content, "\n")
 	totalRemovedLines := 0
 	// Parse required and replaced dependencies
 	for idx, line := range strings.Split(content, "\n") {
-		if inReq {
+		if inRequire {
 			lines = deleteElement(lines, idx-totalRemovedLines)
 			totalRemovedLines += 1
 			if strings.Contains(line, ")") {
-				inReq = false
+				inRequire = false
 			} else {
 				requiredDeps = append(requiredDeps, line)
 			}
-		} else if inRep {
+		} else if inReplace {
 			lines = deleteElement(lines, idx-totalRemovedLines)
 			totalRemovedLines += 1
 			if strings.Contains(line, ")") {
-				inRep = false
+				inReplace = false
 			} else {
 				replaceDeps = append(replaceDeps, line)
 			}
@@ -110,7 +110,7 @@ func formatModFile(content string) string {
 			lines = deleteElement(lines, idx-totalRemovedLines)
 			totalRemovedLines += 1
 			if parts[1][0] == '(' {
-				inRep = true
+				inReplace = true
 			} else {
 				replaceDeps = append(replaceDeps, strings.Join(parts[1:], " "))
 			}
@@ -119,7 +119,7 @@ func formatModFile(content string) string {
 			lines = deleteElement(lines, idx-totalRemovedLines)
 			totalRemovedLines += 1
 			if parts[1][0] == '(' {
-				inReq = true
+				inRequire = true
 			} else {
 				requiredDeps = append(requiredDeps, strings.Join(parts[1:], " "))
 			}
@@ -173,18 +173,18 @@ func main() {
 
 	// Check if every required internal dependency is replaced
 	writeNeeded := false
-	for _, req := range f.Require {
-		if len(req.Syntax.Token) < 1 {
+	for _, require := range f.Require {
+		if len(require.Syntax.Token) < 1 {
 			continue
 		}
 
-		modname := req.Syntax.Token[0]
+		modname := require.Syntax.Token[0]
 		if !strings.HasPrefix(modname, "github.com/DataDog/datadog-agent") {
 			continue
 		}
 
 		if !ReplaceMap[modname] {
-			modversion := req.Syntax.Token[1]
+			modversion := require.Syntax.Token[1]
 			fmt.Printf("Required %s %s is missing in replace of %s\n", modname, modversion, modFilePath)
 			if *formatFile {
 				writeNeeded = true
