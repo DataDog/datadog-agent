@@ -12,8 +12,8 @@ from .build_tags import get_default_build_tags
 from .flavor import AgentFlavor
 from .go import GOARCH_MAPPING, GOOS_MAPPING
 from .libs.common.color import color_message
+from .libs.common.utils import check_uncommitted_changes
 from .release import _get_release_json_value
-from .utils import check_uncommitted_changes
 
 
 @task

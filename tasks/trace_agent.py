@@ -6,7 +6,7 @@ from invoke import Exit, task
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .flavor import AgentFlavor
 from .go import deps
-from .utils import REPO_PATH, bin_name, get_build_flags
+from .libs.common.utils import REPO_PATH, bin_name, get_build_flags
 from .windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 BIN_PATH = os.path.join(".", "bin", "trace-agent")
@@ -20,6 +20,7 @@ def build(
     build_include=None,
     build_exclude=None,
     flavor=AgentFlavor.base.name,
+    install_path=None,
     major_version='7',
     python_runtimes='3',
     arch="x64",
@@ -30,7 +31,12 @@ def build(
     """
 
     flavor = AgentFlavor[flavor]
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes=python_runtimes)
+    ldflags, gcflags, env = get_build_flags(
+        ctx,
+        install_path=install_path,
+        major_version=major_version,
+        python_runtimes=python_runtimes,
+    )
 
     # generate windows resources
     if sys.platform == 'win32':

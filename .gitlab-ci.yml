@@ -48,7 +48,8 @@ include:
   - /.gitlab/functional_test/common.yml
   - /.gitlab/benchmarks/benchmarks.yml
   - /.gitlab/benchmarks/macrobenchmarks.yml
-  - /.gitlab/rc_kubernetes_deploy.yml
+  - /.gitlab/rc_jobs/rc_kubernetes_deploy.yml
+  - /.gitlab/rc_jobs/post_rc_tasks.yml
 
 default:
   retry:
@@ -102,6 +103,7 @@ stages:
   - functional_test_cleanup
   - functional_test_junit_upload
   - internal_kubernetes_deploy
+  - post_rc_build
   - check_merge
   - notify
 
@@ -169,7 +171,7 @@ variables:
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
   DATADOG_AGENT_ARMBUILDIMAGES: v26473479-2dfb49af
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v26473479-2dfb49af
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v26563980-7cd1bd3a
   DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES_SUFFIX: ""
   DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v26473479-2dfb49af
   DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
@@ -179,7 +181,7 @@ variables:
   # To use images from test-infra-definitions dev branches, set the SUFFIX variable to -dev
   # and check the job creating the image to make sure you have the right SHA prefix
   TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: a9f0b41a7576
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: f69f46f8ca43
   DATADOG_AGENT_BUILDERS: v22276738-b36b132
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -206,6 +208,8 @@ variables:
   KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-00e807c0351f270b7"
   KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-0be4fd85ce146ab3b"
   RUN_E2E_TESTS: "manual"  # Should be "auto", "manual", "off" it will change the trigger condition for new-e2e tests on branch != main
+  # skip known flaky tests by default
+  GO_TEST_SKIP_FLAKE: "true"
 
 #
 # Condition mixins for simplification of rules
@@ -395,6 +399,8 @@ workflow:
 
 .on_main:
   - <<: *if_main_branch
+    variables:
+      GO_TEST_SKIP_FLAKE: "false"
 
 .on_main_manual:
   - <<: *if_main_branch
@@ -783,7 +789,7 @@ workflow:
     when: never
   - when: on_success
 
-except_no_tests_no_deploy:
+.except_no_tests_no_deploy:
   - if: $RUN_KITCHEN_TESTS == "false" && $DEPLOY_AGENT == "false" && $RUN_E2E_TESTS == "off"
     when: never
 
@@ -947,6 +953,21 @@ except_no_tests_no_deploy:
         - test/kitchen/test/integration/security-agent-test/**/*
         - test/kitchen/test/integration/security-agent-stress/**/*
         - .gitlab/functional_test/security_agent.yml
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
+  - when: manual
+    allow_failure: true
+
+.on_windows_installer_changes_or_manual:
+  - <<: *if_main_branch
+  - <<: *if_mergequeue
+    when: never
+  - changes:
+      paths:
+        - tools/windows/DatadogAgentInstaller/**/*
+        - .gitlab/new-e2e_testing/windows.yml
+        - test/new-e2e/tests/windows/install-test/**/*
+        - tasks/msi.py
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual

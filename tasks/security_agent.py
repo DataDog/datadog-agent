@@ -11,9 +11,20 @@ from subprocess import check_output
 from invoke import task
 from invoke.exceptions import Exit
 
+from .agent import generate_config
 from .build_tags import get_default_build_tags
 from .go import run_golangci_lint
-from .go_test import environ
+from .libs.common.utils import (
+    REPO_PATH,
+    bin_name,
+    environ,
+    get_build_flags,
+    get_git_branch_name,
+    get_git_commit,
+    get_go_version,
+    get_gopath,
+    get_version,
+)
 from .libs.ninja_syntax import NinjaWriter
 from .process_agent import TempDir
 from .system_probe import (
@@ -22,17 +33,6 @@ from .system_probe import (
     check_for_ninja,
     ninja_define_ebpf_compiler,
     ninja_define_exe_compiler,
-)
-from .utils import (
-    REPO_PATH,
-    bin_name,
-    generate_config,
-    get_build_flags,
-    get_git_branch_name,
-    get_git_commit,
-    get_go_version,
-    get_gopath,
-    get_version,
 )
 from .windows_resources import build_messagetable, build_rc, versioninfo_vars
 
@@ -50,6 +50,7 @@ def build(
     build_tags,
     race=False,
     incremental_build=True,
+    install_path=None,
     major_version='7',
     # arch is never used here; we keep it to have a
     # consistent CLI on the build task for all agents.
@@ -61,7 +62,13 @@ def build(
     """
     Build the security agent
     """
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes='3', static=static)
+    ldflags, gcflags, env = get_build_flags(
+        ctx,
+        install_path=install_path,
+        major_version=major_version,
+        python_runtimes='3',
+        static=static,
+    )
 
     # TODO use pkg/version for this
     main = "main."

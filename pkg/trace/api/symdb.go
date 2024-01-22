@@ -88,5 +88,6 @@ func getSymDBDirector(hostTags string, cidProvider IDProvider, containerTags fun
 			tags = fmt.Sprintf("%s,%s", tags, qtags)
 		}
 		req.Header.Set("X-Datadog-Additional-Tags", tags)
+		log.Debugf("Setting header X-Datadog-Additional-Tags=%s for symdb proxy", tags)
 	}
 }

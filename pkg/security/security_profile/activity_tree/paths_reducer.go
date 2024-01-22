@@ -143,7 +143,7 @@ func getPathsReducerPatterns() []PatternReducer {
 			},
 		},
 		{
-			Pattern: regexp.MustCompile(containerutils.WildContainerIDPatternStr), // container ID
+			Pattern: regexp.MustCompile(containerutils.ContainerIDPatternStr), // container ID
 			Callback: func(ctx *callbackContext) {
 				start, end := ctx.getGroup(0)
 				ctx.replaceBy(start, end, "*")

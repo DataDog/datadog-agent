@@ -2695,7 +2695,7 @@
 	"snmpTrapsStats":{
 		 "metrics":{
 				"Packets":0,
-				"PacketsAuthErrors":0
+				"PacketsUnknownCommunityString":0
 		 }
 	},
 	"time_nano":1671576721796997600,

@@ -8,6 +8,10 @@ def get_home_linux():
     return os.path.join("/", "/home", "kernel-version-testing")
 
 
+def get_home_macos():
+    return os.path.join(os.path.expanduser('~'), "kernel-version-testing")
+
+
 def get_kmt_os():
     if sys.platform == "linux" or sys.platform == "linux2":
         return Linux
@@ -19,6 +23,7 @@ def get_kmt_os():
 
 class Linux:
     kmt_dir = get_home_linux()
+    libvirt_group = "libvirt"
     rootfs_dir = os.path.join(kmt_dir, "rootfs")
     stacks_dir = os.path.join(kmt_dir, "stacks")
     packages_dir = os.path.join(kmt_dir, "kernel-packages")
@@ -37,4 +42,14 @@ class Linux:
 
 
 class MacOS:
-    pass
+    kmt_dir = get_home_macos()
+    libvirt_group = "staff"
+    rootfs_dir = os.path.join(kmt_dir, "rootfs")
+    stacks_dir = os.path.join(kmt_dir, "stacks")
+    packages_dir = os.path.join(kmt_dir, "kernel-packages")
+    libvirt_dir = os.path.join(kmt_dir, "libvirt")
+    shared_dir = os.path.join("/", "opt", "kernel-version-testing")
+
+    @staticmethod
+    def assert_user_in_docker_group(_):
+        return True

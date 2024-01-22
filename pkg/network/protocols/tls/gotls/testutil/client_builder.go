@@ -8,17 +8,17 @@ package testutil
 
 import (
 	"context"
-	"fmt"
-	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
-	"github.com/stretchr/testify/require"
+	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 )
 
 // NewGoTLSClient triggers an external go tls client that runs `numRequests` HTTPs requests to `serverAddr`.
@@ -47,35 +47,9 @@ func NewGoTLSClient(t *testing.T, serverAddr string, numRequests int, enableHTTP
 }
 
 func buildGoTLSClientBin(t *testing.T) string {
-	const ClientSrcPath = "gotls_client"
-	const ClientBinaryPath = "gotls_client/gotls_client"
-
-	t.Helper()
-
-	cur, err := testutil.CurDir()
+	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
-
-	clientBinary := fmt.Sprintf("%s/%s", cur, ClientBinaryPath)
-
-	// If there is a compiled binary already, skip the compilation.
-	// Meant for the CI.
-	if _, err = os.Stat(clientBinary); err == nil {
-		return clientBinary
-	}
-
-	clientSrcDir := fmt.Sprintf("%s/%s", cur, ClientSrcPath)
-	clientBuildDir, err := os.MkdirTemp("", "gotls_client_build-")
+	serverBin, err := usmtestutil.BuildUnixTransparentProxyServer(curDir, "gotls_client")
 	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		os.RemoveAll(clientBuildDir)
-	})
-
-	clientBinPath := fmt.Sprintf("%s/gotls_client", clientBuildDir)
-
-	c := exec.Command("go", "build", "-buildvcs=false", "-a", "-ldflags=-extldflags '-static'", "-o", clientBinPath, clientSrcDir)
-	out, err := c.CombinedOutput()
-	require.NoError(t, err, "could not build client test binary: %s\noutput: %s", err, string(out))
-
-	return clientBinPath
+	return serverBin
 }
