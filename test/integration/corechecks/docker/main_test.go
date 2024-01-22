@@ -146,7 +146,9 @@ func setup() (workloadmeta.Component, error) {
 
 // Reset the state and trigger a new run
 func doRun(m *testing.M, store workloadmeta.Component) int {
-	dockerCheck = docker.Factory(store)()
+	factory := docker.Factory(store)
+	checkFactory, _ := factory.Get()
+	dockerCheck = factory.Get()
 
 	// Setup mock sender
 	sender = mocksender.NewMockSender(dockerCheck.ID())
