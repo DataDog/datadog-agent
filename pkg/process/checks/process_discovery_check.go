@@ -16,11 +16,11 @@ import (
 )
 
 
-const (
-	configDiscoPrefix               = "process_config."
-	configDiscoCustomSensitiveWords = configDiscoPrefix   + "custom_sensitive_words"
-	configDiscoScrubArgs            = configDiscoPrefix   + "scrub_args"
-)
+// const (
+// 	configDiscoPrefix               = "process_config."
+// 	configDiscoCustomSensitiveWords = configDiscoPrefix   + "custom_sensitive_words"
+// 	configDiscoScrubArgs            = configDiscoPrefix   + "scrub_args"
+// )
 
 // NewProcessDiscoveryCheck returns an instance of the ProcessDiscoveryCheck.
 func NewProcessDiscoveryCheck(config ddconfig.Reader) *ProcessDiscoveryCheck {
@@ -52,7 +52,7 @@ func (d *ProcessDiscoveryCheck) Init(syscfg *SysProbeConfig, info *HostInfo, _ b
 	d.info = info
 	d.initCalled = true
 
-	initDiscoveryScrubber(d.config, d.scrubber)
+	initScrubber(d.config, d.scrubber)
 
 	d.probe = newProcessProbe(d.config, procutil.WithPermission(syscfg.ProcessModuleEnabled))
 
@@ -137,7 +137,6 @@ func pidMapToProcDiscoveries(pidMap map[int32]*procutil.Process, userProbe *Look
 
 		pd = append(pd, &model.ProcessDiscovery{
 
-			
 			Pid:        proc.Pid,
 			NsPid:      proc.NsPid,
 			Command:    formatCommand(proc),
@@ -176,34 +175,33 @@ func calculateNumCores(info *model.SystemInfo) (numCores int32) {
 	for _, cpu := range info.Cpus {
 		numCores += cpu.Cores
 	}
-
 	return numCores
 }
 
 
 
-func initDiscoveryScrubber(config ddconfig.Reader, scrubber *procutil.DataScrubber) {
-	// Enable/Disable the DataScrubber to obfuscate process args
-	if config.IsSet(configScrubArgs) {
-		scrubber.Enabled = config.GetBool(configDiscoScrubArgs )
-	}
+// func initDiscoveryScrubber(config ddconfig.Reader, scrubber *procutil.DataScrubber) {
+// 	// Enable/Disable the DataScrubber to obfuscate process args
+// 	if config.IsSet(configScrubArgs) {
+// 		scrubber.Enabled = config.GetBool(configDiscoScrubArgs )
+// 	}
 
-	if scrubber.Enabled { // Scrubber is enabled by default when it's created
-		log.Debug("Starting discovery process collection with Scrubber enabled")
-	}
+// 	if scrubber.Enabled { // Scrubber is enabled by default when it's created
+// 		log.Debug("Starting discovery process collection with Scrubber enabled")
+// 	}
 
-	// A custom word list to enhance the default one used by the DataScrubber
-	if config.IsSet(configDiscoCustomSensitiveWords) {
-		words := config.GetStringSlice(configDiscoCustomSensitiveWords)
-		scrubber.AddCustomSensitiveWords(words)
-		log.Debug("Adding custom sensitives words to Discovery Scrubber:", words)
+// 	// A custom word list to enhance the default one used by the DataScrubber
+// 	if config.IsSet(configDiscoCustomSensitiveWords) {
+// 		words := config.GetStringSlice(configDiscoCustomSensitiveWords)
+// 		scrubber.AddCustomSensitiveWords(words)
+// 		log.Debug("Adding custom sensitives words to Discovery Scrubber:", words)
 		
-	}
+// 	}
 
-	// Strips all process arguments
-	if config.GetBool(configStripProcArgs) {
-		log.Debug("Strip all process arguments enabled")
-		scrubber.StripAllArguments = true
-	}
-}
+// 	// Strips all process arguments
+// 	if config.GetBool(configStripProcArgs) {
+// 		log.Debug("Strip all process arguments enabled")
+// 		scrubber.StripAllArguments = true
+// 	}
+// }
 
