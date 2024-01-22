@@ -46,10 +46,9 @@ type Check struct {
 
 // Run executes the check
 func (c *Check) Run() error {
-	globalMu.Lock()
-	defer globalMu.Unlock()
-
 	startTime := time.Now()
+	//globalMu.Lock()
+	//defer globalMu.Unlock()
 
 	senderInstance, err := c.GetSender()
 	if err != nil {
