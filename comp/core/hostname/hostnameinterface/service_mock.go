@@ -21,7 +21,7 @@ import (
 func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(
-			newMock,
+			NewMock,
 		),
 		fx.Supply(MockHostname("my-hostname")))
 }
@@ -56,19 +56,8 @@ func (m *mockService) GetWithProvider(_ context.Context) (Data, error) {
 // Usage: fx.Replace(hostname.MockHostname("whatever"))
 type MockHostname string
 
-// TODO: (components) remove once pkg/logs are FX components
-//
-//nolint:revive // TODO(AML) Fix revive linter
+// NewMock returns a new instance of the mock for the component hostname
 func NewMock(name MockHostname) (Component, Mock) {
-	return newMockCompat(name)
-}
-
-// TODO: (components) - merge with newMockCompat once NewMock is removed
-func newMock(name MockHostname) (Component, Mock) {
-	return newMockCompat(name)
-}
-
-func newMockCompat(name MockHostname) (Component, Mock) {
 	mock := &mockService{string(name)}
 	return mock, mock
 }
