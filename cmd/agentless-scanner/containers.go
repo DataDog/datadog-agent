@@ -708,6 +708,7 @@ func dockerReadMetadata(scan *scanTask, dockerRoot string) ([]dockerContainer, e
 		if err := json.Unmarshal(imageData, &img); err != nil {
 			return nil, err
 		}
+		ctr.ImageManifest = &img
 		containers = append(containers, ctr)
 	}
 
