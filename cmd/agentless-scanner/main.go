@@ -2550,19 +2550,16 @@ func nextXenDevice() (string, bool) {
 
 	// loops from "xvdaa" to "xvddz"
 	const xenMax = ('d' - 'a' + 1) * 26
-	count := xenDeviceName.count
-	for i := 0; i <= xenMax; i++ {
-		count = (count + 1) % xenMax
-		dev := 'a' + uint8(count/26)
-		rst := 'a' + uint8(count%26)
-		bdPath := fmt.Sprintf("/dev/xvd%c%c", dev, rst)
-		// TODO: just like for NBD devices, we should ensure that the
-		// associated device is not already busy. However on ubuntu AMIs there
-		// is no udev rule making the proper symlink from /dev/xvdxx device to
-		// the /dev/nvmex created block device on volume attach.
-		return bdPath, true
-	}
-	return "", false
+	count := (xenDeviceName.count + 1) % xenMax
+	dev := 'a' + uint8(count/26)
+	rst := 'a' + uint8(count%26)
+	bdPath := fmt.Sprintf("/dev/xvd%c%c", dev, rst)
+	// TODO: just like for NBD devices, we should ensure that the
+	// associated device is not already busy. However on ubuntu AMIs there
+	// is no udev rule making the proper symlink from /dev/xvdxx device to
+	// the /dev/nvmex created block device on volume attach.
+	xenDeviceName.count = count
+	return bdPath, true
 }
 
 func nextNBDDevice() (string, bool) {
