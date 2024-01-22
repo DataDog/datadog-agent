@@ -154,7 +154,13 @@ def test_flavor(
 
         if coverage:
             # Removing the coverage script.
-            os.remove(cov_test_path)
+            try:
+                os.remove(cov_test_path)
+            except FileNotFoundError:
+                print(
+                    f"Error: Could not find the coverage script {cov_test_path} while trying to delete it.",
+                    file=sys.stderr,
+                )
             # Merging the unit tests reruns coverage files, keeping only the merged file.
             files_to_delete = [f for f in os.listdir(os.getcwd()) if f.startswith(f"{TMP_PROFILE_COV_PREFIX}.")]
             if not files_to_delete:
