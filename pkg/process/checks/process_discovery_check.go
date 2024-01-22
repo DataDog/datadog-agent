@@ -170,3 +170,28 @@ func calculateNumCores(info *model.SystemInfo) (numCores int32) {
 	}
 	return numCores
 }
+
+func initDiscoveryScrubber(config ddconfig.Reader, scrubber *procutil.DataScrubber) {
+	// Enable/Disable the DataScrubber to obfuscate process args
+	if config.IsSet(configDiscoScrubArgs) {
+		scrubber.Enabled = config.GetBool(configDiscoScrubArgs)
+	}
+
+	if scrubber.Enabled { // Scrubber is enabled by default when it's created
+		log.Debug("Starting discovery process collection with Scrubber enabled")
+	}
+
+	// A custom word list to enhance the default one used by the DataScrubber
+	if config.IsSet(configDiscoCustomSensitiveWords) {
+		words := config.GetStringSlice(configDiscoCustomSensitiveWords)
+		scrubber.AddCustomSensitiveWords(words)
+		log.Debug("Adding custom sensitives words to Discovery Scrubber:", words)
+
+	}
+
+	// Strips all process arguments
+	if config.GetBool(configStripProcArgs) {
+		log.Debug("Strip all process arguments enabled")
+		scrubber.StripAllArguments = true
+	}
+}
