@@ -51,7 +51,7 @@ func (a *agent) SetupPipeline(
 		filelauncher.DefaultSleepDuration,
 		a.config.GetBool("logs_config.validate_pod_container_id"),
 		time.Duration(a.config.GetFloat64("logs_config.file_scan_period")*float64(time.Second)),
-		a.config.GetString("logs_config.file_wildcard_selection_mode")))
+		a.config.GetString("logs_config.file_wildcard_selection_mode"), a.flarecontroller))
 	lnchrs.AddLauncher(listener.NewLauncher(a.config.GetInt("logs_config.frame_size")))
 	lnchrs.AddLauncher(journald.NewLauncher())
 	lnchrs.AddLauncher(windowsevent.NewLauncher())

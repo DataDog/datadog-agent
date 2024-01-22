@@ -6,7 +6,7 @@ import os
 import shutil
 
 from .build_tags import filter_incompatible_tags, get_build_tags
-from .utils import REPO_PATH, bin_name, get_build_flags, get_version
+from .libs.common.utils import REPO_PATH, bin_name, get_build_flags, get_version
 
 
 def build_common(

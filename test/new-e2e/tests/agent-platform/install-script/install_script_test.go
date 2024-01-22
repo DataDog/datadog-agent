@@ -80,8 +80,7 @@ func TestInstallScript(t *testing.T) {
 
 			e2e.Run(tt,
 				&installScriptSuite{cwsSupported: cwsSupported},
-				e2e.WithProvisioner(awshost.Provisioner(
-					awshost.WithoutAgent(),
+				e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
 					awshost.WithEC2InstanceOptions(vmOpts...),
 				)),
 				e2e.WithStackName(fmt.Sprintf("install-script-test-%v-%v-%s-%s-%v", os.Getenv("CI_PIPELINE_ID"), osVers, *architecture, *flavor, *majorVersion)),
@@ -103,18 +102,28 @@ func (is *installScriptSuite) TestInstallAgent() {
 	}
 }
 
+func (is *installScriptSuite) testUninstall(client *common.TestClient, flavor string) {
+	is.T().Run("remove the agent", func(tt *testing.T) {
+		_, err := client.PkgManager.Remove(flavor)
+		require.NoError(tt, err, "should uninstall the agent")
+	})
+
+	common.CheckUninstallation(is.T(), client)
+}
+
 func (is *installScriptSuite) AgentTest(flavor string) {
 	host := is.Env().RemoteHost
-	fileManager := filemanager.NewUnixFileManager(host)
+	fileManager := filemanager.NewUnix(host)
 	agentClient, err := client.NewHostAgentClient(is.T(), host, false)
 	require.NoError(is.T(), err)
 
-	unixHelper := helpers.NewUnixHelper()
+	unixHelper := helpers.NewUnix()
 	client := common.NewTestClient(is.Env().RemoteHost, agentClient, fileManager, unixHelper)
 
 	install.Unix(is.T(), client, installparams.WithArch(*architecture), installparams.WithFlavor(flavor), installparams.WithMajorVersion(*majorVersion))
 
 	common.CheckInstallation(is.T(), client)
+	common.CheckSigningKeys(is.T(), client)
 	common.CheckAgentBehaviour(is.T(), client)
 	common.CheckAgentStops(is.T(), client)
 	common.CheckAgentRestarts(is.T(), client)
@@ -129,44 +138,46 @@ func (is *installScriptSuite) AgentTest(flavor string) {
 		common.CheckCWSBehaviour(is.T(), client)
 	}
 	common.CheckInstallationInstallScript(is.T(), client)
-	common.CheckUninstallation(is.T(), client, flavor)
+	is.testUninstall(client, flavor)
 }
 
 func (is *installScriptSuite) IotAgentTest() {
 	host := is.Env().RemoteHost
-	fileManager := filemanager.NewUnixFileManager(host)
+	fileManager := filemanager.NewUnix(host)
 	agentClient, err := client.NewHostAgentClient(is.T(), host, false)
 	require.NoError(is.T(), err)
 
-	unixHelper := helpers.NewUnixHelper()
+	unixHelper := helpers.NewUnix()
 	client := common.NewTestClient(is.Env().RemoteHost, agentClient, fileManager, unixHelper)
 
 	install.Unix(is.T(), client, installparams.WithArch(*architecture), installparams.WithFlavor(*flavor))
 
 	common.CheckInstallation(is.T(), client)
+	common.CheckSigningKeys(is.T(), client)
 	common.CheckAgentBehaviour(is.T(), client)
 	common.CheckAgentStops(is.T(), client)
 	common.CheckAgentRestarts(is.T(), client)
 
 	common.CheckInstallationInstallScript(is.T(), client)
-	common.CheckUninstallation(is.T(), client, "datadog-iot-agent")
+	is.testUninstall(client, "datadog-iot-agent")
 }
 
 func (is *installScriptSuite) DogstatsdAgentTest() {
 	host := is.Env().RemoteHost
-	fileManager := filemanager.NewUnixFileManager(host)
+	fileManager := filemanager.NewUnix(host)
 	agentClient, err := client.NewHostAgentClient(is.T(), host, false)
 	require.NoError(is.T(), err)
 
-	unixHelper := helpers.NewUnixHelper()
+	unixHelper := helpers.NewUnixDogstatsd()
 	client := common.NewTestClient(is.Env().RemoteHost, agentClient, fileManager, unixHelper)
 
 	install.Unix(is.T(), client, installparams.WithArch(*architecture), installparams.WithFlavor(*flavor))
 
 	common.CheckInstallation(is.T(), client)
+	common.CheckSigningKeys(is.T(), client)
 	common.CheckDogstatdAgentBehaviour(is.T(), client)
 	common.CheckDogstatsdAgentStops(is.T(), client)
 	common.CheckDogstatsdAgentRestarts(is.T(), client)
 	common.CheckInstallationInstallScript(is.T(), client)
-	common.CheckUninstallation(is.T(), client, "datadog-dogstatsd")
+	is.testUninstall(client, "datadog-dogstatsd")
 }

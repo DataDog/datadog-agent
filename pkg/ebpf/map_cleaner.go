@@ -118,10 +118,10 @@ func (mc *MapCleaner[K, V]) cleanWithBatches(nowTS int64, shouldClean func(nowTS
 
 	var keysToDelete []K
 	totalCount, deletedCount := 0, 0
-	var next K
+	var cursor cebpf.BatchCursor
 	var n int
 	for {
-		n, _ = mc.emap.BatchLookup(next, &next, mc.keyBatch, mc.valuesBatch, nil)
+		n, _ = mc.emap.BatchLookup(&cursor, mc.keyBatch, mc.valuesBatch, nil)
 		if n == 0 {
 			break
 		}
