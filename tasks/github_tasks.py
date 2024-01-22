@@ -1,8 +1,10 @@
 import os
+import time
 
 from invoke import Exit, task
 
 from .libs.common.utils import DEFAULT_BRANCH
+from .libs.datadog_api import create_count, send_metrics
 from .libs.github_actions_tools import (
     download_artifacts,
     download_with_retry,
@@ -165,3 +167,19 @@ def get_milestone_id(_, milestone):
     if not m:
         raise Exit(f'Milestone {milestone} wasn\'t found in the repo', code=1)
     print(m.number)
+
+
+@task
+def send_rate_limit_info_datadog(_, pipeline_id):
+    from .libs.common.github_api import GithubAPI
+
+    gh = GithubAPI('DataDog/datadog-agent')
+    rate_limit_info = gh.get_rate_limit_info()
+    print(f"Remaining rate limit: {rate_limit_info[0]}/{rate_limit_info[1]}")
+    metric = create_count(
+        metric_name='github.rate_limit.remaining',
+        timestamp=int(time.time()),
+        value=rate_limit_info[0],
+        tags=['source:github', 'repository:datadog-agent', f'pipeline_id:{pipeline_id}'],
+    )
+    send_metrics([metric])

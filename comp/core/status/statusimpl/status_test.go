@@ -20,7 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -130,6 +130,10 @@ var (
 	testTitle           = fmt.Sprintf("%s (v%s)", humanReadbaleFlavor, agentVersion)
 )
 
+var agentParams = status.Params{
+	PythonVersion: "n/a",
+}
+
 var testTextHeader = fmt.Sprintf(`%s
 %s
 %s`, status.PrintDashes(testTitle, "="), testTitle, status.PrintDashes(testTitle, "="))
@@ -142,13 +146,14 @@ func TestGetStatus(t *testing.T) {
 
 	defer func() {
 		nowFunc = time.Now
-		startTimeProvider = pkgConfig.StartTime
+		startTimeProvider = pkgconfigsetup.StartTime
 		os.Setenv("TZ", originalTZ)
 	}()
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
 		fx.Supply(
+			agentParams,
 			status.NewInformationProvider(mockProvider{
 				data: map[string]interface{}{
 					"foo": "bar",
@@ -366,13 +371,14 @@ func TestGetStatusDoNotRenderHeaderIfNoProviders(t *testing.T) {
 
 	defer func() {
 		nowFunc = time.Now
-		startTimeProvider = pkgConfig.StartTime
+		startTimeProvider = pkgconfigsetup.StartTime
 		os.Setenv("TZ", originalTZ)
 	}()
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
 		fx.Supply(
+			agentParams,
 			status.NewInformationProvider(mockProvider{
 				data: map[string]interface{}{
 					"foo": "bar",
@@ -430,13 +436,14 @@ func TestGetStatusWithErrors(t *testing.T) {
 
 	defer func() {
 		nowFunc = time.Now
-		startTimeProvider = pkgConfig.StartTime
+		startTimeProvider = pkgconfigsetup.StartTime
 		os.Setenv("TZ", originalTZ)
 	}()
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
 		fx.Supply(
+			agentParams,
 			status.NewInformationProvider(mockProvider{
 				section:     "error section",
 				name:        "a",
@@ -534,6 +541,7 @@ func TestGetStatusBySection(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
 		fx.Supply(
+			agentParams,
 			status.NewInformationProvider(mockProvider{
 				data: map[string]interface{}{
 					"foo": "bar",
@@ -683,13 +691,14 @@ func TestGetStatusBySectionsWithErrors(t *testing.T) {
 
 	defer func() {
 		nowFunc = time.Now
-		startTimeProvider = pkgConfig.StartTime
+		startTimeProvider = pkgconfigsetup.StartTime
 		os.Setenv("TZ", originalTZ)
 	}()
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
 		fx.Supply(
+			agentParams,
 			status.NewInformationProvider(mockProvider{
 				returnError: true,
 				section:     "error section",

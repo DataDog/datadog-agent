@@ -214,7 +214,7 @@ func (ia *inventoryagent) initData() {
 	ia.data["feature_networks_https_enabled"] = getBoolSysProbe("service_monitoring_config.tls.native.enabled")
 
 	ia.data["feature_usm_enabled"] = getBoolSysProbe("service_monitoring_config.enabled")
-	ia.data["feature_usm_kafka_enabled"] = getBoolSysProbe("data_streams_config.enabled")
+	ia.data["feature_usm_kafka_enabled"] = getBoolSysProbe("service_monitoring_config.enable_kafka_monitoring")
 	ia.data["feature_usm_java_tls_enabled"] = getBoolSysProbe("service_monitoring_config.tls.java.enabled")
 	ia.data["feature_usm_http2_enabled"] = getBoolSysProbe("service_monitoring_config.enable_http2_monitoring")
 	ia.data["feature_usm_istio_enabled"] = getBoolSysProbe("service_monitoring_config.tls.istio.enabled")

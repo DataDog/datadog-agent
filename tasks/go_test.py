@@ -5,7 +5,6 @@ High level testing tasks
 # Recent versions of Python should be able to use dict and list directly in type hints,
 # so we only need to check that we don't run this code with old Python versions.
 
-import glob
 import json
 import operator
 import os
@@ -349,7 +348,7 @@ def test(
             test_profiler=test_profiler,
         )
         if only_modified_packages:
-            modules = get_modified_packages(ctx)
+            modules = get_modified_packages(ctx, build_tags=build_tags)
 
         modules_results_per_phase["test"][flavor] = test_flavor(
             ctx,
@@ -454,11 +453,14 @@ def e2e_tests(ctx, target="gitlab", agent_image="", dca_image="", argo_workflow=
 
 
 @task
-def get_modified_packages(ctx) -> List[GoModule]:
+def get_modified_packages(ctx, build_tags=None) -> List[GoModule]:
     modified_files = get_modified_files(ctx)
     modified_go_files = [
         f"./{file}" for file in modified_files if file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum")
     ]
+
+    if build_tags is None:
+        build_tags = []
 
     modules_to_test = {}
     go_mod_modified_modules = set()
@@ -497,8 +499,11 @@ def get_modified_packages(ctx) -> List[GoModule]:
         if not os.path.exists(os.path.dirname(modified_file)):
             continue
 
-        # If there are no _test.go file in the folder we do not try to run tests
-        if not glob.glob(os.path.join(os.path.dirname(modified_file), "**/*_test.go"), recursive=True):
+        # If there are go file matching the build tags in the folder we do not try to run tests
+        res = ctx.run(
+            f"go list -tags '{' '.join(build_tags)}' ./{os.path.dirname(modified_file)}/...", hide=True, warn=True
+        )
+        if res.stderr is not None and "matched no packages" in res.stderr:
             continue
 
         relative_target = "./" + os.path.relpath(os.path.dirname(modified_file), best_module_path)

@@ -186,6 +186,7 @@ func (t *Tester) snapshotSystemfiles(tt *testing.T, remotePath string) error {
 		`c:\windows\ServiceProfiles\NetworkService\AppData\`,
 		`c:\windows\System32\Tasks\Microsoft\Windows\UpdateOrchestrator\`,
 		`c:\windows\System32\Tasks\Microsoft\Windows\Windows Defender\Windows Defender Scheduled Scan`,
+		`C:\Windows\System32\Tasks\MicrosoftEdgeUpdateBrowserReplacementTask`,
 	}
 	// quote each path and join with commas
 	pattern := ""

@@ -18,14 +18,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/pkg/collector/python"
-	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
+
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var nowFunc = time.Now
-var startTimeProvider = pkgConfig.StartTime
+var startTimeProvider = pkgconfigsetup.StartTime
 
 type headerProvider struct {
 	data                   map[string]interface{}
@@ -68,7 +68,7 @@ func (h *headerProvider) HTML(_ bool, buffer io.Writer) error {
 	return t.Execute(buffer, h.data)
 }
 
-func newCommonHeaderProvider(config config.Component) status.HeaderProvider {
+func newCommonHeaderProvider(params status.Params, config config.Component) status.HeaderProvider {
 
 	data := map[string]interface{}{}
 	data["version"] = version.AgentVersion
@@ -77,7 +77,7 @@ func newCommonHeaderProvider(config config.Component) status.HeaderProvider {
 	data["pid"] = os.Getpid()
 	data["go_version"] = runtime.Version()
 	data["agent_start_nano"] = startTimeProvider.UnixNano()
-	pythonVersion := python.GetPythonVersion()
+	pythonVersion := params.PythonVersion
 	data["python_version"] = strings.Split(pythonVersion, " ")[0]
 	data["build_arch"] = runtime.GOARCH
 	data["time_nano"] = nowFunc().UnixNano()

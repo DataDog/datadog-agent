@@ -18,22 +18,22 @@ import (
 )
 
 var (
-	trapsExpvars           = expvar.NewMap("snmp_traps")
-	trapsPackets           = expvar.Int{}
-	trapsPacketsAuthErrors = expvar.Int{}
+	trapsExpvars                       = expvar.NewMap("snmp_traps")
+	trapsPackets                       = expvar.Int{}
+	trapsPacketsUnknownCommunityString = expvar.Int{}
 )
 
 func init() {
 	trapsExpvars.Set("Packets", &trapsPackets)
-	trapsExpvars.Set("PacketsAuthErrors", &trapsPacketsAuthErrors)
+	trapsExpvars.Set("PacketsUnknownCommunityString", &trapsPacketsUnknownCommunityString)
 }
 
 // Manager exposes the expvars we care about
 type Manager interface {
 	AddTrapsPackets(int64)
 	GetTrapsPackets() int64
-	AddTrapsPacketsAuthErrors(int64)
-	GetTrapsPacketsAuthErrors() int64
+	AddTrapsPacketsUnknownCommunityString(int64)
+	GetTrapsPacketsUnknownCommunityString() int64
 }
 
 // New creates a new manager
@@ -47,16 +47,16 @@ func (s *manager) AddTrapsPackets(i int64) {
 	trapsPackets.Add(i)
 }
 
-func (s *manager) AddTrapsPacketsAuthErrors(i int64) {
-	trapsPacketsAuthErrors.Add(i)
+func (s *manager) AddTrapsPacketsUnknownCommunityString(i int64) {
+	trapsPacketsUnknownCommunityString.Add(i)
 }
 
 func (s *manager) GetTrapsPackets() int64 {
 	return trapsPackets.Value()
 }
 
-func (s *manager) GetTrapsPacketsAuthErrors() int64 {
-	return trapsPacketsAuthErrors.Value()
+func (s *manager) GetTrapsPacketsUnknownCommunityString() int64 {
+	return trapsPacketsUnknownCommunityString.Value()
 }
 
 func getDroppedPackets() int64 {

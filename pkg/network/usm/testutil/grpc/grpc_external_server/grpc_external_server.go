@@ -12,7 +12,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/testutil/grpc"
 )
 
 func main() {

@@ -31,6 +31,7 @@ var templatesFS embed.FS
 type dependencies struct {
 	fx.In
 	Config config.Component
+	Params status.Params
 
 	Providers       []status.Provider       `group:"status"`
 	HeaderProviders []status.HeaderProvider `group:"header_status"`
@@ -105,7 +106,7 @@ func newStatus(deps dependencies) (status.Component, error) {
 		return sortedHeaderProviders[i].Index() < sortedHeaderProviders[j].Index()
 	})
 
-	sortedHeaderProviders = append([]status.HeaderProvider{newCommonHeaderProvider(deps.Config)}, sortedHeaderProviders...)
+	sortedHeaderProviders = append([]status.HeaderProvider{newCommonHeaderProvider(deps.Params, deps.Config)}, sortedHeaderProviders...)
 
 	return &statusImplementation{
 		sortedSectionNames:       sortedSectionNames,

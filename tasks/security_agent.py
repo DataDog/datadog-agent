@@ -50,6 +50,7 @@ def build(
     build_tags,
     race=False,
     incremental_build=True,
+    install_path=None,
     major_version='7',
     # arch is never used here; we keep it to have a
     # consistent CLI on the build task for all agents.
@@ -61,7 +62,13 @@ def build(
     """
     Build the security agent
     """
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes='3', static=static)
+    ldflags, gcflags, env = get_build_flags(
+        ctx,
+        install_path=install_path,
+        major_version=major_version,
+        python_runtimes='3',
+        static=static,
+    )
 
     # TODO use pkg/version for this
     main = "main."
