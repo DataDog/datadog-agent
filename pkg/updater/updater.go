@@ -13,6 +13,7 @@ import (
 	"os"
 	"path"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/updater/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -21,14 +22,21 @@ import (
 const (
 	// defaultRepositoryPath is the default path to the repository.
 	defaultRepositoryPath = "/opt/datadog-packages"
+	// defaultRunPath is the default path to the repository's run data
+	defaultRunPath = "/var/run/datadog-packages"
+	// gcInterval is the interval at which the GC will run
+	gcInterval = 1 * time.Hour
 )
 
 // Install installs the default version for the given package.
 // It is purposefully not part of the updater to avoid misuse.
-func Install(ctx context.Context, orgConfig *OrgConfig, pkg string) error {
+func Install(ctx context.Context, orgConfig *OrgConfig, pkg string, defaultRootPath string, defaultRunPath string, watchProcesses bool) error {
 	log.Infof("Updater: Installing default version of package %s", pkg)
 	downloader := newDownloader(http.DefaultClient)
-	repository := &repository.Repository{RootPath: path.Join(defaultRepositoryPath, pkg)}
+	repository := &repository.Repository{RootPath: path.Join(defaultRootPath, pkg)}
+	if watchProcesses {
+		repository.RunPath = path.Join(defaultRunPath, pkg)
+	}
 	firstPackage, err := orgConfig.GetDefaultPackage(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not get default package: %w", err)
@@ -58,11 +66,15 @@ type Updater struct {
 	orgConfig      *OrgConfig
 	repository     *repository.Repository
 	downloader     *downloader
+	stopChan       chan struct{}
 }
 
 // NewUpdater returns a new Updater.
-func NewUpdater(orgConfig *OrgConfig, pkg string) (*Updater, error) {
-	repository := repository.Repository{RootPath: path.Join(defaultRepositoryPath, pkg)}
+func NewUpdater(orgConfig *OrgConfig, pkg string, defaultRootPath string, defaultRunPath string, watchProcesses bool) (*Updater, error) {
+	repository := &repository.Repository{RootPath: path.Join(defaultRootPath, pkg)}
+	if watchProcesses {
+		repository.RunPath = path.Join(defaultRunPath, pkg)
+	}
 	state, err := repository.GetState()
 	if err != nil {
 		return nil, fmt.Errorf("could not get repository state: %w", err)
@@ -74,9 +86,29 @@ func NewUpdater(orgConfig *OrgConfig, pkg string) (*Updater, error) {
 		pkg:            pkg,
 		repositoryPath: defaultRepositoryPath,
 		orgConfig:      orgConfig,
-		repository:     &repository,
+		repository:     repository,
 		downloader:     newDownloader(http.DefaultClient),
+		stopChan:       make(chan struct{}),
 	}, nil
+}
+
+func (u *Updater) StartGC() {
+	go func() {
+		for {
+			select {
+			case <-time.After(gcInterval):
+				err := u.repository.Cleanup()
+				if err != nil {
+					log.Errorf("updater: could not run GC: %v", err)
+				}
+			case <-u.stopChan:
+				return
+			}
+		}
+	}()
+}
+func (u *Updater) StopGC() {
+	u.stopChan <- struct{}{}
 }
 
 // StartExperiment starts an experiment with the given package.

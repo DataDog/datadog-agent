@@ -35,6 +35,12 @@ type GlobalParams struct {
 
 	// RepositoriesDir is the path to the directory containing the repositories.
 	RepositoriesDir string
+
+	// RunPath is the path to the directory containing the repositories' run data.
+	RunPath string
+
+	// WatchProcesses toggles on the process watcher.
+	WatchProcesses bool
 }
 
 // SubcommandFactory is a callable that will return a slice of subcommands.
@@ -56,6 +62,8 @@ Datadog Updater updates your agents based on requests received from the Datadog 
 	agentCmd.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "cfgpath", "c", "", "path to directory containing updater.yaml")
 	agentCmd.PersistentFlags().StringVarP(&globalParams.Package, "package", "p", "", "package to update")
 	agentCmd.PersistentFlags().StringVarP(&globalParams.RepositoriesDir, "repositories", "d", "/opt/datadog-packages", "path to directory containing repositories")
+	agentCmd.PersistentFlags().StringVarP(&globalParams.RunPath, "runpath", "r", "/tmp/datadog-packages", "path to directory containing repositories")
+	agentCmd.PersistentFlags().BoolVarP(&globalParams.WatchProcesses, "watch", "w", false, "whether or not to watch processes")
 	_ = agentCmd.MarkFlagRequired("package")
 
 	// github.com/fatih/color sets its global color.NoColor to a default value based on
