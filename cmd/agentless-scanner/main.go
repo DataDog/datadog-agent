@@ -2868,10 +2868,16 @@ func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, snapshotARN a
 		return fmt.Errorf("could not create volume from snapshot: %s", err)
 	}
 
+	volumeARN := ec2ARN(localSnapshotARN.Region, localSnapshotARN.AccountID, resourceTypeVolume, *volume.VolumeId)
+	scan.AttachedVolumeARN = &volumeARN
+	scan.AttachedVolumeCreatedAt = volume.CreateTime
+
 	device, ok := nextXenDevice()
 	if !ok {
 		return fmt.Errorf("could not find non busy XEN block device")
 	}
+	scan.AttachedDeviceName = &device
+
 	log.Debugf("%s: attaching volume %q into device %q", scan, *volume.VolumeId, device)
 	var errAttach error
 	for i := 0; i < maxAttachRetries; i++ {
@@ -2893,11 +2899,6 @@ func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, snapshotARN a
 	if errAttach != nil {
 		return fmt.Errorf("could not attach volume %q into device %q: %w", *volume.VolumeId, device, errAttach)
 	}
-
-	volumeARN := ec2ARN(localSnapshotARN.Region, localSnapshotARN.AccountID, resourceTypeVolume, *volume.VolumeId)
-	scan.AttachedVolumeARN = &volumeARN
-	scan.AttachedVolumeCreatedAt = volume.CreateTime
-	scan.AttachedDeviceName = &device
 	return nil
 }
 
