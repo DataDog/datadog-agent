@@ -267,11 +267,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				t.Skip("skipping test")
 			}
 
-			usmMonitor, err := NewMonitor(cfg, nil, nil, nil)
-			require.NoError(t, err)
-			require.NoError(t, usmMonitor.Start())
-			t.Cleanup(usmMonitor.Stop)
-			t.Cleanup(utils.ResetDebugger)
+			usmMonitor := setupUSMTLSMonitor(t, cfg)
 			if s.isTLS {
 				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
 			}
