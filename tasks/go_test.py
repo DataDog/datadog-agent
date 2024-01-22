@@ -140,15 +140,6 @@ def test_flavor(
                 warn=True,
             )
 
-        if coverage:
-            # Removing the coverage script.
-            os.remove(cov_test_path)
-            # Merging the unit tests reruns coverage files, keeping only the merged file.
-            files_to_delete = [f for f in os.listdir(os.getcwd()) if f.startswith(f"{TMP_PROFILE_COV_PREFIX}.")]
-            ctx.run(f"gocovmerge {' '.join(files_to_delete)} > {PROFILE_COV}")
-            for f in files_to_delete:
-                os.remove(f)
-
         module_result.result_json_path = os.path.join(module.full_path(), GO_TEST_RESULT_TMP_JSON)
 
         if res.exited is None or res.exited > 0:
@@ -161,6 +152,19 @@ def test_flavor(
                 if os.path.exists(cov_path):
                     os.remove(cov_path)
                 return
+
+        if coverage:
+            # Removing the coverage script.
+            os.remove(cov_test_path)
+            # Merging the unit tests reruns coverage files, keeping only the merged file.
+            files_to_delete = [f for f in os.listdir(os.getcwd()) if f.startswith(f"{TMP_PROFILE_COV_PREFIX}.")]
+            if not files_to_delete:
+                print(
+                    f"Error: Could not find coverage files starting with '{TMP_PROFILE_COV_PREFIX}.'", file=sys.stderr
+                )
+            ctx.run(f"gocovmerge {' '.join(files_to_delete)} > {PROFILE_COV}")
+            for f in files_to_delete:
+                os.remove(f)
 
         if save_result_json:
             with open(save_result_json, 'ab') as json_file, open(module_result.result_json_path, 'rb') as module_file:
