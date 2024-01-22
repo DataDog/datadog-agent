@@ -85,7 +85,7 @@ const (
 	loggerName = "AGENTLESSSCANER"
 
 	maxSnapshotRetries = 3
-	maxAttachRetries   = 30
+	maxAttachRetries   = 15
 
 	maxLambdaUncompressed = 256 * 1024 * 1024
 
@@ -105,7 +105,7 @@ var (
 		noForkScanners bool
 	}
 
-	cleanupMaxDuration = 1 * time.Minute
+	cleanupMaxDuration = 2 * time.Minute
 
 	awsConfigs   = make(map[string]*aws.Config)
 	awsConfigsMu sync.Mutex
@@ -1439,7 +1439,8 @@ func (s *sideScanner) cleanSlate() error {
 
 		}
 	}
-	var attachedVolumeIDs []string
+
+	var attachedVolumes []string
 	if blockDevices, err := listBlockDevices(); err == nil {
 		for _, bd := range blockDevices {
 			if strings.HasPrefix(bd.Name, "nbd") || strings.HasPrefix(bd.Serial, "vol") {
@@ -1467,37 +1468,18 @@ func (s *sideScanner) cleanSlate() error {
 					}
 				}
 				if isScan {
-					attachedVolumeIDs = append(attachedVolumeIDs, "vol-"+strings.TrimPrefix(bd.Serial, "vol"))
+					volumeID := "vol-" + strings.TrimPrefix(bd.Serial, "vol")
+					attachedVolumes = append(attachedVolumes, volumeID)
 				}
 			}
 		}
 	}
-	if len(attachedVolumeIDs) > 0 {
-		self, err := getSelfEC2InstanceIndentity(ctx)
-		if err == nil {
-			cfg, err := newAWSConfig(ctx, self.Region, getDefaultRolesMapping()[self.Region])
-			if err == nil {
-				ec2client := ec2.NewFromConfig(cfg)
-				for _, volumeID := range attachedVolumeIDs {
-					log.Warnf("clean slate: detaching ec2 volume %q", volumeID)
-					if _, err := ec2client.DetachVolume(ctx, &ec2.DetachVolumeInput{
-						Force:    aws.Bool(true),
-						VolumeId: aws.String(volumeID),
-					}); err != nil {
-						log.Errorf("clean slate: could not detach ec2 volume %q: %v", volumeID, err)
-					}
-					for i := 0; i < 50; i++ {
-						if !sleepCtx(ctx, 1*time.Second) {
-							break
-						}
-						if _, errd := ec2client.DeleteVolume(ctx, &ec2.DeleteVolumeInput{
-							VolumeId: aws.String(volumeID),
-						}); errd == nil {
-							log.Debugf("clean slate: volume deleted %q", volumeID)
-							break
-						}
-					}
-				}
+
+	if self, err := getSelfEC2InstanceIndentity(ctx); err == nil {
+		for _, volumeID := range attachedVolumes {
+			volumeARN := ec2ARN(self.Region, self.AccountID, resourceTypeVolume, volumeID)
+			if errd := cleanupScanDetach(ctx, nil, volumeARN, getDefaultRolesMapping()); err != nil {
+				log.Warn("clean slate: %v", errd)
 			}
 		}
 	}
@@ -2864,7 +2846,7 @@ func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, snapshotARN a
 	log.Debugf("%s: creating new volume for snapshot %q in az %q", scan, localSnapshotARN, self.AvailabilityZone)
 	_, localSnapshotID, _ := getARNResource(localSnapshotARN)
 	volume, err := locaEC2Client.CreateVolume(ctx, &ec2.CreateVolumeInput{
-		VolumeType:        ec2types.VolumeTypeGp2,
+		VolumeType:        ec2types.VolumeTypeGp3,
 		AvailabilityZone:  aws.String(self.AvailabilityZone),
 		SnapshotId:        aws.String(localSnapshotID),
 		TagSpecifications: cloudResourceTagSpec(resourceTypeVolume),
@@ -2886,6 +2868,10 @@ func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, snapshotARN a
 	log.Debugf("%s: attaching volume %q into device %q", scan, *volume.VolumeId, device)
 	var errAttach error
 	for i := 0; i < maxAttachRetries; i++ {
+		sleep := 2 * time.Second
+		if !sleepCtx(ctx, sleep) {
+			return ctx.Err()
+		}
 		_, errAttach = locaEC2Client.AttachVolume(ctx, &ec2.AttachVolumeInput{
 			InstanceId: aws.String(self.InstanceID),
 			VolumeId:   volume.VolumeId,
@@ -2895,10 +2881,13 @@ func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, snapshotARN a
 			log.Debugf("%s: volume attached successfully %q device=%s", scan, *volume.VolumeId, device)
 			break
 		}
-		d := 1 * time.Second
-		log.Debugf("%s: couldn't attach volume %q into device %q; retrying after %v (%d/%d)", scan, *volume.VolumeId, device, d, i+1, maxAttachRetries)
-		if !sleepCtx(ctx, d) {
-			return ctx.Err()
+		var aerr smithy.APIError
+		// NOTE(jinroh): we're trying to detach a volume in not in 'available'
+		// state for instance. Continue.
+		if errors.As(errAttach, &aerr) && aerr.ErrorCode() == "IncorrectState" {
+			log.Tracef("%s: couldn't attach volume %q into device %q; retrying after %v (%d/%d)", scan, *volume.VolumeId, device, sleep, i+1, maxAttachRetries)
+		} else {
+			break
 		}
 	}
 	if errAttach != nil {
@@ -2963,7 +2952,7 @@ func listBlockDevices(deviceName ...string) ([]blockDevice, error) {
 
 func listDevicePartitions(ctx context.Context, scan *scanTask) ([]devicePartition, error) {
 	device, volumeARN := *scan.AttachedDeviceName, scan.AttachedVolumeARN
-	log.Debugf("%s: listing partition from device %q (volume = %q)", scan, device, volumeARN)
+	log.Debugf("%s: listing partitions from device %q (volume = %q)", scan, device, volumeARN)
 
 	// NOTE(jinroh): we identified that on some Linux kernel the device path
 	// may not be the expected one (passed to AttachVolume). The kernel may
@@ -3107,6 +3096,55 @@ func mountDevice(ctx context.Context, scan *scanTask, partitions []devicePartiti
 	return mountPoints, nil
 }
 
+func cleanupScanDetach(ctx context.Context, maybeScan *scanTask, volumeARN arn.ARN, roles rolesMapping) error {
+	_, volumeID, _ := getARNResource(volumeARN)
+	cfg, err := newAWSConfig(ctx, volumeARN.Region, roles[volumeARN.AccountID])
+	if err != nil {
+		return err
+	}
+
+	ec2client := ec2.NewFromConfig(cfg)
+	log.Debugf("%s: detaching volume %q", maybeScan, volumeID)
+	for i := 0; i < 5; i++ {
+		if _, err := ec2client.DetachVolume(ctx, &ec2.DetachVolumeInput{
+			Force:    aws.Bool(true),
+			VolumeId: aws.String(volumeID),
+		}); err != nil {
+			var aerr smithy.APIError
+			// NOTE(jinroh): we're trying to detach a volume in an 'available'
+			// state for instance. Just bail.
+			if errors.As(err, &aerr) && aerr.ErrorCode() == "IncorrectState" {
+				break
+			}
+			log.Warnf("%s: could not detach volume %s: %v", maybeScan, volumeID, err)
+		} else {
+			break
+		}
+		if !sleepCtx(ctx, 10*time.Second) {
+			return fmt.Errorf("could not detach volume: %w", ctx.Err())
+		}
+	}
+
+	var errd error
+	for i := 0; i < 25; i++ {
+		if !sleepCtx(ctx, 2*time.Second) {
+			errd = ctx.Err()
+			break
+		}
+		_, errd = ec2client.DeleteVolume(ctx, &ec2.DeleteVolumeInput{
+			VolumeId: aws.String(volumeID),
+		})
+		if errd == nil {
+			log.Debugf("%s: volume deleted %q", maybeScan, volumeID)
+			break
+		}
+	}
+	if errd != nil {
+		fmt.Errorf("%s: could not delete volume %q: %v", maybeScan, volumeID, errd)
+	}
+	return nil
+}
+
 func cleanupScanUmount(ctx context.Context, maybeScan *scanTask, mountPoint string) {
 	log.Debugf("%s: un-mounting %q", maybeScan, mountPoint)
 	var umountOutput []byte
@@ -3244,36 +3282,11 @@ func cleanupScan(scan *scanTask) {
 	switch scan.DiskMode {
 	case volumeAttach:
 		if volumeARN := scan.AttachedVolumeARN; volumeARN != nil {
-			_, volumeID, _ := getARNResource(*scan.AttachedVolumeARN)
-			cfg, err := newAWSConfig(ctx, volumeARN.Region, scan.Roles[volumeARN.AccountID])
 			if err != nil {
 				log.Errorf("%s: could not create local aws config: %v", scan, err)
 			} else {
-				ec2client := ec2.NewFromConfig(cfg)
-				log.Debugf("%s: detaching volume %q", scan, volumeID)
-				if _, err := ec2client.DetachVolume(ctx, &ec2.DetachVolumeInput{
-					Force:    aws.Bool(true),
-					VolumeId: aws.String(volumeID),
-				}); err != nil {
-					log.Warnf("%s: could not detach volume %s: %v", scan, volumeID, err)
-				}
-
-				var errd error
-				for i := 0; i < 50; i++ {
-					if !sleepCtx(ctx, 1*time.Second) {
-						errd = ctx.Err()
-						break
-					}
-					_, errd = ec2client.DeleteVolume(ctx, &ec2.DeleteVolumeInput{
-						VolumeId: aws.String(volumeID),
-					})
-					if errd == nil {
-						log.Debugf("%s: volume deleted %q", scan, volumeID)
-						break
-					}
-				}
-				if errd != nil {
-					log.Warnf("%s: could not delete volume %q: %v", scan, volumeID, errd)
+				if errd := cleanupScanDetach(ctx, scan, *volumeARN, scan.Roles); errd != nil {
+					log.Warnf("%s: could not delete volume %q: %v", scan, volumeARN, errd)
 				} else {
 					statsResourceTTL(resourceTypeVolume, scan, *scan.AttachedVolumeCreatedAt)
 				}
