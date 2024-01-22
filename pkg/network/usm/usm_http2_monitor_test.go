@@ -47,6 +47,14 @@ type usmHTTP2Suite struct {
 	isTLS bool
 }
 
+func (s *usmHTTP2Suite) getCfg() *config.Config {
+	cfg := config.New()
+	cfg.EnableHTTP2Monitoring = true
+	cfg.EnableGoTLSSupport = s.isTLS
+	cfg.GoTLSExcludeSelf = s.isTLS
+	return cfg
+}
+
 func TestHTTP2Scenarios(t *testing.T) {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
@@ -80,10 +88,7 @@ func TestHTTP2Scenarios(t *testing.T) {
 
 func (s *usmHTTP2Suite) TestRawTraffic() {
 	t := s.T()
-	cfg := config.New()
-	cfg.EnableHTTP2Monitoring = true
-	cfg.EnableGoTLSSupport = s.isTLS
-	cfg.GoTLSExcludeSelf = s.isTLS
+	cfg := s.getCfg()
 
 	// Start local server
 	cleanup, err := startH2CServer(authority, s.isTLS)
