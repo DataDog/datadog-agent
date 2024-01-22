@@ -5,10 +5,14 @@ go 1.21
 replace (
 	github.com/DataDog/datadog-agent/comp/core/config => ../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/log => ../../comp/core/log
+	github.com/DataDog/datadog-agent/comp/core/secrets => ../../comp/core/secrets
+	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../comp/core/telemetry
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../../comp/forwarder/defaultforwarder
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ../../comp/forwarder/orchestrator/orchestratorinterface
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../aggregator/ckey
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/comp/core/secrets => ../../comp/core/secrets
+	github.com/DataDog/datadog-agent/pkg/config/env => ../config/env
 	github.com/DataDog/datadog-agent/pkg/config/model => ../config/model
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../config/setup/
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../config/utils/
@@ -19,6 +23,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/tagset => ../tagset
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../telemetry
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../util/backoff/
+	github.com/DataDog/datadog-agent/pkg/util/buf => ../util/buf/
 	github.com/DataDog/datadog-agent/pkg/util/common => ../util/common
 	github.com/DataDog/datadog-agent/pkg/util/compression => ../util/compression
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../util/executable/
