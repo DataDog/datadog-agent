@@ -9,6 +9,7 @@ package usm
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"encoding/binary"
 	"fmt"
@@ -24,12 +25,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
 	"golang.org/x/net/http2/hpack"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	gotlsutils "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/proxy"
@@ -43,7 +46,8 @@ const (
 )
 
 var (
-	authority = net.JoinHostPort("127.0.0.1", strconv.Itoa(srvPort))
+	authority    = net.JoinHostPort("127.0.0.1", strconv.Itoa(srvPort))
+	http2SrvAddr = "http://" + authority
 )
 
 type usmHTTP2Suite struct {
@@ -121,7 +125,7 @@ func (s *usmHTTP2Suite) TestHTTP2DynamicTableCleanup() {
 
 	require.Eventuallyf(t, func() bool {
 		for key, stat := range getHTTPLikeProtocolStats(monitor, protocols.HTTP2) {
-			if (key.DstPort == http2SrvPort || key.SrcPort == http2SrvPort) && key.Method == http.MethodPost && strings.HasPrefix(key.Path.Content.Get(), "/test") {
+			if (key.DstPort == srvPort || key.SrcPort == srvPort) && key.Method == http.MethodPost && strings.HasPrefix(key.Path.Content.Get(), "/test") {
 				matches.Add(stat.Data[200].Count)
 			}
 		}
@@ -247,7 +251,7 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 				res := make(map[http.Key]int)
 				assert.Eventually(t, func() bool {
 					for key, stat := range getHTTPLikeProtocolStats(monitor, protocols.HTTP2) {
-						if key.DstPort == http2SrvPort || key.SrcPort == http2SrvPort {
+						if key.DstPort == srvPort || key.SrcPort == srvPort {
 							count := stat.Data[200].Count
 							newKey := http.Key{
 								Path:   http.Path{Content: key.Path.Content},
@@ -433,7 +437,7 @@ func (s *usmHTTP2Suite) TestHTTP2ManyDifferentPaths() {
 	seenRequests := map[string]int{}
 	assert.Eventuallyf(t, func() bool {
 		for key, stat := range getHTTPLikeProtocolStats(monitor, protocols.HTTP2) {
-			if (key.DstPort == http2SrvPort || key.SrcPort == http2SrvPort) && key.Method == http.MethodPost && strings.HasPrefix(key.Path.Content.Get(), "/test") {
+			if (key.DstPort == srvPort || key.SrcPort == srvPort) && key.Method == http.MethodPost && strings.HasPrefix(key.Path.Content.Get(), "/test") {
 				if _, ok := seenRequests[key.Path.Content.Get()]; !ok {
 					seenRequests[key.Path.Content.Get()] = 0
 				}
@@ -963,6 +967,11 @@ func createMessageWithRST(t *testing.T, headerFields []hpack.HeaderField, header
 	return buf.Bytes()
 }
 
+type captureRange struct {
+	lower int
+	upper int
+}
+
 func getExpectedOutcomeForPathWithRepeatedChars() map[http.Key]captureRange {
 	expected := make(map[http.Key]captureRange)
 	for i := 1; i < 100; i++ {
@@ -977,4 +986,42 @@ func getExpectedOutcomeForPathWithRepeatedChars() map[http.Key]captureRange {
 		}
 	}
 	return expected
+}
+
+func startH2CServer(address string, isTLS bool) (func(), error) {
+	srv := &nethttp.Server{
+		Addr: authority,
+		Handler: h2c.NewHandler(nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
+			w.WriteHeader(200)
+			w.Write([]byte("test"))
+		}), &http2.Server{}),
+		IdleTimeout: 2 * time.Second,
+	}
+
+	if err := http2.ConfigureServer(srv, nil); err != nil {
+		return nil, err
+	}
+
+	l, err := net.Listen("tcp", address)
+	if err != nil {
+		return nil, err
+	}
+
+	if isTLS {
+		cert, key, err := testutil.GetCertsPaths()
+		if err != nil {
+			return nil, err
+		}
+		go srv.ServeTLS(l, cert, key)
+	} else {
+		go srv.Serve(l)
+	}
+
+	return func() {
+		_ = srv.Shutdown(context.Background())
+	}, nil
+}
+
+func getClientsIndex(index, totalCount int) int {
+	return index % totalCount
 }

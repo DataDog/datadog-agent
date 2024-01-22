@@ -9,7 +9,6 @@ package usm
 
 import (
 	"bytes"
-	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -25,14 +24,6 @@ import (
 	"testing"
 	"time"
 
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cihub/seelog"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/suite"
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
@@ -43,6 +34,11 @@ import (
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cihub/seelog"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 )
 
 func TestMain(m *testing.M) {
@@ -57,10 +53,6 @@ func TestMain(m *testing.M) {
 const (
 	kb = 1024
 	mb = 1024 * kb
-
-	localHostAddress = "127.0.0.1:8082"
-	http2SrvAddr     = "http://" + localHostAddress
-	http2SrvPort     = 8082
 )
 
 var (
@@ -514,49 +506,6 @@ func (s *HTTPTestSuite) TestKeepAliveWithIncompleteResponseRegression() {
 	url, err := url.Parse("http://127.0.0.1:8080/200/foobar")
 	require.NoError(t, err)
 	assertAllRequestsExists(t, monitor, []*nethttp.Request{{URL: url, Method: "GET"}})
-}
-
-type captureRange struct {
-	lower int
-	upper int
-}
-
-func startH2CServer(address string, isTLS bool) (func(), error) {
-	srv := &nethttp.Server{
-		Addr: authority,
-		Handler: h2c.NewHandler(nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
-			w.WriteHeader(200)
-			w.Write([]byte("test"))
-		}), &http2.Server{}),
-		IdleTimeout: 2 * time.Second,
-	}
-
-	if err := http2.ConfigureServer(srv, nil); err != nil {
-		return nil, err
-	}
-
-	l, err := net.Listen("tcp", address)
-	if err != nil {
-		return nil, err
-	}
-
-	if isTLS {
-		cert, key, err := testutil.GetCertsPaths()
-		if err != nil {
-			return nil, err
-		}
-		go srv.ServeTLS(l, cert, key)
-	} else {
-		go srv.Serve(l)
-	}
-
-	return func() {
-		_ = srv.Shutdown(context.Background())
-	}, nil
-}
-
-func getClientsIndex(index, totalCount int) int {
-	return index % totalCount
 }
 
 func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp.Request) {
