@@ -37,9 +37,17 @@ const (
 	// MaxStringSize defines the max read size
 	MaxStringSize = 4096
 
-	// Nsig number of signal
+	// nsig number of signal
 	// https://elixir.bootlin.com/linux/v6.5.12/source/arch/x86/include/uapi/asm/signal.h#L16
-	Nsig = 32
+	nsig = 32
+
+	ptraceFlags = 0 |
+		syscall.PTRACE_O_TRACEVFORK |
+		syscall.PTRACE_O_TRACEFORK |
+		syscall.PTRACE_O_TRACECLONE |
+		syscall.PTRACE_O_TRACEEXEC |
+		syscall.PTRACE_O_TRACESYSGOOD |
+		unix.PTRACE_O_TRACESECCOMP
 )
 
 // Tracer represents a tracer
@@ -229,7 +237,10 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 		return err
 	}
 
-	var regs syscall.PtraceRegs
+	var (
+		regs   syscall.PtraceRegs
+		prevNr int
+	)
 
 	for {
 		pid, err := syscall.Wait4(-1, &waitStatus, 0, nil)
@@ -247,7 +258,7 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 
 		if waitStatus.Stopped() {
 			if signal := waitStatus.StopSignal(); signal != syscall.SIGTRAP {
-				if signal < Nsig {
+				if signal < nsig {
 					_ = syscall.PtraceCont(pid, int(signal))
 					continue
 				}
@@ -258,6 +269,10 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 			}
 
 			nr := GetSyscallNr(regs)
+			if nr == 0 {
+				nr = prevNr
+			}
+			prevNr = nr
 
 			switch waitStatus.TrapCause() {
 			case syscall.PTRACE_EVENT_CLONE, syscall.PTRACE_EVENT_FORK, syscall.PTRACE_EVENT_VFORK:
@@ -282,11 +297,9 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 					// already handled
 				case ExecveNr, ExecveatNr:
 					// does not return on success, thus ret value stay at syscall.ENOSYS
-					if ret := -t.ReadRet(regs); ret == int64(syscall.ENOSYS) {
-						cb(CallbackPostType, nr, pid, 0, regs, nil)
-					}
+					cb(CallbackPostType, nr, pid, 0, regs, nil)
 				default:
-					if ret := -t.ReadRet(regs); ret != int64(syscall.ENOSYS) {
+					if ret := t.ReadRet(regs); ret != -int64(syscall.ENOSYS) {
 						cb(CallbackPostType, nr, pid, 0, regs, nil)
 					}
 				}

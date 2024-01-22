@@ -778,7 +778,7 @@ func checkEntryPoint(path string) (string, error) {
 }
 
 func isAcceptedRetval(retval int64) bool {
-	return retval >= 0 || retval == -int64(syscall.EACCES) || retval == -int64(syscall.EPERM)
+	return retval >= 0 || retval == -int64(syscall.EACCES) || retval == -int64(syscall.EPERM) || retval == -int64(syscall.ENOSYS)
 }
 
 func initConn(probeAddr string, nbAttempts uint) (net.Conn, error) {
@@ -1152,7 +1152,9 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 			case CloseNr:
 				// nothing to do
 			case ExecveNr, ExecveatNr:
-				sendSyscallMsg(process.Nr[ExecveNr]) // special case for execveat: we store the msg in execve bucket (see upper)
+				if ret := tracer.ReadRet(regs); isAcceptedRetval(ret) {
+					sendSyscallMsg(process.Nr[ExecveNr]) // special case for execveat: we store the msg in execve bucket (see upper)
+				}
 
 				// now the pid is the tgid
 				process.Pid = process.Tgid
