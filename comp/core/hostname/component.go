@@ -11,6 +11,4 @@ import "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 // team: agent-shared-components
 
 // Component is the component type.
-type Component interface {
-	hostnameinterface.HostnameInterface
-}
+type Component = hostnameinterface.HostnameInterface
