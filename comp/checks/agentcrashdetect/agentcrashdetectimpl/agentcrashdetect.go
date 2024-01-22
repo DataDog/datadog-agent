@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/crashreport"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
@@ -175,7 +176,7 @@ func newAgentCrashComponent(deps dependencies) agentcrashdetect.Component {
 	instance.tconfig = deps.TConfig.Object()
 	deps.Lifecycle.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			core.RegisterCheck(CheckName, func() check.Check {
+			core.RegisterCheck(CheckName, optional.NewOption(func() check.Check {
 				checkInstance := &AgentCrashDetect{
 					CheckBase:   core.NewCheckBase(CheckName),
 					instance:    &WinCrashConfig{},
@@ -183,7 +184,7 @@ func newAgentCrashComponent(deps dependencies) agentcrashdetect.Component {
 					probeconfig: deps.SConfig,
 				}
 				return checkInstance
-			})
+			}))
 			return nil
 		},
 	})

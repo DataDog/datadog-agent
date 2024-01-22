@@ -11,16 +11,15 @@ package cri
 import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
-	// Enabled is true if the check is enabled
-	Enabled = false
 	// CheckName is the name of the check
 	CheckName = "cri"
 )
 
 // Factory creates a new check instance
-func Factory(store workloadmeta.Component) func() check.Check {
-	return nil
+func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
+	return optional.NewNoneOption[func() check.Check]()
 }

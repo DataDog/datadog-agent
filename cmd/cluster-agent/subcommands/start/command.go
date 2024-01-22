@@ -496,17 +496,17 @@ func initializeRemoteConfig(ctx context.Context) (*rcclient.Client, *rcservice.S
 
 func registerChecks() {
 	// Required checks
-	corecheckLoader.RegisterCheck(cpu.CheckName, cpu.New)
-	corecheckLoader.RegisterCheck(memory.CheckName, memory.New)
-	corecheckLoader.RegisterCheck(uptime.CheckName, uptime.New)
-	corecheckLoader.RegisterCheck(io.CheckName, io.New)
-	corecheckLoader.RegisterCheck(filehandles.CheckName, filehandles.New)
+	corecheckLoader.RegisterCheck(cpu.CheckName, cpu.Factory())
+	corecheckLoader.RegisterCheck(memory.CheckName, memory.Factory())
+	corecheckLoader.RegisterCheck(uptime.CheckName, uptime.Factory())
+	corecheckLoader.RegisterCheck(io.CheckName, io.Factory())
+	corecheckLoader.RegisterCheck(filehandles.CheckName, filehandles.Factory())
 
 	// Flavor specific checks
-	corecheckLoader.RegisterCheckIfEnabled(kubernetesapiserver.Enabled, kubernetesapiserver.CheckName, kubernetesapiserver.New)
-	corecheckLoader.RegisterCheckIfEnabled(ksm.Enabled, ksm.CheckName, ksm.New)
-	corecheckLoader.RegisterCheckIfEnabled(helm.Enabled, helm.CheckName, helm.New)
-	corecheckLoader.RegisterCheckIfEnabled(disk.Enabled, disk.CheckName, disk.New)
-	corecheckLoader.RegisterCheckIfEnabled(orchestrator.Enabled, orchestrator.CheckName, orchestrator.New)
-	corecheckLoader.RegisterCheckIfEnabled(winproc.Enabled, winproc.CheckName, winproc.New)
+	corecheckLoader.RegisterCheck(kubernetesapiserver.CheckName, kubernetesapiserver.Factory())
+	corecheckLoader.RegisterCheck(ksm.CheckName, ksm.Factory())
+	corecheckLoader.RegisterCheck(helm.CheckName, helm.Factory())
+	corecheckLoader.RegisterCheck(disk.CheckName, disk.Factory())
+	corecheckLoader.RegisterCheck(orchestrator.CheckName, orchestrator.Factory())
+	corecheckLoader.RegisterCheck(winproc.CheckName, winproc.Factory())
 }

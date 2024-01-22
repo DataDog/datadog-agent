@@ -24,11 +24,10 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	processnet "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
-	// Enabled is true if the check is enabled
-	Enabled = true
 	// CheckName is the name of the check
 	CheckName = "ebpf"
 )
@@ -44,8 +43,12 @@ type EBPFCheck struct {
 	core.CheckBase
 }
 
-// New returns a new check factory
-func New() check.Check {
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
+}
+
+func newCheck() check.Check {
 	return &EBPFCheck{
 		CheckBase: core.NewCheckBase(CheckName),
 		config:    &EBPFCheckConfig{},

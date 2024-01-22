@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/pdhutil"
 )
 
@@ -72,8 +73,12 @@ func (c *fhCheck) Configure(senderManager sender.SenderManager, integrationConfi
 	return err
 }
 
-// New creates a new check instance
-func New() check.Check {
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
+}
+
+func newCheck() check.Check {
 	return &fhCheck{
 		CheckBase: core.NewCheckBase(CheckName),
 	}

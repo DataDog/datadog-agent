@@ -24,11 +24,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
-	// Enabled is true if the check is enabled
-	Enabled = true
 	// CheckName is the name of the check// CheckName
 	CheckName     = "cri"
 	cacheValidity = 2 * time.Second
@@ -48,14 +47,14 @@ type CRICheck struct {
 }
 
 // Factory is exported for integration testing
-func Factory(store workloadmeta.Component) func() check.Check {
-	return func() check.Check {
+func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
+	return optional.NewOption(func() check.Check {
 		return &CRICheck{
 			CheckBase: core.NewCheckBase(CheckName),
 			instance:  &CRIConfig{},
 			store:     store,
 		}
-	}
+	})
 }
 
 // Parse parses the CRICheck config and set default values

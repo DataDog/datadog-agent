@@ -18,6 +18,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
@@ -43,14 +44,14 @@ type ContainerCheck struct {
 }
 
 // Factory returns a new check factory
-func Factory(store workloadmeta.Component) func() check.Check {
-	return func() check.Check {
+func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
+	return optional.NewOption(func() check.Check {
 		return &ContainerCheck{
 			CheckBase: core.NewCheckBase(CheckName),
 			instance:  &ContainerConfig{},
 			store:     store,
 		}
-	}
+	})
 }
 
 // Configure parses the check configuration and init the check

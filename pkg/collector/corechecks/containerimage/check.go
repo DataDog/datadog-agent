@@ -19,6 +19,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
@@ -92,15 +93,15 @@ type Check struct {
 }
 
 // Factory returns a new check factory
-func Factory(store workloadmeta.Component) func() check.Check {
-	return func() check.Check {
+func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
+	return optional.NewOption(func() check.Check {
 		return &Check{
 			CheckBase:         core.NewCheckBase(CheckName),
 			workloadmetaStore: store,
 			instance:          &Config{},
 			stopCh:            make(chan struct{}),
 		}
-	}
+	})
 }
 
 // Configure parses the check configuration and initializes the container_image check

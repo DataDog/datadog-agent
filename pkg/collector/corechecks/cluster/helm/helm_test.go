@@ -259,7 +259,7 @@ func TestRun(t *testing.T) {
 				kubeObjects = append(kubeObjects, configMap)
 			}
 
-			check := New().(*HelmCheck)
+			check := newCheck().(*HelmCheck)
 			check.runLeaderElection = false
 
 			check.instance.HelmValuesAsTags = map[string]string{
@@ -299,7 +299,7 @@ func TestRun(t *testing.T) {
 }
 
 func TestRun_withCollectEvents(t *testing.T) {
-	check := New().(*HelmCheck)
+	check := newCheck().(*HelmCheck)
 	check.runLeaderElection = false
 	check.instance.CollectEvents = true
 	check.startTS = time.Now()
@@ -391,7 +391,7 @@ func TestRun_withCollectEvents(t *testing.T) {
 }
 
 func TestRun_skipEventForExistingRelease(t *testing.T) {
-	check := New().(*HelmCheck)
+	check := newCheck().(*HelmCheck)
 	check.runLeaderElection = false
 	check.instance.CollectEvents = true
 	check.startTS = time.Now()
@@ -548,7 +548,7 @@ func TestRun_ServiceCheck(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			check := New().(*HelmCheck)
+			check := newCheck().(*HelmCheck)
 			check.runLeaderElection = false
 
 			for _, rel := range releases {

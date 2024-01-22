@@ -31,12 +31,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 const (
-	// Enabled is true if the check is enabled
-	Enabled = true
 	// CheckName is the name of the check
 	CheckName               = "helm"
 	serviceCheckName        = "helm.release_state"
@@ -86,8 +85,12 @@ func (cc *checkConfig) Parse(data []byte) error {
 	return yaml.Unmarshal(data, cc)
 }
 
-// New creates a new check instance
-func New() check.Check {
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
+}
+
+func newCheck() check.Check {
 	return &HelmCheck{
 		CheckBase:         core.NewCheckBase(CheckName),
 		instance:          &checkConfig{},

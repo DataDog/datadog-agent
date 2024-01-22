@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"golang.org/x/exp/maps"
 
 	"gopkg.in/yaml.v2"
@@ -46,8 +47,6 @@ import (
 )
 
 const (
-	// Enabled is true if the check is enabled
-	Enabled = true
 	// CheckName is the name of the check
 	CheckName               = "kubernetes_state_core"
 	maximumWaitForAPIServer = 10 * time.Second
@@ -837,8 +836,12 @@ func (k *KSMCheck) sendTelemetry(s sender.Sender) {
 	}
 }
 
-// New returns a new KSMCheck
-func New() check.Check {
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
+}
+
+func newCheck() check.Check {
 	return newKSMCheck(
 		core.NewCheckBase(CheckName),
 		&KSMConfig{

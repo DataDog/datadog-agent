@@ -25,11 +25,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
-	// Enabled is true if the check is enabled
-	Enabled = true
 	// CheckName is the name of the check
 	CheckName = "network"
 )
@@ -308,8 +307,12 @@ func (c *NetworkCheck) Configure(senderManager sender.SenderManager, integration
 	return nil
 }
 
-// New creates a new check instance
-func New() check.Check {
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
+}
+
+func newCheck() check.Check {
 	return &NetworkCheck{
 		net:       defaultNetworkStats{},
 		CheckBase: core.NewCheckBase(CheckName),

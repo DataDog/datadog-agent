@@ -1028,8 +1028,8 @@ unit_names:
 }
 
 func TestCheckID(t *testing.T) {
-	check1 := New()
-	check2 := New()
+	check1 := newCheck()
+	check2 := newCheck()
 	aggregator.NewBufferedAggregator(nil, nil, "", 1*time.Hour)
 
 	// language=yaml

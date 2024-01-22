@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"go.uber.org/atomic"
 	"gopkg.in/yaml.v2"
@@ -38,8 +39,6 @@ import (
 )
 
 const (
-	// Enabled is true if the check is enabled
-	Enabled = true
 	// CheckName is the name of the check
 	CheckName = orchestrator.CheckName
 
@@ -94,8 +93,12 @@ func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance) *
 	}
 }
 
-// New returns the orchestrator check
-func New() check.Check {
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
+}
+
+func newCheck() check.Check {
 	return newOrchestratorCheck(
 		core.NewCheckBase(CheckName),
 		&OrchestratorInstance{},

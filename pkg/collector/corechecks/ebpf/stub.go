@@ -8,16 +8,17 @@
 //nolint:revive // TODO(CINT) Fix revive linter
 package ebpf
 
-import "github.com/DataDog/datadog-agent/pkg/collector/check"
+import (
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+)
 
 const (
-	// Enabled is true if the check is enabled
-	Enabled = false
 	// CheckName is the name of the check
 	CheckName = "ebpf"
 )
 
-// New creates a new check instance
-func New() check.Check {
-	return nil
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewNoneOption[func() check.Check]()
 }

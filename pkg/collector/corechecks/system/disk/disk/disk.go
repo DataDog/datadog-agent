@@ -16,11 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
-	// Enabled is true if the check is enabled
-	Enabled = true
 	// CheckName is the name of the check
 	CheckName   = "disk"
 	diskMetric  = "system.disk.%s"
@@ -175,8 +174,12 @@ func (c *Check) applyDeviceTags(device, mountpoint string, tags []string) []stri
 	return tags
 }
 
-// New creates a new check instance
-func New() check.Check {
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
+}
+
+func newCheck() check.Check {
 	return &Check{
 		CheckBase: core.NewCheckBase(CheckName),
 	}

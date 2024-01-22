@@ -29,12 +29,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/prometheus"
 )
 
 const (
-	// Enabled is true if the check is enabled
-	Enabled = true
 	// CheckName is the name of the check
 	CheckName           = "containerd"
 	pullImageGrpcMethod = "PullImage"
@@ -63,14 +62,14 @@ type ContainerdConfig struct {
 }
 
 // Factory is used to create register the check and initialize it.
-func Factory(store workloadmeta.Component) func() check.Check {
-	return func() check.Check {
+func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
+	return optional.NewOption(func() check.Check {
 		return &ContainerdCheck{
 			CheckBase: corechecks.NewCheckBase(CheckName),
 			instance:  &ContainerdConfig{},
 			store:     store,
 		}
-	}
+	})
 }
 
 // Parse is used to get the configuration set by the user

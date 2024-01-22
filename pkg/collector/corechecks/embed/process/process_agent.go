@@ -30,11 +30,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
-	// Enabled is true if the check is enabled
-	Enabled = true
 	// CheckName is the name of the check
 	CheckName = "process_agent"
 )
@@ -242,8 +241,12 @@ func (c *ProcessAgentCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 	return nil, nil
 }
 
-// New creates a new check instance
-func New() check.Check {
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
+}
+
+func newCheck() check.Check {
 	return &ProcessAgentCheck{
 		stop:     make(chan struct{}),
 		stopDone: make(chan struct{}),

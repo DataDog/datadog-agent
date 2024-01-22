@@ -26,11 +26,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
-	// Enabled is true if the check is enabled
-	Enabled = true
 	// CheckName is the name of the check
 	CheckName = "kubelet_core"
 )
@@ -100,10 +99,10 @@ func initProviders(filter *containers.Filter, config *common.KubeletConfig, podU
 }
 
 // Factory returns a new KubeletCheck factory
-func Factory(store workloadmeta.Component) func() check.Check {
-	return func() check.Check {
+func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
+	return optional.NewOption(func() check.Check {
 		return NewKubeletCheck(core.NewCheckBase(CheckName), &common.KubeletConfig{}, store)
-	}
+	})
 }
 
 // Configure configures the check

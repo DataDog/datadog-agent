@@ -26,10 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
-
-// Enabled is true if the check is enabled
-const Enabled = true
 
 // CheckName is the name of the check
 const CheckName = "orchestrator_pod"
@@ -51,8 +49,12 @@ type Check struct {
 	config    *oconfig.OrchestratorConfig
 }
 
-// New returns a new Pod.Check
-func New() check.Check {
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
+}
+
+func newCheck() check.Check {
 	return &Check{
 		CheckBase: core.NewCheckBase(CheckName),
 		config:    oconfig.NewDefaultOrchestratorConfig(),

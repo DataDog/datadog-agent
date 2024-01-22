@@ -10,16 +10,15 @@ package sbom
 import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
-	// Enabled is true if the check is enabled
-	Enabled = false
 	// CheckName is the name of the check
 	CheckName = "sbom"
 )
 
 // Factory returns a new check factory
-func Factory(_ workloadmeta.Component) func() check.Check {
-	return nil
+func Factory(_ workloadmeta.Component) optional.Option[func() check.Check] {
+	return optional.NewNoneOption[func() check.Check]()
 }

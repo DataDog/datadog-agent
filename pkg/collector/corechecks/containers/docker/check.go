@@ -34,11 +34,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
-	// Enabled is true if the check is enabled
-	Enabled = true
 	// CheckName is the name of the check
 	CheckName = "docker"
 
@@ -66,14 +65,14 @@ type DockerCheck struct {
 }
 
 // Factory returns a new docker corecheck factory
-func Factory(store workloadmeta.Component) func() check.Check {
-	return func() check.Check {
+func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
+	return optional.NewOption(func() check.Check {
 		return &DockerCheck{
 			CheckBase: core.NewCheckBase(CheckName),
 			instance:  &DockerConfig{},
 			store:     store,
 		}
-	}
+	})
 }
 
 // Configure parses the check configuration and init the check
