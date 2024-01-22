@@ -117,7 +117,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				framer := newFramer()
 				return framer.
 					writeMultiMessage(t, settingsFramesCount, framer.writeSettings).
-					writeHeaders(t, getStreamID(1), testHeaders(), false, false).
+					writeHeaders(t, getStreamID(1), testHeaders()).
 					writeData(t, getStreamID(1), true, []byte{}).
 					Bytes()
 			},
@@ -137,7 +137,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				framer := newFramer()
 				return framer.
 					writeMultiMessage(t, settingsFramesCount, framer.writeSettings).
-					writeHeaders(t, getStreamID(1), testHeaders(), false, false).
+					writeHeaders(t, getStreamID(1), testHeaders()).
 					writeData(t, getStreamID(1), true, []byte{}).
 					Bytes()
 			},
@@ -160,7 +160,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				framer := newFramer()
 				return framer.
 					writeMultiMessage(t, settingsFramesCount, framer.writeSettings).
-					writeHeaders(t, getStreamID(1), testHeaders(), false, false).
+					writeHeaders(t, getStreamID(1), testHeaders()).
 					writeData(t, getStreamID(1), true, []byte{}).
 					Bytes()
 			},
@@ -176,7 +176,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, testHeaders(), false, false).
+						writeHeaders(t, streamID, testHeaders()).
 						writeData(t, streamID, true, []byte{})
 				}
 				return framer.Bytes()
@@ -200,7 +200,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, headersWithoutIndexingPath(), false, setDynamicTableSize).
+						writeHeaders(t, streamID, headersWithoutIndexingPath(), setDynamicTableSize).
 						writeData(t, streamID, true, []byte{})
 				}
 				return framer.Bytes()
@@ -223,7 +223,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, headersWithNeverIndexedPath(), false, false).
+						writeHeaders(t, streamID, headersWithNeverIndexedPath()).
 						writeData(t, streamID, true, []byte{})
 				}
 				return framer.Bytes()
@@ -254,7 +254,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, testHeaders(), false, false).
+						writeHeaders(t, streamID, testHeaders()).
 						writeData(t, streamID, true, []byte{})
 				}
 				return framer.Bytes()
@@ -276,7 +276,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, testHeaders(), false, false).
+						writeHeaders(t, streamID, testHeaders()).
 						writePing(t).
 						writeWindowUpdate(t, streamID, 1).
 						writeData(t, streamID, true, []byte{})
@@ -303,7 +303,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, testHeaders(), false, false).
+						writeHeaders(t, streamID, testHeaders(), false).
 						writeData(t, streamID, true, []byte{})
 					if rstFramesCount > 0 {
 						framer.writeRSTStream(t, streamID, http2.ErrCodeCancel)
@@ -329,7 +329,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, testHeaders(), false, false).
+						writeHeaders(t, streamID, testHeaders(), false).
 						writeData(t, streamID, true, []byte{}).writeRSTStream(t, streamID, http2.ErrCodeNo)
 				}
 				return framer.Bytes()
@@ -562,14 +562,18 @@ func (f *framer) writeWindowUpdate(t *testing.T, streamID uint32, increment uint
 	return f
 }
 
-func (f *framer) writeHeaders(t *testing.T, streamID uint32, headerFields []hpack.HeaderField, endStream, setDynamicTableSize bool) *framer {
-	headersFrame, err := usmhttp2.NewHeadersFrameMessage(headerFields, setDynamicTableSize)
+func (f *framer) writeHeaders(t *testing.T, streamID uint32, headerFields []hpack.HeaderField, setDynamicTableSize ...bool) *framer {
+	changeDynamicTableSize := false
+	if len(setDynamicTableSize) > 0 && setDynamicTableSize[0] {
+		changeDynamicTableSize = true
+	}
+	headersFrame, err := usmhttp2.NewHeadersFrameMessage(headerFields, changeDynamicTableSize)
 	require.NoError(t, err, "could not create headers frame")
 
 	require.NoError(t, f.framer.WriteHeaders(http2.HeadersFrameParam{
 		StreamID:      streamID,
 		BlockFragment: headersFrame,
-		EndStream:     endStream,
+		EndStream:     false,
 		EndHeaders:    true,
 	}), "could not write header frames")
 	return f
