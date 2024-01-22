@@ -62,11 +62,8 @@ type LeaderEngine struct {
 	coordClient         coordinationv1.CoordinationV1Interface
 	ServiceName         string
 	leaderIdentityMutex sync.RWMutex
-	// leaderIPMutex is used to avoid concurrent calls to GetLeaderIP
-	// that would result in multiple calls to the API server
-	leaderIPMutex sync.Mutex
-	leaderElector *leaderelection.LeaderElector
-	lockType      string
+	leaderElector       *leaderelection.LeaderElector
+	lockType            string
 
 	// leaderIdentity is the HolderIdentity of the current leader.
 	leaderIdentity string
@@ -249,8 +246,6 @@ func (le *LeaderEngine) GetLeader() string {
 // identity is its pod name. Returns empty if we are the leader.
 // The result is cached and will not return an error if the leader does not exist anymore.
 func (le *LeaderEngine) GetLeaderIP() (string, error) {
-	le.leaderIPMutex.Lock()
-	defer le.leaderIPMutex.Unlock()
 	leaderName := le.GetLeader()
 	if leaderName == "" || leaderName == le.HolderIdentity {
 		return "", nil
