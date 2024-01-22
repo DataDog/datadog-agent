@@ -6,7 +6,7 @@ go 1.21
 replace github.com/DataDog/datadog-agent/pkg/proto => ../../pkg/proto
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.100
+	github.com/DataDog/agent-payload/v5 v5.0.102
 	github.com/DataDog/datadog-agent/pkg/proto v0.50.2
 	github.com/benbjohnson/clock v1.3.5
 	github.com/cenkalti/backoff v2.2.1+incompatible
