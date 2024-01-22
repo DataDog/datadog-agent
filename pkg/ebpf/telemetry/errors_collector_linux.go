@@ -22,7 +22,6 @@ type EbpfErrorsCollector struct {
 // NewEbpfErrorsCollector initializes a new Collector object for ebpf helper and map operations errors
 func NewEbpfErrorsCollector() prometheus.Collector {
 	if supported, _ := ebpfTelemetrySupported(); !supported {
-		log.Debug("ebpf errors collector not supported")
 		return nil
 	}
 	return &EbpfErrorsCollector{
