@@ -293,9 +293,6 @@ func startSystemProbe(cliParams *cliParams, log log.Component, statsd compstatsd
 		if cfg.TelemetryEnabled {
 			http.Handle("/telemetry", telemetry.Handler())
 			telemetry.RegisterCollector(ebpftelemetry.NewDebugFsStatCollector())
-			if eec := ebpftelemetry.NewEbpfErrorsCollector(); eec != nil {
-				telemetry.RegisterCollector(eec)
-			}
 			if pc := ebpf.NewPerfUsageCollector(); pc != nil {
 				telemetry.RegisterCollector(pc)
 			}
