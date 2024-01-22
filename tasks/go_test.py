@@ -144,10 +144,10 @@ def test_flavor(
             # Removing the coverage script.
             os.remove(cov_test_path)
             # Merging the unit tests reruns coverage files, keeping only the merged file.
-            ctx.run(f"gocovmerge {TMP_PROFILE_COV_PREFIX}.* > {PROFILE_COV}")
-            for f in os.listdir('.'):
-                if f.startswith(f"{TMP_PROFILE_COV_PREFIX}."):
-                    os.remove(f)
+            files_to_delete = [f for f in os.listdir(os.getcwd()) if f.startswith(f"{TMP_PROFILE_COV_PREFIX}.")]
+            ctx.run(f"gocovmerge {' '.join(files_to_delete)} > {PROFILE_COV}")
+            for f in files_to_delete:
+                os.remove(f)
 
         module_result.result_json_path = os.path.join(module.full_path(), GO_TEST_RESULT_TMP_JSON)
 
