@@ -8,7 +8,6 @@ package procutil
 
 import (
 	"bytes"
-	"fmt"
 	"regexp"
 	"strings"
 
@@ -171,8 +170,6 @@ func (ds *DataScrubber) IncrementCacheAge() {
 // ScrubCommand hides the argument value for any key which matches a "sensitive word" pattern.
 // It returns the updated cmdline, as well as a boolean representing whether it was scrubbed
 func (ds *DataScrubber) ScrubCommand(cmdline []string) ([]string, bool) {
-	fmt.Printf("here %v\n", cmdline)
-
 	newCmdline := cmdline
 	rawCmdline := strings.Join(cmdline, " ")
 	lowerCaseCmdline := strings.ToLower(rawCmdline)
@@ -182,8 +179,6 @@ func (ds *DataScrubber) ScrubCommand(cmdline []string) ([]string, bool) {
 		if !strings.Contains(lowerCaseCmdline, pattern.FastCheck) {
 			continue
 		}
-
-		fmt.Printf("checking %v", pattern.Re.String())
 		if pattern.Re.MatchString(rawCmdline) {
 			changed = true
 			rawCmdline = pattern.Re.ReplaceAllString(rawCmdline, "${key}${delimiter}********")
