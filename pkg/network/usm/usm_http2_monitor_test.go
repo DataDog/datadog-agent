@@ -154,14 +154,19 @@ func (s *usmHTTP2Suite) TestHTTP2DynamicTableCleanup() {
 	}, cfg.HTTP2DynamicTableMapCleanerInterval*4, time.Millisecond*100)
 }
 
-func (s *USMHTTP2Suite) TestSimpleHTTP2() {
+func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 	t := s.T()
-	cfg := config.New()
-	cfg.EnableHTTP2Monitoring = true
+	cfg := s.getCfg()
 
-	cleanup, err := startH2CServer(localHostAddress, false)
+	// Start local server
+	cleanup, err := startH2CServer(authority, s.isTLS)
 	require.NoError(t, err)
 	t.Cleanup(cleanup)
+
+	// Start the proxy server.
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	t.Cleanup(cancel)
+	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
 	tests := []struct {
 		name              string
@@ -171,7 +176,7 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 		{
 			name: " / path",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients := getClientsArray(t, clientsCount)
+				clients := getHTTP2UnixClientArray(clientsCount, unixPath)
 
 				for i := 0; i < 1000; i++ {
 					client := clients[getClientsIndex(i, clientsCount)]
@@ -193,7 +198,7 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 		{
 			name: " /index.html path",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients := getClientsArray(t, clientsCount)
+				clients := getHTTP2UnixClientArray(clientsCount, unixPath)
 
 				for i := 0; i < 1000; i++ {
 					client := clients[getClientsIndex(i, clientsCount)]
@@ -215,7 +220,7 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 		{
 			name: "path with repeated string",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients := getClientsArray(t, clientsCount)
+				clients := getHTTP2UnixClientArray(clientsCount, unixPath)
 
 				for i := 1; i < 100; i++ {
 					path := strings.Repeat("a", i)
@@ -232,22 +237,15 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 		for _, clientCount := range []int{1, 2, 5} {
 			testNameSuffix := fmt.Sprintf("-different clients - %v", clientCount)
 			t.Run(tt.name+testNameSuffix, func(t *testing.T) {
-				monitor, err := NewMonitor(cfg, nil, nil, nil)
-				require.NoError(t, err)
-				require.NoError(t, monitor.Start())
-				defer monitor.Stop()
-
+				monitor := setupUSMTLSMonitor(t, cfg)
+				if s.isTLS {
+					utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+				}
 				tt.runClients(t, clientCount)
 
 				res := make(map[http.Key]int)
 				assert.Eventually(t, func() bool {
-					stats := monitor.GetProtocolStats()
-					http2Stats, ok := stats[protocols.HTTP2]
-					if !ok {
-						return false
-					}
-					http2StatsTyped := http2Stats.(map[http.Key]*http.RequestStats)
-					for key, stat := range http2StatsTyped {
+					for key, stat := range getHTTPLikeProtocolStats(monitor, protocols.HTTP2) {
 						if key.DstPort == http2SrvPort || key.SrcPort == http2SrvPort {
 							count := stat.Data[200].Count
 							newKey := http.Key{
