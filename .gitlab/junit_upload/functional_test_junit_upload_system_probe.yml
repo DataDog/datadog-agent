@@ -57,14 +57,14 @@ functional_test_junit_upload_system_probe_kmt_arm64:
 
 functional_test_junit_upload_security_agent_kmt_x64:
   extends:
-    - .functional_test_junit_upload_security_agent_kmt
+    - .functional_test_junit_upload_kmt
   needs:
     - job: kernel_matrix_testing_run_security_agent_tests_x64
       optional: true
 
 functional_test_junit_upload_security_agent_kmt_arm64:
   extends:
-    - .functional_test_junit_upload_security_agent_kmt
+    - .functional_test_junit_upload_kmt
   needs:
     - job: kernel_matrix_testing_run_security_agent_tests_arm64
       optional: true
