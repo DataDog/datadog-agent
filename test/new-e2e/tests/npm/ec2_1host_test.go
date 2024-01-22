@@ -34,7 +34,7 @@ func TestEC2VMSuite(t *testing.T) {
 	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPM))))}
 	// debug helper
 	if _, devmode := os.LookupEnv("TESTS_E2E_DEVMODE"); devmode {
-		e2eParams = []e2e.SuiteOption{e2e.WithDevMode()}
+		e2eParams = append(e2eParams, e2e.WithDevMode())
 	}
 
 	// Source of our kitchen CI images test/kitchen/platforms.json
