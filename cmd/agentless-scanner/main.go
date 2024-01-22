@@ -1484,7 +1484,7 @@ func (s *sideScanner) cleanSlate() error {
 		for _, volumeID := range attachedVolumes {
 			volumeARN := ec2ARN(self.Region, self.AccountID, resourceTypeVolume, volumeID)
 			if errd := cleanupScanDetach(ctx, nil, volumeARN, getDefaultRolesMapping()); err != nil {
-				log.Warn("clean slate: %v", errd)
+				log.Warnf("clean slate: %v", errd)
 			}
 		}
 	}
@@ -3168,7 +3168,7 @@ func cleanupScanDetach(ctx context.Context, maybeScan *scanTask, volumeARN arn.A
 		}
 	}
 	if errd != nil {
-		fmt.Errorf("%s: could not delete volume %q: %v", maybeScan, volumeID, errd)
+		return fmt.Errorf("could not delete volume %q: %v", volumeID, errd)
 	}
 	return nil
 }
