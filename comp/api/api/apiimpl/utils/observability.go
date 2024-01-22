@@ -19,7 +19,7 @@ import (
 
 type logFunc func(format string, args ...interface{})
 
-const logFormat = "%s: %s %s from %s took %s and returned http code %d"
+const logFormat = "%s: %s %s from %s to %s took %s and returned http code %d"
 
 func getLogFunc(code int) logFunc {
 	if code >= 100 && code < 400 {
@@ -56,7 +56,7 @@ func logResponseHandler(serverName string, getLogFunc func(int) logFunc) mux.Mid
 			} else {
 				path = "<invalid url>" // redacted in case it contained sensitive information
 			}
-			logFunc(logFormat, serverName, r.Method, path, r.RemoteAddr, duration, code)
+			logFunc(logFormat, serverName, r.Method, path, r.RemoteAddr, r.Host, duration, code)
 		})
 	}
 }
