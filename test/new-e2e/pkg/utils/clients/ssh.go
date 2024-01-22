@@ -253,9 +253,9 @@ func WriteFile(client *ssh.Client, path string, content []byte) (int64, error) {
 func AppendFile(client *ssh.Client, os, path string, content []byte) (int64, error) {
 	if os == "linux" {
 		return appendWithSudo(client, path, content)
-	} else {
-		return appendWithSftp(client, path, content)
 	}
+	return appendWithSftp(client, path, content)
+
 }
 
 // appendWithSudo appends content to the file using sudo tee for Linux environment
