@@ -258,7 +258,7 @@ namespace Datadog.CustomActions
             if (_previousDdAgentUserSID != null)
             {
                 _session.Log($"Previous agent user: {_previousDdAgentUserSID}");
-                // If the previous agent user is the same as the new agentUser, then we are upgrading and the user has already
+                // If the previous agent user is the same as the new agentUser, then we are upgrading/changing/repairing and the user has already
                 // opted in to allow it to be the same as the current user.
                 if (_previousDdAgentUserSID.Equals(agentUser))
                 {
