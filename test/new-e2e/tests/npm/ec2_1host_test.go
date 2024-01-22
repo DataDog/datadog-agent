@@ -30,7 +30,6 @@ type ec2VMSuite struct {
 
 // TestEC2VMSuite will validate running the agent on a single EC2 VM
 func TestEC2VMSuite(t *testing.T) {
-	t.Skip("Skipping TestEC2VMSuite as it's flaky")
 	s := &ec2VMSuite{}
 	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPM))))}
 	// debug helper
