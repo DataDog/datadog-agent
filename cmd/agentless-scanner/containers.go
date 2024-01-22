@@ -45,7 +45,7 @@ func launchScannerContainers(_ context.Context, opts scannerOptions) ([]*contain
 	ctrdRootInfo, err := os.Stat(ctrdRoot)
 	if err == nil && ctrdRootInfo.IsDir() {
 		log.Debugf("%s: starting scanning for containerd containers", opts.Scan)
-		ctrdContainers, err := ctrdReadMetadata(ctrdRoot)
+		ctrdContainers, err := ctrdReadMetadata(opts.Scan, ctrdRoot)
 		if err != nil {
 			return nil, err
 		}
@@ -91,7 +91,7 @@ func launchScannerContainers(_ context.Context, opts scannerOptions) ([]*contain
 			ctrMountName := dockerMountPrefix + ctr.ID
 			ctrLayers, err := dockerLayersPaths(dockerRoot, ctr)
 			if err != nil {
-				log.Errorf("could not get container layers %s: %v", ctr, err)
+				log.Errorf("%s: could not get container layers %s: %v", opts.Scan, ctr, err)
 				continue
 			}
 			containers = append(containers, &container{
@@ -146,7 +146,7 @@ func mountContainer(ctx context.Context, scan *scanTask, ctr container) (string,
 		"--source", "overlay",
 		"--target", ctrMountPoint,
 	}
-	log.Debugf("execing mount %s", ctrMountOpts)
+	log.Debugf("%s: execing mount %s", scan, ctrMountOpts)
 	mountOutput, err := exec.CommandContext(ctx, "mount", ctrMountOpts...).CombinedOutput()
 	if err != nil {
 		err = fmt.Errorf("could not mount into target=%q options=%q output=%q: %w", ctrMountPoint, ctrMountOpts, string(mountOutput), err)
@@ -261,7 +261,7 @@ type ctrdSnapshot struct {
 	UpdatedAt time.Time
 }
 
-func ctrdReadMetadata(ctrdRoot string) ([]ctrdContainer, error) {
+func ctrdReadMetadata(scan *scanTask, ctrdRoot string) ([]ctrdContainer, error) {
 	metadbPath := filepath.Join(ctrdRoot, "io.containerd.metadata.v1.bolt", "meta.db")
 	metadbInfo, err := os.Stat(metadbPath)
 	if err != nil || metadbInfo.Size() == 0 {
@@ -507,7 +507,7 @@ func ctrdReadMetadata(ctrdRoot string) ([]ctrdContainer, error) {
 					container.Snapshot = &snapshot
 					containers = append(containers, container)
 				default:
-					log.Warnf("containerd: unsupported snapshotter %q for container %s", container.Snapshotter, container)
+					log.Warnf("%s: containerd: unsupported snapshotter %q for container %s", scan, container.Snapshotter, container)
 				}
 
 				return nil

@@ -147,7 +147,7 @@ func doTrivyScan(ctx context.Context, scan *scanTask, trivyArtifact artifact.Art
 	trivyLocalScanner := local.NewScanner(trivyApplier, trivyOSScanner, trivyLangScanner, trivyVulnClient)
 	trivyScanner := trivyscanner.NewScanner(trivyLocalScanner, trivyArtifact)
 
-	log.Debugf("trivy: starting scan of artifact %s", scan)
+	log.Debugf("%s: trivy: starting scan", scan)
 	trivyReport, err := trivyScanner.ScanArtifact(ctx, types.ScanOptions{
 		VulnType:            []string{},
 		Scanners:            types.Scanners{types.VulnerabilityScanner},
@@ -157,7 +157,7 @@ func doTrivyScan(ctx context.Context, scan *scanTask, trivyArtifact artifact.Art
 	if err != nil {
 		return nil, fmt.Errorf("trivy scan failed: %w", err)
 	}
-	log.Debugf("trivy: scan of artifact %s finished successfully", scan)
+	log.Debugf("%s: trivy: scan of artifact finished successfully", scan)
 	marshaler := cyclonedx.NewMarshaler("")
 	cyclonedxBOM, err := marshaler.Marshal(trivyReport)
 	if err != nil {
