@@ -205,9 +205,7 @@ func TestRaceFlushVersusParsePacket(t *testing.T) {
 
 	demux := aggregator.InitAndStartServerlessDemultiplexer(nil, time.Second*1000)
 
-	provides := dogstatsdServer.NewServerlessServer()
-	s := provides.Comp
-
+	s := dogstatsdServer.NewServerlessServer()
 	err = s.Start(demux)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()

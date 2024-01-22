@@ -129,6 +129,10 @@ Package serverdebug implements a component to run the dogstatsd server debug
 
 Package statsd implements a component to get a statsd client.
 
+### [comp/dogstatsd/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dogstatsd/status)
+
+Package status implements the core status component information provider interface
+
 ## [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw) (Component Bundle)
 
 *Datadog Team*: windows-agent

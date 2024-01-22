@@ -57,8 +57,8 @@ func (m *MetricConfig) GetMultipleEndpoints() (map[string][]string, error) {
 
 // NewServer returns a running DogStatsD server
 func (m *MetricDogStatsD) NewServer(demux aggregator.Demultiplexer) (dogstatsdServer.Component, error) {
-	provides := dogstatsdServer.NewServerlessServer()
-	return provides.Comp, provides.Comp.Start(demux)
+	s := dogstatsdServer.NewServerlessServer()
+	return s, s.Start(demux)
 }
 
 // Start starts the DogStatsD agent
