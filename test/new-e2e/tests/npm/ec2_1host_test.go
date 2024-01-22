@@ -106,7 +106,10 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
 		v.Env().RemoteHost.MustExecute("dig @8.8.8.8 www.google.ch")
 
 		cnx, err := v.Env().FakeIntake.Client().GetConnections()
-		require.NoError(c, err)
+		assert.NoError(c, err, "GetConnections() errors")
+		if !assert.NotZero(c, len(cnx.GetNames()), "no connections yet") {
+			return
+		}
 
 		foundDNS := false
 		cnx.ForeachConnection(func(c *agentmodel.Connection, cc *agentmodel.CollectorConnections, hostname string) {
