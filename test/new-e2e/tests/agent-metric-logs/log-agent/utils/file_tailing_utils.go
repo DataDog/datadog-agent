@@ -37,7 +37,7 @@ func AppendLog(ls LogsTestSuite, content string, recurrence int) {
 	t.Helper()
 
 	var osStr string
-	var logPath, cmd, checkCmd string
+	var logPath, checkCmd string
 
 	logContent := strings.Repeat(content+"\n", recurrence)
 
@@ -53,7 +53,7 @@ func AppendLog(ls LogsTestSuite, content string, recurrence int) {
 		checkCmd = fmt.Sprintf("type %s", logPath)
 		assert.EventuallyWithT(t, func(c *assert.CollectT) {
 			// AppendFile instead of echo since echo introduce encoding into the file.
-			bytes, err := ls.Env().RemoteHost.AppendFile(logPath, []byte(logContent))
+			bytes, err := ls.Env().RemoteHost.AppendFile(osStr, logPath, []byte(logContent))
 			if assert.NoErrorf(c, err, "Error writing log: %v", err) {
 				t.Logf("Writing %d bytes to %s", bytes, logPath)
 			}
@@ -63,14 +63,13 @@ func AppendLog(ls LogsTestSuite, content string, recurrence int) {
 		osStr = "linux"
 		t.Log("Generating Linux log.")
 		logPath = "/var/log/hello-world.log"
-		cmd = fmt.Sprintf("echo '%s' | sudo tee -a %s", logContent, logPath)
-		checkCmd = fmt.Sprintf("sudo cat %s", logPath)
 		assert.EventuallyWithT(t, func(c *assert.CollectT) {
-			_, err := ls.Env().RemoteHost.Execute(cmd)
-			if assert.NoErrorf(c, err, "Having issue generating Linux log with error: %s", err) {
-				t.Logf("Writing %s to %s", logContent, logPath)
+			bytes, err := ls.Env().RemoteHost.AppendFile(osStr, logPath, []byte(logContent))
+			if assert.NoErrorf(c, err, "Error writing log: %v", err) {
+				t.Logf("Writing %d bytes to %s", bytes, logPath)
 			}
 		}, 1*time.Minute, 5*time.Second)
+		checkCmd = fmt.Sprintf("sudo cat %s", logPath)
 	}
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -106,36 +105,55 @@ func CheckLogFilePresence(ls LogsTestSuite, logPath string) {
 	}
 }
 
-// CheckLogs verifies the presence or absence of logs in the intake based on the expectLogs flag.
-func CheckLogs(ls LogsTestSuite, service, content string, expectLogs bool) {
+// FetchAndFilterLogs fetches and filters logs based on the service.
+func FetchAndFilterLogs(ls LogsTestSuite, service, content string) ([]*aggregator.Log, error) {
 	client := ls.Env().FakeIntake.Client()
 	t := ls.T()
 	t.Helper()
 
+	names, err := client.GetLogServiceNames()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(names) == 0 {
+		return nil, fmt.Errorf("no service %s found", service)
+	}
+
+	logs, err := client.FilterLogs(service, fi.WithMessageMatching(content))
+	if err != nil {
+		return nil, err
+	}
+	return logs, nil
+}
+
+// CheckLogsExpected verifies the presence of expected logs.
+func CheckLogsExpected(ls LogsTestSuite, service, content string) {
+	t := ls.T()
+	t.Helper()
+
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		names, err := client.GetLogServiceNames()
-		if !assert.NoErrorf(c, err, "Error found: %s", err) {
-			return
+		logs, err := FetchAndFilterLogs(ls, service, content)
+		if assert.NoErrorf(c, err, "Error fetching logs: %s", err) {
+			intakeLog := logsToString(logs)
+			if assert.NotEmpty(c, logs, "Expected logs with content: '%s' not found. Instead, found: %s", content, intakeLog) {
+				t.Logf("Logs from service: '%s' with content: '%s' collected", service, content)
+			}
 		}
-		if assert.NotEmptyf(c, names, "No service %s found", names) {
-			logs, err := client.FilterLogs(service)
-			if !assert.NoErrorf(c, err, "Error found: %s", err) {
-				return
-			}
-			if !assert.NotEmpty(c, logs, "No logs with service matching '%s' found, instead got '%s'", service, names) {
-				return
-			}
-			logs, err = ls.Env().FakeIntake.Client().FilterLogs(service, fi.WithMessageMatching(content))
-			intakeLogs := logsToString(logs)
-			assert.NoErrorf(c, err, "Error found: %s", err)
-			if expectLogs {
-				if assert.NotEmpty(c, logs, "Expected at least 1 log with content: '%s', from service: %s but received %s logs.", content, names, intakeLogs) {
-					t.Logf("Logs from service: '%s' with content: '%s' collected", names, content)
-				}
-			} else {
-				if assert.Empty(c, logs, "No logs with content: '%s' is expected to be found from service: %s instead found: %s", content, names, intakeLogs) {
-					t.Logf("No logs from service: '%s' with content: '%s' collected as expected", names, content)
-				}
+	}, 2*time.Minute, 10*time.Second)
+}
+
+// CheckLogsNotExpected verifies the absence of unexpected logs.
+func CheckLogsNotExpected(ls LogsTestSuite, service, content string) {
+	t := ls.T()
+	t.Helper()
+
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		logs, err := FetchAndFilterLogs(ls, service, content)
+		intakeLog := logsToString(logs)
+		if assert.NoErrorf(c, err, "Error fetching logs: %s", err) {
+			if assert.Empty(c, logs, "Unexpected logs with content: '%s' found. Instead, found: %s", content, intakeLog) {
+				t.Logf("No logs from service: '%s' with content: '%s' collected as expected", service, content)
 			}
 		}
 	}, 2*time.Minute, 10*time.Second)

@@ -76,26 +76,26 @@ func (s *LinuxFakeintakeSuite) TestLinuxLogTailing() {
 	// Given the agent configured to collect logs from a log file.
 	// When new log line is generated inside the log file.
 	// Then the agent collects the log line and forward it to the intake.
-	s.Run("LogCollection", s.LogCollection)
+	s.Run("LogCollection", s.testLogCollection)
 	// Given the agent configured to collect logs from a log file that has no read permissions,
 	// When new log line is generated inside the log file.
 	// Then the agent fail to collects the log line.
-	s.Run("LogCollectionNoPermission", s.LogNoPermission)
+	s.Run("LogCollectionNoPermission", s.testLogNoPermission)
 	// Given the agent configured to collect logs from a log file with reading permissions,
 	// When new log line is generated inside the log file.
 	// Then the agent collects the log line and forward it to the intake.
-	s.Run("LogCollectionAfterPermission", s.LogCollectionAfterPermission)
+	s.Run("LogCollectionAfterPermission", s.testLogCollectionAfterPermission)
 	// Given the agent configured to collect logs from a log file without reading permissions and new log line actively generating,
 	// When read permission is granted
 	// Then the agent collects the log line and forward it to the intake.
-	s.Run("LogCollectionBeforePermission", s.LogCollectionBeforePermission)
+	s.Run("LogCollectionBeforePermission", s.testLogCollectionBeforePermission)
 	// Given the agent configured to collect logs from a specific log file
 	// When the log file is rotated
 	// Then the agent successfully collects the log line
-	s.Run("LogRecreateRotation", s.LogRecreateRotation)
+	s.Run("LogRecreateRotation", s.testLogRecreateRotation)
 }
 
-func (s *LinuxFakeintakeSuite) LogCollection() {
+func (s *LinuxFakeintakeSuite) testLogCollection() {
 	t := s.T()
 	// Create a new log file with permissionn inaccessible to the agent
 	s.Env().RemoteHost.MustExecute("sudo touch /var/log/hello-world.log")
@@ -111,10 +111,10 @@ func (s *LinuxFakeintakeSuite) LogCollection() {
 	utils.AppendLog(s, "hello-world", 1)
 
 	// Check intake for new logs
-	utils.CheckLogs(s, "hello", "hello-world", true)
+	utils.CheckLogsExpected(s, "hello", "hello-world")
 }
 
-func (s *LinuxFakeintakeSuite) LogNoPermission() {
+func (s *LinuxFakeintakeSuite) testLogNoPermission() {
 	t := s.T()
 	utils.CheckLogFilePresence(s, logPath)
 
@@ -135,12 +135,12 @@ func (s *LinuxFakeintakeSuite) LogNoPermission() {
 			// Generate log
 			utils.AppendLog(s, "access-denied", 1)
 			// Check intake for new logs
-			utils.CheckLogs(s, "hello", "access-denied", false)
+			utils.CheckLogsNotExpected(s, "hello", "access-denied")
 		}
 	}, 2*time.Minute, 5*time.Second)
 }
 
-func (s *LinuxFakeintakeSuite) LogCollectionAfterPermission() {
+func (s *LinuxFakeintakeSuite) testLogCollectionAfterPermission() {
 	t := s.T()
 	utils.CheckLogFilePresence(s, logPath)
 
@@ -154,10 +154,10 @@ func (s *LinuxFakeintakeSuite) LogCollectionAfterPermission() {
 	t.Logf("Permissions granted for log file.")
 
 	// Check intake for new logs
-	utils.CheckLogs(s, "hello", "hello-after-permission-world", true)
+	utils.CheckLogsExpected(s, "hello", "hello-after-permission-world")
 }
 
-func (s *LinuxFakeintakeSuite) LogCollectionBeforePermission() {
+func (s *LinuxFakeintakeSuite) testLogCollectionBeforePermission() {
 	t := s.T()
 	utils.CheckLogFilePresence(s, logPath)
 
@@ -178,10 +178,10 @@ func (s *LinuxFakeintakeSuite) LogCollectionBeforePermission() {
 	utils.AppendLog(s, "access-granted", 1)
 
 	// Check intake for new logs
-	utils.CheckLogs(s, "hello", "access-granted", true)
+	utils.CheckLogsExpected(s, "hello", "access-granted")
 }
 
-func (s *LinuxFakeintakeSuite) LogRecreateRotation() {
+func (s *LinuxFakeintakeSuite) testLogRecreateRotation() {
 	t := s.T()
 	utils.CheckLogFilePresence(s, logPath)
 
@@ -202,5 +202,5 @@ func (s *LinuxFakeintakeSuite) LogRecreateRotation() {
 	utils.AppendLog(s, "hello-world-new-content", 1)
 
 	// Check intake for new logs
-	utils.CheckLogs(s, "hello", "hello-world-new-content", true)
+	utils.CheckLogsExpected(s, "hello", "hello-world-new-content")
 }
