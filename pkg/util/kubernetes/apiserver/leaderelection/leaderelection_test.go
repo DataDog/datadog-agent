@@ -24,6 +24,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
+
+	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
 func makeLeaderLease(name, namespace, leaderIdentity string, leaseDuration int) *coordinationv1.Lease {
@@ -307,7 +310,7 @@ func TestGetLeaderIPFollower_ConfigMap(t *testing.T) {
 			},
 		},
 	}
-	_, err = client.CoreV1().Endpoints("default").Create(context.TODO(), endpoints, metav1.CreateOptions{})
+	storedEndpoints, err := client.CoreV1().Endpoints("default").Create(context.TODO(), endpoints, metav1.CreateOptions{})
 	require.NoError(t, err)
 
 	// Run leader election
@@ -324,6 +327,17 @@ func TestGetLeaderIPFollower_ConfigMap(t *testing.T) {
 	ip, err := le.GetLeaderIP()
 	assert.NoError(t, err)
 	assert.Equal(t, "1.1.1.2", ip)
+
+	// Remove bar from endpoints and clear cache
+	cache.Cache.Delete("ip://bar")
+	storedEndpoints.Subsets[0].Addresses = storedEndpoints.Subsets[0].Addresses[0:1]
+	_, err = client.CoreV1().Endpoints("default").Update(context.TODO(), storedEndpoints, metav1.UpdateOptions{})
+	require.NoError(t, err)
+
+	// GetLeaderIP will "gracefully" error out
+	ip, err = le.GetLeaderIP()
+	assert.Equal(t, "", ip)
+	assert.True(t, dderrors.IsNotFound(err))
 }
 
 func TestGetLeaderIPFollower_Lease(t *testing.T) {
@@ -379,7 +393,7 @@ func TestGetLeaderIPFollower_Lease(t *testing.T) {
 			},
 		},
 	}
-	_, err = client.CoreV1().Endpoints("default").Create(context.TODO(), endpoints, metav1.CreateOptions{})
+	storedEndpoints, err := client.CoreV1().Endpoints("default").Create(context.TODO(), endpoints, metav1.CreateOptions{})
 	require.NoError(t, err)
 
 	// Run leader election
@@ -397,15 +411,42 @@ func TestGetLeaderIPFollower_Lease(t *testing.T) {
 	ip, err := le.GetLeaderIP()
 	assert.NoError(t, err)
 	assert.Equal(t, "1.1.1.2", ip)
+
+	// Remove bar from endpoints and clear the cache
+	cache.Cache.Delete("ip://bar")
+	storedEndpoints.Subsets[0].Addresses = storedEndpoints.Subsets[0].Addresses[0:1]
+	_, err = client.CoreV1().Endpoints("default").Update(context.TODO(), storedEndpoints, metav1.UpdateOptions{})
+	require.NoError(t, err)
+
+	// GetLeaderIP will "gracefully" error out
+	ip, err = le.GetLeaderIP()
+	assert.Equal(t, "", ip)
+	assert.True(t, dderrors.IsNotFound(err))
 }
 
 type dummyGauge struct{}
 
-func (g *dummyGauge) Set(float64, ...string)                                    {}
-func (g *dummyGauge) Inc(...string)                                             {}
-func (g *dummyGauge) Dec(...string)                                             {}
-func (g *dummyGauge) Add(float64, ...string)                                    {}
-func (g *dummyGauge) Sub(float64, ...string)                                    {}
-func (g *dummyGauge) Delete(...string)                                          {}
-func (g *dummyGauge) WithValues(...string) telemetryComponent.SimpleGauge       { return nil }
-func (g *dummyGauge) WithTags(map[string]string) telemetryComponent.SimpleGauge { return nil }
+// Set does nothing
+
+func (g *dummyGauge) Set(_ float64, _ ...string) {}
+
+// Inc does nothing
+func (g *dummyGauge) Inc(_ ...string) {}
+
+// Dec does nothing
+func (g *dummyGauge) Dec(_ ...string) {}
+
+// Add does nothing
+func (g *dummyGauge) Add(_ float64, _ ...string) {}
+
+// Sub does nothing
+func (g *dummyGauge) Sub(_ float64, _ ...string) {}
+
+// Delete does nothing
+func (g *dummyGauge) Delete(_ ...string) {}
+
+// WithValues does nothing
+func (g *dummyGauge) WithValues(_ ...string) telemetryComponent.SimpleGauge { return nil }
+
+// WithTags does nothing
+func (g *dummyGauge) WithTags(_ map[string]string) telemetryComponent.SimpleGauge { return nil }

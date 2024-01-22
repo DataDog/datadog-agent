@@ -264,7 +264,7 @@ func (le *LeaderEngine) GetLeaderIP() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	cache.Cache.Set(cacheKey, target.IP, 1*time.Hour)
+	cache.Cache.Set(cacheKey, target.IP, 5*time.Minute)
 
 	return target.IP, nil
 }
