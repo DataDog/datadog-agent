@@ -57,7 +57,7 @@ func launchScannerContainers(_ context.Context, opts scannerOptions) ([]*contain
 
 			log.Debugf("%s: container %s", opts.Scan, ctr)
 			if ctr.Snapshot == nil {
-				log.Warnf("%s: container %s is active but without an associated snapshot", opts.Scan, ctr)
+				log.Warnf("%s: containerd: %s is active but without an associated snapshot", opts.Scan, ctr)
 				continue
 			}
 
@@ -77,7 +77,7 @@ func launchScannerContainers(_ context.Context, opts scannerOptions) ([]*contain
 	dockerRootInfo, err := os.Stat(dockerRoot)
 	if err == nil && dockerRootInfo.IsDir() {
 		log.Debugf("%s: starting scanning for docker containers", opts.Scan)
-		dockerContainers, err := dockerReadMetadata(dockerRoot)
+		dockerContainers, err := dockerReadMetadata(opts.Scan, dockerRoot)
 		if err != nil {
 			return nil, err
 		}
@@ -91,7 +91,7 @@ func launchScannerContainers(_ context.Context, opts scannerOptions) ([]*contain
 			ctrMountName := dockerMountPrefix + ctr.ID
 			ctrLayers, err := dockerLayersPaths(dockerRoot, ctr)
 			if err != nil {
-				log.Errorf("%s: could not get container layers %s: %v", opts.Scan, ctr, err)
+				log.Errorf("%s: docker: could not get container layers %s: %v", opts.Scan, ctr, err)
 				continue
 			}
 			containers = append(containers, &container{
@@ -663,7 +663,7 @@ func (c dockerContainer) String() string {
 	return path.Join(c.ID, c.Name)
 }
 
-func dockerReadMetadata(dockerRoot string) ([]dockerContainer, error) {
+func dockerReadMetadata(scan *scanTask, dockerRoot string) ([]dockerContainer, error) {
 	const maxFileSize = 2 * 1024 * 1024
 
 	entries, err := os.ReadDir(filepath.Join(dockerRoot, "containers"))
@@ -694,6 +694,11 @@ func dockerReadMetadata(dockerRoot string) ([]dockerContainer, error) {
 			return nil, err
 		}
 
+		if ctr.Driver != "overlay2" {
+			log.Warnf("%s: docker: driver %q not supported for container %s", scan, ctr.Driver, ctr)
+			continue
+		}
+
 		var img dockerImage
 		imagePath := filepath.Join(dockerRoot, "image/overlay2/imagedb/content", ctr.Image.Algorithm().String(), ctr.Image.Encoded())
 		imageData, err := readFileLimit(imagePath, maxFileSize)
@@ -703,12 +708,7 @@ func dockerReadMetadata(dockerRoot string) ([]dockerContainer, error) {
 		if err := json.Unmarshal(imageData, &img); err != nil {
 			return nil, err
 		}
-		ctr.ImageManifest = &img
-		if ctr.Driver == "overlay2" {
-			containers = append(containers, ctr)
-		} else {
-			log.Infof("docker: driver %q not supported for containers %s", ctr.Driver, ctr)
-		}
+		containers = append(containers, ctr)
 	}
 
 	if len(containers) > 0 {
