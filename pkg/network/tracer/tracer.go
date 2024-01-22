@@ -161,7 +161,7 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 	if eec := ebpftelemetry.NewEbpfErrorsCollector(); eec != nil {
 		coretelemetry.GetCompatComponent().RegisterCollector(eec)
 
-		//this is a patch for now, until ebpfTelemetry is fully encapsulated in the ebpf/telemetry pkg a
+		//this is a patch for now, until ebpfTelemetry is fully encapsulated in the ebpf/telemetry pkg
 		if errorsCollector, ok := eec.(*ebpftelemetry.EbpfErrorsCollector); ok {
 			tr.bpfTelemetry = errorsCollector
 		}
