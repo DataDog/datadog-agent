@@ -394,19 +394,24 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 	}
 }
 
-func (s *USMHTTP2Suite) TestHTTP2ManyDifferentPaths() {
+func (s *usmHTTP2Suite) TestHTTP2ManyDifferentPaths() {
 	t := s.T()
-	cfg := config.New()
-	cfg.EnableHTTP2Monitoring = true
+	cfg := s.getCfg()
 
-	cleanup, err := startH2CServer(localHostAddress, false)
+	// Start local server
+	cleanup, err := startH2CServer(authority, s.isTLS)
 	require.NoError(t, err)
 	t.Cleanup(cleanup)
 
-	monitor, err := NewMonitor(cfg, nil, nil, nil)
-	require.NoError(t, err)
-	require.NoError(t, monitor.Start())
-	defer monitor.Stop()
+	// Start the proxy server.
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	t.Cleanup(cancel)
+	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
+
+	monitor := setupUSMTLSMonitor(t, cfg)
+	if s.isTLS {
+		utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+	}
 
 	const (
 		repetitionsPerRequest = 2
@@ -414,7 +419,7 @@ func (s *USMHTTP2Suite) TestHTTP2ManyDifferentPaths() {
 		numberOfRequests         = 1500
 		expectedNumberOfRequests = numberOfRequests * repetitionsPerRequest
 	)
-	clients := getClientsArray(t, 1)
+	clients := getHTTP2UnixClientArray(1, unixPath)
 	for i := 0; i < numberOfRequests; i++ {
 		for j := 0; j < repetitionsPerRequest; j++ {
 			req, err := clients[0].Post(fmt.Sprintf("%s/test-%d", http2SrvAddr, i+1), "application/json", bytes.NewReader([]byte("test")))
@@ -427,13 +432,7 @@ func (s *USMHTTP2Suite) TestHTTP2ManyDifferentPaths() {
 
 	seenRequests := map[string]int{}
 	assert.Eventuallyf(t, func() bool {
-		stats := monitor.GetProtocolStats()
-		http2Stats, ok := stats[protocols.HTTP2]
-		if !ok {
-			return false
-		}
-		http2StatsTyped := http2Stats.(map[http.Key]*http.RequestStats)
-		for key, stat := range http2StatsTyped {
+		for key, stat := range getHTTPLikeProtocolStats(monitor, protocols.HTTP2) {
 			if (key.DstPort == http2SrvPort || key.SrcPort == http2SrvPort) && key.Method == http.MethodPost && strings.HasPrefix(key.Path.Content.Get(), "/test") {
 				if _, ok := seenRequests[key.Path.Content.Get()]; !ok {
 					seenRequests[key.Path.Content.Get()] = 0
