@@ -68,7 +68,7 @@ func TestFlake(t *testing.T) {
 		mt := newMockTesting(t)
 		skipFlake = &falseValue
 		wrapAndRunFlakyTest(mt)
-		assert.Equal(t, mt.logs, []any{[]any{flakyTestMessage}})
+		assert.Equal(t, []any{[]any{flakyTestMessage}}, mt.logs)
 		assert.Greater(t, mt.ErrorCount(), 1)
 		assert.Equal(t, 0, mt.SkipCount())
 	})
