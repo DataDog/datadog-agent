@@ -1457,17 +1457,22 @@ func (s *sideScanner) cleanSlate() error {
 					log.Errorf("clean slate: could not detach nbd device %q: %v", bd.Name, err)
 				}
 			}
-			if strings.HasPrefix(bd.Serial, "vol") {
+			if strings.HasPrefix(bd.Serial, "vol") && len(bd.Children) > 0 {
 				isScan := false
+				noMount := 0
 				// TODO: we could maybe rely on the output of lsblk to do our cleanup instead
 				for _, child := range bd.Children {
-					for _, mountpoint := range child.Mountpoints {
-						if strings.HasPrefix(mountpoint, scansRootDir+"/") {
-							isScan = true
+					if len(child.Mountpoints) == 0 {
+						noMount++
+					} else {
+						for _, mountpoint := range child.Mountpoints {
+							if strings.HasPrefix(mountpoint, scansRootDir+"/") {
+								isScan = true
+							}
 						}
 					}
 				}
-				if isScan {
+				if isScan || len(bd.Children) == noMount {
 					volumeID := "vol-" + strings.TrimPrefix(bd.Serial, "vol")
 					attachedVolumes = append(attachedVolumes, volumeID)
 				}
@@ -2947,6 +2952,18 @@ func listBlockDevices(deviceName ...string) ([]blockDevice, error) {
 	if err := json.Unmarshal(lsblkJSON, &blockDevices); err != nil {
 		return nil, fmt.Errorf("lsblk output parsing error: %v", err)
 	}
+	// lsblk can return [null] as mountpoints list. We need to clean this up.
+	for _, bd := range blockDevices.BlockDevices {
+		for _, child := range bd.Children {
+			mountpoints := child.Mountpoints
+			child.Mountpoints = make([]string, 0, len(mountpoints))
+			for _, mp := range mountpoints {
+				if mp != "" {
+					child.Mountpoints = append(child.Mountpoints, mp)
+				}
+			}
+		}
+	}
 	return blockDevices.BlockDevices, nil
 }
 
@@ -3104,6 +3121,8 @@ func cleanupScanDetach(ctx context.Context, maybeScan *scanTask, volumeARN arn.A
 	}
 
 	ec2client := ec2.NewFromConfig(cfg)
+
+	volumeNotFound := false
 	log.Debugf("%s: detaching volume %q", maybeScan, volumeID)
 	for i := 0; i < 5; i++ {
 		if _, err := ec2client.DetachVolume(ctx, &ec2.DetachVolumeInput{
@@ -3113,8 +3132,14 @@ func cleanupScanDetach(ctx context.Context, maybeScan *scanTask, volumeARN arn.A
 			var aerr smithy.APIError
 			// NOTE(jinroh): we're trying to detach a volume in an 'available'
 			// state for instance. Just bail.
-			if errors.As(err, &aerr) && aerr.ErrorCode() == "IncorrectState" {
-				break
+			if errors.As(err, &aerr) {
+				if aerr.ErrorCode() == "IncorrectState" {
+					break
+				}
+				if aerr.ErrorCode() == "InvalidVolume.NotFound" {
+					volumeNotFound = true
+					break
+				}
 			}
 			log.Warnf("%s: could not detach volume %s: %v", maybeScan, volumeID, err)
 		} else {
@@ -3127,6 +3152,9 @@ func cleanupScanDetach(ctx context.Context, maybeScan *scanTask, volumeARN arn.A
 
 	var errd error
 	for i := 0; i < 25; i++ {
+		if volumeNotFound {
+			break
+		}
 		if !sleepCtx(ctx, 2*time.Second) {
 			errd = ctx.Err()
 			break
