@@ -9,10 +9,12 @@ import (
 	"fmt"
 	"time"
 
-	model "github.com/DataDog/agent-payload/v5/process"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	model "github.com/DataDog/agent-payload/v5/process"
+
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
 // NewProcessDiscoveryCheck returns an instance of the ProcessDiscoveryCheck.
@@ -116,6 +118,7 @@ func (d *ProcessDiscoveryCheck) Run(nextGroupID func() int32, _ *RunOptions) (Ru
 
 // Cleanup frees any resource held by the ProcessDiscoveryCheck before the agent exits
 func (d *ProcessDiscoveryCheck) Cleanup() {}
+
 func pidMapToProcDiscoveries(pidMap map[int32]*procutil.Process, userProbe *LookupIdProbe, scrubber *procutil.DataScrubber) []*model.ProcessDiscovery {
 	pd := make([]*model.ProcessDiscovery, 0, len(pidMap))
 	for _, proc := range pidMap {
@@ -128,6 +131,7 @@ func pidMapToProcDiscoveries(pidMap map[int32]*procutil.Process, userProbe *Look
 			CreateTime: proc.Stats.CreateTime,
 		})
 	}
+	
 	return pd
 }
 
@@ -158,5 +162,6 @@ func calculateNumCores(info *model.SystemInfo) (numCores int32) {
 	for _, cpu := range info.Cpus {
 		numCores += cpu.Cores
 	}
+
 	return numCores
 }
