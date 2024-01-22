@@ -8,7 +8,6 @@ package procutil
 
 import (
 	"bytes"
-	"fmt"
 	"regexp"
 	"strings"
 
@@ -135,21 +134,8 @@ func createProcessKey(p *Process) processCacheKey {
 // ScrubProcessCommand uses a cache memory to avoid scrubbing already known
 // process' cmdlines
 func (ds *DataScrubber) ScrubProcessCommand(p *Process) []string {
-	
-
-	
 	if ds.StripAllArguments {
-		
-//  Verify if arguments are windows: ds.isWindowsCommand
-
-		ds.isWindowsCommand(p.Cmdline)
-		
-
-// true? ds.removeWindowsFilePathAndExt -->> return ds.WindowsBase
-
-//  
-		
-		// return ds.stripArguments(p.Cmdline) 
+		return ds.stripArguments(p.Cmdline)
 	}
 
 	if !ds.Enabled {
@@ -239,57 +225,3 @@ func wordToFastChecker(word string) string {
 
 	return strings.ToLower(best)
 }
-
-
-
-
-func (ds* DataScrubber) isWindowsCommand(cmdline []string) []string {
-
-	
-	for _, iw := range strings.Join(cmdline, "*"){
-			windowsChecker(iw)
-		}
-		return iw 
-
-}
-
-
-func windowsChecker(s, os string) (bool, string) {
-	if len(s) == 0 {
-		return false, ""
-	}
-	if s[0] == '"' {
-		s = strings.Trim(s, "\"")
-	}
-
-	os = strings.ToLower(os)
-	if strings.HasPrefix(os, "windows") {
-		return true, s
-	}
-
-	// It's likely Windows if we're able to extract a volume of the form "C:"
-	return WindowsVolumeLen(s) == 2, s
-}
-
-// func removeWindowsFilePathAndExt(s string) string {
-// 	// Removing file extension if it exists
-// 	if ext := WindowsExt(s); ext != "" {
-// 		if i := strings.Index(s, ext); i > 0 {
-// 			return WindowsBase(s[:i])
-// 		}
-// 	}
-// 	return WindowsBase(s)
-// }
-
-func WindowsVolumeLen(path string) int {
-	if len(path) < 2 {
-		return 0
-	}
-	// with drive letter
-	c := path[0]
-	if path[1] == ':' && ('a' <= c && c <= 'z' || 'A' <= c && c <= 'Z') {
-		return 2
-	}
-	return 0
-}
-
