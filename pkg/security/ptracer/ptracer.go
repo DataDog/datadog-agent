@@ -272,9 +272,8 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 					cb(CallbackPreType, nr, pid, 0, regs, nil)
 
 					// force a ptrace syscall in order to get to return value
-					if err := syscall.PtraceSyscall(pid, 0); err != nil {
-						continue
-					}
+					_ = syscall.PtraceSyscall(pid, 0)
+					continue
 				}
 			default:
 				switch nr {
@@ -292,9 +291,7 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 				}
 			}
 
-			if err := syscall.PtraceCont(pid, 0); err != nil {
-				continue
-			}
+			_ = syscall.PtraceCont(pid, 0)
 		}
 	}
 
