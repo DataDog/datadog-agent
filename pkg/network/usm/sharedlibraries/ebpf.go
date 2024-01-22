@@ -42,7 +42,7 @@ type ebpfProgram struct {
 	*ebpftelemetry.Manager
 }
 
-func newEBPFProgram(c *config.Config, bpfTelemetry *ebpftelemetry.EBPFTelemetry) *ebpfProgram {
+func newEBPFProgram(c *config.Config) *ebpfProgram {
 	perfHandler := ddebpf.NewPerfHandler(100)
 	pm := &manager.PerfMap{
 		Map: manager.Map{
@@ -74,7 +74,7 @@ func newEBPFProgram(c *config.Config, bpfTelemetry *ebpftelemetry.EBPFTelemetry)
 
 	return &ebpfProgram{
 		cfg:         c,
-		Manager:     ebpftelemetry.NewManager(mgr, bpfTelemetry),
+		Manager:     ebpftelemetry.NewManager(mgr),
 		perfHandler: perfHandler,
 	}
 }
