@@ -39,6 +39,7 @@ from . import (
 from .build_tags import audit_tag_impact, print_default_build_tags
 from .components import lint_components, lint_fxutil_oneshot_test
 from .fuzz import fuzz
+from .fuzzydog import fuzzydog
 from .go import (
     check_go_version,
     check_mod_tidy,
@@ -102,6 +103,7 @@ ns.add_task(check_go_version)
 ns.add_task(junit_upload)
 ns.add_task(junit_macos_repack)
 ns.add_task(fuzz)
+ns.add_task(fuzzydog)
 ns.add_task(go_fix)
 ns.add_task(build_messagetable)
 ns.add_task(modules.go_work)
