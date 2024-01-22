@@ -1,7 +1,0 @@
-# Each section from every release note are combined when the
-# CHANGELOG.rst is rendered. So the text needs to be worded so that
-# it does not depend on any information only available in another
-# section. This may mean repeating some details, but each section
-enhancements:
-  - |
-    Cluster-Agent Followers can now proxy patch request queries to the Leader for Library Injection with language detection.
