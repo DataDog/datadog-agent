@@ -16,20 +16,18 @@ import (
 // Manager wraps ebpf-manager.Manager to transparently handle eBPF telemetry
 type Manager struct {
 	*manager.Manager
-	bpfTelemetry *EBPFTelemetry
 }
 
 // NewManager creates a Manager
-func NewManager(mgr *manager.Manager, bt *EBPFTelemetry) *Manager {
+func NewManager(mgr *manager.Manager) *Manager {
 	return &Manager{
-		Manager:      mgr,
-		bpfTelemetry: bt,
+		Manager: mgr,
 	}
 }
 
 // InitWithOptions is a wrapper around ebpf-manager.Manager.InitWithOptions
 func (m *Manager) InitWithOptions(bytecode io.ReaderAt, opts manager.Options) error {
-	if err := setupForTelemetry(m.Manager, &opts, m.bpfTelemetry); err != nil {
+	if err := setupForTelemetry(m.Manager, &opts); err != nil {
 		return err
 	}
 
@@ -37,8 +35,8 @@ func (m *Manager) InitWithOptions(bytecode io.ReaderAt, opts manager.Options) er
 		return err
 	}
 
-	if m.bpfTelemetry != nil {
-		if err := m.bpfTelemetry.populateMapsWithKeys(m.Manager); err != nil {
+	if bpfTelemetry != nil {
+		if err := bpfTelemetry.populateMapsWithKeys(m.Manager); err != nil {
 			return err
 		}
 	}
