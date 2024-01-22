@@ -32,6 +32,10 @@ func newBatchReader(offsetManager *offsetManager, batchMap *maps.GenericMap[batc
 	// initialize eBPF maps
 	batch := new(batch)
 	for i := 0; i < numCPUs; i++ {
+		// Ring buffer events don' t have CPU information, so we associate each
+		// batch entry with a CPU during startup. This information is used by
+		// the code that does the batch offset tracking.
+		batch.Cpu = uint32(i)
 		for j := 0; j < batchPagesPerCPU; j++ {
 			key := &batchKey{Cpu: uint32(i), Num: uint32(j)}
 			err := batchMap.Put(key, batch)

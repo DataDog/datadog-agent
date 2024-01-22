@@ -26,6 +26,7 @@ typedef struct {
 } batch_key_t;
 
 typedef struct {
+    __u32 cpu;
     __u64 idx;
     __u16 len;
     __u16 cap;

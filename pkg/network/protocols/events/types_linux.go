@@ -4,6 +4,7 @@
 package events
 
 type batch struct {
+	Cpu            uint32
 	Idx            uint64
 	Len            uint16
 	Cap            uint16
