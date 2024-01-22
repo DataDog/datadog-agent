@@ -107,17 +107,22 @@ if [ ! -e "$CONF_DIR/datadog.yaml" ]; then
     exit 1
 fi
 
-# Start the app only if it's not a script install
-if [ -z "$SCRIPT_INSTALL" ]; then
-    echo "# Starting the app"
-    # -a for application, -F for fresh, do not restore old app
-    TMPDIR=$(sudo -u "$INSTALL_USER" getconf DARWIN_USER_TEMP_DIR)
-    export TMPDIR
-    sudo -u "$INSTALL_USER" open -Fa 'Datadog Agent'
-fi
+# Start the tray icon app only when not in system-wide installation
+if [ ! -f "/tmp/install-ddagent/system-wide" ]; then
+  # Start the app only if it's not a script install
+  if [ -z "$SCRIPT_INSTALL" ]; then
+      echo "# Starting the app"
+      # -a for application, -F for fresh, do not restore old app
+      TMPDIR=$(sudo -u "$INSTALL_USER" getconf DARWIN_USER_TEMP_DIR)
+      export TMPDIR
+      sudo -u "$INSTALL_USER" open -Fa 'Datadog Agent'
+  fi
 
-echo "# Configuring the login launch of the app"
-sudo -u "$INSTALL_USER" osascript -e 'tell application "System Events" to make login item at end with properties {path:"/Applications/Datadog Agent.app", name:"Datadog Agent", hidden:false}'
+  echo "# Configuring the login launch of the app"
+  sudo -u "$INSTALL_USER" osascript -e 'tell application "System Events" to make login item at end with properties {path:"/Applications/Datadog Agent.app", name:"Datadog Agent", hidden:false}'
+else
+  touch /tmp/install-ddagent/tray-not-started
+fi
 
 # A little debriefing won't hurt
 echo "# State at the end"
