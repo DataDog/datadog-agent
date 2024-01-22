@@ -12,8 +12,6 @@ import (
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
-
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 type VerifierStats struct {
@@ -127,7 +125,7 @@ func BuildVerifierStats(objectFiles []string) (map[string]*VerifierStats, error)
 	return stats, nil
 }
 
-func unmarshallLt6_8(output string) (*VerifierStats, error) {
+func UnmarshalVerifierStats(output string) (*VerifierStats, error) {
 	var err error
 	var v VerifierStats
 
@@ -168,17 +166,4 @@ func unmarshallLt6_8(output string) (*VerifierStats, error) {
 	}
 
 	return &v, nil
-}
-
-func UnmarshalVerifierStats(output string) (*VerifierStats, error) {
-	kversion, err := kernel.HostVersion()
-	if err != nil {
-		return nil, fmt.Errorf("failed to discover kernel version: %w", err)
-	}
-
-	if kversion <= kernel.VersionCode(6, 8, 0) {
-		return unmarshallLt6_8(output)
-	}
-
-	return nil, fmt.Errorf("no unmarshaller for kernel version %s", kversion.String())
 }
