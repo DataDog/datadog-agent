@@ -360,7 +360,7 @@ def test(
     cmd = f'gotestsum {gotestsum_flags} -- {gobuild_flags} {govet_flags} {gotest_flags}'
     if coverage:
         if platform.system() == 'Windows':
-            coverage_script_template = "go test {gobuild_flags} {govet_flags} {gotest_flags} -json -coverprofile=\"$(mktemp {TMP_PROFILE_COV_PREFIX}.XXXXXXXXXX)\" {{packages}}"
+            coverage_script_template = f"go test {gobuild_flags} {govet_flags} {gotest_flags} -json -coverprofile=\"$(mktemp {TMP_PROFILE_COV_PREFIX}.XXXXXXXXXX)\" {{packages}}"
         else:
             coverage_script_template = f"""#!/usr/bin/env bash
 set -eu
