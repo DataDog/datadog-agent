@@ -41,7 +41,7 @@ var ErrSysprobeUnsupported = errors.New("system-probe unsupported")
 const inactivityLogDuration = 10 * time.Minute
 const inactivityRestartDuration = 20 * time.Minute
 
-var networkTracerModuleConfigNamespaces = []string{"network_config", "service_monitoring_config", "data_streams_config"}
+var networkTracerModuleConfigNamespaces = []string{"network_config", "service_monitoring_config"}
 
 func createNetworkTracerModule(cfg *sysconfigtypes.Config) (module.Module, error) {
 	ncfg := networkconfig.New()
@@ -56,9 +56,6 @@ func createNetworkTracerModule(cfg *sysconfigtypes.Config) (module.Module, error
 	}
 	if ncfg.ServiceMonitoringEnabled {
 		log.Info("enabling universal service monitoring (USM)")
-	}
-	if ncfg.DataStreamsEnabled {
-		log.Info("enabling data streams monitoring (DSM)")
 	}
 
 	t, err := tracer.NewTracer(ncfg)

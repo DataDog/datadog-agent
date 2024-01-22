@@ -24,7 +24,7 @@ from .cluster_agent import integration_tests as dca_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
 from .flavor import AgentFlavor
 from .libs.common.color import color_message
-from .libs.common.utils import get_build_flags
+from .libs.common.utils import clean_nested_paths, get_build_flags
 from .libs.datadog_api import create_count, send_metrics
 from .libs.junit_upload_core import add_flavor_to_junitxml, produce_junit_tar
 from .modules import DEFAULT_MODULES, GoModule
@@ -33,6 +33,7 @@ from .trace_agent import integration_tests as trace_integration_tests
 
 PROFILE_COV = "coverage.out"
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
+WINDOWS_MAX_PACKAGES_NUMBER = 150
 
 
 class TestProfiler:
@@ -254,6 +255,7 @@ def test(
     go_mod="mod",
     junit_tar="",
     only_modified_packages=False,
+    skip_flakes=False,
 ):
     """
     Run go tests on the given module and targets.
@@ -269,7 +271,6 @@ def test(
         inv test --targets=./pkg/collector/check,./pkg/aggregator --race
         inv test --module=. --race
     """
-
     modules_results_per_phase = defaultdict(dict)
 
     sanitize_env_vars()
@@ -316,8 +317,13 @@ def test(
 
     stdlib_build_cmd = 'go build {verbose} -mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" '
     stdlib_build_cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} std cmd'
-    cmd = 'gotestsum {junit_file_flag} {json_flag} --format pkgname {rerun_fails} --packages="{packages}" -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
-    cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache} {test_run_arg}'
+    gotestsum_flags = '{junit_file_flag} {json_flag} --format pkgname {rerun_fails} --packages="{packages}"'
+    gobuild_flags = (
+        '-mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" -ldflags="{ldflags}" {build_cpus} {race_opt}'
+    )
+    govet_flags = '-vet=off'
+    gotest_flags = '{verbose} -timeout {timeout}s -short {covermode_opt} {coverprofile} {test_run_arg} {nocache}'
+    cmd = f'gotestsum {gotestsum_flags} -- {gobuild_flags} {govet_flags} {gotest_flags}'
     args = {
         "go_mod": go_mod,
         "gcflags": gcflags,
@@ -333,6 +339,7 @@ def test(
         # Used to print failed tests at the end of the go test command
         "json_flag": f'--jsonfile "{GO_TEST_RESULT_TMP_JSON}" ',
         "rerun_fails": f"--rerun-fails={rerun_fails}" if rerun_fails else "",
+        "skip_flakes": "--skip-flake" if skip_flakes else "",
     }
 
     # Test
@@ -346,7 +353,7 @@ def test(
             test_profiler=test_profiler,
         )
         if only_modified_packages:
-            modules = get_modified_packages(ctx)
+            modules = get_modified_packages(ctx, build_tags=build_tags)
 
         modules_results_per_phase["test"][flavor] = test_flavor(
             ctx,
@@ -451,11 +458,14 @@ def e2e_tests(ctx, target="gitlab", agent_image="", dca_image="", argo_workflow=
 
 
 @task
-def get_modified_packages(ctx) -> List[GoModule]:
+def get_modified_packages(ctx, build_tags=None) -> List[GoModule]:
     modified_files = get_modified_files(ctx)
     modified_go_files = [
         f"./{file}" for file in modified_files if file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum")
     ]
+
+    if build_tags is None:
+        build_tags = []
 
     modules_to_test = {}
     go_mod_modified_modules = set()
@@ -494,6 +504,13 @@ def get_modified_packages(ctx) -> List[GoModule]:
         if not os.path.exists(os.path.dirname(modified_file)):
             continue
 
+        # If there are go file matching the build tags in the folder we do not try to run tests
+        res = ctx.run(
+            f"go list -tags '{' '.join(build_tags)}' ./{os.path.dirname(modified_file)}/...", hide=True, warn=True
+        )
+        if res.stderr is not None and "matched no packages" in res.stderr:
+            continue
+
         relative_target = "./" + os.path.relpath(os.path.dirname(modified_file), best_module_path)
 
         if best_module_path in modules_to_test:
@@ -504,6 +521,14 @@ def get_modified_packages(ctx) -> List[GoModule]:
                 modules_to_test[best_module_path].targets.append(relative_target)
         else:
             modules_to_test[best_module_path] = GoModule(best_module_path, targets=[relative_target])
+
+    # Clean up duplicated paths to reduce Go test cmd length
+    for module in modules_to_test:
+        modules_to_test[module].targets = clean_nested_paths(modules_to_test[module].targets)
+        if (
+            len(modules_to_test[module].targets) >= WINDOWS_MAX_PACKAGES_NUMBER
+        ):  # With more packages we can reach the limit of the command line length on Windows
+            modules_to_test[module].targets = DEFAULT_MODULES[module].targets
 
     print("Running tests for the following modules:")
     for module in modules_to_test:

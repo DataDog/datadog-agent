@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/agent"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/check"
+	apiutils "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -122,6 +123,7 @@ func startCMDServer(
 	// create the REST HTTP router
 	agentMux := gorilla.NewRouter()
 	checkMux := gorilla.NewRouter()
+
 	// Validate token for every request
 	agentMux.Use(validateToken)
 	checkMux.Use(validateToken)
@@ -149,11 +151,14 @@ func startCMDServer(
 	cmdMux.Handle("/check/", http.StripPrefix("/check", check.SetupHandlers(checkMux)))
 	cmdMux.Handle("/", gwmux)
 
+	// Add some observability in the API server
+	cmdMuxHandler := apiutils.LogResponseHandler(cmdServerName)(cmdMux)
+
 	srv := grpcutil.NewMuxedGRPCServer(
 		cmdAddr,
 		tlsConfig,
 		s,
-		grpcutil.TimeoutHandlerFunc(cmdMux, time.Duration(config.Datadog.GetInt64("server_timeout"))*time.Second),
+		grpcutil.TimeoutHandlerFunc(cmdMuxHandler, time.Duration(config.Datadog.GetInt64("server_timeout"))*time.Second),
 	)
 
 	startServer(cmdListener, srv, cmdServerName)

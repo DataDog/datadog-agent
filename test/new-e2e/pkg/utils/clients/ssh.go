@@ -89,7 +89,7 @@ func getSSHClient(user, host string, privateKey, privateKeyPassphrase []byte) (*
 func ExecuteCommand(client *ssh.Client, command string) (string, error) {
 	session, err := client.NewSession()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to create session: %v", err)
 	}
 
 	stdout, err := session.CombinedOutput(command)

@@ -19,16 +19,18 @@ const (
 )
 
 type DDProcmonStats struct {
-	ProcessStartCount   uint64
-	ProcessStopCount    uint64
-	MissedNotifications uint64
-	AllocationFailures  uint64
-	WorkItemFailures    uint64
+	ProcessStartCount       uint64
+	ProcessStopCount        uint64
+	MissedNotifications     uint64
+	AllocationFailures      uint64
+	WorkItemFailures        uint64
+	ReadBufferToSmallErrors uint64
 }
 
 type DDProcessNotifyType uint32
 type DDProcessNotification struct {
 	Size              uint64
+	SizeNeeded        uint64
 	ProcessId         uint64
 	NotifyType        uint64
 	ParentProcessId   uint64
@@ -41,3 +43,6 @@ type DDProcessNotification struct {
 	SidLen            uint64
 	SidOffset         uint64
 }
+
+const DDProcessNotificationSize = 0x58
+const DDProcmonStatsSize = 0x30
