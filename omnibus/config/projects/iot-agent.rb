@@ -55,6 +55,12 @@ end
 
 if ENV.has_key?("OMNIBUS_WORKERS_OVERRIDE")
   COMPRESSION_THREADS = ENV["OMNIBUS_WORKERS_OVERRIDE"].to_i
+  # On armv7, dpkg is built as a 32bits application, which means
+  # we can only address 32 bits of memory, which is likely to OOM
+  # if we use to many compression threads
+  if ENV.has_key?("PACKAGE_ARCH") && ENV["PACKAGE_ARCH"] == "armhf"
+    COMPRESSION_THREADS = [COMPRESSION_THREADS, 4].min
+  end
 else
   COMPRESSION_THREADS = 1
 end
