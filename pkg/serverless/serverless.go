@@ -129,21 +129,21 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 		functionArn := removeQualifierFromArn(payload.InvokedFunctionArn)
 		callInvocationHandler(daemon, functionArn, payload.DeadlineMs, safetyBufferTimeout, payload.RequestID, handleInvocation)
 	} else if payload.EventType == Shutdown {
-		// Log collection can be safely called multiple times, so ensure we start log collection during a SHUTDOWN event too in case an INVOKE event is never received
-		daemon.StartLogCollection()
-		log.Debug("Received shutdown event. Reason: " + payload.ShutdownReason)
-		isTimeout := strings.ToLower(payload.ShutdownReason.String()) == Timeout.String()
-		if isTimeout {
-			coldStartTags := daemon.ExecutionContext.GetColdStartTagsForRequestID(daemon.ExecutionContext.LastRequestID())
-			metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, coldStartTags.IsColdStart, coldStartTags.IsProactiveInit)
-			metricTags = tags.AddInitTypeTag(metricTags)
-			metrics.SendTimeoutEnhancedMetric(metricTags, daemon.MetricAgent.Demux)
-			metrics.SendErrorsEnhancedMetric(metricTags, time.Now(), daemon.MetricAgent.Demux)
-		}
-		err := daemon.ExecutionContext.SaveCurrentExecutionContext()
-		if err != nil {
-			log.Warnf("Unable to save the current state. Failed with: %s", err)
-		}
+		// // Log collection can be safely called multiple times, so ensure we start log collection during a SHUTDOWN event too in case an INVOKE event is never received
+		// daemon.StartLogCollection()
+		// log.Debug("Received shutdown event. Reason: " + payload.ShutdownReason)
+		// isTimeout := strings.ToLower(payload.ShutdownReason.String()) == Timeout.String()
+		// if isTimeout {
+		// 	coldStartTags := daemon.ExecutionContext.GetColdStartTagsForRequestID(daemon.ExecutionContext.LastRequestID())
+		// 	metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, coldStartTags.IsColdStart, coldStartTags.IsProactiveInit)
+		// 	metricTags = tags.AddInitTypeTag(metricTags)
+		// 	metrics.SendTimeoutEnhancedMetric(metricTags, daemon.MetricAgent.Demux)
+		// 	metrics.SendErrorsEnhancedMetric(metricTags, time.Now(), daemon.MetricAgent.Demux)
+		// }
+		// err := daemon.ExecutionContext.SaveCurrentExecutionContext()
+		// if err != nil {
+		// 	log.Warnf("Unable to save the current state. Failed with: %s", err)
+		// }
 		daemon.Stop()
 		stopCh <- struct{}{}
 	}
