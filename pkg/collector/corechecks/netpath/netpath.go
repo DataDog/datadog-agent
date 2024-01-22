@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/netpath/traceroute"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -74,6 +75,9 @@ func (c *Check) Run() error {
 		senderInstance.Gauge("netpath.telemetry.interval", interval.Seconds(), "", tags)
 	}
 	senderInstance.Commit()
+
+	numWorkers := config.Datadog.GetInt("check_runners")
+	senderInstance.Gauge("netpath.telemetry.check_runners", float64(numWorkers), "", tags)
 	c.lastCheckTime = startTime
 	return nil
 }
