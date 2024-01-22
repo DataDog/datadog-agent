@@ -78,6 +78,7 @@ func (c *Check) Run() error {
 
 	numWorkers := config.Datadog.GetInt("check_runners")
 	senderInstance.Gauge("netpath.telemetry.check_runners", float64(numWorkers), "", tags)
+	senderInstance.Gauge("netpath.telemetry.fake_event_multiplier", float64(c.config.FakeEventMultiplier), "", tags)
 	c.lastCheckTime = startTime
 	return nil
 }
@@ -85,7 +86,7 @@ func (c *Check) Run() error {
 func (c *Check) traceroute(sender sender.Sender) error {
 	options := traceroute.TracerouteOptions{}
 	options.SetRetries(1)
-	options.SetMaxHops(15)
+	options.SetMaxHops(32)
 	//options.SetFirstHop(traceroute.DEFAULT_FIRST_HOP)
 	times := 1
 	destinationHost := c.config.DestHostname
@@ -107,11 +108,11 @@ func (c *Check) traceroute(sender sender.Sender) error {
 		return errors.New("no hops")
 	}
 
-	err = c.traceRouteV1(sender, hostHops, hname, destinationHost)
-	if err != nil {
-		return err
-	}
-	for i := 0; i < 100; i++ {
+	//err = c.traceRouteV1(sender, hostHops, hname, destinationHost)
+	//if err != nil {
+	//	return err
+	//}
+	for i := 0; i < c.config.FakeEventMultiplier; i++ {
 		err = c.traceRouteV2(sender, hostHops, hname, destinationHost)
 		if err != nil {
 			return err
