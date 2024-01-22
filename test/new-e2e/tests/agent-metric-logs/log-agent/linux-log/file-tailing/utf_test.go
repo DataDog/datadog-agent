@@ -27,7 +27,7 @@ var utfLittleEndianLogConfig []byte
 //go:embed log-config/utf-16-be.yaml
 var utfBigEndianLogConfig []byte
 
-const service = "utfservice"
+const utfservice = "utfservice"
 
 // UTFSuite defines a test suite for the log agent tailing UTF encoded logs
 type UtfSuite struct {
@@ -89,9 +89,9 @@ func (s *UtfSuite) testUtfBigEndianCollection() {
 
 	// check that intake has utf-16-be encoded log
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		logs, err := s.Env().FakeIntake.Client().FilterLogs(service, fi.WithMessageMatching(content))
+		logs, err := s.Env().FakeIntake.Client().FilterLogs(utfservice, fi.WithMessageMatching(content))
 		assert.NoErrorf(c, err, "Error found: %s", err)
-		assert.NotEmpty(c, logs, "Expected at least 1 log with content: '%s', from service: %s.", content, service)
+		assert.NotEmpty(c, logs, "Expected at least 1 log with content: '%s', from service: %s.", content, utfservice)
 	}, 2*time.Minute, 10*time.Second)
 }
 
@@ -108,9 +108,9 @@ func (s *UtfSuite) testUtfLittleEndianCollection() {
 
 	// check that intake has utf-16-le encoded log
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		logs, err := s.Env().FakeIntake.Client().FilterLogs(service, fi.WithMessageMatching(content))
+		logs, err := s.Env().FakeIntake.Client().FilterLogs(utfservice, fi.WithMessageMatching(content))
 		assert.NoErrorf(c, err, "Error found: %s", err)
-		assert.NotEmpty(c, logs, "Expected at least 1 log with content: '%s', from service: %s.", content, service)
+		assert.NotEmpty(c, logs, "Expected at least 1 log with content: '%s', from service: %s.", content, utfservice)
 	}, 2*time.Minute, 10*time.Second)
 }
 
