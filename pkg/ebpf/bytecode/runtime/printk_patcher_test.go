@@ -45,7 +45,8 @@ func TestPatchPrintkNewline(t *testing.T) {
 	if kernelVersion.Code <= ebpfkernel.Kernel5_9 {
 		t.Skip("Skipping test on older kernels, instruction patching not used there")
 	}
-	if kernelVersion.IsDebianKernel() && kernelVersion.Code <= ebpfkernel.Kernel5_10 {
+	if (kernelVersion.IsDebianKernel() && kernelVersion.Code <= ebpfkernel.Kernel5_11) ||
+		(kernelVersion.IsAmazonLinuxKernel() && kernelVersion.Code <= ebpfkernel.Kernel5_10) {
 		t.Skip("Tracing not available, cannot test")
 	}
 
