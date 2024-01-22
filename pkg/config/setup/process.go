@@ -179,6 +179,7 @@ func setupProcesses(config pkgconfigmodel.Config) {
 	procBindEnvAndSetDefault(config, "process_config.remote_tagger", false)
 	procBindEnvAndSetDefault(config, "process_config.remote_workloadmeta", false) // This flag might change. It's still being tested.
 	procBindEnvAndSetDefault(config, "process_config.disable_realtime_checks", false)
+	procBindEnvAndSetDefault(config, "process_config.ignore_zombie_processes", false)
 
 	// Process Discovery Check
 	config.BindEnvAndSetDefault("process_config.process_discovery.enabled", true,

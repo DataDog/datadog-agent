@@ -36,6 +36,7 @@ const (
 	configScrubArgs            = configPrefix + "scrub_args"
 	configStripProcArgs        = configPrefix + "strip_proc_arguments"
 	configDisallowList         = configPrefix + "blacklist_patterns"
+	configDisallowZombies      = configPrefix + "ignore_zombie_processes"
 )
 
 // NewProcessCheck returns an instance of the ProcessCheck.
@@ -68,6 +69,9 @@ type ProcessCheck struct {
 
 	// disallowList to hide processes
 	disallowList []*regexp.Regexp
+
+	// determine if zombies process will be collected
+	zombiesDisallowed bool
 
 	hostInfo                   *HostInfo
 	lastCPUTime                cpu.TimesStat
@@ -136,6 +140,8 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 	initScrubber(p.config, p.scrubber)
 
 	p.disallowList = initDisallowList(p.config)
+
+	p.zombiesDisallowed = initZombieDisallowed(p.config)
 
 	p.initConnRates()
 
@@ -275,7 +281,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	p.checkCount++
 
 	connsRates := p.getLastConnRates()
-	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsRates, p.lookupIdProbe)
+	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsRates, p.lookupIdProbe, p.zombiesDisallowed)
 	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID, collectorProcHints)
 
 	// Store the last state for comparison on the next run.
@@ -430,11 +436,12 @@ func fmtProcesses(
 	connRates ProcessConnRates,
 	//nolint:revive // TODO(PROC) Fix revive linter
 	lookupIdProbe *LookupIdProbe,
+	zombiesDisallowed bool,
 ) map[string][]*model.Process {
 	procsByCtr := make(map[string][]*model.Process)
 
 	for _, fp := range procs {
-		if skipProcess(disallowList, fp, lastProcs) {
+		if skipProcess(disallowList, fp, lastProcs, zombiesDisallowed) {
 			continue
 		}
 
@@ -578,6 +585,7 @@ func skipProcess(
 	disallowList []*regexp.Regexp,
 	fp *procutil.Process,
 	lastProcs map[int32]*procutil.Process,
+	zombiesDisallowed bool,
 ) bool {
 	cl := fp.Cmdline
 	if len(cl) == 0 {
@@ -590,6 +598,9 @@ func skipProcess(
 	if _, ok := lastProcs[fp.Pid]; !ok {
 		// Skipping any processes that didn't exist in the previous run.
 		// This means short-lived processes (<2s) will never be captured.
+		return true
+	}
+	if zombiesDisallowed && fp.Stats.Status == "Z" {
 		return true
 	}
 	return false
@@ -677,4 +688,9 @@ func isDisallowListed(cmdline []string, disallowList []*regexp.Regexp) bool {
 		}
 	}
 	return false
+}
+
+func initZombieDisallowed(config ddconfig.Reader) bool {
+	disallowed := config.GetBool(configDisallowZombies)
+	return disallowed
 }
