@@ -7,6 +7,8 @@ on:
       - 'pkg/serverless/**'
       - 'test/integration/serverless/**'
       - '.github/workflows/serverless-integration.yml'
+  schedule:
+    - cron: '0 14 * * *'
 
 jobs:
   test:
