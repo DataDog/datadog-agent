@@ -1,3 +1,12 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux_bpf
+
+// Package verifier is responsible for exposing information the verifier provides
+// for any loaded eBPF program
 package verifier
 
 import (
@@ -14,6 +23,8 @@ import (
 	"github.com/cilium/ebpf/asm"
 )
 
+// VerifierStats represent that statistics exposed via
+// the eBPF verifier when  LogLevelStats is enabled
 type VerifierStats struct {
 	VerificationTime           int `json:"verification_time"`
 	StackDepth                 int `json:"stack_usage"`
@@ -36,6 +47,9 @@ func objectFileBase(path string) string {
 
 //go:generate go run functions.go ../bytecode/build/co-re
 //go:generate go fmt programs.go
+
+// BuildVerifierStats accepts a list of eBPF object files and generates a
+// map of all programs and their VerifierStats
 func BuildVerifierStats(objectFiles []string) (map[string]*VerifierStats, error) {
 	stats := make(map[string]*VerifierStats)
 	for _, file := range objectFiles {
@@ -115,7 +129,7 @@ func BuildVerifierStats(objectFiles []string) (map[string]*VerifierStats, error)
 			switch field.Type() {
 			case reflect.TypeOf((*ebpf.Program)(nil)):
 				p := field.Interface().(*ebpf.Program)
-				stat, err := UnmarshalVerifierStats(p.VerifierLog)
+				stat, err := unmarshalVerifierStats(p.VerifierLog)
 				if err != nil {
 					return nil, fmt.Errorf("failed to unmarshal verifier log for program %s: %w", programName, err)
 				}
@@ -129,7 +143,7 @@ func BuildVerifierStats(objectFiles []string) (map[string]*VerifierStats, error)
 	return stats, nil
 }
 
-func UnmarshalVerifierStats(output string) (*VerifierStats, error) {
+func unmarshalVerifierStats(output string) (*VerifierStats, error) {
 	var err error
 	var v VerifierStats
 
