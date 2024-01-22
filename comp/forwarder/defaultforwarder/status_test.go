@@ -11,14 +11,19 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestJSON(t *testing.T) {
-	mockConfig := config.Mock(t)
+	config := fxutil.Test[config.Component](t, fx.Options(
+		config.MockModule(),
+	))
+
 	provider := statusProvider{
-		config: mockConfig,
+		config: config,
 	}
 
 	status := make(map[string]interface{})
@@ -35,11 +40,18 @@ func TestJSON(t *testing.T) {
 }
 
 func TestJSONWith_forwarder_storage_max_size_in_bytes(t *testing.T) {
-	mockConfig := config.Mock(t)
-	mockConfig.SetWithoutSource("forwarder_storage_max_size_in_bytes", 67)
+
+	overrides := map[string]interface{}{
+		"forwarder_storage_max_size_in_bytes": 67,
+	}
+
+	config := fxutil.Test[config.Component](t, fx.Options(
+		config.MockModule(),
+		fx.Replace(config.MockParams{Overrides: overrides}),
+	))
 
 	provider := statusProvider{
-		config: mockConfig,
+		config: config,
 	}
 
 	status := make(map[string]interface{})
@@ -51,10 +63,12 @@ func TestJSONWith_forwarder_storage_max_size_in_bytes(t *testing.T) {
 }
 
 func TestText(t *testing.T) {
-	mockConfig := config.Mock(t)
+	config := fxutil.Test[config.Component](t, fx.Options(
+		config.MockModule(),
+	))
 
 	provider := statusProvider{
-		config: mockConfig,
+		config: config,
 	}
 
 	b := new(bytes.Buffer)
@@ -64,10 +78,12 @@ func TestText(t *testing.T) {
 }
 
 func TestHTML(t *testing.T) {
-	mockConfig := config.Mock(t)
+	config := fxutil.Test[config.Component](t, fx.Options(
+		config.MockModule(),
+	))
 
 	provider := statusProvider{
-		config: mockConfig,
+		config: config,
 	}
 
 	b := new(bytes.Buffer)
