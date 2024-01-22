@@ -160,7 +160,7 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 
 	// pointer to embedded ebpfTelemetry struct within the bpfErrorsCollector,
 	// to avoid possible nil pointer dereference when accessing it via the bpfErrorsCollector pointer
-	var bpfTelemetry *ebpftelemetry.EBPFTelemetry = nil
+	var bpfTelemetry *ebpftelemetry.EBPFTelemetry
 
 	if eec := ebpftelemetry.NewEbpfErrorsCollector(); eec != nil {
 		coretelemetry.GetCompatComponent().RegisterCollector(eec)
