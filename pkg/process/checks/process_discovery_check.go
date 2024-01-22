@@ -15,13 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-
-// const (
-// 	configDiscoPrefix               = "process_config."
-// 	configDiscoCustomSensitiveWords = configDiscoPrefix   + "custom_sensitive_words"
-// 	configDiscoScrubArgs            = configDiscoPrefix   + "scrub_args"
-// )
-
 // NewProcessDiscoveryCheck returns an instance of the ProcessDiscoveryCheck.
 func NewProcessDiscoveryCheck(config ddconfig.Reader) *ProcessDiscoveryCheck {
 	return &ProcessDiscoveryCheck{
@@ -37,9 +30,9 @@ func NewProcessDiscoveryCheck(config ddconfig.Reader) *ProcessDiscoveryCheck {
 type ProcessDiscoveryCheck struct {
 	config ddconfig.Reader
 
-	probe      procutil.Probe
+	probe procutil.Probe
 	// scrubber is a DataScrubber to hide command line sensitive words
-	scrubber *procutil.DataScrubber
+	scrubber   *procutil.DataScrubber
 	userProbe  *LookupIdProbe
 	info       *HostInfo
 	initCalled bool
@@ -150,7 +143,7 @@ func pidMapToProcDiscoveries(pidMap map[int32]*procutil.Process, userProbe *Look
 
 // chunkProcessDiscoveries split non-container processes into chunks and return a list of chunks
 // This function is patiently awaiting go to support generics, so that we don't need two chunkProcesses functions :)
-func chunkProcessDiscoveries( procs []*model.ProcessDiscovery, size int) [][]*model.ProcessDiscovery {
+func chunkProcessDiscoveries(procs []*model.ProcessDiscovery, size int) [][]*model.ProcessDiscovery {
 	chunkCount := len(procs) / size
 	if chunkCount*size < len(procs) {
 		chunkCount++
@@ -177,31 +170,3 @@ func calculateNumCores(info *model.SystemInfo) (numCores int32) {
 	}
 	return numCores
 }
-
-
-
-// func initDiscoveryScrubber(config ddconfig.Reader, scrubber *procutil.DataScrubber) {
-// 	// Enable/Disable the DataScrubber to obfuscate process args
-// 	if config.IsSet(configScrubArgs) {
-// 		scrubber.Enabled = config.GetBool(configDiscoScrubArgs )
-// 	}
-
-// 	if scrubber.Enabled { // Scrubber is enabled by default when it's created
-// 		log.Debug("Starting discovery process collection with Scrubber enabled")
-// 	}
-
-// 	// A custom word list to enhance the default one used by the DataScrubber
-// 	if config.IsSet(configDiscoCustomSensitiveWords) {
-// 		words := config.GetStringSlice(configDiscoCustomSensitiveWords)
-// 		scrubber.AddCustomSensitiveWords(words)
-// 		log.Debug("Adding custom sensitives words to Discovery Scrubber:", words)
-		
-// 	}
-
-// 	// Strips all process arguments
-// 	if config.GetBool(configStripProcArgs) {
-// 		log.Debug("Strip all process arguments enabled")
-// 		scrubber.StripAllArguments = true
-// 	}
-// }
-

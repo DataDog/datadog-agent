@@ -171,7 +171,6 @@ func (ds *DataScrubber) IncrementCacheAge() {
 // It returns the updated cmdline, as well as a boolean representing whether it was scrubbed
 func (ds *DataScrubber) ScrubCommand(cmdline []string) ([]string, bool) {
 
-
 	newCmdline := cmdline
 	rawCmdline := strings.Join(cmdline, " ")
 	lowerCaseCmdline := strings.ToLower(rawCmdline)
@@ -181,7 +180,6 @@ func (ds *DataScrubber) ScrubCommand(cmdline []string) ([]string, bool) {
 		if !strings.Contains(lowerCaseCmdline, pattern.FastCheck) {
 			continue
 		}
-
 
 		if pattern.Re.MatchString(rawCmdline) {
 			changed = true
