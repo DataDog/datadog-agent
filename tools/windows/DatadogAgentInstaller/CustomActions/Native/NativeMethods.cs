@@ -908,6 +908,10 @@ namespace Datadog.CustomActions.Native
 
             name = identity.Name;
             sid = identity.User;
+            if (sid == null)
+            {
+                throw new Exception($"Unable to lookup SID for current user: {name}");
+            }
         }
 
         #endregion

@@ -234,10 +234,15 @@ namespace Datadog.CustomActions
         private void TestAgentUserIsNotCurrentUser(SecurityIdentifier agentUser, bool isServiceAccount)
         {
             var allowInstallCurrentUser = _session.Property("ALLOW_CURRENT_USER")?.ToLower() == "true";
-            _nativeMethods.GetCurrentUser(out var currentUserName, out var currentUserSID);
-            if (currentUserSID == null)
+            string currentUserName;
+            SecurityIdentifier currentUserSID;
+            try
             {
-                _session.Log("Unable to get current user SID");
+                _nativeMethods.GetCurrentUser(out currentUserName, out currentUserSID);
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Unable to get current user SID: {e}");
                 return;
             }
             _session.Log($"Currently logged in user: {currentUserName} ({currentUserSID})");
