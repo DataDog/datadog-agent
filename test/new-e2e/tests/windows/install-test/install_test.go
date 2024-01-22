@@ -65,7 +65,10 @@ func TestMSI(t *testing.T) {
 		majorVersion: majorVersion,
 	}
 
-	e2e.Run(t, s, opts...)
+	// Include the agent major version in the test name so junit reports will differentiate the tests
+	t.Run(fmt.Sprintf("Agent v%s", majorVersion), func(t *testing.T) {
+		e2e.Run(t, s, opts...)
+	})
 }
 
 func (is *agentMSISuite) prepareHost() {

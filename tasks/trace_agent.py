@@ -3,6 +3,7 @@ import sys
 
 from invoke import Exit, task
 
+from .agent import build as agent_build
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .flavor import AgentFlavor
 from .go import deps
@@ -20,17 +21,37 @@ def build(
     build_include=None,
     build_exclude=None,
     flavor=AgentFlavor.base.name,
+    install_path=None,
     major_version='7',
     python_runtimes='3',
     arch="x64",
     go_mod="mod",
+    bundle=False,
 ):
     """
     Build the trace agent.
     """
 
+    if bundle:
+        return agent_build(
+            ctx,
+            race=race,
+            arch=arch,
+            build_include=build_include,
+            build_exclude=build_exclude,
+            flavor=flavor,
+            major_version=major_version,
+            python_runtimes=python_runtimes,
+            go_mod=go_mod,
+        )
+
     flavor = AgentFlavor[flavor]
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes=python_runtimes)
+    ldflags, gcflags, env = get_build_flags(
+        ctx,
+        install_path=install_path,
+        major_version=major_version,
+        python_runtimes=python_runtimes,
+    )
 
     # generate windows resources
     if sys.platform == 'win32':

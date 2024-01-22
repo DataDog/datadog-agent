@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
@@ -186,6 +187,7 @@ func (t *Tester) snapshotSystemfiles(tt *testing.T, remotePath string) error {
 		`c:\windows\ServiceProfiles\NetworkService\AppData\`,
 		`c:\windows\System32\Tasks\Microsoft\Windows\UpdateOrchestrator\`,
 		`c:\windows\System32\Tasks\Microsoft\Windows\Windows Defender\Windows Defender Scheduled Scan`,
+		`C:\Windows\System32\Tasks\MicrosoftEdgeUpdateBrowserReplacementTask`,
 	}
 	// quote each path and join with commas
 	pattern := ""
@@ -213,6 +215,12 @@ func (t *Tester) testDoesNotChangeSystemFiles(tt *testing.T) bool {
 		output, err := t.host.Execute(cmd)
 		require.NoError(tt, err, "should compare system files")
 		output = strings.TrimSpace(output)
+		// Log the output if it's not empty so we have a record of what changed.
+		// Normally require.Empty would log this but flake.Mark might Skip the test before its called.
+		if output != "" {
+			tt.Logf("should not remove system files: %s", output)
+		}
+		flake.Mark(tt)
 		require.Empty(tt, output, "should not remove system files")
 	})
 }
