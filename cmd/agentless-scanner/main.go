@@ -339,9 +339,11 @@ func main() {
 	err := cmd.Execute()
 
 	if err != nil {
+		log.Flush()
 		fmt.Fprintf(os.Stderr, "ERROR: %s\n", err)
 		os.Exit(-1)
 	}
+	log.Flush()
 	os.Exit(0)
 }
 
@@ -659,7 +661,7 @@ func scanCmd(resourceARN arn.ARN, scannedHostname string, actions []string) erro
 			Type:  awsScan,
 			Tasks: []*scanTask{task},
 		}
-		close(scanner.configsCh)
+		scanner.stop()
 	}()
 	scanner.start(ctx)
 	return nil
@@ -881,7 +883,7 @@ func offlineCmd(poolSize int, scanType scanType, regions []string, maxScans int,
 	}
 
 	go func() {
-		defer close(scanner.configsCh)
+		defer scanner.stop()
 		var err error
 		if scanType == ebsScanType {
 			err = pushEBSVolumes(scanner.configsCh)
@@ -1508,6 +1510,10 @@ func (s *sideScanner) cleanSlate() error {
 	return nil
 }
 
+func (s *sideScanner) stop() {
+	close(s.configsCh)
+}
+
 func (s *sideScanner) start(ctx context.Context) {
 	log.Infof("starting agentless-scanner main loop with %d scan workers", s.poolSize)
 	defer log.Infof("stopped agentless-scanner main loop")
@@ -1643,7 +1649,6 @@ func (s *sideScanner) start(ctx context.Context) {
 	}
 	close(s.resultsCh)
 	<-done // waiting for done in range resultsCh goroutine
-	log.Flush()
 }
 
 func (s *sideScanner) launchScan(ctx context.Context, scan *scanTask) (err error) {
