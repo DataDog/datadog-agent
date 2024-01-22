@@ -148,7 +148,7 @@ func setup() (workloadmeta.Component, error) {
 func doRun(m *testing.M, store workloadmeta.Component) int {
 	factory := docker.Factory(store)
 	checkFactory, _ := factory.Get()
-	dockerCheck = factory.Get()
+	dockerCheck = checkFactory.Get()
 
 	// Setup mock sender
 	sender = mocksender.NewMockSender(dockerCheck.ID())
