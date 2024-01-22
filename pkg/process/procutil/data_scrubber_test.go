@@ -360,6 +360,9 @@ func TestScrubberStrippingAllArgument(t *testing.T) {
 		{[]string{"java -password      1234"}, []string{"java"}},
 		{[]string{"agent", "password:1234"}, []string{"agent"}},
 		{[]string{"agent password:1234"}, []string{"agent"}},
+
+//  we add a windows cmd case. 
+
 	}
 
 	scrubber := setupDataScrubber(t)
@@ -548,3 +551,5 @@ func benchmarkWithoutCache(b *testing.B) {
 	}
 	avoidOptimization = r
 }
+
+x

@@ -35,5 +35,35 @@
             "mode": "test",
             "program": "${fileDirname}"
         },
+
+/// Run manually the process agent checks >>>>>>
+//// Add as arguments "-config", "<custom datadog.yaml file path>" to override the default process agent configuration  >>>>>>>>>>  
+        
+        {
+            "name": "process",
+            "type": "go",
+            "request": "launch",
+            "mode": "exec",
+            "program": "${workspaceRoot}/bin/process-agent/process-agent",
+            "env": {},
+            "showLog": true, 
+
+            "args": [
+                "check",
+                "process"
+            ]
+        },
+        {
+            "name": "processDiscovery",
+            "type": "go",
+            "request": "launch",
+            "mode": "exec",
+            "program": "${workspaceRoot}/bin/process-agent/process-agent",
+            "env": {},
+            "args": [
+                "check",
+                "process_discovery"
+            ]
+        }
     ]
 }
