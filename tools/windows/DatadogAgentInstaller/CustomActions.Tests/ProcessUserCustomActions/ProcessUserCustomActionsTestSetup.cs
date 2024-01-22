@@ -1,3 +1,4 @@
+using System;
 using System.DirectoryServices.ActiveDirectory;
 using System.Security.Principal;
 using AutoFixture;
@@ -24,6 +25,7 @@ namespace CustomActions.Tests.ProcessUserCustomActions
             NativeMethods.Setup(n => n.IsDomainController()).Returns(false);
             NativeMethods.Setup(n => n.IsReadOnlyDomainController()).Returns(false);
             NativeMethods.Setup(n => n.GetComputerDomain()).Throws<ActiveDirectoryObjectNotFoundException>();
+            NativeMethods.Setup(n => n.GetCurrentUser(out It.Ref<string>.IsAny, out It.Ref<SecurityIdentifier>.IsAny)).Throws<Exception>();
             ServiceController.SetupGet(s => s.Services).Returns(new WindowsService[] { });
         }
 
