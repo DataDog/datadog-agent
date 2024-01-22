@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
+	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -47,6 +48,7 @@ type apiServer struct {
 	invHost         inventoryhost.Component
 	secretResolver  secrets.Component
 	invChecks       inventorychecks.Component
+	pkgSigning      packagesigning.Component
 }
 
 type dependencies struct {
@@ -62,6 +64,7 @@ type dependencies struct {
 	InvHost         inventoryhost.Component
 	SecretResolver  secrets.Component
 	InvChecks       inventorychecks.Component
+	PkgSigning      packagesigning.Component
 }
 
 var _ api.Component = (*apiServer)(nil)
@@ -78,6 +81,7 @@ func newAPIServer(deps dependencies) api.Component {
 		invHost:         deps.InvHost,
 		secretResolver:  deps.SecretResolver,
 		invChecks:       deps.InvChecks,
+		pkgSigning:      deps.PkgSigning,
 	}
 }
 
@@ -102,6 +106,7 @@ func (server *apiServer) StartServer(
 		server.invHost,
 		server.secretResolver,
 		server.invChecks,
+		server.pkgSigning,
 	)
 }
 

@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
@@ -45,11 +44,12 @@ type WindowsProbe struct {
 	pm            *procmon.WinProcmon
 	onStart       chan *procmon.ProcessStartNotification
 	onStop        chan *procmon.ProcessStopNotification
+	onError       chan bool
 }
 
 // Init initializes the probe
 func (p *WindowsProbe) Init() error {
-	pm, err := procmon.NewWinProcMon(p.onStart, p.onStop)
+	pm, err := procmon.NewWinProcMon(p.onStart, p.onStop, p.onError)
 	if err != nil {
 		return err
 	}
@@ -78,12 +78,18 @@ func (p *WindowsProbe) Start() error {
 
 		for {
 			var pce *model.ProcessCacheEntry
+			var err error
 			ev := p.zeroEvent()
 			var pidToCleanup uint32
 
 			select {
 			case <-p.ctx.Done():
 				return
+
+			case <-p.onError:
+				// in this case, we got some sort of error that the underlying
+				// subsystem can't recover from.  Need to initiate some sort of cleanup
+
 			case start := <-p.onStart:
 				pid := process.Pid(start.Pid)
 				if pid == 0 {
@@ -91,15 +97,24 @@ func (p *WindowsProbe) Start() error {
 					continue
 				}
 
-				log.Tracef("Received start %v", start)
+				log.Debugf("Received start %v", start)
 
-				ppid, err := procutil.GetParentPid(pid)
-				if err != nil {
-					log.Errorf("unable to resolve parent pid %v", err)
-					continue
+				// TODO
+				// handle new fields
+				// CreatingPRocessId
+				// CreatingThreadId
+				if start.RequiredSize != 0 {
+					// in this case, the command line and/or the image file might not be filled in
+					// depending upon how much space was needed.
+
+					// potential actions
+					// - just log/count the error and keep going
+					// - restart underlying procmon with larger buffer size, at least if error keeps occurring
+					log.Warnf("insufficient buffer size %v", start.RequiredSize)
+
 				}
 
-				pce, err = p.Resolvers.ProcessResolver.AddNewEntry(pid, ppid, start.ImageFile, start.CmdLine)
+				pce, err = p.Resolvers.ProcessResolver.AddNewEntry(pid, uint32(start.PPid), start.ImageFile, start.CmdLine, start.OwnerSidString)
 				if err != nil {
 					log.Errorf("error in resolver %v", err)
 					continue
@@ -112,7 +127,7 @@ func (p *WindowsProbe) Start() error {
 					// TODO this shouldn't happen
 					continue
 				}
-				log.Infof("Received stop %v", stop)
+				log.Debugf("Received stop %v", stop)
 
 				pce = p.Resolvers.ProcessResolver.GetEntry(pid)
 				pidToCleanup = pid
@@ -191,6 +206,7 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 		cancelFnc:    cancelFnc,
 		onStart:      make(chan *procmon.ProcessStartNotification),
 		onStop:       make(chan *procmon.ProcessStopNotification),
+		onError:      make(chan bool),
 	}
 
 	var err error
