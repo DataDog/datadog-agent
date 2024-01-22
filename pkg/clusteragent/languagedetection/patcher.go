@@ -104,13 +104,13 @@ func (lp *LanguagePatcher) detectedNewLanguages(namespacedOwnerRef *NamespacedOw
 
 	existingContainersLanguages := langUtil.NewContainersLanguages()
 
-	for container, languages := range owner.ContainerLanguages {
+	for container, languages := range owner.InjectableLanguages.ContainerLanguages {
 		for _, language := range languages {
 			existingContainersLanguages.GetOrInitializeLanguageset(container).Add(string(language.Name))
 		}
 	}
 
-	for container, languages := range owner.InitContainerLanguages {
+	for container, languages := range owner.InjectableLanguages.InitContainerLanguages {
 		for _, language := range languages {
 			existingContainersLanguages.GetOrInitializeLanguageset(fmt.Sprintf("init.%s", container)).Add(string(language.Name))
 		}

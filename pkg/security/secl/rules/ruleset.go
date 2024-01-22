@@ -15,11 +15,12 @@ import (
 
 	"github.com/spf13/cast"
 
+	"github.com/hashicorp/go-multierror"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/log"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/hashicorp/go-multierror"
 )
 
 // MacroID represents the ID of a macro
@@ -417,6 +418,25 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, ruleDef *RuleDefi
 		}
 	}
 
+	for _, action := range rule.Definition.Actions {
+		// compile action filter
+		if action.Filter != nil {
+			if err := action.CompileFilter(parsingContext, rs.model, rs.evalOpts); err != nil {
+				return nil, &ErrRuleLoad{Definition: ruleDef, Err: err}
+			}
+		}
+
+		if action.Set != nil && action.Set.Field != "" {
+			if _, found := rs.fieldEvaluators[action.Set.Field]; !found {
+				evaluator, err := rs.model.GetEvaluator(action.Set.Field, "")
+				if err != nil {
+					return nil, err
+				}
+				rs.fieldEvaluators[action.Set.Field] = evaluator
+			}
+		}
+	}
+
 	for _, event := range rule.GetEvaluator().EventTypes {
 		bucket, exists := rs.eventRuleBuckets[event]
 		if !exists {
@@ -433,25 +453,6 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, ruleDef *RuleDefi
 	rs.AddFields(rule.GetEvaluator().GetFields())
 
 	rs.rules[ruleDef.ID] = rule
-
-	for _, action := range rule.Definition.Actions {
-		if action.Set != nil && action.Set.Field != "" {
-			if _, found := rs.fieldEvaluators[action.Set.Field]; !found {
-				evaluator, err := rs.model.GetEvaluator(action.Set.Field, "")
-				if err != nil {
-					return nil, err
-				}
-				rs.fieldEvaluators[action.Set.Field] = evaluator
-			}
-		}
-
-		// compile action filter
-		if action.Filter != nil {
-			if err := action.CompileFilter(parsingContext, rs.model, rs.evalOpts); err != nil {
-				return nil, err
-			}
-		}
-	}
 
 	return rule.Rule, nil
 }

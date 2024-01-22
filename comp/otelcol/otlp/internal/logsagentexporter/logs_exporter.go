@@ -14,79 +14,85 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
-	"go.uber.org/zap"
+	"github.com/stormcat24/protodep/pkg/logger"
 
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	logsmapping "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/plog"
 )
 
-// otelTag specifies a tag to be added to all logs sent from the Datadog Agent
-const otelTag = "otel_source:datadog_agent"
+// otelSource specifies a source to be added to all logs sent from the Datadog Agent.
+// The tag has key `otel_source` and the value specified on this constant.
+const otelSource = "datadog_agent"
 
-// createConsumeLogsFunc returns an implementation of consumer.ConsumeLogsFunc
-func createConsumeLogsFunc(logger *zap.Logger, logSource *sources.LogSource, logsAgentChannel chan *message.Message) func(context.Context, plog.Logs) error {
+type exporter struct {
+	set              component.TelemetrySettings
+	logsAgentChannel chan *message.Message
+	logSource        *sources.LogSource
+	translator       *logsmapping.Translator
+}
 
-	return func(_ context.Context, ld plog.Logs) (err error) {
-		defer func() {
-			if err != nil {
-				newErr, scrubbingErr := scrubber.ScrubString(err.Error())
-				if scrubbingErr != nil {
-					err = scrubbingErr
-				} else {
-					err = errors.New(newErr)
-				}
-			}
-		}()
+func newExporter(
+	set component.TelemetrySettings,
+	logSource *sources.LogSource,
+	logsAgentChannel chan *message.Message,
+	attributesTranslator *attributes.Translator,
+) (*exporter, error) {
+	translator, err := logsmapping.NewTranslator(set, attributesTranslator, otelSource)
+	if err != nil {
+		return nil, err
+	}
 
-		rsl := ld.ResourceLogs()
-		// Iterate over resource logs
-		for i := 0; i < rsl.Len(); i++ {
-			rl := rsl.At(i)
-			sls := rl.ScopeLogs()
-			res := rl.Resource()
-			for j := 0; j < sls.Len(); j++ {
-				sl := sls.At(j)
-				lsl := sl.LogRecords()
-				// iterate over Logs
-				for k := 0; k < lsl.Len(); k++ {
-					log := lsl.At(k)
-					ddLog := logsmapping.Transform(log, res, logger)
+	return &exporter{
+		set:              set,
+		logsAgentChannel: logsAgentChannel,
+		logSource:        logSource,
+		translator:       translator,
+	}, nil
+}
 
-					var tags []string
-					if ddTags := ddLog.GetDdtags(); ddTags == "" {
-						tags = []string{otelTag}
-					} else {
-						tags = append(strings.Split(ddTags, ","), otelTag)
-					}
-					// Tags are set in the message origin instead
-					ddLog.Ddtags = nil
-					service := ""
-					if ddLog.Service != nil {
-						service = *ddLog.Service
-					}
-					status := ddLog.AdditionalProperties["status"]
-					if status == "" {
-						status = message.StatusInfo
-					}
-					origin := message.NewOrigin(logSource)
-					origin.SetTags(tags)
-					origin.SetService(service)
-					origin.SetSource(logSourceName)
-
-					content, err := ddLog.MarshalJSON()
-					if err != nil {
-						logger.Error("Error parsing log: " + err.Error())
-					}
-
-					// ingestionTs is an internal field used for latency tracking on the status page, not the actual log timestamp.
-					ingestionTs := time.Now().UnixNano()
-					message := message.NewMessage(content, origin, status, ingestionTs)
-
-					logsAgentChannel <- message
-				}
+func (e *exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
+	defer func() {
+		if err != nil {
+			newErr, scrubbingErr := scrubber.ScrubString(err.Error())
+			if scrubbingErr != nil {
+				err = scrubbingErr
+			} else {
+				err = errors.New(newErr)
 			}
 		}
+	}()
 
-		return nil
+	payloads := e.translator.MapLogs(ctx, ld)
+	for _, ddLog := range payloads {
+		tags := strings.Split(ddLog.GetDdtags(), ",")
+		// Tags are set in the message origin instead
+		ddLog.Ddtags = nil
+		service := ""
+		if ddLog.Service != nil {
+			service = *ddLog.Service
+		}
+		status := ddLog.AdditionalProperties["status"]
+		if status == "" {
+			status = message.StatusInfo
+		}
+		origin := message.NewOrigin(e.logSource)
+		origin.SetTags(tags)
+		origin.SetService(service)
+		origin.SetSource(logSourceName)
+
+		content, err := ddLog.MarshalJSON()
+		if err != nil {
+			logger.Error("Error parsing log: " + err.Error())
+		}
+
+		// ingestionTs is an internal field used for latency tracking on the status page, not the actual log timestamp.
+		ingestionTs := time.Now().UnixNano()
+		message := message.NewMessage(content, origin, status, ingestionTs)
+
+		e.logsAgentChannel <- message
 	}
+
+	return nil
 }

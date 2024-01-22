@@ -11,6 +11,17 @@ homepage 'http://www.datadoghq.com'
 license "Apache-2.0"
 license_file "../LICENSE"
 
+if ENV.has_key?("OMNIBUS_WORKERS_OVERRIDE")
+  COMPRESSION_THREADS = ENV["OMNIBUS_WORKERS_OVERRIDE"].to_i
+else
+  COMPRESSION_THREADS = 1
+end
+if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true"
+  COMPRESSION_LEVEL = 9
+else
+  COMPRESSION_LEVEL = 5
+end
+
 if ohai['platform'] == "windows"
   # Note: this is the path used by Omnibus to build the agent, the final install
   # dir will be determined by the Windows installer. This path must not contain
@@ -75,6 +86,9 @@ package :deb do
   license 'Apache License Version 2.0'
   section 'utils'
   priority 'extra'
+  compression_threads COMPRESSION_THREADS
+  compression_level COMPRESSION_LEVEL
+  compression_algo "xz"
   if ENV.has_key?('DEB_SIGNING_PASSPHRASE') and not ENV['DEB_SIGNING_PASSPHRASE'].empty?
     signing_passphrase "#{ENV['DEB_SIGNING_PASSPHRASE']}"
     if ENV.has_key?('DEB_GPG_KEY_NAME') and not ENV['DEB_GPG_KEY_NAME'].empty?
@@ -91,6 +105,9 @@ package :rpm do
   license 'Apache License Version 2.0'
   category 'System Environment/Daemons'
   priority 'extra'
+  compression_threads COMPRESSION_THREADS
+  compression_level COMPRESSION_LEVEL
+  compression_algo "xz"
   if ENV.has_key?('RPM_SIGNING_PASSPHRASE') and not ENV['RPM_SIGNING_PASSPHRASE'].empty?
     signing_passphrase "#{ENV['RPM_SIGNING_PASSPHRASE']}"
     if ENV.has_key?('RPM_GPG_KEY_NAME') and not ENV['RPM_GPG_KEY_NAME'].empty?

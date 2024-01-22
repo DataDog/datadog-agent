@@ -120,14 +120,21 @@ func (c *Check) Run() error {
 	processorCtx, stopProcessor := context.WithCancel(context.Background())
 	c.processor.start(processorCtx, pollInterval)
 
+	defer stopProcessor()
 	for {
 		select {
-		case eventBundle := <-contEventsCh:
+		case eventBundle, ok := <-contEventsCh:
+			if !ok {
+				return nil
+			}
 			c.processor.processEvents(eventBundle)
-		case eventBundle := <-podEventsCh:
+		case eventBundle, ok := <-podEventsCh:
+			if !ok {
+				stopProcessor()
+				return nil
+			}
 			c.processor.processEvents(eventBundle)
 		case <-c.stopCh:
-			stopProcessor()
 			return nil
 		}
 	}

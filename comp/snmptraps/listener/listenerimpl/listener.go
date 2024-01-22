@@ -147,7 +147,7 @@ func (t *trapListener) receiveTrap(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
 
 	if err := validatePacket(p, t.config); err != nil {
 		t.logger.Debugf("Invalid credentials from %s on listener %s, dropping traps", u.String(), t.config.Addr())
-		t.status.AddTrapsPacketsAuthErrors(1)
+		t.status.AddTrapsPacketsUnknownCommunityString(1)
 		t.sender.Count("datadog.snmp_traps.invalid_packet", 1, "", append(tags, "reason:unknown_community_string"))
 		return
 	}

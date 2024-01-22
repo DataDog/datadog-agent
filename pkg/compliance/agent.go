@@ -283,6 +283,7 @@ func (a *Agent) Stop() {
 	case <-time.After(10 * time.Second):
 	case <-a.finish:
 	}
+	a.opts.Reporter.Stop()
 	log.Infof("compliance agent shut down")
 }
 

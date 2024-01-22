@@ -13,8 +13,8 @@ package status
 type Component interface {
 	AddTrapsPackets(int64)
 	GetTrapsPackets() int64
-	AddTrapsPacketsAuthErrors(int64)
-	GetTrapsPacketsAuthErrors() int64
+	AddTrapsPacketsUnknownCommunityString(int64)
+	GetTrapsPacketsUnknownCommunityString() int64
 	SetStartError(error)
 	GetStartError() error
 }

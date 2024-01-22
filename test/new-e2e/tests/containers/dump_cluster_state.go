@@ -118,7 +118,7 @@ func dumpKindClusterState(ctx context.Context, name string) (ret string) {
 			},
 			{
 				Name:   pointer.Ptr("tag:Name"),
-				Values: []string{name + "-aws-vm"},
+				Values: []string{name + "-aws-kind"},
 			},
 		},
 	})
@@ -127,7 +127,7 @@ func dumpKindClusterState(ctx context.Context, name string) (ret string) {
 		return
 	}
 
-	if len(instancesDescription.Reservations) != 1 && len(instancesDescription.Reservations[0].Instances) != 1 {
+	if instancesDescription == nil || (len(instancesDescription.Reservations) != 1 && len(instancesDescription.Reservations[0].Instances) != 1) {
 		fmt.Fprintf(&out, "Didn’t find exactly one instance for cluster %s\n", name)
 		return
 	}

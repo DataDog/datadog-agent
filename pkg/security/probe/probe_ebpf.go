@@ -410,9 +410,7 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event) {
 
 	// handle anomaly detections
 	if event.IsAnomalyDetectionEvent() {
-		if event.IsKernelSpaceAnomalyDetectionEvent() {
-			p.profileManagers.securityProfileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, event.ContainerContext), &event.SecurityProfileContext)
-		}
+		p.profileManagers.securityProfileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, event.ContainerContext), &event.SecurityProfileContext)
 		if p.config.RuntimeSecurity.AnomalyDetectionEnabled {
 			p.sendAnomalyDetection(event)
 		}
@@ -1939,7 +1937,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 			sig := model.SignalConstants[action.Kill.Signal]
 
 			for _, pid := range pids {
-				if pid == 0 || pid == utils.Getpid() {
+				if pid <= 1 || pid == utils.Getpid() {
 					continue
 				}
 

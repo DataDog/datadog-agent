@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v2"
 )
 
@@ -251,6 +252,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("integration_check_status_enabled", false)
 	config.BindEnvAndSetDefault("enable_metadata_collection", true)
 	config.BindEnvAndSetDefault("enable_gohai", true)
+	config.BindEnvAndSetDefault("enable_signing_metadata_collection", true)
 	config.BindEnvAndSetDefault("check_runners", int64(4))
 	config.BindEnvAndSetDefault("check_cancel_timeout", 500*time.Millisecond)
 	config.BindEnvAndSetDefault("auth_token_file_path", "")
@@ -287,6 +289,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.enabled", false)
 	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.allow_list", defaultAllowedRCIntegrations)
 	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.block_list", []string{})
+	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.allow_log_config_scheduling", false)
 
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
@@ -301,6 +304,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// only occasionally.
 	config.BindEnvAndSetDefault("check_sampler_stateful_metric_expiration_time", 25*time.Hour)
 	config.BindEnvAndSetDefault("check_sampler_expire_metrics", true)
+	config.BindEnvAndSetDefault("check_sampler_context_metrics", false)
 	config.BindEnvAndSetDefault("host_aliases", []string{})
 
 	// overridden in IoT Agent main
@@ -362,6 +366,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("secret_backend_command_allow_group_exec_perm", false)
 	config.BindEnvAndSetDefault("secret_backend_skip_checks", false)
 	config.BindEnvAndSetDefault("secret_backend_remove_trailing_line_break", false)
+	config.BindEnvAndSetDefault("secret_refresh_interval", 0)
 
 	// Use to output logs in JSON format
 	config.BindEnvAndSetDefault("log_format_json", false)
@@ -1007,6 +1012,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("cluster_checks.clc_runners_port", 5005)
 	config.BindEnvAndSetDefault("cluster_checks.exclude_checks", []string{})
 	config.BindEnvAndSetDefault("cluster_checks.exclude_checks_from_dispatching", []string{})
+	config.BindEnvAndSetDefault("cluster_checks.rebalance_period", 10*time.Minute)
 
 	// Cluster check runner
 	config.BindEnvAndSetDefault("clc_runner_enabled", false)
@@ -1200,7 +1206,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	if runtime.GOOS == "windows" {
 		config.BindEnvAndSetDefault("runtime_security_config.socket", "localhost:3334")
 	} else {
-		config.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
+		config.BindEnvAndSetDefault("runtime_security_config.socket", filepath.Join(InstallPath, "run/runtime-security.sock"))
 	}
 	config.BindEnvAndSetDefault("runtime_security_config.run_path", defaultRunPath)
 	config.BindEnvAndSetDefault("runtime_security_config.log_profiled_workloads", false)
@@ -1751,6 +1757,7 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 		config.GetStringSlice("secret_backend_arguments"),
 		config.GetInt("secret_backend_timeout"),
 		config.GetInt("secret_backend_output_max_size"),
+		config.GetInt("secret_refresh_interval"),
 		config.GetBool("secret_backend_command_allow_group_exec_perm"),
 		config.GetBool("secret_backend_remove_trailing_line_break"),
 	)
@@ -1765,35 +1772,136 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 			return fmt.Errorf("unable to marshal configuration to YAML to decrypt secrets: %v", err)
 		}
 
-		err = secretResolver.ResolveWithCallback(
-			yamlConf,
-			origin,
-			func(yamlPath []string, value any) bool {
-				settingName := strings.Join(yamlPath, ".")
-
-				// We received a notification about an unknown setting. This means that the a value
-				// inside a map was updated (ie: settings like additional_endpoints,
-				// kubernetes_node_annotations_as_tags, ...). This is an issue when a setting use a
-				// map[string] as a value. The key can contain a '.' making it impossible to set or get.
-				//
-				// The secrets resolver doesn't have the notion of what is a known setting and what
-				// isn't. Returning false tells the secretResolver that we refuse the notification and
-				// we want to be notified for the parent key.
-				//
-				// See secrets.ResolveCallback documentation for more information.
-				//
-				if !config.IsKnown(settingName) {
-					return false
-				}
-
-				log.Debugf("replacing handle for setting '%s' with secret value", settingName)
-				config.Set(settingName, value, pkgconfigmodel.SourceAgentRuntime)
-				return true
-			})
-		if err != nil {
+		secretResolver.SubscribeToChanges(func(handle, settingOrigin string, settingPath []string, oldValue, newValue any) {
+			if origin != settingOrigin {
+				return
+			}
+			if err := configAssignAtPath(config, settingPath, newValue); err != nil {
+				log.Errorf("could not assign to config: %s", err)
+			}
+		})
+		if _, err = secretResolver.Resolve(yamlConf, origin); err != nil {
 			return fmt.Errorf("unable to decrypt secret from datadog.yaml: %v", err)
 		}
 	}
+	return nil
+}
+
+// confgAssignAtPath assigns a value to the given setting of the config
+// This works around viper issues that prevent us from assigning to fields that have a dot in the
+// name (example: 'additional_endpoints.http://url.com') and also allows us to assign to individual
+// elements of a slice of items (example: 'proxy.no_proxy.0' to assign index 0 of 'no_proxy')
+func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newValue any) error {
+	settingName := strings.Join(settingPath, ".")
+	if config.IsKnown(settingName) {
+		config.Set(settingName, newValue, pkgconfigmodel.SourceAgentRuntime)
+		return nil
+	}
+
+	// Trying to assign to an unknown config field can happen when trying to set a
+	// value inside of a compound object (a slice or a map) which allows arbitrary key
+	// values. Some settings where this happens include `additional_endpoints`, or
+	// `kubernetes_node_annotations_as_tags`, etc. Since these arbitrary keys can
+	// contain a '.' character, we are unable to use the standard `config.Set` method.
+	// Instead, we remove trailing elements from the end of the path until we find a known
+	// config field, retrieve the compound object at that point, and then use the trailing
+	// elements to figure out how to modify that particular object, before setting it back
+	// on the config.
+	//
+	// Example with the follow configuration:
+	//
+	//    process_config:
+	//      additional_endpoints:
+	//        http://url.com:
+	//         - ENC[handle_to_password]
+	//
+	// Calling this function like:
+	//
+	//   configAssignAtPath(config, ['process_config', 'additional_endpoints', 'http://url.com', '0'], 'password')
+	//
+	// This is split into:
+	//   ['process_config', 'additional_endpoints']  // a known config field
+	// and:
+	//   ['http://url.com', '0']                     // trailing elements
+	//
+	// This function will effectively do:
+	//
+	// var original map[string][]string = config.Get('process_config.additional_endpoints')
+	// var slice []string               = original['http://url.com']
+	// slice[0] = 'password'
+	// config.Set('process_config.additional_endpoints', original)
+
+	trailingElements := make([]string, 0, len(settingPath))
+	// copy the path and hold onto the original, useful for error messages
+	path := slices.Clone(settingPath)
+	for {
+		if len(path) == 0 {
+			return fmt.Errorf("unknown config setting '%s'", settingPath)
+		}
+		// get the last element from the path and add it to the trailing elements
+		lastElem := path[len(path)-1]
+		trailingElements = append(trailingElements, lastElem)
+		// remove that element from the path and see if we've reached a known field
+		path = path[:len(path)-1]
+		settingName = strings.Join(path, ".")
+		if config.IsKnown(settingName) {
+			break
+		}
+	}
+	slices.Reverse(trailingElements)
+
+	// retrieve the config value at the known field
+	startingValue := config.Get(settingName)
+	iterateValue := startingValue
+	// iterate down until we find the final object that we are able to modify
+	for k, elem := range trailingElements {
+		switch modifyValue := iterateValue.(type) {
+		case map[string]interface{}:
+			if k == len(trailingElements)-1 {
+				// if we reached the final object, modify it directly by assigning the newValue parameter
+				modifyValue[elem] = newValue
+			} else {
+				// otherwise iterate inside that compound object
+				iterateValue = modifyValue[elem]
+			}
+		case map[interface{}]interface{}:
+			if k == len(trailingElements)-1 {
+				modifyValue[elem] = newValue
+			} else {
+				iterateValue = modifyValue[elem]
+			}
+		case []string:
+			index, err := strconv.Atoi(elem)
+			if err != nil {
+				return err
+			}
+			if index >= len(modifyValue) {
+				return fmt.Errorf("index out of range %d >= %d", index, len(modifyValue))
+			}
+			if k == len(trailingElements)-1 {
+				modifyValue[index] = fmt.Sprintf("%s", newValue)
+			} else {
+				iterateValue = modifyValue[index]
+			}
+		case []interface{}:
+			index, err := strconv.Atoi(elem)
+			if err != nil {
+				return err
+			}
+			if index >= len(modifyValue) {
+				return fmt.Errorf("index out of range %d >= %d", index, len(modifyValue))
+			}
+			if k == len(trailingElements)-1 {
+				modifyValue[index] = newValue
+			} else {
+				iterateValue = modifyValue[index]
+			}
+		default:
+			return fmt.Errorf("cannot assign to setting '%s' of type %T", settingPath, iterateValue)
+		}
+	}
+
+	config.Set(settingName, startingValue, pkgconfigmodel.SourceAgentRuntime)
 	return nil
 }
 

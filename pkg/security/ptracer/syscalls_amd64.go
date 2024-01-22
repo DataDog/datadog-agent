@@ -9,38 +9,45 @@ package ptracer
 
 import (
 	"syscall"
-
-	"golang.org/x/sys/unix"
 )
 
 const (
-	OpenNr     = 2   // OpenNr defines the syscall ID for amd64
-	OpenatNr   = 257 // OpenatNr defines the syscall ID for amd64
-	Openat2Nr  = 437 // Openat2Nr defines the syscall ID for amd64
-	ExecveNr   = 59  // ExecveNr defines the syscall ID for amd64
-	ExecveatNr = 322 // ExecveatNr defines the syscall ID for amd64
-	CloneNr    = 56  // CloneNr defines the syscall ID for amd64
-	ForkNr     = 57  // ForkNr defines the syscall ID for amd64
-	VforkNr    = 58  // VforkNr defines the syscall ID for amd64
-	ExitNr     = 60  // ExitNr defines the syscall ID for amd64
-	FcntlNr    = 72  // FcntlNr defines the syscall ID for amd64
-	DupNr      = 32  // DupNr defines the syscall ID for amd64
-	Dup2Nr     = 33  // Dup2Nr defines the syscall ID for amd64
-	Dup3Nr     = 292 // Dup3Nr defines the syscall ID for amd64
-	ChdirNr    = 80  // ChdirNr defines the syscall ID for amd64
-	FchdirNr   = 81  // FchdirNr defines the syscall ID for amd64
-	SetuidNr   = 105 // SetuidNr defines the syscall ID for amd64
-	SetgidNr   = 106 // SetgidNr defines the syscall ID for amd64
-	SetreuidNr = 113 // SetreuidNr defines the syscall ID for amd64
-	SetregidNr = 114 // SetregidNr defines the syscall ID for amd64
-
-	ptraceFlags = 0 |
-		syscall.PTRACE_O_TRACEVFORK |
-		syscall.PTRACE_O_TRACEFORK |
-		syscall.PTRACE_O_TRACECLONE |
-		syscall.PTRACE_O_TRACEEXEC |
-		syscall.PTRACE_O_TRACESYSGOOD |
-		unix.PTRACE_O_TRACESECCOMP
+	OpenNr           = 2   // OpenNr defines the syscall ID for amd64
+	OpenatNr         = 257 // OpenatNr defines the syscall ID for amd64
+	Openat2Nr        = 437 // Openat2Nr defines the syscall ID for amd64
+	CreatNr          = 85  // CreatNr defines the syscall ID for amd64
+	NameToHandleAtNr = 303 // NameToHandleAtNr defines the syscall ID for amd64
+	OpenByHandleAtNr = 304 // OpenByHandleAtNr defines the syscall ID for amd64
+	ExecveNr         = 59  // ExecveNr defines the syscall ID for amd64
+	ExecveatNr       = 322 // ExecveatNr defines the syscall ID for amd64
+	CloneNr          = 56  // CloneNr defines the syscall ID for amd64
+	ForkNr           = 57  // ForkNr defines the syscall ID for amd64
+	VforkNr          = 58  // VforkNr defines the syscall ID for amd64
+	ExitNr           = 60  // ExitNr defines the syscall ID for amd64
+	FcntlNr          = 72  // FcntlNr defines the syscall ID for amd64
+	DupNr            = 32  // DupNr defines the syscall ID for amd64
+	Dup2Nr           = 33  // Dup2Nr defines the syscall ID for amd64
+	Dup3Nr           = 292 // Dup3Nr defines the syscall ID for amd64
+	ChdirNr          = 80  // ChdirNr defines the syscall ID for amd64
+	FchdirNr         = 81  // FchdirNr defines the syscall ID for amd64
+	SetuidNr         = 105 // SetuidNr defines the syscall ID for amd64
+	SetgidNr         = 106 // SetgidNr defines the syscall ID for amd64
+	SetreuidNr       = 113 // SetreuidNr defines the syscall ID for amd64
+	SetregidNr       = 114 // SetregidNr defines the syscall ID for amd64
+	SetresuidNr      = 117 // SetresuidNr defines the syscall ID for amd64
+	SetresgidNr      = 119 // SetresgidNr defines the syscall ID for amd64
+	SetfsuidNr       = 122 // SetfsuidNr defines the syscall ID for amd64
+	SetfsgidNr       = 123 // SetfsgidNr defines the syscall ID for amd64
+	CloseNr          = 3   // CloseNr defines the syscall ID for amd64
+	MemfdCreateNr    = 319 // MemfdCreateNr defines the syscall ID for amd64
+	CapsetNr         = 126 // CapsetNr defines the syscall ID for amd64
+	UnlinkNr         = 87  // UnlinkNr defines the syscall ID for amd64
+	UnlinkatNr       = 263 // UnlinkatNr defines the syscall ID for amd64
+	RmdirNr          = 84  // RmdirNr defines the syscall ID for amd64
+	RenameNr         = 82  // RenameNr defines the syscall ID for amd64
+	RenameAtNr       = 264 // RenameAtNr defines the syscall ID for amd64
+	RenameAt2Nr      = 316 // RenameAt2Nr defines the syscall ID for amd64
+	Clone3Nr         = 435 // Clone3Nr defines the syscall ID for amd64
 )
 
 var (
@@ -49,6 +56,9 @@ var (
 		"open",
 		"openat",
 		"openat2",
+		"creat",
+		"name_to_handle_at",
+		"open_by_handle_at",
 		"fork",
 		"vfork",
 		"clone",
@@ -65,6 +75,19 @@ var (
 		"setgid",
 		"setreuid",
 		"setregid",
+		"setresuid",
+		"setresgid",
+		"setfsuid",
+		"setfsgid",
+		"close",
+		"memfd_create",
+		"capset",
+		"unlink",
+		"unlinkat",
+		"rmdir",
+		"rename",
+		"renameat",
+		"renameat2",
 	}
 )
 

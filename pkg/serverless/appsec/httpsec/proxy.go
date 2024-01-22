@@ -7,16 +7,18 @@ package httpsec
 
 import (
 	"bytes"
-	"encoding/json"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
+	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trigger"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/aws/aws-lambda-go/events"
+	json "github.com/json-iterator/go"
 )
 
 // ProxyLifecycleProcessor is an implementation of the invocationlifecycle.InvocationProcessor
@@ -31,13 +33,16 @@ type ProxyLifecycleProcessor struct {
 
 	// Parsed invocation event value
 	invocationEvent interface{}
+
+	demux aggregator.Demultiplexer
 }
 
 // NewProxyLifecycleProcessor returns a new httpsec proxy processor monitored with the
 // given Monitorer.
-func NewProxyLifecycleProcessor(appsec Monitorer) *ProxyLifecycleProcessor {
+func NewProxyLifecycleProcessor(appsec Monitorer, demux aggregator.Demultiplexer) *ProxyLifecycleProcessor {
 	return &ProxyLifecycleProcessor{
 		appsec: appsec,
+		demux:  demux,
 	}
 }
 
@@ -61,6 +66,8 @@ func (lp *ProxyLifecycleProcessor) OnInvokeStart(startDetails *invocationlifecyc
 	eventType := trigger.GetEventType(lowercaseEventPayload)
 	if eventType == trigger.Unknown {
 		log.Debugf("appsec: proxy-lifecycle: Failed to extract event type")
+	} else {
+		log.Debugf("appsec: proxy-lifecycle: Extracted event type: %v", eventType)
 	}
 
 	var event interface{}
@@ -82,6 +89,9 @@ func (lp *ProxyLifecycleProcessor) OnInvokeStart(startDetails *invocationlifecyc
 		event = &events.ALBTargetGroupRequest{}
 	case trigger.LambdaFunctionURLEvent:
 		event = &events.LambdaFunctionURLRequest{}
+	}
+	if lp.demux != nil {
+		serverlessMetrics.SendASMInvocationEnhancedMetric(nil, lp.demux)
 	}
 
 	if err := json.Unmarshal(payloadBytes, event); err != nil {
@@ -210,8 +220,10 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 			&ctx,
 			nil,
 			&event.Path,
-			event.MultiValueHeaders,
-			event.MultiValueQueryStringParameters,
+			// Depending on how the ALB is configured, headers will be either in MultiValueHeaders or Headers (not both).
+			multiOrSingle(event.MultiValueHeaders, event.Headers),
+			// Depending on how the ALB is configured, query parameters will be either in MultiValueQueryStringParameters or QueryStringParameters (not both).
+			multiOrSingle(event.MultiValueQueryStringParameters, event.QueryStringParameters),
 			nil,
 			"",
 			&event.Body,
@@ -256,6 +268,19 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 		}
 		setAPISecurityTags(span, res.Derivatives)
 	}
+}
+
+// multiOrSingle picks the first non-nil map, and returns the content formatted
+// as the multi-map.
+func multiOrSingle(multi map[string][]string, single map[string]string) map[string][]string {
+	if multi == nil && single != nil {
+		// There is no multi-map, but there is a single-map, so we'll make a multi-map out of that.
+		multi = make(map[string][]string, len(single))
+		for key, value := range single {
+			multi[key] = []string{value}
+		}
+	}
+	return multi
 }
 
 //nolint:revive // TODO(ASM) Fix revive linter

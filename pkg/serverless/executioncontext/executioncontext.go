@@ -7,11 +7,12 @@
 package executioncontext
 
 import (
-	"encoding/json"
 	"os"
 	"strings"
 	"sync"
 	"time"
+
+	json "github.com/json-iterator/go"
 )
 
 const persistedStateFilePath = "/tmp/dd-lambda-extension-cache.json"

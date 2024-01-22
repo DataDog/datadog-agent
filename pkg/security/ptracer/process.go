@@ -13,10 +13,20 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+type fileHandleKey struct {
+	handleBytes uint32
+	handleType  int32
+}
+
+type fileHandleVal struct {
+	pathName string
+}
+
 // Resources defines shared process resources
 type Resources struct {
-	Fd  map[int32]string
-	Cwd string
+	Fd              map[int32]string
+	Cwd             string
+	FileHandleCache map[fileHandleKey]*fileHandleVal
 }
 
 // Process represents a process context
@@ -34,7 +44,8 @@ func NewProcess(pid int) *Process {
 		Tgid: pid,
 		Nr:   make(map[int]*ebpfless.SyscallMsg),
 		Res: &Resources{
-			Fd: make(map[int32]string),
+			Fd:              make(map[int32]string),
+			FileHandleCache: make(map[fileHandleKey]*fileHandleVal),
 		},
 	}
 }

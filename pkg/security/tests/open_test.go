@@ -123,7 +123,10 @@ func TestOpen(t *testing.T) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags), "wrong flags")
 			assertRights(t, uint16(event.Open.Mode), 0711)
-			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
+
+			if !test.opts.staticOpts.enableEBPFLess {
+				assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
+			}
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
@@ -131,10 +134,6 @@ func TestOpen(t *testing.T) {
 	})
 
 	t.Run("creat", ifSyscallSupported("SYS_CREAT", func(t *testing.T, syscallNB uintptr) {
-		if test.opts.staticOpts.enableEBPFLess {
-			t.Skip("SYS_CREAT not supported yet")
-		}
-
 		defer os.Remove(testFile)
 
 		test.WaitSignal(t, func() error {
@@ -147,7 +146,9 @@ func TestOpen(t *testing.T) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assert.Equal(t, syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, int(event.Open.Flags), "wrong flags")
 			assertRights(t, uint16(event.Open.Mode), 0711)
-			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
+			if !test.opts.staticOpts.enableEBPFLess {
+				assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
+			}
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
@@ -193,10 +194,6 @@ func TestOpen(t *testing.T) {
 	})
 
 	t.Run("open_by_handle_at", func(t *testing.T) {
-		if test.opts.staticOpts.enableEBPFLess {
-			t.Skip("open_by_handle_at not supported yet")
-		}
-
 		defer os.Remove(testFile)
 
 		// wait for this first event
@@ -235,7 +232,9 @@ func TestOpen(t *testing.T) {
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags), "wrong flags")
-			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
+			if !test.opts.staticOpts.enableEBPFLess {
+				assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
+			}
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
@@ -372,9 +371,6 @@ func TestOpenMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
-	if test.opts.staticOpts.enableEBPFLess {
-		t.Skip("some metadata not supported yet")
-	}
 
 	fileMode := 0o447
 	expectedMode := uint16(applyUmask(fileMode))
@@ -389,7 +385,7 @@ func TestOpenMetadata(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			// CreateWithOptions creates the file and then chmod the user / group. When the file was created it didn't
 			// have the right uid / gid, thus didn't match the rule. Open the file again to trigger the rule.
-			f, err := os.Open(testFile)
+			f, err := os.OpenFile(testFile, os.O_RDONLY, os.FileMode(expectedMode))
 			if err != nil {
 				return err
 			}
@@ -397,7 +393,9 @@ func TestOpenMetadata(t *testing.T) {
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assertRights(t, event.Open.File.Mode, expectedMode)
-			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
+			if !test.opts.staticOpts.enableEBPFLess {
+				assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
+			}
 			assertNearTime(t, event.Open.File.MTime)
 			assertNearTime(t, event.Open.File.CTime)
 

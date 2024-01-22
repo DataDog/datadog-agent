@@ -8,19 +8,19 @@ package module
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func preRegister(cfg *config.Config, _ []Factory) error {
+func preRegister(cfg *sysconfigtypes.Config, _ []Factory) error {
 	if err := driver.Init(cfg); err != nil {
 		return fmt.Errorf("failed to load driver subsystem: %v", err)
 	}
 	return nil
 }
 
-func postRegister(_ *config.Config, _ []Factory) error {
+func postRegister(_ *sysconfigtypes.Config, _ []Factory) error {
 	if !driver.IsNeeded() {
 		// if running, shut it down
 		log.Debug("Shutting down the driver.  Upon successful initialization, it was not needed by the current configuration.")

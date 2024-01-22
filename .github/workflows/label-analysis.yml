@@ -3,13 +3,14 @@ name: "Label analysis"
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+    types: [opened, synchronize, reopened]
     branches:
       - main
       - "[0-9]+.[0-9]+.x"
 
 jobs:
   team-label:
+    if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,6 +22,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install -r tasks/libs/requirements-github.txt
       - name: Run PR check for team assignment label
         env:
           BRANCH_NAME: ${{ github.ref_name }}
@@ -28,6 +30,7 @@ jobs:
         run: |
           inv -e lint-teamassignment
   skip-qa:
+    if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -39,6 +42,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install -r tasks/libs/requirements-github.txt
       - name: Run PR check for QA labels
         env:
           BRANCH_NAME: ${{ github.ref_name }}

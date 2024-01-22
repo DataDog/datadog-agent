@@ -22,16 +22,16 @@ var Module = fxutil.Component(
 )
 
 var (
-	trapsExpvars           = expvar.NewMap("snmp_traps")
-	trapsPackets           = expvar.Int{}
-	trapsPacketsAuthErrors = expvar.Int{}
+	trapsExpvars                       = expvar.NewMap("snmp_traps")
+	trapsPackets                       = expvar.Int{}
+	trapsPacketsUnknownCommunityString = expvar.Int{}
 	// startError stores the error we report to GetStatus()
 	startError error
 )
 
 func init() {
 	trapsExpvars.Set("Packets", &trapsPackets)
-	trapsExpvars.Set("PacketsAuthErrors", &trapsPacketsAuthErrors)
+	trapsExpvars.Set("PacketsUnknownCommunityString", &trapsPacketsUnknownCommunityString)
 }
 
 // New creates a new status manager component
@@ -46,16 +46,16 @@ func (s *manager) AddTrapsPackets(i int64) {
 	trapsPackets.Add(i)
 }
 
-func (s *manager) AddTrapsPacketsAuthErrors(i int64) {
-	trapsPacketsAuthErrors.Add(i)
+func (s *manager) AddTrapsPacketsUnknownCommunityString(i int64) {
+	trapsPacketsUnknownCommunityString.Add(i)
 }
 
 func (s *manager) GetTrapsPackets() int64 {
 	return trapsPackets.Value()
 }
 
-func (s *manager) GetTrapsPacketsAuthErrors() int64 {
-	return trapsPacketsAuthErrors.Value()
+func (s *manager) GetTrapsPacketsUnknownCommunityString() int64 {
+	return trapsPacketsUnknownCommunityString.Value()
 }
 
 func (s *manager) GetStartError() error {

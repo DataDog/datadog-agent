@@ -13,6 +13,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/net/http2/hpack"
 
@@ -23,6 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var oversizedLogLimit = util.NewLogLimit(10, time.Minute*10)
 
 // validatePath validates the given path.
 func validatePath(str string) error {
@@ -77,18 +80,24 @@ func (tx *EbpfTx) Path(buffer []byte) ([]byte, bool) {
 	if tx.Stream.Is_huffman_encoded {
 		res, err = decodeHTTP2Path(tx.Stream.Request_path, tx.Stream.Path_size)
 		if err != nil {
-			log.Errorf("unable to decode HTTP2 path (%#v) due to: %s", tx.Stream.Request_path[:tx.Stream.Path_size], err)
+			if oversizedLogLimit.ShouldLog() {
+				log.Errorf("unable to decode HTTP2 path (%#v) due to: %s", tx.Stream.Request_path[:tx.Stream.Path_size], err)
+			}
 			return nil, false
 		}
 	} else {
 		if err = validatePathSize(tx.Stream.Path_size); err != nil {
-			log.Errorf("path size: %d is invalid due to: %s", tx.Stream.Path_size, err)
+			if oversizedLogLimit.ShouldLog() {
+				log.Errorf("path size: %d is invalid due to: %s", tx.Stream.Path_size, err)
+			}
 			return nil, false
 		}
 
 		res = tx.Stream.Request_path[:tx.Stream.Path_size]
 		if err = validatePath(string(res)); err != nil {
-			log.Errorf("path %s is invalid due to: %s", string(res), err)
+			if oversizedLogLimit.ShouldLog() {
+				log.Errorf("path %s is invalid due to: %s", string(res), err)
+			}
 			return nil, false
 		}
 

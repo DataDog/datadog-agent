@@ -44,6 +44,7 @@ const (
 
 	tcpGetSockOptKProbeNotCalled uint64 = 0
 	tcpGetSockOptKProbeCalled    uint64 = 1
+	netNsDefaultOffsetBytes             = 48
 )
 
 var tcpKprobeCalledString = map[uint64]string{
@@ -528,6 +529,7 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 			t.status.Fl6_offsets = disabled
 			break
 		}
+	// This case guesses for both the net namespace struct and the inode field within it
 	case GuessNetNS:
 		t.status.Offset_netns, overlapped = skipOverlaps(t.status.Offset_netns, t.sockRanges())
 		if overlapped {
@@ -535,16 +537,23 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected
 			break
 		}
 
+		// compare the netns INO to the expected (usually the root NS of this machine)
 		if t.status.Netns == expected.netns {
 			t.logAndAdvance(t.status.Offset_netns, GuessRTT)
 			log.Debugf("Successfully guessed %v with offset of %d bytes", "ino", t.status.Offset_ino)
 			break
 		}
 		t.status.Offset_ino++
-		// go to the next offset_netns if we get an error
+		// go to the next offset_netns if we get an error in kernelspace or if we pass the threshold
 		if t.status.Err != 0 || t.status.Offset_ino >= threshold {
 			t.status.Offset_ino = 0
-			t.status.Offset_netns++
+			// if we have already seen a failure, we need to increment the offset_netns otherwise set it to offset_family
+			if t.status.Seen_failure != 0 {
+				t.status.Offset_netns++
+			} else {
+				t.status.Offset_netns = t.status.Offset_family
+				t.status.Seen_failure = 1
+			}
 			t.status.Offset_netns, _ = skipOverlaps(t.status.Offset_netns, t.sockRanges())
 		}
 	case GuessRTT:
@@ -725,12 +734,12 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 		cProcName[i] = int8(ch)
 	}
 
-	t.guessUDPv6 = cfg.CollectUDPv6Conns
-	t.guessTCPv6 = cfg.CollectTCPv6Conns
+	t.guessTCPv6, t.guessUDPv6 = getIpv6Configuration(cfg)
 	t.status = &TracerStatus{
-		State: uint64(StateChecking),
-		Proc:  Proc{Comm: cProcName},
-		What:  uint64(GuessSAddr),
+		State:        uint64(StateChecking),
+		Proc:         Proc{Comm: cProcName},
+		What:         uint64(GuessSAddr),
+		Offset_netns: netNsDefaultOffsetBytes,
 	}
 
 	// if we already have the offsets, just return
@@ -818,6 +827,8 @@ func (t *tracerOffsetGuesser) getConstantEditors() []manager.ConstantEditor {
 		{Name: "offset_sk_buff_sock", Value: t.status.Offset_sk_buff_sock},
 		{Name: "offset_sk_buff_transport_header", Value: t.status.Offset_sk_buff_transport_header},
 		{Name: "offset_sk_buff_head", Value: t.status.Offset_sk_buff_head},
+		{Name: "tcpv6_enabled", Value: boolToUint64(t.guessTCPv6)},
+		{Name: "udpv6_enabled", Value: boolToUint64(t.guessUDPv6)},
 	}
 }
 
@@ -1090,65 +1101,18 @@ type tracerOffsets struct {
 	err     error
 }
 
-func boolConst(name string, value bool) manager.ConstantEditor {
-	c := manager.ConstantEditor{
-		Name:  name,
-		Value: uint64(1),
-	}
-	if !value {
-		c.Value = uint64(0)
-	}
-
-	return c
-}
-
 func (o *tracerOffsets) Offsets(cfg *config.Config) ([]manager.ConstantEditor, error) {
-	fromConfig := func(c *config.Config, offsets []manager.ConstantEditor) []manager.ConstantEditor {
-		//nolint:revive // TODO(NET) Fix revive linter
-		var foundTcp, foundUdp bool
-		for o := range offsets {
-			switch offsets[o].Name {
-			case "tcpv6_enabled":
-				offsets[o] = boolConst("tcpv6_enabled", c.CollectTCPv6Conns)
-				foundTcp = true
-			case "udpv6_enabled":
-				offsets[o] = boolConst("udpv6_enabled", c.CollectUDPv6Conns)
-				foundUdp = true
-			}
-			if foundTcp && foundUdp {
-				break
-			}
-		}
-		if !foundTcp {
-			offsets = append(offsets, boolConst("tcpv6_enabled", c.CollectTCPv6Conns))
-		}
-		if !foundUdp {
-			offsets = append(offsets, boolConst("udpv6_enabled", c.CollectUDPv6Conns))
-		}
-
-		return offsets
-	}
-
 	if o.err != nil {
 		return nil, o.err
 	}
 
-	if cfg.CollectUDPv6Conns {
-		kv, err := kernel.HostVersion()
-		if err != nil {
-			return nil, err
-		}
-
-		if kv >= kernel.VersionCode(5, 18, 0) {
-			_cfg := *cfg
-			_cfg.CollectUDPv6Conns = false
-			cfg = &_cfg
-		}
-	}
+	_, udpv6Enabled := getIpv6Configuration(cfg)
+	_cfg := *cfg
+	_cfg.CollectUDPv6Conns = udpv6Enabled
+	cfg = &_cfg
 
 	if len(o.offsets) > 0 {
-		// already run
-		return fromConfig(cfg, o.offsets), o.err
+		return o.offsets, o.err
 	}
 
 	offsetBuf, err := netebpf.ReadOffsetBPFModule(cfg.BPFDir, cfg.BPFDebug)
@@ -1157,9 +1121,8 @@ func (o *tracerOffsets) Offsets(cfg *config.Config) ([]manager.ConstantEditor, e
 		return nil, o.err
 	}
 	defer offsetBuf.Close()
-
 	o.offsets, o.err = RunOffsetGuessing(cfg, offsetBuf, NewTracerOffsetGuesser)
-	return fromConfig(cfg, o.offsets), o.err
+	return o.offsets, o.err
 }
 
 func (o *tracerOffsets) Reset() {
