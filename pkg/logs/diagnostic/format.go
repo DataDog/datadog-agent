@@ -22,7 +22,7 @@ type Formatter interface {
 
 // logFormatter is the default Formatter which supports transforming log pipeline messages into a more useful format.
 type logFormatter struct {
-	hostname hostnameinterface.HostnameInterface
+	hostname hostnameinterface.Component
 }
 
 //nolint:revive // TODO(AML) Fix revive linter

@@ -38,7 +38,7 @@ func NewPipeline(outputChan chan *message.Payload,
 	diagnosticMessageReceiver diagnostic.MessageReceiver,
 	serverless bool,
 	pipelineID int,
-	hostname hostnameinterface.HostnameInterface) *Pipeline {
+	hostname hostnameinterface.Component) *Pipeline {
 
 	mainDestinations := getDestinations(endpoints, destinationsContext, pipelineID, serverless)
 

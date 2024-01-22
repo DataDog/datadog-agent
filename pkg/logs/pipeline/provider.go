@@ -43,16 +43,16 @@ type provider struct {
 
 	serverless bool
 
-	hostname hostnameinterface.HostnameInterface
+	hostname hostnameinterface.Component
 }
 
 // NewProvider returns a new Provider
-func NewProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, hostname hostnameinterface.HostnameInterface) Provider {
+func NewProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, hostname hostnameinterface.Component) Provider {
 	return newProvider(numberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsContext, false, hostname)
 }
 
 // NewServerlessProvider returns a new Provider in serverless mode
-func NewServerlessProvider(numberOfPipelines int, auditor auditor.Auditor, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, hostname hostnameinterface.HostnameInterface) Provider {
+func NewServerlessProvider(numberOfPipelines int, auditor auditor.Auditor, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, hostname hostnameinterface.Component) Provider {
 	return newProvider(numberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, processingRules, endpoints, destinationsContext, true, hostname)
 }
 
@@ -61,7 +61,7 @@ func NewMockProvider() Provider {
 	return &provider{}
 }
 
-func newProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, serverless bool, hostname hostnameinterface.HostnameInterface) Provider {
+func newProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, serverless bool, hostname hostnameinterface.Component) Provider {
 	return &provider{
 		numberOfPipelines:         numberOfPipelines,
 		auditor:                   auditor,

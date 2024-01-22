@@ -16,8 +16,8 @@ type Data struct {
 	Provider string
 }
 
-// HostnameInterface is the type for hostname methods.
-type HostnameInterface interface {
+// Component is the type for hostname methods.
+type Component interface {
 	// Get returns the host name for the agent.
 	Get(context.Context) (string, error)
 	// GetWithProvider returns the hostname for the Agent and the provider that was use to retrieve it.

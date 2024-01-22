@@ -42,7 +42,7 @@ type Filters struct {
 
 // NewBufferedMessageReceiver creates a new MessageReceiver. It takes an optional Formatter as a parameter, and defaults
 // to using logFormatter if not supplied.
-func NewBufferedMessageReceiver(f Formatter, hostname hostnameinterface.HostnameInterface) *BufferedMessageReceiver {
+func NewBufferedMessageReceiver(f Formatter, hostname hostnameinterface.Component) *BufferedMessageReceiver {
 	if f == nil {
 		f = &logFormatter{
 			hostname: hostname,

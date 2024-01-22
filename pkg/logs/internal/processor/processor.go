@@ -31,11 +31,11 @@ type Processor struct {
 	done                      chan struct{}
 	diagnosticMessageReceiver diagnostic.MessageReceiver
 	mu                        sync.Mutex
-	hostname                  hostnameinterface.HostnameInterface
+	hostname                  hostnameinterface.Component
 }
 
 // New returns an initialized Processor.
-func New(inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule, encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.HostnameInterface) *Processor {
+func New(inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule, encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component) *Processor {
 	return &Processor{
 		inputChan:                 inputChan,
 		outputChan:                outputChan, // strategy input
