@@ -34,7 +34,8 @@ func fetchProcesses() (processes, error) {
 	for _, p := range ps {
 		name, err := p.Name()
 		if err != nil {
-			return nil, err
+			log.Debugf("unable to get process name for PID %d: %s", p.Pid, err)
+			continue
 		}
 		procs[p.Pid] = name
 	}
