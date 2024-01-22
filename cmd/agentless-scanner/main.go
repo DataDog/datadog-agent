@@ -358,6 +358,9 @@ func rootCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if _, err := parseScanActions(globalParams.defaultActions); err != nil {
+				return err
+			}
 			globalParams.diskMode = mode
 			initStatsdClient()
 			return nil
@@ -1077,22 +1080,31 @@ func newScanTask(resourceARN, hostname string, actions []string, roles rolesMapp
 	if actions == nil {
 		actions = globalParams.defaultActions
 	}
-	for _, actionRaw := range actions {
-		switch actionRaw {
-		case string(vulnsHost):
-			scan.Actions = append(scan.Actions, vulnsHost)
-		case string(vulnsContainers):
-			scan.Actions = append(scan.Actions, vulnsContainers)
-		case string(malware):
-			scan.Actions = append(scan.Actions, malware)
-		default:
-			log.Warnf("unknown action type %q", actionRaw)
-		}
+	scan.Actions, err = parseScanActions(actions)
+	if err != nil {
+		log.Warn(err)
 	}
 	scan.CreatedAt = time.Now()
 	scan.ID = makeScanTaskID(&scan)
 	scan.CreatedSnapshots = make(map[string]*time.Time)
 	return &scan, nil
+}
+
+func parseScanActions(actions []string) ([]scanAction, error) {
+	var scanActions []scanAction
+	for _, actionRaw := range actions {
+		switch actionRaw {
+		case string(vulnsHost):
+			scanActions = append(scanActions, vulnsHost)
+		case string(vulnsContainers):
+			scanActions = append(scanActions, vulnsContainers)
+		case string(malware):
+			scanActions = append(scanActions, malware)
+		default:
+			return nil, fmt.Errorf("unknown action type %q", actionRaw)
+		}
+	}
+	return scanActions, nil
 }
 
 func unmarshalConfig(b []byte) (*scanConfig, error) {
