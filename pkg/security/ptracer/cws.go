@@ -43,7 +43,7 @@ func fillProcessCwd(process *Process) error {
 }
 
 func getFullPathFromFd(process *Process, filename string, fd int32) (string, error) {
-	if filename[0] != '/' {
+	if len(filename) > 0 && filename[0] != '/' {
 		if fd == unix.AT_FDCWD { // if use current dir, try to prefix it
 			if process.Res.Cwd != "" || fillProcessCwd(process) == nil {
 				filename = filepath.Join(process.Res.Cwd, filename)
@@ -778,7 +778,7 @@ func checkEntryPoint(path string) (string, error) {
 }
 
 func isAcceptedRetval(retval int64) bool {
-	return retval >= 0 || retval == -int64(syscall.EACCES) || retval == -int64(syscall.EPERM)
+	return retval >= 0 || retval == -int64(syscall.EACCES) || retval == -int64(syscall.EPERM) || retval == -int64(syscall.ENOSYS)
 }
 
 func initConn(probeAddr string, nbAttempts uint) (net.Conn, error) {
@@ -994,7 +994,6 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 					logErrorf("unable to handle openat: %v", err)
 					return
 				}
-
 			case Openat2Nr:
 				if err := handleOpenAt2(tracer, process, syscallMsg, regs, disableStats); err != nil {
 					logErrorf("unable to handle openat: %v", err)
@@ -1152,7 +1151,9 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 			case CloseNr:
 				// nothing to do
 			case ExecveNr, ExecveatNr:
-				sendSyscallMsg(process.Nr[ExecveNr]) // special case for execveat: we store the msg in execve bucket (see upper)
+				if ret := tracer.ReadRet(regs); isAcceptedRetval(ret) {
+					sendSyscallMsg(process.Nr[ExecveNr]) // special case for execveat: we store the msg in execve bucket (see upper)
+				}
 
 				// now the pid is the tgid
 				process.Pid = process.Tgid
@@ -1176,7 +1177,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 					process.Res.Fd[int32(ret)] = syscallMsg.Open.Filename
 				}
 			case SetuidNr, SetgidNr, SetreuidNr, SetregidNr, SetresuidNr, SetresgidNr, SetfsuidNr, SetfsgidNr:
-				if ret := tracer.ReadRet(regs); ret == 0 || nr == SetfsuidNr || nr == SetfsgidNr {
+				if ret := tracer.ReadRet(regs); isAcceptedRetval(ret) || nr == SetfsuidNr || nr == SetfsgidNr {
 					syscallMsg, exists := process.Nr[nr]
 					if !exists {
 						return
@@ -1253,7 +1254,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 					process.Res.Cwd = syscallMsg.Chdir.Path
 				}
 			case CapsetNr:
-				if ret := tracer.ReadRet(regs); ret == 0 {
+				if ret := tracer.ReadRet(regs); isAcceptedRetval(ret) {
 					syscallMsg, exists := process.Nr[nr]
 					if !exists || syscallMsg.Capset == nil {
 						return
@@ -1263,7 +1264,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 				}
 
 			case UnlinkNr, UnlinkatNr, RmdirNr:
-				if ret := tracer.ReadRet(regs); ret == 0 {
+				if ret := tracer.ReadRet(regs); isAcceptedRetval(ret) {
 					syscallMsg, exists := process.Nr[nr]
 					if !exists {
 						return
@@ -1273,7 +1274,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 				}
 
 			case RenameNr, RenameAtNr, RenameAt2Nr:
-				if ret := tracer.ReadRet(regs); ret == 0 {
+				if ret := tracer.ReadRet(regs); isAcceptedRetval(ret) {
 					syscallMsg, exists := process.Nr[nr]
 					if !exists {
 						return
