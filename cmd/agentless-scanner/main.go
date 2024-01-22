@@ -326,7 +326,10 @@ func (s *scanTask) Path(names ...string) string {
 }
 
 func (s *scanTask) String() string {
-	return fmt.Sprintf("%s[%s]", s.ID, s.ARN)
+	if s == nil {
+		return "<scan[nil]>"
+	}
+	return fmt.Sprintf("<%s[%s]>", s.ID, s.ARN)
 }
 
 func main() {
@@ -657,10 +660,10 @@ func scanCmd(resourceARN arn.ARN, scannedHostname string, actions []string) erro
 	}
 	scanner.printResults = true
 	go func() {
-		scanner.configsCh <- &scanConfig{
+		scanner.pushConfig(ctx, &scanConfig{
 			Type:  awsScan,
 			Tasks: []*scanTask{task},
-		}
+		})
 		scanner.stop()
 	}()
 	scanner.start(ctx)
@@ -743,7 +746,7 @@ func offlineCmd(poolSize int, scanType scanType, regions []string, maxScans int,
 	}
 	scanner.printResults = printResults
 
-	pushEBSVolumes := func(configsCh chan *scanConfig) error {
+	pushEBSVolumes := func() error {
 		count := 0
 		for _, regionName := range allRegions {
 			if ctx.Err() != nil {
@@ -814,9 +817,7 @@ func offlineCmd(poolSize int, scanType scanType, regions []string, maxScans int,
 							}
 
 							config := &scanConfig{Type: awsScan, Tasks: []*scanTask{scan}, Roles: roles}
-							select {
-							case configsCh <- config:
-							case <-ctx.Done():
+							if !scanner.pushConfig(ctx, config) {
 								return nil
 							}
 							count++
@@ -835,7 +836,7 @@ func offlineCmd(poolSize int, scanType scanType, regions []string, maxScans int,
 		return nil
 	}
 
-	pushLambdaFunctions := func(configsCh chan *scanConfig) error {
+	pushLambdaFunctions := func() error {
 		count := 0
 		for _, regionName := range regions {
 			if ctx.Err() != nil {
@@ -863,9 +864,7 @@ func offlineCmd(poolSize int, scanType scanType, regions []string, maxScans int,
 						return fmt.Errorf("could not create scan for lambda %s: %w", *function.FunctionArn, err)
 					}
 					config := &scanConfig{Type: awsScan, Tasks: []*scanTask{scan}, Roles: roles}
-					select {
-					case configsCh <- config:
-					case <-ctx.Done():
+					if !scanner.pushConfig(ctx, config) {
 						return nil
 					}
 					count++
@@ -886,9 +885,9 @@ func offlineCmd(poolSize int, scanType scanType, regions []string, maxScans int,
 		defer scanner.stop()
 		var err error
 		if scanType == ebsScanType {
-			err = pushEBSVolumes(scanner.configsCh)
+			err = pushEBSVolumes()
 		} else if scanType == lambdaScanType {
-			err = pushLambdaFunctions(scanner.configsCh)
+			err = pushLambdaFunctions()
 		} else {
 			panic("unreachable")
 		}
@@ -1325,10 +1324,8 @@ func (s *sideScanner) subscribeRemoteConfig(ctx context.Context) error {
 				log.Errorf("could not parse agentless-scanner task: %v", err)
 				return
 			}
-			select {
-			case <-ctx.Done():
+			if !s.pushConfig(ctx, config) {
 				return
-			case s.configsCh <- config:
 			}
 		}
 	})
@@ -1426,12 +1423,12 @@ func (s *sideScanner) cleanSlate() error {
 
 	for _, mountPoint := range ctrMountPoints {
 		log.Warnf("clean slate: unmounting %q", mountPoint)
-		cleanupUmount(ctx, mountPoint)
+		cleanupScanUmount(ctx, nil, mountPoint)
 	}
 	// unmount "ebs-*" entrypoint last as the other mountpoint may depend on it
 	for _, mountPoint := range ebsMountPoints {
 		log.Warnf("clean slate: unmounting %q", mountPoint)
-		cleanupUmount(ctx, mountPoint)
+		cleanupScanUmount(ctx, nil, mountPoint)
 	}
 
 	for _, scanDir := range scanDirs {
@@ -1505,13 +1502,7 @@ func (s *sideScanner) cleanSlate() error {
 		}
 	}
 
-	// TODO: detach volumes
-
 	return nil
-}
-
-func (s *sideScanner) stop() {
-	close(s.configsCh)
 }
 
 func (s *sideScanner) start(ctx context.Context) {
@@ -1649,6 +1640,19 @@ func (s *sideScanner) start(ctx context.Context) {
 	}
 	close(s.resultsCh)
 	<-done // waiting for done in range resultsCh goroutine
+}
+
+func (s *sideScanner) stop() {
+	close(s.configsCh)
+}
+
+func (s *sideScanner) pushConfig(ctx context.Context, config *scanConfig) bool {
+	select {
+	case s.configsCh <- config:
+		return true
+	case <-ctx.Done():
+		return false
+	}
 }
 
 func (s *sideScanner) launchScan(ctx context.Context, scan *scanTask) (err error) {
@@ -2337,7 +2341,7 @@ func scanRoots(ctx context.Context, scan *scanTask, roots []string, resultsCh ch
 						// as we still want to clean these mounts even for a
 						// canceled/timeouted context.
 						cleanupctx, abort := context.WithTimeout(context.Background(), 5*time.Second)
-						cleanupUmount(cleanupctx, mountPoint)
+						cleanupScanUmount(cleanupctx, opts.Scan, mountPoint)
 						abort()
 
 						resultsCh <- result
@@ -3103,8 +3107,8 @@ func mountDevice(ctx context.Context, scan *scanTask, partitions []devicePartiti
 	return mountPoints, nil
 }
 
-func cleanupUmount(ctx context.Context, mountPoint string) {
-	log.Debugf("un-mounting %q", mountPoint)
+func cleanupScanUmount(ctx context.Context, maybeScan *scanTask, mountPoint string) {
+	log.Debugf("%s: un-mounting %q", maybeScan, mountPoint)
 	var umountOutput []byte
 	var erru error
 	for i := 0; i < 10; i++ {
@@ -3118,7 +3122,7 @@ func cleanupUmount(ctx context.Context, mountPoint string) {
 			if exiterr, ok := erru.(*exec.ExitError); ok && exiterr.ExitCode() == MntExFail && bytes.Contains(umountOutput, []byte("not mounted")) {
 				return
 			}
-			log.Warnf("could not umount %s: %s: %s", mountPoint, erru, string(umountOutput))
+			log.Warnf("%s: could not umount %s: %s: %s", maybeScan, mountPoint, erru, string(umountOutput))
 			if !sleepCtx(ctx, 3*time.Second) {
 				return
 			}
@@ -3169,7 +3173,7 @@ func cleanupScan(scan *scanTask) {
 
 		umount := func(mountPoint string) {
 			defer wg.Done()
-			cleanupUmount(ctx, mountPoint)
+			cleanupScanUmount(ctx, scan, mountPoint)
 		}
 
 		var ebsMountPoints []fs.DirEntry
