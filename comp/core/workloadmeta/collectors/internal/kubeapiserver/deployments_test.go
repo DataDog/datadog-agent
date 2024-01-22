@@ -37,18 +37,20 @@ func TestDeploymentParser_Parse(t *testing.T) {
 				Env:     "env",
 				Service: "service",
 				Version: "version",
-				InitContainerLanguages: map[string][]languagemodels.Language{
-					"nginx-cont": {
-						{Name: languagemodels.Go},
-						{Name: languagemodels.Java},
-						{Name: languagemodels.Python},
+				InjectableLanguages: workloadmeta.Languages{
+					InitContainerLanguages: map[string][]languagemodels.Language{
+						"nginx-cont": {
+							{Name: languagemodels.Go},
+							{Name: languagemodels.Java},
+							{Name: languagemodels.Python},
+						},
 					},
-				},
-				ContainerLanguages: map[string][]languagemodels.Language{
-					"nginx-cont": {
-						{Name: languagemodels.Go},
-						{Name: languagemodels.Java},
-						{Name: languagemodels.Python},
+					ContainerLanguages: map[string][]languagemodels.Language{
+						"nginx-cont": {
+							{Name: languagemodels.Go},
+							{Name: languagemodels.Java},
+							{Name: languagemodels.Python},
+						},
 					},
 				},
 			},
@@ -76,11 +78,13 @@ func TestDeploymentParser_Parse(t *testing.T) {
 					Kind: workloadmeta.KindKubernetesDeployment,
 					ID:   "test-namespace/test-deployment",
 				},
-				Env:                    "env",
-				Service:                "service",
-				Version:                "version",
-				InitContainerLanguages: map[string][]languagemodels.Language{},
-				ContainerLanguages:     map[string][]languagemodels.Language{},
+				Env:     "env",
+				Service: "service",
+				Version: "version",
+				InjectableLanguages: workloadmeta.Languages{
+					InitContainerLanguages: map[string][]languagemodels.Language{},
+					ContainerLanguages:     map[string][]languagemodels.Language{},
+				},
 			},
 			deployment: &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
@@ -102,18 +106,20 @@ func TestDeploymentParser_Parse(t *testing.T) {
 					Kind: workloadmeta.KindKubernetesDeployment,
 					ID:   "test-namespace/test-deployment",
 				},
-				InitContainerLanguages: map[string][]languagemodels.Language{
-					"nginx-cont": {
-						{Name: languagemodels.Go},
-						{Name: languagemodels.Java},
-						{Name: languagemodels.Python},
+				InjectableLanguages: workloadmeta.Languages{
+					InitContainerLanguages: map[string][]languagemodels.Language{
+						"nginx-cont": {
+							{Name: languagemodels.Go},
+							{Name: languagemodels.Java},
+							{Name: languagemodels.Python},
+						},
 					},
-				},
-				ContainerLanguages: map[string][]languagemodels.Language{
-					"nginx-cont": {
-						{Name: languagemodels.Go},
-						{Name: languagemodels.Java},
-						{Name: languagemodels.Python},
+					ContainerLanguages: map[string][]languagemodels.Language{
+						"nginx-cont": {
+							{Name: languagemodels.Go},
+							{Name: languagemodels.Java},
+							{Name: languagemodels.Python},
+						},
 					},
 				},
 			},
@@ -132,6 +138,7 @@ func TestDeploymentParser_Parse(t *testing.T) {
 			},
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			parser := newdeploymentParser()
@@ -173,9 +180,11 @@ func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
 								ID:   "test-namespace/test-deployment",
 								Kind: workloadmeta.KindKubernetesDeployment,
 							},
-							Env:                    "env",
-							ContainerLanguages:     map[string][]languagemodels.Language{},
-							InitContainerLanguages: map[string][]languagemodels.Language{},
+							Env: "env",
+							InjectableLanguages: workloadmeta.Languages{
+								ContainerLanguages:     map[string][]languagemodels.Language{},
+								InitContainerLanguages: map[string][]languagemodels.Language{},
+							},
 						},
 					},
 				},
@@ -207,11 +216,13 @@ func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
 								ID:   "test-namespace/test-deployment",
 								Kind: workloadmeta.KindKubernetesDeployment,
 							},
-							ContainerLanguages: map[string][]languagemodels.Language{
-								"nginx": {{Name: languagemodels.Go}, {Name: languagemodels.Java}},
-							},
-							InitContainerLanguages: map[string][]languagemodels.Language{
-								"redis": {{Name: languagemodels.Go}, {Name: languagemodels.Python}},
+							InjectableLanguages: workloadmeta.Languages{
+								ContainerLanguages: map[string][]languagemodels.Language{
+									"nginx": {{Name: languagemodels.Go}, {Name: languagemodels.Java}},
+								},
+								InitContainerLanguages: map[string][]languagemodels.Language{
+									"redis": {{Name: languagemodels.Go}, {Name: languagemodels.Python}},
+								},
 							},
 						},
 					},
@@ -239,9 +250,11 @@ func Test_Deployment_FilteredOut(t *testing.T) {
 					ID:   "object-id",
 					Kind: workloadmeta.KindKubernetesDeployment,
 				},
-				Env:                    "env",
-				ContainerLanguages:     map[string][]languagemodels.Language{},
-				InitContainerLanguages: map[string][]languagemodels.Language{},
+				Env: "env",
+				InjectableLanguages: workloadmeta.Languages{
+					ContainerLanguages:     map[string][]languagemodels.Language{},
+					InitContainerLanguages: map[string][]languagemodels.Language{},
+				},
 			},
 			expected: false,
 		},
@@ -252,13 +265,14 @@ func Test_Deployment_FilteredOut(t *testing.T) {
 					ID:   "object-id",
 					Kind: workloadmeta.KindKubernetesDeployment,
 				},
-				ContainerLanguages: map[string][]languagemodels.Language{
-					"nginx": {{Name: languagemodels.Go}},
+				InjectableLanguages: workloadmeta.Languages{
+					ContainerLanguages:     map[string][]languagemodels.Language{"nginx": {{Name: languagemodels.Go}}},
+					InitContainerLanguages: map[string][]languagemodels.Language{},
 				},
-				InitContainerLanguages: map[string][]languagemodels.Language{},
 			},
 			expected: false,
 		},
+
 		{
 			name: "nothing",
 			deployment: &workloadmeta.KubernetesDeployment{
@@ -266,9 +280,7 @@ func Test_Deployment_FilteredOut(t *testing.T) {
 					ID:   "object-id",
 					Kind: workloadmeta.KindKubernetesDeployment,
 				},
-				Env:                    "",
-				ContainerLanguages:     map[string][]languagemodels.Language{},
-				InitContainerLanguages: map[string][]languagemodels.Language{},
+				Env: "",
 			},
 			expected: true,
 		},

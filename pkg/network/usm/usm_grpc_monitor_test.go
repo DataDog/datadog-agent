@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package tracer
+package usm
 
 import (
 	"context"
@@ -17,14 +17,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
-	"golang.org/x/exp/slices"
 	"google.golang.org/grpc/metadata"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
+	gotlsutils "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -57,37 +58,31 @@ func TestGRPCScenarios(t *testing.T) {
 
 	rand.Seed(time.Now().UnixNano())
 
-	for _, tc := range []struct {
-		name  string
-		isTLS bool
-	}{
-		{
-			name:  "without TLS",
-			isTLS: false,
-		},
-		{
-			name:  "with TLS",
-			isTLS: true,
-		},
-	} {
-		ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, tc.name, func(t *testing.T) {
-			if tc.isTLS {
-				if !goTLSSupported() {
-					t.Skip("GoTLS not supported for this setup")
-				}
-
-				if skipFedora(t) {
-					// GoTLS fails consistently in CI on Fedora 36,37
-					t.Skip("TestHTTP2Scenarios fails on this OS consistently")
-				}
+	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
+		for _, tc := range []struct {
+			name  string
+			isTLS bool
+		}{
+			{
+				name:  "without TLS",
+				isTLS: false,
+			},
+			{
+				name:  "with TLS",
+				isTLS: true,
+			},
+		} {
+			if tc.isTLS && !gotlsutils.GoTLSSupported(t, config.New()) {
+				t.Skip("GoTLS not supported for this setup")
 			}
-
-			suite.Run(t, &usmGRPCSuite{isTLS: tc.isTLS})
-		})
-	}
+			t.Run(tc.name, func(t *testing.T) {
+				suite.Run(t, &usmGRPCSuite{isTLS: tc.isTLS})
+			})
+		}
+	})
 }
 
-func getClientsArray(t *testing.T, size int, withTLS bool) ([]*grpc.Client, func()) {
+func getGRPCClientsArray(t *testing.T, size int, withTLS bool) ([]*grpc.Client, func()) {
 	res := make([]*grpc.Client, size)
 	for i := 0; i < size; i++ {
 		client, err := grpc.NewClient(srvAddr, grpc.Options{}, withTLS)
@@ -100,15 +95,6 @@ func getClientsArray(t *testing.T, size int, withTLS bool) ([]*grpc.Client, func
 			res[i].Close()
 		}
 	}
-}
-
-func getClientsIndex(index, totalCount int) int {
-	return index % totalCount
-}
-
-type captureRange struct {
-	lower int
-	upper int
 }
 
 func (s *usmGRPCSuite) getConfig() *config.Config {
@@ -127,14 +113,6 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 	t.Cleanup(cancel)
 	defaultCtx := context.Background()
 
-	cfg := s.getConfig()
-	tr := setupTracer(t, cfg)
-	require.NotNil(t, tr.usmMonitor)
-
-	if s.isTLS {
-		waitForGoTLSHook(t, srv.Process.Pid)
-	}
-
 	// c is a stream endpoint
 	// a + b are unary endpoints
 	tests := []struct {
@@ -146,7 +124,7 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 		{
 			name: "simple unary - multiple requests",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients, cleanup := getClientsArray(t, clientsCount, s.isTLS)
+				clients, cleanup := getGRPCClientsArray(t, clientsCount, s.isTLS)
 				defer cleanup()
 				for i := 0; i < 1000; i++ {
 					client := clients[getClientsIndex(i, clientsCount)]
@@ -166,7 +144,7 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 		{
 			name: "unary, a->b->a",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients, cleanup := getClientsArray(t, clientsCount, s.isTLS)
+				clients, cleanup := getGRPCClientsArray(t, clientsCount, s.isTLS)
 				defer cleanup()
 				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleUnary(defaultCtx, "first"))
 				require.NoError(t, clients[getClientsIndex(1, clientsCount)].GetFeature(defaultCtx, -746143763, 407838351))
@@ -192,7 +170,7 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 		{
 			name: "unary, a->b->a->b",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients, cleanup := getClientsArray(t, clientsCount, s.isTLS)
+				clients, cleanup := getGRPCClientsArray(t, clientsCount, s.isTLS)
 				defer cleanup()
 				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleUnary(defaultCtx, "first"))
 				require.NoError(t, clients[getClientsIndex(1, clientsCount)].GetFeature(defaultCtx, -746143763, 407838351))
@@ -219,7 +197,7 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 		{
 			name: "unary, a->b->b->a",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients, cleanup := getClientsArray(t, clientsCount, s.isTLS)
+				clients, cleanup := getGRPCClientsArray(t, clientsCount, s.isTLS)
 				defer cleanup()
 				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleUnary(defaultCtx, "first"))
 				require.NoError(t, clients[getClientsIndex(1, clientsCount)].GetFeature(defaultCtx, -746143763, 407838351))
@@ -246,7 +224,7 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 		{
 			name: "stream, c",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients, cleanup := getClientsArray(t, clientsCount, s.isTLS)
+				clients, cleanup := getGRPCClientsArray(t, clientsCount, s.isTLS)
 				defer cleanup()
 				for i := 0; i < 25; i++ {
 					client := clients[getClientsIndex(i, clientsCount)]
@@ -266,7 +244,7 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 		{
 			name: "mixed, c->b->c->b",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients, cleanup := getClientsArray(t, clientsCount, s.isTLS)
+				clients, cleanup := getGRPCClientsArray(t, clientsCount, s.isTLS)
 				defer cleanup()
 				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleStream(defaultCtx, 10))
 				require.NoError(t, clients[getClientsIndex(1, clientsCount)].HandleUnary(defaultCtx, "first"))
@@ -293,7 +271,7 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 		{
 			name: "500 headers -> b -> 500 headers -> b",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients, cleanup := getClientsArray(t, clientsCount, s.isTLS)
+				clients, cleanup := getGRPCClientsArray(t, clientsCount, s.isTLS)
 				defer cleanup()
 				ctxWithoutHeaders := context.Background()
 				ctxWithHeaders := context.Background()
@@ -330,7 +308,7 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 		{
 			name: "duplicated headers -> b -> duplicated headers -> b",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients, cleanup := getClientsArray(t, clientsCount, s.isTLS)
+				clients, cleanup := getGRPCClientsArray(t, clientsCount, s.isTLS)
 				defer cleanup()
 				ctxWithoutHeaders := context.Background()
 				ctxWithHeaders := context.Background()
@@ -374,7 +352,7 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 				if tt.expectedError {
 					t.Skip("Skipping test due to known issue")
 				}
-				testGRPCScenarios(t, tr, tt.runClients, tt.expectedEndpoints, clientCount)
+				s.testGRPCScenarios(t, srv.Process.Pid, tt.runClients, tt.expectedEndpoints, clientCount)
 			})
 		}
 	}
@@ -395,14 +373,6 @@ func (s *usmGRPCSuite) TestLargeBodiesGRPCScenarios() {
 	longRandomString := randStringRunes(30 * 1024 * 1024)
 	shortRandomString := longRandomString[:5*1024*1024]
 
-	cfg := s.getConfig()
-	tr := setupTracer(t, cfg)
-	require.NotNil(t, tr.usmMonitor)
-
-	if s.isTLS {
-		waitForGoTLSHook(t, srv.Process.Pid)
-	}
-
 	// c is a stream endpoint
 	// a + b are unary endpoints
 	tests := []struct {
@@ -413,7 +383,7 @@ func (s *usmGRPCSuite) TestLargeBodiesGRPCScenarios() {
 		{
 			name: "request with large body (30MB)",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients, cleanup := getClientsArray(t, clientsCount, s.isTLS)
+				clients, cleanup := getGRPCClientsArray(t, clientsCount, s.isTLS)
 				defer cleanup()
 				longRandomString[0] = '0' + rune(clientsCount)
 				for i := 0; i < 5; i++ {
@@ -434,7 +404,7 @@ func (s *usmGRPCSuite) TestLargeBodiesGRPCScenarios() {
 		{
 			name: "request with large body (5MB) -> b -> request with large body (5MB) -> b",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients, cleanup := getClientsArray(t, clientsCount, s.isTLS)
+				clients, cleanup := getGRPCClientsArray(t, clientsCount, s.isTLS)
 				defer cleanup()
 				longRandomString[3] = '0' + rune(clientsCount)
 
@@ -465,22 +435,34 @@ func (s *usmGRPCSuite) TestLargeBodiesGRPCScenarios() {
 		for _, clientCount := range []int{1, 2, 5} {
 			testNameSuffix := fmt.Sprintf("-different clients - %v", clientCount)
 			t.Run(tt.name+testNameSuffix, func(t *testing.T) {
-				testGRPCScenarios(t, tr, tt.runClients, tt.expectedEndpoints, clientCount)
+				s.testGRPCScenarios(t, srv.Process.Pid, tt.runClients, tt.expectedEndpoints, clientCount)
 			})
 		}
 	}
 }
 
-func testGRPCScenarios(t *testing.T, tr *Tracer, runClientCallback func(*testing.T, int), expectedEndpoints map[http.Key]captureRange, clientCount int) {
-	tr.removeClient(clientID)
-	initTracerState(t, tr)
+func (s *usmGRPCSuite) testGRPCScenarios(t *testing.T, srvPID int, runClientCallback func(*testing.T, int), expectedEndpoints map[http.Key]captureRange, clientCount int) {
+	cfg := s.getConfig()
+	usmMonitor, err := NewMonitor(cfg, nil, nil, nil)
+	require.NoError(t, err)
+	require.NoError(t, usmMonitor.Start())
+	t.Cleanup(usmMonitor.Stop)
+	t.Cleanup(utils.ResetDebugger)
+	if s.isTLS {
+		utils.WaitForProgramsToBeTraced(t, "go-tls", srvPID)
+	}
 
 	runClientCallback(t, clientCount)
 
 	res := make(map[http.Key]int)
 	assert.Eventually(t, func() bool {
-		conns := getConnections(t, tr)
-		for key, stat := range conns.HTTP2 {
+		stats := usmMonitor.GetProtocolStats()
+		http2Stats, ok := stats[protocols.HTTP2]
+		if !ok {
+			return false
+		}
+		http2StatsTyped := http2Stats.(map[http.Key]*http.RequestStats)
+		for key, stat := range http2StatsTyped {
 			if key.DstPort == 5050 || key.SrcPort == 5050 {
 				count := stat.Data[200].Count
 				newKey := http.Key{
@@ -512,18 +494,6 @@ func testGRPCScenarios(t *testing.T, tr *Tracer, runClientCallback func(*testing
 		return true
 	}, time.Second*5, time.Millisecond*100, "%v != %v", res, expectedEndpoints)
 	if t.Failed() {
-		ebpftest.DumpMapsTestHelper(t, tr.usmMonitor.DumpMaps, "http2_in_flight", "http2_dynamic_table")
+		ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, "http2_in_flight", "http2_dynamic_table")
 	}
-}
-
-func waitForGoTLSHook(t *testing.T, pid int) {
-	require.Eventuallyf(t, func() bool {
-		traced := utils.GetTracedPrograms("go-tls")
-		for _, prog := range traced {
-			if slices.Contains[[]uint32](prog.PIDs, uint32(pid)) {
-				return true
-			}
-		}
-		return false
-	}, time.Second*15, time.Millisecond*100, "process %v is not traced by gotls", pid)
 }

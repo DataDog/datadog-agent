@@ -25,6 +25,11 @@ type Component interface {
 	GetStatusBySection(section string, format string, verbose bool) ([]byte, error)
 }
 
+// Params store configurable options for the status component
+type Params struct {
+	PythonVersion string
+}
+
 // Provider interface
 type Provider interface {
 	// Name is used to sort the status providers alphabetically.

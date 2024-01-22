@@ -7,9 +7,7 @@ package grpc
 
 import (
 	"context"
-	"os"
 	"os/exec"
-	"path"
 	"strings"
 	"testing"
 
@@ -17,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
+	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 )
 
 // NewGRPCTLSServer triggers an external go tls client that runs `numRequests` HTTPs requests to `serverAddr`.
@@ -49,29 +48,10 @@ const (
 func buildGRPCServerBin(t *testing.T) string {
 	t.Helper()
 
-	cur, err := testutil.CurDir()
+	curDir, err := testutil.CurDir()
+	require.NoError(t, err)
+	serverBin, err := usmtestutil.BuildUnixTransparentProxyServer(curDir, serverSrcPath)
 	require.NoError(t, err)
 
-	serverSrcDir := path.Join(cur, serverSrcPath)
-	cachedServerBinaryPath := path.Join(serverSrcDir, serverSrcPath)
-
-	// If there is a compiled binary already, skip the compilation.
-	// Meant for the CI.
-	if _, err = os.Stat(cachedServerBinaryPath); err == nil {
-		return cachedServerBinaryPath
-	}
-
-	tempFile, err := os.CreateTemp("", "grpc_tls_server_build")
-	require.NoError(t, err)
-	require.NoError(t, tempFile.Close())
-
-	t.Cleanup(func() {
-		_ = os.Remove(tempFile.Name())
-	})
-
-	c := exec.Command("go", "build", "-buildvcs=false", "-a", "-ldflags=-extldflags '-static'", "-o", tempFile.Name(), serverSrcDir)
-	out, err := c.CombinedOutput()
-	require.NoError(t, err, "could not build grpc server test binary: %s\noutput: %s", err, string(out))
-
-	return tempFile.Name()
+	return serverBin
 }
