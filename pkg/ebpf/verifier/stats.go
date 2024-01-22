@@ -1,0 +1,163 @@
+package verifier
+
+import (
+	"fmt"
+	"log"
+	"os"
+	"path/filepath"
+	"reflect"
+	"regexp"
+	"strconv"
+	"strings"
+
+	"github.com/cilium/ebpf"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+)
+
+type VerifierStats struct {
+	VerificationTime           int `json:"verification_time"`
+	StackDepth                 int `json:"stack_usage"`
+	InstructionsProcessed      int `json:"instruction_processed"`
+	InstructionsProcessedLimit int `json:"limit"`
+	MaxStatesPerInstruction    int `json:"max_states_per_insn"`
+	TotalStates                int `json:"total_states"`
+	PeakStates                 int `json:"peak_states"`
+}
+
+var stackUsage = regexp.MustCompile(`stack depth\s+(?P<usage>\d+).*\n`)
+var verificationTime = regexp.MustCompile(`verification time\s+(?P<time>\d+).*\n`)
+var insnStats = regexp.MustCompile(`processed (?P<processed>\d+) insns \(limit (?P<limit>\d+)\) max_states_per_insn (?P<max_states>\d+) total_states (?P<total_states>\d+) peak_states (?P<peak_states>\d+) mark_read (?P<mark_read>\d+)`)
+
+//go:generate go run functions.go ../bytecode/build/co-re
+//go:generate go fmt programs.go
+func BuildVerifierStats(objectFiles []string) (map[string]*VerifierStats, error) {
+	stats := make(map[string]*VerifierStats)
+	for _, file := range objectFiles {
+		bc, err := os.Open(file)
+		if err != nil {
+			return nil, fmt.Errorf("couldn't open asset: %v", err)
+		}
+		defer bc.Close()
+
+		objectFileName := strings.ReplaceAll(
+			strings.Split(filepath.Base(file), ".")[0], "-", "_",
+		)
+		collectionSpec, err := ebpf.LoadCollectionSpecFromReader(bc)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load collection spec: %v", err)
+		}
+
+		for _, mapSpec := range collectionSpec.Maps {
+			if mapSpec.MaxEntries == 0 {
+				mapSpec.MaxEntries = 1
+			}
+		}
+		opts := ebpf.CollectionOptions{
+			Programs: ebpf.ProgramOptions{
+				LogLevel: ebpf.LogLevelBranch | ebpf.LogLevelStats,
+				LogSize:  100 * 1024 * 1024,
+			},
+		}
+		collection, err := ebpf.NewCollectionWithOptions(collectionSpec, opts)
+		if err != nil {
+			log.Printf("Load collection: %v", err)
+			continue
+		}
+
+		prog := interfaceMap[objectFileName]
+		err = collection.Assign(prog)
+		if err != nil {
+			return nil, fmt.Errorf("failed to assign ebpf.Program: %v", err)
+		}
+
+		progPtr := reflect.ValueOf(prog)
+		if progPtr.Type().Kind() != reflect.Ptr {
+			return nil, fmt.Errorf("%T is not a pointer to struct", prog)
+		}
+
+		if progPtr.IsNil() {
+			return nil, fmt.Errorf("nil pointer to %T", progPtr)
+		}
+
+		progElem := progPtr.Elem()
+		if progElem.Kind() != reflect.Struct {
+			return nil, fmt.Errorf("%s is not a struct", progElem)
+		}
+		for i := 0; i < progElem.NumField(); i++ {
+			programName := progElem.Type().Field(i).Name
+
+			field := progElem.Field(i)
+
+			switch field.Type() {
+			case reflect.TypeOf((*ebpf.Program)(nil)):
+				p := field.Interface().(*ebpf.Program)
+				stat, err := UnmarshalVerifierStats(p.VerifierLog)
+				if err != nil {
+					return nil, fmt.Errorf("failed to unmarshal verifier log for program %s: %w", programName, err)
+				}
+				stats[programName] = stat
+			default:
+				return nil, fmt.Errorf("Unexpected type %T", field)
+			}
+		}
+	}
+
+	return stats, nil
+}
+
+func unmarshallLt6_8(output string) (*VerifierStats, error) {
+	var err error
+	var v VerifierStats
+
+	v.StackDepth, err = strconv.Atoi(stackUsage.FindStringSubmatch(output)[1])
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse stack usage %q: %w", output, err)
+	}
+
+	v.VerificationTime, err = strconv.Atoi(verificationTime.FindStringSubmatch(output)[1])
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse verification time %q: %w", output, err)
+	}
+
+	reStats := insnStats.FindStringSubmatch(output)
+	v.InstructionsProcessed, err = strconv.Atoi(reStats[1])
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse instructions processed %q: %w", output, err)
+	}
+
+	v.InstructionsProcessedLimit, err = strconv.Atoi(reStats[2])
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse instructions processed limit %q: %w", output, err)
+	}
+
+	v.MaxStatesPerInstruction, err = strconv.Atoi(reStats[3])
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse max states per instruction %q: %w", output, err)
+	}
+
+	v.TotalStates, err = strconv.Atoi(reStats[4])
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse total states %q: %w", output, err)
+	}
+
+	v.PeakStates, err = strconv.Atoi(reStats[5])
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse peak states %q: %w", output, err)
+	}
+
+	return &v, nil
+}
+
+func UnmarshalVerifierStats(output string) (*VerifierStats, error) {
+	kversion, err := kernel.HostVersion()
+	if err != nil {
+		return nil, fmt.Errorf("failed to discover kernel version: %w", err)
+	}
+
+	if kversion <= kernel.VersionCode(6, 8, 0) {
+		return unmarshallLt6_8(output)
+	}
+
+	return nil, fmt.Errorf("no unmarshaller for kernel version %s", kversion.String())
+}
