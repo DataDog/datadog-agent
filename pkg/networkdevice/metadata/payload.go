@@ -52,6 +52,7 @@ type DeviceMetadata struct {
 	Tags           []string     `json:"tags"`
 	IPAddress      string       `json:"ip_address"`
 	Status         DeviceStatus `json:"status"`
+	PingCanConnect *bool        `json:"can_connect,omitempty"`
 	Name           string       `json:"name,omitempty"`
 	Description    string       `json:"description,omitempty"`
 	SysObjectID    string       `json:"sys_object_id,omitempty"`
