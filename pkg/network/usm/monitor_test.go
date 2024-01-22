@@ -40,7 +40,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -517,36 +516,9 @@ func (s *HTTPTestSuite) TestKeepAliveWithIncompleteResponseRegression() {
 	assertAllRequestsExists(t, monitor, []*nethttp.Request{{URL: url, Method: "GET"}})
 }
 
-type USMHTTP2Suite struct {
-	suite.Suite
-}
-
 type captureRange struct {
 	lower int
 	upper int
-}
-
-func TestHTTP2(t *testing.T) {
-	currKernelVersion, err := kernel.HostVersion()
-	require.NoError(t, err)
-	if currKernelVersion < usmhttp2.MinimumKernelVersion {
-		t.Skipf("HTTP2 monitoring can not run on kernel before %v", usmhttp2.MinimumKernelVersion)
-	}
-
-	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
-		suite.Run(t, new(USMHTTP2Suite))
-	})
-}
-
-func getClientsArray(t *testing.T, size int) []*nethttp.Client {
-	t.Helper()
-
-	res := make([]*nethttp.Client, size)
-	for i := 0; i < size; i++ {
-		res[i] = newH2CClient(t)
-	}
-
-	return res
 }
 
 func startH2CServer(address string, isTLS bool) (func(), error) {
@@ -581,21 +553,6 @@ func startH2CServer(address string, isTLS bool) (func(), error) {
 	return func() {
 		_ = srv.Shutdown(context.Background())
 	}, nil
-}
-
-func newH2CClient(t *testing.T) *nethttp.Client {
-	t.Helper()
-
-	client := &nethttp.Client{
-		Transport: &http2.Transport{
-			AllowHTTP: true,
-			DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
-				return net.Dial(network, addr)
-			},
-		},
-	}
-
-	return client
 }
 
 func getClientsIndex(index, totalCount int) int {
