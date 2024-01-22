@@ -394,6 +394,67 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 	}
 }
 
+func (s *USMHTTP2Suite) TestHTTP2ManyDifferentPaths() {
+	t := s.T()
+	cfg := config.New()
+	cfg.EnableHTTP2Monitoring = true
+
+	cleanup, err := startH2CServer(localHostAddress, false)
+	require.NoError(t, err)
+	t.Cleanup(cleanup)
+
+	monitor, err := NewMonitor(cfg, nil, nil, nil)
+	require.NoError(t, err)
+	require.NoError(t, monitor.Start())
+	defer monitor.Stop()
+
+	const (
+		repetitionsPerRequest = 2
+		// Should be bigger than the length of the http2_dynamic_table which is 1024
+		numberOfRequests         = 1500
+		expectedNumberOfRequests = numberOfRequests * repetitionsPerRequest
+	)
+	clients := getClientsArray(t, 1)
+	for i := 0; i < numberOfRequests; i++ {
+		for j := 0; j < repetitionsPerRequest; j++ {
+			req, err := clients[0].Post(fmt.Sprintf("%s/test-%d", http2SrvAddr, i+1), "application/json", bytes.NewReader([]byte("test")))
+			require.NoError(t, err, "could not make request")
+			req.Body.Close()
+		}
+	}
+
+	matches := PrintableInt(0)
+
+	seenRequests := map[string]int{}
+	assert.Eventuallyf(t, func() bool {
+		stats := monitor.GetProtocolStats()
+		http2Stats, ok := stats[protocols.HTTP2]
+		if !ok {
+			return false
+		}
+		http2StatsTyped := http2Stats.(map[http.Key]*http.RequestStats)
+		for key, stat := range http2StatsTyped {
+			if (key.DstPort == http2SrvPort || key.SrcPort == http2SrvPort) && key.Method == http.MethodPost && strings.HasPrefix(key.Path.Content.Get(), "/test") {
+				if _, ok := seenRequests[key.Path.Content.Get()]; !ok {
+					seenRequests[key.Path.Content.Get()] = 0
+				}
+				seenRequests[key.Path.Content.Get()] += stat.Data[200].Count
+				matches.Add(stat.Data[200].Count)
+			}
+		}
+
+		// Due to a known issue in http2, we might consider an RST packet as a response to a request and therefore
+		// we might capture a request twice. This is why we are expecting to see 2*numberOfRequests instead of
+		return (expectedNumberOfRequests-1) <= matches.Load() && matches.Load() <= (expectedNumberOfRequests+1)
+	}, time.Second*10, time.Millisecond*100, "%v != %v", &matches, expectedNumberOfRequests)
+
+	for i := 0; i < numberOfRequests; i++ {
+		if v, ok := seenRequests[fmt.Sprintf("/test-%d", i+1)]; !ok || v != repetitionsPerRequest {
+			t.Logf("path: /test-%d should have %d occurrences but instead has %d", i+1, repetitionsPerRequest, v)
+		}
+	}
+}
+
 func (s *usmHTTP2Suite) TestRawTraffic() {
 	t := s.T()
 	cfg := s.getCfg()
