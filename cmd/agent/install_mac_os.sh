@@ -448,6 +448,15 @@ else
     $sudo_cmd launchctl kickstart "system/$service_name"
 fi
 
+# Cleanup tmp files used for installation
+if [ -f /tmp/install-ddagent/system-wide ]; then
+  rm /tmp/install-ddagent/system-wide
+fi
+
+if [ -f /tmp/install-ddagent/tray-not-started ]; then
+  rm /tmp/install-ddagent/tray-not-started
+fi
+
 # Agent works, echo some instructions and exit
 printf "\033[32m
 
