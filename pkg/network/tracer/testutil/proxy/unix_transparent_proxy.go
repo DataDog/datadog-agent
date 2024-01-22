@@ -108,8 +108,9 @@ func (p *UnixTransparentProxyServer) WaitUntilServerIsReady() {
 // meant for external servers.
 func WaitForConnectionReady(unixSocket string) error {
 	for i := 0; i < connectionRetries; i++ {
-		_, err := net.DialTimeout("unix", unixSocket, time.Second)
+		c, err := net.DialTimeout("unix", unixSocket, time.Second)
 		if err == nil {
+			_ = c.Close()
 			return nil
 		}
 		time.Sleep(connectionRetryInterval)
