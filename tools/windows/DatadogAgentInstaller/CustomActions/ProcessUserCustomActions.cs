@@ -255,7 +255,7 @@ namespace Datadog.CustomActions
                 return;
             }
 
-            throw new ExceptionWithDialogMessage("The account provided is the same as the current user. Please supply a different account for the Datadog Agent.");
+            throw new ExceptionWithDialogMessage("The account provided is the same as the currently logged in user. Please supply a different account for the Datadog Agent.");
         }
 
         /// <summary>
