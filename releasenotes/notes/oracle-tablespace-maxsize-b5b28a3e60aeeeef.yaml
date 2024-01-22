@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    [oracle]: Add `oracle.tablespace.maxsize` metric.
+    [oracle]: Add ``oracle.tablespace.maxsize`` metric.
