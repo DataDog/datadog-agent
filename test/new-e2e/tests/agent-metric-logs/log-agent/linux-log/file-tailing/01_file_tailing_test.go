@@ -32,8 +32,8 @@ type LinuxFakeintakeSuite struct {
 //go:embed log-config/config.yaml
 var logConfig string
 
-var logFileName = "hello-world.log"
-var logFilePath = fmt.Sprintf("%s/%s", utils.LinuxLogsFolderPath, logFileName)
+const logFileName = "hello-world.log"
+const logFilePath = utils.LinuxLogsFolderPath + "/" + logFileName
 
 // TestE2EVMFakeintakeSuite runs the E2E test suite for the log agent with a VM and fake intake.
 func TestE2EVMFakeintakeSuite(t *testing.T) {
