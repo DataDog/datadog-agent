@@ -131,7 +131,7 @@ func pidMapToProcDiscoveries(pidMap map[int32]*procutil.Process, userProbe *Look
 			CreateTime: proc.Stats.CreateTime,
 		})
 	}
-	
+
 	return pd
 }
 
