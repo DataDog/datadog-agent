@@ -108,8 +108,8 @@ func (s *LinuxFakeintakeSuite) LogCollection() {
 	// Adjust permissions of new log file before log generation
 	output, err := s.Env().RemoteHost.Execute(fmt.Sprintf("sudo chmod +r %s && echo true", logFilePath))
 
-	assert.NoError(t, err, fmt.Sprintf("Unable to adjust permissions for the log file '%s'.", logFilePath))
-	assert.Equal(t, "true", strings.TrimSpace(output), fmt.Sprintf("Unable to adjust permissions for the log file '%s'.", logFilePath))
+	assert.NoErrorf(t, err, "Unable to adjust permissions for the log file '%s'.", logFilePath)
+	assert.Equalf(t, "true", strings.TrimSpace(output), "Unable to adjust permissions for the log file '%s'.", logFilePath)
 
 	// t.Logf("Permissions granted for new log file.")
 	// Generate log
@@ -125,8 +125,8 @@ func (s *LinuxFakeintakeSuite) LogNoPermission() {
 
 	// Allow on only write permission to the log file so the agent cannot tail it
 	output, err := s.Env().RemoteHost.Execute(fmt.Sprintf("sudo chmod -r %s && echo true", logFilePath))
-	assert.NoError(t, err, fmt.Sprintf("Unable to adjust permissions for the log file '%s'.", logFilePath))
-	assert.Equal(t, "true", strings.TrimSpace(output), fmt.Sprintf("Unable to adjust permissions for the log file '%s'.", logFilePath))
+	assert.NoErrorf(t, err, "Unable to adjust permissions for the log file '%s'.", logFilePath)
+	assert.Equalf(t, "true", strings.TrimSpace(output), "Unable to adjust permissions for the log file '%s'.", logFilePath)
 	t.Logf("Read permissions revoked")
 	// In Linux, file permissions are checked at the time of file opening, not during subsequent read or write operations
 	// => If the agent has already successfully opened a file for reading, it can continue to read from that file even if the read permissions are later removed
@@ -154,8 +154,8 @@ func (s *LinuxFakeintakeSuite) LogCollectionAfterPermission() {
 
 	// Grant read permission
 	output, err := s.Env().RemoteHost.Execute(fmt.Sprintf("sudo chmod +r %s && echo true", logFilePath))
-	assert.NoError(t, err, fmt.Sprintf("Unable to adjust permissions for the log file '%s'.", logFilePath))
-	assert.Equal(t, "true", strings.TrimSpace(output), fmt.Sprintf("Unable to adjust permissions for the log file '%s'.", logFilePath))
+	assert.NoErrorf(t, err, "Unable to adjust permissions for the log file '%s'.", logFilePath)
+	assert.Equalf(t, "true", strings.TrimSpace(output), "Unable to adjust permissions for the log file '%s'.", logFilePath)
 	t.Logf("Permissions granted for log file.")
 
 	// Check intake for new logs
@@ -173,8 +173,8 @@ func (s *LinuxFakeintakeSuite) LogCollectionBeforePermission() {
 	t.Logf("Permissions reset to default.")
 	// Grant read permission
 	output, err = s.Env().RemoteHost.Execute(fmt.Sprintf("sudo chmod +r %s && echo true", logFilePath))
-	assert.NoError(t, err, fmt.Sprintf("Unable to adjust permissions for the log file '%s'.", logFilePath))
-	assert.Equal(t, "true", strings.TrimSpace(output), fmt.Sprintf("Unable to adjust permissions for the log file '%s'.", logFilePath))
+	assert.NoErrorf(t, err, "Unable to adjust permissions for the log file '%s'.", logFilePath)
+	assert.Equalf(t, "true", strings.TrimSpace(output), "Unable to adjust permissions for the log file '%s'.", logFilePath)
 	t.Logf("Permissions granted.")
 	// Wait for the agent to tail the log file since there is a delay between permissions being granted and the agent tailing the log file
 	time.Sleep(1000 * time.Millisecond)
