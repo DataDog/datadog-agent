@@ -5,18 +5,18 @@
 
 package pinger
 
-type mockPinger struct {
+type MockPinger struct {
 	res *Result
 	err error
 }
 
-func NewMockPinger(res *Result, err error) *mockPinger {
-	return &mockPinger{
+func NewMockPinger(res *Result, err error) *MockPinger {
+	return &MockPinger{
 		res: res,
 		err: err,
 	}
 }
 
-func (m *mockPinger) Ping(host string) (*Result, error) {
+func (m *MockPinger) Ping(_ string) (*Result, error) {
 	return m.res, m.err
 }
