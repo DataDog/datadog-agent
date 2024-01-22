@@ -64,7 +64,7 @@ func (v *ec2VMSuite) TestFakeIntakeNPM() {
 
 		hostnameNetID, err := v.Env().FakeIntake.Client().GetConnectionsNames()
 		assert.NoError(c, err, "GetConnectionsNames() errors")
-		if !assert.NotZero(c, len(hostnameNetID), "no connections yet") {
+		if !assert.NotEmpty(c, hostnameNetID, "no connections yet") {
 			return
 		}
 		targetHostnameNetID = hostnameNetID[0]
@@ -104,7 +104,7 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
 
 		cnx, err := v.Env().FakeIntake.Client().GetConnections()
 		assert.NoError(c, err, "GetConnections() errors")
-		if !assert.NotZero(c, len(cnx.GetNames()), "no connections yet") {
+		if !assert.NotEmpty(c, cnx.GetNames(), "no connections yet") {
 			return
 		}
 
