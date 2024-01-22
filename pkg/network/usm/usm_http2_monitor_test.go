@@ -254,7 +254,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, testHeaders()).
+						writeRawHeaders(t, streamID, headersFrame).
 						writeData(t, streamID, true, []byte{})
 				}
 				return framer.Bytes()
@@ -559,6 +559,16 @@ func (f *framer) writeData(t *testing.T, streamID uint32, endStream bool, buf []
 
 func (f *framer) writeWindowUpdate(t *testing.T, streamID uint32, increment uint32) *framer {
 	require.NoError(t, f.framer.WriteWindowUpdate(streamID, increment), "could not write window update frame")
+	return f
+}
+
+func (f *framer) writeRawHeaders(t *testing.T, streamID uint32, headerFrames []byte) *framer {
+	require.NoError(t, f.framer.WriteHeaders(http2.HeadersFrameParam{
+		StreamID:      streamID,
+		BlockFragment: headerFrames,
+		EndStream:     false,
+		EndHeaders:    true,
+	}), "could not write header frames")
 	return f
 }
 
