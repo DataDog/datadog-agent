@@ -30,7 +30,7 @@ func NewProcessDiscoveryCheck(config ddconfig.Reader) *ProcessDiscoveryCheck {
 type ProcessDiscoveryCheck struct {
 	config ddconfig.Reader
 
-	probe procutil.Probe
+	probe      procutil.Probe
 	scrubber   *procutil.DataScrubber
 	userProbe  *LookupIdProbe
 	info       *HostInfo
