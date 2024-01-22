@@ -96,6 +96,11 @@ namespace WixSetup.Datadog
                 {
                     AttributesDefinition = "Secure=yes"
                 },
+                // Set to "true" to allow the currently logged in user to be used as the Agent user.
+                new Property("ALLOW_CURRENT_USER")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
                 // Add a checkbox at the end of the setup to launch the Datadog Agent Manager
                 new LaunchCustomApplicationFromExitDialog(
                     _agentBinaries.TrayId,
