@@ -57,6 +57,10 @@ var (
 )
 
 func TestFlake(t *testing.T) {
+	if shouldSkipFlake() {
+		t.Skip("skip flake test metatest when skip-flake flag or GO_TEST_SKIP_FLAKE environment variable is set")
+		return
+	}
 	t.Run("skip flake test", func(t *testing.T) {
 		mt := newMockTesting(t)
 		skipFlake = &trueValue
