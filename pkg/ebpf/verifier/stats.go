@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/asm"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -53,6 +54,25 @@ func BuildVerifierStats(objectFiles []string) (map[string]*VerifierStats, error)
 				mapSpec.MaxEntries = 1
 			}
 		}
+
+		// patch telemetry patch points
+		newIns := asm.Mov.Reg(asm.R1, asm.R1)
+		for _, p := range collectionSpec.Programs {
+			// do constant editing of programs for helper errors post-init
+			ins := p.Instructions
+
+			// patch telemetry helper calls
+			const ebpfTelemetryPatchCall = -1
+			iter := ins.Iterate()
+			for iter.Next() {
+				ins := iter.Ins
+				if !ins.IsBuiltinCall() || ins.Constant != ebpfTelemetryPatchCall {
+					continue
+				}
+				*ins = newIns.WithMetadata(ins.Metadata)
+			}
+		}
+
 		opts := ebpf.CollectionOptions{
 			Programs: ebpf.ProgramOptions{
 				LogLevel: ebpf.LogLevelBranch | ebpf.LogLevelStats,
@@ -62,6 +82,7 @@ func BuildVerifierStats(objectFiles []string) (map[string]*VerifierStats, error)
 		collection, err := ebpf.NewCollectionWithOptions(collectionSpec, opts)
 		if err != nil {
 			log.Printf("Load collection: %v", err)
+			log.Printf("Skipping object file %s.o", objectFileName)
 			continue
 		}
 
