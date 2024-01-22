@@ -28,12 +28,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
-	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -86,7 +86,7 @@ var ebpfConntrackerRCCreator func(cfg *config.Config) (runtime.CompiledOutput, e
 var ebpfConntrackerPrebuiltCreator func(*config.Config) (bytecode.AssetReader, []manager.ConstantEditor, error) = getPrebuiltConntracker
 
 // NewEBPFConntracker creates a netlink.Conntracker that monitor conntrack NAT entries via eBPF
-func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry) (netlink.Conntracker, error) {
+func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *ebpftelemetry.EBPFTelemetry) (netlink.Conntracker, error) {
 	if !cfg.EnableEbpfConntracker {
 		return nil, fmt.Errorf("ebpf conntracker is disabled")
 	}
@@ -390,8 +390,8 @@ func (e *ebpfConntracker) Collect(ch chan<- prometheus.Metric) {
 	}
 }
 
-func getManager(cfg *config.Config, buf io.ReaderAt, bpfTelemetry *nettelemetry.EBPFTelemetry, constants []manager.ConstantEditor) (*manager.Manager, error) {
-	mgr := nettelemetry.NewManager(&manager.Manager{
+func getManager(cfg *config.Config, buf io.ReaderAt, bpfTelemetry *ebpftelemetry.EBPFTelemetry, constants []manager.ConstantEditor) (*manager.Manager, error) {
+	mgr := ebpftelemetry.NewManager(&manager.Manager{
 		Maps: []*manager.Map{
 			{Name: probes.ConntrackMap},
 			{Name: probes.ConntrackTelemetryMap},

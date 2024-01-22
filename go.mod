@@ -29,6 +29,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ./comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/log => ./comp/core/log/
 	github.com/DataDog/datadog-agent/comp/core/secrets => ./comp/core/secrets
+	github.com/DataDog/datadog-agent/comp/core/status => ./comp/core/status
+	github.com/DataDog/datadog-agent/comp/core/status/statusimpl => ./comp/core/status/statusimpl
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ./comp/core/telemetry/
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ./comp/forwarder/defaultforwarder
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ./comp/logs/agent/config
@@ -62,6 +64,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/compression => ./pkg/util/compression
 	github.com/DataDog/datadog-agent/pkg/util/executable => ./pkg/util/executable
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ./pkg/util/filesystem
+	github.com/DataDog/datadog-agent/pkg/util/flavor => ./pkg/util/flavor
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ./pkg/util/fxutil/
 	github.com/DataDog/datadog-agent/pkg/util/grpc => ./pkg/util/grpc/
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ./pkg/util/hostname/validate/
@@ -99,7 +102,7 @@ require (
 	github.com/DataDog/datadog-operator v1.1.0
 	github.com/DataDog/ebpf-manager v0.4.0
 	github.com/DataDog/gopsutil v1.2.2
-	github.com/DataDog/nikos v1.12.2
+	github.com/DataDog/nikos v1.12.3
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.11.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.11.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.11.0
@@ -126,7 +129,7 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
-	github.com/cilium/ebpf v0.12.3
+	github.com/cilium/ebpf v0.12.4-0.20231215144645-5ab77468412f
 	github.com/clbanning/mxj v1.8.4
 	github.com/containerd/containerd v1.7.11
 	github.com/containernetworking/cni v1.1.2
@@ -140,7 +143,7 @@ require (
 	github.com/dustin/go-humanize v1.0.1
 	github.com/elastic/go-libaudit v0.4.0
 	github.com/evanphx/json-patch v5.7.0+incompatible
-	github.com/fatih/color v1.15.0
+	github.com/fatih/color v1.16.0
 	github.com/freddierice/go-losetup v0.0.0-20170407175016-fc9adea44124
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/go-delve/delve v1.20.1
@@ -160,7 +163,7 @@ require (
 	github.com/google/gopacket v1.1.19
 	github.com/google/pprof v0.0.0-20230817174616-7a8ec2ada47b
 	github.com/gorilla/mux v1.8.0
-	github.com/gosnmp/gosnmp v1.34.1-0.20220306115220-ca8397b73095
+	github.com/gosnmp/gosnmp v1.37.1-0.20240115134726-db0c09337869
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
 	github.com/h2non/filetype v1.1.3
@@ -322,7 +325,7 @@ require (
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
 	github.com/OneOfOne/xxhash v1.2.8 // indirect
-	github.com/ProtonMail/go-crypto v0.0.0-20230828082145-3c4c8a2d2371 // indirect
+	github.com/ProtonMail/go-crypto v0.0.0-20230828082145-3c4c8a2d2371
 	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/agnivade/levenshtein v1.1.1 // indirect
@@ -598,6 +601,8 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/comp/core/log v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/comp/core/status v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/status/statusimpl v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.51.0-rc.2
@@ -624,6 +629,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/flavor v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/grpc v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.51.0-rc.2
@@ -669,7 +675,14 @@ require (
 	github.com/DataDog/datadog-api-client-go/v2 v2.13.0 // indirect
 	github.com/DataDog/go-sqllexer v0.0.9 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr v1.4.10 // indirect
+	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.4.14 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.10 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.1.6 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecr v1.17.18 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.10.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.1.38 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.15.6 // indirect
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.40.2 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
@@ -741,7 +754,7 @@ replace k8s.io/cri-api => k8s.io/cri-api v0.25.5
 // Use custom Trivy fork to reduce binary size
 // Pull in replacements needed by upstream Trivy
 replace (
-	github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20230526171704-5aaa4575395e
+	github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20240118082257-7f12ba39deb4
 	github.com/saracen/walker => github.com/DataDog/walker v0.0.0-20230418153152-7f29bb2dc950
 	github.com/spdx/tools-golang => github.com/spdx/tools-golang v0.3.0
 	oras.land/oras-go => oras.land/oras-go v1.1.1
@@ -766,5 +779,8 @@ exclude (
 	github.com/knadh/koanf/providers/confmap v0.1.0
 )
 
-// Temporarily use a fork of gosnmp for multiple-user traps support
-replace github.com/gosnmp/gosnmp => github.com/zoedt/gosnmp v0.0.0-20231218153121-83a06ce65d5a
+// Temporarely use forks of trivy libraries to use lazy initialization of zap loggers.
+// Patch was pushed upstream but maintainers would prefer moving to slog once 1.22 is out
+replace github.com/aquasecurity/go-dep-parser => github.com/lebauce/go-dep-parser v0.0.0-20231030190658-51bbb436f1b8
+
+replace github.com/aquasecurity/trivy-db => github.com/lebauce/trivy-db v0.0.0-20231031000443-2d41e0fab0ae
