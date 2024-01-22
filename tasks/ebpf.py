@@ -9,7 +9,10 @@ import sys
 
 
 from invoke import task
-from tabulate import tabulate
+try:
+    from tabulate import tabulate
+except ImportError:
+    tabulate = None
 
 from .system_probe import build_object_files, is_root
 
