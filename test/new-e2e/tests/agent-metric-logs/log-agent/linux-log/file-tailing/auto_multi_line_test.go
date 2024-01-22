@@ -51,7 +51,8 @@ func (s *AutoMultiLineSuite) TestAutoMultiLine() {
 	s.Run("AutoMultiLine", s.ContainsLogWithNewLines)
 }
 
-func (s *AutoMultiLineSuite) prePopulate() {
+func (s *AutoMultiLineSuite) generateMultilineLogs() {
+	s.T().Helper()
 	var message string
 
 	// auto_multi_line_detection uses the first 500 logs to detect a pattern
@@ -74,8 +75,7 @@ func (s *AutoMultiLineSuite) BeforeTest(suiteName, testName string) {
 	s.Env().RemoteHost.Execute("sudo touch /var/log/hello-world.log")
 	s.Env().RemoteHost.Execute("sudo chmod +r /var/log/hello-world.log")
 
-	// Generate some logs for auto_multi_line_detection to kick in
-	s.prePopulate()
+	s.generateMultilineLogs()
 }
 
 func (s *AutoMultiLineSuite) AfterTest(suiteName, testName string) {
