@@ -2,5 +2,5 @@
 
 features:
   - |
-    Updating process agent discovery configuration to include a Data Scrubber for obfuscate sensitive information such as "passwords", keys, etc.
+    Updating process agent discovery configuration to include a Data Scrubber for obfuscating sensitive information such as "passwords", keys, etc.
 
