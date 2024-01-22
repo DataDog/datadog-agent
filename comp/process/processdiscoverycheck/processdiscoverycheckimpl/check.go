@@ -42,7 +42,6 @@ type result struct {
 }
 
 func newCheck(deps dependencies) result {
-
 	c := &check{
 		processDiscoveryCheck: checks.NewProcessDiscoveryCheck(deps.Config),
 	}

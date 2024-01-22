@@ -635,7 +635,7 @@ func initScrubber(config ddconfig.Reader, scrubber *procutil.DataScrubber) {
 	}
 
 	if scrubber.Enabled { // Scrubber is enabled by default when it's created
-		log.Debug("Starting discovery process collection with Discovery Scrubber enabled")
+		log.Debug("Starting process collection with Scrubber enabled")
 	}
 
 	// A custom word list to enhance the default one used by the DataScrubber

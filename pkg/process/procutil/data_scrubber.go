@@ -170,7 +170,6 @@ func (ds *DataScrubber) IncrementCacheAge() {
 // ScrubCommand hides the argument value for any key which matches a "sensitive word" pattern.
 // It returns the updated cmdline, as well as a boolean representing whether it was scrubbed
 func (ds *DataScrubber) ScrubCommand(cmdline []string) ([]string, bool) {
-
 	newCmdline := cmdline
 	rawCmdline := strings.Join(cmdline, " ")
 	lowerCaseCmdline := strings.ToLower(rawCmdline)

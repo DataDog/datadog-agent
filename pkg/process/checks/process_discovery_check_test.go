@@ -114,7 +114,6 @@ func TestPidMapToProcDiscoveriesScrubbed(t *testing.T) {
 			pidMap := map[int32]*procutil.Process{
 				1: proc,
 			}
-
 			scrubber := procutil.NewDefaultDataScrubber()
 			rsul := pidMapToProcDiscoveries(pidMap, nil, scrubber)
 			require.Len(t, rsul, 1)
