@@ -43,6 +43,9 @@ func main() {
 		log.Fatalf("failed to build verifier stats: %v", err)
 	}
 
-	j, _ := json.Marshal(stats)
+	j, err := json.Marshal(stats)
+	if err != nil {
+		log.Fatalf("failed to marshal json %v", err)
+	}
 	fmt.Println(string(j))
 }
