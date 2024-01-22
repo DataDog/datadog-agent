@@ -66,14 +66,6 @@ func (s *UtfSuite) BeforeTest(suiteName, testName string) {
 func (s *UtfSuite) AfterTest(suiteName, testName string) {
 	s.BaseSuite.AfterTest(suiteName, testName)
 
-	// flush intake
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
-		if assert.NoErrorf(c, err, "Having issues flushing server and resetting aggregators, retrying...") {
-			s.T().Log("Successfully flushed server and reset aggregators.")
-		}
-	}, 1*time.Minute, 10*time.Second)
-
 	// delete log file
 	s.Env().RemoteHost.MustExecute("sudo rm /var/log/hello-world-utf.log")
 }
