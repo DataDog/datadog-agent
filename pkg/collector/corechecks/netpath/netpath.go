@@ -56,7 +56,7 @@ func (c *Check) Run() error {
 		return err
 	}
 
-	err = c.traceroute(senderInstance)
+	hopCount, err := c.traceroute(senderInstance)
 	if err != nil {
 		return err
 	}
@@ -79,11 +79,12 @@ func (c *Check) Run() error {
 	numWorkers := config.Datadog.GetInt("check_runners")
 	senderInstance.Gauge("netpath.telemetry.check_runners", float64(numWorkers), "", tags)
 	senderInstance.Gauge("netpath.telemetry.fake_event_multiplier", float64(c.config.FakeEventMultiplier), "", tags)
+	senderInstance.Gauge("netpath.telemetry.hop_count", float64(hopCount), "", tags)
 	c.lastCheckTime = startTime
 	return nil
 }
 
-func (c *Check) traceroute(sender sender.Sender) error {
+func (c *Check) traceroute(sender sender.Sender) (int, error) {
 	options := traceroute.TracerouteOptions{}
 	options.SetRetries(1)
 	options.SetMaxHops(32)
@@ -93,19 +94,19 @@ func (c *Check) traceroute(sender sender.Sender) error {
 
 	hname, err := hostname.Get(context.TODO())
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	ipAddr, err := net.ResolveIPAddr("ip", destinationHost)
 	if err != nil {
-		return nil
+		return 0, nil
 	}
 
 	log.Debugf("traceroute to %v (%v), %v hops max, %v byte packets\n", destinationHost, ipAddr, options.MaxHops(), options.PacketSize())
 
 	hostHops := getHops(options, times, err, destinationHost)
 	if len(hostHops) == 0 {
-		return errors.New("no hops")
+		return 0, errors.New("no hops")
 	}
 
 	//err = c.traceRouteV1(sender, hostHops, hname, destinationHost)
@@ -115,10 +116,10 @@ func (c *Check) traceroute(sender sender.Sender) error {
 	for i := 0; i < c.config.FakeEventMultiplier; i++ {
 		err = c.traceRouteV2(sender, hostHops, hname, destinationHost)
 		if err != nil {
-			return err
+			return 0, err
 		}
 	}
-	return nil
+	return len(hostHops), nil
 }
 
 func (c *Check) traceRouteV1(sender sender.Sender, hostHops [][]traceroute.TracerouteHop, hname string, destinationHost string) error {
