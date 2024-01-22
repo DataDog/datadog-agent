@@ -199,7 +199,8 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				framer := newFramer()
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
-					framer.writeHeaders(t, streamID, headersWithoutIndexingPath(), false, setDynamicTableSize).
+					framer.
+						writeHeaders(t, streamID, headersWithoutIndexingPath(), false, setDynamicTableSize).
 						writeData(t, streamID, true, []byte{})
 				}
 				return framer.Bytes()
@@ -221,7 +222,8 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				framer := newFramer()
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
-					framer.writeHeaders(t, streamID, headersWithNeverIndexedPath(), false, false).
+					framer.
+						writeHeaders(t, streamID, headersWithNeverIndexedPath(), false, false).
 						writeData(t, streamID, true, []byte{})
 				}
 				return framer.Bytes()
@@ -251,7 +253,8 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				framer := newFramer()
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
-					framer.writeHeaders(t, streamID, testHeaders(), false, false).
+					framer.
+						writeHeaders(t, streamID, testHeaders(), false, false).
 						writeData(t, streamID, true, []byte{})
 				}
 				return framer.Bytes()
@@ -272,7 +275,8 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
-					framer.writeHeaders(t, streamID, testHeaders(), false, false).
+					framer.
+						writeHeaders(t, streamID, testHeaders(), false, false).
 						writePing(t).
 						writeWindowUpdate(t, streamID, 1).
 						writeData(t, streamID, true, []byte{})
@@ -298,7 +302,8 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				framer := newFramer()
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
-					framer.writeHeaders(t, streamID, testHeaders(), false, false).
+					framer.
+						writeHeaders(t, streamID, testHeaders(), false, false).
 						writeData(t, streamID, true, []byte{})
 					if rstFramesCount > 0 {
 						framer.writeRSTStream(t, streamID, http2.ErrCodeCancel)
@@ -323,7 +328,8 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				framer := newFramer()
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
-					framer.writeHeaders(t, streamID, testHeaders(), false, false).
+					framer.
+						writeHeaders(t, streamID, testHeaders(), false, false).
 						writeData(t, streamID, true, []byte{}).writeRSTStream(t, streamID, http2.ErrCodeNo)
 				}
 				return framer.Bytes()
