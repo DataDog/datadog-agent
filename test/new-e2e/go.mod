@@ -9,6 +9,7 @@ go 1.21
 replace (
 	github.com/DataDog/datadog-agent/pkg/proto => ../../pkg/proto
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../pkg/util/pointer
+	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../pkg/util/testutil
 	github.com/DataDog/datadog-agent/pkg/version => ../../pkg/version
 	github.com/DataDog/datadog-agent/test/fakeintake => ../fakeintake
 )
@@ -16,6 +17,7 @@ replace (
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.100
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/testutil v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/version v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/test/fakeintake v0.51.0-rc.2
 	github.com/DataDog/datadog-api-client-go v1.16.0
