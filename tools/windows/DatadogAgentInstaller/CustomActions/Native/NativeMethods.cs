@@ -898,6 +898,18 @@ namespace Datadog.CustomActions.Native
             }
         }
 
+        public void GetCurrentUser(out string name, out SecurityIdentifier sid)
+        {
+            var identity = WindowsIdentity.GetCurrent();
+            if (identity == null)
+            {
+                throw new Exception("Unable to get current user");
+            }
+
+            name = identity.Name;
+            sid = identity.User;
+        }
+
         #endregion
     }
 }

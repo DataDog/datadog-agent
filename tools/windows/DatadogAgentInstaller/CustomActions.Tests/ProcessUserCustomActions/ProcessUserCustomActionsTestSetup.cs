@@ -112,9 +112,13 @@ namespace CustomActions.Tests.ProcessUserCustomActions
         public ProcessUserCustomActionsTestSetup WithLocalUser(
             string userDomain,
             string userName,
-            SID_NAME_USE userType = SID_NAME_USE.SidTypeUser)
+            SID_NAME_USE userType = SID_NAME_USE.SidTypeUser,
+            SecurityIdentifier userSid = null)
         {
-            var userSid = new SecurityIdentifier($"S-1-0-{_fixture.Create<uint>()}");
+            if (userSid == null)
+            {
+                userSid = new SecurityIdentifier($"S-1-0-{_fixture.Create<uint>()}");
+            }
 
             NativeMethods.Setup(n => n.IsServiceAccount(userSid)).Returns(false);
             NativeMethods.Setup(n => n.IsDomainAccount(userSid)).Returns(false);
@@ -208,6 +212,31 @@ namespace CustomActions.Tests.ProcessUserCustomActions
                         nameUse = userType;
                     }))
                 .Returns(true);
+
+            return this;
+        }
+
+        public ProcessUserCustomActionsTestSetup WithCurrentUser(
+            string userName,
+            SecurityIdentifier userSID = null)
+        {
+            if (userSID == null)
+            {
+                userSID = new SecurityIdentifier($"S-1-0-{_fixture.Create<uint>()}");
+            }
+
+            NativeMethods.Setup(n => n.GetCurrentUser(
+                    out It.Ref<string>.IsAny,
+                    out It.Ref<SecurityIdentifier>.IsAny))
+                .Callback(new GetCurrentUserDelegate(
+                    (
+                        out string user,
+                        out SecurityIdentifier sid
+                    ) =>
+                    {
+                        user = userName;
+                        sid = userSID;
+                    }));
 
             return this;
         }

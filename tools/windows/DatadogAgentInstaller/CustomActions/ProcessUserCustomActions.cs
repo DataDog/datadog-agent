@@ -228,14 +228,13 @@ namespace Datadog.CustomActions
         private void TestAgentUserIsNotCurrentUser(SecurityIdentifier agentUser, bool isServiceAccount)
         {
             var allowInstallCurrentUser = _session.Property("ALLOW_CURRENT_USER")?.ToLower() == "true";
-            var currentUser = WindowsIdentity.GetCurrent();
-            var currentUserSID = currentUser?.User;
+            _nativeMethods.GetCurrentUser(out var currentUserName, out var currentUserSID);
             if (currentUserSID == null)
             {
                 _session.Log("Unable to get current user SID");
                 return;
             }
-            _session.Log($"Current user: {currentUser.Name} ({currentUserSID})");
+            _session.Log($"Current user: {currentUserName} ({currentUserSID})");
 
             // If the user is a service account (e.g. LocalSystem) then it's ok to use the same account
             if (isServiceAccount)
