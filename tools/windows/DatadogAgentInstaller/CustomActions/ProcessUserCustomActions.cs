@@ -225,9 +225,17 @@ namespace Datadog.CustomActions
         /// To avoid this, we disallow using the current user as the ddagentuser.
         /// If a customer must use the current user, they can pass ALLOW_CURRENT_USER=true to the installer on the command line.
         /// </remarks>
-        private void TestAgentUserIsNotCurrentUser(SecurityIdentifier agentUser, SecurityIdentifier currentUser, bool isServiceAccount)
+        private void TestAgentUserIsNotCurrentUser(SecurityIdentifier agentUser, bool isServiceAccount)
         {
             var allowInstallCurrentUser = _session.Property("ALLOW_CURRENT_USER")?.ToLower() == "true";
+            var currentUser = WindowsIdentity.GetCurrent();
+            var currentUserSID = currentUser?.User;
+            if (currentUserSID == null)
+            {
+                _session.Log("Unable to get current user SID");
+                return;
+            }
+            _session.Log($"Current user: {currentUser.Name} ({currentUserSID})");
 
             // If the user is a service account (e.g. LocalSystem) then it's ok to use the same account
             if (isServiceAccount)
@@ -236,7 +244,7 @@ namespace Datadog.CustomActions
             }
 
             // good, agent user and current user are different
-            if (!currentUser.Equals(agentUser))
+            if (!currentUserSID.Equals(agentUser))
             {
                 return;
             }
@@ -248,9 +256,7 @@ namespace Datadog.CustomActions
                 return;
             }
 
-            var errorDialogMessage =
-                "The account provided is the same as the current user. Please supply a different account name.";
-            throw new ExceptionWithDialogMessage(errorDialogMessage);
+            throw new ExceptionWithDialogMessage("The account provided is the same as the current user. Please supply a different account name.");
         }
 
         /// <summary>
@@ -399,7 +405,7 @@ namespace Datadog.CustomActions
                     _session.Log(
                         $"\"{domain}\\{userName}\" ({securityIdentifier.Value}, {nameUse}) is a {(isDomainAccount ? "domain" : "local")} {(isServiceAccount ? "service " : string.Empty)}account");
 
-                    TestAgentUserIsNotCurrentUser(securityIdentifier, WindowsIdentity.GetCurrent().User, isServiceAccount);
+                    TestAgentUserIsNotCurrentUser(securityIdentifier, isServiceAccount);
                     TestIfPasswordIsRequiredAndProvidedForExistingAccount(ddAgentUserPassword, isDomainController, isServiceAccount, isDomainAccount, datadogAgentServiceExists);
                 }
                 else
