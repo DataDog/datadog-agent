@@ -14,7 +14,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
-	nethttp "net/http"
+	"net/http"
 	"reflect"
 	"strconv"
 	"strings"
@@ -31,7 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	usmhttp "github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	gotlsutils "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
@@ -125,7 +125,7 @@ func (s *usmHTTP2Suite) TestHTTP2DynamicTableCleanup() {
 
 	require.Eventuallyf(t, func() bool {
 		for key, stat := range getHTTPLikeProtocolStats(monitor, protocols.HTTP2) {
-			if (key.DstPort == srvPort || key.SrcPort == srvPort) && key.Method == http.MethodPost && strings.HasPrefix(key.Path.Content.Get(), "/test") {
+			if (key.DstPort == srvPort || key.SrcPort == srvPort) && key.Method == usmhttp.MethodPost && strings.HasPrefix(key.Path.Content.Get(), "/test") {
 				matches.Add(stat.Data[200].Count)
 			}
 		}
@@ -176,7 +176,7 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 	tests := []struct {
 		name              string
 		runClients        func(t *testing.T, clientsCount int)
-		expectedEndpoints map[http.Key]captureRange
+		expectedEndpoints map[usmhttp.Key]captureRange
 	}{
 		{
 			name: " / path",
@@ -190,10 +190,10 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 					req.Body.Close()
 				}
 			},
-			expectedEndpoints: map[http.Key]captureRange{
+			expectedEndpoints: map[usmhttp.Key]captureRange{
 				{
-					Path:   http.Path{Content: http.Interner.GetString("/")},
-					Method: http.MethodPost,
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/")},
+					Method: usmhttp.MethodPost,
 				}: {
 					lower: 999,
 					upper: 1001,
@@ -212,10 +212,10 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 					req.Body.Close()
 				}
 			},
-			expectedEndpoints: map[http.Key]captureRange{
+			expectedEndpoints: map[usmhttp.Key]captureRange{
 				{
-					Path:   http.Path{Content: http.Interner.GetString("/index.html")},
-					Method: http.MethodPost,
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/index.html")},
+					Method: usmhttp.MethodPost,
 				}: {
 					lower: 999,
 					upper: 1001,
@@ -248,13 +248,13 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 				}
 				tt.runClients(t, clientCount)
 
-				res := make(map[http.Key]int)
+				res := make(map[usmhttp.Key]int)
 				assert.Eventually(t, func() bool {
 					for key, stat := range getHTTPLikeProtocolStats(monitor, protocols.HTTP2) {
 						if key.DstPort == srvPort || key.SrcPort == srvPort {
 							count := stat.Data[200].Count
-							newKey := http.Key{
-								Path:   http.Path{Content: key.Path.Content},
+							newKey := usmhttp.Key{
+								Path:   usmhttp.Path{Content: key.Path.Content},
 								Method: key.Method,
 							}
 							if _, ok := res[newKey]; !ok {
@@ -437,7 +437,7 @@ func (s *usmHTTP2Suite) TestHTTP2ManyDifferentPaths() {
 	seenRequests := map[string]int{}
 	assert.Eventuallyf(t, func() bool {
 		for key, stat := range getHTTPLikeProtocolStats(monitor, protocols.HTTP2) {
-			if (key.DstPort == srvPort || key.SrcPort == srvPort) && key.Method == http.MethodPost && strings.HasPrefix(key.Path.Content.Get(), "/test") {
+			if (key.DstPort == srvPort || key.SrcPort == srvPort) && key.Method == usmhttp.MethodPost && strings.HasPrefix(key.Path.Content.Get(), "/test") {
 				if _, ok := seenRequests[key.Path.Content.Get()]; !ok {
 					seenRequests[key.Path.Content.Get()] = 0
 				}
@@ -483,7 +483,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 		name              string
 		skip              bool
 		messageBuilder    func() []byte
-		expectedEndpoints map[http.Key]int
+		expectedEndpoints map[usmhttp.Key]int
 	}{
 		{
 			name: "parse_frames tail call using 1 program",
@@ -493,10 +493,10 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				const settingsFramesCount = 100
 				return createMessageWithCustomSettingsFrames(t, testHeaders(), settingsFramesCount)
 			},
-			expectedEndpoints: map[http.Key]int{
+			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
-					Method: http.MethodPost,
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/aaa")},
+					Method: usmhttp.MethodPost,
 				}: 1,
 			},
 		},
@@ -508,10 +508,10 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				const settingsFramesCount = 130
 				return createMessageWithCustomSettingsFrames(t, testHeaders(), settingsFramesCount)
 			},
-			expectedEndpoints: map[http.Key]int{
+			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
-					Method: http.MethodPost,
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/aaa")},
+					Method: usmhttp.MethodPost,
 				}: 1,
 			},
 			// Currently we don't have a way to test it as TLS version does not have the ability to run 2 tail calls
@@ -536,10 +536,10 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				headerFramesCount := getTLSNumber(120, 60, s.isTLS)
 				return createMessageWithCustomHeadersFramesCount(t, testHeaders(), headerFramesCount)
 			},
-			expectedEndpoints: map[http.Key]int{
+			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
-					Method: http.MethodPost,
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/aaa")},
+					Method: usmhttp.MethodPost,
 				}: getTLSNumber(120, 60, s.isTLS),
 			},
 		},
@@ -553,10 +553,10 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				const setDynamicTableSize = true
 				return createMessageWithCustomHeadersFramesCount(t, headersWithoutIndexingPath(), headerFramesCount, setDynamicTableSize)
 			},
-			expectedEndpoints: map[http.Key]int{
+			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   http.Path{Content: http.Interner.GetString("/" + strings.Repeat("a", usmhttp2.DynamicTableSize))},
-					Method: http.MethodPost,
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/" + strings.Repeat("a", usmhttp2.DynamicTableSize))},
+					Method: usmhttp.MethodPost,
 				}: 5,
 			},
 		},
@@ -569,10 +569,10 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				const headerFramesCount = 5
 				return createMessageWithCustomHeadersFramesCount(t, headersWithNeverIndexedPath(), headerFramesCount)
 			},
-			expectedEndpoints: map[http.Key]int{
+			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
-					Method: http.MethodPost,
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/aaa")},
+					Method: usmhttp.MethodPost,
 				}: 5,
 			},
 		},
@@ -583,10 +583,10 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				const headerFramesCount = 5
 				return createHeadersWithIndexedPathKey(t, testHeaders(), headerFramesCount)
 			},
-			expectedEndpoints: map[http.Key]int{
+			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
-					Method: http.MethodPost,
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/aaa")},
+					Method: usmhttp.MethodPost,
 				}: 5,
 			},
 		},
@@ -597,10 +597,10 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				const headerFramesCount = 5
 				return createMessageWithPingAndWindowUpdate(t, testHeaders(), headerFramesCount)
 			},
-			expectedEndpoints: map[http.Key]int{
+			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
-					Method: http.MethodPost,
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/aaa")},
+					Method: usmhttp.MethodPost,
 				}: 5,
 			},
 		},
@@ -614,10 +614,10 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				const rstCancelFramesCount = 5
 				return createMessageWithRST(t, testHeaders(), headerFramesCount, rstCancelFramesCount, http2.ErrCodeCancel)
 			},
-			expectedEndpoints: map[http.Key]int{
+			expectedEndpoints: map[usmhttp.Key]int{
 				{
-					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
-					Method: http.MethodPost,
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/aaa")},
+					Method: usmhttp.MethodPost,
 				}: 5,
 			},
 		},
@@ -660,13 +660,13 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// Composing a message with the number of setting frames we want to send.
 			require.NoError(t, writeInput(c, tt.messageBuilder(), time.Second))
 
-			res := make(map[http.Key]int)
+			res := make(map[usmhttp.Key]int)
 			assert.Eventually(t, func() bool {
 				for key, stat := range getHTTPLikeProtocolStats(usmMonitor, protocols.HTTP2) {
 					if key.DstPort == srvPort || key.SrcPort == srvPort {
 						count := stat.Data[200].Count
-						newKey := http.Key{
-							Path:   http.Path{Content: key.Path.Content},
+						newKey := usmhttp.Key{
+							Path:   usmhttp.Path{Content: key.Path.Content},
 							Method: key.Method,
 						}
 						if _, ok := res[newKey]; !ok {
@@ -706,10 +706,10 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 }
 
 // getHTTP2UnixClientArray creates an array of http2 clients over a unix socket.
-func getHTTP2UnixClientArray(size int, unixPath string) []*nethttp.Client {
-	res := make([]*nethttp.Client, size)
+func getHTTP2UnixClientArray(size int, unixPath string) []*http.Client {
+	res := make([]*http.Client, size)
 	for i := 0; i < size; i++ {
-		res[i] = &nethttp.Client{
+		res[i] = &http.Client{
 			Transport: &http2.Transport{
 				AllowHTTP: true,
 				DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
@@ -972,14 +972,14 @@ type captureRange struct {
 	upper int
 }
 
-func getExpectedOutcomeForPathWithRepeatedChars() map[http.Key]captureRange {
-	expected := make(map[http.Key]captureRange)
+func getExpectedOutcomeForPathWithRepeatedChars() map[usmhttp.Key]captureRange {
+	expected := make(map[usmhttp.Key]captureRange)
 	for i := 1; i < 100; i++ {
-		expected[http.Key{
-			Path: http.Path{
-				Content: http.Interner.GetString(fmt.Sprintf("/%s", strings.Repeat("a", i))),
+		expected[usmhttp.Key{
+			Path: usmhttp.Path{
+				Content: usmhttp.Interner.GetString(fmt.Sprintf("/%s", strings.Repeat("a", i))),
 			},
-			Method: http.MethodPost,
+			Method: usmhttp.MethodPost,
 		}] = captureRange{
 			lower: 1,
 			upper: 1,
@@ -989,9 +989,9 @@ func getExpectedOutcomeForPathWithRepeatedChars() map[http.Key]captureRange {
 }
 
 func startH2CServer(address string, isTLS bool) (func(), error) {
-	srv := &nethttp.Server{
+	srv := &http.Server{
 		Addr: authority,
-		Handler: h2c.NewHandler(nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
+		Handler: h2c.NewHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(200)
 			w.Write([]byte("test"))
 		}), &http2.Server{}),
