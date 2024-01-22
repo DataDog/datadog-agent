@@ -75,14 +75,14 @@ var tracerTelemetry = struct {
 
 // Tracer implements the functionality of the network tracer
 type Tracer struct {
-	config       *config.Config
-	state        network.State
-	conntracker  netlink.Conntracker
-	reverseDNS   dns.ReverseDNS
-	usmMonitor   *usm.Monitor
-	ebpfTracer   connection.Tracer
-	bpfTelemetry *ebpftelemetry.EbpfErrorsCollector
-	lastCheck    *atomic.Int64
+	config             *config.Config
+	state              network.State
+	conntracker        netlink.Conntracker
+	reverseDNS         dns.ReverseDNS
+	usmMonitor         *usm.Monitor
+	ebpfTracer         connection.Tracer
+	bpfErrorsCollector *ebpftelemetry.EbpfErrorsCollector
+	lastCheck          *atomic.Int64
 
 	bufferLock sync.Mutex
 
@@ -158,24 +158,29 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 		}
 	}()
 
+	// pointer to embedded ebpfTelemetry struct within the bpfErrorsCollector,
+	// to avoid possible nil pointer dereference when accessing it via the bpfErrorsCollector pointer
+	var bpfTelemetry *ebpftelemetry.EBPFTelemetry = nil
+
 	if eec := ebpftelemetry.NewEbpfErrorsCollector(); eec != nil {
 		coretelemetry.GetCompatComponent().RegisterCollector(eec)
 
 		//this is a patch for now, until ebpfTelemetry is fully encapsulated in the ebpf/telemetry pkg
 		if errorsCollector, ok := eec.(*ebpftelemetry.EbpfErrorsCollector); ok {
-			tr.bpfTelemetry = errorsCollector
+			tr.bpfErrorsCollector = errorsCollector
+			bpfTelemetry = tr.bpfErrorsCollector.EBPFTelemetry
 		}
 	} else {
 		log.Debug("eBPF telemetry not supported")
 	}
 
-	tr.ebpfTracer, err = connection.NewTracer(cfg, tr.bpfTelemetry.EBPFTelemetry)
+	tr.ebpfTracer, err = connection.NewTracer(cfg, bpfTelemetry)
 	if err != nil {
 		return nil, err
 	}
 	coretelemetry.GetCompatComponent().RegisterCollector(tr.ebpfTracer)
 
-	tr.conntracker, err = newConntracker(cfg, tr.bpfTelemetry.EBPFTelemetry)
+	tr.conntracker, err = newConntracker(cfg, bpfTelemetry)
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +192,7 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 	}
 
 	tr.reverseDNS = newReverseDNS(cfg)
-	tr.usmMonitor = newUSMMonitor(cfg, tr.ebpfTracer, tr.bpfTelemetry.EBPFTelemetry)
+	tr.usmMonitor = newUSMMonitor(cfg, tr.ebpfTracer, bpfTelemetry)
 
 	if cfg.EnableProcessEventMonitoring {
 		if err = events.Init(); err != nil {
@@ -379,8 +384,8 @@ func (t *Tracer) Stop() {
 		t.processCache.Stop()
 		coretelemetry.GetCompatComponent().UnregisterCollector(t.processCache)
 	}
-	if t.bpfTelemetry != nil {
-		coretelemetry.GetCompatComponent().UnregisterCollector(t.bpfTelemetry)
+	if t.bpfErrorsCollector != nil {
+		coretelemetry.GetCompatComponent().UnregisterCollector(t.bpfErrorsCollector)
 	}
 }
 
