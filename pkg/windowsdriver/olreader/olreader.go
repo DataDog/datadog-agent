@@ -21,7 +21,7 @@ import (
 	"sync"
 	"syscall"
 	"unsafe"
-
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/sys/windows"
 )
 
@@ -128,18 +128,21 @@ func (olr *OverlappedReader) Read() error {
 					// this should never occur. It means that we supplied a buffer
 					// too short for even the structure header.
 					olr.cb.OnError(err)
+					log.Error("Got ERROR_INVALID_PARAMETER, exiting oldreader event loop")
 					return
 				}
 				if err != syscall.Errno(syscall.ERROR_INSUFFICIENT_BUFFER) {
 					// if we get this error, there will still be at least
 					// the structure header.  In any other case, fail out
 					olr.cb.OnError(err)
+					log.Errorf("Got unexpected error %v, exiting oldreader event loop", err)
 					return
 
 				}
 			}
 			if ol == nil {
 				// the completion port was closed.  time to go home
+				log.Infof("event loop completion port closed; exiting read loop")
 				return
 			}
 
@@ -152,6 +155,7 @@ func (olr *OverlappedReader) Read() error {
 			// kick off another read
 			if err := windows.ReadFile(olr.h, buf.data[:], nil, &(buf.ol)); err != nil && err != windows.ERROR_IO_PENDING {
 				olr.cb.OnError(err)
+				log.Warnf("error reinitiating overlapped read %v", err)
 			}
 		}
 	}()
