@@ -81,6 +81,11 @@ func (r *HTTPReceiver) profileProxyHandler() http.Handler {
 		tag := fmt.Sprintf("orchestrator:fargate_%s", strings.ToLower(string(orch)))
 		tags = tags + "," + tag
 	}
+	if config.GetLambdaFunctionName() != "" {
+		functionNameTag := fmt.Sprintf("functionname:%s", strings.ToLower(config.GetLambdaFunctionName()))
+		lambdaSourceTag := "_dd.origin:lambda"
+		tags = tags + "," + functionNameTag + "," + lambdaSourceTag
+	}
 	return newProfileProxy(r.conf, targets, keys, tags)
 }
 

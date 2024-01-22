@@ -598,3 +598,7 @@ func inAzureAppServices() bool {
 	_, existsWin := os.LookupEnv("WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED")
 	return existsLinux || existsWin
 }
+
+func GetLambdaFunctionName() string {
+	return os.Getenv("AWS_LAMBDA_FUNCTION_NAME")
+}
