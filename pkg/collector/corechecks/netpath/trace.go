@@ -30,7 +30,7 @@ func getHops(options traceroute.TracerouteOptions, times int, err error, host st
 		//time.Sleep(50 * time.Millisecond)
 		_, err = traceroute.Traceroute(host, &options, c)
 		if err != nil {
-			log.Debugf("Error: %s", err)
+			log.Errorf("Traceroute Error: %s", err)
 		}
 		allhops = append(allhops, hops)
 	}
