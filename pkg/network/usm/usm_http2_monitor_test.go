@@ -491,7 +491,12 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// a single program.
 			messageBuilder: func() []byte {
 				const settingsFramesCount = 100
-				return createMessageWithCustomSettingsFrames(t, testHeaders(), settingsFramesCount)
+				framer := newFramer()
+				return framer.
+					writeMultiMessage(t, settingsFramesCount, framer.writeSettings).
+					writeHeaders(t, getStreamID(1), testHeaders()).
+					writeData(t, getStreamID(1), true, []byte{}).
+					bytes()
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
@@ -506,7 +511,12 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// the filtering of subsequent frames will continue using tail calls.
 			messageBuilder: func() []byte {
 				const settingsFramesCount = 130
-				return createMessageWithCustomSettingsFrames(t, testHeaders(), settingsFramesCount)
+				framer := newFramer()
+				return framer.
+					writeMultiMessage(t, settingsFramesCount, framer.writeSettings).
+					writeHeaders(t, getStreamID(1), testHeaders()).
+					writeData(t, getStreamID(1), true, []byte{}).
+					bytes()
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
@@ -524,7 +534,12 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// for 2 filter_frames we do not use more than two tail calls.
 			messageBuilder: func() []byte {
 				settingsFramesCount := getTLSNumber(241, 121, s.isTLS)
-				return createMessageWithCustomSettingsFrames(t, testHeaders(), settingsFramesCount)
+				framer := newFramer()
+				return framer.
+					writeMultiMessage(t, settingsFramesCount, framer.writeSettings).
+					writeHeaders(t, getStreamID(1), testHeaders()).
+					writeData(t, getStreamID(1), true, []byte{}).
+					bytes()
 			},
 			expectedEndpoints: nil,
 		},
@@ -533,8 +548,15 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// The purpose of this test is to verify our ability to reach the limit set by HTTP2_MAX_FRAMES_ITERATIONS, which
 			// determines the maximum number of "interesting frames" we can process.
 			messageBuilder: func() []byte {
-				headerFramesCount := getTLSNumber(120, 60, s.isTLS)
-				return createMessageWithCustomHeadersFramesCount(t, testHeaders(), headerFramesCount)
+				iterations := getTLSNumber(120, 60, s.isTLS)
+				framer := newFramer()
+				for i := 0; i < iterations; i++ {
+					streamID := getStreamID(i)
+					framer.
+						writeHeaders(t, streamID, testHeaders()).
+						writeData(t, streamID, true, []byte{})
+				}
+				return framer.bytes()
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
@@ -549,9 +571,16 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// Literal Header Field without Indexing (0b0000xxxx: top four bits are 0000)
 			// https://httpwg.org/specs/rfc7541.html#rfc.section.C.2.2
 			messageBuilder: func() []byte {
-				const headerFramesCount = 5
+				const iterations = 5
 				const setDynamicTableSize = true
-				return createMessageWithCustomHeadersFramesCount(t, headersWithoutIndexingPath(), headerFramesCount, setDynamicTableSize)
+				framer := newFramer()
+				for i := 0; i < iterations; i++ {
+					streamID := getStreamID(i)
+					framer.
+						writeHeaders(t, streamID, headersWithoutIndexingPath(), setDynamicTableSize).
+						writeData(t, streamID, true, []byte{})
+				}
+				return framer.bytes()
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
@@ -566,8 +595,16 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// Literal Header Field never Indexed (0b0001xxxx: top four bits are 0001)
 			// https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.3
 			messageBuilder: func() []byte {
-				const headerFramesCount = 5
-				return createMessageWithCustomHeadersFramesCount(t, headersWithNeverIndexedPath(), headerFramesCount)
+				const iterations = 5
+				framer := newFramer()
+				for i := 0; i < iterations; i++ {
+					streamID := getStreamID(i)
+					framer.
+						writeHeaders(t, streamID, headersWithNeverIndexedPath()).
+						writeData(t, streamID, true, []byte{})
+				}
+				return framer.bytes()
+
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
@@ -580,8 +617,24 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			name: "validate path with index 4",
 			// The purpose of this test is to verify our ability to identify paths with index 4.
 			messageBuilder: func() []byte {
-				const headerFramesCount = 5
-				return createHeadersWithIndexedPathKey(t, testHeaders(), headerFramesCount)
+				const iterations = 5
+				// pathHeaderField is the hex representation of the path /aaa with index 4.
+				pathHeaderField := []byte{0x44, 0x83, 0x60, 0x63, 0x1f}
+				headerFields := removeHeaderFieldByKey(testHeaders(), ":path")
+				headersFrame, err := usmhttp2.NewHeadersFrameMessage(headerFields)
+				require.NoError(t, err, "could not create headers frame")
+
+				// we are adding the path header field with index 4, we need to do it on the byte slice and not on the headerFields
+				// due to the fact that when we create a header field it would be with index 5.
+				headersFrame = append(pathHeaderField, headersFrame...)
+				framer := newFramer()
+				for i := 0; i < iterations; i++ {
+					streamID := getStreamID(i)
+					framer.
+						writeRawHeaders(t, streamID, headersFrame).
+						writeData(t, streamID, true, []byte{})
+				}
+				return framer.bytes()
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
@@ -594,8 +647,19 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			name: "validate PING and WINDOWS_UPDATE frames between HEADERS and DATA",
 			// The purpose of this test is to verify our ability to process PING and WINDOWS_UPDATE frames between HEADERS and DATA.
 			messageBuilder: func() []byte {
-				const headerFramesCount = 5
-				return createMessageWithPingAndWindowUpdate(t, testHeaders(), headerFramesCount)
+				const iterations = 5
+				framer := newFramer()
+
+				for i := 0; i < iterations; i++ {
+					streamID := getStreamID(i)
+					framer.
+						writeHeaders(t, streamID, testHeaders()).
+						writePing(t).
+						writeWindowUpdate(t, streamID, 1).
+						writeData(t, streamID, true, []byte{})
+				}
+
+				return framer.bytes()
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
@@ -610,9 +674,20 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// We are sending 10 requests, and 5 of them will contain RST_STREAM with a cancel error code.Therefore, we expect to
 			// capture five valid requests.
 			messageBuilder: func() []byte {
-				const headerFramesCount = 10
-				const rstCancelFramesCount = 5
-				return createMessageWithRST(t, testHeaders(), headerFramesCount, rstCancelFramesCount, http2.ErrCodeCancel)
+				const iterations = 10
+				rstFramesCount := 5
+				framer := newFramer()
+				for i := 0; i < iterations; i++ {
+					streamID := getStreamID(i)
+					framer.
+						writeHeaders(t, streamID, testHeaders(), false).
+						writeData(t, streamID, true, []byte{})
+					if rstFramesCount > 0 {
+						framer.writeRSTStream(t, streamID, http2.ErrCodeCancel)
+						rstFramesCount--
+					}
+				}
+				return framer.bytes()
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
@@ -626,9 +701,15 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// The purpose of this test is to validate that when we see RST before DATA frame with status ok,
 			// we will not count the requests.
 			messageBuilder: func() []byte {
-				const headerFramesCount = 10
-				const rstFramesCount = 10
-				return createMessageWithRST(t, testHeaders(), headerFramesCount, rstFramesCount, http2.ErrCodeNo)
+				const iterations = 10
+				framer := newFramer()
+				for i := 0; i < iterations; i++ {
+					streamID := getStreamID(i)
+					framer.
+						writeHeaders(t, streamID, testHeaders(), false).
+						writeData(t, streamID, true, []byte{}).writeRSTStream(t, streamID, http2.ErrCodeNo)
+				}
+				return framer.bytes()
 			},
 			expectedEndpoints: nil,
 		},
@@ -812,159 +893,82 @@ func removeHeaderFieldByKey(headerFields []hpack.HeaderField, keyToRemove string
 	return headerFields
 }
 
-// createHeadersWithIndexedPathKey creates a message with the given number of header frames but the
-// path frame header key 4 and not 5 as usual.
-func createHeadersWithIndexedPathKey(t *testing.T, headerFields []hpack.HeaderField, headerFramesCount int) []byte {
-	var buf bytes.Buffer
-	framer := http2.NewFramer(&buf, nil)
-	// pathHeaderField is the hex representation of the path /aaa with index 4.
-	pathHeaderField := []byte{0x44, 0x83, 0x60, 0x63, 0x1f}
-
-	// we remove the header field with key ":path" so that we will not have two header fields.
-	headerFields = removeHeaderFieldByKey(headerFields, ":path")
-	headersFrame, err := usmhttp2.NewHeadersFrameMessage(headerFields)
-	require.NoError(t, err, "could not create headers frame")
-
-	// we are adding the path header field with index 4, we need to do it on the byte slice and not on the headerFields
-	// due to the fact that when we create a header field it would be with index 5.
-	headersFrame = append(pathHeaderField, headersFrame...)
-
-	for i := 0; i < headerFramesCount; i++ {
-		streamID := 2*i + 1
-
-		// Writing the header frames to the buffer using the Framer.
-		require.NoError(t, framer.WriteHeaders(http2.HeadersFrameParam{
-			StreamID:      uint32(streamID),
-			BlockFragment: headersFrame,
-			EndStream:     false,
-			EndHeaders:    true,
-		}), "could not write header frames")
-
-		// Writing the data frame to the buffer using the Framer.
-		require.NoError(t, framer.WriteData(uint32(streamID), true, []byte{}), "could not write data frame")
-	}
-
-	return buf.Bytes()
+func getStreamID(streamID int) uint32 {
+	return uint32(streamID*2 + 1)
 }
 
-// createMessageWithCustomHeadersFramesCount creates a message with the given number of header frames
-// and optionally ping and window update frames.
-func createMessageWithCustomHeadersFramesCount(t *testing.T, headerFields []hpack.HeaderField, headerFramesCount int, setDynamicTableSize ...bool) []byte {
-	var buf bytes.Buffer
-	framer := http2.NewFramer(&buf, nil)
+type framer struct {
+	buf    *bytes.Buffer
+	framer *http2.Framer
+}
 
+func newFramer() *framer {
+	buf := &bytes.Buffer{}
+	return &framer{
+		buf:    buf,
+		framer: http2.NewFramer(buf, nil),
+	}
+}
+
+func (f *framer) writeMultiMessage(t *testing.T, count int, cb func(t *testing.T) *framer) *framer {
+	for i := 0; i < count; i++ {
+		cb(t)
+	}
+	return f
+}
+
+func (f *framer) bytes() []byte {
+	return f.buf.Bytes()
+}
+
+func (f *framer) writeSettings(t *testing.T) *framer {
+	require.NoError(t, f.framer.WriteSettings(http2.Setting{}), "could not write settings frame")
+	return f
+}
+
+func (f *framer) writePing(t *testing.T) *framer {
+	require.NoError(t, f.framer.WritePing(true, [8]byte{}), "could not write ping frame")
+	return f
+}
+
+func (f *framer) writeRSTStream(t *testing.T, streamID uint32, errCode http2.ErrCode) *framer {
+	require.NoError(t, f.framer.WriteRSTStream(streamID, errCode), "could not write RST_STREAM")
+	return f
+}
+
+func (f *framer) writeData(t *testing.T, streamID uint32, endStream bool, buf []byte) *framer {
+	require.NoError(t, f.framer.WriteData(streamID, endStream, buf), "could not write data frame")
+	return f
+}
+
+func (f *framer) writeWindowUpdate(t *testing.T, streamID uint32, increment uint32) *framer {
+	require.NoError(t, f.framer.WriteWindowUpdate(streamID, increment), "could not write window update frame")
+	return f
+}
+
+func (f *framer) writeRawHeaders(t *testing.T, streamID uint32, headerFrames []byte) *framer {
+	require.NoError(t, f.framer.WriteHeaders(http2.HeadersFrameParam{
+		StreamID:      streamID,
+		BlockFragment: headerFrames,
+		EndHeaders:    true,
+	}), "could not write header frames")
+	return f
+}
+
+func (f *framer) writeHeaders(t *testing.T, streamID uint32, headerFields []hpack.HeaderField, setDynamicTableSize ...bool) *framer {
 	changeDynamicTableSize := false
 	if len(setDynamicTableSize) > 0 && setDynamicTableSize[0] {
 		changeDynamicTableSize = true
-
 	}
 	headersFrame, err := usmhttp2.NewHeadersFrameMessage(headerFields, changeDynamicTableSize)
 	require.NoError(t, err, "could not create headers frame")
 
-	for i := 0; i < headerFramesCount; i++ {
-		streamID := 2*i + 1
-
-		// Writing the header frames to the buffer using the Framer.
-		require.NoError(t, framer.WriteHeaders(http2.HeadersFrameParam{
-			StreamID:      uint32(streamID),
-			BlockFragment: headersFrame,
-			EndStream:     false,
-			EndHeaders:    true,
-		}), "could not write header frames")
-
-		// Writing the data frame to the buffer using the Framer.
-		require.NoError(t, framer.WriteData(uint32(streamID), true, []byte{}), "could not write data frame")
-	}
-
-	return buf.Bytes()
-}
-
-// createMessageWithCustomSettingsFrames creates a message with the given number of settings frames.
-func createMessageWithCustomSettingsFrames(t *testing.T, headerFields []hpack.HeaderField, settingsFramesCount int) []byte {
-	var buf bytes.Buffer
-	framer := http2.NewFramer(&buf, nil)
-
-	for i := 0; i < settingsFramesCount; i++ {
-		require.NoError(t, framer.WriteSettings(http2.Setting{}), "could not write settings frame")
-	}
-
-	headersFrame, err := usmhttp2.NewHeadersFrameMessage(headerFields)
-	require.NoError(t, err, "could not create headers frame")
-
-	// Writing the header frames to the buffer using the Framer.
-	require.NoError(t, framer.WriteHeaders(http2.HeadersFrameParam{
-		StreamID:      uint32(1),
+	require.NoError(t, f.framer.WriteHeaders(http2.HeadersFrameParam{
+		StreamID:      streamID,
 		BlockFragment: headersFrame,
-		EndStream:     false,
 		EndHeaders:    true,
 	}), "could not write header frames")
-
-	// Writing the data frame to the buffer using the Framer.
-	require.NoError(t, framer.WriteData(uint32(1), true, []byte{}), "could not write data frame")
-	return buf.Bytes()
-}
-
-// createMessageWithPingAndWindowUpdate creates a message with the given number of header frames
-// and inserts PING and WINDOWS_UPDATE frames between the HEADERS and DATA frames.
-func createMessageWithPingAndWindowUpdate(t *testing.T, headerFields []hpack.HeaderField, headerFramesCount int) []byte {
-	var buf bytes.Buffer
-	framer := http2.NewFramer(&buf, nil)
-
-	headersFrame, err := usmhttp2.NewHeadersFrameMessage(headerFields)
-	require.NoError(t, err, "could not create headers frame")
-
-	for i := 0; i < headerFramesCount; i++ {
-		streamID := 2*i + 1
-
-		// Writing the header frames to the buffer using the Framer.
-		require.NoError(t, framer.WriteHeaders(http2.HeadersFrameParam{
-			StreamID:      uint32(streamID),
-			BlockFragment: headersFrame,
-			EndStream:     false,
-			EndHeaders:    true,
-		}), "could not write header frames")
-
-		require.NoError(t, framer.WritePing(true, [8]byte{}), "could not write ping frame")
-		require.NoError(t, framer.WriteWindowUpdate(uint32(streamID), 1), "could not write window update frame")
-
-		// Writing the data frame to the buffer using the Framer.
-		require.NoError(t, framer.WriteData(uint32(streamID), true, []byte{}), "could not write data frame")
-	}
-
-	return buf.Bytes()
-}
-
-// createMessageWithRST creates a message with the given number of header frames and RST frames,
-// and inserts RST frames with the given error code.
-func createMessageWithRST(t *testing.T, headerFields []hpack.HeaderField, headerFramesCount, rstFramesCount int, errCode http2.ErrCode) []byte {
-	var buf bytes.Buffer
-	framer := http2.NewFramer(&buf, nil)
-
-	headersFrame, err := usmhttp2.NewHeadersFrameMessage(headerFields)
-	require.NoError(t, err, "could not create headers frame")
-
-	for i := 0; i < headerFramesCount; i++ {
-		streamID := 2*i + 1
-
-		// Writing the header frames to the buffer using the Framer.
-		require.NoError(t, framer.WriteHeaders(http2.HeadersFrameParam{
-			StreamID:      uint32(streamID),
-			BlockFragment: headersFrame,
-			EndStream:     false,
-			EndHeaders:    true,
-		}), "could not write header frames")
-
-		// Writing the data frame to the buffer using the Framer.
-		require.NoError(t, framer.WriteData(uint32(streamID), true, []byte{}), "could not write data frame")
-
-		if rstFramesCount > 0 {
-			// Writing the RST_STREAM frame with error errCode cancel to the buffer using the Framer.
-			require.NoError(t, framer.WriteRSTStream(uint32(streamID), errCode), "could not write RST_STREAM")
-			rstFramesCount--
-		}
-	}
-
-	return buf.Bytes()
+	return f
 }
 
 type captureRange struct {
