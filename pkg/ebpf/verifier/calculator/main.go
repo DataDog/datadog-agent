@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -14,7 +15,13 @@ import (
 func main() {
 	var objectFiles []string
 	var err error
-	if err := filepath.WalkDir("../../bytecode/build/co-re", func(path string, d fs.DirEntry, err error) error {
+
+	if len(os.Args[1:]) < 1 {
+		panic("please use './main <object-files-dir>'")
+	}
+	directory := os.Args[1]
+
+	if err := filepath.WalkDir(directory, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
