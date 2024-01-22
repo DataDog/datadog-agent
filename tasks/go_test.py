@@ -167,9 +167,10 @@ def test_flavor(
                 print(
                     f"Error: Could not find coverage files starting with '{TMP_PROFILE_COV_PREFIX}.'", file=sys.stderr
                 )
-            ctx.run(f"gocovmerge {' '.join(files_to_delete)} > {PROFILE_COV}")
-            for f in files_to_delete:
-                os.remove(f)
+            else:
+                ctx.run(f"gocovmerge {' '.join(files_to_delete)} > {PROFILE_COV}")
+                for f in files_to_delete:
+                    os.remove(f)
 
         if save_result_json:
             with open(save_result_json, 'ab') as json_file, open(module_result.result_json_path, 'rb') as module_file:
