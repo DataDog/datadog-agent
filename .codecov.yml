@@ -8,3 +8,7 @@ coverage:
   status:
     project: off
     patch: off
+
+ignore:
+  - "pkg/trace/testutil"  # code only used in tests
+  - "pkg/trace/log"       # logging utilities with no customer facing impact. Nothing to test.

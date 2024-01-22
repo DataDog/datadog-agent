@@ -35,10 +35,5 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		p.PlatformProbe = pp
 	}
 
-	p.event = p.PlatformProbe.NewEvent()
-
-	// be sure to zero the probe event before everything else
-	p.zeroEvent()
-
 	return p, nil
 }

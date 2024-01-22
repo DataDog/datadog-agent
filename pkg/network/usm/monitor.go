@@ -10,6 +10,7 @@ package usm
 import (
 	"errors"
 	"fmt"
+	"io"
 	"syscall"
 	"time"
 
@@ -19,11 +20,11 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
-	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -31,13 +32,13 @@ import (
 type monitorState = string
 
 const (
-	Disabled   monitorState = "Disabled"
-	Running    monitorState = "Running"
-	NotRunning monitorState = "Not Running"
+	disabled   monitorState = "disabled"
+	running    monitorState = "running"
+	notRunning monitorState = "Not running"
 )
 
 var (
-	state        = Disabled
+	state        = disabled
 	startupError error
 )
 
@@ -59,11 +60,11 @@ type Monitor struct {
 }
 
 // NewMonitor returns a new Monitor instance
-func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (m *Monitor, err error) {
+func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTelemetry *ebpftelemetry.EBPFTelemetry) (m *Monitor, err error) {
 	defer func() {
 		// capture error and wrap it
 		if err != nil {
-			state = NotRunning
+			state = notRunning
 			err = fmt.Errorf("could not initialize USM: %w", err)
 			startupError = err
 		}
@@ -75,7 +76,7 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 	}
 
 	if len(mgr.enabledProtocols) == 0 {
-		state = Disabled
+		state = disabled
 		log.Debug("not enabling USM as no protocols monitoring were enabled.")
 		return nil, nil
 	}
@@ -97,7 +98,7 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 
 	processMonitor := monitor.GetProcessMonitor()
 
-	state = Running
+	state = running
 
 	usmMonitor := &Monitor{
 		cfg:            c,
@@ -146,6 +147,7 @@ func (m *Monitor) Start() error {
 	return err
 }
 
+// GetUSMStats returns the current state of the USM monitor
 func (m *Monitor) GetUSMStats() map[string]interface{} {
 	response := map[string]interface{}{
 		"state": state,
@@ -161,6 +163,7 @@ func (m *Monitor) GetUSMStats() map[string]interface{} {
 	return response
 }
 
+// GetProtocolStats returns the current stats for all protocols
 func (m *Monitor) GetProtocolStats() map[protocols.ProtocolType]interface{} {
 	if m == nil {
 		return nil
@@ -191,6 +194,6 @@ func (m *Monitor) Stop() {
 }
 
 // DumpMaps dumps the maps associated with the monitor
-func (m *Monitor) DumpMaps(maps ...string) (string, error) {
-	return m.ebpfProgram.DumpMaps(maps...)
+func (m *Monitor) DumpMaps(w io.Writer, maps ...string) error {
+	return m.ebpfProgram.DumpMaps(w, maps...)
 }

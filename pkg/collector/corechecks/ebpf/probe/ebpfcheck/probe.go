@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"syscall"
 	"time"
 	"unsafe"
 
@@ -145,9 +146,9 @@ func (k *Probe) attach(collSpec *ebpf.CollectionSpec) (err error) {
 		spec := collSpec.Programs[name]
 		switch prog.Type() {
 		case ebpf.Kprobe:
-			const kProbePrefix, kretprobePrefix = "kprobe/", "kretprobe/"
-			if strings.HasPrefix(spec.SectionName, kProbePrefix) {
-				attachPoint := spec.SectionName[len(kProbePrefix):]
+			const kprobePrefix, kretprobePrefix = "kprobe/", "kretprobe/"
+			if strings.HasPrefix(spec.SectionName, kprobePrefix) {
+				attachPoint := spec.SectionName[len(kprobePrefix):]
 				l, err := link.Kprobe(attachPoint, prog, &link.KprobeOptions{
 					TraceFSPrefix: "ddebpfc",
 				})
@@ -214,13 +215,20 @@ func (k *Probe) getProgramStats(stats *model.EBPFStats) error {
 	var err error
 	progid := ebpf.ProgramID(0)
 	for progid, err = ebpf.ProgramGetNextID(progid); err == nil; progid, err = ebpf.ProgramGetNextID(progid) {
-		pr, err := ebpf.NewProgramFromID(progid)
+		fd, err := ProgGetFdByID(&ProgGetFdByIDAttr{ID: uint32(progid)})
 		if err != nil {
-			log.Debugf("unable to get program prog_id=%d: %s", progid, err)
+			log.Debugf("error getting program fd prog_id=%d: %s", progid, err)
 			continue
 		}
+		defer func() {
+			err := syscall.Close(int(fd))
+			if err != nil {
+				log.Debugf("error closing fd %d: %s", fd, err)
+			}
+		}()
+
 		var info ProgInfo
-		if err := ProgObjInfo(uint32(pr.FD()), &info); err != nil {
+		if err := ProgObjInfo(fd, &info); err != nil {
 			log.Debugf("error getting program info prog_id=%d: %s", progid, err)
 			continue
 		}

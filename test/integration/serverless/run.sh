@@ -153,6 +153,17 @@ appsec_functions=(
     "appsec-go"
     "appsec-csharp"
 )
+proxy_functions=(
+    "proxy-env-apikey"
+    "proxy-yaml-apikey"
+    "proxy-yaml-env-apikey"
+    "proxy-env-secret"
+    "proxy-yaml-secret"
+    "proxy-yaml-env-secret"
+    "proxy-env-kms"
+    "proxy-yaml-kms"
+    "proxy-yaml-env-kms"
+)
 
 declare -a all_functions # This is an array
 if [ $# == 1 ]; then
@@ -169,14 +180,17 @@ if [ $# == 1 ]; then
         appsec)
             all_functions=("${appsec_functions[@]}")
         ;;
+        proxy)
+            all_functions=("${proxy_functions[@]}")
+        ;;
         *)
-            echo "Unknown test suite: '$1' (valid names are: metric, log, trace, appsec)"
+            echo "Unknown test suite: '$1' (valid names are: metric, log, trace, appsec, proxy)"
             exit 1
         ;;
     esac
     echo "Selected test suite '$1' contains ${#all_functions[@]} functions..."
 else
-    all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions[@]}" "${appsec_functions[@]}")
+    all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions[@]}" "${appsec_functions[@]}" "${proxy_functions[@]}")
 fi
 
 # Set feature environment for the Serverless stack to avoid deploying useless stuff...
@@ -187,6 +201,7 @@ export RUN_SUITE_LOG=false
 export RUN_SUITE_TRACE=false
 export RUN_SUITE_OTLP=false
 export RUN_SUITE_APPSEC=false
+export RUN_SUITE_PROXY=false
 for function_name in "${all_functions[@]}"; do
     case $function_name in
     metric-*)
@@ -210,6 +225,9 @@ for function_name in "${all_functions[@]}"; do
     appsec-*)
         export RUN_SUITE_APPSEC=true
     ;;
+    proxy-*)
+        export RUN_SUITE_PROXY=true
+    ;;
     *)
         echo "⚠️ Un-mapped test function: ${function_name}, the necessary components may not be deployed!"
         ;;
@@ -224,6 +242,23 @@ cp $SERVERLESS_INTEGRATION_TESTS_DIR/src/otlpPython.py $SERVERLESS_INTEGRATION_T
 # deploy the stack
 (cd ${SERVERLESS_INTEGRATION_TESTS_DIR}; npm install --no-save serverless-plugin-conditional-functions)
 serverless deploy --stage "${stage}"
+
+# deploy proxy functions with a different datadog.yaml
+if [ "$RUN_SUITE_PROXY" = true ]; then
+    echo "Updating datadog.yaml for proxy tests..."
+
+    mv $SERVERLESS_INTEGRATION_TESTS_DIR/datadog.yaml $SERVERLESS_INTEGRATION_TESTS_DIR/datadog-temp.yaml
+    mv $SERVERLESS_INTEGRATION_TESTS_DIR/datadog-proxy.yaml $SERVERLESS_INTEGRATION_TESTS_DIR/datadog.yaml
+
+    for function_name in "${proxy_functions[@]}"; do
+        if [[ "$function_name" = *-yaml-* ]]; then
+            serverless deploy function --stage "${stage}" --function $function_name
+        fi
+    done
+
+    mv $SERVERLESS_INTEGRATION_TESTS_DIR/datadog.yaml $SERVERLESS_INTEGRATION_TESTS_DIR/datadog-proxy.yaml
+    mv $SERVERLESS_INTEGRATION_TESTS_DIR/datadog-temp.yaml $SERVERLESS_INTEGRATION_TESTS_DIR/datadog.yaml
+fi
 
 rm $SERVERLESS_INTEGRATION_TESTS_DIR/otlpPython.py
 
@@ -288,8 +323,8 @@ for function_name in "${all_functions[@]}"; do
             sleep 10
             continue
         fi
-        if [[ "${function_name}" = timeout-* ]]; then
-            echo "Ignoring Lambda report check count as this is a timeout example..."
+        if [[ "${function_name}" = timeout-* || "${function_name}" = proxy-* ]]; then
+            echo "Ignoring Lambda report check count as this is a timeout or proxy example..."
         else
             count=$(echo $raw_logs | grep -o 'REPORT RequestId' | wc -l)
             if [ $count -lt 2 ]; then
@@ -313,8 +348,10 @@ for function_name in "${all_functions[@]}"; do
         norm_type=logs
     elif [[ " ${appsec_functions[*]} " =~ " ${function_name} " ]]; then
         norm_type=appsec
-    else
+    elif [[ " ${trace_functions[*]} " =~ " ${function_name} " ]]; then
         norm_type=traces
+    elif [[ " ${proxy_functions[*]} " =~ " ${function_name} " ]]; then
+        norm_type=proxy
     fi
     logs=$(python3 log_normalize.py --accountid ${aws_account} --type $norm_type --logs "$raw_logs" --stage $stage)
 

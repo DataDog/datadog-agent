@@ -14,7 +14,7 @@ import (
 	"gotest.tools/assert" //nolint:depguard
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -29,8 +29,8 @@ const (
 func TestHandleEvents(t *testing.T) {
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		log.MockModule,
-		config.MockModule,
+		logimpl.MockModule(),
+		config.MockModule(),
 		fx.Supply(NewParams()),
 	))
 
@@ -590,8 +590,8 @@ func TestSubscribe(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
-				log.MockModule,
-				config.MockModule,
+				logimpl.MockModule(),
+				config.MockModule(),
 				fx.Supply(NewParams()),
 			))
 
@@ -605,7 +605,7 @@ func TestSubscribe(t *testing.T) {
 			actual := []EventBundle{}
 			go func() {
 				for bundle := range ch {
-					close(bundle.Ch)
+					bundle.Acknowledge()
 
 					// nil the bundle's Ch so we can
 					// deep-equal just the events later
@@ -632,8 +632,8 @@ func TestSubscribe(t *testing.T) {
 
 func TestGetKubernetesDeployment(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		log.MockModule,
-		config.MockModule,
+		logimpl.MockModule(),
+		config.MockModule(),
 		fx.Supply(NewParams()),
 	))
 
@@ -675,8 +675,8 @@ func TestGetKubernetesDeployment(t *testing.T) {
 
 func TestGetProcess(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		log.MockModule,
-		config.MockModule,
+		logimpl.MockModule(),
+		config.MockModule(),
 		fx.Supply(NewParams()),
 	))
 
@@ -754,8 +754,8 @@ func TestListContainers(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
-				log.MockModule,
-				config.MockModule,
+				logimpl.MockModule(),
+				config.MockModule(),
 				fx.Supply(NewParams()),
 			))
 
@@ -792,8 +792,8 @@ func TestListContainersWithFilter(t *testing.T) {
 	}
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		log.MockModule,
-		config.MockModule,
+		logimpl.MockModule(),
+		config.MockModule(),
 		fx.Supply(NewParams()),
 	))
 
@@ -851,8 +851,8 @@ func TestListProcesses(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
-				log.MockModule,
-				config.MockModule,
+				logimpl.MockModule(),
+				config.MockModule(),
 				fx.Supply(NewParams()),
 			))
 
@@ -889,8 +889,8 @@ func TestListProcessesWithFilter(t *testing.T) {
 	}
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		log.MockModule,
-		config.MockModule,
+		logimpl.MockModule(),
+		config.MockModule(),
 		fx.Supply(NewParams()),
 	))
 
@@ -1006,8 +1006,8 @@ func TestGetKubernetesPodByName(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
-				log.MockModule,
-				config.MockModule,
+				logimpl.MockModule(),
+				config.MockModule(),
 				fx.Supply(NewParams()),
 			))
 
@@ -1067,8 +1067,8 @@ func TestListImages(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
-				log.MockModule,
-				config.MockModule,
+				logimpl.MockModule(),
+				config.MockModule(),
 				fx.Supply(NewParams()),
 			))
 
@@ -1119,8 +1119,8 @@ func TestGetImage(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
-				log.MockModule,
-				config.MockModule,
+				logimpl.MockModule(),
+				config.MockModule(),
 				fx.Supply(NewParams()),
 			))
 
@@ -1214,8 +1214,8 @@ func TestResetProcesses(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
-				log.MockModule,
-				config.MockModule,
+				logimpl.MockModule(),
+				config.MockModule(),
 				fx.Supply(NewParams()),
 			))
 
@@ -1227,7 +1227,7 @@ func TestResetProcesses(t *testing.T) {
 
 			go func() {
 				for bundle := range ch {
-					close(bundle.Ch)
+					bundle.Acknowledge()
 
 					// nil the bundle's Ch so we can deep-equal just the events
 					// later
@@ -1412,8 +1412,8 @@ func TestReset(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
-				log.MockModule,
-				config.MockModule,
+				logimpl.MockModule(),
+				config.MockModule(),
 				fx.Supply(NewParams()),
 			))
 
@@ -1427,7 +1427,7 @@ func TestReset(t *testing.T) {
 			var actualEventsReceived []EventBundle
 			go func() {
 				for bundle := range ch {
-					close(bundle.Ch)
+					bundle.Acknowledge()
 
 					// nil the bundle's Ch so we can deep-equal just the events
 					// later
@@ -1459,8 +1459,8 @@ func TestNoDataRace(t *testing.T) { //nolint:revive // TODO fix revive unused-pa
 	// This test ensures that no race conditions are encountered when the "--race" flag is passed
 	// to the test process and an entity is accessed in a different thread than the one handling events
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		log.MockModule,
-		config.MockModule,
+		logimpl.MockModule(),
+		config.MockModule(),
 		fx.Supply(NewParams()),
 	))
 
@@ -1484,4 +1484,73 @@ func TestNoDataRace(t *testing.T) { //nolint:revive // TODO fix revive unused-pa
 			Entity: container,
 		},
 	})
+}
+
+func TestPushEvents(t *testing.T) {
+
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		logimpl.MockModule(),
+		config.MockModule(),
+		fx.Supply(NewParams()),
+	))
+
+	wlm := newWorkloadMeta(deps).(*workloadmeta)
+
+	mockSource := Source("mockSource")
+
+	tests := []struct {
+		name        string
+		events      []Event
+		source      Source
+		expectError bool
+	}{
+		{
+			name:        "empty push events slice",
+			events:      []Event{},
+			source:      mockSource,
+			expectError: false,
+		},
+		{
+			name: "push events with valid types",
+			events: []Event{
+				{
+					Type: EventTypeSet,
+				},
+				{
+					Type: EventTypeUnset,
+				},
+				{
+					Type: EventTypeSet,
+				},
+			},
+			source:      mockSource,
+			expectError: false,
+		},
+		{
+			name: "push events with invalid types",
+			events: []Event{
+				{
+					Type: EventTypeSet,
+				},
+				{
+					Type: EventTypeAll,
+				},
+			},
+			source:      mockSource,
+			expectError: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := wlm.Push(mockSource, test.events...)
+
+			if test.expectError {
+				tassert.Error(t, err, "Expected Push operation to fail and return error")
+			} else {
+				tassert.NoError(t, err, "Expected Push operation to succeed and return nil")
+			}
+
+		})
+	}
 }

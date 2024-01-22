@@ -28,6 +28,16 @@ Package api implements the "api" bundle,
 
 Package api implements the internal Agent API which exposes endpoints such as config, flare or status
 
+## [comp/apm/etwtracer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/apm/etwtracer) (Component Bundle)
+
+*Datadog Team*: windows-agent
+
+
+
+### [comp/apm/etwtracer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/apm/etwtracer)
+
+Package apmetwtracer provides ETW events to the .Net tracer
+
 ## [comp/checks](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/checks) (Component Bundle)
 
 *Datadog Team*: agent-shared-components
@@ -74,6 +84,10 @@ Package log implements a component to handle logging internal to the agent.
 
 Package secrets decodes secret values by invoking the configured executable command
 
+### [comp/core/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/status)
+
+Package status displays information about the agent.
+
 ### [comp/core/sysprobeconfig](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/sysprobeconfig)
 
 *Datadog Team*: ebpf-platform
@@ -115,6 +129,16 @@ Package serverdebug implements a component to run the dogstatsd server debug
 
 Package statsd implements a component to get a statsd client.
 
+## [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw) (Component Bundle)
+
+*Datadog Team*: windows-agent
+
+
+
+### [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw)
+
+Package etw provides an ETW tracing interface
+
 ## [comp/forwarder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder) (Component Bundle)
 
 *Datadog Team*: agent-shared-components
@@ -123,7 +147,13 @@ Package forwarder implements the "forwarder" bundle
 
 ### [comp/forwarder/defaultforwarder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder)
 
-Package defaultForwarder implements a component to send payloads to the backend
+Package defaultforwarder implements a component to send payloads to the backend
+
+### [comp/forwarder/orchestrator](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/orchestrator)
+
+*Datadog Team*: agent-metrics-logs
+
+Package orchestrator implements the orchestrator forwarder component.
 
 ## [comp/languagedetection](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/languagedetection) (Component Bundle)
 
@@ -160,9 +190,19 @@ Package host implements a component to generate the 'host' metadata payload (als
 
 Package inventoryagent implements a component to generate the 'datadog_agent' metadata payload for inventory.
 
+### [comp/metadata/inventorychecks](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/inventorychecks)
+
+Package inventorychecks implements a component to generate the 'check_metadata' metadata payload for inventory.
+
 ### [comp/metadata/inventoryhost](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/inventoryhost)
 
 Package inventoryhost exposes the interface for the component to generate the 'host_metadata' metadata payload for inventory.
+
+### [comp/metadata/packagesigning](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/packagesigning)
+
+*Datadog Team*: agent-platform
+
+Package packagesigning implements a component to generate the 'signing' metadata payload for DD inventory (REDAPL).
 
 ### [comp/metadata/resources](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/resources)
 
@@ -280,7 +320,7 @@ supported Datadog intakes.
 
 *Datadog Team*: remote-config
 
-
+Package remoteconfig defines the fx options for the Bundle
 
 ### [comp/remote-config/rcclient](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcclient)
 

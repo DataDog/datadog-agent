@@ -447,8 +447,6 @@ type MountEventSerializer struct {
 type SecurityProfileContextSerializer struct {
 	// Name of the security profile
 	Name string `json:"name"`
-	// Status defines in which state the security profile was when the event was triggered
-	Status string `json:"status"`
 	// Version of the profile in use
 	Version string `json:"version"`
 	// List of tags associated to this profile
@@ -558,8 +556,10 @@ func newCredentialsSerializer(ce *model.Credentials) *CredentialsSerializer {
 
 func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer {
 	if ps.IsNotKworker() {
-		argv, argvTruncated := e.GetProcessArgvScrubbed(), e.GetProcessArgsTruncated()
-		envs, EnvsTruncated := e.GetProcessEnvs(), e.GetProcessEnvsTruncated()
+		argv := e.FieldHandlers.ResolveProcessArgvScrubbed(e, ps)
+		argvTruncated := e.FieldHandlers.ResolveProcessArgsTruncated(e, ps)
+		envs := e.FieldHandlers.ResolveProcessEnvs(e, ps)
+		envsTruncated := e.FieldHandlers.ResolveProcessEnvsTruncated(e, ps)
 		argv0, _ := sprocess.GetProcessArgv0(ps)
 
 		psSerializer := &ProcessSerializer{
@@ -577,7 +577,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			Args:          argv,
 			ArgsTruncated: argvTruncated,
 			Envs:          envs,
-			EnvsTruncated: EnvsTruncated,
+			EnvsTruncated: envsTruncated,
 			IsThread:      ps.IsThread,
 			IsKworker:     ps.IsKworker,
 			IsExecChild:   ps.IsExecChild,
@@ -623,13 +623,15 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 }
 
 func newUserSessionContextSerializer(ctx *model.UserSessionContext, e *model.Event) *UserSessionContextSerializer {
+	e.FieldHandlers.ResolveUserSessionContext(ctx)
+
 	return &UserSessionContextSerializer{
 		ID:          fmt.Sprintf("%x", ctx.ID),
-		K8SUsername: e.FieldHandlers.ResolveK8SUsername(e, ctx),
-		K8SUID:      e.FieldHandlers.ResolveK8SUID(e, ctx),
-		K8SGroups:   e.FieldHandlers.ResolveK8SGroups(e, ctx),
-		K8SExtra:    e.FieldHandlers.ResolveK8SExtra(e, ctx),
 		SessionType: ctx.SessionType.String(),
+		K8SUsername: ctx.K8SUsername,
+		K8SUID:      ctx.K8SUID,
+		K8SGroups:   ctx.K8SGroups,
+		K8SExtra:    ctx.K8SExtra,
 	}
 }
 
@@ -917,7 +919,6 @@ func newSecurityProfileContextSerializer(e *model.SecurityProfileContext) *Secur
 	return &SecurityProfileContextSerializer{
 		Name:    e.Name,
 		Version: e.Version,
-		Status:  e.Status.String(),
 		Tags:    tags,
 	}
 }

@@ -98,6 +98,7 @@ func SwapMemory() (*mem.SwapMemoryStat, error) {
 	}, nil
 }
 
+//nolint:revive // TODO(PLINT) Fix revive linter
 func sampler(samples []map[string]disk.IOCountersStat, names ...string) (map[string]disk.IOCountersStat, error) {
 	idx := sampleIdx
 	sampleIdx++
@@ -105,6 +106,7 @@ func sampler(samples []map[string]disk.IOCountersStat, names ...string) (map[str
 	return ioSamples[idx], nil
 }
 
+//nolint:revive // TODO(PLINT) Fix revive linter
 func TestIOCheckDM(t *testing.T) {
 	ioCounters = ioSamplerDM
 	swapMemory = SwapMemory

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package start
 
 import (
@@ -18,9 +19,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+
+	//nolint:revive // TODO(AML) Fix revive linter
+	logComponent "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -29,14 +34,19 @@ import (
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/metadata"
+	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
+	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
+	"github.com/DataDog/datadog-agent/comp/metadata/resources"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	metadatarunnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	pkgmetadata "github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -55,7 +65,6 @@ type CLIParams struct {
 type DogstatsdComponents struct {
 	DogstatsdServer dogstatsdServer.Component
 	DogstatsdStats  *http.Server
-	MetaScheduler   *pkgmetadata.Scheduler
 	WorkloadMeta    workloadmeta.Component
 }
 
@@ -105,13 +114,13 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		),
 		fx.Supply(secrets.NewEnabledParams()),
 		fx.Supply(logComponent.ForDaemon(string(loggerName), "log_file", params.DefaultLogFile)),
-		config.Module,
-		logComponent.Module,
+		config.Module(),
+		logComponent.Module(),
 		fx.Supply(dogstatsdServer.Params{
 			Serverless: false,
 		}),
-		dogstatsd.Bundle,
-		forwarder.Bundle,
+		dogstatsd.Bundle(),
+		forwarder.Bundle(),
 		fx.Provide(defaultforwarder.NewParams),
 		// workloadmeta setup
 		collectors.GetCatalog(),
@@ -125,27 +134,49 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 				NoInstance: !instantiate,
 			}
 		}),
-		workloadmeta.OptionalModule,
-		demultiplexer.Module,
-		secretsimpl.Module,
+		workloadmeta.OptionalModule(),
+		demultiplexerimpl.Module(),
+		secretsimpl.Module(),
+		orchestratorForwarderImpl.Module(),
+		fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
 		// already migrated components to request it.
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
 			return demuxInstance.Serializer()
 		}),
-		fx.Provide(func(config config.Component) demultiplexer.Params {
-			opts := aggregator.DefaultAgentDemultiplexerOptions()
-			opts.UseOrchestratorForwarder = false
-			opts.UseEventPlatformForwarder = false
-			opts.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
-			return demultiplexer.Params{Options: opts, ContinueOnMissingHostname: true}
+		fx.Provide(func(config config.Component) demultiplexerimpl.Params {
+			params := demultiplexerimpl.NewDefaultParams()
+			params.UseEventPlatformForwarder = false
+			params.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
+			params.ContinueOnMissingHostname = true
+			return params
 		}),
 		fx.Supply(resourcesimpl.Disabled()),
-		metadata.Bundle,
+		metadatarunnerimpl.Module(),
+		resourcesimpl.Module(),
+		hostimpl.Module(),
+		inventoryagentimpl.Module(),
+		// sysprobeconfig is optionally required by inventoryagent
+		sysprobeconfig.NoneModule(),
+		inventoryhostimpl.Module(),
 	)
 }
 
-func start(cliParams *CLIParams, config config.Component, log log.Component, params *Params, server dogstatsdServer.Component, sharedForwarder defaultforwarder.Component, wmeta optional.Option[workloadmeta.Component], demultiplexer demultiplexer.Component, metadataRunner runner.Component, hostComp host.Component) error { //nolint:revive // TODO fix revive unusued-parameter
+func start(
+	cliParams *CLIParams,
+	config config.Component,
+	log log.Component,
+	params *Params,
+	server dogstatsdServer.Component,
+	_ defaultforwarder.Component,
+	wmeta optional.Option[workloadmeta.Component],
+	demultiplexer demultiplexer.Component,
+	_ runner.Component,
+	_ resources.Component,
+	_ host.Component,
+	_ inventoryagent.Component,
+	_ inventoryhost.Component,
+) error {
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -236,12 +267,6 @@ func RunDogstatsd(ctx context.Context, cliParams *CLIParams, config config.Compo
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
 
-	// setup the pkgmetadata collector
-	components.MetaScheduler = pkgmetadata.NewScheduler(demultiplexer) //nolint:staticcheck
-	if err = pkgmetadata.SetupInventories(components.MetaScheduler, nil); err != nil {
-		return
-	}
-
 	// container tagging initialisation if origin detection is on
 	if config.GetBool("dogstatsd_origin_detection") && components.WorkloadMeta != nil {
 
@@ -293,11 +318,6 @@ func StopAgent(cancel context.CancelFunc, components *DogstatsdComponents) {
 
 	// gracefully shut down any component
 	cancel()
-
-	// stop metaScheduler and statsd if they are instantiated
-	if components.MetaScheduler != nil {
-		components.MetaScheduler.Stop()
-	}
 
 	if components.DogstatsdStats != nil {
 		if err := components.DogstatsdStats.Shutdown(context.Background()); err != nil {

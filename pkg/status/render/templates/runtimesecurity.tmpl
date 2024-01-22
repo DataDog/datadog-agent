@@ -35,6 +35,17 @@ Runtime Security
     Failed: none
     {{- end }}
 
+  Policies
+  ========
+    {{ range $policy := .policiesStatus }}
+      {{ $policy.name }}:
+        source: {{ $policy.source }}
+        rules:
+          {{- range $status := $policy.Status }}
+            - {{ $status.ID }}: {{ $status.Status }}{{- if $status.Error }} ({{- $status.Error }}){{- end }}
+          {{- end }}
+    {{ end }}
+
   {{- with .environment }}
 
   Environment

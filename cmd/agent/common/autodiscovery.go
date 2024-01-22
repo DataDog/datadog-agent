@@ -203,7 +203,7 @@ func (sf schedulerFunc) Schedule(configs []integration.Config) {
 }
 
 // Unschedule implements scheduler.Scheduler#Unschedule.
-func (sf schedulerFunc) Unschedule(configs []integration.Config) {
+func (sf schedulerFunc) Unschedule(_ []integration.Config) {
 	// (do nothing)
 }
 

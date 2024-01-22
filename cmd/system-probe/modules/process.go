@@ -20,6 +20,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
+
+	//nolint:revive // TODO(PROC) Fix revive linter
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/process/encoding"
 	reqEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding/request"
@@ -34,7 +37,7 @@ var ErrProcessUnsupported = errors.New("process module unsupported")
 var Process = module.Factory{
 	Name:             config.ProcessModule,
 	ConfigNamespaces: []string{},
-	Fn: func(cfg *config.Config) (module.Module, error) {
+	Fn: func(cfg *sysconfigtypes.Config) (module.Module, error) {
 		log.Infof("Creating process module for: %s", filepath.Base(os.Args[0]))
 
 		// we disable returning zero values for stats to reduce parsing work on process-agent side
@@ -43,6 +46,9 @@ var Process = module.Factory{
 			probe:     p,
 			lastCheck: atomic.NewInt64(0),
 		}, nil
+	},
+	NeedsEBPF: func() bool {
+		return false
 	},
 }
 

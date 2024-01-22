@@ -176,13 +176,7 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 
 	// instantiate directory provider
 	if len(config.RuntimeSecurity.SecurityProfileDir) != 0 {
-		// override the status if autosuppression is enabled
-		var status model.Status
-		if config.RuntimeSecurity.SecurityProfileAutoSuppressionEnabled {
-			status = model.AnomalyDetection | model.AutoSuppression
-		}
-
-		dirProvider, err := NewDirectoryProvider(config.RuntimeSecurity.SecurityProfileDir, config.RuntimeSecurity.SecurityProfileWatchDir, status)
+		dirProvider, err := NewDirectoryProvider(config.RuntimeSecurity.SecurityProfileDir, config.RuntimeSecurity.SecurityProfileWatchDir)
 		if err != nil {
 			return nil, fmt.Errorf("couldn't instantiate a new security profile directory provider: %w", err)
 		}
@@ -381,7 +375,6 @@ func (m *SecurityProfileManager) FillProfileContextFromContainerID(id string, ct
 				ctx.Name = profile.Metadata.Name
 				ctx.Version = profile.Version
 				ctx.Tags = profile.Tags
-				ctx.Status = profile.Status
 			}
 			instance.Unlock()
 		}
@@ -401,7 +394,6 @@ func FillProfileContextFromProfile(ctx *model.SecurityProfileContext, profile *S
 
 	ctx.Version = profile.Version
 	ctx.Tags = profile.Tags
-	ctx.Status = profile.Status
 	ctx.AnomalyDetectionEventTypes = profile.anomalyDetectionEvents
 }
 
@@ -539,31 +531,21 @@ func (m *SecurityProfileManager) SendStats() error {
 	m.pendingCacheLock.Lock()
 	defer m.pendingCacheLock.Unlock()
 
-	profileStats := make(map[model.Status]map[bool]float64)
+	profilesLoadedInKernel := 0
 	for _, profile := range m.profiles {
 		if profile.loadedInKernel { // make sure the profile is loaded
 			if err := profile.SendStats(m.statsdClient); err != nil {
 				return fmt.Errorf("couldn't send metrics for [%s]: %w", profile.selector.String(), err)
 			}
+			profilesLoadedInKernel++
 		}
-		if profileStats[profile.Status] == nil {
-			profileStats[profile.Status] = make(map[bool]float64)
-		}
-		profileStats[profile.Status][profile.loadedInKernel]++
 	}
 
-	for status, counts := range profileStats {
-		for inKernel, count := range counts {
-			tags := []string{
-				fmt.Sprintf("in_kernel:%v", inKernel),
-				fmt.Sprintf("anomaly_detection:%v", status.IsEnabled(model.AnomalyDetection)),
-				fmt.Sprintf("auto_suppression:%v", status.IsEnabled(model.AutoSuppression)),
-				fmt.Sprintf("workload_hardening:%v", status.IsEnabled(model.WorkloadHardening)),
-			}
-			if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileProfiles, count, tags, 1.0); err != nil {
-				return fmt.Errorf("couldn't send MetricSecurityProfileProfiles: %w", err)
-			}
-		}
+	tags := []string{
+		fmt.Sprintf("in_kernel:%v", profilesLoadedInKernel),
+	}
+	if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileProfiles, float64(len(m.profiles)), tags, 1.0); err != nil {
+		return fmt.Errorf("couldn't send MetricSecurityProfileProfiles: %w", err)
 	}
 
 	if val := float64(m.pendingCache.Len()); val > 0 {
@@ -615,7 +597,7 @@ func (m *SecurityProfileManager) loadProfile(profile *SecurityProfile) error {
 	}
 
 	// TODO: load generated programs
-	seclog.Debugf("security profile %s (version:%s status:%s) loaded in kernel space", profile.Metadata.Name, profile.Version, profile.Status.String())
+	seclog.Debugf("security profile %s (version:%s) loaded in kernel space", profile.Metadata.Name, profile.Version)
 	return nil
 }
 
@@ -629,12 +611,12 @@ func (m *SecurityProfileManager) unloadProfile(profile *SecurityProfile) {
 	}
 
 	// TODO: delete all kernel space programs
-	seclog.Debugf("security profile %s (version:%s status:%s) unloaded from kernel space", profile.Metadata.Name, profile.Version, profile.Status.String())
+	seclog.Debugf("security profile %s (version:%s) unloaded from kernel space", profile.Metadata.Name, profile.Version)
 }
 
 // linkProfile (thread unsafe) updates the kernel space mapping between a workload and its profile
 func (m *SecurityProfileManager) linkProfile(profile *SecurityProfile, workload *cgroupModel.CacheEntry) {
-	if err := m.securityProfileMap.Put([]byte(workload.ID), profile.generateKernelSecurityProfileDefinition()); err != nil {
+	if err := m.securityProfileMap.Put([]byte(workload.ID), profile.profileCookie); err != nil {
 		seclog.Errorf("couldn't link workload %s (selector: %s) with profile %s (check map size limit ?): %v", workload.ID, workload.WorkloadSelector.String(), profile.Metadata.Name, err)
 		return
 	}
@@ -679,7 +661,7 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 
 	// lookup profile
 	profile := m.GetProfile(selector)
-	if profile == nil || profile.Status == 0 {
+	if profile == nil || profile.ActivityTree == nil {
 		m.incrementEventFilteringStat(event.GetEventType(), NoProfile, NA)
 		return
 	}
@@ -802,7 +784,7 @@ func (m *SecurityProfileManager) SaveSecurityProfile(params *api.SecurityProfile
 	}
 
 	p := m.GetProfile(selector)
-	if p == nil || p.Status == 0 || p.ActivityTree == nil {
+	if p == nil || p.ActivityTree == nil {
 		return &api.SecurityProfileSaveMessage{
 			Error: "security profile not found",
 		}, nil
@@ -846,6 +828,7 @@ func (m *SecurityProfileManager) FetchSilentWorkloads() map[cgroupModel.Workload
 
 	for selector, profile := range m.profiles {
 		profile.Lock()
+		//nolint:gosimple // TODO(SEC) Fix gosimple linter
 		if profile.loadedInKernel == false {
 			out[selector] = profile.Instances
 		}

@@ -18,7 +18,7 @@ import (
 	"go.uber.org/fx"
 
 	compConfig "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -195,11 +195,11 @@ func TestMakeK8sSource(t *testing.T) {
 	wildcard := filepath.Join(dir, "*.log")
 
 	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		log.MockModule,
-		compConfig.MockModule,
+		logimpl.MockModule(),
+		compConfig.MockModule(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2,
+		workloadmeta.MockModuleV2(),
 	))
 	pod, container := makeTestPod()
 	store.Set(pod)
@@ -252,11 +252,11 @@ func TestMakeK8sSource_pod_not_found(t *testing.T) {
 	require.NoError(t, os.WriteFile(p, []byte("{}"), 0o666))
 
 	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		log.MockModule,
-		compConfig.MockModule,
+		logimpl.MockModule(),
+		compConfig.MockModule(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2,
+		workloadmeta.MockModuleV2(),
 	))
 
 	tf := &factory{

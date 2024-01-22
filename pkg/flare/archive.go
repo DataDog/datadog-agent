@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package flare contains the logic to create a flare archive.
 package flare
 
 import (
@@ -29,9 +30,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	processagentStatus "github.com/DataDog/datadog-agent/pkg/status/processagent"
+	systemprobeStatus "github.com/DataDog/datadog-agent/pkg/status/systemprobe"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -89,7 +91,6 @@ func CompleteFlare(fb flaretypes.FlareBuilder, senderManager sender.DiagnoseSend
 	fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(config.SystemProbe.AllSettings()) })
 	fb.AddFileFromFunc("diagnose.log", getDiagnoses(fb.IsLocal(), senderManager))
 	fb.AddFileFromFunc("envvars.log", getEnvVars)
-	fb.AddFileFromFunc("metadata_inventories.json", inventories.GetLastPayload)
 	fb.AddFileFromFunc("health.yaml", getHealth)
 	fb.AddFileFromFunc("go-routine-dump.log", func() ([]byte, error) { return getHTTPCallContent(pprofURL) })
 	fb.AddFileFromFunc("docker_inspect.log", getDockerSelfInspect)
@@ -182,7 +183,7 @@ func getExpVar(fb flaretypes.FlareBuilder) error {
 }
 
 func getSystemProbeStats() ([]byte, error) {
-	sysProbeStats := status.GetSystemProbeStats(config.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
+	sysProbeStats := systemprobeStatus.GetStatus(config.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
 	sysProbeBuf, err := yaml.Marshal(sysProbeStats)
 	if err != nil {
 		return nil, err
@@ -200,7 +201,7 @@ func getProcessAgentFullConfig() ([]byte, error) {
 
 	procStatusURL := fmt.Sprintf("http://%s/config/all", addressPort)
 
-	cfgB := status.GetProcessAgentRuntimeConfig(procStatusURL)
+	cfgB := processagentStatus.GetRuntimeConfig(procStatusURL)
 	return cfgB, nil
 }
 

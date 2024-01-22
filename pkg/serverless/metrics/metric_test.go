@@ -66,8 +66,10 @@ func TestStartInvalidConfig(t *testing.T) {
 	assert.False(t, metricAgent.IsReady())
 }
 
+//nolint:revive // TODO(SERV) Fix revive linter
 type MetricDogStatsDMocked struct{}
 
+//nolint:revive // TODO(SERV) Fix revive linter
 func (m *MetricDogStatsDMocked) NewServer(demux aggregator.Demultiplexer) (dogstatsdServer.Component, error) {
 	return nil, fmt.Errorf("error")
 }

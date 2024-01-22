@@ -5,7 +5,7 @@ groups:
 2. **Telemetry**: These expose some internal telemetry that is useful for profiling and debugging.
 
 ## Control API
-This API is accessible via HTTPS only and listens by default on the `localhost` interface on port `5001`. The listening interface and port can be configured using the `ipc_address` and `cmd_port` config options.
+This API is accessible via HTTPS only and listens by default on the `localhost` interface on port `5001`. The listening interface and port can be configured using the `cmd_host` and `cmd_port` config options.
 
 ### Authentication
 To avoid unprivileged users accessing the Agent control API, authentication is required and based on a generated token.
@@ -79,5 +79,3 @@ $ curl -s http://localhost:5000/debug/pprof/profile?seconds=60 > ./cpu.out
 # Not documented here
 - non-core agent endpoints (i.e., what do the security, process, and cluster agents expose)
 - GRPC endpoints
-
-

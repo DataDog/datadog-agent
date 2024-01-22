@@ -13,14 +13,18 @@ import (
 	"testing"
 	"time"
 
-	e2eClient "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	componentos "github.com/DataDog/test-infra-definitions/components/os"
+
+	agentclient "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/bound-port"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // CheckAgentBehaviour runs test to check the agent is behaving as expected
 func CheckAgentBehaviour(t *testing.T, client *TestClient) {
 	t.Run("datadog-agent service running", func(tt *testing.T) {
-		_, err := client.SvcManager.Status("datadog-agent")
+		_, err := client.SvcManager.Status(client.Helper.GetServiceName())
 		require.NoError(tt, err, "datadog-agent service should be running")
 	})
 
@@ -28,7 +32,7 @@ func CheckAgentBehaviour(t *testing.T, client *TestClient) {
 		var statusOutputJSON map[string]any
 		result := false
 		for try := 0; try < 5 && !result; try++ {
-			err := json.Unmarshal([]byte(client.AgentClient.Status(e2eClient.WithArgs([]string{"-j"})).Content), &statusOutputJSON)
+			err := json.Unmarshal([]byte(client.AgentClient.Status(agentclient.WithArgs([]string{"-j"})).Content), &statusOutputJSON)
 			require.NoError(tt, err)
 			if runnerStats, ok := statusOutputJSON["runnerStats"]; ok {
 				runnerStatsMap := runnerStats.(map[string]any)
@@ -61,7 +65,7 @@ func CheckAgentBehaviour(t *testing.T, client *TestClient) {
 // CheckDogstatdAgentBehaviour runs tests to check the agent behave properly with dogstatsd
 func CheckDogstatdAgentBehaviour(t *testing.T, client *TestClient) {
 	t.Run("dogstatsd service running", func(tt *testing.T) {
-		_, err := client.SvcManager.Status("datadog-dogstatsd")
+		_, err := client.SvcManager.Status(client.Helper.GetServiceName())
 		require.NoError(tt, err, "dogstatsd service should be running")
 	})
 
@@ -69,16 +73,15 @@ func CheckDogstatdAgentBehaviour(t *testing.T, client *TestClient) {
 		_, err := client.FileManager.FileExists(fmt.Sprintf("%s/%s", client.Helper.GetConfigFolder(), "dogstatsd.yaml"))
 		require.NoError(tt, err, "dogstatsd config file should be present")
 	})
-
 }
 
 // CheckAgentStops runs tests to check the agent can stop properly
 func CheckAgentStops(t *testing.T, client *TestClient) {
 	t.Run("stops", func(tt *testing.T) {
-		_, err := client.SvcManager.Stop("datadog-agent")
+		_, err := client.SvcManager.Stop(client.Helper.GetServiceName())
 		require.NoError(tt, err)
 
-		_, err = client.SvcManager.Status("datadog-agent")
+		_, err = client.SvcManager.Status(client.Helper.GetServiceName())
 		require.Error(tt, err, "datadog-agent service should be stopped")
 	})
 
@@ -88,18 +91,16 @@ func CheckAgentStops(t *testing.T, client *TestClient) {
 	})
 
 	t.Run("no running processes", func(tt *testing.T) {
-		agentProcesses := []string{"datadog-agent", "system-probe", "security-agent"}
-		for _, process := range agentProcesses {
-			_, err := client.VMClient.ExecuteWithError(fmt.Sprintf("pgrep -f %s", process))
-			require.Error(tt, err, fmt.Sprintf("process %s should not be running", process))
-		}
+		running, err := RunningAgentProcesses(client)
+		require.NoError(tt, err)
+		require.Empty(tt, running, "no agent process should be running")
 	})
 
 	t.Run("starts after stop", func(tt *testing.T) {
-		_, err := client.SvcManager.Start("datadog-agent")
+		_, err := client.SvcManager.Start(client.Helper.GetServiceName())
 		require.NoError(tt, err)
 
-		_, err = client.SvcManager.Status("datadog-agent")
+		_, err = client.SvcManager.Status(client.Helper.GetServiceName())
 		require.NoError(tt, err, "datadog-agent should be running")
 	})
 }
@@ -107,90 +108,86 @@ func CheckAgentStops(t *testing.T, client *TestClient) {
 // CheckDogstatsdAgentStops runs tests to check the agent can stop properly
 func CheckDogstatsdAgentStops(t *testing.T, client *TestClient) {
 	t.Run("stops", func(tt *testing.T) {
-		_, err := client.SvcManager.Stop("datadog-dogstatsd")
+		_, err := client.SvcManager.Stop(client.Helper.GetServiceName())
 		require.NoError(tt, err)
 
-		_, err = client.SvcManager.Status("datadog-dogstatsd")
+		_, err = client.SvcManager.Status(client.Helper.GetServiceName())
 		require.Error(tt, err, "datadog-dogstatsd service should be stopped")
 	})
 
 	t.Run("no running processes", func(tt *testing.T) {
-		dogstatsdProcesses := []string{"datadog-dogstatsd"}
-		for _, process := range dogstatsdProcesses {
-			_, err := client.VMClient.ExecuteWithError(fmt.Sprintf("pgrep -f %s", process))
-			require.Error(tt, err, fmt.Sprintf("process %s should not be running", process))
-		}
+		running, err := RunningAgentProcesses(client)
+		require.NoError(tt, err)
+		require.Empty(tt, running, "no agent process should be running")
 	})
 
 	t.Run("starts after stop", func(tt *testing.T) {
-		_, err := client.SvcManager.Start("datadog-dogstatsd")
+		_, err := client.SvcManager.Start(client.Helper.GetServiceName())
 		require.NoError(tt, err)
 
-		_, err = client.SvcManager.Status("datadog-dogstatsd")
+		_, err = client.SvcManager.Status(client.Helper.GetServiceName())
 		require.NoError(tt, err, "datadog-dogstatsd should be running")
 	})
 }
 
 // CheckAgentRestarts runs tests to check the agent can restart properly
 func CheckAgentRestarts(t *testing.T, client *TestClient) {
-
-	t.Run("restart when stopped", func(tt *testing.T) {
+	t.Run("start when stopped", func(tt *testing.T) {
 		// If the agent is not stopped yet, stop it
-		if _, err := client.SvcManager.Status("datadog-agent"); err == nil {
-			_, err := client.SvcManager.Stop("datadog-agent")
+		if _, err := client.SvcManager.Status(client.Helper.GetServiceName()); err == nil {
+			_, err := client.SvcManager.Stop(client.Helper.GetServiceName())
 			require.NoError(tt, err)
 		}
 
-		_, err := client.SvcManager.Restart("datadog-agent")
+		_, err := client.SvcManager.Start(client.Helper.GetServiceName())
 		require.NoError(tt, err)
 
-		_, err = client.SvcManager.Status("datadog-agent")
+		_, err = client.SvcManager.Status(client.Helper.GetServiceName())
 		require.NoError(tt, err, "datadog-agent should restart when stopped")
 	})
 
 	t.Run("restart when running", func(tt *testing.T) {
 		// If the agent is not started yet, start it
-		if _, err := client.SvcManager.Status("datadog-agent"); err != nil {
-			_, err := client.SvcManager.Start("datadog-agent")
+		if _, err := client.SvcManager.Status(client.Helper.GetServiceName()); err != nil {
+			_, err := client.SvcManager.Start(client.Helper.GetServiceName())
 			require.NoError(tt, err)
 		}
 
-		_, err := client.SvcManager.Restart("datadog-agent")
+		_, err := client.SvcManager.Restart(client.Helper.GetServiceName())
 		require.NoError(tt, err)
 
-		_, err = client.SvcManager.Status("datadog-agent")
+		_, err = client.SvcManager.Status(client.Helper.GetServiceName())
 		require.NoError(tt, err, "datadog-agent should restart when running")
 	})
 }
 
 // CheckDogstatsdAgentRestarts runs tests to check the agent can restart properly
 func CheckDogstatsdAgentRestarts(t *testing.T, client *TestClient) {
-
 	t.Run("restart when stopped", func(tt *testing.T) {
 		// If the agent is not stopped yet, stop it
-		if _, err := client.SvcManager.Status("datadog-dogstatsd"); err == nil {
-			_, err := client.SvcManager.Stop("datadog-dogstatsd")
+		if _, err := client.SvcManager.Status(client.Helper.GetServiceName()); err == nil {
+			_, err := client.SvcManager.Stop(client.Helper.GetServiceName())
 			require.NoError(tt, err)
 		}
 
-		_, err := client.SvcManager.Restart("datadog-dogstatsd")
+		_, err := client.SvcManager.Start(client.Helper.GetServiceName())
 		require.NoError(tt, err)
 
-		_, err = client.SvcManager.Status("datadog-dogstatsd")
+		_, err = client.SvcManager.Status(client.Helper.GetServiceName())
 		require.NoError(tt, err, "datadog-dogstatsd should restart when stopped")
 	})
 
 	t.Run("restart when running", func(tt *testing.T) {
 		// If the agent is not started yet, start it
-		if _, err := client.SvcManager.Status("datadog-dogstatsd"); err != nil {
-			_, err := client.SvcManager.Start("datadog-dogstatsd")
+		if _, err := client.SvcManager.Status(client.Helper.GetServiceName()); err != nil {
+			_, err := client.SvcManager.Start(client.Helper.GetServiceName())
 			require.NoError(tt, err)
 		}
 
-		_, err := client.SvcManager.Restart("datadog-dogstatsd")
+		_, err := client.SvcManager.Restart(client.Helper.GetServiceName())
 		require.NoError(tt, err)
 
-		_, err = client.SvcManager.Status("datadog-dogstatsd")
+		_, err = client.SvcManager.Status(client.Helper.GetServiceName())
 		require.NoError(tt, err, "datadog-dogstatsd should restart when running")
 	})
 }
@@ -198,10 +195,11 @@ func CheckDogstatsdAgentRestarts(t *testing.T, client *TestClient) {
 // CheckAgentPython runs tests to check the agent use the correct python version
 func CheckAgentPython(t *testing.T, client *TestClient, version string) {
 	t.Run(fmt.Sprintf("set python version %s and restarts", version), func(tt *testing.T) {
-		err := client.SetConfig("/etc/datadog-agent/datadog.yaml", "python_version", version)
+		configFilePath := client.Helper.GetConfigFolder() + client.Helper.GetConfigFileName()
+		err := client.SetConfig(configFilePath, "python_version", version)
 		require.NoError(tt, err, "failed to set python version: ", err)
 
-		_, err = client.SvcManager.Restart("datadog-agent")
+		_, err = client.SvcManager.Restart(client.Helper.GetServiceName())
 		require.NoError(tt, err, "agent should be able to restart after editing python version")
 	})
 
@@ -217,54 +215,74 @@ func CheckAgentPython(t *testing.T, client *TestClient, version string) {
 // CheckApmEnabled runs tests to check the agent behave properly with APM enabled
 func CheckApmEnabled(t *testing.T, client *TestClient) {
 	t.Run("port bound apm enabled", func(tt *testing.T) {
-		err := client.CheckPortBound(8126)
-		require.NoError(tt, err, "port 8196 should be bound when APM is enabled")
+		configFilePath := client.Helper.GetConfigFolder() + client.Helper.GetConfigFileName()
+
+		err := client.SetConfig(configFilePath, "apm_config.enabled", "true")
+		require.NoError(tt, err)
+
+		_, err = client.SvcManager.Restart(client.Helper.GetServiceName())
+		require.NoError(tt, err)
+
+		var boundPort boundport.BoundPort
+		if !assert.EventuallyWithT(tt, func(c *assert.CollectT) {
+			boundPort, _ = AssertPortBoundByService(c, client, 8126, "trace-agent")
+		}, 1*time.Minute, 500*time.Millisecond) {
+			err := fmt.Errorf("port 8126 should be bound when APM is enabled")
+			if err != nil && client.Host.OSFamily == componentos.LinuxFamily {
+				err = fmt.Errorf("%w\n%s", err, ReadJournalCtl(t, client, "trace-agent\\|datadog-agent-trace"))
+			}
+			t.Fatalf(err.Error())
+		}
+
+		require.EqualValues(t, "127.0.0.1", boundPort.LocalAddress(), "trace-agent should only be listening locally")
 	})
 }
 
 // CheckApmDisabled runs tests to check the agent behave properly when APM is disabled
 func CheckApmDisabled(t *testing.T, client *TestClient) {
-	t.Run("port not bound when disabled", func(tt *testing.T) {
-		configFilePath := client.Helper.GetConfigFolder() + "datadog.yaml"
+	t.Run("trace-agent not running when disabled", func(tt *testing.T) {
+		configFilePath := client.Helper.GetConfigFolder() + client.Helper.GetConfigFileName()
 
 		err := client.SetConfig(configFilePath, "apm_config.enabled", "false")
 		require.NoError(tt, err)
 
-		_, err = client.SvcManager.Restart("datadog-agent")
+		_, err = client.SvcManager.Restart(client.Helper.GetServiceName())
 		require.NoError(tt, err)
 
-		err = client.CheckPortBound(8126)
-		require.Error(tt, err, "port should not be bound when apm is manually disabled")
+		// On Linux, trace-agent will be started by the service manager and then exit
+		// after a bit if it is not enabled.
+		// On Windows, datadog-agent won't start trace-agent if it is not enabled, however
+		// PowerShell Restart-Service may restart trace-agent if it was already running, and
+		// trace-agent will run for a bit before exiting.
+		require.Eventually(tt, func() bool {
+			return !AgentProcessIsRunning(client, "trace-agent")
+		}, 1*time.Minute, 500*time.Millisecond, "trace-agent should not be running ", err)
 	})
 }
 
 // CheckCWSBehaviour runs tests to check the agent behave correctly when CWS is enabled
 func CheckCWSBehaviour(t *testing.T, client *TestClient) {
 	t.Run("enable CWS and restarts", func(tt *testing.T) {
-
 		err := client.SetConfig(client.Helper.GetConfigFolder()+"system-probe.yaml", "runtime_security_config.enabled", "true")
 		require.NoError(tt, err)
 		err = client.SetConfig(client.Helper.GetConfigFolder()+"security-agent.yaml", "runtime_security_config.enabled", "true")
 		require.NoError(tt, err)
 
-		_, err = client.SvcManager.Restart("datadog-agent")
+		_, err = client.SvcManager.Restart(client.Helper.GetServiceName())
 		require.NoError(tt, err, "datadog-agent should restart after CWS is enabled")
 	})
 
 	t.Run("security-agent is running", func(tt *testing.T) {
 		var err error
 		require.Eventually(tt, func() bool {
-			_, err = client.VMClient.ExecuteWithError("pgrep -f security-agent")
-			return err == nil
+			return AgentProcessIsRunning(client, "security-agent")
 		}, 1*time.Minute, 500*time.Millisecond, "security-agent should be running ", err)
-
 	})
 
 	t.Run("system-probe is running", func(tt *testing.T) {
 		var err error
 		require.Eventually(tt, func() bool {
-			_, err = client.VMClient.ExecuteWithError("pgrep -f system-probe")
-			return err == nil
+			return AgentProcessIsRunning(client, "system-probe")
 		}, 1*time.Minute, 500*time.Millisecond, "system-probe should be running ", err)
 	})
 
@@ -272,7 +290,7 @@ func CheckCWSBehaviour(t *testing.T, client *TestClient) {
 		var statusOutputJSON map[string]any
 		var result bool
 		for try := 0; try < 10 && !result; try++ {
-			status, err := client.VMClient.ExecuteWithError("sudo /opt/datadog-agent/embedded/bin/security-agent status -j")
+			status, err := client.Host.Execute("sudo /opt/datadog-agent/embedded/bin/security-agent status -j")
 			if err == nil {
 				statusLines := strings.Split(status, "\n")
 				status = strings.Join(statusLines[1:], "\n")

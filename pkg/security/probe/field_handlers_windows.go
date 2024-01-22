@@ -36,22 +36,22 @@ func (fh *FieldHandlers) ResolveContainerContext(ev *model.Event) (*model.Contai
 }
 
 // ResolveFilePath resolves the inode to a full path
-func (fh *FieldHandlers) ResolveFilePath(ev *model.Event, f *model.FileEvent) string { //nolint:revive // TODO fix revive unused-parameter
+func (fh *FieldHandlers) ResolveFilePath(_ *model.Event, f *model.FileEvent) string {
 	return f.PathnameStr
 }
 
 // ResolveFileBasename resolves the inode to a full path
-func (fh *FieldHandlers) ResolveFileBasename(ev *model.Event, f *model.FileEvent) string { //nolint:revive // TODO fix revive unused-parameter
+func (fh *FieldHandlers) ResolveFileBasename(_ *model.Event, f *model.FileEvent) string {
 	return f.BasenameStr
 }
 
 // ResolveProcessEnvp resolves the envp of the event as an array
-func (fh *FieldHandlers) ResolveProcessEnvp(ev *model.Event, process *model.Process) []string { //nolint:revive // TODO fix revive unused-parameter
+func (fh *FieldHandlers) ResolveProcessEnvp(_ *model.Event, process *model.Process) []string {
 	return fh.resolvers.ProcessResolver.GetEnvp(process)
 }
 
 // ResolveProcessEnvs resolves the envs of the event
-func (fh *FieldHandlers) ResolveProcessEnvs(ev *model.Event, process *model.Process) []string { //nolint:revive // TODO fix revive unused-parameter
+func (fh *FieldHandlers) ResolveProcessEnvs(_ *model.Event, process *model.Process) []string {
 	return fh.resolvers.ProcessResolver.GetEnvs(process)
 }
 
@@ -76,4 +76,14 @@ func (fh *FieldHandlers) GetProcessService(ev *model.Event) string {
 		return ""
 	}
 	return getProcessService(entry)
+}
+
+// ResolveProcessCmdLineScrubbed returns a scrubbed version of the cmdline
+func (fh *FieldHandlers) ResolveProcessCmdLineScrubbed(_ *model.Event, e *model.Process) string {
+	return fh.resolvers.ProcessResolver.GetProcessCmdLineScrubbed(e)
+}
+
+// ResolveUser resolves the user name
+func (fh *FieldHandlers) ResolveUser(_ *model.Event, process *model.Process) string {
+	return fh.resolvers.UserGroupResolver.GetUser(process.OwnerSidString)
 }

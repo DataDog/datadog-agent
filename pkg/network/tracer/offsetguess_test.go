@@ -126,6 +126,7 @@ func (o offsetT) String() string {
 }
 
 func TestOffsetGuess(t *testing.T) {
+	ebpftest.LogLevel(t, "trace")
 	ebpftest.TestBuildMode(t, ebpftest.RuntimeCompiled, "", testOffsetGuess)
 }
 
@@ -156,6 +157,7 @@ func testOffsetGuess(t *testing.T) {
 	consts := map[offsetT]uint64{}
 	for _, c := range _consts {
 		value := c.Value.(uint64)
+		t.Logf("Guessed offset %v with value %v", c.Name, value)
 		switch c.Name {
 		case "offset_saddr":
 			consts[offsetSaddr] = value
@@ -256,6 +258,7 @@ func testOffsetGuess(t *testing.T) {
 	var c net.Conn
 	require.Eventually(t, func() bool {
 		c, err = net.Dial("tcp4", server.address)
+		//nolint:gosimple // TODO(NET) Fix gosimple linter
 		if err == nil {
 			return true
 		}
@@ -291,9 +294,11 @@ func testOffsetGuess(t *testing.T) {
 		}
 
 		var offset uint64
+		//nolint:revive // TODO(NET) Fix revive linter
 		var name offsetT = o
 		require.NoError(t, mp.Lookup(unsafe.Pointer(&name), unsafe.Pointer(&offset)))
 		assert.Equal(t, offset, consts[o], "unexpected offset for %s", o)
+		t.Logf("offset %s expected: %d guessed: %d", o, offset, consts[o])
 	}
 }
 

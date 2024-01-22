@@ -69,7 +69,7 @@ func DefaultDockerProvider(ctx context.Context) (docker.CommonAPIClient, error) 
 }
 
 // DefaultLinuxAuditProvider returns the default Linux Audit client.
-func DefaultLinuxAuditProvider(ctx context.Context) (LinuxAuditClient, error) { //nolint:revive // TODO fix revive unused-parameter
+func DefaultLinuxAuditProvider(_ context.Context) (LinuxAuditClient, error) {
 	return newLinuxAuditClient()
 }
 
@@ -498,7 +498,7 @@ func (r *defaultResolver) getProcs(ctx context.Context) ([]*process.Process, err
 	return r.procsCache, nil
 }
 
-func (r *defaultResolver) resolveGroup(ctx context.Context, spec InputSpecGroup) (interface{}, error) {
+func (r *defaultResolver) resolveGroup(_ context.Context, spec InputSpecGroup) (interface{}, error) {
 	f, err := os.Open(r.pathNormalizeToHostRoot("/etc/group"))
 	if err != nil {
 		return nil, err
@@ -532,7 +532,7 @@ func (r *defaultResolver) resolveGroup(ctx context.Context, spec InputSpecGroup)
 	return nil, nil
 }
 
-func (r *defaultResolver) resolveAudit(ctx context.Context, spec InputSpecAudit) (interface{}, error) {
+func (r *defaultResolver) resolveAudit(_ context.Context, spec InputSpecAudit) (interface{}, error) {
 	cl := r.linuxAuditCl
 	if cl == nil {
 		return nil, ErrIncompatibleEnvironment

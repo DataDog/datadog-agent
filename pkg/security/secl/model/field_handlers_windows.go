@@ -5,7 +5,6 @@
 // Code generated - DO NOT EDIT.
 
 //go:build windows
-// +build windows
 
 package model
 
@@ -54,6 +53,10 @@ func (ev *Event) resolveFields(forADs bool) {
 	if ev.BaseEvent.ProcessContext.HasParent() {
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
 	}
+	if ev.BaseEvent.ProcessContext.HasParent() {
+		_ = ev.FieldHandlers.ResolveUser(ev, ev.BaseEvent.ProcessContext.Parent)
+	}
+	_ = ev.FieldHandlers.ResolveUser(ev, &ev.BaseEvent.ProcessContext.Process)
 	// resolve event specific fields
 	switch ev.GetEventType().String() {
 	case "exec":
@@ -62,6 +65,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Exec.Process)
 		_ = ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.Exec.Process)
 		_ = ev.FieldHandlers.ResolveProcessCmdLineScrubbed(ev, ev.Exec.Process)
+		_ = ev.FieldHandlers.ResolveUser(ev, ev.Exec.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exec.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exec.Process)
 	case "exit":
@@ -70,6 +74,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveProcessCmdLineScrubbed(ev, ev.Exit.Process)
+		_ = ev.FieldHandlers.ResolveUser(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exit.Process)
 	}
@@ -88,6 +93,7 @@ type FieldHandlers interface {
 	ResolveProcessCreatedAt(ev *Event, e *Process) int
 	ResolveProcessEnvp(ev *Event, e *Process) []string
 	ResolveProcessEnvs(ev *Event, e *Process) []string
+	ResolveUser(ev *Event, e *Process) string
 	// custom handlers not tied to any fields
 	ExtraFieldHandlers
 }
@@ -125,3 +131,4 @@ func (dfh *DefaultFieldHandlers) ResolveProcessCreatedAt(ev *Event, e *Process) 
 }
 func (dfh *DefaultFieldHandlers) ResolveProcessEnvp(ev *Event, e *Process) []string { return e.Envp }
 func (dfh *DefaultFieldHandlers) ResolveProcessEnvs(ev *Event, e *Process) []string { return e.Envs }
+func (dfh *DefaultFieldHandlers) ResolveUser(ev *Event, e *Process) string          { return e.User }

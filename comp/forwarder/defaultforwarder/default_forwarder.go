@@ -20,9 +20,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/resolver"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
@@ -122,7 +122,7 @@ func HasFeature(features, flag Features) bool { return features&flag != 0 }
 // NewOptions creates new Options with default values
 func NewOptions(config config.Component, log log.Component, keysPerDomain map[string][]string) *Options {
 	resolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
-	vectorMetricsURL, err := pkgconfig.GetObsPipelineURL(pkgconfig.Metrics)
+	vectorMetricsURL, err := pkgconfigsetup.GetObsPipelineURL(pkgconfigsetup.Metrics, config)
 	if err != nil {
 		log.Error("Misconfiguration of agent observability_pipelines_worker endpoint for metrics: ", err)
 	}
@@ -144,9 +144,9 @@ func NewOptionsWithResolvers(config config.Component, log log.Component, domainR
 		log.Warnf(
 			"'forwarder_apikey_validation_interval' set to invalid value (%d), defaulting to %d minute(s)",
 			validationInterval,
-			pkgconfig.DefaultAPIKeyValidationInterval,
+			pkgconfigsetup.DefaultAPIKeyValidationInterval,
 		)
-		validationInterval = pkgconfig.DefaultAPIKeyValidationInterval
+		validationInterval = pkgconfigsetup.DefaultAPIKeyValidationInterval
 	}
 
 	const forwarderRetryQueueMaxSizeKey = "forwarder_retry_queue_max_size"
@@ -286,7 +286,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 				}
 			}
 
-			pointCountTelemetry := retry.NewPointCountTelemetry(domain, telemetry.GetStatsTelemetryProvider())
+			pointCountTelemetry := retry.NewPointCountTelemetry(domain)
 			transactionContainer := retry.BuildTransactionRetryQueue(
 				log,
 				options.RetryQueuePayloadsTotalMaxSize,

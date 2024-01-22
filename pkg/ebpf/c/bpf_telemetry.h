@@ -18,9 +18,9 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
     ({                                                                             \
         long errno_ret, errno_slot;                                                \
         errno_ret = fn(&map, args);                                                \
-        if (errno_ret < 0) {                                                       \
-            unsigned long err_telemetry_key;                                       \
-            LOAD_CONSTANT(MK_KEY(map), err_telemetry_key);                         \
+        unsigned long err_telemetry_key;                                           \
+        LOAD_CONSTANT(MK_KEY(map), err_telemetry_key);                             \
+        if (errno_ret < 0 && err_telemetry_key > 0) {                              \
             map_err_telemetry_t *entry =                                           \
                 bpf_map_lookup_elem(&map_err_telemetry_map, &err_telemetry_key);   \
             if (entry) {                                                           \
@@ -35,7 +35,7 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
                 /* Patched instruction for 4.14+: __sync_fetch_and_add(target, 1);
                  * This patch point is placed here because the above instruction
                  * fails on the 4.4 verifier. On 4.4 this instruction is replaced
-                 * with a nop: r1 = r1 */ \
+                 * with a nop: r1 = r1 */                                          \
                 bpf_telemetry_update_patch((unsigned long)target, add);            \
             }                                                                      \
         }                                                                          \
@@ -60,9 +60,9 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
         int helper_indx = -1;                                                                   \
         long errno_slot;                                                                        \
         long errno_ret = fn(__VA_ARGS__);                                                       \
-        if (errno_ret < 0) {                                                                    \
-            unsigned long telemetry_program_id;                                                 \
-            LOAD_CONSTANT("telemetry_program_id_key", telemetry_program_id);                    \
+        unsigned long telemetry_program_id;                                                     \
+        LOAD_CONSTANT("telemetry_program_id_key", telemetry_program_id);                        \
+        if (errno_ret < 0 && telemetry_program_id > 0) {                                        \
             helper_err_telemetry_t *entry =                                                     \
                 bpf_map_lookup_elem(&helper_err_telemetry_map, &telemetry_program_id);          \
             if (entry) {                                                                        \
@@ -73,7 +73,7 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
                     /* This is duplicated below because on clang 14.0.6 the compiler
                      * concludes that this if-check will always force errno_slot in range
                      * (0, T_MAX_ERRNO-1], and removes the bounds check, causing the verifier
-                     * to trip. Duplicating this check forces clang not to omit the check */            \
+                     * to trip. Duplicating this check forces clang not to omit the check */    \
                     errno_slot &= (T_MAX_ERRNO - 1);                                            \
                 }                                                                               \
                 errno_slot &= (T_MAX_ERRNO - 1);                                                \
@@ -83,7 +83,7 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
                     /* Patched instruction for 4.14+: __sync_fetch_and_add(target, 1);
                      * This patch point is placed here because the above instruction
                      * fails on the 4.4 verifier. On 4.4 this instruction is replaced
-                     * with a nop: r1 = r1 */          \
+                     * with a nop: r1 = r1 */                                                   \
                     bpf_telemetry_update_patch((unsigned long)target, add);                     \
                 }                                                                               \
             }                                                                                   \

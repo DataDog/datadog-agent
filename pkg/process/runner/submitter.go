@@ -18,13 +18,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	//nolint:revive // TODO(PROC) Fix revive linter
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
@@ -38,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
+//nolint:revive // TODO(PROC) Fix revive linter
 type Submitter interface {
 	Submit(start time.Time, name string, messages *types.Payload)
 	Start() error
@@ -46,6 +48,7 @@ type Submitter interface {
 
 var _ Submitter = &CheckSubmitter{}
 
+//nolint:revive // TODO(PROC) Fix revive linter
 type CheckSubmitter struct {
 	log log.Component
 	// Per-check Weighted Queues
@@ -82,6 +85,7 @@ type CheckSubmitter struct {
 	agentStartTime int64
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func NewSubmitter(config config.Component, log log.Component, forwarders forwarders.Component, hostname string) (*CheckSubmitter, error) {
 	queueBytes := config.GetInt("process_config.process_queue_bytes")
 	if queueBytes <= 0 {
@@ -189,6 +193,7 @@ func printStartMessage(log log.Component, hostname string, processAPIEndpoints, 
 	log.Infof("Starting CheckSubmitter for host=%s, endpoints=%s, events endpoints=%s orchestrator endpoints=%s", hostname, eps, eventsEps, orchestratorEps)
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (s *CheckSubmitter) Submit(start time.Time, name string, messages *types.Payload) {
 	results := s.resultsQueueForCheck(name)
 	if name == checks.PodCheckName {
@@ -202,6 +207,7 @@ func (s *CheckSubmitter) Submit(start time.Time, name string, messages *types.Pa
 	s.messagesToResultsQueue(start, name, messages.Message, results)
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (s *CheckSubmitter) Start() error {
 	if err := s.processForwarder.Start(); err != nil {
 		return fmt.Errorf("error starting forwarder: %s", err)
@@ -299,6 +305,7 @@ func (s *CheckSubmitter) Start() error {
 	return nil
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (s *CheckSubmitter) Stop() {
 	close(s.exit)
 
@@ -319,6 +326,7 @@ func (s *CheckSubmitter) Stop() {
 	close(s.rtNotifierChan)
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (s *CheckSubmitter) GetRTNotifierChan() <-chan types.RTResponse {
 	return s.rtNotifierChan
 }

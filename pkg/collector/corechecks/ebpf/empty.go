@@ -5,6 +5,7 @@
 
 //go:build !linux || !cgo
 
+//nolint:revive // TODO(CINT) Fix revive linter
 package ebpf
 
 // Avoid the following error on non-supported platforms:

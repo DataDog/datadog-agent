@@ -258,8 +258,10 @@ labels that can be use:
 - `community`: for community PRs.
 - `changelog/no-changelog`: for PRs that don't require a reno releasenote
   (useful for PRs only changing documentation or tests).
-- `qa/skip-qa`: this will skip creating a QA card for the PR during the release
-  process (example: for a documentation only PRs).
+- `qa/skip-qa`, `qa/done`, `qa/no-code-change`: if the `qa/skip-qa` label is set with
+  an additional required `qa/done` or `qa/no-code-change`, it will skip the creation
+  of a QA card related to this PR during next release process (example:
+  documentation-only PRs).
 - `major_change`: to flag the PR as a major change impacting many/all teams
   working on the agent and will require deeper QA (example: when we change the
   Python version shipped in the agent).

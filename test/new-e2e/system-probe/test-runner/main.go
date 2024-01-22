@@ -5,11 +5,13 @@
 
 //go:build linux
 
+// Package main is the test-runner tool which runs the system-probe tests
 package main
 
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -26,19 +28,25 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+const matchAllPackages = "*"
+
 func init() {
 	color.NoColor = false
 }
 
+type packageRunConfiguration struct {
+	RunOnly []string `json:"run-only"`
+	Skip    []string
+	Exclude bool
+}
+
 type testConfig struct {
-	retryCount      int
-	includePackages []string
-	excludePackages []string
-	runTests        string
+	retryCount        int
+	packagesRunConfig map[string]packageRunConfiguration
 }
 
 const (
-	testDirRoot  = "/opt/system-probe-tests"
+	testDirRoot  = "/opt/kernel-version-testing/system-probe-tests"
 	ciVisibility = "/ci-visibility"
 )
 
@@ -65,12 +73,6 @@ func getTimeout(pkg string) time.Duration {
 		}
 	}
 	return to
-}
-
-func pathEmbedded(fullPath, embedded string) bool {
-	normalized := fmt.Sprintf("/%s/", strings.Trim(embedded, "/"))
-
-	return strings.Contains(fullPath, normalized)
 }
 
 func glob(dir, filePattern string, filterFn func(path string) bool) ([]string, error) {
@@ -106,7 +108,7 @@ func pathToPackage(path string) string {
 
 func buildCommandArgs(pkg string, xmlpath string, jsonpath string, file string, testConfig *testConfig) []string {
 	args := []string{
-		"--format", "dots",
+		"--format", "testname",
 		"--junitfile", xmlpath,
 		"--jsonfile", jsonpath,
 		fmt.Sprintf("--rerun-fails=%d", testConfig.retryCount),
@@ -115,8 +117,12 @@ func buildCommandArgs(pkg string, xmlpath string, jsonpath string, file string, 
 		"/go/bin/test2json", "-t", "-p", pkg, file, "-test.v", "-test.count=1", "-test.timeout=" + getTimeout(pkg).String(),
 	}
 
-	if testConfig.runTests != "" {
-		args = append(args, "-test.run", testConfig.runTests)
+	packagesRunConfig := testConfig.packagesRunConfig
+	if config, ok := packagesRunConfig[pkg]; ok && config.RunOnly != nil {
+		args = append(args, "-test.run", strings.Join(config.RunOnly, "|"))
+	}
+	if config, ok := packagesRunConfig[pkg]; ok && config.Skip != nil {
+		args = append(args, "-test.skip", strings.Join(config.Skip, "|"))
 	}
 
 	return args
@@ -124,15 +130,15 @@ func buildCommandArgs(pkg string, xmlpath string, jsonpath string, file string, 
 
 // concatenateJsons combines all the test json output files into a single file.
 func concatenateJsons(indir, outdir string) error {
-	testJsonFile := filepath.Join(outdir, "out.json")
+	testJSONFile := filepath.Join(outdir, "out.json")
 	matches, err := glob(indir, `.*\.json`, func(path string) bool { return true })
 	if err != nil {
 		return fmt.Errorf("json glob: %s", err)
 	}
 
-	f, err := os.OpenFile(testJsonFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o666)
+	f, err := os.OpenFile(testJSONFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o666)
 	if err != nil {
-		return fmt.Errorf("open %s: %s", testJsonFile, err)
+		return fmt.Errorf("open %s: %s", testJSONFile, err)
 	}
 	defer f.Close()
 
@@ -161,20 +167,16 @@ func createDir(d string) error {
 func testPass(testConfig *testConfig, props map[string]string) error {
 	testsuites, err := glob(testDirRoot, "testsuite", func(path string) bool {
 		dir := pathToPackage(path)
-		for _, p := range testConfig.excludePackages {
-			if dir == p {
-				return false
-			}
+
+		if config, ok := testConfig.packagesRunConfig[dir]; ok {
+			return !config.Exclude
 		}
-		if len(testConfig.includePackages) != 0 {
-			for _, p := range testConfig.includePackages {
-				if dir == p {
-					return true
-				}
-			}
-			return false
+
+		if config, ok := testConfig.packagesRunConfig[matchAllPackages]; ok {
+			return !config.Exclude
 		}
-		return true
+
+		return false
 	})
 	if err != nil {
 		return fmt.Errorf("test glob: %s", err)
@@ -218,46 +220,31 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 	return nil
 }
 
-func fixAssetPermissions() error {
-	matches, err := glob(testDirRoot, `.*\.o`, func(path string) bool {
-		return pathEmbedded(path, "pkg/ebpf/bytecode/build")
-	})
-	if err != nil {
-		return fmt.Errorf("glob assets: %s", err)
-	}
-
-	for _, file := range matches {
-		if err := os.Chown(file, 0, 0); err != nil {
-			return fmt.Errorf("chown %s: %s", file, err)
-		}
-	}
-	return nil
-}
-
-func buildTestConfiguration() *testConfig {
+func buildTestConfiguration() (*testConfig, error) {
 	retryPtr := flag.Int("retry", 2, "number of times to retry testing pass")
-	packagesPtr := flag.String("include-packages", "", "Comma separated list of packages to test")
-	excludePackagesPtr := flag.String("exclude-packages", "", "Comma separated list of packages to exclude")
-	runTestsPtr := flag.String("run-tests", "", "Regex for running specific tests")
+	packageRunConfigPtr := flag.String("packages-run-config", "", "Configuration for controlling which tests run in a package")
 
 	flag.Parse()
 
-	var packagesLs []string
-	var excludeLs []string
+	breakdown := make(map[string]packageRunConfiguration)
+	if *packageRunConfigPtr != "" {
+		configData, err := os.ReadFile(*packageRunConfigPtr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read config file: %w", err)
+		}
+		fmt.Printf("Runner under configuration: %s\n", configData)
 
-	if *packagesPtr != "" {
-		packagesLs = strings.Split(*packagesPtr, ",")
-	}
-	if *excludePackagesPtr != "" {
-		excludeLs = strings.Split(*excludePackagesPtr, ",")
+		dec := json.NewDecoder(bytes.NewReader(configData))
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&breakdown); err != nil {
+			return nil, err
+		}
 	}
 
 	return &testConfig{
-		retryCount:      *retryPtr,
-		includePackages: packagesLs,
-		excludePackages: excludeLs,
-		runTests:        *runTestsPtr,
-	}
+		retryCount:        *retryPtr,
+		packagesRunConfig: breakdown,
+	}, nil
 }
 
 func readOSRelease() (map[string]string, error) {
@@ -309,9 +296,9 @@ func run() error {
 		return fmt.Errorf("props: %s", err)
 	}
 
-	testConfig := buildTestConfiguration()
-	if err := fixAssetPermissions(); err != nil {
-		return fmt.Errorf("asset perms: %s", err)
+	testConfig, err := buildTestConfiguration()
+	if err != nil {
+		return fmt.Errorf("failed to build test configuration: %w", err)
 	}
 
 	if err := os.RemoveAll(ciVisibility); err != nil {

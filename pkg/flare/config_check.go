@@ -12,7 +12,7 @@ import (
 
 	"github.com/fatih/color"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
+	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/response"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"

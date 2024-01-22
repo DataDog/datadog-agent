@@ -10,7 +10,6 @@ package kubeapiserver
 
 import (
 	"context"
-	"regexp"
 	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -22,10 +21,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	languagedetectionUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
+
 	ddkube "github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
-
-var re = regexp.MustCompile(`apm\.datadoghq\.com\/(init)?\.?(.+?)\.languages`)
 
 // deploymentFilter filters out deployments that can't be used for unified service tagging or process language detection
 type deploymentFilter struct{}
@@ -36,8 +35,8 @@ func (f *deploymentFilter) filteredOut(entity workloadmeta.Entity) bool {
 		(deployment.Env == "" &&
 			deployment.Version == "" &&
 			deployment.Service == "" &&
-			len(deployment.InitContainerLanguages) == 0 &&
-			len(deployment.ContainerLanguages) == 0)
+			len(deployment.InjectableLanguages.InitContainerLanguages) == 0 &&
+			len(deployment.InjectableLanguages.ContainerLanguages) == 0)
 }
 
 func newDeploymentStore(ctx context.Context, wlm workloadmeta.Component, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
@@ -92,16 +91,14 @@ func (p deploymentParser) Parse(obj interface{}) workloadmeta.Entity {
 	containerLanguages := make(map[string][]languagemodels.Language)
 
 	for annotation, languages := range deployment.Annotations {
-		// find a match
-		matches := re.FindStringSubmatch(annotation)
-		if len(matches) != 3 {
-			continue
-		}
-		// matches[1] matches "init"
-		if matches[1] != "" {
-			updateContainerLanguageMap(initContainerLanguages, matches[2], languages)
-		} else {
-			updateContainerLanguageMap(containerLanguages, matches[2], languages)
+
+		containerName, isInitContainer := languagedetectionUtil.ExtractContainerFromAnnotationKey(annotation)
+		if containerName != "" {
+			if isInitContainer {
+				updateContainerLanguageMap(initContainerLanguages, containerName, languages)
+			} else {
+				updateContainerLanguageMap(containerLanguages, containerName, languages)
+			}
 		}
 	}
 
@@ -110,10 +107,12 @@ func (p deploymentParser) Parse(obj interface{}) workloadmeta.Entity {
 			Kind: workloadmeta.KindKubernetesDeployment,
 			ID:   deployment.Namespace + "/" + deployment.Name, // we use the namespace/name as id to make it easier for the admission controller to retrieve the corresponding deployment
 		},
-		Env:                    deployment.Labels[ddkube.EnvTagLabelKey],
-		Service:                deployment.Labels[ddkube.ServiceTagLabelKey],
-		Version:                deployment.Labels[ddkube.VersionTagLabelKey],
-		ContainerLanguages:     containerLanguages,
-		InitContainerLanguages: initContainerLanguages,
+		Env:     deployment.Labels[ddkube.EnvTagLabelKey],
+		Service: deployment.Labels[ddkube.ServiceTagLabelKey],
+		Version: deployment.Labels[ddkube.VersionTagLabelKey],
+		InjectableLanguages: workloadmeta.Languages{
+			ContainerLanguages:     containerLanguages,
+			InitContainerLanguages: initContainerLanguages,
+		},
 	}
 }

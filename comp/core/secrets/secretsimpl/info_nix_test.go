@@ -77,9 +77,9 @@ func TestDebugInfo(t *testing.T) {
 		return res, nil
 	}
 
-	_, err := resolver.Decrypt(testConf, "test")
+	_, err := resolver.Resolve(testConf, "test")
 	require.NoError(t, err)
-	_, err = resolver.Decrypt(testConfInfo, "test2")
+	_, err = resolver.Resolve(testConfInfo, "test2")
 	require.NoError(t, err)
 
 	var buffer bytes.Buffer
@@ -95,16 +95,16 @@ Owner: ` + currentUser + `
 Group: ` + currentGroup + `
 
 === Secrets stats ===
-Number of secrets decrypted: 3
-Secrets handle decrypted:
+Number of secrets resolved: 3
+Secrets handle resolved:
 
 - 'pass1':
-	used in 'test' configuration in entry 'instances/password'
+	used in 'test' configuration in entry 'instances/0/password'
 - 'pass2':
-	used in 'test' configuration in entry 'instances/password'
-	used in 'test2' configuration in entry 'instances/password'
+	used in 'test' configuration in entry 'instances/1/password'
+	used in 'test2' configuration in entry 'instances/1/password'
 - 'pass3':
-	used in 'test2' configuration in entry 'instances/password'
+	used in 'test2' configuration in entry 'instances/0/password'
 `
 
 	assert.Equal(t, expectedResult, buffer.String())
@@ -121,9 +121,9 @@ func TestDebugInfoError(t *testing.T) {
 		return res, nil
 	}
 
-	_, err := resolver.Decrypt(testConf, "test")
+	_, err := resolver.Resolve(testConf, "test")
 	require.NoError(t, err)
-	_, err = resolver.Decrypt(testConfInfo, "test2")
+	_, err = resolver.Resolve(testConfInfo, "test2")
 	require.NoError(t, err)
 
 	var buffer bytes.Buffer
@@ -137,16 +137,16 @@ Permissions Detail:
 Could not stat some_command: no such file or directory
 
 === Secrets stats ===
-Number of secrets decrypted: 3
-Secrets handle decrypted:
+Number of secrets resolved: 3
+Secrets handle resolved:
 
 - 'pass1':
-	used in 'test' configuration in entry 'instances/password'
+	used in 'test' configuration in entry 'instances/0/password'
 - 'pass2':
-	used in 'test' configuration in entry 'instances/password'
-	used in 'test2' configuration in entry 'instances/password'
+	used in 'test' configuration in entry 'instances/1/password'
+	used in 'test2' configuration in entry 'instances/1/password'
 - 'pass3':
-	used in 'test2' configuration in entry 'instances/password'
+	used in 'test2' configuration in entry 'instances/0/password'
 `
 
 	assert.Equal(t, expectedResult, buffer.String())

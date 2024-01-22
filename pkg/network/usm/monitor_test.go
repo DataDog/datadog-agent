@@ -24,15 +24,11 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
-
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
-
-	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
@@ -41,7 +37,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -59,10 +54,6 @@ func TestMain(m *testing.M) {
 const (
 	kb = 1024
 	mb = 1024 * kb
-
-	http2SrvAddr    = "http://127.0.0.1:8082"
-	http2SrvPortStr = ":8082"
-	http2SrvPort    = 8082
 )
 
 var (
@@ -147,7 +138,7 @@ func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 
 	// Iterate through active connections until we find connection created above
 	require.Eventuallyf(t, func() bool {
-		stats := getHttpStats(t, monitor)
+		stats := getHTTPStats(t, monitor)
 
 		for key, reqStats := range stats {
 			if key.Method == http.MethodGet && strings.HasSuffix(key.Path.Content.Get(), "/test") && (key.SrcPort == 8080 || key.DstPort == 8080) {
@@ -198,7 +189,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorCaptureRequestMultipleTimes() {
 
 			occurrences := 0
 			require.Eventually(t, func() bool {
-				stats := getHttpStats(t, monitor)
+				stats := getHTTPStats(t, monitor)
 				occurrences += countRequestOccurrences(stats, req)
 				return occurrences == expectedOccurrences
 			}, time.Second*3, time.Millisecond*100, "Expected to find a request %d times, instead captured %d", occurrences, expectedOccurrences)
@@ -245,7 +236,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
 	// then we are using a variable to check if "we ever found it" among the iterations.
 	for i := 0; i < 10; i++ {
 		time.Sleep(10 * time.Millisecond)
-		stats := getHttpStats(t, monitor)
+		stats := getHTTPStats(t, monitor)
 		for req := range abortedRequests {
 			requestNotIncluded(t, stats, req)
 		}
@@ -372,7 +363,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 
 			// Ensure all captured transactions get sent to user-space
 			time.Sleep(10 * time.Millisecond)
-			stats := getHttpStats(t, monitor)
+			stats := getHTTPStats(t, monitor)
 
 			if tt.shouldCapture {
 				includesRequest(t, stats, req)
@@ -449,7 +440,7 @@ func (s *HTTPTestSuite) TestRSTPacketRegression() {
 	time.Sleep(100 * time.Millisecond)
 
 	// Assert that the HTTP request was correctly handled despite its forceful termination
-	stats := getHttpStats(t, monitor)
+	stats := getHTTPStats(t, monitor)
 	url, err := url.Parse("http://127.0.0.1:8080/200/foobar")
 	require.NoError(t, err)
 	includesRequest(t, stats, &nethttp.Request{URL: url})
@@ -518,329 +509,11 @@ func (s *HTTPTestSuite) TestKeepAliveWithIncompleteResponseRegression() {
 	assertAllRequestsExists(t, monitor, []*nethttp.Request{{URL: url, Method: "GET"}})
 }
 
-type USMHTTP2Suite struct {
-	suite.Suite
-}
-
-type captureRange struct {
-	lower int
-	upper int
-}
-
-func TestHTTP2(t *testing.T) {
-	currKernelVersion, err := kernel.HostVersion()
-	require.NoError(t, err)
-	if currKernelVersion < usmhttp2.MinimumKernelVersion {
-		t.Skipf("HTTP2 monitoring can not run on kernel before %v", usmhttp2.MinimumKernelVersion)
-	}
-
-	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
-		suite.Run(t, new(USMHTTP2Suite))
-	})
-}
-
-func (s *USMHTTP2Suite) TestHTTP2DynamicTableCleanup() {
-	t := s.T()
-	cfg := networkconfig.New()
-	cfg.EnableHTTP2Monitoring = true
-	cfg.HTTP2DynamicTableMapCleanerInterval = 5 * time.Second
-
-	startH2CServer(t)
-
-	monitor, err := NewMonitor(cfg, nil, nil, nil)
-	require.NoError(t, err)
-	require.NoError(t, monitor.Start())
-	defer monitor.Stop()
-
-	numberOfRequests := usmhttp2.HTTP2TerminatedBatchSize
-	clients := getClientsArray(t, 2)
-	for i := 0; i < numberOfRequests; i++ {
-		req, err := clients[i%2].Post(fmt.Sprintf("%s/test-%d", http2SrvAddr, i+1), "application/json", bytes.NewReader([]byte("test")))
-		require.NoError(t, err, "could not make request")
-		req.Body.Close()
-	}
-
-	matches := PrintableInt(0)
-
-	require.Eventuallyf(t, func() bool {
-		stats := monitor.GetProtocolStats()
-		http2Stats, ok := stats[protocols.HTTP2]
-		if !ok {
-			return false
-		}
-		http2StatsTyped := http2Stats.(map[http.Key]*http.RequestStats)
-		for key, stat := range http2StatsTyped {
-			if (key.DstPort == http2SrvPort || key.SrcPort == http2SrvPort) && key.Method == http.MethodPost && strings.HasPrefix(key.Path.Content.Get(), "/test") {
-				matches.Add(stat.Data[200].Count)
-			}
-		}
-
-		return matches.Load() == numberOfRequests
-	}, time.Second*10, time.Millisecond*100, "%v != %v", &matches, numberOfRequests)
-
-	for _, client := range clients {
-		client.CloseIdleConnections()
-	}
-
-	dynamicTableMap, _, err := monitor.ebpfProgram.GetMap("http2_dynamic_table")
-	require.NoError(t, err)
-	iterator := dynamicTableMap.Iterate()
-	key := make([]byte, dynamicTableMap.KeySize())
-	value := make([]byte, dynamicTableMap.ValueSize())
-	count := 0
-	for iterator.Next(&key, &value) {
-		count++
-	}
-	require.GreaterOrEqual(t, count, 0)
-
-	require.Eventually(t, func() bool {
-		iterator = dynamicTableMap.Iterate()
-		count = 0
-		for iterator.Next(&key, &value) {
-			count++
-		}
-
-		return count == 0
-	}, cfg.HTTP2DynamicTableMapCleanerInterval*4, time.Millisecond*100)
-}
-
-func (s *USMHTTP2Suite) TestHTTP2ManyDifferentPaths() {
-	t := s.T()
-	cfg := networkconfig.New()
-	cfg.EnableHTTP2Monitoring = true
-
-	startH2CServer(t)
-
-	monitor, err := NewMonitor(cfg, nil, nil, nil)
-	require.NoError(t, err)
-	require.NoError(t, monitor.Start())
-	defer monitor.Stop()
-
-	// Should be bigger than the length of the http2_dynamic_table which is 1024
-	const numberOfRequests = 1500
-	const expectedNumberOfRequests = numberOfRequests * 2
-	clients := getClientsArray(t, 1)
-	for i := 0; i < numberOfRequests; i++ {
-		for j := 0; j < 2; j++ {
-			req, err := clients[0].Post(fmt.Sprintf("%s/test-%d", http2SrvAddr, i+1), "application/json", bytes.NewReader([]byte("test")))
-			require.NoError(t, err, "could not make request")
-			req.Body.Close()
-		}
-	}
-
-	matches := PrintableInt(0)
-
-	seenRequests := map[string]int{}
-	assert.Eventuallyf(t, func() bool {
-		stats := monitor.GetProtocolStats()
-		http2Stats, ok := stats[protocols.HTTP2]
-		if !ok {
-			return false
-		}
-		http2StatsTyped := http2Stats.(map[http.Key]*http.RequestStats)
-		for key, stat := range http2StatsTyped {
-			if (key.DstPort == http2SrvPort || key.SrcPort == http2SrvPort) && key.Method == http.MethodPost && strings.HasPrefix(key.Path.Content.Get(), "/test") {
-				if _, ok := seenRequests[key.Path.Content.Get()]; !ok {
-					seenRequests[key.Path.Content.Get()] = 0
-				}
-				seenRequests[key.Path.Content.Get()] += stat.Data[200].Count
-				matches.Add(stat.Data[200].Count)
-			}
-		}
-
-		// Due to a known issue in http2, we might consider an RST packet as a response to a request and therefore
-		// we might capture a request twice. This is why we are expecting to see 2*numberOfRequests instead of
-		return expectedNumberOfRequests <= matches.Load() && matches.Load() <= expectedNumberOfRequests+1
-	}, time.Second*10, time.Millisecond*100, "%v != %v", &matches, 2*numberOfRequests)
-
-	for i := 0; i < numberOfRequests; i++ {
-		if v, ok := seenRequests[fmt.Sprintf("/test-%d", i+1)]; !ok || v != 2 {
-			t.Logf("path: /test-%d should have 2 occurrences but instead has %d", i+1, v)
-		}
-	}
-}
-
-func (s *USMHTTP2Suite) TestSimpleHTTP2() {
-	t := s.T()
-	cfg := networkconfig.New()
-	cfg.EnableHTTP2Monitoring = true
-
-	startH2CServer(t)
-
-	tests := []struct {
-		name              string
-		runClients        func(t *testing.T, clientsCount int)
-		expectedEndpoints map[http.Key]captureRange
-	}{
-		{
-			name: " / path",
-			runClients: func(t *testing.T, clientsCount int) {
-				clients := getClientsArray(t, clientsCount)
-
-				for i := 0; i < 1000; i++ {
-					client := clients[getClientsIndex(i, clientsCount)]
-					req, err := client.Post(http2SrvAddr+"/", "application/json", bytes.NewReader([]byte("test")))
-					require.NoError(t, err, "could not make request")
-					req.Body.Close()
-				}
-			},
-			expectedEndpoints: map[http.Key]captureRange{
-				{
-					Path:   http.Path{Content: http.Interner.GetString("/")},
-					Method: http.MethodPost,
-				}: {
-					lower: 999,
-					upper: 1001,
-				},
-			},
-		},
-		{
-			name: " /index.html path",
-			runClients: func(t *testing.T, clientsCount int) {
-				clients := getClientsArray(t, clientsCount)
-
-				for i := 0; i < 1000; i++ {
-					client := clients[getClientsIndex(i, clientsCount)]
-					req, err := client.Post(http2SrvAddr+"/index.html", "application/json", bytes.NewReader([]byte("test")))
-					require.NoError(t, err, "could not make request")
-					req.Body.Close()
-				}
-			},
-			expectedEndpoints: map[http.Key]captureRange{
-				{
-					Path:   http.Path{Content: http.Interner.GetString("/index.html")},
-					Method: http.MethodPost,
-				}: {
-					lower: 999,
-					upper: 1001,
-				},
-			},
-		},
-	}
-	for _, tt := range tests {
-		for _, clientCount := range []int{1, 2, 5} {
-			testNameSuffix := fmt.Sprintf("-different clients - %v", clientCount)
-			t.Run(tt.name+testNameSuffix, func(t *testing.T) {
-				monitor, err := NewMonitor(cfg, nil, nil, nil)
-				require.NoError(t, err)
-				require.NoError(t, monitor.Start())
-				defer monitor.Stop()
-
-				tt.runClients(t, clientCount)
-
-				res := make(map[http.Key]int)
-				assert.Eventually(t, func() bool {
-					stats := monitor.GetProtocolStats()
-					http2Stats, ok := stats[protocols.HTTP2]
-					if !ok {
-						return false
-					}
-					http2StatsTyped := http2Stats.(map[http.Key]*http.RequestStats)
-					for key, stat := range http2StatsTyped {
-						if key.DstPort == http2SrvPort || key.SrcPort == http2SrvPort {
-							count := stat.Data[200].Count
-							newKey := http.Key{
-								Path:   http.Path{Content: key.Path.Content},
-								Method: key.Method,
-							}
-							if _, ok := res[newKey]; !ok {
-								res[newKey] = count
-							} else {
-								res[newKey] += count
-							}
-						}
-					}
-
-					if len(res) != len(tt.expectedEndpoints) {
-						return false
-					}
-
-					for key, count := range res {
-						valRange, ok := tt.expectedEndpoints[key]
-						if !ok {
-							return false
-						}
-						if count < valRange.lower || count > valRange.upper {
-							return false
-						}
-					}
-
-					return true
-				}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
-				if t.Failed() {
-					o, err := monitor.DumpMaps("http2_in_flight")
-					if err != nil {
-						t.Logf("failed dumping http2_in_flight: %s", err)
-					} else {
-						t.Log(o)
-					}
-				}
-			})
-		}
-	}
-}
-
-func getClientsArray(t *testing.T, size int) []*nethttp.Client {
-	t.Helper()
-
-	res := make([]*nethttp.Client, size)
-	for i := 0; i < size; i++ {
-		res[i] = newH2CClient(t)
-	}
-
-	return res
-}
-
-func startH2CServer(t *testing.T) {
-	t.Helper()
-
-	srv := &nethttp.Server{
-		Addr: http2SrvPortStr,
-		Handler: h2c.NewHandler(nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
-			w.WriteHeader(200)
-			w.Write([]byte("test"))
-		}), &http2.Server{}),
-		IdleTimeout: 2 * time.Second,
-	}
-
-	err := http2.ConfigureServer(srv, nil)
-	require.NoError(t, err)
-
-	l, err := net.Listen("tcp", http2SrvPortStr)
-	require.NoError(t, err, "could not create listening socket")
-
-	go func() {
-		srv.Serve(l)
-		require.NoErrorf(t, err, "could not start HTTP2 server")
-	}()
-
-	t.Cleanup(func() { srv.Close() })
-}
-
-func newH2CClient(t *testing.T) *nethttp.Client {
-	t.Helper()
-
-	client := &nethttp.Client{
-		Transport: &http2.Transport{
-			AllowHTTP: true,
-			DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
-				return net.Dial(network, addr)
-			},
-		},
-	}
-
-	return client
-}
-
-func getClientsIndex(index, totalCount int) int {
-	return index % totalCount
-}
-
 func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp.Request) {
 	requestsExist := make([]bool, len(requests))
 
 	assert.Eventually(t, func() bool {
-		stats := getHttpStats(t, monitor)
+		stats := getHTTPStats(t, monitor)
 
 		if len(stats) == 0 {
 			return false
@@ -866,12 +539,7 @@ func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp
 	}, 3*time.Second, time.Millisecond*100, "connection not found")
 
 	if t.Failed() {
-		o, err := monitor.DumpMaps("http_in_flight")
-		if err != nil {
-			t.Logf("failed dumping http_in_flight: %s", err)
-		} else {
-			t.Log(o)
-		}
+		ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, "http_in_flight")
 
 		for reqIndex, exists := range requestsExist {
 			if !exists {
@@ -1006,7 +674,7 @@ func isRequestIncludedOnce(allStats map[http.Key]*http.RequestStats, req *nethtt
 	return false, fmt.Errorf("expected to find 1 occurrence of %v, but found %d instead", req, occurrences)
 }
 
-func getHttpStats(t *testing.T, mon *Monitor) map[http.Key]*http.RequestStats {
+func getHTTPStats(t *testing.T, mon *Monitor) map[http.Key]*http.RequestStats {
 	t.Helper()
 
 	allStats := mon.GetProtocolStats()

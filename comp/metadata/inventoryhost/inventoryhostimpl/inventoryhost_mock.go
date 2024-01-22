@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package inventoryhostimpl
 
 import (
@@ -17,11 +19,12 @@ import (
 //
 //	fxutil.Test[dependencies](
 //	   t,
-//	   inventoryhost.MockModule,
+//	   inventoryhost.MockModule(),
 //	)
-var MockModule = fxutil.Component(
-	fx.Provide(newMock),
-)
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newMock))
+}
 
 type inventoryhostMock struct{}
 

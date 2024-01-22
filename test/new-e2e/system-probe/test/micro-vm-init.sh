@@ -1,8 +1,9 @@
 #!/bin/bash
 set -eEuxo pipefail
 
-retry_count=$1; shift
-docker_dir=/kmt-docker
+retry_count=$1
+pkgs_run_config_file=$2
+docker_dir=/kmt-dockers
 
 # Add provisioning steps here !
 ## Start docker
@@ -15,9 +16,14 @@ fi
 
 # Start tests
 code=0
-/test-runner -retry "${retry_count}" "${@}" || code=$?
+/test-runner -retry "${retry_count}" -packages-run-config "${pkgs_run_config_file}" || code=$?
 
-cp /job_env.txt /ci-visibility/junit/
+if [[ -f "/job_env.txt" ]]; then
+    cp /job_env.txt /ci-visibility/junit/
+else
+    echo "job_env.txt not found. Continuing without it."
+fi
+
 tar -C /ci-visibility/testjson -czvf /ci-visibility/testjson.tar.gz .
 tar -C /ci-visibility/junit -czvf /ci-visibility/junit.tar.gz .
 

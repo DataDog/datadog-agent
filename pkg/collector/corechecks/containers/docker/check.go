@@ -322,6 +322,7 @@ func (d *DockerCheck) collectImageMetrics(sender sender.Sender, du docker.Client
 				continue
 			}
 
+			//nolint:staticcheck // TODO(CINT) Fix staticcheck linter
 			sender.Gauge("docker.image.virtual_size", float64(image.VirtualSize), "", imageTags)
 			sender.Gauge("docker.image.size", float64(image.Size), "", imageTags)
 		}

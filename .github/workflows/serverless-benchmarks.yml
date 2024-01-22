@@ -1,0 +1,123 @@
+name: "Serverless Benchmarks"
+
+on:
+  pull_request:
+    paths:
+      - 'cmd/serverless/**'
+      - 'pkg/serverless/**'
+      - '.github/workflows/serverless-benchmarks.yml'
+
+env:
+  DD_API_KEY: must-be-set
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: stable
+
+      - name: Install benchstat
+        run: |
+          go install golang.org/x/perf/cmd/benchstat@latest
+
+      - name: Checkout datadog-agent repository
+        uses: actions/checkout@v4
+        with:
+          path: go/src/github.com/DataDog/datadog-agent
+
+      - name: Checkout datadog-agent base branch
+        id: previous
+        run: |
+          cd go/src/github.com/DataDog/datadog-agent
+          git fetch origin $GITHUB_BASE_REF --depth 1
+          git checkout $GITHUB_BASE_REF
+          echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "previous commit: $(git rev-parse HEAD)"
+          go get ./...
+
+      - name: Previous benchmark results
+        run: |
+          cd go/src/github.com/DataDog/datadog-agent
+          go test -tags=test -run='^$' -bench=StartEndInvocation -count=10 -benchtime=500ms -timeout=60m \
+              ./pkg/serverless/... | tee previous
+
+      - name: Checkout datadog-agent pr branch
+        id: current
+        run: |
+          cd go/src/github.com/DataDog/datadog-agent
+          git fetch origin $GITHUB_SHA --depth 1
+          git checkout $GITHUB_SHA
+          echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "current commit: $(git rev-parse HEAD)"
+          go get ./...
+
+      - name: Current benchmark results
+        run: |
+          cd go/src/github.com/DataDog/datadog-agent
+          go test -tags=test -run='^$' -bench=StartEndInvocation -count=10 -benchtime=500ms -timeout=60m \
+              ./pkg/serverless/... | tee current
+
+      - name: Analyze results
+        id: analyze
+        run: |
+          cd go/src/github.com/DataDog/datadog-agent
+          benchstat -row /event previous current | tee analyze.txt
+          echo "analyze<<EOF" >> $GITHUB_OUTPUT
+          cat analyze.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Post comment
+        uses: marocchino/sticky-pull-request-comment@v2.5.0
+        with:
+          recreate: true
+          message: |
+            ## Serverless Benchmark Results
+
+            `BenchmarkStartEndInvocation` comparison between ${{ steps.previous.outputs.sha }} and ${{ steps.current.outputs.sha }}.
+
+            <details>
+            <summary>tl;dr</summary>
+
+            1. Skim down the `vs base` column in each chart. If there is a `~`, then there was no statistically significant change to the benchmark. Otherwise, ensure the estimated percent change is either negative or very small.
+
+            2. The last row of each chart is the `geomean`. Ensure this percentage is either negative or very small.
+
+            </details>
+
+            <details>
+            <summary>What is this benchmarking?</summary>
+
+            The [`BenchmarkStartEndInvocation`](https://github.com/DataDog/datadog-agent/blob/main/pkg/serverless/daemon/routes_test.go) compares the amount of time it takes to call the `start-invocation` and `end-invocation` endpoints. For universal instrumentation languages (Dotnet, Golang, Java, Ruby), this represents the majority of the duration overhead added by our tracing layer.
+
+            The benchmark is run using a large variety of lambda request payloads. In the charts below, there is one row for each event payload type.
+
+            </details>
+
+            <details>
+            <summary>How do I interpret these charts?</summary>
+
+            The charts below comes from [`benchstat`](https://pkg.go.dev/golang.org/x/perf/cmd/benchstat).  They represent the statistical change in _duration (sec/op)_, _memory overhead (B/op)_, and _allocations (allocs/op)_.
+
+            The benchstat docs explain how to interpret these charts.
+
+            > Before the comparison table, we see common file-level configuration. If there are benchmarks with different configuration (for example, from different packages), benchstat will print separate tables for each configuration.
+            >
+            > The table then compares the two input files for each benchmark. It shows the median and 95% confidence interval summaries for each benchmark before and after the change, and an A/B comparison under "vs base".  ...  The p-value measures how likely it is that any differences were due to random chance (i.e., noise). The "~" means benchstat did not detect a statistically significant difference between the two inputs. ...
+            >
+            > Note that "statistically significant" is not the same as "large": with enough low-noise data, even very small changes can be distinguished from noise and considered statistically significant.  It is, of course, generally easier to distinguish large changes from noise.
+            >
+            > Finally, the last row of the table shows the geometric mean of each column, giving an overall picture of how the benchmarks changed.  Proportional changes in the geomean reflect proportional changes in the benchmarks. For example, given n benchmarks, if sec/op for one of them increases by a factor of 2, then the sec/op geomean will increase by a factor of ⁿ√2.
+
+            </details>
+
+            <details open>
+            <summary>Benchmark stats</summary>
+
+            ```
+            ${{ steps.analyze.outputs.analyze }}
+            ```
+
+            </details>

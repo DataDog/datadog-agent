@@ -42,6 +42,7 @@ func init() {
 
 type systemCollector struct {
 	reader              *cgroups.Reader
+	selfReader          *cgroups.Reader
 	pidMapper           cgroups.StandalonePIDMapper
 	procPath            string
 	baseController      string
@@ -66,13 +67,24 @@ func newSystemCollector(cache *provider.Cache) (provider.CollectorMetadata, erro
 	)
 	if err != nil {
 		// Cgroup provider is pretty static. Except not having required mounts, it should always work.
-		log.Errorf("Unable to initialize cgroup provider (cgroups not mounted?), err: %v", err)
+		log.Infof("Unable to initialize cgroup provider (cgroups not mounted?), err: %v", err)
 		return collectorMetadata, provider.ErrPermaFail
 	}
 
+	selfReader, err := cgroups.NewSelfReader(
+		procPath,
+		config.IsContainerized(),
+		cgroups.WithCgroupV1BaseController(cgroupV1BaseController),
+	)
+	if err != nil {
+		// Cgroup provider is pretty static. Except not having required mounts, it should always work.
+		log.Infof("Unable to initialize self cgroup reader, err: %v", err)
+		return collectorMetadata, provider.ErrPermaFail
+	}
 	systemCollector := &systemCollector{
-		reader:   reader,
-		procPath: procPath,
+		reader:     reader,
+		selfReader: selfReader,
+		procPath:   procPath,
 	}
 
 	// Set base controller for cgroupV1 (remains empty for cgroupV2)
@@ -110,6 +122,7 @@ func newSystemCollector(cache *provider.Cache) (provider.CollectorMetadata, erro
 			collectors.OpenFilesCount = provider.MakeRef[provider.ContainerOpenFilesCountGetter](systemCollector, collectorHighPriority)
 			collectors.PIDs = provider.MakeRef[provider.ContainerPIDsGetter](systemCollector, collectorHighPriority)
 			collectors.ContainerIDForPID = provider.MakeRef[provider.ContainerIDForPIDRetriever](systemCollector, collectorHighPriority)
+			collectors.ContainerIDForInode = provider.MakeRef[provider.ContainerIDForInodeRetriever](systemCollector, collectorHighPriority)
 		} else if isAgentSidecar {
 			// When side car with sharedPIDNamespace, we can get the same data.
 			// As we don't know if we are sharedPIDNamespace, adding as low priority.
@@ -131,12 +144,13 @@ func newSystemCollector(cache *provider.Cache) (provider.CollectorMetadata, erro
 	} else {
 		// When not running in a container, we can use everything
 		collectors = &provider.Collectors{
-			Stats:             provider.MakeRef[provider.ContainerStatsGetter](systemCollector, collectorHighPriority),
-			Network:           provider.MakeRef[provider.ContainerNetworkStatsGetter](systemCollector, collectorHighPriority),
-			OpenFilesCount:    provider.MakeRef[provider.ContainerOpenFilesCountGetter](systemCollector, collectorHighPriority),
-			PIDs:              provider.MakeRef[provider.ContainerPIDsGetter](systemCollector, collectorHighPriority),
-			ContainerIDForPID: provider.MakeRef[provider.ContainerIDForPIDRetriever](systemCollector, collectorHighPriority),
-			SelfContainerID:   provider.MakeRef[provider.SelfContainerIDRetriever](systemCollector, collectorHighPriority),
+			Stats:               provider.MakeRef[provider.ContainerStatsGetter](systemCollector, collectorHighPriority),
+			Network:             provider.MakeRef[provider.ContainerNetworkStatsGetter](systemCollector, collectorHighPriority),
+			OpenFilesCount:      provider.MakeRef[provider.ContainerOpenFilesCountGetter](systemCollector, collectorHighPriority),
+			PIDs:                provider.MakeRef[provider.ContainerPIDsGetter](systemCollector, collectorHighPriority),
+			ContainerIDForPID:   provider.MakeRef[provider.ContainerIDForPIDRetriever](systemCollector, collectorHighPriority),
+			ContainerIDForInode: provider.MakeRef[provider.ContainerIDForInodeRetriever](systemCollector, collectorHighPriority),
+			SelfContainerID:     provider.MakeRef[provider.SelfContainerIDRetriever](systemCollector, collectorHighPriority),
 		}
 	}
 	log.Debugf("Chosen system collectors: %+v", collectors)
@@ -152,7 +166,7 @@ func newSystemCollector(cache *provider.Cache) (provider.CollectorMetadata, erro
 
 	// Finally add to catalog
 	for _, runtime := range provider.AllLinuxRuntimes {
-		metadata.Collectors[runtime] = collectors
+		metadata.Collectors[provider.NewRuntimeMetadata(string(runtime), "")] = collectors
 	}
 
 	return metadata, nil
@@ -167,6 +181,7 @@ func (c *systemCollector) GetContainerStats(containerNS, containerID string, cac
 	return c.buildContainerMetrics(cg, cacheValidity)
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (c *systemCollector) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) {
 	pids, err := c.getPIDs(containerID, cacheValidity)
 	if err != nil {
@@ -181,6 +196,7 @@ func (c *systemCollector) GetContainerOpenFilesCount(containerNS, containerID st
 	return &ofCount, nil
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (c *systemCollector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
 	pids, err := c.getPIDs(containerID, cacheValidity)
 	if err != nil {
@@ -194,13 +210,51 @@ func (c *systemCollector) GetPIDs(_, containerID string, cacheValidity time.Dura
 	return c.getPIDs(containerID, cacheValidity)
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (c *systemCollector) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) {
 	containerID, err := cgroups.IdentiferFromCgroupReferences(c.procPath, strconv.Itoa(pid), c.baseController, cgroups.ContainerFilter)
 	return containerID, err
 }
 
+func (c *systemCollector) GetContainerIDForInode(inode uint64, cacheValidity time.Duration) (string, error) {
+	cg := c.reader.GetCgroupByInode(inode)
+	if cg == nil {
+		err := c.reader.RefreshCgroups(cacheValidity)
+		if err != nil {
+			return "", fmt.Errorf("containerID not found from inode %d and unable to refresh cgroups, err: %w", inode, err)
+		}
+
+		cg = c.reader.GetCgroupByInode(inode)
+		if cg == nil {
+			return "", fmt.Errorf("containerID not found from inode %d, err: %w", inode, err)
+		}
+	}
+
+	return cg.Identifier(), nil
+}
+
 func (c *systemCollector) GetSelfContainerID() (string, error) {
+	cid, err := c.getSelfContainerIDFromInode()
+	if cid != "" {
+		return cid, nil
+	}
+	log.Debugf("unable to get self container ID from cgroup controller inode: %v", err)
+
 	return getSelfContainerID(c.hostCgroupNamespace, c.reader.CgroupVersion(), c.baseController)
+}
+
+// getSelfContainerIDFromInode returns the container ID of the current process by using the inode of the cgroup
+// controller. The `reader` must use a `cgroups.ContainerFilter`.
+func (c *systemCollector) getSelfContainerIDFromInode() (string, error) {
+	if c.selfReader == nil {
+		return "", fmt.Errorf("self reader is not initialized")
+	}
+	selfCgroup := c.selfReader.GetCgroup(cgroups.SelfCgroupIdentifier)
+	if selfCgroup == nil {
+		return "", fmt.Errorf("unable to get self cgroup")
+	}
+
+	return c.GetContainerIDForInode(selfCgroup.Inode(), 0)
 }
 
 func (c *systemCollector) getCgroup(containerID string, cacheValidity time.Duration) (cgroups.Cgroup, error) {
@@ -233,6 +287,7 @@ func (c *systemCollector) getPIDs(containerID string, cacheValidity time.Duratio
 	return c.pidMapper.GetPIDs(containerID, cacheValidity), nil
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (c *systemCollector) buildContainerMetrics(cg cgroups.Cgroup, cacheValidity time.Duration) (*provider.ContainerStats, error) {
 	stats := &cgroups.Stats{}
 	allFailed, errs := cgroups.GetStats(cg, stats)

@@ -57,9 +57,10 @@ var (
 )
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newAgentCrashComponent),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newAgentCrashComponent))
+}
 
 // WinCrashConfig is the configuration options for this check
 // it is exported so that the yaml parser can read it.

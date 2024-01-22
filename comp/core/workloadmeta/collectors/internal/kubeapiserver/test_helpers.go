@@ -39,14 +39,13 @@ func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, 
 	}
 
 	wlm := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Replace(config.MockParams{Overrides: overrides}),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2,
+		workloadmeta.MockModuleV2(),
 	))
 	ctx := context.TODO()
-	wlm.Start(ctx)
 
 	store, _ := newStore(ctx, wlm, client)
 	stopStore := make(chan struct{})
@@ -63,9 +62,7 @@ func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, 
 	read := assert.Eventually(t, func() bool {
 		select {
 		case bundle = <-ch:
-			if bundle.Ch != nil {
-				close(bundle.Ch)
-			}
+			bundle.Acknowledge()
 			if len(bundle.Events) == 0 {
 				return false
 			}
@@ -80,9 +77,7 @@ func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, 
 	// Retrieving the resource in an event bundle
 	if !read {
 		bundle = <-ch
-		if bundle.Ch != nil {
-			close(bundle.Ch)
-		}
+		bundle.Acknowledge()
 	}
 
 	// nil the bundle's Ch so we can

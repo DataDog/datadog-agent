@@ -1024,8 +1024,7 @@ func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, tim
 		return err == nil || timeout != 0
 	}, 6*time.Second, 100*time.Millisecond, "Failed to get dns response")
 
-	// Allow the DNS reply to be processed in the snooper
-	time.Sleep(time.Millisecond * 500)
+	require.NoError(t, tr.reverseDNS.WaitForDomain(domain))
 
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections := getConnections(t, tr)
@@ -1036,16 +1035,10 @@ func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, tim
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, dnsServerAddr.Port, int(conn.DPort))
 
-	dnsKey, ok := network.DNSKey(conn)
-	require.True(t, ok)
-
-	dnsStats, ok := connections.DNSStats[dnsKey]
-	require.True(t, ok)
-
 	var total uint32
 	var successfulResponses uint32
 	var timeouts uint32
-	for _, byDomain := range dnsStats {
+	for _, byDomain := range conn.DNSStats {
 		for _, byQueryType := range byDomain {
 			successfulResponses += byQueryType.CountByRcode[uint32(0)]
 			timeouts += byQueryType.Timeouts

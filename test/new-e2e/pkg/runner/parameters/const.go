@@ -19,6 +19,8 @@ const (
 	ExtraResourcesTags StoreKey = "extra_resources_tags"
 	// KeyPairName config file parameter name
 	KeyPairName StoreKey = "key_pair_name"
+	// PrivateKeyPassword config file parameter name
+	PrivateKeyPassword StoreKey = "private_key_password"
 	// PrivateKeyPath config file parameter name
 	PrivateKeyPath StoreKey = "private_key_path"
 	// Profile config file parameter name
@@ -33,4 +35,12 @@ const (
 	StackParameters StoreKey = "stack_params"
 	// PipelineID config file parameter name
 	PipelineID StoreKey = "pipeline_id"
+	// VerifyCodeSignature config file parameter name
+	VerifyCodeSignature StoreKey = "verify_code_signature"
+	// OutputDir config file parameter name
+	OutputDir StoreKey = "output_dir"
+	// PulumiLogLevel config file parameter name
+	PulumiLogLevel StoreKey = "pulumi_log_level"
+	// PulumiLogToStdErr config file parameter name
+	PulumiLogToStdErr StoreKey = "pulumi_log_to_stderr"
 )

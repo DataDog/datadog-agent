@@ -5,6 +5,7 @@
 
 //go:build windows
 
+// Package modules is all the module definitions for system-probe
 package modules
 
 import (

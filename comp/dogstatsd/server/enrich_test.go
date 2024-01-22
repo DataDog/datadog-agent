@@ -32,7 +32,7 @@ var (
 )
 
 func parseAndEnrichSingleMetricMessage(t *testing.T, message []byte, conf enrichConfig) (metrics.MetricSample, error) {
-	cfg := fxutil.Test[config.Component](t, config.MockModule)
+	cfg := fxutil.Test[config.Component](t, config.MockModule())
 	parser := newParser(cfg, newFloat64ListPool(), 1)
 	parsed, err := parser.parseMetricSample(message)
 	if err != nil {
@@ -48,7 +48,7 @@ func parseAndEnrichSingleMetricMessage(t *testing.T, message []byte, conf enrich
 }
 
 func parseAndEnrichMultipleMetricMessage(t *testing.T, message []byte, conf enrichConfig) ([]metrics.MetricSample, error) {
-	cfg := fxutil.Test[config.Component](t, config.MockModule)
+	cfg := fxutil.Test[config.Component](t, config.MockModule())
 	parser := newParser(cfg, newFloat64ListPool(), 1)
 	parsed, err := parser.parseMetricSample(message)
 	if err != nil {
@@ -60,7 +60,7 @@ func parseAndEnrichMultipleMetricMessage(t *testing.T, message []byte, conf enri
 }
 
 func parseAndEnrichServiceCheckMessage(t *testing.T, message []byte, conf enrichConfig) (*servicecheck.ServiceCheck, error) {
-	cfg := fxutil.Test[config.Component](t, config.MockModule)
+	cfg := fxutil.Test[config.Component](t, config.MockModule())
 	parser := newParser(cfg, newFloat64ListPool(), 1)
 	parsed, err := parser.parseServiceCheck(message)
 	if err != nil {
@@ -70,7 +70,7 @@ func parseAndEnrichServiceCheckMessage(t *testing.T, message []byte, conf enrich
 }
 
 func parseAndEnrichEventMessage(t *testing.T, message []byte, conf enrichConfig) (*event.Event, error) {
-	cfg := fxutil.Test[config.Component](t, config.MockModule)
+	cfg := fxutil.Test[config.Component](t, config.MockModule())
 	parser := newParser(cfg, newFloat64ListPool(), 1)
 	parsed, err := parser.parseEvent(message)
 	if err != nil {
@@ -343,6 +343,7 @@ func TestConvertParseMetricError(t *testing.T) {
 	assert.Error(t, err)
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func TestConvertParseMonokeyBatching(t *testing.T) {
 	// TODO: not implemented
 	// parsed, err := parseAndEnrichSingleMetricMessage(t, []byte("test_gauge:1.5|g|#tag1:one,tag2:two:2.3|g|#tag3:three:3|g"), "default-hostname")
@@ -958,7 +959,7 @@ func TestMetricBlocklistShouldBlock(t *testing.T) {
 		defaultHostname: "default",
 	}
 
-	cfg := fxutil.Test[config.Component](t, config.MockModule)
+	cfg := fxutil.Test[config.Component](t, config.MockModule())
 	parser := newParser(cfg, newFloat64ListPool(), 1)
 	parsed, err := parser.parseMetricSample(message)
 	assert.NoError(t, err)
@@ -975,7 +976,7 @@ func TestServerlessModeShouldSetEmptyHostname(t *testing.T) {
 	}
 
 	message := []byte("custom.metric.a:21|ms")
-	cfg := fxutil.Test[config.Component](t, config.MockModule)
+	cfg := fxutil.Test[config.Component](t, config.MockModule())
 	parser := newParser(cfg, newFloat64ListPool(), 1)
 	parsed, err := parser.parseMetricSample(message)
 	assert.NoError(t, err)
@@ -995,7 +996,7 @@ func TestMetricBlocklistShouldNotBlock(t *testing.T) {
 		}, false),
 		defaultHostname: "default",
 	}
-	cfg := fxutil.Test[config.Component](t, config.MockModule)
+	cfg := fxutil.Test[config.Component](t, config.MockModule())
 	parser := newParser(cfg, newFloat64ListPool(), 1)
 	parsed, err := parser.parseMetricSample(message)
 	assert.NoError(t, err)

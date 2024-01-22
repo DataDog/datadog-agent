@@ -12,7 +12,6 @@ package httpsec
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"io"
@@ -25,6 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	waf "github.com/DataDog/go-libddwaf/v2"
+	json "github.com/json-iterator/go"
 )
 
 // Monitorer is the interface type expected by the httpsec invocation
@@ -110,7 +110,7 @@ func tryParseBody(headers textproto.MIMEHeader, raw string) (body any, err error
 
 	if value := headers.Get("Content-Type"); value == "" {
 		return nil, nil
-	} else {
+	} else { //nolint:revive // TODO(ASM) Fix revive linter
 		mt, p, err := mime.ParseMediaType(value)
 		if err != nil {
 			return nil, err

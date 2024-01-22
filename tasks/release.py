@@ -3,6 +3,7 @@ Release helper tasks
 """
 
 import json
+import os
 import re
 import sys
 from collections import OrderedDict
@@ -16,10 +17,7 @@ from .libs.common.color import color_message
 from .libs.common.github_api import GithubAPI
 from .libs.common.gitlab import Gitlab, get_gitlab_token
 from .libs.common.user_interactions import yes_no_question
-from .libs.version import Version
-from .modules import DEFAULT_MODULES
-from .pipeline import edit_schedule, run
-from .utils import (
+from .libs.common.utils import (
     DEFAULT_BRANCH,
     GITHUB_REPO_NAME,
     check_clean_branch_state,
@@ -27,6 +25,9 @@ from .utils import (
     nightly_entry_for,
     release_entry_for,
 )
+from .libs.version import Version
+from .modules import DEFAULT_MODULES
+from .pipeline import edit_schedule, run
 
 # Generic version regex. Aims to match:
 # - X.Y.Z
@@ -34,6 +35,9 @@ from .utils import (
 # - X.Y.Z-devel
 # - vX.Y(.Z) (security-agent-policies repo)
 VERSION_RE = re.compile(r'(v)?(\d+)[.](\d+)([.](\d+))?(-devel)?(-rc\.(\d+))?')
+
+# Regex matching rc version tag format like 7.50.0-rc.1
+RC_VERSION_RE = re.compile(r'\d+[.]\d+[.]\d+-rc\.\d+')
 
 UNFREEZE_REPO_AGENT = "datadog-agent"
 UNFREEZE_REPOS = [UNFREEZE_REPO_AGENT, "omnibus-software", "omnibus-ruby", "datadog-agent-macos-build"]
@@ -1131,6 +1135,7 @@ Make sure that milestone is open before trying again.""",
         labels=[
             "changelog/no-changelog",
             "qa/skip-qa",
+            "qa/no-code-change",
             "team/agent-platform",
             "team/agent-release-management",
             "category/release_operations",
@@ -1226,8 +1231,26 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=Fal
         major_versions=major_versions,
         repo_branch="beta",
         deploy=True,
+        rc_build=True,
         rc_k8s_deployments=k8s_deployments,
     )
+
+
+@task(help={'key': "Path to an existing release.json key, separated with double colons, eg. 'last_stable::6'"})
+def set_release_json(_, key, value):
+    release_json = _load_release_json()
+    path = key.split('::')
+    current_node = release_json
+    for key_idx in range(len(path)):
+        key = path[key_idx]
+        if key not in current_node:
+            raise Exit(code=1, message=f"Couldn't find '{key}' in release.json")
+        if key_idx == len(path) - 1:
+            current_node[key] = value
+            break
+        else:
+            current_node = current_node[key]
+    _save_release_json(release_json)
 
 
 @task(help={'key': "Path to the release.json key, separated with double colons, eg. 'last_stable::6'"})
@@ -1400,3 +1423,85 @@ def check_omnibus_branches(_):
         if omnibus_software_version != 'master' and not version_re.match(omnibus_software_version):
             raise Exit(code=1, message=f'omnibus-software version [{omnibus_software_version}] is not mergeable')
     return True
+
+
+@task
+def update_build_links(_ctx, new_version):
+    """
+    Updates Agent release candidates build links on https://datadoghq.atlassian.net/wiki/spaces/agent/pages/2889876360/Build+links
+
+    new_version - should be given as an Agent 7 RC version, ie. '7.50.0-rc.1' format.
+
+    Notes:
+    Attlasian credentials are required to be available as ATLASSIAN_USERNAME and ATLASSIAN_PASSWORD as environment variables.
+    ATLASSIAN_USERNAME is typically an email address.
+    ATLASSIAN_PASSWORD is a token. See: https://id.atlassian.com/manage-profile/security/api-tokens
+    """
+    from atlassian import Confluence
+    from atlassian.confluence import ApiError
+
+    BUILD_LINKS_PAGE_ID = 2889876360
+
+    match = RC_VERSION_RE.match(new_version)
+    if not match:
+        raise Exit(
+            color_message(
+                f"{new_version} is not a valid Agent RC version number/tag. \nCorrect example: 7.50.0-rc.1",
+                "red",
+            ),
+            code=1,
+        )
+
+    username = os.getenv("ATLASSIAN_USERNAME")
+    password = os.getenv("ATLASSIAN_PASSWORD")
+
+    if username is None or password is None:
+        raise Exit(
+            color_message(
+                "No Atlassian credentials provided. Run inv --help update-build-links for more details.",
+                "red",
+            ),
+            code=1,
+        )
+
+    confluence = Confluence(url="https://datadoghq.atlassian.net/", username=username, password=password)
+
+    content = confluence.get_page_by_id(page_id=BUILD_LINKS_PAGE_ID, expand="body.storage")
+
+    title = content["title"]
+    current_version = title[-11:]
+    body = content["body"]["storage"]["value"]
+
+    title = title.replace(current_version, new_version)
+
+    patterns = _create_build_links_patterns(current_version, new_version)
+
+    for key in patterns:
+        body = body.replace(key, patterns[key])
+
+    print(color_message(f"Updating QA Build links page with {new_version}", "bold"))
+
+    try:
+        confluence.update_page(BUILD_LINKS_PAGE_ID, title, body=body)
+    except ApiError as e:
+        raise Exit(
+            color_message(
+                f"Failed to update confluence page. Reason: {e.reason}",
+                "red",
+            ),
+            code=1,
+        )
+    print(color_message("Build links page updated", "green"))
+
+
+def _create_build_links_patterns(current_version, new_version):
+    patterns = {}
+
+    current_minor_version = current_version[1:]
+    new_minor_version = new_version[1:]
+
+    patterns[current_minor_version] = new_minor_version
+    patterns[current_minor_version.replace("rc.", "rc-")] = new_minor_version.replace("rc.", "rc-")
+    patterns[current_minor_version.replace("-rc", "~rc")] = new_minor_version.replace("-rc", "~rc")
+
+    return patterns

@@ -26,16 +26,18 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/custommetrics"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
@@ -44,9 +46,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/remote"
+	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
-	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
+	rcservice "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -83,20 +85,22 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    log.ForDaemon(command.LoggerName, "log_file", path.DefaultDCALogFile),
+					LogParams:    logimpl.ForDaemon(command.LoggerName, "log_file", path.DefaultDCALogFile),
 				}),
-				core.Bundle,
-				forwarder.Bundle,
+				core.Bundle(),
+				forwarder.Bundle(),
 				fx.Provide(func(config config.Component, log log.Component) defaultforwarder.Params {
 					params := defaultforwarder.NewParamsWithResolvers(config, log)
 					params.Options.DisableAPIKeyChecking = true
 					return params
 				}),
-				demultiplexer.Module,
-				fx.Provide(func() demultiplexer.Params {
-					opts := aggregator.DefaultAgentDemultiplexerOptions()
-					opts.UseEventPlatformForwarder = false
-					return demultiplexer.Params{Options: opts}
+				demultiplexerimpl.Module(),
+				orchestratorForwarderImpl.Module(),
+				fx.Supply(orchestratorForwarderImpl.NewDefaultParams()),
+				fx.Provide(func() demultiplexerimpl.Params {
+					params := demultiplexerimpl.NewDefaultParams()
+					params.UseEventPlatformForwarder = false
+					return params
 				}),
 				// setup workloadmeta
 				collectors.GetCatalog(),
@@ -105,7 +109,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					AgentType:  workloadmeta.ClusterAgent,
 				}), // TODO(components): check what this must be for cluster-agent-cloudfoundry
 				fx.Supply(context.Background()),
-				workloadmeta.Module,
+				workloadmeta.Module(),
 			)
 		},
 	}
@@ -157,7 +161,7 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 	}()
 
 	// Setup healthcheck port
-	var healthPort = pkgconfig.Datadog.GetInt("health_port")
+	healthPort := pkgconfig.Datadog.GetInt("health_port")
 	if healthPort > 0 {
 		err := healthprobe.Serve(mainCtx, healthPort)
 		if err != nil {
@@ -168,15 +172,20 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 	}
 
 	// Initialize remote configuration
-	var rcClient *remote.Client
+	var rcClient *rcclient.Client
+	var rcService *rcservice.Service
 	if pkgconfig.IsRemoteConfigEnabled(pkgconfig.Datadog) {
 		var err error
-		rcClient, err = initializeRemoteConfig(mainCtx)
+		rcClient, rcService, err = initializeRemoteConfig(mainCtx)
 		if err != nil {
 			log.Errorf("Failed to start remote-configuration: %v", err)
 		} else {
+			rcService.Start(mainCtx)
 			rcClient.Start()
-			defer rcClient.Close()
+			defer func() {
+				_ = rcService.Stop()
+				rcClient.Close()
+			}()
 		}
 	}
 
@@ -222,15 +231,13 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "datadog-cluster-agent"})
 
 	ctx := apiserver.ControllerContext{
-		InformerFactory:    apiCl.InformerFactory,
-		WPAClient:          apiCl.WPAClient,
-		WPAInformerFactory: apiCl.WPAInformerFactory,
-		DDClient:           apiCl.DDClient,
-		DDInformerFactory:  apiCl.DynamicInformerFactory,
-		Client:             apiCl.Cl,
-		IsLeaderFunc:       le.IsLeader,
-		EventRecorder:      eventRecorder,
-		StopCh:             stopCh,
+		InformerFactory:        apiCl.InformerFactory,
+		DynamicClient:          apiCl.DynamicInformerCl,
+		DynamicInformerFactory: apiCl.DynamicInformerFactory,
+		Client:                 apiCl.InformerCl,
+		IsLeaderFunc:           le.IsLeader,
+		EventRecorder:          eventRecorder,
+		StopCh:                 stopCh,
 	}
 
 	if aggErr := apiserver.StartControllers(ctx); aggErr != nil {
@@ -244,6 +251,7 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 	// this must be a UUID, and ideally be stable for the lifetime of a cluster,
 	// so we store it in a configmap that we try and read before generating a new one.
 	coreClient := apiCl.Cl.CoreV1().(*corev1.CoreV1Client)
+	//nolint:revive // TODO(CINT) Fix revive linter
 	clusterId, err := apicommon.GetOrCreateClusterID(coreClient)
 	if err != nil {
 		pkglog.Errorf("Failed to generate or retrieve the cluster ID")
@@ -333,7 +341,6 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 			SecretInformers:     apiCl.CertificateSecretInformerFactory,
 			WebhookInformers:    apiCl.WebhookConfigInformerFactory,
 			Client:              apiCl.Cl,
-			DiscoveryClient:     apiCl.DiscoveryCl,
 			StopCh:              stopCh,
 		}
 
@@ -438,18 +445,35 @@ func setupClusterCheck(ctx context.Context) (*clusterchecks.Handler, error) {
 	return handler, nil
 }
 
-func initializeRemoteConfig(ctx context.Context) (*remote.Client, error) {
-	configService, err := remoteconfig.NewService()
+func initializeRemoteConfig(ctx context.Context) (*rcclient.Client, *rcservice.Service, error) {
+	clusterName := ""
+	hname, err := hostname.Get(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("unable to create remote-config service: %w", err)
+		pkglog.Warnf("Error while getting hostname, needed for retrieving cluster-name: cluster-name won't be set for remote-config")
+	} else {
+		clusterName = clustername.GetClusterName(context.TODO(), hname)
 	}
 
-	configService.Start(ctx)
-
-	rcClient, err := remote.NewClient("cluster-agent", configService, version.AgentVersion, []data.Product{data.ProductAPMTracing}, time.Second*5)
+	clusterID, err := clustername.GetClusterID()
 	if err != nil {
-		return nil, fmt.Errorf("unable to create local remote-config client: %w", err)
+		pkglog.Warnf("Error retrieving cluster ID: cluster-id won't be set for remote-config")
 	}
 
-	return rcClient, nil
+	rcService, err := common.NewRemoteConfigService(hname)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	rcClient, err := rcclient.NewClient(rcService,
+		rcclient.WithAgent("cluster-agent", version.AgentVersion),
+		rcclient.WithCluster(clusterName, clusterID),
+		rcclient.WithProducts([]data.Product{data.ProductAPMTracing}),
+		rcclient.WithPollInterval(5*time.Second),
+		rcclient.WithDirectorRootOverride(pkgconfig.Datadog.GetString("remote_configuration.director_root")),
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to create local remote-config client: %w", err)
+	}
+
+	return rcClient, rcService, nil
 }

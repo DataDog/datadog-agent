@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package file
 
 import (
@@ -13,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
@@ -47,10 +49,11 @@ type Launcher struct {
 	// Feature flag defaulting to false, use `logs_config.validate_pod_container_id`.
 	validatePodContainerID bool
 	scanPeriod             time.Duration
+	flarecontroller        *flareController.FlareController
 }
 
 // NewLauncher returns a new launcher.
-func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePodContainerID bool, scanPeriod time.Duration, wildcardMode string) *Launcher {
+func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePodContainerID bool, scanPeriod time.Duration, wildcardMode string, flarecontroller *flareController.FlareController) *Launcher {
 
 	var wildcardStrategy fileprovider.WildcardSelectionStrategy
 	switch wildcardMode {
@@ -71,6 +74,7 @@ func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePo
 		stop:                   make(chan struct{}),
 		validatePodContainerID: validatePodContainerID,
 		scanPeriod:             scanPeriod,
+		flarecontroller:        flarecontroller,
 	}
 }
 
@@ -94,6 +98,7 @@ func (s *Launcher) Stop() {
 func (s *Launcher) run() {
 	scanTicker := time.NewTicker(s.scanPeriod)
 	defer scanTicker.Stop()
+
 	for {
 		select {
 		case source := <-s.addedSources:
@@ -127,6 +132,7 @@ func (s *Launcher) cleanup() {
 func (s *Launcher) scan() {
 	files := s.fileProvider.FilesToTail(s.validatePodContainerID, s.activeSources)
 	filesTailed := make(map[string]bool)
+	var allFiles []string
 
 	log.Debugf("Scan - got %d files from FilesToTail and currently tailing %d files\n", len(files), s.tailers.Count())
 
@@ -134,6 +140,7 @@ func (s *Launcher) scan() {
 	// stop the tailers.
 	// Defer creation of new tailers until second pass.
 	for _, file := range files {
+		allFiles = append(allFiles, file.Path)
 		// We're using generated key here: in case this file has been found while
 		// scanning files for container, the key will use the format:
 		//   <filepath>/<containerID>
@@ -154,6 +161,7 @@ func (s *Launcher) scan() {
 		if isTailed {
 			didRotate, err := tailer.DidRotate()
 			if err != nil {
+				log.Debugf("failed to detect log rotation: %v", err)
 				continue
 			}
 			if didRotate {
@@ -172,6 +180,8 @@ func (s *Launcher) scan() {
 
 		filesTailed[scanKey] = true
 	}
+
+	s.flarecontroller.SetAllFiles(allFiles)
 
 	for _, tailer := range s.tailers.All() {
 		// stop all tailers which have not been selected
@@ -355,6 +365,7 @@ func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, patt
 	return t.NewRotatedTailer(file, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo)
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func CheckProcessTelemetry(stats *util.ProcessFileStats) {
 	ratio := float64(stats.AgentOpenFiles) / float64(stats.OsFileLimit)
 	if ratio > 0.9 {

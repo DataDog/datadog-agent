@@ -51,7 +51,7 @@ func (a *asset) Compile(config *ebpf.Config, additionalFlags []string, client st
 		}
 	}()
 
-	opts := kernel.KernelHeaderOptions{
+	opts := kernel.HeaderOptions{
 		DownloadEnabled: config.EnableKernelHeaderDownload,
 		Dirs:            config.KernelHeadersDirs,
 		DownloadDir:     config.KernelHeadersDownloadDir,

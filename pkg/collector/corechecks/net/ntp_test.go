@@ -34,10 +34,12 @@ timeout: 5
 	offset = 10
 )
 
+//nolint:revive // TODO(PLINT) Fix revive linter
 func testNTPQueryError(host string, opt ntp.QueryOptions) (*ntp.Response, error) {
 	return nil, fmt.Errorf("test error from NTP")
 }
 
+//nolint:revive // TODO(PLINT) Fix revive linter
 func testNTPQueryInvalid(host string, opt ntp.QueryOptions) (*ntp.Response, error) {
 	return &ntp.Response{
 		ClockOffset: time.Duration(offset) * time.Second,
@@ -45,6 +47,7 @@ func testNTPQueryInvalid(host string, opt ntp.QueryOptions) (*ntp.Response, erro
 	}, nil
 }
 
+//nolint:revive // TODO(PLINT) Fix revive linter
 func testNTPQuery(host string, opt ntp.QueryOptions) (*ntp.Response, error) {
 	return &ntp.Response{
 		ClockOffset: time.Duration(offset) * time.Second,

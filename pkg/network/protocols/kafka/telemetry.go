@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// Telemetry is a struct to hold the telemetry for the kafka protocol
 type Telemetry struct {
 	metricGroup *libtelemetry.MetricGroup
 
@@ -19,6 +20,7 @@ type Telemetry struct {
 	dropped   *libtelemetry.Counter // this happens when KafkaStatKeeper reaches capacity
 }
 
+// NewTelemetry creates a new Telemetry
 func NewTelemetry() *Telemetry {
 	metricGroup := libtelemetry.NewMetricGroup("usm.kafka", libtelemetry.OptStatsd)
 
@@ -30,10 +32,12 @@ func NewTelemetry() *Telemetry {
 	}
 }
 
-func (t *Telemetry) Count(_ *EbpfTx) {
+// Count increments the total hits counter
+func (t *Telemetry) Count(*EbpfTx) {
 	t.totalHits.Add(1)
 }
 
+// Log logs the kafka stats summary
 func (t *Telemetry) Log() {
 	log.Debugf("kafka stats summary: %s", t.metricGroup.Summary())
 }

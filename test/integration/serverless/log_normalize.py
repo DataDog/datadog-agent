@@ -122,6 +122,10 @@ def normalize_traces(stage, aws_account_id):
     ]
 
 
+def normalize_proxy():
+    return [find(r'Using proxy .*? for URL .*?\'.*?\'')]
+
+
 def normalize_appsec(stage):
     def select__dd_appsec_json(log):
         """Selects the content of spans.*.meta.[_dd.appsec.json] which is
@@ -189,6 +193,18 @@ def require(pattern):
         return match.group(0)
 
     return _require
+
+
+def find(pattern):
+    comp = re.compile(pattern, flags=re.DOTALL)
+
+    def _find(log):
+        matches = comp.findall(log)
+        if not matches:
+            return ''
+        return '\n'.join(set(matches))
+
+    return _find
 
 
 def foreach(fn):
@@ -271,6 +287,8 @@ def get_normalizers(typ, stage, aws_account_id):
         return normalize_traces(stage, aws_account_id)
     elif typ == 'appsec':
         return normalize_appsec(stage)
+    elif typ == 'proxy':
+        return normalize_proxy()
     else:
         raise ValueError(f'invalid type "{typ}"')
 

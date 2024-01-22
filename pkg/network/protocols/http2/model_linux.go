@@ -8,10 +8,12 @@
 package http2
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/net/http2/hpack"
 
@@ -20,27 +22,89 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var oversizedLogLimit = util.NewLogLimit(10, time.Minute*10)
+
+// validatePath validates the given path.
+func validatePath(str string) error {
+	if len(str) == 0 {
+		return errors.New("decoded path is empty")
+	}
+	// ensure we found a '/' at the beginning of the path
+	if str[0] != '/' {
+		return fmt.Errorf("decoded path '%s' doesn't start with '/'", str)
+	}
+	return nil
+}
+
+// validatePathSize validates the given path size.
+func validatePathSize(size uint8) error {
+	if size == 0 {
+		return errors.New("empty path")
+	}
+	if size > maxHTTP2Path {
+		return fmt.Errorf("path size has exceeded the maximum limit: %d", size)
+	}
+	return nil
+}
+
+// decodeHTTP2Path tries to decode (Huffman) the path from the given buffer.
+// Possible errors:
+// - If the given pathSize is 0.
+// - If the given pathSize is larger than the buffer size.
+// - If the Huffman decoding fails.
+// - If the decoded path doesn't start with a '/'.
+func decodeHTTP2Path(buf [maxHTTP2Path]byte, pathSize uint8) ([]byte, error) {
+	if err := validatePathSize(pathSize); err != nil {
+		return nil, err
+	}
+
+	str, err := hpack.HuffmanDecodeToString(buf[:pathSize])
+	if err != nil {
+		return nil, err
+	}
+
+	if err = validatePath(str); err != nil {
+		return nil, err
+	}
+
+	return []byte(str), nil
+}
 
 // Path returns the URL from the request fragment captured in eBPF.
 func (tx *EbpfTx) Path(buffer []byte) ([]byte, bool) {
-	if tx.Stream.Path_size == 0 || int(tx.Stream.Path_size) > len(tx.Stream.Request_path) {
-		return nil, false
+	var res []byte
+	var err error
+	if tx.Stream.Is_huffman_encoded {
+		res, err = decodeHTTP2Path(tx.Stream.Request_path, tx.Stream.Path_size)
+		if err != nil {
+			if oversizedLogLimit.ShouldLog() {
+				log.Errorf("unable to decode HTTP2 path (%#v) due to: %s", tx.Stream.Request_path[:tx.Stream.Path_size], err)
+			}
+			return nil, false
+		}
+	} else {
+		if err = validatePathSize(tx.Stream.Path_size); err != nil {
+			if oversizedLogLimit.ShouldLog() {
+				log.Errorf("path size: %d is invalid due to: %s", tx.Stream.Path_size, err)
+			}
+			return nil, false
+		}
+
+		res = tx.Stream.Request_path[:tx.Stream.Path_size]
+		if err = validatePath(string(res)); err != nil {
+			if oversizedLogLimit.ShouldLog() {
+				log.Errorf("path %s is invalid due to: %s", string(res), err)
+			}
+			return nil, false
+		}
+
+		res = tx.Stream.Request_path[:tx.Stream.Path_size]
 	}
 
-	// trim null byte + after
-	str, err := hpack.HuffmanDecodeToString(tx.Stream.Request_path[:tx.Stream.Path_size])
-	if err != nil {
-		return nil, false
-	}
-
-	// ensure we found a '/' in the beginning of the path
-	if len(str) == 0 || str[0] != '/' {
-		return nil, false
-	}
-
-	n := copy(buffer, str)
-	// indicate if we knowingly captured the entire path
+	n := copy(buffer, res)
 	return buffer[:n], true
 }
 
@@ -58,6 +122,7 @@ func (tx *EbpfTx) Incomplete() bool {
 	return tx.Stream.Request_started == 0 || tx.Stream.Response_last_seen == 0 || tx.StatusCode() == 0 || tx.Stream.Path_size == 0 || tx.Method() == http.MethodUnknown
 }
 
+// ConnTuple returns the connections tuple of the transaction.
 func (tx *EbpfTx) ConnTuple() types.ConnectionKey {
 	return types.ConnectionKey{
 		SrcIPHigh: tx.Tuple.Saddr_h,
@@ -69,6 +134,7 @@ func (tx *EbpfTx) ConnTuple() types.ConnectionKey {
 	}
 }
 
+// Method returns the HTTP method of the transaction.
 func (tx *EbpfTx) Method() http.Method {
 	switch tx.Stream.Request_method {
 	case GetValue:
@@ -80,6 +146,7 @@ func (tx *EbpfTx) Method() http.Method {
 	}
 }
 
+// StatusCode returns the HTTP status code of the transaction.
 func (tx *EbpfTx) StatusCode() uint16 {
 	switch tx.Stream.Response_status_code {
 	case uint16(K200Value):
@@ -97,40 +164,55 @@ func (tx *EbpfTx) StatusCode() uint16 {
 	}
 }
 
+// SetStatusCode sets the HTTP status code of the transaction.
 func (tx *EbpfTx) SetStatusCode(code uint16) {
 	tx.Stream.Response_status_code = code
 }
 
+// ResponseLastSeen returns the last seen response.
 func (tx *EbpfTx) ResponseLastSeen() uint64 {
 	return tx.Stream.Response_last_seen
 }
 
+// SetResponseLastSeen sets the last seen response.
 func (tx *EbpfTx) SetResponseLastSeen(lastSeen uint64) {
 	tx.Stream.Response_last_seen = lastSeen
 
 }
+
+// RequestStarted returns the timestamp of the request start.
 func (tx *EbpfTx) RequestStarted() uint64 {
 	return tx.Stream.Request_started
 }
 
+// SetRequestMethod sets the HTTP method of the transaction.
 func (tx *EbpfTx) SetRequestMethod(m http.Method) {
 	tx.Stream.Request_method = uint8(m)
 }
 
+// StaticTags returns the static tags of the transaction.
 func (tx *EbpfTx) StaticTags() uint64 {
 	return 0
 }
 
+// DynamicTags returns the dynamic tags of the transaction.
 func (tx *EbpfTx) DynamicTags() []string {
 	return nil
 }
 
+// String returns a string representation of the transaction.
 func (tx *EbpfTx) String() string {
 	var output strings.Builder
 	output.WriteString("http2.ebpfTx{")
 	output.WriteString(fmt.Sprintf("[%s] [%s ⇄ %s] ", tx.family(), tx.sourceEndpoint(), tx.destEndpoint()))
 	output.WriteString(" Method: '" + tx.Method().String() + "', ")
-	buf := make([]byte, len(tx.Stream.Request_path))
+	fullBufferSize := len(tx.Stream.Request_path)
+	if tx.Stream.Is_huffman_encoded {
+		// If the path is huffman encoded, then the path is compressed (with an upper bound to compressed size of maxHTTP2Path)
+		// thus, we need more room for the decompressed path, therefore using 2*maxHTTP2Path.
+		fullBufferSize = 2 * maxHTTP2Path
+	}
+	buf := make([]byte, fullBufferSize)
 	path, ok := tx.Path(buf)
 	if ok {
 		output.WriteString("Path: '" + string(path) + "'")
@@ -197,6 +279,7 @@ func (t http2StreamKey) destEndpoint() string {
 	return net.JoinHostPort(t.destAddress().String(), strconv.Itoa(int(t.Tup.Dport)))
 }
 
+// String returns a string representation of the http2 stream key.
 func (t http2StreamKey) String() string {
 	return fmt.Sprintf(
 		"[%s] [%s ⇄ %s] (stream id %d)",
@@ -207,13 +290,14 @@ func (t http2StreamKey) String() string {
 	)
 }
 
+// String returns a string representation of the http2 dynamic table.
 func (t http2DynamicTableEntry) String() string {
-	if t.Len == 0 {
+	if t.String_len == 0 {
 		return ""
 	}
 
-	b := make([]byte, t.Len)
-	for i := uint8(0); i < t.Len; i++ {
+	b := make([]byte, t.String_len)
+	for i := uint8(0); i < t.String_len; i++ {
 		b[i] = byte(t.Buffer[i])
 	}
 	// trim null byte + after

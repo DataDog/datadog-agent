@@ -136,7 +136,6 @@ type Connections struct {
 	HTTP                        map[http.Key]*http.RequestStats
 	HTTP2                       map[http.Key]*http.RequestStats
 	Kafka                       map[kafka.Key]*kafka.RequestStat
-	DNSStats                    dns.StatsByKeyByNameByType
 }
 
 // NewConnections create a new Connections object
@@ -238,6 +237,7 @@ func (s StatCounters) IsZero() bool {
 	return s == StatCounters{}
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 type StatCookie = uint64
 
 // ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned
@@ -278,6 +278,8 @@ type ConnectionStats struct {
 	ContainerID *string
 
 	ProtocolStack protocols.Stack
+
+	DNSStats map[dns.Hostname]map[dns.QueryType]dns.Stats
 }
 
 // Via has info about the routing decision for a flow

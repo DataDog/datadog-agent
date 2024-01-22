@@ -14,6 +14,12 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
+// largeGroupThreshold represents the maximum group size for which zero values
+// get reported in the `Summary()` message. For group sizes greater than this,
+// we omit metrics with zero values from the generated string to reduce the
+// verbosity of logs.
+const largeGroupThreshold = 5
+
 // MetricGroup provides a convenient constructor for a group with metrics
 // sharing the same namespace and group of tags.
 // Note the usage of this API is entirely optional; I'm only adding this here
@@ -97,9 +103,17 @@ func (mg *MetricGroup) Summary() string {
 
 	valueDeltas := mg.deltas.GetState("")
 	var b strings.Builder
+	tooManyMetrics := len(mg.metrics) > largeGroupThreshold
 	for i, metric := range mg.metrics {
 		_, name := splitName(metric)
 		v := valueDeltas.ValueFor(metric)
+
+		// Skip metrics with a *delta* value of zero
+		// This aims to reduce the verbosity of log entries by excluding
+		// events that either happen very rarely or belong to features that are disabled
+		if tooManyMetrics && v == 0 {
+			continue
+		}
 
 		uniqueTags := metric.base().tags.Difference(mg.commonTags)
 		if uniqueTags.Len() > 0 {
@@ -120,5 +134,9 @@ func (mg *MetricGroup) Summary() string {
 		}
 	}
 	mg.then = now
+	if b.Len() == 0 {
+		return "n/a"
+	}
+
 	return b.String()
 }

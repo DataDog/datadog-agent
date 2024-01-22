@@ -11,56 +11,29 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/common/utils"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent/docker"
-	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/components/remote"
 	"github.com/docker/cli/cli/connhelper"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
-	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/stretchr/testify/require"
 )
-
-var _ pulumiStackInitializer = (*Docker)(nil)
 
 // A Docker client that is connected to an [docker.Deamon].
 //
 // [docker.Deamon]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent/docker#Deamon
 type Docker struct {
-	optionalAgent      Agent
-	deserializer       utils.RemoteServiceDeserializer[docker.ClientData]
-	t                  *testing.T
-	client             *client.Client
-	agentContainerName string
-	os                 os.OS
+	t      *testing.T
+	client *client.Client
 }
 
 // NewDocker creates a new instance of Docker
-func NewDocker(daemon *docker.Daemon) *Docker {
-	return &Docker{
-		agentContainerName: daemon.GetAgentContainerName(),
-		os:                 daemon.GetOS(),
-		deserializer:       daemon,
-	}
-}
+func NewDocker(t *testing.T, host remote.HostOutput) (*Docker, error) {
+	deamonURL := fmt.Sprintf("ssh://%v@%v", host.Username, host.Address)
 
-// initFromPulumiStack initializes the instance from the data stored in the pulumi stack.
-// This method is called by [CallStackInitializers] using reflection.
-//
-//lint:ignore U1000 Ignore unused function as this function is called using reflection
-func (docker *Docker) initFromPulumiStack(t *testing.T, stackResult auto.UpResult) error {
-	clientData, err := docker.deserializer.Deserialize(stackResult)
-	if err != nil {
-		return err
-	}
-	docker.t = t
-
-	deamonURL := fmt.Sprintf("ssh://%v@%v:22", clientData.Connection.User, clientData.Connection.Host)
 	helper, err := connhelper.GetConnectionHelperWithSSHOpts(deamonURL, []string{"-o", "StrictHostKeyChecking no"})
-
 	if err != nil {
-		return fmt.Errorf("cannot connect to docker %v: %v", deamonURL, err)
+		return nil, fmt.Errorf("cannot connect to docker %v: %v", deamonURL, err)
 	}
 
 	opts := []client.Opt{
@@ -68,11 +41,15 @@ func (docker *Docker) initFromPulumiStack(t *testing.T, stackResult auto.UpResul
 		client.WithAPIVersionNegotiation(),
 	}
 
-	docker.client, err = client.NewClientWithOpts(opts...)
-	if docker.agentContainerName != "" {
-		docker.optionalAgent = newAgentCommandRunner(t, docker.executeAgentCmdWithError)
+	client, err := client.NewClientWithOpts(opts...)
+	if err != nil {
+		return nil, fmt.Errorf("cannot create docker client: %v", err)
 	}
-	return err
+
+	return &Docker{
+		t:      t,
+		client: client,
+	}, nil
 }
 
 // ExecuteCommand executes a command on containerName and returns the output.
@@ -126,22 +103,4 @@ func (docker *Docker) ExecuteCommandStdoutStdErr(containerName string, commands 
 // [docker client]: https://pkg.go.dev/github.com/docker/docker/client
 func (docker *Docker) GetClient() *client.Client {
 	return docker.client
-}
-
-// GetAgentContainerName gets the agent container name
-func (docker *Docker) GetAgentContainerName() string {
-	require.NotEmptyf(docker.t, docker.agentContainerName, "agent container not found")
-	return docker.agentContainerName
-}
-
-// GetAgent gets an instance that implements the [Agent] interface. This function panics, if there is no agent container.
-func (docker *Docker) GetAgent() Agent {
-	require.NotNilf(docker.t, docker.optionalAgent, "there is no agent installed on this docker instance")
-	return docker.optionalAgent
-}
-
-func (docker *Docker) executeAgentCmdWithError(commands []string) (string, error) {
-	wholeCommands := []string{"agent"}
-	wholeCommands = append(wholeCommands, commands...)
-	return docker.ExecuteCommandWithErr(docker.GetAgentContainerName(), wholeCommands...)
 }

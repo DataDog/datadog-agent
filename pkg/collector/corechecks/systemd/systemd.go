@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -305,7 +304,9 @@ func (c *SystemdCheck) submitVersion(conn *dbus.Conn) {
 	}
 	checkID := string(c.ID())
 	log.Debugf("Submit version %v for checkID %v", version, checkID)
-	inventories.SetCheckMetadata(checkID, "version.raw", version)
+	if inv, err := check.GetInventoryChecksContext(); err == nil {
+		inv.Set(checkID, "version.raw", version)
+	}
 }
 
 func (c *SystemdCheck) submitMetrics(sender sender.Sender, conn *dbus.Conn) error {

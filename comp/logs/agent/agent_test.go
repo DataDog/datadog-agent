@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
@@ -96,9 +97,9 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*agent, *s
 	services := service.NewServices()
 
 	deps := fxutil.Test[testDeps](suite.T(), fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
-		inventoryagent.MockModule,
+		inventoryagentimpl.MockModule(),
 	))
 
 	agent := &agent{

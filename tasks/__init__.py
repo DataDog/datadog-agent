@@ -7,6 +7,7 @@ from invoke import Collection
 from . import (
     agent,
     bench,
+    buildimages,
     cluster_agent,
     cluster_agent_cloudfoundry,
     components,
@@ -16,6 +17,7 @@ from . import (
     dogstatsd,
     emacs,
     epforwarder,
+    fakeintake,
     github_tasks,
     kmt,
     modules,
@@ -24,7 +26,6 @@ from . import (
     package,
     pipeline,
     process_agent,
-    pylauncher,
     release,
     rtloader,
     security_agent,
@@ -32,6 +33,7 @@ from . import (
     system_probe,
     systray,
     trace_agent,
+    updater,
     vscode,
 )
 from .build_tags import audit_tag_impact, print_default_build_tags
@@ -50,30 +52,14 @@ from .go import (
     reset,
     tidy_all,
 )
+from .go_test import codecov, e2e_tests, get_modified_packages, integration_tests, send_unit_tests_stats, test
+from .install_tasks import download_tools, install_shellcheck, install_tools
+from .junit_tasks import junit_macos_repack, junit_upload
+from .linter_tasks import lint_copyrights, lint_filenames, lint_go, lint_python
+from .pr_checks import lint_milestone, lint_releasenote, lint_skip_qa, lint_teamassignment
 from .show_linters_issues import show_linters_issues
-from .test import (
-    codecov,
-    download_tools,
-    e2e_tests,
-    get_modified_packages,
-    install_shellcheck,
-    install_tools,
-    integration_tests,
-    invoke_unit_tests,
-    junit_macos_repack,
-    junit_upload,
-    lint_copyrights,
-    lint_filenames,
-    lint_go,
-    lint_milestone,
-    lint_python,
-    lint_releasenote,
-    lint_teamassignment,
-    send_unit_tests_stats,
-    test,
-)
+from .unit_tests import invoke_unit_tests
 from .update_go import go_version, update_go
-from .utils import generate_config
 from .windows_resources import build_messagetable
 
 # the root namespace
@@ -95,6 +81,7 @@ ns.add_task(reset)
 ns.add_task(lint_copyrights),
 ns.add_task(lint_teamassignment)
 ns.add_task(lint_releasenote)
+ns.add_task(lint_skip_qa)
 ns.add_task(lint_milestone)
 ns.add_task(lint_filenames)
 ns.add_task(lint_python)
@@ -112,7 +99,6 @@ ns.add_task(invoke_unit_tests)
 ns.add_task(check_mod_tidy)
 ns.add_task(tidy_all)
 ns.add_task(check_go_version)
-ns.add_task(generate_config)
 ns.add_task(junit_upload)
 ns.add_task(junit_macos_repack)
 ns.add_task(fuzz)
@@ -125,6 +111,7 @@ ns.add_task(send_unit_tests_stats)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)
+ns.add_collection(buildimages)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
 ns.add_collection(components)
@@ -138,7 +125,6 @@ ns.add_collection(msi)
 ns.add_collection(github_tasks, "github")
 ns.add_collection(package)
 ns.add_collection(pipeline)
-ns.add_collection(pylauncher)
 ns.add_collection(selinux)
 ns.add_collection(systray)
 ns.add_collection(release)
@@ -149,8 +135,10 @@ ns.add_collection(security_agent)
 ns.add_collection(cws_instrumentation)
 ns.add_collection(vscode)
 ns.add_collection(new_e2e_tests)
+ns.add_collection(fakeintake)
 ns.add_collection(kmt)
 ns.add_collection(diff)
+ns.add_collection(updater)
 ns.configure(
     {
         'run': {

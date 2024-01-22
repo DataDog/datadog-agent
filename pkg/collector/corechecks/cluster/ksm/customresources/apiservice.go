@@ -35,7 +35,7 @@ var (
 // NewAPIServiceFactory returns a new APIService metric family generator factory.
 func NewAPIServiceFactory(client *apiserver.APIClient) customresource.RegistryFactory {
 	return &apiserviceFactory{
-		client: client.APISClient,
+		client: client.APISInformerClient,
 	}
 }
 
@@ -43,6 +43,7 @@ type apiserviceFactory struct {
 	client interface{}
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (f *apiserviceFactory) CreateClient(cfg *rest.Config) (interface{}, error) {
 	return f.client, nil
 }
@@ -123,6 +124,7 @@ func (f *apiserviceFactory) ExpectedType() interface{} {
 	return &v1.APIService{}
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (f *apiserviceFactory) ListWatch(customresourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
 	client := customresourceClient.(apiregistrationclient.ApiregistrationV1Interface)
 	return &cache.ListWatch{

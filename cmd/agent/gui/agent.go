@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package gui contains the gui subcommand
 package gui
 
 import (
@@ -45,7 +46,7 @@ func agentHandler(r *mux.Router, flare flare.Component, invAgent inventoryagent.
 }
 
 // Sends a simple reply (for checking connection to server)
-func ping(w http.ResponseWriter, r *http.Request) {
+func ping(w http.ResponseWriter, _ *http.Request) {
 	elapsed := time.Now().Unix() - startTimestamp
 	w.Write([]byte(strconv.FormatInt(elapsed, 10)))
 }
@@ -84,7 +85,7 @@ func getStatus(w http.ResponseWriter, r *http.Request, invAgent inventoryagent.C
 }
 
 // Sends the current agent version
-func getVersion(w http.ResponseWriter, r *http.Request) {
+func getVersion(w http.ResponseWriter, _ *http.Request) {
 	version, e := version.Agent()
 	if e != nil {
 		log.Errorf("Error getting version: " + e.Error())
@@ -175,7 +176,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request, flare flare.Component) {
 }
 
 // Restarts the agent using the appropriate (platform-specific) restart function
-func restartAgent(w http.ResponseWriter, r *http.Request) {
+func restartAgent(w http.ResponseWriter, _ *http.Request) {
 	log.Infof("got restart function")
 	e := restart()
 	if e != nil {
@@ -207,7 +208,7 @@ func getConfigSetting(w http.ResponseWriter, r *http.Request) {
 }
 
 // Sends the configuration (aka datadog.yaml) file
-func getConfigFile(w http.ResponseWriter, r *http.Request) {
+func getConfigFile(w http.ResponseWriter, _ *http.Request) {
 	path := config.Datadog.ConfigFileUsed()
 	settings, e := os.ReadFile(path)
 	if e != nil {

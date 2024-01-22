@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -47,9 +48,9 @@ as well as which services are serving the pods. Or the deployment name for the p
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    log.ForOneShot(command.LoggerName, command.DefaultLogLevel, true),
+					LogParams:    logimpl.ForOneShot(command.LoggerName, command.DefaultLogLevel, true),
 				}),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -57,6 +58,7 @@ as well as which services are serving the pods. Or the deployment name for the p
 	return []*cobra.Command{cmd}
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func run(log log.Component, config config.Component, cliParams *cliParams) error {
 	nodeName := ""
 	if len(cliParams.args) > 0 {

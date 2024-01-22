@@ -715,7 +715,7 @@ func formatBuildTags(buildTags string) []string {
 	var formattedBuildTags []string
 	for _, tag := range splittedBuildTags {
 		if tag != "" {
-			formattedBuildTags = append(formattedBuildTags, fmt.Sprintf("+build %s", tag))
+			formattedBuildTags = append(formattedBuildTags, fmt.Sprintf("go:build %s", tag))
 		}
 	}
 	return formattedBuildTags

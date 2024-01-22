@@ -11,12 +11,12 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/pdata/pmetric"
-	"go.uber.org/zap"
 
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -81,7 +81,7 @@ type exporter struct {
 	cardinality collectors.TagCardinality
 }
 
-func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*metrics.Translator, error) {
+func translatorFromConfig(set component.TelemetrySettings, attributesTranslator *attributes.Translator, cfg *exporterConfig) (*metrics.Translator, error) {
 	histogramMode := metrics.HistogramMode(cfg.Metrics.HistConfig.Mode)
 	switch histogramMode {
 	case metrics.HistogramModeCounters, metrics.HistogramModeNoBuckets, metrics.HistogramModeDistributions:
@@ -103,10 +103,6 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*metrics.Tra
 	switch cfg.Metrics.SummaryConfig.Mode {
 	case SummaryModeGauges:
 		options = append(options, metrics.WithQuantiles())
-	}
-
-	if cfg.Metrics.ExporterConfig.ResourceAttributesAsTags {
-		options = append(options, metrics.WithResourceAttributesAsTags())
 	}
 
 	if cfg.Metrics.ExporterConfig.InstrumentationLibraryMetadataAsTags && cfg.Metrics.ExporterConfig.InstrumentationScopeMetadataAsTags {
@@ -132,16 +128,16 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*metrics.Tra
 	options = append(options, metrics.WithInitialCumulMonoValueMode(
 		metrics.InitialCumulMonoValueMode(cfg.Metrics.SumConfig.InitialCumulativeMonotonicMode)))
 
-	return metrics.NewTranslator(logger, options...)
+	return metrics.NewTranslator(set, attributesTranslator, options...)
 }
 
-func newExporter(logger *zap.Logger, s serializer.MetricSerializer, cfg *exporterConfig) (*exporter, error) {
+func newExporter(set component.TelemetrySettings, attributesTranslator *attributes.Translator, s serializer.MetricSerializer, cfg *exporterConfig) (*exporter, error) {
 	// Log any warnings from unmarshaling.
 	for _, warning := range cfg.warnings {
-		logger.Warn(warning)
+		set.Logger.Warn(warning)
 	}
 
-	tr, err := translatorFromConfig(logger, cfg)
+	tr, err := translatorFromConfig(set, attributesTranslator, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("incorrect OTLP metrics configuration: %w", err)
 	}

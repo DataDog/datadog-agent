@@ -1,13 +1,18 @@
+import copy
 import itertools
 import json
 import math
 import os
 import platform
+from urllib.parse import urlparse
 
-from .download import archs_mapping, karch_mapping, url_base
-from .init_kmt import KMT_STACKS_DIR, VMCONFIG, check_and_get_stack
-from .stacks import ARM_INSTANCE_TYPE, X86_INSTANCE_TYPE, create_stack, stack_exists
+from .download import arch_mapping, platforms_file, vmconfig_file
+from .init_kmt import VMCONFIG, check_and_get_stack
+from .kmt_os import get_kmt_os
+from .stacks import create_stack, stack_exists
 from .tool import Exit, ask, info, warn
+
+local_arch = "local"
 
 try:
     from thefuzz import fuzz, process
@@ -55,80 +60,40 @@ kernels = [
     "4.20",
 ]
 distributions = {
-    "ubuntu_18": "bionic",
-    "ubuntu_20": "focal",
-    "ubuntu_22": "jammy",
-    "jammy": "jammy",
-    "focal": "focal",
-    "bionic": "bionic",
+    # Ubuntu mappings
+    "ubuntu_16": "ubuntu_16.04",
+    "ubuntu_18": "ubuntu_18.04",
+    "ubuntu_20": "ubuntu_20.04",
+    "ubuntu_22": "ubuntu_22.04",
+    "ubuntu_23": "ubuntu_23.10",
+    "xenial": "ubuntu_16.04",
+    "bionic": "ubuntu_18.04",
+    "focal": "ubuntu_20.04",
+    "jammy": "ubuntu_22.04",
+    "mantic": "ubuntu_23.10",
+    # Amazon Linux mappings
     "amazon_4.14": "amzn_4.14",
     "amazon_5.4": "amzn_5.4",
     "amazon_5.10": "amzn_5.10",
-    "amazon_5.15": "amzn_5.15",
     "amzn_4.14": "amzn_4.14",
+    "amzn_414": "amzn_4.14",
     "amzn_5.4": "amzn_5.4",
     "amzn_5.10": "amzn_5.10",
-    "amzn_5.15": "amzn_5.15",
-    "fedora_35": "fedora_35",
-    "fedora_36": "fedora_36",
+    "amzn_2023": "amzn_2023",
+    "amazon_2023": "amzn_2023",
+    "al3": "amzn_2023",
+    "amzn_3": "amzn_2023",
+    # Fedora mappings
     "fedora_37": "fedora_37",
     "fedora_38": "fedora_38",
+    # Debian mappings
     "debian_10": "debian_10",
     "debian_11": "debian_11",
-}
-distro_arch_mapping = {"x86_64": "amd64", "arm64": "arm64"}
-images_path_local = {
-    "bionic": "file:///home/kernel-version-testing/rootfs/bionic-server-cloudimg-{arch}.qcow2",
-    "focal": "file:///home/kernel-version-testing/rootfs/focal-server-cloudimg-{arch}.qcow2",
-    "jammy": "file:///home/kernel-version-testing/rootfs/jammy-server-cloudimg-{arch}.qcow2",
-    "bullseye": "file:///home/kernel-version-testing/rootfs/custom-bullseye.{arch}.qcow2",
-    "buster": "file:///home/kernel-version-testing/rootfs/custom-buster.{arch}.qcow2",
-    "amzn_4.14": "file:///home/kernel-version-testing/rootfs/amzn2-kvm-2.0-{arch}-4.14.qcow2",
-    "amzn_5.4": "file:///home/kernel-version-testing/rootfs/amzn2-kvm-2.0-{arch}-5.4.qcow2",
-    "amzn_5.10": "file:///home/kernel-version-testing/rootfs/amzn2-kvm-2.0-{arch}-5.10.qcow2",
-    "amzn_5.15": "file:///home/kernel-version-testing/rootfs/amzn2-kvm-2.0-{arch}-5.15.qcow2",
-    "fedora_35": "file:///home/kernel-version-testing/rootfs/Fedora-Cloud-Base-35.{arch}.qcow2",
-    "fedora_36": "file:///home/kernel-version-testing/rootfs/Fedora-Cloud-Base-36.{arch}.qcow2",
-    "fedora_37": "file:///home/kernel-version-testing/rootfs/Fedora-Cloud-Base-37.{arch}.qcow2",
-    "fedora_38": "file:///home/kernel-version-testing/rootfs/Fedora-Cloud-Base-38.{arch}.qcow2",
-    "debian_10": "file:///home/kernel-version-testing/rootfs/debian-10-generic-{arch}.qcow2",
-    "debian_11": "file:///home/kernel-version-testing/rootfs/debian-11-generic-{arch}.qcow2",
-}
-
-images_path_s3 = {
-    "bionic": "{url_base}bionic-server-cloudimg-{arch}.qcow2",
-    "focal": "{url_base}focal-server-cloudimg-{arch}.qcow2",
-    "jammy": "{url_base}jammy-server-cloudimg-{arch}.qcow2",
-    "bullseye": "{url_base}custom-bullseye.{arch}.qcow2",
-    "buster": "{url_base}custom-buster.{arch}.qcow2",
-    "amzn_4.14": "{url_base}amzn2-kvm-2.0-{arch}-4.14.qcow2",
-    "amzn_5.4": "{url_base}amzn2-kvm-2.0-{arch}-5.4.qcow2",
-    "amzn_5.10": "{url_base}amzn2-kvm-2.0-{arch}-5.10.qcow2",
-    "amzn_5.15": "{url_base}amzn2-kvm-2.0-{arch}-5.15.qcow2",
-    "fedora_35": "{url_base}Fedora-Cloud-Base-35.{arch}.qcow2",
-    "fedora_36": "{url_base}Fedora-Cloud-Base-36.{arch}.qcow2",
-    "fedora_37": "{url_base}Fedora-Cloud-Base-37.{arch}.qcow2",
-    "fedora_38": "{url_base}Fedora-Cloud-Base-38.{arch}.qcow2",
-    "debian_10": "{url_base}debian-10-generic-{arch}.qcow2",
-    "debian_11": "{url_base}debian-11-generic-{arch}.qcow2",
-}
-
-images_name = {
-    "bionic": "bionic-server-cloudimg-{arch}.qcow2",
-    "focal": "focal-server-cloudimg-{arch}.qcow2",
-    "jammy": "jammy-server-cloudimg-{arch}.qcow2",
-    "bullseye": "custom-bullseye.{arch}.qcow2",
-    "buster": "custom-buster.{arch}.qcow2",
-    "amzn_4.14": "amzn2-kvm-2.0-{arch}-4.14.qcow2",
-    "amzn_5.4": "amzn2-kvm-2.0-{arch}-5.4.qcow2",
-    "amzn_5.10": "amzn2-kvm-2.0-{arch}-5.10.qcow2",
-    "amzn_5.15": "amzn2-kvm-2.0-{arch}-5.15.qcow2",
-    "fedora_35": "Fedora-Cloud-Base-35.{arch}.qcow2",
-    "fedora_36": "Fedora-Cloud-Base-36.{arch}.qcow2",
-    "fedora_37": "Fedora-Cloud-Base-37.{arch}.qcow2",
-    "fedora_38": "Fedora-Cloud-Base-38.{arch}.qcow2",
-    "debian_10": "debian-10-generic-{arch}.qcow2",
-    "debian_11": "debian-11-generic-{arch}.qcow2",
+    "debian_12": "debian_12",
+    # CentOS mappings
+    "centos_79": "centos_79",
+    "centos_7": "centos_79",
+    "centos_8": "centos_8",
 }
 
 TICK = "\u2713"
@@ -141,23 +106,16 @@ table = [
     ["amazon linux 2 - v4.14", TICK, TICK],
     ["amazon linux 2 - v5.4", TICK, TICK],
     ["amazon linux 2 - v5.10", TICK, TICK],
-    ["amazon linux 2 - v5.15", TICK, CROSS],
-    ["fedora 35 - v5.14.10", TICK, TICK],
-    ["fedora 36 - v5.17.5", TICK, TICK],
     ["fedora 37 - v6.0.7", TICK, TICK],
     ["fedora 38 - v6.2.9", TICK, TICK],
     ["debian 10 - v4.19.0", TICK, TICK],
     ["debian 11 - v5.10.0", TICK, TICK],
 ]
 
-consoles = {"x86_64": "ttyS0", "arm64": "ttyAMA0"}
 
-
-def get_image_path(img, arch, local):
-    if local:
-        return images_path_local[img].format(arch=arch)
-
-    return images_path_s3[img].format(arch=arch, url_base=url_base)
+def lte_414(version):
+    major, minor = version.split('.')
+    return (int(major) <= 4) and (int(minor) <= 14)
 
 
 def get_image_list(distro, custom):
@@ -207,7 +165,8 @@ def empty_config(file_path):
 
 def list_possible():
     distros = list(distributions.keys())
-    archs = list(archs_mapping.keys())
+    archs = list(arch_mapping.keys())
+    archs.append(local_arch)
 
     result = list()
     possible = list(itertools.product(["custom"], kernels, archs)) + list(itertools.product(["distro"], distros, archs))
@@ -229,122 +188,68 @@ def normalize_vm_def(possible, vm):
     vm_def, _ = process.extractOne(vm, possible, scorer=fuzz.token_sort_ratio)
     recipe, version, arch = vm_def.split('-')
 
-    arch = archs_mapping[arch]
+    if arch != local_arch:
+        arch = arch_mapping[arch]
+
     if recipe == "distro":
         version = distributions[version]
 
     return recipe, version, arch
 
 
-def vmset_name_from_id(set_id):
-    recipe, arch, id_tag = set_id
+def get_custom_kernel_config(version, arch):
+    if arch == local_arch:
+        arch = arch_mapping[platform.machine()]
 
-    return f"{recipe}_{id_tag}_{arch}"
-
-
-# Set id uniquely categorizes each requested
-# VM into particular sets.
-# Each set id will contain 1 or more of the VMs requested
-# by the user.
-def vmset_id(recipe, version, arch):
-    if recipe == "custom":
-        if lte_414(version):
-            return (recipe, arch, "lte_414")
-        else:
-            return (recipe, arch, "gt_414")
+    if arch == "x86_64":
+        console = "ttyS0"
     else:
-        return recipe, arch, "distro"
+        console = "ttyAMA0"
+
+    if lte_414(version):
+        extra_params = {"console": console, "systemd.unified_cgroup_hierarchy": "0"}
+    else:
+        extra_params = {
+            "console": console,
+        }
+
+    return {
+        "dir": f"kernel-v{version}.{arch}.pkg",
+        "tag": version,
+        "extra_params": extra_params,
+    }
+
+
+def xz_suffix_removed(path):
+    if path.endswith(".xz"):
+        return path[: -len(".xz")]
+
+    return path
 
 
 # This function derives the configuration for each
 # unique kernel or distribution from the normalized vm-def.
 # For more details on the generated configuration element, refer
 # to the micro-vms scenario in test-infra-definitions
-def get_kernel_config(recipe, version, arch):
+def get_kernel_config(platforms, recipe, version, arch):
     if recipe == "custom":
         return get_custom_kernel_config(version, arch)
-    elif recipe == "distro":
-        return get_distro_image_config(version, arch)
 
-    raise Exit(f"Invalid recipe {recipe}")
-
-
-def lte_414(version):
-    major, minor = version.split('.')
-    return (int(major) <= 4) and (int(minor) <= 14)
-
-
-def get_custom_kernel_config(version, arch):
     if arch == "local":
-        arch = archs_mapping[platform.machine()]
+        arch = arch_mapping[platform.machine()]
 
-    kernel = {
-        "dir": f"kernel-v{version}.{karch_mapping[arch]}.pkg",
-        "tag": version,
-        "extra_params": {"console": consoles[arch]},
-    }
+    url_base = platforms["url_base"]
+    kernel_path = platforms[arch][version]
+    kernel_name = xz_suffix_removed(os.path.basename(kernel_path))
 
-    if lte_414(version):
-        kernel["extra_params"]["systemd.unified_cgroup_hierarchy"] = "0"
-
-    return kernel
+    return {"tag": version, "image_source": os.path.join(url_base, kernel_path), "dir": kernel_name}
 
 
-def get_distro_image_config(version, arch):
-    local = False
-    if arch == "local":
-        local = True
-        arch = archs_mapping[platform.machine()]
-
-    return {
-        "dir": images_name[version].format(arch=distro_arch_mapping[arch]),
-        "tag": version,
-        "image_source": get_image_path(version, distro_arch_mapping[arch], local),
-    }
-
-
-# This function generates new VMSets. Refer to the documentation
-# of the micro-vm scenario in test-infra-definitions to see what
-# a VMSet is.
-def build_new_vmset(set_id, kernels):
-    recipe, arch, version = set_id
-    vmset = dict()
-
-    local = False
-    if arch == "local":
-        local = True
-        platform_arch = archs_mapping[platform.machine()]
-    else:
-        platform_arch = arch
-
-    if recipe == "custom":
-        vmset = {"name": vmset_name_from_id(set_id), "recipe": f"custom-{arch}", "arch": arch, "kernels": kernels}
-        if version == "lte_414":
-            vmset["image"] = {
-                "image_path": f"custom-buster.{distro_arch_mapping[platform_arch]}.qcow2",
-                "image_source": get_image_path("buster", distro_arch_mapping[platform_arch], local),
-            }
-        else:
-            vmset["image"] = {
-                "image_path": f"custom-bullseye.{distro_arch_mapping[platform_arch]}.qcow2",
-                "image_source": get_image_path("bullseye", distro_arch_mapping[platform_arch], local),
-            }
-    elif recipe == "distro":
-        vmset = {"name": vmset_name_from_id(set_id), "recipe": f"distro-{arch}", "arch": arch, "kernels": kernels}
-    else:
-        raise Exit(f"Invalid recipe {recipe}")
-
-    if arch == "arm64":
-        vmset["machine"] = "virt"
-
-    return vmset
-
-
-def vmset_exists(vm_config, set_name):
+def vmset_exists(vm_config, tags):
     vmsets = vm_config["vmsets"]
 
     for vmset in vmsets:
-        if vmset["name"] == set_name:
+        if set(vmset["tags"]) == tags:
             return True
 
     return False
@@ -359,86 +264,240 @@ def kernel_in_vmset(vmset, kernel):
     return False
 
 
-def add_kernels_to_vmset(vmset, set_name, kernels):
-    for k in kernels:
-        if kernel_in_vmset(vmset, k):
+def vmset_name(arch, recipe):
+    return f"{recipe}_{arch}"
+
+
+def add_custom_vmset(vmset, vm_config):
+    arch = vmset.arch
+    if arch == local_arch:
+        arch = arch_mapping[platform.machine()]
+
+    lte = False
+    for vm in vmset.vms:
+        if lte_414(vm.version):
+            lte = True
+            break
+
+    image_path = f"custom-bullseye.{arch}.qcow2"
+    if lte:
+        image_path = f"custom-buster.{arch}.qcow2"
+
+    if vmset_exists(vm_config, vmset.tags):
+        return
+
+    new_set = {
+        "tags": list(vmset.tags),
+        "recipe": f"{vmset.recipe}-{vmset.arch}",
+        "arch": vmset.arch,
+        "kernels": list(),
+        "image": {
+            "image_path": image_path,
+            "image_source": f"https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/{image_path}",
+        },
+    }
+
+    vm_config["vmsets"].append(new_set)
+
+
+def add_vmset(vmset, vm_config):
+    if vmset_exists(vm_config, vmset.tags):
+        return
+
+    if vmset.recipe == "custom":
+        return add_custom_vmset(vmset, vm_config)
+
+    new_set = {
+        "tags": list(vmset.tags),
+        "recipe": f"{vmset.recipe}-{vmset.arch}",
+        "arch": vmset.arch,
+        "kernels": list(),
+    }
+
+    vm_config["vmsets"].append(new_set)
+
+
+def add_kernel(vm_config, kernel, tags):
+    for vmset in vm_config["vmsets"]:
+        if set(vmset["tags"]) != tags:
             continue
-        if vmset["name"] == set_name:
-            vmset["kernels"].append(k)
+
+        if not kernel_in_vmset(vmset, kernel):
+            vmset["kernels"].append(kernel)
+            return
+
+    raise Exit(f"Unable to find vmset with tags {tags}")
 
 
-# Each vmset is uniquely identified by its name, which
-# can be derived from the set_id. If a vmset exists,
-# and we have data to add, this function modifies the appropriate
-# vmset.
-def modify_existing_vmsets(vm_config, set_id, kernels):
-    set_name = vmset_name_from_id(set_id)
+def add_vcpu(vmset, vcpu):
+    vmset["vcpu"] = vcpu
 
-    if not vmset_exists(vm_config, set_name):
-        return False
 
-    vmsets = vm_config["vmsets"]
+def add_memory(vmset, memory):
+    vmset["memory"] = memory
+
+
+def template_name(arch, recipe):
+    if arch == local_arch:
+        arch = arch_mapping[platform.machine()]
+
+    recipe_without_arch = recipe.split("-")[0]
+    return f"{recipe_without_arch}_{arch}"
+
+
+def add_machine_type(vmconfig_template, vmset):
+    tname = template_name(vmset["arch"], vmset["recipe"])
+    for template in vmconfig_template["vmsets"]:
+        if tname not in template["tags"]:
+            continue
+
+        if "machine" not in template:
+            return
+
+        vmset["machine"] = template["machine"]
+
+
+def add_disks(vmconfig_template, vmset):
+    tname = template_name(vmset["arch"], vmset["recipe"])
+
+    for template in vmconfig_template["vmsets"]:
+        if tname in template["tags"]:
+            vmset["disks"] = copy.deepcopy(template["disks"])
+
+
+def add_console(vmset):
+    vmset["console_type"] = "file"
+
+
+def url_to_fspath(url):
+    source = urlparse(url)
+    filename = os.path.basename(source.path)
+    filename = xz_suffix_removed(os.path.basename(source.path))
+
+    return f"file://{os.path.join(get_kmt_os().rootfs_dir,filename)}"
+
+
+def image_source_to_path(vmset):
+    if vmset["recipe"] == f"custom-{vmset['arch']}":
+        vmset["image"]["image_source"] = url_to_fspath(vmset["image"]["image_source"])
+        return
+
+    for kernel in vmset["kernels"]:
+        kernel["image_source"] = url_to_fspath(kernel["image_source"])
+
+    if "disks" in vmset:
+        for disk in vmset["disks"]:
+            disk["source"] = url_to_fspath(disk["source"])
+
+
+class VM:
+    def __init__(self, version):
+        self.version = version
+
+    def __repr__(self):
+        return f"<VM> {self.version}"
+
+
+class VMSet:
+    def __init__(self, arch, recipe, tags):
+        self.arch = arch
+        self.recipe = recipe
+        self.tags = tags
+        self.vms = list()
+
+    def __eq__(self, other):
+        for tag in self.tags:
+            if tag not in other.tags:
+                return False
+        return True
+
+    def __hash__(self):
+        return hash('-'.join(self.tags))
+
+    def __repr__(self):
+        vm_str = list()
+        for vm in self.vms:
+            vm_str.append(vm.version)
+        return f"<VMSet> tags={'-'.join(self.tags)} arch={self.arch} vms={','.join(vm_str)}"
+
+    def add_vm_if_belongs(self, recipe, version, arch):
+        if recipe == "custom":
+            expected_tag = custom_version_prefix(version)
+            found = False
+            for tag in self.tags:
+                if tag == expected_tag:
+                    found = True
+
+            if not found:
+                return
+
+        if self.recipe == recipe and self.arch == arch:
+            self.vms.append(VM(version))
+
+
+def custom_version_prefix(version):
+    return "lte_414" if lte_414(version) else "gt_414"
+
+
+def build_vmsets(normalized_vm_defs, sets):
+    vmsets = set()
+    for recipe, version, arch in normalized_vm_defs:
+        if recipe == "custom":
+            sets.append(custom_version_prefix(version))
+
+        # duplicate vm if multiple sets provided by user
+        for s in sets:
+            vmsets.add(VMSet(arch, recipe, {vmset_name(arch, recipe), s}))
+
+        if len(sets) == 0:
+            vmsets.add(VMSet(arch, recipe, {vmset_name(arch, recipe)}))
+
+    # map vms to vmsets
+    for recipe, version, arch in normalized_vm_defs:
+        for vmset in vmsets:
+            vmset.add_vm_if_belongs(recipe, version, arch)
+
+    return vmsets
+
+
+def generate_vmconfig(vm_config, normalized_vm_defs, vcpu, memory, sets, ci):
+    with open(platforms_file) as f:
+        platforms = json.load(f)
+
+    with open(vmconfig_file) as f:
+        vmconfig_template = json.load(f)
+
+    vmsets = build_vmsets(normalized_vm_defs, sets)
+
+    # add new vmsets to new vm_config
     for vmset in vmsets:
-        add_kernels_to_vmset(vmset, set_name, kernels)
+        add_vmset(vmset, vm_config)
 
-    return True
+    # add vm configurations to vmsets.
+    for vmset in vmsets:
+        for vm in vmset.vms:
+            add_kernel(
+                vm_config,
+                get_kernel_config(platforms, vmset.recipe, vm.version, vmset.arch),
+                vmset.tags,
+            )
 
-
-def generate_vm_config(vm_config, vms, vcpu, memory):
-    # get all possible (recipe, version, arch) combinations we can support.
-    possible = list_possible()
-
-    kernels = dict()
-    for vm in vms:
-        normalized_vm_def = normalize_vm_def(possible, vm)
-        set_id = vmset_id(*normalized_vm_def)
-        # generate kernel configuration for each vm-def
-        if set_id not in kernels:
-            kernels[set_id] = [get_kernel_config(*normalized_vm_def)]
-        else:
-            kernels[set_id].append(get_kernel_config(*normalized_vm_def))
-
-    keys_to_remove = list()
-    # detect if the requested VM falls in an already existing vmset
-    for set_id in kernels:
-        if modify_existing_vmsets(vm_config, set_id, kernels[set_id]):
-            keys_to_remove.append(set_id)
-
-    # delete kernels already added
-    for key in keys_to_remove:
-        del kernels[key]
-
-    # this loop generates vmsets which do not already exist
-    for set_id in kernels:
-        vm_config["vmsets"].append(build_new_vmset(set_id, kernels[set_id]))
-
-    # Modify the vcpu and memory configuration of all sets.
     for vmset in vm_config["vmsets"]:
-        vmset["vcpu"] = vcpu
-        vmset["memory"] = memory
+        add_vcpu(vmset, vcpu)
+        add_memory(vmset, memory)
+        add_machine_type(vmconfig_template, vmset)
 
-    local_cnt = 0
-    remote_cnt = 0
-    amd64_ec2 = False
-    arm64_ec2 = False
-    for vmset in vm_config["vmsets"]:
-        if vmset["arch"] == "local":
-            local_cnt += len(vmset["kernels"])
-        if vmset["arch"] != "local":
-            remote_cnt += len(vmset["kernels"])
-        if vmset["arch"] == "x86_64":
-            amd64_ec2 = True
-        if vmset["arch"] == "arm64":
-            arm64_ec2 = True
+        if vmset["recipe"] != "custom":
+            add_disks(vmconfig_template, vmset)
 
-    print()
-    warn("[!] Please review configuration")
-    if arm64_ec2:
-        info(f"[*] Configuration will launch 1 arm64 {ARM_INSTANCE_TYPE} EC2 instance")
-    if amd64_ec2:
-        info(f"[*] Configuration will launch 1 x86_64 {X86_INSTANCE_TYPE} EC2 instance")
+        # For local VMs we want to read images from the filesystem
+        if vmset["arch"] == local_arch:
+            image_source_to_path(vmset)
 
-    info(f"[*] Configuration launches {local_cnt} VMs locally, and {remote_cnt} VMs on remote instances")
+        if ci:
+            add_console(vmset)
+
+    return vm_config
 
 
 def ls_to_int(ls):
@@ -449,7 +508,22 @@ def ls_to_int(ls):
     return int_ls
 
 
-def gen_config(ctx, stack=None, vms="", init_stack=False, vcpu="4", memory="8192", new=False):
+def build_normalized_vm_def_set(vms):
+    vm_types = vms.split(',')
+    if len(vm_types) == 0:
+        raise Exit("No VMs to boot provided")
+
+    possible = list_possible()
+    normalized_vms = list()
+    for vm in vm_types:
+        normalized_vms.append(normalize_vm_def(possible, vm))
+
+    return normalized_vms
+
+
+def gen_config_for_stack(
+    ctx, stack=None, vms="", sets="", init_stack=False, vcpu="4", memory="8192", new=False, ci=False
+):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack) and not init_stack:
         raise Exit(
@@ -461,18 +535,8 @@ def gen_config(ctx, stack=None, vms="", init_stack=False, vcpu="4", memory="8192
 
     info(f"[+] Select stack {stack}")
 
-    vm_types = vms.split(',')
-    if len(vm_types) == 0:
-        raise Exit("No VMs to boot provided")
-
-    vcpu_ls = vcpu.split(',')
-    memory_ls = memory.split(',')
-
-    check_memory_and_vcpus(memory_ls, vcpu_ls)
-    mem_to_pow_of_2(memory_ls)
-
-    vmconfig_file = f"{KMT_STACKS_DIR}/{stack}/{VMCONFIG}"
-    # vmconfig_file = "/tmp/vm-config.json"
+    ## get all possible (recipe, version, arch) combinations we can support.
+    vmconfig_file = f"{get_kmt_os().stacks_dir}/{stack}/{VMCONFIG}"
     if new or not os.path.exists(vmconfig_file):
         empty_config(vmconfig_file)
 
@@ -480,7 +544,7 @@ def gen_config(ctx, stack=None, vms="", init_stack=False, vcpu="4", memory="8192
         orig_vm_config = f.read()
     vm_config = json.loads(orig_vm_config)
 
-    generate_vm_config(vm_config, vm_types, ls_to_int(vcpu_ls), ls_to_int(memory_ls))
+    vm_config = generate_vmconfig(vm_config, build_normalized_vm_def_set(vms), vcpu, memory, sets, ci)
     vm_config_str = json.dumps(vm_config, indent=4)
 
     tmpfile = "/tmp/vm.json"
@@ -501,3 +565,41 @@ def gen_config(ctx, stack=None, vms="", init_stack=False, vcpu="4", memory="8192
         f.write(vm_config_str)
 
     info(f"[+] vmconfig @ {vmconfig_file}")
+
+
+def list_all_distro_normalized_vms(archs):
+    with open(platforms_file) as f:
+        platforms = json.load(f)
+
+    vms = list()
+    for arch in archs:
+        for distro in platforms[arch]:
+            vms.append(("distro", distro, arch))
+
+    return vms
+
+
+def gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, output_file):
+    vcpu_ls = vcpu.split(',')
+    memory_ls = memory.split(',')
+
+    check_memory_and_vcpus(memory_ls, vcpu_ls)
+    mem_to_pow_of_2(memory_ls)
+    set_ls = list()
+    if sets != "":
+        set_ls = sets.split(",")
+
+    if not ci:
+        return gen_config_for_stack(
+            ctx, stack, vms, set_ls, init_stack, ls_to_int(vcpu_ls), ls_to_int(memory_ls), new, ci
+        )
+
+    arch_ls = ["x86_64", "arm64"]
+    if arch != "":
+        arch_ls = [arch_mapping[arch]]
+
+    vms_to_generate = list_all_distro_normalized_vms(arch_ls)
+    vm_config = generate_vmconfig({"vmsets": []}, vms_to_generate, ls_to_int(vcpu_ls), ls_to_int(memory_ls), set_ls, ci)
+
+    with open(output_file, "w") as f:
+        f.write(json.dumps(vm_config, indent=4))

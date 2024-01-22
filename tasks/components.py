@@ -52,13 +52,11 @@ def check_component(file, content):
         "comp/aggregator/demultiplexer/component.go",
         "comp/core/config/component.go",
         "comp/core/flare/component.go",
-        "comp/core/log/component.go",
         "comp/core/telemetry/component.go",
         "comp/dogstatsd/replay/component.go",
         "comp/dogstatsd/server/component.go",
         "comp/forwarder/defaultforwarder/component.go",
         "comp/logs/agent/component.go",
-        "comp/metadata/host/component.go",
         "comp/metadata/inventoryagent/component.go",
         "comp/netflow/config/component.go",
         "comp/netflow/server/component.go",
@@ -66,9 +64,8 @@ def check_component(file, content):
         "comp/remote-config/rcclient/component.go",
         "comp/trace/agent/component.go",
         "comp/trace/config/component.go",
-        "comp/languagedetection/client/component.go",
         "comp/process/apiserver/component.go",
-        "comp/process/forwarders/component.go",
+        "comp/core/workloadmeta/component.go",  # // TODO: (components) fix it in later PR
     ]
 
     if file in components_to_migrate:
@@ -76,8 +73,8 @@ def check_component(file, content):
 
     for not_allow_definition in [
         "type Mock interface",
-        "var Module = fxutil.Component",
-        "var MockModule = fxutil.Component",
+        "func Module() fxutil.Module",
+        "func MockModule() fxutil.Module",
     ]:
         if any(l.startswith(not_allow_definition) for l in content):
             return f"** {file} define '{not_allow_definition}' which is not allow in {file}. See docs/components/defining-components.md; skipping"
@@ -377,27 +374,36 @@ def lint_fxutil_oneshot_test(_):
     for folder in folders:
         folder_path = pathlib.Path(folder)
         for file in folder_path.rglob("*.go"):
-            if str(file).endswith("_test.go") or str(file).endswith("main.go") or str(file).endswith("main_windows.go"):
-                continue
-
-            # The code in this file cannot be easily tested
-            if "cmd/system-probe/subcommands/run/command.go" in str(file):
+            # Don't lint test files
+            if str(file).endswith("_test.go"):
                 continue
 
             one_shot_count = file.read_text().count("fxutil.OneShot(")
-            if one_shot_count > 0:
+            run_count = file.read_text().count("fxutil.Run(")
+
+            expect_reason = 'fxutil.OneShot'
+            if one_shot_count == 0 and run_count > 0:
+                expect_reason = 'fxutil.Run'
+
+            if one_shot_count > 0 or run_count > 0:
                 test_path = file.parent.joinpath(f"{file.stem}_test.go")
                 if not test_path.exists():
-                    errors.append(f"The file {file} contains fxutil.OneShot but the file {test_path} doesn't exist.")
+                    errors.append(f"The file {file} contains {expect_reason} but the file {test_path} doesn't exist.")
                 else:
                     content = test_path.read_text()
-                    sub_cmd_count = content.count("fxutil.TestOneShotSubcommand(")
+                    test_sub_cmd_count = content.count("fxutil.TestOneShotSubcommand(")
                     test_one_shot_count = content.count("fxutil.TestOneShot(")
-                    if one_shot_count > sub_cmd_count + test_one_shot_count:
+                    test_run_count = content.count("fxutil.TestRun(")
+                    if one_shot_count > test_sub_cmd_count + test_one_shot_count:
                         errors.append(
                             f"The file {file} contains {one_shot_count} call(s) to `fxutil.OneShot`"
-                            + f"but {test_path} contains only {sub_cmd_count} call(s) to `fxutil.TestOneShotSubcommand`"
-                            + f"and {test_one_shot_count} call(s) to `fxutil.TestOneShot`"
+                            + f" but {test_path} contains only {test_sub_cmd_count} call(s) to `fxutil.TestOneShotSubcommand`"
+                            + f" and {test_one_shot_count} call(s) to `fxutil.TestOneShot`"
+                        )
+                    if run_count > test_run_count:
+                        errors.append(
+                            f"The file {file} contains {run_count} call(s) to `fxutil.Run`"
+                            + f" but {test_path} contains only {test_run_count} call(s) to `fxutil.TestRun`"
                         )
     if len(errors) > 0:
         msg = '\n'.join(errors)

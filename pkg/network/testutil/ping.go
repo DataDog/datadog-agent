@@ -14,6 +14,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// MustPingTCP is a wrapper around PingTCP that guarantees a non-nil
+// connection is returned
+func MustPingTCP(tb require.TestingT, ip net.IP, port int) net.Conn {
+	c := PingTCP(tb, ip, port)
+	require.NotNil(tb, c, "pinged tcp connection must not be nil")
+	return c
+}
+
+// MustPingUDP is a wrapper around PingUDP that guarantees a non-nil
+// connection is returned
+func MustPingUDP(tb require.TestingT, ip net.IP, port int) net.Conn {
+	c := PingUDP(tb, ip, port)
+	require.NotNil(tb, c, "pinged udp connection must not be nil")
+	return c
+}
+
 // PingTCP connects to the provided IP address over TCP/TCPv6, sends the string "ping",
 // reads from the connection, and returns the open connection for further use/inspection.
 func PingTCP(tb require.TestingT, ip net.IP, port int) net.Conn {

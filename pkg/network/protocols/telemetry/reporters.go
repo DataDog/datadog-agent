@@ -35,6 +35,11 @@ func ReportStatsd() {
 			continue
 		}
 
+		// Don't emit counter metrics with zero values
+		if v == 0 {
+			continue
+		}
+
 		client.Count(statsdPrefix+base.name, v, tags, 1.0) //nolint:errcheck
 	}
 }

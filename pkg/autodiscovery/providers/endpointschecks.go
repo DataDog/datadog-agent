@@ -62,6 +62,8 @@ func (c *EndpointsChecksConfigProvider) String() string {
 }
 
 // IsUpToDate updates the list of AD templates versions in the Agent's cache and checks the list is up to date compared to Kubernetes's data.
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (c *EndpointsChecksConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	return false, nil
 }

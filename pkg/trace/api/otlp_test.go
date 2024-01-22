@@ -25,9 +25,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
@@ -126,9 +128,17 @@ var otlpTestTracesRequest = testutil.NewOTLPTracesRequest([]testutil.OTLPResourc
 	},
 })
 
+func NewTestConfig(t *testing.T) *config.AgentConfig {
+	cfg := config.New()
+	attributesTranslator, err := attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+	require.NoError(t, err)
+	cfg.OTLPReceiver.AttributesTranslator = attributesTranslator
+	return cfg
+}
+
 func TestOTLPMetrics(t *testing.T) {
 	assert := assert.New(t)
-	cfg := config.New()
+	cfg := NewTestConfig(t)
 	stats := &teststatsd.Client{}
 	defer testutil.WithStatsClient(stats)()
 
@@ -168,7 +178,7 @@ func TestOTLPMetrics(t *testing.T) {
 }
 
 func TestOTLPNameRemapping(t *testing.T) {
-	cfg := config.New()
+	cfg := NewTestConfig(t)
 	cfg.OTLPReceiver.SpanNameRemappings = map[string]string{"libname.unspecified": "new"}
 	out := make(chan *Payload, 1)
 	rcv := NewOTLPReceiver(out, cfg)
@@ -192,7 +202,7 @@ func TestOTLPNameRemapping(t *testing.T) {
 }
 
 func TestCreateChunks(t *testing.T) {
-	cfg := config.New()
+	cfg := NewTestConfig(t)
 	cfg.OTLPReceiver.ProbabilisticSampling = 50
 	o := NewOTLPReceiver(nil, cfg)
 	const (
@@ -216,6 +226,7 @@ func TestCreateChunks(t *testing.T) {
 		require.Equal(t, "0.50", c.Tags["_dd.otlp_sr"])
 		switch id {
 		case traceID1:
+			//nolint:revive // TODO(OTEL) Fix revive linter
 			found += 1
 			require.Equal(t, "-9", c.Spans[0].Meta["_dd.p.dm"])
 			require.Equal(t, int32(1), c.Priority)
@@ -233,7 +244,7 @@ func TestCreateChunks(t *testing.T) {
 }
 
 func TestOTLPReceiveResourceSpans(t *testing.T) {
-	cfg := config.New()
+	cfg := NewTestConfig(t)
 	out := make(chan *Payload, 1)
 	rcv := NewOTLPReceiver(out, cfg)
 	require := require.New(t)
@@ -624,7 +635,7 @@ func TestOTLPHostname(t *testing.T) {
 			out:    "span-hostname",
 		},
 	} {
-		cfg := config.New()
+		cfg := NewTestConfig(t)
 		cfg.Hostname = tt.config
 		out := make(chan *Payload, 1)
 		rcv := NewOTLPReceiver(out, cfg)
@@ -658,12 +669,12 @@ func TestOTLPHostname(t *testing.T) {
 
 func TestOTLPReceiver(t *testing.T) {
 	t.Run("New", func(t *testing.T) {
-		cfg := config.New()
+		cfg := NewTestConfig(t)
 		assert.NotNil(t, NewOTLPReceiver(nil, cfg).conf)
 	})
 
 	t.Run("Start/nil", func(t *testing.T) {
-		o := NewOTLPReceiver(nil, config.New())
+		o := NewOTLPReceiver(nil, NewTestConfig(t))
 		o.Start()
 		defer o.Stop()
 		assert.Nil(t, o.grpcsrv)
@@ -671,7 +682,7 @@ func TestOTLPReceiver(t *testing.T) {
 
 	t.Run("Start/grpc", func(t *testing.T) {
 		port := testutil.FreeTCPPort(t)
-		cfg := config.New()
+		cfg := NewTestConfig(t)
 		cfg.OTLPReceiver = &config.OTLP{
 			BindHost: "localhost",
 			GRPCPort: port,
@@ -689,7 +700,7 @@ func TestOTLPReceiver(t *testing.T) {
 
 	t.Run("processRequest", func(t *testing.T) {
 		out := make(chan *Payload, 5)
-		o := NewOTLPReceiver(out, config.New())
+		o := NewOTLPReceiver(out, NewTestConfig(t))
 		o.processRequest(context.Background(), http.Header(map[string][]string{
 			header.Lang:        {"go"},
 			header.ContainerID: {"containerdID"},
@@ -942,7 +953,7 @@ func TestOTLPHelpers(t *testing.T) {
 
 func TestOTLPConvertSpan(t *testing.T) {
 	now := uint64(otlpTestSpan.StartTimestamp())
-	cfg := config.New()
+	cfg := NewTestConfig(t)
 	o := NewOTLPReceiver(nil, cfg)
 	for i, tt := range []struct {
 		rattr   map[string]string
@@ -1373,7 +1384,7 @@ func TestAppendTags(t *testing.T) {
 
 func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 	now := uint64(otlpTestSpan.StartTimestamp())
-	cfg := config.New()
+	cfg := NewTestConfig(t)
 	o := NewOTLPReceiver(nil, cfg)
 	for i, tt := range []struct {
 		rattr   map[string]string
@@ -1713,7 +1724,7 @@ func TestResourceAttributesMap(t *testing.T) {
 	rattr := map[string]string{"key": "val"}
 	lib := pcommon.NewInstrumentationScope()
 	span := testutil.NewOTLPSpan(&testutil.OTLPSpan{})
-	NewOTLPReceiver(nil, config.New()).convertSpan(rattr, lib, span)
+	NewOTLPReceiver(nil, NewTestConfig(t)).convertSpan(rattr, lib, span)
 	assert.Len(t, rattr, 1) // ensure "rattr" has no new entries
 	assert.Equal(t, "val", rattr["key"])
 }
@@ -1871,6 +1882,7 @@ func trimSpaces(str string) string {
 	return out.String()
 }
 
+//nolint:revive // TODO(OTEL) Fix revive linter
 func makeSpanLinkSlice(t *testing.T, traceId, spanId, traceState string, attrs map[string]string, dropped uint32) ptrace.SpanLinkSlice {
 	s := ptrace.NewSpanLinkSlice()
 	l := s.AppendEmpty()

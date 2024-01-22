@@ -39,6 +39,10 @@ type ProcessSerializer struct {
 	Container *ContainerContextSerializer `json:"container,omitempty"`
 	// Command line arguments
 	CmdLine string `json:"cmdline,omitempty"`
+	// User's sid
+	OwnerSidString string `json:"user_sid,omitempty"`
+	// User name
+	User string `json:"user,omitempty"`
 }
 
 // FileEventSerializer serializes a file event to JSON
@@ -54,22 +58,24 @@ type EventSerializer struct {
 	*BaseEventSerializer
 }
 
-func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode ...uint64) *FileSerializer { //nolint:revive // TODO fix revive unused-parameter
+func newFileSerializer(fe *model.FileEvent, e *model.Event, _ ...uint64) *FileSerializer {
 	return &FileSerializer{
 		Path: e.FieldHandlers.ResolveFilePath(e, fe),
 		Name: e.FieldHandlers.ResolveFileBasename(e, fe),
 	}
 }
 
-func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer { //nolint:revive // TODO fix revive unused-parameter
+func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer {
 	psSerializer := &ProcessSerializer{
 		ExecTime: getTimeIfNotZero(ps.ExecTime),
 		ExitTime: getTimeIfNotZero(ps.ExitTime),
 
-		Pid:        ps.Pid,
-		PPid:       getUint32Pointer(&ps.PPid),
-		Executable: newFileSerializer(&ps.FileEvent, e),
-		//	CmdLine:    e.GetProcessCmdLineScrubbed(ps),
+		Pid:            ps.Pid,
+		PPid:           getUint32Pointer(&ps.PPid),
+		Executable:     newFileSerializer(&ps.FileEvent, e),
+		CmdLine:        e.FieldHandlers.ResolveProcessCmdLineScrubbed(e, ps),
+		OwnerSidString: ps.OwnerSidString,
+		User:           e.FieldHandlers.ResolveUser(e, ps),
 	}
 
 	if len(ps.ContainerID) != 0 {
@@ -113,7 +119,7 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event) *Proc
 	return &ps
 }
 
-func serializeOutcome(retval int64) string { //nolint:revive // TODO fix revive unused-parameter
+func serializeOutcome(_ int64) string {
 	return "unknown"
 }
 

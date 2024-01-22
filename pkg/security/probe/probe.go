@@ -39,7 +39,7 @@ type PlatformProbe interface {
 	FlushDiscarders() error
 	ApplyRuleSet(_ *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error)
 	OnNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType)
-	HandleActions(_ *rules.Rule, _ eval.Event)
+	HandleActions(_ *eval.Context, _ *rules.Rule)
 	NewEvent() *model.Event
 	GetFieldHandlers() model.FieldHandlers
 	DumpProcessCache(_ bool) (string, error)
@@ -79,7 +79,6 @@ type Probe struct {
 
 	// internals
 	scrubber *procutil.DataScrubber
-	event    *model.Event
 
 	// Events section
 	fullAccessEventHandlers [model.MaxAllEventType][]FullAccessEventHandler
@@ -162,7 +161,11 @@ func (p *Probe) GetDebugStats() map[string]interface{} {
 
 // HandleActions executes the actions of a triggered rule
 func (p *Probe) HandleActions(rule *rules.Rule, event eval.Event) {
-	p.PlatformProbe.HandleActions(rule, event)
+	ctx := &eval.Context{
+		Event: event.(*model.Event),
+	}
+
+	p.PlatformProbe.HandleActions(ctx, rule)
 }
 
 // AddEventHandler sets a probe event handler
@@ -241,12 +244,6 @@ func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent)
 	for _, handler := range p.customEventHandlers[event.GetEventType()] {
 		handler.HandleCustomEvent(rule, event)
 	}
-}
-
-func (p *Probe) zeroEvent() *model.Event {
-	p.event.Zero()
-	p.event.FieldHandlers = p.PlatformProbe.GetFieldHandlers()
-	return p.event
 }
 
 // StatsPollingInterval returns the stats polling interval

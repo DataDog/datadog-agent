@@ -538,7 +538,7 @@ type DiscardersDump struct {
 	Stats  map[string]discarder.Stats `yaml:"stats"`
 }
 
-func dumpPidDiscarders(resolver *dentry.Resolver, pidMap *ebpf.Map) ([]PidDiscarderDump, error) { //nolint:revive // TODO fix revive unused-parameter
+func dumpPidDiscarders(pidMap *ebpf.Map) ([]PidDiscarderDump, error) {
 	var dumps []PidDiscarderDump
 
 	info, err := pidMap.Info()
@@ -649,7 +649,7 @@ func dumpDiscarders(resolver *dentry.Resolver, pidMap, inodeMap, statsFB, statsB
 		Date: time.Now(),
 	}
 
-	pids, err := dumpPidDiscarders(resolver, pidMap)
+	pids, err := dumpPidDiscarders(pidMap)
 	if err != nil {
 		return dump, err
 	}

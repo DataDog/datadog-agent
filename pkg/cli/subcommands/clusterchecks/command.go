@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
@@ -62,7 +63,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
 				fx.Supply(bundleParams(globalParams)),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -79,7 +80,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			return fxutil.OneShot(rebalance,
 				fx.Supply(cliParams),
 				fx.Supply(bundleParams(globalParams)),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -98,7 +99,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			return fxutil.OneShot(isolate,
 				fx.Supply(cliParams),
 				fx.Supply(bundleParams(globalParams)),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -112,10 +113,11 @@ func bundleParams(globalParams GlobalParams) core.BundleParams {
 	return core.BundleParams{
 		ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath),
 		SecretParams: secrets.NewEnabledParams(),
-		LogParams:    log.ForOneShot(loggerName, defaultLogLevel, true),
+		LogParams:    logimpl.ForOneShot(loggerName, defaultLogLevel, true),
 	}
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func run(log log.Component, config config.Component, cliParams *cliParams) error {
 	if err := flare.GetClusterChecks(color.Output, cliParams.checkName); err != nil {
 		return err

@@ -31,9 +31,11 @@ const sysMetricsQuery12 = `SELECT
   WHERE s.con_id = c.con_id(+)`
 
 const (
+	//nolint:revive // TODO(DBM) Fix revive linter
 	Count int = 0
 )
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type SysmetricsRowDB struct {
 	MetricName string         `db:"METRIC_NAME"`
 	Value      float64        `db:"VALUE"`
@@ -46,6 +48,7 @@ type sysMetricsDefinition struct {
 	DBM      bool
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 var SYSMETRICS_COLS = map[string]sysMetricsDefinition{
 	"Average Active Sessions":                       {DDmetric: "active_sessions"},
 	"Average Synchronous Single-Block Read Latency": {DDmetric: "avg_synchronous_single_block_read_latency", DBM: true},

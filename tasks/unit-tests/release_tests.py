@@ -418,5 +418,17 @@ class TestGetJMXFetchReleaseJsonInfo(unittest.TestCase):
         self.assertEqual(jmxfetch_hash, "hash7_nightly")
 
 
+class TestCreateBuildLinksPatterns(unittest.TestCase):
+    current_version = "7.50.0-rc.1"
+
+    def test_create_build_links_patterns_correct_values(self):
+        new_rc_version = "7.51.1-rc.2"
+        patterns = release._create_build_links_patterns(self.current_version, new_rc_version)
+
+        self.assertEqual(patterns[".50.0-rc.1"], ".51.1-rc.2")
+        self.assertEqual(patterns[".50.0-rc-1"], ".51.1-rc-2")
+        self.assertEqual(patterns[".50.0~rc.1"], ".51.1~rc.2")
+
+
 if __name__ == '__main__':
     unittest.main()

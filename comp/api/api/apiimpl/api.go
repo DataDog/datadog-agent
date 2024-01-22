@@ -11,7 +11,6 @@ import (
 
 	"go.uber.org/fx"
 
-	apiPackage "github.com/DataDog/datadog-agent/cmd/agent/api"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
@@ -23,7 +22,9 @@ import (
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
+	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -31,58 +32,91 @@ import (
 )
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newAPIServer),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newAPIServer))
+}
 
 type apiServer struct {
+	flare           flare.Component
+	dogstatsdServer dogstatsdServer.Component
+	capture         replay.Component
+	serverDebug     dogstatsddebug.Component
+	hostMetadata    host.Component
+	invAgent        inventoryagent.Component
+	demux           demultiplexer.Component
+	invHost         inventoryhost.Component
+	secretResolver  secrets.Component
+	invChecks       inventorychecks.Component
+	pkgSigning      packagesigning.Component
+}
+
+type dependencies struct {
+	fx.In
+
+	Flare           flare.Component
+	DogstatsdServer dogstatsdServer.Component
+	Capture         replay.Component
+	ServerDebug     dogstatsddebug.Component
+	HostMetadata    host.Component
+	InvAgent        inventoryagent.Component
+	Demux           demultiplexer.Component
+	InvHost         inventoryhost.Component
+	SecretResolver  secrets.Component
+	InvChecks       inventorychecks.Component
+	PkgSigning      packagesigning.Component
 }
 
 var _ api.Component = (*apiServer)(nil)
 
-func newAPIServer() api.Component {
-	return &apiServer{}
+func newAPIServer(deps dependencies) api.Component {
+	return &apiServer{
+		flare:           deps.Flare,
+		dogstatsdServer: deps.DogstatsdServer,
+		capture:         deps.Capture,
+		serverDebug:     deps.ServerDebug,
+		hostMetadata:    deps.HostMetadata,
+		invAgent:        deps.InvAgent,
+		demux:           deps.Demux,
+		invHost:         deps.InvHost,
+		secretResolver:  deps.SecretResolver,
+		invChecks:       deps.InvChecks,
+		pkgSigning:      deps.PkgSigning,
+	}
 }
 
 // StartServer creates the router and starts the HTTP server
 func (server *apiServer) StartServer(
 	configService *remoteconfig.Service,
-	flare flare.Component,
-	dogstatsdServer dogstatsdServer.Component,
-	capture replay.Component,
-	serverDebug dogstatsddebug.Component,
 	wmeta workloadmeta.Component,
 	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
-	hostMetadata host.Component,
-	invAgent inventoryagent.Component,
-	demux demultiplexer.Component,
-	invHost inventoryhost.Component,
-	secretResolver secrets.Component,
 ) error {
-	return apiPackage.StartServer(configService,
-		flare,
-		dogstatsdServer,
-		capture,
-		serverDebug,
+	return StartServers(configService,
+		server.flare,
+		server.dogstatsdServer,
+		server.capture,
+		server.serverDebug,
 		wmeta,
 		logsAgent,
 		senderManager,
-		hostMetadata,
-		invAgent,
-		demux,
-		invHost,
-		secretResolver,
+		server.hostMetadata,
+		server.invAgent,
+		server.demux,
+		server.invHost,
+		server.secretResolver,
+		server.invChecks,
+		server.pkgSigning,
 	)
 }
 
 // StopServer closes the connection and the server
 // stops listening to new commands.
 func (server *apiServer) StopServer() {
-	apiPackage.StopServer()
+	StopServers()
 }
 
 // ServerAddress returns the server address.
 func (server *apiServer) ServerAddress() *net.TCPAddr {
-	return apiPackage.ServerAddress()
+	return ServerAddress()
 }

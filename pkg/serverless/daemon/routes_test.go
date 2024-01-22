@@ -8,7 +8,9 @@ package daemon
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -19,6 +21,8 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
+	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
@@ -237,13 +241,12 @@ func TestStartEndInvocationSpanParenting(t *testing.T) {
 			expPriority: 1,
 		},
 		{
-			// NOTE: sns trace extraction not yet implemented
 			name:        "sns",
 			payload:     getEventFromFile("sns.json"),
 			expInfSpans: 1,
-			expTraceID:  0,
-			expParentID: 0,
-			expPriority: -128,
+			expTraceID:  4948377316357291421,
+			expParentID: 6746998015037429512,
+			expPriority: 1,
 		},
 		{
 			name:        "sns-sqs",
@@ -334,4 +337,63 @@ func getEventFromFile(filename string) string {
 		panic(err)
 	}
 	return "a5a" + string(event) + "0"
+}
+
+func BenchmarkStartEndInvocation(b *testing.B) {
+	// relative to location of this test file
+	payloadFiles, err := os.ReadDir("../trace/testdata/event_samples")
+	if err != nil {
+		b.Fatal(err)
+	}
+	endBody := `{"hello":"world"}`
+	for _, file := range payloadFiles {
+		startBody := getEventFromFile(file.Name())
+		b.Run("event="+file.Name(), func(b *testing.B) {
+			startReq := httptest.NewRequest("GET", "/lambda/start-invocation", nil)
+			endReq := httptest.NewRequest("GET", "/lambda/end-invocation", nil)
+			rr := httptest.NewRecorder()
+
+			d := startAgents()
+			start := &StartInvocation{d}
+			end := &EndInvocation{d}
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				b.StopTimer()
+				// reset request bodies
+				startReq.Body = io.NopCloser(strings.NewReader(startBody))
+				endReq.Body = io.NopCloser(strings.NewReader(endBody))
+				b.StartTimer()
+
+				start.ServeHTTP(rr, startReq)
+				end.ServeHTTP(rr, endReq)
+			}
+			b.StopTimer()
+			d.Stop()
+		})
+	}
+}
+
+func startAgents() *Daemon {
+	d := StartDaemon(fmt.Sprint("127.0.0.1:", testutil.FreeTCPPort(nil)))
+
+	ta := &trace.ServerlessTraceAgent{}
+	ta.Start(true, &trace.LoadConfig{Path: "/some/path/datadog.yml"}, nil, 123)
+	d.SetTraceAgent(ta)
+
+	ma := &metrics.ServerlessMetricAgent{
+		SketchesBucketOffset: time.Second * 10,
+	}
+	ma.Start(FlushTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
+	d.SetStatsdServer(ma)
+
+	d.InvocationProcessor = &invocationlifecycle.LifecycleProcessor{
+		ExtraTags:            d.ExtraTags,
+		Demux:                d.MetricAgent.Demux,
+		ProcessTrace:         d.TraceAgent.Get().Process,
+		DetectLambdaLibrary:  func() bool { return false },
+		InferredSpansEnabled: true,
+	}
+	return d
 }

@@ -20,6 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containerd"
+
+	//nolint:revive // TODO(CINT) Fix revive linter
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -74,10 +76,15 @@ func newContainerdCollector(cache *provider.Cache) (provider.CollectorMetadata, 
 		ContainerIDForPID: provider.MakeRef[provider.ContainerIDForPIDRetriever](collector, collectorPriority),
 	}
 
+	kataCollectors := &provider.Collectors{
+		Stats: provider.MakeRef[provider.ContainerStatsGetter](collector, collectorPriority),
+	}
+
 	return provider.CollectorMetadata{
 		ID: collectorID,
 		Collectors: provider.CollectorCatalog{
-			provider.RuntimeNameContainerd: provider.MakeCached(collectorID, cache, collectors),
+			provider.NewRuntimeMetadata(string(provider.RuntimeNameContainerd), ""):                                 provider.MakeCached(collectorID, cache, collectors),
+			provider.NewRuntimeMetadata(string(provider.RuntimeNameContainerd), string(provider.RuntimeFlavorKata)): provider.MakeCached(collectorID, cache, kataCollectors),
 		},
 	}, nil
 }

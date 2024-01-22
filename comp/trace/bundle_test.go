@@ -10,7 +10,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
@@ -27,15 +27,15 @@ import (
 // team: agent-apm
 
 func TestBundleDependencies(t *testing.T) {
-	fxutil.TestBundle(t, Bundle,
+	fxutil.TestBundle(t, Bundle(),
 		fx.Provide(func() context.Context { return context.TODO() }), // fx.Supply(ctx) fails with a missing type error.
 		fx.Supply(core.BundleParams{}),
-		core.Bundle,
+		core.Bundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.Module,
-		statsd.Module,
+		workloadmeta.Module(),
+		statsd.Module(),
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
-		secretsimpl.MockModule,
+		secretsimpl.MockModule(),
 		fx.Supply(&agent.Params{}),
 	)
 }
@@ -56,21 +56,21 @@ func TestMockBundleDependencies(t *testing.T) {
 		fx.Supply(core.BundleParams{}),
 		traceMockBundle,
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.Module,
+		workloadmeta.Module(),
 		fx.Invoke(func(_ config.Component) {}),
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
-		statsd.MockModule,
+		statsd.MockModule(),
 		fx.Supply(&agent.Params{}),
 		fx.Invoke(func(_ agent.Component) {}),
-		MockBundle,
+		MockBundle(),
 	))
 
 	require.NotNil(t, cfg.Object())
 }
 
 var traceMockBundle = core.MakeMockBundle(
-	fx.Provide(func() log.Params {
-		return log.ForDaemon("TRACE", "apm_config.log_file", config.DefaultLogFilePath)
+	fx.Provide(func() logimpl.Params {
+		return logimpl.ForDaemon("TRACE", "apm_config.log_file", config.DefaultLogFilePath)
 	}),
-	log.TraceMockModule,
+	logimpl.TraceMockModule(),
 )

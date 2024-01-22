@@ -223,21 +223,29 @@ func submitAge(s sender.Sender, name string, metric ksmstore.DDMetric, hostname 
 }
 
 // nodeCreationTransformer generates the node age metric based on the creation timestamp
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func nodeCreationTransformer(s sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, currentTime time.Time) {
 	submitAge(s, ksmMetricPrefix+"node.age", metric, hostname, tags, currentTime)
 }
 
 // podCreationTransformer generates the pod age metric based on the creation timestamp
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func podCreationTransformer(s sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, currentTime time.Time) {
 	submitAge(s, ksmMetricPrefix+"pod.age", metric, hostname, tags, currentTime)
 }
 
 // podStartTimeTransformer generates the pod uptime metric based on the start time timestamp
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func podStartTimeTransformer(s sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, currentTime time.Time) {
 	submitAge(s, ksmMetricPrefix+"pod.uptime", metric, hostname, tags, currentTime)
 }
 
 // podPhaseTransformer sends status phase metrics for pods, the tag phase has the pod status
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func podPhaseTransformer(s sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	submitActiveMetric(s, ksmMetricPrefix+"pod.status_phase", metric, hostname, tags)
 }
@@ -253,6 +261,8 @@ var allowedWaitingReasons = map[string]struct{}{
 }
 
 // containerWaitingReasonTransformer validates the container waiting reasons for metric kube_pod_container_status_waiting_reason
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func containerWaitingReasonTransformer(s sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	if reason, found := metric.Labels["reason"]; found {
 		// Filtering according to the reason here is paramount to limit cardinality
@@ -269,6 +279,8 @@ var allowedTerminatedReasons = map[string]struct{}{
 }
 
 // containerTerminatedReasonTransformer validates the container waiting reasons for metric kube_pod_container_status_terminated_reason
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func containerTerminatedReasonTransformer(s sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	if reason, found := metric.Labels["reason"]; found {
 		// Filtering according to the reason here is paramount to limit cardinality
@@ -334,6 +346,8 @@ func submitNodeResourceMetric(s sender.Sender, name string, metric ksmstore.DDMe
 }
 
 // cronJobNextScheduleTransformer sends a service check to alert if the cronjob's next schedule is in the past
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func cronJobNextScheduleTransformer(s sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, currentTime time.Time) {
 	message := ""
 	var status servicecheck.ServiceCheckStatus
@@ -348,11 +362,15 @@ func cronJobNextScheduleTransformer(s sender.Sender, name string, metric ksmstor
 }
 
 // cronJobLastScheduleTransformer sends the duration since the last time the cronjob was scheduled
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func cronJobLastScheduleTransformer(s sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, currentTime time.Time) {
 	s.Gauge(ksmMetricPrefix+"cronjob.duration_since_last_schedule", float64(currentTime.Unix())-metric.Val, hostname, tags)
 }
 
 // jobCompleteTransformer sends a metric and a service check based on kube_job_complete
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func jobCompleteTransformer(s sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	for i, tag := range tags {
 		if tag == "condition:true" {
@@ -373,6 +391,8 @@ func jobCompleteTransformer(s sender.Sender, name string, metric ksmstore.DDMetr
 }
 
 // jobFailedTransformer sends a metric and a service check based on kube_job_failed
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func jobFailedTransformer(s sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	for i, tag := range tags {
 		if tag == "condition:true" {
@@ -430,6 +450,8 @@ func jobServiceCheck(s sender.Sender, metric ksmstore.DDMetric, status servicech
 }
 
 // jobStatusSucceededTransformer sends a metric based on kube_job_status_succeeded
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func jobStatusSucceededTransformer(s sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	jobMetric(s, metric, ksmMetricPrefix+"job.succeeded", hostname, tags)
 }
@@ -444,6 +466,8 @@ func jobStatusSucceededTransformer(s sender.Sender, name string, metric ksmstore
 //
 // In order to reduce the cardinality, we are here removing the `reason` tag.
 // The resulting datadog metric is 0 if there are no failed pods and 1 otherwise.
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func jobStatusFailedTransformer(s sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	// Remove the `reason` tag to reduce the cardinality
 	reasonTagIndex := -1
@@ -530,11 +554,15 @@ func submitActiveMetric(s sender.Sender, metricName string, metric ksmstore.DDMe
 }
 
 // pvPhaseTransformer generates metrics per persistentvolume and per phase from the kube_persistentvolume_status_phase metric
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func pvPhaseTransformer(s sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	submitActiveMetric(s, ksmMetricPrefix+"persistentvolume.by_phase", metric, hostname, tags)
 }
 
 // serviceTypeTransformer generates metrics per service, namespace, and type from the kube_service_spec_type metric
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func serviceTypeTransformer(s sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	submitActiveMetric(s, ksmMetricPrefix+"service.type", metric, hostname, tags)
 }

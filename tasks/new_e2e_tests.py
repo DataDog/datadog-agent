@@ -10,15 +10,16 @@ import tempfile
 from pathlib import Path
 from typing import List
 
+import yaml
 from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
 from .flavor import AgentFlavor
-from .libs.junit_upload import produce_junit_tar
+from .go_test import test_flavor
+from .libs.common.utils import REPO_PATH, get_git_commit
+from .libs.junit_upload_core import produce_junit_tar
 from .modules import DEFAULT_MODULES
-from .test import test_flavor
-from .utils import REPO_PATH, get_git_commit
 
 
 @task(
@@ -48,7 +49,10 @@ def run(
     flavor="",
     major_version="",
     cws_supported_osversion="",
+    src_agent_version="",
+    dest_agent_version="",
     keep_stacks=False,
+    extra_flags="",
     cache=False,
     junit_tar="",
     coverage=False,
@@ -93,7 +97,7 @@ def run(
         test_run_arg = f"-run {test_run_name}"
 
     cmd = f'gotestsum --format {gotestsum_format} '
-    cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags "{go_build_tags}" {nocache} {run} {skip} {coverage_opt} {test_run_arg} -args {osversion} {platform} {major_version} {arch} {flavor} {cws_supported_osversion} {keep_stacks}'
+    cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags "{go_build_tags}" {nocache} {run} {skip} {coverage_opt} {test_run_arg} -args {osversion} {platform} {major_version} {arch} {flavor} {cws_supported_osversion} {src_agent_version} {dest_agent_version} {keep_stacks} {extra_flags}'
 
     args = {
         "go_mod": "mod",
@@ -114,7 +118,10 @@ def run(
         "cws_supported_osversion": f"-cws-supported-osversion {cws_supported_osversion}"
         if cws_supported_osversion
         else '',
+        "src_agent_version": f"-src-agent-version {src_agent_version}" if src_agent_version else '',
+        "dest_agent_version": f"-dest-agent-version {dest_agent_version}" if dest_agent_version else '',
         "keep_stacks": '-keep-stacks' if keep_stacks else '',
+        "extra_flags": extra_flags,
     }
 
     test_res = test_flavor(
@@ -154,9 +161,10 @@ def run(
     help={
         'locks': 'Cleans up lock files, default True',
         'stacks': 'Cleans up local stack state, default False',
+        'output': 'Cleans up local test output directory, default False',
     },
 )
-def clean(ctx, locks=True, stacks=False):
+def clean(ctx, locks=True, stacks=False, output=False):
     """
     Clean any environment created with invoke tasks or e2e tests
     By default removes only lock files.
@@ -173,24 +181,65 @@ def clean(ctx, locks=True, stacks=False):
     if stacks:
         _clean_stacks(ctx)
 
+    if output:
+        _clean_output()
+
+
+def _get_home_dir():
+    # TODO: Go os.UserHomeDir() uses a different algorithm than Python Path.home()
+    #       so a different directory may be returned in some cases.
+    return Path.home()
+
+
+def _load_test_infra_config():
+    with open(_get_home_dir().joinpath(".test_infra_config.yaml")) as f:
+        config = yaml.safe_load(f)
+    return config
+
+
+def _get_test_output_dir():
+    config = _load_test_infra_config()
+    # default is $HOME/e2e-output
+    default_output_dir = _get_home_dir().joinpath("e2e-output")
+    # read config option, if not set use default
+    configParams = config.get("configParams", {})
+    output_dir = configParams.get("outputDir", default_output_dir)
+    return Path(output_dir)
+
+
+def _clean_output():
+    output_dir = _get_test_output_dir()
+    print(f"🧹 Clean up output directory {output_dir}")
+
+    if not output_dir.exists():
+        # nothing to do if output directory does not exist
+        return
+
+    if not output_dir.is_dir():
+        raise Exit(message=f"e2e-output directory {output_dir} is not a directory, aborting", code=1)
+
+    # sanity check to avoid deleting the wrong directory, e2e-output should only contain directories
+    for entry in output_dir.iterdir():
+        if not entry.is_dir():
+            raise Exit(
+                message=f"e2e-output directory {output_dir} contains more than just directories, aborting", code=1
+            )
+
+    shutil.rmtree(output_dir)
+
 
 def _clean_locks():
     print("🧹 Clean up lock files")
     lock_dir = os.path.join(Path.home(), ".pulumi", "locks")
 
     for entry in os.listdir(Path(lock_dir)):
-        subdir = os.path.join(lock_dir, entry)
-        if os.path.isdir(subdir):
-            for filename in os.listdir(Path(subdir)):
-                path = os.path.join(subdir, filename)
-                if os.path.isfile(path) and filename.endswith(".json"):
-                    os.remove(path)
-                    print(f"🗑️ Deleted lock: {path}")
-                elif os.path.isdir(path):
-                    shutil.rmtree(path)
-        elif os.path.isfile(subdir) and entry.endswith(".json"):
-            os.remove(subdir)
-            print(f"🗑️ Deleted lock: {subdir}")
+        path = os.path.join(lock_dir, entry)
+        if os.path.isdir(path):
+            shutil.rmtree(path)
+            print(f"🗑️  Deleted lock: {path}")
+        elif os.path.isfile(path) and entry.endswith(".json"):
+            os.remove(path)
+            print(f"🗑️  Deleted lock: {path}")
 
 
 def _clean_stacks(ctx: Context):
@@ -209,7 +258,7 @@ def _clean_stacks(ctx: Context):
 
 def _get_existing_stacks(ctx: Context) -> List[str]:
     e2e_stacks: List[str] = []
-    output = ctx.run("PULUMI_SKIP_UPDATE_CHECK=true pulumi stack ls --all --project e2elocal --json", pty=True)
+    output = ctx.run("PULUMI_SKIP_UPDATE_CHECK=true pulumi stack ls --all --project e2elocal --json", hide=True)
     if output is None or not output:
         return []
     stacks_data = json.loads(output.stdout)
@@ -232,22 +281,23 @@ def _destroy_stack(ctx: Context, stack: str):
             f"PULUMI_SKIP_UPDATE_CHECK=true pulumi destroy --stack {stack} --yes --remove --skip-preview",
             pty=True,
             warn=True,
+            hide=True,
         )
         if ret is not None and ret.exited != 0:
             # run with refresh on first destroy attempt failure
             ctx.run(
                 f"PULUMI_SKIP_UPDATE_CHECK=true pulumi destroy --stack {stack} -r --yes --remove --skip-preview",
-                pty=True,
                 warn=True,
+                hide=True,
             )
 
 
 def _remove_stack(ctx: Context, stack: str):
-    ctx.run(f"PULUMI_SKIP_UPDATE_CHECK=true pulumi stack rm --force --yes --stack {stack}", pty=True)
+    ctx.run(f"PULUMI_SKIP_UPDATE_CHECK=true pulumi stack rm --force --yes --stack {stack}", hide=True)
 
 
 def _get_pulumi_about(ctx: Context) -> dict:
-    output = ctx.run("PULUMI_SKIP_UPDATE_CHECK=true pulumi about --json", pty=True, hide=True)
+    output = ctx.run("PULUMI_SKIP_UPDATE_CHECK=true pulumi about --json", hide=True)
     if output is None or not output:
         return ""
     return json.loads(output.stdout)

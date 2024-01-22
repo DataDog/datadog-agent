@@ -24,7 +24,7 @@ const tablespaceQuery12 = `SELECT
 FROM
   cdb_tablespace_usage_metrics m, cdb_tablespaces t, v$containers c
 WHERE
-  m.tablespace_name(+) = t.tablespace_name and c.con_id(+) = t.con_id`
+  m.con_id = t.con_id and m.tablespace_name(+) = t.tablespace_name and c.con_id(+) = t.con_id`
 
 const tablespaceQuery11 = `SELECT
   t.tablespace_name tablespace_name,
@@ -37,6 +37,7 @@ FROM
 WHERE
   m.tablespace_name(+) = t.tablespace_name`
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type RowDB struct {
 	PdbName        sql.NullString `db:"PDB_NAME"`
 	TablespaceName string         `db:"TABLESPACE_NAME"`
@@ -46,6 +47,7 @@ type RowDB struct {
 	Offline        float64        `db:"OFFLINE_"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 func (c *Check) Tablespaces() error {
 	rows := []RowDB{}
 	var tablespaceQuery string

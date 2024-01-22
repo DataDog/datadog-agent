@@ -66,7 +66,7 @@ func newTestReceiverConfig() *config.AgentConfig {
 }
 
 func TestMain(m *testing.M) {
-	defer func(old func(string, ...interface{})) { killProcess = old }(killProcess)
+	// We're about to os.Exit, no need to revert this value to original
 	killProcess = func(format string, args ...interface{}) {
 		fmt.Printf(format, args...)
 		fmt.Println()

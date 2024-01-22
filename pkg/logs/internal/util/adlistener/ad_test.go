@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 )
 
+//nolint:revive // TODO(AML) Fix revive linter
 func TestListenersGetScheduleCalls(t *testing.T) {
 	adsched := scheduler.NewMetaScheduler()
 	ac := autodiscovery.NewAutoConfigNoStart(adsched, nil)

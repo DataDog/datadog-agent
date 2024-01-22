@@ -34,11 +34,11 @@ type MockSecretResolver struct {
 
 var _ secrets.Component = (*MockSecretResolver)(nil)
 
-func (m *MockSecretResolver) Configure(_ string, _ []string, _, _ int, _, _ bool) {}
+func (m *MockSecretResolver) Configure(_ string, _ []string, _, _, _ int, _, _ bool) {}
 
 func (m *MockSecretResolver) GetDebugInfo(_ io.Writer) {}
 
-func (m *MockSecretResolver) Decrypt(data []byte, origin string) ([]byte, error) {
+func (m *MockSecretResolver) Resolve(data []byte, origin string) ([]byte, error) {
 	if m.scenarios == nil {
 		return data, nil
 	}
@@ -48,8 +48,15 @@ func (m *MockSecretResolver) Decrypt(data []byte, origin string) ([]byte, error)
 			return scenario.returnedData, scenario.returnedError
 		}
 	}
-	m.t.Errorf("Decrypt called with unexpected arguments: data=%s, origin=%s", string(data), origin)
-	return nil, fmt.Errorf("Decrypt called with unexpected arguments: data=%s, origin=%s", string(data), origin)
+	m.t.Errorf("Resolve called with unexpected arguments: data=%s, origin=%s", string(data), origin)
+	return nil, fmt.Errorf("Resolve called with unexpected arguments: data=%s, origin=%s", string(data), origin)
+}
+
+func (m *MockSecretResolver) SubscribeToChanges(_ secrets.SecretChangeCallback) {
+}
+
+func (m *MockSecretResolver) Refresh() error {
+	return nil
 }
 
 func (m *MockSecretResolver) haveAllScenariosBeenCalled() bool {
@@ -111,29 +118,29 @@ var makeSharedScenarios = func() []mockSecretScenario {
 	}
 }
 
-func TestSecretDecrypt(t *testing.T) {
-	mockDecrypt := &MockSecretResolver{t, makeSharedScenarios()}
+func TestSecretResolve(t *testing.T) {
+	mockResolve := &MockSecretResolver{t, makeSharedScenarios()}
 
-	newConfig, err := decryptConfig(sharedTpl, mockDecrypt)
+	newConfig, err := decryptConfig(sharedTpl, mockResolve)
 	require.NoError(t, err)
 
 	assert.NotEqual(t, newConfig.Instances, sharedTpl.Instances)
 
-	assert.True(t, mockDecrypt.haveAllScenariosBeenCalled())
+	assert.True(t, mockResolve.haveAllScenariosBeenCalled())
 }
 
-func TestSkipSecretDecrypt(t *testing.T) {
-	mockDecrypt := &MockSecretResolver{t, makeSharedScenarios()}
+func TestSkipSecretResolve(t *testing.T) {
+	mockResolve := &MockSecretResolver{t, makeSharedScenarios()}
 
 	cfg := config.Mock(t)
 	cfg.SetWithoutSource("secret_backend_skip_checks", true)
 	defer cfg.SetWithoutSource("secret_backend_skip_checks", false)
 
-	c, err := decryptConfig(sharedTpl, mockDecrypt)
+	c, err := decryptConfig(sharedTpl, mockResolve)
 	require.NoError(t, err)
 
 	assert.Equal(t, sharedTpl.Instances, c.Instances)
 	assert.Equal(t, sharedTpl.InitConfig, c.InitConfig)
 
-	assert.True(t, mockDecrypt.haveAllScenariosNotCalled())
+	assert.True(t, mockResolve.haveAllScenariosNotCalled())
 }

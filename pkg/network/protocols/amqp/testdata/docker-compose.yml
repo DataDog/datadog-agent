@@ -1,4 +1,5 @@
 version: '3'
+name: amqp
 services:
   rabbitmq:
     image: rabbitmq:3-management-alpine
@@ -8,9 +9,3 @@ services:
     environment:
       - "RABBITMQ_DEFAULT_PASS=${PASS:-guest}"
       - "RABBITMQ_DEFAULT_USER=${USER:-guest}"
-    networks:
-      - amqp
-
-networks:
-  amqp:
-    driver: bridge

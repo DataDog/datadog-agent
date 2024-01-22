@@ -141,6 +141,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/etw"
 )
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 type Http struct {
 	// Most of it just like driver's HTTP data ...
 	Txn driver.HttpTransactionType
@@ -163,12 +164,14 @@ type Http struct {
 	// ContentLength uint32
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 type Conn struct {
 	tup          driver.ConnTupleType
 	connected    uint64
 	disconnected uint64
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 type ConnOpen struct {
 	// conntuple
 	conn Conn
@@ -181,7 +184,9 @@ type ConnOpen struct {
 	httpPendingBackLinks map[etw.DDGUID]struct{}
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 type HttpConnLink struct {
+	//nolint:revive // TODO(WKIT) Fix revive linter
 	connActivityId etw.DDGUID
 
 	http WinHttpTransaction
@@ -189,6 +194,7 @@ type HttpConnLink struct {
 	url string
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 type Cache struct {
 	statusCode uint16
 	// <<<MORE ETW HttpService DETAILS>>>
@@ -199,34 +205,45 @@ type Cache struct {
 	reqRespBound bool
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 type HttpCache struct {
 	cache Cache
 	http  WinHttpTransaction
 }
 
 const (
+	//nolint:revive // TODO(WKIT) Fix revive linter
 	HttpServiceLogNone int = iota
+	//nolint:revive // TODO(WKIT) Fix revive linter
 	HttpServiceLogSummary
+	//nolint:revive // TODO(WKIT) Fix revive linter
 	HttpServiceLogVerbose
+	//nolint:revive // TODO(WKIT) Fix revive linter
 	HttpServiceLogVeryVerbose
 )
 
 var (
 	// Should be controlled by config
+	//nolint:revive // TODO(WKIT) Fix revive linter
 	HttpServiceLogVerbosity int = HttpServiceLogSummary
 )
 
 var (
+	//nolint:revive // TODO(WKIT) Fix revive linter
 	httpServiceSubscribed bool = false
 	connOpened            map[etw.DDGUID]*ConnOpen
 	http2openConn         map[etw.DDGUID]*HttpConnLink
 	httpCache             map[string]*HttpCache
 
-	completedHttpTxMux      sync.Mutex
-	completedHttpTx         []WinHttpTransaction
+	//nolint:revive // TODO(WKIT) Fix revive linter
+	completedHttpTxMux sync.Mutex
+	//nolint:revive // TODO(WKIT) Fix revive linter
+	completedHttpTx []WinHttpTransaction
+	//nolint:revive // TODO(WKIT) Fix revive linter
 	completedHttpTxMaxCount uint64 = 1000 // default max
 	maxRequestFragmentBytes uint64 = 25
-	completedHttpTxDropped  uint   = 0 // when should we reset this telemetry and how to expose it
+	//nolint:revive // TODO(WKIT) Fix revive linter
+	completedHttpTxDropped uint = 0 // when should we reset this telemetry and how to expose it
 
 	captureHTTP  bool
 	captureHTTPS bool
@@ -252,12 +269,14 @@ func init() {
 
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func cleanupActivityIdViaConnOpen(connOpen *ConnOpen, activityId etw.DDGUID) {
 	// Clean it up related containers
 	delete(http2openConn, activityId)
 	delete(connOpen.httpPendingBackLinks, activityId)
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func cleanupActivityIdViaConnActivityId(connActivityId etw.DDGUID, activityId etw.DDGUID) {
 	connOpen, connFound := connOpened[connActivityId]
 	if connFound {
@@ -265,6 +284,7 @@ func cleanupActivityIdViaConnActivityId(connActivityId etw.DDGUID, activityId et
 	}
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func getConnOpen(activityId etw.DDGUID) (*ConnOpen, bool) {
 	connOpen, connFound := connOpened[activityId]
 	if !connFound {
@@ -280,6 +300,7 @@ func getConnOpen(activityId etw.DDGUID) (*ConnOpen, bool) {
 	return connOpen, connFound
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func getHttpConnLink(activityId etw.DDGUID) (*HttpConnLink, bool) {
 	httpConnLink, found := http2openConn[activityId]
 	if !found {
@@ -532,6 +553,8 @@ func httpCallbackOnHTTPConnectionTraceTaskConnClose(eventInfo *etw.DDEtwEventInf
 		connOpen.conn.disconnected = winutil.FileTimeToUnixNano(uint64(eventInfo.Event.TimeStamp))
 
 		// Clean pending http2openConn
+		//
+		//nolint:revive // TODO(WKIT) Fix revive linter
 		for httpReqRespActivityId := range connOpen.httpPendingBackLinks {
 			delete(http2openConn, httpReqRespActivityId)
 		}
@@ -1101,6 +1124,8 @@ func httpCallbackOnHTTPRequestTraceTaskSend(eventInfo *etw.DDEtwEventInfo) {
 
 // -----------------------------------------------------------
 // HttpService ETW Event #34 (EVENT_ID_HttpService_HTTPSSLTraceTaskSslConnEvent)
+//
+//nolint:revive // TODO(WKIT) Fix revive linter
 func httpCallbackOnHttpSslConnEvent(eventInfo *etw.DDEtwEventInfo) {
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
@@ -1125,6 +1150,8 @@ func httpCallbackOnHttpSslConnEvent(eventInfo *etw.DDEtwEventInfo) {
 		}
 	}
 }
+
+//nolint:revive // TODO(WKIT) Fix revive linter
 func reportHttpCallbackEvents(eventInfo *etw.DDEtwEventInfo, willBeProcessed bool) {
 	var processingStatus string
 	if willBeProcessed {
@@ -1139,6 +1166,7 @@ func reportHttpCallbackEvents(eventInfo *etw.DDEtwEventInfo, willBeProcessed boo
 		eventCount)
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func httpCallbackOnHttpServiceNonProcessedEvents(eventInfo *etw.DDEtwEventInfo) {
 	notHandledEventsCount++
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
@@ -1147,6 +1175,7 @@ func httpCallbackOnHttpServiceNonProcessedEvents(eventInfo *etw.DDEtwEventInfo) 
 	}
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func etwHttpServiceSummary() {
 	lastSummaryTime = time.Now()
 	summaryCount++
@@ -1184,6 +1213,7 @@ func etwHttpServiceSummary() {
 	*/
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (hei *EtwInterface) OnEvent(eventInfo *etw.DDEtwEventInfo) {
 
 	// Total number of bytes transferred to kernel from HTTP.sys driver. 0x68 is ETW header size
@@ -1262,6 +1292,8 @@ func (hei *EtwInterface) OnEvent(eventInfo *etw.DDEtwEventInfo) {
 }
 
 // can be called multiple times
+//
+//nolint:revive // TODO(WKIT) Fix revive linter
 func initializeEtwHttpServiceSubscription() {
 	connOpened = make(map[etw.DDGUID]*ConnOpen)
 	http2openConn = make(map[etw.DDGUID]*HttpConnLink)
@@ -1294,6 +1326,8 @@ func (h *Http) String() string {
 	output.WriteString("}")
 	return output.String()
 }
+
+//nolint:revive // TODO(WKIT) Fix revive linter
 func ReadHttpTx() (httpTxs []WinHttpTransaction, err error) {
 	if !httpServiceSubscribed {
 		return nil, errors.New("ETW HttpService is not currently subscribed")
@@ -1303,6 +1337,8 @@ func ReadHttpTx() (httpTxs []WinHttpTransaction, err error) {
 	defer completedHttpTxMux.Unlock()
 
 	// Return accumulated httpTx and reset array
+	//
+	//nolint:revive // TODO(WKIT) Fix revive linter
 	readHttpTx := completedHttpTx
 
 	completedHttpTx = make([]WinHttpTransaction, 0, 100)
@@ -1310,18 +1346,23 @@ func ReadHttpTx() (httpTxs []WinHttpTransaction, err error) {
 	return readHttpTx, nil
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func SetMaxFlows(maxFlows uint64) {
 	completedHttpTxMaxCount = maxFlows
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func SetMaxRequestBytes(maxRequestBytes uint64) {
 	maxRequestFragmentBytes = maxRequestBytes
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func SetEnabledProtocols(http, https bool) {
 	captureHTTP = http
 	captureHTTPS = https
 }
+
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (hei *EtwInterface) OnStart() {
 	initializeEtwHttpServiceSubscription()
 	httpServiceSubscribed = true
@@ -1339,6 +1380,7 @@ func (hei *EtwInterface) OnStart() {
 	}
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (hei *EtwInterface) OnStop() {
 	httpServiceSubscribed = false
 	initializeEtwHttpServiceSubscription()

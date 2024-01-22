@@ -27,6 +27,7 @@ type telemetry struct {
 	logProfiledWorkloads  bool
 }
 
+//nolint:unused // TODO(SEC) Fix unused linter
 func newTelemetry(senderManager sender.SenderManager, logProfiledWorkloads, ignoreDDAgentContainers bool) (*telemetry, error) {
 	runtimeSecurityClient, err := NewRuntimeSecurityClient()
 	if err != nil {

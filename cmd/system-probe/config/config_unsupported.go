@@ -18,3 +18,8 @@ const (
 func ValidateSocketAddress(sockPath string) error { //nolint:revive // TODO fix revive unused-parameter
 	return fmt.Errorf("system-probe unsupported")
 }
+
+// ProcessEventDataStreamSupported returns true if process event data stream is supported
+func ProcessEventDataStreamSupported() bool {
+	return false
+}

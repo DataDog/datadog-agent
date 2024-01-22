@@ -288,7 +288,6 @@ def windows_service_status(service)
   raise "windows_service_status is only for windows" unless os == :windows
   # Language-independent way of getting the service status
   res =  `powershell -command \"try { (get-service #{service} -ErrorAction Stop).Status } catch { write-host NOTINSTALLED }\"`
-  puts res
   return (res).upcase.strip
 end
 
@@ -369,6 +368,17 @@ def dogstatsd_processes_running?
       return true if is_process_running?(p)
   end
   false
+end
+
+def expect_windows_cws?
+  if os == :windows && get_agent_flavor == 'datadog-agent'
+    cws = parse_dna().fetch('dd-agent-rspec').fetch('cws_included')
+    if cws == "testsigned" || cws == "release-signed" || cws == "attestation-signed"
+      return true
+    end
+  end
+  return false
+  
 end
 
 def deploy_cws?
@@ -856,6 +866,20 @@ shared_examples_for 'an Agent that is removed' do
   end
 
   if os == :windows
+    windows_service_names = [
+      'datadogagent',
+      'datadog-process-agent',
+      'datadog-trace-agent',
+      'datadog-system-probe',
+      'datadog-security-agent'
+    ]
+    it 'should not have services installed' do
+      windows_service_names.each do |ws|
+        expect(is_windows_service_installed(ws)).to be_falsey
+      end
+    end
+  end 
+if os == :windows
     it 'should not make changes to system files' do
       exclude = [
             'C:/Windows/Assembly/Temp/',

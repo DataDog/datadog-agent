@@ -5,7 +5,7 @@ on:
   push:
     branches:
       - main
-      - 7.[0-9][0-9].x
+      - "[0-9]+.[0-9]+.x"
       - mq-working-branch-*
     paths:
       - "pkg/gohai/**"
@@ -31,9 +31,9 @@ jobs:
         go-file: [.go-version, pkg/gohai/go.mod]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions/setup-go@v3
         with:
           go-version-file: ${{ matrix.go-file }}
       - name: Test
-        run: cd pkg/gohai && go test ./...
+        run: cd pkg/gohai && go test -tags=test ./...

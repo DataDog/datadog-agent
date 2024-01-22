@@ -64,7 +64,7 @@ func TestProcessEvents(t *testing.T) {
 								Digest:    "digest_layer_1",
 								SizeBytes: 43,
 								URLs:      []string{"url"},
-								History: v1.History{
+								History: &v1.History{
 									Created: pointer.Ptr(time.Unix(42, 43)),
 								},
 							},
@@ -73,7 +73,7 @@ func TestProcessEvents(t *testing.T) {
 								Digest:    "digest_layer_2",
 								URLs:      []string{"url"},
 								SizeBytes: 44,
-								History: v1.History{
+								History: &v1.History{
 									Created: pointer.Ptr(time.Unix(43, 44)),
 								},
 							},
@@ -283,7 +283,7 @@ func TestProcessEvents(t *testing.T) {
 								Digest:    "digest_layer_1",
 								SizeBytes: 43,
 								URLs:      []string{"url"},
-								History: v1.History{
+								History: &v1.History{
 									Created: pointer.Ptr(time.Unix(42, 43)),
 								},
 							},
@@ -292,7 +292,7 @@ func TestProcessEvents(t *testing.T) {
 								Digest:    "digest_layer_2",
 								URLs:      []string{"url"},
 								SizeBytes: 44,
-								History: v1.History{
+								History: &v1.History{
 									Created: pointer.Ptr(time.Unix(43, 44)),
 								},
 							},
@@ -413,7 +413,7 @@ func TestProcessEvents(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			var imagesSent = atomic.NewInt32(0)
+			imagesSent := atomic.NewInt32(0)
 
 			sender := mocksender.NewMockSender("")
 			sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Run(func(_ mock.Arguments) {

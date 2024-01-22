@@ -53,6 +53,23 @@ else
   end
 end
 
+if ENV.has_key?("OMNIBUS_WORKERS_OVERRIDE")
+  COMPRESSION_THREADS = ENV["OMNIBUS_WORKERS_OVERRIDE"].to_i
+  # On armv7, dpkg is built as a 32bits application, which means
+  # we can only address 32 bits of memory, which is likely to OOM
+  # if we use to many compression threads
+  if ENV.has_key?("PACKAGE_ARCH") && ENV["PACKAGE_ARCH"] == "armhf"
+    COMPRESSION_THREADS = [COMPRESSION_THREADS, 4].min
+  end
+else
+  COMPRESSION_THREADS = 1
+end
+if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true"
+  COMPRESSION_LEVEL = 9
+else
+  COMPRESSION_LEVEL = 5
+end
+
 # build_version is computed by an invoke command/function.
 # We can't call it directly from there, we pass it through the environment instead.
 build_version ENV['PACKAGE_VERSION']
@@ -80,6 +97,9 @@ package :deb do
   license 'Apache License Version 2.0'
   section 'utils'
   priority 'extra'
+  compression_threads COMPRESSION_THREADS
+  compression_level COMPRESSION_LEVEL
+  compression_algo "xz"
   if ENV.has_key?('DEB_SIGNING_PASSPHRASE') and not ENV['DEB_SIGNING_PASSPHRASE'].empty?
     signing_passphrase "#{ENV['DEB_SIGNING_PASSPHRASE']}"
     if ENV.has_key?('DEB_GPG_KEY_NAME') and not ENV['DEB_GPG_KEY_NAME'].empty?
@@ -96,6 +116,9 @@ package :rpm do
   license 'Apache License Version 2.0'
   category 'System Environment/Daemons'
   priority 'extra'
+  compression_threads COMPRESSION_THREADS
+  compression_level COMPRESSION_LEVEL
+  compression_algo "xz"
   if ENV.has_key?('RPM_SIGNING_PASSPHRASE') and not ENV['RPM_SIGNING_PASSPHRASE'].empty?
     signing_passphrase "#{ENV['RPM_SIGNING_PASSPHRASE']}"
     if ENV.has_key?('RPM_GPG_KEY_NAME') and not ENV['RPM_GPG_KEY_NAME'].empty?

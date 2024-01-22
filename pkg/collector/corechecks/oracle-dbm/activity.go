@@ -34,6 +34,7 @@ type ActivitySnapshot struct {
 	OracleActivityRows []OracleActivityRow `json:"oracle_activity,omitempty"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type RowMetadata struct {
 	Commands       []string `json:"dd_commands,omitempty"`
 	Tables         []string `json:"dd_tables,omitempty"`
@@ -50,6 +51,7 @@ type Metadata struct {
 	DDAgentVersion string  `json:"ddagentversion,omitempty"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type OracleSQLRow struct {
 	SQLID                  string `json:"sql_id,omitempty"`
 	ForceMatchingSignature uint64 `json:"force_matching_signature,omitempty"`
@@ -57,6 +59,7 @@ type OracleSQLRow struct {
 	SQLExecStart           string `json:"sql_exec_start,omitempty"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type OracleActivityRow struct {
 	Now           string `json:"now"`
 	SessionID     uint64 `json:"sid,omitempty"`
@@ -92,6 +95,7 @@ type OracleActivityRow struct {
 	RowMetadata
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type OracleActivityRowDB struct {
 	Now                        string         `db:"NOW"`
 	SessionID                  uint64         `db:"SID"`
@@ -160,6 +164,7 @@ func (c *Check) getSQLRow(SQLID sql.NullString, forceMatchingSignature *string, 
 	return SQLRow, nil
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 func (c *Check) SampleSession() error {
 	start := time.Now()
 

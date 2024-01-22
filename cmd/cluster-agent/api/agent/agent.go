@@ -17,17 +17,17 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/response"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/flare"
-	"github.com/DataDog/datadog-agent/pkg/status"
+	clusteragentStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -58,7 +58,7 @@ func SetupHandlers(r *mux.Router, wmeta workloadmeta.Component, senderManager se
 func getStatus(w http.ResponseWriter, r *http.Request) {
 	log.Info("Got a request for the status. Making status.")
 	verbose := r.URL.Query().Get("verbose") == "true"
-	s, err := status.GetDCAStatus(verbose)
+	s, err := clusteragentStatus.GetStatus(verbose)
 	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
 		log.Errorf("Error getting status. Error: %v, Status: %v", err, s)
@@ -74,6 +74,7 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonStats)
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func getHealth(w http.ResponseWriter, r *http.Request) {
 	h := health.GetReady()
 
@@ -91,6 +92,7 @@ func getHealth(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonHealth)
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func stopAgent(w http.ResponseWriter, r *http.Request) {
 	signals.Stopper <- true
 	w.Header().Set("Content-Type", "application/json")
@@ -98,6 +100,7 @@ func stopAgent(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func getVersion(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	av, err := version.Agent()
@@ -164,6 +167,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request, senderManager sender.Diag
 	w.Write([]byte(filePath))
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 	var response response.ConfigCheckResponse
 
@@ -192,6 +196,7 @@ func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonConfig)
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func getTaggerList(w http.ResponseWriter, r *http.Request) {
 	response := tagger.List(collectors.HighCardinality)
 

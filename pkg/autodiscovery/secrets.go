@@ -23,7 +23,7 @@ func decryptConfig(conf integration.Config, secretResolver secrets.Component) (i
 	var err error
 
 	// init_config
-	conf.InitConfig, err = secretResolver.Decrypt(conf.InitConfig, conf.Name)
+	conf.InitConfig, err = secretResolver.Resolve(conf.InitConfig, conf.Name)
 	if err != nil {
 		return conf, fmt.Errorf("error while decrypting secrets in 'init_config': %s", err)
 	}
@@ -32,7 +32,7 @@ func decryptConfig(conf integration.Config, secretResolver secrets.Component) (i
 	// we cannot update in place as, being a slice, it would modify the input config as well
 	instances := make([]integration.Data, 0, len(conf.Instances))
 	for _, inputInstance := range conf.Instances {
-		decryptedInstance, err := secretResolver.Decrypt(inputInstance, conf.Name)
+		decryptedInstance, err := secretResolver.Resolve(inputInstance, conf.Name)
 		if err != nil {
 			return conf, fmt.Errorf("error while decrypting secrets in an instance: %s", err)
 		}
@@ -41,13 +41,13 @@ func decryptConfig(conf integration.Config, secretResolver secrets.Component) (i
 	conf.Instances = instances
 
 	// metrics
-	conf.MetricConfig, err = secretResolver.Decrypt(conf.MetricConfig, conf.Name)
+	conf.MetricConfig, err = secretResolver.Resolve(conf.MetricConfig, conf.Name)
 	if err != nil {
 		return conf, fmt.Errorf("error while decrypting secrets in 'metrics': %s", err)
 	}
 
 	// logs
-	conf.LogsConfig, err = secretResolver.Decrypt(conf.LogsConfig, conf.Name)
+	conf.LogsConfig, err = secretResolver.Resolve(conf.LogsConfig, conf.Name)
 	if err != nil {
 		return conf, fmt.Errorf("error while decrypting secrets 'logs': %s", err)
 	}

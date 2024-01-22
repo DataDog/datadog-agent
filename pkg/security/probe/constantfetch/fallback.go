@@ -140,12 +140,12 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 }
 
 // AppendSizeofRequest appends a sizeof request
-func (f *FallbackConstantFetcher) AppendSizeofRequest(id, typeName, headerName string) {
+func (f *FallbackConstantFetcher) AppendSizeofRequest(id, _, _ string) {
 	f.appendRequest(id)
 }
 
 // AppendOffsetofRequest appends an offset request
-func (f *FallbackConstantFetcher) AppendOffsetofRequest(id, typeName, fieldName, headerName string) {
+func (f *FallbackConstantFetcher) AppendOffsetofRequest(id, _, _, _ string) {
 	f.appendRequest(id)
 }
 
@@ -216,7 +216,7 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 	return sizeOf
 }
 
-func getSuperBlockFlagsOffset(kv *kernel.Version) uint64 { //nolint:revive // TODO fix revive unused-parameter
+func getSuperBlockFlagsOffset(_ *kernel.Version) uint64 {
 	return uint64(80)
 }
 
@@ -377,7 +377,7 @@ func getBpfMapNameOffset(kv *kernel.Version) uint64 {
 	return nameOffset
 }
 
-func getBpfMapTypeOffset(kv *kernel.Version) uint64 {
+func getBpfMapTypeOffset(_ *kernel.Version) uint64 {
 	return uint64(24)
 }
 
@@ -408,11 +408,11 @@ func getBpfProgTagOffset(kv *kernel.Version) uint64 {
 	return progTagOffset
 }
 
-func getBpfProgTypeOffset(kv *kernel.Version) uint64 {
+func getBpfProgTypeOffset(_ *kernel.Version) uint64 {
 	return uint64(4)
 }
 
-func getBpfProgAttachTypeOffset(kv *kernel.Version) uint64 {
+func getBpfProgAttachTypeOffset(_ *kernel.Version) uint64 {
 	return uint64(8)
 }
 
@@ -494,7 +494,7 @@ func getBpfProgAuxNameOffset(kv *kernel.Version) uint64 {
 	return nameOffset
 }
 
-func getPIDLevelOffset(kv *kernel.Version) uint64 {
+func getPIDLevelOffset(_ *kernel.Version) uint64 {
 	return uint64(4)
 }
 
@@ -727,11 +727,11 @@ func getNetNSOffset(kv *kernel.Version) uint64 {
 	}
 }
 
-func getNetProcINumOffset(kv *kernel.Version) uint64 {
+func getNetProcINumOffset(_ *kernel.Version) uint64 {
 	return uint64(72)
 }
 
-func getSockCommonSKCNetOffset(kv *kernel.Version) uint64 {
+func getSockCommonSKCNetOffset(_ *kernel.Version) uint64 {
 	return uint64(48)
 }
 
@@ -770,7 +770,7 @@ func getNFConnCTNetOffset(kv *kernel.Version) uint64 {
 	}
 }
 
-func getSockCommonSKCFamilyOffset(kv *kernel.Version) uint64 {
+func getSockCommonSKCFamilyOffset(_ *kernel.Version) uint64 {
 	return 16
 }
 
@@ -932,12 +932,12 @@ func getVMAreaStructFlagsOffset(kv *kernel.Version) uint64 {
 	return 80
 }
 
-func getTaskStructPIDOffset(kv *kernel.Version) uint64 {
+func getTaskStructPIDOffset(_ *kernel.Version) uint64 {
 	// do not use fallback for offsets inside task_struct
 	return ErrorSentinel
 }
 
-func getTaskStructPIDLinkOffset(kv *kernel.Version) uint64 {
+func getTaskStructPIDLinkOffset(_ *kernel.Version) uint64 {
 	// do not use fallback for offsets inside task_struct
 	return ErrorSentinel
 }

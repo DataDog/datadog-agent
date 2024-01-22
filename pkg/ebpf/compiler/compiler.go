@@ -5,6 +5,7 @@
 
 //go:build linux_bpf
 
+// Package compiler is the runtime compiler for eBPF
 package compiler
 
 import (
@@ -18,12 +19,13 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
-	datadogAgentEmbeddedPath = "/opt/datadog-agent/embedded"
+	datadogAgentEmbeddedPath = filepath.Join(setup.InstallPath, "embedded")
 	clangBinPath             = filepath.Join(datadogAgentEmbeddedPath, "bin/clang-bpf")
 	llcBinPath               = filepath.Join(datadogAgentEmbeddedPath, "bin/llc-bpf")
 
@@ -91,12 +93,14 @@ func CompileToObjectFile(inFile, outputFile string, cflags []string, headerDirs 
 	return nil
 }
 
+// WithStdin assigns the provided io.Reader as Stdin for the command
 func WithStdin(in io.Reader) func(*exec.Cmd) {
 	return func(c *exec.Cmd) {
 		c.Stdin = in
 	}
 }
 
+// WithStdout assigns the provided io.Writer as Stdout for the command
 func WithStdout(out io.Writer) func(*exec.Cmd) {
 	return func(c *exec.Cmd) {
 		c.Stdout = out

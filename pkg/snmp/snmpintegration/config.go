@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+//nolint:revive // TODO(NDM) Fix revive linter
 package snmpintegration
 
 // InterfaceConfig interface related configs (e.g. interface speed override)

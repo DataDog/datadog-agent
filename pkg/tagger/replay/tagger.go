@@ -99,17 +99,23 @@ func (t *Tagger) Standard(entityID string) ([]string, error) {
 }
 
 // List returns all the entities currently stored by the tagger.
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (t *Tagger) List(cardinality collectors.TagCardinality) tagger_api.TaggerListResponse {
 	return t.store.List()
 }
 
 // Subscribe does nothing in the replay tagger this tagger does not respond to events.
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (t *Tagger) Subscribe(cardinality collectors.TagCardinality) chan []types.EntityEvent {
 	// NOP
 	return nil
 }
 
 // Unsubscribe does nothing in the replay tagger this tagger does not respond to events.
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (t *Tagger) Unsubscribe(ch chan []types.EntityEvent) {
 	// NOP
 }

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package start implements start related subcommands
 package start
 
 import (
@@ -27,9 +28,11 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/compliance"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/runtime"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
@@ -40,7 +43,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -62,6 +65,7 @@ type cliParams struct {
 	pidfilePath string
 }
 
+// Commands returns the start commands
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	params := &cliParams{
 		GlobalParams: globalParams,
@@ -83,22 +87,24 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams:         config.NewSecurityAgentParams(params.ConfigFilePaths),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
 					SecretParams:         secrets.NewEnabledParams(),
-					LogParams:            log.ForDaemon(command.LoggerName, "security_agent.log_file", pkgconfig.DefaultSecurityAgentLogFile),
+					LogParams:            logimpl.ForDaemon(command.LoggerName, "security_agent.log_file", pkgconfig.DefaultSecurityAgentLogFile),
 				}),
-				core.Bundle,
+				core.Bundle(),
 				dogstatsd.ClientBundle,
-				forwarder.Bundle,
+				forwarder.Bundle(),
 				fx.Provide(defaultforwarder.NewParamsWithResolvers),
-				demultiplexer.Module,
-				fx.Provide(func() demultiplexer.Params {
-					opts := aggregator.DefaultAgentDemultiplexerOptions()
-					opts.UseEventPlatformForwarder = false
-					opts.UseOrchestratorForwarder = false
-					return demultiplexer.Params{Options: opts}
+				demultiplexerimpl.Module(),
+				orchestratorForwarderImpl.Module(),
+				fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
+				fx.Provide(func() demultiplexerimpl.Params {
+					params := demultiplexerimpl.NewDefaultParams()
+					params.UseEventPlatformForwarder = false
+
+					return params
 				}),
 				// workloadmeta setup
 				collectors.GetCatalog(),
-				workloadmeta.Module,
+				workloadmeta.Module(),
 				fx.Provide(func(config config.Component) workloadmeta.Params {
 
 					catalog := workloadmeta.NodeAgent

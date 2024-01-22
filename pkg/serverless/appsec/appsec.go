@@ -8,19 +8,22 @@
 package appsec
 
 import (
-	"encoding/json"
 	"math/rand"
 	"time"
 
+	appsecLog "github.com/DataDog/appsec-internal-go/log"
+	waf "github.com/DataDog/go-libddwaf/v2"
+	json "github.com/json-iterator/go"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/httpsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
-	waf "github.com/DataDog/go-libddwaf/v2"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func New() (*httpsec.ProxyLifecycleProcessor, error) {
+//nolint:revive // TODO(ASM) Fix revive linter
+func New(demux aggregator.Demultiplexer) (*httpsec.ProxyLifecycleProcessor, error) {
 	appsecInstance, err := newAppSec() // note that the assigned variable is in the parent scope
 	if err != nil {
 		return nil, err
@@ -30,7 +33,7 @@ func New() (*httpsec.ProxyLifecycleProcessor, error) {
 	}
 
 	// AppSec monitors the invocations by acting as a proxy of the AWS Lambda Runtime API.
-	lp := httpsec.NewProxyLifecycleProcessor(appsecInstance)
+	lp := httpsec.NewProxyLifecycleProcessor(appsecInstance, demux)
 	proxy.Start(
 		"127.0.0.1:9000",
 		"127.0.0.1:9001",
@@ -40,6 +43,7 @@ func New() (*httpsec.ProxyLifecycleProcessor, error) {
 	return lp, nil
 }
 
+//nolint:revive // TODO(ASM) Fix revive linter
 type AppSec struct {
 	cfg *config.Config
 	// WAF handle instance of the appsec event rules.
@@ -158,4 +162,14 @@ func wafHealth() error {
 // and that sampling rate allows schema extraction for a specific monitoring instance
 func (a *AppSec) canExtractSchemas() bool {
 	return a.cfg.APISec.Enabled && a.cfg.APISec.SampleRate >= rand.Float64()
+}
+
+func init() {
+	appsecLog.SetBackend(appsecLog.Backend{
+		Trace:     log.Tracef,
+		Debug:     log.Debugf,
+		Info:      log.Infof,
+		Errorf:    log.Errorf,
+		Criticalf: log.Criticalf,
+	})
 }

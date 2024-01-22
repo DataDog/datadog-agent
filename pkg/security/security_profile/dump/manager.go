@@ -454,7 +454,7 @@ func (adm *ActivityDumpManager) HandleCGroupTracingEvent(event *model.CgroupTrac
 	}
 
 	if err := adm.startDumpWithConfig(event.ContainerContext.ID, event.ConfigCookie, event.Config); err != nil {
-		seclog.Errorf("%v", err)
+		seclog.Warnf("%v", err)
 	}
 }
 
@@ -559,7 +559,7 @@ func (adm *ActivityDumpManager) DumpActivity(params *api.ActivityDumpParams) (*a
 }
 
 // ListActivityDumps returns the list of active activity dumps
-func (adm *ActivityDumpManager) ListActivityDumps(params *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
+func (adm *ActivityDumpManager) ListActivityDumps(_ *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
 	adm.Lock()
 	defer adm.Unlock()
 
@@ -926,5 +926,6 @@ func (adm *ActivityDumpManager) StopDumpsWithSelector(selector cgroupModel.Workl
 		}
 		ad.Unlock()
 	}
+	//nolint:gosimple // TODO(SEC) Fix gosimple linter
 	return
 }

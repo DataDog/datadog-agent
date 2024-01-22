@@ -1,7 +1,7 @@
 {
     "debian": {
         "x86_64": {
-            "debian-9":  "ami-099d228beefd189f5",
+            "debian-9":  "ami-0182559468c1975fe",
             "debian-10": "ami-041540a5c191757a0",
             "debian-11": "ami-09e24b0cfe072ecef",
             "debian-12": "ami-06db4d78cb1d3bbf9"
@@ -44,6 +44,28 @@
             "amazonlinux2-5-10": "ami-09e51988f56677f44",
             "amazonlinux2022-5-15": "ami-0a8495f6303122235",
             "amazonlinux2023": "ami-08fc6fb8ad2e794bb"
+        }
+    },
+    "centos": {
+        "x86_64": {
+            "centos-610": "ami-0506f01ccb6dddeda",
+            "centos-79": "ami-0aedf6b1cb669b4c7",
+            "rhel-86": "ami-06640050dc3f556bb",
+            "rocky-92": "ami-062b16ca222175b97",
+            "rhel-86-fips": "ami-0d0fb96b595c56e03"
+        },
+        "arm64": {
+            "centos-79": "ami-0144a5a84f5699847",
+            "rhel-86": "ami-0238411fb452f8275"
+        }
+    },
+    "suse": {
+        "x86_64": {
+            "sles-12": "ami-08d21b039336d9351",
+            "sles-15": "ami-08f3662e2d5b3989a"
+        },
+        "arm64": {
+            "sles-15": "ami-02f7663f03ca92749"
         }
     }
 }

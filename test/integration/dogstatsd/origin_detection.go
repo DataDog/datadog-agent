@@ -64,7 +64,7 @@ func testUDSOriginDetection(t *testing.T, network string) {
 	cfg["dogstatsd_origin_detection"] = true
 
 	confComponent := fxutil.Test[config.Component](t, fx.Options(
-		config.MockModule,
+		config.MockModule(),
 		fx.Replace(config.MockParams{Overrides: cfg}),
 	))
 
@@ -86,7 +86,7 @@ func testUDSOriginDetection(t *testing.T, network string) {
 
 	// Start sender container
 	t.Logf("Starting sender container %s", composeFile)
-	go s.Listen()
+	s.Listen()
 	defer s.Stop()
 
 	compose := &utils.ComposeConf{

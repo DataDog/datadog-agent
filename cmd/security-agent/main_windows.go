@@ -22,9 +22,11 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/start"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
@@ -35,8 +37,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -95,23 +97,24 @@ func (s *service) Run(svcctx context.Context) error {
 			ConfigParams:         config.NewSecurityAgentParams(defaultSecurityAgentConfigFilePaths),
 			SecretParams:         secrets.NewEnabledParams(),
 			SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(defaultSysProbeConfPath)),
-			LogParams:            log.ForDaemon(command.LoggerName, "security_agent.log_file", pkgconfig.DefaultSecurityAgentLogFile),
+			LogParams:            logimpl.ForDaemon(command.LoggerName, "security_agent.log_file", pkgconfig.DefaultSecurityAgentLogFile),
 		}),
-		core.Bundle,
+		core.Bundle(),
 		dogstatsd.ClientBundle,
-		forwarder.Bundle,
+		forwarder.Bundle(),
 		fx.Provide(defaultforwarder.NewParamsWithResolvers),
-		demultiplexer.Module,
-		fx.Provide(func() demultiplexer.Params {
-			opts := aggregator.DefaultAgentDemultiplexerOptions()
-			opts.UseEventPlatformForwarder = false
-			opts.UseOrchestratorForwarder = false
-			return demultiplexer.Params{Options: opts}
+		demultiplexerimpl.Module(),
+		orchestratorForwarderImpl.Module(),
+		fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
+		fx.Provide(func() demultiplexerimpl.Params {
+			params := demultiplexerimpl.NewDefaultParams()
+			params.UseEventPlatformForwarder = false
+			return params
 		}),
 
 		// workloadmeta setup
 		collectors.GetCatalog(),
-		workloadmeta.Module,
+		workloadmeta.Module(),
 		fx.Provide(func(config config.Component) workloadmeta.Params {
 
 			catalog := workloadmeta.NodeAgent

@@ -18,6 +18,9 @@ var validProducts = map[string]struct{}{
 	ProductASMDD:             {},
 	ProductASMData:           {},
 	ProductAPMTracing:        {},
+	ProductLiveDebugging:     {},
+	ProductTesting1:          {},
+	ProductTesting2:          {},
 }
 
 const (
@@ -45,4 +48,10 @@ const (
 	ProductASMData = "ASM_DATA"
 	// ProductAPMTracing is the apm tracing product
 	ProductAPMTracing = "APM_TRACING"
+	// ProductLiveDebugging is the dynamic instrumentation product
+	ProductLiveDebugging = "LIVE_DEBUGGING"
+	// ProductTesting1 is a product used for testing remote config
+	ProductTesting1 = "TESTING1"
+	// ProductTesting2 is a product used for testing remote config
+	ProductTesting2 = "TESTING2"
 )

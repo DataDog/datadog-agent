@@ -30,6 +30,7 @@ type MockProvider struct {
 	collectCounter int
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (p *MockProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	p.collectCounter++
 	return []integration.Config{}, nil
@@ -39,6 +40,7 @@ func (p *MockProvider) String() string {
 	return "mocked"
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (p *MockProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	return true, nil
 }
@@ -56,6 +58,7 @@ type MockListener struct {
 	stopReceived bool
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (l *MockListener) Listen(newSvc, delSvc chan<- listeners.Service) {
 	l.ListenCount++
 }

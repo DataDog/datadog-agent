@@ -28,15 +28,15 @@ func TestComplianceModuleNoProcess(t *testing.T) {
 	{
 		url := "/dbconfig"
 		statusCode, _, respBody := doDBConfigRequest(t, url)
+		require.Contains(t, string(respBody), "pid query parameter is not an integer")
 		require.Equal(t, http.StatusBadRequest, statusCode)
-		require.Len(t, respBody, 0)
 	}
 
 	{
 		url := "/dbconfig?pid=0"
 		statusCode, _, respBody := doDBConfigRequest(t, url)
+		require.Contains(t, "resource not found for pid=0", string(respBody))
 		require.Equal(t, http.StatusNotFound, statusCode)
-		require.Len(t, respBody, 0)
 	}
 }
 
@@ -55,25 +55,29 @@ func TestComplianceCheckModuleWithProcess(t *testing.T) {
 	if err := json.Unmarshal(respBody, &resource); err != nil {
 		t.Fatal(err)
 	}
-	require.Nil(t, resource)
+	require.Equal(t, "db_postgresql", resource.Type)
+	require.Equal(t, "postgres", resource.Config.ProcessName)
+	require.NotEmpty(t, resource.Config.ProcessUser)
+	require.Equal(t, filepath.Join(tmp, "postgresql.conf"), resource.Config.ConfigFilePath)
+	require.NotEmpty(t, resource.Config.ConfigFileUser)
+	require.NotEmpty(t, resource.Config.ConfigFileGroup)
+	require.Equal(t, uint32(0600), resource.Config.ConfigFileMode)
+	require.Equal(t, map[string]interface{}{"foo": "bar"}, resource.Config.ConfigData)
 }
 
 func launchFakeProcess(ctx context.Context, t *testing.T, tmp, procname string) int {
-	// creates a symlink to /usr/bin/sleep to be able to create a fake
-	// postgres process.
-	sleepPath, err := exec.LookPath("sleep")
-	if err != nil {
-		t.Skipf("could not find sleep util")
-	}
-	fakePgPath := filepath.Join(tmp, procname)
-	if err := os.Symlink(sleepPath, fakePgPath); err != nil {
-		t.Fatalf("could not create fake process symlink: %v", err)
-	}
-	if err := os.Chmod(fakePgPath, 0700); err != nil {
-		t.Fatalf("could not chmod fake process symlink: %v", err)
+	fakePgBinPath := filepath.Join(tmp, "postgres")
+	fakePgConfPath := filepath.Join(tmp, "postgresql.conf")
+
+	if err := os.WriteFile(fakePgBinPath, []byte("#!/bin/bash\nsleep 10"), 0700); err != nil {
+		t.Fatal(err)
 	}
 
-	cmd := exec.CommandContext(ctx, fakePgPath, "5")
+	if err := os.WriteFile(fakePgConfPath, []byte(`foo = 'bar'`), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := exec.CommandContext(ctx, fakePgBinPath, fmt.Sprintf("--config-file=%s", fakePgConfPath))
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("could not start fake process %q: %v", procname, err)
 	}
