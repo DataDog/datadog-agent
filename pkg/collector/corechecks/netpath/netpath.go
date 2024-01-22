@@ -36,28 +36,45 @@ var globalMu = &sync.Mutex{}
 // Check doesn't need additional fields
 type Check struct {
 	core.CheckBase
-	nbCPU       float64
-	lastNbCycle float64
-	lastTimes   cpu.TimesStat
-	config      *CheckConfig
+	nbCPU         float64
+	lastNbCycle   float64
+	lastTimes     cpu.TimesStat
+	config        *CheckConfig
+	lastCheckTime time.Time
 }
 
 // Run executes the check
 func (c *Check) Run() error {
 	globalMu.Lock()
 	defer globalMu.Unlock()
-	sender, err := c.GetSender()
+
+	startTime := time.Now()
+
+	senderInstance, err := c.GetSender()
 	if err != nil {
 		return err
 	}
 
-	err = c.traceroute(sender)
+	err = c.traceroute(senderInstance)
 	if err != nil {
 		return err
 	}
 
-	sender.Gauge("netpath.test_metric", 10, "", nil)
-	sender.Commit()
+	tags := []string{
+		"dest_hostname:" + c.config.DestHostname,
+		"dest_name:" + c.config.DestName,
+	}
+
+	duration := time.Since(startTime)
+	senderInstance.Gauge("netpath.telemetry.count", 1, "", tags)
+	senderInstance.Gauge("netpath.telemetry.duration", duration.Seconds(), "", tags)
+
+	if !c.lastCheckTime.IsZero() {
+		interval := startTime.Sub(c.lastCheckTime)
+		senderInstance.Gauge("netpath.telemetry.interval", interval.Seconds(), "", tags)
+	}
+	senderInstance.Commit()
+	c.lastCheckTime = startTime
 	return nil
 }
 
@@ -67,7 +84,7 @@ func (c *Check) traceroute(sender sender.Sender) error {
 	options.SetMaxHops(15)
 	//options.SetFirstHop(traceroute.DEFAULT_FIRST_HOP)
 	times := 1
-	destinationHost := c.config.Hostname
+	destinationHost := c.config.DestHostname
 
 	hname, err := hostname.Get(context.TODO())
 	if err != nil {
@@ -181,7 +198,7 @@ func (c *Check) traceRouteV2(sender sender.Sender, hostHops [][]traceroute.Trace
 
 		sender.EventPlatformEvent(tracerouteStr, epforwarder.EventTypeNetworkDevicesNetpath)
 		//tags := []string{
-		//	"target_service:" + c.config.TargetService,
+		//	"target_service:" + c.config.DestName,
 		//	"agent_host:" + agentHostname,
 		//	"target:" + destinationHost,
 		//	"hop_ip_address:" + hopIp,
