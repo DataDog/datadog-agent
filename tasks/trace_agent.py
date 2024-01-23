@@ -3,12 +3,12 @@ import sys
 
 from invoke import Exit, task
 
-from .agent import build as agent_build
-from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
-from .flavor import AgentFlavor
-from .go import deps
-from .libs.common.utils import REPO_PATH, bin_name, get_build_flags
-from .windows_resources import build_messagetable, build_rc, versioninfo_vars
+from tasks.agent import build as agent_build
+from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.flavor import AgentFlavor
+from tasks.go import deps
+from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
+from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 BIN_PATH = os.path.join(".", "bin", "trace-agent")
 

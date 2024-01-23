@@ -4,7 +4,7 @@ import subprocess
 import unittest
 from typing import Any, Dict, Set
 
-from ..modules import AGENT_MODULE_PATH_PREFIX, DEFAULT_MODULES
+from tasks.modules import AGENT_MODULE_PATH_PREFIX, DEFAULT_MODULES
 
 """
 Here is an abstract of the go.mod file format:
@@ -100,7 +100,3 @@ class TestModules(unittest.TestCase):
                 replaced = self.get_agent_replaced(module)
                 required_not_replaced = required - replaced
                 self.assertEqual(required_not_replaced, set(), f"in module {module_path}")
-
-
-if __name__ == '__main__':
-    unittest.main()

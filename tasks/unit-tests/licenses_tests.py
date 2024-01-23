@@ -1,6 +1,6 @@
 import unittest
 
-from ..licenses import is_valid_quote
+from tasks.licenses import is_valid_quote
 
 
 class TestLicensesMethod(unittest.TestCase):
@@ -9,7 +9,3 @@ class TestLicensesMethod(unittest.TestCase):
 
     def test_invalid_quotes(self):
         self.assertFalse(is_valid_quote('""hello' '"""'))
-
-
-if __name__ == '__main__':
-    unittest.main()
