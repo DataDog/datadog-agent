@@ -10,6 +10,8 @@ import (
 	"context"
 )
 
+// team: agent-shared-components
+
 // Data contains hostname and the hostname provider
 type Data struct {
 	Hostname string

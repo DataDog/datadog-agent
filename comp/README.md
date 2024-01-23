@@ -76,6 +76,10 @@ Package flare implements a component to generate flares from the agent.
 
 Package hostname exposes hostname.Get() as a component.
 
+### [comp/core/hostname/hostnameinterface](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface)
+
+Package hostnameinterface describes the interface for hostname methods
+
 ### [comp/core/log](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/log)
 
 Package log implements a component to handle logging internal to the agent.
