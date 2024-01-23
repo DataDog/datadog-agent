@@ -95,7 +95,7 @@ def print_verification_stats(ctx, skip_object_files=False, base=None, jsonfmt=Fa
 
     debug = "--debug" if debug_build else ""
     res = ctx.run(f"{sudo} ./main --directory pkg/ebpf/bytecode/build/co-re {debug}", hide=True)
-    print(res.stderr)
+    print(res.stderr, file=sys.stderr)
     if res.exited == 0:
         verifier_stats = json.loads(res.stdout)
     else:
