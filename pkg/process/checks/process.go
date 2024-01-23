@@ -71,7 +71,7 @@ type ProcessCheck struct {
 	disallowList []*regexp.Regexp
 
 	// determine if zombies process will be collected
-	zombiesDisallowed bool
+	skipZombieProcesses bool
 
 	hostInfo                   *HostInfo
 	lastCPUTime                cpu.TimesStat
@@ -141,7 +141,7 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 
 	p.disallowList = initDisallowList(p.config)
 
-	p.zombiesDisallowed = initZombieDisallowed(p.config)
+	p.skipZombieProcesses = p.config.GetBool(configDisallowZombies)
 
 	p.initConnRates()
 
@@ -281,7 +281,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	p.checkCount++
 
 	connsRates := p.getLastConnRates()
-	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsRates, p.lookupIdProbe, p.zombiesDisallowed)
+	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsRates, p.lookupIdProbe, p.skipZombieProcesses)
 	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID, collectorProcHints)
 
 	// Store the last state for comparison on the next run.
@@ -600,7 +600,7 @@ func skipProcess(
 		// This means short-lived processes (<2s) will never be captured.
 		return true
 	}
-	if zombiesDisallowed && fp.Stats.Status == "Z" {
+	if zombiesDisallowed && fp.Stats != nil && fp.Stats.Status == "Z" {
 		return true
 	}
 	return false
@@ -688,9 +688,4 @@ func isDisallowListed(cmdline []string, disallowList []*regexp.Regexp) bool {
 		}
 	}
 	return false
-}
-
-func initZombieDisallowed(config ddconfig.Reader) bool {
-	disallowed := config.GetBool(configDisallowZombies)
-	return disallowed
 }

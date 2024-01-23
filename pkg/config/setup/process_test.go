@@ -309,10 +309,10 @@ func TestEnvVarOverride(t *testing.T) {
 			expected: "datacat.com",
 		},
 		{
-			key:      "process_config.ignore_zombie_processes.enabled",
+			key:      "process_config.ignore_zombie_processes",
 			env:      "DD_PROCESS_CONFIG_IGNORE_ZOMBIE_PROCESSES",
-			value:    "false",
-			expected: false,
+			value:    "true",
+			expected: true,
 		},
 		{
 			key:      "process_config.internal_profiling.enabled",
