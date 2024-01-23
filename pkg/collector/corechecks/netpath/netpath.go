@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/google/uuid"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"net"
 	"sort"
@@ -124,7 +125,7 @@ func (c *Check) traceroute(senderInstance sender.Sender) (int, error) {
 		UseSrcPort: false,
 		NumPaths:   uint16(numpaths),
 		MinTTL:     uint8(DefaultMinTTL),
-		MaxTTL:     uint8(DefaultMaxTTL),
+		MaxTTL:     uint8(15),
 		Delay:      time.Duration(DefaultDelay) * time.Millisecond,
 		Timeout:    DefaultReadTimeout,
 		BrokenNAT:  false,
@@ -143,8 +144,15 @@ func (c *Check) traceroute(senderInstance sender.Sender) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	//log.Warnf("results: %+v", results)
+	log.Debugf("results: %+v", results)
 
+	if len(results.Flows) == 1 {
+		for k := range results.Flows {
+			hops := results.Flows[k]
+			return len(hops), nil
+		}
+	}
+	//results.Flows[0].hop
 	return 0, nil
 	options := traceroute.TracerouteOptions{}
 	options.SetRetries(1)
@@ -258,11 +266,14 @@ func (c *Check) traceRouteDublin(sender sender.Sender, r *results.Results, hname
 		node  string
 		probe *results.Probe
 	}
+
+	pathId := uuid.New().String()
+
 	for idx, probes := range r.Flows {
-		log.Warnf("flow idx: %d\n", idx)
+		log.Debugf("flow idx: %d\n", idx)
 		for probleIndex, probe := range probes {
-			//log.Warnf("probleIndex: %d, probe %+v\n", probleIndex, probe)
-			log.Warnf("%d - %d - %s\n", probleIndex, probe.Sent.IP.TTL, probe.Name)
+			//log.Debugf("probleIndex: %d, probe %+v\n", probleIndex, probe)
+			log.Debugf("%d - %d - %s\n", probleIndex, probe.Sent.IP.TTL, probe.Name)
 		}
 	}
 
@@ -275,7 +286,7 @@ func (c *Check) traceRouteDublin(sender sender.Sender, r *results.Results, hname
 	for _, flowID := range flowIDs {
 		hops := r.Flows[uint16(flowID)]
 		if len(hops) == 0 {
-			log.Warnf("No hops for flow ID %d", flowID)
+			log.Debugf("No hops for flow ID %d", flowID)
 			continue
 		}
 		var nodes []node
@@ -322,7 +333,7 @@ func (c *Check) traceRouteDublin(sender sender.Sender, r *results.Results, hname
 			if hop.IsLast {
 				break
 			}
-			log.Warnf("label: %s", label)
+			log.Debugf("label: %s", label)
 		}
 		// add edges
 		if len(nodes) <= 1 {
@@ -352,19 +363,42 @@ func (c *Check) traceRouteDublin(sender sender.Sender, r *results.Results, hname
 			}
 			edgeLabel += fmt.Sprintf("\n%d.%d ms", int(cur.probe.RttUsec/1000), int(cur.probe.RttUsec%1000))
 
-			tags := []string{
-				"dest_name:" + c.config.DestName,
-				"agent_host:" + hname,
-				"dest_hostname:" + destinationHost,
-				"hop_ip_address:" + cur.node,
-				"hop_host:" + c.getHostname(cur.node),
-				"ttl:" + strconv.Itoa(idx),
+			//tags := []string{
+			//	"dest_name:" + c.config.DestName,
+			//	"agent_host:" + hname,
+			//	"dest_hostname:" + destinationHost,
+			//	"hop_ip_address:" + cur.node,
+			//	"hop_host:" + c.getHostname(cur.node),
+			//	"ttl:" + strconv.Itoa(idx),
+			//}
+			//tags = append(tags, "prev_hop_ip_address:"+prev.node)
+			//tags = append(tags, "prev_hop_host:"+c.getHostname(prev.node))
+			//log.Infof("[netpath] tags: %s", tags)
+			//sender.Gauge("netpath.hop.duration", float64(cur.probe.RttUsec)/1000, "", CopyStrings(tags))
+			//sender.Count("netpath.hop.record", float64(1), "", CopyStrings(tags))
+
+			ip := cur.node
+			durationMs := float64(cur.probe.RttUsec) / 1000
+			tr := TracerouteV2{
+				PathId:           pathId,
+				TracerouteSource: "netpath_integration",
+				Timestamp:        time.Now().UnixMilli(),
+				AgentHost:        hname,
+				DestinationHost:  destinationHost,
+				TTL:              idx,
+				IpAddress:        ip,
+				Host:             c.getHostname(cur.node),
+				Duration:         durationMs,
+				//Success:          hop.Success,
 			}
-			tags = append(tags, "prev_hop_ip_address:"+prev.node)
-			tags = append(tags, "prev_hop_host:"+c.getHostname(prev.node))
-			log.Infof("[netpath] tags: %s", tags)
-			sender.Gauge("netpath.hop.duration", float64(cur.probe.RttUsec)/1000, "", CopyStrings(tags))
-			sender.Count("netpath.hop.record", float64(1), "", CopyStrings(tags))
+			tracerouteStr, err := json.MarshalIndent(tr, "", "\t")
+			if err != nil {
+				return err
+			}
+
+			log.Infof("traceroute: %s", tracerouteStr)
+
+			sender.EventPlatformEvent(tracerouteStr, epforwarder.EventTypeNetworkDevicesNetpath)
 
 			//prevHop = hop
 
