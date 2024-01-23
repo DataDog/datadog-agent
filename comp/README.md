@@ -155,6 +155,12 @@ Package defaultforwarder implements a component to send payloads to the backend
 
 Package orchestrator implements the orchestrator forwarder component.
 
+### [comp/forwarder/orchestrator/orchestratorinterface](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface)
+
+*Datadog Team*: agent-metrics-logs
+
+Package orchestratorinterface defines the interface for the orchestrator forwarder component.
+
 ## [comp/languagedetection](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/languagedetection) (Component Bundle)
 
 *Datadog Team*: container-integrations
@@ -197,6 +203,12 @@ Package inventorychecks implements a component to generate the 'check_metadata' 
 ### [comp/metadata/inventoryhost](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/inventoryhost)
 
 Package inventoryhost exposes the interface for the component to generate the 'host_metadata' metadata payload for inventory.
+
+### [comp/metadata/packagesigning](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/packagesigning)
+
+*Datadog Team*: agent-platform
+
+Package packagesigning implements a component to generate the 'signing' metadata payload for DD inventory (REDAPL).
 
 ### [comp/metadata/resources](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/resources)
 

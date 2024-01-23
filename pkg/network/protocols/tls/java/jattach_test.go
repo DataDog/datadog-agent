@@ -14,12 +14,23 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/require"
 
 	javatestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/java/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+func TestMain(m *testing.M) {
+	logLevel := os.Getenv("DD_LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "warn"
+	}
+	log.SetupLogger(seelog.Default, logLevel)
+	os.Exit(m.Run())
+}
 
 func testInject(t *testing.T, prefix string) {
 	go func() {
@@ -98,7 +109,7 @@ func TestInject(t *testing.T) {
 func TestInjectInReadOnlyFS(t *testing.T) {
 	curDir, err := os.Getwd()
 	require.NoError(t, err)
-	rodir := filepath.Join(curDir, "rodir")
+	rodir := filepath.Join(os.TempDir(), "rodir")
 
 	err = os.Mkdir(rodir, 0766)
 	require.NoError(t, err)

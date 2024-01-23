@@ -68,6 +68,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
+	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp"
 	"github.com/DataDog/datadog-agent/comp/netflow"
@@ -185,6 +186,7 @@ func run(log log.Component,
 	_ netflowServer.Component,
 	_ langDetectionCl.Component,
 	agentAPI internalAPI.Component,
+	_ packagesigning.Component,
 ) error {
 	defer func() {
 		stopAgent(cliParams, server, demultiplexer, agentAPI)

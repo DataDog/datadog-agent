@@ -15,24 +15,30 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
-
+	"github.com/stretchr/testify/require"
 	admiv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
 )
+
+const waitFor = 5 * time.Second
+const tick = 50 * time.Millisecond
 
 var v1Cfg = NewConfig(true, false)
 
 func TestSecretNotFoundV1(t *testing.T) {
 	f := newFixtureV1(t)
-	c := f.run(t)
+
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	c := f.run(stopCh)
 
 	_, err := c.webhooksLister.Get(v1Cfg.getWebhookName())
 	if !errors.IsNotFound(err) {
@@ -42,7 +48,7 @@ func TestSecretNotFoundV1(t *testing.T) {
 	// The queue might not be closed yet because it's done asynchronously
 	assert.Eventually(t, func() bool {
 		return c.queue.Len() == 0
-	}, 1*time.Second, 5*time.Millisecond, "Work queue isn't empty")
+	}, waitFor, tick, "Work queue isn't empty")
 }
 
 func TestCreateWebhookV1(t *testing.T) {
@@ -56,12 +62,15 @@ func TestCreateWebhookV1(t *testing.T) {
 	secret := buildSecret(data, v1Cfg)
 	f.populateSecretsCache(secret)
 
-	c := f.run(t)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	c := f.run(stopCh)
 
-	webhook, err := c.webhooksLister.Get(v1Cfg.getWebhookName())
-	if err != nil {
-		t.Fatalf("Failed to get the Webhook: %v", err)
-	}
+	var webhook *admiv1.MutatingWebhookConfiguration
+	require.Eventually(t, func() bool {
+		webhook, err = c.webhooksLister.Get(v1Cfg.getWebhookName())
+		return err == nil
+	}, waitFor, tick)
 
 	if err := validateV1(webhook, secret); err != nil {
 		t.Fatalf("Invalid Webhook: %v", err)
@@ -99,16 +108,15 @@ func TestUpdateOutdatedWebhookV1(t *testing.T) {
 
 	f.populateWebhooksCache(webhook)
 
-	c := f.run(t)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	c := f.run(stopCh)
 
-	newWebhook, err := c.webhooksLister.Get(v1Cfg.getWebhookName())
-	if err != nil {
-		t.Fatalf("Failed to get the Webhook: %v", err)
-	}
-
-	if reflect.DeepEqual(webhook, newWebhook) {
-		t.Fatal("The Webhook hasn't been modified")
-	}
+	var newWebhook *admiv1.MutatingWebhookConfiguration
+	require.Eventually(t, func() bool {
+		newWebhook, err = c.webhooksLister.Get(v1Cfg.getWebhookName())
+		return err == nil && !reflect.DeepEqual(webhook, newWebhook)
+	}, waitFor, tick)
 
 	if err := validateV1(newWebhook, secret); err != nil {
 		t.Fatalf("Invalid Webhook: %v", err)
@@ -816,16 +824,11 @@ func (f *fixtureV1) createController() (*ControllerV1, informers.SharedInformerF
 	), factory
 }
 
-func (f *fixtureV1) run(_ *testing.T) *ControllerV1 {
-	stopCh := make(chan struct{})
-	defer close(stopCh)
-
+func (f *fixtureV1) run(stopCh chan struct{}) *ControllerV1 {
 	c, factory := f.createController()
 
 	factory.Start(stopCh)
 	go c.Run(stopCh)
-
-	f.waitOnActions()
 
 	return c
 }

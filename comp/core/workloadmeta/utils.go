@@ -12,18 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
-var kubeKindToWorkloadmetaKindMap = map[string]Kind{
-	"Pod":        KindKubernetesPod,
-	"Deployment": KindKubernetesDeployment,
-	"Node":       KindKubernetesNode,
-}
-
-// KubernetesKindToWorkloadMetaKind maps a Kubernetes Kind to a workloadmeta Kind.
-func KubernetesKindToWorkloadMetaKind(kind string) (Kind, bool) {
-	v, ok := kubeKindToWorkloadmetaKindMap[kind]
-	return v, ok
-}
-
 func mapToString(m map[string]string) string {
 	var sb strings.Builder
 	for k, v := range m {
