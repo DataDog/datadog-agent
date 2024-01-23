@@ -480,7 +480,7 @@ func (s *HTTPTestSuite) TestKeepAliveWithIncompleteResponseRegression() {
 
 	// ensure we're beginning the connection with a "headless" response from the
 	// server. this emulates the case where system-probe started in the middle of
-	// request/response cyle
+	// request/response cycle
 	b := make([]byte, len(rsp))
 	n, err := c.Read(b)
 	require.NoError(t, err)
