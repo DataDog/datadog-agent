@@ -374,6 +374,13 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*TagInfo 
 		tags.AddLow(tag, value)
 	}
 
+	for _, disabledTag := range config.Datadog.GetStringSlice("kubernetes_ad_tags_disabled") {
+		tags.RemoveTag(disabledTag)
+	}
+	for _, disabledTag := range strings.Split(pod.Annotations["tags.datadoghq.com/disable"], ",") {
+		tags.RemoveTag(disabledTag)
+	}
+
 	low, orch, high, standard := tags.Compute()
 	tagInfos := []*TagInfo{
 		{
