@@ -38,7 +38,7 @@ func TestBuildVerifierStats(t *testing.T) {
 	require.NoError(t, err)
 
 	if kversion < kernel.VersionCode(5, 2, 0) {
-		t.Skip(fmt.Sprintf("Skipping because verifier statistics not available on kernel %s", kversion))
+		t.Skipf("Skipping because verifier statistics not available on kernel %s", kversion)
 	}
 
 	err = filepath.WalkDir(filepath.Join(os.Getenv("DD_SYSTEM_PROBE_BPF_DIR"), "co-re"), func(path string, d fs.DirEntry, err error) error {
