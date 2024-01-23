@@ -27,7 +27,7 @@ type Component interface {
 
 // Params store configurable options for the status component
 type Params struct {
-	PythonVersion string
+	PythonVersionGetFunc func() string
 }
 
 // Provider interface

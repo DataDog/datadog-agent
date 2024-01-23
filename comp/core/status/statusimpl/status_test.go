@@ -131,7 +131,7 @@ var (
 )
 
 var agentParams = status.Params{
-	PythonVersion: "n/a",
+	PythonVersionGetFunc: func() string { return "n/a" },
 }
 
 var testTextHeader = fmt.Sprintf(`%s
