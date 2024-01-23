@@ -1724,7 +1724,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				_, err = c.Write(usmhttp2.ComposeMessage([]byte(http2.ClientPreface), buf.Bytes()))
 				require.NoError(t, err)
 				buf.Reset()
-				c.SetReadDeadline(time.Now().Add(http2DefaultTimeout))
+				c.SetReadDeadline(time.Now().Add(defaultTimeout))
 				frameReader := http2.NewFramer(nil, c)
 				for {
 					_, err := frameReader.ReadFrame()
@@ -1746,7 +1746,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 
 				_, err = c.Write(buf.Bytes())
 				require.NoError(t, err)
-				c.SetReadDeadline(time.Now().Add(defaultTimeout))
+				c.SetReadDeadline(time.Now().Add(http2DefaultTimeout))
 				frameReader = http2.NewFramer(nil, c)
 				for {
 					_, err := frameReader.ReadFrame()
