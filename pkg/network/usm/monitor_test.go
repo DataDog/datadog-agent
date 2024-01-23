@@ -59,12 +59,6 @@ var (
 	kv        = kernel.MustHostVersion()
 )
 
-func skipIfUSMNotSupported(t *testing.T) {
-	if kv < http.MinimumKernelVersion {
-		t.Skipf("USM is not supported on %v", kv)
-	}
-}
-
 func TestMonitorProtocolFail(t *testing.T) {
 	failingStartupMock := func(_ *manager.Manager) error {
 		return fmt.Errorf("mock error")
@@ -101,7 +95,9 @@ type HTTPTestSuite struct {
 }
 
 func TestHTTP(t *testing.T) {
-	skipIfUSMNotSupported(t)
+	if kv < http.MinimumKernelVersion {
+		t.Skipf("USM is not supported on %v", kv)
+	}
 	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
 		suite.Run(t, new(HTTPTestSuite))
 	})
