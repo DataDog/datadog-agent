@@ -49,7 +49,7 @@ import (
 
 const (
 	defaultTimeout      = 30 * time.Second
-	http2DefaultTimeout = 30 * time.Second
+	http2DefaultTimeout = 3 * time.Second
 )
 
 // testContext shares the context of a given test.
@@ -1724,7 +1724,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				_, err = c.Write(usmhttp2.ComposeMessage([]byte(http2.ClientPreface), buf.Bytes()))
 				require.NoError(t, err)
 				buf.Reset()
-				c.SetReadDeadline(time.Now().Add(defaultTimeout))
+				c.SetReadDeadline(time.Now().Add(http2DefaultTimeout))
 				frameReader := http2.NewFramer(nil, c)
 				for {
 					_, err := frameReader.ReadFrame()
