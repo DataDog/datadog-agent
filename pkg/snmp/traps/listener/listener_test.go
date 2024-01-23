@@ -253,7 +253,7 @@ func receivePacket(t *testing.T, listener *TrapListener, timeoutDuration time.Du
 		case packet := <-listener.packets:
 			return packet, nil
 		case <-ticker.C:
-			if status.GetTrapsPacketsAuthErrors() > 0 {
+			if status.GetTrapsPacketsUnknownCommunityString() > 0 {
 				// invalid packet/bad credentials
 				return nil, errors.New("invalid packet")
 			}

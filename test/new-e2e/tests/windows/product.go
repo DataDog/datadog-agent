@@ -22,5 +22,9 @@ func GetProductCodeByName(host *components.RemoteHost, name string) (string, err
 		fmt.Println(val)
 		return "", err
 	}
-	return strings.TrimSpace(val), nil
+	val = strings.TrimSpace(val)
+	if val == "" {
+		return "", fmt.Errorf("product '%s' not found", name)
+	}
+	return val, nil
 }
