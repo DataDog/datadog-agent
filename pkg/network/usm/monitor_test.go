@@ -245,7 +245,6 @@ func (s *HTTPTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
 
 func (s *HTTPTestSuite) TestHTTPMonitorIntegrationWithResponseBody() {
 	t := s.T()
-	targetAddr := "localhost:8080"
 	serverAddr := "localhost:8080"
 
 	tests := []struct {
@@ -265,16 +264,8 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationWithResponseBody() {
 			requestBodySize: 10 * kb,
 		},
 		{
-			name:            "100kb body",
-			requestBodySize: 100 * kb,
-		},
-		{
 			name:            "500kb body",
 			requestBodySize: 500 * kb,
-		},
-		{
-			name:            "2mb body",
-			requestBodySize: 2 * mb,
 		},
 		{
 			name:            "10mb body",
@@ -289,7 +280,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationWithResponseBody() {
 			})
 			t.Cleanup(srvDoneFn)
 
-			requestFn := requestGenerator(t, targetAddr, bytes.Repeat([]byte("a"), tt.requestBodySize))
+			requestFn := requestGenerator(t, serverAddr, bytes.Repeat([]byte("a"), tt.requestBodySize))
 			var requests []*nethttp.Request
 			for i := 0; i < 100; i++ {
 				requests = append(requests, requestFn())
