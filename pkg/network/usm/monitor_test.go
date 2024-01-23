@@ -30,7 +30,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -83,7 +83,7 @@ func TestMonitorProtocolFail(t *testing.T) {
 			// Replace the HTTP protocol with a Mock
 			patchProtocolMock(t, tt.spec)
 
-			cfg := networkconfig.New()
+			cfg := config.New()
 			cfg.EnableHTTPMonitoring = true
 			monitor, err := NewMonitor(cfg, nil, nil, nil)
 			skipIfNotSupported(t, err)
@@ -125,7 +125,7 @@ func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 	})
 	t.Cleanup(srvDoneFn)
 
-	cfg := networkconfig.New()
+	cfg := config.New()
 	cfg.EnableHTTPStatsByStatusCode = aggregateByStatusCode
 	monitor := newHTTPMonitorWithCfg(t, cfg)
 
@@ -341,7 +341,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := networkconfig.New()
+			cfg := config.New()
 			cfg.HTTPMapCleanerInterval = time.Duration(tt.mapCleanerIntervalSeconds) * time.Second
 			cfg.HTTPIdleConnectionTTL = time.Duration(tt.httpIdleConnectionTTLSeconds) * time.Second
 			monitor := newHTTPMonitorWithCfg(t, cfg)
@@ -687,7 +687,7 @@ func countRequestOccurrences(allStats map[http.Key]*http.RequestStats, req *neth
 	return occurrences
 }
 
-func newHTTPMonitorWithCfg(t *testing.T, cfg *networkconfig.Config) *Monitor {
+func newHTTPMonitorWithCfg(t *testing.T, cfg *config.Config) *Monitor {
 	cfg.EnableHTTPMonitoring = true
 
 	monitor, err := NewMonitor(cfg, nil, nil, nil)
@@ -707,7 +707,7 @@ func newHTTPMonitorWithCfg(t *testing.T, cfg *networkconfig.Config) *Monitor {
 }
 
 func newHTTPMonitor(t *testing.T) *Monitor {
-	return newHTTPMonitorWithCfg(t, networkconfig.New())
+	return newHTTPMonitorWithCfg(t, config.New())
 }
 
 func skipIfNotSupported(t *testing.T, err error) {
