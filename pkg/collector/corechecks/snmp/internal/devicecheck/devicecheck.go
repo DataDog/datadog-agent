@@ -168,7 +168,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 
 	// Get a system appropriate ping check
 	if d.devicePinger != nil {
-		log.Tracef("SNMP attempting to run ping for host: %s, tags: %+v", d.config.IPAddress, tags)
+		log.Tracef("%s: pinging host", d.config.IPAddress)
 		pingResult, err := d.devicePinger.Ping(d.config.IPAddress)
 		if err != nil {
 			// if the ping fails, send no metrics/metadata, log and add diagnosis

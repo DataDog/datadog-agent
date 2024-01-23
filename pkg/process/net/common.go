@@ -173,9 +173,11 @@ func (r *RemoteSysProbeUtil) GetPing(clientID string, host string, count int, in
 	resp, err := r.httpClient.Do(req)
 	if err != nil {
 		return nil, err
-	} else if resp.StatusCode == http.StatusBadRequest {
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusBadRequest {
 		body, err := io.ReadAll(resp.Body)
-		defer resp.Body.Close()
 		if err != nil {
 			return nil, fmt.Errorf("ping request failed: Probe Path %s, url: %s, status code: %d", r.path, pingURL, resp.StatusCode)
 		}
@@ -185,7 +187,6 @@ func (r *RemoteSysProbeUtil) GetPing(clientID string, host string, count int, in
 	}
 
 	body, err := io.ReadAll(resp.Body)
-	defer resp.Body.Close()
 	if err != nil {
 		return nil, err
 	}
