@@ -36,7 +36,7 @@ import (
 func main() {
 	args := os.Args[1:]
 	if len(args) < 1 {
-		panic("please use 'go run integrity.go <object_file_dir>'")
+		panic("please use 'go run functions.go <object_file_dir>'")
 	}
 
 	cwd, err := os.Getwd()
