@@ -421,7 +421,7 @@ func TestProcessWithNoCommandline(t *testing.T) {
 
 	var disallowList []*regexp.Regexp
 
-	procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, procMap, procMap, nil, syst2, syst1, lastRun, nil, nil)
+	procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, procMap, procMap, nil, syst2, syst1, lastRun, nil, nil, false)
 	assert.Len(t, procs, 1)
 
 	require.Len(t, procs[""], 1)
