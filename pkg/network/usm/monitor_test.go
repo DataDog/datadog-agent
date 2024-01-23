@@ -424,9 +424,7 @@ func (s *HTTPTestSuite) TestRSTPacketRegression() {
 	// We do this in order to configure the socket option SO_LINGER
 	// so we can force a RST packet to be sent during termination
 	c, err := net.DialTimeout("tcp", serverAddr, 5*time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	// Issue HTTP request
 	c.Write([]byte("GET /200/foobar HTTP/1.1\nHost: 127.0.0.1:8080\n\n"))
