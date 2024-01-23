@@ -60,6 +60,15 @@ if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
   fi
 fi
 
+# Cleanup tmp files used for installation
+if [ -f /tmp/install-ddagent/system-wide ]; then
+  rm /tmp/install-ddagent/system-wide
+fi
+
+if [ -f /tmp/install-ddagent/tray-not-started ]; then
+  rm /tmp/install-ddagent/tray-not-started
+fi
+
 function find_latest_patch_version_for() {
     major_minor="$1"
     patch_versions=$(curl "https://s3.amazonaws.com/dd-agent?prefix=datadog-agent-${major_minor}." 2>/dev/null | grep -o "datadog-agent-${major_minor}.[0-9]*-1.dmg")
@@ -446,15 +455,6 @@ else
     $sudo_cmd chown -R "$systemdaemon_user_group" "$etc_dir" "$log_dir" "$run_dir"
     $sudo_cmd launchctl load -w "$systemwide_servicefile_name"
     $sudo_cmd launchctl kickstart "system/$service_name"
-fi
-
-# Cleanup tmp files used for installation
-if [ -f /tmp/install-ddagent/system-wide ]; then
-  rm /tmp/install-ddagent/system-wide
-fi
-
-if [ -f /tmp/install-ddagent/tray-not-started ]; then
-  rm /tmp/install-ddagent/tray-not-started
 fi
 
 # Agent works, echo some instructions and exit
