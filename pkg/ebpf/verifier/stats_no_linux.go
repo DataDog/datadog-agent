@@ -11,6 +11,8 @@ package verifier
 
 import "fmt"
 
+type Statistics struct{}
+
 func BuildVerifierStats(objectFiles []string) (map[string]*Statistics, error) {
 	return nil, fmt.Errorf("not implemented")
 }
