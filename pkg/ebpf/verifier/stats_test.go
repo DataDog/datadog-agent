@@ -13,6 +13,7 @@ import (
 
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/rlimit"
 	"github.com/stretchr/testify/require"
 )
 
@@ -40,6 +41,9 @@ func TestBuildVerifierStats(t *testing.T) {
 	if kversion < kernel.VersionCode(5, 2, 0) {
 		t.Skipf("Skipping because verifier statistics not available on kernel %s", kversion)
 	}
+
+	err = rlimit.RemoveMemlock()
+	require.NoError(t, err)
 
 	err = filepath.WalkDir(filepath.Join(os.Getenv("DD_SYSTEM_PROBE_BPF_DIR"), "co-re"), func(path string, d fs.DirEntry, err error) error {
 		if err != nil {

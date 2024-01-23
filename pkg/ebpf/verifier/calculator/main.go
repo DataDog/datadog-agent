@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/verifier"
+	"github.com/cilium/ebpf/rlimit"
 )
 
 func main() {
@@ -26,6 +27,10 @@ func main() {
 		panic("please use './main <object-files-dir>'")
 	}
 	directory := os.Args[1]
+
+	if err := rlimit.RemoveMemlock(); err != nil {
+		log.Fatalf("failed to remove memlock %v", err)
+	}
 
 	if err := filepath.WalkDir(directory, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
