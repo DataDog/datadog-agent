@@ -113,7 +113,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// The objective of this test is to verify that we accurately perform the parsing of frames within
 			// a single program.
 			messageBuilder: func() []byte {
-				const settingsFramesCount = 100
+				const settingsFramesCount = 220
 				return createMessageWithCustomSettingsFrames(t, testHeaders(), settingsFramesCount)
 			},
 			expectedEndpoints: map[http.Key]int{
@@ -122,24 +122,6 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					Method: http.MethodPost,
 				}: 1,
 			},
-		},
-		{
-			name: "parse_frames tail call using 2 programs",
-			// The purpose of this test is to validate that when we surpass the limit of HTTP2_MAX_FRAMES_ITERATIONS,
-			// the filtering of subsequent frames will continue using tail calls.
-			messageBuilder: func() []byte {
-				const settingsFramesCount = 130
-				return createMessageWithCustomSettingsFrames(t, testHeaders(), settingsFramesCount)
-			},
-			expectedEndpoints: map[http.Key]int{
-				{
-					Path:   http.Path{Content: http.Interner.GetString("/aaa")},
-					Method: http.MethodPost,
-				}: 1,
-			},
-			// Currently we don't have a way to test it as TLS version does not have the ability to run 2 tail calls
-			// for filtering frames (will be fixed in USMON-684)
-			skip: s.isTLS,
 		},
 		{
 			name: "validate frames_filter tail calls limit",
