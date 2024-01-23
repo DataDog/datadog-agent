@@ -2,13 +2,12 @@ try:
     from termcolor import colored
 except ImportError:
     colored = None
-import os
-import json
 import contextlib
+import json
 import sys
 
-
 from invoke import task
+
 try:
     from tabulate import tabulate
 except ImportError:
@@ -24,8 +23,9 @@ headers = [
     "Verification time",
     "Max States per Instruction",
     "Peak States",
-    "Total States"
+    "Total States",
 ]
+
 
 def tabulate_stats(stats):
     table = list()
@@ -46,13 +46,15 @@ def tabulate_stats(stats):
 
 def colored_diff(val1, val2):
     if val1 <= val2:
-        return colored(val1-val2, "green")
-    return colored(val1-val2, "red")
+        return colored(val1 - val2, "green")
+    return colored(val1 - val2, "red")
+
 
 def stdout_or_file(filename=None):
     @contextlib.contextmanager
     def stdout():
         yield sys.stdout
+
     return open(filename, 'w') if filename else stdout()
 
 
@@ -61,7 +63,7 @@ def stdout_or_file(filename=None):
         "skip_object_files": "Do not build ebpf object files",
         "base": "JSON file holding verifier statistics to compare against",
         "jsonfmt": "Output in json format rather than tabulating",
-        "out": "Output file to write results to. By default results are written to stdout"
+        "out": "Output file to write results to. By default results are written to stdout",
     }
 )
 def print_verification_stats(ctx, skip_object_files=False, base=None, jsonfmt=False, out=None, debug_build=False):
@@ -70,7 +72,7 @@ def print_verification_stats(ctx, skip_object_files=False, base=None, jsonfmt=Fa
         build_object_files(ctx)
 
     # generate programs.go
-    use_debug_build="USE_DEBUG_BUILDS='true' " if debug_build else ""
+    use_debug_build = "USE_DEBUG_BUILDS='true' " if debug_build else ""
     ctx.run(f"{use_debug_build}go generate pkg/ebpf/verifier/stats.go")
 
     ctx.run("cd pkg/ebpf/verifier && go generate")
@@ -105,7 +107,9 @@ def print_verification_stats(ctx, skip_object_files=False, base=None, jsonfmt=Fa
 
         base_value = base_verifier_stats[key]
         stat["stack_usage"] = colored_diff(value["stack_usage"], base_value["stack_usage"])
-        stat["instruction_processed"] = colored_diff(value["instruction_processed"], base_value["instruction_processed"])
+        stat["instruction_processed"] = colored_diff(
+            value["instruction_processed"], base_value["instruction_processed"]
+        )
         stat["limit"] = colored_diff(value["limit"], base_value["limit"])
         stat["verification_time"] = colored_diff(value["verification_time"], base_value["verification_time"])
         stat["max_states_per_insn"] = colored_diff(value["max_states_per_insn"], base_value["max_states_per_insn"])
@@ -113,7 +117,6 @@ def print_verification_stats(ctx, skip_object_files=False, base=None, jsonfmt=Fa
         stat["peak_states"] = colored_diff(value["peak_states"], base_value["peak_states"])
 
         stats_diff[key] = stat
-
 
     with stdout_or_file(out) as f:
         if jsonfmt:
