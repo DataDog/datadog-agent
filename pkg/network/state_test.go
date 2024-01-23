@@ -27,8 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/network/slice"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-
-	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 )
 
 func BenchmarkConnectionsGet(b *testing.B) {
@@ -720,16 +718,14 @@ func TestRaceConditions(t *testing.T) { //nolint:revive // TODO fix revive unuse
 	genConns := func(n uint32) []ConnectionStats {
 		conns := make([]ConnectionStats, 0, n)
 		for i := uint32(0); i < n; i++ {
-			sourcePort := nettestutil.GetOpenPortTCP(t)
-			destPort := nettestutil.GetOpenPortTCP(t)
 			conns = append(conns, ConnectionStats{
 				Pid:    1 + i,
 				Type:   TCP,
 				Family: AFINET,
 				Source: util.AddressFromString("127.0.0.1"),
 				Dest:   util.AddressFromString("127.0.0.1"),
-				SPort:  uint16(sourcePort),
-				DPort:  uint16(destPort),
+				SPort:  uint16(rand.Int()),
+				DPort:  uint16(rand.Int()),
 				Monotonic: StatCounters{
 					SentBytes:   uint64(rand.Int()),
 					RecvBytes:   uint64(rand.Int()),
