@@ -118,7 +118,7 @@ func (c *Check) traceroute(sender sender.Sender) (int, error) {
 			return 0, err
 		}
 	}
-	return len(hostHops), nil
+	return len(hostHops[0]), nil
 }
 
 func (c *Check) traceRouteV1(sender sender.Sender, hostHops [][]traceroute.TracerouteHop, hname string, destinationHost string) error {
