@@ -100,6 +100,12 @@ func TestMain(m *testing.M) {
 	}
 }
 
+type testDeps struct {
+	fx.In
+	Store      workloadmeta.Component
+	TaggerComp tagger.Component
+}
+
 // Called before for first test run: compose up
 func setup() (workloadmeta.Component, error) {
 	// Setup global conf
@@ -111,7 +117,8 @@ func setup() (workloadmeta.Component, error) {
 	config.SetFeaturesNoCleanup(config.Docker)
 
 	// Note: workloadmeta will be started by fx with the App
-	fxApp, _, err = fxutil.TestApp[tagger.Component](fx.Options(
+	var deps testDeps
+	fxApp, deps, err = fxutil.TestApp[testDeps](fx.Options(
 		fx.Supply(compcfg.NewAgentParams(
 			"", compcfg.WithConfigMissingOK(true))),
 		compcfg.Module(),
@@ -123,6 +130,8 @@ func setup() (workloadmeta.Component, error) {
 		tagger.Module(),
 		fx.Supply(tagger.NewTaggerParams()),
 	))
+	store := deps.Store
+	workloadmeta.SetGlobalStore(store)
 
 	// Start compose recipes
 	for projectName, file := range defaultCatalog.composeFilesByProjects {
