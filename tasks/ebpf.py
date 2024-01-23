@@ -69,6 +69,9 @@ def print_verification_stats(ctx, skip_object_files=False, base=None, jsonfmt=Fa
     if not skip_object_files:
         build_object_files(ctx)
 
+    # generate programs.go
+    ctx.run("go generate pkg/ebpf/verifier/stats.go")
+
     ctx.run("cd pkg/ebpf/verifier && go generate")
     ctx.run("go build -tags linux_bpf pkg/ebpf/verifier/calculator/main.go")
     res = ctx.run(f"{sudo} ./main pkg/ebpf/bytecode/build/co-re", hide=True)
