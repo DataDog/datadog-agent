@@ -21,7 +21,7 @@ func CheckIntegrationInstall(t *testing.T, client *TestClient) {
 	freezeContent, err := client.FileManager.ReadFile(requirementIntegrationPath)
 	require.NoError(t, err)
 
-	freezeContent = ciliumRegex.ReplaceAllString(freezeContent, "datadog-cilium==2.2.1")
+	freezeContent = ciliumRegex.ReplaceAll(freezeContent, []byte("datadog-cilium==2.2.1"))
 	_, err = client.FileManager.WriteFile(requirementIntegrationPath, freezeContent)
 	require.NoError(t, err)
 
