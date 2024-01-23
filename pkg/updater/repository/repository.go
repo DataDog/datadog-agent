@@ -316,7 +316,7 @@ func movePackageFromSource(packageName string, rootPath string, runPath string, 
 	if runPath != "" {
 		err = createRunDirectory(filepath.Join(runPath, packageName))
 		if err != nil {
-			return "", fmt.Errorf("could not create package's run directory: %w", err)
+			log.Warnf("could not create package's run directory: %v", err)
 		}
 	}
 
@@ -394,6 +394,10 @@ func packageVersionInUse(runPath string) (bool, error) {
 
 	pids, err := os.ReadDir(runPath)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			log.Debugf("package run directory does not exist, no running PIDs")
+			return false, nil
+		}
 		return false, fmt.Errorf("could not read run directory: %w", err)
 	}
 
