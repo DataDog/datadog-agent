@@ -14,12 +14,10 @@ jobs:
     steps:
       - name: Check milestone
         run: |
-          milestones="${{join(github.event.pull_request.milestone.*.title, ' ')}}"
-          for milestone in $(echo "$milestones" | tr ' ' '\n'); do
-            if [[ "$milestone" != "triage" ]]; then
-              echo "Milestone: $milestone"
-              exit 0
-            fi
-          done
+          milestone="${{github.event.pull_request.milestone.title}}"
+          if [[ "$milestone" != "triage" ]]; then
+            echo "Milestone: $milestone"
+            exit 0
+          fi
           echo "PR ${{github.event.number}} requires a non-Triage milestone."
           exit 1

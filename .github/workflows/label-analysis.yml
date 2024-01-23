@@ -16,7 +16,7 @@ jobs:
       - name: Check team assignment
         run: |
           labels="${{join(github.event.pull_request.labels.*.name, ' ')}}"
-          for label in $(echo "$labels" | tr ' ' '\n'); do
+          for label in $labels; do
             if [[ "$label" =~ ^qa/ ]]; then
               echo "A label to skip QA is set -- no need for team assignment"
               exit 0
@@ -38,7 +38,7 @@ jobs:
           done=0
           noChange=0
           labels="${{join(github.event.pull_request.labels.*.name, ' ')}}"
-          for label in $(echo "$labels" | tr ' ' '\n'); do
+          for label in $labels; do
             if [[ "$label" == "qa/skip-qa" ]]; then
               skip=1
             fi
@@ -49,7 +49,7 @@ jobs:
               noChange=1
             fi
           done
-          if [[ ($skip -eq 0 && $done -eq 0 && $noChange -eq 0) || ($skip -eq 1 && $((done ^ noChange)) -eq 1) ]]; then
+          if [[ ($skip -eq 0 && $done -eq 0 && $noChange -eq 0) || ($skip -eq 1 && $done -ne $noChange) ]]; then
             exit 0
           else
             echo "Skip QA labels are not correct on PR ${{github.event.number}}. You must set `qa/skip-qa` with exacly 1 justification, `qa/done` or `qa/no-code-change`"
