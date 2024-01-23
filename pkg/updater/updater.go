@@ -107,7 +107,7 @@ func (u *Updater) StartGC() {
 
 // StopGC stops the garbage collector.
 func (u *Updater) StopGC() {
-	u.stopChan <- struct{}{}
+	close(u.stopChan)
 }
 
 // StartExperiment starts an experiment with the given package.

@@ -13,9 +13,9 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
-	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/gopsutil/process"
 )
 
 const (
@@ -101,11 +101,7 @@ func (r *Repository) Create(name string, stableSourcePath string) error {
 	}
 
 	if r.RunPath != "" {
-		// Creates the run directory if it doesn't exist.
-		// Note that this directory is never fully removed as the updater may
-		// restart before the process is stopped.
-		// Must be world writeable as we don't control who writes the PIDs
-		err = os.MkdirAll(r.RunPath, 0766)
+		err = createRunDirectory(r.RunPath)
 		if err != nil {
 			return fmt.Errorf("could not create package's run root directory: %w", err)
 		}
@@ -318,7 +314,7 @@ func movePackageFromSource(packageName string, rootPath string, runPath string, 
 
 	// Create the associated run path if it doesn't exist
 	if runPath != "" {
-		err = os.MkdirAll(filepath.Join(runPath, packageName), 0766)
+		err = createRunDirectory(filepath.Join(runPath, packageName))
 		if err != nil {
 			return "", fmt.Errorf("could not create package's run directory: %w", err)
 		}
@@ -356,7 +352,9 @@ func (r *repositoryFiles) cleanup() error {
 		return fmt.Errorf("could not read run directory: %w", err)
 	}
 
-	// For each version, get the PIDs
+	// For each version, get the running PIDs. These PIDs are written by the injector.
+	// The injector is ran directly with the service as it's a LD_PRELOAD, and has access
+	// to the PIDs.
 	for _, version := range versions {
 		isLink := version.Name() == stableVersionLink || version.Name() == experimentVersionLink
 		isStable := r.stable.Exists() && r.stable.Target() == version.Name()
@@ -406,18 +404,32 @@ func packageVersionInUse(runPath string) (bool, error) {
 			log.Errorf("could not parse PID: %v", err)
 			continue
 		}
-		process, err := os.FindProcess(int(pid))
+		processExists, err := process.PidExists(int32(pid))
 		if err != nil {
 			log.Errorf("could not find process with PID %d: %v", pid, err)
-		} else {
-			// Send a signal 0 to check if the process is running
-			if err := process.Signal(syscall.Signal(0)); err == nil {
-				runningPIDs++
-			}
+		} else if processExists {
+			runningPIDs++
 		}
 	}
 
 	return runningPIDs > 0, nil
+}
+
+// createRunDirectory creates a run directory at the specified path if it doesn't exist.
+// Note that this directory is never fully removed as the updater may
+// restart before the process is stopped.
+// Must be world writeable as we don't control who writes the PIDs
+func createRunDirectory(path string) error {
+	if fileInfo, err := os.Stat(path); err == nil {
+		if fileInfo.Mode().Perm()&0766 != 0766 {
+			return fmt.Errorf("run directory exists but is not world writeable, please update the permissions")
+		}
+	}
+	err := os.MkdirAll(path, 0766)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 type link struct {

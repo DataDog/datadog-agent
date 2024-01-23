@@ -41,7 +41,7 @@ func run(pkg string, repositoriesPath string, runPath string, watchProcesses boo
 	if watchProcesses {
 		u.StartGC()
 		defer u.StopGC()
-		log.Info("launched garbage collector")
+		log.Debug("launched updater garbage collector")
 	}
 
 	api, err := updater.NewLocalAPI(u)
