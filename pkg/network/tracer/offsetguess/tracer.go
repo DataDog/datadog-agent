@@ -1106,6 +1106,15 @@ func (o *tracerOffsets) Offsets(cfg *config.Config) ([]manager.ConstantEditor, e
 		return nil, o.err
 	}
 
+	_, udpv6Enabled := getIpv6Configuration(cfg)
+	_cfg := *cfg
+	_cfg.CollectUDPv6Conns = udpv6Enabled
+	cfg = &_cfg
+
+	if len(o.offsets) > 0 {
+		return o.offsets, o.err
+	}
+
 	offsetBuf, err := netebpf.ReadOffsetBPFModule(cfg.BPFDir, cfg.BPFDebug)
 	if err != nil {
 		o.err = fmt.Errorf("could not read offset bpf module: %s", err)

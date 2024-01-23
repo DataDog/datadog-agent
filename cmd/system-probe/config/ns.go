@@ -22,11 +22,6 @@ func smNS(k ...string) string {
 	return nskey("service_monitoring_config", k...)
 }
 
-// dsmNS adds `data_streams_config` namespace to configuration key
-func dsmNS(k ...string) string {
-	return nskey("data_streams_config", k...)
-}
-
 // diNS adds `dynamic_instrumentation` namespace to configuration key
 func diNS(k ...string) string {
 	return nskey("dynamic_instrumentation", k...)

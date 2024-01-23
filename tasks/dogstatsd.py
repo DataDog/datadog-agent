@@ -10,12 +10,12 @@ import sys
 from invoke import task
 from invoke.exceptions import Exit
 
-from .agent import bundle_install_omnibus
-from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
-from .flavor import AgentFlavor
-from .go import deps
-from .utils import REPO_PATH, bin_name, get_build_flags, get_root, get_version, load_release_versions
-from .windows_resources import build_messagetable, build_rc, versioninfo_vars
+from tasks.agent import bundle_install_omnibus
+from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.flavor import AgentFlavor
+from tasks.go import deps
+from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags, get_root, get_version, load_release_versions
+from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 # constants
 DOGSTATSD_BIN_PATH = os.path.join(".", "bin", "dogstatsd")

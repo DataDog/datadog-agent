@@ -38,8 +38,6 @@ const (
 	SyscallTypeOpen
 	// SyscallTypeExit exit type
 	SyscallTypeExit
-	// SyscallTypeFcntl fcntl type
-	SyscallTypeFcntl
 	// SyscallTypeSetUID setuid/setreuid type
 	SyscallTypeSetUID
 	// SyscallTypeSetGID setgid/setregid type
@@ -56,6 +54,10 @@ const (
 	SyscallTypeRmdir
 	// SyscallTypeRename rename/renameat/renameat2 type
 	SyscallTypeRename
+	// SyscallTypeMkdir mkdir/mkdirat type
+	SyscallTypeMkdir
+	// SyscallTypeUtimes utime/utimes/utimensat/futimesat type
+	SyscallTypeUtimes
 )
 
 // ContainerContext defines a container context
@@ -167,6 +169,19 @@ type RenameSyscallMsg struct {
 	NewFile OpenSyscallMsg
 }
 
+// MkdirSyscallMsg defines a mkdir/mkdirat message
+type MkdirSyscallMsg struct {
+	Dir  OpenSyscallMsg
+	Mode uint32
+}
+
+// UtimesSyscallMsg defines a utime/utimes/utimensat/futimesat message
+type UtimesSyscallMsg struct {
+	File  OpenSyscallMsg
+	ATime uint64 // in nanoseconds
+	MTime uint64 // in nanoseconds
+}
+
 // SyscallMsg defines a syscall message
 type SyscallMsg struct {
 	Type      SyscallType
@@ -186,6 +201,8 @@ type SyscallMsg struct {
 	Unlink    *UnlinkSyscallMsg   `json:",omitempty"`
 	Rmdir     *RmdirSyscallMsg    `json:",omitempty"`
 	Rename    *RenameSyscallMsg   `json:",omitempty"`
+	Mkdir     *MkdirSyscallMsg    `json:",omitempty"`
+	Utimes    *UtimesSyscallMsg   `json:",omitempty"`
 
 	// internals
 	Dup   *DupSyscallFakeMsg   `json:",omitempty"`

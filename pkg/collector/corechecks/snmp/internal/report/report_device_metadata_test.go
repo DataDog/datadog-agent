@@ -122,6 +122,9 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 							},
 						},
 					},
+					"type": {
+						Value: "router",
+					},
 				},
 			},
 		},
@@ -156,7 +159,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
             "location": "my-sys-location",
             "profile": "my-profile",
             "profile_version": 10,
-            "subnet": "127.0.0.0/29"
+            "subnet": "127.0.0.0/29",
+			"device_type": "router"
         }
     ],
     "collect_timestamp":1415792726
@@ -234,7 +238,8 @@ profiles:
 			"can_connect": true,
             "profile": "f5-big-ip",
             "vendor": "f5",
-            "subnet": "127.0.0.0/29"
+            "subnet": "127.0.0.0/29",
+			"device_type": "load_balancer"
         }
     ],
     "collect_timestamp":1415792726
@@ -292,6 +297,13 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
 		ResolvedSubnetName: "127.0.0.0/29",
 		Namespace:          "my-ns",
 		Metadata: profiledefinition.MetadataConfig{
+			"device": {
+				Fields: map[string]profiledefinition.MetadataField{
+					"type": {
+						Value: "switch",
+					},
+				},
+			},
 			"interface": {
 				Fields: map[string]profiledefinition.MetadataField{
 					"name": {
@@ -367,7 +379,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
             "ip_address": "1.2.3.4",
             "status":1,
 			"can_connect": false,
-            "subnet": "127.0.0.0/29"
+            "subnet": "127.0.0.0/29",
+			"device_type": "switch"
         }
     ],
     "interfaces": [
@@ -443,6 +456,9 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
 						},
 						Value: "my-fallback-value",
 					},
+					"type": {
+						Value: "firewall",
+					},
 				},
 			},
 		},
@@ -473,7 +489,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
             "status":1,
 			"can_connect": true,
             "name": "my-fallback-value",
-            "subnet": "127.0.0.0/29"
+            "subnet": "127.0.0.0/29",
+			"device_type": "firewall"
         }
     ],
     "collect_timestamp":1415792726
@@ -542,7 +559,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_Nil(t *testing
             "ip_address": "1.2.3.4",
             "status":1,
             "name": "my-fallback-value",
-            "subnet": "127.0.0.0/29"
+            "subnet": "127.0.0.0/29",
+			"device_type": "other"
         }
     ],
     "collect_timestamp":1415792726
@@ -612,7 +630,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_True(t *testin
             "status":1,
 			"can_connect": true,
             "name": "my-fallback-value",
-            "subnet": "127.0.0.0/29"
+            "subnet": "127.0.0.0/29",
+			"device_type": "other"
         }
     ],
     "collect_timestamp":1415792726
@@ -682,7 +701,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_False(t *testi
             "status":1,
 			"can_connect": false,
             "name": "my-fallback-value",
-            "subnet": "127.0.0.0/29"
+            "subnet": "127.0.0.0/29",
+			"device_type": "other"
         }
     ],
     "collect_timestamp":1415792726
