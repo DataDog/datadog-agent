@@ -70,13 +70,6 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 		return
 	}
 
-	// json, _ := json.Marshal(stats)
-	// html, e := renderStatus(json, statusType)
-	// if e != nil {
-	// 	w.Write([]byte("Error generating status html: " + e.Error()))
-	// 	return
-	// }
-
 	w.Header().Set("Content-Type", "text/html")
 	w.Write(stats)
 
