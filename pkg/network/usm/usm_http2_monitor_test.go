@@ -707,9 +707,32 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					streamID := getStreamID(i)
 					framer.
 						writeHeaders(t, streamID, testHeaders(), false).
-						writeData(t, streamID, true, []byte{}).writeRSTStream(t, streamID, http2.ErrCodeNo)
+						writeData(t, streamID, true, []byte{}).
+						writeRSTStream(t, streamID, http2.ErrCodeNo)
 				}
 				return framer.bytes()
+			},
+			expectedEndpoints: nil,
+		},
+		{
+			name: "validate DELETE method",
+			// The purpose of this test is to validate that we are not supporting http2 request with method DELETE.
+			messageBuilder: func() []byte {
+				framer := newFramer()
+				return framer.
+					writeHeaders(t, getStreamID(1), headersWithGivenPathMethod("PUT"), false).
+					writeData(t, getStreamID(1), true, []byte{}).bytes()
+			},
+			expectedEndpoints: nil,
+		},
+		{
+			name: "validate PUT method",
+			// The purpose of this test is to validate that we are not supporting http2 request with method PUT.
+			messageBuilder: func() []byte {
+				framer := newFramer()
+				return framer.
+					writeHeaders(t, getStreamID(1), headersWithGivenPathMethod("PUT"), false).
+					writeData(t, getStreamID(1), true, []byte{}).bytes()
 			},
 			expectedEndpoints: nil,
 		},
@@ -848,11 +871,20 @@ func headersWithNeverIndexedPath() []hpack.HeaderField { return generateTestHead
 // headersWithoutIndexingPath returns a set of header fields with path without-indexing.
 func headersWithoutIndexingPath() []hpack.HeaderField { return generateTestHeaderFields(false, true) }
 
+// headersWithGivenPathMethod returns a set of header fields with the given method for the header includes the path.
+func headersWithGivenPathMethod(method string) []hpack.HeaderField {
+	return generateTestHeaderFields(false, false, method)
+}
+
 // testHeaders returns a set of header fields.
 func testHeaders() []hpack.HeaderField { return generateTestHeaderFields(false, false) }
 
 // generateTestHeaderFields generates a set of header fields that will be used for the tests.
-func generateTestHeaderFields(pathNeverIndexed, withoutIndexing bool) []hpack.HeaderField {
+func generateTestHeaderFields(pathNeverIndexed, withoutIndexing bool, pathMethod ...string) []hpack.HeaderField {
+	headerPathMethod := "POST"
+	if len(pathMethod) > 0 {
+		headerPathMethod = pathMethod[0]
+	}
 	pathHeaderField := hpack.HeaderField{Name: ":path", Value: "/aaa", Sensitive: false}
 
 	// If we want to create a case without indexing, we need to make sure that the path is longer than 100 characters.
@@ -870,7 +902,7 @@ func generateTestHeaderFields(pathNeverIndexed, withoutIndexing bool) []hpack.He
 
 	return []hpack.HeaderField{
 		{Name: ":authority", Value: authority},
-		{Name: ":method", Value: "POST"},
+		{Name: ":method", Value: headerPathMethod},
 		pathHeaderField,
 		{Name: ":scheme", Value: "http"},
 		{Name: "content-type", Value: "application/json"},
