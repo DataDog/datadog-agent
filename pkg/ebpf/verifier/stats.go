@@ -102,7 +102,9 @@ func BuildVerifierStats(objectFiles []string) (map[string]*Statistics, error) {
 		opts := ebpf.CollectionOptions{
 			Programs: ebpf.ProgramOptions{
 				LogLevel: ebpf.LogLevelBranch | ebpf.LogLevelStats,
-				LogSize:  100 * 1024 * 1024,
+				// maximum log size accepted by the kernel:
+				// https://github.com/cilium/ebpf/blob/main/prog.go#L42
+				LogSize: 1073741823,
 			},
 		}
 		collection, err := ebpf.NewCollectionWithOptions(collectionSpec, opts)
