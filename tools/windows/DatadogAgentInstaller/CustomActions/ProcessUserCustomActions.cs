@@ -10,12 +10,20 @@ using Microsoft.Deployment.WindowsInstaller;
 
 namespace Datadog.CustomActions
 {
-    // ExceptionWithDialogMessage is a custom exception type that contains a message that can be displayed to the user in a dialog box.
-    // Use to distinguish an expected error with a message that should be displayed to the user from an unexpected exception.
+    // InvalidAgentUserException is a custom exception type that contains a message that can be displayed to the user in a dialog box.
+    // Use to distinguish an expected user configuration error with a message that should be displayed to the user from an unexpected runtime exception.
     // This message is displayed to the customer in a dialog box. Ensure the text is well formatted.
-    public class ExceptionWithDialogMessage : InvalidOperationException
+    public class InvalidAgentUserConfigurationException : Exception
     {
-        public ExceptionWithDialogMessage(string message) : base(message)
+        public InvalidAgentUserConfigurationException()
+        {
+        }
+
+        public InvalidAgentUserConfigurationException(string message) : base(message)
+        {
+        }
+
+        public InvalidAgentUserConfigurationException(string message, Exception inner) : base(message, inner)
         {
         }
     }
@@ -255,7 +263,7 @@ namespace Datadog.CustomActions
                 return;
             }
 
-            throw new ExceptionWithDialogMessage("The account provided is the same as the currently logged in user. Please supply a different account for the Datadog Agent.");
+            throw new InvalidAgentUserConfigurationException("The account provided is the same as the currently logged in user. Please supply a different account for the Datadog Agent.");
         }
 
         /// <summary>
@@ -272,17 +280,24 @@ namespace Datadog.CustomActions
                 return;
             }
 
-            if (!passwordProvided && isDomainController &&
-                !datadogAgentServiceExists)
+            // If the service already exists (like during upgrade) then we don't need a password
+            if (datadogAgentServiceExists)
             {
-                throw new ExceptionWithDialogMessage(
+                return;
+            }
+
+            if (isDomainController)
+            {
+                // We choose not to create/manage the account/password on domain controllers because
+                // the account can be replicated/used across the domain/forest.
+                throw new InvalidAgentUserConfigurationException(
                     "A password was not provided. Passwords are required for non-service accounts on Domain Controllers.");
             }
 
-            if (!passwordProvided && isDomainAccount &&
-                !datadogAgentServiceExists)
+            if (isDomainAccount)
             {
-                throw new InvalidOperationException(
+                // We can't create a new account or change a password from a domain client, so we must require a password
+                throw new InvalidAgentUserConfigurationException(
                     "A password was not provided. Passwords are required for domain accounts.");
             }
         }
@@ -371,7 +386,7 @@ namespace Datadog.CustomActions
                     {
                         // require user to provide a username on domain controllers so that the customer is explicit
                         // about the username/password that will be created on their domain if it does not exist.
-                        throw new ExceptionWithDialogMessage("A username was not provided. A username is a required when installing on Domain Controllers.");
+                        throw new InvalidAgentUserConfigurationException("A username was not provided. A username is a required when installing on Domain Controllers.");
                     }
 
                     // Creds are not in registry and user did not pass a value, use default account name
@@ -394,7 +409,7 @@ namespace Datadog.CustomActions
                     // Ensure name belongs to a user account or special accounts like SYSTEM, and not to a domain, computer or group.
                     if (nameUse != SID_NAME_USE.SidTypeUser && nameUse != SID_NAME_USE.SidTypeWellKnownGroup)
                     {
-                        throw new ExceptionWithDialogMessage("The name provided is not a user account. Please supply a user account name in the format domain\\username.");
+                        throw new InvalidAgentUserConfigurationException("The name provided is not a user account. Please supply a user account name in the format domain\\username.");
                     }
 
                     _session["DDAGENTUSER_FOUND"] = "true";
@@ -419,7 +434,7 @@ namespace Datadog.CustomActions
                 if (string.IsNullOrEmpty(userName))
                 {
                     // If userName is empty at this point, then it is likely that the input is malformed
-                    throw new ExceptionWithDialogMessage($"Unable to parse account name from {ddAgentUserName}. Please ensure the account name follows the format domain\\username.");
+                    throw new InvalidAgentUserConfigurationException($"Unable to parse account name from {ddAgentUserName}. Please ensure the account name follows the format domain\\username.");
                 }
 
                 if (string.IsNullOrEmpty(domain))
@@ -432,7 +447,7 @@ namespace Datadog.CustomActions
                 // User does not exist and we cannot create user account from RODC
                 if (!userFound && isReadOnlyDomainController)
                 {
-                    throw new ExceptionWithDialogMessage("The account does not exist. Domain accounts must already exist when installing on Read-Only Domain Controllers.");
+                    throw new InvalidAgentUserConfigurationException("The account does not exist. Domain accounts must already exist when installing on Read-Only Domain Controllers.");
                 }
 
                 // We are trying to create a user in a domain on a non-domain controller.
@@ -441,7 +456,7 @@ namespace Datadog.CustomActions
                     !isDomainController &&
                     domain != Environment.MachineName)
                 {
-                    throw new ExceptionWithDialogMessage("The account does not exist. Domain accounts must already exist when installing on Domain Clients.");
+                    throw new InvalidAgentUserConfigurationException("The account does not exist. Domain accounts must already exist when installing on Domain Clients.");
                 }
 
                 _session.Log(
@@ -459,7 +474,7 @@ namespace Datadog.CustomActions
                 {
                     // require user to provide a password on domain controllers so that the customer is explicit
                     // about the username/password that will be created on their domain if it does not exist.
-                    throw new ExceptionWithDialogMessage("A password was not provided. A password is a required when installing on Domain Controllers.");
+                    throw new InvalidAgentUserConfigurationException("A password was not provided. A password is a required when installing on Domain Controllers.");
                 }
 
                 if (!isServiceAccount &&
@@ -478,7 +493,7 @@ namespace Datadog.CustomActions
 
                 _session["DDAGENTUSER_PROCESSED_PASSWORD"] = ddAgentUserPassword;
             }
-            catch (ExceptionWithDialogMessage e)
+            catch (InvalidAgentUserConfigurationException e)
             {
                 return HandleProcessDdAgentUserCredentialsException(e, e.Message, calledFromUIControl);
             }
