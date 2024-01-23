@@ -1151,7 +1151,7 @@ func (s *TracerSuite) TestUnconnectedUDPSendIPv4() {
 	cfg := testConfig()
 	tr := setupTracer(t, cfg)
 
-	remotePort := testutil.GetOpenPort(t)
+	remotePort := testutil.GetOpenPortUDP(t)
 	remoteAddr := &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: remotePort}
 	// Use ListenUDP instead of DialUDP to create a "connectionless" UDP connection
 	conn, err := net.ListenUDP("udp4", nil)
@@ -1178,7 +1178,7 @@ func (s *TracerSuite) TestConnectedUDPSendIPv6() {
 	}
 	tr := setupTracer(t, cfg)
 
-	remotePort := testutil.GetOpenPort(t)
+	remotePort := testutil.GetOpenPortUDP(t)
 	remoteAddr := &net.UDPAddr{IP: net.IPv6loopback, Port: remotePort}
 	conn, err := net.DialUDP("udp6", nil, remoteAddr)
 	require.NoError(t, err)

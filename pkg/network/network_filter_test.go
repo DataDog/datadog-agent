@@ -11,7 +11,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -92,15 +91,13 @@ func BenchmarkIsBlacklistedConnectionIPv4(b *testing.B) {
 	sourceList := ParseConnectionFilters(testSourceFilters)
 	destList := ParseConnectionFilters(testDestinationFilters)
 	addrs := randIPv4(6)
-	sourcePort := nettestutil.GetOpenPort(b)
-	destPort := nettestutil.GetOpenPort(b)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		for _, addr := range addrs {
-			sink = IsExcludedConnection(sourceList, destList, &ConnectionStats{Source: addr, SPort: uint16(sourcePort), Type: TCP})
-			sink = IsExcludedConnection(sourceList, destList, &ConnectionStats{Dest: addr, DPort: uint16(destPort), Type: TCP})
+			sink = IsExcludedConnection(sourceList, destList, &ConnectionStats{Source: addr, SPort: uint16(rand.Intn(9999)), Type: TCP})
+			sink = IsExcludedConnection(sourceList, destList, &ConnectionStats{Dest: addr, DPort: uint16(rand.Intn(9999)), Type: TCP})
 		}
 	}
 
@@ -110,15 +107,13 @@ func BenchmarkIsBlacklistedConnectionIPv6(b *testing.B) {
 	sourceList := ParseConnectionFilters(testSourceFilters)
 	destList := ParseConnectionFilters(testDestinationFilters)
 	addrs := randIPv6(6)
-	sourcePort := nettestutil.GetOpenPort(b)
-	destPort := nettestutil.GetOpenPort(b)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		for _, addr := range addrs {
-			sink = IsExcludedConnection(sourceList, destList, &ConnectionStats{Source: addr, SPort: uint16(sourcePort), Type: TCP})
-			sink = IsExcludedConnection(sourceList, destList, &ConnectionStats{Dest: addr, DPort: uint16(destPort), Type: TCP})
+			sink = IsExcludedConnection(sourceList, destList, &ConnectionStats{Source: addr, SPort: uint16(rand.Intn(9999)), Type: TCP})
+			sink = IsExcludedConnection(sourceList, destList, &ConnectionStats{Dest: addr, DPort: uint16(rand.Intn(9999)), Type: TCP})
 		}
 	}
 }

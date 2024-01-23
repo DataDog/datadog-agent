@@ -12,11 +12,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// GetOpenPort lets the OS pick an open port and
+// GetOpenPortTCP lets the OS pick an open port for TCP and
 // returns it
-func GetOpenPort(t testing.TB) int {
+func GetOpenPortTCP(t testing.TB) int {
 	l, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
-	defer func() { _ = l.Close() }()
+	t.Cleanup(func() { l.Close() })
 	return l.Addr().(*net.TCPAddr).Port
+}
+
+// GetOpenPortUDP lets the OS pick an open port for UDP and
+// returns it
+func GetOpenPortUDP(t testing.TB) int {
+	conn, err := net.ListenUDP("udp", &net.UDPAddr{Port: 0})
+	require.NoError(t, err)
+	t.Cleanup(func() { conn.Close() })
+	return conn.LocalAddr().(*net.UDPAddr).Port
 }

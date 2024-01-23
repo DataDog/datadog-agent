@@ -9,6 +9,7 @@ package network
 
 import (
 	"fmt"
+	"math"
 	"math/rand"
 	"sync"
 	"syscall"
@@ -31,8 +32,8 @@ import (
 )
 
 func BenchmarkConnectionsGet(b *testing.B) {
-	conns := generateRandConnections(b, 30000)
-	closed := generateRandConnections(b, 30000)
+	conns := generateRandConnections(30000)
+	closed := generateRandConnections(30000)
 
 	for _, bench := range []struct {
 		connCount   int
@@ -719,8 +720,8 @@ func TestRaceConditions(t *testing.T) { //nolint:revive // TODO fix revive unuse
 	genConns := func(n uint32) []ConnectionStats {
 		conns := make([]ConnectionStats, 0, n)
 		for i := uint32(0); i < n; i++ {
-			sourcePort := nettestutil.GetOpenPort(t)
-			destPort := nettestutil.GetOpenPort(t)
+			sourcePort := nettestutil.GetOpenPortTCP(t)
+			destPort := nettestutil.GetOpenPortTCP(t)
 			conns = append(conns, ConnectionStats{
 				Pid:    1 + i,
 				Type:   TCP,
@@ -2460,19 +2461,17 @@ func TestDNSPIDCollision(t *testing.T) {
 	assert.Empty(t, delta.Conns[1].DNSStats, "dns stats should not be empty")
 }
 
-func generateRandConnections(t testing.TB, n int) []ConnectionStats {
+func generateRandConnections(n int) []ConnectionStats {
 	cs := make([]ConnectionStats, 0, n)
 	for i := 0; i < n; i++ {
-		sourcePort := nettestutil.GetOpenPort(t)
-		destPort := nettestutil.GetOpenPort(t)
 		cs = append(cs, ConnectionStats{
 			Pid:    123,
 			Type:   TCP,
 			Family: AFINET,
 			Source: util.AddressFromString("127.0.0.1"),
 			Dest:   util.AddressFromString("127.0.0.1"),
-			SPort:  uint16(sourcePort),
-			DPort:  uint16(destPort),
+			SPort:  uint16(rand.Intn(math.MaxUint16)),
+			DPort:  uint16(rand.Intn(math.MaxUint16)),
 			Monotonic: StatCounters{
 				RecvBytes:   rand.Uint64(),
 				SentBytes:   rand.Uint64(),

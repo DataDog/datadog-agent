@@ -467,7 +467,7 @@ func (s *TracerSuite) TestConntrackDelays() {
 
 	// The random port is necessary to avoid flakiness in the test. Running the the test multiple
 	// times can fail if binding to the same port since Conntrack might not emit NEW events for the same tuple
-	port := testutil.GetOpenPort(t)
+	port := 0
 	server := NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", port), func(c net.Conn) {
 		wg.Add(1)
 		defer wg.Done()
@@ -479,7 +479,7 @@ func (s *TracerSuite) TestConntrackDelays() {
 	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
 
-	c, err := net.Dial("tcp", fmt.Sprintf("2.2.2.2:%d", port))
+	c, err := net.Dial("tcp", fmt.Sprintf("2.2.2.2:%d", server.ln.Addr().(*net.TCPAddr).Port))
 	require.NoError(t, err)
 	defer c.Close()
 	_, err = c.Write([]byte("ping"))
@@ -505,7 +505,7 @@ func (s *TracerSuite) TestTranslationBindingRegression() {
 	tr := setupTracer(t, testConfig())
 
 	// Setup TCP server
-	port := testutil.GetOpenPort(t)
+	port := 0
 	server := NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", port), func(c net.Conn) {
 		wg.Add(1)
 		defer wg.Done()
@@ -518,7 +518,7 @@ func (s *TracerSuite) TestTranslationBindingRegression() {
 	require.NoError(t, server.Run())
 
 	// Send data to 2.2.2.2 (which should be translated to 1.1.1.1)
-	c, err := net.Dial("tcp", fmt.Sprintf("2.2.2.2:%d", port))
+	c, err := net.Dial("tcp", fmt.Sprintf("2.2.2.2:%d", server.ln.Addr().(*net.TCPAddr).Port))
 	require.NoError(t, err)
 	defer c.Close()
 	_, err = c.Write([]byte("ping"))
@@ -562,7 +562,7 @@ func (s *TracerSuite) TestUnconnectedUDPSendIPv6() {
 	linkLocal, err := offsetguess.GetIPv6LinkLocalAddress()
 	require.NoError(t, err)
 
-	remotePort := testutil.GetOpenPort(t)
+	remotePort := testutil.GetOpenPortUDP(t)
 	remoteAddr := &net.UDPAddr{IP: net.ParseIP(offsetguess.InterfaceLocalMulticastIPv6), Port: remotePort}
 	conn, err := net.ListenUDP("udp6", linkLocal[0])
 	require.NoError(t, err)
@@ -1305,7 +1305,10 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 
 	tr := setupTracer(t, cfg)
 
-	port := testutil.GetOpenPort(t)
+	conn, err := net.ListenUDP("udp", &net.UDPAddr{Port: 0})
+	require.NoError(t, err)
+	port := conn.LocalAddr().(*net.UDPAddr).Port
+
 	createReuseServer := func(port int) *UDPServer {
 		return &UDPServer{
 			network: udpnet,
@@ -1330,7 +1333,8 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 
 	s1 := createReuseServer(port)
 	s2 := createReuseServer(port)
-	err := s1.Run(clientMessageSize)
+	conn.Close()
+	err = s1.Run(clientMessageSize)
 	require.NoError(t, err)
 	t.Cleanup(s1.Shutdown)
 
