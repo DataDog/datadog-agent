@@ -25,6 +25,6 @@ type Statistics struct {
 
 // BuildVerifierStats accepts a list of eBPF object files and generates a
 // map of all programs and their Statistics
-func BuildVerifierStats(objectFiles []string) (map[string]*Statistics, error) {
+func BuildVerifierStats(_ []string) (map[string]*Statistics, error) {
 	return nil, fmt.Errorf("not implemented")
 }
