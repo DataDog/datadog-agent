@@ -37,7 +37,39 @@ func NewPipeline(outputChan chan *message.Payload,
 	diagnosticMessageReceiver diagnostic.MessageReceiver,
 	serverless bool,
 	pipelineID int) *Pipeline {
-	panic("not called")
+
+	mainDestinations := getDestinations(endpoints, destinationsContext, pipelineID, serverless)
+
+	strategyInput := make(chan *message.Message, config.ChanSize)
+	senderInput := make(chan *message.Payload, 1) // Only buffer 1 message since payloads can be large
+	flushChan := make(chan struct{})
+
+	var logsSender *sender.Sender
+
+	var encoder processor.Encoder
+	if serverless {
+		encoder = processor.JSONServerlessEncoder
+	} else if endpoints.UseHTTP {
+		encoder = processor.JSONEncoder
+	} else if endpoints.UseProto {
+		encoder = processor.ProtoEncoder
+	} else {
+		encoder = processor.RawEncoder
+	}
+
+	strategy := getStrategy(strategyInput, senderInput, flushChan, endpoints, serverless, pipelineID)
+	logsSender = sender.NewSender(senderInput, outputChan, mainDestinations, config.DestinationPayloadChanSize)
+
+	inputChan := make(chan *message.Message, config.ChanSize)
+	processor := processor.New(inputChan, strategyInput, processingRules, encoder, diagnosticMessageReceiver)
+
+	return &Pipeline{
+		InputChan: inputChan,
+		flushChan: flushChan,
+		processor: processor,
+		strategy:  strategy,
+		sender:    logsSender,
+	}
 }
 
 // Start launches the pipeline

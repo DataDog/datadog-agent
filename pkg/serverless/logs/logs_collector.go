@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -217,5 +218,109 @@ func (lc *LambdaLogsCollector) processLogMessages(messages []LambdaLogAPIMessage
 func (lc *LambdaLogsCollector) processMessage(
 	message *LambdaLogAPIMessage,
 ) {
-	panic("not called")
+	// Do not send logs or metrics if we can't associate them with an ARN or Request ID
+	if !shouldProcessLog(message) {
+		return
+	}
+	if message.logType == logTypePlatformInitReport {
+		lambdaMetric := &LambdaInitMetric{
+			InitDurationTelemetry: message.objectRecord.reportLogItem.initDurationTelemetry,
+		}
+		lc.lambdaInitMetricChan <- lambdaMetric
+	}
+
+	if message.logType == logTypePlatformInitStart {
+		lambdaMetric := &LambdaInitMetric{
+			InitStartTime: message.objectRecord.reportLogItem.initStartTime,
+		}
+		lc.lambdaInitMetricChan <- lambdaMetric
+	}
+
+	if message.logType == logTypePlatformStart {
+		if len(lc.coldstartRequestID) == 0 {
+			lc.coldstartRequestID = message.objectRecord.requestID
+		}
+		lc.lastRequestID = message.objectRecord.requestID
+		lc.invocationStartTime = message.time
+
+		lc.executionContext.UpdateStartTime(lc.invocationStartTime)
+	}
+
+	if message.logType == logTypePlatformReport {
+		message.stringRecord = createStringRecordForReportLog(lc.invocationStartTime, lc.invocationEndTime, message)
+	}
+
+	if lc.enhancedMetricsEnabled {
+		proactiveInit := false
+		coldStart := false
+		// Only run this block if the LC thinks we're in a cold start
+		if lc.lastRequestID == lc.coldstartRequestID {
+			coldStartTags := lc.executionContext.GetColdStartTagsForRequestID(lc.lastRequestID)
+			proactiveInit = coldStartTags.IsProactiveInit
+			coldStart = coldStartTags.IsColdStart
+		}
+		tags := tags.AddColdStartTag(lc.extraTags.Tags, coldStart, proactiveInit)
+		//nolint:revive // TODO(SERV) Fix revive linter
+		outOfMemoryRequestId := ""
+
+		if message.logType == logTypeFunction {
+			if lc.lastOOMRequestID != lc.lastRequestID && serverlessMetrics.ContainsOutOfMemoryLog(message.stringRecord) {
+				outOfMemoryRequestId = lc.lastRequestID
+			}
+		}
+		if message.logType == logTypePlatformReport {
+			memorySize := message.objectRecord.reportLogItem.memorySizeMB
+			memoryUsed := message.objectRecord.reportLogItem.maxMemoryUsedMB
+			status := message.objectRecord.status
+			reportOutOfMemory := memoryUsed > 0 && memoryUsed >= memorySize
+
+			args := serverlessMetrics.GenerateEnhancedMetricsFromReportLogArgs{
+				InitDurationMs:   message.objectRecord.reportLogItem.initDurationMs,
+				DurationMs:       message.objectRecord.reportLogItem.durationMs,
+				BilledDurationMs: message.objectRecord.reportLogItem.billedDurationMs,
+				MemorySizeMb:     memorySize,
+				MaxMemoryUsedMb:  memoryUsed,
+				RuntimeStart:     lc.invocationStartTime,
+				RuntimeEnd:       lc.invocationEndTime,
+				T:                message.time,
+				Tags:             tags,
+				Demux:            lc.demux,
+			}
+
+			if status == errorStatus && lc.lastOOMRequestID != message.objectRecord.requestID && reportOutOfMemory {
+				outOfMemoryRequestId = message.objectRecord.requestID
+			}
+			serverlessMetrics.GenerateEnhancedMetricsFromReportLog(args)
+		}
+		if message.logType == logTypePlatformRuntimeDone {
+			serverlessMetrics.GenerateEnhancedMetricsFromRuntimeDoneLog(
+				serverlessMetrics.GenerateEnhancedMetricsFromRuntimeDoneLogArgs{
+					Start:            lc.invocationStartTime,
+					End:              message.time,
+					ResponseLatency:  message.objectRecord.runtimeDoneItem.responseLatency,
+					ResponseDuration: message.objectRecord.runtimeDoneItem.responseDuration,
+					ProducedBytes:    message.objectRecord.runtimeDoneItem.producedBytes,
+					Tags:             tags,
+					Demux:            lc.demux,
+				})
+			lc.invocationEndTime = message.time
+			lc.executionContext.UpdateEndTime(message.time)
+		}
+		if outOfMemoryRequestId != "" {
+			lc.lastOOMRequestID = outOfMemoryRequestId
+			lc.executionContext.UpdateOutOfMemoryRequestID(lc.lastOOMRequestID)
+			serverlessMetrics.GenerateOutOfMemoryEnhancedMetrics(message.time, tags, lc.demux)
+		}
+	}
+
+	// If we receive a runtimeDone log message for the current invocation, we know the runtime is done
+	// If we receive a runtimeDone message for a different invocation, we received the message too late and we ignore it
+	if message.logType == logTypePlatformRuntimeDone {
+		if lc.lastRequestID == message.objectRecord.requestID {
+			log.Debugf("Received a runtimeDone log message for the current invocation %s", message.objectRecord.requestID)
+			lc.handleRuntimeDone()
+		} else {
+			log.Debugf("Received a runtimeDone log message for the non-current invocation %s, ignoring it", message.objectRecord.requestID)
+		}
+	}
 }

@@ -52,7 +52,21 @@ type dumpTrigger struct {
 func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, bufferSize int,
 	metricSamplePool *metrics.MetricSamplePool,
 	parallelSerialization FlushAndSerializeInParallel, tagsStore *tags.Store) *timeSamplerWorker {
-	panic("not called")
+	return &timeSamplerWorker{
+		sampler: sampler,
+
+		metricSamplePool:      metricSamplePool,
+		parallelSerialization: parallelSerialization,
+
+		flushInterval: flushInterval,
+
+		samplesChan: make(chan []metrics.MetricSample, bufferSize),
+		stopChan:    make(chan struct{}),
+		flushChan:   make(chan flushTrigger),
+		dumpChan:    make(chan dumpTrigger),
+
+		tagsStore: tagsStore,
+	}
 }
 
 // We process all receivend samples in the `select`, but we also process a flush action,

@@ -94,7 +94,14 @@ func NewDestination(endpoint config.Endpoint,
 	maxConcurrentBackgroundSends int,
 	shouldRetry bool,
 	telemetryName string) *Destination {
-	panic("not called")
+
+	return newDestination(endpoint,
+		contentType,
+		destinationsContext,
+		time.Second*10,
+		maxConcurrentBackgroundSends,
+		shouldRetry,
+		telemetryName)
 }
 
 func newDestination(endpoint config.Endpoint,
@@ -104,7 +111,43 @@ func newDestination(endpoint config.Endpoint,
 	maxConcurrentBackgroundSends int,
 	shouldRetry bool,
 	telemetryName string) *Destination {
-	panic("not called")
+
+	if maxConcurrentBackgroundSends <= 0 {
+		maxConcurrentBackgroundSends = 1
+	}
+	policy := backoff.NewExpBackoffPolicy(
+		endpoint.BackoffFactor,
+		endpoint.BackoffBase,
+		endpoint.BackoffMax,
+		endpoint.RecoveryInterval,
+		endpoint.RecoveryReset,
+	)
+
+	expVars := &expvar.Map{}
+	expVars.AddFloat(expVarIdleMsMapKey, 0)
+	expVars.AddFloat(expVarInUseMsMapKey, 0)
+	if telemetryName != "" {
+		metrics.DestinationExpVars.Set(telemetryName, expVars)
+	}
+
+	return &Destination{
+		host:                endpoint.Host,
+		url:                 buildURL(endpoint),
+		apiKey:              endpoint.APIKey,
+		contentType:         contentType,
+		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, httpClientFactory(timeout)),
+		destinationsContext: destinationsContext,
+		climit:              make(chan struct{}, maxConcurrentBackgroundSends),
+		wg:                  sync.WaitGroup{},
+		backoff:             policy,
+		protocol:            endpoint.Protocol,
+		origin:              endpoint.Origin,
+		lastRetryError:      nil,
+		retryLock:           sync.Mutex{},
+		shouldRetry:         shouldRetry,
+		expVars:             expVars,
+		telemetryName:       telemetryName,
+	}
 }
 
 func errorToTag(err error) string {

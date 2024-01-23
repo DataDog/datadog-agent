@@ -41,7 +41,12 @@ func NewLaunchers(
 	registry auditor.Registry,
 	tracker *tailers.TailerTracker,
 ) *Launchers {
-	panic("not called")
+	return &Launchers{
+		sourceProvider:   sources,
+		pipelineProvider: pipelineProvider,
+		registry:         registry,
+		tracker:          tracker,
+	}
 }
 
 // AddLauncher adds a launcher to the collection.  If called after Start(), then the
