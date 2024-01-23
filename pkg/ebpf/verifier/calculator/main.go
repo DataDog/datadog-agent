@@ -8,10 +8,10 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/fs"
 	"log"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -19,20 +19,29 @@ import (
 	"github.com/cilium/ebpf/rlimit"
 )
 
+var directory = flag.String("directory", "", "Directory containing ebpf object files")
+var debug = flag.Bool("debug", false, "Calculate statistics of debug builds")
+
 func main() {
 	var objectFiles []string
 	var err error
 
-	if len(os.Args[1:]) < 1 {
-		panic("please use './main <object-files-dir>'")
+	flag.Parse()
+
+	objDir := *directory
+	skipDebugBuilds := func(path string) bool {
+		debugBuild := strings.Contains(path, "-debug")
+		if *debug {
+			return !debugBuild
+		}
+		return debugBuild
 	}
-	directory := os.Args[1]
 
 	if err := rlimit.RemoveMemlock(); err != nil {
 		log.Fatalf("failed to remove memlock %v", err)
 	}
 
-	if err := filepath.WalkDir(directory, func(path string, d fs.DirEntry, err error) error {
+	if err := filepath.WalkDir(objDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -40,7 +49,7 @@ func main() {
 			return nil
 		}
 
-		if strings.Contains(path, "-debug") || !strings.HasSuffix(path, ".o") {
+		if skipDebugBuilds(path) || !strings.HasSuffix(path, ".o") {
 			return nil
 		}
 		objectFiles = append(objectFiles, path)

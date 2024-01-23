@@ -64,17 +64,20 @@ def stdout_or_file(filename=None):
         "out": "Output file to write results to. By default results are written to stdout"
     }
 )
-def print_verification_stats(ctx, skip_object_files=False, base=None, jsonfmt=False, out=None):
+def print_verification_stats(ctx, skip_object_files=False, base=None, jsonfmt=False, out=None, debug_build=False):
     sudo = "sudo" if not is_root() else ""
     if not skip_object_files:
         build_object_files(ctx)
 
     # generate programs.go
-    ctx.run("go generate pkg/ebpf/verifier/stats.go")
+    use_debug_build="USE_DEBUG_BUILDS='true' " if debug_build else ""
+    ctx.run(f"{use_debug_build}go generate pkg/ebpf/verifier/stats.go")
 
     ctx.run("cd pkg/ebpf/verifier && go generate")
     ctx.run("go build -tags linux_bpf pkg/ebpf/verifier/calculator/main.go")
-    res = ctx.run(f"{sudo} ./main pkg/ebpf/bytecode/build/co-re", hide=True)
+
+    debug = "--debug" if debug_build else ""
+    res = ctx.run(f"{sudo} ./main --directory pkg/ebpf/bytecode/build/co-re {debug}", hide=True)
     print(res.stderr)
     if res.exited == 0:
         verifier_stats = json.loads(res.stdout)

@@ -35,6 +35,15 @@ import (
 
 func listOfObjectFiles(directory string) ([]string, error) {
 	var objectFiles []string
+
+	skipDebugBuilds := func(path string) bool {
+		debugBuild := strings.Contains(path, "-debug")
+		if os.Getenv("USE_DEBUG_BUILDS") != "" {
+			return !debugBuild
+		}
+		return debugBuild
+	}
+
 	if err := filepath.WalkDir(directory, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -43,7 +52,7 @@ func listOfObjectFiles(directory string) ([]string, error) {
 			return nil
 		}
 
-		if strings.Contains(path, "-debug") || !strings.HasSuffix(path, ".o") {
+		if skipDebugBuilds(path) || !strings.HasSuffix(path, ".o") {
 			return nil
 		}
 		objectFiles = append(objectFiles, path)
