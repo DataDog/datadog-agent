@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 	"time"
@@ -617,7 +618,13 @@ func runCheck(cliParams *cliParams, c check.Check, _ aggregator.Demultiplexer) *
 	}
 	for i := 0; i < times; i++ {
 		t0 := time.Now()
-		err := c.Run()
+
+		var err error
+		ctx := context.Background()
+		pprof.Do(ctx, pprof.Labels("check_name", c.String()), func(ctx context.Context) {
+			err = c.Run()
+		})
+
 		warnings := c.GetWarnings()
 		sStats, _ := c.GetSenderStats()
 		s.Add(time.Since(t0), err, warnings, sStats)

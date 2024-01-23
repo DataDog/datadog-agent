@@ -6,6 +6,7 @@
 package gui
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,13 +14,14 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime/pprof"
 	"sort"
 	"strings"
 	"time"
 
 	securejoin "github.com/cyphar/filepath-securejoin"
 	"github.com/gorilla/mux"
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
@@ -110,7 +112,13 @@ func runCheckOnce(w http.ResponseWriter, r *http.Request) {
 		s := checkstats.NewStats(ch)
 
 		t0 := time.Now()
-		err := ch.Run()
+		var err error
+
+		ctx := context.Background()
+		pprof.Do(ctx, pprof.Labels("check_name", ch.String()), func(ctx context.Context) {
+			err = ch.Run()
+		})
+
 		warnings := ch.GetWarnings()
 		sStats, _ := ch.GetSenderStats()
 		s.Add(time.Since(t0), err, warnings, sStats)

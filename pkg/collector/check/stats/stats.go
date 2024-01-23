@@ -50,6 +50,7 @@ var (
 		[]string{"check_name"}, "Histogram buckets count")
 	tlmExecutionTime = telemetry.NewGauge("checks", "execution_time",
 		[]string{"check_name"}, "Check execution time")
+
 	tlmCheckDelay = telemetry.NewGauge("checks",
 		"delay",
 		[]string{"check_name"},

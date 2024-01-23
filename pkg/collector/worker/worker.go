@@ -8,6 +8,7 @@ package worker
 import (
 	"context"
 	"fmt"
+	"runtime/pprof"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -149,7 +150,11 @@ func (w *Worker) Run() {
 		utilizationTracker.CheckStarted()
 
 		// Run the check
-		checkErr := check.Run()
+		var checkErr error
+		ctx := context.Background()
+		pprof.Do(ctx, pprof.Labels("check_name", check.String()), func(ctx context.Context) {
+			checkErr = check.Run()
+		})
 
 		utilizationTracker.CheckFinished()
 
