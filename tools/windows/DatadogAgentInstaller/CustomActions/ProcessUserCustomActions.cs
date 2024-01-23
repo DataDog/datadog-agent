@@ -226,14 +226,10 @@ namespace Datadog.CustomActions
         /// <remarks>
         /// Since the installer modifies the user account, if the current user is provided for the ddagentuser the account will be locked out.
         /// If a customer does this by mistake, they will have to use a different account to log in to the machine and fix the account.
-        /// To avoid this, we disallow using the current user as the ddagentuser unless
-        ///   - The user is a service account (e.g. LocalSystem)
-        ///   - The agent is already installed and the agent user is not being changed
-        /// If a customer must use the current user, they can pass ALLOW_CURRENT_USER=true to the installer on the command line.
+        /// To avoid this, we disallow using the current user as the ddagentuser unless the user is a service account (e.g. LocalSystem)
         /// </remarks>
         private void TestAgentUserIsNotCurrentUser(SecurityIdentifier agentUser, bool isServiceAccount)
         {
-            var allowInstallCurrentUser = _session.Property("ALLOW_CURRENT_USER")?.ToLower() == "true";
             string currentUserName;
             SecurityIdentifier currentUserSID;
             try
@@ -256,26 +252,6 @@ namespace Datadog.CustomActions
             // good, agent user and current user are different
             if (!currentUserSID.Equals(agentUser))
             {
-                return;
-            }
-
-            var _previousDdAgentUserSID = InstallStateCustomActions.GetPreviousAgentUser(_session, _registryServices, _nativeMethods);
-            if (_previousDdAgentUserSID != null)
-            {
-                _session.Log($"Previous agent user: {_previousDdAgentUserSID}");
-                // If the previous agent user is the same as the new agentUser, then we are upgrading/changing/repairing and the user has already
-                // opted in to allow it to be the same as the current user.
-                if (_previousDdAgentUserSID.Equals(agentUser))
-                {
-                    _session.Log("The account provided is the same as the currently logged in user and the previous agent user, allowing install to continue.");
-                    return;
-                }
-            }
-
-            if (allowInstallCurrentUser)
-            {
-                _session.Log(
-                    "The account provided is the same as the current user, but the user has opted in to allow this.");
                 return;
             }
 
