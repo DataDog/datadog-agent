@@ -11,7 +11,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/updater/command"
 	"github.com/DataDog/datadog-agent/pkg/updater"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/spf13/cobra"
 )
@@ -23,26 +22,24 @@ func Commands(global *command.GlobalParams) []*cobra.Command {
 		Short: "Runs the updater",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return run(global.Package, global.RepositoriesDir, global.RunPath, global.WatchProcesses)
+			return run(global.Package, global.RepositoriesDir, global.RunPath)
 		},
 	}
 	return []*cobra.Command{runCmd}
 }
 
-func run(pkg string, repositoriesPath string, runPath string, watchProcesses bool) error {
+func run(pkg string, repositoriesPath string, runPath string) error {
 	orgConfig, err := updater.NewOrgConfig()
 	if err != nil {
 		return fmt.Errorf("could not create org config: %w", err)
 	}
-	u, err := updater.NewUpdater(orgConfig, pkg, repositoriesPath, runPath, watchProcesses)
+	u, err := updater.NewUpdater(orgConfig, pkg, repositoriesPath, runPath)
 	if err != nil {
 		return fmt.Errorf("could not create updater: %w", err)
 	}
-	if watchProcesses {
-		u.StartGC()
-		defer u.StopGC()
-		log.Debug("launched updater garbage collector")
-	}
+
+	u.Start()
+	defer u.Stop()
 
 	api, err := updater.NewLocalAPI(u)
 	if err != nil {

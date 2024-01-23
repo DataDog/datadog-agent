@@ -27,21 +27,21 @@ func Commands(global *command.GlobalParams) []*cobra.Command {
 		This first version is sent remotely to the agent and can be configured from the UI.
 		This command will exit after the first version is installed.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return bootstrap(global.Package, global.RepositoriesDir, global.RunPath, global.WatchProcesses, timeout)
+			return bootstrap(global.Package, global.RepositoriesDir, global.RunPath, timeout)
 		},
 	}
 	bootstrapCmd.Flags().DurationVarP(&timeout, "timeout", "T", 3*time.Minute, "timeout to bootstrap with")
 	return []*cobra.Command{bootstrapCmd}
 }
 
-func bootstrap(pkg string, defaultRepositoriesPath string, defaultRunPath string, watchProcesses bool, timeout time.Duration) error {
+func bootstrap(pkg string, defaultRepositoriesPath string, defaultRunPath string, timeout time.Duration) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	orgConfig, err := updater.NewOrgConfig()
 	if err != nil {
 		return fmt.Errorf("could not create org config: %w", err)
 	}
-	err = updater.Install(ctx, orgConfig, pkg, defaultRepositoriesPath, defaultRunPath, watchProcesses)
+	err = updater.Install(ctx, orgConfig, pkg, defaultRepositoriesPath, defaultRunPath)
 	if err != nil {
 		return fmt.Errorf("could not install package: %w", err)
 	}

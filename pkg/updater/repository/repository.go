@@ -12,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/gopsutil/process"
@@ -48,7 +47,6 @@ const (
 // is cleaned up during the next operation.
 type Repository struct {
 	RootPath string
-	m        sync.Mutex
 
 	// RunPath must be set when the updater doesn't control the lifecycle of the
 	// process that's experimented on (e.g. tracers).
@@ -100,13 +98,6 @@ func (r *Repository) Create(name string, stableSourcePath string) error {
 		return fmt.Errorf("could not create packages root directory: %w", err)
 	}
 
-	if r.RunPath != "" {
-		err = createRunDirectory(r.RunPath)
-		if err != nil {
-			return fmt.Errorf("could not create package's run root directory: %w", err)
-		}
-	}
-
 	repository, err := readRepository(r.RootPath, r.RunPath)
 	if err != nil {
 		return err
@@ -131,9 +122,6 @@ func (r *Repository) Create(name string, stableSourcePath string) error {
 // 2. Move the experiment source to the repository.
 // 3. Set the experiment link to the experiment package.
 func (r *Repository) SetExperiment(name string, sourcePath string) error {
-	r.m.Lock()
-	defer r.m.Unlock()
-
 	repository, err := readRepository(r.RootPath, r.RunPath)
 	if err != nil {
 		return err
@@ -159,9 +147,6 @@ func (r *Repository) SetExperiment(name string, sourcePath string) error {
 // 3. Delete the experiment link.
 // 4. Cleanup the repository to remove the previous stable package.
 func (r *Repository) PromoteExperiment() error {
-	r.m.Lock()
-	defer r.m.Unlock()
-
 	repository, err := readRepository(r.RootPath, r.RunPath)
 	if err != nil {
 		return err
@@ -197,9 +182,6 @@ func (r *Repository) PromoteExperiment() error {
 // 2. Delete the experiment link.
 // 3. Cleanup the repository to remove the previous experiment package.
 func (r *Repository) DeleteExperiment() error {
-	r.m.Lock()
-	defer r.m.Unlock()
-
 	repository, err := readRepository(r.RootPath, r.RunPath)
 	if err != nil {
 		return err
@@ -225,11 +207,8 @@ func (r *Repository) DeleteExperiment() error {
 	return nil
 }
 
-// Cleanup calls the cleanup function of the repository with a lock
+// Cleanup calls the cleanup function of the repository
 func (r *Repository) Cleanup() error {
-	r.m.Lock()
-	defer r.m.Unlock()
-
 	repository, err := readRepository(r.RootPath, r.RunPath)
 	if err != nil {
 		return err
@@ -289,18 +268,16 @@ func movePackageFromSource(packageName string, rootPath string, runPath string, 
 	_, err := os.Stat(targetPath)
 	if err == nil {
 		// Check if we have long running processes using the package
-		// If yes, the GC left them untouched and it is fine to redownload
-		// them. If not, the GC should have removed the packages so we throw
-		// an error
-		if runPath != "" {
-			targetRunPath := filepath.Join(runPath, packageName)
-			inUse, err := packageVersionInUse(targetRunPath)
-			if err != nil && !errors.Is(err, os.ErrNotExist) {
-				return "", fmt.Errorf("could not check if package version is in use: %w", err)
-			}
-			if inUse {
-				return targetPath, nil // Package is in use, we don't reinstall it
-			}
+		// If yes, the GC left the package in place so we don't reinstall it, but
+		// we don't throw an error either.
+		// If not, the GC should have removed the packages so we error.
+		targetRunPath := filepath.Join(runPath, packageName)
+		inUse, err := versionUsed(targetRunPath)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return "", fmt.Errorf("could not check if package version is in use: %w", err)
+		}
+		if inUse {
+			return targetPath, nil // Package is in use, we don't reinstall it
 		}
 		return "", fmt.Errorf("target package already exists")
 	}
@@ -312,42 +289,11 @@ func movePackageFromSource(packageName string, rootPath string, runPath string, 
 		return "", fmt.Errorf("could not move source: %w", err)
 	}
 
-	// Create the associated run path if it doesn't exist
-	if runPath != "" {
-		err = createRunDirectory(filepath.Join(runPath, packageName))
-		if err != nil {
-			log.Warnf("could not create package's run directory: %v", err)
-		}
-	}
-
 	return targetPath, nil
 }
 
 func (r *repositoryFiles) cleanup() error {
-	// If we have no run path, we simply delete versions that are not stable or experiment
-	if r.runPath == "" {
-		versions, err := os.ReadDir(r.rootPath)
-		if err != nil {
-			return fmt.Errorf("could not read root directory: %w", err)
-		}
-		for _, version := range versions {
-			isLink := version.Name() == stableVersionLink || version.Name() == experimentVersionLink
-			isStable := r.stable.Exists() && r.stable.Target() == version.Name()
-			isExperiment := r.experiment.Exists() && r.experiment.Target() == version.Name()
-			if isLink || isStable || isExperiment {
-				continue
-			}
-			log.Debugf("removing version %s", version.Name())
-			err := os.RemoveAll(filepath.Join(r.rootPath, version.Name()))
-			if err != nil {
-				return fmt.Errorf("could not remove version: %w", err)
-			}
-		}
-		return nil
-	}
-
-	// Else, we only delete the version if no processes are using it
-	versions, err := os.ReadDir(r.runPath)
+	files, err := os.ReadDir(r.rootPath)
 	if err != nil {
 		return fmt.Errorf("could not read run directory: %w", err)
 	}
@@ -355,19 +301,15 @@ func (r *repositoryFiles) cleanup() error {
 	// For each version, get the running PIDs. These PIDs are written by the injector.
 	// The injector is ran directly with the service as it's a LD_PRELOAD, and has access
 	// to the PIDs.
-	for _, version := range versions {
-		isLink := version.Name() == stableVersionLink || version.Name() == experimentVersionLink
-		isStable := r.stable.Exists() && r.stable.Target() == version.Name()
-		isExperiment := r.experiment.Exists() && r.experiment.Target() == version.Name()
+	for _, file := range files {
+		isLink := file.Name() == stableVersionLink || file.Name() == experimentVersionLink
+		isStable := r.stable.Exists() && r.stable.Target() == file.Name()
+		isExperiment := r.experiment.Exists() && r.experiment.Target() == file.Name()
 		if isLink || isStable || isExperiment {
 			continue
 		}
 
-		if !version.IsDir() {
-			continue
-		}
-
-		versionInUse, err := packageVersionInUse(filepath.Join(r.runPath, version.Name()))
+		versionInUse, err := versionUsed(filepath.Join(r.runPath, file.Name()))
 		if err != nil {
 			log.Errorf("could not check if package version is in use: %v", err)
 			continue
@@ -375,12 +317,12 @@ func (r *repositoryFiles) cleanup() error {
 
 		// If no PIDs are running, remove the version
 		if !versionInUse {
-			log.Debugf("no running PIDs for package %s version %s, removing package", r.rootPath, version.Name())
-			if err := os.RemoveAll(filepath.Join(r.rootPath, version.Name())); err != nil {
-				log.Errorf("could not remove package directory for version %s: %v", version, err)
+			log.Debugf("no running PIDs for package %s version %s, removing package", r.rootPath, file.Name())
+			if err := os.RemoveAll(filepath.Join(r.rootPath, file.Name())); err != nil {
+				log.Errorf("could not remove package directory for version %s: %v", file.Name(), err)
 			}
-			if err := os.RemoveAll(filepath.Join(r.runPath, version.Name())); err != nil {
-				log.Errorf("could not remove run directory for version %s: %v", version, err)
+			if err := os.RemoveAll(filepath.Join(r.runPath, file.Name())); err != nil {
+				log.Errorf("could not remove run directory for version %s: %v", file.Name(), err)
 			}
 		}
 	}
@@ -388,16 +330,17 @@ func (r *repositoryFiles) cleanup() error {
 	return nil
 }
 
-// packageVersionInUse checks if the given package version is in use
-func packageVersionInUse(runPath string) (bool, error) {
-	runningPIDs := 0
-
-	pids, err := os.ReadDir(runPath)
+// versionUsed checks if the given package version is in use
+func versionUsed(packagePIDsPath string) (bool, error) {
+	pids, err := os.ReadDir(packagePIDsPath)
+	if errors.Is(err, os.ErrNotExist) {
+		// Not an error, because the run directory may not exist for this package
+		// in which case, as the run directory is world writeable, we can assume
+		// no process is using it
+		log.Debugf("package run directory does not exist, no running PIDs")
+		return false, nil
+	}
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			log.Debugf("package run directory does not exist, no running PIDs")
-			return false, nil
-		}
 		return false, fmt.Errorf("could not read run directory: %w", err)
 	}
 
@@ -408,38 +351,26 @@ func packageVersionInUse(runPath string) (bool, error) {
 			log.Errorf("could not parse PID: %v", err)
 			continue
 		}
-		processExists, err := process.PidExists(int32(pid))
+
+		processUsed, err := process.PidExists(int32(pid))
 		if err != nil {
 			log.Errorf("could not find process with PID %d: %v", pid, err)
-		} else if processExists {
-			runningPIDs++
-		} else {
-			log.Debugf("process with PID %d is stopped, removing PID file", pid)
-			err = os.Remove(filepath.Join(runPath, rawPID.Name()))
-			if err != nil {
-				log.Errorf("could not remove PID file: %v", err)
-			}
+			continue
+		}
+
+		if processUsed {
+			return true, nil
+		}
+
+		// PIDs can be re-used, so if the process isn't running we remove the file
+		log.Debugf("process with PID %d is stopped, removing PID file", pid)
+		err = os.Remove(filepath.Join(packagePIDsPath, rawPID.Name()))
+		if err != nil {
+			log.Errorf("could not remove PID file: %v", err)
 		}
 	}
 
-	return runningPIDs > 0, nil
-}
-
-// createRunDirectory creates a run directory at the specified path if it doesn't exist.
-// Note that this directory is never fully removed as the updater may
-// restart before the process is stopped.
-// Must be world writeable as we don't control who writes the PIDs
-func createRunDirectory(path string) error {
-	if fileInfo, err := os.Stat(path); err == nil {
-		if fileInfo.Mode().Perm()&0766 != 0766 {
-			return fmt.Errorf("run directory exists but is not world writeable, please update the permissions")
-		}
-	}
-	err := os.MkdirAll(path, 0766)
-	if err != nil {
-		return err
-	}
-	return nil
+	return false, nil
 }
 
 type link struct {

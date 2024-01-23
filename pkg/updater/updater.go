@@ -26,12 +26,12 @@ const (
 
 // Install installs the default version for the given package.
 // It is purposefully not part of the updater to avoid misuse.
-func Install(ctx context.Context, orgConfig *OrgConfig, pkg string, defaultRootPath string, defaultRunPath string, watchProcesses bool) error {
+func Install(ctx context.Context, orgConfig *OrgConfig, pkg string, defaultRootPath string, defaultRunPath string) error {
 	log.Infof("Updater: Installing default version of package %s", pkg)
 	downloader := newDownloader(http.DefaultClient)
-	repository := &repository.Repository{RootPath: path.Join(defaultRootPath, pkg)}
-	if watchProcesses {
-		repository.RunPath = path.Join(defaultRunPath, pkg)
+	repository := &repository.Repository{
+		RootPath: path.Join(defaultRootPath, pkg),
+		RunPath:  path.Join(defaultRunPath, pkg),
 	}
 	firstPackage, err := orgConfig.GetDefaultPackage(ctx, pkg)
 	if err != nil {
@@ -66,10 +66,10 @@ type Updater struct {
 }
 
 // NewUpdater returns a new Updater.
-func NewUpdater(orgConfig *OrgConfig, pkg string, defaultRootPath string, defaultRunPath string, watchProcesses bool) (*Updater, error) {
-	repository := &repository.Repository{RootPath: path.Join(defaultRootPath, pkg)}
-	if watchProcesses {
-		repository.RunPath = path.Join(defaultRunPath, pkg)
+func NewUpdater(orgConfig *OrgConfig, pkg string, defaultRootPath string, defaultRunPath string) (*Updater, error) {
+	repository := &repository.Repository{
+		RootPath: path.Join(defaultRootPath, pkg),
+		RunPath:  path.Join(defaultRunPath, pkg),
 	}
 	state, err := repository.GetState()
 	if err != nil {
@@ -88,13 +88,13 @@ func NewUpdater(orgConfig *OrgConfig, pkg string, defaultRootPath string, defaul
 	}, nil
 }
 
-// StartGC starts the garbage collector.
-func (u *Updater) StartGC() {
+// Start starts the garbage collector.
+func (u *Updater) Start() {
 	go func() {
 		for {
 			select {
 			case <-time.After(gcInterval):
-				err := u.repository.Cleanup()
+				err := u.Cleanup()
 				if err != nil {
 					log.Errorf("updater: could not run GC: %v", err)
 				}
@@ -105,9 +105,20 @@ func (u *Updater) StartGC() {
 	}()
 }
 
-// StopGC stops the garbage collector.
-func (u *Updater) StopGC() {
+// Stop stops the garbage collector.
+func (u *Updater) Stop() {
 	close(u.stopChan)
+}
+
+// Cleanup cleans up the repository.
+func (u *Updater) Cleanup() error {
+	u.m.Lock()
+	defer u.m.Unlock()
+	err := u.repository.Cleanup()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // StartExperiment starts an experiment with the given package.
