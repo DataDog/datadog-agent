@@ -250,7 +250,6 @@ kernel_matrix_testing_run_security_agent_tests_x64:
             "debian_11",
             "debian_12",
             "centos_79",
-            "centos_8",
           ]
         TEST_SET: [no_tracersuite]
 
@@ -285,7 +284,6 @@ kernel_matrix_testing_run_security_agent_tests_arm64:
             "debian_11",
             "debian_12",
             "centos_79",
-            "centos_8",
           ]
         TEST_SET: ["no_tracersuite"]
 
