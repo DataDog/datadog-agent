@@ -1,8 +1,11 @@
-{{- if .ntpOffset}}
+<div class="stat">
+  <span class="stat_title">NTP Offset</span>
   <span class="stat_data">
-    <br>NTP Offset: {{ humanizeDuration .ntpOffset "s"}}
-    {{- if ntpWarning .ntpOffset}}
-    <br><span class="warning">NTP Offset is high. Datadog may ignore metrics sent by this Agent.</span>
-    {{- end}}
+    {{- if .ntpOffset}}
+      <br>{{ humanizeDuration .ntpOffset "s"}}
+      {{- if ntpWarning .ntpOffset}}
+      <br><span class="warning">NTP Offset is high. Datadog may ignore metrics sent by this Agent.</span>
+      {{- end}}
+    {{end}}
   </span>
-{{- end}}
+</div>
