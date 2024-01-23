@@ -41,7 +41,7 @@ def tabulate_stats(stats):
         row.append(value["total_states"])
         table.append(row)
 
-    return tabulate(table, headers=headers, tablefmt="grid")
+    return tabulate(table, headers=headers, tablefmt="github")
 
 
 def colored_diff(val1, val2):
