@@ -10,7 +10,6 @@ package checks
 import (
 	"testing"
 
-	"github.com/DataDog/gopsutil/cpu"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -18,27 +17,7 @@ var _ statsProvider = &mockStatsProvider{}
 
 type mockStatsProvider struct{}
 
-//nolint:revive // TODO(PROC) Fix revive linter
-func (_ *mockStatsProvider) getThreadCount() (int32, error) {
-	return 32, nil
-}
-
-func TestPatchCPUInfo(t *testing.T) {
-	// Monkey patch the stats provider to always produce the same result
-	realStatsProvider := macosStatsProvider
-	macosStatsProvider = &mockStatsProvider{}
-	defer func() { macosStatsProvider = realStatsProvider }()
-
-	mockGopsutilOutput := []cpu.InfoStat{{Cores: 16}}
-
-	patchedCPUInfo, _ := patchCPUInfo(mockGopsutilOutput)
-	assert.Len(t, patchedCPUInfo, 16)
-	for _, c := range patchedCPUInfo {
-		assert.Equal(t, int32(2), c.Cores)
-	}
-}
-
-func TestOnlyCorePopulatedDarwin(t *testing.T) {
+func TestOnlyCorePopulatedWindows(t *testing.T) {
 	sysInfo, _ := CollectSystemInfo()
 	for _, cpuData := range sysInfo.Cpus {
 		// Checks if only the cores does not have the default value
