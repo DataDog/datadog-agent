@@ -138,7 +138,7 @@ func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 
 	// Iterate through active connections until we find connection created above
 	require.Eventuallyf(t, func() bool {
-		stats := getHTTPStats(t, monitor)
+		stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
 
 		for key, reqStats := range stats {
 			if key.Method == http.MethodGet && strings.HasSuffix(key.Path.Content.Get(), "/test") && (key.SrcPort == 8080 || key.DstPort == 8080) {
@@ -189,7 +189,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorCaptureRequestMultipleTimes() {
 
 			occurrences := 0
 			require.Eventually(t, func() bool {
-				stats := getHTTPStats(t, monitor)
+				stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
 				occurrences += countRequestOccurrences(stats, req)
 				return occurrences == expectedOccurrences
 			}, time.Second*3, time.Millisecond*100, "Expected to find a request %d times, instead captured %d", occurrences, expectedOccurrences)
@@ -236,7 +236,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
 	// then we are using a variable to check if "we ever found it" among the iterations.
 	for i := 0; i < 10; i++ {
 		time.Sleep(10 * time.Millisecond)
-		stats := getHTTPStats(t, monitor)
+		stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
 		for req := range abortedRequests {
 			requestNotIncluded(t, stats, req)
 		}
@@ -363,7 +363,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 
 			// Ensure all captured transactions get sent to user-space
 			time.Sleep(10 * time.Millisecond)
-			stats := getHTTPStats(t, monitor)
+			stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
 
 			if tt.shouldCapture {
 				includesRequest(t, stats, req)
@@ -440,7 +440,7 @@ func (s *HTTPTestSuite) TestRSTPacketRegression() {
 	time.Sleep(100 * time.Millisecond)
 
 	// Assert that the HTTP request was correctly handled despite its forceful termination
-	stats := getHTTPStats(t, monitor)
+	stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
 	url, err := url.Parse("http://127.0.0.1:8080/200/foobar")
 	require.NoError(t, err)
 	includesRequest(t, stats, &nethttp.Request{URL: url})
@@ -513,7 +513,7 @@ func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp
 	requestsExist := make([]bool, len(requests))
 
 	assert.Eventually(t, func() bool {
-		stats := getHTTPStats(t, monitor)
+		stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
 
 		if len(stats) == 0 {
 			return false
@@ -672,18 +672,6 @@ func isRequestIncludedOnce(allStats map[http.Key]*http.RequestStats, req *nethtt
 		return false, nil
 	}
 	return false, fmt.Errorf("expected to find 1 occurrence of %v, but found %d instead", req, occurrences)
-}
-
-func getHTTPStats(t *testing.T, mon *Monitor) map[http.Key]*http.RequestStats {
-	t.Helper()
-
-	allStats := mon.GetProtocolStats()
-	require.NotNil(t, allStats)
-
-	httpStats, ok := allStats[protocols.HTTP]
-	require.True(t, ok)
-
-	return httpStats.(map[http.Key]*http.RequestStats)
 }
 
 func countRequestOccurrences(allStats map[http.Key]*http.RequestStats, req *nethttp.Request) int {
