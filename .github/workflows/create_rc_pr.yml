@@ -1,9 +1,7 @@
 name: Create RC PR
 
 on:
-    pull_request:
-        branches:
-            - kacper-murzyn/auto-rc-creation
+  workflow_dispatch:
 jobs:
     create_rc_pr:
         runs-on: ubuntu-latest
@@ -12,21 +10,19 @@ jobs:
             - name: Checkout repository
               uses: actions/checkout@v2
 
-            - name: Set up Python 3
-              uses: actions/setup-python@v2
+            - name: Install python
+              uses: actions/setup-python@v4
               with:
-                python-version: 3.x
+                python-version: "3.9.12"
+                cache: "pip"
 
             - name: Install Python dependencies
-              run: pip install -r tasks/requirements_all_tasks.txt
+              run: |
+                python -m pip install --upgrade pip
+                pip install -r requirements.txt
+                pip install -r tasks/libs/requirements-github.txt
 
             - name: Create RC PR
-              run: inv -e release.create-rc
-
-            - name: Notify Slack
-              uses: rtCamp/action-slack-notify@v2
-              with:
-                status: 'success'
-                text: 'New RC PR created!'
-                channel: '#trello-test-channel'
-                icon_emoji: ':rocket:'
+              run: |
+                export GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
+                inv -e release.create-rc
