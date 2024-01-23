@@ -206,7 +206,7 @@ func (c *Check) traceRouteV1(sender sender.Sender, hostHops [][]traceroute.Trace
 		return err
 	}
 
-	log.Infof("traceroute: %s", tracerouteStr)
+	log.Debugf("traceroute: %s", tracerouteStr)
 
 	sender.EventPlatformEvent(tracerouteStr, epforwarder.EventTypeNetworkDevicesNetpath)
 	return nil
@@ -234,7 +234,7 @@ func (c *Check) traceRouteV2(sender sender.Sender, hostHops [][]traceroute.Trace
 			return err
 		}
 
-		log.Infof("traceroute: %s", tracerouteStr)
+		log.Debugf("traceroute: %s", tracerouteStr)
 
 		sender.EventPlatformEvent(tracerouteStr, epforwarder.EventTypeNetworkDevicesNetpath)
 		tags := []string{
@@ -396,7 +396,7 @@ func (c *Check) traceRouteDublin(sender sender.Sender, r *results.Results, hname
 				return err
 			}
 
-			log.Infof("traceroute: %s", tracerouteStr)
+			log.Debugf("traceroute: %s", tracerouteStr)
 
 			sender.EventPlatformEvent(tracerouteStr, epforwarder.EventTypeNetworkDevicesNetpath)
 
