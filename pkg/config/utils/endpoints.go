@@ -29,6 +29,14 @@ func getResolvedDDUrl(c pkgconfigmodel.Reader, urlKey string) string {
 	return resolvedDDURL
 }
 
+func getResolvedHaDdUrl(c pkgconfigmodel.Reader, haUrlKey string) string {
+	resolvedHaDdUrl := c.GetString(haUrlKey)
+	if c.IsSet("ha.site") {
+		log.Infof("'ha.site' and '%s' are both set in config: setting main endpoint to '%s': \"%s\"", haUrlKey, haUrlKey, resolvedHaDdUrl)
+	}
+	return resolvedHaDdUrl
+}
+
 // mergeAdditionalEndpoints merges additional endpoints into keysPerDomain
 func mergeAdditionalEndpoints(keysPerDomain, additionalEndpoints map[string][]string) (map[string][]string, error) {
 	for domain, apiKeys := range additionalEndpoints {
@@ -107,6 +115,17 @@ func GetMainEndpoint(c pkgconfigmodel.Reader, prefix string, ddURLKey string) st
 		return getResolvedDDUrl(c, ddURLKey)
 	} else if c.GetString("site") != "" {
 		return prefix + strings.TrimSpace(c.GetString("site"))
+	}
+	return prefix + pkgconfigsetup.DefaultSite
+}
+
+// GetHAEndpoint returns the HA DD URL defined in the config, based on `ha.site` and the prefix, or ddURLKey
+func GetHAEndpoint(c pkgconfigmodel.Reader, prefix string, ddHaUrlKey string) string {
+	// value under ddURLKey takes precedence over 'ha.site'
+	if c.IsSet(ddHaUrlKey) && c.GetString(ddHaUrlKey) != "" {
+		return getResolvedHaDdUrl(c, ddHaUrlKey)
+	} else if c.GetString("ha.site") != "" {
+		return prefix + strings.TrimSpace(c.GetString("ha.site"))
 	}
 	return prefix + pkgconfigsetup.DefaultSite
 }

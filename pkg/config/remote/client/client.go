@@ -39,11 +39,13 @@ const (
 	maxMessageSize = 1024 * 1024 * 110 // 110MB, current backend limit
 )
 
-// ConfigUpdater defines the interface that an agent client uses to get config updates
-// from the core remote-config service
-type ConfigUpdater interface {
+// ConfigFetcher defines the interface that an agent client uses to get config updates
+type ConfigFetcher interface {
 	ClientGetConfigs(context.Context, *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error)
 }
+
+// fetchConfigs defines the function that an agent client uses to get config updates
+type fetchConfigs func(context.Context, *pbgo.ClientGetConfigsRequest, ...grpc.CallOption) (*pbgo.ClientGetConfigsResponse, error)
 
 // Client is a remote-configuration client to obtain configurations from the local API
 type Client struct {
@@ -63,7 +65,7 @@ type Client struct {
 	backoffPolicy     backoff.Policy
 	backoffErrorCount int
 
-	updater ConfigUpdater
+	configFetcher ConfigFetcher
 
 	state *state.Repository
 
@@ -92,24 +94,46 @@ type TokenFetcher func() (string, error)
 type agentGRPCConfigFetcher struct {
 	client           pbgo.AgentSecureClient
 	authTokenFetcher func() (string, error)
+	fetchConfigs     fetchConfigs
 }
 
 // NewAgentGRPCConfigFetcher returns a gRPC config fetcher using the secure agent client
-func NewAgentGRPCConfigFetcher(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher) (ConfigUpdater, error) {
+func NewAgentGRPCConfigFetcher(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher) (ConfigFetcher, error) {
+	c, err := newAgentGRPCClient(ipcAddress, cmdPort)
+	if err != nil {
+		return nil, err
+	}
+
+	return &agentGRPCConfigFetcher{
+		authTokenFetcher: authTokenFetcher,
+		fetchConfigs:     c.ClientGetConfigs,
+	}, nil
+}
+
+// NewHAAgentGRPCConfigFetcher returns a gRPC config fetcher using the secure agent HA client
+func NewHAAgentGRPCConfigFetcher(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher) (ConfigFetcher, error) {
+	c, err := newAgentGRPCClient(ipcAddress, cmdPort)
+	if err != nil {
+		return nil, err
+	}
+
+	return &agentGRPCConfigFetcher{
+		authTokenFetcher: authTokenFetcher,
+		fetchConfigs:     c.ClientGetConfigsHA,
+	}, nil
+}
+
+func newAgentGRPCClient(ipcAddress string, cmdPort string) (pbgo.AgentSecureClient, error) {
 	c, err := ddgrpc.GetDDAgentSecureClient(context.Background(), ipcAddress, cmdPort, grpc.WithDefaultCallOptions(
 		grpc.MaxCallRecvMsgSize(maxMessageSize),
 	))
 	if err != nil {
 		return nil, err
 	}
-
-	return &agentGRPCConfigFetcher{
-		client:           c,
-		authTokenFetcher: authTokenFetcher,
-	}, nil
+	return c, nil
 }
 
-// ClientGetConfigs implements the ConfigUpdater interface for agentGRPCConfigFetcher
+// ClientGetConfigs implements the ConfigFetcher interface for agentGRPCConfigFetcher
 func (g *agentGRPCConfigFetcher) ClientGetConfigs(ctx context.Context, request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
 	// When communicating with the core service via grpc, the auth token is handled
 	// by the core-agent, which runs independently. It's not guaranteed it starts before us,
@@ -125,17 +149,27 @@ func (g *agentGRPCConfigFetcher) ClientGetConfigs(ctx context.Context, request *
 
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
-	return g.client.ClientGetConfigs(ctx, request)
+	return g.fetchConfigs(ctx, request)
 }
 
 // NewClient creates a new client
-func NewClient(updater ConfigUpdater, opts ...func(o *Options)) (*Client, error) {
+func NewClient(updater ConfigFetcher, opts ...func(o *Options)) (*Client, error) {
 	return newClient(updater, opts...)
 }
 
 // NewGRPCClient creates a new client that retrieves updates over the datadog-agent's secure GRPC client
 func NewGRPCClient(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher, opts ...func(o *Options)) (*Client, error) {
 	grpcClient, err := NewAgentGRPCConfigFetcher(ipcAddress, cmdPort, authTokenFetcher)
+	if err != nil {
+		return nil, err
+	}
+
+	return newClient(grpcClient, opts...)
+}
+
+// NewHAGRPCClient creates a new client that does not perform any TUF verification and gets failover configs via grpc
+func NewHAGRPCClient(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher, opts ...func(o *Options)) (*Client, error) {
+	grpcClient, err := NewHAAgentGRPCConfigFetcher(ipcAddress, cmdPort, authTokenFetcher)
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +223,7 @@ func WithAgent(name, version string) func(opts *Options) {
 	return func(opts *Options) { opts.agentName, opts.agentVersion = name, version }
 }
 
-func newClient(updater ConfigUpdater, opts ...func(opts *Options)) (*Client, error) {
+func newClient(cf ConfigFetcher, opts ...func(opts *Options)) (*Client, error) {
 	var options = defaultOptions
 	for _, opt := range opts {
 		opt(&options)
@@ -229,7 +263,7 @@ func newClient(updater ConfigUpdater, opts ...func(opts *Options)) (*Client, err
 		state:         repository,
 		backoffPolicy: backoffPolicy,
 		listeners:     make(map[string][]func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))),
-		updater:       updater,
+		configFetcher: cf,
 	}, nil
 }
 
@@ -353,7 +387,7 @@ func (c *Client) update() error {
 		return err
 	}
 
-	response, err := c.updater.ClientGetConfigs(c.ctx, req)
+	response, err := c.configFetcher.ClientGetConfigs(c.ctx, req)
 	if err != nil {
 		return err
 	}

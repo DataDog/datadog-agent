@@ -56,6 +56,7 @@ func startCMDServer(
 	tlsConfig *tls.Config,
 	tlsCertPool *x509.CertPool,
 	configService *remoteconfig.Service,
+	configServiceHA *remoteconfig.Service,
 	flare flare.Component,
 	dogstatsdServer dogstatsdServer.Component,
 	capture replay.Component,
@@ -90,8 +91,9 @@ func startCMDServer(
 	s := grpc.NewServer(opts...)
 	pb.RegisterAgentServer(s, &server{})
 	pb.RegisterAgentSecureServer(s, &serverSecure{
-		configService: configService,
-		taggerServer:  taggerserver.NewServer(tagger.GetDefaultTagger()),
+		configService:   configService,
+		configServiceHA: configServiceHA,
+		taggerServer:    taggerserver.NewServer(tagger.GetDefaultTagger()),
 		// TODO(components): decide if workloadmetaServer should be componentized itself
 		workloadmetaServer: workloadmetaServer.NewServer(wmeta),
 		dogstatsdServer:    dogstatsdServer,
