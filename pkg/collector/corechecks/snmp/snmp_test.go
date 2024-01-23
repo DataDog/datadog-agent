@@ -881,7 +881,8 @@ profiles:
       "profile": "f5-big-ip",
       "vendor": "f5",
       "subnet": "127.0.0.0/30",
-      "serial_number": "a-serial-num"
+      "serial_number": "a-serial-num",
+	  "device_type": "load_balancer"
     }
   ],
   "interfaces": [
@@ -1522,7 +1523,8 @@ tags:
       "name": "foo_sys_name",
       "description": "my_desc",
       "sys_object_id": "1.2.3.4",
-      "subnet": "127.0.0.0/30"
+      "subnet": "127.0.0.0/30",
+	  "device_type": "other"
     }
   ],
   "interfaces": [
@@ -1661,7 +1663,8 @@ tags:
       ],
       "ip_address": "1.2.3.5",
       "status": 2,
-      "subnet": "127.0.0.0/30"
+      "subnet": "127.0.0.0/30",
+	  "device_type": "other"
     }
   ],
   "diagnoses": [
@@ -1972,7 +1975,8 @@ metric_tags:
       "ip_address": "%s",
       "status": 1,
       "name": "foo_sys_name",
-      "subnet": "10.10.0.0/30"
+      "subnet": "10.10.0.0/30",
+	  "device_type": "other"
     }
   ],
   "interfaces": [

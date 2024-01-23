@@ -46,7 +46,7 @@ type testConfig struct {
 }
 
 const (
-	testDirRoot  = "/opt/system-probe-tests"
+	testDirRoot  = "/opt/kernel-version-testing/system-probe-tests"
 	ciVisibility = "/ci-visibility"
 )
 
@@ -75,12 +75,6 @@ func getTimeout(pkg string) time.Duration {
 		}
 	}
 	return to
-}
-
-func pathEmbedded(fullPath, embedded string) bool {
-	normalized := fmt.Sprintf("/%s/", strings.Trim(embedded, "/"))
-
-	return strings.Contains(fullPath, normalized)
 }
 
 func glob(dir, filePattern string, filterFn func(path string) bool) ([]string, error) {
@@ -228,22 +222,6 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 	return nil
 }
 
-func fixAssetPermissions() error {
-	matches, err := glob(testDirRoot, `.*\.o`, func(path string) bool {
-		return pathEmbedded(path, "pkg/ebpf/bytecode/build")
-	})
-	if err != nil {
-		return fmt.Errorf("glob assets: %s", err)
-	}
-
-	for _, file := range matches {
-		if err := os.Chown(file, 0, 0); err != nil {
-			return fmt.Errorf("chown %s: %s", file, err)
-		}
-	}
-	return nil
-}
-
 func buildTestConfiguration() (*testConfig, error) {
 	retryPtr := flag.Int("retry", 2, "number of times to retry testing pass")
 	packageRunConfigPtr := flag.String("packages-run-config", "", "Configuration for controlling which tests run in a package")
@@ -323,10 +301,6 @@ func run() error {
 	testConfig, err := buildTestConfiguration()
 	if err != nil {
 		return fmt.Errorf("failed to build test configuration: %w", err)
-	}
-
-	if err := fixAssetPermissions(); err != nil {
-		return fmt.Errorf("asset perms: %s", err)
 	}
 
 	if err := os.RemoveAll(ciVisibility); err != nil {

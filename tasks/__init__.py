@@ -52,31 +52,14 @@ from .go import (
     reset,
     tidy_all,
 )
-from .go_test import (
-    codecov,
-    download_tools,
-    e2e_tests,
-    get_modified_packages,
-    install_shellcheck,
-    install_tools,
-    integration_tests,
-    invoke_unit_tests,
-    junit_macos_repack,
-    junit_upload,
-    lint_copyrights,
-    lint_filenames,
-    lint_go,
-    lint_milestone,
-    lint_python,
-    lint_releasenote,
-    lint_skip_qa,
-    lint_teamassignment,
-    send_unit_tests_stats,
-    test,
-)
+from .go_test import codecov, e2e_tests, get_modified_packages, integration_tests, send_unit_tests_stats, test
+from .install_tasks import download_tools, install_shellcheck, install_tools
+from .junit_tasks import junit_macos_repack, junit_upload
+from .linter_tasks import lint_copyrights, lint_filenames, lint_go, lint_python
+from .pr_checks import lint_milestone, lint_releasenote, lint_skip_qa, lint_teamassignment
 from .show_linters_issues import show_linters_issues
+from .unit_tests import invoke_unit_tests
 from .update_go import go_version, update_go
-from .utils import generate_config
 from .windows_resources import build_messagetable
 
 # the root namespace
@@ -116,7 +99,6 @@ ns.add_task(invoke_unit_tests)
 ns.add_task(check_mod_tidy)
 ns.add_task(tidy_all)
 ns.add_task(check_go_version)
-ns.add_task(generate_config)
 ns.add_task(junit_upload)
 ns.add_task(junit_macos_repack)
 ns.add_task(fuzz)

@@ -9,7 +9,6 @@
 package ptracer
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -43,7 +42,7 @@ func fillProcessCwd(process *Process) error {
 }
 
 func getFullPathFromFd(process *Process, filename string, fd int32) (string, error) {
-	if filename[0] != '/' {
+	if len(filename) > 0 && filename[0] != '/' {
 		if fd == unix.AT_FDCWD { // if use current dir, try to prefix it
 			if process.Res.Cwd != "" || fillProcessCwd(process) == nil {
 				filename = filepath.Join(process.Res.Cwd, filename)
@@ -237,22 +236,10 @@ func handleNameToHandleAtRet(tracer *Tracer, process *Process, msg *ebpfless.Sys
 	if err != nil {
 		return
 	}
-	var handleBytes uint32
-	var handleType int32
-	buf := bytes.NewReader(pFileHandleData[:4])
-	err = binary.Read(buf, native.Endian, &handleBytes)
-	if err != nil {
-		return
-	}
-	buf = bytes.NewReader(pFileHandleData[4:8])
-	err = binary.Read(buf, native.Endian, &handleType)
-	if err != nil {
-		return
-	}
 
 	key := fileHandleKey{
-		handleBytes: handleBytes,
-		handleType:  handleType,
+		handleBytes: binary.BigEndian.Uint32(pFileHandleData[:4]),
+		handleType:  int32(binary.BigEndian.Uint32(pFileHandleData[4:8])),
 	}
 	process.Res.FileHandleCache[key] = &fileHandleVal{
 		pathName: msg.Open.Filename,
@@ -264,22 +251,10 @@ func handleOpenByHandleAt(tracer *Tracer, process *Process, msg *ebpfless.Syscal
 	if err != nil {
 		return err
 	}
-	var handleBytes uint32
-	var handleType int32
-	buf := bytes.NewReader(pFileHandleData[:4])
-	err = binary.Read(buf, native.Endian, &handleBytes)
-	if err != nil {
-		return err
-	}
-	buf = bytes.NewReader(pFileHandleData[4:8])
-	err = binary.Read(buf, native.Endian, &handleType)
-	if err != nil {
-		return err
-	}
 
 	key := fileHandleKey{
-		handleBytes: handleBytes,
-		handleType:  handleType,
+		handleBytes: binary.BigEndian.Uint32(pFileHandleData[:4]),
+		handleType:  int32(binary.BigEndian.Uint32(pFileHandleData[4:8])),
 	}
 	val, ok := process.Res.FileHandleCache[key]
 	if !ok {
@@ -700,47 +675,20 @@ func handleClose(tracer *Tracer, process *Process, _ *ebpfless.SyscallMsg, regs 
 }
 
 func handleCapset(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
-	pCaps, err := tracer.ReadArgData(process.Pid, regs, 1, 24 /*sizeof uint32 x3 x2*/)
+	pCapsData, err := tracer.ReadArgData(process.Pid, regs, 1, 24 /*sizeof uint32 x3 x2*/)
 	if err != nil {
 		return err
 	}
-	var (
-		tmp       uint32
-		effective uint64
-		permitted uint64
-	)
 
 	// extract low bytes of effective caps
-	buf := bytes.NewReader(pCaps[:4])
-	err = binary.Read(buf, native.Endian, &tmp)
-	if err != nil {
-		return err
-	}
-	effective = uint64(tmp)
-	// extract high bytes of effective caps
-	buf = bytes.NewReader(pCaps[12:16])
-	err = binary.Read(buf, native.Endian, &tmp)
-	if err != nil {
-		return err
-	}
-	// merge them together
-	effective |= uint64(tmp) << 32
+	effective := uint64(binary.NativeEndian.Uint32(pCapsData[0:4]))
+	// extract high bytes of effective caps, merge them together
+	effective |= uint64(binary.NativeEndian.Uint32(pCapsData[12:16])) << 32
 
 	// extract low bytes of permitted caps
-	buf = bytes.NewReader(pCaps[4:8])
-	err = binary.Read(buf, native.Endian, &tmp)
-	if err != nil {
-		return err
-	}
-	permitted = uint64(tmp)
-	// extract high bytes of permitted caps
-	buf = bytes.NewReader(pCaps[16:20])
-	err = binary.Read(buf, native.Endian, &tmp)
-	if err != nil {
-		return err
-	}
-	// merge them together
-	permitted |= uint64(tmp) << 32
+	permitted := uint64(binary.NativeEndian.Uint32(pCapsData[4:8]))
+	// extract high bytes of permitted caps,  merge them together
+	permitted |= uint64(binary.NativeEndian.Uint32(pCapsData[16:20])) << 32
 
 	msg.Type = ebpfless.SyscallTypeCapset
 	msg.Capset = &ebpfless.CapsetSyscallMsg{
@@ -778,7 +726,7 @@ func checkEntryPoint(path string) (string, error) {
 }
 
 func isAcceptedRetval(retval int64) bool {
-	return retval >= 0 || retval == -int64(syscall.EACCES) || retval == -int64(syscall.EPERM)
+	return retval >= 0 || retval == -int64(syscall.EACCES) || retval == -int64(syscall.EPERM) || retval == -int64(syscall.ENOSYS)
 }
 
 func initConn(probeAddr string, nbAttempts uint) (net.Conn, error) {
@@ -994,7 +942,6 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 					logErrorf("unable to handle openat: %v", err)
 					return
 				}
-
 			case Openat2Nr:
 				if err := handleOpenAt2(tracer, process, syscallMsg, regs, disableStats); err != nil {
 					logErrorf("unable to handle openat: %v", err)
@@ -1152,7 +1099,9 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 			case CloseNr:
 				// nothing to do
 			case ExecveNr, ExecveatNr:
-				sendSyscallMsg(process.Nr[ExecveNr]) // special case for execveat: we store the msg in execve bucket (see upper)
+				if ret := tracer.ReadRet(regs); isAcceptedRetval(ret) {
+					sendSyscallMsg(process.Nr[ExecveNr]) // special case for execveat: we store the msg in execve bucket (see upper)
+				}
 
 				// now the pid is the tgid
 				process.Pid = process.Tgid
@@ -1176,7 +1125,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 					process.Res.Fd[int32(ret)] = syscallMsg.Open.Filename
 				}
 			case SetuidNr, SetgidNr, SetreuidNr, SetregidNr, SetresuidNr, SetresgidNr, SetfsuidNr, SetfsgidNr:
-				if ret := tracer.ReadRet(regs); ret == 0 || nr == SetfsuidNr || nr == SetfsgidNr {
+				if ret := tracer.ReadRet(regs); isAcceptedRetval(ret) || nr == SetfsuidNr || nr == SetfsgidNr {
 					syscallMsg, exists := process.Nr[nr]
 					if !exists {
 						return
@@ -1253,7 +1202,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 					process.Res.Cwd = syscallMsg.Chdir.Path
 				}
 			case CapsetNr:
-				if ret := tracer.ReadRet(regs); ret == 0 {
+				if ret := tracer.ReadRet(regs); isAcceptedRetval(ret) {
 					syscallMsg, exists := process.Nr[nr]
 					if !exists || syscallMsg.Capset == nil {
 						return
@@ -1263,7 +1212,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 				}
 
 			case UnlinkNr, UnlinkatNr, RmdirNr:
-				if ret := tracer.ReadRet(regs); ret == 0 {
+				if ret := tracer.ReadRet(regs); isAcceptedRetval(ret) {
 					syscallMsg, exists := process.Nr[nr]
 					if !exists {
 						return
@@ -1273,7 +1222,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 				}
 
 			case RenameNr, RenameAtNr, RenameAt2Nr:
-				if ret := tracer.ReadRet(regs); ret == 0 {
+				if ret := tracer.ReadRet(regs); isAcceptedRetval(ret) {
 					syscallMsg, exists := process.Nr[nr]
 					if !exists {
 						return

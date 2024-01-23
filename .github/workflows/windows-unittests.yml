@@ -49,6 +49,8 @@ jobs:
 
       - name: Run tests
         shell: bash # using bash so we don't have to check $lastExitCode all the time
+        env:
+          GO_TEST_SKIP_FLAKE: "true"
         run: |
           export PATH="/c/msys64/mingw64/bin:/c/msys64/usr/bin/:$PATH" # prepend msys, otherwise make from mingw gets used
           echo $PATH

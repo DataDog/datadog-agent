@@ -15,6 +15,15 @@ from invoke.exceptions import Exit
 from .libs.common.color import color_message
 from .libs.common.github_api import GithubAPI
 from .libs.common.gitlab import Gitlab, get_gitlab_bot_token, get_gitlab_token
+from .libs.common.utils import (
+    DEFAULT_BRANCH,
+    GITHUB_REPO_NAME,
+    check_clean_branch_state,
+    get_all_allowed_repo_branches,
+    is_allowed_repo_branch,
+    nightly_entry_for,
+    release_entry_for,
+)
 from .libs.datadog_api import create_count, send_metrics
 from .libs.pipeline_data import get_failed_jobs
 from .libs.pipeline_notifications import (
@@ -36,15 +45,6 @@ from .libs.pipeline_tools import (
     wait_for_pipeline,
 )
 from .libs.types import FailedJobs, SlackMessage, TeamMessage
-from .utils import (
-    DEFAULT_BRANCH,
-    GITHUB_REPO_NAME,
-    check_clean_branch_state,
-    get_all_allowed_repo_branches,
-    is_allowed_repo_branch,
-    nightly_entry_for,
-    release_entry_for,
-)
 
 
 class GitlabReference(yaml.YAMLObject):
@@ -239,6 +239,7 @@ def run(
     all_builds=True,
     kitchen_tests=True,
     e2e_tests=False,
+    rc_build=False,
     rc_k8s_deployments=False,
 ):
     """
@@ -248,6 +249,10 @@ def run(
     Use --no-all-builds to not run builds for all architectures (only a subset of jobs will run. No effect on pipelines on the default branch).
     Use --no-kitchen-tests to not run all kitchen tests on the pipeline.
     Use --e2e-tests to run all e2e tests on the pipeline.
+
+    Release Candidate related flags:
+    Use --rc-build to mark the build as Release Candidate.
+    Use --rc-k8s-deployments to trigger a child pipeline that will deploy Release Candidate build to staging k8s clusters.
 
     By default, the nightly release.json entries (nightly and nightly-a7) are used.
     Use the --use-release-entries option to use the release-a6 and release-a7 release.json entries instead.
@@ -345,6 +350,7 @@ def run(
             all_builds=all_builds,
             kitchen_tests=kitchen_tests,
             e2e_tests=e2e_tests,
+            rc_build=rc_build,
             rc_k8s_deployments=rc_k8s_deployments,
         )
     except FilteredOutException:
@@ -471,6 +477,17 @@ def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True):
 
     # Fill the environment variables to pass to the child pipeline.
     for v in variables.split(','):
+        # An empty string or a terminal ',' will yield an empty string which
+        # we don't need to bother with
+        if not v:
+            continue
+        if v not in os.environ:
+            print(
+                color_message(
+                    f"WARNING: attempting to pass undefined variable \"{v}\" to downstream pipeline", "orange"
+                )
+            )
+            continue
         data['variables'][v] = os.environ[v]
 
     print(
