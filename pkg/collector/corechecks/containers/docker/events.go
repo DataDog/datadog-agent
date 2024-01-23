@@ -25,7 +25,7 @@ import (
 
 var (
 	dockerEvents = telemetry.NewCounterWithOpts(
-		dockerCheckName,
+		CheckName,
 		"events",
 		[]string{"action"},
 		"Number of Docker events received by the check.",
@@ -33,7 +33,7 @@ var (
 	)
 
 	emittedEvents = telemetry.NewCounterWithOpts(
-		dockerCheckName,
+		CheckName,
 		"emitted_events",
 		[]string{"type"},
 		"Number of events emitted by the check.",

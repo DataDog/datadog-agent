@@ -175,6 +175,9 @@ func (ic *inventorychecksImpl) GetInstanceMetadata(instanceID string) map[string
 }
 
 func (ic *inventorychecksImpl) getPayload() marshaler.JSONMarshaler {
+	ic.m.Lock()
+	defer ic.m.Unlock()
+
 	payloadData := make(checksMetadata)
 	invChecksEnabled := ic.conf.GetBool("inventories_checks_configuration_enabled")
 

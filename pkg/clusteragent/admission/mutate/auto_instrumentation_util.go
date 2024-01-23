@@ -49,7 +49,7 @@ func getLibListFromDeploymentAnnotations(store workloadmeta.Component, deploymen
 		return libList
 	}
 
-	for containerName, languages := range deployment.ContainerLanguages {
+	for containerName, languages := range deployment.InjectableLanguages.ContainerLanguages {
 		for _, lang := range languages {
 			imageToInject := libImageName(registry, language(lang.Name), "latest")
 			libList = append(libList, libInfo{ctrName: containerName, lang: language(lang.Name), image: imageToInject})

@@ -124,10 +124,6 @@ func startCMDServer(
 	agentMux := gorilla.NewRouter()
 	checkMux := gorilla.NewRouter()
 
-	// Add some observability in the API server
-	agentMux.Use(apiutils.LogResponseHandler(cmdServerName))
-	checkMux.Use(apiutils.LogResponseHandler(cmdServerName))
-
 	// Validate token for every request
 	agentMux.Use(validateToken)
 	checkMux.Use(validateToken)
@@ -155,11 +151,14 @@ func startCMDServer(
 	cmdMux.Handle("/check/", http.StripPrefix("/check", check.SetupHandlers(checkMux)))
 	cmdMux.Handle("/", gwmux)
 
+	// Add some observability in the API server
+	cmdMuxHandler := apiutils.LogResponseHandler(cmdServerName)(cmdMux)
+
 	srv := grpcutil.NewMuxedGRPCServer(
 		cmdAddr,
 		tlsConfig,
 		s,
-		grpcutil.TimeoutHandlerFunc(cmdMux, time.Duration(config.Datadog.GetInt64("server_timeout"))*time.Second),
+		grpcutil.TimeoutHandlerFunc(cmdMuxHandler, time.Duration(config.Datadog.GetInt64("server_timeout"))*time.Second),
 	)
 
 	startServer(cmdListener, srv, cmdServerName)

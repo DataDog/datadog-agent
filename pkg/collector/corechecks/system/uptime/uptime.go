@@ -10,9 +10,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-const checkName = "uptime"
+// CheckName is the name of the check
+const CheckName = "uptime"
 
 // Check doesn't need additional fields
 type Check struct {
@@ -38,12 +40,13 @@ func (c *Check) Run() error {
 	return nil
 }
 
-func uptimeFactory() check.Check {
-	return &Check{
-		CheckBase: core.NewCheckBase(checkName),
-	}
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
 }
 
-func init() {
-	core.RegisterCheck(checkName, uptimeFactory)
+func newCheck() check.Check {
+	return &Check{
+		CheckBase: core.NewCheckBase(CheckName),
+	}
 }
