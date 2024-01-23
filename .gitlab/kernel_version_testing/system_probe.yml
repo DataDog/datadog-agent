@@ -66,7 +66,7 @@ kernel_matrix_testing_setup_env_system_probe_x64:
     TEST_COMPONENT: system-probe
 
 .upload_system_probe_tests:
-  stage: kernel_matrix_testing
+  stage: kernel_matrix_testing_prepare
   allow_failure: true
   rules: !reference [.on_system_probe_changes_or_manual]
   before_script:
