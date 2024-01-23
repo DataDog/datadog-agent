@@ -44,7 +44,7 @@ namespace CustomActions.Tests.ProcessUserCustomActions
                     out It.Ref<string>.IsAny,
                     out It.Ref<SecurityIdentifier>.IsAny,
                     out It.Ref<SID_NAME_USE>.IsAny))
-                .Callback(new LookupAccountNameDelegate(
+                .Callback(
                     (
                         string _,
                         out string user,
@@ -57,7 +57,7 @@ namespace CustomActions.Tests.ProcessUserCustomActions
                         domain = "NT AUTHORITY";
                         sid = userSid;
                         nameUse = SID_NAME_USE.SidTypeWellKnownGroup;
-                    }))
+                    })
                 .Returns(true);
             NativeMethods.Setup(n => n.IsServiceAccount(userSid)).Returns(true);
 
@@ -124,7 +124,7 @@ namespace CustomActions.Tests.ProcessUserCustomActions
                     out It.Ref<string>.IsAny,
                     out It.Ref<SecurityIdentifier>.IsAny,
                     out It.Ref<SID_NAME_USE>.IsAny))
-                .Callback(new LookupAccountNameDelegate(
+                .Callback(
                     (
                         string _,
                         out string user,
@@ -137,7 +137,7 @@ namespace CustomActions.Tests.ProcessUserCustomActions
                         domain = userDomain;
                         sid = userSid;
                         nameUse = userType;
-                    }))
+                    })
                 .Returns(true);
 
             return this;
@@ -159,7 +159,7 @@ namespace CustomActions.Tests.ProcessUserCustomActions
                     out It.Ref<string>.IsAny,
                     out It.Ref<SecurityIdentifier>.IsAny,
                     out It.Ref<SID_NAME_USE>.IsAny))
-                .Callback(new LookupAccountNameDelegate(
+                .Callback(
                     (
                         string _,
                         out string user,
@@ -172,7 +172,7 @@ namespace CustomActions.Tests.ProcessUserCustomActions
                         domain = userDomain;
                         sid = userSid;
                         nameUse = userType;
-                    }))
+                    })
                 .Returns(true);
 
             return this;
@@ -193,7 +193,7 @@ namespace CustomActions.Tests.ProcessUserCustomActions
                     out It.Ref<string>.IsAny,
                     out It.Ref<SecurityIdentifier>.IsAny,
                     out It.Ref<SID_NAME_USE>.IsAny))
-                .Callback(new LookupAccountNameDelegate(
+                .Callback(
                     (
                         string _,
                         out string user,
@@ -206,7 +206,7 @@ namespace CustomActions.Tests.ProcessUserCustomActions
                         domain = userDomain;
                         sid = userSid;
                         nameUse = userType;
-                    }))
+                    })
                 .Returns(true);
 
             return this;
