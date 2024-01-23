@@ -36,8 +36,8 @@
             "program": "${fileDirname}"
         },
 
-/// Run manually the process agent checks >>>>>>
-//// Add as arguments "-config", "<custom datadog.yaml file path>" to override the default process agent configuration  >>>>>>>>>>  
+// Run process agent checks manually
+// If necessary, add arguments "-config", "<custom datadog.yaml file path>" to override the default process agent configuration
         
         {
             "name": "process",
