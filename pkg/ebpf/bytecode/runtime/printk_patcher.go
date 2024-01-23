@@ -67,11 +67,13 @@ func patchPrintkInstructions(p *ebpf.ProgramSpec) (int, error) {
 	// keep track of that to avoid errors when we don't find a newline in an instruction we've already patched.
 	patchedInstructionIndexes := make(map[int]bool)
 
+	log.Debugf("Patching instructions for %s. Original instructions: \n%v", p.Name, p.Instructions)
 	for idx, ins := range p.Instructions {
 		if !ins.IsBuiltinCall() || ins.Constant != int64(asm.FnTracePrintk) {
 			continue // Not a call to bpf_trace_printk, skip
 		}
 		maxLookback := max(0, idx-100) // For safety, don't look back more than 100 instructions
+		log.Debugf("Found call to bpf_trace_printk at index %d in %s, maxLookback=%d", idx, p.Name, maxLookback)
 
 		// We found the call to bpf_trace_printk, now we need to find
 		// the string on the stack and patch it.
@@ -91,6 +93,7 @@ func patchPrintkInstructions(p *ebpf.ProgramSpec) (int, error) {
 			errs = append(errs, log.Warnf("Could not find length load instruction for bpf_trace_printk call %d in %s", idx, p.Name))
 			continue // Skip this call instruction
 		}
+		log.Debugf("Found length load instruction %v for bpf_trace_printk call %d in %s", lengthLoadIns, idx, p.Name)
 
 		// Now we have to find in which part the stack is the string being stored
 		// For that we need to find the mov instruction that puts the stack pointer
@@ -122,6 +125,7 @@ func patchPrintkInstructions(p *ebpf.ProgramSpec) (int, error) {
 			continue
 		}
 		newlineOffset := int16(stackOffsetIns.Constant + lengthLoadIns.Constant - 2) // -1 because the last character is the null character
+		log.Debugf("Found stack offset instruction %v for bpf_trace_printk call %d in %s, newlineOffset=%d", stackOffsetIns, idx, p.Name, newlineOffset)
 
 		// Now find which store instruction is responsible for putting the newline character on the stack.
 		// We will find all store instructions that copy to RFP and check that it's changing the string
@@ -158,6 +162,7 @@ func patchPrintkInstructions(p *ebpf.ProgramSpec) (int, error) {
 			errs = append(errs, log.Warnf("Could not find store instruction for bpf_trace_printk call %d in %s", idx, p.Name))
 			continue
 		}
+		log.Debugf("Found string store instruction %v for bpf_trace_printk call %d in %s, inInstructionOffset=%d", p.Instructions[stringStoreInsIdx], idx, p.Name, inInstructionOffset)
 
 		// Now try to find the load instruction that loads the string into the register
 		// that was used for the store instruction above.
@@ -179,6 +184,7 @@ func patchPrintkInstructions(p *ebpf.ProgramSpec) (int, error) {
 					lengthLoadIns.Constant--
 					patchedInstructionIndexes[i] = true // Keep track of which instructions we've patched
 					numPatches++
+					log.Debugf("Patched instruction %v for bpf_trace_printk call %d in %s", candidate, idx, p.Name)
 				} else if !patchedInstructionIndexes[i] {
 					// If we've already patched this instruction, don't warn about it again. The compiler
 					// can reuse the same instruction for multiple calls to bpf_trace_printk, and in that case
@@ -193,6 +199,7 @@ func patchPrintkInstructions(p *ebpf.ProgramSpec) (int, error) {
 			continue
 		}
 	}
+	log.Debugf("Patched %d instructions for %s, errors: %v", numPatches, p.Name, errs)
 
 	return numPatches, errors.Join(errs...)
 }

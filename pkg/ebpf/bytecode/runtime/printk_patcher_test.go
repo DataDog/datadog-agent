@@ -18,6 +18,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
+	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
@@ -25,10 +26,20 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 //go:generate $GOPATH/bin/include_headers pkg/ebpf/testdata/c/runtime/logdebug-test.c pkg/ebpf/bytecode/build/runtime/logdebug-test.c pkg/ebpf/c pkg/network/ebpf/c/runtime pkg/network/ebpf/c
 //go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/logdebug-test.c pkg/ebpf/bytecode/runtime/logdebug-test.go runtime
+
+func TestMain(m *testing.M) {
+	logLevel := os.Getenv("DD_LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "debug"
+	}
+	log.SetupLogger(seelog.Default, logLevel)
+	os.Exit(m.Run())
+}
 
 func TestPatchPrintkNewline(t *testing.T) {
 	kernelVersion, err := ebpfkernel.NewKernelVersion()
@@ -44,10 +55,6 @@ func TestPatchPrintkNewline(t *testing.T) {
 
 	if kernelVersion.Code <= ebpfkernel.Kernel5_9 {
 		t.Skip("Skipping test on older kernels, instruction patching not used there")
-	}
-	if (kernelVersion.IsDebianKernel() && kernelVersion.Code <= ebpfkernel.Kernel5_11) ||
-		(kernelVersion.IsAmazonLinuxKernel() && kernelVersion.Code <= ebpfkernel.Kernel5_10) {
-		t.Skip("Tracing not available, cannot test")
 	}
 
 	ebpftest.TestBuildMode(t, ebpftest.RuntimeCompiled, "", func(t *testing.T) {
