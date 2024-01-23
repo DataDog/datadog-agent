@@ -41,12 +41,6 @@ var stackUsage = regexp.MustCompile(`stack depth\s+(?P<usage>\d+).*\n`)
 var verificationTime = regexp.MustCompile(`verification time\s+(?P<time>\d+).*\n`)
 var insnStats = regexp.MustCompile(`processed (?P<processed>\d+) insns \(limit (?P<limit>\d+)\) max_states_per_insn (?P<max_states>\d+) total_states (?P<total_states>\d+) peak_states (?P<peak_states>\d+) mark_read (?P<mark_read>\d+)`)
 
-func objectFileBase(path string) string {
-	return strings.ReplaceAll(
-		strings.Split(filepath.Base(path), ".")[0], "-", "_",
-	)
-}
-
 //go:generate go run functions.go ../bytecode/build/co-re
 //go:generate go fmt programs.go
 
@@ -69,7 +63,9 @@ func BuildVerifierStats(objectFiles []string) (map[string]*Statistics, error) {
 		}
 		defer bc.Close()
 
-		objectFileName := objectFileBase(file)
+		objectFileName := strings.ReplaceAll(
+			strings.Split(filepath.Base(file), ".")[0], "-", "_",
+		)
 		collectionSpec, err := ebpf.LoadCollectionSpecFromReader(bc)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load collection spec: %v", err)

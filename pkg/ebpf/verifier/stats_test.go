@@ -67,7 +67,9 @@ func TestBuildVerifierStats(t *testing.T) {
 
 	for _, file := range objectFiles {
 		// skip fentry programs since we cannot load them on some kernels
-		if objectFileBase(file) == "tracer_fentry" {
+		if strings.ReplaceAll(
+			strings.Split(filepath.Base(file), ".")[0], "-", "_",
+		) == "tracer_fentry" {
 			continue
 		}
 
