@@ -307,10 +307,9 @@ func movePackageFromSource(packageName string, rootPath string, runPath string, 
 			}
 		}
 		return "", fmt.Errorf("target package already exists")
-	} else {
-		if !errors.Is(err, os.ErrNotExist) {
-			return "", fmt.Errorf("could not stat target package: %w", err)
-		}
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("could not stat target package: %w", err)
 	}
 	err = os.Rename(sourcePath, targetPath)
 	if err != nil {
@@ -372,7 +371,7 @@ func (r *repositoryFiles) cleanup() error {
 
 		versionInUse, err := packageVersionInUse(filepath.Join(r.runPath, version.Name()))
 		if err != nil {
-			log.Errorf("could not check if package version is in use: %w", err)
+			log.Errorf("could not check if package version is in use: %v", err)
 			continue
 		}
 
@@ -380,10 +379,10 @@ func (r *repositoryFiles) cleanup() error {
 		if !versionInUse {
 			log.Debugf("no running PIDs for package %s version %s, removing package", r.rootPath, version.Name())
 			if err := os.RemoveAll(filepath.Join(r.rootPath, version.Name())); err != nil {
-				log.Errorf("could not remove package directory for version %s: %w", version, err)
+				log.Errorf("could not remove package directory for version %s: %v", version, err)
 			}
 			if err := os.RemoveAll(filepath.Join(r.runPath, version.Name())); err != nil {
-				log.Errorf("could not remove run directory for version %s: %w", version, err)
+				log.Errorf("could not remove run directory for version %s: %v", version, err)
 			}
 		}
 	}
@@ -404,12 +403,12 @@ func packageVersionInUse(runPath string) (bool, error) {
 	for _, rawPID := range pids {
 		pid, err := strconv.ParseInt(rawPID.Name(), 10, 64)
 		if err != nil {
-			log.Errorf("could not parse PID: %w", err)
+			log.Errorf("could not parse PID: %v", err)
 			continue
 		}
 		process, err := os.FindProcess(int(pid))
 		if err != nil {
-			log.Errorf("could not find process with PID %d: %w", pid, err)
+			log.Errorf("could not find process with PID %d: %v", pid, err)
 		} else {
 			// Send a signal 0 to check if the process is running
 			if err := process.Signal(syscall.Signal(0)); err == nil {

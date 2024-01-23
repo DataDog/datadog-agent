@@ -20,10 +20,6 @@ import (
 )
 
 const (
-	// defaultRepositoryPath is the default path to the repository.
-	defaultRepositoryPath = "/opt/datadog-packages"
-	// defaultRunPath is the default path to the repository's run data
-	defaultRunPath = "/var/run/datadog-packages"
 	// gcInterval is the interval at which the GC will run
 	gcInterval = 1 * time.Hour
 )
@@ -84,7 +80,7 @@ func NewUpdater(orgConfig *OrgConfig, pkg string, defaultRootPath string, defaul
 	}
 	return &Updater{
 		pkg:            pkg,
-		repositoryPath: defaultRepositoryPath,
+		repositoryPath: defaultRootPath,
 		orgConfig:      orgConfig,
 		repository:     repository,
 		downloader:     newDownloader(http.DefaultClient),
@@ -92,6 +88,7 @@ func NewUpdater(orgConfig *OrgConfig, pkg string, defaultRootPath string, defaul
 	}, nil
 }
 
+// StartGC starts the garbage collector.
 func (u *Updater) StartGC() {
 	go func() {
 		for {
@@ -107,6 +104,8 @@ func (u *Updater) StartGC() {
 		}
 	}()
 }
+
+// StopGC stops the garbage collector.
 func (u *Updater) StopGC() {
 	u.stopChan <- struct{}{}
 }
