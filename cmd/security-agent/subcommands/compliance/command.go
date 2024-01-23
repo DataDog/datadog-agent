@@ -8,7 +8,6 @@ package compliance
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -26,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
 // Commands returns the compliance commands
@@ -67,7 +65,7 @@ func complianceEventCommand(globalParams *command.GlobalParams) *cobra.Command {
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true),
 				}),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 		Hidden: true,
@@ -90,19 +88,14 @@ func eventRun(log log.Component, config config.Component, eventArgs *cliParams) 
 		return log.Errorf("Error while getting hostname, exiting: %v", err)
 	}
 
-	stopper := startstop.NewSerialStopper()
-	defer stopper.Stop()
-
 	endpoints, dstContext, err := common.NewLogContextCompliance()
 	if err != nil {
 		return err
 	}
 
 	runPath := config.GetString("compliance_config.run_path")
-	reporter, err := compliance.NewLogReporter(hostnameDetected, stopper, eventArgs.sourceName, eventArgs.sourceType, runPath, endpoints, dstContext)
-	if err != nil {
-		return fmt.Errorf("failed to set up compliance log reporter: %w", err)
-	}
+	reporter := compliance.NewLogReporter(hostnameDetected, eventArgs.sourceName, eventArgs.sourceType, runPath, endpoints, dstContext)
+	defer reporter.Stop()
 
 	eventData := make(map[string]interface{})
 	for _, d := range eventArgs.data {

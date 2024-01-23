@@ -12,8 +12,8 @@ import (
 	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/richardartoul/molecule"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -50,7 +50,7 @@ func init() {
 // compressed protobuf marshaled gogen.SketchPayload objects. gogen.SketchPayload is not directly marshaled - instead
 // it's contents are marshaled individually, packed with the appropriate protobuf metadata, and compressed in stream.
 // The resulting payloads (when decompressed) are binary equal to the result of marshaling the whole object at once.
-func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferContext) (transaction.BytesPayloads, error) {
+func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferContext, config config.Component) (transaction.BytesPayloads, error) {
 	var err error
 	var compressor *stream.Compressor
 	buf := bufferContext.PrecompressionBuf
@@ -113,8 +113,8 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 
 	// the backend accepts payloads up to specific compressed / uncompressed
 	// sizes, but prefers small uncompressed payloads.
-	maxPayloadSize := config.Datadog.GetInt("serializer_max_payload_size")
-	maxUncompressedSize := config.Datadog.GetInt("serializer_max_uncompressed_payload_size")
+	maxPayloadSize := config.GetInt("serializer_max_payload_size")
+	maxUncompressedSize := config.GetInt("serializer_max_uncompressed_payload_size")
 
 	// Generate a footer containing an empty Metadata field.  The gogoproto
 	// generated serialization code includes this when marshaling the struct,
@@ -253,11 +253,11 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 					if err != nil {
 						return err
 					}
-					err = ps.Int32(sketchMetadataOriginOriginCategory, MetricSourceToOriginCategory(ss.Source))
+					err = ps.Int32(sketchMetadataOriginOriginCategory, metricSourceToOriginCategory(ss.Source))
 					if err != nil {
 						return err
 					}
-					return ps.Int32(sketchMetadataOriginOriginService, MetricSourceToOriginService(ss.Source))
+					return ps.Int32(sketchMetadataOriginOriginService, metricSourceToOriginService(ss.Source))
 				})
 			})
 			if err != nil {

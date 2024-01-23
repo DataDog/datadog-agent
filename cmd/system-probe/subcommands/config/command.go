@@ -50,7 +50,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:            logimpl.ForOneShot("SYS-PROBE", "off", true),
 				}),
 				// no need to provide sysprobe logger since ForOneShot ignores config values
-				core.Bundle,
+				core.Bundle(),
 			)
 		}
 	}

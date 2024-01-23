@@ -10,7 +10,7 @@ from typing import List
 
 from invoke import task
 
-from .flavor import AgentFlavor
+from tasks.flavor import AgentFlavor
 
 # ALL_TAGS lists all available build tags.
 # Used to remove unknown tags from provided tag lists.
@@ -106,9 +106,7 @@ DOGSTATSD_TAGS = {"containerd", "docker", "kubelet", "podman", "zlib"}
 IOT_AGENT_TAGS = {"jetson", "otlp", "systemd", "zlib"}
 
 # PROCESS_AGENT_TAGS lists the tags necessary to build the process-agent
-PROCESS_AGENT_TAGS = AGENT_TAGS.union({"clusterchecks", "fargateprocess", "orchestrator"}).difference(
-    {"otlp", "python", "trivy"}
-)
+PROCESS_AGENT_TAGS = AGENT_TAGS.union({"fargateprocess", "orchestrator"}).difference({"otlp", "python", "trivy"})
 
 # PROCESS_AGENT_HEROKU_TAGS lists the tags necessary to build the process-agent for Heroku
 PROCESS_AGENT_HEROKU_TAGS = PROCESS_AGENT_TAGS.difference(
@@ -122,7 +120,7 @@ SECURITY_AGENT_TAGS = {"netcgo", "docker", "containerd", "kubeapiserver", "kubel
 SERVERLESS_TAGS = {"serverless", "otlp"}
 
 # SYSTEM_PROBE_TAGS lists the tags necessary to build system-probe
-SYSTEM_PROBE_TAGS = AGENT_TAGS.union({"clusterchecks", "linux_bpf", "npm"}).difference({"python", "systemd"})
+SYSTEM_PROBE_TAGS = AGENT_TAGS.union({"linux_bpf", "npm"}).difference({"python", "systemd"})
 
 # TRACE_AGENT_TAGS lists the tags that have to be added when the trace-agent
 TRACE_AGENT_TAGS = {"docker", "containerd", "kubeapiserver", "kubelet", "otlp", "netcgo", "podman"}

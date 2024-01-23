@@ -64,7 +64,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 						config.WithConfigName(globalParams.ConfigName),
 					),
 					LogParams: logimpl.ForOneShot(globalParams.LoggerName, "off", true)}),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -74,8 +74,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return workloadListCommand
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func workloadList(log log.Component, config config.Component, cliParams *cliParams) error {
+func workloadList(_ log.Component, _ config.Component, cliParams *cliParams) error {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	// Set session token

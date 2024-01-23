@@ -11,12 +11,12 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/mohae/deepcopy"
 	"go.opentelemetry.io/collector/confmap"
 	"go.uber.org/multierr"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/mohae/deepcopy"
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func portToUint(v int) (port uint, err error) {

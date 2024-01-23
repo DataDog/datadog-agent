@@ -23,11 +23,11 @@ import (
 
 func TestProcessEvents(t *testing.T) {
 	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		config.MockModule,
-		logimpl.MockModule,
+		config.MockModule(),
+		logimpl.MockModule(),
 		collectors.GetCatalog(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2,
+		workloadmeta.MockModuleV2(),
 	))
 
 	cp := &ContainerConfigProvider{
@@ -412,12 +412,12 @@ func TestGenerateConfig(t *testing.T) {
 			}
 
 			store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-				config.MockModule,
-				logimpl.MockModule,
+				config.MockModule(),
+				logimpl.MockModule(),
 				fx.Replace(config.MockParams{Overrides: overrides}),
 				collectors.GetCatalog(),
 				fx.Supply(workloadmeta.NewParams()),
-				workloadmeta.MockModuleV2,
+				workloadmeta.MockModuleV2(),
 			))
 
 			if pod, ok := tt.entity.(*workloadmeta.KubernetesPod); ok {

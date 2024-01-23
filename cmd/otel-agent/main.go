@@ -17,7 +17,7 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
@@ -61,10 +61,10 @@ func run(
 func main() {
 	flag.Parse()
 	err := fxutil.OneShot(run,
-		core.Bundle,
-		forwarder.Bundle,
-		otelcol.Bundle,
-		logs.Bundle,
+		core.Bundle(),
+		forwarder.Bundle(),
+		otelcol.Bundle(),
+		logs.Bundle(),
 		fx.Supply(
 			core.BundleParams{
 				ConfigParams: config.NewAgentParams(*cfgPath),
@@ -73,16 +73,14 @@ func main() {
 			},
 		),
 		fx.Provide(newForwarderParams),
-		demultiplexer.Module,
-		orchestratorForwarderImpl.Module,
+		demultiplexerimpl.Module(),
+		orchestratorForwarderImpl.Module(),
 		fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
 		fx.Provide(newSerializer),
-		fx.Provide(func(cfg config.Component) demultiplexer.Params {
-			opts := aggregator.DefaultAgentDemultiplexerOptions()
-			opts.EnableNoAggregationPipeline = cfg.GetBool("dogstatsd_no_aggregation_pipeline")
-			opts.UseDogstatsdContextLimiter = true
-			opts.DogstatsdMaxMetricsTags = cfg.GetInt("dogstatsd_max_metrics_tags")
-			return demultiplexer.Params{Options: opts}
+		fx.Provide(func(cfg config.Component) demultiplexerimpl.Params {
+			params := demultiplexerimpl.NewDefaultParams()
+			params.EnableNoAggregationPipeline = cfg.GetBool("dogstatsd_no_aggregation_pipeline")
+			return params
 		}),
 	)
 	if err != nil {

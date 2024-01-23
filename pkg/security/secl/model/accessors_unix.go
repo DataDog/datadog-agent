@@ -5,7 +5,6 @@
 // Code generated - DO NOT EDIT.
 
 //go:build unix
-// +build unix
 
 package model
 

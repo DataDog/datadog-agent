@@ -42,7 +42,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
 // CliParams needs to be exported because the compliance subcommand is tightly coupled to this subcommand and tests need to be able to access this type.
@@ -96,7 +95,7 @@ func commandsWrapped(bundleParamsFactory func() core.BundleParams) []*cobra.Comm
 			return fxutil.OneShot(RunCheck,
 				fx.Supply(checkArgs),
 				fx.Supply(bundleParams),
-				core.Bundle,
+				core.Bundle(),
 				dogstatsd.ClientBundle,
 			)
 		},
@@ -239,7 +238,7 @@ func dumpComplianceEvents(reportFile string, events []*compliance.CheckEvent) er
 	if err != nil {
 		return fmt.Errorf("could not marshal events map: %w", err)
 	}
-	if err := os.WriteFile(reportFile, b, 0644); err != nil {
+	if err := os.WriteFile(reportFile, b, 0o644); err != nil {
 		return fmt.Errorf("could not write report file in %q: %w", reportFile, err)
 	}
 	return nil
@@ -250,18 +249,13 @@ func reportComplianceEvents(log log.Component, config config.Component, events [
 	if err != nil {
 		return log.Errorf("Error while getting hostname, exiting: %v", err)
 	}
-
-	stopper := startstop.NewSerialStopper()
-	defer stopper.Stop()
 	runPath := config.GetString("compliance_config.run_path")
 	endpoints, context, err := common.NewLogContextCompliance()
 	if err != nil {
 		return fmt.Errorf("reporter: could not reate log context for compliance: %w", err)
 	}
-	reporter, err := compliance.NewLogReporter(hostnameDetected, stopper, "compliance-agent", "compliance", runPath, endpoints, context)
-	if err != nil {
-		return fmt.Errorf("reporter: could not create: %w", err)
-	}
+	reporter := compliance.NewLogReporter(hostnameDetected, "compliance-agent", "compliance", runPath, endpoints, context)
+	defer reporter.Stop()
 	for _, event := range events {
 		reporter.ReportEvent(event)
 	}
@@ -275,7 +269,7 @@ func complianceKubernetesProvider(_ctx context.Context) (dynamic.Interface, disc
 	if err != nil {
 		return nil, nil, err
 	}
-	return apiCl.DynamicCl, apiCl.DiscoveryCl, nil
+	return apiCl.DynamicCl, apiCl.Cl.Discovery(), nil
 }
 
 type fakeResolver struct {

@@ -223,15 +223,14 @@ func TestCustomBoltCache_DiskSizeLimit(t *testing.T) {
 func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 	// Create a workload meta global store containing two images with a distinct artifactID/blobs and a shared blob
 	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		logimpl.MockModule,
-		config.MockModule,
+		logimpl.MockModule(),
+		config.MockModule(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2,
+		workloadmeta.MockModuleV2(),
 	))
 
 	// setup workloadmeta for test
-	workloadmetaStore.Start(context.TODO())
 	workloadmeta.SetGlobalStore(workloadmetaStore)
 	defer workloadmeta.SetGlobalStore(nil)
 

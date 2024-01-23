@@ -15,9 +15,10 @@ import (
 )
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newHostnameService),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newHostnameService))
+}
 
 type service struct{}
 

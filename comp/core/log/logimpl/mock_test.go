@@ -18,8 +18,8 @@ import (
 func TestMockLogging(t *testing.T) {
 	log := fxutil.Test[log.Component](t, fx.Options(
 		fx.Supply(Params{}),
-		config.MockModule,
-		MockModule,
+		config.MockModule(),
+		MockModule(),
 	))
 	log.Debugf("hello, world. %s", "hi")
 }

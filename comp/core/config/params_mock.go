@@ -9,7 +9,7 @@
 package config
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 )
 
 // MockParams defines the parameter for the mock config.
@@ -24,7 +24,7 @@ type MockParams struct {
 	Overrides map[string]interface{}
 
 	// Features is a parameter to set features for the mock config
-	Features []config.Feature
+	Features []pkgconfigenv.Feature
 
 	// SetupConfig sets up the config as if it weren't a mock; essentially a full init
 	SetupConfig bool

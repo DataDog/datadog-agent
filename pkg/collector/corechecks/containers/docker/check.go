@@ -34,11 +34,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
-	dockerCheckName = "docker"
-	cacheValidity   = 2 * time.Second
+	// CheckName is the name of the check
+	CheckName = "docker"
+
+	cacheValidity = 2 * time.Second
 )
 
 type eventTransformer interface {
@@ -55,21 +58,21 @@ type DockerCheck struct {
 	containerFilter             *containers.Filter
 	okExitCodes                 map[int]struct{}
 	collectContainerSizeCounter uint64
+	store                       workloadmeta.Component
 
 	lastEventTime    time.Time
 	eventTransformer eventTransformer
 }
 
-func init() {
-	core.RegisterCheck(dockerCheckName, DockerFactory)
-}
-
-// DockerFactory is exported for integration testing
-func DockerFactory() check.Check {
-	return &DockerCheck{
-		CheckBase: core.NewCheckBase(dockerCheckName),
-		instance:  &DockerConfig{},
-	}
+// Factory returns a new docker corecheck factory
+func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
+	return optional.NewOption(func() check.Check {
+		return &DockerCheck{
+			CheckBase: core.NewCheckBase(CheckName),
+			instance:  &DockerConfig{},
+			store:     store,
+		}
+	})
 }
 
 // Configure parses the check configuration and init the check
@@ -110,7 +113,7 @@ func (d *DockerCheck) Configure(senderManager sender.SenderManager, integrationC
 		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %v", err)
 	}
 
-	d.processor = generic.NewProcessor(metrics.GetProvider(), generic.MetadataContainerAccessor{}, metricsAdapter{}, getProcessorFilter(d.containerFilter))
+	d.processor = generic.NewProcessor(metrics.GetProvider(), generic.NewMetadataContainerAccessor(d.store), metricsAdapter{}, getProcessorFilter(d.containerFilter, d.store))
 	d.processor.RegisterExtension("docker-custom-metrics", &dockerCustomMetricsExtension{})
 	d.configureNetworkProcessor(&d.processor)
 	d.setOkExitCodes()
@@ -213,12 +216,8 @@ func (d *DockerCheck) runDockerCustom(sender sender.Sender, du docker.Client, ra
 			containerName = rawContainer.Names[0]
 		}
 		var annotations map[string]string
-		// TODO(components): stop using globals, rely instead on injected component
-		store := workloadmeta.GetGlobalStore()
-		if store != nil {
-			if pod, err := store.GetKubernetesPodForContainer(rawContainer.ID); err == nil {
-				annotations = pod.Annotations
-			}
+		if pod, err := d.store.GetKubernetesPodForContainer(rawContainer.ID); err == nil {
+			annotations = pod.Annotations
 		}
 
 		isContainerExcluded := d.containerFilter.IsExcluded(annotations, containerName, resolvedImageName, rawContainer.Labels[kubernetes.CriContainerNamespaceLabel])

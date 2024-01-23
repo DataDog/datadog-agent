@@ -410,9 +410,7 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event) {
 
 	// handle anomaly detections
 	if event.IsAnomalyDetectionEvent() {
-		if event.IsKernelSpaceAnomalyDetectionEvent() {
-			p.profileManagers.securityProfileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, event.ContainerContext), &event.SecurityProfileContext)
-		}
+		p.profileManagers.securityProfileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, event.ContainerContext), &event.SecurityProfileContext)
 		if p.config.RuntimeSecurity.AnomalyDetectionEnabled {
 			p.sendAnomalyDetection(event)
 		}
@@ -768,6 +766,9 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		// The pid_cache kernel map has the exit_time but it's only accessed if there's a local miss
 		event.ProcessCacheEntry.Process.ExitTime = p.fieldHandlers.ResolveEventTime(event, &event.BaseEvent)
 		event.Exit.Process = &event.ProcessCacheEntry.Process
+
+		// update mount pid mapping
+		p.Resolvers.MountResolver.DelPid(event.Exit.Pid)
 	case model.SetuidEventType:
 		// the process context may be incorrect, do not modify it
 		if event.Error != nil {
@@ -1342,7 +1343,7 @@ func (p *EBPFProbe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	}
 
 	// Insert new mount point in cache, passing it a copy of the mount that we got from the event
-	if err := p.Resolvers.MountResolver.Insert(*m); err != nil {
+	if err := p.Resolvers.MountResolver.Insert(*m, 0); err != nil {
 		seclog.Errorf("failed to insert mount event: %v", err)
 		return err
 	}
@@ -1906,11 +1907,17 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 }
 
 // HandleActions handles the rule actions
-func (p *EBPFProbe) HandleActions(rule *rules.Rule, event eval.Event) {
-	ev := event.(*model.Event)
+func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
+	ev := ctx.Event.(*model.Event)
+
 	for _, action := range rule.Definition.Actions {
+		if !action.IsAccepted(ctx) {
+
+			continue
+		}
+
 		switch {
-		case action.InternalCallbackDefinition != nil && rule.ID == events.RefreshUserCacheRuleID:
+		case action.InternalCallback != nil && rule.ID == events.RefreshUserCacheRuleID:
 			_ = p.RefreshUserCache(ev.ContainerContext.ID)
 
 		case action.Kill != nil:
@@ -1930,7 +1937,7 @@ func (p *EBPFProbe) HandleActions(rule *rules.Rule, event eval.Event) {
 			sig := model.SignalConstants[action.Kill.Signal]
 
 			for _, pid := range pids {
-				if pid == 0 || pid == utils.Getpid() {
+				if pid <= 1 || pid == utils.Getpid() {
 					continue
 				}
 
@@ -1946,6 +1953,11 @@ func (p *EBPFProbe) HandleActions(rule *rules.Rule, event eval.Event) {
 					seclog.Warnf("failed to kill process %d: %s", pid, err)
 				}
 			}
+
+			ev.Actions = append(ev.Actions, &model.ActionTriggered{
+				Name:  rules.KillAction,
+				Value: action.Kill.Signal,
+			})
 		}
 	}
 }

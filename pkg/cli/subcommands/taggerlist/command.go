@@ -61,14 +61,13 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 						config.WithConfigName(globalParams.ConfigName),
 					),
 					LogParams: logimpl.ForOneShot(globalParams.LoggerName, "off", true)}),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func taggerList(log log.Component, config config.Component, cliParams *cliParams) error {
+func taggerList(_ log.Component, config config.Component, _ *cliParams) error {
 	// Set session token
 	if err := util.SetAuthToken(); err != nil {
 		return err
@@ -82,8 +81,7 @@ func taggerList(log log.Component, config config.Component, cliParams *cliParams
 	return tagger_api.GetTaggerList(color.Output, url)
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func getTaggerURL(config config.Component) (string, error) {
+func getTaggerURL(_ config.Component) (string, error) {
 	ipcAddress, err := pkgconfig.GetIPCAddress()
 	if err != nil {
 		return "", err

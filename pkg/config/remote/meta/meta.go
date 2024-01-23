@@ -8,8 +8,6 @@ package meta
 
 import (
 	_ "embed"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 var (
@@ -35,20 +33,20 @@ var rootsConfig = EmbeddedRoots{
 }
 
 // RootsDirector returns all the roots of the director repo
-func RootsDirector() EmbeddedRoots {
-	if directorRoot := config.Datadog.GetString("remote_configuration.director_root"); directorRoot != "" {
+func RootsDirector(directorRootOverride string) EmbeddedRoots {
+	if directorRootOverride != "" {
 		return EmbeddedRoots{
-			1: EmbeddedRoot(directorRoot),
+			1: EmbeddedRoot(directorRootOverride),
 		}
 	}
 	return rootsDirector
 }
 
 // RootsConfig returns all the roots of the director repo
-func RootsConfig() EmbeddedRoots {
-	if configRoot := config.Datadog.GetString("remote_configuration.config_root"); configRoot != "" {
+func RootsConfig(configRootOverride string) EmbeddedRoots {
+	if configRootOverride != "" {
 		return EmbeddedRoots{
-			1: EmbeddedRoot(configRoot),
+			1: EmbeddedRoot(configRootOverride),
 		}
 	}
 	return rootsConfig

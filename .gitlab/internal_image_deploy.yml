@@ -15,7 +15,7 @@ docker_trigger_internal:
   tags: ["arch:amd64"]
   variables:
     DYNAMIC_BUILD_RENDER_RULES: agent-build-only # fake rule to not trigger the ones in the images repo
-    IMAGE_VERSION: tmpl-v7
+    IMAGE_VERSION: tmpl-v8
     IMAGE_NAME: datadog-agent
     RELEASE_TAG: ${CI_COMMIT_REF_SLUG}-jmx
     BUILD_TAG: ${CI_COMMIT_REF_SLUG}-jmx
@@ -28,7 +28,9 @@ docker_trigger_internal:
     - if [ "$BUCKET_BRANCH" = "beta" ] || [ "$BUCKET_BRANCH" = "stable" ]; then TMPL_SRC_REPO="${TMPL_SRC_REPO}-release"; fi
     - if [ "$BUCKET_BRANCH" = "nightly" ]; then RELEASE_TAG="${RELEASE_TAG}-${CI_COMMIT_SHORT_SHA}"; fi
     - if [ "$BUCKET_BRANCH" = "dev" ]; then RELEASE_TAG="dev-${RELEASE_TAG}-${CI_COMMIT_SHORT_SHA}"; fi
-    - inv pipeline.trigger-child-pipeline --project-name "DataDog/images" --git-ref "master" --variables "IMAGE_VERSION,IMAGE_NAME,RELEASE_TAG,BUILD_TAG,TMPL_SRC_IMAGE,TMPL_SRC_REPO,RELEASE_STAGING,RELEASE_PROD,DYNAMIC_BUILD_RENDER_RULES"
+    - >
+        inv pipeline.trigger-child-pipeline --project-name "DataDog/images" --git-ref "master"
+        --variables "IMAGE_VERSION,IMAGE_NAME,RELEASE_TAG,BUILD_TAG,TMPL_SRC_IMAGE,TMPL_SRC_REPO,RELEASE_STAGING,RELEASE_PROD,DYNAMIC_BUILD_RENDER_RULES,APPS,BAZEL_TARGET,DDR,DDR_WORKFLOW_ID,TARGET_ENV,DYNAMIC_BUILD_RENDER_TARGET,DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
 
 
 docker_trigger_cluster_agent_internal:
@@ -58,7 +60,9 @@ docker_trigger_cluster_agent_internal:
     - if [ "$BUCKET_BRANCH" = "beta" ] || [ "$BUCKET_BRANCH" = "stable" ]; then TMPL_SRC_REPO="${TMPL_SRC_REPO}-release"; fi
     - if [ "$BUCKET_BRANCH" = "nightly" ]; then RELEASE_TAG="${RELEASE_TAG}-${CI_COMMIT_SHORT_SHA}"; fi
     - if [ "$BUCKET_BRANCH" = "dev" ]; then RELEASE_TAG="dev-${RELEASE_TAG}-${CI_COMMIT_SHORT_SHA}"; fi
-    - inv pipeline.trigger-child-pipeline --project-name "DataDog/images" --git-ref "master" --variables "IMAGE_VERSION,IMAGE_NAME,RELEASE_TAG,BUILD_TAG,TMPL_SRC_IMAGE,TMPL_SRC_REPO,RELEASE_STAGING,RELEASE_PROD,DYNAMIC_BUILD_RENDER_RULES"
+    - >
+      inv pipeline.trigger-child-pipeline --project-name "DataDog/images" --git-ref "master"
+      --variables "IMAGE_VERSION,IMAGE_NAME,RELEASE_TAG,BUILD_TAG,TMPL_SRC_IMAGE,TMPL_SRC_REPO,RELEASE_STAGING,RELEASE_PROD,DYNAMIC_BUILD_RENDER_RULES,APPS,BAZEL_TARGET,DDR,DDR_WORKFLOW_ID,TARGET_ENV,DYNAMIC_BUILD_RENDER_TARGET,DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
 
 docker_trigger_cws_instrumentation_internal:
   stage: internal_image_deploy
@@ -86,4 +90,6 @@ docker_trigger_cws_instrumentation_internal:
     - export GITLAB_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.gitlab_pipelines_scheduler_token --with-decryption --query "Parameter.Value" --out text)
     - if [ "$BUCKET_BRANCH" = "beta" ] || [ "$BUCKET_BRANCH" = "stable" ]; then TMPL_SRC_REPO="${TMPL_SRC_REPO}-release"; fi
     - if [ "$BUCKET_BRANCH" = "nightly" ]; then RELEASE_TAG="${RELEASE_TAG}-${CI_COMMIT_SHORT_SHA}"; fi
-    - inv pipeline.trigger-child-pipeline --project-name "DataDog/images" --git-ref "master" --variables "IMAGE_VERSION,IMAGE_NAME,RELEASE_TAG,BUILD_TAG,TMPL_SRC_IMAGE,TMPL_SRC_REPO,RELEASE_STAGING,RELEASE_PROD,DYNAMIC_BUILD_RENDER_RULES"
+    - >
+      inv pipeline.trigger-child-pipeline --project-name "DataDog/images" --git-ref "master"
+      --variables "IMAGE_VERSION,IMAGE_NAME,RELEASE_TAG,BUILD_TAG,TMPL_SRC_IMAGE,TMPL_SRC_REPO,RELEASE_STAGING,RELEASE_PROD,DYNAMIC_BUILD_RENDER_RULES,APPS,BAZEL_TARGET,DDR,DDR_WORKFLOW_ID,TARGET_ENV,DYNAMIC_BUILD_RENDER_TARGET,DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"

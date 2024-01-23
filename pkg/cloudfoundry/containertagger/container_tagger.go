@@ -15,7 +15,7 @@ import (
 	"code.cloudfoundry.org/garden"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
@@ -76,9 +76,13 @@ func (c *ContainerTagger) Start(ctx context.Context) {
 		defer c.store.Unsubscribe(ch)
 		for {
 			select {
-			case bundle := <-ch:
-				// close Ch to indicate that the Store can proceed to the next subscriber
-				close(bundle.Ch)
+			case bundle, ok := <-ch:
+				if !ok {
+					return
+				}
+
+				// Acknowledge the evBundle to indicate that the Store can proceed to the next subscriber
+				bundle.Acknowledge()
 
 				for _, evt := range bundle.Events {
 					err := c.processEvent(ctx, evt)

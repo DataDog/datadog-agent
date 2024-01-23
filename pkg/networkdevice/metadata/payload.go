@@ -68,13 +68,16 @@ type DeviceMetadata struct {
 	OsVersion      string       `json:"os_version,omitempty"`
 	OsHostname     string       `json:"os_hostname,omitempty"`
 	Integration    string       `json:"integration,omitempty"` // indicates the source of the data SNMP, meraki_api, etc.
+	DeviceType     string       `json:"device_type,omitempty"`
 }
 
 // InterfaceMetadata contains interface metadata
 type InterfaceMetadata struct {
 	DeviceID      string        `json:"device_id"`
-	IDTags        []string      `json:"id_tags"` // used to correlate with interface metrics
-	Index         int32         `json:"index"`   // IF-MIB ifIndex type is InterfaceIndex (Integer32 (1..2147483647))
+	IDTags        []string      `json:"id_tags"`               // used to correlate with interface metrics
+	Index         int32         `json:"index"`                 // IF-MIB ifIndex type is InterfaceIndex (Integer32 (1..2147483647))
+	RawID         string        `json:"raw_id,omitempty"`      // used to uniquely identify the interface in the context of the device
+	RawIDType     string        `json:"raw_id_type,omitempty"` // used to indicate the type of identifier used (i.e. portId for Meraki switches, uplink for Meraki uplinks, blank for SNMP for compatibility)
 	Name          string        `json:"name,omitempty"`
 	Alias         string        `json:"alias,omitempty"`
 	Description   string        `json:"description,omitempty"`

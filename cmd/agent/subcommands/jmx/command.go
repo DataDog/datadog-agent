@@ -22,16 +22,27 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
+
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	"github.com/DataDog/datadog-agent/comp/metadata/host"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
+	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	"github.com/DataDog/datadog-agent/pkg/collector"
@@ -103,15 +114,29 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		return fxutil.OneShot(callback,
 			fx.Supply(cliParams),
 			fx.Supply(params),
-			core.Bundle,
-			diagnosesendermanagerimpl.Module,
+			core.Bundle(),
+			diagnosesendermanagerimpl.Module(),
 			// workloadmeta setup
 			collectors.GetCatalog(),
 			fx.Supply(workloadmeta.Params{
 				InitHelper: common.GetWorkloadmetaInit(),
 			}),
-			workloadmeta.Module,
-			apiimpl.Module,
+			workloadmeta.Module(),
+			apiimpl.Module(),
+
+			// TODO(components): this is a temporary hack as the StartServer() method of the API package was previously called with nil arguments
+			// This highlights the fact that the API Server created by JMX (through ExecJmx... function) should be different from the ones created
+			// in others commands such as run.
+			fx.Provide(func() flare.Component { return nil }),
+			fx.Provide(func() dogstatsdServer.Component { return nil }),
+			fx.Provide(func() replay.Component { return nil }),
+			fx.Provide(func() serverdebug.Component { return nil }),
+			fx.Provide(func() host.Component { return nil }),
+			fx.Provide(func() inventoryagent.Component { return nil }),
+			fx.Provide(func() inventoryhost.Component { return nil }),
+			fx.Provide(func() demultiplexer.Component { return nil }),
+			fx.Provide(func() inventorychecks.Component { return nil }),
+			fx.Provide(func() packagesigning.Component { return nil }),
 		)
 	}
 

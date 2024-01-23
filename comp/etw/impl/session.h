@@ -20,7 +20,7 @@ ULONG DDEnableTrace(
     ULONGLONG   MatchAnyKeyword,
     ULONGLONG   MatchAllKeyword,
     ULONG       Timeout,
-    ULONGLONG*  PIDs,
+    ULONG*      PIDs,
     ULONG       PIDCount
 );
 TRACEHANDLE DDStartTracing(LPWSTR name, uintptr_t context);

@@ -22,18 +22,22 @@ import (
 )
 
 // Module defines the fx options for this component.
-var Module fx.Option = fxutil.Component(
-	fx.Provide(newAgentLogger),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newAgentLogger),
+	)
+}
 
 // TraceModule defines the fx options for this component in its Trace variant.
 //
 // TODO(components): move this comp/trace; that component shall implement the
 //
 //	log.Component interface.
-var TraceModule fx.Option = fxutil.Component(
-	fx.Provide(newTraceLogger),
-)
+func TraceModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newTraceLogger),
+	)
+}
 
 // logger implements the component
 type logger struct {

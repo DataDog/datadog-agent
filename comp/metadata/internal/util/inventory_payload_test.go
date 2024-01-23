@@ -37,8 +37,8 @@ func (p *testPayload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error)
 
 func getTestInventoryPayload(t *testing.T, confOverrides map[string]any) *InventoryPayload {
 	i := CreateInventoryPayload(
-		fxutil.Test[config.Component](t, config.MockModule, fx.Replace(config.MockParams{Overrides: confOverrides})),
-		fxutil.Test[log.Component](t, logimpl.MockModule),
+		fxutil.Test[config.Component](t, config.MockModule(), fx.Replace(config.MockParams{Overrides: confOverrides})),
+		fxutil.Test[log.Component](t, logimpl.MockModule()),
 		&serializer.MockSerializer{},
 		func() marshaler.JSONMarshaler { return &testPayload{} },
 		"test.json",
@@ -164,10 +164,10 @@ func TestCollect(t *testing.T) {
 	i.collect(context.Background())
 	i.serializer.(*serializer.MockSerializer).AssertExpectations(t)
 
-	// testing collect with LastCollect between MinInterval and MaxInterval with ForceRefresh being trigger
+	// testing collect with LastCollect between MinInterval and MaxInterval with forceRefresh being trigger
 
 	i.Refresh()
-	assert.True(t, i.ForceRefresh)
+	assert.True(t, i.forceRefresh.Load())
 
 	serializerMock.On(
 		"SendMetadata",
@@ -180,5 +180,5 @@ func TestCollect(t *testing.T) {
 
 	i.collect(context.Background())
 	i.serializer.(*serializer.MockSerializer).AssertExpectations(t)
-	assert.False(t, i.ForceRefresh)
+	assert.False(t, i.forceRefresh.Load())
 }

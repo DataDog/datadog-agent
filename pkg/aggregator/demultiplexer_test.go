@@ -290,7 +290,7 @@ type internalDemutiplexerDeps struct {
 }
 
 func createDemuxDepsWithOrchestratorFwd(t *testing.T, opts AgentDemultiplexerOptions, params orchestratorForwarderImpl.Params) aggregatorDeps {
-	modules := fx.Options(defaultforwarder.MockModule, config.MockModule, logimpl.MockModule, orchestratorForwarderImpl.Module, fx.Supply(params))
+	modules := fx.Options(defaultforwarder.MockModule(), config.MockModule(), logimpl.MockModule(), orchestratorForwarderImpl.Module(), fx.Supply(params))
 	deps := fxutil.Test[internalDemutiplexerDeps](t, modules)
 
 	return aggregatorDeps{

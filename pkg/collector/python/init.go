@@ -222,6 +222,21 @@ func init() {
 
 	expvarPyInit = expvar.NewMap("pythonInit")
 	expvarPyInit.Set("Errors", expvar.Func(expvarPythonInitErrors))
+
+	// Force the use of stdlib's distutils, to prevent loading the setuptools-vendored distutils
+	// in integrations, which causes a 10MB memory increase.
+	// Note: a future version of setuptools (TBD) will remove the ability to use this variable
+	// (https://github.com/pypa/setuptools/issues/3625),
+	// and Python 3.12 removes distutils from the standard library.
+	// Once we upgrade one of those, we won't have any choice but to use setuptools' distutils,
+	// which means we will get the memory increase again if integrations still use distutils.
+
+	// This must happen as early as possible in the process lifetime to avoid data race with
+	// `getenv`. Ideally before we start any goroutines that call native code or open network
+	// connections.
+	if v := os.Getenv("SETUPTOOLS_USE_DISTUTILS"); v == "" {
+		os.Setenv("SETUPTOOLS_USE_DISTUTILS", "stdlib")
+	}
 }
 
 func expvarPythonInitErrors() interface{} {
@@ -358,17 +373,6 @@ func resolvePythonExecPath(pythonVersion string, ignoreErrors bool) (string, err
 func Initialize(paths ...string) error {
 	pythonVersion := config.Datadog.GetString("python_version")
 	allowPathHeuristicsFailure := config.Datadog.GetBool("allow_python_path_heuristics_failure")
-
-	// Force the use of stdlib's distutils, to prevent loading the setuptools-vendored distutils
-	// in integrations, which causes a 10MB memory increase.
-	// Note: a future version of setuptools (TBD) will remove the ability to use this variable
-	// (https://github.com/pypa/setuptools/issues/3625),
-	// and Python 3.12 removes distutils from the standard library.
-	// Once we upgrade one of those, we won't have any choice but to use setuptools' distutils,
-	// which means we will get the memory increase again if integrations still use distutils.
-	if v := os.Getenv("SETUPTOOLS_USE_DISTUTILS"); v == "" {
-		os.Setenv("SETUPTOOLS_USE_DISTUTILS", "stdlib")
-	}
 
 	// Memory related RTLoader-global initialization
 	if config.Datadog.GetBool("memtrack_enabled") {

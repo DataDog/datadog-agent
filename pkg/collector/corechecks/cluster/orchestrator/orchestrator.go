@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"go.uber.org/atomic"
 	"gopkg.in/yaml.v2"
@@ -38,14 +39,13 @@ import (
 )
 
 const (
+	// CheckName is the name of the check
+	CheckName = orchestrator.CheckName
+
 	maximumWaitForAPIServer = 10 * time.Second
 	collectionInterval      = 10 * time.Second
 	defaultResyncInterval   = 300 * time.Second
 )
-
-func init() {
-	core.RegisterCheck(orchestrator.CheckName, OrchestratorFactory)
-}
 
 // OrchestratorInstance is the config of the orchestrator check instance.
 type OrchestratorInstance struct {
@@ -93,10 +93,14 @@ func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance) *
 	}
 }
 
-// OrchestratorFactory returns the orchestrator check
-func OrchestratorFactory() check.Check {
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
+}
+
+func newCheck() check.Check {
 	return newOrchestratorCheck(
-		core.NewCheckBase(orchestrator.CheckName),
+		core.NewCheckBase(CheckName),
 		&OrchestratorInstance{},
 	)
 }
@@ -203,16 +207,17 @@ func (o *OrchestratorCheck) Cancel() {
 }
 
 func getOrchestratorInformerFactory(apiClient *apiserver.APIClient) *collectors.OrchestratorInformerFactory {
-	of := &collectors.OrchestratorInformerFactory{
-		InformerFactory:        informers.NewSharedInformerFactory(apiClient.Cl, defaultResyncInterval),
-		CRDInformerFactory:     externalversions.NewSharedInformerFactory(apiClient.CRDClient, defaultResyncInterval),
-		DynamicInformerFactory: dynamicinformer.NewDynamicSharedInformerFactory(apiClient.DynamicCl, defaultResyncInterval),
-		VPAInformerFactory:     vpai.NewSharedInformerFactory(apiClient.VPAClient, defaultResyncInterval),
-	}
-
 	tweakListOptions := func(options *metav1.ListOptions) {
 		options.FieldSelector = fields.OneTermEqualSelector("spec.nodeName", "").String()
 	}
-	of.UnassignedPodInformerFactory = informers.NewSharedInformerFactoryWithOptions(apiClient.Cl, defaultResyncInterval, informers.WithTweakListOptions(tweakListOptions))
+
+	of := &collectors.OrchestratorInformerFactory{
+		InformerFactory:              informers.NewSharedInformerFactoryWithOptions(apiClient.InformerCl, defaultResyncInterval),
+		CRDInformerFactory:           externalversions.NewSharedInformerFactory(apiClient.CRDInformerClient, defaultResyncInterval),
+		DynamicInformerFactory:       dynamicinformer.NewDynamicSharedInformerFactory(apiClient.DynamicInformerCl, defaultResyncInterval),
+		VPAInformerFactory:           vpai.NewSharedInformerFactory(apiClient.VPAInformerClient, defaultResyncInterval),
+		UnassignedPodInformerFactory: informers.NewSharedInformerFactoryWithOptions(apiClient.InformerCl, defaultResyncInterval, informers.WithTweakListOptions(tweakListOptions)),
+	}
+
 	return of
 }

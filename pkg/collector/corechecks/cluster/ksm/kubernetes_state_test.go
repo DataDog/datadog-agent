@@ -697,7 +697,7 @@ func TestProcessMetrics(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		kubeStateMetricsCheck := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), test.config)
+		kubeStateMetricsCheck := newKSMCheck(core.NewCheckBase(CheckName), test.config)
 		mocked := mocksender.NewMockSender(kubeStateMetricsCheck.ID())
 		mocked.SetupAcceptAll()
 
@@ -893,7 +893,7 @@ func TestProcessTelemetry(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), test.config)
+		kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(CheckName), test.config)
 		kubeStateMetricsSCheck.processTelemetry(test.metrics)
 		t.Run(test.name, func(t *testing.T) {
 			assert.Equal(t, test.expected.getTotal(), kubeStateMetricsSCheck.telemetry.getTotal())
@@ -951,7 +951,7 @@ func TestSendTelemetry(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), test.config)
+		kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(CheckName), test.config)
 		mocked := mocksender.NewMockSender(kubeStateMetricsSCheck.ID())
 		mocked.SetupAcceptAll()
 
@@ -1262,7 +1262,7 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), tt.config)
+			kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(CheckName), tt.config)
 			kubeStateMetricsSCheck.clusterNameRFC1123 = tt.args.clusterName
 			labelJoiner := newLabelJoiner(tt.config.labelJoins)
 			for _, metricFam := range tt.args.metricsToGet {
@@ -1464,6 +1464,12 @@ func TestKSMCheck_mergeAnnotationsAsTags(t *testing.T) {
 			extra:    nil,
 			expected: map[string]map[string]string{"pod": {"common_key": "in_val"}},
 		},
+		{
+			name:     "conf nil values",
+			conf:     map[string]map[string]string{"job": nil, "deployment": nil, "statefulset": nil, "daemonset": nil},
+			extra:    defaultAnnotationsAsTags(),
+			expected: defaultAnnotationsAsTags(),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1494,7 +1500,7 @@ var metadataMetrics = []string{
 }
 
 func TestMetadataMetricsRegex(t *testing.T) {
-	check := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), &KSMConfig{})
+	check := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{})
 	for _, m := range metadataMetrics {
 		assert.True(t, check.metadataMetricsRegex.MatchString(m))
 	}

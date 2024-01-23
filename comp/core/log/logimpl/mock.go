@@ -24,14 +24,18 @@ import (
 )
 
 // MockModule defines the fx options for the mock component.
-var MockModule fx.Option = fxutil.Component(
-	fx.Provide(newMockLogger),
-)
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newMockLogger),
+	)
+}
 
 // TraceMockModule defines the fx options for the mock component in its Trace variant.
-var TraceMockModule fx.Option = fxutil.Component(
-	fx.Provide(newTraceMockLogger),
-)
+func TraceMockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newTraceMockLogger),
+	)
+}
 
 // tbWriter is an implementation of io.Writer that sends lines to
 // testing.TB#Log.

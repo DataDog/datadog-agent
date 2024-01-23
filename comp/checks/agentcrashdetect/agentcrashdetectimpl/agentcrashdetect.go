@@ -30,12 +30,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/crashreport"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
-	crashDetectCheckName = "agentcrashdetect"
-	maxStartupWarnings   = 20
-	reportedKey          = `lastReported`
+	// CheckName is the name of the check
+	CheckName          = "agentcrashdetect"
+	maxStartupWarnings = 20
+	reportedKey        = `lastReported`
 )
 
 var (
@@ -57,9 +59,10 @@ var (
 )
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newAgentCrashComponent),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newAgentCrashComponent))
+}
 
 // WinCrashConfig is the configuration options for this check
 // it is exported so that the yaml parser can read it.
@@ -173,15 +176,15 @@ func newAgentCrashComponent(deps dependencies) agentcrashdetect.Component {
 	instance.tconfig = deps.TConfig.Object()
 	deps.Lifecycle.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			core.RegisterCheck(crashDetectCheckName, func() check.Check {
+			core.RegisterCheck(CheckName, optional.NewOption(func() check.Check {
 				checkInstance := &AgentCrashDetect{
-					CheckBase:   core.NewCheckBase(crashDetectCheckName),
+					CheckBase:   core.NewCheckBase(CheckName),
 					instance:    &WinCrashConfig{},
 					tconfig:     instance.tconfig,
 					probeconfig: deps.SConfig,
 				}
 				return checkInstance
-			})
+			}))
 			return nil
 		},
 	})

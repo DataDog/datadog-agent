@@ -21,10 +21,10 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/netflow/config"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -44,21 +44,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
-//nolint:unused // TODO(NDM) Fix unused linter
-func demuxOpts() aggregator.AgentDemultiplexerOptions {
-	opts := aggregator.DefaultAgentDemultiplexerOptions()
-	opts.FlushInterval = 1 * time.Hour
-	opts.DontStartForwarders = true
-	return opts
-}
-
 type deps struct {
 	fx.In
 	Demultiplexer demultiplexer.Mock
 }
 
 func createDeps(t *testing.T) deps {
-	return fxutil.Test[deps](t, demultiplexer.MockModule, defaultforwarder.MockModule, config.MockModule, logimpl.MockModule)
+	return fxutil.Test[deps](t, demultiplexerimpl.MockModule(), defaultforwarder.MockModule(), config.MockModule(), logimpl.MockModule())
 }
 
 func Test_Run_simpleCase(t *testing.T) {
@@ -889,7 +881,8 @@ profiles:
       "profile": "f5-big-ip",
       "vendor": "f5",
       "subnet": "127.0.0.0/30",
-      "serial_number": "a-serial-num"
+      "serial_number": "a-serial-num",
+	  "device_type": "load_balancer"
     }
   ],
   "interfaces": [
@@ -985,10 +978,10 @@ community_string: public
 
 func TestCheckID(t *testing.T) {
 	profile.SetConfdPathAndCleanProfiles()
-	check1 := snmpFactory()
-	check2 := snmpFactory()
-	check3 := snmpFactory()
-	checkSubnet := snmpFactory()
+	check1 := newCheck()
+	check2 := newCheck()
+	check3 := newCheck()
+	checkSubnet := newCheck()
 	// language=yaml
 	rawInstanceConfig1 := []byte(`
 ip_address: 1.1.1.1
@@ -1530,7 +1523,8 @@ tags:
       "name": "foo_sys_name",
       "description": "my_desc",
       "sys_object_id": "1.2.3.4",
-      "subnet": "127.0.0.0/30"
+      "subnet": "127.0.0.0/30",
+	  "device_type": "other"
     }
   ],
   "interfaces": [
@@ -1669,7 +1663,8 @@ tags:
       ],
       "ip_address": "1.2.3.5",
       "status": 2,
-      "subnet": "127.0.0.0/30"
+      "subnet": "127.0.0.0/30",
+	  "device_type": "other"
     }
   ],
   "diagnoses": [
@@ -1980,7 +1975,8 @@ metric_tags:
       "ip_address": "%s",
       "status": 1,
       "name": "foo_sys_name",
-      "subnet": "10.10.0.0/30"
+      "subnet": "10.10.0.0/30",
+	  "device_type": "other"
     }
   ],
   "interfaces": [

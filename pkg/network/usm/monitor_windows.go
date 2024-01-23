@@ -55,7 +55,7 @@ func NewWindowsMonitor(c *config.Config, dh driver.Handle) (Monitor, error) {
 		di:         di,
 		hei:        hei,
 		telemetry:  telemetry,
-		statkeeper: http.NewStatkeeper(c, telemetry),
+		statkeeper: http.NewStatkeeper(c, telemetry, http.NewIncompleteBuffer(c, telemetry)),
 	}, nil
 }
 

@@ -40,8 +40,8 @@ func TestConfDisabled(t *testing.T) {
 	ret := newResourcesProvider(
 		fxutil.Test[dependencies](
 			t,
-			logimpl.MockModule,
-			config.MockModule,
+			logimpl.MockModule(),
+			config.MockModule(),
 			fx.Replace(config.MockParams{Overrides: overrides}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
 		),
@@ -64,8 +64,8 @@ func TestConfInterval(t *testing.T) {
 	ret := newResourcesProvider(
 		fxutil.Test[dependencies](
 			t,
-			logimpl.MockModule,
-			config.MockModule,
+			logimpl.MockModule(),
+			config.MockModule(),
 			fx.Replace(config.MockParams{Overrides: overrides}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
 		),
@@ -95,8 +95,8 @@ func TestCollect(t *testing.T) {
 	ret := newResourcesProvider(
 		fxutil.Test[dependencies](
 			t,
-			logimpl.MockModule,
-			config.MockModule,
+			logimpl.MockModule(),
+			config.MockModule(),
 			fx.Provide(func() serializer.MetricSerializer { return s }),
 		),
 	)
@@ -119,8 +119,8 @@ func TestCollectError(t *testing.T) {
 	ret := newResourcesProvider(
 		fxutil.Test[dependencies](
 			t,
-			logimpl.MockModule,
-			config.MockModule,
+			logimpl.MockModule(),
+			config.MockModule(),
 			fx.Provide(func() serializer.MetricSerializer { return s }),
 		),
 	)

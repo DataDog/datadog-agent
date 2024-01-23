@@ -211,9 +211,9 @@ func TestGetOwnersLanguages(t *testing.T) {
 
 func TestDetectedNewLanguages(t *testing.T) {
 	mockStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2,
+		workloadmeta.MockModuleV2(),
 	))
 
 	mockStore.Set(&workloadmeta.KubernetesDeployment{
@@ -221,19 +221,21 @@ func TestDetectedNewLanguages(t *testing.T) {
 			Kind: workloadmeta.KindKubernetesDeployment,
 			ID:   "default/dummy",
 		},
-		ContainerLanguages: map[string][]languagemodels.Language{
-			"container-1": {
-				{
-					Name:    "go",
-					Version: "1.2",
+		InjectableLanguages: workloadmeta.Languages{
+			ContainerLanguages: map[string][]languagemodels.Language{
+				"container-1": {
+					{
+						Name:    "go",
+						Version: "1.2",
+					},
 				},
 			},
-		},
-		InitContainerLanguages: map[string][]languagemodels.Language{
-			"container-2": {
-				{
-					Name:    "java",
-					Version: "18",
+			InitContainerLanguages: map[string][]languagemodels.Language{
+				"container-2": {
+					{
+						Name:    "java",
+						Version: "18",
+					},
 				},
 			},
 		},
@@ -259,9 +261,9 @@ func TestDetectedNewLanguages(t *testing.T) {
 func TestPatchOwner(t *testing.T) {
 
 	mockStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2,
+		workloadmeta.MockModuleV2(),
 	))
 	mockK8sClient := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme())
 	lp := newMockLanguagePatcher(mockK8sClient, mockStore)
@@ -323,9 +325,9 @@ func TestPatchOwner(t *testing.T) {
 
 func TestPatchAllOwners(t *testing.T) {
 	mockStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2,
+		workloadmeta.MockModuleV2(),
 	))
 	mockK8sClient := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme())
 	lp := newMockLanguagePatcher(mockK8sClient, mockStore)

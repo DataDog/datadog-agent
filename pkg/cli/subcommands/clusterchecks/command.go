@@ -63,7 +63,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
 				fx.Supply(bundleParams(globalParams)),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -80,7 +80,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			return fxutil.OneShot(rebalance,
 				fx.Supply(cliParams),
 				fx.Supply(bundleParams(globalParams)),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -99,7 +99,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			return fxutil.OneShot(isolate,
 				fx.Supply(cliParams),
 				fx.Supply(bundleParams(globalParams)),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}

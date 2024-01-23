@@ -28,5 +28,5 @@ func (s *service) Init() error {
 }
 
 func (s *service) Run(ctx context.Context) error {
-	return runFx(ctx, s.cliParams, s.defaultConfPath)
+	return runTraceAgentProcess(ctx, s.cliParams, s.defaultConfPath)
 }

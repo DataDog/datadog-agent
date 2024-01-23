@@ -6,6 +6,7 @@
 package run
 
 import (
+	"context"
 	_ "net/http/pprof"
 	"testing"
 
@@ -19,4 +20,12 @@ func TestRunCommand(t *testing.T) {
 		[]string{"run"},
 		run,
 		func() {})
+}
+
+func TestStartSystemProbe(t *testing.T) {
+	fxutil.TestOneShot(t, func() {
+		ctxChan := make(<-chan context.Context)
+		errChan := make(chan error)
+		runSystemProbe(ctxChan, errChan)
+	})
 }

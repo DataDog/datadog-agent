@@ -24,7 +24,7 @@ import (
 
 func fulfillDepsWithConfig(t testing.TB, overrides map[string]interface{}) config.Component {
 	return fxutil.Test[config.Component](t, fx.Options(
-		config.MockModule,
+		config.MockModule(),
 		fx.Replace(config.MockParams{Overrides: overrides}),
 	))
 }

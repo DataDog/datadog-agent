@@ -15,6 +15,8 @@ import (
 const (
 	// MaxArgEnvSize maximum size of one argument or environment variable
 	MaxArgEnvSize = 256
+	// MaxArgsEnvsSize maximum number of args and/or envs
+	MaxArgsEnvsSize = 128
 )
 
 // ArgsEnvs raw value for args and envs

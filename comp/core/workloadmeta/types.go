@@ -77,6 +77,10 @@ const (
 	// SourceRemoteProcessCollector reprents processes entities detected
 	// by the RemoteProcessCollector.
 	SourceRemoteProcessCollector Source = "remote_process_collector"
+
+	// SourceLanguageDetectionServer represents container languages
+	// detected by node agents
+	SourceLanguageDetectionServer Source = "language_detection_server"
 )
 
 // ContainerRuntime is the container runtime used by a container.
@@ -92,6 +96,15 @@ const (
 	// ECS Fargate can be considered as a runtime in the sense that we don't
 	// know the actual runtime but we need to identify it's Fargate
 	ContainerRuntimeECSFargate ContainerRuntime = "ecsfargate"
+)
+
+// ContainerRuntimeFlavor is the container runtime with respect to the OCI spect
+type ContainerRuntimeFlavor string
+
+// Defined ContainerRuntimeFlavors
+const (
+	ContainerRuntimeFlavorDefault ContainerRuntimeFlavor = ""
+	ContainerRuntimeFlavorKata    ContainerRuntimeFlavor = "kata"
 )
 
 // ContainerStatus is the status of the container
@@ -364,14 +377,15 @@ type Container struct {
 	EntityID
 	EntityMeta
 	// EnvVars are limited to variables included in pkg/util/containers/env_vars_filter.go
-	EnvVars    map[string]string
-	Hostname   string
-	Image      ContainerImage
-	NetworkIPs map[string]string
-	PID        int
-	Ports      []ContainerPort
-	Runtime    ContainerRuntime
-	State      ContainerState
+	EnvVars       map[string]string
+	Hostname      string
+	Image         ContainerImage
+	NetworkIPs    map[string]string
+	PID           int
+	Ports         []ContainerPort
+	Runtime       ContainerRuntime
+	RuntimeFlavor ContainerRuntimeFlavor
+	State         ContainerState
 	// CollectorTags represent tags coming from the collector itself
 	// and that it would be impossible to compute later on
 	CollectorTags   []string
@@ -416,6 +430,7 @@ func (c Container) String(verbose bool) string {
 
 	_, _ = fmt.Fprintln(&sb, "----------- Container Info -----------")
 	_, _ = fmt.Fprintln(&sb, "Runtime:", c.Runtime)
+	_, _ = fmt.Fprintln(&sb, "RuntimeFlavor:", c.RuntimeFlavor)
 	_, _ = fmt.Fprint(&sb, c.State.String(verbose))
 
 	_, _ = fmt.Fprintln(&sb, "----------- Resources -----------")
@@ -666,14 +681,26 @@ func (n KubernetesNode) String(verbose bool) string {
 
 var _ Entity = &KubernetesNode{}
 
+// Languages represents languages detected for containers of a pod
+type Languages struct {
+	ContainerLanguages     map[string][]languagemodels.Language
+	InitContainerLanguages map[string][]languagemodels.Language
+}
+
 // KubernetesDeployment is an Entity representing a Kubernetes Deployment.
 type KubernetesDeployment struct {
 	EntityID
-	Env                    string
-	Service                string
-	Version                string
-	ContainerLanguages     map[string][]languagemodels.Language
-	InitContainerLanguages map[string][]languagemodels.Language
+	Env     string
+	Service string
+	Version string
+
+	// InjectableLanguages indicate containers languages that can be injected by the admission controller
+	// These languages are determined by parsing the deployment annotations
+	InjectableLanguages Languages
+
+	// DetectedLanguages languages indicate containers languages detected and reported by the language
+	// detection server.
+	DetectedLanguages Languages
 }
 
 // GetID implements Entity#GetID.
@@ -706,7 +733,6 @@ func (d KubernetesDeployment) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Env :", d.Env)
 	_, _ = fmt.Fprintln(&sb, "Service :", d.Service)
 	_, _ = fmt.Fprintln(&sb, "Version :", d.Version)
-	_, _ = fmt.Fprintln(&sb, "----------- Languages -----------")
 
 	langPrinter := func(m map[string][]languagemodels.Language, ctype string) {
 		for container, languages := range m {
@@ -720,8 +746,13 @@ func (d KubernetesDeployment) String(verbose bool) string {
 			_, _ = fmt.Fprintf(&sb, "%s %s=>[%s]\n", ctype, container, langSb.String())
 		}
 	}
-	langPrinter(d.InitContainerLanguages, "InitContainer")
-	langPrinter(d.ContainerLanguages, "Container")
+	_, _ = fmt.Fprintln(&sb, "----------- Injectable Languages -----------")
+	langPrinter(d.InjectableLanguages.InitContainerLanguages, "InitContainer")
+	langPrinter(d.InjectableLanguages.ContainerLanguages, "Container")
+
+	_, _ = fmt.Fprintln(&sb, "----------- Detected Languages -----------")
+	langPrinter(d.DetectedLanguages.InitContainerLanguages, "InitContainer")
+	langPrinter(d.DetectedLanguages.ContainerLanguages, "Container")
 	return sb.String()
 }
 
@@ -1029,4 +1060,11 @@ type EventBundle struct {
 
 	// Ch should be closed once the subscriber has handled the event.
 	Ch chan struct{}
+}
+
+// Acknowledge acknowledges that the subscriber has handled the event.
+func (e EventBundle) Acknowledge() {
+	if e.Ch != nil {
+		close(e.Ch)
+	}
 }

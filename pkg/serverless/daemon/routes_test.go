@@ -241,13 +241,12 @@ func TestStartEndInvocationSpanParenting(t *testing.T) {
 			expPriority: 1,
 		},
 		{
-			// NOTE: sns trace extraction not yet implemented
 			name:        "sns",
 			payload:     getEventFromFile("sns.json"),
 			expInfSpans: 1,
-			expTraceID:  0,
-			expParentID: 0,
-			expPriority: -128,
+			expTraceID:  4948377316357291421,
+			expParentID: 6746998015037429512,
+			expPriority: 1,
 		},
 		{
 			name:        "sns-sqs",

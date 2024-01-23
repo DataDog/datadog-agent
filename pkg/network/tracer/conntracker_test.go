@@ -9,7 +9,9 @@ package tracer
 
 import (
 	"net"
+	"net/url"
 	"runtime"
+	"strconv"
 	"testing"
 	"time"
 
@@ -28,12 +30,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-const (
-	natPort    = 5432
-	nonNatPort = 9876
-)
-
 func TestConntrackers(t *testing.T) {
+	ebpftest.LogLevel(t, "trace")
 	t.Run("netlink", func(t *testing.T) {
 		runConntrackerTest(t, "netlink", setupNetlinkConntracker)
 	})
@@ -106,6 +104,18 @@ func setupNetlinkConntracker(t *testing.T, cfg *config.Config) (netlink.Conntrac
 	return ct, err
 }
 
+func getPort(t *testing.T, listener net.Listener) uint16 {
+	addr := listener.Addr()
+	listenerURL := url.URL{Scheme: addr.Network(), Host: addr.String()}
+	port, err := strconv.Atoi(listenerURL.Port())
+	require.NoError(t, err)
+	return uint16(port)
+}
+
+func getPortUDP(_ *testing.T, udpConn *net.UDPConn) uint16 {
+	return uint16(udpConn.LocalAddr().(*net.UDPAddr).Port)
+}
+
 func testConntracker(t *testing.T, serverIP, clientIP net.IP, ct netlink.Conntracker, cfg *config.Config) {
 	isIPv6 := false
 	if cip, _ := netipx.FromStdIP(clientIP); cip.Is6() {
@@ -122,12 +132,15 @@ func testConntracker(t *testing.T, serverIP, clientIP net.IP, ct netlink.Conntra
 	t.Logf("ns: %d", curNs)
 
 	t.Run("TCP", func(t *testing.T) {
+		var natPort, nonNatPort int
 		srv1 := nettestutil.StartServerTCP(t, serverIP, natPort)
 		defer srv1.Close()
+		natPort = int(getPort(t, srv1.(net.Listener)))
 		srv2 := nettestutil.StartServerTCP(t, serverIP, nonNatPort)
 		defer srv2.Close()
+		nonNatPort = int(getPort(t, srv2.(net.Listener)))
 
-		localAddr := nettestutil.PingTCP(t, clientIP, natPort).LocalAddr().(*net.TCPAddr)
+		localAddr := nettestutil.MustPingTCP(t, clientIP, natPort).LocalAddr().(*net.TCPAddr)
 		var trans *network.IPTranslation
 		cs := network.ConnectionStats{
 			Source: util.AddressFromNetIP(localAddr.IP),
@@ -145,7 +158,7 @@ func testConntracker(t *testing.T, serverIP, clientIP net.IP, ct netlink.Conntra
 		assert.Equal(t, util.AddressFromNetIP(serverIP), trans.ReplSrcIP)
 
 		// now dial TCP directly
-		localAddr = nettestutil.PingTCP(t, serverIP, nonNatPort).LocalAddr().(*net.TCPAddr)
+		localAddr = nettestutil.MustPingTCP(t, serverIP, nonNatPort).LocalAddr().(*net.TCPAddr)
 
 		cs = network.ConnectionStats{
 			Source: util.AddressFromNetIP(localAddr.IP),
@@ -158,15 +171,18 @@ func testConntracker(t *testing.T, serverIP, clientIP net.IP, ct netlink.Conntra
 		trans = ct.GetTranslationForConn(cs)
 		assert.Nil(t, trans)
 	})
+
 	t.Run("UDP", func(t *testing.T) {
 		if isIPv6 && !cfg.CollectUDPv6Conns {
 			t.Skip("UDPv6 disabled")
 		}
 
+		var natPort int
 		srv3 := nettestutil.StartServerUDP(t, serverIP, natPort)
 		defer srv3.Close()
+		natPort = int(getPortUDP(t, srv3.(*net.UDPConn)))
 
-		localAddrUDP := nettestutil.PingUDP(t, clientIP, natPort).LocalAddr().(*net.UDPAddr)
+		localAddrUDP := nettestutil.MustPingUDP(t, clientIP, natPort).LocalAddr().(*net.UDPAddr)
 		var trans *network.IPTranslation
 		cs := network.ConnectionStats{
 			Source: util.AddressFromNetIP(localAddrUDP.IP),
@@ -189,7 +205,7 @@ func testConntrackerCrossNamespace(t *testing.T, ct netlink.Conntracker) {
 	ns := netlinktestutil.SetupCrossNsDNAT(t)
 
 	closer := nettestutil.StartServerTCPNs(t, net.ParseIP("2.2.2.4"), 8080, ns)
-	laddr := nettestutil.PingTCP(t, net.ParseIP("2.2.2.4"), 80).LocalAddr().(*net.TCPAddr)
+	laddr := nettestutil.MustPingTCP(t, net.ParseIP("2.2.2.4"), 80).LocalAddr().(*net.TCPAddr)
 	defer closer.Close()
 
 	testNs, err := netns.GetFromName(ns)
@@ -247,7 +263,7 @@ func testConntrackerCrossNamespaceNATonRoot(t *testing.T, ct netlink.Conntracker
 		defer netns.Set(originalNS)
 		defer close(done)
 		netns.Set(testNS)
-		laddr = nettestutil.PingTCP(t, net.ParseIP("3.3.3.3"), 80).LocalAddr().(*net.TCPAddr)
+		laddr = nettestutil.MustPingTCP(t, net.ParseIP("3.3.3.3"), 80).LocalAddr().(*net.TCPAddr)
 	}()
 	<-done
 

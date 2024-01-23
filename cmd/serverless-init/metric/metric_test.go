@@ -11,15 +11,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestAdd(t *testing.T) {
-	log := fxutil.Test[log.Component](t, logimpl.MockModule)
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	demux := createDemultiplexer(t)
 	timestamp := time.Now()
 	add("a.super.metric", []string{"taga:valuea", "tagb:valueb"}, timestamp, demux)
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
@@ -34,8 +33,7 @@ func TestAdd(t *testing.T) {
 }
 
 func TestAddColdStartMetric(t *testing.T) {
-	log := fxutil.Test[log.Component](t, logimpl.MockModule)
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	demux := createDemultiplexer(t)
 	timestamp := time.Now()
 	AddColdStartMetric("gcp.run", []string{"taga:valuea", "tagb:valueb"}, timestamp, demux)
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
@@ -49,8 +47,7 @@ func TestAddColdStartMetric(t *testing.T) {
 }
 
 func TestAddShutdownMetric(t *testing.T) {
-	log := fxutil.Test[log.Component](t, logimpl.MockModule)
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	demux := createDemultiplexer(t)
 	timestamp := time.Now()
 	AddShutdownMetric("gcp.run", []string{"taga:valuea", "tagb:valueb"}, timestamp, demux)
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
@@ -61,4 +58,8 @@ func TestAddShutdownMetric(t *testing.T) {
 	assert.Equal(t, 2, len(metric.Tags))
 	assert.Equal(t, metric.Tags[0], "taga:valuea")
 	assert.Equal(t, metric.Tags[1], "tagb:valueb")
+}
+
+func createDemultiplexer(t *testing.T) demultiplexer.FakeSamplerMock {
+	return fxutil.Test[demultiplexer.FakeSamplerMock](t, logimpl.MockModule(), demultiplexerimpl.FakeSamplerMockModule())
 }

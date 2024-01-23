@@ -96,10 +96,10 @@ func (suite *ProviderTestSuite) SetupTest() {
 	var err error
 
 	store := fxutil.Test[workloadmeta.Mock](suite.T(), fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		collectors.GetCatalog(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2,
+		workloadmeta.MockModuleV2(),
 	))
 
 	mockSender := mocksender.NewMockSender(checkid.ID(suite.T().Name()))

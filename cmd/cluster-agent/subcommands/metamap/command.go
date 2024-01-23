@@ -50,7 +50,7 @@ as well as which services are serving the pods. Or the deployment name for the p
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    logimpl.ForOneShot(command.LoggerName, command.DefaultLogLevel, true),
 				}),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}

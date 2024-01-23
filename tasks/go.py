@@ -11,10 +11,10 @@ from pathlib import Path
 from invoke import task
 from invoke.exceptions import Exit
 
-from .build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
-from .licenses import get_licenses_list
-from .modules import DEFAULT_MODULES, generate_dummy_package
-from .utils import get_build_flags, timed
+from tasks.build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
+from tasks.libs.common.utils import get_build_flags, timed
+from tasks.licenses import get_licenses_list
+from tasks.modules import DEFAULT_MODULES, generate_dummy_package
 
 GOOS_MAPPING = {
     "win32": "windows",
@@ -404,7 +404,7 @@ def tidy_all(ctx):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.20.12 linux/amd64"
+    # result is like "go version go1.21.5 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

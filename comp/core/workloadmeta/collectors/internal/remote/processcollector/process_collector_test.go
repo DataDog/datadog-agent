@@ -244,12 +244,12 @@ func TestCollection(t *testing.T) {
 			// We do not inject any collectors here; we instantiate
 			// and initialize it out-of-band below. That's OK.
 			mockStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-				core.MockBundle,
+				core.MockBundle(),
 				fx.Replace(config.MockParams{Overrides: overrides}),
 				fx.Supply(workloadmeta.Params{
 					AgentType: workloadmeta.Remote,
 				}),
-				workloadmeta.MockModuleV2,
+				workloadmeta.MockModuleV2(),
 			))
 
 			time.Sleep(time.Second)

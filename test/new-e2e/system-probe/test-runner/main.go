@@ -5,7 +5,7 @@
 
 //go:build linux
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// Package main is the test-runner tool which runs the system-probe tests
 package main
 
 import (
@@ -46,7 +46,7 @@ type testConfig struct {
 }
 
 const (
-	testDirRoot  = "/opt/system-probe-tests"
+	testDirRoot  = "/opt/kernel-version-testing/system-probe-tests"
 	ciVisibility = "/ci-visibility"
 )
 
@@ -73,12 +73,6 @@ func getTimeout(pkg string) time.Duration {
 		}
 	}
 	return to
-}
-
-func pathEmbedded(fullPath, embedded string) bool {
-	normalized := fmt.Sprintf("/%s/", strings.Trim(embedded, "/"))
-
-	return strings.Contains(fullPath, normalized)
 }
 
 func glob(dir, filePattern string, filterFn func(path string) bool) ([]string, error) {
@@ -136,16 +130,15 @@ func buildCommandArgs(pkg string, xmlpath string, jsonpath string, file string, 
 
 // concatenateJsons combines all the test json output files into a single file.
 func concatenateJsons(indir, outdir string) error {
-	//nolint:revive // TODO(EBPF) Fix revive linter
-	testJsonFile := filepath.Join(outdir, "out.json")
+	testJSONFile := filepath.Join(outdir, "out.json")
 	matches, err := glob(indir, `.*\.json`, func(path string) bool { return true })
 	if err != nil {
 		return fmt.Errorf("json glob: %s", err)
 	}
 
-	f, err := os.OpenFile(testJsonFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o666)
+	f, err := os.OpenFile(testJSONFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o666)
 	if err != nil {
-		return fmt.Errorf("open %s: %s", testJsonFile, err)
+		return fmt.Errorf("open %s: %s", testJSONFile, err)
 	}
 	defer f.Close()
 
@@ -223,22 +216,6 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 
 	if err := concatenateJsons(jsonDir, jsonOutDir); err != nil {
 		return fmt.Errorf("concat json: %s", err)
-	}
-	return nil
-}
-
-func fixAssetPermissions() error {
-	matches, err := glob(testDirRoot, `.*\.o`, func(path string) bool {
-		return pathEmbedded(path, "pkg/ebpf/bytecode/build")
-	})
-	if err != nil {
-		return fmt.Errorf("glob assets: %s", err)
-	}
-
-	for _, file := range matches {
-		if err := os.Chown(file, 0, 0); err != nil {
-			return fmt.Errorf("chown %s: %s", file, err)
-		}
 	}
 	return nil
 }
@@ -322,10 +299,6 @@ func run() error {
 	testConfig, err := buildTestConfiguration()
 	if err != nil {
 		return fmt.Errorf("failed to build test configuration: %w", err)
-	}
-
-	if err := fixAssetPermissions(); err != nil {
-		return fmt.Errorf("asset perms: %s", err)
 	}
 
 	if err := os.RemoveAll(ciVisibility); err != nil {

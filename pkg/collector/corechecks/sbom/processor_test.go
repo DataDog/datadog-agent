@@ -600,11 +600,11 @@ func TestProcessEvents(t *testing.T) {
 			var SBOMsSent = atomic.NewInt32(0)
 
 			workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-				logimpl.MockModule,
-				configcomp.MockModule,
+				logimpl.MockModule(),
+				configcomp.MockModule(),
 				fx.Supply(context.Background()),
 				fx.Supply(workloadmeta.NewParams()),
-				workloadmeta.MockModuleV2,
+				workloadmeta.MockModuleV2(),
 			))
 
 			sender := mocksender.NewMockSender("")

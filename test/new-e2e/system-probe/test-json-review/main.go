@@ -5,7 +5,7 @@
 
 //go:build linux
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// Package main is the test-json-review tool which reports all failed tests from the test JSON output
 package main
 
 import (

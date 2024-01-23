@@ -79,7 +79,7 @@ func TestMain(m *testing.M) {
 	var lastRunResult int
 	var retryCount int
 
-	err := setup()
+	store, err := setup()
 	if err != nil {
 		log.Infof("Test setup failed: %v", err)
 		tearOffAndExit(1)
@@ -90,7 +90,7 @@ func TestMain(m *testing.M) {
 		case <-retryTicker.C:
 			retryCount++
 			log.Infof("Starting run %d", retryCount)
-			lastRunResult = doRun(m)
+			lastRunResult = doRun(m, store)
 			if lastRunResult == 0 {
 				tearOffAndExit(0)
 			}
@@ -102,12 +102,12 @@ func TestMain(m *testing.M) {
 }
 
 // Called before for first test run: compose up
-func setup() error {
+func setup() (workloadmeta.Component, error) {
 	// Setup global conf
 	config.Datadog.SetConfigType("yaml")
 	err := config.Datadog.ReadConfig(strings.NewReader(datadogCfgString))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	config.SetFeaturesNoCleanup(config.Docker)
 
@@ -116,12 +116,12 @@ func setup() error {
 	fxApp, store, err = fxutil.TestApp[workloadmeta.Component](fx.Options(
 		fx.Supply(compcfg.NewAgentParams(
 			"", compcfg.WithConfigMissingOK(true))),
-		compcfg.Module,
+		compcfg.Module(),
 		fx.Supply(logimpl.ForOneShot("TEST", "info", false)),
-		logimpl.Module,
+		logimpl.Module(),
 		fx.Supply(workloadmeta.NewParams()),
 		collectors.GetCatalog(),
-		workloadmeta.Module,
+		workloadmeta.Module(),
 	))
 	workloadmeta.SetGlobalStore(store)
 
@@ -138,15 +138,17 @@ func setup() error {
 		output, err := compose.Start()
 		if err != nil {
 			log.Errorf("Compose didn't start properly: %s", string(output))
-			return err
+			return nil, err
 		}
 	}
-	return nil
+	return store, nil
 }
 
 // Reset the state and trigger a new run
-func doRun(m *testing.M) int {
-	dockerCheck = docker.DockerFactory()
+func doRun(m *testing.M, store workloadmeta.Component) int {
+	factory := docker.Factory(store)
+	checkFactory, _ := factory.Get()
+	dockerCheck = checkFactory()
 
 	// Setup mock sender
 	sender = mocksender.NewMockSender(dockerCheck.ID())

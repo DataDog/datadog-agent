@@ -18,8 +18,8 @@ import (
 func TestExampleStoreSubscribe(t *testing.T) {
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		logimpl.MockModule,
-		config.MockModule,
+		logimpl.MockModule(),
+		config.MockModule(),
 		fx.Supply(NewParams()),
 	))
 
@@ -38,7 +38,7 @@ func TestExampleStoreSubscribe(t *testing.T) {
 	go func() {
 		for bundle := range ch {
 			// close Ch to indicate that the Store can proceed to the next subscriber
-			close(bundle.Ch)
+			bundle.Acknowledge()
 
 			for _, evt := range bundle.Events {
 				if evt.Type == EventTypeSet {
