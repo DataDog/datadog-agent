@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/netpath/dublintraceroute/probes/probev4"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/netpath/dublintraceroute/results"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/netpath/traceroute"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -57,39 +58,60 @@ var globalMu = &sync.Mutex{}
 // Check doesn't need additional fields
 type Check struct {
 	core.CheckBase
-	nbCPU       float64
-	lastNbCycle float64
-	lastTimes   cpu.TimesStat
-	config      *CheckConfig
+	nbCPU         float64
+	lastNbCycle   float64
+	lastTimes     cpu.TimesStat
+	config        *CheckConfig
+	lastCheckTime time.Time
 }
 
 // Run executes the check
 func (c *Check) Run() error {
-	globalMu.Lock()
-	defer globalMu.Unlock()
-	sender, err := c.GetSender()
+	startTime := time.Now()
+	//globalMu.Lock()
+	//defer globalMu.Unlock()
+	senderInstance, err := c.GetSender()
 	if err != nil {
 		return err
 	}
 
-	err = c.traceroute(sender)
+	hopCount, err := c.traceroute(senderInstance)
 	if err != nil {
 		return err
 	}
 
-	sender.Gauge("netpath.test_metric", 10, "", nil)
-	sender.Commit()
+	tags := []string{
+		"dest_hostname:" + c.config.DestHostname,
+		"dest_name:" + c.config.DestName,
+	}
+	duration := time.Since(startTime)
+	senderInstance.Gauge("netpath.telemetry.count", 1, "", tags)
+	senderInstance.Gauge("netpath.telemetry.duration", duration.Seconds(), "", tags)
+
+	if !c.lastCheckTime.IsZero() {
+		interval := startTime.Sub(c.lastCheckTime)
+		senderInstance.Gauge("netpath.telemetry.interval", interval.Seconds(), "", tags)
+	}
+	senderInstance.Commit()
+
+	numWorkers := config.Datadog.GetInt("check_runners")
+	senderInstance.Gauge("netpath.telemetry.check_runners", float64(numWorkers), "", tags)
+	senderInstance.Gauge("netpath.telemetry.fake_event_multiplier", float64(c.config.FakeEventMultiplier), "", tags)
+	senderInstance.Gauge("netpath.telemetry.hop_count", float64(hopCount), "", tags)
+	c.lastCheckTime = startTime
+
+	senderInstance.Commit()
 	return nil
 }
 
-func (c *Check) traceroute(sender sender.Sender) error {
-	rawTarget := c.config.Hostname
+func (c *Check) traceroute(senderInstance sender.Sender) (int, error) {
+	rawTarget := c.config.DestHostname
 	target, err := resolve(rawTarget, false)
 	if err != nil {
-		return fmt.Errorf("Cannot resolve %s: %v", rawTarget, err)
+		return 0, fmt.Errorf("Cannot resolve %s: %v", rawTarget, err)
 	}
 
-	numpaths := c.config.Numpaths
+	numpaths := 1
 	if numpaths == 0 {
 		numpaths = DefaultNumPaths
 	}
@@ -100,7 +122,7 @@ func (c *Check) traceroute(sender sender.Sender) error {
 		SrcPort:    uint16(DefaultSourcePort),
 		DstPort:    uint16(DefaultDestPort),
 		UseSrcPort: false,
-		NumPaths:   numpaths,
+		NumPaths:   uint16(numpaths),
 		MinTTL:     uint8(DefaultMinTTL),
 		MaxTTL:     uint8(DefaultMaxTTL),
 		Delay:      time.Duration(DefaultDelay) * time.Millisecond,
@@ -109,46 +131,46 @@ func (c *Check) traceroute(sender sender.Sender) error {
 	}
 	results, err := dt.Traceroute()
 	if err != nil {
-		return fmt.Errorf("Traceroute() failed: %v", err)
+		return 0, fmt.Errorf("Traceroute() failed: %v", err)
 	}
 
 	hname, err := hostname.Get(context.TODO())
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	err = c.traceRouteDublin(sender, results, hname, rawTarget)
+	err = c.traceRouteDublin(senderInstance, results, hname, rawTarget)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	//log.Warnf("results: %+v", results)
 
-	return nil
+	return 0, nil
 	options := traceroute.TracerouteOptions{}
 	options.SetRetries(1)
 	options.SetMaxHops(15)
 	//options.SetFirstHop(traceroute.DEFAULT_FIRST_HOP)
 	times := 1
-	destinationHost := c.config.Hostname
+	destinationHost := c.config.DestHostname
 
 	ipAddr, err := net.ResolveIPAddr("ip", destinationHost)
 	if err != nil {
-		return nil
+		return 0, nil
 	}
 
 	fmt.Printf("traceroute to %v (%v), %v hops max, %v byte packets\n", destinationHost, ipAddr, options.MaxHops(), options.PacketSize())
 
 	hostHops := getHops(options, times, err, destinationHost)
 	if len(hostHops) == 0 {
-		return errors.New("no hops")
+		return 0, errors.New("no hops")
 	}
 
-	err = c.traceRouteV2(sender, hostHops, hname, destinationHost)
+	err = c.traceRouteV2(senderInstance, hostHops, hname, destinationHost)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	return nil
+	return len(hostHops[0]), nil
 }
 
 func (c *Check) traceRouteV1(sender sender.Sender, hostHops [][]traceroute.TracerouteHop, hname string, destinationHost string) error {
@@ -208,9 +230,9 @@ func (c *Check) traceRouteV2(sender sender.Sender, hostHops [][]traceroute.Trace
 
 		sender.EventPlatformEvent(tracerouteStr, epforwarder.EventTypeNetworkDevicesNetpath)
 		tags := []string{
-			"target_service:" + c.config.TargetService,
+			"dest_name:" + c.config.DestName,
 			"agent_host:" + hname,
-			"target:" + destinationHost,
+			"dest_hostname:" + destinationHost,
 			"hop_ip_address:" + ip,
 			"hop_host:" + hop.HostOrAddressString(),
 			"ttl:" + strconv.Itoa(hop.TTL),
@@ -331,9 +353,9 @@ func (c *Check) traceRouteDublin(sender sender.Sender, r *results.Results, hname
 			edgeLabel += fmt.Sprintf("\n%d.%d ms", int(cur.probe.RttUsec/1000), int(cur.probe.RttUsec%1000))
 
 			tags := []string{
-				"target_service:" + c.config.TargetService,
+				"dest_name:" + c.config.DestName,
 				"agent_host:" + hname,
-				"target:" + destinationHost,
+				"dest_hostname:" + destinationHost,
 				"hop_ip_address:" + cur.node,
 				"hop_host:" + c.getHostname(cur.node),
 				"ttl:" + strconv.Itoa(idx),

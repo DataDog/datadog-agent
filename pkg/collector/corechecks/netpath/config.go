@@ -7,15 +7,15 @@ import (
 
 // InstanceConfig is used to deserialize integration instance config
 type InstanceConfig struct {
-	Hostname      string `yaml:"hostname"`
-	Numpaths      uint16 `yaml:"numpaths"`
-	TargetService string `yaml:"target_service"`
+	DestName            string `yaml:"name"`
+	DestHostname        string `yaml:"hostname"`
+	FakeEventMultiplier int    `yaml:"fake_event_multiplier"`
 }
 
 type CheckConfig struct {
-	Hostname      string
-	Numpaths      uint16
-	TargetService string
+	DestHostname        string
+	DestName            string
+	FakeEventMultiplier int
 }
 
 // NewCheckConfig builds a new check config
@@ -29,9 +29,13 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 	c := &CheckConfig{}
 
-	c.Hostname = instance.Hostname
-	c.TargetService = instance.TargetService
-	c.Numpaths = instance.Numpaths
+	c.DestHostname = instance.DestHostname
+	c.DestName = instance.DestName
+	c.FakeEventMultiplier = instance.FakeEventMultiplier
+
+	if c.FakeEventMultiplier == 0 {
+		c.FakeEventMultiplier = 1
+	}
 
 	return c, nil
 }
