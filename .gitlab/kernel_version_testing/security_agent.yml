@@ -91,10 +91,7 @@ kernel_matrix_testing_setup_env_security_agent_x64:
     - mkdir junit
     - mkdir testjson
     - mkdir pkgjson
-    # copy tests
-    - mkdir -p $SECURITY_AGENT_TESTS
-    - cp -R $KITCHEN_TESTS $SECURITY_AGENT_TESTS
-    - mkdir -p $SECURITY_AGENT_EBPF_BYTECODE
+    - popd
     - cp -rv $EBPF_OBJECT_FILES/* $SECURITY_AGENT_EBPF_BYTECODE
     - pushd $CI_PROJECT_DIR/test/new-e2e/system-probe/test-runner && go build -o $DEPENDENCIES/test-runner && popd
     - pushd $CI_PROJECT_DIR/test/new-e2e/system-probe/test-json-review && go build -o $DEPENDENCIES/test-json-review && popd
@@ -103,13 +100,26 @@ kernel_matrix_testing_setup_env_security_agent_x64:
     # package all the dependencies
     - ls -la $DEPENDENCIES
     - pushd $DD_AGENT_TESTING_DIR/$ARCH
-    - tar czvf ../$ARCHIVE_NAME tests
+    - tar czvf ../$ARCHIVE_NAME dependencies
+    - popd
+    # copy agent tests
+    - mkdir -p $SECURITY_AGENT_TESTS
+    - cp -R $KITCHEN_TESTS $SECURITY_AGENT_TESTS
+    - pushd $DD_AGENT_TESTING_DIR/$ARCH
+    - tar czvf ../$TEST_ARCHIVE_NAME system-probe-tests
     - popd
     # upload tests
     - !reference [.wait_for_instances]
     - !reference [.get_instance_ip_by_type]
     - !reference [.setup_ssh_config]
     - scp $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
+    - scp $DD_AGENT_TESTING_DIR/$TEST_ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
+    - ssh metal_instance "tar xzf /opt/kernel-version-testing/${TEST_ARCHIVE_NAME} -C /opt/kernel-version-testing"
+    # give correct permissions to assets
+    - ssh metal_instance "sudo find /opt/kernel-version-testing/system-probe-tests -name *.o -type f -exec chown root:root {} \;"
+    # Add symlink to btf directory. Since this directory is mounted read-only in the micro-vms,
+    # we cannot write btf files here. Hence we create a symlink to a writable destination
+    - ssh metal_instance "sudo mkdir -p /opt/kernel-version-testing/system-probe-tests/pkg/ebpf/bytecode/build/co-re && sudo mkdir -p /opt/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf && sudo ln -s /opt/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf /opt/kernel-version-testing/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf"
     # build connector
     - pushd $CI_PROJECT_DIR/test/new-e2e
     - go build -o $CI_PROJECT_DIR/connector-${ARCH} $CI_PROJECT_DIR/test/new-e2e/system-probe/connector/main.go
@@ -125,12 +135,14 @@ kernel_matrix_testing_setup_env_security_agent_x64:
     GO_BIN: go/bin
     GOTESTSUM: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/gotestsum
     TEST2JSON: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/test2json
-    SECURITY_AGENT_TESTS: opt/system-probe-tests
+    SECURITY_AGENT_TESTS: $DD_AGENT_TESTING_DIR/$ARCH/system-probe-tests
     KITCHEN_TESTS: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/tests
     EBPF_OBJECT_FILES: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/ebpf_bytecode
     SECURITY_AGENT_EBPF_BYTECODE: opt/system-probe-tests/pkg/ebpf/bytecode/build
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
     TEST_COMPONENT: security-agent
+    ARCHIVE_NAME: dependencies-$ARCH.tar.gz
+    TEST_ARCHIVE_NAME: security-agent-tests-$ARCH.tar.gz
   artifacts:
     when: always
     paths:
@@ -143,7 +155,6 @@ upload_security_agent_tests_x64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
-    ARCHIVE_NAME: tests-x86_64.tar.gz
     ARCH: x86_64
     INSTANCE_TYPE: m5d.metal
 
@@ -154,7 +165,6 @@ upload_security_agent_tests_arm64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:arm64"]
   variables:
-    ARCHIVE_NAME: tests-arm64.tar.gz
     ARCH: arm64
     INSTANCE_TYPE: m6gd.metal
 
@@ -193,7 +203,7 @@ upload_security_agent_tests_arm64:
     # ssh into each micro-vm and run initialization script. This script will also run the tests.
     - scp "$DD_AGENT_TESTING_DIR/job_env.txt" "metal_instance:/home/ubuntu/job_env-${ARCH}-${TAG}-${TEST_SET}.txt"
     - ssh metal_instance "scp /home/ubuntu/job_env-${ARCH}-${TAG}-${TEST_SET}.txt ${MICRO_VM_IP}:/job_env.txt"
-    - NESTED_VM_CMD="/home/ubuntu/connector -host ${MICRO_VM_IP} -user root -ssh-file /home/kernel-version-testing/ddvm_rsa -vm-cmd 'bash /root/fetch_dependencies.sh ${ARCH} && /micro-vm-init.sh ${RETRY} /${TEST_SET}.json'"
+    - NESTED_VM_CMD="/home/ubuntu/connector -host ${MICRO_VM_IP} -user root -ssh-file /home/kernel-version-testing/ddvm_rsa -vm-cmd '/root/fetch_dependencies.sh ${ARCH} && /opt/kernel-version-testing/micro-vm-init.sh ${RETRY} /${TEST_SET}.json'"
     - $CI_PROJECT_DIR/connector-$ARCH -host $INSTANCE_IP -user ubuntu -ssh-file $AWS_EC2_SSH_KEY_FILE -vm-cmd "${NESTED_VM_CMD}"
     - ssh metal_instance "ssh ${MICRO_VM_IP} '/test-json-review'"
   after_script:

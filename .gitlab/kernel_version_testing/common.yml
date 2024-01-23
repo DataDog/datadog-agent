@@ -94,26 +94,14 @@ pull_test_dockers_arm64:
     - !reference [.write_ssh_key_file]
   tags: ["arch:amd64"]
   script:
-    # Build dependencies directory
-    - mkdir -p $DEPENDENCIES
-    - pushd $DEPENDENCIES
-    # copy micro-vm-init.sh
-    - cp $CI_PROJECT_DIR/test/new-e2e/system-probe/test/micro-vm-init.sh $DEPENDENCIES
-    # copy over docker images
-    - cp -R $KMT_DOCKERS $DEPENDENCIES/kmt-docker
-    # package all the dependencies
-    - ls -la $DEPENDENCIES
-    - pushd $DD_AGENT_TESTING_DIR/$ARCH
-    - tar czvf ../$ARCHIVE_NAME dependencies
-    - popd
-    # upload tests
+    # upload dependencies
     - !reference [.wait_for_instances]
     - !reference [.get_instance_ip_by_type]
     - !reference [.setup_ssh_config]
-    - scp $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
+    - scp $CI_PROJECT_DIR/test/new-e2e/system-probe/test/micro-vm-init.sh metal_instance:/opt/kernel-version-testing
+    - tar czvf $DD_AGENT_TESTING_DIR/kmt-dockers-$ARCH.tar.gz $DD_AGENT_TESTING_DIR/kmt-dockers-$ARCH
+    - scp $DD_AGENT_TESTING_DIR/kmt-dockers-$ARCH.tar.gz metal_instance:/opt/kernel-version-testing
   variables:
-    DEPENDENCIES: $DD_AGENT_TESTING_DIR/$ARCH/dependencies
-    KMT_DOCKERS: $DD_AGENT_TESTING_DIR/kmt-dockers-$ARCH
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
 
 # -- BTF
