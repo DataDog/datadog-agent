@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !linux_bpf
+//go:build !linux_bpf || windows
 
 // Package verifier is responsible for exposing information the verifier provides
 // for any loaded eBPF program
