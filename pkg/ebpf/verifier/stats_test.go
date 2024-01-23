@@ -14,6 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const BPFComplexityLimit = 1000000
+
 func TestMain(m *testing.M) {
 	logLevel := os.Getenv("DD_LOG_LEVEL")
 	if logLevel == "" {
@@ -65,11 +67,20 @@ func TestBuildVerifierStats(t *testing.T) {
 		}
 	}
 
+	// ensure we go verifier stats for all programs
 	for _, progName := range programs {
 		_, ok := stats[fmt.Sprintf("Func_%s", progName)]
 		if !ok {
 			require.True(t, ok)
 			break
 		}
+	}
+
+	// sanity check the values we can somehow bound
+	for _, stat := range stats {
+		require.True(t, stat.VerificationTime > 0)
+		require.True(t, stat.StackDepth >= 0 && stat.StackDepth <= 512)
+		require.True(t, stat.InstructionsProcessedLimit > 0 && stat.InstructionsProcessedLimit <= BPFComplexityLimit)
+		require.True(t, stat.InstructionsProcessed > 0 && stat.InstructionsProcessed <= stat.InstructionsProcessedLimit)
 	}
 }
