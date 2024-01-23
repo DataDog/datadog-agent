@@ -165,7 +165,7 @@ build do
     end
   end
 
-  if linux_target?
+  if linux_target? and !heroku_target?
     command "invoke -e agentless-scanner.build"
     copy "bin/agentless-scanner/agentless-scanner", "#{install_dir}/embedded/bin"
   end
