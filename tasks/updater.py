@@ -11,7 +11,7 @@ from invoke import task
 from .agent import bundle_install_omnibus
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .go import deps
-from .utils import REPO_PATH, bin_name, get_build_flags, get_version, load_release_versions, timed
+from .libs.common.utils import REPO_PATH, bin_name, get_build_flags, get_version, load_release_versions, timed
 
 BIN_PATH = os.path.join(".", "bin", "updater")
 MAJOR_VERSION = '7'

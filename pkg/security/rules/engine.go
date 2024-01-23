@@ -389,7 +389,6 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 
 	ev.Suppressed = false
 	if e.config.SecurityProfileAutoSuppressionEnabled &&
-		ev.SecurityProfileContext.Status.IsEnabled(model.AutoSuppression) &&
 		ev.IsInProfile() {
 		if val, ok := rule.Definition.GetTag("allow_autosuppression"); ok {
 			if b, err := strconv.ParseBool(val); err == nil && b {

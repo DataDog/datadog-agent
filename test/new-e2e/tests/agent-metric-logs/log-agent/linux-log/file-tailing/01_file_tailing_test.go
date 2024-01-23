@@ -7,6 +7,7 @@ package filetailing
 
 import (
 	_ "embed"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -15,64 +16,64 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metric-logs/log-agent/utils"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metric-logs/log-agent/utils"
 )
 
 // LinuxFakeintakeSuite defines a test suite for the log agent interacting with a virtual machine and fake intake.
 type LinuxFakeintakeSuite struct {
-	e2e.Suite[e2e.FakeIntakeEnv]
+	e2e.BaseSuite[environments.Host]
 }
 
 //go:embed log-config/config.yaml
 var logConfig string
 
-var logPath = "/var/log/hello-world.log"
-
-// logsExampleStackDef returns the stack definition required for the log agent test suite.
-func logsExampleStackDef() *e2e.StackDefinition[e2e.FakeIntakeEnv] {
-	return e2e.FakeIntakeStackDef(
-		e2e.WithAgentParams(
-			agentparams.WithLogs(),
-			agentparams.WithIntegration("custom_logs.d", logConfig)))
-}
+const logFileName = "hello-world.log"
+const logFilePath = utils.LinuxLogsFolderPath + "/" + logFileName
 
 // TestE2EVMFakeintakeSuite runs the E2E test suite for the log agent with a VM and fake intake.
 func TestE2EVMFakeintakeSuite(t *testing.T) {
-	s := &LinuxFakeintakeSuite{}
 	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
-	options := []params.Option{}
-	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
-		options = append(options, params.WithDevMode())
+	options := []e2e.SuiteOption{
+		e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithLogs(), agentparams.WithIntegration("custom_logs.d", logConfig)))),
 	}
-	e2e.Run(t, s, logsExampleStackDef(), options...)
+	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
+		options = append(options, e2e.WithDevMode())
+	}
+
+	e2e.Run(t, &LinuxFakeintakeSuite{}, options...)
 }
 
 func (s *LinuxFakeintakeSuite) BeforeTest(suiteName, testName string) {
-	s.Suite.BeforeTest(suiteName, testName)
+	s.BaseSuite.BeforeTest(suiteName, testName)
 	// Flush server and reset aggregators before the test is ran
 	utils.CleanUp(s)
 
 	// Ensure no logs are present in fakeintake before testing starts
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		logs, err := s.Env().Fakeintake.FilterLogs("hello")
+		logs, err := s.Env().FakeIntake.Client().FilterLogs("hello")
 		if !assert.NoError(c, err, "Unable to filter logs by the service 'hello'.") {
 			return
 		}
 		// If logs are found, print their content for debugging
 		if !assert.Empty(c, logs, "Logs were found when none were expected.") {
-			cat, _ := s.Env().VM.ExecuteWithError("cat /var/log/hello-world.log && cat /var/log/hello-world-2.log")
+			cat, _ := s.Env().RemoteHost.Execute(fmt.Sprintf("cat %s && cat %s/hello-world-2.log", logFilePath, utils.LinuxLogsFolderPath))
 			s.T().Logf("Logs detected when none were expected: %v", cat)
 		}
 	}, 2*time.Minute, 10*time.Second)
+
+	// Create a new log folder location
+	s.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo mkdir -p %s", utils.LinuxLogsFolderPath))
 }
 
 func (s *LinuxFakeintakeSuite) TearDownSuite() {
 	// Flush server and reset aggregators after the test is ran
 	utils.CleanUp(s)
-	s.Suite.TearDownSuite()
+	s.BaseSuite.TearDownSuite()
 }
 
 func (s *LinuxFakeintakeSuite) TestLinuxLogTailing() {
@@ -98,61 +99,63 @@ func (s *LinuxFakeintakeSuite) TestLinuxLogTailing() {
 	// Then the agent successfully collects the log line
 	s.Run("LogRecreateRotation", s.LogRecreateRotation)
 }
+
 func (s *LinuxFakeintakeSuite) LogCollection() {
 	t := s.T()
 	// Create a new log file with permissionn inaccessible to the agent
-	s.Env().VM.Execute("sudo touch /var/log/hello-world.log")
+	s.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo touch %s", logFilePath))
+
 	// Adjust permissions of new log file before log generation
-	output, err := s.Env().VM.ExecuteWithError("sudo chmod +r /var/log/hello-world.log && echo true")
-	assert.NoError(t, err, "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
-	assert.Equal(t, "true", strings.TrimSpace(output), "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
+	output, err := s.Env().RemoteHost.Execute(fmt.Sprintf("sudo chmod +r %s && echo true", logFilePath))
+
+	assert.NoErrorf(t, err, "Unable to adjust permissions for the log file '%s'.", logFilePath)
+	assert.Equalf(t, "true", strings.TrimSpace(output), "Unable to adjust permissions for the log file '%s'.", logFilePath)
 
 	// t.Logf("Permissions granted for new log file.")
 	// Generate log
-	utils.AppendLog(s, "hello-world", 1)
+	utils.AppendLog(s, logFileName, "hello-world", 1)
 
 	// Check intake for new logs
 	utils.CheckLogs(s, "hello", "hello-world", true)
-
 }
 
 func (s *LinuxFakeintakeSuite) LogNoPermission() {
 	t := s.T()
-	utils.CheckLogFilePresence(s, logPath)
+	utils.CheckLogFilePresence(s, logFileName)
 
 	// Allow on only write permission to the log file so the agent cannot tail it
-	output, err := s.Env().VM.ExecuteWithError("sudo chmod -r /var/log/hello-world.log && echo true")
-	assert.NoError(t, err, "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
-	assert.Equal(t, "true", strings.TrimSpace(output), "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
+	output, err := s.Env().RemoteHost.Execute(fmt.Sprintf("sudo chmod -r %s && echo true", logFilePath))
+	assert.NoErrorf(t, err, "Unable to adjust permissions for the log file '%s'.", logFilePath)
+	assert.Equalf(t, "true", strings.TrimSpace(output), "Unable to adjust permissions for the log file '%s'.", logFilePath)
 	t.Logf("Read permissions revoked")
 	// In Linux, file permissions are checked at the time of file opening, not during subsequent read or write operations
 	// => If the agent has already successfully opened a file for reading, it can continue to read from that file even if the read permissions are later removed
 	// => Restart the agent to force it to reopen the file
-	s.Env().VM.Execute("sudo service datadog-agent restart")
+	s.Env().RemoteHost.Execute("sudo service datadog-agent restart")
+
 	// Generate logs and check the intake for no new logs because of revoked permissions
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		agentReady := s.Env().Agent.IsReady()
+		agentReady := s.Env().Agent.Client.IsReady()
 		if assert.Truef(c, agentReady, "Agent is not ready after restart") {
 			// Generate log
-			utils.AppendLog(s, "access-denied", 1)
+			utils.AppendLog(s, logFileName, "access-denied", 1)
 			// Check intake for new logs
 			utils.CheckLogs(s, "hello", "access-denied", false)
 		}
 	}, 2*time.Minute, 5*time.Second)
-
 }
 
 func (s *LinuxFakeintakeSuite) LogCollectionAfterPermission() {
 	t := s.T()
-	utils.CheckLogFilePresence(s, logPath)
+	utils.CheckLogFilePresence(s, logFileName)
 
 	// Generate logs
-	utils.AppendLog(s, "hello-after-permission-world", 1)
+	utils.AppendLog(s, logFileName, "hello-after-permission-world", 1)
 
 	// Grant read permission
-	output, err := s.Env().VM.ExecuteWithError("sudo chmod +r /var/log/hello-world.log && echo true")
-	assert.NoError(t, err, "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
-	assert.Equal(t, "true", strings.TrimSpace(output), "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
+	output, err := s.Env().RemoteHost.Execute(fmt.Sprintf("sudo chmod +r %s && echo true", logFilePath))
+	assert.NoErrorf(t, err, "Unable to adjust permissions for the log file '%s'.", logFilePath)
+	assert.Equalf(t, "true", strings.TrimSpace(output), "Unable to adjust permissions for the log file '%s'.", logFilePath)
 	t.Logf("Permissions granted for log file.")
 
 	// Check intake for new logs
@@ -161,23 +164,23 @@ func (s *LinuxFakeintakeSuite) LogCollectionAfterPermission() {
 
 func (s *LinuxFakeintakeSuite) LogCollectionBeforePermission() {
 	t := s.T()
-	utils.CheckLogFilePresence(s, logPath)
+	utils.CheckLogFilePresence(s, logFileName)
 
 	// Reset log file permissions to default before testing
-	output, err := s.Env().VM.ExecuteWithError("sudo chmod 644 /var/log/hello-world.log && echo true")
+	output, err := s.Env().RemoteHost.Execute(fmt.Sprintf("sudo chmod 644 %s && echo true", logFilePath))
 	assert.NoErrorf(t, err, "Unable to adjust back to default permissions, err: %s.", err)
-	assert.Equal(t, "true", strings.TrimSpace(output), "Unable to adjust back to default permissions for the log file '/var/log/hello-world.log'.")
+	assert.Equalf(t, "true", strings.TrimSpace(output), "Unable to adjust back to default permissions for the log file '%s'.", logFilePath)
 	t.Logf("Permissions reset to default.")
 	// Grant read permission
-	output, err = s.Env().VM.ExecuteWithError("sudo chmod +r /var/log/hello-world.log && echo true")
-	assert.NoError(t, err, "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
-	assert.Equal(t, "true", strings.TrimSpace(output), "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
+	output, err = s.Env().RemoteHost.Execute(fmt.Sprintf("sudo chmod +r %s && echo true", logFilePath))
+	assert.NoErrorf(t, err, "Unable to adjust permissions for the log file '%s'.", logFilePath)
+	assert.Equalf(t, "true", strings.TrimSpace(output), "Unable to adjust permissions for the log file '%s'.", logFilePath)
 	t.Logf("Permissions granted.")
 	// Wait for the agent to tail the log file since there is a delay between permissions being granted and the agent tailing the log file
 	time.Sleep(1000 * time.Millisecond)
 
 	// Generate logs
-	utils.AppendLog(s, "access-granted", 1)
+	utils.AppendLog(s, logFileName, "access-granted", 1)
 
 	// Check intake for new logs
 	utils.CheckLogs(s, "hello", "access-granted", true)
@@ -185,23 +188,24 @@ func (s *LinuxFakeintakeSuite) LogCollectionBeforePermission() {
 
 func (s *LinuxFakeintakeSuite) LogRecreateRotation() {
 	t := s.T()
-	utils.CheckLogFilePresence(s, logPath)
+	utils.CheckLogFilePresence(s, logFileName)
 
 	// Rotate the log file and check if the agent is tailing the new log file.
 	// Delete and Recreate file rotation
-	output, err := s.Env().VM.ExecuteWithError("umask 022 && echo true")
+	output, err := s.Env().RemoteHost.Execute("umask 022 && echo true")
 	assert.NoError(t, err, "Failed to set umask")
-	s.Env().VM.Execute("sudo mv /var/log/hello-world.log /var/log/hello-world.log.old && sudo touch /var/log/hello-world.log")
+
+	s.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo mv %s %s.old && sudo touch %s", logFilePath, logFilePath, logFilePath))
+
 	// Verify the old log file's existence after rotation
-	_, err = s.Env().VM.ExecuteWithError("ls /var/log/hello-world.log.old")
+	_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("ls %s.old", logFilePath))
 	assert.NoError(t, err, "Failed to find the old log file after rotation")
-	assert.Equal(t, "true", strings.TrimSpace(output), "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
+	assert.Equalf(t, "true", strings.TrimSpace(output), "Unable to adjust permissions for the log file '%s'.", logFilePath)
 	t.Logf("Permissions granted for new log file.")
 
 	// Generate new logs
-	utils.AppendLog(s, "hello-world-new-content", 1)
+	utils.AppendLog(s, logFileName, "hello-world-new-content", 1)
 
 	// Check intake for new logs
 	utils.CheckLogs(s, "hello", "hello-world-new-content", true)
-
 }

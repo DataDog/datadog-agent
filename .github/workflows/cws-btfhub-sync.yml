@@ -20,7 +20,7 @@ jobs:
       - name: Checkout btfhub-archive repository
         uses: actions/checkout@v4
         with:
-          repository: aquasecurity/btfhub-archive
+          repository: DataDog/btfhub-archive
           path: dev/dist/archive
 
       - name: Install python

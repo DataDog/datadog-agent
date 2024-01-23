@@ -6,6 +6,7 @@ name "librdkafka"
 default_version "2.3.0"
 
 dependency "cyrus-sasl"
+dependency "curl"
 
 source :url => "https://github.com/confluentinc/librdkafka/archive/refs/tags/v#{version}.tar.gz",
         :sha256 => "2d49c35c77eeb3d42fa61c43757fcbb6a206daa560247154e60642bcdcc14d12",
@@ -21,6 +22,7 @@ build do
   env = with_standard_compiler_flags(with_embedded_path)
   configure_options = [
     "--enable-sasl",
+    "--enable-curl"
   ]
   configure(*configure_options, :env => env)
   command "make -j #{workers}", :env => env
