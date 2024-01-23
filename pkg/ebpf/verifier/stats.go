@@ -19,6 +19,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 )
@@ -51,6 +53,14 @@ func objectFileBase(path string) string {
 // BuildVerifierStats accepts a list of eBPF object files and generates a
 // map of all programs and their Statistics
 func BuildVerifierStats(objectFiles []string) (map[string]*Statistics, error) {
+	kversion, err := kernel.HostVersion()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get host kernel version: %w", err)
+	}
+	if kversion < kernel.VersionCode(5, 2, 0) {
+		return nil, fmt.Errorf("Kernel %s does not expose verifier statistics", kversion)
+	}
+
 	stats := make(map[string]*Statistics)
 	for _, file := range objectFiles {
 		bc, err := os.Open(file)

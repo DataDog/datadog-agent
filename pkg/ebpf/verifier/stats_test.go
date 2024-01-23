@@ -8,7 +8,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/require"
@@ -32,7 +34,14 @@ func TestBuildVerifierStats(t *testing.T) {
 	var objectFiles []string
 	var programs []string
 
-	err := filepath.WalkDir(filepath.Join(os.Getenv("DD_SYSTEM_PROBE_BPF_DIR"), "co-re"), func(path string, d fs.DirEntry, err error) error {
+	kversion, err := kernel.HostVersion()
+	require.NoError(t, err)
+
+	if kversion < kernel.VersionCode(5, 2, 0) {
+		t.Skip(fmt.Sprintf("Skipping because verifier statistics not available on kernel %s", kversion))
+	}
+
+	err = filepath.WalkDir(filepath.Join(os.Getenv("DD_SYSTEM_PROBE_BPF_DIR"), "co-re"), func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
