@@ -148,13 +148,36 @@ func init() {
 	exportedMapStatus.Set("lastError", &exportedLastUpdateErr)
 }
 
+type options struct {
+	traceAgentEnv    string
+	databaseFileName string
+}
+
+var defaultOptions = options{
+	traceAgentEnv:    "",
+	databaseFileName: "remote-config.db",
+}
+
+// Option is a service option
+type Option func(s *options)
+
 // WithTraceAgentEnv sets the service trace-agent environment variable
-func WithTraceAgentEnv(env string) func(s *Service) {
-	return func(s *Service) { s.traceAgentEnv = env }
+func WithTraceAgentEnv(env string) func(s *options) {
+	return func(s *options) { s.traceAgentEnv = env }
+}
+
+// WithDatabaseFileName sets the service database file name
+func WithDatabaseFileName(fileName string) func(s *options) {
+	return func(s *options) { s.databaseFileName = fileName }
 }
 
 // NewService instantiates a new remote configuration management service
-func NewService(cfg model.Reader, apiKey, baseRawURL, hostname string, telemetryReporter RcTelemetryReporter, agentVersion string, opts ...func(s *Service)) (*Service, error) {
+func NewService(cfg model.Reader, apiKey, baseRawURL, hostname string, telemetryReporter RcTelemetryReporter, agentVersion string, opts ...Option) (*Service, error) {
+	options := defaultOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
+
 	refreshIntervalOverrideAllowed := false // If a user provides a value we don't want to override
 
 	var refreshInterval time.Duration
@@ -214,7 +237,7 @@ func NewService(cfg model.Reader, apiKey, baseRawURL, hostname string, telemetry
 		return nil, err
 	}
 
-	dbPath := path.Join(cfg.GetString("run_path"), "remote-config.db")
+	dbPath := path.Join(cfg.GetString("run_path"), options.databaseFileName)
 	db, err := openCacheDB(dbPath, agentVersion)
 	if err != nil {
 		return nil, err
@@ -285,12 +308,8 @@ func NewService(cfg model.Reader, apiKey, baseRawURL, hostname string, telemetry
 		},
 		telemetryReporter: telemetryReporter,
 		agentVersion:      agentVersion,
+		traceAgentEnv:     options.traceAgentEnv,
 	}
-
-	for _, opt := range opts {
-		opt(s)
-	}
-
 	return s, nil
 }
 
@@ -546,6 +565,7 @@ func (s *Service) getRefreshInterval() (time.Duration, error) {
 func (s *Service) ClientGetConfigs(_ context.Context, request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
 	s.Lock()
 	defer s.Unlock()
+	log.Debugf("client %s requested configurations", request.Client.Id)
 	err := validateRequest(request)
 	if err != nil {
 		return nil, err

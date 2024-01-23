@@ -38,7 +38,7 @@ func newOrgConfig(rc *RemoteConfig) *orgConfig {
 		catalogReceived: make(chan struct{}),
 		rc:              rc,
 	}
-	rc.client.Subscribe(state.ProductUpdaterCatalogDD, c.onUpdate)
+	rc.client.Subscribe(state.ProductUpdaterCatalogDD, c.onCatalogUpdate)
 	return c
 }
 
@@ -92,11 +92,7 @@ func (c *orgConfig) waitForCatalog(ctx context.Context) error {
 	}
 }
 
-func (c *orgConfig) onUpdate(_ map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-	catalogConfigs := c.rc.client.GetConfigs(state.ProductUpdaterCatalogDD)
-	if len(catalogConfigs) == 0 {
-		return
-	}
+func (c *orgConfig) onCatalogUpdate(catalogConfigs map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	var mergedCatalog catalog
 	for configPath, config := range catalogConfigs {
 		var catalog catalog
@@ -113,6 +109,7 @@ func (c *orgConfig) onUpdate(_ map[string]state.RawConfig, applyStateCallback fu
 	}
 	c.m.Lock()
 	defer c.m.Unlock()
+	log.Info("datadog packages catalog was updated")
 	c.catalog = mergedCatalog
 	c.catalogReceivedSync.Do(func() {
 		close(c.catalogReceived)

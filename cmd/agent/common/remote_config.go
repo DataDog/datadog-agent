@@ -8,6 +8,7 @@ package common
 
 import (
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -16,7 +17,7 @@ import (
 )
 
 // NewRemoteConfigService returns a new remote configuration service
-func NewRemoteConfigService(hostname string) (*remoteconfig.Service, error) {
+func NewRemoteConfigService(hostname string, opts ...remoteconfig.Option) (*remoteconfig.Service, error) {
 	apiKey := config.Datadog.GetString("api_key")
 	if config.Datadog.IsSet("remote_configuration.api_key") {
 		apiKey = config.Datadog.GetString("remote_configuration.api_key")
@@ -27,7 +28,8 @@ func NewRemoteConfigService(hostname string) (*remoteconfig.Service, error) {
 
 	telemetryReporter := newRcTelemetryReporter()
 
-	configService, err := remoteconfig.NewService(config.Datadog, apiKey, baseRawURL, hostname, telemetryReporter, version.AgentVersion, remoteconfig.WithTraceAgentEnv(traceAgentEnv))
+	opts = append(opts, remoteconfig.WithTraceAgentEnv(traceAgentEnv))
+	configService, err := remoteconfig.NewService(config.Datadog, apiKey, baseRawURL, hostname, telemetryReporter, version.AgentVersion, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create remote-config service: %w", err)
 	}
