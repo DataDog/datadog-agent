@@ -23,9 +23,9 @@ import (
 	"github.com/cilium/ebpf/asm"
 )
 
-// VerifierStats represent that statistics exposed via
+// Statistics represent that statistics exposed via
 // the eBPF verifier when  LogLevelStats is enabled
-type VerifierStats struct {
+type Statistics struct {
 	VerificationTime           int `json:"verification_time"`
 	StackDepth                 int `json:"stack_usage"`
 	InstructionsProcessed      int `json:"instruction_processed"`
@@ -49,9 +49,9 @@ func objectFileBase(path string) string {
 //go:generate go fmt programs.go
 
 // BuildVerifierStats accepts a list of eBPF object files and generates a
-// map of all programs and their VerifierStats
-func BuildVerifierStats(objectFiles []string) (map[string]*VerifierStats, error) {
-	stats := make(map[string]*VerifierStats)
+// map of all programs and their Statistics
+func BuildVerifierStats(objectFiles []string) (map[string]*Statistics, error) {
+	stats := make(map[string]*Statistics)
 	for _, file := range objectFiles {
 		bc, err := os.Open(file)
 		if err != nil {
@@ -129,7 +129,7 @@ func BuildVerifierStats(objectFiles []string) (map[string]*VerifierStats, error)
 			switch field.Type() {
 			case reflect.TypeOf((*ebpf.Program)(nil)):
 				p := field.Interface().(*ebpf.Program)
-				stat, err := unmarshalVerifierStats(p.VerifierLog)
+				stat, err := unmarshalStatistics(p.VerifierLog)
 				if err != nil {
 					return nil, fmt.Errorf("failed to unmarshal verifier log for program %s: %w", programName, err)
 				}
@@ -143,9 +143,9 @@ func BuildVerifierStats(objectFiles []string) (map[string]*VerifierStats, error)
 	return stats, nil
 }
 
-func unmarshalVerifierStats(output string) (*VerifierStats, error) {
+func unmarshalStatistics(output string) (*Statistics, error) {
 	var err error
-	var v VerifierStats
+	var v Statistics
 
 	v.StackDepth, err = strconv.Atoi(stackUsage.FindStringSubmatch(output)[1])
 	if err != nil {
