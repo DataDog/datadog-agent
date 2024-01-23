@@ -92,7 +92,6 @@ kernel_matrix_testing_setup_env_security_agent_x64:
     - mkdir testjson
     - mkdir pkgjson
     - popd
-    - cp -rv $EBPF_OBJECT_FILES/* $SECURITY_AGENT_EBPF_BYTECODE
     - pushd $CI_PROJECT_DIR/test/new-e2e/system-probe/test-runner && go build -o $DEPENDENCIES/test-runner && popd
     - pushd $CI_PROJECT_DIR/test/new-e2e/system-probe/test-json-review && go build -o $DEPENDENCIES/test-json-review && popd
     - cp $CI_PROJECT_DIR/test/new-e2e/system-probe/test-runner/files/*.json $DEPENDENCIES/
@@ -105,6 +104,8 @@ kernel_matrix_testing_setup_env_security_agent_x64:
     # copy agent tests
     - mkdir -p $SECURITY_AGENT_TESTS
     - cp -R $KITCHEN_TESTS $SECURITY_AGENT_TESTS
+    - mkdir -p $SECURITY_AGENT_EBPF_BYTECODE
+    - cp -rv $EBPF_OBJECT_FILES/* $SECURITY_AGENT_EBPF_BYTECODE
     - pushd $DD_AGENT_TESTING_DIR/$ARCH
     - tar czvf ../$TEST_ARCHIVE_NAME system-probe-tests
     - popd
