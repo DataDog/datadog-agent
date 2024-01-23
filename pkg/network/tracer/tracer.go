@@ -81,7 +81,7 @@ type Tracer struct {
 	reverseDNS         dns.ReverseDNS
 	usmMonitor         *usm.Monitor
 	ebpfTracer         connection.Tracer
-	bpfErrorsCollector *ebpftelemetry.EbpfErrorsCollector
+	bpfErrorsCollector *ebpftelemetry.EBPFErrorsCollector
 	lastCheck          *atomic.Int64
 
 	bufferLock sync.Mutex
@@ -162,11 +162,11 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 	// to avoid possible nil pointer dereference when accessing it via the bpfErrorsCollector pointer
 	var bpfTelemetry *ebpftelemetry.EBPFTelemetry
 
-	if eec := ebpftelemetry.NewEbpfErrorsCollector(); eec != nil {
+	if eec := ebpftelemetry.NewEBPFErrorsCollector(); eec != nil {
 		coretelemetry.GetCompatComponent().RegisterCollector(eec)
 
 		//this is a patch for now, until ebpfTelemetry is fully encapsulated in the ebpf/telemetry pkg
-		if errorsCollector, ok := eec.(*ebpftelemetry.EbpfErrorsCollector); ok {
+		if errorsCollector, ok := eec.(*ebpftelemetry.EBPFErrorsCollector); ok {
 			tr.bpfErrorsCollector = errorsCollector
 			bpfTelemetry = tr.bpfErrorsCollector.EBPFTelemetry
 		}

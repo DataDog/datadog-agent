@@ -13,18 +13,18 @@ import (
 	"unsafe"
 )
 
-// EbpfErrorsCollector implements the prometheus Collector interface
+// EBPFErrorsCollector implements the prometheus Collector interface
 // for collecting statistics about errors of ebpf helpers and ebpf maps operations.
-type EbpfErrorsCollector struct {
+type EBPFErrorsCollector struct {
 	*EBPFTelemetry
 }
 
-// NewEbpfErrorsCollector initializes a new Collector object for ebpf helper and map operations errors
-func NewEbpfErrorsCollector() prometheus.Collector {
+// NewEBPFErrorsCollector initializes a new Collector object for ebpf helper and map operations errors
+func NewEBPFErrorsCollector() prometheus.Collector {
 	if supported, _ := ebpfTelemetrySupported(); !supported {
 		return nil
 	}
-	return &EbpfErrorsCollector{
+	return &EBPFErrorsCollector{
 		&EBPFTelemetry{
 			mapKeys:   make(map[string]uint64),
 			probeKeys: make(map[string]uint64),
@@ -33,13 +33,13 @@ func NewEbpfErrorsCollector() prometheus.Collector {
 }
 
 // Describe returns all descriptions of the collector
-func (e *EbpfErrorsCollector) Describe(ch chan<- *prometheus.Desc) {
+func (e *EBPFErrorsCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- ebpfMapOpsErrorsGauge
 	ch <- ebpfHelperErrorsGauge
 }
 
 // Collect returns the current state of all metrics of the collector
-func (e *EbpfErrorsCollector) Collect(ch chan<- prometheus.Metric) {
+func (e *EBPFErrorsCollector) Collect(ch chan<- prometheus.Metric) {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 
