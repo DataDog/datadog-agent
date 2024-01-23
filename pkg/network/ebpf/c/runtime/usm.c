@@ -315,8 +315,9 @@ int uprobe__crypto_tls_Conn_Close(struct pt_regs *ctx) {
     // Clear the element in the map since this connection is closed
     bpf_map_delete_elem(&conn_tup_by_go_tls_conn, &conn_pointer);
 
+    conn_tuple_t copy = *t;
     // tls_finish can launch a tail call, thus cleanup should be done before.
-    tls_finish(ctx, t);
+    tls_finish(ctx, &copy);
     return 0;
 }
 
