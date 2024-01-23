@@ -46,12 +46,12 @@ var templatesFS embed.FS
 
 // Name returns the name
 func (s statusProvider) Name() string {
-	return "Dogstatsd"
+	return "DogStatsD"
 }
 
 // Section returns the section
 func (s statusProvider) Section() string {
-	return "dogstatsd"
+	return "DogStatsD"
 }
 
 // JSON populates the status map

@@ -80,7 +80,7 @@ import (
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
 	processagentStatusImpl "github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
-	tarceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/statusimpl"
+	traceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/statusimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
@@ -340,7 +340,7 @@ func getSharedFxOption() fx.Option {
 			status.NewInformationProvider(httpproxyStatus.GetProvider()),
 			status.NewInformationProvider(autodiscoveryStatus.GetProvider()),
 		),
-		tarceagentStatusImpl.Module(),
+		traceagentStatusImpl.Module(),
 		processagentStatusImpl.Module(),
 		dogstatsdStatusimpl.Module(),
 		statusimpl.Module(),
