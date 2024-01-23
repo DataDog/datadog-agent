@@ -5,7 +5,6 @@
 
 struct security_profile_t {
     u64 cookie;
-    u32 state;
 };
 
 struct security_profile_syscalls_t {

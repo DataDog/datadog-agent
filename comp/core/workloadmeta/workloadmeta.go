@@ -95,7 +95,7 @@ func newWorkloadMeta(deps dependencies) Component {
 				return err
 			}
 		}
-		wm.Start(mainCtx)
+		wm.start(mainCtx)
 		return nil
 	}})
 	deps.Lc.Append(fx.Hook{OnStop: func(context.Context) error {

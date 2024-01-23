@@ -27,7 +27,7 @@ docker_build_fakeintake:
     TARGET: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/fakeintake:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
     DOCKERFILE: test/fakeintake/Dockerfile
     PLATFORMS: linux/amd64,linux/arm64
-    BUILD_CONTEXT: test/fakeintake
+    BUILD_CONTEXT: .
   script:
     # DockerHub login for build to limit rate limit when pulling base images
     - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)

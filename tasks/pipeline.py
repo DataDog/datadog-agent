@@ -239,6 +239,7 @@ def run(
     all_builds=True,
     kitchen_tests=True,
     e2e_tests=False,
+    rc_build=False,
     rc_k8s_deployments=False,
 ):
     """
@@ -248,6 +249,10 @@ def run(
     Use --no-all-builds to not run builds for all architectures (only a subset of jobs will run. No effect on pipelines on the default branch).
     Use --no-kitchen-tests to not run all kitchen tests on the pipeline.
     Use --e2e-tests to run all e2e tests on the pipeline.
+
+    Release Candidate related flags:
+    Use --rc-build to mark the build as Release Candidate.
+    Use --rc-k8s-deployments to trigger a child pipeline that will deploy Release Candidate build to staging k8s clusters.
 
     By default, the nightly release.json entries (nightly and nightly-a7) are used.
     Use the --use-release-entries option to use the release-a6 and release-a7 release.json entries instead.
@@ -345,6 +350,7 @@ def run(
             all_builds=all_builds,
             kitchen_tests=kitchen_tests,
             e2e_tests=e2e_tests,
+            rc_build=rc_build,
             rc_k8s_deployments=rc_k8s_deployments,
         )
     except FilteredOutException:

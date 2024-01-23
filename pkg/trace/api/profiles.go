@@ -117,8 +117,10 @@ func newProfileProxy(conf *config.AgentConfig, targets []*url.URL, keys []string
 		containerID := cidProvider.GetContainerID(req.Context(), req.Header)
 		if ctags := getContainerTags(conf.ContainerTags, containerID); ctags != "" {
 			req.Header.Set("X-Datadog-Container-Tags", ctags)
+			log.Debugf("Setting header X-Datadog-Container-Tags=%s for profiles proxy", ctags)
 		}
 		req.Header.Set("X-Datadog-Additional-Tags", tags)
+		log.Debugf("Setting header X-Datadog-Additional-Tags=%s for profiles proxy", tags)
 		metrics.Count("datadog.trace_agent.profile", 1, nil, 1)
 		// URL, Host and key are set in the transport for each outbound request
 	}
