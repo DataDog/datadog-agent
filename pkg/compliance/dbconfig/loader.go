@@ -105,33 +105,35 @@ func ListProcesses(ctx context.Context) map[utils.ContainerID]int32 {
 
 // LoadDBResourceFromPID loads and returns an optional DBResource associated
 // with the given process PID.
-func LoadDBResourceFromPID(ctx context.Context, pid int32) (resource *DBResource, ok bool) {
+func LoadDBResourceFromPID(ctx context.Context, pid int32) (*DBResource, bool) {
 	proc, err := process.NewProcessWithContext(ctx, pid)
 	if err != nil {
-		return
+		return nil, false
 	}
 
 	resourceType, ok := getProcResourceType(proc)
 	if !ok {
-		return
+		return nil, false
 	}
 	containerID, _ := utils.GetProcessContainerID(pid)
 	hostroot, ok := utils.GetProcessRootPath(pid)
 	if !ok {
-		return
+		return nil, false
 	}
 
 	var conf *DBConfig
 	switch resourceType {
 	case postgresqlResourceType:
-		conf, _ = LoadPostgreSQLConfig(ctx, hostroot, proc)
+		conf, ok = LoadPostgreSQLConfig(ctx, hostroot, proc)
 	case mongoDBResourceType:
-		conf, _ = LoadMongoDBConfig(ctx, hostroot, proc)
+		conf, ok = LoadMongoDBConfig(ctx, hostroot, proc)
 	case cassandraResourceType:
-		conf, _ = LoadCassandraConfig(ctx, hostroot, proc)
+		conf, ok = LoadCassandraConfig(ctx, hostroot, proc)
+	default:
+		ok = false
 	}
-	if conf == nil {
-		return
+	if !ok || conf == nil {
+		return nil, false
 	}
 	return &DBResource{
 		Type:        resourceType,

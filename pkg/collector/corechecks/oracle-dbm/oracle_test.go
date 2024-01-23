@@ -105,7 +105,7 @@ func getTemporaryLobs(db *sqlx.DB) (int, error) {
 
 func TestChkRun(t *testing.T) {
 	chk.dbmEnabled = true
-	chk.config.InstanceConfig.InstantClient = false
+	chk.config.InstanceConfig.OracleClient = false
 
 	// This is to ensure that query samples return rows
 	chk.config.QuerySamples.IncludeAllSessions = true
@@ -121,7 +121,7 @@ func TestChkRun(t *testing.T) {
 		var driver string
 		if tnsAlias == "" {
 			driver = common.GoOra
-			chk.config.InstanceConfig.InstantClient = false
+			chk.config.InstanceConfig.OracleClient = false
 		} else {
 			driver = common.Godror
 		}

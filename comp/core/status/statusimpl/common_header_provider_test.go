@@ -13,17 +13,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestCommonHeaderProviderIndex(t *testing.T) {
 	config := fxutil.Test[config.Component](t, config.MockModule())
 
-	provider := newCommonHeaderProvider(config)
+	provider := newCommonHeaderProvider(agentParams, config)
 
 	assert.Equal(t, 0, provider.Index())
 }
@@ -36,13 +37,13 @@ func TestCommonHeaderProviderJSON(t *testing.T) {
 
 	defer func() {
 		nowFunc = time.Now
-		startTimeProvider = pkgConfig.StartTime
+		startTimeProvider = pkgconfigsetup.StartTime
 		os.Setenv("TZ", originalTZ)
 	}()
 
 	config := fxutil.Test[config.Component](t, config.MockModule())
 
-	provider := newCommonHeaderProvider(config)
+	provider := newCommonHeaderProvider(agentParams, config)
 	stats := map[string]interface{}{}
 	provider.JSON(stats)
 
@@ -64,12 +65,12 @@ func TestCommonHeaderProviderText(t *testing.T) {
 
 	defer func() {
 		nowFunc = time.Now
-		startTimeProvider = pkgConfig.StartTime
+		startTimeProvider = pkgconfigsetup.StartTime
 	}()
 
 	config := fxutil.Test[config.Component](t, config.MockModule())
 
-	provider := newCommonHeaderProvider(config)
+	provider := newCommonHeaderProvider(agentParams, config)
 
 	buffer := new(bytes.Buffer)
 	provider.Text(buffer)
@@ -99,13 +100,13 @@ func TestCommonHeaderProviderHTML(t *testing.T) {
 
 	defer func() {
 		nowFunc = time.Now
-		startTimeProvider = pkgConfig.StartTime
+		startTimeProvider = pkgconfigsetup.StartTime
 		os.Setenv("TZ", originalTZ)
 	}()
 
 	config := fxutil.Test[config.Component](t, config.MockModule())
 
-	provider := newCommonHeaderProvider(config)
+	provider := newCommonHeaderProvider(agentParams, config)
 
 	buffer := new(bytes.Buffer)
 	provider.HTML(buffer)

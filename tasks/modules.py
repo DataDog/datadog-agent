@@ -9,6 +9,7 @@ from invoke import Context, task
 from tasks.libs.common.color import color_message
 
 FORBIDDEN_CODECOV_FLAG_CHARS = re.compile(r'[^\w\.\-]')
+AGENT_MODULE_PATH_PREFIX = "github.com/DataDog/datadog-agent/"
 
 
 class GoModule:
@@ -59,7 +60,6 @@ class GoModule:
         """
         Computes the list of github.com/DataDog/datadog-agent/ dependencies of the module.
         """
-        prefix = "github.com/DataDog/datadog-agent/"
         base_path = os.getcwd()
         mod_parser_path = os.path.join(base_path, "internal", "tools", "modparser")
 
@@ -68,7 +68,7 @@ class GoModule:
 
         try:
             output = subprocess.check_output(
-                ["go", "run", ".", "-path", os.path.join(base_path, self.path), "-prefix", prefix],
+                ["go", "run", ".", "-path", os.path.join(base_path, self.path), "-prefix", AGENT_MODULE_PATH_PREFIX],
                 cwd=mod_parser_path,
             ).decode("utf-8")
         except subprocess.CalledProcessError as e:
@@ -76,7 +76,7 @@ class GoModule:
             raise e
 
         # Remove github.com/DataDog/datadog-agent/ from each line
-        return [line[len(prefix) :] for line in output.strip().splitlines()]
+        return [line[len(AGENT_MODULE_PATH_PREFIX) :] for line in output.strip().splitlines()]
 
     # FIXME: Change when Agent 6 and Agent 7 releases are decoupled
     def tag(self, agent_version):
@@ -121,7 +121,7 @@ class GoModule:
         >>> [mod.import_path for mod in mods]
         ["github.com/DataDog/datadog-agent", "github.com/DataDog/datadog-agent/pkg/util/log"]
         """
-        path = "github.com/DataDog/datadog-agent"
+        path = AGENT_MODULE_PATH_PREFIX.removesuffix('/')
         if self.path != ".":
             path += "/" + self.path
         return path
@@ -167,8 +167,13 @@ DEFAULT_MODULES = {
     "comp/core/config": GoModule("comp/core/config", independent=True),
     "comp/core/log": GoModule("comp/core/log", independent=True),
     "comp/core/secrets": GoModule("comp/core/secrets", independent=True),
+    "comp/core/status": GoModule("comp/core/status", independent=True),
+    "comp/core/status/statusimpl": GoModule("comp/core/status/statusimpl", independent=True),
     "comp/core/telemetry": GoModule("comp/core/telemetry", independent=True),
     "comp/forwarder/defaultforwarder": GoModule("comp/forwarder/defaultforwarder", independent=True),
+    "comp/forwarder/orchestrator/orchestratorinterface": GoModule(
+        "comp/forwarder/orchestrator/orchestratorinterface", independent=True
+    ),
     "comp/logs/agent/config": GoModule("comp/logs/agent/config", independent=True),
     "cmd/agent/common/path": GoModule("cmd/agent/common/path", independent=True),
     "pkg/config/model": GoModule("pkg/config/model", independent=True),
@@ -177,6 +182,7 @@ DEFAULT_MODULES = {
     "pkg/config/utils": GoModule("pkg/config/utils", independent=True),
     "pkg/config/logs": GoModule("pkg/config/logs", independent=True),
     "pkg/config/remote": GoModule("pkg/config/remote", independent=True),
+    "pkg/serializer": GoModule("pkg/serializer", independent=True),
     "pkg/security/secl": GoModule("pkg/security/secl", independent=True),
     "pkg/status/health": GoModule("pkg/status/health", independent=True),
     "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state", independent=True, used_by_otel=True),
@@ -192,6 +198,7 @@ DEFAULT_MODULES = {
     "pkg/util/common": GoModule("pkg/util/common", independent=True),
     "pkg/util/compression": GoModule("pkg/util/compression", independent=True),
     "pkg/util/executable": GoModule("pkg/util/executable", independent=True),
+    "pkg/util/flavor": GoModule("pkg/util/flavor", independent=True),
     "pkg/util/filesystem": GoModule("pkg/util/filesystem", independent=True),
     "pkg/util/fxutil": GoModule("pkg/util/fxutil", independent=True),
     "pkg/util/buf": GoModule("pkg/util/buf", independent=True),

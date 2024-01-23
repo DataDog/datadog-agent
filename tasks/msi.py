@@ -12,7 +12,7 @@ from contextlib import contextmanager
 from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
 
-from tasks.utils import get_version, load_release_versions, timed
+from .libs.common.utils import get_version, load_release_versions, timed
 
 # Windows only import
 try:
@@ -320,7 +320,7 @@ def test(
 
     # Generate the config file
     if not ctx.run(
-        f'inv -e generate-config --build-type="agent-py2py3" --output-file="{build_outdir}\\datadog.yaml"',
+        f'inv -e agent.generate-config --build-type="agent-py2py3" --output-file="{build_outdir}\\datadog.yaml"',
         warn=True,
         env=env,
     ):
