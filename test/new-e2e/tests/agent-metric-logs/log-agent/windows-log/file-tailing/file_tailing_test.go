@@ -7,6 +7,7 @@ package windowsfiletailing
 
 import (
 	_ "embed"
+	"fmt"
 	"os"
 	"strconv"
 	"testing"
@@ -32,7 +33,8 @@ type WindowsFakeintakeSuite struct {
 //go:embed log-config/config.yaml
 var logConfig string
 
-var logPath = "C:\\logs\\hello-world.log"
+const logFileName = "hello-world.log"
+const logFilePath = utils.WindowsLogsFolderPath + "\\" + logFileName
 
 // TestE2EVMFakeintakeSuite runs the E2E test suite for the log agent with a VM and fake intake.
 func TestE2EVMFakeintakeSuite(t *testing.T) {
@@ -65,7 +67,7 @@ func (s *WindowsFakeintakeSuite) BeforeTest(suiteName, testName string) {
 		}
 		// If logs are found, print their content for debugging
 		if !assert.Empty(c, logs, "Logs were found when none were expected") {
-			cat, _ := s.Env().RemoteHost.Execute("type C:\\logs\\hello-world.log")
+			cat, _ := s.Env().RemoteHost.Execute(fmt.Sprintf("type %s", logFilePath))
 			s.T().Logf("Logs detected when none were expected: %v", cat)
 		}
 	}, 2*time.Minute, 10*time.Second)
@@ -104,21 +106,21 @@ func (s *WindowsFakeintakeSuite) TestWindowsLogTailing() {
 func (s *WindowsFakeintakeSuite) testLogCollection() {
 	t := s.T()
 	// Create a new log directory
-	_, err := s.Env().RemoteHost.Execute("New-Item -Path C:\\logs -ItemType Directory -Force")
+	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf("New-Item -Path %s -ItemType Directory -Force", utils.WindowsLogsFolderPath))
 	require.NoError(t, err, "Unable to create a new log directory.")
 
 	// Create a new log file
-	_, err = s.Env().RemoteHost.Execute("New-Item -Path C:\\logs\\hello-world.log -ItemType File -Force")
+	_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("New-Item -Path %s -ItemType File -Force", logFilePath))
 	require.NoError(t, err, "Unable to create a new log file.")
 
 	// Adjust permissions of new log file before log generation
-	_, err = s.Env().RemoteHost.Execute("icacls C:\\logs\\hello-world.log /grant ddagentuser:R")
-	assert.NoError(t, err, "Unable to adjust permissions for the log file 'C:\\logs\\hello-world.log '.")
+	_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("icacls %s /grant ddagentuser:R", logFilePath))
+	assert.NoErrorf(t, err, "Unable to adjust permissions for the log file %s.", logFilePath)
 
 	t.Logf("Permissions granted for new log file.")
 
 	// Generate log
-	utils.AppendLog(s, "hello-world", 1)
+	utils.AppendLog(s, logFileName, "hello-world", 1)
 
 	// Check intake for new logs
 	utils.CheckLogsExpected(s, "hello", "hello-world")
@@ -127,11 +129,11 @@ func (s *WindowsFakeintakeSuite) testLogCollection() {
 
 func (s *WindowsFakeintakeSuite) testLogNoPermission() {
 	t := s.T()
-	utils.CheckLogFilePresence(s, logPath)
+	utils.CheckLogFilePresence(s, logFileName)
 
 	// Revoke read permission from ddagentuser to the ls
-	_, err := s.Env().RemoteHost.Execute("icacls C:\\logs\\hello-world.log /deny ddagentuser:R")
-	assert.NoError(t, err, "Unable to adjust permissions for the log file 'C:\\logs\\hello-world.log'")
+	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf("icacls %s /deny ddagentuser:R", logFilePath))
+	assert.NoErrorf(t, err, "Unable to adjust permissions for the log file %s.", logFilePath)
 	t.Logf("Read permissions revoked")
 
 	// Generate logs and check the intake for no new logs because of revoked permissions
@@ -139,7 +141,7 @@ func (s *WindowsFakeintakeSuite) testLogNoPermission() {
 		agentReady := s.Env().Agent.Client.IsReady()
 		if assert.Truef(c, agentReady, "Agent is not ready after restart") {
 			// Generate log
-			utils.AppendLog(s, "access-denied", 1)
+			utils.AppendLog(s, logFileName, "access-denied", 1)
 			// Check intake for new logs
 			utils.CheckLogsNotExpected(s, "hello", "access-denied")
 		}
@@ -149,14 +151,14 @@ func (s *WindowsFakeintakeSuite) testLogNoPermission() {
 
 func (s *WindowsFakeintakeSuite) testLogCollectionAfterPermission() {
 	t := s.T()
-	utils.CheckLogFilePresence(s, logPath)
+	utils.CheckLogFilePresence(s, logFileName)
 
 	// Generate logs
-	utils.AppendLog(s, "hello-after-permission-world", 1)
+	utils.AppendLog(s, logFileName, "hello-after-permission-world", 1)
 
 	// Grant read permission
-	_, err := s.Env().RemoteHost.Execute("icacls C:\\logs\\hello-world.log /grant ddagentuser:R")
-	assert.NoError(t, err, "Unable to adjust permissions for the log file 'C:\\logs\\hello-world.log '.")
+	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf("icacls %s /grant ddagentuser:R", logFilePath))
+	assert.NoErrorf(t, err, "Unable to adjust permissions for the log file %s", logFilePath)
 	t.Logf("Permissions granted for log file.")
 
 	// Check intake for new logs
@@ -165,22 +167,22 @@ func (s *WindowsFakeintakeSuite) testLogCollectionAfterPermission() {
 
 func (s *WindowsFakeintakeSuite) testLogCollectionBeforePermission() {
 	t := s.T()
-	utils.CheckLogFilePresence(s, logPath)
+	utils.CheckLogFilePresence(s, logFileName)
 
 	// Reset log file permissions to default before testing
-	_, err := s.Env().RemoteHost.Execute("icacls C:\\logs\\hello-world.log /reset")
+	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf("icacls %s /reset", logFilePath))
 	assert.NoErrorf(t, err, "Unable to adjust back to default permissions, err: %s.", err)
 	t.Logf("Permissions reset to default.")
 
 	// Grant read permission
-	_, err = s.Env().RemoteHost.Execute("icacls C:\\logs\\hello-world.log /grant ddagentuser:R")
-	assert.NoError(t, err, "Unable to adjust permissions for the log file 'C:\\logs\\hello-world.log '.")
+	_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("icacls %s /grant ddagentuser:R", logFilePath))
+	assert.NoErrorf(t, err, "Unable to adjust permissions for the log file %s.", logFilePath)
 	t.Logf("Permissions granted.")
 	// Wait for the agent to tail the log file since there is a delay between permissions being granted and the agent tailing the log file
 	time.Sleep(10000 * time.Millisecond)
 
 	// Generate logs
-	utils.AppendLog(s, "access-granted", 1)
+	utils.AppendLog(s, logFileName, "access-granted", 1)
 
 	// Check intake for new logs
 	utils.CheckLogsExpected(s, "hello", "access-granted")
@@ -188,24 +190,24 @@ func (s *WindowsFakeintakeSuite) testLogCollectionBeforePermission() {
 
 func (s *WindowsFakeintakeSuite) testLogRecreateRotation() {
 	t := s.T()
-	utils.CheckLogFilePresence(s, logPath)
+	utils.CheckLogFilePresence(s, logFileName)
 
 	// Rotate the log file and check if the agent is tailing the new log file.
 	// Delete and Recreate file rotation
-	s.Env().RemoteHost.Execute("Rename-Item -Path C:\\logs\\hello-world.log -NewName hello-world.log.old ")
-	s.Env().RemoteHost.Execute("New-Item -Path C:\\logs\\hello-world.log -ItemType File ")
+	s.Env().RemoteHost.Execute(fmt.Sprintf("Rename-Item -Path %s -NewName %s.old ", logFilePath, logFilePath))
+	s.Env().RemoteHost.Execute(fmt.Sprintf("New-Item -Path %s -ItemType File ", logFilePath))
 
 	// Verify the old log file's existence after rotation
-	_, err := s.Env().RemoteHost.Execute("ls C:\\logs\\hello-world.log.old")
+	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf("ls %s.old", logFilePath))
 	assert.NoError(t, err, "Failed to find the old log file after rotation")
 
 	// Adjust permissions of new log file before log generation
-	_, err = s.Env().RemoteHost.Execute("icacls C:\\logs\\hello-world.log /grant ddagentuser:R")
-	assert.NoError(t, err, "Unable to adjust permissions for the log file 'C:\\logs\\hello-world.log '.")
+	_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("icacls %s /grant ddagentuser:R", logFilePath))
+	assert.NoErrorf(t, err, "Unable to adjust permissions for the log file %s.", logFilePath)
 	t.Logf("Permissions granted for new log file.")
 
 	// Generate new logs
-	utils.AppendLog(s, "hello-world-new-content", 1)
+	utils.AppendLog(s, logFileName, "hello-world-new-content", 1)
 
 	// Check intake for new logs
 	utils.CheckLogsExpected(s, "hello", "hello-world-new-content")

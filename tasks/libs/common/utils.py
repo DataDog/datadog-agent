@@ -14,7 +14,7 @@ from types import SimpleNamespace
 
 from invoke.exceptions import Exit
 
-from .color import color_message
+from tasks.libs.common.color import color_message
 
 # constants
 DEFAULT_BRANCH = "main"

@@ -2,8 +2,8 @@ import os
 
 from invoke import Exit, task
 
-from .libs.common.github_api import GithubAPI
-from .libs.common.utils import DEFAULT_BRANCH, GITHUB_REPO_NAME
+from tasks.libs.common.github_api import GithubAPI
+from tasks.libs.common.utils import DEFAULT_BRANCH, GITHUB_REPO_NAME
 
 
 def is_pr_context(branch, pr_url, test_name):

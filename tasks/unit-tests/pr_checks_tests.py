@@ -5,7 +5,7 @@ from unittest.mock import patch
 from invoke import MockContext
 from invoke.exceptions import Exit
 
-from .. import pr_checks
+from tasks import pr_checks
 
 
 class TestLintSkipQA(unittest.TestCase):
@@ -79,7 +79,3 @@ class TestLintMilestone(unittest.TestCase):
         mock_pr_check.return_value = "Milestone"
         pr_checks.lint_milestone(MockContext())
         mock_print.assert_called_with("Milestone: Milestone")
-
-
-if __name__ == "__main__":
-    unittest.main()

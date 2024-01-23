@@ -1,5 +1,5 @@
 logs:
   - type: file
-    path: '/var/log/hello-world.log'
+    path: '/var/log/e2e_test_logs/hello-world.log'
     service: hello
     source: custom_log

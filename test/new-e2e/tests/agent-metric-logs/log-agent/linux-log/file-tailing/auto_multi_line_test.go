@@ -20,12 +20,12 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metric-logs/log-agent/utils"
 )
 
 //go:embed log-config/automulti.yaml
 var agentAutoMultiLineConfig string
 
-const service = "hello"
 const singleLineLog = "This is a single line log"
 const multiLineLog = "This is\na multi\nline log"
 
@@ -64,7 +64,7 @@ func (s *AutoMultiLineSuite) generateMultilineLogs() {
 		} else {
 			message = fmt.Sprintf("%s | %s", timestamp, multiLineLog)
 		}
-		cmd := fmt.Sprintf("echo '%s' | sudo tee -a %s", message, logPath)
+		cmd := fmt.Sprintf("echo '%s' | sudo tee -a %s", message, logFilePath)
 		s.Env().RemoteHost.MustExecute(cmd)
 	}
 }
@@ -72,8 +72,11 @@ func (s *AutoMultiLineSuite) generateMultilineLogs() {
 func (s *AutoMultiLineSuite) BeforeTest(suiteName, testName string) {
 	s.BaseSuite.BeforeTest(suiteName, testName)
 
-	s.Env().RemoteHost.Execute("sudo touch /var/log/hello-world.log")
-	s.Env().RemoteHost.Execute("sudo chmod +r /var/log/hello-world.log")
+	// Create a new log folder location
+	s.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo mkdir -p %s", utils.LinuxLogsFolderPath))
+
+	s.Env().RemoteHost.Execute(fmt.Sprintf("sudo touch %s", logFilePath))
+	s.Env().RemoteHost.Execute(fmt.Sprintf("sudo chmod +r %s", logFilePath))
 
 	s.generateMultilineLogs()
 }
@@ -81,7 +84,7 @@ func (s *AutoMultiLineSuite) BeforeTest(suiteName, testName string) {
 func (s *AutoMultiLineSuite) AfterTest(suiteName, testName string) {
 	s.BaseSuite.AfterTest(suiteName, testName)
 
-	s.Env().RemoteHost.Execute("sudo rm /var/log/hello-world.log")
+	s.Env().RemoteHost.Execute(fmt.Sprintf("sudo rm -rf %s", utils.LinuxLogsFolderPath))
 }
 
 func (s *AutoMultiLineSuite) ContainsLogWithNewLines() {
@@ -89,6 +92,7 @@ func (s *AutoMultiLineSuite) ContainsLogWithNewLines() {
 
 	// Raw string since '\n' literal will be in the log.Message
 	content := `This is\na multi\nline log`
+	service := "hello"
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		names, err := client.GetLogServiceNames()

@@ -23,6 +23,12 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/os"
 )
 
+// LinuxLogsFolderPath is the folder where log files will be stored for Linux tests
+const LinuxLogsFolderPath = "/var/log/e2e_test_logs"
+
+// WindowsLogsFolderPath is the folder where log files will be stored for Windows tests
+const WindowsLogsFolderPath = "C:\\logs\\e2e_test_logs"
+
 // LogsTestSuite is an interface for the log agent test suite.
 type LogsTestSuite interface {
 	T() *testing.T
@@ -30,14 +36,14 @@ type LogsTestSuite interface {
 	IsDevMode() bool
 }
 
-// AppendLog appen log with 'content', which is then repeated 'reccurrence' times and verifies log contents.
-func AppendLog(ls LogsTestSuite, content string, recurrence int) {
+// AppendLog append log with 'content', which is then repeated 'reccurrence' times and verifies log contents.
+func AppendLog(ls LogsTestSuite, logFileName, content string, recurrence int) {
 	// Determine the OS and set the appropriate log path and command.
+	var checkCmd, logPath string
 	t := ls.T()
 	t.Helper()
 
 	var osStr string
-	var logPath, checkCmd string
 
 	logContent := strings.Repeat(content+"\n", recurrence)
 
@@ -45,10 +51,10 @@ func AppendLog(ls LogsTestSuite, content string, recurrence int) {
 	case os.WindowsFamily:
 		osStr = "windows"
 		t.Log("Generating Windows log.")
-		logPath = "C:\\logs\\hello-world.log"
-
 		// Unless a log line is newline terminated, the log agent will not pick it up. This is a known behavior.
 		logContent = strings.ReplaceAll(logContent, "\n", "\r\n")
+		logPath = fmt.Sprintf("%s\\%s", WindowsLogsFolderPath, logFileName)
+		t.Logf("Log path: %s", logPath)
 
 		checkCmd = fmt.Sprintf("type %s", logPath)
 		assert.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -62,7 +68,7 @@ func AppendLog(ls LogsTestSuite, content string, recurrence int) {
 	default: // Assuming Linux if not Windows.
 		osStr = "linux"
 		t.Log("Generating Linux log.")
-		logPath = "/var/log/hello-world.log"
+		logPath = fmt.Sprintf("%s/%s", LinuxLogsFolderPath, logFileName)
 		assert.EventuallyWithT(t, func(c *assert.CollectT) {
 			bytes, err := ls.Env().RemoteHost.AppendFile(osStr, logPath, []byte(logContent))
 			if assert.NoErrorf(c, err, "Error writing log: %v", err) {
@@ -84,20 +90,20 @@ func AppendLog(ls LogsTestSuite, content string, recurrence int) {
 	}, 2*time.Minute, 10*time.Second)
 }
 
-// CheckLogFilePresence verifies the presence or absence of a log file path
-func CheckLogFilePresence(ls LogsTestSuite, logPath string) {
+// ChecklogFilePresence verifies the presence or absence of a log file path
+func CheckLogFilePresence(ls LogsTestSuite, logFileName string) {
 	t := ls.T()
 	t.Helper()
 
 	switch ls.Env().RemoteHost.OSFamily {
 	case os.WindowsFamily:
-		checkCmd := fmt.Sprintf("Get-Content %s", logPath)
+		checkCmd := fmt.Sprintf("Get-Content %s\\%s", WindowsLogsFolderPath, logFileName)
 		_, err := ls.Env().RemoteHost.Execute(checkCmd)
 		if err != nil {
 			assert.FailNow(t, "Log File not found")
 		}
 	default: // Assuming Linux if not Windows.
-		checkCmd := fmt.Sprintf("sudo cat %s", logPath)
+		checkCmd := fmt.Sprintf("sudo cat %s/%s", LinuxLogsFolderPath, logFileName)
 		_, err := ls.Env().RemoteHost.Execute(checkCmd)
 		if err != nil {
 			assert.FailNow(t, "Log File not found")
@@ -168,9 +174,8 @@ func CleanUp(ls LogsTestSuite) {
 	if ls.IsDevMode() {
 		switch ls.Env().RemoteHost.OSFamily {
 		default: // default is linux
-			ls.Env().RemoteHost.MustExecute("sudo rm -f /var/log/hello-world.log")
-			ls.Env().RemoteHost.MustExecute("sudo rm -f /var/log/hello-world.log.old")
-			checkCmd = "ls /var/log/hello-world.log /var/log/hello-world.log.old 2>/dev/null || echo 'Files do not exist'"
+			ls.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo rm -rf %s", LinuxLogsFolderPath))
+			checkCmd = fmt.Sprintf("ls %s 2>/dev/null || echo 'Files do not exist'", LinuxLogsFolderPath)
 		case os.WindowsFamily:
 			if ls.IsDevMode() {
 				// Removing registry.json in DevMode because when the VM is reused, the agent would try to resume the file offset but the tests would truncate the log files.
@@ -186,10 +191,10 @@ func CleanUp(ls LogsTestSuite) {
 				_, err = ls.Env().RemoteHost.Execute("& \"$env:ProgramFiles\\Datadog\\Datadog Agent\\bin\\agent.exe\" start-service")
 				require.NoError(t, err, "Unable to start the agent")
 			}
-			_, err := ls.Env().RemoteHost.Execute("if (Test-Path C:\\logs) { Remove-Item -Path C:\\logs -Recurse -Force }")
+			_, err := ls.Env().RemoteHost.Execute(fmt.Sprintf("if (Test-Path %s) { Remove-Item -Path %s -Recurse -Force }", WindowsLogsFolderPath, WindowsLogsFolderPath))
 			require.NoError(t, err, "Unable to remove windows log file")
 
-			checkCmd = "if (Test-Path C:\\logs) { Get-ChildItem -Path C:\\logs\\hello-world.log } else { Write-Output 'No File exist to be removed' }"
+			checkCmd = fmt.Sprintf("if (Test-Path %s) { Get-ChildItem -Path %s } else { Write-Output 'No File exist to be removed' }", WindowsLogsFolderPath, WindowsLogsFolderPath)
 		}
 
 		assert.EventuallyWithT(t, func(c *assert.CollectT) {
