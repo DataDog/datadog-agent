@@ -18,7 +18,6 @@ import (
 	nethttp "net/http"
 	"net/url"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -30,7 +29,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
@@ -343,10 +341,10 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config.ResetSystemProbeConfig(t)
-			t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAP_CLEANER_INTERVAL_IN_S", strconv.Itoa(tt.mapCleanerIntervalSeconds))
-			t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_IDLE_CONNECTION_TTL_IN_S", strconv.Itoa(tt.httpIdleConnectionTTLSeconds))
-			monitor := newHTTPMonitor(t)
+			cfg := networkconfig.New()
+			cfg.HTTPMapCleanerInterval = time.Duration(tt.mapCleanerIntervalSeconds) * time.Second
+			cfg.HTTPIdleConnectionTTL = time.Duration(tt.httpIdleConnectionTTLSeconds) * time.Second
+			monitor := newHTTPMonitorWithCfg(t, cfg)
 
 			slowResponseTimeout := time.Duration(tt.slowResponseTime) * time.Second
 			serverTimeout := slowResponseTimeout + time.Second
