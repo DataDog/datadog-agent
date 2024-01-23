@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/pinger"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 )
@@ -1936,60 +1937,110 @@ interface_configs: '[{"match_field":"name","match_value":"eth0","in_speed":25,"o
 }
 
 func Test_buildConfig_PingConfig(t *testing.T) {
-	trueVal := true
-	falseVal := false
-	sixVal := 6
-	fiveVal := 5
-	fourVal := 4
 	tests := []struct {
-		name               string
-		rawInstanceConfig  []byte
-		rawInitConfig      []byte
-		expectedPingConfig snmpintegration.PackedPingConfig
-		expectedErr        string
+		name                string
+		rawInstanceConfig   []byte
+		rawInitConfig       []byte
+		expectedPingEnabled bool
+		expectedPingConfig  pinger.Config
+		expectedErr         string
 	}{
 		{
-			name: "ping config as yaml",
+			name: "ping config as instance level yaml",
 			// language=yaml
 			rawInstanceConfig: []byte(`
 ip_address: 1.2.3.4
 ping:
   enabled: true
   linux:
-    use_raw_socket: false
+    use_raw_socket: true
   timeout: 6
   interval: 5
   count: 4
 `),
 			// language=yaml
-			rawInitConfig: []byte(``),
-			expectedPingConfig: snmpintegration.PackedPingConfig{
-				Enabled: &trueVal,
-				Linux: snmpintegration.PingLinuxConfig{
-					UseRawSocket: &falseVal,
-				},
-				Interval: &fiveVal,
-				Timeout:  &sixVal,
-				Count:    &fourVal,
+			rawInitConfig:       []byte(``),
+			expectedPingEnabled: true,
+			expectedPingConfig: pinger.Config{
+				UseRawSocket: true,
+				Timeout:      6 * time.Millisecond,
+				Interval:     5 * time.Millisecond,
+				Count:        4,
 			},
 		},
 		{
-			name: "interface config as json string",
+			name: "ping config as init config level yaml",
 			// language=yaml
 			rawInstanceConfig: []byte(`
 ip_address: 1.2.3.4
-ping: '{"linux":{"use_raw_socket":false},"enabled":true,"interval":4,"timeout":5,"count":6}'
 `),
 			// language=yaml
-			rawInitConfig: []byte(``),
-			expectedPingConfig: snmpintegration.PackedPingConfig{
-				Linux: snmpintegration.PingLinuxConfig{
-					UseRawSocket: &falseVal,
-				},
-				Enabled:  &trueVal,
-				Interval: &fourVal,
-				Timeout:  &fiveVal,
-				Count:    &sixVal,
+			rawInitConfig: []byte(`
+ping:
+  enabled: true
+  linux:
+    use_raw_socket: true
+  timeout: 8
+  interval: 7
+  count: 2
+`),
+			expectedPingEnabled: true,
+			expectedPingConfig: pinger.Config{
+				UseRawSocket: true,
+				Timeout:      8 * time.Millisecond,
+				Interval:     7 * time.Millisecond,
+				Count:        2,
+			},
+		},
+		{
+			name: "ping config as instance level json string",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+ping: '{"linux":{"use_raw_socket":true},"enabled":true,"interval":443,"timeout":369,"count":679}'
+`),
+			// language=yaml
+			rawInitConfig:       []byte(``),
+			expectedPingEnabled: true,
+			expectedPingConfig: pinger.Config{
+				UseRawSocket: true,
+				Timeout:      369 * time.Millisecond,
+				Interval:     443 * time.Millisecond,
+				Count:        679,
+			},
+		},
+		{
+			name: "ping config as init level json string",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+`),
+			// language=yaml
+			rawInitConfig: []byte(`
+ping: '{"linux":{"use_raw_socket":true},"enabled":true,"interval":344,"timeout":963,"count":976}'
+`),
+			expectedPingEnabled: true,
+			expectedPingConfig: pinger.Config{
+				UseRawSocket: true,
+				Timeout:      963 * time.Millisecond,
+				Interval:     344 * time.Millisecond,
+				Count:        976,
+			},
+		},
+		{
+			name: "no ping config passed",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+`),
+			// language=yaml
+			rawInitConfig:       []byte(``),
+			expectedPingEnabled: false,
+			expectedPingConfig: pinger.Config{
+				UseRawSocket: false,
+				Interval:     DefaultPingInterval,
+				Timeout:      DefaultPingTimeout,
+				Count:        DefaultPingCount,
 			},
 		},
 	}
@@ -1999,8 +2050,8 @@ ping: '{"linux":{"use_raw_socket":false},"enabled":true,"interval":4,"timeout":5
 			if tt.expectedErr != "" {
 				assert.EqualError(t, err, tt.expectedErr)
 			} else {
-				assert.Equal(t, *tt.expectedPingConfig.Enabled, config.PingEnabled)
-				assert.Equal(t, *tt.expectedPingConfig.Linux.UseRawSocket, config.PingConfig.UseRawSocket)
+				assert.Equal(t, tt.expectedPingEnabled, config.PingEnabled)
+				assert.Equal(t, tt.expectedPingConfig, config.PingConfig)
 			}
 		})
 	}

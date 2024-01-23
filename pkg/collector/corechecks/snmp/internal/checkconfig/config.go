@@ -63,14 +63,14 @@ const deviceIPTagKey = "snmp_device"
 const DefaultBulkMaxRepetitions = uint32(10)
 
 // DefaultPingCount is the default number of pings to send per check run
-const DefaultPingCount int = 1
+const DefaultPingCount int = 2
 
 // DefaultPingTimeout is the default timeout for all pings to return in a
 // check run
 const DefaultPingTimeout = 3 * time.Second
 
 // DefaultPingInterval is the default time to wait between sending ping packets
-const DefaultPingInterval = 1 * time.Second
+const DefaultPingInterval = 10 * time.Millisecond
 
 var uptimeMetricConfig = profiledefinition.MetricsConfig{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}}
 
