@@ -48,6 +48,7 @@ type Reader interface {
 
 	GetSource(key string) Source
 	GetAllSources(key string) []ValueWithSource
+	GetSection(key string) map[string]interface{}
 
 	ConfigFileUsed() string
 
