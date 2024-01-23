@@ -285,6 +285,8 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 				if npid, err := syscall.PtraceGetEventMsg(pid); err == nil {
 					cb(CallbackPostType, nr, int(npid), pid, regs, nil)
 				}
+			case syscall.PTRACE_EVENT_EXEC:
+				cb(CallbackPostType, ExecveNr, pid, 0, regs, nil)
 			case unix.PTRACE_EVENT_SECCOMP:
 				switch nr {
 				case ForkNr, VforkNr, CloneNr, Clone3Nr:
@@ -303,7 +305,7 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 				case ForkNr, VforkNr, CloneNr, Clone3Nr:
 					// already handled
 				case ExecveNr, ExecveatNr:
-					// does not return on success, thus ret value stay at syscall.ENOSYS
+					// triggered in case of error
 					cb(CallbackPostType, nr, pid, 0, regs, nil)
 				default:
 					if ret := t.ReadRet(regs); ret != -int64(syscall.ENOSYS) {
