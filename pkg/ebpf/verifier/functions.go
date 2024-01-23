@@ -33,38 +33,6 @@ import (
 {{ .InterfaceMap }}
 `))
 
-func listOfObjectFiles(directory string) ([]string, error) {
-	var objectFiles []string
-
-	skipDebugBuilds := func(path string) bool {
-		debugBuild := strings.Contains(path, "-debug")
-		if os.Getenv("USE_DEBUG_BUILDS") != "" {
-			return !debugBuild
-		}
-		return debugBuild
-	}
-
-	if err := filepath.WalkDir(directory, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			return nil
-		}
-
-		if skipDebugBuilds(path) || !strings.HasSuffix(path, ".o") {
-			return nil
-		}
-		objectFiles = append(objectFiles, path)
-
-		return nil
-	}); err != nil {
-		return nil, fmt.Errorf("failed to walk directory %s: %v", directory, err)
-	}
-
-	return objectFiles, nil
-}
-
 func main() {
 	args := os.Args[1:]
 	if len(args) < 1 {
@@ -83,9 +51,31 @@ func main() {
 	}
 	defer f.Close()
 
-	objectFiles, err := listOfObjectFiles(args[0])
-	if err != nil {
-		log.Fatalf("error collecting object files: %v", err)
+	var objectFiles []string
+	skipDebugBuilds := func(path string) bool {
+		debugBuild := strings.Contains(path, "-debug")
+		if os.Getenv("USE_DEBUG_BUILDS") != "" {
+			return !debugBuild
+		}
+		return debugBuild
+	}
+
+	if err := filepath.WalkDir(args[0], func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+
+		if skipDebugBuilds(path) || !strings.HasSuffix(path, ".o") {
+			return nil
+		}
+		objectFiles = append(objectFiles, path)
+
+		return nil
+	}); err != nil {
+		log.Fatalf("failed to walk directory %s: %v", args[0], err)
 	}
 
 	var functions strings.Builder
