@@ -147,7 +147,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	// Fetch and report metrics
 	var checkErr error
 	var deviceStatus metadata.DeviceStatus
-	var pingCanConnect bool
+	var pingCanConnect *bool
 
 	deviceReachable, dynamicTags, values, checkErr := d.getValuesAndTags()
 	tags := common.CopyStrings(staticTags)
@@ -177,7 +177,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		} else {
 			// if ping succeeds, set pingCanConnect for use in metadata and send metrics
 			log.Debugf("%s: ping returned: %+v", d.config.IPAddress, pingResult)
-			pingCanConnect = pingResult.CanConnect
+			pingCanConnect = &pingResult.CanConnect
 			d.submitPingMetrics(pingResult, tags)
 		}
 	} else {
@@ -205,7 +205,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 
 		deviceDiagnosis := d.diagnoses.Report()
 
-		d.sender.ReportNetworkDeviceMetadata(d.config, values, deviceMetadataTags, collectionTime, deviceStatus, &pingCanConnect, deviceDiagnosis)
+		d.sender.ReportNetworkDeviceMetadata(d.config, values, deviceMetadataTags, collectionTime, deviceStatus, pingCanConnect, deviceDiagnosis)
 	}
 
 	d.submitTelemetryMetrics(startTime, tags)
