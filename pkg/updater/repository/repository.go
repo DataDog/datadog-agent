@@ -411,7 +411,7 @@ func packageVersionInUse(runPath string) (bool, error) {
 			runningPIDs++
 		} else {
 			log.Debugf("process with PID %d is stopped, removing PID file", pid)
-			err = os.RemoveAll(filepath.Join(runPath, rawPID.Name()))
+			err = os.Remove(filepath.Join(runPath, rawPID.Name()))
 			if err != nil {
 				log.Errorf("could not remove PID file: %v", err)
 			}
