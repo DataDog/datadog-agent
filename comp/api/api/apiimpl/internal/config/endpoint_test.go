@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 type testCase struct {
@@ -32,7 +33,7 @@ type expvals struct {
 	Unauthorized map[string]int `json:"unauthorized"`
 }
 
-func testConfigValue(t *testing.T, configEndpoint *configEndpoint, server *httptest.Server, configName string, expectedStatus int) {
+func testConfigValue(t *testing.T, configEndpoint *configEndpoint, server *httptest.Server, configName string, expectedStatus int, isSection bool) {
 	t.Helper()
 
 	beforeVars := getExpvals(t, configEndpoint)
@@ -56,7 +57,14 @@ func testConfigValue(t *testing.T, configEndpoint *configEndpoint, server *httpt
 	err = json.Unmarshal(body, &configValue)
 	require.NoError(t, err)
 
-	require.EqualValues(t, configEndpoint.cfg.Get(configName), configValue)
+	var expected interface{}
+	if isSection {
+		expected = configEndpoint.cfg.GetSection(configName)
+	} else {
+		expected = configEndpoint.cfg.Get(configName)
+	}
+
+	require.EqualValues(t, expected, configValue)
 }
 
 func TestConfigEndpoint(t *testing.T) {
@@ -83,7 +91,7 @@ func TestConfigEndpoint(t *testing.T) {
 			if testCase.existing {
 				cfg.SetWithoutSource(configName, "some_value")
 			}
-			testConfigValue(t, configEndpoint, server, configName, testCase.expectedStatus)
+			testConfigValue(t, configEndpoint, server, configName, testCase.expectedStatus, false)
 		})
 	}
 
@@ -91,7 +99,30 @@ func TestConfigEndpoint(t *testing.T) {
 		configName := "my.config.value"
 		cfg, server, configEndpoint := getConfigServer(t, authorizedSet{configName: {}})
 		cfg.SetWithoutSource(configName, make(chan int))
-		testConfigValue(t, configEndpoint, server, configName, http.StatusInternalServerError)
+		testConfigValue(t, configEndpoint, server, configName, http.StatusInternalServerError, false)
+	})
+
+	t.Run("authorized_section_merged", func(t *testing.T) {
+		// shows that we can query for an entire config section if a prefix rule exists (trailing
+		// period) and that we can query any specific value under that section, regardless of
+		// whether or not its the default value, or the field has individually been overridden (i.e.
+		// env var, etc)
+		configParentSection := "my.config"
+		configParentSectionRule := configParentSection + "."
+		configNameOne := "my.config.field_one"
+		configNameTwo := "my.config.field_two"
+		configNameThree := "my.config.field_three"
+
+		cfg, server, configEndpoint := getConfigServer(t, authorizedSet{configParentSectionRule: {}})
+		cfg.Set(configNameOne, "value_one", model.SourceDefault)
+		cfg.Set(configNameTwo, "value_two", model.SourceEnvVar)
+		cfg.Set(configNameThree, "value_three", model.SourceDefault)
+		cfg.Set(configNameThree, "value_three", model.SourceEnvVar)
+
+		testConfigValue(t, configEndpoint, server, configParentSection, http.StatusOK, true)
+		testConfigValue(t, configEndpoint, server, configNameOne, http.StatusOK, false)
+		testConfigValue(t, configEndpoint, server, configNameTwo, http.StatusOK, false)
+		testConfigValue(t, configEndpoint, server, configNameThree, http.StatusOK, false)
 	})
 }
 

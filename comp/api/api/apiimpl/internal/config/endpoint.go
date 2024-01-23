@@ -23,7 +23,7 @@ type authorizedSet map[string]struct{}
 
 var authorizedConfigPathsCore = authorizedSet{
 	"api_key": {},
-	"ha":      {},
+	"ha.":     {},
 }
 
 type configEndpoint struct {
