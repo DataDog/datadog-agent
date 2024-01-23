@@ -56,7 +56,14 @@ def stdout_or_file(filename=None):
     return open(filename, 'w') if filename else stdout()
 
 
-@task
+@task(
+    help={
+        "skip_object_files": "Do not build ebpf object files",
+        "base": "JSON file holding verifier statistics to compare against",
+        "jsonfmt": "Output in json format rather than tabulating",
+        "out": "Output file to write results to. By default results are written to stdout"
+    }
+)
 def print_verification_stats(ctx, skip_object_files=False, base=None, jsonfmt=False, out=None):
     sudo = "sudo" if not is_root() else ""
     if not skip_object_files:
