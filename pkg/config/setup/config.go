@@ -1275,6 +1275,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	setupAPM(config)
 	OTLP(config)
 	setupProcesses(config)
+	setupHighAvailability(config)
 }
 
 // LoadProxyFromEnv overrides the proxy settings with environment variables
