@@ -847,9 +847,11 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 
 		require.Eventually(t, func() bool {
 			var ok bool
-			conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
+			conns := getConnections(t, tr)
+			t.Log(conns)
+			conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
 			return ok && conn.Direction == network.OUTGOING
-		}, 2*time.Second, 500*time.Millisecond)
+		}, 3*time.Second, 100*time.Millisecond)
 
 		// conn.Via should be nil, since traffic is local
 		require.Nil(t, conn.Via)
@@ -877,9 +879,11 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 		var conn *network.ConnectionStats
 		require.Eventually(t, func() bool {
 			var ok bool
-			conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
+			conns := getConnections(t, tr)
+			t.Log(conns)
+			conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
 			return ok && conn.Direction == network.OUTGOING
-		}, 2*time.Second, 500*time.Millisecond)
+		}, 3*time.Second, 100*time.Millisecond)
 
 		// traffic is local, so Via field should not be set
 		require.Nil(t, conn.Via)
