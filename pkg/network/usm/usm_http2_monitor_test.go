@@ -294,24 +294,28 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 	}
 }
 
-var http2UniquePaths = []string{
-	// size 82 bucket 0
-	"C9ZaSMOpthT9XaRh9yc6AKqfIjT43M8gOz3p9ASKCNRIcLbc3PTqEoms2SDwt6Q90QM7DxjWKlmZUfRU1eOx5DjQOOhLaIJQke4N",
-	// size 127 bucket 1
-	"ZtZuUQeVB7BOl3F45oFicOOOJl21ePFwunMBvBh3bXPMBZqdEZepVsemYA0frZb5M83VHLDWq68KFELDHu0Xo28lzpzO3L7kDXuYuClivgEgURUn47kfwfUfW1PKjfsV6HaYpAZxly48lTGiRIXRINVC8b9",
-	// size 137, bucket 2
-	"RDBVk5COXAz52GzvuHVWRawNoKhmfxhBiTuyj5QZ6qR1DMsNOn4sWFLnaGXVzrqA8NLr2CaW1IDupzh9AzJlIvgYSf6OYIafIOsImL5O9M3AHzUHGMJ0KhjYGJAzXeTgvwl2qYWmlD9UYGELFpBSzJpykoriocvl3RRoYt4l",
-	// size 147, bucket 3
-	"T5r8QcP8qCiKVwhWlaxWjYCX8IrTmPrt2HRjfQJP2PxbWjLm8dP4BTDxUAmXJJWNyv4HIIaR3Fj6n8Tu6vSoDcBtKFuMqIPAdYEJt0qo2aaYDKomIJv74z7SiN96GrOufPTm6Eutl3JGeAKW2b0dZ4VYUsIOO8aheEOGmyhyWBymgCtBcXeki1",
-	// size 158, bucket 4
-	"VP4zOrIPiGhLDLSJYSVU78yUcb8CkU0dVDIZqPq98gVoenX5p1zS6cRX4LtrfSYKCQFX6MquluhDD2GPjZYFIraDLIHCno3yipQBLPGcPbPTgv9SD6jOlHMuLjmsGxyC3y2Hk61bWA6Af4D2SYS0q3BS7ahJ0vjddYYBRIpwMOOIez2jaR56rPcGCRW2eq0T1x",
-	// size 166, bucket 5
-	"X2YRUwfeNEmYWkk0bACThVya8MoSUkR7ZKANCPYkIGHvF9CWGA0rxXKsGogQag7HsJfmgaar3TiOTRUb3ynbmiOz3As9rXYjRGNRdCWGgdBPL8nGa6WheGlJLNtIVsUcxSerNQKmoQqqDLjGftbKXjqdMJLVY6UyECeXOKrrFU9aHx2fjlk2qMNDUptYWuzPPCWAnKOV7Ph",
-	// size 172, bucket 6
-	"bq5bcpUgiW1CpKgwdRVIulFMkwRenJWYdW8aek69anIV8w3br0pjGNtfnoPCyj4HUMD5MxWB2xM4XGp7fZ1JRHvskRZEgmoM7ag9BeuigmH05p7dzMwKsD76MqKyPmfhwBUZHLKtJ52ia3mOuMvyYiQNwA6KAU509bwuy4NCREVUAP76WFeAzr0jBvqMFXLg3eQQERIW0tKTcjQg8m9Jse",
-	// size 247, bucket 7
-	"LUhWUWPMztVFuEs83i7RmoxRiV1KzOq0NsZmGXVyW49BbBaL63m8H5vDwiewrrKbldXBuctplDxB28QekDclM6cO9BIsRqvzS3a802aOkRHTEruotA8Xh5K9GOMv9DzdoOL9P3GFPsUPgBy0mzFyyRJGk3JXpIH290Bj2FIRnIIpIjjKE1akeaimsuGEheA4D95axRpGmz4cm2s74UiksfBi4JnVX2cBzZN3oQaMt7zrWofwyzcZeF5W1n6BAQWxPPWe4Jyoc34jQ2fiEXQO0NnXe1RFbBD1E33a0OycziXZH9hEP23xvh",
-}
+var (
+	pathExceedingMaxSize = "X2YRUwfeNEmYWkk0bACThVya8MoSUkR7ZKANCPYkIGHvF9CWGA0rxXKsGogQag7HsJfmgaar3TiOTRUb3ynbmiOz3As9rXYjRGNRdCWGgdBPL8nGa6WheGlJLNtIVsUcxSerNQKmoQqqDLjGftbKXjqdMJLVY6UyECeXOKrrFU9aHx2fjlk2qMNDUptYWuzPPCWAnKOV7Ph"
+
+	http2UniquePaths = []string{
+		// size 82 bucket 0
+		"C9ZaSMOpthT9XaRh9yc6AKqfIjT43M8gOz3p9ASKCNRIcLbc3PTqEoms2SDwt6Q90QM7DxjWKlmZUfRU1eOx5DjQOOhLaIJQke4N",
+		// size 127 bucket 1
+		"ZtZuUQeVB7BOl3F45oFicOOOJl21ePFwunMBvBh3bXPMBZqdEZepVsemYA0frZb5M83VHLDWq68KFELDHu0Xo28lzpzO3L7kDXuYuClivgEgURUn47kfwfUfW1PKjfsV6HaYpAZxly48lTGiRIXRINVC8b9",
+		// size 137, bucket 2
+		"RDBVk5COXAz52GzvuHVWRawNoKhmfxhBiTuyj5QZ6qR1DMsNOn4sWFLnaGXVzrqA8NLr2CaW1IDupzh9AzJlIvgYSf6OYIafIOsImL5O9M3AHzUHGMJ0KhjYGJAzXeTgvwl2qYWmlD9UYGELFpBSzJpykoriocvl3RRoYt4l",
+		// size 147, bucket 3
+		"T5r8QcP8qCiKVwhWlaxWjYCX8IrTmPrt2HRjfQJP2PxbWjLm8dP4BTDxUAmXJJWNyv4HIIaR3Fj6n8Tu6vSoDcBtKFuMqIPAdYEJt0qo2aaYDKomIJv74z7SiN96GrOufPTm6Eutl3JGeAKW2b0dZ4VYUsIOO8aheEOGmyhyWBymgCtBcXeki1",
+		// size 158, bucket 4
+		"VP4zOrIPiGhLDLSJYSVU78yUcb8CkU0dVDIZqPq98gVoenX5p1zS6cRX4LtrfSYKCQFX6MquluhDD2GPjZYFIraDLIHCno3yipQBLPGcPbPTgv9SD6jOlHMuLjmsGxyC3y2Hk61bWA6Af4D2SYS0q3BS7ahJ0vjddYYBRIpwMOOIez2jaR56rPcGCRW2eq0T1x",
+		// size 166, bucket 5
+		pathExceedingMaxSize,
+		// size 172, bucket 6
+		"bq5bcpUgiW1CpKgwdRVIulFMkwRenJWYdW8aek69anIV8w3br0pjGNtfnoPCyj4HUMD5MxWB2xM4XGp7fZ1JRHvskRZEgmoM7ag9BeuigmH05p7dzMwKsD76MqKyPmfhwBUZHLKtJ52ia3mOuMvyYiQNwA6KAU509bwuy4NCREVUAP76WFeAzr0jBvqMFXLg3eQQERIW0tKTcjQg8m9Jse",
+		// size 247, bucket 7
+		"LUhWUWPMztVFuEs83i7RmoxRiV1KzOq0NsZmGXVyW49BbBaL63m8H5vDwiewrrKbldXBuctplDxB28QekDclM6cO9BIsRqvzS3a802aOkRHTEruotA8Xh5K9GOMv9DzdoOL9P3GFPsUPgBy0mzFyyRJGk3JXpIH290Bj2FIRnIIpIjjKE1akeaimsuGEheA4D95axRpGmz4cm2s74UiksfBi4JnVX2cBzZN3oQaMt7zrWofwyzcZeF5W1n6BAQWxPPWe4Jyoc34jQ2fiEXQO0NnXe1RFbBD1E33a0OycziXZH9hEP23xvh",
+	}
+)
 
 func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 	t := s.T()
@@ -736,6 +740,17 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: nil,
 		},
+		{
+			name: "validate max path length",
+			// The purpose of this test is to validate that we are not able to process a path longer than HTTP2_MAX_PATH_LEN.
+			messageBuilder: func() []byte {
+				framer := newFramer()
+				return framer.
+					writeHeaders(t, getStreamID(1), headersWithExceedingPathLen(), false).
+					writeData(t, getStreamID(1), true, []byte{}).bytes()
+			},
+			expectedEndpoints: nil,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -866,21 +881,30 @@ func writeInput(c net.Conn, input []byte, timeout time.Duration) error {
 }
 
 // headersWithNeverIndexedPath returns a set of header fields with path that never indexed.
-func headersWithNeverIndexedPath() []hpack.HeaderField { return generateTestHeaderFields(true, false) }
+func headersWithNeverIndexedPath() []hpack.HeaderField {
+	return generateTestHeaderFields(true, false, false)
+}
 
 // headersWithoutIndexingPath returns a set of header fields with path without-indexing.
-func headersWithoutIndexingPath() []hpack.HeaderField { return generateTestHeaderFields(false, true) }
+func headersWithoutIndexingPath() []hpack.HeaderField {
+	return generateTestHeaderFields(false, true, false)
+}
 
 // headersWithGivenPathMethod returns a set of header fields with the given method for the header includes the path.
 func headersWithGivenPathMethod(method string) []hpack.HeaderField {
-	return generateTestHeaderFields(false, false, method)
+	return generateTestHeaderFields(false, false, false, method)
+}
+
+// headersWithExceedingPathLen returns a set of header fields with the given method for the header includes the path.
+func headersWithExceedingPathLen() []hpack.HeaderField {
+	return generateTestHeaderFields(false, false, true)
 }
 
 // testHeaders returns a set of header fields.
-func testHeaders() []hpack.HeaderField { return generateTestHeaderFields(false, false) }
+func testHeaders() []hpack.HeaderField { return generateTestHeaderFields(false, false, false) }
 
 // generateTestHeaderFields generates a set of header fields that will be used for the tests.
-func generateTestHeaderFields(pathNeverIndexed, withoutIndexing bool, pathMethod ...string) []hpack.HeaderField {
+func generateTestHeaderFields(pathNeverIndexed, withoutIndexing, pathExceedingMax bool, pathMethod ...string) []hpack.HeaderField {
 	headerPathMethod := "POST"
 	if len(pathMethod) > 0 {
 		headerPathMethod = pathMethod[0]
@@ -893,6 +917,12 @@ func generateTestHeaderFields(pathNeverIndexed, withoutIndexing bool, pathMethod
 	// Therefore, we want to make sure that the path is longer or equal to 100 characters so that the path will not be indexed.
 	if withoutIndexing {
 		pathHeaderField = hpack.HeaderField{Name: ":path", Value: "/" + strings.Repeat("a", usmhttp2.DynamicTableSize), Sensitive: true}
+	}
+
+	// If we want to create a case with a path that exceeds the maximum length,
+	// we need to make sure that the path is longer than HTTP2_MAX_PATH_LEN.
+	if pathExceedingMax {
+		pathHeaderField = hpack.HeaderField{Name: ":path", Value: "/" + pathExceedingMaxSize, Sensitive: false}
 	}
 
 	// If the path is sensitive, we are in a case where a path is never indexed
