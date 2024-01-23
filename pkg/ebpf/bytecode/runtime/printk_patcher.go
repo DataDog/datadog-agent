@@ -185,10 +185,14 @@ func patchPrintkInstructions(p *ebpf.ProgramSpec) (int, error) {
 					patchedInstructionIndexes[i] = true // Keep track of which instructions we've patched
 					numPatches++
 					log.Debugf("Patched instruction %v for bpf_trace_printk call %d in %s", candidate, idx, p.Name)
-				} else if !patchedInstructionIndexes[i] {
-					// If we've already patched this instruction, don't warn about it again. The compiler
+				} else if patchedInstructionIndexes[i] {
+					// We don't have a newline in the expected spot but we've already patched this instruction. The compiler
 					// can reuse the same instruction for multiple calls to bpf_trace_printk, and in that case
-					// we only need to patch it once.
+					// we only need to patch it once. However, we do need to reduce the length in one byte because
+					// in some systems the printk call will not be made if the length is not consistent.
+					log.Debugf("Instruction %v was already patched for bpf_trace_printk call %d in %s", candidate, idx, p.Name)
+					lengthLoadIns.Constant--
+				} else {
 					errs = append(errs, log.Warnf("Instruction %v does not have a newline we can patch for bpf_trace_printk_call %d in %s", candidate, idx, p.Name))
 				}
 				foundLoadIns = true
