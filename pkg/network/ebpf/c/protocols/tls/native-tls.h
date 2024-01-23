@@ -130,7 +130,8 @@ int uretprobe__SSL_read(struct pt_regs *ctx) {
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
     // The read tuple should be flipped (compared to the write tuple).
     // tls_process and the appropriate parsers will flip it back if needed.
-    conn_tuple_t copy = *t;
+    conn_tuple_t copy = {0};
+    bpf_memcpy(&copy, t, sizeof(conn_tuple_t));
     // We want to guarantee write-TLS hooks generates the same connection tuple, while read-TLS hooks generate
     // the inverse direction, thus we're normalizing the tuples into a client <-> server direction.
     normalize_tuple(&copy);
@@ -173,7 +174,8 @@ int uretprobe__SSL_write(struct pt_regs* ctx) {
 
     char *buffer_ptr = args->buf;
     bpf_map_delete_elem(&ssl_write_args, &pid_tgid);
-    conn_tuple_t copy = *t;
+    conn_tuple_t copy = {0};
+    bpf_memcpy(&copy, t, sizeof(conn_tuple_t));
     // We want to guarantee write-TLS hooks generates the same connection tuple, while read-TLS hooks generate
     // the inverse direction, thus we're normalizing the tuples into a client <-> server direction, and then flipping it
     // to the server <-> client direction.
@@ -236,7 +238,8 @@ int uretprobe__SSL_read_ex(struct pt_regs* ctx) {
     bpf_map_delete_elem(&ssl_read_ex_args, &pid_tgid);
     // The read tuple should be flipped (compared to the write tuple).
     // tls_process and the appropriate parsers will flip it back if needed.
-    conn_tuple_t copy = *conn_tuple;
+    conn_tuple_t copy = {0};
+    bpf_memcpy(&copy, conn_tuple, sizeof(conn_tuple_t));
     // We want to guarantee write-TLS hooks generates the same connection tuple, while read-TLS hooks generate
     // the inverse direction, thus we're normalizing the tuples into a client <-> server direction.
     normalize_tuple(&copy);
@@ -294,7 +297,8 @@ int uretprobe__SSL_write_ex(struct pt_regs* ctx) {
 
     char *buffer_ptr = args->buf;
     bpf_map_delete_elem(&ssl_write_ex_args, &pid_tgid);
-    conn_tuple_t copy = *conn_tuple;
+    conn_tuple_t copy = {0};
+    bpf_memcpy(&copy, conn_tuple, sizeof(conn_tuple_t));
     // We want to guarantee write-TLS hooks generates the same connection tuple, while read-TLS hooks generate
     // the inverse direction, thus we're normalizing the tuples into a client <-> server direction, and then flipping it
     // to the server <-> client direction.
@@ -427,7 +431,8 @@ int uretprobe__gnutls_record_recv(struct pt_regs *ctx) {
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
     // The read tuple should be flipped (compared to the write tuple).
     // tls_process and the appropriate parsers will flip it back if needed.
-    conn_tuple_t copy = *t;
+    conn_tuple_t copy = {0};
+    bpf_memcpy(&copy, t, sizeof(conn_tuple_t));
     // We want to guarantee write-TLS hooks generates the same connection tuple, while read-TLS hooks generate
     // the inverse direction, thus we're normalizing the tuples into a client <-> server direction.
     normalize_tuple(&copy);
@@ -471,7 +476,8 @@ int uretprobe__gnutls_record_send(struct pt_regs *ctx) {
 
     char *buffer_ptr = args->buf;
     bpf_map_delete_elem(&ssl_write_args, &pid_tgid);
-    conn_tuple_t copy = *t;
+    conn_tuple_t copy = {0};
+    bpf_memcpy(&copy, t, sizeof(conn_tuple_t));
     // We want to guarantee write-TLS hooks generates the same connection tuple, while read-TLS hooks generate
     // the inverse direction, thus we're normalizing the tuples into a client <-> server direction, and then flipping it
     // to the server <-> client direction.
