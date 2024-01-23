@@ -11,11 +11,15 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	dockerTypes "github.com/docker/docker/api/types"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -44,7 +48,7 @@ func TestDockerCheckGenericPart(t *testing.T) {
 	}
 
 	// Inject mock processor in check
-	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil))
+	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil, nil))
 	processor.RegisterExtension("docker-custom-metrics", &dockerCustomMetricsExtension{})
 
 	// Create Docker check
@@ -204,6 +208,7 @@ func TestDockerCustomPart(t *testing.T) {
 			Enabled:         true,
 			NameExcludeList: []*regexp.Regexp{regexp.MustCompile("agent-excluded")},
 		},
+		store: fxutil.Test[workloadmeta.Mock](t, core.MockBundle(), fx.Supply(workloadmeta.NewParams()), workloadmeta.MockModule()),
 	}
 
 	err := check.runDockerCustom(mockSender, &dockerClient, dockerClient.FakeContainerList)
@@ -282,6 +287,7 @@ func TestContainersRunning(t *testing.T) {
 		instance:        &DockerConfig{},
 		dockerHostname:  "testhostname",
 		containerFilter: &containers.Filter{},
+		store:           fxutil.Test[workloadmeta.Mock](t, core.MockBundle(), fx.Supply(workloadmeta.NewParams()), workloadmeta.MockModule()),
 	}
 
 	err := check.runDockerCustom(mockSender, &dockerClient, dockerClient.FakeContainerList)
@@ -326,7 +332,7 @@ func TestProcess_CPUSharesMetric(t *testing.T) {
 	}
 
 	// Inject mock processor in check
-	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil))
+	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil, nil))
 	processor.RegisterExtension("docker-custom-metrics", &dockerCustomMetricsExtension{})
 
 	// Create Docker check

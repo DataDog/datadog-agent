@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	//nolint:revive // TODO(DBM) Fix revive linter
@@ -54,6 +55,8 @@ const (
 type hostingCode string
 
 const (
+	// CheckName is the name of the check
+	CheckName               = common.IntegrationNameScheduler
 	selfManaged hostingCode = "self-managed"
 	rds         hostingCode = "RDS"
 	oci         hostingCode = "OCI"
@@ -355,12 +358,13 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	return nil
 }
 
-func oracleFactory() check.Check {
-	return &Check{CheckBase: core.NewCheckBaseWithInterval(common.IntegrationNameScheduler, 10*time.Second)}
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
 }
 
-func init() {
-	core.RegisterCheck(common.IntegrationNameScheduler, oracleFactory)
+func newCheck() check.Check {
+	return &Check{CheckBase: core.NewCheckBaseWithInterval(common.IntegrationNameScheduler, 10*time.Second)}
 }
 
 //nolint:revive // TODO(DBM) Fix revive linter
