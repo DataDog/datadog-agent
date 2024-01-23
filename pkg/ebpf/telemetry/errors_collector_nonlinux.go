@@ -11,6 +11,6 @@ import "github.com/prometheus/client_golang/prometheus"
 
 // NewEBPFErrorsCollector initializes a new Collector object for ebpf helper and map operations errors.
 // Not supported on Windows, thus returning noop collector instead.
-func NewEbpfErrorsCollector() prometheus.Collector {
+func NewEBPFErrorsCollector() prometheus.Collector {
 	return nil
 }
