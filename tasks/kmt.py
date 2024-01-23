@@ -1,6 +1,7 @@
 import json
 import os
 import platform
+import re
 import tempfile
 from glob import glob
 from pathlib import Path
@@ -16,6 +17,7 @@ from .kernel_matrix_testing.infra import build_infrastructure
 from .kernel_matrix_testing.init_kmt import check_and_get_stack, init_kernel_matrix_testing_system
 from .kernel_matrix_testing.kmt_os import get_kmt_os
 from .kernel_matrix_testing.tool import Exit, ask, info, warn
+from .libs.common.gitlab import Gitlab, get_gitlab_token
 from .system_probe import EMBEDDED_SHARE_DIR
 
 try:
@@ -56,6 +58,59 @@ def gen_config(
     output_file="vmconfig.json",
 ):
     vmconfig.gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, output_file)
+
+
+@task(
+    help={
+        "pipeline": "Pipeline ID to use",
+        "stack": "Name of the stack within which to generate the configuration file",
+        "vcpu": "Comma separated list of CPUs, to launch each VM with",
+        "memory": "Comma separated list of memory to launch each VM with. Automatically rounded up to power of 2",
+        "new": "Generate new configuration file instead of appending to existing one within the provided stack",
+        "init-stack": "Automatically initialize stack if not present. Equivalent to calling 'inv -e kmt.create-stack [--stack=<stack>]'",
+    }
+)
+def gen_config_from_ci_pipeline(
+    ctx,
+    stack=None,
+    pipeline=None,
+    init_stack=False,
+    vcpu="4",
+    memory="8192",
+    new=False,
+    ci=False,
+    arch="",
+    output_file="vmconfig.json",
+):
+    """
+    Generate a vmconfig.json file with the VMs that failed jobs in the given pipeline.
+    """
+    gitlab = Gitlab("DataDog/datadog-agent", get_gitlab_token())
+    vms = set()
+
+    if pipeline is None:
+        raise Exit("Pipeline ID must be provided")
+
+    info(f"[+] retrieving all CI jobs for pipeline {pipeline}")
+    for job in gitlab.all_jobs(pipeline):
+        name = job.get("name", "")
+        if not name.startswith("kernel_matrix_testing_run") or job["status"] != "failed":
+            continue
+
+        arch = "x86" if "x64" in name else "arm64"
+        match = re.search(r"\[(.*)\]", name)
+
+        if match is None:
+            warn(f"Cannot extract variables from job {name}, skipping")
+            continue
+
+        vars = match.group(1).split(",")
+        distro = vars[0]
+
+        vms.add(f"{arch}-{distro}-distro")
+
+    info(f"[+] generating vmconfig.json file for VMs {vms}")
+    return vmconfig.gen_config(ctx, stack, ",".join(vms), "", init_stack, vcpu, memory, new, ci, arch, output_file)
 
 
 @task
