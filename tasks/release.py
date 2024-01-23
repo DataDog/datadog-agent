@@ -6,6 +6,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 from collections import OrderedDict
 from datetime import date
 from time import sleep
@@ -1413,15 +1414,34 @@ def cleanup(ctx):
 
 
 @task
-def check_omnibus_branches(_):
-    for branch in ['nightly', 'nightly-a7']:
-        omnibus_ruby_version = _get_release_json_value(f'{branch}::OMNIBUS_RUBY_VERSION')
-        omnibus_software_version = _get_release_json_value(f'{branch}::OMNIBUS_SOFTWARE_VERSION')
-        version_re = re.compile(r'(\d+)\.(\d+)\.x')
-        if omnibus_ruby_version != 'datadog-5.5.0' and not version_re.match(omnibus_ruby_version):
-            raise Exit(code=1, message=f'omnibus-ruby version [{omnibus_ruby_version}] is not mergeable')
-        if omnibus_software_version != 'master' and not version_re.match(omnibus_software_version):
-            raise Exit(code=1, message=f'omnibus-software version [{omnibus_software_version}] is not mergeable')
+def check_omnibus_branches(ctx):
+    base_branch = _get_release_json_value('base_branch')
+    if base_branch == 'main':
+        omnibus_ruby_branch = 'datadog-5.5.0'
+        omnibus_software_branch = 'master'
+    else:
+        omnibus_ruby_branch = base_branch
+        omnibus_software_branch = base_branch
+
+    def _check_commit_in_repo(repo_name, branch, release_json_field):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ctx.run(
+                f'git clone --depth=50 https://github.com/DataDog/{repo_name} --branch {branch} {tmpdir}/{repo_name}',
+                hide='stdout',
+            )
+            for version in ['nightly', 'nightly-a7']:
+                commit = _get_release_json_value(f'{version}::{release_json_field}')
+                if ctx.run(f'git -C {tmpdir}/{repo_name} branch --contains {commit}', warn=True, hide=True).exited != 0:
+                    raise Exit(
+                        code=1,
+                        message=f'{repo_name} commit ({commit}) is not in the expected branch ({branch}). The PR is not mergeable',
+                    )
+                else:
+                    print(f'[{version}] Commit {commit} was found in {repo_name} branch {branch}')
+
+    _check_commit_in_repo('omnibus-ruby', omnibus_ruby_branch, 'OMNIBUS_RUBY_VERSION')
+    _check_commit_in_repo('omnibus-software', omnibus_software_branch, 'OMNIBUS_SOFTWARE_VERSION')
+
     return True
 
 
