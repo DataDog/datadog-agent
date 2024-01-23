@@ -54,7 +54,7 @@ func GroupByConnection[K comparable, V any](protocol string, data map[K]V, keyGe
 		lookupFn: USMLookup[K, V],
 
 		// Experimental: Connection Rollups
-		enableConnectionRollup: config.SystemProbe.GetBool("network_config.enable_connection_rollup"),
+		enableConnectionRollup: config.SystemProbe.GetBool("service_monitoring_config.enable_connection_rollup"),
 	}
 
 	// The map intended to calculate how many entries we actually need in byConnection.data, and for each entry

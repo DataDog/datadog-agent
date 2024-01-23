@@ -366,7 +366,7 @@ func New() *Config {
 		GoTLSExcludeSelf:            cfg.GetBool(join(smNS, "tls", "go", "exclude_self")),
 		EnableHTTPStatsByStatusCode: cfg.GetBool(join(smNS, "enable_http_stats_by_status_code")),
 		EnableUSMQuantization:       cfg.GetBool(join(smNS, "enable_quantization")),
-		EnableUSMConnectionRollup:   cfg.GetBool(join(netNS, "enable_connection_rollup")),
+		EnableUSMConnectionRollup:   cfg.GetBool(join(smNS, "enable_connection_rollup")),
 	}
 
 	httpRRKey := join(smNS, "http_replace_rules")

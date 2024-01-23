@@ -1,0 +1,28 @@
+name: Create RC PR
+
+on:
+  workflow_dispatch:
+jobs:
+    create_rc_pr:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v2
+
+            - name: Install python
+              uses: actions/setup-python@v4
+              with:
+                python-version: 3.11
+                cache: "pip"
+
+            - name: Install Python dependencies
+              run: |
+                python -m pip install --upgrade pip
+                pip install -r requirements.txt
+                pip install -r tasks/libs/requirements-github.txt
+
+            - name: Create RC PR
+              run: |
+                export GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
+                inv -e release.create-rc

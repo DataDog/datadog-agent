@@ -72,8 +72,8 @@ func computeEvents(events []containerdEvent, sender sender.Sender, fil *containe
 		output := event.Event{
 			Title:          fmt.Sprintf("Event on %s from Containerd", split[1]),
 			Priority:       event.EventPriorityNormal,
-			SourceTypeName: containerdCheckName,
-			EventType:      containerdCheckName,
+			SourceTypeName: CheckName,
+			EventType:      CheckName,
 			AlertType:      alertType,
 			AggregationKey: fmt.Sprintf("containerd:%s", e.Topic),
 			Text:           e.Message,
