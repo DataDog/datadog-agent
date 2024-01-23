@@ -2,7 +2,6 @@
 #define __BPF_HELPERS_CUSTOM__
 
 #include "bpf_cross_compile.h"
-#include "compiler.h"
 
 /*
  * Macro to output debug logs to /sys/kernel/debug/tracing/trace_pipe
