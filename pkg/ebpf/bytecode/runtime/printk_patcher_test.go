@@ -35,7 +35,7 @@ import (
 func TestMain(m *testing.M) {
 	logLevel := os.Getenv("DD_LOG_LEVEL")
 	if logLevel == "" {
-		logLevel = "debug"
+		logLevel = "info"
 	}
 	log.SetupLogger(seelog.Default, logLevel)
 	os.Exit(m.Run())
