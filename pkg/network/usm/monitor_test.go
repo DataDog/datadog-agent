@@ -300,7 +300,6 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationWithResponseBody() {
 
 func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 	t := s.T()
-	targetAddr := "localhost:8080"
 	serverAddr := "localhost:8080"
 
 	tests := []struct {
@@ -349,7 +348,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 			t.Cleanup(srvDoneFn)
 
 			// Perform a number of random requests
-			req := requestGenerator(t, targetAddr, emptyBody)()
+			req := requestGenerator(t, serverAddr, emptyBody)()
 			srvDoneFn()
 
 			// Ensure all captured transactions get sent to user-space
@@ -367,16 +366,15 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 
 func (s *HTTPTestSuite) TestHTTPMonitorIntegration() {
 	t := s.T()
-	targetAddr := "localhost:8080"
 	serverAddr := "localhost:8080"
 
 	t.Run("with keep-alives", func(t *testing.T) {
-		testHTTPMonitor(t, targetAddr, serverAddr, 100, testutil.Options{
+		testHTTPMonitor(t, serverAddr, serverAddr, 100, testutil.Options{
 			EnableKeepAlive: true,
 		})
 	})
 	t.Run("without keep-alives", func(t *testing.T) {
-		testHTTPMonitor(t, targetAddr, serverAddr, 100, testutil.Options{
+		testHTTPMonitor(t, serverAddr, serverAddr, 100, testutil.Options{
 			EnableKeepAlive: false,
 		})
 	})
