@@ -63,24 +63,22 @@ func BuildVerifierStats(objectFiles []string) (map[string]*Statistics, error) {
 		}
 		defer bc.Close()
 
-		objectFileName := strings.ReplaceAll(
-			strings.Split(filepath.Base(file), ".")[0], "-", "_",
-		)
 		collectionSpec, err := ebpf.LoadCollectionSpecFromReader(bc)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load collection spec: %v", err)
 		}
 
+		// Max entry has to be > 0 for all maps
 		for _, mapSpec := range collectionSpec.Maps {
 			if mapSpec.MaxEntries == 0 {
 				mapSpec.MaxEntries = 1
 			}
 		}
 
-		// patch telemetry patch points
+		// replace telemetry patch points with nops
+		// r1 = r1
 		newIns := asm.Mov.Reg(asm.R1, asm.R1)
 		for _, p := range collectionSpec.Programs {
-			// do constant editing of programs for helper errors post-init
 			ins := p.Instructions
 
 			// patch telemetry helper calls
@@ -103,6 +101,10 @@ func BuildVerifierStats(objectFiles []string) (map[string]*Statistics, error) {
 				LogSize: 1073741823,
 			},
 		}
+
+		objectFileName := strings.ReplaceAll(
+			strings.Split(filepath.Base(file), ".")[0], "-", "_",
+		)
 		collection, err := ebpf.NewCollectionWithOptions(collectionSpec, opts)
 		if err != nil {
 			log.Printf("Load collection: %v", err)
@@ -133,7 +135,6 @@ func BuildVerifierStats(objectFiles []string) (map[string]*Statistics, error) {
 			programName := progElem.Type().Field(i).Name
 
 			field := progElem.Field(i)
-
 			switch field.Type() {
 			case reflect.TypeOf((*ebpf.Program)(nil)):
 				p := field.Interface().(*ebpf.Program)
