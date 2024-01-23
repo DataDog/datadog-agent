@@ -10,6 +10,7 @@ package events
 
 import (
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 )
 

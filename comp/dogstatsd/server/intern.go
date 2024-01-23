@@ -86,11 +86,7 @@ func newStringInterner(maxSize int, internerID int) *stringInterner {
 }
 
 func (i *stringInterner) prepareTelemetry() {
-	i.telemetry.resets = tlmSIResets.WithValues(i.id)
-	i.telemetry.size = tlmSIRSize.WithValues(i.id)
-	i.telemetry.bytes = tlmSIRBytes.WithValues(i.id)
-	i.telemetry.hits = tlmSIRHits.WithValues(i.id)
-	i.telemetry.miss = tlmSIRMiss.WithValues(i.id)
+	panic("not called")
 }
 
 // LoadOrStore always returns the string from the cache, adding it into the

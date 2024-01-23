@@ -72,41 +72,27 @@ func NewLogSource(name string, cfg *config.LogsConfig) *LogSource {
 
 // AddInput registers an input as being handled by this source.
 func (s *LogSource) AddInput(input string) {
-	s.lock.Lock()
-	s.inputs[input] = true
-	s.lock.Unlock()
+	panic("not called")
 }
 
 // RemoveInput removes an input from this source.
 func (s *LogSource) RemoveInput(input string) {
-	s.lock.Lock()
-	delete(s.inputs, input)
-	s.lock.Unlock()
+	panic("not called")
 }
 
 // GetInputs returns the inputs handled by this source.
 func (s *LogSource) GetInputs() []string {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	inputs := make([]string, 0, len(s.inputs))
-	for input := range s.inputs {
-		inputs = append(inputs, input)
-	}
-	return inputs
+	panic("not called")
 }
 
 // SetSourceType sets a format that give information on how the source lines should be parsed
 func (s *LogSource) SetSourceType(sourceType SourceType) {
-	s.lock.Lock()
-	s.sourceType = sourceType
-	s.lock.Unlock()
+	panic("not called")
 }
 
 // GetSourceType returns the sourceType used by this source
 func (s *LogSource) GetSourceType() SourceType {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	return s.sourceType
+	panic("not called")
 }
 
 // RegisterInfo registers some info to display on the status page
@@ -118,43 +104,29 @@ func (s *LogSource) RegisterInfo(i status.InfoProvider) {
 
 // GetInfo gets an InfoProvider instance by the key
 func (s *LogSource) GetInfo(key string) status.InfoProvider {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	return s.info.Get(key)
+	panic("not called")
 }
 
 // GetInfoStatus returns a primitive representation of the info for the status page
 func (s *LogSource) GetInfoStatus() map[string][]string {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	return s.info.Rendered()
+	panic("not called")
 }
 
 // HideFromStatus hides the source from the status output
 func (s *LogSource) HideFromStatus() {
-	s.lock.Lock()
-	s.hiddenFromStatus = true
-	s.lock.Unlock()
+	panic("not called")
 }
 
 // IsHiddenFromStatus returns true if this source should be hidden from the status output
 func (s *LogSource) IsHiddenFromStatus() bool {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	return s.hiddenFromStatus
+	panic("not called")
 }
 
 // RecordBytes reports bytes to the source expvars
 // Since `container_collect_all` reports all docker logs as a single source (even though the source is overridden internally),
 // we need to report the byte count to the parent source used to populate the status page.
 func (s *LogSource) RecordBytes(n int64) {
-	s.BytesRead.Add(n)
-
-	// In some cases like `container_collect_all` we need to report the byte count to the parent source
-	// used to populate the status page.
-	if s.ParentSource != nil {
-		s.ParentSource.BytesRead.Add(n)
-	}
+	panic("not called")
 }
 
 // Dump provides a dump of the LogSource contents, for debugging purposes.  If

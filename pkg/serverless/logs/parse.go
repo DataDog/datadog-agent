@@ -132,11 +132,7 @@ func (l *LambdaLogAPIMessage) UnmarshalJSON(data []byte) error {
 }
 
 func (l *LambdaLogAPIMessage) handleDroppedRecord(data map[string]interface{}) {
-	var reason string
-	if record, ok := data["record"].(map[string]interface{}); ok {
-		reason = record["reason"].(string)
-	}
-	log.Debugf("Logs were dropped by the AWS Lambda Logs API: %s", reason)
+	panic("not called")
 }
 
 func (l *LambdaLogAPIMessage) handleFunctionAndExtensionRecord(data map[string]interface{}, typ string) {

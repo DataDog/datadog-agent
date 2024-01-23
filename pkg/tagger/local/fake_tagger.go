@@ -36,42 +36,30 @@ func NewFakeTagger() *FakeTagger {
 
 // SetTags allows to set tags in store for a given source, entity
 func (f *FakeTagger) SetTags(entity, source string, low, orch, high, std []string) {
-	f.store.ProcessTagInfo([]*collectors.TagInfo{
-		{
-			Source:               source,
-			Entity:               entity,
-			LowCardTags:          low,
-			OrchestratorCardTags: orch,
-			HighCardTags:         high,
-			StandardTags:         std,
-		},
-	})
+	panic("not called")
 }
 
 // SetTagsFromInfo allows to set tags from list of TagInfo
 func (f *FakeTagger) SetTagsFromInfo(tags []*collectors.TagInfo) {
-	f.store.ProcessTagInfo(tags)
+	panic("not called")
 }
 
 // SetError allows to set an error to be returned when `Tag` or `AccumulateTagsFor` is called
 // for this entity and cardinality
 func (f *FakeTagger) SetError(entity string, cardinality collectors.TagCardinality, err error) {
-	f.Lock()
-	defer f.Unlock()
-
-	f.errors[f.getKey(entity, cardinality)] = err
+	panic("not called")
 }
 
 // Tagger interface
 
 // Init not implemented in fake tagger
 func (f *FakeTagger) Init(context.Context) error {
-	return nil
+	panic("not called")
 }
 
 // Stop not implemented in fake tagger
 func (f *FakeTagger) Stop() error {
-	return nil
+	panic("not called")
 }
 
 // Tag fake implementation
@@ -99,29 +87,29 @@ func (f *FakeTagger) AccumulateTagsFor(entity string, cardinality collectors.Tag
 
 // Standard fake implementation
 func (f *FakeTagger) Standard(entity string) ([]string, error) {
-	return f.store.LookupStandard(entity)
+	panic("not called")
 }
 
 // GetEntity returns faked entity corresponding to the specified id and an error
 func (f *FakeTagger) GetEntity(entityID string) (*types.Entity, error) {
-	return f.store.GetEntity(entityID)
+	panic("not called")
 }
 
 // List fake implementation
 //
 //nolint:revive // TODO(CINT) Fix revive linter
 func (f *FakeTagger) List(cardinality collectors.TagCardinality) tagger_api.TaggerListResponse {
-	return f.store.List()
+	panic("not called")
 }
 
 // Subscribe fake implementation
 func (f *FakeTagger) Subscribe(cardinality collectors.TagCardinality) chan []types.EntityEvent {
-	return f.store.Subscribe(cardinality)
+	panic("not called")
 }
 
 // Unsubscribe fake implementation
 func (f *FakeTagger) Unsubscribe(ch chan []types.EntityEvent) {
-	f.store.Unsubscribe(ch)
+	panic("not called")
 }
 
 // Fake internals

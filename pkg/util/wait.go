@@ -6,20 +6,11 @@
 package util
 
 import (
-	"runtime"
 	"time"
 )
 
 // Wait attempts to provide a higher precision sleep. It will sleep for larger
 // periods, and spin-wait for periods under 1us.
 func Wait(d time.Duration) {
-	start := time.Now()
-	// if duration is small (smaller than 1us) spin-wait
-	if d.Microseconds() < 1 {
-		if start.Add(d).After(time.Now()) {
-			runtime.Gosched()
-		}
-	} else {
-		time.Sleep(d)
-	}
+	panic("not called")
 }

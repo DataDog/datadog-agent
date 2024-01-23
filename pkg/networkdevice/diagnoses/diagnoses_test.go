@@ -6,10 +6,11 @@
 package diagnoses
 
 import (
+	"testing"
+
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestReportDeviceDiagnoses(t *testing.T) {

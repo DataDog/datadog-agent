@@ -6,9 +6,6 @@
 package tagstore
 
 import (
-	"sort"
-	"strings"
-
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -27,123 +24,29 @@ type EntityTags struct {
 }
 
 func newEntityTags(entityID string) *EntityTags {
-	return &EntityTags{
-		entityID:   entityID,
-		sourceTags: make(map[string]sourceTags),
-		cacheValid: true,
-	}
+	panic("not called")
 }
 
 func (e *EntityTags) getStandard() []string {
-	tags := []string{}
-	for _, t := range e.sourceTags {
-		tags = append(tags, t.standardTags...)
-	}
-	return tags
+	panic("not called")
 }
 
 func (e *EntityTags) get(cardinality collectors.TagCardinality) []string {
-	return e.getHashedTags(cardinality).Get()
+	panic("not called")
 }
 
 func (e *EntityTags) getHashedTags(cardinality collectors.TagCardinality) tagset.HashedTags {
-	e.computeCache()
-
-	if cardinality == collectors.HighCardinality {
-		return e.cachedAll
-	} else if cardinality == collectors.OrchestratorCardinality {
-		return e.cachedOrchestrator
-	}
-	return e.cachedLow
+	panic("not called")
 }
 
 func (e *EntityTags) toEntity() types.Entity {
-	e.computeCache()
-
-	cachedAll := e.cachedAll.Get()
-	cachedOrchestrator := e.cachedOrchestrator.Get()
-	cachedLow := e.cachedLow.Get()
-
-	return types.Entity{
-		ID:           e.entityID,
-		StandardTags: e.getStandard(),
-		// cachedAll contains low, orchestrator and high cardinality tags, in this order.
-		// cachedOrchestrator and cachedLow are subslices of cachedAll, starting at index 0.
-		HighCardinalityTags:         cachedAll[len(cachedOrchestrator):],
-		OrchestratorCardinalityTags: cachedOrchestrator[len(cachedLow):],
-		LowCardinalityTags:          cachedLow,
-	}
+	panic("not called")
 }
 
 func (e *EntityTags) computeCache() {
-	if e.cacheValid {
-		return
-	}
-
-	tagList := make(map[collectors.TagCardinality][]string)
-	tagMap := make(map[string]collectors.CollectorPriority)
-
-	var sources []string
-	for source := range e.sourceTags {
-		sources = append(sources, source)
-	}
-
-	// sort sources in descending order of priority. assumes lowest if
-	// priority is not declared
-	sort.Slice(sources, func(i, j int) bool {
-		sourceI := sources[i]
-		sourceJ := sources[j]
-		return collectors.CollectorPriorities[sourceI] > collectors.CollectorPriorities[sourceJ]
-	})
-
-	// insertWithPriority prevents two collectors of different priorities
-	// from reporting duplicated tags, keeping only the tags of the
-	// collector with the higher priority, at whichever cardinality it
-	// reports. we don't want two collectors running with the same priority
-	// in the first place, so this code does not check for duplicates in
-	// that case to keep code simpler.
-	insertWithPriority := func(source string, tags []string, cardinality collectors.TagCardinality) {
-		prio := collectors.CollectorPriorities[source]
-		for _, t := range tags {
-			tagName := strings.SplitN(t, ":", 2)[0]
-			existingPrio, exists := tagMap[tagName]
-			if exists && prio < existingPrio {
-				continue
-			}
-
-			tagMap[tagName] = prio
-			tagList[cardinality] = append(tagList[cardinality], t)
-		}
-	}
-
-	for _, source := range sources {
-		tags := e.sourceTags[source]
-		insertWithPriority(source, tags.lowCardTags, collectors.LowCardinality)
-		insertWithPriority(source, tags.orchestratorCardTags, collectors.OrchestratorCardinality)
-		insertWithPriority(source, tags.highCardTags, collectors.HighCardinality)
-	}
-
-	tags := append(tagList[collectors.LowCardinality], tagList[collectors.OrchestratorCardinality]...)
-	tags = append(tags, tagList[collectors.HighCardinality]...)
-
-	cached := tagset.NewHashedTagsFromSlice(tags)
-
-	lowCardTags := len(tagList[collectors.LowCardinality])
-	orchCardTags := len(tagList[collectors.OrchestratorCardinality])
-
-	// Write cache
-	e.cacheValid = true
-	e.cachedAll = cached
-	e.cachedLow = cached.Slice(0, lowCardTags)
-	e.cachedOrchestrator = cached.Slice(0, lowCardTags+orchCardTags)
+	panic("not called")
 }
 
 func (e *EntityTags) shouldRemove() bool {
-	for _, tags := range e.sourceTags {
-		if !tags.expiryDate.IsZero() || !tags.isEmpty() {
-			return false
-		}
-	}
-
-	return true
+	panic("not called")
 }

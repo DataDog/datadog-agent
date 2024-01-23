@@ -7,11 +7,9 @@ package replay
 
 import (
 	"fmt"
-	"path"
 	"sync"
 	"time"
 
-	"github.com/spf13/afero"
 	"go.uber.org/fx"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
@@ -50,7 +48,7 @@ func NewServerlessTrafficCapture() Component {
 
 // TODO: (components) - merge with newTrafficCaptureCompat once NewServerlessTrafficCapture is removed
 func newTrafficCapture(deps dependencies) Component {
-	return newTrafficCaptureCompat(deps.Config)
+	panic("not called")
 }
 
 func newTrafficCaptureCompat(cfg config.Reader) Component {
@@ -71,42 +69,17 @@ func (tc *trafficCapture) Configure() error {
 
 // IsOngoing returns whether a capture is ongoing for this TrafficCapture instance.
 func (tc *trafficCapture) IsOngoing() bool {
-	tc.RLock()
-	defer tc.RUnlock()
-
-	if tc.writer == nil {
-		return false
-	}
-
-	return tc.writer.IsOngoing()
+	panic("not called")
 }
 
 // Start starts a TrafficCapture and returns an error in the event of an issue.
 func (tc *trafficCapture) Start(p string, d time.Duration, compressed bool) (string, error) {
-	if tc.IsOngoing() {
-		return "", fmt.Errorf("Ongoing capture in progress")
-	}
-
-	target, path, err := OpenFile(afero.NewOsFs(), p, tc.defaultlocation())
-	if err != nil {
-		return "", err
-	}
-
-	go tc.writer.Capture(target, d, compressed)
-
-	return path, nil
-
+	panic("not called")
 }
 
 // Stop stops an ongoing TrafficCapture.
 func (tc *trafficCapture) Stop() {
-	tc.Lock()
-	defer tc.Unlock()
-	if tc.writer == nil {
-		return
-	}
-
-	tc.writer.StopCapture()
+	panic("not called")
 }
 
 // RegisterSharedPoolManager registers the shared pool manager with the TrafficCapture.
@@ -125,16 +98,9 @@ func (tc *trafficCapture) RegisterOOBPoolManager(p *packets.PoolManager) error {
 
 // Enqueue enqueues a capture buffer so it's written to file.
 func (tc *trafficCapture) Enqueue(msg *CaptureBuffer) bool {
-	tc.RLock()
-	defer tc.RUnlock()
-	return tc.writer.Enqueue(msg)
+	panic("not called")
 }
 
 func (tc *trafficCapture) defaultlocation() string {
-	location := tc.config.GetString("dogstatsd_capture_path")
-	if location == "" {
-		location = path.Join(tc.config.GetString("run_path"), "dsd_capture")
-	}
-	return location
-
+	panic("not called")
 }

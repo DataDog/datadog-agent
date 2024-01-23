@@ -18,8 +18,6 @@ package config
 import (
 	"net/http"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -44,9 +42,5 @@ type Component interface {
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newConfig),
-		fx.Supply(Params{
-			FailIfAPIKeyMissing: true,
-		}))
+	panic("not called")
 }

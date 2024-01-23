@@ -9,8 +9,6 @@ package cachedfetch
 import (
 	"context"
 	"sync"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Fetcher supports fetching a value, such as from a cloud service API.  An
@@ -50,53 +48,20 @@ type Fetcher struct {
 // This can be called from multiple goroutines, in which case it will call Attempt
 // concurrently.
 func (f *Fetcher) Fetch(ctx context.Context) (interface{}, error) {
-	value, err := f.Attempt(ctx)
-	if err == nil {
-		f.Lock()
-		f.lastValue = value
-		f.Unlock()
-		return value, nil
-	}
-
-	f.Lock()
-	lastValue := f.lastValue
-	f.Unlock()
-
-	if lastValue == nil {
-		// attempt was never successful
-		return value, err
-	}
-
-	if f.LogFailure == nil {
-		log.Debugf("Unable to get %s; returning cached value instead", f.Name)
-	} else {
-		f.LogFailure(err, lastValue)
-	}
-
-	return lastValue, nil
+	panic("not called")
 }
 
 // FetchString is a convenience wrapper around Fetch that returns a string
 func (f *Fetcher) FetchString(ctx context.Context) (string, error) {
-	v, err := f.Fetch(ctx)
-	if err != nil {
-		return "", err
-	}
-	return v.(string), nil
+	panic("not called")
 }
 
 // FetchStringSlice is a convenience wrapper around Fetch that returns a string
 func (f *Fetcher) FetchStringSlice(ctx context.Context) ([]string, error) {
-	v, err := f.Fetch(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return v.([]string), nil
+	panic("not called")
 }
 
 // Reset resets the cached value (used for testing)
 func (f *Fetcher) Reset() {
-	f.Lock()
-	f.lastValue = nil
-	f.Unlock()
+	panic("not called")
 }

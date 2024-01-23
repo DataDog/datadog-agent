@@ -58,93 +58,34 @@ func (b *BufferedMessageReceiver) Start() {
 
 // Stop closes the input channel
 func (b *BufferedMessageReceiver) Stop() {
-	close(b.inputChan)
+	panic("not called")
 }
 
 // Clear empties buffered messages
 func (b *BufferedMessageReceiver) clear() {
-	l := len(b.inputChan)
-	for i := 0; i < l; i++ {
-		<-b.inputChan
-	}
+	panic("not called")
 }
 
 // SetEnabled start collecting log messages for diagnostics. Returns true if state was successfully changed
 func (b *BufferedMessageReceiver) SetEnabled(e bool) bool {
-	b.m.Lock()
-	defer b.m.Unlock()
-
-	if b.enabled == e {
-		return false
-	}
-
-	b.enabled = e
-	if !e {
-		b.clear()
-	}
-	return true
+	panic("not called")
 }
 
 // IsEnabled returns the enabled state of the message receiver
 func (b *BufferedMessageReceiver) IsEnabled() bool {
-	b.m.RLock()
-	defer b.m.RUnlock()
-	return b.enabled
+	panic("not called")
 }
 
 // HandleMessage buffers a message for diagnostic processing
 func (b *BufferedMessageReceiver) HandleMessage(m *message.Message, rendered []byte, eventType string) {
-	if !b.IsEnabled() {
-		return
-	}
-	b.inputChan <- messagePair{
-		msg:       m,
-		rendered:  rendered,
-		eventType: eventType,
-	}
+	panic("not called")
 }
 
 // Filter writes the buffered events from the input channel formatted as a string to the output channel
 func (b *BufferedMessageReceiver) Filter(filters *Filters, done <-chan struct{}) <-chan string {
-	out := make(chan string, config.ChanSize)
-	go func() {
-		defer close(out)
-		for {
-			select {
-			case msgPair := <-b.inputChan:
-				if shouldHandleMessage(&msgPair, filters) {
-					out <- b.formatter.Format(msgPair.msg, msgPair.eventType, msgPair.rendered)
-				}
-			case <-done:
-				return
-			}
-		}
-	}()
-	return out
+	panic("not called")
 }
 
 func shouldHandleMessage(m *messagePair, filters *Filters) bool {
-	if filters == nil {
-		return true
-	}
-
-	shouldHandle := true
-
-	if filters.Name != "" {
-		shouldHandle = shouldHandle && m.msg.Origin != nil && m.msg.Origin.LogSource.Name == filters.Name
-	}
-
-	if filters.Type != "" {
-		shouldHandle = shouldHandle && ((m.msg.Origin != nil && m.msg.Origin.LogSource.Config.Type == filters.Type) || m.eventType == filters.Type)
-	}
-
-	if filters.Source != "" {
-		shouldHandle = shouldHandle && m.msg.Origin != nil && filters.Source == m.msg.Origin.Source()
-	}
-
-	if filters.Service != "" {
-		shouldHandle = shouldHandle && m.msg.Origin != nil && filters.Service == m.msg.Origin.Service()
-	}
-
-	return shouldHandle
+	panic("not called")
 }

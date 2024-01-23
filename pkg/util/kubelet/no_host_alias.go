@@ -9,15 +9,14 @@ package kubelet
 
 import (
 	"context"
-	"fmt"
 )
 
 // GetHostAliases uses the "kubelet" hostname provider to fetch the kubernetes alias
 func GetHostAliases(_ context.Context) ([]string, error) {
-	return nil, fmt.Errorf("Kubernetes support not build: couldn't extract a host alias from the kubelet")
+	panic("not called")
 }
 
 // GetMetaClusterNameText returns the clusterName text for the agent status output
 func GetMetaClusterNameText(_ context.Context, _ string) string {
-	return ""
+	panic("not called")
 }

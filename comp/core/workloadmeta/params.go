@@ -14,5 +14,5 @@ type Params struct {
 
 // NewParams creates a Params struct with the default NodeAgent configuration
 func NewParams() Params {
-	return Params{AgentType: NodeAgent}
+	panic("not called")
 }

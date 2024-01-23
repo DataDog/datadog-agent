@@ -72,17 +72,5 @@ func GetStaticTagsSlice(ctx context.Context) []string {
 // GetStaticTags is similar to GetStaticTagsSlice, but returning a map[string]string containing
 // <key>:<value> pairs for tags.  Tags not matching this pattern are omitted.
 func GetStaticTags(ctx context.Context) map[string]string {
-	tags := GetStaticTagsSlice(ctx)
-	if tags == nil {
-		return nil
-	}
-
-	rv := make(map[string]string, len(tags))
-	for _, t := range tags {
-		tagParts := strings.SplitN(t, ":", 2)
-		if len(tagParts) == 2 {
-			rv[tagParts[0]] = tagParts[1]
-		}
-	}
-	return rv
+	panic("not called")
 }

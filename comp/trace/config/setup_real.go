@@ -15,5 +15,5 @@ import (
 )
 
 func setupConfig(deps dependencies, apikey string) (*config.AgentConfig, error) {
-	return setupConfigCommon(deps, apikey)
+	panic("not called")
 }

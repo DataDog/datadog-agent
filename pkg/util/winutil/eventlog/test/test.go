@@ -13,8 +13,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
-
 	"github.com/stretchr/testify/require"
 )
 

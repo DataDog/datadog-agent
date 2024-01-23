@@ -9,9 +9,10 @@
 package model
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"net"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
 // GetBindAddrFamily returns the value of the field, resolving if necessary

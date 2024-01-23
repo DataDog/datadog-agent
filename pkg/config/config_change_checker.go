@@ -5,12 +5,6 @@
 
 package config
 
-import (
-	"fmt"
-	"os"
-	"reflect"
-)
-
 // ChangeChecker checks the state of `config.Datadog` did not change
 // between `NewChangeChecker()“ and `HasChanged()`. It is
 // designed to be used in `TestMain` function as follow:
@@ -29,28 +23,12 @@ type ChangeChecker struct {
 
 // NewChangeChecker creates a new instance of ConfigChangeChecker
 func NewChangeChecker() *ChangeChecker {
-	return &ChangeChecker{
-		configSettings: Datadog.AllSettings(),
-	}
+	panic("not called")
 }
 
 // HasChanged returns whether `config.Datadog` changed since
 // `NewConfigChangeChecker`. If some changes are detected
 // this function displays on the standard error what keys changed.
 func (c *ChangeChecker) HasChanged() bool {
-	allSettingsAfter := Datadog.AllSettings()
-	stateHasChanged := false
-	for k, before := range c.configSettings {
-		after := allSettingsAfter[k]
-		delete(allSettingsAfter, k)
-		if !reflect.DeepEqual(before, after) {
-			_, _ = fmt.Fprintf(os.Stderr, "Config change detected: Key:'%s' previous value:'%+v' new value:'%+v'\n", k, before, after)
-			stateHasChanged = true
-		}
-	}
-	for k, v := range allSettingsAfter {
-		_, _ = fmt.Fprintf(os.Stderr, "Config change detected: Key:'%s' was set to value:'%+v' but it was not restored to its default value\n", k, v)
-		stateHasChanged = true
-	}
-	return stateHasChanged
+	panic("not called")
 }

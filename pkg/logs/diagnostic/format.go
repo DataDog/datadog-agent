@@ -6,12 +6,7 @@
 package diagnostic
 
 import (
-	"context"
-	"fmt"
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 // Formatter defines how a particular message.Message should be formatted
@@ -25,26 +20,5 @@ type logFormatter struct{}
 
 //nolint:revive // TODO(AML) Fix revive linter
 func (l *logFormatter) Format(m *message.Message, eventType string, redactedMsg []byte) string {
-	hname, err := hostname.Get(context.TODO())
-	if err != nil {
-		hname = "unknown"
-	}
-
-	ts := time.Now().UTC()
-	// TODO(remy): should we consider renaming the "Timestamp: %s" to mention
-	// it's only concerning the serverless agent?
-	if !m.ServerlessExtra.Timestamp.IsZero() {
-		ts = m.ServerlessExtra.Timestamp
-	}
-
-	return fmt.Sprintf("Integration Name: %s | Type: %s | Status: %s | Timestamp: %s | Hostname: %s | Service: %s | Source: %s | Tags: %s | Message: %s\n",
-		m.Origin.LogSource.Name,
-		m.Origin.LogSource.Config.Type,
-		m.GetStatus(),
-		ts,
-		hname,
-		m.Origin.Service(),
-		m.Origin.Source(),
-		m.Origin.TagsToString(),
-		string(redactedMsg))
+	panic("not called")
 }

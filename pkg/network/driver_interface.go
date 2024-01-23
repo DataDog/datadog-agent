@@ -9,11 +9,12 @@ package network
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"math"
 	"sync"
 	"time"
 	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 
 	"golang.org/x/sys/windows"
 

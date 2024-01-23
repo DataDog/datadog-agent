@@ -82,19 +82,12 @@ type RuntimeMetadata struct {
 
 // NewRuntimeMetadata returns a new RuntimeMetadata
 func NewRuntimeMetadata(runtime, flavor string) RuntimeMetadata {
-	return RuntimeMetadata{
-		flavor:  RuntimeFlavor(flavor),
-		runtime: Runtime(runtime),
-	}
+	panic("not called")
 }
 
 // String returns the runtime compose.
 func (r *RuntimeMetadata) String() string {
-	if r.flavor != "" {
-		return string(r.runtime) + "-" + string(r.flavor)
-	}
-
-	return string(r.runtime)
+	panic("not called")
 }
 
 // Provider interface allows to mock the metrics provider
@@ -138,28 +131,14 @@ func newProvider() *GenericProvider {
 // The best collector may change depending on other collectors availability.
 // You should not cache the result from this function.
 func (mp *GenericProvider) GetCollector(r RuntimeMetadata) Collector {
-	// we can't return mp.collectors[runtime] directly because it will return a typed nil
-	if runtime, found := mp.collectors[r]; found {
-		return runtime
-	}
-
-	return nil
+	panic("not called")
 }
 
 // GetMetaCollector returns the meta collector.
 func (mp *GenericProvider) GetMetaCollector() MetaCollector {
-	return mp.metaCollector
+	panic("not called")
 }
 
 func (mp *GenericProvider) collectorsUpdatedCallback(collectorsCatalog CollectorCatalog) {
-	// Update local collectors
-	newCollectors := make(map[RuntimeMetadata]*collectorImpl, len(collectorsCatalog))
-	for runtime, collectors := range collectorsCatalog {
-		newCollectors[runtime] = fromCollectors(collectors)
-	}
-
-	mp.collectors = newCollectors
-
-	// Update metacollectors
-	mp.metaCollector.collectorsUpdatedCallback(collectorsCatalog)
+	panic("not called")
 }

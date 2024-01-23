@@ -7,6 +7,7 @@ package goflowlib
 
 import (
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	promClient "github.com/prometheus/client_model/go"
 )

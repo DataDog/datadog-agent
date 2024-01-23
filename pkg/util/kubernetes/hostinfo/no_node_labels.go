@@ -16,12 +16,12 @@ type NodeInfo struct {
 // NewNodeInfo return a new NodeInfo instance
 // return an error if it fails to access the kubelet client.
 func NewNodeInfo() (*NodeInfo, error) {
-	return &NodeInfo{}, nil
+	panic("not called")
 }
 
 // GetNodeLabels returns node labels for this host
 //
 //nolint:revive // TODO(CINT) Fix revive linter
 func (n *NodeInfo) GetNodeLabels(ctx context.Context) (map[string]string, error) {
-	return nil, nil
+	panic("not called")
 }

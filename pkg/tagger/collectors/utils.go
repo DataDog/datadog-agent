@@ -5,11 +5,6 @@
 
 package collectors
 
-import (
-	"fmt"
-	"strings"
-)
-
 const (
 	// LowCardinalityString is the string representation of the low cardinality
 	LowCardinalityString = "low"
@@ -26,29 +21,11 @@ const (
 // StringToTagCardinality extracts a TagCardinality from a string.
 // In case of failure to parse, returns an error and defaults to Low.
 func StringToTagCardinality(c string) (TagCardinality, error) {
-	switch strings.ToLower(c) {
-	case HighCardinalityString:
-		return HighCardinality, nil
-	case ShortOrchestratorCardinalityString, OrchestratorCardinalityString:
-		return OrchestratorCardinality, nil
-	case LowCardinalityString:
-		return LowCardinality, nil
-	default:
-		return LowCardinality, fmt.Errorf("unsupported value %s received for tag cardinality", c)
-	}
+	panic("not called")
 }
 
 // TagCardinalityToString returns a string representation of a TagCardinality
 // value.
 func TagCardinalityToString(c TagCardinality) string {
-	switch c {
-	case HighCardinality:
-		return HighCardinalityString
-	case OrchestratorCardinality:
-		return OrchestratorCardinalityString
-	case LowCardinality:
-		return LowCardinalityString
-	default:
-		return UnknownCardinalityString
-	}
+	panic("not called")
 }

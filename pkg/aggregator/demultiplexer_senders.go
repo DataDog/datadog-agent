@@ -6,7 +6,6 @@
 package aggregator
 
 import (
-	"errors"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -23,56 +22,30 @@ type senders struct {
 }
 
 func newSenders(aggregator *BufferedAggregator) *senders {
-	return &senders{
-		agg: aggregator,
-		senderPool: &checkSenderPool{
-			agg:     aggregator,
-			senders: make(map[checkid.ID]sender.Sender),
-		},
-	}
+	panic("not called")
 }
 
 // SetSender returns the passed sender with the passed ID.
 // This is largely for testing purposes
 func (s *senders) SetSender(sender sender.Sender, id checkid.ID) error {
-	if s == nil {
-		return errors.New("Demultiplexer was not initialized")
-	}
-	return s.senderPool.setSender(sender, id)
+	panic("not called")
 }
 
 // GetSender returns a sender.Sender with passed ID, properly registered with the aggregator
 // If no error is returned here, DestroySender must be called with the same ID
 // once the sender is not used anymore
 func (s *senders) GetSender(cid checkid.ID) (sender.Sender, error) {
-	sender, err := s.senderPool.getSender(cid)
-	if err != nil {
-		sender, err = s.senderPool.mkSender(cid)
-	}
-	return sender, err
+	panic("not called")
 }
 
 // DestroySender frees up the resources used by the sender with passed ID (by deregistering it from the aggregator)
 // Should be called when no sender with this ID is used anymore
 // The metrics of this (these) sender(s) that haven't been flushed yet will be lost
 func (s *senders) DestroySender(id checkid.ID) {
-	s.senderPool.removeSender(id)
+	panic("not called")
 }
 
 // GetDefaultSender returns a default sender.
 func (s *senders) GetDefaultSender() (sender.Sender, error) {
-	s.senderInit.Do(func() {
-		var defaultCheckID checkid.ID        // the default value is the zero value
-		s.agg.registerSender(defaultCheckID) //nolint:errcheck
-		s.defaultSender = newCheckSender(defaultCheckID,
-			s.agg.hostname,
-			s.agg.checkItems,
-			s.agg.serviceCheckIn,
-			s.agg.eventIn,
-			s.agg.orchestratorMetadataIn,
-			s.agg.orchestratorManifestIn,
-			s.agg.eventPlatformIn,
-		)
-	})
-	return s.defaultSender, nil
+	panic("not called")
 }

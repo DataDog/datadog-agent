@@ -72,7 +72,7 @@ func (s *TimeSampler) calculateBucketStart(timestamp float64) int64 {
 }
 
 func (s *TimeSampler) isBucketStillOpen(bucketStartTimestamp, timestamp int64) bool {
-	return bucketStartTimestamp+s.interval > timestamp
+	panic("not called")
 }
 
 func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float64) {
@@ -174,38 +174,7 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 	serieSink metrics.SerieSink,
 	serieBySignature map[SerieSignature]*metrics.Serie,
 ) {
-	// clear the map. Reuse serieBySignature
-	for k := range serieBySignature {
-		delete(serieBySignature, k)
-	}
-
-	// rawSeries have the same context key.
-	for _, serie := range rawSeries {
-		serieSignature := SerieSignature{serie.MType, serie.NameSuffix}
-
-		if existingSerie, ok := serieBySignature[serieSignature]; ok {
-			existingSerie.Points = append(existingSerie.Points, serie.Points[0])
-		} else {
-			// Resolve context and populate new Serie
-			context, ok := s.contextResolver.get(serie.ContextKey)
-			if !ok {
-				log.Errorf("TimeSampler #%d Ignoring all metrics on context key '%v': inconsistent context resolver state: the context is not tracked", s.id, serie.ContextKey)
-				continue
-			}
-			serie.Name = context.Name + serie.NameSuffix
-			serie.Tags = context.Tags()
-			serie.Host = context.Host
-			serie.NoIndex = context.noIndex
-			serie.Interval = s.interval
-			serie.Source = context.source
-
-			serieBySignature[serieSignature] = serie
-		}
-	}
-
-	for _, serie := range serieBySignature {
-		serieSink.Append(serie)
-	}
+	panic("not called")
 }
 
 func (s *TimeSampler) flushSketches(cutoffTime int64, sketchesSink metrics.SketchesSink) {
@@ -327,5 +296,5 @@ func (s *TimeSampler) sendTelemetry(timestamp float64, series metrics.SerieSink)
 }
 
 func (s *TimeSampler) dumpContexts(dest io.Writer) error {
-	return s.contextResolver.dumpContexts(dest)
+	panic("not called")
 }

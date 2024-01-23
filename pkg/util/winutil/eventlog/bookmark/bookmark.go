@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	"golang.org/x/sys/windows"
 )
 

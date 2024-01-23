@@ -35,7 +35,7 @@ func (a *agent) Start() error {
 }
 
 func (a *agent) Stop() {
-	_ = a.stop(context.TODO())
+	panic("not called")
 }
 
 // Flush flushes synchronously the running instance of the Logs Agent.

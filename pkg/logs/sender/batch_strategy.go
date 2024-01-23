@@ -45,7 +45,7 @@ func NewBatchStrategy(inputChan chan *message.Message,
 	maxContentSize int,
 	pipelineName string,
 	contentEncoding ContentEncoding) Strategy {
-	return newBatchStrategyWithClock(inputChan, outputChan, flushChan, serializer, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), contentEncoding)
+	panic("not called")
 }
 
 func newBatchStrategyWithClock(inputChan chan *message.Message,
@@ -58,25 +58,12 @@ func newBatchStrategyWithClock(inputChan chan *message.Message,
 	pipelineName string,
 	clock clock.Clock,
 	contentEncoding ContentEncoding) Strategy {
-
-	return &batchStrategy{
-		inputChan:       inputChan,
-		outputChan:      outputChan,
-		flushChan:       flushChan,
-		buffer:          NewMessageBuffer(maxBatchSize, maxContentSize),
-		serializer:      serializer,
-		batchWait:       batchWait,
-		contentEncoding: contentEncoding,
-		stopChan:        make(chan struct{}),
-		pipelineName:    pipelineName,
-		clock:           clock,
-	}
+	panic("not called")
 }
 
 // Stop flushes the buffer and stops the strategy
 func (s *batchStrategy) Stop() {
-	close(s.inputChan)
-	<-s.stopChan
+	panic("not called")
 }
 
 // Start reads the incoming messages and accumulates them to a buffer. The buffer is

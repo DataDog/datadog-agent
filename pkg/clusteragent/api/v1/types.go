@@ -44,68 +44,27 @@ type PodsStringsSet struct {
 
 // NewNamespacesPodsStringsSet return new initialized NamespacesPodsStringsSet instance
 func NewNamespacesPodsStringsSet() NamespacesPodsStringsSet {
-	return make(NamespacesPodsStringsSet)
+	panic("not called")
 }
 
 // DeepCopy used to copy NamespacesPodsStringsSet in another NamespacesPodsStringsSet
 func (m NamespacesPodsStringsSet) DeepCopy(old *NamespacesPodsStringsSet) NamespacesPodsStringsSet {
-	if old == nil {
-		return m
-	}
-	// {"ns":{"pod":{"svc"}, "pod1": {"svc"}, "pod2": {"svc1"}}}
-	for nsKey, val1 := range *old {
-		if _, ok := m[nsKey]; !ok {
-			m[nsKey] = MapStringSet{}
-		}
-		for pod, svcs := range val1 {
-			if _, ok := m[nsKey][pod]; !ok {
-				m[nsKey][pod] = sets.New[string]()
-			}
-			m[nsKey][pod] = m[nsKey][pod].Union(svcs)
-		}
-	}
-
-	return m
+	panic("not called")
 }
 
 // Get returns the list of strings for a given namespace and pod name.
 func (m NamespacesPodsStringsSet) Get(namespace, podName string) ([]string, bool) {
-	if _, ok := m[namespace]; !ok {
-		return nil, false
-	}
-	if _, ok := m[namespace][podName]; !ok {
-		return nil, false
-	}
-	return m[namespace][podName].UnsortedList(), true
+	panic("not called")
 }
 
 // Set updates strings for a given namespace and pod name.
 func (m NamespacesPodsStringsSet) Set(namespace, podName string, strings ...string) {
-	if _, ok := m[namespace]; !ok {
-		m[namespace] = make(map[string]sets.Set[string])
-	}
-	if _, ok := m[namespace][podName]; !ok {
-		m[namespace][podName] = sets.New[string]()
-	}
-	m[namespace][podName].Insert(strings...)
+	panic("not called")
 }
 
 // Delete deletes strings for a given namespace.
 func (m NamespacesPodsStringsSet) Delete(namespace string, strings ...string) {
-	if _, ok := m[namespace]; !ok {
-		// Nothing to delete.
-		return
-	}
-	for podName, svcSet := range m[namespace] {
-		svcSet.Delete(strings...)
-
-		if svcSet.Len() == 0 {
-			delete(m[namespace], podName)
-		}
-	}
-	if len(m[namespace]) == 0 {
-		delete(m, namespace)
-	}
+	panic("not called")
 }
 
 // MetadataResponseBundle maps pod names to associated metadata.
@@ -117,9 +76,7 @@ type MetadataResponseBundle struct {
 
 // NewMetadataResponseBundle returns new MetadataResponseBundle initialized instance
 func NewMetadataResponseBundle() *MetadataResponseBundle {
-	return &MetadataResponseBundle{
-		Services: NewNamespacesPodsStringsSet(),
-	}
+	panic("not called")
 }
 
 // MetadataResponse use to encore /api/v1/tags payloads
@@ -132,7 +89,5 @@ type MetadataResponse struct {
 
 // NewMetadataResponse returns new NewMetadataResponse initialized instance
 func NewMetadataResponse() *MetadataResponse {
-	return &MetadataResponse{
-		Nodes: make(map[string]*MetadataResponseBundle),
-	}
+	panic("not called")
 }

@@ -94,14 +94,7 @@ func NewDestination(endpoint config.Endpoint,
 	maxConcurrentBackgroundSends int,
 	shouldRetry bool,
 	telemetryName string) *Destination {
-
-	return newDestination(endpoint,
-		contentType,
-		destinationsContext,
-		time.Second*10,
-		maxConcurrentBackgroundSends,
-		shouldRetry,
-		telemetryName)
+	panic("not called")
 }
 
 func newDestination(endpoint config.Endpoint,
@@ -111,43 +104,7 @@ func newDestination(endpoint config.Endpoint,
 	maxConcurrentBackgroundSends int,
 	shouldRetry bool,
 	telemetryName string) *Destination {
-
-	if maxConcurrentBackgroundSends <= 0 {
-		maxConcurrentBackgroundSends = 1
-	}
-	policy := backoff.NewExpBackoffPolicy(
-		endpoint.BackoffFactor,
-		endpoint.BackoffBase,
-		endpoint.BackoffMax,
-		endpoint.RecoveryInterval,
-		endpoint.RecoveryReset,
-	)
-
-	expVars := &expvar.Map{}
-	expVars.AddFloat(expVarIdleMsMapKey, 0)
-	expVars.AddFloat(expVarInUseMsMapKey, 0)
-	if telemetryName != "" {
-		metrics.DestinationExpVars.Set(telemetryName, expVars)
-	}
-
-	return &Destination{
-		host:                endpoint.Host,
-		url:                 buildURL(endpoint),
-		apiKey:              endpoint.APIKey,
-		contentType:         contentType,
-		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, httpClientFactory(timeout)),
-		destinationsContext: destinationsContext,
-		climit:              make(chan struct{}, maxConcurrentBackgroundSends),
-		wg:                  sync.WaitGroup{},
-		backoff:             policy,
-		protocol:            endpoint.Protocol,
-		origin:              endpoint.Origin,
-		lastRetryError:      nil,
-		retryLock:           sync.Mutex{},
-		shouldRetry:         shouldRetry,
-		expVars:             expVars,
-		telemetryName:       telemetryName,
-	}
+	panic("not called")
 }
 
 func errorToTag(err error) string {
@@ -325,26 +282,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 }
 
 func (d *Destination) updateRetryState(err error, isRetrying chan bool) bool {
-	d.retryLock.Lock()
-	defer d.retryLock.Unlock()
-
-	if _, ok := err.(*client.RetryableError); ok {
-		d.nbErrors = d.backoff.IncError(d.nbErrors)
-		if isRetrying != nil && d.lastRetryError == nil {
-			isRetrying <- true
-		}
-		d.lastRetryError = err
-
-		return true
-	} else { //nolint:revive // TODO(AML) Fix revive linter
-		d.nbErrors = d.backoff.DecError(d.nbErrors)
-		if isRetrying != nil && d.lastRetryError != nil {
-			isRetrying <- false
-		}
-		d.lastRetryError = nil
-
-		return false
-	}
+	panic("not called")
 }
 
 func httpClientFactory(timeout time.Duration) func() *http.Client {
@@ -392,40 +330,23 @@ func getMessageTimestamp(messages []*message.Message) int64 {
 }
 
 func prepareCheckConnectivity(endpoint config.Endpoint) (*client.DestinationsContext, *Destination) {
-	ctx := client.NewDestinationsContext()
-	// Lower the timeout to 5s because HTTP connectivity test is done synchronously during the agent bootstrap sequence
-	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0, false, "")
-	return ctx, destination
+	panic("not called")
 }
 
 func completeCheckConnectivity(ctx *client.DestinationsContext, destination *Destination) error {
-	ctx.Start()
-	defer ctx.Stop()
-	return destination.unconditionalSend(&emptyJsonPayload)
+	panic("not called")
 }
 
 // CheckConnectivity check if sending logs through HTTP works
 func CheckConnectivity(endpoint config.Endpoint) config.HTTPConnectivity {
-	log.Info("Checking HTTP connectivity...")
-	ctx, destination := prepareCheckConnectivity(endpoint)
-	log.Infof("Sending HTTP connectivity request to %s...", destination.url)
-	err := completeCheckConnectivity(ctx, destination)
-	if err != nil {
-		log.Warnf("HTTP connectivity failure: %v", err)
-	} else {
-		log.Info("HTTP connectivity successful")
-	}
-	return err == nil
+	panic("not called")
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
 func CheckConnectivityDiagnose(endpoint config.Endpoint) (url string, err error) {
-	ctx, destination := prepareCheckConnectivity(endpoint)
-	return destination.url, completeCheckConnectivity(ctx, destination)
+	panic("not called")
 }
 
 func (d *Destination) waitForBackoff() {
-	ctx, cancel := context.WithDeadline(d.destinationsContext.Context(), d.blockedUntil)
-	defer cancel()
-	<-ctx.Done()
+	panic("not called")
 }

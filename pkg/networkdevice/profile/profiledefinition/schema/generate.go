@@ -7,6 +7,7 @@ package schema
 
 import (
 	"encoding/json"
+
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/invopop/jsonschema"
 )

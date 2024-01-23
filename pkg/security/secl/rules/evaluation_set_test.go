@@ -10,14 +10,15 @@ package rules
 
 import (
 	"fmt"
+	"path/filepath"
+	"strings"
+	"testing"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/assert"
-	"path/filepath"
-	"strings"
-	"testing"
 )
 
 // Tests

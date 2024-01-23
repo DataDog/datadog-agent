@@ -32,13 +32,7 @@ func (dc *DestinationsContext) Start() {
 
 // Stop cancels the context that should be used by all senders.
 func (dc *DestinationsContext) Stop() {
-	dc.mutex.Lock()
-	defer dc.mutex.Unlock()
-	if dc.cancel != nil {
-		dc.cancel()
-		dc.cancel = nil
-	}
-	// Here we keep the cancelled context to make sure in-flight destination get it.
+	panic("not called")
 }
 
 // Context allows one to access the current context of this DestinationsContext.

@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"go.uber.org/fx"
 )
@@ -58,59 +57,9 @@ type dependencies struct {
 }
 
 func newWorkloadMeta(deps dependencies) Component {
-	candidates := make(map[string]Collector)
-	for _, c := range deps.Catalog {
-		if (c.GetTargetCatalog() & deps.Params.AgentType) > 0 {
-			candidates[c.GetID()] = c
-		}
-	}
-
-	wm := &workloadmeta{
-		log:    deps.Log,
-		config: deps.Config,
-
-		store:        make(map[Kind]map[string]*cachedEntity),
-		candidates:   candidates,
-		collectors:   make(map[string]Collector),
-		eventCh:      make(chan []CollectorEvent, eventChBufferSize),
-		ongoingPulls: make(map[string]time.Time),
-	}
-
-	// Set global
-	SetGlobalStore(wm)
-
-	deps.Lc.Append(fx.Hook{OnStart: func(c context.Context) error {
-
-		var err error
-
-		// Main context passed to components
-		// TODO(components): this mainCtx should probably be replaced by the
-		//                   context provided to the OnStart hook.
-		mainCtx, _ := common.GetMainCtxCancel()
-
-		// create and setup the Autoconfig instance
-		if deps.Params.InitHelper != nil {
-			err = deps.Params.InitHelper(mainCtx, wm)
-			if err != nil {
-				return err
-			}
-		}
-		wm.Start(mainCtx)
-		return nil
-	}})
-	deps.Lc.Append(fx.Hook{OnStop: func(context.Context) error {
-		// TODO(components): workloadmeta should probably be stopped cleanly
-		return nil
-	}})
-
-	return wm
+	panic("not called")
 }
 
 func newWorkloadMetaOptional(deps dependencies) optional.Option[Component] {
-	if deps.Params.NoInstance {
-		return optional.NewNoneOption[Component]()
-	}
-	c := newWorkloadMeta(deps)
-
-	return optional.NewOption[Component](c)
+	panic("not called")
 }

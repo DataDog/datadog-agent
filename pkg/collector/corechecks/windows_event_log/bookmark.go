@@ -10,10 +10,6 @@ package evtlog
 import (
 	"fmt"
 	"sync"
-
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/subscription"
 )
 
 type bookmarkSaver struct {

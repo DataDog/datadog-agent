@@ -7,10 +7,6 @@
 package serverdebugimpl
 
 import (
-	"bytes"
-	"encoding/json"
-	"fmt"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -34,8 +30,7 @@ import (
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newServerDebug))
+	panic("not called")
 }
 
 type dependencies struct {
@@ -79,7 +74,7 @@ func NewServerlessServerDebug() serverdebug.Component {
 
 // newServerDebug creates a new instance of a ServerDebug
 func newServerDebug(deps dependencies) serverdebug.Component {
-	return newServerDebugCompat(deps.Log, deps.Config)
+	panic("not called")
 }
 
 func newServerDebugCompat(log logComponent.Component, cfg config.Reader) serverdebug.Component {
@@ -112,40 +107,7 @@ type metricsCountBuckets struct {
 
 // FormatDebugStats returns a printable version of debug stats.
 func FormatDebugStats(stats []byte) (string, error) {
-	var dogStats map[uint64]metricStat
-	if err := json.Unmarshal(stats, &dogStats); err != nil {
-		return "", err
-	}
-
-	// put metrics in order: first is the more frequent
-	order := make([]uint64, len(dogStats))
-	i := 0
-	for metric := range dogStats {
-		order[i] = metric
-		i++
-	}
-
-	sort.Slice(order, func(i, j int) bool {
-		return dogStats[order[i]].Count > dogStats[order[j]].Count
-	})
-
-	// write the response
-	buf := bytes.NewBuffer(nil)
-
-	header := fmt.Sprintf("%-40s | %-20s | %-10s | %-20s\n", "Metric", "Tags", "Count", "Last Seen")
-	buf.Write([]byte(header))
-	buf.Write([]byte(strings.Repeat("-", len(header)) + "\n"))
-
-	for _, key := range order {
-		stats := dogStats[key]
-		buf.Write([]byte(fmt.Sprintf("%-40s | %-20s | %-10d | %-20v\n", stats.Name, stats.Tags, stats.Count, stats.LastSeen)))
-	}
-
-	if len(dogStats) == 0 {
-		buf.Write([]byte("No metrics processed yet."))
-	}
-
-	return buf.String(), nil
+	panic("not called")
 }
 
 // storeMetricStats stores stats on the given metric sample.
@@ -187,93 +149,33 @@ func (d *serverDebugImpl) StoreMetricStats(sample metrics.MetricSample) {
 
 // SetMetricStatsEnabled enables or disables metric stats
 func (d *serverDebugImpl) SetMetricStatsEnabled(enable bool) {
-	d.Lock()
-	defer d.Unlock()
-
-	if enable {
-		d.enableMetricsStats()
-	} else {
-		d.disableMetricsStats()
-	}
+	panic("not called")
 }
 
 // enableMetricsStats enables the debug mode of the DogStatsD server and start
 // the debug mainloop collecting the amount of metrics received.
 func (d *serverDebugImpl) enableMetricsStats() {
-	// already enabled?
-	if d.enabled.Load() {
-		return
-	}
-
-	d.enabled.Store(true)
-	go func() {
-		ticker := d.clock.Ticker(time.Millisecond * 100)
-		d.log.Debug("Starting the DogStatsD debug loop.")
-		defer func() {
-			d.log.Debug("Stopping the DogStatsD debug loop.")
-			ticker.Stop()
-		}()
-		for {
-			select {
-			case <-ticker.C:
-				sec := d.clock.Now().Truncate(time.Second)
-				if sec.After(d.metricsCounts.currentSec) {
-					d.metricsCounts.currentSec = sec
-					if d.hasSpike() {
-						d.log.Warnf("A burst of metrics has been detected by DogStatSd: here is the last 5 seconds count of metrics: %v", d.metricsCounts.counts)
-					}
-
-					d.metricsCounts.bucketIdx++
-
-					if d.metricsCounts.bucketIdx >= len(d.metricsCounts.counts) {
-						d.metricsCounts.bucketIdx = 0
-					}
-
-					d.metricsCounts.counts[d.metricsCounts.bucketIdx] = 0
-				}
-			case <-d.metricsCounts.metricChan:
-				d.metricsCounts.counts[d.metricsCounts.bucketIdx]++
-			case <-d.metricsCounts.closeChan:
-				return
-			}
-		}
-	}()
+	panic("not called")
 }
 
 func (d *serverDebugImpl) hasSpike() bool {
-	// compare this one to the sum of all others
-	// if the difference is higher than all others sum, consider this
-	// as an anomaly.
-	var sum uint64
-	for _, v := range d.metricsCounts.counts {
-		sum += v
-	}
-	sum -= d.metricsCounts.counts[d.metricsCounts.bucketIdx]
-
-	return d.metricsCounts.counts[d.metricsCounts.bucketIdx] > sum
+	panic("not called")
 }
 
 // GetJSONDebugStats returns jsonified debug statistics.
 func (d *serverDebugImpl) GetJSONDebugStats() ([]byte, error) {
-	d.Lock()
-	defer d.Unlock()
-	return json.Marshal(d.Stats)
+	panic("not called")
 }
 
 func (d *serverDebugImpl) IsDebugEnabled() bool {
-	return d.enabled.Load()
+	panic("not called")
 }
 
 // disableMetricsStats disables the debug mode of the DogStatsD server and
 // stops the debug mainloop.
 
 func (d *serverDebugImpl) disableMetricsStats() {
-	if d.enabled.Load() {
-		d.enabled.Store(false)
-		d.metricsCounts.closeChan <- struct{}{}
-	}
-
-	d.log.Info("Disabling DogStatsD debug metrics stats.")
+	panic("not called")
 }
 
 // build a local dogstatsd logger and bubbling up any errors

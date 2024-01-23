@@ -7,6 +7,8 @@
 
 package platform
 
+import "github.com/DataDog/datadog-agent/pkg/gohai/utils"
+
 func (platformInfo *Info) fillPlatformInfo() {
 	failedFields := []*utils.Value[string]{
 		&platformInfo.KernelName, &platformInfo.KernelRelease, &platformInfo.Hostname,

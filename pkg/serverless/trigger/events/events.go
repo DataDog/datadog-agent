@@ -11,13 +11,9 @@
 package events
 
 import (
-	"bytes"
-	"compress/gzip"
-	"encoding/base64"
 	"time"
 
 	"github.com/aws/aws-lambda-go/events"
-	json "github.com/json-iterator/go"
 )
 
 // APIGatewayProxyRequest mirrors events.APIGatewayProxyRequest type, removing
@@ -158,21 +154,7 @@ type CloudwatchLogsRawData struct {
 
 // Parse returns a struct representing a usable CloudwatchLogs event
 func (c CloudwatchLogsRawData) Parse() (d CloudwatchLogsData, err error) {
-	data, err := base64.StdEncoding.DecodeString(c.Data)
-	if err != nil {
-		return
-	}
-
-	zr, err := gzip.NewReader(bytes.NewBuffer(data))
-	if err != nil {
-		return
-	}
-	defer zr.Close()
-
-	dec := json.NewDecoder(zr)
-	err = dec.Decode(&d)
-
-	return
+	panic("not called")
 }
 
 // CloudwatchLogsData mirrors events.CloudwatchLogsData type, removing unused

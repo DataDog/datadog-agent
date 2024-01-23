@@ -5,26 +5,9 @@
 
 package utils
 
-import (
-	"hash/fnv"
-	"sort"
-	"strconv"
-)
-
 // ComputeTagsHash returns a hash of the supplied tags.
 func ComputeTagsHash(tags []string) string {
-	hash := ""
-	if len(tags) > 0 {
-		// do not sort original slice
-		tags = copyArray(tags)
-		h := fnv.New64()
-		sort.Strings(tags)
-		for _, i := range tags {
-			h.Write([]byte(i)) //nolint:errcheck
-		}
-		hash = strconv.FormatUint(h.Sum64(), 16)
-	}
-	return hash
+	panic("not called")
 }
 
 // copyArray makes sure the tagger does not return internal slices
@@ -32,7 +15,5 @@ func ComputeTagsHash(tags []string) string {
 // contents to a new slice. As strings are references, the size of
 // the new array is small enough.
 func copyArray(source []string) []string {
-	copied := make([]string, len(source))
-	copy(copied, source)
-	return copied
+	panic("not called")
 }

@@ -69,28 +69,7 @@ func (s *LogSources) AddSource(source *LogSource) {
 // All of the subscribers registered for this source's type (src.Config.Type) will be
 // notified of its removal.
 func (s *LogSources) RemoveSource(source *LogSource) {
-	log.Tracef("Removing %s", source.Dump(false))
-	s.mu.Lock()
-	var sourceFound bool
-	for i, src := range s.sources {
-		if src == source {
-			s.sources = append(s.sources[:i], s.sources[i+1:]...)
-			sourceFound = true
-			break
-		}
-	}
-	streams := s.removed
-	streamsForType := s.removedByType[source.Config.Type]
-	s.mu.Unlock()
-
-	if sourceFound {
-		for _, stream := range streams {
-			stream <- source
-		}
-		for _, stream := range streamsForType {
-			stream <- source
-		}
-	}
+	panic("not called")
 }
 
 // SubscribeAll returns two channels carrying notifications of all added and
@@ -99,23 +78,7 @@ func (s *LogSources) RemoveSource(source *LogSource) {
 //
 // Any sources added before this call are delivered from a new goroutine.
 func (s *LogSources) SubscribeAll() (added chan *LogSource, removed chan *LogSource) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	added = make(chan *LogSource)
-	removed = make(chan *LogSource)
-
-	s.added = append(s.added, added)
-	s.removed = append(s.removed, removed)
-
-	existingSources := append([]*LogSource{}, s.sources...) // clone for goroutine
-	go func() {
-		for _, source := range existingSources {
-			added <- source
-		}
-	}()
-
-	return
+	panic("not called")
 }
 
 // SubscribeForType returns two channels carrying notifications of added and
@@ -124,32 +87,7 @@ func (s *LogSources) SubscribeAll() (added chan *LogSource, removed chan *LogSou
 //
 // Any sources added before this call are delivered from a new goroutine.
 func (s *LogSources) SubscribeForType(sourceType string) (added chan *LogSource, removed chan *LogSource) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	added = make(chan *LogSource)
-	removed = make(chan *LogSource)
-
-	if _, exists := s.addedByType[sourceType]; !exists {
-		s.addedByType[sourceType] = []chan *LogSource{}
-	}
-	s.addedByType[sourceType] = append(s.addedByType[sourceType], added)
-
-	if _, exists := s.removedByType[sourceType]; !exists {
-		s.removedByType[sourceType] = []chan *LogSource{}
-	}
-	s.removedByType[sourceType] = append(s.removedByType[sourceType], removed)
-
-	existingSources := append([]*LogSource{}, s.sources...) // clone for goroutine
-	go func() {
-		for _, source := range existingSources {
-			if source.Config.Type == sourceType {
-				added <- source
-			}
-		}
-	}()
-
-	return
+	panic("not called")
 }
 
 // GetAddedForType returns a channel carrying notifications of new sources
@@ -184,9 +122,5 @@ func (s *LogSources) GetAddedForType(sourceType string) chan *LogSource {
 // will not be modified after it is returned.  However, the copy in the LogSources
 // instance may change in that time (changing indexes or adding/removing entries).
 func (s *LogSources) GetSources() []*LogSource {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	clone := append([]*LogSource{}, s.sources...)
-	return clone
+	panic("not called")
 }

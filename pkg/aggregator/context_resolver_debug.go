@@ -6,7 +6,6 @@
 package aggregator
 
 import (
-	"encoding/json"
 	"io"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -24,22 +23,5 @@ type ContextDebugRepr struct {
 }
 
 func (cr *contextResolver) dumpContexts(dest io.Writer) error {
-	enc := json.NewEncoder(dest)
-
-	for _, c := range cr.contextsByKey {
-		err := enc.Encode(ContextDebugRepr{
-			Name:       c.Name,
-			Host:       c.Host,
-			Type:       c.mtype.String(),
-			TaggerTags: c.taggerTags.Tags(),
-			MetricTags: c.metricTags.Tags(),
-			NoIndex:    c.noIndex,
-			Source:     c.source,
-		})
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
+	panic("not called")
 }

@@ -8,17 +8,13 @@ package hostname
 
 import (
 	"context"
-	"fmt"
 	"os"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // for testing purposes
@@ -40,119 +36,37 @@ type Data struct {
 }
 
 func fromConfig(ctx context.Context, _ string) (string, error) {
-	configName := config.Datadog.GetString("hostname")
-	err := validate.ValidHostname(configName)
-	if err != nil {
-		return "", err
-	}
-	warnIfNotCanonicalHostname(ctx, configName)
-	return configName, nil
+	panic("not called")
 }
 
 func fromHostnameFile(ctx context.Context, _ string) (string, error) {
-	// Try `hostname_file` config option next
-	hostnameFilepath := config.Datadog.GetString("hostname_file")
-	if hostnameFilepath == "" {
-		return "", fmt.Errorf("'hostname_file' configuration is not enabled")
-	}
-
-	fileContent, err := os.ReadFile(hostnameFilepath)
-	if err != nil {
-		return "", fmt.Errorf("Could not read hostname from %s: %v", hostnameFilepath, err)
-	}
-
-	hostname := strings.TrimSpace(string(fileContent))
-
-	err = validate.ValidHostname(hostname)
-	if err != nil {
-		return "", err
-	}
-	warnIfNotCanonicalHostname(ctx, hostname)
-	return hostname, nil
+	panic("not called")
 }
 
 func fromFargate(_ context.Context, _ string) (string, error) {
-	// If we're running on fargate we strip the hostname
-	if isFargateInstance() {
-		return "", nil
-	}
-	return "", fmt.Errorf("agent is not runnning on Fargate")
+	panic("not called")
 }
 
 func fromGCE(ctx context.Context, _ string) (string, error) {
-	return gceGetHostname(ctx)
+	panic("not called")
 }
 
 func fromAzure(ctx context.Context, _ string) (string, error) {
-	return azureGetHostname(ctx)
+	panic("not called")
 }
 
 func fromFQDN(ctx context.Context, _ string) (string, error) {
-	if !osHostnameUsable(ctx) {
-		return "", fmt.Errorf("FQDN hostname is not usable")
-	}
-
-	if config.Datadog.GetBool("hostname_fqdn") {
-		fqdn, err := fqdnHostname()
-		if err == nil {
-			return fqdn, nil
-		}
-		return "", fmt.Errorf("Unable to get FQDN from system: %s", err)
-	}
-	return "", fmt.Errorf("'hostname_fqdn' configuration is not enabled")
+	panic("not called")
 }
 
 func fromOS(ctx context.Context, currentHostname string) (string, error) {
-	if osHostnameUsable(ctx) {
-		if currentHostname == "" {
-			return osHostname()
-		}
-		return "", fmt.Errorf("Skipping OS hostname as a previous provider found a valid hostname")
-	}
-	return "", fmt.Errorf("OS hostname is not usable")
+	panic("not called")
 }
 
 func getValidEC2Hostname(ctx context.Context) (string, error) {
-	instanceID, err := ec2GetInstanceID(ctx)
-	if err == nil {
-		err = validate.ValidHostname(instanceID)
-		if err == nil {
-			return instanceID, nil
-		}
-		return "", fmt.Errorf("EC2 instance ID is not a valid hostname: %s", err)
-	}
-	return "", fmt.Errorf("Unable to determine hostname from EC2: %s", err)
+	panic("not called")
 }
 
 func fromEC2(ctx context.Context, currentHostname string) (string, error) {
-	// We use the instance id if we're on an ECS cluster or we're on EC2
-	// and the hostname is one of the default ones
-
-	prioritizeEC2Hostname := config.Datadog.GetBool("ec2_prioritize_instance_id_as_hostname")
-
-	log.Debugf("Detected a default EC2 hostname: %v", ec2.IsDefaultHostname(currentHostname))
-	log.Debugf("ec2_prioritize_instance_id_as_hostname is set to %v", prioritizeEC2Hostname)
-
-	// We use the instance id if we're on an ECS cluster or we're on EC2 and the hostname is one of the default ones
-	// or ec2_prioritize_instance_id_as_hostname is set to true
-	if config.IsFeaturePresent(config.ECSEC2) || ec2.IsDefaultHostname(currentHostname) || prioritizeEC2Hostname {
-		log.Debugf("Trying to fetch hostname from EC2 metadata")
-		return getValidEC2Hostname(ctx)
-	} else if ec2.IsWindowsDefaultHostname(currentHostname) {
-		log.Debugf("Default EC2 Windows hostname detected")
-		// Display a message when enabling `ec2_use_windows_prefix_detection` would make the hostname resolution change.
-
-		// As we are in the else clause `ec2.IsDefaultHostname(currentHostname)` is false. If
-		// `ec2.IsWindowsDefaultHostname(currentHostname)`
-		// is `true` that means `ec2_use_windows_prefix_detection` is set to false.
-		ec2Hostname, err := getValidEC2Hostname(ctx)
-
-		// Check if we get a valid hostname when enabling `ec2_use_windows_prefix_detection` and the hostnames are different.
-		if err == nil && ec2Hostname != currentHostname {
-			// REMOVEME: This should be removed if/when the default `ec2_use_windows_prefix_detection` is set to true
-			log.Infof("The agent resolved your hostname as '%s'. You may want to use the EC2 instance-id ('%s') for the in-app hostname."+
-				" For more information: https://docs.datadoghq.com/ec2-use-win-prefix-detection", currentHostname, ec2Hostname)
-		}
-	}
-	return "", fmt.Errorf("not retrieving hostname from AWS: the host is not an ECS instance and other providers already retrieve non-default hostnames")
+	panic("not called")
 }

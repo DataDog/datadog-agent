@@ -226,86 +226,21 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 }
 
 func enrichEventPriority(priority eventPriority) metricsevent.EventPriority {
-	switch priority {
-	case priorityNormal:
-		return metricsevent.EventPriorityNormal
-	case priorityLow:
-		return metricsevent.EventPriorityLow
-	}
-	return metricsevent.EventPriorityNormal
+	panic("not called")
 }
 
 func enrichEventAlertType(dogstatsdAlertType alertType) metricsevent.EventAlertType {
-	switch dogstatsdAlertType {
-	case alertTypeSuccess:
-		return metricsevent.EventAlertTypeSuccess
-	case alertTypeInfo:
-		return metricsevent.EventAlertTypeInfo
-	case alertTypeWarning:
-		return metricsevent.EventAlertTypeWarning
-	case alertTypeError:
-		return metricsevent.EventAlertTypeError
-	}
-	return metricsevent.EventAlertTypeSuccess
+	panic("not called")
 }
 
 func enrichEvent(event dogstatsdEvent, origin string, conf enrichConfig) *metricsevent.Event {
-	tags, hostnameFromTags, udsOrigin, clientOrigin, cardinality, _ := extractTagsMetadata(event.tags, origin, event.containerID, conf)
-
-	enrichedEvent := &metricsevent.Event{
-		Title:            event.title,
-		Text:             event.text,
-		Ts:               event.timestamp,
-		Priority:         enrichEventPriority(event.priority),
-		Tags:             tags,
-		AlertType:        enrichEventAlertType(event.alertType),
-		AggregationKey:   event.aggregationKey,
-		SourceTypeName:   event.sourceType,
-		OriginFromUDS:    udsOrigin,
-		OriginFromClient: clientOrigin,
-		Cardinality:      cardinality,
-	}
-
-	if len(event.hostname) != 0 {
-		enrichedEvent.Host = event.hostname
-	} else {
-		enrichedEvent.Host = hostnameFromTags
-	}
-	return enrichedEvent
+	panic("not called")
 }
 
 func enrichServiceCheckStatus(status serviceCheckStatus) servicecheck.ServiceCheckStatus {
-	switch status {
-	case serviceCheckStatusUnknown:
-		return servicecheck.ServiceCheckUnknown
-	case serviceCheckStatusOk:
-		return servicecheck.ServiceCheckOK
-	case serviceCheckStatusWarning:
-		return servicecheck.ServiceCheckWarning
-	case serviceCheckStatusCritical:
-		return servicecheck.ServiceCheckCritical
-	}
-	return servicecheck.ServiceCheckUnknown
+	panic("not called")
 }
 
 func enrichServiceCheck(serviceCheck dogstatsdServiceCheck, origin string, conf enrichConfig) *servicecheck.ServiceCheck {
-	tags, hostnameFromTags, udsOrigin, clientOrigin, cardinality, _ := extractTagsMetadata(serviceCheck.tags, origin, serviceCheck.containerID, conf)
-
-	enrichedServiceCheck := &servicecheck.ServiceCheck{
-		CheckName:        serviceCheck.name,
-		Ts:               serviceCheck.timestamp,
-		Status:           enrichServiceCheckStatus(serviceCheck.status),
-		Message:          serviceCheck.message,
-		Tags:             tags,
-		OriginFromUDS:    udsOrigin,
-		OriginFromClient: clientOrigin,
-		Cardinality:      cardinality,
-	}
-
-	if len(serviceCheck.hostname) != 0 {
-		enrichedServiceCheck.Host = serviceCheck.hostname
-	} else {
-		enrichedServiceCheck.Host = hostnameFromTags
-	}
-	return enrichedServiceCheck
+	panic("not called")
 }

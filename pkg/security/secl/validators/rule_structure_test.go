@@ -9,8 +9,9 @@
 package validators
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
 // go test -v github.com/DataDog/datadog-agent/pkg/security/secl/validators --run=TestHasBareWildcardInField

@@ -8,6 +8,7 @@ package goflowlib
 import (
 	"context"
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/netflowstate"
 

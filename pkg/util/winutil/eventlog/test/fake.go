@@ -6,11 +6,6 @@
 
 package eventlog_test
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/fake"
-)
-
 const (
 	// FakeAPIName identifies this API in GetAPITesterByName
 	FakeAPIName = "Fake"

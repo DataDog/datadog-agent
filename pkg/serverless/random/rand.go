@@ -51,7 +51,5 @@ func (rs *safeSource) Int63() int64 {
 func (rs *safeSource) Uint64() uint64 { return uint64(rs.Int63()) }
 
 func (rs *safeSource) Seed(seed int64) {
-	rs.Lock()
-	rs.source.Seed(seed)
-	rs.Unlock()
+	panic("not called")
 }

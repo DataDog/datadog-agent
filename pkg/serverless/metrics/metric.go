@@ -104,9 +104,7 @@ func (c *ServerlessMetricAgent) Flush() {
 
 // Stop stops the DogStatsD server
 func (c *ServerlessMetricAgent) Stop() {
-	if c.IsReady() {
-		c.dogStatsDServer.Stop()
-	}
+	panic("not called")
 }
 
 // SetExtraTags sets extra tags on the DogStatsD server
@@ -119,7 +117,7 @@ func (c *ServerlessMetricAgent) SetExtraTags(tagArray []string) {
 
 // GetExtraTags gets extra tags
 func (c *ServerlessMetricAgent) GetExtraTags() []string {
-	return c.tags
+	panic("not called")
 }
 
 func buildDemultiplexer(multipleEndpointConfig MultipleEndpointConfig, forwarderTimeout time.Duration) aggregator.Demultiplexer {
@@ -138,5 +136,5 @@ func buildMetricBlocklist(userProvidedList []string) []string {
 
 // Need to account for duplicate metrics when using the proxy.
 func buildMetricBlocklistForProxy(userProvidedList []string) []string {
-	return append(buildMetricBlocklist(userProvidedList), ErrorsMetric)
+	panic("not called")
 }

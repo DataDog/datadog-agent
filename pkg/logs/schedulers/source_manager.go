@@ -28,22 +28,22 @@ func (sm *sourceManager) AddSource(source *sources.LogSource) {
 
 // RemoveSource implements SourceManager#RemoveSource.
 func (sm *sourceManager) RemoveSource(source *sources.LogSource) {
-	sm.sources.RemoveSource(source)
+	panic("not called")
 }
 
 // GetSources implements SourceManager#GetSources.
 func (sm *sourceManager) GetSources() []*sources.LogSource {
-	return sm.sources.GetSources()
+	panic("not called")
 }
 
 // AddService implements SourceManager#AddService.
 func (sm *sourceManager) AddService(service *service.Service) {
-	sm.services.AddService(service)
+	panic("not called")
 }
 
 // RemoveService implements SourceManager#RemoveService.
 func (sm *sourceManager) RemoveService(service *service.Service) {
-	sm.services.RemoveService(service)
+	panic("not called")
 }
 
 // MockAddRemove is an event observed by MockSourceManager
@@ -75,27 +75,25 @@ var _ SourceManager = &MockSourceManager{}
 
 // AddSource implements SourceManager#AddSource.
 func (sm *MockSourceManager) AddSource(source *sources.LogSource) {
-	sm.Events = append(sm.Events, MockAddRemove{Add: true, Source: source})
+	panic("not called")
 }
 
 // RemoveSource implements SourceManager#RemoveSource.
 func (sm *MockSourceManager) RemoveSource(source *sources.LogSource) {
-	sm.Events = append(sm.Events, MockAddRemove{Add: false, Source: source})
+	panic("not called")
 }
 
 // GetSources implements SourceManager#GetSources.
 func (sm *MockSourceManager) GetSources() []*sources.LogSource {
-	sources := make([]*sources.LogSource, len(sm.Sources))
-	copy(sources, sm.Sources)
-	return sources
+	panic("not called")
 }
 
 // AddService implements SourceManager#AddService.
 func (sm *MockSourceManager) AddService(service *service.Service) {
-	sm.Events = append(sm.Events, MockAddRemove{Add: true, Service: service})
+	panic("not called")
 }
 
 // RemoveService implements SourceManager#RemoveService.
 func (sm *MockSourceManager) RemoveService(service *service.Service) {
-	sm.Events = append(sm.Events, MockAddRemove{Add: false, Service: service})
+	panic("not called")
 }

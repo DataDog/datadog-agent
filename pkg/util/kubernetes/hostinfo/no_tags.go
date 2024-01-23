@@ -13,5 +13,5 @@ import "context"
 //
 //nolint:revive // TODO(CINT) Fix revive linter
 func GetTags(ctx context.Context) ([]string, error) {
-	return nil, nil
+	panic("not called")
 }

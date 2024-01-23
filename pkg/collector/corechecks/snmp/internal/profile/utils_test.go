@@ -6,10 +6,11 @@
 package profile
 
 import (
+	"testing"
+
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/mohae/deepcopy"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func Test_mergeProfiles(t *testing.T) {

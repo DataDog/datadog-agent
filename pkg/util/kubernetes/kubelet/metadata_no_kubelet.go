@@ -9,5 +9,5 @@ package kubelet
 
 // GetMetadata returns metadata about the kubelet runtime such as the kubelet_version.
 func GetMetadata() (map[string]string, error) {
-	return nil, nil
+	panic("not called")
 }

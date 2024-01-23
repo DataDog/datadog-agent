@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
 // Provider provides message channels
@@ -46,7 +45,7 @@ type provider struct {
 
 // NewProvider returns a new Provider
 func NewProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) Provider {
-	return newProvider(numberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsContext, false)
+	panic("not called")
 }
 
 // NewServerlessProvider returns a new Provider in serverless mode
@@ -56,7 +55,7 @@ func NewServerlessProvider(numberOfPipelines int, auditor auditor.Auditor, proce
 
 // NewMockProvider creates a new provider that will not provide any pipelines.
 func NewMockProvider() Provider {
-	return &provider{}
+	panic("not called")
 }
 
 func newProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, serverless bool) Provider {
@@ -88,13 +87,7 @@ func (p *provider) Start() {
 // Stop stops all pipelines in parallel,
 // this call blocks until all pipelines are stopped
 func (p *provider) Stop() {
-	stopper := startstop.NewParallelStopper()
-	for _, pipeline := range p.pipelines {
-		stopper.Add(pipeline)
-	}
-	stopper.Stop()
-	p.pipelines = p.pipelines[:0]
-	p.outputChan = nil
+	panic("not called")
 }
 
 // NextPipelineChan returns the next pipeline input channel

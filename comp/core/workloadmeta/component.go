@@ -9,8 +9,6 @@ package workloadmeta
 import (
 	"context"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -137,17 +135,10 @@ type Component interface {
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(
-			newWorkloadMeta,
-		))
+	panic("not called")
 }
 
 // OptionalModule defines the fx options when workloadmeta should be used as an optional.
 func OptionalModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(
-			newWorkloadMetaOptional,
-		),
-	)
+	panic("not called")
 }

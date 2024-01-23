@@ -6,11 +6,12 @@
 package additionalfields
 
 import (
+	"testing"
+
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	"github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/netsampler/goflow2/decoders/netflow"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func makeSampleNetflowPacket(fields []netflow.DataField) netflow.NFv9Packet {

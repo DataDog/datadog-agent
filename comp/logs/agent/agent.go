@@ -9,7 +9,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
@@ -33,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
@@ -93,35 +91,7 @@ type provides struct {
 }
 
 func newLogsAgent(deps dependencies) provides {
-	if deps.Config.GetBool("logs_enabled") || deps.Config.GetBool("log_enabled") {
-		if deps.Config.GetBool("log_enabled") {
-			deps.Log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
-		}
-
-		logsAgent := &agent{
-			log:            deps.Log,
-			config:         deps.Config,
-			inventoryAgent: deps.InventoryAgent,
-			started:        atomic.NewBool(false),
-
-			sources:         sources.NewLogSources(),
-			services:        service.NewServices(),
-			tracker:         tailers.NewTailerTracker(),
-			flarecontroller: flareController.NewFlareController(),
-		}
-		deps.Lc.Append(fx.Hook{
-			OnStart: logsAgent.start,
-			OnStop:  logsAgent.stop,
-		})
-
-		return provides{
-			Comp:          optional.NewOption[Component](logsAgent),
-			FlareProvider: flaretypes.NewProvider(logsAgent.flarecontroller.FillFlare),
-		}
-	}
-
-	deps.Log.Info("logs-agent disabled")
-	return provides{Comp: optional.NewNoneOption[Component]()}
+	panic("not called")
 }
 
 func (a *agent) start(context.Context) error {
@@ -201,55 +171,7 @@ func (a *agent) startPipeline() {
 }
 
 func (a *agent) stop(context.Context) error {
-	a.log.Info("Stopping logs-agent")
-
-	status.Clear()
-
-	stopper := startstop.NewSerialStopper(
-		a.schedulers,
-		a.launchers,
-		a.pipelineProvider,
-		a.auditor,
-		a.destinationsCtx,
-		a.diagnosticMessageReceiver,
-	)
-
-	// This will try to stop everything in order, including the potentially blocking
-	// parts like the sender. After StopTimeout it will just stop the last part of the
-	// pipeline, disconnecting it from the auditor, to make sure that the pipeline is
-	// flushed before stopping.
-	// TODO: Add this feature in the stopper.
-	c := make(chan struct{})
-	go func() {
-		stopper.Stop()
-		close(c)
-	}()
-	timeout := time.Duration(a.config.GetInt("logs_config.stop_grace_period")) * time.Second
-	select {
-	case <-c:
-	case <-time.After(timeout):
-		a.log.Info("Timed out when stopping logs-agent, forcing it to stop now")
-		// We force all destinations to read/flush all the messages they get without
-		// trying to write to the network.
-		a.destinationsCtx.Stop()
-		// Wait again for the stopper to complete.
-		// In some situation, the stopper unfortunately never succeed to complete,
-		// we've already reached the grace period, give it some more seconds and
-		// then force quit.
-		timeout := time.NewTimer(5 * time.Second)
-		select {
-		case <-c:
-		case <-timeout.C:
-			a.log.Warn("Force close of the Logs Agent, dumping the Go routines.")
-			if stack, err := util.GetGoRoutinesDump(); err != nil {
-				a.log.Warnf("can't get the Go routines dump: %s\n", err)
-			} else {
-				a.log.Warn(stack)
-			}
-		}
-	}
-	a.log.Info("logs-agent stopped")
-	return nil
+	panic("not called")
 }
 
 // AddScheduler adds the given scheduler to the agent.
@@ -258,13 +180,13 @@ func (a *agent) AddScheduler(scheduler schedulers.Scheduler) {
 }
 
 func (a *agent) GetSources() *sources.LogSources {
-	return a.sources
+	panic("not called")
 }
 
 func (a *agent) GetMessageReceiver() *diagnostic.BufferedMessageReceiver {
-	return a.diagnosticMessageReceiver
+	panic("not called")
 }
 
 func (a *agent) GetPipelineProvider() pipeline.Provider {
-	return a.pipelineProvider
+	panic("not called")
 }

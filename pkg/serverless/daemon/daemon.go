@@ -211,7 +211,7 @@ func (d *Daemon) SetTraceAgent(traceAgent *trace.ServerlessTraceAgent) {
 
 //nolint:revive // TODO(SERV) Fix revive linter
 func (d *Daemon) SetOTLPAgent(otlpAgent *otlp.ServerlessOTLPAgent) {
-	d.OTLPAgent = otlpAgent
+	panic("not called")
 }
 
 //nolint:revive // TODO(SERV) Fix revive linter
@@ -221,8 +221,7 @@ func (d *Daemon) SetColdStartSpanCreator(creator *trace.ColdStartSpanCreator) {
 
 // SetFlushStrategy sets the flush strategy to use.
 func (d *Daemon) SetFlushStrategy(strategy flush.Strategy) {
-	log.Debugf("Set flush strategy: %s (was: %s)", strategy.String(), d.GetFlushStrategy())
-	d.flushStrategy = strategy
+	panic("not called")
 }
 
 // UseAdaptiveFlush sets whether we use the adaptive flush or not.
@@ -308,57 +307,7 @@ func (d *Daemon) flushLogs(ctx context.Context, wg *sync.WaitGroup) {
 // Stop causes the Daemon to gracefully shut down. After a delay, the HTTP server
 // is shut down, data is flushed a final time, and then the agents are shut down.
 func (d *Daemon) Stop() {
-	// Can't shut down before starting
-	// If the DogStatsD daemon isn't ready, wait for it.
-
-	if d.Stopped {
-		log.Debug("Daemon.Stop() was called, but Daemon was already stopped")
-		return
-	}
-	d.Stopped = true
-
-	// Wait for any remaining logs to arrive via the logs API before shutting down the HTTP server
-	log.Debug("Waiting to shut down HTTP server")
-	time.Sleep(ShutdownDelay)
-
-	log.Debug("Shutting down HTTP server")
-	err := d.httpServer.Shutdown(context.Background())
-	if err != nil {
-		log.Error("Error shutting down HTTP server")
-	}
-
-	if d.logCollector != nil {
-		d.logCollector.Shutdown()
-	}
-
-	// Once the HTTP server is shut down, it is safe to shut down the agents
-	// Otherwise, we might try to handle API calls after the agent has already been shut down
-	if d.ShouldFlush(flush.Stopping) {
-		d.TriggerFlush(true)
-	}
-
-	log.Debug("Shutting down agents")
-
-	if d.TraceAgent != nil {
-		d.TraceAgent.Stop()
-	}
-
-	if d.MetricAgent != nil {
-		d.MetricAgent.Stop()
-	}
-
-	if d.ColdStartCreator != nil {
-		d.ColdStartCreator.Stop()
-	}
-
-	if d.OTLPAgent != nil {
-		d.OTLPAgent.Stop()
-	}
-
-	if d.LogsAgent != nil {
-		d.LogsAgent.Stop()
-	}
-	log.Debug("Serverless agent shutdown complete")
+	panic("not called")
 }
 
 // TellDaemonRuntimeStarted tells the daemon that the runtime started handling an invocation

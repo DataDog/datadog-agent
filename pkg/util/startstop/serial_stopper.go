@@ -21,19 +21,15 @@ var _ Stoppable = &serialStopper{}
 // Any components included in the arguments will be included in the
 // set of components, as if stopper.Add(..) had been called for each.
 func NewSerialStopper(components ...Stoppable) Stopper {
-	return &serialStopper{
-		components: components,
-	}
+	panic("not called")
 }
 
 // Add implements Stopper#Add.
 func (g *serialStopper) Add(components ...Stoppable) {
-	g.components = append(g.components, components...)
+	panic("not called")
 }
 
 // Add implements Stoppable#Stop.
 func (g *serialStopper) Stop() {
-	for _, stopper := range g.components {
-		stopper.Stop()
-	}
+	panic("not called")
 }

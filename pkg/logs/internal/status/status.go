@@ -43,38 +43,27 @@ func (s *LogStatus) Success() {
 
 // Error records the given error and invalidates the source.
 func (s *LogStatus) Error(err error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.status = isError
-	s.err = fmt.Sprintf("Error: %s", err.Error())
+	panic("not called")
 }
 
 // IsPending returns whether the current status is not yet determined.
 func (s *LogStatus) IsPending() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.status == isPending
+	panic("not called")
 }
 
 // IsSuccess returns whether the current status is a success.
 func (s *LogStatus) IsSuccess() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.status == isSuccess
+	panic("not called")
 }
 
 // IsError returns whether the current status is an error.
 func (s *LogStatus) IsError() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.status == isError
+	panic("not called")
 }
 
 // GetError returns the error.
 func (s *LogStatus) GetError() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.err
+	panic("not called")
 }
 
 // Dump provides a single-line dump of the status, for debugging purposes.
@@ -98,17 +87,5 @@ func (s *LogStatus) Dump() string {
 
 // String returns a human readable representation of the status.
 func (s *LogStatus) String() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	switch s.status {
-	case isPending:
-		return "pending"
-	case isSuccess:
-		return "success"
-	case isError:
-		return "error"
-	default:
-		return fmt.Sprintf("unknown status: %d", s.status)
-	}
+	panic("not called")
 }

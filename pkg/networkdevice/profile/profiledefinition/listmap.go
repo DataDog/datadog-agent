@@ -7,6 +7,7 @@ package profiledefinition
 
 import (
 	"encoding/json"
+
 	"github.com/invopop/jsonschema"
 )
 

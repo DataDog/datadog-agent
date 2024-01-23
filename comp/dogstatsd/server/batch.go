@@ -69,49 +69,11 @@ type batcher struct {
 // only half of the context key for the shard key, it will be unique enough
 // for such purpose.
 func fastrange(key ckey.ContextKey, pipelineCount int) uint32 {
-	// return uint32(uint64(key) % uint64(pipelineCount))
-	return uint32((uint64(key>>32) * uint64(pipelineCount)) >> 32)
+	panic("not called")
 }
 
 func newBatcher(demux aggregator.DemultiplexerWithAggregator) *batcher {
-	_, pipelineCount := aggregator.GetDogStatsDWorkerAndPipelineCount()
-
-	var e chan []*event.Event
-	var sc chan []*servicecheck.ServiceCheck
-
-	// the Serverless Agent doesn't have to support service checks nor events so
-	// it doesn't run an Aggregator.
-	e, sc = demux.GetEventsAndServiceChecksChannels()
-
-	// prepare on-time samples buffers
-	samples := make([]metrics.MetricSampleBatch, pipelineCount)
-	samplesCount := make([]int, pipelineCount)
-
-	for i := range samples {
-		samples[i] = demux.GetMetricSamplePool().GetBatch()
-		samplesCount[i] = 0
-	}
-
-	// prepare the late samples buffer
-	samplesWithTs := demux.GetMetricSamplePool().GetBatch()
-	samplesWithTsCount := 0
-
-	return &batcher{
-		samples:            samples,
-		samplesCount:       samplesCount,
-		samplesWithTs:      samplesWithTs,
-		samplesWithTsCount: samplesWithTsCount,
-		metricSamplePool:   demux.GetMetricSamplePool(),
-		choutEvents:        e,
-		choutServiceChecks: sc,
-
-		demux:         demux,
-		pipelineCount: pipelineCount,
-		tagsBuffer:    tagset.NewHashingTagsAccumulator(),
-		keyGenerator:  ckey.NewKeyGenerator(),
-
-		noAggPipelineEnabled: demux.Options().EnableNoAggregationPipeline,
-	}
+	panic("not called")
 }
 
 func newServerlessBatcher(demux aggregator.Demultiplexer) *batcher {
@@ -167,27 +129,15 @@ func (b *batcher) appendSample(sample metrics.MetricSample) {
 }
 
 func (b *batcher) appendEvent(event *event.Event) {
-	b.events = append(b.events, event)
+	panic("not called")
 }
 
 func (b *batcher) appendServiceCheck(serviceCheck *servicecheck.ServiceCheck) {
-	b.serviceChecks = append(b.serviceChecks, serviceCheck)
+	panic("not called")
 }
 
 func (b *batcher) appendLateSample(sample metrics.MetricSample) {
-	// if the no aggregation pipeline is not enabled, we fallback on the
-	// main pipeline eventually distributing the samples on multiple samplers.
-	if !b.noAggPipelineEnabled {
-		b.appendSample(sample)
-		return
-	}
-
-	if b.samplesWithTsCount == len(b.samplesWithTs) {
-		b.flushSamplesWithTs()
-	}
-
-	b.samplesWithTs[b.samplesWithTsCount] = sample
-	b.samplesWithTsCount++
+	panic("not called")
 }
 
 // Flushing

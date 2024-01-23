@@ -43,8 +43,5 @@ var statusSeverityMapping = map[string][]byte{
 
 // StatusToSeverity transforms a severity into a status.
 func StatusToSeverity(status string) []byte {
-	if sev, exists := statusSeverityMapping[status]; exists {
-		return sev
-	}
-	return SevInfo
+	panic("not called")
 }

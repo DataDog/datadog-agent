@@ -6,8 +6,9 @@
 package config
 
 import (
-	"github.com/DataDog/appsec-internal-go/appsec"
 	"testing"
+
+	"github.com/DataDog/appsec-internal-go/appsec"
 
 	"github.com/stretchr/testify/require"
 )

@@ -7,10 +7,11 @@ package profiledefinition
 
 import (
 	"encoding/json"
+	"testing"
+
 	"github.com/invopop/jsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 type ExampleStruct struct {

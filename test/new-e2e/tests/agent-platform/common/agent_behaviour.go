@@ -16,7 +16,6 @@ import (
 	componentos "github.com/DataDog/test-infra-definitions/components/os"
 
 	agentclient "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/bound-port"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -6,7 +6,6 @@
 package kubernetes
 
 import (
-	"fmt"
 	"time"
 )
 
@@ -15,11 +14,5 @@ import (
 // Unstructured serializes time to string in RFC3339 without Nano seconds.
 // when it's parsed back, the Go time.Time does not have the `wall` field as it's used for nanosecs.
 func TimeWithoutWall(t time.Time) time.Time {
-	text := t.Format(time.RFC3339)
-	time, err := time.Parse(time.RFC3339, text)
-	if err != nil {
-		panic(fmt.Sprintf("Impossible to unmarshall text: '%s'", text))
-	}
-
-	return time
+	panic("not called")
 }

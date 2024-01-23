@@ -7,9 +7,6 @@
 package marshaler
 
 import (
-	"errors"
-	"fmt"
-
 	jsoniter "github.com/json-iterator/go"
 )
 
@@ -22,49 +19,40 @@ type DummyMarshaller struct {
 
 // WriteHeader writes the payload header for this type
 func (d *DummyMarshaller) WriteHeader(stream *jsoniter.Stream) error {
-	_, err := stream.Write([]byte(d.Header))
-	return err
+	panic("not called")
 }
 
 // Len returns the number of items to marshal
 func (d *DummyMarshaller) Len() int {
-	return len(d.Items)
+	panic("not called")
 }
 
 // WriteItem writes the json representation of an item
 func (d *DummyMarshaller) WriteItem(stream *jsoniter.Stream, i int) error {
-	if i < 0 || i > d.Len()-1 {
-		return errors.New("out of range")
-	}
-	_, err := stream.Write([]byte(d.Items[i]))
-	return err
+	panic("not called")
 }
 
 // DescribeItem returns a text description for logs
 func (d *DummyMarshaller) DescribeItem(i int) string {
-	if i < 0 || i > d.Len()-1 {
-		return "out of range"
-	}
-	return d.Items[i]
+	panic("not called")
 }
 
 // WriteFooter writes the payload footer for this type
 func (d *DummyMarshaller) WriteFooter(stream *jsoniter.Stream) error {
-	_, err := stream.Write([]byte(d.Footer))
-	return err
+	panic("not called")
 }
 
 // MarshalJSON not implemented
 func (d *DummyMarshaller) MarshalJSON() ([]byte, error) {
-	return nil, fmt.Errorf("not implemented")
+	panic("not called")
 }
 
 // Marshal not implemented
 func (d *DummyMarshaller) Marshal() ([]byte, error) {
-	return nil, fmt.Errorf("not implemented")
+	panic("not called")
 }
 
 // SplitPayload not implemented
 func (d *DummyMarshaller) SplitPayload(int) ([]AbstractMarshaler, error) {
-	return nil, fmt.Errorf("not implemented")
+	panic("not called")
 }

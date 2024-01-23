@@ -100,14 +100,5 @@ var unknownCardinalityQueries = NewCardinalityTelemetry(collectors.UnknownCardin
 
 // QueriesByCardinality returns a set of counters for a given cardinality level.
 func QueriesByCardinality(card collectors.TagCardinality) *CardinalityTelemetry {
-	switch card {
-	case collectors.LowCardinality:
-		return &lowCardinalityQueries
-	case collectors.OrchestratorCardinality:
-		return &orchestratorCardinalityQueries
-	case collectors.HighCardinality:
-		return &highCardinalityQueries
-	default:
-		return &unknownCardinalityQueries
-	}
+	panic("not called")
 }

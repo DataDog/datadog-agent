@@ -18,46 +18,38 @@ type mockTrafficCapture struct {
 }
 
 func newMockTrafficCapture() Component {
-	return &mockTrafficCapture{}
+	panic("not called")
 }
 
 func (tc *mockTrafficCapture) Configure() error {
-	return nil
+	panic("not called")
 }
 
 func (tc *mockTrafficCapture) IsOngoing() bool {
-	tc.Lock()
-	defer tc.Unlock()
-	return tc.isRunning
+	panic("not called")
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
 func (tc *mockTrafficCapture) Start(p string, d time.Duration, compressed bool) (string, error) {
-	tc.Lock()
-	defer tc.Unlock()
-	tc.isRunning = true
-	return "", nil
-
+	panic("not called")
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
 func (tc *mockTrafficCapture) Stop() {
-	tc.Lock()
-	defer tc.Unlock()
-	tc.isRunning = false
+	panic("not called")
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
 func (tc *mockTrafficCapture) RegisterSharedPoolManager(p *packets.PoolManager) error {
-	return nil
+	panic("not called")
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
 func (tc *mockTrafficCapture) RegisterOOBPoolManager(p *packets.PoolManager) error {
-	return nil
+	panic("not called")
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
 func (tc *mockTrafficCapture) Enqueue(msg *CaptureBuffer) bool {
-	return true
+	panic("not called")
 }

@@ -7,8 +7,6 @@
 package listeners
 
 import (
-	"errors"
-
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -21,15 +19,16 @@ type NamedPipeListener struct{}
 //
 //nolint:revive // TODO(AML) Fix revive linter
 func NewNamedPipeListener(pipeName string, packetOut chan packets.Packets,
-	sharedPacketPoolManager *packets.PoolManager, cfg config.Reader, capture replay.Component) (*NamedPipeListener, error) { //nolint:revive // TODO fix revive unused-parameter
-
-	return nil, errors.New("named pipe is only supported on Windows")
+	sharedPacketPoolManager *packets.PoolManager, cfg config.Reader, capture replay.Component) (*NamedPipeListener, error) {
+	panic("not called")
 }
 
 // Listen runs the intake loop. Should be called in its own goroutine
 func (l *NamedPipeListener) Listen() {
+	panic("not called")
 }
 
 // Stop closes the connection and stops listening
 func (l *NamedPipeListener) Stop() {
+	panic("not called")
 }

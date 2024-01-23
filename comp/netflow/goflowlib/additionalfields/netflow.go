@@ -10,6 +10,7 @@ package additionalfields
 import (
 	"bytes"
 	"errors"
+
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	"github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/netsampler/goflow2/decoders/netflow"

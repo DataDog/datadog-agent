@@ -20,26 +20,24 @@ type MockSourceProvider struct {
 
 // NewMockSourceProvider creates a new MockSource Provider.
 func NewMockSourceProvider() *MockSourceProvider {
-	return &MockSourceProvider{
-		SourceChan: make(chan *sources.LogSource),
-	}
+	panic("not called")
 }
 
 // SubscribeAll implements SourceProvider#SubscribeAll.
 func (sp *MockSourceProvider) SubscribeAll() (chan *sources.LogSource, chan *sources.LogSource) {
-	return sp.SourceChan, sp.SourceChan
+	panic("not called")
 }
 
 // SubscribeForType implements SourceProvider#SubscribeForType.
 //
 //nolint:revive // TODO(AML) Fix revive linter
 func (sp *MockSourceProvider) SubscribeForType(sourceType string) (chan *sources.LogSource, chan *sources.LogSource) {
-	return sp.SourceChan, sp.SourceChan
+	panic("not called")
 }
 
 // GetAddedForType implements SourceProvider#GetAddedForType.
 //
 //nolint:revive // TODO(AML) Fix revive linter
 func (sp *MockSourceProvider) GetAddedForType(sourceType string) chan *sources.LogSource {
-	return sp.SourceChan
+	panic("not called")
 }

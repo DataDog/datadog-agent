@@ -22,29 +22,10 @@ var (
 
 // SetPidMap sets the map with the pid - containerID relations
 func SetPidMap(m map[int32]string) {
-	mux.Lock()
-	defer mux.Unlock()
-
-	pidMap = pidContainerMap{}
-	for pid, containerID := range m {
-		pidMap[pid] = containerID
-	}
+	panic("not called")
 }
 
 // ContainerIDForPID returns the matching container id for a pid, or an error if not found.
 func ContainerIDForPID(pid int32) (string, error) {
-	mux.RLock()
-	defer mux.RUnlock()
-
-	if pidMap == nil {
-		return "", errPidMapUnavailable
-	}
-
-	cID, found := pidMap[pid]
-	if !found {
-		return "", errContainerUnavailable
-	}
-
-	return cID, nil
-
+	panic("not called")
 }

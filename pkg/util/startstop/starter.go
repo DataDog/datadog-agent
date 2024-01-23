@@ -28,7 +28,7 @@ func NewStarter(components ...Startable) Starter {
 
 // Add implements Starter#Add.
 func (s *starter) Add(components ...Startable) {
-	s.components = append(s.components, components...)
+	panic("not called")
 }
 
 // Start implements Startable#Start.

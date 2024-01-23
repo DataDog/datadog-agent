@@ -8,6 +8,7 @@ package config
 
 import (
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/comp/core/log"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"

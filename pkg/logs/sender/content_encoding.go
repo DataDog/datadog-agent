@@ -22,11 +22,11 @@ var IdentityContentType ContentEncoding = &identityContentType{}
 type identityContentType struct{}
 
 func (c *identityContentType) name() string {
-	return "identity"
+	panic("not called")
 }
 
 func (c *identityContentType) encode(payload []byte) ([]byte, error) {
-	return payload, nil
+	panic("not called")
 }
 
 // GzipContentEncoding encodes the payload using gzip algorithm

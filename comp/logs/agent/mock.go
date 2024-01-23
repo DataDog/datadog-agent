@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"go.uber.org/fx"
 )
 
 type mockLogsAgent struct {
@@ -26,67 +25,50 @@ type mockLogsAgent struct {
 }
 
 func newMock(deps dependencies) optional.Option[Mock] {
-	logsAgent := &mockLogsAgent{
-		hasFlushed:      false,
-		addedSchedulers: make([]schedulers.Scheduler, 0),
-		isRunning:       false,
-		flushDelay:      0,
-	}
-	deps.Lc.Append(fx.Hook{
-		OnStart: logsAgent.start,
-		OnStop:  logsAgent.stop,
-	})
-	return optional.NewOption[Mock](logsAgent)
+	panic("not called")
 }
 
 func (a *mockLogsAgent) start(context.Context) error {
-	a.isRunning = true
-	return nil
+	panic("not called")
 }
 
 func (a *mockLogsAgent) stop(context.Context) error {
-	a.isRunning = false
-	return nil
+	panic("not called")
 }
 
 func (a *mockLogsAgent) AddScheduler(scheduler schedulers.Scheduler) {
-	a.addedSchedulers = append(a.addedSchedulers, scheduler)
+	panic("not called")
 }
 
 func (a *mockLogsAgent) SetSources(sources *sources.LogSources) {
-	a.logSources = sources
+	panic("not called")
 }
 
 func (a *mockLogsAgent) IsRunning() bool {
-	return a.isRunning
+	panic("not called")
 }
 
 func (a *mockLogsAgent) GetMessageReceiver() *diagnostic.BufferedMessageReceiver {
-	return nil
+	panic("not called")
 }
 
 func (a *mockLogsAgent) GetSources() *sources.LogSources {
-	return a.logSources
+	panic("not called")
 }
 
 // Serverless methods
 func (a *mockLogsAgent) Start() error {
-	return a.start(context.TODO())
+	panic("not called")
 }
 
 func (a *mockLogsAgent) Stop() {
-	_ = a.stop(context.TODO())
+	panic("not called")
 }
 
 func (a *mockLogsAgent) Flush(ctx context.Context) {
-	select {
-	case <-ctx.Done():
-		a.hasFlushed = false
-	case <-time.NewTimer(a.flushDelay).C:
-		a.hasFlushed = true
-	}
+	panic("not called")
 }
 
 func (a *mockLogsAgent) GetPipelineProvider() pipeline.Provider {
-	return nil
+	panic("not called")
 }

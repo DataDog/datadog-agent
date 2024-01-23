@@ -5,10 +5,6 @@
 
 package startstop
 
-import (
-	"sync"
-)
-
 // parallelStopper stops a set of components in parallel.
 type parallelStopper struct {
 	components []Stoppable
@@ -26,25 +22,15 @@ var _ Stoppable = &parallelStopper{}
 // Any components included in the arguments will be included in the
 // set of components, as if stopper.Add(..) had been called for each.
 func NewParallelStopper(components ...Stoppable) Stopper {
-	return &parallelStopper{
-		components: components,
-	}
+	panic("not called")
 }
 
 // Add implements Stopper#Add.
 func (g *parallelStopper) Add(components ...Stoppable) {
-	g.components = append(g.components, components...)
+	panic("not called")
 }
 
 // Stop implements Stoppable#Stop.
 func (g *parallelStopper) Stop() {
-	wg := &sync.WaitGroup{}
-	for _, component := range g.components {
-		wg.Add(1)
-		go func(s Stoppable) {
-			s.Stop()
-			wg.Done()
-		}(component)
-	}
-	wg.Wait()
+	panic("not called")
 }

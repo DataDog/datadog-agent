@@ -9,8 +9,9 @@ package common
 import (
 	"bytes"
 	"encoding/binary"
-	flowmessage "github.com/netsampler/goflow2/pb"
 	"hash/fnv"
+
+	flowmessage "github.com/netsampler/goflow2/pb"
 )
 
 // Flow contains flow info used for aggregation

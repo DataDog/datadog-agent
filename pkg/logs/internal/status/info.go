@@ -7,7 +7,6 @@
 package status
 
 import (
-	"fmt"
 	"sync"
 
 	"go.uber.org/atomic"
@@ -48,12 +47,12 @@ func NewCountInfo(key string) *CountInfo {
 
 // Add a new value to the count
 func (c *CountInfo) Add(v int64) {
-	c.count.Add(v)
+	panic("not called")
 }
 
 // Get the underlying value of the count
 func (c *CountInfo) Get() int64 {
-	return c.count.Load()
+	panic("not called")
 }
 
 // InfoKey returns the key
@@ -63,7 +62,7 @@ func (c *CountInfo) InfoKey() string {
 
 // Info returns the info
 func (c *CountInfo) Info() []string {
-	return []string{fmt.Sprintf("%d", c.count.Load())}
+	panic("not called")
 }
 
 // MappedInfo collects multiple info messages with a unique key
@@ -75,40 +74,27 @@ type MappedInfo struct {
 
 // NewMappedInfo creates a new MappedInfo instance
 func NewMappedInfo(key string) *MappedInfo {
-	return &MappedInfo{
-		key:      key,
-		messages: make(map[string]string),
-	}
+	panic("not called")
 }
 
 // SetMessage sets a message with a unique key
 func (m *MappedInfo) SetMessage(key string, message string) {
-	m.lock.Lock()
-	defer m.lock.Unlock()
-	m.messages[key] = message
+	panic("not called")
 }
 
 // RemoveMessage removes a message with a unique key
 func (m *MappedInfo) RemoveMessage(key string) {
-	m.lock.Lock()
-	defer m.lock.Unlock()
-	delete(m.messages, key)
+	panic("not called")
 }
 
 // InfoKey returns the key
 func (m *MappedInfo) InfoKey() string {
-	return m.key
+	panic("not called")
 }
 
 // Info returns the info
 func (m *MappedInfo) Info() []string {
-	m.lock.Lock()
-	defer m.lock.Unlock()
-	info := []string{}
-	for _, v := range m.messages {
-		info = append(info, v)
-	}
-	return info
+	panic("not called")
 }
 
 // InfoRegistry keeps track of info providers
@@ -134,34 +120,15 @@ func (i *InfoRegistry) Register(info InfoProvider) {
 
 // Get returns the provider for a given key, or nil
 func (i *InfoRegistry) Get(key string) InfoProvider {
-	i.lock.Lock()
-	defer i.lock.Unlock()
-	return i.info[key]
+	panic("not called")
 }
 
 // All returns all registered info providers.
 func (i *InfoRegistry) All() []InfoProvider {
-	i.lock.Lock()
-	defer i.lock.Unlock()
-	info := make([]InfoProvider, 0, len(i.info))
-	for _, v := range i.info {
-		info = append(info, v)
-	}
-
-	return info
+	panic("not called")
 }
 
 // Rendered renders the info for display on the status page.
 func (i *InfoRegistry) Rendered() map[string][]string {
-	i.lock.Lock()
-	defer i.lock.Unlock()
-	info := make(map[string][]string)
-
-	for _, v := range i.info {
-		if len(v.Info()) == 0 {
-			continue
-		}
-		info[v.InfoKey()] = v.Info()
-	}
-	return info
+	panic("not called")
 }

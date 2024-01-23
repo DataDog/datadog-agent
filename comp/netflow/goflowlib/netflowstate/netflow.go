@@ -10,12 +10,13 @@ package netflowstate
 import (
 	"bytes"
 	"context"
+	"sync"
+	"time"
+
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	"github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/additionalfields"
 	"github.com/netsampler/goflow2/utils"
-	"sync"
-	"time"
 
 	"github.com/netsampler/goflow2/decoders/netflow"
 	"github.com/netsampler/goflow2/decoders/netflow/templates"

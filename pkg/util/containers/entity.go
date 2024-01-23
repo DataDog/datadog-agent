@@ -5,10 +5,6 @@
 
 package containers
 
-import (
-	"strings"
-)
-
 // ContainerEntityName is the entity name applied to all containers
 const ContainerEntityName = "container_id"
 
@@ -21,36 +17,25 @@ const ContainerEntityPrefix = ContainerEntityName + EntitySeparator
 
 // BuildEntityName builds a valid entity name for a given container runtime and cid.
 func BuildEntityName(runtime, id string) string {
-	if id == "" || runtime == "" {
-		return ""
-	}
-	return runtime + EntitySeparator + id
+	panic("not called")
 }
 
 // BuildTaggerEntityName builds a valid tagger entity name for a given cid.
 func BuildTaggerEntityName(id string) string {
-	if id == "" {
-		return ""
-	}
-	return ContainerEntityPrefix + id
+	panic("not called")
 }
 
 // SplitEntityName returns the prefix and container cid parts of a valid entity name
 func SplitEntityName(name string) (string, string) {
-	if !IsEntityName(name) {
-		return "", ""
-	}
-	parts := strings.SplitN(name, EntitySeparator, 2)
-	return parts[0], parts[1]
+	panic("not called")
 }
 
 // ContainerIDForEntity extracts the container ID portion of a container entity name
 func ContainerIDForEntity(name string) string {
-	_, id := SplitEntityName(name)
-	return id
+	panic("not called")
 }
 
 // IsEntityName tests whether a given entity name is valid
 func IsEntityName(name string) bool {
-	return strings.Contains(name, EntitySeparator)
+	panic("not called")
 }

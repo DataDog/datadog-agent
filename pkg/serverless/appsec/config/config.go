@@ -56,22 +56,12 @@ func IsEnabled() (enabled bool, set bool, err error) {
 
 // IsStandalone returns whether appsec is used as a standalone product (without APM tracing) or not
 func IsStandalone() bool {
-	return standalone
+	panic("not called")
 }
 
 // NewConfig returns a new appsec configuration read from the environment
 func NewConfig() (*Config, error) {
-	rules, err := appsec.RulesFromEnv()
-	if err != nil {
-		return nil, err
-	}
-	return &Config{
-		Rules:          rules,
-		WafTimeout:     appsec.WAFTimeoutFromEnv(),
-		TraceRateLimit: appsec.RateLimitFromEnv(),
-		Obfuscator:     appsec.NewObfuscatorConfig(),
-		APISec:         appsec.NewAPISecConfig(),
-	}, nil
+	panic("not called")
 }
 
 // isStandalone is reads the env and reports whether appsec runs in standalone mode

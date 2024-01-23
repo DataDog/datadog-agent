@@ -6,10 +6,7 @@
 package clusteragent
 
 import (
-	"errors"
 	"net/http"
-	"net/url"
-	"strings"
 	"sync"
 )
 
@@ -24,73 +21,35 @@ type leaderClient struct {
 }
 
 func newLeaderClient(mainClient *http.Client, serviceURL string) *leaderClient {
-	l := &leaderClient{
-		Client:     *mainClient,
-		serviceURL: serviceURL,
-	}
-	l.CheckRedirect = l.redirected
-	return l
+	panic("not called")
 }
 
 // getBaseURL returns the url to query: the last known url
 // of the leader, or the main url if not known
 func (l *leaderClient) getBaseURL() string {
-	l.m.Lock()
-	defer l.m.Unlock()
-
-	if l.leaderURL == "" {
-		return l.serviceURL
-	}
-	return l.leaderURL
+	panic("not called")
 }
 
 // hasLeader returns true if a leader is in cache,
 // false if requests will go through the service
 func (l *leaderClient) hasLeader() bool {
-	l.m.Lock()
-	defer l.m.Unlock()
-	return l.leaderURL != ""
+	panic("not called")
 }
 
 // buildURL is a convenience method to create a full url by
 // adding path parts to the base url
 func (l *leaderClient) buildURL(parts ...string) string {
-	urlParts := []string{l.getBaseURL()}
-	urlParts = append(urlParts, parts...)
-
-	return strings.Join(urlParts, "/")
+	panic("not called")
 }
 
 // resetURL has to be called on errors to fallback
 // to the serviceURL when the leader churns away.
 func (l *leaderClient) resetURL() {
-	l.m.Lock()
-	defer l.m.Unlock()
-	l.leaderURL = ""
+	panic("not called")
 }
 
 // redirected is passed to the http client to cache leader
 // redirections for future queries.
 func (l *leaderClient) redirected(req *http.Request, via []*http.Request) error {
-	// Copy of default behaviour to avoid infinite redirects
-	if len(via) >= 10 {
-		return errors.New("stopped after 10 redirects")
-	}
-
-	// Continue passing the bearer token in headers
-	if len(via) == 0 {
-		return errors.New("cannot find previous request")
-	}
-	req.Header = via[0].Header
-
-	// Cache the target host for future requests
-	l.m.Lock()
-	defer l.m.Unlock()
-	newURL := &url.URL{
-		Scheme: req.URL.Scheme,
-		Host:   req.URL.Host,
-	}
-	l.leaderURL = newURL.String()
-
-	return nil
+	panic("not called")
 }

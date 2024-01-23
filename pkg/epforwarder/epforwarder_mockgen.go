@@ -5,8 +5,6 @@
 package epforwarder
 
 import (
-	reflect "reflect"
-
 	message "github.com/DataDog/datadog-agent/pkg/logs/message"
 	gomock "github.com/golang/mock/gomock"
 )
@@ -24,78 +22,60 @@ type MockEventPlatformForwarderMockRecorder struct {
 
 // NewMockEventPlatformForwarder creates a new mock instance.
 func NewMockEventPlatformForwarder(ctrl *gomock.Controller) *MockEventPlatformForwarder {
-	mock := &MockEventPlatformForwarder{ctrl: ctrl}
-	mock.recorder = &MockEventPlatformForwarderMockRecorder{mock}
-	return mock
+	panic("not called")
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockEventPlatformForwarder) EXPECT() *MockEventPlatformForwarderMockRecorder {
-	return m.recorder
+	panic("not called")
 }
 
 // Purge mocks base method.
 func (m *MockEventPlatformForwarder) Purge() map[string][]*message.Message {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Purge")
-	ret0, _ := ret[0].(map[string][]*message.Message)
-	return ret0
+	panic("not called")
 }
 
 // Purge indicates an expected call of Purge.
 func (mr *MockEventPlatformForwarderMockRecorder) Purge() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Purge", reflect.TypeOf((*MockEventPlatformForwarder)(nil).Purge))
+	panic("not called")
 }
 
 // SendEventPlatformEvent mocks base method.
 func (m *MockEventPlatformForwarder) SendEventPlatformEvent(e *message.Message, eventType string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SendEventPlatformEvent", e, eventType)
-	ret0, _ := ret[0].(error)
-	return ret0
+	panic("not called")
 }
 
 // SendEventPlatformEvent indicates an expected call of SendEventPlatformEvent.
 func (mr *MockEventPlatformForwarderMockRecorder) SendEventPlatformEvent(e, eventType interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendEventPlatformEvent", reflect.TypeOf((*MockEventPlatformForwarder)(nil).SendEventPlatformEvent), e, eventType)
+	panic("not called")
 }
 
 // SendEventPlatformEventBlocking mocks base method.
 func (m *MockEventPlatformForwarder) SendEventPlatformEventBlocking(e *message.Message, eventType string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SendEventPlatformEventBlocking", e, eventType)
-	ret0, _ := ret[0].(error)
-	return ret0
+	panic("not called")
 }
 
 // SendEventPlatformEventBlocking indicates an expected call of SendEventPlatformEventBlocking.
 func (mr *MockEventPlatformForwarderMockRecorder) SendEventPlatformEventBlocking(e, eventType interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendEventPlatformEventBlocking", reflect.TypeOf((*MockEventPlatformForwarder)(nil).SendEventPlatformEventBlocking), e, eventType)
+	panic("not called")
 }
 
 // Start mocks base method.
 func (m *MockEventPlatformForwarder) Start() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Start")
+	panic("not called")
 }
 
 // Start indicates an expected call of Start.
 func (mr *MockEventPlatformForwarderMockRecorder) Start() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockEventPlatformForwarder)(nil).Start))
+	panic("not called")
 }
 
 // Stop mocks base method.
 func (m *MockEventPlatformForwarder) Stop() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Stop")
+	panic("not called")
 }
 
 // Stop indicates an expected call of Stop.
 func (mr *MockEventPlatformForwarderMockRecorder) Stop() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockEventPlatformForwarder)(nil).Stop))
+	panic("not called")
 }

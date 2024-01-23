@@ -5,16 +5,8 @@
 
 package utils
 
-import "strings"
-
 // StringInRuneset tests whether all runes of a string are in a given subset
 // returns false if any rune in the string is not found in the subset
 func StringInRuneset(name, subset string) bool {
-	for _, r := range name {
-		if !strings.ContainsRune(subset, r) {
-			// Found an unexpected rune in suffix
-			return false
-		}
-	}
-	return true
+	panic("not called")
 }

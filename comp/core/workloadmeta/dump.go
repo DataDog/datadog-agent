@@ -6,12 +6,7 @@
 package workloadmeta
 
 import (
-	"fmt"
 	"io"
-
-	"github.com/fatih/color"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // WorkloadDumpResponse is used to dump the store content.
@@ -27,79 +22,10 @@ type WorkloadEntity struct {
 // Write writes the stores content in a given writer.
 // Useful for agent's CLI and Flare.
 func (wdr WorkloadDumpResponse) Write(writer io.Writer) {
-	if writer != color.Output {
-		color.NoColor = true
-	}
-
-	for kind, entities := range wdr.Entities {
-		for entity, info := range entities.Infos {
-			fmt.Fprintf(writer, "\n=== Entity %s %s ===\n", color.GreenString(kind), color.GreenString(entity))
-			fmt.Fprint(writer, info)
-			fmt.Fprintln(writer, "===")
-		}
-	}
+	panic("not called")
 }
 
 // Dump implements Store#Dump
 func (w *workloadmeta) Dump(verbose bool) WorkloadDumpResponse {
-	workloadList := WorkloadDumpResponse{
-		Entities: make(map[string]WorkloadEntity),
-	}
-
-	entityToString := func(entity Entity) (string, error) {
-		var info string
-		switch e := entity.(type) {
-		case *Container:
-			info = e.String(verbose)
-		case *KubernetesPod:
-			info = e.String(verbose)
-		case *KubernetesNode:
-			info = e.String(verbose)
-		case *ECSTask:
-			info = e.String(verbose)
-		case *ContainerImageMetadata:
-			info = e.String(verbose)
-		case *Process:
-			info = e.String(verbose)
-		case *KubernetesDeployment:
-			info = e.String(verbose)
-		default:
-			return "", fmt.Errorf("unsupported type %T", e)
-		}
-
-		return info, nil
-	}
-
-	w.storeMut.RLock()
-	defer w.storeMut.RUnlock()
-
-	for kind, store := range w.store {
-		entities := WorkloadEntity{Infos: make(map[string]string)}
-		for id, cachedEntity := range store {
-			if verbose && len(cachedEntity.sources) > 1 {
-				for source, entity := range cachedEntity.sources {
-					info, err := entityToString(entity)
-					if err != nil {
-						log.Debugf("Ignoring entity %s: %v", entity.GetID().ID, err)
-						continue
-					}
-
-					entities.Infos["source:"+string(source)+" id: "+id] = info
-				}
-			}
-
-			e := cachedEntity.cached
-			info, err := entityToString(e)
-			if err != nil {
-				log.Debugf("Ignoring entity %s: %v", e.GetID().ID, err)
-				continue
-			}
-
-			entities.Infos[fmt.Sprintf("sources(merged):%v", cachedEntity.sortedSources)+" id: "+id] = info
-		}
-
-		workloadList.Entities[string(kind)] = entities
-	}
-
-	return workloadList
+	panic("not called")
 }

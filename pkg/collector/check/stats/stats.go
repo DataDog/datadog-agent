@@ -10,13 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mitchellh/mapstructure"
-
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -68,19 +63,12 @@ type SenderStats struct {
 
 // NewSenderStats creates a new SenderStats
 func NewSenderStats() SenderStats {
-	return SenderStats{
-		EventPlatformEvents: make(map[string]int64),
-	}
+	panic("not called")
 }
 
 // Copy creates a copy of the current SenderStats
 func (s SenderStats) Copy() (result SenderStats) {
-	result = s
-	result.EventPlatformEvents = make(map[string]int64, len(s.EventPlatformEvents))
-	for k, v := range s.EventPlatformEvents {
-		result.EventPlatformEvents[k] = v
-	}
-	return result
+	panic("not called")
 }
 
 // Stats holds basic runtime statistics about check instances
@@ -131,115 +119,12 @@ type StatsCheck interface {
 
 // NewStats returns a new check stats instance
 func NewStats(c StatsCheck) *Stats {
-	stats := Stats{
-		CheckID:                  c.ID(),
-		CheckName:                c.String(),
-		CheckVersion:             c.Version(),
-		CheckConfigSource:        c.ConfigSource(),
-		Interval:                 c.Interval(),
-		telemetry:                utils.IsCheckTelemetryEnabled(c.String(), config.Datadog),
-		EventPlatformEvents:      make(map[string]int64),
-		TotalEventPlatformEvents: make(map[string]int64),
-	}
-
-	// We are interested in a check's run state values even when they are 0 so we
-	// initialize them here explicitly
-	if stats.telemetry && utils.IsTelemetryEnabled(config.Datadog) {
-		tlmRuns.InitializeToZero(stats.CheckName, runCheckFailureTag)
-		tlmRuns.InitializeToZero(stats.CheckName, runCheckSuccessTag)
-	}
-
-	return &stats
+	panic("not called")
 }
 
 // Add tracks a new execution time
 func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats SenderStats) {
-	cs.m.Lock()
-	defer cs.m.Unlock()
-
-	cs.LastDelay = calculateCheckDelay(time.Now(), cs, t)
-	if cs.telemetry {
-		tlmCheckDelay.Set(float64(cs.LastDelay), cs.CheckName)
-	}
-
-	// store execution times in Milliseconds
-	tms := t.Nanoseconds() / 1e6
-	cs.LastExecutionTime = tms
-	cs.ExecutionTimes[cs.TotalRuns%uint64(len(cs.ExecutionTimes))] = tms
-	cs.TotalRuns++
-	if cs.telemetry {
-		tlmExecutionTime.Set(float64(tms), cs.CheckName)
-	}
-	var totalExecutionTime int64
-	ringSize := cs.TotalRuns
-	if ringSize > uint64(len(cs.ExecutionTimes)) {
-		ringSize = uint64(len(cs.ExecutionTimes))
-	}
-	for i := uint64(0); i < ringSize; i++ {
-		totalExecutionTime += cs.ExecutionTimes[i]
-	}
-	cs.AverageExecutionTime = totalExecutionTime / int64(ringSize)
-	if err != nil {
-		cs.TotalErrors++
-		if cs.telemetry {
-			tlmRuns.Inc(cs.CheckName, runCheckFailureTag)
-		}
-		cs.LastError = err.Error()
-	} else {
-		if cs.telemetry {
-			tlmRuns.Inc(cs.CheckName, runCheckSuccessTag)
-		}
-		cs.LastError = ""
-		cs.LastSuccessDate = time.Now().Unix()
-	}
-	cs.LastWarnings = []string{}
-	if len(warnings) != 0 {
-		if cs.telemetry {
-			tlmWarnings.Add(float64(len(warnings)), cs.CheckName)
-		}
-		for _, w := range warnings {
-			cs.TotalWarnings++
-			cs.LastWarnings = append(cs.LastWarnings, w.Error())
-		}
-	}
-	cs.UpdateTimestamp = time.Now().Unix()
-
-	if metricStats.MetricSamples > 0 {
-		cs.MetricSamples = metricStats.MetricSamples
-		cs.TotalMetricSamples += uint64(metricStats.MetricSamples)
-		if cs.telemetry {
-			tlmMetricsSamples.Add(float64(metricStats.MetricSamples), cs.CheckName)
-		}
-	}
-	if metricStats.Events > 0 {
-		cs.Events = metricStats.Events
-		cs.TotalEvents += uint64(metricStats.Events)
-		if cs.telemetry {
-			tlmEvents.Add(float64(metricStats.Events), cs.CheckName)
-		}
-	}
-	if metricStats.ServiceChecks > 0 {
-		cs.ServiceChecks = metricStats.ServiceChecks
-		cs.TotalServiceChecks += uint64(metricStats.ServiceChecks)
-		if cs.telemetry {
-			tlmServices.Add(float64(metricStats.ServiceChecks), cs.CheckName)
-		}
-	}
-	if metricStats.HistogramBuckets > 0 {
-		cs.HistogramBuckets = metricStats.HistogramBuckets
-		cs.TotalHistogramBuckets += uint64(metricStats.HistogramBuckets)
-		if cs.telemetry {
-			tlmHistogramBuckets.Add(float64(metricStats.HistogramBuckets), cs.CheckName)
-		}
-	}
-	for k, v := range metricStats.EventPlatformEvents {
-		// translate event types into more descriptive names
-		if humanName, ok := EventPlatformNameTranslations[k]; ok {
-			k = humanName
-		}
-		cs.TotalEventPlatformEvents[k] = cs.TotalEventPlatformEvents[k] + v
-		cs.EventPlatformEvents[k] = v
-	}
+	panic("not called")
 }
 
 type aggStats struct {
@@ -249,33 +134,10 @@ type aggStats struct {
 }
 
 func translateEventTypes(original map[string]interface{}) map[string]interface{} {
-	result := make(map[string]interface{})
-	if original == nil {
-		return result
-	}
-	for k, v := range original {
-		if translated, ok := EventPlatformNameTranslations[k]; ok {
-			result[translated] = v
-			log.Debugf("successfully translated event platform event type from '%s' to '%s'", original, translated)
-		} else {
-			result[k] = v
-		}
-	}
-	return result
+	panic("not called")
 }
 
 // TranslateEventPlatformEventTypes translates the event platform event types in aggregator stats to human readable names
 func TranslateEventPlatformEventTypes(aggregatorStats interface{}) (interface{}, error) {
-	var aggStats aggStats
-	err := mapstructure.Decode(aggregatorStats, &aggStats)
-	if err != nil {
-		return nil, err
-	}
-	result := make(map[string]interface{})
-	result["EventPlatformEvents"] = translateEventTypes(aggStats.EventPlatformEvents)
-	result["EventPlatformEventsErrors"] = translateEventTypes(aggStats.EventPlatformEventsErrors)
-	for k, v := range aggStats.Other {
-		result[k] = v
-	}
-	return result, nil
+	panic("not called")
 }

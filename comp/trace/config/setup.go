@@ -6,17 +6,11 @@
 package config
 
 import (
-	"bytes"
-	"context"
 	"errors"
 	"fmt"
-	"html"
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
-	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -24,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -33,13 +26,9 @@ import (
 
 	//nolint:revive // TODO(APM) Fix revive linter
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
-	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -62,9 +51,7 @@ const (
 
 //nolint:revive // TODO(APM) Fix revive linter
 func setupConfigCommon(deps dependencies, apikey string) (*config.AgentConfig, error) {
-	confFilePath := deps.Config.ConfigFileUsed()
-
-	return LoadConfigFile(confFilePath, deps.Config)
+	panic("not called")
 }
 
 // LoadConfigFile returns a new configuration based on the given path. The path must not necessarily exist
@@ -139,7 +126,7 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 }
 
 func containerTagsFunc(cid string) ([]string, error) {
-	return tagger.Tag("container_id://"+cid, collectors.HighCardinality)
+	panic("not called")
 }
 
 // appendEndpoints appends any endpoint configuration found at the given cfgKey.
@@ -669,124 +656,41 @@ func loadDeprecatedValues(c *config.AgentConfig) error {
 // addReplaceRule adds the specified replace rule to the agent configuration. If the pattern fails
 // to compile as valid regexp, it exits the application with status code 1.
 func addReplaceRule(c *config.AgentConfig, tag, pattern, repl string) error {
-	re, err := regexp.Compile(pattern)
-	if err != nil {
-		return fmt.Errorf("error adding replace rule: %s", err)
-	}
-	c.ReplaceTags = append(c.ReplaceTags, &config.ReplaceRule{
-		Name:    tag,
-		Pattern: pattern,
-		Re:      re,
-		Repl:    repl,
-	})
-
-	return nil
+	panic("not called")
 }
 
 // compileReplaceRules compiles the regular expressions found in the replace rules.
 // If it fails it returns the first error.
 func compileReplaceRules(rules []*config.ReplaceRule) error {
-	for _, r := range rules {
-		if r.Name == "" {
-			return errors.New(`all rules must have a "name" property (use "*" to target all)`)
-		}
-		if r.Name == "env" {
-			log.Error("Replace tags should not be used to change the env in the Agent, as it could have negative side effects. THIS WILL BE DISALLOWED IN FUTURE AGENT VERSIONS. See https://docs.datadoghq.com/getting_started/tracing/#environment-name for instructions on setting the env, and https://github.com/DataDog/datadog-agent/issues/21253 for more details about this issue.")
-		}
-		if r.Pattern == "" {
-			return errors.New(`all rules must have a "pattern"`)
-		}
-		re, err := regexp.Compile(r.Pattern)
-		if err != nil {
-			return fmt.Errorf("key %q: %s", r.Name, err)
-		}
-		r.Re = re
-	}
-	return nil
+	panic("not called")
 }
 
 // getDuration returns the duration of the provided value in seconds
 func getDuration(seconds int) time.Duration {
-	return time.Duration(seconds) * time.Second
+	panic("not called")
 }
 
 func parseServiceAndOp(name string) (string, string, error) {
-	splits := strings.Split(name, "|")
-	if len(splits) != 2 {
-		return "", "", fmt.Errorf("bad format for operation name and service name in: %s, it should have format: service_name|operation_name", name)
-	}
-	return splits[0], splits[1], nil
+	panic("not called")
 }
 
 func toFloat64(val interface{}) (float64, error) {
-	switch v := val.(type) {
-	case float64:
-		return v, nil
-	case float32:
-		return float64(v), nil
-	case int:
-		return float64(v), nil
-	case int32:
-		return float64(v), nil
-	case int64:
-		return float64(v), nil
-	case uint:
-		return float64(v), nil
-	case uint32:
-		return float64(v), nil
-	case uint64:
-		return float64(v), nil
-	case string:
-		f, err := strconv.ParseFloat(v, 64)
-		if err != nil {
-			return 0, err
-		}
-		return f, nil
-	default:
-		return 0, fmt.Errorf("%v can not be converted to float64", val)
-	}
+	panic("not called")
 }
 
 // containsKey return true if slice of tag contains tag with the specified key.
 func containsKey(t []*config.Tag, k string) bool {
-	for _, tag := range t {
-		if tag.K == k {
-			return true
-		}
-	}
-	return false
+	panic("not called")
 }
 
 // splitTag splits a "k:v" formatted string and returns a Tag.
 func splitTag(tag string) *config.Tag {
-	parts := strings.SplitN(tag, ":", 2)
-	kv := &config.Tag{
-		K: strings.TrimSpace(parts[0]),
-	}
-	if len(parts) > 1 {
-		if v := strings.TrimSpace(parts[1]); v != "" {
-			kv.V = v
-		}
-	}
-	return kv
+	panic("not called")
 }
 
 // splitTag splits a "k:v" formatted string and returns a TagRegex.
 func splitTagRegex(tag string) *config.TagRegex {
-	parts := strings.SplitN(tag, ":", 2)
-	kv := &config.TagRegex{
-		K: strings.TrimSpace(parts[0]),
-	}
-	if len(parts) > 1 {
-		v := strings.TrimSpace(parts[1])
-		re, err := regexp.Compile(v)
-		if err != nil {
-			log.Errorf("Invalid regex pattern in tag filter: %q:%q", kv.K, v)
-			return nil
-		}
-		kv.V = re
-	}
-	return kv
+	panic("not called")
 }
 
 // validate validates if the current configuration is good for the agent to start with.
@@ -817,97 +721,23 @@ var fallbackHostnameFunc = os.Hostname
 // acquireHostname attempts to acquire a hostname for the trace-agent by connecting to the core agent's
 // gRPC endpoints. If it fails, it will return an error.
 func acquireHostname(c *config.AgentConfig) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	ipcAddress, err := coreconfig.GetIPCAddress()
-	if err != nil {
-		return err
-	}
-
-	client, err := grpc.GetDDAgentClient(ctx, ipcAddress, coreconfig.GetIPCPort())
-	if err != nil {
-		return err
-	}
-	reply, err := client.GetHostname(ctx, &pbgo.HostnameRequest{})
-	if err != nil {
-		return err
-	}
-	if c.HasFeature("disable_empty_hostname") && reply.Hostname == "" {
-		log.Debugf("Acquired empty hostname from gRPC but it's disallowed.")
-		return errors.New("empty hostname disallowed")
-	}
-	c.Hostname = reply.Hostname
-	log.Debugf("Acquired hostname from gRPC: %s", c.Hostname)
-	return nil
+	panic("not called")
 }
 
 // acquireHostnameFallback attempts to acquire a hostname for this configuration. It
 // tries to shell out to the infrastructure agent for this, if DD_AGENT_BIN is
 // set, otherwise falling back to os.Hostname.
 func acquireHostnameFallback(c *config.AgentConfig) error {
-	var out bytes.Buffer
-	cmd := exec.Command(c.DDAgentBin, "hostname")
-	cmd.Env = append(os.Environ(), cmd.Env...) // needed for Windows
-	cmd.Stdout = &out
-	err := cmd.Run()
-	c.Hostname = strings.TrimSpace(out.String())
-	if emptyDisallowed := c.HasFeature("disable_empty_hostname") && c.Hostname == ""; err != nil || emptyDisallowed {
-		if emptyDisallowed {
-			log.Debugf("Core agent returned empty hostname but is disallowed by disable_empty_hostname feature flag. Falling back to os.Hostname.")
-		}
-		// There was either an error retrieving the hostname from the core agent, or
-		// it was empty and its disallowed by the disable_empty_hostname feature flag.
-		host, err2 := fallbackHostnameFunc()
-		if err2 != nil {
-			return fmt.Errorf("couldn't get hostname from agent (%q), nor from OS (%q). Try specifying it by means of config or the DD_HOSTNAME env var", err, err2)
-		}
-		if emptyDisallowed && host == "" {
-			return errors.New("empty hostname disallowed")
-		}
-		c.Hostname = host
-		log.Debugf("Acquired hostname from OS: %q. Core agent was unreachable at %q: %v.", c.Hostname, c.DDAgentBin, err)
-		return nil
-	}
-	log.Debugf("Acquired hostname from core agent (%s): %q.", c.DDAgentBin, c.Hostname)
-	return nil
+	panic("not called")
 }
 
 // SetHandler returns handler for runtime configuration changes.
 func SetHandler() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		if req.Method != http.MethodPost {
-			httpError(w, http.StatusMethodNotAllowed, fmt.Errorf("%s method not allowed, only %s", req.Method, http.MethodPost))
-			return
-		}
-		for key, values := range req.URL.Query() {
-			if len(values) == 0 {
-				continue
-			}
-			value := html.UnescapeString(values[len(values)-1])
-			switch key {
-			case "log_level":
-				// Note: This endpoint is used by remote-config to set the log level dynamically
-				// Please make sure to reach out to this team before removing it.
-				lvl := strings.ToLower(value)
-				if lvl == "warning" {
-					lvl = "warn"
-				}
-				if err := coreconfig.ChangeLogLevel(lvl); err != nil {
-					httpError(w, http.StatusInternalServerError, err)
-					return
-				}
-				coreconfig.Datadog.Set("log_level", lvl, model.SourceAgentRuntime)
-				log.Infof("Switched log level to %s", lvl)
-			default:
-				log.Infof("Unsupported config change requested (key: %q).", key)
-			}
-		}
-	})
+	panic("not called")
 }
 
 func httpError(w http.ResponseWriter, status int, err error) {
-	http.Error(w, fmt.Sprintf(`{"error": %q}`, err.Error()), status)
+	panic("not called")
 }
 
 func isObsPipelineEnabled(core corecompcfg.Component) (bool, string) {

@@ -189,5 +189,5 @@ func tooBigUnCompressed(payload []byte) bool {
 
 // GetPayloadDrops returns the number of times we dropped some payloads because we couldn't split them.
 func GetPayloadDrops() int64 {
-	return splitterPayloadDrops.Value()
+	panic("not called")
 }

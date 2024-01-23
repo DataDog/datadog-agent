@@ -6,8 +6,9 @@
 package utils
 
 import (
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"testing"
+
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"

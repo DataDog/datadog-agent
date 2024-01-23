@@ -15,15 +15,10 @@ type prefixer struct {
 
 // newPrefixer returns a prefixer that prepends the given prefix to a message.
 func newPrefixer(prefix string) *prefixer {
-	return &prefixer{
-		prefix: prefix,
-	}
+	panic("not called")
 }
 
 // apply prepends the prefix to the message.
 func (p *prefixer) apply(content []byte) []byte {
-	p.buffer.Reset()
-	p.buffer.WriteString(p.prefix)
-	p.buffer.Write(content)
-	return p.buffer.Bytes()
+	panic("not called")
 }

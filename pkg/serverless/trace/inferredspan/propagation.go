@@ -6,15 +6,9 @@
 package inferredspan
 
 import (
-	"encoding/base64"
 	"regexp"
-	"strconv"
-	"strings"
 
 	"github.com/aws/aws-lambda-go/events"
-	json "github.com/json-iterator/go"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -49,149 +43,21 @@ type bodyStruct struct {
 }
 
 func extractTraceContext(event events.SQSMessage) *convertedTraceContext {
-	var rawTrace *rawTraceContext
-
-	if awsAttribute, ok := event.Attributes[awsTraceHeader]; ok {
-		rawTrace = extractTraceContextfromAWSTraceHeader(awsAttribute)
-	}
-
-	if rawTrace == nil {
-		if ddMessageAttribute, ok := event.MessageAttributes[datadogHeader]; ok {
-			rawTrace = extractTraceContextFromDatadogHeader(ddMessageAttribute)
-		} else {
-			rawTrace = extractTraceContextFromSNSSQSEvent(event)
-		}
-	}
-
-	return convertRawTraceContext(rawTrace)
+	panic("not called")
 }
 
 func extractTraceContextFromSNSSQSEvent(firstRecord events.SQSMessage) *rawTraceContext {
-	var messageBody bodyStruct
-	err := json.Unmarshal([]byte(firstRecord.Body), &messageBody)
-	if err != nil {
-		log.Debug("Error unmarshaling the message body: ", err)
-		return nil
-	}
-
-	ddCustomPayloadValue, ok := messageBody.MessageAttributes[datadogHeader]
-	if !ok {
-		log.Debug("No Datadog trace context found")
-		return nil
-	}
-
-	var traceData rawTraceContext
-	if ddCustomPayloadValue.Type == "Binary" {
-		decodedBinary, err := base64.StdEncoding.DecodeString(string(ddCustomPayloadValue.Value))
-		if err != nil {
-			log.Debug("Error decoding binary: ", err)
-			return nil
-		}
-		err = json.Unmarshal(decodedBinary, &traceData)
-		if err != nil {
-			log.Debug("Error unmarshaling the decoded binary: ", err)
-			return nil
-		}
-	} else {
-		log.Debug("Unsupported DataType in _datadog payload")
-		return nil
-	}
-
-	return &traceData
+	panic("not called")
 }
 
 func extractTraceContextFromDatadogHeader(ddPayloadValue events.SQSMessageAttribute) *rawTraceContext {
-	var traceData rawTraceContext
-	if ddPayloadValue.DataType == "String" {
-		err := json.Unmarshal([]byte(*ddPayloadValue.StringValue), &traceData)
-		if err != nil {
-			log.Debug("Error unmarshaling payload value: ", err)
-			return nil
-		}
-		return &traceData
-	}
-	// SNS => SQS => Lambda with SQS's subscription to SNS has enabled RAW MESSAGE DELIVERY option
-	if ddPayloadValue.DataType == "Binary" {
-		err := json.Unmarshal(ddPayloadValue.BinaryValue, &traceData) // No need to decode base64 because already decoded
-		if err != nil {
-			log.Debug("Error unmarshaling the decoded binary: ", err)
-			return nil
-		}
-		return &traceData
-	}
-
-	log.Debug("Unsupported DataType in _datadog payload")
-	return nil
+	panic("not called")
 }
 
 func extractTraceContextfromAWSTraceHeader(value string) *rawTraceContext {
-	if !rootRegex.MatchString(value) {
-		return nil
-	}
-
-	var startPart int
-	traceData := &rawTraceContext{base: 16}
-	length := len(value)
-	for startPart < length {
-		endPart := strings.IndexRune(value[startPart:], ';') + startPart
-		if endPart < startPart {
-			endPart = length
-		}
-		part := value[startPart:endPart]
-		if strings.HasPrefix(part, rootPrefix) {
-			if traceData.TraceID == "" {
-				traceData.TraceID = part[rootPadding:]
-			}
-		} else if strings.HasPrefix(part, parentPrefix) {
-			if traceData.ParentID == "" {
-				traceData.ParentID = part[parentPadding:]
-			}
-		}
-		if traceData.TraceID != "" && traceData.ParentID != "" {
-			break
-		}
-		startPart = endPart + 1
-	}
-
-	return traceData
+	panic("not called")
 }
 
 func convertRawTraceContext(rawTrace *rawTraceContext) *convertedTraceContext {
-	if rawTrace == nil {
-		return nil
-	}
-
-	var uint64TraceID, uint64ParentID *uint64
-
-	base := rawTrace.base
-	if base == 0 {
-		base = 10
-	}
-
-	if rawTrace.TraceID != "" {
-		parsedTraceID, err := strconv.ParseUint(rawTrace.TraceID, base, 64)
-		if err != nil {
-			log.Debug("Error parsing trace ID: ", err)
-			return nil
-		}
-		uint64TraceID = &parsedTraceID
-	}
-
-	if rawTrace.ParentID != "" {
-		parsedParentID, err := strconv.ParseUint(rawTrace.ParentID, base, 64)
-		if err != nil {
-			log.Debug("Error parsing parent ID: ", err)
-			return nil
-		}
-		uint64ParentID = &parsedParentID
-	}
-
-	if uint64TraceID == nil || uint64ParentID == nil {
-		return nil
-	}
-
-	return &convertedTraceContext{
-		TraceID:  uint64TraceID,
-		ParentID: uint64ParentID,
-	}
+	panic("not called")
 }

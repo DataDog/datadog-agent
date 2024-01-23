@@ -7,7 +7,6 @@ package serializerexporter
 
 import (
 	"encoding"
-	"fmt"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
@@ -90,14 +89,7 @@ var _ encoding.TextUnmarshaler = (*CumulativeMonotonicSumMode)(nil)
 
 // UnmarshalText implements the encoding.TextUnmarshaler interface.
 func (sm *CumulativeMonotonicSumMode) UnmarshalText(in []byte) error {
-	switch mode := CumulativeMonotonicSumMode(in); mode {
-	case CumulativeMonotonicSumModeToDelta,
-		CumulativeMonotonicSumModeRawValue:
-		*sm = mode
-		return nil
-	default:
-		return fmt.Errorf("invalid cumulative monotonic sum mode %q", mode)
-	}
+	panic("not called")
 }
 
 // InitialValueMode defines what the exporter should do with the initial value
@@ -120,15 +112,7 @@ var _ encoding.TextUnmarshaler = (*InitialValueMode)(nil)
 
 // UnmarshalText implements the encoding.TextUnmarshaler interface.
 func (iv *InitialValueMode) UnmarshalText(in []byte) error {
-	switch mode := InitialValueMode(in); mode {
-	case InitialValueModeAuto,
-		InitialValueModeDrop,
-		InitialValueModeKeep:
-		*iv = mode
-		return nil
-	default:
-		return fmt.Errorf("invalid initial value mode %q", mode)
-	}
+	panic("not called")
 }
 
 // sumConfig customizes export of OTLP Sums.
@@ -161,14 +145,7 @@ var _ encoding.TextUnmarshaler = (*SummaryMode)(nil)
 
 // UnmarshalText implements the encoding.TextUnmarshaler interface.
 func (sm *SummaryMode) UnmarshalText(in []byte) error {
-	switch mode := SummaryMode(in); mode {
-	case SummaryModeNoQuantiles,
-		SummaryModeGauges:
-		*sm = mode
-		return nil
-	default:
-		return fmt.Errorf("invalid summary mode %q", mode)
-	}
+	panic("not called")
 }
 
 // summaryConfig customizes export of OTLP Summaries.
@@ -204,7 +181,7 @@ type metricsExporterConfig struct {
 
 // Validate configuration
 func (e *exporterConfig) Validate() error {
-	return e.QueueSettings.Validate()
+	panic("not called")
 }
 
 var _ confmap.Unmarshaler = (*exporterConfig)(nil)
@@ -216,32 +193,5 @@ const (
 
 // Unmarshal a configuration map into the configuration struct.
 func (e *exporterConfig) Unmarshal(configMap *confmap.Conf) error {
-	err := configMap.Unmarshal(e, confmap.WithErrorUnused())
-	if err != nil {
-		return err
-	}
-
-	if configMap.IsSet("metrics::histograms::send_count_sum_metrics") {
-		// send_count_sum_metrics is deprecated, warn the user
-		e.warnings = append(e.warnings, warnDeprecatedSendCountSum)
-
-		// override the value since send_count_sum_metrics was set
-		e.Metrics.HistConfig.SendAggregations = e.Metrics.HistConfig.SendCountSum
-
-		// if the user explicitly also set send_aggregation_metrics, warn that we overrided the value
-		if configMap.IsSet("metrics::histograms::send_aggregation_metrics") {
-			e.warnings = append(e.warnings, warnOverrideSendAggregations)
-		}
-	}
-
-	const (
-		initialValueSetting = "metrics::sums::initial_cumulative_monotonic_value"
-		cumulMonoMode       = "metrics::sums::cumulative_monotonic_mode"
-	)
-	if configMap.IsSet(initialValueSetting) && e.Metrics.SumConfig.CumulativeMonotonicMode != CumulativeMonotonicSumModeToDelta {
-		return fmt.Errorf("%q can only be configured when %q is set to %q",
-			initialValueSetting, cumulMonoMode, CumulativeMonotonicSumModeToDelta)
-	}
-
-	return nil
+	panic("not called")
 }

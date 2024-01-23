@@ -6,7 +6,6 @@
 package provider
 
 import (
-	"strconv"
 	"time"
 )
 
@@ -41,126 +40,55 @@ var (
 
 // MakeCached modifies `collectors` to go through a caching layer
 func MakeCached(providerID string, cache *Cache, collectors *Collectors) *Collectors {
-	collectorCache := &collectorCache{
-		providerID: providerID,
-		cache:      cache,
-		collectors: collectors,
-	}
-
-	return &Collectors{
-		Stats:               makeCached(collectors.Stats, ContainerStatsGetter(collectorCache)),
-		Network:             makeCached(collectors.Network, ContainerNetworkStatsGetter(collectorCache)),
-		OpenFilesCount:      makeCached(collectors.OpenFilesCount, ContainerOpenFilesCountGetter(collectorCache)),
-		PIDs:                makeCached(collectors.PIDs, ContainerPIDsGetter(collectorCache)),
-		ContainerIDForPID:   makeCached(collectors.ContainerIDForPID, ContainerIDForPIDRetriever(collectorCache)),
-		ContainerIDForInode: makeCached(collectors.ContainerIDForInode, ContainerIDForInodeRetriever(collectorCache)),
-		SelfContainerID:     makeCached(collectors.SelfContainerID, SelfContainerIDRetriever(collectorCache)),
-	}
+	panic("not called")
 }
 
 // GetContainerStats returns the stats if in cache and within cacheValidity
 // errors are cached as well to avoid hammering underlying collector
 func (cc *collectorCache) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*ContainerStats, error) {
-	cacheKey := cc.providerID + "-" + contCoreStatsCachePrefix + containerNS + containerID
-
-	return getOrFallback(cc.cache, cacheKey, cacheValidity, func() (*ContainerStats, error) {
-		return cc.collectors.Stats.Collector.GetContainerStats(containerNS, containerID, cacheValidity)
-	})
+	panic("not called")
 }
 
 // GetContainerNetworkStats returns the stats if in cache and within cacheValidity
 // errors are cached as well to avoid hammering underlying collector
 func (cc *collectorCache) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*ContainerNetworkStats, error) {
-	cacheKey := cc.providerID + "-" + contNetStatsCachePrefix + containerNS + containerID
-
-	return getOrFallback(cc.cache, cacheKey, cacheValidity, func() (*ContainerNetworkStats, error) {
-		return cc.collectors.Network.Collector.GetContainerNetworkStats(containerNS, containerID, cacheValidity)
-	})
+	panic("not called")
 }
 
 // GetContainerOpenFilesCount returns the count of open files if in cache and within cacheValidity
 // errors are cached as well to avoid hammering underlying collector
 func (cc *collectorCache) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) {
-	cacheKey := cc.providerID + "-" + contOpenFilesCachePrefix + containerNS + containerID
-
-	return getOrFallback(cc.cache, cacheKey, cacheValidity, func() (*uint64, error) {
-		return cc.collectors.OpenFilesCount.Collector.GetContainerOpenFilesCount(containerNS, containerID, cacheValidity)
-	})
+	panic("not called")
 }
 
 // GetPIDs returns the container ID for given PID
 // errors are cached as well to avoid hammering underlying collector
 func (cc *collectorCache) GetPIDs(containerNS, containerID string, cacheValidity time.Duration) ([]int, error) {
-	cacheKey := cc.providerID + "-" + contPidsCachePrefix + containerNS + containerID
-
-	return getOrFallback(cc.cache, cacheKey, cacheValidity, func() ([]int, error) {
-		return cc.collectors.PIDs.Collector.GetPIDs(containerNS, containerID, cacheValidity)
-	})
+	panic("not called")
 }
 
 // GetContainerIDForPID returns the container ID for given PID
 // errors are cached as well to avoid hammering underlying collector
 func (cc *collectorCache) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) {
-	cacheKey := cc.providerID + "-" + contPidToCidCachePrefix + strconv.FormatInt(int64(pid), 10)
-
-	return getOrFallback(cc.cache, cacheKey, cacheValidity, func() (string, error) {
-		return cc.collectors.ContainerIDForPID.Collector.GetContainerIDForPID(pid, cacheValidity)
-	})
+	panic("not called")
 }
 
 // GetContainerIDForInode returns the container ID for given Inode
 // errors are cached as well to avoid hammering underlying collector
 func (cc *collectorCache) GetContainerIDForInode(inode uint64, cacheValidity time.Duration) (string, error) {
-	cacheKey := cc.providerID + "-" + contInodeToCidCachePrefix + strconv.FormatUint(inode, 10)
-
-	return getOrFallback(cc.cache, cacheKey, cacheValidity, func() (string, error) {
-		return cc.collectors.ContainerIDForInode.Collector.GetContainerIDForInode(inode, cacheValidity)
-	})
+	panic("not called")
 }
 
 // GetSelfContainerID returns current process container ID
 // No caching as it's not supposed to change
 func (cc *collectorCache) GetSelfContainerID() (string, error) {
-	if cc.selfContainerIDCache != "" {
-		return cc.selfContainerIDCache, nil
-	}
-
-	selfID, err := cc.collectors.SelfContainerID.Collector.GetSelfContainerID()
-	if err == nil {
-		cc.selfContainerIDCache = selfID
-	}
-
-	return selfID, err
+	panic("not called")
 }
 
 func makeCached[T comparable](cr CollectorRef[T], cache T) CollectorRef[T] {
-	var zero T
-	if cr.Collector != zero {
-		cr.Collector = cache
-	}
-
-	return cr
+	panic("not called")
 }
 
 func getOrFallback[T any](cache *Cache, cacheKey string, cacheValidity time.Duration, collect func() (T, error)) (T, error) {
-	currentTime := time.Now()
-
-	entry, found, err := cache.Get(currentTime, cacheKey, cacheValidity)
-	if found {
-		if err != nil {
-			return *new(T), err
-		}
-
-		return entry.(T), nil
-	}
-
-	// No cache, cacheValidity is 0 or too old value
-	val, err := collect()
-	if err != nil {
-		cache.Store(currentTime, cacheKey, nil, err)
-		return *new(T), err
-	}
-
-	cache.Store(currentTime, cacheKey, val, nil)
-	return val, nil
+	panic("not called")
 }

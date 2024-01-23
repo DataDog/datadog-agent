@@ -6,7 +6,6 @@
 package aggregator
 
 import (
-	"fmt"
 	"io"
 	"unsafe"
 
@@ -42,8 +41,7 @@ func (c *Context) Tags() tagset.CompositeTags {
 }
 
 func (c *Context) release() {
-	c.taggerTags.Release()
-	c.metricTags.Release()
+	panic("not called")
 }
 
 // SizeInBytes returns the size of the context in bytes
@@ -132,15 +130,7 @@ func (cr *contextResolver) length() int {
 }
 
 func (cr *contextResolver) remove(expiredContextKey ckey.ContextKey) {
-	context := cr.contextsByKey[expiredContextKey]
-	delete(cr.contextsByKey, expiredContextKey)
-
-	if context != nil {
-		cr.countsByMtype[context.mtype]--
-		cr.bytesByMtype[context.mtype] -= uint64(context.SizeInBytes())
-		cr.dataBytesByMtype[context.mtype] -= uint64(context.DataSizeInBytes())
-		context.release()
-	}
+	panic("not called")
 }
 
 func (cr *contextResolver) updateMetrics(countsByMTypeGauge telemetry.Gauge, bytesByMTypeGauge telemetry.Gauge) {
@@ -161,40 +151,12 @@ func (cr *contextResolver) updateMetrics(countsByMTypeGauge telemetry.Gauge, byt
 }
 
 func (cr *contextResolver) release() {
-	for _, c := range cr.contextsByKey {
-		c.release()
-	}
+	panic("not called")
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
 func (cr *contextResolver) sendOriginTelemetry(timestamp float64, series metrics.SerieSink, hostname string, constTags []string) {
-	// Within the contextResolver, each set of tags is represented by a unique pointer.
-	perOrigin := map[*tags.Entry]uint64{}
-	for _, cx := range cr.contextsByKey {
-		perOrigin[cx.taggerTags]++
-	}
-
-	// We send metrics directly to the sink, instead of using
-	// pkg/telemetry for a few reasons:
-	//
-	// 1. We can send full set of tagger tags for higher level
-	//    aggregations (pod, namespace, etc). pkg/telemetry only
-	//    allows a fixed set of tags.
-	// 2. Avoid the need to manually create and delete tag values
-	//    inside a telemetry Gauge.
-	// 3. Cardinality is automatically limited to origins verified by
-	//    the tagger (although broken applications sending invalid
-	//    origin id would coalesce to no origin, making this less
-	//    useful for troubleshooting).
-	for entry, count := range perOrigin {
-		series.Append(&metrics.Serie{
-			Name:   "datadog.agent.aggregator.dogstatsd_contexts_by_origin",
-			Host:   hostname,
-			Tags:   tagset.NewCompositeTags(constTags, entry.Tags()),
-			MType:  metrics.APIGaugeType,
-			Points: []metrics.Point{{Ts: timestamp, Value: float64(count)}},
-		})
-	}
+	panic("not called")
 }
 
 // timestampContextResolver allows tracking and expiring contexts based on time.
@@ -212,13 +174,7 @@ func newTimestampContextResolver(cache *tags.Store, id string) *timestampContext
 
 // updateTrackedContext updates the last seen timestamp on a given context key
 func (cr *timestampContextResolver) updateTrackedContext(contextKey ckey.ContextKey, timestamp float64) error {
-	if _, ok := cr.lastSeenByKey[contextKey]; ok && cr.lastSeenByKey[contextKey] < timestamp {
-		cr.lastSeenByKey[contextKey] = timestamp
-	} else if !ok {
-		return fmt.Errorf("Trying to update a context that is not tracked")
-	}
-
-	return nil
+	panic("not called")
 }
 
 // trackContext returns the contextKey associated with the context of the metricSample and tracks that context
@@ -253,11 +209,11 @@ func (cr *timestampContextResolver) expireContexts(expireTimestamp float64, keep
 }
 
 func (cr *timestampContextResolver) sendOriginTelemetry(timestamp float64, series metrics.SerieSink, hostname string, tags []string) {
-	cr.resolver.sendOriginTelemetry(timestamp, series, hostname, tags)
+	panic("not called")
 }
 
 func (cr *timestampContextResolver) dumpContexts(dest io.Writer) error {
-	return cr.resolver.dumpContexts(dest)
+	panic("not called")
 }
 
 func (cr *timestampContextResolver) updateMetrics(countsByMTypeGauge telemetry.Gauge, bytesByMTypeGauge telemetry.Gauge) {
@@ -274,49 +230,33 @@ type countBasedContextResolver struct {
 }
 
 func newCountBasedContextResolver(expireCountInterval int, cache *tags.Store, id string) *countBasedContextResolver {
-	return &countBasedContextResolver{
-		resolver:            newContextResolver(cache, id),
-		expireCountByKey:    make(map[ckey.ContextKey]int64),
-		expireCount:         0,
-		expireCountInterval: int64(expireCountInterval),
-	}
+	panic("not called")
 }
 
 // length returns the number of contexts tracked by the resolver
 func (cr *countBasedContextResolver) length() int {
-	return cr.resolver.length()
+	panic("not called")
 }
 
 func (cr *countBasedContextResolver) updateMetrics(countsByMTypeGauge telemetry.Gauge, bytesByMTypeGauge telemetry.Gauge) {
-	cr.resolver.updateMetrics(countsByMTypeGauge, bytesByMTypeGauge)
+	panic("not called")
 }
 
 // trackContext returns the contextKey associated with the context of the metricSample and tracks that context
 func (cr *countBasedContextResolver) trackContext(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
-	contextKey := cr.resolver.trackContext(metricSampleContext)
-	cr.expireCountByKey[contextKey] = cr.expireCount
-	return contextKey
+	panic("not called")
 }
 
 func (cr *countBasedContextResolver) get(key ckey.ContextKey) (*Context, bool) {
-	return cr.resolver.get(key)
+	panic("not called")
 }
 
 // expireContexts cleans up the contexts that haven't been tracked since `expirationCount`
 // call to `expireContexts` and returns the associated contextKeys
 func (cr *countBasedContextResolver) expireContexts() []ckey.ContextKey {
-	var keys []ckey.ContextKey
-	for key, index := range cr.expireCountByKey {
-		if index <= cr.expireCount-cr.expireCountInterval {
-			keys = append(keys, key)
-			delete(cr.expireCountByKey, key)
-			cr.resolver.remove(key)
-		}
-	}
-	cr.expireCount++
-	return keys
+	panic("not called")
 }
 
 func (cr *countBasedContextResolver) release() {
-	cr.resolver.release()
+	panic("not called")
 }

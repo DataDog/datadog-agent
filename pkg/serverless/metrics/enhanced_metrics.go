@@ -125,8 +125,7 @@ func ContainsOutOfMemoryLog(logString string) bool {
 
 // GenerateOutOfMemoryEnhancedMetrics generates enhanced metrics specific to an out of memory error
 func GenerateOutOfMemoryEnhancedMetrics(time time.Time, tags []string, demux aggregator.Demultiplexer) {
-	SendOutOfMemoryEnhancedMetric(tags, time, demux)
-	SendErrorsEnhancedMetric(tags, time, demux)
+	panic("not called")
 }
 
 // GenerateEnhancedMetricsFromReportLogArgs provides the arguments required for
@@ -216,17 +215,17 @@ func GenerateEnhancedMetricsFromReportLog(args GenerateEnhancedMetricsFromReport
 
 // SendOutOfMemoryEnhancedMetric sends an enhanced metric representing a function running out of memory at a given time
 func SendOutOfMemoryEnhancedMetric(tags []string, t time.Time, demux aggregator.Demultiplexer) {
-	incrementEnhancedMetric(OutOfMemoryMetric, tags, float64(t.UnixNano())/float64(time.Second), demux, false)
+	panic("not called")
 }
 
 // SendErrorsEnhancedMetric sends an enhanced metric representing an error at a given time
 func SendErrorsEnhancedMetric(tags []string, t time.Time, demux aggregator.Demultiplexer) {
-	incrementEnhancedMetric(ErrorsMetric, tags, float64(t.UnixNano())/float64(time.Second), demux, false)
+	panic("not called")
 }
 
 // SendTimeoutEnhancedMetric sends an enhanced metric representing a timeout at the current time
 func SendTimeoutEnhancedMetric(tags []string, demux aggregator.Demultiplexer) {
-	incrementEnhancedMetric(timeoutsMetric, tags, float64(time.Now().UnixNano())/float64(time.Second), demux, false)
+	panic("not called")
 }
 
 // SendInvocationEnhancedMetric sends an enhanced metric representing an invocation at the current time
@@ -237,7 +236,7 @@ func SendInvocationEnhancedMetric(tags []string, demux aggregator.Demultiplexer)
 // SendASMInvocationEnhancedMetric sends an enhanced metric representing an appsec supported invocation at the current time
 // Metric is sent even if enhanced metrics are disabled
 func SendASMInvocationEnhancedMetric(tags []string, demux aggregator.Demultiplexer) {
-	incrementEnhancedMetric(asmInvocationsMetric, tags, float64(time.Now().UnixNano())/float64(time.Second), demux, true)
+	panic("not called")
 }
 
 // incrementEnhancedMetric sends an enhanced metric with a value of 1 to the metrics channel

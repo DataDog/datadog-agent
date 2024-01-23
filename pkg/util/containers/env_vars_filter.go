@@ -6,10 +6,7 @@
 package containers
 
 import (
-	"strings"
 	"sync"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 var (
@@ -38,22 +35,7 @@ var (
 
 // EnvVarFilterFromConfig returns an EnvFilter based on the options present in the config
 func EnvVarFilterFromConfig() EnvFilter {
-	envFilterOnce.Do(func() {
-		configEnvVars := make([]string, 0)
-		dockerEnvs := config.Datadog.GetStringMapString("docker_env_as_tags")
-		for envName := range dockerEnvs {
-			configEnvVars = append(configEnvVars, envName)
-		}
-
-		containerEnvs := config.Datadog.GetStringMapString("container_env_as_tags")
-		for envName := range containerEnvs {
-			configEnvVars = append(configEnvVars, envName)
-		}
-
-		envFilterFromConfig = newEnvFilter(configEnvVars)
-	})
-
-	return envFilterFromConfig
+	panic("not called")
 }
 
 // EnvFilter defines a filter for environment variables
@@ -62,23 +44,10 @@ type EnvFilter struct {
 }
 
 func newEnvFilter(includeVars []string) EnvFilter {
-	filter := EnvFilter{
-		includeVars: make(map[string]struct{}),
-	}
-
-	for _, varName := range defaultEnvVarsIncludeList {
-		filter.includeVars[strings.ToUpper(varName)] = struct{}{}
-	}
-
-	for _, varName := range includeVars {
-		filter.includeVars[strings.ToUpper(varName)] = struct{}{}
-	}
-
-	return filter
+	panic("not called")
 }
 
 // IsIncluded returns whether the given env variable name is included
 func (f EnvFilter) IsIncluded(envVarName string) bool {
-	_, found := f.includeVars[strings.ToUpper(envVarName)]
-	return found
+	panic("not called")
 }

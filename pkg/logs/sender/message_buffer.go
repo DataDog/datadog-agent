@@ -60,5 +60,5 @@ func (p *MessageBuffer) IsEmpty() bool {
 
 // ContentSizeLimit returns the configured content size limit. Messages above this limit are not accepted.
 func (p *MessageBuffer) ContentSizeLimit() int {
-	return p.contentSizeLimit
+	panic("not called")
 }

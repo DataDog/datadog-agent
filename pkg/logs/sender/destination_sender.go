@@ -64,9 +64,7 @@ func (d *DestinationSender) startRetryReader() {
 
 // Stop stops the DestinationSender
 func (d *DestinationSender) Stop() {
-	close(d.input)
-	<-d.stopChan
-	close(d.retryReader)
+	panic("not called")
 }
 
 // Send sends a payload and blocks if the input is full. It will not block if the destination
@@ -99,10 +97,5 @@ func (d *DestinationSender) Send(payload *message.Payload) bool {
 // NonBlockingSend tries to send the payload and fails silently if the input is full.
 // returns false if the buffer is full - true if successful.
 func (d *DestinationSender) NonBlockingSend(payload *message.Payload) bool {
-	select {
-	case d.input <- payload:
-		return true
-	default:
-	}
-	return false
+	panic("not called")
 }

@@ -90,36 +90,15 @@ func (p *PoolManager) IsPassthru() bool {
 // SetPassthru sets the passthru mode to the specified value. It will flush the sccounting before
 // enabling passthru mode.
 func (p *PoolManager) SetPassthru(b bool) {
-	if b {
-		p.passthru.Store(true)
-		p.Flush()
-	} else {
-		p.passthru.Store(false)
-	}
+	panic("not called")
 }
 
 // Count returns the number of elements accounted by the PoolManager.
 func (p *PoolManager) Count() int {
-	p.RLock()
-	defer p.RUnlock()
-
-	size := 0
-	p.refs.Range(func(k, v interface{}) bool {
-		size++
-		return true
-	})
-
-	return size
+	panic("not called")
 }
 
 // Flush flushes all objects back to the object pool, and stops tracking any pending objects.
 func (p *PoolManager) Flush() {
-	p.Lock()
-	defer p.Unlock()
-
-	p.refs.Range(func(k, v interface{}) bool {
-		p.pool.Put(v)
-		p.refs.Delete(k)
-		return true
-	})
+	panic("not called")
 }

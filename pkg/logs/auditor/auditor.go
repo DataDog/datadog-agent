@@ -6,17 +6,11 @@
 package auditor
 
 import (
-	"encoding/json"
-	"fmt"
-	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -75,257 +69,81 @@ type RegistryAuditor struct {
 
 // New returns an initialized Auditor
 func New(runPath string, filename string, ttl time.Duration, health *health.Handle) *RegistryAuditor {
-	return &RegistryAuditor{
-		health:          health,
-		registryPath:    filepath.Join(runPath, filename),
-		registryDirPath: runPath,
-		registryTmpFile: filepath.Base(filename) + ".tmp",
-		entryTTL:        ttl,
-	}
+	panic("not called")
 }
 
 // Start starts the Auditor
 func (a *RegistryAuditor) Start() {
-	a.createChannels()
-	a.registry = a.recoverRegistry()
-	a.cleanupRegistry()
-	go a.run()
+	panic("not called")
 }
 
 // Stop stops the Auditor
 func (a *RegistryAuditor) Stop() {
-	a.closeChannels()
-	a.cleanupRegistry()
-	if err := a.flushRegistry(); err != nil {
-		log.Warn(err)
-	}
+	panic("not called")
 }
 
 func (a *RegistryAuditor) createChannels() {
-	a.chansMutex.Lock()
-	defer a.chansMutex.Unlock()
-	a.inputChan = make(chan *message.Payload, config.ChanSize)
-	a.done = make(chan struct{})
+	panic("not called")
 }
 
 func (a *RegistryAuditor) closeChannels() {
-	a.chansMutex.Lock()
-	defer a.chansMutex.Unlock()
-	if a.inputChan != nil {
-		close(a.inputChan)
-	}
-
-	if a.done != nil {
-		<-a.done
-		a.done = nil
-	}
-	a.inputChan = nil
+	panic("not called")
 }
 
 // Channel returns the channel to use to communicate with the auditor or nil
 // if the auditor is currently stopped.
 func (a *RegistryAuditor) Channel() chan *message.Payload {
-	a.chansMutex.Lock()
-	defer a.chansMutex.Unlock()
-	return a.inputChan
+	panic("not called")
 }
 
 // GetOffset returns the last committed offset for a given identifier,
 // returns an empty string if it does not exist.
 func (a *RegistryAuditor) GetOffset(identifier string) string {
-	r := a.readOnlyRegistryCopy()
-	entry, exists := r[identifier]
-	if !exists {
-		return ""
-	}
-	return entry.Offset
+	panic("not called")
 }
 
 // GetTailingMode returns the last committed offset for a given identifier,
 // returns an empty string if it does not exist.
 func (a *RegistryAuditor) GetTailingMode(identifier string) string {
-	r := a.readOnlyRegistryCopy()
-	entry, exists := r[identifier]
-	if !exists {
-		return ""
-	}
-	return entry.TailingMode
+	panic("not called")
 }
 
 // run keeps up to date the registry depending on different events
 func (a *RegistryAuditor) run() {
-	cleanUpTicker := time.NewTicker(defaultCleanupPeriod)
-	flushTicker := time.NewTicker(defaultFlushPeriod)
-	defer func() {
-		// clean the context
-		cleanUpTicker.Stop()
-		flushTicker.Stop()
-		a.done <- struct{}{}
-	}()
-
-	var fileError sync.Once
-	for {
-		select {
-		case <-a.health.C:
-		case payload, isOpen := <-a.inputChan:
-			if !isOpen {
-				// inputChan has been closed, no need to update the registry anymore
-				return
-			}
-			// update the registry with new entry
-			for _, msg := range payload.Messages {
-				a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.LogSource.Config.TailingMode, msg.IngestionTimestamp)
-			}
-		case <-cleanUpTicker.C:
-			// remove expired offsets from registry
-			a.cleanupRegistry()
-		case <-flushTicker.C:
-			// saves current registry into disk
-			err := a.flushRegistry()
-			if err != nil {
-				if os.IsPermission(err) || os.IsNotExist(err) {
-					fileError.Do(func() {
-						log.Warn(err)
-					})
-				} else {
-					log.Warn(err)
-				}
-			}
-		}
-	}
+	panic("not called")
 }
 
 // recoverRegistry rebuilds the registry from the state file found at path
 func (a *RegistryAuditor) recoverRegistry() map[string]*RegistryEntry {
-	mr, err := os.ReadFile(a.registryPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			log.Infof("Could not find state file at %q, will start with default offsets", a.registryPath)
-		} else {
-			log.Error(err)
-		}
-		return make(map[string]*RegistryEntry)
-	}
-	r, err := a.unmarshalRegistry(mr)
-	if err != nil {
-		log.Error(err)
-		return make(map[string]*RegistryEntry)
-	}
-	return r
+	panic("not called")
 }
 
 // cleanupRegistry removes expired entries from the registry
 func (a *RegistryAuditor) cleanupRegistry() {
-	a.registryMutex.Lock()
-	defer a.registryMutex.Unlock()
-	expireBefore := time.Now().UTC().Add(-a.entryTTL)
-	for path, entry := range a.registry {
-		if entry.LastUpdated.Before(expireBefore) {
-			delete(a.registry, path)
-		}
-	}
+	panic("not called")
 }
 
 // updateRegistry updates the registry entry matching identifier with new the offset and timestamp
 func (a *RegistryAuditor) updateRegistry(identifier string, offset string, tailingMode string, ingestionTimestamp int64) {
-	a.registryMutex.Lock()
-	defer a.registryMutex.Unlock()
-	if identifier == "" {
-		// An empty Identifier means that we don't want to track down the offset
-		// This is useful for origins that don't have offsets (networks), or when we
-		// specially want to avoid storing the offset
-		return
-	}
-
-	// Don't update the registry with a value older than the current one
-	// This can happen when dual shipping and 2 destinations are sending the same payload successfully
-	if v, ok := a.registry[identifier]; ok {
-		if v.IngestionTimestamp > ingestionTimestamp {
-			return
-		}
-	}
-
-	a.registry[identifier] = &RegistryEntry{
-		LastUpdated:        time.Now().UTC(),
-		Offset:             offset,
-		TailingMode:        tailingMode,
-		IngestionTimestamp: ingestionTimestamp,
-	}
+	panic("not called")
 }
 
 // readOnlyRegistryCopy returns a read only copy of the registry
 func (a *RegistryAuditor) readOnlyRegistryCopy() map[string]RegistryEntry {
-	a.registryMutex.Lock()
-	defer a.registryMutex.Unlock()
-	r := make(map[string]RegistryEntry)
-	for path, entry := range a.registry {
-		r[path] = *entry
-	}
-	return r
+	panic("not called")
 }
 
 // flushRegistry writes on disk the registry at the given path
 func (a *RegistryAuditor) flushRegistry() error {
-	r := a.readOnlyRegistryCopy()
-	mr, err := a.marshalRegistry(r)
-	if err != nil {
-		return err
-	}
-	f, err := os.CreateTemp(a.registryDirPath, a.registryTmpFile)
-	if err != nil {
-		return err
-	}
-	tmpName := f.Name()
-	defer func() {
-		if err != nil {
-			_ = f.Close()
-			_ = os.Remove(tmpName)
-		}
-	}()
-	if _, err = f.Write(mr); err != nil {
-		return err
-	}
-
-	if err = f.Chmod(0644); err != nil {
-		return err
-	}
-
-	if err = f.Close(); err != nil {
-		return err
-	}
-	err = os.Rename(tmpName, a.registryPath)
-	return err
+	panic("not called")
 }
 
 // marshalRegistry marshals a registry
 func (a *RegistryAuditor) marshalRegistry(registry map[string]RegistryEntry) ([]byte, error) {
-	r := JSONRegistry{
-		Version:  registryAPIVersion,
-		Registry: registry,
-	}
-	return json.Marshal(r)
+	panic("not called")
 }
 
 // unmarshalRegistry unmarshals a registry
 func (a *RegistryAuditor) unmarshalRegistry(b []byte) (map[string]*RegistryEntry, error) {
-	var r map[string]interface{}
-	err := json.Unmarshal(b, &r)
-	if err != nil {
-		return nil, err
-	}
-	version, exists := r["Version"].(float64)
-	if !exists {
-		return nil, fmt.Errorf("registry retrieved from disk must have a version number")
-	}
-	// ensure backward compatibility
-	switch int(version) {
-	case 2:
-		return unmarshalRegistryV2(b)
-	case 1:
-		return unmarshalRegistryV1(b)
-	case 0:
-		return unmarshalRegistryV0(b)
-	default:
-		return nil, fmt.Errorf("invalid registry version number")
-	}
+	panic("not called")
 }

@@ -6,6 +6,7 @@ package goid
 
 import (
 	"fmt"
+
 	"github.com/go-delve/delve/pkg/goversion"
 )
 

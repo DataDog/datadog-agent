@@ -68,12 +68,12 @@ type ErrorEnum string
 
 // String returns the string value for this ErrorEnum.
 func (e ErrorEnum) String() string {
-	return string(e)
+	panic("not called")
 }
 
 // String returns the string value for this ShutdownReason.
 func (s ShutdownReason) String() string {
-	return string(s)
+	panic("not called")
 }
 
 // InvocationHandler is the invocation handler signature

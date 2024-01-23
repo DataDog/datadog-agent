@@ -8,7 +8,6 @@ package logs
 import (
 	"fmt"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -17,7 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
-	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -118,7 +116,7 @@ func (lc *LambdaLogsCollector) Start() {
 
 // Shutdown the log collector
 func (lc *LambdaLogsCollector) Shutdown() {
-	close(lc.In)
+	panic("not called")
 }
 
 // shouldProcessLog returns whether or not the log should be further processed.
@@ -166,16 +164,12 @@ func createStringRecordForReportLog(startTime, endTime time.Time, l *LambdaLogAP
 
 // createStringRecordForTimeoutLog returns the `Task timed out` log using the platform.report message
 func createStringRecordForTimeoutLog(l *LambdaLogAPIMessage) string {
-	durationMs := l.objectRecord.reportLogItem.durationMs
-	durationSeconds := durationMs / 1000
-	timeStr := l.time.Format(time.RFC3339Nano)
-	return fmt.Sprintf(`%s %s Task timed out after %.2f seconds`, timeStr, l.objectRecord.requestID, durationSeconds)
-
+	panic("not called")
 }
 
 // removeInvalidTracingItem is a temporary fix to handle malformed JSON tracing object
 func removeInvalidTracingItem(data []byte) []byte {
-	return []byte(strings.ReplaceAll(string(data), ",\"tracing\":}", ""))
+	panic("not called")
 }
 
 func (lc *LambdaLogsCollector) processLogMessages(messages []LambdaLogAPIMessage) {
@@ -223,109 +217,5 @@ func (lc *LambdaLogsCollector) processLogMessages(messages []LambdaLogAPIMessage
 func (lc *LambdaLogsCollector) processMessage(
 	message *LambdaLogAPIMessage,
 ) {
-	// Do not send logs or metrics if we can't associate them with an ARN or Request ID
-	if !shouldProcessLog(message) {
-		return
-	}
-	if message.logType == logTypePlatformInitReport {
-		lambdaMetric := &LambdaInitMetric{
-			InitDurationTelemetry: message.objectRecord.reportLogItem.initDurationTelemetry,
-		}
-		lc.lambdaInitMetricChan <- lambdaMetric
-	}
-
-	if message.logType == logTypePlatformInitStart {
-		lambdaMetric := &LambdaInitMetric{
-			InitStartTime: message.objectRecord.reportLogItem.initStartTime,
-		}
-		lc.lambdaInitMetricChan <- lambdaMetric
-	}
-
-	if message.logType == logTypePlatformStart {
-		if len(lc.coldstartRequestID) == 0 {
-			lc.coldstartRequestID = message.objectRecord.requestID
-		}
-		lc.lastRequestID = message.objectRecord.requestID
-		lc.invocationStartTime = message.time
-
-		lc.executionContext.UpdateStartTime(lc.invocationStartTime)
-	}
-
-	if message.logType == logTypePlatformReport {
-		message.stringRecord = createStringRecordForReportLog(lc.invocationStartTime, lc.invocationEndTime, message)
-	}
-
-	if lc.enhancedMetricsEnabled {
-		proactiveInit := false
-		coldStart := false
-		// Only run this block if the LC thinks we're in a cold start
-		if lc.lastRequestID == lc.coldstartRequestID {
-			coldStartTags := lc.executionContext.GetColdStartTagsForRequestID(lc.lastRequestID)
-			proactiveInit = coldStartTags.IsProactiveInit
-			coldStart = coldStartTags.IsColdStart
-		}
-		tags := tags.AddColdStartTag(lc.extraTags.Tags, coldStart, proactiveInit)
-		//nolint:revive // TODO(SERV) Fix revive linter
-		outOfMemoryRequestId := ""
-
-		if message.logType == logTypeFunction {
-			if lc.lastOOMRequestID != lc.lastRequestID && serverlessMetrics.ContainsOutOfMemoryLog(message.stringRecord) {
-				outOfMemoryRequestId = lc.lastRequestID
-			}
-		}
-		if message.logType == logTypePlatformReport {
-			memorySize := message.objectRecord.reportLogItem.memorySizeMB
-			memoryUsed := message.objectRecord.reportLogItem.maxMemoryUsedMB
-			status := message.objectRecord.status
-			reportOutOfMemory := memoryUsed > 0 && memoryUsed >= memorySize
-
-			args := serverlessMetrics.GenerateEnhancedMetricsFromReportLogArgs{
-				InitDurationMs:   message.objectRecord.reportLogItem.initDurationMs,
-				DurationMs:       message.objectRecord.reportLogItem.durationMs,
-				BilledDurationMs: message.objectRecord.reportLogItem.billedDurationMs,
-				MemorySizeMb:     memorySize,
-				MaxMemoryUsedMb:  memoryUsed,
-				RuntimeStart:     lc.invocationStartTime,
-				RuntimeEnd:       lc.invocationEndTime,
-				T:                message.time,
-				Tags:             tags,
-				Demux:            lc.demux,
-			}
-
-			if status == errorStatus && lc.lastOOMRequestID != message.objectRecord.requestID && reportOutOfMemory {
-				outOfMemoryRequestId = message.objectRecord.requestID
-			}
-			serverlessMetrics.GenerateEnhancedMetricsFromReportLog(args)
-		}
-		if message.logType == logTypePlatformRuntimeDone {
-			serverlessMetrics.GenerateEnhancedMetricsFromRuntimeDoneLog(
-				serverlessMetrics.GenerateEnhancedMetricsFromRuntimeDoneLogArgs{
-					Start:            lc.invocationStartTime,
-					End:              message.time,
-					ResponseLatency:  message.objectRecord.runtimeDoneItem.responseLatency,
-					ResponseDuration: message.objectRecord.runtimeDoneItem.responseDuration,
-					ProducedBytes:    message.objectRecord.runtimeDoneItem.producedBytes,
-					Tags:             tags,
-					Demux:            lc.demux,
-				})
-			lc.invocationEndTime = message.time
-			lc.executionContext.UpdateEndTime(message.time)
-		}
-		if outOfMemoryRequestId != "" {
-			lc.lastOOMRequestID = outOfMemoryRequestId
-			lc.executionContext.UpdateOutOfMemoryRequestID(lc.lastOOMRequestID)
-			serverlessMetrics.GenerateOutOfMemoryEnhancedMetrics(message.time, tags, lc.demux)
-		}
-	}
-
-	// If we receive a runtimeDone log message for the current invocation, we know the runtime is done
-	// If we receive a runtimeDone message for a different invocation, we received the message too late and we ignore it
-	if message.logType == logTypePlatformRuntimeDone {
-		if lc.lastRequestID == message.objectRecord.requestID {
-			log.Debugf("Received a runtimeDone log message for the current invocation %s", message.objectRecord.requestID)
-			lc.handleRuntimeDone()
-		} else {
-			log.Debugf("Received a runtimeDone log message for the non-current invocation %s, ignoring it", message.objectRecord.requestID)
-		}
-	}
+	panic("not called")
 }

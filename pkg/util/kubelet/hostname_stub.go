@@ -9,10 +9,9 @@ package kubelet
 
 import (
 	"context"
-	"fmt"
 )
 
 // GetHostname builds a hostname from the kubernetes nodename and an optional cluster-name
 func GetHostname(_ context.Context) (string, error) {
-	return "", fmt.Errorf("kubelet hostname provider is not enabled")
+	panic("not called")
 }

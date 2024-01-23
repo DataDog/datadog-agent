@@ -6,6 +6,7 @@ package lookup
 
 import (
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/go-delve/delve/pkg/goversion"
 )

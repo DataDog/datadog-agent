@@ -8,8 +8,6 @@ package util
 import (
 	"expvar"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Stat type includes a statted value and its timestamp.
@@ -30,72 +28,25 @@ type Stats struct {
 
 // NewStats constructor for Stats
 func NewStats(sz uint32) (*Stats, error) {
-	s := &Stats{
-		size:       sz,
-		valExpvar:  expvar.NewInt("pktsec"),
-		last:       time.Now(),
-		stopped:    make(chan struct{}),
-		incoming:   make(chan int64, sz),
-		Aggregated: make(chan Stat, 2),
-	}
-
-	return s, nil
+	panic("not called")
 }
 
 // StatEvent aggregates an event with value v
 func (s *Stats) StatEvent(v int64) {
-	select {
-	case s.incoming <- v:
-		return
-	default:
-		log.Debugf("dropping last second stats, buffer full")
-	}
+	panic("not called")
 }
 
 // Process call to start processing statistics
 func (s *Stats) Process() {
-	t := time.NewTicker(time.Second)
-	defer t.Stop()
-
-	for {
-		select {
-		case v := <-s.incoming:
-			s.valExpvar.Add(v)
-		case <-t.C:
-			select {
-			case s.Aggregated <- Stat{
-				Val: s.valExpvar.Value(),
-				Ts:  s.last,
-			}:
-			default:
-				log.Debugf("dropping last second stats, buffer full")
-			}
-
-			s.valExpvar.Set(0)
-			s.last = time.Now()
-		case <-s.stopped:
-			return
-		}
-	}
+	panic("not called")
 }
 
 // Update update the expvar parameter with the last aggregated value
 func (s *Stats) Update(expStat *expvar.Int) {
-	t := time.NewTicker(time.Second)
-	defer t.Stop()
-
-	for {
-		select {
-		case <-t.C:
-			last := <-s.Aggregated
-			expStat.Set(last.Val)
-		case <-s.stopped:
-			return
-		}
-	}
+	panic("not called")
 }
 
 // Stop call to stop processing statistics. Once stopped, Stats cannot be restarted.
 func (s *Stats) Stop() {
-	close(s.stopped)
+	panic("not called")
 }

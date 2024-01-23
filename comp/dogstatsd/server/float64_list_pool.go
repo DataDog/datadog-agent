@@ -49,20 +49,10 @@ func newFloat64ListPool() *float64ListPool {
 
 // Get gets a slice of floats ready to use.
 func (f *float64ListPool) get() []float64 {
-	if f.tlmEnabled {
-		tlmFloat64ListPoolGet.Inc()
-		tlmFloat64ListPool.Inc()
-	}
-	return f.pool.Get().([]float64)
+	panic("not called")
 }
 
 // Put resets the slice of floats and puts it back in the pool.
 func (f *float64ListPool) put(list []float64) {
-	if f.tlmEnabled {
-		tlmFloat64ListPoolPut.Inc()
-		tlmFloat64ListPool.Dec()
-	}
-	// we reset the slice's length but keep the allocated buffer
-	list = list[:0]
-	f.pool.Put(list)
+	panic("not called")
 }

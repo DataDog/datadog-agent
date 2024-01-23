@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type messageType int
@@ -212,63 +211,14 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 
 // parseFloat64List parses a list of float64 separated by colonSeparator.
 func (p *parser) parseFloat64List(rawFloats []byte) ([]float64, error) {
-	var value float64
-	var err error
-	idx := 0
-
-	values := p.float64List.get()
-	for idx != -1 && len(rawFloats) != 0 {
-		idx = bytes.Index(rawFloats, colonSeparator)
-		// skip empty value such as '21::22'
-		if idx == 0 {
-			rawFloats = rawFloats[len(colonSeparator):]
-			continue
-		}
-
-		// last value
-		if idx == -1 {
-			value, err = parseFloat64(rawFloats)
-		} else {
-			value, err = parseFloat64(rawFloats[0:idx])
-			rawFloats = rawFloats[idx+len(colonSeparator):]
-		}
-
-		if err != nil {
-			p.float64List.put(values)
-			return nil, err
-		}
-
-		values = append(values, value)
-	}
-	if len(values) == 0 {
-		p.float64List.put(values)
-		return nil, fmt.Errorf("no value found")
-	}
-	return values, nil
+	panic("not called")
 }
 
 // extractContainerID parses the value of the container ID field.
 // If the field is prefixed by `in-`, it corresponds to the cgroup controller's inode of the source
 // and is used for ContainerID resolution.
 func (p *parser) extractContainerID(rawContainerIDField []byte) []byte {
-	containerIDField := rawContainerIDField[len(containerIDFieldPrefix):]
-
-	if bytes.HasPrefix(containerIDField[:len(containerIDFieldInodePrefix)], containerIDFieldInodePrefix) {
-		inodeField, err := strconv.ParseUint(string(containerIDField[len(containerIDFieldPrefix)+1:]), 10, 64)
-		if err != nil {
-			log.Debugf("Failed to parse inode from %s, got %v", containerIDField, err)
-			return nil
-		}
-
-		containerID, err := p.provider.GetMetaCollector().GetContainerIDForInode(inodeField, cacheValidity)
-		if err != nil {
-			log.Debugf("Failed to get container ID, got %v", err)
-			return nil
-		}
-		return []byte(containerID)
-	}
-
-	return containerIDField
+	panic("not called")
 }
 
 // the std API does not have methods to do []byte => float parsing
@@ -284,9 +234,9 @@ func parseFloat64(rawFloat []byte) (float64, error) {
 // every parsed float
 // see https://github.com/golang/go/issues/2632
 func parseInt64(rawInt []byte) (int64, error) {
-	return strconv.ParseInt(*(*string)(unsafe.Pointer(&rawInt)), 10, 64)
+	panic("not called")
 }
 
 func parseInt(rawInt []byte) (int, error) {
-	return strconv.Atoi(*(*string)(unsafe.Pointer(&rawInt)))
+	panic("not called")
 }

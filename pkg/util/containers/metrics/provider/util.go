@@ -5,19 +5,7 @@
 
 package provider
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/util/retry"
-)
-
 // ConvertRetrierErr converts a retrier error into a metrics error
 func ConvertRetrierErr(err error) error {
-	if retry.IsErrPermaFail(err) {
-		return ErrPermaFail
-	}
-
-	if retry.IsErrWillRetry(err) {
-		return ErrNothingYet
-	}
-
-	return err
+	panic("not called")
 }

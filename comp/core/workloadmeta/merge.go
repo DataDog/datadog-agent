@@ -7,10 +7,7 @@ package workloadmeta
 
 import (
 	"reflect"
-	"strconv"
 	"time"
-
-	"github.com/imdario/mergo"
 )
 
 type (
@@ -24,73 +21,21 @@ var (
 )
 
 func (merger) Transformer(typ reflect.Type) func(dst, src reflect.Value) error {
-	switch typ {
-	case timeType:
-		return timeMerge
-	case portSliceType:
-		return portSliceMerge
-	}
-
-	return nil
+	panic("not called")
 }
 
 func timeMerge(dst, src reflect.Value) error {
-	if !dst.CanSet() {
-		return nil
-	}
-
-	isZero := src.MethodByName("IsZero")
-	result := isZero.Call([]reflect.Value{})
-	if !result[0].Bool() {
-		dst.Set(src)
-	}
-	return nil
+	panic("not called")
 }
 
 func portSliceMerge(dst, src reflect.Value) error {
-	if !dst.CanSet() {
-		return nil
-	}
-
-	srcSlice := src.Interface().([]ContainerPort)
-	dstSlice := dst.Interface().([]ContainerPort)
-
-	// Not allocation the map if nothing to do
-	if len(srcSlice) == 0 || len(dstSlice) == 0 {
-		return nil
-	}
-
-	mergeMap := make(map[string]ContainerPort, len(srcSlice)+len(dstSlice))
-	for _, port := range dstSlice {
-		mergeContainerPort(mergeMap, port)
-	}
-
-	for _, port := range srcSlice {
-		mergeContainerPort(mergeMap, port)
-	}
-
-	dstSlice = make([]ContainerPort, 0, len(mergeMap))
-	for _, port := range mergeMap {
-		dstSlice = append(dstSlice, port)
-	}
-	dst.Set(reflect.ValueOf(dstSlice))
-
-	return nil
+	panic("not called")
 }
 
 func mergeContainerPort(mergeMap map[string]ContainerPort, port ContainerPort) {
-	portKey := strconv.Itoa(port.Port) + port.Protocol
-	existingPort, found := mergeMap[portKey]
-
-	if found {
-		if existingPort.Name == "" && port.Name != "" {
-			mergeMap[portKey] = port
-		}
-	} else {
-		mergeMap[portKey] = port
-	}
+	panic("not called")
 }
 
 func merge(dst, src interface{}) error {
-	return mergo.Merge(dst, src, mergo.WithAppendSlice, mergo.WithTransformers(mergerInstance))
+	panic("not called")
 }

@@ -68,8 +68,7 @@ func (c *ColdStartSpanCreator) Run() {
 
 //nolint:revive // TODO(SERV) Fix revive linter
 func (c *ColdStartSpanCreator) Stop() {
-	log.Debugf("[ColdStartCreator] - sending shutdown msg")
-	c.StopChan <- struct{}{}
+	panic("not called")
 }
 
 func (c *ColdStartSpanCreator) handleLambdaSpan(traceAgentSpan *pb.Span) {

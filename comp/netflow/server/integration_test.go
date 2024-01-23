@@ -9,15 +9,16 @@ package server
 
 import (
 	"context"
+	"net"
+	"testing"
+	"time"
+
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/netflowstate"
 	"github.com/netsampler/goflow2/decoders/netflow/templates"
 	"github.com/netsampler/goflow2/utils"
 	"github.com/sirupsen/logrus"
 	"go.uber.org/atomic"
-	"net"
-	"testing"
-	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"

@@ -24,7 +24,7 @@ var publicIPv4Fetcher = cachedfetch.Fetcher{
 
 // GetPublicIPv4 gets the public IPv4 for the currently running host using the EC2 metadata API.
 func GetPublicIPv4(ctx context.Context) (string, error) {
-	return publicIPv4Fetcher.FetchString(ctx)
+	panic("not called")
 }
 
 var networkIDFetcher = cachedfetch.Fetcher{
@@ -65,7 +65,7 @@ var networkIDFetcher = cachedfetch.Fetcher{
 // EC2 instances, the the network ID is the VPC ID, if the instance is found to
 // be a part of exactly one VPC.
 func GetNetworkID(ctx context.Context) (string, error) {
-	return networkIDFetcher.FetchString(ctx)
+	panic("not called")
 }
 
 // Subnet stores information about an AWS subnet
@@ -77,24 +77,5 @@ type Subnet struct {
 // GetSubnetForHardwareAddr returns info about the subnet associated with a hardware
 // address (mac address) on the current host
 func GetSubnetForHardwareAddr(ctx context.Context, hwAddr net.HardwareAddr) (subnet Subnet, err error) {
-	if len(hwAddr) == 0 {
-		err = fmt.Errorf("could not get subnet for empty hw addr")
-		return
-	}
-
-	var resp string
-	resp, err = getMetadataItem(ctx, fmt.Sprintf("%s/%s/subnet-id", imdsNetworkMacs, hwAddr), false)
-	if err != nil {
-		return
-	}
-
-	subnet.ID = strings.TrimSpace(resp)
-
-	resp, err = getMetadataItem(ctx, fmt.Sprintf("%s/%s/subnet-ipv4-cidr-block", imdsNetworkMacs, hwAddr), false)
-	if err != nil {
-		return
-	}
-
-	subnet.Cidr = strings.TrimSpace(resp)
-	return
+	panic("not called")
 }

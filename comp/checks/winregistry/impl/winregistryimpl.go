@@ -13,6 +13,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
+	"strconv"
+	"strings"
+
 	"github.com/DataDog/datadog-agent/comp/checks/winregistry"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
@@ -33,9 +37,6 @@ import (
 	"go.uber.org/fx"
 	"golang.org/x/sys/windows/registry"
 	"gopkg.in/yaml.v2"
-	"io/fs"
-	"strconv"
-	"strings"
 )
 
 const (

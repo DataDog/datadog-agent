@@ -15,10 +15,18 @@ type ProcessMessageBody = stubMessageBody
 
 type stubMessageBody struct{}
 
-func (stubMessageBody) ProtoMessage()  {}
-func (stubMessageBody) Reset()         {}
-func (stubMessageBody) String() string { return "" }
-func (stubMessageBody) Size() int      { return 0 }
+func (stubMessageBody) ProtoMessage() {
+	panic("not called")
+}
+func (stubMessageBody) Reset() {
+	panic("not called")
+}
+func (stubMessageBody) String() string {
+	panic("not called")
+}
+func (stubMessageBody) Size() int {
+	panic("not called")
+}
 
 // ProcessPayloadEncoder is a dummy ProcessMessageBody to avoid importing
 // the process agent payload proto in case it's not needed (dogstastd)

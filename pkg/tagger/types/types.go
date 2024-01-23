@@ -8,7 +8,6 @@ package types
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
-	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 )
 
 // Entity is an entity ID + tags.
@@ -25,43 +24,18 @@ type Entity struct {
 // GetTags flattens all tags from all cardinalities into a single slice of tag
 // strings.
 func (e Entity) GetTags(cardinality collectors.TagCardinality) []string {
-	tagArrays := make([][]string, 0, 3)
-	tagArrays = append(tagArrays, e.LowCardinalityTags)
-
-	switch cardinality {
-	case collectors.OrchestratorCardinality:
-		tagArrays = append(tagArrays, e.OrchestratorCardinalityTags)
-	case collectors.HighCardinality:
-		tagArrays = append(tagArrays, e.OrchestratorCardinalityTags)
-		tagArrays = append(tagArrays, e.HighCardinalityTags)
-	}
-
-	return utils.ConcatenateTags(tagArrays...)
+	panic("not called")
 }
 
 // GetHash returns a computed hash of all of the entity's tags.
 func (e Entity) GetHash() string {
-	if e.hash == "" {
-		e.hash = utils.ComputeTagsHash(e.GetTags(collectors.HighCardinality))
-	}
-
-	return e.hash
+	panic("not called")
 }
 
 // Copy returns a copy of the Entity containing only tags at the supplied
 // cardinality.
 func (e Entity) Copy(cardinality collectors.TagCardinality) Entity {
-	newEntity := e
-
-	switch cardinality {
-	case collectors.OrchestratorCardinality:
-		newEntity.HighCardinalityTags = nil
-	case collectors.LowCardinality:
-		newEntity.HighCardinalityTags = nil
-		newEntity.OrchestratorCardinalityTags = nil
-	}
-
-	return newEntity
+	panic("not called")
 }
 
 // EventType is a type of event, triggered when an entity is added, modified or

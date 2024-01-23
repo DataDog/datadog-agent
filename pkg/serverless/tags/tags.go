@@ -9,7 +9,6 @@ package tags
 import (
 	"fmt"
 	"os"
-	"regexp"
 	"strings"
 	"time"
 
@@ -219,18 +218,7 @@ func addTag(tagMap map[string]string, tag string) map[string]string {
 }
 
 func getRuntimeFromOsReleaseFile(osReleasePath string) string {
-	runtime := ""
-	bytesRead, err := os.ReadFile(fmt.Sprintf("%s/os-release", osReleasePath))
-	if err != nil {
-		log.Debug("could not read os-release file")
-		return ""
-	}
-	regExp := regexp.MustCompile(`PRETTY_NAME="Amazon Linux 2"`)
-	result := regExp.FindAll(bytesRead, -1)
-	if len(result) == 1 {
-		runtime = "provided.al2"
-	}
-	return runtime
+	panic("not called")
 }
 
 func getRuntime(procPath string, osReleasePath string, varName string, retries int) string {

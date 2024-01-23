@@ -8,9 +8,10 @@
 package compliance
 
 import (
+	"testing"
+
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/check"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"testing"
 
 	"github.com/stretchr/testify/require"
 

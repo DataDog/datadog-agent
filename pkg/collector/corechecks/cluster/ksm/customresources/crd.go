@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	crd "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+
 	//nolint:revive // TODO(CINT) Fix revive linter
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

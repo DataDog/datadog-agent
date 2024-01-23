@@ -69,9 +69,5 @@ type BufferContext struct {
 
 // NewBufferContext initialize the default compression buffers
 func NewBufferContext() *BufferContext {
-	return &BufferContext{
-		bytes.NewBuffer(make([]byte, 0, 1024)),
-		bytes.NewBuffer(make([]byte, 0, 1024)),
-		bytes.NewBuffer(make([]byte, 0, 1024)),
-	}
+	panic("not called")
 }

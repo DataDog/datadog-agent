@@ -29,12 +29,16 @@ func NewNullAuditor() *NullAuditor {
 // GetOffset returns an empty string.
 //
 //nolint:revive // TODO(AML) Fix revive linter
-func (a *NullAuditor) GetOffset(identifier string) string { return "" }
+func (a *NullAuditor) GetOffset(identifier string) string {
+	panic("not called")
+}
 
 // GetTailingMode returns an empty string.
 //
 //nolint:revive // TODO(AML) Fix revive linter
-func (a *NullAuditor) GetTailingMode(identifier string) string { return "" }
+func (a *NullAuditor) GetTailingMode(identifier string) string {
+	panic("not called")
+}
 
 // Start starts the NullAuditor main loop.
 func (a *NullAuditor) Start() {
@@ -43,7 +47,7 @@ func (a *NullAuditor) Start() {
 
 // Stop stops the NullAuditor main loop.
 func (a *NullAuditor) Stop() {
-	a.stopChannel <- struct{}{}
+	panic("not called")
 }
 
 // Channel returns the channel on which should be sent the messages.

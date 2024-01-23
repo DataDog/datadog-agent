@@ -7,8 +7,6 @@
 package gce
 
 import (
-	"context"
-
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 )
 
@@ -18,6 +16,5 @@ func init() {
 
 // diagnose the GCE metadata API availability
 func diagnose() error {
-	_, err := GetHostname(context.TODO())
-	return err
+	panic("not called")
 }

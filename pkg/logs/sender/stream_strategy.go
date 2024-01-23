@@ -7,7 +7,6 @@ package sender
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // streamStrategy is a Strategy that creates one Payload for each Message, containing
@@ -22,41 +21,15 @@ type streamStrategy struct {
 
 // NewStreamStrategy creates a new stream strategy
 func NewStreamStrategy(inputChan chan *message.Message, outputChan chan *message.Payload, contentEncoding ContentEncoding) Strategy {
-	return &streamStrategy{
-		inputChan:       inputChan,
-		outputChan:      outputChan,
-		contentEncoding: contentEncoding,
-		done:            make(chan struct{}),
-	}
+	panic("not called")
 }
 
 // Send sends one message at a time and forwards them to the next stage of the pipeline.
 func (s *streamStrategy) Start() {
-	go func() {
-		for msg := range s.inputChan {
-			if msg.Origin != nil {
-				msg.Origin.LogSource.LatencyStats.Add(msg.GetLatency())
-			}
-
-			encodedPayload, err := s.contentEncoding.encode(msg.GetContent())
-			if err != nil {
-				log.Warn("Encoding failed - dropping payload", err)
-				return
-			}
-
-			s.outputChan <- &message.Payload{
-				Messages:      []*message.Message{msg},
-				Encoded:       encodedPayload,
-				Encoding:      s.contentEncoding.name(),
-				UnencodedSize: len(msg.GetContent()),
-			}
-		}
-		s.done <- struct{}{}
-	}()
+	panic("not called")
 }
 
 // Stop stops the strategy
 func (s *streamStrategy) Stop() {
-	close(s.inputChan)
-	<-s.done
+	panic("not called")
 }

@@ -37,67 +37,35 @@ type FilterParams struct {
 // Only events of the given type will be delivered. Use EventTypeAll to collect
 // data from all the event types. EventTypeAll is the default.
 func NewFilter(filterParams *FilterParams) *Filter {
-	var kindSet map[Kind]struct{}
-	kinds := filterParams.Kinds
-	if len(kinds) > 0 {
-		kindSet = make(map[Kind]struct{})
-		for _, k := range kinds {
-			kindSet[k] = struct{}{}
-		}
-	}
-
-	// This is enforced in the matching functions, but putting here for clarity
-	if filterParams.Source == "" {
-		filterParams.Source = SourceAll
-	}
-
-	return &Filter{
-		kinds:     kindSet,
-		source:    filterParams.Source,
-		eventType: filterParams.EventType,
-	}
+	panic("not called")
 }
 
 // MatchKind returns true if the filter matches the passed Kind. If the filter
 // is nil, or has no kinds, it always matches.
 func (f *Filter) MatchKind(k Kind) bool {
-	if f == nil || len(f.kinds) == 0 {
-		return true
-	}
-
-	_, ok := f.kinds[k]
-
-	return ok
+	panic("not called")
 }
 
 // MatchSource returns true if the filter matches the passed source. If the
 // filter is nil, or has SourceAll, it always matches.
 func (f *Filter) MatchSource(source Source) bool {
-	return f.Source() == SourceAll || f.Source() == source
+	panic("not called")
 }
 
 // MatchEventType returns true if the filter matches the passed EventType. If
 // the filter is nil, or has EventTypeAll, it always matches.
 func (f *Filter) MatchEventType(eventType EventType) bool {
-	return f.EventType() == EventTypeAll || f.EventType() == eventType
+	panic("not called")
 }
 
 // Source returns the source this filter is filtering by. If the filter is nil,
 // returns SourceAll.
 func (f *Filter) Source() Source {
-	if f == nil {
-		return SourceAll
-	}
-
-	return f.source
+	panic("not called")
 }
 
 // EventType returns the event type this filter is filtering by. If the filter
 // is nil, it returns EventTypeAll.
 func (f *Filter) EventType() EventType {
-	if f == nil {
-		return EventTypeAll
-	}
-
-	return f.eventType
+	panic("not called")
 }

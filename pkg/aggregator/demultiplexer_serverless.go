@@ -84,15 +84,7 @@ func (d *ServerlessDemultiplexer) Run() {
 
 // Stop stops the wrapped aggregator and the forwarder.
 func (d *ServerlessDemultiplexer) Stop(flush bool) {
-	if flush {
-		d.ForceFlushToSerializer(time.Now(), true)
-	}
-
-	d.statsdWorker.stop()
-
-	if d.forwarder != nil {
-		d.forwarder.Stop()
-	}
+	panic("not called")
 }
 
 // ForceFlushToSerializer flushes all data from the time sampler to the serializer.
@@ -154,12 +146,12 @@ func (d *ServerlessDemultiplexer) AggregateSamples(shard TimeSamplerID, samples 
 //
 //nolint:revive // TODO(AML) Fix revive linter
 func (d *ServerlessDemultiplexer) SendSamplesWithoutAggregation(samples metrics.MetricSampleBatch) {
-	panic("not implemented.")
+	panic("not called")
 }
 
 // Serializer returns the shared serializer
 func (d *ServerlessDemultiplexer) Serializer() serializer.MetricSerializer {
-	return d.serializer
+	panic("not called")
 }
 
 // GetMetricSamplePool returns a shared resource used in the whole DogStatsD

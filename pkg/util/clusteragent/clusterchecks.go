@@ -6,9 +6,7 @@
 package clusteragent
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 )
@@ -21,22 +19,10 @@ const (
 
 // PostClusterCheckStatus is called by the clustercheck config provider
 func (c *DCAClient) PostClusterCheckStatus(ctx context.Context, identifier string, status types.NodeStatus) (types.StatusResponse, error) {
-	var response types.StatusResponse
-	queryBody, err := json.Marshal(status)
-	if err != nil {
-		return response, err
-	}
-
-	// https://host:port/api/v1/clusterchecks/status/{identifier}
-	err = c.doJSONQueryToLeader(ctx, dcaClusterChecksStatusPath+"/"+identifier, "POST", bytes.NewBuffer(queryBody), &response)
-	return response, err
+	panic("not called")
 }
 
 // GetClusterCheckConfigs is called by the clustercheck config provider
 func (c *DCAClient) GetClusterCheckConfigs(ctx context.Context, identifier string) (types.ConfigResponse, error) {
-	var configs types.ConfigResponse
-
-	// https://host:port/api/v1/clusterchecks/configs/{identifier}
-	err := c.doJSONQueryToLeader(ctx, dcaClusterChecksConfigsPath+"/"+identifier, "GET", nil, &configs)
-	return configs, err
+	panic("not called")
 }

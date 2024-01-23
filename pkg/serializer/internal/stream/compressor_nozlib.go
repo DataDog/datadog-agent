@@ -10,7 +10,6 @@ package stream
 import (
 	"bytes"
 	"errors"
-	"fmt"
 )
 
 const (
@@ -31,15 +30,15 @@ type Compressor struct{}
 
 // NewCompressor not implemented
 func NewCompressor(input, output *bytes.Buffer, maxPayloadSize, maxUncompressedSize int, header, footer []byte, separator []byte) (*Compressor, error) {
-	return nil, fmt.Errorf("not implemented")
+	panic("not called")
 }
 
 // AddItem not implemented
 func (c *Compressor) AddItem(data []byte) error {
-	return fmt.Errorf("not implemented")
+	panic("not called")
 }
 
 // Close not implemented
 func (c *Compressor) Close() ([]byte, error) {
-	return nil, fmt.Errorf("not implemented")
+	panic("not called")
 }

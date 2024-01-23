@@ -36,14 +36,7 @@ type lineSerializer struct{}
 // "{"message":"content1"}", "{"message":"content2"}"
 // returns, "{"message":"content1"}\n{"message":"content2"}"
 func (s *lineSerializer) Serialize(messages []*message.Message) []byte {
-	var buffer bytes.Buffer
-	for i, message := range messages {
-		if i > 0 {
-			buffer.WriteByte('\n')
-		}
-		buffer.Write(message.GetContent())
-	}
-	return buffer.Bytes()
+	panic("not called")
 }
 
 // arraySerializer transforms a message array into a array string payload.

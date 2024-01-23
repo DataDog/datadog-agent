@@ -196,7 +196,7 @@ func NewServerlessServer() Component {
 
 // TODO: (components) - merge with newServerCompat once NewServerlessServer is removed
 func newServer(deps dependencies) Component {
-	return newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, deps.Params.Serverless)
+	panic("not called")
 }
 
 func newServerCompat(cfg config.Reader, log logComponent.Component, capture replay.Component, debug serverdebug.Component, serverless bool) Component {
@@ -445,25 +445,11 @@ func (s *server) Start(demultiplexer aggregator.Demultiplexer) error {
 }
 
 func (s *server) Stop() {
-	if !s.IsRunning() {
-		return
-	}
-	close(s.stopChan)
-	for _, l := range s.listeners {
-		l.Stop()
-	}
-	if s.Statistics != nil {
-		s.Statistics.Stop()
-	}
-	if s.tCapture != nil {
-		s.tCapture.Stop()
-	}
-	s.health.Deregister() //nolint:errcheck
-	s.Started = false
+	panic("not called")
 }
 
 func (s *server) IsRunning() bool {
-	return s.Started
+	panic("not called")
 }
 
 // SetExtraTags sets extra tags. All metrics sent to the DogstatsD will be tagged with them.
@@ -500,25 +486,11 @@ func (s *server) handleMessages() {
 }
 
 func (s *server) UDPLocalAddr() string {
-	return s.udpLocalAddr
+	panic("not called")
 }
 
 func (s *server) forwarder(fcon net.Conn) {
-	for {
-		select {
-		case <-s.stopChan:
-			return
-		case packets := <-s.captureChan:
-			for _, packet := range packets {
-				_, err := fcon.Write(packet.Contents)
-
-				if err != nil {
-					s.log.Warnf("Forwarding packet failed : %s", err)
-				}
-			}
-			s.packetsIn <- packets
-		}
-	}
+	panic("not called")
 }
 
 // ServerlessFlush flushes all the data to the aggregator to them send it to the Datadog intake.
@@ -580,7 +552,7 @@ func nextMessage(packet *[]byte, eolTermination bool) (message []byte) {
 }
 
 func (s *server) UdsListenerRunning() bool {
-	return s.udsListenerRunning
+	panic("not called")
 }
 
 func (s *server) eolEnabled(sourceType packets.SourceType) bool {
@@ -596,11 +568,7 @@ func (s *server) eolEnabled(sourceType packets.SourceType) bool {
 }
 
 func (s *server) errLog(format string, params ...interface{}) {
-	if s.disableVerboseLogs {
-		s.log.Debugf(format, params...)
-	} else {
-		s.log.Errorf(format, params...)
-	}
+	panic("not called")
 }
 
 // workers are running this function in their goroutine
@@ -675,39 +643,7 @@ func (s *server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 // Only `maxOriginCounters` are stored to avoid an infinite expansion.
 // Counters returned by `getOriginCounter` are thread safe.
 func (s *server) getOriginCounter(origin string) (okCnt telemetry.SimpleCounter, errorCnt telemetry.SimpleCounter) {
-	s.cachedTlmLock.Lock()
-	defer s.cachedTlmLock.Unlock()
-
-	if maps, ok := s.cachedOriginCounters[origin]; ok {
-		return maps.okCnt, maps.errCnt
-	}
-
-	okMap := map[string]string{"message_type": "metrics", "state": "ok"}
-	errorMap := map[string]string{"message_type": "metrics", "state": "error"}
-	okMap["origin"] = origin
-	errorMap["origin"] = origin
-	maps := cachedOriginCounter{
-		origin: origin,
-		ok:     okMap,
-		err:    errorMap,
-		okCnt:  tlmProcessed.WithTags(okMap),
-		errCnt: tlmProcessed.WithTags(errorMap),
-	}
-
-	s.cachedOriginCounters[origin] = maps
-	s.cachedOrder = append(s.cachedOrder, maps)
-
-	if len(s.cachedOrder) > maxOriginCounters {
-		// remove the oldest one from the cache
-		pop := s.cachedOrder[0]
-		delete(s.cachedOriginCounters, pop.origin)
-		s.cachedOrder = s.cachedOrder[1:]
-		// remove it from the telemetry metrics as well
-		tlmProcessed.DeleteWithTags(pop.ok)
-		tlmProcessed.DeleteWithTags(pop.err)
-	}
-
-	return maps.okCnt, maps.errCnt
+	panic("not called")
 }
 
 // NOTE(remy): for performance purpose, we may need to revisit this method to deal with both a metricSamples slice and a lateMetricSamples
@@ -759,29 +695,9 @@ func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 }
 
 func (s *server) parseEventMessage(parser *parser, message []byte, origin string) (*event.Event, error) {
-	sample, err := parser.parseEvent(message)
-	if err != nil {
-		dogstatsdEventParseErrors.Add(1)
-		tlmProcessed.Inc("events", "error", "")
-		return nil, err
-	}
-	event := enrichEvent(sample, origin, s.enrichConfig)
-	event.Tags = append(event.Tags, s.extraTags...)
-	tlmProcessed.Inc("events", "ok", "")
-	dogstatsdEventPackets.Add(1)
-	return event, nil
+	panic("not called")
 }
 
 func (s *server) parseServiceCheckMessage(parser *parser, message []byte, origin string) (*servicecheck.ServiceCheck, error) {
-	sample, err := parser.parseServiceCheck(message)
-	if err != nil {
-		dogstatsdServiceCheckParseErrors.Add(1)
-		tlmProcessed.Inc("service_checks", "error", "")
-		return nil, err
-	}
-	serviceCheck := enrichServiceCheck(sample, origin, s.enrichConfig)
-	serviceCheck.Tags = append(serviceCheck.Tags, s.extraTags...)
-	dogstatsdServiceCheckPackets.Add(1)
-	tlmProcessed.Inc("service_checks", "ok", "")
-	return serviceCheck, nil
+	panic("not called")
 }

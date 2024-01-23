@@ -10,13 +10,10 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/util"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // noAggregationStreamWorker is streaming received metrics from the DogStatsD batcher
@@ -81,50 +78,15 @@ func init() {
 func newNoAggregationStreamWorker(maxMetricsPerPayload int, metricSamplePool *metrics.MetricSamplePool,
 	serializer serializer.MetricSerializer, flushConfig FlushAndSerializeInParallel,
 ) *noAggregationStreamWorker {
-	return &noAggregationStreamWorker{
-		serializer:           serializer,
-		flushConfig:          flushConfig,
-		maxMetricsPerPayload: maxMetricsPerPayload,
-
-		seriesSink:   nil,
-		sketchesSink: nil,
-
-		taggerBuffer: tagset.NewHashlessTagsAccumulator(),
-		metricBuffer: tagset.NewHashlessTagsAccumulator(),
-
-		stopChan:    make(chan trigger),
-		samplesChan: make(chan metrics.MetricSampleBatch, config.Datadog.GetInt("dogstatsd_queue_size")),
-
-		// warning for the unsupported metric types should appear maximum 200 times
-		// every 5 minutes.
-		logThrottling: util.NewSimpleThrottler(200, 5*time.Minute, "Pausing the unsupported metric type warning message for 5m"),
-	}
+	panic("not called")
 }
 
 func (w *noAggregationStreamWorker) addSamples(samples metrics.MetricSampleBatch) {
-	if len(samples) == 0 {
-		return
-	}
-	// FIXME: instrument
-	w.samplesChan <- samples
+	panic("not called")
 }
 
 func (w *noAggregationStreamWorker) stop(wait bool) {
-	var blockChan chan struct{}
-	if wait {
-		blockChan = make(chan struct{})
-	}
-
-	trigger := trigger{
-		time:      time.Now(),
-		blockChan: blockChan,
-	}
-
-	w.stopChan <- trigger
-
-	if wait {
-		<-blockChan
-	}
+	panic("not called")
 }
 
 // mainloop of the no aggregation stream worker:
@@ -140,118 +102,7 @@ func (w *noAggregationStreamWorker) stop(wait bool) {
 // This is not ideal since the serializer should automatically takes the decision when to flush payloads to
 // the serializer but that's not how it works today, see noAggregationStreamWorker comment.
 func (w *noAggregationStreamWorker) run() {
-	log.Debugf("Starting streaming routine for the no-aggregation pipeline")
-
-	ticker := time.NewTicker(noAggWorkerStreamCheckFrequency)
-	defer ticker.Stop()
-	logPayloads := config.Datadog.GetBool("log_payloads")
-	w.seriesSink, w.sketchesSink = createIterableMetrics(w.flushConfig, w.serializer, logPayloads, false)
-
-	stopped := false
-	var stopBlockChan chan struct{}
-	var lastStream time.Time
-
-	for !stopped {
-		start := time.Now()
-		serializedSamples := 0
-
-		metrics.Serialize(
-			w.seriesSink,
-			w.sketchesSink,
-			func(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
-			mainloop:
-				for {
-					select {
-
-					// stop signal
-					case trigger := <-w.stopChan:
-						stopped = true
-						stopBlockChan = trigger.blockChan
-						break mainloop // end `Serialize` call and trigger a flush to the forwarder
-
-					case <-ticker.C:
-						n := time.Now()
-						if serializedSamples > 0 && lastStream.Before(n.Add(-time.Second*1)) {
-							log.Debug("noAggregationStreamWorker: triggering an automatic payloads flush to the forwarder (no traffic since 1s)")
-							tlmNoAggFlush.Add(1)
-							expvarNoAggFlush.Add(1)
-							break mainloop // end `Serialize` call and trigger a flush to the forwarder
-						}
-
-					// receiving samples
-					case samples := <-w.samplesChan:
-						log.Tracef("Streaming %d metrics from the no-aggregation pipeline", len(samples))
-						countProcessed := 0
-						countUnsupportedType := 0
-
-						for _, sample := range samples {
-							mtype, supported := metricSampleAPIType(sample)
-
-							if !supported {
-								if !w.logThrottling.ShouldThrottle() {
-									log.Warnf("Discarding unsupported metric sample in the no-aggregation pipeline for sample '%s', sample type '%s'", sample.Name, sample.Mtype.String())
-								}
-								countUnsupportedType++
-								continue
-							}
-
-							// enrich metric sample tags
-							sample.GetTags(w.taggerBuffer, w.metricBuffer, tagger.EnrichTags)
-							w.metricBuffer.AppendHashlessAccumulator(w.taggerBuffer)
-
-							// if the value is a rate, we have to account for the 10s interval
-							if mtype == metrics.APIRateType {
-								sample.Value /= bucketSize
-							}
-
-							// turns this metric sample into a serie
-							var serie metrics.Serie
-							serie.Name = sample.Name
-							serie.Points = []metrics.Point{{Ts: sample.Timestamp, Value: sample.Value}}
-							serie.Tags = tagset.CompositeTagsFromSlice(w.metricBuffer.Copy())
-							serie.Host = sample.Host
-							serie.MType = mtype
-							serie.Interval = bucketSize
-							w.seriesSink.Append(&serie)
-
-							w.taggerBuffer.Reset()
-							w.metricBuffer.Reset()
-							countProcessed++
-						}
-
-						lastStream = time.Now()
-
-						serializedSamples += countProcessed
-
-						tlmNoAggSamplesProcessedOk.Add(float64(countProcessed))
-						expvarNoAggSamplesProcessedOk.Add(int64(countProcessed))
-						tlmNoAggSamplesProcessedUnsupportedType.Add(float64(countUnsupportedType))
-						expvarNoAggSamplesProcessedUnsupportedType.Add(int64(countUnsupportedType))
-
-						w.metricSamplePool.PutBatch(samples) // return the sample batch back to the pool for reuse
-
-						if serializedSamples > w.maxMetricsPerPayload {
-							tlmNoAggFlush.Add(1)
-							break mainloop // end `Serialize` call and trigger a flush to the forwarder
-						}
-					}
-				}
-			}, func(serieSource metrics.SerieSource) {
-				sendIterableSeries(w.serializer, start, serieSource)
-			}, func(sketches metrics.SketchesSource) {
-				// noop: we do not support sketches in the no-agg pipeline.
-			})
-
-		if stopped {
-			break
-		}
-
-		w.seriesSink, w.sketchesSink = createIterableMetrics(w.flushConfig, w.serializer, logPayloads, false)
-	}
-
-	if stopBlockChan != nil {
-		close(stopBlockChan)
-	}
+	panic("not called")
 }
 
 // metricSampleAPIType returns the APIMetricType of the given sample, the second
@@ -259,14 +110,5 @@ func (w *noAggregationStreamWorker) run() {
 // the no-aggregation pipeline: APIMetricType only supports gauges, counts and rates.
 // This method will default on gauges for every other inputs and return false as a second return value.
 func metricSampleAPIType(m metrics.MetricSample) (metrics.APIMetricType, bool) {
-	switch m.Mtype {
-	case metrics.GaugeType:
-		return metrics.APIGaugeType, true
-	case metrics.CounterType:
-		return metrics.APIRateType, true
-	case metrics.RateType:
-		return metrics.APIRateType, true
-	default:
-		return metrics.APIGaugeType, false
-	}
+	panic("not called")
 }

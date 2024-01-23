@@ -7,20 +7,15 @@ package tagger
 
 import (
 	"context"
-	"errors"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
-	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -60,65 +55,19 @@ var tlmUDPOriginDetectionError = telemetry.NewCounter("dogstatsd", "udp_origin_d
 
 // Init must be called once config is available, call it in your cmd
 func Init(ctx context.Context) error {
-	initOnce.Do(func() {
-		var err error
-		checkCard := config.Datadog.GetString("checks_tag_cardinality")
-		dsdCard := config.Datadog.GetString("dogstatsd_tag_cardinality")
-
-		ChecksCardinality, err = collectors.StringToTagCardinality(checkCard)
-		if err != nil {
-			log.Warnf("failed to parse check tag cardinality, defaulting to low. Error: %s", err)
-			ChecksCardinality = collectors.LowCardinality
-		}
-
-		DogstatsdCardinality, err = collectors.StringToTagCardinality(dsdCard)
-		if err != nil {
-			log.Warnf("failed to parse dogstatsd tag cardinality, defaulting to low. Error: %s", err)
-			DogstatsdCardinality = collectors.LowCardinality
-		}
-
-		if defaultTagger == nil {
-			initErr = errors.New("tagger has not been set")
-			return
-		}
-
-		initErr = defaultTagger.Init(ctx)
-	})
-
-	return initErr
+	panic("not called")
 }
 
 // GetEntity returns the hash for the provided entity id.
 func GetEntity(entityID string) (*types.Entity, error) {
-	mux.RLock()
-	if captureTagger != nil {
-		entity, err := captureTagger.GetEntity(entityID)
-		if err == nil && entity != nil {
-			mux.RUnlock()
-			return entity, nil
-		}
-	}
-	mux.RUnlock()
-
-	return defaultTagger.GetEntity(entityID)
+	panic("not called")
 }
 
 // Tag queries the captureTagger (for replay scenarios) or the defaultTagger.
 // It can return tags at high cardinality (with tags about individual containers),
 // or at orchestrator cardinality (pod/task level).
 func Tag(entity string, cardinality collectors.TagCardinality) ([]string, error) {
-	// TODO: defer unlock once performance overhead of defer is negligible
-	mux.RLock()
-	if captureTagger != nil {
-		tags, err := captureTagger.Tag(entity, cardinality)
-		if err == nil && len(tags) > 0 {
-			mux.RUnlock()
-			return tags, nil
-		}
-	}
-	mux.RUnlock()
-
-	return defaultTagger.Tag(entity, cardinality)
+	panic("not called")
 }
 
 // AccumulateTagsFor queries the defaultTagger to get entity tags from cache or
@@ -126,76 +75,31 @@ func Tag(entity string, cardinality collectors.TagCardinality) ([]string, error)
 // cardinality (with tags about individual containers), or at orchestrator
 // cardinality (pod/task level).
 func AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb tagset.TagsAccumulator) error {
-	// TODO: defer unlock once performance overhead of defer is negligible
-	mux.RLock()
-	if captureTagger != nil {
-		err := captureTagger.AccumulateTagsFor(entity, cardinality, tb)
-		if err == nil {
-			mux.RUnlock()
-			return nil
-		}
-	}
-	mux.RUnlock()
-
-	return defaultTagger.AccumulateTagsFor(entity, cardinality, tb)
+	panic("not called")
 }
 
 // GetEntityHash returns the hash for the tags associated with the given entity
 // Returns an empty string if the tags lookup fails
 func GetEntityHash(entity string, cardinality collectors.TagCardinality) string {
-	tags, err := Tag(entity, cardinality)
-	if err != nil {
-		return ""
-	}
-	return utils.ComputeTagsHash(tags)
+	panic("not called")
 }
 
 // StandardTags queries the defaultTagger to get entity
 // standard tags (env, version, service) from cache or sources.
 func StandardTags(entity string) ([]string, error) {
-	mux.RLock()
-	if captureTagger != nil {
-		tags, err := captureTagger.Standard(entity)
-		if err == nil && len(tags) > 0 {
-			mux.RUnlock()
-			return tags, nil
-		}
-	}
-	mux.RUnlock()
-
-	return defaultTagger.Standard(entity)
+	panic("not called")
 }
 
 // AgentTags returns the agent tags
 // It relies on the container provider utils to get the Agent container ID
 func AgentTags(cardinality collectors.TagCardinality) ([]string, error) {
-	ctrID, err := metrics.GetProvider().GetMetaCollector().GetSelfContainerID()
-	if err != nil {
-		return nil, err
-	}
-
-	if ctrID == "" {
-		return nil, nil
-	}
-
-	entityID := containers.BuildTaggerEntityName(ctrID)
-	return Tag(entityID, cardinality)
+	panic("not called")
 }
 
 // GlobalTags queries global tags that should apply to all data coming from the
 // agent.
 func GlobalTags(cardinality collectors.TagCardinality) ([]string, error) {
-	mux.RLock()
-	if captureTagger != nil {
-		tags, err := captureTagger.Tag(collectors.GlobalEntityID, cardinality)
-		if err == nil && len(tags) > 0 {
-			mux.RUnlock()
-			return tags, nil
-		}
-	}
-	mux.RUnlock()
-
-	return defaultTagger.Tag(collectors.GlobalEntityID, cardinality)
+	panic("not called")
 }
 
 // globalTagBuilder queries global tags that should apply to all data coming
@@ -217,12 +121,12 @@ func globalTagBuilder(cardinality collectors.TagCardinality, tb tagset.TagsAccum
 
 // Stop queues a stop signal to the defaultTagger
 func Stop() error {
-	return defaultTagger.Stop()
+	panic("not called")
 }
 
 // List the content of the defaulTagger
 func List(cardinality collectors.TagCardinality) tagger_api.TaggerListResponse {
-	return defaultTagger.List(cardinality)
+	panic("not called")
 }
 
 // SetDefaultTagger sets the global Tagger instance
@@ -234,23 +138,17 @@ func SetDefaultTagger(tagger Tagger) {
 
 // GetDefaultTagger returns the global Tagger instance
 func GetDefaultTagger() Tagger {
-	return defaultTagger
+	panic("not called")
 }
 
 // SetCaptureTagger sets the tagger to be used when replaying a capture
 func SetCaptureTagger(tagger Tagger) {
-	mux.Lock()
-	defer mux.Unlock()
-
-	captureTagger = tagger
+	panic("not called")
 }
 
 // ResetCaptureTagger resets the capture tagger to nil
 func ResetCaptureTagger() {
-	mux.Lock()
-	defer mux.Unlock()
-
-	captureTagger = nil
+	panic("not called")
 }
 
 func init() {

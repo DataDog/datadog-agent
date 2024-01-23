@@ -18,34 +18,25 @@ var globalStore metaStore
 
 // SetGlobalStore sets the global workloadmeta instance
 func SetGlobalStore(w Component) {
-	globalStore.Set(w)
+	panic("not called")
 }
 
 // GetGlobalStore returns the global workloadmeta instance
 func GetGlobalStore() Component {
-	return globalStore.Get()
+	panic("not called")
 }
 
 // Set sets the workloadmeta component instance in the global `metaStore` in a threadsafe manner
 func (m *metaStore) Set(w Component) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	m.wmeta = w
+	panic("not called")
 }
 
 // Reset resets the workloadmeta component instance in the global `metaStore` to nil in a threadsafe manner
 func (m *metaStore) Reset() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	m.wmeta = nil
+	panic("not called")
 }
 
 // Get grabs the workloadmeta component instance in the global `metaStore` variable.
 func (m *metaStore) Get() Component {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	return m.wmeta
+	panic("not called")
 }

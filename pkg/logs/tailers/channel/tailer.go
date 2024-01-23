@@ -56,8 +56,7 @@ func (t *Tailer) Start() {
 // process, this closes the input channel.  Any subsequent sends to the channel
 // will fail.
 func (t *Tailer) WaitFlush() {
-	close(t.inputChan)
-	<-t.done
+	panic("not called")
 }
 
 func (t *Tailer) run() {

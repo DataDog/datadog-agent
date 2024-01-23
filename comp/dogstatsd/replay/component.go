@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 // team: agent-metrics-logs
@@ -53,12 +52,10 @@ type Mock interface {
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newTrafficCapture))
+	panic("not called")
 }
 
 // MockModule defines the fx options for the mock component.
 func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newMockTrafficCapture))
+	panic("not called")
 }

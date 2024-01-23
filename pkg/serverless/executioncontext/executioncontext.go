@@ -96,9 +96,7 @@ func (ec *ExecutionContext) GetColdStartTagsForRequestID(requestID string) ColdS
 
 // LastRequestID return the last seen request identifier through the extension API.
 func (ec *ExecutionContext) LastRequestID() string {
-	ec.m.Lock()
-	defer ec.m.Unlock()
-	return ec.lastRequestID
+	panic("not called")
 }
 
 // SetFromInvocation sets the execution context based on an invocation
@@ -163,9 +161,7 @@ func (ec *ExecutionContext) UpdateEndTime(time time.Time) {
 //
 //nolint:revive // TODO(SERV) Fix revive linter
 func (ec *ExecutionContext) UpdateOutOfMemoryRequestID(requestId string) {
-	ec.m.Lock()
-	defer ec.m.Unlock()
-	ec.lastOOMRequestID = requestId
+	panic("not called")
 }
 
 // UpdateRuntime updates the execution context with the runtime information
@@ -187,17 +183,7 @@ func (ec *ExecutionContext) getPersistedStateFilePath() string {
 
 // SaveCurrentExecutionContext stores the current context to a file
 func (ec *ExecutionContext) SaveCurrentExecutionContext() error {
-	ecs := ec.GetCurrentState()
-	file, err := json.Marshal(ecs)
-	if err != nil {
-		return err
-	}
-	filepath := ec.getPersistedStateFilePath()
-	err = os.WriteFile(filepath, file, 0600)
-	if err != nil {
-		return err
-	}
-	return nil
+	panic("not called")
 }
 
 // RestoreCurrentStateFromFile loads the current context from a file

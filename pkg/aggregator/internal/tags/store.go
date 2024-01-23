@@ -58,7 +58,7 @@ func (e *Entry) Tags() []string {
 //
 // Can be called concurrently with other store operations.
 func (e *Entry) Release() {
-	e.refs.Dec()
+	panic("not called")
 }
 
 // Store is a reference counted container of tags slices, to be shared

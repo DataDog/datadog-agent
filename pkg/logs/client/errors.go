@@ -12,12 +12,10 @@ type RetryableError struct {
 
 // NewRetryableError returns a new destination error.
 func NewRetryableError(err error) *RetryableError {
-	return &RetryableError{
-		err: err,
-	}
+	panic("not called")
 }
 
 // RetryableError returns the message of the error.
 func (e *RetryableError) Error() string {
-	return e.err.Error()
+	panic("not called")
 }

@@ -6,13 +6,11 @@
 package listeners
 
 import (
-	"fmt"
 	"net"
 
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // UDSDatagramListener implements the StatsdListener interface for Unix Domain (datagrams)
@@ -24,65 +22,19 @@ type UDSDatagramListener struct {
 
 // NewUDSDatagramListener returns an idle UDS datagram Statsd listener
 func NewUDSDatagramListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, sharedOobPoolManager *packets.PoolManager, cfg config.Reader, capture replay.Component) (*UDSDatagramListener, error) {
-	socketPath := cfg.GetString("dogstatsd_socket")
-	transport := "unixgram"
-
-	address, err := setupSocketBeforeListen(socketPath, transport)
-	if err != nil {
-		return nil, err
-	}
-
-	conn, err := net.ListenUnixgram(transport, address)
-	if err != nil {
-		return nil, fmt.Errorf("can't listen: %s", err)
-	}
-
-	err = setSocketWriteOnly(socketPath)
-	if err != nil {
-		return nil, err
-	}
-
-	l, err := NewUDSListener(packetOut, sharedPacketPoolManager, sharedOobPoolManager, cfg, capture, transport)
-	if err != nil {
-		return nil, err
-	}
-
-	listener := &UDSDatagramListener{
-		UDSListener: *l,
-		conn:        conn,
-	}
-
-	// Setup origin detection early
-	l.OriginDetection, err = setupUnixConn(conn, l.OriginDetection, l.config)
-	if err != nil {
-		return nil, err
-	}
-
-	log.Infof("dogstatsd-uds: %s successfully initialized", conn.LocalAddr())
-	return listener, nil
+	panic("not called")
 }
 
 // Listen runs the intake loop. Should be called in its own goroutine
 func (l *UDSDatagramListener) Listen() {
-	l.listenWg.Add(1)
-	go func() {
-		defer l.listenWg.Done()
-		l.listen()
-	}()
+	panic("not called")
 }
 
 func (l *UDSDatagramListener) listen() {
-	log.Infof("dogstatsd-uds: starting to listen on %s", l.conn.LocalAddr())
-	_ = l.handleConnection(l.conn, func(conn *net.UnixConn) error {
-		return conn.Close()
-	})
+	panic("not called")
 }
 
 // Stop closes the UDS connection and stops listening
 func (l *UDSDatagramListener) Stop() {
-	err := l.conn.Close()
-	if err != nil {
-		log.Errorf("dogstatsd-uds: error closing connection: %s", err)
-	}
-	l.UDSListener.Stop()
+	panic("not called")
 }

@@ -12,6 +12,7 @@ import (
 	"debug/elf"
 	"errors"
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils"
 	"github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils/locexpr"
 	"github.com/go-delve/delve/pkg/dwarf/godwarf"

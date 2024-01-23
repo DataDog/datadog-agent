@@ -8,25 +8,10 @@ package utils
 // ConcatenateTags is a fast way to concatenate multiple tag
 // arrays in a single one.
 func ConcatenateTags(slices ...[]string) []string {
-	if len(slices) == 1 {
-		return slices[0]
-	}
-	var totalLen int
-	for _, s := range slices {
-		totalLen += len(s)
-	}
-	result := make([]string, totalLen)
-	var i int
-	for _, s := range slices {
-		i += copy(result[i:], s)
-	}
-	return result
+	panic("not called")
 }
 
 // ConcatenateStringTags adds string tags to existing tag array
 func ConcatenateStringTags(tags []string, extraTags ...string) []string {
-	finalTags := make([]string, 0, len(tags)+len(extraTags))
-	finalTags = append(finalTags, tags...)
-	finalTags = append(finalTags, extraTags...)
-	return finalTags
+	panic("not called")
 }

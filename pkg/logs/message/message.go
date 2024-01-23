@@ -8,7 +8,6 @@ package message
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -176,21 +175,13 @@ type Lambda struct {
 // NewMessageWithSource constructs an unstructured message
 // with content, status and a log source.
 func NewMessageWithSource(content []byte, status string, source *sources.LogSource, ingestionTimestamp int64) *Message {
-	return NewMessage(content, NewOrigin(source), status, ingestionTimestamp)
+	panic("not called")
 }
 
 // NewMessage constructs an unstructured message with content,
 // status, origin and the ingestion timestamp.
 func NewMessage(content []byte, origin *Origin, status string, ingestionTimestamp int64) *Message {
-	return &Message{
-		MessageContent: MessageContent{
-			content: content,
-			State:   StateUnstructured,
-		},
-		Origin:             origin,
-		Status:             status,
-		IngestionTimestamp: ingestionTimestamp,
-	}
+	panic("not called")
 }
 
 // NewStructuredMessage creates a new message that had some structure the moment
@@ -200,15 +191,7 @@ func NewMessage(content []byte, origin *Origin, status string, ingestionTimestam
 // processing on the message entry only, while we still have to send all
 // the information to the intake.
 func NewStructuredMessage(content StructuredContent, origin *Origin, status string, ingestionTimestamp int64) *Message {
-	return &Message{
-		MessageContent: MessageContent{
-			structuredContent: content,
-			State:             StateStructured,
-		},
-		Origin:             origin,
-		Status:             status,
-		IngestionTimestamp: ingestionTimestamp,
-	}
+	panic("not called")
 }
 
 // Render renders the message.
@@ -251,25 +234,19 @@ type BasicStructuredContent struct {
 // Render renders in json the underlying data, it is then ready to be
 // encoded and sent to the intake. See the `MessageContent` comment.
 func (m *BasicStructuredContent) Render() ([]byte, error) {
-	return json.Marshal(m.Data)
+	panic("not called")
 }
 
 // GetContent returns the message part of the structured log,
 // in the "message" key of the underlying map.
 func (m *BasicStructuredContent) GetContent() []byte {
-	if value, exists := m.Data["message"]; exists {
-		return []byte(value.(string))
-	}
-	log.Error("BasicStructuredContent not containing any message")
-	return []byte{}
+	panic("not called")
 }
 
 // SetContent stores the message part of the structured log,
 // in the "message" key of the underlying map.
 func (m *BasicStructuredContent) SetContent(content []byte) {
-	// we want to store it typed as a string for the json
-	// marshaling to properly marshal it as a string.
-	m.Data["message"] = string(content)
+	panic("not called")
 }
 
 // NewMessageFromLambda construts a message with content, status, origin and with

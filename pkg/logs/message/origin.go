@@ -32,33 +32,12 @@ func NewOrigin(source *sources.LogSource) *Origin {
 //
 // The returned slice must not be modified by the caller.
 func (o *Origin) Tags() []string {
-	return o.tagsToStringArray()
+	panic("not called")
 }
 
 // TagsPayload returns the raw tag payload of the origin.
 func (o *Origin) TagsPayload() []byte {
-	var tagsPayload []byte
-
-	source := o.Source()
-	if source != "" {
-		tagsPayload = append(tagsPayload, []byte("[dd ddsource=\""+source+"\"]")...)
-	}
-	sourceCategory := o.LogSource.Config.SourceCategory
-	if sourceCategory != "" {
-		tagsPayload = append(tagsPayload, []byte("[dd ddsourcecategory=\""+sourceCategory+"\"]")...)
-	}
-
-	var tags []string
-	tags = append(tags, o.LogSource.Config.Tags...)
-	tags = append(tags, o.tags...)
-
-	if len(tags) > 0 {
-		tagsPayload = append(tagsPayload, []byte("[dd ddtags=\""+strings.Join(tags, ",")+"\"]")...)
-	}
-	if len(tagsPayload) == 0 {
-		tagsPayload = []byte{}
-	}
-	return tagsPayload
+	panic("not called")
 }
 
 // TagsToString encodes tags to a single string, in a comma separated format
@@ -92,7 +71,7 @@ func (o *Origin) SetTags(tags []string) {
 
 // SetSource sets the source of the origin.
 func (o *Origin) SetSource(source string) {
-	o.source = source
+	panic("not called")
 }
 
 // Source returns the source of the configuration if set or the source of the message,

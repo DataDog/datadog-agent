@@ -39,25 +39,25 @@ func newMemBasedRateLimiterTelemetry() *memBasedRateLimiterTelemetry {
 }
 
 func (t *memBasedRateLimiterTelemetry) incWait() {
-	t.wait.Inc()
+	panic("not called")
 }
 
 func (t *memBasedRateLimiterTelemetry) incNoWait() {
-	t.noWait.Inc()
+	panic("not called")
 }
 
 func (t *memBasedRateLimiterTelemetry) incHighLimit() {
-	t.highLimit.Inc()
+	panic("not called")
 }
 
 func (t *memBasedRateLimiterTelemetry) incLowLimit() {
-	t.lowLimit.Inc()
+	panic("not called")
 }
 
 func (t *memBasedRateLimiterTelemetry) incLowLimitFreeOSMemory() {
-	t.lowLimitFreeOSMem.Inc()
+	panic("not called")
 }
 
 func (t *memBasedRateLimiterTelemetry) setMemoryUsageRate(rate float64) {
-	t.memoryUsageRate.Set(rate)
+	panic("not called")
 }

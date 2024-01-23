@@ -8,8 +8,9 @@
 package compliance
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/stretchr/testify/require"
 

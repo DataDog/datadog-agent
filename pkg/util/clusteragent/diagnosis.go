@@ -14,6 +14,5 @@ func init() {
 }
 
 func diagnose() error {
-	_, err := GetClusterAgentClient()
-	return err
+	panic("not called")
 }

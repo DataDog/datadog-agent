@@ -10,8 +10,6 @@ package evtreporter
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
-
 	"golang.org/x/sys/windows"
 )
 

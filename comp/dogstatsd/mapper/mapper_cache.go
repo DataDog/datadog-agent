@@ -15,24 +15,17 @@ type mapperCache struct {
 
 // newMapperCache creates a new mapperCache
 func newMapperCache(size int) (*mapperCache, error) {
-	cache, err := lru.New[string, *MapResult](size)
-	if err != nil {
-		return &mapperCache{}, err
-	}
-	return &mapperCache{cache: cache}, nil
+	panic("not called")
 }
 
 // get returns:
 // - a MapResult if found, otherwise nil
 // - a boolean indicating if a match has been found
 func (m *mapperCache) get(metricName string) (*MapResult, bool) {
-	if result, ok := m.cache.Get(metricName); ok {
-		return result, true
-	}
-	return nil, false
+	panic("not called")
 }
 
 // add adds MapResult to cache with metric name as key
 func (m *mapperCache) add(metricName string, mapResult *MapResult) {
-	m.cache.Add(metricName, mapResult)
+	panic("not called")
 }

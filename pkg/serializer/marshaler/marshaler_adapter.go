@@ -20,39 +20,35 @@ type IterableStreamJSONMarshalerAdapter struct {
 
 // NewIterableStreamJSONMarshalerAdapter creates an new instance of `IterableStreamJSONMarshalerAdapter`
 func NewIterableStreamJSONMarshalerAdapter(marshaler StreamJSONMarshaler) *IterableStreamJSONMarshalerAdapter {
-	return &IterableStreamJSONMarshalerAdapter{
-		marshaler: marshaler,
-		index:     -1,
-	}
+	panic("not called")
 }
 
 // WriteHeader writes the payload header for this type
 func (a *IterableStreamJSONMarshalerAdapter) WriteHeader(j *jsoniter.Stream) error {
-	return a.marshaler.WriteHeader(j)
+	panic("not called")
 }
 
 // WriteFooter writes the payload footer for this type
 func (a *IterableStreamJSONMarshalerAdapter) WriteFooter(j *jsoniter.Stream) error {
-	return a.marshaler.WriteFooter(j)
+	panic("not called")
 }
 
 // WriteCurrentItem writes the json representation into the stream
 func (a *IterableStreamJSONMarshalerAdapter) WriteCurrentItem(j *jsoniter.Stream) error {
-	return a.marshaler.WriteItem(j, a.index)
+	panic("not called")
 }
 
 // DescribeCurrentItem returns a text description
 func (a *IterableStreamJSONMarshalerAdapter) DescribeCurrentItem() string {
-	return a.marshaler.DescribeItem(a.index)
+	panic("not called")
 }
 
 // MoveNext moves to the next value. Returns false when reaching the end of the iteration.
 func (a *IterableStreamJSONMarshalerAdapter) MoveNext() bool {
-	a.index++
-	return a.index < a.marshaler.Len()
+	panic("not called")
 }
 
 // GetCurrentItemPointCount gets the number of points in the current item
 func (a *IterableStreamJSONMarshalerAdapter) GetCurrentItemPointCount() int {
-	return 0
+	panic("not called")
 }

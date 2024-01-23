@@ -6,19 +6,12 @@
 package inferredspan
 
 import (
-	"crypto/rand"
-	"math"
-	"math/big"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -66,60 +59,20 @@ func CheckIsInferredSpan(span *pb.Span) bool {
 
 // FilterFunctionTags filters out DD tags & function specific tags
 func FilterFunctionTags(input map[string]string) map[string]string {
-	if input == nil {
-		return nil
-	}
-
-	output := make(map[string]string)
-	for k, v := range input {
-		output[k] = v
-	}
-
-	// filter out DD_TAGS & DD_EXTRA_TAGS
-	ddTags := configUtils.GetConfiguredTags(config.Datadog, false)
-	for _, tag := range ddTags {
-		tagParts := strings.SplitN(tag, ":", 2)
-		if len(tagParts) != 2 {
-			log.Warnf("Cannot split tag %s", tag)
-			continue
-		}
-		tagKey := tagParts[0]
-		delete(output, tagKey)
-	}
-
-	// filter out function specific tags
-	for _, tagKey := range functionTagsToIgnore {
-		delete(output, tagKey)
-	}
-
-	return output
+	panic("not called")
 }
 
 // GenerateSpanId creates a secure random span id in specific scenarios, otherwise return a pseudo random id
 //
 //nolint:revive // TODO(SERV) Fix revive linter
 func GenerateSpanId() uint64 {
-	isSnapStart := os.Getenv(tags.InitType) == tags.SnapStartValue
-	if isSnapStart {
-		max := new(big.Int).SetUint64(math.MaxUint64)
-		if randId, err := rand.Int(rand.Reader, max); err != nil {
-			log.Debugf("Failed to generate a secure random span id: %v", err)
-		} else {
-			return randId.Uint64()
-		}
-	}
-	return random.Random.Uint64()
+	panic("not called")
 }
 
 // GenerateInferredSpan declares and initializes a new inferred span with a
 // SpanID
 func (inferredSpan *InferredSpan) GenerateInferredSpan(startTime time.Time) {
-
-	inferredSpan.CurrentInvocationStartTime = startTime
-	inferredSpan.Span = &pb.Span{
-		SpanID: GenerateSpanId(),
-	}
-	log.Debugf("Generated new Inferred span: %+v", inferredSpan)
+	panic("not called")
 }
 
 // IsInferredSpansEnabled is used to determine if we need to
@@ -131,8 +84,5 @@ func IsInferredSpansEnabled() bool {
 // AddTagToInferredSpan is used to add new tags to the inferred span in
 // inferredSpan.Span.Meta[]. Should be used before completing an inferred span.
 func (inferredSpan *InferredSpan) AddTagToInferredSpan(key string, value string) {
-	if inferredSpan.Span.Meta == nil {
-		inferredSpan.Span.Meta = make(map[string]string)
-	}
-	inferredSpan.Span.Meta[key] = value
+	panic("not called")
 }

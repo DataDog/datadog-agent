@@ -9,10 +9,9 @@ package ec2
 
 import (
 	"context"
-	"fmt"
 )
 
 // GetAccountID returns the account ID of the current AWS instance
 func GetAccountID(_ context.Context) (string, error) {
-	return "", fmt.Errorf("ec2 is disabled in the binary")
+	panic("not called")
 }

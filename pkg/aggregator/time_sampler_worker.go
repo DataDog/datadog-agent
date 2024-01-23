@@ -52,21 +52,7 @@ type dumpTrigger struct {
 func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, bufferSize int,
 	metricSamplePool *metrics.MetricSamplePool,
 	parallelSerialization FlushAndSerializeInParallel, tagsStore *tags.Store) *timeSamplerWorker {
-	return &timeSamplerWorker{
-		sampler: sampler,
-
-		metricSamplePool:      metricSamplePool,
-		parallelSerialization: parallelSerialization,
-
-		flushInterval: flushInterval,
-
-		samplesChan: make(chan []metrics.MetricSample, bufferSize),
-		stopChan:    make(chan struct{}),
-		flushChan:   make(chan flushTrigger),
-		dumpChan:    make(chan dumpTrigger),
-
-		tagsStore: tagsStore,
-	}
+	panic("not called")
 }
 
 // We process all receivend samples in the `select`, but we also process a flush action,
@@ -101,7 +87,7 @@ func (w *timeSamplerWorker) run() {
 }
 
 func (w *timeSamplerWorker) stop() {
-	w.stopChan <- struct{}{}
+	panic("not called")
 }
 
 func (w *timeSamplerWorker) triggerFlush(trigger flushTrigger) {
@@ -110,7 +96,5 @@ func (w *timeSamplerWorker) triggerFlush(trigger flushTrigger) {
 }
 
 func (w *timeSamplerWorker) dumpContexts(dest io.Writer) error {
-	done := make(chan error)
-	w.dumpChan <- dumpTrigger{dest: dest, done: done}
-	return <-done
+	panic("not called")
 }

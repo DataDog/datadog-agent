@@ -6,8 +6,6 @@
 package schedulers
 
 import (
-	"sync"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
@@ -42,7 +40,7 @@ func (ss *Schedulers) AddScheduler(scheduler Scheduler) {
 
 // GetSources returns all the log source from the source manager.
 func (ss *Schedulers) GetSources() []*sources.LogSource {
-	return ss.mgr.GetSources()
+	panic("not called")
 }
 
 // Start starts all schedulers in the collection.
@@ -55,13 +53,5 @@ func (ss *Schedulers) Start() {
 
 // Stop all schedulers and wait until they are complete.
 func (ss *Schedulers) Stop() {
-	var wg sync.WaitGroup
-	for _, s := range ss.schedulers {
-		wg.Add(1)
-		go func(s Scheduler) {
-			defer wg.Done()
-			s.Stop()
-		}(s)
-	}
-	wg.Wait()
+	panic("not called")
 }

@@ -11,7 +11,5 @@ import "context"
 
 // GetTags gets the tags from the GCE api
 func GetTags(_ context.Context) ([]string, error) {
-	tags := []string{}
-
-	return tags, nil
+	panic("not called")
 }

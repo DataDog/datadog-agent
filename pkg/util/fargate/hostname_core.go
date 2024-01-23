@@ -12,5 +12,5 @@ import "context"
 // GetFargateHost returns the Fargate hostname used
 // by the core Agent for Fargate
 func GetFargateHost(_ context.Context) (string, error) {
-	return "", nil
+	panic("not called")
 }

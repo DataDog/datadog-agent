@@ -6,17 +6,13 @@
 package workloadmeta
 
 import (
-	"fmt"
 	"io"
-	"strings"
 	"time"
 
 	"github.com/CycloneDX/cyclonedx-go"
-	"github.com/mohae/deepcopy"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 // TODO(component): it might make more sense to move the store into its own
@@ -216,7 +212,7 @@ type EntityID struct {
 
 // String implements Entity#String.
 func (i EntityID) String(_ bool) string {
-	return fmt.Sprintln("Kind:", i.Kind, "ID:", i.ID)
+	panic("not called")
 }
 
 // EntityMeta represents generic metadata about an Entity.
@@ -229,16 +225,7 @@ type EntityMeta struct {
 
 // String returns a string representation of EntityMeta.
 func (e EntityMeta) String(verbose bool) string {
-	var sb strings.Builder
-	_, _ = fmt.Fprintln(&sb, "Name:", e.Name)
-	_, _ = fmt.Fprintln(&sb, "Namespace:", e.Namespace)
-
-	if verbose {
-		_, _ = fmt.Fprintln(&sb, "Annotations:", mapToScrubbedJSONString(e.Annotations))
-		_, _ = fmt.Fprintln(&sb, "Labels:", mapToScrubbedJSONString(e.Labels))
-	}
-
-	return sb.String()
+	panic("not called")
 }
 
 // ContainerImage is the an image used by a container.
@@ -253,42 +240,12 @@ type ContainerImage struct {
 
 // NewContainerImage builds a ContainerImage from an image name and its id
 func NewContainerImage(imageID string, imageName string) (ContainerImage, error) {
-	image := ContainerImage{
-		ID:      imageID,
-		RawName: imageName,
-		Name:    imageName,
-	}
-
-	name, registry, shortName, tag, err := containers.SplitImageName(imageName)
-	if err != nil {
-		return image, err
-	}
-
-	if tag == "" {
-		tag = "latest"
-	}
-
-	image.Name = name
-	image.Registry = registry
-	image.ShortName = shortName
-	image.Tag = tag
-
-	return image, nil
+	panic("not called")
 }
 
 // String returns a string representation of ContainerImage.
 func (c ContainerImage) String(verbose bool) string {
-	var sb strings.Builder
-	_, _ = fmt.Fprintln(&sb, "Name:", c.Name)
-	_, _ = fmt.Fprintln(&sb, "Tag:", c.Tag)
-
-	if verbose {
-		_, _ = fmt.Fprintln(&sb, "ID:", c.ID)
-		_, _ = fmt.Fprintln(&sb, "Raw Name:", c.RawName)
-		_, _ = fmt.Fprintln(&sb, "Short Name:", c.ShortName)
-	}
-
-	return sb.String()
+	panic("not called")
 }
 
 // ContainerState is the state of a container.
@@ -304,21 +261,7 @@ type ContainerState struct {
 
 // String returns a string representation of ContainerState.
 func (c ContainerState) String(verbose bool) string {
-	var sb strings.Builder
-	_, _ = fmt.Fprintln(&sb, "Running:", c.Running)
-
-	if verbose {
-		_, _ = fmt.Fprintln(&sb, "Status:", c.Status)
-		_, _ = fmt.Fprintln(&sb, "Health:", c.Health)
-		_, _ = fmt.Fprintln(&sb, "Created At:", c.CreatedAt)
-		_, _ = fmt.Fprintln(&sb, "Started At:", c.StartedAt)
-		_, _ = fmt.Fprintln(&sb, "Finished At:", c.FinishedAt)
-		if c.ExitCode != nil {
-			_, _ = fmt.Fprintln(&sb, "Exit Code:", *c.ExitCode)
-		}
-	}
-
-	return sb.String()
+	panic("not called")
 }
 
 // ContainerPort is a port open in the container.
@@ -330,15 +273,7 @@ type ContainerPort struct {
 
 // String returns a string representation of ContainerPort.
 func (c ContainerPort) String(verbose bool) string {
-	var sb strings.Builder
-	_, _ = fmt.Fprintln(&sb, "Port:", c.Port)
-
-	if verbose {
-		_, _ = fmt.Fprintln(&sb, "Name:", c.Name)
-		_, _ = fmt.Fprintln(&sb, "Protocol:", c.Protocol)
-	}
-
-	return sb.String()
+	panic("not called")
 }
 
 // ContainerResources is resources requests or limitations for a container
@@ -349,14 +284,7 @@ type ContainerResources struct {
 
 // String returns a string representation of ContainerPort.
 func (cr ContainerResources) String(bool) string {
-	var sb strings.Builder
-	if cr.CPURequest != nil {
-		_, _ = fmt.Fprintln(&sb, "TargetCPUUsage:", *cr.CPURequest)
-	}
-	if cr.MemoryRequest != nil {
-		_, _ = fmt.Fprintln(&sb, "TargetMemoryUsage:", *cr.MemoryRequest)
-	}
-	return sb.String()
+	panic("not called")
 }
 
 // OrchestratorContainer is a reference to a Container with
@@ -369,7 +297,7 @@ type OrchestratorContainer struct {
 
 // String returns a string representation of OrchestratorContainer.
 func (o OrchestratorContainer) String(_ bool) string {
-	return fmt.Sprintln("Name:", o.Name, "ID:", o.ID)
+	panic("not called")
 }
 
 // Container is an Entity representing a containerized workload.
@@ -396,79 +324,22 @@ type Container struct {
 
 // GetID implements Entity#GetID.
 func (c Container) GetID() EntityID {
-	return c.EntityID
+	panic("not called")
 }
 
 // Merge implements Entity#Merge.
 func (c *Container) Merge(e Entity) error {
-	cc, ok := e.(*Container)
-	if !ok {
-		return fmt.Errorf("cannot merge Container with different kind %T", e)
-	}
-
-	return merge(c, cc)
+	panic("not called")
 }
 
 // DeepCopy implements Entity#DeepCopy.
 func (c Container) DeepCopy() Entity {
-	cp := deepcopy.Copy(c).(Container)
-	return &cp
+	panic("not called")
 }
 
 // String implements Entity#String.
 func (c Container) String(verbose bool) string {
-	var sb strings.Builder
-
-	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
-	_, _ = fmt.Fprint(&sb, c.EntityID.String(verbose))
-
-	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
-	_, _ = fmt.Fprint(&sb, c.EntityMeta.String(verbose))
-
-	_, _ = fmt.Fprintln(&sb, "----------- Image -----------")
-	_, _ = fmt.Fprint(&sb, c.Image.String(verbose))
-
-	_, _ = fmt.Fprintln(&sb, "----------- Container Info -----------")
-	_, _ = fmt.Fprintln(&sb, "Runtime:", c.Runtime)
-	_, _ = fmt.Fprintln(&sb, "RuntimeFlavor:", c.RuntimeFlavor)
-	_, _ = fmt.Fprint(&sb, c.State.String(verbose))
-
-	_, _ = fmt.Fprintln(&sb, "----------- Resources -----------")
-	_, _ = fmt.Fprint(&sb, c.Resources.String(verbose))
-
-	if verbose {
-		_, _ = fmt.Fprintln(&sb, "Allowed env variables:", filterAndFormatEnvVars(c.EnvVars))
-		_, _ = fmt.Fprintln(&sb, "Hostname:", c.Hostname)
-		_, _ = fmt.Fprintln(&sb, "Network IPs:", mapToString(c.NetworkIPs))
-		_, _ = fmt.Fprintln(&sb, "PID:", c.PID)
-	}
-
-	if len(c.Ports) > 0 && verbose {
-		_, _ = fmt.Fprintln(&sb, "----------- Ports -----------")
-		for _, p := range c.Ports {
-			_, _ = fmt.Fprint(&sb, p.String(verbose))
-		}
-	}
-
-	if c.SecurityContext != nil {
-		_, _ = fmt.Fprintln(&sb, "----------- Security Context -----------")
-		if c.SecurityContext.Capabilities != nil {
-			_, _ = fmt.Fprintln(&sb, "----------- Capabilities -----------")
-			_, _ = fmt.Fprintln(&sb, "Add:", c.SecurityContext.Capabilities.Add)
-			_, _ = fmt.Fprintln(&sb, "Drop:", c.SecurityContext.Capabilities.Drop)
-		}
-
-		_, _ = fmt.Fprintln(&sb, "Privileged:", c.SecurityContext.Privileged)
-		if c.SecurityContext.SeccompProfile != nil {
-			_, _ = fmt.Fprintln(&sb, "----------- Seccomp Profile -----------")
-			_, _ = fmt.Fprintln(&sb, "Type:", c.SecurityContext.SeccompProfile.Type)
-			if c.SecurityContext.SeccompProfile.Type == SeccompProfileTypeLocalhost {
-				_, _ = fmt.Fprintln(&sb, "Localhost Profile:", c.SecurityContext.SeccompProfile.LocalhostProfile)
-			}
-		}
-	}
-
-	return sb.String()
+	panic("not called")
 }
 
 // PodSecurityContext is the Security Context of a Kubernetes pod
@@ -539,84 +410,27 @@ type KubernetesPod struct {
 
 // GetID implements Entity#GetID.
 func (p KubernetesPod) GetID() EntityID {
-	return p.EntityID
+	panic("not called")
 }
 
 // Merge implements Entity#Merge.
 func (p *KubernetesPod) Merge(e Entity) error {
-	pp, ok := e.(*KubernetesPod)
-	if !ok {
-		return fmt.Errorf("cannot merge KubernetesPod with different kind %T", e)
-	}
-
-	return merge(p, pp)
+	panic("not called")
 }
 
 // DeepCopy implements Entity#DeepCopy.
 func (p KubernetesPod) DeepCopy() Entity {
-	cp := deepcopy.Copy(p).(KubernetesPod)
-	return &cp
+	panic("not called")
 }
 
 // String implements Entity#String.
 func (p KubernetesPod) String(verbose bool) string {
-	var sb strings.Builder
-	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
-	_, _ = fmt.Fprintln(&sb, p.EntityID.String(verbose))
-
-	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
-	_, _ = fmt.Fprint(&sb, p.EntityMeta.String(verbose))
-
-	if len(p.Owners) > 0 {
-		_, _ = fmt.Fprintln(&sb, "----------- Owners -----------")
-		for _, o := range p.Owners {
-			_, _ = fmt.Fprint(&sb, o.String(verbose))
-		}
-	}
-
-	if len(p.InitContainers) > 0 {
-		_, _ = fmt.Fprintln(&sb, "----------- Init Containers -----------")
-		for _, c := range p.InitContainers {
-			_, _ = fmt.Fprint(&sb, c.String(verbose))
-		}
-	}
-
-	if len(p.Containers) > 0 {
-		_, _ = fmt.Fprintln(&sb, "----------- Containers -----------")
-		for _, c := range p.Containers {
-			_, _ = fmt.Fprint(&sb, c.String(verbose))
-		}
-	}
-
-	_, _ = fmt.Fprintln(&sb, "----------- Pod Info -----------")
-	_, _ = fmt.Fprintln(&sb, "Ready:", p.Ready)
-	_, _ = fmt.Fprintln(&sb, "Phase:", p.Phase)
-	_, _ = fmt.Fprintln(&sb, "IP:", p.IP)
-
-	if verbose {
-		_, _ = fmt.Fprintln(&sb, "Priority Class:", p.PriorityClass)
-		_, _ = fmt.Fprintln(&sb, "QOS Class:", p.QOSClass)
-		_, _ = fmt.Fprintln(&sb, "PVCs:", sliceToString(p.PersistentVolumeClaimNames))
-		_, _ = fmt.Fprintln(&sb, "Kube Services:", sliceToString(p.KubeServices))
-		_, _ = fmt.Fprintln(&sb, "Namespace Labels:", mapToString(p.NamespaceLabels))
-		if !p.FinishedAt.IsZero() {
-			_, _ = fmt.Fprintln(&sb, "Finished At:", p.FinishedAt)
-		}
-	}
-
-	if p.SecurityContext != nil {
-		_, _ = fmt.Fprintln(&sb, "----------- Pod Security Context -----------")
-		_, _ = fmt.Fprintln(&sb, "RunAsUser:", p.SecurityContext.RunAsUser)
-		_, _ = fmt.Fprintln(&sb, "RunAsGroup:", p.SecurityContext.RunAsGroup)
-		_, _ = fmt.Fprintln(&sb, "FsGroup:", p.SecurityContext.FsGroup)
-	}
-
-	return sb.String()
+	panic("not called")
 }
 
 // GetAllContainers returns init containers and containers.
 func (p KubernetesPod) GetAllContainers() []OrchestratorContainer {
-	return append(p.InitContainers, p.Containers...)
+	panic("not called")
 }
 
 var _ Entity = &KubernetesPod{}
@@ -630,14 +444,7 @@ type KubernetesPodOwner struct {
 
 // String returns a string representation of KubernetesPodOwner.
 func (o KubernetesPodOwner) String(verbose bool) string {
-	var sb strings.Builder
-	_, _ = fmt.Fprintln(&sb, "Kind:", o.Kind, "Name:", o.Name)
-
-	if verbose {
-		_, _ = fmt.Fprintln(&sb, "ID:", o.ID)
-	}
-
-	return sb.String()
+	panic("not called")
 }
 
 // KubernetesNode is an Entity representing a Kubernetes Node.
@@ -648,35 +455,22 @@ type KubernetesNode struct {
 
 // GetID implements Entity#GetID.
 func (n *KubernetesNode) GetID() EntityID {
-	return n.EntityID
+	panic("not called")
 }
 
 // Merge implements Entity#Merge.
 func (n *KubernetesNode) Merge(e Entity) error {
-	nn, ok := e.(*KubernetesNode)
-	if !ok {
-		return fmt.Errorf("cannot merge KubernetesNode with different kind %T", e)
-	}
-
-	return merge(n, nn)
+	panic("not called")
 }
 
 // DeepCopy implements Entity#DeepCopy.
 func (n KubernetesNode) DeepCopy() Entity {
-	cn := deepcopy.Copy(n).(KubernetesNode)
-	return &cn
+	panic("not called")
 }
 
 // String implements Entity#String
 func (n KubernetesNode) String(verbose bool) string {
-	var sb strings.Builder
-	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
-	_, _ = fmt.Fprintln(&sb, n.EntityID.String(verbose))
-
-	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
-	_, _ = fmt.Fprint(&sb, n.EntityMeta.String(verbose))
-
-	return sb.String()
+	panic("not called")
 }
 
 var _ Entity = &KubernetesNode{}
@@ -705,55 +499,22 @@ type KubernetesDeployment struct {
 
 // GetID implements Entity#GetID.
 func (d *KubernetesDeployment) GetID() EntityID {
-	return d.EntityID
+	panic("not called")
 }
 
 // Merge implements Entity#Merge.
 func (d *KubernetesDeployment) Merge(e Entity) error {
-	dd, ok := e.(*KubernetesDeployment)
-	if !ok {
-		return fmt.Errorf("cannot merge KubernetesDeployment with different kind %T", e)
-	}
-
-	return merge(d, dd)
+	panic("not called")
 }
 
 // DeepCopy implements Entity#DeepCopy.
 func (d KubernetesDeployment) DeepCopy() Entity {
-	cd := deepcopy.Copy(d).(KubernetesDeployment)
-	return &cd
+	panic("not called")
 }
 
 // String implements Entity#String
 func (d KubernetesDeployment) String(verbose bool) string {
-	var sb strings.Builder
-	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
-	_, _ = fmt.Fprintln(&sb, d.EntityID.String(verbose))
-	_, _ = fmt.Fprintln(&sb, "----------- Unified Service Tagging -----------")
-	_, _ = fmt.Fprintln(&sb, "Env :", d.Env)
-	_, _ = fmt.Fprintln(&sb, "Service :", d.Service)
-	_, _ = fmt.Fprintln(&sb, "Version :", d.Version)
-
-	langPrinter := func(m map[string][]languagemodels.Language, ctype string) {
-		for container, languages := range m {
-			var langSb strings.Builder
-			for i, lang := range languages {
-				if i != 0 {
-					_, _ = langSb.WriteString(",")
-				}
-				_, _ = langSb.WriteString(string(lang.Name))
-			}
-			_, _ = fmt.Fprintf(&sb, "%s %s=>[%s]\n", ctype, container, langSb.String())
-		}
-	}
-	_, _ = fmt.Fprintln(&sb, "----------- Injectable Languages -----------")
-	langPrinter(d.InjectableLanguages.InitContainerLanguages, "InitContainer")
-	langPrinter(d.InjectableLanguages.ContainerLanguages, "Container")
-
-	_, _ = fmt.Fprintln(&sb, "----------- Detected Languages -----------")
-	langPrinter(d.DetectedLanguages.InitContainerLanguages, "InitContainer")
-	langPrinter(d.DetectedLanguages.ContainerLanguages, "Container")
-	return sb.String()
+	panic("not called")
 }
 
 var _ Entity = &KubernetesDeployment{}
@@ -775,52 +536,22 @@ type ECSTask struct {
 
 // GetID implements Entity#GetID.
 func (t ECSTask) GetID() EntityID {
-	return t.EntityID
+	panic("not called")
 }
 
 // Merge implements Entity#Merge.
 func (t *ECSTask) Merge(e Entity) error {
-	tt, ok := e.(*ECSTask)
-	if !ok {
-		return fmt.Errorf("cannot merge ECSTask with different kind %T", e)
-	}
-
-	return merge(t, tt)
+	panic("not called")
 }
 
 // DeepCopy implements Entity#DeepCopy.
 func (t ECSTask) DeepCopy() Entity {
-	cp := deepcopy.Copy(t).(ECSTask)
-	return &cp
+	panic("not called")
 }
 
 // String implements Entity#String.
 func (t ECSTask) String(verbose bool) string {
-	var sb strings.Builder
-	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
-	_, _ = fmt.Fprint(&sb, t.EntityID.String(verbose))
-
-	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
-	_, _ = fmt.Fprint(&sb, t.EntityMeta.String(verbose))
-
-	_, _ = fmt.Fprintln(&sb, "----------- Containers -----------")
-	for _, c := range t.Containers {
-		_, _ = fmt.Fprint(&sb, c.String(verbose))
-	}
-
-	if verbose {
-		_, _ = fmt.Fprintln(&sb, "----------- Task Info -----------")
-		_, _ = fmt.Fprintln(&sb, "Tags:", mapToString(t.Tags))
-		_, _ = fmt.Fprintln(&sb, "Container Instance Tags:", mapToString(t.ContainerInstanceTags))
-		_, _ = fmt.Fprintln(&sb, "Cluster Name:", t.ClusterName)
-		_, _ = fmt.Fprintln(&sb, "Region:", t.Region)
-		_, _ = fmt.Fprintln(&sb, "Availability Zone:", t.AvailabilityZone)
-		_, _ = fmt.Fprintln(&sb, "Family:", t.Family)
-		_, _ = fmt.Fprintln(&sb, "Version:", t.Version)
-		_, _ = fmt.Fprintln(&sb, "Launch Type:", t.LaunchType)
-	}
-
-	return sb.String()
+	panic("not called")
 }
 
 var _ Entity = &ECSTask{}
@@ -861,90 +592,31 @@ type SBOM struct {
 
 // GetID implements Entity#GetID.
 func (i ContainerImageMetadata) GetID() EntityID {
-	return i.EntityID
+	panic("not called")
 }
 
 // Merge implements Entity#Merge.
 func (i *ContainerImageMetadata) Merge(e Entity) error {
-	otherImage, ok := e.(*ContainerImageMetadata)
-	if !ok {
-		return fmt.Errorf("cannot merge ContainerImageMetadata with different kind %T", e)
-	}
-
-	return merge(i, otherImage)
+	panic("not called")
 }
 
 // DeepCopy implements Entity#DeepCopy.
 func (i ContainerImageMetadata) DeepCopy() Entity {
-	cp := deepcopy.Copy(i).(ContainerImageMetadata)
-	return &cp
+	panic("not called")
 }
 
 // String implements Entity#String.
 func (i ContainerImageMetadata) String(verbose bool) string {
-	var sb strings.Builder
-
-	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
-	_, _ = fmt.Fprint(&sb, i.EntityID.String(verbose))
-
-	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
-	_, _ = fmt.Fprint(&sb, i.EntityMeta.String(verbose))
-
-	_, _ = fmt.Fprintln(&sb, "Repo tags:", i.RepoTags)
-	_, _ = fmt.Fprintln(&sb, "Repo digests:", i.RepoDigests)
-
-	if verbose {
-		_, _ = fmt.Fprintln(&sb, "Media Type:", i.MediaType)
-		_, _ = fmt.Fprintln(&sb, "Size in bytes:", i.SizeBytes)
-		_, _ = fmt.Fprintln(&sb, "OS:", i.OS)
-		_, _ = fmt.Fprintln(&sb, "OS Version:", i.OSVersion)
-		_, _ = fmt.Fprintln(&sb, "Architecture:", i.Architecture)
-		_, _ = fmt.Fprintln(&sb, "Variant:", i.Variant)
-
-		_, _ = fmt.Fprintln(&sb, "----------- SBOM -----------")
-		_, _ = fmt.Fprintln(&sb, "Status:", i.SBOM.Status)
-		switch i.SBOM.Status {
-		case Success:
-			_, _ = fmt.Fprintf(&sb, "Generated in: %.2f seconds\n", i.SBOM.GenerationDuration.Seconds())
-		case Failed:
-			_, _ = fmt.Fprintf(&sb, "Error: %s\n", i.SBOM.Error)
-		default:
-		}
-
-		_, _ = fmt.Fprintln(&sb, "----------- Layers -----------")
-		for _, layer := range i.Layers {
-			_, _ = fmt.Fprintln(&sb, layer)
-		}
-	}
-
-	return sb.String()
+	panic("not called")
 }
 
 // String returns a string representation of ContainerImageLayer
 func (layer ContainerImageLayer) String() string {
-	var sb strings.Builder
-
-	_, _ = fmt.Fprintln(&sb, "Media Type:", layer.MediaType)
-	_, _ = fmt.Fprintln(&sb, "Digest:", layer.Digest)
-	_, _ = fmt.Fprintln(&sb, "Size in bytes:", layer.SizeBytes)
-	_, _ = fmt.Fprintln(&sb, "URLs:", layer.URLs)
-
-	printHistory(&sb, layer.History)
-
-	return sb.String()
+	panic("not called")
 }
 
 func printHistory(out io.Writer, history *v1.History) {
-	if history == nil {
-		_, _ = fmt.Fprintln(out, "History is nil")
-		return
-	}
-
-	_, _ = fmt.Fprintln(out, "History:")
-	_, _ = fmt.Fprintln(out, "- createdAt:", history.Created)
-	_, _ = fmt.Fprintln(out, "- createdBy:", history.CreatedBy)
-	_, _ = fmt.Fprintln(out, "- comment:", history.Comment)
-	_, _ = fmt.Fprintln(out, "- emptyLayer:", history.EmptyLayer)
+	panic("not called")
 }
 
 var _ Entity = &ContainerImageMetadata{}
@@ -963,37 +635,22 @@ var _ Entity = &Process{}
 
 // GetID implements Entity#GetID.
 func (p Process) GetID() EntityID {
-	return p.EntityID
+	panic("not called")
 }
 
 // DeepCopy implements Entity#DeepCopy.
 func (p Process) DeepCopy() Entity {
-	cp := deepcopy.Copy(p).(Process)
-	return &cp
+	panic("not called")
 }
 
 // Merge implements Entity#Merge.
 func (p *Process) Merge(e Entity) error {
-	otherProcess, ok := e.(*Process)
-	if !ok {
-		return fmt.Errorf("cannot merge ProcessMetadata with different kind %T", e)
-	}
-
-	return merge(p, otherProcess)
+	panic("not called")
 }
 
 // String implements Entity#String.
-func (p Process) String(verbose bool) string { //nolint:revive // TODO fix revive unused-parameter
-	var sb strings.Builder
-
-	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
-	_, _ = fmt.Fprintln(&sb, "PID:", p.EntityID.ID)
-	_, _ = fmt.Fprintln(&sb, "Namespace PID:", p.NsPid)
-	_, _ = fmt.Fprintln(&sb, "Container ID:", p.ContainerID)
-	_, _ = fmt.Fprintln(&sb, "Creation time:", p.CreationTime)
-	_, _ = fmt.Fprintln(&sb, "Language:", p.Language.Name)
-
-	return sb.String()
+func (p Process) String(verbose bool) string {
+	panic("not called")
 }
 
 // CollectorEvent is an event generated by a metadata collector, to be handled
@@ -1064,7 +721,5 @@ type EventBundle struct {
 
 // Acknowledge acknowledges that the subscriber has handled the event.
 func (e EventBundle) Acknowledge() {
-	if e.Ch != nil {
-		close(e.Ch)
-	}
+	panic("not called")
 }

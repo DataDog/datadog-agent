@@ -9,9 +9,10 @@ package winregistryimpl
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"time"
 )
 
 type integrationLogsRegistryDelegate struct {

@@ -14,13 +14,10 @@ type Service struct {
 
 // NewService returns a new service.
 func NewService(providerType string, identifier string) *Service {
-	return &Service{
-		Type:       providerType,
-		Identifier: identifier,
-	}
+	panic("not called")
 }
 
 // GetEntityID return the entity identifier of the service
 func (s *Service) GetEntityID() string {
-	return s.Type + "://" + s.Identifier
+	panic("not called")
 }

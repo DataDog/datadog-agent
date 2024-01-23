@@ -7,6 +7,8 @@ package report
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
@@ -14,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"testing"
 )
 
 func Test_interfaceBandwidthState_RemoveExpiredBandwidthUsageRates(t *testing.T) {

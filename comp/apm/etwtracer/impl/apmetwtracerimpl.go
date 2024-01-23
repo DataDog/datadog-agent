@@ -15,7 +15,14 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/apm/etwtracer"
+	"io"
+	"net"
+	"os"
+	"sync"
+	"syscall"
+	"time"
+	"unsafe"
+
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/etw"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -24,13 +31,6 @@ import (
 	"github.com/alecthomas/units"
 	"go.uber.org/fx"
 	"golang.org/x/sys/windows"
-	"io"
-	"net"
-	"os"
-	"sync"
-	"syscall"
-	"time"
-	"unsafe"
 )
 
 // Module defines the fx options for this component.

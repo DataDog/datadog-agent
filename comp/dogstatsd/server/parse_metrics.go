@@ -93,5 +93,5 @@ func parseMetricSampleMetricType(rawMetricType []byte) (metricType, error) {
 }
 
 func parseMetricSampleSampleRate(rawSampleRate []byte) (float64, error) {
-	return parseFloat64(rawSampleRate)
+	panic("not called")
 }

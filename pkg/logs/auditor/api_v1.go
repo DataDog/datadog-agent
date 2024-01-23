@@ -6,8 +6,6 @@
 package auditor
 
 import (
-	"encoding/json"
-	"strconv"
 	"time"
 )
 
@@ -25,21 +23,5 @@ type jsonRegistryV1 struct {
 }
 
 func unmarshalRegistryV1(b []byte) (map[string]*RegistryEntry, error) {
-	var r jsonRegistryV1
-	err := json.Unmarshal(b, &r)
-	if err != nil {
-		return nil, err
-	}
-	registry := make(map[string]*RegistryEntry)
-	for identifier, entry := range r.Registry {
-		switch {
-		case entry.Offset > 0:
-			registry[identifier] = &RegistryEntry{LastUpdated: entry.LastUpdated, Offset: strconv.FormatInt(entry.Offset, 10)}
-		case entry.Timestamp != "":
-			registry[identifier] = &RegistryEntry{LastUpdated: entry.LastUpdated, Offset: entry.Timestamp}
-		default:
-			// no valid offset for this entry
-		}
-	}
-	return registry, nil
+	panic("not called")
 }

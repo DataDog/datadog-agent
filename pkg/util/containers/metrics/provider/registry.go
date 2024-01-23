@@ -25,20 +25,7 @@ const (
 type CollectorCatalog map[RuntimeMetadata]*Collectors
 
 func (cc CollectorCatalog) merge(otherID string, othCatalog CollectorCatalog) {
-	for runtime, othCollectors := range othCatalog {
-		if othCollectors == nil {
-			continue
-		}
-
-		currCollectors := cc[runtime]
-		if currCollectors == nil {
-			// We cannot use directly external `currCollectors` as it may be externally modified
-			currCollectors = &Collectors{}
-			cc[runtime] = currCollectors
-		}
-
-		currCollectors.merge(runtime, otherID, othCollectors)
-	}
+	panic("not called")
 }
 
 // CollectorMetadata contains the characteristics of a collector to be registered with RegisterCollector

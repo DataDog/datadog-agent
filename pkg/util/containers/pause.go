@@ -13,14 +13,5 @@ const pauseContainerNameValue = "POD"
 // This util can be used to exclude pause container in best-effort
 // Note: Pause containers can still be excluded based on the image name via the container filtering module
 func IsPauseContainer(labels map[string]string) bool {
-	ctr, ctrFound := labels[containerNameLabel]
-	if ctr == pauseContainerNameValue {
-		return true
-	}
-
-	// Pause containers don't have a "io.kubernetes.container.name" label in containerd
-	// they only have io.kubernetes.pod.name
-	// See https://github.com/containerd/cri/issues/922
-	_, podFound := labels[podNameLabel]
-	return !ctrFound && podFound
+	panic("not called")
 }

@@ -87,7 +87,5 @@ func (p *Assembler) flush() {
 
 // Close closes the packet assembler
 func (p *Assembler) Close() {
-	p.Lock()
-	close(p.closeChannel)
-	p.Unlock()
+	panic("not called")
 }

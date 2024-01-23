@@ -9,13 +9,10 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
-	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // declare these as vars not const to ease testing
@@ -28,10 +25,7 @@ var (
 
 // IsRunningOn returns true if the agent is running on GCE
 func IsRunningOn(ctx context.Context) bool {
-	if _, err := GetHostname(ctx); err == nil {
-		return true
-	}
-	return false
+	panic("not called")
 }
 
 var hostnameFetcher = cachedfetch.Fetcher{
@@ -48,27 +42,12 @@ var hostnameFetcher = cachedfetch.Fetcher{
 
 // GetHostname returns the hostname querying GCE Metadata api
 func GetHostname(ctx context.Context) (string, error) {
-	return hostnameFetcher.FetchString(ctx)
+	panic("not called")
 }
 
 // GetHostAliases returns the host aliases from GCE
 func GetHostAliases(ctx context.Context) ([]string, error) {
-	aliases := []string{}
-
-	hostname, err := GetHostname(ctx)
-	if err == nil {
-		aliases = append(aliases, hostname)
-	} else {
-		log.Debugf("failed to get hostname to use as Host Alias: %s", err)
-	}
-
-	if instanceAlias, err := getInstanceAlias(ctx, hostname); err == nil {
-		aliases = append(aliases, instanceAlias)
-	} else {
-		log.Debugf("failed to get Host Alias: %s", err)
-	}
-
-	return aliases, nil
+	panic("not called")
 }
 
 var nameFetcher = cachedfetch.Fetcher{
@@ -95,28 +74,11 @@ var projectIDFetcher = cachedfetch.Fetcher{
 
 // GetProjectID returns the project ID of the current GCE instance
 func GetProjectID(ctx context.Context) (string, error) {
-	return projectIDFetcher.FetchString(ctx)
+	panic("not called")
 }
 
 func getInstanceAlias(ctx context.Context, hostname string) (string, error) {
-	instanceName, err := nameFetcher.FetchString(ctx)
-	if err != nil {
-		// If the endpoint is not reachable, fallback on the old way to get the alias.
-		// For instance, it happens in GKE, where the metadata server is only a subset
-		// of the Compute Engine metadata server.
-		// See https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity#gke_mds
-		if hostname == "" {
-			return "", fmt.Errorf("unable to retrieve instance name and hostname from GCE: %s", err)
-		}
-		instanceName = strings.SplitN(hostname, ".", 2)[0]
-	}
-
-	projectID, err := projectIDFetcher.FetchString(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	return fmt.Sprintf("%s.%s", instanceName, projectID), nil
+	panic("not called")
 }
 
 var clusterNameFetcher = cachedfetch.Fetcher{
@@ -133,7 +95,7 @@ var clusterNameFetcher = cachedfetch.Fetcher{
 
 // GetClusterName returns the name of the cluster containing the current GCE instance
 func GetClusterName(ctx context.Context) (string, error) {
-	return clusterNameFetcher.FetchString(ctx)
+	panic("not called")
 }
 
 var publicIPv4Fetcher = cachedfetch.Fetcher{
@@ -150,7 +112,7 @@ var publicIPv4Fetcher = cachedfetch.Fetcher{
 
 // GetPublicIPv4 returns the public IPv4 address of the current GCE instance
 func GetPublicIPv4(ctx context.Context) (string, error) {
-	return publicIPv4Fetcher.FetchString(ctx)
+	panic("not called")
 }
 
 var networkIDFetcher = cachedfetch.Fetcher{
@@ -191,44 +153,19 @@ var networkIDFetcher = cachedfetch.Fetcher{
 // GCE instances, the the network ID is the VPC ID, if the instance is found to
 // be a part of exactly one VPC.
 func GetNetworkID(ctx context.Context) (string, error) {
-	return networkIDFetcher.FetchString(ctx)
+	panic("not called")
 }
 
 // GetNTPHosts returns the NTP hosts for GCE if it is detected as the cloud provider, otherwise an empty array.
 // Docs: https://cloud.google.com/compute/docs/instances/managing-instances
 func GetNTPHosts(ctx context.Context) []string {
-	if IsRunningOn(ctx) {
-		return []string{"metadata.google.internal"}
-	}
-
-	return nil
+	panic("not called")
 }
 
 func getResponseWithMaxLength(ctx context.Context, endpoint string, maxLength int) (string, error) {
-	result, err := getResponse(ctx, endpoint)
-	if err != nil {
-		return result, err
-	}
-	if len(result) > maxLength {
-		return "", fmt.Errorf("%v gave a response with length > to %v", endpoint, maxLength)
-	}
-	return result, err
+	panic("not called")
 }
 
 func getResponse(ctx context.Context, url string) (string, error) {
-	if !config.IsCloudProviderEnabled(CloudProviderName) {
-		return "", fmt.Errorf("cloud provider is disabled by configuration")
-	}
-
-	res, err := httputils.Get(ctx, url, map[string]string{"Metadata-Flavor": "Google"}, config.Datadog.GetDuration("gce_metadata_timeout")*time.Millisecond, config.Datadog)
-	if err != nil {
-		return "", fmt.Errorf("GCE metadata API error: %s", err)
-	}
-
-	// Some cloud platforms will respond with an empty body, causing the agent to assume a faulty hostname
-	if len(res) <= 0 {
-		return "", fmt.Errorf("empty response body")
-	}
-
-	return res, nil
+	panic("not called")
 }

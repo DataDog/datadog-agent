@@ -6,8 +6,6 @@
 package fargate
 
 import (
-	"errors"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -29,8 +27,5 @@ func GetOrchestrator() OrchestratorName {
 
 // GetEKSFargateNodename returns the node name in EKS Fargate
 func GetEKSFargateNodename() (string, error) {
-	if nodename := config.Datadog.GetString("kubernetes_kubelet_nodename"); nodename != "" {
-		return nodename, nil
-	}
-	return "", errors.New("kubernetes_kubelet_nodename is not defined, make sure DD_KUBERNETES_KUBELET_NODENAME is set via the downward API")
+	panic("not called")
 }

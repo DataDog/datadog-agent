@@ -36,34 +36,10 @@ func NewCache(gcInterval time.Duration) *Cache {
 
 // Get retrieves data from cache, returns not found if cacheValidity == 0
 func (c *Cache) Get(currentTime time.Time, key string, cacheValidity time.Duration) (interface{}, bool, error) {
-	if cacheValidity <= 0 {
-		return nil, false, nil
-	}
-
-	c.cacheLock.RLock()
-	entry, found := c.cache[key]
-	c.cacheLock.RUnlock()
-
-	if !found || currentTime.Sub(entry.timestamp) > cacheValidity {
-		return nil, false, nil
-	}
-
-	if entry.err != nil {
-		return nil, true, entry.err
-	}
-
-	return entry.value, true, nil
+	panic("not called")
 }
 
 // Store retrieves data from cache
 func (c *Cache) Store(currentTime time.Time, key string, value interface{}, err error) {
-	c.cacheLock.Lock()
-	defer c.cacheLock.Unlock()
-
-	if currentTime.Sub(c.gcTimestamp) > c.gcInterval {
-		c.cache = make(map[string]cacheEntry, len(c.cache))
-		c.gcTimestamp = currentTime
-	}
-
-	c.cache[key] = cacheEntry{value: value, timestamp: currentTime, err: err}
+	panic("not called")
 }

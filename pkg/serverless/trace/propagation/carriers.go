@@ -7,17 +7,10 @@
 package propagation
 
 import (
-	"encoding/base64"
 	"errors"
-	"fmt"
 	"regexp"
-	"strconv"
-	"strings"
-
-	json "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
-	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
@@ -52,92 +45,20 @@ var (
 // AWSTraceHeader directly. Unlike the other carriers in this file, it should
 // not be passed to the tracer.Propagator, instead extracting context directly.
 func extractTraceContextfromAWSTraceHeader(value string) (*TraceContext, error) {
-	if !rootRegex.MatchString(value) {
-		return nil, errorAWSTraceHeaderMismatch
-	}
-	var (
-		startPart int
-		traceID   string
-		parentID  string
-		sampled   string
-		err       error
-	)
-	length := len(value)
-	for startPart < length {
-		endPart := strings.IndexRune(value[startPart:], ';') + startPart
-		if endPart < startPart {
-			endPart = length
-		}
-		part := value[startPart:endPart]
-		if strings.HasPrefix(part, rootPrefix) {
-			if traceID == "" {
-				traceID = part[rootPadding:]
-			}
-		} else if strings.HasPrefix(part, parentPrefix) {
-			if parentID == "" {
-				parentID = part[parentPadding:]
-			}
-		} else if strings.HasPrefix(part, sampledPrefix) {
-			if sampled == "" {
-				sampled = part[sampledPadding:]
-			}
-		}
-		if traceID != "" && parentID != "" && sampled != "" {
-			break
-		}
-		startPart = endPart + 1
-	}
-	tc := new(TraceContext)
-	tc.TraceID, err = strconv.ParseUint(traceID, 16, 64)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to parse trace ID from AWSTraceHeader: %w", err)
-	}
-	tc.ParentID, err = strconv.ParseUint(parentID, 16, 64)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to parse parent ID from AWSTraceHeader: %w", err)
-	}
-	if sampled == "1" {
-		tc.SamplingPriority = sampler.PriorityAutoKeep
-	}
-	if tc.TraceID == 0 || tc.ParentID == 0 {
-		return nil, errorAWSTraceHeaderEmpty
-	}
-	return tc, nil
+	panic("not called")
 }
 
 // sqsMessageCarrier returns the tracer.TextMapReader used to extract trace
 // context from the events.SQSMessage type.
 func sqsMessageCarrier(event events.SQSMessage) (tracer.TextMapReader, error) {
-	if attr, ok := event.MessageAttributes[datadogSQSHeader]; ok {
-		return sqsMessageAttrCarrier(attr)
-	}
-	return snsSqsMessageCarrier(event)
+	panic("not called")
 }
 
 // sqsMessageAttrCarrier returns the tracer.TextMapReader used to extract trace
 // context from the events.SQSMessageAttribute field on an events.SQSMessage
 // type.
 func sqsMessageAttrCarrier(attr events.SQSMessageAttribute) (tracer.TextMapReader, error) {
-	var bytes []byte
-	switch attr.DataType {
-	case "String":
-		if attr.StringValue == nil {
-			return nil, errorStringNotFound
-		}
-		bytes = []byte(*attr.StringValue)
-	case "Binary":
-		// SNS => SQS => Lambda with SQS's subscription to SNS has enabled RAW
-		// MESSAGE DELIVERY option
-		bytes = attr.BinaryValue // No need to decode base64 because already decoded
-	default:
-		return nil, errorUnsupportedDataType
-	}
-
-	var carrier tracer.TextMapCarrier
-	if err := json.Unmarshal(bytes, &carrier); err != nil {
-		return nil, fmt.Errorf("Error unmarshaling payload value: %w", err)
-	}
-	return carrier, nil
+	panic("not called")
 }
 
 // snsBody is used to  unmarshal only required fields on events.SNSEntity
@@ -149,56 +70,13 @@ type snsBody struct {
 // snsSqsMessageCarrier returns the tracer.TextMapReader used to extract trace
 // context from the body of an events.SQSMessage type.
 func snsSqsMessageCarrier(event events.SQSMessage) (tracer.TextMapReader, error) {
-	var body snsBody
-	err := json.Unmarshal([]byte(event.Body), &body)
-	if err != nil {
-		return nil, fmt.Errorf("Error unmarshaling message body: %w", err)
-	}
-	return snsEntityCarrier(events.SNSEntity{
-		MessageAttributes: body.MessageAttributes,
-	})
+	panic("not called")
 }
 
 // snsEntityCarrier returns the tracer.TextMapReader used to extract trace
 // context from the attributes of an events.SNSEntity type.
 func snsEntityCarrier(event events.SNSEntity) (tracer.TextMapReader, error) {
-	msgAttrs, ok := event.MessageAttributes[datadogSQSHeader]
-	if !ok {
-		return nil, errorNoDDContextFound
-	}
-	mapAttrs, ok := msgAttrs.(map[string]interface{})
-	if !ok {
-		return nil, errorUnsupportedPayloadType
-	}
-
-	typ, ok := mapAttrs["Type"].(string)
-	if !ok {
-		return nil, errorUnsupportedTypeType
-	}
-	val, ok := mapAttrs["Value"].(string)
-	if !ok {
-		return nil, errorUnsupportedValueType
-	}
-
-	var bytes []byte
-	var err error
-	switch typ {
-	case "Binary":
-		bytes, err = base64.StdEncoding.DecodeString(val)
-		if err != nil {
-			return nil, fmt.Errorf("Error decoding binary: %w", err)
-		}
-	case "String":
-		bytes = []byte(val)
-	default:
-		return nil, errorUnsupportedTypeValue
-	}
-
-	var carrier tracer.TextMapCarrier
-	if err = json.Unmarshal(bytes, &carrier); err != nil {
-		return nil, fmt.Errorf("Error unmarshaling the decoded binary: %w", err)
-	}
-	return carrier, nil
+	panic("not called")
 }
 
 type invocationPayload struct {
@@ -208,15 +86,11 @@ type invocationPayload struct {
 // rawPayloadCarrier returns the tracer.TextMapReader used to extract trace
 // context from the raw json event payload.
 func rawPayloadCarrier(rawPayload []byte) (tracer.TextMapReader, error) {
-	var payload invocationPayload
-	if err := json.Unmarshal(rawPayload, &payload); err != nil {
-		return nil, errorCouldNotUnmarshal
-	}
-	return payload.Headers, nil
+	panic("not called")
 }
 
 // headersCarrier returns the tracer.TextMapReader used to extract trace
 // context from a Headers field of form map[string]string.
 func headersCarrier(hdrs map[string]string) (tracer.TextMapReader, error) {
-	return tracer.TextMapCarrier(hdrs), nil
+	panic("not called")
 }

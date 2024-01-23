@@ -5,48 +5,19 @@
 
 package workloadmeta
 
-import (
-	"fmt"
-	"strings"
-
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
-)
-
 func mapToString(m map[string]string) string {
-	var sb strings.Builder
-	for k, v := range m {
-		fmt.Fprintf(&sb, "%s:%s ", k, v)
-	}
-
-	return sb.String()
+	panic("not called")
 }
 
 func mapToScrubbedJSONString(m map[string]string) string {
-	var sb strings.Builder
-	for k, v := range m {
-		scrubbed, err := scrubber.ScrubJSONString(v)
-		if err == nil {
-			fmt.Fprintf(&sb, "%s:%s ", k, scrubbed)
-		} else {
-			fmt.Fprintf(&sb, "%s:%s ", k, v)
-		}
-	}
-	return sb.String()
+	panic("not called")
 }
 
 func sliceToString(s []string) string {
-	return strings.Join(s, " ")
+	panic("not called")
 }
 
 // filterAndFormatEnvVars extracts and formats a subset of allowed environment variables.
 func filterAndFormatEnvVars(envs map[string]string) string {
-	allowedEnvVariables := []string{"DD_SERVICE", "DD_ENV", "DD_VERSION"}
-	var sb strings.Builder
-	for _, allowed := range allowedEnvVariables {
-		if val, found := envs[allowed]; found {
-			fmt.Fprintf(&sb, "%s:%s ", allowed, val)
-		}
-	}
-
-	return sb.String()
+	panic("not called")
 }

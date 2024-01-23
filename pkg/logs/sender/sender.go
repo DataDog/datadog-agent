@@ -54,8 +54,7 @@ func (s *Sender) Start() {
 // Stop stops the sender,
 // this call blocks until inputChan is flushed
 func (s *Sender) Stop() {
-	close(s.inputChan)
-	<-s.done
+	panic("not called")
 }
 
 func (s *Sender) run() {

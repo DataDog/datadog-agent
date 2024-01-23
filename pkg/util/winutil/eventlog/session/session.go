@@ -9,10 +9,6 @@
 // https://learn.microsoft.com/en-us/windows/win32/wes/accessing-remote-computers
 package evtsession
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
-)
-
 // Session defines the interface for connecting to an Event Log host and is used to
 // manage event logs and query, subscribe, and render events.
 //

@@ -6,15 +6,6 @@
 //nolint:revive // TODO(SERV) Fix revive linter
 package trigger
 
-import (
-	"fmt"
-	"strings"
-
-	jsonEncoder "github.com/json-iterator/go"
-
-	"github.com/DataDog/datadog-agent/pkg/util/json"
-)
-
 // AWSEventType corresponds to the various event triggers
 // we get from AWS
 type AWSEventType int
@@ -121,54 +112,20 @@ var (
 // that matches the input payload. Returns `Unknown` if a payload could not be
 // matched to an event.
 func GetEventType(payload map[string]any) AWSEventType {
-	// allow last event type to jump ahead in line since it is likely the event
-	// type is the same between invocations
-	if lastEventChecker != unknownChecker {
-		if lastEventChecker.check(payload) {
-			return lastEventChecker.typ
-		}
-	}
-	for _, checker := range eventCheckers {
-		if checker == lastEventChecker {
-			continue // typ already checked
-		}
-		if checker.check(payload) {
-			lastEventChecker = checker
-			return checker.typ
-		}
-	}
-	lastEventChecker = unknownChecker
-	return Unknown
+	panic("not called")
 }
 
 // Unmarshal unmarshals a payload string into a generic interface
 func Unmarshal(payload []byte) (map[string]any, error) {
-	jsonPayload := make(map[string]any)
-	if err := jsonEncoder.Unmarshal(payload, &jsonPayload); err != nil {
-		return nil, err
-	}
-	return jsonPayload, nil
+	panic("not called")
 }
 
 func isAPIGatewayEvent(event map[string]any) bool {
-	return json.GetNestedValue(event, "requestcontext", "stage") != nil &&
-		json.GetNestedValue(event, "httpmethod") != nil &&
-		json.GetNestedValue(event, "resource") != nil &&
-		!isAPIGatewayLambdaAuthorizerRequestParametersEvent(event)
+	panic("not called")
 }
 
 func isAPIGatewayV2Event(event map[string]any) bool {
-	version, ok := json.GetNestedValue(event, "version").(string)
-	if !ok {
-		return false
-	}
-	domainName, ok := json.GetNestedValue(event, "requestcontext", "domainname").(string)
-	if !ok {
-		return false
-	}
-	return version == "2.0" &&
-		json.GetNestedValue(event, "rawquerystring") != nil &&
-		!strings.Contains(domainName, "lambda-url")
+	panic("not called")
 }
 
 // Kong API Gateway events are regular API Gateway events with a few missing
@@ -177,166 +134,81 @@ func isAPIGatewayV2Event(event map[string]any) bool {
 // related API Gateway event payload checks. It returns true when httpmethod and
 // resource are present.
 func isKongAPIGatewayEvent(event map[string]any) bool {
-	return json.GetNestedValue(event, "httpmethod") != nil &&
-		json.GetNestedValue(event, "resource") != nil
+	panic("not called")
 }
 
 func isAPIGatewayWebsocketEvent(event map[string]any) bool {
-	return json.GetNestedValue(event, "requestcontext") != nil &&
-		json.GetNestedValue(event, "requestcontext", "messagedirection") != nil
+	panic("not called")
 }
 
 func isAPIGatewayLambdaAuthorizerTokenEvent(event map[string]any) bool {
-	return json.GetNestedValue(event, "type") == "token" &&
-		json.GetNestedValue(event, "authorizationtoken") != nil &&
-		json.GetNestedValue(event, "methodarn") != nil
+	panic("not called")
 }
 
 func isAPIGatewayLambdaAuthorizerRequestParametersEvent(event map[string]any) bool {
-	return json.GetNestedValue(event, "type") == "request" &&
-		json.GetNestedValue(event, "methodarn") != nil &&
-		json.GetNestedValue(event, "headers") != nil &&
-		json.GetNestedValue(event, "querystringparameters") != nil &&
-		json.GetNestedValue(event, "requestcontext", "apiid") != nil
+	panic("not called")
 }
 
 func isALBEvent(event map[string]any) bool {
-	return json.GetNestedValue(event, "requestcontext", "elb") != nil
+	panic("not called")
 }
 
 func isCloudwatchEvent(event map[string]any) bool {
-	source, ok := json.GetNestedValue(event, "source").(string)
-	return ok && source == "aws.events"
+	panic("not called")
 }
 
 func isCloudwatchLogsEvent(event map[string]any) bool {
-	return json.GetNestedValue(event, "awslogs") != nil
+	panic("not called")
 }
 
 func isCloudFrontRequestEvent(event map[string]any) bool {
-	return eventRecordsKeyExists(event, "cf")
+	panic("not called")
 }
 
 func isDynamoDBStreamEvent(event map[string]any) bool {
-	return eventRecordsKeyExists(event, "dynamodb")
+	panic("not called")
 }
 
 func isKinesisStreamEvent(event map[string]any) bool {
-	return eventRecordsKeyExists(event, "kinesis")
+	panic("not called")
 }
 
 func isS3Event(event map[string]any) bool {
-	return eventRecordsKeyExists(event, "s3")
+	panic("not called")
 }
 
 func isSNSEvent(event map[string]any) bool {
-	return eventRecordsKeyExists(event, "sns")
+	panic("not called")
 }
 
 func isSQSEvent(event map[string]any) bool {
-	return eventRecordsKeyEquals(event, "eventsource", "aws:sqs")
+	panic("not called")
 }
 
 func isSNSSQSEvent(event map[string]any) bool {
-	if !eventRecordsKeyEquals(event, "eventsource", "aws:sqs") {
-		return false
-	}
-	messageType, ok := json.GetNestedValue(event, "body", "type").(string)
-	if !ok {
-		return false
-	}
-
-	topicArn, ok := json.GetNestedValue(event, "body", "topicarn").(string)
-	if !ok {
-		return false
-	}
-
-	return messageType == "notification" && topicArn != ""
+	panic("not called")
 }
 
 func isAppSyncResolverEvent(event map[string]any) bool {
-	return json.GetNestedValue(event, "info", "selectionsetgraphql") != nil
+	panic("not called")
 }
 
 func isEventBridgeEvent(event map[string]any) bool {
-	return json.GetNestedValue(event, "detail-type") != nil && json.GetNestedValue(event, "source") != "aws.events"
+	panic("not called")
 }
 
 func isLambdaFunctionURLEvent(event map[string]any) bool {
-	lambdaURL, ok := json.GetNestedValue(event, "requestcontext", "domainname").(string)
-	if !ok {
-		return false
-	}
-	return strings.Contains(lambdaURL, "lambda-url")
+	panic("not called")
 }
 
 func eventRecordsKeyExists(event map[string]any, key string) bool {
-	records, ok := json.GetNestedValue(event, "records").([]interface{})
-	if !ok {
-		return false
-	}
-	if len(records) > 0 {
-		if records[0].(map[string]any)[key] != nil {
-			return true
-		}
-	}
-	return false
+	panic("not called")
 }
 
 func eventRecordsKeyEquals(event map[string]any, key string, val string) bool {
-	records, ok := json.GetNestedValue(event, "records").([]interface{})
-	if !ok {
-		return false
-	}
-	if len(records) > 0 {
-		if mapVal := records[0].(map[string]any)[key]; mapVal != nil {
-			return mapVal == val
-		}
-	}
-	return false
+	panic("not called")
 }
 
 func (et AWSEventType) String() string {
-	switch et {
-	case Unknown:
-		return "Unknown"
-	case APIGatewayEvent:
-		return "APIGatewayEvent"
-	case APIGatewayV2Event:
-		return "APIGatewayV2Event"
-	case APIGatewayWebsocketEvent:
-		return "APIGatewayWebsocketEvent"
-	case APIGatewayLambdaAuthorizerTokenEvent:
-		return "APIGatewayLambdaAuthorizerTokenEvent"
-	case APIGatewayLambdaAuthorizerRequestParametersEvent:
-		return "APIGatewayLambdaAuthorizerRequestParametersEvent"
-	case ALBEvent:
-		return "ALBEvent"
-	case CloudWatchEvent:
-		return "CloudWatchEvent"
-	case CloudWatchLogsEvent:
-		return "CloudWatchLogsEvent"
-	case CloudFrontRequestEvent:
-		return "CloudFrontRequestEvent"
-	case DynamoDBStreamEvent:
-		return "DynamoDBStreamEvent"
-	case KinesisStreamEvent:
-		return "KinesisStreamEvent"
-	case S3Event:
-		return "S3Event"
-	case SNSEvent:
-		return "SNSEvent"
-	case SQSEvent:
-		return "SQSEvent"
-	case SNSSQSEvent:
-		return "SNSSQSEvent"
-	case AppSyncResolverEvent:
-		return "AppSyncResolverEvent"
-	case EventBridgeEvent:
-		return "EventBridgeEvent"
-	case LambdaFunctionURLEvent:
-		return "LambdaFunctionURLEvent"
-	default:
-		return fmt.Sprintf("EventType(%d)", et)
-	}
+	panic("not called")
 }

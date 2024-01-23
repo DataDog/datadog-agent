@@ -7,14 +7,12 @@
 package flush
 
 import (
-	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"math"
 	"math/rand"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const maxBackoffRetrySeconds = 5 * 60
@@ -55,25 +53,7 @@ const (
 //   - end
 //   - periodically[,milliseconds]
 func StrategyFromString(str string) (Strategy, error) {
-	switch str {
-	case "end":
-		return &AtTheEnd{}, nil
-	case "periodically":
-		return NewPeriodically(10 * time.Second), nil
-	}
-
-	if strings.HasPrefix(str, "periodically") && strings.Count(str, ",") == 1 {
-		parts := strings.Split(str, ",")
-
-		msecs, err := strconv.Atoi(parts[1])
-		if err != nil {
-			return &AtTheEnd{}, fmt.Errorf("StrategyFromString: can't parse flush strategy: %s", str)
-		}
-
-		return NewPeriodically(time.Duration(msecs) * time.Millisecond), nil
-	}
-
-	return &AtTheEnd{}, fmt.Errorf("StrategyFromString: can't parse flush strategy: %s", str)
+	panic("not called")
 }
 
 // -----
@@ -94,7 +74,7 @@ func (s *AtTheEnd) ShouldFlush(moment Moment, t time.Time) bool {
 
 // Failure modify state to keep track of failure
 func (s *AtTheEnd) Failure(t time.Time) {
-	globalRetryState.incrementFailure(t)
+	panic("not called")
 }
 
 // Success reset the state when a flush is successful
@@ -111,33 +91,26 @@ type Periodically struct {
 
 // NewPeriodically returns an initialized Periodically flush strategy.
 func NewPeriodically(interval time.Duration) *Periodically {
-	return &Periodically{interval: interval}
+	panic("not called")
 }
 
 func (s *Periodically) String() string {
-	return fmt.Sprintf("periodically,%d", s.interval/time.Millisecond)
+	panic("not called")
 }
 
 // ShouldFlush returns true if this strategy want to flush at the given moment.
 func (s *Periodically) ShouldFlush(moment Moment, t time.Time) bool {
-	if moment == Starting && !globalRetryState.shouldWaitBackoff(t) {
-		// Periodically strategy will not flush anyway if the s.interval didn't pass
-		if s.lastFlush.Add(s.interval).Before(t) {
-			s.lastFlush = t
-			return true
-		}
-	}
-	return false
+	panic("not called")
 }
 
 // Failure modify state to keep track of failure
 func (s *Periodically) Failure(t time.Time) {
-	globalRetryState.incrementFailure(t)
+	panic("not called")
 }
 
 // Success reset the state when a flush is successful
 func (s *Periodically) Success() {
-	globalRetryState.reset()
+	panic("not called")
 }
 
 func (r *retryState) shouldWaitBackoff(now time.Time) bool {
@@ -159,10 +132,7 @@ func (r *retryState) shouldWaitBackoff(now time.Time) bool {
 }
 
 func (r *retryState) incrementFailure(t time.Time) {
-	r.lock.Lock()
-	defer r.lock.Unlock()
-	r.retries++
-	r.lastFail = t
+	panic("not called")
 }
 
 func (r *retryState) reset() {

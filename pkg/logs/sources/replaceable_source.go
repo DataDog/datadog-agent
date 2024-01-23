@@ -23,77 +23,55 @@ type ReplaceableSource struct {
 
 // NewReplaceableSource returns a new ReplaceableSource
 func NewReplaceableSource(source *LogSource) *ReplaceableSource {
-	return &ReplaceableSource{
-		source: source,
-	}
+	panic("not called")
 }
 
 // Replace replaces the source with a new one
 func (r *ReplaceableSource) Replace(source *LogSource) {
-	r.Lock()
-	defer r.Unlock()
-	r.source = source
+	panic("not called")
 }
 
 // Status gets the underlying status
 func (r *ReplaceableSource) Status() *status.LogStatus {
-	r.RLock()
-	defer r.RUnlock()
-	return r.source.Status
+	panic("not called")
 }
 
 // Config gets the underlying config
 func (r *ReplaceableSource) Config() *config.LogsConfig {
-	r.RLock()
-	defer r.RUnlock()
-	return r.source.Config
+	panic("not called")
 }
 
 // AddInput registers an input as being handled by this source.
 func (r *ReplaceableSource) AddInput(input string) {
-	r.RLock()
-	defer r.RUnlock()
-	r.source.AddInput(input)
+	panic("not called")
 }
 
 // RemoveInput removes an input from this source.
 func (r *ReplaceableSource) RemoveInput(input string) {
-	r.RLock()
-	defer r.RUnlock()
-	r.source.RemoveInput(input)
+	panic("not called")
 }
 
 // RecordBytes reports bytes to the source expvars
 func (r *ReplaceableSource) RecordBytes(n int64) {
-	r.RLock()
-	defer r.RUnlock()
-	r.source.RecordBytes(n)
+	panic("not called")
 }
 
 // GetSourceType gets the source type
 func (r *ReplaceableSource) GetSourceType() SourceType {
-	r.RLock()
-	defer r.RUnlock()
-	return r.source.sourceType
+	panic("not called")
 }
 
 // UnderlyingSource gets the underlying log source
 func (r *ReplaceableSource) UnderlyingSource() *LogSource {
-	r.RLock()
-	defer r.RUnlock()
-	return r.source
+	panic("not called")
 }
 
 // RegisterInfo registers some info to display on the status page
 func (r *ReplaceableSource) RegisterInfo(i status.InfoProvider) {
-	r.RLock()
-	defer r.RUnlock()
-	r.source.RegisterInfo(i)
+	panic("not called")
 }
 
 // GetInfo gets an InfoProvider instance by the key
 func (r *ReplaceableSource) GetInfo(key string) status.InfoProvider {
-	r.RLock()
-	defer r.RUnlock()
-	return r.source.GetInfo(key)
+	panic("not called")
 }

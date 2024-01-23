@@ -16,37 +16,40 @@ type serverMock struct {
 }
 
 func newMock() Component {
-	return &serverMock{}
+	panic("not called")
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
 func (s *serverMock) Start(demultiplexer aggregator.Demultiplexer) error {
-	s.isRunning = true
-	return nil
+	panic("not called")
 }
 
 func (s *serverMock) Stop() {
-	s.isRunning = false
+	panic("not called")
 }
 
 func (s *serverMock) IsRunning() bool {
-	return s.isRunning
+	panic("not called")
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
 func (s *serverMock) Capture(p string, d time.Duration, compressed bool) (string, error) {
-	return "", nil
+	panic("not called")
 }
 
 func (s *serverMock) UdsListenerRunning() bool {
-	return false
+	panic("not called")
 }
 
 func (s *serverMock) UDPLocalAddr() string {
-	return ""
+	panic("not called")
 }
 
-func (s *serverMock) ServerlessFlush(time.Duration) {}
+func (s *serverMock) ServerlessFlush(time.Duration) {
+	panic("not called")
+}
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (s *serverMock) SetExtraTags(tags []string) {}
+func (s *serverMock) SetExtraTags(tags []string) {
+	panic("not called")
+}

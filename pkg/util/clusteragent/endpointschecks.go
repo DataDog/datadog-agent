@@ -18,9 +18,5 @@ const (
 
 // GetEndpointsCheckConfigs is called by the endpointscheck config provider
 func (c *DCAClient) GetEndpointsCheckConfigs(ctx context.Context, nodeName string) (types.ConfigResponse, error) {
-	var configs types.ConfigResponse
-
-	// https://host:port/api/v1/endpointschecks/configs/{nodeName}
-	err := c.doJSONQueryToLeader(ctx, dcaEndpointsChecksConfigsPath+"/"+nodeName, "GET", nil, &configs)
-	return configs, err
+	panic("not called")
 }

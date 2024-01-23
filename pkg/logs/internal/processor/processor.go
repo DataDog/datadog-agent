@@ -53,8 +53,7 @@ func (p *Processor) Start() {
 // Stop stops the Processor,
 // this call blocks until inputChan is flushed
 func (p *Processor) Stop() {
-	close(p.inputChan)
-	<-p.done
+	panic("not called")
 }
 
 // Flush processes synchronously the messages that this processor has to process.

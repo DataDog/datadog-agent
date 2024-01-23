@@ -8,16 +8,11 @@ package ec2
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"strings"
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // declare these as vars not const to ease testing
@@ -64,32 +59,12 @@ const (
 // Since some ways can temporary fail, we always register the "best" that worked at some point. This is mainly aimed at
 // IMDS which is sometimes unavailable at startup.
 func setCloudProviderSource(source int) {
-	currentMetadataSourceMutex.Lock()
-	defer currentMetadataSourceMutex.Unlock()
-
-	if source <= currentMetadataSource {
-		return
-	}
-
-	currentMetadataSource = source
+	panic("not called")
 }
 
 // GetSourceName returns the source used to pull information for EC2 (UUID, DMI, IMDSv1 or IMDSv2)
 func GetSourceName() string {
-	currentMetadataSourceMutex.Lock()
-	defer currentMetadataSourceMutex.Unlock()
-
-	switch currentMetadataSource {
-	case metadataSourceUUID:
-		return "UUID"
-	case metadataSourceDMI:
-		return "DMI"
-	case metadataSourceIMDSv1:
-		return "IMDSv1"
-	case metadataSourceIMDSv2:
-		return "IMDSv2"
-	}
-	return ""
+	panic("not called")
 }
 
 var instanceIDFetcher = cachedfetch.Fetcher{
@@ -101,48 +76,22 @@ var instanceIDFetcher = cachedfetch.Fetcher{
 
 // GetInstanceID fetches the instance id for current host from the EC2 metadata API
 func GetInstanceID(ctx context.Context) (string, error) {
-	return instanceIDFetcher.FetchString(ctx)
+	panic("not called")
 }
 
 // GetHostID returns the instanceID for the current EC2 host using IMDSv2 only.
 func GetHostID(ctx context.Context) string {
-	instanceID, err := getMetadataItemWithMaxLength(ctx, imdsInstanceID, true)
-	log.Debugf("instanceID from IMDSv2 '%s' (error: %v)", instanceID, err)
-
-	if err == nil {
-		return instanceID
-	}
-	return ""
+	panic("not called")
 }
 
 // IsRunningOn returns true if the agent is running on AWS
 func IsRunningOn(ctx context.Context) bool {
-	if _, err := GetHostname(ctx); err == nil {
-		return true
-	}
-	if isBoardVendorEC2() || isEC2UUID() {
-		return true
-	}
-
-	return config.IsFeaturePresent(config.ECSEC2) || config.IsFeaturePresent(config.ECSFargate)
+	panic("not called")
 }
 
 // GetHostAliases returns the host aliases from the EC2 metadata API.
 func GetHostAliases(ctx context.Context) ([]string, error) {
-	instanceID, err := GetInstanceID(ctx)
-	if err == nil {
-		return []string{instanceID}, nil
-	}
-	log.Debugf("failed to get instance ID from metadata API for Host Alias: %s", err)
-
-	// we fallback on DMI
-	instanceID, err = getInstanceIDFromDMI()
-	if err == nil {
-		return []string{instanceID}, nil
-	}
-	log.Debugf("failed to get instance ID from DMI for Host Alias: %s", err)
-
-	return []string{}, nil
+	panic("not called")
 }
 
 var hostnameFetcher = cachedfetch.Fetcher{
@@ -154,78 +103,39 @@ var hostnameFetcher = cachedfetch.Fetcher{
 
 // GetHostname fetches the hostname for current host from the EC2 metadata API
 func GetHostname(ctx context.Context) (string, error) {
-	return hostnameFetcher.FetchString(ctx)
+	panic("not called")
 }
 
 // GetNTPHosts returns the NTP hosts for EC2 if it is detected as the cloud provider, otherwise an empty array.
 // Docs: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/set-time.html#configure_ntp
 func GetNTPHosts(ctx context.Context) []string {
-	if IsRunningOn(ctx) {
-		return []string{"169.254.169.123"}
-	}
-
-	return nil
+	panic("not called")
 }
 
 // GetClusterName returns the name of the cluster containing the current EC2 instance
 func GetClusterName(ctx context.Context) (string, error) {
-	if !config.IsCloudProviderEnabled(CloudProviderName) {
-		return "", fmt.Errorf("cloud provider is disabled by configuration")
-	}
-	tags, err := fetchTagsFromCache(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	return extractClusterName(tags)
+	panic("not called")
 }
 
 func extractClusterName(tags []string) (string, error) {
-	var clusterName string
-	for _, tag := range tags {
-		if strings.HasPrefix(tag, "kubernetes.io/cluster/") { // tag key format: kubernetes.io/cluster/clustername"
-			key := strings.Split(tag, ":")[0]
-			clusterName = strings.Split(key, "/")[2] // rely on ec2 tag format to extract clustername
-			break
-		}
-	}
-
-	if clusterName == "" {
-		return "", errors.New("unable to parse cluster name from EC2 tags")
-	}
-
-	return clusterName, nil
+	panic("not called")
 }
 
 // IsDefaultHostname returns whether the given hostname is a default one for EC2
 func IsDefaultHostname(hostname string) bool {
-	return isDefaultHostname(hostname, config.Datadog.GetBool("ec2_use_windows_prefix_detection"))
+	panic("not called")
 }
 
 // IsDefaultHostnameForIntake returns whether the given hostname is a default one for EC2 for the intake
 func IsDefaultHostnameForIntake(hostname string) bool {
-	return isDefaultHostname(hostname, false)
+	panic("not called")
 }
 
 // IsWindowsDefaultHostname returns whether the given hostname is a Windows default one for EC2 (starts with 'ec2amaz-')
 func IsWindowsDefaultHostname(hostname string) bool {
-	return !isDefaultHostname(hostname, false) && isDefaultHostname(hostname, true)
+	panic("not called")
 }
 
 func isDefaultHostname(hostname string, useWindowsPrefix bool) bool {
-	hostname = strings.ToLower(hostname)
-	isDefault := false
-
-	var prefixes []string
-
-	if useWindowsPrefix {
-		prefixes = defaultPrefixes
-	} else {
-		prefixes = oldDefaultPrefixes
-	}
-
-	for _, val := range prefixes {
-		isDefault = isDefault || strings.HasPrefix(hostname, val)
-	}
-	return isDefault
+	panic("not called")
 }

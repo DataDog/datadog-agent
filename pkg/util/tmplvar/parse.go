@@ -7,9 +7,7 @@
 package tmplvar
 
 import (
-	"bytes"
 	"regexp"
-	"unicode"
 )
 
 var tmplVarRegex = regexp.MustCompile(`%%.+?%%`)
@@ -21,35 +19,16 @@ type TemplateVar struct {
 
 // ParseString returns parsed template variables found in the input string.
 func ParseString(s string) []TemplateVar {
-	return Parse([]byte(s))
+	panic("not called")
 }
 
 // Parse returns parsed template variables found in the input data.
 func Parse(b []byte) []TemplateVar {
-	var parsed []TemplateVar
-	vars := tmplVarRegex.FindAll(b, -1)
-	for _, v := range vars {
-		name, key := parseTemplateVar(v)
-		parsed = append(parsed, TemplateVar{v, name, key})
-	}
-	return parsed
+	panic("not called")
 }
 
 // parseTemplateVar extracts the name of the var and the key (or index if it can be
 // cast to an int)
 func parseTemplateVar(v []byte) (name, key []byte) {
-	stripped := bytes.Map(func(r rune) rune {
-		if unicode.IsSpace(r) || r == '%' {
-			return -1
-		}
-		return r
-	}, v)
-	split := bytes.SplitN(stripped, []byte("_"), 2)
-	name = split[0]
-	if len(split) == 2 {
-		key = split[1]
-	} else {
-		key = []byte("")
-	}
-	return name, key
+	panic("not called")
 }

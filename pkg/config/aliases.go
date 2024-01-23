@@ -87,7 +87,7 @@ var (
 
 // IsAutoconfigEnabled is alias for model.IsAutoconfigEnabled
 func IsAutoconfigEnabled() bool {
-	return env.IsAutoconfigEnabled(Datadog)
+	panic("not called")
 }
 
 // Aliases for config overrides
@@ -114,12 +114,12 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 
 // SetupJMXLogger Alias using Datadog config
 func SetupJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool) error {
-	return logs.SetupJMXLogger(logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, Datadog)
+	panic("not called")
 }
 
 // GetSyslogURI Alias using Datadog config
 func GetSyslogURI() string {
-	return logs.GetSyslogURI(Datadog)
+	panic("not called")
 }
 
 // SetupDogstatsdLogger Alias using Datadog config
@@ -129,7 +129,7 @@ func SetupDogstatsdLogger(logFile string) (slog.LoggerInterface, error) {
 
 // IsCloudProviderEnabled Alias using Datadog config
 func IsCloudProviderEnabled(cloudProvider string) bool {
-	return pkgconfigsetup.IsCloudProviderEnabled(cloudProvider, Datadog)
+	panic("not called")
 }
 
 // GetIPCAddress Alias using Datadog config
@@ -194,27 +194,27 @@ type (
 
 // GetObsPipelineURL Alias using Datadog config
 func GetObsPipelineURL(datatype pkgconfigsetup.DataType) (string, error) {
-	return pkgconfigsetup.GetObsPipelineURL(datatype, Datadog)
+	panic("not called")
 }
 
 // LoadCustom Alias
 func LoadCustom(config model.Config, origin string, secretResolver optional.Option[secrets.Component], additionalKnownEnvVars []string) (*model.Warnings, error) {
-	return pkgconfigsetup.LoadCustom(config, origin, secretResolver, additionalKnownEnvVars)
+	panic("not called")
 }
 
 // LoadDatadogCustom Alias
 func LoadDatadogCustom(config model.Config, origin string, secretResolver optional.Option[secrets.Component], additionalKnownEnvVars []string) (*model.Warnings, error) {
-	return pkgconfigsetup.LoadDatadogCustom(config, origin, secretResolver, additionalKnownEnvVars)
+	panic("not called")
 }
 
 // GetValidHostAliases Alias using Datadog config
 func GetValidHostAliases(ctx context.Context) ([]string, error) {
-	return pkgconfigsetup.GetValidHostAliases(ctx, Datadog)
+	panic("not called")
 }
 
 // IsCLCRunner Alias using Datadog config
 func IsCLCRunner() bool {
-	return pkgconfigsetup.IsCLCRunner(Datadog)
+	panic("not called")
 }
 
 // GetBindHostFromConfig Alias using Datadog config
@@ -224,7 +224,7 @@ func GetBindHostFromConfig(config model.Reader) string {
 
 // GetBindHost Alias using Datadog config
 func GetBindHost() string {
-	return pkgconfigsetup.GetBindHost(Datadog)
+	panic("not called")
 }
 
 // GetDogstatsdMappingProfiles Alias using Datadog config
@@ -262,5 +262,5 @@ func LoadWithoutSecret() (*model.Warnings, error) {
 
 // GetProcessAPIAddressPort Alias using Datadog config
 func GetProcessAPIAddressPort() (string, error) {
-	return pkgconfigsetup.GetProcessAPIAddressPort(Datadog)
+	panic("not called")
 }

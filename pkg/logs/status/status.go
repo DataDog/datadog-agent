@@ -90,10 +90,7 @@ func SetCurrentTransport(t Transport) {
 
 // GetCurrentTransport returns the current transport used by the log agent.
 func GetCurrentTransport() Transport {
-	globalsLock.Lock()
-	defer globalsLock.Unlock()
-
-	return currentTransport
+	panic("not called")
 }
 
 // Init instantiates the builder that builds the status on the fly.
@@ -108,56 +105,28 @@ func Init(isRunning *atomic.Bool, endpoints *config.Endpoints, sources *sources.
 
 // Clear clears the status which means it needs to be initialized again to be used.
 func Clear() {
-	globalsLock.Lock()
-	defer globalsLock.Unlock()
-
-	builder = nil
-	warnings = nil
-	errors = nil
+	panic("not called")
 }
 
 // Get returns the status of the logs-agent computed on the fly.
 func Get(verbose bool) Status {
-	globalsLock.RLock()
-	defer globalsLock.RUnlock()
-
-	if builder == nil {
-		return Status{
-			IsRunning: false,
-		}
-	}
-	return builder.BuildStatus(verbose)
+	panic("not called")
 }
 
 // AddGlobalWarning keeps track of a warning message to display on the status.
 func AddGlobalWarning(key string, warning string) {
-	globalsLock.RLock()
-	defer globalsLock.RUnlock()
-
-	if warnings != nil {
-		warnings.AddMessage(key, warning)
-	}
+	panic("not called")
 }
 
 // RemoveGlobalWarning loses track of a warning message
 // that does not need to be displayed on the status anymore.
 func RemoveGlobalWarning(key string) {
-	globalsLock.RLock()
-	defer globalsLock.RUnlock()
-
-	if warnings != nil {
-		warnings.RemoveMessage(key)
-	}
+	panic("not called")
 }
 
 // AddGlobalError an error message for the status display (errors will stop the agent)
 func AddGlobalError(key string, errorMessage string) {
-	globalsLock.RLock()
-	defer globalsLock.RUnlock()
-
-	if errors != nil {
-		errors.AddMessage(key, errorMessage)
-	}
+	panic("not called")
 }
 
 func init() {

@@ -39,52 +39,14 @@ func init() {
 }
 
 func datadogMatcher(buf []byte) bool {
-	if len(buf) < len(datadogHeader) {
-		return false
-	}
-
-	for i := 0; i < len(datadogHeader); i++ {
-		if i == versionIndex {
-			if buf[i]&datadogHeader[i] != datadogHeader[i] {
-				return false
-			}
-		} else if buf[i] != datadogHeader[i] {
-			return false
-		}
-	}
-
-	return true
+	panic("not called")
 }
 
 func fileVersion(buf []byte) (int, error) {
-
-	if !datadogMatcher(buf) {
-		return -1, fmt.Errorf("Cannot verify file version bad buffer or invalid file")
-	}
-
-	ver := int(0xF0 ^ buf[4])
-	if ver > int(datadogFileVersion) {
-		return -1, fmt.Errorf("Unsupported file version")
-	}
-	return ver, nil
+	panic("not called")
 }
 
 // WriteHeader writes the datadog header to the Writer argument to conform to the .dog file format.
 func WriteHeader(w io.Writer) error {
-	hdr := make([]byte, len(datadogHeader))
-	copy(hdr, datadogHeader)
-	hdr[versionIndex] |= datadogFileVersion
-
-	//Write header
-	n, err := w.Write(hdr)
-
-	if err != nil {
-		return err
-	}
-
-	if n < len(datadogHeader) {
-		return ErrHeaderWrite
-	}
-
-	return nil
+	panic("not called")
 }

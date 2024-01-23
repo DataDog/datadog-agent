@@ -7,8 +7,6 @@
 package launchers
 
 import (
-	"sync"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -43,12 +41,7 @@ func NewLaunchers(
 	registry auditor.Registry,
 	tracker *tailers.TailerTracker,
 ) *Launchers {
-	return &Launchers{
-		sourceProvider:   sources,
-		pipelineProvider: pipelineProvider,
-		registry:         registry,
-		tracker:          tracker,
-	}
+	panic("not called")
 }
 
 // AddLauncher adds a launcher to the collection.  If called after Start(), then the
@@ -70,13 +63,5 @@ func (ls *Launchers) Start() {
 
 // Stop all launchers and wait until they are complete.
 func (ls *Launchers) Stop() {
-	var wg sync.WaitGroup
-	for _, s := range ls.launchers {
-		wg.Add(1)
-		go func(s Launcher) {
-			defer wg.Done()
-			s.Stop()
-		}(s)
-	}
-	wg.Wait()
+	panic("not called")
 }

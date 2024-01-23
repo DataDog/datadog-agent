@@ -6,18 +6,13 @@
 package config
 
 import (
-	"fmt"
-	"html"
 	"net/http"
-	"strings"
 
 	"go.uber.org/fx"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // team: agent-apm
@@ -42,78 +37,25 @@ type cfg struct {
 }
 
 func newConfig(deps dependencies) (Component, error) {
-	tracecfg, err := setupConfig(deps, "")
-
-	if err != nil {
-		// Allow main Agent to start with missing API key
-		if !(err == traceconfig.ErrMissingAPIKey && !deps.Params.FailIfAPIKeyMissing) {
-			return nil, err
-		}
-	}
-
-	c := cfg{
-		AgentConfig: tracecfg,
-		coreConfig:  deps.Config,
-	}
-	c.SetMaxMemCPU(pkgconfig.IsContainerized())
-
-	return &c, nil
+	panic("not called")
 }
 
 func (c *cfg) Warnings() *pkgconfig.Warnings {
-	return c.warnings
+	panic("not called")
 }
 
 func (c *cfg) Object() *traceconfig.AgentConfig {
-	return c.AgentConfig
+	panic("not called")
 }
 
 // SetHandler returns handler for runtime configuration changes.
 func (c *cfg) SetHandler() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		if req.Method != http.MethodPost {
-			httpError(w, http.StatusMethodNotAllowed, fmt.Errorf("%s method not allowed, only %s", req.Method, http.MethodPost))
-			return
-		}
-		for key, values := range req.URL.Query() {
-			if len(values) == 0 {
-				continue
-			}
-			value := html.UnescapeString(values[len(values)-1])
-			switch key {
-			case "log_level":
-				lvl := strings.ToLower(value)
-				if lvl == "warning" {
-					lvl = "warn"
-				}
-				if err := pkgconfig.ChangeLogLevel(lvl); err != nil {
-					httpError(w, http.StatusInternalServerError, err)
-					return
-				}
-				pkgconfig.Datadog.Set("log_level", lvl, model.SourceAgentRuntime)
-				log.Infof("Switched log level to %s", lvl)
-			default:
-				log.Infof("Unsupported config change requested (key: %q).", key)
-			}
-		}
-	})
+	panic("not called")
 }
 
 // SetMaxMemCPU sets watchdog's max_memory and max_cpu_percent parameters.
 // If the agent is containerized, max_memory and max_cpu_percent are disabled by default.
 // Resource limits are better handled by container runtimes and orchestrators.
 func (c *cfg) SetMaxMemCPU(isContainerized bool) {
-	if c.coreConfig.Object().IsSet("apm_config.max_cpu_percent") {
-		c.MaxCPU = c.coreConfig.Object().GetFloat64("apm_config.max_cpu_percent") / 100
-	} else if isContainerized {
-		log.Debug("Running in a container and apm_config.max_cpu_percent is not set, setting it to 0")
-		c.MaxCPU = 0
-	}
-
-	if c.coreConfig.Object().IsSet("apm_config.max_memory") {
-		c.MaxMemory = c.coreConfig.Object().GetFloat64("apm_config.max_memory")
-	} else if isContainerized {
-		log.Debug("Running in a container and apm_config.max_memory is not set, setting it to 0")
-		c.MaxMemory = 0
-	}
+	panic("not called")
 }

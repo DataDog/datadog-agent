@@ -9,6 +9,7 @@ package winregistryimpl
 
 import (
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 )
 

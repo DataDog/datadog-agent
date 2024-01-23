@@ -9,6 +9,7 @@ package goflowlib
 
 import (
 	"encoding/hex"
+
 	flowpb "github.com/netsampler/goflow2/pb"
 
 	"github.com/DataDog/datadog-agent/comp/netflow/common"

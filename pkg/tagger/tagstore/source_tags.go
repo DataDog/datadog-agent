@@ -18,13 +18,9 @@ type sourceTags struct {
 }
 
 func (st *sourceTags) isEmpty() bool {
-	return len(st.lowCardTags) == 0 && len(st.orchestratorCardTags) == 0 && len(st.highCardTags) == 0 && len(st.standardTags) == 0
+	panic("not called")
 }
 
 func (st *sourceTags) isExpired(t time.Time) bool {
-	if st.expiryDate.IsZero() {
-		return false
-	}
-
-	return st.expiryDate.Before(t)
+	panic("not called")
 }

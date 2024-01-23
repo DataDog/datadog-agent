@@ -10,13 +10,14 @@ package usm
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	"github.com/stretchr/testify/suite"
 	"io"
 	"net"
 	nethttp "net/http"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/stretchr/testify/suite"
 
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kgo"

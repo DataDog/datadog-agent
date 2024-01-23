@@ -8,9 +8,10 @@ package diagnoses
 
 import (
 	"fmt"
+	"sync"
+
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
-	"sync"
 )
 
 // Diagnoses hold diagnoses for a NDM resource

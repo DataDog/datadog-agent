@@ -9,5 +9,5 @@ package docker
 
 // GetMetadata returns metadata about the docker runtime such as docker_version and if docker_swarm is enabled or not.
 func GetMetadata() (map[string]string, error) {
-	return nil, nil
+	panic("not called")
 }

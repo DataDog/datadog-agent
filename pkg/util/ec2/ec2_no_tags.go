@@ -11,9 +11,9 @@ import "context"
 
 // GetTags grabs the host tags from the EC2 api
 func GetTags(_ context.Context) ([]string, error) {
-	return []string{}, nil
+	panic("not called")
 }
 
 func fetchTagsFromCache(_ context.Context) ([]string, error) {
-	return []string{}, nil
+	panic("not called")
 }

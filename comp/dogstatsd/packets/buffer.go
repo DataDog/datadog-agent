@@ -88,11 +88,5 @@ func (pb *Buffer) flush() {
 
 // Close closes the packet buffer
 func (pb *Buffer) Close() {
-	close(pb.closeChannel)
-	if pb.listenerID != "" {
-		tlmBufferSize.Delete(pb.listenerID)
-		tlmChannelSize.Delete(pb.listenerID)
-		tlmBufferFlushedFull.Delete(pb.listenerID)
-		tlmBufferFlushedTimer.Delete(pb.listenerID)
-	}
+	panic("not called")
 }

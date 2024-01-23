@@ -12,11 +12,11 @@ import "context"
 
 // GetHostname returns the hostname for docker
 func GetHostname(context.Context) (string, error) {
-	return "", ErrDockerNotCompiled
+	panic("not called")
 }
 
 // GetTags returns tags that are automatically added to metrics and events on a
 // host that is running docker.
 func GetTags(context.Context) ([]string, error) {
-	return []string{}, nil
+	panic("not called")
 }

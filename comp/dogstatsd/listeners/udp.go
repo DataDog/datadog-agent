@@ -148,8 +148,5 @@ func (l *UDPListener) listen() {
 
 // Stop closes the UDP connection and stops listening
 func (l *UDPListener) Stop() {
-	l.packetAssembler.Close()
-	l.packetsBuffer.Close()
-	l.conn.Close()
-	l.listenWg.Wait()
+	panic("not called")
 }

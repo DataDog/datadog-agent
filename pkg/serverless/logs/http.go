@@ -25,7 +25,7 @@ func NewLambdaLogsAPIServer(out chan<- []LambdaLogAPIMessage) LambdaLogsAPIServe
 
 //nolint:revive // TODO(SERV) Fix revive linter
 func (l *LambdaLogsAPIServer) Close() {
-	close(l.out)
+	panic("not called")
 }
 
 // ServeHTTP - see type LambdaLogsCollector comment.

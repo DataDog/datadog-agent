@@ -25,42 +25,25 @@ type geometricRateLimiter struct {
 }
 
 func newGeometricRateLimiter(config geometricRateLimiterConfig) *geometricRateLimiter {
-	return &geometricRateLimiter{
-		minRate:          config.minRate,
-		maxRate:          config.maxRate,
-		factor:           config.factor,
-		currentRateLimit: config.minRate,
-	}
+	panic("not called")
 }
 
 func (r *geometricRateLimiter) keep() bool {
-	r.tick++
-	if 1 <= r.currentRateLimit*float64(r.tick) {
-		r.tick = 0
-		return true
-	}
-	return false
+	panic("not called")
 }
 
 func (r *geometricRateLimiter) currentRate() float64 {
-	return r.currentRateLimit
+	panic("not called")
 }
 
 func (r *geometricRateLimiter) increaseRate() {
-	r.currentRateLimit *= r.factor
-	r.normalizeRate()
+	panic("not called")
 }
 
 func (r *geometricRateLimiter) decreaseRate() {
-	r.currentRateLimit /= r.factor
-	r.normalizeRate()
+	panic("not called")
 }
 
 func (r *geometricRateLimiter) normalizeRate() {
-	if r.currentRateLimit > r.maxRate {
-		r.currentRateLimit = r.maxRate
-	}
-	if r.currentRateLimit < r.minRate {
-		r.currentRateLimit = r.minRate
-	}
+	panic("not called")
 }

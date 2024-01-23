@@ -8,9 +8,10 @@
 package checks
 
 import (
+	"testing"
+
 	"github.com/DataDog/gopsutil/cpu"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 var _ statsProvider = &mockStatsProvider{}

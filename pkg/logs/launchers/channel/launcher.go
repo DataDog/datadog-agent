@@ -62,8 +62,5 @@ func (l *Launcher) run() {
 
 // Stop waits for any running tailer to be flushed.
 func (l *Launcher) Stop() {
-	for _, tailer := range l.tailers {
-		tailer.WaitFlush()
-	}
-	l.stop <- struct{}{}
+	panic("not called")
 }

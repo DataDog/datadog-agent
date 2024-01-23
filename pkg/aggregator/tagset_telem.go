@@ -80,22 +80,9 @@ func (t *tagsetTelemetry) updateHugeSketchesTelemetry(sketches *metrics.SketchSe
 // updateHugeSerieTelemetry increments huge and almost-huge counters.
 // Same as updateHugeSeriesTelemetry but for a single serie.
 func (t *tagsetTelemetry) updateHugeSerieTelemetry(serie *metrics.Serie) {
-	tagsetSize := uint64(serie.Tags.Len())
-	t.updateTelemetry(tagsetSize, t.hugeSeriesCount, t.tlmHugeSeries)
+	panic("not called")
 }
 
 func (t *tagsetTelemetry) exp() interface{} {
-	rv := map[string]map[string]uint64{
-		"Series":   {},
-		"Sketches": {},
-	}
-
-	for i, thresh := range t.sizeThresholds {
-		serieCount := t.hugeSeriesCount[i].Load()
-		distributionCount := t.hugeSketchesCount[i].Load()
-		rv["Series"][fmt.Sprintf("Above%d", thresh)] = serieCount
-		rv["Sketches"][fmt.Sprintf("Above%d", thresh)] = distributionCount
-	}
-
-	return rv
+	panic("not called")
 }
