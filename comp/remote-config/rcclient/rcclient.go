@@ -43,6 +43,7 @@ type RCListener map[data.Product]func(updates map[string]state.RawConfig, applyS
 
 type rcClient struct {
 	client        *client.Client
+	clientHA      *client.Client
 	m             *sync.Mutex
 	taskProcessed map[string]bool
 
@@ -66,16 +67,29 @@ func newRemoteConfigClient(deps dependencies) (Component, error) {
 		return nil, err
 	}
 
-	// We have to create the client in the constructor and set its name later
 	c, err := client.NewUnverifiedGRPCClient(
 		ipcAddress,
 		config.GetIPCPort(),
 		security.FetchAuthToken,
-		client.WithAgent("unknown", version.AgentVersion),
+		client.WithAgent("unknown", version.AgentVersion), // We have to create the client in the constructor and set its name later
 		client.WithPollInterval(5*time.Second),
 	)
 	if err != nil {
 		return nil, err
+	}
+
+	var clientHA *client.Client
+	if config.Datadog.GetBool("ha.enabled") {
+		clientHA, err = client.NewUnverifiedGRPCClient(
+			ipcAddress,
+			config.GetIPCPort(),
+			security.FetchAuthToken,
+			client.WithAgent("unknown", version.AgentVersion), // We have to create the client in the constructor and set its name later
+			client.WithPollInterval(5*time.Second),
+		)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	rc := rcClient{
@@ -83,12 +97,13 @@ func newRemoteConfigClient(deps dependencies) (Component, error) {
 		taskListeners: deps.TaskListeners,
 		m:             &sync.Mutex{},
 		client:        c,
+		clientHA:      clientHA,
 	}
 
 	return rc, nil
 }
 
-// Listen subscribes to AGENT_CONFIG configurations and start the remote config client
+// Start subscribes to AGENT_CONFIG configurations and start the remote config client
 func (rc rcClient) Start(agentName string) error {
 	rc.client.SetAgentName(agentName)
 
@@ -103,7 +118,46 @@ func (rc rcClient) Start(agentName string) error {
 
 	rc.client.Start()
 
+	if rc.clientHA != nil {
+		rc.clientHA.SetAgentName(agentName)
+		rc.clientHA.Subscribe(state.ProductAgentConfig, rc.haUpdateCallback) // TODO use new HA RC product
+		rc.clientHA.Start()
+	}
+
 	return nil
+}
+
+func (rc rcClient) haUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+	var failover *bool
+	for _, update := range updates {
+		haUpdate, err := parseHighAvailabilityConfig(update.Config)
+		if err != nil {
+			pkglog.Errorf("HA update unmarshal failed: %s", err)
+			continue
+		}
+
+		if haUpdate.Failover != nil {
+			failover = haUpdate.Failover
+		}
+	}
+
+	if failover == nil {
+		shouldLog := false
+		if config.Datadog.GetSource("ha.failover") == model.SourceRC {
+			shouldLog = true
+		}
+		config.Datadog.UnsetForSource("ha.failover", model.SourceRC)
+		if shouldLog {
+			// Log the current ha.failover value AFTER unsetting the remote-config sourced value
+			pkglog.Infof("Falling back to `ha.failover: %t`", config.Datadog.GetBool("ha.failover"))
+		}
+	} else {
+		pkglog.Infof("Setting `ha.failover: %t` through remote config", *failover)
+		err := settings.SetRuntimeSetting("ha_failover", *failover, model.SourceRC)
+		if err != nil {
+			pkglog.Errorf("HA failover update failed: %s", err)
+		}
+	}
 }
 
 func (rc rcClient) SubscribeAgentTask() {

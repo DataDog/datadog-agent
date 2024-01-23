@@ -86,7 +86,7 @@ func runAgentSidekicks(ctx context.Context, cfg config.Component, wmeta workload
 	}
 
 	if coreconfig.IsRemoteConfigEnabled(coreconfig.Datadog) {
-		rcClient, err := newConfigFetcher()
+		configFetcher, err := newConfigFetcher()
 		if err != nil {
 			telemetryCollector.SendStartupError(telemetry.CantCreateRCCLient, err)
 			return fmt.Errorf("could not instantiate the tracer remote config client: %v", err)
@@ -94,7 +94,7 @@ func runAgentSidekicks(ctx context.Context, cfg config.Component, wmeta workload
 
 		api.AttachEndpoint(api.Endpoint{
 			Pattern: "/v0.7/config",
-			Handler: func(r *api.HTTPReceiver) http.Handler { return remotecfg.ConfigHandler(r, rcClient, tracecfg) },
+			Handler: func(r *api.HTTPReceiver) http.Handler { return remotecfg.ConfigHandler(r, configFetcher, tracecfg) },
 		})
 	}
 
@@ -203,7 +203,7 @@ func profilingConfig(tracecfg *tracecfg.AgentConfig) *profiling.Settings {
 	}
 }
 
-func newConfigFetcher() (rc.ConfigUpdater, error) {
+func newConfigFetcher() (rc.ConfigFetcher, error) {
 	ipcAddress, err := coreconfig.GetIPCAddress()
 	if err != nil {
 		return nil, err

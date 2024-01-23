@@ -99,7 +99,6 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
 		err = msgp.WrapError(err)
 		return
 	}
-	hook, hookok := MetaHook()
 	for zb0001 > 0 {
 		zb0001--
 		field, bts, err = msgp.ReadMapKeyZC(bts)
@@ -109,117 +108,67 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
 		}
 		switch msgp.UnsafeString(field) {
 		case "service":
-			if msgp.IsNil(bts) {
-				bts, err = msgp.ReadNilBytes(bts)
-				z.Service = ""
-				break
-			}
-			z.Service, bts, err = parseStringBytes(bts)
+			z.Service, bts, err = msgp.ReadStringBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Service")
 				return
 			}
 		case "name":
-			if msgp.IsNil(bts) {
-				bts, err = msgp.ReadNilBytes(bts)
-				z.Name = ""
-				break
-			}
-			z.Name, bts, err = parseStringBytes(bts)
+			z.Name, bts, err = msgp.ReadStringBytes(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "Service")
+				err = msgp.WrapError(err, "Name")
 				return
 			}
 		case "resource":
-			if msgp.IsNil(bts) {
-				bts, err = msgp.ReadNilBytes(bts)
-				z.Resource = ""
-				break
-			}
-			z.Resource, bts, err = parseStringBytes(bts)
+			z.Resource, bts, err = msgp.ReadStringBytes(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "Service")
+				err = msgp.WrapError(err, "Resource")
 				return
 			}
 		case "trace_id":
-			if msgp.IsNil(bts) {
-				bts, err = msgp.ReadNilBytes(bts)
-				z.TraceID = 0
-				break
-			}
-			z.TraceID, bts, err = parseUint64Bytes(bts)
+			z.TraceID, bts, err = msgp.ReadUint64Bytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "TraceID")
 				return
 			}
 		case "span_id":
-			if msgp.IsNil(bts) {
-				bts, err = msgp.ReadNilBytes(bts)
-				z.SpanID = 0
-				break
-			}
-			z.SpanID, bts, err = parseUint64Bytes(bts)
+			z.SpanID, bts, err = msgp.ReadUint64Bytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "SpanID")
 				return
 			}
 		case "parent_id":
-			if msgp.IsNil(bts) {
-				bts, err = msgp.ReadNilBytes(bts)
-				z.ParentID = 0
-				break
-			}
-			z.ParentID, bts, err = parseUint64Bytes(bts)
+			z.ParentID, bts, err = msgp.ReadUint64Bytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "ParentID")
 				return
 			}
 		case "start":
-			if msgp.IsNil(bts) {
-				bts, err = msgp.ReadNilBytes(bts)
-				z.Start = 0
-				break
-			}
-			z.Start, bts, err = parseInt64Bytes(bts)
+			z.Start, bts, err = msgp.ReadInt64Bytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Start")
 				return
 			}
 		case "duration":
-			if msgp.IsNil(bts) {
-				bts, err = msgp.ReadNilBytes(bts)
-				z.Duration = 0
-				break
-			}
-			z.Duration, bts, err = parseInt64Bytes(bts)
+			z.Duration, bts, err = msgp.ReadInt64Bytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Duration")
 				return
 			}
 		case "error":
-			if msgp.IsNil(bts) {
-				bts, err = msgp.ReadNilBytes(bts)
-				z.Error = 0
-				break
-			}
-			z.Error, bts, err = parseInt32Bytes(bts)
+			z.Error, bts, err = msgp.ReadInt32Bytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Error")
 				return
 			}
 		case "meta":
-			if msgp.IsNil(bts) {
-				bts, err = msgp.ReadNilBytes(bts)
-				z.Meta = nil
-				break
-			}
 			var zb0002 uint32
 			zb0002, bts, err = msgp.ReadMapHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Meta")
 				return
 			}
-			if z.Meta == nil && zb0002 > 0 {
+			if z.Meta == nil {
 				z.Meta = make(map[string]string, zb0002)
 			} else if len(z.Meta) > 0 {
 				for key := range z.Meta {
@@ -230,35 +179,26 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				var za0001 string
 				var za0002 string
 				zb0002--
-				za0001, bts, err = parseStringBytes(bts)
+				za0001, bts, err = msgp.ReadStringBytes(bts)
 				if err != nil {
 					err = msgp.WrapError(err, "Meta")
 					return
 				}
-				za0002, bts, err = parseStringBytes(bts)
+				za0002, bts, err = msgp.ReadStringBytes(bts)
 				if err != nil {
 					err = msgp.WrapError(err, "Meta", za0001)
 					return
 				}
-				if hookok {
-					z.Meta[za0001] = hook(za0001, za0002)
-				} else {
-					z.Meta[za0001] = za0002
-				}
+				z.Meta[za0001] = za0002
 			}
 		case "metrics":
-			if msgp.IsNil(bts) {
-				bts, err = msgp.ReadNilBytes(bts)
-				z.Metrics = nil
-				break
-			}
 			var zb0003 uint32
 			zb0003, bts, err = msgp.ReadMapHeaderBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Metrics")
 				return
 			}
-			if z.Metrics == nil && zb0003 > 0 {
+			if z.Metrics == nil {
 				z.Metrics = make(map[string]float64, zb0003)
 			} else if len(z.Metrics) > 0 {
 				for key := range z.Metrics {
@@ -269,12 +209,12 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				var za0003 string
 				var za0004 float64
 				zb0003--
-				za0003, bts, err = parseStringBytes(bts)
+				za0003, bts, err = msgp.ReadStringBytes(bts)
 				if err != nil {
 					err = msgp.WrapError(err, "Metrics")
 					return
 				}
-				za0004, bts, err = parseFloat64Bytes(bts)
+				za0004, bts, err = msgp.ReadFloat64Bytes(bts)
 				if err != nil {
 					err = msgp.WrapError(err, "Metrics", za0003)
 					return
@@ -282,12 +222,7 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				z.Metrics[za0003] = za0004
 			}
 		case "type":
-			if msgp.IsNil(bts) {
-				bts, err = msgp.ReadNilBytes(bts)
-				z.Type = ""
-				break
-			}
-			z.Type, bts, err = parseStringBytes(bts)
+			z.Type, bts, err = msgp.ReadStringBytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Type")
 				return

@@ -88,11 +88,13 @@ func newAPIServer(deps dependencies) api.Component {
 // StartServer creates the router and starts the HTTP server
 func (server *apiServer) StartServer(
 	configService *remoteconfig.Service,
+	configServiceHA *remoteconfig.Service,
 	wmeta workloadmeta.Component,
 	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
 ) error {
 	return StartServers(configService,
+		configServiceHA,
 		server.flare,
 		server.dogstatsdServer,
 		server.capture,

@@ -37,6 +37,7 @@ type serverSecure struct {
 	taggerServer       *taggerserver.Server
 	workloadmetaServer *workloadmetaServer.Server
 	configService      *remoteconfig.Service
+	configServiceHA    *remoteconfig.Service
 	dogstatsdServer    dogstatsdServer.Component
 	capture            dsdReplay.Component
 }
@@ -112,6 +113,7 @@ func (s *serverSecure) DogstatsdSetTaggerState(_ context.Context, req *pb.Tagger
 }
 
 var rcNotInitializedErr = status.Error(codes.Unimplemented, "remote configuration service not initialized")
+var haRcNotInitializedErr = status.Error(codes.Unimplemented, "HA remote configuration service not initialized")
 
 func (s *serverSecure) ClientGetConfigs(ctx context.Context, in *pb.ClientGetConfigsRequest) (*pb.ClientGetConfigsResponse, error) {
 	if s.configService == nil {
@@ -127,6 +129,22 @@ func (s *serverSecure) GetConfigState(_ context.Context, _ *emptypb.Empty) (*pb.
 		return nil, rcNotInitializedErr
 	}
 	return s.configService.ConfigGetState()
+}
+
+func (s *serverSecure) ClientGetConfigsHA(ctx context.Context, in *pb.ClientGetConfigsRequest) (*pb.ClientGetConfigsResponse, error) {
+	if s.configServiceHA == nil {
+		log.Debug(haRcNotInitializedErr.Error())
+		return nil, haRcNotInitializedErr
+	}
+	return s.configServiceHA.ClientGetConfigs(ctx, in)
+}
+
+func (s *serverSecure) GetConfigStateHA(_ context.Context, _ *emptypb.Empty) (*pb.GetStateConfigResponse, error) {
+	if s.configServiceHA == nil {
+		log.Debug(haRcNotInitializedErr.Error())
+		return nil, haRcNotInitializedErr
+	}
+	return s.configServiceHA.ConfigGetState()
 }
 
 // WorkloadmetaStreamEntities streams entities from the workloadmeta store applying the given filter

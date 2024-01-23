@@ -61,6 +61,7 @@ func stopServer(listener net.Listener, name string) {
 // StartServers creates certificates and starts API servers
 func StartServers(
 	configService *remoteconfig.Service,
+	configServiceHA *remoteconfig.Service,
 	flare flare.Component,
 	dogstatsdServer dogstatsdServer.Component,
 	capture replay.Component,
@@ -109,6 +110,7 @@ func StartServers(
 		tlsConfig,
 		tlsCertPool,
 		configService,
+		configServiceHA,
 		flare,
 		dogstatsdServer,
 		capture,

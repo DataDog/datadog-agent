@@ -24,12 +24,28 @@ func NewRemoteConfigService(hostname string) (*remoteconfig.Service, error) {
 	apiKey = configUtils.SanitizeAPIKey(apiKey)
 	baseRawURL := configUtils.GetMainEndpoint(config.Datadog, "https://config.", "remote_configuration.rc_dd_url")
 	traceAgentEnv := configUtils.GetTraceAgentDefaultEnv(config.Datadog)
+	telemetryReporter := newRcTelemetryReporter([]string{"ha:false"})
+	dbName := "remote-config.db"
 
-	telemetryReporter := newRcTelemetryReporter()
-
-	configService, err := remoteconfig.NewService(config.Datadog, apiKey, baseRawURL, hostname, telemetryReporter, version.AgentVersion, remoteconfig.WithTraceAgentEnv(traceAgentEnv))
+	configService, err := remoteconfig.NewService(config.Datadog, apiKey, baseRawURL, hostname, telemetryReporter, version.AgentVersion, dbName, remoteconfig.WithTraceAgentEnv(traceAgentEnv))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create remote-config service: %w", err)
+	}
+
+	return configService, nil
+}
+
+// NewHARemoteConfigService returns a new remote configuration service that uses the failover DC endpoint
+func NewHARemoteConfigService(hostname string) (*remoteconfig.Service, error) {
+	apiKey := configUtils.SanitizeAPIKey(config.Datadog.GetString("ha.api_key"))
+	baseRawURL := configUtils.GetHAEndpoint(config.Datadog, "https://config.", "ha.rc_dd_url")
+	traceAgentEnv := configUtils.GetTraceAgentDefaultEnv(config.Datadog)
+	telemetryReporter := newRcTelemetryReporter([]string{"ha:true"})
+	dbName := "remote-config-ha.db"
+
+	configService, err := remoteconfig.NewService(config.Datadog, apiKey, baseRawURL, hostname, telemetryReporter, version.AgentVersion, dbName, remoteconfig.WithTraceAgentEnv(traceAgentEnv))
+	if err != nil {
+		return nil, fmt.Errorf("unable to create HA remote-config service: %w", err)
 	}
 
 	return configService, nil
@@ -52,20 +68,20 @@ func (r *ddRcTelemetryReporter) IncTimeout() {
 }
 
 // newRcTelemetryReporter returns a new ddRcTelemetryReporter that uses the datadog-agent telemetry package to emit metrics.
-func newRcTelemetryReporter() *ddRcTelemetryReporter {
+func newRcTelemetryReporter(tags []string) *ddRcTelemetryReporter {
 	commonOpts := telemetry.Options{NoDoubleUnderscoreSep: true}
 	return &ddRcTelemetryReporter{
 		BypassRateLimitCounter: telemetry.NewCounterWithOpts(
 			"remoteconfig",
 			"cache_bypass_ratelimiter_skip",
-			[]string{},
+			tags,
 			"Number of Remote Configuration cache bypass requests skipped by rate limiting.",
 			commonOpts,
 		),
 		BypassTimeoutCounter: telemetry.NewCounterWithOpts(
 			"remoteconfig",
 			"cache_bypass_timeout",
-			[]string{},
+			tags,
 			"Number of Remote Configuration cache bypass requests that timeout.",
 			commonOpts,
 		),
