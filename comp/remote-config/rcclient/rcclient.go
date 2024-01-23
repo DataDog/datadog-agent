@@ -120,7 +120,7 @@ func (rc rcClient) Start(agentName string) error {
 
 	if rc.clientHA != nil {
 		rc.clientHA.SetAgentName(agentName)
-		rc.clientHA.Subscribe(state.ProductAgentConfig, rc.haUpdateCallback) // TODO use new HA RC product
+		rc.clientHA.Subscribe(state.ProductAgentFailover, rc.haUpdateCallback)
 		rc.clientHA.Start()
 	}
 
