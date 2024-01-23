@@ -18,11 +18,12 @@ package olreader
 import "C"
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"golang.org/x/sys/windows"
 	"sync"
 	"syscall"
 	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"golang.org/x/sys/windows"
 )
 
 const (
