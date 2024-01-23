@@ -26,28 +26,36 @@ headers = [
     "Total States",
 ]
 
+verifier_stat_json_keys = [
+    "stack_usage",
+    "instruction_processed",
+    "limit",
+    "verification_time",
+    "max_states_per_insn",
+    "peak_states",
+    "total_states",
+]
+
 
 def tabulate_stats(stats):
     table = list()
     for key, value in stats.items():
         row = list()
         row.append(key)
-        row.append(value["stack_usage"])
-        row.append(value["instruction_processed"])
-        row.append(value["limit"])
-        row.append(value["verification_time"])
-        row.append(value["max_states_per_insn"])
-        row.append(value["peak_states"])
-        row.append(value["total_states"])
+        for json_key in verifier_stat_json_keys:
+            row.append(value[json_key])
         table.append(row)
 
     return tabulate(table, headers=headers, tablefmt="github")
 
 
 def colored_diff(val1, val2):
-    if val1 <= val2:
-        return colored(val1 - val2, "green")
-    return colored(val1 - val2, "red")
+    try:
+        if val1 <= val2:
+            return colored(val1 - val2, "green")
+        return colored(val1 - val2, "red")
+    except TypeError:
+        return val1 - val2
 
 
 def stdout_or_file(filename=None):
@@ -56,6 +64,13 @@ def stdout_or_file(filename=None):
         yield sys.stdout
 
     return open(filename, 'w') if filename else stdout()
+
+
+def write_verifier_stats(verifier_stats, f, jsonfmt):
+    if jsonfmt:
+        print(json.dumps(verifier_stats, indent=4), file=f)
+    else:
+        print(tabulate_stats(verifier_stats), file=f)
 
 
 @task(
@@ -88,11 +103,7 @@ def print_verification_stats(ctx, skip_object_files=False, base=None, jsonfmt=Fa
 
     if base is None:
         with stdout_or_file(out) as f:
-            if jsonfmt:
-                print(json.dumps(verifier_stats, indent=4), file=f)
-            else:
-                print(tabulate_stats(verifier_stats), file=f)
-
+            write_verifier_stats(verifier_stats, f, jsonfmt)
         return
 
     with open(base, 'r') as f:
@@ -106,20 +117,10 @@ def print_verification_stats(ctx, skip_object_files=False, base=None, jsonfmt=Fa
             continue
 
         base_value = base_verifier_stats[key]
-        stat["stack_usage"] = colored_diff(value["stack_usage"], base_value["stack_usage"])
-        stat["instruction_processed"] = colored_diff(
-            value["instruction_processed"], base_value["instruction_processed"]
-        )
-        stat["limit"] = colored_diff(value["limit"], base_value["limit"])
-        stat["verification_time"] = colored_diff(value["verification_time"], base_value["verification_time"])
-        stat["max_states_per_insn"] = colored_diff(value["max_states_per_insn"], base_value["max_states_per_insn"])
-        stat["total_states"] = colored_diff(value["total_states"], base_value["total_states"])
-        stat["peak_states"] = colored_diff(value["peak_states"], base_value["peak_states"])
+        for json_key in verifier_stat_json_keys:
+            stat[json_key] = colored_diff(value[json_key], base_value[json_key])
 
         stats_diff[key] = stat
 
     with stdout_or_file(out) as f:
-        if jsonfmt:
-            print(json.dumps(stats_diff, indent=4), file=f)
-        else:
-            print(tabulate_stats(stats_diff), file=f)
+        write_verifier_stats(stats_diff, f, jsonfmt)
