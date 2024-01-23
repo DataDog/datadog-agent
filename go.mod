@@ -670,7 +670,7 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.0.0 // indirect
 	github.com/google/btree v1.1.2 // indirect
 	github.com/google/cel-go v0.16.1 // indirect
-	github.com/google/gnostic-models v0.6.8 // indirect
+	github.com/google/gnostic v0.6.9 // indirect
 	github.com/google/s2a-go v0.1.5 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/gosuri/uitable v0.0.4 // indirect
@@ -798,3 +798,17 @@ exclude (
 // be removed and the version of listed above dd-trace-go.v1 bumped to the
 // newer version.
 replace gopkg.in/DataDog/dd-trace-go.v1 => github.com/DataDog/dd-trace-go v0.0.0-20231030162158-1e7a3e0de599
+
+replace (
+	// Stick to v0.27.6 as bumping client-go to 0.28.x breaks cluster agent leader election
+	k8s.io/api => k8s.io/api v0.27.6
+	k8s.io/apimachinery => k8s.io/apimachinery v0.27.6
+	k8s.io/apiserver => k8s.io/apiserver v0.27.6
+	k8s.io/cli-runtime => k8s.io/cli-runtime v0.27.6
+	k8s.io/client-go => k8s.io/client-go v0.27.6
+	k8s.io/component-base => k8s.io/component-base v0.27.6
+	// Small compilation fixes so that k8s.io/apiserver can compile against kube-openapi
+	k8s.io/kube-openapi => github.com/lebauce/kube-openapi v0.0.0-20231101162351-39b249f0ed92
+	k8s.io/kubectl => k8s.io/kubectl v0.27.6
+	sigs.k8s.io/kustomize/kyaml => sigs.k8s.io/kustomize/kyaml v0.14.3-0.20230526173653-cf3e81b590ab
+)
