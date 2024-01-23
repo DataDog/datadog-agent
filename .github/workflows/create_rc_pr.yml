@@ -1,0 +1,31 @@
+name: Create RC PR
+
+on:
+    workflow_dispatch:
+
+jobs:
+    create_rc_pr:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v2
+
+            - name: Set up Python 3
+              uses: actions/setup-python@v2
+              with:
+                python-version: 3.x
+
+            - name: Install Python dependencies
+              run: pip install -r tasks/requirements_all_tasks.txt
+
+            - name: Create RC PR
+              run: inv -e release.create-rc
+
+            - name: Notify Slack
+              uses: rtCamp/action-slack-notify@v2
+              with:
+                status: 'success'
+                text: 'New RC PR created!'
+                channel: '#trello-test-channel'
+                icon_emoji: ':rocket:'
