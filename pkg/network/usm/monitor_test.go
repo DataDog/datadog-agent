@@ -698,9 +698,7 @@ func newHTTPMonitorWithCfg(t *testing.T, cfg *config.Config) *Monitor {
 
 	// at this stage the test can be legitimately skipped due to missing BTF information
 	// in the context of CO-RE
-	err = monitor.Start()
-	skipIfNotSupported(t, err)
-	require.NoError(t, err)
+	require.NoError(t, monitor.Start())
 	return monitor
 }
 
