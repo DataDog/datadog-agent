@@ -76,7 +76,7 @@ func TestNonBlockingFailure(t *testing.T) {
 		Module,
 	)
 	assert.NotEmpty(t, server)
-	assert.ErrorContains(t, server.Error(), "no such file or directory")
+	assert.ErrorIs(t, server.Error(), os.ErrNotExist)
 	assert.False(t, server.Running())
 }
 
