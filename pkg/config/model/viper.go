@@ -421,14 +421,6 @@ func (c *safeConfig) GetSource(key string) Source {
 	return source
 }
 
-// GetSection wraps Viper for concurrent access
-func (c *safeConfig) GetSection(key string) map[string]interface{} {
-	c.RLock()
-	defer c.RUnlock()
-	val := c.Viper.Sub(key)
-	return val.AllSettings()
-}
-
 // SetEnvPrefix wraps Viper for concurrent access, and keeps the envPrefix for
 // future reference
 func (c *safeConfig) SetEnvPrefix(in string) {
