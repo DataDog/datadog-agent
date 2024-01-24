@@ -18,6 +18,13 @@
 #define MSG_PEEK 2
 #endif
 
+
+static __always_inline bool ringbuffers_enabled() {
+    __u64 val = 0;
+    LOAD_CONSTANT("ringbuffer_enabled", val);
+    return val > 0;
+}
+
 static __always_inline void clean_protocol_classification(conn_tuple_t *tup) {
     conn_tuple_t conn_tuple = *tup;
     conn_tuple.pid = 0;
@@ -115,10 +122,10 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     // We send the connection outside of a batch anyway. This is likely not as
     // frequent of a case to cause performance issues and avoid cases where
     // we drop whole connections, which impacts things USM connection matching.
-    if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0)) {
-        bpf_perf_event_output(ctx, &conn_close_event_perf, cpu, &conn, sizeof(conn));
+    if (ringbuffers_enabled()) {
+        bpf_ringbuf_output(&conn_close_event, &conn, sizeof(conn), 0);
     } else {
-        bpf_ringbuf_output(&conn_close_event_ring, &conn, sizeof(conn), 0);
+        bpf_perf_event_output(ctx, &conn_close_event, cpu, &conn, sizeof(conn));
     }
 
     if (is_tcp) {
@@ -146,10 +153,10 @@ static __always_inline void flush_conn_close_if_full(void *ctx) {
         batch_ptr->id++;
 
         // we cannot use the telemetry macro here because of stack size constraints
-        if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0)) {
-            bpf_perf_event_output(ctx, &conn_close_event_perf, cpu, &batch_copy, sizeof(batch_copy));
+        if (ringbuffers_enabled()) {
+            bpf_ringbuf_output(&conn_close_event, &batch_copy, sizeof(batch_copy), 0);
         } else {
-            bpf_ringbuf_output(&conn_close_event_ring, &batch_copy, sizeof(batch_copy), 0);
+            bpf_perf_event_output(ctx, &conn_close_event, cpu, &batch_copy, sizeof(batch_copy));
         }
     }
 }

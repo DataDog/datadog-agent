@@ -193,9 +193,7 @@ const (
 	//nolint:revive // TODO(NET) Fix revive linter
 	TCPConnectSockPidMap BPFMapName = "tcp_ongoing_connect_pid"
 	//nolint:revive // TODO(NET) Fix revive linter
-	ConnCloseEventMapPerf BPFMapName = "conn_close_event_perf"
-	//nolint:revive // TODO(NET) Fix revive linter
-	ConnCloseEventMapRing BPFMapName = "conn_close_event_ring"
+	ConnCloseEventMap BPFMapName = "conn_close_event"
 	//nolint:revive // TODO(NET) Fix revive linter
 	TracerStatusMap BPFMapName = "tracer_status"
 	//nolint:revive // TODO(NET) Fix revive linter

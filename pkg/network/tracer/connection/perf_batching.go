@@ -12,15 +12,12 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/features"
-
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const defaultExpiredStateInterval = 60 * time.Second
@@ -179,27 +176,15 @@ func (p *perfBatchManager) cleanupExpiredState(now time.Time) {
 }
 
 func newConnBatchManager(mgr *manager.Manager) (*perfBatchManager, error) {
-	var connCloseEventMap *ebpf.Map
-	var err error
-	log.Debugf("adamk Loading conn_close_event_map")
-	if features.HaveMapType(ebpf.RingBuf) == nil {
-		log.Debugf("adamk Loading conn_close_event_map RingBuf")
-		connCloseEventMap, _, err = mgr.GetMap(probes.ConnCloseEventMapRing)
-		log.Debugf("adamk Loading conn_close_event_map RingBuf done")
-	} else {
-		log.Debugf("adamk Loading conn_close_event_map Perf")
-		connCloseEventMap, _, err = mgr.GetMap(probes.ConnCloseEventMapPerf)
-	}
-	if err != nil {
-		return nil, err
-	}
-
 	connCloseMap, _, err := mgr.GetMap(probes.ConnCloseBatchMap)
 	if err != nil {
 		return nil, err
 	}
 
-	numCPUs := int(connCloseEventMap.MaxEntries())
+	numCPUs, err := ebpf.PossibleCPU()
+	if err != nil {
+		return nil, err
+	}
 	batchMgr, err := newPerfBatchManager(connCloseMap, numCPUs)
 	if err != nil {
 		return nil, err

@@ -20,6 +20,7 @@ import (
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
 
@@ -46,7 +47,8 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, perfHandlerTCP *
 			return fmt.Errorf("invalid probe configuration: %v", err)
 		}
 
-		initManager(m, perfHandlerTCP, ringHandlerTCP, config)
+		ringbufferEnabled := kprobe.RingbufferSupported(config)
+		initManager(m, perfHandlerTCP, ringHandlerTCP, ringbufferEnabled, config)
 
 		file, err := os.Stat("/proc/self/ns/pid")
 

@@ -31,8 +31,8 @@ type RingBuffer struct {
 // Init the ring buffer
 func (rb *RingBuffer) Init(mgr *manager.Manager, config *config.Config) error {
 	var ok bool
-	if rb.ringBuffer, ok = mgr.GetRingBuffer("conn_close_event_ring"); !ok {
-		return errors.New("couldn't find conn_close_event_ring ring buffer")
+	if rb.ringBuffer, ok = mgr.GetRingBuffer("conn_close_event"); !ok {
+		return errors.New("couldn't find conn_close_event ring buffer")
 	}
 
 	rb.ringBuffer.RingBufferOptions = manager.RingBufferOptions{

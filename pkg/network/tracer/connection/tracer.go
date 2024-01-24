@@ -241,7 +241,7 @@ func NewTracer(config *config.Config, bpfTelemetry *ebpftelemetry.EBPFTelemetry)
 
 	batchMgr, err := newConnBatchManager(m)
 	if err != nil {
-		return nil, fmt.Errorf("could not create connection batch maanager: %w", err)
+		return nil, fmt.Errorf("could not create connection batch manager: %w", err)
 	}
 
 	closeConsumer := newTCPCloseConsumer(perfHandlerTCP, batchMgr)

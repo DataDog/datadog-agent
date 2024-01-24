@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
+	secEbpf "github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -110,7 +111,6 @@ func ClassificationSupported(config *config.Config) bool {
 }
 
 func RingbufferSupported(config *config.Config) bool {
-	log.Debugf("adamk RingbufferSupported?")
 	log.Debugf("adamk HaveMapType ebpf.RingBuf? %v", features.HaveMapType(ebpf.RingBuf) == nil)
 	log.Debugf("adamk config.RingbufferEnabled? %v", config.RingbufferEnabled)
 	return (features.HaveMapType(ebpf.RingBuf) == nil) && config.RingbufferEnabled
@@ -200,6 +200,14 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 
 	if err := initManager(m, perfHandlerTCP, ringHandlerTCP, runtimeTracer, ringbufferEnabled, config); err != nil {
 		return nil, nil, fmt.Errorf("could not initialize manager: %w", err)
+	}
+
+	if ringbufferEnabled {
+		mgrOpts.MapSpecEditors["conn_close_event"] = manager.MapSpecEditor{
+			MaxEntries: secEbpf.ComputeDefaultEventsRingBufferSize(),
+			Type:       ebpf.RingBuf,
+			EditorFlag: manager.EditMaxEntries | manager.EditType | manager.EditKeyValue,
+		}
 	}
 
 	var undefinedProbes []manager.ProbeIdentificationPair
