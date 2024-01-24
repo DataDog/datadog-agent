@@ -265,6 +265,8 @@ labels that can be use:
 - `major_change`: to flag the PR as a major change impacting many/all teams
   working on the agent and will require deeper QA (example: when we change the
   Python version shipped in the agent).
+- `need-change/operator`, `need-change/helm`: indicate that the configuration needs to be modified in the operator / helm chart as well.
+- `k8s/<min-version>`: indicate the lowest Kubernetes version compatible with the PR's feature.
 
 ## Integrations
 
