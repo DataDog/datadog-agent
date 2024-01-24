@@ -45,13 +45,13 @@ const maxMapsTracked = 20
 
 // Probe is the eBPF side of the eBPF check
 type Probe struct {
-	statsFD           io.Closer
-	coll              *ebpf.Collection
-	perfBufferMap     *ebpf.Map
-	ringBufferMap     *ebpf.Map
-	pidMap            *ebpf.Map
-	links             []link.Link
-	entryCountBuffers entryCountBuffers
+	statsFD       io.Closer
+	coll          *ebpf.Collection
+	perfBufferMap *ebpf.Map
+	ringBufferMap *ebpf.Map
+	pidMap        *ebpf.Map
+	links         []link.Link
+	mapBuffers    entryCountBuffers
 
 	nrcpus uint32
 }
@@ -336,7 +336,7 @@ func (k *Probe) getMapStats(stats *model.EBPFStats) error {
 			}
 		case ebpf.Hash, ebpf.LRUHash, ebpf.PerCPUHash, ebpf.LRUCPUHash, ebpf.HashOfMaps:
 			baseMapStats.MaxSize, baseMapStats.RSS = hashMapMemoryUsage(info, uint64(k.nrcpus))
-			baseMapStats.Entries = hashMapNumberOfEntries(mp, &k.entryCountBuffers)
+			baseMapStats.Entries = hashMapNumberOfEntries(mp, &k.mapBuffers)
 		case ebpf.Array, ebpf.PerCPUArray, ebpf.ProgramArray, ebpf.CGroupArray, ebpf.ArrayOfMaps:
 			baseMapStats.MaxSize, baseMapStats.RSS = arrayMemoryUsage(info, uint64(k.nrcpus))
 		case ebpf.LPMTrie:
@@ -362,6 +362,8 @@ func (k *Probe) getMapStats(stats *model.EBPFStats) error {
 	for _, mp := range stats.Maps {
 		log.Tracef("name=%s map_id=%d max=%d rss=%d type=%s", mp.Name, mp.ID, mp.MaxSize, mp.RSS, mp.Type)
 	}
+	// Allow the maps to be garbage collected
+	k.mapBuffers.resetBuffers()
 
 	return nil
 }
@@ -527,29 +529,47 @@ func ringBufferMemoryUsage(mapStats *model.EBPFMapStats, info *ebpf.MapInfo, k *
 	return nil
 }
 
+// entryCountBuffers is a struct that contains buffers used to get the number of entries
+// with the batch API. It is used to avoid allocating buffers for every map. This structure
+// also keeps track of the biggest allocation performed, so that on repeated calls we always
+// allocate the biggest map we have seen so far, reducing the number of allocations.
 type entryCountBuffers struct {
-	keys   []byte
-	values []byte
-	cursor []byte
+	keys          []byte
+	values        []byte
+	cursor        []byte
+	maxKeysSize   uint32
+	maxValuesSize uint32
+	maxCursorSize uint32
 }
 
 func (e *entryCountBuffers) ensureSizeAll(referenceMap *ebpf.Map) {
 	maxSize := referenceMap.MaxEntries()
-	keysSize := referenceMap.KeySize() * maxSize
-	valuesSize := referenceMap.ValueSize() * maxSize
+	keysSize := max(e.maxKeysSize, referenceMap.KeySize()*maxSize)
+	valuesSize := max(e.maxValuesSize, referenceMap.ValueSize()*maxSize)
 	if uint32(cap(e.keys)) < keysSize {
 		e.keys = make([]byte, keysSize)
+		e.maxKeysSize = keysSize
 	}
 	if uint32(cap(e.values)) < valuesSize {
 		e.values = make([]byte, valuesSize)
+		e.maxValuesSize = valuesSize
 	}
 	e.ensureSizeCursor(referenceMap)
 }
 
 func (e *entryCountBuffers) ensureSizeCursor(referenceMap *ebpf.Map) {
-	if uint32(cap(e.cursor)) < referenceMap.KeySize() {
-		e.cursor = make([]byte, referenceMap.KeySize())
+	cursorSize := max(e.maxCursorSize, referenceMap.KeySize())
+	if uint32(cap(e.cursor)) < cursorSize {
+		e.cursor = make([]byte, cursorSize)
+		e.maxCursorSize = cursorSize
 	}
+}
+
+// resetBuffers resets the buffers to nil, so that they can be garbage collected
+func (e *entryCountBuffers) resetBuffers() {
+	e.keys = nil
+	e.values = nil
+	e.cursor = nil
 }
 
 func hashMapNumberOfEntriesWithBatch(mp *ebpf.Map, buffers *entryCountBuffers) (int64, error) {
