@@ -95,6 +95,12 @@ Package status displays information about the agent.
 Package sysprobeconfig implements a component to handle system-probe configuration.  This
 component temporarily wraps pkg/config.
 
+### [comp/core/tagger](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/tagger)
+
+*Datadog Team*: container-integrations
+
+Package tagger provides the tagger component for the Datadog Agent
+
 ### [comp/core/telemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/telemetry)
 
 Package telemetry implements a component for all agent telemetry.
@@ -158,6 +164,12 @@ Package defaultforwarder implements a component to send payloads to the backend
 *Datadog Team*: agent-metrics-logs
 
 Package orchestrator implements the orchestrator forwarder component.
+
+### [comp/forwarder/orchestrator/orchestratorinterface](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface)
+
+*Datadog Team*: agent-metrics-logs
+
+Package orchestratorinterface defines the interface for the orchestrator forwarder component.
 
 ## [comp/languagedetection](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/languagedetection) (Component Bundle)
 

@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
@@ -93,6 +94,7 @@ func newAPIServer(deps dependencies) api.Component {
 func (server *apiServer) StartServer(
 	configService *remoteconfig.Service,
 	wmeta workloadmeta.Component,
+	taggerComp tagger.Component,
 	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
 ) error {
@@ -102,6 +104,7 @@ func (server *apiServer) StartServer(
 		server.capture,
 		server.serverDebug,
 		wmeta,
+		taggerComp,
 		logsAgent,
 		senderManager,
 		server.hostMetadata,
