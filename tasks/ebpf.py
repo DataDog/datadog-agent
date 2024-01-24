@@ -73,6 +73,17 @@ def write_verifier_stats(verifier_stats, f, jsonfmt):
         print(tabulate_stats(verifier_stats), file=f)
 
 
+# the go program return stats in the form {func_name: {stat_name: {Value: X}}}.
+# convert this to {func_name: {stat_name: X}}
+def cleanup_verifier_stats(verifier_stats):
+    cleaned = dict()
+    for func in verifier_stats:
+        cleaned[func] = dict()
+        for stat in verifier_stats[func]:
+            cleaned[func][stat] = verifier_stats[func][stat]["Value"]
+    return cleaned
+
+
 @task(
     help={
         "skip_object_files": "Do not build ebpf object files",
@@ -97,7 +108,7 @@ def print_verification_stats(ctx, skip_object_files=False, base=None, jsonfmt=Fa
     res = ctx.run(f"{sudo} ./main --directory pkg/ebpf/bytecode/build/co-re {debug}", hide=True)
     print(res.stderr, file=sys.stderr)
     if res.exited == 0:
-        verifier_stats = json.loads(res.stdout)
+        verifier_stats = cleanup_verifier_stats(json.loads(res.stdout))
     else:
         return
 
