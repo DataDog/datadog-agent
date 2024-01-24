@@ -7,16 +7,16 @@ from pathlib import Path
 
 from invoke import task
 
-from .kernel_matrix_testing import stacks, vmconfig
-from .kernel_matrix_testing.compiler import build_compiler as build_cc
-from .kernel_matrix_testing.compiler import compiler_running, docker_exec
-from .kernel_matrix_testing.compiler import start_compiler as start_cc
-from .kernel_matrix_testing.download import arch_mapping, update_rootfs
-from .kernel_matrix_testing.infra import build_infrastructure
-from .kernel_matrix_testing.init_kmt import check_and_get_stack, init_kernel_matrix_testing_system
-from .kernel_matrix_testing.kmt_os import get_kmt_os
-from .kernel_matrix_testing.tool import Exit, ask, info, warn
-from .system_probe import EMBEDDED_SHARE_DIR
+from tasks.kernel_matrix_testing import stacks, vmconfig
+from tasks.kernel_matrix_testing.compiler import build_compiler as build_cc
+from tasks.kernel_matrix_testing.compiler import compiler_running, docker_exec
+from tasks.kernel_matrix_testing.compiler import start_compiler as start_cc
+from tasks.kernel_matrix_testing.download import arch_mapping, update_rootfs
+from tasks.kernel_matrix_testing.infra import build_infrastructure
+from tasks.kernel_matrix_testing.init_kmt import check_and_get_stack, init_kernel_matrix_testing_system
+from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
+from tasks.kernel_matrix_testing.tool import Exit, ask, info, warn
+from tasks.system_probe import EMBEDDED_SHARE_DIR
 
 try:
     from tabulate import tabulate

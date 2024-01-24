@@ -235,6 +235,7 @@
 /comp/checks/agentcrashdetect @DataDog/windows-kernel-integrations
 /comp/checks/winregistry @DataDog/windows-agent
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
+/comp/core/tagger @DataDog/container-integrations
 /comp/core/workloadmeta @DataDog/container-integrations
 /comp/dogstatsd/statsd @DataDog/agent-shared-components
 /comp/forwarder/orchestrator @DataDog/agent-metrics-logs
@@ -247,6 +248,7 @@
 /pkg/api/                               @DataDog/agent-shared-components
 /pkg/aggregator/                        @DataDog/agent-metrics-logs
 /pkg/collector/                         @DataDog/agent-metrics-logs
+/pkg/commonchecks/                      @DataDog/agent-metrics-logs
 /pkg/cli/                               @DataDog/agent-shared-components
 /pkg/cli/subcommands/clusterchecks      @DataDog/container-integrations
 /pkg/dogstatsd/                         @DataDog/agent-metrics-logs
@@ -295,8 +297,8 @@
 /pkg/collector/corechecks/ebpf/c/runtime/ebpf*        @DataDog/ebpf-platform
 /pkg/collector/corechecks/embed/        @Datadog/agent-platform
 /pkg/collector/corechecks/embed/jmx/    @Datadog/agent-metrics-logs
-/pkg/collector/corechecks/embed/apm*.go            @Datadog/agent-platform @DataDog/agent-apm
-/pkg/collector/corechecks/embed/process_agent*.go  @Datadog/agent-platform @DataDog/processes
+/pkg/collector/corechecks/embed/apm/            @Datadog/agent-platform @DataDog/agent-apm
+/pkg/collector/corechecks/embed/process/  @Datadog/agent-platform @DataDog/processes
 /pkg/collector/corechecks/orchestrator/   @DataDog/container-app
 /pkg/collector/corechecks/kubernetes/       @DataDog/container-integrations
 /pkg/collector/corechecks/net/          @DataDog/platform-integrations
@@ -349,7 +351,6 @@
 /pkg/remoteconfig/                      @DataDog/remote-config
 /pkg/runtime/                           @DataDog/agent-shared-components
 /pkg/serializer/                        @DataDog/agent-metrics-logs
-/pkg/tagger/                            @DataDog/container-integrations
 /pkg/tagset/                            @DataDog/agent-shared-components
 /pkg/updater/                           @DataDog/fleet
 /pkg/util/                              @DataDog/agent-shared-components
