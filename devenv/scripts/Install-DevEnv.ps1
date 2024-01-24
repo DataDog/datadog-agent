@@ -92,3 +92,6 @@ mkdir -Force $AgentPath
 setx /m GOPATH "$GoPath"
 
 Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen ' * DONE *'
+Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '*** Please restart your computer at the end of this script execution on Windows. ***'
+Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '*** This is necessary for the Go, Python, etc paths to be recognized and updated correctly. ***'
+Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen 'For this you can run Restart-Computer'
