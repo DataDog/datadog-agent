@@ -79,6 +79,7 @@ def gen_config_from_ci_pipeline(
     memory=None,
     new=False,
     ci=False,
+    use_local_if_possible=False,
     arch="",
     output_file="vmconfig.json",
 ):
@@ -133,6 +134,12 @@ def gen_config_from_ci_pipeline(
 
             vars = match.group(1).split(",")
             distro = vars[0]
+
+            if use_local_if_possible and (
+                (platform.machine() == "aarch64" and arch == "arm64")
+                or (platform.machine() == "x86_64" and arch == "x86")
+            ):
+                arch = "local"
 
             vms.add(f"{arch}-{distro}-distro")
 
