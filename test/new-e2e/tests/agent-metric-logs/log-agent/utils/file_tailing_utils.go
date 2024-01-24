@@ -90,7 +90,7 @@ func AppendLog(ls LogsTestSuite, logFileName, content string, recurrence int) {
 	}, 2*time.Minute, 10*time.Second)
 }
 
-// ChecklogFilePresence verifies the presence or absence of a log file path
+// CheckLogFilePresence verifies the presence or absence of a log file path
 func CheckLogFilePresence(ls LogsTestSuite, logFileName string) {
 	t := ls.T()
 	t.Helper()
