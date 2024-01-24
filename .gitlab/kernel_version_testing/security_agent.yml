@@ -127,7 +127,7 @@ kernel_matrix_testing_setup_env_security_agent_x64:
     # upload connector to metal instance
     - scp $CI_PROJECT_DIR/connector-${ARCH} metal_instance:/home/ubuntu/connector
   variables:
-    DEPENDENCIES: $DD_AGENT_TESTING_DIR/$ARCH/tests
+    DEPENDENCIES: $DD_AGENT_TESTING_DIR/$ARCH/dependencies
     EMBEDDED_BIN: opt/datadog-agent/embedded/bin
     EMBEDDED_INC: opt/datadog-agent/embedded/include
     CLANG_BPF: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/clang-bpf

@@ -136,6 +136,7 @@ kernel_matrix_testing_setup_env_system_probe_x64:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
     ARCHIVE_NAME: dependencies-$ARCH.tar.gz
     TEST_ARCHIVE_NAME: system-probe-tests-$ARCH.tar.gz
+    TEST_COMPONENT: system-probe
   artifacts:
     when: always
     paths:
