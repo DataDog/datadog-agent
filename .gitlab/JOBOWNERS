@@ -90,6 +90,7 @@ new-e2e-aml*                      @DataDog/agent-metrics-logs
 new-e2e-npm*                      @DataDog/Networks
 new-e2e-cws*                      @DataDog/agent-security
 new-e2e-windows-agent*            @DataDog/windows-agent
+new-e2e-orchestrator*             @DataDog/container-app
 
 # Kernel version testing
 package_dependencies*             @DataDog/ebpf-platform
