@@ -164,7 +164,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
 	slowServerAddr := "localhost:8080"
 	fastServerAddr := "localhost:8081"
 
-	monitor := newHTTPMonitor(t)
+	monitor := newHTTPMonitorWithCfg(t, config.New())
 	slowSrvDoneFn := testutil.HTTPServer(t, slowServerAddr, testutil.Options{
 		SlowResponse: time.Millisecond * 500, // Half a second.
 		WriteTimeout: time.Millisecond * 200,
@@ -239,7 +239,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationWithResponseBody() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			monitor := newHTTPMonitor(t)
+			monitor := newHTTPMonitorWithCfg(t, config.New())
 			srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
 				EnableKeepAlive: true,
 			})
@@ -354,7 +354,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegration() {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, keepAliveEnabled := range []bool{true, false} {
 				t.Run(testNameHelper("with keep alive", "without keep alive", keepAliveEnabled), func(t *testing.T) {
-					monitor := newHTTPMonitor(t)
+					monitor := newHTTPMonitorWithCfg(t, config.New())
 
 					srvDoneFn := testutil.HTTPServer(t, tt.serverAddress, testutil.Options{EnableKeepAlive: keepAliveEnabled})
 					t.Cleanup(srvDoneFn)
@@ -378,7 +378,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegration() {
 func (s *HTTPTestSuite) TestRSTPacketRegression() {
 	t := s.T()
 
-	monitor := newHTTPMonitor(t)
+	monitor := newHTTPMonitorWithCfg(t, config.New())
 
 	serverAddr := "127.0.0.1:8080"
 	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
@@ -411,7 +411,7 @@ func (s *HTTPTestSuite) TestRSTPacketRegression() {
 func (s *HTTPTestSuite) TestKeepAliveWithIncompleteResponseRegression() {
 	t := s.T()
 
-	monitor := newHTTPMonitor(t)
+	monitor := newHTTPMonitorWithCfg(t, config.New())
 
 	const req = "GET /200/foobar HTTP/1.1\n"
 	const rsp = "HTTP/1.1 200 OK\n"
@@ -634,10 +634,6 @@ func newHTTPMonitorWithCfg(t *testing.T, cfg *config.Config) *Monitor {
 	// in the context of CO-RE
 	require.NoError(t, monitor.Start())
 	return monitor
-}
-
-func newHTTPMonitor(t *testing.T) *Monitor {
-	return newHTTPMonitorWithCfg(t, config.New())
 }
 
 func skipIfNotSupported(t *testing.T, err error) {
