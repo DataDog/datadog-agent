@@ -27,6 +27,8 @@ except ImportError:
 
 X86_AMI_ID_SANDBOX = "ami-0d1f81cfdbd5b0188"
 ARM_AMI_ID_SANDBOX = "ami-02cb18e91afb3777c"
+DEFAULT_VCPU = "4"
+DEFAULT_MEMORY = "8192"
 
 
 @task
@@ -42,6 +44,8 @@ def create_stack(ctx, stack=None):
         "memory": "Comma separated list of memory to launch each VM with. Automatically rounded up to power of 2",
         "new": "Generate new configuration file instead of appending to existing one within the provided stack",
         "init-stack": "Automatically initialize stack if not present. Equivalent to calling 'inv -e kmt.create-stack [--stack=<stack>]'",
+        "from-ci-pipeline": "Generate a vmconfig.json file with the VMs that failed jobs in pipeline with the given ID.",
+        "use-local-if-possible": "(Only when --from-ci-pipeline is used) If the VM is for the same architecture as the host, use the local VM instead of the remote one.",
     }
 )
 def gen_config(
@@ -56,20 +60,32 @@ def gen_config(
     ci=False,
     arch="",
     output_file="vmconfig.json",
+    from_ci_pipeline=None,
+    use_local_if_possible=False,
 ):
-    vmconfig.gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, output_file)
+    """
+    Generate a vmconfig.json file with the given VMs.
+    """
+    if from_ci_pipeline is not None:
+        return gen_config_from_ci_pipeline(
+            ctx,
+            stack=stack,
+            pipeline=from_ci_pipeline,
+            init_stack=init_stack,
+            vcpu=vcpu,
+            memory=memory,
+            new=new,
+            ci=ci,
+            arch=arch,
+            output_file=output_file,
+            use_local_if_possible=use_local_if_possible,
+        )
+    else:
+        vcpu = DEFAULT_VCPU if vcpu is None else vcpu
+        memory = DEFAULT_MEMORY if memory is None else memory
+        vmconfig.gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, output_file)
 
 
-@task(
-    help={
-        "pipeline": "Pipeline ID to use",
-        "stack": "Name of the stack within which to generate the configuration file",
-        "vcpu": "Comma separated list of CPUs, to launch each VM with",
-        "memory": "Comma separated list of memory to launch each VM with. Automatically rounded up to power of 2",
-        "new": "Generate new configuration file instead of appending to existing one within the provided stack",
-        "init-stack": "Automatically initialize stack if not present. Equivalent to calling 'inv -e kmt.create-stack [--stack=<stack>]'",
-    }
-)
 def gen_config_from_ci_pipeline(
     ctx,
     stack=None,
@@ -88,6 +104,7 @@ def gen_config_from_ci_pipeline(
     """
     gitlab = Gitlab("DataDog/datadog-agent", get_gitlab_token())
     vms = set()
+    local_arch = full_arch("local")
 
     if pipeline is None:
         raise Exit("Pipeline ID must be provided")
@@ -117,12 +134,12 @@ def gen_config_from_ci_pipeline(
             for vmset in data.get("vmsets", []):
                 memory_list = vmset.get("memory", [])
                 if memory is None and len(memory_list) > 0:
-                    memory = memory_list[0]
+                    memory = str(memory_list[0])
                     info(f"[+] setting memory to {memory}")
 
                 vcpu_list = vmset.get("vcpu", [])
                 if vcpu is None and len(vcpu_list) > 0:
-                    vcpu = vcpu_list[0]
+                    vcpu = str(vcpu_list[0])
                     info(f"[+] setting vcpu to {vcpu}")
         elif name.startswith("kernel_matrix_testing_run") and job["status"] == "failed":
             arch = "x86" if "x64" in name else "arm64"
@@ -135,15 +152,14 @@ def gen_config_from_ci_pipeline(
             vars = match.group(1).split(",")
             distro = vars[0]
 
-            if use_local_if_possible and (
-                (platform.machine() == "aarch64" and arch == "arm64")
-                or (platform.machine() == "x86_64" and arch == "x86")
-            ):
+            if use_local_if_possible and arch == local_arch:
                 arch = "local"
 
             vms.add(f"{arch}-{distro}-distro")
 
     info(f"[+] generating vmconfig.json file for VMs {vms}")
+    vcpu = DEFAULT_VCPU if vcpu is None else vcpu
+    memory = DEFAULT_MEMORY if memory is None else memory
     return vmconfig.gen_config(ctx, stack, ",".join(vms), "", init_stack, vcpu, memory, new, ci, arch, output_file)
 
 
