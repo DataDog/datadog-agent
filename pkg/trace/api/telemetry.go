@@ -114,11 +114,13 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 
 		req.Header.Set("DD-Agent-Hostname", r.conf.Hostname)
 		req.Header.Set("DD-Agent-Env", r.conf.DefaultEnv)
+		log.Debugf("Setting headers DD-Agent-Hostname=%s, DD-Agent-Env=%s for telemetry proxy", r.conf.Hostname, r.conf.DefaultEnv)
 		if containerID != "" {
 			req.Header.Set(header.ContainerID, containerID)
 		}
 		if containerTags != "" {
 			req.Header.Set("x-datadog-container-tags", containerTags)
+			log.Debugf("Setting header x-datadog-container-tags=%s for telemetry proxy", containerTags)
 		}
 		if installSignature.Found {
 			req.Header.Set("DD-Agent-Install-Id", installSignature.InstallID)

@@ -5,7 +5,6 @@ High level testing tasks
 # Recent versions of Python should be able to use dict and list directly in type hints,
 # so we only need to check that we don't run this code with old Python versions.
 
-import glob
 import json
 import operator
 import os
@@ -19,18 +18,18 @@ from typing import Dict, List
 from invoke import task
 from invoke.exceptions import Exit
 
-from .agent import integration_tests as agent_integration_tests
-from .build_tags import compute_build_tags_for_flavor
-from .cluster_agent import integration_tests as dca_integration_tests
-from .dogstatsd import integration_tests as dsd_integration_tests
-from .flavor import AgentFlavor
-from .libs.common.color import color_message
-from .libs.common.utils import clean_nested_paths, get_build_flags
-from .libs.datadog_api import create_count, send_metrics
-from .libs.junit_upload_core import add_flavor_to_junitxml, produce_junit_tar
-from .modules import DEFAULT_MODULES, GoModule
-from .test_core import ModuleTestResult, process_input_args, process_module_results, test_core
-from .trace_agent import integration_tests as trace_integration_tests
+from tasks.agent import integration_tests as agent_integration_tests
+from tasks.build_tags import compute_build_tags_for_flavor
+from tasks.cluster_agent import integration_tests as dca_integration_tests
+from tasks.dogstatsd import integration_tests as dsd_integration_tests
+from tasks.flavor import AgentFlavor
+from tasks.libs.common.color import color_message
+from tasks.libs.common.utils import clean_nested_paths, get_build_flags
+from tasks.libs.datadog_api import create_count, send_metrics
+from tasks.libs.junit_upload_core import add_flavor_to_junitxml, produce_junit_tar
+from tasks.modules import DEFAULT_MODULES, GoModule
+from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
+from tasks.trace_agent import integration_tests as trace_integration_tests
 
 PROFILE_COV = "coverage.out"
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
@@ -318,8 +317,13 @@ def test(
 
     stdlib_build_cmd = 'go build {verbose} -mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" '
     stdlib_build_cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} std cmd'
-    cmd = 'gotestsum {junit_file_flag} {json_flag} --format pkgname {rerun_fails} --packages="{packages}" -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
-    cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache} {test_run_arg} {skip_flakes}'
+    gotestsum_flags = '{junit_file_flag} {json_flag} --format pkgname {rerun_fails} --packages="{packages}"'
+    gobuild_flags = (
+        '-mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" -ldflags="{ldflags}" {build_cpus} {race_opt}'
+    )
+    govet_flags = '-vet=off'
+    gotest_flags = '{verbose} -timeout {timeout}s -short {covermode_opt} {coverprofile} {test_run_arg} {nocache}'
+    cmd = f'gotestsum {gotestsum_flags} -- {gobuild_flags} {govet_flags} {gotest_flags}'
     args = {
         "go_mod": go_mod,
         "gcflags": gcflags,
@@ -349,7 +353,7 @@ def test(
             test_profiler=test_profiler,
         )
         if only_modified_packages:
-            modules = get_modified_packages(ctx)
+            modules = get_modified_packages(ctx, build_tags=build_tags)
 
         modules_results_per_phase["test"][flavor] = test_flavor(
             ctx,
@@ -454,11 +458,14 @@ def e2e_tests(ctx, target="gitlab", agent_image="", dca_image="", argo_workflow=
 
 
 @task
-def get_modified_packages(ctx) -> List[GoModule]:
+def get_modified_packages(ctx, build_tags=None) -> List[GoModule]:
     modified_files = get_modified_files(ctx)
     modified_go_files = [
         f"./{file}" for file in modified_files if file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum")
     ]
+
+    if build_tags is None:
+        build_tags = []
 
     modules_to_test = {}
     go_mod_modified_modules = set()
@@ -497,8 +504,11 @@ def get_modified_packages(ctx) -> List[GoModule]:
         if not os.path.exists(os.path.dirname(modified_file)):
             continue
 
-        # If there are no _test.go file in the folder we do not try to run tests
-        if not glob.glob(os.path.join(os.path.dirname(modified_file), "**/*_test.go"), recursive=True):
+        # If there are go file matching the build tags in the folder we do not try to run tests
+        res = ctx.run(
+            f"go list -tags '{' '.join(build_tags)}' ./{os.path.dirname(modified_file)}/...", hide=True, warn=True
+        )
+        if res.stderr is not None and "matched no packages" in res.stderr:
             continue
 
         relative_target = "./" + os.path.relpath(os.path.dirname(modified_file), best_module_path)

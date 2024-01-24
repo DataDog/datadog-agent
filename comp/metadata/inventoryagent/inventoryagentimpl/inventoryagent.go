@@ -211,7 +211,7 @@ func (ia *inventoryagent) initData() {
 	ia.data["feature_networks_https_enabled"] = getBoolSysProbe("service_monitoring_config.tls.native.enabled")
 
 	ia.data["feature_usm_enabled"] = getBoolSysProbe("service_monitoring_config.enabled")
-	ia.data["feature_usm_kafka_enabled"] = getBoolSysProbe("data_streams_config.enabled")
+	ia.data["feature_usm_kafka_enabled"] = getBoolSysProbe("service_monitoring_config.enable_kafka_monitoring")
 	ia.data["feature_usm_java_tls_enabled"] = getBoolSysProbe("service_monitoring_config.tls.java.enabled")
 	ia.data["feature_usm_http2_enabled"] = getBoolSysProbe("service_monitoring_config.enable_http2_monitoring")
 	ia.data["feature_usm_istio_enabled"] = getBoolSysProbe("service_monitoring_config.tls.istio.enabled")
@@ -256,6 +256,9 @@ func (ia *inventoryagent) Set(name string, value interface{}) {
 }
 
 func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
+	ia.m.Lock()
+	defer ia.m.Unlock()
+
 	// Create a static copy of agentMetadata for the payload
 	data := make(agentMetadata)
 	for k, v := range ia.data {
@@ -293,6 +296,9 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 
 // Get returns a copy of the agent metadata. Useful to be incorporated in the status page.
 func (ia *inventoryagent) Get() map[string]interface{} {
+	ia.m.Lock()
+	defer ia.m.Unlock()
+
 	data := map[string]interface{}{}
 	for k, v := range ia.data {
 		data[k] = v
