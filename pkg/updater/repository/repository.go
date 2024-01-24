@@ -287,7 +287,7 @@ func movePackageFromSource(packageName string, rootPath string, locksPath string
 		// If not, the GC should have removed the packages so we error.
 		targetLocksPath := filepath.Join(locksPath, packageName)
 		inUse, err := packageLocked(targetLocksPath)
-		if err != nil && !errors.Is(err, os.ErrNotExist) {
+		if err != nil {
 			return "", fmt.Errorf("could not check if package version is in use: %w", err)
 		}
 		if inUse {
