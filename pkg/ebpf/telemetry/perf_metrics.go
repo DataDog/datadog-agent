@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package ebpf
+package telemetry
 
 import (
 	"strconv"
