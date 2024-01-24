@@ -183,6 +183,12 @@ func (r *Repository) PromoteExperiment() error {
 	if err != nil {
 		return fmt.Errorf("could not delete experiment link: %w", err)
 	}
+
+	// Read repository again to avoid race conditions likeliness
+	repository, err = readRepository(r.RootPath, r.LocksPath)
+	if err != nil {
+		return err
+	}
 	err = repository.cleanup()
 	if err != nil {
 		return fmt.Errorf("could not cleanup repository: %w", err)
@@ -214,6 +220,12 @@ func (r *Repository) DeleteExperiment() error {
 	if err != nil {
 		return fmt.Errorf("could not delete experiment link: %w", err)
 	}
+
+	// Read repository again to avoid race conditions likeliness
+	repository, err = readRepository(r.RootPath, r.LocksPath)
+	if err != nil {
+		return err
+	}
 	err = repository.cleanup()
 	if err != nil {
 		return fmt.Errorf("could not cleanup repository: %w", err)
@@ -231,8 +243,9 @@ func (r *Repository) Cleanup() error {
 }
 
 type repositoryFiles struct {
-	rootPath  string
-	locksPath string
+	rootPath       string
+	locksPath      string
+	lockedPackages map[string]bool
 
 	stable     *link
 	experiment *link
@@ -248,16 +261,33 @@ func readRepository(rootPath string, locksPath string) (*repositoryFiles, error)
 		return nil, fmt.Errorf("could not load experiment link: %w", err)
 	}
 
+	// List locked packages
+	packages, err := os.ReadDir(rootPath)
+	if err != nil {
+		return nil, fmt.Errorf("could not read run directory: %w", err)
+	}
+	lockedPackages := map[string]bool{}
+	for _, pkg := range packages {
+		pkgLocksPath := filepath.Join(locksPath, pkg.Name())
+		isLocked, err := packageLocked(pkgLocksPath)
+		if err != nil {
+			log.Errorf("could not check if package version is in use: %v", err)
+			continue
+		}
+		lockedPackages[pkg.Name()] = isLocked
+	}
+
 	return &repositoryFiles{
-		rootPath:   rootPath,
-		locksPath:  locksPath,
-		stable:     stableLink,
-		experiment: experimentLink,
+		rootPath:       rootPath,
+		locksPath:      locksPath,
+		lockedPackages: lockedPackages,
+		stable:         stableLink,
+		experiment:     experimentLink,
 	}, nil
 }
 
 func (r *repositoryFiles) setExperiment(name string, sourcePath string) error {
-	path, err := movePackageFromSource(name, r.rootPath, r.locksPath, sourcePath)
+	path, err := movePackageFromSource(name, r.rootPath, r.lockedPackages, sourcePath)
 	if err != nil {
 		return fmt.Errorf("could not move experiment source: %w", err)
 	}
@@ -266,7 +296,7 @@ func (r *repositoryFiles) setExperiment(name string, sourcePath string) error {
 }
 
 func (r *repositoryFiles) setStable(name string, sourcePath string) error {
-	path, err := movePackageFromSource(name, r.rootPath, r.locksPath, sourcePath)
+	path, err := movePackageFromSource(name, r.rootPath, r.lockedPackages, sourcePath)
 	if err != nil {
 		return fmt.Errorf("could not move stable source: %w", err)
 	}
@@ -274,7 +304,7 @@ func (r *repositoryFiles) setStable(name string, sourcePath string) error {
 	return r.stable.Set(path)
 }
 
-func movePackageFromSource(packageName string, rootPath string, locksPath string, sourcePath string) (string, error) {
+func movePackageFromSource(packageName string, rootPath string, lockedPackages map[string]bool, sourcePath string) (string, error) {
 	if packageName == "" || packageName == stableVersionLink || packageName == experimentVersionLink {
 		return "", fmt.Errorf("invalid package name")
 	}
@@ -285,13 +315,8 @@ func movePackageFromSource(packageName string, rootPath string, locksPath string
 		// If yes, the GC left the package in place so we don't reinstall it, but
 		// we don't throw an error either.
 		// If not, the GC should have removed the packages so we error.
-		targetLocksPath := filepath.Join(locksPath, packageName)
-		inUse, err := packageLocked(targetLocksPath)
-		if err != nil {
-			return "", fmt.Errorf("could not check if package version is in use: %w", err)
-		}
-		if inUse {
-			return targetPath, nil // Package is in use, we don't reinstall it
+		if lockedPackages[packageName] {
+			return targetPath, nil
 		}
 		return "", fmt.Errorf("target package already exists")
 	}
@@ -323,20 +348,16 @@ func (r *repositoryFiles) cleanup() error {
 			continue
 		}
 
-		versionInUse, err := packageLocked(filepath.Join(r.locksPath, file.Name()))
-		if err != nil {
-			log.Errorf("could not check if package version is in use: %v", err)
-			continue
-		}
-
-		// If no PIDs are running, remove the version
-		if !versionInUse {
-			log.Debugf("no running PIDs for package %s version %s, removing package", r.rootPath, file.Name())
-			if err := os.RemoveAll(filepath.Join(r.rootPath, file.Name())); err != nil {
-				log.Errorf("could not remove package directory for version %s: %v", file.Name(), err)
+		if !r.lockedPackages[file.Name()] {
+			// Package isn't locked, remove it
+			pkgRepositoryPath := filepath.Join(r.rootPath, file.Name())
+			pkgLocksPath := filepath.Join(r.locksPath, file.Name())
+			log.Debugf("package %s isn't locked, removing it", pkgRepositoryPath)
+			if err := os.RemoveAll(pkgRepositoryPath); err != nil {
+				log.Errorf("could not remove package %s directory, will retry: %v", pkgRepositoryPath, err)
 			}
-			if err := os.RemoveAll(filepath.Join(r.locksPath, file.Name())); err != nil {
-				log.Errorf("could not remove run directory for version %s: %v", file.Name(), err)
+			if err := os.RemoveAll(pkgLocksPath); err != nil {
+				log.Errorf("could not remove package %s locks directory, will retry: %v", pkgLocksPath, err)
 			}
 		}
 	}
@@ -345,6 +366,8 @@ func (r *repositoryFiles) cleanup() error {
 }
 
 // packageLocked checks if the given package version is in use
+// by checking if there are PIDs corresponding to running processes
+// in the run directory.
 func packageLocked(packagePIDsPath string) (bool, error) {
 	pids, err := os.ReadDir(packagePIDsPath)
 	if errors.Is(err, os.ErrNotExist) {
@@ -375,7 +398,7 @@ func packageLocked(packagePIDsPath string) (bool, error) {
 
 		// PIDs can be re-used, so if the process isn't running we remove the file
 		log.Debugf("process with PID %d is stopped, removing PID file", pid)
-		err = os.Remove(filepath.Join(packagePIDsPath, rawPID.Name()))
+		err = os.Remove(filepath.Join(packagePIDsPath, fmt.Sprint(pid)))
 		if err != nil {
 			log.Errorf("could not remove PID file: %v", err)
 		}
