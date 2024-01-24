@@ -13,14 +13,14 @@ import (
 
 	cebpf "github.com/cilium/ebpf"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf/util"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // MapCleaner is responsible for periodically sweeping an eBPF map
 // and deleting entries that satisfy a certain predicate function supplied by the user
 type MapCleaner[K any, V any] struct {
-	emap      *util.GenericMap[K, V]
+	emap      *maps.GenericMap[K, V]
 	batchSize uint32
 
 	once sync.Once
@@ -40,7 +40,7 @@ func NewMapCleaner[K any, V any](emap *cebpf.Map, defaultBatchSize uint32) (*Map
 		batchSize = 1
 	}
 
-	m, err := util.Map[K, V](emap)
+	m, err := maps.Map[K, V](emap)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +70,7 @@ func (mc *MapCleaner[K, V]) Clean(interval time.Duration, preClean func() bool, 
 	// of a version comparison because some distros have backported this API), and fallback to
 	// the old method otherwise. The new API is also more efficient because it minimizes the number of allocations.
 	cleaner := mc.cleanWithoutBatches
-	if util.BatchAPISupported() {
+	if maps.BatchAPISupported() {
 		cleaner = mc.cleanWithBatches
 	}
 

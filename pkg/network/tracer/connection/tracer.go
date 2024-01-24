@@ -28,8 +28,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/ebpf/util"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -150,9 +150,9 @@ var ConnTracerTelemetry = struct {
 type tracer struct {
 	m *manager.Manager
 
-	conns          *ebpfutil.GenericMap[netebpf.ConnTuple, netebpf.ConnStats]
-	tcpStats       *ebpfutil.GenericMap[netebpf.ConnTuple, netebpf.TCPStats]
-	tcpRetransmits *ebpfutil.GenericMap[netebpf.ConnTuple, uint32]
+	conns          *maps.GenericMap[netebpf.ConnTuple, netebpf.ConnStats]
+	tcpStats       *maps.GenericMap[netebpf.ConnTuple, netebpf.TCPStats]
+	tcpRetransmits *maps.GenericMap[netebpf.ConnTuple, uint32]
 	config         *config.Config
 
 	// tcp_close events
@@ -256,19 +256,19 @@ func NewTracer(config *config.Config, bpfTelemetry *ebpftelemetry.EBPFTelemetry)
 		ch:             newCookieHasher(),
 	}
 
-	tr.conns, err = ebpfutil.GetMap[netebpf.ConnTuple, netebpf.ConnStats](m, probes.ConnMap)
+	tr.conns, err = maps.GetMap[netebpf.ConnTuple, netebpf.ConnStats](m, probes.ConnMap)
 	if err != nil {
 		tr.Stop()
 		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.ConnMap, err)
 	}
 
-	tr.tcpStats, err = ebpfutil.GetMap[netebpf.ConnTuple, netebpf.TCPStats](m, probes.TCPStatsMap)
+	tr.tcpStats, err = maps.GetMap[netebpf.ConnTuple, netebpf.TCPStats](m, probes.TCPStatsMap)
 	if err != nil {
 		tr.Stop()
 		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.TCPStatsMap, err)
 	}
 
-	if tr.tcpRetransmits, err = ebpfutil.GetMap[netebpf.ConnTuple, uint32](m, probes.TCPRetransmitsMap); err != nil {
+	if tr.tcpRetransmits, err = maps.GetMap[netebpf.ConnTuple, uint32](m, probes.TCPRetransmitsMap); err != nil {
 		tr.Stop()
 		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.TCPRetransmitsMap, err)
 	}
@@ -490,7 +490,7 @@ func (t *tracer) Remove(conn *network.ConnectionStats) error {
 
 func (t *tracer) getEBPFTelemetry() *netebpf.Telemetry {
 	var zero uint32
-	mp, err := ebpfutil.GetMap[uint32, netebpf.Telemetry](t.m, probes.TelemetryMap)
+	mp, err := maps.GetMap[uint32, netebpf.Telemetry](t.m, probes.TelemetryMap)
 	if err != nil {
 		log.Warnf("error retrieving telemetry map: %s", err)
 		return nil
@@ -570,7 +570,7 @@ func initializePortBindingMaps(config *config.Config, m *manager.Manager) error 
 		return fmt.Errorf("failed to read initial TCP pid->port mapping: %s", err)
 	}
 
-	tcpPortMap, err := ebpfutil.GetMap[netebpf.PortBinding, uint32](m, probes.PortBindingsMap)
+	tcpPortMap, err := maps.GetMap[netebpf.PortBinding, uint32](m, probes.PortBindingsMap)
 	if err != nil {
 		return fmt.Errorf("failed to get TCP port binding map: %w", err)
 	}
@@ -588,7 +588,7 @@ func initializePortBindingMaps(config *config.Config, m *manager.Manager) error 
 		return fmt.Errorf("failed to read initial UDP pid->port mapping: %s", err)
 	}
 
-	udpPortMap, err := ebpfutil.GetMap[netebpf.PortBinding, uint32](m, probes.UDPPortBindingsMap)
+	udpPortMap, err := maps.GetMap[netebpf.PortBinding, uint32](m, probes.UDPPortBindingsMap)
 	if err != nil {
 		return fmt.Errorf("failed to get UDP port binding map: %w", err)
 	}

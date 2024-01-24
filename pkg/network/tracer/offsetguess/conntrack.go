@@ -21,7 +21,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/ebpf/util"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -101,7 +101,7 @@ func (c *conntrackOffsetGuesser) getConstantEditors() []manager.ConstantEditor {
 // checkAndUpdateCurrentOffset checks the value for the current offset stored
 // in the eBPF map against the expected value, incrementing the offset if it
 // doesn't match, or going to the next field to guess if it does
-func (c *conntrackOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpfutil.GenericMap[uint64, ConntrackStatus], expected *fieldValues, maxRetries *int, threshold uint64) error {
+func (c *conntrackOffsetGuesser) checkAndUpdateCurrentOffset(mp *maps.GenericMap[uint64, ConntrackStatus], expected *fieldValues, maxRetries *int, threshold uint64) error {
 	// get the updated map value, so we can check if the current offset is
 	// the right one
 	if err := mp.Lookup(&zero, c.status); err != nil {
@@ -188,7 +188,7 @@ func (c *conntrackOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpfutil.Generi
 
 }
 
-func (c *conntrackOffsetGuesser) setReadyState(mp *ebpfutil.GenericMap[uint64, ConntrackStatus]) error {
+func (c *conntrackOffsetGuesser) setReadyState(mp *maps.GenericMap[uint64, ConntrackStatus]) error {
 	c.status.State = uint64(StateReady)
 	if err := mp.Put(&zero, c.status); err != nil {
 		return fmt.Errorf("error updating tracer_status: %v", err)
@@ -210,7 +210,7 @@ func (c *conntrackOffsetGuesser) logAndAdvance(offset uint64, next GuessWhat) {
 }
 
 func (c *conntrackOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEditor, error) {
-	mp, err := ebpfutil.GetMap[uint64, ConntrackStatus](c.m, probes.ConntrackStatusMap)
+	mp, err := maps.GetMap[uint64, ConntrackStatus](c.m, probes.ConntrackStatusMap)
 	if err != nil {
 		return nil, fmt.Errorf("unable to find map %s: %s", probes.ConntrackStatusMap, err)
 	}
@@ -273,7 +273,7 @@ func (c *conntrackOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEd
 	return nil, err
 }
 
-func (c *conntrackOffsetGuesser) runOffsetGuessing(cfg *config.Config, ns netns.NsHandle, mp *ebpfutil.GenericMap[uint64, ConntrackStatus]) ([]manager.ConstantEditor, error) {
+func (c *conntrackOffsetGuesser) runOffsetGuessing(cfg *config.Config, ns netns.NsHandle, mp *maps.GenericMap[uint64, ConntrackStatus]) ([]manager.ConstantEditor, error) {
 	log.Debugf("running conntrack offset guessing with ns %s", ns)
 	eventGenerator, err := newConntrackEventGenerator(ns)
 	if err != nil {

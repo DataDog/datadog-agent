@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package util
+package maps
 
 import (
 	"fmt"

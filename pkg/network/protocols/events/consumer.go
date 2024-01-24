@@ -16,7 +16,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/ebpf/util"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -57,7 +57,7 @@ type Consumer[V any] struct {
 // 2) be thread-safe, as the callback may be executed concurrently from multiple go-routines;
 func NewConsumer[V any](proto string, ebpf *manager.Manager, callback func([]V)) (*Consumer[V], error) {
 	batchMapName := proto + batchMapSuffix
-	batchMap, err := ebpfutil.GetMap[batchKey, batch](ebpf, batchMapName)
+	batchMap, err := maps.GetMap[batchKey, batch](ebpf, batchMapName)
 	if err != nil {
 		return nil, fmt.Errorf("unable to find map %s: %s", batchMapName, err)
 	}

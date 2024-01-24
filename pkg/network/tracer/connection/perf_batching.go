@@ -13,7 +13,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/ebpf/util"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -30,7 +30,7 @@ const defaultExpiredStateInterval = 60 * time.Second
 // event remains stored in the eBPF map before being processed by the NetworkAgent.
 type perfBatchManager struct {
 	// eBPF
-	batchMap *ebpfutil.GenericMap[uint32, netebpf.Batch]
+	batchMap *maps.GenericMap[uint32, netebpf.Batch]
 
 	// stateByCPU contains the state of each batch.
 	// The slice is indexed by the CPU core number.
@@ -43,7 +43,7 @@ type perfBatchManager struct {
 
 // newPerfBatchManager returns a new `PerfBatchManager` and initializes the
 // eBPF map that holds the tcp_close batch objects.
-func newPerfBatchManager(batchMap *ebpfutil.GenericMap[uint32, netebpf.Batch], numCPUs uint32) (*perfBatchManager, error) {
+func newPerfBatchManager(batchMap *maps.GenericMap[uint32, netebpf.Batch], numCPUs uint32) (*perfBatchManager, error) {
 	if batchMap == nil {
 		return nil, fmt.Errorf("batchMap is nil")
 	}
@@ -183,7 +183,7 @@ func newConnBatchManager(mgr *manager.Manager) (*perfBatchManager, error) {
 		return nil, fmt.Errorf("unable to get map %s: cannot find a map with that name", probes.ConnCloseEventMap)
 	}
 
-	connCloseMap, err := ebpfutil.GetMap[uint32, netebpf.Batch](mgr, probes.ConnCloseBatchMap)
+	connCloseMap, err := maps.GetMap[uint32, netebpf.Batch](mgr, probes.ConnCloseBatchMap)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get map %s: %s", probes.ConnCloseBatchMap, err)
 	}

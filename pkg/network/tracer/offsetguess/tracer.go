@@ -27,7 +27,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
-	ebpfutil "github.com/DataDog/datadog-agent/pkg/ebpf/util"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -304,7 +304,7 @@ func GetIPv6LinkLocalAddress() ([]*net.UDPAddr, error) {
 // checkAndUpdateCurrentOffset checks the value for the current offset stored
 // in the eBPF map against the expected value, incrementing the offset if it
 // doesn't match, or going to the next field to guess if it does
-func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpfutil.GenericMap[uint64, TracerStatus], expected *fieldValues, maxRetries *int, threshold uint64) error {
+func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *maps.GenericMap[uint64, TracerStatus], expected *fieldValues, maxRetries *int, threshold uint64) error {
 	// get the updated map value, so we can check if the current offset is
 	// the right one
 	if err := mp.Lookup(&zero, t.status); err != nil {
@@ -677,7 +677,7 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpfutil.GenericMa
 	return nil
 }
 
-func (t *tracerOffsetGuesser) setReadyState(mp *ebpfutil.GenericMap[uint64, TracerStatus]) error {
+func (t *tracerOffsetGuesser) setReadyState(mp *maps.GenericMap[uint64, TracerStatus]) error {
 	t.status.State = uint64(StateReady)
 	if err := mp.Put(&zero, t.status); err != nil {
 		return fmt.Errorf("error updating tracer_status: %v", err)
@@ -709,7 +709,7 @@ func (t *tracerOffsetGuesser) flowi6EntryState() GuessWhat {
 // offset and repeating the process until we find the value we expect. Then, we
 // guess the next field.
 func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEditor, error) {
-	mp, err := ebpfutil.GetMap[uint64, TracerStatus](t.m, probes.TracerStatusMap)
+	mp, err := maps.GetMap[uint64, TracerStatus](t.m, probes.TracerStatusMap)
 	if err != nil {
 		return nil, fmt.Errorf("unable to find map %s: %s", probes.TracerStatusMap, err)
 	}

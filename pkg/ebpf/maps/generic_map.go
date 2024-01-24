@@ -5,8 +5,8 @@
 
 //go:build linux_bpf
 
-// Package util contains utilities for eBPF tools
-package util
+// Package maps contains wrappers for ebpf maps
+package maps
 
 import (
 	"errors"
