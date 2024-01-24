@@ -197,7 +197,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
 		time.Sleep(10 * time.Millisecond)
 		stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
 		for req := range abortedRequests {
-			requestNotIncluded(t, stats, req)
+			checkRequestIncluded(t, stats, req, false)
 		}
 
 		included, err := isRequestIncludedOnce(stats, fastReq)
@@ -314,11 +314,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 			time.Sleep(10 * time.Millisecond)
 			stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
 
-			if tt.shouldCapture {
-				includesRequest(t, stats, req)
-			} else {
-				requestNotIncluded(t, stats, req)
-			}
+			checkRequestIncluded(t, stats, req, tt.shouldCapture)
 		})
 	}
 }
@@ -409,7 +405,7 @@ func (s *HTTPTestSuite) TestRSTPacketRegression() {
 	stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
 	url, err := url.Parse("http://127.0.0.1:8080/200/foobar")
 	require.NoError(t, err)
-	includesRequest(t, stats, &nethttp.Request{URL: url})
+	checkRequestIncluded(t, stats, &nethttp.Request{URL: url}, true)
 }
 
 func (s *HTTPTestSuite) TestKeepAliveWithIncompleteResponseRegression() {
@@ -583,30 +579,16 @@ func requestGenerator(t *testing.T, targetAddr string, reqBody []byte) func() *n
 	}
 }
 
-func includesRequest(t *testing.T, allStats map[http.Key]*http.RequestStats, req *nethttp.Request) {
-	expectedStatus := testutil.StatusFromPath(req.URL.Path)
+func checkRequestIncluded(t *testing.T, allStats map[http.Key]*http.RequestStats, req *nethttp.Request, expectedToBeIncluded bool) {
 	included, err := isRequestIncludedOnce(allStats, req)
 	require.NoError(t, err)
-	if !included {
+	if included != expectedToBeIncluded {
 		t.Errorf(
-			"could not find HTTP transaction matching the following criteria:\n path=%s method=%s status=%d",
+			"%s not find HTTP transaction matching the following criteria:\n path=%s method=%s status=%d",
+			testNameHelper("could", "should", expectedToBeIncluded),
 			req.URL.Path,
 			req.Method,
-			expectedStatus,
-		)
-	}
-}
-
-func requestNotIncluded(t *testing.T, allStats map[http.Key]*http.RequestStats, req *nethttp.Request) {
-	included, err := isRequestIncludedOnce(allStats, req)
-	require.NoError(t, err)
-	if included {
-		expectedStatus := testutil.StatusFromPath(req.URL.Path)
-		t.Errorf(
-			"should not find HTTP transaction matching the following criteria:\n path=%s method=%s status=%d",
-			req.URL.Path,
-			req.Method,
-			expectedStatus,
+			testutil.StatusFromPath(req.URL.Path),
 		)
 	}
 }
