@@ -39,7 +39,7 @@ func TestCriCheck(t *testing.T) {
 
 	// Inject mock processor in check
 	mockCri := &crimock.MockCRIClient{}
-	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil))
+	mockSender, processor, _ := generic.CreateTestProcessor(containersMeta, containersStats, metricsAdapter{}, getProcessorFilter(nil, nil))
 	processor.RegisterExtension("cri-custom-metrics", &criCustomMetricsExtension{criGetter: func() (cri.CRIClient, error) { return mockCri, nil }})
 
 	mockCri.On("ListContainerStats").Return(map[string]*criTypes.ContainerStats{

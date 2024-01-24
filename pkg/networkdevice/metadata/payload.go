@@ -68,6 +68,7 @@ type DeviceMetadata struct {
 	OsVersion      string       `json:"os_version,omitempty"`
 	OsHostname     string       `json:"os_hostname,omitempty"`
 	Integration    string       `json:"integration,omitempty"` // indicates the source of the data SNMP, meraki_api, etc.
+	DeviceType     string       `json:"device_type,omitempty"`
 }
 
 // InterfaceMetadata contains interface metadata
