@@ -124,6 +124,7 @@ import (
 	// runtime init routines
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 
+	// register metadata providers
 	_ "github.com/DataDog/datadog-agent/pkg/collector/metadata"
 )
 
