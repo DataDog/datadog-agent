@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Increase DefaultInputChanSize for events to 500.
+    [DBM] Increase DBM dbm-metrics-intake defaultInputChanSize to 500.

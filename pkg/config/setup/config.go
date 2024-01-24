@@ -59,7 +59,7 @@ const (
 	DefaultBatchMaxSize = 1000
 
 	// DefaultInputChanSize is the default input chan size for events
-	DefaultInputChanSize = 500
+	DefaultInputChanSize = 100
 
 	// DefaultBatchMaxContentSize is the default HTTP batch max content size (before compression) for logs
 	// It is also the maximum possible size of a single event. Events exceeding this limit are dropped.
