@@ -9,7 +9,7 @@
     # LAST_STABLE_VERSION is used for upgrade test
     - export LAST_STABLE_VERSION=$(invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION")
     # WINDOWS_AGENT_VERSION is used to verify the installed agent version
-    - export WINDOWS_AGENT_VERSION=$(invoke agent.version --major-version $AGENT_MAJOR_VERSION --version-cached)
+    - export WINDOWS_AGENT_VERSION=$(invoke agent.version --major-version $AGENT_MAJOR_VERSION)
     - !reference [.new_e2e_template, script]
   # temporarily allow failure so we can collect any new system snapshot files we need to add to the ignore list
   allow_failure: true
