@@ -6,8 +6,8 @@
     },
     "nightly": {
         "INTEGRATIONS_CORE_VERSION": "master",
-        "OMNIBUS_SOFTWARE_VERSION": "master",
-        "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
+        "OMNIBUS_SOFTWARE_VERSION": "6031872beca13c88f450d28a4187466b48f6737d",
+        "OMNIBUS_RUBY_VERSION": "044a81fa1b0f1c50fc7083cb45e7d8f90d96905b",
         "JMXFETCH_VERSION": "0.49.0",
         "JMXFETCH_HASH": "b5c2c3ff27603f469bb11961d559f1154887963e02b9d70d5f1fc7efa527a486",
         "MACOS_BUILD_VERSION": "master",
@@ -26,8 +26,8 @@
     },
     "nightly-a7": {
         "INTEGRATIONS_CORE_VERSION": "master",
-        "OMNIBUS_SOFTWARE_VERSION": "master",
-        "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
+        "OMNIBUS_SOFTWARE_VERSION": "6031872beca13c88f450d28a4187466b48f6737d",
+        "OMNIBUS_RUBY_VERSION": "044a81fa1b0f1c50fc7083cb45e7d8f90d96905b",
         "JMXFETCH_VERSION": "0.49.0",
         "JMXFETCH_HASH": "b5c2c3ff27603f469bb11961d559f1154887963e02b9d70d5f1fc7efa527a486",
         "MACOS_BUILD_VERSION": "master",

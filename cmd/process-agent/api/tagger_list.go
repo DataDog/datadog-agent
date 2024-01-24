@@ -9,8 +9,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 )
 
 //nolint:revive // TODO(PROC) Fix revive linter

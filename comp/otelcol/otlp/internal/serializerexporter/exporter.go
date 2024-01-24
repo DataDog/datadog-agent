@@ -18,8 +18,8 @@ import (
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
