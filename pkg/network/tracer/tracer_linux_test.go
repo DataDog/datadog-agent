@@ -1788,9 +1788,7 @@ func (s *TracerSuite) TestBlockingReadCounts() {
 	var conn *network.ConnectionStats
 	require.Eventually(t, func() bool {
 		var found bool
-		conns := getConnections(t, tr)
-		t.Log(conns)
-		conn, found = findConnection(c.(*net.TCPConn).LocalAddr(), c.(*net.TCPConn).RemoteAddr(), conns)
+		conn, found = findConnection(c.(*net.TCPConn).LocalAddr(), c.(*net.TCPConn).RemoteAddr(), getConnections(t, tr))
 		return found
 	}, 3*time.Second, 100*time.Millisecond)
 
