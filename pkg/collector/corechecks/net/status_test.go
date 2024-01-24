@@ -10,6 +10,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	// initialize the ntpOffset expvar
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/ntp"
 )
 
 func TestStatus(t *testing.T) {
