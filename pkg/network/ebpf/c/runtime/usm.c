@@ -171,7 +171,14 @@ int uprobe__crypto_tls_Conn_Write__return(struct pt_regs *ctx) {
     log_debug("[go-tls-write] processing %s\n", call_data_ptr->b_data);
     char *buffer_ptr = (char*)call_data_ptr->b_data;
     bpf_map_delete_elem(&go_tls_write_args, &call_key);
-    tls_process(ctx, t, buffer_ptr, bytes_written, GO);
+    conn_tuple_t copy = {0};
+    bpf_memcpy(&copy, t, sizeof(conn_tuple_t));
+    // We want to guarantee write-TLS hooks generates the same connection tuple, while read-TLS hooks generate
+    // the inverse direction, thus we're normalizing the tuples into a client <-> server direction, and then flipping it
+    // to the server <-> client direction.
+    normalize_tuple(&copy);
+    flip_tuple(&copy);
+    tls_process(ctx, &copy, buffer_ptr, bytes_written, GO);
     return 0;
 }
 
@@ -268,8 +275,11 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
 
     // The read tuple should be flipped (compared to the write tuple).
     // tls_process and the appropriate parsers will flip it back if needed.
-    conn_tuple_t copy = *t;
-    flip_tuple(&copy);
+    conn_tuple_t copy = {0};
+    bpf_memcpy(&copy, t, sizeof(conn_tuple_t));
+    // We want to guarantee write-TLS hooks generates the same connection tuple, while read-TLS hooks generate
+    // the inverse direction, thus we're normalizing the tuples into a client <-> server direction.
+    normalize_tuple(&copy);
     tls_process(ctx, &copy, buffer_ptr, bytes_read, GO);
     return 0;
 }
@@ -307,8 +317,9 @@ int uprobe__crypto_tls_Conn_Close(struct pt_regs *ctx) {
     // Clear the element in the map since this connection is closed
     bpf_map_delete_elem(&conn_tup_by_go_tls_conn, &conn_pointer);
 
+    conn_tuple_t copy = *t;
     // tls_finish can launch a tail call, thus cleanup should be done before.
-    tls_finish(ctx, t);
+    tls_finish(ctx, &copy);
     return 0;
 }
 
