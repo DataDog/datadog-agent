@@ -23,7 +23,6 @@ import (
 	containerdevents "github.com/containerd/containerd/events"
 	"github.com/containerd/containerd/images"
 	"github.com/containerd/containerd/namespaces"
-	"github.com/mohae/deepcopy"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"google.golang.org/protobuf/proto"
 )
@@ -303,19 +302,6 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 		if strings.Contains(wlmImage.Name, "sha256:") && !strings.Contains(existingImg.Name, "sha256:") {
 			wlmImage.Name = existingImg.Name
 		}
-
-		// SBOMs are generated only once. However, when they are generated it is possible that
-		// not every RepoDigest and RepoTags are attached to the image. In that case, the SBOM
-		// will also miss metadata and will not be re-generated when new metadata is detected.
-		// Because this metadata is essential for processing, it is important to inject new metadata
-		// to the existing SBOM. Generating a new SBOM can be a more robust solution but can also be
-		// costly.
-		// Moreover, it is not safe to modify the original SBOM if it is already stored in workloadmeta,
-		// so we create a copy of it. It is costly but shouldn't be called so often.
-		if wlmImage.SBOM == nil && existingImg.SBOM != nil && existingImg.SBOM.Status != workloadmeta.Pending {
-			wlmImage.SBOM = deepcopy.Copy(existingImg.SBOM).(*workloadmeta.SBOM)
-			wlmImage.SBOM = util.UpdateSBOMRepoMetadata(wlmImage.SBOM, wlmImage.RepoTags, wlmImage.RepoDigests)
-		}
 	}
 
 	if wlmImage.SBOM == nil {
@@ -323,6 +309,12 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 			Status: workloadmeta.Pending,
 		}
 	}
+
+	// The CycloneDX should contain the RepoTags and RepoDigests but the scanner might
+	// not be able to inject them. For example, if we use the scanner from filesystem or
+	// if the `imgMeta` object does not contain all the metadata when it is sent.
+	// We add them here to make sure they are present.
+	wlmImage.SBOM = util.UpdateSBOMRepoMetadata(wlmImage.SBOM, wlmImage.RepoTags, wlmImage.RepoDigests)
 
 	c.store.Notify([]workloadmeta.CollectorEvent{
 		{
