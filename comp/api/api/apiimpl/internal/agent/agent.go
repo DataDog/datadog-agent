@@ -60,6 +60,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
+var mineTypeMap = map[string]string{
+	"text": "text/plain",
+	"json": "application/json",
+}
+
 // SetupHandlers adds the specific handlers for /agent endpoints
 func SetupHandlers(
 	r *mux.Router,
@@ -218,12 +223,25 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 	log.Info("Got a request for the status. Making status.")
 	verbose := r.URL.Query().Get("verbose") == "true"
 	format := r.URL.Query().Get("format")
+	var contentType string
+
+	contentType, ok := mineTypeMap[format]
+
+	if !ok {
+		log.Warn("Got a request with invalid format parameter. Defaulting to 'text' format")
+		format = "text"
+		contentType = mineTypeMap[format]
+	}
+	w.Header().Set("Content-Type", contentType)
+
 	s, err := statusComponent.GetStatus(format, verbose)
-	// TODO: dynamically change base on format
-	w.Header().Set("Content-Type", "application/json")
 
 	if err != nil {
-		// TODO: dynamically change base on format
+		if format == "text" {
+			http.Error(w, log.Errorf("Error getting status. Error: %v.", err).Error(), 500)
+			return
+		}
+
 		setJSONError(w, log.Errorf("Error getting status. Error: %v, Status: %v", err, s), 500)
 		return
 	}
