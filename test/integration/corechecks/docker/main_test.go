@@ -18,6 +18,7 @@ import (
 
 	compcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -25,8 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/docker"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
@@ -101,6 +100,12 @@ func TestMain(m *testing.M) {
 	}
 }
 
+type testDeps struct {
+	fx.In
+	Store      workloadmeta.Component
+	TaggerComp tagger.Component
+}
+
 // Called before for first test run: compose up
 func setup() (workloadmeta.Component, error) {
 	// Setup global conf
@@ -112,8 +117,8 @@ func setup() (workloadmeta.Component, error) {
 	config.SetFeaturesNoCleanup(config.Docker)
 
 	// Note: workloadmeta will be started by fx with the App
-	var store workloadmeta.Component
-	fxApp, store, err = fxutil.TestApp[workloadmeta.Component](fx.Options(
+	var deps testDeps
+	fxApp, deps, err = fxutil.TestApp[testDeps](fx.Options(
 		fx.Supply(compcfg.NewAgentParams(
 			"", compcfg.WithConfigMissingOK(true))),
 		compcfg.Module(),
@@ -122,12 +127,11 @@ func setup() (workloadmeta.Component, error) {
 		fx.Supply(workloadmeta.NewParams()),
 		collectors.GetCatalog(),
 		workloadmeta.Module(),
+		tagger.Module(),
+		fx.Supply(tagger.NewTaggerParams()),
 	))
+	store := deps.Store
 	workloadmeta.SetGlobalStore(store)
-
-	// Setup tagger
-	tagger.SetDefaultTagger(local.NewTagger(store))
-	tagger.Init(context.TODO())
 
 	// Start compose recipes
 	for projectName, file := range defaultCatalog.composeFilesByProjects {
