@@ -241,6 +241,14 @@ func (at *ActivityTree) DifferentiateArgs() {
 	at.differentiateArgs = true
 }
 
+type untracedEventError struct {
+	eventType model.EventType
+}
+
+func (e untracedEventError) Error() string {
+	return fmt.Sprintf("invalid event: event type not valid: %s", e.eventType)
+}
+
 // isEventValid evaluates if the provided event is valid
 func (at *ActivityTree) isEventValid(event *model.Event, dryRun bool) (bool, error) {
 	// check event type
@@ -248,7 +256,7 @@ func (at *ActivityTree) isEventValid(event *model.Event, dryRun bool) (bool, err
 		if !dryRun {
 			at.Stats.droppedCount[event.GetEventType()][eventTypeReason].Inc()
 		}
-		return false, fmt.Errorf("event type not valid: %s", event.GetEventType())
+		return false, untracedEventError{eventType: event.GetEventType()}
 	}
 
 	// event specific filtering
@@ -259,7 +267,7 @@ func (at *ActivityTree) isEventValid(event *model.Event, dryRun bool) (bool, err
 			if !dryRun {
 				at.Stats.droppedCount[model.BindEventType][bindFamilyReason].Inc()
 			}
-			return false, fmt.Errorf("invalid bind family")
+			return false, errors.New("invalid event: invalid bind family")
 		}
 	}
 	return true, nil
@@ -290,7 +298,7 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 
 	// check if this event type is traced
 	if valid, err := at.isEventValid(event, dryRun); !valid || err != nil {
-		return false, fmt.Errorf("invalid event: %s", err)
+		return false, err
 	}
 
 	// Next we'll call CreateProcessNode, which will retrieve the process node if already present, or create a new one (with all its lineage if needed).
