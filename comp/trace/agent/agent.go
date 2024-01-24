@@ -19,6 +19,7 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
@@ -50,6 +51,7 @@ type dependencies struct {
 	TelemetryCollector telemetry.TelemetryCollector
 	Workloadmeta       workloadmeta.Component
 	Statsd             statsd.Component
+	Tagger             tagger.Component
 }
 
 type component struct{}
@@ -62,6 +64,7 @@ type agent struct {
 	ctx                context.Context
 	params             *Params
 	shutdowner         fx.Shutdowner
+	tagger             tagger.Component
 	telemetryCollector telemetry.TelemetryCollector
 	statsd             statsd.Component
 	workloadmeta       workloadmeta.Component
@@ -93,6 +96,7 @@ func newAgent(deps dependencies) Component {
 		shutdowner:         deps.Shutdowner,
 		workloadmeta:       deps.Workloadmeta,
 		telemetryCollector: deps.TelemetryCollector,
+		tagger:             deps.Tagger,
 		wg:                 sync.WaitGroup{},
 	}
 	deps.Lc.Append(fx.Hook{
@@ -128,7 +132,7 @@ func start(ag *agent) error {
 		return err
 	}
 
-	if err := runAgentSidekicks(ag.ctx, ag.config, ag.workloadmeta, ag.telemetryCollector); err != nil {
+	if err := runAgentSidekicks(ag.ctx, ag.config, ag.telemetryCollector); err != nil {
 		return err
 	}
 	ag.wg.Add(1)

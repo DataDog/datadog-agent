@@ -11,8 +11,7 @@ import (
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
 	krpretty "github.com/kr/pretty"
-
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 )
 
 var helperCurrentHostname string
@@ -27,27 +26,27 @@ func helperCleanup(t *testing.T) {
 }
 
 func validateAddr(t *testing.T, addr *agentmodel.Addr) {
-	require.NotEmpty(t, addr.Ip, "addr.Ip = 0")
-	require.GreaterOrEqualf(t, addr.Port, int32(1), "addr.Port < 1 %d", addr.Port)
-	require.Lessf(t, addr.Port, int32(65536), "addr.Port > 16bits %d", addr.Port)
+	assert.NotEmpty(t, addr.Ip, "addr.Ip = 0")
+	assert.GreaterOrEqualf(t, addr.Port, int32(1), "addr.Port < 1 %d", addr.Port)
+	assert.Lessf(t, addr.Port, int32(65536), "addr.Port > 16bits %d", addr.Port)
 
-	require.NotNilf(t, net.ParseIP(addr.Ip), "IP address not valid %s", addr.Ip)
+	assert.NotNilf(t, net.ParseIP(addr.Ip), "IP address not valid %s", addr.Ip)
 }
 
 func validateConnection(t *testing.T, c *agentmodel.Connection, cc *agentmodel.CollectorConnections, hostname string) {
 	helperCurrentHostname = hostname
 	helperCurrentConnection = c
 
-	require.NotZero(t, c.Pid, "Pid = 0")
-	require.NotZero(t, c.NetNS, "network namespace = 0")
-	require.NotNil(t, c.Laddr, "Laddr is nil")
-	require.NotNil(t, c.Raddr, "Raddr is nil")
+	assert.NotZero(t, c.Pid, "Pid = 0")
+	assert.NotZero(t, c.NetNS, "network namespace = 0")
+	assert.NotNil(t, c.Laddr, "Laddr is nil")
+	assert.NotNil(t, c.Raddr, "Raddr is nil")
 
 	validateAddr(t, c.Laddr)
 	validateAddr(t, c.Raddr)
 
 	// un-comment the line below when https://datadoghq.atlassian.net/browse/NPM-2958 will be fixed
-	// require.False(t, c.LastPacketsSent == 0 && c.LastPacketsReceived == 0, "connection with no packets")
+	// assert.False(t, c.LastPacketsSent == 0 && c.LastPacketsReceived == 0, "connection with no packets")
 
 	switch c.Type {
 	case agentmodel.ConnectionType_tcp:
@@ -66,8 +65,8 @@ func validateDNSConnection(t *testing.T, c *agentmodel.Connection, cc *agentmode
 	for domain, stats := range c.DnsStatsByDomainOffsetByQueryType {
 		for queryType, dnsstat := range stats.DnsStatsByQueryType {
 			domainName, err := cc.GetDNSNameByOffset(domain)
-			require.NoErrorf(t, err, "can't resolve domain tags on %s connection %s", hostname, krpretty.Sprint(c))
-			require.Greaterf(t, len(domainName), 0, "len(domainName) = 0 %s connection %s", hostname, krpretty.Sprint(c))
+			assert.NoErrorf(t, err, "can't resolve domain tags on %s connection %s", hostname, krpretty.Sprint(c))
+			assert.Greaterf(t, len(domainName), 0, "len(domainName) = 0 %s connection %s", hostname, krpretty.Sprint(c))
 			t.Logf("DNS %s query type %v %s", domainName, queryType, krpretty.Sprint(dnsstat))
 			t.Logf("connection to %s:%d", c.Raddr.Ip, c.Raddr.Port)
 		}
@@ -75,27 +74,27 @@ func validateDNSConnection(t *testing.T, c *agentmodel.Connection, cc *agentmode
 }
 
 func validateTCPConnection(t *testing.T, c *agentmodel.Connection) {
-	require.Equal(t, c.Type, agentmodel.ConnectionType_tcp, "connection is not TCP")
+	assert.Equal(t, c.Type, agentmodel.ConnectionType_tcp, "connection is not TCP")
 
 	// un-comment the lines below when https://datadoghq.atlassian.net/browse/NPM-2958 will be fixed
-	// require.NotZero(t, c.Rtt, "Rtt = 0")
-	// require.NotZero(t, c.RttVar, "RttVar = 0")
+	// assert.NotZero(t, c.Rtt, "Rtt = 0")
+	// assert.NotZero(t, c.RttVar, "RttVar = 0")
 	//
-	// require.NotZero(t, c.LastRetransmits, "LastRetransmits = 0")
-	// require.NotZero(t, c.LastTcpClosed, "LastTcpClosed = 0")
-	// require.NotZero(t, c.LastTcpEstablished, "LastTcpEstablished = 0")
+	// assert.NotZero(t, c.LastRetransmits, "LastRetransmits = 0")
+	// assert.NotZero(t, c.LastTcpClosed, "LastTcpClosed = 0")
+	// assert.NotZero(t, c.LastTcpEstablished, "LastTcpEstablished = 0")
 }
 
 func validateUDPConnection(t *testing.T, c *agentmodel.Connection) {
-	require.Equal(t, c.Type, agentmodel.ConnectionType_udp, "connection is not UDP")
+	assert.Equal(t, c.Type, agentmodel.ConnectionType_udp, "connection is not UDP")
 
-	require.Zero(t, c.Rtt, "Rtt != 0")
-	require.Zero(t, c.RttVar, "RttVar != 0")
-	require.Zero(t, c.LastRetransmits, "LastRetransmits != 0")
-	require.Zero(t, c.LastTcpEstablished, "LastTcpEstablished != 0")
-	require.Zero(t, c.LastTcpClosed, "LastTcpClosed != 0")
+	assert.Zero(t, c.Rtt, "Rtt != 0")
+	assert.Zero(t, c.RttVar, "RttVar != 0")
+	assert.Zero(t, c.LastRetransmits, "LastRetransmits != 0")
+	assert.Zero(t, c.LastTcpEstablished, "LastTcpEstablished != 0")
+	assert.Zero(t, c.LastTcpClosed, "LastTcpClosed != 0")
 
 	// we can this only for UDP connection as there are no empty payload packets
 	// technically possible but in reality no UDP protocol implement that
-	// require.False(t, c.LastBytesSent == 0 && c.LastBytesReceived == 0, "connection with no packet bytes")
+	// assert.False(t, c.LastBytesSent == 0 && c.LastBytesReceived == 0, "connection with no packet bytes")
 }
