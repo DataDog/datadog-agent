@@ -350,3 +350,21 @@ Package trace implements the "trace" bundle, providing components for the Trace 
 
 Package config implements a component to handle trace-agent configuration.  This
 component temporarily wraps pkg/trace/config.
+
+## [comp/updater](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater) (Component Bundle)
+
+*Datadog Team*: fleet
+
+
+
+### [comp/updater/localapi](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/localapi)
+
+
+
+### [comp/updater/rc](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/rc)
+
+
+
+### [comp/updater/updater](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/updater)
+
+

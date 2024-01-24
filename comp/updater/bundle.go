@@ -5,7 +5,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: fkeet
+// team: fleet
 
 // Bundle defines the fx options for this bundle.
 func Bundle() fxutil.BundleOptions {
