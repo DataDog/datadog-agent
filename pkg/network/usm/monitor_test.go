@@ -121,43 +121,39 @@ func (s *HTTPTestSuite) TestHTTPStats() {
 	}
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			testHTTPStats(t, tt.aggregateByStatusCode)
+			// Start an HTTP server on localhost:8080
+			serverAddr := "127.0.0.1:8080"
+			srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
+				EnableKeepAlive: true,
+			})
+			t.Cleanup(srvDoneFn)
+
+			cfg := config.New()
+			cfg.EnableHTTPStatsByStatusCode = tt.aggregateByStatusCode
+			monitor := newHTTPMonitorWithCfg(t, cfg)
+
+			resp, err := nethttp.Get(fmt.Sprintf("http://%s/%d/test", serverAddr, nethttp.StatusNoContent))
+			require.NoError(t, err)
+			_ = resp.Body.Close()
+			srvDoneFn()
+
+			// Iterate through active connections until we find connection created above
+			require.Eventuallyf(t, func() bool {
+				stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
+
+				for key, reqStats := range stats {
+					if key.Method == http.MethodGet && strings.HasSuffix(key.Path.Content.Get(), "/test") && (key.SrcPort == 8080 || key.DstPort == 8080) {
+						currentStats := reqStats.Data[reqStats.NormalizeStatusCode(204)]
+						if currentStats != nil && currentStats.Count == 1 {
+							return true
+						}
+					}
+				}
+
+				return false
+			}, 3*time.Second, 100*time.Millisecond, "couldn't find http connection matching: %s", serverAddr)
 		})
 	}
-}
-
-func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
-	// Start an HTTP server on localhost:8080
-	serverAddr := "127.0.0.1:8080"
-	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
-		EnableKeepAlive: true,
-	})
-	t.Cleanup(srvDoneFn)
-
-	cfg := config.New()
-	cfg.EnableHTTPStatsByStatusCode = aggregateByStatusCode
-	monitor := newHTTPMonitorWithCfg(t, cfg)
-
-	resp, err := nethttp.Get(fmt.Sprintf("http://%s/%d/test", serverAddr, nethttp.StatusNoContent))
-	require.NoError(t, err)
-	_ = resp.Body.Close()
-	srvDoneFn()
-
-	// Iterate through active connections until we find connection created above
-	require.Eventuallyf(t, func() bool {
-		stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
-
-		for key, reqStats := range stats {
-			if key.Method == http.MethodGet && strings.HasSuffix(key.Path.Content.Get(), "/test") && (key.SrcPort == 8080 || key.DstPort == 8080) {
-				currentStats := reqStats.Data[reqStats.NormalizeStatusCode(204)]
-				if currentStats != nil && currentStats.Count == 1 {
-					return true
-				}
-			}
-		}
-
-		return false
-	}, 3*time.Second, 100*time.Millisecond, "couldn't find http connection matching: %s", serverAddr)
 }
 
 func (s *HTTPTestSuite) TestHTTPMonitorCaptureRequestMultipleTimes() {
