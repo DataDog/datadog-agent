@@ -397,11 +397,6 @@ func GetNextAncestorBinaryOrArgv0(entry *model.ProcessContext) *model.ProcessCac
 	return nil
 }
 
-//nolint:unused // TODO(SEC) Fix unused linter
-func eventHaveValidCookie(entry *model.ProcessCacheEntry) bool {
-	return !entry.ExecTime.IsZero() && entry.Cookie != 0
-}
-
 // buildBranchAndLookupCookies iterates over the ancestors of entry with 2 intentions in mind:
 //   - check if one of the ancestors of entry is already in the tree and has a shortcut thanks to its cookie
 //   - creates the list of ancestors "we care about" for the tree, i.e. the chain of ancestors created by calling
