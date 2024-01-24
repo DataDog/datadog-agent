@@ -27,13 +27,20 @@ type testCase struct {
 	expectedStatus int
 }
 
+type nestedTestCase struct {
+	name           string
+	hasDefault     bool
+	override       bool
+	expectedStatus int
+}
+
 type expvals struct {
 	Success      map[string]int `json:"success"`
 	Errors       map[string]int `json:"errors"`
 	Unauthorized map[string]int `json:"unauthorized"`
 }
 
-func testConfigValue(t *testing.T, configEndpoint *configEndpoint, server *httptest.Server, configName string, expectedStatus int, isSection bool) {
+func testConfigValue(t *testing.T, configEndpoint *configEndpoint, server *httptest.Server, configName string, expectedStatus int) {
 	t.Helper()
 
 	beforeVars := getExpvals(t, configEndpoint)
@@ -56,15 +63,7 @@ func testConfigValue(t *testing.T, configEndpoint *configEndpoint, server *httpt
 	var configValue interface{}
 	err = json.Unmarshal(body, &configValue)
 	require.NoError(t, err)
-
-	var expected interface{}
-	if isSection {
-		expected = configEndpoint.cfg.GetSection(configName)
-	} else {
-		expected = configEndpoint.cfg.Get(configName)
-	}
-
-	require.EqualValues(t, expected, configValue)
+	require.EqualValues(t, configEndpoint.cfg.Get(configName), configValue)
 }
 
 func TestConfigEndpoint(t *testing.T) {
@@ -91,7 +90,7 @@ func TestConfigEndpoint(t *testing.T) {
 			if testCase.existing {
 				cfg.SetWithoutSource(configName, "some_value")
 			}
-			testConfigValue(t, configEndpoint, server, configName, testCase.expectedStatus, false)
+			testConfigValue(t, configEndpoint, server, configName, testCase.expectedStatus)
 		})
 	}
 
@@ -99,31 +98,28 @@ func TestConfigEndpoint(t *testing.T) {
 		configName := "my.config.value"
 		cfg, server, configEndpoint := getConfigServer(t, authorizedSet{configName: {}})
 		cfg.SetWithoutSource(configName, make(chan int))
-		testConfigValue(t, configEndpoint, server, configName, http.StatusInternalServerError, false)
+		testConfigValue(t, configEndpoint, server, configName, http.StatusInternalServerError)
 	})
 
-	t.Run("authorized_section_merged", func(t *testing.T) {
-		// shows that we can query for an entire config section if a prefix rule exists (trailing
-		// period) and that we can query any specific value under that section, regardless of
-		// whether or not its the default value, or the field has individually been overridden (i.e.
-		// env var, etc)
-		configParentSection := "my.config"
-		configParentSectionRule := configParentSection + "."
-		configNameOne := "my.config.field_one"
-		configNameTwo := "my.config.field_two"
-		configNameThree := "my.config.field_three"
+	for _, testCase := range []nestedTestCase{
+		{"authorized_nested_no_default_no_override", false, false, http.StatusNotFound},
+		{"authorized_nested_no_default_override", false, true, http.StatusOK},
+		{"authorized_nested_default_no_override", true, false, http.StatusOK},
+		{"authorized_nested_default_override", true, true, http.StatusOK},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			configName := "my.config.value"
 
-		cfg, server, configEndpoint := getConfigServer(t, authorizedSet{configParentSectionRule: {}})
-		cfg.Set(configNameOne, "value_one", model.SourceDefault)
-		cfg.Set(configNameTwo, "value_two", model.SourceEnvVar)
-		cfg.Set(configNameThree, "value_three", model.SourceDefault)
-		cfg.Set(configNameThree, "value_three", model.SourceEnvVar)
-
-		testConfigValue(t, configEndpoint, server, configParentSection, http.StatusOK, true)
-		testConfigValue(t, configEndpoint, server, configNameOne, http.StatusOK, false)
-		testConfigValue(t, configEndpoint, server, configNameTwo, http.StatusOK, false)
-		testConfigValue(t, configEndpoint, server, configNameThree, http.StatusOK, false)
-	})
+			cfg, server, configEndpoint := getConfigServer(t, authorizedSet{configName: struct{}{}})
+			if testCase.hasDefault {
+				cfg.Set(configName, "default_value", model.SourceDefault)
+			}
+			if testCase.override {
+				cfg.Set(configName, "override_value", model.SourceEnvVar)
+			}
+			testConfigValue(t, configEndpoint, server, configName, testCase.expectedStatus)
+		})
+	}
 }
 
 func TestConfigListEndpoint(t *testing.T) {
