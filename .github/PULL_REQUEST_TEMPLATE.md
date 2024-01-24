@@ -55,7 +55,6 @@ Note: Adding GitHub labels is only possible for contributors with write access.
 
 - [ ] If known, an appropriate milestone has been selected; otherwise the `Triage` milestone is set.
 - [ ] Use the `major_change` label if your change either has a major impact on the code base, is impacting multiple teams or is changing important well-established internals of the Agent. This label will be use during QA to make sure each team pay extra attention to the changed behavior. For any customer facing change use a releasenote.
-- [ ] A [release note](https://github.com/DataDog/datadog-agent/blob/main/docs/dev/contributing.md#reno) has been added or the `changelog/no-changelog` label has been applied.
 - [ ] Changed code has automated tests for its functionality.
 - [ ] Adequate QA/testing plan information is provided. Except if the `qa/skip-qa` label, with required either `qa/done` or `qa/no-code-change` labels, are applied.
 - [ ] At least one `team/..` label has been applied, indicating the team(s) that should QA this change.
