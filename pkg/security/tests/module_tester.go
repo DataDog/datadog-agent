@@ -18,6 +18,7 @@ import (
 	"os/exec"
 	"path"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"text/template"
@@ -772,4 +773,24 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 	secconfig.Probe.MapDentryResolutionEnabled = !opts.disableMapDentryResolution
 
 	return emconfig, secconfig, nil
+}
+
+func addUser(user string, uid, gid int32) error {
+	cmd := exec.Command("/usr/sbin/adduser", "--no-create-home", "--gid", strconv.Itoa(int(gid)), "--uid", strconv.Itoa(int(uid)), user)
+	return cmd.Run()
+}
+
+func addGroup(group string, gid int32) error {
+	cmd := exec.Command("/usr/sbin/addgroup", "--gid", strconv.Itoa(int(gid)), group)
+	return cmd.Run()
+}
+
+func removeUser(user string) error {
+	cmd := exec.Command("/usr/sbin/userdel", user)
+	return cmd.Run()
+}
+
+func removeGroup(group string) error {
+	cmd := exec.Command("/usr/sbin/groupdel", group)
+	return cmd.Run()
 }

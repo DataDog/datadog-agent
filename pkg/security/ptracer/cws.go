@@ -314,6 +314,12 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 						GID:  gid,
 						EGID: gid,
 					}
+					if !disableStats {
+						syscallMsg.Exec.Credentials.User = getUserFromUID(tracer, int32(syscallMsg.Exec.Credentials.UID))
+						syscallMsg.Exec.Credentials.EUser = getUserFromUID(tracer, int32(syscallMsg.Exec.Credentials.EUID))
+						syscallMsg.Exec.Credentials.Group = getGroupFromGID(tracer, int32(syscallMsg.Exec.Credentials.GID))
+						syscallMsg.Exec.Credentials.EGroup = getGroupFromGID(tracer, int32(syscallMsg.Exec.Credentials.EGID))
+					}
 				}
 
 				// special case for exec since the pre reports the pid while the post reports the tgid

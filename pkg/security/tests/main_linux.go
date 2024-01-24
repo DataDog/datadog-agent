@@ -33,6 +33,12 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestRename",
 			"~TestMkdir",
 			"~TestUtimes",
+			"~TestHardLink",
+			"~TestLink",
+			"~TestChmod",
+			"~TestChown",
+			"~TestLoadModule",
+			"~TestUnloadModule",
 		}
 
 		exclude := []string{
@@ -48,6 +54,11 @@ func SkipIfNotAvailable(t *testing.T) {
 			"TestRenameReuseInode",
 			"TestUnlink/io_uring",
 			"TestRmdir/unlinkat-io_uring",
+			"TestHardLinkExecsWithERPC",
+			"TestHardLinkExecsWithMaps",
+			"TestLink/io_uring",
+			"TestLoadModule/load_module_with_truncated_params",
+			"~TestChown32",
 		}
 
 		match := func(list []string) bool {

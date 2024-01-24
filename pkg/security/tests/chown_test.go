@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/user"
+	"strconv"
 	"syscall"
 	"testing"
 
@@ -84,7 +86,7 @@ func TestChown(t *testing.T) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(100), event.Chown.UID, "wrong user")
 			assert.Equal(t, int64(200), event.Chown.GID, "wrong user")
-			assert.Equal(t, getInode(t, testFile), event.Chown.File.Inode, "wrong inode")
+			assertInode(t, getInode(t, testFile), event.Chown.File.Inode)
 			assertRights(t, event.Chown.File.Mode, uint16(expectedMode), "wrong initial mode")
 			assert.Equal(t, uint32(prevUID), event.Chown.File.UID, "wrong initial user")
 			assert.Equal(t, uint32(prevGID), event.Chown.File.GID, "wrong initial group")
@@ -113,7 +115,7 @@ func TestChown(t *testing.T) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(101), event.Chown.UID, "wrong user")
 			assert.Equal(t, int64(201), event.Chown.GID, "wrong user")
-			assert.Equal(t, getInode(t, testFile), event.Chown.File.Inode, "wrong inode")
+			assertInode(t, getInode(t, testFile), event.Chown.File.Inode)
 			assertRights(t, event.Chown.File.Mode, uint16(expectedMode), "wrong initial mode")
 			assert.Equal(t, uint32(prevUID), event.Chown.File.UID, "wrong initial user")
 			assert.Equal(t, uint32(prevGID), event.Chown.File.GID, "wrong initial group")
@@ -152,7 +154,7 @@ func TestChown(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_rule2")
 			assert.Equal(t, int64(102), event.Chown.UID, "wrong user")
 			assert.Equal(t, int64(202), event.Chown.GID, "wrong user")
-			assert.Equal(t, getInode(t, testSymlink), event.Chown.File.Inode, "wrong inode")
+			assertInode(t, getInode(t, testSymlink), event.Chown.File.Inode)
 			assertRights(t, event.Chown.File.Mode, 0o777, "wrong initial mode")
 			assert.Equal(t, uint32(0), event.Chown.File.UID, "wrong initial user")
 			assert.Equal(t, uint32(0), event.Chown.File.GID, "wrong initial group")
@@ -178,7 +180,7 @@ func TestChown(t *testing.T) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(103), event.Chown.UID, "wrong user")
 			assert.Equal(t, int64(203), event.Chown.GID, "wrong user")
-			assert.Equal(t, getInode(t, testFile), event.Chown.File.Inode, "wrong inode")
+			assertInode(t, getInode(t, testFile), event.Chown.File.Inode)
 			assertRights(t, event.Chown.File.Mode, uint16(expectedMode), "wrong initial mode")
 			assert.Equal(t, uint32(prevUID), event.Chown.File.UID, "wrong initial user")
 			assert.Equal(t, uint32(prevGID), event.Chown.File.GID, "wrong initial group")
@@ -253,4 +255,227 @@ func TestChown(t *testing.T) {
 		})
 	})
 
+}
+
+func TestChownUserGroup(t *testing.T) {
+	SkipIfNotAvailable(t)
+	testUser := "test_user_1"
+	testUID := int32(1901)
+	testGroup := "test_group_1"
+	testGID := int32(1902)
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule",
+			Expression: `chown.file.path == "{{.Root}}/test-chown" && chown.file.destination.user == "` + testUser + `" && chown.file.destination.group == "` + testGroup + `"`,
+		},
+		{
+			ID:         "test_rule2",
+			Expression: `chown.file.path == "{{.Root}}/test-symlink" && chown.file.destination.user == "` + testUser + `" && chown.file.destination.group == "` + testGroup + `"`,
+		},
+		{
+			ID:         "test_rule3",
+			Expression: `chown.file.path == "{{.Root}}/test-chown" && chown.file.destination.user == "` + testUser + `" && chown.file.destination.gid == -1`,
+		},
+		{
+			ID:         "test_rule4",
+			Expression: `chown.file.path == "{{.Root}}/test-chown" && chown.file.destination.uid == -1 && chown.file.destination.group == "` + testGroup + `"`,
+		},
+	}
+
+	currentUser, err := user.Current()
+	if err != nil {
+		t.Fatal(err)
+	}
+	currentGroup, err := user.LookupGroupId(currentUser.Gid)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// create temporary user/group
+	removeUser(testUser)   // just in case
+	removeGroup(testGroup) // just in case
+	if err := addGroup(testGroup, testGID); err != nil {
+		t.Fatal(err)
+	}
+	defer removeGroup(testGroup)
+	if err := addUser(testUser, testUID, testGID); err != nil {
+		t.Fatal(err)
+	}
+	defer removeUser(testUser)
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	t.Run("fchown", func(t *testing.T) {
+		testFile, _, err := test.Create("test-chown")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(testFile)
+
+		f, err := os.Open(testFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		test.WaitSignal(t, func() error {
+			// fchown syscall
+			if _, _, errno := syscall.Syscall(syscall.SYS_FCHOWN, f.Fd(), uintptr(testUID), uintptr(testGID)); errno != 0 {
+				return error(errno)
+			}
+			return nil
+		}, func(event *model.Event, r *rules.Rule) {
+			assert.Equal(t, "chown", event.GetType(), "wrong event type")
+			assert.Equal(t, int64(testUID), event.Chown.UID, "wrong user")
+			assert.Equal(t, testUser, event.Chown.User, "wrong user")
+			assert.Equal(t, int64(testGID), event.Chown.GID, "wrong group")
+			assert.Equal(t, testGroup, event.Chown.Group, "wrong group")
+			assert.Equal(t, currentUser.Uid, strconv.Itoa(int(event.Chown.File.UID)), "wrong initial user")
+			assert.Equal(t, currentUser.Username, event.Chown.File.User, "wrong initial user")
+			assert.Equal(t, currentGroup.Gid, strconv.Itoa(int(event.Chown.File.GID)), "wrong initial group")
+			assert.Equal(t, currentGroup.Name, event.Chown.File.Group, "wrong initial group")
+		})
+	})
+
+	t.Run("fchownat", func(t *testing.T) {
+		testFile, testFilePtr, err := test.Create("test-chown")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(testFile)
+
+		test.WaitSignal(t, func() error {
+			if _, _, errno := syscall.Syscall6(syscall.SYS_FCHOWNAT, 0, uintptr(testFilePtr), uintptr(testUID), uintptr(testGID), 0x100, 0); errno != 0 {
+				return error(errno)
+			}
+			return nil
+		}, func(event *model.Event, r *rules.Rule) {
+			assert.Equal(t, "chown", event.GetType(), "wrong event type")
+			assert.Equal(t, int64(testUID), event.Chown.UID, "wrong user")
+			assert.Equal(t, testUser, event.Chown.User, "wrong user")
+			assert.Equal(t, int64(testGID), event.Chown.GID, "wrong group")
+			assert.Equal(t, testGroup, event.Chown.Group, "wrong group")
+			assert.Equal(t, currentUser.Uid, strconv.Itoa(int(event.Chown.File.UID)), "wrong initial user")
+			assert.Equal(t, currentUser.Username, event.Chown.File.User, "wrong initial user")
+			assert.Equal(t, currentGroup.Gid, strconv.Itoa(int(event.Chown.File.GID)), "wrong initial group")
+			assert.Equal(t, currentGroup.Name, event.Chown.File.Group, "wrong initial group")
+		})
+	})
+
+	t.Run("lchown", ifSyscallSupported("SYS_LCHOWN", func(t *testing.T, syscallNB uintptr) {
+		testFile, _, err := test.Create("test-chown")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(testFile)
+
+		testSymlink, testSymlinkPtr, err := test.Path("test-symlink")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(testFile, testSymlink); err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(testSymlink)
+
+		test.WaitSignal(t, func() error {
+			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testSymlinkPtr), uintptr(testUID), uintptr(testGID)); errno != 0 {
+				if errno == unix.ENOSYS {
+					return ErrSkipTest{"lchown is not supported"}
+				}
+				return error(errno)
+			}
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assert.Equal(t, "chown", event.GetType(), "wrong event type")
+			assert.Equal(t, int64(testUID), event.Chown.UID, "wrong user")
+			assert.Equal(t, testUser, event.Chown.User, "wrong user")
+			assert.Equal(t, int64(testGID), event.Chown.GID, "wrong group")
+			assert.Equal(t, testGroup, event.Chown.Group, "wrong group")
+			assert.Equal(t, currentUser.Uid, strconv.Itoa(int(event.Chown.File.UID)), "wrong initial user")
+			assert.Equal(t, currentUser.Username, event.Chown.File.User, "wrong initial user")
+			assert.Equal(t, currentGroup.Gid, strconv.Itoa(int(event.Chown.File.GID)), "wrong initial group")
+			assert.Equal(t, currentGroup.Name, event.Chown.File.Group, "wrong initial group")
+		})
+	}))
+
+	t.Run("chown", ifSyscallSupported("SYS_CHOWN", func(t *testing.T, syscallNB uintptr) {
+		testFile, testFilePtr, err := test.Create("test-chown")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(testFile)
+
+		test.WaitSignal(t, func() error {
+			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(testUID), uintptr(testGID)); errno != 0 {
+				return error(errno)
+			}
+			return nil
+		}, func(event *model.Event, r *rules.Rule) {
+			assert.Equal(t, "chown", event.GetType(), "wrong event type")
+			assert.Equal(t, int64(testUID), event.Chown.UID, "wrong user")
+			assert.Equal(t, testUser, event.Chown.User, "wrong user")
+			assert.Equal(t, int64(testGID), event.Chown.GID, "wrong group")
+			assert.Equal(t, testGroup, event.Chown.Group, "wrong group")
+			assert.Equal(t, currentUser.Uid, strconv.Itoa(int(event.Chown.File.UID)), "wrong initial user")
+			assert.Equal(t, currentUser.Username, event.Chown.File.User, "wrong initial user")
+			assert.Equal(t, currentGroup.Gid, strconv.Itoa(int(event.Chown.File.GID)), "wrong initial group")
+			assert.Equal(t, currentGroup.Name, event.Chown.File.Group, "wrong initial group")
+		})
+	}))
+
+	t.Run("chown-no-group", ifSyscallSupported("SYS_CHOWN", func(t *testing.T, syscallNB uintptr) {
+		testFile, testFilePtr, err := test.Create("test-chown")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(testFile)
+
+		test.WaitSignal(t, func() error {
+			gid := -1
+			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(testUID), uintptr(gid)); errno != 0 {
+				return error(errno)
+			}
+			return nil
+		}, func(event *model.Event, r *rules.Rule) {
+			assert.Equal(t, "chown", event.GetType(), "wrong event type")
+			assert.Equal(t, int64(testUID), event.Chown.UID, "wrong user")
+			assert.Equal(t, testUser, event.Chown.User, "wrong user")
+			assert.Equal(t, int64(-1), event.Chown.GID, "wrong group")
+			assert.Equal(t, "", event.Chown.Group, "wrong group")
+			assert.Equal(t, currentUser.Uid, strconv.Itoa(int(event.Chown.File.UID)), "wrong initial user")
+			assert.Equal(t, currentUser.Username, event.Chown.File.User, "wrong initial user")
+			assert.Equal(t, currentGroup.Gid, strconv.Itoa(int(event.Chown.File.GID)), "wrong initial group")
+			assert.Equal(t, currentGroup.Name, event.Chown.File.Group, "wrong initial group")
+		})
+	}))
+
+	t.Run("chown-no-user", ifSyscallSupported("SYS_CHOWN", func(t *testing.T, syscallNB uintptr) {
+		testFile, testFilePtr, err := test.Create("test-chown")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(testFile)
+
+		test.WaitSignal(t, func() error {
+			uid := -1
+			if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(uid), uintptr(testGID)); errno != 0 {
+				return error(errno)
+			}
+			return nil
+		}, func(event *model.Event, r *rules.Rule) {
+			assert.Equal(t, "chown", event.GetType(), "wrong event type")
+			assert.Equal(t, int64(-1), event.Chown.UID, "wrong user")
+			assert.Equal(t, "", event.Chown.User, "wrong user")
+			assert.Equal(t, int64(testGID), event.Chown.GID, "wrong group")
+			assert.Equal(t, testGroup, event.Chown.Group, "wrong group")
+			assert.Equal(t, currentUser.Uid, strconv.Itoa(int(event.Chown.File.UID)), "wrong initial user")
+			assert.Equal(t, currentUser.Username, event.Chown.File.User, "wrong initial user")
+			assert.Equal(t, currentGroup.Gid, strconv.Itoa(int(event.Chown.File.GID)), "wrong initial group")
+			assert.Equal(t, currentGroup.Name, event.Chown.File.Group, "wrong initial group")
+		})
+	}))
 }
