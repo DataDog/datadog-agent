@@ -30,19 +30,23 @@ Collector
     {{- range $instance := $CheckInstances }}
       Instance ID: {{.CheckID}} {{status .}}
       Configuration Source: {{.CheckConfigSource}}
+      {{- if not .LongRunning }}
       Total Runs: {{humanize .TotalRuns}}
-      Metric Samples: Last Run: {{humanize .MetricSamples}}, Total: {{humanize .TotalMetricSamples}}
-      Events: Last Run: {{humanize .Events}}, Total: {{humanize .TotalEvents}}
+      {{- end }}
+      Metric Samples:{{ if not .LongRunning }} Last Run: {{humanize .MetricSamples}},{{- end }} Total: {{humanize .TotalMetricSamples}}
+      Events:{{- if not .LongRunning }} Last Run: {{humanize .Events}},{{- end }} Total: {{humanize .TotalEvents}}
       {{- range $k, $v := .TotalEventPlatformEvents }}
-      {{ $k }}: Last Run: {{humanize (index $instance.EventPlatformEvents $k) }}, Total: {{humanize $v}}
+      {{ $k }}:{{- if not $instance.LongRunning }}Last Run: {{humanize (index $instance.EventPlatformEvents $k) }},{{- end }} Total: {{humanize $v}}
       {{- end }}
-      Service Checks: Last Run: {{humanize .ServiceChecks}}, Total: {{humanize .TotalServiceChecks}}
+      Service Checks:{{- if not $instance.LongRunning }} Last Run: {{humanize .ServiceChecks}},{{- end }} Total: {{humanize .TotalServiceChecks}}
       {{- if .TotalHistogramBuckets}}
-      Histogram Buckets: Last Run: {{humanize .HistogramBuckets}}, Total: {{humanize .TotalHistogramBuckets}}
+      Histogram Buckets:{{- if not $instance.LongRunning }}Last Run: {{humanize .HistogramBuckets}},{{- end }} Total: {{humanize .TotalHistogramBuckets}}
       {{- end }}
+      {{- if not .LongRunning }}
       Average Execution Time : {{humanizeDuration .AverageExecutionTime "ms"}}
       Last Execution Date : {{formatUnixTime .UpdateTimestamp}}
       Last Successful Execution Date : {{ if .LastSuccessDate }}{{formatUnixTime .LastSuccessDate}}{{ else }}Never{{ end }}
+      {{- end }}
       {{- if $.inventories }}
       {{- if index $.inventories .CheckID }}
       metadata:
