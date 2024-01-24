@@ -8,7 +8,7 @@ on:
       - 'test/integration/serverless/**'
       - '.github/workflows/serverless-integration.yml'
   schedule:
-    - cron: '0 14 * * *'
+    - cron: '0 14 * * *' # cron schedule uses UTC timezone. Run tests at the beginning of the day in US-East
 
 jobs:
   test:
