@@ -20,17 +20,21 @@ import (
 )
 
 const (
+	// defaultRepositoryPath is the default path to the repository.
+	defaultRepositoryPath = "/opt/datadog-packages"
+	// defaultRunPath is the default path to the run directory.
+	defaultRunPath = "/var/run/datadog-packages"
 	// gcInterval is the interval at which the GC will run
 	gcInterval = 1 * time.Hour
 )
 
 // Install installs the default version for the given package.
 // It is purposefully not part of the updater to avoid misuse.
-func Install(ctx context.Context, orgConfig *OrgConfig, pkg string, defaultRootPath string, defaultRunPath string) error {
+func Install(ctx context.Context, orgConfig *OrgConfig, pkg string) error {
 	log.Infof("Updater: Installing default version of package %s", pkg)
 	downloader := newDownloader(http.DefaultClient)
 	repository := &repository.Repository{
-		RootPath: path.Join(defaultRootPath, pkg),
+		RootPath: path.Join(defaultRepositoryPath, pkg),
 		RunPath:  path.Join(defaultRunPath, pkg),
 	}
 	firstPackage, err := orgConfig.GetDefaultPackage(ctx, pkg)
@@ -66,9 +70,9 @@ type Updater struct {
 }
 
 // NewUpdater returns a new Updater.
-func NewUpdater(orgConfig *OrgConfig, pkg string, defaultRootPath string, defaultRunPath string) (*Updater, error) {
+func NewUpdater(orgConfig *OrgConfig, pkg string) (*Updater, error) {
 	repository := &repository.Repository{
-		RootPath: path.Join(defaultRootPath, pkg),
+		RootPath: path.Join(defaultRepositoryPath, pkg),
 		RunPath:  path.Join(defaultRunPath, pkg),
 	}
 	state, err := repository.GetState()
@@ -80,7 +84,7 @@ func NewUpdater(orgConfig *OrgConfig, pkg string, defaultRootPath string, defaul
 	}
 	return &Updater{
 		pkg:            pkg,
-		repositoryPath: defaultRootPath,
+		repositoryPath: defaultRepositoryPath,
 		orgConfig:      orgConfig,
 		repository:     repository,
 		downloader:     newDownloader(http.DefaultClient),
@@ -94,7 +98,7 @@ func (u *Updater) Start() {
 		for {
 			select {
 			case <-time.After(gcInterval):
-				err := u.Cleanup()
+				err := u.cleanup()
 				if err != nil {
 					log.Errorf("updater: could not run GC: %v", err)
 				}
@@ -111,7 +115,7 @@ func (u *Updater) Stop() {
 }
 
 // Cleanup cleans up the repository.
-func (u *Updater) Cleanup() error {
+func (u *Updater) cleanup() error {
 	u.m.Lock()
 	defer u.m.Unlock()
 	err := u.repository.Cleanup()

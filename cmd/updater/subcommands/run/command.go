@@ -33,7 +33,7 @@ func run(pkg string, repositoriesPath string, runPath string) error {
 	if err != nil {
 		return fmt.Errorf("could not create org config: %w", err)
 	}
-	u, err := updater.NewUpdater(orgConfig, pkg, repositoriesPath, runPath)
+	u, err := updater.NewUpdater(orgConfig, pkg)
 	if err != nil {
 		return fmt.Errorf("could not create updater: %w", err)
 	}
