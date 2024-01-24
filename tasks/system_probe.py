@@ -16,12 +16,12 @@ import requests
 from invoke import task
 from invoke.exceptions import Exit
 
-from .agent import BUNDLED_AGENTS
-from .agent import build as agent_build
-from .build_tags import UNIT_TEST_TAGS, get_default_build_tags
-from .flavor import AgentFlavor
-from .libs.common.color import color_message
-from .libs.common.utils import (
+from tasks.agent import BUNDLED_AGENTS
+from tasks.agent import build as agent_build
+from tasks.build_tags import UNIT_TEST_TAGS, get_default_build_tags
+from tasks.flavor import AgentFlavor
+from tasks.libs.common.color import color_message
+from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
     environ,
@@ -32,8 +32,8 @@ from .libs.common.utils import (
     set_co_re_env,
     set_runtime_comp_env,
 )
-from .libs.ninja_syntax import NinjaWriter
-from .windows_resources import MESSAGESTRINGS_MC_PATH, arch_to_windres_target
+from tasks.libs.ninja_syntax import NinjaWriter
+from tasks.windows_resources import MESSAGESTRINGS_MC_PATH, arch_to_windres_target
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
@@ -312,6 +312,7 @@ def ninja_runtime_compilation_files(nw, gobin):
         "pkg/network/tracer/compile.go": "conntrack",
         "pkg/network/tracer/connection/kprobe/compile.go": "tracer",
         "pkg/network/tracer/offsetguess_test.go": "offsetguess-test",
+        "pkg/ebpf/bytecode/runtime/printk_patcher_test.go": "logdebug-test",
         "pkg/security/ebpf/compile.go": "runtime-security",
     }
 

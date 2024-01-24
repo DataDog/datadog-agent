@@ -18,8 +18,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -76,8 +76,8 @@ func createServiceCheck(checkName string) *servicecheck.ServiceCheck {
 		Tags:      []string{"5", "6"}}
 }
 
-func buildPayload(t *testing.T, m marshaler.StreamJSONMarshaler) [][]byte {
-	builder := stream.NewJSONPayloadBuilder(true)
+func buildPayload(t *testing.T, m marshaler.StreamJSONMarshaler, cfg pkgconfigmodel.Config) [][]byte {
+	builder := stream.NewJSONPayloadBuilder(true, cfg)
 	payloads, err := stream.BuildJSONPayload(builder, m)
 	assert.NoError(t, err)
 	var uncompressedPayloads [][]byte
@@ -92,7 +92,8 @@ func buildPayload(t *testing.T, m marshaler.StreamJSONMarshaler) [][]byte {
 }
 
 func assertEqualToMarshalJSON(t *testing.T, m marshaler.StreamJSONMarshaler, jsonMarshaler marshaler.JSONMarshaler) {
-	payloads := buildPayload(t, m)
+	config := pkgconfigsetup.Conf()
+	payloads := buildPayload(t, m, config)
 	json, err := jsonMarshaler.MarshalJSON()
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(payloads))
@@ -120,8 +121,8 @@ func TestPayloadsEmptyServiceCheck(t *testing.T) {
 }
 
 func TestPayloadsServiceChecks(t *testing.T) {
-	config.Datadog.Set("serializer_max_payload_size", 200, model.SourceAgentRuntime)
-	defer config.Datadog.UnsetForSource("serializer_max_payload_size", model.SourceAgentRuntime)
+	config := pkgconfigsetup.Conf()
+	config.Set("serializer_max_payload_size", 200, pkgconfigmodel.SourceAgentRuntime)
 
 	serviceCheckCollection := []ServiceChecks{
 		{createServiceCheck("1"), createServiceCheck("2"), createServiceCheck("3")},
@@ -132,7 +133,7 @@ func TestPayloadsServiceChecks(t *testing.T) {
 		allServiceChecks = append(allServiceChecks, serviceCheck...)
 	}
 
-	payloads := buildPayload(t, allServiceChecks)
+	payloads := buildPayload(t, allServiceChecks, config)
 	assert.Equal(t, 3, len(payloads))
 
 	for index, serviceChecks := range serviceCheckCollection {
@@ -167,7 +168,7 @@ func decompressPayload(payload []byte) ([]byte, error) {
 }
 
 func benchmarkJSONPayloadBuilderServiceCheck(b *testing.B, numberOfItem int) {
-	payloadBuilder := stream.NewJSONPayloadBuilder(true)
+	payloadBuilder := stream.NewJSONPayloadBuilder(true, pkgconfigsetup.Conf())
 	serviceChecks := createServiceChecks(numberOfItem)
 
 	b.ResetTimer()

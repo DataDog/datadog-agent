@@ -171,6 +171,9 @@ DEFAULT_MODULES = {
     "comp/core/status/statusimpl": GoModule("comp/core/status/statusimpl", independent=True),
     "comp/core/telemetry": GoModule("comp/core/telemetry", independent=True),
     "comp/forwarder/defaultforwarder": GoModule("comp/forwarder/defaultforwarder", independent=True),
+    "comp/forwarder/orchestrator/orchestratorinterface": GoModule(
+        "comp/forwarder/orchestrator/orchestratorinterface", independent=True
+    ),
     "comp/logs/agent/config": GoModule("comp/logs/agent/config", independent=True),
     "cmd/agent/common/path": GoModule("cmd/agent/common/path", independent=True),
     "pkg/config/model": GoModule("pkg/config/model", independent=True),
@@ -179,6 +182,7 @@ DEFAULT_MODULES = {
     "pkg/config/utils": GoModule("pkg/config/utils", independent=True),
     "pkg/config/logs": GoModule("pkg/config/logs", independent=True),
     "pkg/config/remote": GoModule("pkg/config/remote", independent=True),
+    "pkg/serializer": GoModule("pkg/serializer", independent=True),
     "pkg/security/secl": GoModule("pkg/security/secl", independent=True),
     "pkg/status/health": GoModule("pkg/status/health", independent=True),
     "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state", independent=True, used_by_otel=True),

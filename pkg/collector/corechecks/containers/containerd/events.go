@@ -18,11 +18,11 @@ import (
 	containerdevents "github.com/containerd/containerd/events"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	ctrUtil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -72,8 +72,8 @@ func computeEvents(events []containerdEvent, sender sender.Sender, fil *containe
 		output := event.Event{
 			Title:          fmt.Sprintf("Event on %s from Containerd", split[1]),
 			Priority:       event.EventPriorityNormal,
-			SourceTypeName: containerdCheckName,
-			EventType:      containerdCheckName,
+			SourceTypeName: CheckName,
+			EventType:      CheckName,
 			AlertType:      alertType,
 			AggregationKey: fmt.Sprintf("containerd:%s", e.Topic),
 			Text:           e.Message,

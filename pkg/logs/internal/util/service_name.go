@@ -8,7 +8,7 @@ package util
 import (
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
