@@ -5,7 +5,7 @@
 
 //go:build !linux
 
-package ebpf
+package telemetry
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
