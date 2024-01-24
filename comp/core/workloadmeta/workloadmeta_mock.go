@@ -367,14 +367,11 @@ type workloadMetaMockV2 struct {
 
 // newWorkloadMetaMockV2 returns a Mock
 func newWorkloadMetaMockV2(deps dependencies) Mock {
-	wm := newWorkloadMeta(deps)
-
+	provider := newWorkloadMeta(deps)
 	w := &workloadMetaMockV2{
-		workloadmeta: wm.(*workloadmeta),
+		workloadmeta: provider.Comp.(*workloadmeta),
 	}
-
 	return w
-
 }
 
 // Notify overrides store to allow for synchronous event processing

@@ -34,7 +34,7 @@ func TestHandleEvents(t *testing.T) {
 		fx.Supply(NewParams()),
 	))
 
-	s := newWorkloadMeta(deps).(*workloadmeta)
+	s := newWorkloadMeta(deps).Comp.(*workloadmeta)
 
 	container := &Container{
 		EntityID: EntityID{
@@ -595,7 +595,7 @@ func TestSubscribe(t *testing.T) {
 				fx.Supply(NewParams()),
 			))
 
-			s := newWorkloadMeta(deps).(*workloadmeta)
+			s := newWorkloadMeta(deps).Comp.(*workloadmeta)
 
 			s.handleEvents(tt.preEvents)
 
@@ -637,7 +637,7 @@ func TestGetKubernetesDeployment(t *testing.T) {
 		fx.Supply(NewParams()),
 	))
 
-	s := newWorkloadMeta(deps).(*workloadmeta)
+	s := newWorkloadMeta(deps).Comp.(*workloadmeta)
 
 	deployment := &KubernetesDeployment{
 		EntityID: EntityID{
@@ -680,7 +680,7 @@ func TestGetProcess(t *testing.T) {
 		fx.Supply(NewParams()),
 	))
 
-	s := newWorkloadMeta(deps).(*workloadmeta)
+	s := newWorkloadMeta(deps).Comp.(*workloadmeta)
 
 	process := &Process{
 		EntityID: EntityID{
@@ -759,7 +759,7 @@ func TestListContainers(t *testing.T) {
 				fx.Supply(NewParams()),
 			))
 
-			s := newWorkloadMeta(deps).(*workloadmeta)
+			s := newWorkloadMeta(deps).Comp.(*workloadmeta)
 
 			s.handleEvents(test.preEvents)
 
@@ -797,7 +797,7 @@ func TestListContainersWithFilter(t *testing.T) {
 		fx.Supply(NewParams()),
 	))
 
-	s := newWorkloadMeta(deps).(*workloadmeta)
+	s := newWorkloadMeta(deps).Comp.(*workloadmeta)
 
 	s.handleEvents([]CollectorEvent{
 		{
@@ -856,7 +856,7 @@ func TestListProcesses(t *testing.T) {
 				fx.Supply(NewParams()),
 			))
 
-			s := newWorkloadMeta(deps).(*workloadmeta)
+			s := newWorkloadMeta(deps).Comp.(*workloadmeta)
 
 			s.handleEvents(test.preEvents)
 
@@ -894,7 +894,7 @@ func TestListProcessesWithFilter(t *testing.T) {
 		fx.Supply(NewParams()),
 	))
 
-	s := newWorkloadMeta(deps).(*workloadmeta)
+	s := newWorkloadMeta(deps).Comp.(*workloadmeta)
 
 	s.handleEvents([]CollectorEvent{
 		{
@@ -1011,7 +1011,7 @@ func TestGetKubernetesPodByName(t *testing.T) {
 				fx.Supply(NewParams()),
 			))
 
-			s := newWorkloadMeta(deps).(*workloadmeta)
+			s := newWorkloadMeta(deps).Comp.(*workloadmeta)
 
 			for _, pod := range []*KubernetesPod{pod1, pod2, pod3} {
 				s.handleEvents([]CollectorEvent{
@@ -1072,7 +1072,7 @@ func TestListImages(t *testing.T) {
 				fx.Supply(NewParams()),
 			))
 
-			s := newWorkloadMeta(deps).(*workloadmeta)
+			s := newWorkloadMeta(deps).Comp.(*workloadmeta)
 
 			s.handleEvents(test.preEvents)
 
@@ -1124,7 +1124,7 @@ func TestGetImage(t *testing.T) {
 				fx.Supply(NewParams()),
 			))
 
-			s := newWorkloadMeta(deps).(*workloadmeta)
+			s := newWorkloadMeta(deps).Comp.(*workloadmeta)
 			s.handleEvents(test.preEvents)
 
 			actualImage, err := s.GetImage(test.imageID)
@@ -1219,7 +1219,7 @@ func TestResetProcesses(t *testing.T) {
 				fx.Supply(NewParams()),
 			))
 
-			s := newWorkloadMeta(deps).(*workloadmeta)
+			s := newWorkloadMeta(deps).Comp.(*workloadmeta)
 			s.handleEvents(test.preEvents)
 
 			ch := s.Subscribe(dummySubscriber, NormalPriority, nil)
@@ -1417,7 +1417,7 @@ func TestReset(t *testing.T) {
 				fx.Supply(NewParams()),
 			))
 
-			s := newWorkloadMeta(deps).(*workloadmeta)
+			s := newWorkloadMeta(deps).Comp.(*workloadmeta)
 
 			s.handleEvents(test.preEvents)
 
@@ -1464,7 +1464,7 @@ func TestNoDataRace(t *testing.T) { //nolint:revive // TODO fix revive unused-pa
 		fx.Supply(NewParams()),
 	))
 
-	s := newWorkloadMeta(deps).(*workloadmeta)
+	s := newWorkloadMeta(deps).Comp.(*workloadmeta)
 
 	container := &Container{
 		EntityID: EntityID{
@@ -1494,7 +1494,7 @@ func TestPushEvents(t *testing.T) {
 		fx.Supply(NewParams()),
 	))
 
-	wlm := newWorkloadMeta(deps).(*workloadmeta)
+	wlm := newWorkloadMeta(deps).Comp.(*workloadmeta)
 
 	mockSource := Source("mockSource")
 
