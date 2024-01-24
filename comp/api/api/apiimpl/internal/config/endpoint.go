@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"expvar"
 	"fmt"
+	"html"
 	"net/http"
 
 	gorilla "github.com/gorilla/mux"
@@ -39,6 +40,9 @@ type configEndpoint struct {
 func (c *configEndpoint) getConfigValueHandler(w http.ResponseWriter, r *http.Request) {
 	vars := gorilla.Vars(r)
 	path := vars["path"]
+	// escape in case it contains html special characters that would be unsafe to include as is in a response
+	// all valid config paths won't contain such characters so for a valid request this is a no-op
+	path = html.EscapeString(path)
 
 	if _, ok := c.authorizedConfigPaths[path]; !ok {
 		c.unauthorizedExpvar.Add(path, 1)
