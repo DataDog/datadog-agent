@@ -31,9 +31,9 @@ from .modules import DEFAULT_MODULES, GoModule
 from .test_core import ModuleTestResult, process_input_args, process_module_results, test_core
 from .trace_agent import integration_tests as trace_integration_tests
 
-PROFILE_COV = "coverage.out"
+PROFILE_COV = "\"coverage.out\""
 TMP_PROFILE_COV_PREFIX = "coverage.out.rerun"
-GO_COV_TEST_PATH = "test_with_coverage.sh"
+GO_COV_TEST_PATH = "test_with_coverage" + ".ps1" if platform.system() == 'Windows' else ".sh"
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
 WINDOWS_MAX_PACKAGES_NUMBER = 150
 
@@ -130,10 +130,14 @@ def test_flavor(
                 coverage_script = coverage_script_template.format(packages=packages, **args)
                 with open(cov_test_path, 'w', encoding='utf-8') as f:
                     f.write(coverage_script)
+                with open(cov_test_path.replace('.ps1', '.bat'), 'w', encoding='utf-8') as f:
+                    f.write("""@echo off
+powershell.exe -executionpolicy Bypass -file test_with_coverage.ps1""")
+
                 os.chmod(cov_test_path, 0o755)
 
             res = ctx.run(
-                command=cmd.format(packages=packages, cov_test_path=cov_test_path, **args),
+                command=cmd.format(packages=packages, cov_test_path=cov_test_path.replace('.ps1', '.bat'), **args),
                 env=env,
                 out_stream=test_profiler,
                 warn=True,
@@ -361,7 +365,9 @@ def test(
     cmd = f'gotestsum {gotestsum_flags} -- {gobuild_flags} {govet_flags} {gotest_flags}'
     if coverage:
         if platform.system() == 'Windows':
-            coverage_script_template = f"go test {gobuild_flags} {govet_flags} {gotest_flags} -json -coverprofile=\"$(mktemp {TMP_PROFILE_COV_PREFIX}.XXXXXXXXXX)\" {{packages}}"
+            coverage_script_template = f"""$tempFile = (".\\coverage.out.rerun." + ([guid]::NewGuid().ToString().Replace("-", "").Substring(0, 10)))
+go test {gobuild_flags} {govet_flags} {gotest_flags} -json -coverprofile="$tempFile" ./pkg/collector/check/stats/...
+exit $LASTEXITCODE"""
         else:
             coverage_script_template = f"""#!/usr/bin/env bash
 set -eu
