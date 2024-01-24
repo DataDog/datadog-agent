@@ -152,7 +152,7 @@ func hasContainerTag(payloads []*aggregator.TracePayload, tag string) bool {
 }
 
 func dockerRunUDS(service string) (string, string) {
-	// TODO: use a proper docker-compose defintion for tracegen
+	// TODO: use a proper docker-compose definition for tracegen
 	run := "docker run -d --network host --rm --name " + service + " -v /var/run/datadog/:/var/run/datadog/ -e DD_TRACE_AGENT_URL=unix:///var/run/datadog/apm.socket -e DD_SERVICE=" + service + " ghcr.io/datadog/apps-tracegen:main"
 	rm := "docker rm -f " + service
 	return run, rm
