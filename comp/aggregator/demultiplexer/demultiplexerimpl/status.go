@@ -14,13 +14,18 @@ import (
 
 	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 )
 
 //go:embed status_templates
 var templatesFS embed.FS
 
-func (d demultiplexer) getStatusInfo() map[string]interface{} {
+type demultiplexerStatus struct {
+	Log log.Component
+}
+
+func (d demultiplexerStatus) getStatusInfo() map[string]interface{} {
 	stats := make(map[string]interface{})
 
 	d.populateStatus(stats)
@@ -28,42 +33,42 @@ func (d demultiplexer) getStatusInfo() map[string]interface{} {
 	return stats
 }
 
-func (d demultiplexer) populateStatus(stats map[string]interface{}) {
+func (d demultiplexerStatus) populateStatus(stats map[string]interface{}) {
 	aggregatorStatsJSON := []byte(expvar.Get("aggregator").String())
 	aggregatorStats := make(map[string]interface{})
 	json.Unmarshal(aggregatorStatsJSON, &aggregatorStats) //nolint:errcheck
 	stats["aggregatorStats"] = aggregatorStats
 	s, err := checkstats.TranslateEventPlatformEventTypes(stats["aggregatorStats"])
 	if err != nil {
-		d.Log().Debugf("failed to translate event platform event types in aggregatorStats: %s", err.Error())
+		d.Log.Debugf("failed to translate event platform event types in aggregatorStats: %s", err.Error())
 	} else {
 		stats["aggregatorStats"] = s
 	}
 }
 
 // Name returns the name
-func (d demultiplexer) Name() string {
+func (d demultiplexerStatus) Name() string {
 	return "Aggregator"
 }
 
 // Section return the section
-func (d demultiplexer) Section() string {
+func (d demultiplexerStatus) Section() string {
 	return "aggregator"
 }
 
 // JSON populates the status map
-func (d demultiplexer) JSON(_ bool, stats map[string]interface{}) error {
+func (d demultiplexerStatus) JSON(_ bool, stats map[string]interface{}) error {
 	d.populateStatus(stats)
 
 	return nil
 }
 
 // Text renders the text output
-func (d demultiplexer) Text(_ bool, buffer io.Writer) error {
+func (d demultiplexerStatus) Text(_ bool, buffer io.Writer) error {
 	return status.RenderText(templatesFS, "aggregator.tmpl", buffer, d.getStatusInfo())
 }
 
 // HTML renders the html output
-func (d demultiplexer) HTML(_ bool, buffer io.Writer) error {
+func (d demultiplexerStatus) HTML(_ bool, buffer io.Writer) error {
 	return status.RenderHTML(templatesFS, "aggregatorHTML.tmpl", buffer, d.getStatusInfo())
 }

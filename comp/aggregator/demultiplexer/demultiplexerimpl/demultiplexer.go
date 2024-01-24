@@ -79,9 +79,11 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 	}
 
 	return provides{
-		Comp:           demultiplexer,
-		SenderManager:  demultiplexer,
-		StatusProvider: status.NewInformationProvider(demultiplexer),
+		Comp:          demultiplexer,
+		SenderManager: demultiplexer,
+		StatusProvider: status.NewInformationProvider(demultiplexerStatus{
+			Log: deps.Log,
+		}),
 	}, nil
 }
 

@@ -421,11 +421,6 @@ func (d *AgentDemultiplexer) ForceFlushToSerializer(start time.Time, waitForSeri
 	<-trigger.blockChan
 }
 
-// Log returns the log component store in AgentDemultiplexer instance
-func (d *AgentDemultiplexer) Log() log.Component {
-	return d.log
-}
-
 // flushToSerializer flushes all data from the aggregator and time samplers
 // to the serializer.
 //
