@@ -36,18 +36,41 @@ type configEndpoint struct {
 	errorsExpvar       expvar.Map
 }
 
-func (c *configEndpoint) serveHTTP(w http.ResponseWriter, r *http.Request) {
-	body, statusCode, err := c.getConfigValueAsJSON(r)
-	if err != nil {
-		http.Error(w, err.Error(), statusCode)
+func (c *configEndpoint) getConfigValueHandler(w http.ResponseWriter, r *http.Request) {
+	vars := gorilla.Vars(r)
+	path := vars["path"]
+
+	if _, ok := c.authorizedConfigPaths[path]; !ok {
+		c.unauthorizedExpvar.Add(path, 1)
+		log.Warnf("config endpoint received a request from '%s' for config '%s' which is not allowed", r.RemoteAddr, path)
+		http.Error(w, fmt.Sprintf("querying config value '%s' is not allowed", path), http.StatusForbidden)
 		return
 	}
 
-	w.WriteHeader(statusCode)
-	_, err = w.Write(body)
-	if err != nil {
-		log.Warnf("config endpoint: could not write response body: %v", err)
+	log.Debug("config endpoint received a request from '%s' for config '%s'", r.RemoteAddr, path)
+	value := c.cfg.Get(path)
+	if value == nil {
+		c.unsetExpvar.Add(path, 1)
+		http.Error(w, fmt.Sprintf("no runtime setting found for %s", path), http.StatusNotFound)
+		return
 	}
+
+	c.marshalAndSendResponse(w, path, value)
+}
+
+func (c *configEndpoint) getAllConfigValuesHandler(w http.ResponseWriter, r *http.Request) {
+	log.Debug("config endpoint received a request from '%s' for all authorized config values", r.RemoteAddr)
+	allValues := make(map[string]interface{}, len(c.authorizedConfigPaths))
+	for key := range c.authorizedConfigPaths {
+		value := c.cfg.Get(key)
+		if value == nil {
+			c.unsetExpvar.Add(key, 1)
+			continue
+		}
+		allValues[key] = value
+	}
+
+	c.marshalAndSendResponse(w, "/", allValues)
 }
 
 // GetConfigEndpointMuxCore builds and returns the mux for the config endpoint with default values
@@ -80,39 +103,27 @@ func getConfigEndpoint(cfg config.Reader, authorizedConfigPaths authorizedSet, e
 		configEndpoint.expvars.Set(name, expv)
 	}
 
-	configEndpointHandler := http.HandlerFunc(configEndpoint.serveHTTP)
 	configEndpointMux := gorilla.NewRouter()
-	configEndpointMux.HandleFunc("/", configEndpointHandler).Methods("GET")
-	configEndpointMux.HandleFunc("/{path}", configEndpointHandler).Methods("GET")
+	configEndpointMux.HandleFunc("/", http.HandlerFunc(configEndpoint.getAllConfigValuesHandler)).Methods("GET")
+	configEndpointMux.HandleFunc("/{path}", http.HandlerFunc(configEndpoint.getConfigValueHandler)).Methods("GET")
 
 	return configEndpointMux, configEndpoint
 }
 
-// returns the marshalled JSON value of the config path requested
-// or an error and http status code in case of failure
-func (c *configEndpoint) getConfigValueAsJSON(r *http.Request) ([]byte, int, error) {
-	vars := gorilla.Vars(r)
-	path := vars["path"]
-
-	if _, ok := c.authorizedConfigPaths[path]; !ok {
-		c.unauthorizedExpvar.Add(path, 1)
-		log.Warnf("config endpoint received a request from '%s' for config '%s' which is not allowed", r.RemoteAddr, path)
-		return nil, http.StatusForbidden, fmt.Errorf("querying config value '%s' is not allowed", path)
-	}
-
-	log.Debug("config endpoint received a request from '%s' for config '%s'", r.RemoteAddr, path)
-	value := c.cfg.Get(path)
-	if value == nil {
-		c.unsetExpvar.Add(path, 1)
-		return nil, http.StatusNotFound, fmt.Errorf("no runtime setting found for %s", path)
-	}
-
+func (c *configEndpoint) marshalAndSendResponse(w http.ResponseWriter, path string, value interface{}) {
 	body, err := json.Marshal(value)
 	if err != nil {
 		c.errorsExpvar.Add(path, 1)
-		return nil, http.StatusInternalServerError, fmt.Errorf("could not marshal config value of '%s': %v", path, err)
+		http.Error(w, fmt.Sprintf("could not marshal config value of '%s': %v", path, err), http.StatusInternalServerError)
+		return
 	}
 
+	w.WriteHeader(http.StatusOK)
+	_, err = w.Write(body)
+	if err != nil {
+		c.errorsExpvar.Add(path, 1)
+		log.Warnf("config endpoint: could not write response body: %v", err)
+		return
+	}
 	c.successExpvar.Add(path, 1)
-	return body, http.StatusOK, nil
 }
