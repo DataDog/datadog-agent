@@ -479,7 +479,8 @@ func startAgent(
 	var configService *remoteconfig.Service
 	var configServiceHA *remoteconfig.Service
 	if pkgconfig.IsRemoteConfigEnabled(pkgconfig.Datadog) {
-		configService, err = common.NewRemoteConfigService(hostnameDetected)
+		rcTelemetryReporter := common.NewRcTelemetryReporter()
+		configService, err = common.NewRemoteConfigService(hostnameDetected, rcTelemetryReporter)
 		if err != nil {
 			log.Errorf("Failed to initialize config management service: %s", err)
 		} else {
@@ -487,7 +488,7 @@ func startAgent(
 		}
 
 		if pkgconfig.Datadog.GetBool("ha.enabled") {
-			configServiceHA, err = common.NewHARemoteConfigService(hostnameDetected)
+			configServiceHA, err = common.NewHARemoteConfigService(hostnameDetected, rcTelemetryReporter)
 			if err != nil {
 				log.Errorf("Failed to initialize HA config management service: %s", err)
 			} else {
