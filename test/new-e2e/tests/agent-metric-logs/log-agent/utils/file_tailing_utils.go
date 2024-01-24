@@ -45,13 +45,14 @@ func AppendLog(ls LogsTestSuite, logFileName, content string, recurrence int) {
 
 	var osStr string
 
+	// Unless a log line is newline terminated, the log agent will not pick it up,
 	logContent := strings.Repeat(content+"\n", recurrence)
 
 	switch ls.Env().RemoteHost.OSFamily {
 	case os.WindowsFamily:
 		osStr = "windows"
 		t.Log("Generating Windows log.")
-		// Unless a log line is newline terminated, the log agent will not pick it up. This is a known behavior.
+		//  Windows uses \r\n for newlines instead of \n.
 		logContent = strings.ReplaceAll(logContent, "\n", "\r\n")
 		logPath = fmt.Sprintf("%s\\%s", WindowsLogsFolderPath, logFileName)
 		t.Logf("Log path: %s", logPath)
