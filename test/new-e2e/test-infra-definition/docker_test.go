@@ -7,7 +7,9 @@ package testinfradefinition
 
 import (
 	"fmt"
+	"os"
 	"regexp"
+	"strconv"
 	"testing"
 	"time"
 
@@ -16,6 +18,7 @@ import (
 	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/docker"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type dockerSuite struct {
@@ -23,6 +26,11 @@ type dockerSuite struct {
 }
 
 func TestDocker(t *testing.T) {
+	isCI, err := strconv.ParseBool(os.Getenv("CI"))
+	require.NoError(t, err)
+	if isCI {
+		t.Skipf("blocked by APL-2786")
+	}
 	e2e.Run(t, &dockerSuite{}, e2e.WithProvisioner(awsdocker.Provisioner()))
 }
 
