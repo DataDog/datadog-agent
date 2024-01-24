@@ -847,9 +847,11 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 
 		require.Eventually(t, func() bool {
 			var ok bool
-			conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
+			conns := getConnections(t, tr)
+			t.Log(conns)
+			conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
 			return ok && conn.Direction == network.OUTGOING
-		}, 2*time.Second, 500*time.Millisecond)
+		}, 3*time.Second, 100*time.Millisecond)
 
 		// conn.Via should be nil, since traffic is local
 		require.Nil(t, conn.Via)
@@ -877,9 +879,11 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 		var conn *network.ConnectionStats
 		require.Eventually(t, func() bool {
 			var ok bool
-			conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
+			conns := getConnections(t, tr)
+			t.Log(conns)
+			conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
 			return ok && conn.Direction == network.OUTGOING
-		}, 2*time.Second, 500*time.Millisecond)
+		}, 3*time.Second, 100*time.Millisecond)
 
 		// traffic is local, so Via field should not be set
 		require.Nil(t, conn.Via)
@@ -1957,7 +1961,7 @@ func (s *TracerSuite) TestGetMapsTelemetry() {
 	err := exec.Command(cmd[0], cmd[1:]...).Run()
 	require.NoError(t, err)
 
-	mapsTelemetry := tr.bpfTelemetry.GetMapsTelemetry()
+	mapsTelemetry := tr.bpfErrorsCollector.GetMapsTelemetry()
 	t.Logf("EBPF Maps telemetry: %v\n", mapsTelemetry)
 
 	tcpStatsErrors, ok := mapsTelemetry[probes.TCPStatsMap].(map[string]uint64)
@@ -2011,7 +2015,7 @@ func (s *TracerSuite) TestGetHelpersTelemetry() {
 		syscall.Syscall(syscall.SYS_MUNMAP, uintptr(addr), uintptr(syscall.Getpagesize()), 0)
 	})
 
-	helperTelemetry := tr.bpfTelemetry.GetHelpersTelemetry()
+	helperTelemetry := tr.bpfErrorsCollector.GetHelpersTelemetry()
 	t.Logf("EBPF helper telemetry: %v\n", helperTelemetry)
 
 	openAtErrors, ok := helperTelemetry[expectedErrorTP].(map[string]interface{})

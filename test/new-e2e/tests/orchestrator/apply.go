@@ -62,7 +62,7 @@ func createCluster(ctx *pulumi.Context) (*resAws.Environment, *localKubernetes.C
 		return nil, nil, nil, err
 	}
 
-	kindCluster, err := localKubernetes.NewKindCluster(*awsEnv.CommonEnvironment, vm, awsEnv.CommonNamer.ResourceName("kind"), awsEnv.KubernetesVersion())
+	kindCluster, err := localKubernetes.NewKindCluster(*awsEnv.CommonEnvironment, vm, awsEnv.CommonNamer.ResourceName("kind"), "kind", awsEnv.KubernetesVersion())
 	if err != nil {
 		return nil, nil, nil, err
 	}

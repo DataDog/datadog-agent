@@ -263,6 +263,11 @@ new-e2e-cws-dev:
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
+    CWS_INSTRUMENTATION_FULLIMAGEPATH: 669783387624.dkr.ecr.us-east-1.amazonaws.com/cws-instrumentation:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestAgentSuite
+      - EXTRA_PARAMS: --run TestECSFargate
 
 new-e2e-cws-main:
   extends: .new_e2e_template
@@ -270,6 +275,11 @@ new-e2e-cws-main:
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
+    CWS_INSTRUMENTATION_FULLIMAGEPATH: 669783387624.dkr.ecr.us-east-1.amazonaws.com/cws-instrumentation:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestAgentSuite
+      - EXTRA_PARAMS: --run TestECSFargate
 
 new-e2e-process-dev:
   extends: .new_e2e_template
