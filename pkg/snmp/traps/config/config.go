@@ -121,7 +121,7 @@ func (c *TrapsConfig) BuildSNMPParams(logger log.Component) (*gosnmp.GoSNMP, err
 	}
 
 	// Set up user security params table from config
-	usmTable := gosnmp.NewSnmpV3SecurityParametersTable()
+	usmTable := gosnmp.NewSnmpV3SecurityParametersTable(snmpLogger)
 	for _, user := range c.Users {
 		authProtocol, err := gosnmplib.GetAuthProtocol(user.AuthProtocol)
 		if err != nil {

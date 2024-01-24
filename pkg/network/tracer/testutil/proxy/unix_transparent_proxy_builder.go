@@ -9,9 +9,7 @@ package proxy
 
 import (
 	"context"
-	"os"
 	"os/exec"
-	"path"
 	"strings"
 	"testing"
 
@@ -19,11 +17,20 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
+	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
+)
+
+const (
+	serverSrcPath = "external_unix_proxy_server"
 )
 
 // NewExternalUnixTransparentProxyServer triggers an external unix transparent proxy (plaintext or TLS) server.
 func NewExternalUnixTransparentProxyServer(t *testing.T, unixPath, remoteAddr string, useTLS bool) (*exec.Cmd, context.CancelFunc) {
-	serverBin := buildUnixTransparentProxyServer(t)
+	curDir, err := testutil.CurDir()
+	require.NoError(t, err)
+	serverBin, err := usmtestutil.BuildUnixTransparentProxyServer(curDir, serverSrcPath)
+	require.NoError(t, err)
+
 	args := []string{serverBin, "-unix", unixPath, "-remote", remoteAddr}
 	if useTLS {
 		args = append(args, "-tls")
@@ -39,32 +46,4 @@ func NewExternalUnixTransparentProxyServer(t *testing.T, unixPath, remoteAddr st
 			_, _ = c.Process.Wait()
 		}
 	}
-}
-
-const (
-	serverSrcPath = "external_unix_proxy_server"
-)
-
-// buildUnixTransparentProxyServer builds the unix transparent proxy server binary and returns the path to the binary.
-// If the binary is already built (meanly in the CI), it returns the path to the binary.
-func buildUnixTransparentProxyServer(t *testing.T) string {
-	t.Helper()
-
-	cur, err := testutil.CurDir()
-	require.NoError(t, err)
-
-	serverSrcDir := path.Join(cur, serverSrcPath)
-	cachedServerBinaryPath := path.Join(serverSrcDir, serverSrcPath)
-
-	// If there is a compiled binary already, skip the compilation.
-	// Meant for the CI.
-	if _, err = os.Stat(cachedServerBinaryPath); err == nil {
-		return cachedServerBinaryPath
-	}
-
-	c := exec.Command("go", "build", "-buildvcs=false", "-a", "-tags=test", "-ldflags=-extldflags '-static'", "-o", cachedServerBinaryPath, serverSrcDir)
-	out, err := c.CombinedOutput()
-	require.NoError(t, err, "could not build grpc server test binary: %s\noutput: %s", err, string(out))
-
-	return cachedServerBinaryPath
 }

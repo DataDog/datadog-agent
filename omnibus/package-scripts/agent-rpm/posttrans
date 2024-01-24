@@ -47,11 +47,12 @@ if [ "$INSTALL_SELINUX_POLICY" = "true" ]; then
             echo "Then run the following commands, or reinstall datadog-agent:"
             echo "    semodule -i $CONFIG_DIR/selinux/system_probe_policy.pp"
             echo "    semanage fcontext -a -t system_probe_t $INSTALL_DIR/embedded/bin/system-probe"
-            echo "    restorecon -v $INSTALL_DIR/embedded/bin/system-probe"
+            echo "    semanage fcontext -a -t system_probe_t $INSTALL_DIR/bin/agent/agent"
+            echo "    restorecon -v $INSTALL_DIR/embedded/bin/system-probe $INSTALL_DIR/bin/agent/agent"
         else
             echo "Labeling SELinux type for the system-probe binary."
             if command -v semanage >/dev/null 2>&1 && command -v restorecon >/dev/null 2>&1;then
-                semanage fcontext -a -t system_probe_t $INSTALL_DIR/embedded/bin/system-probe && restorecon -v $INSTALL_DIR/embedded/bin/system-probe
+                semanage fcontext -a -t system_probe_t $INSTALL_DIR/embedded/bin/system-probe && semanage fcontext -a -t system_probe_t $INSTALL_DIR/bin/agent/agent && restorecon -v $INSTALL_DIR/embedded/bin/system-probe && restorecon -v $INSTALL_DIR/bin/agent/agent
                 if [ "$?" != "0" ]; then
                     echo "Couldn’t install system-probe policy."
                     echo "To be able to run system-probe on your host, please install or update the selinux-policy-targeted and"
@@ -59,7 +60,8 @@ if [ "$INSTALL_SELINUX_POLICY" = "true" ]; then
                     echo "Then run the following commands, or reinstall datadog-agent:"
                     echo "    semodule -i $CONFIG_DIR/selinux/system_probe_policy.pp"
                     echo "    semanage fcontext -a -t system_probe_t $INSTALL_DIR/embedded/bin/system-probe"
-                    echo "    restorecon -v $INSTALL_DIR/embedded/bin/system-probe"
+                    echo "    semanage fcontext -a -t system_probe_t $INSTALL_DIR/bin/agent/agent"
+                    echo "    restorecon -v $INSTALL_DIR/embedded/bin/system-probe $INSTALL_DIR/bin/agent/agent"
                 fi
             else
                 echo "Couldn’t load system-probe policy (missing selinux utilities)."
@@ -68,7 +70,8 @@ if [ "$INSTALL_SELINUX_POLICY" = "true" ]; then
                 echo "Then run the following commands, or reinstall datadog-agent:"
                 echo "    semodule -i $CONFIG_DIR/selinux/system_probe_policy.pp"
                 echo "    semanage fcontext -a -t system_probe_t $INSTALL_DIR/embedded/bin/system-probe"
-                echo "    restorecon -v $INSTALL_DIR/embedded/bin/system-probe"
+                echo "    semanage fcontext -a -t system_probe_t $INSTALL_DIR/bin/agent/agent"
+                echo "    restorecon -v $INSTALL_DIR/embedded/bin/system-probe $INSTALL_DIR/bin/agent/agent"
             fi
         fi
     fi

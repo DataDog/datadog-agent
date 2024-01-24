@@ -14,7 +14,7 @@ from types import SimpleNamespace
 
 from invoke.exceptions import Exit
 
-from .color import color_message
+from tasks.libs.common.color import color_message
 
 # constants
 DEFAULT_BRANCH = "main"
@@ -56,21 +56,19 @@ def bin_name(name):
     return name
 
 
-def get_gopath(ctx):
-    gopath = os.environ.get("GOPATH")
-    if not gopath:
-        gopath = ctx.run("go env GOPATH", hide=True).stdout.strip()
+def get_goenv(ctx, var):
+    return ctx.run(f"go env {var}", hide=True).stdout.strip()
 
-    return gopath
+
+def get_gopath(ctx):
+    return get_goenv(ctx, "GOPATH")
 
 
 def get_gobin(ctx):
-    gobin = os.environ.get("GOBIN")
+    gobin = get_goenv(ctx, "GOBIN")
     if not gobin:
-        gobin = ctx.run("go env GOBIN", hide=True).stdout.strip()
-        if not gobin:
-            gopath = get_gopath(ctx)
-            gobin = os.path.join(gopath, "bin")
+        gopath = get_gopath(ctx)
+        gobin = os.path.join(gopath, "bin")
 
     return gobin
 
@@ -110,10 +108,26 @@ def get_win_py_runtime_var(python_runtimes):
     return "PY2_RUNTIME" if '2' in python_runtimes else "PY3_RUNTIME"
 
 
+def get_embedded_path(ctx):
+    embedded_path = ""
+    base = os.path.dirname(os.path.abspath(__file__))
+    task_repo_root = os.path.abspath(os.path.join(base, ".."))
+    git_repo_root = get_root()
+    gopath_root = f"{get_gopath(ctx)}/src/github.com/DataDog/datadog-agent"
+
+    for root_candidate in [task_repo_root, git_repo_root, gopath_root]:
+        test_embedded_path = os.path.join(root_candidate, "dev")
+        if os.path.exists(test_embedded_path):
+            embedded_path = test_embedded_path
+
+    return embedded_path
+
+
 def get_build_flags(
     ctx,
     static=False,
     prefix=None,
+    install_path=None,
     embedded_path=None,
     rtloader_root=None,
     python_home_2=None,
@@ -141,20 +155,15 @@ def get_build_flags(
         env['CGO_LDFLAGS_ALLOW'] = "-Wl,--wrap=.*"
 
     if embedded_path is None:
-        base = os.path.dirname(os.path.abspath(__file__))
-        task_repo_root = os.path.abspath(os.path.join(base, ".."))
-        git_repo_root = get_root()
-        gopath_root = f"{get_gopath(ctx)}/src/github.com/DataDog/datadog-agent"
-
-        for root_candidate in [task_repo_root, git_repo_root, gopath_root]:
-            test_embedded_path = os.path.join(root_candidate, "dev")
-            if os.path.exists(test_embedded_path):
-                embedded_path = test_embedded_path
-
-    if embedded_path is None:
-        raise Exit("unable to locate embedded path please check your setup or set --embedded-path")
+        embedded_path = get_embedded_path(ctx)
+        if embedded_path is None:
+            raise Exit("unable to locate embedded path please check your setup or set --embedded-path")
 
     rtloader_lib, rtloader_headers, rtloader_common_headers = get_rtloader_paths(embedded_path, rtloader_root)
+
+    # setting the install path
+    if sys.platform.startswith('linux') and install_path:
+        ldflags += f"-X {REPO_PATH}/pkg/config.InstallPath={install_path} "
 
     # setting python homes in the code
     if python_home_2:
@@ -216,6 +225,25 @@ def get_build_flags(
         ldflags += f"'-extldflags={extldflags}' "
 
     return ldflags, gcflags, env
+
+
+def get_common_test_args(build_tags, failfast):
+    return {
+        "build_tags": ",".join(build_tags),
+        "failfast": "-failfast" if failfast else "",
+    }
+
+
+def set_runtime_comp_env(env):
+    env["DD_ENABLE_RUNTIME_COMPILER"] = "true"
+    env["DD_ALLOW_PRECOMPILED_FALLBACK"] = "false"
+    env["DD_ENABLE_CO_RE"] = "false"
+
+
+def set_co_re_env(env):
+    env["DD_ENABLE_CO_RE"] = "true"
+    env["DD_ALLOW_RUNTIME_COMPILED_FALLBACK"] = "false"
+    env["DD_ALLOW_PRECOMPILED_FALLBACK"] = "false"
 
 
 def get_payload_version():
@@ -560,6 +588,32 @@ def timed(name="", quiet=False):
         res.duration = time.time() - start
         if not quiet:
             print(f"{name} completed in {res.duration:.2f}s")
+
+
+def clean_nested_paths(paths):
+    """
+    Clean a list of paths by removing paths that are included in other paths.
+
+    Example:
+    >>> clean_nested_paths(["./pkg/utils/toto", "./pkg/utils/", "./pkg", "./toto/pkg", "./pkg/utils/tata"])
+    ["./pkg", "./toto/pkg"]
+    """
+    # sort the paths by length, so that the longest paths are at the beginning
+    paths.sort()
+    cleaned_paths = []
+    for path in paths:
+        # if the path is already included in another path, skip it
+        if len(cleaned_paths) == 0:
+            cleaned_paths.append(path)
+        else:
+            last_clean_path_splitted = cleaned_paths[-1].split("/")
+            path_splitted = path.split("/")
+            for idx, element in enumerate(last_clean_path_splitted):
+                if idx >= len(path_splitted) or element != path_splitted[idx]:
+                    cleaned_paths.append(path)
+                    break
+
+    return cleaned_paths
 
 
 @contextmanager

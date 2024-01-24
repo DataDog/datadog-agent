@@ -2,8 +2,8 @@ import os
 
 from invoke import Exit, task
 
-from .libs.common.github_api import GithubAPI
-from .libs.common.utils import DEFAULT_BRANCH, GITHUB_REPO_NAME
+from tasks.libs.common.github_api import GithubAPI
+from tasks.libs.common.utils import DEFAULT_BRANCH, GITHUB_REPO_NAME
 
 
 def is_pr_context(branch, pr_url, test_name):
@@ -14,71 +14,6 @@ def is_pr_context(branch, pr_url, test_name):
         print(f"PR not found, skipping check for {test_name}.")
         return False
     return True
-
-
-@task
-def lint_teamassignment(_):
-    """
-    Make sure PRs are assigned a team label
-    """
-    branch = os.environ.get("BRANCH_NAME")
-    pr_url = os.environ.get("PR_ID")
-
-    run_check = is_pr_context(branch, pr_url, "team assignment")
-    if run_check:
-        github = GithubAPI(repository=GITHUB_REPO_NAME, public_repo=True)
-        pr_id = pr_url.rsplit('/')[-1]
-
-        need_check, team_labels = github.get_team_assignment_labels(pr_id)
-        if need_check:
-            if len(team_labels) > 0:
-                print(f"Team Assignment: {team_labels}")
-            else:
-                print(f"PR {pr_url} requires at least one non-triage team assignment label (label starting by 'team/')")
-                raise Exit(code=1)
-        else:
-            print("A label to skip QA is set -- no need for team assignment")
-
-
-@task
-def lint_skip_qa(_):
-    """
-    Ensure that when qa/skip-qa is used, we have one of [qa/done , qa/no-code-change]. Error if not valid.
-    """
-    branch = os.environ.get("BRANCH_NAME")
-    pr_url = os.environ.get("PR_ID")
-
-    run_check = is_pr_context(branch, pr_url, "skip-qa")
-    if run_check:
-        github = GithubAPI(repository=GITHUB_REPO_NAME, public_repo=True)
-        pr_id = pr_url.rsplit('/')[-1]
-        if not github.is_qa_skip_ok(pr_id):
-            print(
-                f"PR {pr_url} request to skip QA without justification. Requires an additional `qa/done` or `qa/no-code-change`."
-            )
-            raise Exit(code=1)
-        return
-
-
-@task
-def lint_milestone(_):
-    """
-    Make sure PRs are assigned a milestone
-    """
-    branch = os.environ.get("BRANCH_NAME")
-    pr_url = os.environ.get("PR_ID")
-
-    run_check = is_pr_context(branch, pr_url, "milestone")
-    if run_check:
-        github = GithubAPI(repository=GITHUB_REPO_NAME, public_repo=True)
-        pr_id = pr_url.rsplit('/')[-1]
-
-        milestone = github.get_pr_milestone(pr_id)
-        if milestone and milestone != "Triage":
-            print(f"Milestone: {milestone}")
-        else:
-            print(f"PR {pr_url} requires a non-Triage milestone.")
-            raise Exit(code=1)
 
 
 @task

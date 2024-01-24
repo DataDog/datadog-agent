@@ -13,39 +13,45 @@ jobs:
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: "pip"
-      - name: Install dependencies
+      - name: Check team assignment
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r tasks/libs/requirements-github.txt
-      - name: Run PR check for team assignment label
-        env:
-          BRANCH_NAME: ${{ github.ref_name }}
-          PR_ID: ${{ github.event.pull_request.number }}
-        run: |
-          inv -e lint-teamassignment
+          labels="${{join(github.event.pull_request.labels.*.name, ' ')}}"
+          for label in $labels; do
+            if [[ "$label" =~ ^qa/ ]]; then
+              echo "A label to skip QA is set -- no need for team assignment"
+              exit 0
+            fi
+            if [[ "$label" =~ ^team/ && "$label" != team/triage ]]; then
+              echo "Team label found: $label"
+              exit 0
+            fi
+          done
+          echo "PR ${{github.event.number}} requires at least one non-triage team assignment label (label starting by 'team/')"
+          exit 1
   skip-qa:
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: "pip"
-      - name: Install dependencies
+      - name: Check ability to skip qa
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r tasks/libs/requirements-github.txt
-      - name: Run PR check for QA labels
-        env:
-          BRANCH_NAME: ${{ github.ref_name }}
-          PR_ID: ${{ github.event.pull_request.number }}
-        run: |
-          inv -e lint-skip-qa
+          skip=0
+          done=0
+          noChange=0
+          labels="${{join(github.event.pull_request.labels.*.name, ' ')}}"
+          for label in $labels; do
+            if [[ "$label" == "qa/skip-qa" ]]; then
+              skip=1
+            fi
+            if [[ "$label" == "qa/done" ]]; then
+              done=1
+            fi
+            if [[ "$label" == "qa/no-code-change" ]]; then
+              noChange=1
+            fi
+          done
+          if [[ ($skip -eq 0 && $done -eq 0 && $noChange -eq 0) || ($skip -eq 1 && $done -ne $noChange) ]]; then
+            exit 0
+          else
+            echo "Skip QA labels are not correct on PR ${{github.event.number}}. You must set `qa/skip-qa` with exacly 1 justification, `qa/done` or `qa/no-code-change`"
+            exit 1
+          fi
