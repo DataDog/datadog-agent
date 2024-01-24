@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux_bpf
+
 // Package main exercises BuildVerifierStats and outputs the result as a JSON to stdout
 package main
 
