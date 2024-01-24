@@ -144,6 +144,7 @@ func (h *RemoteHost) RemoveAll(path string) error {
 	return clients.RemoveAll(h.client, path)
 }
 
+// DialRemotePort creates a connection to port on the remote host.
 func (h *RemoteHost) DialRemotePort(port uint16) (net.Conn, error) {
 	return h.client.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", port))
 }
