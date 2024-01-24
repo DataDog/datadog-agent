@@ -13,20 +13,19 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var _ statsProvider = &mockStatsProvider{}
 
 func TestOnlyCorePopulated(t *testing.T) {
 	sysInfo, _ := CollectSystemInfo()
 	for _, cpuData := range sysInfo.Cpus {
 		// Checks if only the cores does not have the default value
-		assert.NotEqual(t, int32(0), cpuData.Cores)
-		assert.Equal(t, int32(0), cpuData.Number)
-		assert.Equal(t, "", cpuData.Vendor)
-		assert.Equal(t, "", cpuData.Family)
-		assert.Equal(t, "", cpuData.Model)
-		assert.Equal(t, "", cpuData.PhysicalId)
-		assert.Equal(t, "", cpuData.CoreId)
-		assert.Equal(t, int64(0), cpuData.Mhz)
-		assert.Equal(t, int32(0), cpuData.CacheSize)
+		assert.Greater(t, cpuData.Cores,  int32(0))
+		assert.Empty(t, cpuData.Number)
+		assert.Empty(t, cpuData.Vendor)
+		assert.Empty(t, cpuData.Family)
+		assert.Empty(t, cpuData.Model)
+		assert.Empty(t, cpuData.PhysicalId)
+		assert.Empty(t, cpuData.CoreId)
+		assert.Empty(t, cpuData.Mhz)
+		assert.Empty(t, cpuData.CacheSize)
 	}
 }
