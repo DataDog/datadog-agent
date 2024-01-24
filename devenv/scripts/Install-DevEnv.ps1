@@ -22,13 +22,13 @@ Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://cho
 Import-Module "$env:ChocolateyInstall\helpers\chocolateyInstaller.psm1" -Force;
 
 Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Getting git'
-cinst -y git
+choco install -y git
 
 Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Getting 7zip'
-cinst -y 7zip
+choco install -y 7zip
 
 Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing CMake'
-cinst -y cmake
+choco install -y cmake
 [Environment]::SetEnvironmentVariable(
     "Path",
     [Environment]::GetEnvironmentVariable("Path", [EnvironmentVariableTarget]::Machine) + ";${env:ProgramFiles}\CMake\bin",
@@ -37,7 +37,7 @@ cinst -y cmake
 Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Golang'
 
 # TODO: Enable this when we can use Chocolatey again
-#cinst -y golang --version 1.15.13
+#choco install -y golang --version 1.15.13
 
 # Workaround for go 1.15.13 since it does not exist in Chocolatey
 # taken from https://github.com/DataDog/datadog-agent-buildimages/blob/master/windows/install_go.ps1
@@ -72,13 +72,13 @@ setx /m GOROOT c:\go
 Write-Host -ForegroundColor Green "Installed go $ENV:GO_VERSION"
 
 Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Python 3'
-cinst -y python3
+choco install -y python3
 
 Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing MINGW'
-cinst -y mingw
+choco install -y mingw
 
 Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Make'
-cinst -y make
+choco install -y make
 
 $GoPath="C:\gopath"
 $AgentPath="$GoPath\src\github.com\datadog\datadog-agent"
