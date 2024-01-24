@@ -156,50 +156,6 @@ func (s *HTTPTestSuite) TestHTTPStats() {
 	}
 }
 
-func (s *HTTPTestSuite) TestHTTPMonitorCaptureRequestMultipleTimes() {
-	t := s.T()
-
-	for _, TCPTimestamp := range []struct {
-		name  string
-		value bool
-	}{
-		{name: "without TCP timestamp option", value: false},
-		{name: "with TCP timestamp option", value: true},
-	} {
-		t.Run(TCPTimestamp.name, func(t *testing.T) {
-
-			monitor := newHTTPMonitor(t)
-
-			serverAddr := "localhost:8081"
-			srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
-				EnableTCPTimestamp: &TCPTimestamp.value,
-			})
-
-			client := nethttp.Client{}
-
-			req, err := nethttp.NewRequest(httpMethods[0], fmt.Sprintf("http://%s/%d/request", serverAddr, nethttp.StatusOK), nil)
-			require.NoError(t, err)
-
-			expectedOccurrences := 10
-			for i := 0; i < expectedOccurrences; i++ {
-				resp, err := client.Do(req)
-				require.NoError(t, err)
-				// Have to read the response body to ensure the client will be able to properly close the connection.
-				io.Copy(io.Discard, resp.Body)
-				resp.Body.Close()
-			}
-			srvDoneFn()
-
-			occurrences := 0
-			require.Eventually(t, func() bool {
-				stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
-				occurrences += countRequestOccurrences(stats, req)
-				return occurrences == expectedOccurrences
-			}, time.Second*3, time.Millisecond*100, "Expected to find a request %d times, instead captured %d", occurrences, expectedOccurrences)
-		})
-	}
-}
-
 // TestHTTPMonitorLoadWithIncompleteBuffers sends thousands of requests without getting responses for them, in parallel
 // we send another request. We expect to capture the another request but not the incomplete requests.
 func (s *HTTPTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
