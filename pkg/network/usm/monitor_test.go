@@ -105,12 +105,25 @@ func TestHTTP(t *testing.T) {
 
 func (s *HTTPTestSuite) TestHTTPStats() {
 	t := s.T()
-	t.Run("status code", func(t *testing.T) {
-		testHTTPStats(t, true)
-	})
-	t.Run("status class", func(t *testing.T) {
-		testHTTPStats(t, false)
-	})
+
+	testCases := []struct {
+		name                  string
+		aggregateByStatusCode bool
+	}{
+		{
+			name:                  "status code",
+			aggregateByStatusCode: true,
+		},
+		{
+			name:                  "status class",
+			aggregateByStatusCode: false,
+		},
+	}
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			testHTTPStats(t, tt.aggregateByStatusCode)
+		})
+	}
 }
 
 func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
