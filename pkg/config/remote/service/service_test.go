@@ -184,7 +184,7 @@ func newTestService(t *testing.T, api *mockAPI, uptane *mockUptane, clock clock.
 	baseRawURL := "https://localhost"
 	traceAgentEnv := getTraceAgentDefaultEnv(cfg)
 	mockTelemetryReporter := newMockRcTelemetryReporter()
-	service, err := NewService(cfg, "abc", baseRawURL, "localhost", mockTelemetryReporter, agentVersion, WithTraceAgentEnv(traceAgentEnv))
+	service, err := NewService(cfg, "abc", baseRawURL, "localhost", []string{"dogo_state:hungry"}, mockTelemetryReporter, agentVersion, WithTraceAgentEnv(traceAgentEnv))
 	require.NoError(t, err)
 	t.Cleanup(func() { service.Stop() })
 	service.api = api
@@ -212,6 +212,7 @@ func TestServiceBackoffFailure(t *testing.T) {
 		Products:                     []string{},
 		NewProducts:                  []string{},
 		OrgUuid:                      "abcdef",
+		Tags:                         []string{"dogo_state:hungry"},
 	}).Return(lastConfigResponse, errors.New("simulated HTTP error"))
 	uptaneClient.On("StoredOrgUUID").Return("abcdef", nil)
 	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
@@ -239,6 +240,7 @@ func TestServiceBackoffFailure(t *testing.T) {
 		HasError:                     true,
 		Error:                        httpError,
 		OrgUuid:                      "abcdef",
+		Tags:                         []string{"dogo_state:hungry"},
 	}).Return(lastConfigResponse, errors.New("simulated HTTP error"))
 	uptaneClient.On("StoredOrgUUID").Return("abcdef", nil)
 	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
@@ -291,6 +293,7 @@ func TestServiceBackoffFailureRecovery(t *testing.T) {
 		Products:                     []string{},
 		NewProducts:                  []string{},
 		OrgUuid:                      "abcdef",
+		Tags:                         []string{"dogo_state:hungry"},
 	}).Return(lastConfigResponse, nil)
 	uptaneClient.On("StoredOrgUUID").Return("abcdef", nil)
 	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
@@ -419,6 +422,7 @@ func TestService(t *testing.T) {
 		Products:                     []string{},
 		NewProducts:                  []string{},
 		OrgUuid:                      "abcdef",
+		Tags:                         []string{"dogo_state:hungry"},
 	}).Return(lastConfigResponse, nil)
 	uptaneClient.On("StoredOrgUUID").Return("abcdef", nil)
 	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
@@ -505,6 +509,7 @@ func TestService(t *testing.T) {
 		HasError:           false,
 		Error:              "",
 		OrgUuid:            "abcdef",
+		Tags:               []string{"dogo_state:hungry"},
 	}).Return(lastConfigResponse, nil)
 
 	service.clients.seen(client) // Avoid blocking on channel sending when nothing is at the other end
@@ -613,6 +618,7 @@ func TestServiceClientPredicates(t *testing.T) {
 		HasError:           false,
 		Error:              "",
 		OrgUuid:            "abcdef",
+		Tags:               []string{"dogo_state:hungry"},
 	}).Return(lastConfigResponse, nil)
 
 	service.clients.seen(client) // Avoid blocking on channel sending when nothing is at the other end
@@ -652,6 +658,7 @@ func TestServiceGetRefreshIntervalNone(t *testing.T) {
 		NewProducts:                  []string{},
 		BackendClientState:           []byte("test_state"),
 		OrgUuid:                      "abcdef",
+		Tags:                         []string{"dogo_state:hungry"},
 	}).Return(lastConfigResponse, nil)
 
 	// No explicit refresh interval is provided by the backend
@@ -689,6 +696,7 @@ func TestServiceGetRefreshIntervalValid(t *testing.T) {
 		NewProducts:                  []string{},
 		BackendClientState:           []byte("test_state"),
 		OrgUuid:                      "abcdef",
+		Tags:                         []string{"dogo_state:hungry"},
 	}).Return(lastConfigResponse, nil)
 
 	// An acceptable refresh interval is provided by the backend
@@ -726,6 +734,7 @@ func TestServiceGetRefreshIntervalTooSmall(t *testing.T) {
 		NewProducts:                  []string{},
 		BackendClientState:           []byte("test_state"),
 		OrgUuid:                      "abcdef",
+		Tags:                         []string{"dogo_state:hungry"},
 	}).Return(lastConfigResponse, nil)
 
 	// A too small refresh interval is provided by the backend (the refresh interval should not change)
@@ -763,6 +772,7 @@ func TestServiceGetRefreshIntervalTooBig(t *testing.T) {
 		NewProducts:                  []string{},
 		BackendClientState:           []byte("test_state"),
 		OrgUuid:                      "abcdef",
+		Tags:                         []string{"dogo_state:hungry"},
 	}).Return(lastConfigResponse, nil)
 
 	// A too large refresh interval is provided by the backend (the refresh interval should not change)
@@ -803,6 +813,7 @@ func TestServiceGetRefreshIntervalNoOverrideAllowed(t *testing.T) {
 		NewProducts:                  []string{},
 		BackendClientState:           []byte("test_state"),
 		OrgUuid:                      "abcdef",
+		Tags:                         []string{"dogo_state:hungry"},
 	}).Return(lastConfigResponse, nil)
 
 	// An interval is provided, but it should not be applied
@@ -885,6 +896,7 @@ func TestConfigExpiration(t *testing.T) {
 		HasError:           false,
 		Error:              "",
 		OrgUuid:            "abcdef",
+		Tags:               []string{"dogo_state:hungry"},
 	}).Return(lastConfigResponse, nil)
 
 	service.clients.seen(client) // Avoid blocking on channel sending when nothing is at the other end
