@@ -331,9 +331,9 @@ func testNameHelper(optionTrue, optionFalse string, value bool) string {
 // TestSanity checks that USM capture a random generated 100 requests send to a local HTTP server under the following
 // conditions:
 // 1. Server and client support keep alive, and there is no NAT.
-// 1. Server and client do not support keep alive, and there is no NAT.
-// 2. Server and client support keep alive, and there is DNAT.
-// 3. Server and client do not support keep alive, and there is DNAT.
+// 2. Server and client do not support keep alive, and there is no NAT.
+// 3. Server and client support keep alive, and there is DNAT.
+// 4. Server and client do not support keep alive, and there is DNAT.
 func (s *HTTPTestSuite) TestSanity() {
 	t := s.T()
 	serverAddrWithoutNAT := "localhost:8080"
