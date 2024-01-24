@@ -16,6 +16,7 @@ import (
 	"net"
 	"net/http"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -486,10 +487,12 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 	}
 
 	tests := []struct {
-		name              string
-		skip              bool
-		messageBuilder    func() []byte
-		expectedEndpoints map[usmhttp.Key]int
+		name                            string
+		skip                            bool
+		messageBuilder                  func() []byte
+		expectedEndpoints               map[usmhttp.Key]int
+		expectedDynamicTablePathIndexes []int
+		expectedHuffmanEncoded          map[int]bool
 	}{
 		{
 			name: "parse_frames tail call using 1 program",
@@ -738,7 +741,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 		},
 		{
 			name: "validate 300 status code",
-			// The purpose of this test is to verify that currently we do not support status code other than 200.
+			// The purpose of this test is to verify that currently we do not support status code 300.
 			messageBuilder: func() []byte {
 				framer := newFramer()
 				return framer.writeHeaders(t, 1, headersWithGivenEndpoint(pathWithStatusCode300)).
@@ -748,7 +751,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 		},
 		{
 			name: "validate 401 status code",
-			// The purpose of this test is to verify that currently we do not support status code other than 200.
+			// The purpose of this test is to verify that currently we do not support status code 401.
 			messageBuilder: func() []byte {
 				framer := newFramer()
 				return framer.writeHeaders(t, 1, headersWithGivenEndpoint(pathWithStatusCode401)).
@@ -788,6 +791,56 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					writeData(t, getStreamID(1), true, []byte{}).bytes()
 			},
 			expectedEndpoints: nil,
+		},
+		{
+			name: "validate huffman encoding",
+			// The purpose of this test is to verify that we are able to identify if the path is huffman encoded.
+			messageBuilder: func() []byte {
+				framer := newFramer()
+				return framer.writeHeaders(t, 1, testHeaders()).
+					writeData(t, 1, true, []byte{}).
+					writeHeaders(t, 3, headersWithGivenEndpoint("/a")).
+					writeData(t, 3, true, []byte{}).bytes()
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/aaa")},
+					Method: usmhttp.MethodPost,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/a")},
+					Method: usmhttp.MethodPost,
+				}: 1,
+			},
+			// the key is the path size, and the value is if it should be huffman encoded or not.
+			expectedHuffmanEncoded: map[int]bool{
+				2: false,
+				3: true,
+			},
+		},
+		{
+			name: "dynamic table contains only index of path",
+			// The purpose of this test is to validate that the dynamic table contains only paths indexes.
+			messageBuilder: func() []byte {
+				const iterations = 10
+				framer := newFramer()
+
+				for i := 0; i < iterations; i++ {
+					streamID := getStreamID(i)
+					framer.
+						writeHeaders(t, streamID, testHeaders()).
+						writeData(t, streamID, true, []byte{})
+				}
+
+				return framer.bytes()
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/aaa")},
+					Method: usmhttp.MethodPost,
+				}: 10,
+			},
+			expectedDynamicTablePathIndexes: []int{1, 7, 13, 19, 25, 31, 37, 43, 49, 55},
 		},
 	}
 	for _, tt := range tests {
@@ -846,6 +899,14 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					if endpointCount != tt.expectedEndpoints[key] {
 						return false
 					}
+				}
+
+				if len(tt.expectedDynamicTablePathIndexes) > 0 {
+					validateDynamicTableMap(t, usmMonitor.ebpfProgram, tt.expectedDynamicTablePathIndexes)
+				}
+
+				if len(tt.expectedHuffmanEncoded) > 0 {
+					validateHuffmanEncoded(t, usmMonitor.ebpfProgram, tt.expectedHuffmanEncoded)
 				}
 
 				return true
@@ -1155,4 +1216,38 @@ func startH2CServer(address string, isTLS bool) (func(), error) {
 
 func getClientsIndex(index, totalCount int) int {
 	return index % totalCount
+}
+
+// validateDynamicTableMap validates that the dynamic table map contains the expected indexes.
+func validateDynamicTableMap(t *testing.T, ebpfProgram *ebpfProgram, expectedDynamicTablePathIndexes []int) {
+	dynamicTableMap, _, err := ebpfProgram.GetMap("http2_dynamic_table")
+	require.NoError(t, err)
+	iterator := dynamicTableMap.Iterate()
+	key := make([]byte, dynamicTableMap.KeySize())
+	value := make([]byte, dynamicTableMap.ValueSize())
+	resultIndexes := make([]int, 0)
+	for iterator.Next(&key, &value) {
+		tableIndex := usmhttp2.Http2DynamicTableIndex{}
+		require.NoError(t, binary.Read(bytes.NewReader(key), binary.LittleEndian, &tableIndex))
+		resultIndexes = append(resultIndexes, int(tableIndex.Index))
+	}
+	sort.Ints(resultIndexes)
+	require.True(t, assert.EqualValues(t, expectedDynamicTablePathIndexes, resultIndexes))
+}
+
+// validateHuffmanEncoded validates that the dynamic table map contains the expected huffman encoded paths.
+func validateHuffmanEncoded(t *testing.T, ebpfProgram *ebpfProgram, expectedHuffmanEncoded map[int]bool) {
+	dynamicTableMap, _, err := ebpfProgram.GetMap("http2_dynamic_table")
+	require.NoError(t, err)
+	iterator := dynamicTableMap.Iterate()
+	key := make([]byte, dynamicTableMap.KeySize())
+	value := make([]byte, dynamicTableMap.ValueSize())
+	resultEncodedPaths := make(map[int]bool, 0)
+	for iterator.Next(&key, &value) {
+		tableEntry := usmhttp2.Http2DynamicTableEntry{}
+		require.NoError(t, binary.Read(bytes.NewReader(value), binary.LittleEndian, &tableEntry))
+		resultEncodedPaths[int(tableEntry.String_len)] = tableEntry.Is_huffman_encoded
+	}
+	// we compare the size of the path and if it is huffman encoded.
+	require.True(t, assert.EqualValues(t, expectedHuffmanEncoded, resultEncodedPaths))
 }

@@ -21,11 +21,11 @@ type connTuple = struct {
 	Pid      uint32
 	Metadata uint32
 }
-type http2DynamicTableIndex struct {
+type Http2DynamicTableIndex struct {
 	Index uint64
 	Tup   connTuple
 }
-type http2DynamicTableEntry struct {
+type Http2DynamicTableEntry struct {
 	Buffer             [160]int8
 	String_len         uint8
 	Is_huffman_encoded bool
