@@ -50,8 +50,8 @@ def gen_config(
     vms="",
     sets="",
     init_stack=False,
-    vcpu="4",
-    memory="8192",
+    vcpu=None,
+    memory=None,
     new=False,
     ci=False,
     arch="",
@@ -75,8 +75,8 @@ def gen_config_from_ci_pipeline(
     stack=None,
     pipeline=None,
     init_stack=False,
-    vcpu="4",
-    memory="8192",
+    vcpu=None,
+    memory=None,
     new=False,
     ci=False,
     arch="",
@@ -94,20 +94,47 @@ def gen_config_from_ci_pipeline(
     info(f"[+] retrieving all CI jobs for pipeline {pipeline}")
     for job in gitlab.all_jobs(pipeline):
         name = job.get("name", "")
-        if not name.startswith("kernel_matrix_testing_run") or job["status"] != "failed":
-            continue
 
-        arch = "x86" if "x64" in name else "arm64"
-        match = re.search(r"\[(.*)\]", name)
+        if (
+            (vcpu is None or memory is None)
+            and name.startswith("kernel_matrix_testing_setup_env")
+            and job["status"] == "success"
+        ):
+            arch = "x86_64" if "x64" in name else "arm64"
+            vmconfig_name = f"vmconfig-{pipeline}-{arch}.json"
+            info(f"[+] retrieving {vmconfig_name} for {arch} from job {name}")
 
-        if match is None:
-            warn(f"Cannot extract variables from job {name}, skipping")
-            continue
+            try:
+                req = gitlab.artifact(job["id"], vmconfig_name)
+                req.raise_for_status()
+            except Exception as e:
+                warn(f"[-] failed to retrieve artifact {vmconfig_name}: {e}")
+                continue
 
-        vars = match.group(1).split(",")
-        distro = vars[0]
+            data = json.loads(req.content)
 
-        vms.add(f"{arch}-{distro}-distro")
+            for vmset in data.get("vmsets", []):
+                memory_list = vmset.get("memory", [])
+                if memory is None and len(memory_list) > 0:
+                    memory = memory_list[0]
+                    info(f"[+] setting memory to {memory}")
+
+                vcpu_list = vmset.get("vcpu", [])
+                if vcpu is None and len(vcpu_list) > 0:
+                    vcpu = vcpu_list[0]
+                    info(f"[+] setting vcpu to {vcpu}")
+        elif name.startswith("kernel_matrix_testing_run") and job["status"] == "failed":
+            arch = "x86" if "x64" in name else "arm64"
+            match = re.search(r"\[(.*)\]", name)
+
+            if match is None:
+                warn(f"Cannot extract variables from job {name}, skipping")
+                continue
+
+            vars = match.group(1).split(",")
+            distro = vars[0]
+
+            vms.add(f"{arch}-{distro}-distro")
 
     info(f"[+] generating vmconfig.json file for VMs {vms}")
     return vmconfig.gen_config(ctx, stack, ",".join(vms), "", init_stack, vcpu, memory, new, ci, arch, output_file)
