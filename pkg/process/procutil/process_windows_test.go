@@ -127,3 +127,24 @@ func TestWindowsProbe(t *testing.T) {
 		})
 	}
 }
+
+func TestStripArguments(b *testing.B) {
+
+	cases := []struct {
+		cmdline      []string
+		striplessCmdline []string
+	}{	
+			// windows case 1
+	{[]string{"C:\\Program Files\\Datadog\\agent.exe"}, []string{"C:\\Program Files\\Datadog\\agent.exe"}},
+	// windows case 2 
+		{[]string{"C:\\Program Files\\Datadog\\agent.exe", "check", "process"}, []string{"C:\\Program Files\\Datadog\\agent.exe"}},
+	// windows case 3 
+	{[]string{"C:\\Program Files\\Datadog\\agent.exe", "check", "process"}, []string{"C:\\Program Files\\Datadog\\agent.exe"}},	
+	}
+
+	for i := range cases {
+		fp := &Process{Cmdline: cases[i].cmdline}
+		cases[i].cmdline.stripArguments
+		assert.Equal(t, cases[i].triplessCmdline, cases[i].cmdline)
+	}
+}	
