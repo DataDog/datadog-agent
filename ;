@@ -25,12 +25,9 @@ import (
 	"github.com/cilium/ebpf/asm"
 )
 
-// stats holds the value of a verifier statistics and a regular expression
-// to parse it from the verifier log.
 type stat struct {
-	// `Value` must be exported to be settable
-	Value int
-	parse *regexp.Regexp
+	value int
+	parse regexp.Regexp
 }
 
 // Statistics represent that statistics exposed via
@@ -38,7 +35,7 @@ type stat struct {
 type Statistics struct {
 	VerificationTime           stat `json:"verification_time" kernel:"5.2"`
 	StackDepth                 stat `json:"stack_usage" kernel:"4.15"`
-	InstructionsProcessed      stat `json:"instruction_processed" kernel:"4.15""`
+	InstructionsProcessed      stat `json:"instruction_processed kernel:"4.15""`
 	InstructionsProcessedLimit stat `json:"limit" kernel:"4.15"`
 	MaxStatesPerInstruction    stat `json:"max_states_per_insn" kernel:"5.2"`
 	TotalStates                stat `json:"total_states" kernel:"5.2"`
@@ -47,11 +44,7 @@ type Statistics struct {
 
 var stackUsage = regexp.MustCompile(`stack depth\s+(?P<usage>\d+).*\n`)
 var verificationTime = regexp.MustCompile(`verification time\s+(?P<time>\d+).*\n`)
-var insnProcessed = regexp.MustCompile(`processed (?P<processed>\d+) insns`)
-var insnLimit = regexp.MustCompile(`\(limit (?P<limit>\d+)\)`)
-var maxStates = regexp.MustCompile(`max_states_per_insn (?P<max_states>\d+)`)
-var totalStates = regexp.MustCompile(`total_states (?P<total_states>\d+)`)
-var peakStates = regexp.MustCompile(`peak_states (?P<peak_states>\d+)`)
+var insnStats = regexp.MustCompile(`processed (?P<processed>\d+) insns \(limit (?P<limit>\d+)\) max_states_per_insn (?P<max_states>\d+) total_states (?P<total_states>\d+) peak_states (?P<peak_states>\d+) mark_read (?P<mark_read>\d+)`)
 
 //go:generate go run functions.go ../bytecode/build/co-re
 //go:generate go fmt programs.go
@@ -164,44 +157,56 @@ func BuildVerifierStats(objectFiles []string) (map[string]*Statistics, error) {
 	return stats, nil
 }
 
-type structField struct {
-	reflect.StructField
-	value reflect.Value
-}
-
 func unmarshalStatistics(output string, hostVersion kernel.Version) (*Statistics, error) {
-	v := Statistics{
-		VerificationTime:           stat{parse: verificationTime},
-		StackDepth:                 stat{parse: stackUsage},
-		InstructionsProcessed:      stat{parse: insnProcessed},
-		InstructionsProcessedLimit: stat{parse: insnLimit},
-		MaxStatesPerInstruction:    stat{parse: maxStates},
-		TotalStates:                stat{parse: totalStates},
-		PeakStates:                 stat{parse: peakStates},
-	}
+	var err error
+	var v Statistics
 
-	// we want statsValue to be settable which is why we get
-	// reflect.Value in this roundabout manner.
-	statsValue := reflect.ValueOf(&v).Elem()
-	statsType := statsValue.Type()
-	for i := 0; i < statsType.NumField(); i++ {
-		field := structField{statsType.Field(i), statsValue.Field(i)}
-		version := field.Tag.Get("kernel")
-		if version == "" {
+	statsValue := reflect.ValueOf(v)
+	for i := 0; i < statsValue.Type().NumFields(); i++ {
+		field := statsValue.Field(i)
+		kernel := field.Tag.Get("kernel")
+		if kernel == "" {
 			return nil, fmt.Errorf("field %s not tagged with kernel version", field.Name)
 		}
-		if hostVersion < kernel.ParseVersion(version) {
+		if hostVersion < kernel.ParseVersion(kernel) {
 			continue
 		}
+	}
 
-		s := field.value.Interface().(stat)
-		parsedValue, err := strconv.Atoi(s.parse.FindStringSubmatch(output)[1])
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse value for field %s: %w", field.Name, err)
-		}
+	v.StackDepth, err = strconv.Atoi(stackUsage.FindStringSubmatch(output)[1])
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse stack usage %q: %w", output, err)
+	}
 
-		newStat := stat{Value: parsedValue}
-		field.value.Set(reflect.ValueOf(newStat))
+	v.VerificationTime, err = strconv.Atoi(verificationTime.FindStringSubmatch(output)[1])
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse verification time %q: %w", output, err)
+	}
+
+	reStats := insnStats.FindStringSubmatch(output)
+	v.InstructionsProcessed, err = strconv.Atoi(reStats[1])
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse instructions processed %q: %w", output, err)
+	}
+
+	v.InstructionsProcessedLimit, err = strconv.Atoi(reStats[2])
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse instructions processed limit %q: %w", output, err)
+	}
+
+	v.MaxStatesPerInstruction, err = strconv.Atoi(reStats[3])
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse max states per instruction %q: %w", output, err)
+	}
+
+	v.TotalStates, err = strconv.Atoi(reStats[4])
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse total states %q: %w", output, err)
+	}
+
+	v.PeakStates, err = strconv.Atoi(reStats[5])
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse peak states %q: %w", output, err)
 	}
 
 	return &v, nil
