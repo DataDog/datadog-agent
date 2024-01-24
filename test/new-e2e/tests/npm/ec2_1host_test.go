@@ -41,6 +41,12 @@ func TestEC2VMSuite(t *testing.T) {
 	e2e.Run(t, s, e2eParams...)
 }
 
+func (v *ec2VMSuite) SetupSuite() {
+	v.BaseSuite.SetupSuite()
+
+	v.Env().RemoteHost.MustExecute("sudo apt install -y apache2-utils")
+}
+
 // BeforeTest will be called before each test
 func (v *ec2VMSuite) BeforeTest(suiteName, testName string) {
 	v.BaseSuite.BeforeTest(suiteName, testName)
@@ -89,6 +95,66 @@ func (v *ec2VMSuite) TestFakeIntakeNPM() {
 
 		// we want the test fail now, not retrying on the next payloads
 		assert.Greater(t, 0.5, math.Abs(dt-30), "delta between collection is higher than 500ms")
+	}, 90*time.Second, time.Second, "not enough connections received")
+}
+
+// TestFakeIntakeNPM_600pluscnx Validate the agent can communicate with the (fake) backend and send connections
+// every 30 seconds with a maximum of 600 connections per payloads, if more another payload will follow.
+//   - looking for 1 host to send CollectorConnections payload to the fakeintake
+//   - looking for n payloads and check if the last 2 have a maximum span of 100ms
+func (v *ec2VMSuite) TestFakeIntakeNPM_600pluscnx() {
+	t := v.T()
+
+	targetHostnameNetID := ""
+	// looking for 1 host to send CollectorConnections payload to the fakeintake
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		// generate a connection
+		v.Env().RemoteHost.MustExecute("ab -n 600 -c 600 http://www.datadoghq.com/")
+
+		hostnameNetID, err := v.Env().FakeIntake.Client().GetConnectionsNames()
+		assert.NoError(c, err, "GetConnectionsNames() errors")
+		if !assert.NotEmpty(c, hostnameNetID, "no connections yet") {
+			return
+		}
+		targetHostnameNetID = hostnameNetID[0]
+
+		t.Logf("hostname+networkID %v seen connections", hostnameNetID)
+	}, 60*time.Second, time.Second, "no connections received")
+
+	// looking for x payloads (with max 600 connections) and check if the last 2 have a max span of 100ms
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		cnx, err := v.Env().FakeIntake.Client().GetConnections()
+		assert.NoError(t, err)
+
+		if !assert.Greater(c, len(cnx.GetPayloadsByName(targetHostnameNetID)), 2, "not enough payloads") {
+			return
+		}
+
+		cnx.ForeachConnection(func(c *agentmodel.Connection, cc *agentmodel.CollectorConnections, hostname string) {
+			assert.LessOrEqualf(t, len(cc.Connections), 600, "too many payloads")
+		})
+
+		found600plusConnections := false
+		hostPayloads := cnx.GetPayloadsByName(targetHostnameNetID)
+		lenHostPayloads := len(hostPayloads)
+		for i, cc := range hostPayloads {
+			// check if the 2 last payloads are following 600 connections and n connections
+			if len(cc.Connections) == 600 && (i == (lenHostPayloads - 2)) {
+				found600plusConnections = true
+				break
+			}
+		}
+		if !assert.Truef(c, found600plusConnections, "can't found enough connections 600+") {
+			return
+		}
+
+		cnx600PayloadTime := hostPayloads[lenHostPayloads-2].GetCollectedTime()
+		latestPayloadTime := hostPayloads[lenHostPayloads-1].GetCollectedTime()
+
+		dt := latestPayloadTime.Sub(cnx600PayloadTime).Seconds()
+		t.Logf("hostname+networkID %v diff time %f seconds", targetHostnameNetID, dt)
+
+		assert.Greater(t, 0.1, dt, "delta between collection is higher than 100ms")
 	}, 90*time.Second, time.Second, "not enough connections received")
 }
 
