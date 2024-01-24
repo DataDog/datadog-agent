@@ -446,3 +446,127 @@ func BenchmarkProcessCheck(b *testing.B) {
 		require.NoError(b, err)
 	}
 }
+
+func TestProcessCheckZombieToggleFalse(t *testing.T) {
+	processCheck, probe := processCheckWithMockProbe(t)
+	cfg := ddconfig.Mock(t)
+	processCheck.config = cfg
+	processCheck.skipZombieProcesses = processCheck.config.GetBool(configDisallowZombies)
+
+	now := time.Now().Unix()
+	proc1 := makeProcessWithCreateTime(1, "git clone google.com", now)
+	proc2 := makeProcessWithCreateTime(2, "mine-bitcoins -all -x", now+1)
+	proc3 := makeProcessWithCreateTime(3, "foo --version", now+2)
+	proc4 := makeProcessWithCreateTime(4, "foo -bar -bim", now+3)
+	proc5 := makeProcessWithCreateTime(5, "datadog-process-agent --cfgpath datadog.conf", now+2)
+	proc4.Stats.Status = "Z"
+	proc5.Stats.Status = "Z"
+	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3, 4: proc4, 5: proc5}
+
+	expectedModel4 := makeProcessModel(t, proc4)
+	expectedModel4.State = 7
+	expectedModel5 := makeProcessModel(t, proc5)
+	expectedModel5.State = 7
+
+	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
+		Return(processesByPid, nil)
+
+	// The first run returns nothing because processes must be observed on two consecutive runs
+	first, err := processCheck.run(0, false)
+	require.NoError(t, err)
+	assert.Equal(t, CombinedRunResult{}, first)
+
+	expected := []model.MessageBody{
+		&model.CollectorProc{
+			Processes: []*model.Process{makeProcessModel(t, proc1)},
+			GroupSize: int32(len(processesByPid)),
+			Info:      processCheck.hostInfo.SystemInfo,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
+		},
+		&model.CollectorProc{
+			Processes: []*model.Process{makeProcessModel(t, proc2)},
+			GroupSize: int32(len(processesByPid)),
+			Info:      processCheck.hostInfo.SystemInfo,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
+		},
+		&model.CollectorProc{
+			Processes: []*model.Process{makeProcessModel(t, proc3)},
+			GroupSize: int32(len(processesByPid)),
+			Info:      processCheck.hostInfo.SystemInfo,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
+		},
+		&model.CollectorProc{
+			Processes: []*model.Process{expectedModel4},
+			GroupSize: int32(len(processesByPid)),
+			Info:      processCheck.hostInfo.SystemInfo,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
+		},
+		&model.CollectorProc{
+			Processes: []*model.Process{expectedModel5},
+			GroupSize: int32(len(processesByPid)),
+			Info:      processCheck.hostInfo.SystemInfo,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
+		},
+	}
+	actual, err := processCheck.run(0, false)
+	require.NoError(t, err)
+	assert.Equal(t, len(expected), len(actual.Payloads()))
+
+}
+
+func TestProcessCheckZombieToggleTrue(t *testing.T) {
+	processCheck, probe := processCheckWithMockProbe(t)
+	cfg := ddconfig.Mock(t)
+	processCheck.config = cfg
+	processCheck.skipZombieProcesses = processCheck.config.GetBool(configDisallowZombies)
+
+	now := time.Now().Unix()
+	proc1 := makeProcessWithCreateTime(1, "git clone google.com", now)
+	proc2 := makeProcessWithCreateTime(2, "mine-bitcoins -all -x", now+1)
+	proc3 := makeProcessWithCreateTime(3, "foo --version", now+2)
+	proc4 := makeProcessWithCreateTime(4, "foo -bar -bim", now+3)
+	proc5 := makeProcessWithCreateTime(5, "datadog-process-agent --cfgpath datadog.conf", now+2)
+	proc4.Stats.Status = "Z"
+	proc5.Stats.Status = "Z"
+	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3, 4: proc4, 5: proc5}
+
+	expectedModel4 := makeProcessModel(t, proc4)
+	expectedModel4.State = 7
+	expectedModel5 := makeProcessModel(t, proc5)
+	expectedModel5.State = 7
+
+	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
+		Return(processesByPid, nil)
+
+	// The first run returns nothing because processes must be observed on two consecutive runs
+	first, err := processCheck.run(0, false)
+	require.NoError(t, err)
+	assert.Equal(t, CombinedRunResult{}, first)
+
+	cfg.SetWithoutSource("process_config.ignore_zombie_processes", "true")
+	processCheck.skipZombieProcesses = processCheck.config.GetBool(configDisallowZombies)
+	expected := []model.MessageBody{
+		&model.CollectorProc{
+			Processes: []*model.Process{makeProcessModel(t, proc1)},
+			GroupSize: int32(len(processesByPid)),
+			Info:      processCheck.hostInfo.SystemInfo,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
+		},
+		&model.CollectorProc{
+			Processes: []*model.Process{makeProcessModel(t, proc2)},
+			GroupSize: int32(len(processesByPid)),
+			Info:      processCheck.hostInfo.SystemInfo,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
+		},
+		&model.CollectorProc{
+			Processes: []*model.Process{makeProcessModel(t, proc3)},
+			GroupSize: int32(len(processesByPid)),
+			Info:      processCheck.hostInfo.SystemInfo,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
+		},
+	}
+
+	actual, err := processCheck.run(0, false)
+	require.NoError(t, err)
+	assert.Equal(t, len(expected), len(actual.Payloads())) // ordering is not guaranteed
+}
