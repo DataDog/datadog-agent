@@ -116,7 +116,7 @@ func (s *TracerSuite) TestTCPRemoveEntries() {
 	assert.Eventually(t, func() bool {
 		_, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), getConnections(t, tr))
 		return !ok
-	}, 5*time.Second, 500*time.Millisecond)
+	}, 5*time.Second, 100*time.Millisecond)
 
 }
 
@@ -676,7 +676,7 @@ func (s *TracerSuite) TestGatewayLookupEnabled() {
 		var ok bool
 		conn, ok = findConnection(dnsClientAddr, dnsServerAddr, getConnections(t, tr))
 		return ok
-	}, 3*time.Second, 500*time.Millisecond)
+	}, 3*time.Second, 100*time.Millisecond)
 
 	require.NotNil(t, conn.Via, "connection is missing via: %s", conn)
 	require.Equal(t, conn.Via.Subnet.Alias, fmt.Sprintf("subnet-%d", ifi.Index))
@@ -733,7 +733,7 @@ func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
 		var ok bool
 		c, ok = findConnection(dnsClientAddr, dnsServerAddr, getConnections(t, tr))
 		return ok
-	}, 3*time.Second, 500*time.Millisecond, "connection not found")
+	}, 3*time.Second, 100*time.Millisecond, "connection not found")
 	require.Nil(t, c.Via)
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -746,7 +746,7 @@ func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
 		var ok bool
 		c, ok = findConnection(dnsClientAddr, dnsServerAddr, getConnections(t, tr))
 		return ok
-	}, 3*time.Second, 500*time.Millisecond, "connection not found")
+	}, 3*time.Second, 100*time.Millisecond, "connection not found")
 	require.Nil(t, c.Via)
 
 	require.Equal(t, 1, calls, "calls to subnetForHwAddrFunc are != 1 for hw addr %s", ifi.HardwareAddr)
@@ -911,7 +911,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 			var ok bool
 			conn, ok = findConnection(dnsClientAddr, dnsServerAddr, getConnections(t, tr))
 			return ok && conn.Direction == network.OUTGOING
-		}, 3*time.Second, 500*time.Millisecond)
+		}, 3*time.Second, 100*time.Millisecond)
 
 		require.NotNil(t, conn.Via)
 		require.Equal(t, fmt.Sprintf("subnet-%s", ifi.Name), conn.Via.Subnet.Alias)
@@ -954,7 +954,7 @@ func (s *TracerSuite) TestConnectionAssured() {
 		var ok bool
 		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
 		return ok && conn.Monotonic.SentBytes > 0 && conn.Monotonic.RecvBytes > 0
-	}, 3*time.Second, 500*time.Millisecond, "could not find udp connection")
+	}, 3*time.Second, 100*time.Millisecond, "could not find udp connection")
 
 	// verify the connection is marked as assured
 	require.True(t, conn.IsAssured)
@@ -989,7 +989,7 @@ func (s *TracerSuite) TestConnectionNotAssured() {
 		var ok bool
 		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
 		return ok && conn.Monotonic.SentBytes > 0 && conn.Monotonic.RecvBytes == 0
-	}, 3*time.Second, 500*time.Millisecond, "could not find udp connection")
+	}, 3*time.Second, 100*time.Millisecond, "could not find udp connection")
 
 	// verify the connection is marked as not assured
 	require.False(t, conn.IsAssured)
@@ -1115,7 +1115,7 @@ func (s *TracerSuite) TestSelfConnect() {
 
 		t.Logf("connections: %v", conns)
 		return len(conns) == 2
-	}, 5*time.Second, time.Second, "could not find expected number of tcp connections, expected: 2")
+	}, 5*time.Second, 100*time.Millisecond, "could not find expected number of tcp connections, expected: 2")
 }
 
 func (s *TracerSuite) TestUDPPeekCount() {
@@ -1480,7 +1480,7 @@ func (s *TracerSuite) TestSendfileRegression() {
 		c.Close()
 		require.Eventually(t, func() bool {
 			return int64(clientMessageSize) == rcvdFunc()
-		}, 3*time.Second, 500*time.Millisecond, "TCP server didn't receive data")
+		}, 3*time.Second, 100*time.Millisecond, "TCP server didn't receive data")
 
 		t.Logf("looking for connections %+v <-> %+v", c.LocalAddr(), c.RemoteAddr())
 		var outConn, inConn *network.ConnectionStats
@@ -1494,7 +1494,7 @@ func (s *TracerSuite) TestSendfileRegression() {
 				inConn = network.FirstConnection(conns, network.ByType(connType), network.ByFamily(family), network.ByTuple(c.RemoteAddr(), c.LocalAddr()))
 			}
 			return outConn != nil && inConn != nil
-		}, 3*time.Second, 500*time.Millisecond, "couldn't find connections used by sendfile(2)")
+		}, 3*time.Second, 100*time.Millisecond, "couldn't find connections used by sendfile(2)")
 
 		if assert.NotNil(t, outConn, "couldn't find outgoing connection used by sendfile(2)") {
 			assert.Equalf(t, int64(clientMessageSize), int64(outConn.Monotonic.SentBytes), "sendfile send data wasn't properly traced")
@@ -1600,7 +1600,7 @@ func (s *TracerSuite) TestSendfileError() {
 		var ok bool
 		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
 		return ok
-	}, 3*time.Second, 500*time.Millisecond, "couldn't find connection used by sendfile(2)")
+	}, 3*time.Second, 100*time.Millisecond, "couldn't find connection used by sendfile(2)")
 
 	assert.Equalf(t, int64(0), int64(conn.Monotonic.SentBytes), "sendfile data wasn't properly traced")
 }
@@ -1700,7 +1700,7 @@ func (s *TracerSuite) TestShortWrite() {
 		var ok bool
 		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
 		return ok
-	}, 3*time.Second, 500*time.Millisecond, "couldn't find connection used by short write")
+	}, 3*time.Second, 100*time.Millisecond, "couldn't find connection used by short write")
 
 	assert.Equal(t, sent, conn.Monotonic.SentBytes)
 }
@@ -1942,7 +1942,7 @@ func (s *TracerSuite) TestUDPIncomingDirectionFix() {
 		conns := getConnections(t, tr)
 		conn, _ = findConnection(net.UDPAddrFromAddrPort(ap), raddr, conns)
 		return conn != nil
-	}, 3*time.Second, 500*time.Millisecond)
+	}, 3*time.Second, 100*time.Millisecond)
 
 	assert.Equal(t, network.OUTGOING, conn.Direction)
 }
