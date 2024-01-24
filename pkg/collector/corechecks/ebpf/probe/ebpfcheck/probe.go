@@ -45,12 +45,13 @@ const maxMapsTracked = 20
 
 // Probe is the eBPF side of the eBPF check
 type Probe struct {
-	statsFD       io.Closer
-	coll          *ebpf.Collection
-	perfBufferMap *ebpf.Map
-	ringBufferMap *ebpf.Map
-	pidMap        *ebpf.Map
-	links         []link.Link
+	statsFD           io.Closer
+	coll              *ebpf.Collection
+	perfBufferMap     *ebpf.Map
+	ringBufferMap     *ebpf.Map
+	pidMap            *ebpf.Map
+	links             []link.Link
+	entryCountBuffers entryCountBuffers
 
 	nrcpus uint32
 }
@@ -335,7 +336,7 @@ func (k *Probe) getMapStats(stats *model.EBPFStats) error {
 			}
 		case ebpf.Hash, ebpf.LRUHash, ebpf.PerCPUHash, ebpf.LRUCPUHash, ebpf.HashOfMaps:
 			baseMapStats.MaxSize, baseMapStats.RSS = hashMapMemoryUsage(info, uint64(k.nrcpus))
-			baseMapStats.Entries = hashMapNumberOfEntries(mp)
+			baseMapStats.Entries = hashMapNumberOfEntries(mp, &k.entryCountBuffers)
 		case ebpf.Array, ebpf.PerCPUArray, ebpf.ProgramArray, ebpf.CGroupArray, ebpf.ArrayOfMaps:
 			baseMapStats.MaxSize, baseMapStats.RSS = arrayMemoryUsage(info, uint64(k.nrcpus))
 		case ebpf.LPMTrie:
@@ -526,7 +527,32 @@ func ringBufferMemoryUsage(mapStats *model.EBPFMapStats, info *ebpf.MapInfo, k *
 	return nil
 }
 
-func hashMapNumberOfEntriesWithBatch(mp *ebpf.Map) (int64, error) {
+type entryCountBuffers struct {
+	keys   []byte
+	values []byte
+	cursor []byte
+}
+
+func (e *entryCountBuffers) ensureSizeAll(referenceMap *ebpf.Map) {
+	maxSize := referenceMap.MaxEntries()
+	keysSize := referenceMap.KeySize() * maxSize
+	valuesSize := referenceMap.ValueSize() * maxSize
+	if uint32(cap(e.keys)) < keysSize {
+		e.keys = make([]byte, keysSize)
+	}
+	if uint32(cap(e.values)) < valuesSize {
+		e.values = make([]byte, valuesSize)
+	}
+	e.ensureSizeCursor(referenceMap)
+}
+
+func (e *entryCountBuffers) ensureSizeCursor(referenceMap *ebpf.Map) {
+	if uint32(cap(e.cursor)) < referenceMap.KeySize() {
+		e.cursor = make([]byte, referenceMap.KeySize())
+	}
+}
+
+func hashMapNumberOfEntriesWithBatch(mp *ebpf.Map, buffers *entryCountBuffers) (int64, error) {
 	// Here we duplicate a bit the code from cilium/ebpf to use the batch API
 	// in our own way, because the way it's coded there it cannot be used with
 	// key sizes that are only known at runtime.
@@ -538,10 +564,6 @@ func hashMapNumberOfEntriesWithBatch(mp *ebpf.Map) (int64, error) {
 	// a type [][mp.KeySize()]byte), and instead of defining one type per possible key size,
 	// I just replicated the system call here. It requires redinifing the struct used in cilium to
 	// pass arguments, but it's not a big amount of code.
-	keys := make([]byte, mp.KeySize()*mp.MaxEntries())
-	values := make([]byte, mp.ValueSize()*mp.MaxEntries())
-	cursor := make([]byte, mp.KeySize())
-
 	const BpfMapLookupBatchCommandCode = uint32(24)
 	type MapLookupBatchAttr struct {
 		InBatch   Pointer
@@ -553,13 +575,16 @@ func hashMapNumberOfEntriesWithBatch(mp *ebpf.Map) (int64, error) {
 		ElemFlags uint64
 		Flags     uint64
 	}
+	// Ensure that the buffers have enough size. Doing this avoids allocating
+	// big buffers every time the function is called
+	buffers.ensureSizeAll(mp)
 	attr := MapLookupBatchAttr{
 		MapFd:    uint32(mp.FD()),
-		Keys:     NewPointer(unsafe.Pointer(&keys[0])),
-		Values:   NewPointer(unsafe.Pointer(&values[0])),
+		Keys:     NewPointer(unsafe.Pointer(&buffers.keys[0])),
+		Values:   NewPointer(unsafe.Pointer(&buffers.values[0])),
 		Count:    uint32(mp.MaxEntries()),
 		InBatch:  NewPointer(nil),
-		OutBatch: NewPointer(unsafe.Pointer(&cursor[0])),
+		OutBatch: NewPointer(unsafe.Pointer(&buffers.cursor[0])),
 	}
 
 	_, _, errno := unix.Syscall(unix.SYS_BPF, uintptr(BpfMapLookupBatchCommandCode), uintptr(unsafe.Pointer(&attr)), unsafe.Sizeof(attr))
@@ -575,21 +600,21 @@ func hashMapNumberOfEntriesWithBatch(mp *ebpf.Map) (int64, error) {
 	return int64(attr.Count), nil
 }
 
-func hashMapNumberOfEntriesWithIteration(mp *ebpf.Map) (int64, error) {
+func hashMapNumberOfEntriesWithIteration(mp *ebpf.Map, buffers *entryCountBuffers) (int64, error) {
 	numElements := int64(0)
 	maxEntries := int64(mp.MaxEntries())
-	var cursor any
+	firstIter := true
+	buffers.ensureSizeCursor(mp)
 
 	for numElements <= maxEntries {
 		var err error
-		if cursor == nil {
-			// Allocate the cursor the first time
-			cursor = make([]byte, mp.KeySize())
+		if firstIter {
 			// Pass nil as the current key to signal that we start at the beginning of the map
-			err = mp.NextKey(nil, cursor)
+			err = mp.NextKey(nil, unsafe.Pointer(&buffers.cursor[0]))
+			firstIter = false
 		} else {
 			// Normal operation, get the next key to the one we have
-			err = mp.NextKey(cursor, cursor)
+			err = mp.NextKey(unsafe.Pointer(&buffers.cursor[0]), unsafe.Pointer(&buffers.cursor[0]))
 		}
 
 		if err != nil {
@@ -609,7 +634,7 @@ func hashMapNumberOfEntriesWithIteration(mp *ebpf.Map) (int64, error) {
 	return numElements, nil
 }
 
-func hashMapNumberOfEntries(mp *ebpf.Map) int64 {
+func hashMapNumberOfEntries(mp *ebpf.Map, buffers *entryCountBuffers) int64 {
 	if isPerCPU(mp.Type()) {
 		return -1
 	}
@@ -617,9 +642,9 @@ func hashMapNumberOfEntries(mp *ebpf.Map) int64 {
 	var numElements int64
 	var err error
 	if ddebpf.BatchAPISupported() && mp.Type() != ebpf.HashOfMaps { // HashOfMaps doesn't work with batch API
-		numElements, err = hashMapNumberOfEntriesWithBatch(mp)
+		numElements, err = hashMapNumberOfEntriesWithBatch(mp, buffers)
 	} else {
-		numElements, err = hashMapNumberOfEntriesWithIteration(mp)
+		numElements, err = hashMapNumberOfEntriesWithIteration(mp, buffers)
 	}
 	if err != nil {
 		log.Debugf("error getting number of elements for map %s: %s", mp.String(), err)
