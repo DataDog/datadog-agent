@@ -120,8 +120,6 @@ if [ ! -f "/tmp/install-ddagent/system-wide" ]; then
 
   echo "# Configuring the login launch of the app"
   sudo -u "$INSTALL_USER" osascript -e 'tell application "System Events" to make login item at end with properties {path:"/Applications/Datadog Agent.app", name:"Datadog Agent", hidden:false}'
-else
-  touch /tmp/install-ddagent/tray-not-started
 fi
 
 # A little debriefing won't hurt

@@ -65,10 +65,6 @@ if [ -f /tmp/install-ddagent/system-wide ]; then
   rm /tmp/install-ddagent/system-wide
 fi
 
-if [ -f /tmp/install-ddagent/tray-not-started ]; then
-  rm /tmp/install-ddagent/tray-not-started
-fi
-
 function find_latest_patch_version_for() {
     major_minor="$1"
     patch_versions=$(curl "https://s3.amazonaws.com/dd-agent?prefix=datadog-agent-${major_minor}." 2>/dev/null | grep -o "datadog-agent-${major_minor}.[0-9]*-1.dmg")
@@ -439,10 +435,6 @@ else
     # the GUI was not running for the user (e.g. a run of this script via
     # ssh for user not logged in via GUI).
     if $cmd_launchctl print "gui/$user_uid/$service_name" 1>/dev/null 2>/dev/null; then
-        # retro-compatibility : remove dd-agent tray app login item only if it was started
-        if [ ! -f "/tmp/install-ddagent/tray-not-started" ]; then
-          $cmd_real_user osascript -e 'tell application "System Events" to if login item "Datadog Agent" exists then delete login item "Datadog Agent"'
-        fi
         $cmd_launchctl stop "$service_name"
         $cmd_launchctl unload "$user_plist_file"
     fi
