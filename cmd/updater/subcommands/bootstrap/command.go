@@ -40,7 +40,8 @@ func Commands(global *command.GlobalParams) []*cobra.Command {
 		This first version is sent remotely to the agent and can be configured from the UI.
 		This command will exit after the first version is installed.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx, _ := context.WithTimeout(context.Background(), timeout)
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			defer cancel()
 			return boostrapFxWrapper(ctx, &cliParams{
 				GlobalParams: *global,
 			}, bootstrap)

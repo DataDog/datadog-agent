@@ -18,7 +18,6 @@ type RemoteConfig struct {
 
 // NewRemoteConfig returns a new RemoteConfig instance
 func NewRemoteConfig(hostname string) (*RemoteConfig, error) {
-	
 	service, err := common.NewRemoteConfigService(hostname, service.WithDatabaseFileName("remote-config-updater.db"))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create rc service: %w", err)

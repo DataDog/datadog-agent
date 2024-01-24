@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package localapi implements the updater local api component.
 package localapi
 
 import (
@@ -23,6 +24,7 @@ func Module() fxutil.Module {
 	)
 }
 
+// Params contains the parameters to build the updater.
 type Params struct {
 	fx.In
 

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package rc implements the remote config component.
 package rc
 
 import (
@@ -25,6 +26,7 @@ func Module() fxutil.Module {
 	)
 }
 
+// Params contains the parameters to build the updater.
 type Params struct {
 	fx.In
 

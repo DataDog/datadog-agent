@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package updater implements the updater component.
 package updater
 
 import (
@@ -24,10 +25,12 @@ func Module() fxutil.Module {
 	)
 }
 
+// Options contains the options for the updater.
 type Options struct {
 	Package string
 }
 
+// Params contains the parameters to build the updater.o
 type Params struct {
 	fx.In
 

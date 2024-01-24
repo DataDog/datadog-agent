@@ -67,6 +67,6 @@ func runFxWrapper(params *cliParams, fct interface{}) error {
 	)
 }
 
-func run(updater *updater.Updater, localAPI *updater.LocalAPI) error {
+func run(localAPI *updater.LocalAPI) error {
 	return localAPI.Serve()
 }
