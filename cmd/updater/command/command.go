@@ -35,9 +35,6 @@ type GlobalParams struct {
 
 	// RepositoriesDir is the path to the directory containing the repositories.
 	RepositoriesDir string
-
-	// RunPath is the path to the directory containing the repositories' run data.
-	RunPath string
 }
 
 // SubcommandFactory is a callable that will return a slice of subcommands.

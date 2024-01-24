@@ -18,13 +18,13 @@ import (
 
 func createTestRepository(t *testing.T, dir string, stablePackageName string) *Repository {
 	repositoryPath := path.Join(dir, "repository")
-	runPath := path.Join(dir, "run")
+	locksPath := path.Join(dir, "run")
 	os.MkdirAll(repositoryPath, 0755)
-	os.MkdirAll(runPath, 0766)
+	os.MkdirAll(locksPath, 0766)
 	stablePackagePath := createTestDownloadedPackage(t, dir, stablePackageName)
 	r := Repository{
-		RootPath: repositoryPath,
-		RunPath:  runPath,
+		RootPath:  repositoryPath,
+		LocksPath: locksPath,
 	}
 	err := r.Create(stablePackageName, stablePackagePath)
 	assert.NoError(t, err)
@@ -128,7 +128,7 @@ func TestDeleteExperimentWithoutExperiment(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestDeleteRunningExperimentWithRunningApp(t *testing.T) {
+func TestDeleteExperimentWithLockedPackage(t *testing.T) {
 	dir := t.TempDir()
 	repository := createTestRepository(t, dir, "v1")
 	experimentDownloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
@@ -137,9 +137,9 @@ func TestDeleteRunningExperimentWithRunningApp(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Add a running process... our own! So we're sure it's running.
-	err = os.MkdirAll(path.Join(repository.RunPath, "v2"), 0766)
+	err = os.MkdirAll(path.Join(repository.LocksPath, "v2"), 0766)
 	err = os.WriteFile(
-		path.Join(repository.RunPath, "v2", fmt.Sprint(os.Getpid())),
+		path.Join(repository.LocksPath, "v2", fmt.Sprint(os.Getpid())),
 		nil,
 		0644,
 	)
@@ -149,6 +149,6 @@ func TestDeleteRunningExperimentWithRunningApp(t *testing.T) {
 	assert.NoError(t, err)
 	_, err = os.Stat(path.Join(repository.RootPath, "v2"))
 	assert.NoError(t, err)
-	_, err = os.Stat(path.Join(repository.RunPath, "v2"))
+	_, err = os.Stat(path.Join(repository.LocksPath, "v2"))
 	assert.NoError(t, err)
 }

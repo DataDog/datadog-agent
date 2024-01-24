@@ -22,8 +22,8 @@ import (
 const (
 	// defaultRepositoryPath is the default path to the repository.
 	defaultRepositoryPath = "/opt/datadog-packages"
-	// defaultRunPath is the default path to the run directory.
-	defaultRunPath = "/var/run/datadog-packages"
+	// defaultLocksPath is the default path to the run directory.
+	defaultLocksPath = "/var/run/datadog-packages"
 	// gcInterval is the interval at which the GC will run
 	gcInterval = 1 * time.Hour
 )
@@ -34,8 +34,8 @@ func Install(ctx context.Context, orgConfig *OrgConfig, pkg string) error {
 	log.Infof("Updater: Installing default version of package %s", pkg)
 	downloader := newDownloader(http.DefaultClient)
 	repository := &repository.Repository{
-		RootPath: path.Join(defaultRepositoryPath, pkg),
-		RunPath:  path.Join(defaultRunPath, pkg),
+		RootPath:  path.Join(defaultRepositoryPath, pkg),
+		LocksPath: path.Join(defaultLocksPath, pkg),
 	}
 	firstPackage, err := orgConfig.GetDefaultPackage(ctx, pkg)
 	if err != nil {
@@ -72,8 +72,8 @@ type Updater struct {
 // NewUpdater returns a new Updater.
 func NewUpdater(orgConfig *OrgConfig, pkg string) (*Updater, error) {
 	repository := &repository.Repository{
-		RootPath: path.Join(defaultRepositoryPath, pkg),
-		RunPath:  path.Join(defaultRunPath, pkg),
+		RootPath:  path.Join(defaultRepositoryPath, pkg),
+		LocksPath: path.Join(defaultLocksPath, pkg),
 	}
 	state, err := repository.GetState()
 	if err != nil {
@@ -118,11 +118,7 @@ func (u *Updater) Stop() {
 func (u *Updater) cleanup() error {
 	u.m.Lock()
 	defer u.m.Unlock()
-	err := u.repository.Cleanup()
-	if err != nil {
-		return err
-	}
-	return nil
+	return u.repository.Cleanup()
 }
 
 // StartExperiment starts an experiment with the given package.

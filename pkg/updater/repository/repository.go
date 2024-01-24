@@ -48,12 +48,12 @@ const (
 type Repository struct {
 	RootPath string
 
-	// RunPath must be set when the updater doesn't control the lifecycle of the
+	// LocksPath must be set when the updater doesn't control the lifecycle of the
 	// process that's experimented on (e.g. tracers).
 	//
 	// Instead, the updater will put in place a GC mechanism to make sure no process uses the package
 	// before removing it from the system. This system will be independent from the experiment process.
-	RunPath string
+	LocksPath string
 }
 
 // State is the state of the repository.
@@ -74,7 +74,7 @@ func (s *State) HasExperiment() bool {
 
 // GetState returns the state of the repository.
 func (r *Repository) GetState() (*State, error) {
-	repository, err := readRepository(r.RootPath, r.RunPath)
+	repository, err := readRepository(r.RootPath, r.LocksPath)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +98,7 @@ func (r *Repository) Create(name string, stableSourcePath string) error {
 		return fmt.Errorf("could not create packages root directory: %w", err)
 	}
 
-	repository, err := readRepository(r.RootPath, r.RunPath)
+	repository, err := readRepository(r.RootPath, r.LocksPath)
 	if err != nil {
 		return err
 	}
@@ -122,7 +122,7 @@ func (r *Repository) Create(name string, stableSourcePath string) error {
 // 2. Move the experiment source to the repository.
 // 3. Set the experiment link to the experiment package.
 func (r *Repository) SetExperiment(name string, sourcePath string) error {
-	repository, err := readRepository(r.RootPath, r.RunPath)
+	repository, err := readRepository(r.RootPath, r.LocksPath)
 	if err != nil {
 		return err
 	}
@@ -147,7 +147,7 @@ func (r *Repository) SetExperiment(name string, sourcePath string) error {
 // 3. Delete the experiment link.
 // 4. Cleanup the repository to remove the previous stable package.
 func (r *Repository) PromoteExperiment() error {
-	repository, err := readRepository(r.RootPath, r.RunPath)
+	repository, err := readRepository(r.RootPath, r.LocksPath)
 	if err != nil {
 		return err
 	}
@@ -182,7 +182,7 @@ func (r *Repository) PromoteExperiment() error {
 // 2. Delete the experiment link.
 // 3. Cleanup the repository to remove the previous experiment package.
 func (r *Repository) DeleteExperiment() error {
-	repository, err := readRepository(r.RootPath, r.RunPath)
+	repository, err := readRepository(r.RootPath, r.LocksPath)
 	if err != nil {
 		return err
 	}
@@ -209,7 +209,7 @@ func (r *Repository) DeleteExperiment() error {
 
 // Cleanup calls the cleanup function of the repository
 func (r *Repository) Cleanup() error {
-	repository, err := readRepository(r.RootPath, r.RunPath)
+	repository, err := readRepository(r.RootPath, r.LocksPath)
 	if err != nil {
 		return err
 	}
@@ -217,14 +217,14 @@ func (r *Repository) Cleanup() error {
 }
 
 type repositoryFiles struct {
-	rootPath string
-	runPath  string
+	rootPath  string
+	locksPath string
 
 	stable     *link
 	experiment *link
 }
 
-func readRepository(rootPath string, runPath string) (*repositoryFiles, error) {
+func readRepository(rootPath string, locksPath string) (*repositoryFiles, error) {
 	stableLink, err := newLink(filepath.Join(rootPath, stableVersionLink))
 	if err != nil {
 		return nil, fmt.Errorf("could not load stable link: %w", err)
@@ -236,14 +236,14 @@ func readRepository(rootPath string, runPath string) (*repositoryFiles, error) {
 
 	return &repositoryFiles{
 		rootPath:   rootPath,
-		runPath:    runPath,
+		locksPath:  locksPath,
 		stable:     stableLink,
 		experiment: experimentLink,
 	}, nil
 }
 
 func (r *repositoryFiles) setExperiment(name string, sourcePath string) error {
-	path, err := movePackageFromSource(name, r.rootPath, r.runPath, sourcePath)
+	path, err := movePackageFromSource(name, r.rootPath, r.locksPath, sourcePath)
 	if err != nil {
 		return fmt.Errorf("could not move experiment source: %w", err)
 	}
@@ -252,7 +252,7 @@ func (r *repositoryFiles) setExperiment(name string, sourcePath string) error {
 }
 
 func (r *repositoryFiles) setStable(name string, sourcePath string) error {
-	path, err := movePackageFromSource(name, r.rootPath, r.runPath, sourcePath)
+	path, err := movePackageFromSource(name, r.rootPath, r.locksPath, sourcePath)
 	if err != nil {
 		return fmt.Errorf("could not move stable source: %w", err)
 	}
@@ -260,7 +260,7 @@ func (r *repositoryFiles) setStable(name string, sourcePath string) error {
 	return r.stable.Set(path)
 }
 
-func movePackageFromSource(packageName string, rootPath string, runPath string, sourcePath string) (string, error) {
+func movePackageFromSource(packageName string, rootPath string, locksPath string, sourcePath string) (string, error) {
 	if packageName == "" || packageName == stableVersionLink || packageName == experimentVersionLink {
 		return "", fmt.Errorf("invalid package name")
 	}
@@ -271,8 +271,8 @@ func movePackageFromSource(packageName string, rootPath string, runPath string, 
 		// If yes, the GC left the package in place so we don't reinstall it, but
 		// we don't throw an error either.
 		// If not, the GC should have removed the packages so we error.
-		targetRunPath := filepath.Join(runPath, packageName)
-		inUse, err := versionUsed(targetRunPath)
+		targetLocksPath := filepath.Join(locksPath, packageName)
+		inUse, err := packageLocked(targetLocksPath)
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return "", fmt.Errorf("could not check if package version is in use: %w", err)
 		}
@@ -309,7 +309,7 @@ func (r *repositoryFiles) cleanup() error {
 			continue
 		}
 
-		versionInUse, err := versionUsed(filepath.Join(r.runPath, file.Name()))
+		versionInUse, err := packageLocked(filepath.Join(r.locksPath, file.Name()))
 		if err != nil {
 			log.Errorf("could not check if package version is in use: %v", err)
 			continue
@@ -321,7 +321,7 @@ func (r *repositoryFiles) cleanup() error {
 			if err := os.RemoveAll(filepath.Join(r.rootPath, file.Name())); err != nil {
 				log.Errorf("could not remove package directory for version %s: %v", file.Name(), err)
 			}
-			if err := os.RemoveAll(filepath.Join(r.runPath, file.Name())); err != nil {
+			if err := os.RemoveAll(filepath.Join(r.locksPath, file.Name())); err != nil {
 				log.Errorf("could not remove run directory for version %s: %v", file.Name(), err)
 			}
 		}
@@ -330,13 +330,10 @@ func (r *repositoryFiles) cleanup() error {
 	return nil
 }
 
-// versionUsed checks if the given package version is in use
-func versionUsed(packagePIDsPath string) (bool, error) {
+// packageLocked checks if the given package version is in use
+func packageLocked(packagePIDsPath string) (bool, error) {
 	pids, err := os.ReadDir(packagePIDsPath)
 	if errors.Is(err, os.ErrNotExist) {
-		// Not an error, because the run directory may not exist for this package
-		// in which case, as the run directory is world writeable, we can assume
-		// no process is using it
 		log.Debugf("package run directory does not exist, no running PIDs")
 		return false, nil
 	}
