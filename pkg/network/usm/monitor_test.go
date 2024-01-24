@@ -402,9 +402,21 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegration() {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, keepAliveEnabled := range []bool{true, false} {
 				t.Run(testNameHelper("with keep alive", "without keep alive", keepAliveEnabled), func(t *testing.T) {
-					testHTTPMonitor(t, tt.targetAddress, tt.serverAddress, 100, testutil.Options{
-						EnableKeepAlive: keepAliveEnabled,
-					})
+					monitor := newHTTPMonitor(t)
+
+					srvDoneFn := testutil.HTTPServer(t, tt.serverAddress, testutil.Options{EnableKeepAlive: keepAliveEnabled})
+					t.Cleanup(srvDoneFn)
+
+					// Perform a number of random requests
+					requestFn := requestGenerator(t, tt.targetAddress, emptyBody)
+					var requests []*nethttp.Request
+					for i := 0; i < 100; i++ {
+						requests = append(requests, requestFn())
+					}
+					srvDoneFn()
+
+					// Ensure all captured transactions get sent to user-space
+					assertAllRequestsExists(t, monitor, requests)
 				})
 			}
 		})
@@ -546,24 +558,6 @@ func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp
 			}
 		}
 	}
-}
-
-func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int, o testutil.Options) {
-	monitor := newHTTPMonitor(t)
-
-	srvDoneFn := testutil.HTTPServer(t, serverAddr, o)
-	t.Cleanup(srvDoneFn)
-
-	// Perform a number of random requests
-	requestFn := requestGenerator(t, targetAddr, emptyBody)
-	var requests []*nethttp.Request
-	for i := 0; i < numReqs; i++ {
-		requests = append(requests, requestFn())
-	}
-	srvDoneFn()
-
-	// Ensure all captured transactions get sent to user-space
-	assertAllRequestsExists(t, monitor, requests)
 }
 
 var (
