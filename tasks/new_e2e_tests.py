@@ -412,12 +412,6 @@ def get_ssh_keys():
     return list(map(root.joinpath, os.listdir(root)))
 
 
-def load_test_infra_config():
-    with open(Path.home().joinpath(".test_infra_config.yaml")) as f:
-        config = yaml.safe_load(f)
-    return config
-
-
 @task
 def debug_keys(ctx):
     """
@@ -437,7 +431,7 @@ def debug_keys(ctx):
     print("Checking for valid SSH key configuration")
 
     # Get keypair name
-    config = load_test_infra_config()
+    config = _load_test_infra_config()
     awsConf = config["configParams"]["aws"]
     keypair_name = awsConf["keyPairName"]
 
