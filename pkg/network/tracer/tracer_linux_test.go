@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/rand"
 	"net"
 	"net/netip"
 	"os"
@@ -562,7 +563,7 @@ func (s *TracerSuite) TestUnconnectedUDPSendIPv6() {
 	linkLocal, err := offsetguess.GetIPv6LinkLocalAddress()
 	require.NoError(t, err)
 
-	remotePort := testutil.GetOpenPortUDP(t)
+	remotePort := rand.Int()%5000 + 15000
 	remoteAddr := &net.UDPAddr{IP: net.ParseIP(offsetguess.InterfaceLocalMulticastIPv6), Port: remotePort}
 	conn, err := net.ListenUDP("udp6", linkLocal[0])
 	require.NoError(t, err)
@@ -1305,10 +1306,7 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 
 	tr := setupTracer(t, cfg)
 
-	conn, err := net.ListenUDP("udp", &net.UDPAddr{Port: 0})
-	require.NoError(t, err)
-	port := conn.LocalAddr().(*net.UDPAddr).Port
-
+	port := 0
 	createReuseServer := func(port int) *UDPServer {
 		return &UDPServer{
 			network: udpnet,
@@ -1332,12 +1330,12 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 	}
 
 	s1 := createReuseServer(port)
-	s2 := createReuseServer(port)
-	conn.Close()
-	err = s1.Run(clientMessageSize)
+	err := s1.Run(clientMessageSize)
+	assignedPort := s1.ln.LocalAddr().(*net.UDPAddr).Port
 	require.NoError(t, err)
 	t.Cleanup(s1.Shutdown)
 
+	s2 := createReuseServer(assignedPort)
 	err = s2.Run(clientMessageSize)
 	require.NoError(t, err)
 	t.Cleanup(s2.Shutdown)
