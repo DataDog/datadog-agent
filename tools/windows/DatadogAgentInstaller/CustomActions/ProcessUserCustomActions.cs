@@ -499,8 +499,7 @@ namespace Datadog.CustomActions
             }
             catch (Exception e)
             {
-                var errorDialogMessage = $"An unexpected error occurred while parsing the account name: {e.Message}";
-                return HandleProcessDdAgentUserCredentialsException(e, errorDialogMessage, calledFromUIControl);
+                return HandleProcessDdAgentUserCredentialsException(e, "An unexpected error occurred while parsing the account name. Refer to the installation log for more information or contact support for assistance.", calledFromUIControl);
             }
 
             if (calledFromUIControl)
