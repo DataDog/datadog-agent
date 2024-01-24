@@ -42,7 +42,7 @@ func TestOnlyCorePopulatedDarwin(t *testing.T) {
 	sysInfo, _ := CollectSystemInfo()
 	for _, cpuData := range sysInfo.Cpus {
 		// Checks if only the cores does not have the default value
-		assert.Greater(t, cpuData.Cores,  int32(0))
+		assert.Greater(t, cpuData.Cores, int32(0))
 		assert.Empty(t, cpuData.Number)
 		assert.Empty(t, cpuData.Vendor)
 		assert.Empty(t, cpuData.Family)
