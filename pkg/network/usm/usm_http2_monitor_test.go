@@ -41,8 +41,10 @@ import (
 )
 
 const (
-	srvPort  = 8082
-	unixPath = "/tmp/transparent.sock"
+	srvPort               = 8082
+	unixPath              = "/tmp/transparent.sock"
+	pathWithStatusCode300 = "/test-300"
+	pathWithStatusCode401 = "/test-401"
 )
 
 var (
@@ -719,6 +721,42 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			expectedEndpoints: nil,
 		},
 		{
+			name: "validate capability to process up to max limit filtering frames",
+			// The purpose of this test is to verify our ability to process up to HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING frames.
+			// We write the path "/aaa" for the first time with 25 headers. When we exceed the limit, we expect to lose
+			// our internal counter (because we can filter up to 25 requests), and therefore, the next time we write the request "/aaa",
+			// its internal index will not be correct, and we will not be able to find it.
+			messageBuilder: func() []byte {
+				const dummyHeadersCount = 25
+				framer := newFramer()
+				return framer.writeHeaders(t, 1, testMultipleHeaders(dummyHeadersCount)).
+					writeData(t, 1, true, []byte{}).
+					writeHeaders(t, 1, testHeaders()).
+					writeData(t, 1, true, []byte{}).bytes()
+			},
+			expectedEndpoints: nil,
+		},
+		{
+			name: "validate 300 status code",
+			// The purpose of this test is to verify that currently we do not support status code other than 200.
+			messageBuilder: func() []byte {
+				framer := newFramer()
+				return framer.writeHeaders(t, 1, headersWithGivenEndpoint(pathWithStatusCode300)).
+					writeData(t, 1, true, []byte{}).bytes()
+			},
+			expectedEndpoints: nil,
+		},
+		{
+			name: "validate 401 status code",
+			// The purpose of this test is to verify that currently we do not support status code other than 200.
+			messageBuilder: func() []byte {
+				framer := newFramer()
+				return framer.writeHeaders(t, 1, headersWithGivenEndpoint(pathWithStatusCode401)).
+					writeData(t, 1, true, []byte{}).bytes()
+			},
+			expectedEndpoints: nil,
+		},
+		{
 			name: "validate DELETE method",
 			// The purpose of this test is to validate that we are not supporting http2 request with method DELETE.
 			messageBuilder: func() []byte {
@@ -882,34 +920,53 @@ func writeInput(c net.Conn, input []byte, timeout time.Duration) error {
 
 // headersWithNeverIndexedPath returns a set of header fields with path that never indexed.
 func headersWithNeverIndexedPath() []hpack.HeaderField {
-	return generateTestHeaderFields(true, false, false)
+	return generateTestHeaderFields(true, false, false, "", "")
 }
 
 // headersWithoutIndexingPath returns a set of header fields with path without-indexing.
 func headersWithoutIndexingPath() []hpack.HeaderField {
-	return generateTestHeaderFields(false, true, false)
+	return generateTestHeaderFields(false, true, false, "", "")
 }
 
 // headersWithGivenPathMethod returns a set of header fields with the given method for the header includes the path.
 func headersWithGivenPathMethod(method string) []hpack.HeaderField {
-	return generateTestHeaderFields(false, false, false, method)
+	return generateTestHeaderFields(false, false, false, method, "")
 }
 
 // headersWithExceedingPathLen returns a set of header fields with the given method for the header includes the path.
 func headersWithExceedingPathLen() []hpack.HeaderField {
-	return generateTestHeaderFields(false, false, true)
+	return generateTestHeaderFields(false, false, true, "", "")
+}
+
+// headersWithGivenPathMethod returns a set of header fields with the given method for the header includes the path.
+func headersWithGivenEndpoint(path string) []hpack.HeaderField {
+	return generateTestHeaderFields(false, false, false, "", path)
 }
 
 // testHeaders returns a set of header fields.
-func testHeaders() []hpack.HeaderField { return generateTestHeaderFields(false, false, false) }
+func testHeaders() []hpack.HeaderField { return generateTestHeaderFields(false, false, false, "", "") }
+
+// testMultipleHeaders returns a set of header fields, with the given number of headers.
+func testMultipleHeaders(testHeadersCount int) []hpack.HeaderField {
+	headers := generateTestHeaderFields(false, false, false, "", "")
+
+	for i := 0; i < testHeadersCount; i++ {
+		headers = append(headers, hpack.HeaderField{Name: fmt.Sprintf("name%d", i), Value: fmt.Sprintf("test%d", i)})
+	}
+	return headers
+}
 
 // generateTestHeaderFields generates a set of header fields that will be used for the tests.
-func generateTestHeaderFields(pathNeverIndexed, withoutIndexing, pathExceedingMax bool, pathMethod ...string) []hpack.HeaderField {
+func generateTestHeaderFields(pathNeverIndexed, withoutIndexing, pathExceedingMax bool, pathMethod, endpoint string) []hpack.HeaderField {
 	headerPathMethod := "POST"
-	if len(pathMethod) > 0 {
-		headerPathMethod = pathMethod[0]
+	path := "/aaa"
+	if pathMethod != "" {
+		headerPathMethod = pathMethod
 	}
-	pathHeaderField := hpack.HeaderField{Name: ":path", Value: "/aaa", Sensitive: false}
+	if endpoint != "" {
+		path = endpoint
+	}
+	pathHeaderField := hpack.HeaderField{Name: ":path", Value: path, Sensitive: false}
 
 	// If we want to create a case without indexing, we need to make sure that the path is longer than 100 characters.
 	// The indexing is determined by the dynamic table size (which we set to dynamicTableSize) and the size of the path.
@@ -1058,8 +1115,16 @@ func startH2CServer(address string, isTLS bool) (func(), error) {
 	srv := &http.Server{
 		Addr: authority,
 		Handler: h2c.NewHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(200)
-			w.Write([]byte("test"))
+			// Check the request path and set the appropriate status code
+			switch r.URL.Path {
+			case pathWithStatusCode300:
+				w.WriteHeader(http.StatusMultipleChoices) // HTTP status code 300
+			case pathWithStatusCode401:
+				w.WriteHeader(http.StatusUnauthorized) // HTTP status code 400
+			default:
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("test"))
+			}
 		}), &http2.Server{}),
 		IdleTimeout: 2 * time.Second,
 	}
