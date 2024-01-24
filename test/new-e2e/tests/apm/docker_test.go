@@ -190,27 +190,27 @@ func hasContainerTag(payloads []*aggregator.TracePayload, tag string) bool {
 	return false
 }
 
-func (v *DockerFakeintakeSuite) TestBasicTrace() {
+func (s *DockerFakeintakeSuite) TestBasicTrace() {
 	const testService = "tracegen"
 
 	// Wait for agent to be live
-	v.T().Log("Waiting for Trace Agent to be live.")
-	v.Require().NoError(waitRemotePort(v, 8126))
+	s.T().Log("Waiting for Trace Agent to be live.")
+	s.Require().NoError(waitRemotePort(s, 8126))
 
 	// Run Trace Generator
-	v.T().Log("Starting Trace Generator.")
-	shutdown := runTracegen(v.Env().Host, testService, tracegenCfg{transport: v.transport})
+	s.T().Log("Starting Trace Generator.")
+	shutdown := runTracegen(s.Env().Host, testService, tracegenCfg{transport: s.transport})
 	defer shutdown()
 
-	v.T().Log("Waiting for traces.")
-	v.EventuallyWithTf(func(c *assert.CollectT) {
-		traces, err := v.Env().FakeIntake.Client().GetTraces()
+	s.T().Log("Waiting for traces.")
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		traces, err := s.Env().FakeIntake.Client().GetTraces()
 		require.NoError(c, err)
 		require.NotEmpty(c, traces)
 
 		trace := traces[0]
 		require.NoError(c, err)
-		assert.Equal(c, v.Env().Agent.Client.Hostname(), trace.HostName)
+		assert.Equal(c, s.Env().Agent.Client.Hostname(), trace.HostName)
 		assert.Equal(c, trace.Env, "none")
 		require.NotEmpty(c, trace.TracerPayloads)
 
@@ -219,15 +219,15 @@ func (v *DockerFakeintakeSuite) TestBasicTrace() {
 		require.NotEmpty(c, tp.Chunks)
 		require.NotEmpty(c, tp.Chunks[0].Spans)
 		spans := tp.Chunks[0].Spans
-		for _, s := range spans {
-			assert.Equal(c, s.Service, testService)
-			assert.Contains(c, s.Name, "tracegen")
-			assert.Contains(c, s.Meta, "language")
-			assert.Equal(c, s.Meta["language"], "go")
-			assert.Contains(c, s.Metrics, "_sampling_priority_v1")
-			if s.ParentID == 0 {
-				assert.Equal(c, s.Metrics["_dd.top_level"], float64(1))
-				assert.Equal(c, s.Metrics["_top_level"], float64(1))
+		for _, sp := range spans {
+			assert.Equal(c, sp.Service, testService)
+			assert.Contains(c, sp.Name, "tracegen")
+			assert.Contains(c, sp.Meta, "language")
+			assert.Equal(c, sp.Meta["language"], "go")
+			assert.Contains(c, sp.Metrics, "_sampling_priority_v1")
+			if sp.ParentID == 0 {
+				assert.Equal(c, sp.Metrics["_dd.top_level"], float64(1))
+				assert.Equal(c, sp.Metrics["_top_level"], float64(1))
 			}
 		}
 
