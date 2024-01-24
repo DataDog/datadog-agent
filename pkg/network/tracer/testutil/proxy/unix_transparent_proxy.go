@@ -108,8 +108,9 @@ func (p *UnixTransparentProxyServer) WaitUntilServerIsReady() {
 // meant for external servers.
 func WaitForConnectionReady(unixSocket string) error {
 	for i := 0; i < connectionRetries; i++ {
-		_, err := net.DialTimeout("unix", unixSocket, time.Second)
+		c, err := net.DialTimeout("unix", unixSocket, time.Second)
 		if err == nil {
+			_ = c.Close()
 			return nil
 		}
 		time.Sleep(connectionRetryInterval)
@@ -141,13 +142,17 @@ func (p *UnixTransparentProxyServer) handleConnection(unixSocketConn net.Conn) {
 	var streamWait sync.WaitGroup
 	streamWait.Add(2)
 
-	streamConn := func(dst io.Writer, src io.Reader) {
+	streamConn := func(dst io.Writer, src io.Reader, cleanup func()) {
 		defer streamWait.Done()
+		if cleanup != nil {
+			defer cleanup()
+		}
 		_, _ = io.Copy(dst, src)
 	}
 
-	go streamConn(remoteConn, unixSocketConn)
-	go streamConn(unixSocketConn, remoteConn)
+	// If the unix socket is closed, we can close the remote as well.
+	go streamConn(remoteConn, unixSocketConn, func() { _ = remoteConn.Close() })
+	go streamConn(unixSocketConn, remoteConn, nil)
 
 	streamWait.Wait()
 }

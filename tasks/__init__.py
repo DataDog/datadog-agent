@@ -4,7 +4,7 @@ Invoke entrypoint, import here all the tasks we want to make available
 
 from invoke import Collection
 
-from . import (
+from tasks import (
     agent,
     bench,
     buildimages,
@@ -37,10 +37,10 @@ from . import (
     updater,
     vscode,
 )
-from .build_tags import audit_tag_impact, print_default_build_tags
-from .components import lint_components, lint_fxutil_oneshot_test
-from .fuzz import fuzz
-from .go import (
+from tasks.build_tags import audit_tag_impact, print_default_build_tags
+from tasks.components import lint_components, lint_fxutil_oneshot_test
+from tasks.fuzz import fuzz
+from tasks.go import (
     check_go_version,
     check_mod_tidy,
     deps,
@@ -53,15 +53,15 @@ from .go import (
     reset,
     tidy_all,
 )
-from .go_test import codecov, e2e_tests, get_modified_packages, integration_tests, send_unit_tests_stats, test
-from .install_tasks import download_tools, install_shellcheck, install_tools
-from .junit_tasks import junit_macos_repack, junit_upload
-from .linter_tasks import lint_copyrights, lint_filenames, lint_go, lint_python
-from .pr_checks import lint_milestone, lint_releasenote, lint_skip_qa, lint_teamassignment
-from .show_linters_issues import show_linters_issues
-from .unit_tests import invoke_unit_tests
-from .update_go import go_version, update_go
-from .windows_resources import build_messagetable
+from tasks.go_test import codecov, e2e_tests, get_modified_packages, integration_tests, send_unit_tests_stats, test
+from tasks.install_tasks import download_tools, install_shellcheck, install_tools
+from tasks.junit_tasks import junit_macos_repack, junit_upload
+from tasks.linter_tasks import lint_copyrights, lint_filenames, lint_go, lint_python
+from tasks.pr_checks import lint_releasenote
+from tasks.show_linters_issues import show_linters_issues
+from tasks.unit_tests import invoke_unit_tests
+from tasks.update_go import go_version, update_go
+from tasks.windows_resources import build_messagetable
 
 # the root namespace
 ns = Collection()
@@ -80,10 +80,7 @@ ns.add_task(lint_fxutil_oneshot_test)
 ns.add_task(generate_protobuf)
 ns.add_task(reset)
 ns.add_task(lint_copyrights),
-ns.add_task(lint_teamassignment)
 ns.add_task(lint_releasenote)
-ns.add_task(lint_skip_qa)
-ns.add_task(lint_milestone)
 ns.add_task(lint_filenames)
 ns.add_task(lint_python)
 ns.add_task(lint_go)
