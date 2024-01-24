@@ -92,7 +92,7 @@ func runConntrackerTest(t *testing.T, name string, createFn func(*testing.T, *co
 
 //nolint:revive // TODO(NET) Fix revive linter
 func setupEBPFConntracker(t *testing.T, cfg *config.Config) (netlink.Conntracker, error) {
-	return NewEBPFConntracker(cfg, nil)
+	return NewEBPFConntracker(cfg)
 }
 
 //nolint:revive // TODO(NET) Fix revive linter

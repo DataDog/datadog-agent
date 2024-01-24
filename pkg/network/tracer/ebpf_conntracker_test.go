@@ -21,7 +21,7 @@ func TestEbpfConntrackerLoadTriggersOffsetGuessing(t *testing.T) {
 
 	cfg := testConfig()
 	cfg.EnableRuntimeCompiler = false
-	conntracker, err := NewEBPFConntracker(cfg, nil)
+	conntracker, err := NewEBPFConntracker(cfg)
 	assert.NoError(t, err)
 	require.NotNil(t, conntracker)
 	t.Cleanup(conntracker.Close)
