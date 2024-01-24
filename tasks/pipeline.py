@@ -12,10 +12,10 @@ import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
-from .libs.common.color import color_message
-from .libs.common.github_api import GithubAPI
-from .libs.common.gitlab import Gitlab, get_gitlab_bot_token, get_gitlab_token
-from .libs.common.utils import (
+from tasks.libs.common.color import color_message
+from tasks.libs.common.github_api import GithubAPI
+from tasks.libs.common.gitlab import Gitlab, get_gitlab_bot_token, get_gitlab_token
+from tasks.libs.common.utils import (
     DEFAULT_BRANCH,
     GITHUB_REPO_NAME,
     check_clean_branch_state,
@@ -24,9 +24,9 @@ from .libs.common.utils import (
     nightly_entry_for,
     release_entry_for,
 )
-from .libs.datadog_api import create_count, send_metrics
-from .libs.pipeline_data import get_failed_jobs
-from .libs.pipeline_notifications import (
+from tasks.libs.datadog_api import create_count, send_metrics
+from tasks.libs.pipeline_data import get_failed_jobs
+from tasks.libs.pipeline_notifications import (
     GITHUB_SLACK_MAP,
     base_message,
     check_for_missing_owners_slack_and_jira,
@@ -35,8 +35,8 @@ from .libs.pipeline_notifications import (
     read_owners,
     send_slack_message,
 )
-from .libs.pipeline_stats import get_failed_jobs_stats
-from .libs.pipeline_tools import (
+from tasks.libs.pipeline_stats import get_failed_jobs_stats
+from tasks.libs.pipeline_tools import (
     FilteredOutException,
     cancel_pipelines_with_confirmation,
     get_running_pipelines_on_same_ref,
@@ -44,7 +44,7 @@ from .libs.pipeline_tools import (
     trigger_agent_pipeline,
     wait_for_pipeline,
 )
-from .libs.types import FailedJobs, SlackMessage, TeamMessage
+from tasks.libs.types import FailedJobs, SlackMessage, TeamMessage
 
 
 class GitlabReference(yaml.YAMLObject):
@@ -239,6 +239,7 @@ def run(
     all_builds=True,
     kitchen_tests=True,
     e2e_tests=False,
+    rc_build=False,
     rc_k8s_deployments=False,
 ):
     """
@@ -248,6 +249,10 @@ def run(
     Use --no-all-builds to not run builds for all architectures (only a subset of jobs will run. No effect on pipelines on the default branch).
     Use --no-kitchen-tests to not run all kitchen tests on the pipeline.
     Use --e2e-tests to run all e2e tests on the pipeline.
+
+    Release Candidate related flags:
+    Use --rc-build to mark the build as Release Candidate.
+    Use --rc-k8s-deployments to trigger a child pipeline that will deploy Release Candidate build to staging k8s clusters.
 
     By default, the nightly release.json entries (nightly and nightly-a7) are used.
     Use the --use-release-entries option to use the release-a6 and release-a7 release.json entries instead.
@@ -345,6 +350,7 @@ def run(
             all_builds=all_builds,
             kitchen_tests=kitchen_tests,
             e2e_tests=e2e_tests,
+            rc_build=rc_build,
             rc_k8s_deployments=rc_k8s_deployments,
         )
     except FilteredOutException:

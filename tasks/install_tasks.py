@@ -3,7 +3,7 @@ import sys
 
 from invoke import Exit, task
 
-from .libs.common.utils import color_message, environ
+from tasks.libs.common.utils import color_message, environ
 
 TOOL_LIST = [
     'github.com/frapposelli/wwhrd',

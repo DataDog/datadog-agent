@@ -969,12 +969,17 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	if testEnvironment == DockerEnvironment {
 		cmdWrapper = newStdCmdWrapper()
 	} else {
-		wrapper, err := newDockerCmdWrapper(st.Root(), st.Root(), "ubuntu")
-		if err == nil {
-			cmdWrapper = newMultiCmdWrapper(wrapper, newStdCmdWrapper())
-		} else {
-			// docker not present run only on host
+		if opts.staticOpts.enableEBPFLess {
+			// docker not supported by ebpf less
 			cmdWrapper = newStdCmdWrapper()
+		} else {
+			wrapper, err := newDockerCmdWrapper(st.Root(), st.Root(), "ubuntu")
+			if err == nil {
+				cmdWrapper = newMultiCmdWrapper(wrapper, newStdCmdWrapper())
+			} else {
+				// docker not present run only on host
+				cmdWrapper = newStdCmdWrapper()
+			}
 		}
 	}
 
@@ -1001,8 +1006,11 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.cmdWrapper = cmdWrapper
 		testMod.t = t
 		testMod.opts.dynamicOpts = opts.dynamicOpts
-		if testMod.tracePipe, err = testMod.startTracing(); err != nil {
-			return testMod, err
+
+		if !opts.staticOpts.enableEBPFLess {
+			if testMod.tracePipe, err = testMod.startTracing(); err != nil {
+				return testMod, err
+			}
 		}
 
 		if opts.staticOpts.preStartCallback != nil {
@@ -1016,7 +1024,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		}
 
 		if ruleDefs != nil && logStatusMetrics {
-			t.Logf("%s entry stats: %s\n", t.Name(), GetEBPFStatusMetrics(testMod.probe))
+			t.Logf("%s entry stats: %s", t.Name(), GetEBPFStatusMetrics(testMod.probe))
 		}
 		return testMod, nil
 	} else if testMod != nil {
@@ -1111,8 +1119,10 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		opts.staticOpts.preStartCallback(testMod)
 	}
 
-	if testMod.tracePipe, err = testMod.startTracing(); err != nil {
-		return nil, err
+	if !opts.staticOpts.enableEBPFLess {
+		if testMod.tracePipe, err = testMod.startTracing(); err != nil {
+			return nil, err
+		}
 	}
 
 	if opts.staticOpts.snapshotRuleMatchHandler != nil {
@@ -1132,11 +1142,11 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	}
 
 	if logStatusMetrics {
-		t.Logf("%s entry stats: %s\n", t.Name(), GetEBPFStatusMetrics(testMod.probe))
+		t.Logf("%s entry stats: %s", t.Name(), GetEBPFStatusMetrics(testMod.probe))
 	}
 
 	if opts.staticOpts.enableEBPFLess {
-		t.Logf("EBPFLess mode, waiting for a client to connect\n")
+		t.Logf("EBPFLess mode, waiting for a client to connect")
 		err := retry.Do(func() error {
 			if testMod.probe.PlatformProbe.(*sprobe.EBPFLessProbe).GetClientsCount() > 0 {
 				return nil
@@ -1147,7 +1157,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			return nil, err
 		}
 		time.Sleep(time.Second * 2) // sleep another sec to let tests starting before the tracing is ready
-		t.Logf("client connected\n")
+		t.Logf("client connected")
 	}
 	return testMod, nil
 }
@@ -1814,7 +1824,7 @@ func (tm *testModule) Close() {
 	tm.statsdClient.Flush()
 
 	if logStatusMetrics {
-		tm.t.Logf("%s exit stats: %s\n", tm.t.Name(), GetEBPFStatusMetrics(tm.probe))
+		tm.t.Logf("%s exit stats: %s", tm.t.Name(), GetEBPFStatusMetrics(tm.probe))
 	}
 
 	if withProfile {

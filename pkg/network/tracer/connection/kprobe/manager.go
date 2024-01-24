@@ -111,7 +111,7 @@ func initManager(mgr *ebpftelemetry.Manager, closedHandler *ebpf.PerfHandler, ri
 		}
 
 		mgr.RingBuffers = []*manager.RingBuffer{rb}
-		ebpf.ReportRingBufferTelemetry(rb)
+		ebpftelemetry.ReportRingBufferTelemetry(rb)
 	} else {
 		pm := &manager.PerfMap{
 			Map: manager.Map{Name: probes.ConnCloseEventMap},
@@ -125,7 +125,7 @@ func initManager(mgr *ebpftelemetry.Manager, closedHandler *ebpf.PerfHandler, ri
 			},
 		}
 		mgr.PerfMaps = []*manager.PerfMap{pm}
-		ebpf.ReportPerfMapTelemetry(pm)
+		ebpftelemetry.ReportPerfMapTelemetry(pm)
 	}
 	for _, funcName := range mainProbes {
 		p := &manager.Probe{
