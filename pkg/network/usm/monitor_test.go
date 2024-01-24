@@ -367,40 +367,48 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 	}
 }
 
-func (s *HTTPTestSuite) TestHTTPMonitorIntegration() {
-	t := s.T()
-	serverAddr := "localhost:8080"
-
-	t.Run("with keep-alives", func(t *testing.T) {
-		testHTTPMonitor(t, serverAddr, serverAddr, 100, testutil.Options{
-			EnableKeepAlive: true,
-		})
-	})
-	t.Run("without keep-alives", func(t *testing.T) {
-		testHTTPMonitor(t, serverAddr, serverAddr, 100, testutil.Options{
-			EnableKeepAlive: false,
-		})
-	})
+func testNameHelper(optionTrue, optionFalse string, value bool) string {
+	if value {
+		return optionTrue
+	}
+	return optionFalse
 }
 
-func (s *HTTPTestSuite) TestHTTPMonitorIntegrationWithNAT() {
+func (s *HTTPTestSuite) TestHTTPMonitorIntegration() {
 	t := s.T()
+	serverAddrWithoutNAT := "localhost:8080"
+	targetAddrWithNAT := "2.2.2.2:8080"
+	serverAddrWithNAT := "1.1.1.1:8080"
 	// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
 	netlink.SetupDNAT(t)
 
-	targetAddr := "2.2.2.2:8080"
-	serverAddr := "1.1.1.1:8080"
-
-	t.Run("with keep-alives", func(t *testing.T) {
-		testHTTPMonitor(t, targetAddr, serverAddr, 100, testutil.Options{
-			EnableKeepAlive: true,
+	testCases := []struct {
+		name          string
+		serverAddress string
+		targetAddress string
+	}{
+		{
+			name:          "with dnat",
+			serverAddress: serverAddrWithNAT,
+			targetAddress: targetAddrWithNAT,
+		},
+		{
+			name:          "without dnat",
+			serverAddress: serverAddrWithoutNAT,
+			targetAddress: serverAddrWithoutNAT,
+		},
+	}
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, keepAliveEnabled := range []bool{true, false} {
+				t.Run(testNameHelper("with keep alive", "without keep alive", keepAliveEnabled), func(t *testing.T) {
+					testHTTPMonitor(t, tt.targetAddress, tt.serverAddress, 100, testutil.Options{
+						EnableKeepAlive: keepAliveEnabled,
+					})
+				})
+			}
 		})
-	})
-	t.Run("without keep-alives", func(t *testing.T) {
-		testHTTPMonitor(t, targetAddr, serverAddr, 100, testutil.Options{
-			EnableKeepAlive: false,
-		})
-	})
+	}
 }
 
 func (s *HTTPTestSuite) TestRSTPacketRegression() {
