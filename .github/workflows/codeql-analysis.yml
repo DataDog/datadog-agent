@@ -52,11 +52,5 @@ jobs:
         with:
           swap-size-gb: 10
 
-      - name: Build DataDog agent
-        run: |
-          invoke install-tools
-          invoke deps
-          invoke agent.build --build-exclude=systemd
-
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v2
