@@ -565,7 +565,6 @@ func (s *Service) getRefreshInterval() (time.Duration, error) {
 func (s *Service) ClientGetConfigs(_ context.Context, request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
 	s.Lock()
 	defer s.Unlock()
-	log.Debugf("client %s requested configurations", request.Client.Id)
 	err := validateRequest(request)
 	if err != nil {
 		return nil, err

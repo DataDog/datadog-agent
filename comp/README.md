@@ -355,16 +355,16 @@ component temporarily wraps pkg/trace/config.
 
 *Datadog Team*: fleet
 
-
+Package updater implements the updater component.
 
 ### [comp/updater/localapi](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/localapi)
 
-
+Package localapi implements the updater local api component.
 
 ### [comp/updater/rc](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/rc)
 
-
+Package rc implements the remote config component.
 
 ### [comp/updater/updater](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/updater)
 
-
+Package updater implements the updater component.
