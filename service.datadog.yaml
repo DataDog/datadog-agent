@@ -9,5 +9,5 @@ extensions:
       slack: "datadog-agent-pipelines"
       schedule: "0 3 3 * * 1-5"
       env:
-        - name: "Nightly builds"
+        - name: "staging"
           branch: "chouquette/conductor"
