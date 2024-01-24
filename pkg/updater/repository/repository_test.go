@@ -48,6 +48,48 @@ func TestCreateFresh(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestCreateOverwrite(t *testing.T) {
+	dir := t.TempDir()
+	oldRepository := createTestRepository(t, dir, "old")
+
+	repository := createTestRepository(t, dir, "v1")
+
+	assert.Equal(t, oldRepository.RootPath, repository.RootPath)
+	_, err := os.Stat(repository.RootPath)
+	assert.NoError(t, err)
+	_, err = os.Stat(path.Join(repository.RootPath, "v1"))
+	assert.NoError(t, err)
+	_, err = os.Stat(path.Join(oldRepository.RootPath, "old"))
+	assert.ErrorIs(t, err, os.ErrNotExist)
+}
+
+func TestCreateOverwriteWithLockedPackage(t *testing.T) {
+	dir := t.TempDir()
+	oldRepository := createTestRepository(t, dir, "old")
+
+	// Add a running process... our own! So we're sure it's running.
+	err := os.MkdirAll(path.Join(oldRepository.LocksPath, "old"), 0766)
+	err = os.WriteFile(
+		path.Join(oldRepository.LocksPath, "old", fmt.Sprint(os.Getpid())),
+		nil,
+		0644,
+	)
+	assert.NoError(t, err)
+
+	repository := createTestRepository(t, dir, "v1")
+
+	dire, _ := os.ReadDir(oldRepository.RootPath)
+	fmt.Println(dire)
+
+	assert.Equal(t, oldRepository.RootPath, repository.RootPath)
+	_, err = os.Stat(repository.RootPath)
+	assert.NoError(t, err)
+	_, err = os.Stat(path.Join(repository.RootPath, "v1"))
+	assert.NoError(t, err)
+	_, err = os.Stat(path.Join(oldRepository.RootPath, "old"))
+	assert.NoError(t, err)
+}
+
 func TestSetExperiment(t *testing.T) {
 	dir := t.TempDir()
 	repository := createTestRepository(t, dir, "v1")

@@ -103,6 +103,20 @@ func (r *Repository) Create(name string, stableSourcePath string) error {
 		return err
 	}
 
+	// Remove symlinks as we are bootstrapping
+	if repository.stable.Exists() {
+		err = repository.stable.Delete()
+		if err != nil {
+			return fmt.Errorf("could not delete stable link: %w", err)
+		}
+	}
+	if repository.experiment.Exists() {
+		err = repository.experiment.Delete()
+		if err != nil {
+			return fmt.Errorf("could not delete experiment link: %w", err)
+		}
+	}
+
 	// Cleanup (not remove) the previous repository
 	err = repository.cleanup()
 	if err != nil {
