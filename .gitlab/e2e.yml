@@ -336,7 +336,6 @@ new-e2e-apm-dev:
   variables:
     TARGETS: ./tests/apm
     TEAM: apm-agent
-  allow_failure: true # blocked by APL-2786
 
 new-e2e-apm-main:
   extends: .new_e2e_template
@@ -344,7 +343,6 @@ new-e2e-apm-main:
   variables:
     TARGETS: ./tests/apm
     TEAM: apm-agent
-  allow_failure: true # blocked by APL-2786
 
 #   ^    If you create a new job here that extends `.new_e2e_template`,
 #  /!\   do not forget to add it in the `dependencies` statement of the
