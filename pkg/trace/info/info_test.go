@@ -397,6 +397,9 @@ func TestInfoConfig(t *testing.T) {
 	conf.EVPProxy.ApplicationKey = ""
 	assert.Equal("", confCopy.DebuggerProxy.APIKey, "Debugger Proxy API Key should *NEVER* be exported")
 	conf.DebuggerProxy.APIKey = ""
+	assert.Equal("", confCopy.DebuggerDiagnosticsProxy.APIKey, "Debugger Diagnostics Proxy API Key should *NEVER* be exported")
+	conf.DebuggerDiagnosticsProxy.APIKey = ""
+
 
 	// Any key-like data should scrubbed
 	conf.EVPProxy.AdditionalEndpoints = scrubbedAddEp
