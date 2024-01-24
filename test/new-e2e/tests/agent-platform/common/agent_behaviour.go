@@ -16,7 +16,7 @@ import (
 	componentos "github.com/DataDog/test-infra-definitions/components/os"
 
 	agentclient "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/bound-port"
+	boundport "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/bound-port"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -192,23 +192,32 @@ func CheckDogstatsdAgentRestarts(t *testing.T, client *TestClient) {
 	})
 }
 
-// CheckAgentPython runs tests to check the agent use the correct python version
-func CheckAgentPython(t *testing.T, client *TestClient, version string) {
-	t.Run(fmt.Sprintf("set python version %s and restarts", version), func(tt *testing.T) {
+const (
+	// Bump this version when the version in omnibus/config/software/python2.rb changes
+	ExpectedPythonVersion2 = "2.7.18"
+	// Bump this version when the version in omnibus/config/software/python3.rb changes
+	ExpectedPythonVersion3 = "3.11.5"
+)
+
+// SetAgentPythonMajorVersion set the python major version in the agent config and restarts the agent
+func SetAgentPythonMajorVersion(t *testing.T, client *TestClient, majorVersion string) {
+	t.Run(fmt.Sprintf("set python version %s and restarts", majorVersion), func(tt *testing.T) {
 		configFilePath := client.Helper.GetConfigFolder() + client.Helper.GetConfigFileName()
-		err := client.SetConfig(configFilePath, "python_version", version)
+		err := client.SetConfig(configFilePath, "python_version", majorVersion)
 		require.NoError(tt, err, "failed to set python version: ", err)
 
 		_, err = client.SvcManager.Restart(client.Helper.GetServiceName())
 		require.NoError(tt, err, "agent should be able to restart after editing python version")
 	})
+}
 
-	t.Run(fmt.Sprintf("check python %s is used", version), func(tt *testing.T) {
+// CheckAgentPython runs tests to check the agent use the correct python version
+func CheckAgentPython(t *testing.T, client *TestClient, expectedVersion string) {
+	t.Run(fmt.Sprintf("check python %s is used", expectedVersion), func(tt *testing.T) {
 		statusVersion, err := client.GetPythonVersion()
 		require.NoError(tt, err)
-		majorPythonVersion := strings.Split(statusVersion, ".")[0]
-
-		require.Equal(tt, version, majorPythonVersion)
+		actualPythonVersion := statusVersion
+		require.Equal(tt, expectedVersion, actualPythonVersion)
 	})
 }
 
