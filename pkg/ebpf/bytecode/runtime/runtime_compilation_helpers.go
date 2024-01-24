@@ -16,8 +16,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/gopsutil/host"
-
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/compiler"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -72,7 +70,7 @@ func compileToObjectFile(inFile, outputDir, filename, inHash string, additionalF
 		if err != nil {
 			return nil, kernelVersionErr, fmt.Errorf("unable to get kernel version: %w", err)
 		}
-		_, family, _, err := host.PlatformInformation()
+		family, err := kernel.Family()
 		if err != nil {
 			return nil, kernelVersionErr, fmt.Errorf("unable to get kernel family: %w", err)
 		}
