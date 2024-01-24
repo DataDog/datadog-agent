@@ -19,6 +19,8 @@
     # if we ever start building on a different platform, that might need to change
     - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --host-distribution=ociru
     - ls -la $OMNIBUS_PACKAGE_DIR
+    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog${FLAVOR:+-$FLAVOR}-agent_*_${PACKAGE_ARCH}.tar.xz $S3_ARTIFACTS_URI/$DESTINATION_OCI
+    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog${FLAVOR:+-$FLAVOR}-agent_*_${PACKAGE_ARCH}.tar.xz.metadata.json $S3_ARTIFACTS_URI/${DESTINATION_OCI}.metadata.json
     - !reference [.upload_sbom_artifacts]
   variables:
     KUBERNETES_CPU_REQUEST: 16
@@ -48,6 +50,31 @@ agent_remote_updater-x64-a7:
     AGENT_MAJOR_VERSION: 7
     PYTHON_RUNTIMES: "3"
     PACKAGE_ARCH: amd64
+    DESTINATION_OCI: "datadog-agent-7-oci-amd64.tar.xz"
+  before_script:
+    - source /root/.bashrc
+    - export RELEASE_VERSION=$RELEASE_VERSION_7
+
+# build Agent package for remote_updater-x64
+agent_remote_updater-arm64-a7:
+  extends: .agent_build_common_remote_updater
+  rules:
+    - !reference [.on_all_builds_a7]
+  stage: package_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:arm64"]
+  needs:
+    [
+      "go_mod_tidy_check",
+      "build_system-probe-arm64",
+      "go_deps",
+      "generate_minimized_btfs_arm64",
+    ]
+  variables:
+    AGENT_MAJOR_VERSION: 7
+    PYTHON_RUNTIMES: "3"
+    PACKAGE_ARCH: arm64
+    DESTINATION_OCI: "datadog-agent-7-oci-arm64.tar.xz"
   before_script:
     - source /root/.bashrc
     - export RELEASE_VERSION=$RELEASE_VERSION_7
