@@ -26,19 +26,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-const checkName = "orchestrator_pod"
+// CheckName is the name of the check
+const CheckName = "orchestrator_pod"
 
 var groupID atomic.Int32
 
 func nextGroupID() int32 {
 	groupID.Add(1)
 	return groupID.Load()
-}
-
-func init() {
-	core.RegisterCheck(checkName, PodFactory)
 }
 
 // Check doesn't need additional fields
@@ -51,10 +49,14 @@ type Check struct {
 	config    *oconfig.OrchestratorConfig
 }
 
-// PodFactory returns a new Pod.Check
-func PodFactory() check.Check {
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
+}
+
+func newCheck() check.Check {
 	return &Check{
-		CheckBase: core.NewCheckBase(checkName),
+		CheckBase: core.NewCheckBase(CheckName),
 		config:    oconfig.NewDefaultOrchestratorConfig(),
 	}
 }

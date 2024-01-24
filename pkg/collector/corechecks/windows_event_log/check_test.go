@@ -9,7 +9,6 @@ package evtlog
 
 import (
 	"fmt"
-	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -19,6 +18,7 @@ import (
 	agentCheck "github.com/DataDog/datadog-agent/pkg/collector/check"
 	agentConfig "github.com/DataDog/datadog-agent/pkg/config"
 	agentEvent "github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/reporter"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/test"
@@ -153,6 +153,43 @@ func TestGetEventsTestSuite(t *testing.T) {
 	}
 }
 
+// generateAndCountEvents prepares a mock.Call to count the number of calls, generates numEvents
+// in the event log, starts/runs the check with check.Run(), and finally blocks until all events are collected.
+//
+// Because the check collects events in the background, it is important for this method to prepare the mock.Call
+// before generating the events in the event log to avoid a race between preparing the mock.Call
+// and the background event collector.
+func generateAndCountEvents(ti eventlog_test.APITester, check *Check, senderEventCall *mock.Call, eventSource string, numEvents uint) (uint, error) {
+	eventsCollected := uint(0)
+	done := make(chan struct{})
+	if numEvents > 0 {
+		senderEventCall.Run(func(args mock.Arguments) {
+			eventsCollected++
+			if eventsCollected == numEvents {
+				close(done)
+			}
+		})
+		// generate events
+		err := ti.GenerateEvents(eventSource, numEvents)
+		if err != nil {
+			return 0, err
+		}
+	} else {
+		senderEventCall.Unset()
+		close(done)
+	}
+	// run check in case subscription needs to be started
+	check.Run()
+	// wait for events
+	<-done
+	return eventsCollected, nil
+}
+
+// countEvents prepares a mock.Call to count the number of calls, starts/runs the check with check.Run(),
+// and finally blocks until all events are collected.
+//
+// If the check is already running/collecting events in the background and you want to generate new
+// events and count them, use generateAndCountEvents instead.
 func countEvents(check *Check, senderEventCall *mock.Call, numEvents uint) uint {
 	eventsCollected := uint(0)
 	done := make(chan struct{})
@@ -190,19 +227,13 @@ start: oldest
 	require.NoError(s.T(), err)
 	defer check.Cancel()
 
-	s.sender.On("Commit").Return()
-	senderEventCall := s.sender.On("Event", mock.Anything)
-
-	eventsCollected := countEvents(check, senderEventCall, s.numEvents)
-
-	require.Equal(s.T(), s.numEvents, eventsCollected)
-	s.sender.AssertExpectations(s.T())
+	s.assertCountEvents(check, s.numEvents)
 }
 
 // Test that the check can detect and recover from a broken subscription
 func (s *GetEventsTestSuite) TestRecoverFromBrokenSubscription() {
 	// TODO: https://datadoghq.atlassian.net/browse/WINA-480
-	s.T().Skip("WINA-480: Skipping flaky test")
+	flake.Mark(s.T())
 
 	// Put events in the log
 	err := s.ti.GenerateEvents(s.eventSource, s.numEvents)
@@ -218,20 +249,15 @@ start: oldest
 	require.NoError(s.T(), err)
 	defer check.Cancel()
 
-	s.sender.On("Commit").Return()
-	senderEventCall := s.sender.On("Event", mock.Anything)
-
-	eventsCollected := countEvents(check, senderEventCall, s.numEvents)
-	require.Equal(s.T(), s.numEvents, eventsCollected)
-	s.sender.AssertExpectations(s.T())
+	s.assertCountEvents(check, s.numEvents)
 
 	// bookmark should have been updated
 	// remove the source/channel to break the subscription
 	s.ti.RemoveSource(s.channelPath, s.eventSource)
 	s.ti.RemoveChannel(s.channelPath)
-	cmd := exec.Command("powershell.exe", "-Command", "Restart-Service", "EventLog", "-Force")
-	out, err := cmd.CombinedOutput()
-	require.NoError(s.T(), err, "Failed to restart EventLog service %s", out)
+	// Must restart eventlog service for removal to take effect
+	s.ti.KillEventLogService(s.T())
+	s.ti.StartEventLogService(s.T())
 
 	// check run should return an error
 	err = check.Run()
@@ -248,22 +274,41 @@ start: oldest
 	require.NoError(s.T(), err)
 
 	// next check run should recreate subscription and resume from bookmark and read 0 events
-	resetSender(s.sender)
-	s.sender.On("Commit").Return()
-	senderEventCall = s.sender.On("Event", mock.Anything)
-	eventsCollected = countEvents(check, senderEventCall, 0)
-	require.Equal(s.T(), uint(0), eventsCollected)
-	s.sender.AssertExpectations(s.T())
+	s.assertNoEvents(check)
 
 	// put some new events in the log and ensure the check sees them
-	err = s.ti.GenerateEvents(s.eventSource, s.numEvents)
-	require.NoError(s.T(), err)
+	s.assertGenerateAndCountEvents(check, s.numEvents)
+}
+
+// assertGenerateAndCountEvents resets the mock sender, prepares it to receive events,
+// generates numEvents, and then asserts that the mock sender received that many events.
+//
+// See generateAndCountEvents for further details.
+func (s *GetEventsTestSuite) assertGenerateAndCountEvents(check *Check, numEvents uint) {
+	// prep mock sender to receive events
 	resetSender(s.sender)
 	s.sender.On("Commit").Return()
-	senderEventCall = s.sender.On("Event", mock.Anything)
-	eventsCollected = countEvents(check, senderEventCall, s.numEvents)
-	require.Equal(s.T(), s.numEvents, eventsCollected)
+	senderEventCall := s.sender.On("Event", mock.Anything)
+
+	eventsCollected, err := generateAndCountEvents(s.ti, check, senderEventCall, s.eventSource, numEvents)
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), numEvents, eventsCollected)
 	s.sender.AssertExpectations(s.T())
+}
+
+func (s *GetEventsTestSuite) assertCountEvents(check *Check, numEvents uint) {
+	// prep mock sender to receive events
+	resetSender(s.sender)
+	s.sender.On("Commit").Return()
+	senderEventCall := s.sender.On("Event", mock.Anything)
+
+	eventsCollected := countEvents(check, senderEventCall, numEvents)
+	require.Equal(s.T(), numEvents, eventsCollected)
+	s.sender.AssertExpectations(s.T())
+}
+
+func (s *GetEventsTestSuite) assertNoEvents(check *Check) {
+	s.assertCountEvents(check, 0)
 }
 
 // Test that the check can resume from a bookmark
@@ -287,12 +332,8 @@ bookmark_frequency: %d
 		check.Cancel()
 	}()
 
-	s.sender.On("Commit").Return()
-	senderEventCall := s.sender.On("Event", mock.Anything)
-
-	eventsCollected := countEvents(check, senderEventCall, s.numEvents)
-	require.Equal(s.T(), s.numEvents, eventsCollected)
-	s.sender.AssertExpectations(s.T())
+	// Start subscription and count the events
+	s.assertCountEvents(check, s.numEvents)
 
 	// bookmark should have been updated
 	// TODO: test?
@@ -302,23 +343,11 @@ bookmark_frequency: %d
 	check, err = s.newCheck(instanceConfig)
 	require.NoError(s.T(), err)
 
-	// new check should resume from bookmark and read 0 events
-	resetSender(s.sender)
-	s.sender.On("Commit").Return()
-	senderEventCall = s.sender.On("Event", mock.Anything)
-	eventsCollected = countEvents(check, senderEventCall, 0)
-	require.Equal(s.T(), uint(0), eventsCollected)
-	s.sender.AssertExpectations(s.T())
+	// starting new check should resume from bookmark and read 0 events
+	s.assertNoEvents(check)
 
 	// put some new events in the log and ensure the check sees them
-	err = s.ti.GenerateEvents(s.eventSource, s.numEvents)
-	require.NoError(s.T(), err)
-	resetSender(s.sender)
-	s.sender.On("Commit").Return()
-	senderEventCall = s.sender.On("Event", mock.Anything)
-	eventsCollected = countEvents(check, senderEventCall, s.numEvents)
-	require.Equal(s.T(), s.numEvents, eventsCollected)
-	s.sender.AssertExpectations(s.T())
+	s.assertGenerateAndCountEvents(check, s.numEvents)
 }
 
 // Test that event record levels are correctly converted to Datadog Event Alerty Types
@@ -889,8 +918,8 @@ payload_size: %d
 						channelPath, batchCount))
 
 					// read the log b.N times
+					b.StopTimer()
 					b.ResetTimer()
-					startTime := time.Now()
 					totalEvents := uint(0)
 					for i := 0; i < b.N; i++ {
 						// create tmpdir to store bookmark
@@ -901,15 +930,16 @@ payload_size: %d
 						require.NoError(b, err)
 						sender.On("Commit").Return()
 						senderEventCall := sender.On("Event", mock.Anything)
-						// read all the events
+						// start check and read all the events
+						b.StartTimer()
 						totalEvents += countEvents(check, senderEventCall, v)
+						b.StopTimer()
 						// clean shutdown the check and reset the mock sender expecations
 						check.Cancel()
 						resetSender(sender)
 					}
 
-					// TODO: Use b.Elapsed in go1.20
-					elapsed := time.Since(startTime)
+					elapsed := b.Elapsed()
 					b.Logf("%.2f events/s (%.3fs) N=%d", float64(totalEvents)/elapsed.Seconds(), elapsed.Seconds(), b.N)
 					benchmarkTotalEvents += totalEvents
 				})
