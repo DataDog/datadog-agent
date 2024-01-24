@@ -1,5 +1,5 @@
 {
-	"commit": "d6840150d6009860a1d6c5c97352a7a30ebabf51",
+	"commit": "e5ae49ca682c3a7d674dd008808645efd860d58f",
 	"constants": [
 		{
 			"binprm_file_offset": 168,
@@ -10010,6 +10010,13 @@
 			"version": "2018",
 			"arch": "x86_64",
 			"uname_release": "4.14.334-177.552.amzn1.x86_64",
+			"cindex": 18
+		},
+		{
+			"distrib": "amzn",
+			"version": "2018",
+			"arch": "x86_64",
+			"uname_release": "4.14.336-178.554.amzn1.x86_64",
 			"cindex": 18
 		},
 		{

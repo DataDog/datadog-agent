@@ -48,6 +48,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
@@ -171,6 +172,7 @@ func run(log log.Component,
 	serverDebug dogstatsddebug.Component,
 	forwarder defaultforwarder.Component,
 	wmeta workloadmeta.Component,
+	taggerComp tagger.Component,
 	rcclient rcclient.Component,
 	_ runner.Component,
 	demultiplexer demultiplexer.Component,
@@ -237,6 +239,7 @@ func run(log log.Component,
 		server,
 		serverDebug,
 		wmeta,
+		taggerComp,
 		rcclient,
 		logsAgent,
 		forwarder,
@@ -284,6 +287,8 @@ func getSharedFxOption() fx.Option {
 		dogstatsd.Bundle(),
 		otelcol.Bundle(),
 		rcclient.Module(),
+		fx.Provide(tagger.NewTaggerParamsForCoreAgent),
+		tagger.Module(),
 
 		// TODO: (components) - some parts of the agent (such as the logs agent) implicitly depend on the global state
 		// set up by LoadComponents. In order for components to use lifecycle hooks that also depend on this global state, we
@@ -292,10 +297,9 @@ func getSharedFxOption() fx.Option {
 		// Workloadmeta component needs to be initialized before this hook is executed, and thus is included
 		// in the function args to order the execution. This pattern might be worth revising because it is
 		// error prone.
-		fx.Invoke(func(lc fx.Lifecycle, demultiplexer demultiplexer.Component, _ workloadmeta.Component, secretResolver secrets.Component) {
+		fx.Invoke(func(lc fx.Lifecycle, demultiplexer demultiplexer.Component, _ workloadmeta.Component, _ tagger.Component, secretResolver secrets.Component) {
 			lc.Append(fx.Hook{
 				OnStart: func(ctx context.Context) error {
-
 					// create and setup the Autoconfig instance
 					common.LoadComponents(demultiplexer, secretResolver, pkgconfig.Datadog.GetString("confd_path"))
 					return nil
@@ -338,6 +342,7 @@ func startAgent(
 	server dogstatsdServer.Component,
 	serverDebug dogstatsddebug.Component,
 	wmeta workloadmeta.Component,
+	taggerComp tagger.Component,
 	rcclient rcclient.Component,
 	logsAgent optional.Option[logsAgent.Component],
 	_ defaultforwarder.Component,
@@ -489,6 +494,7 @@ func startAgent(
 	if err = agentAPI.StartServer(
 		configService,
 		wmeta,
+		taggerComp,
 		logsAgent,
 		demultiplexer,
 	); err != nil {

@@ -10,7 +10,7 @@ package checks
 import (
 	"testing"
 
-	"github.com/DataDog/gopsutil/cpu"
+	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/stretchr/testify/assert"
 )
 

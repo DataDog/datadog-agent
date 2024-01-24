@@ -11,9 +11,11 @@ import (
 	"fmt"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/gopsutil/cpu"
+	// difference between methods for collecting macOS platform, kernel version
+	// between shirou and Datadog psutil
 	"github.com/DataDog/gopsutil/host"
-	"github.com/DataDog/gopsutil/mem"
+	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/mem"
 	"golang.org/x/sys/unix"
 )
 
