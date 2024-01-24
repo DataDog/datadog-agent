@@ -36,10 +36,10 @@ type stat struct {
 // Statistics represent that statistics exposed via
 // the eBPF verifier when  LogLevelStats is enabled
 type Statistics struct {
-	VerificationTime           stat `json:"verification_time" kernel:"5.2"`
 	StackDepth                 stat `json:"stack_usage" kernel:"4.15"`
 	InstructionsProcessed      stat `json:"instruction_processed" kernel:"4.15""`
 	InstructionsProcessedLimit stat `json:"limit" kernel:"4.15"`
+	VerificationTime           stat `json:"verification_time" kernel:"5.2"`
 	MaxStatesPerInstruction    stat `json:"max_states_per_insn" kernel:"5.2"`
 	TotalStates                stat `json:"total_states" kernel:"5.2"`
 	PeakStates                 stat `json:"peak_states" kernel:"5.2"`
