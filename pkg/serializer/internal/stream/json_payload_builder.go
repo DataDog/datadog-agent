@@ -15,8 +15,8 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -67,10 +67,11 @@ type JSONPayloadBuilder struct {
 	shareAndLockBuffers           bool
 	input, output                 *bytes.Buffer
 	mu                            sync.Mutex
+	config                        config.Component
 }
 
 // NewJSONPayloadBuilder returns a new JSONPayloadBuilder
-func NewJSONPayloadBuilder(shareAndLockBuffers bool) *JSONPayloadBuilder {
+func NewJSONPayloadBuilder(shareAndLockBuffers bool, config config.Component) *JSONPayloadBuilder {
 	if shareAndLockBuffers {
 		return &JSONPayloadBuilder{
 			inputSizeHint:       4096,
@@ -78,12 +79,14 @@ func NewJSONPayloadBuilder(shareAndLockBuffers bool) *JSONPayloadBuilder {
 			shareAndLockBuffers: true,
 			input:               bytes.NewBuffer(make([]byte, 0, 4096)),
 			output:              bytes.NewBuffer(make([]byte, 0, 4096)),
+			config:              config,
 		}
 	}
 	return &JSONPayloadBuilder{
 		inputSizeHint:       4096,
 		outputSizeHint:      4096,
 		shareAndLockBuffers: false,
+		config:              config,
 	}
 }
 
@@ -106,8 +109,8 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 
 	// the backend accepts payloads up to specific compressed / uncompressed
 	// sizes, but prefers small uncompressed payloads.
-	maxPayloadSize := config.Datadog.GetInt("serializer_max_payload_size")
-	maxUncompressedSize := config.Datadog.GetInt("serializer_max_uncompressed_payload_size")
+	maxPayloadSize := b.config.GetInt("serializer_max_payload_size")
+	maxUncompressedSize := b.config.GetInt("serializer_max_uncompressed_payload_size")
 
 	if b.shareAndLockBuffers {
 		defer b.mu.Unlock()

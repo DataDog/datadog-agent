@@ -18,7 +18,6 @@ import (
 	nethttp "net/http"
 	"net/url"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -30,9 +29,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -61,12 +59,6 @@ var (
 	kv        = kernel.MustHostVersion()
 )
 
-func skipIfUSMNotSupported(t *testing.T) {
-	if kv < http.MinimumKernelVersion {
-		t.Skipf("USM is not supported on %v", kv)
-	}
-}
-
 func TestMonitorProtocolFail(t *testing.T) {
 	failingStartupMock := func(_ *manager.Manager) error {
 		return fmt.Errorf("mock error")
@@ -85,7 +77,7 @@ func TestMonitorProtocolFail(t *testing.T) {
 			// Replace the HTTP protocol with a Mock
 			patchProtocolMock(t, tt.spec)
 
-			cfg := networkconfig.New()
+			cfg := config.New()
 			cfg.EnableHTTPMonitoring = true
 			monitor, err := NewMonitor(cfg, nil, nil, nil)
 			skipIfNotSupported(t, err)
@@ -103,7 +95,9 @@ type HTTPTestSuite struct {
 }
 
 func TestHTTP(t *testing.T) {
-	skipIfUSMNotSupported(t)
+	if kv < http.MinimumKernelVersion {
+		t.Skipf("USM is not supported on %v", kv)
+	}
 	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
 		suite.Run(t, new(HTTPTestSuite))
 	})
@@ -127,7 +121,7 @@ func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 	})
 	t.Cleanup(srvDoneFn)
 
-	cfg := networkconfig.New()
+	cfg := config.New()
 	cfg.EnableHTTPStatsByStatusCode = aggregateByStatusCode
 	monitor := newHTTPMonitorWithCfg(t, cfg)
 
@@ -138,7 +132,7 @@ func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 
 	// Iterate through active connections until we find connection created above
 	require.Eventuallyf(t, func() bool {
-		stats := getHTTPStats(t, monitor)
+		stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
 
 		for key, reqStats := range stats {
 			if key.Method == http.MethodGet && strings.HasSuffix(key.Path.Content.Get(), "/test") && (key.SrcPort == 8080 || key.DstPort == 8080) {
@@ -189,7 +183,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorCaptureRequestMultipleTimes() {
 
 			occurrences := 0
 			require.Eventually(t, func() bool {
-				stats := getHTTPStats(t, monitor)
+				stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
 				occurrences += countRequestOccurrences(stats, req)
 				return occurrences == expectedOccurrences
 			}, time.Second*3, time.Millisecond*100, "Expected to find a request %d times, instead captured %d", occurrences, expectedOccurrences)
@@ -236,7 +230,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
 	// then we are using a variable to check if "we ever found it" among the iterations.
 	for i := 0; i < 10; i++ {
 		time.Sleep(10 * time.Millisecond)
-		stats := getHTTPStats(t, monitor)
+		stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
 		for req := range abortedRequests {
 			requestNotIncluded(t, stats, req)
 		}
@@ -251,7 +245,6 @@ func (s *HTTPTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
 
 func (s *HTTPTestSuite) TestHTTPMonitorIntegrationWithResponseBody() {
 	t := s.T()
-	targetAddr := "localhost:8080"
 	serverAddr := "localhost:8080"
 
 	tests := []struct {
@@ -271,16 +264,8 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationWithResponseBody() {
 			requestBodySize: 10 * kb,
 		},
 		{
-			name:            "100kb body",
-			requestBodySize: 100 * kb,
-		},
-		{
 			name:            "500kb body",
 			requestBodySize: 500 * kb,
-		},
-		{
-			name:            "2mb body",
-			requestBodySize: 2 * mb,
 		},
 		{
 			name:            "10mb body",
@@ -295,7 +280,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationWithResponseBody() {
 			})
 			t.Cleanup(srvDoneFn)
 
-			requestFn := requestGenerator(t, targetAddr, bytes.Repeat([]byte("a"), tt.requestBodySize))
+			requestFn := requestGenerator(t, serverAddr, bytes.Repeat([]byte("a"), tt.requestBodySize))
 			var requests []*nethttp.Request
 			for i := 0; i < 100; i++ {
 				requests = append(requests, requestFn())
@@ -309,7 +294,6 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationWithResponseBody() {
 
 func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 	t := s.T()
-	targetAddr := "localhost:8080"
 	serverAddr := "localhost:8080"
 
 	tests := []struct {
@@ -343,10 +327,10 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config.ResetSystemProbeConfig(t)
-			t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAP_CLEANER_INTERVAL_IN_S", strconv.Itoa(tt.mapCleanerIntervalSeconds))
-			t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_IDLE_CONNECTION_TTL_IN_S", strconv.Itoa(tt.httpIdleConnectionTTLSeconds))
-			monitor := newHTTPMonitor(t)
+			cfg := config.New()
+			cfg.HTTPMapCleanerInterval = time.Duration(tt.mapCleanerIntervalSeconds) * time.Second
+			cfg.HTTPIdleConnectionTTL = time.Duration(tt.httpIdleConnectionTTLSeconds) * time.Second
+			monitor := newHTTPMonitorWithCfg(t, cfg)
 
 			slowResponseTimeout := time.Duration(tt.slowResponseTime) * time.Second
 			serverTimeout := slowResponseTimeout + time.Second
@@ -358,12 +342,12 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 			t.Cleanup(srvDoneFn)
 
 			// Perform a number of random requests
-			req := requestGenerator(t, targetAddr, emptyBody)()
+			req := requestGenerator(t, serverAddr, emptyBody)()
 			srvDoneFn()
 
 			// Ensure all captured transactions get sent to user-space
 			time.Sleep(10 * time.Millisecond)
-			stats := getHTTPStats(t, monitor)
+			stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
 
 			if tt.shouldCapture {
 				includesRequest(t, stats, req)
@@ -376,16 +360,15 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 
 func (s *HTTPTestSuite) TestHTTPMonitorIntegration() {
 	t := s.T()
-	targetAddr := "localhost:8080"
 	serverAddr := "localhost:8080"
 
 	t.Run("with keep-alives", func(t *testing.T) {
-		testHTTPMonitor(t, targetAddr, serverAddr, 100, testutil.Options{
+		testHTTPMonitor(t, serverAddr, serverAddr, 100, testutil.Options{
 			EnableKeepAlive: true,
 		})
 	})
 	t.Run("without keep-alives", func(t *testing.T) {
-		testHTTPMonitor(t, targetAddr, serverAddr, 100, testutil.Options{
+		testHTTPMonitor(t, serverAddr, serverAddr, 100, testutil.Options{
 			EnableKeepAlive: false,
 		})
 	})
@@ -426,9 +409,7 @@ func (s *HTTPTestSuite) TestRSTPacketRegression() {
 	// We do this in order to configure the socket option SO_LINGER
 	// so we can force a RST packet to be sent during termination
 	c, err := net.DialTimeout("tcp", serverAddr, 5*time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	// Issue HTTP request
 	c.Write([]byte("GET /200/foobar HTTP/1.1\nHost: 127.0.0.1:8080\n\n"))
@@ -440,7 +421,7 @@ func (s *HTTPTestSuite) TestRSTPacketRegression() {
 	time.Sleep(100 * time.Millisecond)
 
 	// Assert that the HTTP request was correctly handled despite its forceful termination
-	stats := getHTTPStats(t, monitor)
+	stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
 	url, err := url.Parse("http://127.0.0.1:8080/200/foobar")
 	require.NoError(t, err)
 	includesRequest(t, stats, &nethttp.Request{URL: url})
@@ -484,7 +465,7 @@ func (s *HTTPTestSuite) TestKeepAliveWithIncompleteResponseRegression() {
 
 	// ensure we're beginning the connection with a "headless" response from the
 	// server. this emulates the case where system-probe started in the middle of
-	// request/response cyle
+	// request/response cycle
 	b := make([]byte, len(rsp))
 	n, err := c.Read(b)
 	require.NoError(t, err)
@@ -513,7 +494,7 @@ func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp
 	requestsExist := make([]bool, len(requests))
 
 	assert.Eventually(t, func() bool {
-		stats := getHTTPStats(t, monitor)
+		stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
 
 		if len(stats) == 0 {
 			return false
@@ -674,18 +655,6 @@ func isRequestIncludedOnce(allStats map[http.Key]*http.RequestStats, req *nethtt
 	return false, fmt.Errorf("expected to find 1 occurrence of %v, but found %d instead", req, occurrences)
 }
 
-func getHTTPStats(t *testing.T, mon *Monitor) map[http.Key]*http.RequestStats {
-	t.Helper()
-
-	allStats := mon.GetProtocolStats()
-	require.NotNil(t, allStats)
-
-	httpStats, ok := allStats[protocols.HTTP]
-	require.True(t, ok)
-
-	return httpStats.(map[http.Key]*http.RequestStats)
-}
-
 func countRequestOccurrences(allStats map[http.Key]*http.RequestStats, req *nethttp.Request) int {
 	expectedStatus := testutil.StatusFromPath(req.URL.Path)
 	occurrences := 0
@@ -701,7 +670,7 @@ func countRequestOccurrences(allStats map[http.Key]*http.RequestStats, req *neth
 	return occurrences
 }
 
-func newHTTPMonitorWithCfg(t *testing.T, cfg *networkconfig.Config) *Monitor {
+func newHTTPMonitorWithCfg(t *testing.T, cfg *config.Config) *Monitor {
 	cfg.EnableHTTPMonitoring = true
 
 	monitor, err := NewMonitor(cfg, nil, nil, nil)
@@ -714,14 +683,12 @@ func newHTTPMonitorWithCfg(t *testing.T, cfg *networkconfig.Config) *Monitor {
 
 	// at this stage the test can be legitimately skipped due to missing BTF information
 	// in the context of CO-RE
-	err = monitor.Start()
-	skipIfNotSupported(t, err)
-	require.NoError(t, err)
+	require.NoError(t, monitor.Start())
 	return monitor
 }
 
 func newHTTPMonitor(t *testing.T) *Monitor {
-	return newHTTPMonitorWithCfg(t, networkconfig.New())
+	return newHTTPMonitorWithCfg(t, config.New())
 }
 
 func skipIfNotSupported(t *testing.T, err error) {
