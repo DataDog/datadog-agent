@@ -19,7 +19,6 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
-	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 
@@ -42,9 +41,6 @@ const (
 	skbLoadBytes
 	perfEventOutput
 )
-
-var ebpfMapOpsErrorsGauge = prometheus.NewDesc(fmt.Sprintf("%s__errors", ebpfMapTelemetryNS), "Failures of map operations for a specific ebpf map reported per error.", []string{"map_name", "error"}, nil)
-var ebpfHelperErrorsGauge = prometheus.NewDesc(fmt.Sprintf("%s__errors", ebpfHelperTelemetryNS), "Failures of bpf helper operations reported per helper per error for each probe.", []string{"helper", "probe_name", "error"}, nil)
 
 var helperNames = map[int]string{
 	readIndx:        "bpf_probe_read",

@@ -8,6 +8,7 @@
 package telemetry
 
 import (
+	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"unsafe"
@@ -17,6 +18,8 @@ import (
 // for collecting statistics about errors of ebpf helpers and ebpf maps operations.
 type EBPFErrorsCollector struct {
 	*EBPFTelemetry
+	ebpfMapOpsErrorsGauge *prometheus.Desc
+	ebpfHelperErrorsGauge *prometheus.Desc
 }
 
 // NewEBPFErrorsCollector initializes a new Collector object for ebpf helper and map operations errors
@@ -25,17 +28,19 @@ func NewEBPFErrorsCollector() prometheus.Collector {
 		return nil
 	}
 	return &EBPFErrorsCollector{
-		&EBPFTelemetry{
+		EBPFTelemetry: &EBPFTelemetry{
 			mapKeys:   make(map[string]uint64),
 			probeKeys: make(map[string]uint64),
 		},
+		ebpfMapOpsErrorsGauge: prometheus.NewDesc(fmt.Sprintf("%s__errors", ebpfMapTelemetryNS), "Failures of map operations for a specific ebpf map reported per error.", []string{"map_name", "error"}, nil),
+		ebpfHelperErrorsGauge: prometheus.NewDesc(fmt.Sprintf("%s__errors", ebpfHelperTelemetryNS), "Failures of bpf helper operations reported per helper per error for each probe.", []string{"helper", "probe_name", "error"}, nil),
 	}
 }
 
 // Describe returns all descriptions of the collector
 func (e *EBPFErrorsCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- ebpfMapOpsErrorsGauge
-	ch <- ebpfHelperErrorsGauge
+	ch <- e.ebpfHelperErrorsGauge
+	ch <- e.ebpfHelperErrorsGauge
 }
 
 // Collect returns the current state of all metrics of the collector
@@ -55,7 +60,7 @@ func (e *EBPFErrorsCollector) Collect(ch chan<- prometheus.Metric) {
 				base := maxErrno * indx
 				if count := getErrCount(hval.Count[base : base+maxErrno]); len(count) > 0 {
 					for errStr, errCount := range count {
-						ch <- prometheus.MustNewConstMetric(ebpfHelperErrorsGauge, prometheus.GaugeValue, float64(errCount), helperName, probeName, errStr)
+						ch <- prometheus.MustNewConstMetric(e.ebpfHelperErrorsGauge, prometheus.GaugeValue, float64(errCount), helperName, probeName, errStr)
 					}
 				}
 			}
@@ -72,7 +77,7 @@ func (e *EBPFErrorsCollector) Collect(ch chan<- prometheus.Metric) {
 			}
 			if count := getErrCount(val.Count[:]); len(count) > 0 {
 				for errStr, errCount := range count {
-					ch <- prometheus.MustNewConstMetric(ebpfMapOpsErrorsGauge, prometheus.GaugeValue, float64(errCount), m, errStr)
+					ch <- prometheus.MustNewConstMetric(e.ebpfMapOpsErrorsGauge, prometheus.GaugeValue, float64(errCount), m, errStr)
 				}
 			}
 		}
