@@ -307,6 +307,9 @@ namespace Datadog.CustomActions
             _session.Log($"Error processing ddAgentUser credentials: {e}");
             if (calledFromUIControl)
             {
+                // When called from a UI control we must store the error information in the session
+                // because logging is not available.
+                _session["ErrorModal_ExceptionInformation"] = e.ToString();
                 // When called from InstallUISequence we must return success for the modal dialog to show,
                 // otherwise the installer exits. The control that called this action should check the
                 // DDAgentUser_Valid property to determine if this function succeeded or failed.
