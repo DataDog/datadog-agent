@@ -257,6 +257,9 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationWithResponseBody() {
 	}
 }
 
+// TestHTTPMonitorIntegrationSlowResponse sends a request and getting a slow response.
+// The test checks multiple scenarios regarding USM's internal timeouts and cleaning intervals, and based on the values
+// we check if we captured a request (and if we should have), or we didn't capture (and if we shouldn't have).
 func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 	t := s.T()
 	serverAddr := "localhost:8080"
@@ -306,15 +309,14 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 			})
 			t.Cleanup(srvDoneFn)
 
-			// Perform a number of random requests
+			// Create a request generator `requestGenerator(t, serverAddr, emptyBody)`, and runs it once. We save
+			// the request for a later comparison.
 			req := requestGenerator(t, serverAddr, emptyBody)()
 			srvDoneFn()
 
 			// Ensure all captured transactions get sent to user-space
 			time.Sleep(10 * time.Millisecond)
-			stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
-
-			checkRequestIncluded(t, stats, req, tt.shouldCapture)
+			checkRequestIncluded(t, getHTTPLikeProtocolStats(monitor, protocols.HTTP), req, tt.shouldCapture)
 		})
 	}
 }
@@ -326,7 +328,13 @@ func testNameHelper(optionTrue, optionFalse string, value bool) string {
 	return optionFalse
 }
 
-func (s *HTTPTestSuite) TestHTTPMonitorIntegration() {
+// TestSanity checks that USM capture a random generated 100 requests send to a local HTTP server under the following
+// conditions:
+// 1. Server and client support keep alive, and there is no NAT.
+// 1. Server and client do not support keep alive, and there is no NAT.
+// 2. Server and client support keep alive, and there is DNAT.
+// 3. Server and client do not support keep alive, and there is DNAT.
+func (s *HTTPTestSuite) TestSanity() {
 	t := s.T()
 	serverAddrWithoutNAT := "localhost:8080"
 	targetAddrWithNAT := "2.2.2.2:8080"
@@ -359,15 +367,16 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegration() {
 					srvDoneFn := testutil.HTTPServer(t, tt.serverAddress, testutil.Options{EnableKeepAlive: keepAliveEnabled})
 					t.Cleanup(srvDoneFn)
 
-					// Perform a number of random requests
+					// Create a request generator that will be used to randomly generate requests and send them to the server.
 					requestFn := requestGenerator(t, tt.targetAddress, emptyBody)
 					var requests []*nethttp.Request
 					for i := 0; i < 100; i++ {
+						// Send a request to the server and save it for later comparison.
 						requests = append(requests, requestFn())
 					}
 					srvDoneFn()
 
-					// Ensure all captured transactions get sent to user-space
+					// Ensure USM captured all requests.
 					assertAllRequestsExists(t, monitor, requests)
 				})
 			}
@@ -375,6 +384,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegration() {
 	}
 }
 
+// TestRSTPacketRegression checks that USM captures a request that was forcefully terminated by a RST packet.
 func (s *HTTPTestSuite) TestRSTPacketRegression() {
 	t := s.T()
 
@@ -408,6 +418,8 @@ func (s *HTTPTestSuite) TestRSTPacketRegression() {
 	checkRequestIncluded(t, stats, &nethttp.Request{URL: url}, true)
 }
 
+// TestKeepAliveWithIncompleteResponseRegression checks that USM captures a request, although we initially saw a
+// response and then a request with its response.
 func (s *HTTPTestSuite) TestKeepAliveWithIncompleteResponseRegression() {
 	t := s.T()
 
