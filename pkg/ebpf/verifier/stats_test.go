@@ -25,8 +25,9 @@ import (
 )
 
 const (
-	BPFComplexityLimit = 1000000
-	EBPFStackLimit     = 512
+	NewBPFComplexityLimit = 1000000
+	OldBPFComplexityLimit = 1000000
+	EBPFStackLimit        = 512
 )
 
 func TestMain(m *testing.M) {
@@ -45,7 +46,7 @@ func TestBuildVerifierStats(t *testing.T) {
 	kversion, err := kernel.HostVersion()
 	require.NoError(t, err)
 
-	if kversion < kernel.VersionCode(5, 2, 0) {
+	if kversion < kernel.VersionCode(4, 15, 0) {
 		t.Skipf("Skipping because verifier statistics not available on kernel %s", kversion)
 	}
 
@@ -101,11 +102,16 @@ func TestBuildVerifierStats(t *testing.T) {
 		}
 	}
 
+	bpfComplexity := OldBPFComplexityLimit
+	if kversion >= kernel.VersionCode(5, 2, 0) {
+		bpfComplexity = NewBPFComplexityLimit
+	}
+
 	// sanity check the values we can somehow bound
 	for _, stat := range stats {
-		require.True(t, stat.VerificationTime > 0)
-		require.True(t, stat.StackDepth >= 0 && stat.StackDepth <= EBPFStackLimit)
-		require.True(t, stat.InstructionsProcessedLimit > 0 && stat.InstructionsProcessedLimit <= BPFComplexityLimit)
-		require.True(t, stat.InstructionsProcessed > 0 && stat.InstructionsProcessed <= stat.InstructionsProcessedLimit)
+		require.True(t, stat.VerificationTime.Value > 0)
+		require.True(t, stat.StackDepth.Value >= 0 && stat.StackDepth.Value <= EBPFStackLimit)
+		require.True(t, stat.InstructionsProcessedLimit.Value > 0 && stat.InstructionsProcessedLimit.Value <= bpfComplexity)
+		require.True(t, stat.InstructionsProcessed.Value > 0 && stat.InstructionsProcessed.Value <= stat.InstructionsProcessedLimit.Value)
 	}
 }
