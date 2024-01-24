@@ -1,0 +1,13 @@
+---
+schema-version: v2
+dd-service: datadog-agent-nightly
+
+extensions:
+  datadoghq.com/sdp:
+    workday_team: "Agent Platform"
+    conductor:
+      slack: "datadog-agent-pipelines"
+      schedule: "0 3 3 * * 1-5"
+      env:
+        - name: "staging"
+          branch: "chouquette/conductor"

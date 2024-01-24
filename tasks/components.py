@@ -42,7 +42,7 @@ def has_type_component(content):
 
 
 def check_component(file, content):
-    if not any(l.startswith('type Component interface') for l in content):
+    if not any(l.startswith('type Component interface') or l.startswith('type Component = ') for l in content):
         return f"** {file} does not define a Component interface; skipping"
 
     # // TODO: (components)

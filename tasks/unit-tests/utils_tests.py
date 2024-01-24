@@ -32,7 +32,3 @@ class TestUtils(unittest.TestCase):
         ]
         expected_paths = ["."]
         self.assertEqual(clean_nested_paths(paths), expected_paths)
-
-
-if __name__ == '__main__':
-    unittest.main()
