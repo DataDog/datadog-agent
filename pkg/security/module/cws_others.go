@@ -10,17 +10,10 @@ package module
 import (
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // UpdateEventMonitorOpts adapt the event monitor option
-func UpdateEventMonitorOpts(_ *eventmonitor.Opts, config *config.Config) {
-	if config.RuntimeSecurity.RemoteConfigurationEnabled {
-		log.Info("remote-configuration is not supported for CWS on this platform")
-		// force disabling RC on non linux platform
-		config.RuntimeSecurity.RemoteConfigurationEnabled = false
-	}
-}
+func UpdateEventMonitorOpts(_ *eventmonitor.Opts, _ *config.Config) {}
 
 // DisableRuntimeSecurity disables all the runtime security features
 func DisableRuntimeSecurity(_ *config.Config) {}

@@ -41,8 +41,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
@@ -88,6 +90,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			_ replay.Component,
 			serverDebug dogstatsddebug.Component,
 			wmeta workloadmeta.Component,
+			taggerComp tagger.Component,
 			rcclient rcclient.Component,
 			forwarder defaultforwarder.Component,
 			logsAgent optional.Option[logsAgent.Component],
@@ -104,6 +107,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			_ trapserver.Component,
 			agentAPI internalAPI.Component,
 			pkgSigning packagesigning.Component,
+			statusComponent status.Component,
 		) error {
 
 			defer StopAgentWithDefaults(server, demultiplexer, agentAPI)
@@ -117,6 +121,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				server,
 				serverDebug,
 				wmeta,
+				taggerComp,
 				rcclient,
 				logsAgent,
 				forwarder,
@@ -126,6 +131,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				invAgent,
 				agentAPI,
 				invChecks,
+				statusComponent,
 			)
 			if err != nil {
 				return err

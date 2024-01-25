@@ -32,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	"github.com/DataDog/datadog-agent/cmd/manager"
-	snmptrapsServer "github.com/DataDog/datadog-agent/comp/snmptraps/server"
 
 	// checks implemented as components
 
@@ -47,8 +46,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
@@ -57,6 +59,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	dogstatsdStatusimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
@@ -76,14 +79,21 @@ import (
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
+	processagentStatusImpl "github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/snmptraps"
+	snmptrapsServer "github.com/DataDog/datadog-agent/comp/snmptraps/server"
+	snmptrapsStatusImpl "github.com/DataDog/datadog-agent/comp/snmptraps/status/statusimpl"
+	traceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/statusimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
+	"github.com/DataDog/datadog-agent/pkg/collector/python"
+	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
@@ -91,8 +101,15 @@ import (
 	pkgMetadata "github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	autodiscoveryStatus "github.com/DataDog/datadog-agent/pkg/status/autodiscovery"
+	clusteragentStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent"
+	collectorStatus "github.com/DataDog/datadog-agent/pkg/status/collector"
+	endpointsStatus "github.com/DataDog/datadog-agent/pkg/status/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	httpproxyStatus "github.com/DataDog/datadog-agent/pkg/status/httpproxy"
+	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
 	otlpStatus "github.com/DataDog/datadog-agent/pkg/status/otlp"
+	systemprobeStatus "github.com/DataDog/datadog-agent/pkg/status/systemprobe"
 	pkgTelemetry "github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	pkgcommon "github.com/DataDog/datadog-agent/pkg/util/common"
@@ -107,38 +124,6 @@ import (
 
 	// runtime init routines
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
-
-	// register core checks
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/helm"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/kubernetesapiserver"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containerimage"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containerlifecycle"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/containerd"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/cri"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/docker"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/nvidia/jetson"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/orchestrator/pod"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/sbom"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/filehandles"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/memory"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/uptime"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winkmem"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/systemd"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/telemetry"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/windows_event_log"
 
 	// register metadata providers
 	_ "github.com/DataDog/datadog-agent/pkg/collector/metadata"
@@ -203,6 +188,7 @@ func run(log log.Component,
 	serverDebug dogstatsddebug.Component,
 	forwarder defaultforwarder.Component,
 	wmeta workloadmeta.Component,
+	taggerComp tagger.Component,
 	rcclient rcclient.Component,
 	_ runner.Component,
 	demultiplexer demultiplexer.Component,
@@ -220,6 +206,7 @@ func run(log log.Component,
 	_ langDetectionCl.Component,
 	agentAPI internalAPI.Component,
 	_ packagesigning.Component,
+	statusComponent status.Component,
 ) error {
 	defer func() {
 		stopAgent(cliParams, server, demultiplexer, agentAPI)
@@ -270,6 +257,7 @@ func run(log log.Component,
 		server,
 		serverDebug,
 		wmeta,
+		taggerComp,
 		rcclient,
 		logsAgent,
 		forwarder,
@@ -279,6 +267,7 @@ func run(log log.Component,
 		invAgent,
 		agentAPI,
 		invChecks,
+		statusComponent,
 	); err != nil {
 		return err
 	}
@@ -312,11 +301,41 @@ func getSharedFxOption() fx.Option {
 		collectors.GetCatalog(),
 		fx.Provide(defaults.DefaultParams),
 		workloadmeta.Module(),
+		fx.Supply(
+			status.Params{
+				PythonVersionGetFunc: func() string { return python.GetPythonVersion() },
+			},
+			status.NewInformationProvider(collectorStatus.Provider{}),
+			status.NewHeaderInformationProvider(net.Provider{}),
+			status.NewInformationProvider(jmxStatus.Provider{}),
+			status.NewInformationProvider(endpointsStatus.Provider{}),
+		),
+		fx.Provide(func(config config.Component) status.InformationProvider {
+			return status.NewInformationProvider(snmptrapsStatusImpl.GetProvider(config))
+		}),
+		fx.Provide(func(config config.Component) status.InformationProvider {
+			return status.NewInformationProvider(clusteragentStatus.GetProvider(config))
+		}),
+		fx.Provide(func(config config.Component) status.InformationProvider {
+			return status.NewInformationProvider(systemprobeStatus.GetProvider(config))
+		}),
+		fx.Provide(func(config config.Component) status.InformationProvider {
+			return status.NewInformationProvider(httpproxyStatus.GetProvider(config))
+		}),
+		fx.Provide(func(config config.Component) status.InformationProvider {
+			return status.NewInformationProvider(autodiscoveryStatus.GetProvider())
+		}),
+		traceagentStatusImpl.Module(),
+		processagentStatusImpl.Module(),
+		dogstatsdStatusimpl.Module(),
+		statusimpl.Module(),
 		apiimpl.Module(),
 
 		dogstatsd.Bundle(),
 		otelcol.Bundle(),
 		rcclient.Module(),
+		fx.Provide(tagger.NewTaggerParamsForCoreAgent),
+		tagger.Module(),
 
 		// TODO: (components) - some parts of the agent (such as the logs agent) implicitly depend on the global state
 		// set up by LoadComponents. In order for components to use lifecycle hooks that also depend on this global state, we
@@ -325,10 +344,9 @@ func getSharedFxOption() fx.Option {
 		// Workloadmeta component needs to be initialized before this hook is executed, and thus is included
 		// in the function args to order the execution. This pattern might be worth revising because it is
 		// error prone.
-		fx.Invoke(func(lc fx.Lifecycle, demultiplexer demultiplexer.Component, _ workloadmeta.Component, secretResolver secrets.Component) {
+		fx.Invoke(func(lc fx.Lifecycle, demultiplexer demultiplexer.Component, _ workloadmeta.Component, _ tagger.Component, secretResolver secrets.Component) {
 			lc.Append(fx.Hook{
 				OnStart: func(ctx context.Context) error {
-
 					// create and setup the Autoconfig instance
 					common.LoadComponents(demultiplexer, secretResolver, pkgconfig.Datadog.GetString("confd_path"))
 					return nil
@@ -372,6 +390,7 @@ func startAgent(
 	server dogstatsdServer.Component,
 	serverDebug dogstatsddebug.Component,
 	wmeta workloadmeta.Component,
+	taggerComp tagger.Component,
 	rcclient rcclient.Component,
 	logsAgent optional.Option[logsAgent.Component],
 	_ defaultforwarder.Component,
@@ -381,6 +400,7 @@ func startAgent(
 	invAgent inventoryagent.Component,
 	agentAPI internalAPI.Component,
 	invChecks inventorychecks.Component,
+	_ status.Component,
 ) error {
 
 	var err error
@@ -523,6 +543,7 @@ func startAgent(
 	if err = agentAPI.StartServer(
 		configService,
 		wmeta,
+		taggerComp,
 		logsAgent,
 		demultiplexer,
 	); err != nil {
@@ -565,6 +586,7 @@ func startAgent(
 	check.InitializeInventoryChecksContext(invChecks)
 
 	// Set up check collector
+	commonchecks.RegisterChecks(wmeta)
 	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll, demultiplexer), true)
 	common.Coll.Start()
 

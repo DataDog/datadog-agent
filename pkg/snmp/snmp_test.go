@@ -6,9 +6,10 @@
 package snmp
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 	"strings"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 

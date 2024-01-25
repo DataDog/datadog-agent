@@ -6,7 +6,7 @@ from urllib.parse import quote
 
 from invoke.exceptions import Exit
 
-from .remote_api import APIError, RemoteAPI
+from tasks.libs.common.remote_api import APIError, RemoteAPI
 
 __all__ = ["Gitlab"]
 
