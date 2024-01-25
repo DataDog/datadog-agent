@@ -20,6 +20,8 @@ import (
 )
 
 func TestContainerCreatedAt(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_container_created_at",
@@ -89,6 +91,8 @@ func TestContainerCreatedAt(t *testing.T) {
 }
 
 func TestContainerScopedVariable(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_container_set_scoped_variable",

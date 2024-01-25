@@ -61,7 +61,7 @@ kitchen_test_security_agent_x64:
         KITCHEN_CWS_PLATFORM: [host, docker]
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-22-04"
-        KITCHEN_CWS_PLATFORM: [ad]
+        KITCHEN_CWS_PLATFORM: [ad, ebpfless]
       - KITCHEN_PLATFORM: "suse"
         KITCHEN_OSVERS: "sles-12,sles-15"
         KITCHEN_CWS_PLATFORM: [host]
@@ -95,7 +95,7 @@ kitchen_test_security_agent_arm64:
     matrix:
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-20-04-2,ubuntu-22-04"
-        KITCHEN_CWS_PLATFORM: [host, docker, ad]
+        KITCHEN_CWS_PLATFORM: [host, docker, ad, ebpfless]
 
 kitchen_test_security_agent_amazonlinux_x64:
   extends:

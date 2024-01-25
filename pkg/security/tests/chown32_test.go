@@ -21,6 +21,8 @@ import (
 )
 
 func TestChown32(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	checkKernelCompatibility(t, "SUSE kernel", func(kv *kernel.Version) bool {
 		return kv.IsSuseKernel()
 	})

@@ -45,6 +45,8 @@ func openTestFile(test *testModule, testFile string, flags int) (int, error) {
 }
 
 func TestFilterOpenBasenameApprover(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	// generate a basename up to the current limit of the agent
 	var basename string
 	for i := 0; i < model.MaxSegmentLength; i++ {
@@ -100,6 +102,8 @@ func TestFilterOpenBasenameApprover(t *testing.T) {
 }
 
 func TestFilterOpenLeafDiscarder(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	// We need to write a rule with no approver on the file path, and that won't match the real opened file (so that
 	// a discarder is created).
 	rule := &rules.RuleDefinition{
@@ -160,6 +164,8 @@ func TestFilterOpenLeafDiscarder(t *testing.T) {
 // This test is basically the same as TestFilterOpenLeafDiscarder but activity dumps are enabled.
 // This means that the event is actually forwarded to user space, but the rule should not be evaluated
 func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	// We need to write a rule with no approver on the file path, and that won't match the real opened file (so that
 	// a discarder is created).
 	rule := &rules.RuleDefinition{
@@ -300,14 +306,20 @@ func testFilterOpenParentDiscarder(t *testing.T, parents ...string) {
 }
 
 func TestFilterOpenParentDiscarder(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	testFilterOpenParentDiscarder(t, "parent")
 }
 
 func TestFilterOpenGrandParentDiscarder(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	testFilterOpenParentDiscarder(t, "grandparent", "parent")
 }
 
 func TestFilterDiscarderMask(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_mask_open_rule",
@@ -380,6 +392,8 @@ func TestFilterDiscarderMask(t *testing.T) {
 }
 
 func TestFilterRenameFileDiscarder(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	// We need to write a rule with no approver on the file path, and that won't match the real opened file (so that
 	// a discarder is created).
 	rule := &rules.RuleDefinition{
@@ -464,6 +478,8 @@ func TestFilterRenameFileDiscarder(t *testing.T) {
 }
 
 func TestFilterRenameFolderDiscarder(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	// We need to write a rule with no approver on the file path, and that won't match the real opened file (so that
 	// a discarder is created).
 	rule := &rules.RuleDefinition{
@@ -544,6 +560,8 @@ func TestFilterRenameFolderDiscarder(t *testing.T) {
 }
 
 func TestFilterOpenFlagsApprover(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.flags & (O_SYNC | O_NOCTTY) > 0`,
@@ -597,6 +615,8 @@ func TestFilterOpenFlagsApprover(t *testing.T) {
 }
 
 func TestFilterDiscarderRetention(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	// We need to write a rule with no approver on the file path, and that won't match the real opened file (so that
 	// a discarder is created).
 	rule := &rules.RuleDefinition{

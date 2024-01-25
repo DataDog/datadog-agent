@@ -59,6 +59,8 @@ func BenchmarkProtoJSONEncoding(b *testing.B) {
 }
 
 func TestProtobufDecoding(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	ad := getTestDataActivityDump(t)
 
 	out, err := ad.EncodeProtobuf()

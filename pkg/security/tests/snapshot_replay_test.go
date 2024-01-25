@@ -17,6 +17,8 @@ import (
 )
 
 func TestSnapshotReplay(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule_snapshot_replay",
 		Expression: "exec.comm in [\"testsuite\"]",
