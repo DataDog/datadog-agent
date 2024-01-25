@@ -90,7 +90,7 @@ func TestMonitorProtocolFail(t *testing.T) {
 	}
 }
 
-type HTTPTestSuite struct {
+type httpTestSuite struct {
 	suite.Suite
 }
 
@@ -99,11 +99,11 @@ func TestHTTP(t *testing.T) {
 		t.Skipf("USM is not supported on %v", kv)
 	}
 	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
-		suite.Run(t, new(HTTPTestSuite))
+		suite.Run(t, new(httpTestSuite))
 	})
 }
 
-func (s *HTTPTestSuite) TestHTTPStats() {
+func (s *httpTestSuite) TestHTTPStats() {
 	t := s.T()
 
 	testCases := []struct {
@@ -158,7 +158,7 @@ func (s *HTTPTestSuite) TestHTTPStats() {
 
 // TestHTTPMonitorLoadWithIncompleteBuffers sends thousands of requests without getting responses for them, in parallel
 // we send another request. We expect to capture the another request but not the incomplete requests.
-func (s *HTTPTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
+func (s *httpTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
 	t := s.T()
 
 	slowServerAddr := "localhost:8080"
@@ -208,7 +208,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
 	require.True(t, foundFastReq)
 }
 
-func (s *HTTPTestSuite) TestHTTPMonitorIntegrationWithResponseBody() {
+func (s *httpTestSuite) TestHTTPMonitorIntegrationWithResponseBody() {
 	t := s.T()
 	serverAddr := "localhost:8080"
 
@@ -260,7 +260,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationWithResponseBody() {
 // TestHTTPMonitorIntegrationSlowResponse sends a request and getting a slow response.
 // The test checks multiple scenarios regarding USM's internal timeouts and cleaning intervals, and based on the values
 // we check if we captured a request (and if we should have), or we didn't capture (and if we shouldn't have).
-func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
+func (s *httpTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 	t := s.T()
 	serverAddr := "localhost:8080"
 
@@ -334,7 +334,7 @@ func testNameHelper(optionTrue, optionFalse string, value bool) string {
 // 2. Server and client do not support keep alive, and there is no NAT.
 // 3. Server and client support keep alive, and there is DNAT.
 // 4. Server and client do not support keep alive, and there is DNAT.
-func (s *HTTPTestSuite) TestSanity() {
+func (s *httpTestSuite) TestSanity() {
 	t := s.T()
 	serverAddrWithoutNAT := "localhost:8080"
 	targetAddrWithNAT := "2.2.2.2:8080"
@@ -385,7 +385,7 @@ func (s *HTTPTestSuite) TestSanity() {
 }
 
 // TestRSTPacketRegression checks that USM captures a request that was forcefully terminated by a RST packet.
-func (s *HTTPTestSuite) TestRSTPacketRegression() {
+func (s *httpTestSuite) TestRSTPacketRegression() {
 	t := s.T()
 
 	monitor := newHTTPMonitorWithCfg(t, config.New())
@@ -420,7 +420,7 @@ func (s *HTTPTestSuite) TestRSTPacketRegression() {
 
 // TestKeepAliveWithIncompleteResponseRegression checks that USM captures a request, although we initially saw a
 // response and then a request with its response.
-func (s *HTTPTestSuite) TestKeepAliveWithIncompleteResponseRegression() {
+func (s *httpTestSuite) TestKeepAliveWithIncompleteResponseRegression() {
 	t := s.T()
 
 	monitor := newHTTPMonitorWithCfg(t, config.New())
