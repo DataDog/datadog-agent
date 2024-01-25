@@ -51,6 +51,7 @@ type WindowsProbe struct {
 	pm            *procmon.WinProcmon
 	onStart       chan *procmon.ProcessStartNotification
 	onStop        chan *procmon.ProcessStopNotification
+	onFimEvent    chan *etw.DDEventRecord
 	onError       chan bool
 
 	// ETW component for FIM
@@ -308,7 +309,7 @@ func (p *WindowsProbe) Start() error {
 							ev.Type = uint32(model.CreateNewFileEventType)
 							ev.CreateNewFile = model.CreateNewFileEvent{
 								File: model.FileEvent{
-									PathnameStr: ca.FileName,
+									PathnameStr: ca.fileName,
 									BasenameStr: ca.fileName,
 								},
 							}
