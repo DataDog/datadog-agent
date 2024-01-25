@@ -500,6 +500,9 @@ func (s *httpTestSuite) TestRSTPacketRegression() {
 // response and then a request with its response.
 func (s *httpTestSuite) TestKeepAliveWithIncompleteResponseRegression() {
 	t := s.T()
+	if s.isTLS {
+		t.Skip("TLS not supported for this setup")
+	}
 
 	monitor := newHTTPMonitorWithCfg(t, config.New())
 
