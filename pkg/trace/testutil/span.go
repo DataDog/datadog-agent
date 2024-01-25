@@ -386,7 +386,7 @@ func GetTestSpan() *pb.Span {
 					"a2": "v2",
 				},
 				Tracestate: "dd=asdf256,ee=jkl;128",
-				Flags:      1,
+				Flags:      1 | 1<<31, // 0th bit -> sampling decision, 31st bit -> set/unset
 			},
 		},
 	}

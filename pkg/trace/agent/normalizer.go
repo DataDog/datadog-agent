@@ -57,7 +57,7 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 		ts.SpansMalformed.ServiceTruncate.Inc()
 		log.Debugf("Fixing malformed trace. Service is too long (reason:service_truncate), truncating span.service to length=%d: %s", traceutil.MaxServiceLen, s)
 	case traceutil.ErrInvalid:
-		ts.SpansMalformed.ServiceInvalid.Inc()
+		ts.SpansMalformed.ServiceInvalid.Inc() 
 		log.Debugf("Fixing malformed trace. Service is invalid (reason:service_invalid), replacing invalid span.service=%s with fallback span.service=%s: %s", s.Service, svc, s)
 	}
 	s.Service = svc
@@ -160,11 +160,22 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 	}
 
 	if len(s.SpanLinks) > 0 {
+		validatedLinks := make([]*pb.SpanLink, len(s.SpanLinks))
 		for _, link := range s.SpanLinks {
-			for k, v := range link.Attributes {
-				link.Attributes[k] = traceutil.NormalizeTagValue(v)
+			if link.SpanID == 0 || link.TraceID == 0 {	
+				ts.SpansMalformed.InvalidSpanLinks.Inc()
+				log.Debugf("Fixing malformed trace. SpanLink is invalid (reason:span_link_invalid), dropping invalid span_link=%s: %s", link, s)
+				continue
 			}
+
+			if val, ok := link.Attributes["link.name"]; ok {
+				link.Attributes["link.name"] = traceutil.NormalizeTagValue(val)
+			}
+			// TODO: Validate link.Attributes["dd.kind"] dd.kind
+
+			validatedLinks = append(validatedLinks, link)
 		}
+		s.SpanLinks = validatedLinks
 	}
 	return nil
 }

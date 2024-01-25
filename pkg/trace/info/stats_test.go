@@ -55,6 +55,7 @@ func TestSpansMalformed(t *testing.T) {
 	s.ServiceInvalid.Store(1)
 	s.SpanNameTruncate.Store(1)
 	s.TypeTruncate.Store(1)
+	s.InvalidSpanLinks.Store(1)
 
 	t.Run("tagValues", func(t *testing.T) {
 		assert.Equal(t, map[string]int64{
@@ -72,6 +73,7 @@ func TestSpansMalformed(t *testing.T) {
 			"service_invalid":          1,
 			"span_name_truncate":       1,
 			"type_truncate":            1,
+			"invalid_span_links":	    1,
 		}, s.tagValues())
 	})
 
@@ -256,6 +258,7 @@ func TestReceiverStats(t *testing.T) {
 		stats.SpansMalformed.InvalidStartDate.Store(12)
 		stats.SpansMalformed.InvalidDuration.Store(13)
 		stats.SpansMalformed.InvalidHTTPStatusCode.Store(14)
+		stats.SpansMalformed.InvalidHTTPStatusCode.Store(15)
 		return &ReceiverStats{
 			Stats: map[Tags]*TagStats{
 				tags: {
