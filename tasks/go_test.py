@@ -33,7 +33,7 @@ from .trace_agent import integration_tests as trace_integration_tests
 
 PROFILE_COV = "\"coverage.out\""
 TMP_PROFILE_COV_PREFIX = "coverage.out.rerun"
-GO_COV_TEST_PATH = "test_with_coverage" + (".ps1" if platform.system() == 'Windows' else ".sh")
+GO_COV_TEST_PATH = "test_with_coverage"
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
 WINDOWS_MAX_PACKAGES_NUMBER = 150
 
@@ -121,8 +121,11 @@ def test_flavor(
     def command(test_results, module, module_result):
         with ctx.cd(module.full_path()):
             packages = ' '.join(f"{t}/..." if not t.endswith("/...") else t for t in module.targets)
-            cov_test_path = os.path.join(module.full_path(), GO_COV_TEST_PATH)
+            cov_test_path_sh = os.path.join(module.full_path(), GO_COV_TEST_PATH) + ".sh"
+            cov_test_path_ps1 = os.path.join(module.full_path(), GO_COV_TEST_PATH) + ".ps1"
+            call_ps1_from_bat = os.path.join(module.full_path(), GO_COV_TEST_PATH) + ".bat"
 
+            cov_test_path = cov_test_path_sh if platform.system() != 'Windows' else cov_test_path_ps1
             if coverage:
                 # Workaround of https://github.com/gotestyourself/gotestsum/issues/274.
                 # Unit tests reruns rewrite the whole coverage file, making it inaccurate.
@@ -130,17 +133,22 @@ def test_flavor(
                 coverage_script = coverage_script_template.format(packages=packages, **args)
                 with open(cov_test_path, 'w', encoding='utf-8') as f:
                     f.write(coverage_script)
-                if platform.system() == 'Windows':
-                    with open(cov_test_path.replace('.ps1', '.bat'), 'w', encoding='utf-8') as f:
-                        f.write(
-                            """@echo off
+
+                with open(call_ps1_from_bat, 'w', encoding='utf-8') as f:
+                    f.write(
+                        """@echo off
 powershell.exe -executionpolicy Bypass -file test_with_coverage.ps1"""
-                        )
+                    )
 
                 os.chmod(cov_test_path, 0o755)
+                os.chmod(call_ps1_from_bat, 0o755)
 
             res = ctx.run(
-                command=cmd.format(packages=packages, cov_test_path=cov_test_path.replace('.ps1', '.bat'), **args),
+                command=cmd.format(
+                    packages=packages,
+                    cov_test_path=cov_test_path_sh if platform.system() != 'Windows' else call_ps1_from_bat,
+                    **args,
+                ),
                 env=env,
                 out_stream=test_profiler,
                 warn=True,
@@ -163,9 +171,10 @@ powershell.exe -executionpolicy Bypass -file test_with_coverage.ps1"""
             # Removing the coverage script.
             try:
                 os.remove(cov_test_path)
+                os.remove(call_ps1_from_bat)
             except FileNotFoundError:
                 print(
-                    f"Error: Could not find the coverage script {cov_test_path} while trying to delete it.",
+                    f"Error: Could not find the coverage script {cov_test_path} or {call_ps1_from_bat} while trying to delete it.",
                     file=sys.stderr,
                 )
             # Merging the unit tests reruns coverage files, keeping only the merged file.
@@ -405,7 +414,6 @@ go test {gobuild_flags} {govet_flags} {gotest_flags} -json -coverprofile=\"$(mkt
         )
         if only_modified_packages:
             modules = get_modified_packages(ctx, build_tags=build_tags)
-
         modules_results_per_phase["test"][flavor] = test_flavor(
             ctx,
             flavor=flavor,
