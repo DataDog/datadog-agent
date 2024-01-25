@@ -99,19 +99,19 @@ func (v *ec2VMSuite) TestFakeIntakeNPM() {
 	}, 90*time.Second, time.Second, "not enough connections received")
 }
 
-// TestFakeIntakeNPM_600pluscnx Validate the agent can communicate with the (fake) backend and send connections
+// TestFakeIntakeNPM_600cnx_bucket Validate the agent can communicate with the (fake) backend and send connections
 // every 30 seconds with a maximum of 600 connections per payloads, if more another payload will follow.
 //   - looking for 1 host to send CollectorConnections payload to the fakeintake
 //   - looking for n payloads and check if the last 2 have a maximum span of 100ms
-func (v *ec2VMSuite) TestFakeIntakeNPM_600pluscnx() {
+func (v *ec2VMSuite) TestFakeIntakeNPM_600cnx_bucket() {
 	t := v.T()
+
+	// generate connections
+	v.Env().RemoteHost.MustExecute("ab -n 600 -c 600 http://www.datadoghq.com/")
 
 	targetHostnameNetID := ""
 	// looking for 1 host to send CollectorConnections payload to the fakeintake
 	v.EventuallyWithT(func(c *assert.CollectT) {
-		// generate a connection
-		v.Env().RemoteHost.MustExecute("ab -n 600 -c 600 http://www.datadoghq.com/")
-
 		hostnameNetID, err := v.Env().FakeIntake.Client().GetConnectionsNames()
 		assert.NoError(c, err, "GetConnectionsNames() errors")
 		if !assert.NotEmpty(c, hostnameNetID, "no connections yet") {
