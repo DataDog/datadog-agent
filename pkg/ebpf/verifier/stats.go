@@ -39,7 +39,7 @@ type stat struct {
 // the eBPF verifier when  LogLevelStats is enabled
 type Statistics struct {
 	StackDepth                 stat `json:"stack_usage" kernel:"4.15"`
-	InstructionsProcessed      stat `json:"instruction_processed" kernel:"4.15""`
+	InstructionsProcessed      stat `json:"instruction_processed" kernel:"4.15"`
 	InstructionsProcessedLimit stat `json:"limit" kernel:"4.15"`
 	VerificationTime           stat `json:"verification_time" kernel:"5.2"`
 	MaxStatesPerInstruction    stat `json:"max_states_per_insn" kernel:"5.2"`
@@ -58,12 +58,33 @@ var peakStates = regexp.MustCompile(`peak_states (?P<peak_states>\d+)`)
 //go:generate go run functions.go ../bytecode/build/co-re
 //go:generate go fmt programs.go
 
+// BuildVerifierStats accepts a list of eBPF object files and generates a
+// map of all programs and their Statistics
+func BuildVerifierStats(objectFiles []string) (map[string]*Statistics, map[string]struct{}, error) {
+	kversion, err := kernel.HostVersion()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get host kernel version: %w", err)
+	}
+	if kversion < kernel.VersionCode(4, 15, 0) {
+		return nil, nil, fmt.Errorf("Kernel %s does not expose verifier statistics", kversion)
+	}
+
+	failedToLoad := make(map[string]struct{})
+	stats := make(map[string]*Statistics)
+	for _, file := range objectFiles {
+		if err := ddebpf.LoadCOREAsset(file, generateLoadFunction(file, stats, failedToLoad)); err != nil {
+			return nil, nil, fmt.Errorf("failed to load core asset: %w", err)
+		}
+	}
+
+	return stats, failedToLoad, nil
+}
+
 func programKey(specName, objFileName string) string {
 	return fmt.Sprintf("%s/Program__%s", objFileName, specName)
 }
 
 func generateLoadFunction(file string, stats map[string]*Statistics, failedToLoad map[string]struct{}) func(bytecode.AssetReader, manager.Options) error {
-
 	return func(bc bytecode.AssetReader, managerOptions manager.Options) error {
 		kversion, err := kernel.HostVersion()
 		if err != nil {
@@ -155,28 +176,6 @@ func generateLoadFunction(file string, stats map[string]*Statistics, failedToLoa
 
 		return nil
 	}
-}
-
-// BuildVerifierStats accepts a list of eBPF object files and generates a
-// map of all programs and their Statistics
-func BuildVerifierStats(objectFiles []string) (map[string]*Statistics, map[string]struct{}, error) {
-	kversion, err := kernel.HostVersion()
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get host kernel version: %w", err)
-	}
-	if kversion < kernel.VersionCode(4, 15, 0) {
-		return nil, nil, fmt.Errorf("Kernel %s does not expose verifier statistics", kversion)
-	}
-
-	failedToLoad := make(map[string]struct{})
-	stats := make(map[string]*Statistics)
-	for _, file := range objectFiles {
-		if err := ddebpf.LoadCOREAsset(file, generateLoadFunction(file, stats, failedToLoad)); err != nil {
-			return nil, nil, fmt.Errorf("failed to load core asset: %w", err)
-		}
-	}
-
-	return stats, failedToLoad, nil
 }
 
 type structField struct {
