@@ -31,6 +31,9 @@ type Event struct {
 	// process events
 	Exec ExecEvent `field:"exec" event:"exec"` // [7.27] [Process] A process was executed or forked
 	Exit ExitEvent `field:"exit" event:"exit"` // [7.38] [Process] A process was terminated
+
+	// FIM
+	CreateNewFile CreateNewFileEvent `field:"create_file" event:"create_file"` // [7.52] [File] A file was created
 }
 
 // FileEvent is the common file event type
@@ -87,4 +90,16 @@ type NetworkDeviceContext struct{}
 // ExtraFieldHandlers handlers not hold by any field
 type ExtraFieldHandlers interface {
 	BaseExtraFieldHandlers
+}
+
+// FIM
+type CreateNewFileEvent struct {
+	File FileEvent `field:"file"`
+	// irp              uint64            // actually a pointer
+	// fileObject       fileObjectPointer // pointer
+	// threadID         uint64            // actually a pointer
+	// createOptions    uint32
+	// createAttributes uint32
+	// shareAccess      uint32
+	FileName string `field:"filename"` // SECLDoc[filename] Definition:`Filename of the file that was created`
 }

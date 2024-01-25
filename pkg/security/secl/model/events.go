@@ -125,6 +125,8 @@ const (
 	CustomSelfTestEventType
 	// MaxAllEventType is used internally to get the maximum number of events.
 	MaxAllEventType
+	// CreateNewFileEventType
+	CreateNewFileEventType
 )
 
 func (t EventType) String() string {

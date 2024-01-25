@@ -22,6 +22,7 @@ func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 }
 func (m *Model) GetEventTypes() []eval.EventType {
 	return []eval.EventType{
+		eval.EventType("create_file"),
 		eval.EventType("exec"),
 		eval.EventType("exit"),
 	}
@@ -54,6 +55,51 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 9999 * eval.HandlerWeight,
+		}, nil
+	case "create_file.file.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileBasename(ev, &ev.CreateNewFile.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "create_file.file.name.length":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.CreateNewFile.File))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "create_file.file.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFilePath(ev, &ev.CreateNewFile.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "create_file.file.path.length":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.CreateNewFile.File))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "create_file.filename":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.CreateNewFile.FileName
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 	case "event.service":
 		return &eval.StringEvaluator{
@@ -894,6 +940,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"container.created_at",
 		"container.id",
 		"container.tags",
+		"create_file.file.name",
+		"create_file.file.name.length",
+		"create_file.file.path",
+		"create_file.file.path.length",
+		"create_file.filename",
 		"event.service",
 		"event.timestamp",
 		"exec.cmdline",
@@ -973,6 +1024,16 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveContainerID(ev, ev.BaseEvent.ContainerContext), nil
 	case "container.tags":
 		return ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext), nil
+	case "create_file.file.name":
+		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.CreateNewFile.File), nil
+	case "create_file.file.name.length":
+		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.CreateNewFile.File), nil
+	case "create_file.file.path":
+		return ev.FieldHandlers.ResolveFilePath(ev, &ev.CreateNewFile.File), nil
+	case "create_file.file.path.length":
+		return ev.FieldHandlers.ResolveFilePath(ev, &ev.CreateNewFile.File), nil
+	case "create_file.filename":
+		return ev.CreateNewFile.FileName, nil
 	case "event.service":
 		return ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent), nil
 	case "event.timestamp":
@@ -1287,6 +1348,16 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "event.service":
 		return "*", nil
+	case "create_file.file.name":
+		return "create_file", nil
+	case "create_file.file.name.length":
+		return "create_file", nil
+	case "create_file.file.path":
+		return "create_file", nil
+	case "create_file.file.path.length":
+		return "create_file", nil
+	case "create_file.filename":
+		return "create_file", nil
 	case "event.timestamp":
 		return "*", nil
 	case "exec.cmdline":
@@ -1433,6 +1504,16 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "container.id":
 		return reflect.String, nil
 	case "container.tags":
+		return reflect.String, nil
+	case "create_file.file.name":
+		return reflect.String, nil
+	case "create_file.file.name.length":
+		return reflect.Int, nil
+	case "create_file.file.path":
+		return reflect.String, nil
+	case "create_file.file.path.length":
+		return reflect.Int, nil
+	case "create_file.filename":
 		return reflect.String, nil
 	case "event.service":
 		return reflect.String, nil
@@ -1609,6 +1690,31 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		default:
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ContainerContext.Tags"}
 		}
+		return nil
+	case "create_file.file.name":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "CreateNewFile.File.BasenameStr"}
+		}
+		ev.CreateNewFile.File.BasenameStr = rv
+		return nil
+	case "create_file.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "create_file.file.name.length"}
+	case "create_file.file.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "CreateNewFile.File.PathnameStr"}
+		}
+		ev.CreateNewFile.File.PathnameStr = rv
+		return nil
+	case "create_file.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "create_file.file.path.length"}
+	case "create_file.filename":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "CreateNewFile.FileName"}
+		}
+		ev.CreateNewFile.FileName = rv
 		return nil
 	case "event.service":
 		rv, ok := value.(string)

@@ -37,6 +37,46 @@ func (ev *Event) GetContainerTags() []string {
 	return ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext)
 }
 
+// GetCreateFileFileName returns the value of the field, resolving if necessary
+func (ev *Event) GetCreateFileFileName() string {
+	if ev.GetEventType().String() != "create_file" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveFileBasename(ev, &ev.CreateNewFile.File)
+}
+
+// GetCreateFileFileNameLength returns the value of the field, resolving if necessary
+func (ev *Event) GetCreateFileFileNameLength() int {
+	if ev.GetEventType().String() != "create_file" {
+		return 0
+	}
+	return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.CreateNewFile.File))
+}
+
+// GetCreateFileFilePath returns the value of the field, resolving if necessary
+func (ev *Event) GetCreateFileFilePath() string {
+	if ev.GetEventType().String() != "create_file" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveFilePath(ev, &ev.CreateNewFile.File)
+}
+
+// GetCreateFileFilePathLength returns the value of the field, resolving if necessary
+func (ev *Event) GetCreateFileFilePathLength() int {
+	if ev.GetEventType().String() != "create_file" {
+		return 0
+	}
+	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.CreateNewFile.File))
+}
+
+// GetCreateFileFilename returns the value of the field, resolving if necessary
+func (ev *Event) GetCreateFileFilename() string {
+	if ev.GetEventType().String() != "create_file" {
+		return ""
+	}
+	return ev.CreateNewFile.FileName
+}
+
 // GetEventService returns the value of the field, resolving if necessary
 func (ev *Event) GetEventService() string {
 	return ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)
