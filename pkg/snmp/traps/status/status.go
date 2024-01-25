@@ -7,9 +7,13 @@
 package status
 
 import (
+	"embed"
 	"encoding/json"
 	"expvar"
+	"io"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 )
 
@@ -87,4 +91,54 @@ func GetStatus() map[string]interface{} {
 	status["metrics"] = metrics
 
 	return status
+}
+
+//go:embed status_templates
+var templatesFS embed.FS
+
+// Provider provides the functionality to populate the status output
+type Provider struct{}
+
+// GetProvider if snamp traps is enabled returns status.Provider otherwise returns NoopProvider
+func GetProvider(conf config.Component) status.Provider {
+	if conf.GetBool("network_devices.snmp_traps.enabled") {
+		return Provider{}
+	}
+
+	return status.NoopProvider{}
+}
+
+// Name returns the name
+func (Provider) Name() string {
+	return "SNMP Traps"
+}
+
+// Section return the section
+func (Provider) Section() string {
+	return "SNMP Traps"
+}
+
+// JSON populates the status map
+func (Provider) JSON(_ bool, stats map[string]interface{}) error {
+	stats["snmpTrapsStats"] = GetStatus()
+
+	return nil
+}
+
+// Text renders the text output
+func (p Provider) Text(_ bool, buffer io.Writer) error {
+	return status.RenderText(templatesFS, "snmp.tmpl", buffer, p.populateStatus())
+}
+
+// HTML renders the html output
+func (p Provider) HTML(_ bool, buffer io.Writer) error {
+	return status.RenderHTML(templatesFS, "snmpHTML.tmpl", buffer, p.populateStatus())
+}
+
+func (p Provider) populateStatus() map[string]interface{} {
+	stats := make(map[string]interface{})
+
+	p.JSON(false, stats) //nolint:errcheck
+
+	return stats
 }

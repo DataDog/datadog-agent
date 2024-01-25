@@ -8,12 +8,12 @@
 package collector
 
 import (
+	"embed"
 	"encoding/json"
 	"expvar"
 	"io"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/pkg/status/render"
 )
 
 // GetStatusInfo retrives collector information
@@ -93,6 +93,9 @@ func PopulateStatus(stats map[string]interface{}) {
 	stats["inventories"] = checkMetadata
 }
 
+//go:embed status_templates
+var templatesFS embed.FS
+
 // Provider provides the functionality to populate the status output with the collector information
 type Provider struct{}
 
@@ -107,24 +110,24 @@ func (Provider) Section() string {
 }
 
 // JSON populates the status map
-func (Provider) JSON(stats map[string]interface{}) error {
+func (Provider) JSON(_ bool, stats map[string]interface{}) error {
 	PopulateStatus(stats)
 
 	return nil
 }
 
-// Text populates the status buffer with the human readbable version
-func (Provider) Text(buffer io.Writer) error {
-	return render.ParseTemplate(buffer, "/collector.tmpl", GetStatusInfo())
+// Text renders the text output
+func (Provider) Text(_ bool, buffer io.Writer) error {
+	return status.RenderText(templatesFS, "collector.tmpl", buffer, GetStatusInfo())
 }
 
-// HTML populates the status buffer with the HTML version
-func (Provider) HTML(buffer io.Writer) error {
-	return render.ParseHTMLTemplate(buffer, "/collectorHTML.tmpl", GetStatusInfo())
+// HTML renders the html output
+func (Provider) HTML(_ bool, buffer io.Writer) error {
+	return status.RenderHTML(templatesFS, "collectorHTML.tmpl", buffer, GetStatusInfo())
 }
 
 // TextWithData allows to render the human reaadable version with custom data
 // This is a hack only needed for the agent check subcommand
 func (Provider) TextWithData(buffer io.Writer, data any) error {
-	return render.ParseTemplate(buffer, "/collector.tmpl", data)
+	return status.RenderText(templatesFS, "collector.tmpl", buffer, data)
 }

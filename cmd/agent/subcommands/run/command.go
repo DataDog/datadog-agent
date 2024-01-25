@@ -46,6 +46,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -57,6 +59,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	dogstatsdStatusimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
@@ -76,13 +79,17 @@ import (
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
+	processagentStatusImpl "github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	traceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/statusimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
+	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
@@ -92,8 +99,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
+	snmpStatus "github.com/DataDog/datadog-agent/pkg/snmp/traps/status"
+	autodiscoveryStatus "github.com/DataDog/datadog-agent/pkg/status/autodiscovery"
+	clusteragentStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent"
+	collectorStatus "github.com/DataDog/datadog-agent/pkg/status/collector"
+	endpointsStatus "github.com/DataDog/datadog-agent/pkg/status/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	httpproxyStatus "github.com/DataDog/datadog-agent/pkg/status/httpproxy"
+	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
 	otlpStatus "github.com/DataDog/datadog-agent/pkg/status/otlp"
+	systemprobeStatus "github.com/DataDog/datadog-agent/pkg/status/systemprobe"
 	pkgTelemetry "github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	pkgcommon "github.com/DataDog/datadog-agent/pkg/util/common"
@@ -189,6 +204,7 @@ func run(log log.Component,
 	_ langDetectionCl.Component,
 	agentAPI internalAPI.Component,
 	_ packagesigning.Component,
+	statusComponent status.Component,
 ) error {
 	defer func() {
 		stopAgent(cliParams, server, demultiplexer, agentAPI)
@@ -249,6 +265,7 @@ func run(log log.Component,
 		invAgent,
 		agentAPI,
 		invChecks,
+		statusComponent,
 	); err != nil {
 		return err
 	}
@@ -282,6 +299,34 @@ func getSharedFxOption() fx.Option {
 		collectors.GetCatalog(),
 		fx.Provide(defaults.DefaultParams),
 		workloadmeta.Module(),
+		fx.Supply(
+			status.Params{
+				PythonVersionGetFunc: func() string { return python.GetPythonVersion() },
+			},
+			status.NewInformationProvider(collectorStatus.Provider{}),
+			status.NewHeaderInformationProvider(net.Provider{}),
+			status.NewInformationProvider(jmxStatus.Provider{}),
+			status.NewInformationProvider(endpointsStatus.Provider{}),
+		),
+		fx.Provide(func(config config.Component) status.InformationProvider {
+			return status.NewInformationProvider(snmpStatus.GetProvider(config))
+		}),
+		fx.Provide(func(config config.Component) status.InformationProvider {
+			return status.NewInformationProvider(clusteragentStatus.GetProvider(config))
+		}),
+		fx.Provide(func(config config.Component) status.InformationProvider {
+			return status.NewInformationProvider(systemprobeStatus.GetProvider(config))
+		}),
+		fx.Provide(func(config config.Component) status.InformationProvider {
+			return status.NewInformationProvider(httpproxyStatus.GetProvider(config))
+		}),
+		fx.Provide(func(config config.Component) status.InformationProvider {
+			return status.NewInformationProvider(autodiscoveryStatus.GetProvider())
+		}),
+		traceagentStatusImpl.Module(),
+		processagentStatusImpl.Module(),
+		dogstatsdStatusimpl.Module(),
+		statusimpl.Module(),
 		apiimpl.Module(),
 
 		dogstatsd.Bundle(),
@@ -352,6 +397,7 @@ func startAgent(
 	invAgent inventoryagent.Component,
 	agentAPI internalAPI.Component,
 	invChecks inventorychecks.Component,
+	_ status.Component,
 ) error {
 
 	var err error
