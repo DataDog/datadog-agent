@@ -279,6 +279,17 @@ dev_nightly-dogstatsd:
     IMG_SOURCES: ${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
     IMG_DESTINATIONS: dogstatsd:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
 
+.qa_cws_instrumentation:
+  extends: .docker_publish_job_definition
+  stage: dev_container_deploy
+  needs:
+    - docker_build_cws_instrumentation_amd64
+    - docker_build_cws_instrumentation_arm64
+  variables:
+    IMG_REGISTRIES: agent-qa
+    IMG_SOURCES: ${SRC_CWS_INSTRUMENTATION}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_CWS_INSTRUMENTATION}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
+    IMG_DESTINATIONS: cws-instrumentation:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
+
 qa_main_agent:
   extends: .qa_agent
   rules: !reference [.on_main_and_no_skip_e2e]
@@ -305,6 +316,17 @@ qa_main_dogstatsd:
 
 qa_branch_dogstatsd:
   extends: .qa_dogstatsd
+  rules:
+    - !reference [.if_run_e2e_tests]
+    - !reference [.on_dev_branch_manual]
+
+qa_main_cws_instrumentation:
+  extends: .qa_cws_instrumentation
+  rules:
+    !reference [.on_main_and_no_skip_e2e]
+
+qa_branch_cws_instrumentation:
+  extends: .qa_cws_instrumentation
   rules:
     - !reference [.if_run_e2e_tests]
     - !reference [.on_dev_branch_manual]

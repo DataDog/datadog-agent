@@ -29,6 +29,8 @@ import (
 )
 
 func TestMount(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	dstMntBasename := "test-dest-mount"
 
 	ruleDefs := []*rules.RuleDefinition{{
@@ -149,6 +151,8 @@ func TestMount(t *testing.T) {
 }
 
 func TestMountPropagated(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	// - testroot
 	// 		/ dir1
 	// 			/ test-drive (xfs mount)
@@ -243,6 +247,8 @@ func TestMountPropagated(t *testing.T) {
 }
 
 func TestMountSnapshot(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	//      / testDrive
 	//        / rootA
 	//          / tmpfs-mount (tmpfs)
@@ -388,6 +394,8 @@ func TestMountSnapshot(t *testing.T) {
 }
 
 func TestMountEvent(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	executable, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)

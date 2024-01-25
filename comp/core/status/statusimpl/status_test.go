@@ -304,7 +304,6 @@ X Section
  text from x
 
 `, testTextHeader, pid, goVersion, arch, agentFlavor, deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"))
-
 				// We replace windows line break by linux so the tests pass on every OS
 				expectedResult := strings.Replace(expectedStatusTextOutput, "\r\n", "\n", -1)
 				output := strings.Replace(string(bytes), "\r\n", "\n", -1)

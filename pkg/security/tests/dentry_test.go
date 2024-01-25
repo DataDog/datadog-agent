@@ -25,6 +25,8 @@ import (
 )
 
 func TestDentryPathERPC(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	// generate a basename up to the current limit of the agent
 	var basename string
 	for i := 0; i < model.MaxSegmentLength; i++ {
@@ -90,6 +92,8 @@ func TestDentryPathERPC(t *testing.T) {
 }
 
 func TestDentryPathMap(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	// generate a basename up to the current limit of the agent
 	var basename string
 	for i := 0; i < model.MaxSegmentLength; i++ {
@@ -155,6 +159,8 @@ func TestDentryPathMap(t *testing.T) {
 }
 
 func TestDentryName(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	// generate a basename up to the current limit of the agent
 	var basename string
 	for i := 0; i < model.MaxSegmentLength; i++ {

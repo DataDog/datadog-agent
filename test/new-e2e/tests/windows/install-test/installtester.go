@@ -15,9 +15,10 @@ import (
 	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/agent"
 
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 // Tester is a test helper for testing agent installations
@@ -114,10 +115,12 @@ func (t *Tester) TestRuntimeExpectations(tt *testing.T) {
 		t.testDefaultPythonVersion(tt)
 		if t.ExpectPython2Installed() {
 			tt.Run("switch to Python3", func(tt *testing.T) {
-				common.CheckAgentPython(tt, t.InstallTestClient, "3")
+				common.SetAgentPythonMajorVersion(tt, t.InstallTestClient, "3")
+				common.CheckAgentPython(tt, t.InstallTestClient, common.ExpectedPythonVersion3)
 			})
 			tt.Run("switch to Python2", func(tt *testing.T) {
-				common.CheckAgentPython(tt, t.InstallTestClient, "2")
+				common.SetAgentPythonMajorVersion(tt, t.InstallTestClient, "2")
+				common.CheckAgentPython(tt, t.InstallTestClient, common.ExpectedPythonVersion2)
 			})
 		}
 

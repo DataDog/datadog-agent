@@ -597,7 +597,7 @@ require github.com/lorenzosaino/go-sysctl v0.3.1
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0
-	github.com/DataDog/agent-payload/v5 v5.0.102
+	github.com/DataDog/agent-payload/v5 v5.0.103
 	github.com/DataDog/datadog-agent/cmd/agent/common/path v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/comp/core/config v0.51.0-rc.2
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.51.0-rc.2
@@ -659,6 +659,7 @@ require (
 	github.com/godror/godror v0.37.0
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/kr/pretty v0.3.1
+	github.com/prometheus-community/pro-bing v0.3.0
 	github.com/sijms/go-ora/v2 v2.8.1
 	github.com/stormcat24/protodep v0.1.8
 	github.com/swaggest/jsonschema-go v0.3.64
