@@ -162,7 +162,7 @@ pull_test_dockers_arm64:
     KUBERNETES_MEMORY_REQUEST: "12Gi"
     KUBERNETES_MEMORY_LIMIT: "16Gi"
     VMCONFIG_FILE: "${CI_PROJECT_DIR}/vmconfig-${CI_PIPELINE_ID}-${ARCH}.json"
-    TEST_SETS: "no_tracersuite,only_tracersuite"
+    TEST_SETS: "no_tracersuite,only_tracersuite,all_tests"
   before_script:
     - set +x
     - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key_org2 --with-decryption --query "Parameter.Value" --out text)
