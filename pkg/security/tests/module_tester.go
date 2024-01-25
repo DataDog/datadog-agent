@@ -13,11 +13,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"io/fs"
-	"math/rand"
 	"os"
 	"os/exec"
 	"path"
@@ -179,7 +177,7 @@ runtime_security_config:
     - {{.}}
   {{end}}
   ebpfless:
-    enabled: {{.EnableEBPFLess}}
+    enabled: {{.EBPFLessEnabled}}
 `
 
 const testPolicy = `---
@@ -225,16 +223,6 @@ rules:
 {{end}}
 `
 
-var (
-	testEnvironment  string
-	logLevelStr      string
-	logPatterns      stringSlice
-	logTags          stringSlice
-	logStatusMetrics bool
-	withProfile      bool
-	trace            bool
-)
-
 const (
 	// HostEnvironment for the Host environment
 	HostEnvironment = "host"
@@ -273,7 +261,6 @@ type testOpts struct {
 	preStartCallback                           func(test *testModule)
 	tagsResolver                               tags.Resolver
 	snapshotRuleMatchHandler                   func(*testModule, *model.Event, *rules.Rule)
-	enableEBPFLess                             bool
 }
 
 type dynamicTestOpts struct {
@@ -318,8 +305,7 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.disableRuntimeSecurity == opts.disableRuntimeSecurity &&
 		to.enableSBOM == opts.enableSBOM &&
 		to.snapshotRuleMatchHandler == nil && opts.snapshotRuleMatchHandler == nil &&
-		to.preStartCallback == nil && opts.preStartCallback == nil &&
-		to.enableEBPFLess == opts.enableEBPFLess
+		to.preStartCallback == nil && opts.preStartCallback == nil
 }
 
 type testModule struct {
@@ -407,6 +393,20 @@ func copyFile(src string, dst string, mode fs.FileMode) error {
 	}
 
 	return os.WriteFile(dst, input, mode)
+}
+
+//nolint:deadcode,unused
+func assertInode(tb testing.TB, actualInode, expectedInode uint64, msgAndArgs ...interface{}) bool {
+	tb.Helper()
+
+	if ebpfLessEnabled {
+		return true
+	}
+
+	if len(msgAndArgs) == 0 {
+		msgAndArgs = append(msgAndArgs, "wrong inode")
+	}
+	return assert.Equal(tb, strconv.FormatUint(uint64(expectedInode), 8), strconv.FormatUint(uint64(actualInode), 8), msgAndArgs...)
 }
 
 //nolint:deadcode,unused
@@ -845,7 +845,7 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		"EnvsWithValue":                              opts.envsWithValue,
 		"RuntimeSecurityEnabled":                     runtimeSecurityEnabled,
 		"SBOMEnabled":                                opts.enableSBOM,
-		"EnableEBPFLess":                             opts.enableEBPFLess,
+		"EBPFLessEnabled":                            ebpfLessEnabled,
 	}); err != nil {
 		return nil, nil, err
 	}
@@ -921,10 +921,6 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		opt(&opts)
 	}
 
-	if env := os.Getenv("EBPFLESS"); env != "" {
-		opts.staticOpts.enableEBPFLess = true
-	}
-
 	if commonCfgDir == "" {
 		cd, err := os.MkdirTemp("", "test-cfgdir")
 		if err != nil {
@@ -966,24 +962,19 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	}
 
 	var cmdWrapper cmdWrapper
-	if testEnvironment == DockerEnvironment {
+	if testEnvironment == DockerEnvironment || ebpfLessEnabled {
 		cmdWrapper = newStdCmdWrapper()
 	} else {
-		if opts.staticOpts.enableEBPFLess {
-			// docker not supported by ebpf less
-			cmdWrapper = newStdCmdWrapper()
+		wrapper, err := newDockerCmdWrapper(st.Root(), st.Root(), "ubuntu")
+		if err == nil {
+			cmdWrapper = newMultiCmdWrapper(wrapper, newStdCmdWrapper())
 		} else {
-			wrapper, err := newDockerCmdWrapper(st.Root(), st.Root(), "ubuntu")
-			if err == nil {
-				cmdWrapper = newMultiCmdWrapper(wrapper, newStdCmdWrapper())
-			} else {
-				// docker not present run only on host
-				cmdWrapper = newStdCmdWrapper()
-			}
+			// docker not present run only on host
+			cmdWrapper = newStdCmdWrapper()
 		}
 	}
 
-	if testMod != nil && opts.staticOpts.enableEBPFLess {
+	if testMod != nil && ebpfLessEnabled {
 		testMod.st = st
 		testMod.cmdWrapper = cmdWrapper
 		testMod.t = t
@@ -1007,7 +998,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.t = t
 		testMod.opts.dynamicOpts = opts.dynamicOpts
 
-		if !opts.staticOpts.enableEBPFLess {
+		if !ebpfLessEnabled {
 			if testMod.tracePipe, err = testMod.startTracing(); err != nil {
 				return testMod, err
 			}
@@ -1059,7 +1050,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			PathResolutionEnabled:  true,
 			SyscallsMonitorEnabled: true,
 			TTYFallbackEnabled:     true,
-			EBPFLessEnabled:        opts.staticOpts.enableEBPFLess,
+			EBPFLessEnabled:        ebpfLessEnabled,
 		},
 	}
 	if opts.staticOpts.tagsResolver != nil {
@@ -1119,7 +1110,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		opts.staticOpts.preStartCallback(testMod)
 	}
 
-	if !opts.staticOpts.enableEBPFLess {
+	if !ebpfLessEnabled {
 		if testMod.tracePipe, err = testMod.startTracing(); err != nil {
 			return nil, err
 		}
@@ -1145,7 +1136,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		t.Logf("%s entry stats: %s", t.Name(), GetEBPFStatusMetrics(testMod.probe))
 	}
 
-	if opts.staticOpts.enableEBPFLess {
+	if ebpfLessEnabled {
 		t.Logf("EBPFLess mode, waiting for a client to connect")
 		err := retry.Do(func() error {
 			if testMod.probe.PlatformProbe.(*sprobe.EBPFLessProbe).GetClientsCount() > 0 {
@@ -2002,20 +1993,6 @@ func waitForProbeEvent(test *testModule, action func() error, key string, value 
 //nolint:deadcode,unused
 func waitForOpenProbeEvent(test *testModule, action func() error, filename string) error {
 	return waitForProbeEvent(test, action, "open.file.path", filename, model.FileOpenEventType)
-}
-
-func init() {
-	flag.StringVar(&testEnvironment, "env", HostEnvironment, "environment used to run the test suite: ex: host, docker")
-	flag.StringVar(&logLevelStr, "loglevel", seelog.WarnStr, "log level")
-	flag.Var(&logPatterns, "logpattern", "List of log pattern")
-	flag.Var(&logTags, "logtag", "List of log tag")
-	flag.BoolVar(&logStatusMetrics, "status-metrics", false, "display status metrics")
-	flag.BoolVar(&withProfile, "with-profile", false, "enable profile per test")
-	flag.BoolVar(&trace, "trace", false, "wrap the test suite with the ptracer")
-
-	rand.Seed(time.Now().UnixNano())
-
-	testSuitePid = utils.Getpid()
 }
 
 //nolint:deadcode,unused

@@ -6,9 +6,12 @@
 package status
 
 import (
+	"embed"
 	"encoding/json"
 	"fmt"
 	htemplate "html/template"
+	"io"
+	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -89,6 +92,26 @@ func TextFmap() ttemplate.FuncMap {
 }
 
 const timeFormat = "2006-01-02 15:04:05.999 MST"
+
+// RenderHTML reads, parse and execute template from embed.FS
+func RenderHTML(templateFS embed.FS, template string, buffer io.Writer, data any) error {
+	tmpl, tmplErr := templateFS.ReadFile(path.Join("status_templates", template))
+	if tmplErr != nil {
+		return tmplErr
+	}
+	t := htemplate.Must(htemplate.New(template).Funcs(HTMLFmap()).Parse(string(tmpl)))
+	return t.Execute(buffer, data)
+}
+
+// RenderText reads, parse and execute template from embed.FS
+func RenderText(templateFS embed.FS, template string, buffer io.Writer, data any) error {
+	tmpl, tmplErr := templateFS.ReadFile(path.Join("status_templates", template))
+	if tmplErr != nil {
+		return tmplErr
+	}
+	t := ttemplate.Must(ttemplate.New(template).Funcs(TextFmap()).Parse(string(tmpl)))
+	return t.Execute(buffer, data)
+}
 
 func doNotEscape(value string) htemplate.HTML {
 	return htemplate.HTML(value)

@@ -11,7 +11,7 @@ import tempfile
 from invoke import task
 from invoke.exceptions import Exit
 
-from .dogstatsd import DOGSTATSD_TAG
+from tasks.dogstatsd import DOGSTATSD_TAG
 
 
 @task

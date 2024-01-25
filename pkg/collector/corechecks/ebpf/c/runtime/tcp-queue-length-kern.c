@@ -72,7 +72,7 @@ static __always_inline void check_sock(struct sock *sk) {
     if (wqueue_usage > v->write_buffer_max_usage) {
         v->write_buffer_max_usage = wqueue_usage;
     }
-    log_debug("check_sock: name=%s read_max=%d write_max=%d\n", k.cgroup, v->read_buffer_max_usage, v->write_buffer_max_usage);
+    log_debug("check_sock: name=%s read_max=%d write_max=%d", k.cgroup, v->read_buffer_max_usage, v->write_buffer_max_usage);
 }
 
 SEC("kprobe/tcp_recvmsg")

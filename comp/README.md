@@ -95,6 +95,12 @@ Package status displays information about the agent.
 Package sysprobeconfig implements a component to handle system-probe configuration.  This
 component temporarily wraps pkg/config.
 
+### [comp/core/tagger](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/tagger)
+
+*Datadog Team*: container-integrations
+
+Package tagger provides the tagger component for the Datadog Agent
+
 ### [comp/core/telemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/telemetry)
 
 Package telemetry implements a component for all agent telemetry.
@@ -129,6 +135,10 @@ Package serverdebug implements a component to run the dogstatsd server debug
 
 Package statsd implements a component to get a statsd client.
 
+### [comp/dogstatsd/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dogstatsd/status)
+
+Package status implements the core status component information provider interface
+
 ## [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw) (Component Bundle)
 
 *Datadog Team*: windows-agent
@@ -154,6 +164,12 @@ Package defaultforwarder implements a component to send payloads to the backend
 *Datadog Team*: agent-metrics-logs
 
 Package orchestrator implements the orchestrator forwarder component.
+
+### [comp/forwarder/orchestrator/orchestratorinterface](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface)
+
+*Datadog Team*: agent-metrics-logs
+
+Package orchestratorinterface defines the interface for the orchestrator forwarder component.
 
 ## [comp/languagedetection](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/languagedetection) (Component Bundle)
 
@@ -311,6 +327,10 @@ Package rtcontainercheck implements a component to handle realtime Container dat
 
 Package runner implements a component to run data collection checks in the Process Agent.
 
+### [comp/process/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/status)
+
+Package status implements the core status component information provider interface
+
 ### [comp/process/submitter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/submitter)
 
 Package submitter implements a component to submit collected data in the Process Agent to
@@ -350,3 +370,7 @@ Package trace implements the "trace" bundle, providing components for the Trace 
 
 Package config implements a component to handle trace-agent configuration.  This
 component temporarily wraps pkg/trace/config.
+
+### [comp/trace/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/status)
+
+Package status implements the core status component information provider interface

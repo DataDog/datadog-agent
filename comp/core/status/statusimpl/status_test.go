@@ -43,7 +43,7 @@ func (m mockProvider) Section() string {
 	return m.section
 }
 
-func (m mockProvider) JSON(stats map[string]interface{}) error {
+func (m mockProvider) JSON(_ bool, stats map[string]interface{}) error {
 	if m.returnError {
 		return fmt.Errorf("JSON error")
 	}
@@ -55,7 +55,7 @@ func (m mockProvider) JSON(stats map[string]interface{}) error {
 	return nil
 }
 
-func (m mockProvider) Text(buffer io.Writer) error {
+func (m mockProvider) Text(_ bool, buffer io.Writer) error {
 	if m.returnError {
 		return fmt.Errorf("Text error")
 	}
@@ -64,7 +64,7 @@ func (m mockProvider) Text(buffer io.Writer) error {
 	return err
 }
 
-func (m mockProvider) HTML(buffer io.Writer) error {
+func (m mockProvider) HTML(_ bool, buffer io.Writer) error {
 	if m.returnError {
 		return fmt.Errorf("HTML error")
 	}
@@ -90,7 +90,7 @@ func (m mockHeaderProvider) Name() string {
 	return m.name
 }
 
-func (m mockHeaderProvider) JSON(stats map[string]interface{}) error {
+func (m mockHeaderProvider) JSON(_ bool, stats map[string]interface{}) error {
 	if m.returnError {
 		return fmt.Errorf("JSON error")
 	}
@@ -102,7 +102,7 @@ func (m mockHeaderProvider) JSON(stats map[string]interface{}) error {
 	return nil
 }
 
-func (m mockHeaderProvider) Text(buffer io.Writer) error {
+func (m mockHeaderProvider) Text(_ bool, buffer io.Writer) error {
 	if m.returnError {
 		return fmt.Errorf("Text error")
 	}
@@ -111,7 +111,7 @@ func (m mockHeaderProvider) Text(buffer io.Writer) error {
 	return err
 }
 
-func (m mockHeaderProvider) HTML(buffer io.Writer) error {
+func (m mockHeaderProvider) HTML(_ bool, buffer io.Writer) error {
 	if m.returnError {
 		return fmt.Errorf("HTML error")
 	}
@@ -131,7 +131,7 @@ var (
 )
 
 var agentParams = status.Params{
-	PythonVersion: "n/a",
+	PythonVersionGetFunc: func() string { return "n/a" },
 }
 
 var testTextHeader = fmt.Sprintf(`%s
@@ -218,6 +218,8 @@ func TestGetStatus(t *testing.T) {
 `,
 				index: 2,
 			}),
+			status.NoopInformationProvider(),
+			status.NoopHeaderInformationProvider(),
 		),
 	))
 
@@ -257,6 +259,12 @@ func TestGetStatus(t *testing.T) {
   Agent flavor: %s
   Log Level: info
 
+  Paths
+  =====
+    Config File: There is no config file
+    conf.d: %s
+    checks.d: %s
+
 ==========
 Header Foo
 ==========
@@ -280,7 +288,7 @@ X Section
  text from a
  text from x
 
-`, testTextHeader, pid, goVersion, arch, agentFlavor)
+`, testTextHeader, pid, goVersion, arch, agentFlavor, deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"))
 
 				// We replace windows line break by linux so the tests pass on every OS
 				expectedResult := strings.Replace(expectedStatusTextOutput, "\r\n", "\n", -1)
@@ -400,12 +408,18 @@ func TestGetStatusDoNotRenderHeaderIfNoProviders(t *testing.T) {
   Agent flavor: %s
   Log Level: info
 
+  Paths
+  =====
+    Config File: There is no config file
+    conf.d: %s
+    checks.d: %s
+
 =======
 Section
 =======
  text from a
 
-`, testTextHeader, pid, goVersion, arch, agentFlavor)
+`, testTextHeader, pid, goVersion, arch, agentFlavor, deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"))
 
 	// We replace windows line break by linux so the tests pass on every OS
 	expectedResult := strings.Replace(expectedOutput, "\r\n", "\n", -1)
@@ -481,6 +495,12 @@ func TestGetStatusWithErrors(t *testing.T) {
   Agent flavor: agent
   Log Level: info
 
+  Paths
+  =====
+    Config File: There is no config file
+    conf.d: %s
+    checks.d: %s
+
 =========
 Collector
 =========
@@ -495,7 +515,7 @@ Status render errors
 ====================
   - Text error
 
-`, testTextHeader, pid, goVersion, arch)
+`, testTextHeader, pid, goVersion, arch, deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"))
 
 				// We replace windows line break by linux so the tests pass on every OS
 				expectedResult := strings.Replace(expectedStatusTextErrorOutput, "\r\n", "\n", -1)
@@ -774,12 +794,18 @@ Status render errors
   Agent flavor: agent
   Log Level: info
 
+  Paths
+  =====
+    Config File: There is no config file
+    conf.d: %s
+    checks.d: %s
+
 ====================
 Status render errors
 ====================
   - Text error
 
-`, testTextHeader, pid, goVersion, arch)
+`, testTextHeader, pid, goVersion, arch, deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"))
 
 				// We replace windows line break by linux so the tests pass on every OS
 				expectedResult := strings.Replace(expectedStatusTextErrorOutput, "\r\n", "\n", -1)

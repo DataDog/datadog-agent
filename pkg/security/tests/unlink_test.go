@@ -24,6 +24,8 @@ import (
 )
 
 func TestUnlink(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `unlink.file.path in ["{{.Root}}/test-unlink", "{{.Root}}/test-unlinkat"] && unlink.file.uid == 98 && unlink.file.gid == 99`,
@@ -53,9 +55,7 @@ func TestUnlink(t *testing.T) {
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "unlink", event.GetType(), "wrong event type")
-			if !test.opts.staticOpts.enableEBPFLess {
-				assert.Equal(t, inode, event.Unlink.File.Inode, "wrong inode")
-			}
+			assertInode(t, event.Unlink.File.Inode, inode)
 			assertRights(t, event.Unlink.File.Mode, expectedMode)
 			assertNearTime(t, event.Unlink.File.MTime)
 			assertNearTime(t, event.Unlink.File.CTime)
@@ -81,9 +81,7 @@ func TestUnlink(t *testing.T) {
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "unlink", event.GetType(), "wrong event type")
-			if !test.opts.staticOpts.enableEBPFLess {
-				assert.Equal(t, inode, event.Unlink.File.Inode, "wrong inode")
-			}
+			assertInode(t, event.Unlink.File.Inode, inode)
 			assertRights(t, event.Unlink.File.Mode, expectedMode)
 			assertNearTime(t, event.Unlink.File.MTime)
 			assertNearTime(t, event.Unlink.File.CTime)
@@ -102,9 +100,8 @@ func TestUnlink(t *testing.T) {
 	inode = getInode(t, testAtFile)
 
 	t.Run("io_uring", func(t *testing.T) {
-		if test.opts.staticOpts.enableEBPFLess {
-			t.Skip("io_uring not supported")
-		}
+		SkipIfNotAvailable(t)
+
 		iour, err := iouring.New(1)
 		if err != nil {
 			if errors.Is(err, unix.ENOTSUP) {
@@ -159,6 +156,8 @@ func TestUnlink(t *testing.T) {
 }
 
 func TestUnlinkInvalidate(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `unlink.file.path =~ "{{.Root}}/test-unlink-*"`,
