@@ -9,6 +9,7 @@
 #include "protocols/classification/maps.h"
 #include "protocols/classification/structs.h"
 #include "protocols/classification/dispatcher-maps.h"
+#include "protocols/classification/protocol-classification.h"
 #include "protocols/http/classification-helpers.h"
 #include "protocols/http/usm-events.h"
 #include "protocols/http2/helpers.h"
@@ -76,6 +77,32 @@ static __always_inline void classify_protocol_for_dispatcher(protocol_t *protoco
     }
 
     log_debug("[protocol_dispatcher_classifier]: Classified protocol as %d %d; %s", *protocol, size, buf);
+}
+
+static __always_inline void classify_protocol_for_tls_dispatcher(protocol_t *protocol, conn_tuple_t *tup, const char *buf, __u32 size) {
+    if (protocol == NULL || *protocol != PROTOCOL_UNKNOWN) {
+        return;
+    }
+
+    protocol_t res = classify_applayer_protocols(buf, size);
+    if (res != PROTOCOL_UNKNOWN) {
+        goto end;
+    }
+    res = classify_db_protocols(tup, buf, size);
+    if (res != PROTOCOL_UNKNOWN) {
+        goto end;
+    }
+    // Explicitly adding amqp, and not calling `classify_queue_protocols` and kafka classification requires __sk_buff.
+    if (is_amqp(buf, size)) {
+        res = PROTOCOL_AMQP;
+        goto end;
+    }
+    // TODO: add classification for gRPC, and Kafka.
+
+end:
+    *protocol = res;
+    log_debug("[protocol_dispatcher_classifier]: Classified protocol as %d %d; %s", *protocol, size, buf);
+    return;
 }
 
 static __always_inline void dispatcher_delete_protocol_stack(conn_tuple_t *tuple, protocol_stack_t *stack) {
