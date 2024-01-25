@@ -451,7 +451,7 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 		cancelFnc:    cancelFnc,
 		onStart:      make(chan *procmon.ProcessStartNotification),
 		onStop:       make(chan *procmon.ProcessStopNotification),
-		onFimEvent:   make(chan *etw.DDEventRecord),
+		onFimEvent:   make(chan *etw.DDEventRecord, 100),
 		onError:      make(chan bool),
 	}
 
