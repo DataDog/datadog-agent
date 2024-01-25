@@ -10,7 +10,6 @@ package tests
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -29,7 +28,6 @@ import (
 	"testing"
 	"text/template"
 	"time"
-	"unsafe"
 
 	"github.com/avast/retry-go/v4"
 	"github.com/cihub/seelog"
@@ -40,7 +38,6 @@ import (
 	"golang.org/x/sys/unix"
 
 	spconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
@@ -50,7 +47,6 @@ import (
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	rulesmodule "github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -69,12 +65,6 @@ var (
 	logger seelog.LoggerInterface
 	//nolint:deadcode,unused
 	testSuitePid uint32
-	errSkipEvent = errors.New("skip event")
-)
-
-const (
-	getEventTimeout                 = 10 * time.Second
-	filelessExecutionFilenamePrefix = "memfd:"
 )
 
 type stringSlice []string
@@ -230,44 +220,6 @@ const (
 	DockerEnvironment = "docker"
 )
 
-type testOpts struct {
-	disableFilters                             bool
-	disableApprovers                           bool
-	enableActivityDump                         bool
-	activityDumpRateLimiter                    int
-	activityDumpTagRules                       bool
-	activityDumpDuration                       time.Duration
-	activityDumpLoadControllerPeriod           time.Duration
-	activityDumpCleanupPeriod                  time.Duration
-	activityDumpLoadControllerTimeout          time.Duration
-	activityDumpTracedCgroupsCount             int
-	activityDumpTracedEventTypes               []string
-	activityDumpLocalStorageDirectory          string
-	activityDumpLocalStorageCompression        bool
-	activityDumpLocalStorageFormats            []string
-	enableSecurityProfile                      bool
-	securityProfileDir                         string
-	securityProfileWatchDir                    bool
-	anomalyDetectionDefaultMinimumStablePeriod time.Duration
-	anomalyDetectionMinimumStablePeriodExec    time.Duration
-	anomalyDetectionMinimumStablePeriodDNS     time.Duration
-	anomalyDetectionWarmupPeriod               time.Duration
-	disableDiscarders                          bool
-	disableERPCDentryResolution                bool
-	disableMapDentryResolution                 bool
-	envsWithValue                              []string
-	disableRuntimeSecurity                     bool
-	enableSBOM                                 bool
-	preStartCallback                           func(test *testModule)
-	tagsResolver                               tags.Resolver
-	snapshotRuleMatchHandler                   func(*testModule, *model.Event, *rules.Rule)
-}
-
-type dynamicTestOpts struct {
-	testDir                  string
-	disableAbnormalPathCheck bool
-}
-
 func (s *stringSlice) String() string {
 	return strings.Join(*s, " ")
 }
@@ -275,37 +227,6 @@ func (s *stringSlice) String() string {
 func (s *stringSlice) Set(value string) error {
 	*s = append(*s, value)
 	return nil
-}
-
-func (to testOpts) Equal(opts testOpts) bool {
-	return to.disableApprovers == opts.disableApprovers &&
-		to.enableActivityDump == opts.enableActivityDump &&
-		to.activityDumpRateLimiter == opts.activityDumpRateLimiter &&
-		to.activityDumpTagRules == opts.activityDumpTagRules &&
-		to.activityDumpDuration == opts.activityDumpDuration &&
-		to.activityDumpLoadControllerPeriod == opts.activityDumpLoadControllerPeriod &&
-		to.activityDumpTracedCgroupsCount == opts.activityDumpTracedCgroupsCount &&
-		to.activityDumpLoadControllerTimeout == opts.activityDumpLoadControllerTimeout &&
-		reflect.DeepEqual(to.activityDumpTracedEventTypes, opts.activityDumpTracedEventTypes) &&
-		to.activityDumpLocalStorageDirectory == opts.activityDumpLocalStorageDirectory &&
-		to.activityDumpLocalStorageCompression == opts.activityDumpLocalStorageCompression &&
-		reflect.DeepEqual(to.activityDumpLocalStorageFormats, opts.activityDumpLocalStorageFormats) &&
-		to.enableSecurityProfile == opts.enableSecurityProfile &&
-		to.securityProfileDir == opts.securityProfileDir &&
-		to.securityProfileWatchDir == opts.securityProfileWatchDir &&
-		to.anomalyDetectionDefaultMinimumStablePeriod == opts.anomalyDetectionDefaultMinimumStablePeriod &&
-		to.anomalyDetectionMinimumStablePeriodExec == opts.anomalyDetectionMinimumStablePeriodExec &&
-		to.anomalyDetectionMinimumStablePeriodDNS == opts.anomalyDetectionMinimumStablePeriodDNS &&
-		to.anomalyDetectionWarmupPeriod == opts.anomalyDetectionWarmupPeriod &&
-		to.disableDiscarders == opts.disableDiscarders &&
-		to.disableFilters == opts.disableFilters &&
-		to.disableERPCDentryResolution == opts.disableERPCDentryResolution &&
-		to.disableMapDentryResolution == opts.disableMapDentryResolution &&
-		reflect.DeepEqual(to.envsWithValue, opts.envsWithValue) &&
-		to.disableRuntimeSecurity == opts.disableRuntimeSecurity &&
-		to.enableSBOM == opts.enableSBOM &&
-		to.snapshotRuleMatchHandler == nil && opts.snapshotRuleMatchHandler == nil &&
-		to.preStartCallback == nil && opts.preStartCallback == nil
 }
 
 type testModule struct {
@@ -442,12 +363,6 @@ func assertNearTime(tb testing.TB, ns uint64) bool {
 }
 
 //nolint:deadcode,unused
-func assertTriggeredRule(tb testing.TB, r *rules.Rule, id string) bool {
-	tb.Helper()
-	return assert.Equal(tb, id, r.ID, "wrong triggered rule")
-}
-
-//nolint:deadcode,unused
 func assertNotTriggeredRule(tb testing.TB, r *rules.Rule, id string) bool {
 	tb.Helper()
 	return assert.NotEqual(tb, id, r.ID, "wrong triggered rule")
@@ -457,78 +372,6 @@ func assertNotTriggeredRule(tb testing.TB, r *rules.Rule, id string) bool {
 func assertReturnValue(tb testing.TB, retval, expected int64) bool {
 	tb.Helper()
 	return assert.Equal(tb, expected, retval, "wrong return value")
-}
-
-//nolint:deadcode,unused
-func assertFieldEqual(tb testing.TB, e *model.Event, field string, value interface{}, msgAndArgs ...interface{}) bool {
-	tb.Helper()
-	fieldValue, err := e.GetFieldValue(field)
-	if err != nil {
-		tb.Errorf("failed to get field '%s': %s", field, err)
-		return false
-	}
-	return assert.Equal(tb, value, fieldValue, msgAndArgs...)
-}
-
-//nolint:deadcode,unused
-func assertFieldNotEqual(tb testing.TB, e *model.Event, field string, value interface{}, msgAndArgs ...interface{}) bool {
-	tb.Helper()
-	fieldValue, err := e.GetFieldValue(field)
-	if err != nil {
-		tb.Errorf("failed to get field '%s': %s", field, err)
-		return false
-	}
-	return assert.NotEqual(tb, value, fieldValue, msgAndArgs...)
-}
-
-//nolint:deadcode,unused
-func assertFieldNotEmpty(tb testing.TB, e *model.Event, field string, msgAndArgs ...interface{}) bool {
-	tb.Helper()
-	fieldValue, err := e.GetFieldValue(field)
-	if err != nil {
-		tb.Errorf("failed to get field '%s': %s", field, err)
-		return false
-	}
-	return assert.NotEmpty(tb, fieldValue, msgAndArgs...)
-}
-
-//nolint:deadcode,unused
-func assertFieldContains(tb testing.TB, e *model.Event, field string, value interface{}, msgAndArgs ...interface{}) bool {
-	tb.Helper()
-	fieldValue, err := e.GetFieldValue(field)
-	if err != nil {
-		tb.Errorf("failed to get field '%s': %s", field, err)
-		return false
-	}
-	return assert.Contains(tb, fieldValue, value, msgAndArgs...)
-}
-
-//nolint:deadcode,unused
-func assertFieldIsOneOf(tb testing.TB, e *model.Event, field string, possibleValues interface{}, msgAndArgs ...interface{}) bool {
-	tb.Helper()
-	fieldValue, err := e.GetFieldValue(field)
-	if err != nil {
-		tb.Errorf("failed to get field '%s': %s", field, err)
-		return false
-	}
-	return assert.Contains(tb, possibleValues, fieldValue, msgAndArgs...)
-}
-
-//nolint:deadcode,unused
-func assertFieldStringArrayIndexedOneOf(tb *testing.T, e *model.Event, field string, index int, values []string, msgAndArgs ...interface{}) bool {
-	tb.Helper()
-	fieldValue, err := e.GetFieldValue(field)
-	if err != nil {
-		tb.Errorf("failed to get field '%s': %s", field, err)
-		return false
-	}
-
-	if fieldValues, ok := fieldValue.([]string); ok {
-		return assert.Contains(tb, values, fieldValues[index])
-	}
-
-	tb.Errorf("failed to get field '%s' as an array: %v", field, msgAndArgs)
-	return false
 }
 
 //nolint:deadcode,unused
@@ -896,25 +739,6 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 	return emconfig, secconfig, nil
 }
 
-type tmOpts struct {
-	staticOpts  testOpts
-	dynamicOpts dynamicTestOpts
-}
-
-type optFunc = func(opts *tmOpts)
-
-func withStaticOpts(opts testOpts) optFunc {
-	return func(tmo *tmOpts) {
-		tmo.staticOpts = opts
-	}
-}
-
-func withDynamicOpts(opts dynamicTestOpts) optFunc {
-	return func(tmo *tmOpts) {
-		tmo.dynamicOpts = opts
-	}
-}
-
 func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, fopts ...optFunc) (*testModule, error) {
 	var opts tmOpts
 	for _, opt := range fopts {
@@ -1153,135 +977,6 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	return testMod, nil
 }
 
-func (tm *testModule) HandleEvent(event *model.Event) {
-	tm.eventHandlers.RLock()
-	defer tm.eventHandlers.RUnlock()
-
-	if tm.eventHandlers.onProbeEvent != nil {
-		tm.eventHandlers.onProbeEvent(event)
-	}
-}
-
-func (tm *testModule) HandleCustomEvent(_ *rules.Rule, _ *events.CustomEvent) {}
-
-func (tm *testModule) SendEvent(rule *rules.Rule, event events.Event, _ func() []string, _ string) {
-	tm.eventHandlers.RLock()
-	defer tm.eventHandlers.RUnlock()
-
-	switch ev := event.(type) {
-	case *events.CustomEvent:
-		if tm.eventHandlers.onCustomSendEvent != nil {
-			tm.eventHandlers.onCustomSendEvent(rule, ev)
-		}
-	case *model.Event:
-		if tm.eventHandlers.onSendEvent != nil {
-			tm.eventHandlers.onSendEvent(rule, ev)
-		}
-	}
-}
-
-func (tm *testModule) Run(t *testing.T, name string, fnc func(t *testing.T, kind wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd)) {
-	tm.cmdWrapper.Run(t, name, fnc)
-}
-
-func (tm *testModule) reloadPolicies() error {
-	log.Debugf("reload policies with cfgDir: %s", commonCfgDir)
-
-	bundledPolicyProvider := rulesmodule.NewBundledPolicyProvider(tm.eventMonitor.Probe.Config.RuntimeSecurity)
-	policyDirProvider, err := rules.NewPoliciesDirProvider(commonCfgDir, false)
-	if err != nil {
-		return err
-	}
-
-	if err := tm.ruleEngine.LoadPolicies([]rules.PolicyProvider{bundledPolicyProvider, policyDirProvider}, true); err != nil {
-		return fmt.Errorf("failed to reload test module: %w", err)
-	}
-
-	return nil
-}
-
-func (tm *testModule) Root() string {
-	return tm.st.root
-}
-
-func (tm *testModule) RuleMatch(rule *rules.Rule, event eval.Event) bool {
-	tm.eventHandlers.RLock()
-	callback := tm.eventHandlers.onRuleMatch
-	tm.eventHandlers.RUnlock()
-
-	if callback != nil {
-		callback(event.(*model.Event), rule)
-	}
-
-	return true
-}
-
-func (tm *testModule) EventDiscarderFound(_ *rules.RuleSet, _ eval.Event, _ eval.Field, _ eval.EventType) {
-}
-
-func (tm *testModule) RegisterDiscarderPushedHandler(cb onDiscarderPushedHandler) {
-	tm.eventHandlers.Lock()
-	tm.eventHandlers.onDiscarderPushed = cb
-	tm.eventHandlers.Unlock()
-}
-
-func (tm *testModule) NotifyDiscarderPushedCallback(eventType string, event *model.Event, field string) {
-	tm.eventHandlers.RLock()
-	callback := tm.eventHandlers.onDiscarderPushed
-	tm.eventHandlers.RUnlock()
-
-	if callback != nil {
-		_ = callback(event, field, eventType)
-	}
-}
-
-func (tm *testModule) GetEventDiscarder(tb testing.TB, action func() error, cb onDiscarderPushedHandler) error {
-	tb.Helper()
-
-	message := make(chan ActionMessage, 1)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	tm.RegisterDiscarderPushedHandler(func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
-		tb.Helper()
-
-		select {
-		case <-ctx.Done():
-			return true
-		case msg := <-message:
-			switch msg {
-			case Skip:
-				cancel()
-			case Continue:
-				if cb(event, field, eventType) {
-					cancel()
-				} else {
-					message <- Continue
-				}
-			}
-		}
-		return true
-	})
-
-	defer func() {
-		tm.RegisterDiscarderPushedHandler(nil)
-	}()
-
-	if err := action(); err != nil {
-		message <- Skip
-		return err
-	}
-	message <- Continue
-
-	select {
-	case <-time.After(getEventTimeout):
-		return tm.NewTimeoutError()
-	case <-ctx.Done():
-		return nil
-	}
-}
-
 //nolint:deadcode,unused
 func (tm *testModule) marshalEvent(ev *model.Event) (string, error) {
 	b, err := serializers.MarshalEvent(ev)
@@ -1339,371 +1034,6 @@ func GetEBPFStatusMetrics(probe *sprobe.Probe) string {
 	_ = json.Indent(&out, data, "", "\t")
 
 	return out.String()
-}
-
-// ErrTimeout is used to indicate that a test timed out
-type ErrTimeout struct {
-	msg string
-}
-
-func (et ErrTimeout) Error() string {
-	return et.msg
-}
-
-// NewTimeoutError returns a new timeout error with the metrics collected during the test
-func (tm *testModule) NewTimeoutError() ErrTimeout {
-	var msg strings.Builder
-
-	msg.WriteString("timeout, details: ")
-	msg.WriteString(GetEBPFStatusMetrics(tm.probe))
-	msg.WriteString(spew.Sdump(ebpftelemetry.GetProbeStats()))
-
-	events := tm.ruleEngine.StopEventCollector()
-	if len(events) != 0 {
-		msg.WriteString("\nevents evaluated:\n")
-
-		for _, event := range events {
-			msg.WriteString(fmt.Sprintf("%s (eval=%v) {\n", event.Type, event.EvalResult))
-			for field, value := range event.Fields {
-				msg.WriteString(fmt.Sprintf("\t%s=%v,\n", field, value))
-			}
-			msg.WriteString("}\n")
-		}
-	}
-
-	return ErrTimeout{msg.String()}
-}
-
-// ActionMessage is used to send a message from an action function to its callback
-type ActionMessage int
-
-const (
-	// Continue means that the callback should execute normally
-	Continue ActionMessage = iota
-	// Skip means that the callback should skip the test
-	Skip
-)
-
-// ErrSkipTest is used to notify that a test should be skipped
-type ErrSkipTest struct {
-	msg string
-}
-
-func (err ErrSkipTest) Error() string {
-	return err.msg
-}
-
-func (tm *testModule) mapFilters(filters ...func(event *model.Event, rule *rules.Rule) error) func(event *model.Event, rule *rules.Rule) error {
-	return func(event *model.Event, rule *rules.Rule) error {
-		for _, filter := range filters {
-			if err := filter(event, rule); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-}
-
-func (tm *testModule) WaitSignals(tb testing.TB, action func() error, cbs ...func(event *model.Event, rule *rules.Rule) error) {
-	tb.Helper()
-
-	tm.waitSignal(tb, action, func(event *model.Event, rule *rules.Rule) error {
-		validateProcessContext(tb, event)
-
-		return tm.mapFilters(cbs...)(event, rule)
-	})
-
-}
-
-func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb onRuleHandler) {
-	tb.Helper()
-
-	tm.waitSignal(tb, action, func(event *model.Event, rule *rules.Rule) error {
-		validateProcessContext(tb, event)
-		cb(event, rule)
-		return nil
-	})
-}
-
-func (tm *testModule) waitSignal(tb testing.TB, action func() error, cb func(*model.Event, *rules.Rule) error) {
-	tb.Helper()
-
-	if err := tm.getSignal(tb, action, cb); err != nil {
-		if _, ok := err.(ErrSkipTest); ok {
-			tb.Skip(err)
-		} else {
-			tb.Fatal(err)
-		}
-	}
-}
-
-func (tm *testModule) GetSignal(tb testing.TB, action func() error, cb onRuleHandler) error {
-	return tm.getSignal(tb, action, func(event *model.Event, rule *rules.Rule) error {
-		cb(event, rule)
-		return nil
-	})
-}
-
-func (tm *testModule) getSignal(tb testing.TB, action func() error, cb func(*model.Event, *rules.Rule) error) error {
-	tb.Helper()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	message := make(chan ActionMessage, 1)
-	failNow := make(chan bool, 1)
-
-	tm.RegisterRuleEventHandler(func(e *model.Event, r *rules.Rule) {
-		tb.Helper()
-		select {
-		case <-ctx.Done():
-			return
-		case msg := <-message:
-			switch msg {
-			case Continue:
-				if err := cb(e, r); err != nil {
-					if errors.Is(err, errSkipEvent) {
-						message <- Continue
-						return
-					}
-					tb.Error(err)
-				}
-				if tb.Skipped() || tb.Failed() {
-					failNow <- true
-				}
-			case Skip:
-			}
-		}
-		cancel()
-	})
-
-	defer func() {
-		tm.RegisterRuleEventHandler(nil)
-	}()
-
-	if err := action(); err != nil {
-		message <- Skip
-		return err
-	}
-	message <- Continue
-
-	select {
-	case <-failNow:
-		tb.FailNow()
-		return nil
-	case <-time.After(getEventTimeout):
-		return tm.NewTimeoutError()
-	case <-ctx.Done():
-		return nil
-	}
-}
-
-func (tm *testModule) RegisterRuleEventHandler(cb onRuleHandler) {
-	tm.eventHandlers.Lock()
-	tm.eventHandlers.onRuleMatch = cb
-	tm.eventHandlers.Unlock()
-}
-
-func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb func(rule *rules.Rule, event *events.CustomEvent) bool, timeout time.Duration, eventType model.EventType) error {
-	tb.Helper()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	message := make(chan ActionMessage, 1)
-
-	tm.RegisterCustomSendEventHandler(func(rule *rules.Rule, event *events.CustomEvent) {
-		if event.GetEventType() != eventType {
-			return
-		}
-
-		select {
-		case <-ctx.Done():
-			return
-		case msg := <-message:
-			switch msg {
-			case Continue:
-				if cb(rule, event) {
-					cancel()
-				} else {
-					message <- Continue
-				}
-			case Skip:
-				cancel()
-			}
-		}
-	})
-	defer tm.RegisterCustomSendEventHandler(nil)
-
-	if err := action(); err != nil {
-		message <- Skip
-		return err
-	}
-	message <- Continue
-
-	select {
-	case <-time.After(timeout):
-		return tm.NewTimeoutError()
-	case <-ctx.Done():
-		return nil
-	}
-}
-
-func (tm *testModule) GetEventSent(tb testing.TB, action func() error, cb func(rule *rules.Rule, event *model.Event) bool, timeout time.Duration, ruleID eval.RuleID) error {
-	tb.Helper()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	message := make(chan ActionMessage, 1)
-
-	tm.RegisterSendEventHandler(func(rule *rules.Rule, event *model.Event) {
-		if rule.ID != ruleID {
-			return
-		}
-
-		select {
-		case <-ctx.Done():
-			return
-		case msg := <-message:
-			switch msg {
-			case Continue:
-				if cb(rule, event) {
-					cancel()
-				} else {
-					message <- Continue
-				}
-			case Skip:
-				cancel()
-			}
-		}
-	})
-	defer tm.RegisterSendEventHandler(nil)
-
-	if err := action(); err != nil {
-		message <- Skip
-		return err
-	}
-	message <- Continue
-
-	select {
-	case <-time.After(timeout):
-		return tm.NewTimeoutError()
-	case <-ctx.Done():
-		return nil
-	}
-}
-
-func (tm *testModule) RegisterProbeEventHandler(cb onProbeEventHandler) {
-	tm.eventHandlers.Lock()
-	tm.eventHandlers.onProbeEvent = cb
-	tm.eventHandlers.Unlock()
-}
-
-func (tm *testModule) RegisterCustomSendEventHandler(cb onCustomSendEventHandler) {
-	tm.eventHandlers.Lock()
-	tm.eventHandlers.onCustomSendEvent = cb
-	tm.eventHandlers.Unlock()
-}
-
-func (tm *testModule) RegisterSendEventHandler(cb onSendEventHandler) {
-	tm.eventHandlers.Lock()
-	tm.eventHandlers.onSendEvent = cb
-	tm.eventHandlers.Unlock()
-}
-
-func (tm *testModule) GetProbeEvent(action func() error, cb func(event *model.Event) bool, timeout time.Duration, eventTypes ...model.EventType) error {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	message := make(chan ActionMessage, 1)
-
-	tm.RegisterProbeEventHandler(func(event *model.Event) {
-		if len(eventTypes) > 0 {
-			match := false
-			for _, eventType := range eventTypes {
-				if event.GetEventType() == eventType {
-					match = true
-					break
-				}
-			}
-			if !match {
-				return
-			}
-		}
-
-		select {
-		case <-ctx.Done():
-			return
-		case msg := <-message:
-			switch msg {
-			case Continue:
-				if cb(event) {
-					cancel()
-				} else {
-					message <- Continue
-				}
-			case Skip:
-				cancel()
-			}
-		}
-	})
-	defer tm.RegisterProbeEventHandler(nil)
-
-	if action == nil {
-		message <- Continue
-	} else {
-		if err := action(); err != nil {
-			message <- Skip
-			return err
-		}
-		message <- Continue
-	}
-
-	select {
-	case <-time.After(timeout):
-		return tm.NewTimeoutError()
-	case <-ctx.Done():
-		return nil
-	}
-}
-
-func (tm *testModule) Path(filename ...string) (string, unsafe.Pointer, error) {
-	return tm.st.Path(filename...)
-}
-
-func (tm *testModule) CreateWithOptions(filename string, user, group, mode int) (string, unsafe.Pointer, error) {
-	testFile, testFilePtr, err := tm.st.Path(filename)
-	if err != nil {
-		return testFile, testFilePtr, err
-	}
-
-	// Create file
-	f, err := os.OpenFile(testFile, os.O_CREATE, os.FileMode(mode))
-	if err != nil {
-		return "", nil, err
-	}
-	f.Close()
-
-	// Chown the file
-	err = os.Chown(testFile, user, group)
-	return testFile, testFilePtr, err
-}
-
-func (tm *testModule) Create(filename string) (string, unsafe.Pointer, error) {
-	testFile, testPtr, err := tm.st.Path(filename)
-	if err != nil {
-		return "", nil, err
-	}
-
-	f, err := os.Create(testFile)
-	if err != nil {
-		return "", nil, err
-	}
-
-	if err := f.Close(); err != nil {
-		return "", nil, err
-	}
-
-	return testFile, testPtr, err
 }
 
 //nolint:unused
@@ -1857,95 +1187,6 @@ func swapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, error) {
 	prevLevel, _ := seelog.LogLevelFromString(logLevelStr)
 	logLevelStr = logLevel.String()
 	return prevLevel, nil
-}
-
-type simpleTest struct {
-	root string
-}
-
-func (t *simpleTest) Root() string {
-	return t.root
-}
-
-func (t *simpleTest) ProcessName() string {
-	executable, _ := os.Executable()
-	return path.Base(executable)
-}
-
-func (t *simpleTest) Path(filename ...string) (string, unsafe.Pointer, error) {
-	components := []string{t.root}
-	components = append(components, filename...)
-	path := path.Join(components...)
-	filenamePtr, err := syscall.BytePtrFromString(path)
-	if err != nil {
-		return "", nil, err
-	}
-	return path, unsafe.Pointer(filenamePtr), nil
-}
-
-func (t *simpleTest) load(macros []*rules.MacroDefinition, rules []*rules.RuleDefinition) (err error) {
-	executeExpressionTemplate := func(expression string) (string, error) {
-		buffer := new(bytes.Buffer)
-		tmpl, err := template.New("").Parse(expression)
-		if err != nil {
-			return "", err
-		}
-
-		if err := tmpl.Execute(buffer, t); err != nil {
-			return "", err
-		}
-
-		return buffer.String(), nil
-	}
-
-	for _, rule := range rules {
-		if rule.Expression, err = executeExpressionTemplate(rule.Expression); err != nil {
-			return err
-		}
-	}
-
-	for _, macro := range macros {
-		if macro.Expression, err = executeExpressionTemplate(macro.Expression); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func createTempDir(tb testing.TB) (string, error) {
-	dir := tb.TempDir()
-	targetFileMode := fs.FileMode(0o711)
-
-	// chmod the root and its parent since TempDir returns a 2-layers directory `/tmp/TestNameXXXX/NNN/`
-	if err := os.Chmod(dir, targetFileMode); err != nil {
-		return "", err
-	}
-	if err := os.Chmod(filepath.Dir(dir), targetFileMode); err != nil {
-		return "", err
-	}
-
-	return dir, nil
-}
-
-func newSimpleTest(tb testing.TB, macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, testDir string) (*simpleTest, error) {
-	t := &simpleTest{
-		root: testDir,
-	}
-
-	if testDir == "" {
-		dir, err := createTempDir(tb)
-		if err != nil {
-			return nil, err
-		}
-		t.root = dir
-	}
-
-	if err := t.load(macros, rules); err != nil {
-		return nil, err
-	}
-
-	return t, nil
 }
 
 // systemUmask caches the system umask between tests
@@ -2506,4 +1747,39 @@ func (tm *testModule) GetADSelector(dumpID *activityDumpIdentifier) (*cgroupMode
 
 	selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", ad.Tags), utils.GetTagValue("image_tag", ad.Tags))
 	return &selector, err
+}
+
+// NewTimeoutError returns a new timeout error with the metrics collected during the test
+func (tm *testModule) NewTimeoutError() ErrTimeout {
+	var msg strings.Builder
+
+	msg.WriteString("timeout, details: ")
+	msg.WriteString(GetEBPFStatusMetrics(tm.probe))
+	msg.WriteString(spew.Sdump(ebpftelemetry.GetProbeStats()))
+
+	events := tm.ruleEngine.StopEventCollector()
+	if len(events) != 0 {
+		msg.WriteString("\nevents evaluated:\n")
+
+		for _, event := range events {
+			msg.WriteString(fmt.Sprintf("%s (eval=%v) {\n", event.Type, event.EvalResult))
+			for field, value := range event.Fields {
+				msg.WriteString(fmt.Sprintf("\t%s=%v,\n", field, value))
+			}
+			msg.WriteString("}\n")
+		}
+	}
+
+	return ErrTimeout{msg.String()}
+}
+
+func (tm *testModule) WaitSignals(tb testing.TB, action func() error, cbs ...func(event *model.Event, rule *rules.Rule) error) {
+	tb.Helper()
+
+	tm.waitSignal(tb, action, func(event *model.Event, rule *rules.Rule) error {
+		validateProcessContext(tb, event)
+
+		return tm.mapFilters(cbs...)(event, rule)
+	})
+
 }
