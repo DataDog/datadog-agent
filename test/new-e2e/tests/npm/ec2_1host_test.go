@@ -135,17 +135,9 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_600cnx_bucket() {
 			assert.LessOrEqualf(t, len(cnx.Connections), 600, "too many payloads")
 		})
 
-		found600plusConnections := false
 		hostPayloads := cnx.GetPayloadsByName(targetHostnameNetID)
 		lenHostPayloads := len(hostPayloads)
-		for i, cc := range hostPayloads {
-			// check if the 2 last payloads are following 600 connections and n connections
-			if len(cc.Connections) == 600 && (i == (lenHostPayloads - 2)) {
-				found600plusConnections = true
-				break
-			}
-		}
-		if !assert.Truef(c, found600plusConnections, "can't found enough connections 600+") {
+		if !assert.Equalf(c, len(hostPayloads[lenHostPayloads-2].Connections), 600, "can't found enough connections 600+") {
 			return
 		}
 
