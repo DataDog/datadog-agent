@@ -12,25 +12,77 @@ import (
 	"time"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/components/docker"
+	"github.com/DataDog/test-infra-definitions/resources/aws"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 
 	"github.com/stretchr/testify/assert"
 )
 
+type hostHttpbinEnv struct {
+	environments.Host
+	// Extra Components
+	HttpBinHost *components.RemoteHost
+}
 type ec2VMSuite struct {
-	e2e.BaseSuite[environments.Host]
+	e2e.BaseSuite[hostHttpbinEnv]
+}
+
+func hostDockerHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[hostHttpbinEnv] {
+	return func(ctx *pulumi.Context, env *hostHttpbinEnv) error {
+		awsEnv, err := aws.NewEnvironment(ctx)
+		if err != nil {
+			return err
+		}
+		env.Host.AwsEnvironment = &awsEnv
+
+		opts := []awshost.ProvisionerOption{
+			awshost.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPM)),
+		}
+		params := awshost.GetProvisionerParams(opts...)
+		awshost.HostRunFunction(ctx, &env.Host, params)
+
+		vmName := "httpbinvm"
+
+		nginxHost, err := ec2.NewVM(awsEnv, vmName)
+		if err != nil {
+			return err
+		}
+		err = nginxHost.Export(ctx, &env.HttpBinHost.HostOutput)
+		if err != nil {
+			return err
+		}
+
+		// install docker.io
+		manager, _, err := docker.NewManager(*awsEnv.CommonEnvironment, nginxHost, true)
+		if err != nil {
+			return err
+		}
+
+		composeContents := []docker.ComposeInlineManifest{dockerHTTPBinCompose()}
+		_, err = manager.ComposeStrUp("agent", composeContents, pulumi.StringMap{})
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
 }
 
 // TestEC2VMSuite will validate running the agent on a single EC2 VM
 func TestEC2VMSuite(t *testing.T) {
 	s := &ec2VMSuite{}
-	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPM))))}
+
+	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(e2e.NewTypedPulumiProvisioner("hostHttpbin", hostDockerHttpbinEnvProvisioner(), nil))}
 	// debug helper
 	if _, devmode := os.LookupEnv("TESTS_E2E_DEVMODE"); devmode {
 		e2eParams = append(e2eParams, e2e.WithDevMode())
@@ -62,12 +114,14 @@ func (v *ec2VMSuite) BeforeTest(suiteName, testName string) {
 //   - looking for 3 payloads and check if the last 2 have a span of 30s +/- 500ms
 func (v *ec2VMSuite) TestFakeIntakeNPM() {
 	t := v.T()
+	testURL := "http://" + v.Env().HttpBinHost.Address + "/"
+
+	// generate a connection
+	v.Env().RemoteHost.MustExecute("curl " + testURL)
 
 	targetHostnameNetID := ""
 	// looking for 1 host to send CollectorConnections payload to the fakeintake
 	v.EventuallyWithT(func(c *assert.CollectT) {
-		// generate a connection
-		v.Env().RemoteHost.MustExecute("curl http://www.datadoghq.com")
 
 		hostnameNetID, err := v.Env().FakeIntake.Client().GetConnectionsNames()
 		assert.NoError(c, err, "GetConnectionsNames() errors")
@@ -105,9 +159,10 @@ func (v *ec2VMSuite) TestFakeIntakeNPM() {
 //   - looking for n payloads and check if the last 2 have a maximum span of 100ms
 func (v *ec2VMSuite) TestFakeIntakeNPM_600cnx_bucket() {
 	t := v.T()
+	testURL := "http://" + v.Env().HttpBinHost.Address + "/"
 
 	// generate connections
-	v.Env().RemoteHost.MustExecute("ab -n 600 -c 600 http://www.datadoghq.com/")
+	v.Env().RemoteHost.MustExecute("ab -n 600 -c 600 " + testURL)
 
 	targetHostnameNetID := ""
 	// looking for 1 host to send CollectorConnections payload to the fakeintake
@@ -155,11 +210,13 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_600cnx_bucket() {
 // with some basic checks, like IPs/Ports present, DNS query has been captured, ...
 func (v *ec2VMSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
 	t := v.T()
+	testURL := "http://" + v.Env().HttpBinHost.Address + "/"
+
+	// generate connections
+	v.Env().RemoteHost.MustExecute("curl " + testURL)
+	v.Env().RemoteHost.MustExecute("dig @8.8.8.8 www.google.ch")
 
 	v.EventuallyWithT(func(c *assert.CollectT) {
-		// generate connections
-		v.Env().RemoteHost.MustExecute("curl http://www.datadoghq.com")
-		v.Env().RemoteHost.MustExecute("dig @8.8.8.8 www.google.ch")
 
 		cnx, err := v.Env().FakeIntake.Client().GetConnections()
 		assert.NoError(c, err, "GetConnections() errors")

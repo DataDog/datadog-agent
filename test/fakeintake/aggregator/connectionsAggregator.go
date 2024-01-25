@@ -80,7 +80,7 @@ func (ca *ConnectionsAggregator) ForeachHostnameConnections(callback func(cnx *C
 
 // ForeachConnection will call the callback for each connection per hostname/netID and CollectorConnections payloads
 func (ca *ConnectionsAggregator) ForeachConnection(callback func(c *agentmodel.Connection, cc *agentmodel.CollectorConnections, hostname string)) {
-	ca.ForeachHostname(func(cnx *Connections, hostname string) {
+	ca.ForeachHostnameConnections(func(cnx *Connections, hostname string) {
 		for _, c := range cnx.Connections {
 			callback(c, &cnx.CollectorConnections, hostname)
 		}
