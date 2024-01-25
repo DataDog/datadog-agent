@@ -309,7 +309,7 @@ func (p *WindowsProbe) Start() error {
 							ev.CreateNewFile = model.CreateNewFileEvent{
 								File: model.FileEvent{
 									PathnameStr: ca.FileName,
-									BasenameStr: ca.fileName
+									BasenameStr: ca.fileName,
 								} 
 							}
 
