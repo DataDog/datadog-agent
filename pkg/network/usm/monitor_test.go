@@ -215,7 +215,7 @@ func (s *httpTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
 	})
 
 	fastSrvDoneFn := testutil.HTTPServer(t, fastServerAddr, testutil.Options{})
-	abortedRequestFn := requestGenerator(t, fmt.Sprintf("%s/ignore", slowServerAddr), emptyBody)
+	abortedRequestFn := requestGenerator(t, nil, fmt.Sprintf("%s/ignore", slowServerAddr), emptyBody)
 	wg := sync.WaitGroup{}
 	abortedRequests := make(chan *nethttp.Request, 100)
 	for i := 0; i < 100; i++ {
@@ -226,7 +226,7 @@ func (s *httpTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
 			abortedRequests <- req
 		}()
 	}
-	fastReq := requestGenerator(t, fastServerAddr, emptyBody)()
+	fastReq := requestGenerator(t, nil, fastServerAddr, emptyBody)()
 	wg.Wait()
 	close(abortedRequests)
 	slowSrvDoneFn()
@@ -288,7 +288,7 @@ func (s *httpTestSuite) TestHTTPMonitorIntegrationWithResponseBody() {
 			})
 			t.Cleanup(srvDoneFn)
 
-			requestFn := requestGenerator(t, serverAddr, bytes.Repeat([]byte("a"), tt.requestBodySize))
+			requestFn := requestGenerator(t, nil, serverAddr, bytes.Repeat([]byte("a"), tt.requestBodySize))
 			var requests []*nethttp.Request
 			for i := 0; i < 100; i++ {
 				requests = append(requests, requestFn())
@@ -352,9 +352,9 @@ func (s *httpTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 			})
 			t.Cleanup(srvDoneFn)
 
-			// Create a request generator `requestGenerator(t, serverAddr, emptyBody)`, and runs it once. We save
+			// Create a request generator `requestGenerator(t, nil, serverAddr, emptyBody)`, and runs it once. We save
 			// the request for a later comparison.
-			req := requestGenerator(t, serverAddr, emptyBody)()
+			req := requestGenerator(t, nil, serverAddr, emptyBody)()
 			srvDoneFn()
 
 			// Ensure all captured transactions get sent to user-space
@@ -411,7 +411,7 @@ func (s *httpTestSuite) TestSanity() {
 					t.Cleanup(srvDoneFn)
 
 					// Create a request generator that will be used to randomly generate requests and send them to the server.
-					requestFn := requestGenerator(t, tt.targetAddress, emptyBody)
+					requestFn := requestGenerator(t, nil, tt.targetAddress, emptyBody)
 					var requests []*nethttp.Request
 					for i := 0; i < 100; i++ {
 						// Send a request to the server and save it for later comparison.
@@ -577,21 +577,24 @@ var (
 	statusCodes         = []int{nethttp.StatusOK, nethttp.StatusMultipleChoices, nethttp.StatusBadRequest, nethttp.StatusInternalServerError}
 )
 
-func requestGenerator(t *testing.T, targetAddr string, reqBody []byte) func() *nethttp.Request {
+func requestGenerator(t *testing.T, outerClient *nethttp.Client, targetAddr string, reqBody []byte) func() *nethttp.Request {
 	var (
 		random  = rand.New(rand.NewSource(time.Now().Unix()))
 		idx     = 0
-		client  = new(nethttp.Client)
 		reqBuf  = make([]byte, 0, len(reqBody))
 		respBuf = make([]byte, 512)
 	)
 
-	// Disabling http2
-	tr := nethttp.DefaultTransport.(*nethttp.Transport).Clone()
-	tr.ForceAttemptHTTP2 = false
-	tr.TLSNextProto = make(map[string]func(authority string, c *tls.Conn) nethttp.RoundTripper)
+	client := outerClient
+	if client == nil {
+		client = new(nethttp.Client)
+		// Disabling http2
+		tr := nethttp.DefaultTransport.(*nethttp.Transport).Clone()
+		tr.ForceAttemptHTTP2 = false
+		tr.TLSNextProto = make(map[string]func(authority string, c *tls.Conn) nethttp.RoundTripper)
 
-	client.Transport = tr
+		client.Transport = tr
+	}
 
 	return func() *nethttp.Request {
 		idx++
