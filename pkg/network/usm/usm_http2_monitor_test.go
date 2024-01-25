@@ -299,6 +299,7 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 }
 
 var (
+	// pathExceedingMaxSize is path with size 166, which is exceeding the maximum path size in the kernel (HTTP2_MAX_PATH_LEN).
 	pathExceedingMaxSize = "X2YRUwfeNEmYWkk0bACThVya8MoSUkR7ZKANCPYkIGHvF9CWGA0rxXKsGogQag7HsJfmgaar3TiOTRUb3ynbmiOz3As9rXYjRGNRdCWGgdBPL8nGa6WheGlJLNtIVsUcxSerNQKmoQqqDLjGftbKXjqdMJLVY6UyECeXOKrrFU9aHx2fjlk2qMNDUptYWuzPPCWAnKOV7Ph"
 
 	http2UniquePaths = []string{
@@ -725,8 +726,9 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 		{
 			name: "validate capability to process up to max limit filtering frames",
 			// The purpose of this test is to verify our ability to process up to HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING frames.
-			// We write the path "/aaa" for the first time with 25 headers. When we exceed the limit, we expect to lose
-			// our internal counter (because we can filter up to 25 requests), and therefore, the next time we write the request "/aaa",
+			// We write the path "/aaa" for the first time with an additional 25 headers (reaching to a total of 26 headers).
+			// When we exceed the limit, we expect to lose our internal counter (because we can filter up to 25 requests),
+			// and therefore, the next time we write the request "/aaa",
 			// its internal index will not be correct, and we will not be able to find it.
 			messageBuilder: func() []byte {
 				const multiHeadersCount = 25
@@ -759,24 +761,18 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			expectedEndpoints: nil,
 		},
 		{
-			name: "validate DELETE method",
-			// The purpose of this test is to validate that we are not supporting http2 request with method DELETE.
+			name: "validate http methods",
+			// The purpose of this test is to validate that we are not supporting http2 methods different from POST and GET.
 			messageBuilder: func() []byte {
+				httpMethods = []string{http.MethodHead, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions}
 				framer := newFramer()
-				return framer.
-					writeHeaders(t, getStreamID(1), headersWithGivenPathMethod("PUT"), false).
-					writeData(t, getStreamID(1), true, []byte{}).bytes()
-			},
-			expectedEndpoints: nil,
-		},
-		{
-			name: "validate PUT method",
-			// The purpose of this test is to validate that we are not supporting http2 request with method PUT.
-			messageBuilder: func() []byte {
-				framer := newFramer()
-				return framer.
-					writeHeaders(t, getStreamID(1), headersWithGivenPathMethod("PUT"), false).
-					writeData(t, getStreamID(1), true, []byte{}).bytes()
+				for i, method := range httpMethods {
+					streamID := getStreamID(i)
+					framer.
+						writeHeaders(t, streamID, headersWithGivenPathMethod(method), false).
+						writeData(t, streamID, true, []byte{})
+				}
+				return framer.bytes()
 			},
 			expectedEndpoints: nil,
 		},
@@ -793,13 +789,12 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 		},
 		{
 			name: "validate path sent by value (:path)",
-			// The purpose of this test is to verify our ability to identify paths with index 4.
+			// The purpose of this test is to verify our ability to identify paths which were sent with a key that
+			// sent by value (:path).
 			messageBuilder: func() []byte {
-
 				headerFields := removeHeaderFieldByKey(testHeaders(), ":path")
 				headersFrame, err := usmhttp2.NewHeadersFrameMessage(headerFields)
 				require.NoError(t, err, "could not create headers frame")
-
 				// pathHeaderField is created with a key that sent by value (:path) and
 				// the value (of the path) is /aaa.
 				pathHeaderField := []byte{0x40, 0x84, 0xb9, 0x58, 0xd3, 0x3f, 0x83, 0x60, 0x63, 0x1f}
@@ -902,9 +897,6 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.skip {
-				t.Skip("skipping test")
-			}
 
 			usmMonitor := setupUSMTLSMonitor(t, cfg)
 			if s.isTLS {
@@ -998,10 +990,6 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.skip {
-				t.Skip("skipping test")
-			}
-
 			usmMonitor := setupUSMTLSMonitor(t, cfg)
 			if s.isTLS {
 				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
