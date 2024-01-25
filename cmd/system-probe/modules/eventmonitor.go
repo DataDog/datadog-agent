@@ -55,7 +55,11 @@ func createEventMonitorModule(sysProbeConfig *sysconfigtypes.Config) (module.Mod
 		log.Info("event monitoring cws consumer initialized")
 	}
 
-	if emconfig.NetworkConsumerEnabled {
+	// only add the network consumer if the pkg/network/events
+	// module was initialized by the network tracer module
+	// (this will happen only if the network consumer is enabled
+	// in config and the network tracer module is loaded successfully)
+	if events.Initialized() {
 		network, err := events.NewNetworkConsumer(evm)
 		if err != nil {
 			return nil, err

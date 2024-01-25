@@ -62,6 +62,11 @@ func Init() error {
 	return initErr
 }
 
+// Initialized returns true if Init() has been called successfully
+func Initialized() bool {
+	return theMonitor.Load() != nil
+}
+
 //nolint:revive // TODO(NET) Fix revive linter
 type ProcessEventHandler interface {
 	HandleProcessEvent(*Process)
@@ -101,32 +106,33 @@ func (h *eventHandlerWrapper) HandleEvent(ev any) {
 
 // Copy copies the necessary fields from the event received from the event monitor
 func (h *eventHandlerWrapper) Copy(ev *model.Event) any {
-	m := theMonitor.Load()
-	if m != nil {
-		// If this consumer subscribes to more event types, this block will have to account for those additional event types
-		var processStartTime time.Time
-		if ev.GetEventType() == model.ExecEventType {
-			processStartTime = ev.GetProcessExecTime()
-		}
-		if ev.GetEventType() == model.ForkEventType {
-			processStartTime = ev.GetProcessForkTime()
-		}
-
-		envs := ev.GetProcessEnvp()
-
-		return &Process{
-			Pid:         ev.GetProcessPid(),
-			ContainerID: intern.GetByString(ev.GetContainerId()),
-			StartTime:   processStartTime.UnixNano(),
-			Envs: model.FilterEnvs(envs, map[string]bool{
-				"DD_SERVICE": true,
-				"DD_VERSION": true,
-				"DD_ENV":     true,
-			}),
-		}
+	if theMonitor.Load() == nil {
+		// monitor is not initialized, so need to copy the event
+		// since it will get dropped by the handler anyway
+		return nil
 	}
 
-	return nil
+	// If this consumer subscribes to more event types, this block will have to account for those additional event types
+	var processStartTime time.Time
+	if ev.GetEventType() == model.ExecEventType {
+		processStartTime = ev.GetProcessExecTime()
+	}
+	if ev.GetEventType() == model.ForkEventType {
+		processStartTime = ev.GetProcessForkTime()
+	}
+
+	envs := ev.GetProcessEnvp()
+
+	return &Process{
+		Pid:         ev.GetProcessPid(),
+		ContainerID: intern.GetByString(ev.GetContainerId()),
+		StartTime:   processStartTime.UnixNano(),
+		Envs: model.FilterEnvs(envs, map[string]bool{
+			"DD_SERVICE": true,
+			"DD_VERSION": true,
+			"DD_ENV":     true,
+		}),
+	}
 }
 
 func (h *eventHandlerWrapper) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {

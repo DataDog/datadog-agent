@@ -20,6 +20,8 @@ var All = []module.Factory{
 	NetworkTracer,
 	TCPQueueLength,
 	OOMKillProbe,
+	// there is a dependency from EventMonitor -> NetworkTracer
+	// so EventMonitor has to follow NetworkTracer
 	EventMonitor,
 	Process,
 	DynamicInstrumentation,
