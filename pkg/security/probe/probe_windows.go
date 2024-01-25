@@ -298,6 +298,14 @@ func (p *WindowsProbe) Start() error {
 				}
 				ev.Exit.Process = &pce.Process
 			case e := <-p.onFimEvent:
+				pce = p.Resolvers.ProcessResolver.GetEntry(e.EventHeader.ProcessID)
+				if pce == nil {
+					pce, err = p.Resolvers.ProcessResolver.AddNewEntry(e.EventHeader.ProcessID, uint32(start.PPid), start.ImageFile, start.CmdLine)
+					if err != nil {
+						log.Errorf("error in resolver---------------------- %v", err)
+						continue
+					}
+				}
 				switch e.EventHeader.ProviderID {
 				case etw.DDGUID(p.fileguid):
 					switch e.EventHeader.EventDescriptor.ID {
@@ -305,7 +313,7 @@ func (p *WindowsProbe) Start() error {
 					case idCreateNewFile:
 						if ca, err := parseCreateArgs(e); err == nil {
 							log.Infof("Got create/create new file on file %s", ca.string())
-
+							
 							ev.Type = uint32(model.CreateNewFileEventType)
 							ev.CreateNewFile = model.CreateNewFileEvent{
 								File: model.FileEvent{
@@ -313,7 +321,7 @@ func (p *WindowsProbe) Start() error {
 									BasenameStr: ca.fileName,
 								},
 							}
-
+							log.Infof("event -----------:" ev)
 						}
 					case idCleanup:
 						fallthrough
