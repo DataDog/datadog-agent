@@ -12,7 +12,6 @@
 #include "cookie.h"
 #include "ip.h"
 #include "port_range.h"
-#include <linux/version.h>
 
 #ifdef COMPILE_CORE
 #define MSG_PEEK 2
@@ -45,7 +44,7 @@ static __always_inline void clean_protocol_classification(conn_tuple_t *tup) {
 static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct sock *sk) {
     u32 cpu = bpf_get_smp_processor_id();
 
-    // Will hold the full connection data to send through the perf buffer
+    // Will hold the full connection data to send through the perf or ring buffer
     conn_t conn = { .tup = *tup };
     conn_stats_ts_t *cst = NULL;
     tcp_stats_t *tst = NULL;
