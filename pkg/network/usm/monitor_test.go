@@ -36,7 +36,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	gotlsutils "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/proxy"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
@@ -210,7 +209,7 @@ func (s *httpTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
 	slowServerAddr := "localhost:8080"
 	fastServerAddr := "localhost:8081"
 
-	monitor := newHTTPMonitorWithCfg(t, config.New())
+	monitor := setupUSMTLSMonitor(t, s.getCfg())
 	slowSrvDoneFn := testutil.HTTPServer(t, slowServerAddr, testutil.Options{
 		SlowResponse: time.Millisecond * 500, // Half a second.
 		WriteTimeout: time.Millisecond * 200,
@@ -465,7 +464,7 @@ func (s *httpTestSuite) TestRSTPacketRegression() {
 		t.Skip("TLS not supported for this setup")
 	}
 
-	monitor := newHTTPMonitorWithCfg(t, config.New())
+	monitor := setupUSMTLSMonitor(t, s.getCfg())
 
 	serverAddr := "127.0.0.1:8080"
 	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
@@ -507,7 +506,7 @@ func (s *httpTestSuite) TestKeepAliveWithIncompleteResponseRegression() {
 		t.Skip("TLS not supported for this setup")
 	}
 
-	monitor := newHTTPMonitorWithCfg(t, config.New())
+	monitor := setupUSMTLSMonitor(t, s.getCfg())
 
 	const req = "GET /200/foobar HTTP/1.1\n"
 	const rsp = "HTTP/1.1 200 OK\n"
@@ -716,23 +715,6 @@ func countRequestOccurrences(allStats map[http.Key]*http.RequestStats, req *neth
 	}
 
 	return occurrences
-}
-
-func newHTTPMonitorWithCfg(t *testing.T, cfg *config.Config) *Monitor {
-	cfg.EnableHTTPMonitoring = true
-
-	monitor, err := NewMonitor(cfg, nil, nil, nil)
-	skipIfNotSupported(t, err)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		monitor.Stop()
-		libtelemetry.Clear()
-	})
-
-	// at this stage the test can be legitimately skipped due to missing BTF information
-	// in the context of CO-RE
-	require.NoError(t, monitor.Start())
-	return monitor
 }
 
 func skipIfNotSupported(t *testing.T, err error) {
