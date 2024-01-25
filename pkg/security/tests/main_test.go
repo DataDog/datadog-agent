@@ -59,6 +59,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"TestProcessContext/pid1",
 			"~TestProcessBusybox",
 			"TestRename/io_uring",
+			"TestRenameReuseInode",
 			"TestUnlink/io_uring",
 			"TestRmdir/unlinkat-io_uring",
 		}
