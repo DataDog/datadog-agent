@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
+	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	javatestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/java/testutil"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
@@ -776,7 +777,10 @@ func setupUSMTLSMonitor(t *testing.T, cfg *config.Config) *Monitor {
 	usmMonitor, err := NewMonitor(cfg, nil, nil, nil)
 	require.NoError(t, err)
 	require.NoError(t, usmMonitor.Start())
-	t.Cleanup(usmMonitor.Stop)
+	t.Cleanup(func() {
+		usmMonitor.Stop()
+		libtelemetry.Clear()
+	})
 	t.Cleanup(utils.ResetDebugger)
 	return usmMonitor
 }
