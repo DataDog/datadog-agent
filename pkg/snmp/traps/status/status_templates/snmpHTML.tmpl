@@ -1,11 +1,13 @@
- <div class="stat">
-  <span class="stat_title">SNMP Traps</span>
-  <span class="stat_data">
-      {{- if .error }}
-        Error: {{.error}}<br>
-      {{- end }}
-      {{- range $key, $value := .metrics}}
-        {{formatTitle $key}}: {{humanize $value}}<br>
-      {{- end }}
-  </span>
-</div>
+{{- with .snmpTrapsStats }}
+  <div class="stat">
+    <span class="stat_title">SNMP Traps</span>
+    <span class="stat_data">
+        {{- if .error }}
+          Error: {{.error}}<br>
+        {{- end }}
+        {{- range $key, $value := .metrics}}
+          {{formatTitle $key}}: {{humanize $value}}<br>
+        {{- end }}
+    </span>
+  </div>
+{{- end }}

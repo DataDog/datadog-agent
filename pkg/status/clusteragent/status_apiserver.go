@@ -13,8 +13,8 @@ import (
 	"io"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 )
@@ -60,8 +60,8 @@ func GetDCAStatus(stats map[string]interface{}) {
 type Provider struct{}
 
 // GetProvider if cluster agent is enabled returns status.Provider otherwise returns NoopProvider
-func GetProvider() status.Provider {
-	if config.Datadog.GetBool("cluster_agent.enabled") || config.Datadog.GetBool("cluster_checks.enabled") {
+func GetProvider(conf config.Component) status.Provider {
+	if conf.GetBool("cluster_agent.enabled") || conf.GetBool("cluster_checks.enabled") {
 		return Provider{}
 	}
 

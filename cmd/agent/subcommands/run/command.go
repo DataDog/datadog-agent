@@ -307,12 +307,22 @@ func getSharedFxOption() fx.Option {
 			status.NewHeaderInformationProvider(net.Provider{}),
 			status.NewInformationProvider(jmxStatus.Provider{}),
 			status.NewInformationProvider(endpointsStatus.Provider{}),
-			status.NewInformationProvider(snmpStatus.GetProvider()),
-			status.NewInformationProvider(clusteragentStatus.GetProvider()),
-			status.NewInformationProvider(systemprobeStatus.GetProvider()),
-			status.NewInformationProvider(httpproxyStatus.GetProvider()),
-			status.NewInformationProvider(autodiscoveryStatus.GetProvider()),
 		),
+		fx.Provide(func(config config.Component) status.InformationProvider {
+			return status.NewInformationProvider(snmpStatus.GetProvider(config))
+		}),
+		fx.Provide(func(config config.Component) status.InformationProvider {
+			return status.NewInformationProvider(clusteragentStatus.GetProvider(config))
+		}),
+		fx.Provide(func(config config.Component) status.InformationProvider {
+			return status.NewInformationProvider(systemprobeStatus.GetProvider(config))
+		}),
+		fx.Provide(func(config config.Component) status.InformationProvider {
+			return status.NewInformationProvider(httpproxyStatus.GetProvider(config))
+		}),
+		fx.Provide(func(config config.Component) status.InformationProvider {
+			return status.NewInformationProvider(autodiscoveryStatus.GetProvider())
+		}),
 		traceagentStatusImpl.Module(),
 		processagentStatusImpl.Module(),
 		dogstatsdStatusimpl.Module(),

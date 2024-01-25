@@ -10,8 +10,8 @@ import (
 	"embed"
 	"io"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
@@ -22,8 +22,8 @@ var templatesFS embed.FS
 type Provider struct{}
 
 // GetProvider if no_proxy_nonexact_match is disabled returns status.Provider otherwise returns NoopProvider
-func GetProvider() status.Provider {
-	if !config.Datadog.GetBool("no_proxy_nonexact_match") {
+func GetProvider(conf config.Component) status.Provider {
+	if !conf.GetBool("no_proxy_nonexact_match") {
 		return Provider{}
 	}
 

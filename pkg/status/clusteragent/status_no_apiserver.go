@@ -8,6 +8,7 @@
 package clusteragent
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -23,7 +24,7 @@ func GetDCAStatus(_ map[string]interface{}) {
 }
 
 // GetProvider returns NoopProvider
-func GetProvider() status.Provider {
+func GetProvider(_ config.Component) status.Provider {
 	return status.NoopProvider{}
 }
 

@@ -13,8 +13,8 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 )
 
@@ -45,10 +45,10 @@ type Provider struct {
 }
 
 // GetProvider if system probe is enabled returns status.Provider otherwise returns NoopProvider
-func GetProvider() status.Provider {
-	if config.SystemProbe.GetBool("system_probe_config.enabled") {
+func GetProvider(conf config.Component) status.Provider {
+	if conf.GetBool("system_probe_config.enabled") {
 		return Provider{
-			SocketPath: config.SystemProbe.GetString("system_probe_config.sysprobe_socket"),
+			SocketPath: conf.GetString("system_probe_config.sysprobe_socket"),
 		}
 	}
 
