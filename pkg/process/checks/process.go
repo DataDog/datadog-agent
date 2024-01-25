@@ -116,7 +116,7 @@ type ProcessCheck struct {
 func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool) error {
 	p.hostInfo = info
 	p.sysProbeConfig = syscfg
-	p.probe = newProcessProbe(p.config, procutil.WithPermission(syscfg.ProcessModuleEnabled))
+	p.probe = newProcessProbe(p.config, procutil.WithPermission(syscfg.ProcessModuleEnabled), procutil.WithIgnoreZombieProcesses(p.config.GetBool(configDisallowZombies)))
 	p.containerProvider = proccontainers.GetSharedContainerProvider()
 
 	p.notInitializedLogLimit = util.NewLogLimit(1, time.Minute*10)
