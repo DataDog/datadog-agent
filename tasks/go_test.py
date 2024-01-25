@@ -134,7 +134,7 @@ def test_flavor(
                     with open(cov_test_path.replace('.ps1', '.bat'), 'w', encoding='utf-8') as f:
                         f.write(
                             """@echo off
-    powershell.exe -executionpolicy Bypass -file test_with_coverage.ps1"""
+powershell.exe -executionpolicy Bypass -file test_with_coverage.ps1"""
                         )
 
                 os.chmod(cov_test_path, 0o755)
