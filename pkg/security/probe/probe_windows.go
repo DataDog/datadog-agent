@@ -299,12 +299,9 @@ func (p *WindowsProbe) Start() error {
 				ev.Exit.Process = &pce.Process
 			case e := <-p.onFimEvent:
 				pce = p.Resolvers.ProcessResolver.GetEntry(e.EventHeader.ProcessID)
-				if pce == nil {
-					pce, err = p.Resolvers.ProcessResolver.AddNewEntry(e.EventHeader.ProcessID, uint32(start.PPid), start.ImageFile, start.CmdLine)
-					if err != nil {
-						log.Errorf("error in resolver---------------------- %v", err)
-						continue
-					}
+				if err != nil {
+					log.Errorf("error in resolver---------------------- %v", err)
+					continue
 				}
 				switch e.EventHeader.ProviderID {
 				case etw.DDGUID(p.fileguid):
