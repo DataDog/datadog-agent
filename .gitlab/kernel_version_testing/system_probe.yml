@@ -175,35 +175,31 @@ kernel_matrix_testing_run_system_probe_tests_x64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:amd64"]
   needs:
-    [
-      "kernel_matrix_testing_setup_env_system_probe_x64",
-      "upload_dependencies_system_probe_x64",
-      "upload_system_probe_tests_x64",
-      "upload_minimized_btfs_system_probe_x64",
-    ]
+    - kernel_matrix_testing_setup_env_system_probe_x64
+    - upload_dependencies_system_probe_x64
+    - upload_system_probe_tests_x64
+    - upload_minimized_btfs_system_probe_x64
   timeout: 3h
   variables:
     ARCH: "x86_64"
   parallel:
     matrix:
       - TAG:
-          [
-            "ubuntu_16.04",
-            "ubuntu_18.04",
-            "ubuntu_20.04",
-            "ubuntu_22.04",
-            "ubuntu_23.10",
-            "amzn_4.14",
-            "amzn_5.4",
-            "amzn_5.10",
-            "fedora_37",
-            "fedora_38",
-            "debian_10",
-            "debian_11",
-            "debian_12",
-            "centos_79",
-            "centos_8",
-          ]
+          - "ubuntu_16.04"
+          - "ubuntu_18.04"
+          - "ubuntu_20.04"
+          - "ubuntu_22.04"
+          - "ubuntu_23.10"
+          - "amzn_4.14"
+          - "amzn_5.4"
+          - "amzn_5.10"
+          - "fedora_37"
+          - "fedora_38"
+          - "debian_10"
+          - "debian_11"
+          - "debian_12"
+          - "centos_79"
+          - "centos_8"
         TEST_SET: ["no_tracersuite", "only_tracersuite"]
 
 kernel_matrix_testing_run_system_probe_tests_arm64:
@@ -212,34 +208,30 @@ kernel_matrix_testing_run_system_probe_tests_arm64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:arm64"]
   needs:
-    [
-      "kernel_matrix_testing_setup_env_system_probe_arm64",
-      "upload_dependencies_system_probe_arm64",
-      "upload_system_probe_tests_arm64",
-      "upload_minimized_btfs_system_probe_arm64",
-    ]
+    - kernel_matrix_testing_setup_env_system_probe_arm64
+    - upload_dependencies_system_probe_arm64
+    - upload_system_probe_tests_arm64
+    - upload_minimized_btfs_system_probe_arm64
   timeout: 3h
   variables:
     ARCH: "arm64"
   parallel:
     matrix:
       - TAG:
-          [
-            "ubuntu_18.04",
-            "ubuntu_20.04",
-            "ubuntu_22.04",
-            "ubuntu_23.10",
-            "amzn_4.14",
-            "amzn_5.4",
-            "amzn_5.10",
-            "fedora_37",
-            "fedora_38",
-            "debian_10",
-            "debian_11",
-            "debian_12",
-            "centos_79",
-            "centos_8",
-          ]
+          - "ubuntu_18.04"
+          - "ubuntu_20.04"
+          - "ubuntu_22.04"
+          - "ubuntu_23.10"
+          - "amzn_4.14"
+          - "amzn_5.4"
+          - "amzn_5.10"
+          - "fedora_37"
+          - "fedora_38"
+          - "debian_10"
+          - "debian_11"
+          - "debian_12"
+          - "centos_79"
+          - "centos_8"
         TEST_SET: ["no_tracersuite", "only_tracersuite"]
 
 kernel_matrix_testing_system_probe_cleanup_arm64:
