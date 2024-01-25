@@ -60,7 +60,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
-var mineTypeMap = map[string]string{
+var mimeTypeMap = map[string]string{
 	"text": "text/plain",
 	"json": "application/json",
 }
@@ -225,12 +225,12 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 	format := r.URL.Query().Get("format")
 	var contentType string
 
-	contentType, ok := mineTypeMap[format]
+	contentType, ok := mimeTypeMap[format]
 
 	if !ok {
 		log.Warn("Got a request with invalid format parameter. Defaulting to 'text' format")
 		format = "text"
-		contentType = mineTypeMap[format]
+		contentType = mimeTypeMap[format]
 	}
 	w.Header().Set("Content-Type", contentType)
 
