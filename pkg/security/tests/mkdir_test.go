@@ -25,6 +25,8 @@ import (
 )
 
 func TestMkdir(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_mkdir",
@@ -60,9 +62,7 @@ func TestMkdir(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_mkdir")
 			assertRights(t, uint16(event.Mkdir.Mode), mkdirMode)
-			if !test.opts.staticOpts.enableEBPFLess {
-				assert.Equal(t, getInode(t, testFile), event.Mkdir.File.Inode, "wrong inode")
-			}
+			assertInode(t, event.Mkdir.File.Inode, getInode(t, testFile))
 			assertRights(t, event.Mkdir.File.Mode, expectedMode)
 			assertNearTime(t, event.Mkdir.File.MTime)
 			assertNearTime(t, event.Mkdir.File.CTime)
@@ -86,13 +86,11 @@ func TestMkdir(t *testing.T) {
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_mkdirat")
-			if !test.opts.staticOpts.enableEBPFLess {
-				assert.Equal(t, getInode(t, testatFile), event.Mkdir.File.Inode, "wrong inode")
-			}
 			assertRights(t, uint16(event.Mkdir.Mode), 0777)
 			assertRights(t, event.Mkdir.File.Mode&expectedMode, expectedMode)
 			assertNearTime(t, event.Mkdir.File.MTime)
 			assertNearTime(t, event.Mkdir.File.CTime)
+			assertInode(t, event.Mkdir.File.Inode, getInode(t, testatFile))
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
@@ -100,9 +98,8 @@ func TestMkdir(t *testing.T) {
 	})
 
 	t.Run("io_uring", func(t *testing.T) {
-		if test.opts.staticOpts.enableEBPFLess {
-			t.Skip("io_uring not supported")
-		}
+		SkipIfNotAvailable(t)
+
 		testatFile, _, err := test.Path("testat-mkdir")
 		if err != nil {
 			t.Fatal(err)
@@ -165,6 +162,8 @@ func TestMkdir(t *testing.T) {
 }
 
 func TestMkdirError(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_mkdirat_error",
