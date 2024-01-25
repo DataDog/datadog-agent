@@ -33,7 +33,7 @@ from .trace_agent import integration_tests as trace_integration_tests
 
 PROFILE_COV = "\"coverage.out\""
 TMP_PROFILE_COV_PREFIX = "coverage.out.rerun"
-GO_COV_TEST_PATH = "test_with_coverage" + ".ps1" if platform.system() == 'Windows' else ".sh"
+GO_COV_TEST_PATH = "test_with_coverage" + (".ps1" if platform.system() == 'Windows' else ".sh")
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
 WINDOWS_MAX_PACKAGES_NUMBER = 150
 
