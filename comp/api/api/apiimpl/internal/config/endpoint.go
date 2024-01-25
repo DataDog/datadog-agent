@@ -33,7 +33,6 @@ type configEndpoint struct {
 	expvars            *expvar.Map
 	successExpvar      expvar.Map
 	unauthorizedExpvar expvar.Map
-	unsetExpvar        expvar.Map
 	errorsExpvar       expvar.Map
 }
 
@@ -53,12 +52,6 @@ func (c *configEndpoint) getConfigValueHandler(w http.ResponseWriter, r *http.Re
 
 	log.Debug("config endpoint received a request from '%s' for config '%s'", r.RemoteAddr, path)
 	value := c.cfg.Get(path)
-	if value == nil {
-		c.unsetExpvar.Add(path, 1)
-		http.Error(w, fmt.Sprintf("no runtime setting found for %s", path), http.StatusNotFound)
-		return
-	}
-
 	c.marshalAndSendResponse(w, path, value)
 }
 
@@ -66,12 +59,7 @@ func (c *configEndpoint) getAllConfigValuesHandler(w http.ResponseWriter, r *htt
 	log.Debug("config endpoint received a request from '%s' for all authorized config values", r.RemoteAddr)
 	allValues := make(map[string]interface{}, len(c.authorizedConfigPaths))
 	for key := range c.authorizedConfigPaths {
-		value := c.cfg.Get(key)
-		if value == nil {
-			c.unsetExpvar.Add(key, 1)
-			continue
-		}
-		allValues[key] = value
+		allValues[key] = c.cfg.Get(key)
 	}
 
 	c.marshalAndSendResponse(w, "/", allValues)
@@ -101,7 +89,6 @@ func getConfigEndpoint(cfg config.Reader, authorizedConfigPaths authorizedSet, e
 	for name, expv := range map[string]*expvar.Map{
 		"success":      &configEndpoint.successExpvar,
 		"unauthorized": &configEndpoint.unauthorizedExpvar,
-		"unset":        &configEndpoint.unsetExpvar,
 		"errors":       &configEndpoint.errorsExpvar,
 	} {
 		configEndpoint.expvars.Set(name, expv)

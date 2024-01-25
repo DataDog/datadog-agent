@@ -30,7 +30,6 @@ type expvals struct {
 	Success      map[string]int `json:"success"`
 	Errors       map[string]int `json:"errors"`
 	Unauthorized map[string]int `json:"unauthorized"`
-	Unset        map[string]int `json:"unset"`
 }
 
 func testConfigValue(t *testing.T, configEndpoint *configEndpoint, server *httptest.Server, configName string, expectedStatus int) {
@@ -62,21 +61,15 @@ func testConfigValue(t *testing.T, configEndpoint *configEndpoint, server *httpt
 
 func TestConfigEndpoint(t *testing.T) {
 	t.Run("core_config", func(t *testing.T) {
-		cfg, server, configEndpoint := getConfigServer(t, authorizedConfigPathsCore)
+		_, server, configEndpoint := getConfigServer(t, authorizedConfigPathsCore)
 		for configName := range authorizedConfigPathsCore {
-			var expectedStatus int
-			if cfg.IsSet(configName) {
-				expectedStatus = http.StatusOK
-			} else {
-				expectedStatus = http.StatusNotFound
-			}
-			testConfigValue(t, configEndpoint, server, configName, expectedStatus)
+			testConfigValue(t, configEndpoint, server, configName, http.StatusOK)
 		}
 	})
 
 	for _, testCase := range []testCase{
 		{"authorized_existing_config", true, true, http.StatusOK},
-		{"authorized_missing_config", true, false, http.StatusNotFound},
+		{"authorized_missing_config", true, false, http.StatusOK},
 		{"unauthorized_existing_config", false, true, http.StatusForbidden},
 		{"unauthorized_missing_config", false, false, http.StatusForbidden},
 	} {
@@ -152,9 +145,7 @@ func TestConfigListEndpoint(t *testing.T) {
 
 				expectedValues := make(map[string]interface{})
 				for key := range test.authorizedConfigs {
-					if value := cfg.Get(key); value != nil {
-						expectedValues[key] = value
-					}
+					expectedValues[key] = cfg.Get(key)
 				}
 
 				assert.Equal(t, expectedValues, configValues)
@@ -170,8 +161,6 @@ func checkExpvars(t *testing.T, beforeVars, afterVars expvals, configName string
 	switch expectedStatus {
 	case http.StatusOK:
 		beforeVars.Success[configName]++
-	case http.StatusNotFound:
-		beforeVars.Unset[configName]++
 	case http.StatusForbidden:
 		beforeVars.Unauthorized[configName]++
 	case http.StatusInternalServerError:
