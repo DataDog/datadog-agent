@@ -11,18 +11,16 @@
     - set +e
     - for f in junit-new-e2e-*.tgz; do inv -e junit-upload --tgz-path "$f"; done
 
-e2e_test_junit_upload:
+e2e_installer_test_junit_upload:
   extends: .e2e_test_junit_template
-  rules: !reference [.on_main]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: always
   when: always
-  stage: e2e_test_junit_upload
+  stage: kitchen_tests_upload
   dependencies:
     # We need to exhaustively list all the `new-e2e-…` jobs that produce junit reports here
     # to avoid downloading all the artifacts of all the jobs of all the previous stages.
-    - new-e2e-containers-main
-    - new-e2e-agent-shared-components-main
-    - new-e2e-agent-subcommands-main
-    - new-e2e-language-detection-main
     - new-e2e-agent-platform-install-script-debian-a7-x86_64
     - new-e2e-agent-platform-install-script-debian-a7-arm64
     - new-e2e-agent-platform-install-script-debian-iot-agent-a7-x86_64
@@ -83,11 +81,24 @@ e2e_test_junit_upload:
     - new-e2e-agent-platform-install-script-upgrade7-ubuntu-x86_64
     - new-e2e-agent-platform-install-script-upgrade6-ubuntu-x86_64
     - new-e2e-agent-platform-install-script-upgrade7-ubuntu-iot-agent-x86_64
+    - new-e2e-windows-agent-msi-windows-server-a6-x86_64
+    - new-e2e-windows-agent-msi-windows-server-a7-x86_64
+
+e2e_test_junit_upload:
+  extends: .e2e_test_junit_template
+  rules: !reference [.on_main]
+  when: always
+  stage: e2e_test_junit_upload
+  dependencies:
+    # We need to exhaustively list all the `new-e2e-…` jobs that produce junit reports here
+    # to avoid downloading all the artifacts of all the jobs of all the previous stages.
+    - new-e2e-containers-main
+    - new-e2e-agent-shared-components-main
+    - new-e2e-agent-subcommands-main
+    - new-e2e-language-detection-main
     - new-e2e-npm-main
     - new-e2e-aml-main
     - new-e2e-process-main
     - new-e2e-cws-main
-    - new-e2e-windows-agent-msi-windows-server-a6-x86_64
-    - new-e2e-windows-agent-msi-windows-server-a7-x86_64
     - new-e2e-orchestrator-main
     - new-e2e-apm-main
