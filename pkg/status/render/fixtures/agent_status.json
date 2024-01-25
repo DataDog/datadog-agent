@@ -2406,7 +2406,7 @@
 							"AverageExecutionTime":8,
 							"CheckConfigSource":"file:/etc/datadog-agent/conf.d/cilium.d/auto_conf.yaml",
 							"CheckID":"cilium:bac99095d52d45c",
-						 	"LongRunning": false,
+						 	"LongRunning": true,
 							"CheckName":"cilium",
 							"CheckVersion":"2.3.0",
 							"EventPlatformEvents":{
