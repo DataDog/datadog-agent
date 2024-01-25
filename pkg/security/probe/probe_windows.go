@@ -321,6 +321,7 @@ func (p *WindowsProbe) Start() error {
 						fallthrough
 					case idFlush:
 						// don't fall through
+						log.Infof("e.UserDataLength------------%v", e.UserDataLength)
 						if ca, err := parseCleanupArgs(e); err == nil {
 							// 	log.Infof("got id %v args %s", e.EventHeader.EventDescriptor.ID, ca.string())
 							delete(filePathResolver, ca.fileObject)
@@ -451,7 +452,7 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 		cancelFnc:    cancelFnc,
 		onStart:      make(chan *procmon.ProcessStartNotification),
 		onStop:       make(chan *procmon.ProcessStopNotification),
-		onFimEvent:   make(chan *etw.DDEventRecord, 100),
+		onFimEvent:   make(chan *etw.DDEventRecord),
 		onError:      make(chan bool),
 	}
 
