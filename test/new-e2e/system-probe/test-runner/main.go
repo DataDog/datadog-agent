@@ -60,7 +60,7 @@ var baseEnv = []string{
 var timeouts = map[*regexp.Regexp]time.Duration{
 	regexp.MustCompile("pkg/network/protocols/http$"): 15 * time.Minute,
 	regexp.MustCompile("pkg/network/tracer$"):         55 * time.Minute,
-	regexp.MustCompile("pkg/security"):                30 * time.Minute,
+	regexp.MustCompile("pkg/network/usm$"):            30 * time.Minute,
 }
 
 // Note: security tests don't have the full path to the test, so increase the timeout as a temporary solution
