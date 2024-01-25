@@ -224,6 +224,8 @@ func (t EventType) String() string {
 		return "truncated_parents"
 	case CustomSelfTestEventType:
 		return "self_test"
+	case CreateNewFileEventType:
+		return "create_file"
 	default:
 		return "unknown"
 	}
