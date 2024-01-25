@@ -1,12 +1,21 @@
-e2e_test_junit_upload:
-  rules: !reference [.on_main]
-  when: always
-  stage: e2e_test_junit_upload
+.e2e_test_junit_template:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/datadog-ci-uploader$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   allow_failure: true
   variables:
     DD_ENV: ci
+  script:
+    - set +x
+    - export DATADOG_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key_org2 --with-decryption --query "Parameter.Value" --out text)
+    - set -x
+    - set +e
+    - for f in junit-new-e2e-*.tgz; do inv -e junit-upload --tgz-path "$f"; done
+
+e2e_test_junit_upload:
+  extends: .e2e_test_junit_template
+  rules: !reference [.on_main]
+  when: always
+  stage: e2e_test_junit_upload
   dependencies:
     # We need to exhaustively list all the `new-e2e-…` jobs that produce junit reports here
     # to avoid downloading all the artifacts of all the jobs of all the previous stages.
@@ -82,10 +91,3 @@ e2e_test_junit_upload:
     - new-e2e-windows-agent-msi-windows-server-a7-x86_64
     - new-e2e-orchestrator-main
     - new-e2e-apm-main
-
-  script:
-    - set +x
-    - export DATADOG_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key_org2 --with-decryption --query "Parameter.Value" --out text)
-    - set -x
-    - set +e
-    - for f in junit-new-e2e-*.tgz; do inv -e junit-upload --tgz-path "$f"; done
