@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    Add the Software Bill of Materials (SBOM) for container-images to the output of the flare command.
