@@ -9,6 +9,7 @@ package usm
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -678,4 +679,21 @@ func skipIfNotSupported(t *testing.T, err error) {
 	if errors.As(err, &notSupported) {
 		t.Skipf("skipping test because this kernel is not supported: %s", notSupported)
 	}
+}
+
+// getHTTPUnixClientArray creates an array of http clients over a unix socket.
+func getHTTPUnixClientArray(size int, unixPath string) []*nethttp.Client {
+	res := make([]*nethttp.Client, size)
+	for i := 0; i < size; i++ {
+		res[i] = &nethttp.Client{
+			Transport: &nethttp.Transport{
+				ForceAttemptHTTP2: false,
+				TLSNextProto:      make(map[string]func(string, *tls.Conn) nethttp.RoundTripper),
+				DialContext: func(context.Context, string, string) (net.Conn, error) {
+					return net.Dial("unix", unixPath)
+				},
+			},
+		}
+	}
+	return res
 }
