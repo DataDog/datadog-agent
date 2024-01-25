@@ -1,8 +1,7 @@
-# System probe overrides
+# Security agent overrides
 upload_dependencies_security_agent_x64:
   extends:
     - .package_dependencies
-  needs: ["pull_test_dockers_x64"]
   rules: !reference [.on_security_agent_changes_or_manual]
   variables:
     ARCHIVE_NAME: dependencies-x86_64.tar.gz
@@ -13,32 +12,9 @@ upload_dependencies_security_agent_x64:
 upload_dependencies_security_agent_arm64:
   extends:
     - .package_dependencies
-  needs: ["pull_test_dockers_arm64"]
   rules: !reference [.on_security_agent_changes_or_manual]
   variables:
     ARCHIVE_NAME: dependencies-arm64.tar.gz
-    ARCH: arm64
-    INSTANCE_TYPE: m6gd.metal
-    TEST_COMPONENT: security-agent
-
-upload_minimized_btfs_security_agent_x64:
-  extends:
-    - .upload_minimized_btfs
-  needs: ["generate_minimized_btfs_x64"]
-  rules: !reference [.on_security_agent_changes_or_manual]
-  variables:
-    ARCHIVE_NAME: btfs-x86_64.tar.gz
-    ARCH: x86_64
-    INSTANCE_TYPE: m5d.metal
-    TEST_COMPONENT: security-agent
-
-upload_minimized_btfs_security_agent_arm64:
-  extends:
-    - .upload_minimized_btfs
-  needs: ["generate_minimized_btfs_arm64"]
-  rules: !reference [.on_security_agent_changes_or_manual]
-  variables:
-    ARCHIVE_NAME: btfs-arm64.tar.gz
     ARCH: arm64
     INSTANCE_TYPE: m6gd.metal
     TEST_COMPONENT: security-agent
@@ -117,9 +93,6 @@ kernel_matrix_testing_setup_env_security_agent_x64:
     - ssh metal_instance "tar xzf /opt/kernel-version-testing/${TEST_ARCHIVE_NAME} -C /opt/kernel-version-testing"
     # give correct permissions to assets
     - ssh metal_instance "sudo find /opt/kernel-version-testing/system-probe-tests -name *.o -type f -exec chown root:root {} \;"
-    # Add symlink to btf directory. Since this directory is mounted read-only in the micro-vms,
-    # we cannot write btf files here. Hence we create a symlink to a writable destination
-    - ssh metal_instance "sudo mkdir -p /opt/kernel-version-testing/system-probe-tests/pkg/ebpf/bytecode/build/co-re && sudo mkdir -p /opt/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf && sudo ln -s /opt/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf /opt/kernel-version-testing/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf"
     # build connector
     - pushd $CI_PROJECT_DIR/test/new-e2e
     - go build -o $CI_PROJECT_DIR/connector-${ARCH} $CI_PROJECT_DIR/test/new-e2e/system-probe/connector/main.go

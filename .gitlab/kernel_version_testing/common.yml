@@ -99,8 +99,11 @@ pull_test_dockers_arm64:
     - !reference [.get_instance_ip_by_type]
     - !reference [.setup_ssh_config]
     - scp $CI_PROJECT_DIR/test/new-e2e/system-probe/test/micro-vm-init.sh metal_instance:/opt/kernel-version-testing
-    - tar czvf $DD_AGENT_TESTING_DIR/kmt-dockers-$ARCH.tar.gz $DD_AGENT_TESTING_DIR/kmt-dockers-$ARCH
-    - scp $DD_AGENT_TESTING_DIR/kmt-dockers-$ARCH.tar.gz metal_instance:/opt/kernel-version-testing
+    - |
+      if [ -d $DD_AGENT_TESTING_DIR/kmt-dockers-$ARCH ]; then
+        tar czvf $DD_AGENT_TESTING_DIR/kmt-dockers-$ARCH.tar.gz $DD_AGENT_TESTING_DIR/kmt-dockers-$ARCH
+        scp $DD_AGENT_TESTING_DIR/kmt-dockers-$ARCH.tar.gz metal_instance:/opt/kernel-version-testing
+      fi
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
 
