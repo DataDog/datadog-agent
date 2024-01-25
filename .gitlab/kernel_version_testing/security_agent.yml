@@ -156,6 +156,7 @@ kernel_matrix_testing_run_security_agent_tests_x64:
   needs:
     - kernel_matrix_testing_setup_env_security_agent_x64
     - upload_dependencies_security_agent_x64
+    - upload_security_agent_tests_x64
   timeout: 3h
   variables:
     ARCH: "x86_64"
@@ -184,6 +185,7 @@ kernel_matrix_testing_run_security_agent_tests_arm64:
   needs:
     - kernel_matrix_testing_setup_env_security_agent_arm64
     - upload_dependencies_security_agent_arm64
+    - upload_security_agent_tests_arm64
   timeout: 3h
   variables:
     ARCH: "arm64"
