@@ -9,6 +9,7 @@
 package procmon
 
 import (
+	"fmt"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -50,11 +51,11 @@ const (
 	// driverName is the name of the driver service
 	driverName = "ddprocmon"
 
-	// default size of the receive buffer
-	procmonReceiveSize = 4096
+	// ProcmonDefaultReceiveSize is the default size of the receive buffer
+	ProcmonDefaultReceiveSize = 4096
 
-	// number of buffers
-	procmonNumBufs = 50
+	// ProcmonDefaultNumBufs is the default number of overlapped receive buffers
+	ProcmonDefaultNumBufs = 50
 )
 
 var (
@@ -71,6 +72,12 @@ var (
 // Allows caller to configure the number & size of the overlapped buffers used for receiving notifications from the driver
 func NewWinProcMon(onStart chan *ProcessStartNotification, onStop chan *ProcessStopNotification, onError chan bool, bufsize, numbufs int) (*WinProcmon, error) {
 
+	if bufsize == 0 {
+		return nil, fmt.Errorf("invalid buffer size")
+	}
+	if numbufs == 0 {
+		return nil, fmt.Errorf("invalid number of buffers")
+	}
 	wp := &WinProcmon{
 		onStart: onStart,
 		onStop:  onStop,
@@ -78,12 +85,6 @@ func NewWinProcMon(onStart chan *ProcessStartNotification, onStop chan *ProcessS
 	}
 	if err := driver.StartDriverService(driverName); err != nil {
 		return nil, err
-	}
-	if bufsize == 0 {
-		bufsize = procmonReceiveSize
-	}
-	if numbufs == 0 {
-		numbufs = procmonNumBufs
 	}
 	reader, err := olreader.NewOverlappedReader(wp, bufsize, numbufs)
 	if err != nil {
