@@ -135,7 +135,7 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Do
 		if err != nil {
 			return err
 		}
-		err = host.Export(ctx, &env.Host.HostOutput)
+		err = host.Export(ctx, &env.RemoteHost.HostOutput)
 		if err != nil {
 			return err
 		}
