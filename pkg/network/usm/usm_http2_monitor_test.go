@@ -840,36 +840,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 
 			res := make(map[usmhttp.Key]int)
 			assert.Eventually(t, func() bool {
-				for key, stat := range getHTTPLikeProtocolStats(usmMonitor, protocols.HTTP2) {
-					if key.DstPort == srvPort || key.SrcPort == srvPort {
-						count := stat.Data[200].Count
-						newKey := usmhttp.Key{
-							Path:   usmhttp.Path{Content: key.Path.Content},
-							Method: key.Method,
-						}
-						if _, ok := res[newKey]; !ok {
-							res[newKey] = count
-						} else {
-							res[newKey] += count
-						}
-					}
-				}
-
-				if len(res) != len(tt.expectedEndpoints) {
-					return false
-				}
-
-				for key, endpointCount := range res {
-					_, ok := tt.expectedEndpoints[key]
-					if !ok {
-						return false
-					}
-					if endpointCount != tt.expectedEndpoints[key] {
-						return false
-					}
-				}
-
-				return true
+				return validateStats(usmMonitor, res, tt.expectedEndpoints)
 			}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
 			if t.Failed() {
 				for key := range tt.expectedEndpoints {
@@ -958,34 +929,8 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 
 			res := make(map[usmhttp.Key]int)
 			assert.Eventually(t, func() bool {
-				for key, stat := range getHTTPLikeProtocolStats(usmMonitor, protocols.HTTP2) {
-					if key.DstPort == srvPort || key.SrcPort == srvPort {
-						count := stat.Data[200].Count
-						newKey := usmhttp.Key{
-							Path:   usmhttp.Path{Content: key.Path.Content},
-							Method: key.Method,
-						}
-						if _, ok := res[newKey]; !ok {
-							res[newKey] = count
-						} else {
-							res[newKey] += count
-						}
-					}
-				}
-
-				if len(res) != len(tt.expectedEndpoints) {
-					return false
-				}
-
-				for key, endpointCount := range res {
-					_, ok := tt.expectedEndpoints[key]
-					if !ok {
-						return false
-					}
-					if endpointCount != tt.expectedEndpoints[key] {
-						return false
-					}
-				}
+				// validate the stats we get
+				require.True(t, validateStats(usmMonitor, res, tt.expectedEndpoints))
 
 				validateDynamicTableMap(t, usmMonitor.ebpfProgram, tt.expectedDynamicTablePathIndexes)
 
@@ -1080,34 +1025,8 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 
 			res := make(map[usmhttp.Key]int)
 			assert.Eventually(t, func() bool {
-				for key, stat := range getHTTPLikeProtocolStats(usmMonitor, protocols.HTTP2) {
-					if key.DstPort == srvPort || key.SrcPort == srvPort {
-						count := stat.Data[200].Count
-						newKey := usmhttp.Key{
-							Path:   usmhttp.Path{Content: key.Path.Content},
-							Method: key.Method,
-						}
-						if _, ok := res[newKey]; !ok {
-							res[newKey] = count
-						} else {
-							res[newKey] += count
-						}
-					}
-				}
-
-				if len(res) != len(tt.expectedEndpoints) {
-					return false
-				}
-
-				for key, endpointCount := range res {
-					_, ok := tt.expectedEndpoints[key]
-					if !ok {
-						return false
-					}
-					if endpointCount != tt.expectedEndpoints[key] {
-						return false
-					}
-				}
+				// validate the stats we get
+				require.True(t, validateStats(usmMonitor, res, tt.expectedEndpoints))
 
 				validateHuffmanEncoded(t, usmMonitor.ebpfProgram, tt.expectedHuffmanEncoded)
 
@@ -1123,6 +1042,39 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 			}
 		})
 	}
+}
+
+// validateStats validates that the stats we get from the monitor are as expected.
+func validateStats(usmMonitor *Monitor, res map[usmhttp.Key]int, expectedEndpoints map[usmhttp.Key]int) bool {
+	for key, stat := range getHTTPLikeProtocolStats(usmMonitor, protocols.HTTP2) {
+		if key.DstPort == srvPort || key.SrcPort == srvPort {
+			count := stat.Data[200].Count
+			newKey := usmhttp.Key{
+				Path:   usmhttp.Path{Content: key.Path.Content},
+				Method: key.Method,
+			}
+			if _, ok := res[newKey]; !ok {
+				res[newKey] = count
+			} else {
+				res[newKey] += count
+			}
+		}
+	}
+
+	if len(res) != len(expectedEndpoints) {
+		return false
+	}
+
+	for key, endpointCount := range res {
+		_, ok := expectedEndpoints[key]
+		if !ok {
+			return false
+		}
+		if endpointCount != expectedEndpoints[key] {
+			return false
+		}
+	}
+	return true
 }
 
 // getHTTP2UnixClientArray creates an array of http2 clients over a unix socket.
