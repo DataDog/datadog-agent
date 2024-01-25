@@ -48,6 +48,7 @@ import (
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	apidca "github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
+	clusteragentMetricsStatus "github.com/DataDog/datadog-agent/pkg/clusteragent/metricsstatus"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
@@ -143,6 +144,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					status.NewInformationProvider(collectorStatus.Provider{}),
 					status.NewHeaderInformationProvider(net.Provider{}),
 					status.NewInformationProvider(leaderelection.Provider{}),
+					status.NewInformationProvider(clusteragentMetricsStatus.Provider{}),
 					status.NewInformationProvider(endpointsStatus.Provider{}),
 					status.NewInformationProvider(autodiscoveryStatus.Provider{}),
 				),
