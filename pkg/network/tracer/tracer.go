@@ -15,11 +15,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
-
-	"github.com/DataDog/ebpf-manager/tracefs"
 
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
