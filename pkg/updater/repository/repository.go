@@ -114,6 +114,22 @@ func (r *Repository) Create(name string, stableSourcePath string) error {
 		}
 	}
 
+	// Remove left-over locks paths
+	packageLocksPaths, err := os.ReadDir(r.LocksPath)
+	if err != nil {
+		return fmt.Errorf("could not read locks directory: %w", err)
+	}
+	for _, pkg := range packageLocksPaths {
+		pkgRootPath := filepath.Join(r.RootPath, pkg.Name())
+		pkgLocksPath := filepath.Join(r.LocksPath, pkg.Name())
+		if _, err := os.Stat(pkgRootPath); err != nil && errors.Is(err, os.ErrNotExist) {
+			err = os.RemoveAll(pkgLocksPath)
+			if err != nil {
+				log.Errorf("could not remove package %s locks directory, will retry at next startup: %v", pkgLocksPath, err)
+			}
+		}
+	}
+
 	err = repository.cleanup()
 	if err != nil {
 		return fmt.Errorf("could not cleanup repository: %w", err)

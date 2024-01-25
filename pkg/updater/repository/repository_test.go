@@ -61,9 +61,11 @@ func TestCreateOverwrite(t *testing.T) {
 func TestCreateOverwriteWithLockedPackage(t *testing.T) {
 	dir := t.TempDir()
 	oldRepository := createTestRepository(t, dir, "old")
+	err := os.MkdirAll(path.Join(oldRepository.LocksPath, "garbagetocollect"), 0777)
+	assert.NoError(t, err)
 
 	// Add a running process... our own! So we're sure it's running.
-	err := os.MkdirAll(path.Join(oldRepository.LocksPath, "old"), 0777)
+	err = os.MkdirAll(path.Join(oldRepository.LocksPath, "old"), 0777)
 	assert.NoError(t, err)
 	err = os.WriteFile(
 		path.Join(oldRepository.LocksPath, "old", fmt.Sprint(os.Getpid())),
@@ -78,6 +80,7 @@ func TestCreateOverwriteWithLockedPackage(t *testing.T) {
 	assert.DirExists(t, repository.RootPath)
 	assert.DirExists(t, path.Join(repository.RootPath, "v1"))
 	assert.DirExists(t, path.Join(repository.RootPath, "old"))
+	assert.NoDirExists(t, path.Join(oldRepository.LocksPath, "garbagetocollect"))
 }
 
 func TestSetExperiment(t *testing.T) {
