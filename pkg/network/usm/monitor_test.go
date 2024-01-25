@@ -411,11 +411,15 @@ func (s *httpTestSuite) TestRSTPacketRegression() {
 	c.Close()
 	time.Sleep(100 * time.Millisecond)
 
-	// Assert that the HTTP request was correctly handled despite its forceful termination
-	stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
 	url, err := url.Parse("http://127.0.0.1:8080/200/foobar")
 	require.NoError(t, err)
-	checkRequestIncluded(t, stats, &nethttp.Request{URL: url}, true)
+
+	require.Eventually(t, func() bool {
+		// Assert that the HTTP request was correctly handled despite its forceful termination
+		stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
+		included, err := isRequestIncludedOnce(stats, &nethttp.Request{URL: url})
+		return err == nil && included
+	}, 3*time.Second, 100*time.Millisecond, "connection not found")
 }
 
 // TestKeepAliveWithIncompleteResponseRegression checks that USM captures a request, although we initially saw a
