@@ -363,40 +363,6 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 		},
 		{
-			name: "java and js on specific containers",
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{
-						"admission.datadoghq.com/java-app.java-lib.version": "v1",
-						"admission.datadoghq.com/node-app.js-lib.version":   "v1",
-					},
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "java-app",
-						},
-						{
-							Name: "node-app",
-						},
-					},
-				},
-			},
-			containerRegistry: "registry",
-			expectedLibsToInject: []libInfo{
-				{
-					ctrName: "java-app",
-					lang:    "java",
-					image:   "registry/dd-lib-java-init:v1",
-				},
-				{
-					ctrName: "node-app",
-					lang:    "js",
-					image:   "registry/dd-lib-js-init:v1",
-				},
-			},
-		},
-		{
 			name:              "ruby",
 			pod:               fakePodWithAnnotation("admission.datadoghq.com/ruby-lib.version", "v1"),
 			containerRegistry: "registry",

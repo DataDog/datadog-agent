@@ -81,10 +81,8 @@ const (
 	dotnet language = "dotnet"
 	ruby   language = "ruby"
 
-	libVersionAnnotationKeyFormat    = "admission.datadoghq.com/%s-lib.version"
-	customLibAnnotationKeyFormat     = "admission.datadoghq.com/%s-lib.custom-image"
-	libVersionAnnotationKeyCtrFormat = "admission.datadoghq.com/%s.%s-lib.version"
-	customLibAnnotationKeyCtrFormat  = "admission.datadoghq.com/%s.%s-lib.custom-image"
+	libVersionAnnotationKeyFormat = "admission.datadoghq.com/%s-lib.version"
+	customLibAnnotationKeyFormat  = "admission.datadoghq.com/%s-lib.custom-image"
 
 	// Env vars
 	instrumentationInstallTypeEnvVarName = "DD_INSTRUMENTATION_INSTALL_TYPE"
@@ -330,27 +328,6 @@ func extractLibrariesFromAnnotations(
 			libInfoMap[string(lang)] = libInfo{
 				lang:  lang,
 				image: image,
-			}
-		}
-
-		for _, ctr := range pod.Spec.Containers {
-			customLibAnnotation := strings.ToLower(fmt.Sprintf(customLibAnnotationKeyCtrFormat, ctr.Name, lang))
-			if image, found := annotations[customLibAnnotation]; found {
-				log.Debugf(
-					"Found custom library annotation for %s, will inject %s to container %s",
-					string(lang), image, ctr.Name,
-				)
-				libList = append(libList, libInfo{ctrName: ctr.Name, lang: lang, image: image})
-			}
-
-			libVersionAnnotation := strings.ToLower(fmt.Sprintf(libVersionAnnotationKeyCtrFormat, ctr.Name, lang))
-			if version, found := annotations[libVersionAnnotation]; found {
-				image := libImageName(registry, lang, version)
-				log.Debugf(
-					"Found version library annotation for %s, will inject %s to container %s",
-					string(lang), image, ctr.Name,
-				)
-				libList = append(libList, libInfo{ctrName: ctr.Name, lang: lang, image: image})
 			}
 		}
 	}
