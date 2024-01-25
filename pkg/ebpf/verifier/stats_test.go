@@ -8,7 +8,6 @@
 package verifier
 
 import (
-	"encoding/json"
 	"io/fs"
 	"os"
 	"path/filepath"

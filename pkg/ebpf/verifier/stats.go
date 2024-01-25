@@ -12,15 +12,17 @@ package verifier
 import (
 	"fmt"
 	"log"
-	"os"
 	"path/filepath"
 	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 )
@@ -60,29 +62,17 @@ func programKey(specName, objFileName string) string {
 	return fmt.Sprintf("%s/Program__%s", objFileName, specName)
 }
 
-// BuildVerifierStats accepts a list of eBPF object files and generates a
-// map of all programs and their Statistics
-func BuildVerifierStats(objectFiles []string) (map[string]*Statistics, map[string]struct{}, error) {
-	kversion, err := kernel.HostVersion()
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get host kernel version: %w", err)
-	}
-	if kversion < kernel.VersionCode(4, 15, 0) {
-		return nil, nil, fmt.Errorf("Kernel %s does not expose verifier statistics", kversion)
-	}
+func generateLoadFunction(file string, stats map[string]*Statistics, failedToLoad map[string]struct{}) func(bytecode.AssetReader, manager.Options) error {
 
-	failedToLoad := make(map[string]struct{})
-	stats := make(map[string]*Statistics)
-	for _, file := range objectFiles {
-		bc, err := os.Open(file)
+	return func(bc bytecode.AssetReader, managerOptions manager.Options) error {
+		kversion, err := kernel.HostVersion()
 		if err != nil {
-			return nil, nil, fmt.Errorf("couldn't open asset: %v", err)
+			return fmt.Errorf("failed to get host kernel version: %w", err)
 		}
-		defer bc.Close()
 
 		collectionSpec, err := ebpf.LoadCollectionSpecFromReader(bc)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to load collection spec: %v", err)
+			return fmt.Errorf("failed to load collection spec: %v", err)
 		}
 
 		// Max entry has to be > 0 for all maps
@@ -115,7 +105,8 @@ func BuildVerifierStats(objectFiles []string) (map[string]*Statistics, map[strin
 				LogLevel: ebpf.LogLevelBranch | ebpf.LogLevelStats,
 				// maximum log size accepted by the kernel:
 				// https://github.com/cilium/ebpf/blob/main/prog.go#L42
-				LogSize: 1073741823,
+				LogSize:     1073741823,
+				KernelTypes: managerOptions.VerifierOptions.Programs.KernelTypes,
 			},
 		}
 
@@ -133,16 +124,16 @@ func BuildVerifierStats(objectFiles []string) (map[string]*Statistics, map[strin
 
 			progPtr := reflect.ValueOf(prog)
 			if progPtr.Type().Kind() != reflect.Ptr {
-				return nil, nil, fmt.Errorf("%T is not a pointer to struct", prog)
+				return fmt.Errorf("%T is not a pointer to struct", prog)
 			}
 
 			if progPtr.IsNil() {
-				return nil, nil, fmt.Errorf("nil pointer to %T", progPtr)
+				return fmt.Errorf("nil pointer to %T", progPtr)
 			}
 
 			progElem := progPtr.Elem()
 			if progElem.Kind() != reflect.Struct {
-				return nil, nil, fmt.Errorf("%s is not a struct", progElem)
+				return fmt.Errorf("%s is not a struct", progElem)
 			}
 			for i := 0; i < progElem.NumField(); i++ {
 				programName := progElem.Type().Field(i).Name
@@ -153,13 +144,35 @@ func BuildVerifierStats(objectFiles []string) (map[string]*Statistics, map[strin
 					p := field.Interface().(*ebpf.Program)
 					stat, err := unmarshalStatistics(p.VerifierLog, kversion)
 					if err != nil {
-						return nil, nil, fmt.Errorf("failed to unmarshal verifier log for program %s: %w", programName, err)
+						return fmt.Errorf("failed to unmarshal verifier log for program %s: %w", programName, err)
 					}
 					stats[fmt.Sprintf("%s/%s", objectFileName, programName)] = stat
 				default:
-					return nil, nil, fmt.Errorf("Unexpected type %T", field)
+					return fmt.Errorf("Unexpected type %T", field)
 				}
 			}
+		}
+
+		return nil
+	}
+}
+
+// BuildVerifierStats accepts a list of eBPF object files and generates a
+// map of all programs and their Statistics
+func BuildVerifierStats(objectFiles []string) (map[string]*Statistics, map[string]struct{}, error) {
+	kversion, err := kernel.HostVersion()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get host kernel version: %w", err)
+	}
+	if kversion < kernel.VersionCode(4, 15, 0) {
+		return nil, nil, fmt.Errorf("Kernel %s does not expose verifier statistics", kversion)
+	}
+
+	failedToLoad := make(map[string]struct{})
+	stats := make(map[string]*Statistics)
+	for _, file := range objectFiles {
+		if err := ddebpf.LoadCOREAsset(file, generateLoadFunction(file, stats, failedToLoad)); err != nil {
+			return nil, nil, fmt.Errorf("failed to load core asset: %w", err)
 		}
 	}
 
