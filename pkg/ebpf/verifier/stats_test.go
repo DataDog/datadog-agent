@@ -8,7 +8,7 @@
 package verifier
 
 import (
-	"fmt"
+	"encoding/json"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -26,7 +26,7 @@ import (
 
 const (
 	NewBPFComplexityLimit = 1000000
-	OldBPFComplexityLimit = 1000000
+	OldBPFComplexityLimit = 4000
 	EBPFStackLimit        = 512
 )
 
@@ -41,7 +41,6 @@ func TestMain(m *testing.M) {
 
 func TestBuildVerifierStats(t *testing.T) {
 	var objectFiles []string
-	var programs []string
 
 	kversion, err := kernel.HostVersion()
 	require.NoError(t, err)
@@ -70,16 +69,13 @@ func TestBuildVerifierStats(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	stats, err := BuildVerifierStats(objectFiles)
+	stats, failedToLoad, err := BuildVerifierStats(objectFiles)
 	require.NoError(t, err)
 
 	for _, file := range objectFiles {
-		// skip fentry programs since we cannot load them on some kernels
-		if strings.ReplaceAll(
+		objectFileName := strings.ReplaceAll(
 			strings.Split(filepath.Base(file), ".")[0], "-", "_",
-		) == "tracer_fentry" {
-			continue
-		}
+		)
 
 		bc, err := os.Open(file)
 		require.NoError(t, err)
@@ -89,16 +85,15 @@ func TestBuildVerifierStats(t *testing.T) {
 		require.NoError(t, err)
 
 		for _, progSpec := range collectionSpec.Programs {
-			programs = append(programs, progSpec.Name)
-		}
-	}
-
-	// ensure we go verifier stats for all programs
-	for _, progName := range programs {
-		_, ok := stats[fmt.Sprintf("Func_%s", progName)]
-		if !ok {
-			require.True(t, ok)
-			break
+			// ensure all programs were attempted
+			key := programKey(progSpec.Name, objectFileName)
+			_, loaded := stats[key]
+			_, notLoaded := failedToLoad[key]
+			if !(loaded || notLoaded) {
+				t.Logf("load not attempted for program %s/%s", objectFileName, progSpec.Name)
+				require.True(t, loaded || notLoaded)
+				break
+			}
 		}
 	}
 
