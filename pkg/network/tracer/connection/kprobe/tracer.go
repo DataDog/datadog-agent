@@ -110,9 +110,8 @@ func ClassificationSupported(config *config.Config) bool {
 	return currentKernelVersion >= classificationMinimumKernel
 }
 
+// RingbufferSupported returns true if the current kernel version supports ringbuffers and the config enables it
 func RingbufferSupported(config *config.Config) bool {
-	log.Debugf("adamk HaveMapType ebpf.RingBuf? %v", features.HaveMapType(ebpf.RingBuf) == nil)
-	log.Debugf("adamk config.RingbufferEnabled? %v", config.RingbufferEnabled)
 	return (features.HaveMapType(ebpf.RingBuf) == nil) && config.RingbufferEnabled
 }
 
