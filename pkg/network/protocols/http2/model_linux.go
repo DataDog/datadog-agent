@@ -291,7 +291,7 @@ func (t http2StreamKey) String() string {
 }
 
 // String returns a string representation of the http2 dynamic table.
-func (t Http2DynamicTableEntry) String() string {
+func (t HTTP2DynamicTableEntry) String() string {
 	if t.String_len == 0 {
 		return ""
 	}

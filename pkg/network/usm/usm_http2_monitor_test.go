@@ -1369,7 +1369,7 @@ func validateDynamicTableMap(t *testing.T, ebpfProgram *ebpfProgram, expectedDyn
 	iterator := dynamicTableMap.Iterate()
 	resultIndexes := make([]int, 0)
 	for iterator.Next(&key, &value) {
-		tableIndex := usmhttp2.Http2DynamicTableIndex{}
+		tableIndex := usmhttp2.HTTP2DynamicTableIndex{}
 		require.NoError(t, binary.Read(bytes.NewReader(key), binary.LittleEndian, &tableIndex))
 		resultIndexes = append(resultIndexes, int(tableIndex.Index))
 	}
@@ -1386,7 +1386,7 @@ func validateHuffmanEncoded(t *testing.T, ebpfProgram *ebpfProgram, expectedHuff
 	iterator := dynamicTableMap.Iterate()
 	resultEncodedPaths := make(map[int]bool, 0)
 	for iterator.Next(&key, &value) {
-		tableEntry := usmhttp2.Http2DynamicTableEntry{}
+		tableEntry := usmhttp2.HTTP2DynamicTableEntry{}
 		require.NoError(t, binary.Read(bytes.NewReader(value), binary.LittleEndian, &tableEntry))
 		resultEncodedPaths[int(tableEntry.String_len)] = tableEntry.Is_huffman_encoded
 	}
