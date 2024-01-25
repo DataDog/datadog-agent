@@ -419,21 +419,33 @@ func (s *httpTestSuite) TestSanity() {
 	}
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
+			// Start the proxy server.
+			proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, tt.targetAddress, s.isTLS)
+			t.Cleanup(cancel)
+
 			for _, keepAliveEnabled := range []bool{true, false} {
 				t.Run(testNameHelper("with keep alive", "without keep alive", keepAliveEnabled), func(t *testing.T) {
-					monitor := newHTTPMonitorWithCfg(t, config.New())
+					monitor := setupUSMTLSMonitor(t, s.getCfg())
+					if s.isTLS {
+						utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+					}
 
-					srvDoneFn := testutil.HTTPServer(t, tt.serverAddress, testutil.Options{EnableKeepAlive: keepAliveEnabled})
+					srvDoneFn := testutil.HTTPServer(t, tt.serverAddress, testutil.Options{
+						EnableKeepAlive: keepAliveEnabled,
+						EnableTLS:       s.isTLS,
+					})
 					t.Cleanup(srvDoneFn)
 
+					client := getHTTPUnixClientArray(1, unixPath)[0]
 					// Create a request generator that will be used to randomly generate requests and send them to the server.
-					requestFn := requestGenerator(t, nil, tt.targetAddress, emptyBody)
+					requestFn := requestGenerator(t, client, "unix", emptyBody)
 					var requests []*nethttp.Request
 					for i := 0; i < 100; i++ {
 						// Send a request to the server and save it for later comparison.
 						requests = append(requests, requestFn())
 					}
 					srvDoneFn()
+					client.CloseIdleConnections()
 
 					// Ensure USM captured all requests.
 					assertAllRequestsExists(t, monitor, requests)
