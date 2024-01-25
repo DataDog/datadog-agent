@@ -96,18 +96,20 @@ func TestGetLibListFromDeploymentAnnotations(t *testing.T) {
 			Kind: workloadmeta.KindKubernetesDeployment,
 			ID:   "default/dummy",
 		},
-		ContainerLanguages: map[string][]languagemodels.Language{
-			"container-1": {
-				{
-					Name: "java",
+		InjectableLanguages: workloadmeta.Languages{
+			ContainerLanguages: map[string][]languagemodels.Language{
+				"container-1": {
+					{
+						Name: "java",
+					},
+					{
+						Name: "js",
+					},
 				},
-				{
-					Name: "js",
-				},
-			},
-			"container-2": {
-				{
-					Name: "python",
+				"container-2": {
+					{
+						Name: "python",
+					},
 				},
 			},
 		},
@@ -118,18 +120,20 @@ func TestGetLibListFromDeploymentAnnotations(t *testing.T) {
 			Kind: workloadmeta.KindKubernetesDeployment,
 			ID:   "custom/dummy",
 		},
-		ContainerLanguages: map[string][]languagemodels.Language{
-			"container-1": {
-				{
-					Name: "ruby",
+		InjectableLanguages: workloadmeta.Languages{
+			ContainerLanguages: map[string][]languagemodels.Language{
+				"container-1": {
+					{
+						Name: "ruby",
+					},
+					{
+						Name: "python",
+					},
 				},
-				{
-					Name: "python",
-				},
-			},
-			"container-2": {
-				{
-					Name: "java",
+				"container-2": {
+					{
+						Name: "java",
+					},
 				},
 			},
 		},

@@ -6,11 +6,11 @@ import os
 import platform
 from urllib.parse import urlparse
 
-from .download import arch_mapping, platforms_file, vmconfig_file
-from .init_kmt import VMCONFIG, check_and_get_stack
-from .kmt_os import get_kmt_os
-from .stacks import create_stack, stack_exists
-from .tool import Exit, ask, info, warn
+from tasks.kernel_matrix_testing.download import arch_mapping, platforms_file, vmconfig_file
+from tasks.kernel_matrix_testing.init_kmt import VMCONFIG, check_and_get_stack
+from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
+from tasks.kernel_matrix_testing.stacks import create_stack, stack_exists
+from tasks.kernel_matrix_testing.tool import Exit, ask, info, warn
 
 local_arch = "local"
 

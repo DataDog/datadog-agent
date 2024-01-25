@@ -4,13 +4,13 @@ from typing import List
 
 from invoke import Exit, task
 
-from .build_tags import compute_build_tags_for_flavor
-from .flavor import AgentFlavor
-from .go import run_golangci_lint
-from .libs.common.utils import DEFAULT_BRANCH, color_message
-from .libs.copyright import CopyrightLinter
-from .modules import GoModule
-from .test_core import ModuleLintResult, process_input_args, process_module_results, test_core
+from tasks.build_tags import compute_build_tags_for_flavor
+from tasks.flavor import AgentFlavor
+from tasks.go import run_golangci_lint
+from tasks.libs.common.utils import DEFAULT_BRANCH, color_message
+from tasks.libs.copyright import CopyrightLinter
+from tasks.modules import GoModule
+from tasks.test_core import ModuleLintResult, process_input_args, process_module_results, test_core
 
 
 @task

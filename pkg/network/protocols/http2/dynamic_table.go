@@ -105,6 +105,21 @@ func (dt *DynamicTable) setupDynamicTableMapCleaner(mgr *manager.Manager, cfg *c
 		},
 		func(_ int64, key http2DynamicTableIndex, _ http2DynamicTableEntry) bool {
 			_, ok := terminatedConnectionsMap[key.Tup]
+			if ok {
+				return true
+			}
+			// Checking the flipped tuple as well.
+			_, ok = terminatedConnectionsMap[netebpf.ConnTuple{
+				Saddr_h:  key.Tup.Daddr_h,
+				Saddr_l:  key.Tup.Daddr_l,
+				Daddr_h:  key.Tup.Saddr_h,
+				Daddr_l:  key.Tup.Saddr_l,
+				Sport:    key.Tup.Dport,
+				Dport:    key.Tup.Sport,
+				Netns:    key.Tup.Netns,
+				Pid:      key.Tup.Pid,
+				Metadata: key.Tup.Metadata,
+			}]
 			return ok
 		})
 	dt.mapCleaner = mapCleaner

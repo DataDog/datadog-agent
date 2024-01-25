@@ -4,9 +4,9 @@ import platform
 import sys
 from time import sleep, time
 
-from .common.color import color_message
-from .common.user_interactions import yes_no_question
-from .common.utils import DEFAULT_BRANCH
+from tasks.libs.common.color import color_message
+from tasks.libs.common.user_interactions import yes_no_question
+from tasks.libs.common.utils import DEFAULT_BRANCH
 
 PIPELINE_FINISH_TIMEOUT_SEC = 3600 * 5
 
