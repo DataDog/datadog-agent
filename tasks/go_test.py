@@ -131,8 +131,10 @@ def test_flavor(
                 with open(cov_test_path, 'w', encoding='utf-8') as f:
                     f.write(coverage_script)
                 with open(cov_test_path.replace('.ps1', '.bat'), 'w', encoding='utf-8') as f:
-                    f.write("""@echo off
-powershell.exe -executionpolicy Bypass -file test_with_coverage.ps1""")
+                    f.write(
+                        """@echo off
+powershell.exe -executionpolicy Bypass -file test_with_coverage.ps1"""
+                    )
 
                 os.chmod(cov_test_path, 0o755)
 
@@ -366,7 +368,7 @@ def test(
     if coverage:
         if platform.system() == 'Windows':
             coverage_script_template = f"""$tempFile = (".\\coverage.out.rerun." + ([guid]::NewGuid().ToString().Replace("-", "").Substring(0, 10)))
-go test {gobuild_flags} {govet_flags} {gotest_flags} -json -coverprofile="$tempFile" ./pkg/collector/check/stats/...
+go test {gobuild_flags} {govet_flags} {gotest_flags} -json -coverprofile="$tempFile" {{packages}}
 exit $LASTEXITCODE"""
         else:
             coverage_script_template = f"""#!/usr/bin/env bash
