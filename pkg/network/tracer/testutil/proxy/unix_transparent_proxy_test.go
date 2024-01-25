@@ -20,6 +20,7 @@ import (
 func TestUnixTransparentParentProxy(t *testing.T) {
 	const remoteServerAddr = "127.0.0.1:5555"
 	const unixPath = "/tmp/transparent.sock"
+	const messageContent = "test"
 
 	tests := []struct {
 		name   string
@@ -56,12 +57,12 @@ func TestUnixTransparentParentProxy(t *testing.T) {
 			conn, err := net.DialTimeout("unix", unixPath, defaultDialTimeout)
 			require.NoError(t, err)
 
-			_, err = conn.Write([]byte("test"))
+			_, err = conn.Write([]byte(messageContent))
 			require.NoError(t, err)
-			output := make([]byte, 4)
+			output := make([]byte, len(messageContent))
 			_, err = conn.Read(output)
 			require.NoError(t, err)
-			require.Equal(t, "test", string(output))
+			require.Equal(t, messageContent, string(output))
 		})
 	}
 }
