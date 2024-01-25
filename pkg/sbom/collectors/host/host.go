@@ -14,34 +14,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
-	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
 )
-
-const (
-	collectorName = "host"
-)
-
-// ScanRequest defines a scan request
-type ScanRequest struct {
-	Path string
-}
-
-// Collector returns the collector name
-func (r *ScanRequest) Collector() string {
-	return collectorName
-}
-
-// Type returns the scan request type
-func (r *ScanRequest) Type() string {
-	return sbom.ScanFilesystemType
-}
-
-// ID returns the scan request ID
-func (r *ScanRequest) ID() string {
-	return r.Path
-}
 
 // Collector defines a host collector
 type Collector struct {
@@ -76,8 +51,4 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest, opts sbo
 		Error:  err,
 		Report: report,
 	}
-}
-
-func init() {
-	collectors.RegisterCollector(collectorName, &Collector{})
 }
