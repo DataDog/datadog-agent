@@ -22,13 +22,13 @@ func Commands(global *command.GlobalParams) []*cobra.Command {
 		Short: "Runs the updater",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return run(global.Package, global.RepositoriesDir)
+			return run(global.Package)
 		},
 	}
 	return []*cobra.Command{runCmd}
 }
 
-func run(pkg string, repositoriesPath string) error {
+func run(pkg string) error {
 	orgConfig, err := updater.NewOrgConfig()
 	if err != nil {
 		return fmt.Errorf("could not create org config: %w", err)

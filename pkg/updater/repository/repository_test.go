@@ -173,8 +173,20 @@ func TestDeleteExperimentWithLockedPackage(t *testing.T) {
 	)
 	assert.NoError(t, err)
 
+	// Add a running process that's not running to check its deletion
+	err = os.MkdirAll(path.Join(repository.LocksPath, "v2"), 0766)
+	assert.NoError(t, err)
+	err = os.WriteFile(
+		path.Join(repository.LocksPath, "v2", "-1"), // We're sure not to hit a running process
+		nil,
+		0644,
+	)
+	assert.NoError(t, err)
+
 	err = repository.DeleteExperiment()
 	assert.NoError(t, err)
 	assert.DirExists(t, path.Join(repository.RootPath, "v2"))
 	assert.DirExists(t, path.Join(repository.LocksPath, "v2"))
+	assert.NoFileExists(t, path.Join(repository.LocksPath, "v2", "-1"))
+	assert.FileExists(t, path.Join(repository.LocksPath, "v2", fmt.Sprint(os.Getpid())))
 }

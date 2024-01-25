@@ -32,7 +32,7 @@ const (
 // ├── stable -> 7.50.0 (symlink)
 // └── experiment -> 7.51.0 (symlink)
 //
-// and the run directory (if any) is structured as follows:
+// and the locks directory (if any) is structured as follows:
 // .
 // ├── 7.50.0
 // │   └── 1234
@@ -48,11 +48,8 @@ const (
 type Repository struct {
 	RootPath string
 
-	// LocksPath must be set when the updater doesn't control the lifecycle of the
-	// process that's experimented on (e.g. tracers).
-	//
-	// Instead, the updater will put in place a GC mechanism to make sure no process uses the package
-	// before removing it from the system. This system will be independent from the experiment process.
+	// LocksPath is the path to the locks directory
+	// containing the PIDs of the processes using the packages.
 	LocksPath string
 }
 
@@ -104,20 +101,19 @@ func (r *Repository) Create(name string, stableSourcePath string) error {
 	}
 
 	// Remove symlinks as we are bootstrapping
-	if repository.stable.Exists() {
-		err = repository.stable.Delete()
-		if err != nil {
-			return fmt.Errorf("could not delete stable link: %w", err)
-		}
-	}
 	if repository.experiment.Exists() {
 		err = repository.experiment.Delete()
 		if err != nil {
 			return fmt.Errorf("could not delete experiment link: %w", err)
 		}
 	}
+	if repository.stable.Exists() {
+		err = repository.stable.Delete()
+		if err != nil {
+			return fmt.Errorf("could not delete stable link: %w", err)
+		}
+	}
 
-	// Cleanup (not remove) the previous repository
 	err = repository.cleanup()
 	if err != nil {
 		return fmt.Errorf("could not cleanup repository: %w", err)
@@ -184,7 +180,7 @@ func (r *Repository) PromoteExperiment() error {
 		return fmt.Errorf("could not delete experiment link: %w", err)
 	}
 
-	// Read repository again to avoid race conditions likeliness
+	// Read repository again to re-load the list of locked packages
 	repository, err = readRepository(r.RootPath, r.LocksPath)
 	if err != nil {
 		return err
@@ -221,7 +217,7 @@ func (r *Repository) DeleteExperiment() error {
 		return fmt.Errorf("could not delete experiment link: %w", err)
 	}
 
-	// Read repository again to avoid race conditions likeliness
+	// Read repository again to re-load the list of locked packages
 	repository, err = readRepository(r.RootPath, r.LocksPath)
 	if err != nil {
 		return err
@@ -264,7 +260,7 @@ func readRepository(rootPath string, locksPath string) (*repositoryFiles, error)
 	// List locked packages
 	packages, err := os.ReadDir(rootPath)
 	if err != nil {
-		return nil, fmt.Errorf("could not read run directory: %w", err)
+		return nil, fmt.Errorf("could not read locks directory: %w", err)
 	}
 	lockedPackages := map[string]bool{}
 	for _, pkg := range packages {
@@ -334,7 +330,7 @@ func movePackageFromSource(packageName string, rootPath string, lockedPackages m
 func (r *repositoryFiles) cleanup() error {
 	files, err := os.ReadDir(r.rootPath)
 	if err != nil {
-		return fmt.Errorf("could not read run directory: %w", err)
+		return fmt.Errorf("could not read locks directory: %w", err)
 	}
 
 	// For each version, get the running PIDs. These PIDs are written by the injector.
@@ -367,15 +363,15 @@ func (r *repositoryFiles) cleanup() error {
 
 // packageLocked checks if the given package version is in use
 // by checking if there are PIDs corresponding to running processes
-// in the run directory.
+// in the locks directory.
 func packageLocked(packagePIDsPath string) (bool, error) {
 	pids, err := os.ReadDir(packagePIDsPath)
 	if errors.Is(err, os.ErrNotExist) {
-		log.Debugf("package run directory does not exist, no running PIDs")
+		log.Debugf("package locks directory does not exist, no running PIDs")
 		return false, nil
 	}
 	if err != nil {
-		return false, fmt.Errorf("could not read run directory: %w", err)
+		return false, fmt.Errorf("could not read locks directory: %w", err)
 	}
 
 	// For each PID, check if it's running
