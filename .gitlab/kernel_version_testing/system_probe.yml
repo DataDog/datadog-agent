@@ -74,30 +74,7 @@ kernel_matrix_testing_setup_env_system_probe_x64:
     - !reference [.kernel_matrix_testing_new_profile]
     - !reference [.write_ssh_key_file]
   script:
-    # Build dependencies directory
-    - mkdir -p $DEPENDENCIES
-    - pushd $DEPENDENCIES
-    # copy clang and llc bins
-    - mkdir -p $EMBEDDED_BIN
-    - cp $CLANG_BPF $EMBEDDED_BIN
-    - cp $LLC_BPF $EMBEDDED_BIN
-    - mkdir -p $EMBEDDED_INC
-    # copy gotestsum and test2json
-    - mkdir -p $GO_BIN
-    - cp $GOTESTSUM $GO_BIN
-    - cp $TEST2JSON $GO_BIN
-    - mkdir junit
-    - mkdir testjson
-    - mkdir pkgjson
-    - popd
-    - pushd $CI_PROJECT_DIR/test/new-e2e/system-probe/test-runner && go build -o $DEPENDENCIES/test-runner && popd
-    - pushd $CI_PROJECT_DIR/test/new-e2e/system-probe/test-json-review && go build -o $DEPENDENCIES/test-json-review && popd
-    - cp $CI_PROJECT_DIR/test/new-e2e/system-probe/test-runner/files/*.json $DEPENDENCIES/
-    # package all the dependencies
-    - ls -la $DEPENDENCIES
-    - pushd $DD_AGENT_TESTING_DIR/$ARCH
-    - tar czvf ../$ARCHIVE_NAME dependencies
-    - popd
+    - !reference [.prepare_common_dependency_upload]
     # copy system probe tests
     - mkdir -p $SYSTEM_PROBE_TESTS
     - cp -R $KITCHEN_TESTS $SYSTEM_PROBE_TESTS
