@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
+	gotlsutils "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -92,6 +93,7 @@ func TestMonitorProtocolFail(t *testing.T) {
 
 type httpTestSuite struct {
 	suite.Suite
+	isTLS bool
 }
 
 func TestHTTP(t *testing.T) {
@@ -99,7 +101,26 @@ func TestHTTP(t *testing.T) {
 		t.Skipf("USM is not supported on %v", kv)
 	}
 	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
-		suite.Run(t, new(httpTestSuite))
+		for _, tc := range []struct {
+			name  string
+			isTLS bool
+		}{
+			{
+				name:  "without TLS",
+				isTLS: false,
+			},
+			{
+				name:  "with TLS",
+				isTLS: true,
+			},
+		} {
+			if tc.isTLS && !gotlsutils.GoTLSSupported(t, config.New()) {
+				t.Skip("GoTLS not supported for this setup")
+			}
+			t.Run(tc.name, func(t *testing.T) {
+				suite.Run(t, &httpTestSuite{isTLS: tc.isTLS})
+			})
+		}
 	})
 }
 
