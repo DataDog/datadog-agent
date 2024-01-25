@@ -15,6 +15,7 @@ include:
   - /.gitlab/integration_test.yml
   - /.gitlab/package_build.yml
   - /.gitlab/kitchen_deploy.yml
+  - /.gitlab/e2e_pre_test.yml
   - /.gitlab/kitchen_testing.yml
   - /.gitlab/kitchen_tests_upload.yml
   - /.gitlab/new-e2e_testing.yml
@@ -79,6 +80,8 @@ stages:
   - benchmarks
   - package_build
   - kitchen_deploy
+  - e2e_pre_test
+  - e2e_pre_test_junit_upload
   - kitchen_testing
   - kitchen_tests_upload
   - pkg_metrics
@@ -996,6 +999,20 @@ workflow:
         - test/new-e2e-utils/**/*
         - test/new-e2e/go.mod
         - tasks/system_probe.py
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
+  - when: manual
+    allow_failure: true
+
+.on_e2e_changes_or_manual:
+  - <<: *if_main_branch
+  - <<: *if_mergequeue
+    when: never
+  - changes:
+      paths:
+        - test/new-e2e/pkg/**/*
+        - test/new-e2e/test-infra-definition/*
+        - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual

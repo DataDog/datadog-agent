@@ -84,6 +84,18 @@ e2e_installer_test_junit_upload:
     - new-e2e-windows-agent-msi-windows-server-a6-x86_64
     - new-e2e-windows-agent-msi-windows-server-a7-x86_64
 
+e2e_pre_test_junit_upload:
+  extends: .e2e_test_junit_template
+  rules:
+  # using the same rules as the kitchen_tests_upload job
+    - !reference [.on_e2e_changes_or_manual]
+    - when: always
+  stage: e2e_pre_test_junit_upload
+  dependencies:
+    # We need to exhaustively list all the `new-e2e-…` jobs that produce junit reports here
+    # to avoid downloading all the artifacts of all the jobs of all the previous stages.
+    - e2e_pre_test
+
 e2e_test_junit_upload:
   extends: .e2e_test_junit_template
   rules: !reference [.on_main]
