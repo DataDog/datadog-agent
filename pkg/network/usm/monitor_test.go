@@ -203,6 +203,9 @@ func (s *httpTestSuite) TestHTTPStats() {
 // we send another request. We expect to capture the another request but not the incomplete requests.
 func (s *httpTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
 	t := s.T()
+	if s.isTLS {
+		t.Skip("TLS not supported for this setup")
+	}
 
 	slowServerAddr := "localhost:8080"
 	fastServerAddr := "localhost:8081"
