@@ -13,10 +13,10 @@ import (
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/rlimit"
-	"github.com/emirpasic/gods/maps"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	ebpfmaps "github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 )
@@ -172,7 +172,7 @@ func newTestBatchManager(t *testing.T) *perfBatchManager {
 	require.NoError(t, err)
 	t.Cleanup(func() { m.Close() })
 
-	gm, err := maps.Map[uint32, netebpf.Batch](m)
+	gm, err := ebpfmaps.Map[uint32, netebpf.Batch](m)
 	require.NoError(t, err)
 	mgr, err := newPerfBatchManager(gm, numTestCPUs)
 	require.NoError(t, err)
