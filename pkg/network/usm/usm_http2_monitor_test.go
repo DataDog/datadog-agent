@@ -488,12 +488,10 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 	}
 
 	tests := []struct {
-		name                            string
-		skip                            bool
-		messageBuilder                  func() []byte
-		expectedEndpoints               map[usmhttp.Key]int
-		expectedDynamicTablePathIndexes []int
-		expectedHuffmanEncoded          map[int]bool
+		name              string
+		skip              bool
+		messageBuilder    func() []byte
+		expectedEndpoints map[usmhttp.Key]int
 	}{
 		{
 			name: "parse_frames tail call using 1 program",
@@ -794,56 +792,6 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			expectedEndpoints: nil,
 		},
 		{
-			name: "validate huffman encoding",
-			// The purpose of this test is to verify that we are able to identify if the path is huffman encoded.
-			messageBuilder: func() []byte {
-				framer := newFramer()
-				return framer.writeHeaders(t, 1, testHeaders()).
-					writeData(t, 1, true, []byte{}).
-					writeHeaders(t, 3, headersWithGivenEndpoint("/a")).
-					writeData(t, 3, true, []byte{}).bytes()
-			},
-			expectedEndpoints: map[usmhttp.Key]int{
-				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
-					Method: usmhttp.MethodPost,
-				}: 1,
-				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/a")},
-					Method: usmhttp.MethodPost,
-				}: 1,
-			},
-			// the key is the path size, and the value is if it should be huffman encoded or not.
-			expectedHuffmanEncoded: map[int]bool{
-				2: false,
-				3: true,
-			},
-		},
-		{
-			name: "dynamic table contains only index of path",
-			// The purpose of this test is to validate that the dynamic table contains only paths indexes.
-			messageBuilder: func() []byte {
-				const iterations = 10
-				framer := newFramer()
-
-				for i := 0; i < iterations; i++ {
-					streamID := getStreamID(i)
-					framer.
-						writeHeaders(t, streamID, testHeaders()).
-						writeData(t, streamID, true, []byte{})
-				}
-
-				return framer.bytes()
-			},
-			expectedEndpoints: map[usmhttp.Key]int{
-				{
-					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
-					Method: usmhttp.MethodPost,
-				}: 10,
-			},
-			expectedDynamicTablePathIndexes: []int{1, 7, 13, 19, 25, 31, 37, 43, 49, 55},
-		},
-		{
 			name: "validate path sent by value (:path)",
 			// The purpose of this test is to verify our ability to identify paths with index 4.
 			messageBuilder: func() []byte {
@@ -921,13 +869,247 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					}
 				}
 
-				if len(tt.expectedDynamicTablePathIndexes) > 0 {
-					validateDynamicTableMap(t, usmMonitor.ebpfProgram, tt.expectedDynamicTablePathIndexes)
+				return true
+			}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
+			if t.Failed() {
+				for key := range tt.expectedEndpoints {
+					if _, ok := res[key]; !ok {
+						t.Logf("key: %v was not found in res", key.Path.Content.Get())
+					}
+				}
+				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, "http2_in_flight")
+			}
+		})
+	}
+}
+
+func (s *usmHTTP2Suite) TestDynamicTable() {
+	t := s.T()
+	cfg := s.getCfg()
+
+	// Start local server
+	cleanup, err := startH2CServer(authority, s.isTLS)
+	require.NoError(t, err)
+	t.Cleanup(cleanup)
+
+	// Start the proxy server.
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	t.Cleanup(cancel)
+	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
+
+	tests := []struct {
+		name                            string
+		skip                            bool
+		messageBuilder                  func() []byte
+		expectedEndpoints               map[usmhttp.Key]int
+		expectedDynamicTablePathIndexes []int
+	}{
+		{
+			name: "dynamic table contains only index of path",
+			// The purpose of this test is to validate that the dynamic table contains only paths indexes.
+			messageBuilder: func() []byte {
+				const iterations = 10
+				framer := newFramer()
+
+				for i := 0; i < iterations; i++ {
+					streamID := getStreamID(i)
+					framer.
+						writeHeaders(t, streamID, testHeaders()).
+						writeData(t, streamID, true, []byte{})
 				}
 
-				if len(tt.expectedHuffmanEncoded) > 0 {
-					validateHuffmanEncoded(t, usmMonitor.ebpfProgram, tt.expectedHuffmanEncoded)
+				return framer.bytes()
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 10,
+			},
+			expectedDynamicTablePathIndexes: []int{1, 7, 13, 19, 25, 31, 37, 43, 49, 55},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.skip {
+				t.Skip("skipping test")
+			}
+
+			usmMonitor := setupUSMTLSMonitor(t, cfg)
+			if s.isTLS {
+				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+			}
+
+			c, err := net.Dial("unix", unixPath)
+			require.NoError(t, err, "could not dial")
+			defer c.Close()
+
+			// Create a buffer to write the frame into.
+			var buf bytes.Buffer
+			framer := http2.NewFramer(&buf, nil)
+			// Write the empty SettingsFrame to the buffer using the Framer
+			require.NoError(t, framer.WriteSettings(http2.Setting{}), "could not write settings frame")
+
+			// Writing a magic and the settings in the same packet to socket.
+			require.NoError(t, writeInput(c, usmhttp2.ComposeMessage([]byte(http2.ClientPreface), buf.Bytes()), time.Second))
+
+			// Composing a message with the number of setting frames we want to send.
+			require.NoError(t, writeInput(c, tt.messageBuilder(), time.Second))
+
+			res := make(map[usmhttp.Key]int)
+			assert.Eventually(t, func() bool {
+				for key, stat := range getHTTPLikeProtocolStats(usmMonitor, protocols.HTTP2) {
+					if key.DstPort == srvPort || key.SrcPort == srvPort {
+						count := stat.Data[200].Count
+						newKey := usmhttp.Key{
+							Path:   usmhttp.Path{Content: key.Path.Content},
+							Method: key.Method,
+						}
+						if _, ok := res[newKey]; !ok {
+							res[newKey] = count
+						} else {
+							res[newKey] += count
+						}
+					}
 				}
+
+				if len(res) != len(tt.expectedEndpoints) {
+					return false
+				}
+
+				for key, endpointCount := range res {
+					_, ok := tt.expectedEndpoints[key]
+					if !ok {
+						return false
+					}
+					if endpointCount != tt.expectedEndpoints[key] {
+						return false
+					}
+				}
+
+				validateDynamicTableMap(t, usmMonitor.ebpfProgram, tt.expectedDynamicTablePathIndexes)
+
+				return true
+			}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
+			if t.Failed() {
+				for key := range tt.expectedEndpoints {
+					if _, ok := res[key]; !ok {
+						t.Logf("key: %v was not found in res", key.Path.Content.Get())
+					}
+				}
+				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, "http2_in_flight")
+			}
+		})
+	}
+}
+
+func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
+	t := s.T()
+	cfg := s.getCfg()
+
+	// Start local server
+	cleanup, err := startH2CServer(authority, s.isTLS)
+	require.NoError(t, err)
+	t.Cleanup(cleanup)
+
+	// Start the proxy server.
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	t.Cleanup(cancel)
+	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
+
+	tests := []struct {
+		name                   string
+		skip                   bool
+		messageBuilder         func() []byte
+		expectedEndpoints      map[usmhttp.Key]int
+		expectedHuffmanEncoded map[int]bool
+	}{
+		{
+			name: "validate huffman encoding",
+			// The purpose of this test is to verify that we are able to identify if the path is huffman encoded.
+			messageBuilder: func() []byte {
+				framer := newFramer()
+				return framer.writeHeaders(t, 1, testHeaders()).
+					writeData(t, 1, true, []byte{}).
+					writeHeaders(t, 3, headersWithGivenEndpoint("/a")).
+					writeData(t, 3, true, []byte{}).bytes()
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/a")},
+					Method: usmhttp.MethodPost,
+				}: 1,
+			},
+			// the key is the path size, and the value is if it should be huffman encoded or not.
+			expectedHuffmanEncoded: map[int]bool{
+				2: false,
+				3: true,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.skip {
+				t.Skip("skipping test")
+			}
+
+			usmMonitor := setupUSMTLSMonitor(t, cfg)
+			if s.isTLS {
+				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+			}
+
+			c, err := net.Dial("unix", unixPath)
+			require.NoError(t, err, "could not dial")
+			defer c.Close()
+
+			// Create a buffer to write the frame into.
+			var buf bytes.Buffer
+			framer := http2.NewFramer(&buf, nil)
+			// Write the empty SettingsFrame to the buffer using the Framer
+			require.NoError(t, framer.WriteSettings(http2.Setting{}), "could not write settings frame")
+
+			// Writing a magic and the settings in the same packet to socket.
+			require.NoError(t, writeInput(c, usmhttp2.ComposeMessage([]byte(http2.ClientPreface), buf.Bytes()), time.Second))
+
+			// Composing a message with the number of setting frames we want to send.
+			require.NoError(t, writeInput(c, tt.messageBuilder(), time.Second))
+
+			res := make(map[usmhttp.Key]int)
+			assert.Eventually(t, func() bool {
+				for key, stat := range getHTTPLikeProtocolStats(usmMonitor, protocols.HTTP2) {
+					if key.DstPort == srvPort || key.SrcPort == srvPort {
+						count := stat.Data[200].Count
+						newKey := usmhttp.Key{
+							Path:   usmhttp.Path{Content: key.Path.Content},
+							Method: key.Method,
+						}
+						if _, ok := res[newKey]; !ok {
+							res[newKey] = count
+						} else {
+							res[newKey] += count
+						}
+					}
+				}
+
+				if len(res) != len(tt.expectedEndpoints) {
+					return false
+				}
+
+				for key, endpointCount := range res {
+					_, ok := tt.expectedEndpoints[key]
+					if !ok {
+						return false
+					}
+					if endpointCount != tt.expectedEndpoints[key] {
+						return false
+					}
+				}
+
+				validateHuffmanEncoded(t, usmMonitor.ebpfProgram, tt.expectedHuffmanEncoded)
 
 				return true
 			}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
