@@ -28,6 +28,7 @@ import (
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
@@ -49,8 +50,6 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -139,6 +138,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		secretsimpl.Module(),
 		orchestratorForwarderImpl.Module(),
 		fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
+		tagger.OptionalModule(),
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
 		// already migrated components to request it.
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
@@ -170,6 +170,7 @@ func start(
 	server dogstatsdServer.Component,
 	_ defaultforwarder.Component,
 	wmeta optional.Option[workloadmeta.Component],
+	_ optional.Option[tagger.Component],
 	demultiplexer demultiplexer.Component,
 	_ runner.Component,
 	_ resources.Component,
@@ -266,15 +267,6 @@ func RunDogstatsd(ctx context.Context, cliParams *CLIParams, config config.Compo
 	}
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
-
-	// container tagging initialisation if origin detection is on
-	if config.GetBool("dogstatsd_origin_detection") && components.WorkloadMeta != nil {
-
-		tagger.SetDefaultTagger(local.NewTagger(components.WorkloadMeta))
-		if err := tagger.Init(ctx); err != nil {
-			log.Errorf("failed to start the tagger: %s", err)
-		}
-	}
 
 	err = components.DogstatsdServer.Start(demultiplexer)
 	if err != nil {

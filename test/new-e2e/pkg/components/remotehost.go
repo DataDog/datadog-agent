@@ -113,6 +113,11 @@ func (h *RemoteHost) WriteFile(path string, content []byte) (int64, error) {
 	return clients.WriteFile(h.client, path, content)
 }
 
+// AppendFile append content to the file and returns the number of bytes written and error if any
+func (h *RemoteHost) AppendFile(os, path string, content []byte) (int64, error) {
+	return clients.AppendFile(h.client, os, path, content)
+}
+
 // ReadDir returns list of directory entries in path
 func (h *RemoteHost) ReadDir(path string) ([]fs.DirEntry, error) {
 	return clients.ReadDir(h.client, path)

@@ -19,6 +19,8 @@ import (
 )
 
 func TestSpliceEvent(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_splice",

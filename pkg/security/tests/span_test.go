@@ -21,6 +21,8 @@ import (
 )
 
 func TestSpan(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	executable := which(t, "touch")
 
 	ruleDefs := []*rules.RuleDefinition{

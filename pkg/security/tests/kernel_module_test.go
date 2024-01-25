@@ -100,6 +100,8 @@ func getModulePath(modulePathFmt string, t *testing.T) (string, bool) {
 }
 
 func TestKworker(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	if testEnvironment == DockerEnvironment {
 		t.Skip("skipping kernel module test in docker")
 	}
@@ -152,6 +154,8 @@ func TestKworker(t *testing.T) {
 }
 
 func TestLoadModule(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	if os.Getenv("CI") == "true" {
 		t.Skip("TestLoadModule is known to be flaky")
 	}
@@ -324,6 +328,8 @@ func TestLoadModule(t *testing.T) {
 }
 
 func TestUnloadModule(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	if testEnvironment == DockerEnvironment {
 		t.Skip("skipping kernel module test in docker")
 	}

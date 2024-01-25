@@ -15,10 +15,10 @@ import tempfile
 from invoke import task
 from invoke.exceptions import Exit, ParseError
 
-from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
-from .flavor import AgentFlavor
-from .go import deps
-from .libs.common.utils import (
+from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.flavor import AgentFlavor
+from tasks.go import deps
+from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
     cache_version,
@@ -30,11 +30,11 @@ from .libs.common.utils import (
     load_release_versions,
     timed,
 )
-from .rtloader import clean as rtloader_clean
-from .rtloader import install as rtloader_install
-from .rtloader import make as rtloader_make
-from .ssm import get_pfx_pass, get_signing_cert
-from .windows_resources import build_messagetable, build_rc, versioninfo_vars
+from tasks.rtloader import clean as rtloader_clean
+from tasks.rtloader import install as rtloader_install
+from tasks.rtloader import make as rtloader_make
+from tasks.ssm import get_pfx_pass, get_signing_cert
+from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 # constants
 BIN_DIR = os.path.join(".", "bin")
@@ -125,6 +125,7 @@ def build(
     windows_sysprobe=False,
     cmake_options='',
     bundle=None,
+    bundle_ebpf=False,
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
@@ -177,7 +178,7 @@ def build(
         build_tags = get_default_build_tags(build="agent", arch=arch, flavor=flavor)
     else:
         all_tags = set()
-        if development and "system-probe" in bundled_agents:
+        if bundle_ebpf and "system-probe" in bundled_agents:
             all_tags.add("ebpf_bindata")
 
         for build in bundled_agents:
