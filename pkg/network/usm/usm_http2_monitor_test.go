@@ -1148,12 +1148,12 @@ func headersWithGivenPathMethod(method string) []hpack.HeaderField {
 	return generateTestHeaderFields(false, false, false, method, "")
 }
 
-// headersWithExceedingPathLen returns a set of header fields with the given method for the header includes the path.
+// headersWithExceedingPathLen returns a set of header fields with a path that exceeds the maximum length.
 func headersWithExceedingPathLen() []hpack.HeaderField {
 	return generateTestHeaderFields(false, false, true, "", "")
 }
 
-// headersWithGivenPathMethod returns a set of header fields with the given method for the header includes the path.
+// headersWithGivenEndpoint returns a set of header fields with the given path.
 func headersWithGivenEndpoint(path string) []hpack.HeaderField {
 	return generateTestHeaderFields(false, false, false, "", path)
 }
