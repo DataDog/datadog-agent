@@ -71,6 +71,12 @@ func TestBuildVerifierStats(t *testing.T) {
 	stats, failedToLoad, err := BuildVerifierStats(objectFiles)
 	require.NoError(t, err)
 
+	require.True(t, len(stats) > 0)
+
+	// sanity check, since we should be able to load
+	// most of the programs.
+	require.True(t, len(stats) > len(failedToLoad))
+
 	for _, file := range objectFiles {
 		objectFileName := strings.ReplaceAll(
 			strings.Split(filepath.Base(file), ".")[0], "-", "_",
