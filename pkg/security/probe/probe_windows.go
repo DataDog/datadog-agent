@@ -322,10 +322,10 @@ func (p *WindowsProbe) Start() error {
 					case idFlush:
 						// don't fall through
 						log.Infof("e.UserDataLength------------%v", e.UserDataLength)
-						if ca, err := parseCleanupArgs(e); err == nil {
-							// 	log.Infof("got id %v args %s", e.EventHeader.EventDescriptor.ID, ca.string())
-							delete(filePathResolver, ca.fileObject)
-						}
+						// if ca, err := parseCleanupArgs(e); err == nil {
+						// 	log.Infof("got id %v args %s", e.EventHeader.EventDescriptor.ID, ca.string())
+						// delete(filePathResolver, ca.fileObject)
+						// }
 					case idSetInformation:
 						fallthrough
 					case idSetDelete:
