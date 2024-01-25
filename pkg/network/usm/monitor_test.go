@@ -313,7 +313,10 @@ func (s *httpTestSuite) TestHTTPMonitorIntegrationWithResponseBody() {
 // we check if we captured a request (and if we should have), or we didn't capture (and if we shouldn't have).
 func (s *httpTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 	t := s.T()
-	serverAddr := "localhost:8080"
+	const serverAddr = "localhost:8080"
+	// Start the proxy server.
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, serverAddr, s.isTLS)
+	t.Cleanup(cancel)
 
 	tests := []struct {
 		name                         string
@@ -346,10 +349,13 @@ func (s *httpTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := config.New()
+			cfg := s.getCfg()
 			cfg.HTTPMapCleanerInterval = time.Duration(tt.mapCleanerIntervalSeconds) * time.Second
 			cfg.HTTPIdleConnectionTTL = time.Duration(tt.httpIdleConnectionTTLSeconds) * time.Second
-			monitor := newHTTPMonitorWithCfg(t, cfg)
+			monitor := setupUSMTLSMonitor(t, cfg)
+			if s.isTLS {
+				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+			}
 
 			slowResponseTimeout := time.Duration(tt.slowResponseTime) * time.Second
 			serverTimeout := slowResponseTimeout + time.Second
@@ -357,12 +363,14 @@ func (s *httpTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 				WriteTimeout: serverTimeout,
 				ReadTimeout:  serverTimeout,
 				SlowResponse: slowResponseTimeout,
+				EnableTLS:    s.isTLS,
 			})
 			t.Cleanup(srvDoneFn)
+			require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
 			// Create a request generator `requestGenerator(t, nil, serverAddr, emptyBody)`, and runs it once. We save
 			// the request for a later comparison.
-			req := requestGenerator(t, nil, serverAddr, emptyBody)()
+			req := requestGenerator(t, getHTTPUnixClientArray(1, unixPath)[0], serverAddr, emptyBody)()
 			srvDoneFn()
 
 			// Ensure all captured transactions get sent to user-space
