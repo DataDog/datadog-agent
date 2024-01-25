@@ -153,6 +153,27 @@ powershell.exe -executionpolicy Bypass -file test_with_coverage.ps1"""
                 out_stream=test_profiler,
                 warn=True,
             )
+            if coverage:
+                # Removing the coverage script.
+                try:
+                    os.remove(cov_test_path)
+                    os.remove(call_ps1_from_bat)
+                except FileNotFoundError:
+                    print(
+                        f"Error: Could not find the coverage script {cov_test_path} or {call_ps1_from_bat} while trying to delete it.",
+                        file=sys.stderr,
+                    )
+                # Merging the unit tests reruns coverage files, keeping only the merged file.
+                files_to_delete = [f for f in os.listdir(os.getcwd()) if f.startswith(f"{TMP_PROFILE_COV_PREFIX}.")]
+                if not files_to_delete:
+                    print(
+                        f"Error: Could not find coverage files starting with '{TMP_PROFILE_COV_PREFIX}.'",
+                        file=sys.stderr,
+                    )
+                else:
+                    ctx.run(f"gocovmerge {' '.join(files_to_delete)} > {PROFILE_COV}")
+                    for f in files_to_delete:
+                        os.remove(f)
 
         module_result.result_json_path = os.path.join(module.full_path(), GO_TEST_RESULT_TMP_JSON)
 
@@ -166,27 +187,6 @@ powershell.exe -executionpolicy Bypass -file test_with_coverage.ps1"""
                 if os.path.exists(cov_path):
                     os.remove(cov_path)
                 return
-
-        if coverage:
-            # Removing the coverage script.
-            try:
-                os.remove(cov_test_path)
-                os.remove(call_ps1_from_bat)
-            except FileNotFoundError:
-                print(
-                    f"Error: Could not find the coverage script {cov_test_path} or {call_ps1_from_bat} while trying to delete it.",
-                    file=sys.stderr,
-                )
-            # Merging the unit tests reruns coverage files, keeping only the merged file.
-            files_to_delete = [f for f in os.listdir(os.getcwd()) if f.startswith(f"{TMP_PROFILE_COV_PREFIX}.")]
-            if not files_to_delete:
-                print(
-                    f"Error: Could not find coverage files starting with '{TMP_PROFILE_COV_PREFIX}.'", file=sys.stderr
-                )
-            else:
-                ctx.run(f"gocovmerge {' '.join(files_to_delete)} > {PROFILE_COV}")
-                for f in files_to_delete:
-                    os.remove(f)
 
         if save_result_json:
             with open(save_result_json, 'ab') as json_file, open(module_result.result_json_path, 'rb') as module_file:
