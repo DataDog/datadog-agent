@@ -56,10 +56,12 @@ func NewRCPolicyProvider() (*RCPolicyProvider, error) {
 		return nil, fmt.Errorf("failed to get ipc address: %w", err)
 	}
 
-	c, err := client.NewUnverifiedGRPCClient(ipcAddress, config.GetIPCPort(), security.FetchAuthToken,
+	c, err := client.NewGRPCClient(ipcAddress, config.GetIPCPort(), security.FetchAuthToken,
 		client.WithAgent(agentName, agentVersion.String()),
 		client.WithProducts([]data.Product{data.ProductCWSDD, data.ProductCWSCustom}),
-		client.WithPollInterval(securityAgentRCPollInterval))
+		client.WithPollInterval(securityAgentRCPollInterval),
+		client.WithDirectorRootOverride(config.Datadog.GetString("remote_configuration.director_root")),
+	)
 	if err != nil {
 		return nil, err
 	}

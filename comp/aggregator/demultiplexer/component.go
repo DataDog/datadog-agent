@@ -7,12 +7,9 @@
 package demultiplexer
 
 import (
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: agent-shared-components
@@ -31,10 +28,4 @@ type Component interface {
 	AddAgentStartupTelemetry(agentVersion string)
 
 	sender.DiagnoseSenderManager
-}
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newDemultiplexer))
 }

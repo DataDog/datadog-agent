@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
@@ -26,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
+	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -65,6 +67,7 @@ func StartServers(
 	capture replay.Component,
 	serverDebug dogstatsddebug.Component,
 	wmeta workloadmeta.Component,
+	taggerComp tagger.Component,
 	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
 	hostMetadata host.Component,
@@ -73,6 +76,7 @@ func StartServers(
 	invHost inventoryhost.Component,
 	secretResolver secrets.Component,
 	invChecks inventorychecks.Component,
+	pkgSigning packagesigning.Component,
 ) error {
 	apiAddr, err := getIPCAddressPort()
 	if err != nil {
@@ -112,6 +116,7 @@ func StartServers(
 		capture,
 		serverDebug,
 		wmeta,
+		taggerComp,
 		logsAgent,
 		senderManager,
 		hostMetadata,
@@ -120,6 +125,7 @@ func StartServers(
 		invHost,
 		secretResolver,
 		invChecks,
+		pkgSigning,
 	); err != nil {
 		return fmt.Errorf("unable to start CMD API server: %v", err)
 	}

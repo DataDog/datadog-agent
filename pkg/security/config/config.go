@@ -47,6 +47,8 @@ type RuntimeSecurityConfig struct {
 	PolicyMonitorEnabled bool
 	// PolicyMonitorPerRuleEnabled enabled per-rule policy monitoring
 	PolicyMonitorPerRuleEnabled bool
+	// PolicyMonitorReportInternalPolicies enable internal policies monitoring
+	PolicyMonitorReportInternalPolicies bool
 	// SocketPath is the path to the socket that is used to communicate with the security agent
 	SocketPath string
 	// EventServerBurst defines the maximum burst of events that can be sent over the grpc server
@@ -257,10 +259,11 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		RemoteConfigurationEnabled: isRemoteConfigEnabled(),
 
 		// policy & ruleset
-		PoliciesDir:                 coreconfig.SystemProbe.GetString("runtime_security_config.policies.dir"),
-		WatchPoliciesDir:            coreconfig.SystemProbe.GetBool("runtime_security_config.policies.watch_dir"),
-		PolicyMonitorEnabled:        coreconfig.SystemProbe.GetBool("runtime_security_config.policies.monitor.enabled"),
-		PolicyMonitorPerRuleEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.policies.monitor.per_rule_enabled"),
+		PoliciesDir:                         coreconfig.SystemProbe.GetString("runtime_security_config.policies.dir"),
+		WatchPoliciesDir:                    coreconfig.SystemProbe.GetBool("runtime_security_config.policies.watch_dir"),
+		PolicyMonitorEnabled:                coreconfig.SystemProbe.GetBool("runtime_security_config.policies.monitor.enabled"),
+		PolicyMonitorPerRuleEnabled:         coreconfig.SystemProbe.GetBool("runtime_security_config.policies.monitor.per_rule_enabled"),
+		PolicyMonitorReportInternalPolicies: coreconfig.SystemProbe.GetBool("runtime_security_config.policies.monitor.report_internal_policies"),
 
 		LogPatterns: coreconfig.SystemProbe.GetStringSlice("runtime_security_config.log_patterns"),
 		LogTags:     coreconfig.SystemProbe.GetStringSlice("runtime_security_config.log_tags"),
@@ -333,6 +336,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		AnomalyDetectionRateLimiterNumEventsAllowed:  coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.anomaly_detection.rate_limiter.num_events_allowed"),
 		AnomalyDetectionTagRulesEnabled:              coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.anomaly_detection.tag_rules.enabled"),
 		AnomalyDetectionSilentRuleEventsEnabled:      coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.anomaly_detection.silent_rule_events.enabled"),
+		AnomalyDetectionEnabled:                      coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.anomaly_detection.enabled"),
 
 		// User Sessions
 		UserSessionsCacheSize: coreconfig.SystemProbe.GetInt("runtime_security_config.user_sessions.cache_size"),

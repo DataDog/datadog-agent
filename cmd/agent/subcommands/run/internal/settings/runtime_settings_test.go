@@ -10,6 +10,7 @@ import (
 
 	global "github.com/DataDog/datadog-agent/cmd/agent/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
@@ -19,7 +20,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -35,8 +35,6 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 	assert := assert.New(t)
 	var err error
 
-	opts := aggregator.DefaultAgentDemultiplexerOptions()
-	opts.DontStartForwarders = true
 	deps := fxutil.Test[testDeps](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(core.BundleParams{}),
@@ -45,7 +43,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 		}),
 		dogstatsd.Bundle(),
 		defaultforwarder.MockModule(),
-		demultiplexer.MockModule(),
+		demultiplexerimpl.MockModule(),
 	))
 
 	demux := deps.Demultiplexer

@@ -63,7 +63,8 @@ func newTXParts(requestCapacity, responseCapacity int) *txParts {
 	}
 }
 
-func newIncompleteBuffer(c *config.Config, telemetry *Telemetry) *incompleteBuffer {
+// NewIncompleteBuffer returns a new incompleteBuffer instance
+func NewIncompleteBuffer(c *config.Config, telemetry *Telemetry) IncompleteBuffer {
 	return &incompleteBuffer{
 		data:       make(map[types.ConnectionKey]*txParts),
 		maxEntries: c.MaxHTTPStatsBuffered,

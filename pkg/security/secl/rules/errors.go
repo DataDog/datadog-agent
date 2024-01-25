@@ -172,3 +172,13 @@ type ErrRuleSyntax struct {
 func (e *ErrRuleSyntax) Error() string {
 	return fmt.Sprintf("syntax error `%v`", e.Err)
 }
+
+// ErrActionFilter is on filter definition error
+type ErrActionFilter struct {
+	Expression string
+	Err        error
+}
+
+func (e ErrActionFilter) Error() string {
+	return fmt.Sprintf("filter `%s` error: %s", e.Expression, e.Err)
+}

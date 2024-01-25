@@ -6,7 +6,7 @@
 package registration
 
 import (
-	"encoding/json"
+	json "github.com/json-iterator/go"
 )
 
 type destination struct {

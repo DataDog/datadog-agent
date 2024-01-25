@@ -5,7 +5,7 @@
 
 //go:build linux
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// Package main is the entrypoint for system-probe process
 package main
 
 import (
@@ -18,6 +18,6 @@ import (
 
 func main() {
 	rootCmd := command.MakeCommand(subcommands.SysprobeSubcommands())
-	setDefaultCommandIfNonePresent(rootCmd)
+	command.SetDefaultCommandIfNonePresent(rootCmd)
 	os.Exit(runcmd.Run(rootCmd))
 }

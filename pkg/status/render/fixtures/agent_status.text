@@ -484,11 +484,13 @@ Datadog Cluster Agent
     - Datadog Cluster Agent endpoint detected: https://10.122.58.252:5005
     Successfully connected to the Datadog Cluster Agent.
     - Running: x.y.z+commit.9b0b54b
+
 ==========
 SNMP Traps
 ==========
   Packets: 0
-  Packets Auth Errors: 0
+  Packets Unknown Community String: 0
+
 =============
 Autodiscovery
 =============

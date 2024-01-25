@@ -50,7 +50,7 @@ type pidContext struct {
 	conn net.Conn
 }
 
-type pidMap = map[uint64]pidContext
+type pidMap = map[uint32]pidContext
 
 func newApmEtwTracerImpl(deps dependencies) (apmetwtracer.Component, error) {
 	// Microsoft-Windows-DotNETRuntime
@@ -111,6 +111,10 @@ const (
 
 	// ERROR_NO_DATA The pipe is being closed.
 	ERROR_NO_DATA = 232
+
+	// MAX_EVENT_FILTER_PID_COUNT The maximum number of PIDs that can be used for filtering
+	// see https://github.com/tpn/winsdk-10/blob/master/Include/10.0.16299.0/shared/evntprov.h#L96
+	MAX_EVENT_FILTER_PID_COUNT = 8
 	//revive:enable:var-naming
 )
 
@@ -224,7 +228,7 @@ func (a *apmetwtracerimpl) handleConnection(c net.Conn) {
 		case registerCommand:
 			a.log.Infof("Registering process with ID %d", pid)
 			a.pidMutex.Lock()
-			err = a.addPID(pid)
+			err = a.addPID(uint32(pid))
 			a.pidMutex.Unlock()
 			if err != nil {
 				a.log.Errorf("Failed to reconfigure the ETW provider for PID %d: %v", pid, err)
@@ -235,7 +239,7 @@ func (a *apmetwtracerimpl) handleConnection(c net.Conn) {
 		case unregisterCommand:
 			a.log.Infof("Unregistering process with ID %d", pid)
 			a.pidMutex.Lock()
-			err = a.removePID(pid)
+			err = a.removePID(uint32(pid))
 			a.pidMutex.Unlock()
 			if err != nil {
 				a.log.Errorf("Failed to reconfigure the ETW provider for PID %d: %v", pid, err)
@@ -327,7 +331,6 @@ func (a *apmetwtracerimpl) doTrace() {
 	// StartTracing blocks the caller
 	_ = a.session.StartTracing(func(e *etw.DDEventRecord) {
 		a.log.Debugf("Received event %d for PID %d", e.EventHeader.EventDescriptor.ID, e.EventHeader.ProcessID)
-		pid := uint64(e.EventHeader.ProcessID)
 
 		a.pidMutex.Lock()
 		var err error
@@ -336,12 +339,12 @@ func (a *apmetwtracerimpl) doTrace() {
 				if err == syscall.Errno(ERROR_BROKEN_PIPE) ||
 					err == syscall.Errno(ERROR_NO_DATA) {
 					// Don't log error for normal pipe termination
-					a.log.Trace("Listener for process %d disconnected", pid)
+					a.log.Trace("Listener for process %d disconnected", e.EventHeader.ProcessID)
 				} else {
-					a.log.Errorf("Could not write ETW event for PID %d, %v", pid, err)
-					err = a.removePID(pid)
+					a.log.Errorf("Could not write ETW event for PID %d, %v", e.EventHeader.ProcessID, err)
+					err = a.removePID(e.EventHeader.ProcessID)
 					if err != nil {
-						a.log.Errorf("Could not remove PID %d, %v", pid, err)
+						a.log.Errorf("Could not remove PID %d, %v", e.EventHeader.ProcessID, err)
 					}
 				}
 			}
@@ -350,7 +353,7 @@ func (a *apmetwtracerimpl) doTrace() {
 
 		var pidCtx pidContext
 		var ok bool
-		if pidCtx, ok = a.pids[pid]; !ok {
+		if pidCtx, ok = a.pids[e.EventHeader.ProcessID]; !ok {
 			// We may still be receiving events a few moments
 			// after a process un-registers itself, no need to log anything here.
 			return
@@ -430,22 +433,26 @@ func (a *apmetwtracerimpl) stop(_ context.Context) error {
 	return err
 }
 
-func (a *apmetwtracerimpl) addPID(pid uint64) error {
+func (a *apmetwtracerimpl) addPID(pid uint32) error {
+	if len(a.pids) >= MAX_EVENT_FILTER_PID_COUNT {
+		return fmt.Errorf("too many processes registered")
+	}
 	c, err := winio.DialPipe(fmt.Sprintf(clientNamedPipePath, pid), nil)
 	if err != nil {
 		return err
 	}
-	// Only allow 15 PIDs to be registered
-	if len(a.pids) > 15 {
-		return fmt.Errorf("too many processes registered")
-	}
 	a.pids[pid] = pidContext{
 		conn: c,
 	}
-	return a.reconfigureProvider()
+	err = a.reconfigureProvider()
+	if err != nil {
+		c.Close()
+		delete(a.pids, pid)
+	}
+	return err
 }
 
-func (a *apmetwtracerimpl) removePID(pid uint64) error {
+func (a *apmetwtracerimpl) removePID(pid uint32) error {
 	var pidCtx pidContext
 	var ok bool
 	if pidCtx, ok = a.pids[pid]; !ok {
@@ -458,7 +465,7 @@ func (a *apmetwtracerimpl) removePID(pid uint64) error {
 }
 
 func (a *apmetwtracerimpl) reconfigureProvider() error {
-	pidsList := make([]uint64, 0, len(a.pids))
+	pidsList := make([]uint32, 0, len(a.pids))
 	for p := range a.pids {
 		pidsList = append(pidsList, p)
 	}

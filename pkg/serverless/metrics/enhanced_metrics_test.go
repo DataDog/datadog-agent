@@ -12,17 +12,16 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessTags "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestGenerateEnhancedMetricsFromFunctionLogOutOfMemory(t *testing.T) {
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	demux := createDemultiplexer(t)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 	reportLogTime := time.Now()
@@ -53,8 +52,7 @@ func TestGenerateEnhancedMetricsFromFunctionLogOutOfMemory(t *testing.T) {
 }
 
 func TestGenerateEnhancedMetricsFromFunctionLogNoMetric(t *testing.T) {
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	demux := createDemultiplexer(t)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 	isOOM := ContainsOutOfMemoryLog("Task timed out after 30.03 seconds")
@@ -69,8 +67,7 @@ func TestGenerateEnhancedMetricsFromFunctionLogNoMetric(t *testing.T) {
 }
 
 func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	demux := createDemultiplexer(t)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 	reportLogTime := time.Now()
@@ -146,8 +143,7 @@ func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 }
 
 func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	demux := createDemultiplexer(t)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 	reportLogTime := time.Now()
@@ -216,8 +212,7 @@ func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
 }
 
 func TestSendTimeoutEnhancedMetric(t *testing.T) {
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	demux := createDemultiplexer(t)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 
@@ -238,8 +233,7 @@ func TestSendTimeoutEnhancedMetric(t *testing.T) {
 }
 
 func TestSendInvocationEnhancedMetric(t *testing.T) {
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	demux := createDemultiplexer(t)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 
@@ -262,8 +256,7 @@ func TestSendInvocationEnhancedMetric(t *testing.T) {
 func TestDisableEnhancedMetrics(t *testing.T) {
 	os.Setenv("DD_ENHANCED_METRICS", "false")
 	defer os.Setenv("DD_ENHANCED_METRICS", "true")
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	demux := createDemultiplexer(t)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 
@@ -276,8 +269,7 @@ func TestDisableEnhancedMetrics(t *testing.T) {
 }
 
 func TestSendOutOfMemoryEnhancedMetric(t *testing.T) {
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	demux := createDemultiplexer(t)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 	mockTime := time.Now()
@@ -297,8 +289,7 @@ func TestSendOutOfMemoryEnhancedMetric(t *testing.T) {
 }
 
 func TestSendErrorsEnhancedMetric(t *testing.T) {
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	demux := createDemultiplexer(t)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 	mockTime := time.Now()
@@ -358,8 +349,7 @@ func TestCalculateEstimatedCost(t *testing.T) {
 }
 
 func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoStartDate(t *testing.T) {
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	demux := createDemultiplexer(t)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 	startTime := time.Time{}
@@ -401,8 +391,7 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoStartDate(t *testing.T) {
 }
 
 func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoEndDate(t *testing.T) {
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	demux := createDemultiplexer(t)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 	startTime := time.Now()
@@ -444,8 +433,7 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoEndDate(t *testing.T) {
 }
 
 func TestGenerateEnhancedMetricsFromRuntimeDoneLogOK(t *testing.T) {
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	demux := createDemultiplexer(t)
 	defer demux.Stop(false)
 	tags := []string{"functionname:test-function"}
 	startTime := time.Date(2020, 01, 01, 01, 01, 01, 500000000, time.UTC)
@@ -491,4 +479,8 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogOK(t *testing.T) {
 		Timestamp:  float64(endTime.UnixNano()) / float64(time.Second),
 	}})
 	assert.Len(t, timedMetrics, 0)
+}
+
+func createDemultiplexer(t *testing.T) demultiplexer.FakeSamplerMock {
+	return fxutil.Test[demultiplexer.FakeSamplerMock](t, logimpl.MockModule(), demultiplexerimpl.FakeSamplerMockModule())
 }

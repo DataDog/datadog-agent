@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
-//go:build !serverless
+//go:build !serverless && test
 
 package listener
 
@@ -72,10 +72,10 @@ func sendTestV2Trap(t *testing.T, trapConfig *config.TrapsConfig, community stri
 	return params
 }
 
-func sendTestV3Trap(t *testing.T, trapConfig *config.TrapsConfig, securityParams *gosnmp.UsmSecurityParameters) *gosnmp.GoSNMP {
+func sendTestV3Trap(t *testing.T, trapConfig *config.TrapsConfig, msgFlags gosnmp.SnmpV3MsgFlags, securityParams *gosnmp.UsmSecurityParameters) *gosnmp.GoSNMP {
 	params, err := trapConfig.BuildSNMPParams(nil)
 	require.NoError(t, err)
-	params.MsgFlags = gosnmp.AuthPriv
+	params.MsgFlags = msgFlags
 	params.SecurityParameters = securityParams
 	params.Timeout = 1 * time.Second // Must be non-zero when sending traps.
 	params.Retries = 1               // Must be non-zero when sending traps.

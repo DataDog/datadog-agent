@@ -11,10 +11,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"sync"
 	"time"
 
-	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
@@ -22,6 +22,7 @@ import (
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
@@ -31,14 +32,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/events"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
-	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	timeresolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/ebpf-manager/tracefs"
 )
 
 const defaultUDPConnTimeoutNanoSeconds = uint64(time.Duration(120) * time.Second)
@@ -60,27 +62,27 @@ const tracerModuleName = "network_tracer"
 var tracerTelemetry = struct {
 	skippedConns         telemetry.Counter
 	expiredTCPConns      telemetry.Counter
-	closedConns          *nettelemetry.StatCounterWrapper
+	closedConns          *telemetry.StatCounterWrapper
 	connStatsMapSize     telemetry.Gauge
 	payloadSizePerClient telemetry.Gauge
 }{
 	telemetry.NewCounter(tracerModuleName, "skipped_conns", []string{"ip_proto"}, "Counter measuring skipped connections"),
 	telemetry.NewCounter(tracerModuleName, "expired_tcp_conns", []string{}, "Counter measuring expired TCP connections"),
-	nettelemetry.NewStatCounterWrapper(tracerModuleName, "closed_conns", []string{"ip_proto"}, "Counter measuring closed TCP connections"),
+	telemetry.NewStatCounterWrapper(tracerModuleName, "closed_conns", []string{"ip_proto"}, "Counter measuring closed TCP connections"),
 	telemetry.NewGauge(tracerModuleName, "conn_stats_map_size", []string{}, "Gauge measuring the size of the active connections map"),
 	telemetry.NewGauge(tracerModuleName, "payload_conn_count", []string{"client_id", "ip_proto"}, "Gauge measuring the number of connections in the system-probe payload"),
 }
 
 // Tracer implements the functionality of the network tracer
 type Tracer struct {
-	config       *config.Config
-	state        network.State
-	conntracker  netlink.Conntracker
-	reverseDNS   dns.ReverseDNS
-	usmMonitor   *usm.Monitor
-	ebpfTracer   connection.Tracer
-	bpfTelemetry *nettelemetry.EBPFTelemetry
-	lastCheck    *atomic.Int64
+	config             *config.Config
+	state              network.State
+	conntracker        netlink.Conntracker
+	reverseDNS         dns.ReverseDNS
+	usmMonitor         *usm.Monitor
+	ebpfTracer         connection.Tracer
+	bpfErrorsCollector *ebpftelemetry.EBPFErrorsCollector
+	lastCheck          *atomic.Int64
 
 	bufferLock sync.Mutex
 
@@ -95,7 +97,7 @@ type Tracer struct {
 
 	processCache *processCache
 
-	timeResolver *TimeResolver
+	timeResolver *timeresolver.Resolver
 }
 
 // NewTracer creates a Tracer
@@ -156,20 +158,29 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 		}
 	}()
 
-	tr.bpfTelemetry = nettelemetry.NewEBPFTelemetry()
-	if tr.bpfTelemetry != nil {
-		coretelemetry.GetCompatComponent().RegisterCollector(tr.bpfTelemetry)
+	// pointer to embedded ebpfTelemetry struct within the bpfErrorsCollector,
+	// to avoid possible nil pointer dereference when accessing it via the bpfErrorsCollector pointer
+	var bpfTelemetry *ebpftelemetry.EBPFTelemetry
+
+	if eec := ebpftelemetry.NewEBPFErrorsCollector(); eec != nil {
+		coretelemetry.GetCompatComponent().RegisterCollector(eec)
+
+		//this is a patch for now, until ebpfTelemetry is fully encapsulated in the ebpf/telemetry pkg
+		if errorsCollector, ok := eec.(*ebpftelemetry.EBPFErrorsCollector); ok {
+			tr.bpfErrorsCollector = errorsCollector
+			bpfTelemetry = tr.bpfErrorsCollector.EBPFTelemetry
+		}
 	} else {
 		log.Debug("eBPF telemetry not supported")
 	}
 
-	tr.ebpfTracer, err = connection.NewTracer(cfg, tr.bpfTelemetry)
+	tr.ebpfTracer, err = connection.NewTracer(cfg, bpfTelemetry)
 	if err != nil {
 		return nil, err
 	}
 	coretelemetry.GetCompatComponent().RegisterCollector(tr.ebpfTracer)
 
-	tr.conntracker, err = newConntracker(cfg, tr.bpfTelemetry)
+	tr.conntracker, err = newConntracker(cfg, bpfTelemetry)
 	if err != nil {
 		return nil, err
 	}
@@ -181,7 +192,7 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 	}
 
 	tr.reverseDNS = newReverseDNS(cfg)
-	tr.usmMonitor = newUSMMonitor(cfg, tr.ebpfTracer, tr.bpfTelemetry)
+	tr.usmMonitor = newUSMMonitor(cfg, tr.ebpfTracer, bpfTelemetry)
 
 	if cfg.EnableProcessEventMonitoring {
 		if err = events.Init(); err != nil {
@@ -194,7 +205,7 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 		coretelemetry.GetCompatComponent().RegisterCollector(tr.processCache)
 		events.RegisterHandler(tr.processCache)
 
-		if tr.timeResolver, err = NewTimeResolver(); err != nil {
+		if tr.timeResolver, err = timeresolver.NewResolver(); err != nil {
 			return nil, fmt.Errorf("could not create time resolver: %w", err)
 		}
 	}
@@ -230,7 +241,7 @@ func (tr *Tracer) start() error {
 	return nil
 }
 
-func newConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry) (netlink.Conntracker, error) {
+func newConntracker(cfg *config.Config, bpfTelemetry *ebpftelemetry.EBPFTelemetry) (netlink.Conntracker, error) {
 	if !cfg.EnableConntrack {
 		return netlink.NewNoOpConntracker(), nil
 	}
@@ -285,7 +296,6 @@ func newReverseDNS(c *config.Config) dns.ReverseDNS {
 //nolint:revive // TODO(NET) Fix revive linter
 func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 	var rejected int
-	_ = t.timeResolver.Sync()
 	for i := range connections {
 		cs := &connections[i]
 		if t.shouldSkipConnection(cs) {
@@ -319,7 +329,7 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	c.ContainerID = nil
 
 	ts := t.timeResolver.ResolveMonotonicTimestamp(c.LastUpdateEpoch)
-	p, ok := t.processCache.Get(c.Pid, int64(ts))
+	p, ok := t.processCache.Get(c.Pid, ts.UnixNano())
 	if !ok {
 		return
 	}
@@ -343,8 +353,7 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	addTag("version", p.Env("DD_VERSION"))
 	addTag("service", p.Env("DD_SERVICE"))
 
-	containerID := p.ContainerID.Get().(string)
-	if containerID != "" {
+	if containerID := p.ContainerID.Get().(string); containerID != "" {
 		c.ContainerID = &containerID
 	}
 }
@@ -375,8 +384,8 @@ func (t *Tracer) Stop() {
 		t.processCache.Stop()
 		coretelemetry.GetCompatComponent().UnregisterCollector(t.processCache)
 	}
-	if t.bpfTelemetry != nil {
-		coretelemetry.GetCompatComponent().UnregisterCollector(t.bpfTelemetry)
+	if t.bpfErrorsCollector != nil {
+		coretelemetry.GetCompatComponent().UnregisterCollector(t.bpfErrorsCollector)
 	}
 }
 
@@ -419,14 +428,13 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	buffer.ConnectionBuffer.Assign(delta.Conns)
 	conns := network.NewConnections(buffer)
 	conns.DNS = t.reverseDNS.Resolve(ips)
-	conns.DNSStats = delta.DNSStats
 	conns.HTTP = delta.HTTP
 	conns.HTTP2 = delta.HTTP2
 	conns.Kafka = delta.Kafka
 	conns.ConnTelemetry = t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
 	conns.CompilationTelemetryByAsset = t.getRuntimeCompilationTelemetry()
 	conns.KernelHeaderFetchResult = int32(kernel.HeaderProvider.GetResult())
-	conns.CORETelemetryByAsset = ddebpf.GetCORETelemetryByAsset()
+	conns.CORETelemetryByAsset = ebpftelemetry.GetCORETelemetryByAsset()
 	conns.PrebuiltAssets = netebpf.GetModulesInUse()
 	t.lastCheck.Store(time.Now().Unix())
 
@@ -448,7 +456,7 @@ func (t *Tracer) removeClient(clientID string) {
 
 //nolint:revive // TODO(NET) Fix revive linter
 func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int64 {
-	kprobeStats := ddebpf.GetProbeTotals()
+	kprobeStats := ebpftelemetry.GetProbeTotals()
 	tm := map[network.ConnTelemetryType]int64{
 		network.MonotonicKprobesTriggered: int64(kprobeStats.Hits),
 		network.MonotonicKprobesMissed:    int64(kprobeStats.Misses),
@@ -531,7 +539,6 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 	}
 
 	activeConnections = activeBuffer.Connections()
-	_ = t.timeResolver.Sync()
 	for i := range activeConnections {
 		activeConnections[i].IPTranslation = t.conntracker.GetTranslationForConn(activeConnections[i])
 		// do gateway resolution only on active connections outside
@@ -712,19 +719,22 @@ func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 // DebugEBPFMaps returns all maps registered in the eBPF manager
 //
 //nolint:revive // TODO(NET) Fix revive linter
-func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) {
-	tracerMaps, err := t.ebpfTracer.DumpMaps(maps...)
+func (t *Tracer) DebugEBPFMaps(w io.Writer, maps ...string) error {
+	io.WriteString(w, "tracer:\n")
+	err := t.ebpfTracer.DumpMaps(w, maps...)
 	if err != nil {
-		return "", err
+		return err
 	}
-	if t.usmMonitor == nil {
-		return "tracer:\n" + tracerMaps, nil
+
+	if t.usmMonitor != nil {
+		io.WriteString(w, "usm_monitor:\n")
+		err := t.usmMonitor.DumpMaps(w, maps...)
+		if err != nil {
+			return err
+		}
 	}
-	usmMaps, err := t.usmMonitor.DumpMaps(maps...)
-	if err != nil {
-		return "", err
-	}
-	return "tracer:\n" + tracerMaps + "\nhttp_monitor:\n" + usmMaps, nil
+
+	return nil
 }
 
 // connectionExpired returns true if the passed in connection has expired
@@ -837,7 +847,7 @@ func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error)
 	return nil, nil
 }
 
-func newUSMMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *nettelemetry.EBPFTelemetry) *usm.Monitor {
+func newUSMMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *ebpftelemetry.EBPFTelemetry) *usm.Monitor {
 	// Shared with the USM program
 	sockFDMap := tracer.GetMap(probes.SockByPidFDMap)
 	connectionProtocolMap := tracer.GetMap(probes.ConnectionProtocolMap)

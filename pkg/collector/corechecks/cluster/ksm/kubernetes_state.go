@@ -21,7 +21,9 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm/customresources"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
+
 	//nolint:revive // TODO(CINT) Fix revive linter
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -32,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"golang.org/x/exp/maps"
 
 	"gopkg.in/yaml.v2"
@@ -44,8 +47,9 @@ import (
 )
 
 const (
-	kubeStateMetricsCheckName = "kubernetes_state_core"
-	maximumWaitForAPIServer   = 10 * time.Second
+	// CheckName is the name of the check
+	CheckName               = "kubernetes_state_core"
+	maximumWaitForAPIServer = 10 * time.Second
 
 	// createdByKindKey represents the KSM label key created_by_kind
 	createdByKindKey = "created_by_kind"
@@ -195,20 +199,10 @@ func init() {
 	labelRegexp = regexp.MustCompile(`[\/]|[\.]|[\-]`)
 }
 
-func init() {
-	core.RegisterCheck(kubeStateMetricsCheckName, KubeStateMetricsFactory)
-}
-
 // Configure prepares the configuration of the KSM check instance
 func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
 	k.BuildID(integrationConfigDigest, config, initConfig)
 	k.agentConfig = ddconfig.Datadog
-
-	// Retrieve cluster name
-	k.getClusterName()
-
-	// Initialize global tags and check tags
-	k.initTags()
 
 	err := k.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source)
 	if err != nil {
@@ -219,6 +213,12 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	if err != nil {
 		return err
 	}
+
+	// Retrieve cluster name
+	k.getClusterName()
+
+	// Initialize global tags and check tags
+	k.initTags()
 
 	// Prepare label joins
 	for _, joinConf := range k.instance.LabelJoins {
@@ -249,7 +249,7 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	}
 
 	// Discover resources that are currently available
-	resources, err := discoverResources(c.DiscoveryCl)
+	resources, err := discoverResources(c.Cl.Discovery())
 	if err != nil {
 		return err
 	}
@@ -295,9 +295,9 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 
 	builder.WithFamilyGeneratorFilter(allowDenyList)
 
-	builder.WithKubeClient(c.Cl)
+	builder.WithKubeClient(c.InformerCl)
 
-	builder.WithVPAClient(c.VPAClient)
+	builder.WithVPAClient(c.VPAInformerClient)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	k.cancel = cancel
@@ -418,11 +418,6 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 }
 
 func manageResourcesReplacement(c *apiserver.APIClient, factories []customresource.RegistryFactory, resources []*v1.APIResourceList) []customresource.RegistryFactory {
-	if c.DiscoveryCl == nil {
-		log.Warn("Kubernetes discovery client has not been properly initialized")
-		return factories
-	}
-
 	// backwards/forwards compatibility resource factories are only
 	// registered if they're needed, otherwise they'd overwrite the default
 	// ones that ship with ksm
@@ -472,6 +467,15 @@ func (k *KSMCheck) Run() error {
 		return err
 	}
 
+	// Normally the sender is kept for the lifetime of the check.
+	// But as `SetCheckCustomTags` is cheap and `k.instance.Tags` is immutable
+	// It's fast and safe to set it after we get the sender.
+	sender.SetCheckCustomTags(k.instance.Tags)
+
+	// Do not fallback to the Agent hostname if the hostname corresponding to the KSM metric is unknown
+	// Note that by design, some metrics cannot have hostnames (e.g kubernetes_state.pod.unschedulable)
+	sender.DisableDefaultHostname(true)
+
 	// If the check is configured as a cluster check, the cluster check worker needs to skip the leader election section.
 	// we also do a safety check for dedicated runners to avoid trying the leader election
 	if !k.isCLCRunner || !k.instance.LeaderSkip {
@@ -495,10 +499,6 @@ func (k *KSMCheck) Run() error {
 	}
 
 	defer sender.Commit()
-
-	// Do not fallback to the Agent hostname if the hostname corresponding to the KSM metric is unknown
-	// Note that by design, some metrics cannot have hostnames (e.g kubernetes_state.pod.unschedulable)
-	sender.DisableDefaultHostname(true)
 
 	labelJoiner := newLabelJoiner(k.instance.labelJoins)
 	for _, stores := range k.allStores {
@@ -702,6 +702,12 @@ func (k *KSMCheck) mergeAnnotationsAsTags(extra map[string]map[string]string) {
 	if k.instance.AnnotationsAsTags == nil {
 		k.instance.AnnotationsAsTags = make(map[string]map[string]string)
 	}
+	// In the case of a misconfiguration issue, the value could be explicitly set to nil
+	for resource, mapping := range k.instance.AnnotationsAsTags {
+		if mapping == nil {
+			delete(k.instance.AnnotationsAsTags, resource)
+		}
+	}
 	for resource, mapping := range extra {
 		_, found := k.instance.AnnotationsAsTags[resource]
 		if !found {
@@ -778,10 +784,6 @@ func (k *KSMCheck) getClusterName() {
 // Sets the kube_cluster_name tag for all metrics.
 // Adds the global user-defined tags from the Agent config.
 func (k *KSMCheck) initTags() {
-	if k.instance.Tags == nil {
-		k.instance.Tags = []string{}
-	}
-
 	if k.clusterNameTagValue != "" {
 		k.instance.Tags = append(k.instance.Tags, "kube_cluster_name:"+k.clusterNameTagValue)
 	}
@@ -834,10 +836,14 @@ func (k *KSMCheck) sendTelemetry(s sender.Sender) {
 	}
 }
 
-// KubeStateMetricsFactory returns a new KSMCheck
-func KubeStateMetricsFactory() check.Check {
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
+}
+
+func newCheck() check.Check {
 	return newKSMCheck(
-		core.NewCheckBase(kubeStateMetricsCheckName),
+		core.NewCheckBase(CheckName),
 		&KSMConfig{
 			LabelsMapper: make(map[string]string),
 			LabelJoins:   make(map[string]*JoinsConfigWithoutLabelsMapping),
@@ -848,7 +854,7 @@ func KubeStateMetricsFactory() check.Check {
 // KubeStateMetricsFactoryWithParam is used only by test/benchmarks/kubernetes_state
 func KubeStateMetricsFactoryWithParam(labelsMapper map[string]string, labelJoins map[string]*JoinsConfigWithoutLabelsMapping, allStores [][]cache.Store) *KSMCheck {
 	check := newKSMCheck(
-		core.NewCheckBase(kubeStateMetricsCheckName),
+		core.NewCheckBase(CheckName),
 		&KSMConfig{
 			LabelsMapper: labelsMapper,
 			LabelJoins:   labelJoins,

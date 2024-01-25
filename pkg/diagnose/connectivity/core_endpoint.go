@@ -19,10 +19,10 @@ import (
 	"strings"
 
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
@@ -186,10 +186,8 @@ func verifyEndpointResponse(statusCode int, responseBody []byte, err error) (str
 			scrubber.ScrubLine(err.Error()), noResponseHints(err)), err
 	}
 
-	//nolint:revive // TODO(ASC) Fix revive linter
-	var verifyReport string = ""
-	//nolint:revive // TODO(ASC) Fix revive linter
-	var newErr error = nil
+	var verifyReport string
+	var newErr error
 	if statusCode >= 400 {
 		newErr = fmt.Errorf("bad request")
 		verifyReport = fmt.Sprintf("Received response : '%v'\n", scrubber.ScrubLine(string(responseBody)))

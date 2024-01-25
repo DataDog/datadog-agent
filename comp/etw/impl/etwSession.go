@@ -44,6 +44,13 @@ func (e *etwSession) EnableProvider(providerGUID windows.GUID) error {
 	}
 
 	cfg := e.providers[providerGUID]
+	var pids *C.ULONG
+	var pidCount C.ULONG
+	if len(cfg.PIDs) > 0 {
+		pids = (*C.ULONG)(unsafe.SliceData(cfg.PIDs))
+		pidCount = C.ULONG(len(cfg.PIDs))
+	}
+
 	ret := windows.Errno(C.DDEnableTrace(
 		e.hSession,
 		(*C.GUID)(unsafe.Pointer(&providerGUID)),
@@ -55,8 +62,8 @@ func (e *etwSession) EnableProvider(providerGUID windows.GUID) error {
 		// We can't pass to C-code Go pointers containing themselves
 		// Go pointers, so we have to list all event filter descriptors here
 		// and re-assemble them in C-land using our helper DDEnableTrace.
-		(*C.ULONGLONG)(unsafe.Pointer(&cfg.PIDs[0])),
-		C.ULONG(len(cfg.PIDs)),
+		pids,
+		pidCount,
 	))
 
 	if ret != windows.ERROR_SUCCESS {
@@ -84,8 +91,8 @@ func (e *etwSession) DisableProvider(providerGUID windows.GUID) error {
 	return ret
 }
 
-//export etwCallbackC
-func etwCallbackC(eventRecord C.PEVENT_RECORD) {
+//export ddEtwCallbackC
+func ddEtwCallbackC(eventRecord C.PEVENT_RECORD) {
 	handle := cgo.Handle(eventRecord.UserContext)
 	eventInfo := (*etw.DDEventRecord)(unsafe.Pointer(eventRecord))
 	handle.Value().(etw.EventCallback)(eventInfo)

@@ -605,7 +605,7 @@ func TestSubscribe(t *testing.T) {
 			actual := []EventBundle{}
 			go func() {
 				for bundle := range ch {
-					close(bundle.Ch)
+					bundle.Acknowledge()
 
 					// nil the bundle's Ch so we can
 					// deep-equal just the events later
@@ -1227,7 +1227,7 @@ func TestResetProcesses(t *testing.T) {
 
 			go func() {
 				for bundle := range ch {
-					close(bundle.Ch)
+					bundle.Acknowledge()
 
 					// nil the bundle's Ch so we can deep-equal just the events
 					// later
@@ -1427,7 +1427,7 @@ func TestReset(t *testing.T) {
 			var actualEventsReceived []EventBundle
 			go func() {
 				for bundle := range ch {
-					close(bundle.Ch)
+					bundle.Acknowledge()
 
 					// nil the bundle's Ch so we can deep-equal just the events
 					// later
@@ -1484,4 +1484,73 @@ func TestNoDataRace(t *testing.T) { //nolint:revive // TODO fix revive unused-pa
 			Entity: container,
 		},
 	})
+}
+
+func TestPushEvents(t *testing.T) {
+
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		logimpl.MockModule(),
+		config.MockModule(),
+		fx.Supply(NewParams()),
+	))
+
+	wlm := newWorkloadMeta(deps).(*workloadmeta)
+
+	mockSource := Source("mockSource")
+
+	tests := []struct {
+		name        string
+		events      []Event
+		source      Source
+		expectError bool
+	}{
+		{
+			name:        "empty push events slice",
+			events:      []Event{},
+			source:      mockSource,
+			expectError: false,
+		},
+		{
+			name: "push events with valid types",
+			events: []Event{
+				{
+					Type: EventTypeSet,
+				},
+				{
+					Type: EventTypeUnset,
+				},
+				{
+					Type: EventTypeSet,
+				},
+			},
+			source:      mockSource,
+			expectError: false,
+		},
+		{
+			name: "push events with invalid types",
+			events: []Event{
+				{
+					Type: EventTypeSet,
+				},
+				{
+					Type: EventTypeAll,
+				},
+			},
+			source:      mockSource,
+			expectError: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := wlm.Push(mockSource, test.events...)
+
+			if test.expectError {
+				tassert.Error(t, err, "Expected Push operation to fail and return error")
+			} else {
+				tassert.NoError(t, err, "Expected Push operation to succeed and return nil")
+			}
+
+		})
+	}
 }

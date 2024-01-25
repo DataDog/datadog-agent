@@ -209,4 +209,9 @@ type mongoDBConfig struct {
 		Engine                 *string  `yaml:"engine,omitempty" json:"engine,omitempty"`
 		OplogMinRetentionHours *float64 `yaml:"oplogMinRetentionHours,omitempty" json:"oplogMinRetentionHours,omitempty"`
 	} `yaml:"storage,omitempty" json:"storage,omitempty"`
+
+	SetParameter *struct {
+		EnableLocalhostAuthBypass *bool   `yaml:"enableLocalhostAuthBypass,omitempty" json:"enableLocalhostAuthBypass,omitempty"`
+		AuthenticationMechanisms  *string `yaml:"authenticationMechanisms,omitempty" json:"authenticationMechanisms,omitempty"`
+	} `yaml:"setParameter,omitempty" json:"setParameter,omitempty"`
 }

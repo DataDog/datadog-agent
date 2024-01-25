@@ -9,6 +9,7 @@ package hostimpl
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
 	"time"
 
 	"go.uber.org/fx"
@@ -117,5 +118,5 @@ func (h *host) GetPayloadAsJSON(ctx context.Context) ([]byte, error) {
 }
 
 func (h *host) fillFlare(fb flaretypes.FlareBuilder) error {
-	return fb.AddFileFromFunc("metadata_v5.json", func() ([]byte, error) { return h.GetPayloadAsJSON(context.Background()) })
+	return fb.AddFileFromFunc(filepath.Join("metadata", "host.json"), func() ([]byte, error) { return h.GetPayloadAsJSON(context.Background()) })
 }

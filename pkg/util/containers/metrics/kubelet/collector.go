@@ -78,9 +78,10 @@ func newKubeletCollector(*provider.Cache) (provider.CollectorMetadata, error) {
 	return provider.CollectorMetadata{
 		ID: collectorID,
 		Collectors: provider.CollectorCatalog{
-			provider.RuntimeNameContainerd: collectors,
-			provider.RuntimeNameCRIO:       collectors,
-			provider.RuntimeNameDocker:     collectors,
+			provider.NewRuntimeMetadata(string(provider.RuntimeNameContainerd), ""):                                 collectors,
+			provider.NewRuntimeMetadata(string(provider.RuntimeNameContainerd), string(provider.RuntimeFlavorKata)): collectors,
+			provider.NewRuntimeMetadata(string(provider.RuntimeNameCRIO), ""):                                       collectors,
+			provider.NewRuntimeMetadata(string(provider.RuntimeNameDocker), ""):                                     collectors,
 		},
 	}, nil
 }

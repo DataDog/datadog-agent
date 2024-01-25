@@ -8,12 +8,13 @@
 package selftests
 
 import (
+	"github.com/hashicorp/go-multierror"
+
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
-	"github.com/hashicorp/go-multierror"
 )
 
 // SelfTester represents all the state needed to conduct rule injection test at startup
@@ -44,9 +45,10 @@ func (t *SelfTester) Close() error {
 // LoadPolicies implements the PolicyProvider interface
 func (t *SelfTester) LoadPolicies(_ []rules.MacroFilter, _ []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) {
 	p := &rules.Policy{
-		Name:    policyName,
-		Source:  policySource,
-		Version: policyVersion,
+		Name:       policyName,
+		Source:     policySource,
+		Version:    policyVersion,
+		IsInternal: true,
 	}
 
 	return []*rules.Policy{p}, nil

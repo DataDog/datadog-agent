@@ -42,6 +42,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
@@ -53,6 +54,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
+	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
@@ -83,9 +85,10 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			telemetry telemetry.Component,
 			sysprobeconfig sysprobeconfig.Component,
 			server dogstatsdServer.Component,
+			_ replay.Component,
 			serverDebug dogstatsddebug.Component,
-			capture replay.Component,
 			wmeta workloadmeta.Component,
+			taggerComp tagger.Component,
 			rcclient rcclient.Component,
 			forwarder defaultforwarder.Component,
 			logsAgent optional.Option[logsAgent.Component],
@@ -93,13 +96,14 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			sharedSerializer serializer.MetricSerializer,
 			otelcollector otelcollector.Component,
 			demultiplexer demultiplexer.Component,
-			hostMetadata host.Component,
+			_ host.Component,
 			invAgent inventoryagent.Component,
-			invHost inventoryhost.Component,
-			secretResolver secrets.Component,
+			_ inventoryhost.Component,
+			_ secrets.Component,
 			invChecks inventorychecks.Component,
 			_ netflowServer.Component,
 			agentAPI internalAPI.Component,
+			pkgSigning packagesigning.Component,
 		) error {
 
 			defer StopAgentWithDefaults(server, demultiplexer, agentAPI)
@@ -111,19 +115,16 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				telemetry,
 				sysprobeconfig,
 				server,
-				capture,
 				serverDebug,
 				wmeta,
+				taggerComp,
 				rcclient,
 				logsAgent,
 				forwarder,
 				sharedSerializer,
 				otelcollector,
 				demultiplexer,
-				hostMetadata,
 				invAgent,
-				invHost,
-				secretResolver,
 				agentAPI,
 				invChecks,
 			)

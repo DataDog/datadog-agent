@@ -59,7 +59,7 @@ func (c *Check) dataGuard() error {
 		} else {
 			v = invalidLagValue
 		}
-		sender.Gauge(fmt.Sprintf("%s.%s", common.IntegrationName, strings.ReplaceAll(string(s.Name), " ", "_")), v, "", c.tags)
+		sender.Gauge(fmt.Sprintf("%s.data_guard.%s", common.IntegrationName, strings.ReplaceAll(string(s.Name), " ", "_")), v, "", c.tags)
 	}
 	sender.Commit()
 	return nil

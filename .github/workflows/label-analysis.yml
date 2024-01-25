@@ -1,0 +1,57 @@
+---
+name: "Label analysis"
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+      - "[0-9]+.[0-9]+.x"
+
+jobs:
+  team-label:
+    if: github.triggering_actor != 'dd-devflow[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check team assignment
+        run: |
+          labels="${{join(github.event.pull_request.labels.*.name, ' ')}}"
+          for label in $labels; do
+            if [[ "$label" =~ ^qa/ ]]; then
+              echo "A label to skip QA is set -- no need for team assignment"
+              exit 0
+            fi
+            if [[ "$label" =~ ^team/ && "$label" != team/triage ]]; then
+              echo "Team label found: $label"
+              exit 0
+            fi
+          done
+          echo "PR ${{github.event.number}} requires at least one non-triage team assignment label (label starting by 'team/')"
+          exit 1
+  skip-qa:
+    if: github.triggering_actor != 'dd-devflow[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check ability to skip qa
+        run: |
+          skip=0
+          done=0
+          noChange=0
+          labels="${{join(github.event.pull_request.labels.*.name, ' ')}}"
+          for label in $labels; do
+            if [[ "$label" == "qa/skip-qa" ]]; then
+              skip=1
+            fi
+            if [[ "$label" == "qa/done" ]]; then
+              done=1
+            fi
+            if [[ "$label" == "qa/no-code-change" ]]; then
+              noChange=1
+            fi
+          done
+          if [[ ($skip -eq 0 && $done -eq 0 && $noChange -eq 0) || ($skip -eq 1 && $done -ne $noChange) ]]; then
+            exit 0
+          else
+            echo "Skip QA labels are not correct on PR ${{github.event.number}}. You must set `qa/skip-qa` with exacly 1 justification, `qa/done` or `qa/no-code-change`"
+            exit 1
+          fi

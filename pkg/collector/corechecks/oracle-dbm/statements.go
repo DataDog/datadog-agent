@@ -223,12 +223,12 @@ type PlanDefinition struct {
 	ObjectAlias string `json:"object_alias,omitempty"`
 	ObjectType  string `json:"object_type,omitempty"`
 	//nolint:revive // TODO(DBM) Fix revive linter
-	PlanStepId       int64   `json:"id,omitempty"`
-	ParentId         int64   `json:"parent_id,omitempty"`
-	Depth            int64   `json:"depth,omitempty"`
-	Position         int64   `json:"position,omitempty"`
+	PlanStepId       int64   `json:"id"`
+	ParentId         int64   `json:"parent_id"`
+	Depth            int64   `json:"depth"`
+	Position         int64   `json:"position"`
 	SearchColumns    int64   `json:"search_columns,omitempty"`
-	Cost             float64 `json:"cost,omitempty"`
+	Cost             float64 `json:"cost"`
 	Cardinality      float64 `json:"cardinality,omitempty"`
 	Bytes            float64 `json:"bytes,omitempty"`
 	PartitionStart   string  `json:"partition_start,omitempty"`
@@ -337,12 +337,13 @@ func (c *Check) copyToPreviousMap(newMap map[StatementMetricsKeyDB]StatementMetr
 }
 
 func handlePredicate(predicateType string, dbValue sql.NullString, payloadValue *string, statement StatementMetricsDB, c *Check, o *obfuscate.Obfuscator) {
-	if dbValue.Valid {
+	if dbValue.Valid && dbValue.String != "" {
 		obfuscated, err := o.ObfuscateSQLString(dbValue.String)
 		if err == nil {
 			*payloadValue = obfuscated.Query
 		} else {
-			*payloadValue = fmt.Sprintf("%s obfuscation error", predicateType)
+			*payloadValue = fmt.Sprintf("%s obfuscation error %d", predicateType, len(dbValue.String))
+			//*payloadValue = dbValue.String
 			logEntry := fmt.Sprintf("%s %s for sql_id: %s, plan_hash_value: %d", c.logPrompt, *payloadValue, statement.SQLID, statement.PlanHashValue)
 			if c.config.ExecutionPlans.LogUnobfuscatedPlans {
 				logEntry = fmt.Sprintf("%s unobfuscated filter: %s", logEntry, dbValue.String)
@@ -652,7 +653,19 @@ func (c *Check) StatementMetrics() (int, error) {
 
 					if err == nil {
 						if len(planStepsDB) > 0 {
-							for _, stepRow := range planStepsDB {
+							var firstChildNumber int64
+							for i, stepRow := range planStepsDB {
+								if !stepRow.ChildNumber.Valid {
+									log.Errorf("%s invalid child numner in execution plan", c.logPrompt)
+									break
+								}
+								if i == 0 {
+									firstChildNumber = stepRow.ChildNumber.Int64
+								} else {
+									if firstChildNumber != stepRow.ChildNumber.Int64 {
+										break
+									}
+								}
 								var stepPayload PlanDefinition
 								if stepRow.Operation.Valid {
 									stepPayload.Operation = stepRow.Operation.String

@@ -10,35 +10,34 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/DataDog/gopsutil/host"
-
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-var hostinfo *host.InfoStat
+var hostPlatform string
 var kv = kernel.MustHostVersion()
 
 func init() {
-	hostinfo, _ = host.Info()
+	hostPlatform, _ = kernel.Platform()
 }
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// SupportedBuildModes returns the build modes supported on the current host
 func SupportedBuildModes() []BuildMode {
 	modes := []BuildMode{Prebuilt, RuntimeCompiled, CORE}
-	if os.Getenv("TEST_FENTRY_OVERRIDE") == "true" || (runtime.GOARCH == "amd64" && (hostinfo.Platform == "amazon" || hostinfo.Platform == "amzn") && kv.Major() == 5 && kv.Minor() == 10) {
+	if os.Getenv("TEST_FENTRY_OVERRIDE") == "true" ||
+		(runtime.GOARCH == "amd64" && (hostPlatform == "amazon" || hostPlatform == "amzn") && kv.Major() == 5 && kv.Minor() == 10) {
 		modes = append(modes, Fentry)
 	}
 	return modes
 }
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// TestBuildModes runs the test under all the provided build modes
 func TestBuildModes(t *testing.T, modes []BuildMode, name string, fn func(t *testing.T)) {
 	for _, mode := range modes {
 		TestBuildMode(t, mode, name, fn)
 	}
 }
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// TestBuildMode runs the test under the provided build mode
 func TestBuildMode(t *testing.T, mode BuildMode, name string, fn func(t *testing.T)) {
 	t.Run(mode.String(), func(t *testing.T) {
 		for k, v := range mode.Env() {

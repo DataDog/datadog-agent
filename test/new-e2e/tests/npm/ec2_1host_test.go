@@ -13,34 +13,41 @@ import (
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+
+	"github.com/stretchr/testify/assert"
 )
 
 type ec2VMSuite struct {
-	e2e.Suite[e2e.FakeIntakeEnv]
-	DevMode bool
+	e2e.BaseSuite[environments.Host]
 }
 
 // TestEC2VMSuite will validate running the agent on a single EC2 VM
 func TestEC2VMSuite(t *testing.T) {
-	t.Skip("Skipping TestEC2VMSuite as it's flaky")
 	s := &ec2VMSuite{}
-	e2eParams := []params.Option{}
+	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPM))))}
 	// debug helper
 	if _, devmode := os.LookupEnv("TESTS_E2E_DEVMODE"); devmode {
-		e2eParams = []params.Option{params.WithDevMode(), params.WithSkipDeleteOnFailure()}
-		s.DevMode = true
+		e2eParams = append(e2eParams, e2e.WithDevMode())
 	}
 
 	// Source of our kitchen CI images test/kitchen/platforms.json
 	// Other VM image can be used, our kitchen CI images test/kitchen/platforms.json
 	// ec2params.WithImageName("ami-a4dc46db", os.AMD64Arch, ec2os.AmazonLinuxOS) // ubuntu-16-04-4.4
-	e2e.Run(t, s, e2e.FakeIntakeStackDef(e2e.WithAgentParams(agentparams.WithSystemProbeConfig(systemProbeConfigNPM))), e2eParams...)
+	e2e.Run(t, s, e2eParams...)
+}
+
+// BeforeTest will be called before each test
+func (v *ec2VMSuite) BeforeTest(suiteName, testName string) {
+	v.BaseSuite.BeforeTest(suiteName, testName)
+	// default is to reset the current state of the fakeintake aggregators
+	if !v.BaseSuite.IsDevMode() {
+		v.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	}
 }
 
 // TestFakeIntakeNPM Validate the agent can communicate with the (fake) backend and send connections every 30 seconds
@@ -49,20 +56,15 @@ func TestEC2VMSuite(t *testing.T) {
 func (v *ec2VMSuite) TestFakeIntakeNPM() {
 	t := v.T()
 
-	// default is to reset the current state of the fakeintake aggregators
-	if !v.DevMode {
-		v.Env().Fakeintake.FlushServerAndResetAggregators()
-	}
-
 	targetHostnameNetID := ""
 	// looking for 1 host to send CollectorConnections payload to the fakeintake
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		// generate a connection
-		v.Env().VM.Execute("curl http://www.datadoghq.com")
+		v.Env().RemoteHost.MustExecute("curl http://www.datadoghq.com")
 
-		hostnameNetID, err := v.Env().Fakeintake.GetConnectionsNames()
+		hostnameNetID, err := v.Env().FakeIntake.Client().GetConnectionsNames()
 		assert.NoError(c, err, "GetConnectionsNames() errors")
-		if !assert.NotZero(c, len(hostnameNetID), "no connections yet") {
+		if !assert.NotEmpty(c, hostnameNetID, "no connections yet") {
 			return
 		}
 		targetHostnameNetID = hostnameNetID[0]
@@ -72,7 +74,7 @@ func (v *ec2VMSuite) TestFakeIntakeNPM() {
 
 	// looking for 3 payloads and check if the last 2 have a span of 30s +/- 500ms
 	v.EventuallyWithT(func(c *assert.CollectT) {
-		cnx, err := v.Env().Fakeintake.GetConnections()
+		cnx, err := v.Env().FakeIntake.Client().GetConnections()
 		assert.NoError(t, err)
 
 		if !assert.Greater(c, len(cnx.GetPayloadsByName(targetHostnameNetID)), 2, "not enough payloads") {
@@ -86,7 +88,7 @@ func (v *ec2VMSuite) TestFakeIntakeNPM() {
 		t.Logf("hostname+networkID %v diff time %f seconds", targetHostnameNetID, dt)
 
 		// we want the test fail now, not retrying on the next payloads
-		require.Greater(t, 0.5, math.Abs(dt-30), "delta between collection is higher than 500ms")
+		assert.Greater(t, 0.5, math.Abs(dt-30), "delta between collection is higher than 500ms")
 	}, 90*time.Second, time.Second, "not enough connections received")
 }
 
@@ -95,18 +97,16 @@ func (v *ec2VMSuite) TestFakeIntakeNPM() {
 func (v *ec2VMSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
 	t := v.T()
 
-	// default is to reset the current state of the fakeintake aggregators
-	if !v.DevMode {
-		v.Env().Fakeintake.FlushServerAndResetAggregators()
-	}
-
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		// generate connections
-		v.Env().VM.Execute("curl http://www.datadoghq.com")
-		v.Env().VM.Execute("dig @8.8.8.8 www.google.ch")
+		v.Env().RemoteHost.MustExecute("curl http://www.datadoghq.com")
+		v.Env().RemoteHost.MustExecute("dig @8.8.8.8 www.google.ch")
 
-		cnx, err := v.Env().Fakeintake.GetConnections()
-		require.NoError(c, err)
+		cnx, err := v.Env().FakeIntake.Client().GetConnections()
+		assert.NoError(c, err, "GetConnections() errors")
+		if !assert.NotEmpty(c, cnx.GetNames(), "no connections yet") {
+			return
+		}
 
 		foundDNS := false
 		cnx.ForeachConnection(func(c *agentmodel.Connection, cc *agentmodel.CollectorConnections, hostname string) {

@@ -35,4 +35,12 @@ const (
 	StackParameters StoreKey = "stack_params"
 	// PipelineID config file parameter name
 	PipelineID StoreKey = "pipeline_id"
+	// VerifyCodeSignature config file parameter name
+	VerifyCodeSignature StoreKey = "verify_code_signature"
+	// OutputDir config file parameter name
+	OutputDir StoreKey = "output_dir"
+	// PulumiLogLevel config file parameter name
+	PulumiLogLevel StoreKey = "pulumi_log_level"
+	// PulumiLogToStdErr config file parameter name
+	PulumiLogToStdErr StoreKey = "pulumi_log_to_stderr"
 )

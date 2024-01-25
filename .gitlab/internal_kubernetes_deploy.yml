@@ -9,6 +9,8 @@ internal_kubernetes_deploy_experimental:
     when: always
   - if: $CI_COMMIT_BRANCH != "main"
     when: never
+  - if: $DDR != "true"
+    when: never
   - !reference [.on_deploy_a7]
   needs:
   - job: docker_trigger_internal
@@ -36,6 +38,8 @@ notify-slack:
     - if: $FORCE_K8S_DEPLOYMENT == "true"
       when: always
     - if: $CI_COMMIT_BRANCH != "main"
+      when: never
+    - if: $DDR != "true"
       when: never
     - !reference [ .on_deploy_a7 ]
   image: registry.ddbuild.io/slack-notifier:sdm

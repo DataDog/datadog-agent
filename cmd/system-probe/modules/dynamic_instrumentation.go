@@ -12,15 +12,16 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	dynamicinstrumentation "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
-//nolint:revive // TODO(EBPF) Fix revive linter
+// DynamicInstrumentation is the dynamic instrumentation module factory
 var DynamicInstrumentation = module.Factory{
 	Name:             config.DynamicInstrumentationModule,
 	ConfigNamespaces: []string{},
-	Fn: func(agentConfiguration *config.Config) (module.Module, error) {
+	Fn: func(agentConfiguration *sysconfigtypes.Config) (module.Module, error) {
 		config, err := dynamicinstrumentation.NewConfig(agentConfiguration)
 		if err != nil {
 			return nil, fmt.Errorf("invalid dynamic instrumentation module configuration: %w", err)

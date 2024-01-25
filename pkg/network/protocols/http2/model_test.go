@@ -8,6 +8,7 @@
 package http2
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -41,28 +42,36 @@ func TestHTTP2Path(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var buf []byte
-			var arr [maxHTTP2Path]uint8
-			buf = hpack.AppendHuffmanString(buf, tt.rawPath)
-			copy(arr[:], buf)
+		for _, huffmanEnabled := range []bool{false, true} {
+			testNameSuffix := fmt.Sprintf("huffman-enabled=%v", huffmanEnabled)
+			t.Run(tt.name+testNameSuffix, func(t *testing.T) {
+				var buf []byte
+				var arr [maxHTTP2Path]uint8
+				if huffmanEnabled {
+					buf = hpack.AppendHuffmanString(buf, tt.rawPath)
+				} else {
+					buf = append(buf, tt.rawPath...)
+				}
+				copy(arr[:], buf)
 
-			request := &EbpfTx{
-				Stream: http2Stream{
-					Request_path: arr,
-					Path_size:    uint8(len(buf)),
-				},
-			}
+				request := &EbpfTx{
+					Stream: http2Stream{
+						Is_huffman_encoded: huffmanEnabled,
+						Request_path:       arr,
+						Path_size:          uint8(len(buf)),
+					},
+				}
 
-			outBuf := make([]byte, 200)
+				outBuf := make([]byte, 200)
 
-			path, ok := request.Path(outBuf)
-			if tt.expectedErr {
-				assert.False(t, ok)
-				return
-			}
-			assert.True(t, ok)
-			assert.Equal(t, tt.rawPath, string(path))
-		})
+				path, ok := request.Path(outBuf)
+				if tt.expectedErr {
+					assert.False(t, ok)
+					return
+				}
+				assert.True(t, ok)
+				assert.Equal(t, tt.rawPath, string(path))
+			})
+		}
 	}
 }

@@ -154,7 +154,7 @@ func (le *LeaderEngine) init() error {
 		return err
 	}
 
-	serverVersion, err := common.KubeServerVersion(apiClient.DiscoveryCl, 10*time.Second)
+	serverVersion, err := common.KubeServerVersion(apiClient.Cl.Discovery(), 10*time.Second)
 	if err == nil && semver.IsValid(serverVersion.String()) && semver.Compare(serverVersion.String(), "v1.14.0") < 0 {
 		log.Warn("[DEPRECATION WARNING] DataDog will drop support of Kubernetes older than v1.14. Please update to a newer version to ensure proper functionality and security.")
 	}
@@ -162,7 +162,7 @@ func (le *LeaderEngine) init() error {
 	le.coreClient = apiClient.Cl.CoreV1()
 	le.coordClient = apiClient.Cl.CoordinationV1()
 
-	usingLease, err := CanUseLeases(apiClient.DiscoveryCl)
+	usingLease, err := CanUseLeases(apiClient.Cl.Discovery())
 	if err != nil {
 		log.Errorf("Unable to retrieve available resources: %v", err)
 		return err
@@ -357,7 +357,7 @@ func GetLeaderElectionRecord() (leaderDetails rl.LeaderElectionRecord, err error
 	if err != nil {
 		return led, err
 	}
-	usingLease, err := CanUseLeases(client.DiscoveryCl)
+	usingLease, err := CanUseLeases(client.Cl.Discovery())
 	if err != nil {
 		return led, err
 	}

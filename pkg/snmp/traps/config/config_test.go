@@ -29,6 +29,54 @@ var expectedEngineIDs = map[string]string{
 	"VeryLongHostnameThatIsDifferent":                "\x80\xff\xff\xff\xff\xe7\x21\xcc\xd7\x0b\xe1\x60\xc5\x18\xd7\xde\x17\x86\xb0\x7d\x36",
 }
 
+var usersV3 = []UserV3{
+	{
+		Username:     "user",
+		AuthKey:      "password",
+		AuthProtocol: "MD5",
+		PrivKey:      "password",
+		PrivProtocol: "AES",
+	},
+	{
+		Username:     "user",
+		AuthKey:      "password",
+		AuthProtocol: "SHA",
+		PrivKey:      "password",
+		PrivProtocol: "DES",
+	},
+	{
+		Username:     "user2",
+		AuthKey:      "password",
+		AuthProtocol: "MD5",
+		PrivKey:      "password",
+		PrivProtocol: "AES",
+	},
+}
+
+var usmUsers = []*gosnmp.UsmSecurityParameters{
+	{
+		UserName:                 "user",
+		AuthenticationProtocol:   gosnmp.MD5,
+		AuthenticationPassphrase: "password",
+		PrivacyProtocol:          gosnmp.AES,
+		PrivacyPassphrase:        "password",
+	},
+	{
+		UserName:                 "user",
+		AuthenticationProtocol:   gosnmp.SHA,
+		AuthenticationPassphrase: "password",
+		PrivacyProtocol:          gosnmp.DES,
+		PrivacyPassphrase:        "password",
+	},
+	{
+		UserName:                 "user2",
+		AuthenticationProtocol:   gosnmp.MD5,
+		AuthenticationPassphrase: "password",
+		PrivacyProtocol:          gosnmp.AES,
+		PrivacyPassphrase:        "password",
+	},
+}
+
 func makeConfig(t *testing.T, trapConfig TrapsConfig) config.Component {
 	return makeConfigWithGlobalNamespace(t, trapConfig, "")
 }
@@ -55,16 +103,8 @@ func makeConfigWithGlobalNamespace(t *testing.T, trapConfig TrapsConfig, globalN
 func TestFullConfig(t *testing.T) {
 	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
 	rootConfig := makeConfig(t, TrapsConfig{
-		Port: 1234,
-		Users: []UserV3{
-			{
-				Username:     "user",
-				AuthKey:      "password",
-				AuthProtocol: "MD5",
-				PrivKey:      "password",
-				PrivProtocol: "AES",
-			},
-		},
+		Port:             1234,
+		Users:            usersV3,
 		BindHost:         "127.0.0.1",
 		CommunityStrings: []string{"public"},
 		StopTimeout:      12,
@@ -77,15 +117,7 @@ func TestFullConfig(t *testing.T) {
 	assert.Equal(t, []string{"public"}, config.CommunityStrings)
 	assert.Equal(t, "127.0.0.1", config.BindHost)
 	assert.Equal(t, "foo", config.Namespace)
-	assert.Equal(t, []UserV3{
-		{
-			Username:     "user",
-			AuthKey:      "password",
-			AuthProtocol: "MD5",
-			PrivKey:      "password",
-			PrivProtocol: "AES",
-		},
-	}, config.Users)
+	assert.Equal(t, usersV3, config.Users)
 
 	params, err := config.BuildSNMPParams(logger)
 	assert.NoError(t, err)
@@ -94,14 +126,32 @@ func TestFullConfig(t *testing.T) {
 	assert.Equal(t, "udp", params.Transport)
 	assert.NotNil(t, params.Logger)
 	assert.Equal(t, gosnmp.UserSecurityModel, params.SecurityModel)
-	assert.Equal(t, &gosnmp.UsmSecurityParameters{
-		UserName:                 "user",
-		AuthoritativeEngineID:    expectedEngineID,
-		AuthenticationProtocol:   gosnmp.MD5,
-		AuthenticationPassphrase: "password",
-		PrivacyProtocol:          gosnmp.AES,
-		PrivacyPassphrase:        "password",
-	}, params.SecurityParameters)
+	assert.Equal(t, &gosnmp.UsmSecurityParameters{AuthoritativeEngineID: expectedEngineID}, params.SecurityParameters)
+
+	table := gosnmp.NewSnmpV3SecurityParametersTable(params.Logger)
+	for _, usmUser := range usmUsers {
+		err := table.Add(usmUser.UserName, usmUser)
+		assert.Nil(t, err)
+	}
+	var usmConfigTests = []struct {
+		name       string
+		identifier string
+	}{
+		{
+			"identifier: user has 2 entries",
+			"user",
+		},
+		{
+			"identifier: user2 has 1 entry",
+			"user2",
+		},
+	}
+	for _, usmConfigTest := range usmConfigTests {
+		// Compare the security params after initializing the security keys (happens in the add to table)
+		expected, _ := table.Get(usmConfigTest.identifier)
+		actual, _ := params.TrapSecurityParametersTable.Get(usmConfigTest.identifier)
+		assert.ElementsMatch(t, expected, actual)
+	}
 }
 
 func TestMinimalConfig(t *testing.T) {

@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -23,6 +24,9 @@ import (
 type Component interface {
 	// AddScheduler adds an AD scheduler to the logs agent
 	AddScheduler(scheduler schedulers.Scheduler)
+
+	// Get the logs sources
+	GetSources() *sources.LogSources
 
 	// GetMessageReceiver gets the diagnostic message receiver
 	GetMessageReceiver() *diagnostic.BufferedMessageReceiver
@@ -44,6 +48,8 @@ type ServerlessLogsAgent interface {
 // Mock implements mock-specific methods.
 type Mock interface {
 	Component
+
+	SetSources(sources *sources.LogSources)
 }
 
 // Module defines the fx options for this component.

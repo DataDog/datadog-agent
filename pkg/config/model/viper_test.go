@@ -262,3 +262,22 @@ foo: bar
 	assert.Equal(t, SourceFile, config.GetSource("foo"))
 	assert.Equal(t, map[string]interface{}{"foo": "bar"}, config.AllSourceSettingsWithoutDefault(SourceFile))
 }
+
+func TestNotification(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+
+	updatedKeyCB1 := []string{}
+	updatedKeyCB2 := []string{}
+
+	config.OnUpdate(func(key string) { updatedKeyCB1 = append(updatedKeyCB1, key) })
+
+	config.Set("foo", "bar", SourceFile)
+	assert.Equal(t, []string{"foo"}, updatedKeyCB1)
+
+	config.OnUpdate(func(key string) { updatedKeyCB2 = append(updatedKeyCB2, key) })
+
+	config.Set("foo", "bar2", SourceFile)
+	config.Set("foo2", "bar2", SourceFile)
+	assert.Equal(t, []string{"foo", "foo", "foo2"}, updatedKeyCB1)
+	assert.Equal(t, []string{"foo", "foo2"}, updatedKeyCB2)
+}

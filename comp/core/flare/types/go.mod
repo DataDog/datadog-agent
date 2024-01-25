@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/core/flare/types
 
-go 1.20
+go 1.21
 
 require go.uber.org/fx v1.18.2
 

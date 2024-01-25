@@ -85,49 +85,9 @@ type ContainerContext struct {
 	Resolved  bool     `field:"-"`
 }
 
-// Status defines the possible status of a profile as a bitmask
-type Status uint32
-
-const (
-	// AnomalyDetection will trigger alerts each time an event is not part of the profile
-	AnomalyDetection Status = 1 << iota
-	// AutoSuppression will suppress any signal to events present on the profile
-	AutoSuppression
-	// WorkloadHardening will kill the process that triggered anomaly detection
-	WorkloadHardening
-)
-
-// IsEnabled returns true if enabled
-func (s Status) IsEnabled(option Status) bool {
-	return (s & option) != 0
-}
-
-func (s Status) String() string {
-	var options []string
-	if s.IsEnabled(AnomalyDetection) {
-		options = append(options, "anomaly_detection")
-	}
-	if s.IsEnabled(AutoSuppression) {
-		options = append(options, "auto_suppression")
-	}
-	if s.IsEnabled(WorkloadHardening) {
-		options = append(options, "workload_hardening")
-	}
-
-	var res string
-	for _, option := range options {
-		if len(res) > 0 {
-			res += ","
-		}
-		res += option
-	}
-	return res
-}
-
 // SecurityProfileContext holds the security context of the profile
 type SecurityProfileContext struct {
 	Name                       string      `field:"name"`                          // SECLDoc[name] Definition:`Name of the security profile`
-	Status                     Status      `field:"status"`                        // SECLDoc[status] Definition:`Status of the security profile`
 	Version                    string      `field:"version"`                       // SECLDoc[version] Definition:`Version of the security profile`
 	Tags                       []string    `field:"tags"`                          // SECLDoc[tags] Definition:`Tags of the security profile`
 	AnomalyDetectionEventTypes []EventType `field:"anomaly_detection_event_types"` // SECLDoc[anomaly_detection_event_types] Definition:`Event types enabled for anomaly detection`
@@ -163,13 +123,15 @@ type SpanContext struct {
 
 // BaseEvent represents an event sent from the kernel
 type BaseEvent struct {
-	ID           string         `field:"-" event:"*"`
-	Type         uint32         `field:"-"`
-	Flags        uint32         `field:"-"`
-	TimestampRaw uint64         `field:"event.timestamp,handler:ResolveEventTimestamp" event:"*"` // SECLDoc[event.timestamp] Definition:`Timestamp of the event`
-	Timestamp    time.Time      `field:"timestamp,opts:getters_only,handler:ResolveEventTime"`
-	Rules        []*MatchedRule `field:"-"`
-	Origin       string         `field:"-"`
+	ID           string             `field:"-" event:"*"`
+	Type         uint32             `field:"-"`
+	Flags        uint32             `field:"-"`
+	TimestampRaw uint64             `field:"event.timestamp,handler:ResolveEventTimestamp" event:"*"` // SECLDoc[event.timestamp] Definition:`Timestamp of the event`
+	Timestamp    time.Time          `field:"timestamp,opts:getters_only,handler:ResolveEventTime"`
+	Rules        []*MatchedRule     `field:"-"`
+	Actions      []*ActionTriggered `field:"-"`
+	Origin       string             `field:"-"`
+	Suppressed   bool               `field:"-"`
 
 	// context shared with all events
 	ProcessContext         *ProcessContext        `field:"process" event:"*"`
@@ -260,10 +222,6 @@ func (e *Event) IsKernelSpaceAnomalyDetectionEvent() bool {
 
 // IsAnomalyDetectionEvent returns true if the current event is an anomaly detection event (kernel or user space)
 func (e *Event) IsAnomalyDetectionEvent() bool {
-	if !e.SecurityProfileContext.Status.IsEnabled(AnomalyDetection) {
-		return false
-	}
-
 	// first, check if the current event is a kernel generated anomaly detection event
 	if e.IsKernelSpaceAnomalyDetectionEvent() {
 		return true
@@ -305,6 +263,16 @@ func (e *Event) GetTags() []string {
 		tags = append(tags, e.ContainerContext.Tags...)
 	}
 	return tags
+}
+
+// GetActions returns the triggred actions
+func (e *Event) GetActions() []*ActionTriggered {
+	return e.Actions
+}
+
+// IsSuppressed returns true if the event is suppressed
+func (e *Event) IsSuppressed() bool {
+	return e.Suppressed
 }
 
 // GetWorkloadID returns an ID that represents the workload
@@ -362,6 +330,12 @@ type MatchedRule struct {
 	RuleTags      map[string]string
 	PolicyName    string
 	PolicyVersion string
+}
+
+// ActionTriggered defines a triggered action
+type ActionTriggered struct {
+	Name  string
+	Value string
 }
 
 // NewMatchedRule return a new MatchedRule instance
@@ -426,6 +400,8 @@ const (
 	EventTypeNotConfigured
 	// HashWasRateLimited means that the hash will be tried again later, it was rate limited
 	HashWasRateLimited
+	// HashFailed means that the hashing failed
+	HashFailed
 	// MaxHashState is used for initializations
 	MaxHashState
 )
@@ -440,6 +416,8 @@ const (
 	SHA256
 	// MD5 is used to identify a MD5 hash
 	MD5
+	// SSDEEP is used to identify a SSDEEP hash
+	SSDEEP
 	// MaxHashAlgorithm is used for initializations
 	MaxHashAlgorithm
 )
@@ -452,6 +430,8 @@ func (ha HashAlgorithm) String() string {
 		return "sha256"
 	case MD5:
 		return "md5"
+	case SSDEEP:
+		return "ssdeep"
 	default:
 		return ""
 	}

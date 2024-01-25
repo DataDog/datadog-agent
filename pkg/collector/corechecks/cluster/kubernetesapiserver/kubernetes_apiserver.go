@@ -19,6 +19,7 @@ import (
 	"gopkg.in/yaml.v2"
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -27,18 +28,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Covers the Control Plane service check and the in memory pod metadata.
 const (
+	// CheckName is the name of the check
+	CheckName = "kubernetes_apiserver"
+
 	KubeControlPaneCheck          = "kube_apiserver_controlplane.up"
-	kubernetesAPIServerCheckName  = "kubernetes_apiserver"
 	eventTokenKey                 = "event"
 	maxEventCardinality           = 300
 	defaultResyncPeriodInSecond   = 300
@@ -47,7 +50,7 @@ const (
 
 var (
 	kubeEvents = telemetry.NewCounterWithOpts(
-		kubernetesAPIServerCheckName,
+		CheckName,
 		"kube_events",
 		[]string{"kind", "component", "type", "reason"},
 		"Number of Kubernetes events received by the check.",
@@ -55,7 +58,7 @@ var (
 	)
 
 	emittedEvents = telemetry.NewCounterWithOpts(
-		kubernetesAPIServerCheckName,
+		CheckName,
 		"emitted_events",
 		[]string{"kind", "type"},
 		"Number of events emitted by the check.",
@@ -130,9 +133,13 @@ func NewKubeASCheck(base core.CheckBase, instance *KubeASConfig) *KubeASCheck {
 	}
 }
 
-// KubernetesASFactory is exported for integration testing.
-func KubernetesASFactory() check.Check {
-	return NewKubeASCheck(core.NewCheckBase(kubernetesAPIServerCheckName), &KubeASConfig{})
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
+}
+
+func newCheck() check.Check {
+	return NewKubeASCheck(core.NewCheckBase(CheckName), &KubeASConfig{})
 }
 
 // Configure parses the check configuration and init the check.
@@ -160,7 +167,7 @@ func (k *KubeASCheck) Configure(senderManager sender.SenderManager, integrationC
 	clusterName := clustername.GetRFC1123CompliantClusterName(context.TODO(), hostnameDetected)
 
 	if k.instance.UnbundleEvents {
-		k.eventCollection.Transformer = newUnbundledTransformer(clusterName, tagger.GetDefaultTagger(), k.instance.CollectedEventTypes)
+		k.eventCollection.Transformer = newUnbundledTransformer(clusterName, tagger.GetTaggerInstance(), k.instance.CollectedEventTypes)
 	} else {
 		k.eventCollection.Filter = convertFilters(k.instance.FilteredEventTypes)
 		k.eventCollection.Transformer = newBundledTransformer(clusterName)
@@ -388,8 +395,4 @@ func convertFilters(conf []string) string {
 		formatedFilters = append(formatedFilters, filter)
 	}
 	return strings.Join(formatedFilters, ",")
-}
-
-func init() {
-	core.RegisterCheck(kubernetesAPIServerCheckName, KubernetesASFactory)
 }
