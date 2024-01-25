@@ -253,7 +253,10 @@ func (s *httpTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
 
 func (s *httpTestSuite) TestHTTPMonitorIntegrationWithResponseBody() {
 	t := s.T()
-	serverAddr := "localhost:8080"
+	const serverAddr = "127.0.0.1:8080"
+	// Start the proxy server.
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, serverAddr, s.isTLS)
+	t.Cleanup(cancel)
 
 	tests := []struct {
 		name            string
@@ -282,13 +285,18 @@ func (s *httpTestSuite) TestHTTPMonitorIntegrationWithResponseBody() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			monitor := newHTTPMonitorWithCfg(t, config.New())
 			srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
 				EnableKeepAlive: true,
+				EnableTLS:       s.isTLS,
 			})
 			t.Cleanup(srvDoneFn)
-
-			requestFn := requestGenerator(t, nil, serverAddr, bytes.Repeat([]byte("a"), tt.requestBodySize))
+			// Wait for the proxy server to be ready.
+			require.NoError(t, proxy.WaitForConnectionReady(unixPath))
+			monitor := setupUSMTLSMonitor(t, s.getCfg())
+			if s.isTLS {
+				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+			}
+			requestFn := requestGenerator(t, getHTTPUnixClientArray(1, unixPath)[0], serverAddr, bytes.Repeat([]byte("a"), tt.requestBodySize))
 			var requests []*nethttp.Request
 			for i := 0; i < 100; i++ {
 				requests = append(requests, requestFn())
