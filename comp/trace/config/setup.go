@@ -20,6 +20,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
+	"go.opentelemetry.io/collector/component/componenttest"
+
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -28,8 +31,6 @@ import (
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-	"go.opentelemetry.io/collector/component/componenttest"
 
 	//nolint:revive // TODO(APM) Fix revive linter
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -117,13 +118,14 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 	if p := coreconfig.Datadog.GetProxies(); p != nil {
 		cfg.Proxy = httputils.GetProxyTransportFunc(p, c)
 	}
+	//TODO: is this `if` right?
 	if coreconfig.IsRemoteConfigEnabled(coreConfigObject) && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled") {
 		client, err := rc.NewGRPCClient(
 			ipcAddress,
 			coreconfig.GetIPCPort(),
 			security.FetchAuthToken,
 			rc.WithAgent(rcClientName, version.AgentVersion),
-			rc.WithProducts([]data.Product{data.ProductAPMSampling, data.ProductAgentConfig}),
+			rc.WithProducts([]data.Product{data.ProductAPMSampling, data.ProductAgentConfig, data.ProductAPMTracing}),
 			rc.WithPollInterval(rcClientPollInterval),
 			rc.WithDirectorRootOverride(c.GetString("remote_configuration.director_root")),
 		)

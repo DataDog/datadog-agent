@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -82,6 +83,7 @@ func (h *RemoteConfigHandler) Start() {
 	h.remoteClient.Start()
 	h.remoteClient.Subscribe(state.ProductAPMSampling, h.onUpdate)
 	h.remoteClient.Subscribe(state.ProductAgentConfig, h.onAgentConfigUpdate)
+	h.remoteClient.Subscribe(state.ProductAPMTracing, h.onAPMTracingUpdate)
 }
 
 func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
@@ -133,6 +135,85 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 			})
 		}
 	}
+}
+
+func (h *RemoteConfigHandler) onAPMTracingUpdate(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) { //nolint:revive // TODO fix revive unused-parameter
+	log.Infof("ON APM TRACING UPDATE WAS CALLED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!: %v", update)
+	if len(update) == 0 {
+		//TODO: Should we write an empty file to overwrite any previous config?
+		log.Debugf("empty update - what should we do with this")
+		return
+	}
+
+	var senvConfigs []ServiceEnvConfig
+	var hostTracingEnabled bool
+	for id, rawConfig := range update {
+		tcu := TracingConfigUpdate{}
+		err := json.Unmarshal(rawConfig.Config, &tcu)
+		log.Infof("GOT AN APM TRACING UPDATE %s: %v, any err: %v", id, tcu, err)
+		if tcu.InfraTarget != nil {
+			// This is an infra targeting payload
+			hostTracingEnabled = tcu.LibConfig.TracingEnabled
+			continue
+		}
+		if tcu.ServiceTarget == nil {
+			log.Warnf("Missing service_target from APM_TRACING config update, SKIPPING: %v", tcu)
+			continue
+		}
+
+		senvConfigs = append(senvConfigs, ServiceEnvConfig{
+			Service:        tcu.ServiceTarget.Service, // TODO: Is this the right service or should we be looking in the tcu.LibConfig?
+			Env:            tcu.ServiceTarget.Env,
+			TracingEnabled: tcu.LibConfig.TracingEnabled,
+		})
+	}
+
+	tec := TracingEnabledConfig{
+		TracingEnabled:    hostTracingEnabled,
+		ServiceEnvConfigs: senvConfigs,
+	}
+	configFile, err := json.Marshal(tec)
+	if err != nil {
+		log.Errorf("Failed to marshal apm tracing update??!??? %v", err)
+		return
+	}
+	fileLocation := "DD_SINGLE_STEP_CONFIG_DATA.json"
+	err = os.WriteFile(fileLocation, configFile, 0666)
+	if err != nil {
+		log.Errorf("failed to write single step config data file: %v", err)
+	} else {
+		log.Infof("WE DID ITTTTTTTTTTTTTTTTTTTTTTTTTTTTTT THE FILE WAS WRITTEN AT %s", fileLocation)
+	}
+}
+
+type ServiceEnvConfig struct {
+	Service        string `json:"service"`
+	Env            string `json:"env"`
+	TracingEnabled bool   `json:"tracing_enabled"`
+}
+
+type TracingEnabledConfig struct {
+	TracingEnabled    bool               `json:"tracing_enabled"`
+	ServiceEnvConfigs []ServiceEnvConfig `json:"service_env_configs"`
+}
+
+type TracingConfigUpdate struct {
+	Id            string `json:"id"`
+	Revision      int64  `json:"revision"`
+	SchemaVersion string `json:"schema_version"`
+	Action        string `json:"action"`
+	LibConfig     struct {
+		ServiceName    string `json:"service_name"`
+		Env            string `json:"env"`
+		TracingEnabled bool   `json:"tracing_enabled"`
+	} `json:"lib_config"`
+	ServiceTarget *struct {
+		Service string `json:"service"`
+		Env     string `json:"env"`
+	} `json:"service_target"`
+	InfraTarget *struct {
+		Tags []string `json:"tags"`
+	} `json:"infra_target"`
 }
 
 func (h *RemoteConfigHandler) onUpdate(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) { //nolint:revive // TODO fix revive unused-parameter
