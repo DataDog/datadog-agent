@@ -463,6 +463,7 @@ func offlineCommand() *cobra.Command {
 	var cliArgs struct {
 		poolSize     int
 		regions      []string
+		filters      string
 		scanType     string
 		maxScans     int
 		printResults bool
@@ -471,12 +472,34 @@ func offlineCommand() *cobra.Command {
 		Use:   "offline",
 		Short: "Runs the agentless-scanner in offline mode (server-less mode)",
 		RunE: runWithModules(func(cmd *cobra.Command, args []string) error {
-			return offlineCmd(cliArgs.poolSize, scanType(cliArgs.scanType), cliArgs.regions, cliArgs.maxScans, cliArgs.printResults, globalParams.defaultActions)
+			var filters []ec2types.Filter
+			filter := cliArgs.filters
+			if !strings.HasPrefix(filter, "Name=") {
+				return fmt.Errorf("bad format for filters: expecting Name=string,Values=string,string")
+			}
+			filter = filter[len("Name="):]
+			split := strings.SplitN(filter, ",", 2)
+			if len(split) != 2 {
+				return fmt.Errorf("bad format for filters: expecting Name=string,Values=string,string")
+			}
+			name := split[0]
+			filter = split[1]
+			if !strings.HasPrefix(filter, "Values=") {
+				return fmt.Errorf("bad format for filters: expecting Name=string,Values=string,string")
+			}
+			filter = filter[len("Values="):]
+			values := strings.Split(filter, ",")
+			filters = append(filters, ec2types.Filter{
+				Name:   aws.String(name),
+				Values: values,
+			})
+			return offlineCmd(cliArgs.poolSize, scanType(cliArgs.scanType), cliArgs.regions, cliArgs.maxScans, cliArgs.printResults, globalParams.defaultActions, filters)
 		}),
 	}
 
 	cmd.Flags().IntVar(&cliArgs.poolSize, "workers", defaultWorkersCount, "number of scans running in parallel")
 	cmd.Flags().StringSliceVar(&cliArgs.regions, "regions", []string{"auto"}, "list of regions to scan (default to all regions)")
+	cmd.Flags().StringVar(&cliArgs.filters, "filters", "", "list of filters to filter the resources (format: Name=string,Values=string,string)")
 	cmd.Flags().StringVar(&cliArgs.scanType, "scan-type", string(ebsScanType), "scan type (ebs-volume or lambda)")
 	cmd.Flags().IntVar(&cliArgs.maxScans, "max-scans", 0, "maximum number of scans to perform")
 	cmd.Flags().BoolVar(&cliArgs.printResults, "print-results", false, "print scan results to stdout")
@@ -670,7 +693,7 @@ func scanCmd(resourceARN arn.ARN, scannedHostname string, actions []string) erro
 	return nil
 }
 
-func offlineCmd(poolSize int, scanType scanType, regions []string, maxScans int, printResults bool, actions []string) error {
+func offlineCmd(poolSize int, scanType scanType, regions []string, maxScans int, printResults bool, actions []string, filters []ec2types.Filter) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	defer statsd.Flush()
@@ -766,12 +789,12 @@ func offlineCmd(poolSize int, scanType scanType, regions []string, maxScans int,
 				return err
 			}
 			describeInstancesInput := &ec2.DescribeInstancesInput{
-				Filters: []ec2types.Filter{
+				Filters: append([]ec2types.Filter{
 					{
 						Name:   aws.String("instance-state-name"),
 						Values: []string{string(ec2types.InstanceStateNameRunning)},
 					},
-				},
+				}, filters...),
 			}
 			for {
 				instances, err := ec2client.DescribeInstances(ctx, describeInstancesInput)
