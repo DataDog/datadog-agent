@@ -145,6 +145,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					status.NewHeaderInformationProvider(net.Provider{}),
 					status.NewInformationProvider(leaderelection.Provider{}),
 					status.NewInformationProvider(clusteragentMetricsStatus.Provider{}),
+					status.NewInformationProvider(admissionpkg.Provider{}),
 					status.NewInformationProvider(endpointsStatus.Provider{}),
 					status.NewInformationProvider(autodiscoveryStatus.Provider{}),
 				),
