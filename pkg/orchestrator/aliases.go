@@ -20,14 +20,13 @@ var (
 	// BuildStatsKey alias for pkgorchestratormodel.BuildStatsKey
 	BuildStatsKey = pkgorchestratormodel.BuildStatsKey
 
-	// CheckName is the cluster check name of the orchestrator check
-	CheckName = pkgorchestratormodel.CheckName
-
 	// ExtraLogContext is used to add check name into log context
 	ExtraLogContext = pkgorchestratormodel.ExtraLogContext
 )
 
 const (
+	// CheckName is the cluster check name of the orchestrator check
+	CheckName = pkgorchestratormodel.CheckName
 	// NoExpiration maps to go-cache corresponding value
 	NoExpiration = pkgorchestratormodel.NoExpiration
 	// K8sUnsetType alias for pkgorchestratormodel.K8sUnsetType

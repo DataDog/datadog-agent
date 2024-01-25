@@ -21,6 +21,7 @@ import (
 func NewProcessDiscoveryCheck(config ddconfig.Reader) *ProcessDiscoveryCheck {
 	return &ProcessDiscoveryCheck{
 		config:    config,
+		scrubber:  procutil.NewDefaultDataScrubber(),
 		userProbe: NewLookupIDProbe(config),
 	}
 }
@@ -32,6 +33,7 @@ type ProcessDiscoveryCheck struct {
 	config ddconfig.Reader
 
 	probe      procutil.Probe
+	scrubber   *procutil.DataScrubber
 	userProbe  *LookupIdProbe
 	info       *HostInfo
 	initCalled bool
@@ -43,6 +45,7 @@ type ProcessDiscoveryCheck struct {
 func (d *ProcessDiscoveryCheck) Init(syscfg *SysProbeConfig, info *HostInfo, _ bool) error {
 	d.info = info
 	d.initCalled = true
+	initScrubber(d.config, d.scrubber)
 	d.probe = newProcessProbe(d.config, procutil.WithPermission(syscfg.ProcessModuleEnabled))
 
 	d.maxBatchSize = getMaxBatchSize(d.config)
@@ -96,7 +99,7 @@ func (d *ProcessDiscoveryCheck) Run(nextGroupID func() int32, _ *RunOptions) (Ru
 		NumCpus:     calculateNumCores(d.info.SystemInfo),
 		TotalMemory: d.info.SystemInfo.TotalMemory,
 	}
-	procDiscoveryChunks := chunkProcessDiscoveries(pidMapToProcDiscoveries(procs, d.userProbe), d.maxBatchSize)
+	procDiscoveryChunks := chunkProcessDiscoveries(pidMapToProcDiscoveries(procs, d.userProbe, d.scrubber), d.maxBatchSize)
 	payload := make([]model.MessageBody, len(procDiscoveryChunks))
 
 	groupID := nextGroupID()
@@ -116,9 +119,10 @@ func (d *ProcessDiscoveryCheck) Run(nextGroupID func() int32, _ *RunOptions) (Ru
 // Cleanup frees any resource held by the ProcessDiscoveryCheck before the agent exits
 func (d *ProcessDiscoveryCheck) Cleanup() {}
 
-func pidMapToProcDiscoveries(pidMap map[int32]*procutil.Process, userProbe *LookupIdProbe) []*model.ProcessDiscovery {
+func pidMapToProcDiscoveries(pidMap map[int32]*procutil.Process, userProbe *LookupIdProbe, scrubber *procutil.DataScrubber) []*model.ProcessDiscovery {
 	pd := make([]*model.ProcessDiscovery, 0, len(pidMap))
 	for _, proc := range pidMap {
+		proc.Cmdline = scrubber.ScrubProcessCommand(proc)
 		pd = append(pd, &model.ProcessDiscovery{
 			Pid:        proc.Pid,
 			NsPid:      proc.NsPid,

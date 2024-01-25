@@ -9,6 +9,7 @@ package api
 import (
 	"net"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -28,6 +29,7 @@ type Component interface {
 	StartServer(
 		configService *remoteconfig.Service,
 		wmeta workloadmeta.Component,
+		tagger tagger.Component,
 		logsAgent optional.Option[logsAgent.Component],
 		senderManager sender.DiagnoseSenderManager,
 	) error
