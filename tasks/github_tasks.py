@@ -3,9 +3,9 @@ import time
 
 from invoke import Exit, task
 
-from .libs.common.utils import DEFAULT_BRANCH
-from .libs.datadog_api import create_count, send_metrics
-from .libs.github_actions_tools import (
+from tasks.libs.common.utils import DEFAULT_BRANCH
+from tasks.libs.datadog_api import create_count, send_metrics
+from tasks.libs.github_actions_tools import (
     download_artifacts,
     download_with_retry,
     follow_workflow_run,
@@ -13,7 +13,7 @@ from .libs.github_actions_tools import (
     print_workflow_conclusion,
     trigger_macos_workflow,
 )
-from .release import _get_release_json_value
+from tasks.release import _get_release_json_value
 
 
 def _trigger_macos_workflow(release, destination=None, retry_download=0, retry_interval=0, **kwargs):

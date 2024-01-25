@@ -45,6 +45,8 @@ func createOverlayLayers(t *testing.T, test *testModule) (string, string, string
 }
 
 func TestOverlayFS(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	checkKernelCompatibility(t, "Suse 12 kernels", func(kv *kernel.Version) bool {
 		return kv.IsSuse12Kernel()
 	})

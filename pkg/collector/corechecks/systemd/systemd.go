@@ -21,12 +21,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 )
 
 const (
-	systemdCheckName = "systemd"
+	// CheckName is the name of the check// CheckName
+	CheckName = "systemd"
 
 	unitActiveState = "active"
 	unitLoadedState = "loaded"
@@ -559,13 +561,14 @@ func (c *SystemdCheck) Configure(senderManager sender.SenderManager, integration
 	return nil
 }
 
-func systemdFactory() check.Check {
-	return &SystemdCheck{
-		stats:     &defaultSystemdStats{},
-		CheckBase: core.NewCheckBase(systemdCheckName),
-	}
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
 }
 
-func init() {
-	core.RegisterCheck(systemdCheckName, systemdFactory)
+func newCheck() check.Check {
+	return &SystemdCheck{
+		stats:     &defaultSystemdStats{},
+		CheckBase: core.NewCheckBase(CheckName),
+	}
 }

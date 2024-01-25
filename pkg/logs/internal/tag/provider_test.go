@@ -13,13 +13,15 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestProviderExpectedTags(t *testing.T) {
 	m := coreConfig.Mock(t)
 	clock := clock.NewMock()
-
+	fakeTagger := tagger.SetupFakeTagger(t)
+	defer fakeTagger.ResetTagger()
 	oldStartTime := coreConfig.StartTime
 	then := clock.Now()
 	coreConfig.StartTime = then

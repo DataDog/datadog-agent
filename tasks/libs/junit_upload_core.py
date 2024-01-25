@@ -10,8 +10,13 @@ import xml.etree.ElementTree as ET
 
 from invoke.exceptions import Exit
 
-from ..flavor import AgentFlavor
-from .pipeline_notifications import DEFAULT_JIRA_PROJECT, DEFAULT_SLACK_CHANNEL, GITHUB_JIRA_MAP, GITHUB_SLACK_MAP
+from tasks.flavor import AgentFlavor
+from tasks.libs.pipeline_notifications import (
+    DEFAULT_JIRA_PROJECT,
+    DEFAULT_SLACK_CHANNEL,
+    GITHUB_JIRA_MAP,
+    GITHUB_SLACK_MAP,
+)
 
 CODEOWNERS_ORG_PREFIX = "@DataDog/"
 REPO_NAME_PREFIX = "github.com/DataDog/datadog-agent/"

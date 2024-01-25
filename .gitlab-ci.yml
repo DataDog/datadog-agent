@@ -165,11 +165,11 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v26473479-2dfb49af
+  DATADOG_AGENT_BUILDIMAGES: v26894465-ddbd51cf
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v26473479-2dfb49af
+  DATADOG_AGENT_WINBUILDIMAGES: v26894465-ddbd51cf
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v26473479-2dfb49af
+  DATADOG_AGENT_ARMBUILDIMAGES: v26894465-ddbd51cf
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v26563980-7cd1bd3a
   DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES_SUFFIX: ""
@@ -181,7 +181,7 @@ variables:
   # To use images from test-infra-definitions dev branches, set the SUFFIX variable to -dev
   # and check the job creating the image to make sure you have the right SHA prefix
   TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: f69f46f8ca43
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: db7cdb8d8c3a
   DATADOG_AGENT_BUILDERS: v22276738-b36b132
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -210,6 +210,12 @@ variables:
   RUN_E2E_TESTS: "manual"  # Should be "auto", "manual", "off" it will change the trigger condition for new-e2e tests on branch != main
   # skip known flaky tests by default
   GO_TEST_SKIP_FLAKE: "true"
+
+  # Job stage attempts (see https://docs.gitlab.com/ee/ci/runners/configure_runners.html#job-stages-attempts)
+  ARTIFACT_DOWNLOAD_ATTEMPTS: 2
+  EXECUTOR_JOB_SECTION_ATTEMPTS: 2
+  GET_SOURCES_ATTEMPTS: 2
+  RESTORE_CACHE_ATTEMPTS: 2
 
 #
 # Condition mixins for simplification of rules

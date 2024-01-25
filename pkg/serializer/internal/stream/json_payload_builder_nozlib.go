@@ -10,6 +10,7 @@ package stream
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
@@ -30,7 +31,7 @@ type JSONPayloadBuilder struct {
 }
 
 // NewJSONPayloadBuilder is not implemented when zlib is not available.
-func NewJSONPayloadBuilder(shareAndLockBuffers bool) *JSONPayloadBuilder {
+func NewJSONPayloadBuilder(shareAndLockBuffers bool, config config.Component) *JSONPayloadBuilder {
 	return nil
 }
 

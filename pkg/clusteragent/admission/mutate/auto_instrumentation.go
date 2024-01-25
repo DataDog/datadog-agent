@@ -98,7 +98,6 @@ const (
 
 var (
 	supportedLanguages = []language{java, js, python, dotnet, ruby}
-	targetNamespaces   = config.Datadog.GetStringSlice("admission_controller.auto_instrumentation.inject_all.namespaces")
 
 	singleStepInstrumentationInstallTypeEnvVar = corev1.EnvVar{
 		Name:  instrumentationInstallTypeEnvVarName,
@@ -190,37 +189,22 @@ func injectApmTelemetryConfig(pod *corev1.Pod) {
 	_ = injectEnv(pod, instrumentationInstallIDEnvVar)
 }
 
-func isNsTargeted(ns string) bool {
-	if len(targetNamespaces) == 0 {
-		return false
-	}
-	for _, targetNs := range targetNamespaces {
-		if ns == targetNs {
-			return true
-		}
-	}
-	return false
-}
-
-func getAllLibsToInject(ns, registry string) map[string]libInfo {
+func getAllLibsToInject(registry string) map[string]libInfo {
 	libsToInject := map[string]libInfo{}
 	var libVersion string
-	if isNsTargeted(ns) || isApmInstrumentationEnabled(ns) {
-		singleStepLibraryVersions := config.Datadog.GetStringMapString("apm_config.instrumentation.lib_versions")
-		for _, lang := range supportedLanguages {
-			libVersion = "latest"
+	singleStepLibraryVersions := config.Datadog.GetStringMapString("apm_config.instrumentation.lib_versions")
 
-			// if Single Step Instrumentation enabled, check if some libraries have pinned versions
-			if isApmInstrumentationEnabled(ns) {
-				if version, ok := singleStepLibraryVersions[string(lang)]; ok {
-					log.Warnf("Library version %s is specified for language %s", version, string(lang))
-					libVersion = version
-				}
-			}
-			libsToInject[string(lang)] = libInfo{
-				lang:  lang,
-				image: libImageName(registry, lang, libVersion),
-			}
+	for _, lang := range supportedLanguages {
+		libVersion = "latest"
+
+		if version, ok := singleStepLibraryVersions[string(lang)]; ok {
+			log.Warnf("Library version %s is specified for language %s", version, string(lang))
+			libVersion = version
+		}
+
+		libsToInject[string(lang)] = libInfo{
+			lang:  lang,
+			image: libImageName(registry, lang, libVersion),
 		}
 	}
 	return libsToInject
@@ -241,7 +225,7 @@ func extractLibInfo(pod *corev1.Pod, containerRegistry string) ([]libInfo, bool)
 
 	// Inject all libraries if Single Step Instrumentation is enabled
 	if isApmInstrumentationEnabled(pod.Namespace) {
-		libInfoMap = getAllLibsToInject(pod.Namespace, containerRegistry)
+		libInfoMap = getAllLibsToInject(containerRegistry)
 		if len(libInfoMap) > 0 {
 			log.Debugf("Single Step Instrumentation: Injecting all libraries into pod %q in namespace %q", podString(pod), pod.Namespace)
 		}

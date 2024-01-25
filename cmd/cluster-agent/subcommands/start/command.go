@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
@@ -43,6 +44,7 @@ import (
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate"
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
+	apidca "github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -68,6 +70,21 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/record"
+
+	// Core checks
+
+	corecheckLoader "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/helm"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/kubernetesapiserver"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu/cpu"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/disk"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/io"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/filehandles"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/memory"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/uptime"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
 )
 
 // Commands returns a slice of subcommands for the 'cluster-agent' command.
@@ -110,6 +127,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}), // TODO(components): check what this must be for cluster-agent-cloudfoundry
 				fx.Supply(context.Background()),
 				workloadmeta.Module(),
+				fx.Provide(tagger.NewTaggerParams),
+				tagger.Module(),
 			)
 		},
 	}
@@ -117,7 +136,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{startCmd}
 }
 
-func start(log log.Component, config config.Component, telemetry telemetry.Component, demultiplexer demultiplexer.Component, wmeta workloadmeta.Component, secretResolver secrets.Component) error {
+func start(log log.Component, config config.Component, taggerComp tagger.Component, telemetry telemetry.Component, demultiplexer demultiplexer.Component, wmeta workloadmeta.Component, secretResolver secrets.Component) error {
 	stopCh := make(chan struct{})
 
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
@@ -189,8 +208,16 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 		}
 	}
 
+	// Setup the leader forwarder for language detection and cluster checks
+	if pkgconfig.Datadog.GetBool("cluster_checks.enabled") || pkgconfig.Datadog.GetBool("language_detection.enabled") {
+		apidca.NewGlobalLeaderForwarder(
+			pkgconfig.Datadog.GetInt("cluster_agent.cmd_port"),
+			pkgconfig.Datadog.GetInt("cluster_agent.max_connections"),
+		)
+	}
+
 	// Starting server early to ease investigations
-	if err := api.StartServer(wmeta, demultiplexer); err != nil {
+	if err := api.StartServer(wmeta, taggerComp, demultiplexer); err != nil {
 		return fmt.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 
@@ -270,6 +297,7 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 	common.LoadComponents(demultiplexer, secretResolver, pkgconfig.Datadog.GetString("confd_path"))
 
 	// Set up check collector
+	registerChecks()
 	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll, demultiplexer), true)
 	common.Coll.Start()
 
@@ -476,4 +504,21 @@ func initializeRemoteConfig(ctx context.Context) (*rcclient.Client, *rcservice.S
 	}
 
 	return rcClient, rcService, nil
+}
+
+func registerChecks() {
+	// Required checks
+	corecheckLoader.RegisterCheck(cpu.CheckName, cpu.Factory())
+	corecheckLoader.RegisterCheck(memory.CheckName, memory.Factory())
+	corecheckLoader.RegisterCheck(uptime.CheckName, uptime.Factory())
+	corecheckLoader.RegisterCheck(io.CheckName, io.Factory())
+	corecheckLoader.RegisterCheck(filehandles.CheckName, filehandles.Factory())
+
+	// Flavor specific checks
+	corecheckLoader.RegisterCheck(kubernetesapiserver.CheckName, kubernetesapiserver.Factory())
+	corecheckLoader.RegisterCheck(ksm.CheckName, ksm.Factory())
+	corecheckLoader.RegisterCheck(helm.CheckName, helm.Factory())
+	corecheckLoader.RegisterCheck(disk.CheckName, disk.Factory())
+	corecheckLoader.RegisterCheck(orchestrator.CheckName, orchestrator.Factory())
+	corecheckLoader.RegisterCheck(winproc.CheckName, winproc.Factory())
 }
