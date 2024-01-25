@@ -21,8 +21,8 @@ import (
 
 var eventMonitorModuleConfigNamespaces = []string{"event_monitoring_config", "runtime_security_config"}
 
-func createEventMonitorModule(sysProbeConfig *sysconfigtypes.Config) (module.Module, error) {
-	emconfig := emconfig.NewConfig(sysProbeConfig)
+func createEventMonitorModule(_ *sysconfigtypes.Config) (module.Module, error) {
+	emconfig := emconfig.NewConfig()
 
 	secconfig, err := secconfig.NewConfig()
 	if err != nil {

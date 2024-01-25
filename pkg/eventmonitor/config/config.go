@@ -9,7 +9,6 @@ package config
 import (
 	"strings"
 
-	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -32,7 +31,7 @@ type Config struct {
 }
 
 // NewConfig creates a config for the event monitoring module
-func NewConfig(spConfig *sysconfigtypes.Config) *Config {
+func NewConfig() *Config {
 	return &Config{
 		// event server
 		SocketPath:       coreconfig.SystemProbe.GetString(join(evNS, "socket")),
