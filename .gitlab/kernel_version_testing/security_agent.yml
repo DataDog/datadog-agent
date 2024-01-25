@@ -52,7 +52,7 @@ kernel_matrix_testing_setup_env_security_agent_x64:
     - !reference [.kernel_matrix_testing_new_profile]
     - !reference [.write_ssh_key_file]
   script:
-   - !reference [.prepare_common_dependency_upload]
+    - !reference [.prepare_common_dependency_upload]
     # copy agent tests
     - mkdir -p $SECURITY_AGENT_TESTS
     - cp -R $KITCHEN_TESTS $SECURITY_AGENT_TESTS
