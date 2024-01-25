@@ -265,26 +265,19 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 		data[k] = v
 	}
 
-	if fullConf, err := ia.getFullAgentConfiguration(); err == nil {
-		data["full_configuration"] = fullConf
+	configLayer := map[string]func() (string, error){
+		"full_configuration":                 ia.getFullConfiguration,
+		"provided_configuration":             ia.getProvidedConfiguration,
+		"file_configuration":                 ia.getFileConfiguration,
+		"environment_variable_configuration": ia.getEnvVarConfiguration,
+		"agent_runtime_configuration":        ia.getRuntimeConfiguration,
+		"remote_configuration":               ia.getRemoteConfiguration,
+		"cli_configuration":                  ia.getCliConfiguration,
 	}
-	if providedConf, err := ia.getProvidedAgentConfiguration(); err == nil {
-		data["provided_configuration"] = providedConf
-	}
-	if fileConf, err := ia.getAgentFileConfiguration(); err == nil {
-		data["file_configuration"] = fileConf
-	}
-	if envVarConf, err := ia.getAgentEnvVarConfiguration(); err == nil {
-		data["environment_variable_configuration"] = envVarConf
-	}
-	if agentRuntimeConf, err := ia.getAgentRuntimeConfiguration(); err == nil {
-		data["agent_runtime_configuration"] = agentRuntimeConf
-	}
-	if remoteConf, err := ia.getAgentRemoteConfiguration(); err == nil {
-		data["remote_configuration"] = remoteConf
-	}
-	if cliConf, err := ia.getAgentCliConfiguration(); err == nil {
-		data["cli_configuration"] = cliConf
+	for layer, getter := range configLayer {
+		if conf, err := getter(); err == nil {
+			data[layer] = conf
+		}
 	}
 
 	return &Payload{
