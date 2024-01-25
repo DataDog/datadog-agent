@@ -448,7 +448,7 @@ func (s *HTTPTestSuite) TestKeepAliveWithIncompleteResponseRegression() {
 		require.Equal(t, len(rsp), n)
 		c.Close()
 	}
-	srv := testutil.NewTCPServer(serverAddr, srvFn)
+	srv := testutil.NewTCPServer(serverAddr, srvFn, false)
 	done := make(chan struct{})
 	srv.Run(done)
 	t.Cleanup(func() { close(done) })
