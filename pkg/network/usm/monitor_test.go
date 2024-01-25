@@ -38,6 +38,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	gotlsutils "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/proxy"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -136,6 +138,11 @@ func TestHTTP(t *testing.T) {
 func (s *httpTestSuite) TestHTTPStats() {
 	t := s.T()
 
+	const serverAddr = "127.0.0.1:8080"
+	// Start the proxy server.
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, serverAddr, s.isTLS)
+	t.Cleanup(cancel)
+
 	testCases := []struct {
 		name                  string
 		aggregateByStatusCode bool
@@ -151,18 +158,24 @@ func (s *httpTestSuite) TestHTTPStats() {
 	}
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			// Start an HTTP server on localhost:8080
-			serverAddr := "127.0.0.1:8080"
+			// Start an HTTP/HTTPS Server
 			srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
 				EnableKeepAlive: true,
+				EnableTLS:       s.isTLS,
 			})
 			t.Cleanup(srvDoneFn)
 
-			cfg := config.New()
+			// Wait for the proxy server to be ready.
+			require.NoError(t, proxy.WaitForConnectionReady(unixPath))
+			cfg := s.getCfg()
 			cfg.EnableHTTPStatsByStatusCode = tt.aggregateByStatusCode
-			monitor := newHTTPMonitorWithCfg(t, cfg)
+			monitor := setupUSMTLSMonitor(t, cfg)
+			if s.isTLS {
+				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+			}
 
-			resp, err := nethttp.Get(fmt.Sprintf("http://%s/%d/test", serverAddr, nethttp.StatusNoContent))
+			client := getHTTPUnixClientArray(1, unixPath)[0]
+			resp, err := client.Get(fmt.Sprintf("http://unix/%d/test", nethttp.StatusNoContent))
 			require.NoError(t, err)
 			_ = resp.Body.Close()
 			srvDoneFn()
@@ -173,7 +186,7 @@ func (s *httpTestSuite) TestHTTPStats() {
 
 				for key, reqStats := range stats {
 					if key.Method == http.MethodGet && strings.HasSuffix(key.Path.Content.Get(), "/test") && (key.SrcPort == 8080 || key.DstPort == 8080) {
-						currentStats := reqStats.Data[reqStats.NormalizeStatusCode(204)]
+						currentStats := reqStats.Data[reqStats.NormalizeStatusCode(nethttp.StatusNoContent)]
 						if currentStats != nil && currentStats.Count == 1 {
 							return true
 						}
