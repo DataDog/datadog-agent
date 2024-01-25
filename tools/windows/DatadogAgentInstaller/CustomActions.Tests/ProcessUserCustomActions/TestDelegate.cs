@@ -10,4 +10,8 @@ namespace CustomActions.Tests.ProcessUserCustomActions
         out string domain,
         out SecurityIdentifier securityIdentifier,
         out SID_NAME_USE sidNameUse);
+
+    delegate void GetCurrentUserDelegate(
+        out string accountName,
+        out SecurityIdentifier securityIdentifier);
 }
