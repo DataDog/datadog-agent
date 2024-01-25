@@ -82,9 +82,6 @@ func main() {
 	var interfaceMap strings.Builder
 	interfaceMap.WriteString("var interfaceMap = map[string]interface{}{\n")
 	for _, file := range objectFiles {
-		objectFileName := strings.ReplaceAll(
-			strings.Split(filepath.Base(file), ".")[0], "-", "_",
-		)
 		bc, err := os.Open(file)
 		if err != nil {
 			log.Fatalf("couldn't open asset: %v", err)
@@ -96,25 +93,26 @@ func main() {
 			log.Fatalf("failed to load collection spec: %v", err)
 		}
 
-		functions.WriteString(
-			fmt.Sprintf("type EBPFPrograms__%s struct {\n", objectFileName),
+		objectFileName := strings.ReplaceAll(
+			strings.Split(filepath.Base(file), ".")[0], "-", "_",
 		)
-
 		for name, progSpec := range collectionSpec.Programs {
 			if progSpec == nil {
 				fmt.Printf("ProgramSpec for %s is nil\n", name)
 				continue
 			}
+
 			functions.WriteString(
-				fmt.Sprintf("Func_%s *ebpf.Program `ebpf:\"%s\"`\n", progSpec.Name, progSpec.Name),
+				fmt.Sprintf("type Func__%[1]s_%[2]s struct { Program__%[1]s *ebpf.Program `ebpf:\"%[1]s\"`}\n", progSpec.Name, objectFileName),
+			)
+			functions.WriteString(
+				fmt.Sprintf("var Func__%[1]s_%[2]s_var Func__%[1]s_%[2]s\n", progSpec.Name, objectFileName),
+			)
+			interfaceMap.WriteString(
+				fmt.Sprintf("\"%[1]s_%[2]s\": &Func__%[1]s_%[2]s_var,\n", progSpec.Name, objectFileName),
 			)
 		}
 
-		functions.WriteString("}\n")
-		functions.WriteString(fmt.Sprintf("var EBPFPrograms__%s_var EBPFPrograms__%s\n", objectFileName, objectFileName))
-		interfaceMap.WriteString(
-			fmt.Sprintf("\"%s\": &EBPFPrograms__%s_var,\n", objectFileName, objectFileName),
-		)
 	}
 	interfaceMap.WriteString("}")
 

@@ -56,28 +56,33 @@ var peakStates = regexp.MustCompile(`peak_states (?P<peak_states>\d+)`)
 //go:generate go run functions.go ../bytecode/build/co-re
 //go:generate go fmt programs.go
 
+func programKey(specName, objFileName string) string {
+	return fmt.Sprintf("%s/Program__%s", objFileName, specName)
+}
+
 // BuildVerifierStats accepts a list of eBPF object files and generates a
 // map of all programs and their Statistics
-func BuildVerifierStats(objectFiles []string) (map[string]*Statistics, error) {
+func BuildVerifierStats(objectFiles []string) (map[string]*Statistics, map[string]struct{}, error) {
 	kversion, err := kernel.HostVersion()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get host kernel version: %w", err)
+		return nil, nil, fmt.Errorf("failed to get host kernel version: %w", err)
 	}
 	if kversion < kernel.VersionCode(4, 15, 0) {
-		return nil, fmt.Errorf("Kernel %s does not expose verifier statistics", kversion)
+		return nil, nil, fmt.Errorf("Kernel %s does not expose verifier statistics", kversion)
 	}
 
+	failedToLoad := make(map[string]struct{})
 	stats := make(map[string]*Statistics)
 	for _, file := range objectFiles {
 		bc, err := os.Open(file)
 		if err != nil {
-			return nil, fmt.Errorf("couldn't open asset: %v", err)
+			return nil, nil, fmt.Errorf("couldn't open asset: %v", err)
 		}
 		defer bc.Close()
 
 		collectionSpec, err := ebpf.LoadCollectionSpecFromReader(bc)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load collection spec: %v", err)
+			return nil, nil, fmt.Errorf("failed to load collection spec: %v", err)
 		}
 
 		// Max entry has to be > 0 for all maps
@@ -117,51 +122,48 @@ func BuildVerifierStats(objectFiles []string) (map[string]*Statistics, error) {
 		objectFileName := strings.ReplaceAll(
 			strings.Split(filepath.Base(file), ".")[0], "-", "_",
 		)
-		collection, err := ebpf.NewCollectionWithOptions(collectionSpec, opts)
-		if err != nil {
-			log.Printf("Load collection: %v", err)
-			log.Printf("Skipping object file %s.o", objectFileName)
-			continue
-		}
+		for _, progSpec := range collectionSpec.Programs {
+			prog := interfaceMap[fmt.Sprintf("%s_%s", progSpec.Name, objectFileName)]
+			err = collectionSpec.LoadAndAssign(prog, &opts)
+			if err != nil {
+				log.Printf("failed to load and assign ebpf.Program in file %s: %v", objectFileName, err)
+				failedToLoad[programKey(progSpec.Name, objectFileName)] = struct{}{}
+				continue
+			}
 
-		prog := interfaceMap[objectFileName]
-		err = collection.Assign(prog)
-		if err != nil {
-			return nil, fmt.Errorf("failed to assign ebpf.Program: %v", err)
-		}
+			progPtr := reflect.ValueOf(prog)
+			if progPtr.Type().Kind() != reflect.Ptr {
+				return nil, nil, fmt.Errorf("%T is not a pointer to struct", prog)
+			}
 
-		progPtr := reflect.ValueOf(prog)
-		if progPtr.Type().Kind() != reflect.Ptr {
-			return nil, fmt.Errorf("%T is not a pointer to struct", prog)
-		}
+			if progPtr.IsNil() {
+				return nil, nil, fmt.Errorf("nil pointer to %T", progPtr)
+			}
 
-		if progPtr.IsNil() {
-			return nil, fmt.Errorf("nil pointer to %T", progPtr)
-		}
+			progElem := progPtr.Elem()
+			if progElem.Kind() != reflect.Struct {
+				return nil, nil, fmt.Errorf("%s is not a struct", progElem)
+			}
+			for i := 0; i < progElem.NumField(); i++ {
+				programName := progElem.Type().Field(i).Name
 
-		progElem := progPtr.Elem()
-		if progElem.Kind() != reflect.Struct {
-			return nil, fmt.Errorf("%s is not a struct", progElem)
-		}
-		for i := 0; i < progElem.NumField(); i++ {
-			programName := progElem.Type().Field(i).Name
-
-			field := progElem.Field(i)
-			switch field.Type() {
-			case reflect.TypeOf((*ebpf.Program)(nil)):
-				p := field.Interface().(*ebpf.Program)
-				stat, err := unmarshalStatistics(p.VerifierLog, kversion)
-				if err != nil {
-					return nil, fmt.Errorf("failed to unmarshal verifier log for program %s: %w", programName, err)
+				field := progElem.Field(i)
+				switch field.Type() {
+				case reflect.TypeOf((*ebpf.Program)(nil)):
+					p := field.Interface().(*ebpf.Program)
+					stat, err := unmarshalStatistics(p.VerifierLog, kversion)
+					if err != nil {
+						return nil, nil, fmt.Errorf("failed to unmarshal verifier log for program %s: %w", programName, err)
+					}
+					stats[fmt.Sprintf("%s/%s", objectFileName, programName)] = stat
+				default:
+					return nil, nil, fmt.Errorf("Unexpected type %T", field)
 				}
-				stats[programName] = stat
-			default:
-				return nil, fmt.Errorf("Unexpected type %T", field)
 			}
 		}
 	}
 
-	return stats, nil
+	return stats, failedToLoad, nil
 }
 
 type structField struct {

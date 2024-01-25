@@ -7,212 +7,1160 @@ import (
 	"github.com/cilium/ebpf"
 )
 
-type EBPFPrograms__ebpf struct {
-	Func_tp_fcntl_exit   *ebpf.Program `ebpf:"tp_fcntl_exit"`
-	Func_k_map_alloc     *ebpf.Program `ebpf:"k_map_alloc"`
-	Func_tp_pe_open_exit *ebpf.Program `ebpf:"tp_pe_open_exit"`
-	Func_k_map_update    *ebpf.Program `ebpf:"k_map_update"`
-	Func_tp_bpf_exit     *ebpf.Program `ebpf:"tp_bpf_exit"`
-	Func_tp_mmap_enter   *ebpf.Program `ebpf:"tp_mmap_enter"`
-	Func_tp_mmap_exit    *ebpf.Program `ebpf:"tp_mmap_exit"`
-	Func_k_pe_open       *ebpf.Program `ebpf:"k_pe_open"`
-	Func_tp_fcntl_enter  *ebpf.Program `ebpf:"tp_fcntl_enter"`
+type Func__tp_fcntl_enter_ebpf struct {
+	Program__tp_fcntl_enter *ebpf.Program `ebpf:"tp_fcntl_enter"`
 }
 
-var EBPFPrograms__ebpf_var EBPFPrograms__ebpf
+var Func__tp_fcntl_enter_ebpf_var Func__tp_fcntl_enter_ebpf
 
-type EBPFPrograms__oom_kill struct {
-	Func_kprobe__oom_kill_process *ebpf.Program `ebpf:"kprobe__oom_kill_process"`
+type Func__k_map_update_ebpf struct {
+	Program__k_map_update *ebpf.Program `ebpf:"k_map_update"`
 }
 
-var EBPFPrograms__oom_kill_var EBPFPrograms__oom_kill
+var Func__k_map_update_ebpf_var Func__k_map_update_ebpf
 
-type EBPFPrograms__shared_libraries struct {
-	Func_tracepoint__syscalls__sys_enter_openat  *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_openat"`
-	Func_tracepoint__syscalls__sys_exit_openat   *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_openat"`
-	Func_tracepoint__syscalls__sys_enter_openat2 *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_openat2"`
-	Func_tracepoint__syscalls__sys_exit_openat2  *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_openat2"`
+type Func__tp_mmap_enter_ebpf struct {
+	Program__tp_mmap_enter *ebpf.Program `ebpf:"tp_mmap_enter"`
 }
 
-var EBPFPrograms__shared_libraries_var EBPFPrograms__shared_libraries
+var Func__tp_mmap_enter_ebpf_var Func__tp_mmap_enter_ebpf
 
-type EBPFPrograms__tcp_queue_length struct {
-	Func_kretprobe__tcp_recvmsg *ebpf.Program `ebpf:"kretprobe__tcp_recvmsg"`
-	Func_kprobe__tcp_sendmsg    *ebpf.Program `ebpf:"kprobe__tcp_sendmsg"`
-	Func_kretprobe__tcp_sendmsg *ebpf.Program `ebpf:"kretprobe__tcp_sendmsg"`
-	Func_kprobe__tcp_recvmsg    *ebpf.Program `ebpf:"kprobe__tcp_recvmsg"`
+type Func__tp_bpf_exit_ebpf struct {
+	Program__tp_bpf_exit *ebpf.Program `ebpf:"tp_bpf_exit"`
 }
 
-var EBPFPrograms__tcp_queue_length_var EBPFPrograms__tcp_queue_length
+var Func__tp_bpf_exit_ebpf_var Func__tp_bpf_exit_ebpf
 
-type EBPFPrograms__tracer_fentry struct {
-	Func_udpv6_recvmsg                 *ebpf.Program `ebpf:"udpv6_recvmsg"`
-	Func_udp_recvmsg                   *ebpf.Program `ebpf:"udp_recvmsg"`
-	Func___skb_free_datagram_locked    *ebpf.Program `ebpf:"__skb_free_datagram_locked"`
-	Func_udp_destroy_sock_exit         *ebpf.Program `ebpf:"udp_destroy_sock_exit"`
-	Func_udp_sendmsg_exit              *ebpf.Program `ebpf:"udp_sendmsg_exit"`
-	Func_udp_recvmsg_exit              *ebpf.Program `ebpf:"udp_recvmsg_exit"`
-	Func_udpv6_recvmsg_exit_pre_5_19_0 *ebpf.Program `ebpf:"udpv6_recvmsg_exit_pre_5_19_0"`
-	Func_tcp_finish_connect            *ebpf.Program `ebpf:"tcp_finish_connect"`
-	Func_tcp_connect                   *ebpf.Program `ebpf:"tcp_connect"`
-	Func_tcp_recvmsg_exit              *ebpf.Program `ebpf:"tcp_recvmsg_exit"`
-	Func_tcp_sendpage_exit             *ebpf.Program `ebpf:"tcp_sendpage_exit"`
-	Func_tcp_retransmit_skb            *ebpf.Program `ebpf:"tcp_retransmit_skb"`
-	Func_udpv6_sendmsg_exit            *ebpf.Program `ebpf:"udpv6_sendmsg_exit"`
-	Func_kprobe__udp_v6_send_skb       *ebpf.Program `ebpf:"kprobe__udp_v6_send_skb"`
-	Func_udp_destroy_sock              *ebpf.Program `ebpf:"udp_destroy_sock"`
-	Func_tcp_sendmsg_exit              *ebpf.Program `ebpf:"tcp_sendmsg_exit"`
-	Func_udp_recvmsg_exit_pre_5_19_0   *ebpf.Program `ebpf:"udp_recvmsg_exit_pre_5_19_0"`
-	Func_udpv6_recvmsg_exit            *ebpf.Program `ebpf:"udpv6_recvmsg_exit"`
-	Func_inet_csk_listen_stop_enter    *ebpf.Program `ebpf:"inet_csk_listen_stop_enter"`
-	Func_inet_bind_exit                *ebpf.Program `ebpf:"inet_bind_exit"`
-	Func_tcp_recvmsg_exit_pre_5_19_0   *ebpf.Program `ebpf:"tcp_recvmsg_exit_pre_5_19_0"`
-	Func_udpv6_destroy_sock            *ebpf.Program `ebpf:"udpv6_destroy_sock"`
-	Func_inet_csk_accept_exit          *ebpf.Program `ebpf:"inet_csk_accept_exit"`
-	Func_inet_bind_enter               *ebpf.Program `ebpf:"inet_bind_enter"`
-	Func_skb_free_datagram_locked      *ebpf.Program `ebpf:"skb_free_datagram_locked"`
-	Func_skb_consume_udp               *ebpf.Program `ebpf:"skb_consume_udp"`
-	Func_udp_sendpage_exit             *ebpf.Program `ebpf:"udp_sendpage_exit"`
-	Func_kprobe__udp_send_skb          *ebpf.Program `ebpf:"kprobe__udp_send_skb"`
-	Func_tcp_close                     *ebpf.Program `ebpf:"tcp_close"`
-	Func_udpv6_destroy_sock_exit       *ebpf.Program `ebpf:"udpv6_destroy_sock_exit"`
-	Func_tcp_close_exit                *ebpf.Program `ebpf:"tcp_close_exit"`
-	Func_inet6_bind_exit               *ebpf.Program `ebpf:"inet6_bind_exit"`
-	Func_tcp_retransmit_skb_exit       *ebpf.Program `ebpf:"tcp_retransmit_skb_exit"`
-	Func_inet6_bind_enter              *ebpf.Program `ebpf:"inet6_bind_enter"`
+type Func__tp_mmap_exit_ebpf struct {
+	Program__tp_mmap_exit *ebpf.Program `ebpf:"tp_mmap_exit"`
 }
 
-var EBPFPrograms__tracer_fentry_var EBPFPrograms__tracer_fentry
+var Func__tp_mmap_exit_ebpf_var Func__tp_mmap_exit_ebpf
 
-type EBPFPrograms__tracer struct {
-	Func_kretprobe__tcp_close_clean_protocols *ebpf.Program `ebpf:"kretprobe__tcp_close_clean_protocols"`
-	Func_kretprobe__tcp_sendpage              *ebpf.Program `ebpf:"kretprobe__tcp_sendpage"`
-	Func_kprobe__skb_consume_udp              *ebpf.Program `ebpf:"kprobe__skb_consume_udp"`
-	Func_kprobe__tcp_recvmsg__pre_4_1_0       *ebpf.Program `ebpf:"kprobe__tcp_recvmsg__pre_4_1_0"`
-	Func_kprobe__tcp_sendpage                 *ebpf.Program `ebpf:"kprobe__tcp_sendpage"`
-	Func_tracepoint__net__net_dev_queue       *ebpf.Program `ebpf:"tracepoint__net__net_dev_queue"`
-	Func_kprobe__udpv6_recvmsg_pre_4_1_0      *ebpf.Program `ebpf:"kprobe__udpv6_recvmsg_pre_4_1_0"`
-	Func_kprobe__udp_recvmsg_pre_4_7_0        *ebpf.Program `ebpf:"kprobe__udp_recvmsg_pre_4_7_0"`
-	Func_kprobe__udp_recvmsg_pre_4_1_0        *ebpf.Program `ebpf:"kprobe__udp_recvmsg_pre_4_1_0"`
-	Func_kretprobe__tcp_read_sock             *ebpf.Program `ebpf:"kretprobe__tcp_read_sock"`
-	Func_socket__classifier_queues            *ebpf.Program `ebpf:"socket__classifier_queues"`
-	Func_socket__classifier_dbs               *ebpf.Program `ebpf:"socket__classifier_dbs"`
-	Func_kprobe__udpv6_recvmsg_pre_5_19_0     *ebpf.Program `ebpf:"kprobe__udpv6_recvmsg_pre_5_19_0"`
-	Func_kprobe__tcp_close                    *ebpf.Program `ebpf:"kprobe__tcp_close"`
-	Func_kprobe__udpv6_recvmsg_pre_4_7_0      *ebpf.Program `ebpf:"kprobe__udpv6_recvmsg_pre_4_7_0"`
-	Func_socket__classifier_entry             *ebpf.Program `ebpf:"socket__classifier_entry"`
-	Func_kretprobe__inet_bind                 *ebpf.Program `ebpf:"kretprobe__inet_bind"`
-	Func_kprobe____skb_free_datagram_locked   *ebpf.Program `ebpf:"kprobe____skb_free_datagram_locked"`
-	Func_kprobe__ip_make_skb                  *ebpf.Program `ebpf:"kprobe__ip_make_skb"`
-	Func_kprobe__udpv6_recvmsg                *ebpf.Program `ebpf:"kprobe__udpv6_recvmsg"`
-	Func_kretprobe__tcp_close_flush           *ebpf.Program `ebpf:"kretprobe__tcp_close_flush"`
-	Func_kprobe__tcp_connect                  *ebpf.Program `ebpf:"kprobe__tcp_connect"`
-	Func_kretprobe__udpv6_destroy_sock        *ebpf.Program `ebpf:"kretprobe__udpv6_destroy_sock"`
-	Func_kretprobe__tcp_recvmsg               *ebpf.Program `ebpf:"kretprobe__tcp_recvmsg"`
-	Func_kretprobe__udp_recvmsg_pre_4_7_0     *ebpf.Program `ebpf:"kretprobe__udp_recvmsg_pre_4_7_0"`
-	Func_kprobe__tcp_sendmsg__pre_4_1_0       *ebpf.Program `ebpf:"kprobe__tcp_sendmsg__pre_4_1_0"`
-	Func_kretprobe__udpv6_recvmsg             *ebpf.Program `ebpf:"kretprobe__udpv6_recvmsg"`
-	Func_kprobe__ip6_make_skb__pre_4_7_0      *ebpf.Program `ebpf:"kprobe__ip6_make_skb__pre_4_7_0"`
-	Func_kprobe__tcp_finish_connect           *ebpf.Program `ebpf:"kprobe__tcp_finish_connect"`
-	Func_kprobe__tcp_retransmit_skb           *ebpf.Program `ebpf:"kprobe__tcp_retransmit_skb"`
-	Func_kprobe__udp_sendpage                 *ebpf.Program `ebpf:"kprobe__udp_sendpage"`
-	Func_kprobe__inet_bind                    *ebpf.Program `ebpf:"kprobe__inet_bind"`
-	Func_kretprobe__udp_destroy_sock          *ebpf.Program `ebpf:"kretprobe__udp_destroy_sock"`
-	Func_kretprobe__udp_sendpage              *ebpf.Program `ebpf:"kretprobe__udp_sendpage"`
-	Func_kprobe__tcp_recvmsg                  *ebpf.Program `ebpf:"kprobe__tcp_recvmsg"`
-	Func_kretprobe__ip6_make_skb              *ebpf.Program `ebpf:"kretprobe__ip6_make_skb"`
-	Func_socket__classifier_grpc              *ebpf.Program `ebpf:"socket__classifier_grpc"`
-	Func_kprobe__tcp_recvmsg__pre_5_19_0      *ebpf.Program `ebpf:"kprobe__tcp_recvmsg__pre_5_19_0"`
-	Func_kprobe__tcp_sendmsg                  *ebpf.Program `ebpf:"kprobe__tcp_sendmsg"`
-	Func_kprobe__ip6_make_skb__pre_5_18_0     *ebpf.Program `ebpf:"kprobe__ip6_make_skb__pre_5_18_0"`
-	Func_kprobe__tcp_read_sock                *ebpf.Program `ebpf:"kprobe__tcp_read_sock"`
-	Func_kretprobe__inet_csk_accept           *ebpf.Program `ebpf:"kretprobe__inet_csk_accept"`
-	Func_kprobe__inet6_bind                   *ebpf.Program `ebpf:"kprobe__inet6_bind"`
-	Func_kprobe__udp_recvmsg_pre_5_19_0       *ebpf.Program `ebpf:"kprobe__udp_recvmsg_pre_5_19_0"`
-	Func_kretprobe__inet6_bind                *ebpf.Program `ebpf:"kretprobe__inet6_bind"`
-	Func_kprobe__ip6_make_skb                 *ebpf.Program `ebpf:"kprobe__ip6_make_skb"`
-	Func_kretprobe__tcp_retransmit_skb        *ebpf.Program `ebpf:"kretprobe__tcp_retransmit_skb"`
-	Func_kretprobe__udp_recvmsg               *ebpf.Program `ebpf:"kretprobe__udp_recvmsg"`
-	Func_kprobe__skb_free_datagram_locked     *ebpf.Program `ebpf:"kprobe__skb_free_datagram_locked"`
-	Func_kprobe__inet_csk_listen_stop         *ebpf.Program `ebpf:"kprobe__inet_csk_listen_stop"`
-	Func_kprobe__udp_recvmsg                  *ebpf.Program `ebpf:"kprobe__udp_recvmsg"`
-	Func_kretprobe__udpv6_recvmsg_pre_4_7_0   *ebpf.Program `ebpf:"kretprobe__udpv6_recvmsg_pre_4_7_0"`
-	Func_kretprobe__ip_make_skb               *ebpf.Program `ebpf:"kretprobe__ip_make_skb"`
-	Func_kprobe__udpv6_destroy_sock           *ebpf.Program `ebpf:"kprobe__udpv6_destroy_sock"`
-	Func_kretprobe__tcp_sendmsg               *ebpf.Program `ebpf:"kretprobe__tcp_sendmsg"`
-	Func_kprobe__udp_destroy_sock             *ebpf.Program `ebpf:"kprobe__udp_destroy_sock"`
+type Func__k_map_alloc_ebpf struct {
+	Program__k_map_alloc *ebpf.Program `ebpf:"k_map_alloc"`
 }
 
-var EBPFPrograms__tracer_var EBPFPrograms__tracer
+var Func__k_map_alloc_ebpf_var Func__k_map_alloc_ebpf
 
-type EBPFPrograms__usm struct {
-	Func_uprobe__gnutls_transport_set_ptr2     *ebpf.Program `ebpf:"uprobe__gnutls_transport_set_ptr2"`
-	Func_uretprobe__SSL_write_ex               *ebpf.Program `ebpf:"uretprobe__SSL_write_ex"`
-	Func_socket__http2_headers_parser          *ebpf.Program `ebpf:"socket__http2_headers_parser"`
-	Func_uretprobe__BIO_new_socket             *ebpf.Program `ebpf:"uretprobe__BIO_new_socket"`
-	Func_uprobe__http2_tls_headers_parser      *ebpf.Program `ebpf:"uprobe__http2_tls_headers_parser"`
-	Func_uretprobe__gnutls_record_recv         *ebpf.Program `ebpf:"uretprobe__gnutls_record_recv"`
-	Func_uprobe__gnutls_bye                    *ebpf.Program `ebpf:"uprobe__gnutls_bye"`
-	Func_uprobe__http_process                  *ebpf.Program `ebpf:"uprobe__http_process"`
-	Func_uprobe__SSL_do_handshake              *ebpf.Program `ebpf:"uprobe__SSL_do_handshake"`
-	Func_uprobe__crypto_tls_Conn_Read__return  *ebpf.Program `ebpf:"uprobe__crypto_tls_Conn_Read__return"`
-	Func_tracepoint__net__netif_receive_skb    *ebpf.Program `ebpf:"tracepoint__net__netif_receive_skb"`
-	Func_uretprobe__SSL_connect                *ebpf.Program `ebpf:"uretprobe__SSL_connect"`
-	Func_kprobe__tcp_sendmsg                   *ebpf.Program `ebpf:"kprobe__tcp_sendmsg"`
-	Func_uprobe__gnutls_deinit                 *ebpf.Program `ebpf:"uprobe__gnutls_deinit"`
-	Func_socket__kafka_filter                  *ebpf.Program `ebpf:"socket__kafka_filter"`
-	Func_uprobe__gnutls_handshake              *ebpf.Program `ebpf:"uprobe__gnutls_handshake"`
-	Func_kprobe_handle_close_connection        *ebpf.Program `ebpf:"kprobe_handle_close_connection"`
-	Func_socket__http2_eos_parser              *ebpf.Program `ebpf:"socket__http2_eos_parser"`
-	Func_uretprobe__SSL_read_ex                *ebpf.Program `ebpf:"uretprobe__SSL_read_ex"`
-	Func_uretprobe__gnutls_record_send         *ebpf.Program `ebpf:"uretprobe__gnutls_record_send"`
-	Func_kprobe_handle_connection_by_peer      *ebpf.Program `ebpf:"kprobe_handle_connection_by_peer"`
-	Func_uprobe__SSL_read                      *ebpf.Program `ebpf:"uprobe__SSL_read"`
-	Func_kprobe_handle_async_payload           *ebpf.Program `ebpf:"kprobe_handle_async_payload"`
-	Func_socket__http2_filter                  *ebpf.Program `ebpf:"socket__http2_filter"`
-	Func_uretprobe__SSL_do_handshake           *ebpf.Program `ebpf:"uretprobe__SSL_do_handshake"`
-	Func_uprobe__http2_tls_handle_first_frame  *ebpf.Program `ebpf:"uprobe__http2_tls_handle_first_frame"`
-	Func_socket__protocol_dispatcher           *ebpf.Program `ebpf:"socket__protocol_dispatcher"`
-	Func_uprobe__http2_tls_termination         *ebpf.Program `ebpf:"uprobe__http2_tls_termination"`
-	Func_socket__http_filter                   *ebpf.Program `ebpf:"socket__http_filter"`
-	Func_kprobe__do_vfs_ioctl                  *ebpf.Program `ebpf:"kprobe__do_vfs_ioctl"`
-	Func_uprobe__crypto_tls_Conn_Write__return *ebpf.Program `ebpf:"uprobe__crypto_tls_Conn_Write__return"`
-	Func_uretprobe__SSL_read                   *ebpf.Program `ebpf:"uretprobe__SSL_read"`
-	Func_socket__http2_handle_first_frame      *ebpf.Program `ebpf:"socket__http2_handle_first_frame"`
-	Func_uprobe__SSL_set_fd                    *ebpf.Program `ebpf:"uprobe__SSL_set_fd"`
-	Func_uprobe__crypto_tls_Conn_Read          *ebpf.Program `ebpf:"uprobe__crypto_tls_Conn_Read"`
-	Func_uprobe__gnutls_record_recv            *ebpf.Program `ebpf:"uprobe__gnutls_record_recv"`
-	Func_uprobe__SSL_set_bio                   *ebpf.Program `ebpf:"uprobe__SSL_set_bio"`
-	Func_uprobe__BIO_new_socket                *ebpf.Program `ebpf:"uprobe__BIO_new_socket"`
-	Func_uretprobe__SSL_write                  *ebpf.Program `ebpf:"uretprobe__SSL_write"`
-	Func_uprobe__http_termination              *ebpf.Program `ebpf:"uprobe__http_termination"`
-	Func_uprobe__SSL_connect                   *ebpf.Program `ebpf:"uprobe__SSL_connect"`
-	Func_uprobe__gnutls_transport_set_int2     *ebpf.Program `ebpf:"uprobe__gnutls_transport_set_int2"`
-	Func_uprobe__crypto_tls_Conn_Write         *ebpf.Program `ebpf:"uprobe__crypto_tls_Conn_Write"`
-	Func_uprobe__gnutls_transport_set_ptr      *ebpf.Program `ebpf:"uprobe__gnutls_transport_set_ptr"`
-	Func_uprobe__SSL_read_ex                   *ebpf.Program `ebpf:"uprobe__SSL_read_ex"`
-	Func_uretprobe__gnutls_handshake           *ebpf.Program `ebpf:"uretprobe__gnutls_handshake"`
-	Func_uprobe__http2_tls_eos_parser          *ebpf.Program `ebpf:"uprobe__http2_tls_eos_parser"`
-	Func_kretprobe__sockfd_lookup_light        *ebpf.Program `ebpf:"kretprobe__sockfd_lookup_light"`
-	Func_socket__protocol_dispatcher_kafka     *ebpf.Program `ebpf:"socket__protocol_dispatcher_kafka"`
-	Func_uprobe__SSL_write                     *ebpf.Program `ebpf:"uprobe__SSL_write"`
-	Func_kprobe_handle_sync_payload            *ebpf.Program `ebpf:"kprobe_handle_sync_payload"`
-	Func_uprobe__gnutls_record_send            *ebpf.Program `ebpf:"uprobe__gnutls_record_send"`
-	Func_uprobe__http2_tls_filter              *ebpf.Program `ebpf:"uprobe__http2_tls_filter"`
-	Func_uprobe__crypto_tls_Conn_Close         *ebpf.Program `ebpf:"uprobe__crypto_tls_Conn_Close"`
-	Func_kprobe__sockfd_lookup_light           *ebpf.Program `ebpf:"kprobe__sockfd_lookup_light"`
-	Func_uprobe__SSL_shutdown                  *ebpf.Program `ebpf:"uprobe__SSL_shutdown"`
-	Func_uprobe__SSL_write_ex                  *ebpf.Program `ebpf:"uprobe__SSL_write_ex"`
+type Func__tp_fcntl_exit_ebpf struct {
+	Program__tp_fcntl_exit *ebpf.Program `ebpf:"tp_fcntl_exit"`
 }
 
-var EBPFPrograms__usm_var EBPFPrograms__usm
+var Func__tp_fcntl_exit_ebpf_var Func__tp_fcntl_exit_ebpf
+
+type Func__k_pe_open_ebpf struct {
+	Program__k_pe_open *ebpf.Program `ebpf:"k_pe_open"`
+}
+
+var Func__k_pe_open_ebpf_var Func__k_pe_open_ebpf
+
+type Func__tp_pe_open_exit_ebpf struct {
+	Program__tp_pe_open_exit *ebpf.Program `ebpf:"tp_pe_open_exit"`
+}
+
+var Func__tp_pe_open_exit_ebpf_var Func__tp_pe_open_exit_ebpf
+
+type Func__kprobe__oom_kill_process_oom_kill struct {
+	Program__kprobe__oom_kill_process *ebpf.Program `ebpf:"kprobe__oom_kill_process"`
+}
+
+var Func__kprobe__oom_kill_process_oom_kill_var Func__kprobe__oom_kill_process_oom_kill
+
+type Func__tracepoint__syscalls__sys_enter_openat2_shared_libraries struct {
+	Program__tracepoint__syscalls__sys_enter_openat2 *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_openat2"`
+}
+
+var Func__tracepoint__syscalls__sys_enter_openat2_shared_libraries_var Func__tracepoint__syscalls__sys_enter_openat2_shared_libraries
+
+type Func__tracepoint__syscalls__sys_exit_openat2_shared_libraries struct {
+	Program__tracepoint__syscalls__sys_exit_openat2 *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_openat2"`
+}
+
+var Func__tracepoint__syscalls__sys_exit_openat2_shared_libraries_var Func__tracepoint__syscalls__sys_exit_openat2_shared_libraries
+
+type Func__tracepoint__syscalls__sys_enter_openat_shared_libraries struct {
+	Program__tracepoint__syscalls__sys_enter_openat *ebpf.Program `ebpf:"tracepoint__syscalls__sys_enter_openat"`
+}
+
+var Func__tracepoint__syscalls__sys_enter_openat_shared_libraries_var Func__tracepoint__syscalls__sys_enter_openat_shared_libraries
+
+type Func__tracepoint__syscalls__sys_exit_openat_shared_libraries struct {
+	Program__tracepoint__syscalls__sys_exit_openat *ebpf.Program `ebpf:"tracepoint__syscalls__sys_exit_openat"`
+}
+
+var Func__tracepoint__syscalls__sys_exit_openat_shared_libraries_var Func__tracepoint__syscalls__sys_exit_openat_shared_libraries
+
+type Func__kprobe__tcp_recvmsg_tcp_queue_length struct {
+	Program__kprobe__tcp_recvmsg *ebpf.Program `ebpf:"kprobe__tcp_recvmsg"`
+}
+
+var Func__kprobe__tcp_recvmsg_tcp_queue_length_var Func__kprobe__tcp_recvmsg_tcp_queue_length
+
+type Func__kretprobe__tcp_recvmsg_tcp_queue_length struct {
+	Program__kretprobe__tcp_recvmsg *ebpf.Program `ebpf:"kretprobe__tcp_recvmsg"`
+}
+
+var Func__kretprobe__tcp_recvmsg_tcp_queue_length_var Func__kretprobe__tcp_recvmsg_tcp_queue_length
+
+type Func__kprobe__tcp_sendmsg_tcp_queue_length struct {
+	Program__kprobe__tcp_sendmsg *ebpf.Program `ebpf:"kprobe__tcp_sendmsg"`
+}
+
+var Func__kprobe__tcp_sendmsg_tcp_queue_length_var Func__kprobe__tcp_sendmsg_tcp_queue_length
+
+type Func__kretprobe__tcp_sendmsg_tcp_queue_length struct {
+	Program__kretprobe__tcp_sendmsg *ebpf.Program `ebpf:"kretprobe__tcp_sendmsg"`
+}
+
+var Func__kretprobe__tcp_sendmsg_tcp_queue_length_var Func__kretprobe__tcp_sendmsg_tcp_queue_length
+
+type Func__udp_destroy_sock_tracer_fentry struct {
+	Program__udp_destroy_sock *ebpf.Program `ebpf:"udp_destroy_sock"`
+}
+
+var Func__udp_destroy_sock_tracer_fentry_var Func__udp_destroy_sock_tracer_fentry
+
+type Func__tcp_recvmsg_exit_tracer_fentry struct {
+	Program__tcp_recvmsg_exit *ebpf.Program `ebpf:"tcp_recvmsg_exit"`
+}
+
+var Func__tcp_recvmsg_exit_tracer_fentry_var Func__tcp_recvmsg_exit_tracer_fentry
+
+type Func__udp_recvmsg_exit_pre_5_19_0_tracer_fentry struct {
+	Program__udp_recvmsg_exit_pre_5_19_0 *ebpf.Program `ebpf:"udp_recvmsg_exit_pre_5_19_0"`
+}
+
+var Func__udp_recvmsg_exit_pre_5_19_0_tracer_fentry_var Func__udp_recvmsg_exit_pre_5_19_0_tracer_fentry
+
+type Func__tcp_connect_tracer_fentry struct {
+	Program__tcp_connect *ebpf.Program `ebpf:"tcp_connect"`
+}
+
+var Func__tcp_connect_tracer_fentry_var Func__tcp_connect_tracer_fentry
+
+type Func__udpv6_recvmsg_exit_tracer_fentry struct {
+	Program__udpv6_recvmsg_exit *ebpf.Program `ebpf:"udpv6_recvmsg_exit"`
+}
+
+var Func__udpv6_recvmsg_exit_tracer_fentry_var Func__udpv6_recvmsg_exit_tracer_fentry
+
+type Func__inet6_bind_enter_tracer_fentry struct {
+	Program__inet6_bind_enter *ebpf.Program `ebpf:"inet6_bind_enter"`
+}
+
+var Func__inet6_bind_enter_tracer_fentry_var Func__inet6_bind_enter_tracer_fentry
+
+type Func__udp_recvmsg_tracer_fentry struct {
+	Program__udp_recvmsg *ebpf.Program `ebpf:"udp_recvmsg"`
+}
+
+var Func__udp_recvmsg_tracer_fentry_var Func__udp_recvmsg_tracer_fentry
+
+type Func__udpv6_recvmsg_tracer_fentry struct {
+	Program__udpv6_recvmsg *ebpf.Program `ebpf:"udpv6_recvmsg"`
+}
+
+var Func__udpv6_recvmsg_tracer_fentry_var Func__udpv6_recvmsg_tracer_fentry
+
+type Func__tcp_retransmit_skb_exit_tracer_fentry struct {
+	Program__tcp_retransmit_skb_exit *ebpf.Program `ebpf:"tcp_retransmit_skb_exit"`
+}
+
+var Func__tcp_retransmit_skb_exit_tracer_fentry_var Func__tcp_retransmit_skb_exit_tracer_fentry
+
+type Func__tcp_close_tracer_fentry struct {
+	Program__tcp_close *ebpf.Program `ebpf:"tcp_close"`
+}
+
+var Func__tcp_close_tracer_fentry_var Func__tcp_close_tracer_fentry
+
+type Func__inet6_bind_exit_tracer_fentry struct {
+	Program__inet6_bind_exit *ebpf.Program `ebpf:"inet6_bind_exit"`
+}
+
+var Func__inet6_bind_exit_tracer_fentry_var Func__inet6_bind_exit_tracer_fentry
+
+type Func__skb_consume_udp_tracer_fentry struct {
+	Program__skb_consume_udp *ebpf.Program `ebpf:"skb_consume_udp"`
+}
+
+var Func__skb_consume_udp_tracer_fentry_var Func__skb_consume_udp_tracer_fentry
+
+type Func__tcp_sendmsg_exit_tracer_fentry struct {
+	Program__tcp_sendmsg_exit *ebpf.Program `ebpf:"tcp_sendmsg_exit"`
+}
+
+var Func__tcp_sendmsg_exit_tracer_fentry_var Func__tcp_sendmsg_exit_tracer_fentry
+
+type Func__inet_bind_enter_tracer_fentry struct {
+	Program__inet_bind_enter *ebpf.Program `ebpf:"inet_bind_enter"`
+}
+
+var Func__inet_bind_enter_tracer_fentry_var Func__inet_bind_enter_tracer_fentry
+
+type Func__udp_sendpage_exit_tracer_fentry struct {
+	Program__udp_sendpage_exit *ebpf.Program `ebpf:"udp_sendpage_exit"`
+}
+
+var Func__udp_sendpage_exit_tracer_fentry_var Func__udp_sendpage_exit_tracer_fentry
+
+type Func____skb_free_datagram_locked_tracer_fentry struct {
+	Program____skb_free_datagram_locked *ebpf.Program `ebpf:"__skb_free_datagram_locked"`
+}
+
+var Func____skb_free_datagram_locked_tracer_fentry_var Func____skb_free_datagram_locked_tracer_fentry
+
+type Func__udp_destroy_sock_exit_tracer_fentry struct {
+	Program__udp_destroy_sock_exit *ebpf.Program `ebpf:"udp_destroy_sock_exit"`
+}
+
+var Func__udp_destroy_sock_exit_tracer_fentry_var Func__udp_destroy_sock_exit_tracer_fentry
+
+type Func__kprobe__udp_v6_send_skb_tracer_fentry struct {
+	Program__kprobe__udp_v6_send_skb *ebpf.Program `ebpf:"kprobe__udp_v6_send_skb"`
+}
+
+var Func__kprobe__udp_v6_send_skb_tracer_fentry_var Func__kprobe__udp_v6_send_skb_tracer_fentry
+
+type Func__tcp_sendpage_exit_tracer_fentry struct {
+	Program__tcp_sendpage_exit *ebpf.Program `ebpf:"tcp_sendpage_exit"`
+}
+
+var Func__tcp_sendpage_exit_tracer_fentry_var Func__tcp_sendpage_exit_tracer_fentry
+
+type Func__tcp_finish_connect_tracer_fentry struct {
+	Program__tcp_finish_connect *ebpf.Program `ebpf:"tcp_finish_connect"`
+}
+
+var Func__tcp_finish_connect_tracer_fentry_var Func__tcp_finish_connect_tracer_fentry
+
+type Func__inet_csk_accept_exit_tracer_fentry struct {
+	Program__inet_csk_accept_exit *ebpf.Program `ebpf:"inet_csk_accept_exit"`
+}
+
+var Func__inet_csk_accept_exit_tracer_fentry_var Func__inet_csk_accept_exit_tracer_fentry
+
+type Func__kprobe__udp_send_skb_tracer_fentry struct {
+	Program__kprobe__udp_send_skb *ebpf.Program `ebpf:"kprobe__udp_send_skb"`
+}
+
+var Func__kprobe__udp_send_skb_tracer_fentry_var Func__kprobe__udp_send_skb_tracer_fentry
+
+type Func__tcp_close_exit_tracer_fentry struct {
+	Program__tcp_close_exit *ebpf.Program `ebpf:"tcp_close_exit"`
+}
+
+var Func__tcp_close_exit_tracer_fentry_var Func__tcp_close_exit_tracer_fentry
+
+type Func__udpv6_recvmsg_exit_pre_5_19_0_tracer_fentry struct {
+	Program__udpv6_recvmsg_exit_pre_5_19_0 *ebpf.Program `ebpf:"udpv6_recvmsg_exit_pre_5_19_0"`
+}
+
+var Func__udpv6_recvmsg_exit_pre_5_19_0_tracer_fentry_var Func__udpv6_recvmsg_exit_pre_5_19_0_tracer_fentry
+
+type Func__udp_sendmsg_exit_tracer_fentry struct {
+	Program__udp_sendmsg_exit *ebpf.Program `ebpf:"udp_sendmsg_exit"`
+}
+
+var Func__udp_sendmsg_exit_tracer_fentry_var Func__udp_sendmsg_exit_tracer_fentry
+
+type Func__tcp_recvmsg_exit_pre_5_19_0_tracer_fentry struct {
+	Program__tcp_recvmsg_exit_pre_5_19_0 *ebpf.Program `ebpf:"tcp_recvmsg_exit_pre_5_19_0"`
+}
+
+var Func__tcp_recvmsg_exit_pre_5_19_0_tracer_fentry_var Func__tcp_recvmsg_exit_pre_5_19_0_tracer_fentry
+
+type Func__skb_free_datagram_locked_tracer_fentry struct {
+	Program__skb_free_datagram_locked *ebpf.Program `ebpf:"skb_free_datagram_locked"`
+}
+
+var Func__skb_free_datagram_locked_tracer_fentry_var Func__skb_free_datagram_locked_tracer_fentry
+
+type Func__inet_csk_listen_stop_enter_tracer_fentry struct {
+	Program__inet_csk_listen_stop_enter *ebpf.Program `ebpf:"inet_csk_listen_stop_enter"`
+}
+
+var Func__inet_csk_listen_stop_enter_tracer_fentry_var Func__inet_csk_listen_stop_enter_tracer_fentry
+
+type Func__inet_bind_exit_tracer_fentry struct {
+	Program__inet_bind_exit *ebpf.Program `ebpf:"inet_bind_exit"`
+}
+
+var Func__inet_bind_exit_tracer_fentry_var Func__inet_bind_exit_tracer_fentry
+
+type Func__udpv6_destroy_sock_tracer_fentry struct {
+	Program__udpv6_destroy_sock *ebpf.Program `ebpf:"udpv6_destroy_sock"`
+}
+
+var Func__udpv6_destroy_sock_tracer_fentry_var Func__udpv6_destroy_sock_tracer_fentry
+
+type Func__udpv6_sendmsg_exit_tracer_fentry struct {
+	Program__udpv6_sendmsg_exit *ebpf.Program `ebpf:"udpv6_sendmsg_exit"`
+}
+
+var Func__udpv6_sendmsg_exit_tracer_fentry_var Func__udpv6_sendmsg_exit_tracer_fentry
+
+type Func__tcp_retransmit_skb_tracer_fentry struct {
+	Program__tcp_retransmit_skb *ebpf.Program `ebpf:"tcp_retransmit_skb"`
+}
+
+var Func__tcp_retransmit_skb_tracer_fentry_var Func__tcp_retransmit_skb_tracer_fentry
+
+type Func__udpv6_destroy_sock_exit_tracer_fentry struct {
+	Program__udpv6_destroy_sock_exit *ebpf.Program `ebpf:"udpv6_destroy_sock_exit"`
+}
+
+var Func__udpv6_destroy_sock_exit_tracer_fentry_var Func__udpv6_destroy_sock_exit_tracer_fentry
+
+type Func__udp_recvmsg_exit_tracer_fentry struct {
+	Program__udp_recvmsg_exit *ebpf.Program `ebpf:"udp_recvmsg_exit"`
+}
+
+var Func__udp_recvmsg_exit_tracer_fentry_var Func__udp_recvmsg_exit_tracer_fentry
+
+type Func__kprobe__udp_recvmsg_pre_4_1_0_tracer struct {
+	Program__kprobe__udp_recvmsg_pre_4_1_0 *ebpf.Program `ebpf:"kprobe__udp_recvmsg_pre_4_1_0"`
+}
+
+var Func__kprobe__udp_recvmsg_pre_4_1_0_tracer_var Func__kprobe__udp_recvmsg_pre_4_1_0_tracer
+
+type Func__kprobe__ip6_make_skb__pre_4_7_0_tracer struct {
+	Program__kprobe__ip6_make_skb__pre_4_7_0 *ebpf.Program `ebpf:"kprobe__ip6_make_skb__pre_4_7_0"`
+}
+
+var Func__kprobe__ip6_make_skb__pre_4_7_0_tracer_var Func__kprobe__ip6_make_skb__pre_4_7_0_tracer
+
+type Func__tracepoint__net__net_dev_queue_tracer struct {
+	Program__tracepoint__net__net_dev_queue *ebpf.Program `ebpf:"tracepoint__net__net_dev_queue"`
+}
+
+var Func__tracepoint__net__net_dev_queue_tracer_var Func__tracepoint__net__net_dev_queue_tracer
+
+type Func__kprobe__tcp_connect_tracer struct {
+	Program__kprobe__tcp_connect *ebpf.Program `ebpf:"kprobe__tcp_connect"`
+}
+
+var Func__kprobe__tcp_connect_tracer_var Func__kprobe__tcp_connect_tracer
+
+type Func__kprobe__tcp_recvmsg_tracer struct {
+	Program__kprobe__tcp_recvmsg *ebpf.Program `ebpf:"kprobe__tcp_recvmsg"`
+}
+
+var Func__kprobe__tcp_recvmsg_tracer_var Func__kprobe__tcp_recvmsg_tracer
+
+type Func__kretprobe__inet_csk_accept_tracer struct {
+	Program__kretprobe__inet_csk_accept *ebpf.Program `ebpf:"kretprobe__inet_csk_accept"`
+}
+
+var Func__kretprobe__inet_csk_accept_tracer_var Func__kretprobe__inet_csk_accept_tracer
+
+type Func__kprobe__tcp_sendmsg_tracer struct {
+	Program__kprobe__tcp_sendmsg *ebpf.Program `ebpf:"kprobe__tcp_sendmsg"`
+}
+
+var Func__kprobe__tcp_sendmsg_tracer_var Func__kprobe__tcp_sendmsg_tracer
+
+type Func__kprobe__tcp_close_tracer struct {
+	Program__kprobe__tcp_close *ebpf.Program `ebpf:"kprobe__tcp_close"`
+}
+
+var Func__kprobe__tcp_close_tracer_var Func__kprobe__tcp_close_tracer
+
+type Func__kprobe__udpv6_recvmsg_pre_4_1_0_tracer struct {
+	Program__kprobe__udpv6_recvmsg_pre_4_1_0 *ebpf.Program `ebpf:"kprobe__udpv6_recvmsg_pre_4_1_0"`
+}
+
+var Func__kprobe__udpv6_recvmsg_pre_4_1_0_tracer_var Func__kprobe__udpv6_recvmsg_pre_4_1_0_tracer
+
+type Func__kretprobe__ip_make_skb_tracer struct {
+	Program__kretprobe__ip_make_skb *ebpf.Program `ebpf:"kretprobe__ip_make_skb"`
+}
+
+var Func__kretprobe__ip_make_skb_tracer_var Func__kretprobe__ip_make_skb_tracer
+
+type Func__kretprobe__udpv6_destroy_sock_tracer struct {
+	Program__kretprobe__udpv6_destroy_sock *ebpf.Program `ebpf:"kretprobe__udpv6_destroy_sock"`
+}
+
+var Func__kretprobe__udpv6_destroy_sock_tracer_var Func__kretprobe__udpv6_destroy_sock_tracer
+
+type Func__kprobe__udpv6_destroy_sock_tracer struct {
+	Program__kprobe__udpv6_destroy_sock *ebpf.Program `ebpf:"kprobe__udpv6_destroy_sock"`
+}
+
+var Func__kprobe__udpv6_destroy_sock_tracer_var Func__kprobe__udpv6_destroy_sock_tracer
+
+type Func__kprobe__udp_recvmsg_tracer struct {
+	Program__kprobe__udp_recvmsg *ebpf.Program `ebpf:"kprobe__udp_recvmsg"`
+}
+
+var Func__kprobe__udp_recvmsg_tracer_var Func__kprobe__udp_recvmsg_tracer
+
+type Func__kprobe__tcp_recvmsg__pre_4_1_0_tracer struct {
+	Program__kprobe__tcp_recvmsg__pre_4_1_0 *ebpf.Program `ebpf:"kprobe__tcp_recvmsg__pre_4_1_0"`
+}
+
+var Func__kprobe__tcp_recvmsg__pre_4_1_0_tracer_var Func__kprobe__tcp_recvmsg__pre_4_1_0_tracer
+
+type Func__kretprobe__tcp_sendmsg_tracer struct {
+	Program__kretprobe__tcp_sendmsg *ebpf.Program `ebpf:"kretprobe__tcp_sendmsg"`
+}
+
+var Func__kretprobe__tcp_sendmsg_tracer_var Func__kretprobe__tcp_sendmsg_tracer
+
+type Func__kprobe__tcp_retransmit_skb_tracer struct {
+	Program__kprobe__tcp_retransmit_skb *ebpf.Program `ebpf:"kprobe__tcp_retransmit_skb"`
+}
+
+var Func__kprobe__tcp_retransmit_skb_tracer_var Func__kprobe__tcp_retransmit_skb_tracer
+
+type Func__kretprobe__udpv6_recvmsg_pre_4_7_0_tracer struct {
+	Program__kretprobe__udpv6_recvmsg_pre_4_7_0 *ebpf.Program `ebpf:"kretprobe__udpv6_recvmsg_pre_4_7_0"`
+}
+
+var Func__kretprobe__udpv6_recvmsg_pre_4_7_0_tracer_var Func__kretprobe__udpv6_recvmsg_pre_4_7_0_tracer
+
+type Func__kretprobe__tcp_recvmsg_tracer struct {
+	Program__kretprobe__tcp_recvmsg *ebpf.Program `ebpf:"kretprobe__tcp_recvmsg"`
+}
+
+var Func__kretprobe__tcp_recvmsg_tracer_var Func__kretprobe__tcp_recvmsg_tracer
+
+type Func__kretprobe__tcp_read_sock_tracer struct {
+	Program__kretprobe__tcp_read_sock *ebpf.Program `ebpf:"kretprobe__tcp_read_sock"`
+}
+
+var Func__kretprobe__tcp_read_sock_tracer_var Func__kretprobe__tcp_read_sock_tracer
+
+type Func__kprobe__ip6_make_skb_tracer struct {
+	Program__kprobe__ip6_make_skb *ebpf.Program `ebpf:"kprobe__ip6_make_skb"`
+}
+
+var Func__kprobe__ip6_make_skb_tracer_var Func__kprobe__ip6_make_skb_tracer
+
+type Func__kretprobe__inet_bind_tracer struct {
+	Program__kretprobe__inet_bind *ebpf.Program `ebpf:"kretprobe__inet_bind"`
+}
+
+var Func__kretprobe__inet_bind_tracer_var Func__kretprobe__inet_bind_tracer
+
+type Func__socket__classifier_dbs_tracer struct {
+	Program__socket__classifier_dbs *ebpf.Program `ebpf:"socket__classifier_dbs"`
+}
+
+var Func__socket__classifier_dbs_tracer_var Func__socket__classifier_dbs_tracer
+
+type Func__kretprobe__tcp_close_flush_tracer struct {
+	Program__kretprobe__tcp_close_flush *ebpf.Program `ebpf:"kretprobe__tcp_close_flush"`
+}
+
+var Func__kretprobe__tcp_close_flush_tracer_var Func__kretprobe__tcp_close_flush_tracer
+
+type Func__kretprobe__udp_sendpage_tracer struct {
+	Program__kretprobe__udp_sendpage *ebpf.Program `ebpf:"kretprobe__udp_sendpage"`
+}
+
+var Func__kretprobe__udp_sendpage_tracer_var Func__kretprobe__udp_sendpage_tracer
+
+type Func__kprobe__inet_bind_tracer struct {
+	Program__kprobe__inet_bind *ebpf.Program `ebpf:"kprobe__inet_bind"`
+}
+
+var Func__kprobe__inet_bind_tracer_var Func__kprobe__inet_bind_tracer
+
+type Func__kretprobe__tcp_retransmit_skb_tracer struct {
+	Program__kretprobe__tcp_retransmit_skb *ebpf.Program `ebpf:"kretprobe__tcp_retransmit_skb"`
+}
+
+var Func__kretprobe__tcp_retransmit_skb_tracer_var Func__kretprobe__tcp_retransmit_skb_tracer
+
+type Func__kprobe__inet6_bind_tracer struct {
+	Program__kprobe__inet6_bind *ebpf.Program `ebpf:"kprobe__inet6_bind"`
+}
+
+var Func__kprobe__inet6_bind_tracer_var Func__kprobe__inet6_bind_tracer
+
+type Func__kprobe__inet_csk_listen_stop_tracer struct {
+	Program__kprobe__inet_csk_listen_stop *ebpf.Program `ebpf:"kprobe__inet_csk_listen_stop"`
+}
+
+var Func__kprobe__inet_csk_listen_stop_tracer_var Func__kprobe__inet_csk_listen_stop_tracer
+
+type Func__kretprobe__udp_recvmsg_pre_4_7_0_tracer struct {
+	Program__kretprobe__udp_recvmsg_pre_4_7_0 *ebpf.Program `ebpf:"kretprobe__udp_recvmsg_pre_4_7_0"`
+}
+
+var Func__kretprobe__udp_recvmsg_pre_4_7_0_tracer_var Func__kretprobe__udp_recvmsg_pre_4_7_0_tracer
+
+type Func__socket__classifier_queues_tracer struct {
+	Program__socket__classifier_queues *ebpf.Program `ebpf:"socket__classifier_queues"`
+}
+
+var Func__socket__classifier_queues_tracer_var Func__socket__classifier_queues_tracer
+
+type Func__kprobe__ip6_make_skb__pre_5_18_0_tracer struct {
+	Program__kprobe__ip6_make_skb__pre_5_18_0 *ebpf.Program `ebpf:"kprobe__ip6_make_skb__pre_5_18_0"`
+}
+
+var Func__kprobe__ip6_make_skb__pre_5_18_0_tracer_var Func__kprobe__ip6_make_skb__pre_5_18_0_tracer
+
+type Func__kretprobe__inet6_bind_tracer struct {
+	Program__kretprobe__inet6_bind *ebpf.Program `ebpf:"kretprobe__inet6_bind"`
+}
+
+var Func__kretprobe__inet6_bind_tracer_var Func__kretprobe__inet6_bind_tracer
+
+type Func__kprobe__tcp_finish_connect_tracer struct {
+	Program__kprobe__tcp_finish_connect *ebpf.Program `ebpf:"kprobe__tcp_finish_connect"`
+}
+
+var Func__kprobe__tcp_finish_connect_tracer_var Func__kprobe__tcp_finish_connect_tracer
+
+type Func__kretprobe__ip6_make_skb_tracer struct {
+	Program__kretprobe__ip6_make_skb *ebpf.Program `ebpf:"kretprobe__ip6_make_skb"`
+}
+
+var Func__kretprobe__ip6_make_skb_tracer_var Func__kretprobe__ip6_make_skb_tracer
+
+type Func__kprobe__udp_destroy_sock_tracer struct {
+	Program__kprobe__udp_destroy_sock *ebpf.Program `ebpf:"kprobe__udp_destroy_sock"`
+}
+
+var Func__kprobe__udp_destroy_sock_tracer_var Func__kprobe__udp_destroy_sock_tracer
+
+type Func__socket__classifier_grpc_tracer struct {
+	Program__socket__classifier_grpc *ebpf.Program `ebpf:"socket__classifier_grpc"`
+}
+
+var Func__socket__classifier_grpc_tracer_var Func__socket__classifier_grpc_tracer
+
+type Func__kprobe__skb_free_datagram_locked_tracer struct {
+	Program__kprobe__skb_free_datagram_locked *ebpf.Program `ebpf:"kprobe__skb_free_datagram_locked"`
+}
+
+var Func__kprobe__skb_free_datagram_locked_tracer_var Func__kprobe__skb_free_datagram_locked_tracer
+
+type Func__kretprobe__udp_destroy_sock_tracer struct {
+	Program__kretprobe__udp_destroy_sock *ebpf.Program `ebpf:"kretprobe__udp_destroy_sock"`
+}
+
+var Func__kretprobe__udp_destroy_sock_tracer_var Func__kretprobe__udp_destroy_sock_tracer
+
+type Func__kprobe__tcp_read_sock_tracer struct {
+	Program__kprobe__tcp_read_sock *ebpf.Program `ebpf:"kprobe__tcp_read_sock"`
+}
+
+var Func__kprobe__tcp_read_sock_tracer_var Func__kprobe__tcp_read_sock_tracer
+
+type Func__kprobe__udpv6_recvmsg_pre_5_19_0_tracer struct {
+	Program__kprobe__udpv6_recvmsg_pre_5_19_0 *ebpf.Program `ebpf:"kprobe__udpv6_recvmsg_pre_5_19_0"`
+}
+
+var Func__kprobe__udpv6_recvmsg_pre_5_19_0_tracer_var Func__kprobe__udpv6_recvmsg_pre_5_19_0_tracer
+
+type Func__kprobe__ip_make_skb_tracer struct {
+	Program__kprobe__ip_make_skb *ebpf.Program `ebpf:"kprobe__ip_make_skb"`
+}
+
+var Func__kprobe__ip_make_skb_tracer_var Func__kprobe__ip_make_skb_tracer
+
+type Func__kprobe__tcp_sendpage_tracer struct {
+	Program__kprobe__tcp_sendpage *ebpf.Program `ebpf:"kprobe__tcp_sendpage"`
+}
+
+var Func__kprobe__tcp_sendpage_tracer_var Func__kprobe__tcp_sendpage_tracer
+
+type Func__kprobe__udpv6_recvmsg_pre_4_7_0_tracer struct {
+	Program__kprobe__udpv6_recvmsg_pre_4_7_0 *ebpf.Program `ebpf:"kprobe__udpv6_recvmsg_pre_4_7_0"`
+}
+
+var Func__kprobe__udpv6_recvmsg_pre_4_7_0_tracer_var Func__kprobe__udpv6_recvmsg_pre_4_7_0_tracer
+
+type Func__socket__classifier_entry_tracer struct {
+	Program__socket__classifier_entry *ebpf.Program `ebpf:"socket__classifier_entry"`
+}
+
+var Func__socket__classifier_entry_tracer_var Func__socket__classifier_entry_tracer
+
+type Func__kprobe__udp_recvmsg_pre_4_7_0_tracer struct {
+	Program__kprobe__udp_recvmsg_pre_4_7_0 *ebpf.Program `ebpf:"kprobe__udp_recvmsg_pre_4_7_0"`
+}
+
+var Func__kprobe__udp_recvmsg_pre_4_7_0_tracer_var Func__kprobe__udp_recvmsg_pre_4_7_0_tracer
+
+type Func__kprobe__skb_consume_udp_tracer struct {
+	Program__kprobe__skb_consume_udp *ebpf.Program `ebpf:"kprobe__skb_consume_udp"`
+}
+
+var Func__kprobe__skb_consume_udp_tracer_var Func__kprobe__skb_consume_udp_tracer
+
+type Func__kprobe__udp_sendpage_tracer struct {
+	Program__kprobe__udp_sendpage *ebpf.Program `ebpf:"kprobe__udp_sendpage"`
+}
+
+var Func__kprobe__udp_sendpage_tracer_var Func__kprobe__udp_sendpage_tracer
+
+type Func__kprobe__udpv6_recvmsg_tracer struct {
+	Program__kprobe__udpv6_recvmsg *ebpf.Program `ebpf:"kprobe__udpv6_recvmsg"`
+}
+
+var Func__kprobe__udpv6_recvmsg_tracer_var Func__kprobe__udpv6_recvmsg_tracer
+
+type Func__kretprobe__udpv6_recvmsg_tracer struct {
+	Program__kretprobe__udpv6_recvmsg *ebpf.Program `ebpf:"kretprobe__udpv6_recvmsg"`
+}
+
+var Func__kretprobe__udpv6_recvmsg_tracer_var Func__kretprobe__udpv6_recvmsg_tracer
+
+type Func__kprobe__udp_recvmsg_pre_5_19_0_tracer struct {
+	Program__kprobe__udp_recvmsg_pre_5_19_0 *ebpf.Program `ebpf:"kprobe__udp_recvmsg_pre_5_19_0"`
+}
+
+var Func__kprobe__udp_recvmsg_pre_5_19_0_tracer_var Func__kprobe__udp_recvmsg_pre_5_19_0_tracer
+
+type Func__kretprobe__tcp_close_clean_protocols_tracer struct {
+	Program__kretprobe__tcp_close_clean_protocols *ebpf.Program `ebpf:"kretprobe__tcp_close_clean_protocols"`
+}
+
+var Func__kretprobe__tcp_close_clean_protocols_tracer_var Func__kretprobe__tcp_close_clean_protocols_tracer
+
+type Func__kprobe__tcp_recvmsg__pre_5_19_0_tracer struct {
+	Program__kprobe__tcp_recvmsg__pre_5_19_0 *ebpf.Program `ebpf:"kprobe__tcp_recvmsg__pre_5_19_0"`
+}
+
+var Func__kprobe__tcp_recvmsg__pre_5_19_0_tracer_var Func__kprobe__tcp_recvmsg__pre_5_19_0_tracer
+
+type Func__kprobe__tcp_sendmsg__pre_4_1_0_tracer struct {
+	Program__kprobe__tcp_sendmsg__pre_4_1_0 *ebpf.Program `ebpf:"kprobe__tcp_sendmsg__pre_4_1_0"`
+}
+
+var Func__kprobe__tcp_sendmsg__pre_4_1_0_tracer_var Func__kprobe__tcp_sendmsg__pre_4_1_0_tracer
+
+type Func__kretprobe__tcp_sendpage_tracer struct {
+	Program__kretprobe__tcp_sendpage *ebpf.Program `ebpf:"kretprobe__tcp_sendpage"`
+}
+
+var Func__kretprobe__tcp_sendpage_tracer_var Func__kretprobe__tcp_sendpage_tracer
+
+type Func__kprobe____skb_free_datagram_locked_tracer struct {
+	Program__kprobe____skb_free_datagram_locked *ebpf.Program `ebpf:"kprobe____skb_free_datagram_locked"`
+}
+
+var Func__kprobe____skb_free_datagram_locked_tracer_var Func__kprobe____skb_free_datagram_locked_tracer
+
+type Func__kretprobe__udp_recvmsg_tracer struct {
+	Program__kretprobe__udp_recvmsg *ebpf.Program `ebpf:"kretprobe__udp_recvmsg"`
+}
+
+var Func__kretprobe__udp_recvmsg_tracer_var Func__kretprobe__udp_recvmsg_tracer
+
+type Func__socket__protocol_dispatcher_kafka_usm struct {
+	Program__socket__protocol_dispatcher_kafka *ebpf.Program `ebpf:"socket__protocol_dispatcher_kafka"`
+}
+
+var Func__socket__protocol_dispatcher_kafka_usm_var Func__socket__protocol_dispatcher_kafka_usm
+
+type Func__uprobe__SSL_shutdown_usm struct {
+	Program__uprobe__SSL_shutdown *ebpf.Program `ebpf:"uprobe__SSL_shutdown"`
+}
+
+var Func__uprobe__SSL_shutdown_usm_var Func__uprobe__SSL_shutdown_usm
+
+type Func__uprobe__SSL_do_handshake_usm struct {
+	Program__uprobe__SSL_do_handshake *ebpf.Program `ebpf:"uprobe__SSL_do_handshake"`
+}
+
+var Func__uprobe__SSL_do_handshake_usm_var Func__uprobe__SSL_do_handshake_usm
+
+type Func__uprobe__crypto_tls_Conn_Close_usm struct {
+	Program__uprobe__crypto_tls_Conn_Close *ebpf.Program `ebpf:"uprobe__crypto_tls_Conn_Close"`
+}
+
+var Func__uprobe__crypto_tls_Conn_Close_usm_var Func__uprobe__crypto_tls_Conn_Close_usm
+
+type Func__socket__http2_handle_first_frame_usm struct {
+	Program__socket__http2_handle_first_frame *ebpf.Program `ebpf:"socket__http2_handle_first_frame"`
+}
+
+var Func__socket__http2_handle_first_frame_usm_var Func__socket__http2_handle_first_frame_usm
+
+type Func__socket__http2_eos_parser_usm struct {
+	Program__socket__http2_eos_parser *ebpf.Program `ebpf:"socket__http2_eos_parser"`
+}
+
+var Func__socket__http2_eos_parser_usm_var Func__socket__http2_eos_parser_usm
+
+type Func__uprobe__SSL_set_bio_usm struct {
+	Program__uprobe__SSL_set_bio *ebpf.Program `ebpf:"uprobe__SSL_set_bio"`
+}
+
+var Func__uprobe__SSL_set_bio_usm_var Func__uprobe__SSL_set_bio_usm
+
+type Func__uretprobe__SSL_read_ex_usm struct {
+	Program__uretprobe__SSL_read_ex *ebpf.Program `ebpf:"uretprobe__SSL_read_ex"`
+}
+
+var Func__uretprobe__SSL_read_ex_usm_var Func__uretprobe__SSL_read_ex_usm
+
+type Func__uprobe__crypto_tls_Conn_Read_usm struct {
+	Program__uprobe__crypto_tls_Conn_Read *ebpf.Program `ebpf:"uprobe__crypto_tls_Conn_Read"`
+}
+
+var Func__uprobe__crypto_tls_Conn_Read_usm_var Func__uprobe__crypto_tls_Conn_Read_usm
+
+type Func__uprobe__http_termination_usm struct {
+	Program__uprobe__http_termination *ebpf.Program `ebpf:"uprobe__http_termination"`
+}
+
+var Func__uprobe__http_termination_usm_var Func__uprobe__http_termination_usm
+
+type Func__uretprobe__gnutls_handshake_usm struct {
+	Program__uretprobe__gnutls_handshake *ebpf.Program `ebpf:"uretprobe__gnutls_handshake"`
+}
+
+var Func__uretprobe__gnutls_handshake_usm_var Func__uretprobe__gnutls_handshake_usm
+
+type Func__uprobe__gnutls_transport_set_ptr2_usm struct {
+	Program__uprobe__gnutls_transport_set_ptr2 *ebpf.Program `ebpf:"uprobe__gnutls_transport_set_ptr2"`
+}
+
+var Func__uprobe__gnutls_transport_set_ptr2_usm_var Func__uprobe__gnutls_transport_set_ptr2_usm
+
+type Func__uprobe__gnutls_transport_set_ptr_usm struct {
+	Program__uprobe__gnutls_transport_set_ptr *ebpf.Program `ebpf:"uprobe__gnutls_transport_set_ptr"`
+}
+
+var Func__uprobe__gnutls_transport_set_ptr_usm_var Func__uprobe__gnutls_transport_set_ptr_usm
+
+type Func__uprobe__http2_tls_handle_first_frame_usm struct {
+	Program__uprobe__http2_tls_handle_first_frame *ebpf.Program `ebpf:"uprobe__http2_tls_handle_first_frame"`
+}
+
+var Func__uprobe__http2_tls_handle_first_frame_usm_var Func__uprobe__http2_tls_handle_first_frame_usm
+
+type Func__uretprobe__SSL_write_ex_usm struct {
+	Program__uretprobe__SSL_write_ex *ebpf.Program `ebpf:"uretprobe__SSL_write_ex"`
+}
+
+var Func__uretprobe__SSL_write_ex_usm_var Func__uretprobe__SSL_write_ex_usm
+
+type Func__kretprobe__sockfd_lookup_light_usm struct {
+	Program__kretprobe__sockfd_lookup_light *ebpf.Program `ebpf:"kretprobe__sockfd_lookup_light"`
+}
+
+var Func__kretprobe__sockfd_lookup_light_usm_var Func__kretprobe__sockfd_lookup_light_usm
+
+type Func__socket__protocol_dispatcher_usm struct {
+	Program__socket__protocol_dispatcher *ebpf.Program `ebpf:"socket__protocol_dispatcher"`
+}
+
+var Func__socket__protocol_dispatcher_usm_var Func__socket__protocol_dispatcher_usm
+
+type Func__uprobe__http2_tls_termination_usm struct {
+	Program__uprobe__http2_tls_termination *ebpf.Program `ebpf:"uprobe__http2_tls_termination"`
+}
+
+var Func__uprobe__http2_tls_termination_usm_var Func__uprobe__http2_tls_termination_usm
+
+type Func__uretprobe__SSL_connect_usm struct {
+	Program__uretprobe__SSL_connect *ebpf.Program `ebpf:"uretprobe__SSL_connect"`
+}
+
+var Func__uretprobe__SSL_connect_usm_var Func__uretprobe__SSL_connect_usm
+
+type Func__uprobe__gnutls_record_send_usm struct {
+	Program__uprobe__gnutls_record_send *ebpf.Program `ebpf:"uprobe__gnutls_record_send"`
+}
+
+var Func__uprobe__gnutls_record_send_usm_var Func__uprobe__gnutls_record_send_usm
+
+type Func__uprobe__SSL_write_ex_usm struct {
+	Program__uprobe__SSL_write_ex *ebpf.Program `ebpf:"uprobe__SSL_write_ex"`
+}
+
+var Func__uprobe__SSL_write_ex_usm_var Func__uprobe__SSL_write_ex_usm
+
+type Func__uretprobe__gnutls_record_recv_usm struct {
+	Program__uretprobe__gnutls_record_recv *ebpf.Program `ebpf:"uretprobe__gnutls_record_recv"`
+}
+
+var Func__uretprobe__gnutls_record_recv_usm_var Func__uretprobe__gnutls_record_recv_usm
+
+type Func__uprobe__gnutls_bye_usm struct {
+	Program__uprobe__gnutls_bye *ebpf.Program `ebpf:"uprobe__gnutls_bye"`
+}
+
+var Func__uprobe__gnutls_bye_usm_var Func__uprobe__gnutls_bye_usm
+
+type Func__uprobe__gnutls_deinit_usm struct {
+	Program__uprobe__gnutls_deinit *ebpf.Program `ebpf:"uprobe__gnutls_deinit"`
+}
+
+var Func__uprobe__gnutls_deinit_usm_var Func__uprobe__gnutls_deinit_usm
+
+type Func__tracepoint__net__netif_receive_skb_usm struct {
+	Program__tracepoint__net__netif_receive_skb *ebpf.Program `ebpf:"tracepoint__net__netif_receive_skb"`
+}
+
+var Func__tracepoint__net__netif_receive_skb_usm_var Func__tracepoint__net__netif_receive_skb_usm
+
+type Func__kprobe__sockfd_lookup_light_usm struct {
+	Program__kprobe__sockfd_lookup_light *ebpf.Program `ebpf:"kprobe__sockfd_lookup_light"`
+}
+
+var Func__kprobe__sockfd_lookup_light_usm_var Func__kprobe__sockfd_lookup_light_usm
+
+type Func__uprobe__crypto_tls_Conn_Write__return_usm struct {
+	Program__uprobe__crypto_tls_Conn_Write__return *ebpf.Program `ebpf:"uprobe__crypto_tls_Conn_Write__return"`
+}
+
+var Func__uprobe__crypto_tls_Conn_Write__return_usm_var Func__uprobe__crypto_tls_Conn_Write__return_usm
+
+type Func__uretprobe__gnutls_record_send_usm struct {
+	Program__uretprobe__gnutls_record_send *ebpf.Program `ebpf:"uretprobe__gnutls_record_send"`
+}
+
+var Func__uretprobe__gnutls_record_send_usm_var Func__uretprobe__gnutls_record_send_usm
+
+type Func__kprobe_handle_close_connection_usm struct {
+	Program__kprobe_handle_close_connection *ebpf.Program `ebpf:"kprobe_handle_close_connection"`
+}
+
+var Func__kprobe_handle_close_connection_usm_var Func__kprobe_handle_close_connection_usm
+
+type Func__socket__http_filter_usm struct {
+	Program__socket__http_filter *ebpf.Program `ebpf:"socket__http_filter"`
+}
+
+var Func__socket__http_filter_usm_var Func__socket__http_filter_usm
+
+type Func__kprobe_handle_sync_payload_usm struct {
+	Program__kprobe_handle_sync_payload *ebpf.Program `ebpf:"kprobe_handle_sync_payload"`
+}
+
+var Func__kprobe_handle_sync_payload_usm_var Func__kprobe_handle_sync_payload_usm
+
+type Func__socket__http2_headers_parser_usm struct {
+	Program__socket__http2_headers_parser *ebpf.Program `ebpf:"socket__http2_headers_parser"`
+}
+
+var Func__socket__http2_headers_parser_usm_var Func__socket__http2_headers_parser_usm
+
+type Func__uprobe__SSL_set_fd_usm struct {
+	Program__uprobe__SSL_set_fd *ebpf.Program `ebpf:"uprobe__SSL_set_fd"`
+}
+
+var Func__uprobe__SSL_set_fd_usm_var Func__uprobe__SSL_set_fd_usm
+
+type Func__uprobe__SSL_read_usm struct {
+	Program__uprobe__SSL_read *ebpf.Program `ebpf:"uprobe__SSL_read"`
+}
+
+var Func__uprobe__SSL_read_usm_var Func__uprobe__SSL_read_usm
+
+type Func__uprobe__crypto_tls_Conn_Write_usm struct {
+	Program__uprobe__crypto_tls_Conn_Write *ebpf.Program `ebpf:"uprobe__crypto_tls_Conn_Write"`
+}
+
+var Func__uprobe__crypto_tls_Conn_Write_usm_var Func__uprobe__crypto_tls_Conn_Write_usm
+
+type Func__uprobe__http_process_usm struct {
+	Program__uprobe__http_process *ebpf.Program `ebpf:"uprobe__http_process"`
+}
+
+var Func__uprobe__http_process_usm_var Func__uprobe__http_process_usm
+
+type Func__kprobe__do_vfs_ioctl_usm struct {
+	Program__kprobe__do_vfs_ioctl *ebpf.Program `ebpf:"kprobe__do_vfs_ioctl"`
+}
+
+var Func__kprobe__do_vfs_ioctl_usm_var Func__kprobe__do_vfs_ioctl_usm
+
+type Func__uprobe__http2_tls_eos_parser_usm struct {
+	Program__uprobe__http2_tls_eos_parser *ebpf.Program `ebpf:"uprobe__http2_tls_eos_parser"`
+}
+
+var Func__uprobe__http2_tls_eos_parser_usm_var Func__uprobe__http2_tls_eos_parser_usm
+
+type Func__uprobe__SSL_write_usm struct {
+	Program__uprobe__SSL_write *ebpf.Program `ebpf:"uprobe__SSL_write"`
+}
+
+var Func__uprobe__SSL_write_usm_var Func__uprobe__SSL_write_usm
+
+type Func__kprobe__tcp_sendmsg_usm struct {
+	Program__kprobe__tcp_sendmsg *ebpf.Program `ebpf:"kprobe__tcp_sendmsg"`
+}
+
+var Func__kprobe__tcp_sendmsg_usm_var Func__kprobe__tcp_sendmsg_usm
+
+type Func__uprobe__http2_tls_headers_parser_usm struct {
+	Program__uprobe__http2_tls_headers_parser *ebpf.Program `ebpf:"uprobe__http2_tls_headers_parser"`
+}
+
+var Func__uprobe__http2_tls_headers_parser_usm_var Func__uprobe__http2_tls_headers_parser_usm
+
+type Func__uprobe__SSL_connect_usm struct {
+	Program__uprobe__SSL_connect *ebpf.Program `ebpf:"uprobe__SSL_connect"`
+}
+
+var Func__uprobe__SSL_connect_usm_var Func__uprobe__SSL_connect_usm
+
+type Func__uprobe__BIO_new_socket_usm struct {
+	Program__uprobe__BIO_new_socket *ebpf.Program `ebpf:"uprobe__BIO_new_socket"`
+}
+
+var Func__uprobe__BIO_new_socket_usm_var Func__uprobe__BIO_new_socket_usm
+
+type Func__uprobe__SSL_read_ex_usm struct {
+	Program__uprobe__SSL_read_ex *ebpf.Program `ebpf:"uprobe__SSL_read_ex"`
+}
+
+var Func__uprobe__SSL_read_ex_usm_var Func__uprobe__SSL_read_ex_usm
+
+type Func__uprobe__gnutls_record_recv_usm struct {
+	Program__uprobe__gnutls_record_recv *ebpf.Program `ebpf:"uprobe__gnutls_record_recv"`
+}
+
+var Func__uprobe__gnutls_record_recv_usm_var Func__uprobe__gnutls_record_recv_usm
+
+type Func__uprobe__http2_tls_filter_usm struct {
+	Program__uprobe__http2_tls_filter *ebpf.Program `ebpf:"uprobe__http2_tls_filter"`
+}
+
+var Func__uprobe__http2_tls_filter_usm_var Func__uprobe__http2_tls_filter_usm
+
+type Func__kprobe_handle_async_payload_usm struct {
+	Program__kprobe_handle_async_payload *ebpf.Program `ebpf:"kprobe_handle_async_payload"`
+}
+
+var Func__kprobe_handle_async_payload_usm_var Func__kprobe_handle_async_payload_usm
+
+type Func__uprobe__gnutls_transport_set_int2_usm struct {
+	Program__uprobe__gnutls_transport_set_int2 *ebpf.Program `ebpf:"uprobe__gnutls_transport_set_int2"`
+}
+
+var Func__uprobe__gnutls_transport_set_int2_usm_var Func__uprobe__gnutls_transport_set_int2_usm
+
+type Func__kprobe_handle_connection_by_peer_usm struct {
+	Program__kprobe_handle_connection_by_peer *ebpf.Program `ebpf:"kprobe_handle_connection_by_peer"`
+}
+
+var Func__kprobe_handle_connection_by_peer_usm_var Func__kprobe_handle_connection_by_peer_usm
+
+type Func__socket__kafka_filter_usm struct {
+	Program__socket__kafka_filter *ebpf.Program `ebpf:"socket__kafka_filter"`
+}
+
+var Func__socket__kafka_filter_usm_var Func__socket__kafka_filter_usm
+
+type Func__uretprobe__SSL_do_handshake_usm struct {
+	Program__uretprobe__SSL_do_handshake *ebpf.Program `ebpf:"uretprobe__SSL_do_handshake"`
+}
+
+var Func__uretprobe__SSL_do_handshake_usm_var Func__uretprobe__SSL_do_handshake_usm
+
+type Func__uretprobe__BIO_new_socket_usm struct {
+	Program__uretprobe__BIO_new_socket *ebpf.Program `ebpf:"uretprobe__BIO_new_socket"`
+}
+
+var Func__uretprobe__BIO_new_socket_usm_var Func__uretprobe__BIO_new_socket_usm
+
+type Func__uretprobe__SSL_write_usm struct {
+	Program__uretprobe__SSL_write *ebpf.Program `ebpf:"uretprobe__SSL_write"`
+}
+
+var Func__uretprobe__SSL_write_usm_var Func__uretprobe__SSL_write_usm
+
+type Func__uprobe__gnutls_handshake_usm struct {
+	Program__uprobe__gnutls_handshake *ebpf.Program `ebpf:"uprobe__gnutls_handshake"`
+}
+
+var Func__uprobe__gnutls_handshake_usm_var Func__uprobe__gnutls_handshake_usm
+
+type Func__socket__http2_filter_usm struct {
+	Program__socket__http2_filter *ebpf.Program `ebpf:"socket__http2_filter"`
+}
+
+var Func__socket__http2_filter_usm_var Func__socket__http2_filter_usm
+
+type Func__uprobe__crypto_tls_Conn_Read__return_usm struct {
+	Program__uprobe__crypto_tls_Conn_Read__return *ebpf.Program `ebpf:"uprobe__crypto_tls_Conn_Read__return"`
+}
+
+var Func__uprobe__crypto_tls_Conn_Read__return_usm_var Func__uprobe__crypto_tls_Conn_Read__return_usm
+
+type Func__uretprobe__SSL_read_usm struct {
+	Program__uretprobe__SSL_read *ebpf.Program `ebpf:"uretprobe__SSL_read"`
+}
+
+var Func__uretprobe__SSL_read_usm_var Func__uretprobe__SSL_read_usm
 
 var interfaceMap = map[string]interface{}{
-	"ebpf":             &EBPFPrograms__ebpf_var,
-	"oom_kill":         &EBPFPrograms__oom_kill_var,
-	"shared_libraries": &EBPFPrograms__shared_libraries_var,
-	"tcp_queue_length": &EBPFPrograms__tcp_queue_length_var,
-	"tracer_fentry":    &EBPFPrograms__tracer_fentry_var,
-	"tracer":           &EBPFPrograms__tracer_var,
-	"usm":              &EBPFPrograms__usm_var,
+	"tp_fcntl_enter_ebpf":               &Func__tp_fcntl_enter_ebpf_var,
+	"k_map_update_ebpf":                 &Func__k_map_update_ebpf_var,
+	"tp_mmap_enter_ebpf":                &Func__tp_mmap_enter_ebpf_var,
+	"tp_bpf_exit_ebpf":                  &Func__tp_bpf_exit_ebpf_var,
+	"tp_mmap_exit_ebpf":                 &Func__tp_mmap_exit_ebpf_var,
+	"k_map_alloc_ebpf":                  &Func__k_map_alloc_ebpf_var,
+	"tp_fcntl_exit_ebpf":                &Func__tp_fcntl_exit_ebpf_var,
+	"k_pe_open_ebpf":                    &Func__k_pe_open_ebpf_var,
+	"tp_pe_open_exit_ebpf":              &Func__tp_pe_open_exit_ebpf_var,
+	"kprobe__oom_kill_process_oom_kill": &Func__kprobe__oom_kill_process_oom_kill_var,
+	"tracepoint__syscalls__sys_enter_openat2_shared_libraries": &Func__tracepoint__syscalls__sys_enter_openat2_shared_libraries_var,
+	"tracepoint__syscalls__sys_exit_openat2_shared_libraries":  &Func__tracepoint__syscalls__sys_exit_openat2_shared_libraries_var,
+	"tracepoint__syscalls__sys_enter_openat_shared_libraries":  &Func__tracepoint__syscalls__sys_enter_openat_shared_libraries_var,
+	"tracepoint__syscalls__sys_exit_openat_shared_libraries":   &Func__tracepoint__syscalls__sys_exit_openat_shared_libraries_var,
+	"kprobe__tcp_recvmsg_tcp_queue_length":                     &Func__kprobe__tcp_recvmsg_tcp_queue_length_var,
+	"kretprobe__tcp_recvmsg_tcp_queue_length":                  &Func__kretprobe__tcp_recvmsg_tcp_queue_length_var,
+	"kprobe__tcp_sendmsg_tcp_queue_length":                     &Func__kprobe__tcp_sendmsg_tcp_queue_length_var,
+	"kretprobe__tcp_sendmsg_tcp_queue_length":                  &Func__kretprobe__tcp_sendmsg_tcp_queue_length_var,
+	"udp_destroy_sock_tracer_fentry":                           &Func__udp_destroy_sock_tracer_fentry_var,
+	"tcp_recvmsg_exit_tracer_fentry":                           &Func__tcp_recvmsg_exit_tracer_fentry_var,
+	"udp_recvmsg_exit_pre_5_19_0_tracer_fentry":                &Func__udp_recvmsg_exit_pre_5_19_0_tracer_fentry_var,
+	"tcp_connect_tracer_fentry":                                &Func__tcp_connect_tracer_fentry_var,
+	"udpv6_recvmsg_exit_tracer_fentry":                         &Func__udpv6_recvmsg_exit_tracer_fentry_var,
+	"inet6_bind_enter_tracer_fentry":                           &Func__inet6_bind_enter_tracer_fentry_var,
+	"udp_recvmsg_tracer_fentry":                                &Func__udp_recvmsg_tracer_fentry_var,
+	"udpv6_recvmsg_tracer_fentry":                              &Func__udpv6_recvmsg_tracer_fentry_var,
+	"tcp_retransmit_skb_exit_tracer_fentry":                    &Func__tcp_retransmit_skb_exit_tracer_fentry_var,
+	"tcp_close_tracer_fentry":                                  &Func__tcp_close_tracer_fentry_var,
+	"inet6_bind_exit_tracer_fentry":                            &Func__inet6_bind_exit_tracer_fentry_var,
+	"skb_consume_udp_tracer_fentry":                            &Func__skb_consume_udp_tracer_fentry_var,
+	"tcp_sendmsg_exit_tracer_fentry":                           &Func__tcp_sendmsg_exit_tracer_fentry_var,
+	"inet_bind_enter_tracer_fentry":                            &Func__inet_bind_enter_tracer_fentry_var,
+	"udp_sendpage_exit_tracer_fentry":                          &Func__udp_sendpage_exit_tracer_fentry_var,
+	"__skb_free_datagram_locked_tracer_fentry":                 &Func____skb_free_datagram_locked_tracer_fentry_var,
+	"udp_destroy_sock_exit_tracer_fentry":                      &Func__udp_destroy_sock_exit_tracer_fentry_var,
+	"kprobe__udp_v6_send_skb_tracer_fentry":                    &Func__kprobe__udp_v6_send_skb_tracer_fentry_var,
+	"tcp_sendpage_exit_tracer_fentry":                          &Func__tcp_sendpage_exit_tracer_fentry_var,
+	"tcp_finish_connect_tracer_fentry":                         &Func__tcp_finish_connect_tracer_fentry_var,
+	"inet_csk_accept_exit_tracer_fentry":                       &Func__inet_csk_accept_exit_tracer_fentry_var,
+	"kprobe__udp_send_skb_tracer_fentry":                       &Func__kprobe__udp_send_skb_tracer_fentry_var,
+	"tcp_close_exit_tracer_fentry":                             &Func__tcp_close_exit_tracer_fentry_var,
+	"udpv6_recvmsg_exit_pre_5_19_0_tracer_fentry":              &Func__udpv6_recvmsg_exit_pre_5_19_0_tracer_fentry_var,
+	"udp_sendmsg_exit_tracer_fentry":                           &Func__udp_sendmsg_exit_tracer_fentry_var,
+	"tcp_recvmsg_exit_pre_5_19_0_tracer_fentry":                &Func__tcp_recvmsg_exit_pre_5_19_0_tracer_fentry_var,
+	"skb_free_datagram_locked_tracer_fentry":                   &Func__skb_free_datagram_locked_tracer_fentry_var,
+	"inet_csk_listen_stop_enter_tracer_fentry":                 &Func__inet_csk_listen_stop_enter_tracer_fentry_var,
+	"inet_bind_exit_tracer_fentry":                             &Func__inet_bind_exit_tracer_fentry_var,
+	"udpv6_destroy_sock_tracer_fentry":                         &Func__udpv6_destroy_sock_tracer_fentry_var,
+	"udpv6_sendmsg_exit_tracer_fentry":                         &Func__udpv6_sendmsg_exit_tracer_fentry_var,
+	"tcp_retransmit_skb_tracer_fentry":                         &Func__tcp_retransmit_skb_tracer_fentry_var,
+	"udpv6_destroy_sock_exit_tracer_fentry":                    &Func__udpv6_destroy_sock_exit_tracer_fentry_var,
+	"udp_recvmsg_exit_tracer_fentry":                           &Func__udp_recvmsg_exit_tracer_fentry_var,
+	"kprobe__udp_recvmsg_pre_4_1_0_tracer":                     &Func__kprobe__udp_recvmsg_pre_4_1_0_tracer_var,
+	"kprobe__ip6_make_skb__pre_4_7_0_tracer":                   &Func__kprobe__ip6_make_skb__pre_4_7_0_tracer_var,
+	"tracepoint__net__net_dev_queue_tracer":                    &Func__tracepoint__net__net_dev_queue_tracer_var,
+	"kprobe__tcp_connect_tracer":                               &Func__kprobe__tcp_connect_tracer_var,
+	"kprobe__tcp_recvmsg_tracer":                               &Func__kprobe__tcp_recvmsg_tracer_var,
+	"kretprobe__inet_csk_accept_tracer":                        &Func__kretprobe__inet_csk_accept_tracer_var,
+	"kprobe__tcp_sendmsg_tracer":                               &Func__kprobe__tcp_sendmsg_tracer_var,
+	"kprobe__tcp_close_tracer":                                 &Func__kprobe__tcp_close_tracer_var,
+	"kprobe__udpv6_recvmsg_pre_4_1_0_tracer":                   &Func__kprobe__udpv6_recvmsg_pre_4_1_0_tracer_var,
+	"kretprobe__ip_make_skb_tracer":                            &Func__kretprobe__ip_make_skb_tracer_var,
+	"kretprobe__udpv6_destroy_sock_tracer":                     &Func__kretprobe__udpv6_destroy_sock_tracer_var,
+	"kprobe__udpv6_destroy_sock_tracer":                        &Func__kprobe__udpv6_destroy_sock_tracer_var,
+	"kprobe__udp_recvmsg_tracer":                               &Func__kprobe__udp_recvmsg_tracer_var,
+	"kprobe__tcp_recvmsg__pre_4_1_0_tracer":                    &Func__kprobe__tcp_recvmsg__pre_4_1_0_tracer_var,
+	"kretprobe__tcp_sendmsg_tracer":                            &Func__kretprobe__tcp_sendmsg_tracer_var,
+	"kprobe__tcp_retransmit_skb_tracer":                        &Func__kprobe__tcp_retransmit_skb_tracer_var,
+	"kretprobe__udpv6_recvmsg_pre_4_7_0_tracer":                &Func__kretprobe__udpv6_recvmsg_pre_4_7_0_tracer_var,
+	"kretprobe__tcp_recvmsg_tracer":                            &Func__kretprobe__tcp_recvmsg_tracer_var,
+	"kretprobe__tcp_read_sock_tracer":                          &Func__kretprobe__tcp_read_sock_tracer_var,
+	"kprobe__ip6_make_skb_tracer":                              &Func__kprobe__ip6_make_skb_tracer_var,
+	"kretprobe__inet_bind_tracer":                              &Func__kretprobe__inet_bind_tracer_var,
+	"socket__classifier_dbs_tracer":                            &Func__socket__classifier_dbs_tracer_var,
+	"kretprobe__tcp_close_flush_tracer":                        &Func__kretprobe__tcp_close_flush_tracer_var,
+	"kretprobe__udp_sendpage_tracer":                           &Func__kretprobe__udp_sendpage_tracer_var,
+	"kprobe__inet_bind_tracer":                                 &Func__kprobe__inet_bind_tracer_var,
+	"kretprobe__tcp_retransmit_skb_tracer":                     &Func__kretprobe__tcp_retransmit_skb_tracer_var,
+	"kprobe__inet6_bind_tracer":                                &Func__kprobe__inet6_bind_tracer_var,
+	"kprobe__inet_csk_listen_stop_tracer":                      &Func__kprobe__inet_csk_listen_stop_tracer_var,
+	"kretprobe__udp_recvmsg_pre_4_7_0_tracer":                  &Func__kretprobe__udp_recvmsg_pre_4_7_0_tracer_var,
+	"socket__classifier_queues_tracer":                         &Func__socket__classifier_queues_tracer_var,
+	"kprobe__ip6_make_skb__pre_5_18_0_tracer":                  &Func__kprobe__ip6_make_skb__pre_5_18_0_tracer_var,
+	"kretprobe__inet6_bind_tracer":                             &Func__kretprobe__inet6_bind_tracer_var,
+	"kprobe__tcp_finish_connect_tracer":                        &Func__kprobe__tcp_finish_connect_tracer_var,
+	"kretprobe__ip6_make_skb_tracer":                           &Func__kretprobe__ip6_make_skb_tracer_var,
+	"kprobe__udp_destroy_sock_tracer":                          &Func__kprobe__udp_destroy_sock_tracer_var,
+	"socket__classifier_grpc_tracer":                           &Func__socket__classifier_grpc_tracer_var,
+	"kprobe__skb_free_datagram_locked_tracer":                  &Func__kprobe__skb_free_datagram_locked_tracer_var,
+	"kretprobe__udp_destroy_sock_tracer":                       &Func__kretprobe__udp_destroy_sock_tracer_var,
+	"kprobe__tcp_read_sock_tracer":                             &Func__kprobe__tcp_read_sock_tracer_var,
+	"kprobe__udpv6_recvmsg_pre_5_19_0_tracer":                  &Func__kprobe__udpv6_recvmsg_pre_5_19_0_tracer_var,
+	"kprobe__ip_make_skb_tracer":                               &Func__kprobe__ip_make_skb_tracer_var,
+	"kprobe__tcp_sendpage_tracer":                              &Func__kprobe__tcp_sendpage_tracer_var,
+	"kprobe__udpv6_recvmsg_pre_4_7_0_tracer":                   &Func__kprobe__udpv6_recvmsg_pre_4_7_0_tracer_var,
+	"socket__classifier_entry_tracer":                          &Func__socket__classifier_entry_tracer_var,
+	"kprobe__udp_recvmsg_pre_4_7_0_tracer":                     &Func__kprobe__udp_recvmsg_pre_4_7_0_tracer_var,
+	"kprobe__skb_consume_udp_tracer":                           &Func__kprobe__skb_consume_udp_tracer_var,
+	"kprobe__udp_sendpage_tracer":                              &Func__kprobe__udp_sendpage_tracer_var,
+	"kprobe__udpv6_recvmsg_tracer":                             &Func__kprobe__udpv6_recvmsg_tracer_var,
+	"kretprobe__udpv6_recvmsg_tracer":                          &Func__kretprobe__udpv6_recvmsg_tracer_var,
+	"kprobe__udp_recvmsg_pre_5_19_0_tracer":                    &Func__kprobe__udp_recvmsg_pre_5_19_0_tracer_var,
+	"kretprobe__tcp_close_clean_protocols_tracer":              &Func__kretprobe__tcp_close_clean_protocols_tracer_var,
+	"kprobe__tcp_recvmsg__pre_5_19_0_tracer":                   &Func__kprobe__tcp_recvmsg__pre_5_19_0_tracer_var,
+	"kprobe__tcp_sendmsg__pre_4_1_0_tracer":                    &Func__kprobe__tcp_sendmsg__pre_4_1_0_tracer_var,
+	"kretprobe__tcp_sendpage_tracer":                           &Func__kretprobe__tcp_sendpage_tracer_var,
+	"kprobe____skb_free_datagram_locked_tracer":                &Func__kprobe____skb_free_datagram_locked_tracer_var,
+	"kretprobe__udp_recvmsg_tracer":                            &Func__kretprobe__udp_recvmsg_tracer_var,
+	"socket__protocol_dispatcher_kafka_usm":                    &Func__socket__protocol_dispatcher_kafka_usm_var,
+	"uprobe__SSL_shutdown_usm":                                 &Func__uprobe__SSL_shutdown_usm_var,
+	"uprobe__SSL_do_handshake_usm":                             &Func__uprobe__SSL_do_handshake_usm_var,
+	"uprobe__crypto_tls_Conn_Close_usm":                        &Func__uprobe__crypto_tls_Conn_Close_usm_var,
+	"socket__http2_handle_first_frame_usm":                     &Func__socket__http2_handle_first_frame_usm_var,
+	"socket__http2_eos_parser_usm":                             &Func__socket__http2_eos_parser_usm_var,
+	"uprobe__SSL_set_bio_usm":                                  &Func__uprobe__SSL_set_bio_usm_var,
+	"uretprobe__SSL_read_ex_usm":                               &Func__uretprobe__SSL_read_ex_usm_var,
+	"uprobe__crypto_tls_Conn_Read_usm":                         &Func__uprobe__crypto_tls_Conn_Read_usm_var,
+	"uprobe__http_termination_usm":                             &Func__uprobe__http_termination_usm_var,
+	"uretprobe__gnutls_handshake_usm":                          &Func__uretprobe__gnutls_handshake_usm_var,
+	"uprobe__gnutls_transport_set_ptr2_usm":                    &Func__uprobe__gnutls_transport_set_ptr2_usm_var,
+	"uprobe__gnutls_transport_set_ptr_usm":                     &Func__uprobe__gnutls_transport_set_ptr_usm_var,
+	"uprobe__http2_tls_handle_first_frame_usm":                 &Func__uprobe__http2_tls_handle_first_frame_usm_var,
+	"uretprobe__SSL_write_ex_usm":                              &Func__uretprobe__SSL_write_ex_usm_var,
+	"kretprobe__sockfd_lookup_light_usm":                       &Func__kretprobe__sockfd_lookup_light_usm_var,
+	"socket__protocol_dispatcher_usm":                          &Func__socket__protocol_dispatcher_usm_var,
+	"uprobe__http2_tls_termination_usm":                        &Func__uprobe__http2_tls_termination_usm_var,
+	"uretprobe__SSL_connect_usm":                               &Func__uretprobe__SSL_connect_usm_var,
+	"uprobe__gnutls_record_send_usm":                           &Func__uprobe__gnutls_record_send_usm_var,
+	"uprobe__SSL_write_ex_usm":                                 &Func__uprobe__SSL_write_ex_usm_var,
+	"uretprobe__gnutls_record_recv_usm":                        &Func__uretprobe__gnutls_record_recv_usm_var,
+	"uprobe__gnutls_bye_usm":                                   &Func__uprobe__gnutls_bye_usm_var,
+	"uprobe__gnutls_deinit_usm":                                &Func__uprobe__gnutls_deinit_usm_var,
+	"tracepoint__net__netif_receive_skb_usm":                   &Func__tracepoint__net__netif_receive_skb_usm_var,
+	"kprobe__sockfd_lookup_light_usm":                          &Func__kprobe__sockfd_lookup_light_usm_var,
+	"uprobe__crypto_tls_Conn_Write__return_usm":                &Func__uprobe__crypto_tls_Conn_Write__return_usm_var,
+	"uretprobe__gnutls_record_send_usm":                        &Func__uretprobe__gnutls_record_send_usm_var,
+	"kprobe_handle_close_connection_usm":                       &Func__kprobe_handle_close_connection_usm_var,
+	"socket__http_filter_usm":                                  &Func__socket__http_filter_usm_var,
+	"kprobe_handle_sync_payload_usm":                           &Func__kprobe_handle_sync_payload_usm_var,
+	"socket__http2_headers_parser_usm":                         &Func__socket__http2_headers_parser_usm_var,
+	"uprobe__SSL_set_fd_usm":                                   &Func__uprobe__SSL_set_fd_usm_var,
+	"uprobe__SSL_read_usm":                                     &Func__uprobe__SSL_read_usm_var,
+	"uprobe__crypto_tls_Conn_Write_usm":                        &Func__uprobe__crypto_tls_Conn_Write_usm_var,
+	"uprobe__http_process_usm":                                 &Func__uprobe__http_process_usm_var,
+	"kprobe__do_vfs_ioctl_usm":                                 &Func__kprobe__do_vfs_ioctl_usm_var,
+	"uprobe__http2_tls_eos_parser_usm":                         &Func__uprobe__http2_tls_eos_parser_usm_var,
+	"uprobe__SSL_write_usm":                                    &Func__uprobe__SSL_write_usm_var,
+	"kprobe__tcp_sendmsg_usm":                                  &Func__kprobe__tcp_sendmsg_usm_var,
+	"uprobe__http2_tls_headers_parser_usm":                     &Func__uprobe__http2_tls_headers_parser_usm_var,
+	"uprobe__SSL_connect_usm":                                  &Func__uprobe__SSL_connect_usm_var,
+	"uprobe__BIO_new_socket_usm":                               &Func__uprobe__BIO_new_socket_usm_var,
+	"uprobe__SSL_read_ex_usm":                                  &Func__uprobe__SSL_read_ex_usm_var,
+	"uprobe__gnutls_record_recv_usm":                           &Func__uprobe__gnutls_record_recv_usm_var,
+	"uprobe__http2_tls_filter_usm":                             &Func__uprobe__http2_tls_filter_usm_var,
+	"kprobe_handle_async_payload_usm":                          &Func__kprobe_handle_async_payload_usm_var,
+	"uprobe__gnutls_transport_set_int2_usm":                    &Func__uprobe__gnutls_transport_set_int2_usm_var,
+	"kprobe_handle_connection_by_peer_usm":                     &Func__kprobe_handle_connection_by_peer_usm_var,
+	"socket__kafka_filter_usm":                                 &Func__socket__kafka_filter_usm_var,
+	"uretprobe__SSL_do_handshake_usm":                          &Func__uretprobe__SSL_do_handshake_usm_var,
+	"uretprobe__BIO_new_socket_usm":                            &Func__uretprobe__BIO_new_socket_usm_var,
+	"uretprobe__SSL_write_usm":                                 &Func__uretprobe__SSL_write_usm_var,
+	"uprobe__gnutls_handshake_usm":                             &Func__uprobe__gnutls_handshake_usm_var,
+	"socket__http2_filter_usm":                                 &Func__socket__http2_filter_usm_var,
+	"uprobe__crypto_tls_Conn_Read__return_usm":                 &Func__uprobe__crypto_tls_Conn_Read__return_usm_var,
+	"uretprobe__SSL_read_usm":                                  &Func__uretprobe__SSL_read_usm_var,
 }

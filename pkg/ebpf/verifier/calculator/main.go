@@ -60,7 +60,7 @@ func main() {
 	}); err != nil {
 		log.Fatalf("failed to discover all object files: %v", err)
 	}
-	stats, err := verifier.BuildVerifierStats(objectFiles)
+	stats, _, err := verifier.BuildVerifierStats(objectFiles)
 	if err != nil {
 		log.Fatalf("failed to build verifier stats: %v", err)
 	}

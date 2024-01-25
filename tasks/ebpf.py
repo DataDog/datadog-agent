@@ -16,7 +16,7 @@ except ImportError:
 from .system_probe import build_object_files, is_root
 
 headers = [
-    "Program",
+    "Filename/Program",
     "Stack Usage",
     "Instructions Processed",
     "Instructions Processed limit",
