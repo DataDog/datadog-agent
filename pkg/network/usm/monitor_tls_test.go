@@ -780,8 +780,8 @@ func setupUSMTLSMonitor(t *testing.T, cfg *config.Config) *Monitor {
 	t.Cleanup(func() {
 		usmMonitor.Stop()
 		libtelemetry.Clear()
+		utils.ResetDebugger()
 	})
-	t.Cleanup(utils.ResetDebugger)
 	return usmMonitor
 }
 
