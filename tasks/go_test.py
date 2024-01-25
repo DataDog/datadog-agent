@@ -342,8 +342,6 @@ def test(
     covermode_opt = "-covermode=" + ("atomic" if race else "count") if coverage else ""
     build_cpus_opt = f"-p {cpus}" if cpus else ""
 
-    coverprofile = f"-coverprofile={PROFILE_COV}" if coverage else ""
-
     nocache = '-count=1' if not cache else ''
 
     if save_result_json and os.path.isfile(save_result_json):
@@ -364,11 +362,11 @@ def test(
         '-mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" -ldflags="{ldflags}" {build_cpus} {race_opt}'
     )
     govet_flags = '-vet=off'
-    gotest_flags = '{verbose} -timeout {timeout}s -short {covermode_opt} {coverprofile} {test_run_arg} {nocache}'
+    gotest_flags = '{verbose} -timeout {timeout}s -short {covermode_opt} {test_run_arg} {nocache}'
     cmd = f'gotestsum {gotestsum_flags} -- {gobuild_flags} {govet_flags} {gotest_flags}'
     if coverage:
         if platform.system() == 'Windows':
-            coverage_script_template = f"""$tempFile = (".\\coverage.out.rerun." + ([guid]::NewGuid().ToString().Replace("-", "").Substring(0, 10)))
+            coverage_script_template = f"""$tempFile = (".\\{TMP_PROFILE_COV_PREFIX}." + ([guid]::NewGuid().ToString().Replace("-", "").Substring(0, 10)))
 go test {gobuild_flags} {govet_flags} {gotest_flags} -json -coverprofile="$tempFile" {{packages}}
 exit $LASTEXITCODE"""
         else:
@@ -385,7 +383,6 @@ go test {gobuild_flags} {govet_flags} {gotest_flags} -json -coverprofile=\"$(mkt
         "race_opt": race_opt,
         "build_cpus": build_cpus_opt,
         "covermode_opt": covermode_opt,
-        "coverprofile": coverprofile,
         "test_run_arg": test_run_arg,
         "timeout": int(timeout),
         "verbose": '-v' if verbose else '',
