@@ -842,6 +842,25 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedDynamicTablePathIndexes: []int{1, 7, 13, 19, 25, 31, 37, 43, 49, 55},
 		},
+		{
+			name: "validate path sent by value (:path)",
+			// The purpose of this test is to verify our ability to identify paths with index 4.
+			messageBuilder: func() []byte {
+
+				headerFields := removeHeaderFieldByKey(testHeaders(), ":path")
+				headersFrame, err := usmhttp2.NewHeadersFrameMessage(headerFields)
+				require.NoError(t, err, "could not create headers frame")
+
+				// pathHeaderField is created with a key that sent by value (:path) and
+				// the value (of the path) is /aaa.
+				pathHeaderField := []byte{0x40, 0x84, 0xb9, 0x58, 0xd3, 0x3f, 0x83, 0x60, 0x63, 0x1f}
+				headersFrame = append(pathHeaderField, headersFrame...)
+				framer := newFramer()
+				return framer.writeRawHeaders(t, 1, headersFrame).
+					writeData(t, 1, true, []byte{}).bytes()
+			},
+			expectedEndpoints: nil,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1239,9 +1258,9 @@ func validateDynamicTableMap(t *testing.T, ebpfProgram *ebpfProgram, expectedDyn
 func validateHuffmanEncoded(t *testing.T, ebpfProgram *ebpfProgram, expectedHuffmanEncoded map[int]bool) {
 	dynamicTableMap, _, err := ebpfProgram.GetMap("http2_dynamic_table")
 	require.NoError(t, err)
-	iterator := dynamicTableMap.Iterate()
 	key := make([]byte, dynamicTableMap.KeySize())
 	value := make([]byte, dynamicTableMap.ValueSize())
+	iterator := dynamicTableMap.Iterate()
 	resultEncodedPaths := make(map[int]bool, 0)
 	for iterator.Next(&key, &value) {
 		tableEntry := usmhttp2.Http2DynamicTableEntry{}
