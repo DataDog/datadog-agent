@@ -2406,6 +2406,7 @@
 							"AverageExecutionTime":8,
 							"CheckConfigSource":"file:/etc/datadog-agent/conf.d/cilium.d/auto_conf.yaml",
 							"CheckID":"cilium:bac99095d52d45c",
+						 	"LongRunning": false,
 							"CheckName":"cilium",
 							"CheckVersion":"2.3.0",
 							"EventPlatformEvents":{
@@ -2473,6 +2474,7 @@
 							"AverageExecutionTime":29,
 							"CheckConfigSource":"file:/etc/datadog-agent/conf.d/datadog_cluster_agent.d/auto_conf.yaml",
 							"CheckID":"datadog_cluster_agent:4b0f56c49d48c92e",
+						 	"LongRunning": false,
 							"CheckName":"datadog_cluster_agent",
 							"CheckVersion":"2.4.0",
 							"EventPlatformEvents":{
@@ -2538,6 +2540,7 @@
 							"AverageExecutionTime":25,
 							"CheckConfigSource":"file:/etc/datadog-agent/conf.d/datadog_cluster_agent.d/auto_conf.yaml",
 							"CheckID":"datadog_cluster_agent:79dc7329a0398f09",
+						 	"LongRunning": false,
 							"CheckName":"datadog_cluster_agent",
 							"CheckVersion":"2.4.0",
 							"EventPlatformEvents":{
@@ -2605,6 +2608,7 @@
 							"AverageExecutionTime":6,
 							"CheckConfigSource":"file:/etc/datadog-agent/conf.d/network.d/conf.yaml.default",
 							"CheckID":"network:d884b5186b651429",
+						 	"LongRunning": false,
 							"CheckName":"network",
 							"CheckVersion":"2.9.2",
 							"EventPlatformEvents":{

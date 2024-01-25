@@ -29,6 +29,7 @@ Collector
     {{printDashes $CheckName "-"}}{{- if $version }}{{printDashes $version "-"}}---{{ end }}
     {{- range $instance := $CheckInstances }}
       Instance ID: {{.CheckID}} {{status .}}
+      Long Running Check: {{.LongRunning}}
       Configuration Source: {{.CheckConfigSource}}
       {{- if not .LongRunning }}
       Total Runs: {{humanize .TotalRuns}}
