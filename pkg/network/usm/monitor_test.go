@@ -97,6 +97,14 @@ type httpTestSuite struct {
 	isTLS bool
 }
 
+func (s *httpTestSuite) getCfg() *config.Config {
+	cfg := config.New()
+	cfg.EnableHTTPMonitoring = true
+	cfg.EnableGoTLSSupport = s.isTLS
+	cfg.GoTLSExcludeSelf = s.isTLS
+	return cfg
+}
+
 func TestHTTP(t *testing.T) {
 	if kv < http.MinimumKernelVersion {
 		t.Skipf("USM is not supported on %v", kv)
