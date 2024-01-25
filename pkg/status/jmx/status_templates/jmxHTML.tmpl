@@ -1,0 +1,60 @@
+  <div class="stat">
+    <span class="stat_title">JMX Status</span>
+    <span class="stat_data">
+      {{ if .JMXStartupError.LastError }}
+      <span class="stat_subtitle">JMX startup errors</span>
+        <span class="stat_subdata">
+          Error: {{ .JMXStartupError.LastError }} <br>
+          Date: {{ formatUnixTime .JMXStartupError.Timestamp }}
+        </span>
+      {{ end -}}
+      {{- with .JMXStatus -}}
+        {{- if and (not .timestamp) (not .checks)}}
+          No JMX status available
+        {{- else }}
+          <span class="stat_subtitle">Information</span>
+          <span class="stat_subdata">
+            {{- range $k,$v := .info }}
+              {{ $k }} : {{ $v }}<br>
+            {{- end }}
+            {{- if .errors }}
+              Socket errors: {{ .errors }}
+            {{- end }}
+          </span>
+          <span class="stat_subtitle">Initialized Checks</span>
+          <span class="stat_subdata">
+            {{- if (not .checks.initialized_checks)}}
+              No initialized checks
+            {{ else }}
+              {{- range $check,$instances := .checks.initialized_checks }}
+                {{ $check -}}<br>
+                {{- range $instance := $instances }}
+                    instance_name: {{ .instance_name }}<br>
+                    metric_count: {{ .metric_count }}<br>
+                    service_check_count: {{ .service_check_count }}<br>
+                    message: {{ .message }}<br>
+                    status: {{ .status }}<br>
+                    <br>
+                {{- end -}}
+              {{- end }}
+            {{- end -}}
+          </span>
+          <span class="stat_subtitle">Failed Checks</span>
+          <span class="stat_subdata">
+            {{- if (not .checks.failed_checks)}}
+              No failed checks
+            {{ else }}
+              {{- range $check,$instances := .checks.failed_checks }}
+                {{ $check }}<br>
+                {{- range $instance := $instances }}
+                  {{- range $k,$v := $instance }}
+                    {{ $k }} : {{ $v }}<br>
+                  {{- end -}}
+                {{- end -}}
+              {{- end -}}
+            {{- end -}}
+          </span>
+        {{- end -}}
+      {{- end -}}
+    </span>
+  </div>

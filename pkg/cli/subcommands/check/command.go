@@ -62,6 +62,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -181,7 +182,9 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				}),
 
 				fx.Supply(
-					status.Params{},
+					status.Params{
+						PythonVersionGetFunc: func() string { return python.GetPythonVersion() },
+					},
 					status.NewInformationProvider(statuscollector.Provider{}),
 				),
 				statusimpl.Module(),
